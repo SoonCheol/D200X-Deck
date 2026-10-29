@@ -30,8 +30,8 @@ function createWindow() {
       sandbox: false,
     },
   });
-  win.webContents.on('console-message', (_e, level, message, line, source) => {
-    console.log(`[renderer:${level}] ${message} (${source}:${line})`);
+  win.webContents.on('console-message', (event) => {
+    console.log(`[renderer:${event.level}] ${event.message} (${event.sourceId}:${event.lineNumber})`);
   });
   win.webContents.on('preload-error', (_e, p, err) => console.error('[preload]', p, err));
   win.webContents.on('did-fail-load', (_e, code, desc) => console.error('[load]', code, desc));
@@ -109,8 +109,14 @@ function buildMenu() {
 
 function initDeck() {
   deck = new Deck();
-  deck.on('status', (status) => send('deck:status', status));
-  deck.on('key', (event) => send('deck:key', event));
+  deck.on('status', (status) => {
+    console.log(`[deck] ${status.connected ? 'connected' : 'offline'}: ${status.message}`);
+    send('deck:status', status);
+  });
+  deck.on('key', (event) => {
+    console.log(`[deck] key index=${event.index} ${event.pressed ? 'down' : 'up'}`);
+    send('deck:key', event);
+  });
   deck.on('brightness', (level) => send('deck:brightness', level));
   deck.on('error', (message) => send('deck:error', message));
 
@@ -164,6 +170,7 @@ ipcMain.handle('deck:push', async (_evt, images) => {
   try {
     const zip = await buildPage(images);
     deck.pushPage(zip);
+    console.log(`[deck] pushed page: ${images.length} keys, ${(zip.length / 1024).toFixed(1)} KB`);
     return { ok: true, bytes: zip.length };
   } catch (err) {
     return { ok: false, error: err.message || String(err) };

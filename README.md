@@ -29,6 +29,10 @@ npm start
 
 **Quit Ulanzi Studio first** — the deck's control interface is exclusive.
 
+Hotkey actions are sent through AppleScript / System Events, so macOS asks for
+Accessibility permission the first time. Open-app/URL and shell actions need no
+special permission.
+
 Build a standalone app:
 
 ```bash

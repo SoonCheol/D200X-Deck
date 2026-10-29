@@ -464,6 +464,7 @@ async function pushNow() {
     if (!res.ok) throw new Error(res.error || 'push failed');
     $('#push-state').textContent = `pushed · ${(res.bytes / 1024).toFixed(1)} KB`;
     state.config.settings.lastPush = Date.now();
+    scheduleSave();
   } catch (err) {
     $('#push-state').textContent = 'push failed';
     toast(err.message || String(err), true);

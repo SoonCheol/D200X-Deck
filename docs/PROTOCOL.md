@@ -162,7 +162,8 @@ The original app and its signature were not modified.
 
 ## 7. Open questions
 
-* Exact key-event frame layout (`cmd`/`proto` and payload encoding of `position/kind/value`).
-* Whether the D200 needs an explicit "page ready" ack before accepting the next frame.
-* Battery/status semantics (`cmd 1 / proto 1`).
-* D200H / D200X variants (knobs, different grids) and BLE transport.
+* Whether the D200 needs an explicit "page ready" ack before accepting the next frame
+  (not observed: back-to-back frames work).
+* Battery/charging status command (the vendor app exposes it for some models; not seen on D200).
+* D200H / D200X variants (knob events, different grids) and BLE transport.
+* Whether the firmware caches images by filename (our writer uses content hashes to be safe).
