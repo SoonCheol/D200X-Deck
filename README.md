@@ -13,7 +13,8 @@ actions, and it talks to the deck directly over HID — no vendor app required.
 * **Pages** — multiple pages, page-switch keys, auto-push on edit.
 * **Keys** — emoji, label, background colour, or a custom image (click or drag & drop).
   The wide key renders at 402×196.
-* **Actions** — open an app (with an application picker and its real icon), open a URL
+* **Actions** — open an app (searchable in-app picker with real app icons and a
+  “Use app icon” button), open a URL
   (fetches the site's icon automatically), run a shell command, send a hotkey, switch
   page, **or run an existing Node.js Ulanzi plugin action**.
 * **Device control** — brightness (0–100 %), screen sleep timeout, clock sync.

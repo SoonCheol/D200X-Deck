@@ -9,6 +9,7 @@ const { Store } = require('./lib/store');
 const { buildPage } = require('./lib/page');
 const { PluginManager, pluginRootDirs } = require('./lib/plugins');
 const { fetchSiteIcon } = require('./lib/siteicon');
+const { appIconDataUrl } = require('./lib/appicon');
 const actions = require('./lib/actions');
 
 let win = null;
@@ -70,11 +71,17 @@ function createWindow() {
             );
             await new Promise((r) => setTimeout(r, 500));
           }
+          if (process.env.ULANZI_APPICON) {
+            await win.webContents.executeJavaScript(
+              "document.querySelector('#insp-use-app-icon')?.click(); true"
+            );
+            await new Promise((r) => setTimeout(r, 1200));
+          }
           if (process.env.ULANZI_APPS) {
             await win.webContents.executeJavaScript(
               "document.querySelector('#insp-pick-app')?.click(); true"
             );
-            await new Promise((r) => setTimeout(r, 700));
+            await new Promise((r) => setTimeout(r, 1500));
           }
           const image = await win.webContents.capturePage();
           fs.writeFileSync(process.env.ULANZI_SHOT, image.toPNG());
@@ -388,6 +395,11 @@ ipcMain.handle('dialog:pick-image', async () => {
 });
 
 ipcMain.handle('apps:list', () => listApps());
+
+ipcMain.handle('apps:icon', async (_evt, appPath) => {
+  if (typeof appPath !== 'string' || !/\.app$/i.test(appPath)) return null;
+  return appIconDataUrl(appPath);
+});
 
 ipcMain.handle('fetch:site-icon', async (_evt, url) => {
   try {

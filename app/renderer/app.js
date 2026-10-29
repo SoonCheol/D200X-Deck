@@ -391,6 +391,7 @@ function renderInspector() {
           <div>Drop an image here or click to choose</div>
         </div>
       </div>
+      ${action.type === 'app' && action.value ? '<button class="btn icon-remove" id="insp-use-app-icon">Use app icon</button>' : ''}
       ${key.icon ? '<button class="btn danger icon-remove" id="insp-icon-remove">Remove image</button>' : ''}
     </div>
 
@@ -453,6 +454,20 @@ function renderInspector() {
     commit();
     renderInspector();
   });
+
+  const useAppIcon = $('#insp-use-app-icon');
+  if (useAppIcon) {
+    useAppIcon.addEventListener('click', async () => {
+      const icon = await api.appIcon(String(key.action.value || ''));
+      if (!icon) return toast('No app icon found', true);
+      key.icon = icon;
+      key.iconSource = 'app';
+      drawIndex(state.selected);
+      commit();
+      renderInspector();
+      toast('App icon applied');
+    });
+  }
 
   const removeImage = $('#insp-icon-remove');
   if (removeImage) {
@@ -781,6 +796,47 @@ function toast(message, bad = false) {
 // --------------------------------------------------------------- app picker
 
 let appPickerKey = null;
+const appIconCache = new Map();
+const appIconQueue = [];
+let appIconActive = 0;
+
+function pumpAppIcons() {
+  while (appIconActive < 4 && appIconQueue.length) {
+    const { path, el } = appIconQueue.shift();
+    appIconActive++;
+    api
+      .appIcon(path)
+      .then((icon) => {
+        appIconCache.set(path, icon);
+        if (icon && el.isConnected) {
+          const img = document.createElement('img');
+          img.src = icon;
+          img.alt = '';
+          el.replaceChildren(img);
+        }
+      })
+      .finally(() => {
+        appIconActive--;
+        pumpAppIcons();
+      });
+  }
+}
+
+function queueAppIcon(path, el) {
+  if (!path || !el) return;
+  if (appIconCache.has(path)) {
+    const icon = appIconCache.get(path);
+    if (icon) {
+      const img = document.createElement('img');
+      img.src = icon;
+      img.alt = '';
+      el.replaceChildren(img);
+    }
+    return;
+  }
+  appIconQueue.push({ path, el });
+  pumpAppIcons();
+}
 
 async function openAppPicker() {
   appPickerKey = ensureKey(activePage(), state.selected);
@@ -809,7 +865,7 @@ function renderAppList(query) {
   list.innerHTML = apps
     .map(
       (a) => `<button class="app-row" data-path="${esc(a.path)}" data-name="${esc(a.name)}">
-        <div class="app-avatar">${esc((a.name[0] || 'A').toUpperCase())}</div>
+        <div class="app-avatar" data-path="${esc(a.path)}">${esc((a.name[0] || 'A').toUpperCase())}</div>
         <div class="app-meta">
           <div class="app-name">${esc(a.name)}</div>
           <div class="app-path">${esc(a.path)}</div>
@@ -817,15 +873,27 @@ function renderAppList(query) {
       </button>`
     )
     .join('');
+  list.querySelectorAll('.app-avatar').forEach((el) => queueAppIcon(el.dataset.path, el));
   list.querySelectorAll('.app-row').forEach((row) => {
     row.addEventListener('click', () => {
       const key = appPickerKey;
       if (!key) return;
+      const index = state.selected;
       key.action = { type: 'app', value: row.dataset.path };
       if (!key.emoji) key.emoji = row.dataset.name;
       commit();
       closeAppPicker();
       renderInspector();
+      if (!key.icon) {
+        api.appIcon(row.dataset.path).then((icon) => {
+          if (!icon) return;
+          key.icon = icon;
+          key.iconSource = 'app';
+          if (state.selected === index) drawIndex(index);
+          commit();
+          renderInspector();
+        });
+      }
     });
   });
 }
