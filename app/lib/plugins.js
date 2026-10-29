@@ -229,14 +229,23 @@ class PluginManager extends EventEmitter {
     );
     this.children.set(pluginUuid, proc);
     const prefix = `[plugin ${meta.name}]`;
-    const writeLog = (stream, data) => {
-      for (const line of data.toString().split('\n')) {
-        if (!line.trim()) continue;
-        stream.write(`${prefix} ${line.slice(0, 400)}${line.length > 400 ? '…' : ''}\n`);
-      }
+    const lineLogger = (stream) => {
+      let buffer = '';
+      return (data) => {
+        buffer += data.toString();
+        let idx;
+        while ((idx = buffer.indexOf('\n')) >= 0) {
+          const line = buffer.slice(0, idx);
+          buffer = buffer.slice(idx + 1);
+          if (line.trim()) {
+            stream.write(`${prefix} ${line.slice(0, 400)}${line.length > 400 ? '…' : ''}\n`);
+          }
+        }
+        if (buffer.length > 200000) buffer = buffer.slice(-2000);
+      };
     };
-    proc.stdout.on('data', (d) => writeLog(process.stdout, d));
-    proc.stderr.on('data', (d) => writeLog(process.stderr, d));
+    proc.stdout.on('data', lineLogger(process.stdout));
+    proc.stderr.on('data', lineLogger(process.stderr));
     proc.on('exit', (code) => {
       if (this.children.get(pluginUuid) === proc) this.children.delete(pluginUuid);
       const ws = this.sockets.get(pluginUuid);
