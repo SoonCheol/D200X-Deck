@@ -14,6 +14,8 @@ let win = null;
 let store = null;
 let deck = null;
 let plugins = null;
+let seizeProc = null;
+let seizeWarned = false;
 let reconnectTimer = null;
 
 function createWindow() {
@@ -150,11 +152,43 @@ function initPlugins() {
   plugins.on('connected', (uuid) => console.log('[plugins] connected', uuid));
 }
 
+function startHidSeize() {
+  const bin = app.isPackaged
+    ? path.join(process.resourcesPath, 'bin', 'hidseize')
+    : path.join(__dirname, 'bin', 'hidseize');
+  if (!fs.existsSync(bin)) return;
+  if (seizeProc && seizeProc.exitCode === null) return;
+  seizeProc = spawnHelper(bin);
+}
+
+function spawnHelper(bin) {
+  const { spawn } = require('node:child_process');
+  const proc = spawn(bin, [], { stdio: ['ignore', 'pipe', 'pipe'] });
+  proc.stdout.on('data', (d) => console.log('[seize]', d.toString().trim()));
+  proc.stderr.on('data', (d) => {
+    const text = d.toString().trim();
+    console.log('[seize]', text);
+    if (text.includes('notpermitted') && !seizeWarned) {
+      seizeWarned = true;
+      send('seize:permission', true);
+    }
+    if (text.startsWith('seized')) {
+      seizeWarned = false;
+      send('seize:permission', false);
+    }
+  });
+  proc.on('exit', () => {
+    if (seizeProc === proc) seizeProc = null;
+  });
+  return proc;
+}
+
 app.whenReady().then(() => {
   store = new Store(process.env.ULANZI_CONFIG_DIR || app.getPath('userData'));
   store.load();
   initDeck();
   initPlugins();
+  startHidSeize();
   createWindow();
   buildMenu();
 
@@ -171,6 +205,9 @@ app.on('before-quit', () => {
   if (reconnectTimer) clearInterval(reconnectTimer);
   if (deck) deck.disconnect('App closed');
   if (plugins) plugins.stopAll();
+  if (seizeProc) {
+    try { seizeProc.kill(); } catch { /* ignore */ }
+  }
 });
 
 // ---------------------------------------------------------------- IPC
@@ -202,6 +239,15 @@ ipcMain.handle('deck:push', async (_evt, images) => {
 ipcMain.handle('deck:brightness', (_evt, level) => {
   try {
     deck.setBrightness(level);
+    return { ok: true };
+  } catch (err) {
+    return { ok: false, error: err.message || String(err) };
+  }
+});
+
+ipcMain.handle('deck:wide-mode', () => {
+  try {
+    deck.cycleWidePanel();
     return { ok: true };
   } catch (err) {
     return { ok: false, error: err.message || String(err) };

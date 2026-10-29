@@ -32,7 +32,16 @@ async function buildPage(images) {
 
   for (const item of images) {
     const index = item.index;
-    const slot = index === WIDE_INDEX ? WIDE_SLOT : `${index % COLUMNS}_${Math.floor(index / COLUMNS)}`;
+    if (index === WIDE_INDEX) {
+      // System panel: let the firmware render its small window (clock/stats).
+      manifest[WIDE_SLOT] = {
+        State: 0,
+        SmallViewMode: 1,
+        ViewParam: [{ Font: DEFAULT_FONT, Text: '' }],
+      };
+      continue;
+    }
+    const slot = `${index % COLUMNS}_${Math.floor(index / COLUMNS)}`;
     const data = Buffer.isBuffer(item.png) ? item.png : Buffer.from(item.png, 'base64');
     // Content-addressed names: the firmware may cache by path, and deduping
     // identical keys keeps the ZIP small.

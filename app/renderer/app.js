@@ -780,6 +780,10 @@ function bind() {
       tile.classList.add('pressed');
       setTimeout(() => tile.classList.remove('pressed'), 160);
     }
+    if (index === WIDE_KEY_INDEX) {
+      api.wideMode().catch((err) => toast(err.message || String(err), true));
+      return;
+    }
     const key = activePage().keys[index];
     if (!key || !key.action) return;
     if (key.action.type === 'page') {
@@ -832,6 +836,12 @@ function bind() {
 
   api.onPluginError((message) => toast(message, true));
   api.onPluginAlert(() => toast('Plugin error', true));
+
+  api.onSeizePermission((needed) => {
+    if (needed) {
+      toast('Grant Input Monitoring to stop the wide key typing the Ulanzi URL', true);
+    }
+  });
   api.onBrightness(() => {
     // The device echoes the value as BCD (e.g. 0x86 for 86). The slider is
     // authoritative for the UI, so we do not rewrite it from the echo.

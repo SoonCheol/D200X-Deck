@@ -14,6 +14,7 @@ contextBridge.exposeInMainWorld('deckApp', {
   pushPage: (images) => ipcRenderer.invoke('deck:push', images),
   setBrightness: (level) => ipcRenderer.invoke('deck:brightness', level),
   setSleepTime: (seconds) => ipcRenderer.invoke('deck:sleep', seconds),
+  wideMode: () => ipcRenderer.invoke('deck:wide-mode'),
   reconnect: () => ipcRenderer.invoke('deck:reconnect'),
   runAction: (action) => ipcRenderer.invoke('action:run', action),
   pickImage: () => ipcRenderer.invoke('dialog:pick-image'),
@@ -31,4 +32,5 @@ contextBridge.exposeInMainWorld('deckApp', {
   onPluginToast: (cb) => subscribe('plugin:toast', cb),
   onPluginError: (cb) => subscribe('plugin:error', cb),
   onPluginAlert: (cb) => subscribe('plugin:alert', cb),
+  onSeizePermission: (cb) => subscribe('seize:permission', cb),
 });
