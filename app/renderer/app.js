@@ -386,7 +386,7 @@ function renderInspector() {
     <div class="field">
       <label>Emoji</label>
       <div class="emoji-row">
-        <input class="input emoji-input" id="insp-emoji" maxlength="8" value="${esc(key.emoji)}" placeholder="🙂" />
+        <input class="input emoji-input" id="insp-emoji" maxlength="8" value="${esc(key.emoji)}" placeholder="none" />
         <input class="color-input" id="insp-color" type="color" value="${esc(key.color || '#1b2130')}" title="Background" />
       </div>
     </div>
