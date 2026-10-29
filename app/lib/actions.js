@@ -9,6 +9,10 @@ const KEY_CODES = {
   home: 115, end: 119, pageup: 116, pagedown: 121,
   f1: 122, f2: 120, f3: 99, f4: 118, f5: 96, f6: 97, f7: 98, f8: 100,
   f9: 101, f10: 109, f11: 103, f12: 111,
+  numpad0: 82, numpad1: 83, numpad2: 84, numpad3: 85, numpad4: 86,
+  numpad5: 87, numpad6: 88, numpad7: 89, numpad8: 91, numpad9: 92,
+  numpadplus: 69, numpadminus: 78, numpadmultiply: 67, numpaddivide: 75,
+  numpaddecimal: 65, numpadenter: 76, numpadclear: 71, numpadequal: 81,
 };
 
 const MODIFIERS = {

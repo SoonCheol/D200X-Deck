@@ -4,14 +4,10 @@ const fs = require('node:fs');
 const path = require('node:path');
 const { randomUUID } = require('node:crypto');
 
-const CONFIG_VERSION = 3;
+const CONFIG_VERSION = 4;
 
 function key(emoji, label, action = { type: 'none' }, color = '#1b2130') {
   return { emoji, label, action, color, icon: null };
-}
-
-function wideKey(emoji, label, action = { type: 'none' }, color = '#16324a') {
-  return key(emoji, label, action, color);
 }
 
 function defaultPages() {
@@ -33,7 +29,6 @@ function defaultPages() {
       10: key('🔊', 'Vol +', { type: 'command', value: "osascript -e 'set volume output volume ((output volume of (get volume settings)) + 6)'" }, '#24302a'),
       11: key('🌙', 'Sleep', { type: 'command', value: 'pmset sleepnow' }, '#1c1c30'),
       12: key('🧮', 'Calculator', { type: 'app', value: 'Calculator' }, '#2c2c2c'),
-      13: wideKey('🎛', 'Ulanzi Deck Open'),
     },
   };
   const media = {
@@ -49,7 +44,6 @@ function defaultPages() {
       6: key('📻', 'Podcasts', { type: 'app', value: 'Podcasts' }),
       7: key('🔇', 'Mute', { type: 'command', value: "osascript -e 'set volume with output muted'" }),
       8: key('⬅️', 'Back', { type: 'page', value: main.id }),
-      13: wideKey('⬅️', 'Back to Main', { type: 'page', value: main.id }, '#213040'),
     },
   };
   return [main, media];
@@ -96,12 +90,9 @@ class Store {
 
     for (const page of config.pages) {
       if (!page.keys) page.keys = {};
-      // v1 modelled 15 keys; the last physical button is a single 2x1 key (index 13).
+      // The wide (2x1) key is a firmware system panel and has no user config.
+      delete page.keys[13];
       delete page.keys[14];
-      const old = page.keys[13];
-      if (previous < 2 && old && old.label === 'Music' && old.action && old.action.value === 'Music') {
-        page.keys[13] = wideKey('🎛', 'Ulanzi Deck Open');
-      }
       for (const key of Object.values(page.keys)) {
         if (key && key.action && key.action.type === 'open') {
           key.action.type = /^https?:|^mailto:/i.test(String(key.action.value || '')) ? 'url' : 'app';

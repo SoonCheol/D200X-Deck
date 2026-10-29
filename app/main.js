@@ -1,6 +1,6 @@
 'use strict';
 
-const { app, BrowserWindow, ipcMain, dialog, Menu, shell } = require('electron');
+const { app, BrowserWindow, ipcMain, dialog, Menu, shell, Tray, nativeImage } = require('electron');
 const path = require('node:path');
 const fs = require('node:fs');
 
@@ -19,6 +19,9 @@ let plugins = null;
 let seizeProc = null;
 let seizeWarned = false;
 let reconnectTimer = null;
+let tray = null;
+let isQuitting = false;
+let quitPromptOpen = false;
 
 function createWindow() {
   win = new BrowserWindow({
@@ -41,6 +44,13 @@ function createWindow() {
   });
   win.webContents.on('preload-error', (_e, p, err) => console.error('[preload]', p, err));
   win.webContents.on('did-fail-load', (_e, code, desc) => console.error('[load]', code, desc));
+  win.on('close', (event) => {
+    if (!isQuitting) {
+      event.preventDefault();
+      win.hide();
+    }
+  });
+
   win.loadFile(path.join(__dirname, 'renderer', 'index.html'));
   win.webContents.setWindowOpenHandler(({ url }) => {
     shell.openExternal(url);
@@ -71,6 +81,26 @@ function createWindow() {
             );
             await new Promise((r) => setTimeout(r, 500));
           }
+          if (process.env.ULANZI_DRAG) {
+            const [from, to] = process.env.ULANZI_DRAG.split(',').map(Number);
+            await win.webContents.executeJavaScript(`
+              (() => {
+                const tiles = document.querySelectorAll('.key');
+                const dt = new DataTransfer();
+                tiles[${from}].dispatchEvent(new DragEvent('dragstart', { dataTransfer: dt, bubbles: true }));
+                tiles[${to}].dispatchEvent(new DragEvent('dragover', { dataTransfer: dt, bubbles: true, cancelable: true }));
+                tiles[${to}].dispatchEvent(new DragEvent('drop', { dataTransfer: dt, bubbles: true, cancelable: true }));
+                return true;
+              })()
+            `);
+            await new Promise((r) => setTimeout(r, 800));
+          }
+          if (process.env.ULANZI_HOTKEY) {
+            await win.webContents.executeJavaScript(
+              "document.querySelector('#insp-hotkey-open')?.click(); true"
+            );
+            await new Promise((r) => setTimeout(r, 600));
+          }
           if (process.env.ULANZI_APPICON) {
             await win.webContents.executeJavaScript(
               "document.querySelector('#insp-use-app-icon')?.click(); true"
@@ -86,6 +116,7 @@ function createWindow() {
           const image = await win.webContents.capturePage();
           fs.writeFileSync(process.env.ULANZI_SHOT, image.toPNG());
         } finally {
+          isQuitting = true;
           app.quit();
         }
       }, delay);
@@ -97,6 +128,55 @@ function send(channel, payload) {
   if (win && !win.isDestroyed()) win.webContents.send(channel, payload);
 }
 
+function showWindow() {
+  if (!win || win.isDestroyed()) {
+    createWindow();
+    return;
+  }
+  if (win.isMinimized()) win.restore();
+  win.show();
+  win.focus();
+}
+
+function createTray() {
+  const iconPath = app.isPackaged
+    ? path.join(process.resourcesPath, 'tray.png')
+    : path.join(__dirname, 'build', 'tray.png');
+  let image = nativeImage.createFromPath(iconPath);
+  if (!image.isEmpty()) image = image.resize({ width: 18, height: 18 });
+  image.setTemplateImage(true);
+  tray = new Tray(image);
+  tray.setToolTip('Ulanzi Deck Open');
+  tray.setContextMenu(
+    Menu.buildFromTemplate([
+      { label: 'Open Ulanzi Deck Open', click: showWindow },
+      { type: 'separator' },
+      { label: 'Quit Ulanzi Deck Open', click: requestQuit },
+    ])
+  );
+  tray.on('click', showWindow);
+}
+
+async function requestQuit() {
+  if (isQuitting || quitPromptOpen) return;
+  quitPromptOpen = true;
+  const parent = win && !win.isDestroyed() && win.isVisible() ? win : null;
+  const { response } = await dialog.showMessageBox(parent, {
+    type: 'question',
+    buttons: ['Quit', 'Cancel'],
+    defaultId: 1,
+    cancelId: 1,
+    message: 'Quit Ulanzi Deck Open?',
+    detail:
+      'The deck will keep its last page. Plugins, hotkeys and the clock will stop until you reopen the app.',
+  });
+  quitPromptOpen = false;
+  if (response === 0) {
+    isQuitting = true;
+    app.quit();
+  }
+}
+
 function buildMenu() {
   const isMac = process.platform === 'darwin';
   const template = [
@@ -106,6 +186,7 @@ function buildMenu() {
           submenu: [
             { role: 'about' },
             { type: 'separator' },
+            { label: 'Show Main Window', accelerator: 'CmdOrCtrl+0', click: showWindow },
             { label: 'Reconnect Deck', click: () => deck.connect() },
             { type: 'separator' },
             { role: 'hide' }, { role: 'hideOthers' }, { role: 'unhide' },
@@ -241,23 +322,30 @@ app.whenReady().then(() => {
   startHidSeize();
   createWindow();
   buildMenu();
+  createTray();
 
-  app.on('activate', () => {
-    if (BrowserWindow.getAllWindows().length === 0) createWindow();
-  });
+  app.on('activate', () => showWindow());
 });
 
 app.on('window-all-closed', () => {
-  if (process.platform !== 'darwin') app.quit();
+  // Keep running in the menu bar; quitting goes through requestQuit().
 });
 
-app.on('before-quit', () => {
+app.on('before-quit', (event) => {
+  if (!isQuitting) {
+    event.preventDefault();
+    requestQuit();
+  }
+});
+
+app.on('will-quit', () => {
   if (reconnectTimer) clearInterval(reconnectTimer);
   if (deck) deck.disconnect('App closed');
   if (plugins) plugins.stopAll();
   if (seizeProc) {
     try { seizeProc.kill(); } catch { /* ignore */ }
   }
+  if (tray) tray.destroy();
 });
 
 // ---------------------------------------------------------------- IPC

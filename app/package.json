@@ -14,7 +14,7 @@
     "dev": "electron . --dev",
     "package": "electron-packager . 'Ulanzi Deck Open' --platform=darwin --arch=arm64 --out=dist --overwrite --icon=build/icon --app-bundle-id=com.edufalcao.ulanzideckopen --app-version=0.1.0 --prune=true --ignore='^/(dist|build/icon\\.iconset)'",
     "package:all": "electron-packager . 'Ulanzi Deck Open' --platform=darwin --arch=universal --out=dist --overwrite --icon=build/icon --app-bundle-id=com.edufalcao.ulanzideckopen --app-version=0.1.0 --prune=true --ignore='^/(dist|build/icon\\.iconset)'",
-    "postpackage": "find dist -name electron.icns -exec cp build/icon.icns {} \\; ; find dist -maxdepth 2 -name \"*.app\" | while read app; do mkdir -p \"$app/Contents/Resources/bin\"; cp bin/hidseize \"$app/Contents/Resources/bin/\"; done"
+    "postpackage": "find dist -name electron.icns -exec cp build/icon.icns {} \\; ; find dist -maxdepth 2 -name \"*.app\" | while read app; do mkdir -p \"$app/Contents/Resources/bin\"; cp bin/hidseize \"$app/Contents/Resources/bin/\"; cp build/tray.png \"$app/Contents/Resources/tray.png\"; done"
   },
   "dependencies": {
     "jszip": "^3.10.2",

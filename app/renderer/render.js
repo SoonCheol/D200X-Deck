@@ -208,4 +208,51 @@ async function drawKey(canvas, key, width = KEY_SIZE, height = KEY_SIZE) {
   ctx.restore();
 }
 
-window.KeyRenderer = { drawKey, KEY_SIZE, WIDE_KEY_SIZE, WIDE_INDEX };
+function drawSystemPanel(canvas) {
+  const w = WIDE_KEY_SIZE.width;
+  const h = WIDE_KEY_SIZE.height;
+  if (canvas.width !== w) canvas.width = w;
+  if (canvas.height !== h) canvas.height = h;
+  const ctx = canvas.getContext('2d');
+  ctx.clearRect(0, 0, w, h);
+
+  ctx.save();
+  roundRect(ctx, 0, 0, w, h, 15);
+  ctx.clip();
+  const g = ctx.createLinearGradient(0, 0, 0, h);
+  g.addColorStop(0, '#1b2333');
+  g.addColorStop(1, '#0d1220');
+  ctx.fillStyle = g;
+  ctx.fillRect(0, 0, w, h);
+
+  const now = new Date();
+  const pad = (n) => String(n).padStart(2, '0');
+  const time = `${pad(now.getHours())}:${pad(now.getMinutes())}`;
+  const date = now.toLocaleDateString(undefined, { weekday: 'short', day: 'numeric', month: 'short' });
+
+  ctx.fillStyle = 'rgba(255,255,255,0.45)';
+  ctx.font = '600 10px -apple-system, "SF Pro Text", sans-serif';
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'alphabetic';
+  ctx.fillText('SYSTEM PANEL', 18, 26);
+
+  ctx.fillStyle = 'rgba(255,255,255,0.95)';
+  ctx.font = '200 72px -apple-system, "SF Pro Display", "Helvetica Neue", sans-serif';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(time, w / 2, h * 0.47);
+
+  ctx.fillStyle = 'rgba(255,255,255,0.5)';
+  ctx.font = '500 12px -apple-system, "SF Pro Text", sans-serif';
+  ctx.fillText(date, w / 2, h * 0.76);
+  ctx.restore();
+
+  ctx.save();
+  roundRect(ctx, 0.75, 0.75, w - 1.5, h - 1.5, 15);
+  ctx.strokeStyle = 'rgba(255,255,255,0.08)';
+  ctx.lineWidth = 1.5;
+  ctx.stroke();
+  ctx.restore();
+}
+
+window.KeyRenderer = { drawKey, drawSystemPanel, KEY_SIZE, WIDE_KEY_SIZE, WIDE_INDEX };

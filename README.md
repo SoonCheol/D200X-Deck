@@ -22,7 +22,12 @@ actions, and it talks to the deck directly over HID — no vendor app required.
   live images, key events). A built-in **plugin manager** installs `.ulanziPlugin`
   folders or ZIPs, reloads, reveals and removes app-installed plugins.
   See [`docs/PLUGINS.md`](docs/PLUGINS.md).
-* **Hot-plug** — reconnects automatically when the deck appears.
+* **Hotkeys** — a proper picker (modifiers, letters, symbols, function keys, F keys,
+  numpad) plus physical key capture.
+* **Drag to rearrange** — drag a key onto another to swap them.
+* **Wide key is read-only** — it is the firmware system panel (clock), not user-editable.
+* **Lives in the menu bar** — closing the window hides it; Cmd+Q asks for confirmation
+  before quitting.
 * **Packaged macOS app** — `npm run package` builds `Ulanzi Deck Open.app`.
 
 The window, the editor, and the device all update from the same config, so what you

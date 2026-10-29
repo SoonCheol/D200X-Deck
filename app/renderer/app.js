@@ -2,6 +2,7 @@
 
 const api = window.deckApp;
 const renderKey = window.KeyRenderer.drawKey;
+const renderSystemPanel = window.KeyRenderer.drawSystemPanel;
 
 const COLS = 5;
 const ROWS = 3;
@@ -165,11 +166,37 @@ async function renderGrid() {
     badge.textContent = String(i + 1);
     btn.appendChild(badge);
 
+    if (wide) {
+      btn.title = 'System panel — controlled by the deck firmware';
+      btn.classList.add('system');
+      grid.appendChild(btn);
+      continue;
+    }
+
+    btn.draggable = true;
     btn.addEventListener('click', () => {
       state.selected = i;
       renderGrid();
       renderInspector();
     });
+
+    btn.addEventListener('dragstart', (e) => {
+      e.dataTransfer.setData('application/x-ulanzi-key', String(i));
+      e.dataTransfer.effectAllowed = 'move';
+      btn.classList.add('dragging');
+    });
+    btn.addEventListener('dragend', () => {
+      btn.classList.remove('dragging');
+      document.querySelectorAll('.key.drop-target').forEach((el) => el.classList.remove('drop-target'));
+    });
+    btn.addEventListener('dragover', (e) => {
+      if (e.dataTransfer.types.includes('application/x-ulanzi-key')) {
+        e.preventDefault();
+        e.dataTransfer.dropEffect = 'move';
+        btn.classList.add('drop-target');
+      }
+    });
+    btn.addEventListener('dragleave', () => btn.classList.remove('drop-target'));
 
     btn.addEventListener('dragover', (e) => {
       e.preventDefault();
@@ -178,7 +205,12 @@ async function renderGrid() {
     btn.addEventListener('dragleave', () => btn.classList.remove('drag'));
     btn.addEventListener('drop', async (e) => {
       e.preventDefault();
-      btn.classList.remove('drag');
+      btn.classList.remove('drag', 'drop-target');
+      const src = Number(e.dataTransfer.getData('application/x-ulanzi-key'));
+      if (!Number.isNaN(src) && e.dataTransfer.getData('application/x-ulanzi-key')) {
+        moveKey(page, src, i);
+        return;
+      }
       const file = e.dataTransfer.files && e.dataTransfer.files[0];
       if (!file) return;
       if (!file.type.startsWith('image/')) {
@@ -205,9 +237,9 @@ async function drawGrid() {
   const tiles = [...$('#grid').children];
   await Promise.all(
     tiles.map((tile, i) => {
+      if (i === WIDE_KEY_INDEX) return renderSystemPanel(tile.querySelector('canvas'));
       const key = effectiveKey(page.keys[i] || emptyKey());
-      const wide = i === WIDE_KEY_INDEX;
-      return renderKey(tile.querySelector('canvas'), key, wide ? 402 : 196, 196);
+      return renderKey(tile.querySelector('canvas'), key, 196, 196);
     })
   );
 }
@@ -215,9 +247,34 @@ async function drawGrid() {
 function drawIndex(index) {
   const tile = $('#grid').children[index];
   if (!tile) return;
+  if (index === WIDE_KEY_INDEX) return renderSystemPanel(tile.querySelector('canvas'));
   const key = effectiveKey(activePage().keys[index] || emptyKey());
-  const wide = index === WIDE_KEY_INDEX;
-  renderKey(tile.querySelector('canvas'), key, wide ? 402 : 196, 196);
+  renderKey(tile.querySelector('canvas'), key, 196, 196);
+}
+
+function moveKey(page, src, dst) {
+  if (src === dst || src === WIDE_KEY_INDEX || dst === WIDE_KEY_INDEX) return;
+  const source = page.keys[src];
+  const target = page.keys[dst];
+  if (!source && !target) return;
+  if (source) {
+    page.keys[dst] = source;
+    if (target) page.keys[src] = target;
+    else delete page.keys[src];
+  } else {
+    page.keys[src] = target;
+    delete page.keys[dst];
+  }
+  for (const index of [src, dst]) {
+    const key = page.keys[index];
+    if (key && key.action && key.action.type === 'plugin') {
+      key.action.actionid = uuid();
+    }
+  }
+  state.selected = dst;
+  commit();
+  renderGrid();
+  renderInspector();
 }
 
 function readFileAsDataUrl(file) {
@@ -234,13 +291,15 @@ function readFileAsDataUrl(file) {
 function renderInspector() {
   const el = $('#inspector');
   const page = activePage();
+  if (state.selected === WIDE_KEY_INDEX) state.selected = null;
 
   if (state.selected === null) {
-    const configured = Object.values(page.keys).filter(
-      (k) => k && (k.label || k.emoji || k.icon || (k.action && k.action.type !== 'none'))
+    const configured = Object.entries(page.keys).filter(
+      ([index, k]) => Number(index) !== WIDE_KEY_INDEX && k &&
+        (k.label || k.emoji || k.icon || (k.action && k.action.type !== 'none'))
     ).length;
     el.innerHTML = `
-      <div class="insp-head"><h2>Page settings</h2><span class="index">${configured}/${KEY_COUNT} keys</span></div>
+      <div class="insp-head"><h2>Page settings</h2><span class="index">${configured}/${KEY_COUNT - 1} keys</span></div>
       <div class="field">
         <label>Page name</label>
         <input class="input" id="insp-page-name" value="${esc(page.name)}" maxlength="40" />
@@ -321,7 +380,10 @@ function renderInspector() {
   } else if (action.type === 'command') {
     valueField = `<textarea class="textarea" id="insp-value" placeholder="osascript -e 'set volume output muted'">${esc(action.value)}</textarea>`;
   } else if (action.type === 'hotkey') {
-    valueField = `<input class="input" id="insp-value" placeholder="cmd+shift+3" value="${esc(action.value)}" />`;
+    valueField = `<div class="row">
+      <button class="btn hotkey-value" id="insp-hotkey-open">${esc(action.value || 'Set hotkey…')}</button>
+      <button class="btn ghost" id="insp-hotkey-clear">Clear</button>
+    </div>`;
   } else if (action.type === 'page') {
     valueField = `<select class="select" id="insp-value">${pageOptions}</select>`;
   }
@@ -454,6 +516,19 @@ function renderInspector() {
     commit();
     renderInspector();
   });
+
+  const hotkeyOpen = $('#insp-hotkey-open');
+  if (hotkeyOpen) {
+    hotkeyOpen.addEventListener('click', () => openHotkeyModal(key));
+  }
+  const hotkeyClear = $('#insp-hotkey-clear');
+  if (hotkeyClear) {
+    hotkeyClear.addEventListener('click', () => {
+      key.action = { ...key.action, value: '' };
+      commit();
+      renderInspector();
+    });
+  }
 
   const useAppIcon = $('#insp-use-app-icon');
   if (useAppIcon) {
@@ -618,7 +693,7 @@ function renderInspector() {
 }
 
 function nextFreeIndex(page) {
-  for (let i = 0; i < KEY_COUNT; i++) {
+  for (let i = 0; i < WIDE_KEY_INDEX; i++) {
     const k = page.keys[i];
     if (!k || (!k.label && !k.emoji && !k.icon && (!k.action || k.action.type === 'none'))) return i;
   }
@@ -791,6 +866,263 @@ function toast(message, bad = false) {
   el.classList.add('show');
   clearTimeout(toastTimer);
   toastTimer = setTimeout(() => el.classList.remove('show'), 2600);
+}
+
+// --------------------------------------------------------------- hotkeys
+
+const HOTKEY_MODS = [
+  { token: 'cmd', label: '⌘ Command', symbol: '⌘' },
+  { token: 'ctrl', label: '⌃ Control', symbol: '⌃' },
+  { token: 'alt', label: '⌥ Option', symbol: '⌥' },
+  { token: 'shift', label: '⇧ Shift', symbol: '⇧' },
+];
+
+const HOTKEY_CATEGORIES = [
+  { id: 'modifiers', name: 'Modifier Keys', keys: HOTKEY_MODS },
+  {
+    id: 'letters',
+    name: 'Letters',
+    keys: 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('').map((c) => ({ label: c, token: c.toLowerCase() })),
+  },
+  {
+    id: 'numbers',
+    name: 'Numbers/Symbols',
+    keys: [...'0123456789', ',', '.', ';', "'", '`', '[', ']', '/', '\\', '-', '='].map((t) => ({
+      label: t,
+      token: t,
+    })),
+  },
+  {
+    id: 'function',
+    name: 'Function Keys',
+    keys: [
+      { label: '←', token: 'left' },
+      { label: '↑', token: 'up' },
+      { label: '→', token: 'right' },
+      { label: '↓', token: 'down' },
+      { label: 'Space', token: 'space' },
+      { label: 'Return', token: 'return' },
+      { label: 'Tab', token: 'tab' },
+      { label: 'Esc', token: 'escape' },
+      { label: 'Delete', token: 'delete' },
+      { label: 'Home', token: 'home' },
+      { label: 'End', token: 'end' },
+      { label: 'PgUp', token: 'pageup' },
+      { label: 'PgDn', token: 'pagedown' },
+    ],
+  },
+  {
+    id: 'fkeys',
+    name: 'F Keys',
+    keys: Array.from({ length: 12 }, (_, i) => ({ label: `F${i + 1}`, token: `f${i + 1}` })),
+  },
+  {
+    id: 'numpad',
+    name: 'Numeric Keypad',
+    keys: [
+      ...Array.from({ length: 10 }, (_, i) => ({ label: `Num ${i}`, token: `numpad${i}` })),
+      { label: 'Num +', token: 'numpadplus' },
+      { label: 'Num -', token: 'numpadminus' },
+      { label: 'Num *', token: 'numpadmultiply' },
+      { label: 'Num /', token: 'numpaddivide' },
+      { label: 'Num .', token: 'numpaddecimal' },
+      { label: 'Num Enter', token: 'numpadenter' },
+      { label: 'Num Del', token: 'numpadclear' },
+      { label: 'Num =', token: 'numpadequal' },
+    ],
+  },
+];
+
+let hotkeyTarget = null;
+let hotkeyCategory = 'modifiers';
+let hotkeyMods = new Set();
+let hotkeyKeyToken = '';
+let hotkeyKeyLabel = '';
+let hotkeyListener = null;
+
+function canonicalMod(token) {
+  const t = String(token || '').toLowerCase();
+  if (t === 'cmd' || t === 'command' || t === 'meta') return 'cmd';
+  if (t === 'ctrl' || t === 'control') return 'ctrl';
+  if (t === 'alt' || t === 'option') return 'alt';
+  if (t === 'shift') return 'shift';
+  return null;
+}
+
+function hotkeyLabelFor(token) {
+  for (const cat of HOTKEY_CATEGORIES) {
+    const found = cat.keys.find((k) => k.token === token);
+    if (found) return found.label;
+  }
+  if (!token) return '';
+  return token.length === 1 ? token.toUpperCase() : token;
+}
+
+function hotkeyCategoryFor(token) {
+  for (const cat of HOTKEY_CATEGORIES) {
+    if (cat.keys.some((k) => k.token === token)) return cat.id;
+  }
+  return 'modifiers';
+}
+
+function openHotkeyModal(key) {
+  hotkeyTarget = key;
+  hotkeyMods = new Set();
+  hotkeyKeyToken = '';
+  hotkeyKeyLabel = '';
+  for (const part of String(key.action?.value || '').split('+').filter(Boolean)) {
+    const mod = canonicalMod(part);
+    if (mod) hotkeyMods.add(mod);
+    else {
+      hotkeyKeyToken = part;
+      hotkeyKeyLabel = hotkeyLabelFor(part);
+    }
+  }
+  hotkeyCategory = hotkeyKeyToken ? hotkeyCategoryFor(hotkeyKeyToken) : 'modifiers';
+  renderHotkeyModal();
+  $('#hotkey-modal').classList.remove('hidden');
+  hotkeyListener = (e) => handleHotkeyKey(e);
+  document.addEventListener('keydown', hotkeyListener, true);
+}
+
+function closeHotkeyModal() {
+  if (hotkeyListener) document.removeEventListener('keydown', hotkeyListener, true);
+  hotkeyListener = null;
+  hotkeyTarget = null;
+  $('#hotkey-modal').classList.add('hidden');
+}
+
+function hotkeyCombo() {
+  if (!hotkeyKeyToken) return '';
+  const mods = ['cmd', 'ctrl', 'alt', 'shift'].filter((m) => hotkeyMods.has(m));
+  return [...mods, hotkeyKeyToken].join('+');
+}
+
+function renderHotkeyModal() {
+  const display = $('#hotkey-display');
+  const chips = [];
+  for (const mod of HOTKEY_MODS) {
+    if (hotkeyMods.has(mod.token)) chips.push(`<span class="hotkey-chip">${mod.symbol}</span>`);
+  }
+  if (hotkeyKeyToken) {
+    chips.push(`<span class="hotkey-chip">${esc(hotkeyKeyLabel || hotkeyKeyToken)}</span>`);
+  }
+  display.innerHTML = chips.length ? chips.join('') : 'Press a button or add one below';
+
+  const cats = $('#hotkey-cats');
+  cats.innerHTML = HOTKEY_CATEGORIES.map(
+    (cat) =>
+      `<button class="hotkey-cat${cat.id === hotkeyCategory ? ' active' : ''}" data-cat="${cat.id}">${cat.name}</button>`
+  ).join('');
+  cats.querySelectorAll('[data-cat]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      hotkeyCategory = btn.dataset.cat;
+      renderHotkeyModal();
+    });
+  });
+
+  const keys = $('#hotkey-keys');
+  const cat = HOTKEY_CATEGORIES.find((c) => c.id === hotkeyCategory) || HOTKEY_CATEGORIES[0];
+  keys.innerHTML = cat.keys
+    .map((key) => {
+      const active =
+        cat.id === 'modifiers' ? hotkeyMods.has(key.token) : hotkeyKeyToken === key.token;
+      return `<button class="hotkey-key${active ? ' active' : ''}" data-token="${esc(key.token)}" data-label="${esc(
+        key.label
+      )}">${esc(key.label)}</button>`;
+    })
+    .join('');
+  keys.querySelectorAll('.hotkey-key').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const token = btn.dataset.token;
+      if (cat.id === 'modifiers') {
+        if (hotkeyMods.has(token)) hotkeyMods.delete(token);
+        else hotkeyMods.add(token);
+      } else {
+        hotkeyKeyToken = token;
+        hotkeyKeyLabel = btn.dataset.label;
+      }
+      renderHotkeyModal();
+    });
+  });
+}
+
+function physicalKeyToken(e) {
+  if (/^F\d{1,2}$/i.test(e.key)) return e.key.toLowerCase();
+  const code = e.code || '';
+  if (/^Key[A-Z]$/.test(code)) return code.slice(3).toLowerCase();
+  if (/^Digit[0-9]$/.test(code)) return code.slice(5);
+  if (/^Numpad[0-9]$/.test(code)) return `numpad${code.slice(6)}`;
+  const numpad = {
+    NumpadAdd: 'numpadplus',
+    NumpadSubtract: 'numpadminus',
+    NumpadMultiply: 'numpadmultiply',
+    NumpadDivide: 'numpaddivide',
+    NumpadDecimal: 'numpaddecimal',
+    NumpadEnter: 'numpadenter',
+    NumpadEqual: 'numpadequal',
+  };
+  if (numpad[code]) return numpad[code];
+  const map = {
+    ArrowLeft: 'left',
+    ArrowUp: 'up',
+    ArrowRight: 'right',
+    ArrowDown: 'down',
+    ' ': 'space',
+    Enter: 'return',
+    Tab: 'tab',
+    Backspace: 'delete',
+    Delete: 'delete',
+    Home: 'home',
+    End: 'end',
+    PageUp: 'pageup',
+    PageDown: 'pagedown',
+  };
+  if (map[e.key]) return map[e.key];
+  if (map[e.code]) return map[e.code];
+  const symbols = { '-': '-', '=': '=', '[': '[', ']': ']', '\\': '\\', ';': ';', "'": "'", '`': '`', ',': ',', '.': '.', '/': '/' };
+  if (symbols[e.key]) return symbols[e.key];
+  return '';
+}
+
+function handleHotkeyKey(e) {
+  if ($('#hotkey-modal').classList.contains('hidden')) return;
+  e.preventDefault();
+  e.stopPropagation();
+  if (e.key === 'Escape') {
+    closeHotkeyModal();
+    return;
+  }
+  if (['Meta', 'Control', 'Alt', 'Shift'].includes(e.key)) {
+    hotkeyMods = new Set();
+    if (e.metaKey) hotkeyMods.add('cmd');
+    if (e.ctrlKey) hotkeyMods.add('ctrl');
+    if (e.altKey) hotkeyMods.add('alt');
+    if (e.shiftKey) hotkeyMods.add('shift');
+    renderHotkeyModal();
+    return;
+  }
+  hotkeyMods = new Set();
+  if (e.metaKey) hotkeyMods.add('cmd');
+  if (e.ctrlKey) hotkeyMods.add('ctrl');
+  if (e.altKey) hotkeyMods.add('alt');
+  if (e.shiftKey) hotkeyMods.add('shift');
+  const token = physicalKeyToken(e);
+  if (token) {
+    hotkeyKeyToken = token;
+    hotkeyKeyLabel = hotkeyLabelFor(token);
+    hotkeyCategory = hotkeyCategoryFor(token);
+    renderHotkeyModal();
+  }
+}
+
+function saveHotkey() {
+  if (!hotkeyTarget) return closeHotkeyModal();
+  if (!hotkeyKeyToken) return toast('Choose a key first', true);
+  hotkeyTarget.action = { ...hotkeyTarget.action, value: hotkeyCombo() };
+  commit();
+  closeHotkeyModal();
+  renderInspector();
 }
 
 // --------------------------------------------------------------- app picker
@@ -981,6 +1313,13 @@ function renderPluginModal() {
 
 function bind() {
   $('#plugins-btn').addEventListener('click', openPluginModal);
+  $('#hotkey-close').addEventListener('click', closeHotkeyModal);
+  $('#hotkey-exit').addEventListener('click', closeHotkeyModal);
+  $('#hotkey-save').addEventListener('click', saveHotkey);
+  $('#hotkey-modal').addEventListener('click', (e) => {
+    if (e.target === $('#hotkey-modal')) closeHotkeyModal();
+  });
+
   $('#app-modal-close').addEventListener('click', closeAppPicker);
   $('#app-modal').addEventListener('click', (e) => {
     if (e.target === $('#app-modal')) closeAppPicker();
@@ -1068,6 +1407,7 @@ function bind() {
       pushNow();
     }
     if (e.key === 'Escape') {
+      if (!$('#hotkey-modal').classList.contains('hidden')) return closeHotkeyModal();
       if (!$('#app-modal').classList.contains('hidden')) return closeAppPicker();
       if (!$('#plugin-modal').classList.contains('hidden')) return closePluginModal();
       state.selected = null;
@@ -1166,6 +1506,11 @@ function bind() {
 
   window.addEventListener('beforeunload', () => api.saveConfig(state.config));
 }
+
+setInterval(() => {
+  const tile = document.querySelectorAll('#grid .key')[WIDE_KEY_INDEX];
+  if (tile) renderSystemPanel(tile.querySelector('canvas'));
+}, 30000);
 
 (async function init() {
   const boot = await api.getState();

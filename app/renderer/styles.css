@@ -581,3 +581,94 @@ body::before {
 .app-meta { min-width: 0; flex: 1; }
 .app-name { font-size: 12px; font-weight: 600; }
 .app-path { font-size: 10px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+
+.key.dragging { opacity: 0.35; }
+.key.drop-target canvas { box-shadow: 0 0 0 2px var(--accent), 0 8px 22px rgba(79,140,255,0.35); }
+.key.system { cursor: default; }
+
+
+/* -------------------------------------------------------------- hotkeys */
+
+.hotkey-card { width: min(640px, calc(100vw - 64px)); }
+.hotkey-display {
+  margin: 0 22px 14px;
+  min-height: 54px;
+  border-radius: 10px;
+  background: #0a0d14;
+  border: 1px solid var(--line);
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 10px 12px;
+  color: var(--muted);
+  font-size: 12px;
+}
+.hotkey-chip {
+  padding: 5px 9px;
+  border-radius: 7px;
+  background: rgba(79,140,255,.16);
+  border: 1px solid rgba(79,140,255,.38);
+  color: var(--text);
+  font-weight: 600;
+  min-width: 26px;
+  text-align: center;
+}
+.hotkey-body {
+  display: grid;
+  grid-template-columns: 170px 1fr;
+  gap: 12px;
+  padding: 0 22px;
+  min-height: 310px;
+}
+.hotkey-cats { display: flex; flex-direction: column; gap: 2px; }
+.hotkey-cat {
+  text-align: left;
+  padding: 9px 10px;
+  border-radius: 8px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 12px;
+}
+.hotkey-cat:hover { background: rgba(255,255,255,.04); color: var(--text); }
+.hotkey-cat.active { background: rgba(79,140,255,.12); border-color: rgba(79,140,255,.45); color: var(--text); }
+.hotkey-keys {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 8px;
+  align-content: start;
+  padding: 10px;
+  background: #0a0d14;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  max-height: 340px;
+  overflow: auto;
+}
+.hotkey-key {
+  padding: 11px 6px;
+  border-radius: 7px;
+  border: 1px solid var(--line);
+  background: #161c28;
+  color: var(--text);
+  font-size: 11px;
+  cursor: pointer;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.hotkey-key:hover { background: #1d2534; }
+.hotkey-key.active { border-color: var(--accent); background: rgba(79,140,255,.18); }
+.hotkey-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 16px 22px 18px;
+  border-top: 1px solid var(--line);
+  margin-top: 16px;
+}
+.hotkey-actions { display: flex; gap: 8px; }
+.hotkey-value { flex: 1; text-align: left; font-family: "SF Mono", ui-monospace, monospace; font-size: 12px; }

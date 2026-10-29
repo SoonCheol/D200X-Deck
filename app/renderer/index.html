@@ -86,6 +86,30 @@
       <aside class="inspector" id="inspector"></aside>
     </div>
 
+    <div id="hotkey-modal" class="modal hidden">
+      <div class="modal-card hotkey-card">
+        <div class="modal-head">
+          <div>
+            <h2>Add Keyboard Key</h2>
+            <p>Press a button or add one below.</p>
+          </div>
+          <button id="hotkey-close" class="icon-btn" title="Close">×</button>
+        </div>
+        <div id="hotkey-display" class="hotkey-display"></div>
+        <div class="hotkey-body">
+          <div id="hotkey-cats" class="hotkey-cats"></div>
+          <div id="hotkey-keys" class="hotkey-keys"></div>
+        </div>
+        <div class="hotkey-foot">
+          <label class="toggle"><input type="checkbox" id="hotkey-lr" disabled /> <span>Distinguish left/right</span></label>
+          <div class="hotkey-actions">
+            <button class="btn" id="hotkey-exit">Exit</button>
+            <button class="btn primary" id="hotkey-save">Save</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <div id="app-modal" class="modal hidden">
       <div class="modal-card app-card">
         <div class="modal-head">
