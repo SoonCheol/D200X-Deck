@@ -1,0 +1,16 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "ulanzi-deck-open"
+version = "0.0.1"
+description = "Open-source control for Ulanzi D200 decks"
+requires-python = ">=3.10"
+dependencies = []
+
+[project.optional-dependencies]
+render = ["pillow>=10"]
+
+[tool.setuptools.packages.find]
+include = ["ulanzi_deck*"]

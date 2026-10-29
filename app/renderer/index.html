@@ -1,0 +1,87 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self'"
+    />
+    <title>Ulanzi Deck Open</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <div id="app">
+      <aside class="sidebar">
+        <div class="brand">
+          <div class="brand-mark">U</div>
+          <div>
+            <div class="brand-name">Ulanzi Deck</div>
+            <div class="brand-sub">Open</div>
+          </div>
+        </div>
+
+        <div class="section-head">
+          <span>Pages</span>
+          <button id="add-page" class="icon-btn" title="Add page">+</button>
+        </div>
+        <nav id="page-list" class="page-list"></nav>
+
+        <div class="sidebar-foot">
+          <div class="device-card" id="device-card">
+            <div class="device-dot" id="device-dot"></div>
+            <div class="device-meta">
+              <div class="device-name" id="device-name">Looking for D200…</div>
+              <div class="device-detail" id="device-detail">USB 2207:0019</div>
+            </div>
+            <button id="reconnect" class="icon-btn" title="Reconnect">⟳</button>
+          </div>
+          <div class="version">v<span id="version">0.1.0</span> · MIT</div>
+        </div>
+      </aside>
+
+      <main class="main">
+        <header class="toolbar">
+          <div class="title-wrap">
+            <input id="page-title" class="page-title" spellcheck="false" />
+            <span id="status-pill" class="pill">offline</span>
+          </div>
+          <div class="tools">
+            <label class="brightness" title="Deck brightness">
+              <span>Brightness</span>
+              <input id="brightness" type="range" min="0" max="100" step="1" value="85" />
+              <span id="brightness-value">85</span>
+            </label>
+            <label class="toggle" title="Push changes automatically">
+              <input id="autopush" type="checkbox" checked />
+              <span>Auto-push</span>
+            </label>
+            <button id="push-btn" class="btn primary">Push to deck</button>
+          </div>
+        </header>
+
+        <section class="stage">
+          <div class="device-shell">
+            <div class="device-top">
+              <span class="device-led" id="device-led"></span>
+              <span class="device-label">ULANZI D200</span>
+              <span class="device-serial" id="device-serial"></span>
+            </div>
+            <div class="deck-grid" id="grid"></div>
+            <div class="device-bottom">
+              <span class="device-hint" id="push-state">ready</span>
+            </div>
+          </div>
+          <p class="stage-hint">
+            Click a key to edit · drag an image onto a key · Ctrl/Cmd+S pushes
+          </p>
+        </section>
+      </main>
+
+      <aside class="inspector" id="inspector"></aside>
+    </div>
+
+    <div id="toast" class="toast"></div>
+    <script src="render.js"></script>
+    <script src="app.js"></script>
+  </body>
+</html>

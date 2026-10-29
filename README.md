@@ -1,0 +1,101 @@
+# ulanzi-deck-open
+
+An open-source desktop app for the **Ulanzi D200** (5×3 key deck, 196×196 px keys,
+USB `0x2207:0x0019`). It replaces Ulanzi Studio for editing pages and triggering
+actions, and it talks to the deck directly over HID — no vendor app required.
+
+![Main window](docs/screenshots/main.png)
+
+## Features
+
+* **Live editor** — 5×3 grid that mirrors the device exactly (196×196 px).
+* **Pages** — multiple pages, page-switch keys, auto-push on edit.
+* **Keys** — emoji, label, background colour, or a custom image (click or drag & drop).
+* **Actions** — open an app/URL, run a shell command, send a hotkey, switch page.
+* **Device control** — brightness (0–100 %), screen sleep timeout, clock sync.
+* **Hot-plug** — reconnects automatically when the deck appears.
+* **Packaged macOS app** — `npm run package` builds `Ulanzi Deck Open.app`.
+
+The window, the editor, and the device all update from the same config, so what you
+see is what the deck shows (labels are rendered into the images).
+
+## Quick start
+
+```bash
+cd app
+npm install
+npm start
+```
+
+**Quit Ulanzi Studio first** — the deck's control interface is exclusive.
+
+Build a standalone app:
+
+```bash
+npm run package        # arm64
+npm run package:all    # universal
+open "dist/Ulanzi Deck Open-darwin-arm64/Ulanzi Deck Open.app"
+```
+
+Config lives in `~/Library/Application Support/Ulanzi Deck Open/config.json`.
+
+## Project layout
+
+```
+app/                 Electron GUI (the app)
+  main.js            window, IPC, tray-less lifecycle
+  preload.js         context-isolated bridge
+  lib/protocol.js    frame encoding/decoding
+  lib/deck.js        node-hid transport, read loop, key events
+  lib/page.js        page ZIP builder (content-addressed PNGs)
+  lib/store.js       config schema + defaults
+  lib/actions.js     open/hotkey/command execution
+  renderer/          UI (HTML/CSS/JS, canvas key rendering)
+ulanzi_deck/         small Python library and protocol prototype
+examples/hello.py    Python: draw a numbered page on the deck
+docs/PROTOCOL.md     reverse-engineered USB/HID protocol
+```
+
+## What works / what's next
+
+Working today: device connection, page upload, key input, page switching, native
+actions, brightness/sleep, packaging.
+
+Not implemented yet:
+
+* **Ulanzi plugin compatibility** (Node.js plugins over the local WebSocket protocol).
+  This is the next milestone so existing plugins (weather, news, agent status, …)
+  can run unchanged.
+* Multi-state keys, folders, GIF playback, dial/knob devices (D200H/D200X).
+* A proper settings pane (the first version exposes the essentials inline).
+
+## Protocol
+
+See [`docs/PROTOCOL.md`](docs/PROTOCOL.md). In short:
+
+```
+frame  = 7C 7C | cmd | proto | u32 length | payload   (padded to 1024 bytes)
+host   = HID output reports: 0x00 + 1024-byte chunk
+device = HID input reports:  1024-byte chunk
+```
+
+Pages are a ZIP with `manifest.json` (`"column_row"` → `Icon` / `Text` / `Font`) and
+`Images/*.png`. Key events arrive as `cmd=0x01 proto=0x01`, payload
+`01 <index> 01 <state>`.
+
+## Development notes
+
+* The app is Electron 45 + `node-hid` (N-API) + `jszip`, no bundler. The renderer is
+  plain HTML/CSS/JS so it is easy to hack on.
+* `ULANZI_SHOT=/tmp/ui.png` renders the window to a PNG and exits (useful for CI
+  screenshots). `ULANZI_CLICK=5` selects a key first; `ULANZI_KEY=7` simulates a
+  device key press.
+* The Python prototype remains for protocol experiments:
+  `python3 -m venv .venv && .venv/bin/pip install pillow && .venv/bin/python examples/hello.py`.
+
+## Legal
+
+Independent interoperability project. No Ulanzi code or assets are included.
+Protocol facts were obtained by observing USB traffic on hardware we own.
+
+MIT licensed.
