@@ -47,9 +47,11 @@ function pluginRootDirs() {
 }
 
 class PluginManager extends EventEmitter {
-  constructor({ dirs = pluginRootDirs(), port = 3906, language = 'en-US', appVersion = '0.1.0' } = {}) {
+  constructor({ dirs = pluginRootDirs(), appPluginsDir = null, port = 3906, language = 'en-US', appVersion = '0.1.0' } = {}) {
     super();
     this.dirs = dirs;
+    this.appPluginsDir = appPluginsDir || dirs[0];
+    this.stopping = false;
     this.port = port;
     this.language = language;
     this.appVersion = appVersion;
@@ -97,9 +99,12 @@ class PluginManager extends EventEmitter {
             controllers: a.Controllers || ['Keypad'],
             propertyInspector: a.PropertyInspectorPath || null,
           }));
-          if (this.plugins.has(uuid) && !compatible) continue;
+          // First source wins: app-installed plugins shadow Ulanzi's copy.
+          if (this.plugins.has(uuid)) continue;
           this.plugins.set(uuid, {
             uuid,
+            source: root,
+            writable: path.resolve(root) === path.resolve(this.appPluginsDir),
             name: manifest.Name || uuid,
             description: manifest.Description || '',
             version: manifest.Version || '',
@@ -131,6 +136,8 @@ class PluginManager extends EventEmitter {
         icon: p.icon,
         compatible: p.compatible,
         type: p.type,
+        source: p.source,
+        writable: p.writable,
         actions: p.actions,
       }))
       .sort((a, b) => a.name.localeCompare(b.name));
@@ -163,8 +170,9 @@ class PluginManager extends EventEmitter {
       if (msg.cmd === 'connected') {
         pluginUuid = msg.uuid;
         this.sockets.set(pluginUuid, ws);
+        this.queues.delete(pluginUuid);
         this.emit('connected', pluginUuid);
-        this._flushQueue(pluginUuid);
+        this._replay(pluginUuid);
         return;
       }
       if (!pluginUuid && msg.uuid) pluginUuid = msg.uuid;
@@ -227,12 +235,107 @@ class PluginManager extends EventEmitter {
       if (this.children.get(pluginUuid) === proc) this.children.delete(pluginUuid);
       const ws = this.sockets.get(pluginUuid);
       if (ws) this.sockets.delete(pluginUuid);
-      if (code !== 0 && code !== null) this.emit('error', `${meta.name} exited with code ${code}`);
+      if (!this.stopping && this._hasActionsFor(pluginUuid)) {
+        this.emit('error', `${meta.name} exited${code ? ` (${code})` : ''}; restarting`);
+        setTimeout(() => {
+          if (!this.stopping && this._hasActionsFor(pluginUuid)) this._ensurePlugin(pluginUuid);
+        }, 2000);
+      }
     });
     return meta;
   }
 
   // --------------------------------------------------------------- actions
+
+  _hasActionsFor(pluginUuid) {
+    for (const action of this.actions.values()) {
+      if (action.pluginUuid === pluginUuid) return true;
+    }
+    return false;
+  }
+
+  _replay(pluginUuid) {
+    for (const action of this.actions.values()) {
+      if (action.pluginUuid !== pluginUuid) continue;
+      this._send(pluginUuid, {
+        cmd: 'add',
+        uuid: pluginUuid,
+        key: action.key,
+        actionid: action.actionid,
+        action: action.actionUuid,
+        name: action.pluginAction?.name || '',
+        param: action.settings,
+      });
+      this._send(pluginUuid, {
+        cmd: 'setactive',
+        uuid: pluginUuid,
+        key: action.key,
+        actionid: action.actionid,
+        active: action.active,
+      });
+    }
+  }
+
+  reload() {
+    this.stopping = true;
+    for (const proc of this.children.values()) {
+      try { proc.kill(); } catch { /* ignore */ }
+    }
+    this.children.clear();
+    this.sockets.clear();
+    this.queues.clear();
+    this.actions.clear();
+    this.stopping = false;
+    return this.scan();
+  }
+
+  /** Install a .ulanziPlugin folder or a ZIP containing one. */
+  install(sourcePath) {
+    const fs = require('node:fs');
+    const os = require('node:os');
+    const { execFileSync } = require('node:child_process');
+    fs.mkdirSync(this.appPluginsDir, { recursive: true });
+
+    let workDir = sourcePath;
+    let temp = null;
+    if (fs.statSync(sourcePath).isFile()) {
+      temp = fs.mkdtempSync(path.join(os.tmpdir(), 'ulanzi-plugin-'));
+      execFileSync('unzip', ['-oq', sourcePath, '-d', temp], { stdio: 'ignore' });
+      workDir = temp;
+    }
+
+    const findManifest = (dir, depth = 0) => {
+      if (depth > 2) return null;
+      const direct = path.join(dir, 'manifest.json');
+      if (fs.existsSync(direct)) return dir;
+      for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+        if (!entry.isDirectory()) continue;
+        const found = findManifest(path.join(dir, entry.name), depth + 1);
+        if (found) return found;
+      }
+      return null;
+    };
+
+    const root = findManifest(workDir);
+    if (!root) throw new Error('No manifest.json found in the plugin package');
+    const manifest = JSON.parse(fs.readFileSync(path.join(root, 'manifest.json'), 'utf8'));
+    if (!manifest.UUID) throw new Error('manifest.json has no UUID');
+    const dest = path.join(this.appPluginsDir, `${manifest.UUID}.ulanziPlugin`);
+    if (fs.existsSync(dest)) fs.rmSync(dest, { recursive: true, force: true });
+    fs.cpSync(root, dest, { recursive: true, force: true });
+    if (temp) fs.rmSync(temp, { recursive: true, force: true });
+
+    return { uuid: manifest.UUID, name: manifest.Name || manifest.UUID, list: this.reload() };
+  }
+
+  remove(uuid) {
+    const meta = this.plugins.get(uuid);
+    if (!meta) throw new Error('Plugin not found');
+    if (!meta.writable) throw new Error('This plugin is read-only (installed by Ulanzi Studio)');
+    const fs = require('node:fs');
+    fs.rmSync(meta.dir, { recursive: true, force: true });
+    return this.reload();
+  }
 
   /**
    * Reconcile the set of plugin-backed keys.
@@ -450,6 +553,7 @@ class PluginManager extends EventEmitter {
   }
 
   stopAll() {
+    this.stopping = true;
     for (const proc of this.children.values()) {
       try {
         proc.kill();

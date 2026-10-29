@@ -21,6 +21,12 @@ contextBridge.exposeInMainWorld('deckApp', {
   listPlugins: () => ipcRenderer.invoke('plugins:list'),
   syncPlugins: (actions) => ipcRenderer.invoke('plugins:sync', actions),
   runPluginAction: (actionid) => ipcRenderer.invoke('plugins:run', actionid),
+  installPluginFolder: () => ipcRenderer.invoke('plugins:install-folder'),
+  installPluginZip: () => ipcRenderer.invoke('plugins:install-zip'),
+  reloadPlugins: () => ipcRenderer.invoke('plugins:reload'),
+  removePlugin: (uuid) => ipcRenderer.invoke('plugins:remove', uuid),
+  openPluginsFolder: () => ipcRenderer.invoke('plugins:open-folder'),
+  revealPlugin: (uuid) => ipcRenderer.invoke('plugins:reveal', uuid),
   onKey: (cb) => subscribe('deck:key', cb),
   onStatus: (cb) => subscribe('deck:status', cb),
   onError: (cb) => subscribe('deck:error', cb),
@@ -32,4 +38,5 @@ contextBridge.exposeInMainWorld('deckApp', {
   onPluginError: (cb) => subscribe('plugin:error', cb),
   onPluginAlert: (cb) => subscribe('plugin:alert', cb),
   onSeizePermission: (cb) => subscribe('seize:permission', cb),
+  onPluginsChanged: (cb) => subscribe('plugins:changed', cb),
 });

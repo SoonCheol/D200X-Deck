@@ -26,6 +26,12 @@
         </div>
         <nav id="page-list" class="page-list"></nav>
 
+        <button id="plugins-btn" class="plugins-btn">
+          <span class="plug-icon">🔌</span>
+          <span class="plug-label">Plugins</span>
+          <span id="plugin-count" class="plug-count">0</span>
+        </button>
+
         <div class="sidebar-foot">
           <div class="device-card" id="device-card">
             <div class="device-dot" id="device-dot"></div>
@@ -78,6 +84,27 @@
       </main>
 
       <aside class="inspector" id="inspector"></aside>
+    </div>
+
+    <div id="plugin-modal" class="modal hidden">
+      <div class="modal-card">
+        <div class="modal-head">
+          <div>
+            <h2>Plugins</h2>
+            <p>JavaScript Ulanzi plugins run as-is. HTML plugins are listed but not supported yet.</p>
+          </div>
+          <button id="plugin-modal-close" class="icon-btn" title="Close">×</button>
+        </div>
+
+        <div class="modal-actions">
+          <button class="btn primary" id="plugin-install-folder">Install folder…</button>
+          <button class="btn" id="plugin-install-zip">Install .zip…</button>
+          <button class="btn" id="plugin-reload">Reload all</button>
+          <button class="btn ghost" id="plugin-open-folder">Open plugins folder</button>
+        </div>
+
+        <div id="plugin-list" class="plugin-list"></div>
+      </div>
     </div>
 
     <div id="toast" class="toast"></div>

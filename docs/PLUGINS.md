@@ -1,5 +1,7 @@
 # Plugin host
 
+![Plugin manager](screenshots/plugins.png)
+
 The app can run existing **Node.js Ulanzi plugins** unchanged. This is the compatibility
 layer that lets keys from the vendor ecosystem (news, weather, agent status, …) keep
 working while the deck itself is driven by our app.
@@ -64,6 +66,23 @@ working while the deck itself is driven by our app.
 Plugin images are **not** persisted. They live in memory keyed by `actionid`; on each
 `state` message the key canvas is redrawn and the page bundle is pushed to the deck.
 The g1 plugin’s SVG (with an embedded JPEG) is passed straight to Chromium’s canvas.
+
+## Managing plugins in the app
+
+Click **Plugins** in the sidebar:
+
+* **Install folder…** — pick a `.ulanziPlugin` directory (or a folder containing one)
+* **Install .zip…** — pick a plugin ZIP; it is unpacked into the app's plugin folder
+* **Reload all** — restarts every plugin process and rescans
+* **Open plugins folder** — reveals `~/Library/Application Support/Ulanzi Deck Open/Plugins`
+* **Show** — reveals the plugin on disk
+* **Remove** — only for plugins installed by this app (Ulanzi's folder is read-only)
+
+Installed plugins are copied to the app's own plugin folder, so they survive Ulanzi
+Studio updates. When both locations contain the same UUID, the app's copy wins.
+
+Crashed plugins with a key on the deck are restarted automatically after 2 seconds,
+and on reconnect all `add`/`setactive` messages are replayed.
 
 ## Using a plugin key
 

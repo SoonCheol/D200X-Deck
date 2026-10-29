@@ -56,6 +56,12 @@ function createWindow() {
             send('deck:key', { index: Number(process.env.ULANZI_KEY), pressed: true, state: 1 });
             await new Promise((r) => setTimeout(r, 900));
           }
+          if (process.env.ULANZI_PLUGINS) {
+            await win.webContents.executeJavaScript(
+              "document.querySelector('#plugins-btn')?.click(); true"
+            );
+            await new Promise((r) => setTimeout(r, 700));
+          }
           if (process.env.ULANZI_CLICK) {
             const idx = Number(process.env.ULANZI_CLICK) || 0;
             await win.webContents.executeJavaScript(
@@ -137,7 +143,7 @@ function initDeck() {
 
 function initPlugins() {
   const dirs = [path.join(app.getPath('userData'), 'Plugins'), ...pluginRootDirs()];
-  plugins = new PluginManager({ dirs, port: 3906, appVersion: app.getVersion() });
+  plugins = new PluginManager({ dirs, appPluginsDir: dirs[0], port: 3906, appVersion: app.getVersion() });
   plugins.scan();
   plugins.start();
   plugins.on('state', (payload) => send('plugin:state', payload));
@@ -269,6 +275,66 @@ ipcMain.handle('plugins:sync', (_evt, wanted) => {
 });
 
 ipcMain.handle('plugins:run', (_evt, actionid) => ({ ok: plugins.run(actionid) }));
+
+ipcMain.handle('plugins:install-folder', async () => {
+  const res = await dialog.showOpenDialog(win, {
+    title: 'Select a .ulanziPlugin folder',
+    properties: ['openDirectory'],
+  });
+  if (res.canceled || res.filePaths.length === 0) return { canceled: true };
+  try {
+    const out = plugins.install(res.filePaths[0]);
+    send('plugins:changed');
+    return { ok: true, ...out };
+  } catch (err) {
+    return { ok: false, error: err.message || String(err) };
+  }
+});
+
+ipcMain.handle('plugins:install-zip', async () => {
+  const res = await dialog.showOpenDialog(win, {
+    title: 'Select a plugin ZIP',
+    properties: ['openFile'],
+    filters: [{ name: 'Plugin package', extensions: ['zip'] }],
+  });
+  if (res.canceled || res.filePaths.length === 0) return { canceled: true };
+  try {
+    const out = plugins.install(res.filePaths[0]);
+    send('plugins:changed');
+    return { ok: true, ...out };
+  } catch (err) {
+    return { ok: false, error: err.message || String(err) };
+  }
+});
+
+ipcMain.handle('plugins:reload', () => {
+  const list = plugins.reload();
+  send('plugins:changed');
+  return { ok: true, list };
+});
+
+ipcMain.handle('plugins:remove', (_evt, uuid) => {
+  try {
+    const list = plugins.remove(uuid);
+    send('plugins:changed');
+    return { ok: true, list };
+  } catch (err) {
+    return { ok: false, error: err.message || String(err) };
+  }
+});
+
+ipcMain.handle('plugins:open-folder', () => {
+  fs.mkdirSync(plugins.appPluginsDir, { recursive: true });
+  shell.openPath(plugins.appPluginsDir);
+  return { ok: true };
+});
+
+ipcMain.handle('plugins:reveal', (_evt, uuid) => {
+  const meta = plugins.plugins.get(uuid);
+  if (!meta) return { ok: false };
+  shell.showItemInFolder(meta.dir);
+  return { ok: true };
+});
 
 ipcMain.handle('dialog:pick-image', async () => {
   const res = await dialog.showOpenDialog(win, {

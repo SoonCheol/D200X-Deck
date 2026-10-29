@@ -710,9 +710,128 @@ function toast(message, bad = false) {
   toastTimer = setTimeout(() => el.classList.remove('show'), 2600);
 }
 
+// ------------------------------------------------------------ plugin manager
+
+function updatePluginCount() {
+  $('#plugin-count').textContent = String(state.plugins.length);
+}
+
+async function refreshPlugins() {
+  state.plugins = await api.listPlugins();
+  updatePluginCount();
+  if (!$('#plugin-modal').classList.contains('hidden')) renderPluginModal();
+  syncPlugins();
+}
+
+function openPluginModal() {
+  renderPluginModal();
+  $('#plugin-modal').classList.remove('hidden');
+}
+
+function closePluginModal() {
+  $('#plugin-modal').classList.add('hidden');
+}
+
+function renderPluginModal() {
+  const list = $('#plugin-list');
+  if (!state.plugins.length) {
+    list.innerHTML = `<div class="plugin-empty">
+      No plugins found.<br/>
+      Install a <b>.ulanziPlugin</b> folder or ZIP, or let the app scan Ulanzi Studio's plugin folder.
+    </div>`;
+    return;
+  }
+
+  list.innerHTML = state.plugins
+    .map((p) => {
+      const actions = (p.actions || [])
+        .slice(0, 5)
+        .map((a) => `<span class="badge-tag">${esc(a.name)}</span>`)
+        .join('');
+      return `
+        <div class="plugin-row${p.compatible ? '' : ' disabled'}">
+          ${p.icon ? `<img class="plugin-icon" src="${esc(p.icon)}" alt="" />` : `<div class="plugin-icon">🔌</div>`}
+          <div class="plugin-meta">
+            <div class="plugin-name">
+              ${esc(p.name)}
+              <span class="badge-tag ${p.compatible ? 'good' : 'warn'}">${p.compatible ? 'JS' : 'HTML'}</span>
+              <span class="badge-tag">${p.writable ? 'App' : 'Ulanzi'}</span>
+            </div>
+            <div class="plugin-sub">
+              ${p.version ? `v${esc(p.version)} · ` : ''}${esc(p.author || 'unknown author')} · ${(p.actions || []).length} action(s)
+            </div>
+            <div class="plugin-badges">${actions}</div>
+          </div>
+          <div class="plugin-actions">
+            <button class="btn ghost" data-reveal="${esc(p.uuid)}">Show</button>
+            ${p.writable ? `<button class="btn danger" data-remove="${esc(p.uuid)}">Remove</button>` : ''}
+          </div>
+        </div>`;
+    })
+    .join('');
+
+  list.querySelectorAll('[data-reveal]').forEach((btn) => {
+    btn.addEventListener('click', () => api.revealPlugin(btn.dataset.reveal));
+  });
+  list.querySelectorAll('[data-remove]').forEach((btn) => {
+    btn.addEventListener('click', async () => {
+      const uuid = btn.dataset.remove;
+      const plugin = state.plugins.find((p) => p.uuid === uuid);
+      if (!confirm(`Remove “${plugin?.name || uuid}”?`)) return;
+      const res = await api.removePlugin(uuid);
+      if (!res.ok) return toast(res.error, true);
+      state.plugins = res.list;
+      updatePluginCount();
+      renderPluginModal();
+      syncPlugins();
+      toast('Plugin removed');
+    });
+  });
+}
+
 // -------------------------------------------------------------- bootstrap
 
 function bind() {
+  $('#plugins-btn').addEventListener('click', openPluginModal);
+  $('#plugin-modal-close').addEventListener('click', closePluginModal);
+  $('#plugin-modal').addEventListener('click', (e) => {
+    if (e.target === $('#plugin-modal')) closePluginModal();
+  });
+
+  $('#plugin-install-folder').addEventListener('click', async () => {
+    const res = await api.installPluginFolder();
+    if (res.canceled) return;
+    if (!res.ok) return toast(res.error, true);
+    state.plugins = res.list;
+    updatePluginCount();
+    renderPluginModal();
+    syncPlugins();
+    toast(`Installed ${res.name}`);
+  });
+
+  $('#plugin-install-zip').addEventListener('click', async () => {
+    const res = await api.installPluginZip();
+    if (res.canceled) return;
+    if (!res.ok) return toast(res.error, true);
+    state.plugins = res.list;
+    updatePluginCount();
+    renderPluginModal();
+    syncPlugins();
+    toast(`Installed ${res.name}`);
+  });
+
+  $('#plugin-reload').addEventListener('click', async () => {
+    const res = await api.reloadPlugins();
+    if (!res.ok) return toast(res.error || 'Reload failed', true);
+    state.plugins = res.list;
+    updatePluginCount();
+    renderPluginModal();
+    syncPlugins();
+    toast('Plugins reloaded');
+  });
+
+  $('#plugin-open-folder').addEventListener('click', () => api.openPluginsFolder());
+
   $('#add-page').addEventListener('click', addPage);
   $('#push-btn').addEventListener('click', pushNow);
 
@@ -836,6 +955,10 @@ function bind() {
   api.onPluginError((message) => toast(message, true));
   api.onPluginAlert(() => toast('Plugin error', true));
 
+  api.onPluginsChanged(() => {
+    refreshPlugins().catch((err) => toast(err.message || String(err), true));
+  });
+
   api.onSeizePermission((needed) => {
     if (needed) {
       toast('Grant Input Monitoring to stop the wide key typing the Ulanzi URL', true);
@@ -854,6 +977,7 @@ function bind() {
   state.config = boot.config;
   state.status = boot.status;
   state.plugins = await api.listPlugins();
+  updatePluginCount();
   $('#version').textContent = boot.version;
   bind();
   renderAll();

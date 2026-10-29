@@ -17,7 +17,9 @@ actions, and it talks to the deck directly over HID — no vendor app required.
   **or run an existing Node.js Ulanzi plugin action**.
 * **Device control** — brightness (0–100 %), screen sleep timeout, clock sync.
 * **Plugins** — runs Ulanzi's JavaScript plugins unchanged (discovery, WebSocket host,
-  live images, key events). See [`docs/PLUGINS.md`](docs/PLUGINS.md).
+  live images, key events). A built-in **plugin manager** installs `.ulanziPlugin`
+  folders or ZIPs, reloads, reveals and removes app-installed plugins.
+  See [`docs/PLUGINS.md`](docs/PLUGINS.md).
 * **Hot-plug** — reconnects automatically when the deck appears.
 * **Packaged macOS app** — `npm run package` builds `Ulanzi Deck Open.app`.
 
