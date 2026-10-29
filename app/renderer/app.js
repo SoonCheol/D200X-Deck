@@ -27,6 +27,7 @@ const state = {
   pushAgain: false,
   draggingBrightness: false,
   plugins: [],
+  apps: [],
 };
 
 let saveTimer = null;
@@ -565,19 +566,7 @@ function renderInspector() {
 
   const pickApp = $('#insp-pick-app');
   if (pickApp) {
-    pickApp.addEventListener('click', async () => {
-      const res = await api.pickApp();
-      if (!res) return;
-      key.action = { ...key.action, type: 'app', value: res.path };
-      if (!key.icon && res.icon) {
-        key.icon = res.icon;
-        key.iconSource = 'app';
-      }
-      if (!key.emoji) key.emoji = res.name;
-      if (!key.label) key.label = 'Open';
-      commit();
-      renderInspector();
-    });
+    pickApp.addEventListener('click', () => openAppPicker());
   }
 
   const fetchIcon = $('#insp-fetch-icon');
@@ -789,6 +778,58 @@ function toast(message, bad = false) {
   toastTimer = setTimeout(() => el.classList.remove('show'), 2600);
 }
 
+// --------------------------------------------------------------- app picker
+
+let appPickerKey = null;
+
+async function openAppPicker() {
+  appPickerKey = ensureKey(activePage(), state.selected);
+  if (!state.apps.length) state.apps = await api.listApps();
+  $('#app-search').value = '';
+  renderAppList('');
+  $('#app-modal').classList.remove('hidden');
+  setTimeout(() => $('#app-search').focus(), 40);
+}
+
+function closeAppPicker() {
+  $('#app-modal').classList.add('hidden');
+  appPickerKey = null;
+}
+
+function renderAppList(query) {
+  const q = String(query || '').toLowerCase();
+  const apps = state.apps.filter(
+    (a) => !q || a.name.toLowerCase().includes(q) || a.path.toLowerCase().includes(q)
+  );
+  const list = $('#app-list');
+  if (!apps.length) {
+    list.innerHTML = '<div class="plugin-empty">No applications found.</div>';
+    return;
+  }
+  list.innerHTML = apps
+    .map(
+      (a) => `<button class="app-row" data-path="${esc(a.path)}" data-name="${esc(a.name)}">
+        <div class="app-avatar">${esc((a.name[0] || 'A').toUpperCase())}</div>
+        <div class="app-meta">
+          <div class="app-name">${esc(a.name)}</div>
+          <div class="app-path">${esc(a.path)}</div>
+        </div>
+      </button>`
+    )
+    .join('');
+  list.querySelectorAll('.app-row').forEach((row) => {
+    row.addEventListener('click', () => {
+      const key = appPickerKey;
+      if (!key) return;
+      key.action = { type: 'app', value: row.dataset.path };
+      if (!key.emoji) key.emoji = row.dataset.name;
+      commit();
+      closeAppPicker();
+      renderInspector();
+    });
+  });
+}
+
 // ------------------------------------------------------------ plugin manager
 
 function updatePluginCount() {
@@ -872,6 +913,11 @@ function renderPluginModal() {
 
 function bind() {
   $('#plugins-btn').addEventListener('click', openPluginModal);
+  $('#app-modal-close').addEventListener('click', closeAppPicker);
+  $('#app-modal').addEventListener('click', (e) => {
+    if (e.target === $('#app-modal')) closeAppPicker();
+  });
+  $('#app-search').addEventListener('input', (e) => renderAppList(e.target.value));
   $('#plugin-modal-close').addEventListener('click', closePluginModal);
   $('#plugin-modal').addEventListener('click', (e) => {
     if (e.target === $('#plugin-modal')) closePluginModal();
@@ -954,6 +1000,8 @@ function bind() {
       pushNow();
     }
     if (e.key === 'Escape') {
+      if (!$('#app-modal').classList.contains('hidden')) return closeAppPicker();
+      if (!$('#plugin-modal').classList.contains('hidden')) return closePluginModal();
       state.selected = null;
       renderGrid();
       renderInspector();

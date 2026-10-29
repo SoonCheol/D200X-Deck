@@ -86,6 +86,22 @@
       <aside class="inspector" id="inspector"></aside>
     </div>
 
+    <div id="app-modal" class="modal hidden">
+      <div class="modal-card app-card">
+        <div class="modal-head">
+          <div>
+            <h2>Choose an application</h2>
+            <p>Applications from /Applications, /System/Applications and ~/Applications.</p>
+          </div>
+          <button id="app-modal-close" class="icon-btn" title="Close">×</button>
+        </div>
+        <div class="modal-actions" style="border-bottom:0;padding-bottom:8px">
+          <input id="app-search" class="input" placeholder="Search applications…" />
+        </div>
+        <div id="app-list" class="app-list"></div>
+      </div>
+    </div>
+
     <div id="plugin-modal" class="modal hidden">
       <div class="modal-card">
         <div class="modal-head">

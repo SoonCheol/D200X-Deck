@@ -70,6 +70,12 @@ function createWindow() {
             );
             await new Promise((r) => setTimeout(r, 500));
           }
+          if (process.env.ULANZI_APPS) {
+            await win.webContents.executeJavaScript(
+              "document.querySelector('#insp-pick-app')?.click(); true"
+            );
+            await new Promise((r) => setTimeout(r, 700));
+          }
           const image = await win.webContents.capturePage();
           fs.writeFileSync(process.env.ULANZI_SHOT, image.toPNG());
         } finally {
@@ -140,6 +146,36 @@ function initDeck() {
   };
   tryConnect();
   reconnectTimer = setInterval(tryConnect, 4000);
+}
+
+function listApps() {
+  const os = require('node:os');
+  const roots = [
+    '/Applications',
+    '/System/Applications',
+    '/System/Applications/Utilities',
+    '/Applications/Utilities',
+    path.join(os.homedir(), 'Applications'),
+  ];
+  const seen = new Set();
+  const apps = [];
+  for (const root of roots) {
+    let entries = [];
+    try {
+      entries = fs.readdirSync(root, { withFileTypes: true });
+    } catch {
+      continue;
+    }
+    for (const entry of entries) {
+      if (!entry.name.toLowerCase().endsWith('.app')) continue;
+      const full = path.join(root, entry.name);
+      if (seen.has(full)) continue;
+      seen.add(full);
+      apps.push({ name: entry.name.replace(/\.app$/i, ''), path: full });
+    }
+  }
+  apps.sort((a, b) => a.name.localeCompare(b.name));
+  return apps;
 }
 
 function initPlugins() {
@@ -351,30 +387,7 @@ ipcMain.handle('dialog:pick-image', async () => {
   return `data:${mime};base64,${data.toString('base64')}`;
 });
 
-ipcMain.handle('dialog:pick-app', async () => {
-  const res = await dialog.showOpenDialog(win, {
-    title: 'Choose an application',
-    defaultPath: process.platform === 'darwin' ? '/Applications' : undefined,
-    properties: ['openFile', 'openDirectory'],
-    filters:
-      process.platform === 'darwin'
-        ? [{ name: 'Applications', extensions: ['app'] }]
-        : undefined,
-  });
-  if (res.canceled || res.filePaths.length === 0) return null;
-  const file = res.filePaths[0];
-  const name = path.basename(file).replace(/\.app$/i, '');
-  let icon = null;
-  try {
-    const image = await app.getFileIcon(file, { size: 'large' });
-    if (!image.isEmpty()) {
-      icon = image.resize({ width: 196, height: 196, quality: 'best' }).toDataURL();
-    }
-  } catch {
-    /* no icon */
-  }
-  return { path: file, name, icon };
-});
+ipcMain.handle('apps:list', () => listApps());
 
 ipcMain.handle('fetch:site-icon', async (_evt, url) => {
   try {

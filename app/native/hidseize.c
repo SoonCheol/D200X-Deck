@@ -55,6 +55,7 @@ int main(void) {
 
     int warned = 0;
     while (running) {
+        if (getppid() == 1) break; // parent app exited
         IOHIDManagerRef mgr = make_manager();
         IOReturn r = IOHIDManagerOpen(mgr, kIOHIDOptionsTypeNone);
         if (r != kIOReturnSuccess) {
@@ -90,7 +91,7 @@ int main(void) {
         if (seized > 0) {
             fprintf(stderr, "seized %d\n", seized);
             fflush(stderr);
-            while (running) sleep(1);
+            while (running && getppid() != 1) sleep(1);
             IOHIDManagerClose(mgr, kIOHIDOptionsTypeNone);
             CFRelease(mgr);
             break;
