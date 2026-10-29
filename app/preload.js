@@ -18,6 +18,8 @@ contextBridge.exposeInMainWorld('deckApp', {
   runAction: (action) => ipcRenderer.invoke('action:run', action),
   pickImage: () => ipcRenderer.invoke('dialog:pick-image'),
   pickFile: () => ipcRenderer.invoke('dialog:pick-file'),
+  pickApp: () => ipcRenderer.invoke('dialog:pick-app'),
+  fetchSiteIcon: (url) => ipcRenderer.invoke('fetch:site-icon', url),
   listPlugins: () => ipcRenderer.invoke('plugins:list'),
   syncPlugins: (actions) => ipcRenderer.invoke('plugins:sync', actions),
   runPluginAction: (actionid) => ipcRenderer.invoke('plugins:run', actionid),

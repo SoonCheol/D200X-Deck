@@ -11,7 +11,8 @@ const WIDE_KEY_INDEX = 13;
 
 const ACTION_LABELS = {
   none: 'Do nothing',
-  open: 'Open app / URL',
+  app: 'Open app',
+  url: 'Open URL',
   command: 'Run shell command',
   hotkey: 'Send hotkey',
   page: 'Switch to page',
@@ -306,8 +307,16 @@ function renderInspector() {
     .join('');
 
   let valueField = '';
-  if (action.type === 'open') {
-    valueField = `<input class="input" id="insp-value" placeholder="Safari, /Applications/Foo.app, or https://…" value="${esc(action.value)}" />`;
+  if (action.type === 'app') {
+    valueField = `<div class="row">
+      <input class="input" id="insp-value" placeholder="Safari or /Applications/Safari.app" value="${esc(action.value)}" />
+      <button class="btn" id="insp-pick-app">Choose…</button>
+    </div>`;
+  } else if (action.type === 'url') {
+    valueField = `<div class="row">
+      <input class="input" id="insp-value" placeholder="https://example.com" value="${esc(action.value)}" />
+      <button class="btn" id="insp-fetch-icon">Use icon</button>
+    </div>`;
   } else if (action.type === 'command') {
     valueField = `<textarea class="textarea" id="insp-value" placeholder="osascript -e 'set volume output muted'">${esc(action.value)}</textarea>`;
   } else if (action.type === 'hotkey') {
@@ -407,7 +416,7 @@ function renderInspector() {
       </select>
     </div>
 
-    ${valueField && action.type !== 'plugin' ? `<div class="field"><label>${action.type === 'hotkey' ? 'Combination' : action.type === 'page' ? 'Target page' : 'Value'}</label>${valueField}</div>` : ''}
+    ${valueField && action.type !== 'plugin' ? `<div class="field"><label>${action.type === 'hotkey' ? 'Combination' : action.type === 'page' ? 'Target page' : action.type === 'app' ? 'Application' : action.type === 'url' ? 'URL' : 'Value'}</label>${valueField}</div>` : ''}
     ${pluginFields}
 
     <div class="insp-actions">
@@ -422,6 +431,7 @@ function renderInspector() {
     const dataUrl = await api.pickImage();
     if (!dataUrl) return;
     key.icon = dataUrl;
+    key.iconSource = 'custom';
     drawIndex(state.selected);
     commit();
     renderInspector();
@@ -437,6 +447,7 @@ function renderInspector() {
     const file = e.dataTransfer.files && e.dataTransfer.files[0];
     if (!file || !file.type.startsWith('image/')) return toast('Drop an image file', true);
     key.icon = await readFileAsDataUrl(file);
+    key.iconSource = 'custom';
     drawIndex(state.selected);
     commit();
     renderInspector();
@@ -446,6 +457,7 @@ function renderInspector() {
   if (removeImage) {
     removeImage.addEventListener('click', () => {
       key.icon = null;
+      delete key.iconSource;
       drawIndex(state.selected);
       commit();
       renderInspector();
@@ -469,6 +481,12 @@ function renderInspector() {
   });
   $('#insp-action-type').addEventListener('change', (e) => {
     const type = e.target.value;
+    if (type === 'app' || type === 'url') {
+      key.action = { type, value: '' };
+      commit(false);
+      renderInspector();
+      return;
+    }
     if (type === 'plugin') {
       const p = state.plugins.find((x) => x.compatible);
       const a = p?.actions?.[0];
@@ -541,6 +559,39 @@ function renderInspector() {
     valueEl.addEventListener('change', (e) => {
       key.action = { type: key.action.type, value: e.target.value };
       commit(false);
+      if (key.action.type === 'url' && !key.icon) loadSiteIcon(key);
+    });
+  }
+
+  const pickApp = $('#insp-pick-app');
+  if (pickApp) {
+    pickApp.addEventListener('click', async () => {
+      const res = await api.pickApp();
+      if (!res) return;
+      key.action = { ...key.action, type: 'app', value: res.path };
+      if (!key.icon && res.icon) {
+        key.icon = res.icon;
+        key.iconSource = 'app';
+      }
+      if (!key.emoji) key.emoji = res.name;
+      if (!key.label) key.label = 'Open';
+      commit();
+      renderInspector();
+    });
+  }
+
+  const fetchIcon = $('#insp-fetch-icon');
+  if (fetchIcon) {
+    fetchIcon.addEventListener('click', async () => {
+      const url = String(key.action.value || '').trim();
+      if (!url) return toast('Enter a URL first', true);
+      fetchIcon.disabled = true;
+      fetchIcon.textContent = 'Loading…';
+      const ok = await loadSiteIcon(key, true);
+      fetchIcon.disabled = false;
+      fetchIcon.textContent = 'Use icon';
+      if (!ok) return;
+      renderInspector();
     });
   }
 
@@ -575,6 +626,22 @@ function nextFreeIndex(page) {
 function scheduleSave() {
   clearTimeout(saveTimer);
   saveTimer = setTimeout(() => api.saveConfig(state.config), 250);
+}
+
+async function loadSiteIcon(key, report = false) {
+  const url = String(key.action?.value || '').trim();
+  if (!url) return false;
+  const res = await api.fetchSiteIcon(url);
+  if (!res.ok) {
+    if (report) toast(res.error || 'No icon found', true);
+    return false;
+  }
+  key.icon = res.dataUrl;
+  key.iconSource = 'site';
+  drawIndex(state.selected);
+  commit();
+  if (report) toast('Icon loaded from the site');
+  return true;
 }
 
 function commit(redraw = true) {

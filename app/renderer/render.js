@@ -97,12 +97,29 @@ async function drawKey(canvas, key, width = KEY_SIZE, height = KEY_SIZE) {
   if (key.icon) {
     try {
       const img = await loadImage(key.icon);
-      const scale = Math.max(w / img.width, h / img.height);
-      const iw = img.width * scale;
-      const ih = img.height * scale;
-      ctx.drawImage(img, (w - iw) / 2, (h - ih) / 2, iw, ih);
-      ctx.fillStyle = 'rgba(0,0,0,0.28)';
-      ctx.fillRect(0, 0, w, h);
+      if (key.iconSource === 'site' || key.iconSource === 'app') {
+        let inset = key.iconSource === 'site' ? 44 : 26;
+        if (key.iconSource === 'site') {
+          ctx.save();
+          roundRect(ctx, 24, 24, w - 48, h - 48, 18);
+          ctx.fillStyle = 'rgba(255,255,255,0.94)';
+          ctx.fill();
+          ctx.restore();
+        }
+        const availW = w - inset * 2;
+        const availH = h - inset * 2;
+        const scale = Math.min(availW / img.width, availH / img.height);
+        const iw = img.width * scale;
+        const ih = img.height * scale;
+        ctx.drawImage(img, (w - iw) / 2, (h - ih) / 2, iw, ih);
+      } else {
+        const scale = Math.max(w / img.width, h / img.height);
+        const iw = img.width * scale;
+        const ih = img.height * scale;
+        ctx.drawImage(img, (w - iw) / 2, (h - ih) / 2, iw, ih);
+        ctx.fillStyle = 'rgba(0,0,0,0.28)';
+        ctx.fillRect(0, 0, w, h);
+      }
     } catch {
       /* broken image: fall through */
     }

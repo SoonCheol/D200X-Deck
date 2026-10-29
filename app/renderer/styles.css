@@ -353,6 +353,8 @@ body::before {
   color: var(--muted); margin-bottom: 6px; font-weight: 600;
 }
 .field .row { display: flex; gap: 8px; }
+.field .row .input { flex: 1; min-width: 0; }
+.field .row .btn { flex: none; padding: 9px 10px; }
 
 .input, .select, .textarea {
   width: 100%;

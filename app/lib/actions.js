@@ -65,18 +65,31 @@ async function runHotkey(combo) {
   return { ok: false, error: 'hotkeys are only implemented on macOS/Linux' };
 }
 
-async function openTarget(value) {
+async function openUrl(value) {
   const target = String(value || '').trim();
-  if (!target) return { ok: false, error: 'empty target' };
-  if (/^(https?:|mailto:|file:)/i.test(target)) {
-    await shell.openExternal(target);
-    return { ok: true };
-  }
+  if (!target) return { ok: false, error: 'empty URL' };
+  const url = /^(https?:|mailto:|file:)/i.test(target) ? target : `https://${target}`;
+  await shell.openExternal(url);
+  return { ok: true };
+}
+
+async function openApp(value) {
+  const target = String(value || '').trim();
+  if (!target) return { ok: false, error: 'empty app' };
   if (process.platform === 'darwin') {
     return run(`open -a ${JSON.stringify(target)} 2>/dev/null || open ${JSON.stringify(target)}`);
   }
-  await shell.openPath(target);
-  return { ok: true };
+  if (process.platform === 'win32') {
+    return run(`start "" ${JSON.stringify(target)}`);
+  }
+  return run(`xdg-open ${JSON.stringify(target)}`);
+}
+
+async function openTarget(value) {
+  const target = String(value || '').trim();
+  if (!target) return { ok: false, error: 'empty target' };
+  if (/^(https?:|mailto:)/i.test(target)) return openUrl(target);
+  return openApp(target);
 }
 
 /**
@@ -86,7 +99,12 @@ async function openTarget(value) {
 async function execute(action) {
   if (!action || !action.type || action.type === 'none') return { ok: true };
   switch (action.type) {
+    case 'app':
+      return openApp(action.value);
+    case 'url':
+      return openUrl(action.value);
     case 'open':
+      // legacy configs
       return openTarget(action.value);
     case 'command':
       return run(action.value);
@@ -97,4 +115,4 @@ async function execute(action) {
   }
 }
 
-module.exports = { execute, runHotkey, openTarget };
+module.exports = { execute, runHotkey, openTarget, openApp, openUrl };

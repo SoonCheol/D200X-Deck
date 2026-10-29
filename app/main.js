@@ -8,6 +8,7 @@ const { Deck } = require('./lib/deck');
 const { Store } = require('./lib/store');
 const { buildPage } = require('./lib/page');
 const { PluginManager, pluginRootDirs } = require('./lib/plugins');
+const { fetchSiteIcon } = require('./lib/siteicon');
 const actions = require('./lib/actions');
 
 let win = null;
@@ -348,6 +349,40 @@ ipcMain.handle('dialog:pick-image', async () => {
   const mime = ext === 'svg' ? 'image/svg+xml' : ext === 'jpg' ? 'image/jpeg' : `image/${ext}`;
   const data = fs.readFileSync(file);
   return `data:${mime};base64,${data.toString('base64')}`;
+});
+
+ipcMain.handle('dialog:pick-app', async () => {
+  const res = await dialog.showOpenDialog(win, {
+    title: 'Choose an application',
+    defaultPath: process.platform === 'darwin' ? '/Applications' : undefined,
+    properties: ['openFile', 'openDirectory'],
+    filters:
+      process.platform === 'darwin'
+        ? [{ name: 'Applications', extensions: ['app'] }]
+        : undefined,
+  });
+  if (res.canceled || res.filePaths.length === 0) return null;
+  const file = res.filePaths[0];
+  const name = path.basename(file).replace(/\.app$/i, '');
+  let icon = null;
+  try {
+    const image = await app.getFileIcon(file, { size: 'large' });
+    if (!image.isEmpty()) {
+      icon = image.resize({ width: 196, height: 196, quality: 'best' }).toDataURL();
+    }
+  } catch {
+    /* no icon */
+  }
+  return { path: file, name, icon };
+});
+
+ipcMain.handle('fetch:site-icon', async (_evt, url) => {
+  try {
+    const icon = await fetchSiteIcon(url);
+    return { ok: true, ...icon };
+  } catch (err) {
+    return { ok: false, error: err.message || String(err) };
+  }
 });
 
 ipcMain.handle('dialog:pick-file', async () => {

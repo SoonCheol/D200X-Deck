@@ -4,7 +4,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const { randomUUID } = require('node:crypto');
 
-const CONFIG_VERSION = 2;
+const CONFIG_VERSION = 3;
 
 function key(emoji, label, action = { type: 'none' }, color = '#1b2130') {
   return { emoji, label, action, color, icon: null };
@@ -20,11 +20,11 @@ function defaultPages() {
     id: randomUUID(),
     name: 'Main',
     keys: {
-      0: key('🧭', 'Safari', { type: 'open', value: 'Safari' }, '#16324a'),
-      1: key('⌨️', 'Terminal', { type: 'open', value: 'Terminal' }, '#1d2430'),
-      2: key('📁', 'Finder', { type: 'open', value: 'Finder' }, '#2a2f45'),
-      3: key('🐙', 'GitHub', { type: 'open', value: 'https://github.com' }, '#2d2340'),
-      4: key('📝', 'Notes', { type: 'open', value: 'Notes' }, '#3a3418'),
+      0: key('🧭', 'Safari', { type: 'app', value: 'Safari' }, '#16324a'),
+      1: key('⌨️', 'Terminal', { type: 'app', value: 'Terminal' }, '#1d2430'),
+      2: key('📁', 'Finder', { type: 'app', value: 'Finder' }, '#2a2f45'),
+      3: key('🐙', 'GitHub', { type: 'url', value: 'https://github.com' }, '#2d2340'),
+      4: key('📝', 'Notes', { type: 'app', value: 'Notes' }, '#3a3418'),
       5: key('📸', 'Screenshot', { type: 'hotkey', value: 'cmd+shift+3' }, '#1f3328'),
       6: key('🔒', 'Lock', { type: 'command', value: 'pmset displaysleepnow' }, '#33212a'),
       7: key('▶️', 'Media', { type: 'page', value: mediaId }, '#213040'),
@@ -32,7 +32,7 @@ function defaultPages() {
       9: key('🔇', 'Mute', { type: 'command', value: "osascript -e 'set volume with output muted'" }, '#2e2626'),
       10: key('🔊', 'Vol +', { type: 'command', value: "osascript -e 'set volume output volume ((output volume of (get volume settings)) + 6)'" }, '#24302a'),
       11: key('🌙', 'Sleep', { type: 'command', value: 'pmset sleepnow' }, '#1c1c30'),
-      12: key('🧮', 'Calculator', { type: 'open', value: 'Calculator' }, '#2c2c2c'),
+      12: key('🧮', 'Calculator', { type: 'app', value: 'Calculator' }, '#2c2c2c'),
       13: wideKey('🎛', 'Ulanzi Deck Open'),
     },
   };
@@ -45,8 +45,8 @@ function defaultPages() {
       2: key('⏭', 'Next', { type: 'command', value: "osascript -e 'tell application \"Music\" to next track'" }),
       3: key('🔉', 'Vol −', { type: 'command', value: "osascript -e 'set volume output volume ((output volume of (get volume settings)) - 6)'" }),
       4: key('🔊', 'Vol +', { type: 'command', value: "osascript -e 'set volume output volume ((output volume of (get volume settings)) + 6)'" }),
-      5: key('🎬', 'TV', { type: 'open', value: 'TV' }),
-      6: key('📻', 'Podcasts', { type: 'open', value: 'Podcasts' }),
+      5: key('🎬', 'TV', { type: 'app', value: 'TV' }),
+      6: key('📻', 'Podcasts', { type: 'app', value: 'Podcasts' }),
       7: key('🔇', 'Mute', { type: 'command', value: "osascript -e 'set volume with output muted'" }),
       8: key('⬅️', 'Back', { type: 'page', value: main.id }),
       13: wideKey('⬅️', 'Back to Main', { type: 'page', value: main.id }, '#213040'),
@@ -101,6 +101,11 @@ class Store {
       const old = page.keys[13];
       if (previous < 2 && old && old.label === 'Music' && old.action && old.action.value === 'Music') {
         page.keys[13] = wideKey('🎛', 'Ulanzi Deck Open');
+      }
+      for (const key of Object.values(page.keys)) {
+        if (key && key.action && key.action.type === 'open') {
+          key.action.type = /^https?:|^mailto:/i.test(String(key.action.value || '')) ? 'url' : 'app';
+        }
       }
     }
 
