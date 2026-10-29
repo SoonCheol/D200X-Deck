@@ -171,16 +171,18 @@ async function requestQuit() {
   const parent = win && !win.isDestroyed() && win.isVisible() ? win : null;
   const { response } = await dialog.showMessageBox(parent, {
     type: 'question',
-    buttons: ['Quit', 'Cancel'],
-    defaultId: 1,
-    cancelId: 1,
+    // Cancel is the default and the first button: if macOS ever dismisses the
+    // box on its own it resolves to Cancel, never to Quit.
+    buttons: ['Cancel', 'Quit'],
+    defaultId: 0,
+    cancelId: 0,
     message: 'Quit Ulanzi Deck Open?',
     detail:
       'The deck will keep its last page. Plugins, hotkeys and the clock will stop until you reopen the app.',
   });
   quitPromptOpen = false;
   console.log('[quit] confirmation response', response);
-  if (response === 0) {
+  if (response === 1) {
     isQuitting = true;
     app.quit();
     return;
