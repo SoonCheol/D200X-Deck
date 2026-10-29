@@ -51,6 +51,20 @@ function fitText(ctx, text, maxWidth) {
   return `${s}…`;
 }
 
+function truncateMain(text) {
+  const chars = [...String(text || '').trim()];
+  if (chars.length > 10) return `${chars.slice(0, 10).join('')}…`;
+  return chars.join('');
+}
+
+function isEmojiOnly(text) {
+  try {
+    return /^[\p{Extended_Pictographic}\p{Emoji_Component}\u200d\uFE0F\s]+$/u.test(text);
+  } catch {
+    return false;
+  }
+}
+
 /**
  * Draw one key.
  * @param {HTMLCanvasElement} canvas
@@ -103,22 +117,35 @@ async function drawKey(canvas, key, width = KEY_SIZE, height = KEY_SIZE) {
   }
 
   const label = (key.label || '').trim();
-  const emoji = (key.emoji || '').trim();
+  const main = truncateMain(key.emoji || '');
   const hasLabel = Boolean(label);
 
-  if (emoji && !key.icon) {
+  if (main && !key.icon) {
     ctx.save();
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    ctx.font = `${Math.round(min * 0.5)}px "Apple Color Emoji", "Segoe UI Emoji", sans-serif`;
     ctx.shadowColor = 'rgba(0,0,0,0.35)';
     ctx.shadowBlur = 8;
     ctx.fillStyle = '#fff';
-    ctx.fillText(emoji, w / 2, hasLabel ? h * 0.44 : h / 2);
+    const y = hasLabel ? h * 0.44 : h / 2;
+    if (isEmojiOnly(main)) {
+      ctx.font = `${Math.round(min * 0.5)}px "Apple Color Emoji", "Segoe UI Emoji", sans-serif`;
+      ctx.fillText(main, w / 2, y);
+    } else {
+      const maxWidth = w - 26;
+      let size = Math.round(min * 0.6);
+      const fontFor = (s) => `700 ${s}px -apple-system, "SF Pro Text", "Helvetica Neue", sans-serif`;
+      ctx.font = fontFor(size);
+      while (size > 16 && ctx.measureText(main).width > maxWidth) {
+        size -= 2;
+        ctx.font = fontFor(size);
+      }
+      ctx.fillText(main, w / 2, y);
+    }
     ctx.restore();
   }
 
-  if (!emoji && !key.icon) {
+  if (!main && !key.icon) {
     ctx.save();
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';

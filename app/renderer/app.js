@@ -381,19 +381,21 @@ function renderInspector() {
           <div>Drop an image here or click to choose</div>
         </div>
       </div>
-    </div>
-
-    <div class="field">
-      <label>Emoji</label>
-      <div class="emoji-row">
-        <input class="input emoji-input" id="insp-emoji" maxlength="8" value="${esc(key.emoji)}" placeholder="none" />
-        <input class="color-input" id="insp-color" type="color" value="${esc(key.color || '#1b2130')}" title="Background" />
-      </div>
+      ${key.icon ? '<button class="btn danger icon-remove" id="insp-icon-remove">Remove image</button>' : ''}
     </div>
 
     <div class="field">
       <label>Label</label>
-      <input class="input" id="insp-label" maxlength="40" value="${esc(key.label)}" placeholder="Shown at the bottom" />
+      <div class="emoji-row">
+        <input class="input" id="insp-emoji" maxlength="16" value="${esc(key.emoji)}" placeholder="Text or emoji" />
+        <input class="color-input" id="insp-color" type="color" value="${esc(key.color || '#1b2130')}" title="Background" />
+      </div>
+      <div class="field-hint">Shrinks to fit · 10 characters max</div>
+    </div>
+
+    <div class="field">
+      <label>Caption</label>
+      <input class="input" id="insp-label" maxlength="40" value="${esc(key.label)}" placeholder="Optional small text under the key" />
     </div>
 
     <div class="field">
@@ -439,6 +441,16 @@ function renderInspector() {
     commit();
     renderInspector();
   });
+
+  const removeImage = $('#insp-icon-remove');
+  if (removeImage) {
+    removeImage.addEventListener('click', () => {
+      key.icon = null;
+      drawIndex(state.selected);
+      commit();
+      renderInspector();
+    });
+  }
 
   $('#insp-emoji').addEventListener('input', (e) => {
     key.emoji = e.target.value;
