@@ -115,11 +115,10 @@ class Deck extends EventEmitter {
   }
 
   setBrightness(percent) {
-    // The device expects two ASCII hex digits: 0x00..0xFF.
-    const pct = Math.max(0, Math.min(100, Number(percent) || 0));
-    const raw = Math.round((pct / 100) * 255);
-    const hex = raw.toString(16).padStart(2, '0');
-    this.sendFrame(0, P.PROTO.BRIGHTNESS, Buffer.from(hex, 'utf8'));
+    // Ulanzi sends QString::number(value, 10): plain ASCII decimal 0..100.
+    // The device parses the digits as BCD in its acknowledgement.
+    const n = Math.max(0, Math.min(100, Math.round(Number(percent) || 0)));
+    this.sendFrame(0, P.PROTO.BRIGHTNESS, Buffer.from(String(n), 'utf8'));
   }
 
   setSleepTime(seconds) {

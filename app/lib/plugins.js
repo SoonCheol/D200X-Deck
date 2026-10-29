@@ -1,0 +1,468 @@
+'use strict';
+
+const { EventEmitter } = require('node:events');
+const { spawn } = require('node:child_process');
+const fs = require('node:fs');
+const path = require('node:path');
+const os = require('node:os');
+const { WebSocketServer } = require('ws');
+
+const MIME = {
+  '.png': 'image/png',
+  '.jpg': 'image/jpeg',
+  '.jpeg': 'image/jpeg',
+  '.gif': 'image/gif',
+  '.svg': 'image/svg+xml',
+  '.webp': 'image/webp',
+};
+
+function fileToDataUrl(file) {
+  try {
+    const ext = path.extname(file).toLowerCase();
+    const mime = MIME[ext] || 'application/octet-stream';
+    return `data:${mime};base64,${fs.readFileSync(file).toString('base64')}`;
+  } catch {
+    return null;
+  }
+}
+
+/** Normalise the several image payloads Ulanzi plugins use. */
+function normalizeImage(data, fallbackMime = 'image/svg+xml') {
+  if (!data || typeof data !== 'string') return null;
+  if (data.startsWith('data:')) return data;
+  if (data.trimStart().startsWith('<svg')) {
+    return `data:${fallbackMime};base64,${Buffer.from(data, 'utf8').toString('base64')}`;
+  }
+  // base64 without a data: prefix
+  return `data:${fallbackMime};base64,${data}`;
+}
+
+function pluginRootDirs() {
+  const dirs = [path.join(os.homedir(), 'Library/Application Support/Ulanzi/UlanziDeck/Plugins')];
+  if (process.platform !== 'darwin') {
+    dirs.length = 0;
+  }
+  dirs.push(path.join(os.homedir(), '.ulanzi', 'Plugins'));
+  return dirs;
+}
+
+class PluginManager extends EventEmitter {
+  constructor({ dirs = pluginRootDirs(), port = 3906, language = 'en-US', appVersion = '0.1.0' } = {}) {
+    super();
+    this.dirs = dirs;
+    this.port = port;
+    this.language = language;
+    this.appVersion = appVersion;
+    this.plugins = new Map(); // uuid -> meta
+    this.sockets = new Map(); // uuid -> ws
+    this.queues = new Map(); // uuid -> messages[]
+    this.children = new Map(); // uuid -> ChildProcess
+    this.actions = new Map(); // actionid -> {pluginUuid, actionUuid, key, settings, active, meta}
+    this.globalSettings = new Map(); // pluginUuid -> object
+    this.wss = null;
+  }
+
+  // ------------------------------------------------------------- discovery
+
+  scan() {
+    this.plugins.clear();
+    for (const root of this.dirs) {
+      let entries = [];
+      try {
+        entries = fs.readdirSync(root, { withFileTypes: true });
+      } catch {
+        continue;
+      }
+      for (const entry of entries) {
+        if (!entry.isDirectory() || !entry.name.endsWith('.ulanziPlugin')) continue;
+        const dir = path.join(root, entry.name);
+        const manifestPath = path.join(dir, 'manifest.json');
+        if (!fs.existsSync(manifestPath)) continue;
+        try {
+          const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
+          const uuid = manifest.UUID || entry.name.replace(/\.ulanziPlugin$/, '');
+          const type = manifest.Type || 'JavaScript';
+          const codePath = manifest.CodePath || '';
+          const compatible = type === 'JavaScript' && /\.(c|m)?js$/i.test(codePath);
+          const icon = manifest.Icon ? fileToDataUrl(path.join(dir, manifest.Icon)) : null;
+          const actions = (manifest.Actions || []).map((a) => ({
+            uuid: a.UUID,
+            name: a.Name || a.UUID,
+            icon: a.Icon ? fileToDataUrl(path.join(dir, a.Icon)) : icon,
+            tooltip: a.Tooltip || '',
+            states: (a.States || []).map((s) => ({
+              name: s.Name || '',
+              image: s.Image ? fileToDataUrl(path.join(dir, s.Image)) : null,
+            })),
+            controllers: a.Controllers || ['Keypad'],
+            propertyInspector: a.PropertyInspectorPath || null,
+          }));
+          if (this.plugins.has(uuid) && !compatible) continue;
+          this.plugins.set(uuid, {
+            uuid,
+            name: manifest.Name || uuid,
+            description: manifest.Description || '',
+            version: manifest.Version || '',
+            author: manifest.Author || '',
+            icon,
+            dir,
+            codePath: path.join(dir, codePath),
+            manifest,
+            compatible,
+            type,
+            actions,
+          });
+        } catch (err) {
+          this.emit('error', `Failed to read ${manifestPath}: ${err.message}`);
+        }
+      }
+    }
+    return this.list();
+  }
+
+  list() {
+    return [...this.plugins.values()]
+      .map((p) => ({
+        uuid: p.uuid,
+        name: p.name,
+        description: p.description,
+        version: p.version,
+        author: p.author,
+        icon: p.icon,
+        compatible: p.compatible,
+        type: p.type,
+        actions: p.actions,
+      }))
+      .sort((a, b) => a.name.localeCompare(b.name));
+  }
+
+  // ---------------------------------------------------------------- server
+
+  start() {
+    if (this.wss) return;
+    this.wss = new WebSocketServer({ host: '127.0.0.1', port: this.port });
+    this.wss.on('connection', (ws) => this._onConnection(ws));
+    this.wss.on('error', (err) => {
+      if (err.code === 'EADDRINUSE') {
+        this.emit('error', `Plugin port ${this.port} is busy (is Ulanzi Studio running?)`);
+      } else {
+        this.emit('error', `Plugin server: ${err.message}`);
+      }
+    });
+  }
+
+  _onConnection(ws) {
+    let pluginUuid = null;
+    ws.on('message', (raw) => {
+      let msg;
+      try {
+        msg = JSON.parse(raw.toString());
+      } catch {
+        return;
+      }
+      if (msg.cmd === 'connected') {
+        pluginUuid = msg.uuid;
+        this.sockets.set(pluginUuid, ws);
+        this.emit('connected', pluginUuid);
+        this._flushQueue(pluginUuid);
+        return;
+      }
+      if (!pluginUuid && msg.uuid) pluginUuid = msg.uuid;
+      this._onPluginMessage(msg);
+    });
+    ws.on('close', () => {
+      if (pluginUuid && this.sockets.get(pluginUuid) === ws) this.sockets.delete(pluginUuid);
+    });
+    ws.on('error', () => {});
+  }
+
+  _send(pluginUuid, message) {
+    // NB: the Ulanzi SDK ignores host messages that carry a `code` field
+    // unless cmdType === "REQUEST".
+    const payload = { ...message };
+    const ws = this.sockets.get(pluginUuid);
+    if (ws && ws.readyState === 1) {
+      ws.send(JSON.stringify(payload));
+    } else {
+      if (!this.queues.has(pluginUuid)) this.queues.set(pluginUuid, []);
+      this.queues.get(pluginUuid).push(payload);
+    }
+  }
+
+  _flushQueue(pluginUuid) {
+    const queue = this.queues.get(pluginUuid);
+    if (!queue) return;
+    const ws = this.sockets.get(pluginUuid);
+    if (!ws || ws.readyState !== 1) return;
+    for (const msg of queue) ws.send(JSON.stringify(msg));
+    this.queues.delete(pluginUuid);
+  }
+
+  // --------------------------------------------------------------- process
+
+  _ensurePlugin(pluginUuid) {
+    const meta = this.plugins.get(pluginUuid);
+    if (!meta) return null;
+    if (!meta.compatible) return null;
+    const child = this.children.get(pluginUuid);
+    if (child && child.exitCode === null) return meta;
+    if (!fs.existsSync(meta.codePath)) {
+      this.emit('error', `Plugin code not found: ${meta.codePath}`);
+      return null;
+    }
+    const proc = spawn(
+      process.execPath,
+      [meta.codePath, '127.0.0.1', String(this.port), this.language, this.appVersion],
+      {
+        cwd: meta.dir,
+        env: { ...process.env, ELECTRON_RUN_AS_NODE: '1' },
+        stdio: ['ignore', 'pipe', 'pipe'],
+      }
+    );
+    this.children.set(pluginUuid, proc);
+    const prefix = `[plugin ${meta.name}]`;
+    proc.stdout.on('data', (d) => process.stdout.write(`${prefix} ${d}`));
+    proc.stderr.on('data', (d) => process.stderr.write(`${prefix} ${d}`));
+    proc.on('exit', (code) => {
+      if (this.children.get(pluginUuid) === proc) this.children.delete(pluginUuid);
+      const ws = this.sockets.get(pluginUuid);
+      if (ws) this.sockets.delete(pluginUuid);
+      if (code !== 0 && code !== null) this.emit('error', `${meta.name} exited with code ${code}`);
+    });
+    return meta;
+  }
+
+  // --------------------------------------------------------------- actions
+
+  /**
+   * Reconcile the set of plugin-backed keys.
+   * @param {Array<{actionid, plugin, action, key, settings, active, name}>} wanted
+   */
+  sync(wanted) {
+    const next = new Map();
+    for (const item of wanted || []) {
+      if (!item || !item.actionid || !item.plugin) continue;
+      next.set(item.actionid, item);
+    }
+
+    // remove
+    for (const [actionid, current] of this.actions) {
+      if (!next.has(actionid)) {
+        this._clearAction(current);
+        this.actions.delete(actionid);
+      }
+    }
+
+    // add / update
+    for (const [actionid, item] of next) {
+      const meta = this.plugins.get(item.plugin);
+      if (!meta || !meta.compatible) continue;
+      const existing = this.actions.get(actionid);
+      const settings = item.settings || {};
+      const pluginAction = meta.actions.find((a) => a.uuid === item.action);
+
+      if (!existing) {
+        this.actions.set(actionid, {
+          actionid,
+          pluginUuid: item.plugin,
+          actionUuid: item.action,
+          key: item.key,
+          settings,
+          active: item.active !== false,
+          meta,
+          pluginAction,
+        });
+        this._ensurePlugin(item.plugin);
+        this._send(item.plugin, {
+          cmd: 'add',
+          uuid: item.plugin,
+          key: item.key,
+          actionid,
+          action: item.action,
+          name: pluginAction?.name || item.name || '',
+          param: settings,
+        });
+        this._send(item.plugin, {
+          cmd: 'setactive',
+          uuid: item.plugin,
+          key: item.key,
+          actionid,
+          active: item.active !== false,
+        });
+      } else {
+        if (JSON.stringify(existing.settings) !== JSON.stringify(settings)) {
+          existing.settings = settings;
+          this._send(item.plugin, {
+            cmd: 'paramfromapp',
+            uuid: item.plugin,
+            key: item.key,
+            actionid,
+            param: settings,
+          });
+        }
+        if (existing.active !== (item.active !== false)) {
+          existing.active = item.active !== false;
+          this._send(item.plugin, {
+            cmd: 'setactive',
+            uuid: item.plugin,
+            key: item.key,
+            actionid,
+            active: existing.active,
+          });
+        }
+      }
+    }
+  }
+
+  _clearAction(action) {
+    this._send(action.pluginUuid, {
+      cmd: 'clear',
+      uuid: action.pluginUuid,
+      param: [{ uuid: action.pluginUuid, key: action.key, actionid: action.actionid }],
+    });
+  }
+
+  run(actionid) {
+    const action = this.actions.get(actionid);
+    if (!action) return false;
+    const base = {
+      uuid: action.pluginUuid,
+      key: action.key,
+      actionid,
+      param: action.settings,
+    };
+    this._send(action.pluginUuid, { cmd: 'keydown', ...base });
+    this._send(action.pluginUuid, { cmd: 'run', ...base });
+    setTimeout(() => this._send(action.pluginUuid, { cmd: 'keyup', ...base }), 80);
+    return true;
+  }
+
+  // -------------------------------------------------------- plugin messages
+
+  _onPluginMessage(msg) {
+    const actionid = msg.actionid || msg.param?.actionid;
+    const action = actionid ? this.actions.get(actionid) : null;
+
+    switch (msg.cmd) {
+      case 'state':
+        this._handleState(msg, action);
+        break;
+      case 'setImage':
+        this._handleState(msg, action);
+        break;
+      case 'setTitle':
+        this.emit('title', { actionid, text: msg.text ?? msg.param?.text ?? '' });
+        break;
+      case 'setState':
+        this.emit('state-index', { actionid, state: msg.param?.state ?? msg.state ?? 0 });
+        break;
+      case 'setSettings':
+      case 'paramfromplugin':
+        if (action && msg.settings) {
+          action.settings = msg.settings;
+          this.emit('settings', { actionid, settings: msg.settings });
+        }
+        break;
+      case 'getSettings':
+        if (action) {
+          this._send(action.pluginUuid, {
+            cmd: 'didReceiveSettings',
+            uuid: action.pluginUuid,
+            key: action.key,
+            actionid,
+            settings: action.settings,
+          });
+        }
+        break;
+      case 'setGlobalSettings':
+        if (msg.uuid) {
+          this.globalSettings.set(msg.uuid, msg.settings || {});
+          this.emit('global-settings', { plugin: msg.uuid, settings: msg.settings || {} });
+        }
+        break;
+      case 'getGlobalSettings':
+        this._send(msg.uuid, {
+          cmd: 'didReceiveGlobalSettings',
+          uuid: msg.uuid,
+          settings: this.globalSettings.get(msg.uuid) || {},
+        });
+        break;
+      case 'openurl':
+        this._openUrl(msg, action);
+        break;
+      case 'toast':
+        this.emit('toast', msg.msg || msg.message || '');
+        break;
+      case 'logMessage':
+        console.log(`[plugin:${msg.level || 'info'}] ${msg.message}`);
+        break;
+      case 'showAlert':
+        this.emit('alert', { actionid });
+        break;
+      case 'sendToPropertyInspector':
+      case 'sendToPlugin':
+        this.emit('plugin-message', msg);
+        break;
+      default:
+        break;
+    }
+  }
+
+  _handleState(msg, action) {
+    const list = msg.param?.statelist || msg.statelist || [];
+    for (const item of list) {
+      const id = item.actionid || msg.actionid;
+      const target = this.actions.get(id) || action;
+      if (!target) continue;
+      let image = null;
+      if (item.type === 2 && item.path) {
+        image = fileToDataUrl(path.resolve(target.meta.dir, item.path));
+      } else if (item.type === 3) {
+        image = normalizeImage(item.gifdata, 'image/gif');
+      } else if (item.type === 0) {
+        const state = Number(item.state || 0);
+        image = target.pluginAction?.states?.[state]?.image || null;
+      } else {
+        image = normalizeImage(item.data);
+      }
+      this.emit('state', {
+        actionid: id,
+        image,
+        text: item.textData || '',
+        showtext: Boolean(item.showtext),
+      });
+    }
+  }
+
+  _openUrl(msg, action) {
+    const { shell } = require('electron');
+    let url = msg.url || '';
+    if (msg.local && action) {
+      const file = path.resolve(action.meta.dir, url.replace(/^\.?\//, ''));
+      shell.openPath(file);
+      return;
+    }
+    if (msg.param && typeof msg.param === 'object') {
+      const qs = new URLSearchParams(msg.param).toString();
+      if (qs) url += (url.includes('?') ? '&' : '?') + qs;
+    }
+    if (/^https?:|^mailto:/i.test(url)) shell.openExternal(url);
+  }
+
+  stopAll() {
+    for (const proc of this.children.values()) {
+      try {
+        proc.kill();
+      } catch {
+        /* ignore */
+      }
+    }
+    this.children.clear();
+    if (this.wss) {
+      this.wss.close();
+      this.wss = null;
+    }
+  }
+}
+
+module.exports = { PluginManager, pluginRootDirs };

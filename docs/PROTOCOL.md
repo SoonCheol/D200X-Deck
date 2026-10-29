@@ -49,12 +49,12 @@ All host → device frames observed so far use `cmd = 0x00`; `proto` selects the
 | 0x00 | 0x01 | → device | upload page package | ZIP (see §4) |
 | 0x00 | 0x03 | → device | request device info | empty |
 | 0x00 | 0x06 | → device | clock sync | ASCII `1\|MM\|SS\|HH:MM:SS\|0\|24H\|` |
-| 0x00 | 0x0A | → device | set brightness | **two ASCII hex digits**, `00`–`ff` (e.g. `d9` = 217) |
+| 0x00 | 0x0A | → device | set brightness | **ASCII decimal** `0`–`100` (e.g. `86`); the ack is BCD (`0x86`) |
 | 0x00 | 0x0B | → device | global font/UI config | JSON `{Align,Color,FontName,ShowTitle,Size,Weight}` |
 | 0x00 | 0x1A | → device | screen sleep time | ASCII decimal (seconds; `0` = never) |
 | 0x01 | 0x01 | ← device | key event | `01 <index> 01 <state>` |
 | 0x03 | 0x03 | ← device | device info reply | JSON `{"Dversion","SerialNumber","error"}` |
-| 0x03 | 0x0A | ← device | brightness ack | binary byte, the applied value `0`–`255` |
+| 0x03 | 0x0A | ← device | brightness ack | BCD byte (`0x86` = 86) |
 
 ### Key events
 

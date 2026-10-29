@@ -13,8 +13,11 @@ actions, and it talks to the deck directly over HID — no vendor app required.
 * **Pages** — multiple pages, page-switch keys, auto-push on edit.
 * **Keys** — emoji, label, background colour, or a custom image (click or drag & drop).
   The wide key renders at 402×196.
-* **Actions** — open an app/URL, run a shell command, send a hotkey, switch page.
+* **Actions** — open an app/URL, run a shell command, send a hotkey, switch page,
+  **or run an existing Node.js Ulanzi plugin action**.
 * **Device control** — brightness (0–100 %), screen sleep timeout, clock sync.
+* **Plugins** — runs Ulanzi's JavaScript plugins unchanged (discovery, WebSocket host,
+  live images, key events). See [`docs/PLUGINS.md`](docs/PLUGINS.md).
 * **Hot-plug** — reconnects automatically when the deck appears.
 * **Packaged macOS app** — `npm run package` builds `Ulanzi Deck Open.app`.
 
@@ -56,6 +59,7 @@ app/                 Electron GUI (the app)
   lib/page.js        page ZIP builder (content-addressed PNGs)
   lib/store.js       config schema + defaults
   lib/actions.js     open/hotkey/command execution
+  lib/plugins.js     Ulanzi plugin host (spawn, WebSocket, images)
   renderer/          UI (HTML/CSS/JS, canvas key rendering)
 ulanzi_deck/         small Python library and protocol prototype
 examples/hello.py    Python: draw a numbered page on the deck
@@ -69,9 +73,8 @@ actions, brightness/sleep, packaging.
 
 Not implemented yet:
 
-* **Ulanzi plugin compatibility** (Node.js plugins over the local WebSocket protocol).
-  This is the next milestone so existing plugins (weather, news, agent status, …)
-  can run unchanged.
+* HTML plugins and plugin property-inspector UI (JS plugin actions work; settings are JSON).
+* Plugin auto-restart after a crash.
 * Multi-state keys, folders, GIF playback, dial/knob devices (D200H/D200X).
 * A proper settings pane (the first version exposes the essentials inline).
 

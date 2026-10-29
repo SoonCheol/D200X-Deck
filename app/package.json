@@ -16,7 +16,8 @@
   },
   "dependencies": {
     "jszip": "^3.10.2",
-    "node-hid": "^3.4.0"
+    "node-hid": "^3.4.0",
+    "ws": "^8.22.0"
   },
   "devDependencies": {
     "@electron/packager": "^20.3.0",

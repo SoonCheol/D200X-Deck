@@ -15,6 +15,7 @@ const ACTION_LABELS = {
   command: 'Run shell command',
   hotkey: 'Send hotkey',
   page: 'Switch to page',
+  plugin: 'Plugin action',
 };
 
 const state = {
@@ -24,6 +25,7 @@ const state = {
   pushing: false,
   pushAgain: false,
   draggingBrightness: false,
+  plugins: [],
 };
 
 let saveTimer = null;
@@ -61,6 +63,27 @@ function emptyKey() {
 function ensureKey(page, index) {
   if (!page.keys[index]) page.keys[index] = emptyKey();
   return page.keys[index];
+}
+
+// Live images pushed by plugins, keyed by actionid.
+const pluginImages = new Map();
+
+function effectiveKey(key) {
+  if (!key) return key;
+  const id = key.action?.type === 'plugin' ? key.action.actionid : null;
+  if (id && pluginImages.has(id)) return { ...key, icon: pluginImages.get(id), emoji: '' };
+  return key;
+}
+
+function findPluginAction(actionid) {
+  for (const page of state.config.pages) {
+    for (const [index, key] of Object.entries(page.keys)) {
+      if (key?.action?.type === 'plugin' && key.action.actionid === actionid) {
+        return { page, index: Number(index), key };
+      }
+    }
+  }
+  return null;
 }
 
 // --------------------------------------------------------------- rendering
@@ -180,7 +203,7 @@ async function drawGrid() {
   const tiles = [...$('#grid').children];
   await Promise.all(
     tiles.map((tile, i) => {
-      const key = page.keys[i] || emptyKey();
+      const key = effectiveKey(page.keys[i] || emptyKey());
       const wide = i === WIDE_KEY_INDEX;
       return renderKey(tile.querySelector('canvas'), key, wide ? 402 : 196, 196);
     })
@@ -190,7 +213,7 @@ async function drawGrid() {
 function drawIndex(index) {
   const tile = $('#grid').children[index];
   if (!tile) return;
-  const key = activePage().keys[index] || emptyKey();
+  const key = effectiveKey(activePage().keys[index] || emptyKey());
   const wide = index === WIDE_KEY_INDEX;
   renderKey(tile.querySelector('canvas'), key, wide ? 402 : 196, 196);
 }
@@ -273,6 +296,7 @@ function renderInspector() {
   }
 
   const key = ensureKey(page, state.selected);
+  const liveKey = effectiveKey(key);
   const action = key.action || { type: 'none', value: '' };
   const pageOptions = state.config.pages
     .map(
@@ -292,6 +316,56 @@ function renderInspector() {
     valueField = `<select class="select" id="insp-value">${pageOptions}</select>`;
   }
 
+  let pluginFields = '';
+  if (action.type === 'plugin') {
+    const compatible = state.plugins.filter((p) => p.compatible);
+    const plugin = compatible.find((p) => p.uuid === action.plugin) || null;
+    const pluginActions = plugin ? plugin.actions : [];
+    const pluginAction = pluginActions.find((a) => a.uuid === action.action) || null;
+    if (!compatible.length) {
+      pluginFields = `<div class="field"><div class="insp-empty" style="padding:0">
+        No compatible JavaScript plugins found. Install Ulanzi plugins in
+        <code>~/Library/Application Support/Ulanzi/UlanziDeck/Plugins</code> and restart.
+      </div></div>`;
+    } else {
+      pluginFields = `
+        <div class="field">
+          <label>Plugin</label>
+          <select class="select" id="insp-plugin">
+            <option value="">Choose a plugin…</option>
+            ${compatible
+              .map(
+                (p) =>
+                  `<option value="${esc(p.uuid)}" ${p.uuid === action.plugin ? 'selected' : ''}>${esc(p.name)}</option>`
+              )
+              .join('')}
+          </select>
+        </div>
+        <div class="field">
+          <label>Action</label>
+          <select class="select" id="insp-plugin-action" ${plugin ? '' : 'disabled'}>
+            ${pluginActions
+              .map(
+                (a) =>
+                  `<option value="${esc(a.uuid)}" ${a.uuid === action.action ? 'selected' : ''}>${esc(a.name)}</option>`
+              )
+              .join('')}
+          </select>
+        </div>
+        <div class="field">
+          <label>Settings (JSON)</label>
+          <textarea class="textarea" id="insp-plugin-settings" placeholder="{}">${esc(
+            JSON.stringify(action.settings || {}, null, 2)
+          )}</textarea>
+        </div>
+        <div class="insp-empty" style="padding:0;font-size:11px">
+          ${plugin ? `Live images come from <b>${esc(plugin.name)}</b>.` : 'Choose a plugin action.'}
+          Property-inspector UI is not supported yet; edit settings as JSON.
+        </div>
+      `;
+    }
+  }
+
   el.innerHTML = `
     <div class="insp-head">
       <h2>${state.selected === WIDE_KEY_INDEX ? 'Wide key' : `Key ${state.selected + 1}`}</h2>
@@ -301,9 +375,9 @@ function renderInspector() {
     <div class="field">
       <label>Icon</label>
       <div class="icon-drop" id="insp-icon-drop">
-        ${key.icon ? `<img src="${esc(key.icon)}" alt="" />` : `<div style="width:46px;height:46px;border-radius:8px;display:grid;place-items:center;background:rgba(255,255,255,.05);font-size:20px">${esc(key.emoji || '＋')}</div>`}
+        ${liveKey.icon ? `<img src="${esc(liveKey.icon)}" alt="" />` : `<div style="width:46px;height:46px;border-radius:8px;display:grid;place-items:center;background:rgba(255,255,255,.05);font-size:20px">${esc(key.emoji || '＋')}</div>`}
         <div class="meta">
-          <div class="file-name">${key.icon ? 'Custom image' : 'No image'}</div>
+          <div class="file-name">${key.icon ? 'Custom image' : liveKey.icon ? 'Live plugin image' : 'No image'}</div>
           <div>Drop an image here or click to choose</div>
         </div>
       </div>
@@ -331,7 +405,8 @@ function renderInspector() {
       </select>
     </div>
 
-    ${valueField ? `<div class="field"><label>${action.type === 'hotkey' ? 'Combination' : action.type === 'page' ? 'Target page' : 'Value'}</label>${valueField}</div>` : ''}
+    ${valueField && action.type !== 'plugin' ? `<div class="field"><label>${action.type === 'hotkey' ? 'Combination' : action.type === 'page' ? 'Target page' : 'Value'}</label>${valueField}</div>` : ''}
+    ${pluginFields}
 
     <div class="insp-actions">
       <button class="btn" id="insp-duplicate">Duplicate</button>
@@ -382,14 +457,68 @@ function renderInspector() {
   });
   $('#insp-action-type').addEventListener('change', (e) => {
     const type = e.target.value;
-    let value = '';
-    if (type === 'page') {
-      value = state.config.pages.find((p) => p.id !== page.id)?.id || page.id;
+    if (type === 'plugin') {
+      const p = state.plugins.find((x) => x.compatible);
+      const a = p?.actions?.[0];
+      key.action = {
+        type: 'plugin',
+        plugin: p?.uuid || '',
+        action: a?.uuid || '',
+        actionid: uuid(),
+        settings: {},
+      };
+      key.emoji = '🔌';
+      key.label = '';
+    } else {
+      let value = '';
+      if (type === 'page') {
+        value = state.config.pages.find((p) => p.id !== page.id)?.id || page.id;
+      }
+      key.action = { type, value };
     }
-    key.action = { type, value };
     commit(false);
     renderInspector();
   });
+
+  if (action.type === 'plugin') {
+    const pluginSel = $('#insp-plugin');
+    if (pluginSel) {
+      pluginSel.addEventListener('change', (e) => {
+        const p = state.plugins.find((x) => x.uuid === e.target.value);
+        if (!p) return;
+        const a = p.actions[0];
+        key.action = {
+          type: 'plugin',
+          plugin: p.uuid,
+          action: a?.uuid || '',
+          actionid: uuid(),
+          settings: {},
+        };
+        commit(false);
+        renderInspector();
+      });
+    }
+    const actionSel = $('#insp-plugin-action');
+    if (actionSel) {
+      actionSel.addEventListener('change', (e) => {
+        key.action = { ...key.action, action: e.target.value, actionid: uuid(), settings: {} };
+        commit(false);
+        renderInspector();
+      });
+    }
+    const settingsEl = $('#insp-plugin-settings');
+    if (settingsEl) {
+      settingsEl.addEventListener('change', (e) => {
+        try {
+          const parsed = JSON.parse(e.target.value || '{}');
+          key.action = { ...key.action, settings: parsed };
+          commit(false);
+        } catch {
+          toast('Invalid JSON in plugin settings', true);
+        }
+      });
+    }
+  }
 
   const valueEl = $('#insp-value');
   if (valueEl) {
@@ -440,6 +569,42 @@ function commit(redraw = true) {
   scheduleSave();
   if (redraw) drawGrid();
   schedulePush();
+  schedulePluginsSync();
+}
+
+// --------------------------------------------------------------- plugins
+
+let pluginSyncTimer = null;
+
+function keyIndexToSlot(index) {
+  return `${index % COLS}_${Math.floor(index / COLS)}`;
+}
+
+function schedulePluginsSync() {
+  clearTimeout(pluginSyncTimer);
+  pluginSyncTimer = setTimeout(syncPlugins, 250);
+}
+
+function syncPlugins() {
+  if (!state.config) return;
+  const wanted = [];
+  for (const page of state.config.pages) {
+    for (const [index, key] of Object.entries(page.keys)) {
+      if (Number(index) === WIDE_KEY_INDEX) continue;
+      if (!key || key.action?.type !== 'plugin') continue;
+      if (!key.action.plugin || !key.action.action) continue;
+      if (!key.action.actionid) key.action.actionid = uuid();
+      wanted.push({
+        actionid: key.action.actionid,
+        plugin: key.action.plugin,
+        action: key.action.action,
+        key: keyIndexToSlot(Number(index)),
+        settings: key.action.settings || {},
+        active: page.id === state.config.activePageId,
+      });
+    }
+  }
+  api.syncPlugins(wanted).catch((err) => toast(err.message || String(err), true));
 }
 
 function schedulePush() {
@@ -492,6 +657,7 @@ function selectPage(id) {
   scheduleSave();
   renderAll();
   schedulePush();
+  schedulePluginsSync();
 }
 
 function addPage() {
@@ -529,6 +695,7 @@ function navigate(pageId) {
   scheduleSave();
   renderAll();
   pushNow();
+  schedulePluginsSync();
 }
 
 // ------------------------------------------------------------------ toast
@@ -619,6 +786,12 @@ function bind() {
       navigate(key.action.value);
       return;
     }
+    if (key.action.type === 'plugin') {
+      api.runPluginAction(key.action.actionid).then((res) => {
+        if (!res.ok) toast('Plugin action is not ready yet', true);
+      });
+      return;
+    }
     if (key.action.type === 'none') return;
     api.runAction(key.action).then((res) => {
       if (!res.ok) toast(res.error || 'action failed', true);
@@ -626,11 +799,42 @@ function bind() {
   });
 
   api.onError((message) => toast(message, true));
-  api.onBrightness((raw) => {
-    if (document.activeElement === $('#brightness')) return;
-    const percent = Math.round((raw / 255) * 100);
-    $('#brightness').value = percent;
-    $('#brightness-value').textContent = percent;
+
+  api.onPluginState(({ actionid, image }) => {
+    if (image) pluginImages.set(actionid, image);
+    const loc = findPluginAction(actionid);
+    if (loc && loc.page.id === state.config.activePageId) {
+      drawIndex(loc.index);
+      schedulePush();
+    }
+  });
+
+  api.onPluginSettings(({ actionid, settings }) => {
+    const loc = findPluginAction(actionid);
+    if (loc) {
+      loc.key.action.settings = settings;
+      scheduleSave();
+    }
+  });
+
+  api.onPluginTitle(({ actionid, text }) => {
+    const loc = findPluginAction(actionid);
+    if (loc && text) {
+      loc.key.label = text;
+      if (loc.page.id === state.config.activePageId) drawIndex(loc.index);
+      scheduleSave();
+    }
+  });
+
+  api.onPluginToast((message) => {
+    if (message) toast(message);
+  });
+
+  api.onPluginError((message) => toast(message, true));
+  api.onPluginAlert(() => toast('Plugin error', true));
+  api.onBrightness(() => {
+    // The device echoes the value as BCD (e.g. 0x86 for 86). The slider is
+    // authoritative for the UI, so we do not rewrite it from the echo.
   });
 
   window.addEventListener('beforeunload', () => api.saveConfig(state.config));
@@ -640,9 +844,11 @@ function bind() {
   const boot = await api.getState();
   state.config = boot.config;
   state.status = boot.status;
+  state.plugins = await api.listPlugins();
   $('#version').textContent = boot.version;
   bind();
   renderAll();
+  syncPlugins();
   if (state.status.connected) {
     api.setBrightness(state.config.settings.brightness);
     api.setSleepTime(state.config.settings.sleepSeconds);

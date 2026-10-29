@@ -7,11 +7,13 @@ const fs = require('node:fs');
 const { Deck } = require('./lib/deck');
 const { Store } = require('./lib/store');
 const { buildPage } = require('./lib/page');
+const { PluginManager, pluginRootDirs } = require('./lib/plugins');
 const actions = require('./lib/actions');
 
 let win = null;
 let store = null;
 let deck = null;
+let plugins = null;
 let reconnectTimer = null;
 
 function createWindow() {
@@ -45,6 +47,7 @@ function createWindow() {
   // Dev aid: ULANZI_SHOT=/tmp/ui.png renders the window to a PNG and exits.
   if (process.env.ULANZI_SHOT) {
     win.webContents.once('did-finish-load', () => {
+      const delay = Number(process.env.ULANZI_SHOT_DELAY || 1800);
       setTimeout(async () => {
         try {
           if (process.env.ULANZI_KEY) {
@@ -63,7 +66,7 @@ function createWindow() {
         } finally {
           app.quit();
         }
-      }, 1800);
+      }, delay);
     });
   }
 }
@@ -130,10 +133,28 @@ function initDeck() {
   reconnectTimer = setInterval(tryConnect, 4000);
 }
 
+function initPlugins() {
+  const dirs = [path.join(app.getPath('userData'), 'Plugins'), ...pluginRootDirs()];
+  plugins = new PluginManager({ dirs, port: 3906, appVersion: app.getVersion() });
+  plugins.scan();
+  plugins.start();
+  plugins.on('state', (payload) => send('plugin:state', payload));
+  plugins.on('title', (payload) => send('plugin:title', payload));
+  plugins.on('settings', (payload) => send('plugin:settings', payload));
+  plugins.on('toast', (payload) => send('plugin:toast', payload));
+  plugins.on('alert', (payload) => send('plugin:alert', payload));
+  plugins.on('error', (message) => {
+    console.error('[plugins]', message);
+    send('plugin:error', message);
+  });
+  plugins.on('connected', (uuid) => console.log('[plugins] connected', uuid));
+}
+
 app.whenReady().then(() => {
   store = new Store(process.env.ULANZI_CONFIG_DIR || app.getPath('userData'));
   store.load();
   initDeck();
+  initPlugins();
   createWindow();
   buildMenu();
 
@@ -149,6 +170,7 @@ app.on('window-all-closed', () => {
 app.on('before-quit', () => {
   if (reconnectTimer) clearInterval(reconnectTimer);
   if (deck) deck.disconnect('App closed');
+  if (plugins) plugins.stopAll();
 });
 
 // ---------------------------------------------------------------- IPC
@@ -201,6 +223,15 @@ ipcMain.handle('deck:reconnect', () => {
 });
 
 ipcMain.handle('action:run', async (_evt, action) => actions.execute(action));
+
+ipcMain.handle('plugins:list', () => plugins.list());
+
+ipcMain.handle('plugins:sync', (_evt, wanted) => {
+  plugins.sync(wanted);
+  return { ok: true };
+});
+
+ipcMain.handle('plugins:run', (_evt, actionid) => ({ ok: plugins.run(actionid) }));
 
 ipcMain.handle('dialog:pick-image', async () => {
   const res = await dialog.showOpenDialog(win, {
