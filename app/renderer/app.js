@@ -375,7 +375,7 @@ function renderInspector() {
     <div class="field">
       <label>Icon</label>
       <div class="icon-drop" id="insp-icon-drop">
-        ${liveKey.icon ? `<img src="${esc(liveKey.icon)}" alt="" />` : `<div style="width:46px;height:46px;border-radius:8px;display:grid;place-items:center;background:rgba(255,255,255,.05);font-size:20px">${esc(key.emoji || '＋')}</div>`}
+        ${liveKey.icon ? `<img src="${esc(liveKey.icon)}" alt="" />` : `<div style="width:46px;height:46px;border-radius:8px;display:grid;place-items:center;background:rgba(255,255,255,.05);font-size:20px;opacity:.55">＋</div>`}
         <div class="meta">
           <div class="file-name">${key.icon ? 'Custom image' : liveKey.icon ? 'Live plugin image' : 'No image'}</div>
           <div>Drop an image here or click to choose</div>
