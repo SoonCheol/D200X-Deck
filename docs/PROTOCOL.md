@@ -14,7 +14,7 @@ Everything below was verified against live traffic unless marked *(unverified)*.
 | Firmware | `2.0.3` |
 | HID collection A | interface 0, usage page `0x0C` (Consumer), usage 1 |
 | HID collection B | interface 2, usage page `0x01` (Generic Desktop), usage 6 (Keyboard) |
-| Grid | 5 columns × 3 rows, 196×196 px per key |
+| Grid | 5 columns × 3 rows, **14 buttons**: 13 square keys (196×196) + one 2×1 key at slot `3_2` |
 
 The control channel used by Ulanzi Studio is **interface 0**, opened with hidapi.
 Interface 2 is a keyboard-emulation collection.
@@ -117,6 +117,12 @@ Images/
 ```
 
 * Slot key is **`column_row`**, column `0..4` left→right, row `0..2` top→bottom.
+* The D200 has 14 physical buttons: the bottom-right position is a single key spanning
+  columns 3–4 of row 2. Its slot is `3_2`; there is no `4_2`. The vendor config encodes
+  this as `"LargeItem": {"3_2": [2, 1]}` and `"FixedItem": {"3_2": []}`.
+* Key events for the wide key report **index 13** (verified); normal keys are 0–12.
+* The wide key's image is 2:1 (we use 402×196). The vendor app treats it as a
+  `smallwindow.window` action with `SmallViewMode: 1`.
 * `Icon` is a path inside the ZIP. The device displays the image; the `Text`/`Font` fields make
   the **device** draw a text overlay (the app does not bake the title into the image).
 * `"SmallViewMode": 1` appears for special slots (e.g. `3_2`) on some layouts.

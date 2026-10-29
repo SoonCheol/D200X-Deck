@@ -131,7 +131,7 @@ function initDeck() {
 }
 
 app.whenReady().then(() => {
-  store = new Store(app.getPath('userData'));
+  store = new Store(process.env.ULANZI_CONFIG_DIR || app.getPath('userData'));
   store.load();
   initDeck();
   createWindow();

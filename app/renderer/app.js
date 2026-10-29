@@ -5,7 +5,9 @@ const renderKey = window.KeyRenderer.drawKey;
 
 const COLS = 5;
 const ROWS = 3;
-const KEY_COUNT = COLS * ROWS;
+// 13 square keys + one 2x1 key: 14 physical buttons.
+const KEY_COUNT = 14;
+const WIDE_KEY_INDEX = 13;
 
 const ACTION_LABELS = {
   none: 'Do nothing',
@@ -126,8 +128,10 @@ async function renderGrid() {
     btn.dataset.index = String(i);
     if (state.selected === i) btn.classList.add('selected');
 
+    const wide = i === WIDE_KEY_INDEX;
+    if (wide) btn.classList.add('wide');
     const canvas = document.createElement('canvas');
-    canvas.width = 196;
+    canvas.width = wide ? 402 : 196;
     canvas.height = 196;
     btn.appendChild(canvas);
 
@@ -177,7 +181,8 @@ async function drawGrid() {
   await Promise.all(
     tiles.map((tile, i) => {
       const key = page.keys[i] || emptyKey();
-      return renderKey(tile.querySelector('canvas'), key);
+      const wide = i === WIDE_KEY_INDEX;
+      return renderKey(tile.querySelector('canvas'), key, wide ? 402 : 196, 196);
     })
   );
 }
@@ -186,7 +191,8 @@ function drawIndex(index) {
   const tile = $('#grid').children[index];
   if (!tile) return;
   const key = activePage().keys[index] || emptyKey();
-  renderKey(tile.querySelector('canvas'), key);
+  const wide = index === WIDE_KEY_INDEX;
+  renderKey(tile.querySelector('canvas'), key, wide ? 402 : 196, 196);
 }
 
 function readFileAsDataUrl(file) {
@@ -288,8 +294,8 @@ function renderInspector() {
 
   el.innerHTML = `
     <div class="insp-head">
-      <h2>Key ${state.selected + 1}</h2>
-      <span class="index">row ${Math.floor(state.selected / COLS) + 1} · col ${(state.selected % COLS) + 1}</span>
+      <h2>${state.selected === WIDE_KEY_INDEX ? 'Wide key' : `Key ${state.selected + 1}`}</h2>
+      <span class="index">${state.selected === WIDE_KEY_INDEX ? 'row 3 · col 4–5 (2×1)' : `row ${Math.floor(state.selected / COLS) + 1} · col ${(state.selected % COLS) + 1}`}</span>
     </div>
 
     <div class="field">

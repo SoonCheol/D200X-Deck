@@ -1,6 +1,8 @@
 'use strict';
 
 const KEY_SIZE = 196;
+const WIDE_KEY_SIZE = { width: 402, height: 196 };
+const WIDE_INDEX = 13;
 
 const imageCache = new Map();
 
@@ -50,52 +52,54 @@ function fitText(ctx, text, maxWidth) {
 }
 
 /**
- * Draw one key at 196x196.
+ * Draw one key.
  * @param {HTMLCanvasElement} canvas
- * @param {{emoji?:string,label?:string,color?:string,icon?:string|null,action?:object}} key
+ * @param {object} key
+ * @param {number} width  196 for normal keys, 402 for the wide key
+ * @param {number} height 196
  */
-async function drawKey(canvas, key) {
-  const size = KEY_SIZE;
-  if (canvas.width !== size) canvas.width = size;
-  if (canvas.height !== size) canvas.height = size;
+async function drawKey(canvas, key, width = KEY_SIZE, height = KEY_SIZE) {
+  const w = width;
+  const h = height;
+  const min = Math.min(w, h);
+  if (canvas.width !== w) canvas.width = w;
+  if (canvas.height !== h) canvas.height = h;
   const ctx = canvas.getContext('2d');
-  ctx.clearRect(0, 0, size, size);
+  ctx.clearRect(0, 0, w, h);
 
-  const base = shade(key.color || '#1b2130', 0);
   const top = shade(key.color || '#1b2130', 26);
   const bottom = shade(key.color || '#1b2130', -18);
 
   ctx.save();
-  roundRect(ctx, 0, 0, size, size, 15);
+  roundRect(ctx, 0, 0, w, h, 15);
   ctx.clip();
 
-  const grad = ctx.createLinearGradient(0, 0, 0, size);
+  const grad = ctx.createLinearGradient(0, 0, 0, h);
   grad.addColorStop(0, rgb(top));
   grad.addColorStop(1, rgb(bottom));
   ctx.fillStyle = grad;
-  ctx.fillRect(0, 0, size, size);
+  ctx.fillRect(0, 0, w, h);
 
   if (key.icon) {
     try {
       const img = await loadImage(key.icon);
-      const scale = Math.max(size / img.width, size / img.height);
-      const w = img.width * scale;
-      const h = img.height * scale;
-      ctx.drawImage(img, (size - w) / 2, (size - h) / 2, w, h);
+      const scale = Math.max(w / img.width, h / img.height);
+      const iw = img.width * scale;
+      const ih = img.height * scale;
+      ctx.drawImage(img, (w - iw) / 2, (h - ih) / 2, iw, ih);
       ctx.fillStyle = 'rgba(0,0,0,0.28)';
-      ctx.fillRect(0, 0, size, size);
+      ctx.fillRect(0, 0, w, h);
     } catch {
-      /* broken image: fall through to emoji */
+      /* broken image: fall through */
     }
   }
 
   if (!key.icon) {
-    // subtle vignette
-    const v = ctx.createRadialGradient(size / 2, size * 0.42, 10, size / 2, size * 0.5, size * 0.8);
+    const v = ctx.createRadialGradient(w / 2, h * 0.42, 10, w / 2, h * 0.5, min * 0.8);
     v.addColorStop(0, 'rgba(255,255,255,0.045)');
     v.addColorStop(1, 'rgba(0,0,0,0.18)');
     ctx.fillStyle = v;
-    ctx.fillRect(0, 0, size, size);
+    ctx.fillRect(0, 0, w, h);
   }
 
   const label = (key.label || '').trim();
@@ -106,11 +110,11 @@ async function drawKey(canvas, key) {
     ctx.save();
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    ctx.font = '98px "Apple Color Emoji", "Segoe UI Emoji", sans-serif';
+    ctx.font = `${Math.round(min * 0.5)}px "Apple Color Emoji", "Segoe UI Emoji", sans-serif`;
     ctx.shadowColor = 'rgba(0,0,0,0.35)';
     ctx.shadowBlur = 8;
     ctx.fillStyle = '#fff';
-    ctx.fillText(emoji, size / 2, hasLabel ? size * 0.44 : size / 2);
+    ctx.fillText(emoji, w / 2, hasLabel ? h * 0.44 : h / 2);
     ctx.restore();
   }
 
@@ -118,48 +122,46 @@ async function drawKey(canvas, key) {
     ctx.save();
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    ctx.font = '300 54px -apple-system, "Helvetica Neue", sans-serif';
+    ctx.font = `300 ${Math.round(min * 0.28)}px -apple-system, "Helvetica Neue", sans-serif`;
     ctx.fillStyle = 'rgba(255,255,255,0.10)';
-    ctx.fillText('+', size / 2, hasLabel ? size * 0.44 : size / 2);
+    ctx.fillText('+', w / 2, hasLabel ? h * 0.44 : h / 2);
     ctx.restore();
   }
 
   if (hasLabel) {
-    const g = ctx.createLinearGradient(0, size - 62, 0, size);
+    const g = ctx.createLinearGradient(0, h - 62, 0, h);
     g.addColorStop(0, 'rgba(0,0,0,0)');
     g.addColorStop(1, 'rgba(0,0,0,0.78)');
     ctx.fillStyle = g;
-    ctx.fillRect(0, size - 62, size, 62);
+    ctx.fillRect(0, h - 62, w, 62);
 
     ctx.save();
     ctx.textAlign = 'left';
     ctx.textBaseline = 'alphabetic';
     ctx.font = '600 17px -apple-system, "SF Pro Text", "Helvetica Neue", sans-serif';
     ctx.fillStyle = 'rgba(255,255,255,0.94)';
-    ctx.fillText(fitText(ctx, label, size - 28), 14, size - 13);
+    ctx.fillText(fitText(ctx, label, w - 28), 14, h - 13);
     ctx.restore();
   }
 
-  // page indicator
   if (key.action && key.action.type === 'page') {
     ctx.save();
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
     ctx.font = '700 20px -apple-system, sans-serif';
     ctx.fillStyle = 'rgba(255,255,255,0.55)';
-    ctx.fillText('›', size - 18, 22);
+    ctx.fillText('›', w - 18, 22);
     ctx.restore();
   }
 
   ctx.restore();
 
-  // border
   ctx.save();
-  roundRect(ctx, 0.75, 0.75, size - 1.5, size - 1.5, 15);
+  roundRect(ctx, 0.75, 0.75, w - 1.5, h - 1.5, 15);
   ctx.strokeStyle = 'rgba(255,255,255,0.085)';
   ctx.lineWidth = 1.5;
   ctx.stroke();
   ctx.restore();
 }
 
-window.KeyRenderer = { drawKey, KEY_SIZE, loadImage };
+window.KeyRenderer = { drawKey, KEY_SIZE, WIDE_KEY_SIZE, WIDE_INDEX };

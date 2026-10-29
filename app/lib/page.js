@@ -5,6 +5,9 @@ const { createHash } = require('node:crypto');
 
 const COLUMNS = 5;
 const ROWS = 3;
+// The D200 has 14 buttons: 13 square keys + one 2x1 key at slot "3_2".
+const WIDE_INDEX = 13;
+const WIDE_SLOT = '3_2';
 
 const DEFAULT_FONT = {
   Align: 'bottom',
@@ -29,14 +32,13 @@ async function buildPage(images) {
 
   for (const item of images) {
     const index = item.index;
-    const col = index % COLUMNS;
-    const row = Math.floor(index / COLUMNS);
+    const slot = index === WIDE_INDEX ? WIDE_SLOT : `${index % COLUMNS}_${Math.floor(index / COLUMNS)}`;
     const data = Buffer.isBuffer(item.png) ? item.png : Buffer.from(item.png, 'base64');
     // Content-addressed names: the firmware may cache by path, and deduping
     // identical keys keeps the ZIP small.
     const name = `Images/${createHash('sha1').update(data).digest('hex')}.png`;
     if (!zip.file(name)) zip.file(name, data);
-    manifest[`${col}_${row}`] = {
+    manifest[slot] = {
       State: 0,
       ViewParam: [{ Font: DEFAULT_FONT, Icon: name, Text: '' }],
     };
@@ -46,4 +48,4 @@ async function buildPage(images) {
   return zip.generateAsync({ type: 'nodebuffer', compression: 'DEFLATE', compressionOptions: { level: 6 } });
 }
 
-module.exports = { buildPage, COLUMNS, ROWS, DEFAULT_FONT };
+module.exports = { buildPage, COLUMNS, ROWS, WIDE_INDEX, WIDE_SLOT, DEFAULT_FONT };

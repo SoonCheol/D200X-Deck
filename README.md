@@ -1,16 +1,18 @@
 # ulanzi-deck-open
 
-An open-source desktop app for the **Ulanzi D200** (5×3 key deck, 196×196 px keys,
-USB `0x2207:0x0019`). It replaces Ulanzi Studio for editing pages and triggering
+An open-source desktop app for the **Ulanzi D200** (14 buttons: 13 square 196×196 keys
+plus one 2×1 wide key, USB `0x2207:0x0019`). It replaces Ulanzi Studio for editing pages and triggering
 actions, and it talks to the deck directly over HID — no vendor app required.
 
 ![Main window](docs/screenshots/main.png)
 
 ## Features
 
-* **Live editor** — 5×3 grid that mirrors the device exactly (196×196 px).
+* **Live editor** — mirrors the device exactly: 13 square keys + one 2×1 wide key
+  (slot `3_2`, index 13).
 * **Pages** — multiple pages, page-switch keys, auto-push on edit.
 * **Keys** — emoji, label, background colour, or a custom image (click or drag & drop).
+  The wide key renders at 402×196.
 * **Actions** — open an app/URL, run a shell command, send a hotkey, switch page.
 * **Device control** — brightness (0–100 %), screen sleep timeout, clock sync.
 * **Hot-plug** — reconnects automatically when the deck appears.

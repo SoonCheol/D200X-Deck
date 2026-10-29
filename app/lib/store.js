@@ -4,10 +4,14 @@ const fs = require('node:fs');
 const path = require('node:path');
 const { randomUUID } = require('node:crypto');
 
-const CONFIG_VERSION = 1;
+const CONFIG_VERSION = 2;
 
 function key(emoji, label, action = { type: 'none' }, color = '#1b2130') {
   return { emoji, label, action, color, icon: null };
+}
+
+function wideKey(emoji, label, action = { type: 'none' }, color = '#16324a') {
+  return key(emoji, label, action, color);
 }
 
 function defaultPages() {
@@ -29,8 +33,7 @@ function defaultPages() {
       10: key('🔊', 'Vol +', { type: 'command', value: "osascript -e 'set volume output volume ((output volume of (get volume settings)) + 6)'" }, '#24302a'),
       11: key('🌙', 'Sleep', { type: 'command', value: 'pmset sleepnow' }, '#1c1c30'),
       12: key('🧮', 'Calculator', { type: 'open', value: 'Calculator' }, '#2c2c2c'),
-      13: key('🎵', 'Music', { type: 'open', value: 'Music' }, '#3a1f2c'),
-      14: key('⚙️', 'Empty', { type: 'none', value: '' }, '#1a1f29'),
+      13: wideKey('🎛', 'Ulanzi Deck Open'),
     },
   };
   const media = {
@@ -46,12 +49,7 @@ function defaultPages() {
       6: key('📻', 'Podcasts', { type: 'open', value: 'Podcasts' }),
       7: key('🔇', 'Mute', { type: 'command', value: "osascript -e 'set volume with output muted'" }),
       8: key('⬅️', 'Back', { type: 'page', value: main.id }),
-      9: key('', '', { type: 'none' }),
-      10: key('', '', { type: 'none' }),
-      11: key('', '', { type: 'none' }),
-      12: key('', '', { type: 'none' }),
-      13: key('', '', { type: 'none' }),
-      14: key('', '', { type: 'none' }),
+      13: wideKey('⬅️', 'Back to Main', { type: 'page', value: main.id }, '#213040'),
     },
   };
   return [main, media];
@@ -79,7 +77,9 @@ class Store {
     try {
       const raw = fs.readFileSync(this.file, 'utf8');
       const parsed = JSON.parse(raw);
+      const previous = Number(parsed.version) || 1;
       this.config = this._migrate(parsed);
+      if (previous !== CONFIG_VERSION) this.save();
     } catch {
       this.config = createDefaultConfig();
       this.save();
@@ -91,8 +91,20 @@ class Store {
     if (!config || !Array.isArray(config.pages) || config.pages.length === 0) {
       return createDefaultConfig();
     }
-    config.version = CONFIG_VERSION;
+    const previous = Number(config.version) || 1;
     config.settings = { brightness: 85, sleepSeconds: 0, autoPush: true, ...(config.settings || {}) };
+
+    for (const page of config.pages) {
+      if (!page.keys) page.keys = {};
+      // v1 modelled 15 keys; the last physical button is a single 2x1 key (index 13).
+      delete page.keys[14];
+      const old = page.keys[13];
+      if (previous < 2 && old && old.label === 'Music' && old.action && old.action.value === 'Music') {
+        page.keys[13] = wideKey('🎛', 'Ulanzi Deck Open');
+      }
+    }
+
+    config.version = CONFIG_VERSION;
     if (!config.pages.some((p) => p.id === config.activePageId)) {
       config.activePageId = config.pages[0].id;
     }
