@@ -142,8 +142,7 @@ function createTray() {
   const iconPath = app.isPackaged
     ? path.join(process.resourcesPath, 'tray.png')
     : path.join(__dirname, 'build', 'tray.png');
-  let image = nativeImage.createFromPath(iconPath);
-  if (!image.isEmpty()) image = image.resize({ width: 18, height: 18 });
+  const image = nativeImage.createFromPath(iconPath);
   image.setTemplateImage(true);
   tray = new Tray(image);
   tray.setToolTip('Ulanzi Deck Open');
