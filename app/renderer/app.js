@@ -390,7 +390,7 @@ function renderInspector() {
         <input class="input" id="insp-emoji" maxlength="16" value="${esc(key.emoji)}" placeholder="Text or emoji" />
         <input class="color-input" id="insp-color" type="color" value="${esc(key.color || '#1b2130')}" title="Background" />
       </div>
-      <div class="field-hint">Shrinks to fit · 10 characters max</div>
+      <div class="field-hint">Shrinks to fit · 12 characters max</div>
     </div>
 
     <div class="field">

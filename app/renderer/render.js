@@ -53,7 +53,7 @@ function fitText(ctx, text, maxWidth) {
 
 function truncateMain(text) {
   const chars = [...String(text || '').trim()];
-  if (chars.length > 10) return `${chars.slice(0, 10).join('')}…`;
+  if (chars.length > 12) return `${chars.slice(0, 12).join('')}…`;
   return chars.join('');
 }
 
