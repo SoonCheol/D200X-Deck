@@ -780,10 +780,9 @@ function bind() {
       tile.classList.add('pressed');
       setTimeout(() => tile.classList.remove('pressed'), 160);
     }
-    if (index === WIDE_KEY_INDEX) {
-      api.wideMode().catch((err) => toast(err.message || String(err), true));
-      return;
-    }
+    // The wide key is a firmware system panel; do not send vendor commands
+    // here (proto 0x0e resets the deck to its factory profile).
+    if (index === WIDE_KEY_INDEX) return;
     const key = activePage().keys[index];
     if (!key || !key.action) return;
     if (key.action.type === 'page') {

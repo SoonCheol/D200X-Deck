@@ -75,6 +75,11 @@ Not implemented yet:
 
 * HTML plugins and plugin property-inspector UI (JS plugin actions work; settings are JSON).
 * Plugin auto-restart after a crash.
+* The wide (2×1) key panel: the firmware shows the clock/logo, but the vendor’s
+  clock/stats mode command is not identified yet. The wide key is not offered as a
+  normal action.
+* The firmware fallback that types `www.ulanzistudio.com` when the keyboard HID
+  collection is not seized (needs an in-app native seize; a helper is blocked by TCC).
 * Multi-state keys, folders, GIF playback, dial/knob devices (D200H/D200X).
 * A proper settings pane (the first version exposes the essentials inline).
 

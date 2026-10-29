@@ -121,12 +121,6 @@ class Deck extends EventEmitter {
     this.sendFrame(0, P.PROTO.BRIGHTNESS, Buffer.from(String(n), 'utf8'));
   }
 
-  cycleWidePanel() {
-    // Vendor command observed when the wide key is pressed; the firmware
-    // advances its built-in small window (clock -> stats -> off).
-    this.sendFrame(0, 0x0e, Buffer.alloc(0));
-  }
-
   setSleepTime(seconds) {
     const n = Math.max(0, Math.round(seconds));
     this.sendFrame(0, P.PROTO.SLEEP, Buffer.from(String(n), 'utf8'));

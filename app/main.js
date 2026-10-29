@@ -245,15 +245,6 @@ ipcMain.handle('deck:brightness', (_evt, level) => {
   }
 });
 
-ipcMain.handle('deck:wide-mode', () => {
-  try {
-    deck.cycleWidePanel();
-    return { ok: true };
-  } catch (err) {
-    return { ok: false, error: err.message || String(err) };
-  }
-});
-
 ipcMain.handle('deck:sleep', (_evt, seconds) => {
   try {
     deck.setSleepTime(seconds);
