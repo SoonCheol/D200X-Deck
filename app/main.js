@@ -160,6 +160,15 @@ function createTray() {
 async function requestQuit() {
   if (isQuitting || quitPromptOpen) return;
   quitPromptOpen = true;
+  // A message box shown while the app is hidden is dismissed immediately by
+  // macOS and resolves with the first button, so surface the window first.
+  const wasHidden = !win || win.isDestroyed() || !win.isVisible();
+  if (win && !win.isDestroyed()) {
+    if (win.isMinimized()) win.restore();
+    if (!win.isVisible()) win.show();
+    win.focus();
+  }
+  app.focus({ steal: true });
   const parent = win && !win.isDestroyed() && win.isVisible() ? win : null;
   const { response } = await dialog.showMessageBox(parent, {
     type: 'question',
@@ -171,10 +180,13 @@ async function requestQuit() {
       'The deck will keep its last page. Plugins, hotkeys and the clock will stop until you reopen the app.',
   });
   quitPromptOpen = false;
+  console.log('[quit] confirmation response', response);
   if (response === 0) {
     isQuitting = true;
     app.quit();
+    return;
   }
+  if (wasHidden && win && !win.isDestroyed()) win.hide();
 }
 
 function buildMenu() {
@@ -194,6 +206,18 @@ function buildMenu() {
           ],
         }]
       : []),
+    {
+      label: 'File',
+      submenu: [
+        {
+          label: 'Close Window',
+          accelerator: 'CmdOrCtrl+W',
+          click: () => {
+            if (win && !win.isDestroyed()) win.close();
+          },
+        },
+      ],
+    },
     {
       label: 'Edit',
       submenu: [
