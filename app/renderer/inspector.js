@@ -683,7 +683,7 @@ function renderInspector() {
 
     ${
       pinned
-        ? `<div class="pinned-banner"><span>Pinned — shown on every page</span><button class="btn small" id="insp-unpin">Unpin</button></div>`
+        ? `<div class="pinned-banner"><span>Pinned — shown on every page</span></div>`
         : ''
     }
 
@@ -741,7 +741,9 @@ function renderInspector() {
 
     <div class="insp-actions">
       <button class="btn" id="insp-duplicate">Duplicate</button>
-      ${pinned ? '' : '<button class="btn" id="insp-pin">Pin to all pages</button>'}
+      ${pinned
+        ? '<button class="btn" id="insp-unpin">Unpin</button>'
+        : '<button class="btn" id="insp-pin">Pin to all pages</button>'}
       <button class="btn danger" id="insp-clear-key">Clear key</button>
     </div>
   `;
