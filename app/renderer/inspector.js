@@ -54,6 +54,11 @@ function pageName(id) {
   return state.config.pages.find((p) => p.id === id)?.name || 'Page';
 }
 
+/** Pages a key can navigate to: same profile only. */
+function pagesFor(profileId = state.config.activeProfileId) {
+  return state.config.pages.filter((page) => page.profileId === profileId);
+}
+
 /** Emoji/caption the app suggests for an action (only applied to untouched keys). */
 function actionMeta(action) {
   if (!action) return {};
@@ -165,7 +170,7 @@ function multiStepRow(step, index, page) {
       .map(([v, l]) => `<option value="${v}" ${act.op === v ? 'selected' : ''}>${l}</option>`)
       .join('')}</select>`;
   } else if (act.type === 'page') {
-    control = `<select class="select multi-value" data-value="${index}">${state.config.pages
+    control = `<select class="select multi-value" data-value="${index}">${pagesFor()
       .map((p) => `<option value="${esc(p.id)}" ${p.id === act.value ? 'selected' : ''}>${esc(p.name)}</option>`)
       .join('')}</select>`;
   }
@@ -255,7 +260,7 @@ function bindMultiEditor(key) {
 
 function triggerField(key, field, label, page) {
   const action = key[field] || { type: 'none' };
-  const pageOptions = state.config.pages
+  const pageOptions = pagesFor(page.profileId)
     .map(
       (p) =>
         `<option value="${esc(p.id)}" ${p.id === action.value ? 'selected' : ''}>${esc(p.name)}</option>`
@@ -552,7 +557,7 @@ function renderInspector() {
   const key = pinned ? pinnedFor(page.profileId)[state.selected] : ensureKey(page, state.selected);
   const liveKey = effectiveKey(key);
   const action = key.action || { type: 'none', value: '' };
-  const pageOptions = state.config.pages
+  const pageOptions = pagesFor(page.profileId)
     .map(
       (p) =>
         `<option value="${esc(p.id)}" ${p.id === action.value ? 'selected' : ''}>${esc(p.name)}${p.id === page.id ? ' (this page)' : ''}</option>`
@@ -921,7 +926,7 @@ function renderInspector() {
     } else {
       let value = '';
       if (type === 'page') {
-        value = state.config.pages.find((p) => p.id !== page.id)?.id || page.id;
+        value = pagesFor(page.profileId).find((p) => p.id !== page.id)?.id || page.id;
         key.action = { type, op: 'goto', value };
       } else {
         key.action = { type, value };
@@ -1028,7 +1033,7 @@ function renderInspector() {
         key.action = {
           type: 'page',
           op: 'goto',
-          value: state.config.pages.find((p) => p.id !== key.action.value)?.id || page.id,
+          value: pagesFor(page.profileId).find((p) => p.id !== key.action.value)?.id || page.id,
         };
       } else {
         key.action = { type: 'page', op };
