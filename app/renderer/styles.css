@@ -323,6 +323,7 @@ body::before {
 /* ---------------------------------------------------------- inspector */
 
 .inspector {
+  -webkit-app-region: no-drag;
   border-left: 1px solid var(--line);
   background: rgba(9, 12, 18, 0.72);
   backdrop-filter: blur(12px);
@@ -454,6 +455,7 @@ body::before {
 }
 
 .modal {
+  -webkit-app-region: no-drag;
   position: fixed;
   inset: 0;
   z-index: 80;
@@ -956,8 +958,9 @@ body::before {
 
 .settings-sheet {
   position: absolute;
-  top: 64px;
+  top: 112px;
   right: 392px;
+  -webkit-app-region: no-drag;
   z-index: 40;
   width: 320px;
   padding: 14px 16px 16px;

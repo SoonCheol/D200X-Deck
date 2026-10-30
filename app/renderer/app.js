@@ -343,6 +343,83 @@ async function refreshAccessibility() {
   }
 }
 
+let keyClipboard = null;
+let lastCleared = null;
+
+function isTypingTarget(target) {
+  if (!(target instanceof Element)) return false;
+  const tag = target.tagName;
+  return tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || target.isContentEditable;
+}
+
+function anyModalOpen() {
+  return ['hotkey-modal', 'app-modal', 'icons-modal', 'store-modal', 'plugin-modal', 'import-modal', 'profile-modal']
+    .some((id) => {
+      const el = document.getElementById(id);
+      return el && !el.classList.contains('hidden');
+    });
+}
+
+function copySelectedKey() {
+  const page = activePage();
+  if (!page || state.selected == null) return false;
+  const key = page.keys[state.selected];
+  if (!key) return false;
+  keyClipboard = JSON.parse(JSON.stringify(key));
+  toast('Key copied');
+  return true;
+}
+
+function pasteKeyIntoSelection() {
+  const page = activePage();
+  if (!page || state.selected == null) return false;
+  if (!keyClipboard) return false;
+  lastCleared = { pageId: page.id, index: state.selected, key: page.keys[state.selected] || null };
+  const copy = JSON.parse(JSON.stringify(keyClipboard));
+  if (copy.action && copy.action.type === 'plugin') copy.action.actionid = uuid();
+  if (copy.holdAction && copy.holdAction.type === 'plugin') copy.holdAction.actionid = uuid();
+  if (copy.doubleAction && copy.doubleAction.type === 'plugin') copy.doubleAction.actionid = uuid();
+  page.keys[state.selected] = copy;
+  commit();
+  renderGrid();
+  renderInspector();
+  toast('Key pasted');
+  return true;
+}
+
+function clearSelectedKey() {
+  const page = activePage();
+  if (!page || state.selected == null) return false;
+  const existing = page.keys[state.selected];
+  if (!existing) return false;
+  const index = state.selected;
+  lastCleared = { pageId: page.id, index, key: existing };
+  delete page.keys[index];
+  // Deselect: the inspector lazily creates a key for the selected slot, which
+  // would put the "deleted" key straight back.
+  state.selected = null;
+  commit();
+  renderGrid();
+  renderInspector();
+  toast('Key cleared — ⌘Z to undo');
+  return true;
+}
+
+function undoLastClear() {
+  if (!lastCleared) return false;
+  const page = state.config.pages.find((p) => p.id === lastCleared.pageId);
+  if (!page) return false;
+  if (lastCleared.key) page.keys[lastCleared.index] = lastCleared.key;
+  else delete page.keys[lastCleared.index];
+  state.config.activePageId = page.id;
+  state.selected = lastCleared.index;
+  lastCleared = null;
+  commit();
+  renderAll();
+  toast('Restored');
+  return true;
+}
+
 function updateDeckSettingsMeta() {
   const meta = $('#deck-settings-meta');
   if (!meta) return;
@@ -355,6 +432,27 @@ function updateDeckSettingsMeta() {
 }
 
 function bind() {
+  document.addEventListener('keydown', (event) => {
+    if (anyModalOpen() || isTypingTarget(event.target)) return;
+    const mod = event.metaKey || event.ctrlKey;
+    const key = String(event.key || '').toLowerCase();
+    if (mod && key === 'c') {
+      if (copySelectedKey()) event.preventDefault();
+      return;
+    }
+    if (mod && key === 'v') {
+      if (pasteKeyIntoSelection()) event.preventDefault();
+      return;
+    }
+    if (mod && key === 'z') {
+      if (undoLastClear()) event.preventDefault();
+      return;
+    }
+    if (!mod && (event.key === 'Delete' || event.key === 'Backspace')) {
+      if (clearSelectedKey()) event.preventDefault();
+    }
+  });
+
   // Arrow-key navigation across the 5×3 key grid.
   $('#grid').addEventListener('keydown', (event) => {
     const keys = ['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'];
@@ -539,8 +637,18 @@ function bind() {
     const sheet = $('#deck-settings');
     if (!sheet || sheet.classList.contains('hidden')) return;
     const target = event.target instanceof Element ? event.target : null;
-    if (!target || sheet.contains(target) || target.closest('#deck-settings-btn')) return;
+    if (!target) return;
+    if (target.closest('#deck-settings-close')) {
+      sheet.classList.add('hidden');
+      return;
+    }
+    if (sheet.contains(target) || target.closest('#deck-settings-btn')) return;
     sheet.classList.add('hidden');
+  });
+  document.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape' && !$('#deck-settings').classList.contains('hidden')) {
+      $('#deck-settings').classList.add('hidden');
+    }
   });
   $('#deck-settings-reconnect').addEventListener('click', () => api.reconnect());
   $('#accessibility-grant').addEventListener('click', async () => {

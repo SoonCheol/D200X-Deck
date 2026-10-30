@@ -72,6 +72,24 @@ function attachScreenshotHarness({ win, send, quitNow }) {
               await new Promise((r) => setTimeout(r, 4000));
             }
           }
+          if (process.env.ULANZI_SETTINGS_REAL) {
+            const click = async (x, y) => {
+              win.webContents.sendInputEvent({ type: 'mouseDown', x, y, button: 'left', clickCount: 1 });
+              win.webContents.sendInputEvent({ type: 'mouseUp', x, y, button: 'left', clickCount: 1 });
+              await new Promise((r) => setTimeout(r, 500));
+            };
+            const btn = await win.webContents.executeJavaScript(
+              "(() => { const r = document.querySelector('#deck-settings-btn').getBoundingClientRect(); return [r.left + r.width / 2, r.top + r.height / 2]; })()"
+            );
+            await click(btn[0], btn[1]);
+            const state1 = await win.webContents.executeJavaScript("document.querySelector('#deck-settings').className");
+            const close = await win.webContents.executeJavaScript(
+              "(() => { const r = document.querySelector('#deck-settings-close').getBoundingClientRect(); return [r.left + r.width / 2, r.top + r.height / 2]; })()"
+            );
+            await click(close[0], close[1]);
+            const state2 = await win.webContents.executeJavaScript("document.querySelector('#deck-settings').className");
+            console.log('[shot] settings-real', JSON.stringify({ open: state1, afterClose: state2, closeAt: close }));
+          }
           if (process.env.ULANZI_CLICKAT) {
             const [x, y] = process.env.ULANZI_CLICKAT.split(',').map(Number);
             win.webContents.sendInputEvent({ type: 'mouseDown', x, y, button: 'left', clickCount: 1 });

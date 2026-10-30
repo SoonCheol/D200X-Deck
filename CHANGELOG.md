@@ -2,6 +2,16 @@
 
 ## Unreleased
 
+### Features
+- Profiles can be created, renamed and deleted in-app (unique names); pages are unique per profile.
+- Import profiles from the official app as new profiles, with name collision handling.
+- Key editing shortcuts: ⌘C copy, ⌘V paste (fresh plugin action ids), Delete/Backspace clear, ⌘Z undo.
+- Plugin protocol sends the action UUID for action-scoped messages, fixing multi-instance plugins (Claude Usage 5h/weekly).
+
+### Fixes
+- Deck settings close button no longer sits under the window drag region; the popover closes on ×, outside click and Escape.
+- “Grant…” always opens the Accessibility pane, including when permission is already granted.
+
 ### Security
 - Plugin WebSocket rejects browser origins and connections for unknown plugin UUIDs.
 - Marketplace session token is only sent to `*.ulanzistudio.com`; downloads are capped at 128 MB.
