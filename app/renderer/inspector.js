@@ -193,6 +193,7 @@ function renderInspector() {
       </div>
       <div class="insp-actions">
         <button class="btn danger" id="insp-clear-page">Clear page</button>
+        <button class="btn" id="insp-duplicate-page">Duplicate</button>
         <button class="btn" id="insp-add-page">New page</button>
       </div>
     `;
@@ -211,6 +212,22 @@ function renderInspector() {
       commit();
     });
     $('#insp-add-page').addEventListener('click', addPage);
+    $('#insp-duplicate-page').addEventListener('click', () => {
+      const copy = JSON.parse(JSON.stringify(page));
+      copy.id = crypto.randomUUID ? crypto.randomUUID() : String(Date.now());
+      copy.name = `${page.name} copy`;
+      for (const key of Object.values(copy.keys || {})) {
+        for (const field of ['action', 'holdAction', 'doubleAction']) {
+          if (key[field] && key[field].type === 'plugin') key[field].actionid = crypto.randomUUID();
+        }
+      }
+      state.config.pages.push(copy);
+      state.config.activePageId = copy.id;
+      state.selected = null;
+      renderAll();
+      commit();
+      toast(`Created “${copy.name}”`);
+    });
     return;
   }
 
