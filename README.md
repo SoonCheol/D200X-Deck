@@ -95,8 +95,8 @@ actions, brightness/sleep, packaging.
 
 Not implemented yet:
 
-* HTML plugins and plugin property-inspector UI (JS plugin actions work; settings are JSON).
-* Plugin auto-restart after a crash.
+* HTML plugins (JavaScript plugin actions run; property inspectors are supported,
+  HTML-only plugins are listed but cannot run).
 * The wide (2×1) key panel: the firmware shows the clock/logo, but the vendor’s
   clock/stats mode command is not identified yet. The wide key is not offered as a
   normal action.

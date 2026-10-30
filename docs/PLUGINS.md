@@ -156,21 +156,21 @@ Click **Plugins** in the sidebar:
 Installed plugins are copied to the app's own plugin folder, so they survive Ulanzi
 Studio updates. When both locations contain the same UUID, the app's copy wins.
 
-Crashed plugins with a key on the deck are restarted automatically after 2 seconds,
-and on reconnect all `add`/`setactive` messages are replayed.
+Crashed plugins are restarted with exponential backoff (capped at five attempts per
+minute), and on reconnect all `add`/`setactive` messages are replayed.
 
 ## Using a plugin key
 
-In the key inspector choose **Plugin action**, then the plugin and action. Settings are
-edited as JSON for now. The key shows the plugin’s live image; pressing it sends `run`.
+In the key inspector choose **Plugin action**, then the plugin and action. If the action
+ships a property inspector, its form is embedded in the panel; otherwise settings are
+edited as JSON. The key shows the plugin’s live image; pressing it sends `run`.
 
 ## Limitations (current)
 
-* Only `JavaScript` plugins; HTML plugins are listed but cannot run yet.
-* No property-inspector UI hosting (`PropertyInspectorPath`). Settings are JSON.
+* Only `JavaScript` plugins; HTML-only plugins are listed but cannot run yet.
 * No multi-action / dial feedback (`setFeedback`, `setFeedbackLayout`).
-* Plugin crashes are not auto-restarted until the action is re-synced.
-* Port 3906 is fixed; it must be free (quit Ulanzi Studio).
+* Port 3906 is fixed; it must be free (quit Ulanzi Studio). The host retries every 10 s
+  if it was busy at launch.
 
 ## Reference
 
