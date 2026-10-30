@@ -61,3 +61,25 @@ test('a corrupt config falls back to the backup', () => {
   assert.equal(store.config.pages[0].name, 'Backup page');
   assert.ok(fs.existsSync(`${file}.corrupt`), 'broken file is preserved for inspection');
 });
+
+test('key images are stored as files, not inside config.json', () => {
+  const dir = tempDir();
+  const store = new Store(dir);
+  store.load();
+  const png = Buffer.from('fake-png-bytes').toString('base64');
+  store.config.pages[0].keys[0] = {
+    emoji: '', label: '', color: '#1b2130',
+    icon: `data:image/png;base64,${png}`,
+    action: { type: 'none' },
+  };
+  store.save(store.config);
+
+  const raw = fs.readFileSync(path.join(dir, 'config.json'), 'utf8');
+  assert.equal(raw.includes('data:image'), false, 'config must not embed base64 images');
+  const files = fs.readdirSync(path.join(dir, 'Images'));
+  assert.equal(files.length, 1);
+
+  const reloaded = new Store(dir);
+  reloaded.load();
+  assert.match(reloaded.config.pages[0].keys[0].icon, /^data:image\/png;base64,/);
+});

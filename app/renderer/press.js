@@ -1,0 +1,110 @@
+'use strict';
+
+// -------------------------------------------------------------- key presses
+
+const pressState = new Map();
+const DOUBLE_WINDOW = 300;
+
+function navigateRelative(step) {
+  const pages = state.config.pages;
+  if (pages.length < 2) return;
+  const index = pages.findIndex((p) => p.id === state.config.activePageId);
+  if (index < 0) return;
+  const next = (index + step + pages.length) % pages.length;
+  navigate(pages[next].id);
+}
+
+function runKeyAction(action) {
+  if (!action || action.type === 'none') return;
+  if (action.type === 'page') {
+    if (action.op === 'next') return navigateRelative(1);
+    if (action.op === 'prev') return navigateRelative(-1);
+    navigate(action.value);
+    return;
+  }
+  if (action.type === 'plugin') {
+    api.runPluginAction(action.actionid).then((res) => {
+      if (!res.ok) toast('Plugin action is not ready yet', true);
+    });
+    return;
+  }
+  api.runAction(action).then((res) => {
+    if (!res.ok) toast(res.error || 'action failed', true);
+  });
+}
+
+function flashKey(index) {
+  const tile = $('#grid').children[index];
+  if (!tile) return;
+  tile.classList.add('pressed');
+  setTimeout(() => tile.classList.remove('pressed'), 160);
+}
+
+function handleKeyEvent(index, pressed) {
+  // The wide key is a firmware system panel; never run actions for it
+  // (proto 0x0e resets the deck to its factory profile).
+  if (index === WIDE_KEY_INDEX) return;
+  const key = activePage().keys[index];
+  if (!key) return;
+
+  const hasHold = key.holdAction && key.holdAction.type !== 'none';
+  const hasDouble = key.doubleAction && key.doubleAction.type !== 'none';
+  if (!hasHold && !hasDouble) {
+    if (pressed) {
+      flashKey(index);
+      runKeyAction(key.action);
+    }
+    return;
+  }
+
+  const st = pressState.get(index) || {};
+  pressState.set(index, st);
+
+  if (pressed) {
+    const now = Date.now();
+    if (st.lastDown && now - st.lastDown < 60) return; // key bounce / repeats
+    st.lastDown = now;
+    flashKey(index);
+
+    if (st.tapTimer) {
+      clearTimeout(st.tapTimer);
+      st.tapTimer = null;
+      if (hasDouble) {
+        st.doubleFired = true;
+        runKeyAction(key.doubleAction);
+        return;
+      }
+    }
+    st.held = false;
+    if (hasHold) {
+      st.holdTimer = setTimeout(() => {
+        st.holdTimer = null;
+        st.held = true;
+        runKeyAction(key.holdAction);
+      }, Math.max(150, Number(key.holdMs) || 500));
+    }
+    return;
+  }
+
+  if (st.holdTimer) {
+    clearTimeout(st.holdTimer);
+    st.holdTimer = null;
+  }
+  if (st.held) {
+    st.held = false;
+    return;
+  }
+  if (st.doubleFired) {
+    st.doubleFired = false;
+    return;
+  }
+  if (hasDouble) {
+    st.tapTimer = setTimeout(() => {
+      st.tapTimer = null;
+      runKeyAction(key.action);
+    }, DOUBLE_WINDOW);
+  } else {
+    runKeyAction(key.action);
+  }
+}
+

@@ -2,7 +2,7 @@
 
 const fs = require('node:fs');
 const path = require('node:path');
-const { randomUUID } = require('node:crypto');
+const { randomUUID, createHash } = require('node:crypto');
 
 const CONFIG_VERSION = 5;
 
@@ -136,11 +136,56 @@ function createDefaultConfig() {
   };
 }
 
+const DATA_URL = /^data:image\/(png|jpeg|jpg|webp|gif|svg\+xml);base64,(.+)$/i;
+const EXT_FOR = { png: 'png', jpeg: 'jpg', jpg: 'jpg', webp: 'webp', gif: 'gif', 'svg+xml': 'svg' };
+const MIME_FOR = { png: 'image/png', jpg: 'image/jpeg', webp: 'image/webp', gif: 'image/gif', svg: 'image/svg+xml' };
+
 class Store {
   constructor(userDataDir) {
     this.dir = userDataDir;
     this.file = path.join(userDataDir, 'config.json');
+    this.imagesDir = path.join(userDataDir, 'Images');
     this.config = null;
+  }
+
+  /** Write base64 key images to disk and replace them with `file:<name>` refs. */
+  _externalize(config) {
+    let changed = false;
+    fs.mkdirSync(this.imagesDir, { recursive: true });
+    for (const page of config.pages || []) {
+      for (const key of Object.values(page.keys || {})) {
+        if (!key || typeof key.icon !== 'string') continue;
+        const match = DATA_URL.exec(key.icon);
+        if (!match) continue;
+        const ext = EXT_FOR[match[1].toLowerCase()] || 'png';
+        const buffer = Buffer.from(match[2], 'base64');
+        const name = `${createHash('sha1').update(buffer).digest('hex')}.${ext}`;
+        const file = path.join(this.imagesDir, name);
+        if (!fs.existsSync(file)) fs.writeFileSync(file, buffer);
+        key.icon = `file:${name}`;
+        changed = true;
+      }
+    }
+    return changed;
+  }
+
+  /** Expand `file:<name>` refs back into data URLs for the renderer. */
+  _internalize(config) {
+    for (const page of config.pages || []) {
+      for (const key of Object.values(page.keys || {})) {
+        if (!key || typeof key.icon !== 'string' || !key.icon.startsWith('file:')) continue;
+        const name = path.basename(key.icon.slice(5));
+        const file = path.join(this.imagesDir, name);
+        try {
+          const ext = path.extname(name).slice(1).toLowerCase();
+          const mime = MIME_FOR[ext] || 'image/png';
+          key.icon = `data:${mime};base64,${fs.readFileSync(file).toString('base64')}`;
+        } catch {
+          key.icon = null;
+        }
+      }
+    }
+    return config;
   }
 
   load() {
@@ -148,7 +193,7 @@ class Store {
     const read = (file) => JSON.parse(fs.readFileSync(file, 'utf8'));
 
     try {
-      const parsed = read(this.file);
+      const parsed = this._internalize(read(this.file));
       const previous = Number(parsed.version) || 1;
       this.config = this._migrate(parsed);
       if (previous !== CONFIG_VERSION) this.save();
@@ -203,7 +248,9 @@ class Store {
     this.config = config;
     fs.mkdirSync(this.dir, { recursive: true });
     const tmp = `${this.file}.tmp`;
-    fs.writeFileSync(tmp, JSON.stringify(config, null, 2));
+    const onDisk = JSON.parse(JSON.stringify(config));
+    this._externalize(onDisk);
+    fs.writeFileSync(tmp, JSON.stringify(onDisk, null, 2));
     try {
       fs.copyFileSync(this.file, `${this.file}.bak`);
     } catch {
