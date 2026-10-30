@@ -35,11 +35,59 @@ function actionIconSrc(action) {
   return ACTION_ICON_PATHS[action.type] || null;
 }
 
+// Emoji the app used to assign automatically before action icons existed.
+const LEGACY_AUTO_EMOJI = new Set(['🎵']);
+
+/** True when the key's emoji is one the app picked (not something the user typed). */
+function isAutoEmoji(key) {
+  if (!key.emoji) return true;
+  if (key.emojiAuto) return key.emoji === key.emojiAuto;
+  const suggested = actionMeta(key.action).emoji;
+  if (!suggested) return false;
+  return key.emoji === suggested || LEGACY_AUTO_EMOJI.has(key.emoji);
+}
+
 /** Only auto-emoji keys borrow the bundled icon; a custom emoji wins. */
 function autoIconFor(key) {
   if (key.icon) return null;
-  if (key.emoji && key.emoji !== key.emojiAuto) return null;
-  return actionIconSrc(key.action);
+  return isAutoEmoji(key) ? actionIconSrc(key.action) : null;
+}
+
+/**
+ * Bring keys created before action icons/emoji-sync up to date: fill emoji and
+ * caption from the action when they were never customised.
+ */
+function normalizeActionMeta() {
+  let changed = false;
+  for (const page of state.config.pages) {
+    for (const key of Object.values(page.keys)) {
+      if (!key || !key.action) continue;
+      const meta = actionMeta(key.action);
+      if (!meta.emoji && !meta.label) continue;
+      if (meta.emoji && isAutoEmoji(key)) {
+        if (key.emoji !== meta.emoji) {
+          key.emoji = meta.emoji;
+          changed = true;
+        }
+        if (key.emojiAuto !== meta.emoji) {
+          key.emojiAuto = meta.emoji;
+          changed = true;
+        }
+      }
+      const labelIsAuto = !key.label || key.label === key.labelAuto;
+      if (meta.label && labelIsAuto) {
+        if (key.label !== meta.label) {
+          key.label = meta.label;
+          changed = true;
+        }
+        if (key.labelAuto !== meta.label) {
+          key.labelAuto = meta.label;
+          changed = true;
+        }
+      }
+    }
+  }
+  return changed;
 }
 const renderSystemPanel = window.KeyRenderer.drawSystemPanel;
 
@@ -2187,6 +2235,7 @@ setInterval(() => {
 (async function init() {
   const boot = await api.getState();
   state.config = boot.config;
+  if (normalizeActionMeta()) scheduleSave();
   state.status = boot.status;
   state.plugins = await api.listPlugins();
   updatePluginCount();

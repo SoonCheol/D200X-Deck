@@ -94,7 +94,10 @@ the official app's look instead of relying on platform emoji:
 `command`, `close`, `plugin`, `multi`, `toggle`.
 
 The auto-emoji is still filled in as a fallback; typing a custom emoji switches the
-key back to emoji, and any custom image always wins.
+key back to emoji, and any custom image always wins. Keys saved before action icons
+existed are normalised on load: an emoji the app had assigned itself (including the
+old `🎵` media default) is treated as auto, so those keys pick up the bundled icon and
+the proper caption.
 
 ## UI
 
