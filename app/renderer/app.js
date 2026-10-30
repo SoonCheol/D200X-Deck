@@ -953,7 +953,7 @@ function renderInspector() {
           host.innerHTML = '<div class="insp-empty" style="padding:0">No property inspector for this action.</div>';
           return;
         }
-        host.innerHTML = `<iframe class="pi-frame" data-actionid="${esc(action.actionid)}" src="${esc(url)}"></iframe>`;
+        host.innerHTML = `<iframe class="pi-frame" data-actionid="${esc(action.actionid)}" src="${esc(url)}" sandbox="allow-scripts allow-forms allow-modals"></iframe>`;
       })
       .catch(() => {
         if (host.isConnected) host.innerHTML = '<div class="insp-empty" style="padding:0">Could not load the property inspector.</div>';
@@ -1974,6 +1974,10 @@ async function openStoreDetail(id) {
   const install = $('#store-install');
   if (install && !installed) {
     install.addEventListener('click', async () => {
+      const ok = confirm(
+        `Install “${item.name}”?\n\nPlugins run on your Mac with your user permissions, outside the app sandbox. Only install plugins you trust.`
+      );
+      if (!ok) return;
       install.disabled = true;
       install.textContent = 'Installing…';
       const out = await api.storeInstall(item.id);

@@ -260,7 +260,7 @@ function normalizeItem(raw) {
   return {
     id: String(pick(raw, ['id', 'resourceId'], '')),
     name: pick(raw, [`title${suffix}`, `productName${suffix}`, 'title', 'name', 'titleCn', 'productNameZh'], 'Untitled'),
-    summary: pick(raw, [`overview${suffix}`, 'overview', `detailDesc${suffix}`, 'detailDesc', 'remark'], ''),
+    summary: plainText(pick(raw, [`overview${suffix}`, 'overview', `detailDesc${suffix}`, 'detailDesc', 'remark'], '')),
     icon: absolute(cover || banner || usableIcon || pick(raw, ['avatar'], '')),
     author: pick(raw, ['author', 'nickname', 'createBy'], ''),
     version: pick(raw, ['version', 'versionName', 'ver'], ''),

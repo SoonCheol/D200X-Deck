@@ -654,11 +654,9 @@ app.whenReady().then(() => {
   // on 127.0.0.1). Their pages come from our private scheme, so allow them the
   // same loopback access the vendor app gives them.
   session.defaultSession.webRequest.onHeadersReceived((details, callback) => {
-    const initiator = String(details.initiator || '');
-    // Requests from our custom scheme arrive with an empty initiator, so also
-    // relax CORS for loopback services (only plugin inspectors call those).
-    const loopback = /^https?:\/\/(127\.0\.0\.1|localhost)([:/]|$)/.test(details.url || '');
-    if (!initiator.startsWith('ulanzi-pi://') && !loopback) return callback({});
+    // Only inspector pages get relaxed CORS; the app itself keeps the normal rules.
+    const fromInspector = String(details.frame?.url || '').startsWith('ulanzi-pi://');
+    if (!fromInspector) return callback({});
     callback({
       responseHeaders: {
         ...(details.responseHeaders || {}),
