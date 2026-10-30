@@ -1931,8 +1931,84 @@ async function refreshPlugins() {
   syncPlugins();
 }
 
+function switchInstalledTab(tab) {
+  const isIcons = tab === 'icons';
+  $('#tab-plugins').classList.toggle('hidden', isIcons);
+  $('#tab-icons').classList.toggle('hidden', !isIcons);
+  $('#tab-plugins-btn').classList.toggle('active', !isIcons);
+  $('#tab-icons-btn').classList.toggle('active', isIcons);
+  if (isIcons) renderInstalledIcons();
+}
+
+async function renderInstalledIcons() {
+  const list = $('#icon-packs-list');
+  list.innerHTML = '<div class="plugin-empty">Loading…</div>';
+  const packs = await api.listIconPacks();
+  if (!packs.length) {
+    list.innerHTML = `<div class="plugin-empty">
+      No icon packs installed in this app yet.<br/>
+      Use <b>Get icon packs…</b> to download one from the store.
+    </div>`;
+    return;
+  }
+  list.innerHTML = packs
+    .map(
+      (pack) => `
+      <div class="plugin-row">
+        ${
+          pack.icon
+            ? `<img class="pack-icon" src="${esc(pack.icon)}" alt="" />`
+            : '<div class="pack-icon"></div>'
+        }
+        <div class="plugin-meta">
+          <div class="plugin-name">
+            ${esc(pack.name)}
+            <span class="badge-tag ${pack.readOnly ? '' : 'good'}">${pack.readOnly ? '🔒 Ulanzi' : 'Installed'}</span>
+          </div>
+          <div class="plugin-sub">${pack.files.length} icon(s)${
+            pack.readOnly ? ' · managed by Ulanzi Studio' : ''
+          }</div>
+        </div>
+        <div class="plugin-actions">
+          <button class="btn ghost" data-pack-use="${esc(pack.id)}">Use</button>
+          ${
+            pack.readOnly
+              ? ''
+              : `<button class="btn danger" data-pack-remove="${esc(pack.id)}">Delete</button>`
+          }
+        </div>
+      </div>`
+    )
+    .join('');
+
+  list.querySelectorAll('[data-pack-use]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const pack = packs.find((p) => p.id === btn.dataset.packUse);
+      closePluginModal();
+      openIconLibrary(null);
+      // preselect the pack
+      setTimeout(() => {
+        const target = [...document.querySelectorAll('.icons-pack')].find((b) => b.dataset.pack === pack?.id);
+        target?.click();
+      }, 300);
+    });
+  });
+
+  list.querySelectorAll('[data-pack-remove]').forEach((btn) => {
+    btn.addEventListener('click', async () => {
+      const pack = packs.find((p) => p.id === btn.dataset.packRemove);
+      if (!confirm(`Delete the icon pack “${pack?.name || ''}”?`)) return;
+      const res = await api.removeIconPack(btn.dataset.packRemove);
+      if (!res.ok) return toast(res.error, true);
+      toast('Icon pack deleted');
+      renderInstalledIcons();
+    });
+  });
+}
+
 function openPluginModal() {
   renderPluginModal();
+  switchInstalledTab('plugins');
   $('#plugin-modal').classList.remove('hidden');
 }
 
@@ -2191,6 +2267,13 @@ function bind() {
   });
   $('#app-search').addEventListener('input', (e) => renderAppList(e.target.value));
   $('#plugin-modal-close').addEventListener('click', closePluginModal);
+  $('#tab-plugins-btn').addEventListener('click', () => switchInstalledTab('plugins'));
+  $('#tab-icons-btn').addEventListener('click', () => switchInstalledTab('icons'));
+  $('#icons-open-store').addEventListener('click', () => {
+    closePluginModal();
+    openStoreModal();
+  });
+  $('#icons-open-folder').addEventListener('click', () => api.openIconsFolder());
   $('#plugin-modal').addEventListener('click', (e) => {
     if (e.target === $('#plugin-modal')) closePluginModal();
   });

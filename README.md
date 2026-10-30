@@ -25,8 +25,8 @@ actions, and it talks to the deck directly over HID — no vendor app required.
 * **Plugin Store** — browse the official Ulanzi Studio marketplace from the sidebar:
   categories (profiles, plugins, icons), search, sorting, plugin details, and
   one-click install into this app (installed plugins are fully managed by it).
-* **Icon library** — download icon packs from the Store and apply any icon to a key
-  from the inspector.
+* **Icon library** — download icon packs from the Store, manage them in
+  **Installed → Icons**, and apply any icon to a key from the inspector.
 * **Hotkeys** — a proper picker (modifiers, letters, symbols, function keys, F keys,
   numpad) plus physical key capture.
 * **Drag to rearrange** — drag a key onto another to swap them.

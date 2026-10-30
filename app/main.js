@@ -72,6 +72,18 @@ function createWindow() {
             send('deck:key', { index: Number(process.env.ULANZI_KEY), pressed: true, state: 1 });
             await new Promise((r) => setTimeout(r, 900));
           }
+          if (process.env.ULANZI_INSTALLED) {
+            await win.webContents.executeJavaScript(
+              "document.querySelector('#plugins-btn')?.click(); true"
+            );
+            await new Promise((r) => setTimeout(r, 400));
+            if (process.env.ULANZI_INSTALLED === 'icons') {
+              await win.webContents.executeJavaScript(
+                "document.querySelector('#tab-icons-btn')?.click(); true"
+              );
+            }
+            await new Promise((r) => setTimeout(r, 900));
+          }
           if (process.env.ULANZI_PLUGINS) {
             await win.webContents.executeJavaScript(
               "document.querySelector('#plugins-btn')?.click(); true"
@@ -584,6 +596,17 @@ function iconsRoot() {
   return path.join(process.env.ULANZI_CONFIG_DIR || app.getPath('userData'), 'Icons');
 }
 
+function officialIconsRoot() {
+  return path.join(os.homedir(), 'Library/Application Support/Ulanzi/UlanziDeck/Icons');
+}
+
+/** "app:<dir>" for packs managed here, "ulanzi:<dir>" for Ulanzi Studio's packs. */
+function packDir(id) {
+  const [scope, name] = String(id).includes(':') ? String(id).split(':') : ['app', String(id)];
+  const root = scope === 'ulanzi' ? officialIconsRoot() : iconsRoot();
+  return path.join(root, name);
+}
+
 function walkFiles(dir) {
   const out = [];
   for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
@@ -634,12 +657,11 @@ ipcMain.handle('store:install-icons', async (_evt, id) => {
 });
 
 ipcMain.handle('icons:list', () => {
-  const root = iconsRoot();
-  if (!fs.existsSync(root)) return [];
-  return fs
-    .readdirSync(root, { withFileTypes: true })
-    .filter((entry) => entry.isDirectory())
-    .map((entry) => {
+  const packs = [];
+  for (const [scope, root] of [['app', iconsRoot()], ['ulanzi', officialIconsRoot()]]) {
+    if (!fs.existsSync(root)) continue;
+    for (const entry of fs.readdirSync(root, { withFileTypes: true })) {
+      if (!entry.isDirectory()) continue;
       const dir = path.join(root, entry.name);
       let meta = {};
       try {
@@ -647,19 +669,29 @@ ipcMain.handle('icons:list', () => {
       } catch {
         /* no metadata */
       }
-      return {
-        id: entry.name,
+      let files = [];
+      try {
+        files = fs.readdirSync(dir).filter((f) => ICON_EXT.has(path.extname(f).toLowerCase()));
+      } catch {
+        continue;
+      }
+      if (!files.length) continue;
+      packs.push({
+        id: `${scope}:${entry.name}`,
         name: meta.name || entry.name,
         icon: meta.icon || null,
-        files: fs.readdirSync(dir).filter((f) => ICON_EXT.has(path.extname(f).toLowerCase())),
-      };
-    })
-    .filter((pack) => pack.files.length > 0);
+        files,
+        source: scope,
+        readOnly: scope === 'ulanzi',
+      });
+    }
+  }
+  return packs;
 });
 
 ipcMain.handle('icons:read', (_evt, pack, file) => {
   try {
-    const dir = path.join(iconsRoot(), String(pack));
+    const dir = packDir(pack);
     const target = path.join(dir, path.basename(String(file)));
     if (!target.startsWith(dir) || !fs.existsSync(target)) return null;
     const ext = path.extname(target).toLowerCase();
@@ -674,9 +706,18 @@ ipcMain.handle('icons:read', (_evt, pack, file) => {
   }
 });
 
+ipcMain.handle('icons:open-folder', () => {
+  fs.mkdirSync(iconsRoot(), { recursive: true });
+  shell.openPath(iconsRoot());
+  return { ok: true };
+});
+
 ipcMain.handle('icons:remove', (_evt, pack) => {
-  const dir = path.join(iconsRoot(), String(pack));
-  fs.rmSync(dir, { recursive: true, force: true });
+  const id = String(pack);
+  if (id.startsWith('ulanzi:') || !id.startsWith('app:')) {
+    return { ok: false, error: 'Icon packs installed by Ulanzi Studio are read-only' };
+  }
+  fs.rmSync(packDir(id), { recursive: true, force: true });
   return { ok: true };
 });
 

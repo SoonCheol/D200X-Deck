@@ -39,6 +39,13 @@ the plugin manager as **Installed** and can be removed from there.
 an icon downscales it to 392 px and stores it on the key. Profile files
 (`.ulanziDeckProfile`) are listed but not installable.
 
+**Installed** (sidebar → Plugins & Icons) has two tabs:
+
+* **Plugins** — this app's plugins (install / reload / remove) plus read-only 🔒
+  plugins installed by Ulanzi Studio, which can be copied into this app.
+* **Icons** — icon packs downloaded here (delete allowed) and packs found in Ulanzi
+  Studio's own `Icons` folder, shown read-only so they stay intact.
+
 ## How it works
 
 1. On startup the app scans:

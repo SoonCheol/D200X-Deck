@@ -33,6 +33,7 @@ contextBridge.exposeInMainWorld('deckApp', {
   listIconPacks: () => ipcRenderer.invoke('icons:list'),
   readIcon: (pack, file) => ipcRenderer.invoke('icons:read', pack, file),
   removeIconPack: (pack) => ipcRenderer.invoke('icons:remove', pack),
+  openIconsFolder: () => ipcRenderer.invoke('icons:open-folder'),
   syncPlugins: (actions) => ipcRenderer.invoke('plugins:sync', actions),
   runPluginAction: (actionid) => ipcRenderer.invoke('plugins:run', actionid),
   installPluginFolder: () => ipcRenderer.invoke('plugins:install-folder'),

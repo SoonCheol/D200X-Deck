@@ -29,7 +29,7 @@
         <div class="sidebar-sep"></div>
 
         <div class="section-head">
-          <span>Plugins</span>
+          <span>Plugins &amp; Icons</span>
           <span id="plugin-count" class="plug-count">0</span>
         </div>
         <div class="sidebar-nav">
@@ -205,20 +205,34 @@
       <div class="modal-card">
         <div class="modal-head">
           <div>
-            <h2>Plugins</h2>
-            <p>JavaScript Ulanzi plugins run as-is. HTML plugins are listed but not supported yet.</p>
+            <h2>Installed</h2>
+            <p id="installed-sub">Plugins run as-is · icon packs power the key library.</p>
           </div>
           <button id="plugin-modal-close" class="icon-btn" title="Close">×</button>
         </div>
 
-        <div class="modal-actions">
-          <button class="btn primary" id="plugin-install-folder">Install folder…</button>
-          <button class="btn" id="plugin-install-zip">Install .zip…</button>
-          <button class="btn" id="plugin-reload">Reload all</button>
-          <button class="btn ghost" id="plugin-open-folder">Open plugins folder</button>
+        <div class="tabs">
+          <button class="tab active" id="tab-plugins-btn">Plugins</button>
+          <button class="tab" id="tab-icons-btn">Icons</button>
         </div>
 
-        <div id="plugin-list" class="plugin-list"></div>
+        <div id="tab-plugins">
+          <div class="modal-actions">
+            <button class="btn primary" id="plugin-install-folder">Install folder…</button>
+            <button class="btn" id="plugin-install-zip">Install .zip…</button>
+            <button class="btn" id="plugin-reload">Reload all</button>
+            <button class="btn ghost" id="plugin-open-folder">Open plugins folder</button>
+          </div>
+          <div id="plugin-list" class="plugin-list"></div>
+        </div>
+
+        <div id="tab-icons" class="hidden">
+          <div class="modal-actions">
+            <button class="btn primary" id="icons-open-store">Get icon packs…</button>
+            <button class="btn ghost" id="icons-open-folder">Open icons folder</button>
+          </div>
+          <div id="icon-packs-list" class="plugin-list"></div>
+        </div>
       </div>
     </div>
 

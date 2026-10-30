@@ -817,3 +817,15 @@ body::before {
 .icon-tile:hover { border-color: var(--accent); }
 .icon-tile img { width: 100%; aspect-ratio: 1 / 1; object-fit: contain; display: block; }
 .icons-empty { color: var(--muted); font-size: 12px; padding: 30px; text-align: center; grid-column: 1 / -1; }
+
+/* ------------------------------------------------------------------- tabs */
+
+.tabs { display: flex; gap: 4px; padding: 0 22px 12px; border-bottom: 1px solid var(--line); }
+.tab {
+  padding: 7px 14px; border-radius: 8px; border: 1px solid transparent; background: transparent;
+  color: var(--muted); font-size: 12px; cursor: pointer;
+}
+.tab:hover { color: var(--text); background: rgba(255,255,255,.04); }
+.tab.active { color: var(--text); background: rgba(79,140,255,.14); border-color: rgba(79,140,255,.42); }
+
+.pack-icon { width: 34px; height: 34px; border-radius: 8px; object-fit: cover; background: #0b0f16; flex: none; }
