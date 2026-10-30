@@ -28,6 +28,11 @@ protocol over the existing WebSocket host:
 * host → plugin: `paramfromapp` (so the key redraws)
 * host → inspector: `add` / `paramfromapp`
 
+Inspector files are served through a private `ulanzi-pi://` protocol (not `file://`), so
+the app can inject a theme stylesheet that matches the rest of the UI (colours, fonts,
+inputs, scrollbars) and a tiny script that reports the form height. The iframe is sized
+to its content, and inspectors that render nothing are hidden entirely.
+
 The settings are persisted on the key (`action.settings`) exactly like before, so
 configs stay compatible. Actions without an inspector still fall back to the JSON
 editor.

@@ -5,7 +5,6 @@ const { spawn } = require('node:child_process');
 const fs = require('node:fs');
 const path = require('node:path');
 const os = require('node:os');
-const { pathToFileURL } = require('node:url');
 const { WebSocketServer } = require('ws');
 
 const MIME = {
@@ -245,12 +244,17 @@ class PluginManager extends EventEmitter {
     if (!rel) return null;
     const file = path.join(meta.dir, rel);
     if (!fs.existsSync(file)) return null;
-    const url = pathToFileURL(file);
+    const relPath = path.relative(meta.dir, file).split(path.sep).map(encodeURIComponent).join('/');
+    const url = new URL(`ulanzi-pi://local/${encodeURIComponent(plugin)}/${relPath}`);
+    // Different SDK generations read different casings of these params.
     url.searchParams.set('actionId', actionid);
+    url.searchParams.set('actionid', actionid);
+    url.searchParams.set('uuid', plugin);
     url.searchParams.set('key', key || '');
     url.searchParams.set('port', String(this.port));
     url.searchParams.set('address', '127.0.0.1');
     url.searchParams.set('language', this.language);
+    url.searchParams.set('controller', 'Keypad');
     return url.toString();
   }
 

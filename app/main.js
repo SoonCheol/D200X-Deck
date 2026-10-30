@@ -1,6 +1,6 @@
 'use strict';
 
-const { app, BrowserWindow, ipcMain, dialog, Menu, shell, Tray, nativeImage } = require('electron');
+const { app, BrowserWindow, ipcMain, dialog, Menu, shell, Tray, nativeImage, protocol } = require('electron');
 const path = require('node:path');
 const fs = require('node:fs');
 const os = require('node:os');
@@ -475,6 +475,71 @@ function spawnHelper(bin) {
   return proc;
 }
 
+protocol.registerSchemesAsPrivileged([
+  { scheme: 'ulanzi-pi', privileges: { standard: true, secure: true, supportFetchAPI: true } },
+]);
+
+const PI_THEME = `
+<style id="ulanzi-deck-open-theme">
+  :root { color-scheme: dark; }
+  html, body {
+    background: #0b0f16 !important;
+    color: #e8ecf4 !important;
+    font-family: -apple-system, "SF Pro Text", "Helvetica Neue", sans-serif !important;
+    font-size: 12px !important;
+    margin: 0 !important;
+  }
+  body { padding: 4px 2px 8px !important; }
+  .udpi-wrapper, .uspi-wrapper { background: transparent !important; }
+  .uspi-heading, .udpi-heading {
+    color: #8b95a7 !important;
+    font-size: 10.5px !important;
+    font-weight: 600 !important;
+    letter-spacing: 1.2px !important;
+    text-transform: uppercase !important;
+    border-bottom: 1px solid #232a36 !important;
+    padding: 10px 0 6px !important;
+    margin: 0 0 8px !important;
+  }
+  input, select, textarea, button {
+    background: #141a25 !important;
+    border: 1px solid #2a3342 !important;
+    border-radius: 8px !important;
+    color: #e8ecf4 !important;
+    font-family: inherit !important;
+    font-size: 12px !important;
+    padding: 7px 9px !important;
+  }
+  input[type="checkbox"], input[type="radio"] { accent-color: #4f8cff !important; width: 14px; height: 14px; }
+  input:focus, select:focus, textarea:focus { outline: none !important; border-color: #4f8cff !important; }
+  label { color: #e8ecf4 !important; }
+  a { color: #6ea8ff !important; }
+  ::-webkit-scrollbar { width: 8px; height: 8px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: #2a3342; border-radius: 4px; }
+  ::-webkit-scrollbar-thumb:hover { background: #3a475d; }
+</style>
+<script>
+  (function () {
+    function report() {
+      try {
+        var h = Math.max(document.body.scrollHeight, document.documentElement.scrollHeight);
+        parent.postMessage({ type: 'ulanzi-pi-height', height: h }, '*');
+      } catch (e) {}
+    }
+    window.addEventListener('load', report);
+    setTimeout(report, 250);
+    setTimeout(report, 800);
+    if (window.ResizeObserver) new ResizeObserver(report).observe(document.body);
+    window.addEventListener('resize', report);
+  })();
+</script>`;
+
+function injectPiTheme(html) {
+  if (/<\/body>/i.test(html)) return html.replace(/<\/body>/i, `${PI_THEME}</body>`);
+  return html + PI_THEME;
+}
+
 app.whenReady().then(() => {
   store = new Store(process.env.ULANZI_CONFIG_DIR || app.getPath('userData'));
   store.load();
@@ -486,6 +551,37 @@ app.whenReady().then(() => {
   initDeck();
   initPlugins();
   startHidSeize();
+  protocol.handle('ulanzi-pi', async (request) => {
+    try {
+      const url = new URL(request.url);
+      const parts = url.pathname.split('/').filter(Boolean);
+      const uuid = decodeURIComponent(parts[0] || '');
+      const rel = parts.slice(1).map(decodeURIComponent).join('/');
+      const meta = plugins?.plugins?.get(uuid);
+      if (!meta) return new Response('not found', { status: 404 });
+      const file = path.join(meta.dir, rel);
+      if (!file.startsWith(meta.dir)) return new Response('forbidden', { status: 403 });
+      const ext = path.extname(file).toLowerCase();
+      let body = fs.readFileSync(file);
+      if (ext === '.html' || ext === '.htm') {
+        body = Buffer.from(injectPiTheme(body.toString('utf8')), 'utf8');
+      }
+      const type =
+        ext === '.js' ? 'text/javascript' :
+        ext === '.css' ? 'text/css' :
+        ext === '.json' ? 'application/json' :
+        ext === '.svg' ? 'image/svg+xml' :
+        ext === '.png' ? 'image/png' :
+        ext === '.jpg' || ext === '.jpeg' ? 'image/jpeg' :
+        ext === '.woff2' ? 'font/woff2' :
+        ext === '.woff' ? 'font/woff' :
+        ext === '.html' || ext === '.htm' ? 'text/html' : 'application/octet-stream';
+      return new Response(body, { headers: { 'content-type': type } });
+    } catch (err) {
+      return new Response(String(err.message || err), { status: 500 });
+    }
+  });
+
   createWindow();
   buildMenu();
   createTray();

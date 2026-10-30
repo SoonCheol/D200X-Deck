@@ -953,7 +953,7 @@ function renderInspector() {
           host.innerHTML = '<div class="insp-empty" style="padding:0">No property inspector for this action.</div>';
           return;
         }
-        host.innerHTML = `<iframe class="pi-frame" src="${esc(url)}"></iframe>`;
+        host.innerHTML = `<iframe class="pi-frame" data-actionid="${esc(action.actionid)}" src="${esc(url)}"></iframe>`;
       })
       .catch(() => {
         if (host.isConnected) host.innerHTML = '<div class="insp-empty" style="padding:0">Could not load the property inspector.</div>';
@@ -2427,6 +2427,23 @@ function bind() {
       api.setSleepTime(state.config.settings.sleepSeconds);
       schedulePush();
     }
+  });
+
+  window.addEventListener('message', (event) => {
+    const data = event.data || {};
+    if (data.type !== 'ulanzi-pi-height') return;
+    const frame = document.querySelector('#pi-host .pi-frame');
+    if (!frame) return;
+    const height = Number(data.height) || 0;
+    // An inspector with no fields renders almost nothing: hide the section.
+    const host = $('#pi-host');
+    const field = host ? host.closest('.field') : null;
+    if (height < 60) {
+      if (field) field.classList.add('hidden');
+      return;
+    }
+    if (field) field.classList.remove('hidden');
+    frame.style.height = `${Math.min(560, Math.max(80, height + 4))}px`;
   });
 
   api.onKey(({ index, pressed }) => handleKeyEvent(index, pressed));
