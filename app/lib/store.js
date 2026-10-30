@@ -103,6 +103,14 @@ function validateConfig(config) {
     pages.push(normalized);
   }
 
+  // Every profile must own at least one page, otherwise the UI can end up
+  // editing a page that belongs to another profile ("ghost" page).
+  for (const profile of profiles) {
+    if (!pages.some((p) => p.profileId === profile.id)) {
+      pages.push({ id: randomUUID(), name: 'Main', profileId: profile.id, keys: {} });
+    }
+  }
+
   const activeProfileId = profileIds.has(config.activeProfileId) ? config.activeProfileId : profiles[0].id;
   const profilePages = pages.filter((p) => p.profileId === activeProfileId);
   const activePageId = pages.some((p) => p.id === config.activePageId && p.profileId === activeProfileId)

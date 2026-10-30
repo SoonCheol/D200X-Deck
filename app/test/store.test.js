@@ -85,3 +85,21 @@ test('key images are stored as files, not inside config.json', () => {
   reloaded.load();
   assert.match(reloaded.config.pages[0].keys[0].icon, /^data:image\/png;base64,/);
 });
+
+test('a profile without pages gets a default page on load', () => {
+  const dir = tempDir();
+  const store = new Store(dir);
+  const config = {
+    version: 6,
+    settings: { brightness: 80, sleepSeconds: 0, autoPush: true },
+    profiles: [{ id: 'p1', name: 'One' }, { id: 'p2', name: 'Two' }],
+    activeProfileId: 'p2',
+    pages: [{ id: 'page1', name: 'Only', profileId: 'p1', keys: {} }],
+    activePageId: 'page1',
+  };
+  fs.writeFileSync(path.join(dir, 'config.json'), JSON.stringify(config));
+  store.load();
+  const two = store.config.pages.filter((p) => p.profileId === 'p2');
+  assert.equal(two.length, 1, 'the empty profile gets a page');
+  assert.equal(store.config.activePageId, two[0].id, 'active page belongs to the active profile');
+});

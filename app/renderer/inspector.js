@@ -333,6 +333,10 @@ function bindTriggerFields(key) {
 function renderInspector() {
   const el = $('#inspector');
   const page = activePage();
+  if (!page) {
+    el.innerHTML = '<div class="insp-empty" style="padding:24px">No page in this profile. Create one to start editing.</div>';
+    return;
+  }
   if (state.selected === WIDE_KEY_INDEX) state.selected = null;
 
   const inspectorEl = $('#inspector');

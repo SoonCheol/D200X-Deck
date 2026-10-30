@@ -83,6 +83,11 @@ function renderPageList() {
 }
 
 async function renderGrid() {
+  if (!activePage()) {
+    const grid = $('#grid');
+    if (grid) grid.innerHTML = '';
+    return;
+  }
   const grid = $('#grid');
   const page = activePage();
   grid.innerHTML = '';
@@ -416,14 +421,23 @@ function addPage() {
 }
 
 function deletePage(id) {
-  if (state.config.pages.length <= 1) {
-    toast('At least one page is required', true);
+  const page = state.config.pages.find((p) => p.id === id);
+  if (!page) return;
+  const profilePages = state.config.pages.filter(
+    (p) => p.profileId === (page.profileId || state.config.activeProfileId)
+  );
+  if (profilePages.length <= 1) {
+    toast('A profile needs at least one page', true);
     return;
   }
-  const page = state.config.pages.find((p) => p.id === id);
   if (!confirm(`Delete page “${page.name}”?`)) return;
   state.config.pages = state.config.pages.filter((p) => p.id !== id);
-  if (state.config.activePageId === id) state.config.activePageId = state.config.pages[0].id;
+  if (state.config.activePageId === id) {
+    const remaining = state.config.pages.filter(
+      (p) => p.profileId === state.config.activeProfileId
+    );
+    state.config.activePageId = (remaining[0] || state.config.pages[0]).id;
+  }
   state.selected = null;
   renderAll();
   commit();

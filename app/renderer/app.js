@@ -175,7 +175,14 @@ function esc(value) {
 }
 
 function activePage() {
-  return state.config.pages.find((p) => p.id === state.config.activePageId) || state.config.pages[0];
+  const pages = state.config.pages || [];
+  const current = pages.find((p) => p.id === state.config.activePageId);
+  if (current) return current;
+  // Never fall back to a page from another profile: that produced an editable
+  // "ghost" page whose sidebar entry did not exist.
+  return (
+    pages.find((p) => p.profileId === state.config.activeProfileId) || pages[0] || null
+  );
 }
 
 function emptyKey() {
