@@ -98,6 +98,13 @@ function createWindow() {
             `);
             await new Promise((r) => setTimeout(r, 800));
           }
+          if (process.env.ULANZI_ACTION) {
+            const payload = JSON.parse(process.env.ULANZI_ACTION);
+            const res = await win.webContents.executeJavaScript(
+              `window.deckApp.runAction(${JSON.stringify(payload)}).then(r => JSON.stringify(r))`
+            );
+            console.log('[shot] action', res);
+          }
           if (process.env.ULANZI_STORE) {
             await win.webContents.executeJavaScript(
               "document.querySelector('#store-btn')?.click(); true"

@@ -1,7 +1,16 @@
 'use strict';
 
 const { spawn } = require('node:child_process');
-const { shell } = require('electron');
+const path = require('node:path');
+const { shell, app } = require('electron');
+
+const MEDIA_OPS = new Set(['playpause', 'next', 'prev', 'volumeup', 'volumedown', 'mute']);
+
+function mediaBinary() {
+  return app.isPackaged
+    ? path.join(process.resourcesPath, 'bin', 'mediakey')
+    : path.join(__dirname, '..', 'bin', 'mediakey');
+}
 
 const KEY_CODES = {
   return: 36, enter: 36, tab: 48, space: 49, delete: 51, escape: 53, esc: 53,
@@ -96,6 +105,27 @@ async function openTarget(value) {
   return openApp(target);
 }
 
+async function typeText(value) {
+  const text = String(value ?? '');
+  if (!text) return { ok: false, error: 'empty text' };
+  return applescript(`tell application "System Events" to keystroke ${JSON.stringify(text)}`);
+}
+
+async function closeApp(value) {
+  const name = String(value || '').trim();
+  if (!name) return { ok: false, error: 'empty app name' };
+  return applescript(`tell application ${JSON.stringify(name)} to quit`);
+}
+
+function mediaKey(op) {
+  return new Promise((resolve) => {
+    if (!MEDIA_OPS.has(op)) return resolve({ ok: false, error: `unknown media key: ${op}` });
+    const child = spawn(mediaBinary(), [op], { stdio: 'ignore' });
+    child.on('error', (err) => resolve({ ok: false, error: err.message }));
+    child.on('exit', (code) => resolve({ ok: code === 0, error: code ? `mediakey exited ${code}` : undefined }));
+  });
+}
+
 /**
  * Execute a key action.
  * Page actions are handled by the renderer (it owns navigation).
@@ -114,6 +144,12 @@ async function execute(action) {
       return run(action.value);
     case 'hotkey':
       return runHotkey(action.value);
+    case 'text':
+      return typeText(action.value);
+    case 'media':
+      return mediaKey(action.op);
+    case 'close':
+      return closeApp(action.value);
     default:
       return { ok: false, error: `unknown action type: ${action.type}` };
   }

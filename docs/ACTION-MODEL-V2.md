@@ -137,6 +137,18 @@ Recommendation: land v2.1–v2.3 first, then run the BLE spike as its own milest
 | **v2.4** | polish: action state indicators, error toasts, docs, migration tests | 1 d |
 | **v2.5** | BLE spike → Connect + TC002 | 5–8 d |
 
+## Status
+
+* **Done (v2.1a)** — `text`, `media`, `close` action types (executor + inspector),
+  plus the bundled `mediakey` helper for macOS media keys. Verified end-to-end on the
+  deck app (`mediakey` toggles mute from inside the app, not just from a shell).
+* **Next (v2.1b)** — press triggers (`holdAction` / `doubleAction` / `holdMs`) with the
+  renderer state machine, and the reusable action editor the trigger UI needs.
+* **Then (v2.2)** — `multi` (sequence / alternate / random with delay steps) and
+  `toggle`, with the step editor.
+* **Then (v2.3)** — OBS module, settings panel and OBS action inspector.
+* **v2.5** — BLE spike for Ulanzi Connect / TC002.
+
 ## Testing
 
 * Unit: action executor (sequence, delay, alternate, random, cancellation).

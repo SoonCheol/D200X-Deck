@@ -16,6 +16,9 @@ const ACTION_LABELS = {
   url: 'Open URL',
   command: 'Run shell command',
   hotkey: 'Send hotkey',
+  text: 'Type text',
+  media: 'Media key',
+  close: 'Close app',
   page: 'Switch to page',
   plugin: 'Plugin action',
 };
@@ -394,6 +397,25 @@ function renderInspector() {
     </div>`;
   } else if (action.type === 'page') {
     valueField = `<select class="select" id="insp-value">${pageOptions}</select>`;
+  } else if (action.type === 'text') {
+    valueField = `<input class="input" id="insp-value" placeholder="Text to type into the frontmost app" value="${esc(action.value || '')}" />`;
+  } else if (action.type === 'media') {
+    const ops = [
+      ['playpause', 'Play / pause'],
+      ['next', 'Next track'],
+      ['prev', 'Previous track'],
+      ['volumeup', 'Volume up'],
+      ['volumedown', 'Volume down'],
+      ['mute', 'Mute'],
+    ];
+    valueField = `<select class="select" id="insp-value">${ops
+      .map(([v, l]) => `<option value="${v}" ${v === action.op ? 'selected' : ''}>${l}</option>`)
+      .join('')}</select>`;
+  } else if (action.type === 'close') {
+    valueField = `<div class="row">
+      <input class="input" id="insp-value" placeholder="Safari" value="${esc(action.value || '')}" />
+      <button class="btn" id="insp-pick-app">Choose…</button>
+    </div>`;
   }
 
   let pluginFields = '';
@@ -580,13 +602,17 @@ function renderInspector() {
   });
   $('#insp-action-type').addEventListener('change', (e) => {
     const type = e.target.value;
-    if (type === 'app' || type === 'url') {
+    if (type === 'app' || type === 'url' || type === 'text' || type === 'close') {
       key.action = { type, value: '' };
       commit(false);
       renderInspector();
       return;
     }
-    if (type === 'plugin') {
+    if (type === 'media') {
+      key.action = { type: 'media', op: 'playpause' };
+      key.emoji = '🎵';
+      key.label = '';
+    } else if (type === 'plugin') {
       const p = state.plugins.find((x) => x.compatible);
       const a = p?.actions?.[0];
       key.action = {
@@ -651,13 +677,14 @@ function renderInspector() {
 
   const valueEl = $('#insp-value');
   if (valueEl) {
-    valueEl.addEventListener('input', (e) => {
-      key.action = { type: key.action.type, value: e.target.value };
+    const applyValue = (raw) => {
+      if (key.action.type === 'media') key.action = { ...key.action, op: raw };
+      else key.action = { ...key.action, value: raw };
       commit(false);
-    });
+    };
+    valueEl.addEventListener('input', (e) => applyValue(e.target.value));
     valueEl.addEventListener('change', (e) => {
-      key.action = { type: key.action.type, value: e.target.value };
-      commit(false);
+      applyValue(e.target.value);
       if (key.action.type === 'url' && !key.icon) loadSiteIcon(key);
     });
   }
