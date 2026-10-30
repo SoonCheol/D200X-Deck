@@ -192,6 +192,9 @@ function bindMultiEditor(key) {
     });
   }
   $('#insp-multi-add')?.addEventListener('click', () => {
+    if (action.type === 'pop' && steps.length >= 9) {
+      return toast('A POP menu can hold up to 9 actions', true);
+    }
     steps.push({ action: { type: 'hotkey', value: '' } });
     commit();
     renderInspector();

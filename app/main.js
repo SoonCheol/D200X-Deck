@@ -1116,7 +1116,7 @@ function frontmostApp() {
 ipcMain.handle('pop:show', async (event, items) => {
   if (!trustedSender(event)) return -1;
   if (!Array.isArray(items) || !items.length) return -1;
-  const clean = items.slice(0, 12).map((item) => ({
+  const clean = items.slice(0, 9).map((item) => ({
     label: String(item?.label || '').slice(0, 60),
     emoji: String(item?.emoji || '').slice(0, 8),
   }));

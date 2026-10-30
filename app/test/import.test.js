@@ -51,6 +51,20 @@ test('POP keys become pop menus with their child actions', () => {
   assert.equal(mapped.action.type, 'pop');
   assert.equal(mapped.action.steps.length, 2);
   assert.deepEqual(mapped.action.steps[0].action, { type: 'text', value: '👍', enter: false });
+
+  const many = mapAction(
+    {
+      Action: 'com.ulanzi.deck.popkey.pop',
+      ActionParam: {
+        Actions: Array.from({ length: 12 }, () => ({
+          Action: 'com.ulanzi.ulanzideck.system.text',
+          ActionParam: { Text: '👍' },
+        })),
+      },
+    },
+    new Set()
+  );
+  assert.equal(many.action.steps.length, 9);
 });
 
 test('parseProfile maps slots, skips the wide key and keeps plugin settings', () => {

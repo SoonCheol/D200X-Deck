@@ -6,7 +6,7 @@ const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
 
-const { Store, createDefaultConfig } = require('../lib/store');
+const { Store, createDefaultConfig, validateConfig } = require('../lib/store');
 
 function tempDir() {
   return fs.mkdtempSync(path.join(os.tmpdir(), 'ulanzi-store-test-'));
@@ -19,6 +19,22 @@ test('createDefaultConfig is valid and has no wide key', () => {
     assert.equal(page.keys[13], undefined);
     assert.equal(page.keys[14], undefined);
   }
+});
+
+test('POP menus are capped at nine actions', () => {
+  const config = createDefaultConfig();
+  config.pages[0].keys[0] = {
+    emoji: '',
+    label: 'POP',
+    color: '#1b2130',
+    icon: null,
+    action: {
+      type: 'pop',
+      steps: Array.from({ length: 12 }, () => ({ action: { type: 'text', value: '👍' } })),
+    },
+  };
+  const validated = validateConfig(config);
+  assert.equal(validated.pages[0].keys[0].action.steps.length, 9);
 });
 
 test('migration drops legacy wide-key slots and rewrites open actions', () => {

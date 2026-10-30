@@ -175,6 +175,7 @@ function mapAction(entry, pageIds) {
   // POP / action ring: a key that opens a small menu of child actions.
   if (lower === 'com.ulanzi.deck.popkey.pop' || lower.endsWith('.popkey.pop')) {
     const steps = (Array.isArray(param.Actions) ? param.Actions : [])
+      .slice(0, 9)
       .map((child) => mapAction(child, pageIds).action)
       .filter(Boolean)
       .map((action) => ({ action }));

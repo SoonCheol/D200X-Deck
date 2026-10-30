@@ -143,7 +143,8 @@ function popItem(action) {
 async function openPop(action) {
   const steps = (Array.isArray(action.steps) ? action.steps : [])
     .map((step) => step?.action)
-    .filter((step) => step && step.type !== 'none');
+    .filter((step) => step && step.type !== 'none')
+    .slice(0, 9);
   if (!steps.length) return toast('POP menu has no actions', true);
   const index = await api.showPop(steps.map(popItem));
   if (index >= 0 && steps[index]) runKeyAction(steps[index]);
