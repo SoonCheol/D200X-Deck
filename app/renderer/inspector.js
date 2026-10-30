@@ -780,14 +780,10 @@ function renderInspector() {
     </div>
 
     <div class="field">
-      <label for="insp-label">Bottom caption</label>
-      <input class="input" id="insp-label" maxlength="40" value="${esc(key.label)}" placeholder="Optional small text under the key" />
-    </div>
-
-    <div class="field">
-      <label>Caption style</label>
+      <label for="insp-label">Caption</label>
       <label class="check-row caption-toggle"><input type="checkbox" id="insp-font-show" ${key.font?.showLabel !== false ? 'checked' : ''} /> Show caption</label>
-      <div class="font-row">
+      <input class="input" id="insp-label" maxlength="40" value="${esc(key.label)}" placeholder="Optional small text under the key" ${key.font?.showLabel === false ? 'disabled' : ''} />
+      <div class="font-row" style="margin-top:8px">
         <input class="input" id="insp-font-size" type="number" min="10" max="40" step="1" value="${Number(key.font?.size) || 17}" title="Size" ${key.font?.showLabel === false ? 'disabled' : ''} />
         <select class="select" id="insp-font-weight" title="Weight" ${key.font?.showLabel === false ? 'disabled' : ''}>
           ${[400, 500, 600, 700, 800].map((w) => `<option value="${w}" ${(Number(key.font?.weight) || 600) === w ? 'selected' : ''}>${w}</option>`).join('')}
@@ -928,7 +924,7 @@ function renderInspector() {
   $('#insp-font-color')?.addEventListener('input', (e) => updateFont({ color: e.target.value }));
   $('#insp-font-show')?.addEventListener('change', (e) => {
     updateFont({ showLabel: e.target.checked });
-    ['#insp-font-size', '#insp-font-weight', '#insp-font-align', '#insp-font-color'].forEach((sel) => {
+    ['#insp-label', '#insp-font-size', '#insp-font-weight', '#insp-font-align', '#insp-font-color'].forEach((sel) => {
       const el = $(sel);
       if (el) el.disabled = !e.target.checked;
     });

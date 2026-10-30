@@ -349,7 +349,8 @@ body::before {
 .check-row.caption-toggle { margin: 0 0 8px; }
 .field .check-row { text-transform: none; letter-spacing: 0; font-weight: 500; color: var(--text-2); }
 .font-row input:disabled,
-.font-row select:disabled { opacity: 0.4; cursor: not-allowed; }
+.font-row select:disabled,
+#insp-label:disabled { opacity: 0.4; cursor: not-allowed; }
 .check-row input { accent-color: var(--accent); }
 .pinned-banner {
   display: flex;
