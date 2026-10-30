@@ -15,4 +15,5 @@ build() {
 
 build hidseize native/hidseize.c -framework IOKit -framework CoreFoundation
 build mediakey native/mediakey.m -framework Cocoa
+build hotkey native/hotkey.m -framework Cocoa
 echo "built universal bin/hidseize bin/mediakey"

@@ -14,7 +14,7 @@
     "dev": "electron . --dev",
     "package": "electron-packager . 'Ulanzi Deck Open' --platform=darwin --arch=arm64 --out=dist --overwrite --icon=build/icon --app-bundle-id=com.edufalcao.ulanzideckopen --prune=true --ignore='^/(dist|build/icon\\.iconset)'",
     "package:all": "electron-packager . 'Ulanzi Deck Open' --platform=darwin --arch=universal --out=dist --overwrite --icon=build/icon --app-bundle-id=com.edufalcao.ulanzideckopen --prune=true --ignore='^/(dist|build/icon\\.iconset)'",
-    "postpackage": "find dist -name electron.icns -exec cp build/icon.icns {} \\; ; find dist -maxdepth 2 -name \"*.app\" | while read app; do mkdir -p \"$app/Contents/Resources/bin\"; cp bin/hidseize \"$app/Contents/Resources/bin/\"; cp bin/mediakey \"$app/Contents/Resources/bin/\"; cp build/tray.png \"$app/Contents/Resources/tray.png\"; cp build/tray@2x.png \"$app/Contents/Resources/tray@2x.png\"; done",
+    "postpackage": "find dist -name electron.icns -exec cp build/icon.icns {} \\; ; find dist -maxdepth 2 -name \"*.app\" | while read app; do mkdir -p \"$app/Contents/Resources/bin\"; cp bin/hidseize \"$app/Contents/Resources/bin/\"; cp bin/mediakey \"$app/Contents/Resources/bin/\"; cp bin/hotkey \"$app/Contents/Resources/bin/\"; cp build/tray.png \"$app/Contents/Resources/tray.png\"; cp build/tray@2x.png \"$app/Contents/Resources/tray@2x.png\"; done",
     "install-app": "sh scripts/install.sh",
     "test": "node --test \"test/*.test.js\"",
     "make:dmg": "sh scripts/make-dmg.sh"

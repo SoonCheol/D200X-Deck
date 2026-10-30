@@ -658,6 +658,13 @@ function renderInspector() {
   if (hotkeyOpen) {
     hotkeyOpen.addEventListener('click', () => openHotkeyModal(key));
   }
+  const hotkeyTest = $('#insp-hotkey-test');
+  if (hotkeyTest) {
+    hotkeyTest.addEventListener('click', async () => {
+      const res = await api.runAction(key.action);
+      toast(res.ok ? 'Shortcut sent' : res.error || 'Hotkey failed', !res.ok);
+    });
+  }
   const hotkeyClear = $('#insp-hotkey-clear');
   if (hotkeyClear) {
     hotkeyClear.addEventListener('click', () => {

@@ -8,6 +8,12 @@ const { MEDIA_OPS } = require('./constants');
 const MEDIA = new Set(MEDIA_OPS);
 const audioPlayers = new Map(); // action key -> ChildProcess
 
+function helperBinary(name) {
+  return app.isPackaged
+    ? path.join(process.resourcesPath, 'bin', name)
+    : path.join(__dirname, '..', 'bin', name);
+}
+
 function mediaBinary() {
   return app.isPackaged
     ? path.join(process.resourcesPath, 'bin', 'mediakey')
@@ -93,6 +99,17 @@ async function runHotkey(combo) {
   if (process.platform === 'darwin') {
     const using = mods.length ? ` using {${mods.join(', ')}}` : '';
     if (KEY_CODES[keyName] !== undefined) {
+      // Post at HID level first: screen-capture and other tools ignore
+      // System Events keystrokes.
+      const helper = helperBinary('hotkey');
+      if (require('node:fs').existsSync(helper)) {
+        const flags = [];
+        if (parts.includes('cmd') || parts.includes('command') || parts.includes('meta')) flags.push('cmd');
+        if (parts.includes('shift')) flags.push('shift');
+        if (parts.includes('alt') || parts.includes('option')) flags.push('alt');
+        if (parts.includes('ctrl') || parts.includes('control')) flags.push('ctrl');
+        return execFileResult(helper, [String(KEY_CODES[keyName]), ...flags]);
+      }
       return applescript(`tell application "System Events" to key code ${KEY_CODES[keyName]}${using}`);
     }
     const ch = keyName === 'plus' ? '+' : keyName;
