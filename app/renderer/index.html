@@ -22,7 +22,10 @@
 
         <div class="section-head">
           <span>Pages</span>
-          <button id="add-page" class="icon-btn" title="Add page">+</button>
+          <span class="head-actions">
+            <button id="import-btn" class="icon-btn" title="Import from Ulanzi Studio">⤓</button>
+            <button id="add-page" class="icon-btn" title="Add page">+</button>
+          </span>
         </div>
         <nav id="page-list" class="page-list"></nav>
 
@@ -152,6 +155,34 @@
       </div>
     </div>
 
+    <div id="import-modal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="import-title">
+      <div class="modal-card import-card">
+        <div class="modal-head">
+          <div>
+            <h2 id="import-title">Import from Ulanzi Studio</h2>
+            <p>Bring pages, keys and plugin settings from a Ulanzi profile into this app.</p>
+          </div>
+          <button id="import-close" class="icon-btn" title="Close">×</button>
+        </div>
+        <div class="import-body">
+          <div id="import-sources" class="import-sources"></div>
+          <div id="import-pages"></div>
+          <label class="settings-row import-mode-row">
+            <span>Mode</span>
+            <select id="import-mode" class="select">
+              <option value="merge">Add to current pages</option>
+              <option value="replace">Replace all pages</option>
+            </select>
+          </label>
+          <div id="import-report" class="import-report hidden"></div>
+        </div>
+        <div class="modal-actions import-actions">
+          <button class="btn" id="import-pick">Choose profile file…</button>
+          <button class="btn primary" id="import-run" disabled>Import</button>
+        </div>
+      </div>
+    </div>
+
     <div id="icons-modal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="icons-title">
       <div class="modal-card icons-card">
         <div class="modal-head">
@@ -262,6 +293,7 @@
     <script src="hotkeys.js"></script>
     <script src="inspector.js"></script>
     <script src="store-ui.js"></script>
+    <script src="import-ui.js"></script>
     <script src="app.js"></script>
   </body>
 </html>

@@ -29,6 +29,10 @@ _The editor, the plugin manager and the store all run against the deck live._
   one-click install into this app (installed plugins are fully managed by it).
 * **Icon library** — download icon packs from the Store, manage them in
   **Installed → Icons**, and apply any icon to a key from the inspector.
+* **Import from Ulanzi Studio** — bring pages and keys over from a live Ulanzi
+  profile or an exported `.ulanziDeckProfile`/ZIP: actions, hotkeys, plugin settings
+  and icons are converted, the wide key is skipped, and unsupported actions are kept as
+  placeholders instead of being dropped.
 * **Hotkeys** — a proper picker (modifiers, letters, symbols, function keys, F keys,
   numpad) plus physical key capture.
 * **Drag to rearrange** — drag a key onto another to swap them.

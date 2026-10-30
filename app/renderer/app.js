@@ -228,6 +228,20 @@ function bind() {
     document.querySelectorAll('#grid .key')[next]?.focus();
   });
 
+  $('#import-btn').addEventListener('click', openImportModal);
+  $('#import-close').addEventListener('click', closeImportModal);
+  $('#import-modal').addEventListener('click', (e) => {
+    if (e.target === $('#import-modal')) closeImportModal();
+  });
+  $('#import-pick').addEventListener('click', async () => {
+    const res = await api.importPick();
+    if (!res.ok || res.canceled) return res.ok ? null : toast(res.error, true);
+    importSources = [...(res.profiles || []), ...importSources];
+    renderImportSources();
+    if (res.profiles?.length) selectImportSource(res.profiles[0]);
+  });
+  $('#import-run').addEventListener('click', runImport);
+
   $('#plugins-btn').addEventListener('click', openPluginModal);
   $('#store-btn').addEventListener('click', openStoreModal);
   $('#store-modal-close').addEventListener('click', closeStoreModal);
@@ -429,6 +443,7 @@ function bind() {
     'icons-modal': closeIconLibrary,
     'store-modal': closeStoreModal,
     'plugin-modal': closePluginModal,
+    'import-modal': closeImportModal,
   };
 
   function topModal() {

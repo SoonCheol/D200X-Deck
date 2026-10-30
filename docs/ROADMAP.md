@@ -142,8 +142,11 @@ What the official app has that we don't (from its `System/Plugins` manifests):
    Detailed spec: [`ACTION-MODEL-V2.md`](ACTION-MODEL-V2.md).
 2. **Profiles** — multiple profiles per device, switch-profile action.
 3. **Editor UX** — icon library, action property inspector, fonts, undo.
-4. **Import from Ulanzi Studio** — last, so the editor and action model are already
-   complete and imports land in a mature target.
+4. **Import from Ulanzi Studio** — **landed (v1)**: live profiles, exported
+   `.ulanziDeckProfile`/ZIP, action/hotkey/plugin-settings mapping, icons copied into
+   our image store, wide key skipped, unsupported actions kept as placeholders.
+   See [`reviews/2026-10-30-official-gap.md`](reviews/2026-10-30-official-gap.md) §5 for
+   the remaining edge cases (profiles as first-class objects, V1 profiles, folders).
 
 ### v3 and later
 

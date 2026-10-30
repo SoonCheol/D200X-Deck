@@ -60,6 +60,18 @@ function attachScreenshotHarness({ win, send, quitNow }) {
               } catch (e) { console.log('[pidebug] err', e.message); }
             }
           }
+          if (process.env.ULANZI_IMPORT) {
+            await win.webContents.executeJavaScript(
+              "document.querySelector('#import-btn')?.click(); true"
+            );
+            await new Promise((r) => setTimeout(r, 2500));
+            if (process.env.ULANZI_IMPORT_RUN) {
+              await win.webContents.executeJavaScript(
+                "document.querySelector('#import-run')?.click(); true"
+              );
+              await new Promise((r) => setTimeout(r, 4000));
+            }
+          }
           if (process.env.ULANZI_SETTINGS) {
             await win.webContents.executeJavaScript(
               "document.querySelector('#deck-settings-btn')?.click(); true"

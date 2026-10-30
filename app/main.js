@@ -4,6 +4,7 @@ const { app, BrowserWindow, ipcMain, dialog, Menu, shell, Tray, nativeImage, pro
 const path = require('node:path');
 const fs = require('node:fs');
 const os = require('node:os');
+const { randomUUID } = require('node:crypto');
 
 const { Deck } = require('./lib/deck');
 const { Store } = require('./lib/store');
@@ -12,6 +13,7 @@ const { PluginManager, pluginRootDirs } = require('./lib/plugins');
 const { fetchSiteIcon } = require('./lib/siteicon');
 const { appIconDataUrl, resolveAppPath } = require('./lib/appicon');
 const { Market } = require('./lib/market');
+const importUlanzi = require('./lib/import-ulanzi');
 const { execFileSync } = require('node:child_process');
 const actions = require('./lib/actions');
 
@@ -256,6 +258,7 @@ function initDeck() {
 
 function listApps() {
   const os = require('node:os');
+const { randomUUID } = require('node:crypto');
   const roots = [
     '/Applications',
     '/System/Applications',
@@ -855,6 +858,103 @@ ipcMain.handle('plugins:reveal', (_evt, uuid) => {
   shell.showItemInFolder(meta.dir);
   return { ok: true };
 });
+
+// ---------------------------------------------------------------- import
+
+function readImportTarget(target) {
+  return importUlanzi.previewProfile(target);
+}
+
+ipcMain.handle('import:scan', () => {
+  try {
+    return { ok: true, profiles: importUlanzi.listProfiles() };
+  } catch (err) {
+    return { ok: false, error: err.message || String(err) };
+  }
+});
+
+ipcMain.handle('import:pick', async () => {
+  const res = await dialog.showOpenDialog(win, {
+    title: 'Choose a Ulanzi profile',
+    properties: ['openFile'],
+    filters: [{ name: 'Ulanzi profile', extensions: ['ulanziDeckProfile', 'zip', 'ulanziDeckProfilePack'] }],
+  });
+  if (res.canceled || !res.filePaths.length) return { canceled: true };
+  try {
+    const { profiles, cleanup } = readImportTarget(res.filePaths[0]);
+    if (cleanup) fs.rmSync(cleanup, { recursive: true, force: true });
+    return { ok: true, file: res.filePaths[0], profiles: profiles.map((p) => ({ ...p, path: res.filePaths[0] })) };
+  } catch (err) {
+    return { ok: false, error: err.message || String(err) };
+  }
+});
+
+ipcMain.handle('import:preview', guarded((_evt, target) => {
+  try {
+    const { profiles, cleanup } = readImportTarget(String(target));
+    if (cleanup) fs.rmSync(cleanup, { recursive: true, force: true });
+    return { ok: true, profiles };
+  } catch (err) {
+    return { ok: false, error: err.message || String(err) };
+  }
+}));
+
+ipcMain.handle('import:apply', guarded((_evt, payload) => {
+  const { target, pageIds, mode } = payload || {};
+  let cleanup = null;
+  try {
+    const { profiles, cleanup: temp } = readImportTarget(String(target));
+    cleanup = temp;
+    const profile = profiles[0];
+    if (!profile) throw new Error('No pages found in this profile');
+    const wanted = new Set((pageIds || profile.pages.map((p) => p.id)).map(String));
+    const incoming = profile.pages.filter((p) => wanted.has(p.id)).map((p) => JSON.parse(JSON.stringify(p)));
+    if (!incoming.length) throw new Error('Select at least one page to import');
+
+    const usedIds = new Set(store.config.pages.map((p) => p.id));
+    const idMap = new Map();
+    for (const page of incoming) {
+      if (usedIds.has(page.id)) {
+        const next = randomUUID();
+        idMap.set(page.id, next);
+        page.id = next;
+      } else {
+        idMap.set(page.id, page.id);
+      }
+      usedIds.add(page.id);
+    }
+    // Rewrite page links that point at re-keyed pages.
+    for (const page of incoming) {
+      for (const key of Object.values(page.keys || {})) {
+        if (key.action && key.action.type === 'page' && key.action.value && idMap.has(key.action.value)) {
+          key.action.value = idMap.get(key.action.value);
+        }
+      }
+    }
+
+    if (mode === 'replace') {
+      store.config.pages = [];
+    }
+    store.config.pages.push(...incoming);
+    store.config.activePageId = incoming[0].id;
+    store.save(store.config);
+
+    return {
+      ok: true,
+      importedProfiles: 1,
+      importedPages: incoming.length,
+      importedKeys: incoming.reduce((sum, p) => sum + Object.keys(p.keys || {}).length, 0),
+      skipped: profile.report.skipped,
+      unmapped: profile.report.unmapped,
+      missingPlugins: [...new Set(profile.report.missingPlugins)],
+      warnings: profile.report.warnings,
+    };
+  } catch (err) {
+    return { ok: false, error: err.message || String(err) };
+  } finally {
+    if (cleanup) fs.rmSync(cleanup, { recursive: true, force: true });
+  }
+}));
 
 ipcMain.handle('dialog:pick-image', async () => {
   const res = await dialog.showOpenDialog(win, {
