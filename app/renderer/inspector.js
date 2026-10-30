@@ -379,7 +379,8 @@ function renderInspector() {
     $('#insp-duplicate-page').addEventListener('click', () => {
       const copy = JSON.parse(JSON.stringify(page));
       copy.id = crypto.randomUUID ? crypto.randomUUID() : String(Date.now());
-      copy.name = `${page.name} copy`;
+      const baseName = page.name.replace(/ \(\d+\)$/, '');
+      copy.name = uniquePageName(baseName, copy.profileId || page.profileId);
       for (const key of Object.values(copy.keys || {})) {
         for (const field of ['action', 'holdAction', 'doubleAction']) {
           if (key[field] && key[field].type === 'plugin') key[field].actionid = crypto.randomUUID();

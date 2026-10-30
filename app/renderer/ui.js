@@ -377,10 +377,34 @@ function selectPage(id) {
   schedulePluginsSync();
 }
 
+/** Next free "Page N" within a profile (gaps are not reused, deletions don't renumber). */
+function nextPageName(profileId) {
+  const names = state.config.pages.filter((p) => p.profileId === profileId).map((p) => p.name);
+  if (!names.length) return 'Main';
+  let max = 1;
+  for (const name of names) {
+    const match = /^Page (\d+)$/.exec(name);
+    if (match) max = Math.max(max, Number(match[1]));
+  }
+  return `Page ${max + 1}`;
+}
+
+/** Make a name unique inside a profile ("Apps" → "Apps (2)"). */
+function uniquePageName(base, profileId) {
+  const taken = new Set(
+    state.config.pages.filter((p) => p.profileId === profileId).map((p) => p.name)
+  );
+  const name = String(base || 'Page').trim() || 'Page';
+  if (!taken.has(name)) return name;
+  let index = 2;
+  while (taken.has(`${name} (${index})`)) index += 1;
+  return `${name} (${index})`;
+}
+
 function addPage() {
   const page = {
     id: uuid(),
-    name: `Page ${state.config.pages.length + 1}`,
+    name: nextPageName(state.config.activeProfileId),
     profileId: state.config.activeProfileId,
     keys: {},
   };
