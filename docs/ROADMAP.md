@@ -134,6 +134,15 @@ What the official app has that we don't (from its `System/Plugins` manifests):
 
 ---
 
+## Gap-table progress (official app parity)
+
+Done since the report: import (v1), **Multi Action** (sequence / alternate / random with
+delay steps, editor in the inspector), **Hotkey Switch** (`toggle`, two alternating
+actions), **text with Enter**.
+
+Next by value: profiles as first-class objects, folders/subpages + auto-exit, multi-state
+keys, soundboard, plugin `openview`/`feedback`, screensaver, marketplace updates.
+
 ## Order of work (agreed)
 
 1. **Action model v2** — system actions, multi-action and press triggers.

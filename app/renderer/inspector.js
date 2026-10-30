@@ -78,6 +78,133 @@ function syncActionMeta(key) {
   }
 }
 
+const MULTI_STEP_TYPES = [
+  ['hotkey', 'Hotkey'],
+  ['media', 'Media key'],
+  ['text', 'Type text'],
+  ['app', 'Open app'],
+  ['url', 'Open URL'],
+  ['command', 'Command'],
+  ['page', 'Switch page'],
+];
+
+function multiEditor(action, page) {
+  const steps = Array.isArray(action.steps) ? action.steps : [];
+  const rows = steps.map((step, index) => multiStepRow(step, index, page)).join('');
+  const mode = action.type === 'toggle' ? '' : `
+    <select class="select" id="insp-multi-mode">
+      ${[['sequence', 'Run in order'], ['alternate', 'Alternate'], ['random', 'Random']]
+        .map(([v, l]) => `<option value="${v}" ${(action.mode || 'sequence') === v ? 'selected' : ''}>${l}</option>`)
+        .join('')}
+    </select>`;
+  return `
+    ${mode}
+    <div class="multi-steps">${rows || '<div class="insp-empty" style="padding:0">No steps yet.</div>'}</div>
+    <div class="row">
+      <button class="btn small" id="insp-multi-add">Add action</button>
+      <button class="btn small" id="insp-multi-delay">Add delay</button>
+    </div>`;
+}
+
+function multiStepRow(step, index, page) {
+  const remove = `<button class="icon-btn" data-remove="${index}" title="Remove">×</button>`;
+  if (step.delay) {
+    return `<div class="multi-row">
+      <span class="multi-index">${index + 1}</span>
+      <span class="multi-label">Wait</span>
+      <input class="input multi-value" type="number" min="0" step="50" data-delay="${index}" value="${Number(step.delay) || 0}" />
+      <span class="multi-unit">ms</span>
+      ${remove}
+    </div>`;
+  }
+  const act = step.action || { type: 'hotkey', value: '' };
+  let control = `<input class="input multi-value" data-value="${index}" value="${esc(act.value || '')}" placeholder="Value" />`;
+  if (act.type === 'media') {
+    control = `<select class="select multi-value" data-value="${index}">${[
+      ['playpause', 'Play / pause'],
+      ['next', 'Next track'],
+      ['prev', 'Previous track'],
+      ['volumeup', 'Volume up'],
+      ['volumedown', 'Volume down'],
+      ['mute', 'Mute'],
+    ]
+      .map(([v, l]) => `<option value="${v}" ${act.op === v ? 'selected' : ''}>${l}</option>`)
+      .join('')}</select>`;
+  } else if (act.type === 'page') {
+    control = `<select class="select multi-value" data-value="${index}">${state.config.pages
+      .map((p) => `<option value="${esc(p.id)}" ${p.id === act.value ? 'selected' : ''}>${esc(p.name)}</option>`)
+      .join('')}</select>`;
+  }
+  return `<div class="multi-row">
+    <span class="multi-index">${index + 1}</span>
+    <select class="select multi-type" data-type="${index}">
+      ${MULTI_STEP_TYPES.map(([v, l]) => `<option value="${v}" ${act.type === v ? 'selected' : ''}>${l}</option>`).join('')}
+    </select>
+    ${control}
+    ${remove}
+  </div>`;
+}
+
+function bindMultiEditor(key) {
+  const action = key.action;
+  if (!Array.isArray(action.steps)) action.steps = [];
+  const steps = action.steps;
+
+  const mode = $('#insp-multi-mode');
+  if (mode) {
+    mode.addEventListener('change', () => {
+      action.mode = mode.value;
+      commit(false);
+    });
+  }
+  $('#insp-multi-add')?.addEventListener('click', () => {
+    steps.push({ action: { type: 'hotkey', value: '' } });
+    commit();
+    renderInspector();
+  });
+  $('#insp-multi-delay')?.addEventListener('click', () => {
+    steps.push({ delay: 250 });
+    commit();
+    renderInspector();
+  });
+  document.querySelectorAll('#inspector [data-type]').forEach((select) => {
+    select.addEventListener('change', () => {
+      const index = Number(select.dataset.type);
+      const type = select.value;
+      steps[index] = { action: type === 'media' ? { type, op: 'playpause' } : { type, value: '' } };
+      commit();
+      renderInspector();
+    });
+  });
+  document.querySelectorAll('#inspector [data-value]').forEach((input) => {
+    const apply = () => {
+      const index = Number(input.dataset.value);
+      const act = steps[index]?.action;
+      if (!act) return;
+      steps[index] = {
+        action: act.type === 'media' ? { ...act, op: input.value } : { ...act, value: input.value },
+      };
+      commit(false);
+    };
+    input.addEventListener('input', apply);
+    input.addEventListener('change', apply);
+  });
+  document.querySelectorAll('#inspector [data-delay]').forEach((input) => {
+    input.addEventListener('change', () => {
+      const index = Number(input.dataset.delay);
+      steps[index] = { delay: Math.max(0, Number(input.value) || 0) };
+      commit(false);
+    });
+  });
+  document.querySelectorAll('#inspector [data-remove]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      steps.splice(Number(btn.dataset.remove), 1);
+      commit();
+      renderInspector();
+    });
+  });
+}
+
 function triggerField(key, field, label, page) {
   const action = key[field] || { type: 'none' };
   const pageOptions = state.config.pages
@@ -286,6 +413,8 @@ function renderInspector() {
     valueField = `<select class="select" id="insp-value">${ops
       .map(([v, l]) => `<option value="${v}" ${v === action.op ? 'selected' : ''}>${l}</option>`)
       .join('')}</select>`;
+  } else if (action.type === 'multi' || action.type === 'toggle') {
+    valueField = multiEditor(action, page);
   } else if (action.type === 'close') {
     valueField = `<div class="row">
       <input class="input" id="insp-value" placeholder="Safari" value="${esc(action.value || '')}" />
@@ -366,7 +495,7 @@ function renderInspector() {
       </select>
     </div>
 
-    ${valueField && action.type !== 'plugin' ? `<div class="field"><label>${action.type === 'hotkey' ? 'Combination' : action.type === 'page' ? 'Navigation' : action.type === 'app' ? 'Application' : action.type === 'url' ? 'URL' : 'Value'}</label>${valueField}</div>` : ''}
+    ${valueField && action.type !== 'plugin' ? `<div class="field"><label>${action.type === 'hotkey' ? 'Combination' : action.type === 'page' ? 'Navigation' : action.type === 'app' ? 'Application' : action.type === 'url' ? 'URL' : action.type === 'multi' ? 'Steps' : action.type === 'toggle' ? 'Actions' : 'Value'}</label>${valueField}</div>` : ''}
     ${pluginFields}
 
     <div class="insp-section">Press triggers</div>
@@ -689,6 +818,7 @@ function renderInspector() {
     });
   }
 
+  if (action.type === 'multi' || action.type === 'toggle') bindMultiEditor(key);
   bindTriggerFields(key);
 
   $('#insp-duplicate').addEventListener('click', () => {

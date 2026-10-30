@@ -14,8 +14,13 @@ function navigateRelative(step) {
   navigate(pages[next].id);
 }
 
+const multiState = new WeakMap(); // action object -> alternate index
+let sequenceToken = 0;
+
 function runKeyAction(action) {
   if (!action || action.type === 'none') return;
+  if (action.type === 'multi') return runMulti(action);
+  if (action.type === 'toggle') return runToggle(action);
   if (action.type === 'page') {
     if (action.op === 'next') return navigateRelative(1);
     if (action.op === 'prev') return navigateRelative(-1);
@@ -31,6 +36,45 @@ function runKeyAction(action) {
   api.runAction(action).then((res) => {
     if (!res.ok) toast(res.error || 'action failed', true);
   });
+}
+
+/** Multi Action: sequence / alternate / random, with delay steps. */
+async function runMulti(action) {
+  const steps = Array.isArray(action.steps) ? action.steps : [];
+  if (!steps.length) return;
+  const token = ++sequenceToken;
+  let order = steps.map((_, index) => index);
+  if (action.mode === 'alternate') {
+    const current = multiState.get(action) || 0;
+    order = [steps.length ? current % steps.length : 0];
+    multiState.set(action, (current + 1) % Math.max(1, steps.length));
+  } else if (action.mode === 'random') {
+    const last = multiState.get(action) ?? -1;
+    let pick = Math.floor(Math.random() * steps.length);
+    if (steps.length > 1 && pick === last) pick = (pick + 1) % steps.length;
+    multiState.set(action, pick);
+    order = [pick];
+  }
+  for (const index of order) {
+    if (token !== sequenceToken) return; // a newer press cancelled this run
+    const step = steps[index];
+    if (!step) continue;
+    if (step.delay) {
+      await new Promise((resolve) => setTimeout(resolve, Math.max(0, Number(step.delay) || 0)));
+      continue;
+    }
+    if (step.action) runKeyAction(step.action);
+  }
+}
+
+/** Hotkey Switch: alternate between two actions on each press. */
+function runToggle(action) {
+  const steps = Array.isArray(action.steps) ? action.steps : [];
+  if (!steps.length) return;
+  const index = multiState.get(action) || 0;
+  multiState.set(action, (index + 1) % steps.length);
+  const step = steps[index % steps.length];
+  if (step?.action) runKeyAction(step.action);
 }
 
 function flashKey(index) {

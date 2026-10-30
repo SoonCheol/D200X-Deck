@@ -1037,3 +1037,13 @@ body::before {
 .import-report { font-size: 11.5px; color: var(--muted); border: 1px solid var(--line); border-radius: 9px; padding: 10px 12px; }
 .import-report ul { margin: 6px 0 0; padding-left: 16px; }
 .import-actions { border-bottom: 0; }
+
+/* Multi-action editor */
+.multi-steps { display: flex; flex-direction: column; gap: 6px; margin: 8px 0; }
+.multi-row { display: flex; align-items: center; gap: 6px; }
+.multi-index { width: 14px; color: var(--text-3); font-size: 10.5px; flex: none; }
+.multi-label { color: var(--muted); font-size: 11px; flex: 0 0 34px; }
+.multi-unit { color: var(--text-3); font-size: 11px; }
+.multi-type { width: 112px; flex: none; }
+.multi-value { flex: 1; min-width: 0; }
+.multi-row .icon-btn { width: 24px; height: 24px; flex: none; }

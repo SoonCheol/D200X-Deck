@@ -122,10 +122,13 @@ async function openTarget(value) {
   return openApp(target);
 }
 
-async function typeText(value) {
+async function typeText(value, enter = false) {
   const text = String(value ?? '');
-  if (!text) return { ok: false, error: 'empty text' };
-  return applescript(`tell application "System Events" to keystroke ${JSON.stringify(text)}`);
+  if (!text && !enter) return { ok: false, error: 'empty text' };
+  const parts = [];
+  if (text) parts.push(`keystroke ${JSON.stringify(text)}`);
+  if (enter) parts.push('key code 36');
+  return applescript(`tell application "System Events" to ${parts.join('\n')}`);
 }
 
 async function closeApp(value) {
@@ -162,7 +165,7 @@ async function execute(action) {
     case 'hotkey':
       return runHotkey(action.value);
     case 'text':
-      return typeText(action.value);
+      return typeText(action.value, Boolean(action.enter));
     case 'media':
       return mediaKey(action.op);
     case 'close':

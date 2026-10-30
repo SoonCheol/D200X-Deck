@@ -117,6 +117,8 @@ const ACTION_LABELS = {
   close: 'Close app',
   page: 'Switch to page',
   plugin: 'Plugin action',
+  multi: 'Multi action',
+  toggle: 'Hotkey switch',
 };
 
 const state = {
