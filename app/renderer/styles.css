@@ -908,3 +908,7 @@ body::before {
     transition-duration: 0.01ms !important;
   }
 }
+
+/* Modifiers read better as two columns than five. */
+.hotkey-keys.modifier-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.hotkey-keys.modifier-grid .hotkey-key { padding: 13px 10px; font-size: 12px; }

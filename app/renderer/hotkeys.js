@@ -26,7 +26,7 @@ const HOTKEY_CATEGORIES = [
   },
   {
     id: 'function',
-    name: 'Function Keys',
+    name: 'Navigation & editing',
     keys: [
       { label: '←', token: 'left' },
       { label: '↑', token: 'up' },
@@ -158,6 +158,7 @@ function renderHotkeyModal() {
 
   const keys = $('#hotkey-keys');
   const cat = HOTKEY_CATEGORIES.find((c) => c.id === hotkeyCategory) || HOTKEY_CATEGORIES[0];
+  keys.classList.toggle('modifier-grid', cat.id === 'modifiers');
   keys.innerHTML = cat.keys
     .map((key) => {
       const active =

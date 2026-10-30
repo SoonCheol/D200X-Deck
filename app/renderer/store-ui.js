@@ -23,8 +23,22 @@ function renderIconPacks() {
   const list = $('#icons-packs');
   if (!iconLibraryPacks.length) {
     list.innerHTML = '';
-    $('#icons-grid').innerHTML =
-      '<div class="icons-empty">No icon packs yet.<br/>Open the Store → Icons and download a pack.</div>';
+    $('#icons-grid').innerHTML = `<div class="icons-empty">
+        <div style="font-size:26px;margin-bottom:6px">🖼</div>
+        <div style="margin-bottom:10px">No icon packs yet.</div>
+        <button class="btn primary" id="icons-empty-store">Browse icon packs</button>
+      </div>`;
+    $('#icons-empty-store')?.addEventListener('click', () => {
+      closeIconLibrary();
+      openStoreModal().then(() => {
+        const icons = storeState.categories.find((c) => /icons?/i.test(c.name));
+        if (icons) {
+          storeState.cateId = icons.id;
+          renderStoreCategories();
+          loadStoreItems(true);
+        }
+      });
+    });
     return;
   }
   list.innerHTML = iconLibraryPacks
@@ -143,7 +157,9 @@ async function loadStoreCategories() {
     $('#store-cats').innerHTML = `<div class="store-error">${esc(res.error)}</div>`;
     return;
   }
-  storeState.categories = res.categories || [];
+  // Profiles are listed by the store but cannot be installed yet — keep the
+  // marketplace focused on things this app can actually use.
+  storeState.categories = (res.categories || []).filter((c) => !/^profiles?$/i.test(c.name));
   if (!storeState.cateId) {
     const plugins = storeState.categories.find(
       (c) => /^plugins?$/i.test(c.name) || c.name === '插件'
@@ -229,6 +245,12 @@ function renderStoreGrid() {
     });
   }
   $('#store-count').textContent = `${storeState.items.length} of ${storeState.total}`;
+  const cat = storeState.categories.find((c) => String(c.id) === String(storeState.cateId));
+  const kind = /icons?/i.test(cat?.name || '') ? 'icons' : 'plugins';
+  const searchEl = $('#store-search');
+  if (searchEl) searchEl.placeholder = `Search ${kind}…`;
+  const sub = $('#store-sub');
+  if (sub) sub.textContent = cat ? `Ulanzi marketplace · ${cat.name}` : 'Official Ulanzi Studio plugin market — browse and install plugins.';
   $('#store-more').classList.toggle('hidden', storeState.items.length >= storeState.total);
 }
 
