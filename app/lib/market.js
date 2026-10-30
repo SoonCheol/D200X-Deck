@@ -165,6 +165,9 @@ class Market {
     const res = await fetch(packageUrl, { headers, redirect: 'follow' });
     if (!res.ok) throw new StoreError(`Download failed (${res.status})`);
     const buffer = Buffer.from(await res.arrayBuffer());
+    if (buffer.subarray(0, 2).toString('latin1') !== 'PK') {
+      throw new StoreError('This store item is not a plugin package (not a ZIP file)');
+    }
     fs.writeFileSync(destPath, buffer);
     return { path: destPath, size: buffer.length };
   }
@@ -198,12 +201,17 @@ function plainText(html) {
 function normalizeItem(raw) {
   const suffix = 'En';
   const files = absolute(pick(raw, ['files', 'file', 'fileUrl', 'downloadUrl'], ''));
-  const banner = String(pick(raw, ['coverUrl', 'banner'], '')).split(',')[0];
+  const banner = String(pick(raw, ['banner'], '')).split(',')[0];
+  const cover = pick(raw, ['coverUrl'], '');
+  const iconUrl = pick(raw, ['iconUrl'], '');
+  // Some store rows use a bare file name for iconUrl (e.g. "Davinci Resolve.png")
+  // which is not a real asset; those rows only have a banner image.
+  const usableIcon = /^(\/|https?:)/i.test(iconUrl) ? iconUrl : '';
   return {
     id: String(pick(raw, ['id', 'resourceId'], '')),
     name: pick(raw, [`title${suffix}`, `productName${suffix}`, 'title', 'name', 'titleCn', 'productNameZh'], 'Untitled'),
     summary: pick(raw, [`overview${suffix}`, 'overview', `detailDesc${suffix}`, 'detailDesc', 'remark'], ''),
-    icon: absolute(pick(raw, ['coverUrl', 'iconUrl'], '') || banner || pick(raw, ['avatar'], '')),
+    icon: absolute(cover || banner || usableIcon || pick(raw, ['avatar'], '')),
     author: pick(raw, ['author', 'nickname', 'createBy'], ''),
     version: pick(raw, ['version', 'versionName', 'ver'], ''),
     uuid: pick(raw, ['uuid', 'pluginUuid'], ''),

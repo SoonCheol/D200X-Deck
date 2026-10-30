@@ -315,7 +315,12 @@ class PluginManager extends EventEmitter {
     let temp = null;
     if (fs.statSync(sourcePath).isFile()) {
       temp = fs.mkdtempSync(path.join(os.tmpdir(), 'ulanzi-plugin-'));
-      execFileSync('unzip', ['-oq', sourcePath, '-d', temp], { stdio: 'ignore' });
+      try {
+        execFileSync('unzip', ['-oq', sourcePath, '-d', temp], { stdio: ['ignore', 'ignore', 'pipe'] });
+      } catch (err) {
+        const detail = String(err.stderr || '').trim().split('\n').filter(Boolean).pop();
+        throw new Error(`Could not unpack the plugin ZIP${detail ? `: ${detail}` : ''}`);
+      }
       workDir = temp;
     }
 

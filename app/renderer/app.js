@@ -1393,6 +1393,9 @@ async function openStoreDetail(id) {
   const item = res.resource;
   storeState.detail = item;
   const installed = state.plugins.some((p) => (item.uuid && p.uuid === item.uuid) || p.name === item.name);
+  const category = storeState.categories.find((c) => String(c.id) === String(item.categoryId));
+  const kind = category?.name || '';
+  const installable = /plugins?/i.test(kind) && /\.zip$/i.test(item.files || '');
   detail.innerHTML = `
     <div class="store-detail-head">
       ${item.icon ? `<img src="${esc(item.icon)}" alt="" />` : '<div class="store-thumb empty">🧩</div>'}
@@ -1405,11 +1408,22 @@ async function openStoreDetail(id) {
       </div>
     </div>
     <div class="store-detail-actions">
-      <button class="btn primary" id="store-install" ${installed ? 'disabled' : ''}>
-        ${installed ? 'Installed' : 'Install plugin'}
-      </button>
+      ${
+        installable
+          ? `<button class="btn primary" id="store-install" ${installed ? 'disabled' : ''}>
+               ${installed ? 'Installed' : 'Install plugin'}
+             </button>`
+          : '<span class="badge-tag">Not a plugin</span>'
+      }
       <button class="btn" id="store-back">Back</button>
     </div>
+    ${
+      installable
+        ? ''
+        : `<p class="store-note">${
+            kind ? `${esc(kind)} items` : 'This item'
+          } can be downloaded from the Ulanzi marketplace, but only JavaScript <b>plugins</b> can be installed into this app.</p>`
+    }
     <p>${esc(item.summary || 'No description provided.')}</p>
   `;
   $('#store-back').addEventListener('click', () => {

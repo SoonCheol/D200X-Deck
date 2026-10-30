@@ -103,6 +103,12 @@ function createWindow() {
               "document.querySelector('#store-btn')?.click(); true"
             );
             await new Promise((r) => setTimeout(r, 4000));
+            if (process.env.ULANZI_STORE_CAT) {
+              await win.webContents.executeJavaScript(
+                `document.querySelectorAll('.store-cat')[${Number(process.env.ULANZI_STORE_CAT) || 0}]?.click(); true`
+              );
+              await new Promise((r) => setTimeout(r, 3500));
+            }
             if (process.env.ULANZI_STORE_ITEM) {
               await win.webContents.executeJavaScript(
                 `document.querySelectorAll('.store-item')[${Number(process.env.ULANZI_STORE_ITEM) || 0}]?.click(); true`
