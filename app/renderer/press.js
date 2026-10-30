@@ -4,6 +4,15 @@
 
 const pressState = new Map();
 const wakeSwallow = new Set();
+// Physical switch bounce: the D200 can emit several press/release pairs for one
+// tap. Ignore a second press inside this window (still below a deliberate
+// double press, which the double-trigger window treats as two taps).
+const lastDownAt = new Map();
+const BOUNCE_MS = 150;
+// Mute/play-pause are toggles: a burst of events from one tap must not toggle
+// the system several times (the volume HUD flickers mute/unmute).
+const lastToggleAt = new Map();
+const TOGGLE_COALESCE_MS = 400;
 const DOUBLE_WINDOW = 300;
 
 function navigateRelative(step) {
@@ -116,6 +125,11 @@ function runBrightnessAction(action) {
 function runKeyAction(action) {
   if (!action || action.type === 'none') return;
   if (action.type === 'indicator') return;
+  if (action.type === 'media' && (action.op === 'mute' || action.op === 'playpause')) {
+    const now = Date.now();
+    if (now - (lastToggleAt.get(action.op) || 0) < TOGGLE_COALESCE_MS) return;
+    lastToggleAt.set(action.op, now);
+  }
   if (action.type === 'timer') return toggleTimer(action);
   if (action.type === 'brightness') return runBrightnessAction(action);
   if (action.type === 'multi') return runMulti(action);
@@ -198,6 +212,11 @@ function handleKeyEvent(index, pressed) {
   // The wide key is a firmware system panel; never run actions for it
   // (proto 0x0e resets the deck to its factory profile).
   if (index === WIDE_KEY_INDEX) return;
+  if (pressed) {
+    const now = Date.now();
+    if (now - (lastDownAt.get(index) || 0) < BOUNCE_MS) return;
+    lastDownAt.set(index, now);
+  }
   if (pressed && typeof noteActivity === 'function') noteActivity();
   // The first press while the standby screen is up only wakes the deck; its
   // release must not fire a tap/double action either.

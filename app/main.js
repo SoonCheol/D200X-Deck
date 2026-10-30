@@ -242,7 +242,9 @@ function initDeck() {
     send('deck:status', status);
   });
   deck.on('key', (event) => {
-    console.log(`[deck] key index=${event.index} ${event.pressed ? 'down' : 'up'}`);
+    console.log(
+      `[deck] key index=${event.index} ${event.pressed ? 'down' : 'up'} t=${Date.now()} flags=${event.flags}`
+    );
     send('deck:key', event);
   });
   deck.on('brightness', (level) => send('deck:brightness', level));
