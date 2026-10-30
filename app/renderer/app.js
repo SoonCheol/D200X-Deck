@@ -535,10 +535,18 @@ function bind() {
     }
   });
   $('#deck-settings-close').addEventListener('click', () => $('#deck-settings').classList.add('hidden'));
+  document.addEventListener('click', (event) => {
+    const sheet = $('#deck-settings');
+    if (!sheet || sheet.classList.contains('hidden')) return;
+    const target = event.target instanceof Element ? event.target : null;
+    if (!target || sheet.contains(target) || target.closest('#deck-settings-btn')) return;
+    sheet.classList.add('hidden');
+  });
   $('#deck-settings-reconnect').addEventListener('click', () => api.reconnect());
   $('#accessibility-grant').addEventListener('click', async () => {
-    await api.requestAccessibility();
-    setTimeout(refreshAccessibility, 1200);
+    const res = await api.requestAccessibility();
+    toast(res.trusted ? 'Already granted — opening System Settings' : 'Opening System Settings…');
+    setTimeout(refreshAccessibility, 1500);
   });
   $('#insp-sleep-apply').addEventListener('click', async () => {
     const seconds = Math.max(0, parseInt($('#insp-sleep').value || '0', 10));

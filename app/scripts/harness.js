@@ -72,6 +72,13 @@ function attachScreenshotHarness({ win, send, quitNow }) {
               await new Promise((r) => setTimeout(r, 4000));
             }
           }
+          if (process.env.ULANZI_CLICKAT) {
+            const [x, y] = process.env.ULANZI_CLICKAT.split(',').map(Number);
+            win.webContents.sendInputEvent({ type: 'mouseDown', x, y, button: 'left', clickCount: 1 });
+            win.webContents.sendInputEvent({ type: 'mouseUp', x, y, button: 'left', clickCount: 1 });
+            await new Promise((r) => setTimeout(r, 700));
+            console.log('[shot] clickat', await win.webContents.executeJavaScript("document.querySelector('#deck-settings').className"));
+          }
           if (process.env.ULANZI_SETTINGS) {
             await win.webContents.executeJavaScript(
               "document.querySelector('#deck-settings-btn')?.click(); true"

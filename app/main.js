@@ -64,6 +64,7 @@ function createWindow() {
     backgroundColor: '#0b0e14',
     titleBarStyle: process.platform === 'darwin' ? 'hiddenInset' : 'default',
     trafficLightPosition: { x: 16, y: 18 },
+    acceptFirstMouse: true,
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
@@ -631,9 +632,9 @@ ipcMain.handle('app:accessibility', () => ({
 
 ipcMain.handle('app:request-accessibility', () => {
   const trusted = systemPreferences.isTrustedAccessibilityClient(true);
-  if (!trusted) {
-    shell.openExternal('x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility');
-  }
+  // Always surface the pane: users press "Grant…" to inspect or change the
+  // permission, even when it is currently granted.
+  shell.openExternal('x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility');
   return { trusted };
 });
 
