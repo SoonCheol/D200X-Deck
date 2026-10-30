@@ -2435,15 +2435,15 @@ function bind() {
     const frame = document.querySelector('#pi-host .pi-frame');
     if (!frame) return;
     const height = Number(data.height) || 0;
-    // An inspector with no fields renders almost nothing: hide the section.
     const host = $('#pi-host');
     const field = host ? host.closest('.field') : null;
-    if (height < 60) {
-      if (field) field.classList.add('hidden');
-      return;
-    }
-    if (field) field.classList.remove('hidden');
-    frame.style.height = `${Math.min(560, Math.max(80, height + 4))}px`;
+    // Collapse (rather than hide) an inspector that has not rendered anything
+    // yet: the iframe keeps running, so it can expand again when the plugin
+    // fills the form after connecting.
+    const collapsed = height < 24;
+    if (field) field.classList.toggle('pi-field-collapsed', collapsed);
+    if (collapsed) return;
+    frame.style.height = `${Math.min(560, Math.max(60, height + 4))}px`;
   });
 
   api.onKey(({ index, pressed }) => handleKeyEvent(index, pressed));

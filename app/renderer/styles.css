@@ -863,3 +863,11 @@ body::before {
 }
 ::-webkit-scrollbar-thumb:hover { background: rgba(255, 255, 255, 0.28); background-clip: content-box; }
 ::-webkit-scrollbar-corner { background: transparent; }
+
+.field.pi-field-collapsed {
+  max-height: 0;
+  overflow: hidden;
+  margin: 0 !important;
+  padding: 0 !important;
+  border: 0;
+}

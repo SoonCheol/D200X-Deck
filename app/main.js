@@ -1,6 +1,6 @@
 'use strict';
 
-const { app, BrowserWindow, ipcMain, dialog, Menu, shell, Tray, nativeImage, protocol } = require('electron');
+const { app, BrowserWindow, ipcMain, dialog, Menu, shell, Tray, nativeImage, protocol, session } = require('electron');
 const path = require('node:path');
 const fs = require('node:fs');
 const os = require('node:os');
@@ -501,7 +501,7 @@ const PI_THEME = `
     padding: 10px 0 6px !important;
     margin: 0 0 8px !important;
   }
-  input, select, textarea, button {
+  input, select, textarea {
     background: #141a25 !important;
     border: 1px solid #2a3342 !important;
     border-radius: 8px !important;
@@ -509,6 +509,16 @@ const PI_THEME = `
     font-family: inherit !important;
     font-size: 12px !important;
     padding: 7px 9px !important;
+  }
+  /* Buttons keep the plugin's own layout (height/line-height/padding) and only
+     borrow the app's colour and border treatment. */
+  button {
+    background: #141a25 !important;
+    border: 1px solid #2a3342 !important;
+    border-radius: 8px !important;
+    color: #e8ecf4 !important;
+    font-family: inherit !important;
+    font-size: 12px !important;
   }
   input[type="checkbox"], input[type="radio"] { accent-color: #4f8cff !important; width: 14px; height: 14px; }
   input:focus, select:focus, textarea:focus { outline: none !important; border-color: #4f8cff !important; }
@@ -552,6 +562,25 @@ function injectPiTheme(html) {
 }
 
 app.whenReady().then(() => {
+  // Plugin property inspectors talk to their own local services (e.g. a daemon
+  // on 127.0.0.1). Their pages come from our private scheme, so allow them the
+  // same loopback access the vendor app gives them.
+  session.defaultSession.webRequest.onHeadersReceived((details, callback) => {
+    const initiator = String(details.initiator || '');
+    // Requests from our custom scheme arrive with an empty initiator, so also
+    // relax CORS for loopback services (only plugin inspectors call those).
+    const loopback = /^https?:\/\/(127\.0\.0\.1|localhost)([:/]|$)/.test(details.url || '');
+    if (!initiator.startsWith('ulanzi-pi://') && !loopback) return callback({});
+    callback({
+      responseHeaders: {
+        ...(details.responseHeaders || {}),
+        'Access-Control-Allow-Origin': ['*'],
+        'Access-Control-Allow-Headers': ['*'],
+        'Access-Control-Allow-Methods': ['GET, POST, PUT, PATCH, DELETE, OPTIONS'],
+      },
+    });
+  });
+
   store = new Store(process.env.ULANZI_CONFIG_DIR || app.getPath('userData'));
   store.load();
   market = new Market({

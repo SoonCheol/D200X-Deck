@@ -31,7 +31,12 @@ protocol over the existing WebSocket host:
 Inspector files are served through a private `ulanzi-pi://` protocol (not `file://`), so
 the app can inject a theme stylesheet that matches the rest of the UI (colours, fonts,
 inputs, scrollbars) and a tiny script that reports the form height. The iframe is sized
-to its content, and inspectors that render nothing are hidden entirely.
+to its content; an inspector that has not rendered yet is collapsed (not removed) so it
+can expand once the plugin fills the form.
+
+Because inspector pages come from that custom scheme, responses from loopback services
+(`127.0.0.1` / `localhost`) get permissive CORS headers — some inspectors talk to a local
+daemon (AgentDeck's port 9120, for example), which the vendor app allows too.
 
 The settings are persisted on the key (`action.settings`) exactly like before, so
 configs stay compatible. Actions without an inspector still fall back to the JSON
