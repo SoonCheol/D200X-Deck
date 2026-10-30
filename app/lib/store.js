@@ -82,6 +82,15 @@ function normalizeKey(raw) {
   }
   if (typeof raw.emojiAuto === 'string') key.emojiAuto = raw.emojiAuto;
   if (typeof raw.labelAuto === 'string') key.labelAuto = raw.labelAuto;
+  if (raw.font && typeof raw.font === 'object') {
+    key.font = {
+      size: clamp(Math.round(Number(raw.font.size) || 17), 10, 40),
+      weight: clamp(Math.round(Number(raw.font.weight) || 600), 100, 900),
+      align: ['left', 'center', 'right'].includes(raw.font.align) ? raw.font.align : 'left',
+      color: /^#[0-9a-f]{6}$/i.test(raw.font.color || '') ? raw.font.color : '#ffffff',
+      showLabel: raw.font.showLabel !== false,
+    };
+  }
   if (raw.holdAction) key.holdAction = normalizeAction(raw.holdAction);
   if (raw.doubleAction) key.doubleAction = normalizeAction(raw.doubleAction);
   if (key.holdAction || key.doubleAction) {
@@ -103,6 +112,8 @@ function validateConfig(config) {
     standbySeconds: Math.max(0, Math.round(Number(config.settings?.standbySeconds) || 0)),
     standbyImage: normalizeBackground(config.settings?.standbyImage),
     standbyClock: config.settings?.standbyClock !== false,
+    lockScreen: config.settings?.lockScreen === true,
+    lockImage: normalizeBackground(config.settings?.lockImage),
   };
 
   // Profiles are a lightweight grouping: each page belongs to one profile and
@@ -291,6 +302,9 @@ class Store {
         get: () => config.settings.standbyImage,
         set: (v) => { config.settings.standbyImage = v; },
       });
+    }
+    if (config.settings?.lockImage) {
+      slots.push({ get: () => config.settings.lockImage, set: (v) => { config.settings.lockImage = v; } });
     }
     return slots;
   }

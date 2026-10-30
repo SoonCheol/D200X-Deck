@@ -120,6 +120,35 @@ const SYSTEM_MEDIA_LABELS = {
   volumedown: 'Volume down',
 };
 
+function fontColor(value) {
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    return `#${(value >>> 0).toString(16).padStart(6, '0').slice(-6)}`;
+  }
+  if (typeof value === 'string' && /^#[0-9a-f]{6}$/i.test(value)) return value.toLowerCase();
+  return '#ffffff';
+}
+
+function fontWeight(value) {
+  const n = Number(value);
+  if (!Number.isFinite(n) || n <= 0) return 600;
+  if (n >= 100) return Math.max(100, Math.min(900, Math.round(n / 100) * 100));
+  if (n >= 10) return Math.max(100, Math.min(900, Math.round(n / 10) * 100));
+  return 600;
+}
+
+/** Ulanzi's per-key Font object → our caption style. */
+function mapFont(font) {
+  if (!font || typeof font !== 'object') return null;
+  const size = Math.max(10, Math.min(40, Math.round(Number(font.Size ?? font.FontSize) || 17)));
+  return {
+    size,
+    weight: fontWeight(font.Weight),
+    align: font.Align === 'center' ? 'center' : 'left',
+    color: fontColor(font.Color),
+    showLabel: font.ShowTitle !== false,
+  };
+}
+
 function mapAction(entry, pageIds) {
   const uuid = String(entry.Action || '');
   const param = entry.ActionParam || {};
@@ -380,6 +409,7 @@ function parseProfile(dir) {
       const view = views[0] || {};
       const baseDirs = [pageDir, dir, path.join(dir, 'Images')];
       const icon = readImage(baseDirs, [view.Icon, view.IconRel, view.IconDef, entry.ActionParam?.Icon], report.warnings);
+      const font = mapFont(view.Font);
 
       // Multi-state keys: keep every state's icon/text so toggles look right.
       let states = null;
@@ -416,6 +446,7 @@ function parseProfile(dir) {
         icon,
         iconSource: icon ? 'import' : '',
         action: mapped.action,
+        ...(font ? { font } : {}),
         ...(states ? { states, stateIndex: Math.min(states.length - 1, Number(entry.State) || 0) } : {}),
       };
     }

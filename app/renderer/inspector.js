@@ -784,6 +784,21 @@ function renderInspector() {
       <input class="input" id="insp-label" maxlength="40" value="${esc(key.label)}" placeholder="Optional small text under the key" />
     </div>
 
+    <div class="field">
+      <label>Caption style</label>
+      <div class="font-row">
+        <input class="input" id="insp-font-size" type="number" min="10" max="40" step="1" value="${Number(key.font?.size) || 17}" title="Size" />
+        <select class="select" id="insp-font-weight" title="Weight">
+          ${[400, 500, 600, 700, 800].map((w) => `<option value="${w}" ${(Number(key.font?.weight) || 600) === w ? 'selected' : ''}>${w}</option>`).join('')}
+        </select>
+        <select class="select" id="insp-font-align" title="Alignment">
+          ${['left', 'center', 'right'].map((a) => `<option value="${a}" ${(key.font?.align || 'left') === a ? 'selected' : ''}>${a[0].toUpperCase()}${a.slice(1)}</option>`).join('')}
+        </select>
+        <input class="color-input" id="insp-font-color" type="color" value="${esc(key.font?.color || '#ffffff')}" title="Caption colour" />
+      </div>
+      <label class="check-row"><input type="checkbox" id="insp-font-show" ${key.font?.showLabel !== false ? 'checked' : ''} /> Show caption</label>
+    </div>
+
 
     <div class="insp-actions">
       <button class="btn" id="insp-duplicate">Duplicate</button>
@@ -890,6 +905,28 @@ function renderInspector() {
     drawIndex(state.selected);
     commit(false);
   });
+  const updateFont = (patch) => {
+    key.font = {
+      size: 17,
+      weight: 600,
+      align: 'left',
+      color: '#ffffff',
+      showLabel: true,
+      ...(key.font || {}),
+      ...patch,
+    };
+    drawIndex(state.selected);
+    commit(false);
+  };
+  $('#insp-font-size')?.addEventListener('change', (e) => {
+    const size = Math.max(10, Math.min(40, Math.round(Number(e.target.value) || 17)));
+    e.target.value = String(size);
+    updateFont({ size });
+  });
+  $('#insp-font-weight')?.addEventListener('change', (e) => updateFont({ weight: Number(e.target.value) }));
+  $('#insp-font-align')?.addEventListener('change', (e) => updateFont({ align: e.target.value }));
+  $('#insp-font-color')?.addEventListener('input', (e) => updateFont({ color: e.target.value }));
+  $('#insp-font-show')?.addEventListener('change', (e) => updateFont({ showLabel: e.target.checked }));
   $('#insp-action-type').addEventListener('change', (e) => {
     const type = e.target.value;
     if (type === 'app' || type === 'url' || type === 'text' || type === 'close') {

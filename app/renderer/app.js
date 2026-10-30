@@ -346,6 +346,7 @@ function openProfileModal(mode) {
   profileModalTarget = mode;
   const editing = mode === 'edit';
   const profile = (state.config.profiles || []).find((p) => p.id === state.config.activeProfileId);
+  $('#profile-export').disabled = !editing;
   profileDraft = {
     appPath: editing ? profile?.appPath || '' : '',
     appName: editing ? profile?.appName || '' : '',
@@ -363,6 +364,127 @@ function openProfileModal(mode) {
 
 function closeProfileModal() {
   $('#profile-modal').classList.add('hidden');
+}
+
+async function exportActiveProfile() {
+  const profile = (state.config.profiles || []).find((p) => p.id === state.config.activeProfileId);
+  if (!profile) return;
+  const pages = state.config.pages
+    .filter((page) => page.profileId === profile.id)
+    .map((page) => JSON.parse(JSON.stringify(page)));
+  const payload = {
+    format: 'ulanzi-deck-open-profile',
+    version: 1,
+    exportedAt: new Date().toISOString(),
+    name: profile.name,
+    profile: {
+      name: profile.name,
+      icon: profile.icon || null,
+      appPath: profile.appPath || '',
+      appName: profile.appName || '',
+      background: profile.background || null,
+      pinned: JSON.parse(JSON.stringify(profile.pinned || {})),
+    },
+    pages,
+  };
+  const res = await api.exportProfile(payload);
+  if (res.canceled) return;
+  toast(res.ok ? 'Profile exported' : res.error || 'Export failed', !res.ok);
+}
+
+function remapImportedAction(action, idMap) {
+  if (!action || typeof action !== 'object') return action;
+  const out = JSON.parse(JSON.stringify(action));
+  if (out.type === 'plugin') out.actionid = uuid();
+  if (out.type === 'page' && out.op === 'goto' && idMap.has(out.value)) {
+    out.value = idMap.get(out.value);
+  }
+  if (Array.isArray(out.steps)) {
+    out.steps = out.steps.map((step) =>
+      step && step.action ? { ...step, action: remapImportedAction(step.action, idMap) } : step
+    );
+  }
+  return out;
+}
+
+function remapImportedKeys(keys, idMap) {
+  const out = {};
+  for (const [index, raw] of Object.entries(keys || {})) {
+    if (!raw || typeof raw !== 'object') continue;
+    const key = JSON.parse(JSON.stringify(raw));
+    for (const field of ['action', 'holdAction', 'doubleAction']) {
+      if (key[field]) key[field] = remapImportedAction(key[field], idMap);
+    }
+    out[index] = key;
+  }
+  return out;
+}
+
+function importProfileData(data) {
+  if (!data || data.format !== 'ulanzi-deck-open-profile' || !Array.isArray(data.pages) || !data.pages.length) {
+    throw new Error('Not a valid Ulanzi Deck Open profile');
+  }
+  const source = data.profile && typeof data.profile === 'object' ? data.profile : {};
+  const wanted = String(source.name || data.name || 'Imported profile').trim() || 'Imported profile';
+  const takenProfiles = new Set((state.config.profiles || []).map((p) => p.name.trim().toLowerCase()));
+  let name = wanted;
+  for (let i = 2; takenProfiles.has(name.toLowerCase()); i += 1) name = `${wanted} (${i})`;
+
+  const profileId = uuid();
+  const idMap = new Map();
+  for (const page of data.pages) {
+    if (page && typeof page.id === 'string') idMap.set(page.id, uuid());
+  }
+  const pageNames = new Set();
+  const pages = [];
+  for (const sourcePage of data.pages) {
+    if (!sourcePage || typeof sourcePage !== 'object') continue;
+    let pageName = String(sourcePage.name || 'Page').trim() || 'Page';
+    for (let i = 2; pageNames.has(pageName.toLowerCase()); i += 1) pageName = `${sourcePage.name || 'Page'} (${i})`;
+    pageNames.add(pageName.toLowerCase());
+    const page = {
+      id: idMap.get(sourcePage.id) || uuid(),
+      name: pageName,
+      profileId,
+      keys: remapImportedKeys(sourcePage.keys, idMap),
+    };
+    if (sourcePage.parentId && idMap.has(sourcePage.parentId)) page.parentId = idMap.get(sourcePage.parentId);
+    if (sourcePage.background) page.background = sourcePage.background;
+    pages.push(page);
+  }
+  if (!pages.length) throw new Error('Profile has no usable pages');
+
+  const profile = { id: profileId, name };
+  if (typeof source.appPath === 'string' && source.appPath) {
+    profile.appPath = source.appPath;
+    profile.appName = source.appName || basename(source.appPath);
+  }
+  if (source.background) profile.background = source.background;
+  if (source.pinned && typeof source.pinned === 'object') {
+    const pinned = remapImportedKeys(source.pinned, idMap);
+    if (Object.keys(pinned).length) profile.pinned = pinned;
+  }
+
+  state.config.profiles.push(profile);
+  state.config.pages.push(...pages);
+  state.config.activeProfileId = profileId;
+  state.config.activePageId = pages[0].id;
+  state.selected = null;
+  closeProfileModal();
+  renderAll();
+  commit();
+  toast(`Imported profile “${name}” (${pages.length} pages)`);
+}
+
+async function importProfileFromFile() {
+  const res = await api.importProfile();
+  if (res.canceled) return;
+  if (!res.ok) return toast(res.error || 'Could not import profile', true);
+  try {
+    importProfileData(res.data);
+  } catch (err) {
+    toast(err.message || String(err), true);
+  }
 }
 
 function saveProfile() {
@@ -534,6 +656,16 @@ function updateDeckSettingsMeta() {
   if (standbyInput) standbyInput.value = String(state.config.settings.standbySeconds || 0);
   const standbyState = $('#standby-image-state');
   if (standbyState) standbyState.textContent = state.config.settings.standbyImage ? 'Custom image' : 'None';
+  const lockToggle = $('#lock-screen');
+  if (lockToggle) lockToggle.checked = state.config.settings.lockScreen === true;
+  const lockState = $('#lock-image-state');
+  if (lockState) {
+    lockState.textContent = state.config.settings.lockImage
+      ? 'Custom image'
+      : state.config.settings.standbyImage
+        ? 'Using standby image'
+        : 'None';
+  }
   const standbyHint = $('#standby-hint');
   if (standbyHint) {
     const seconds = Number(state.config.settings.standbySeconds) || 0;
@@ -573,6 +705,55 @@ function startFrontmostWatch() {
 // ------------------------------------------------------- standby screensaver
 
 const standby = { active: false, timer: null, refresh: null };
+const lock = { active: false, refresh: null };
+
+function lockActive() {
+  return lock.active;
+}
+
+function stopLock() {
+  if (lock.refresh) clearInterval(lock.refresh);
+  lock.refresh = null;
+  lock.active = false;
+}
+
+function lockImageSrc() {
+  return state.config?.settings?.lockImage || state.config?.settings?.standbyImage || null;
+}
+
+async function pushLockFrame() {
+  return api.pushPage(
+    await renderStandbySlices({ standbyImage: lockImageSrc(), standbyClock: true })
+  );
+}
+
+async function enterLockScreen() {
+  if (!state.config?.settings?.lockScreen || !state.status.connected || lock.active) return;
+  standby.active = false;
+  clearStandbyTimers();
+  lock.active = true;
+  try {
+    const res = await pushLockFrame();
+    if (!res.ok) throw new Error(res.error || 'push failed');
+    lock.refresh = setInterval(async () => {
+      if (!lock.active || !state.status.connected) return;
+      try {
+        await pushLockFrame();
+      } catch {
+        /* keep the last frame */
+      }
+    }, 30_000);
+  } catch {
+    stopLock();
+  }
+}
+
+async function exitLockScreen() {
+  if (!lock.active) return;
+  stopLock();
+  await pushNow();
+  scheduleStandby();
+}
 
 function standbyActive() {
   return standby.active;
@@ -591,7 +772,7 @@ function clearStandbyTimers() {
 
 function scheduleStandby() {
   clearStandbyTimers();
-  if (standby.active || !state.status.connected || !standbySeconds()) return;
+  if (standby.active || lockActive() || !state.status.connected || !standbySeconds()) return;
   standby.timer = setTimeout(enterStandby, standbySeconds() * 1000);
 }
 
@@ -608,7 +789,7 @@ async function pushStandbyFrame() {
 
 async function enterStandby() {
   standby.timer = null;
-  if (standby.active || !state.status.connected || !standbySeconds()) return;
+  if (standby.active || lockActive() || !state.status.connected || !standbySeconds()) return;
   standby.active = true;
   try {
     const res = await pushStandbyFrame();
@@ -692,6 +873,8 @@ function bind() {
     if (e.key === 'Enter') saveProfile();
   });
   $('#profile-delete').addEventListener('click', deleteCurrentProfile);
+  $('#profile-export').addEventListener('click', exportActiveProfile);
+  $('#profile-import').addEventListener('click', importProfileFromFile);
   $('#profile-app-pick').addEventListener('click', () => openAppPicker('profile'));
   $('#profile-app-clear').addEventListener('click', () => setProfileApp('', ''));
   $('#profile-bg-pick').addEventListener('click', async () => {
@@ -889,6 +1072,32 @@ function bind() {
     toast(res.ok ? `Sleep set to ${seconds}s` : res.error, !res.ok);
   });
 
+  $('#lock-screen').addEventListener('change', async () => {
+    state.config.settings.lockScreen = $('#lock-screen').checked;
+    scheduleSave();
+    updateDeckSettingsMeta();
+    if (!state.config.settings.lockScreen && lock.active) await exitLockScreen();
+    toast(state.config.settings.lockScreen ? 'Lock screensaver on' : 'Lock screensaver off');
+  });
+  $('#lock-image').addEventListener('click', async () => {
+    const picked = await api.pickImage();
+    if (!picked) return;
+    state.config.settings.lockImage = await downscaleBackground(picked);
+    scheduleSave();
+    updateDeckSettingsMeta();
+    if (lock.active) {
+      stopLock();
+      await enterLockScreen();
+    }
+    toast('Lock image set');
+  });
+  $('#lock-image-clear').addEventListener('click', () => {
+    state.config.settings.lockImage = null;
+    scheduleSave();
+    updateDeckSettingsMeta();
+    toast('Lock image cleared');
+  });
+
   $('#standby-apply').addEventListener('click', () => {
     const seconds = Math.max(0, Math.round(Number($('#standby-seconds').value) || 0));
     state.config.settings.standbySeconds = seconds;
@@ -961,8 +1170,17 @@ function bind() {
     }
   });
 
+  api.onLockScreen(() => {
+    enterLockScreen();
+  });
+
   api.onDisplayRestore(() => {
+    if (lock.active) {
+      exitLockScreen();
+      return;
+    }
     if (state.status.connected) pushNow();
+    scheduleStandby();
   });
 
   api.onStatus((status) => {
@@ -978,6 +1196,7 @@ function bind() {
     if (wasConnected && !status.connected) {
       standby.active = false;
       clearStandbyTimers();
+      stopLock();
     }
   });
 

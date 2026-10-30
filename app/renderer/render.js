@@ -171,9 +171,10 @@ async function drawKey(canvas, key, width = KEY_SIZE, height = KEY_SIZE, autoIco
   }
 
   const label = (key.label || '').trim();
+  const font = key.font && typeof key.font === 'object' ? key.font : {};
   const timerText = typeof timerTextFor === 'function' ? timerTextFor(key.action) : '';
   const main = timerText || truncateMain(key.emoji || '');
-  const hasLabel = Boolean(label);
+  const hasLabel = Boolean(label) && font.showLabel !== false;
 
   let drewAutoIcon = false;
   if (!key.icon && autoIcon && !timerText) {
@@ -272,18 +273,24 @@ async function drawKey(canvas, key, width = KEY_SIZE, height = KEY_SIZE, autoIco
   }
 
   if (hasLabel) {
-    const g = ctx.createLinearGradient(0, h - 62, 0, h);
+    const size = Math.max(10, Math.min(40, Number(font.size) || 17));
+    const weight = Math.max(100, Math.min(900, Math.round(Number(font.weight) || 600)));
+    const align = ['left', 'center', 'right'].includes(font.align) ? font.align : 'left';
+    const shadeH = Math.max(62, Math.round(size) + 40);
+    const g = ctx.createLinearGradient(0, h - shadeH, 0, h);
     g.addColorStop(0, 'rgba(0,0,0,0)');
     g.addColorStop(1, 'rgba(0,0,0,0.78)');
     ctx.fillStyle = g;
-    ctx.fillRect(0, h - 62, w, 62);
+    ctx.fillRect(0, h - shadeH, w, shadeH);
 
     ctx.save();
-    ctx.textAlign = 'left';
+    ctx.textAlign = align;
     ctx.textBaseline = 'alphabetic';
-    ctx.font = '600 17px -apple-system, "SF Pro Text", "Helvetica Neue", sans-serif';
-    ctx.fillStyle = 'rgba(255,255,255,0.94)';
-    ctx.fillText(fitText(ctx, label, w - 28), 14, h - 13);
+    ctx.font = `${weight} ${size}px -apple-system, "SF Pro Text", "Helvetica Neue", sans-serif`;
+    ctx.fillStyle = font.color || 'rgba(255,255,255,0.94)';
+    const inset = 14;
+    const x = align === 'center' ? w / 2 : align === 'right' ? w - inset : inset;
+    ctx.fillText(fitText(ctx, label, w - inset * 2), x, h - 13);
     ctx.restore();
   }
 

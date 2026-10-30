@@ -37,6 +37,34 @@ test('POP menus are capped at nine actions', () => {
   assert.equal(validated.pages[0].keys[0].action.steps.length, 9);
 });
 
+test('caption fonts and lock-screen settings survive save/load', () => {
+  const dir = tempDir();
+  const store = new Store(dir);
+  const png = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==';
+  const config = createDefaultConfig();
+  config.pages[0].keys[0] = {
+    emoji: '🚀',
+    label: 'Launch',
+    color: '#1b2130',
+    icon: null,
+    action: { type: 'none' },
+    font: { size: 26, weight: 800, align: 'center', color: '#7fd1ff', showLabel: false },
+  };
+  config.settings.lockScreen = true;
+  config.settings.lockImage = png;
+  store.save(config);
+  const loaded = store.load();
+  assert.deepEqual(loaded.pages[0].keys[0].font, {
+    size: 26,
+    weight: 800,
+    align: 'center',
+    color: '#7fd1ff',
+    showLabel: false,
+  });
+  assert.equal(loaded.settings.lockScreen, true);
+  assert.match(loaded.settings.lockImage, /^data:image\/png/);
+});
+
 test('parents stay inside the profile and cycles are dropped', () => {
   const config = createDefaultConfig();
   const [first, second] = config.pages;

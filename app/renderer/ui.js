@@ -429,17 +429,19 @@ function syncPlugins() {
 
 function schedulePush() {
   if (typeof standbyActive === 'function' && standbyActive()) return;
+  if (typeof lockActive === 'function' && lockActive()) return;
   if (!state.status.connected || !state.config.settings.autoPush) return;
   clearTimeout(pushTimer);
   pushTimer = setTimeout(pushNow, 400);
 }
 
 async function pushNow() {
-  // An explicit push (button, navigation, wake) always leaves the standby screen.
+  // An explicit push (button, navigation, wake) always leaves a screensaver.
   if (typeof standbyActive === 'function' && standbyActive()) {
     standby.active = false;
     clearStandbyTimers();
   }
+  if (typeof lockActive === 'function' && lockActive()) stopLock();
   if (!state.status.connected) {
     toast('Deck not connected — quit Ulanzi Studio and reconnect', true);
     return;

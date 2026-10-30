@@ -15,16 +15,18 @@ _The editor, the plugin manager and the store all run against the deck live._
 * **Profiles & pages** — multiple profiles, each with its own pages; profiles can be
   linked to an app so the deck follows the frontmost window. Page/profile wallpapers and
   “snapshot page” backgrounds are sliced across the keys.
-* **Keys** — emoji, label, background colour, or a custom image (click or drag & drop).
+* **Keys** — emoji, label, background colour, or a custom image (click or drag & drop),
+  with per-key caption size/weight/alignment/colour (official fonts are imported).
   The wide key renders at 402×196.
 * **Actions** — open an app (searchable in-app picker with real app icons and a
   “Use app icon” button), open a URL
   (fetches the site's icon automatically), run a shell command, send a hotkey, switch
   page, **or run an existing Node.js Ulanzi plugin action**.
 * **Pinned keys** — pin an action to every page, with per-page overrides.
+* **Backup & share** — export a profile to one `.ulanzideckprofile` file and import it back.
 * **POP menus** — import and use POP keys: press one to get a compact action palette at the pointer.
 * **Device control** — brightness (0–100 %), screen sleep timeout, clock sync, a standby
-  clock/wallpaper screen, and Timer / key-brightness actions.
+  clock/wallpaper screen, an optional lock-screen image/clock, and Timer / key-brightness actions.
 * **Plugins** — runs Ulanzi's JavaScript *and* HTML plugins unchanged (discovery,
   WebSocket host, live images, key events, property inspectors). Plugins installed by Ulanzi Studio are used read-only and
   can be copied into the app; app-installed plugins can be removed.

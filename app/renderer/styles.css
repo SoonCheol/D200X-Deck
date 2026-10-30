@@ -326,6 +326,24 @@ body::before {
 .key:hover { transform: translateY(-2px); }
 .key.selected canvas { box-shadow: 0 0 0 2px var(--accent), 0 8px 22px rgba(79, 140, 255, 0.3); }
 .key.pressed canvas { transform: scale(0.96); filter: brightness(1.35); }
+.font-row {
+  display: grid;
+  grid-template-columns: 58px 70px minmax(82px, 1fr) 32px;
+  gap: 6px;
+  align-items: center;
+}
+.font-row .input,
+.font-row .select { min-width: 0; padding: 6px 8px; font-size: 11px; }
+.check-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 8px;
+  font-size: 11px;
+  color: var(--text-2);
+  cursor: pointer;
+}
+.check-row input { accent-color: var(--accent); }
 .pinned-banner {
   display: flex;
   align-items: center;
@@ -1130,5 +1148,7 @@ body::before {
 .profile-link-row { flex-wrap: wrap; align-items: center; }
 .profile-app-name { flex: 1; min-width: 120px; font-size: 12px; color: var(--muted); }
 #profile-delete-row { padding-top: 0; }
+.profile-io-row { padding-top: 0; padding-bottom: 4px; align-items: center; }
+.profile-io-row .field-hint { flex: 1; min-width: 140px; }
 #profile-name { flex: 1; min-width: 0; }
 #profile-modal .modal-actions { padding-top: 12px; }

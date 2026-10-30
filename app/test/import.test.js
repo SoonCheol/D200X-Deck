@@ -83,7 +83,16 @@ test('parseProfile maps slots, skips the wide key and keeps plugin settings', ()
         {
           Type: 'Keypad',
           Actions: {
-            '0_0': { Action: 'com.ulanzi.ulanzideck.system.hotkey', ActionParam: { Hotkey: '⌘ V' } },
+            '0_0': {
+              Action: 'com.ulanzi.ulanzideck.system.hotkey',
+              ActionParam: { Hotkey: '⌘ V' },
+              ViewParam: [
+                {
+                  Text: 'Paste',
+                  Font: { Align: 'bottom', Color: 16777215, ShowTitle: true, Size: 22, Weight: 80 },
+                },
+              ],
+            },
             '2_1': {
               Action: 'com.example.plugin.run',
               Plugin: { UUID: 'com.example.plugin' },

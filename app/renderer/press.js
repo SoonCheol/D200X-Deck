@@ -236,6 +236,8 @@ function handleKeyEvent(index, pressed) {
   // The wide key is a firmware system panel; never run actions for it
   // (proto 0x0e resets the deck to its factory profile).
   if (index === WIDE_KEY_INDEX) return;
+  // While the Mac is locked the deck shows the lock screen; ignore key presses.
+  if (typeof lockActive === 'function' && lockActive()) return;
   if (pressed) {
     const now = Date.now();
     if (now - (lastDownAt.get(index) || 0) < BOUNCE_MS) return;

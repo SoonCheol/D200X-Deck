@@ -107,6 +107,18 @@
             <button class="btn small" id="standby-image">Choose…</button>
             <button class="btn small ghost" id="standby-clear">Clear</button>
           </div>
+          <label class="settings-row">
+            <span>On screen lock</span>
+            <input id="lock-screen" type="checkbox" />
+            <span class="settings-meta" style="flex:1">Show screensaver</span>
+          </label>
+          <div class="settings-row">
+            <span>Lock image</span>
+            <span id="lock-image-state" class="settings-meta" style="flex:1">None</span>
+            <button class="btn small" id="lock-image">Choose…</button>
+            <button class="btn small ghost" id="lock-image-clear">Clear</button>
+          </div>
+          <div class="settings-note">Shows the clock (and image) while the Mac is locked; the page returns on unlock.</div>
           <div class="settings-meta" id="deck-settings-meta"></div>
           <div class="settings-row">
             <span>Accessibility</span>
@@ -209,6 +221,11 @@
             </div>
             <div class="field-hint">Used by every page in the profile unless the page has its own.</div>
           </div>
+        </div>
+        <div class="modal-actions profile-io-row" style="border-bottom:0">
+          <button class="btn small" id="profile-export">Export…</button>
+          <button class="btn small" id="profile-import">Import…</button>
+          <span class="field-hint">Back up or share this profile as one file.</span>
         </div>
         <div class="modal-actions" id="profile-delete-row" style="border-bottom:0">
           <button class="btn danger" id="profile-delete">Delete profile</button>

@@ -239,6 +239,7 @@ function buildMenu() {
 function initDeck() {
   // The official app re-sends the current page when the Mac unlocks; without
   // that, a deck that fell back to its stored standby image stays there.
+  powerMonitor.on('lock-screen', () => send('app:lock-screen'));
   powerMonitor.on('unlock-screen', () => send('app:display-restore'));
   powerMonitor.on('resume', () => send('app:display-restore'));
   deck = new Deck();
@@ -1112,6 +1113,46 @@ function frontmostApp() {
     return null;
   }
 }
+
+ipcMain.handle('profile:export', async (event, payload) => {
+  if (!trustedSender(event)) return { ok: false, error: 'untrusted sender' };
+  if (!payload || payload.format !== 'ulanzi-deck-open-profile') {
+    return { ok: false, error: 'invalid profile payload' };
+  }
+  const safe = String(payload.name || 'Profile').replace(/[^A-Za-z0-9 ._-]/g, '').trim() || 'Profile';
+  const result = await dialog.showSaveDialog(win, {
+    title: 'Export profile',
+    defaultPath: path.join(app.getPath('documents'), `${safe}.ulanzideckprofile`),
+    filters: [{ name: 'Ulanzi Deck Open profile', extensions: ['ulanzideckprofile'] }],
+  });
+  if (result.canceled || !result.filePath) return { ok: false, canceled: true };
+  try {
+    fs.writeFileSync(result.filePath, JSON.stringify(payload, null, 2));
+    return { ok: true, path: result.filePath };
+  } catch (err) {
+    return { ok: false, error: err.message || String(err) };
+  }
+});
+
+ipcMain.handle('profile:import', async (event) => {
+  if (!trustedSender(event)) return { ok: false, error: 'untrusted sender' };
+  const result = await dialog.showOpenDialog(win, {
+    title: 'Import profile',
+    properties: ['openFile'],
+    filters: [{ name: 'Ulanzi Deck Open profile', extensions: ['ulanzideckprofile', 'json'] }],
+  });
+  if (result.canceled || !result.filePaths.length) return { ok: false, canceled: true };
+  try {
+    const file = result.filePaths[0];
+    if (fs.statSync(file).size > 128 * 1024 * 1024) throw new Error('Profile file is too large (max 128 MB)');
+    const data = JSON.parse(fs.readFileSync(file, 'utf8'));
+    if (!data || data.format !== 'ulanzi-deck-open-profile') throw new Error('Not a Ulanzi Deck Open profile');
+    if (!Array.isArray(data.pages) || !data.pages.length) throw new Error('Profile has no pages');
+    return { ok: true, data, path: file };
+  } catch (err) {
+    return { ok: false, error: err.message || String(err) };
+  }
+});
 
 ipcMain.handle('pop:show', async (event, items) => {
   if (!trustedSender(event)) return -1;
