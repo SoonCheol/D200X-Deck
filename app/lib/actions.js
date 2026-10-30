@@ -202,30 +202,11 @@ function stopSound(id = 'default') {
   return { ok: true };
 }
 
-const VOLUME_STEP = 6;
-
 function mediaKey(op) {
-  if (!MEDIA.has(op)) return Promise.resolve({ ok: false, error: `unknown media key: ${op}` });
-  // Synthesised NX_SYSDEFINED volume events are unreliable on recent macOS:
-  // one key-down can be treated as a held key and run the volume all the way.
-  // Volume/mute are Standard Additions commands, so use those instead.
-  if (op === 'volumeup' || op === 'volumedown') {
-    const delta = op === 'volumeup' ? VOLUME_STEP : -VOLUME_STEP;
-    return applescript(
-      `set volume output volume ((output volume of (get volume settings)) + ${delta})`
-    );
-  }
-  if (op === 'mute') {
-    return applescript(
-      `set s to get volume settings
-if output muted of s then
-  set volume without output muted
-else
-  set volume with output muted
-end if`
-    );
-  }
   return new Promise((resolve) => {
+    if (!MEDIA.has(op)) return resolve({ ok: false, error: `unknown media key: ${op}` });
+    // Native helper mirrors Ulanzi Studio's MediaKeysBridge (prime the event
+    // queue, key-down, key-up with no gap). See native/mediakey.m.
     const child = spawn(mediaBinary(), [op], { stdio: 'ignore' });
     child.on('error', (err) => resolve({ ok: false, error: err.message }));
     child.on('exit', (code) => resolve({ ok: code === 0, error: code ? `mediakey exited ${code}` : undefined }));
