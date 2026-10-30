@@ -18,6 +18,7 @@
 - Deck settings close button no longer sits under the window drag region; the popover closes on ×, outside click and Escape.
 - “Grant…” always opens the Accessibility pane, including when permission is already granted.
 - The empty-slot “+” no longer shows through configured keys (e.g. Page Indicator).
+- The deck re-sends the current page after **screen unlock / wake**, mirroring Ulanzi Studio's `SendUnlockedData`; the wide-key clock stays at 5 s while screen sleep is off (60 s when a sleep timeout is set) so the deck's stored standby image does not linger.
 - Media keys now mirror Ulanzi Studio's `MediaKeysBridge` exactly: prime the HID event queue with a Command key-up, then post the NX_SYSDEFINED key-down/up with no gap. The old 12 ms gap made macOS treat volume/mute as held (volume ran to the end, mute flickered).
 
 ### Security

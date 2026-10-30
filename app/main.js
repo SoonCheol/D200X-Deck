@@ -1,6 +1,6 @@
 'use strict';
 
-const { app, BrowserWindow, ipcMain, dialog, Menu, shell, Tray, nativeImage, protocol, session, systemPreferences } = require('electron');
+const { app, BrowserWindow, ipcMain, dialog, Menu, shell, Tray, nativeImage, protocol, session, systemPreferences, powerMonitor } = require('electron');
 const path = require('node:path');
 const fs = require('node:fs');
 const os = require('node:os');
@@ -236,6 +236,10 @@ function buildMenu() {
 }
 
 function initDeck() {
+  // The official app re-sends the current page when the Mac unlocks; without
+  // that, a deck that fell back to its stored standby image stays there.
+  powerMonitor.on('unlock-screen', () => send('app:display-restore'));
+  powerMonitor.on('resume', () => send('app:display-restore'));
   deck = new Deck();
   deck.on('status', (status) => {
     console.log(`[deck] ${status.connected ? 'connected' : 'offline'}: ${status.message}`);

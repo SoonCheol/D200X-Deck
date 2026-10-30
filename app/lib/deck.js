@@ -18,6 +18,7 @@ class Deck extends EventEmitter {
     this.info = null;
     this._readTimer = null;
     this._clockTimer = null;
+    this._clockMs = 5000;
     this._buffer = Buffer.alloc(0);
     this._lastStatus = null;
   }
@@ -124,6 +125,14 @@ class Deck extends EventEmitter {
   setSleepTime(seconds) {
     const n = Math.max(0, Math.round(seconds));
     this.sendFrame(0, P.PROTO.SLEEP, Buffer.from(String(n), 'utf8'));
+    // Keep the wide-key clock fresh while the deck is always-on. With a sleep
+    // timer configured, slow the clock down so it cannot reset the idle timer.
+    const ms = n > 0 ? 60_000 : 5000;
+    if (ms !== this._clockMs) {
+      this._clockMs = ms;
+      this._stopClock();
+      if (this.device) this._startClock();
+    }
   }
 
   sendFont(font = DEFAULT_FONT) {
@@ -165,7 +174,7 @@ class Deck extends EventEmitter {
     tick();
     // The firmware keeps its own RTC; a periodic sync is only to correct drift.
     // Keep it infrequent so it cannot keep resetting the screen-sleep timer.
-    this._clockTimer = setInterval(tick, 60_000);
+    this._clockTimer = setInterval(tick, this._clockMs);
   }
 
   _stopClock() {
@@ -190,6 +199,7 @@ class Deck extends EventEmitter {
       this.emit('brightness', frame.payload[0]);
       return;
     }
+    console.log(`[deck] frame cmd=${frame.cmd} proto=${frame.proto} len=${frame.payload?.length || 0}`);
     this.emit('frame', frame);
   }
 

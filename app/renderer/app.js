@@ -956,6 +956,10 @@ function bind() {
     }
   });
 
+  api.onDisplayRestore(() => {
+    if (state.status.connected) pushNow();
+  });
+
   api.onStatus((status) => {
     const wasConnected = state.status.connected;
     state.status = status;

@@ -56,6 +56,7 @@ contextBridge.exposeInMainWorld('deckApp', {
   revealPlugin: (uuid) => ipcRenderer.invoke('plugins:reveal', uuid),
   onKey: (cb) => subscribe('deck:key', cb),
   onStatus: (cb) => subscribe('deck:status', cb),
+  onDisplayRestore: (cb) => subscribe('app:display-restore', cb),
   onError: (cb) => subscribe('deck:error', cb),
   onBrightness: (cb) => subscribe('deck:brightness', cb),
   onPluginState: (cb) => subscribe('plugin:state', cb),
