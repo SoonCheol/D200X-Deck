@@ -48,6 +48,12 @@ function isAutoEmoji(key) {
 }
 
 /** Only auto-emoji keys borrow the bundled icon; a custom emoji wins. */
+function pageInfo() {
+  const pages = state.config.pages;
+  const index = pages.findIndex((p) => p.id === state.config.activePageId);
+  return { index: index + 1, total: pages.length };
+}
+
 function autoIconFor(key) {
   if (key.icon) return null;
   return isAutoEmoji(key) ? actionIconSrc(key.action) : null;
@@ -119,6 +125,7 @@ const ACTION_LABELS = {
   plugin: 'Plugin action',
   multi: 'Multi action',
   toggle: 'Hotkey switch',
+  indicator: 'Page indicator',
 };
 
 const state = {
@@ -200,6 +207,45 @@ function findPluginAction(actionid) {
 
 // -------------------------------------------------------------- bootstrap
 
+function renderProfileSelect() {
+  const select = $('#profile-select');
+  if (!select) return;
+  select.innerHTML = (state.config.profiles || [])
+    .map(
+      (profile) =>
+        `<option value="${esc(profile.id)}" ${profile.id === state.config.activeProfileId ? 'selected' : ''}>${esc(
+          profile.name
+        )}</option>`
+    )
+    .join('');
+}
+
+function switchProfile(profileId) {
+  const profile = (state.config.profiles || []).find((p) => p.id === profileId);
+  if (!profile) return;
+  const first = state.config.pages.find((p) => p.profileId === profileId);
+  state.config.activeProfileId = profileId;
+  if (first) state.config.activePageId = first.id;
+  state.selected = null;
+  renderAll();
+  commit();
+}
+
+function addProfile() {
+  const name = (prompt('Profile name', 'New profile') || '').trim();
+  if (!name) return;
+  const id = crypto.randomUUID ? crypto.randomUUID() : String(Date.now());
+  const profile = { id, name };
+  state.config.profiles.push(profile);
+  const page = { id: crypto.randomUUID(), name: 'Main', profileId: id, keys: {} };
+  state.config.pages.push(page);
+  state.config.activeProfileId = id;
+  state.config.activePageId = page.id;
+  state.selected = null;
+  renderAll();
+  commit();
+}
+
 function updateDeckSettingsMeta() {
   const meta = $('#deck-settings-meta');
   if (!meta) return;
@@ -229,6 +275,9 @@ function bind() {
     renderInspector();
     document.querySelectorAll('#grid .key')[next]?.focus();
   });
+
+  $('#profile-select').addEventListener('change', (e) => switchProfile(e.target.value));
+  $('#profile-add').addEventListener('click', addProfile);
 
   $('#import-btn').addEventListener('click', openImportModal);
   $('#import-close').addEventListener('click', closeImportModal);

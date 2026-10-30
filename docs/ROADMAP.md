@@ -141,10 +141,12 @@ delay steps, editor in the inspector), **Hotkey Switch** (`toggle`, two alternat
 actions), **text with Enter**.
 
 Also done: **folders/subpages** (page `parentId`, “Back to parent page”, import maps
-folder keys to parent links).
+folder keys to parent links), **Page Indicator** (dots + n/total, mapped from imports),
+and **profiles** (config v6: `profiles[]`, sidebar switcher, `Switch profile` page action,
+import creates a profile per vendor profile).
 
-Next by value: profiles as first-class objects, multi-state keys, soundboard, plugin
-`openview`/`feedback`, screensaver, marketplace updates.
+Next by value: multi-state keys, soundboard, plugin `openview`/`feedback`, screensaver,
+marketplace updates, app-linked profiles.
 
 ## Order of work (agreed)
 

@@ -168,7 +168,7 @@ function mapAction(entry, pageIds) {
       }
       return { action: null, label: null, raw: entry };
     }
-    if (kind === 'indicator') return { action: { type: 'none', indicator: true }, label: 'Page indicator' };
+    if (kind === 'indicator') return { action: { type: 'indicator' }, label: '' };
     return { action: null, label: null, raw: entry };
   }
 

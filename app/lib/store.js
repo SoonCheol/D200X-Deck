@@ -4,14 +4,14 @@ const fs = require('node:fs');
 const path = require('node:path');
 const { randomUUID, createHash } = require('node:crypto');
 
-const CONFIG_VERSION = 5;
+const CONFIG_VERSION = 6;
 
 function key(emoji, label, action = { type: 'none' }, color = '#1b2130') {
   return { emoji, label, action, color, icon: null };
 }
 
 const ACTION_TYPES = new Set([
-  'none', 'app', 'url', 'command', 'hotkey', 'text', 'media', 'close', 'page', 'plugin', 'multi', 'toggle',
+  'none', 'app', 'url', 'command', 'hotkey', 'text', 'media', 'close', 'page', 'plugin', 'multi', 'toggle', 'indicator',
 ]);
 
 const MEDIA_OPS = new Set(['playpause', 'next', 'prev', 'volumeup', 'volumedown', 'mute']);
@@ -33,7 +33,7 @@ function normalizeAction(action) {
     if (!out.settings || typeof out.settings !== 'object') out.settings = {};
   }
   if (type === 'page') {
-    out.op = ['next', 'prev', 'back', 'goto'].includes(out.op) ? out.op : 'goto';
+    out.op = ['next', 'prev', 'back', 'goto', 'profile'].includes(out.op) ? out.op : 'goto';
   }
   return out;
 }
@@ -45,6 +45,17 @@ function validateConfig(config) {
     sleepSeconds: Math.max(0, Number(config.settings?.sleepSeconds) || 0),
     autoPush: config.settings?.autoPush !== false,
   };
+
+  // Profiles are a lightweight grouping: each page belongs to one profile and
+  // the sidebar shows the active profile's pages.
+  let profiles = Array.isArray(config.profiles) ? config.profiles.filter((p) => p && typeof p.id === 'string') : [];
+  if (!profiles.length) profiles = [{ id: randomUUID(), name: 'Default' }];
+  profiles = profiles.map((profile) => ({
+    id: profile.id,
+    name: str(profile.name, 'Profile'),
+    ...(typeof profile.icon === 'string' && profile.icon ? { icon: profile.icon } : {}),
+  }));
+  const profileIds = new Set(profiles.map((p) => p.id));
 
   const pages = [];
   for (const page of config.pages) {
@@ -73,17 +84,26 @@ function validateConfig(config) {
     const normalized = {
       id: str(page.id) || randomUUID(),
       name: str(page.name, 'Page'),
+      profileId: profileIds.has(page.profileId) ? page.profileId : profiles[0].id,
       keys,
     };
     if (typeof page.parentId === 'string' && page.parentId) normalized.parentId = page.parentId;
     pages.push(normalized);
   }
 
+  const activeProfileId = profileIds.has(config.activeProfileId) ? config.activeProfileId : profiles[0].id;
+  const profilePages = pages.filter((p) => p.profileId === activeProfileId);
+  const activePageId = pages.some((p) => p.id === config.activePageId && p.profileId === activeProfileId)
+    ? config.activePageId
+    : (profilePages[0] || pages[0]).id;
+
   return {
     version: CONFIG_VERSION,
     settings: config.settings,
+    profiles,
+    activeProfileId,
     pages,
-    activePageId: pages.some((p) => p.id === config.activePageId) ? config.activePageId : pages[0].id,
+    activePageId,
   };
 }
 
@@ -132,9 +152,13 @@ function defaultPages() {
 
 function createDefaultConfig() {
   const pages = defaultPages();
+  const profileId = randomUUID();
+  for (const page of pages) page.profileId = profileId;
   return {
     version: CONFIG_VERSION,
     settings: { brightness: 85, sleepSeconds: 0, autoPush: true },
+    profiles: [{ id: profileId, name: 'Default' }],
+    activeProfileId: profileId,
     activePageId: pages[0].id,
     pages,
   };

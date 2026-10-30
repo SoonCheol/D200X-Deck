@@ -3,6 +3,7 @@
 // --------------------------------------------------------------- rendering
 
 function renderAll() {
+  renderProfileSelect();
   renderPageList();
   renderGrid();
   renderInspector();
@@ -50,7 +51,10 @@ function renderStatus() {
 function renderPageList() {
   const list = $('#page-list');
   list.innerHTML = '';
-  state.config.pages.forEach((page) => {
+  const profilePages = state.config.pages.filter(
+    (p) => p.profileId === state.config.activeProfileId
+  );
+  profilePages.forEach((page) => {
     const el = document.createElement('div');
     el.className = `page-item${page.id === state.config.activePageId ? ' active' : ''}`;
     el.setAttribute('role', 'button');
@@ -176,7 +180,7 @@ async function drawGrid() {
     tiles.map((tile, i) => {
       if (i === WIDE_KEY_INDEX) return renderSystemPanel(tile.querySelector('canvas'));
       const key = effectiveKey(page.keys[i] || emptyKey());
-      return renderKey(tile.querySelector('canvas'), key, 196, 196, autoIconFor(key));
+      return renderKey(tile.querySelector('canvas'), key, 196, 196, autoIconFor(key), pageInfo());
     })
   );
 }
@@ -186,7 +190,7 @@ function drawIndex(index) {
   if (!tile) return;
   if (index === WIDE_KEY_INDEX) return renderSystemPanel(tile.querySelector('canvas'));
   const key = effectiveKey(activePage().keys[index] || emptyKey());
-  renderKey(tile.querySelector('canvas'), key, 196, 196, autoIconFor(key));
+  renderKey(tile.querySelector('canvas'), key, 196, 196, autoIconFor(key), pageInfo());
 }
 
 function moveKey(page, src, dst) {
@@ -377,6 +381,7 @@ function addPage() {
   const page = {
     id: uuid(),
     name: `Page ${state.config.pages.length + 1}`,
+    profileId: state.config.activeProfileId,
     keys: {},
   };
   state.config.pages.push(page);

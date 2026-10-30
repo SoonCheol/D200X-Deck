@@ -6,7 +6,7 @@ const pressState = new Map();
 const DOUBLE_WINDOW = 300;
 
 function navigateRelative(step) {
-  const pages = state.config.pages;
+  const pages = state.config.pages.filter((p) => p.profileId === state.config.activeProfileId);
   if (pages.length < 2) return;
   const index = pages.findIndex((p) => p.id === state.config.activePageId);
   if (index < 0) return;
@@ -19,11 +19,23 @@ let sequenceToken = 0;
 
 function runKeyAction(action) {
   if (!action || action.type === 'none') return;
+  if (action.type === 'indicator') return;
   if (action.type === 'multi') return runMulti(action);
   if (action.type === 'toggle') return runToggle(action);
   if (action.type === 'page') {
     if (action.op === 'next') return navigateRelative(1);
     if (action.op === 'prev') return navigateRelative(-1);
+    if (action.op === 'profile') {
+      const target = state.config.pages.find((p) => p.profileId === action.value);
+      if (target) {
+        state.config.activeProfileId = action.value;
+        state.config.activePageId = target.id;
+        state.selected = null;
+        renderAll();
+        commit();
+      }
+      return;
+    }
     if (action.op === 'back') {
       const parent = activePage().parentId;
       if (parent) return navigate(parent);

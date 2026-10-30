@@ -409,12 +409,22 @@ function renderInspector() {
       ['next', 'Next page'],
       ['prev', 'Previous page'],
       ['back', 'Back to parent page'],
+      ['profile', 'Switch profile'],
     ];
+    const profileOptions = (state.config.profiles || [])
+      .map((p) => `<option value="${esc(p.id)}" ${p.id === action.value ? 'selected' : ''}>${esc(p.name)}</option>`)
+      .join('');
     valueField = `<div class="row">
       <select class="select" id="insp-page-op">${ops
         .map(([v, l]) => `<option value="${v}" ${v === op ? 'selected' : ''}>${l}</option>`)
         .join('')}</select>
-      ${op === 'goto' ? `<select class="select" id="insp-value">${pageOptions}</select>` : ''}
+      ${
+        op === 'goto'
+          ? `<select class="select" id="insp-value">${pageOptions}</select>`
+          : op === 'profile'
+            ? `<select class="select" id="insp-value">${profileOptions}</select>`
+            : ''
+      }
     </div>`;
   } else if (action.type === 'text') {
     valueField = `<input class="input" id="insp-value" placeholder="Text to type into the frontmost app" value="${esc(action.value || '')}" />`;
@@ -430,6 +440,8 @@ function renderInspector() {
     valueField = `<select class="select" id="insp-value">${ops
       .map(([v, l]) => `<option value="${v}" ${v === action.op ? 'selected' : ''}>${l}</option>`)
       .join('')}</select>`;
+  } else if (action.type === 'indicator') {
+    valueField = '<div class="field-hint">Shows the current page position. It cannot be pressed.</div>';
   } else if (action.type === 'multi' || action.type === 'toggle') {
     valueField = multiEditor(action, page);
   } else if (action.type === 'close') {
@@ -512,7 +524,7 @@ function renderInspector() {
       </select>
     </div>
 
-    ${valueField && action.type !== 'plugin' ? `<div class="field"><label>${action.type === 'hotkey' ? 'Combination' : action.type === 'page' ? 'Navigation' : action.type === 'app' ? 'Application' : action.type === 'url' ? 'URL' : action.type === 'multi' ? 'Steps' : action.type === 'toggle' ? 'Actions' : 'Value'}</label>${valueField}</div>` : ''}
+    ${valueField && action.type !== 'plugin' ? `<div class="field"><label>${action.type === 'hotkey' ? 'Combination' : action.type === 'page' ? 'Navigation' : action.type === 'app' ? 'Application' : action.type === 'url' ? 'URL' : action.type === 'multi' ? 'Steps' : action.type === 'toggle' ? 'Actions' : action.type === 'indicator' ? 'About' : 'Value'}</label>${valueField}</div>` : ''}
     ${pluginFields}
 
     <div class="insp-section">Press triggers</div>
@@ -717,6 +729,17 @@ function renderInspector() {
   if (pageOp) {
     pageOp.addEventListener('change', () => {
       const op = pageOp.value;
+      if (op === 'profile') {
+        key.action = {
+          type: 'page',
+          op: 'profile',
+          value: (state.config.profiles || [])[0]?.id || '',
+        };
+        syncActionMeta(key);
+        commit();
+        renderInspector();
+        return;
+      }
       if (op === 'goto') {
         key.action = {
           type: 'page',

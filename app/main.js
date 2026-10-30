@@ -934,8 +934,14 @@ ipcMain.handle('import:apply', guarded((_evt, payload) => {
 
     if (mode === 'replace') {
       store.config.pages = [];
+      store.config.profiles = [];
     }
+    if (!Array.isArray(store.config.profiles)) store.config.profiles = [];
+    const profileId = randomUUID();
+    store.config.profiles.push({ id: profileId, name: profile.name || 'Imported profile' });
+    for (const page of incoming) page.profileId = profileId;
     store.config.pages.push(...incoming);
+    store.config.activeProfileId = profileId;
     store.config.activePageId = incoming[0].id;
     store.save(store.config);
 

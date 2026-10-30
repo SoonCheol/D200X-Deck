@@ -86,7 +86,7 @@ function isEmojiOnly(text) {
  * @param {number} width  196 for normal keys, 402 for the wide key
  * @param {number} height 196
  */
-async function drawKey(canvas, key, width = KEY_SIZE, height = KEY_SIZE, autoIcon = null) {
+async function drawKey(canvas, key, width = KEY_SIZE, height = KEY_SIZE, autoIcon = null, pageInfo = null) {
   const w = width;
   const h = height;
   const min = Math.min(w, h);
@@ -150,6 +150,41 @@ async function drawKey(canvas, key, width = KEY_SIZE, height = KEY_SIZE, autoIco
   const label = (key.label || '').trim();
   const main = truncateMain(key.emoji || '');
   const hasLabel = Boolean(label);
+
+  if (key.action && key.action.type === 'indicator') {
+    const total = Math.max(1, pageInfo?.total || 1);
+    const current = Math.max(1, Math.min(total, pageInfo?.index || 1));
+    const cols = Math.min(total, 5);
+    const rows = Math.ceil(total / cols);
+    const dot = 12;
+    const gap = 8;
+    const rowGap = 8;
+    const gridW = cols * dot + (cols - 1) * gap;
+    const gridH = rows * dot + (rows - 1) * rowGap;
+    const startX = (w - gridW) / 2;
+    const startY = hasLabel ? (h - gridH) / 2 - 8 : (h - gridH) / 2;
+    ctx.save();
+    for (let i = 0; i < total; i++) {
+      const c = i % cols;
+      const r = Math.floor(i / cols);
+      const x = startX + c * (dot + gap);
+      const y = startY + r * (dot + rowGap);
+      roundRect(ctx, x, y, dot, dot, dot / 2);
+      ctx.fillStyle = i === current - 1 ? 'rgba(120,175,255,0.95)' : 'rgba(255,255,255,0.22)';
+      ctx.fill();
+    }
+    ctx.restore();
+    if (!hasLabel) {
+      ctx.save();
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'top';
+      ctx.font = '600 12px -apple-system, "SF Pro Text", sans-serif';
+      ctx.fillStyle = 'rgba(255,255,255,0.55)';
+      ctx.fillText(`${current} / ${total}`, w / 2, startY + gridH + 12);
+      ctx.restore();
+    }
+  }
+
 
   let drewAutoIcon = false;
   if (!key.icon && autoIcon) {

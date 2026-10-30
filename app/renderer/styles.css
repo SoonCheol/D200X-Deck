@@ -1045,3 +1045,6 @@ body::before {
 .multi-type { width: 112px; flex: none; }
 .multi-value { flex: 1; min-width: 0; }
 .multi-row .icon-btn { width: 24px; height: 24px; flex: none; }
+
+.profile-row { display: flex; gap: 6px; align-items: center; margin: 0 6px 8px; }
+.profile-select { flex: 1; min-width: 0; font-size: 11.5px; padding: 6px 8px; }
