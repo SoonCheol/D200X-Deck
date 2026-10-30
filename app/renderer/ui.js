@@ -53,7 +53,17 @@ function renderPageList() {
   state.config.pages.forEach((page) => {
     const el = document.createElement('div');
     el.className = `page-item${page.id === state.config.activePageId ? ' active' : ''}`;
+    el.setAttribute('role', 'button');
+    el.setAttribute('tabindex', '0');
+    el.setAttribute('aria-current', page.id === state.config.activePageId ? 'page' : 'false');
+    el.setAttribute('aria-label', `Page ${page.name}`);
     el.innerHTML = `<span class="dot"></span><span class="name">${esc(page.name)}</span>`;
+    el.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault();
+        selectPage(page.id);
+      }
+    });
     const del = document.createElement('button');
     del.className = 'del';
     del.textContent = '×';

@@ -360,26 +360,6 @@ function renderInspector() {
     </div>
 
     <div class="field">
-      <label>Icon</label>
-      <div class="icon-drop" id="insp-icon-drop">
-        ${liveKey.icon ? `<img src="${esc(liveKey.icon)}" alt="" />` : `<div style="width:46px;height:46px;border-radius:8px;display:grid;place-items:center;background:rgba(255,255,255,.05);font-size:20px;opacity:.55">＋</div>`}
-        <div class="meta">
-          <div class="file-name">${
-            key.icon ? 'Custom image' : liveKey.icon ? 'Live plugin image' : autoIconFor(key) ? 'Action icon' : 'No image'
-          }</div>
-          <div>${
-            !key.icon && autoIconFor(key)
-              ? 'Bundled icon for this action · type an emoji to use that instead'
-              : 'Drop an image here or click to choose'
-          }</div>
-        </div>
-      </div>
-      <button class="btn icon-remove" id="insp-icon-library">Choose from library…</button>
-      ${action.type === 'app' && action.value ? '<button class="btn icon-remove" id="insp-use-app-icon">Use app icon</button>' : ''}
-      ${key.icon ? '<button class="btn danger icon-remove" id="insp-icon-remove">Remove image</button>' : ''}
-    </div>
-
-    <div class="field">
       <label>Action</label>
       <select class="select" id="insp-action-type">
         ${Object.entries(ACTION_LABELS)
@@ -396,6 +376,27 @@ function renderInspector() {
     ${key.holdAction && key.holdAction.type !== 'none' ? `<div class="field"><label>Hold time (ms)</label><input class="input" id="insp-hold-ms" type="number" min="150" max="2000" step="50" value="${Number(key.holdMs) || 500}" /></div>` : ''}
     ${triggerField(key, 'doubleAction', 'On double press', page)}
     <div class="field-hint">Tap still runs the action above.</div>
+
+    <div class="insp-section">Appearance</div>
+    <div class="field insp-icon-field">
+      <label>Icon</label>
+      <div class="icon-row">
+        <div class="icon-drop compact" id="insp-icon-drop">
+          ${liveKey.icon ? `<img src="${esc(liveKey.icon)}" alt="" />` : `<div class="icon-plus">＋</div>`}
+          <div class="meta">
+            <div class="file-name">${
+              key.icon ? 'Custom image' : liveKey.icon ? 'Live plugin image' : autoIconFor(key) ? 'Action icon' : 'No image'
+            }</div>
+            <div>Drop or click to change</div>
+          </div>
+        </div>
+        <div class="icon-buttons">
+          <button class="btn small" id="insp-icon-library">Library</button>
+          ${action.type === 'app' && action.value ? '<button class="btn small" id="insp-use-app-icon">App icon</button>' : ''}
+          ${key.icon ? '<button class="btn small danger" id="insp-icon-remove">Remove</button>' : ''}
+        </div>
+      </div>
+    </div>
 
     <div class="field">
       <label for="insp-emoji">Key text</label>

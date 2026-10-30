@@ -199,6 +199,24 @@ function findPluginAction(actionid) {
 // -------------------------------------------------------------- bootstrap
 
 function bind() {
+  // Arrow-key navigation across the 5×3 key grid.
+  $('#grid').addEventListener('keydown', (event) => {
+    const keys = ['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'];
+    if (!keys.includes(event.key)) return;
+    event.preventDefault();
+    const current = state.selected == null ? 0 : state.selected;
+    let next = current;
+    if (event.key === 'ArrowLeft') next = Math.max(0, current - 1);
+    if (event.key === 'ArrowRight') next = Math.min(WIDE_KEY_INDEX - 1, current + 1);
+    if (event.key === 'ArrowUp') next = Math.max(0, current - COLS);
+    if (event.key === 'ArrowDown') next = Math.min(WIDE_KEY_INDEX - 1, current + COLS);
+    if (next === current) return;
+    state.selected = next;
+    renderGrid();
+    renderInspector();
+    document.querySelectorAll('#grid .key')[next]?.focus();
+  });
+
   $('#plugins-btn').addEventListener('click', openPluginModal);
   $('#store-btn').addEventListener('click', openStoreModal);
   $('#store-modal-close').addEventListener('click', closeStoreModal);

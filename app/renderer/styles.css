@@ -912,3 +912,43 @@ body::before {
 /* Modifiers read better as two columns than five. */
 .hotkey-keys.modifier-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 .hotkey-keys.modifier-grid .hotkey-key { padding: 13px 10px; font-size: 12px; }
+
+/* Compact inspector icon row + sticky footer */
+.icon-row { display: flex; align-items: center; gap: 10px; }
+.icon-drop.compact { flex: 1; min-width: 0; padding: 6px 8px; gap: 10px; }
+.icon-drop.compact .meta { min-width: 0; }
+.icon-drop.compact .meta > div { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.icon-plus {
+  width: 38px; height: 38px; border-radius: 8px; display: grid; place-items: center;
+  background: rgba(255, 255, 255, 0.05); font-size: 18px; color: rgba(255, 255, 255, 0.5);
+  flex: none;
+}
+.icon-buttons { display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
+.btn.small { padding: 6px 10px; font-size: 11px; }
+.insp-actions {
+  position: sticky;
+  bottom: -18px;
+  margin-top: 14px;
+  padding: 12px 0 18px;
+  background: linear-gradient(180deg, rgba(11, 15, 22, 0) 0%, rgba(11, 15, 22, 0.92) 24%, #0b0f16 60%);
+}
+
+.download-bar {
+  margin: 8px 0 4px;
+  height: 4px;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.08);
+  overflow: hidden;
+}
+.download-bar span {
+  display: block;
+  height: 100%;
+  width: 35%;
+  border-radius: 4px;
+  background: var(--accent);
+  animation: download-slide 1.1s ease-in-out infinite;
+}
+@keyframes download-slide {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(320%); }
+}

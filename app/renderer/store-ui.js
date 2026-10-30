@@ -233,7 +233,11 @@ function renderStoreGrid() {
               ? `<img class="store-thumb" src="${esc(item.icon)}" alt="" loading="lazy" />`
               : '<div class="store-thumb empty">🧩</div>'
           }
-          <div class="store-item-name">${esc(item.name)}</div>
+          <div class="store-item-name">${esc(item.name)}${
+            state.plugins.some((p) => (item.uuid && p.uuid === item.uuid) || p.name === item.name)
+              ? '<span class="badge-tag good" style="margin-left:6px">Installed</span>'
+              : ''
+          }</div>
           <div class="store-item-meta"><span>${esc(item.author || 'Ulanzi')}</span><span>${
             item.version ? `v${esc(item.version)}` : ''
           }</span></div>
@@ -321,12 +325,17 @@ async function openStoreDetail(id) {
     downloadIcons.addEventListener('click', async () => {
       downloadIcons.disabled = true;
       downloadIcons.textContent = 'Downloading…';
+      const bar = document.createElement('div');
+      bar.className = 'download-bar';
+      bar.innerHTML = '<span></span>';
+      detail.querySelector('.store-detail-actions')?.after(bar);
       const out = await api.installIconPack(item.id);
       if (!out.ok) {
         downloadIcons.disabled = false;
         downloadIcons.textContent = 'Download icons';
         return toast(out.error, true);
       }
+      bar.remove();
       toast(`Added ${out.pack.count} icons to your library`);
       closeStoreModal();
       openIconLibrary((src) => setKeyIconFromLibrary(src));
