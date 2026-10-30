@@ -319,6 +319,71 @@ const TRIGGER_TYPES = [
   ['page', 'Switch to page'],
 ];
 
+const MEDIA_LABELS = {
+  playpause: 'Play / pause',
+  next: 'Next track',
+  prev: 'Previous track',
+  volumeup: 'Volume up',
+  volumedown: 'Volume down',
+  mute: 'Mute',
+};
+
+function basename(target) {
+  const value = String(target || '').trim();
+  if (!value) return '';
+  const name = value.split('/').filter(Boolean).pop() || value;
+  return name.replace(/\.app$/i, '');
+}
+
+function pageName(id) {
+  return state.config.pages.find((p) => p.id === id)?.name || 'Page';
+}
+
+/** Emoji/caption the app suggests for an action (only applied to untouched keys). */
+function actionMeta(action) {
+  if (!action) return {};
+  switch (action.type) {
+    case 'media':
+      return { emoji: MEDIA_EMOJI[action.op], label: MEDIA_LABELS[action.op] };
+    case 'text':
+      return { emoji: '⌨️', label: 'Type text' };
+    case 'hotkey':
+      return { emoji: '⌨️', label: action.value || 'Hotkey' };
+    case 'close':
+      return { emoji: '✖️', label: action.value ? `Quit ${basename(action.value)}` : 'Close app' };
+    case 'command':
+      return { emoji: '💻', label: 'Command' };
+    case 'app':
+      return { label: basename(action.value) };
+    case 'url':
+      return { label: action.value ? action.value.replace(/^https?:\/\//i, '').replace(/\/$/, '') : 'URL' };
+    case 'page':
+      if (action.op === 'next') return { emoji: '➡️', label: 'Next page' };
+      if (action.op === 'prev') return { emoji: '⬅️', label: 'Previous page' };
+      return { emoji: '📄', label: action.value ? pageName(action.value) : 'Page' };
+    default:
+      return {};
+  }
+}
+
+/**
+ * Keep the tile in sync with the action: fill the emoji/caption with the suggested
+ * value unless the user already customised them.
+ */
+function syncActionMeta(key) {
+  const meta = actionMeta(key.action);
+  const emojiIsAuto = !key.emoji || key.emoji === key.emojiAuto;
+  const labelIsAuto = !key.label || key.label === key.labelAuto;
+  if (meta.emoji && emojiIsAuto) {
+    key.emoji = meta.emoji;
+    key.emojiAuto = meta.emoji;
+  }
+  if (meta.label && labelIsAuto) {
+    key.label = meta.label;
+    key.labelAuto = meta.label;
+  }
+}
+
 function triggerField(key, field, label, page) {
   const action = key[field] || { type: 'none' };
   const pageOptions = state.config.pages
@@ -504,7 +569,18 @@ function renderInspector() {
       <button class="btn ghost" id="insp-hotkey-clear">Clear</button>
     </div>`;
   } else if (action.type === 'page') {
-    valueField = `<select class="select" id="insp-value">${pageOptions}</select>`;
+    const op = action.op || 'goto';
+    const ops = [
+      ['goto', 'Go to page'],
+      ['next', 'Next page'],
+      ['prev', 'Previous page'],
+    ];
+    valueField = `<div class="row">
+      <select class="select" id="insp-page-op">${ops
+        .map(([v, l]) => `<option value="${v}" ${v === op ? 'selected' : ''}>${l}</option>`)
+        .join('')}</select>
+      ${op === 'goto' ? `<select class="select" id="insp-value">${pageOptions}</select>` : ''}
+    </div>`;
   } else if (action.type === 'text') {
     valueField = `<input class="input" id="insp-value" placeholder="Text to type into the frontmost app" value="${esc(action.value || '')}" />`;
   } else if (action.type === 'media') {
@@ -596,6 +672,24 @@ function renderInspector() {
     </div>
 
     <div class="field">
+      <label>Action</label>
+      <select class="select" id="insp-action-type">
+        ${Object.entries(ACTION_LABELS)
+          .map(([v, l]) => `<option value="${v}" ${v === action.type ? 'selected' : ''}>${l}</option>`)
+          .join('')}
+      </select>
+    </div>
+
+    ${valueField && action.type !== 'plugin' ? `<div class="field"><label>${action.type === 'hotkey' ? 'Combination' : action.type === 'page' ? 'Navigation' : action.type === 'app' ? 'Application' : action.type === 'url' ? 'URL' : 'Value'}</label>${valueField}</div>` : ''}
+    ${pluginFields}
+
+    <div class="insp-section">Press triggers</div>
+    ${triggerField(key, 'holdAction', 'On hold', page)}
+    ${key.holdAction && key.holdAction.type !== 'none' ? `<div class="field"><label>Hold time (ms)</label><input class="input" id="insp-hold-ms" type="number" min="150" max="2000" step="50" value="${Number(key.holdMs) || 500}" /></div>` : ''}
+    ${triggerField(key, 'doubleAction', 'On double press', page)}
+    <div class="field-hint">Tap still runs the action above.</div>
+
+    <div class="field">
       <label>Label</label>
       <div class="emoji-row">
         <input class="input" id="insp-emoji" maxlength="16" value="${esc(key.emoji)}" placeholder="Text or emoji" />
@@ -609,23 +703,6 @@ function renderInspector() {
       <input class="input" id="insp-label" maxlength="40" value="${esc(key.label)}" placeholder="Optional small text under the key" />
     </div>
 
-    <div class="field">
-      <label>Action</label>
-      <select class="select" id="insp-action-type">
-        ${Object.entries(ACTION_LABELS)
-          .map(([v, l]) => `<option value="${v}" ${v === action.type ? 'selected' : ''}>${l}</option>`)
-          .join('')}
-      </select>
-    </div>
-
-    ${valueField && action.type !== 'plugin' ? `<div class="field"><label>${action.type === 'hotkey' ? 'Combination' : action.type === 'page' ? 'Target page' : action.type === 'app' ? 'Application' : action.type === 'url' ? 'URL' : 'Value'}</label>${valueField}</div>` : ''}
-    ${pluginFields}
-
-    <div class="insp-section">Press triggers</div>
-    ${triggerField(key, 'holdAction', 'On hold', page)}
-    ${key.holdAction && key.holdAction.type !== 'none' ? `<div class="field"><label>Hold time (ms)</label><input class="input" id="insp-hold-ms" type="number" min="150" max="2000" step="50" value="${Number(key.holdMs) || 500}" /></div>` : ''}
-    ${triggerField(key, 'doubleAction', 'On double press', page)}
-    <div class="field-hint">Tap still runs the action above.</div>
 
     <div class="insp-actions">
       <button class="btn" id="insp-duplicate">Duplicate</button>
@@ -701,6 +778,7 @@ function renderInspector() {
 
   $('#insp-emoji').addEventListener('input', (e) => {
     key.emoji = e.target.value;
+    delete key.emojiAuto;
     drawIndex(state.selected);
     commit(false);
   });
@@ -711,6 +789,7 @@ function renderInspector() {
   });
   $('#insp-label').addEventListener('input', (e) => {
     key.label = e.target.value;
+    delete key.labelAuto;
     drawIndex(state.selected);
     commit(false);
   });
@@ -718,14 +797,14 @@ function renderInspector() {
     const type = e.target.value;
     if (type === 'app' || type === 'url' || type === 'text' || type === 'close') {
       key.action = { type, value: '' };
-      commit(false);
+      syncActionMeta(key);
+      commit();
       renderInspector();
       return;
     }
     if (type === 'media') {
       key.action = { type: 'media', op: 'playpause' };
-      key.emoji = MEDIA_EMOJI.playpause;
-      key.label = '';
+      syncActionMeta(key);
     } else if (type === 'plugin') {
       const p = state.plugins.find((x) => x.compatible);
       const a = p?.actions?.[0];
@@ -742,12 +821,34 @@ function renderInspector() {
       let value = '';
       if (type === 'page') {
         value = state.config.pages.find((p) => p.id !== page.id)?.id || page.id;
+        key.action = { type, op: 'goto', value };
+      } else {
+        key.action = { type, value };
       }
-      key.action = { type, value };
+      syncActionMeta(key);
     }
-    commit(false);
+    commit();
     renderInspector();
   });
+
+  const pageOp = $('#insp-page-op');
+  if (pageOp) {
+    pageOp.addEventListener('change', () => {
+      const op = pageOp.value;
+      if (op === 'goto') {
+        key.action = {
+          type: 'page',
+          op: 'goto',
+          value: state.config.pages.find((p) => p.id !== key.action.value)?.id || page.id,
+        };
+      } else {
+        key.action = { type: 'page', op };
+      }
+      syncActionMeta(key);
+      commit();
+      renderInspector();
+    });
+  }
 
   if (action.type === 'plugin') {
     const pluginSel = $('#insp-plugin');
@@ -802,6 +903,8 @@ function renderInspector() {
       } else {
         key.action = { ...key.action, value: raw };
       }
+      syncActionMeta(key);
+      drawIndex(state.selected);
       commit(false);
     };
     valueEl.addEventListener('input', (e) => applyValue(e.target.value));
@@ -1376,6 +1479,7 @@ function renderAppList(query) {
       const index = state.selected;
       key.action = { type: 'app', value: row.dataset.path };
       if (!key.emoji) key.emoji = row.dataset.name;
+      syncActionMeta(key);
       commit();
       closeAppPicker();
       renderInspector();
@@ -1707,9 +1811,20 @@ function renderPluginModal() {
 const pressState = new Map();
 const DOUBLE_WINDOW = 300;
 
+function navigateRelative(step) {
+  const pages = state.config.pages;
+  if (pages.length < 2) return;
+  const index = pages.findIndex((p) => p.id === state.config.activePageId);
+  if (index < 0) return;
+  const next = (index + step + pages.length) % pages.length;
+  navigate(pages[next].id);
+}
+
 function runKeyAction(action) {
   if (!action || action.type === 'none') return;
   if (action.type === 'page') {
+    if (action.op === 'next') return navigateRelative(1);
+    if (action.op === 'prev') return navigateRelative(-1);
     navigate(action.value);
     return;
   }
