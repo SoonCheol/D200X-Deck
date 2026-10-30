@@ -3,6 +3,7 @@
 // -------------------------------------------------------------- key presses
 
 const pressState = new Map();
+const wakeSwallow = new Set();
 const DOUBLE_WINDOW = 300;
 
 function navigateRelative(step) {
@@ -17,23 +18,113 @@ function navigateRelative(step) {
 const multiState = new WeakMap(); // action object -> alternate index
 let sequenceToken = 0;
 
+// Running timers live in memory only (not in the config): key -> { endsAt, handle }.
+const runningTimers = new Map();
+const TIMER_SOUND = '/System/Library/Sounds/Glass.aiff';
+
+function formatTimer(seconds) {
+  const total = Math.max(0, Math.ceil(seconds));
+  const h = Math.floor(total / 3600);
+  const m = Math.floor((total % 3600) / 60);
+  const s = total % 60;
+  const mm = h ? String(m).padStart(2, '0') : String(m);
+  return `${h ? `${h}:` : ''}${mm}:${String(s).padStart(2, '0')}`;
+}
+
+function timerTextFor(action) {
+  if (!action || action.type !== 'timer') return '';
+  const timer = runningTimers.get(action);
+  if (!timer) return '';
+  return formatTimer((timer.endsAt - Date.now()) / 1000);
+}
+
+/** Find the slot showing this action on the active page (page key or pinned). */
+function slotForAction(action) {
+  const page = activePage();
+  if (!page) return -1;
+  for (const source of [page.keys, pinnedFor(page.profileId)]) {
+    for (const [index, key] of Object.entries(source || {})) {
+      if (key?.action === action) return Number(index);
+    }
+  }
+  return -1;
+}
+
+function stopTimer(action, { beep = false } = {}) {
+  const timer = runningTimers.get(action);
+  if (!timer) return;
+  clearInterval(timer.handle);
+  runningTimers.delete(action);
+  const index = slotForAction(action);
+  if (index >= 0) {
+    drawIndex(index);
+    schedulePush();
+  }
+  if (beep) {
+    if (action.sound !== false) {
+      api.runAction({ type: 'command', value: `afplay ${TIMER_SOUND}` }).catch(() => {});
+    }
+    toast('Timer finished');
+  }
+}
+
+function toggleTimer(action) {
+  if (runningTimers.has(action)) {
+    stopTimer(action);
+    toast('Timer cancelled');
+    return;
+  }
+  const seconds = Math.max(1, Number(action.seconds) || 300);
+  const timer = { endsAt: Date.now() + seconds * 1000, handle: null, lastPush: 0 };
+  const tick = () => {
+    const left = timer.endsAt - Date.now();
+    if (left <= 0) {
+      stopTimer(action, { beep: true });
+      return;
+    }
+    const index = slotForAction(action);
+    if (index >= 0) {
+      drawIndex(index);
+      // A full page push is ~400 KB over HID, so refresh the deck every five
+      // seconds; the on-screen countdown still ticks every second.
+      if (Date.now() - timer.lastPush >= 5000) {
+        timer.lastPush = Date.now();
+        schedulePush();
+      }
+    }
+  };
+  timer.handle = setInterval(tick, 1000);
+  runningTimers.set(action, timer);
+  tick();
+  toast(`Timer started — ${formatTimer(seconds)}`);
+}
+
+function runBrightnessAction(action) {
+  const current = Number(state.config.settings.brightness) || 0;
+  const step = Math.max(1, Number(action.step) || 5);
+  const next = Math.max(0, Math.min(100, current + (action.op === 'down' ? -step : step)));
+  state.config.settings.brightness = next;
+  api.setBrightness(next);
+  const slider = document.getElementById('brightness');
+  if (slider) slider.value = String(next);
+  const label = document.getElementById('brightness-value');
+  if (label) label.textContent = String(next);
+  commit(false);
+  toast(`Brightness ${next}%`);
+}
+
 function runKeyAction(action) {
   if (!action || action.type === 'none') return;
   if (action.type === 'indicator') return;
+  if (action.type === 'timer') return toggleTimer(action);
+  if (action.type === 'brightness') return runBrightnessAction(action);
   if (action.type === 'multi') return runMulti(action);
   if (action.type === 'toggle') return runToggle(action);
   if (action.type === 'page') {
     if (action.op === 'next') return navigateRelative(1);
     if (action.op === 'prev') return navigateRelative(-1);
     if (action.op === 'profile') {
-      const target = state.config.pages.find((p) => p.profileId === action.value);
-      if (target) {
-        state.config.activeProfileId = action.value;
-        state.config.activePageId = target.id;
-        state.selected = null;
-        renderAll();
-        commit();
-      }
+      switchProfile(action.value);
       return;
     }
     if (action.op === 'back') {
@@ -107,7 +198,21 @@ function handleKeyEvent(index, pressed) {
   // The wide key is a firmware system panel; never run actions for it
   // (proto 0x0e resets the deck to its factory profile).
   if (index === WIDE_KEY_INDEX) return;
-  const key = activePage().keys[index];
+  if (pressed && typeof noteActivity === 'function') noteActivity();
+  // The first press while the standby screen is up only wakes the deck; its
+  // release must not fire a tap/double action either.
+  if (typeof standbyActive === 'function' && standbyActive()) {
+    if (pressed) {
+      wakeSwallow.add(index);
+      exitStandby();
+    }
+    return;
+  }
+  if (!pressed && wakeSwallow.has(index)) {
+    wakeSwallow.delete(index);
+    return;
+  }
+  const key = keyAt(activePage(), index);
   if (!key) return;
 
   const hasHold = key.holdAction && key.holdAction.type !== 'none';

@@ -12,6 +12,7 @@ function key(emoji, label, action = { type: 'none' }, color = '#1b2130') {
 
 const ACTION_TYPES = new Set([
   'none', 'app', 'url', 'command', 'hotkey', 'text', 'media', 'close', 'page', 'plugin', 'multi', 'toggle', 'indicator', 'sound',
+  'timer', 'brightness',
 ]);
 
 const MEDIA_OPS = new Set(['playpause', 'next', 'prev', 'volumeup', 'volumedown', 'mute']);
@@ -39,7 +40,48 @@ function normalizeAction(action) {
   if (type === 'page') {
     out.op = ['next', 'prev', 'back', 'goto', 'profile'].includes(out.op) ? out.op : 'goto';
   }
+  if (type === 'timer') {
+    out.seconds = Math.min(86_400, Math.max(1, Math.round(Number(out.seconds) || 300)));
+    out.sound = out.sound !== false;
+  }
+  if (type === 'brightness') {
+    out.op = out.op === 'down' ? 'down' : 'up';
+    out.step = Math.min(50, Math.max(1, Math.round(Number(out.step) || 5)));
+  }
   return out;
+}
+
+/** Normalise one key from a page or the pinned set. */
+function normalizeKey(raw) {
+  if (!raw || typeof raw !== 'object') return null;
+  const key = {
+    emoji: str(raw.emoji),
+    label: str(raw.label),
+    color: /^#[0-9a-f]{6}$/i.test(raw.color || '') ? raw.color : '#1b2130',
+    icon: typeof raw.icon === 'string' && raw.icon ? raw.icon : null,
+    iconSource: str(raw.iconSource),
+    action: normalizeAction(raw.action),
+  };
+  if (Array.isArray(raw.states) && raw.states.length > 1) {
+    key.states = raw.states.slice(0, 8).map((sl) => ({
+      emoji: str(sl?.emoji),
+      label: str(sl?.label),
+      ...(typeof sl?.icon === 'string' && sl.icon ? { icon: sl.icon } : {}),
+    }));
+    key.stateIndex = Math.min(key.states.length - 1, Math.max(0, Number(raw.stateIndex) || 0));
+  }
+  if (typeof raw.emojiAuto === 'string') key.emojiAuto = raw.emojiAuto;
+  if (typeof raw.labelAuto === 'string') key.labelAuto = raw.labelAuto;
+  if (raw.holdAction) key.holdAction = normalizeAction(raw.holdAction);
+  if (raw.doubleAction) key.doubleAction = normalizeAction(raw.doubleAction);
+  if (key.holdAction || key.doubleAction) {
+    key.holdMs = clamp(Number(raw.holdMs) || 500, 150, 2000);
+  }
+  return key;
+}
+
+function normalizeBackground(value) {
+  return typeof value === 'string' && value ? value : null;
 }
 
 /** Coerce a config into the shape the app expects, without dropping user data. */
@@ -48,17 +90,33 @@ function validateConfig(config) {
     brightness: clamp(Number(config.settings?.brightness) || 85, 0, 100),
     sleepSeconds: Math.max(0, Number(config.settings?.sleepSeconds) || 0),
     autoPush: config.settings?.autoPush !== false,
+    standbySeconds: Math.max(0, Math.round(Number(config.settings?.standbySeconds) || 0)),
+    standbyImage: normalizeBackground(config.settings?.standbyImage),
+    standbyClock: config.settings?.standbyClock !== false,
   };
 
   // Profiles are a lightweight grouping: each page belongs to one profile and
   // the sidebar shows the active profile's pages.
   let profiles = Array.isArray(config.profiles) ? config.profiles.filter((p) => p && typeof p.id === 'string') : [];
   if (!profiles.length) profiles = [{ id: randomUUID(), name: 'Default' }];
-  profiles = profiles.map((profile) => ({
-    id: profile.id,
-    name: str(profile.name, 'Profile'),
-    ...(typeof profile.icon === 'string' && profile.icon ? { icon: profile.icon } : {}),
-  }));
+  profiles = profiles.map((profile) => {
+    const pinned = {};
+    for (const [index, raw] of Object.entries(profile.pinned || {})) {
+      const slot = Number(index);
+      if (!Number.isInteger(slot) || slot < 0 || slot > 12) continue;
+      const key = normalizeKey(raw);
+      if (key) pinned[slot] = key;
+    }
+    return {
+      id: profile.id,
+      name: str(profile.name, 'Profile'),
+      ...(typeof profile.icon === 'string' && profile.icon ? { icon: profile.icon } : {}),
+      ...(typeof profile.appPath === 'string' && profile.appPath ? { appPath: profile.appPath } : {}),
+      ...(typeof profile.appName === 'string' && profile.appName ? { appName: profile.appName } : {}),
+      ...(normalizeBackground(profile.background) ? { background: profile.background } : {}),
+      ...(Object.keys(pinned).length ? { pinned } : {}),
+    };
+  });
   const profileIds = new Set(profiles.map((p) => p.id));
 
   const pages = [];
@@ -67,31 +125,8 @@ function validateConfig(config) {
     for (const [index, raw] of Object.entries(page.keys || {})) {
       const slot = Number(index);
       if (!Number.isInteger(slot) || slot < 0 || slot > 12) continue;
-      if (!raw || typeof raw !== 'object') continue;
-      const key = {
-        emoji: str(raw.emoji),
-        label: str(raw.label),
-        color: /^#[0-9a-f]{6}$/i.test(raw.color || '') ? raw.color : '#1b2130',
-        icon: typeof raw.icon === 'string' && raw.icon ? raw.icon : null,
-        iconSource: str(raw.iconSource),
-        action: normalizeAction(raw.action),
-      };
-      if (Array.isArray(raw.states) && raw.states.length > 1) {
-        key.states = raw.states.slice(0, 8).map((sl) => ({
-          emoji: str(sl?.emoji),
-          label: str(sl?.label),
-          ...(typeof sl?.icon === 'string' && sl.icon ? { icon: sl.icon } : {}),
-        }));
-        key.stateIndex = Math.min(key.states.length - 1, Math.max(0, Number(raw.stateIndex) || 0));
-      }
-      if (typeof raw.emojiAuto === 'string') key.emojiAuto = raw.emojiAuto;
-      if (typeof raw.labelAuto === 'string') key.labelAuto = raw.labelAuto;
-      if (raw.holdAction) key.holdAction = normalizeAction(raw.holdAction);
-      if (raw.doubleAction) key.doubleAction = normalizeAction(raw.doubleAction);
-      if (key.holdAction || key.doubleAction) {
-        key.holdMs = clamp(Number(raw.holdMs) || 500, 150, 2000);
-      }
-      keys[slot] = key;
+      const key = normalizeKey(raw);
+      if (key) keys[slot] = key;
     }
     const normalized = {
       id: str(page.id) || randomUUID(),
@@ -100,6 +135,7 @@ function validateConfig(config) {
       keys,
     };
     if (typeof page.parentId === 'string' && page.parentId) normalized.parentId = page.parentId;
+    if (normalizeBackground(page.background)) normalized.background = page.background;
     pages.push(normalized);
   }
 
@@ -176,7 +212,7 @@ function createDefaultConfig() {
   for (const page of pages) page.profileId = profileId;
   return {
     version: CONFIG_VERSION,
-    settings: { brightness: 85, sleepSeconds: 0, autoPush: true },
+    settings: { brightness: 85, sleepSeconds: 0, autoPush: true, standbySeconds: 0 },
     profiles: [{ id: profileId, name: 'Default' }],
     activeProfileId: profileId,
     activePageId: pages[0].id,
@@ -196,41 +232,71 @@ class Store {
     this.config = null;
   }
 
-  /** Write base64 key images to disk and replace them with `file:<name>` refs. */
+  /** Every image slot in a config: key icons, state icons, backgrounds, standby. */
+  _imageSlots(config) {
+    const slots = [];
+    for (const page of config.pages || []) {
+      if (page.background) slots.push({ get: () => page.background, set: (v) => { page.background = v; } });
+      for (const key of Object.values(page.keys || {})) {
+        if (!key) continue;
+        slots.push({ get: () => key.icon, set: (v) => { key.icon = v; } });
+        for (const state of key.states || []) {
+          if (state && state.icon) slots.push({ get: () => state.icon, set: (v) => { state.icon = v; } });
+        }
+      }
+    }
+    for (const profile of config.profiles || []) {
+      if (profile.background) slots.push({ get: () => profile.background, set: (v) => { profile.background = v; } });
+      for (const key of Object.values(profile.pinned || {})) {
+        if (!key) continue;
+        slots.push({ get: () => key.icon, set: (v) => { key.icon = v; } });
+        for (const state of key.states || []) {
+          if (state && state.icon) slots.push({ get: () => state.icon, set: (v) => { state.icon = v; } });
+        }
+      }
+    }
+    if (config.settings?.standbyImage) {
+      slots.push({
+        get: () => config.settings.standbyImage,
+        set: (v) => { config.settings.standbyImage = v; },
+      });
+    }
+    return slots;
+  }
+
+  /** Write base64 images to disk and replace them with `file:<name>` refs. */
   _externalize(config) {
     let changed = false;
     fs.mkdirSync(this.imagesDir, { recursive: true });
-    for (const page of config.pages || []) {
-      for (const key of Object.values(page.keys || {})) {
-        if (!key || typeof key.icon !== 'string') continue;
-        const match = DATA_URL.exec(key.icon);
-        if (!match) continue;
-        const ext = EXT_FOR[match[1].toLowerCase()] || 'png';
-        const buffer = Buffer.from(match[2], 'base64');
-        const name = `${createHash('sha1').update(buffer).digest('hex')}.${ext}`;
-        const file = path.join(this.imagesDir, name);
-        if (!fs.existsSync(file)) fs.writeFileSync(file, buffer);
-        key.icon = `file:${name}`;
-        changed = true;
-      }
+    for (const slot of this._imageSlots(config)) {
+      const value = slot.get();
+      if (typeof value !== 'string') continue;
+      const match = DATA_URL.exec(value);
+      if (!match) continue;
+      const ext = EXT_FOR[match[1].toLowerCase()] || 'png';
+      const buffer = Buffer.from(match[2], 'base64');
+      const name = `${createHash('sha1').update(buffer).digest('hex')}.${ext}`;
+      const file = path.join(this.imagesDir, name);
+      if (!fs.existsSync(file)) fs.writeFileSync(file, buffer);
+      slot.set(`file:${name}`);
+      changed = true;
     }
     return changed;
   }
 
   /** Expand `file:<name>` refs back into data URLs for the renderer. */
   _internalize(config) {
-    for (const page of config.pages || []) {
-      for (const key of Object.values(page.keys || {})) {
-        if (!key || typeof key.icon !== 'string' || !key.icon.startsWith('file:')) continue;
-        const name = path.basename(key.icon.slice(5));
-        const file = path.join(this.imagesDir, name);
-        try {
-          const ext = path.extname(name).slice(1).toLowerCase();
-          const mime = MIME_FOR[ext] || 'image/png';
-          key.icon = `data:${mime};base64,${fs.readFileSync(file).toString('base64')}`;
-        } catch {
-          key.icon = null;
-        }
+    for (const slot of this._imageSlots(config)) {
+      const value = slot.get();
+      if (typeof value !== 'string' || !value.startsWith('file:')) continue;
+      const name = path.basename(value.slice(5));
+      const file = path.join(this.imagesDir, name);
+      try {
+        const ext = path.extname(name).slice(1).toLowerCase();
+        const mime = MIME_FOR[ext] || 'image/png';
+        slot.set(`data:${mime};base64,${fs.readFileSync(file).toString('base64')}`);
+      } catch {
+        slot.set(null);
       }
     }
     return config;

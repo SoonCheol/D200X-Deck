@@ -3,6 +3,7 @@
 // --------------------------------------------------------------- app picker
 
 let appPickerKey = null;
+let appPickerMode = 'key';
 const appIconCache = new Map();
 const appIconQueue = [];
 let appIconActive = 0;
@@ -45,8 +46,9 @@ function queueAppIcon(path, el) {
   pumpAppIcons();
 }
 
-async function openAppPicker() {
-  appPickerKey = ensureKey(activePage(), state.selected);
+async function openAppPicker(mode = 'key') {
+  appPickerMode = mode;
+  appPickerKey = mode === 'key' ? ensureKey(activePage(), state.selected) : null;
   if (!state.apps.length) state.apps = await api.listApps();
   $('#app-search').value = '';
   renderAppList('');
@@ -57,6 +59,7 @@ async function openAppPicker() {
 function closeAppPicker() {
   $('#app-modal').classList.add('hidden');
   appPickerKey = null;
+  appPickerMode = 'key';
 }
 
 function renderAppList(query) {
@@ -83,6 +86,11 @@ function renderAppList(query) {
   list.querySelectorAll('.app-avatar').forEach((el) => queueAppIcon(el.dataset.path, el));
   list.querySelectorAll('.app-row').forEach((row) => {
     row.addEventListener('click', () => {
+      if (appPickerMode === 'profile') {
+        setProfileApp(row.dataset.path, row.dataset.name);
+        closeAppPicker();
+        return;
+      }
       const key = appPickerKey;
       if (!key) return;
       const index = state.selected;

@@ -22,6 +22,8 @@ const ACTION_ICON_PATHS = {
   plugin: 'assets/actions/plugin.svg',
   multi: 'assets/actions/multi.svg',
   toggle: 'assets/actions/toggle.svg',
+  timer: 'assets/actions/timer.svg',
+  brightness: 'assets/actions/brightness.svg',
 };
 
 /** Bundled icon for an action, used when the key has no custom image/emoji. */
@@ -67,8 +69,12 @@ function autoIconFor(key) {
  */
 function normalizeActionMeta() {
   let changed = false;
-  for (const page of state.config.pages) {
-    for (const key of Object.values(page.keys)) {
+  const sources = [
+    ...state.config.pages.map((page) => page.keys),
+    ...(state.config.profiles || []).map((profile) => profile.pinned || {}),
+  ];
+  for (const keys of sources) {
+    for (const key of Object.values(keys)) {
       if (!key || !key.action) continue;
       const meta = actionMeta(key.action);
       if (!meta.emoji && !meta.label) continue;
@@ -129,6 +135,8 @@ const ACTION_LABELS = {
   toggle: 'Hotkey switch',
   indicator: 'Page indicator',
   sound: 'Play audio',
+  timer: 'Timer',
+  brightness: 'Key brightness',
 };
 
 const state = {
@@ -194,6 +202,28 @@ function ensureKey(page, index) {
   return page.keys[index];
 }
 
+/** Pinned keys belong to a profile and are visible on all of its pages. */
+function pinnedFor(profileId = state.config.activeProfileId) {
+  return (state.config.profiles || []).find((p) => p.id === profileId)?.pinned || {};
+}
+
+/** The key a slot shows: page key first, then the profile's pinned key. */
+function keyAt(page, index) {
+  if (!page) return null;
+  return page.keys?.[index] || pinnedFor(page.profileId)[index] || null;
+}
+
+function isPinnedSlot(page, index) {
+  return Boolean(page && !page.keys?.[index] && pinnedFor(page.profileId)[index]);
+}
+
+function backgroundFor(page) {
+  if (!page) return null;
+  if (page.background) return page.background;
+  const profile = (state.config.profiles || []).find((p) => p.id === page.profileId);
+  return profile?.background || null;
+}
+
 // Live images pushed by plugins, keyed by actionid.
 const pluginImages = new Map();
 
@@ -225,6 +255,22 @@ function bumpKeyState(actionid, index) {
       schedulePush();
     }
   }
+  for (const profile of state.config.profiles || []) {
+    for (const [slot, key] of Object.entries(profile.pinned || {})) {
+      if (!key?.action || key.action.type !== 'plugin' || key.action.actionid !== actionid) continue;
+      key.stateIndex = Math.max(0, Number(index) || 0);
+      if (profile.id === state.config.activeProfileId && !activePage()?.keys?.[slot]) {
+        drawIndex(Number(slot));
+      }
+      scheduleSave();
+      schedulePush();
+    }
+  }
+}
+
+function pluginLocVisible(loc) {
+  if (!loc || loc.page.id !== state.config.activePageId) return false;
+  return !loc.profileId || loc.profileId === state.config.activeProfileId;
 }
 
 function findPluginAction(actionid) {
@@ -232,6 +278,13 @@ function findPluginAction(actionid) {
     for (const [index, key] of Object.entries(page.keys)) {
       if (key?.action?.type === 'plugin' && key.action.actionid === actionid) {
         return { page, index: Number(index), key };
+      }
+    }
+  }
+  for (const profile of state.config.profiles || []) {
+    for (const [index, key] of Object.entries(profile.pinned || {})) {
+      if (key?.action?.type === 'plugin' && key.action.actionid === actionid) {
+        return { page: activePage(), index: Number(index), key, pinned: true, profileId: profile.id };
       }
     }
   }
@@ -253,27 +306,55 @@ function renderProfileSelect() {
     .join('');
 }
 
+// Remember the page each profile was last on (memory only).
+const lastPageByProfile = new Map();
+
 function switchProfile(profileId) {
   const profile = (state.config.profiles || []).find((p) => p.id === profileId);
   if (!profile) return;
-  const first = state.config.pages.find((p) => p.profileId === profileId);
+  if (state.config.activeProfileId === profileId) return;
+  const current = activePage();
+  if (current) lastPageByProfile.set(current.profileId, current.id);
+  const pages = state.config.pages.filter((p) => p.profileId === profileId);
+  const remembered = pages.find((p) => p.id === lastPageByProfile.get(profileId));
+  const next = remembered || pages[0];
   state.config.activeProfileId = profileId;
-  if (first) state.config.activePageId = first.id;
+  if (next) state.config.activePageId = next.id;
   state.selected = null;
   renderAll();
   commit();
 }
 
 let profileModalTarget = 'new';
+let profileDraft = { appPath: '', appName: '', background: null };
+
+function renderProfileDraft() {
+  const app = $('#profile-app-name');
+  if (app) app.textContent = profileDraft.appPath ? profileDraft.appName || basename(profileDraft.appPath) : 'No app';
+  const bg = $('#profile-bg-name');
+  if (bg) bg.textContent = profileDraft.background ? 'Custom image' : 'None';
+}
+
+function setProfileApp(appPath, appName) {
+  profileDraft.appPath = appPath || '';
+  profileDraft.appName = appName || (appPath ? basename(appPath) : '');
+  renderProfileDraft();
+}
 
 function openProfileModal(mode) {
   profileModalTarget = mode;
   const editing = mode === 'edit';
   const profile = (state.config.profiles || []).find((p) => p.id === state.config.activeProfileId);
+  profileDraft = {
+    appPath: editing ? profile?.appPath || '' : '',
+    appName: editing ? profile?.appName || '' : '',
+    background: editing ? profile?.background || null : null,
+  };
   $('#profile-title').textContent = editing ? 'Manage profile' : 'New profile';
   $('#profile-name').value = editing ? profile?.name || '' : '';
   $('#profile-delete-row').classList.toggle('hidden', !editing);
   $('#profile-delete').disabled = (state.config.profiles || []).length <= 1;
+  renderProfileDraft();
   $('#profile-modal').classList.remove('hidden');
   window.focusModal?.('profile-modal');
   setTimeout(() => $('#profile-name').focus(), 40);
@@ -295,9 +376,15 @@ function saveProfile() {
       (profileModalTarget === 'new' || p.id !== editingProfile?.id)
   );
   if (clash) return toast('A profile with that name already exists', true);
+  const linked = {};
+  if (profileDraft.appPath) {
+    linked.appPath = profileDraft.appPath;
+    linked.appName = profileDraft.appName || basename(profileDraft.appPath);
+  }
+  if (profileDraft.background) linked.background = profileDraft.background;
   if (profileModalTarget === 'new') {
     const id = crypto.randomUUID ? crypto.randomUUID() : String(Date.now());
-    state.config.profiles.push({ id, name });
+    state.config.profiles.push({ id, name, ...linked });
     const page = { id: crypto.randomUUID(), name: 'Main', profileId: id, keys: {} };
     state.config.pages.push(page);
     state.config.activeProfileId = id;
@@ -306,6 +393,15 @@ function saveProfile() {
     const profile = (state.config.profiles || []).find((p) => p.id === state.config.activeProfileId);
     if (!profile) return;
     profile.name = name;
+    if (linked.appPath) {
+      profile.appPath = linked.appPath;
+      profile.appName = linked.appName;
+    } else {
+      delete profile.appPath;
+      delete profile.appName;
+    }
+    if (linked.background) profile.background = linked.background;
+    else delete profile.background;
   }
   state.selected = null;
   closeProfileModal();
@@ -363,7 +459,7 @@ function anyModalOpen() {
 function copySelectedKey() {
   const page = activePage();
   if (!page || state.selected == null) return false;
-  const key = page.keys[state.selected];
+  const key = keyAt(page, state.selected);
   if (!key) return false;
   keyClipboard = JSON.parse(JSON.stringify(key));
   toast('Key copied');
@@ -390,6 +486,10 @@ function pasteKeyIntoSelection() {
 function clearSelectedKey() {
   const page = activePage();
   if (!page || state.selected == null) return false;
+  if (isPinnedSlot(page, state.selected)) {
+    toast('This key is pinned — unpin it first', true);
+    return false;
+  }
   const existing = page.keys[state.selected];
   if (!existing) return false;
   const index = state.selected;
@@ -429,6 +529,114 @@ function updateDeckSettingsMeta() {
     : 'No deck connected';
   const sleep = $('#insp-sleep');
   if (sleep) sleep.value = String(state.config.settings.sleepSeconds || 0);
+  const standbyInput = $('#standby-seconds');
+  if (standbyInput) standbyInput.value = String(state.config.settings.standbySeconds || 0);
+  const standbyState = $('#standby-image-state');
+  if (standbyState) standbyState.textContent = state.config.settings.standbyImage ? 'Custom image' : 'None';
+  const standbyHint = $('#standby-hint');
+  if (standbyHint) {
+    const seconds = Number(state.config.settings.standbySeconds) || 0;
+    standbyHint.textContent = seconds
+      ? `Clock${state.config.settings.standbyImage ? ' over your wallpaper' : ''} after ${seconds}s of no key presses. The first press only wakes it.`
+      : 'Show a clock (and optional wallpaper) when idle. The first press only wakes the deck.';
+  }
+}
+
+// --------------------------------------------------------- frontmost app
+
+let frontmostTimer = null;
+
+/**
+ * Follow the app in front: a profile linked to that app becomes active.
+ * Polling `lsappinfo` avoids Accessibility/automation permissions.
+ */
+function startFrontmostWatch() {
+  if (frontmostTimer) return;
+  frontmostTimer = setInterval(async () => {
+    if (!state.config) return;
+    const linked = (state.config.profiles || []).filter((profile) => profile.appPath);
+    if (!linked.length) return;
+    if (anyModalOpen()) return;
+    const front = await api.frontmostApp().catch(() => null);
+    if (!front || front.bundleId === 'com.edufalcao.ulanzideckopen') return;
+    const norm = (value) => String(value || '').replace(/\/+$/, '').toLowerCase();
+    const match = linked.find(
+      (profile) =>
+        (front.path && norm(profile.appPath) === norm(front.path)) ||
+        (profile.appName && front.name && profile.appName.toLowerCase() === String(front.name).toLowerCase())
+    );
+    if (match && match.id !== state.config.activeProfileId) switchProfile(match.id);
+  }, 3000);
+}
+
+// ------------------------------------------------------- standby screensaver
+
+const standby = { active: false, timer: null, refresh: null };
+
+function standbyActive() {
+  return standby.active;
+}
+
+function standbySeconds() {
+  return Math.max(0, Number(state.config?.settings?.standbySeconds) || 0);
+}
+
+function clearStandbyTimers() {
+  if (standby.timer) clearTimeout(standby.timer);
+  if (standby.refresh) clearInterval(standby.refresh);
+  standby.timer = null;
+  standby.refresh = null;
+}
+
+function scheduleStandby() {
+  clearStandbyTimers();
+  if (standby.active || !state.status.connected || !standbySeconds()) return;
+  standby.timer = setTimeout(enterStandby, standbySeconds() * 1000);
+}
+
+/** Any deck key press resets the idle countdown. */
+function noteActivity() {
+  if (standby.active) return;
+  scheduleStandby();
+}
+
+async function pushStandbyFrame() {
+  const images = await renderStandbySlices(state.config.settings);
+  return api.pushPage(images);
+}
+
+async function enterStandby() {
+  standby.timer = null;
+  if (standby.active || !state.status.connected || !standbySeconds()) return;
+  standby.active = true;
+  try {
+    const res = await pushStandbyFrame();
+    if (!res.ok) throw new Error(res.error || 'push failed');
+    standby.refresh = setInterval(async () => {
+      if (!standby.active) return;
+      if (!state.status.connected) {
+        standby.active = false;
+        clearStandbyTimers();
+        return;
+      }
+      try {
+        await pushStandbyFrame();
+      } catch {
+        /* keep the last frame */
+      }
+    }, 30_000);
+  } catch {
+    standby.active = false;
+    scheduleStandby();
+  }
+}
+
+async function exitStandby() {
+  if (!standby.active) return;
+  standby.active = false;
+  clearStandbyTimers();
+  await pushNow();
+  scheduleStandby();
 }
 
 function bind() {
@@ -483,6 +691,18 @@ function bind() {
     if (e.key === 'Enter') saveProfile();
   });
   $('#profile-delete').addEventListener('click', deleteCurrentProfile);
+  $('#profile-app-pick').addEventListener('click', () => openAppPicker('profile'));
+  $('#profile-app-clear').addEventListener('click', () => setProfileApp('', ''));
+  $('#profile-bg-pick').addEventListener('click', async () => {
+    const picked = await api.pickImage();
+    if (!picked) return;
+    profileDraft.background = await downscaleBackground(picked);
+    renderProfileDraft();
+  });
+  $('#profile-bg-clear').addEventListener('click', () => {
+    profileDraft.background = null;
+    renderProfileDraft();
+  });
 
   $('#import-btn').addEventListener('click', openImportModal);
   $('#import-close').addEventListener('click', closeImportModal);
@@ -664,6 +884,35 @@ function bind() {
     toast(res.ok ? `Sleep set to ${seconds}s` : res.error, !res.ok);
   });
 
+  $('#standby-apply').addEventListener('click', () => {
+    const seconds = Math.max(0, Math.round(Number($('#standby-seconds').value) || 0));
+    state.config.settings.standbySeconds = seconds;
+    scheduleSave();
+    updateDeckSettingsMeta();
+    if (standby.active) exitStandby();
+    else scheduleStandby();
+    toast(seconds ? `Standby after ${seconds}s` : 'Standby screen off');
+  });
+  $('#standby-image').addEventListener('click', async () => {
+    const picked = await api.pickImage();
+    if (!picked) return;
+    state.config.settings.standbyImage = await downscaleBackground(picked);
+    scheduleSave();
+    updateDeckSettingsMeta();
+    if (standby.active) {
+      standby.active = false;
+      clearStandbyTimers();
+      await enterStandby();
+    }
+    toast('Standby image set');
+  });
+  $('#standby-clear').addEventListener('click', () => {
+    state.config.settings.standbyImage = null;
+    scheduleSave();
+    updateDeckSettingsMeta();
+    toast('Standby image cleared');
+  });
+
   $('#brightness').addEventListener('input', (e) => {
     const level = parseInt(e.target.value, 10);
     state.config.settings.brightness = level;
@@ -715,17 +964,23 @@ function bind() {
       api.setBrightness(state.config.settings.brightness);
       api.setSleepTime(state.config.settings.sleepSeconds);
       schedulePush();
+      scheduleStandby();
+    }
+    if (wasConnected && !status.connected) {
+      standby.active = false;
+      clearStandbyTimers();
     }
   });
 
   const MODAL_CLOSERS = {
     'hotkey-modal': closeHotkeyModal,
-    'app-modal': closeAppPicker,
     'icons-modal': closeIconLibrary,
     'store-modal': closeStoreModal,
     'plugin-modal': closePluginModal,
     'import-modal': closeImportModal,
     'profile-modal': closeProfileModal,
+    // The app picker opens on top of other dialogs (e.g. the profile form).
+    'app-modal': closeAppPicker,
   };
 
   function topModal() {
@@ -800,7 +1055,7 @@ function bind() {
   api.onPluginState(({ actionid, image }) => {
     if (image) pluginImages.set(actionid, image);
     const loc = findPluginAction(actionid);
-    if (loc && loc.page.id === state.config.activePageId) {
+    if (pluginLocVisible(loc)) {
       drawIndex(loc.index);
       schedulePush();
     }
@@ -818,7 +1073,7 @@ function bind() {
     const loc = findPluginAction(actionid);
     if (loc && text) {
       loc.key.label = text;
-      if (loc.page.id === state.config.activePageId) drawIndex(loc.index);
+      if (pluginLocVisible(loc)) drawIndex(loc.index);
       scheduleSave();
     }
   });
@@ -889,4 +1144,6 @@ async function hydrateAppIcons() {
     api.setSleepTime(state.config.settings.sleepSeconds);
     pushNow();
   }
+  scheduleStandby();
+  startFrontmostWatch();
 })();

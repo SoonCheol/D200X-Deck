@@ -96,6 +96,19 @@
             <input id="insp-sleep" class="input settings-input" type="number" min="0" step="5" value="0" />
             <button class="btn small" id="insp-sleep-apply">Apply</button>
           </label>
+          <div class="settings-note">Blank the deck’s screen after this many seconds without key presses (0 = never). Any key wakes it.</div>
+          <label class="settings-row">
+            <span>Standby screen</span>
+            <input id="standby-seconds" class="input settings-input" type="number" min="0" step="5" value="0" />
+            <button class="btn small" id="standby-apply">Apply</button>
+          </label>
+          <div class="settings-note" id="standby-hint">Show a clock (and optional wallpaper) when idle. The first press only wakes the deck.</div>
+          <div class="settings-row">
+            <span>Standby image</span>
+            <span id="standby-image-state" class="settings-meta" style="flex:1">None</span>
+            <button class="btn small" id="standby-image">Choose…</button>
+            <button class="btn small ghost" id="standby-clear">Clear</button>
+          </div>
           <div class="settings-meta" id="deck-settings-meta"></div>
           <div class="settings-row">
             <span>Accessibility</span>
@@ -178,6 +191,26 @@
         <div class="modal-actions" style="border-bottom:0">
           <input id="profile-name" class="input" maxlength="40" placeholder="Profile name" />
           <button class="btn primary" id="profile-save">Save</button>
+        </div>
+        <div class="profile-body">
+          <div class="field">
+            <label>Linked app</label>
+            <div class="row profile-link-row">
+              <span id="profile-app-name" class="profile-app-name">No app</span>
+              <button class="btn small" id="profile-app-pick">Choose…</button>
+              <button class="btn small ghost" id="profile-app-clear">Clear</button>
+            </div>
+            <div class="field-hint">Switch to this profile when the app is frontmost.</div>
+          </div>
+          <div class="field">
+            <label>Background</label>
+            <div class="row profile-link-row">
+              <span id="profile-bg-name" class="profile-app-name">None</span>
+              <button class="btn small" id="profile-bg-pick">Choose…</button>
+              <button class="btn small ghost" id="profile-bg-clear">Clear</button>
+            </div>
+            <div class="field-hint">Used by every page in the profile unless the page has its own.</div>
+          </div>
         </div>
         <div class="modal-actions" id="profile-delete-row" style="border-bottom:0">
           <button class="btn danger" id="profile-delete">Delete profile</button>

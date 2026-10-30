@@ -117,7 +117,14 @@ async function renderGrid() {
       continue;
     }
 
-    btn.draggable = true;
+    const pinnedTile = isPinnedSlot(page, i);
+    btn.draggable = !pinnedTile;
+    if (pinnedTile) {
+      const pin = document.createElement('span');
+      pin.className = 'pin-badge';
+      pin.textContent = 'PIN';
+      btn.appendChild(pin);
+    }
     btn.addEventListener('click', () => {
       state.selected = i;
       renderGrid();
@@ -184,8 +191,15 @@ async function drawGrid() {
   await Promise.all(
     tiles.map((tile, i) => {
       if (i === WIDE_KEY_INDEX) return renderSystemPanel(tile.querySelector('canvas'));
-      const key = effectiveKey(page.keys[i] || emptyKey());
-      return renderKey(tile.querySelector('canvas'), key, 196, 196, autoIconFor(key), pageInfo());
+      const key = effectiveKey(keyAt(page, i) || emptyKey());
+      return renderKey(
+        tile.querySelector('canvas'),
+        key,
+        196,
+        196,
+        autoIconFor(key),
+        { ...pageInfo(), slot: i, background: backgroundFor(page) }
+      );
     })
   );
 }
@@ -194,8 +208,16 @@ function drawIndex(index) {
   const tile = $('#grid').children[index];
   if (!tile) return;
   if (index === WIDE_KEY_INDEX) return renderSystemPanel(tile.querySelector('canvas'));
-  const key = effectiveKey(activePage().keys[index] || emptyKey());
-  renderKey(tile.querySelector('canvas'), key, 196, 196, autoIconFor(key), pageInfo());
+  const page = activePage();
+  const key = effectiveKey(keyAt(page, index) || emptyKey());
+  renderKey(
+    tile.querySelector('canvas'),
+    key,
+    196,
+    196,
+    autoIconFor(key),
+    { ...pageInfo(), slot: index, background: backgroundFor(page) }
+  );
 }
 
 function moveKey(page, src, dst) {
@@ -245,6 +267,49 @@ function downscaleImage(dataUrl, size = 392) {
     img.onerror = () => resolve(dataUrl);
     img.src = dataUrl;
   });
+}
+
+/** Scale a background to the full 5×3 key surface (980×588), cropping to cover. */
+function downscaleBackground(dataUrl, width = 980, height = 588) {
+  return new Promise((resolve) => {
+    const img = new Image();
+    img.onload = () => {
+      try {
+        const canvas = document.createElement('canvas');
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        const scale = Math.max(width / img.width, height / img.height);
+        const w = img.width * scale;
+        const h = img.height * scale;
+        ctx.drawImage(img, (width - w) / 2, (height - h) / 2, w, h);
+        resolve(canvas.toDataURL('image/jpeg', 0.9));
+      } catch {
+        resolve(dataUrl);
+      }
+    };
+    img.onerror = () => resolve(dataUrl);
+    img.src = dataUrl;
+  });
+}
+
+/** Capture what the deck currently shows as one 980×588 PNG. */
+async function capturePageImage() {
+  await drawGrid();
+  const tiles = $('#grid').children;
+  if (!tiles.length) return null;
+  const canvas = document.createElement('canvas');
+  canvas.width = 980;
+  canvas.height = 588;
+  const ctx = canvas.getContext('2d');
+  ctx.fillStyle = '#0b0e14';
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  for (let i = 0; i < 13; i++) {
+    const tile = tiles[i]?.querySelector('canvas');
+    if (!tile) continue;
+    ctx.drawImage(tile, (i % 5) * 196, Math.floor(i / 5) * 196);
+  }
+  return canvas.toDataURL('image/jpeg', 0.9);
 }
 
 function readFileAsDataUrl(file) {
@@ -320,16 +385,38 @@ function syncPlugins() {
       });
     }
   }
+  // Pinned keys are visible on every page of the active profile (unless a page
+  // overrides that slot).
+  for (const [index, key] of Object.entries(pinnedFor())) {
+    if (Number(index) === WIDE_KEY_INDEX) continue;
+    if (!key || key.action?.type !== 'plugin') continue;
+    if (!key.action.plugin || !key.action.action) continue;
+    if (!key.action.actionid) key.action.actionid = uuid();
+    wanted.push({
+      actionid: key.action.actionid,
+      plugin: key.action.plugin,
+      action: key.action.action,
+      key: keyIndexToSlot(Number(index)),
+      settings: key.action.settings || {},
+      active: !activePage()?.keys?.[index],
+    });
+  }
   api.syncPlugins(wanted).catch((err) => toast(err.message || String(err), true));
 }
 
 function schedulePush() {
+  if (typeof standbyActive === 'function' && standbyActive()) return;
   if (!state.status.connected || !state.config.settings.autoPush) return;
   clearTimeout(pushTimer);
   pushTimer = setTimeout(pushNow, 400);
 }
 
 async function pushNow() {
+  // An explicit push (button, navigation, wake) always leaves the standby screen.
+  if (typeof standbyActive === 'function' && standbyActive()) {
+    standby.active = false;
+    clearStandbyTimers();
+  }
   if (!state.status.connected) {
     toast('Deck not connected — quit Ulanzi Studio and reconnect', true);
     return;

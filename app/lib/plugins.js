@@ -218,7 +218,7 @@ class PluginManager extends EventEmitter {
           ws.send(
             JSON.stringify({
               cmd: 'add',
-              uuid: msg.uuid,
+              uuid: action?.actionUuid || msg.uuid,
               key: msg.key || action?.key || '',
               actionid: inspectorAction,
               param: action?.settings || {},
@@ -425,7 +425,7 @@ class PluginManager extends EventEmitter {
       if (action.pluginUuid !== pluginUuid) continue;
       this._send(pluginUuid, {
         cmd: 'add',
-        uuid: pluginUuid,
+        uuid: action.actionUuid,
         key: action.key,
         actionid: action.actionid,
         action: action.actionUuid,
@@ -434,7 +434,7 @@ class PluginManager extends EventEmitter {
       });
       this._send(pluginUuid, {
         cmd: 'setactive',
-        uuid: pluginUuid,
+        uuid: action.actionUuid,
         key: action.key,
         actionid: action.actionid,
         active: action.active,
@@ -695,9 +695,12 @@ class PluginManager extends EventEmitter {
       case 'openview':
         this.openView?.(msg, action);
         break;
+      case 'selectdialog':
+        this._selectDialog(msg, action);
+        break;
       case 'setFeedback':
       case 'setFeedbackLayout':
-        // Encoder-only feedback; the D200 has no dials.
+        // Encoder-only feedback; the D200 has no dials, so accept and ignore.
         break;
       case 'toast':
         this.emit('toast', msg.msg || msg.message || '');
@@ -714,6 +717,26 @@ class PluginManager extends EventEmitter {
         break;
       default:
         break;
+    }
+  }
+
+  async _selectDialog(msg, action) {
+    if (!this.selectDialog) return;
+    const reply = (result) => {
+      this._send(action?.pluginUuid || msg.uuid, {
+        cmd: 'selectdialog',
+        uuid: action?.actionUuid || msg.uuid,
+        key: action?.key || msg.key || '',
+        actionid: action?.actionid || msg.actionid || '',
+        type: msg.type || 'file',
+        ...result,
+      });
+    };
+    try {
+      const result = await this.selectDialog(msg, action);
+      if (result) reply(result);
+    } catch (err) {
+      reply({ canceled: true, error: err.message || String(err) });
     }
   }
 

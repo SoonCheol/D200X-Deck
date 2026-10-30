@@ -4,6 +4,12 @@
 
 ### Features
 - Profiles can be created, renamed and deleted in-app (unique names); pages are unique per profile.
+- Profiles can be linked to an app and follow the frontmost window (`lsappinfo`, no extra permissions).
+- Pinned keys: pin a key to every page, overridable per page, with plugin action state kept in sync.
+- Standby screen: clock over a wallpaper after an idle timeout; the first key press only wakes the deck.
+- Timer action (countdown on the key, optional completion sound) and key-brightness action.
+- Page/profile backgrounds plus “Snapshot page”; one image is sliced across the 13 square keys.
+- Plugin `selectdialog` is answered with a native file/folder picker; encoder feedback calls are accepted.
 - Import profiles from the official app as new profiles, with name collision handling.
 - Key editing shortcuts: ⌘C copy, ⌘V paste (fresh plugin action ids), Delete/Backspace clear, ⌘Z undo.
 - Plugin protocol sends the action UUID for action-scoped messages, fixing multi-instance plugins (Claude Usage 5h/weekly).

@@ -103,3 +103,29 @@ test('a profile without pages gets a default page on load', () => {
   assert.equal(two.length, 1, 'the empty profile gets a page');
   assert.equal(store.config.activePageId, two[0].id, 'active page belongs to the active profile');
 });
+
+test('pinned keys, backgrounds and standby settings survive save/load', () => {
+  const dir = tempDir();
+  const store = new Store(dir);
+  const png = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==';
+  const config = createDefaultConfig();
+  config.settings.standbySeconds = 45;
+  config.settings.standbyImage = png;
+  config.profiles[0].pinned = {
+    4: { emoji: '⏱️', label: 'Timer', action: { type: 'timer', seconds: 60, sound: false } },
+  };
+  config.pages[0].background = png;
+  store.save(config);
+
+  const onDisk = JSON.parse(fs.readFileSync(store.file, 'utf8'));
+  assert.equal(onDisk.settings.standbySeconds, 45);
+  assert.match(onDisk.settings.standbyImage, /^file:/);
+  assert.match(onDisk.pages[0].background, /^file:/);
+  assert.equal(onDisk.profiles[0].pinned[4].action.type, 'timer');
+
+  const loaded = store.load();
+  assert.equal(loaded.settings.standbySeconds, 45);
+  assert.match(loaded.settings.standbyImage, /^data:image\/png/);
+  assert.match(loaded.pages[0].background, /^data:image\/png/);
+  assert.equal(loaded.profiles[0].pinned[4].action.seconds, 60);
+});

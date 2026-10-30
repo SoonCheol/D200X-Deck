@@ -308,6 +308,21 @@ body::before {
 .key:hover { transform: translateY(-2px); }
 .key.selected canvas { box-shadow: 0 0 0 2px var(--accent), 0 8px 22px rgba(79, 140, 255, 0.3); }
 .key.pressed canvas { transform: scale(0.96); filter: brightness(1.35); }
+.key .pin-badge {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  z-index: 3;
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: rgba(79, 140, 255, 0.9);
+  color: #fff;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  pointer-events: none;
+}
+
 .key .badge {
   position: absolute; top: 6px; right: 7px;
   font-size: 9px; color: rgba(255, 255, 255, 0.5);
@@ -467,6 +482,8 @@ body::before {
 .hidden { display: none !important; }
 .modal.hidden { display: none; }
 
+#app-modal { z-index: 90; }
+
 .modal-card {
   width: min(760px, calc(100vw - 64px));
   max-height: min(760px, calc(100vh - 80px));
@@ -507,7 +524,9 @@ body::before {
 }
 
 /* The Installed modal keeps its header/tabs/actions fixed and scrolls the list. */
-#plugin-modal .modal-card { height: min(720px, calc(100vh - 80px)); }
+#plugin-modal #app-modal { z-index: 90; }
+
+.modal-card { height: min(720px, calc(100vh - 80px)); }
 #plugin-modal .modal-head,
 #plugin-modal .tabs,
 #plugin-modal .modal-actions { flex: none; }
@@ -960,6 +979,8 @@ body::before {
   position: absolute;
   top: 112px;
   right: 392px;
+  max-height: calc(100vh - 140px);
+  overflow-y: auto;
   -webkit-app-region: no-drag;
   z-index: 40;
   width: 320px;
@@ -980,6 +1001,7 @@ body::before {
 .settings-input { flex: 1; min-width: 0; }
 .settings-value { width: 26px; text-align: right; color: var(--text); }
 .settings-meta { font-size: 11px; color: var(--text-3); }
+.settings-note { font-size: 10.5px; line-height: 1.45; color: var(--text-3); margin: -4px 0 2px; }
 .btn.icon-text { padding: 8px 12px; }
 
 /* Inspector becomes a drawer on narrow windows */
@@ -1014,7 +1036,9 @@ body::before {
   from { opacity: 0; transform: translateY(6px) scale(0.99); }
   to { opacity: 1; transform: none; }
 }
-.modal:not(.hidden) .modal-card { animation: modal-in var(--dur-base, 160ms) cubic-bezier(.2,.8,.2,1); }
+.modal:not(.hidden) #app-modal { z-index: 90; }
+
+.modal-card { animation: modal-in var(--dur-base, 160ms) cubic-bezier(.2,.8,.2,1); }
 
 /* --------------------------------------------------------------- import */
 
@@ -1052,7 +1076,10 @@ body::before {
 .profile-row { display: flex; gap: 6px; align-items: center; margin: 0 6px 8px; }
 .profile-select { flex: 1; min-width: 0; font-size: 11.5px; padding: 6px 8px; }
 
-.profile-card { width: min(440px, calc(100vw - 80px)); }
+.profile-card { width: min(480px, calc(100vw - 80px)); }
+.profile-body { padding: 2px 22px 4px; display: flex; flex-direction: column; gap: 12px; }
+.profile-link-row { flex-wrap: wrap; align-items: center; }
+.profile-app-name { flex: 1; min-width: 120px; font-size: 12px; color: var(--muted); }
 #profile-delete-row { padding-top: 0; }
 #profile-name { flex: 1; min-width: 0; }
 #profile-modal .modal-actions { padding-top: 12px; }

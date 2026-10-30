@@ -4,7 +4,7 @@
 
 const ACTION_GROUPS = [
   ['Basic', ['none']],
-  ['Device & pages', ['page', 'indicator', 'multi', 'toggle']],
+  ['Device & pages', ['page', 'indicator', 'multi', 'toggle', 'timer', 'brightness']],
   ['Apps & links', ['app', 'url']],
   ['System', ['hotkey', 'text', 'media', 'sound', 'close', 'command']],
   ['Plugins', ['plugin']],
@@ -76,6 +76,12 @@ function actionMeta(action) {
       if (action.op === 'next') return { emoji: '➡️', label: 'Next page' };
       if (action.op === 'prev') return { emoji: '⬅️', label: 'Previous page' };
       return { emoji: '📄', label: action.value ? pageName(action.value) : 'Page' };
+    case 'timer':
+      return { emoji: '⏱️', label: 'Timer' };
+    case 'brightness':
+      return { emoji: action.op === 'down' ? '🔅' : '🔆', label: action.op === 'down' ? 'Dimmer' : 'Brighter' };
+    case 'sound':
+      return { emoji: '🔊', label: action.op === 'stop' ? 'Stop audio' : 'Play audio' };
     default:
       return {};
   }
@@ -363,6 +369,23 @@ function renderInspector() {
         </select>
         <div class="field-hint">“Back” actions and folders return here.</div>
       </div>
+      <div class="field">
+        <label>Background</label>
+        <div class="row">
+          <button class="btn small" id="insp-page-bg">Choose image…</button>
+          <button class="btn small" id="insp-page-snapshot">Snapshot page</button>
+          ${page.background ? '<button class="btn small danger" id="insp-page-bg-clear">Clear</button>' : ''}
+        </div>
+        <div class="field-hint">
+          ${
+            page.background
+              ? 'Custom background for this page.'
+              : backgroundFor(page)
+                ? 'Using the profile background. Choose an image to override it here.'
+                : 'One image is sliced across every key. “Snapshot” captures the current page.'
+          }
+        </div>
+      </div>
       <div class="settings-block">
         <h3>Tips</h3>
         <div class="insp-empty" style="padding:0">
@@ -383,6 +406,32 @@ function renderInspector() {
       else delete page.parentId;
       commit();
     });
+    $('#insp-page-bg').addEventListener('click', async () => {
+      const picked = await api.pickImage();
+      if (!picked) return;
+      page.background = await downscaleBackground(picked);
+      renderAll();
+      commit();
+      renderInspector();
+    });
+    $('#insp-page-snapshot').addEventListener('click', async () => {
+      const shot = await capturePageImage();
+      if (!shot) return toast('Could not capture the page', true);
+      page.background = shot;
+      renderAll();
+      commit();
+      renderInspector();
+      toast('Snapshot saved as the page background');
+    });
+    const clearPageBg = $('#insp-page-bg-clear');
+    if (clearPageBg) {
+      clearPageBg.addEventListener('click', () => {
+        delete page.background;
+        renderAll();
+        commit();
+        renderInspector();
+      });
+    }
     $('#insp-page-name').addEventListener('change', (e) => {
       const next = uniquePageName(e.target.value, page.profileId, page.id);
       if (next !== e.target.value.trim()) {
@@ -428,7 +477,8 @@ function renderInspector() {
     return;
   }
 
-  const key = ensureKey(page, state.selected);
+  const pinned = isPinnedSlot(page, state.selected);
+  const key = pinned ? pinnedFor(page.profileId)[state.selected] : ensureKey(page, state.selected);
   const liveKey = effectiveKey(key);
   const action = key.action || { type: 'none', value: '' };
   const pageOptions = state.config.pages
@@ -510,6 +560,22 @@ function renderInspector() {
     </div>`;
   } else if (action.type === 'indicator') {
     valueField = '<div class="field-hint">Shows the current page position. It cannot be pressed.</div>';
+  } else if (action.type === 'timer') {
+    valueField = `<div class="row">
+      <input class="input" id="insp-timer-seconds" type="number" min="1" max="86400" step="1" value="${Number(action.seconds) || 300}" />
+      <span class="field-hint" style="flex:0 0 auto">seconds</span>
+    </div>
+    <label class="check-row"><input type="checkbox" id="insp-timer-sound" ${action.sound !== false ? 'checked' : ''} /> Play a sound when it finishes</label>
+    <div class="field-hint">Press to start, press again to cancel. The countdown is shown on the key.</div>`;
+  } else if (action.type === 'brightness') {
+    valueField = `<div class="row">
+      <select class="select" id="insp-brightness-op">
+        <option value="up" ${(action.op || 'up') === 'up' ? 'selected' : ''}>Brighter</option>
+        <option value="down" ${action.op === 'down' ? 'selected' : ''}>Dimmer</option>
+      </select>
+      <input class="input" id="insp-brightness-step" type="number" min="1" max="50" step="1" value="${Number(action.step) || 5}" />
+      <span class="field-hint" style="flex:0 0 auto">%</span>
+    </div>`;
   } else if (action.type === 'multi' || action.type === 'toggle') {
     valueField = multiEditor(action, page);
   } else if (action.type === 'close') {
@@ -583,6 +649,12 @@ function renderInspector() {
       <button class="icon-btn drawer-close" id="insp-drawer-close" title="Close">×</button>
     </div>
 
+    ${
+      pinned
+        ? `<div class="pinned-banner"><span>Pinned — shown on every page</span><button class="btn small" id="insp-unpin">Unpin</button></div>`
+        : ''
+    }
+
     <div class="field">
       <label>Action</label>
       <select class="select" id="insp-action-type">
@@ -637,6 +709,7 @@ function renderInspector() {
 
     <div class="insp-actions">
       <button class="btn" id="insp-duplicate">Duplicate</button>
+      ${pinned ? '' : '<button class="btn" id="insp-pin">Pin to all pages</button>'}
       <button class="btn danger" id="insp-clear-key">Clear key</button>
     </div>
   `;
@@ -749,6 +822,12 @@ function renderInspector() {
     if (type === 'media') {
       key.action = { type: 'media', op: 'playpause' };
       syncActionMeta(key);
+    } else if (type === 'timer') {
+      key.action = { type: 'timer', seconds: 300, sound: true };
+      syncActionMeta(key);
+    } else if (type === 'brightness') {
+      key.action = { type: 'brightness', op: 'up', step: 5 };
+      syncActionMeta(key);
     } else if (type === 'plugin') {
       const p = state.plugins.find((x) => x.compatible);
       const a = p?.actions?.[0];
@@ -796,6 +875,41 @@ function renderInspector() {
       .catch(() => {
         if (host.isConnected) host.innerHTML = '<div class="insp-empty" style="padding:0">Could not load the property inspector.</div>';
       });
+  }
+
+  const timerSeconds = $('#insp-timer-seconds');
+  if (timerSeconds) {
+    timerSeconds.addEventListener('change', () => {
+      const seconds = Math.max(1, Math.min(86_400, Math.round(Number(timerSeconds.value) || 300)));
+      timerSeconds.value = String(seconds);
+      key.action = { ...key.action, seconds };
+      commit(false);
+    });
+  }
+  const timerSound = $('#insp-timer-sound');
+  if (timerSound) {
+    timerSound.addEventListener('change', () => {
+      key.action = { ...key.action, sound: timerSound.checked };
+      commit(false);
+    });
+  }
+  const brightnessOp = $('#insp-brightness-op');
+  if (brightnessOp) {
+    brightnessOp.addEventListener('change', () => {
+      key.action = { ...key.action, op: brightnessOp.value };
+      syncActionMeta(key);
+      commit();
+      renderInspector();
+    });
+  }
+  const brightnessStep = $('#insp-brightness-step');
+  if (brightnessStep) {
+    brightnessStep.addEventListener('change', () => {
+      const step = Math.max(1, Math.min(50, Math.round(Number(brightnessStep.value) || 5)));
+      brightnessStep.value = String(step);
+      key.action = { ...key.action, step };
+      commit(false);
+    });
   }
 
   const soundOp = $('#insp-sound-op');
@@ -969,11 +1083,47 @@ function renderInspector() {
   });
 
   $('#insp-clear-key').addEventListener('click', () => {
+    if (pinned) return toast('This key is pinned — unpin it first', true);
     delete page.keys[state.selected];
     commit();
     renderGrid();
     renderInspector();
   });
+
+  const pinBtn = $('#insp-pin');
+  if (pinBtn) {
+    pinBtn.addEventListener('click', () => {
+      const index = state.selected;
+      const source = page.keys[index];
+      if (!source) return;
+      const profile = state.config.profiles.find((p) => p.id === page.profileId);
+      if (!profile) return;
+      profile.pinned = profile.pinned || {};
+      profile.pinned[index] = source;
+      delete page.keys[index];
+      state.selected = null;
+      commit();
+      renderGrid();
+      renderInspector();
+      toast('Pinned on all pages');
+    });
+  }
+  const unpinBtn = $('#insp-unpin');
+  if (unpinBtn) {
+    unpinBtn.addEventListener('click', () => {
+      const index = state.selected;
+      const profile = state.config.profiles.find((p) => p.id === page.profileId);
+      const pin = profile?.pinned?.[index];
+      if (!pin) return;
+      page.keys[index] = pin;
+      delete profile.pinned[index];
+      if (!Object.keys(profile.pinned).length) delete profile.pinned;
+      commit();
+      renderGrid();
+      renderInspector();
+      toast('Unpinned — kept on this page');
+    });
+  }
 }
 
 function nextFreeIndex(page) {

@@ -163,7 +163,9 @@ class Deck extends EventEmitter {
       }
     };
     tick();
-    this._clockTimer = setInterval(tick, 5000);
+    // The firmware keeps its own RTC; a periodic sync is only to correct drift.
+    // Keep it infrequent so it cannot keep resetting the screen-sleep timer.
+    this._clockTimer = setInterval(tick, 60_000);
   }
 
   _stopClock() {

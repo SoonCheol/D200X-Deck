@@ -147,12 +147,36 @@ async function drawKey(canvas, key, width = KEY_SIZE, height = KEY_SIZE, autoIco
     ctx.fillRect(0, 0, w, h);
   }
 
+  // Page/profile wallpaper: one image covers the whole 5×3 key area and each
+  // key paints its own slice, so the deck looks like a single surface.
+  const slot = Number(pageInfo?.slot);
+  if (pageInfo?.background && Number.isInteger(slot) && slot >= 0 && slot <= 12) {
+    try {
+      const img = await loadImage(pageInfo.background);
+      const fullW = KEY_SIZE * 5;
+      const fullH = KEY_SIZE * 3;
+      const scale = Math.max(fullW / img.width, fullH / img.height);
+      const iw = img.width * scale;
+      const ih = img.height * scale;
+      const col = slot % 5;
+      const row = Math.floor(slot / 5);
+      ctx.save();
+      ctx.drawImage(img, (fullW - iw) / 2 - col * KEY_SIZE, (fullH - ih) / 2 - row * KEY_SIZE, iw, ih);
+      ctx.fillStyle = 'rgba(7,10,16,0.46)';
+      ctx.fillRect(0, 0, w, h);
+      ctx.restore();
+    } catch {
+      /* broken background: keep the key colour */
+    }
+  }
+
   const label = (key.label || '').trim();
-  const main = truncateMain(key.emoji || '');
+  const timerText = typeof timerTextFor === 'function' ? timerTextFor(key.action) : '';
+  const main = timerText || truncateMain(key.emoji || '');
   const hasLabel = Boolean(label);
 
   let drewAutoIcon = false;
-  if (!key.icon && autoIcon) {
+  if (!key.icon && autoIcon && !timerText) {
     try {
       const img = await loadImage(autoIcon);
       const size = Math.round(min * 0.54);
@@ -352,3 +376,79 @@ function drawSystemPanel(canvas) {
 }
 
 window.KeyRenderer = { drawKey, drawSystemPanel, KEY_SIZE, WIDE_KEY_SIZE, WIDE_INDEX };
+
+// Standby/screensaver: one 980×588 canvas sliced into the 13 square keys.
+async function renderStandbySlices(settings = {}) {
+  const width = KEY_SIZE * 5;
+  const height = KEY_SIZE * 3;
+  const full = document.createElement('canvas');
+  full.width = width;
+  full.height = height;
+  const ctx = full.getContext('2d');
+
+  const bg = ctx.createLinearGradient(0, 0, width, height);
+  bg.addColorStop(0, '#0d1422');
+  bg.addColorStop(0.55, '#080c14');
+  bg.addColorStop(1, '#030509');
+  ctx.fillStyle = bg;
+  ctx.fillRect(0, 0, width, height);
+
+  if (settings.standbyImage) {
+    try {
+      const img = await loadImage(settings.standbyImage);
+      const scale = Math.max(width / img.width, height / img.height);
+      const iw = img.width * scale;
+      const ih = img.height * scale;
+      ctx.drawImage(img, (width - iw) / 2, (height - ih) / 2, iw, ih);
+      ctx.fillStyle = 'rgba(3,6,12,0.42)';
+      ctx.fillRect(0, 0, width, height);
+    } catch {
+      /* missing image: keep the gradient */
+    }
+  }
+
+  if (settings.standbyClock !== false) {
+    const now = new Date();
+    const time = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false });
+    const date = now.toLocaleDateString([], { weekday: 'short', day: 'numeric', month: 'short' });
+    ctx.save();
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.shadowColor = 'rgba(0,0,0,0.55)';
+    ctx.shadowBlur = 30;
+    ctx.fillStyle = 'rgba(255,255,255,0.96)';
+    ctx.font = '200 148px -apple-system, "SF Pro Display", "Helvetica Neue", sans-serif';
+    ctx.fillText(time, width / 2, height * 0.46);
+    ctx.shadowBlur = 12;
+    ctx.font = '500 26px -apple-system, "SF Pro Text", sans-serif';
+    ctx.fillStyle = 'rgba(255,255,255,0.62)';
+    ctx.fillText(date.toUpperCase(), width / 2, height * 0.66);
+    ctx.restore();
+  }
+
+  const images = [];
+  for (let index = 0; index < 13; index++) {
+    const tile = document.createElement('canvas');
+    tile.width = KEY_SIZE;
+    tile.height = KEY_SIZE;
+    const tctx = tile.getContext('2d');
+    tctx.drawImage(
+      full,
+      (index % 5) * KEY_SIZE,
+      Math.floor(index / 5) * KEY_SIZE,
+      KEY_SIZE,
+      KEY_SIZE,
+      0,
+      0,
+      KEY_SIZE,
+      KEY_SIZE
+    );
+    images.push({ index, png: tile.toDataURL('image/png').split(',')[1] });
+  }
+  // Slot 13 is the firmware system panel; buildPage ignores its PNG.
+  const wide = document.createElement('canvas');
+  wide.width = 196;
+  wide.height = 196;
+  images.push({ index: 13, png: wide.toDataURL('image/png').split(',')[1] });
+  return images;
+}

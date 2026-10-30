@@ -67,6 +67,7 @@ function createWindow() {
     acceptFirstMouse: true,
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
+      backgroundThrottling: false,
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: false,
@@ -338,6 +339,22 @@ function initPlugins() {
       return;
     }
     if (/^https?:|^mailto:/i.test(target)) shell.openExternal(target);
+  };
+
+  plugins.selectDialog = async (msg) => {
+    const type = msg.type === 'folder' ? 'folder' : 'file';
+    const filters = [];
+    const extensions = [...String(msg.filter || '').matchAll(/\*\.([a-z0-9]+)/gi)].map((m) => m[1]);
+    if (extensions.length) filters.push({ name: 'Supported files', extensions });
+    const options = {
+      title: type === 'folder' ? 'Choose a folder' : 'Choose a file',
+      properties: type === 'folder' ? ['openDirectory', 'createDirectory'] : ['openFile'],
+      ...(filters.length ? { filters } : {}),
+    };
+    const result = win ? await dialog.showOpenDialog(win, options) : await dialog.showOpenDialog(options);
+    return result.canceled || !result.filePaths.length
+      ? { canceled: true, path: '' }
+      : { canceled: false, path: result.filePaths[0] };
   };
 
   plugins.stopHtml = (uuid) => {
@@ -1068,6 +1085,28 @@ ipcMain.handle('dialog:pick-image', async () => {
   const data = fs.readFileSync(file);
   return `data:${mime};base64,${data.toString('base64')}`;
 });
+
+function frontmostApp() {
+  try {
+    const asn = execFileSync('lsappinfo', ['front'], { encoding: 'utf8' })
+      .trim()
+      .replace(/:$/, '');
+    if (!asn) return null;
+    const info = execFileSync(
+      'lsappinfo',
+      ['info', '-only', 'name', asn, '-only', 'bundleid', asn, '-only', 'bundlepath', asn],
+      { encoding: 'utf8' }
+    );
+    const bundleId = /bundleID="([^"]+)"/.exec(info)?.[1] || '';
+    const appPath = /bundle path="([^"]+)"/.exec(info)?.[1] || '';
+    const name = /^"([^"]+)"/.exec(info.trim())?.[1] || path.basename(appPath, '.app');
+    return { bundleId, name, path: appPath };
+  } catch {
+    return null;
+  }
+}
+
+ipcMain.handle('apps:frontmost', () => frontmostApp());
 
 ipcMain.handle('apps:list', () => listApps());
 

@@ -89,16 +89,16 @@ What the official app has that we don't (from its `System/Plugins` manifests):
 
 | Area | Official | Ours | Priority |
 | --- | --- | --- | --- |
-| Profiles | multiple profiles per device, switch profile action | single config | P1 |
-| Multi Action | multi action, switch, random, delay | – | P1 |
-| Key behaviour | Action Trigger: short / long / double press, combinations | press only | P1 |
-| System actions | Open, Close, Website, Text, Hotkey, Multimedia, Hotkey Switch | open/url/hotkey/command | P1 |
-| Soundboard | play / stop audio | – | P2 |
-| Pages | prev/next/goto, page indicator, parent/subpage | prev/next/goto | P2 |
-| Icon library | browsable icon packs, delete pack | store icon packs only | P2 |
-| Plugin properties | per-action property inspector | only plugin-provided UI | P2 |
+| Profiles | multiple profiles per device, switch profile action, app-linked | done | – |
+| Multi Action | multi action, switch, random, delay | done | – |
+| Key behaviour | Action Trigger: short / long / double press, combinations | done | – |
+| System actions | Open, Close, Website, Text, Hotkey, Multimedia, Hotkey Switch | done (+ timer, key brightness) | – |
+| Soundboard | play / stop audio | done | – |
+| Pages | prev/next/goto, page indicator, parent/subpage, wallpapers | done | – |
+| Icon library | browsable icon packs, delete pack | done | – |
+| Plugin properties | per-action property inspector | done | – |
 | Label/font settings | font name, size, alignment, weight | fixed rendering | P2 |
-| Screensaver / sleep screen | image/clock screensaver | sleep timeout only | P3 |
+| Screensaver / sleep screen | image/clock screensaver | done (clock + wallpaper) | – |
 | Marketplace | install / update / uninstall | install only | P2 |
 | OBS / Lightmaster / TC002 | vendor plugins | already works through the plugin host | – |
 | Firmware update | bundled updater | – | P3 (risky) |
@@ -157,7 +157,11 @@ Also done: plugin `openview` (plugin-local HTML in its own window), `setFeedback
 ignored (no dials on the D200), shifted hotkeys now use virtual key codes, Accessibility
 status + Grant action in Deck settings.
 
-Next by value: screensaver, app-linked profiles, pinned actions.
+Also done: **standby clock/wallpaper**, **app-linked profiles**, **pinned keys**,
+**timer / key-brightness actions**, **page & profile backgrounds with snapshot** and the
+**plugin `selectdialog`** handler.
+
+Next by value: firmware update (risky), Python plugins, POP/action ring.
 
 ## Order of work (agreed)
 

@@ -54,3 +54,64 @@ test('install rejects a package without a manifest', () => {
   const manager = new PluginManager({ dirs: [plugins], appPluginsDir: plugins });
   assert.throws(() => manager.install(empty), /manifest/i);
 });
+
+test('selectdialog replies to the action with the chosen path', async () => {
+  const { plugins } = workspace();
+  const manager = new PluginManager({ dirs: [plugins], appPluginsDir: plugins });
+  const sent = [];
+  manager._send = (_uuid, msg) => sent.push(msg);
+  manager.actions.set('action-1', {
+    actionid: 'action-1',
+    pluginUuid: 'com.example.demo',
+    actionUuid: 'com.example.demo.action',
+    key: '0_0',
+    settings: {},
+  });
+  manager.selectDialog = async () => ({ canceled: false, path: '/tmp/picked.png' });
+  manager._onPluginMessage({ cmd: 'selectdialog', actionid: 'action-1', type: 'file' });
+  await new Promise((resolve) => setTimeout(resolve, 20));
+  const reply = sent.find((msg) => msg.cmd === 'selectdialog');
+  assert.ok(reply);
+  assert.equal(reply.path, '/tmp/picked.png');
+  assert.equal(reply.uuid, 'com.example.demo.action');
+  assert.equal(reply.key, '0_0');
+});
+
+test('selectdialog reports cancellation', async () => {
+  const { plugins } = workspace();
+  const manager = new PluginManager({ dirs: [plugins], appPluginsDir: plugins });
+  const sent = [];
+  manager._send = (_uuid, msg) => sent.push(msg);
+  manager.actions.set('action-2', {
+    actionid: 'action-2',
+    pluginUuid: 'com.example.demo',
+    actionUuid: 'com.example.demo.action',
+    key: '1_0',
+    settings: {},
+  });
+  manager.selectDialog = async () => ({ canceled: true, path: '' });
+  manager._onPluginMessage({ cmd: 'selectdialog', actionid: 'action-2', type: 'folder' });
+  await new Promise((resolve) => setTimeout(resolve, 20));
+  const reply = sent.find((msg) => msg.cmd === 'selectdialog');
+  assert.equal(reply.canceled, true);
+});
+
+test('replayed actions use the action UUID, not the plugin UUID', () => {
+  const { plugins } = workspace();
+  const manager = new PluginManager({ dirs: [plugins], appPluginsDir: plugins });
+  const sent = [];
+  manager._send = (_uuid, msg) => sent.push(msg);
+  manager.actions.set('action-3', {
+    actionid: 'action-3',
+    pluginUuid: 'com.example.demo',
+    actionUuid: 'com.example.demo.action',
+    key: '2_0',
+    active: true,
+    settings: {},
+    pluginAction: { name: 'Run' },
+  });
+  manager._replay('com.example.demo');
+  assert.equal(sent.length, 2);
+  assert.equal(sent[0].uuid, 'com.example.demo.action');
+  assert.equal(sent[1].uuid, 'com.example.demo.action');
+});

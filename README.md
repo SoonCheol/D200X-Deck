@@ -12,14 +12,18 @@ _The editor, the plugin manager and the store all run against the deck live._
 
 * **Live editor** — mirrors the device exactly: 13 square keys + one 2×1 wide key
   (slot `3_2`, index 13).
-* **Pages** — multiple pages, page-switch keys, auto-push on edit.
+* **Profiles & pages** — multiple profiles, each with its own pages; profiles can be
+  linked to an app so the deck follows the frontmost window. Page/profile wallpapers and
+  “snapshot page” backgrounds are sliced across the keys.
 * **Keys** — emoji, label, background colour, or a custom image (click or drag & drop).
   The wide key renders at 402×196.
 * **Actions** — open an app (searchable in-app picker with real app icons and a
   “Use app icon” button), open a URL
   (fetches the site's icon automatically), run a shell command, send a hotkey, switch
   page, **or run an existing Node.js Ulanzi plugin action**.
-* **Device control** — brightness (0–100 %), screen sleep timeout, clock sync.
+* **Pinned keys** — pin an action to every page, with per-page overrides.
+* **Device control** — brightness (0–100 %), screen sleep timeout, clock sync, a standby
+  clock/wallpaper screen, and Timer / key-brightness actions.
 * **Plugins** — runs Ulanzi's JavaScript *and* HTML plugins unchanged (discovery,
   WebSocket host, live images, key events, property inspectors). Plugins installed by Ulanzi Studio are used read-only and
   can be copied into the app; app-installed plugins can be removed.
@@ -36,6 +40,7 @@ _The editor, the plugin manager and the store all run against the deck live._
 * **Hotkeys** — a proper picker (modifiers, letters, symbols, function keys, F keys,
   numpad) plus physical key capture.
 * **Drag to rearrange** — drag a key onto another to swap them.
+* **Keyboard shortcuts** — ⌘C/⌘V copy & paste keys, Delete/Backspace clears, ⌘Z undoes.
 * **Wide key is read-only** — it is the firmware system panel (clock), not user-editable.
 * **Lives in the menu bar** — closing the window hides it; Cmd+Q asks for confirmation
   before quitting.
@@ -73,8 +78,8 @@ Config lives in `~/Library/Application Support/Ulanzi Deck Open/config.json`.
 
 ## Roadmap
 
-Importing profiles from Ulanzi Studio, action-model parity (multi-action, press
-types, system actions) and editor polish are planned in [`docs/ROADMAP.md`](docs/ROADMAP.md).
+Firmware updates, Python plugins and the POP/action ring are the remaining large items;
+see [`docs/ROADMAP.md`](docs/ROADMAP.md).
 
 ## Project layout
 

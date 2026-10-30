@@ -140,6 +140,9 @@ an icon downscales it to 392 px and stores it on the key. Profile files
 | `getSettings` | replies with `didReceiveSettings` |
 | `setGlobalSettings` / `getGlobalSettings` | per-plugin global settings map |
 | `openurl` | opens a URL (or a file inside the plugin) |
+| `openview` | opens an http(s) URL in the browser, or a local HTML view inside the plugin folder |
+| `selectdialog` | opens a native file/folder picker and replies with `{type, path, canceled}` to `onSelectdialog` |
+| `setFeedback`, `setFeedbackLayout` | accepted and ignored — they are encoder/dial feedback messages and the D200 has no encoder |
 | `toast`, `logMessage`, `showAlert` | forwarded to the UI / console |
 
 ## Image handling
@@ -175,7 +178,8 @@ edited as JSON. The key shows the plugin’s live image; pressing it sends `run`
 
 * JavaScript plugins run as child processes; HTML plugins (`CodePath` ending in
   `.html`) run in a hidden BrowserWindow and connect to the same host over WebSocket.
-* No multi-action / dial feedback (`setFeedback`, `setFeedbackLayout`).
+* Encoder-only calls (`setFeedback`, `setFeedbackLayout`, `rotateEvent`) are accepted but
+  have no visible effect on the D200, which has no dials.
 * Port 3906 is fixed; it must be free (quit Ulanzi Studio). The host retries every 10 s
   if it was busy at launch.
 
