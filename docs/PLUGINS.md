@@ -17,6 +17,21 @@ App-installed plugins shadow a Ulanzi Studio plugin with the same UUID. A read-o
 plugin can be adopted with **Copy** in the plugin manager: it is copied into this
 app's folder and from then on can be edited or removed here.
 
+## Plugin settings (property inspectors)
+
+Plugins ship an HTML property inspector (`PropertyInspectorPath` in the manifest). The
+key inspector renders it in an iframe, with the same query parameters the official app
+uses (`actionId`, `key`, `port`, `address`, `language`), and bridges the Ulanzi SDK
+protocol over the existing WebSocket host:
+
+* inspector → host: `paramfromplugin` (the form saved its value)
+* host → plugin: `paramfromapp` (so the key redraws)
+* host → inspector: `add` / `paramfromapp`
+
+The settings are persisted on the key (`action.settings`) exactly like before, so
+configs stay compatible. Actions without an inspector still fall back to the JSON
+editor.
+
 ## Plugin Store
 
 The **Store** entry in the sidebar talks to the official Ulanzi Studio marketplace

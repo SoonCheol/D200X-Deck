@@ -802,6 +802,12 @@ ipcMain.handle('plugins:install-zip', async () => {
   }
 });
 
+ipcMain.handle('plugins:inspector-url', (_evt, payload) => plugins.inspectorUrl(payload || {}));
+
+ipcMain.handle('plugins:set-settings', (_evt, actionid, settings) => ({
+  ok: plugins.setActionSettings(String(actionid), settings || {}),
+}));
+
 ipcMain.handle('plugins:reload', () => {
   const list = plugins.reload();
   send('plugins:changed');

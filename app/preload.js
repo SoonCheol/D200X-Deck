@@ -41,6 +41,8 @@ contextBridge.exposeInMainWorld('deckApp', {
   installPluginZip: () => ipcRenderer.invoke('plugins:install-zip'),
   reloadPlugins: () => ipcRenderer.invoke('plugins:reload'),
   importPlugin: (uuid) => ipcRenderer.invoke('plugins:import', uuid),
+  pluginInspectorUrl: (payload) => ipcRenderer.invoke('plugins:inspector-url', payload),
+  setPluginSettings: (actionid, settings) => ipcRenderer.invoke('plugins:set-settings', actionid, settings),
   removePlugin: (uuid) => ipcRenderer.invoke('plugins:remove', uuid),
   openPluginsFolder: () => ipcRenderer.invoke('plugins:open-folder'),
   revealPlugin: (uuid) => ipcRenderer.invoke('plugins:reveal', uuid),

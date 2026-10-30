@@ -5,6 +5,7 @@ const { spawn } = require('node:child_process');
 const fs = require('node:fs');
 const path = require('node:path');
 const os = require('node:os');
+const { pathToFileURL } = require('node:url');
 const { WebSocketServer } = require('ws');
 
 const MIME = {
@@ -57,6 +58,7 @@ class PluginManager extends EventEmitter {
     this.appVersion = appVersion;
     this.plugins = new Map(); // uuid -> meta
     this.sockets = new Map(); // uuid -> ws
+    this.inspectors = new Map(); // actionid -> ws (property inspector)
     this.queues = new Map(); // uuid -> messages[]
     this.children = new Map(); // uuid -> ChildProcess
     this.actions = new Map(); // actionid -> {pluginUuid, actionUuid, key, settings, active, meta}
@@ -160,6 +162,7 @@ class PluginManager extends EventEmitter {
 
   _onConnection(ws) {
     let pluginUuid = null;
+    let inspectorAction = null;
     ws.on('message', (raw) => {
       let msg;
       try {
@@ -168,6 +171,22 @@ class PluginManager extends EventEmitter {
         return;
       }
       if (msg.cmd === 'connected') {
+        // Property inspectors connect the same way but carry an actionid.
+        if (msg.actionid) {
+          inspectorAction = msg.actionid;
+          this.inspectors.set(inspectorAction, ws);
+          const action = this.actions.get(inspectorAction);
+          ws.send(
+            JSON.stringify({
+              cmd: 'add',
+              uuid: msg.uuid,
+              key: msg.key || action?.key || '',
+              actionid: inspectorAction,
+              param: action?.settings || {},
+            })
+          );
+          return;
+        }
         pluginUuid = msg.uuid;
         this.sockets.set(pluginUuid, ws);
         this.queues.delete(pluginUuid);
@@ -175,13 +194,64 @@ class PluginManager extends EventEmitter {
         this._replay(pluginUuid);
         return;
       }
+      if (inspectorAction && msg.cmd === 'paramfromplugin') {
+        this.setActionSettings(inspectorAction, msg.param || msg.settings || {});
+        return;
+      }
       if (!pluginUuid && msg.uuid) pluginUuid = msg.uuid;
       this._onPluginMessage(msg);
     });
     ws.on('close', () => {
       if (pluginUuid && this.sockets.get(pluginUuid) === ws) this.sockets.delete(pluginUuid);
+      if (inspectorAction && this.inspectors.get(inspectorAction) === ws) this.inspectors.delete(inspectorAction);
     });
     ws.on('error', () => {});
+  }
+
+  /** Update one action's settings and push them to its plugin and inspector. */
+  setActionSettings(actionid, settings) {
+    const action = this.actions.get(actionid);
+    if (!action) return false;
+    action.settings = settings || {};
+    this._send(action.pluginUuid, {
+      cmd: 'paramfromapp',
+      uuid: action.pluginUuid,
+      key: action.key,
+      actionid,
+      param: action.settings,
+    });
+    const inspector = this.inspectors.get(actionid);
+    if (inspector && inspector.readyState === 1) {
+      inspector.send(
+        JSON.stringify({
+          cmd: 'paramfromapp',
+          uuid: action.pluginUuid,
+          key: action.key,
+          actionid,
+          param: action.settings,
+        })
+      );
+    }
+    this.emit('settings', { actionid, settings: action.settings });
+    return true;
+  }
+
+  /** file:// URL for an action's property inspector, with the SDK query params. */
+  inspectorUrl({ plugin, action, actionid, key }) {
+    const meta = this.plugins.get(plugin);
+    if (!meta) return null;
+    const pluginAction = meta.actions.find((a) => a.uuid === action);
+    const rel = pluginAction?.propertyInspector;
+    if (!rel) return null;
+    const file = path.join(meta.dir, rel);
+    if (!fs.existsSync(file)) return null;
+    const url = pathToFileURL(file);
+    url.searchParams.set('actionId', actionid);
+    url.searchParams.set('key', key || '');
+    url.searchParams.set('port', String(this.port));
+    url.searchParams.set('address', '127.0.0.1');
+    url.searchParams.set('language', this.language);
+    return url.toString();
   }
 
   _send(pluginUuid, message) {

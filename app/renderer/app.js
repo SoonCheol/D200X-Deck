@@ -725,16 +725,23 @@ function renderInspector() {
               .join('')}
           </select>
         </div>
-        <div class="field">
-          <label>Settings (JSON)</label>
-          <textarea class="textarea" id="insp-plugin-settings" placeholder="{}">${esc(
-            JSON.stringify(action.settings || {}, null, 2)
-          )}</textarea>
-        </div>
-        <div class="insp-empty" style="padding:0;font-size:11px">
-          ${plugin ? `Live images come from <b>${esc(plugin.name)}</b>.` : 'Choose a plugin action.'}
-          Property-inspector UI is not supported yet; edit settings as JSON.
-        </div>
+        ${
+          pluginAction && pluginAction.propertyInspector
+            ? `<div class="field">
+                 <label>Settings</label>
+                 <div id="pi-host" class="pi-host"><div class="insp-empty" style="padding:0">Loading settings…</div></div>
+               </div>`
+            : `<div class="field">
+                 <label>Settings (JSON)</label>
+                 <textarea class="textarea" id="insp-plugin-settings" placeholder="{}">${esc(
+                   JSON.stringify(action.settings || {}, null, 2)
+                 )}</textarea>
+               </div>
+               <div class="insp-empty" style="padding:0;font-size:11px">
+                 ${plugin ? `Live images come from <b>${esc(plugin.name)}</b>.` : 'Choose a plugin action.'}
+                 This action has no property inspector, so settings are edited as JSON.
+               </div>`
+        }
       `;
     }
   }
@@ -929,6 +936,29 @@ function renderInspector() {
     commit();
     renderInspector();
   });
+
+  if (action.type === 'plugin' && $('#pi-host')) {
+    const host = $('#pi-host');
+    const slot = keyIndexToSlot(state.selected);
+    api
+      .pluginInspectorUrl({
+        plugin: action.plugin,
+        action: action.action,
+        actionid: action.actionid,
+        key: slot,
+      })
+      .then((url) => {
+        if (!host.isConnected) return;
+        if (!url) {
+          host.innerHTML = '<div class="insp-empty" style="padding:0">No property inspector for this action.</div>';
+          return;
+        }
+        host.innerHTML = `<iframe class="pi-frame" src="${esc(url)}"></iframe>`;
+      })
+      .catch(() => {
+        if (host.isConnected) host.innerHTML = '<div class="insp-empty" style="padding:0">Could not load the property inspector.</div>';
+      });
+  }
 
   const pageOp = $('#insp-page-op');
   if (pageOp) {
