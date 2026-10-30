@@ -63,6 +63,11 @@ shows up in Spotlight's Applications and Launchpad after every build.
 
 Config lives in `~/Library/Application Support/Ulanzi Deck Open/config.json`.
 
+## Roadmap
+
+Importing profiles from Ulanzi Studio, action-model parity (multi-action, press
+types, system actions) and editor polish are planned in [`docs/ROADMAP.md`](docs/ROADMAP.md).
+
 ## Project layout
 
 ```
