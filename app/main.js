@@ -77,6 +77,11 @@ function createWindow() {
               "document.querySelector('#plugins-btn')?.click(); true"
             );
             await new Promise((r) => setTimeout(r, 400));
+            if (process.env.ULANZI_SCROLL) {
+              await win.webContents.executeJavaScript(
+                "(() => { const l = document.querySelector('#plugin-list'); if (l) l.scrollTop = l.scrollHeight; return true; })()"
+              );
+            }
             if (process.env.ULANZI_INSTALLED === 'icons') {
               await win.webContents.executeJavaScript(
                 "document.querySelector('#tab-icons-btn')?.click(); true"
