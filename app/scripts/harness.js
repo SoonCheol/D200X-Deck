@@ -238,6 +238,8 @@ function attachScreenshotHarness({ win, send, quitNow }) {
             );
             await new Promise((r) => setTimeout(r, 600));
           }
+          await win.webContents.executeJavaScript('document.activeElement && document.activeElement.blur(); true');
+          await new Promise((r) => setTimeout(r, 150));
           const image = await win.webContents.capturePage();
           fs.writeFileSync(process.env.ULANZI_SHOT, image.toPNG());
         } finally {

@@ -553,6 +553,26 @@ setInterval(() => {
   if (tile) renderSystemPanel(tile.querySelector('canvas'));
 }, 30000);
 
+/** Fill in real app icons for app keys that have none (runs once after load). */
+async function hydrateAppIcons() {
+  let changed = false;
+  for (const page of state.config.pages) {
+    for (const [index, key] of Object.entries(page.keys)) {
+      if (!key || key.icon || !key.action || key.action.type !== 'app' || !key.action.value) continue;
+      const icon = await api.appIcon(String(key.action.value));
+      if (!icon) continue;
+      key.icon = icon;
+      key.iconSource = 'app';
+      changed = true;
+      if (page.id === state.config.activePageId) drawIndex(Number(index));
+    }
+  }
+  if (changed) {
+    commit(false);
+    renderGrid();
+  }
+}
+
 (async function init() {
   const boot = await api.getState();
   state.config = boot.config;
@@ -563,6 +583,7 @@ setInterval(() => {
   $('#version').textContent = boot.version;
   bind();
   renderAll();
+  hydrateAppIcons();
   syncPlugins();
   if (state.status.connected) {
     api.setBrightness(state.config.settings.brightness);

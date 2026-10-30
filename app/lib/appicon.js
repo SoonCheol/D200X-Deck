@@ -59,6 +59,7 @@ const APP_DIRS = [
   '/System/Applications',
   '/System/Applications/Utilities',
   '/Applications/Utilities',
+  '/System/Library/CoreServices',
   path.join(os.homedir(), 'Applications'),
 ];
 

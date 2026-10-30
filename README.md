@@ -6,6 +6,8 @@ actions, and it talks to the deck directly over HID — no vendor app required.
 
 ![Main window](docs/screenshots/main.png)
 
+_The editor, the plugin manager and the store all run against the deck live._
+
 ## Features
 
 * **Live editor** — mirrors the device exactly: 13 square keys + one 2×1 wide key

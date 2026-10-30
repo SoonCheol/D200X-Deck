@@ -383,7 +383,7 @@ function renderInspector() {
           ${liveKey.icon ? `<img src="${esc(liveKey.icon)}" alt="" />` : `<div class="icon-plus">＋</div>`}
           <div class="meta">
             <div class="file-name">${
-              key.icon ? 'Custom image' : liveKey.icon ? 'Live plugin image' : autoIconFor(key) ? 'Action icon' : 'No image'
+              key.icon ? 'Custom' : liveKey.icon ? 'Live image' : autoIconFor(key) ? 'Action icon' : 'No image'
             }</div>
             <div>Drop or click to change</div>
           </div>
