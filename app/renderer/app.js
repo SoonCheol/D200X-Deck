@@ -264,17 +264,60 @@ function switchProfile(profileId) {
   commit();
 }
 
-function addProfile() {
-  const name = (prompt('Profile name', 'New profile') || '').trim();
-  if (!name) return;
-  const id = crypto.randomUUID ? crypto.randomUUID() : String(Date.now());
-  const profile = { id, name };
-  state.config.profiles.push(profile);
-  const page = { id: crypto.randomUUID(), name: 'Main', profileId: id, keys: {} };
-  state.config.pages.push(page);
-  state.config.activeProfileId = id;
-  state.config.activePageId = page.id;
+let profileModalTarget = 'new';
+
+function openProfileModal(mode) {
+  profileModalTarget = mode;
+  const editing = mode === 'edit';
+  const profile = (state.config.profiles || []).find((p) => p.id === state.config.activeProfileId);
+  $('#profile-title').textContent = editing ? 'Manage profile' : 'New profile';
+  $('#profile-name').value = editing ? profile?.name || '' : '';
+  $('#profile-delete-row').classList.toggle('hidden', !editing);
+  $('#profile-delete').disabled = (state.config.profiles || []).length <= 1;
+  $('#profile-modal').classList.remove('hidden');
+  window.focusModal?.('profile-modal');
+  setTimeout(() => $('#profile-name').focus(), 40);
+}
+
+function closeProfileModal() {
+  $('#profile-modal').classList.add('hidden');
+}
+
+function saveProfile() {
+  const name = $('#profile-name').value.trim();
+  if (!name) return toast('Give the profile a name', true);
+  if (profileModalTarget === 'new') {
+    const id = crypto.randomUUID ? crypto.randomUUID() : String(Date.now());
+    state.config.profiles.push({ id, name });
+    const page = { id: crypto.randomUUID(), name: 'Main', profileId: id, keys: {} };
+    state.config.pages.push(page);
+    state.config.activeProfileId = id;
+    state.config.activePageId = page.id;
+  } else {
+    const profile = (state.config.profiles || []).find((p) => p.id === state.config.activeProfileId);
+    if (!profile) return;
+    profile.name = name;
+  }
   state.selected = null;
+  closeProfileModal();
+  renderAll();
+  commit();
+}
+
+function deleteCurrentProfile() {
+  const profiles = state.config.profiles || [];
+  if (profiles.length <= 1) return toast('At least one profile is required', true);
+  const profile = profiles.find((p) => p.id === state.config.activeProfileId);
+  if (!profile) return;
+  if (!confirm(`Delete profile “${profile.name}” and its pages?`)) return;
+  state.config.profiles = profiles.filter((p) => p.id !== profile.id);
+  state.config.pages = state.config.pages.filter((p) => p.profileId !== profile.id);
+  const nextProfile = state.config.profiles[0];
+  const nextPage = state.config.pages.find((p) => p.profileId === nextProfile.id);
+  state.config.activeProfileId = nextProfile.id;
+  state.config.activePageId = nextPage?.id || state.config.pages[0]?.id;
+  state.selected = null;
+  closeProfileModal();
   renderAll();
   commit();
 }
@@ -322,7 +365,17 @@ function bind() {
   });
 
   $('#profile-select').addEventListener('change', (e) => switchProfile(e.target.value));
-  $('#profile-add').addEventListener('click', addProfile);
+  $('#profile-add').addEventListener('click', () => openProfileModal('new'));
+  $('#profile-edit').addEventListener('click', () => openProfileModal('edit'));
+  $('#profile-modal-close').addEventListener('click', closeProfileModal);
+  $('#profile-modal').addEventListener('click', (e) => {
+    if (e.target === $('#profile-modal')) closeProfileModal();
+  });
+  $('#profile-save').addEventListener('click', saveProfile);
+  $('#profile-name').addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') saveProfile();
+  });
+  $('#profile-delete').addEventListener('click', deleteCurrentProfile);
 
   $('#import-btn').addEventListener('click', openImportModal);
   $('#import-close').addEventListener('click', closeImportModal);
@@ -547,6 +600,7 @@ function bind() {
     'store-modal': closeStoreModal,
     'plugin-modal': closePluginModal,
     'import-modal': closeImportModal,
+    'profile-modal': closeProfileModal,
   };
 
   function topModal() {

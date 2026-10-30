@@ -1048,3 +1048,8 @@ body::before {
 
 .profile-row { display: flex; gap: 6px; align-items: center; margin: 0 6px 8px; }
 .profile-select { flex: 1; min-width: 0; font-size: 11.5px; padding: 6px 8px; }
+
+.profile-card { width: min(440px, calc(100vw - 80px)); }
+#profile-delete-row { padding-top: 0; }
+#profile-name { flex: 1; min-width: 0; }
+#profile-modal .modal-actions { padding-top: 12px; }
