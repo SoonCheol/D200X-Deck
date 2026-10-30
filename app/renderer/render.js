@@ -234,7 +234,10 @@ async function drawKey(canvas, key, width = KEY_SIZE, height = KEY_SIZE, autoIco
     ctx.restore();
   }
 
-  if (!main && !key.icon && !drewAutoIcon) {
+  // The “+” is an affordance for an empty slot. Keys with a real action draw
+  // their own face (page indicator, text, …) and must not show it underneath.
+  const blankSlot = !key.action || key.action.type === 'none';
+  if (!main && !key.icon && !drewAutoIcon && blankSlot) {
     ctx.save();
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
