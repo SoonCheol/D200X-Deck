@@ -368,6 +368,7 @@ function renderInspector() {
         <div class="insp-empty" style="padding:0">
           Click a key to edit it. Drag a 196×196 image onto a key to use it as the icon.
           Labels are rendered into the image, so the deck shows exactly what you see here.
+          Select a key and press ⌘C / ⌘V to duplicate it, Delete to clear it (⌘Z undoes).
         </div>
       </div>
       <div class="insp-actions">
