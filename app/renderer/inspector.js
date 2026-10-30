@@ -786,17 +786,17 @@ function renderInspector() {
 
     <div class="field">
       <label>Caption style</label>
+      <label class="check-row caption-toggle"><input type="checkbox" id="insp-font-show" ${key.font?.showLabel !== false ? 'checked' : ''} /> Show caption</label>
       <div class="font-row">
-        <input class="input" id="insp-font-size" type="number" min="10" max="40" step="1" value="${Number(key.font?.size) || 17}" title="Size" />
-        <select class="select" id="insp-font-weight" title="Weight">
+        <input class="input" id="insp-font-size" type="number" min="10" max="40" step="1" value="${Number(key.font?.size) || 17}" title="Size" ${key.font?.showLabel === false ? 'disabled' : ''} />
+        <select class="select" id="insp-font-weight" title="Weight" ${key.font?.showLabel === false ? 'disabled' : ''}>
           ${[400, 500, 600, 700, 800].map((w) => `<option value="${w}" ${(Number(key.font?.weight) || 600) === w ? 'selected' : ''}>${w}</option>`).join('')}
         </select>
-        <select class="select" id="insp-font-align" title="Alignment">
+        <select class="select" id="insp-font-align" title="Alignment" ${key.font?.showLabel === false ? 'disabled' : ''}>
           ${['left', 'center', 'right'].map((a) => `<option value="${a}" ${(key.font?.align || 'left') === a ? 'selected' : ''}>${a[0].toUpperCase()}${a.slice(1)}</option>`).join('')}
         </select>
-        <input class="color-input" id="insp-font-color" type="color" value="${esc(key.font?.color || '#ffffff')}" title="Caption colour" />
+        <input class="color-input" id="insp-font-color" type="color" value="${esc(key.font?.color || '#ffffff')}" title="Caption colour" ${key.font?.showLabel === false ? 'disabled' : ''} />
       </div>
-      <label class="check-row"><input type="checkbox" id="insp-font-show" ${key.font?.showLabel !== false ? 'checked' : ''} /> Show caption</label>
     </div>
 
 
@@ -926,7 +926,13 @@ function renderInspector() {
   $('#insp-font-weight')?.addEventListener('change', (e) => updateFont({ weight: Number(e.target.value) }));
   $('#insp-font-align')?.addEventListener('change', (e) => updateFont({ align: e.target.value }));
   $('#insp-font-color')?.addEventListener('input', (e) => updateFont({ color: e.target.value }));
-  $('#insp-font-show')?.addEventListener('change', (e) => updateFont({ showLabel: e.target.checked }));
+  $('#insp-font-show')?.addEventListener('change', (e) => {
+    updateFont({ showLabel: e.target.checked });
+    ['#insp-font-size', '#insp-font-weight', '#insp-font-align', '#insp-font-color'].forEach((sel) => {
+      const el = $(sel);
+      if (el) el.disabled = !e.target.checked;
+    });
+  });
   $('#insp-action-type').addEventListener('change', (e) => {
     const type = e.target.value;
     if (type === 'app' || type === 'url' || type === 'text' || type === 'close') {
