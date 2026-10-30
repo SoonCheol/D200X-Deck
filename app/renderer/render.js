@@ -72,8 +72,13 @@ function truncateMain(text) {
 }
 
 function isEmojiOnly(text) {
+  const value = String(text || '').trim();
+  if (!value) return false;
   try {
-    return /^[\p{Extended_Pictographic}\p{Emoji_Component}\u200d\uFE0F\s]+$/u.test(text);
+    // Digits and #/* are Emoji_Component too, but "123" is plain text.
+    if (/^[0-9#*]\uFE0F?\u20E3$/u.test(value)) return true; // 1️⃣, #️⃣
+    if (/^\p{Regional_Indicator}{2}$/u.test(value)) return true; // flags
+    return /^[\p{Extended_Pictographic}\p{Emoji_Modifier}\u200d\uFE0F\s]+$/u.test(value);
   } catch {
     return false;
   }
@@ -243,7 +248,13 @@ async function drawKey(canvas, key, width = KEY_SIZE, height = KEY_SIZE, autoIco
     ctx.fillStyle = '#fff';
     const y = hasLabel ? h * 0.44 : h / 2;
     if (isEmojiOnly(main)) {
-      ctx.font = `${Math.round(min * 0.5)}px "Apple Color Emoji", "Segoe UI Emoji", sans-serif`;
+      let size = Math.round(min * 0.5);
+      const fontFor = (s) => `${s}px "Apple Color Emoji", "Segoe UI Emoji", sans-serif`;
+      ctx.font = fontFor(size);
+      while (size > 16 && ctx.measureText(main).width > w - 26) {
+        size -= 2;
+        ctx.font = fontFor(size);
+      }
       ctx.fillText(main, w / 2, y);
     } else {
       const maxWidth = w - 26;
