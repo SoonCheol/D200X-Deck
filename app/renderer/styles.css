@@ -841,7 +841,7 @@ body::before {
 
 /* --------------------------------------------------- plugin property inspector */
 
-.pi-host { margin: 0 -12px; }
+.pi-host { margin: 0; }
 .pi-frame {
   width: 100%;
   height: 120px;

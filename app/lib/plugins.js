@@ -245,7 +245,10 @@ class PluginManager extends EventEmitter {
     const file = path.join(meta.dir, rel);
     if (!fs.existsSync(file)) return null;
     const relPath = path.relative(meta.dir, file).split(path.sep).map(encodeURIComponent).join('/');
-    const url = new URL(`ulanzi-pi://local/${encodeURIComponent(plugin)}/${relPath}`);
+    // The folder name (…​.ulanziPlugin) is what the Ulanzi SDK uses to locate the
+    // plugin root for its localization files.
+    const folder = path.basename(meta.dir);
+    const url = new URL(`ulanzi-pi://local/${encodeURIComponent(folder)}/${relPath}`);
     // Different SDK generations read different casings of these params.
     url.searchParams.set('actionId', actionid);
     url.searchParams.set('actionid', actionid);

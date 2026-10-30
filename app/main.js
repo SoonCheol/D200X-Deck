@@ -95,6 +95,28 @@ function createWindow() {
             );
             await new Promise((r) => setTimeout(r, 700));
           }
+          if (process.env.ULANZI_PI_DEBUG) {
+            await new Promise((r) => setTimeout(r, 2500));
+            const frames = win.webContents.mainFrame.framesInSubtree.filter((f) => f.url.startsWith('ulanzi-pi://'));
+            for (const frame of frames) {
+              try {
+                const out = await frame.executeJavaScript(`(() => {
+                  const b = getComputedStyle(document.body);
+                  const inp = document.querySelector('input[type=number], input[type=text]');
+                  const row = inp ? inp.closest('.row') : null;
+                  return JSON.stringify({
+                    bodyW: document.body.clientWidth, bodyPadR: b.paddingRight,
+                    scrollW: window.innerWidth - document.documentElement.clientWidth,
+                    inpW: inp ? inp.offsetWidth : null,
+                    rowW: row ? row.offsetWidth : null,
+                    rowPad: row ? getComputedStyle(row).paddingRight : null,
+                    theme: !!document.getElementById('ulanzi-deck-open-theme'),
+                  });
+                })()`);
+                console.log('[pidebug]', out);
+              } catch (e) { console.log('[pidebug] err', e.message); }
+            }
+          }
           if (process.env.ULANZI_CLICK) {
             const idx = Number(process.env.ULANZI_CLICK) || 0;
             await win.webContents.executeJavaScript(
@@ -476,12 +498,16 @@ function spawnHelper(bin) {
 }
 
 protocol.registerSchemesAsPrivileged([
-  { scheme: 'ulanzi-pi', privileges: { standard: true, secure: true, supportFetchAPI: true } },
+  {
+    scheme: 'ulanzi-pi',
+    privileges: { standard: true, secure: true, supportFetchAPI: true, corsEnabled: true, stream: true },
+  },
 ]);
 
 const PI_THEME = `
 <style id="ulanzi-deck-open-theme">
   :root { color-scheme: dark; }
+  html { scrollbar-gutter: stable; }
   html, body {
     background: #0b0f16 !important;
     color: #e8ecf4 !important;
@@ -489,7 +515,7 @@ const PI_THEME = `
     font-size: 12px !important;
     margin: 0 !important;
   }
-  body { padding: 4px 2px 8px !important; }
+  body { padding: 0 12px 8px 0 !important; }
   .udpi-wrapper, .uspi-wrapper { background: transparent !important; }
   .uspi-heading, .udpi-heading {
     color: #8b95a7 !important;
@@ -502,6 +528,9 @@ const PI_THEME = `
     margin: 0 0 8px !important;
   }
   input, select, textarea {
+    box-sizing: border-box !important;
+    min-width: 0 !important;
+    max-width: 100% !important;
     background: #141a25 !important;
     border: 1px solid #2a3342 !important;
     border-radius: 8px !important;
@@ -595,9 +624,9 @@ app.whenReady().then(() => {
     try {
       const url = new URL(request.url);
       const parts = url.pathname.split('/').filter(Boolean);
-      const uuid = decodeURIComponent(parts[0] || '');
+      const folder = decodeURIComponent(parts[0] || '');
       const rel = parts.slice(1).map(decodeURIComponent).join('/');
-      const meta = plugins?.plugins?.get(uuid);
+      const meta = [...(plugins?.plugins?.values() || [])].find((m) => path.basename(m.dir) === folder);
       if (!meta) return new Response('not found', { status: 404 });
       const file = path.join(meta.dir, rel);
       if (!file.startsWith(meta.dir)) return new Response('forbidden', { status: 403 });

@@ -34,6 +34,11 @@ inputs, scrollbars) and a tiny script that reports the form height. The iframe i
 to its content; an inspector that has not rendered yet is collapsed (not removed) so it
 can expand once the plugin fills the form.
 
+The injected theme also normalises field sizing (`box-sizing: border-box`, `min-width: 0`,
+`max-width: 100%`), because several plugins hard-code a 219 px minimum width that used to
+spill under the scrollbar, and lets the SDK's localization load by serving files from the
+`.ulanziPlugin` folder path it expects.
+
 Because inspector pages come from that custom scheme, responses from loopback services
 (`127.0.0.1` / `localhost`) get permissive CORS headers — some inspectors talk to a local
 daemon (AgentDeck's port 9120, for example), which the vendor app allows too.
