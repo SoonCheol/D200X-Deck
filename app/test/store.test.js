@@ -37,6 +37,24 @@ test('POP menus are capped at nine actions', () => {
   assert.equal(validated.pages[0].keys[0].action.steps.length, 9);
 });
 
+test('parents stay inside the profile and cycles are dropped', () => {
+  const config = createDefaultConfig();
+  const [first, second] = config.pages;
+  second.parentId = first.id;
+  const valid = validateConfig(config);
+  assert.equal(valid.pages.find((p) => p.id === second.id).parentId, first.id);
+
+  first.parentId = second.id;
+  const cyclic = validateConfig(config);
+  assert.equal(cyclic.pages.find((p) => p.id === first.id).parentId, undefined);
+
+  config.profiles.push({ id: 'other', name: 'Other' });
+  config.pages.push({ id: 'other-page', name: 'Other page', profileId: 'other', keys: {} });
+  second.parentId = 'other-page';
+  const cross = validateConfig(config);
+  assert.equal(cross.pages.find((p) => p.id === second.id).parentId, undefined);
+});
+
 test('migration drops legacy wide-key slots and rewrites open actions', () => {
   const dir = tempDir();
   const store = new Store(dir);

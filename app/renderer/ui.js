@@ -14,6 +14,12 @@ function renderChrome() {
   const page = activePage();
   const title = $('#page-title');
   if (document.activeElement !== title) title.value = page.name;
+  const back = $('#page-back');
+  if (back) {
+    const parent = page.parentId ? state.config.pages.find((p) => p.id === page.parentId) : null;
+    back.classList.toggle('hidden', !parent);
+    back.title = parent ? `Back to “${parent.name}”` : '';
+  }
   $('#autopush').checked = Boolean(state.config.settings.autoPush);
   $('#brightness').value = state.config.settings.brightness;
   $('#brightness-value').textContent = state.config.settings.brightness;
@@ -54,14 +60,31 @@ function renderPageList() {
   const profilePages = state.config.pages.filter(
     (p) => p.profileId === state.config.activeProfileId
   );
+  const byId = new Map(profilePages.map((p) => [p.id, p]));
+  const depthOf = (page) => {
+    let depth = 0;
+    let current = page;
+    const seen = new Set();
+    while (current?.parentId && byId.has(current.parentId) && depth < 8 && !seen.has(current.id)) {
+      seen.add(current.id);
+      current = byId.get(current.parentId);
+      depth += 1;
+    }
+    return depth;
+  };
   profilePages.forEach((page) => {
+    const depth = depthOf(page);
     const el = document.createElement('div');
     el.className = `page-item${page.id === state.config.activePageId ? ' active' : ''}`;
     el.setAttribute('role', 'button');
     el.setAttribute('tabindex', '0');
     el.setAttribute('aria-current', page.id === state.config.activePageId ? 'page' : 'false');
     el.setAttribute('aria-label', `Page ${page.name}`);
-    el.innerHTML = `<span class="dot"></span><span class="name">${esc(page.name)}</span>`;
+    if (depth) {
+      el.classList.add('subpage');
+      el.style.paddingLeft = `${10 + depth * 12}px`;
+    }
+    el.innerHTML = `<span class="dot"></span><span class="name">${depth ? '↳ ' : ''}${esc(page.name)}</span>`;
     el.addEventListener('keydown', (e) => {
       if (e.key === 'Enter' || e.key === ' ') {
         e.preventDefault();

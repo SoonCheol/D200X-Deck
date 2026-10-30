@@ -837,6 +837,10 @@ function bind() {
   $('#plugin-open-folder').addEventListener('click', () => api.openPluginsFolder());
 
   $('#add-page').addEventListener('click', addPage);
+  $('#page-back').addEventListener('click', () => {
+    const parent = activePage()?.parentId;
+    if (parent) navigate(parent);
+  });
   $('#push-btn').addEventListener('click', pushNow);
 
   $('#page-title').addEventListener('input', (e) => {

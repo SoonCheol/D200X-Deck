@@ -341,6 +341,26 @@ function bindTriggerFields(key) {
   }
 }
 
+/** Parent choices: same profile only, never the page itself or its descendants. */
+function parentPageOptions(page) {
+  const pages = state.config.pages.filter((p) => p.profileId === page.profileId && p.id !== page.id);
+  const byId = new Map(state.config.pages.map((p) => [p.id, p]));
+  const isDescendant = (candidate) => {
+    let current = candidate;
+    const seen = new Set();
+    while (current?.parentId && !seen.has(current.id)) {
+      if (current.parentId === page.id) return true;
+      seen.add(current.id);
+      current = byId.get(current.parentId);
+    }
+    return false;
+  };
+  return pages
+    .filter((p) => !isDescendant(p))
+    .map((p) => `<option value="${esc(p.id)}" ${p.id === page.parentId ? 'selected' : ''}>${esc(p.name)}</option>`)
+    .join('');
+}
+
 function renderInspector() {
   const el = $('#inspector');
   const page = activePage();
@@ -368,12 +388,15 @@ function renderInspector() {
         <label>Parent page</label>
         <select class="select" id="insp-page-parent">
           <option value="">None</option>
-          ${state.config.pages
-            .filter((p) => p.id !== page.id)
-            .map((p) => `<option value="${esc(p.id)}" ${p.id === page.parentId ? 'selected' : ''}>${esc(p.name)}</option>`)
-            .join('')}
+          ${parentPageOptions(page)}
         </select>
-        <div class="field-hint">“Back” actions and folders return here.</div>
+        <div class="field-hint">
+          ${page.parentId ? `Subpage of “${esc(pageName(page.parentId))}”.` : '“Back” actions and folders return here.'}
+        </div>
+        ${page.parentId ? `<div class="row" style="margin-top:8px">
+          <button class="btn small" id="insp-page-back">← Back to ${esc(pageName(page.parentId))}</button>
+          <button class="btn small" id="insp-add-back">Add Back key</button>
+        </div>` : ''}
       </div>
       <div class="field">
         <label>Background</label>
@@ -423,6 +446,24 @@ function renderInspector() {
       if (e.target.value) page.parentId = e.target.value;
       else delete page.parentId;
       commit();
+    });
+    $('#insp-page-back')?.addEventListener('click', () => {
+      if (page.parentId) navigate(page.parentId);
+    });
+    $('#insp-add-back')?.addEventListener('click', () => {
+      const slot = nextFreeIndex(page);
+      if (slot < 0) return toast('No free key slot for a Back key', true);
+      page.keys[slot] = {
+        emoji: '↩️',
+        label: 'Back',
+        color: '#1b2130',
+        icon: null,
+        action: { type: 'page', op: 'back' },
+      };
+      state.selected = slot;
+      renderAll();
+      commit();
+      toast(`Back key added at key ${slot + 1}`);
     });
     document.querySelectorAll('#inspector [data-unpin]').forEach((button) => {
       button.addEventListener('click', () => {

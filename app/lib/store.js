@@ -149,6 +149,27 @@ function validateConfig(config) {
     pages.push(normalized);
   }
 
+  // Parents must live in the same profile and must not form a cycle.
+  const pageById = new Map(pages.map((page) => [page.id, page]));
+  for (const page of pages) {
+    if (!page.parentId) continue;
+    const parent = pageById.get(page.parentId);
+    if (!parent || parent.profileId !== page.profileId) {
+      delete page.parentId;
+      continue;
+    }
+    const seen = new Set([page.id]);
+    let current = parent;
+    while (current?.parentId) {
+      if (seen.has(current.id)) {
+        delete page.parentId;
+        break;
+      }
+      seen.add(current.id);
+      current = pageById.get(current.parentId);
+    }
+  }
+
   // Every profile must own at least one page, otherwise the UI can end up
   // editing a page that belongs to another profile ("ghost" page).
   for (const profile of profiles) {
