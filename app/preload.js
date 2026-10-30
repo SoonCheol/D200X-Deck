@@ -28,6 +28,7 @@ contextBridge.exposeInMainWorld('deckApp', {
   storeCategories: () => ipcRenderer.invoke('store:categories'),
   storeList: (query) => ipcRenderer.invoke('store:list', query),
   storeResource: (id) => ipcRenderer.invoke('store:resource', id),
+  storeCheckFile: (id) => ipcRenderer.invoke('store:check-file', id),
   storeInstall: (id) => ipcRenderer.invoke('store:install', id),
   installIconPack: (id) => ipcRenderer.invoke('store:install-icons', id),
   listIconPacks: () => ipcRenderer.invoke('icons:list'),

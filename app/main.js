@@ -195,6 +195,17 @@ function createWindow() {
               );
               await new Promise((r) => setTimeout(r, 3500));
             }
+            if (process.env.ULANZI_STORE_SEARCH) {
+              await win.webContents.executeJavaScript(`
+                (() => {
+                  const s = document.querySelector('#store-search');
+                  s.value = ${JSON.stringify(process.env.ULANZI_STORE_SEARCH)};
+                  s.dispatchEvent(new Event('input', { bubbles: true }));
+                  return true;
+                })()
+              `);
+              await new Promise((r) => setTimeout(r, 2500));
+            }
             if (process.env.ULANZI_STORE_ITEM) {
               await win.webContents.executeJavaScript(
                 `document.querySelectorAll('.store-item')[${Number(process.env.ULANZI_STORE_ITEM) || 0}]?.click(); true`
@@ -577,6 +588,15 @@ ipcMain.handle('store:categories', async () => {
 ipcMain.handle('store:list', async (_evt, query) => {
   try {
     return { ok: true, ...(await market.list(query || {})) };
+  } catch (err) {
+    return { ok: false, error: err.message || String(err) };
+  }
+});
+
+ipcMain.handle('store:check-file', async (_evt, id) => {
+  try {
+    const resource = await market.resource(String(id));
+    return { ok: true, ...(await market.checkFile(resource.files)) };
   } catch (err) {
     return { ok: false, error: err.message || String(err) };
   }

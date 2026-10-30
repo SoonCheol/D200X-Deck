@@ -1870,8 +1870,10 @@ async function openStoreDetail(id) {
       installable || iconPack
         ? ''
         : `<p class="store-note">${
-            kind ? `${esc(kind)} items` : 'This item'
-          } can be downloaded from the Ulanzi marketplace, but only JavaScript <b>plugins</b> and <b>icon packs</b> can be installed into this app.</p>`
+            /icons?/i.test(kind) && !item.files
+              ? 'This icon pack has no downloadable file on the Ulanzi store.'
+              : `${kind ? `${esc(kind)} items` : 'This item'} can be downloaded from the Ulanzi marketplace, but only JavaScript <b>plugins</b> and <b>icon packs</b> can be installed into this app.`
+          }</p>`
     }
     <p>${esc(item.summary || 'No description provided.')}</p>
   `;
@@ -1897,6 +1899,25 @@ async function openStoreDetail(id) {
       downloadIcons.textContent = 'Download icons';
     });
   }
+  // Ask the CDN whether the package still exists before offering a download.
+  const actionBtn = $('#store-install') || $('#store-download-icons');
+  if (actionBtn && !installed && !actionBtn.disabled) {
+    const readyLabel = actionBtn.textContent;
+    actionBtn.disabled = true;
+    actionBtn.textContent = 'Checking…';
+    api.storeCheckFile(item.id).then((check) => {
+      actionBtn.textContent = readyLabel;
+      if (check.ok && check.size !== 0) return;
+      actionBtn.disabled = true;
+      actionBtn.textContent = 'Unavailable';
+      const note = document.createElement('p');
+      note.className = 'store-note';
+      note.textContent =
+        'Ulanzi’s file for this item is missing from their server, so it cannot be downloaded right now.';
+      detail.querySelector('.store-detail-actions').after(note);
+    });
+  }
+
   const install = $('#store-install');
   if (install && !installed) {
     install.addEventListener('click', async () => {

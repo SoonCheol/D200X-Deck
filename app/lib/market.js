@@ -150,6 +150,22 @@ class Market {
     return { items: items.map((item) => normalizeItem(item)), total: Number(json.count || items.length) };
   }
 
+  /** HEAD the package file to see whether Ulanzi's CDN still has it. */
+  async checkFile(url) {
+    if (!/^https?:\/\//i.test(String(url || ''))) return { ok: false, reason: 'missing' };
+    const headers = { 'User-Agent': UA, Referer: `${WEB}/` };
+    if (this.token) headers.authToken = this.token;
+    try {
+      const res = await fetch(url, { method: 'HEAD', headers, redirect: 'follow' });
+      const type = String(res.headers.get('content-type') || '');
+      const size = Number(res.headers.get('content-length') || 0);
+      const ok = res.ok && !/html|xml/i.test(type);
+      return { ok, status: res.status, contentType: type, size };
+    } catch (err) {
+      return { ok: false, reason: err.message };
+    }
+  }
+
   async resource(id) {
     const json = await this.request('/resources', { params: { id } });
     return normalizeItem(json.tResources || json.data || {});
@@ -166,7 +182,13 @@ class Market {
     if (!res.ok) throw new StoreError(`Download failed (${res.status})`);
     const buffer = Buffer.from(await res.arrayBuffer());
     if (buffer.subarray(0, 2).toString('latin1') !== 'PK') {
-      throw new StoreError('This store item is not a plugin package (not a ZIP file)');
+      const type = String(res.headers.get('content-type') || '');
+      if (!res.ok || /html|xml/i.test(type)) {
+        throw new StoreError(
+          'Ulanzi no longer has this file on their server (the download link is broken).'
+        );
+      }
+      throw new StoreError('This item is not a ZIP file, so it cannot be installed.');
     }
     fs.writeFileSync(destPath, buffer);
     return { path: destPath, size: buffer.length };

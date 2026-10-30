@@ -30,7 +30,12 @@ The **Store** entry in the sidebar talks to the official Ulanzi Studio marketpla
 | `GET /down?id=` | download counter |
 
 Browsing and downloading are public; the site's optional account sign-in only adds
-a personal session token (stored in `store.json`, mode `600`). Installing a store
+a personal session token (stored in `store.json`, mode `600`).
+
+A lot of the older marketplace entries (about 38 of the 63 icon packs) point at files
+that no longer exist on Ulanzi's CDN — the URL returns an HTML/XML 404. The detail view
+HEAD-checks the file first and marks those items **Unavailable** instead of letting the
+download fail. Installing a store
 item downloads its ZIP and unpacks it into this app's plugin folder, so it appears in
 the plugin manager as **Installed** and can be removed from there.
 
