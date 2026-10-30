@@ -850,3 +850,16 @@ body::before {
   background: #1e1f22;
   display: block;
 }
+
+/* ---------------------------------------------------------- app scrollbars */
+
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.16);
+  border: 2px solid transparent;
+  background-clip: content-box;
+  border-radius: 7px;
+}
+::-webkit-scrollbar-thumb:hover { background: rgba(255, 255, 255, 0.28); background-clip: content-box; }
+::-webkit-scrollbar-corner { background: transparent; }

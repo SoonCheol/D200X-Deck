@@ -523,8 +523,19 @@ const PI_THEME = `
   (function () {
     function report() {
       try {
-        var h = Math.max(document.body.scrollHeight, document.documentElement.scrollHeight);
-        parent.postMessage({ type: 'ulanzi-pi-height', height: h }, '*');
+        // Measure the lowest visible element instead of scrollHeight: many
+        // inspector stylesheets give the body a min-height, which would make
+        // the frame grow to its own height.
+        var h = 0;
+        var nodes = document.body.querySelectorAll('*');
+        for (var i = 0; i < nodes.length; i++) {
+          var el = nodes[i];
+          var r = el.getBoundingClientRect();
+          if (r.height > 0 && r.width > 0 && getComputedStyle(el).visibility !== 'hidden') {
+            h = Math.max(h, r.bottom);
+          }
+        }
+        parent.postMessage({ type: 'ulanzi-pi-height', height: Math.ceil(h) }, '*');
       } catch (e) {}
     }
     window.addEventListener('load', report);
