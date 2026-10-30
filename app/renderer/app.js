@@ -2,6 +2,45 @@
 
 const api = window.deckApp;
 const renderKey = window.KeyRenderer.drawKey;
+
+const ACTION_ICON_PATHS = {
+  'page:next': 'assets/actions/page-next.svg',
+  'page:prev': 'assets/actions/page-prev.svg',
+  'page:goto': 'assets/actions/page-goto.svg',
+  'media:playpause': 'assets/actions/media-playpause.svg',
+  'media:next': 'assets/actions/media-next.svg',
+  'media:prev': 'assets/actions/media-prev.svg',
+  'media:volumeup': 'assets/actions/media-volumeup.svg',
+  'media:volumedown': 'assets/actions/media-volumedown.svg',
+  'media:mute': 'assets/actions/media-mute.svg',
+  text: 'assets/actions/text.svg',
+  hotkey: 'assets/actions/hotkey.svg',
+  app: 'assets/actions/app.svg',
+  url: 'assets/actions/url.svg',
+  command: 'assets/actions/command.svg',
+  close: 'assets/actions/close.svg',
+  plugin: 'assets/actions/plugin.svg',
+  multi: 'assets/actions/multi.svg',
+  toggle: 'assets/actions/toggle.svg',
+};
+
+/** Bundled icon for an action, used when the key has no custom image/emoji. */
+function actionIconSrc(action) {
+  if (!action) return null;
+  if (action.type === 'page') {
+    const op = action.op === 'next' || action.op === 'prev' ? action.op : 'goto';
+    return ACTION_ICON_PATHS[`page:${op}`] || null;
+  }
+  if (action.type === 'media') return ACTION_ICON_PATHS[`media:${action.op}`] || null;
+  return ACTION_ICON_PATHS[action.type] || null;
+}
+
+/** Only auto-emoji keys borrow the bundled icon; a custom emoji wins. */
+function autoIconFor(key) {
+  if (key.icon) return null;
+  if (key.emoji && key.emoji !== key.emojiAuto) return null;
+  return actionIconSrc(key.action);
+}
 const renderSystemPanel = window.KeyRenderer.drawSystemPanel;
 
 const COLS = 5;
@@ -259,7 +298,7 @@ async function drawGrid() {
     tiles.map((tile, i) => {
       if (i === WIDE_KEY_INDEX) return renderSystemPanel(tile.querySelector('canvas'));
       const key = effectiveKey(page.keys[i] || emptyKey());
-      return renderKey(tile.querySelector('canvas'), key, 196, 196);
+      return renderKey(tile.querySelector('canvas'), key, 196, 196, autoIconFor(key));
     })
   );
 }
@@ -269,7 +308,7 @@ function drawIndex(index) {
   if (!tile) return;
   if (index === WIDE_KEY_INDEX) return renderSystemPanel(tile.querySelector('canvas'));
   const key = effectiveKey(activePage().keys[index] || emptyKey());
-  renderKey(tile.querySelector('canvas'), key, 196, 196);
+  renderKey(tile.querySelector('canvas'), key, 196, 196, autoIconFor(key));
 }
 
 function moveKey(page, src, dst) {
@@ -663,8 +702,14 @@ function renderInspector() {
       <div class="icon-drop" id="insp-icon-drop">
         ${liveKey.icon ? `<img src="${esc(liveKey.icon)}" alt="" />` : `<div style="width:46px;height:46px;border-radius:8px;display:grid;place-items:center;background:rgba(255,255,255,.05);font-size:20px;opacity:.55">＋</div>`}
         <div class="meta">
-          <div class="file-name">${key.icon ? 'Custom image' : liveKey.icon ? 'Live plugin image' : 'No image'}</div>
-          <div>Drop an image here or click to choose</div>
+          <div class="file-name">${
+            key.icon ? 'Custom image' : liveKey.icon ? 'Live plugin image' : autoIconFor(key) ? 'Action icon' : 'No image'
+          }</div>
+          <div>${
+            !key.icon && autoIconFor(key)
+              ? 'Bundled icon for this action · type an emoji to use that instead'
+              : 'Drop an image here or click to choose'
+          }</div>
         </div>
       </div>
       ${action.type === 'app' && action.value ? '<button class="btn icon-remove" id="insp-use-app-icon">Use app icon</button>' : ''}

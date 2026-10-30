@@ -72,7 +72,7 @@ function isEmojiOnly(text) {
  * @param {number} width  196 for normal keys, 402 for the wide key
  * @param {number} height 196
  */
-async function drawKey(canvas, key, width = KEY_SIZE, height = KEY_SIZE) {
+async function drawKey(canvas, key, width = KEY_SIZE, height = KEY_SIZE, autoIcon = null) {
   const w = width;
   const h = height;
   const min = Math.min(w, h);
@@ -137,7 +137,25 @@ async function drawKey(canvas, key, width = KEY_SIZE, height = KEY_SIZE) {
   const main = truncateMain(key.emoji || '');
   const hasLabel = Boolean(label);
 
-  if (main && !key.icon) {
+  let drewAutoIcon = false;
+  if (!key.icon && autoIcon) {
+    try {
+      const img = await loadImage(autoIcon);
+      const size = Math.round(min * 0.54);
+      const y = (hasLabel ? h * 0.42 : h / 2) - size / 2;
+      ctx.save();
+      ctx.shadowColor = 'rgba(0,0,0,0.35)';
+      ctx.shadowBlur = 8;
+      ctx.globalAlpha = 0.96;
+      ctx.drawImage(img, (w - size) / 2, y, size, size);
+      ctx.restore();
+      drewAutoIcon = true;
+    } catch {
+      /* fall back to the emoji */
+    }
+  }
+
+  if (main && !key.icon && !drewAutoIcon) {
     ctx.save();
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
@@ -162,7 +180,7 @@ async function drawKey(canvas, key, width = KEY_SIZE, height = KEY_SIZE) {
     ctx.restore();
   }
 
-  if (!main && !key.icon) {
+  if (!main && !key.icon && !drewAutoIcon) {
     ctx.save();
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';

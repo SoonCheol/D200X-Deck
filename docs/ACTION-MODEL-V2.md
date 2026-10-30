@@ -83,6 +83,19 @@ Compatibility rule: keys with no `holdAction`/`doubleAction` behave exactly as t
 * `random`: picks a step, never the same twice in a row
 * failures surface as a toast and stop the sequence
 
+## Bundled action icons
+
+Actions come with a small set of bundled SVG icons (`app/renderer/assets/actions/`,
+white line art, MIT) that are drawn on the key when it has no custom image, matching
+the official app's look instead of relying on platform emoji:
+
+`page-next`, `page-prev`, `page-goto`, `media-playpause`, `media-next`, `media-prev`,
+`media-volumeup`, `media-volumedown`, `media-mute`, `text`, `hotkey`, `app`, `url`,
+`command`, `close`, `plugin`, `multi`, `toggle`.
+
+The auto-emoji is still filled in as a fallback; typing a custom emoji switches the
+key back to emoji, and any custom image always wins.
+
 ## UI
 
 * **Action picker** gains: Text, Media, Close app, Multi action, OBS.
