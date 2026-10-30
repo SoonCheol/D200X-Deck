@@ -49,9 +49,11 @@ function isAutoEmoji(key) {
 
 /** Only auto-emoji keys borrow the bundled icon; a custom emoji wins. */
 function pageInfo() {
-  const pages = state.config.pages;
+  // Count only the active profile's pages: navigation and the indicator dots
+  // are scoped to the profile, so the number must be too.
+  const pages = state.config.pages.filter((p) => p.profileId === state.config.activeProfileId);
   const index = pages.findIndex((p) => p.id === state.config.activePageId);
-  return { index: index + 1, total: pages.length };
+  return { index: index + 1, total: Math.max(1, pages.length) };
 }
 
 function autoIconFor(key) {
