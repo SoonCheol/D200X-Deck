@@ -692,6 +692,13 @@ class PluginManager extends EventEmitter {
       case 'openurl':
         this._openUrl(msg, action);
         break;
+      case 'openview':
+        this.openView?.(msg, action);
+        break;
+      case 'setFeedback':
+      case 'setFeedbackLayout':
+        // Encoder-only feedback; the D200 has no dials.
+        break;
       case 'toast':
         this.emit('toast', msg.msg || msg.message || '');
         break;

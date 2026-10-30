@@ -51,7 +51,9 @@ function runKeyAction(action) {
     return;
   }
   api.runAction(action).then((res) => {
-    if (!res.ok) toast(res.error || 'action failed', true);
+    if (res.ok) return;
+    toast(res.error || 'action failed', true);
+    if (res.permission === 'accessibility') api.requestAccessibility?.();
   });
 }
 

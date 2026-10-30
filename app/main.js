@@ -1,6 +1,6 @@
 'use strict';
 
-const { app, BrowserWindow, ipcMain, dialog, Menu, shell, Tray, nativeImage, protocol, session } = require('electron');
+const { app, BrowserWindow, ipcMain, dialog, Menu, shell, Tray, nativeImage, protocol, session, systemPreferences } = require('electron');
 const path = require('node:path');
 const fs = require('node:fs');
 const os = require('node:os');
@@ -318,6 +318,27 @@ function initPlugins() {
       try { frame.close(); } catch { /* ignore */ }
     });
   };
+  plugins.openView = (msg, action) => {
+    let target = String(msg.url || '');
+    if (msg.param && typeof msg.param === 'object') {
+      const qs = new URLSearchParams(msg.param).toString();
+      if (qs) target += (target.includes('?') ? '&' : '?') + qs;
+    }
+    if (!/^https?:/i.test(target) && action) {
+      const file = path.resolve(action.meta.dir, target.replace(/^\.?\//, ''));
+      if (!file.startsWith(action.meta.dir)) return;
+      const view = new BrowserWindow({
+        width: 760,
+        height: 680,
+        title: action.meta.name || 'Plugin',
+        backgroundColor: '#0b0e14',
+      });
+      view.loadFile(file).catch((err) => console.error('[plugin view]', err.message));
+      return;
+    }
+    if (/^https?:|^mailto:/i.test(target)) shell.openExternal(target);
+  };
+
   plugins.stopHtml = (uuid) => {
     const frame = htmlPluginWindows.get(uuid);
     if (frame) {
@@ -602,6 +623,18 @@ ipcMain.handle('deck:sleep', (_evt, seconds) => {
 ipcMain.handle('deck:reconnect', () => {
   deck.disconnect('Reconnecting');
   return { ok: deck.connect(), status: deck.status() };
+});
+
+ipcMain.handle('app:accessibility', () => ({
+  trusted: systemPreferences.isTrustedAccessibilityClient(false),
+}));
+
+ipcMain.handle('app:request-accessibility', () => {
+  const trusted = systemPreferences.isTrustedAccessibilityClient(true);
+  if (!trusted) {
+    shell.openExternal('x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility');
+  }
+  return { trusted };
 });
 
 ipcMain.handle(

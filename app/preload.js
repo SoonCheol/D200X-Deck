@@ -15,6 +15,8 @@ contextBridge.exposeInMainWorld('deckApp', {
   setBrightness: (level) => ipcRenderer.invoke('deck:brightness', level),
   setSleepTime: (seconds) => ipcRenderer.invoke('deck:sleep', seconds),
   reconnect: () => ipcRenderer.invoke('deck:reconnect'),
+  accessibility: () => ipcRenderer.invoke('app:accessibility'),
+  requestAccessibility: () => ipcRenderer.invoke('app:request-accessibility'),
   runAction: (action) => ipcRenderer.invoke('action:run', action),
   pickImage: () => ipcRenderer.invoke('dialog:pick-image'),
   pickAudio: () => ipcRenderer.invoke('dialog:pick-audio'),

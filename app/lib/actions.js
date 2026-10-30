@@ -14,7 +14,16 @@ function mediaBinary() {
     : path.join(__dirname, '..', 'bin', 'mediakey');
 }
 
+// Virtual key codes (US layout). Using key codes instead of keystroke matters for
+// shifted combinations: keystroke "2" with shift produces "@" for many apps.
+const LETTER_CODES = { a: 0, s: 1, d: 2, f: 3, h: 4, g: 5, z: 6, x: 7, c: 8, v: 9, b: 11, q: 12, w: 13, e: 14, r: 15, y: 16, t: 17, o: 31, u: 32, i: 34, p: 35, l: 37, j: 38, k: 40, n: 45, m: 46 };
+const DIGIT_CODES = { 1: 18, 2: 19, 3: 20, 4: 21, 5: 23, 6: 22, 7: 26, 8: 28, 9: 25, 0: 29 };
+const SYMBOL_CODES = { '-': 27, '=': 24, '[': 33, ']': 30, ';': 41, "'": 39, ',': 43, '.': 47, '/': 44, '`': 50, '\\': 42 };
+
 const KEY_CODES = {
+  ...LETTER_CODES,
+  ...DIGIT_CODES,
+  ...SYMBOL_CODES,
   return: 36, enter: 36, tab: 48, space: 49, delete: 51, escape: 53, esc: 53,
   left: 123, right: 124, down: 125, up: 126,
   home: 115, end: 119, pageup: 116, pagedown: 121,
@@ -54,7 +63,15 @@ function execFileResult(file, args, timeout = 10000) {
     execFile(file, args, { timeout }, (err, stdout, stderr) => {
       if (!err) return resolve({ ok: true });
       const detail = String(stderr || '').trim() || err.message;
-      resolve({ ok: false, error: detail.split('\n').filter(Boolean).pop() || detail });
+      const message = detail.split('\n').filter(Boolean).pop() || detail;
+      if (/assistive access|not allowed|Accessibility/i.test(detail)) {
+        return resolve({
+          ok: false,
+          permission: 'accessibility',
+          error: 'macOS blocked the keystroke — grant Accessibility permission to Ulanzi Deck Open.',
+        });
+      }
+      resolve({ ok: false, error: message });
     });
   });
 }

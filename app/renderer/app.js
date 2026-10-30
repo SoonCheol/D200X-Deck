@@ -272,6 +272,18 @@ function addProfile() {
   commit();
 }
 
+async function refreshAccessibility() {
+  const stateEl = $('#accessibility-state');
+  if (!stateEl) return;
+  try {
+    const res = await api.accessibility();
+    stateEl.textContent = res.trusted ? 'granted' : 'needed for hotkeys/text';
+    stateEl.style.color = res.trusted ? 'var(--good)' : 'var(--warn)';
+  } catch {
+    stateEl.textContent = 'unknown';
+  }
+}
+
 function updateDeckSettingsMeta() {
   const meta = $('#deck-settings-meta');
   if (!meta) return;
@@ -448,10 +460,17 @@ function bind() {
   $('#deck-settings-btn').addEventListener('click', () => {
     const sheet = $('#deck-settings');
     const open = sheet.classList.toggle('hidden');
-    if (!open) updateDeckSettingsMeta();
+    if (!open) {
+      updateDeckSettingsMeta();
+      refreshAccessibility();
+    }
   });
   $('#deck-settings-close').addEventListener('click', () => $('#deck-settings').classList.add('hidden'));
   $('#deck-settings-reconnect').addEventListener('click', () => api.reconnect());
+  $('#accessibility-grant').addEventListener('click', async () => {
+    await api.requestAccessibility();
+    setTimeout(refreshAccessibility, 1200);
+  });
   $('#insp-sleep-apply').addEventListener('click', async () => {
     const seconds = Math.max(0, parseInt($('#insp-sleep').value || '0', 10));
     state.config.settings.sleepSeconds = seconds;

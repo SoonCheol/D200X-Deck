@@ -153,8 +153,11 @@ tile, import keeps every `ViewParam`), **soundboard** (play/stop audio via `afpl
 volume, imported from vendor profiles), **store updates** (Update button when the
 installed version differs).
 
-Next by value: plugin `openview`/`feedback`, screensaver, app-linked profiles, pinned
-actions.
+Also done: plugin `openview` (plugin-local HTML in its own window), `setFeedback*` safely
+ignored (no dials on the D200), shifted hotkeys now use virtual key codes, Accessibility
+status + Grant action in Deck settings.
+
+Next by value: screensaver, app-linked profiles, pinned actions.
 
 ## Order of work (agreed)
 

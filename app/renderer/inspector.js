@@ -140,6 +140,11 @@ function multiStepRow(step, index, page) {
   }
   const act = step.action || { type: 'hotkey', value: '' };
   let control = `<input class="input multi-value" data-value="${index}" value="${esc(act.value || '')}" placeholder="Value" />`;
+  if (act.type === 'hotkey') {
+    control = `<button class="btn hotkey-value multi-value" data-hotkey="${index}">${esc(
+      act.value || 'Set hotkey…'
+    )}</button>`;
+  }
   if (act.type === 'media') {
     control = `<select class="select multi-value" data-value="${index}">${[
       ['playpause', 'Play / pause'],
@@ -195,6 +200,17 @@ function bindMultiEditor(key) {
       steps[index] = { action: type === 'media' ? { type, op: 'playpause' } : { type, value: '' } };
       commit();
       renderInspector();
+    });
+  });
+  document.querySelectorAll('#inspector [data-hotkey]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const index = Number(btn.dataset.hotkey);
+      const act = steps[index]?.action || { type: 'hotkey', value: '' };
+      openHotkeyModal({ action: { ...act } }, (next) => {
+        steps[index] = { action: { ...act, value: next.value } };
+        commit();
+        renderInspector();
+      });
     });
   });
   document.querySelectorAll('#inspector [data-value]').forEach((input) => {
