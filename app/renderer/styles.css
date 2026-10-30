@@ -308,6 +308,37 @@ body::before {
 .key:hover { transform: translateY(-2px); }
 .key.selected canvas { box-shadow: 0 0 0 2px var(--accent), 0 8px 22px rgba(79, 140, 255, 0.3); }
 .key.pressed canvas { transform: scale(0.96); filter: brightness(1.35); }
+.pinned-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 12px;
+  padding: 8px 10px;
+  border: 1px solid rgba(79, 140, 255, 0.28);
+  border-radius: 10px;
+  background: rgba(79, 140, 255, 0.1);
+  font-size: 11px;
+  color: var(--text-2);
+}
+.pinned-list { display: flex; flex-direction: column; gap: 6px; }
+.pinned-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.035);
+  font-size: 11.5px;
+}
+.pinned-slot {
+  width: 22px; height: 22px; flex: none;
+  display: inline-flex; align-items: center; justify-content: center;
+  border-radius: 6px; background: rgba(79, 140, 255, 0.18);
+  color: var(--accent); font-size: 10px; font-weight: 700;
+}
+.pinned-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text); }
+.pinned-note { color: var(--text-3); font-size: 10px; }
 .key .pin-badge {
   position: absolute;
   top: 8px;

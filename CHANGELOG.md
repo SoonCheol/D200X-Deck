@@ -3,6 +3,7 @@
 ## Unreleased
 
 ### Features
+- Pinned keys can always be removed: Page settings lists every pinned slot with an **Unpin** button, even when a page key overrides it.
 - POP keys (`com.ulanzi.deck.popkey.pop`) import as **POP menus** and open a small action palette at the pointer; child actions are editable in the inspector.
 - Profiles can be created, renamed and deleted in-app (unique names); pages are unique per profile.
 - Profiles can be linked to an app and follow the frontmost window (`lsappinfo`, no extra permissions).

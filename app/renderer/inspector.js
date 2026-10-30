@@ -357,6 +357,7 @@ function renderInspector() {
       ([index, k]) => Number(index) !== WIDE_KEY_INDEX && k &&
         (k.label || k.emoji || k.icon || (k.action && k.action.type !== 'none'))
     ).length;
+    const pins = Object.entries(pinnedFor(page.profileId));
     el.innerHTML = `
       <div class="insp-head"><h2>Page settings</h2><span class="index">${configured}/${KEY_COUNT - 1} keys</span></div>
       <div class="field">
@@ -391,6 +392,18 @@ function renderInspector() {
           }
         </div>
       </div>
+      ${pins.length ? `<div class="settings-block">
+        <h3>Pinned keys</h3>
+        <div class="pinned-list">
+          ${pins.map(([slot, key]) => `<div class="pinned-row">
+            <span class="pinned-slot">${Number(slot) + 1}</span>
+            <span class="pinned-name">${esc(key.label || key.emoji || 'Pinned key')}</span>
+            <span class="pinned-note">${page.keys[slot] ? 'overridden here' : 'on every page'}</span>
+            <button class="btn small danger" data-unpin="${slot}">Unpin</button>
+          </div>`).join('')}
+        </div>
+        <div class="field-hint">A key placed on a page overrides the pinned key in that slot.</div>
+      </div>` : ''}
       <div class="settings-block">
         <h3>Tips</h3>
         <div class="insp-empty" style="padding:0">
@@ -410,6 +423,18 @@ function renderInspector() {
       if (e.target.value) page.parentId = e.target.value;
       else delete page.parentId;
       commit();
+    });
+    document.querySelectorAll('#inspector [data-unpin]').forEach((button) => {
+      button.addEventListener('click', () => {
+        const slot = Number(button.dataset.unpin);
+        const profile = state.config.profiles.find((entry) => entry.id === page.profileId);
+        if (!profile?.pinned?.[slot]) return;
+        delete profile.pinned[slot];
+        if (!Object.keys(profile.pinned).length) delete profile.pinned;
+        commit();
+        renderAll();
+        toast('Unpinned from all pages');
+      });
     });
     $('#insp-page-bg').addEventListener('click', async () => {
       const picked = await api.pickImage();
