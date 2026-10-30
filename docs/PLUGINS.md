@@ -103,7 +103,13 @@ an icon downscales it to 392 px and stores it on the key. Profile files
    {"code":0,"cmd":"connected","uuid":"com.example.plugin"}
    ```
 
-5. For every plugin-backed key the host sends an `add`:
+5. For every plugin-backed key the host sends an `add`. **`uuid` must be the action
+   UUID, not the plugin UUID**: the SDK builds `context = uuid + "___" + key + "___" +
+   actionid`, and plugins use `decodeContext()` to tell their instances apart (e.g. the
+   Claude Usage plugin switches between its 5-hour and weekly views on that field).
+   Action-scoped messages (`add`, `setactive`, `paramfromapp`, `keydown`, `run`,
+   `clear`, `didReceiveSettings`) all carry the action UUID; only `connected` carries
+   the plugin UUID.
 
    ```json
    {

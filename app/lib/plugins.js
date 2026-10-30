@@ -266,7 +266,7 @@ class PluginManager extends EventEmitter {
     action.settings = settings || {};
     this._send(action.pluginUuid, {
       cmd: 'paramfromapp',
-      uuid: action.pluginUuid,
+      uuid: action.actionUuid,
       key: action.key,
       actionid,
       param: action.settings,
@@ -276,7 +276,7 @@ class PluginManager extends EventEmitter {
       inspector.send(
         JSON.stringify({
           cmd: 'paramfromapp',
-          uuid: action.pluginUuid,
+          uuid: action.actionUuid,
           key: action.key,
           actionid,
           param: action.settings,
@@ -571,7 +571,7 @@ class PluginManager extends EventEmitter {
         this._ensurePlugin(item.plugin);
         this._send(item.plugin, {
           cmd: 'add',
-          uuid: item.plugin,
+          uuid: item.action,
           key: item.key,
           actionid,
           action: item.action,
@@ -580,7 +580,7 @@ class PluginManager extends EventEmitter {
         });
         this._send(item.plugin, {
           cmd: 'setactive',
-          uuid: item.plugin,
+          uuid: item.action,
           key: item.key,
           actionid,
           active: item.active !== false,
@@ -590,7 +590,7 @@ class PluginManager extends EventEmitter {
           existing.settings = settings;
           this._send(item.plugin, {
             cmd: 'paramfromapp',
-            uuid: item.plugin,
+            uuid: item.action,
             key: item.key,
             actionid,
             param: settings,
@@ -600,7 +600,7 @@ class PluginManager extends EventEmitter {
           existing.active = item.active !== false;
           this._send(item.plugin, {
             cmd: 'setactive',
-            uuid: item.plugin,
+            uuid: item.action,
             key: item.key,
             actionid,
             active: existing.active,
@@ -613,8 +613,8 @@ class PluginManager extends EventEmitter {
   _clearAction(action) {
     this._send(action.pluginUuid, {
       cmd: 'clear',
-      uuid: action.pluginUuid,
-      param: [{ uuid: action.pluginUuid, key: action.key, actionid: action.actionid }],
+      uuid: action.actionUuid,
+      param: [{ uuid: action.actionUuid, key: action.key, actionid: action.actionid }],
     });
   }
 
@@ -622,7 +622,7 @@ class PluginManager extends EventEmitter {
     const action = this.actions.get(actionid);
     if (!action) return false;
     const base = {
-      uuid: action.pluginUuid,
+      uuid: action.actionUuid,
       key: action.key,
       actionid,
       param: action.settings,
@@ -669,7 +669,7 @@ class PluginManager extends EventEmitter {
         if (action) {
           this._send(action.pluginUuid, {
             cmd: 'didReceiveSettings',
-            uuid: action.pluginUuid,
+            uuid: action.actionUuid,
             key: action.key,
             actionid,
             settings: action.settings,
