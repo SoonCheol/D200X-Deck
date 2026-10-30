@@ -40,9 +40,15 @@ body::before {
 
 #app {
   display: grid;
-  grid-template-columns: 232px minmax(0, 1fr) 368px;
+  --side: 368px;
+  grid-template-columns: var(--side) minmax(0, 1fr) var(--side);
   height: 100vh;
   position: relative;
+}
+
+/* Keep both rails identical; shrink them together before the drawer kicks in. */
+@media (max-width: 1359px) {
+  #app { --side: 320px; }
 }
 
 /* ------------------------------------------------------------- sidebar */
@@ -71,8 +77,20 @@ body::before {
   filter: drop-shadow(0 4px 10px rgba(0, 0, 0, 0.45));
 }
 
-.brand-name { font-size: 14px; font-weight: 700; letter-spacing: 0.2px; }
-.brand-sub { font-size: 11px; color: var(--muted); letter-spacing: 1.6px; text-transform: uppercase; }
+.brand-name {
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: 0.2px;
+  white-space: nowrap;
+}
+.brand-sub {
+  margin-left: 5px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--muted);
+  letter-spacing: 0.4px;
+  text-transform: uppercase;
+}
 
 .section-head {
   display: flex;

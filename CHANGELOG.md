@@ -43,6 +43,7 @@
 - Image cache is bounded; press timers are cleared on navigation; HID discovery cannot crash the loop.
 
 ### UI
+- Sidebar and inspector now share the same rail width (368 px, 320 px on narrower windows); the brand reads “Ulanzi Deck OPEN” on one line.
 - Responsive toolbar at the 1080 px minimum; Push never wraps; truthful offline state.
 - Accessible dialogs (roles, focus trap, Escape), visible focus rings, live toast region.
 - Higher-contrast primary buttons and tertiary text; fixed-height modals.
