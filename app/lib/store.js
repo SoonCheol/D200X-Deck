@@ -32,7 +32,9 @@ function normalizeAction(action) {
     out.actionid = str(out.actionid);
     if (!out.settings || typeof out.settings !== 'object') out.settings = {};
   }
-  if (type === 'page') out.op = out.op === 'next' || out.op === 'prev' ? out.op : 'goto';
+  if (type === 'page') {
+    out.op = ['next', 'prev', 'back', 'goto'].includes(out.op) ? out.op : 'goto';
+  }
   return out;
 }
 
@@ -68,11 +70,13 @@ function validateConfig(config) {
       }
       keys[slot] = key;
     }
-    pages.push({
+    const normalized = {
       id: str(page.id) || randomUUID(),
       name: str(page.name, 'Page'),
       keys,
-    });
+    };
+    if (typeof page.parentId === 'string' && page.parentId) normalized.parentId = page.parentId;
+    pages.push(normalized);
   }
 
   return {

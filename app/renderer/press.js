@@ -24,6 +24,11 @@ function runKeyAction(action) {
   if (action.type === 'page') {
     if (action.op === 'next') return navigateRelative(1);
     if (action.op === 'prev') return navigateRelative(-1);
+    if (action.op === 'back') {
+      const parent = activePage().parentId;
+      if (parent) return navigate(parent);
+      return navigateRelative(-1);
+    }
     navigate(action.value);
     return;
   }

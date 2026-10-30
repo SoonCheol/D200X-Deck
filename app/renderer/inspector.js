@@ -311,6 +311,17 @@ function renderInspector() {
         <label>Page name</label>
         <input class="input" id="insp-page-name" value="${esc(page.name)}" maxlength="40" />
       </div>
+      <div class="field">
+        <label>Parent page</label>
+        <select class="select" id="insp-page-parent">
+          <option value="">None</option>
+          ${state.config.pages
+            .filter((p) => p.id !== page.id)
+            .map((p) => `<option value="${esc(p.id)}" ${p.id === page.parentId ? 'selected' : ''}>${esc(p.name)}</option>`)
+            .join('')}
+        </select>
+        <div class="field-hint">“Back” actions and folders return here.</div>
+      </div>
       <div class="settings-block">
         <h3>Tips</h3>
         <div class="insp-empty" style="padding:0">
@@ -325,6 +336,11 @@ function renderInspector() {
       </div>
     `;
 
+    $('#insp-page-parent')?.addEventListener('change', (e) => {
+      if (e.target.value) page.parentId = e.target.value;
+      else delete page.parentId;
+      commit();
+    });
     $('#insp-page-name').addEventListener('input', (e) => {
       page.name = e.target.value;
       renderPageList();
@@ -392,6 +408,7 @@ function renderInspector() {
       ['goto', 'Go to page'],
       ['next', 'Next page'],
       ['prev', 'Previous page'],
+      ['back', 'Back to parent page'],
     ];
     valueField = `<div class="row">
       <select class="select" id="insp-page-op">${ops

@@ -140,8 +140,11 @@ Done since the report: import (v1), **Multi Action** (sequence / alternate / ran
 delay steps, editor in the inspector), **Hotkey Switch** (`toggle`, two alternating
 actions), **text with Enter**.
 
-Next by value: profiles as first-class objects, folders/subpages + auto-exit, multi-state
-keys, soundboard, plugin `openview`/`feedback`, screensaver, marketplace updates.
+Also done: **folders/subpages** (page `parentId`, “Back to parent page”, import maps
+folder keys to parent links).
+
+Next by value: profiles as first-class objects, multi-state keys, soundboard, plugin
+`openview`/`feedback`, screensaver, marketplace updates.
 
 ## Order of work (agreed)
 

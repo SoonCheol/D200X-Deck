@@ -129,6 +129,11 @@ function attachScreenshotHarness({ win, send, quitNow }) {
             `);
             await new Promise((r) => setTimeout(r, 1500));
           }
+          if (process.env.ULANZI_EVAL) {
+            const out = await win.webContents.executeJavaScript(process.env.ULANZI_EVAL).catch((e) => 'ERR ' + e.message);
+            console.log('[shot] eval', String(out).slice(0, 300));
+            await new Promise((r) => setTimeout(r, 800));
+          }
           if (process.env.ULANZI_PRESS) {
             const index = Number(process.env.ULANZI_PRESS_INDEX || 0);
             const mode = process.env.ULANZI_PRESS;

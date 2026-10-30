@@ -312,6 +312,7 @@ function parseProfile(dir) {
   const report = { skipped: [], unmapped: [], missingPlugins: [], warnings: [] };
   const pages = [];
   const folderNames = new Map();
+  const folderParents = new Map();
 
   for (const pageId of manifest.Pages?.Pages || []) {
     const pageDir = path.join(dir, 'Profiles', String(pageId));
@@ -351,6 +352,7 @@ function parseProfile(dir) {
         const target = entry.ActionParam?.ProfileUUID || entry.ActionParam?.PageUUID;
         const label = String(entry.ViewParam?.[0]?.Text || entry.Name || '').trim();
         if (target && label && !folderNames.has(String(target))) folderNames.set(String(target), label);
+        if (target && pageIds.has(String(target))) folderParents.set(String(target), String(pageId));
       }
 
       const mapped = mapAction(entry, pageIds);
@@ -391,6 +393,11 @@ function parseProfile(dir) {
         `Page ${pages.length + 1}`,
       keys,
     });
+  }
+
+  for (const page of pages) {
+    const parent = folderParents.get(page.id);
+    if (parent && parent !== page.id) page.parentId = parent;
   }
 
   return {
