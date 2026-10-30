@@ -1907,7 +1907,10 @@ async function openStoreDetail(id) {
     actionBtn.textContent = 'Checking…';
     api.storeCheckFile(item.id).then((check) => {
       actionBtn.textContent = readyLabel;
-      if (check.ok && check.size !== 0) return;
+      if (check.ok) {
+        actionBtn.disabled = false;
+        return;
+      }
       actionBtn.disabled = true;
       actionBtn.textContent = 'Unavailable';
       const note = document.createElement('p');
