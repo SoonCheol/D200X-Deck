@@ -4,7 +4,8 @@ const { spawn, execFile } = require('node:child_process');
 const path = require('node:path');
 const { shell, app } = require('electron');
 
-const MEDIA_OPS = new Set(['playpause', 'next', 'prev', 'volumeup', 'volumedown', 'mute']);
+const { MEDIA_OPS } = require('./constants');
+const MEDIA = new Set(MEDIA_OPS);
 
 function mediaBinary() {
   return app.isPackaged
@@ -135,7 +136,7 @@ async function closeApp(value) {
 
 function mediaKey(op) {
   return new Promise((resolve) => {
-    if (!MEDIA_OPS.has(op)) return resolve({ ok: false, error: `unknown media key: ${op}` });
+    if (!MEDIA.has(op)) return resolve({ ok: false, error: `unknown media key: ${op}` });
     const child = spawn(mediaBinary(), [op], { stdio: 'ignore' });
     child.on('error', (err) => resolve({ ok: false, error: err.message }));
     child.on('exit', (code) => resolve({ ok: code === 0, error: code ? `mediakey exited ${code}` : undefined }));

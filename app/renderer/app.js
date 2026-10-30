@@ -340,7 +340,7 @@ async function renderGrid() {
         toast('Drop an image file', true);
         return;
       }
-      const dataUrl = await readFileAsDataUrl(file);
+      const dataUrl = await downscaleImage(await readFileAsDataUrl(file));
       const key = ensureKey(activePage(), i);
       key.icon = dataUrl;
       state.selected = i;
@@ -398,6 +398,30 @@ function moveKey(page, src, dst) {
   commit();
   renderGrid();
   renderInspector();
+}
+
+/** Shrink an image to 392 px so key images stay small in the config. */
+function downscaleImage(dataUrl, size = 392) {
+  return new Promise((resolve) => {
+    const img = new Image();
+    img.onload = () => {
+      try {
+        const canvas = document.createElement('canvas');
+        canvas.width = size;
+        canvas.height = size;
+        const ctx = canvas.getContext('2d');
+        const scale = Math.min(size / img.width, size / img.height);
+        const w = img.width * scale;
+        const h = img.height * scale;
+        ctx.drawImage(img, (size - w) / 2, (size - h) / 2, w, h);
+        resolve(canvas.toDataURL('image/png'));
+      } catch {
+        resolve(dataUrl);
+      }
+    };
+    img.onerror = () => resolve(dataUrl);
+    img.src = dataUrl;
+  });
 }
 
 function readFileAsDataUrl(file) {
@@ -830,8 +854,9 @@ function renderInspector() {
   // icon drop / choose
   const drop = $('#insp-icon-drop');
   drop.addEventListener('click', async () => {
-    const dataUrl = await api.pickImage();
-    if (!dataUrl) return;
+    const picked = await api.pickImage();
+    if (!picked) return;
+    const dataUrl = await downscaleImage(picked);
     key.icon = dataUrl;
     key.iconSource = 'custom';
     drawIndex(state.selected);
@@ -848,7 +873,7 @@ function renderInspector() {
     drop.classList.remove('drag');
     const file = e.dataTransfer.files && e.dataTransfer.files[0];
     if (!file || !file.type.startsWith('image/')) return toast('Drop an image file', true);
-    key.icon = await readFileAsDataUrl(file);
+    key.icon = await downscaleImage(await readFileAsDataUrl(file));
     key.iconSource = 'custom';
     drawIndex(state.selected);
     commit();

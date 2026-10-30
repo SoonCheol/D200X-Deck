@@ -4,10 +4,87 @@ const fs = require('node:fs');
 const path = require('node:path');
 const { randomUUID } = require('node:crypto');
 
-const CONFIG_VERSION = 4;
+const CONFIG_VERSION = 5;
 
 function key(emoji, label, action = { type: 'none' }, color = '#1b2130') {
   return { emoji, label, action, color, icon: null };
+}
+
+const ACTION_TYPES = new Set([
+  'none', 'app', 'url', 'command', 'hotkey', 'text', 'media', 'close', 'page', 'plugin', 'multi', 'toggle',
+]);
+
+const MEDIA_OPS = new Set(['playpause', 'next', 'prev', 'volumeup', 'volumedown', 'mute']);
+
+function str(value, fallback = '') {
+  return typeof value === 'string' ? value : fallback;
+}
+
+function normalizeAction(action) {
+  if (!action || typeof action !== 'object') return { type: 'none' };
+  const type = ACTION_TYPES.has(action.type) ? action.type : 'none';
+  const out = { ...action, type };
+  if ('value' in out) out.value = str(out.value);
+  if (type === 'media') out.op = MEDIA_OPS.has(out.op) ? out.op : 'playpause';
+  if (type === 'plugin') {
+    out.plugin = str(out.plugin);
+    out.action = str(out.action);
+    out.actionid = str(out.actionid);
+    if (!out.settings || typeof out.settings !== 'object') out.settings = {};
+  }
+  if (type === 'page') out.op = out.op === 'next' || out.op === 'prev' ? out.op : 'goto';
+  return out;
+}
+
+/** Coerce a config into the shape the app expects, without dropping user data. */
+function validateConfig(config) {
+  config.settings = {
+    brightness: clamp(Number(config.settings?.brightness) || 85, 0, 100),
+    sleepSeconds: Math.max(0, Number(config.settings?.sleepSeconds) || 0),
+    autoPush: config.settings?.autoPush !== false,
+  };
+
+  const pages = [];
+  for (const page of config.pages) {
+    const keys = {};
+    for (const [index, raw] of Object.entries(page.keys || {})) {
+      const slot = Number(index);
+      if (!Number.isInteger(slot) || slot < 0 || slot > 12) continue;
+      if (!raw || typeof raw !== 'object') continue;
+      const key = {
+        emoji: str(raw.emoji),
+        label: str(raw.label),
+        color: /^#[0-9a-f]{6}$/i.test(raw.color || '') ? raw.color : '#1b2130',
+        icon: typeof raw.icon === 'string' && raw.icon ? raw.icon : null,
+        iconSource: str(raw.iconSource),
+        action: normalizeAction(raw.action),
+      };
+      if (typeof raw.emojiAuto === 'string') key.emojiAuto = raw.emojiAuto;
+      if (typeof raw.labelAuto === 'string') key.labelAuto = raw.labelAuto;
+      if (raw.holdAction) key.holdAction = normalizeAction(raw.holdAction);
+      if (raw.doubleAction) key.doubleAction = normalizeAction(raw.doubleAction);
+      if (key.holdAction || key.doubleAction) {
+        key.holdMs = clamp(Number(raw.holdMs) || 500, 150, 2000);
+      }
+      keys[slot] = key;
+    }
+    pages.push({
+      id: str(page.id) || randomUUID(),
+      name: str(page.name, 'Page'),
+      keys,
+    });
+  }
+
+  return {
+    version: CONFIG_VERSION,
+    settings: config.settings,
+    pages,
+    activePageId: pages.some((p) => p.id === config.activePageId) ? config.activePageId : pages[0].id,
+  };
+}
+
+function clamp(value, min, max) {
+  return Math.min(max, Math.max(min, value));
 }
 
 function defaultPages() {
@@ -119,7 +196,7 @@ class Store {
     if (!config.pages.some((p) => p.id === config.activePageId)) {
       config.activePageId = config.pages[0].id;
     }
-    return config;
+    return validateConfig(config);
   }
 
   save(config = this.config) {
@@ -140,4 +217,4 @@ class Store {
   }
 }
 
-module.exports = { Store, createDefaultConfig };
+module.exports = { Store, createDefaultConfig, validateConfig };

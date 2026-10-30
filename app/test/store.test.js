@@ -41,7 +41,7 @@ test('migration drops legacy wide-key slots and rewrites open actions', () => {
     activePageId: 'p1',
   };
   const migrated = store._migrate(config);
-  assert.equal(migrated.version, 4);
+  assert.equal(migrated.version, 5);
   assert.equal(migrated.pages[0].keys[13], undefined);
   assert.equal(migrated.pages[0].keys[14], undefined);
   assert.equal(migrated.pages[0].keys[0].action.type, 'url');

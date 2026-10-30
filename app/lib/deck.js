@@ -8,14 +8,7 @@ const VENDOR_ID = 0x2207;
 const PRODUCT_ID = 0x0019;
 const CONTROL_INTERFACE = 0;
 
-const DEFAULT_FONT = {
-  Align: 'bottom',
-  Color: 0xffffff,
-  FontName: 'Source Han Sans SC',
-  ShowTitle: true,
-  Size: 10,
-  Weight: 80,
-};
+const { DEFAULT_FONT } = require('./constants');
 
 class Deck extends EventEmitter {
   constructor() {

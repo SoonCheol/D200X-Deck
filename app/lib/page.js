@@ -3,20 +3,8 @@
 const JSZip = require('jszip');
 const { createHash } = require('node:crypto');
 
-const COLUMNS = 5;
-const ROWS = 3;
+const { DEFAULT_FONT, COLUMNS, ROWS, WIDE_INDEX, WIDE_SLOT } = require('./constants');
 // The D200 has 14 buttons: 13 square keys + one 2x1 key at slot "3_2".
-const WIDE_INDEX = 13;
-const WIDE_SLOT = '3_2';
-
-const DEFAULT_FONT = {
-  Align: 'bottom',
-  Color: 0xffffff,
-  FontName: 'Source Han Sans SC',
-  ShowTitle: true,
-  Size: 10,
-  Weight: 80,
-};
 
 /**
  * Build the page package for the deck.
