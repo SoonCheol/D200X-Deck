@@ -149,10 +149,12 @@ Also done: **HTML plugins** (hidden BrowserWindow + same SDK bridge), **Page Ind
 (big page number + dots), grouped action picker.
 
 Also done: **multi-state keys** (per-state icon/label, plugin `setState` updates the
-tile, import keeps every `ViewParam`).
+tile, import keeps every `ViewParam`), **soundboard** (play/stop audio via `afplay`,
+volume, imported from vendor profiles), **store updates** (Update button when the
+installed version differs).
 
-Next by value: soundboard, plugin `openview`/`feedback`, screensaver, marketplace
-updates, app-linked profiles.
+Next by value: plugin `openview`/`feedback`, screensaver, app-linked profiles, pinned
+actions.
 
 ## Order of work (agreed)
 

@@ -11,7 +11,7 @@ function key(emoji, label, action = { type: 'none' }, color = '#1b2130') {
 }
 
 const ACTION_TYPES = new Set([
-  'none', 'app', 'url', 'command', 'hotkey', 'text', 'media', 'close', 'page', 'plugin', 'multi', 'toggle', 'indicator',
+  'none', 'app', 'url', 'command', 'hotkey', 'text', 'media', 'close', 'page', 'plugin', 'multi', 'toggle', 'indicator', 'sound',
 ]);
 
 const MEDIA_OPS = new Set(['playpause', 'next', 'prev', 'volumeup', 'volumedown', 'mute']);
@@ -26,6 +26,10 @@ function normalizeAction(action) {
   const out = { ...action, type };
   if ('value' in out) out.value = str(out.value);
   if (type === 'media') out.op = MEDIA_OPS.has(out.op) ? out.op : 'playpause';
+  if (type === 'sound') {
+    out.op = out.op === 'stop' ? 'stop' : 'play';
+    out.volume = Math.min(1, Math.max(0, Number(out.volume) || 1));
+  }
   if (type === 'plugin') {
     out.plugin = str(out.plugin);
     out.action = str(out.action);

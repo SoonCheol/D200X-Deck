@@ -172,6 +172,15 @@ function mapAction(entry, pageIds) {
     return { action: null, label: null, raw: entry };
   }
 
+  // soundboard
+  if (lower.includes('sound.play')) {
+    return {
+      action: { type: 'sound', op: 'play', value: String(param.Value || param.File || ''), volume: Number(param.Volumn || param.Volume || 1) },
+      label: 'Play audio',
+    };
+  }
+  if (lower.includes('sound.stop')) return { action: { type: 'sound', op: 'stop', value: '' }, label: 'Stop audio' };
+
   // plugin
   if (plugin.UUID && !String(plugin.UUID).startsWith('com.ulanzi.deck.')) {
     return {

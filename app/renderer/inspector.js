@@ -6,7 +6,7 @@ const ACTION_GROUPS = [
   ['Basic', ['none']],
   ['Device & pages', ['page', 'indicator', 'multi', 'toggle']],
   ['Apps & links', ['app', 'url']],
-  ['System', ['hotkey', 'text', 'media', 'close', 'command']],
+  ['System', ['hotkey', 'text', 'media', 'sound', 'close', 'command']],
   ['Plugins', ['plugin']],
 ];
 
@@ -462,6 +462,20 @@ function renderInspector() {
     valueField = `<select class="select" id="insp-value">${ops
       .map(([v, l]) => `<option value="${v}" ${v === action.op ? 'selected' : ''}>${l}</option>`)
       .join('')}</select>`;
+  } else if (action.type === 'sound') {
+    const op = action.op || 'play';
+    valueField = `<div class="row">
+      <select class="select" id="insp-sound-op" style="flex:0 0 96px">
+        <option value="play" ${op === 'play' ? 'selected' : ''}>Play</option>
+        <option value="stop" ${op === 'stop' ? 'selected' : ''}>Stop</option>
+      </select>
+      ${
+        op === 'play'
+          ? `<input class="input" id="insp-value" value="${esc(action.value || '')}" placeholder="/path/to/sound.mp3" />
+             <button class="btn" id="insp-pick-audio">Choose…</button>`
+          : '<span class="field-hint">Stops the audio started by this key.</span>'
+      }
+    </div>`;
   } else if (action.type === 'indicator') {
     valueField = '<div class="field-hint">Shows the current page position. It cannot be pressed.</div>';
   } else if (action.type === 'multi' || action.type === 'toggle') {
@@ -743,6 +757,25 @@ function renderInspector() {
       .catch(() => {
         if (host.isConnected) host.innerHTML = '<div class="insp-empty" style="padding:0">Could not load the property inspector.</div>';
       });
+  }
+
+  const soundOp = $('#insp-sound-op');
+  if (soundOp) {
+    soundOp.addEventListener('change', () => {
+      key.action = { ...key.action, op: soundOp.value };
+      commit();
+      renderInspector();
+    });
+  }
+  const pickAudio = $('#insp-pick-audio');
+  if (pickAudio) {
+    pickAudio.addEventListener('click', async () => {
+      const file = await api.pickAudio();
+      if (!file) return;
+      key.action = { ...key.action, value: file };
+      commit();
+      renderInspector();
+    });
   }
 
   const pageOp = $('#insp-page-op');

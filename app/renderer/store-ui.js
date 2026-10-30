@@ -286,7 +286,14 @@ async function openStoreDetail(id) {
   }
   const item = res.resource;
   storeState.detail = item;
-  const installed = state.plugins.some((p) => (item.uuid && p.uuid === item.uuid) || p.name === item.name);
+  const installedPlugin = state.plugins.find(
+    (p) => (item.uuid && p.uuid === item.uuid) || p.name === item.name
+  );
+  const installed = Boolean(installedPlugin);
+  const updatable =
+    installed &&
+    item.version &&
+    String(item.version) !== String(installedPlugin.version || '') ;
   const category = storeState.categories.find((c) => String(c.id) === String(item.categoryId));
   const kind = category?.name || '';
   const installable = /plugins?/i.test(kind) && /\.zip$/i.test(item.files || '');
@@ -381,10 +388,10 @@ async function openStoreDetail(id) {
   }
 
   const install = $('#store-install');
-  if (install && !installed) {
+  if (install && (!installed || updatable)) {
     install.addEventListener('click', async () => {
       const ok = confirm(
-        `Install “${item.name}”?\n\nPlugins run on your Mac with your user permissions, outside the app sandbox. Only install plugins you trust.`
+        `${updatable ? 'Update' : 'Install'} “${item.name}”?\n\nPlugins run on your Mac with your user permissions, outside the app sandbox. Only install plugins you trust.`
       );
       if (!ok) return;
       install.disabled = true;
@@ -400,7 +407,7 @@ async function openStoreDetail(id) {
       renderPluginModal();
       syncPlugins();
       install.textContent = 'Installed';
-      toast(`Installed ${out.name || item.name}`);
+      toast(`${updatable ? 'Updated' : 'Installed'} ${out.name || item.name}`);
     });
   }
 }

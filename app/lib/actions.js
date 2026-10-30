@@ -6,6 +6,7 @@ const { shell, app } = require('electron');
 
 const { MEDIA_OPS } = require('./constants');
 const MEDIA = new Set(MEDIA_OPS);
+const audioPlayers = new Map(); // action key -> ChildProcess
 
 function mediaBinary() {
   return app.isPackaged
@@ -137,6 +138,36 @@ async function closeApp(value) {
   return applescript(`tell application ${JSON.stringify(name)} to quit`);
 }
 
+function playSound(action, id = 'default') {
+  const file = String(action.value || '').trim();
+  if (!file) return { ok: false, error: 'no audio file' };
+  if (!require('node:fs').existsSync(file)) return { ok: false, error: 'audio file not found' };
+  try {
+    const previous = audioPlayers.get(id);
+    if (previous) {
+      try { previous.kill(); } catch { /* ignore */ }
+    }
+    const volume = Math.min(1, Math.max(0, Number(action.volume) || 1));
+    const child = spawn('/usr/bin/afplay', ['-v', String(volume), file], { stdio: 'ignore' });
+    audioPlayers.set(id, child);
+    child.on('exit', () => {
+      if (audioPlayers.get(id) === child) audioPlayers.delete(id);
+    });
+    child.on('error', () => audioPlayers.delete(id));
+    return { ok: true };
+  } catch (err) {
+    return { ok: false, error: err.message };
+  }
+}
+
+function stopSound(id = 'default') {
+  const child = audioPlayers.get(id);
+  if (!child) return { ok: true };
+  try { child.kill(); } catch { /* ignore */ }
+  audioPlayers.delete(id);
+  return { ok: true };
+}
+
 function mediaKey(op) {
   return new Promise((resolve) => {
     if (!MEDIA.has(op)) return resolve({ ok: false, error: `unknown media key: ${op}` });
@@ -170,6 +201,8 @@ async function execute(action) {
       return mediaKey(action.op);
     case 'close':
       return closeApp(action.value);
+    case 'sound':
+      return action.op === 'stop' ? stopSound(action.value || 'default') : playSound(action, action.value || 'default');
     default:
       return { ok: false, error: `unknown action type: ${action.type}` };
   }

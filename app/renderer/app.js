@@ -128,6 +128,7 @@ const ACTION_LABELS = {
   multi: 'Multi action',
   toggle: 'Hotkey switch',
   indicator: 'Page indicator',
+  sound: 'Play audio',
 };
 
 const state = {

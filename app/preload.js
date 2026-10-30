@@ -17,6 +17,7 @@ contextBridge.exposeInMainWorld('deckApp', {
   reconnect: () => ipcRenderer.invoke('deck:reconnect'),
   runAction: (action) => ipcRenderer.invoke('action:run', action),
   pickImage: () => ipcRenderer.invoke('dialog:pick-image'),
+  pickAudio: () => ipcRenderer.invoke('dialog:pick-audio'),
   pickFile: () => ipcRenderer.invoke('dialog:pick-file'),
   listApps: () => ipcRenderer.invoke('apps:list'),
   appIcon: (path) => ipcRenderer.invoke('apps:icon', path),

@@ -997,6 +997,16 @@ ipcMain.handle('import:apply', guarded((_evt, payload) => {
   }
 }));
 
+ipcMain.handle('dialog:pick-audio', async () => {
+  const res = await dialog.showOpenDialog(win, {
+    title: 'Choose an audio file',
+    properties: ['openFile'],
+    filters: [{ name: 'Audio', extensions: ['mp3', 'wav', 'm4a', 'aiff', 'aif', 'ogg', 'flac'] }],
+  });
+  if (res.canceled || !res.filePaths.length) return null;
+  return res.filePaths[0];
+});
+
 ipcMain.handle('dialog:pick-image', async () => {
   const res = await dialog.showOpenDialog(win, {
     title: 'Choose a key image',
