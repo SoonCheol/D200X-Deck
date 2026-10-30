@@ -286,6 +286,15 @@ function closeProfileModal() {
 function saveProfile() {
   const name = $('#profile-name').value.trim();
   if (!name) return toast('Give the profile a name', true);
+  const editingProfile = (state.config.profiles || []).find(
+    (p) => p.id === state.config.activeProfileId
+  );
+  const clash = (state.config.profiles || []).some(
+    (p) =>
+      p.name.trim().toLowerCase() === name.toLowerCase() &&
+      (profileModalTarget === 'new' || p.id !== editingProfile?.id)
+  );
+  if (clash) return toast('A profile with that name already exists', true);
   if (profileModalTarget === 'new') {
     const id = crypto.randomUUID ? crypto.randomUUID() : String(Date.now());
     state.config.profiles.push({ id, name });

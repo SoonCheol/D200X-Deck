@@ -382,6 +382,17 @@ function renderInspector() {
       else delete page.parentId;
       commit();
     });
+    $('#insp-page-name').addEventListener('change', (e) => {
+      const next = uniquePageName(e.target.value, page.profileId, page.id);
+      if (next !== e.target.value.trim()) {
+        toast(`Page names must be unique — renamed to “${next}”`);
+        e.target.value = next;
+      }
+      page.name = next;
+      renderPageList();
+      if (document.activeElement !== $('#page-title')) $('#page-title').value = page.name;
+      commit(false);
+    });
     $('#insp-page-name').addEventListener('input', (e) => {
       page.name = e.target.value;
       renderPageList();

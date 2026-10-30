@@ -1005,8 +1005,22 @@ ipcMain.handle('import:apply', guarded((_evt, payload) => {
       store.config.profiles = [];
     }
     if (!Array.isArray(store.config.profiles)) store.config.profiles = [];
+    // Keep names unique: profiles across the config, pages within the profile.
+    const takenProfiles = new Set(store.config.profiles.map((p) => String(p.name).toLowerCase()));
+    let profileName = profile.name || 'Imported profile';
+    for (let i = 2; takenProfiles.has(profileName.toLowerCase()); i += 1) {
+      profileName = `${profile.name || 'Imported profile'} (${i})`;
+    }
+    const takenPages = new Set();
+    for (const page of incoming) {
+      let name = page.name || 'Page';
+      for (let i = 2; takenPages.has(name.toLowerCase()); i += 1) name = `${page.name} (${i})`;
+      page.name = name;
+      takenPages.add(name.toLowerCase());
+    }
+
     const profileId = randomUUID();
-    store.config.profiles.push({ id: profileId, name: profile.name || 'Imported profile' });
+    store.config.profiles.push({ id: profileId, name: profileName });
     for (const page of incoming) page.profileId = profileId;
     store.config.pages.push(...incoming);
     store.config.activeProfileId = profileId;

@@ -395,14 +395,16 @@ function nextPageName(profileId) {
 }
 
 /** Make a name unique inside a profile ("Apps" → "Apps (2)"). */
-function uniquePageName(base, profileId) {
+function uniquePageName(base, profileId, ignoreId = null) {
   const taken = new Set(
-    state.config.pages.filter((p) => p.profileId === profileId).map((p) => p.name)
+    state.config.pages
+      .filter((p) => p.profileId === profileId && p.id !== ignoreId)
+      .map((p) => p.name.trim().toLowerCase())
   );
   const name = String(base || 'Page').trim() || 'Page';
-  if (!taken.has(name)) return name;
+  if (!taken.has(name.toLowerCase())) return name;
   let index = 2;
-  while (taken.has(`${name} (${index})`)) index += 1;
+  while (taken.has(`${name} (${index})`.toLowerCase())) index += 1;
   return `${name} (${index})`;
 }
 
