@@ -14,8 +14,13 @@ echo "==> packaging"
 npm run package
 
 echo "==> stopping running instance"
-pkill -f "$DEST/Contents/MacOS" 2>/dev/null || true
-sleep 1
+# SIGTERM triggers the app's quit confirmation (by design), so force it while
+# replacing the bundle.
+pkill -9 -f "$DEST/Contents/MacOS" 2>/dev/null || true
+for i in 1 2 3 4 5; do
+  pgrep -f "$DEST/Contents/MacOS" >/dev/null || break
+  sleep 1
+done
 
 echo "==> installing to $DEST"
 rm -rf "$DEST"
