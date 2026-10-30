@@ -172,6 +172,16 @@ function mapAction(entry, pageIds) {
     return { action: null, label: null, raw: entry };
   }
 
+  // POP / action ring: a key that opens a small menu of child actions.
+  if (lower === 'com.ulanzi.deck.popkey.pop' || lower.endsWith('.popkey.pop')) {
+    const steps = (Array.isArray(param.Actions) ? param.Actions : [])
+      .map((child) => mapAction(child, pageIds).action)
+      .filter(Boolean)
+      .map((action) => ({ action }));
+    if (!steps.length) return { action: null, label: null, raw: entry };
+    return { action: { type: 'pop', steps }, label: 'POP menu' };
+  }
+
   // soundboard
   if (lower.includes('sound.play')) {
     return {

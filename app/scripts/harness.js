@@ -103,6 +103,26 @@ function attachScreenshotHarness({ win, send, quitNow }) {
             );
             await new Promise((r) => setTimeout(r, 500));
           }
+          if (process.env.ULANZI_POP) {
+            await win.webContents.executeJavaScript('handleKeyEvent(0, true); true');
+            await new Promise((r) => setTimeout(r, 700));
+            const popup = require('electron')
+              .BrowserWindow.getAllWindows()
+              .find((w) => w !== win && w.webContents.getURL().includes('pop.html'));
+            if (popup) console.log('[shot] popup bounds', JSON.stringify(popup.getBounds()));
+            if (popup && process.env.ULANZI_POP_HOLD) {
+              await new Promise((r) => setTimeout(r, Number(process.env.ULANZI_POP_HOLD) || 3000));
+            } else if (popup) {
+              const index = Number(process.env.ULANZI_POP_INDEX || 0);
+              await popup.webContents.executeJavaScript(
+                `document.querySelectorAll('.item')[${index}]?.click(); true`
+              );
+              console.log('[shot] popup clicked', index);
+            } else {
+              console.log('[shot] popup missing');
+            }
+            await new Promise((r) => setTimeout(r, 900));
+          }
           if (process.env.ULANZI_CLICK) {
             const idx = Number(process.env.ULANZI_CLICK) || 0;
             await win.webContents.executeJavaScript(

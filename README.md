@@ -22,6 +22,7 @@ _The editor, the plugin manager and the store all run against the deck live._
   (fetches the site's icon automatically), run a shell command, send a hotkey, switch
   page, **or run an existing Node.js Ulanzi plugin action**.
 * **Pinned keys** — pin an action to every page, with per-page overrides.
+* **POP menus** — import and use POP keys: press one to get a compact action palette at the pointer.
 * **Device control** — brightness (0–100 %), screen sleep timeout, clock sync, a standby
   clock/wallpaper screen, and Timer / key-brightness actions.
 * **Plugins** — runs Ulanzi's JavaScript *and* HTML plugins unchanged (discovery,

@@ -1,6 +1,6 @@
 'use strict';
 
-const { app, BrowserWindow, ipcMain, dialog, Menu, shell, Tray, nativeImage, protocol, session, systemPreferences, powerMonitor } = require('electron');
+const { app, BrowserWindow, ipcMain, dialog, Menu, shell, Tray, nativeImage, protocol, session, systemPreferences, powerMonitor, screen } = require('electron');
 const path = require('node:path');
 const fs = require('node:fs');
 const os = require('node:os');
@@ -28,6 +28,7 @@ let reconnectTimer = null;
 let tray = null;
 let isQuitting = false;
 let quitPromptOpen = false;
+let popWindow = null;
 
 // A second launch would fight over the HID device and the plugin port. Dev and
 // screenshot runs set ULANZI_CONFIG_DIR, so they are allowed to coexist.
@@ -1111,6 +1112,76 @@ function frontmostApp() {
     return null;
   }
 }
+
+ipcMain.handle('pop:show', async (event, items) => {
+  if (!trustedSender(event)) return -1;
+  if (!Array.isArray(items) || !items.length) return -1;
+  const clean = items.slice(0, 12).map((item) => ({
+    label: String(item?.label || '').slice(0, 60),
+    emoji: String(item?.emoji || '').slice(0, 8),
+  }));
+  if (popWindow) {
+    try { popWindow.destroy(); } catch { /* ignore */ }
+    popWindow = null;
+  }
+  const width = 430;
+  const rows = Math.ceil(clean.length / 3);
+  const height = Math.min(520, Math.max(170, 62 + rows * 84));
+  return new Promise((resolve) => {
+    const win = new BrowserWindow({
+      width,
+      height,
+      show: false,
+      frame: false,
+      transparent: true,
+      resizable: false,
+      movable: false,
+      minimizable: false,
+      maximizable: false,
+      fullscreenable: false,
+      skipTaskbar: true,
+      alwaysOnTop: true,
+      focusable: false,
+      acceptFirstMouse: true,
+      hasShadow: true,
+      backgroundColor: '#00000000',
+      webPreferences: {
+        preload: path.join(__dirname, 'pop-preload.js'),
+        contextIsolation: true,
+        nodeIntegration: false,
+        sandbox: false,
+      },
+    });
+    popWindow = win;
+    let settled = false;
+    const finish = (index) => {
+      if (settled) return;
+      settled = true;
+      ipcMain.removeListener('pop:choice', onChoice);
+      if (popWindow === win) popWindow = null;
+      try { win.destroy(); } catch { /* already gone */ }
+      resolve(Number.isInteger(index) ? index : -1);
+    };
+    const onChoice = (choiceEvent, index) => {
+      if (choiceEvent.sender === win.webContents) finish(index);
+    };
+    ipcMain.on('pop:choice', onChoice);
+    win.on('closed', () => finish(-1));
+    win.webContents.once('did-finish-load', () => win.webContents.send('pop:items', clean));
+    win.once('ready-to-show', () => {
+      const cursor = screen.getCursorScreenPoint();
+      const area = screen.getDisplayNearestPoint(cursor).workArea;
+      const x = Math.max(area.x + 8, Math.min(area.x + area.width - width - 8, Math.round(cursor.x - width / 2)));
+      const y = Math.max(area.y + 8, Math.min(area.y + area.height - height - 8, Math.round(cursor.y - height / 2)));
+      win.setPosition(x, y);
+      win.setAlwaysOnTop(true, 'floating');
+      win.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
+      win.showInactive();
+    });
+    win.loadFile(path.join(__dirname, 'renderer', 'pop.html')).catch(() => finish(-1));
+    setTimeout(() => finish(-1), 15_000);
+  });
+});
 
 ipcMain.handle('apps:frontmost', () => frontmostApp());
 

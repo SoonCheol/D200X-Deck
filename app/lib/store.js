@@ -12,7 +12,7 @@ function key(emoji, label, action = { type: 'none' }, color = '#1b2130') {
 
 const ACTION_TYPES = new Set([
   'none', 'app', 'url', 'command', 'hotkey', 'text', 'media', 'close', 'page', 'plugin', 'multi', 'toggle', 'indicator', 'sound',
-  'timer', 'brightness',
+  'timer', 'brightness', 'pop',
 ]);
 
 const MEDIA_OPS = new Set(['playpause', 'next', 'prev', 'volumeup', 'volumedown', 'mute']);
@@ -47,6 +47,15 @@ function normalizeAction(action) {
   if (type === 'brightness') {
     out.op = out.op === 'down' ? 'down' : 'up';
     out.step = Math.min(50, Math.max(1, Math.round(Number(out.step) || 5)));
+  }
+  if (type === 'multi' || type === 'toggle' || type === 'pop') {
+    out.steps = Array.isArray(out.steps)
+      ? out.steps.slice(0, 12).map((step) => {
+          if (step && step.delay) return { delay: Math.max(0, Number(step.delay) || 0) };
+          if (step && step.action) return { action: normalizeAction(step.action) };
+          return { action: normalizeAction(step) };
+        })
+      : [];
   }
   return out;
 }

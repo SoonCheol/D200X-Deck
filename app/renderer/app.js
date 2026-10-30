@@ -137,6 +137,7 @@ const ACTION_LABELS = {
   sound: 'Play audio',
   timer: 'Timer',
   brightness: 'Key brightness',
+  pop: 'POP menu',
 };
 
 const state = {

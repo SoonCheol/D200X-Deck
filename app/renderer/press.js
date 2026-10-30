@@ -118,9 +118,41 @@ function runBrightnessAction(action) {
   toast(`Brightness ${next}%`);
 }
 
+function popItem(action) {
+  if (!action) return { label: '', emoji: '' };
+  if (action.type === 'text') {
+    const text = String(action.value || '').trim();
+    const emoji = typeof isEmojiOnly === 'function' && isEmojiOnly(text) ? text : '';
+    return { label: emoji ? '' : text || 'Type text', emoji };
+  }
+  const meta = typeof actionMeta === 'function' ? actionMeta(action) : {};
+  const fallback = {
+    app: ['📱', 'Open app'],
+    url: ['🌐', 'Open URL'],
+    hotkey: ['⌨️', 'Hotkey'],
+    command: ['💻', 'Command'],
+    media: ['🎵', 'Media'],
+    page: ['📄', 'Page'],
+    close: ['✖️', 'Close app'],
+    sound: ['🔊', 'Audio'],
+    plugin: ['🔌', 'Plugin'],
+  }[action.type] || ['⚡', action.type];
+  return { emoji: meta.emoji || fallback[0], label: meta.label || fallback[1] };
+}
+
+async function openPop(action) {
+  const steps = (Array.isArray(action.steps) ? action.steps : [])
+    .map((step) => step?.action)
+    .filter((step) => step && step.type !== 'none');
+  if (!steps.length) return toast('POP menu has no actions', true);
+  const index = await api.showPop(steps.map(popItem));
+  if (index >= 0 && steps[index]) runKeyAction(steps[index]);
+}
+
 function runKeyAction(action) {
   if (!action || action.type === 'none') return;
   if (action.type === 'indicator') return;
+  if (action.type === 'pop') return openPop(action);
   if (action.type === 'timer') return toggleTimer(action);
   if (action.type === 'brightness') return runBrightnessAction(action);
   if (action.type === 'multi') return runMulti(action);

@@ -35,6 +35,24 @@ test('system actions map to our action types', () => {
   assert.equal(plugin.action.settings.a, 1);
 });
 
+test('POP keys become pop menus with their child actions', () => {
+  const mapped = mapAction(
+    {
+      Action: 'com.ulanzi.deck.popkey.pop',
+      ActionParam: {
+        Actions: [
+          { Action: 'com.ulanzi.ulanzideck.system.text', ActionParam: { Text: '👍' } },
+          { Action: 'com.ulanzi.ulanzideck.system.text', ActionParam: { Text: '👎' } },
+        ],
+      },
+    },
+    new Set()
+  );
+  assert.equal(mapped.action.type, 'pop');
+  assert.equal(mapped.action.steps.length, 2);
+  assert.deepEqual(mapped.action.steps[0].action, { type: 'text', value: '👍', enter: false });
+});
+
 test('parseProfile maps slots, skips the wide key and keeps plugin settings', () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ulanzi-import-test-'));
   fs.writeFileSync(

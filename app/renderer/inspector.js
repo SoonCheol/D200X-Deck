@@ -4,7 +4,7 @@
 
 const ACTION_GROUPS = [
   ['Basic', ['none']],
-  ['Device & pages', ['page', 'indicator', 'multi', 'toggle', 'timer', 'brightness']],
+  ['Device & pages', ['page', 'indicator', 'pop', 'multi', 'toggle', 'timer', 'brightness']],
   ['Apps & links', ['app', 'url']],
   ['System', ['hotkey', 'text', 'media', 'sound', 'close', 'command']],
   ['Plugins', ['plugin']],
@@ -80,6 +80,8 @@ function actionMeta(action) {
       return { emoji: '⏱️', label: 'Timer' };
     case 'brightness':
       return { emoji: action.op === 'down' ? '🔅' : '🔆', label: action.op === 'down' ? 'Dimmer' : 'Brighter' };
+    case 'pop':
+      return { emoji: '💬', label: 'POP menu' };
     case 'sound':
       return { emoji: '🔊', label: action.op === 'stop' ? 'Stop audio' : 'Play audio' };
     default:
@@ -118,18 +120,18 @@ const MULTI_STEP_TYPES = [
 function multiEditor(action, page) {
   const steps = Array.isArray(action.steps) ? action.steps : [];
   const rows = steps.map((step, index) => multiStepRow(step, index, page)).join('');
-  const mode = action.type === 'toggle' ? '' : `
+  const mode = action.type === 'multi' ? `
     <select class="select" id="insp-multi-mode">
       ${[['sequence', 'Run in order'], ['alternate', 'Alternate'], ['random', 'Random']]
         .map(([v, l]) => `<option value="${v}" ${(action.mode || 'sequence') === v ? 'selected' : ''}>${l}</option>`)
         .join('')}
-    </select>`;
+    </select>` : '';
   return `
     ${mode}
     <div class="multi-steps">${rows || '<div class="insp-empty" style="padding:0">No steps yet.</div>'}</div>
     <div class="row">
       <button class="btn small" id="insp-multi-add">Add action</button>
-      <button class="btn small" id="insp-multi-delay">Add delay</button>
+      ${action.type === 'pop' ? '' : '<button class="btn small" id="insp-multi-delay">Add delay</button>'}
     </div>`;
 }
 
@@ -578,6 +580,8 @@ function renderInspector() {
     </div>`;
   } else if (action.type === 'multi' || action.type === 'toggle') {
     valueField = multiEditor(action, page);
+  } else if (action.type === 'pop') {
+    valueField = `${multiEditor(action, page)}<div class="field-hint">Pressing the key opens these actions in a popup at the pointer.</div>`;
   } else if (action.type === 'close') {
     valueField = `<div class="row">
       <input class="input" id="insp-value" placeholder="Safari" value="${esc(action.value || '')}" />
@@ -662,7 +666,7 @@ function renderInspector() {
       </select>
     </div>
 
-    ${valueField && action.type !== 'plugin' ? `<div class="field"><label>${action.type === 'hotkey' ? 'Combination' : action.type === 'page' ? 'Navigation' : action.type === 'app' ? 'Application' : action.type === 'url' ? 'URL' : action.type === 'multi' ? 'Steps' : action.type === 'toggle' ? 'Actions' : action.type === 'indicator' ? 'About' : 'Value'}</label>${valueField}</div>` : ''}
+    ${valueField && action.type !== 'plugin' ? `<div class="field"><label>${action.type === 'hotkey' ? 'Combination' : action.type === 'page' ? 'Navigation' : action.type === 'app' ? 'Application' : action.type === 'url' ? 'URL' : action.type === 'multi' ? 'Steps' : action.type === 'toggle' || action.type === 'pop' ? 'Actions' : action.type === 'indicator' ? 'About' : 'Value'}</label>${valueField}</div>` : ''}
     ${pluginFields}
 
     <div class="insp-section">Press triggers</div>
@@ -824,6 +828,9 @@ function renderInspector() {
       syncActionMeta(key);
     } else if (type === 'timer') {
       key.action = { type: 'timer', seconds: 300, sound: true };
+      syncActionMeta(key);
+    } else if (type === 'pop') {
+      key.action = { type: 'pop', steps: [] };
       syncActionMeta(key);
     } else if (type === 'brightness') {
       key.action = { type: 'brightness', op: 'up', step: 5 };
@@ -1064,7 +1071,7 @@ function renderInspector() {
     });
   }
 
-  if (action.type === 'multi' || action.type === 'toggle') bindMultiEditor(key);
+  if (action.type === 'multi' || action.type === 'toggle' || action.type === 'pop') bindMultiEditor(key);
   bindTriggerFields(key);
 
   $('#insp-duplicate').addEventListener('click', () => {
