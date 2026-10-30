@@ -98,6 +98,19 @@ function createWindow() {
             `);
             await new Promise((r) => setTimeout(r, 800));
           }
+          if (process.env.ULANZI_CHANGE_MEDIA) {
+            await win.webContents.executeJavaScript(`
+              (async () => {
+                document.querySelectorAll('.key')[0]?.click();
+                await new Promise(r => setTimeout(r, 300));
+                const v = document.querySelector('#insp-value');
+                v.value = ${JSON.stringify(process.env.ULANZI_CHANGE_MEDIA)};
+                v.dispatchEvent(new Event('change', { bubbles: true }));
+                return true;
+              })()
+            `);
+            await new Promise((r) => setTimeout(r, 1200));
+          }
           if (process.env.ULANZI_SET_MEDIA) {
             await win.webContents.executeJavaScript(`
               (() => {

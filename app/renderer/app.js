@@ -41,8 +41,8 @@ const LEGACY_AUTO_EMOJI = new Set(['🎵']);
 /** True when the key's emoji is one the app picked (not something the user typed). */
 function isAutoEmoji(key) {
   if (!key.emoji) return true;
-  if (key.emojiAuto) return key.emoji === key.emojiAuto;
   const suggested = actionMeta(key.action).emoji;
+  if (key.emojiAuto) return key.emoji === key.emojiAuto || key.emoji === suggested;
   if (!suggested) return false;
   return key.emoji === suggested || LEGACY_AUTO_EMOJI.has(key.emoji);
 }
@@ -986,16 +986,8 @@ function renderInspector() {
   const valueEl = $('#insp-value');
   if (valueEl) {
     const applyValue = (raw) => {
-      if (key.action.type === 'media') {
-        key.action = { ...key.action, op: raw };
-        const stock = Object.values(MEDIA_EMOJI);
-        if (!key.emoji || stock.includes(key.emoji)) {
-          key.emoji = MEDIA_EMOJI[raw] || key.emoji;
-          drawIndex(state.selected);
-        }
-      } else {
-        key.action = { ...key.action, value: raw };
-      }
+      if (key.action.type === 'media') key.action = { ...key.action, op: raw };
+      else key.action = { ...key.action, value: raw };
       syncActionMeta(key);
       drawIndex(state.selected);
       commit(false);
