@@ -645,6 +645,9 @@ class PluginManager extends EventEmitter {
         if (msg.text || msg.param?.text) {
           this.emit('title', { actionid, text: msg.text ?? msg.param.text });
         }
+        if (typeof msg.state === 'number') {
+          this.emit('state-index', { actionid, state: msg.state });
+        }
         break;
       case 'setImage':
         this._handleState(msg, action);

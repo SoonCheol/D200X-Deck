@@ -328,6 +328,7 @@ function initPlugins() {
   plugins.scan();
   plugins.start();
   plugins.on('state', (payload) => send('plugin:state', payload));
+  plugins.on('state-index', (payload) => send('plugin:state-index', payload));
   plugins.on('title', (payload) => send('plugin:title', payload));
   plugins.on('settings', (payload) => send('plugin:settings', payload));
   plugins.on('toast', (payload) => send('plugin:toast', payload));

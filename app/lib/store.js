@@ -72,6 +72,14 @@ function validateConfig(config) {
         iconSource: str(raw.iconSource),
         action: normalizeAction(raw.action),
       };
+      if (Array.isArray(raw.states) && raw.states.length > 1) {
+        key.states = raw.states.slice(0, 8).map((sl) => ({
+          emoji: str(sl?.emoji),
+          label: str(sl?.label),
+          ...(typeof sl?.icon === 'string' && sl.icon ? { icon: sl.icon } : {}),
+        }));
+        key.stateIndex = Math.min(key.states.length - 1, Math.max(0, Number(raw.stateIndex) || 0));
+      }
       if (typeof raw.emojiAuto === 'string') key.emojiAuto = raw.emojiAuto;
       if (typeof raw.labelAuto === 'string') key.labelAuto = raw.labelAuto;
       if (raw.holdAction) key.holdAction = normalizeAction(raw.holdAction);

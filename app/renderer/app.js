@@ -191,9 +191,32 @@ const pluginImages = new Map();
 
 function effectiveKey(key) {
   if (!key) return key;
-  const id = key.action?.type === 'plugin' ? key.action.actionid : null;
-  if (id && pluginImages.has(id)) return { ...key, icon: pluginImages.get(id), emoji: '' };
-  return key;
+  let out = key;
+  if (Array.isArray(key.states) && key.states.length > 1) {
+    const index = Math.min(key.states.length - 1, Math.max(0, Number(key.stateIndex) || 0));
+    const state = key.states[index] || {};
+    out = {
+      ...key,
+      emoji: state.emoji ?? key.emoji,
+      label: state.label ?? key.label,
+      icon: state.icon ?? key.icon,
+    };
+  }
+  const id = out.action?.type === 'plugin' ? out.action.actionid : null;
+  if (id && pluginImages.has(id)) return { ...out, icon: pluginImages.get(id), emoji: '' };
+  return out;
+}
+
+function bumpKeyState(actionid, index) {
+  for (const page of state.config.pages) {
+    for (const [slot, key] of Object.entries(page.keys)) {
+      if (!key?.action || key.action.type !== 'plugin' || key.action.actionid !== actionid) continue;
+      key.stateIndex = Math.max(0, Number(index) || 0);
+      if (page.id === state.config.activePageId) drawIndex(Number(slot));
+      scheduleSave();
+      schedulePush();
+    }
+  }
 }
 
 function findPluginAction(actionid) {
@@ -565,6 +588,8 @@ function bind() {
   api.onKey(({ index, pressed }) => handleKeyEvent(index, pressed));
 
   api.onError((message) => toast(message, true));
+
+  api.onPluginStateIndex(({ actionid, state: index }) => bumpKeyState(actionid, index));
 
   api.onPluginState(({ actionid, image }) => {
     if (image) pluginImages.set(actionid, image);

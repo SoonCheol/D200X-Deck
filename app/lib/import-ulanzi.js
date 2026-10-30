@@ -356,9 +356,23 @@ function parseProfile(dir) {
       }
 
       const mapped = mapAction(entry, pageIds);
-      const view = Array.isArray(entry.ViewParam) ? entry.ViewParam[0] || {} : {};
+      const views = Array.isArray(entry.ViewParam) ? entry.ViewParam : [];
+      const view = views[0] || {};
       const baseDirs = [pageDir, dir, path.join(dir, 'Images')];
       const icon = readImage(baseDirs, [view.Icon, view.IconRel, view.IconDef, entry.ActionParam?.Icon], report.warnings);
+
+      // Multi-state keys: keep every state's icon/text so toggles look right.
+      let states = null;
+      if (views.length > 1) {
+        states = views.map((stateView) => {
+          const stateIcon = readImage(baseDirs, [stateView.Icon, stateView.IconRel, stateView.IconDef], report.warnings);
+          return {
+            emoji: '',
+            label: String(stateView.Text || '').slice(0, 40),
+            ...(stateIcon ? { icon: stateIcon } : {}),
+          };
+        });
+      }
 
       if (!mapped.action) {
         report.unmapped.push({ page: pageId, slot, action: String(entry.Action || ''), name: String(entry.Name || '') });
@@ -382,6 +396,7 @@ function parseProfile(dir) {
         icon,
         iconSource: icon ? 'import' : '',
         action: mapped.action,
+        ...(states ? { states, stateIndex: Math.min(states.length - 1, Number(entry.State) || 0) } : {}),
       };
     }
 

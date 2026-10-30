@@ -148,8 +148,11 @@ import creates a profile per vendor profile).
 Also done: **HTML plugins** (hidden BrowserWindow + same SDK bridge), **Page Indicator**
 (big page number + dots), grouped action picker.
 
-Next by value: multi-state keys, soundboard, plugin `openview`/`feedback`, screensaver,
-marketplace updates, app-linked profiles.
+Also done: **multi-state keys** (per-state icon/label, plugin `setState` updates the
+tile, import keeps every `ViewParam`).
+
+Next by value: soundboard, plugin `openview`/`feedback`, screensaver, marketplace
+updates, app-linked profiles.
 
 ## Order of work (agreed)
 

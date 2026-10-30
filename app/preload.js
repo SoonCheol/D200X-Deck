@@ -55,6 +55,7 @@ contextBridge.exposeInMainWorld('deckApp', {
   onError: (cb) => subscribe('deck:error', cb),
   onBrightness: (cb) => subscribe('deck:brightness', cb),
   onPluginState: (cb) => subscribe('plugin:state', cb),
+  onPluginStateIndex: (cb) => subscribe('plugin:state-index', cb),
   onPluginSettings: (cb) => subscribe('plugin:settings', cb),
   onPluginTitle: (cb) => subscribe('plugin:title', cb),
   onPluginToast: (cb) => subscribe('plugin:toast', cb),
