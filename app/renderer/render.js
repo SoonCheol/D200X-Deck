@@ -151,41 +151,6 @@ async function drawKey(canvas, key, width = KEY_SIZE, height = KEY_SIZE, autoIco
   const main = truncateMain(key.emoji || '');
   const hasLabel = Boolean(label);
 
-  if (key.action && key.action.type === 'indicator') {
-    const total = Math.max(1, pageInfo?.total || 1);
-    const current = Math.max(1, Math.min(total, pageInfo?.index || 1));
-    const cols = Math.min(total, 5);
-    const rows = Math.ceil(total / cols);
-    const dot = 12;
-    const gap = 8;
-    const rowGap = 8;
-    const gridW = cols * dot + (cols - 1) * gap;
-    const gridH = rows * dot + (rows - 1) * rowGap;
-    const startX = (w - gridW) / 2;
-    const startY = hasLabel ? (h - gridH) / 2 - 8 : (h - gridH) / 2;
-    ctx.save();
-    for (let i = 0; i < total; i++) {
-      const c = i % cols;
-      const r = Math.floor(i / cols);
-      const x = startX + c * (dot + gap);
-      const y = startY + r * (dot + rowGap);
-      roundRect(ctx, x, y, dot, dot, dot / 2);
-      ctx.fillStyle = i === current - 1 ? 'rgba(120,175,255,0.95)' : 'rgba(255,255,255,0.22)';
-      ctx.fill();
-    }
-    ctx.restore();
-    if (!hasLabel) {
-      ctx.save();
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'top';
-      ctx.font = '600 12px -apple-system, "SF Pro Text", sans-serif';
-      ctx.fillStyle = 'rgba(255,255,255,0.55)';
-      ctx.fillText(`${current} / ${total}`, w / 2, startY + gridH + 12);
-      ctx.restore();
-    }
-  }
-
-
   let drewAutoIcon = false;
   if (!key.icon && autoIcon) {
     try {
@@ -202,6 +167,46 @@ async function drawKey(canvas, key, width = KEY_SIZE, height = KEY_SIZE, autoIco
     } catch {
       /* fall back to the emoji */
     }
+  }
+
+  if (key.action && key.action.type === 'indicator') {
+    const total = Math.max(1, pageInfo?.total || 1);
+    const current = Math.max(1, Math.min(total, pageInfo?.index || 1));
+    const numberY = hasLabel ? h * 0.38 : h * 0.42;
+    ctx.save();
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.font = '600 64px -apple-system, "SF Pro Display", "Helvetica Neue", sans-serif';
+    ctx.fillStyle = 'rgba(255,255,255,0.95)';
+    ctx.fillText(String(current), w / 2, numberY);
+    ctx.restore();
+
+    // Dots for every page, centred under the number (wrapping if needed).
+    const perRow = Math.min(total, 7);
+    const dot = 8;
+    const gap = 7;
+    const rowGap = 7;
+    const totalRows = Math.ceil(total / perRow);
+    const dotsY = numberY + 46;
+    ctx.save();
+    for (let i = 0; i < total; i++) {
+      const row = Math.floor(i / perRow);
+      const inRow = Math.min(perRow, total - row * perRow);
+      const rowWidth = inRow * dot + (inRow - 1) * gap;
+      const x = (w - rowWidth) / 2 + (i % perRow) * (dot + gap);
+      const y = dotsY + row * (dot + rowGap);
+      roundRect(ctx, x, y, dot, dot, dot / 2);
+      ctx.fillStyle = i === current - 1 ? 'rgba(120,175,255,0.95)' : 'rgba(255,255,255,0.22)';
+      ctx.fill();
+    }
+    ctx.restore();
+    ctx.save();
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'top';
+    ctx.font = '600 11px -apple-system, "SF Pro Text", sans-serif';
+    ctx.fillStyle = 'rgba(255,255,255,0.5)';
+    ctx.fillText(`${current} / ${total}`, w / 2, dotsY + totalRows * (dot + rowGap) + 3);
+    ctx.restore();
   }
 
   if (main && !key.icon && !drewAutoIcon) {

@@ -20,8 +20,8 @@ _The editor, the plugin manager and the store all run against the deck live._
   (fetches the site's icon automatically), run a shell command, send a hotkey, switch
   page, **or run an existing Node.js Ulanzi plugin action**.
 * **Device control** — brightness (0–100 %), screen sleep timeout, clock sync.
-* **Plugins** — runs Ulanzi's JavaScript plugins unchanged (discovery, WebSocket host,
-  live images, key events). Plugins installed by Ulanzi Studio are used read-only and
+* **Plugins** — runs Ulanzi's JavaScript *and* HTML plugins unchanged (discovery,
+  WebSocket host, live images, key events, property inspectors). Plugins installed by Ulanzi Studio are used read-only and
   can be copied into the app; app-installed plugins can be removed.
   See [`docs/PLUGINS.md`](docs/PLUGINS.md).
 * **Plugin Store** — browse the official Ulanzi Studio marketplace from the sidebar:

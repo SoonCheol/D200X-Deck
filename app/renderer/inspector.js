@@ -2,6 +2,27 @@
 
 // --------------------------------------------------------------- inspector
 
+const ACTION_GROUPS = [
+  ['Basic', ['none']],
+  ['Device & pages', ['page', 'indicator', 'multi', 'toggle']],
+  ['Apps & links', ['app', 'url']],
+  ['System', ['hotkey', 'text', 'media', 'close', 'command']],
+  ['Plugins', ['plugin']],
+];
+
+function actionGroups(selected) {
+  return ACTION_GROUPS.map(([label, types]) => {
+    const options = types
+      .filter((type) => ACTION_LABELS[type])
+      .map(
+        (type) =>
+          `<option value="${type}" ${type === selected ? 'selected' : ''}>${esc(ACTION_LABELS[type])}</option>`
+      )
+      .join('');
+    return options ? `<optgroup label="${esc(label)}">${options}</optgroup>` : '';
+  }).join('');
+}
+
 const TRIGGER_TYPES = [
   ['none', 'Nothing'],
   ['hotkey', 'Send hotkey'],
@@ -518,9 +539,7 @@ function renderInspector() {
     <div class="field">
       <label>Action</label>
       <select class="select" id="insp-action-type">
-        ${Object.entries(ACTION_LABELS)
-          .map(([v, l]) => `<option value="${v}" ${v === action.type ? 'selected' : ''}>${l}</option>`)
-          .join('')}
+        ${actionGroups(action.type)}
       </select>
     </div>
 

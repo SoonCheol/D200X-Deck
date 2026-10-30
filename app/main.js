@@ -287,10 +287,44 @@ const { randomUUID } = require('node:crypto');
   return apps;
 }
 
+const htmlPluginWindows = new Map();
+
 function initPlugins() {
   const baseDir = process.env.ULANZI_CONFIG_DIR || app.getPath('userData');
   const dirs = [path.join(baseDir, 'Plugins'), ...pluginRootDirs()];
   plugins = new PluginManager({ dirs, appPluginsDir: dirs[0], port: 3906, appVersion: app.getVersion() });
+  plugins.launchHtml = (meta) => {
+    if (htmlPluginWindows.has(meta.uuid)) return;
+    const frame = new BrowserWindow({
+      show: false,
+      width: 420,
+      height: 320,
+      webPreferences: {
+        contextIsolation: true,
+        nodeIntegration: false,
+        backgroundThrottling: false,
+      },
+    });
+    htmlPluginWindows.set(meta.uuid, frame);
+    frame.webContents.on('console-message', (event) => {
+      if (event.level === 'error') console.log(`[plugin:${meta.uuid}]`, String(event.message).slice(0, 200));
+    });
+    frame.on('closed', () => {
+      htmlPluginWindows.delete(meta.uuid);
+      plugins?.htmlExited(meta.uuid);
+    });
+    frame.loadFile(meta.codePath).catch((err) => {
+      console.error(`[plugin:${meta.uuid}] could not load ${meta.codePath}:`, err.message);
+      try { frame.close(); } catch { /* ignore */ }
+    });
+  };
+  plugins.stopHtml = (uuid) => {
+    const frame = htmlPluginWindows.get(uuid);
+    if (frame) {
+      htmlPluginWindows.delete(uuid);
+      try { frame.destroy(); } catch { /* ignore */ }
+    }
+  };
   plugins.scan();
   plugins.start();
   plugins.on('state', (payload) => send('plugin:state', payload));

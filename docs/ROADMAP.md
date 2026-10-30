@@ -145,6 +145,9 @@ folder keys to parent links), **Page Indicator** (dots + n/total, mapped from im
 and **profiles** (config v6: `profiles[]`, sidebar switcher, `Switch profile` page action,
 import creates a profile per vendor profile).
 
+Also done: **HTML plugins** (hidden BrowserWindow + same SDK bridge), **Page Indicator**
+(big page number + dots), grouped action picker.
+
 Next by value: multi-state keys, soundboard, plugin `openview`/`feedback`, screensaver,
 marketplace updates, app-linked profiles.
 

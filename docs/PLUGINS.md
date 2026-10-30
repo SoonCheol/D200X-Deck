@@ -167,7 +167,8 @@ edited as JSON. The key shows the plugin’s live image; pressing it sends `run`
 
 ## Limitations (current)
 
-* Only `JavaScript` plugins; HTML-only plugins are listed but cannot run yet.
+* JavaScript plugins run as child processes; HTML plugins (`CodePath` ending in
+  `.html`) run in a hidden BrowserWindow and connect to the same host over WebSocket.
 * No multi-action / dial feedback (`setFeedback`, `setFeedbackLayout`).
 * Port 3906 is fixed; it must be free (quit Ulanzi Studio). The host retries every 10 s
   if it was busy at launch.

@@ -63,6 +63,9 @@ class PluginManager extends EventEmitter {
     this.actions = new Map(); // actionid -> {pluginUuid, actionUuid, key, settings, active, meta}
     this.globalSettings = new Map(); // pluginUuid -> object
     this.crashes = new Map(); // pluginUuid -> { count, last }
+    this.htmlRunning = new Set();
+    this.launchHtml = null;
+    this.stopHtml = null;
     this.wss = null;
     this._settingsFile = path.join(this.appPluginsDir, '.global-settings.json');
     this._loadGlobalSettings();
@@ -108,7 +111,8 @@ class PluginManager extends EventEmitter {
           const uuid = manifest.UUID || entry.name.replace(/\.ulanziPlugin$/, '');
           const type = manifest.Type || 'JavaScript';
           const codePath = manifest.CodePath || '';
-          const compatible = type === 'JavaScript' && /\.(c|m)?js$/i.test(codePath);
+          const isHtml = /\.html?$/i.test(codePath);
+          const compatible = type === 'JavaScript' && (/\.(c|m)?js$/i.test(codePath) || isHtml);
           const icon = manifest.Icon ? fileToDataUrl(path.join(dir, manifest.Icon)) : null;
           const actions = (manifest.Actions || []).map((a) => ({
             uuid: a.UUID,
@@ -137,6 +141,7 @@ class PluginManager extends EventEmitter {
             codePath: path.join(dir, codePath),
             manifest,
             compatible,
+            html: isHtml,
             type,
             actions,
           });
@@ -336,6 +341,14 @@ class PluginManager extends EventEmitter {
     const meta = this.plugins.get(pluginUuid);
     if (!meta) return null;
     if (!meta.compatible) return null;
+    if (meta.html) {
+      // HTML plugins run inside a hidden BrowserWindow and connect to our host
+      // over the same WebSocket protocol; main.js owns the window lifecycle.
+      if (this.htmlRunning?.has(pluginUuid)) return meta;
+      this.htmlRunning?.add(pluginUuid);
+      this.launchHtml?.(meta);
+      return meta;
+    }
     const child = this.children.get(pluginUuid);
     if (child && child.exitCode === null) return meta;
     if (!fs.existsSync(meta.codePath)) {
@@ -735,8 +748,33 @@ class PluginManager extends EventEmitter {
     if (/^https?:|^mailto:/i.test(url)) shell.openExternal(url);
   }
 
+  /** Called by main.js when an HTML plugin window closes or is closed. */
+  htmlExited(pluginUuid) {
+    this.htmlRunning.delete(pluginUuid);
+    this.sockets.delete(pluginUuid);
+    if (this.stopping || !this._hasActionsFor(pluginUuid)) return;
+    const meta = this.plugins.get(pluginUuid);
+    const now = Date.now();
+    const state = this.crashes.get(pluginUuid) || { count: 0, last: 0 };
+    state.count = now - state.last < 60_000 ? state.count + 1 : 1;
+    state.last = now;
+    this.crashes.set(pluginUuid, state);
+    if (state.count > 5) {
+      this.emit('error', `${meta?.name || pluginUuid} keeps closing — not restarting it.`);
+      return;
+    }
+    const delay = Math.min(30_000, 1000 * 2 ** (state.count - 1));
+    setTimeout(() => {
+      if (!this.stopping && this._hasActionsFor(pluginUuid)) this._ensurePlugin(pluginUuid);
+    }, delay);
+  }
+
   stopAll() {
     this.stopping = true;
+    for (const uuid of this.htmlRunning || []) {
+      try { this.stopHtml?.(uuid); } catch { /* ignore */ }
+    }
+    this.htmlRunning?.clear();
     for (const proc of this.children.values()) {
       try {
         proc.kill();
