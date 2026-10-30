@@ -26,15 +26,22 @@
         </div>
         <nav id="page-list" class="page-list"></nav>
 
-        <button id="plugins-btn" class="plugins-btn">
-          <span class="plug-icon">🔌</span>
-          <span class="plug-label">Plugins</span>
+        <div class="sidebar-sep"></div>
+
+        <div class="section-head">
+          <span>Plugins</span>
           <span id="plugin-count" class="plug-count">0</span>
-        </button>
-        <button id="store-btn" class="plugins-btn store-btn">
-          <span class="plug-icon">🛍</span>
-          <span class="plug-label">Store</span>
-        </button>
+        </div>
+        <div class="sidebar-nav">
+          <button id="plugins-btn" class="nav-item">
+            <span class="plug-icon">🔌</span>
+            <span class="plug-label">Installed</span>
+          </button>
+          <button id="store-btn" class="nav-item">
+            <span class="plug-icon">🛍</span>
+            <span class="plug-label">Store</span>
+          </button>
+        </div>
 
         <div class="sidebar-foot">
           <div class="device-card" id="device-card">
@@ -127,6 +134,22 @@
           <input id="app-search" class="input" placeholder="Search applications…" />
         </div>
         <div id="app-list" class="app-list"></div>
+      </div>
+    </div>
+
+    <div id="icons-modal" class="modal hidden">
+      <div class="modal-card icons-card">
+        <div class="modal-head">
+          <div>
+            <h2>Icon library</h2>
+            <p id="icons-sub">Icon packs downloaded from the store.</p>
+          </div>
+          <button id="icons-close" class="icon-btn" title="Close">×</button>
+        </div>
+        <div class="icons-body">
+          <div id="icons-packs" class="icons-packs"></div>
+          <div id="icons-grid" class="icons-grid"></div>
+        </div>
       </div>
     </div>
 

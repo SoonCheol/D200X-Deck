@@ -34,6 +34,11 @@ a personal session token (stored in `store.json`, mode `600`). Installing a stor
 item downloads its ZIP and unpacks it into this app's plugin folder, so it appears in
 the plugin manager as **Installed** and can be removed from there.
 
+**Icon packs** (Store → Icons) download into `<userData>/Icons/<pack>/` with a small
+`pack.json`. They show up in the inspector's **Choose from library…** picker; picking
+an icon downscales it to 392 px and stores it on the key. Profile files
+(`.ulanziDeckProfile`) are listed but not installable.
+
 ## How it works
 
 1. On startup the app scans:

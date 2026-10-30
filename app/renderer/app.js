@@ -760,6 +760,7 @@ function renderInspector() {
           }</div>
         </div>
       </div>
+      <button class="btn icon-remove" id="insp-icon-library">Choose from library…</button>
       ${action.type === 'app' && action.value ? '<button class="btn icon-remove" id="insp-use-app-icon">Use app icon</button>' : ''}
       ${key.icon ? '<button class="btn danger icon-remove" id="insp-icon-remove">Remove image</button>' : ''}
     </div>
@@ -842,6 +843,11 @@ function renderInspector() {
       commit();
       renderInspector();
     });
+  }
+
+  const libraryBtn = $('#insp-icon-library');
+  if (libraryBtn) {
+    libraryBtn.addEventListener('click', () => openIconLibrary((src) => setKeyIconFromLibrary(src)));
   }
 
   const useAppIcon = $('#insp-use-app-icon');
@@ -1583,6 +1589,102 @@ function renderAppList(query) {
 }
 
 
+// -------------------------------------------------------------- icon library
+
+let iconLibraryPick = null;
+let iconLibraryPacks = [];
+
+function closeIconLibrary() {
+  iconLibraryPick = null;
+  $('#icons-modal').classList.add('hidden');
+}
+
+async function openIconLibrary(onPick = null) {
+  iconLibraryPick = onPick;
+  $('#icons-modal').classList.remove('hidden');
+  $('#icons-grid').innerHTML = '<div class="icons-empty">Loading…</div>';
+  iconLibraryPacks = await api.listIconPacks();
+  renderIconPacks();
+}
+
+function renderIconPacks() {
+  const list = $('#icons-packs');
+  if (!iconLibraryPacks.length) {
+    list.innerHTML = '';
+    $('#icons-grid').innerHTML =
+      '<div class="icons-empty">No icon packs yet.<br/>Open the Store → Icons and download a pack.</div>';
+    return;
+  }
+  list.innerHTML = iconLibraryPacks
+    .map(
+      (pack, index) =>
+        `<button class="icons-pack${index === 0 ? ' active' : ''}" data-pack="${esc(pack.id)}">
+           <span>${esc(pack.name)}</span><span class="count">${pack.files.length}</span>
+         </button>`
+    )
+    .join('');
+  list.querySelectorAll('[data-pack]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      list.querySelectorAll('.icons-pack').forEach((b) => b.classList.remove('active'));
+      btn.classList.add('active');
+      renderIconGrid(iconLibraryPacks.find((p) => p.id === btn.dataset.pack));
+    });
+  });
+  renderIconGrid(iconLibraryPacks[0]);
+}
+
+async function renderIconGrid(pack) {
+  const grid = $('#icons-grid');
+  if (!pack) return;
+  grid.innerHTML = '<div class="icons-empty">Loading…</div>';
+  const tiles = [];
+  for (const file of pack.files) {
+    const src = await api.readIcon(pack.id, file);
+    if (src) tiles.push({ src, file });
+  }
+  grid.innerHTML = '';
+  for (const tile of tiles) {
+    const btn = document.createElement('button');
+    btn.className = 'icon-tile';
+    btn.title = tile.file;
+    const img = document.createElement('img');
+    img.src = tile.src;
+    img.alt = '';
+    btn.appendChild(img);
+    btn.addEventListener('click', () => {
+      if (iconLibraryPick) iconLibraryPick(tile.src, pack, tile.file);
+      closeIconLibrary();
+    });
+    grid.appendChild(btn);
+  }
+  if (!tiles.length) grid.innerHTML = '<div class="icons-empty">This pack has no images.</div>';
+}
+
+/** Downscale a picked image to 392 px so key data stays small. */
+function setKeyIconFromLibrary(src) {
+  const key = activePage().keys[state.selected];
+  if (!key) return;
+  const img = new Image();
+  img.onload = () => {
+    const size = 392;
+    const canvas = document.createElement('canvas');
+    canvas.width = size;
+    canvas.height = size;
+    const ctx = canvas.getContext('2d');
+    const scale = Math.min(size / img.width, size / img.height);
+    const w = img.width * scale;
+    const h = img.height * scale;
+    ctx.drawImage(img, (size - w) / 2, (size - h) / 2, w, h);
+    key.icon = canvas.toDataURL('image/png');
+    key.iconSource = 'library';
+    drawIndex(state.selected);
+    commit();
+    renderInspector();
+    toast('Icon applied');
+  };
+  img.src = src;
+}
+
 // -------------------------------------------------------------- plugin store
 
 const storeState = {
@@ -1740,6 +1842,7 @@ async function openStoreDetail(id) {
   const category = storeState.categories.find((c) => String(c.id) === String(item.categoryId));
   const kind = category?.name || '';
   const installable = /plugins?/i.test(kind) && /\.zip$/i.test(item.files || '');
+  const iconPack = /icons?/i.test(kind) && /\.zip$/i.test(item.files || '');
   detail.innerHTML = `
     <div class="store-detail-head">
       ${item.icon ? `<img src="${esc(item.icon)}" alt="" />` : '<div class="store-thumb empty">🧩</div>'}
@@ -1757,16 +1860,18 @@ async function openStoreDetail(id) {
           ? `<button class="btn primary" id="store-install" ${installed ? 'disabled' : ''}>
                ${installed ? 'Installed' : 'Install plugin'}
              </button>`
-          : '<span class="badge-tag">Not a plugin</span>'
+          : iconPack
+            ? '<button class="btn primary" id="store-download-icons">Download icons</button>'
+            : '<span class="badge-tag">Not a plugin</span>'
       }
       <button class="btn" id="store-back">Back</button>
     </div>
     ${
-      installable
+      installable || iconPack
         ? ''
         : `<p class="store-note">${
             kind ? `${esc(kind)} items` : 'This item'
-          } can be downloaded from the Ulanzi marketplace, but only JavaScript <b>plugins</b> can be installed into this app.</p>`
+          } can be downloaded from the Ulanzi marketplace, but only JavaScript <b>plugins</b> and <b>icon packs</b> can be installed into this app.</p>`
     }
     <p>${esc(item.summary || 'No description provided.')}</p>
   `;
@@ -1774,6 +1879,24 @@ async function openStoreDetail(id) {
     detail.classList.add('hidden');
     $('#store-browse').classList.remove('hidden');
   });
+  const downloadIcons = $('#store-download-icons');
+  if (downloadIcons) {
+    downloadIcons.addEventListener('click', async () => {
+      downloadIcons.disabled = true;
+      downloadIcons.textContent = 'Downloading…';
+      const out = await api.installIconPack(item.id);
+      if (!out.ok) {
+        downloadIcons.disabled = false;
+        downloadIcons.textContent = 'Download icons';
+        return toast(out.error, true);
+      }
+      toast(`Added ${out.pack.count} icons to your library`);
+      closeStoreModal();
+      openIconLibrary((src) => setKeyIconFromLibrary(src));
+      downloadIcons.disabled = false;
+      downloadIcons.textContent = 'Download icons';
+    });
+  }
   const install = $('#store-install');
   if (install && !installed) {
     install.addEventListener('click', async () => {
@@ -2007,6 +2130,10 @@ function bind() {
   $('#store-modal-close').addEventListener('click', closeStoreModal);
   $('#store-modal').addEventListener('click', (e) => {
     if (e.target === $('#store-modal')) closeStoreModal();
+  });
+  $('#icons-close').addEventListener('click', closeIconLibrary);
+  $('#icons-modal').addEventListener('click', (e) => {
+    if (e.target === $('#icons-modal')) closeIconLibrary();
   });
   $('#store-signin-btn').addEventListener('click', async () => {
     const userName = $('#store-user-input').value.trim();

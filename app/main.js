@@ -12,6 +12,7 @@ const { PluginManager, pluginRootDirs } = require('./lib/plugins');
 const { fetchSiteIcon } = require('./lib/siteicon');
 const { appIconDataUrl } = require('./lib/appicon');
 const { Market } = require('./lib/market');
+const { execFileSync } = require('node:child_process');
 const actions = require('./lib/actions');
 
 let win = null;
@@ -152,6 +153,25 @@ function createWindow() {
             );
             console.log('[shot] action', res);
           }
+          if (process.env.ULANZI_TEST_ICONS) {
+            const out = await win.webContents.executeJavaScript(
+              "window.deckApp.installIconPack(" + JSON.stringify(process.env.ULANZI_TEST_ICONS) + ").then(r => JSON.stringify(r)).catch(e => 'ERR ' + e.message)"
+            );
+            console.log('[shot] icons', out);
+          }
+          if (process.env.ULANZI_LIBRARY) {
+            await win.webContents.executeJavaScript(`
+              (async () => {
+                document.querySelectorAll('.key')[0]?.click();
+                await new Promise(r => setTimeout(r, 400));
+                document.querySelector('#insp-icon-library')?.click();
+                await new Promise(r => setTimeout(r, 2500));
+                document.querySelectorAll('.icon-tile')[0]?.click();
+                return true;
+              })()
+            `);
+            await new Promise((r) => setTimeout(r, 1500));
+          }
           if (process.env.ULANZI_STORE) {
             await win.webContents.executeJavaScript(
               "document.querySelector('#store-btn')?.click(); true"
@@ -168,6 +188,12 @@ function createWindow() {
                 `document.querySelectorAll('.store-item')[${Number(process.env.ULANZI_STORE_ITEM) || 0}]?.click(); true`
               );
               await new Promise((r) => setTimeout(r, 2500));
+            }
+            if (process.env.ULANZI_STORE_DOWNLOAD) {
+              await win.webContents.executeJavaScript(
+                "document.querySelector('#store-download-icons')?.click(); true"
+              );
+              await new Promise((r) => setTimeout(r, 9000));
             }
             if (process.env.ULANZI_STORE_INSTALL) {
               await win.webContents.executeJavaScript(
@@ -550,6 +576,108 @@ ipcMain.handle('store:resource', async (_evt, id) => {
   } catch (err) {
     return { ok: false, error: err.message || String(err) };
   }
+});
+
+const ICON_EXT = new Set(['.png', '.jpg', '.jpeg', '.svg', '.webp', '.gif']);
+
+function iconsRoot() {
+  return path.join(process.env.ULANZI_CONFIG_DIR || app.getPath('userData'), 'Icons');
+}
+
+function walkFiles(dir) {
+  const out = [];
+  for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+    const full = path.join(dir, entry.name);
+    if (entry.isDirectory()) out.push(...walkFiles(full));
+    else out.push(full);
+  }
+  return out;
+}
+
+ipcMain.handle('store:install-icons', async (_evt, id) => {
+  const tempZip = path.join(os.tmpdir(), `ulanzi-icons-${Date.now()}.zip`);
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'ulanzi-icons-'));
+  try {
+    const resource = await market.resource(String(id));
+    if (!resource.files) throw new Error('This icon pack has no downloadable file');
+    await market.download(resource.files, tempZip);
+    execFileSync('unzip', ['-oq', tempZip, '-d', tempDir], { stdio: ['ignore', 'ignore', 'pipe'] });
+
+    const slug = `${String(resource.name || 'icons').replace(/[^a-z0-9]+/gi, '-').replace(/^-|-$/g, '').toLowerCase()}-${id}`;
+    const dest = path.join(iconsRoot(), slug);
+    fs.rmSync(dest, { recursive: true, force: true });
+    fs.mkdirSync(dest, { recursive: true });
+
+    const images = walkFiles(tempDir).filter((file) => ICON_EXT.has(path.extname(file).toLowerCase()));
+    let count = 0;
+    for (const file of images) {
+      let name = path.basename(file);
+      let target = path.join(dest, name);
+      let n = 1;
+      while (fs.existsSync(target)) {
+        target = path.join(dest, `${path.basename(name, path.extname(name))}-${n++}${path.extname(name)}`);
+      }
+      fs.copyFileSync(file, target);
+      count += 1;
+    }
+    fs.writeFileSync(
+      path.join(dest, 'pack.json'),
+      JSON.stringify({ name: resource.name, author: resource.author, id: String(id), icon: resource.icon }, null, 2)
+    );
+    return { ok: true, pack: { id: slug, name: resource.name, count } };
+  } catch (err) {
+    return { ok: false, error: err.message || String(err) };
+  } finally {
+    try { fs.rmSync(tempZip, { force: true }); } catch { /* ignore */ }
+    try { fs.rmSync(tempDir, { recursive: true, force: true }); } catch { /* ignore */ }
+  }
+});
+
+ipcMain.handle('icons:list', () => {
+  const root = iconsRoot();
+  if (!fs.existsSync(root)) return [];
+  return fs
+    .readdirSync(root, { withFileTypes: true })
+    .filter((entry) => entry.isDirectory())
+    .map((entry) => {
+      const dir = path.join(root, entry.name);
+      let meta = {};
+      try {
+        meta = JSON.parse(fs.readFileSync(path.join(dir, 'pack.json'), 'utf8'));
+      } catch {
+        /* no metadata */
+      }
+      return {
+        id: entry.name,
+        name: meta.name || entry.name,
+        icon: meta.icon || null,
+        files: fs.readdirSync(dir).filter((f) => ICON_EXT.has(path.extname(f).toLowerCase())),
+      };
+    })
+    .filter((pack) => pack.files.length > 0);
+});
+
+ipcMain.handle('icons:read', (_evt, pack, file) => {
+  try {
+    const dir = path.join(iconsRoot(), String(pack));
+    const target = path.join(dir, path.basename(String(file)));
+    if (!target.startsWith(dir) || !fs.existsSync(target)) return null;
+    const ext = path.extname(target).toLowerCase();
+    const mime =
+      ext === '.svg' ? 'image/svg+xml' :
+      ext === '.jpg' || ext === '.jpeg' ? 'image/jpeg' :
+      ext === '.webp' ? 'image/webp' :
+      ext === '.gif' ? 'image/gif' : 'image/png';
+    return `data:${mime};base64,${fs.readFileSync(target).toString('base64')}`;
+  } catch {
+    return null;
+  }
+});
+
+ipcMain.handle('icons:remove', (_evt, pack) => {
+  const dir = path.join(iconsRoot(), String(pack));
+  fs.rmSync(dir, { recursive: true, force: true });
+  return { ok: true };
 });
 
 ipcMain.handle('store:install', async (_evt, id) => {
