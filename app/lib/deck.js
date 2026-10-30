@@ -42,7 +42,14 @@ class Deck extends EventEmitter {
 
   connect() {
     if (this.device) return true;
-    const found = Deck.find();
+    const found = (() => {
+      try {
+        return Deck.find();
+      } catch (err) {
+        this.status = { connected: false, message: err.message || 'device scan failed', info: null };
+        return null;
+      }
+    })();
     if (!found) {
       this._status(false, 'Not connected');
       return false;

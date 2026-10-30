@@ -1,6 +1,6 @@
 'use strict';
 
-const { spawn } = require('node:child_process');
+const { spawn, execFile } = require('node:child_process');
 const path = require('node:path');
 const { shell, app } = require('electron');
 
@@ -31,26 +31,34 @@ const MODIFIERS = {
   shift: 'shift down',
 };
 
-function run(command, timeout = 0) {
+/**
+ * Run a shell command. Only the explicit `command` action uses a shell — every
+ * other action passes argv arrays to execFile so config values can never be
+ * interpreted by the shell.
+ */
+function runShell(command) {
   return new Promise((resolve) => {
-    const child = spawn('/bin/sh', ['-c', command], { detached: true, stdio: 'ignore' });
-    let done = false;
-    const finish = (ok, error) => {
-      if (done) return;
-      done = true;
-      resolve({ ok, error });
-    };
-    child.on('error', (err) => finish(false, err.message));
+    const child = spawn('/bin/sh', ['-c', String(command)], { detached: true, stdio: 'ignore' });
+    child.on('error', (err) => resolve({ ok: false, error: err.message }));
     child.on('spawn', () => {
       child.unref();
-      finish(true);
+      resolve({ ok: true });
     });
-    if (timeout) setTimeout(() => finish(true), timeout);
+  });
+}
+
+function execFileResult(file, args, timeout = 10000) {
+  return new Promise((resolve) => {
+    execFile(file, args, { timeout }, (err, stdout, stderr) => {
+      if (!err) return resolve({ ok: true });
+      const detail = String(stderr || '').trim() || err.message;
+      resolve({ ok: false, error: detail.split('\n').filter(Boolean).pop() || detail });
+    });
   });
 }
 
 function applescript(script) {
-  return run(`osascript -e ${JSON.stringify(script)}`);
+  return execFileResult('/usr/bin/osascript', ['-e', script]);
 }
 
 async function runHotkey(combo) {
@@ -73,15 +81,21 @@ async function runHotkey(combo) {
   }
   if (process.platform === 'linux') {
     const comboName = [...parts, keyName].join('+');
-    return run(`xdotool key ${JSON.stringify(comboName)}`);
+    return execFileResult('/usr/bin/xdotool', ['key', comboName]);
   }
   return { ok: false, error: 'hotkeys are only implemented on macOS/Linux' };
 }
 
+const SAFE_SCHEMES = /^(https?:|mailto:)/i;
+
 async function openUrl(value) {
   const target = String(value || '').trim();
   if (!target) return { ok: false, error: 'empty URL' };
-  const url = /^(https?:|mailto:|file:)/i.test(target) ? target : `https://${target}`;
+  const hasScheme = /^[a-z][a-z0-9+.-]*:/i.test(target);
+  if (hasScheme && !SAFE_SCHEMES.test(target)) {
+    return { ok: false, error: 'unsupported URL scheme' };
+  }
+  const url = hasScheme ? target : `https://${target}`;
   await shell.openExternal(url);
   return { ok: true };
 }
@@ -90,12 +104,14 @@ async function openApp(value) {
   const target = String(value || '').trim();
   if (!target) return { ok: false, error: 'empty app' };
   if (process.platform === 'darwin') {
-    return run(`open -a ${JSON.stringify(target)} 2>/dev/null || open ${JSON.stringify(target)}`);
+    const byName = await execFileResult('/usr/bin/open', ['-a', target]);
+    if (byName.ok) return byName;
+    return execFileResult('/usr/bin/open', [target]);
   }
   if (process.platform === 'win32') {
-    return run(`start "" ${JSON.stringify(target)}`);
+    return execFileResult('cmd', ['/c', 'start', '', target]);
   }
-  return run(`xdg-open ${JSON.stringify(target)}`);
+  return execFileResult('/usr/bin/xdg-open', [target]);
 }
 
 async function openTarget(value) {
@@ -141,7 +157,7 @@ async function execute(action) {
       // legacy configs
       return openTarget(action.value);
     case 'command':
-      return run(action.value);
+      return runShell(action.value);
     case 'hotkey':
       return runHotkey(action.value);
     case 'text':

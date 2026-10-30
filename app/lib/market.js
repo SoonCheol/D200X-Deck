@@ -10,6 +10,34 @@ const BASE = `${WEB}/api/api`;
 const UA =
   'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Safari/605.1.15';
 
+const MAX_PACKAGE_BYTES = 128 * 1024 * 1024;
+
+function isVendorHost(hostname) {
+  return /(^|\.)ulanzistudio\.com$/i.test(String(hostname || ''));
+}
+
+async function readCapped(response, maxBytes = MAX_PACKAGE_BYTES) {
+  const declared = Number(response.headers.get('content-length') || 0);
+  if (declared && declared > maxBytes) {
+    throw new StoreError(`This package is too large (${Math.round(declared / 1e6)} MB)`);
+  }
+  if (!response.body) return Buffer.from(await response.arrayBuffer());
+  const reader = response.body.getReader();
+  const chunks = [];
+  let total = 0;
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    total += value.length;
+    if (total > maxBytes) {
+      try { await reader.cancel(); } catch { /* ignore */ }
+      throw new StoreError('This package is too large to download');
+    }
+    chunks.push(Buffer.from(value));
+  }
+  return Buffer.concat(chunks);
+}
+
 class StoreError extends Error {
   constructor(message, code) {
     super(message);
@@ -78,7 +106,7 @@ class Market {
       Origin: WEB,
       Referer: `${WEB}/`,
     };
-    if (this.token) headers.authToken = this.token;
+    if (this.token && isVendorHost(url.hostname)) headers.authToken = this.token;
 
     let body;
     if (form) {
@@ -154,7 +182,7 @@ class Market {
   async checkFile(url) {
     if (!/^https?:\/\//i.test(String(url || ''))) return { ok: false, reason: 'missing' };
     const headers = { 'User-Agent': UA, Referer: `${WEB}/` };
-    if (this.token) headers.authToken = this.token;
+    if (this.token && isVendorHost(new URL(url).hostname)) headers.authToken = this.token;
     try {
       const res = await fetch(url, { method: 'HEAD', headers, redirect: 'follow' });
       const type = String(res.headers.get('content-type') || '');
@@ -177,10 +205,10 @@ class Market {
       throw new StoreError('This plugin has no downloadable package');
     }
     const headers = { 'User-Agent': UA, Referer: `${WEB}/` };
-    if (this.token) headers.authToken = this.token;
+    if (this.token && isVendorHost(new URL(packageUrl).hostname)) headers.authToken = this.token;
     const res = await fetch(packageUrl, { headers, redirect: 'follow' });
     if (!res.ok) throw new StoreError(`Download failed (${res.status})`);
-    const buffer = Buffer.from(await res.arrayBuffer());
+    const buffer = await readCapped(res);
     if (buffer.subarray(0, 2).toString('latin1') !== 'PK') {
       const type = String(res.headers.get('content-type') || '');
       if (!res.ok || /html|xml/i.test(type)) {

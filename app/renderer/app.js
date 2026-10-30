@@ -1055,10 +1055,17 @@ function renderInspector() {
     });
   }
 
+  bindTriggerFields(key);
+
   $('#insp-duplicate').addEventListener('click', () => {
     const target = nextFreeIndex(page);
     if (target < 0) return toast('No free key slots', true);
-    page.keys[target] = JSON.parse(JSON.stringify(key));
+    const copy = JSON.parse(JSON.stringify(key));
+    // Two keys must never share one plugin action instance.
+    if (copy.action && copy.action.type === 'plugin') copy.action.actionid = uuid();
+    if (copy.holdAction && copy.holdAction.type === 'plugin') copy.holdAction.actionid = uuid();
+    if (copy.doubleAction && copy.doubleAction.type === 'plugin') copy.doubleAction.actionid = uuid();
+    page.keys[target] = copy;
     state.selected = target;
     commit();
     renderGrid();
@@ -1085,7 +1092,9 @@ function nextFreeIndex(page) {
 
 function scheduleSave() {
   clearTimeout(saveTimer);
-  saveTimer = setTimeout(() => api.saveConfig(state.config), 250);
+  saveTimer = setTimeout(() => {
+    api.saveConfig(state.config).catch((err) => toast(`Could not save: ${err.message}`, true));
+  }, 250);
 }
 
 async function loadSiteIcon(key, report = false) {
@@ -1227,8 +1236,19 @@ function deletePage(id) {
   scheduleSave();
 }
 
+function clearPressTimers() {
+  for (const st of pressState.values()) {
+    if (st.holdTimer) clearTimeout(st.holdTimer);
+    if (st.tapTimer) clearTimeout(st.tapTimer);
+    st.holdTimer = null;
+    st.tapTimer = null;
+  }
+  pressState.clear();
+}
+
 function navigate(pageId) {
   if (!state.config.pages.some((p) => p.id === pageId)) return;
+  clearPressTimers();
   state.config.activePageId = pageId;
   state.selected = null;
   scheduleSave();
@@ -2284,7 +2304,7 @@ function bind() {
     }
     $('#store-pass-input').value = '';
     storeState.session = { signedIn: true, user: res.user };
-    renderStoreChrome(true);
+    renderStoreChrome(false);
     await loadStoreCategories();
     await loadStoreItems(true);
   });

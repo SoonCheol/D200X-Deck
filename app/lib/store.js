@@ -68,17 +68,32 @@ class Store {
 
   load() {
     fs.mkdirSync(this.dir, { recursive: true });
+    const read = (file) => JSON.parse(fs.readFileSync(file, 'utf8'));
+
     try {
-      const raw = fs.readFileSync(this.file, 'utf8');
-      const parsed = JSON.parse(raw);
+      const parsed = read(this.file);
       const previous = Number(parsed.version) || 1;
       this.config = this._migrate(parsed);
       if (previous !== CONFIG_VERSION) this.save();
-    } catch {
-      this.config = createDefaultConfig();
-      this.save();
+      return this.config;
+    } catch (err) {
+      // Keep the broken file for inspection and fall back to the last backup.
+      try {
+        fs.copyFileSync(this.file, `${this.file}.corrupt`);
+      } catch {
+        /* nothing to preserve */
+      }
+      try {
+        this.config = this._migrate(read(`${this.file}.bak`));
+        this.save();
+        this.emit?.('recovered');
+        return this.config;
+      } catch {
+        this.config = createDefaultConfig();
+        this.save();
+        return this.config;
+      }
     }
-    return this.config;
   }
 
   _migrate(config) {
@@ -112,6 +127,11 @@ class Store {
     fs.mkdirSync(this.dir, { recursive: true });
     const tmp = `${this.file}.tmp`;
     fs.writeFileSync(tmp, JSON.stringify(config, null, 2));
+    try {
+      fs.copyFileSync(this.file, `${this.file}.bak`);
+    } catch {
+      /* first save, no backup yet */
+    }
     fs.renameSync(tmp, this.file);
   }
 

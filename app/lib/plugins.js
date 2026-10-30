@@ -62,7 +62,29 @@ class PluginManager extends EventEmitter {
     this.children = new Map(); // uuid -> ChildProcess
     this.actions = new Map(); // actionid -> {pluginUuid, actionUuid, key, settings, active, meta}
     this.globalSettings = new Map(); // pluginUuid -> object
+    this.crashes = new Map(); // pluginUuid -> { count, last }
     this.wss = null;
+    this._settingsFile = path.join(this.appPluginsDir, '.global-settings.json');
+    this._loadGlobalSettings();
+  }
+
+  _loadGlobalSettings() {
+    try {
+      const data = JSON.parse(fs.readFileSync(this._settingsFile, 'utf8'));
+      for (const [uuid, value] of Object.entries(data || {})) this.globalSettings.set(uuid, value);
+    } catch {
+      /* no persisted settings yet */
+    }
+  }
+
+  _saveGlobalSettings() {
+    try {
+      fs.mkdirSync(this.appPluginsDir, { recursive: true });
+      const data = Object.fromEntries(this.globalSettings);
+      fs.writeFileSync(this._settingsFile, JSON.stringify(data, null, 2), { mode: 0o600 });
+    } catch (err) {
+      this.emit('error', `Could not save plugin settings: ${err.message}`);
+    }
   }
 
   // ------------------------------------------------------------- discovery
@@ -148,11 +170,24 @@ class PluginManager extends EventEmitter {
 
   start() {
     if (this.wss) return;
-    this.wss = new WebSocketServer({ host: '127.0.0.1', port: this.port });
+    this.wss = new WebSocketServer({
+      host: '127.0.0.1',
+      port: this.port,
+      // Plugin processes are Node clients (no Origin). Property inspectors run
+      // in our own scheme. Anything coming from a web page is refused.
+      verifyClient: (info, done) => {
+        const origin = String(info.origin || info.req?.headers?.origin || '');
+        if (/^https?:/i.test(origin)) return done(false, 403, 'forbidden');
+        done(true);
+      },
+    });
     this.wss.on('connection', (ws) => this._onConnection(ws));
     this.wss.on('error', (err) => {
       if (err.code === 'EADDRINUSE') {
         this.emit('error', `Plugin port ${this.port} is busy (is Ulanzi Studio running?)`);
+        try { this.wss.close(); } catch { /* ignore */ }
+        this.wss = null;
+        setTimeout(() => this.start(), 10_000);
       } else {
         this.emit('error', `Plugin server: ${err.message}`);
       }
@@ -187,9 +222,21 @@ class PluginManager extends EventEmitter {
           return;
         }
         pluginUuid = msg.uuid;
+        if (!this.plugins.has(pluginUuid)) {
+          try { ws.close(4402, 'unknown plugin'); } catch { /* ignore */ }
+          return;
+        }
         this.sockets.set(pluginUuid, ws);
-        this.queues.delete(pluginUuid);
+        this.crashes.delete(pluginUuid);
         this.emit('connected', pluginUuid);
+        if (this.globalSettings.has(pluginUuid)) {
+          this._send(pluginUuid, {
+            cmd: 'didReceiveGlobalSettings',
+            uuid: pluginUuid,
+            settings: this.globalSettings.get(pluginUuid),
+          });
+        }
+        this._flushQueue(pluginUuid);
         this._replay(pluginUuid);
         return;
       }
@@ -304,6 +351,10 @@ class PluginManager extends EventEmitter {
         stdio: ['ignore', 'pipe', 'pipe'],
       }
     );
+    proc.on('error', (err) => {
+      this.emit('error', `${meta.name || pluginUuid} could not start: ${err.message}`);
+      this.children.delete(pluginUuid);
+    });
     this.children.set(pluginUuid, proc);
     const prefix = `[plugin ${meta.name}]`;
     const lineLogger = (stream) => {
@@ -328,10 +379,20 @@ class PluginManager extends EventEmitter {
       const ws = this.sockets.get(pluginUuid);
       if (ws) this.sockets.delete(pluginUuid);
       if (!this.stopping && this._hasActionsFor(pluginUuid)) {
-        this.emit('error', `${meta.name} exited${code ? ` (${code})` : ''}; restarting`);
+        const now = Date.now();
+        const state = this.crashes.get(pluginUuid) || { count: 0, last: 0 };
+        state.count = now - state.last < 60_000 ? state.count + 1 : 1;
+        state.last = now;
+        this.crashes.set(pluginUuid, state);
+        if (state.count > 5) {
+          this.emit('error', `${meta.name} keeps crashing — not restarting it.`);
+          return;
+        }
+        const delay = Math.min(30_000, 1000 * 2 ** (state.count - 1));
+        this.emit('error', `${meta.name} exited${code ? ` (${code})` : ''}; retrying in ${Math.round(delay / 1000)}s`);
         setTimeout(() => {
           if (!this.stopping && this._hasActionsFor(pluginUuid)) this._ensurePlugin(pluginUuid);
-        }, 2000);
+        }, delay);
       }
     });
     return meta;
@@ -413,16 +474,25 @@ class PluginManager extends EventEmitter {
       return null;
     };
 
-    const root = findManifest(workDir);
-    if (!root) throw new Error('No manifest.json found in the plugin package');
-    const manifest = JSON.parse(fs.readFileSync(path.join(root, 'manifest.json'), 'utf8'));
-    if (!manifest.UUID) throw new Error('manifest.json has no UUID');
-    const dest = path.join(this.appPluginsDir, `${manifest.UUID}.ulanziPlugin`);
-    if (fs.existsSync(dest)) fs.rmSync(dest, { recursive: true, force: true });
-    fs.cpSync(root, dest, { recursive: true, force: true });
-    if (temp) fs.rmSync(temp, { recursive: true, force: true });
-
-    return { uuid: manifest.UUID, name: manifest.Name || manifest.UUID, list: this.reload() };
+    try {
+      const root = findManifest(workDir);
+      if (!root) throw new Error('No manifest.json found in the plugin package');
+      const manifest = JSON.parse(fs.readFileSync(path.join(root, 'manifest.json'), 'utf8'));
+      const uuid = String(manifest.UUID || '').trim();
+      if (!uuid) throw new Error('manifest.json has no UUID');
+      if (!/^[A-Za-z0-9][A-Za-z0-9._-]*$/.test(uuid)) {
+        throw new Error('manifest.json has an invalid UUID');
+      }
+      const dest = path.join(this.appPluginsDir, `${uuid}.ulanziPlugin`);
+      if (path.relative(this.appPluginsDir, dest).startsWith('..')) {
+        throw new Error('plugin destination escapes the plugins folder');
+      }
+      if (fs.existsSync(dest)) fs.rmSync(dest, { recursive: true, force: true });
+      fs.cpSync(root, dest, { recursive: true, force: true });
+      return { uuid, name: manifest.Name || uuid, list: this.reload() };
+    } finally {
+      if (temp) fs.rmSync(temp, { recursive: true, force: true });
+    }
   }
 
   /** Copy an official (read-only) plugin into the app folder so it can be managed. */
@@ -559,6 +629,9 @@ class PluginManager extends EventEmitter {
     switch (msg.cmd) {
       case 'state':
         this._handleState(msg, action);
+        if (msg.text || msg.param?.text) {
+          this.emit('title', { actionid, text: msg.text ?? msg.param.text });
+        }
         break;
       case 'setImage':
         this._handleState(msg, action);

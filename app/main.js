@@ -27,6 +27,31 @@ let tray = null;
 let isQuitting = false;
 let quitPromptOpen = false;
 
+// A second launch would fight over the HID device and the plugin port. Dev and
+// screenshot runs set ULANZI_CONFIG_DIR, so they are allowed to coexist.
+const devRun = Boolean(process.env.ULANZI_SHOT || process.env.ULANZI_CONFIG_DIR);
+if (!devRun && !app.requestSingleInstanceLock()) {
+  app.quit();
+}
+app.on('second-instance', () => showWindow());
+
+/** IPC handlers only accept calls from our own renderer page. */
+function trustedSender(event) {
+  try {
+    const url = event.senderFrame?.url || '';
+    return url.startsWith('file://') && url.includes('/renderer/index.html');
+  } catch {
+    return false;
+  }
+}
+
+function guarded(handler) {
+  return (event, ...args) => {
+    if (!trustedSender(event)) return { ok: false, error: 'untrusted sender' };
+    return handler(event, ...args);
+  };
+}
+
 function createWindow() {
   win = new BrowserWindow({
     width: 1380,
@@ -41,6 +66,7 @@ function createWindow() {
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: false,
+      backgroundThrottling: false,
     },
   });
   win.webContents.on('console-message', (event) => {
@@ -55,9 +81,25 @@ function createWindow() {
     }
   });
 
+  // The window only ever shows our own file. Anything trying to navigate
+  // elsewhere (a plugin inspector link, injected content, a future import) is
+  // refused so it can never inherit the preload bridge.
+  const isLocalPage = (url) => String(url).startsWith('file://') && String(url).includes('/renderer/');
+  win.webContents.on('will-navigate', (event, url) => {
+    if (!isLocalPage(url)) event.preventDefault();
+  });
+  win.webContents.on('will-redirect', (event, url) => {
+    if (!isLocalPage(url)) event.preventDefault();
+  });
+  win.webContents.on('render-process-gone', (_event, details) => {
+    console.error('[renderer] gone:', details.reason);
+    if (win && !win.isDestroyed()) win.reload();
+  });
+  win.webContents.on('unresponsive', () => console.error('[renderer] unresponsive'));
+
   win.loadFile(path.join(__dirname, 'renderer', 'index.html'));
   win.webContents.setWindowOpenHandler(({ url }) => {
-    shell.openExternal(url);
+    if (/^(https?:|mailto:)/i.test(String(url))) shell.openExternal(url);
     return { action: 'deny' };
   });
   if (process.argv.includes('--dev')) win.webContents.openDevTools({ mode: 'detach' });
@@ -210,6 +252,19 @@ function createWindow() {
               })()
             `);
             await new Promise((r) => setTimeout(r, 1500));
+          }
+          if (process.env.ULANZI_SET_TRIGGER) {
+            const [field, type] = process.env.ULANZI_SET_TRIGGER.split(':');
+            await win.webContents.executeJavaScript(`
+              (() => {
+                const s = document.querySelector('[data-trigger-type="${field}"]');
+                if (!s) return 'no-select';
+                s.value = '${type}';
+                s.dispatchEvent(new Event('change', { bubbles: true }));
+                return 'ok';
+              })()
+            `).then((r) => console.log('[shot] trigger', r));
+            await new Promise((r) => setTimeout(r, 800));
           }
           if (process.env.ULANZI_STORE) {
             await win.webContents.executeJavaScript(
@@ -478,6 +533,10 @@ function startHidSeize() {
 function spawnHelper(bin) {
   const { spawn } = require('node:child_process');
   const proc = spawn(bin, [], { stdio: ['ignore', 'pipe', 'pipe'] });
+  proc.on('error', (err) => {
+    console.error('[seize] helper failed:', err.message);
+    if (seizeProc === proc) seizeProc = null;
+  });
   proc.stdout.on('data', (d) => console.log('[seize]', d.toString().trim()));
   proc.stderr.on('data', (d) => {
     const text = d.toString().trim();
@@ -688,10 +747,10 @@ ipcMain.handle('app:state', () => ({
   version: app.getVersion(),
 }));
 
-ipcMain.handle('config:save', (_evt, config) => {
+ipcMain.handle('config:save', guarded((_evt, config) => {
   store.save(config);
   return { ok: true };
-});
+}));
 
 ipcMain.handle('deck:push', async (_evt, images) => {
   if (!deck.connected) return { ok: false, error: 'not connected' };
@@ -728,7 +787,10 @@ ipcMain.handle('deck:reconnect', () => {
   return { ok: deck.connect(), status: deck.status() };
 });
 
-ipcMain.handle('action:run', async (_evt, action) => actions.execute(action));
+ipcMain.handle(
+  'action:run',
+  guarded(async (_evt, action) => actions.execute(action))
+);
 
 // ------------------------------------------------------------- store
 
@@ -902,14 +964,14 @@ ipcMain.handle('icons:open-folder', () => {
   return { ok: true };
 });
 
-ipcMain.handle('icons:remove', (_evt, pack) => {
+ipcMain.handle('icons:remove', guarded((_evt, pack) => {
   const id = String(pack);
   if (id.startsWith('ulanzi:') || !id.startsWith('app:')) {
     return { ok: false, error: 'Icon packs installed by Ulanzi Studio are read-only' };
   }
   fs.rmSync(packDir(id), { recursive: true, force: true });
   return { ok: true };
-});
+}));
 
 ipcMain.handle('store:install', async (_evt, id) => {
   const temp = path.join(os.tmpdir(), `ulanzi-store-${Date.now()}.zip`);
@@ -979,7 +1041,7 @@ ipcMain.handle('plugins:reload', () => {
   return { ok: true, list };
 });
 
-ipcMain.handle('plugins:import', (_evt, uuid) => {
+ipcMain.handle('plugins:import', guarded((_evt, uuid) => {
   try {
     const out = plugins.import(String(uuid));
     send('plugins:changed');
@@ -987,9 +1049,9 @@ ipcMain.handle('plugins:import', (_evt, uuid) => {
   } catch (err) {
     return { ok: false, error: err.message || String(err) };
   }
-});
+}));
 
-ipcMain.handle('plugins:remove', (_evt, uuid) => {
+ipcMain.handle('plugins:remove', guarded((_evt, uuid) => {
   try {
     const list = plugins.remove(uuid);
     send('plugins:changed');
@@ -997,7 +1059,7 @@ ipcMain.handle('plugins:remove', (_evt, uuid) => {
   } catch (err) {
     return { ok: false, error: err.message || String(err) };
   }
-});
+}));
 
 ipcMain.handle('plugins:open-folder', () => {
   fs.mkdirSync(plugins.appPluginsDir, { recursive: true });

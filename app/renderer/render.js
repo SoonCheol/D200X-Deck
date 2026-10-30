@@ -4,17 +4,31 @@ const KEY_SIZE = 196;
 const WIDE_KEY_SIZE = { width: 402, height: 196 };
 const WIDE_INDEX = 13;
 
+// Bounded image cache: live plugin images change constantly, so an unbounded map
+// would grow forever in a long-running menu-bar app.
+const IMAGE_CACHE_MAX = 120;
 const imageCache = new Map();
 
 function loadImage(src) {
-  if (imageCache.has(src)) return imageCache.get(src);
+  if (imageCache.has(src)) {
+    const hit = imageCache.get(src);
+    // refresh recency
+    imageCache.delete(src);
+    imageCache.set(src, hit);
+    return hit;
+  }
   const promise = new Promise((resolve, reject) => {
     const img = new Image();
     img.onload = () => resolve(img);
     img.onerror = () => reject(new Error('image failed to load'));
     img.src = src;
   });
+  promise.catch(() => imageCache.delete(src));
   imageCache.set(src, promise);
+  while (imageCache.size > IMAGE_CACHE_MAX) {
+    const oldest = imageCache.keys().next().value;
+    imageCache.delete(oldest);
+  }
   return promise;
 }
 
