@@ -198,6 +198,17 @@ function findPluginAction(actionid) {
 
 // -------------------------------------------------------------- bootstrap
 
+function updateDeckSettingsMeta() {
+  const meta = $('#deck-settings-meta');
+  if (!meta) return;
+  const { connected, info } = state.status;
+  meta.textContent = connected
+    ? `Firmware ${info?.Dversion || '—'} · Serial ${info?.SerialNumber || info?.serial || '—'}`
+    : 'No deck connected';
+  const sleep = $('#insp-sleep');
+  if (sleep) sleep.value = String(state.config.settings.sleepSeconds || 0);
+}
+
 function bind() {
   // Arrow-key navigation across the 5×3 key grid.
   $('#grid').addEventListener('keydown', (event) => {
@@ -223,6 +234,12 @@ function bind() {
   $('#store-modal').addEventListener('click', (e) => {
     if (e.target === $('#store-modal')) closeStoreModal();
   });
+  $('#icons-search').addEventListener('input', debounce(() => {
+    iconLibraryQuery = $('#icons-search').value;
+    const active = document.querySelector('.icons-pack.active');
+    const pack = iconLibraryPacks.find((p) => p.id === active?.dataset.pack);
+    if (pack) renderIconGrid(pack);
+  }, 180));
   $('#icons-close').addEventListener('click', closeIconLibrary);
   $('#icons-modal').addEventListener('click', (e) => {
     if (e.target === $('#icons-modal')) closeIconLibrary();
@@ -335,6 +352,21 @@ function bind() {
     activePage().name = e.target.value;
     renderPageList();
     scheduleSave();
+  });
+
+  $('#deck-settings-btn').addEventListener('click', () => {
+    const sheet = $('#deck-settings');
+    const open = sheet.classList.toggle('hidden');
+    if (!open) updateDeckSettingsMeta();
+  });
+  $('#deck-settings-close').addEventListener('click', () => $('#deck-settings').classList.add('hidden'));
+  $('#deck-settings-reconnect').addEventListener('click', () => api.reconnect());
+  $('#insp-sleep-apply').addEventListener('click', async () => {
+    const seconds = Math.max(0, parseInt($('#insp-sleep').value || '0', 10));
+    state.config.settings.sleepSeconds = seconds;
+    scheduleSave();
+    const res = await api.setSleepTime(seconds);
+    toast(res.ok ? `Sleep set to ${seconds}s` : res.error, !res.ok);
   });
 
   $('#brightness').addEventListener('input', (e) => {

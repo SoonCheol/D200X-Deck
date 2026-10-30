@@ -326,7 +326,7 @@ body::before {
   border-left: 1px solid var(--line);
   background: rgba(9, 12, 18, 0.72);
   backdrop-filter: blur(12px);
-  padding: 54px 18px 18px;
+  padding: 54px 18px 96px;
   overflow: auto;
 }
 
@@ -952,3 +952,58 @@ body::before {
   0% { transform: translateX(-100%); }
   100% { transform: translateX(320%); }
 }
+
+/* ------------------------------------------------------ deck settings sheet */
+
+.settings-sheet {
+  position: absolute;
+  top: 64px;
+  right: 392px;
+  z-index: 40;
+  width: 320px;
+  padding: 14px 16px 16px;
+  border-radius: 14px;
+  border: 1px solid var(--line-strong);
+  background: #10151f;
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.55);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.settings-head { display: flex; align-items: center; justify-content: space-between; }
+.settings-row { display: flex; align-items: center; gap: 10px; font-size: 12px; color: var(--muted); }
+.settings-row > span:first-child { flex: 0 0 110px; }
+.settings-row input[type="range"] { flex: 1; }
+.settings-row input[type="checkbox"] { width: 16px; height: 16px; accent-color: var(--accent); }
+.settings-input { flex: 1; min-width: 0; }
+.settings-value { width: 26px; text-align: right; color: var(--text); }
+.settings-meta { font-size: 11px; color: var(--text-3); }
+.btn.icon-text { padding: 8px 12px; }
+
+/* Inspector becomes a drawer on narrow windows */
+@media (max-width: 1179px) {
+  #app { grid-template-columns: 200px minmax(0, 1fr) 0 !important; }
+  .inspector {
+    position: fixed;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    width: min(368px, 92vw);
+    transform: translateX(105%);
+    transition: transform 160ms cubic-bezier(.2,.8,.2,1);
+    z-index: 70;
+    background: #0b0f16;
+    box-shadow: -20px 0 60px rgba(0, 0, 0, 0.55);
+  }
+  .inspector.open { transform: none; }
+  .drawer-close { display: inline-flex !important; }
+}
+.drawer-close { display: none; }
+
+.icons-search-row { padding: 0 22px 10px; }
+
+.store-detail-meta { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-top: 8px; font-size: 11px; color: var(--text-3); }
+.store-back-top { margin-left: auto; align-self: flex-start; }
+.store-detail-head { align-items: flex-start; }
+.store-card.detail-mode { height: auto; min-height: 320px; max-height: min(760px, calc(100vh - 80px)); }
+.store-card.detail-mode .store-detail { padding-bottom: 22px; }

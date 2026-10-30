@@ -171,6 +171,8 @@ function renderInspector() {
   const page = activePage();
   if (state.selected === WIDE_KEY_INDEX) state.selected = null;
 
+  const inspectorEl = $('#inspector');
+  if (state.selected === null && inspectorEl) inspectorEl.classList.remove('open');
   if (state.selected === null) {
     const configured = Object.entries(page.keys).filter(
       ([index, k]) => Number(index) !== WIDE_KEY_INDEX && k &&
@@ -181,21 +183,6 @@ function renderInspector() {
       <div class="field">
         <label>Page name</label>
         <input class="input" id="insp-page-name" value="${esc(page.name)}" maxlength="40" />
-      </div>
-      <div class="field">
-        <label>Screen sleep (seconds, 0 = never)</label>
-        <div class="row">
-          <input class="input" id="insp-sleep" type="number" min="0" step="5" value="${esc(state.config.settings.sleepSeconds)}" />
-          <button class="btn" id="insp-sleep-apply">Apply</button>
-        </div>
-      </div>
-      <div class="settings-block">
-        <h3>Device</h3>
-        <div class="insp-empty" style="padding:0">
-          ${state.status.connected
-            ? `Firmware <b>${esc(state.status.info?.Dversion || '—')}</b><br/>Serial <b>${esc(state.status.info?.SerialNumber || state.status.info?.serial || '—')}</b>`
-            : 'Connect a D200 and quit Ulanzi Studio to take exclusive control.'}
-        </div>
       </div>
       <div class="settings-block">
         <h3>Tips</h3>
@@ -215,13 +202,6 @@ function renderInspector() {
       renderPageList();
       if (document.activeElement !== $('#page-title')) $('#page-title').value = page.name;
       scheduleSave();
-    });
-    $('#insp-sleep-apply').addEventListener('click', async () => {
-      const seconds = Math.max(0, parseInt($('#insp-sleep').value || '0', 10));
-      state.config.settings.sleepSeconds = seconds;
-      scheduleSave();
-      const res = await api.setSleepTime(seconds);
-      toast(res.ok ? `Sleep set to ${seconds}s` : res.error, !res.ok);
     });
     $('#insp-clear-page').addEventListener('click', () => {
       if (!confirm(`Clear all keys on “${page.name}”?`)) return;
@@ -357,6 +337,7 @@ function renderInspector() {
     <div class="insp-head">
       <h2>${state.selected === WIDE_KEY_INDEX ? 'Wide key' : `Key ${state.selected + 1}`}</h2>
       <span class="index">${state.selected === WIDE_KEY_INDEX ? 'row 3 · col 4–5 (2×1)' : `row ${Math.floor(state.selected / COLS) + 1} · col ${(state.selected % COLS) + 1}`}</span>
+      <button class="icon-btn drawer-close" id="insp-drawer-close" title="Close">×</button>
     </div>
 
     <div class="field">
@@ -678,6 +659,16 @@ function renderInspector() {
       drawIndex(selected);
       commit(false);
       renderInspector();
+    });
+  }
+
+  if (inspectorEl) inspectorEl.classList.toggle('open', window.innerWidth <= 1179);
+  const drawerClose = $('#insp-drawer-close');
+  if (drawerClose) {
+    drawerClose.addEventListener('click', () => {
+      state.selected = null;
+      renderInspector();
+      renderGrid();
     });
   }
 

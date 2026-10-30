@@ -60,6 +60,12 @@ function attachScreenshotHarness({ win, send, quitNow }) {
               } catch (e) { console.log('[pidebug] err', e.message); }
             }
           }
+          if (process.env.ULANZI_SETTINGS) {
+            await win.webContents.executeJavaScript(
+              "document.querySelector('#deck-settings-btn')?.click(); true"
+            );
+            await new Promise((r) => setTimeout(r, 500));
+          }
           if (process.env.ULANZI_CLICK) {
             const idx = Number(process.env.ULANZI_CLICK) || 0;
             await win.webContents.executeJavaScript(

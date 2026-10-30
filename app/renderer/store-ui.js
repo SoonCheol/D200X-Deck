@@ -59,16 +59,24 @@ function renderIconPacks() {
   renderIconGrid(iconLibraryPacks[0]);
 }
 
+let iconLibraryQuery = '';
+
 async function renderIconGrid(pack) {
   const grid = $('#icons-grid');
   if (!pack) return;
   grid.innerHTML = '<div class="icons-empty">Loading…</div>';
+  const query = iconLibraryQuery.trim().toLowerCase();
+  const files = query ? pack.files.filter((f) => f.toLowerCase().includes(query)) : pack.files;
   const tiles = [];
-  for (const file of pack.files) {
+  for (const file of files) {
     const src = await api.readIcon(pack.id, file);
     if (src) tiles.push({ src, file });
   }
   grid.innerHTML = '';
+  if (query && !files.length) {
+    grid.innerHTML = `<div class="icons-empty">No icons match “${esc(iconLibraryQuery.trim())}”.</div>`;
+    return;
+  }
   for (const tile of tiles) {
     const btn = document.createElement('button');
     btn.className = 'icon-tile';
@@ -267,6 +275,7 @@ function formatCount(n) {
 
 async function openStoreDetail(id) {
   const detail = $('#store-detail');
+  document.querySelector('.store-card')?.classList.add('detail-mode');
   $('#store-browse').classList.add('hidden');
   detail.classList.remove('hidden');
   detail.innerHTML = '<div class="store-empty">Loading…</div>';
@@ -290,8 +299,14 @@ async function openStoreDetail(id) {
         <div class="store-detail-sub">
           ${esc(item.author || 'Ulanzi')}${item.version ? ` · v${esc(item.version)}` : ''}
         </div>
-        ${item.uuid ? `<div class="store-detail-sub">${esc(item.uuid)}</div>` : ''}
+        <div class="store-detail-meta">
+          <span class="badge-tag">${esc(kind || 'Item')}</span>
+          ${item.downloads ? `<span>${formatCount(item.downloads)} downloads</span>` : ''}
+          ${item.stars ? `<span>${formatCount(item.stars)} stars</span>` : ''}
+          ${item.uuid ? `<span>${esc(item.uuid)}</span>` : ''}
+        </div>
       </div>
+      <button class="btn ghost store-back-top" id="store-back">Back</button>
     </div>
     <div class="store-detail-actions">
       ${
@@ -303,7 +318,6 @@ async function openStoreDetail(id) {
             ? '<button class="btn primary" id="store-download-icons">Download icons</button>'
             : '<span class="badge-tag">Not a plugin</span>'
       }
-      <button class="btn" id="store-back">Back</button>
     </div>
     ${
       installable || iconPack
@@ -318,6 +332,7 @@ async function openStoreDetail(id) {
   `;
   $('#store-back').addEventListener('click', () => {
     detail.classList.add('hidden');
+    document.querySelector('.store-card')?.classList.remove('detail-mode');
     $('#store-browse').classList.remove('hidden');
   });
   const downloadIcons = $('#store-download-icons');
