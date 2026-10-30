@@ -14,9 +14,9 @@ ships, minus the Soundboard (deferred to v3). Order of work overall:
 | Action Trigger: action combination, trigger action | per-key `holdAction` / `doubleAction` (tap stays `action`) |
 | Pages: prev/next/goto | already there |
 | Pages: indicator, parent/subpage, switch profile | **after profiles** (block B) |
-| OBS Studio | native `obs` action group over obs-websocket v5 |
-| Ulanzi Connect (lightmaster) | BLE — research spike, see below |
-| Ulanzi TC002 | BLE — research spike, see below |
+| OBS Studio | **v3** |
+| Ulanzi Connect (lightmaster) | later — Bluetooth LE (below); the D200 is USB only |
+| Ulanzi TC002 | later — Bluetooth LE (below) |
 | Soundboard | **v3** |
 
 ## Data model (config v5)
@@ -97,7 +97,7 @@ Compatibility rule: keys with no `holdAction`/`doubleAction` behave exactly as t
 * **OBS settings** panel: host, port, password, connect/disconnect, live status dot.
   Actions stay usable when disconnected but show a warning toast.
 
-## OBS Studio (native)
+## Deferred: OBS Studio (v3)
 
 obs-websocket v5 on `ws://127.0.0.1:4455` (configurable), `Hello`/`Identify`
 handshake with SHA-256 challenge when a password is set.
@@ -113,7 +113,7 @@ Note: the store also has a community “OBSWeb” plugin; the native module is w
 us the official action set (scenes, transitions, replay buffer) without depending on
 a third-party plugin.
 
-## Ulanzi Connect and TC002 — feasibility
+## Deferred: Ulanzi Connect and TC002 (Bluetooth LE)
 
 Both are **Bluetooth** devices in the official app: it links `QtBluetooth`,
 `libUlanziFZBle.dylib` and ships `tc002client`, `tc002discoveryworker`,
@@ -124,8 +124,9 @@ Plan: a `blehelper` (CoreBluetooth, JSON-lines over stdio) modelled on the exist
 `lib/tc002.js` providers on top. This is a research spike with unknown protocol
 details (characteristics, framing), estimated **5–8 days with real risk**.
 
-Recommendation: land v2.1–v2.3 first, then run the BLE spike as its own milestone
-(v2.5) so it cannot block the rest.
+Decision: these are Bluetooth products and the D200 is USB-only, so they are not
+part of v2 or v3. When they come, they need a `blehelper` (CoreBluetooth, JSON lines
+over stdio) next to `hidseize`/`mediakey`, then protocol work per device.
 
 ## Phases
 
@@ -133,21 +134,24 @@ Recommendation: land v2.1–v2.3 first, then run the BLE spike as its own milest
 | --- | --- | --- |
 | **v2.1** | schema v5, executor, triggers (tap/hold/double), text / media / close / toggle | 3 d |
 | **v2.2** | multi-action editor (steps, delay, alternate, random) | 2 d |
-| **v2.3** | OBS module + settings + action inspector | 3 d |
-| **v2.4** | polish: action state indicators, error toasts, docs, migration tests | 1 d |
-| **v2.5** | BLE spike → Connect + TC002 | 5–8 d |
+| **v2.3** | polish: key-state indicators, error toasts, docs, migration tests | 1 d |
+| **v3** | OBS Studio module, Soundboard | 4 d |
 
 ## Status
 
 * **Done (v2.1a)** — `text`, `media`, `close` action types (executor + inspector),
   plus the bundled `mediakey` helper for macOS media keys. Verified end-to-end on the
   deck app (`mediakey` toggles mute from inside the app, not just from a shell).
-* **Next (v2.1b)** — press triggers (`holdAction` / `doubleAction` / `holdMs`) with the
-  renderer state machine, and the reusable action editor the trigger UI needs.
+  Choosing a media key pre-fills the key emoji (⏯️ ⏭️ ⏮️ 🔊 🔉 🔇) and keeps it in
+  sync with the selected operation unless the emoji was customised.
+* **Done (v2.1b)** — press triggers: `holdAction`, `doubleAction`, `holdMs`. The
+  renderer owns a per-key state machine (500 ms hold, 300 ms double window, 60 ms
+  bounce guard). Verified on the deck: tap → page A, hold → page B, double → page C,
+  each firing exactly once.
 * **Then (v2.2)** — `multi` (sequence / alternate / random with delay steps) and
   `toggle`, with the step editor.
-* **Then (v2.3)** — OBS module, settings panel and OBS action inspector.
-* **v2.5** — BLE spike for Ulanzi Connect / TC002.
+* **Then (v2.3)** — polish: action state indicators, docs, migration tests.
+* **v3** — OBS Studio and Soundboard. **Later** — BLE (Connect / TC002).
 
 ## Testing
 
@@ -158,8 +162,5 @@ Recommendation: land v2.1–v2.3 first, then run the BLE spike as its own milest
 
 ## Open questions
 
-1. Media keys need a native helper (`mediakey`). OK to add one more bundled binary?
-2. OBS: connect automatically on launch, or only when an OBS key is pressed?
-3. Triggers: keep them on the key (`holdAction`/`doubleAction`) or introduce an
+1. Triggers: keep them on the key (`holdAction`/`doubleAction`) or introduce an
    explicit “Action Trigger” action like the official app?
-4. BLE (Connect/TC002): defer to v2.5 as recommended, or block v2 until they work?

@@ -10,6 +10,15 @@ const ROWS = 3;
 const KEY_COUNT = 14;
 const WIDE_KEY_INDEX = 13;
 
+const MEDIA_EMOJI = {
+  playpause: '⏯️',
+  next: '⏭️',
+  prev: '⏮️',
+  volumeup: '🔊',
+  volumedown: '🔉',
+  mute: '🔇',
+};
+
 const ACTION_LABELS = {
   none: 'Do nothing',
   app: 'Open app',
@@ -299,6 +308,105 @@ function readFileAsDataUrl(file) {
 
 // --------------------------------------------------------------- inspector
 
+const TRIGGER_TYPES = [
+  ['none', 'Nothing'],
+  ['hotkey', 'Send hotkey'],
+  ['media', 'Media key'],
+  ['text', 'Type text'],
+  ['app', 'Open app'],
+  ['url', 'Open URL'],
+  ['command', 'Shell command'],
+  ['page', 'Switch to page'],
+];
+
+function triggerField(key, field, label, page) {
+  const action = key[field] || { type: 'none' };
+  const pageOptions = state.config.pages
+    .map(
+      (p) =>
+        `<option value="${esc(p.id)}" ${p.id === action.value ? 'selected' : ''}>${esc(p.name)}</option>`
+    )
+    .join('');
+  let control = '';
+  if (action.type === 'hotkey') {
+    control = `<button class="btn hotkey-value" data-trigger-hotkey="${field}">${esc(
+      action.value || 'Set hotkey…'
+    )}</button>`;
+  } else if (action.type === 'media') {
+    const ops = [
+      ['playpause', 'Play / pause'],
+      ['next', 'Next track'],
+      ['prev', 'Previous track'],
+      ['volumeup', 'Volume up'],
+      ['volumedown', 'Volume down'],
+      ['mute', 'Mute'],
+    ];
+    control = `<select class="select" data-trigger-value="${field}">${ops
+      .map(([v, l]) => `<option value="${v}" ${v === action.op ? 'selected' : ''}>${l}</option>`)
+      .join('')}</select>`;
+  } else if (action.type === 'page') {
+    control = `<select class="select" data-trigger-value="${field}">${pageOptions}</select>`;
+  } else if (action.type !== 'none') {
+    control = `<input class="input" data-trigger-value="${field}" value="${esc(
+      action.value || ''
+    )}" placeholder="${action.type === 'app' ? 'Safari' : action.type === 'url' ? 'https://…' : ''}" />`;
+  }
+  return `<div class="field trigger-field">
+    <label>${label}</label>
+    <select class="select" data-trigger-type="${field}">
+      ${TRIGGER_TYPES.map(
+        ([v, l]) => `<option value="${v}" ${v === action.type ? 'selected' : ''}>${l}</option>`
+      ).join('')}
+    </select>
+    ${control}
+  </div>`;
+}
+
+function bindTriggerFields(key) {
+  const el = $('#inspector');
+  el.querySelectorAll('[data-trigger-type]').forEach((select) => {
+    select.addEventListener('change', () => {
+      const field = select.dataset.triggerType;
+      const type = select.value;
+      if (type === 'none') delete key[field];
+      else if (type === 'media') key[field] = { type: 'media', op: 'playpause' };
+      else if (type === 'hotkey') key[field] = { type: 'hotkey', value: '' };
+      else key[field] = { type, value: '' };
+      commit();
+      renderInspector();
+    });
+  });
+  el.querySelectorAll('[data-trigger-value]').forEach((input) => {
+    const field = input.dataset.triggerValue;
+    const apply = (raw) => {
+      if (!key[field]) return;
+      if (key[field].type === 'media') key[field] = { ...key[field], op: raw };
+      else key[field] = { ...key[field], value: raw };
+      commit(false);
+    };
+    input.addEventListener('input', (e) => apply(e.target.value));
+    input.addEventListener('change', (e) => apply(e.target.value));
+  });
+  el.querySelectorAll('[data-trigger-hotkey]').forEach((btn) => {
+    const field = btn.dataset.triggerHotkey;
+    btn.addEventListener('click', () => {
+      const holder = { action: key[field] || { type: 'hotkey', value: '' } };
+      openHotkeyModal(holder, (next) => {
+        key[field] = { type: 'hotkey', value: next.value };
+        commit();
+        renderInspector();
+      });
+    });
+  });
+  const holdMs = el.querySelector('#insp-hold-ms');
+  if (holdMs) {
+    holdMs.addEventListener('change', () => {
+      key.holdMs = Math.max(150, Math.min(2000, Number(holdMs.value) || 500));
+      commit(false);
+    });
+  }
+}
+
 function renderInspector() {
   const el = $('#inspector');
   const page = activePage();
@@ -513,6 +621,12 @@ function renderInspector() {
     ${valueField && action.type !== 'plugin' ? `<div class="field"><label>${action.type === 'hotkey' ? 'Combination' : action.type === 'page' ? 'Target page' : action.type === 'app' ? 'Application' : action.type === 'url' ? 'URL' : 'Value'}</label>${valueField}</div>` : ''}
     ${pluginFields}
 
+    <div class="insp-section">Press triggers</div>
+    ${triggerField(key, 'holdAction', 'On hold', page)}
+    ${key.holdAction && key.holdAction.type !== 'none' ? `<div class="field"><label>Hold time (ms)</label><input class="input" id="insp-hold-ms" type="number" min="150" max="2000" step="50" value="${Number(key.holdMs) || 500}" /></div>` : ''}
+    ${triggerField(key, 'doubleAction', 'On double press', page)}
+    <div class="field-hint">Tap still runs the action above.</div>
+
     <div class="insp-actions">
       <button class="btn" id="insp-duplicate">Duplicate</button>
       <button class="btn danger" id="insp-clear-key">Clear key</button>
@@ -610,7 +724,7 @@ function renderInspector() {
     }
     if (type === 'media') {
       key.action = { type: 'media', op: 'playpause' };
-      key.emoji = '🎵';
+      key.emoji = MEDIA_EMOJI.playpause;
       key.label = '';
     } else if (type === 'plugin') {
       const p = state.plugins.find((x) => x.compatible);
@@ -678,8 +792,16 @@ function renderInspector() {
   const valueEl = $('#insp-value');
   if (valueEl) {
     const applyValue = (raw) => {
-      if (key.action.type === 'media') key.action = { ...key.action, op: raw };
-      else key.action = { ...key.action, value: raw };
+      if (key.action.type === 'media') {
+        key.action = { ...key.action, op: raw };
+        const stock = Object.values(MEDIA_EMOJI);
+        if (!key.emoji || stock.includes(key.emoji)) {
+          key.emoji = MEDIA_EMOJI[raw] || key.emoji;
+          drawIndex(state.selected);
+        }
+      } else {
+        key.action = { ...key.action, value: raw };
+      }
       commit(false);
     };
     valueEl.addEventListener('input', (e) => applyValue(e.target.value));
@@ -969,6 +1091,7 @@ const HOTKEY_CATEGORIES = [
 ];
 
 let hotkeyTarget = null;
+let hotkeyOnCommit = null;
 let hotkeyCategory = 'modifiers';
 let hotkeyMods = new Set();
 let hotkeyKeyToken = '';
@@ -1000,8 +1123,9 @@ function hotkeyCategoryFor(token) {
   return 'modifiers';
 }
 
-function openHotkeyModal(key) {
+function openHotkeyModal(key, onCommit = null) {
   hotkeyTarget = key;
+  hotkeyOnCommit = onCommit;
   hotkeyMods = new Set();
   hotkeyKeyToken = '';
   hotkeyKeyLabel = '';
@@ -1024,6 +1148,7 @@ function closeHotkeyModal() {
   if (hotkeyListener) document.removeEventListener('keydown', hotkeyListener, true);
   hotkeyListener = null;
   hotkeyTarget = null;
+  hotkeyOnCommit = null;
   $('#hotkey-modal').classList.add('hidden');
 }
 
@@ -1155,9 +1280,12 @@ function saveHotkey() {
   if (!hotkeyTarget) return closeHotkeyModal();
   if (!hotkeyKeyToken) return toast('Choose a key first', true);
   hotkeyTarget.action = { ...hotkeyTarget.action, value: hotkeyCombo() };
+  const onCommit = hotkeyOnCommit;
+  const target = hotkeyTarget;
   commit();
   closeHotkeyModal();
-  renderInspector();
+  if (onCommit) onCommit(target.action);
+  else renderInspector();
 }
 
 // --------------------------------------------------------------- app picker
@@ -1574,6 +1702,103 @@ function renderPluginModal() {
   });
 }
 
+// -------------------------------------------------------------- key presses
+
+const pressState = new Map();
+const DOUBLE_WINDOW = 300;
+
+function runKeyAction(action) {
+  if (!action || action.type === 'none') return;
+  if (action.type === 'page') {
+    navigate(action.value);
+    return;
+  }
+  if (action.type === 'plugin') {
+    api.runPluginAction(action.actionid).then((res) => {
+      if (!res.ok) toast('Plugin action is not ready yet', true);
+    });
+    return;
+  }
+  api.runAction(action).then((res) => {
+    if (!res.ok) toast(res.error || 'action failed', true);
+  });
+}
+
+function flashKey(index) {
+  const tile = $('#grid').children[index];
+  if (!tile) return;
+  tile.classList.add('pressed');
+  setTimeout(() => tile.classList.remove('pressed'), 160);
+}
+
+function handleKeyEvent(index, pressed) {
+  // The wide key is a firmware system panel; never run actions for it
+  // (proto 0x0e resets the deck to its factory profile).
+  if (index === WIDE_KEY_INDEX) return;
+  const key = activePage().keys[index];
+  if (!key) return;
+
+  const hasHold = key.holdAction && key.holdAction.type !== 'none';
+  const hasDouble = key.doubleAction && key.doubleAction.type !== 'none';
+  if (!hasHold && !hasDouble) {
+    if (pressed) {
+      flashKey(index);
+      runKeyAction(key.action);
+    }
+    return;
+  }
+
+  const st = pressState.get(index) || {};
+  pressState.set(index, st);
+
+  if (pressed) {
+    const now = Date.now();
+    if (st.lastDown && now - st.lastDown < 60) return; // key bounce / repeats
+    st.lastDown = now;
+    flashKey(index);
+
+    if (st.tapTimer) {
+      clearTimeout(st.tapTimer);
+      st.tapTimer = null;
+      if (hasDouble) {
+        st.doubleFired = true;
+        runKeyAction(key.doubleAction);
+        return;
+      }
+    }
+    st.held = false;
+    if (hasHold) {
+      st.holdTimer = setTimeout(() => {
+        st.holdTimer = null;
+        st.held = true;
+        runKeyAction(key.holdAction);
+      }, Math.max(150, Number(key.holdMs) || 500));
+    }
+    return;
+  }
+
+  if (st.holdTimer) {
+    clearTimeout(st.holdTimer);
+    st.holdTimer = null;
+  }
+  if (st.held) {
+    st.held = false;
+    return;
+  }
+  if (st.doubleFired) {
+    st.doubleFired = false;
+    return;
+  }
+  if (hasDouble) {
+    st.tapTimer = setTimeout(() => {
+      st.tapTimer = null;
+      runKeyAction(key.action);
+    }, DOUBLE_WINDOW);
+  } else {
+    runKeyAction(key.action);
+  }
+}
+
 // -------------------------------------------------------------- bootstrap
 
 function bind() {
@@ -1740,33 +1965,7 @@ function bind() {
     }
   });
 
-  api.onKey(({ index, pressed }) => {
-    if (!pressed) return;
-    const tile = $('#grid').children[index];
-    if (tile) {
-      tile.classList.add('pressed');
-      setTimeout(() => tile.classList.remove('pressed'), 160);
-    }
-    // The wide key is a firmware system panel; do not send vendor commands
-    // here (proto 0x0e resets the deck to its factory profile).
-    if (index === WIDE_KEY_INDEX) return;
-    const key = activePage().keys[index];
-    if (!key || !key.action) return;
-    if (key.action.type === 'page') {
-      navigate(key.action.value);
-      return;
-    }
-    if (key.action.type === 'plugin') {
-      api.runPluginAction(key.action.actionid).then((res) => {
-        if (!res.ok) toast('Plugin action is not ready yet', true);
-      });
-      return;
-    }
-    if (key.action.type === 'none') return;
-    api.runAction(key.action).then((res) => {
-      if (!res.ok) toast(res.error || 'action failed', true);
-    });
-  });
+  api.onKey(({ index, pressed }) => handleKeyEvent(index, pressed));
 
   api.onError((message) => toast(message, true));
 

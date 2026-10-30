@@ -98,6 +98,40 @@ function createWindow() {
             `);
             await new Promise((r) => setTimeout(r, 800));
           }
+          if (process.env.ULANZI_SET_MEDIA) {
+            await win.webContents.executeJavaScript(`
+              (() => {
+                document.querySelectorAll('.key')[0]?.click();
+                const type = document.querySelector('#insp-action-type');
+                type.value = 'media';
+                type.dispatchEvent(new Event('change', { bubbles: true }));
+                setTimeout(() => {
+                  const v = document.querySelector('#insp-value');
+                  v.value = ${JSON.stringify(process.env.ULANZI_SET_MEDIA)};
+                  v.dispatchEvent(new Event('change', { bubbles: true }));
+                }, 300);
+                return true;
+              })()
+            `);
+            await new Promise((r) => setTimeout(r, 1500));
+          }
+          if (process.env.ULANZI_PRESS) {
+            const index = Number(process.env.ULANZI_PRESS_INDEX || 0);
+            const mode = process.env.ULANZI_PRESS;
+            send('deck:key', { index, pressed: true, state: 1 });
+            if (mode === 'double') {
+              await new Promise((r) => setTimeout(r, 90));
+              send('deck:key', { index, pressed: false, state: 0 });
+              await new Promise((r) => setTimeout(r, 90));
+              send('deck:key', { index, pressed: true, state: 1 });
+              await new Promise((r) => setTimeout(r, 90));
+              send('deck:key', { index, pressed: false, state: 0 });
+            } else {
+              await new Promise((r) => setTimeout(r, Number(process.env.ULANZI_PRESS_HOLD || 120)));
+              send('deck:key', { index, pressed: false, state: 0 });
+            }
+            await new Promise((r) => setTimeout(r, 1200));
+          }
           if (process.env.ULANZI_ACTION) {
             const payload = JSON.parse(process.env.ULANZI_ACTION);
             const res = await win.webContents.executeJavaScript(

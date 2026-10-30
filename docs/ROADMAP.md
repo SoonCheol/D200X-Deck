@@ -136,13 +136,20 @@ What the official app has that we don't (from its `System/Plugins` manifests):
 
 ## Order of work (agreed)
 
-1. **Action model v2** — system actions, multi-action, press triggers, OBS Studio.
-   Soundboard moves to v3; Ulanzi Connect / TC002 need a BLE spike (v2.5).
+1. **Action model v2** — system actions, multi-action and press triggers.
+   OBS Studio and Soundboard move to v3; Ulanzi Connect / TC002 are Bluetooth
+   (BLE) products and go to a later milestone — the D200 itself is USB only.
    Detailed spec: [`ACTION-MODEL-V2.md`](ACTION-MODEL-V2.md).
 2. **Profiles** — multiple profiles per device, switch-profile action.
 3. **Editor UX** — icon library, action property inspector, fonts, undo.
 4. **Import from Ulanzi Studio** — last, so the editor and action model are already
    complete and imports land in a mature target.
+
+### v3 and later
+
+* **v3** — OBS Studio (obs-websocket) and Soundboard (play/stop audio).
+* **Later** — Ulanzi Connect lights and TC002 display (Bluetooth LE; needs a
+  CoreBluetooth helper and protocol reverse-engineering).
 
 ## Open questions
 
