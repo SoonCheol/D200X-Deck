@@ -18,6 +18,7 @@
 - Deck settings close button no longer sits under the window drag region; the popover closes on ×, outside click and Escape.
 - “Grant…” always opens the Accessibility pane, including when permission is already granted.
 - The empty-slot “+” no longer shows through configured keys (e.g. Page Indicator).
+- Media volume/mute use AppleScript volume commands: one press is one 6 % step or one toggle (synthesised NX volume keys ran to the end of the range on recent macOS).
 
 ### Security
 - Plugin WebSocket rejects browser origins and connections for unknown plugin UUIDs.

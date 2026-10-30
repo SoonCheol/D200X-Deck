@@ -9,10 +9,6 @@ const wakeSwallow = new Set();
 // double press, which the double-trigger window treats as two taps).
 const lastDownAt = new Map();
 const BOUNCE_MS = 150;
-// Mute/play-pause are toggles: a burst of events from one tap must not toggle
-// the system several times (the volume HUD flickers mute/unmute).
-const lastToggleAt = new Map();
-const TOGGLE_COALESCE_MS = 400;
 const DOUBLE_WINDOW = 300;
 
 function navigateRelative(step) {
@@ -125,11 +121,6 @@ function runBrightnessAction(action) {
 function runKeyAction(action) {
   if (!action || action.type === 'none') return;
   if (action.type === 'indicator') return;
-  if (action.type === 'media' && (action.op === 'mute' || action.op === 'playpause')) {
-    const now = Date.now();
-    if (now - (lastToggleAt.get(action.op) || 0) < TOGGLE_COALESCE_MS) return;
-    lastToggleAt.set(action.op, now);
-  }
   if (action.type === 'timer') return toggleTimer(action);
   if (action.type === 'brightness') return runBrightnessAction(action);
   if (action.type === 'multi') return runMulti(action);
