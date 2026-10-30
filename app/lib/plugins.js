@@ -343,6 +343,19 @@ class PluginManager extends EventEmitter {
     return { uuid: manifest.UUID, name: manifest.Name || manifest.UUID, list: this.reload() };
   }
 
+  /** Copy an official (read-only) plugin into the app folder so it can be managed. */
+  import(uuid) {
+    const meta = this.plugins.get(uuid);
+    if (!meta) throw new Error('Plugin not found');
+    if (meta.writable) return { uuid, list: this.list() };
+    const fs = require('node:fs');
+    fs.mkdirSync(this.appPluginsDir, { recursive: true });
+    const dest = path.join(this.appPluginsDir, path.basename(meta.dir));
+    if (fs.existsSync(dest)) fs.rmSync(dest, { recursive: true, force: true });
+    fs.cpSync(meta.dir, dest, { recursive: true, force: true });
+    return { uuid, list: this.reload() };
+  }
+
   remove(uuid) {
     const meta = this.plugins.get(uuid);
     if (!meta) throw new Error('Plugin not found');

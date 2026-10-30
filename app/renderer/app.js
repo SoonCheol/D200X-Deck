@@ -37,6 +37,14 @@ let brightnessTimer = null;
 
 const $ = (sel) => document.querySelector(sel);
 
+function debounce(fn, ms) {
+  let timer = null;
+  return (...args) => {
+    clearTimeout(timer);
+    timer = setTimeout(() => fn(...args), ms);
+  };
+}
+
 function uuid() {
   if (window.crypto && crypto.randomUUID) return crypto.randomUUID();
   const b = new Uint8Array(16);
@@ -1230,6 +1238,205 @@ function renderAppList(query) {
   });
 }
 
+
+// -------------------------------------------------------------- plugin store
+
+const storeState = {
+  session: { signedIn: false, user: null },
+  categories: [],
+  cateId: '',
+  sort: 'hot',
+  search: '',
+  page: 1,
+  items: [],
+  total: 0,
+  loading: false,
+  detail: null,
+};
+
+async function openStoreModal() {
+  $('#store-modal').classList.remove('hidden');
+  $('#store-detail').classList.add('hidden');
+  const session = await api.storeSession();
+  storeState.session = session;
+  renderStoreChrome();
+  await loadStoreCategories();
+  await loadStoreItems(true);
+}
+
+function closeStoreModal() {
+  $('#store-modal').classList.add('hidden');
+  $('#store-detail').classList.add('hidden');
+}
+
+function renderStoreChrome(requireSignIn = false) {
+  $('#store-signin').classList.toggle('hidden', !requireSignIn);
+  $('#store-browse').classList.toggle('hidden', requireSignIn);
+  $('#store-user').classList.toggle('hidden', !storeState.session.signedIn);
+  $('#store-user').textContent = storeState.session.user || '';
+  $('#store-logout').classList.toggle('hidden', !storeState.session.signedIn);
+  $('#store-sub').textContent = 'Official Ulanzi Studio plugin market — browse and install plugins.';
+}
+
+async function loadStoreCategories() {
+  const res = await api.storeCategories();
+  if (!res.ok) {
+    $('#store-cats').innerHTML = `<div class="store-error">${esc(res.error)}</div>`;
+    return;
+  }
+  storeState.categories = res.categories || [];
+  if (!storeState.cateId) {
+    const plugins = storeState.categories.find(
+      (c) => /^plugins?$/i.test(c.name) || c.name === '插件'
+    );
+    if (plugins) storeState.cateId = plugins.id;
+  }
+  renderStoreCategories();
+}
+
+function renderStoreCategories() {
+  const cats = [{ id: '', name: 'All' }, ...storeState.categories];
+  $('#store-cats').innerHTML = cats
+    .map(
+      (c) =>
+        `<button class="store-cat${String(c.id) === String(storeState.cateId) ? ' active' : ''}" data-cat="${esc(
+          c.id
+        )}">${esc(c.name)}</button>`
+    )
+    .join('');
+  $('#store-cats')
+    .querySelectorAll('[data-cat]')
+    .forEach((btn) =>
+      btn.addEventListener('click', () => {
+        storeState.cateId = btn.dataset.cat;
+        renderStoreCategories();
+        loadStoreItems(true);
+      })
+    );
+}
+
+async function loadStoreItems(reset = false) {
+  if (storeState.loading) return;
+  storeState.loading = true;
+  if (reset) {
+    storeState.page = 1;
+    storeState.items = [];
+    $('#store-grid').innerHTML = '<div class="store-empty">Loading…</div>';
+  }
+  const res = await api.storeList({
+    page: storeState.page,
+    limit: 24,
+    cateId: storeState.cateId,
+    sort: storeState.sort,
+    isAsc: 'asc',
+    searchText: storeState.search,
+  });
+  storeState.loading = false;
+  if (!res.ok) {
+    $('#store-grid').innerHTML = `<div class="store-empty">${esc(res.error)}</div>`;
+    if (/token/i.test(res.error || '')) {
+      renderStoreChrome(false);
+    }
+    return;
+  }
+  storeState.items = reset ? res.items : [...storeState.items, ...res.items];
+  storeState.total = res.total || storeState.items.length;
+  renderStoreGrid();
+}
+
+function renderStoreGrid() {
+  const grid = $('#store-grid');
+  if (!storeState.items.length) {
+    grid.innerHTML = '<div class="store-empty">No plugins found.</div>';
+  } else {
+    grid.innerHTML = storeState.items
+      .map(
+        (item) => `
+        <button class="store-item" data-id="${esc(item.id)}">
+          ${
+            item.icon
+              ? `<img class="store-thumb" src="${esc(item.icon)}" alt="" loading="lazy" />`
+              : '<div class="store-thumb empty">🧩</div>'
+          }
+          <div class="store-item-name">${esc(item.name)}</div>
+          <div class="store-item-meta"><span>${esc(item.author || 'Ulanzi')}</span><span>${
+            item.version ? `v${esc(item.version)}` : ''
+          }</span></div>
+        </button>`
+      )
+      .join('');
+    grid.querySelectorAll('[data-id]').forEach((btn) => {
+      btn.addEventListener('click', () => openStoreDetail(btn.dataset.id));
+    });
+  }
+  $('#store-count').textContent = `${storeState.items.length} of ${storeState.total}`;
+  $('#store-more').classList.toggle('hidden', storeState.items.length >= storeState.total);
+}
+
+function formatCount(n) {
+  const value = Number(n) || 0;
+  if (value >= 1000000) return `${(value / 1000000).toFixed(1)}M`;
+  if (value >= 1000) return `${(value / 1000).toFixed(1)}k`;
+  return String(value);
+}
+
+async function openStoreDetail(id) {
+  const detail = $('#store-detail');
+  $('#store-browse').classList.add('hidden');
+  detail.classList.remove('hidden');
+  detail.innerHTML = '<div class="store-empty">Loading…</div>';
+  const res = await api.storeResource(id);
+  if (!res.ok) {
+    detail.innerHTML = `<div class="store-error">${esc(res.error)}</div>`;
+    return;
+  }
+  const item = res.resource;
+  storeState.detail = item;
+  const installed = state.plugins.some((p) => (item.uuid && p.uuid === item.uuid) || p.name === item.name);
+  detail.innerHTML = `
+    <div class="store-detail-head">
+      ${item.icon ? `<img src="${esc(item.icon)}" alt="" />` : '<div class="store-thumb empty">🧩</div>'}
+      <div>
+        <h3>${esc(item.name)}</h3>
+        <div class="store-detail-sub">
+          ${esc(item.author || 'Ulanzi')}${item.version ? ` · v${esc(item.version)}` : ''}
+        </div>
+        ${item.uuid ? `<div class="store-detail-sub">${esc(item.uuid)}</div>` : ''}
+      </div>
+    </div>
+    <div class="store-detail-actions">
+      <button class="btn primary" id="store-install" ${installed ? 'disabled' : ''}>
+        ${installed ? 'Installed' : 'Install plugin'}
+      </button>
+      <button class="btn" id="store-back">Back</button>
+    </div>
+    <p>${esc(item.summary || 'No description provided.')}</p>
+  `;
+  $('#store-back').addEventListener('click', () => {
+    detail.classList.add('hidden');
+    $('#store-browse').classList.remove('hidden');
+  });
+  const install = $('#store-install');
+  if (install && !installed) {
+    install.addEventListener('click', async () => {
+      install.disabled = true;
+      install.textContent = 'Installing…';
+      const out = await api.storeInstall(item.id);
+      if (!out.ok) {
+        install.disabled = false;
+        install.textContent = 'Install plugin';
+        return toast(out.error, true);
+      }
+      state.plugins = out.list || (await api.listPlugins());
+      updatePluginCount();
+      renderPluginModal();
+      syncPlugins();
+      install.textContent = 'Installed';
+      toast(`Installed ${out.name || item.name}`);
+    });
+  }
+}
+
 // ------------------------------------------------------------ plugin manager
 
 function updatePluginCount() {
@@ -1275,7 +1482,9 @@ function renderPluginModal() {
             <div class="plugin-name">
               ${esc(p.name)}
               <span class="badge-tag ${p.compatible ? 'good' : 'warn'}">${p.compatible ? 'JS' : 'HTML'}</span>
-              <span class="badge-tag">${p.writable ? 'App' : 'Ulanzi'}</span>
+              <span class="badge-tag ${p.writable ? 'good' : ''}" title="${
+                p.writable ? 'Installed in this app' : 'Installed by Ulanzi Studio — read only'
+              }">${p.writable ? 'Installed' : '🔒 Ulanzi'}</span>
             </div>
             <div class="plugin-sub">
               ${p.version ? `v${esc(p.version)} · ` : ''}${esc(p.author || 'unknown author')} · ${(p.actions || []).length} action(s)
@@ -1284,7 +1493,11 @@ function renderPluginModal() {
           </div>
           <div class="plugin-actions">
             <button class="btn ghost" data-reveal="${esc(p.uuid)}">Show</button>
-            ${p.writable ? `<button class="btn danger" data-remove="${esc(p.uuid)}">Remove</button>` : ''}
+            ${
+              p.writable
+                ? `<button class="btn danger" data-remove="${esc(p.uuid)}">Remove</button>`
+                : `<button class="btn" data-import="${esc(p.uuid)}" title="Copy into this app so you can edit or remove it">Copy</button>`
+            }
           </div>
         </div>`;
     })
@@ -1292,6 +1505,17 @@ function renderPluginModal() {
 
   list.querySelectorAll('[data-reveal]').forEach((btn) => {
     btn.addEventListener('click', () => api.revealPlugin(btn.dataset.reveal));
+  });
+  list.querySelectorAll('[data-import]').forEach((btn) => {
+    btn.addEventListener('click', async () => {
+      const res = await api.importPlugin(btn.dataset.import);
+      if (!res.ok) return toast(res.error, true);
+      state.plugins = res.list;
+      updatePluginCount();
+      renderPluginModal();
+      syncPlugins();
+      toast('Plugin copied — now managed by this app');
+    });
   });
   list.querySelectorAll('[data-remove]').forEach((btn) => {
     btn.addEventListener('click', async () => {
@@ -1313,6 +1537,54 @@ function renderPluginModal() {
 
 function bind() {
   $('#plugins-btn').addEventListener('click', openPluginModal);
+  $('#store-btn').addEventListener('click', openStoreModal);
+  $('#store-modal-close').addEventListener('click', closeStoreModal);
+  $('#store-modal').addEventListener('click', (e) => {
+    if (e.target === $('#store-modal')) closeStoreModal();
+  });
+  $('#store-signin-btn').addEventListener('click', async () => {
+    const userName = $('#store-user-input').value.trim();
+    const password = $('#store-pass-input').value;
+    const error = $('#store-signin-error');
+    error.classList.add('hidden');
+    if (!userName || !password) return;
+    const btn = $('#store-signin-btn');
+    btn.disabled = true;
+    btn.textContent = 'Signing in…';
+    const res = await api.storeLogin(userName, password);
+    btn.disabled = false;
+    btn.textContent = 'Sign in';
+    if (!res.ok) {
+      error.textContent = res.error;
+      error.classList.remove('hidden');
+      return;
+    }
+    $('#store-pass-input').value = '';
+    storeState.session = { signedIn: true, user: res.user };
+    renderStoreChrome(true);
+    await loadStoreCategories();
+    await loadStoreItems(true);
+  });
+  $('#store-pass-input').addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') $('#store-signin-btn').click();
+  });
+  $('#store-logout').addEventListener('click', async () => {
+    await api.storeLogout();
+    storeState.session = { signedIn: false, user: null };
+    renderStoreChrome(false);
+  });
+  $('#store-search').addEventListener('input', debounce(() => {
+    storeState.search = $('#store-search').value.trim();
+    loadStoreItems(true);
+  }, 400));
+  $('#store-sort').addEventListener('change', () => {
+    storeState.sort = $('#store-sort').value;
+    loadStoreItems(true);
+  });
+  $('#store-more').addEventListener('click', () => {
+    storeState.page += 1;
+    loadStoreItems(false);
+  });
   $('#hotkey-close').addEventListener('click', closeHotkeyModal);
   $('#hotkey-exit').addEventListener('click', closeHotkeyModal);
   $('#hotkey-save').addEventListener('click', saveHotkey);

@@ -1,0 +1,35 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+  <defs>
+    <filter id="sh" x="-25%" y="-25%" width="150%" height="150%">
+      <feDropShadow dx="0" dy="14" stdDeviation="18" flood-color="#000" flood-opacity="0.28"/>
+    </filter>
+  </defs>
+  
+  <g filter="url(#sh)">
+    <rect x="100" y="100" width="824" height="824" rx="186" fill="url(#g4)"/>
+    <rect x="100" y="100" width="824" height="824" rx="186" fill="none" stroke="rgba(90,160,255,.42)" stroke-width="2.5"/>
+  </g>
+  <defs>
+    <linearGradient id="g4" x1="0.2" y1="0" x2="0.8" y2="1">
+      <stop offset="0" stop-color="#131f36"/><stop offset="0.55" stop-color="#0a1120"/><stop offset="1" stop-color="#04070d"/>
+    </linearGradient>
+    <linearGradient id="u4" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#a6d8ff"/><stop offset="1" stop-color="#2f74f0"/>
+    </linearGradient>
+    <filter id="glow" x="-40%" y="-40%" width="180%" height="180%">
+      <feGaussianBlur stdDeviation="18" result="b"/>
+      <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+  </defs>
+  <g opacity="0.10" fill="#7fb4ff">
+    <rect x="230" y="306" width="120" height="120" rx="26"/><rect x="380" y="306" width="120" height="120" rx="26"/>
+    <rect x="530" y="306" width="120" height="120" rx="26"/><rect x="680" y="306" width="120" height="120" rx="26"/>
+    <rect x="230" y="456" width="120" height="120" rx="26"/><rect x="380" y="456" width="120" height="120" rx="26"/>
+    <rect x="530" y="456" width="120" height="120" rx="26"/><rect x="680" y="456" width="120" height="120" rx="26"/>
+    <rect x="230" y="606" width="120" height="120" rx="26"/><rect x="380" y="606" width="120" height="120" rx="26"/>
+    <rect x="530" y="606" width="270" height="120" rx="26"/>
+  </g>
+  <g filter="url(#glow)" fill="none" stroke="url(#u4)" stroke-width="56" stroke-linecap="round">
+    <path d="M 374 330 L 374 548 Q 374 648 474 648 L 550 648 Q 650 648 650 548 L 650 330"/>
+  </g>
+</svg>

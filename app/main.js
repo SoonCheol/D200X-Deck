@@ -3,6 +3,7 @@
 const { app, BrowserWindow, ipcMain, dialog, Menu, shell, Tray, nativeImage } = require('electron');
 const path = require('node:path');
 const fs = require('node:fs');
+const os = require('node:os');
 
 const { Deck } = require('./lib/deck');
 const { Store } = require('./lib/store');
@@ -10,12 +11,14 @@ const { buildPage } = require('./lib/page');
 const { PluginManager, pluginRootDirs } = require('./lib/plugins');
 const { fetchSiteIcon } = require('./lib/siteicon');
 const { appIconDataUrl } = require('./lib/appicon');
+const { Market } = require('./lib/market');
 const actions = require('./lib/actions');
 
 let win = null;
 let store = null;
 let deck = null;
 let plugins = null;
+let market = null;
 let seizeProc = null;
 let seizeWarned = false;
 let reconnectTimer = null;
@@ -94,6 +97,24 @@ function createWindow() {
               })()
             `);
             await new Promise((r) => setTimeout(r, 800));
+          }
+          if (process.env.ULANZI_STORE) {
+            await win.webContents.executeJavaScript(
+              "document.querySelector('#store-btn')?.click(); true"
+            );
+            await new Promise((r) => setTimeout(r, 4000));
+            if (process.env.ULANZI_STORE_ITEM) {
+              await win.webContents.executeJavaScript(
+                `document.querySelectorAll('.store-item')[${Number(process.env.ULANZI_STORE_ITEM) || 0}]?.click(); true`
+              );
+              await new Promise((r) => setTimeout(r, 2500));
+            }
+            if (process.env.ULANZI_STORE_INSTALL) {
+              await win.webContents.executeJavaScript(
+                "document.querySelector('#store-install')?.click(); true"
+              );
+              await new Promise((r) => setTimeout(r, 6000));
+            }
           }
           if (process.env.ULANZI_HOTKEY) {
             await win.webContents.executeJavaScript(
@@ -292,7 +313,8 @@ function listApps() {
 }
 
 function initPlugins() {
-  const dirs = [path.join(app.getPath('userData'), 'Plugins'), ...pluginRootDirs()];
+  const baseDir = process.env.ULANZI_CONFIG_DIR || app.getPath('userData');
+  const dirs = [path.join(baseDir, 'Plugins'), ...pluginRootDirs()];
   plugins = new PluginManager({ dirs, appPluginsDir: dirs[0], port: 3906, appVersion: app.getVersion() });
   plugins.scan();
   plugins.start();
@@ -342,6 +364,11 @@ function spawnHelper(bin) {
 app.whenReady().then(() => {
   store = new Store(process.env.ULANZI_CONFIG_DIR || app.getPath('userData'));
   store.load();
+  market = new Market({
+    dir: process.env.ULANZI_CONFIG_DIR || app.getPath('userData'),
+    language: 'en',
+    appVersion: app.getVersion(),
+  });
   initDeck();
   initPlugins();
   startHidSeize();
@@ -424,6 +451,63 @@ ipcMain.handle('deck:reconnect', () => {
 
 ipcMain.handle('action:run', async (_evt, action) => actions.execute(action));
 
+// ------------------------------------------------------------- store
+
+ipcMain.handle('store:session', () => market.session());
+
+ipcMain.handle('store:login', async (_evt, userName, password) => {
+  try {
+    return { ok: true, ...(await market.login(String(userName || ''), String(password || ''))) };
+  } catch (err) {
+    return { ok: false, error: err.message || String(err) };
+  }
+});
+
+ipcMain.handle('store:logout', () => {
+  market.logout();
+  return { ok: true };
+});
+
+ipcMain.handle('store:categories', async () => {
+  try {
+    return { ok: true, categories: await market.categories() };
+  } catch (err) {
+    return { ok: false, error: err.message || String(err) };
+  }
+});
+
+ipcMain.handle('store:list', async (_evt, query) => {
+  try {
+    return { ok: true, ...(await market.list(query || {})) };
+  } catch (err) {
+    return { ok: false, error: err.message || String(err) };
+  }
+});
+
+ipcMain.handle('store:resource', async (_evt, id) => {
+  try {
+    return { ok: true, resource: await market.resource(String(id)) };
+  } catch (err) {
+    return { ok: false, error: err.message || String(err) };
+  }
+});
+
+ipcMain.handle('store:install', async (_evt, id) => {
+  const temp = path.join(os.tmpdir(), `ulanzi-store-${Date.now()}.zip`);
+  try {
+    const resource = await market.resource(String(id));
+    if (!resource.files) throw new Error('This store item has no downloadable file');
+    await market.download(resource.files, temp);
+    const out = plugins.install(temp);
+    send('plugins:changed');
+    return { ok: true, ...out };
+  } catch (err) {
+    return { ok: false, error: err.message || String(err) };
+  } finally {
+    try { fs.rmSync(temp, { force: true }); } catch { /* ignore */ }
+  }
+});
+
 ipcMain.handle('plugins:list', () => plugins.list());
 
 ipcMain.handle('plugins:sync', (_evt, wanted) => {
@@ -468,6 +552,16 @@ ipcMain.handle('plugins:reload', () => {
   const list = plugins.reload();
   send('plugins:changed');
   return { ok: true, list };
+});
+
+ipcMain.handle('plugins:import', (_evt, uuid) => {
+  try {
+    const out = plugins.import(String(uuid));
+    send('plugins:changed');
+    return { ok: true, ...out };
+  } catch (err) {
+    return { ok: false, error: err.message || String(err) };
+  }
 });
 
 ipcMain.handle('plugins:remove', (_evt, uuid) => {

@@ -6,6 +6,34 @@ The app can run existing **Node.js Ulanzi plugins** unchanged. This is the compa
 layer that lets keys from the vendor ecosystem (news, weather, agent status, …) keep
 working while the deck itself is driven by our app.
 
+## Plugin sources
+
+| Source | Location | Managed |
+| --- | --- | --- |
+| **This app** | `~/Library/Application Support/Ulanzi Deck Open/Plugins` | install / update / remove |
+| **Ulanzi Studio** | `~/Library/Application Support/Ulanzi/UlanziDeck/Plugins` | read-only, shown with 🔒 |
+
+App-installed plugins shadow a Ulanzi Studio plugin with the same UUID. A read-only
+plugin can be adopted with **Copy** in the plugin manager: it is copied into this
+app's folder and from then on can be edited or removed here.
+
+## Plugin Store
+
+The **Store** entry in the sidebar talks to the official Ulanzi Studio marketplace
+(`https://ugc.ulanzistudio.com/api/api`), the same backend the community site uses:
+
+| Call | Purpose |
+| --- | --- |
+| `GET /cateList` | categories |
+| `GET /list?cateId=&page=&limit=&sort=&isAsc=&searchText=&classify=&source=web&lang=en_US` | paged plugin list |
+| `GET /resources?id=` | details (`tResources`), including `uuid` and the ZIP at `files` |
+| `GET /down?id=` | download counter |
+
+Browsing and downloading are public; the site's optional account sign-in only adds
+a personal session token (stored in `store.json`, mode `600`). Installing a store
+item downloads its ZIP and unpacks it into this app's plugin folder, so it appears in
+the plugin manager as **Installed** and can be removed from there.
+
 ## How it works
 
 1. On startup the app scans:

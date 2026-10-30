@@ -4,7 +4,7 @@
     <meta charset="utf-8" />
     <meta
       http-equiv="Content-Security-Policy"
-      content="default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self'"
+      content="default-src 'self'; img-src 'self' data: https:; style-src 'self' 'unsafe-inline'; script-src 'self'"
     />
     <title>Ulanzi Deck Open</title>
     <link rel="stylesheet" href="styles.css" />
@@ -30,6 +30,10 @@
           <span class="plug-icon">🔌</span>
           <span class="plug-label">Plugins</span>
           <span id="plugin-count" class="plug-count">0</span>
+        </button>
+        <button id="store-btn" class="plugins-btn store-btn">
+          <span class="plug-icon">🛍</span>
+          <span class="plug-label">Store</span>
         </button>
 
         <div class="sidebar-foot">
@@ -123,6 +127,54 @@
           <input id="app-search" class="input" placeholder="Search applications…" />
         </div>
         <div id="app-list" class="app-list"></div>
+      </div>
+    </div>
+
+    <div id="store-modal" class="modal hidden">
+      <div class="modal-card store-card">
+        <div class="modal-head">
+          <div>
+            <h2>Plugin Store</h2>
+            <p id="store-sub">Official Ulanzi Studio plugin market.</p>
+          </div>
+          <div class="store-head-actions">
+            <span id="store-user" class="badge-tag hidden"></span>
+            <button id="store-logout" class="btn ghost hidden">Sign out</button>
+            <button id="store-modal-close" class="icon-btn" title="Close">×</button>
+          </div>
+        </div>
+
+        <div id="store-signin" class="store-signin hidden">
+          <p>
+            Sign in with your <b>Ulanzi account</b> to browse and install plugins. Only the session
+            token is stored on this Mac — never your password.
+          </p>
+          <div class="store-signin-form">
+            <input id="store-user-input" class="input" placeholder="Email or username" autocomplete="username" />
+            <input id="store-pass-input" class="input" type="password" placeholder="Password" autocomplete="current-password" />
+            <button id="store-signin-btn" class="btn primary">Sign in</button>
+          </div>
+          <div id="store-signin-error" class="store-error hidden"></div>
+        </div>
+
+        <div id="store-browse" class="store-browse hidden">
+          <div class="store-toolbar">
+            <input id="store-search" class="input store-search" placeholder="Search plugins…" />
+            <select id="store-sort" class="input store-sort">
+              <option value="hot">Popular</option>
+              <option value="star">Most starred</option>
+              <option value="new">Latest</option>
+            </select>
+          </div>
+          <div id="store-cats" class="store-cats"></div>
+          <div id="store-grid" class="store-grid"></div>
+          <div class="store-foot">
+            <span id="store-count" class="store-count"></span>
+            <button id="store-more" class="btn hidden">Load more</button>
+          </div>
+        </div>
+
+        <div id="store-detail" class="store-detail hidden"></div>
       </div>
     </div>
 

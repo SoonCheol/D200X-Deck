@@ -19,9 +19,12 @@ actions, and it talks to the deck directly over HID — no vendor app required.
   page, **or run an existing Node.js Ulanzi plugin action**.
 * **Device control** — brightness (0–100 %), screen sleep timeout, clock sync.
 * **Plugins** — runs Ulanzi's JavaScript plugins unchanged (discovery, WebSocket host,
-  live images, key events). A built-in **plugin manager** installs `.ulanziPlugin`
-  folders or ZIPs, reloads, reveals and removes app-installed plugins.
+  live images, key events). Plugins installed by Ulanzi Studio are used read-only and
+  can be copied into the app; app-installed plugins can be removed.
   See [`docs/PLUGINS.md`](docs/PLUGINS.md).
+* **Plugin Store** — browse the official Ulanzi Studio marketplace from the sidebar:
+  categories, search, sorting, plugin details, and one-click install into this app
+  (installed plugins are fully managed by it).
 * **Hotkeys** — a proper picker (modifiers, letters, symbols, function keys, F keys,
   numpad) plus physical key capture.
 * **Drag to rearrange** — drag a key onto another to swap them.
@@ -47,13 +50,16 @@ Hotkey actions are sent through AppleScript / System Events, so macOS asks for
 Accessibility permission the first time. Open-app/URL and shell actions need no
 special permission.
 
-Build a standalone app:
+Build and install the standalone app:
 
 ```bash
-npm run package        # arm64
+npm run install-app    # package, copy to ~/Applications, register with Spotlight
+npm run package        # arm64 only, no install
 npm run package:all    # universal
-open "dist/Ulanzi Deck Open-darwin-arm64/Ulanzi Deck Open.app"
 ```
+
+`install-app` also refreshes the LaunchServices/Spotlight registration, so the app
+shows up in Spotlight's Applications and Launchpad after every build.
 
 Config lives in `~/Library/Application Support/Ulanzi Deck Open/config.json`.
 
