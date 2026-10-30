@@ -134,13 +134,15 @@ What the official app has that we don't (from its `System/Plugins` manifests):
 
 ---
 
-## Suggested order
+## Order of work (agreed)
 
-1. **Import** (this is what makes switching to the app practical).
-2. **Action model v2** (multi-action + press types + system actions) — biggest
-   parity gap after import.
-3. **Profiles** (clean target for imported data, unlocks switch-profile actions).
-4. **Editor UX**, then device polish.
+1. **Action model v2** — system actions, multi-action, press triggers, OBS Studio.
+   Soundboard moves to v3; Ulanzi Connect / TC002 need a BLE spike (v2.5).
+   Detailed spec: [`ACTION-MODEL-V2.md`](ACTION-MODEL-V2.md).
+2. **Profiles** — multiple profiles per device, switch-profile action.
+3. **Editor UX** — icon library, action property inspector, fonts, undo.
+4. **Import from Ulanzi Studio** — last, so the editor and action model are already
+   complete and imports land in a mature target.
 
 ## Open questions
 
