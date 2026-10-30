@@ -10,7 +10,7 @@ const { Store } = require('./lib/store');
 const { buildPage } = require('./lib/page');
 const { PluginManager, pluginRootDirs } = require('./lib/plugins');
 const { fetchSiteIcon } = require('./lib/siteicon');
-const { appIconDataUrl } = require('./lib/appicon');
+const { appIconDataUrl, resolveAppPath } = require('./lib/appicon');
 const { Market } = require('./lib/market');
 const { execFileSync } = require('node:child_process');
 const actions = require('./lib/actions');
@@ -53,9 +53,10 @@ function guarded(handler) {
 }
 
 function createWindow() {
+  const [wantedW, wantedH] = String(process.env.ULANZI_SIZE || '').split('x').map(Number);
   win = new BrowserWindow({
-    width: 1380,
-    height: 900,
+    width: Number.isFinite(wantedW) && wantedW > 0 ? wantedW : 1380,
+    height: Number.isFinite(wantedH) && wantedH > 0 ? wantedH : 900,
     minWidth: 1080,
     minHeight: 700,
     backgroundColor: '#0b0e14',
@@ -324,6 +325,12 @@ function createWindow() {
               "document.querySelector('#insp-pick-app')?.click(); true"
             );
             await new Promise((r) => setTimeout(r, 1500));
+          }
+          if (process.env.ULANZI_ESC) {
+            await win.webContents.executeJavaScript(
+              "document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true })); true"
+            );
+            await new Promise((r) => setTimeout(r, 600));
           }
           const image = await win.webContents.capturePage();
           fs.writeFileSync(process.env.ULANZI_SHOT, image.toPNG());
@@ -921,7 +928,10 @@ ipcMain.handle('icons:list', () => {
       }
       let files = [];
       try {
-        files = fs.readdirSync(dir).filter((f) => ICON_EXT.has(path.extname(f).toLowerCase()));
+        files = fs
+          .readdirSync(dir)
+          .filter((f) => !f.startsWith('.')) // hide macOS AppleDouble/resource forks
+          .filter((f) => ICON_EXT.has(path.extname(f).toLowerCase()));
       } catch {
         continue;
       }
@@ -1089,8 +1099,9 @@ ipcMain.handle('dialog:pick-image', async () => {
 ipcMain.handle('apps:list', () => listApps());
 
 ipcMain.handle('apps:icon', async (_evt, appPath) => {
-  if (typeof appPath !== 'string' || !/\.app$/i.test(appPath)) return null;
-  return appIconDataUrl(appPath);
+  if (typeof appPath !== 'string' || !appPath.trim()) return null;
+  const resolved = await resolveAppPath(appPath);
+  return resolved ? appIconDataUrl(resolved) : null;
 });
 
 ipcMain.handle('fetch:site-icon', async (_evt, url) => {

@@ -54,6 +54,40 @@ async function findIconFile(appPath) {
   return null;
 }
 
+const APP_DIRS = [
+  '/Applications',
+  '/System/Applications',
+  '/System/Applications/Utilities',
+  '/Applications/Utilities',
+  path.join(os.homedir(), 'Applications'),
+];
+
+/** Turn "Safari" or a path into a real .app path when possible. */
+async function resolveAppPath(value) {
+  const target = String(value || '').trim();
+  if (!target) return null;
+  if (/\.app$/i.test(target)) {
+    try {
+      const stat = await fs.stat(target);
+      if (stat.isDirectory()) return target;
+    } catch {
+      /* fall through to a name lookup */
+    }
+  }
+  const name = target.replace(/\.app$/i, '');
+  const wanted = `${name}.app`.toLowerCase();
+  for (const dir of APP_DIRS) {
+    try {
+      const entries = await fs.readdir(dir);
+      const hit = entries.find((entry) => entry.toLowerCase() === wanted);
+      if (hit) return path.join(dir, hit);
+    } catch {
+      /* directory missing */
+    }
+  }
+  return null;
+}
+
 /** Extract an app's .icns and convert it to a 196x196 PNG data URL. */
 async function appIconDataUrl(appPath) {
   if (cache.has(appPath)) return cache.get(appPath);
@@ -76,4 +110,4 @@ async function appIconDataUrl(appPath) {
   return result;
 }
 
-module.exports = { appIconDataUrl, findIconFile };
+module.exports = { appIconDataUrl, findIconFile, resolveAppPath };

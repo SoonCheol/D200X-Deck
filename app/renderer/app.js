@@ -222,11 +222,25 @@ function renderStatus() {
   pill.classList.toggle('on', connected);
   $('#device-dot').classList.toggle('on', connected);
   $('#device-led').classList.toggle('on', connected);
-  $('#device-name').textContent = connected ? 'Ulanzi D200' : message || 'Not connected';
+  const busy = /busy|ulanzistudio|ulanzi studio/i.test(String(message || ''));
+  $('#device-name').textContent = connected ? 'Ulanzi D200' : busy ? 'Deck busy' : 'No deck found';
   $('#device-detail').textContent = connected
     ? `${info?.Dversion ? `fw ${info.Dversion} · ` : ''}${info?.SerialNumber || info?.serial || 'USB 2207:0019'}`
-    : 'Quit Ulanzi Studio to connect';
+    : busy
+      ? 'Ulanzi Studio is using it'
+      : message || 'Connect the D200 over USB';
+  $('#device-card').title = connected ? '' : String(message || '');
   $('#device-serial').textContent = connected ? info?.SerialNumber || info?.serial || '' : '';
+  const pushBtn = $('#push-btn');
+  if (pushBtn) {
+    pushBtn.disabled = !connected;
+    pushBtn.textContent = connected ? 'Push to deck' : 'Deck offline';
+    pushBtn.title = connected ? 'Send this page to the deck' : 'Connect the deck first (or quit Ulanzi Studio)';
+  }
+  if (!connected) {
+    const stateEl = $('#push-state');
+    if (stateEl) stateEl.textContent = 'not connected';
+  }
 }
 
 function renderPageList() {
@@ -291,9 +305,11 @@ async function renderGrid() {
       e.dataTransfer.setData('application/x-ulanzi-key', String(i));
       e.dataTransfer.effectAllowed = 'move';
       btn.classList.add('dragging');
+      $('#grid').classList.add('dragging');
     });
     btn.addEventListener('dragend', () => {
       btn.classList.remove('dragging');
+      $('#grid').classList.remove('dragging');
       document.querySelectorAll('.key.drop-target').forEach((el) => el.classList.remove('drop-target'));
     });
     btn.addEventListener('dragover', (e) => {
@@ -791,16 +807,16 @@ function renderInspector() {
     <div class="field-hint">Tap still runs the action above.</div>
 
     <div class="field">
-      <label>Label</label>
+      <label for="insp-emoji">Key text</label>
       <div class="emoji-row">
-        <input class="input" id="insp-emoji" maxlength="16" value="${esc(key.emoji)}" placeholder="Text or emoji" />
+        <input class="input" id="insp-emoji" maxlength="12" value="${esc(key.emoji)}" placeholder="Text or emoji" />
         <input class="color-input" id="insp-color" type="color" value="${esc(key.color || '#1b2130')}" title="Background" />
       </div>
       <div class="field-hint">Shrinks to fit · 12 characters max</div>
     </div>
 
     <div class="field">
-      <label>Caption</label>
+      <label for="insp-label">Bottom caption</label>
       <input class="input" id="insp-label" maxlength="40" value="${esc(key.label)}" placeholder="Optional small text under the key" />
     </div>
 
@@ -1055,6 +1071,23 @@ function renderInspector() {
     });
   }
 
+  // Fill in a real app icon for "Open app" keys that do not have one yet.
+  if (action.type === 'app' && action.value && !key.icon) {
+    const selected = state.selected;
+    const actionId = action.actionid || null;
+    api.appIcon(String(action.value)).then((icon) => {
+      if (!icon) return;
+      const current = state.selected === selected ? activePage().keys[selected] : null;
+      if (!current || current.icon) return;
+      if ((current.action.actionid || null) !== actionId) return;
+      current.icon = icon;
+      current.iconSource = 'app';
+      drawIndex(selected);
+      commit(false);
+      renderInspector();
+    });
+  }
+
   bindTriggerFields(key);
 
   $('#insp-duplicate').addEventListener('click', () => {
@@ -1181,7 +1214,8 @@ async function pushNow() {
     }));
     const res = await api.pushPage(images);
     if (!res.ok) throw new Error(res.error || 'push failed');
-    $('#push-state').textContent = `pushed · ${(res.bytes / 1024).toFixed(1)} KB`;
+    const time = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    $('#push-state').textContent = `synced ${time}`;
     state.config.settings.lastPush = Date.now();
     scheduleSave();
   } catch (err) {
@@ -1199,7 +1233,12 @@ async function pushNow() {
 // ------------------------------------------------------------------ pages
 
 function selectPage(id) {
-  if (state.config.activePageId === id) return;
+  if (state.config.activePageId === id) {
+    state.selected = null;
+    renderInspector();
+    renderGrid();
+    return;
+  }
   state.config.activePageId = id;
   state.selected = null;
   scheduleSave();
@@ -1652,6 +1691,7 @@ function closeIconLibrary() {
 async function openIconLibrary(onPick = null) {
   iconLibraryPick = onPick;
   $('#icons-modal').classList.remove('hidden');
+  window.focusModal?.('icons-modal');
   $('#icons-grid').innerHTML = '<div class="icons-empty">Loading…</div>';
   iconLibraryPacks = await api.listIconPacks();
   renderIconPacks();
@@ -1752,6 +1792,7 @@ const storeState = {
 
 async function openStoreModal() {
   $('#store-modal').classList.remove('hidden');
+  window.focusModal?.('store-modal');
   $('#store-detail').classList.add('hidden');
   const session = await api.storeSession();
   storeState.session = session;
@@ -2088,6 +2129,7 @@ function openPluginModal() {
   renderPluginModal();
   switchInstalledTab('plugins');
   $('#plugin-modal').classList.remove('hidden');
+  window.focusModal?.('plugin-modal');
 }
 
 function closePluginModal() {
@@ -2452,6 +2494,60 @@ function bind() {
       schedulePush();
     }
   });
+
+  const MODAL_CLOSERS = {
+    'hotkey-modal': closeHotkeyModal,
+    'app-modal': closeAppPicker,
+    'icons-modal': closeIconLibrary,
+    'store-modal': closeStoreModal,
+    'plugin-modal': closePluginModal,
+  };
+
+  function topModal() {
+    const ids = Object.keys(MODAL_CLOSERS);
+    for (let i = ids.length - 1; i >= 0; i--) {
+      const el = document.getElementById(ids[i]);
+      if (el && !el.classList.contains('hidden')) return ids[i];
+    }
+    return null;
+  }
+
+  function focusable(modal) {
+    return [...modal.querySelectorAll('button, input, select, textarea, iframe, [tabindex]:not([tabindex="-1"])')]
+      .filter((el) => !el.disabled && el.offsetParent !== null);
+  }
+
+  window.focusModal = (id) => {
+    const modal = document.getElementById(id);
+    if (!modal) return;
+    const first = focusable(modal)[0];
+    if (first) setTimeout(() => first.focus(), 30);
+  };
+
+  document.addEventListener('keydown', (event) => {
+    const id = topModal();
+    if (!id) return;
+    if (event.key === 'Escape') {
+      event.preventDefault();
+      event.stopPropagation();
+      MODAL_CLOSERS[id]();
+      return;
+    }
+    if (event.key === 'Tab') {
+      const modal = document.getElementById(id);
+      const items = focusable(modal);
+      if (!items.length) return;
+      const first = items[0];
+      const last = items[items.length - 1];
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
+      }
+    }
+  }, true);
 
   window.addEventListener('message', (event) => {
     const data = event.data || {};

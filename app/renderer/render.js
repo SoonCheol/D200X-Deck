@@ -220,6 +220,27 @@ async function drawKey(canvas, key, width = KEY_SIZE, height = KEY_SIZE, autoIco
     ctx.restore();
   }
 
+  const badges = [];
+  if (key.holdAction && key.holdAction.type && key.holdAction.type !== 'none') badges.push('H');
+  if (key.doubleAction && key.doubleAction.type && key.doubleAction.type !== 'none') badges.push('2×');
+  if (badges.length) {
+    ctx.save();
+    ctx.font = '700 11px -apple-system, "SF Pro Text", sans-serif';
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'middle';
+    let x = 10;
+    for (const badge of badges) {
+      const wBox = ctx.measureText(badge).width + 10;
+      ctx.fillStyle = 'rgba(0,0,0,0.45)';
+      roundRect(ctx, x, 9, wBox, 18, 6);
+      ctx.fill();
+      ctx.fillStyle = 'rgba(255,255,255,0.85)';
+      ctx.fillText(badge, x + 5, 18.5);
+      x += wBox + 5;
+    }
+    ctx.restore();
+  }
+
   if (key.action && key.action.type === 'page') {
     ctx.save();
     ctx.textAlign = 'center';

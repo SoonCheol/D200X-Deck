@@ -97,11 +97,11 @@
       <aside class="inspector" id="inspector"></aside>
     </div>
 
-    <div id="hotkey-modal" class="modal hidden">
+    <div id="hotkey-modal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="hotkey-title">
       <div class="modal-card hotkey-card">
         <div class="modal-head">
           <div>
-            <h2>Add Keyboard Key</h2>
+            <h2 id="hotkey-title">Add Keyboard Key</h2>
             <p>Press a button or add one below.</p>
           </div>
           <button id="hotkey-close" class="icon-btn" title="Close">×</button>
@@ -121,11 +121,11 @@
       </div>
     </div>
 
-    <div id="app-modal" class="modal hidden">
+    <div id="app-modal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="app-title">
       <div class="modal-card app-card">
         <div class="modal-head">
           <div>
-            <h2>Choose an application</h2>
+            <h2 id="app-title">Choose an application</h2>
             <p>Applications from /Applications, /System/Applications and ~/Applications.</p>
           </div>
           <button id="app-modal-close" class="icon-btn" title="Close">×</button>
@@ -137,11 +137,11 @@
       </div>
     </div>
 
-    <div id="icons-modal" class="modal hidden">
+    <div id="icons-modal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="icons-title">
       <div class="modal-card icons-card">
         <div class="modal-head">
           <div>
-            <h2>Icon library</h2>
+            <h2 id="icons-title">Icon library</h2>
             <p id="icons-sub">Icon packs downloaded from the store.</p>
           </div>
           <button id="icons-close" class="icon-btn" title="Close">×</button>
@@ -153,11 +153,11 @@
       </div>
     </div>
 
-    <div id="store-modal" class="modal hidden">
+    <div id="store-modal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="store-title">
       <div class="modal-card store-card">
         <div class="modal-head">
           <div>
-            <h2>Plugin Store</h2>
+            <h2 id="store-title">Plugin Store</h2>
             <p id="store-sub">Official Ulanzi Studio plugin market.</p>
           </div>
           <div class="store-head-actions">
@@ -201,11 +201,11 @@
       </div>
     </div>
 
-    <div id="plugin-modal" class="modal hidden">
+    <div id="plugin-modal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="installed-title">
       <div class="modal-card">
         <div class="modal-head">
           <div>
-            <h2>Installed</h2>
+            <h2 id="installed-title">Installed</h2>
             <p id="installed-sub">Plugins run as-is · icon packs power the key library.</p>
           </div>
           <button id="plugin-modal-close" class="icon-btn" title="Close">×</button>
@@ -236,7 +236,7 @@
       </div>
     </div>
 
-    <div id="toast" class="toast"></div>
+    <div id="toast" class="toast" role="status" aria-live="polite"></div>
     <script src="render.js"></script>
     <script src="app.js"></script>
   </body>
