@@ -1295,7 +1295,7 @@ async function loadStoreCategories() {
 }
 
 function renderStoreCategories() {
-  const cats = [{ id: '', name: 'All' }, ...storeState.categories];
+  const cats = [...storeState.categories];
   $('#store-cats').innerHTML = cats
     .map(
       (c) =>

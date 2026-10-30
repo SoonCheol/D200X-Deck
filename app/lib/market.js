@@ -113,11 +113,16 @@ class Market {
   async categories() {
     const json = await this.request('/cateList');
     const list = Array.isArray(json.data) ? json.data : [];
-    return list.map((c) => ({
-      id: c.id,
-      name: c[`name${this.languageSuffix()}`] || c.nameEn || c.nameCn || String(c.id),
-      raw: c,
-    }));
+    // Only the sections that make sense for a D200: profiles, plugins and icon packs.
+    const allowed = new Set(['profile', 'plugins', 'lcons', 'icons']);
+    return list
+      .filter((c) => allowed.has(String(c.nameEn || c.nameCn || '').trim().toLowerCase()))
+      .map((c) => {
+        let name = c[`name${this.languageSuffix()}`] || c.nameEn || c.nameCn || String(c.id);
+        // The store data spells "Icons" with a lowercase L.
+        if (/^lcons$/i.test(name.trim())) name = 'Icons';
+        return { id: c.id, name, raw: c };
+      });
   }
 
   languageSuffix() {
