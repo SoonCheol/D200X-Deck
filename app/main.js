@@ -11,6 +11,7 @@ const { Store } = require('./lib/store');
 const { buildPage } = require('./lib/page');
 const sysstats = require('./lib/sysstats');
 const { PluginManager, pluginRootDirs } = require('./lib/plugins');
+const { StreamDeckPlugins } = require('./lib/streamdeck-plugins');
 const { fetchSiteIcon } = require('./lib/siteicon');
 const { appIconDataUrl, resolveAppPath } = require('./lib/appicon');
 const { Market } = require('./lib/market');
@@ -22,6 +23,7 @@ let win = null;
 let store = null;
 let deck = null;
 let plugins = null;
+let sdPlugins = null;
 let market = null;
 let seizeProc = null;
 let seizeWarned = false;
@@ -329,6 +331,7 @@ const { randomUUID } = require('node:crypto');
 }
 
 const htmlPluginWindows = new Map();
+const sdHtmlWindows = new Map();
 
 function initPlugins() {
   const baseDir = process.env.ULANZI_CONFIG_DIR || app.getPath('userData');
@@ -418,6 +421,128 @@ function initPlugins() {
   plugins.on('connected', (uuid) => console.log('[plugins] connected', uuid));
 }
 
+function initSdPlugins() {
+  const baseDir = process.env.ULANZI_CONFIG_DIR || app.getPath('userData');
+  sdPlugins = new StreamDeckPlugins({
+    appPluginsDir: path.join(baseDir, 'StreamDeckPlugins'),
+    language: 'en',
+    appVersion: app.getVersion(),
+  });
+  sdPlugins.launchHtml = (meta, info) => {
+    if (sdHtmlWindows.has(meta.uuid)) return;
+    const frame = new BrowserWindow({
+      show: false,
+      width: 420,
+      height: 320,
+      webPreferences: {
+        contextIsolation: true,
+        nodeIntegration: false,
+        backgroundThrottling: false,
+      },
+    });
+    sdHtmlWindows.set(meta.uuid, frame);
+    frame.on('closed', () => {
+      sdHtmlWindows.delete(meta.uuid);
+      sdPlugins?.htmlExited(meta.uuid);
+    });
+    const file = path.join(meta.dir, meta.code.path);
+    frame.loadFile(file).then(() => {
+      let tries = 0;
+      const connect = () => {
+        if (tries++ > 100) return;
+        const payload = [sdPlugins.port, meta.uuid, 'registerPlugin', info];
+        frame.webContents
+          .executeJavaScript(
+            `(() => {
+              try {
+                if (typeof connectOpenActionSocket === 'function') return connectOpenActionSocket(${JSON.stringify(
+                  payload[0]
+                )}, ${JSON.stringify(payload[1])}, ${JSON.stringify(payload[2])}, ${JSON.stringify(payload[3])}), true;
+                if (typeof connectElgatoStreamDeckSocket === 'function') return connectElgatoStreamDeckSocket(${JSON.stringify(
+                  payload[0]
+                )}, ${JSON.stringify(payload[1])}, ${JSON.stringify(payload[2])}, ${JSON.stringify(payload[3])}), true;
+              } catch (err) { console.error(err); }
+              return false;
+            })()`
+          )
+          .then((ok) => { if (!ok) setTimeout(connect, 100); })
+          .catch(() => setTimeout(connect, 100));
+      };
+      connect();
+    }).catch((err) => {
+      console.error(`[sd:${meta.uuid}] could not load ${file}:`, err.message);
+      try { frame.close(); } catch { /* ignore */ }
+    });
+  };
+  sdPlugins.stopHtml = (uuid) => {
+    const frame = sdHtmlWindows.get(uuid);
+    if (frame) {
+      sdHtmlWindows.delete(uuid);
+      try { frame.destroy(); } catch { /* ignore */ }
+    }
+  };
+  sdPlugins.scan();
+  sdPlugins.start();
+  sdPlugins.on('state', (payload) => send('plugin:state', payload));
+  sdPlugins.on('state-index', (payload) => send('plugin:state-index', payload));
+  sdPlugins.on('title', (payload) => send('plugin:title', payload));
+  sdPlugins.on('settings', (payload) => send('plugin:settings', payload));
+  sdPlugins.on('alert', (payload) => send('plugin:alert', payload));
+  sdPlugins.on('ok', (payload) => send('plugin:ok', payload));
+  sdPlugins.on('error', (message) => {
+    console.error('[sd-plugins]', message);
+    send('plugin:error', message);
+  });
+  sdPlugins.on('connected', (uuid) => console.log('[sd-plugins] connected', uuid));
+  sdPlugins.on('switch-profile', (payload) => send('plugin:switch-profile', payload));
+  sdPlugins.on('brightness', (payload) => {
+    const value = Number(payload.value) || 0;
+    const current = Number(store.config.settings.brightness) || 0;
+    const next = Math.max(0, Math.min(100, payload.action === 'increase' ? current + value : payload.action === 'decrease' ? current - value : value));
+    store.config.settings.brightness = next;
+    store.save(store.config);
+    try { deck?.setBrightness(next); } catch { /* ignore */ }
+    send('deck:brightness', next);
+  });
+}
+
+function allPluginManagers() {
+  return [plugins, sdPlugins].filter(Boolean);
+}
+
+function allPluginList() {
+  return allPluginManagers().flatMap((manager) => manager.list());
+}
+
+function findPluginOwner(uuid) {
+  for (const manager of allPluginManagers()) {
+    if (manager.plugins?.has(uuid)) return manager;
+  }
+  return null;
+}
+
+function syncAllPlugins(wanted) {
+  const list = Array.isArray(wanted) ? wanted : [];
+  plugins?.sync(list.filter((item) => (item.sdk || 'ulanzi') !== 'streamdeck'));
+  sdPlugins?.sync(list.filter((item) => item.sdk === 'streamdeck'));
+}
+
+function runPlugin(actionid) {
+  if (sdPlugins?.run(actionid)) return true;
+  return Boolean(plugins?.run(actionid));
+}
+
+function setPluginSettings(actionid, settings) {
+  if (sdPlugins?.setActionSettings(actionid, settings)) return true;
+  return Boolean(plugins?.setActionSettings(actionid, settings));
+}
+
+function pluginInspectorUrl(payload) {
+  if (payload?.sdk === 'streamdeck') return sdPlugins?.inspectorUrl(payload) || null;
+  const url = plugins?.inspectorUrl(payload) || null;
+  return url || sdPlugins?.inspectorUrl(payload) || null;
+}
+
 function startHidSeize() {
   const bin = app.isPackaged
     ? path.join(process.resourcesPath, 'bin', 'hidseize')
@@ -456,6 +581,10 @@ function spawnHelper(bin) {
 protocol.registerSchemesAsPrivileged([
   {
     scheme: 'ulanzi-pi',
+    privileges: { standard: true, secure: true, supportFetchAPI: true, corsEnabled: true, stream: true },
+  },
+  {
+    scheme: 'sd-pi',
     privileges: { standard: true, secure: true, supportFetchAPI: true, corsEnabled: true, stream: true },
   },
 ]);
@@ -593,6 +722,7 @@ app.whenReady().then(() => {
   });
   initDeck();
   initPlugins();
+  initSdPlugins();
   startHidSeize();
   protocol.handle('ulanzi-pi', async (request) => {
     try {
@@ -603,7 +733,7 @@ app.whenReady().then(() => {
       const meta = [...(plugins?.plugins?.values() || [])].find((m) => path.basename(m.dir) === folder);
       if (!meta) return new Response('not found', { status: 404 });
       const file = path.join(meta.dir, rel);
-      if (!file.startsWith(meta.dir)) return new Response('forbidden', { status: 403 });
+      if (path.relative(meta.dir, file).startsWith('..')) return new Response('forbidden', { status: 403 });
       const ext = path.extname(file).toLowerCase();
       let body = fs.readFileSync(file);
       if (ext === '.html' || ext === '.htm') {
@@ -611,6 +741,82 @@ app.whenReady().then(() => {
       }
       const type =
         ext === '.js' ? 'text/javascript' :
+        ext === '.css' ? 'text/css' :
+        ext === '.json' ? 'application/json' :
+        ext === '.svg' ? 'image/svg+xml' :
+        ext === '.png' ? 'image/png' :
+        ext === '.jpg' || ext === '.jpeg' ? 'image/jpeg' :
+        ext === '.woff2' ? 'font/woff2' :
+        ext === '.woff' ? 'font/woff' :
+        ext === '.html' || ext === '.htm' ? 'text/html' : 'application/octet-stream';
+      return new Response(body, { headers: { 'content-type': type } });
+    } catch (err) {
+      return new Response(String(err.message || err), { status: 500 });
+    }
+  });
+
+  protocol.handle('sd-pi', async (request) => {
+    try {
+      const url = new URL(request.url);
+      const parts = url.pathname.split('/').filter(Boolean);
+      const folder = decodeURIComponent(parts[0] || '');
+      const rel = parts.slice(1).map(decodeURIComponent).join('/');
+      const meta = [...(sdPlugins?.plugins?.values() || [])].find((m) => path.basename(m.dir) === folder);
+      if (!meta) return new Response('not found', { status: 404 });
+      const file = path.join(meta.dir, rel);
+      if (path.relative(meta.dir, file).startsWith('..')) return new Response('forbidden', { status: 403 });
+      const ext = path.extname(file).toLowerCase();
+      let body = fs.readFileSync(file);
+      if (ext === '.html' || ext === '.htm') {
+        const actionid = url.searchParams.get('actionid') || '';
+        const connect = sdPlugins?.inspectorConnect(actionid);
+        const payload = connect ? JSON.stringify(connect) : 'null';
+        const bridge = `<script>(function(){
+          const payload = ${payload};
+          function connect() {
+            if (!payload) return true;
+            try {
+              if (typeof connectOpenActionSocket === 'function') { connectOpenActionSocket(...payload); return true; }
+              if (typeof connectElgatoStreamDeckSocket === 'function') { connectElgatoStreamDeckSocket(...payload); return true; }
+            } catch (err) { console.error(err); return true; }
+            return false;
+          }
+          if (!connect()) {
+            let n = 0;
+            const timer = setInterval(() => { if (connect() || ++n > 100) clearInterval(timer); }, 50);
+          }
+          const sdOpen = window.open;
+          window.open = (url, target) => {
+            if (target === '_self' || target === '_top') return sdOpen.call(window, url, target);
+            try {
+              const absolute = new URL(url, window.location.href).href;
+              parent.postMessage({ type: 'sd-pi-open', url: absolute }, '*');
+            } catch (e) {}
+            return null;
+          };
+          function report() {
+            try {
+              let h = 0;
+              for (const el of document.body.children) {
+                const rect = el.getBoundingClientRect();
+                h = Math.max(h, rect.bottom);
+              }
+              if (!h) h = document.body.scrollHeight;
+              parent.postMessage({ type: 'ulanzi-pi-height', height: Math.ceil(h + 8) }, '*');
+            } catch (e) {}
+          }
+          window.addEventListener('load', report);
+          setTimeout(report, 250);
+          setTimeout(report, 800);
+          if (window.ResizeObserver) new ResizeObserver(report).observe(document.body);
+          window.addEventListener('resize', report);
+        })();</script>`;
+        const html = body.toString('utf8');
+        body = Buffer.from(/<\/body>/i.test(html) ? html.replace(/<\/body>/i, `${bridge}</body>`) : html + bridge, 'utf8');
+      }
+      const type =
+        ext === '.js' ? 'text/javascript' :
+        ext === '.mjs' || ext === '.cjs' ? 'text/javascript' :
         ext === '.css' ? 'text/css' :
         ext === '.json' ? 'application/json' :
         ext === '.svg' ? 'image/svg+xml' :
@@ -647,6 +853,7 @@ app.on('will-quit', () => {
   if (reconnectTimer) clearInterval(reconnectTimer);
   if (deck) deck.disconnect('App closed');
   if (plugins) plugins.stopAll();
+  if (sdPlugins) sdPlugins.stopAll();
   if (seizeProc) {
     try { seizeProc.kill(); } catch { /* ignore */ }
   }
@@ -715,6 +922,14 @@ ipcMain.handle('deck:sleep', (_evt, seconds) => {
 ipcMain.handle('deck:reconnect', () => {
   deck.disconnect('Reconnecting');
   return { ok: deck.connect(), status: deck.status() };
+});
+
+ipcMain.handle('app:open-external', (event, url) => {
+  if (!trustedSender(event)) return { ok: false, error: 'untrusted sender' };
+  const target = String(url || '');
+  if (!/^https?:|^mailto:/i.test(target)) return { ok: false, error: 'Unsupported URL' };
+  shell.openExternal(target);
+  return { ok: true };
 });
 
 ipcMain.handle('app:accessibility', () => ({
@@ -926,7 +1141,7 @@ ipcMain.handle('store:install', async (_evt, id) => {
     await market.download(resource.files, temp);
     const out = plugins.install(temp);
     send('plugins:changed');
-    return { ok: true, ...out };
+    return { ok: true, ...out, list: allPluginList() };
   } catch (err) {
     return { ok: false, error: err.message || String(err) };
   } finally {
@@ -934,23 +1149,70 @@ ipcMain.handle('store:install', async (_evt, id) => {
   }
 });
 
-ipcMain.handle('plugins:list', () => plugins.list());
+ipcMain.handle('plugins:list', () => allPluginList());
 
 ipcMain.handle('plugins:sync', (_evt, wanted) => {
-  plugins.sync(wanted);
+  syncAllPlugins(wanted);
   return { ok: true };
 });
 
-ipcMain.handle('plugins:run', (_evt, actionid) => ({ ok: plugins.run(actionid) }));
+ipcMain.handle('plugins:run', (_evt, actionid) => ({ ok: runPlugin(String(actionid)) }));
+
+ipcMain.handle('plugins:key', (_evt, actionid, pressed) => ({
+  ok: Boolean(sdPlugins?.key(String(actionid), Boolean(pressed))),
+}));
+
+function looksLikeStreamDeckPlugin(source) {
+  try {
+    if (fs.statSync(source).isDirectory()) {
+      if (source.endsWith('.sdPlugin')) return true;
+      const walk = (dir, depth = 0) => {
+        if (depth > 2) return false;
+        for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+          if (!entry.isDirectory()) continue;
+          if (entry.name.endsWith('.sdPlugin')) return true;
+          if (walk(path.join(dir, entry.name), depth + 1)) return true;
+        }
+        return false;
+      };
+      if (walk(source)) return true;
+      try {
+        const manifest = JSON.parse(fs.readFileSync(path.join(source, 'manifest.json'), 'utf8').replace(/^\uFEFF/, ''));
+        return !manifest.UUID && Boolean(manifest.CodePathMac || manifest.CodePath || manifest.CodePaths || manifest.OS);
+      } catch {
+        return false;
+      }
+    }
+    const { execFileSync } = require('node:child_process');
+    const listing = execFileSync('unzip', ['-Z1', source], { encoding: 'utf8' });
+    if (/(^|\/)[^/]+\.sdPlugin(\/|$)/m.test(listing)) return true;
+    if (/(^|\/)[^/]+\.ulanziPlugin(\/|$)/m.test(listing)) return false;
+    try {
+      const raw = execFileSync('unzip', ['-p', source, 'manifest.json'], { encoding: 'utf8' }).replace(/^\uFEFF/, '');
+      const manifest = JSON.parse(raw);
+      return !manifest.UUID && Boolean(manifest.CodePathMac || manifest.CodePath || manifest.CodePaths || manifest.OS);
+    } catch {
+      return false;
+    }
+  } catch {
+    return false;
+  }
+}
+
+function installAnyPlugin(source) {
+  const manager = looksLikeStreamDeckPlugin(source) ? sdPlugins : plugins;
+  const out = manager.install(source);
+  return { ...out, sdk: manager === sdPlugins ? 'streamdeck' : 'ulanzi', list: allPluginList() };
+}
 
 ipcMain.handle('plugins:install-folder', async () => {
   const res = await dialog.showOpenDialog(win, {
-    title: 'Select a .ulanziPlugin folder',
+    title: 'Select a plugin folder (.ulanziPlugin or .sdPlugin)',
     properties: ['openDirectory'],
   });
   if (res.canceled || res.filePaths.length === 0) return { canceled: true };
   try {
-    const out = plugins.install(res.filePaths[0]);
+    const out = installAnyPlugin(res.filePaths[0]);
     send('plugins:changed');
     return { ok: true, ...out };
   } catch (err) {
@@ -962,11 +1224,11 @@ ipcMain.handle('plugins:install-zip', async () => {
   const res = await dialog.showOpenDialog(win, {
     title: 'Select a plugin ZIP',
     properties: ['openFile'],
-    filters: [{ name: 'Plugin package', extensions: ['zip'] }],
+    filters: [{ name: 'Plugin package', extensions: ['zip', 'streamdeckplugin'] }],
   });
   if (res.canceled || res.filePaths.length === 0) return { canceled: true };
   try {
-    const out = plugins.install(res.filePaths[0]);
+    const out = installAnyPlugin(res.filePaths[0]);
     send('plugins:changed');
     return { ok: true, ...out };
   } catch (err) {
@@ -974,23 +1236,26 @@ ipcMain.handle('plugins:install-zip', async () => {
   }
 });
 
-ipcMain.handle('plugins:inspector-url', (_evt, payload) => plugins.inspectorUrl(payload || {}));
+ipcMain.handle('plugins:inspector-url', (_evt, payload) => pluginInspectorUrl(payload || {}));
 
 ipcMain.handle('plugins:set-settings', (_evt, actionid, settings) => ({
-  ok: plugins.setActionSettings(String(actionid), settings || {}),
+  ok: setPluginSettings(String(actionid), settings || {}),
 }));
 
 ipcMain.handle('plugins:reload', () => {
-  const list = plugins.reload();
+  plugins?.reload();
+  sdPlugins?.reload();
+  const list = allPluginList();
   send('plugins:changed');
   return { ok: true, list };
 });
 
 ipcMain.handle('plugins:import', guarded((_evt, uuid) => {
   try {
-    const out = plugins.import(String(uuid));
+    const manager = findPluginOwner(String(uuid)) || plugins;
+    const out = manager.import(String(uuid));
     send('plugins:changed');
-    return { ok: true, ...out };
+    return { ok: true, ...out, list: allPluginList() };
   } catch (err) {
     return { ok: false, error: err.message || String(err) };
   }
@@ -998,9 +1263,10 @@ ipcMain.handle('plugins:import', guarded((_evt, uuid) => {
 
 ipcMain.handle('plugins:remove', guarded((_evt, uuid) => {
   try {
-    const list = plugins.remove(uuid);
+    const manager = findPluginOwner(String(uuid)) || plugins;
+    manager.remove(String(uuid));
     send('plugins:changed');
-    return { ok: true, list };
+    return { ok: true, list: allPluginList() };
   } catch (err) {
     return { ok: false, error: err.message || String(err) };
   }
@@ -1012,8 +1278,15 @@ ipcMain.handle('plugins:open-folder', () => {
   return { ok: true };
 });
 
+ipcMain.handle('plugins:open-sd-folder', () => {
+  fs.mkdirSync(sdPlugins.appPluginsDir, { recursive: true });
+  shell.openPath(sdPlugins.appPluginsDir);
+  return { ok: true };
+});
+
 ipcMain.handle('plugins:reveal', (_evt, uuid) => {
-  const meta = plugins.plugins.get(uuid);
+  const owner = findPluginOwner(String(uuid));
+  const meta = owner?.plugins.get(String(uuid));
   if (!meta) return { ok: false };
   shell.showItemInFolder(meta.dir);
   return { ok: true };

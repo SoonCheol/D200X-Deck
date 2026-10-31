@@ -1,26 +1,65 @@
 # Plugin host
 
-The app can run existing **Node.js Ulanzi plugins** unchanged. This is the compatibility
-layer that lets keys from the vendor ecosystem (news, weather, agent status, …) keep
-working while the deck itself is driven by our app.
+The app runs two plugin ecosystems:
+
+* **Ulanzi plugins** (`.ulanziPlugin`) — the vendor's Node/HTML SDK.
+* **Stream Deck SDK / OpenAction plugins** (`.sdPlugin`) — Node, HTML or native
+  binaries, including plugins made for Elgato Stream Deck, OpenDeck and OpenAction.
+
+This is what lets keys from both ecosystems (news, weather, agent status, OBS,
+home automation, …) keep working while the D200 itself is driven by our app.
 
 ## Plugin sources
 
 | Source | Location | Managed |
 | --- | --- | --- |
-| **This app** | `~/Library/Application Support/Ulanzi Deck Open/Plugins` | install / update / remove |
+| **This app — Ulanzi** | `~/Library/Application Support/Ulanzi Deck Open/Plugins` | install / update / remove |
+| **This app — Stream Deck** | `~/Library/Application Support/Ulanzi Deck Open/StreamDeckPlugins` | install / remove |
 | **Ulanzi Studio** | `~/Library/Application Support/Ulanzi/UlanziDeck/Plugins` | read-only, shown with 🔒 |
+| **Elgato Stream Deck** | `~/Library/Application Support/com.elgato.StreamDeck/Plugins` | read-only, shown with 🔒 |
+| **OpenDeck** | `~/Library/Application Support/opendeck/plugins` | read-only, shown with 🔒 |
 
-App-installed plugins shadow a Ulanzi Studio plugin with the same UUID. A read-only
-plugin can be adopted with **Copy** in the plugin manager: it is copied into this
-app's folder and from then on can be edited or removed here.
+App-installed plugins shadow a read-only plugin with the same UUID. A read-only plugin
+can be adopted with **Copy** in the plugin manager: it is copied into this app's folder
+and from then on can be edited or removed here.
+
+Install **`.sdPlugin`** folders, `.streamdeckplugin` packages or ordinary ZIPs from
+**Installed → Plugins**. The installer detects the SDK from the manifest/folder and
+puts it in the matching app folder.
+
+## Stream Deck / OpenAction host
+
+The host implements the Stream Deck SDK WebSocket protocol, so plugin authors do not
+need an adapter:
+
+* **Manifest:** `manifest.json` with `Actions`, `States`, `CodePath`/`CodePathMac` /
+  `CodePaths`, `PropertyInspectorPath`, `OS`, `Category`.
+* **Code kinds:** `.js`/`.mjs`/`.cjs` (Node), `.html` (hidden BrowserWindow), native
+  macOS executables. Windows-only binaries run through Wine when `wine` is installed.
+* **Spawn:** `-port <port> -pluginUUID <uuid> -registerEvent registerPlugin -info <json>`.
+* **Protocol:** `registerPlugin`, `willAppear`, `willDisappear`, `keyDown`, `keyUp`,
+  `setImage`, `setTitle`, `setState`, `setSettings`, `getSettings`,
+  `setGlobalSettings`, `getGlobalSettings`, `sendToPlugin`,
+  `sendToPropertyInspector`, `showAlert`, `showOk`, `openUrl`, `logMessage`, plus the
+  OpenAction extensions `switchProfile` and `deviceBrightness`. Encoder-only calls
+  (`setFeedback`, `setFeedbackLayout`, dial events) are accepted and ignored on the
+  D200.
+* **Contexts:** every key action gets a stable context (its action UUID). Images and
+  titles are tracked per state; `setState` switches the key.
+* **Key events:** Stream Deck action keys receive real physical `keyDown`/`keyUp`, so
+  plugins can implement their own tap/hold/double logic.
+
+Native plugin binaries are third-party executables. Only install plugins you trust;
+macOS may also ask you to allow a downloaded binary in Privacy & Security.
 
 ## Plugin settings (property inspectors)
 
-Plugins ship an HTML property inspector (`PropertyInspectorPath` in the manifest). The
-key inspector renders it in an iframe, with the same query parameters the official app
-uses (`actionId`, `key`, `port`, `address`, `language`), and bridges the Ulanzi SDK
-protocol over the existing WebSocket host:
+Both SDKs can ship an HTML property inspector (`PropertyInspectorPath` in the
+manifest). The key inspector renders it in an iframe.
+
+**Ulanzi** inspectors get the same query parameters the official app uses (`actionId`,
+`key`, `port`, `address`, `language`) and bridge the Ulanzi SDK protocol over the
+existing WebSocket host:
 
 * inspector → host: `paramfromplugin` (the form saved its value)
 * host → plugin: `paramfromapp` (so the key redraws)
@@ -44,6 +83,13 @@ daemon (AgentDeck's port 9120, for example), which the vendor app allows too.
 The settings are persisted on the key (`action.settings`) exactly like before, so
 configs stay compatible. Actions without an inspector still fall back to the JSON
 editor.
+
+**Stream Deck / OpenAction** inspectors are served through `sd-pi://` and receive the
+standard `connectElgatoStreamDeckSocket(port, context, "registerPropertyInspector",
+info, actionInfo)` or `connectOpenActionSocket(...)` call. They can send
+`setSettings`, `getSettings`, `setGlobalSettings`, `getGlobalSettings`, `sendToPlugin`
+and `openUrl` exactly as under the Elgato software. `window.open` links are opened in
+the default browser.
 
 ## Plugin Store
 
@@ -79,7 +125,7 @@ an icon downscales it to 392 px and stores it on the key. Profile files
 * **Icons** — icon packs downloaded here (delete allowed) and packs found in Ulanzi
   Studio's own `Icons` folder, shown read-only so they stay intact.
 
-## How it works
+## Ulanzi plugin protocol
 
 1. On startup the app scans:
    * `~/Library/Application Support/Ulanzi/UlanziDeck/Plugins/*.ulanziPlugin`
@@ -154,34 +200,89 @@ The g1 plugin’s SVG (with an embedded JPEG) is passed straight to Chromium’s
 
 Click **Plugins** in the sidebar:
 
-* **Install folder…** — pick a `.ulanziPlugin` directory (or a folder containing one)
-* **Install .zip…** — pick a plugin ZIP; it is unpacked into the app's plugin folder
+* **Install folder…** — pick a `.ulanziPlugin` or `.sdPlugin` directory
+* **Install .zip…** — pick a plugin ZIP / `.streamdeckplugin`; the SDK is detected automatically
 * **Reload all** — restarts every plugin process and rescans
-* **Open plugins folder** — reveals `~/Library/Application Support/Ulanzi Deck Open/Plugins`
+* **Open plugins folder** — reveals the app's Ulanzi plugin folder
+* **Open Stream Deck folder** — reveals the app's `.sdPlugin` folder
 * **Show** — reveals the plugin on disk
-* **Remove** — only for plugins installed by this app (Ulanzi's folder is read-only)
+* **Remove** — only for plugins installed by this app; plugins from Ulanzi Studio,
+  Elgato Stream Deck and OpenDeck are read-only (use **Copy** to adopt them)
 
-Installed plugins are copied to the app's own plugin folder, so they survive Ulanzi
-Studio updates. When both locations contain the same UUID, the app's copy wins.
+Installed plugins are copied to the app's own plugin folder, so they survive updates
+of the source application. When both locations contain the same UUID, the app's copy
+wins. The installer rejects unsafe ZIP paths before extracting.
 
 Crashed plugins are restarted with exponential backoff (capped at five attempts per
-minute), and on reconnect all `add`/`setactive` messages are replayed.
+minute). On reconnect, Ulanzi plugins get `add`/`setactive` replayed; Stream Deck
+plugins get `willAppear` for every active action.
 
 ## Using a plugin key
 
-In the key inspector choose **Plugin action**, then the plugin and action. If the action
-ships a property inspector, its form is embedded in the panel; otherwise settings are
-edited as JSON. The key shows the plugin’s live image; pressing it sends `run`.
+In the key inspector choose **Plugin action**, then the plugin and action. The picker
+groups **Stream Deck / OpenAction** and **Ulanzi** plugins. If the action ships a
+property inspector, its form is embedded in the panel; otherwise settings are edited as
+JSON. The key shows the plugin’s live image.
+
+* **Ulanzi** keys send `keydown`, `run`, `keyup`.
+* **Stream Deck** keys forward the physical `keyDown`/`keyUp`, so plugin-side hold and
+  double-press logic works; the host also performs the standard two-state toggle for
+  actions that do not disable it.
 
 ## Limitations (current)
 
-* Encoder-only calls (`setFeedback`, `setFeedbackLayout`, `rotateEvent`) are accepted but
-  have no visible effect on the D200, which has no dials.
-* Port 3906 is fixed; it must be free (quit Ulanzi Studio). The host retries if it was
-  busy at launch.
+* The D200 has no encoders or touchscreen, so Stream Deck encoder/dial/touchscreen
+  actions are not usable.
+* Windows-only Stream Deck plugins need **Wine** installed; otherwise they show
+  **Not supported**.
+* Ulanzi plugins use port 3906; Stream Deck plugins use a dynamic port starting at
+  57116. Quit Ulanzi Studio/other deck software if a port is busy.
 * Python plugins are not supported.
-* A read-only plugin from Ulanzi Studio is shown with 🔒 until you copy it into this
-  app's plugin folder.
+* A read-only plugin (from Ulanzi Studio, Elgato Stream Deck or OpenDeck) is shown with
+  🔒 until you copy it into this app's plugin folder.
+* Plugin catalogues/store fronts from OpenDeck/Elgato are not built in; use
+  **Install folder/ZIP** or the Ulanzi Store.
+
+## Developing a Stream Deck / OpenAction plugin
+
+You can develop against the same SDK the plugin ecosystem uses; nothing here requires
+OpenDeck to be installed:
+
+1. Create a folder named `com.example.myplugin.sdPlugin` with a `manifest.json`:
+   ```json
+   {
+     "Name": "My Plugin",
+     "Author": "You",
+     "Version": "1.0.0",
+     "Category": "My Plugin",
+     "Icon": "icon",
+     "OS": [{ "Platform": "mac" }],
+     "CodePath": "plugin.js",
+     "Actions": [{
+       "Name": "Do something",
+       "UUID": "com.example.myplugin.do",
+       "Icon": "icon",
+       "States": [{ "Image": "icon" }],
+       "Controllers": ["Keypad"],
+       "PropertyInspectorPath": "inspector.html"
+     }]
+   }
+   ```
+2. For a Node plugin, read `-port`, `-pluginUUID`, `-registerEvent` and `-info` from
+   `process.argv`, connect to `ws://127.0.0.1:<port>`, and send
+   `{"event":"registerPlugin","uuid":"com.example.myplugin.sdPlugin"}`.
+3. Handle `willAppear`, `keyDown`/`keyUp`, and reply with `setImage`, `setTitle`,
+   `setState`, `setSettings`, etc.
+4. For an HTML plugin, define `connectElgatoStreamDeckSocket` or
+   `connectOpenActionSocket`; the host injects the connection.
+5. Install the folder with **Installed → Plugins → Install folder…**. Watch the app
+   log for `[sd:My Plugin]` output; use **Reload all** after code changes.
+
+For Rust/OpenAction plugins, use the
+[`openaction`](https://crates.io/crates/openaction) crate; OpenDeck’s
+`plugins/com.amansprojects.starterpack.sdPlugin` is a working reference (GPL-3.0 —
+read it for reference, do not copy it into this MIT project). For JavaScript plugins,
+the official Elgato Stream Deck SDK (`streamdeck` npm package) works unchanged.
 
 ## Reference
 

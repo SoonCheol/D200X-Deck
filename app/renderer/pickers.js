@@ -232,7 +232,8 @@ function renderPluginModal() {
   if (!state.plugins.length) {
     list.innerHTML = `<div class="plugin-empty">
       No plugins found.<br/>
-      Install a <b>.ulanziPlugin</b> folder or ZIP, or let the app scan Ulanzi Studio's plugin folder.
+      Install a <b>.sdPlugin</b> / <b>.ulanziPlugin</b> folder or ZIP, or let the app scan the
+      Ulanzi Studio, Elgato Stream Deck and OpenDeck plugin folders.
     </div>`;
     return;
   }
@@ -250,9 +251,10 @@ function renderPluginModal() {
             <div class="plugin-name">
               ${esc(p.name)}
               <span class="badge-tag ${p.compatible ? 'good' : 'warn'}">${p.compatible ? 'Compatible' : 'Not supported'}</span>
+              <span class="badge-tag">${p.sdk === 'streamdeck' ? 'Stream Deck' : 'Ulanzi'}</span>
               <span class="badge-tag ${p.writable ? 'good' : ''}" title="${
-                p.writable ? 'Installed in this app' : 'Installed by Ulanzi Studio — read only'
-              }">${p.writable ? 'Installed' : '🔒 Ulanzi'}</span>
+                p.writable ? 'Installed in this app' : 'Read-only (installed by another app)'
+              }">${p.writable ? 'Installed' : '🔒 Read-only'}</span>
             </div>
             <div class="plugin-sub">
               ${p.version ? `v${esc(p.version)} · ` : ''}${esc(p.author || 'unknown author')} · ${(p.actions || []).length} ${

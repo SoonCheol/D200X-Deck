@@ -59,6 +59,9 @@ contextBridge.exposeInMainWorld('deckApp', {
   setPluginSettings: (actionid, settings) => ipcRenderer.invoke('plugins:set-settings', actionid, settings),
   removePlugin: (uuid) => ipcRenderer.invoke('plugins:remove', uuid),
   openPluginsFolder: () => ipcRenderer.invoke('plugins:open-folder'),
+  openExternal: (url) => ipcRenderer.invoke('app:open-external', url),
+  openSdPluginsFolder: () => ipcRenderer.invoke('plugins:open-sd-folder'),
+  pluginKey: (actionid, pressed) => ipcRenderer.invoke('plugins:key', actionid, pressed),
   revealPlugin: (uuid) => ipcRenderer.invoke('plugins:reveal', uuid),
   onKey: (cb) => subscribe('deck:key', cb),
   onStatus: (cb) => subscribe('deck:status', cb),
@@ -73,6 +76,8 @@ contextBridge.exposeInMainWorld('deckApp', {
   onPluginToast: (cb) => subscribe('plugin:toast', cb),
   onPluginError: (cb) => subscribe('plugin:error', cb),
   onPluginAlert: (cb) => subscribe('plugin:alert', cb),
+  onPluginOk: (cb) => subscribe('plugin:ok', cb),
+  onPluginSwitchProfile: (cb) => subscribe('plugin:switch-profile', cb),
   onSeizePermission: (cb) => subscribe('seize:permission', cb),
   onPluginsChanged: (cb) => subscribe('plugins:changed', cb),
 });

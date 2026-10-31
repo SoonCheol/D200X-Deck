@@ -175,6 +175,7 @@ class PluginManager extends EventEmitter {
     return [...this.plugins.values()]
       .map((p) => ({
         uuid: p.uuid,
+        sdk: 'ulanzi',
         name: p.name,
         description: p.description,
         version: p.version,
@@ -841,4 +842,4 @@ class PluginManager extends EventEmitter {
   }
 }
 
-module.exports = { PluginManager, pluginRootDirs };
+module.exports = { PluginManager, pluginRootDirs, nodeRuntime };

@@ -292,6 +292,15 @@ function handleKeyEvent(index, pressed) {
   const key = keyAt(activePage(), index);
   if (!key) return;
 
+  // Stream Deck plugins own their own keyDown/keyUp state machine (tap, hold,
+  // double press, etc.), so forward real press/release events instead of
+  // synthesising a tap.
+  if (key.action?.type === 'plugin' && key.action.sdk === 'streamdeck') {
+    if (pressed) flashKey(index);
+    api.pluginKey(key.action.actionid, pressed);
+    return;
+  }
+
   const hasHold = key.holdAction && key.holdAction.type !== 'none';
   const hasDouble = key.doubleAction && key.doubleAction.type !== 'none';
   if (!hasHold && !hasDouble) {

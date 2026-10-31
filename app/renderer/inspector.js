@@ -773,7 +773,10 @@ function renderInspector() {
   let pluginFields = '';
   if (action.type === 'plugin') {
     const compatible = state.plugins.filter((p) => p.compatible);
-    const plugin = compatible.find((p) => p.uuid === action.plugin) || null;
+    const plugin =
+      compatible.find((p) => p.uuid === action.plugin && (p.sdk || 'ulanzi') === (action.sdk || 'ulanzi')) ||
+      compatible.find((p) => p.uuid === action.plugin) ||
+      null;
     const pluginActions = plugin ? plugin.actions : [];
     const pluginAction = pluginActions.find((a) => a.uuid === action.action) || null;
     if (!compatible.length) {
@@ -787,10 +790,19 @@ function renderInspector() {
           <label>Plugin</label>
           <select class="select" id="insp-plugin">
             <option value="">Choose a plugin…</option>
-            ${compatible
+            ${[
+              ['Stream Deck / OpenAction', compatible.filter((p) => p.sdk === 'streamdeck')],
+              ['Ulanzi', compatible.filter((p) => (p.sdk || 'ulanzi') !== 'streamdeck')],
+            ]
+              .filter(([, list]) => list.length)
               .map(
-                (p) =>
-                  `<option value="${esc(p.uuid)}" ${p.uuid === action.plugin ? 'selected' : ''}>${esc(p.name)}</option>`
+                ([label, list]) =>
+                  `<optgroup label="${esc(label)}">${list
+                    .map(
+                      (p) =>
+                        `<option value="${esc(p.uuid)}" ${p.uuid === action.plugin && (p.sdk || 'ulanzi') === (action.sdk || 'ulanzi') ? 'selected' : ''}>${esc(p.name)}</option>`
+                    )
+                    .join('')}</optgroup>`
               )
               .join('')}
           </select>
@@ -1122,6 +1134,7 @@ function renderInspector() {
       // Start blank so the user chooses the plugin deliberately.
       key.action = {
         type: 'plugin',
+        sdk: 'streamdeck',
         plugin: '',
         action: '',
         actionid: uuid(),
@@ -1150,6 +1163,7 @@ function renderInspector() {
     const slot = keyIndexToSlot(state.selected);
     api
       .pluginInspectorUrl({
+        sdk: action.sdk || 'ulanzi',
         plugin: action.plugin,
         action: action.action,
         actionid: action.actionid,
@@ -1261,6 +1275,7 @@ function renderInspector() {
         const a = p.actions[0];
         key.action = {
           type: 'plugin',
+          sdk: p.sdk || 'ulanzi',
           plugin: p.uuid,
           action: a?.uuid || '',
           actionid: uuid(),

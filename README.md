@@ -39,10 +39,13 @@ _The editor, the plugin manager and the store all run against the deck live._
   the pointer (up to 9 actions).
 * **Device control** — brightness (0–100 %), screen sleep timeout, clock sync, standby
   clock/wallpaper, optional lock-screen image/clock, and message/caption styling.
-* **Plugins** — runs Ulanzi's JavaScript *and* HTML plugins unchanged (discovery,
-  WebSocket host, live images, key events, property inspectors). Plugins installed by
-  Ulanzi Studio are used read-only and can be copied into the app; app-installed plugins
-  can be removed. See [`docs/PLUGINS.md`](docs/PLUGINS.md).
+* **Plugins** — runs **Ulanzi** plugins and **Stream Deck SDK / OpenAction** plugins:
+  Node, HTML and native macOS binaries, with live images/titles, states, per-action and
+  global settings, property inspectors, and real key-down/key-up events. It scans
+  Ulanzi Studio, Elgato Stream Deck and OpenDeck plugin folders; `.sdPlugin` folders and
+  `.streamdeckplugin`/`.zip` packages can be installed into the app. Windows-only
+  plugins run through Wine when Wine is installed. See
+  [`docs/PLUGINS.md`](docs/PLUGINS.md).
 * **Plugin Store** — browse the official Ulanzi Studio marketplace from the sidebar:
   categories (profiles, plugins, icons), search, sorting, plugin details, and one-click
   install into this app.
@@ -168,6 +171,10 @@ keeps a `.bak` and prunes unreferenced images on save.
 * **`npm run package` fails on clang/lipo** — install the Xcode Command Line Tools:
   `xcode-select --install`.
 * **Port 3906 is busy** — quit Ulanzi Studio. The plugin host retries automatically.
+* **A Stream Deck plugin does nothing** — check its badge in **Installed → Plugins**:
+  “Not supported” means no macOS code path (or no Wine for a Windows-only plugin).
+  Native plugin binaries may also need to be allowed in System Settings → Privacy &
+  Security if macOS blocks them.
 
 ## Project layout
 
@@ -182,6 +189,7 @@ app/                 Electron GUI (the app)
   lib/actions.js     open/hotkey/command execution
   lib/sysstats.js    CPU / RAM / GPU sampling for the wide key
   lib/plugins.js     Ulanzi plugin host (spawn, WebSocket, images)
+  lib/streamdeck-plugins.js  Stream Deck SDK / OpenAction plugin host
   renderer/          UI (HTML/CSS/JS, canvas key rendering)
   scripts/           build, package and install helpers
 ulanzi_deck/         small Python library and protocol prototype

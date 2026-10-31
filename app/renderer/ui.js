@@ -464,6 +464,7 @@ function syncPlugins() {
       if (!key.action.actionid) key.action.actionid = uuid();
       wanted.push({
         actionid: key.action.actionid,
+        sdk: key.action.sdk || state.plugins.find((p) => p.uuid === key.action.plugin)?.sdk || 'ulanzi',
         plugin: key.action.plugin,
         action: key.action.action,
         key: keyIndexToSlot(Number(index)),
@@ -481,6 +482,7 @@ function syncPlugins() {
     if (!key.action.actionid) key.action.actionid = uuid();
     wanted.push({
       actionid: key.action.actionid,
+      sdk: key.action.sdk || state.plugins.find((p) => p.uuid === key.action.plugin)?.sdk || 'ulanzi',
       plugin: key.action.plugin,
       action: key.action.action,
       key: keyIndexToSlot(Number(index)),

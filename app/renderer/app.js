@@ -231,8 +231,11 @@ function backgroundFor(page) {
   return profile?.background || null;
 }
 
-// Live images pushed by plugins, keyed by actionid.
+// Live images pushed by plugins, keyed by actionid. Stream Deck plugins can
+// push one image per state.
 const pluginImages = new Map();
+const pluginStateImages = new Map();
+const pluginStateTitles = new Map();
 
 function effectiveKey(key) {
   if (!key) return key;
@@ -248,7 +251,23 @@ function effectiveKey(key) {
     };
   }
   const id = out.action?.type === 'plugin' ? out.action.actionid : null;
-  if (id && pluginImages.has(id)) return { ...out, icon: pluginImages.get(id), emoji: '' };
+  if (id) {
+    const stateIndex = Math.max(0, Number(out.stateIndex) || 0);
+    let next = out;
+    let touched = false;
+    if (pluginStateImages.has(`${id}:${stateIndex}`)) {
+      next = { ...next, icon: pluginStateImages.get(`${id}:${stateIndex}`), emoji: '' };
+      touched = true;
+    } else if (pluginImages.has(id)) {
+      next = { ...next, icon: pluginImages.get(id), emoji: '' };
+      touched = true;
+    }
+    if (pluginStateTitles.has(`${id}:${stateIndex}`)) {
+      next = { ...next, label: pluginStateTitles.get(`${id}:${stateIndex}`) };
+      touched = true;
+    }
+    if (touched) return next;
+  }
   return out;
 }
 
@@ -1040,6 +1059,7 @@ function bind() {
   });
 
   $('#plugin-open-folder').addEventListener('click', () => api.openPluginsFolder());
+  $('#plugin-open-sd-folder')?.addEventListener('click', () => api.openSdPluginsFolder());
 
   $('#add-page').addEventListener('click', addPage);
   $('#page-back').addEventListener('click', () => {
@@ -1313,8 +1333,15 @@ function bind() {
 
   api.onPluginStateIndex(({ actionid, state: index }) => bumpKeyState(actionid, index));
 
-  api.onPluginState(({ actionid, image }) => {
-    if (image) pluginImages.set(actionid, image);
+  api.onPluginState(({ actionid, image, state }) => {
+    if (Number.isInteger(state) && state >= 0) {
+      if (image) pluginStateImages.set(`${actionid}:${state}`, image);
+      else pluginStateImages.delete(`${actionid}:${state}`);
+    } else if (image) {
+      pluginImages.set(actionid, image);
+    } else {
+      pluginImages.delete(actionid);
+    }
     const loc = findPluginAction(actionid);
     if (pluginLocVisible(loc)) {
       drawIndex(loc.index);
@@ -1330,13 +1357,19 @@ function bind() {
     }
   });
 
-  api.onPluginTitle(({ actionid, text }) => {
+  api.onPluginTitle(({ actionid, text, state }) => {
     const loc = findPluginAction(actionid);
-    if (loc && text) {
-      loc.key.label = text;
-      if (pluginLocVisible(loc)) drawIndex(loc.index);
-      scheduleSave();
+    if (!loc) return;
+    if (Number.isInteger(state) && state >= 0) {
+      if (text) pluginStateTitles.set(`${actionid}:${state}`, String(text));
+      else pluginStateTitles.delete(`${actionid}:${state}`);
+      const index = Math.max(0, Number(loc.key.stateIndex) || 0);
+      if (state === index) loc.key.label = String(text ?? '');
+    } else {
+      loc.key.label = String(text ?? '');
     }
+    if (pluginLocVisible(loc)) drawIndex(loc.index);
+    scheduleSave();
   });
 
   api.onPluginToast((message) => {
@@ -1345,6 +1378,12 @@ function bind() {
 
   api.onPluginError((message) => toast(message, true));
   api.onPluginAlert(() => toast('Plugin error', true));
+  api.onPluginOk(() => toast('Plugin confirmed the action'));
+  api.onPluginSwitchProfile(({ profile }) => {
+    const target = (state.config.profiles || []).find((p) => p.id === profile || p.name === profile);
+    if (target) switchProfile(target.id);
+    else toast(`Plugin asked for profile “${profile}”`, true);
+  });
 
   api.onPluginsChanged(() => {
     refreshPlugins().catch((err) => toast(err.message || String(err), true));
