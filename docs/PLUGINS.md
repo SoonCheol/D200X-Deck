@@ -54,13 +54,14 @@ macOS may also ask you to allow a downloaded binary in Privacy & Security.
 
 ## Stream Deck Store
 
-**Installed → Plugins → Stream Deck Store** lists public plugin catalogues:
+**Store → Stream Deck Plugins** lists public plugin catalogues:
 
 * the **OpenAction** catalogue (`openactionapi.github.io`) with GitHub release downloads;
 * the **Elgato archive** (`plugins.amankhanna.me`), a community mirror of Elgato
   marketplace packages.
 
-Search by name, author or ID and click **Install**. Installed plugins are compared by
+The Store tabs are **Ulanzi Plugins**, **Ulanzi Icons** and **Stream Deck
+Plugins**. Search by name, author or ID and click **Install**. Installed plugins are compared by
 version; **Update** replaces the app-owned copy. OpenAction packages are resolved from
 the repository’s latest GitHub release, so no account is required. These are
 third-party/community indexes, not the official Elgato store.

@@ -30,14 +30,7 @@ function renderIconPacks() {
       </div>`;
     $('#icons-empty-store')?.addEventListener('click', () => {
       closeIconLibrary();
-      openStoreModal().then(() => {
-        const icons = storeState.categories.find((c) => /icons?/i.test(c.name));
-        if (icons) {
-          storeState.cateId = icons.id;
-          renderStoreCategories();
-          loadStoreItems(true);
-        }
-      });
+      openStoreModal('ulanzi-icons');
     });
     return;
   }
@@ -134,17 +127,58 @@ const storeState = {
   total: 0,
   loading: false,
   detail: null,
+  source: 'ulanzi-plugins',
 };
 
-async function openStoreModal() {
+function storeCategoryFor(source) {
+  const pattern = source === 'ulanzi-icons' ? /^icons?$/i : /^plugins?$/i;
+  return storeState.categories.find((c) => pattern.test(c.name) || (source === 'ulanzi-icons' ? c.name === '图标' : c.name === '插件'));
+}
+
+function renderStoreSourceTabs() {
+  document.querySelectorAll('[data-store-source]').forEach((btn) => {
+    btn.classList.toggle('active', btn.dataset.storeSource === storeState.source);
+  });
+}
+
+async function selectStoreSource(source) {
+  storeState.source = source;
+  renderStoreSourceTabs();
+  $('#store-detail').classList.add('hidden');
+  document.querySelector('.store-card')?.classList.remove('detail-mode');
+  if (source === 'sd-plugins') {
+    $('#store-signin').classList.add('hidden');
+    $('#store-browse').classList.add('hidden');
+    $('#store-sd').classList.remove('hidden');
+    $('#store-sub').textContent = 'Stream Deck / OpenAction plugins from public catalogues.';
+    $('#store-user').classList.add('hidden');
+    $('#store-logout').classList.add('hidden');
+    await loadSdStore();
+    return;
+  }
+  $('#store-sd').classList.add('hidden');
+  $('#store-browse').classList.remove('hidden');
+  $('#store-signin').classList.add('hidden');
+  const category = storeCategoryFor(source);
+  if (category) storeState.cateId = category.id;
+  storeState.search = '';
+  const search = $('#store-search');
+  if (search) search.value = '';
+  $('#store-user').classList.toggle('hidden', !storeState.session.signedIn);
+  $('#store-user').textContent = storeState.session.user || '';
+  $('#store-logout').classList.toggle('hidden', !storeState.session.signedIn);
+  $('#store-sub').textContent = source === 'ulanzi-icons' ? 'Ulanzi marketplace · Icons' : 'Ulanzi marketplace · Plugins';
+  await loadStoreItems(true);
+}
+
+async function openStoreModal(source = 'ulanzi-plugins') {
   $('#store-modal').classList.remove('hidden');
   window.focusModal?.('store-modal');
   $('#store-detail').classList.add('hidden');
   const session = await api.storeSession();
   storeState.session = session;
-  renderStoreChrome();
   await loadStoreCategories();
-  await loadStoreItems(true);
+  await selectStoreSource(source);
 }
 
 function closeStoreModal() {
@@ -153,12 +187,18 @@ function closeStoreModal() {
 }
 
 function renderStoreChrome(requireSignIn = false) {
+  if (storeState.source === 'sd-plugins') {
+    $('#store-signin').classList.add('hidden');
+    $('#store-browse').classList.add('hidden');
+    $('#store-sd').classList.remove('hidden');
+    return;
+  }
   $('#store-signin').classList.toggle('hidden', !requireSignIn);
   $('#store-browse').classList.toggle('hidden', requireSignIn);
+  $('#store-sd').classList.add('hidden');
   $('#store-user').classList.toggle('hidden', !storeState.session.signedIn);
   $('#store-user').textContent = storeState.session.user || '';
   $('#store-logout').classList.toggle('hidden', !storeState.session.signedIn);
-  $('#store-sub').textContent = 'Official Ulanzi Studio plugin market — browse and install plugins.';
 }
 
 async function loadStoreCategories() {
@@ -170,12 +210,7 @@ async function loadStoreCategories() {
   // Profiles are listed by the store but cannot be installed yet — keep the
   // marketplace focused on things this app can actually use.
   storeState.categories = (res.categories || []).filter((c) => !/^profiles?$/i.test(c.name));
-  if (!storeState.cateId) {
-    const plugins = storeState.categories.find(
-      (c) => /^plugins?$/i.test(c.name) || c.name === '插件'
-    );
-    if (plugins) storeState.cateId = plugins.id;
-  }
+  $('#store-cats').classList.add('hidden');
   renderStoreCategories();
 }
 
@@ -264,7 +299,7 @@ function renderStoreGrid() {
   const searchEl = $('#store-search');
   if (searchEl) searchEl.placeholder = `Search ${kind}…`;
   const sub = $('#store-sub');
-  if (sub) sub.textContent = cat ? `Ulanzi marketplace · ${cat.name}` : 'Official Ulanzi Studio plugin market — browse and install plugins.';
+  if (sub) sub.textContent = cat ? `Ulanzi marketplace · ${cat.name}` : 'Ulanzi marketplace';
   $('#store-more').classList.toggle('hidden', storeState.items.length >= storeState.total);
 }
 

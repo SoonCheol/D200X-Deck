@@ -944,7 +944,7 @@ function bind() {
   $('#import-mode').addEventListener('change', () => resetImportState());
 
   $('#plugins-btn').addEventListener('click', openPluginModal);
-  $('#store-btn').addEventListener('click', openStoreModal);
+  $('#store-btn').addEventListener('click', () => openStoreModal());
   $('#store-modal-close').addEventListener('click', closeStoreModal);
   $('#store-modal').addEventListener('click', (e) => {
     if (e.target === $('#store-modal')) closeStoreModal();
@@ -1017,7 +1017,9 @@ function bind() {
   $('#plugin-modal-close').addEventListener('click', closePluginModal);
   $('#tab-plugins-btn').addEventListener('click', () => switchInstalledTab('plugins'));
   $('#tab-icons-btn').addEventListener('click', () => switchInstalledTab('icons'));
-  $('#tab-sdstore-btn').addEventListener('click', () => switchInstalledTab('sdstore'));
+  document.querySelectorAll('[data-store-source]').forEach((button) => {
+    button.addEventListener('click', () => selectStoreSource(button.dataset.storeSource));
+  });
   $('#sdstore-search').addEventListener('input', (e) => {
     sdStore.query = e.target.value;
     renderSdStoreList();
@@ -1025,7 +1027,7 @@ function bind() {
   $('#sdstore-refresh').addEventListener('click', () => loadSdStore(true));
   $('#icons-open-store').addEventListener('click', () => {
     closePluginModal();
-    openStoreModal();
+    openStoreModal('ulanzi-icons');
   });
   $('#icons-open-folder').addEventListener('click', () => api.openIconsFolder());
   $('#plugin-modal').addEventListener('click', (e) => {

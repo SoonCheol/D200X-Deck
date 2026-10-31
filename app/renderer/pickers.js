@@ -143,15 +143,11 @@ async function refreshPlugins() {
 
 function switchInstalledTab(tab) {
   const isIcons = tab === 'icons';
-  const isSd = tab === 'sdstore';
-  $('#tab-plugins').classList.toggle('hidden', isIcons || isSd);
+  $('#tab-plugins').classList.toggle('hidden', isIcons);
   $('#tab-icons').classList.toggle('hidden', !isIcons);
-  $('#tab-sdstore').classList.toggle('hidden', !isSd);
-  $('#tab-plugins-btn').classList.toggle('active', !isIcons && !isSd);
+  $('#tab-plugins-btn').classList.toggle('active', !isIcons);
   $('#tab-icons-btn').classList.toggle('active', isIcons);
-  $('#tab-sdstore-btn').classList.toggle('active', isSd);
   if (isIcons) renderInstalledIcons();
-  if (isSd) loadSdStore();
 }
 
 const sdStore = { items: [], loading: false, query: '', updates: {} };

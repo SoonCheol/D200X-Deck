@@ -312,14 +312,20 @@
       <div class="modal-card store-card">
         <div class="modal-head">
           <div>
-            <h2 id="store-title">Plugin Store</h2>
-            <p id="store-sub">Official Ulanzi Studio plugin market.</p>
+            <h2 id="store-title">Store</h2>
+            <p id="store-sub">Ulanzi plugins and icons, plus Stream Deck / OpenAction plugins.</p>
           </div>
           <div class="store-head-actions">
             <span id="store-user" class="badge-tag hidden"></span>
             <button id="store-logout" class="btn ghost hidden">Sign out</button>
             <button id="store-modal-close" class="icon-btn" title="Close">×</button>
           </div>
+        </div>
+
+        <div class="tabs store-source-tabs" role="tablist" aria-label="Store source">
+          <button class="tab active" data-store-source="ulanzi-plugins">Ulanzi Plugins</button>
+          <button class="tab" data-store-source="ulanzi-icons">Ulanzi Icons</button>
+          <button class="tab" data-store-source="sd-plugins">Stream Deck Plugins</button>
         </div>
 
         <div id="store-signin" class="store-signin hidden">
@@ -352,6 +358,14 @@
           </div>
         </div>
 
+        <div id="store-sd" class="hidden">
+          <div class="modal-actions">
+            <input class="input sdstore-search" id="sdstore-search" placeholder="Search Stream Deck / OpenAction plugins…" spellcheck="false" />
+            <button class="btn ghost" id="sdstore-refresh">Refresh</button>
+          </div>
+          <div id="sdstore-list" class="plugin-list"></div>
+        </div>
+
         <div id="store-detail" class="store-detail hidden"></div>
       </div>
     </div>
@@ -369,7 +383,6 @@
         <div class="tabs">
           <button class="tab active" id="tab-plugins-btn">Plugins</button>
           <button class="tab" id="tab-icons-btn">Icons</button>
-          <button class="tab" id="tab-sdstore-btn">Stream Deck Store</button>
         </div>
 
         <div id="tab-plugins">
@@ -391,13 +404,6 @@
           <div id="icon-packs-list" class="plugin-list"></div>
         </div>
 
-        <div id="tab-sdstore" class="hidden">
-          <div class="modal-actions">
-            <input class="input sdstore-search" id="sdstore-search" placeholder="Search Stream Deck / OpenAction plugins…" spellcheck="false" />
-            <button class="btn ghost" id="sdstore-refresh">Refresh</button>
-          </div>
-          <div id="sdstore-list" class="plugin-list"></div>
-        </div>
       </div>
     </div>
 
