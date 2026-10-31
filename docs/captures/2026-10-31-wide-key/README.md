@@ -73,6 +73,6 @@ watcher only covers ZIP-based sends.
 
 ## Artifacts
 
-* `proto13-*.json` — the incremental manifests (image names are content hashes;
-  the images themselves are not committed).
+* Incremental manifests were observed during capture; the vendor-generated files are
+  not committed. The notes above are the interoperability summary.
 * `app/scripts/watch-temp-zips.js` — the capture watcher.
