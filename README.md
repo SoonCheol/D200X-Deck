@@ -24,6 +24,7 @@ _The editor, the plugin manager and the store all run against the deck live._
   page, **or run an existing Node.js Ulanzi plugin action**.
 * **Pinned keys** — pin an action to every page, with per-page overrides.
 * **Backup & share** — export a profile to one `.ulanzideckprofile` file and import it back.
+* **Launch at login** — start in the menu bar; subpages can auto-return to their parent after an idle timeout.
 * **POP menus** — import and use POP keys: press one to get a compact action palette at the pointer.
 * **Device control** — brightness (0–100 %), screen sleep timeout, clock sync, a standby
   clock/wallpaper screen, an optional lock-screen image/clock, and Timer / key-brightness actions.

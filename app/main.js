@@ -33,6 +33,8 @@ let popWindow = null;
 // A second launch would fight over the HID device and the plugin port. Dev and
 // screenshot runs set ULANZI_CONFIG_DIR, so they are allowed to coexist.
 const devRun = Boolean(process.env.ULANZI_SHOT || process.env.ULANZI_CONFIG_DIR);
+// Started by the login item: stay in the menu bar instead of opening the editor.
+const launchHidden = app.isPackaged && !devRun && app.getLoginItemSettings().wasOpenedAsHidden;
 if (!devRun && !app.requestSingleInstanceLock()) {
   app.quit();
 }
@@ -66,6 +68,7 @@ function createWindow() {
     titleBarStyle: process.platform === 'darwin' ? 'hiddenInset' : 'default',
     trafficLightPosition: { x: 16, y: 18 },
     acceptFirstMouse: true,
+    show: !launchHidden,
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       backgroundThrottling: false,
@@ -535,6 +538,16 @@ app.whenReady().then(() => {
 
   store = new Store(process.env.ULANZI_CONFIG_DIR || app.getPath('userData'));
   store.load();
+  if (app.isPackaged && !devRun) {
+    try {
+      app.setLoginItemSettings({
+        openAtLogin: store.config.settings.launchAtLogin === true,
+        openAsHidden: true,
+      });
+    } catch {
+      /* launch items can be unavailable in some environments */
+    }
+  }
   market = new Market({
     dir: process.env.ULANZI_CONFIG_DIR || app.getPath('userData'),
     language: 'en',
@@ -1113,6 +1126,18 @@ function frontmostApp() {
     return null;
   }
 }
+
+ipcMain.handle('app:login-item', (event, enabled) => {
+  if (!trustedSender(event)) return { ok: false, error: 'untrusted sender' };
+  try {
+    if (!devRun) {
+      app.setLoginItemSettings({ openAtLogin: enabled === true, openAsHidden: true });
+    }
+    return { ok: true };
+  } catch (err) {
+    return { ok: false, error: err.message || String(err) };
+  }
+});
 
 ipcMain.handle('profile:export', async (event, payload) => {
   if (!trustedSender(event)) return { ok: false, error: 'untrusted sender' };

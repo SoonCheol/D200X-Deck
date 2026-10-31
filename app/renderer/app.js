@@ -656,6 +656,8 @@ function updateDeckSettingsMeta() {
   if (standbyInput) standbyInput.value = String(state.config.settings.standbySeconds || 0);
   const standbyState = $('#standby-image-state');
   if (standbyState) standbyState.textContent = state.config.settings.standbyImage ? 'Custom image' : 'None';
+  const launch = $('#launch-login');
+  if (launch) launch.checked = state.config.settings.launchAtLogin === true;
   const lockToggle = $('#lock-screen');
   if (lockToggle) lockToggle.checked = state.config.settings.lockScreen === true;
   const lockState = $('#lock-image-state');
@@ -780,6 +782,7 @@ function scheduleStandby() {
 function noteActivity() {
   if (standby.active) return;
   scheduleStandby();
+  scheduleAutoExit();
 }
 
 async function pushStandbyFrame() {
@@ -1072,6 +1075,13 @@ function bind() {
     toast(res.ok ? `Sleep set to ${seconds}s` : res.error, !res.ok);
   });
 
+  $('#launch-login').addEventListener('change', async () => {
+    const enabled = $('#launch-login').checked;
+    state.config.settings.launchAtLogin = enabled;
+    scheduleSave();
+    const res = await api.setLoginItem(enabled);
+    toast(res.ok ? (enabled ? 'Launch at login on' : 'Launch at login off') : res.error || 'Could not change login item', !res.ok);
+  });
   $('#lock-screen').addEventListener('change', async () => {
     state.config.settings.lockScreen = $('#lock-screen').checked;
     scheduleSave();

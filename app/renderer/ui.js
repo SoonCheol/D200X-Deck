@@ -2,12 +2,31 @@
 
 // --------------------------------------------------------------- rendering
 
+let autoExitTimer = null;
+
+/** Return a subpage to its parent after its configured idle time. */
+function scheduleAutoExit(page = activePage()) {
+  clearTimeout(autoExitTimer);
+  autoExitTimer = null;
+  if (!page || !page.parentId) return;
+  const seconds = Math.max(0, Number(page.autoExitSeconds) || 0);
+  if (!seconds) return;
+  autoExitTimer = setTimeout(() => {
+    const current = activePage();
+    if (!current || current.id !== page.id || !page.parentId) return;
+    if (typeof standbyActive === 'function' && standbyActive()) return scheduleAutoExit(page);
+    if (typeof lockActive === 'function' && lockActive()) return scheduleAutoExit(page);
+    navigate(page.parentId);
+  }, seconds * 1000);
+}
+
 function renderAll() {
   renderProfileSelect();
   renderPageList();
   renderGrid();
   renderInspector();
   renderChrome();
+  scheduleAutoExit();
 }
 
 function renderChrome() {

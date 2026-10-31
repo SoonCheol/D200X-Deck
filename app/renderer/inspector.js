@@ -403,6 +403,14 @@ function renderInspector() {
           <button class="btn small" id="insp-add-back">Add Back key</button>
         </div>` : ''}
       </div>
+      ${page.parentId ? `<div class="field">
+        <label>Auto exit</label>
+        <div class="row">
+          <input class="input" id="insp-auto-exit" type="number" min="0" max="86400" step="1" value="${Number(page.autoExitSeconds) || 0}" />
+          <span class="field-hint" style="flex:0 0 auto">seconds (0 = never)</span>
+        </div>
+        <div class="field-hint">Return to “${esc(pageName(page.parentId))}” after this idle time.</div>
+      </div>` : ''}
       <div class="field">
         <label>Background</label>
         <div class="row">
@@ -451,6 +459,14 @@ function renderInspector() {
       if (e.target.value) page.parentId = e.target.value;
       else delete page.parentId;
       commit();
+    });
+    $('#insp-auto-exit')?.addEventListener('change', (event) => {
+      const seconds = Math.max(0, Math.min(86_400, Math.round(Number(event.target.value) || 0)));
+      event.target.value = String(seconds);
+      if (seconds) page.autoExitSeconds = seconds;
+      else delete page.autoExitSeconds;
+      scheduleAutoExit(page);
+      commit(false);
     });
     $('#insp-page-back')?.addEventListener('click', () => {
       if (page.parentId) navigate(page.parentId);

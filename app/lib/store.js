@@ -114,6 +114,7 @@ function validateConfig(config) {
     standbyClock: config.settings?.standbyClock !== false,
     lockScreen: config.settings?.lockScreen === true,
     lockImage: normalizeBackground(config.settings?.lockImage),
+    launchAtLogin: config.settings?.launchAtLogin === true,
   };
 
   // Profiles are a lightweight grouping: each page belongs to one profile and
@@ -157,6 +158,9 @@ function validateConfig(config) {
     };
     if (typeof page.parentId === 'string' && page.parentId) normalized.parentId = page.parentId;
     if (normalizeBackground(page.background)) normalized.background = page.background;
+    if (page.parentId && Number(page.autoExitSeconds) > 0) {
+      normalized.autoExitSeconds = Math.min(86_400, Math.max(1, Math.round(Number(page.autoExitSeconds))));
+    }
     pages.push(normalized);
   }
 

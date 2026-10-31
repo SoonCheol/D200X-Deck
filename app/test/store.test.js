@@ -62,6 +62,7 @@ test('caption fonts and lock-screen settings survive save/load', () => {
     showLabel: false,
   });
   assert.equal(loaded.settings.lockScreen, true);
+  assert.equal(loaded.settings.launchAtLogin, false);
   assert.match(loaded.settings.lockImage, /^data:image\/png/);
 });
 
@@ -69,8 +70,10 @@ test('parents stay inside the profile and cycles are dropped', () => {
   const config = createDefaultConfig();
   const [first, second] = config.pages;
   second.parentId = first.id;
+  second.autoExitSeconds = 30;
   const valid = validateConfig(config);
   assert.equal(valid.pages.find((p) => p.id === second.id).parentId, first.id);
+  assert.equal(valid.pages.find((p) => p.id === second.id).autoExitSeconds, 30);
 
   first.parentId = second.id;
   const cyclic = validateConfig(config);

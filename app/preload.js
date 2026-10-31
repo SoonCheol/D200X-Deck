@@ -24,6 +24,7 @@ contextBridge.exposeInMainWorld('deckApp', {
   listApps: () => ipcRenderer.invoke('apps:list'),
   frontmostApp: () => ipcRenderer.invoke('apps:frontmost'),
   showPop: (items) => ipcRenderer.invoke('pop:show', items),
+  setLoginItem: (enabled) => ipcRenderer.invoke('app:login-item', enabled),
   exportProfile: (payload) => ipcRenderer.invoke('profile:export', payload),
   importProfile: () => ipcRenderer.invoke('profile:import'),
   appIcon: (path) => ipcRenderer.invoke('apps:icon', path),
