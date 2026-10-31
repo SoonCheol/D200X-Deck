@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.1.1 — 2026-10-31
+
+### UI
+- Every action now uses its bundled SVG by default: added `sound.svg` and `pop.svg`, and plugin actions use `plugin.svg` instead of the 🔌 emoji.
+- Page indicator now draws its page number/dots instead of showing an imported icon or emoji; its icon/text controls are hidden in the inspector.
+- Choosing **Plugin action** starts with **Choose a plugin…** (and **Choose an action…**) instead of auto-selecting the first installed plugin, and the Settings field stays hidden until both are chosen.
+- Scrollbars in the app and inside plugin property inspectors now share one style: 12 px, a visible track, an 8 px rounded thumb and brighter hover/active states.
+- Inspector actions now sit at the top, under the panel title, with a separator before the form: **Duplicate / Pin / Clear key** for keys and **Clear page / Duplicate / New page** for page settings. No more scrolling to the bottom to reach them.
+- Pinning a key no longer deselects it: the inspector stays on that slot and switches to **Unpin**; the pinned banner sits below the buttons so they no longer move.
+
 ## 0.1.0 — 2026-10-31
 
 - DMG filename uses dashes so GitHub Releases keeps the same name as the checksum file.
@@ -52,12 +62,6 @@
 - Image cache is bounded; press timers are cleared on navigation; HID discovery cannot crash the loop.
 
 ### UI
-- Pinning a key no longer deselects it: the inspector stays on that slot and switches to **Unpin**; the pinned banner sits below the buttons so they no longer move.
-- Inspector actions now sit at the top, under the panel title, with a separator before the form: **Duplicate / Pin / Clear key** for keys and **Clear page / Duplicate / New page** for page settings. No more scrolling to the bottom to reach them.
-- Scrollbars in the app and inside plugin property inspectors now share one style: 12 px, a visible track, an 8 px rounded thumb and brighter hover/active states.
-- Every action now uses its bundled SVG by default: added `sound.svg` and `pop.svg`, and plugin actions use `plugin.svg` instead of the 🔌 emoji.
-- Page indicator now draws its page number/dots instead of showing an imported icon or emoji; its icon/text controls are hidden in the inspector.
-- Choosing **Plugin action** starts with **Choose a plugin…** (and **Choose an action…**) instead of auto-selecting the first installed plugin, and the Settings field stays hidden until both are chosen.
 - Closing the editor hides its Dock icon; the app stays in the menu bar and the icon returns when the window is reopened.
 - The deck status now sits with the right-side controls and reads **Connected / Disconnected**; the primary button is **Push to Deck**.
 - The profile row now holds **Import**, **New profile** and a properly centred **⋯ Manage** button; Import uses a clear download/import icon instead of the ambiguous `⤓` glyph.

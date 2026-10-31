@@ -66,7 +66,8 @@ replaces an existing copy in `~/Applications` and relaunches the app.
 
 It checks out the repo on a macOS runner, runs `npm ci` and `npm test`, builds the
 universal app, runs `npm run make:dmg`, writes `SHA256SUMS.txt`, uploads the DMG as a
-workflow artifact, and (for tags) attaches it to the release with a Gatekeeper warning.
+workflow artifact, and (for tags) attaches it to the release. Release notes are taken
+from the matching `CHANGELOG.md` section, followed by a Gatekeeper warning.
 
 ```bash
 git tag v0.1.0

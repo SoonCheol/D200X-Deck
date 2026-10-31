@@ -55,7 +55,20 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           TAG="${GITHUB_REF_NAME}"
-          cat > release-notes.md <<'EOF'
+          VERSION="${TAG#v}"
+          {
+            echo "## Changes"
+            echo
+            awk -v ver="$VERSION" '
+              $0 ~ "^## " ver "[[:space:]]" { found=1; next }
+              found && /^## / { exit }
+              found { print }
+            ' CHANGELOG.md
+          } > release-notes.md
+          cat >> release-notes.md <<'EOF'
+
+          ---
+
           Unsigned macOS build of Ulanzi Deck Open, produced from source by GitHub Actions.
 
           This build is **not signed or notarized**. macOS will quarantine the DMG on
