@@ -797,6 +797,7 @@ function renderInspector() {
         <div class="field">
           <label>Action</label>
           <select class="select" id="insp-plugin-action" ${plugin ? '' : 'disabled'}>
+            <option value="">Choose an action…</option>
             ${pluginActions
               .map(
                 (a) =>
@@ -896,11 +897,15 @@ function renderInspector() {
     </div>
 
     <div class="insp-section">Appearance</div>
-    <div class="face-tabs" role="tablist" aria-label="Key face">
+    ${
+      action.type === 'indicator'
+        ? '<div class="field-hint">The page indicator draws the current page number and dots. Icon/text settings are ignored.</div>'
+        : `<div class="face-tabs" role="tablist" aria-label="Key face">
       <button class="tab ${face === 'icon' ? 'active' : ''}" data-key-face="icon" role="tab" aria-selected="${face === 'icon' ? 'true' : 'false'}">Icon</button>
       <button class="tab ${face === 'text' ? 'active' : ''}" data-key-face="text" role="tab" aria-selected="${face === 'text' ? 'true' : 'false'}">Text</button>
     </div>
-    ${face === 'icon' ? iconField : textField}
+    ${face === 'icon' ? iconField : textField}`
+    }
     <div class="field">
       <label for="insp-color">Background</label>
       <div class="color-row">
@@ -1107,17 +1112,18 @@ function renderInspector() {
       key.action = { type: 'brightness', op: 'up', step: 5 };
       syncActionMeta(key);
     } else if (type === 'plugin') {
-      const p = state.plugins.find((x) => x.compatible);
-      const a = p?.actions?.[0];
+      // Start blank so the user chooses the plugin deliberately.
       key.action = {
         type: 'plugin',
-        plugin: p?.uuid || '',
-        action: a?.uuid || '',
+        plugin: '',
+        action: '',
         actionid: uuid(),
         settings: {},
       };
-      key.emoji = '🔌';
+      key.emoji = '';
       key.label = '';
+      delete key.emojiAuto;
+      delete key.labelAuto;
     } else {
       let value = '';
       if (type === 'page') {

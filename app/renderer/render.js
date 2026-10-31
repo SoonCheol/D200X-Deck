@@ -99,8 +99,11 @@ async function drawKey(canvas, key, width = KEY_SIZE, height = KEY_SIZE, autoIco
   if (canvas.height !== h) canvas.height = h;
   const ctx = canvas.getContext('2d');
   ctx.clearRect(0, 0, w, h);
-  // A key can show an image or its text, never both.
-  const showIcon = key.face !== 'text';
+  // A key can show an image or its text, never both. The page indicator is
+  // drawn dynamically (number + dots), so an imported icon/emoji must not
+  // cover it.
+  const isIndicator = key.action?.type === 'indicator';
+  const showIcon = key.face !== 'text' && !isIndicator;
   if (!showIcon) autoIcon = null;
 
   const top = shade(key.color || '#1b2130', 26);
@@ -242,7 +245,7 @@ async function drawKey(canvas, key, width = KEY_SIZE, height = KEY_SIZE, autoIco
     ctx.restore();
   }
 
-  if (main && (!key.icon || !showIcon) && !drewAutoIcon) {
+  if (main && !isIndicator && (!key.icon || !showIcon) && !drewAutoIcon) {
     ctx.save();
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';

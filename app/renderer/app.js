@@ -24,6 +24,8 @@ const ACTION_ICON_PATHS = {
   toggle: 'assets/actions/toggle.svg',
   timer: 'assets/actions/timer.svg',
   brightness: 'assets/actions/brightness.svg',
+  sound: 'assets/actions/sound.svg',
+  pop: 'assets/actions/pop.svg',
 };
 
 /** Bundled icon for an action, used when the key has no custom image/emoji. */
@@ -76,6 +78,10 @@ function normalizeActionMeta() {
   for (const keys of sources) {
     for (const key of Object.values(keys)) {
       if (!key || !key.action) continue;
+      if (key.action.type === 'plugin' && key.emoji === '🔌' && !key.emojiAuto) {
+        key.emoji = '';
+        changed = true;
+      }
       const meta = actionMeta(key.action);
       if (!meta.emoji && !meta.label) continue;
       if (meta.emoji && isAutoEmoji(key)) {
