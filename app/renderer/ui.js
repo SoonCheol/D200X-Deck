@@ -48,7 +48,7 @@ function renderChrome() {
 function renderStatus() {
   const { connected, info, message } = state.status;
   const pill = $('#status-pill');
-  pill.textContent = connected ? 'online' : 'offline';
+  pill.textContent = connected ? 'Connected' : 'Disconnected';
   pill.classList.toggle('on', connected);
   $('#device-dot').classList.toggle('on', connected);
   $('#device-led').classList.toggle('on', connected);
@@ -64,7 +64,7 @@ function renderStatus() {
   const pushBtn = $('#push-btn');
   if (pushBtn) {
     pushBtn.disabled = !connected;
-    pushBtn.textContent = connected ? 'Push to deck' : 'Deck offline';
+    pushBtn.textContent = connected ? 'Push to Deck' : 'Deck offline';
     pushBtn.title = connected ? 'Send this page to the deck' : 'Connect the deck first (or quit Ulanzi Studio)';
   }
   if (!connected) {

@@ -43,6 +43,7 @@
 - Image cache is bounded; press timers are cleared on navigation; HID discovery cannot crash the loop.
 
 ### UI
+- The deck status now sits with the right-side controls and reads **Connected / Disconnected**; the primary button is **Push to Deck**.
 - The profile row now holds **Import**, **New profile** and a properly centred **⋯ Manage** button; Import uses a clear download/import icon instead of the ambiguous `⤓` glyph.
 - The app opens wider (up to 1600 px, clamped to the screen) with the middle stage growing while the side rails keep their width.
 - Deck settings are now a 440 px tabbed sheet: **Display** (brightness, sleep, standby, lock), **Device** (auto-push, firmware, reconnect) and **App** (launch at login, Accessibility).
