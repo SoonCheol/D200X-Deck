@@ -497,14 +497,9 @@ body::before {
 .icon-drop .meta { flex: 1; }
 .icon-drop .file-name { color: var(--text); font-size: 11px; margin-bottom: 2px; }
 
-.insp-actions {
-  display: flex;
-  gap: 8px;
-  margin: 0 0 16px;
-  padding: 0 0 16px;
-  border-bottom: 1px solid var(--line);
-}
+.insp-actions { display: flex; gap: 8px; margin: 0 0 14px; }
 .insp-actions .btn { flex: 1; }
+.insp-separator { border-top: 1px solid var(--line); margin: 0 0 16px; }
 
 .settings-block { border-top: 1px solid var(--line); margin-top: 18px; padding-top: 16px; }
 .settings-block h3 { font-size: 11px; text-transform: uppercase; letter-spacing: 1.2px; color: var(--muted); margin: 0 0 12px; }

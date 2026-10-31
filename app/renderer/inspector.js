@@ -480,6 +480,7 @@ function renderInspector() {
         <button class="btn" id="insp-duplicate-page">Duplicate</button>
         <button class="btn" id="insp-add-page">New page</button>
       </div>
+      <div class="insp-separator"></div>
       <div class="field">
         <label>Page name</label>
         <input class="input" id="insp-page-name" value="${esc(page.name)}" maxlength="40" />
@@ -873,12 +874,6 @@ function renderInspector() {
       <button class="icon-btn drawer-close" id="insp-drawer-close" title="Close">×</button>
     </div>
 
-    ${
-      pinned
-        ? `<div class="pinned-banner"><span>Pinned — shown on every page</span></div>`
-        : ''
-    }
-
     <div class="insp-actions">
       <button class="btn" id="insp-duplicate">Duplicate</button>
       ${pinned
@@ -886,6 +881,14 @@ function renderInspector() {
         : '<button class="btn" id="insp-pin">Pin to all pages</button>'}
       <button class="btn danger" id="insp-clear-key">Clear key</button>
     </div>
+
+    ${
+      pinned
+        ? `<div class="pinned-banner"><span>Pinned — shown on every page</span></div>`
+        : ''
+    }
+
+    <div class="insp-separator"></div>
 
     <div class="field">
       <label>Action</label>
