@@ -4,6 +4,14 @@
 
 const DEFAULT_KEY_COLOR = '#1b2130';
 
+// Shown in the Icon tab when a key intentionally has no image.
+const NO_ICON_GLYPH = `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+  <rect x="3" y="4" width="18" height="16" rx="3" />
+  <path d="M3.5 16.5l5-5 3.5 3.5 2-2 5.5 5.5" />
+  <circle cx="15.5" cy="8.5" r="1.4" />
+  <path d="M4 4l16 16" />
+</svg>`;
+
 const ACTION_GROUPS = [
   ['Basic', ['none']],
   ['Device & pages', ['page', 'indicator', 'pop', 'multi', 'toggle', 'timer', 'brightness']],
@@ -774,15 +782,21 @@ function renderInspector() {
   const face =
     key.face === 'text' ? 'text' : key.face === 'icon' ? 'icon' : key.icon || autoIconFor(key) ? 'icon' : 'text';
   const isDefaultColor = String(key.color || DEFAULT_KEY_COLOR).toLowerCase() === DEFAULT_KEY_COLOR;
+  const autoIcon = autoIconFor(key);
+  const iconSrc = key.icon || liveKey.icon || autoIcon;
   const iconField = `
     <div class="field insp-icon-field">
       <label>Icon</label>
       <div class="icon-row">
         <div class="icon-drop compact" id="insp-icon-drop">
-          ${liveKey.icon ? `<img src="${esc(liveKey.icon)}" alt="" />` : `<div class="icon-plus">＋</div>`}
+          ${
+            iconSrc
+              ? `<img src="${esc(iconSrc)}" alt="" />`
+              : `<div class="icon-plus icon-none" title="No icon">${NO_ICON_GLYPH}</div>`
+          }
           <div class="meta">
             <div class="file-name">${
-              key.icon ? 'Custom' : liveKey.icon ? 'Live image' : autoIconFor(key) ? 'Action icon' : 'No image'
+              key.icon ? 'Custom' : liveKey.icon ? 'Live image' : autoIcon ? 'Action icon' : 'No icon'
             }</div>
             <div>Drop or click to change</div>
           </div>
@@ -790,7 +804,7 @@ function renderInspector() {
         <div class="icon-buttons">
           <button class="btn small" id="insp-icon-library">Library</button>
           ${action.type === 'app' && action.value ? '<button class="btn small" id="insp-use-app-icon">App icon</button>' : ''}
-          ${key.icon ? '<button class="btn small danger" id="insp-icon-remove">Remove</button>' : ''}
+          ${iconSrc ? '<button class="btn small danger" id="insp-icon-remove">Remove</button>' : ''}
         </div>
       </div>
     </div>`;
@@ -891,6 +905,7 @@ function renderInspector() {
       key.icon = dataUrl;
       key.iconSource = source;
       key.face = 'icon';
+      delete key.iconCleared;
       drawIndex(state.selected);
       commit();
       renderInspector();
@@ -947,6 +962,7 @@ function renderInspector() {
       key.icon = icon;
       key.iconSource = 'app';
       key.face = 'icon';
+      delete key.iconCleared;
       drawIndex(state.selected);
       commit();
       renderInspector();
@@ -959,7 +975,8 @@ function renderInspector() {
     removeImage.addEventListener('click', () => {
       key.icon = null;
       delete key.iconSource;
-      key.face = 'text';
+      key.iconCleared = true;
+      key.face = 'icon';
       drawIndex(state.selected);
       commit();
       renderInspector();
@@ -1252,7 +1269,7 @@ function renderInspector() {
   }
 
   // Fill in a real app icon for "Open app" keys that do not have one yet.
-  if (action.type === 'app' && action.value && !key.icon) {
+  if (action.type === 'app' && action.value && !key.icon && !key.iconCleared) {
     const selected = state.selected;
     const actionId = action.actionid || null;
     api.appIcon(String(action.value)).then((icon) => {

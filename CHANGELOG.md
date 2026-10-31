@@ -18,7 +18,7 @@
 
 ### Fixes
 - Key background colour has a **Reset to default** link that appears once the colour is changed.
-- The key inspector has **Icon / Text** tabs: a key shows either a custom or automatic image or its text, never both; **Remove** clears the image and returns the key to text.
+- The key inspector has **Icon / Text** tabs: a key shows either a custom or automatic image or its text, never both. **Remove** clears the icon (including the automatic app icon) and leaves the key on the Icon tab showing a “No icon” placeholder; switching to Text stays an explicit choice.
 - Hold / double press “Switch to page” now seeds a target page, so the action works right after choosing the type (older empty targets advance to the next page).
 - Every page picker (Go to page, parent, press triggers, Multi/POP step pages) is limited to the active profile, cannot form cycles, and subpages are indented with a “↳” in the sidebar.
 - Subpages are easy to leave: a back arrow in the toolbar, “Back to parent” in Page settings, and **Add Back key** for a physical page/back key.

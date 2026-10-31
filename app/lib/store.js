@@ -83,6 +83,9 @@ function normalizeKey(raw) {
   if (typeof raw.emojiAuto === 'string') key.emojiAuto = raw.emojiAuto;
   if (typeof raw.labelAuto === 'string') key.labelAuto = raw.labelAuto;
   if (raw.face === 'icon' || raw.face === 'text') key.face = raw.face;
+  // Set when the user removes an icon: keep the icon face but stop falling
+  // back to the automatic action image.
+  if (raw.iconCleared === true) key.iconCleared = true;
   if (raw.font && typeof raw.font === 'object') {
     key.font = {
       size: clamp(Math.round(Number(raw.font.size) || 17), 10, 40),

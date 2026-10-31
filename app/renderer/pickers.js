@@ -116,6 +116,8 @@ function renderAppList(query) {
           if (!icon) return;
           key.icon = icon;
           key.iconSource = 'app';
+          key.face = 'icon';
+          delete key.iconCleared;
           if (state.selected === index) drawIndex(index);
           commit();
           renderInspector();

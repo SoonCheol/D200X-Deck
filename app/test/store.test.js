@@ -66,6 +66,27 @@ test('caption fonts and lock-screen settings survive save/load', () => {
   assert.match(loaded.settings.lockImage, /^data:image\/png/);
 });
 
+test('a cleared icon keeps its face and suppresses automatic icons', () => {
+  const dir = tempDir();
+  const store = new Store(dir);
+  const config = createDefaultConfig();
+  config.pages[0].keys[0] = {
+    emoji: 'S',
+    label: '',
+    color: '#1b2130',
+    icon: null,
+    iconCleared: true,
+    face: 'icon',
+    action: { type: 'app', value: '/Applications/Safari.app' },
+  };
+  store.save(config);
+  const loaded = new Store(dir).load();
+  const key = loaded.pages[0].keys[0];
+  assert.equal(key.iconCleared, true);
+  assert.equal(key.face, 'icon');
+  assert.equal(key.icon, null);
+});
+
 test('a key keeps its icon/text face across a save', () => {
   const dir = tempDir();
   const store = new Store(dir);

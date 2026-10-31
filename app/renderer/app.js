@@ -59,7 +59,7 @@ function pageInfo() {
 }
 
 function autoIconFor(key) {
-  if (key.icon || key.face === 'text') return null;
+  if (key.icon || key.iconCleared || key.face === 'text') return null;
   return isAutoEmoji(key) ? actionIconSrc(key.action) : null;
 }
 
@@ -1367,7 +1367,16 @@ async function hydrateAppIcons() {
   let changed = false;
   for (const page of state.config.pages) {
     for (const [index, key] of Object.entries(page.keys)) {
-      if (!key || key.icon || key.face === 'text' || !key.action || key.action.type !== 'app' || !key.action.value) continue;
+      if (
+        !key ||
+        key.icon ||
+        key.iconCleared ||
+        key.face === 'text' ||
+        !key.action ||
+        key.action.type !== 'app' ||
+        !key.action.value
+      )
+        continue;
       const icon = await api.appIcon(String(key.action.value));
       if (!icon) continue;
       key.icon = icon;

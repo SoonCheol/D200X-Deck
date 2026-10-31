@@ -112,6 +112,7 @@ function setKeyIconFromLibrary(src) {
     key.icon = canvas.toDataURL('image/png');
     key.iconSource = 'library';
     key.face = 'icon';
+    delete key.iconCleared;
     drawIndex(state.selected);
     commit();
     renderInspector();

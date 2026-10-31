@@ -215,6 +215,8 @@ async function renderGrid() {
       const dataUrl = await downscaleImage(await readFileAsDataUrl(file));
       const key = ensureKey(activePage(), i);
       key.icon = dataUrl;
+      key.face = 'icon';
+      delete key.iconCleared;
       state.selected = i;
       drawIndex(i);
       commit();
@@ -383,6 +385,7 @@ async function loadSiteIcon(key, report = false) {
   key.icon = res.dataUrl;
   key.iconSource = 'site';
   key.face = 'icon';
+  delete key.iconCleared;
   drawIndex(state.selected);
   commit();
   if (report) toast('Icon loaded from the site');

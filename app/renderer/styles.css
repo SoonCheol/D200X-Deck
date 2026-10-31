@@ -1049,6 +1049,7 @@ body::before {
   background: rgba(255, 255, 255, 0.05); font-size: 18px; color: rgba(255, 255, 255, 0.5);
   flex: none;
 }
+.icon-none { color: rgba(255, 255, 255, 0.32); }
 .icon-buttons { display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
 .btn.small { padding: 6px 10px; font-size: 11px; }
 .insp-actions {
