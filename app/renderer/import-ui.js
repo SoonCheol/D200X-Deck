@@ -93,7 +93,7 @@ function renderImportPages() {
 async function runImport() {
   if (!importActive || !importSelection || !importSelection.size) return;
   const mode = $('#import-mode').value;
-  if (mode === 'replace' && !confirm('Replace all current pages with the imported ones?')) return;
+  if (mode === 'replace' && !confirm('Replace the pages in the current profile with the imported ones?')) return;
   const button = $('#import-run');
   button.disabled = true;
   button.textContent = 'Importing…';
@@ -117,9 +117,9 @@ async function runImport() {
     lists.push(`<div>Plugins not installed: ${res.missingPlugins.map(esc).join(', ')}</div>`);
   }
   if (res.warnings?.length) lists.push(`<div>${res.warnings.slice(0, 4).map(esc).join('<br/>')}</div>`);
-  report.innerHTML = `<strong>Imported ${res.importedPages} page(s), ${res.importedKeys} key(s).</strong>${
-    lists.join('') || ''
-  }`;
+  report.innerHTML = `<strong>Imported ${res.importedPages} page(s), ${res.importedKeys} key(s)${
+    res.profileName ? ` into “${esc(res.profileName)}”` : ''
+  }.</strong>${lists.join('') || ''}`;
 
   const boot = await api.getState();
   state.config = boot.config;

@@ -1010,7 +1010,7 @@ ipcMain.handle('import:preview', guarded((_evt, target) => {
 }));
 
 ipcMain.handle('import:apply', guarded((_evt, payload) => {
-  const { target, pageIds, mode } = payload || {};
+  const { target, pageIds } = payload || {};
   let cleanup = null;
   try {
     const { profiles, cleanup: temp } = readImportTarget(String(target));
@@ -1020,6 +1020,18 @@ ipcMain.handle('import:apply', guarded((_evt, payload) => {
     const wanted = new Set((pageIds || profile.pages.map((p) => p.id)).map(String));
     const incoming = profile.pages.filter((p) => wanted.has(p.id)).map((p) => JSON.parse(JSON.stringify(p)));
     if (!incoming.length) throw new Error('Select at least one page to import');
+
+    const mode = ['new', 'merge', 'replace'].includes(payload.mode) ? payload.mode : 'new';
+    if (!Array.isArray(store.config.profiles)) store.config.profiles = [];
+    const activeProfile =
+      store.config.profiles.find((p) => p.id === store.config.activeProfileId) || store.config.profiles[0];
+    if (!activeProfile) throw new Error('No profile to import into');
+
+    // Replacing a profile keeps the profile itself (and its pinned keys); only
+    // its pages are replaced. Creating a new profile leaves everything alone.
+    if (mode === 'replace') {
+      store.config.pages = store.config.pages.filter((p) => p.profileId !== activeProfile.id);
+    }
 
     const usedIds = new Set(store.config.pages.map((p) => p.id));
     const idMap = new Map();
@@ -1033,45 +1045,66 @@ ipcMain.handle('import:apply', guarded((_evt, payload) => {
       }
       usedIds.add(page.id);
     }
-    // Rewrite page links that point at re-keyed pages.
+
+    const remapAction = (action) => {
+      if (!action || typeof action !== 'object') return action;
+      if (action.type === 'page' && action.op === 'goto' && idMap.has(action.value)) {
+        action.value = idMap.get(action.value);
+      }
+      if (Array.isArray(action.steps)) {
+        for (const step of action.steps) if (step?.action) step.action = remapAction(step.action);
+      }
+      return action;
+    };
     for (const page of incoming) {
+      if (page.parentId) {
+        if (idMap.has(page.parentId)) page.parentId = idMap.get(page.parentId);
+        else delete page.parentId;
+      }
       for (const key of Object.values(page.keys || {})) {
-        if (key.action && key.action.type === 'page' && key.action.value && idMap.has(key.action.value)) {
-          key.action.value = idMap.get(key.action.value);
+        for (const field of ['action', 'holdAction', 'doubleAction']) {
+          if (key[field]) remapAction(key[field]);
         }
       }
     }
 
-    if (mode === 'replace') {
-      store.config.pages = [];
-      store.config.profiles = [];
+    let targetProfile;
+    let profileName;
+    if (mode === 'new') {
+      const takenProfiles = new Set(store.config.profiles.map((p) => String(p.name).toLowerCase()));
+      profileName = profile.name || 'Imported profile';
+      for (let i = 2; takenProfiles.has(profileName.toLowerCase()); i += 1) {
+        profileName = `${profile.name || 'Imported profile'} (${i})`;
+      }
+      targetProfile = { id: randomUUID(), name: profileName };
+      store.config.profiles.push(targetProfile);
+    } else {
+      targetProfile = activeProfile;
+      profileName = activeProfile.name;
     }
-    if (!Array.isArray(store.config.profiles)) store.config.profiles = [];
-    // Keep names unique: profiles across the config, pages within the profile.
-    const takenProfiles = new Set(store.config.profiles.map((p) => String(p.name).toLowerCase()));
-    let profileName = profile.name || 'Imported profile';
-    for (let i = 2; takenProfiles.has(profileName.toLowerCase()); i += 1) {
-      profileName = `${profile.name || 'Imported profile'} (${i})`;
-    }
-    const takenPages = new Set();
+
+    const takenPages = new Set(
+      store.config.pages.filter((p) => p.profileId === targetProfile.id).map((p) => p.name.toLowerCase())
+    );
     for (const page of incoming) {
-      let name = page.name || 'Page';
-      for (let i = 2; takenPages.has(name.toLowerCase()); i += 1) name = `${page.name} (${i})`;
+      const base = page.name || 'Page';
+      let name = base;
+      for (let i = 2; takenPages.has(name.toLowerCase()); i += 1) name = `${base} (${i})`;
       page.name = name;
+      page.profileId = targetProfile.id;
       takenPages.add(name.toLowerCase());
     }
 
-    const profileId = randomUUID();
-    store.config.profiles.push({ id: profileId, name: profileName });
-    for (const page of incoming) page.profileId = profileId;
     store.config.pages.push(...incoming);
-    store.config.activeProfileId = profileId;
+    store.config.activeProfileId = targetProfile.id;
     store.config.activePageId = incoming[0].id;
     store.save(store.config);
 
     return {
       ok: true,
-      importedProfiles: 1,
+      mode,
+      profileName,
+      importedProfiles: mode === 'new' ? 1 : 0,
       importedPages: incoming.length,
       importedKeys: incoming.reduce((sum, p) => sum + Object.keys(p.keys || {}).length, 0),
       skipped: profile.report.skipped,

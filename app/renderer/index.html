@@ -27,6 +27,7 @@
           <button id="profile-add" class="icon-btn" title="New profile">+</button>
           <button id="profile-edit" class="icon-btn" title="Manage profile" aria-label="Manage profile"><span class="dots"><i></i><i></i><i></i></span></button>
         </div>
+        <div class="sidebar-sep"></div>
 
         <div class="section-head">
           <span>Pages</span>
@@ -273,8 +274,9 @@
           <label class="settings-row import-mode-row">
             <span>Mode</span>
             <select id="import-mode" class="select">
-              <option value="merge">Add to current pages</option>
-              <option value="replace">Replace all pages</option>
+              <option value="new" selected>Create a new profile</option>
+              <option value="merge">Add pages to the current profile</option>
+              <option value="replace">Replace the current profile</option>
             </select>
           </label>
           <div id="import-report" class="import-report hidden"></div>

@@ -441,7 +441,7 @@ function parseProfile(dir) {
       }
       keys[index] = {
         emoji: '',
-        label: mapped.action.type === 'indicator' ? '' : String(view.Text || mapped.label || entry.Name || '').slice(0, 40),
+        label: mapped.action.type === 'indicator' ? '' : String(view.Text || '').slice(0, 40),
         color: '#1b2130',
         icon,
         iconSource: icon ? 'import' : '',
