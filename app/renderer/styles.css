@@ -1058,7 +1058,7 @@ body::before {
   overflow-y: auto;
   -webkit-app-region: no-drag;
   z-index: 40;
-  width: 320px;
+  width: 440px;
   padding: 14px 16px 16px;
   border-radius: 14px;
   border: 1px solid var(--line-strong);
@@ -1069,6 +1069,15 @@ body::before {
   gap: 10px;
 }
 .settings-head { display: flex; align-items: center; justify-content: space-between; }
+.settings-tabs {
+  display: flex;
+  gap: 4px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--line);
+}
+.settings-tabs .tab { flex: 1; text-align: center; }
+.settings-panel { display: flex; flex-direction: column; gap: 10px; }
+.settings-panel.hidden { display: none; }
 .settings-row { display: flex; align-items: center; gap: 10px; font-size: 12px; color: var(--muted); }
 .settings-row > span:first-child { flex: 0 0 110px; }
 .settings-row input[type="range"] { flex: 1; }
@@ -1078,6 +1087,13 @@ body::before {
 .settings-meta { font-size: 11px; color: var(--text-3); }
 .settings-note { font-size: 10.5px; line-height: 1.45; color: var(--text-3); margin: -4px 0 2px; }
 .btn.icon-text { padding: 8px 12px; }
+
+@media (max-width: 1179px) {
+  .settings-sheet {
+    right: 24px;
+    width: min(440px, calc(100vw - 48px));
+  }
+}
 
 /* Inspector becomes a drawer on narrow windows */
 @media (max-width: 1179px) {

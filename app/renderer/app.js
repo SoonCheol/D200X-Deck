@@ -643,6 +643,17 @@ function undoLastClear() {
   return true;
 }
 
+function selectSettingsTab(name) {
+  document.querySelectorAll('[data-settings-tab]').forEach((button) => {
+    const active = button.dataset.settingsTab === name;
+    button.classList.toggle('active', active);
+    button.setAttribute('aria-selected', active ? 'true' : 'false');
+  });
+  document.querySelectorAll('[data-settings-panel]').forEach((panel) => {
+    panel.classList.toggle('hidden', panel.dataset.settingsPanel !== name);
+  });
+}
+
 function updateDeckSettingsMeta() {
   const meta = $('#deck-settings-meta');
   if (!meta) return;
@@ -1039,9 +1050,13 @@ function bind() {
     const sheet = $('#deck-settings');
     const open = sheet.classList.toggle('hidden');
     if (!open) {
+      selectSettingsTab('display');
       updateDeckSettingsMeta();
       refreshAccessibility();
     }
+  });
+  document.querySelectorAll('[data-settings-tab]').forEach((button) => {
+    button.addEventListener('click', () => selectSettingsTab(button.dataset.settingsTab));
   });
   $('#deck-settings-close').addEventListener('click', () => $('#deck-settings').classList.add('hidden'));
   document.addEventListener('click', (event) => {

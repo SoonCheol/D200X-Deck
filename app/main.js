@@ -59,9 +59,12 @@ function guarded(handler) {
 
 function createWindow() {
   const [wantedW, wantedH] = String(process.env.ULANZI_SIZE || '').split('x').map(Number);
+  const area = screen.getPrimaryDisplay().workAreaSize;
+  const defaultW = Math.min(1600, Math.max(1080, area.width - 80));
+  const defaultH = Math.min(900, Math.max(700, area.height - 80));
   win = new BrowserWindow({
-    width: Number.isFinite(wantedW) && wantedW > 0 ? wantedW : 1380,
-    height: Number.isFinite(wantedH) && wantedH > 0 ? wantedH : 900,
+    width: Number.isFinite(wantedW) && wantedW > 0 ? wantedW : defaultW,
+    height: Number.isFinite(wantedH) && wantedH > 0 ? wantedH : defaultH,
     minWidth: 1080,
     minHeight: 700,
     backgroundColor: '#0b0e14',

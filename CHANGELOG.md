@@ -43,6 +43,8 @@
 - Image cache is bounded; press timers are cleared on navigation; HID discovery cannot crash the loop.
 
 ### UI
+- The app opens wider (up to 1600 px, clamped to the screen) with the middle stage growing while the side rails keep their width.
+- Deck settings are now a 440 px tabbed sheet: **Display** (brightness, sleep, standby, lock), **Device** (auto-push, firmware, reconnect) and **App** (launch at login, Accessibility).
 - Sidebar and inspector now share the same rail width (368 px, 320 px on narrower windows); the brand reads “Ulanzi Deck OPEN” on one line.
 - Responsive toolbar at the 1080 px minimum; Push never wraps; truthful offline state.
 - Accessible dialogs (roles, focus trap, Escape), visible focus rings, live toast region.

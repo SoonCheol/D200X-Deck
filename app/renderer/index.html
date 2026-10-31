@@ -80,57 +80,73 @@
             <strong>Deck settings</strong>
             <button id="deck-settings-close" class="icon-btn" title="Close">×</button>
           </div>
-          <label class="settings-row">
-            <span>Brightness</span>
-            <input id="brightness" type="range" min="0" max="100" step="1" value="85" />
-            <span id="brightness-value" class="settings-value">85</span>
-          </label>
-          <label class="settings-row">
-            <span>Auto-push changes</span>
-            <input id="autopush" type="checkbox" checked />
-          </label>
-          <label class="settings-row">
-            <span>Screen sleep</span>
-            <input id="insp-sleep" class="input settings-input" type="number" min="0" step="5" value="0" />
-            <button class="btn small" id="insp-sleep-apply">Apply</button>
-          </label>
-          <div class="settings-note">Blank the deck’s screen after this many seconds without key presses (0 = never). Any key wakes it.</div>
-          <label class="settings-row">
-            <span>Standby screen</span>
-            <input id="standby-seconds" class="input settings-input" type="number" min="0" step="5" value="0" />
-            <button class="btn small" id="standby-apply">Apply</button>
-          </label>
-          <div class="settings-note" id="standby-hint">Show a clock (and optional wallpaper) when idle. The first press only wakes the deck.</div>
-          <div class="settings-row">
-            <span>Standby image</span>
-            <span id="standby-image-state" class="settings-meta" style="flex:1">None</span>
-            <button class="btn small" id="standby-image">Choose…</button>
-            <button class="btn small ghost" id="standby-clear">Clear</button>
+
+          <div class="settings-tabs" role="tablist" aria-label="Deck settings sections">
+            <button class="tab active" data-settings-tab="display" role="tab" aria-selected="true">Display</button>
+            <button class="tab" data-settings-tab="device" role="tab" aria-selected="false">Device</button>
+            <button class="tab" data-settings-tab="app" role="tab" aria-selected="false">App</button>
           </div>
-          <label class="settings-row">
-            <span>Launch at login</span>
-            <input id="launch-login" type="checkbox" />
-            <span class="settings-meta" style="flex:1">Open in the menu bar</span>
-          </label>
-          <label class="settings-row">
-            <span>On screen lock</span>
-            <input id="lock-screen" type="checkbox" />
-            <span class="settings-meta" style="flex:1">Show screensaver</span>
-          </label>
-          <div class="settings-row">
-            <span>Lock image</span>
-            <span id="lock-image-state" class="settings-meta" style="flex:1">None</span>
-            <button class="btn small" id="lock-image">Choose…</button>
-            <button class="btn small ghost" id="lock-image-clear">Clear</button>
+
+          <div class="settings-panel" data-settings-panel="display" role="tabpanel">
+            <label class="settings-row">
+              <span>Brightness</span>
+              <input id="brightness" type="range" min="0" max="100" step="1" value="85" />
+              <span id="brightness-value" class="settings-value">85</span>
+            </label>
+            <label class="settings-row">
+              <span>Screen sleep</span>
+              <input id="insp-sleep" class="input settings-input" type="number" min="0" step="5" value="0" />
+              <button class="btn small" id="insp-sleep-apply">Apply</button>
+            </label>
+            <div class="settings-note">Blank the deck’s screen after this many seconds without key presses (0 = never). Any key wakes it.</div>
+            <label class="settings-row">
+              <span>Standby screen</span>
+              <input id="standby-seconds" class="input settings-input" type="number" min="0" step="5" value="0" />
+              <button class="btn small" id="standby-apply">Apply</button>
+            </label>
+            <div class="settings-note" id="standby-hint">Show a clock (and optional wallpaper) when idle. The first press only wakes the deck.</div>
+            <div class="settings-row">
+              <span>Standby image</span>
+              <span id="standby-image-state" class="settings-meta" style="flex:1">None</span>
+              <button class="btn small" id="standby-image">Choose…</button>
+              <button class="btn small ghost" id="standby-clear">Clear</button>
+            </div>
+            <label class="settings-row">
+              <span>On screen lock</span>
+              <input id="lock-screen" type="checkbox" />
+              <span class="settings-meta" style="flex:1">Show screensaver</span>
+            </label>
+            <div class="settings-row">
+              <span>Lock image</span>
+              <span id="lock-image-state" class="settings-meta" style="flex:1">None</span>
+              <button class="btn small" id="lock-image">Choose…</button>
+              <button class="btn small ghost" id="lock-image-clear">Clear</button>
+            </div>
+            <div class="settings-note">Shows the clock (and image) while the Mac is locked; the page returns on unlock.</div>
           </div>
-          <div class="settings-note">Shows the clock (and image) while the Mac is locked; the page returns on unlock.</div>
-          <div class="settings-meta" id="deck-settings-meta"></div>
-          <div class="settings-row">
-            <span>Accessibility</span>
-            <span id="accessibility-state" class="settings-value" style="flex:1;text-align:left">checking…</span>
-            <button class="btn small" id="accessibility-grant">Grant…</button>
+
+          <div class="settings-panel hidden" data-settings-panel="device" role="tabpanel">
+            <label class="settings-row">
+              <span>Auto-push changes</span>
+              <input id="autopush" type="checkbox" checked />
+            </label>
+            <div class="settings-meta" id="deck-settings-meta"></div>
+            <button class="btn" id="deck-settings-reconnect">Reconnect deck</button>
           </div>
-          <button class="btn" id="deck-settings-reconnect">Reconnect deck</button>
+
+          <div class="settings-panel hidden" data-settings-panel="app" role="tabpanel">
+            <label class="settings-row">
+              <span>Launch at login</span>
+              <input id="launch-login" type="checkbox" />
+              <span class="settings-meta" style="flex:1">Open in the menu bar</span>
+            </label>
+            <div class="settings-row">
+              <span>Accessibility</span>
+              <span id="accessibility-state" class="settings-value" style="flex:1;text-align:left">checking…</span>
+              <button class="btn small" id="accessibility-grant">Grant…</button>
+            </div>
+            <div class="settings-note">Accessibility is needed for hotkeys and typed text.</div>
+          </div>
         </div>
 
         <section class="stage">
