@@ -52,6 +52,22 @@ need an adapter:
 Native plugin binaries are third-party executables. Only install plugins you trust;
 macOS may also ask you to allow a downloaded binary in Privacy & Security.
 
+## Stream Deck Store
+
+**Installed → Plugins → Stream Deck Store** lists public plugin catalogues:
+
+* the **OpenAction** catalogue (`openactionapi.github.io`) with GitHub release downloads;
+* the **Elgato archive** (`plugins.amankhanna.me`), a community mirror of Elgato
+  marketplace packages.
+
+Search by name, author or ID and click **Install**. Installed plugins are compared by
+version; **Update** replaces the app-owned copy. OpenAction packages are resolved from
+the repository’s latest GitHub release, so no account is required. These are
+third-party/community indexes, not the official Elgato store.
+
+Downloads are HTTPS-only, capped at 128 MB, and ZIP paths are validated before
+extraction. Only install plugins you trust; native plugins are executables.
+
 ## Plugin settings (property inspectors)
 
 Both SDKs can ship an HTML property inspector (`PropertyInspectorPath` in the

@@ -369,6 +369,7 @@
         <div class="tabs">
           <button class="tab active" id="tab-plugins-btn">Plugins</button>
           <button class="tab" id="tab-icons-btn">Icons</button>
+          <button class="tab" id="tab-sdstore-btn">Stream Deck Store</button>
         </div>
 
         <div id="tab-plugins">
@@ -388,6 +389,14 @@
             <button class="btn ghost" id="icons-open-folder">Open icons folder</button>
           </div>
           <div id="icon-packs-list" class="plugin-list"></div>
+        </div>
+
+        <div id="tab-sdstore" class="hidden">
+          <div class="modal-actions">
+            <input class="input sdstore-search" id="sdstore-search" placeholder="Search Stream Deck / OpenAction plugins…" spellcheck="false" />
+            <button class="btn ghost" id="sdstore-refresh">Refresh</button>
+          </div>
+          <div id="sdstore-list" class="plugin-list"></div>
         </div>
       </div>
     </div>

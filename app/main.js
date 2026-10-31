@@ -12,6 +12,7 @@ const { buildPage } = require('./lib/page');
 const sysstats = require('./lib/sysstats');
 const { PluginManager, pluginRootDirs } = require('./lib/plugins');
 const { StreamDeckPlugins } = require('./lib/streamdeck-plugins');
+const { StreamDeckCatalog, download: downloadPluginPackage } = require('./lib/sdcatalog');
 const { fetchSiteIcon } = require('./lib/siteicon');
 const { appIconDataUrl, resolveAppPath } = require('./lib/appicon');
 const { Market } = require('./lib/market');
@@ -24,6 +25,7 @@ let store = null;
 let deck = null;
 let plugins = null;
 let sdPlugins = null;
+const sdCatalog = new StreamDeckCatalog();
 let market = null;
 let seizeProc = null;
 let seizeWarned = false;
@@ -1142,6 +1144,33 @@ ipcMain.handle('store:install', async (_evt, id) => {
     const out = plugins.install(temp);
     send('plugins:changed');
     return { ok: true, ...out, list: allPluginList() };
+  } catch (err) {
+    return { ok: false, error: err.message || String(err) };
+  } finally {
+    try { fs.rmSync(temp, { force: true }); } catch { /* ignore */ }
+  }
+});
+
+ipcMain.handle('sdstore:list', (event) => {
+  if (!trustedSender(event)) return [];
+  return sdCatalog.list();
+});
+
+ipcMain.handle('sdstore:updates', (event, installed) => {
+  if (!trustedSender(event)) return {};
+  return sdCatalog.updates(installed || []);
+});
+
+ipcMain.handle('sdstore:install', async (event, id) => {
+  if (!trustedSender(event)) return { ok: false, error: 'untrusted sender' };
+  if (!sdPlugins) return { ok: false, error: 'Plugin host is not ready' };
+  const temp = path.join(os.tmpdir(), `ulanzi-sdstore-${Date.now()}.zip`);
+  try {
+    const resolved = await sdCatalog.resolve(String(id));
+    await downloadPluginPackage(resolved.url, temp);
+    const out = sdPlugins.install(temp);
+    send('plugins:changed');
+    return { ok: true, ...out, version: resolved.version, list: allPluginList() };
   } catch (err) {
     return { ok: false, error: err.message || String(err) };
   } finally {

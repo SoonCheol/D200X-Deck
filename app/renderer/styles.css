@@ -617,7 +617,9 @@ body::before {
 #plugin-modal .tabs,
 #plugin-modal .modal-actions { flex: none; }
 #tab-plugins,
-#tab-icons { display: flex; flex-direction: column; flex: 1; min-height: 0; }
+#tab-icons,
+#tab-sdstore { display: flex; flex-direction: column; flex: 1; min-height: 0; }
+.sdstore-search { flex: 1; min-width: 180px; }
 
 .plugin-row {
   display: flex;

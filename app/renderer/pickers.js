@@ -143,11 +143,127 @@ async function refreshPlugins() {
 
 function switchInstalledTab(tab) {
   const isIcons = tab === 'icons';
-  $('#tab-plugins').classList.toggle('hidden', isIcons);
+  const isSd = tab === 'sdstore';
+  $('#tab-plugins').classList.toggle('hidden', isIcons || isSd);
   $('#tab-icons').classList.toggle('hidden', !isIcons);
-  $('#tab-plugins-btn').classList.toggle('active', !isIcons);
+  $('#tab-sdstore').classList.toggle('hidden', !isSd);
+  $('#tab-plugins-btn').classList.toggle('active', !isIcons && !isSd);
   $('#tab-icons-btn').classList.toggle('active', isIcons);
+  $('#tab-sdstore-btn').classList.toggle('active', isSd);
   if (isIcons) renderInstalledIcons();
+  if (isSd) loadSdStore();
+}
+
+const sdStore = { items: [], loading: false, query: '', updates: {} };
+
+function installedSdPlugins() {
+  const map = new Map();
+  for (const plugin of state.plugins || []) {
+    if (plugin.sdk !== 'streamdeck') continue;
+    map.set(String(plugin.uuid || '').replace(/\.sdPlugin$/i, ''), plugin);
+  }
+  return map;
+}
+
+async function loadSdStore(force = false) {
+  const list = $('#sdstore-list');
+  if (!list || sdStore.loading) return;
+  sdStore.loading = true;
+  if (!sdStore.items.length || force) list.innerHTML = '<div class="plugin-empty">Loading Stream Deck catalogue…</div>';
+  try {
+    if (force || !sdStore.items.length) sdStore.items = await api.sdStoreList();
+    const installed = installedSdPlugins();
+    try {
+      sdStore.updates = await api.sdStoreUpdates(
+        [...installed.values()].map((plugin) => ({ uuid: plugin.uuid, version: plugin.version }))
+      );
+    } catch {
+      sdStore.updates = {};
+    }
+  } catch (err) {
+    list.innerHTML = `<div class="store-error">${esc(err.message || String(err))}</div>`;
+    sdStore.loading = false;
+    return;
+  }
+  sdStore.loading = false;
+  renderSdStoreList();
+}
+
+function renderSdStoreList() {
+  const list = $('#sdstore-list');
+  if (!list) return;
+  const query = sdStore.query.trim().toLowerCase();
+  const installed = installedSdPlugins();
+  const items = sdStore.items.filter((item) => {
+    if (!query) return true;
+    return [item.name, item.author, item.description, item.id].some((value) =>
+      String(value || '').toLowerCase().includes(query)
+    );
+  });
+  if (!items.length) {
+    list.innerHTML = `<div class="plugin-empty">${
+      query ? `No Stream Deck plugins match “${esc(sdStore.query)}”.` : 'No Stream Deck plugins found.'
+    }</div>`;
+    return;
+  }
+  list.innerHTML = items
+    .map((item) => {
+      const plugin = installed.get(item.id);
+      const latest = sdStore.updates[item.id] || item.version || '';
+      const canUpdate = plugin && latest && latest !== plugin.version;
+      const label = !plugin ? 'Install' : canUpdate ? 'Update' : 'Installed';
+      const disabled = plugin && !canUpdate;
+      return `<div class="plugin-row">
+        ${
+          item.icon
+            ? `<img class="plugin-icon" src="${esc(item.icon)}" alt="" loading="lazy" />`
+            : '<div class="plugin-icon">🔌</div>'
+        }
+        <div class="plugin-meta">
+          <div class="plugin-name">
+            ${esc(item.name)}
+            <span class="badge-tag">${item.source === 'openaction' ? 'OpenAction' : 'Elgato archive'}</span>
+            ${latest ? `<span class="badge-tag">v${esc(latest)}</span>` : ''}
+            ${plugin ? '<span class="badge-tag good">Installed</span>' : ''}
+          </div>
+          <div class="plugin-sub">${esc(item.author || 'unknown author')}${item.description ? ` · ${esc(item.description)}` : ''}</div>
+          <div class="plugin-badges"><span class="badge-tag">${esc(item.id)}</span></div>
+        </div>
+        <div class="plugin-actions">
+          <button class="btn ${canUpdate || !plugin ? 'primary' : ''}" data-sd-install="${esc(item.id)}" ${
+            disabled ? 'disabled' : ''
+          }>${label}</button>
+        </div>
+      </div>`;
+    })
+    .join('');
+  list.querySelectorAll('img.plugin-icon').forEach((img) => {
+    img.addEventListener('error', () => {
+      const fallback = document.createElement('div');
+      fallback.className = 'plugin-icon';
+      fallback.textContent = '🔌';
+      img.replaceWith(fallback);
+    });
+  });
+  list.querySelectorAll('[data-sd-install]').forEach((button) => {
+    button.addEventListener('click', async () => {
+      const id = button.dataset.sdInstall;
+      button.disabled = true;
+      button.textContent = 'Installing…';
+      const res = await api.sdStoreInstall(id);
+      if (!res.ok) {
+        button.disabled = false;
+        button.textContent = 'Install';
+        return toast(res.error || 'Install failed', true);
+      }
+      state.plugins = res.list;
+      updatePluginCount();
+      renderPluginModal();
+      syncPlugins();
+      await loadSdStore(true);
+      toast(`Installed ${res.name || id}`);
+    });
+  });
 }
 
 async function renderInstalledIcons() {

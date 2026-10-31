@@ -1,0 +1,154 @@
+'use strict';
+
+// Catalogue metadata for Stream Deck / OpenAction plugins. This only fetches
+// public indexes and GitHub release metadata; plugin packages are downloaded
+// only when the user asks to install one.
+
+const CATALOGUE_URLS = {
+  openaction: 'https://openactionapi.github.io/plugins/catalogue.json',
+  elgato: 'https://plugins.amankhanna.me/catalogue.json',
+};
+const MAX_DOWNLOAD = 128 * 1024 * 1024;
+const UA = 'Ulanzi-Deck-Open';
+
+async function getJson(url) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 20_000);
+  try {
+    const res = await fetch(url, {
+      headers: { 'User-Agent': UA, Accept: 'application/json' },
+      signal: controller.signal,
+    });
+    if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
+    return await res.json();
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+function normalizeVersion(value) {
+  return String(value || '').trim().replace(/^v/i, '').replace(/\.0$/, '');
+}
+
+class StreamDeckCatalog {
+  constructor() {
+    this.items = null;
+    this.loadedAt = 0;
+    this.releases = new Map();
+  }
+
+  async list(force = false) {
+    if (!force && this.items && Date.now() - this.loadedAt < 10 * 60_000) return this.items;
+    const [openaction, elgato] = await Promise.allSettled([
+      getJson(CATALOGUE_URLS.openaction),
+      getJson(CATALOGUE_URLS.elgato),
+    ]);
+    const items = [];
+    if (openaction.status === 'fulfilled' && openaction.value && typeof openaction.value === 'object') {
+      for (const [id, plugin] of Object.entries(openaction.value)) {
+        items.push({
+          id,
+          name: plugin.name || id,
+          author: plugin.author || '',
+          description: plugin.description || '',
+          version: '',
+          source: 'openaction',
+          repository: plugin.repository || '',
+          download: plugin.download_url || null,
+          icon: plugin.icon || `https://openactionapi.github.io/plugins/icons/${encodeURIComponent(id)}.png`,
+        });
+      }
+    }
+    if (elgato.status === 'fulfilled' && Array.isArray(elgato.value)) {
+      for (const plugin of elgato.value) {
+        if (!plugin || !plugin.id) continue;
+        items.push({
+          id: plugin.id,
+          name: plugin.name || plugin.id,
+          author: plugin.author || '',
+          description: plugin.description || '',
+          version: plugin.version || '',
+          source: 'elgato',
+          repository: '',
+          download: `https://plugins.amankhanna.me/rezipped/${encodeURIComponent(plugin.id)}.zip`,
+          icon: `https://plugins.amankhanna.me/icons/${encodeURIComponent(plugin.id)}.png`,
+        });
+      }
+    }
+    if (!items.length) {
+      throw new Error('Could not load the Stream Deck plugin catalogue');
+    }
+    items.sort((a, b) => a.name.localeCompare(b.name));
+    this.items = items;
+    this.loadedAt = Date.now();
+    return items;
+  }
+
+  async release(entry) {
+    if (!entry.repository) throw new Error('This plugin has no repository');
+    const cached = this.releases.get(entry.id);
+    if (cached) return cached;
+    const repo = entry.repository.replace(/^https?:\/\/github\.com\//i, '').replace(/\/+$/, '');
+    const release = await getJson(`https://api.github.com/repos/${repo}/releases/latest`);
+    const asset = (release.assets || []).find((a) => /\.(zip|streamdeckplugin)$/i.test(a.name || ''));
+    if (!asset) throw new Error('This plugin has no downloadable release asset');
+    const resolved = {
+      url: asset.browser_download_url,
+      version: normalizeVersion(release.tag_name || release.name || ''),
+    };
+    this.releases.set(entry.id, resolved);
+    return resolved;
+  }
+
+  async resolve(id) {
+    const items = await this.list();
+    const entry = items.find((item) => item.id === id);
+    if (!entry) throw new Error('Plugin not found in the catalogue');
+    if (entry.download) return { entry, url: entry.download, version: entry.version || '' };
+    const release = await this.release(entry);
+    return { entry, url: release.url, version: release.version || entry.version || '' };
+  }
+
+  async updates(installed) {
+    const items = await this.list();
+    const byId = new Map(items.map((item) => [item.id, item]));
+    const updates = {};
+    for (const plugin of installed || []) {
+      const id = String(plugin.uuid || '').replace(/\.sdPlugin$/i, '');
+      const entry = byId.get(id);
+      if (!entry || !plugin.version) continue;
+      let latest = entry.version;
+      if (!latest && entry.source === 'openaction') {
+        try {
+          latest = (await this.release(entry)).version;
+        } catch {
+          continue;
+        }
+      }
+      if (latest && normalizeVersion(latest) !== normalizeVersion(plugin.version)) {
+        updates[id] = latest;
+      }
+    }
+    return updates;
+  }
+}
+
+async function download(url, dest) {
+  if (!/^https:\/\//i.test(String(url || ''))) throw new Error('Only HTTPS plugin downloads are allowed');
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 120_000);
+  try {
+    const res = await fetch(url, { headers: { 'User-Agent': UA }, redirect: 'follow', signal: controller.signal });
+    if (!res.ok) throw new Error(`Download failed: ${res.status} ${res.statusText}`);
+    const length = Number(res.headers.get('content-length')) || 0;
+    if (length > MAX_DOWNLOAD) throw new Error('Plugin package is too large');
+    const data = Buffer.from(await res.arrayBuffer());
+    if (data.length > MAX_DOWNLOAD) throw new Error('Plugin package is too large');
+    require('node:fs').writeFileSync(dest, data);
+    return dest;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+module.exports = { StreamDeckCatalog, download, normalizeVersion };

@@ -1017,6 +1017,12 @@ function bind() {
   $('#plugin-modal-close').addEventListener('click', closePluginModal);
   $('#tab-plugins-btn').addEventListener('click', () => switchInstalledTab('plugins'));
   $('#tab-icons-btn').addEventListener('click', () => switchInstalledTab('icons'));
+  $('#tab-sdstore-btn').addEventListener('click', () => switchInstalledTab('sdstore'));
+  $('#sdstore-search').addEventListener('input', (e) => {
+    sdStore.query = e.target.value;
+    renderSdStoreList();
+  });
+  $('#sdstore-refresh').addEventListener('click', () => loadSdStore(true));
   $('#icons-open-store').addEventListener('click', () => {
     closePluginModal();
     openStoreModal();
