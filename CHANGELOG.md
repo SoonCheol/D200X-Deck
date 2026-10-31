@@ -52,6 +52,7 @@
 - Image cache is bounded; press timers are cleared on navigation; HID discovery cannot crash the loop.
 
 ### UI
+- Scrollbars in the app and inside plugin property inspectors now share one style: 12 px, a visible track, an 8 px rounded thumb and brighter hover/active states.
 - Every action now uses its bundled SVG by default: added `sound.svg` and `pop.svg`, and plugin actions use `plugin.svg` instead of the 🔌 emoji.
 - Page indicator now draws its page number/dots instead of showing an imported icon or emoji; its icon/text controls are hidden in the inspector.
 - Choosing **Plugin action** starts with **Choose a plugin…** (and **Choose an action…**) instead of auto-selecting the first installed plugin, and the Settings field stays hidden until both are chosen.

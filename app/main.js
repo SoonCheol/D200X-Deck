@@ -509,10 +509,20 @@ const PI_THEME = `
   input:focus, select:focus, textarea:focus { outline: none !important; border-color: #4f8cff !important; }
   label { color: #e8ecf4 !important; }
   a { color: #6ea8ff !important; }
-  ::-webkit-scrollbar { width: 8px; height: 8px; }
-  ::-webkit-scrollbar-track { background: transparent; }
-  ::-webkit-scrollbar-thumb { background: #2a3342; border-radius: 4px; }
-  ::-webkit-scrollbar-thumb:hover { background: #3a475d; }
+  ::-webkit-scrollbar { width: 12px; height: 12px; }
+  ::-webkit-scrollbar-track {
+    background: rgba(255, 255, 255, 0.035) !important;
+    border-radius: 8px !important;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.24) !important;
+    border: 2px solid transparent !important;
+    background-clip: content-box !important;
+    border-radius: 8px !important;
+  }
+  ::-webkit-scrollbar-thumb:hover { background: rgba(255, 255, 255, 0.38) !important; background-clip: content-box !important; }
+  ::-webkit-scrollbar-thumb:active { background: rgba(255, 255, 255, 0.5) !important; background-clip: content-box !important; }
+  ::-webkit-scrollbar-corner { background: transparent !important; }
 </style>
 <script>
   (function () {
