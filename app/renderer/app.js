@@ -1410,6 +1410,7 @@ async function hydrateAppIcons() {
   }
   scheduleStandby();
   startFrontmostWatch();
-  // Keep the wide-key stats preview in step with the deck.
-  setInterval(() => refreshWideStats(), 2000);
+  // Keep the wide-key panel in step with the deck: the analog second hand
+  // moves every second, and stats are sampled at the same rate.
+  setInterval(() => refreshWideStats(), 1000);
 })();

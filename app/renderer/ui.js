@@ -246,11 +246,15 @@ function wideOptions(page) {
 
 async function refreshWideStats() {
   const page = activePage();
-  if (!page || (page.wideMode || 'clock') !== 'stats') return;
-  try {
-    wideStats = await api.systemStats();
-  } catch {
-    return;
+  if (!page) return;
+  const mode = page.wideMode || 'clock';
+  if (mode === 'blank') return;
+  if (mode === 'stats') {
+    try {
+      wideStats = await api.systemStats();
+    } catch {
+      /* keep the previous sample */
+    }
   }
   const tile = $('#grid').children[WIDE_KEY_INDEX];
   if (tile) renderSystemPanel(tile.querySelector('canvas'), wideOptions(page));

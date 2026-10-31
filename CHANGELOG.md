@@ -5,7 +5,7 @@
 ### Features
 - The 2×1 wide key is now editable: **Clock**, **System stats** (live CPU / memory / GPU from this Mac) or **Background** (page image, no clock). The preview matches the panel, and the choice is sent to the deck on every push/page change.
 - Pressing the physical wide key cycles Clock → System stats → Background and the dashboard follows, so the preview always mirrors the panel the device is showing.
-- The wide-key preview is drawn like the firmware panel: analog dial on the left with the digital time (clock) or CPU/RAM/GPU readouts (stats) on the right, instead of the previous custom layout.
+- The wide-key preview matches the firmware panel: Clock is the analog dial (live second hand) with the digital time on the right; System stats is three centred CPU / RAM / GPU columns; Background is the empty page image.
 - Pinned keys can always be removed: Page settings lists every pinned slot with an **Unpin** button, even when a page key overrides it.
 - POP keys (`com.ulanzi.deck.popkey.pop`) import as **POP menus** and open a small action palette at the pointer; child actions are editable in the inspector.
 - Profiles can be created, renamed and deleted in-app (unique names); pages are unique per profile.

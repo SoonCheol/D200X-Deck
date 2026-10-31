@@ -437,26 +437,22 @@ async function drawSystemPanel(canvas, options = {}) {
   if (mode === 'stats') {
     const stats = options.stats || {};
     const value = (n) => Math.max(0, Math.min(100, Math.round(Number(n) || 0)));
-    drawAnalogClock(ctx, clockX, h / 2, clockR, now);
-
-    const rows = [
+    const columns = [
       ['CPU', value(stats.cpu)],
       ['RAM', value(stats.mem)],
       ['GPU', value(stats.gpu)],
     ];
-    const left = w * 0.51;
-    const right = w * 0.93;
-    rows.forEach(([label, pct], i) => {
-      const y = h * (0.28 + i * 0.22);
-      ctx.textAlign = 'left';
+    const columnW = w / columns.length;
+    columns.forEach(([label, pct], i) => {
+      const cx = columnW * (i + 0.5);
+      ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
+      ctx.fillStyle = 'rgba(255,255,255,0.96)';
+      ctx.font = '600 34px -apple-system, "SF Pro Display", "Helvetica Neue", sans-serif';
+      ctx.fillText(`${pct}%`, cx, h * 0.44);
       ctx.fillStyle = 'rgba(255,255,255,0.5)';
       ctx.font = '600 10px -apple-system, "SF Pro Text", sans-serif';
-      ctx.fillText(label, left, y);
-      ctx.textAlign = 'right';
-      ctx.fillStyle = 'rgba(255,255,255,0.95)';
-      ctx.font = '600 19px -apple-system, "SF Pro Text", sans-serif';
-      ctx.fillText(`${pct}%`, right, y);
+      ctx.fillText(label, cx, h * 0.67);
     });
   } else if (mode === 'clock') {
     drawAnalogClock(ctx, clockX, h / 2, clockR, now);
