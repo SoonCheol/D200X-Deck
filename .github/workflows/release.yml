@@ -1,0 +1,78 @@
+name: Unsigned DMG
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: unsigned-dmg-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: macos-14
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: app
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: app/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Test
+        run: npm test
+
+      - name: Package universal app
+        run: npm run package:all
+
+      - name: Build DMG
+        run: npm run make:dmg
+
+      - name: Checksums
+        run: shasum -a 256 dist/*.dmg > dist/SHA256SUMS.txt && cat dist/SHA256SUMS.txt
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: unsigned-dmg
+          path: |
+            app/dist/*.dmg
+            app/dist/SHA256SUMS.txt
+          if-no-files-found: error
+
+      - name: Publish GitHub release
+        if: startsWith(github.ref, 'refs/tags/')
+        working-directory: .
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          TAG="${GITHUB_REF_NAME}"
+          cat > release-notes.md <<'EOF'
+          Unsigned macOS build of Ulanzi Deck Open, produced from source by GitHub Actions.
+
+          This build is **not signed or notarized**. macOS will quarantine the DMG on
+          download; after dragging the app to Applications, either right-click it and
+          choose Open, or run:
+
+              xattr -dr com.apple.quarantine "/Applications/Ulanzi Deck Open.app"
+
+          See the README for build-from-source instructions and first-run permissions.
+          EOF
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release upload "$TAG" app/dist/*.dmg app/dist/SHA256SUMS.txt --clobber
+          else
+            gh release create "$TAG" app/dist/*.dmg app/dist/SHA256SUMS.txt \
+              --title "Ulanzi Deck Open $TAG" --notes-file release-notes.md
+          fi

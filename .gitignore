@@ -5,3 +5,17 @@ __pycache__/
 app/node_modules/
 app/dist/
 app/build/icon.iconset/
+
+# local secrets and credentials
+.env
+.env.*
+*.pem
+*.key
+*.p12
+*.mobileprovision
+.npmrc
+
+# build/install artifacts
+*.log
+*.dmg
+app/build/helpers/

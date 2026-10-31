@@ -7,6 +7,7 @@ name = "ulanzi-deck-open"
 version = "0.0.1"
 description = "Open-source control for Ulanzi D200 decks"
 requires-python = ">=3.10"
+license = { text = "MIT" }
 dependencies = []
 
 [project.optional-dependencies]

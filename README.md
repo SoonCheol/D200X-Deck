@@ -55,8 +55,8 @@ _The editor, the plugin manager and the store all run against the deck live._
   numpad) plus physical key capture.
 * **Drag to rearrange** — drag a key onto another to swap them.
 * **Keyboard shortcuts** — ⌘C/⌘V copy & paste keys, Delete/Backspace clears, ⌘Z undoes.
-* **Lives in the menu bar** — closing the window hides it; Cmd+Q asks for confirmation
-  before quitting.
+* **Lives in the menu bar** — closing the window hides it and removes its Dock icon;
+  the icon returns while the editor is open. Cmd+Q asks for confirmation before quitting.
 * **Packaged macOS app** — build an unsigned `.app` or `.dmg` locally with the commands
   below. No Apple Developer account is needed.
 
@@ -124,7 +124,9 @@ so the recipient must do the Gatekeeper step below.
 
 ### If you received a prebuilt unsigned build
 
-macOS quarantines apps downloaded from a browser or GitHub Releases. Either:
+Tagged releases (`v*`) are built by `.github/workflows/release.yml` from source and
+attached to the GitHub Release as a universal DMG plus `SHA256SUMS.txt`. They are
+unsigned. macOS quarantines apps downloaded from a browser or GitHub Releases. Either:
 
 * right-click the app in Finder → **Open** → **Open** again, or
 * remove the quarantine flag once:
@@ -215,14 +217,17 @@ Pages are a ZIP with `manifest.json` (`"column_row"` → `Icon` / `Text` / `Font
 * `ULANZI_SHOT=/tmp/ui.png` renders the window to a PNG and exits (useful for CI
   screenshots). `ULANZI_CLICK=5` selects a key first; `ULANZI_KEY=7` simulates a
   device key press; `ULANZI_CONFIG_DIR` uses a throwaway config so dev and packaged
-  apps can run side by side.
+  apps can run side by side; `ULANZI_NO_DECK=1` skips the HID connection (useful for
+  screenshots and UI work without hardware).
 * Run the tests with `npm test` (Node's built-in test runner).
 * The Python prototype remains for protocol experiments:
   `python3 -m venv .venv && .venv/bin/pip install pillow && .venv/bin/python examples/hello.py`.
 
 ## Legal
 
-Independent interoperability project. No Ulanzi code or assets are included.
-Protocol facts were obtained by observing USB traffic on hardware we own.
+Independent interoperability project. It is **not affiliated with or endorsed by
+Ulanzi**. No Ulanzi code, firmware or binary assets are included. Protocol facts were
+obtained by observing USB traffic on hardware we own.
 
-MIT licensed.
+MIT licensed. The MIT licence covers this project's code and original assets; third-party
+names and trademarks remain the property of their owners.

@@ -1,7 +1,5 @@
 # Plugin host
 
-![Plugin manager](screenshots/plugins.png)
-
 The app can run existing **Node.js Ulanzi plugins** unchanged. This is the compatibility
 layer that lets keys from the vendor ecosystem (news, weather, agent status, …) keep
 working while the deck itself is driven by our app.

@@ -50,6 +50,7 @@
 - Image cache is bounded; press timers are cleared on navigation; HID discovery cannot crash the loop.
 
 ### UI
+- Closing the editor hides its Dock icon; the app stays in the menu bar and the icon returns when the window is reopened.
 - The deck status now sits with the right-side controls and reads **Connected / Disconnected**; the primary button is **Push to Deck**.
 - The profile row now holds **Import**, **New profile** and a properly centred **⋯ Manage** button; Import uses a clear download/import icon instead of the ambiguous `⤓` glyph.
 - The app opens wider (up to 1600 px, clamped to the screen) with the middle stage growing while the side rails keep their width.
@@ -62,6 +63,7 @@
 - Icon library ignores macOS `._*` files.
 
 ### Tooling
+- Tagged releases now build an unsigned universal DMG on GitHub Actions and attach it with `SHA256SUMS.txt`; the workflow can also be run manually for an artifact.
 - Unit tests (`npm test`) for protocol framing, config migration/recovery, wide-key modes and plugin install validation.
 - GitHub Actions CI; universal (arm64 + x86_64) native helpers; DMG script.
 - Build from a fresh clone is documented end-to-end (unsigned): `npm start`, arm64/universal packaging, `install-app`, DMG, Gatekeeper/quarantine and first-run permissions.

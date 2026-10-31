@@ -57,6 +57,26 @@ npm run install-app
 On Apple Silicon this packages arm64; on Intel it packages the universal bundle. It
 replaces an existing copy in `~/Applications` and relaunches the app.
 
+## Automated unsigned DMG (GitHub Actions)
+
+`.github/workflows/release.yml` builds and publishes the unsigned DMG. It runs:
+
+* on every `v*` tag (creates/updates the GitHub Release);
+* manually via **Actions → Unsigned DMG → Run workflow** (artifact only).
+
+It checks out the repo on a macOS runner, runs `npm ci` and `npm test`, builds the
+universal app, runs `npm run make:dmg`, writes `SHA256SUMS.txt`, uploads the DMG as a
+workflow artifact, and (for tags) attaches it to the release with a Gatekeeper warning.
+
+```bash
+git tag v0.1.0
+git push origin v0.1.0
+```
+
+The release job uses the repository's `GITHUB_TOKEN` with `contents: write`; no other
+secrets are required. The resulting DMG is unsigned and not notarized — see the
+quarantine instructions below.
+
 ## Build a DMG (optional)
 
 ```bash

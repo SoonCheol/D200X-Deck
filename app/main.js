@@ -58,6 +58,18 @@ function guarded(handler) {
   };
 }
 
+function setDockVisible(visible) {
+  // Menu-bar-only while the editor is closed; a normal Dock icon while it is open.
+  if (process.platform !== 'darwin' || !app.dock) return;
+  try {
+    if (visible) app.dock.show();
+    else app.dock.hide();
+    console.log(`[dock] ${visible ? 'shown' : 'hidden'}`);
+  } catch {
+    /* dock not available (e.g. non-macOS) */
+  }
+}
+
 function createWindow() {
   const [wantedW, wantedH] = String(process.env.ULANZI_SIZE || '').split('x').map(Number);
   const area = screen.getPrimaryDisplay().workAreaSize;
@@ -91,8 +103,11 @@ function createWindow() {
     if (!isQuitting) {
       event.preventDefault();
       win.hide();
+      setDockVisible(false);
     }
   });
+  win.on('show', () => setDockVisible(true));
+  win.on('hide', () => setDockVisible(false));
 
   // The window only ever shows our own file. Anything trying to navigate
   // elsewhere (a plugin inspector link, injected content, a future import) is
@@ -117,6 +132,8 @@ function createWindow() {
   });
   if (process.argv.includes('--dev')) win.webContents.openDevTools({ mode: 'detach' });
 
+  setDockVisible(!launchHidden);
+
   if (process.env.ULANZI_SHOT) {
     require('./scripts/harness').attachScreenshotHarness({
       win,
@@ -134,6 +151,7 @@ function send(channel, payload) {
 }
 
 function showWindow() {
+  setDockVisible(true);
   if (!win || win.isDestroyed()) {
     createWindow();
     return;
@@ -243,6 +261,8 @@ function buildMenu() {
   Menu.setApplicationMenu(Menu.buildFromTemplate(template));
 }
 
+const noDeck = Boolean(process.env.ULANZI_NO_DECK);
+
 function initDeck() {
   // The official app re-sends the current page when the Mac unlocks; without
   // that, a deck that fell back to its stored standby image stays there.
@@ -264,6 +284,10 @@ function initDeck() {
   deck.on('error', (message) => send('deck:error', message));
 
   const tryConnect = () => {
+    if (noDeck) {
+      send('deck:status', { connected: false, message: 'Disconnected', info: null });
+      return;
+    }
     if (!deck.connected) {
       const ok = deck.connect();
       if (!ok) send('deck:status', deck.status());
