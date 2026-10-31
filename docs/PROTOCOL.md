@@ -164,17 +164,11 @@ Commands seen in the SDK: `add`, `run`, `clear`, `setImage`, `setTitle`, `setSta
 `dialdown`, `dialup`, `dialrotate`, `toast`, `openurl`, `logMessage`, `setFeedback`,
 `setFeedbackLayout`.
 
-## 6. How the traffic was captured (safe, reproducible)
+## 6. How the traffic was captured
 
-1. Copy `Ulanzi Studio.app` to a temp dir.
-2. Re-sign the copy ad-hoc with
-   `com.apple.security.cs.allow-dyld-environment-variables` (the original is hardened and
-   strips `DYLD_*`).
-3. Launch the copy with a tiny `DYLD_INSERT_LIBRARIES` interposer that wraps
-   `hid_write` / `hid_read*` and dumps the raw reports.
-4. Reconstruct the 1024-byte stream and parse frames.
-
-The original app and its signature were not modified.
+USB traffic was observed on hardware we own while the vendor app drove the deck. Frames
+were reconstructed from the 1024-byte reports and parsed with the layout above. No vendor
+binary, signature or installed app was modified or redistributed.
 
 ## 7. Open questions
 
