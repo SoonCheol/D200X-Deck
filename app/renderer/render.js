@@ -349,6 +349,50 @@ async function drawKey(canvas, key, width = KEY_SIZE, height = KEY_SIZE, autoIco
   ctx.restore();
 }
 
+function drawAnalogClock(ctx, cx, cy, radius, now) {
+  ctx.save();
+  ctx.beginPath();
+  ctx.arc(cx, cy, radius, 0, Math.PI * 2);
+  ctx.fillStyle = '#22252a';
+  ctx.fill();
+  ctx.strokeStyle = 'rgba(255,255,255,0.14)';
+  ctx.lineWidth = Math.max(1, radius * 0.03);
+  ctx.stroke();
+
+  // Numerals 1–12 around the dial.
+  ctx.fillStyle = 'rgba(255,255,255,0.82)';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.font = `600 ${Math.round(radius * 0.25)}px -apple-system, "SF Pro Text", sans-serif`;
+  for (let i = 1; i <= 12; i++) {
+    const angle = (i / 12) * Math.PI * 2 - Math.PI / 2;
+    ctx.fillText(String(i), cx + Math.cos(angle) * radius * 0.78, cy + Math.sin(angle) * radius * 0.78);
+  }
+
+  const hours = (now.getHours() % 12) + now.getMinutes() / 60;
+  const minutes = now.getMinutes() + now.getSeconds() / 60;
+  const seconds = now.getSeconds();
+  const hand = (angle, length, width, color) => {
+    const rad = angle * (Math.PI / 180) - Math.PI / 2;
+    ctx.beginPath();
+    ctx.moveTo(cx, cy);
+    ctx.lineTo(cx + Math.cos(rad) * length, cy + Math.sin(rad) * length);
+    ctx.strokeStyle = color;
+    ctx.lineWidth = width;
+    ctx.lineCap = 'round';
+    ctx.stroke();
+  };
+  hand(hours * 30, radius * 0.45, Math.max(2, radius * 0.075), 'rgba(255,255,255,0.94)');
+  hand(minutes * 6, radius * 0.66, Math.max(1.5, radius * 0.05), 'rgba(255,255,255,0.94)');
+  hand(seconds * 6, radius * 0.74, Math.max(1, radius * 0.022), '#f0a13a');
+
+  ctx.beginPath();
+  ctx.arc(cx, cy, Math.max(2, radius * 0.055), 0, Math.PI * 2);
+  ctx.fillStyle = '#f0a13a';
+  ctx.fill();
+  ctx.restore();
+}
+
 async function drawSystemPanel(canvas, options = {}) {
   const w = WIDE_KEY_SIZE.width;
   const h = WIDE_KEY_SIZE.height;
@@ -378,79 +422,55 @@ async function drawSystemPanel(canvas, options = {}) {
   }
 
   const g = ctx.createLinearGradient(0, 0, 0, h);
-  g.addColorStop(0, '#1b2333');
-  g.addColorStop(1, '#0d1220');
+  g.addColorStop(0, '#191b1f');
+  g.addColorStop(1, '#0e1013');
   ctx.fillStyle = g;
   ctx.fillRect(0, 0, w, h);
 
   const now = new Date();
   const pad = (n) => String(n).padStart(2, '0');
   const time = `${pad(now.getHours())}:${pad(now.getMinutes())}`;
+  // The firmware panel pairs an analog dial with the time or the system stats.
+  const clockX = w * 0.265;
+  const clockR = h * 0.31;
 
   if (mode === 'stats') {
     const stats = options.stats || {};
     const value = (n) => Math.max(0, Math.min(100, Math.round(Number(n) || 0)));
+    drawAnalogClock(ctx, clockX, h / 2, clockR, now);
+
     const rows = [
       ['CPU', value(stats.cpu)],
-      ['MEM', value(stats.mem)],
+      ['RAM', value(stats.mem)],
       ['GPU', value(stats.gpu)],
     ];
-    ctx.fillStyle = 'rgba(255,255,255,0.45)';
-    ctx.font = '600 10px -apple-system, "SF Pro Text", sans-serif';
-    ctx.textAlign = 'left';
-    ctx.textBaseline = 'alphabetic';
-    ctx.fillText('SYSTEM', 18, 26);
-    ctx.textAlign = 'right';
-    ctx.fillText(time, w - 18, 26);
-
-    const top = 48;
-    const rowH = 44;
+    const left = w * 0.51;
+    const right = w * 0.93;
     rows.forEach(([label, pct], i) => {
-      const y = top + i * rowH;
+      const y = h * (0.28 + i * 0.22);
       ctx.textAlign = 'left';
       ctx.textBaseline = 'middle';
-      ctx.fillStyle = 'rgba(255,255,255,0.72)';
-      ctx.font = '600 11px -apple-system, "SF Pro Text", sans-serif';
-      ctx.fillText(label, 18, y);
+      ctx.fillStyle = 'rgba(255,255,255,0.5)';
+      ctx.font = '600 10px -apple-system, "SF Pro Text", sans-serif';
+      ctx.fillText(label, left, y);
       ctx.textAlign = 'right';
       ctx.fillStyle = 'rgba(255,255,255,0.95)';
-      ctx.font = '600 16px -apple-system, "SF Pro Text", sans-serif';
-      ctx.fillText(`${pct}%`, w - 18, y);
-      const barX = 60;
-      const barW = w - barX - 56;
-      roundRect(ctx, barX, y - 4, barW, 8, 4);
-      ctx.fillStyle = 'rgba(255,255,255,0.1)';
-      ctx.fill();
-      if (pct > 0) {
-        const fillW = Math.max(4, (barW * pct) / 100);
-        roundRect(ctx, barX, y - 4, fillW, 8, 4);
-        ctx.fillStyle = pct > 85 ? 'rgba(255,120,110,0.95)' : 'rgba(120,175,255,0.95)';
-        ctx.fill();
-      }
+      ctx.font = '600 19px -apple-system, "SF Pro Text", sans-serif';
+      ctx.fillText(`${pct}%`, right, y);
     });
   } else if (mode === 'clock') {
-    const date = now.toLocaleDateString(undefined, { weekday: 'short', day: 'numeric', month: 'short' });
-    ctx.fillStyle = 'rgba(255,255,255,0.45)';
-    ctx.font = '600 10px -apple-system, "SF Pro Text", sans-serif';
+    drawAnalogClock(ctx, clockX, h / 2, clockR, now);
     ctx.textAlign = 'left';
-    ctx.textBaseline = 'alphabetic';
-    ctx.fillText('SYSTEM PANEL', 18, 26);
-
-    ctx.fillStyle = 'rgba(255,255,255,0.95)';
-    ctx.font = '200 72px -apple-system, "SF Pro Display", "Helvetica Neue", sans-serif';
-    ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    ctx.fillText(time, w / 2, h * 0.47);
-
-    ctx.fillStyle = 'rgba(255,255,255,0.5)';
-    ctx.font = '500 12px -apple-system, "SF Pro Text", sans-serif';
-    ctx.fillText(date, w / 2, h * 0.76);
+    ctx.fillStyle = 'rgba(255,255,255,0.96)';
+    ctx.font = '650 62px -apple-system, "SF Pro Display", "Helvetica Neue", sans-serif';
+    ctx.fillText(time, w * 0.5, h / 2 + 2);
   }
   ctx.restore();
 
   ctx.save();
   roundRect(ctx, 0.75, 0.75, w - 1.5, h - 1.5, 15);
-  ctx.strokeStyle = 'rgba(255,255,255,0.08)';
+  ctx.strokeStyle = 'rgba(255,255,255,0.1)';
   ctx.lineWidth = 1.5;
   ctx.stroke();
   ctx.restore();
