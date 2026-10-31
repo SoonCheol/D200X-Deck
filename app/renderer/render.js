@@ -349,7 +349,7 @@ async function drawKey(canvas, key, width = KEY_SIZE, height = KEY_SIZE, autoIco
   ctx.restore();
 }
 
-function drawSystemPanel(canvas) {
+async function drawSystemPanel(canvas, options = {}) {
   const w = WIDE_KEY_SIZE.width;
   const h = WIDE_KEY_SIZE.height;
   if (canvas.width !== w) canvas.width = w;
@@ -357,9 +357,26 @@ function drawSystemPanel(canvas) {
   const ctx = canvas.getContext('2d');
   ctx.clearRect(0, 0, w, h);
 
+  const mode = options.mode === 'stats' || options.mode === 'blank' ? options.mode : 'clock';
+
   ctx.save();
   roundRect(ctx, 0, 0, w, h, 15);
   ctx.clip();
+
+  if (mode === 'blank' && options.background) {
+    try {
+      const img = await loadImage(options.background);
+      const scale = Math.max(w / img.width, h / img.height);
+      const iw = img.width * scale;
+      const ih = img.height * scale;
+      ctx.drawImage(img, (w - iw) / 2, (h - ih) / 2, iw, ih);
+      ctx.restore();
+      return;
+    } catch {
+      /* fall through to the plain panel */
+    }
+  }
+
   const g = ctx.createLinearGradient(0, 0, 0, h);
   g.addColorStop(0, '#1b2333');
   g.addColorStop(1, '#0d1220');
@@ -369,23 +386,66 @@ function drawSystemPanel(canvas) {
   const now = new Date();
   const pad = (n) => String(n).padStart(2, '0');
   const time = `${pad(now.getHours())}:${pad(now.getMinutes())}`;
-  const date = now.toLocaleDateString(undefined, { weekday: 'short', day: 'numeric', month: 'short' });
 
-  ctx.fillStyle = 'rgba(255,255,255,0.45)';
-  ctx.font = '600 10px -apple-system, "SF Pro Text", sans-serif';
-  ctx.textAlign = 'left';
-  ctx.textBaseline = 'alphabetic';
-  ctx.fillText('SYSTEM PANEL', 18, 26);
+  if (mode === 'stats') {
+    const stats = options.stats || {};
+    const value = (n) => Math.max(0, Math.min(100, Math.round(Number(n) || 0)));
+    const rows = [
+      ['CPU', value(stats.cpu)],
+      ['MEM', value(stats.mem)],
+      ['GPU', value(stats.gpu)],
+    ];
+    ctx.fillStyle = 'rgba(255,255,255,0.45)';
+    ctx.font = '600 10px -apple-system, "SF Pro Text", sans-serif';
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'alphabetic';
+    ctx.fillText('SYSTEM', 18, 26);
+    ctx.textAlign = 'right';
+    ctx.fillText(time, w - 18, 26);
 
-  ctx.fillStyle = 'rgba(255,255,255,0.95)';
-  ctx.font = '200 72px -apple-system, "SF Pro Display", "Helvetica Neue", sans-serif';
-  ctx.textAlign = 'center';
-  ctx.textBaseline = 'middle';
-  ctx.fillText(time, w / 2, h * 0.47);
+    const top = 48;
+    const rowH = 44;
+    rows.forEach(([label, pct], i) => {
+      const y = top + i * rowH;
+      ctx.textAlign = 'left';
+      ctx.textBaseline = 'middle';
+      ctx.fillStyle = 'rgba(255,255,255,0.72)';
+      ctx.font = '600 11px -apple-system, "SF Pro Text", sans-serif';
+      ctx.fillText(label, 18, y);
+      ctx.textAlign = 'right';
+      ctx.fillStyle = 'rgba(255,255,255,0.95)';
+      ctx.font = '600 16px -apple-system, "SF Pro Text", sans-serif';
+      ctx.fillText(`${pct}%`, w - 18, y);
+      const barX = 60;
+      const barW = w - barX - 56;
+      roundRect(ctx, barX, y - 4, barW, 8, 4);
+      ctx.fillStyle = 'rgba(255,255,255,0.1)';
+      ctx.fill();
+      if (pct > 0) {
+        const fillW = Math.max(4, (barW * pct) / 100);
+        roundRect(ctx, barX, y - 4, fillW, 8, 4);
+        ctx.fillStyle = pct > 85 ? 'rgba(255,120,110,0.95)' : 'rgba(120,175,255,0.95)';
+        ctx.fill();
+      }
+    });
+  } else if (mode === 'clock') {
+    const date = now.toLocaleDateString(undefined, { weekday: 'short', day: 'numeric', month: 'short' });
+    ctx.fillStyle = 'rgba(255,255,255,0.45)';
+    ctx.font = '600 10px -apple-system, "SF Pro Text", sans-serif';
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'alphabetic';
+    ctx.fillText('SYSTEM PANEL', 18, 26);
 
-  ctx.fillStyle = 'rgba(255,255,255,0.5)';
-  ctx.font = '500 12px -apple-system, "SF Pro Text", sans-serif';
-  ctx.fillText(date, w / 2, h * 0.76);
+    ctx.fillStyle = 'rgba(255,255,255,0.95)';
+    ctx.font = '200 72px -apple-system, "SF Pro Display", "Helvetica Neue", sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(time, w / 2, h * 0.47);
+
+    ctx.fillStyle = 'rgba(255,255,255,0.5)';
+    ctx.font = '500 12px -apple-system, "SF Pro Text", sans-serif';
+    ctx.fillText(date, w / 2, h * 0.76);
+  }
   ctx.restore();
 
   ctx.save();

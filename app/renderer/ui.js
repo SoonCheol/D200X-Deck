@@ -153,8 +153,13 @@ async function renderGrid() {
     btn.appendChild(badge);
 
     if (wide) {
-      btn.title = 'System panel — controlled by the deck firmware';
+      btn.title = 'Wide key — clock, system stats or background';
       btn.classList.add('system');
+      btn.addEventListener('click', () => {
+        state.selected = WIDE_KEY_INDEX;
+        renderGrid();
+        renderInspector();
+      });
       grid.appendChild(btn);
       continue;
     }
@@ -229,12 +234,41 @@ async function renderGrid() {
   await drawGrid();
 }
 
+let wideStats = { cpu: 0, mem: 0, gpu: 0 };
+
+function wideOptions(page) {
+  return {
+    mode: page?.wideMode || 'clock',
+    stats: wideStats,
+    background: page ? backgroundFor(page) : null,
+  };
+}
+
+async function refreshWideStats() {
+  const page = activePage();
+  if (!page || (page.wideMode || 'clock') !== 'stats') return;
+  try {
+    wideStats = await api.systemStats();
+  } catch {
+    return;
+  }
+  const tile = $('#grid').children[WIDE_KEY_INDEX];
+  if (tile) renderSystemPanel(tile.querySelector('canvas'), wideOptions(page));
+}
+
 async function drawGrid() {
   const page = activePage();
   const tiles = [...$('#grid').children];
+  if ((page?.wideMode || 'clock') === 'stats') {
+    try {
+      wideStats = await api.systemStats();
+    } catch {
+      /* keep the previous sample */
+    }
+  }
   await Promise.all(
     tiles.map((tile, i) => {
-      if (i === WIDE_KEY_INDEX) return renderSystemPanel(tile.querySelector('canvas'));
+      if (i === WIDE_KEY_INDEX) return renderSystemPanel(tile.querySelector('canvas'), wideOptions(page));
       const key = effectiveKey(keyAt(page, i) || emptyKey());
       return renderKey(
         tile.querySelector('canvas'),
@@ -251,7 +285,10 @@ async function drawGrid() {
 function drawIndex(index) {
   const tile = $('#grid').children[index];
   if (!tile) return;
-  if (index === WIDE_KEY_INDEX) return renderSystemPanel(tile.querySelector('canvas'));
+  if (index === WIDE_KEY_INDEX) {
+    const page = activePage();
+    return renderSystemPanel(tile.querySelector('canvas'), wideOptions(page));
+  }
   const page = activePage();
   const key = effectiveKey(keyAt(page, index) || emptyKey());
   renderKey(
@@ -482,7 +519,7 @@ async function pushNow() {
       index,
       png: tile.querySelector('canvas').toDataURL('image/png').split(',')[1],
     }));
-    const res = await api.pushPage(images);
+    const res = await api.pushPage(images, activePage()?.wideMode || 'clock');
     if (!res.ok) throw new Error(res.error || 'push failed');
     const time = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
     $('#push-state').textContent = `synced ${time}`;

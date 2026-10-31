@@ -87,6 +87,20 @@ test('a cleared icon keeps its face and suppresses automatic icons', () => {
   assert.equal(key.icon, null);
 });
 
+test('a page keeps its wide-key mode across a save', () => {
+  const dir = tempDir();
+  const store = new Store(dir);
+  const config = createDefaultConfig();
+  config.pages[0].wideMode = 'stats';
+  store.save(config);
+  const loaded = new Store(dir).load();
+  assert.equal(loaded.pages[0].wideMode, 'stats');
+
+  config.pages[0].wideMode = 'nonsense';
+  store.save(config);
+  assert.equal(new Store(dir).load().pages[0].wideMode, undefined);
+});
+
 test('a key keeps its icon/text face across a save', () => {
   const dir = tempDir();
   const store = new Store(dir);

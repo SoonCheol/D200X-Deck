@@ -1410,4 +1410,6 @@ async function hydrateAppIcons() {
   }
   scheduleStandby();
   startFrontmostWatch();
+  // Keep the wide-key stats preview in step with the deck.
+  setInterval(() => refreshWideStats(), 2000);
 })();

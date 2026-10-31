@@ -13,7 +13,9 @@ const { DEFAULT_FONT, COLUMNS, ROWS, WIDE_INDEX, WIDE_SLOT } = require('./consta
  *        `png` may be a Buffer or a base64 string (no data: prefix).
  * @returns {Promise<Buffer>} ZIP buffer for protocol 0x01.
  */
-async function buildPage(images) {
+const WIDE_MODES = { stats: 0, clock: 1, blank: 2 };
+
+async function buildPage(images, wideMode = 'clock') {
   const zip = new JSZip();
   zip.file('Images/', '');
   const manifest = {};
@@ -21,12 +23,20 @@ async function buildPage(images) {
   for (const item of images) {
     const index = item.index;
     if (index === WIDE_INDEX) {
-      // System panel: let the firmware render its small window (clock/stats).
-      manifest[WIDE_SLOT] = {
+      // System panel: the firmware draws clock/stats itself. In background
+      // mode it shows the page image, which we send as the wide key image.
+      const entry = {
         State: 0,
-        SmallViewMode: 1,
+        SmallViewMode: WIDE_MODES[wideMode] ?? WIDE_MODES.clock,
         ViewParam: [{ Font: DEFAULT_FONT, Text: '' }],
       };
+      if (wideMode === 'blank') {
+        const data = Buffer.isBuffer(item.png) ? item.png : Buffer.from(item.png, 'base64');
+        const name = `Images/${createHash('sha1').update(data).digest('hex')}.png`;
+        if (!zip.file(name)) zip.file(name, data);
+        entry.ViewParam[0].Icon = name;
+      }
+      manifest[WIDE_SLOT] = entry;
       continue;
     }
     const slot = `${index % COLUMNS}_${Math.floor(index / COLUMNS)}`;
@@ -45,4 +55,4 @@ async function buildPage(images) {
   return zip.generateAsync({ type: 'nodebuffer', compression: 'DEFLATE', compressionOptions: { level: 6 } });
 }
 
-module.exports = { buildPage, COLUMNS, ROWS, WIDE_INDEX, WIDE_SLOT, DEFAULT_FONT };
+module.exports = { buildPage, WIDE_MODES, COLUMNS, ROWS, WIDE_INDEX, WIDE_SLOT, DEFAULT_FONT };

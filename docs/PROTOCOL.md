@@ -48,13 +48,18 @@ All host → device frames observed so far use `cmd = 0x00`; `proto` selects the
 |---|---|---|---|---|
 | 0x00 | 0x01 | → device | upload page package | ZIP (see §4) |
 | 0x00 | 0x03 | → device | request device info | empty |
-| 0x00 | 0x06 | → device | clock sync | ASCII `1\|MM\|SS\|HH:MM:SS\|0\|24H\|` |
+| 0x00 | 0x06 | → device | small window (wide key) | ASCII `<mode>\|<f1>\|<f2>\|HH:MM:SS\|<f3>\|24H\|`; mode `1` clock, `0` CPU/RAM/GPU, `2` background |
 | 0x00 | 0x0A | → device | set brightness | **ASCII decimal** `0`–`100` (e.g. `86`); the ack is BCD (`0x86`) |
 | 0x00 | 0x0B | → device | global font/UI config | JSON `{Align,Color,FontName,ShowTitle,Size,Weight}` |
 | 0x00 | 0x1A | → device | screen sleep time | ASCII decimal (seconds; `0` = never) |
 | 0x01 | 0x01 | ← device | key event | `01 <index> 01 <state>` |
 | 0x03 | 0x03 | ← device | device info reply | JSON `{"Dversion","SerialNumber","error"}` |
 | 0x03 | 0x0A | ← device | brightness ack | BCD byte (`0x86` = 86) |
+
+The wide-key mode is the **first field** of the proto 0x06 payload (the official
+app stores it as `SmallViewMode` and sends it through `buildSendDataString`).
+Fields: clock = `1|MM|SS|HH:MM:SS|0|24H|`; system stats =
+`0|CPU|MEM|HH:MM:SS|GPU|24H|`; background = `2|||||24H|`.
 
 ### Key events
 

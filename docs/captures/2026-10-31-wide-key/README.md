@@ -47,8 +47,21 @@ products.
 **Confirmed 2026-10-31:** the D200 editor does **not** accept any action on the
 wide key. Social Media / Schedule / DIY / Tool cannot be assigned to `3_2`.
 The Uclock widgets belong to the separate Uclock device; the D200 wide key is
-the firmware system panel. `SmallViewMode: 1` is the only mode we need, so this
-is not a missing D200 feature.
+the firmware system panel. It does have three useful panels — clock, CPU/RAM/GPU
+and pure background — which our editor now exposes (see “Panel modes” below).
+
+## Panel modes (2026-10-31)
+
+`SystemSmallWindowsEditor` exposes radio IDs `0/1/2/100/200-203`. The mode is
+stored in the page action as `ActionParam.SmallViewMode` and is also the first
+field of the proto `0x06` small-window payload. Mapping used by our editor:
+
+| Mode | Meaning |
+| --- | --- |
+| 1 | clock (default) |
+| 0 | CPU + RAM + GPU |
+| 2 | pure background (no clock/stats) |
+| 100, 200–203 | extra clock layouts |
 
 ## Small-window channel
 

@@ -409,6 +409,53 @@ function parentPageOptions(page) {
     .join('');
 }
 
+function renderWideInspector(el, page) {
+  const mode = page.wideMode === 'stats' || page.wideMode === 'blank' ? page.wideMode : 'clock';
+  const options = [
+    ['clock', 'Clock', 'Time and date, rendered by the deck.'],
+    ['stats', 'System stats', 'Live CPU, memory and GPU usage from this Mac.'],
+    ['blank', 'Background', 'No clock or stats — just the page background image.'],
+  ];
+  el.innerHTML = `
+    <div class="insp-head">
+      <h2>Wide key</h2>
+      <span class="index">row 3 · col 4–5 (2×1)</span>
+      <button class="icon-btn drawer-close" id="insp-drawer-close" title="Close">×</button>
+    </div>
+    <div class="field">
+      <label>Panel</label>
+      <div class="face-tabs wide-mode" role="tablist" aria-label="Wide key panel">
+        ${options
+          .map(
+            ([value, label]) =>
+              `<button class="tab ${mode === value ? 'active' : ''}" data-wide-mode="${value}" role="tab" aria-selected="${mode === value ? 'true' : 'false'}">${label}</button>`
+          )
+          .join('')}
+      </div>
+      <div class="field-hint">${options.find(([value]) => value === mode)[2]}</div>
+    </div>
+    <div class="field-hint">The 2×1 key is drawn by the deck firmware, so it has no action of its own. The preview matches the panel you choose here.</div>
+  `;
+
+  el.querySelectorAll('[data-wide-mode]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const next = btn.dataset.wideMode;
+      page.wideMode = next === 'clock' ? undefined : next;
+      if (!page.wideMode) delete page.wideMode;
+      scheduleSave();
+      drawIndex(WIDE_KEY_INDEX);
+      renderInspector();
+      refreshWideStats();
+      api.setWideMode(next);
+    });
+  });
+  $('#insp-drawer-close')?.addEventListener('click', () => {
+    state.selected = null;
+    renderGrid();
+    renderInspector();
+  });
+}
+
 function renderInspector() {
   const el = $('#inspector');
   const page = activePage();
@@ -416,7 +463,7 @@ function renderInspector() {
     el.innerHTML = '<div class="insp-empty" style="padding:24px">No page in this profile. Create one to start editing.</div>';
     return;
   }
-  if (state.selected === WIDE_KEY_INDEX) state.selected = null;
+  if (state.selected === WIDE_KEY_INDEX) return renderWideInspector(el, page);
 
   const inspectorEl = $('#inspector');
   if (state.selected === null && inspectorEl) inspectorEl.classList.remove('open');

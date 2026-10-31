@@ -162,6 +162,8 @@ function validateConfig(config) {
     };
     if (typeof page.parentId === 'string' && page.parentId) normalized.parentId = page.parentId;
     if (normalizeBackground(page.background)) normalized.background = page.background;
+    // The 2x1 wide key panel is rendered by the device firmware.
+    if (page.wideMode === 'stats' || page.wideMode === 'blank') normalized.wideMode = page.wideMode;
     if (page.parentId && Number(page.autoExitSeconds) > 0) {
       normalized.autoExitSeconds = Math.min(86_400, Math.max(1, Math.round(Number(page.autoExitSeconds))));
     }

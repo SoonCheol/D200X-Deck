@@ -9,6 +9,7 @@ const PRODUCT_ID = 0x0019;
 const CONTROL_INTERFACE = 0;
 
 const { DEFAULT_FONT } = require('./constants');
+const sysstats = require('./sysstats');
 
 class Deck extends EventEmitter {
   constructor() {
@@ -19,6 +20,7 @@ class Deck extends EventEmitter {
     this._readTimer = null;
     this._clockTimer = null;
     this._clockMs = 5000;
+    this._wideMode = 'clock';
     this._buffer = Buffer.alloc(0);
     this._lastStatus = null;
   }
@@ -84,6 +86,7 @@ class Deck extends EventEmitter {
   disconnect(reason = 'Disconnected') {
     this._stopReading();
     this._stopClock();
+    sysstats.stop();
     if (this.device) {
       try {
         this.device.close();
@@ -125,14 +128,45 @@ class Deck extends EventEmitter {
   setSleepTime(seconds) {
     const n = Math.max(0, Math.round(seconds));
     this.sendFrame(0, P.PROTO.SLEEP, Buffer.from(String(n), 'utf8'));
-    // Keep the wide-key clock fresh while the deck is always-on. With a sleep
+    // Keep the wide-key panel fresh while the deck is always-on. With a sleep
     // timer configured, slow the clock down so it cannot reset the idle timer.
-    const ms = n > 0 ? 60_000 : 5000;
-    if (ms !== this._clockMs) {
-      this._clockMs = ms;
-      this._stopClock();
-      if (this.device) this._startClock();
+    this._sleepSeconds = n;
+    this._scheduleClock();
+  }
+
+  /**
+   * Wide-key mode: 'clock', 'stats' or 'blank'. The D200 renders the small
+   * window itself; the mode is the first field of the proto 0x06 payload.
+   */
+  setWideMode(mode) {
+    const next = mode === 'stats' || mode === 'blank' ? mode : 'clock';
+    if (next === this._wideMode) return;
+    this._wideMode = next;
+    console.log(`[deck] wide key mode: ${next}`);
+    this._scheduleClock();
+  }
+
+  _scheduleClock() {
+    const ms =
+      this._wideMode === 'stats'
+        ? 1000
+        : this._wideMode === 'blank'
+          ? 0
+          : (Number(this._sleepSeconds) > 0 ? 60_000 : 5000);
+    if (ms === this._clockMs && this._clockTimer) return;
+    this._clockMs = ms;
+    this._stopClock();
+    if (this.device) this._startClock();
+  }
+
+  _widePayload() {
+    if (this._wideMode === 'stats') {
+      const hhmmss = new Date().toTimeString().slice(0, 8);
+      const stats = sysstats.latest();
+      return Buffer.from(`0|${stats.cpu}|${stats.mem}|${hhmmss}|${stats.gpu}|24H|`, 'utf8');
     }
+    if (this._wideMode === 'blank') return Buffer.from('2|||||24H|', 'utf8');
+    return P.clockPayload();
   }
 
   sendFont(font = DEFAULT_FONT) {
@@ -163,23 +197,25 @@ class Deck extends EventEmitter {
   }
 
   _startClock() {
+    if (this._wideMode === 'stats') sysstats.start();
     const tick = () => {
       if (!this.device) return;
       try {
-        this.sendFrame(0, P.PROTO.CLOCK, P.clockPayload());
+        this.sendFrame(0, P.PROTO.CLOCK, this._widePayload());
       } catch {
         /* disconnected */
       }
     };
     tick();
-    // The firmware keeps its own RTC; a periodic sync is only to correct drift.
-    // Keep it infrequent so it cannot keep resetting the screen-sleep timer.
-    this._clockTimer = setInterval(tick, this._clockMs);
+    // Clock: correct RTC drift occasionally. Stats: the deck needs a fresh
+    // sample every second. Blank: one frame is enough.
+    if (this._clockMs > 0) this._clockTimer = setInterval(tick, this._clockMs);
   }
 
   _stopClock() {
     if (this._clockTimer) clearInterval(this._clockTimer);
     this._clockTimer = null;
+    if (this._wideMode !== 'stats') sysstats.stop();
   }
 
   _onReport(data) {

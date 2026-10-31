@@ -11,7 +11,9 @@ function subscribe(channel, callback) {
 contextBridge.exposeInMainWorld('deckApp', {
   getState: () => ipcRenderer.invoke('app:state'),
   saveConfig: (config) => ipcRenderer.invoke('config:save', config),
-  pushPage: (images) => ipcRenderer.invoke('deck:push', images),
+  pushPage: (images, wideMode) => ipcRenderer.invoke('deck:push', images, wideMode),
+  setWideMode: (mode) => ipcRenderer.invoke('deck:wide-mode', mode),
+  systemStats: () => ipcRenderer.invoke('system:stats'),
   setBrightness: (level) => ipcRenderer.invoke('deck:brightness', level),
   setSleepTime: (seconds) => ipcRenderer.invoke('deck:sleep', seconds),
   reconnect: () => ipcRenderer.invoke('deck:reconnect'),

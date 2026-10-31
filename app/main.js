@@ -9,6 +9,7 @@ const { randomUUID } = require('node:crypto');
 const { Deck } = require('./lib/deck');
 const { Store } = require('./lib/store');
 const { buildPage } = require('./lib/page');
+const sysstats = require('./lib/sysstats');
 const { PluginManager, pluginRootDirs } = require('./lib/plugins');
 const { fetchSiteIcon } = require('./lib/siteicon');
 const { appIconDataUrl, resolveAppPath } = require('./lib/appicon');
@@ -632,13 +633,28 @@ ipcMain.handle('config:save', guarded((_evt, config) => {
   return { ok: true };
 }));
 
-ipcMain.handle('deck:push', async (_evt, images) => {
+ipcMain.handle('deck:push', async (_evt, images, wideMode) => {
   if (!deck.connected) return { ok: false, error: 'not connected' };
   try {
-    const zip = await buildPage(images);
+    const zip = await buildPage(images, wideMode);
     deck.pushPage(zip);
+    deck.setWideMode(wideMode);
     console.log(`[deck] pushed page: ${images.length} keys, ${(zip.length / 1024).toFixed(1)} KB`);
     return { ok: true, bytes: zip.length };
+  } catch (err) {
+    return { ok: false, error: err.message || String(err) };
+  }
+});
+
+ipcMain.handle('system:stats', () =>
+  new Promise((resolve) => sysstats.sample(resolve))
+);
+
+ipcMain.handle('deck:wide-mode', (_evt, mode) => {
+  if (!deck.connected) return { ok: false, error: 'not connected' };
+  try {
+    deck.setWideMode(mode);
+    return { ok: true };
   } catch (err) {
     return { ok: false, error: err.message || String(err) };
   }
