@@ -4,6 +4,7 @@
 
 let appPickerKey = null;
 let appPickerMode = 'key';
+let appPickerTriggerPick = null;
 const appIconCache = new Map();
 const appIconQueue = [];
 let appIconActive = 0;
@@ -46,8 +47,9 @@ function queueAppIcon(path, el) {
   pumpAppIcons();
 }
 
-async function openAppPicker(mode = 'key') {
+async function openAppPicker(mode = 'key', onTriggerPick = null) {
   appPickerMode = mode;
+  appPickerTriggerPick = onTriggerPick;
   appPickerKey = mode === 'key' ? ensureKey(activePage(), state.selected) : null;
   if (!state.apps.length) state.apps = await api.listApps();
   $('#app-search').value = '';
@@ -60,6 +62,7 @@ function closeAppPicker() {
   $('#app-modal').classList.add('hidden');
   appPickerKey = null;
   appPickerMode = 'key';
+  appPickerTriggerPick = null;
 }
 
 function renderAppList(query) {
@@ -91,10 +94,18 @@ function renderAppList(query) {
         closeAppPicker();
         return;
       }
+      if (appPickerMode === 'trigger' && appPickerTriggerPick) {
+        appPickerTriggerPick({ path: row.dataset.path, name: row.dataset.name });
+        closeAppPicker();
+        return;
+      }
       const key = appPickerKey;
       if (!key) return;
       const index = state.selected;
-      key.action = { type: 'app', value: row.dataset.path };
+      key.action = {
+        type: key.action?.type === 'close' ? 'close' : 'app',
+        value: row.dataset.path,
+      };
       if (!key.emoji) key.emoji = row.dataset.name;
       syncActionMeta(key);
       commit();

@@ -5,8 +5,8 @@
 const ACTION_GROUPS = [
   ['Basic', ['none']],
   ['Device & pages', ['page', 'indicator', 'pop', 'multi', 'toggle', 'timer', 'brightness']],
-  ['Apps & links', ['app', 'url']],
-  ['System', ['hotkey', 'text', 'media', 'sound', 'close', 'command']],
+  ['Apps & links', ['app', 'url', 'close']],
+  ['System', ['hotkey', 'text', 'media', 'sound', 'command']],
   ['Plugins', ['plugin']],
 ];
 
@@ -23,16 +23,28 @@ function actionGroups(selected) {
   }).join('');
 }
 
-const TRIGGER_TYPES = [
-  ['none', 'Nothing'],
-  ['hotkey', 'Send hotkey'],
-  ['media', 'Media key'],
-  ['text', 'Type text'],
-  ['app', 'Open app'],
-  ['url', 'Open URL'],
-  ['command', 'Shell command'],
-  ['page', 'Switch to page'],
+// The compact trigger editor only supports value-based actions. Complex
+// editors (Plugin, Multi, POP, Timer, ...) live on the main key action.
+const TRIGGER_GROUPS = [
+  ['Basic', ['none']],
+  ['Device & pages', ['page']],
+  ['Apps & links', ['app', 'url', 'close']],
+  ['System', ['hotkey', 'text', 'media', 'command']],
 ];
+
+function triggerGroups(selected) {
+  return TRIGGER_GROUPS.map(([label, types]) => {
+    const options = types
+      .map(
+        (type) =>
+          `<option value="${type}" ${type === selected ? 'selected' : ''}>${
+            type === 'none' ? 'Nothing' : esc(ACTION_LABELS[type] || type)
+          }</option>`
+      )
+      .join('');
+    return `<optgroup label="${esc(label)}">${options}</optgroup>`;
+  }).join('');
+}
 
 const MEDIA_LABELS = {
   playpause: 'Play / pause',
@@ -285,17 +297,20 @@ function triggerField(key, field, label, page) {
       .join('')}</select>`;
   } else if (action.type === 'page') {
     control = `<select class="select" data-trigger-value="${field}">${pageOptions}</select>`;
+  } else if (action.type === 'app' || action.type === 'close') {
+    control = `<div class="row">
+      <input class="input" data-trigger-value="${field}" value="${esc(action.value || '')}" placeholder="Safari" />
+      <button class="btn small" data-trigger-app="${field}">Choose…</button>
+    </div>`;
   } else if (action.type !== 'none') {
     control = `<input class="input" data-trigger-value="${field}" value="${esc(
       action.value || ''
-    )}" placeholder="${action.type === 'app' ? 'Safari' : action.type === 'url' ? 'https://…' : ''}" />`;
+    )}" placeholder="${action.type === 'url' ? 'https://…' : ''}" />`;
   }
   return `<div class="field trigger-field">
     <label>${label}</label>
     <select class="select" data-trigger-type="${field}">
-      ${TRIGGER_TYPES.map(
-        ([v, l]) => `<option value="${v}" ${v === action.type ? 'selected' : ''}>${l}</option>`
-      ).join('')}
+      ${triggerGroups(action.type)}
     </select>
     ${control}
   </div>`;
@@ -325,6 +340,17 @@ function bindTriggerFields(key) {
     };
     input.addEventListener('input', (e) => apply(e.target.value));
     input.addEventListener('change', (e) => apply(e.target.value));
+  });
+  el.querySelectorAll('[data-trigger-app]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const field = btn.dataset.triggerApp;
+      openAppPicker('trigger', (app) => {
+        const type = key[field]?.type === 'close' ? 'close' : 'app';
+        key[field] = { ...(key[field] || {}), type, value: app.path };
+        commit();
+        renderInspector();
+      });
+    });
   });
   el.querySelectorAll('[data-trigger-hotkey]').forEach((btn) => {
     const field = btn.dataset.triggerHotkey;
