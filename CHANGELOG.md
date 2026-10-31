@@ -52,6 +52,7 @@
 - Image cache is bounded; press timers are cleared on navigation; HID discovery cannot crash the loop.
 
 ### UI
+- Inspector actions now sit at the top, under the panel title, with a separator before the form: **Duplicate / Pin / Clear key** for keys and **Clear page / Duplicate / New page** for page settings. No more scrolling to the bottom to reach them.
 - Scrollbars in the app and inside plugin property inspectors now share one style: 12 px, a visible track, an 8 px rounded thumb and brighter hover/active states.
 - Every action now uses its bundled SVG by default: added `sound.svg` and `pop.svg`, and plugin actions use `plugin.svg` instead of the 🔌 emoji.
 - Page indicator now draws its page number/dots instead of showing an imported icon or emoji; its icon/text controls are hidden in the inspector.

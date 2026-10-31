@@ -497,7 +497,13 @@ body::before {
 .icon-drop .meta { flex: 1; }
 .icon-drop .file-name { color: var(--text); font-size: 11px; margin-bottom: 2px; }
 
-.insp-actions { display: flex; gap: 8px; margin-top: 18px; }
+.insp-actions {
+  display: flex;
+  gap: 8px;
+  margin: 0 0 16px;
+  padding: 0 0 16px;
+  border-bottom: 1px solid var(--line);
+}
 .insp-actions .btn { flex: 1; }
 
 .settings-block { border-top: 1px solid var(--line); margin-top: 18px; padding-top: 16px; }
@@ -1056,12 +1062,6 @@ body::before {
 .icon-none { color: rgba(255, 255, 255, 0.32); }
 .icon-buttons { display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
 .btn.small { padding: 6px 10px; font-size: 11px; }
-.insp-actions {
-  margin-top: 18px;
-  padding-top: 14px;
-  border-top: 1px solid var(--line);
-}
-
 .download-bar {
   margin: 8px 0 4px;
   height: 4px;

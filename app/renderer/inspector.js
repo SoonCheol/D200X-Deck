@@ -475,6 +475,11 @@ function renderInspector() {
     const pins = Object.entries(pinnedFor(page.profileId));
     el.innerHTML = `
       <div class="insp-head"><h2>Page settings</h2><span class="index">${configured}/${KEY_COUNT - 1} keys</span></div>
+      <div class="insp-actions">
+        <button class="btn danger" id="insp-clear-page">Clear page</button>
+        <button class="btn" id="insp-duplicate-page">Duplicate</button>
+        <button class="btn" id="insp-add-page">New page</button>
+      </div>
       <div class="field">
         <label>Page name</label>
         <input class="input" id="insp-page-name" value="${esc(page.name)}" maxlength="40" />
@@ -537,11 +542,6 @@ function renderInspector() {
           Labels are rendered into the image, so the deck shows exactly what you see here.
           Select a key and press ⌘C / ⌘V to duplicate it, Delete to clear it (⌘Z undoes).
         </div>
-      </div>
-      <div class="insp-actions">
-        <button class="btn danger" id="insp-clear-page">Clear page</button>
-        <button class="btn" id="insp-duplicate-page">Duplicate</button>
-        <button class="btn" id="insp-add-page">New page</button>
       </div>
     `;
 
@@ -879,6 +879,14 @@ function renderInspector() {
         : ''
     }
 
+    <div class="insp-actions">
+      <button class="btn" id="insp-duplicate">Duplicate</button>
+      ${pinned
+        ? '<button class="btn" id="insp-unpin">Unpin</button>'
+        : '<button class="btn" id="insp-pin">Pin to all pages</button>'}
+      <button class="btn danger" id="insp-clear-key">Clear key</button>
+    </div>
+
     <div class="field">
       <label>Action</label>
       <select class="select" id="insp-action-type">
@@ -934,13 +942,6 @@ function renderInspector() {
     </div>
 
 
-    <div class="insp-actions">
-      <button class="btn" id="insp-duplicate">Duplicate</button>
-      ${pinned
-        ? '<button class="btn" id="insp-unpin">Unpin</button>'
-        : '<button class="btn" id="insp-pin">Pin to all pages</button>'}
-      <button class="btn danger" id="insp-clear-key">Clear key</button>
-    </div>
   `;
 
   // appearance tabs: a key shows either an image or its text
