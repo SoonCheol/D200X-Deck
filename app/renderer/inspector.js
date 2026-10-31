@@ -2,6 +2,8 @@
 
 // --------------------------------------------------------------- inspector
 
+const DEFAULT_KEY_COLOR = '#1b2130';
+
 const ACTION_GROUPS = [
   ['Basic', ['none']],
   ['Device & pages', ['page', 'indicator', 'pop', 'multi', 'toggle', 'timer', 'brightness']],
@@ -771,6 +773,7 @@ function renderInspector() {
 
   const face =
     key.face === 'text' ? 'text' : key.face === 'icon' ? 'icon' : key.icon || autoIconFor(key) ? 'icon' : 'text';
+  const isDefaultColor = String(key.color || DEFAULT_KEY_COLOR).toLowerCase() === DEFAULT_KEY_COLOR;
   const iconField = `
     <div class="field insp-icon-field">
       <label>Icon</label>
@@ -838,8 +841,11 @@ function renderInspector() {
     </div>
     ${face === 'icon' ? iconField : textField}
     <div class="field">
-      <label>Background</label>
-      <input class="color-input" id="insp-color" type="color" value="${esc(key.color || '#1b2130')}" title="Key background" />
+      <label for="insp-color">Background</label>
+      <div class="color-row">
+        <input class="color-input" id="insp-color" type="color" value="${esc(key.color || DEFAULT_KEY_COLOR)}" title="Key background" />
+        <button class="link-btn" id="insp-color-reset" ${isDefaultColor ? 'hidden' : ''}>Reset to default</button>
+      </div>
     </div>
 
     <div class="field">
@@ -966,8 +972,18 @@ function renderInspector() {
     drawIndex(state.selected);
     commit(false);
   });
+  const colorReset = $('#insp-color-reset');
+  colorReset?.addEventListener('click', () => {
+    key.color = DEFAULT_KEY_COLOR;
+    const input = $('#insp-color');
+    if (input) input.value = DEFAULT_KEY_COLOR;
+    if (colorReset) colorReset.hidden = true;
+    drawIndex(state.selected);
+    commit();
+  });
   $('#insp-color')?.addEventListener('input', (e) => {
     key.color = e.target.value;
+    if (colorReset) colorReset.hidden = String(e.target.value).toLowerCase() === DEFAULT_KEY_COLOR;
     drawIndex(state.selected);
     commit(false);
   });

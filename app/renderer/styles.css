@@ -446,6 +446,13 @@ body::before {
   color: var(--muted); margin-bottom: 6px; font-weight: 600;
 }
 .field .row { display: flex; gap: 8px; }
+.field .color-row { display: flex; align-items: center; gap: 10px; }
+.link-btn {
+  background: none; border: none; padding: 0; cursor: pointer;
+  color: var(--accent); font-size: 10px; font-weight: 600;
+  letter-spacing: 0.6px; text-transform: uppercase;
+}
+.link-btn:hover { text-decoration: underline; }
 .field .row .input { flex: 1; min-width: 0; }
 .field .row .btn { flex: none; padding: 9px 10px; }
 
