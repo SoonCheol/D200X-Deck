@@ -74,7 +74,14 @@ test('parseProfile maps slots, skips the wide key and keeps plugin settings', ()
     JSON.stringify({ Name: 'Test', Device: { Model: 'D200' }, Pages: { Current: 'p1', Pages: ['p1'] } })
   );
   const pageDir = path.join(dir, 'Profiles', 'p1');
-  fs.mkdirSync(pageDir, { recursive: true });
+  fs.mkdirSync(path.join(pageDir, 'Images'), { recursive: true });
+  fs.writeFileSync(
+    path.join(pageDir, 'Images', 'paste.png'),
+    Buffer.from(
+      'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==',
+      'base64'
+    )
+  );
   fs.writeFileSync(
     path.join(pageDir, 'manifest.json'),
     JSON.stringify({
@@ -89,6 +96,8 @@ test('parseProfile maps slots, skips the wide key and keeps plugin settings', ()
               ViewParam: [
                 {
                   Text: 'Paste',
+                  Icon: path.join(pageDir, 'Images', 'paste.png'),
+                  IconRel: 'Images/paste.png',
                   Font: { Align: 'bottom', Color: 16777215, ShowTitle: true, Size: 22, Weight: 80 },
                 },
               ],
