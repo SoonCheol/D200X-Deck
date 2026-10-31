@@ -4,6 +4,24 @@ const { EventEmitter } = require('node:events');
 const { spawn } = require('node:child_process');
 const fs = require('node:fs');
 const path = require('node:path');
+
+/**
+ * The Electron main executable creates a Dock icon when spawned as a Node
+ * child. Use the LSUIElement helper instead, which runs the same Node runtime
+ * without flashing icons in the Dock while plugins start.
+ */
+function nodeRuntime() {
+  if (process.env.ULANZI_NODE_BIN) return process.env.ULANZI_NODE_BIN;
+  try {
+    const exe = process.execPath;
+    const name = path.basename(exe);
+    const helper = path.join(path.dirname(exe), '..', 'Frameworks', `${name} Helper.app`, 'Contents', 'MacOS', `${name} Helper`);
+    if (require('node:fs').existsSync(helper)) return helper;
+  } catch {
+    /* fall through */
+  }
+  return process.execPath;
+}
 const os = require('node:os');
 const { WebSocketServer } = require('ws');
 
@@ -356,7 +374,7 @@ class PluginManager extends EventEmitter {
       return null;
     }
     const proc = spawn(
-      process.execPath,
+      nodeRuntime(),
       [meta.codePath, '127.0.0.1', String(this.port), this.language, this.appVersion],
       {
         cwd: meta.dir,

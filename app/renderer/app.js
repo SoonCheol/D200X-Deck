@@ -904,6 +904,7 @@ function bind() {
 
   $('#import-btn').addEventListener('click', openImportModal);
   $('#import-close').addEventListener('click', closeImportModal);
+  $('#import-cancel').addEventListener('click', closeImportModal);
   $('#import-modal').addEventListener('click', (e) => {
     if (e.target === $('#import-modal')) closeImportModal();
   });

@@ -1190,8 +1190,10 @@ ipcMain.handle('pop:show', async (event, items) => {
     emoji: String(item?.emoji || '').slice(0, 8),
   }));
   if (popWindow) {
+    // A second POP press toggles the open palette closed instead of replacing it.
     try { popWindow.destroy(); } catch { /* ignore */ }
     popWindow = null;
+    return -1;
   }
   const width = 430;
   const rows = Math.ceil(clean.length / 3);
