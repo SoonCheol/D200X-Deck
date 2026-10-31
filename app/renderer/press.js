@@ -234,10 +234,31 @@ function flashKey(index) {
   setTimeout(() => tile.classList.remove('pressed'), 160);
 }
 
+const WIDE_MODE_ORDER = ['clock', 'stats', 'blank'];
+const WIDE_MODE_LABELS = { clock: 'Clock', stats: 'System stats', blank: 'Background' };
+
+function currentWideMode(page) {
+  return page?.wideMode === 'stats' || page?.wideMode === 'blank' ? page.wideMode : 'clock';
+}
+
+/** The deck cycles its own wide-key panel; mirror that on the dashboard. */
+function cycleWideMode() {
+  const page = activePage();
+  if (!page) return;
+  const index = WIDE_MODE_ORDER.indexOf(currentWideMode(page));
+  const next = WIDE_MODE_ORDER[(index + 1) % WIDE_MODE_ORDER.length];
+  if (next === 'clock') delete page.wideMode;
+  else page.wideMode = next;
+  scheduleSave();
+  drawIndex(WIDE_KEY_INDEX);
+  if (state.selected === WIDE_KEY_INDEX) renderInspector();
+  if (typeof refreshWideStats === 'function') refreshWideStats();
+  // Keep the real panel in step (stats start flowing, clock sync pauses).
+  api.setWideMode(next);
+  toast(`Wide key: ${WIDE_MODE_LABELS[next]}`);
+}
+
 function handleKeyEvent(index, pressed) {
-  // The wide key is a firmware system panel; never run actions for it
-  // (proto 0x0e resets the deck to its factory profile).
-  if (index === WIDE_KEY_INDEX) return;
   // While the Mac is locked the deck shows the lock screen; ignore key presses.
   if (typeof lockActive === 'function' && lockActive()) return;
   if (pressed) {
@@ -257,6 +278,15 @@ function handleKeyEvent(index, pressed) {
   }
   if (!pressed && wakeSwallow.has(index)) {
     wakeSwallow.delete(index);
+    return;
+  }
+  // The wide key cycles the firmware panel: clock → system stats → background.
+  // Never send an action for it (proto 0x0e resets the deck to its factory profile).
+  if (index === WIDE_KEY_INDEX) {
+    if (pressed) {
+      flashKey(index);
+      cycleWideMode();
+    }
     return;
   }
   const key = keyAt(activePage(), index);
