@@ -8,7 +8,7 @@ const wakeSwallow = new Set();
 // tap. Ignore a second press inside this window (still below a deliberate
 // double press, which the double-trigger window treats as two taps).
 const lastDownAt = new Map();
-const BOUNCE_MS = 150;
+const BOUNCE_MS = 60;
 const DOUBLE_WINDOW = 300;
 
 function navigateRelative(step) {
@@ -288,6 +288,7 @@ function handleKeyEvent(index, pressed) {
         return;
       }
     }
+    if (st.holdTimer || st.held) return; // key is already held
     st.held = false;
     if (hasHold) {
       st.holdTimer = setTimeout(() => {

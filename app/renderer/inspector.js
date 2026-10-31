@@ -763,7 +763,11 @@ function renderInspector() {
     ${triggerField(key, 'holdAction', 'On hold', page)}
     ${key.holdAction && key.holdAction.type !== 'none' ? `<div class="field"><label>Hold time (ms)</label><input class="input" id="insp-hold-ms" type="number" min="150" max="2000" step="50" value="${Number(key.holdMs) || 500}" /></div>` : ''}
     ${triggerField(key, 'doubleAction', 'On double press', page)}
-    <div class="field-hint">Tap still runs the action above.</div>
+    <div class="field-hint">
+      ${key.holdAction && key.holdAction.type !== 'none' ? `Hold for ${Number(key.holdMs) || 500} ms. ` : ''}
+      ${key.doubleAction && key.doubleAction.type !== 'none' ? 'Double-press within 300 ms. ' : ''}
+      ${key.holdAction || key.doubleAction ? 'A tap still runs the action above.' : 'Tap still runs the action above.'}
+    </div>
 
     <div class="insp-section">Appearance</div>
     <div class="field insp-icon-field">
