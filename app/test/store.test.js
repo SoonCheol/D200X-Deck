@@ -66,6 +66,40 @@ test('caption fonts and lock-screen settings survive save/load', () => {
   assert.match(loaded.settings.lockImage, /^data:image\/png/);
 });
 
+test('orphaned images are pruned while current and backup references stay', () => {
+  const dir = tempDir();
+  const store = new Store(dir);
+  const config = createDefaultConfig();
+  config.pages[0].keys[0] = {
+    emoji: '',
+    label: 'A',
+    color: '#1b2130',
+    icon: 'data:image/png;base64,YQ==',
+    action: { type: 'none' },
+  };
+  config.pages[0].keys[1] = {
+    emoji: '',
+    label: 'B',
+    color: '#1b2130',
+    icon: 'data:image/png;base64,Yg==',
+    action: { type: 'none' },
+  };
+  store.save(config);
+  let onDisk = JSON.parse(fs.readFileSync(store.file, 'utf8'));
+  const first = onDisk.pages[0].keys[0].icon.slice(5);
+  const second = onDisk.pages[0].keys[1].icon.slice(5);
+  assert.ok(fs.existsSync(path.join(store.imagesDir, first)));
+  assert.ok(fs.existsSync(path.join(store.imagesDir, second)));
+
+  delete config.pages[0].keys[0];
+  store.save(config);
+  assert.ok(fs.existsSync(path.join(store.imagesDir, first)), 'the .bak still references it');
+
+  store.save(config);
+  assert.equal(fs.existsSync(path.join(store.imagesDir, first)), false);
+  assert.ok(fs.existsSync(path.join(store.imagesDir, second)));
+});
+
 test('parents stay inside the profile and cycles are dropped', () => {
   const config = createDefaultConfig();
   const [first, second] = config.pages;

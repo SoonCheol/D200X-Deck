@@ -407,6 +407,38 @@ class Store {
     return validateConfig(config);
   }
 
+  _collectImageNames(config) {
+    const names = new Set();
+    for (const slot of this._imageSlots(config)) {
+      const value = slot.get();
+      if (typeof value === 'string' && value.startsWith('file:')) names.add(path.basename(value.slice(5)));
+    }
+    return names;
+  }
+
+  /** Drop Images/ files no longer referenced by the current config or its .bak. */
+  _pruneImages(current, backup) {
+    if (!fs.existsSync(this.imagesDir)) return;
+    const keep = this._collectImageNames(current);
+    if (backup) {
+      for (const name of this._collectImageNames(backup)) keep.add(name);
+    }
+    let entries = [];
+    try {
+      entries = fs.readdirSync(this.imagesDir);
+    } catch {
+      return;
+    }
+    for (const name of entries) {
+      if (name.startsWith('.') || keep.has(name)) continue;
+      try {
+        fs.unlinkSync(path.join(this.imagesDir, name));
+      } catch {
+        /* in use or already gone */
+      }
+    }
+  }
+
   save(config = this.config) {
     this.config = config;
     fs.mkdirSync(this.dir, { recursive: true });
@@ -420,6 +452,13 @@ class Store {
       /* first save, no backup yet */
     }
     fs.renameSync(tmp, this.file);
+    let backup = null;
+    try {
+      backup = JSON.parse(fs.readFileSync(`${this.file}.bak`, 'utf8'));
+    } catch {
+      /* no usable backup */
+    }
+    this._pruneImages(onDisk, backup);
   }
 
   activePage(config = this.config) {

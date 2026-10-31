@@ -35,6 +35,7 @@
 - Installing a plugin from the store asks for confirmation first.
 
 ### Reliability
+- Unreferenced images in `Images/` are pruned on save; files still referenced by the current config or its `.bak` are kept.
 - Single-instance lock (skipped in dev runs), renderer crash recovery, plugin spawn error handling.
 - Plugin port retry, restart backoff (max five attempts/minute), queued messages flushed on connect.
 - Plugin global settings persist across restarts; `state` text updates key captions.
