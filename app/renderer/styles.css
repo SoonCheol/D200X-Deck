@@ -170,6 +170,9 @@ body::before {
   font-size: 14px; line-height: 1;
 }
 .icon-btn:hover { color: var(--text); border-color: var(--line-strong); background: rgba(255, 255, 255, 0.07); }
+.icon-btn svg { display: block; }
+.dots { display: inline-flex; align-items: center; gap: 2px; }
+.dots i { width: 2.5px; height: 2.5px; border-radius: 50%; background: currentColor; display: block; }
 
 /* --------------------------------------------------------------- main */
 
