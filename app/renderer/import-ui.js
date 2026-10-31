@@ -7,11 +7,35 @@ let importSources = [];
 let importActive = null;
 let importPreview = null;
 let importSelection = null;
+let importCompleted = false;
+
+function resetImportState() {
+  importCompleted = false;
+  const cancel = $('#import-cancel');
+  if (cancel) cancel.textContent = 'Cancel';
+  const run = $('#import-run');
+  if (run) {
+    run.textContent = 'Import';
+    run.disabled = !(importSelection && importSelection.size);
+  }
+}
+
+function markImportCompleted() {
+  importCompleted = true;
+  const cancel = $('#import-cancel');
+  if (cancel) cancel.textContent = 'Close';
+  const run = $('#import-run');
+  if (run) {
+    run.textContent = 'Imported';
+    run.disabled = true;
+  }
+}
 
 function closeImportModal() {
   $('#import-modal').classList.add('hidden');
   importPreview = null;
   importSelection = null;
+  resetImportState();
 }
 
 async function openImportModal() {
@@ -19,6 +43,7 @@ async function openImportModal() {
   window.focusModal?.('import-modal');
   $('#import-pages').innerHTML = '';
   $('#import-report').classList.add('hidden');
+  resetImportState();
   $('#import-run').disabled = true;
   $('#import-sources').innerHTML = '<div class="insp-empty" style="padding:0">Scanning profiles…</div>';
 
@@ -49,6 +74,7 @@ function renderImportSources() {
 }
 
 async function selectImportSource(source) {
+  resetImportState();
   importActive = source;
   renderImportSources();
   $('#import-pages').innerHTML = '<div class="insp-empty" style="padding:0">Reading pages…</div>';
@@ -85,6 +111,7 @@ function renderImportPages() {
     input.addEventListener('change', () => {
       if (input.checked) importSelection.add(input.dataset.page);
       else importSelection.delete(input.dataset.page);
+      if (importCompleted) resetImportState();
       $('#import-run').disabled = importSelection.size === 0;
     });
   });
@@ -95,9 +122,12 @@ async function runImport() {
   const mode = $('#import-mode').value;
   if (mode === 'replace' && !confirm('Replace the pages in the current profile with the imported ones?')) return;
   const button = $('#import-run');
+  const cancel = $('#import-cancel');
   button.disabled = true;
   button.textContent = 'Importing…';
+  if (cancel) cancel.disabled = true;
   const res = await api.importApply({ target: importActive.path, pageIds: [...importSelection], mode });
+  if (cancel) cancel.disabled = false;
   button.textContent = 'Import';
   button.disabled = false;
   if (!res.ok) return toast(res.error, true);
@@ -121,6 +151,7 @@ async function runImport() {
     res.profileName ? ` into “${esc(res.profileName)}”` : ''
   }.</strong>${lists.join('') || ''}`;
 
+  markImportCompleted();
   const boot = await api.getState();
   state.config = boot.config;
   state.status = boot.status;

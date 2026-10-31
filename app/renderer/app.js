@@ -916,6 +916,7 @@ function bind() {
     if (res.profiles?.length) selectImportSource(res.profiles[0]);
   });
   $('#import-run').addEventListener('click', runImport);
+  $('#import-mode').addEventListener('change', () => resetImportState());
 
   $('#plugins-btn').addEventListener('click', openPluginModal);
   $('#store-btn').addEventListener('click', openStoreModal);
