@@ -807,21 +807,24 @@ function renderInspector() {
           </select>
         </div>
         ${
-          pluginAction && pluginAction.propertyInspector
-            ? `<div class="field">
-                 <label>Settings</label>
-                 <div id="pi-host" class="pi-host"><div class="insp-empty" style="padding:0">Loading settings…</div></div>
+          !pluginAction
+            ? `<div class="insp-empty" style="padding:0;font-size:11px">
+                 ${plugin ? 'Choose an action to configure its settings.' : 'Choose a plugin and an action to configure its settings.'}
                </div>`
-            : `<div class="field">
-                 <label>Settings (JSON)</label>
-                 <textarea class="textarea" id="insp-plugin-settings" placeholder="{}">${esc(
-                   JSON.stringify(action.settings || {}, null, 2)
-                 )}</textarea>
-               </div>
-               <div class="insp-empty" style="padding:0;font-size:11px">
-                 ${plugin ? `Live images come from <b>${esc(plugin.name)}</b>.` : 'Choose a plugin action.'}
-                 This action has no property inspector, so settings are edited as JSON.
-               </div>`
+            : pluginAction.propertyInspector
+              ? `<div class="field">
+                   <label>Settings</label>
+                   <div id="pi-host" class="pi-host"><div class="insp-empty" style="padding:0">Loading settings…</div></div>
+                 </div>`
+              : `<div class="field">
+                   <label>Settings (JSON)</label>
+                   <textarea class="textarea" id="insp-plugin-settings" placeholder="{}">${esc(
+                     JSON.stringify(action.settings || {}, null, 2)
+                   )}</textarea>
+                 </div>
+                 <div class="insp-empty" style="padding:0;font-size:11px">
+                   Live images come from <b>${esc(plugin.name)}</b>. This action has no property inspector, so settings are edited as JSON.
+                 </div>`
         }
       `;
     }
