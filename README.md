@@ -1,8 +1,9 @@
 # ulanzi-deck-open
 
 An open-source desktop app for the **Ulanzi D200** (14 buttons: 13 square 196×196 keys
-plus one 2×1 wide key, USB `0x2207:0x0019`). It replaces Ulanzi Studio for editing pages and triggering
-actions, and it talks to the deck directly over HID — no vendor app required.
+plus one 2×1 wide key, USB `0x2207:0x0019`). It replaces Ulanzi Studio for editing pages
+and triggering actions, and it talks to the deck directly over HID — no vendor app
+required.
 
 ![Main window](docs/screenshots/main.png)
 
@@ -10,80 +11,161 @@ _The editor, the plugin manager and the store all run against the deck live._
 
 ## Features
 
-* **Live editor** — mirrors the device exactly: 13 square keys + one 2×1 wide key
+* **Live editor** — mirrors the device: 13 square keys + one 2×1 wide key
   (slot `3_2`, index 13).
 * **Profiles & pages** — multiple profiles, each with its own pages; profiles can be
   linked to an app so the deck follows the frontmost window. Page/profile wallpapers and
   “snapshot page” backgrounds are sliced across the keys.
-* **Keys** — emoji, label, background colour, or a custom image (click or drag & drop),
-  with per-key caption size/weight/alignment/colour (official fonts are imported).
-  The wide key renders at 402×196.
-* **Actions** — open an app (searchable in-app picker with real app icons and a
-  “Use app icon” button), open a URL
-  (fetches the site's icon automatically), run a shell command, send a hotkey, switch
-  page, **or run an existing Node.js Ulanzi plugin action**.
+* **Keys** — emoji or text, captions, background colour, or a custom image (click or
+  drag & drop), with per-key caption size/weight/alignment/colour (official fonts are
+  imported). Keys show either an image or their text, chosen with the **Icon / Text**
+  tabs.
+* **Wide key** — choose **Clock** (analog dial + digital time), **System stats** (live
+  CPU / RAM / GPU) or **Background** (page image). Pressing the physical wide key cycles
+  the three panels and the dashboard follows.
+* **Actions** — open an app (searchable in-app picker with real app icons), open a URL
+  (fetches the site icon), run a shell command, send a hotkey, type text, media keys,
+  close an app, switch page/profile, timer/key brightness, or run an existing Ulanzi
+  plugin action.
+* **Multi actions** — sequence / alternate / random steps with delays, plus a two-way
+  Hotkey Switch.
+* **Press triggers** — separate actions for tap, hold and double press.
 * **Pinned keys** — pin an action to every page, with per-page overrides.
-* **Backup & share** — export a profile to one `.ulanzideckprofile` file and import it back.
-* **Launch at login** — start in the menu bar; subpages can auto-return to their parent after an idle timeout.
-* **POP menus** — import and use POP keys: press one to get a compact action palette at the pointer.
-* **Device control** — brightness (0–100 %), screen sleep timeout, clock sync, a standby
-  clock/wallpaper screen, an optional lock-screen image/clock, and Timer / key-brightness actions.
+* **Backup & share** — export a profile to one `.ulanzideckprofile` file and import it
+  back (as a new profile, or merged into / replacing the current one).
+* **Launch at login** — start in the menu bar; subpages can auto-return to their parent
+  after an idle timeout.
+* **POP menus** — import and use POP keys: press one to get a compact action palette at
+  the pointer (up to 9 actions).
+* **Device control** — brightness (0–100 %), screen sleep timeout, clock sync, standby
+  clock/wallpaper, optional lock-screen image/clock, and message/caption styling.
 * **Plugins** — runs Ulanzi's JavaScript *and* HTML plugins unchanged (discovery,
-  WebSocket host, live images, key events, property inspectors). Plugins installed by Ulanzi Studio are used read-only and
-  can be copied into the app; app-installed plugins can be removed.
-  See [`docs/PLUGINS.md`](docs/PLUGINS.md).
+  WebSocket host, live images, key events, property inspectors). Plugins installed by
+  Ulanzi Studio are used read-only and can be copied into the app; app-installed plugins
+  can be removed. See [`docs/PLUGINS.md`](docs/PLUGINS.md).
 * **Plugin Store** — browse the official Ulanzi Studio marketplace from the sidebar:
-  categories (profiles, plugins, icons), search, sorting, plugin details, and
-  one-click install into this app (installed plugins are fully managed by it).
+  categories (profiles, plugins, icons), search, sorting, plugin details, and one-click
+  install into this app.
 * **Icon library** — download icon packs from the Store, manage them in
-  **Installed → Icons**, and apply any icon to a key from the inspector.
-* **Import from Ulanzi Studio** — bring pages and keys over from a live Ulanzi
-  profile or an exported `.ulanziDeckProfile`/ZIP: actions, hotkeys, plugin settings
-  and icons are converted, the wide key is skipped, and unsupported actions are kept as
-  placeholders instead of being dropped.
+  **Installed → Icons**, and apply any icon to a key.
+* **Import from Ulanzi Studio** — bring pages and keys over from a live Ulanzi profile or
+  an exported `.ulanziDeckProfile`/ZIP: actions, hotkeys, plugin settings and icons are
+  converted; unsupported actions are kept as placeholders instead of being dropped.
 * **Hotkeys** — a proper picker (modifiers, letters, symbols, function keys, F keys,
   numpad) plus physical key capture.
 * **Drag to rearrange** — drag a key onto another to swap them.
 * **Keyboard shortcuts** — ⌘C/⌘V copy & paste keys, Delete/Backspace clears, ⌘Z undoes.
-* **Wide key is read-only** — it is the firmware system panel (clock), not user-editable.
 * **Lives in the menu bar** — closing the window hides it; Cmd+Q asks for confirmation
   before quitting.
-* **Packaged macOS app** — `npm run package` builds `Ulanzi Deck Open.app`.
+* **Packaged macOS app** — build an unsigned `.app` or `.dmg` locally with the commands
+  below. No Apple Developer account is needed.
 
-The window, the editor, and the device all update from the same config, so what you
-see is what the deck shows (labels are rendered into the images).
+The window, the editor and the device all update from the same config, so what you see is
+what the deck shows (labels are rendered into the images).
 
-## Quick start
+## Requirements
+
+* **macOS 13 or newer.** Apple Silicon is the default build; Intel Macs can build the
+  universal app.
+* **Node.js 22 LTS or newer** (`node -v`).
+* **Xcode Command Line Tools** — `xcode-select --install`. Needed for `clang`/`lipo`
+  when the native helpers are rebuilt, and for `hdiutil` when making a DMG.
+* The D200 connected over USB. **Quit Ulanzi Studio first** — the deck's control
+  interface is exclusive.
+
+## Build from source (unsigned)
+
+No signing, notarization or Apple account is involved. You are building the app on your
+own Mac, so macOS does not apply the “downloaded from the internet” quarantine to the
+result.
 
 ```bash
-cd app
+git clone https://github.com/edufalcao/ulanzi-deck-open.git
+cd ulanzi-deck-open/app
 npm install
 npm start
 ```
 
-**Quit Ulanzi Studio first** — the deck's control interface is exclusive.
+If you prefer a ZIP, use **Code → Download ZIP** on GitHub, unzip it, then run the same
+`npm install` / `npm start` inside the `app` folder.
 
-Hotkey actions are sent through AppleScript / System Events, so macOS asks for
-Accessibility permission the first time. Open-app/URL and shell actions need no
-special permission.
+**No Apple Developer account, certificate, signing or notarization is required.**
 
-Build and install the standalone app:
+`npm start` runs the app from source. To build a standalone `.app`:
 
 ```bash
-npm run install-app    # package, copy to ~/Applications, register with Spotlight
-npm run package        # arm64 only, no install
-npm run package:all    # universal
+npm run package        # Apple Silicon (arm64): dist/Ulanzi Deck Open-darwin-arm64/
+npm run package:all    # universal (arm64 + Intel): dist/Ulanzi Deck Open-darwin-universal/
 ```
 
-`install-app` also refreshes the LaunchServices/Spotlight registration, so the app
-shows up in Spotlight's Applications and Launchpad after every build.
+Then either open the bundle directly:
 
-Config lives in `~/Library/Application Support/Ulanzi Deck Open/config.json`.
+```bash
+open "dist/Ulanzi Deck Open-darwin-arm64/Ulanzi Deck Open.app"
+```
 
-## Roadmap
+or install it into `~/Applications` and register it with Spotlight/Launchpad:
 
-Firmware updates, Python plugins and the POP/action ring are the remaining large items;
-see [`docs/ROADMAP.md`](docs/ROADMAP.md).
+```bash
+npm run install-app    # package + copy to ~/Applications + lsregister + launch
+```
+
+`install-app` builds arm64 on Apple Silicon and the universal bundle on Intel. It also
+refreshes LaunchServices, so the app appears in Spotlight and Launchpad.
+
+Optional DMG (for sharing the unsigned build with someone else):
+
+```bash
+npm run make:dmg       # dist/Ulanzi Deck Open <version>.dmg
+```
+
+The DMG contains the app plus an `Applications` shortcut. It is not signed or notarized,
+so the recipient must do the Gatekeeper step below.
+
+### If you received a prebuilt unsigned build
+
+macOS quarantines apps downloaded from a browser or GitHub Releases. Either:
+
+* right-click the app in Finder → **Open** → **Open** again, or
+* remove the quarantine flag once:
+
+```bash
+xattr -dr com.apple.quarantine "/Applications/Ulanzi Deck Open.app"
+```
+
+This is expected for an unsigned build. Signing/notarization is deliberately not part of
+the current process, and unsigned builds have **no auto-updater**; installing a newer
+build means replacing the app. See [`docs/RELEASE.md`](docs/RELEASE.md) if signing is
+added later.
+
+## First run
+
+1. Quit **Ulanzi Studio** (menu bar → Quit).
+2. Connect the D200 and launch **Ulanzi Deck Open**.
+3. Grant macOS permissions when asked:
+   * **Accessibility** — required for hotkeys and typing text. The app offers a
+     **Grant…** button in **Deck settings**, or use System Settings → Privacy & Security
+     → Accessibility. Media keys use a native helper and need no permission.
+   * **Input Monitoring** — required by the bundled `hidseize` helper so the D200's
+     firmware fallback cannot type `www.ulanzistudio.com` into the frontmost app. If the
+     toast appears, enable the app in System Settings → Privacy & Security → Input
+     Monitoring and relaunch.
+4. Open-app, URL, shell and page actions need no special permission.
+
+Config lives in `~/Library/Application Support/Ulanzi Deck Open/config.json`. The app
+keeps a `.bak` and prunes unreferenced images on save.
+
+## Troubleshooting
+
+* **“Deck busy” / cannot connect** — quit Ulanzi Studio (and any other app using the
+  deck). The control interface is exclusive.
+* **Hotkeys do nothing** — grant Accessibility, then quit and relaunch the app.
+* **The wide key types a URL** — grant Input Monitoring (see above).
+* **The app does not appear in Spotlight/Launchpad** — run `npm run install-app` so
+  LaunchServices is refreshed, or open the app once from Finder.
+* **`npm run package` fails on clang/lipo** — install the Xcode Command Line Tools:
+  `xcode-select --install`.
+* **Port 3906 is busy** — quit Ulanzi Studio. The plugin host retries automatically.
 
 ## Project layout
 
@@ -92,33 +174,25 @@ app/                 Electron GUI (the app)
   main.js            window, IPC, tray-less lifecycle
   preload.js         context-isolated bridge
   lib/protocol.js    frame encoding/decoding
-  lib/deck.js        node-hid transport, read loop, key events
+  lib/deck.js        node-hid transport, read loop, key events, wide-key feed
   lib/page.js        page ZIP builder (content-addressed PNGs)
   lib/store.js       config schema + defaults
   lib/actions.js     open/hotkey/command execution
+  lib/sysstats.js    CPU / RAM / GPU sampling for the wide key
   lib/plugins.js     Ulanzi plugin host (spawn, WebSocket, images)
   renderer/          UI (HTML/CSS/JS, canvas key rendering)
+  scripts/           build, package and install helpers
 ulanzi_deck/         small Python library and protocol prototype
 examples/hello.py    Python: draw a numbered page on the deck
 docs/PROTOCOL.md     reverse-engineered USB/HID protocol
 ```
 
-## What works / what's next
+## Roadmap
 
-Working today: device connection, page upload, key input, page switching, native
-actions, brightness/sleep, packaging.
-
-Not implemented yet:
-
-* HTML plugins (JavaScript plugin actions run; property inspectors are supported,
-  HTML-only plugins are listed but cannot run).
-* The wide (2×1) key panel: the firmware shows the clock/logo, but the vendor’s
-  clock/stats mode command is not identified yet. The wide key is not offered as a
-  normal action.
-* The firmware fallback that types `www.ulanzistudio.com` when the keyboard HID
-  collection is not seized (needs an in-app native seize; a helper is blocked by TCC).
-* Multi-state keys, folders, GIF playback, dial/knob devices (D200H/D200X).
-* A proper settings pane (the first version exposes the essentials inline).
+Still open: firmware updates (risky), Python plugins, multi-device support
+(D200H/D200X/Dial/AU05), and OBS Studio actions. See
+[`docs/ROADMAP.md`](docs/ROADMAP.md) for the current status and
+[`CHANGELOG.md`](CHANGELOG.md) for what has landed.
 
 ## Protocol
 
@@ -136,11 +210,13 @@ Pages are a ZIP with `manifest.json` (`"column_row"` → `Icon` / `Text` / `Font
 
 ## Development notes
 
-* The app is Electron 45 + `node-hid` (N-API) + `jszip`, no bundler. The renderer is
-  plain HTML/CSS/JS so it is easy to hack on.
+* Electron 45 + `node-hid` (N-API) + `jszip`; no bundler. The renderer is plain
+  HTML/CSS/JS.
 * `ULANZI_SHOT=/tmp/ui.png` renders the window to a PNG and exits (useful for CI
   screenshots). `ULANZI_CLICK=5` selects a key first; `ULANZI_KEY=7` simulates a
-  device key press.
+  device key press; `ULANZI_CONFIG_DIR` uses a throwaway config so dev and packaged
+  apps can run side by side.
+* Run the tests with `npm test` (Node's built-in test runner).
 * The Python prototype remains for protocol experiments:
   `python3 -m venv .venv && .venv/bin/pip install pillow && .venv/bin/python examples/hello.py`.
 

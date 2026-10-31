@@ -86,8 +86,9 @@ an icon downscales it to 392 px and stores it on the key. Profile files
 1. On startup the app scans:
    * `~/Library/Application Support/Ulanzi/UlanziDeck/Plugins/*.ulanziPlugin`
    * `<userData>/Plugins/*.ulanziPlugin`
-2. Each `manifest.json` is parsed. Plugins with `"Type": "JavaScript"` and a `.js`
-   `CodePath` are marked compatible. (HTML plugins are listed but disabled.)
+2. Each `manifest.json` is parsed. JavaScript plugins (`.js` `CodePath`) run as child
+   processes; HTML plugins (`.html` `CodePath`) run in a hidden BrowserWindow. Both
+   connect to the same WebSocket host and support property inspectors.
 3. A plugin process is spawned lazily when an action from it is used:
 
    ```
@@ -176,12 +177,13 @@ edited as JSON. The key shows the plugin’s live image; pressing it sends `run`
 
 ## Limitations (current)
 
-* JavaScript plugins run as child processes; HTML plugins (`CodePath` ending in
-  `.html`) run in a hidden BrowserWindow and connect to the same host over WebSocket.
 * Encoder-only calls (`setFeedback`, `setFeedbackLayout`, `rotateEvent`) are accepted but
   have no visible effect on the D200, which has no dials.
-* Port 3906 is fixed; it must be free (quit Ulanzi Studio). The host retries every 10 s
-  if it was busy at launch.
+* Port 3906 is fixed; it must be free (quit Ulanzi Studio). The host retries if it was
+  busy at launch.
+* Python plugins are not supported.
+* A read-only plugin from Ulanzi Studio is shown with 🔒 until you copy it into this
+  app's plugin folder.
 
 ## Reference
 

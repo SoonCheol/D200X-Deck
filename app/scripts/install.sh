@@ -8,10 +8,16 @@ cd "$(dirname "$0")/.."
 
 APP_NAME="Ulanzi Deck Open"
 DEST="$HOME/Applications/$APP_NAME.app"
-BUILT="dist/$APP_NAME-darwin-arm64/$APP_NAME.app"
 
 echo "==> packaging"
-npm run package
+if [ "$(uname -m)" = "arm64" ]; then
+  npm run package
+  BUILT="dist/$APP_NAME-darwin-arm64/$APP_NAME.app"
+else
+  # Intel Macs need the universal bundle (the app is arm64-only otherwise).
+  npm run package:all
+  BUILT="dist/$APP_NAME-darwin-universal/$APP_NAME.app"
+fi
 
 echo "==> stopping running instance"
 # SIGTERM triggers the app's quit confirmation (by design), so force it while

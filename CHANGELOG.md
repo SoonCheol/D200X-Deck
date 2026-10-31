@@ -62,5 +62,7 @@
 - Icon library ignores macOS `._*` files.
 
 ### Tooling
-- Unit tests (`npm test`) for protocol framing, config migration/recovery and plugin install validation.
+- Unit tests (`npm test`) for protocol framing, config migration/recovery, wide-key modes and plugin install validation.
 - GitHub Actions CI; universal (arm64 + x86_64) native helpers; DMG script.
+- Build from a fresh clone is documented end-to-end (unsigned): `npm start`, arm64/universal packaging, `install-app`, DMG, Gatekeeper/quarantine and first-run permissions.
+- `package:all` now runs the native-helper build and post-package copy steps; `install-app` picks universal on Intel and `make:dmg` accepts any packaged architecture.

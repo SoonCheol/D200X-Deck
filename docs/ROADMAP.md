@@ -1,8 +1,13 @@
 # Roadmap
 
-Planning notes for what comes after the store work. Ordered by value: import first
-(it makes the app usable for existing Ulanzi Studio users), then the actions/behaviour
-that the official app has and we don't, then editor polish.
+> **Status (2026-10-31):** this file is a planning record from the build-out of the app.
+> Most of what is described below has landed. Current open work: firmware update,
+> Python plugins, multi-device support and OBS actions. See
+> [`../CHANGELOG.md`](../CHANGELOG.md) for the shipped list.
+
+Original planning notes for what comes after the store work. Ordered by value: import
+first (it makes the app usable for existing Ulanzi Studio users), then the
+actions/behaviour that the official app has and we don't, then editor polish.
 
 Status of the items the user raised:
 
@@ -51,7 +56,7 @@ The slot grid is the same as ours: 5 columns × 3 rows, the wide key is `3_2`
 | profile | set of pages (profiles support comes later, see 2B) |
 | page (`Profiles/<uuid>`, plus its `Name`) | page `{ id, name, keys }` |
 | key `"x_y"` | page key `index = y*5 + x` |
-| `3_2` | skipped (firmware panel, read-only) |
+| `3_2` | skipped on import; the panel is edited in our inspector (clock / stats / background) |
 | `Name` / `LinkedTitle` | label + caption |
 | `ViewParam[0].Icon` (absolute path) or `IconRel` | key image, copied into the app and stored as a data URL |
 | `com.ulanzi.deck.system` → Open / Website / Hotkey | `app` / `url` / `hotkey` |
@@ -161,7 +166,8 @@ Also done: **standby clock/wallpaper**, **app-linked profiles**, **pinned keys**
 **timer / key-brightness actions**, **page & profile backgrounds with snapshot** and the
 **plugin `selectdialog`** handler.
 
-Next by value: firmware update (risky), Python plugins, POP/action ring.
+Next by value: firmware update (risky), Python plugins, multi-device support, OBS
+actions.
 
 ## Order of work (agreed)
 
@@ -183,13 +189,11 @@ Next by value: firmware update (risky), Python plugins, POP/action ring.
 * **Later** — Ulanzi Connect lights and TC002 display (Bluetooth LE; needs a
   CoreBluetooth helper and protocol reverse-engineering).
 
-## Open questions
+## Resolved decisions
 
-* Do you want profiles as a first-class concept, or keep one flat set of pages and
-  import each official profile as a group of pages for now?
-* For system actions, is AppleScript/System Events acceptable (needs Accessibility),
-  or should we add a native helper for media keys?
-* Imported keys: keep the official images (copy the files) or keep only the official
-  labels and rebuild the icons with our renderer?
-* Unmapped actions on import: keep a placeholder key (safe, visible) or drop them
-  with a report?
+* Profiles are first-class (config v6) and imports create one profile per vendor
+  profile.
+* System actions use AppleScript/System Events plus the native `mediakey` helper;
+  Accessibility is required for hotkeys/text.
+* Imported keys copy the official images into our content-addressed image store.
+* Unmapped import actions are kept as visible placeholder keys.

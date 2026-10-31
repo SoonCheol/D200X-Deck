@@ -1,5 +1,9 @@
 # Action model v2
 
+> **Status (2026-10-31):** implemented. This is kept as the design record for the
+> action model (config v6 added profiles on top; Soundboard and press triggers are now
+> live). The remaining deferred items are OBS Studio and BLE devices.
+
 Scope agreed for the next block: bring the action vocabulary up to what Ulanzi Studio
 ships, minus the Soundboard (deferred to v3). Order of work overall:
 

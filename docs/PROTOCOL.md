@@ -56,10 +56,14 @@ All host → device frames observed so far use `cmd = 0x00`; `proto` selects the
 | 0x03 | 0x03 | ← device | device info reply | JSON `{"Dversion","SerialNumber","error"}` |
 | 0x03 | 0x0A | ← device | brightness ack | BCD byte (`0x86` = 86) |
 
-The wide-key mode is the **first field** of the proto 0x06 payload (the official
-app stores it as `SmallViewMode` and sends it through `buildSendDataString`).
-Fields: clock = `1|MM|SS|HH:MM:SS|0|24H|`; system stats =
+The wide-key mode is the **first field** of the proto 0x06 payload (the official app
+stores it as `SmallViewMode` and sends it through `buildSendDataString`). Fields:
+clock = `1|MM|SS|HH:MM:SS|0|24H|`; system stats =
 `0|CPU|MEM|HH:MM:SS|GPU|24H|`; background = `2|||||24H|`.
+
+*The clock payload was captured on the wire. The mode values (1/0/2) and the stats
+field order were derived from the official binary (radio IDs and
+`buildSendDataString`); the stats bytes themselves have not been individually sniffed.*
 
 ### Key events
 
@@ -93,8 +97,8 @@ A plain ZIP. Layout:
 ```
 manifest.json
 Images/
-  <uuid>.png     (196×196, RGB/RGBA)
-  <uuid>.svg     (SVG is accepted too)
+  <sha1>.png     (196×196, RGB/RGBA; our writer content-addresses the file)
+  <sha1>.svg     (SVG is accepted too)
 ```
 
 `manifest.json` maps slots to what the device should draw:
@@ -127,7 +131,8 @@ Images/
   this as `"LargeItem": {"3_2": [2, 1]}` and `"FixedItem": {"3_2": []}`.
 * Key events for the wide key report **index 13** (verified); normal keys are 0–12.
 * The wide key's image is 2:1 (we use 402×196). The vendor app treats it as a
-  `smallwindow.window` action with `SmallViewMode: 1`.
+  `smallwindow.window` action; `SmallViewMode` selects clock (`1`), CPU/RAM/GPU (`0`)
+  or background (`2`). In background mode the wide slot carries its own `Icon`.
 * `Icon` is a path inside the ZIP. The device displays the image; the `Text`/`Font` fields make
   the **device** draw a text overlay (the app does not bake the title into the image).
 * `"SmallViewMode": 1` appears for special slots (e.g. `3_2`) on some layouts.

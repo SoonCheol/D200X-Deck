@@ -2,8 +2,14 @@
 # Build a DMG for the packaged app (unsigned unless signing is configured).
 set -eu
 cd "$(dirname "$0")/.."
-APP="dist/Ulanzi Deck Open-darwin-arm64/Ulanzi Deck Open.app"
-[ -d "$APP" ] || { echo "run npm run package first"; exit 1; }
+APP=""
+for candidate in \
+  "dist/Ulanzi Deck Open-darwin-universal/Ulanzi Deck Open.app" \
+  "dist/Ulanzi Deck Open-darwin-arm64/Ulanzi Deck Open.app" \
+  "dist/Ulanzi Deck Open-darwin-x64/Ulanzi Deck Open.app"; do
+  if [ -d "$candidate" ]; then APP="$candidate"; break; fi
+done
+[ -n "$APP" ] || { echo "run npm run package or npm run package:all first"; exit 1; }
 VERSION=$(node -p "require('./package.json').version")
 OUT="dist/Ulanzi Deck Open ${VERSION}.dmg"
 STAGE=$(mktemp -d)
