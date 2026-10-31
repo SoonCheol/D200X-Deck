@@ -84,7 +84,7 @@ npm run make:dmg
 ```
 
 The script picks the universal bundle if it exists, otherwise arm64 or x64, and writes
-`dist/Ulanzi Deck Open <version>.dmg` with an `Applications` shortcut. The DMG is
+`dist/Ulanzi-Deck-Open-<version>.dmg` with an `Applications` shortcut. The DMG is
 unsigned.
 
 ## Sharing an unsigned build
@@ -117,9 +117,9 @@ If a Developer ID is added later:
 4. Notarize and staple:
 
 ```bash
-xcrun notarytool submit "dist/Ulanzi Deck Open.dmg" \
+xcrun notarytool submit "dist/Ulanzi-Deck-Open.dmg" \
   --apple-id "$APPLE_ID" --team-id "$TEAM_ID" --password "$APP_PASSWORD" --wait
-xcrun stapler staple "dist/Ulanzi Deck Open.dmg"
+xcrun stapler staple "dist/Ulanzi-Deck-Open.dmg"
 ```
 
 5. Verify with `spctl -a -vv` and install on a clean macOS account.

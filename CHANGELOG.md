@@ -2,6 +2,8 @@
 
 ## 0.1.0 — 2026-10-31
 
+- DMG filename uses dashes so GitHub Releases keeps the same name as the checksum file.
+
 ### Features
 - The 2×1 wide key is now editable: **Clock**, **System stats** (live CPU / memory / GPU from this Mac) or **Background** (page image, no clock). The preview matches the panel, and the choice is sent to the deck on every push/page change.
 - Pressing the physical wide key cycles Clock → System stats → Background and the dashboard follows, so the preview always mirrors the panel the device is showing.

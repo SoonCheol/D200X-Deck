@@ -116,7 +116,7 @@ refreshes LaunchServices, so the app appears in Spotlight and Launchpad.
 Optional DMG (for sharing the unsigned build with someone else):
 
 ```bash
-npm run make:dmg       # dist/Ulanzi Deck Open <version>.dmg
+npm run make:dmg       # dist/Ulanzi-Deck-Open-<version>.dmg
 ```
 
 The DMG contains the app plus an `Applications` shortcut. It is not signed or notarized,

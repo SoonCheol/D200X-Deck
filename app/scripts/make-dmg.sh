@@ -11,7 +11,7 @@ for candidate in \
 done
 [ -n "$APP" ] || { echo "run npm run package or npm run package:all first"; exit 1; }
 VERSION=$(node -p "require('./package.json').version")
-OUT="dist/Ulanzi Deck Open ${VERSION}.dmg"
+OUT="dist/Ulanzi-Deck-Open-${VERSION}.dmg"
 STAGE=$(mktemp -d)
 cp -R "$APP" "$STAGE/"
 ln -s /Applications "$STAGE/Applications"
