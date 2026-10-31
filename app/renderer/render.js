@@ -448,11 +448,11 @@ async function drawSystemPanel(canvas, options = {}) {
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
       ctx.fillStyle = 'rgba(255,255,255,0.96)';
-      ctx.font = '600 34px -apple-system, "SF Pro Display", "Helvetica Neue", sans-serif';
-      ctx.fillText(`${pct}%`, cx, h * 0.44);
-      ctx.fillStyle = 'rgba(255,255,255,0.5)';
-      ctx.font = '600 10px -apple-system, "SF Pro Text", sans-serif';
-      ctx.fillText(label, cx, h * 0.67);
+      ctx.font = '600 36px -apple-system, "SF Pro Display", "Helvetica Neue", sans-serif';
+      ctx.fillText(`${pct}%`, cx, h * 0.43);
+      ctx.fillStyle = 'rgba(255,255,255,0.58)';
+      ctx.font = '600 12.5px -apple-system, "SF Pro Text", sans-serif';
+      ctx.fillText(label, cx, h * 0.68);
     });
   } else if (mode === 'clock') {
     drawAnalogClock(ctx, clockX, h / 2, clockR, now);
