@@ -180,8 +180,6 @@ actions.
 4. **Import from Ulanzi Studio** — **landed (v1)**: live profiles, exported
    `.ulanziDeckProfile`/ZIP, action/hotkey/plugin-settings mapping, icons copied into
    our image store, wide key skipped, unsupported actions kept as placeholders.
-   See [`reviews/2026-10-30-official-gap.md`](reviews/2026-10-30-official-gap.md) §5 for
-   the remaining edge cases (profiles as first-class objects, V1 profiles, folders).
 
 ### v3 and later
 
