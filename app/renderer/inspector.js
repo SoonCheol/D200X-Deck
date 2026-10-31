@@ -1389,7 +1389,6 @@ function renderInspector() {
       profile.pinned = profile.pinned || {};
       profile.pinned[index] = source;
       delete page.keys[index];
-      state.selected = null;
       commit();
       renderGrid();
       renderInspector();
