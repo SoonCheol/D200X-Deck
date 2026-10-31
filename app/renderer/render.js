@@ -99,6 +99,9 @@ async function drawKey(canvas, key, width = KEY_SIZE, height = KEY_SIZE, autoIco
   if (canvas.height !== h) canvas.height = h;
   const ctx = canvas.getContext('2d');
   ctx.clearRect(0, 0, w, h);
+  // A key can show an image or its text, never both.
+  const showIcon = key.face !== 'text';
+  if (!showIcon) autoIcon = null;
 
   const top = shade(key.color || '#1b2130', 26);
   const bottom = shade(key.color || '#1b2130', -18);
@@ -113,7 +116,7 @@ async function drawKey(canvas, key, width = KEY_SIZE, height = KEY_SIZE, autoIco
   ctx.fillStyle = grad;
   ctx.fillRect(0, 0, w, h);
 
-  if (key.icon) {
+  if (key.icon && showIcon) {
     try {
       const img = await loadImage(key.icon);
       if (key.iconSource === 'site' || key.iconSource === 'app') {
@@ -144,7 +147,7 @@ async function drawKey(canvas, key, width = KEY_SIZE, height = KEY_SIZE, autoIco
     }
   }
 
-  if (!key.icon) {
+  if (!key.icon || !showIcon) {
     const v = ctx.createRadialGradient(w / 2, h * 0.42, 10, w / 2, h * 0.5, min * 0.8);
     v.addColorStop(0, 'rgba(255,255,255,0.045)');
     v.addColorStop(1, 'rgba(0,0,0,0.18)');
@@ -182,7 +185,7 @@ async function drawKey(canvas, key, width = KEY_SIZE, height = KEY_SIZE, autoIco
   const hasLabel = Boolean(label) && font.showLabel !== false;
 
   let drewAutoIcon = false;
-  if (!key.icon && autoIcon && !timerText) {
+  if (!key.icon && showIcon && autoIcon && !timerText) {
     try {
       const img = await loadImage(autoIcon);
       const size = Math.round(min * 0.54);
@@ -239,7 +242,7 @@ async function drawKey(canvas, key, width = KEY_SIZE, height = KEY_SIZE, autoIco
     ctx.restore();
   }
 
-  if (main && !key.icon && !drewAutoIcon) {
+  if (main && (!key.icon || !showIcon) && !drewAutoIcon) {
     ctx.save();
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';

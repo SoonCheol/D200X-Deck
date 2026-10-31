@@ -111,6 +111,7 @@ function setKeyIconFromLibrary(src) {
     ctx.drawImage(img, (size - w) / 2, (size - h) / 2, w, h);
     key.icon = canvas.toDataURL('image/png');
     key.iconSource = 'library';
+    key.face = 'icon';
     drawIndex(state.selected);
     commit();
     renderInspector();

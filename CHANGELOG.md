@@ -17,6 +17,8 @@
 - Plugin protocol sends the action UUID for action-scoped messages, fixing multi-instance plugins (Claude Usage 5h/weekly).
 
 ### Fixes
+- The key inspector has **Icon / Text** tabs: a key shows either a custom or automatic image or its text, never both; **Remove** clears the image and returns the key to text.
+- Hold / double press “Switch to page” now seeds a target page, so the action works right after choosing the type (older empty targets advance to the next page).
 - Every page picker (Go to page, parent, press triggers, Multi/POP step pages) is limited to the active profile, cannot form cycles, and subpages are indented with a “↳” in the sidebar.
 - Subpages are easy to leave: a back arrow in the toolbar, “Back to parent” in Page settings, and **Add Back key** for a physical page/back key.
 - Deck settings close button no longer sits under the window drag region; the popover closes on ×, outside click and Escape.

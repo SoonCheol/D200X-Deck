@@ -325,7 +325,14 @@ function bindTriggerFields(key) {
       if (type === 'none') delete key[field];
       else if (type === 'media') key[field] = { type: 'media', op: 'playpause' };
       else if (type === 'hotkey') key[field] = { type: 'hotkey', value: '' };
-      else key[field] = { type, value: '' };
+      else if (type === 'page') {
+        // Seed the target: the select would otherwise display the first page
+        // while the action kept an empty value, so the press did nothing.
+        const current = activePage();
+        const options = pagesFor(current?.profileId);
+        const target = options.find((p) => p.id !== current?.id) || options[0];
+        key[field] = { type: 'page', op: 'goto', value: target ? target.id : '' };
+      } else key[field] = { type, value: '' };
       commit();
       renderInspector();
     });
@@ -762,6 +769,35 @@ function renderInspector() {
     }
   }
 
+  const face =
+    key.face === 'text' ? 'text' : key.face === 'icon' ? 'icon' : key.icon || autoIconFor(key) ? 'icon' : 'text';
+  const iconField = `
+    <div class="field insp-icon-field">
+      <label>Icon</label>
+      <div class="icon-row">
+        <div class="icon-drop compact" id="insp-icon-drop">
+          ${liveKey.icon ? `<img src="${esc(liveKey.icon)}" alt="" />` : `<div class="icon-plus">＋</div>`}
+          <div class="meta">
+            <div class="file-name">${
+              key.icon ? 'Custom' : liveKey.icon ? 'Live image' : autoIconFor(key) ? 'Action icon' : 'No image'
+            }</div>
+            <div>Drop or click to change</div>
+          </div>
+        </div>
+        <div class="icon-buttons">
+          <button class="btn small" id="insp-icon-library">Library</button>
+          ${action.type === 'app' && action.value ? '<button class="btn small" id="insp-use-app-icon">App icon</button>' : ''}
+          ${key.icon ? '<button class="btn small danger" id="insp-icon-remove">Remove</button>' : ''}
+        </div>
+      </div>
+    </div>`;
+  const textField = `
+    <div class="field">
+      <label for="insp-emoji">Key text</label>
+      <input class="input" id="insp-emoji" maxlength="12" value="${esc(key.emoji)}" placeholder="Text or emoji" />
+      <div class="field-hint">Shrinks to fit · 12 characters max</div>
+    </div>`;
+
   el.innerHTML = `
     <div class="insp-head">
       <h2>${state.selected === WIDE_KEY_INDEX ? 'Wide key' : `Key ${state.selected + 1}`}</h2>
@@ -796,33 +832,14 @@ function renderInspector() {
     </div>
 
     <div class="insp-section">Appearance</div>
-    <div class="field insp-icon-field">
-      <label>Icon</label>
-      <div class="icon-row">
-        <div class="icon-drop compact" id="insp-icon-drop">
-          ${liveKey.icon ? `<img src="${esc(liveKey.icon)}" alt="" />` : `<div class="icon-plus">＋</div>`}
-          <div class="meta">
-            <div class="file-name">${
-              key.icon ? 'Custom' : liveKey.icon ? 'Live image' : autoIconFor(key) ? 'Action icon' : 'No image'
-            }</div>
-            <div>Drop or click to change</div>
-          </div>
-        </div>
-        <div class="icon-buttons">
-          <button class="btn small" id="insp-icon-library">Library</button>
-          ${action.type === 'app' && action.value ? '<button class="btn small" id="insp-use-app-icon">App icon</button>' : ''}
-          ${key.icon ? '<button class="btn small danger" id="insp-icon-remove">Remove</button>' : ''}
-        </div>
-      </div>
+    <div class="face-tabs" role="tablist" aria-label="Key face">
+      <button class="tab ${face === 'icon' ? 'active' : ''}" data-key-face="icon" role="tab" aria-selected="${face === 'icon' ? 'true' : 'false'}">Icon</button>
+      <button class="tab ${face === 'text' ? 'active' : ''}" data-key-face="text" role="tab" aria-selected="${face === 'text' ? 'true' : 'false'}">Text</button>
     </div>
-
+    ${face === 'icon' ? iconField : textField}
     <div class="field">
-      <label for="insp-emoji">Key text</label>
-      <div class="emoji-row">
-        <input class="input" id="insp-emoji" maxlength="12" value="${esc(key.emoji)}" placeholder="Text or emoji" />
-        <input class="color-input" id="insp-color" type="color" value="${esc(key.color || '#1b2130')}" title="Background" />
-      </div>
-      <div class="field-hint">Shrinks to fit · 12 characters max</div>
+      <label>Background</label>
+      <input class="color-input" id="insp-color" type="color" value="${esc(key.color || '#1b2130')}" title="Key background" />
     </div>
 
     <div class="field">
@@ -851,34 +868,45 @@ function renderInspector() {
     </div>
   `;
 
+  // appearance tabs: a key shows either an image or its text
+  el.querySelectorAll('[data-key-face]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      key.face = btn.dataset.keyFace;
+      drawIndex(state.selected);
+      commit();
+      renderInspector();
+    });
+  });
+
   // icon drop / choose
   const drop = $('#insp-icon-drop');
-  drop.addEventListener('click', async () => {
-    const picked = await api.pickImage();
-    if (!picked) return;
-    const dataUrl = await downscaleImage(picked);
-    key.icon = dataUrl;
-    key.iconSource = 'custom';
-    drawIndex(state.selected);
-    commit();
-    renderInspector();
-  });
-  drop.addEventListener('dragover', (e) => {
-    e.preventDefault();
-    drop.classList.add('drag');
-  });
-  drop.addEventListener('dragleave', () => drop.classList.remove('drag'));
-  drop.addEventListener('drop', async (e) => {
-    e.preventDefault();
-    drop.classList.remove('drag');
-    const file = e.dataTransfer.files && e.dataTransfer.files[0];
-    if (!file || !file.type.startsWith('image/')) return toast('Drop an image file', true);
-    key.icon = await downscaleImage(await readFileAsDataUrl(file));
-    key.iconSource = 'custom';
-    drawIndex(state.selected);
-    commit();
-    renderInspector();
-  });
+  if (drop) {
+    const applyIcon = (dataUrl, source) => {
+      key.icon = dataUrl;
+      key.iconSource = source;
+      key.face = 'icon';
+      drawIndex(state.selected);
+      commit();
+      renderInspector();
+    };
+    drop.addEventListener('click', async () => {
+      const picked = await api.pickImage();
+      if (!picked) return;
+      applyIcon(await downscaleImage(picked), 'custom');
+    });
+    drop.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      drop.classList.add('drag');
+    });
+    drop.addEventListener('dragleave', () => drop.classList.remove('drag'));
+    drop.addEventListener('drop', async (e) => {
+      e.preventDefault();
+      drop.classList.remove('drag');
+      const file = e.dataTransfer.files && e.dataTransfer.files[0];
+      if (!file || !file.type.startsWith('image/')) return toast('Drop an image file', true);
+      applyIcon(await downscaleImage(await readFileAsDataUrl(file)), 'custom');
+    });
+  }
 
   const hotkeyOpen = $('#insp-hotkey-open');
   if (hotkeyOpen) {
@@ -912,6 +940,7 @@ function renderInspector() {
       if (!icon) return toast('No app icon found', true);
       key.icon = icon;
       key.iconSource = 'app';
+      key.face = 'icon';
       drawIndex(state.selected);
       commit();
       renderInspector();
@@ -924,19 +953,20 @@ function renderInspector() {
     removeImage.addEventListener('click', () => {
       key.icon = null;
       delete key.iconSource;
+      key.face = 'text';
       drawIndex(state.selected);
       commit();
       renderInspector();
     });
   }
 
-  $('#insp-emoji').addEventListener('input', (e) => {
+  $('#insp-emoji')?.addEventListener('input', (e) => {
     key.emoji = e.target.value;
     delete key.emojiAuto;
     drawIndex(state.selected);
     commit(false);
   });
-  $('#insp-color').addEventListener('input', (e) => {
+  $('#insp-color')?.addEventListener('input', (e) => {
     key.color = e.target.value;
     drawIndex(state.selected);
     commit(false);

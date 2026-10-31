@@ -82,6 +82,7 @@ function normalizeKey(raw) {
   }
   if (typeof raw.emojiAuto === 'string') key.emojiAuto = raw.emojiAuto;
   if (typeof raw.labelAuto === 'string') key.labelAuto = raw.labelAuto;
+  if (raw.face === 'icon' || raw.face === 'text') key.face = raw.face;
   if (raw.font && typeof raw.font === 'object') {
     key.font = {
       size: clamp(Math.round(Number(raw.font.size) || 17), 10, 40),

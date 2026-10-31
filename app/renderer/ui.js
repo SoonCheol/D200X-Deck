@@ -382,6 +382,7 @@ async function loadSiteIcon(key, report = false) {
   }
   key.icon = res.dataUrl;
   key.iconSource = 'site';
+  key.face = 'icon';
   drawIndex(state.selected);
   commit();
   if (report) toast('Icon loaded from the site');

@@ -66,6 +66,26 @@ test('caption fonts and lock-screen settings survive save/load', () => {
   assert.match(loaded.settings.lockImage, /^data:image\/png/);
 });
 
+test('a key keeps its icon/text face across a save', () => {
+  const dir = tempDir();
+  const store = new Store(dir);
+  const config = createDefaultConfig();
+  config.pages[0].keys[0] = {
+    emoji: 'S',
+    label: '',
+    color: '#1b2130',
+    icon: 'data:image/png;base64,YQ==',
+    face: 'text',
+    action: { type: 'app', value: '/Applications/Safari.app' },
+  };
+  store.save(config);
+  const onDisk = JSON.parse(fs.readFileSync(store.file, 'utf8'));
+  assert.equal(onDisk.pages[0].keys[0].face, 'text');
+
+  const loaded = new Store(dir).load();
+  assert.equal(loaded.pages[0].keys[0].face, 'text');
+});
+
 test('orphaned images are pruned while current and backup references stay', () => {
   const dir = tempDir();
   const store = new Store(dir);

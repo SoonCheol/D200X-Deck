@@ -170,6 +170,8 @@ function runKeyAction(action) {
       if (parent) return navigate(parent);
       return navigateRelative(-1);
     }
+    // Older configs may have a goto with no target; move forward instead.
+    if (!action.value) return navigateRelative(1);
     navigate(action.value);
     return;
   }
