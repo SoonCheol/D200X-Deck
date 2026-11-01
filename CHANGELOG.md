@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.6.1 — 2026-11-01
 
 ### Security
 - Importing a profile that contains shell commands now lists them and asks for confirmation. Imported commands stay marked on the key and in the inspector until you edit them.
