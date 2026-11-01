@@ -21,6 +21,7 @@ contextBridge.exposeInMainWorld('deckApp', {
   updateState: () => ipcRenderer.invoke('app:update-state'),
   refreshUpdateSchedule: () => ipcRenderer.invoke('app:update-settings-changed'),
   onUpdateAvailable: (cb) => subscribe('app:update-available', cb),
+  onShowAbout: (cb) => subscribe('app:show-about', cb),
   accessibility: () => ipcRenderer.invoke('app:accessibility'),
   requestAccessibility: () => ipcRenderer.invoke('app:request-accessibility'),
   runAction: (action) => ipcRenderer.invoke('action:run', action),

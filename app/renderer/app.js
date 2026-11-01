@@ -648,6 +648,15 @@ function closeUpdateModal() {
   $('#update-modal')?.classList.add('hidden');
 }
 
+function openAboutModal() {
+  $('#about-modal')?.classList.remove('hidden');
+  window.focusModal?.('about-modal');
+}
+
+function closeAboutModal() {
+  $('#about-modal')?.classList.add('hidden');
+}
+
 function openReleasePage() {
   if (updateInfo?.url) api.openExternal(updateInfo.url);
   closeUpdateModal();
@@ -663,7 +672,7 @@ function isTypingTarget(target) {
 }
 
 function anyModalOpen() {
-  return ['hotkey-modal', 'app-modal', 'icons-modal', 'store-modal', 'plugin-modal', 'import-modal', 'profile-modal', 'update-modal']
+  return ['hotkey-modal', 'app-modal', 'icons-modal', 'store-modal', 'plugin-modal', 'import-modal', 'profile-modal', 'update-modal', 'about-modal']
     .some((id) => {
       const el = document.getElementById(id);
       return el && !el.classList.contains('hidden');
@@ -1242,6 +1251,15 @@ function bind() {
   $('#update-modal').addEventListener('click', (event) => {
     if (event.target === $('#update-modal')) closeUpdateModal();
   });
+  $('#about-open').addEventListener('click', openAboutModal);
+  $('#about-close').addEventListener('click', closeAboutModal);
+  $('#about-modal').addEventListener('click', (event) => {
+    if (event.target === $('#about-modal')) closeAboutModal();
+  });
+  $('#about-site').addEventListener('click', () => api.openExternal('https://edufalcao.com'));
+  $('#about-github').addEventListener('click', () =>
+    api.openExternal('https://github.com/edufalcao/ulanzi-deck-open')
+  );
 
   $('#launch-login').addEventListener('change', async () => {
     const enabled = $('#launch-login').checked;
@@ -1386,6 +1404,7 @@ function bind() {
     'import-modal': closeImportModal,
     'profile-modal': closeProfileModal,
     'update-modal': closeUpdateModal,
+    'about-modal': closeAboutModal,
     // The app picker opens on top of other dialogs (e.g. the profile form).
     'app-modal': closeAppPicker,
   };
@@ -1503,6 +1522,8 @@ function bind() {
     if (message) toast(message);
   });
 
+  api.onShowAbout?.(() => openAboutModal());
+
   api.onUpdateAvailable?.((info) => {
     updateInfo = { ...info, update: true, checkedAt: Date.now() };
     renderUpdateStatus(updateInfo);
@@ -1578,6 +1599,7 @@ async function hydrateAppIcons() {
   updatePluginCount();
   $('#version').textContent = boot.version;
   if ($('#app-version')) $('#app-version').textContent = boot.version;
+  if ($('#about-version')) $('#about-version').textContent = boot.version;
   bind();
   renderAll();
   hydrateAppIcons();

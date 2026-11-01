@@ -632,6 +632,33 @@ body::before {
 .menu-item:hover { background: rgba(255, 255, 255, 0.06); }
 
 #update-modal .modal-card { height: min(560px, calc(100vh - 140px)); }
+#about-modal .modal-card {
+  position: relative;
+  width: min(360px, calc(100vw - 80px));
+  height: auto;
+  max-height: none;
+  padding: 30px 24px 24px;
+  align-items: center;
+  text-align: center;
+  gap: 4px;
+}
+.about-close { position: absolute; top: 12px; right: 12px; }
+.about-icon { width: 64px; height: 64px; border-radius: 16px; margin-bottom: 8px; }
+.about-card h2 { margin: 0; font-size: 17px; color: var(--text); }
+.about-version { font-size: 12px; color: var(--muted); }
+.about-author { margin-top: 10px; font-size: 12px; color: var(--text); }
+.about-link {
+  border: 0;
+  background: none;
+  color: var(--focus);
+  font: inherit;
+  font-size: 12px;
+  padding: 2px 4px;
+  cursor: pointer;
+}
+.about-link:hover { text-decoration: underline; }
+.about-link-sub { font-size: 11px; color: var(--text-3); }
+.about-license { margin-top: 10px; font-size: 10.5px; color: var(--text-3); }
 .update-notes {
   flex: 1;
   min-height: 0;

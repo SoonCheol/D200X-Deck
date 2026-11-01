@@ -297,7 +297,7 @@ function buildMenu() {
       ? [{
           label: app.name,
           submenu: [
-            { role: 'about' },
+            { label: 'About Ulanzi Deck Open', click: () => send('app:show-about') },
             { label: 'Check for Updates…', click: () => checkForUpdates() },
             { type: 'separator' },
             { label: 'Show Main Window', accelerator: 'CmdOrCtrl+0', click: showWindow },
@@ -1006,6 +1006,13 @@ app.whenReady().then(() => {
   createWindow();
   buildMenu();
   createTray();
+  app.setAboutPanelOptions({
+    applicationName: 'Ulanzi Deck Open',
+    applicationVersion: app.getVersion(),
+    version: '',
+    copyright: '© 2026 Eduardo Falcão Lima',
+    credits: 'Author: Eduardo Falcão Lima · edufalcao.com',
+  });
   scheduleUpdateCheck(20_000);
 
   app.on('activate', () => showWindow());

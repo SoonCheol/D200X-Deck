@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+### Features
+- **About** is now an in-app dialog, opened from the app menu or **Deck settings → App**. It shows the version, “Made by Eduardo Falcão Lima”, a link to **edufalcao.com** and the GitHub repository, and the MIT licence.
+
 ## 0.4.0 — 2026-11-01
 
 ### Features

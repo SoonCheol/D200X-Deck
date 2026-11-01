@@ -175,6 +175,10 @@
                 <option value="24">24 hours</option>
               </select>
             </div>
+            <div class="settings-row">
+              <span>About</span>
+              <button class="btn small" id="about-open">About Ulanzi Deck Open…</button>
+            </div>
           </div>
         </div>
 
@@ -391,6 +395,19 @@
         </div>
 
         <div id="store-detail" class="store-detail hidden"></div>
+      </div>
+    </div>
+
+    <div id="about-modal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="about-title">
+      <div class="modal-card about-card">
+        <button class="icon-btn about-close" id="about-close" title="Close">×</button>
+        <img class="about-icon" src="assets/brand.png" alt="" />
+        <h2 id="about-title">Ulanzi Deck Open</h2>
+        <div class="about-version">Version <span id="about-version">—</span></div>
+        <div class="about-author">Made by Eduardo Falcão Lima</div>
+        <button class="about-link" id="about-site" type="button">edufalcao.com</button>
+        <button class="about-link about-link-sub" id="about-github" type="button">github.com/edufalcao/ulanzi-deck-open</button>
+        <div class="about-license">MIT licensed</div>
       </div>
     </div>
 
