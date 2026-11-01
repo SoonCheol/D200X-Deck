@@ -680,7 +680,7 @@ function renderInspector() {
   } else if (action.type === 'url') {
     valueField = `<div class="row">
       <input class="input" id="insp-value" placeholder="https://example.com" value="${esc(action.value)}" />
-      <button class="btn" id="insp-fetch-icon">Use favicon</button>
+      <button class="btn" id="insp-fetch-icon">Favicon</button>
     </div>`;
   } else if (action.type === 'command') {
     valueField = `<textarea class="textarea" id="insp-value" placeholder="osascript -e 'set volume output muted'">${esc(action.value)}</textarea>`;
@@ -869,7 +869,7 @@ function renderInspector() {
           <button class="btn small" id="insp-icon-library">Library</button>
           <button class="btn small" id="insp-icon-file" title="Choose an image file">File</button>
           ${action.type === 'app' && action.value ? '<button class="btn small" id="insp-use-app-icon">App icon</button>' : ''}
-          ${action.type === 'url' ? '<button class="btn small" id="insp-use-favicon">Use favicon</button>' : ''}
+          ${action.type === 'url' ? '<button class="btn small" id="insp-use-favicon">Favicon</button>' : ''}
           ${key.icon ? '<button class="btn small danger" id="insp-icon-remove">Remove</button>' : ''}
         </div>
       </div>
@@ -1356,7 +1356,7 @@ function renderInspector() {
       fetchIcon.textContent = 'Loading…';
       const ok = await loadSiteIcon(key, true);
       fetchIcon.disabled = false;
-      fetchIcon.textContent = 'Use favicon';
+      fetchIcon.textContent = 'Favicon';
       if (!ok) return;
       renderInspector();
     });
@@ -1370,7 +1370,7 @@ function renderInspector() {
       useFavicon.textContent = 'Loading…';
       const ok = await loadSiteIcon(key, true);
       useFavicon.disabled = false;
-      useFavicon.textContent = 'Use favicon';
+      useFavicon.textContent = 'Favicon';
       if (ok) renderInspector();
     });
   }
