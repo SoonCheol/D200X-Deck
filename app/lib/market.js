@@ -45,6 +45,38 @@ class StoreError extends Error {
   }
 }
 
+const REDIRECT_STATUS = new Set([301, 302, 303, 307, 308]);
+
+/**
+ * Follow redirects by hand so the session token is only ever sent to a host
+ * the vendor owns. `fetch(..., { redirect: 'follow' })` would forward the
+ * Authorization-style header to whatever host a 307/308 points at.
+ */
+async function fetchFollowing(url, options = {}, maxHops = 5) {
+  let current = new URL(String(url));
+  let request = { ...options };
+  for (let hop = 0; hop <= maxHops; hop += 1) {
+    if (!/^https?:$/.test(current.protocol)) {
+      throw new StoreError('The store redirected to an unsupported address');
+    }
+    const headers = { ...(request.headers || {}) };
+    if (headers.authToken && !isVendorHost(current.hostname)) delete headers.authToken;
+    const res = await fetch(current, { ...request, headers, redirect: 'manual' });
+    if (!REDIRECT_STATUS.has(res.status)) return res;
+    const location = res.headers.get('location');
+    if (!location) return res;
+    current = new URL(location, current);
+    const toGet =
+      res.status === 303 || ((res.status === 301 || res.status === 302) && request.method === 'POST');
+    if (toGet) {
+      const nextHeaders = { ...headers };
+      delete nextHeaders['Content-Type'];
+      request = { ...request, method: 'GET', body: undefined, headers: nextHeaders };
+    }
+  }
+  throw new StoreError('The store redirected too many times');
+}
+
 class Market {
   constructor({ dir, language = 'en_US', appVersion = '0.1.0' } = {}) {
     this.dir = dir;
@@ -114,7 +146,7 @@ class Market {
       headers['Content-Type'] = 'application/x-www-form-urlencoded;charset=UTF-8';
     }
 
-    const res = await fetch(url, { method, headers, body, redirect: 'follow' });
+    const res = await fetchFollowing(url, { method, headers, body });
     const text = await res.text();
     let json;
     try {
@@ -184,7 +216,7 @@ class Market {
     const headers = { 'User-Agent': UA, Referer: `${WEB}/` };
     if (this.token && isVendorHost(new URL(url).hostname)) headers.authToken = this.token;
     try {
-      const res = await fetch(url, { method: 'HEAD', headers, redirect: 'follow' });
+      const res = await fetchFollowing(url, { method: 'HEAD', headers });
       const type = String(res.headers.get('content-type') || '');
       const size = Number(res.headers.get('content-length') || 0);
       const ok = res.ok && !/html|xml/i.test(type);
@@ -206,7 +238,7 @@ class Market {
     }
     const headers = { 'User-Agent': UA, Referer: `${WEB}/` };
     if (this.token && isVendorHost(new URL(packageUrl).hostname)) headers.authToken = this.token;
-    const res = await fetch(packageUrl, { headers, redirect: 'follow' });
+    const res = await fetchFollowing(packageUrl, { headers });
     if (!res.ok) throw new StoreError(`Download failed (${res.status})`);
     const buffer = await readCapped(res);
     if (buffer.subarray(0, 2).toString('latin1') !== 'PK') {

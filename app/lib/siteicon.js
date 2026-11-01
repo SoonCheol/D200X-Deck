@@ -1,8 +1,88 @@
 'use strict';
 
+const dns = require('node:dns').promises;
+const net = require('node:net');
+
 const MAX_BYTES = 2 * 1024 * 1024;
+const REDIRECT_STATUS = new Set([301, 302, 303, 307, 308]);
 const UA =
   'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126 Safari/537.36';
+
+/** Loopback, link-local, private, CGNAT, multicast and reserved IPv4 ranges. */
+function isBlockedIp(ip) {
+  const value = String(ip || '').trim();
+  if (net.isIPv4(value)) {
+    const [a, b] = value.split('.').map(Number);
+    return (
+      a === 0 ||
+      a === 10 ||
+      a === 127 ||
+      (a === 100 && b >= 64 && b <= 127) ||
+      (a === 169 && b === 254) ||
+      (a === 172 && b >= 16 && b <= 31) ||
+      (a === 192 && b === 168) ||
+      (a === 192 && b === 0) ||
+      a >= 224
+    );
+  }
+  if (net.isIPv6(value)) {
+    const v = value.toLowerCase();
+    if (v.startsWith('::ffff:')) return isBlockedIp(v.slice(7));
+    return v === '::1' || v === '::' || v.startsWith('fc') || v.startsWith('fd') || v.startsWith('fe80');
+  }
+  return false;
+}
+
+/** Hostnames that must never be fetched from the main process. */
+function isBlockedHost(hostname) {
+  const host = String(hostname || '')
+    .toLowerCase()
+    .replace(/^\[|\]$/g, '');
+  if (!host) return true;
+  if (
+    host === 'localhost' ||
+    host.endsWith('.localhost') ||
+    host.endsWith('.local') ||
+    host.endsWith('.internal')
+  ) {
+    return true;
+  }
+  return net.isIP(host) ? isBlockedIp(host) : false;
+}
+
+async function assertPublicUrl(url) {
+  const parsed = url instanceof URL ? url : new URL(String(url));
+  if (!/^https?:$/.test(parsed.protocol)) throw new Error('Only http(s) addresses can be fetched');
+  if (isBlockedHost(parsed.hostname)) throw new Error('That address is not reachable from here');
+  if (net.isIP(parsed.hostname)) return parsed;
+  let addresses = [];
+  try {
+    addresses = await dns.lookup(parsed.hostname, { all: true });
+  } catch {
+    throw new Error(`Could not resolve ${parsed.hostname}`);
+  }
+  if (!addresses.length || addresses.some((entry) => isBlockedIp(entry.address))) {
+    throw new Error('That address is not reachable from here');
+  }
+  return parsed;
+}
+
+/**
+ * Follow redirects by hand and re-check every hop. A public URL must not be
+ * able to bounce the main process to 127.0.0.1 or a LAN address.
+ */
+async function safeFetch(url, options = {}, maxHops = 3) {
+  let current = new URL(String(url));
+  for (let hop = 0; hop <= maxHops; hop += 1) {
+    await assertPublicUrl(current);
+    const res = await fetch(current, { ...options, redirect: 'manual' });
+    if (!REDIRECT_STATUS.has(res.status)) return res;
+    const location = res.headers.get('location');
+    if (!location) return res;
+    current = new URL(location, current);
+  }
+  throw new Error('Too many redirects');
+}
 
 function normalize(raw) {
   let url = String(raw || '').trim();
@@ -15,9 +95,8 @@ function dataUrl(buffer, type) {
 }
 
 async function fetchImage(url, signal) {
-  const res = await fetch(url, {
+  const res = await safeFetch(url, {
     signal,
-    redirect: 'follow',
     headers: { 'user-agent': UA, accept: 'image/*' },
   });
   if (!res.ok) return null;
@@ -45,9 +124,8 @@ async function iconFor(base) {
   const direct = await fetchImage(base.href, signal);
   if (direct) return direct;
 
-  const res = await fetch(base.href, {
+  const res = await safeFetch(base.href, {
     signal,
-    redirect: 'follow',
     headers: { 'user-agent': UA, accept: 'text/html,application/xhtml+xml' },
   });
   if (!res.ok) throw new Error(`Site returned HTTP ${res.status}`);
@@ -101,4 +179,4 @@ async function fetchSiteIcon(rawUrl) {
   }
 }
 
-module.exports = { fetchSiteIcon };
+module.exports = { fetchSiteIcon, isBlockedIp, isBlockedHost };

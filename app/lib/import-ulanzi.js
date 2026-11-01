@@ -20,6 +20,9 @@ const ULANZI_DIR = path.join(os.homedir(), 'Library/Application Support/Ulanzi/U
 const PROFILES_DIR = path.join(ULANZI_DIR, 'ProfilesV2');
 const IMAGE_EXT = new Set(['.png', '.jpg', '.jpeg', '.webp', '.gif', '.svg']);
 const MAX_IMAGE_BYTES = 4 * 1024 * 1024;
+const MAX_TOTAL_IMAGE_BYTES = 64 * 1024 * 1024;
+const MAX_PAGES = 200;
+const MAX_ARCHIVE_BYTES = 256 * 1024 * 1024;
 
 const MIME = {
   '.png': 'image/png',
@@ -240,7 +243,7 @@ function mapAction(entry, pageIds) {
 
 // ------------------------------------------------------------------ images
 
-function readImage(baseDirs, candidates, warnings) {
+function readImage(baseDirs, candidates, warnings, budget = null) {
   for (const candidate of candidates) {
     if (!candidate || typeof candidate !== 'string') continue;
     if (/^[A-Za-z]:[\\/]/.test(candidate)) continue; // Windows path
@@ -256,6 +259,10 @@ function readImage(baseDirs, candidates, warnings) {
           if (!IMAGE_EXT.has(path.extname(file).toLowerCase())) continue;
           const ext = path.extname(file).toLowerCase();
           const data = fs.readFileSync(file);
+          if (budget) {
+            budget.bytes -= data.length;
+            if (budget.bytes < 0) throw new Error('This profile embeds more than 64 MB of images');
+          }
           return `data:${MIME[ext] || 'image/png'};base64,${data.toString('base64')}`;
         } catch {
           /* try next */
@@ -320,10 +327,23 @@ function listProfiles() {
   return profiles;
 }
 
+function dirSize(dir) {
+  let total = 0;
+  for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+    const full = path.join(dir, entry.name);
+    if (entry.isDirectory()) total += dirSize(full);
+    else if (entry.isFile()) total += fs.statSync(full).size;
+  }
+  return total;
+}
+
 function extractProfileZip(file) {
   const temp = fs.mkdtempSync(path.join(os.tmpdir(), 'ulanzi-import-'));
   let source = file;
   try {
+    if (fs.statSync(file).size > MAX_ARCHIVE_BYTES) {
+      throw new Error('This profile file is too large (max 256 MB)');
+    }
     const head = fs.readFileSync(file, { encoding: 'latin1', flag: 'r' }).slice(0, 12);
     if (head.startsWith('#Version: 2')) {
       const data = fs.readFileSync(file).subarray(12);
@@ -342,6 +362,9 @@ function extractProfileZip(file) {
       }
     };
     walk(temp);
+    if (dirSize(temp) > MAX_ARCHIVE_BYTES) {
+      throw new Error('This profile expands to more than 256 MB');
+    }
     return { temp, dirs };
   } catch (err) {
     fs.rmSync(temp, { recursive: true, force: true });
@@ -357,13 +380,18 @@ function extractProfileZip(file) {
  */
 function parseProfile(dir) {
   const manifest = readJson(path.join(dir, 'manifest.json'));
-  const pageIds = new Set((manifest.Pages?.Pages || []).map(String));
+  const pageList = Array.isArray(manifest.Pages?.Pages) ? manifest.Pages.Pages : [];
+  if (pageList.length > MAX_PAGES) {
+    throw new Error(`This profile has too many pages (${pageList.length}, max ${MAX_PAGES})`);
+  }
+  const pageIds = new Set(pageList.map(String));
+  const budget = { bytes: MAX_TOTAL_IMAGE_BYTES };
   const report = { skipped: [], unmapped: [], missingPlugins: [], warnings: [] };
   const pages = [];
   const folderNames = new Map();
   const folderParents = new Map();
 
-  for (const pageId of manifest.Pages?.Pages || []) {
+  for (const pageId of pageList) {
     const pageDir = path.join(dir, 'Profiles', String(pageId));
     let pageManifest = {};
     try {
@@ -408,14 +436,14 @@ function parseProfile(dir) {
       const views = Array.isArray(entry.ViewParam) ? entry.ViewParam : [];
       const view = views[0] || {};
       const baseDirs = [pageDir, dir, path.join(dir, 'Images')];
-      const icon = readImage(baseDirs, [view.Icon, view.IconRel, view.IconDef, entry.ActionParam?.Icon], report.warnings);
+      const icon = readImage(baseDirs, [view.Icon, view.IconRel, view.IconDef, entry.ActionParam?.Icon], report.warnings, budget);
       const font = mapFont(view.Font);
 
       // Multi-state keys: keep every state's icon/text so toggles look right.
       let states = null;
       if (views.length > 1) {
         states = views.map((stateView) => {
-          const stateIcon = readImage(baseDirs, [stateView.Icon, stateView.IconRel, stateView.IconDef], report.warnings);
+          const stateIcon = readImage(baseDirs, [stateView.Icon, stateView.IconRel, stateView.IconDef], report.warnings, budget);
           return {
             emoji: '',
             label: String(stateView.Text || '').slice(0, 40),

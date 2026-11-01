@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.6.2 — 2026-11-01
+
+### Security
+- Favicon lookups refuse loopback, link-local and private addresses, and re-check every redirect.
+- Marketplace redirects drop the session token when the destination host is not Ulanzi's.
+- Plugin “open local file” requests must resolve inside the plugin's own folder.
+
+### Fixed
+- Quitting asks plugins to stop, then force-kills anything still alive after 1.5 s, so a plugin cannot survive and keep the deck busy.
+- Installing, importing or removing one plugin restarts only that plugin instead of every plugin.
+- Manual plugin installs (folder or ZIP) show the same trust warning as the store.
+- A failed plugin port bind no longer leaves the plugin marked as running, and inspector sockets are cleared on reload.
+- Ulanzi profile import caps pages (200) and embedded images (64 MB) before parsing.
+- Process-level errors and unhandled rejections are written to the log.
+
 ## 0.6.1 — 2026-11-01
 
 ### Security

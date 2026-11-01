@@ -1637,11 +1637,6 @@ function bind() {
   window.addEventListener('beforeunload', () => api.saveConfig(state.config));
 }
 
-setInterval(() => {
-  const tile = document.querySelectorAll('#grid .key')[WIDE_KEY_INDEX];
-  if (tile) renderSystemPanel(tile.querySelector('canvas'));
-}, 30000);
-
 /** Fill in real app icons for app keys that have none (runs once after load). */
 async function hydrateAppIcons() {
   let changed = false;

@@ -20,11 +20,19 @@ const { appIconDataUrl, resolveAppPath } = require('./lib/appicon');
 const { Market } = require('./lib/market');
 const importUlanzi = require('./lib/import-ulanzi');
 const { childDir, parsePackId } = require('./lib/iconpacks');
+const { isInside } = require('./lib/paths');
 const { execFile, execFileSync, spawn } = require('node:child_process');
 const actions = require('./lib/actions');
 
 // A failing `Run command` exits after the key press; surface the reason as a toast.
 actions.setShellErrorHandler((message) => send('plugin:error', `Command failed: ${message}`));
+
+process.on('unhandledRejection', (reason) => {
+  console.error('[unhandledRejection]', reason instanceof Error ? reason.stack || reason.message : reason);
+});
+process.on('uncaughtException', (err) => {
+  console.error('[uncaughtException]', err?.stack || err);
+});
 
 let win = null;
 let store = null;
@@ -59,9 +67,7 @@ const RENDERER_DIR = path.join(__dirname, 'renderer');
 function isRendererFile(url) {
   try {
     const parsed = new URL(String(url));
-    if (parsed.protocol !== 'file:') return false;
-    const rel = path.relative(RENDERER_DIR, path.resolve(fileURLToPath(parsed)));
-    return Boolean(rel) && !rel.startsWith('..') && !path.isAbsolute(rel);
+    return parsed.protocol === 'file:' && isInside(RENDERER_DIR, fileURLToPath(parsed));
   } catch {
     return false;
   }
@@ -476,7 +482,7 @@ function initPlugins() {
     }
     if (!/^https?:/i.test(target) && action) {
       const file = path.resolve(action.meta.dir, target.replace(/^\.?\//, ''));
-      if (!file.startsWith(action.meta.dir)) return;
+      if (!isInside(action.meta.dir, file)) return;
       const view = new BrowserWindow({
         width: 760,
         height: 680,
@@ -1087,16 +1093,39 @@ app.on('before-quit', (event) => {
   }
 });
 
-app.on('will-quit', () => {
+let quitCleanupStarted = false;
+let quitCleanupDone = false;
+
+app.on('will-quit', (event) => {
+  if (quitCleanupDone) return;
+  // Give plugins a moment to exit on SIGTERM before quitting, so a plugin that
+  // ignores the signal cannot survive as an orphan holding the HID handle.
+  event.preventDefault();
+  if (quitCleanupStarted) return;
+  quitCleanupStarted = true;
+
   if (reconnectTimer) clearInterval(reconnectTimer);
   if (seizeTimer) clearTimeout(seizeTimer);
   if (deck) deck.disconnect('App closed');
-  if (plugins) plugins.stopAll();
-  if (sdPlugins) sdPlugins.stopAll();
   if (seizeProc) {
     try { seizeProc.kill(); } catch { /* ignore */ }
   }
-  if (tray) tray.destroy();
+
+  const finish = () => {
+    if (quitCleanupDone) return;
+    quitCleanupDone = true;
+    if (tray) tray.destroy();
+    app.quit();
+  };
+  const fallback = setTimeout(() => {
+    if (tray) tray.destroy();
+    quitCleanupDone = true;
+    app.exit(0);
+  }, 3000);
+  Promise.allSettled([plugins?.shutdown?.(), sdPlugins?.shutdown?.()]).then(() => {
+    clearTimeout(fallback);
+    finish();
+  });
 });
 
 // ---------------------------------------------------------------- IPC
@@ -1503,6 +1532,19 @@ function looksLikeStreamDeckPlugin(source) {
   }
 }
 
+async function confirmPluginInstall() {
+  const { response } = await dialog.showMessageBox(win, {
+    type: 'warning',
+    buttons: ['Cancel', 'Install'],
+    defaultId: 0,
+    cancelId: 0,
+    message: 'Install this plugin?',
+    detail:
+      'Plugins run on your Mac with your user permissions, outside the app sandbox. Only install plugins you trust.',
+  });
+  return response === 1;
+}
+
 function installAnyPlugin(source) {
   const manager = looksLikeStreamDeckPlugin(source) ? sdPlugins : plugins;
   const out = manager.install(source);
@@ -1515,6 +1557,7 @@ handle('plugins:install-folder', async () => {
     properties: ['openDirectory'],
   });
   if (res.canceled || res.filePaths.length === 0) return { canceled: true };
+  if (!(await confirmPluginInstall())) return { ok: false, canceled: true };
   try {
     const out = installAnyPlugin(res.filePaths[0]);
     send('plugins:changed');
@@ -1531,6 +1574,7 @@ handle('plugins:install-zip', async () => {
     filters: [{ name: 'Plugin package', extensions: ['zip', 'streamdeckplugin'] }],
   });
   if (res.canceled || res.filePaths.length === 0) return { canceled: true };
+  if (!(await confirmPluginInstall())) return { ok: false, canceled: true };
   try {
     const out = installAnyPlugin(res.filePaths[0]);
     send('plugins:changed');

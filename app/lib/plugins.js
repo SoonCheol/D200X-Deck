@@ -4,6 +4,7 @@ const { EventEmitter } = require('node:events');
 const { spawn } = require('node:child_process');
 const fs = require('node:fs');
 const path = require('node:path');
+const { isInside } = require('./paths');
 
 /**
  * The Electron main executable creates a Dock icon when spawned as a Node
@@ -519,8 +520,34 @@ class PluginManager extends EventEmitter {
     this.sockets.clear();
     this.queues.clear();
     this.actions.clear();
+    this.inspectors.clear();
     this.stopping = false;
     return this.scan();
+  }
+
+  /** Stop one plugin, rescan the folders, and restart it if it has actions. */
+  reloadOne(uuid) {
+    const id = String(uuid);
+    const meta = this.plugins.get(id);
+    if (meta?.html) {
+      try { this.stopHtml?.(id); } catch { /* ignore */ }
+      this.htmlRunning?.delete(id);
+    }
+    const proc = this.children.get(id);
+    if (proc) {
+      this.restarting = this.restarting || new Set();
+      this.restarting.add(id);
+      try { proc.kill(); } catch { /* ignore */ }
+    }
+    this.children.delete(id);
+    this.sockets.delete(id);
+    this.queues.delete(id);
+    this.actions.delete(id);
+    this.inspectors.delete(id);
+    this.crashes.delete(id);
+    this.scan();
+    if (this._hasActionsFor(id)) this._ensurePlugin(id);
+    return this.list();
   }
 
   /** Install a .ulanziPlugin folder or a ZIP containing one. */
@@ -570,7 +597,7 @@ class PluginManager extends EventEmitter {
       }
       if (fs.existsSync(dest)) fs.rmSync(dest, { recursive: true, force: true });
       fs.cpSync(root, dest, { recursive: true, force: true });
-      return { uuid, name: manifest.Name || uuid, list: this.reload() };
+      return { uuid, name: manifest.Name || uuid, list: this.reloadOne(uuid) };
     } finally {
       if (temp) fs.rmSync(temp, { recursive: true, force: true });
     }
@@ -586,7 +613,7 @@ class PluginManager extends EventEmitter {
     const dest = path.join(this.appPluginsDir, path.basename(meta.dir));
     if (fs.existsSync(dest)) fs.rmSync(dest, { recursive: true, force: true });
     fs.cpSync(meta.dir, dest, { recursive: true, force: true });
-    return { uuid, list: this.reload() };
+    return { uuid, list: this.reloadOne(uuid) };
   }
 
   remove(uuid) {
@@ -595,7 +622,7 @@ class PluginManager extends EventEmitter {
     if (!meta.writable) throw new Error('This plugin is read-only (installed by Ulanzi Studio)');
     const fs = require('node:fs');
     fs.rmSync(meta.dir, { recursive: true, force: true });
-    return this.reload();
+    return this.reloadOne(uuid);
   }
 
   /**
@@ -842,6 +869,7 @@ class PluginManager extends EventEmitter {
     let url = msg.url || '';
     if (msg.local && action) {
       const file = path.resolve(action.meta.dir, url.replace(/^\.?\//, ''));
+      if (!isInside(action.meta.dir, file)) return;
       shell.openPath(file);
       return;
     }
@@ -873,24 +901,37 @@ class PluginManager extends EventEmitter {
     }, delay);
   }
 
-  stopAll() {
+  /** Graceful shutdown: SIGTERM every child, then SIGKILL whatever is left. */
+  async shutdown(timeoutMs = 1500) {
     this.stopping = true;
     for (const uuid of this.htmlRunning || []) {
       try { this.stopHtml?.(uuid); } catch { /* ignore */ }
     }
     this.htmlRunning?.clear();
-    for (const proc of this.children.values()) {
-      try {
-        proc.kill();
-      } catch {
-        /* ignore */
-      }
-    }
+    const procs = [...this.children.values()];
     this.children.clear();
+    this.inspectors.clear();
     if (this.wss) {
       this.wss.close();
       this.wss = null;
     }
+    await Promise.all(
+      procs.map(
+        (proc) =>
+          new Promise((resolve) => {
+            if (!proc || proc.exitCode !== null) return resolve();
+            const timer = setTimeout(() => {
+              try { proc.kill('SIGKILL'); } catch { /* ignore */ }
+              resolve();
+            }, timeoutMs);
+            proc.once('exit', () => {
+              clearTimeout(timer);
+              resolve();
+            });
+            try { proc.kill('SIGTERM'); } catch { /* ignore */ }
+          })
+      )
+    );
   }
 }
 
