@@ -117,3 +117,42 @@ test('marks Intel-only plugins that need Rosetta', { skip: process.arch !== 'arm
   assert.equal(plugin.compatReason, 'Needs Rosetta');
   assert.equal(plugin.actions.length, 1);
 });
+
+test('an empty setImage restores the manifest default image', () => {
+  const host = new StreamDeckPlugins({ appPluginsDir: tempDir() });
+  const actionid = 'ctx-default';
+  host.actions.set(actionid, {
+    actionid,
+    pluginUuid: 'com.test.sdPlugin',
+    actionUuid: 'com.test.action',
+    key: '0_0',
+    settings: {},
+    active: true,
+    meta: { dir: tempDir(), uuid: 'com.test.sdPlugin' },
+    actionMeta: { states: [{ image: 'default.png' }, { image: 'other.png' }] },
+    state: 0,
+    image: 'default.png',
+    images: new Map([[0, 'default.png'], [1, 'other.png']]),
+    defaultImages: new Map([[0, 'default.png'], [1, 'other.png']]),
+    titles: new Map(),
+  });
+  const states = [];
+  host.on('state', (payload) => states.push(payload));
+
+  // A custom image is stored for the state.
+  host._onPluginMessage('com.test.sdPlugin', {
+    event: 'setImage',
+    context: actionid,
+    payload: { image: 'data:image/png;base64,AAAA' },
+  });
+  assert.equal(host.actions.get(actionid).images.get(0), 'data:image/png;base64,AAAA');
+
+  // An empty image means "back to the manifest default", not "no image".
+  host._onPluginMessage('com.test.sdPlugin', {
+    event: 'setImage',
+    context: actionid,
+    payload: { image: '' },
+  });
+  assert.equal(host.actions.get(actionid).images.get(0), 'default.png');
+  assert.equal(states.at(-1).image, 'default.png');
+});

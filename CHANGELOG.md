@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+### Fixes
+- An empty `setImage` from a plugin now restores the action's manifest image instead of clearing it to the generic plugin icon. This fixes macOS Controls' **Show text under icon**: for example **Emoji & Symbols** now shows the emoji with its “Emoji” caption instead of the plugin icon with no label.
+
 ### UI
 - Action icons redrawn to match the official app: **Parent Page**, **Subpage**, **Text**, **Multi Action**, **Multi Action Switch**, **Random Action**, **Feature Popup**, **Play Audio** and **Stop Audio**.
 - Multi actions now show a different icon for run-in-order / alternate / random, sound actions differ for play and stop, and a **Go to page** key that opens a subpage uses the folder icon.

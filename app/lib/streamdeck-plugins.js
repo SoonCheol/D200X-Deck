@@ -619,26 +619,37 @@ class StreamDeckPlugins extends EventEmitter {
         });
         break;
       case 'setImage': {
-        const state = Number(msg.payload?.state);
-        const image = this._normalizeImage(action, msg.payload?.image);
-        const hasState = Number.isInteger(state) && state >= 0;
-        if (hasState) {
-          action.images.set(state, image);
-        } else {
-          const count = Math.max(1, action.actionMeta?.states?.length || 1);
-          for (let i = 0; i < count; i++) action.images.set(i, image);
+        if (process.env.ULANZI_SD_DEBUG) {
+          const raw = msg.payload?.image;
+          console.log('[sd-img]', context, action.actionUuid, 'state=', msg.payload?.state, 'type=', raw === null ? 'null' : typeof raw, 'len=', typeof raw === 'string' ? raw.length : 0, 'head=', typeof raw === 'string' ? raw.slice(0, 60) : '');
+          if (!raw) console.log('[sd-img-payload]', JSON.stringify(msg).slice(0, 500));
         }
+        const state = Number(msg.payload?.state);
+        const hasState = Number.isInteger(state) && state >= 0;
+        // An empty image means "restore the action's default image", not
+        // "show nothing" — plugins rely on this to fall back to the manifest
+        // artwork (e.g. macOS Controls' icon-with-caption variants).
+        const cleared = msg.payload?.image === '' || msg.payload?.image === null || msg.payload?.image === undefined;
+        const image = cleared ? null : this._normalizeImage(action, msg.payload?.image);
+        const count = Math.max(1, action.actionMeta?.states?.length || 1);
+        const apply = (index) => {
+          action.images.set(index, cleared ? action.defaultImages.get(index) || null : image);
+        };
+        if (hasState) apply(state);
+        else for (let i = 0; i < count; i += 1) apply(i);
         const target = hasState ? state : action.state;
-        if (target === action.state) action.image = image || null;
+        const shown = action.images.get(target) || null;
+        if (target === action.state) action.image = shown;
         this.emit('state', {
           actionid: action.actionid,
-          image,
+          image: shown,
           state: target,
           sdk: 'streamdeck',
         });
         break;
       }
       case 'setTitle': {
+        if (process.env.ULANZI_SD_DEBUG) console.log('[sd-title]', context, action.actionUuid, 'state=', msg.payload?.state, 'text=', JSON.stringify(msg.payload?.title));
         const text = String(msg.payload?.title ?? '');
         const state = Number(msg.payload?.state);
         const hasState = Number.isInteger(state) && state >= 0;
@@ -983,9 +994,13 @@ class StreamDeckPlugins extends EventEmitter {
       const existing = this.actions.get(actionid);
       if (!existing) {
         const images = new Map();
+        const defaultImages = new Map();
         const titles = new Map();
         for (const [index, state] of (actionMeta?.states || []).entries()) {
-          if (state.image) images.set(index, state.image);
+          if (state.image) {
+            images.set(index, state.image);
+            defaultImages.set(index, state.image);
+          }
           if (state.text) titles.set(index, state.text);
         }
         const action = {
@@ -1001,6 +1016,7 @@ class StreamDeckPlugins extends EventEmitter {
           image: images.get(0) || null,
           title: titles.get(0) || '',
           images,
+          defaultImages,
           titles,
         };
         this.actions.set(actionid, action);
