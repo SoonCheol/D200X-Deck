@@ -469,7 +469,7 @@ class PluginManager extends EventEmitter {
         actionid: action.actionid,
         action: action.actionUuid,
         name: action.pluginAction?.name || '',
-        param: action.settings,
+        param: { ...action.settings, forceRefresh: Date.now() },
       });
       this._send(pluginUuid, {
         cmd: 'setactive',
@@ -615,7 +615,10 @@ class PluginManager extends EventEmitter {
           actionid,
           action: item.action,
           name: pluginAction?.name || item.name || '',
-          param: settings,
+          // Some plugins (e.g. Currency) only fetch on a settings change; a
+          // fresh forceRefresh makes the first render load the value instead
+          // of waiting for the next interval.
+          param: { ...settings, forceRefresh: Date.now() },
         });
         this._send(item.plugin, {
           cmd: 'setactive',
