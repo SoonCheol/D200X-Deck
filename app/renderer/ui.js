@@ -490,7 +490,7 @@ function syncPlugins() {
       active: !activePage()?.keys?.[index],
     });
   }
-  api.syncPlugins(wanted).catch((err) => toast(err.message || String(err), true));
+  return api.syncPlugins(wanted).catch((err) => toast(err.message || String(err), true));
 }
 
 function schedulePush() {

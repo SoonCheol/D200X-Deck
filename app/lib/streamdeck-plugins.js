@@ -440,7 +440,12 @@ class StreamDeckPlugins extends EventEmitter {
         return;
       }
       if (process.env.ULANZI_SD_DEBUG) console.log('[sd<-]', pluginUuid || 'pi', msg.event);
-      this._log(`${inspectorAction ? 'pi' : 'plugin'}->host ${pluginUuid || inspectorAction || ''} ${msg.event}${msg.context ? ` context=${msg.context}` : ''}${msg.action ? ` action=${msg.action}` : ''}${msg.event === 'setSettings' ? ` settings=${logSettings(msg.payload)}` : ''}`);
+      const fromInspector = Boolean(inspectorAction) || msg.event === 'registerPropertyInspector';
+      this._log(
+        `${fromInspector ? 'pi' : 'plugin'}->host ${fromInspector ? (inspectorAction || msg.uuid || '') : (pluginUuid || msg.uuid || '')} ${msg.event}` +
+          `${msg.context ? ` context=${msg.context}` : ''}${msg.action ? ` action=${msg.action}` : ''}` +
+          `${msg.event === 'setSettings' ? ` settings=${logSettings(msg.payload)}` : ''}`
+      );
       if (!registered) {
         if (msg.event === 'registerPlugin') {
           const registeredUuid = String(msg.uuid || '');

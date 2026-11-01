@@ -1161,14 +1161,21 @@ function renderInspector() {
   if (action.type === 'plugin' && $('#pi-host')) {
     const host = $('#pi-host');
     const slot = keyIndexToSlot(state.selected);
-    api
-      .pluginInspectorUrl({
-        sdk: action.sdk || 'ulanzi',
-        plugin: action.plugin,
-        action: action.action,
-        actionid: action.actionid,
-        key: slot,
-      })
+    // The host can only hand out the inspector's connection details once it
+    // knows the action. A freshly chosen plugin action is synced on a timer,
+    // so sync it now — otherwise the iframe loads with no connection info and
+    // the inspector never talks to the app.
+    Promise.resolve(syncPlugins())
+      .catch(() => {})
+      .then(() =>
+        api.pluginInspectorUrl({
+          sdk: action.sdk || 'ulanzi',
+          plugin: action.plugin,
+          action: action.action,
+          actionid: action.actionid,
+          key: slot,
+        })
+      )
       .then((url) => {
         if (!host.isConnected) return;
         if (!url) {

@@ -807,7 +807,18 @@ app.whenReady().then(() => {
         const bridge = `${SD_PI_THEME}<script>(function(){
           const payload = ${payload};
           function connect() {
-            if (!payload) return true;
+            if (!payload) {
+              // The action was not registered when this page was served (for
+              // example a plugin action that is still being synced). Reload
+              // with a fresh payload instead of staying disconnected forever.
+              const params = new URLSearchParams(location.search);
+              const attempt = Number(params.get('attempt') || 0);
+              if (attempt < 12) {
+                params.set('attempt', String(attempt + 1));
+                setTimeout(() => { location.href = location.pathname + '?' + params.toString(); }, 250);
+              }
+              return true;
+            }
             try {
               if (typeof connectOpenActionSocket === 'function') { connectOpenActionSocket(...payload); return true; }
               if (typeof connectElgatoStreamDeckSocket === 'function') { connectElgatoStreamDeckSocket(...payload); return true; }
