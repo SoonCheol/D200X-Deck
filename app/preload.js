@@ -28,7 +28,6 @@ contextBridge.exposeInMainWorld('deckApp', {
   runAction: (action) => ipcRenderer.invoke('action:run', action),
   pickImage: () => ipcRenderer.invoke('dialog:pick-image'),
   pickAudio: () => ipcRenderer.invoke('dialog:pick-audio'),
-  pickFile: () => ipcRenderer.invoke('dialog:pick-file'),
   listApps: () => ipcRenderer.invoke('apps:list'),
   frontmostApp: () => ipcRenderer.invoke('apps:frontmost'),
   showPop: (items) => ipcRenderer.invoke('pop:show', items),
@@ -90,6 +89,6 @@ contextBridge.exposeInMainWorld('deckApp', {
   onPluginAlert: (cb) => subscribe('plugin:alert', cb),
   onPluginOk: (cb) => subscribe('plugin:ok', cb),
   onPluginSwitchProfile: (cb) => subscribe('plugin:switch-profile', cb),
-  onSeizePermission: (cb) => subscribe('seize:permission', cb),
+  onSeizeState: (cb) => subscribe('seize:state', cb),
   onPluginsChanged: (cb) => subscribe('plugins:changed', cb),
 });

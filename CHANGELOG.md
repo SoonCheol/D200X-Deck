@@ -1,5 +1,27 @@
 # Changelog
 
+## Unreleased
+
+### Security
+- Importing a profile that contains shell commands now lists them and asks for confirmation. Imported commands stay marked on the key and in the inspector until you edit them.
+- Icon-pack ids are contained: `..` and path separators are rejected, so a malformed id can no longer read or delete files outside the icons folder.
+- Every IPC handler now refuses calls from anything but the app window, and the window/navigation checks compare resolved paths instead of substrings.
+- The main window and the POP window run with the Chromium sandbox enabled.
+- Action settings embedded in Stream Deck property inspectors escape `</script>`, so a setting cannot break out of the injected script.
+
+### Fixed
+- A HID scan error no longer overwrites `Deck.status()` and breaks the UI on launch.
+- One malformed page no longer discards the whole configuration. Loading from the backup (or resetting) is now reported in the app.
+- The key-capture helper restarts with backoff and reports its state under **Deck settings → Display**.
+- Frontmost-app polling no longer blocks the main thread with synchronous process spawns.
+- Links and help buttons in Stream Deck property inspectors open again.
+- The Ulanzi store compares versions numerically, so `1.0` and `1.0.0` no longer show a phantom update.
+- Choosing an unreadable image reports an error instead of failing silently.
+
+### Changed
+- CI now runs ESLint (duplicate keys, unreachable code, unused locals) and the workflow has read-only permissions.
+- Removed dead code: unused preload/IPC surface, the unused POP preset icon, the superseded `build-hidseize.sh`, and the vestigial deck read timer.
+
 ## 0.6.0 — 2026-11-01
 
 ### Features

@@ -128,6 +128,15 @@
               <button class="btn small ghost" id="lock-image-clear">Clear</button>
             </div>
             <div class="settings-note">Shows the clock (and image) while the Mac is locked; the page returns on unlock.</div>
+            <div class="settings-row hidden" id="seize-row">
+              <span>Key capture</span>
+              <span id="seize-state" class="settings-value" style="flex:1;text-align:left">—</span>
+            </div>
+            <div class="settings-note hidden" id="seize-note">
+              Key capture stops the deck’s firmware from typing its setup URL into the frontmost app. If it is
+              not running, grant <strong>Input Monitoring</strong> to Ulanzi Deck Open in System Settings, then
+              relaunch.
+            </div>
           </div>
 
           <div class="settings-panel hidden" data-settings-panel="device" role="tabpanel">
@@ -472,6 +481,7 @@
     </div>
 
     <div id="toast" class="toast" role="status" aria-live="polite"></div>
+    <script src="../lib/version.js"></script>
     <script src="render.js"></script>
     <script src="ui.js"></script>
     <script src="pickers.js"></script>

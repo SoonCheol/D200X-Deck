@@ -590,7 +590,7 @@ function renderInspector() {
       });
     });
     $('#insp-page-bg').addEventListener('click', async () => {
-      const picked = await api.pickImage();
+      const picked = await pickImageData();
       if (!picked) return;
       page.background = await downscaleBackground(picked);
       renderAll();
@@ -683,7 +683,10 @@ function renderInspector() {
       <button class="btn" id="insp-fetch-icon">Favicon</button>
     </div>`;
   } else if (action.type === 'command') {
-    valueField = `<textarea class="textarea" id="insp-value" placeholder="osascript -e 'set volume output muted'">${esc(action.value)}</textarea>`;
+    const importedNote = action.imported
+      ? '<div class="field-hint insp-warning">This command came from an imported profile. Check what it does before pressing the key.</div>'
+      : '';
+    valueField = `${importedNote}<textarea class="textarea" id="insp-value" placeholder="osascript -e 'set volume output muted'">${esc(action.value)}</textarea>`;
   } else if (action.type === 'hotkey') {
     valueField = `<div class="row">
       <button class="btn hotkey-value" id="insp-hotkey-open">${esc(action.value || 'Set hotkey…')}</button>
@@ -982,7 +985,7 @@ function renderInspector() {
     renderInspector();
   };
   const chooseIconFile = async () => {
-    const picked = await api.pickImage();
+    const picked = await pickImageData();
     if (!picked) return;
     applyIcon(await downscaleImage(picked), 'custom');
   };
@@ -1329,8 +1332,14 @@ function renderInspector() {
   const valueEl = $('#insp-value');
   if (valueEl) {
     const applyValue = (raw) => {
-      if (key.action.type === 'media') key.action = { ...key.action, op: raw };
-      else key.action = { ...key.action, value: raw };
+      if (key.action.type === 'media') {
+        key.action = { ...key.action, op: raw };
+      } else {
+        const next = { ...key.action, value: raw };
+        // Editing the command counts as reviewing it: drop the import warning.
+        if (next.type === 'command') delete next.imported;
+        key.action = next;
+      }
       syncActionMeta(key);
       drawIndex(state.selected);
       commit(false);

@@ -328,9 +328,7 @@ async function openStoreDetail(id) {
   );
   const installed = Boolean(installedPlugin);
   const updatable =
-    installed &&
-    item.version &&
-    String(item.version) !== String(installedPlugin.version || '') ;
+    installed && item.version && DeckVersion.compareVersions(item.version, installedPlugin.version || '0') > 0;
   const category = storeState.categories.find((c) => String(c.id) === String(item.categoryId));
   const kind = category?.name || '';
   const installable = /plugins?/i.test(kind) && /\.zip$/i.test(item.files || '');

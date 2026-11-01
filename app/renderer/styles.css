@@ -473,16 +473,9 @@ body::before {
 .textarea { resize: vertical; min-height: 70px; font-family: "SF Mono", ui-monospace, monospace; font-size: 11px; }
 .select { appearance: none; background-image: linear-gradient(45deg, transparent 50%, #8b97ab 50%), linear-gradient(135deg, #8b97ab 50%, transparent 50%); background-position: calc(100% - 16px) 50%, calc(100% - 11px) 50%; background-size: 5px 5px, 5px 5px; background-repeat: no-repeat; padding-right: 28px; }
 
-.emoji-row { display: flex; gap: 8px; }
 .field-hint { font-size: 10px; color: var(--muted); margin-top: 5px; margin-bottom: 10px; }
+.insp-warning { color: var(--warn); }
 .icon-remove { width: 100%; margin-top: 8px; }
-.emoji-input::placeholder {
-  font-size: 9px;
-  letter-spacing: 0.6px;
-  text-transform: uppercase;
-  color: var(--muted);
-  opacity: 0.7;
-}
 .color-input { width: 44px; height: 38px; padding: 2px; border-radius: 9px; border: 1px solid var(--line); background: var(--panel); }
 
 .icon-drop {
@@ -1205,6 +1198,7 @@ body::before {
 .settings-row input[type="checkbox"] { width: 16px; height: 16px; accent-color: var(--accent); }
 .settings-input { flex: 1; min-width: 0; }
 .settings-value { width: 26px; text-align: right; color: var(--text); }
+.settings-warn { color: var(--warn); }
 .settings-meta { font-size: 11px; color: var(--text-3); }
 .settings-note { font-size: 10.5px; line-height: 1.45; color: var(--text-3); margin: -4px 0 2px; }
 .btn.icon-text { padding: 8px 12px; }

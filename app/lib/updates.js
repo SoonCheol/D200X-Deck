@@ -3,7 +3,7 @@
 // Update checks against the public GitHub releases page. This only reports a
 // newer version and links to it; installing is left to the user for now.
 
-const { compareVersions, normalizeVersion } = require('./sdcatalog');
+const { normalizeVersion, isNewer } = require('./version');
 
 const REPO = 'edufalcao/ulanzi-deck-open';
 const RELEASE_URL = `https://api.github.com/repos/${REPO}/releases/latest`;
@@ -35,9 +35,7 @@ async function fetchLatestRelease({ fetchImpl = fetch, timeout = 15_000 } = {}) 
   }
 }
 
-function isNewer(latest, current) {
-  return compareVersions(latest, current) > 0;
-}
+
 
 // The release workflow appends download/quarantine instructions after a rule;
 // they are not part of the changelog the user needs to read here.

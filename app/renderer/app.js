@@ -32,7 +32,6 @@ const ACTION_ICON_PATHS = {
   sound: 'assets/actions/sound.svg',
   'sound:stop': 'assets/actions/sound-stop.svg',
   pop: 'assets/actions/pop.svg',
-  'pop:preset': 'assets/actions/pop-preset.svg',
 };
 
 /** Bundled icon for an action, used when the key has no custom image/emoji. */
@@ -174,7 +173,6 @@ const state = {
   selected: null,
   pushing: false,
   pushAgain: false,
-  draggingBrightness: false,
   plugins: [],
   apps: [],
 };
@@ -523,10 +521,51 @@ function importProfileData(data) {
   toast(`Imported profile “${name}” (${pages.length} pages)`);
 }
 
+/** Visit every action inside an imported profile, including multi-action steps. */
+function eachImportedAction(data, fn) {
+  const walkAction = (action) => {
+    if (!action || typeof action !== 'object') return;
+    fn(action);
+    if (Array.isArray(action.steps)) {
+      for (const step of action.steps) walkAction(step && step.action);
+    }
+  };
+  const walkKeys = (keys) => {
+    for (const key of Object.values(keys || {})) {
+      if (!key || typeof key !== 'object') continue;
+      for (const field of ['action', 'holdAction', 'doubleAction']) walkAction(key[field]);
+    }
+  };
+  for (const page of data.pages || []) walkKeys(page && page.keys);
+  if (data.profile && data.profile.pinned) walkKeys(data.profile.pinned);
+}
+
+function importedCommandActions(data) {
+  const commands = [];
+  eachImportedAction(data, (action) => {
+    if (action.type === 'command') commands.push(String(action.value || '').trim());
+  });
+  return commands.filter(Boolean);
+}
+
 async function importProfileFromFile() {
   const res = await api.importProfile();
   if (res.canceled) return;
   if (!res.ok) return toast(res.error || 'Could not import profile', true);
+  // A shared profile is a document, but a command action runs /bin/sh. Never
+  // execute one that arrived in a file without the user seeing what it does.
+  const commands = importedCommandActions(res.data);
+  if (commands.length) {
+    const shown = commands.slice(0, 3).map((cmd) => `• ${cmd.length > 90 ? `${cmd.slice(0, 90)}…` : cmd}`);
+    const extra = commands.length > shown.length ? `\n…and ${commands.length - shown.length} more` : '';
+    const ok = confirm(
+      `This profile contains ${commands.length} shell command${commands.length === 1 ? '' : 's'} that run with your user permissions when you press the key:\n\n${shown.join('\n')}${extra}\n\nImport it?`
+    );
+    if (!ok) return;
+    eachImportedAction(res.data, (action) => {
+      if (action.type === 'command') action.imported = true;
+    });
+  }
   try {
     importProfileData(res.data);
   } catch (err) {
@@ -657,6 +696,17 @@ function openDeckSettings(tab = 'display') {
   refreshAccessibility();
 }
 
+/** Ask for an image file and return a data URL, or null when cancelled. */
+async function pickImageData() {
+  const res = await api.pickImage();
+  if (!res || res.canceled) return null;
+  if (res.ok === false) {
+    toast(res.error || 'Could not read that image', true);
+    return null;
+  }
+  return res.data || null;
+}
+
 function openAboutModal() {
   $('#about-modal')?.classList.remove('hidden');
   window.focusModal?.('about-modal');
@@ -761,6 +811,25 @@ function selectSettingsTab(name) {
   document.querySelectorAll('[data-settings-panel]').forEach((panel) => {
     panel.classList.toggle('hidden', panel.dataset.settingsPanel !== name);
   });
+}
+
+let seizeState = null;
+
+function renderSeizeState() {
+  const row = $('#seize-row');
+  const label = $('#seize-state');
+  if (!row || !label) return;
+  const note = $('#seize-note');
+  if (!seizeState) {
+    row.classList.add('hidden');
+    note?.classList.add('hidden');
+    return;
+  }
+  row.classList.remove('hidden');
+  const running = seizeState.running === true;
+  label.textContent = seizeState.message || (running ? 'Capturing keys' : 'Not running');
+  label.classList.toggle('settings-warn', !running);
+  note?.classList.toggle('hidden', running);
 }
 
 function updateDeckSettingsMeta() {
@@ -1005,7 +1074,7 @@ function bind() {
   $('#profile-app-pick').addEventListener('click', () => openAppPicker('profile'));
   $('#profile-app-clear').addEventListener('click', () => setProfileApp('', ''));
   $('#profile-bg-pick').addEventListener('click', async () => {
-    const picked = await api.pickImage();
+    const picked = await pickImageData();
     if (!picked) return;
     profileDraft.background = await downscaleBackground(picked);
     renderProfileDraft();
@@ -1281,7 +1350,7 @@ function bind() {
     toast(state.config.settings.lockScreen ? 'Lock screensaver on' : 'Lock screensaver off');
   });
   $('#lock-image').addEventListener('click', async () => {
-    const picked = await api.pickImage();
+    const picked = await pickImageData();
     if (!picked) return;
     state.config.settings.lockImage = await downscaleBackground(picked);
     scheduleSave();
@@ -1309,7 +1378,7 @@ function bind() {
     toast(seconds ? `Standby after ${seconds}s` : 'Standby screen off');
   });
   $('#standby-image').addEventListener('click', async () => {
-    const picked = await api.pickImage();
+    const picked = await pickImageData();
     if (!picked) return;
     state.config.settings.standbyImage = await downscaleBackground(picked);
     scheduleSave();
@@ -1462,9 +1531,15 @@ function bind() {
 
   window.addEventListener('message', (event) => {
     const data = event.data || {};
-    if (data.type !== 'ulanzi-pi-height') return;
     const frame = document.querySelector('#pi-host .pi-frame');
-    if (!frame) return;
+    // Only the inspector we created may resize itself or open a link.
+    if (!frame || event.source !== frame.contentWindow) return;
+    if (!/^(ulanzi-pi|sd-pi):\/\//.test(String(event.origin || ''))) return;
+    if (data.type === 'sd-pi-open') {
+      if (/^https?:\/\//i.test(String(data.url || ''))) api.openExternal(String(data.url));
+      return;
+    }
+    if (data.type !== 'ulanzi-pi-height') return;
     const height = Number(data.height) || 0;
     const host = $('#pi-host');
     const field = host ? host.closest('.field') : null;
@@ -1527,6 +1602,11 @@ function bind() {
     if (message) toast(message);
   });
 
+  api.onSeizeState?.((value) => {
+    seizeState = value;
+    renderSeizeState();
+  });
+
   api.onShowAbout?.(() => openAboutModal());
   api.onOpenSettings?.(() => openDeckSettings());
 
@@ -1549,11 +1629,6 @@ function bind() {
     refreshPlugins().catch((err) => toast(err.message || String(err), true));
   });
 
-  api.onSeizePermission((needed) => {
-    if (needed) {
-      toast('Grant Input Monitoring to stop the wide key typing the Ulanzi URL', true);
-    }
-  });
   api.onBrightness(() => {
     // The device echoes the value as BCD (e.g. 0x86 for 86). The slider is
     // authoritative for the UI, so we do not rewrite it from the echo.
@@ -1601,13 +1676,20 @@ async function hydrateAppIcons() {
   state.config = boot.config;
   if (normalizeActionMeta()) scheduleSave();
   state.status = boot.status;
+  seizeState = boot.seize || null;
   state.plugins = await api.listPlugins();
   updatePluginCount();
   $('#version').textContent = boot.version;
   if ($('#app-version')) $('#app-version').textContent = boot.version;
   if ($('#about-version')) $('#about-version').textContent = boot.version;
   bind();
+  renderSeizeState();
   renderAll();
+  if (boot.recovery === 'backup') {
+    toast('Your configuration was damaged, so the last backup was restored. The broken file was kept as config.json.corrupt.', true);
+  } else if (boot.recovery === 'defaults') {
+    toast('Your configuration could not be read and was reset to the defaults.', true);
+  }
   hydrateAppIcons();
   syncPlugins();
   api.updateState().then((res) => {

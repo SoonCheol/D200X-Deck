@@ -17,7 +17,6 @@ class Deck extends EventEmitter {
     this.device = null;
     this.path = null;
     this.info = null;
-    this._readTimer = null;
     this._clockTimer = null;
     this._clockMs = 5000;
     this._wideMode = 'clock';
@@ -38,16 +37,15 @@ class Deck extends EventEmitter {
 
   connect() {
     if (this.device) return true;
-    const found = (() => {
-      try {
-        return Deck.find();
-      } catch (err) {
-        this.status = { connected: false, message: err.message || 'device scan failed', info: null };
-        return null;
-      }
-    })();
+    let found = null;
+    let scanError = '';
+    try {
+      found = Deck.find();
+    } catch (err) {
+      scanError = err.message || 'Device scan failed';
+    }
     if (!found) {
-      this._status(false, 'Not connected');
+      this._status(false, scanError || 'Not connected');
       return false;
     }
     try {
@@ -84,7 +82,6 @@ class Deck extends EventEmitter {
   }
 
   disconnect(reason = 'Disconnected') {
-    this._stopReading();
     this._stopClock();
     sysstats.stop();
     if (this.device) {
@@ -185,15 +182,6 @@ class Deck extends EventEmitter {
     } catch (err) {
       this.emit('error', err.message || String(err));
     }
-  }
-
-  _startReading() {
-    /* node-hid's 'data' event drives the read loop (see connect). */
-  }
-
-  _stopReading() {
-    if (this._readTimer) clearInterval(this._readTimer);
-    this._readTimer = null;
   }
 
   _startClock() {

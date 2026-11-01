@@ -148,7 +148,9 @@ function validateConfig(config) {
   const profileIds = new Set(profiles.map((p) => p.id));
 
   const pages = [];
-  for (const page of config.pages) {
+  const sourcePages = Array.isArray(config.pages) ? config.pages : [];
+  for (const page of sourcePages) {
+    if (!page || typeof page !== 'object') continue;
     const keys = {};
     for (const [index, raw] of Object.entries(page.keys || {})) {
       const slot = Number(index);
@@ -284,6 +286,14 @@ class Store {
     this.file = path.join(userDataDir, 'config.json');
     this.imagesDir = path.join(userDataDir, 'Images');
     this.config = null;
+    this.recovery = null;
+  }
+
+  /** One-shot: tells the UI whether the last load fell back to a backup. */
+  takeRecovery() {
+    const value = this.recovery;
+    this.recovery = null;
+    return value;
   }
 
   /** Every image slot in a config: key icons, state icons, backgrounds, standby. */
@@ -378,11 +388,12 @@ class Store {
       }
       try {
         this.config = this._migrate(read(`${this.file}.bak`));
+        this.recovery = 'backup';
         this.save();
-        this.emit?.('recovered');
         return this.config;
       } catch {
         this.config = createDefaultConfig();
+        this.recovery = 'defaults';
         this.save();
         return this.config;
       }
@@ -393,7 +404,6 @@ class Store {
     if (!config || !Array.isArray(config.pages) || config.pages.length === 0) {
       return createDefaultConfig();
     }
-    const previous = Number(config.version) || 1;
     config.settings = { brightness: 85, sleepSeconds: 0, autoPush: true, ...(config.settings || {}) };
 
     for (const page of config.pages) {

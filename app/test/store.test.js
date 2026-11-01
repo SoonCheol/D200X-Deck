@@ -283,3 +283,35 @@ test('pinned keys, backgrounds and standby settings survive save/load', () => {
   assert.match(loaded.pages[0].background, /^data:image\/png/);
   assert.equal(loaded.profiles[0].pinned[4].action.seconds, 60);
 });
+
+test('one malformed page is dropped instead of discarding the config', () => {
+  const config = createDefaultConfig();
+  const good = config.pages[0];
+  const validated = validateConfig({ ...config, pages: [null, good, 'nope', undefined] });
+  assert.equal(validated.pages.length, 1);
+  assert.equal(validated.pages[0].id, good.id);
+});
+
+test('load reports a backup recovery once', () => {
+  const dir = tempDir();
+  const file = path.join(dir, 'config.json');
+  const good = createDefaultConfig();
+  fs.writeFileSync(`${file}.bak`, JSON.stringify(good));
+  fs.writeFileSync(file, '{ this is not json');
+
+  const store = new Store(dir);
+  store.load();
+  assert.equal(store.takeRecovery(), 'backup');
+  assert.equal(store.takeRecovery(), null, 'the notice is one-shot');
+});
+
+test('load reports a reset when the backup is unusable too', () => {
+  const dir = tempDir();
+  const file = path.join(dir, 'config.json');
+  fs.writeFileSync(file, '{ this is not json');
+  fs.writeFileSync(`${file}.bak`, 'also not json');
+
+  const store = new Store(dir);
+  store.load();
+  assert.equal(store.takeRecovery(), 'defaults');
+});

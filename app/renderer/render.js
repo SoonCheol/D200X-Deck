@@ -342,6 +342,21 @@ async function drawKey(canvas, key, width = KEY_SIZE, height = KEY_SIZE, autoIco
     ctx.restore();
   }
 
+  // Imported shell commands are flagged until the user reviews them.
+  if (key.action && key.action.type === 'command' && key.action.imported) {
+    ctx.save();
+    ctx.beginPath();
+    ctx.arc(w - 17, 17, 9, 0, Math.PI * 2);
+    ctx.fillStyle = 'rgba(255, 186, 66, 0.95)';
+    ctx.fill();
+    ctx.fillStyle = '#141414';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.font = '700 12px -apple-system, "SF Pro Text", sans-serif';
+    ctx.fillText('!', w - 17, 17.5);
+    ctx.restore();
+  }
+
   ctx.restore();
 
   ctx.save();
