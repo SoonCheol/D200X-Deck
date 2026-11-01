@@ -684,6 +684,7 @@ const SD_PI_THEME = `
   }
   select, input, textarea, button {
     box-sizing: border-box !important;
+    min-width: 0 !important;
     max-width: 100% !important;
     background: #141a25 !important;
     color: #e8ecf4 !important;

@@ -3,7 +3,7 @@
 ## Unreleased
 
 ### Fixes
-- Inspector controls use border-box sizing, so selects and text inputs no longer overflow the right edge of the panel (e.g. Audio Mute's Device and PTT/PTM drop-downs).
+- Inspector controls use border-box sizing and can shrink inside flex rows (`min-width: 0`), so selects and text inputs no longer overflow the right edge of the panel (e.g. Audio Mute's Device and PTT/PTM drop-downs).
 - Drop-downs in plugin inspectors show their arrow again: the dark theme replaced the native select background and removed the platform chevron, so a custom one is drawn now (Ulanzi and Stream Deck inspectors alike).
 - Ulanzi plugin inspectors now save settings and reach their plugin when another app owns the default plugin port: the Ulanzi host falls back to the next free port (3907, 3908…) instead of retrying 3906 forever and letting inspectors talk to Ulanzi Studio's server. This fixes OpenWeather not saving and not loading weather.
 - Inspector frames are allowed to use `localStorage` (some inspectors, e.g. OpenWeather, write the API key there before sending the settings; the sandbox exception used to abort the save).
