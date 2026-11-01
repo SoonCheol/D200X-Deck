@@ -53,7 +53,7 @@ function renderStatus() {
   $('#device-dot').classList.toggle('on', connected);
   $('#device-led').classList.toggle('on', connected);
   const busy = /busy|ulanzistudio|ulanzi studio/i.test(String(message || ''));
-  $('#device-name').textContent = connected ? 'Ulanzi D200' : busy ? 'Deck busy' : 'No deck found';
+  $('#device-name').textContent = connected ? 'Ulanzi D200' : busy ? 'Deck busy' : 'No Deck found';
   $('#device-detail').textContent = connected
     ? `${info?.Dversion ? `fw ${info.Dversion} · ` : ''}${info?.SerialNumber || info?.serial || 'USB 2207:0019'}`
     : busy
@@ -65,7 +65,7 @@ function renderStatus() {
   if (pushBtn) {
     pushBtn.disabled = !connected;
     pushBtn.textContent = connected ? 'Push to Deck' : 'Deck offline';
-    pushBtn.title = connected ? 'Send this page to the deck' : 'Connect the deck first (or quit Ulanzi Studio)';
+    pushBtn.title = connected ? 'Send this page to the Deck' : 'Connect the Deck first (or quit Ulanzi Studio)';
   }
   if (!connected) {
     const stateEl = $('#push-state');

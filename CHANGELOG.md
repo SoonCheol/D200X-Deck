@@ -11,6 +11,7 @@
 - A plugin that registers a second connection now replaces the old socket instead of leaving two active connections.
 
 ### UI
+- Copy fixes: the Accessibility state reads **Granted** / **Not granted** (with a proper warning colour) instead of lowercase text, and **Deck** is capitalised everywhere in the interface (**No Deck found**, **Reconnect Deck**, hints and tooltips).
 - The Installed toolbar fits on one row again: **Install folder…**, **Install .zip…**, **Reload all**, plus a **⋯** menu with **Open plugins folder**, **Open Stream Deck folder** and **Open plugin log**.
 
 ### Features

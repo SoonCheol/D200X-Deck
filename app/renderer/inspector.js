@@ -412,7 +412,7 @@ function parentPageOptions(page) {
 function renderWideInspector(el, page) {
   const mode = page.wideMode === 'stats' || page.wideMode === 'blank' ? page.wideMode : 'clock';
   const options = [
-    ['clock', 'Clock', 'Time and date, rendered by the deck.'],
+    ['clock', 'Clock', 'Time and date, rendered by the Deck.'],
     ['stats', 'System stats', 'Live CPU, memory and GPU usage from this Mac.'],
     ['blank', 'Background', 'No clock or stats — just the page background image.'],
   ];
@@ -434,7 +434,7 @@ function renderWideInspector(el, page) {
       </div>
       <div class="field-hint">${options.find(([value]) => value === mode)[2]}</div>
     </div>
-    <div class="field-hint">The 2×1 key is drawn by the deck firmware, so it has no action of its own. The preview matches the panel you choose here.</div>
+    <div class="field-hint">The 2×1 key is drawn by the Deck firmware, so it has no action of its own. The preview matches the panel you choose here.</div>
   `;
 
   el.querySelectorAll('[data-wide-mode]').forEach((btn) => {
@@ -540,7 +540,7 @@ function renderInspector() {
         <h3>Tips</h3>
         <div class="insp-empty" style="padding:0">
           Click a key to edit it. Drag a 196×196 image onto a key to use it as the icon.
-          Labels are rendered into the image, so the deck shows exactly what you see here.
+          Labels are rendered into the image, so the Deck shows exactly what you see here.
           Select a key and press ⌘C / ⌘V to duplicate it, Delete to clear it (⌘Z undoes).
         </div>
       </div>

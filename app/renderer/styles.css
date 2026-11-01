@@ -13,6 +13,7 @@
   --accent-2: #7b5cff;
   --good: #3ddc97;
   --bad: #ff5d73;
+  --warn: #ffbd59;
   --radius: 14px;
   font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Inter", "Helvetica Neue", sans-serif;
 }

@@ -580,10 +580,10 @@ async function refreshAccessibility() {
   if (!stateEl) return;
   try {
     const res = await api.accessibility();
-    stateEl.textContent = res.trusted ? 'granted' : 'needed for hotkeys/text';
+    stateEl.textContent = res.trusted ? 'Granted' : 'Not granted';
     stateEl.style.color = res.trusted ? 'var(--good)' : 'var(--warn)';
   } catch {
-    stateEl.textContent = 'unknown';
+    stateEl.textContent = 'Unknown';
   }
 }
 
@@ -685,7 +685,7 @@ function updateDeckSettingsMeta() {
   const { connected, info } = state.status;
   meta.textContent = connected
     ? `Firmware ${info?.Dversion || '—'} · Serial ${info?.SerialNumber || info?.serial || '—'}`
-    : 'No deck connected';
+    : 'No Deck connected';
   const sleep = $('#insp-sleep');
   if (sleep) sleep.value = String(state.config.settings.sleepSeconds || 0);
   const standbyInput = $('#standby-seconds');
@@ -709,7 +709,7 @@ function updateDeckSettingsMeta() {
     const seconds = Number(state.config.settings.standbySeconds) || 0;
     standbyHint.textContent = seconds
       ? `Clock${state.config.settings.standbyImage ? ' over your wallpaper' : ''} after ${seconds}s of no key presses. The first press only wakes it.`
-      : 'Show a clock (and optional wallpaper) when idle. The first press only wakes the deck.';
+      : 'Show a clock (and optional wallpaper) when idle. The first press only wakes the Deck.';
   }
 }
 
@@ -1230,7 +1230,7 @@ function bind() {
       api.setSleepTime(state.config.settings.sleepSeconds);
       pushNow();
     } else {
-      toast('Could not open the deck — is Ulanzi Studio running?', true);
+      toast('Could not open the Deck — is Ulanzi Studio running?', true);
     }
   });
 
