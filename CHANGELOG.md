@@ -5,6 +5,7 @@
 ### UI
 - Action icons redrawn to match the official app: **Parent Page**, **Subpage**, **Text**, **Multi Action**, **Multi Action Switch**, **Random Action**, **Feature Popup**, **Play Audio** and **Stop Audio**.
 - Multi actions now show a different icon for run-in-order / alternate / random, sound actions differ for play and stop, and a **Go to page** key that opens a subpage uses the folder icon.
+- Refined the **Random Action** (shuffle curves) and **Preset Popup** (ring plus refresh arrows) icons to match the official glyphs.
 - Added a **Preset Popup** icon asset; our POP is still a single action, so it is not used yet.
 
 ## 0.3.0 — 2026-11-01
