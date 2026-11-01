@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.3.0 — 2026-11-01
 
 ### Features
 - **Check for Updates…** in the app menu compares the installed version with the latest GitHub release, shows the release notes and opens the release page. It only notifies — installing the new version is still manual.
