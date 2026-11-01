@@ -648,6 +648,15 @@ function closeUpdateModal() {
   $('#update-modal')?.classList.add('hidden');
 }
 
+function openDeckSettings(tab = 'display') {
+  const sheet = $('#deck-settings');
+  if (!sheet) return;
+  sheet.classList.remove('hidden');
+  selectSettingsTab(tab);
+  updateDeckSettingsMeta();
+  refreshAccessibility();
+}
+
 function openAboutModal() {
   $('#about-modal')?.classList.remove('hidden');
   window.focusModal?.('about-modal');
@@ -1182,11 +1191,7 @@ function bind() {
   $('#deck-settings-btn').addEventListener('click', () => {
     const sheet = $('#deck-settings');
     const open = sheet.classList.toggle('hidden');
-    if (!open) {
-      selectSettingsTab('display');
-      updateDeckSettingsMeta();
-      refreshAccessibility();
-    }
+    if (!open) openDeckSettings();
   });
   document.querySelectorAll('[data-settings-tab]').forEach((button) => {
     button.addEventListener('click', () => selectSettingsTab(button.dataset.settingsTab));
@@ -1523,6 +1528,7 @@ function bind() {
   });
 
   api.onShowAbout?.(() => openAboutModal());
+  api.onOpenSettings?.(() => openDeckSettings());
 
   api.onUpdateAvailable?.((info) => {
     updateInfo = { ...info, update: true, checkedAt: Date.now() };

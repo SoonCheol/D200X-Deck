@@ -300,6 +300,15 @@ function buildMenu() {
             { label: 'About Ulanzi Deck Open', click: () => send('app:show-about') },
             { label: 'Check for Updates…', click: () => checkForUpdates() },
             { type: 'separator' },
+            {
+              label: 'Settings…',
+              accelerator: 'CmdOrCtrl+,',
+              click: () => {
+                showWindow();
+                send('app:open-settings');
+              },
+            },
+            { type: 'separator' },
             { label: 'Show Main Window', accelerator: 'CmdOrCtrl+0', click: showWindow },
             { label: 'Reconnect Deck', click: () => deck.connect() },
             { type: 'separator' },
