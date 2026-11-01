@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+### Fixes
+- Stream Deck plugins are no longer started twice when several of their actions sync in the same tick. The duplicate process competed with the first for the same contexts, so property-inspector requests (e.g. macOS Controls' app list) went to the wrong process and settings changes only reached one copy — mute, Control Center and other key actions kept using their old settings.
+- A plugin that registers a second connection now replaces the old socket instead of leaving two active connections.
+
 ### Features
 - **Store → Stream Deck Plugins** now uses only the OpenAction catalogue. The stale community Elgato mirror (frozen in April 2024) was dropped, which also removes the 111 duplicate entries it contributed.
 - **Installed** plugin list is grouped into **Ulanzi** and **Stream Deck / OpenAction** sections, alphabetically, matching the Store's source split.

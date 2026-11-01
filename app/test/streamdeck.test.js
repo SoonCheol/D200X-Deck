@@ -63,3 +63,27 @@ test('scans and installs Stream Deck plugins', () => {
   assert.equal(host.list()[0].writable, true);
   assert.ok(fs.existsSync(path.join(appDir, 'com.test.sdPlugin', 'manifest.json')));
 });
+
+test('launches a plugin once when several actions sync before the port resolves', async () => {
+  const appDir = tempDir();
+  const source = tempDir();
+  writePlugin(source);
+
+  const host = new StreamDeckPlugins({ appPluginsDir: appDir });
+  host.dirs = [appDir, source];
+  const [plugin] = host.scan();
+
+  const spawned = [];
+  host.spawn = () => {
+    spawned.push(plugin.uuid);
+    return { on() {}, kill() {}, exitCode: null, stdout: null, stderr: null };
+  };
+  host._portPromise = Promise.resolve(57116);
+
+  host._ensurePlugin(plugin.uuid);
+  host._ensurePlugin(plugin.uuid);
+  await new Promise((resolve) => setTimeout(resolve, 20));
+
+  assert.equal(spawned.length, 1, 'the plugin must not be launched twice');
+  assert.equal(host.starting.size, 0, 'the reservation must be released after launch');
+});

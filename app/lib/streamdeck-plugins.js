@@ -115,6 +115,8 @@ class StreamDeckPlugins extends EventEmitter {
     this.launchHtml = null;
     this.stopHtml = null;
     this._portPromise = null;
+    this.starting = new Set(); // plugin uuids reserved while the port resolves
+    this.spawn = spawn;
     this._wine = null;
     this._settingsFile = path.join(appPluginsDir, '.global-settings.json');
     this._loadGlobalSettings();
@@ -373,6 +375,7 @@ class StreamDeckPlugins extends EventEmitter {
       } catch {
         return;
       }
+      if (process.env.ULANZI_SD_DEBUG) console.log('[sd<-]', pluginUuid || 'pi', msg.event);
       if (!registered) {
         if (msg.event === 'registerPlugin') {
           const registeredUuid = String(msg.uuid || '');
@@ -386,6 +389,10 @@ class StreamDeckPlugins extends EventEmitter {
           }
           registered = true;
           pluginUuid = meta.uuid;
+          const previous = this.sockets.get(pluginUuid);
+          if (previous && previous !== ws) {
+            try { previous.close(4409, 'replaced'); } catch { /* ignore */ }
+          }
           this.sockets.set(pluginUuid, ws);
           this.crashes.delete(pluginUuid);
           this.emit('connected', pluginUuid);
@@ -693,6 +700,7 @@ class StreamDeckPlugins extends EventEmitter {
   }
 
   _send(pluginUuid, message) {
+    if (process.env.ULANZI_SD_DEBUG) console.log('[sd->]', pluginUuid, message.event, message.context || '', message.action || '', this.sockets.has(pluginUuid));
     const ws = this.sockets.get(pluginUuid);
     if (!ws || ws.readyState !== 1) {
       if (!this.queues.has(pluginUuid)) this.queues.set(pluginUuid, []);
@@ -734,8 +742,14 @@ class StreamDeckPlugins extends EventEmitter {
     }
     const existing = this.children.get(pluginUuid);
     if (existing && existing.exitCode === null) return meta;
+    // The server port is resolved asynchronously, so reserve the slot before
+    // waiting; otherwise a second action synced in the same tick launches the
+    // plugin again and two processes fight over the same contexts.
+    if (this.starting.has(pluginUuid)) return meta;
+    this.starting.add(pluginUuid);
     const executable = path.join(meta.dir, meta.code.path);
     if (!fs.existsSync(executable)) {
+      this.starting.delete(pluginUuid);
       this.emit('error', `Plugin code not found: ${executable}`);
       return null;
     }
@@ -746,6 +760,7 @@ class StreamDeckPlugins extends EventEmitter {
       '-info', this.infoString(meta),
     ];
     const run = (port) => {
+      this.starting.delete(pluginUuid);
       args[1] = String(port);
       let command;
       let commandArgs;
@@ -764,7 +779,8 @@ class StreamDeckPlugins extends EventEmitter {
         commandArgs = args;
         env = process.env;
       }
-      const proc = spawn(command, commandArgs, { cwd: meta.dir, env, stdio: ['ignore', 'pipe', 'pipe'] });
+      if (process.env.ULANZI_SD_DEBUG) console.log('[sd-spawn]', pluginUuid);
+      const proc = this.spawn(command, commandArgs, { cwd: meta.dir, env, stdio: ['ignore', 'pipe', 'pipe'] });
       proc.on('error', (err) => {
         this.emit('error', `${meta.name} could not start: ${err.message}`);
         this.children.delete(pluginUuid);
@@ -793,12 +809,19 @@ class StreamDeckPlugins extends EventEmitter {
         }
       });
     };
-    if (this._portPromise) this._portPromise.then((port) => { if (port) run(port); });
-    else run(this.port);
+    if (this._portPromise) {
+      this._portPromise.then((port) => {
+        if (port) run(port);
+        else this.starting.delete(pluginUuid);
+      });
+    } else {
+      run(this.port);
+    }
     return meta;
   }
 
   _logStream(meta, stream, kind) {
+    if (!stream || typeof stream.on !== 'function') return;
     let buffer = '';
     stream.on('data', (data) => {
       buffer += data.toString();
@@ -933,6 +956,7 @@ class StreamDeckPlugins extends EventEmitter {
 
   key(actionid, pressed) {
     const action = this.actions.get(actionid);
+    if (process.env.ULANZI_SD_DEBUG) console.log('[sd-key]', actionid, '->', action && action.actionUuid, pressed);
     if (!action) return false;
     this._ensurePlugin(action.pluginUuid);
     const autoToggle =
@@ -1127,6 +1151,7 @@ class StreamDeckPlugins extends EventEmitter {
       try { proc.kill(); } catch { /* ignore */ }
     }
     this.children.clear();
+    this.starting.clear();
     if (this.wss) {
       this.wss.close();
       this.wss = null;
