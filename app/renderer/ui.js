@@ -429,7 +429,7 @@ async function loadSiteIcon(key, report = false) {
   delete key.iconCleared;
   drawIndex(state.selected);
   commit();
-  if (report) toast('Icon loaded from the site');
+  if (report) toast('Favicon loaded');
   return true;
 }
 

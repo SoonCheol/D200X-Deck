@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+### Features
+- **Use favicon** (renamed from “Use icon”) now falls back to the domain root when a deep page has no icon of its own — e.g. `github.com/org/repo` → `github.com/favicon.ico`.
+- URL keys also get a **Use favicon** button in the Icon section, so the site icon can be (re)applied without going back to the URL field.
+
 ## 0.3.2 — 2026-11-01
 
 ### Fixes

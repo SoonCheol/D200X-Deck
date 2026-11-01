@@ -680,7 +680,7 @@ function renderInspector() {
   } else if (action.type === 'url') {
     valueField = `<div class="row">
       <input class="input" id="insp-value" placeholder="https://example.com" value="${esc(action.value)}" />
-      <button class="btn" id="insp-fetch-icon">Use icon</button>
+      <button class="btn" id="insp-fetch-icon">Use favicon</button>
     </div>`;
   } else if (action.type === 'command') {
     valueField = `<textarea class="textarea" id="insp-value" placeholder="osascript -e 'set volume output muted'">${esc(action.value)}</textarea>`;
@@ -868,6 +868,7 @@ function renderInspector() {
         <div class="icon-buttons">
           <button class="btn small" id="insp-icon-library">Library</button>
           ${action.type === 'app' && action.value ? '<button class="btn small" id="insp-use-app-icon">App icon</button>' : ''}
+          ${action.type === 'url' ? '<button class="btn small" id="insp-use-favicon">Use favicon</button>' : ''}
           ${key.icon ? '<button class="btn small danger" id="insp-icon-remove">Remove</button>' : ''}
         </div>
       </div>
@@ -1350,9 +1351,22 @@ function renderInspector() {
       fetchIcon.textContent = 'Loading…';
       const ok = await loadSiteIcon(key, true);
       fetchIcon.disabled = false;
-      fetchIcon.textContent = 'Use icon';
+      fetchIcon.textContent = 'Use favicon';
       if (!ok) return;
       renderInspector();
+    });
+  }
+
+  const useFavicon = $('#insp-use-favicon');
+  if (useFavicon) {
+    useFavicon.addEventListener('click', async () => {
+      if (!String(key.action.value || '').trim()) return toast('Enter a URL first', true);
+      useFavicon.disabled = true;
+      useFavicon.textContent = 'Loading…';
+      const ok = await loadSiteIcon(key, true);
+      useFavicon.disabled = false;
+      useFavicon.textContent = 'Use favicon';
+      if (ok) renderInspector();
     });
   }
 

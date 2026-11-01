@@ -35,11 +35,10 @@ function decodeEntities(value) {
 }
 
 /**
- * Find a site's icon: direct image URL, <link rel="icon">, then /favicon.ico.
- * Returns { dataUrl, type, bytes, source }.
+ * Find the icon for one exact URL: direct image, <link rel="icon">, then
+ * /favicon.ico relative to that URL. Returns { dataUrl, type, bytes, source }.
  */
-async function fetchSiteIcon(rawUrl) {
-  const base = normalize(rawUrl);
+async function iconFor(base) {
   const signal = AbortSignal.timeout(9000);
 
   // The URL itself may be an image.
@@ -85,6 +84,21 @@ async function fetchSiteIcon(rawUrl) {
   if (favicon) return favicon;
 
   throw new Error('No icon found');
+}
+
+/**
+ * Find a site's icon, falling back to the domain root when a deep page has no
+ * icon of its own (e.g. github.com/org/repo → github.com/favicon.ico).
+ */
+async function fetchSiteIcon(rawUrl) {
+  const base = normalize(rawUrl);
+  try {
+    return await iconFor(base);
+  } catch (err) {
+    const root = new URL('/', base);
+    if (root.href === base.href) throw err;
+    return iconFor(root);
+  }
 }
 
 module.exports = { fetchSiteIcon };
