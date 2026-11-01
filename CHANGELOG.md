@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.4.0 — 2026-11-01
 
 ### Features
 - The Icon section has an explicit **File** button next to **Library**, so choosing an image file no longer depends on knowing the drop zone is clickable (the drop zone still works the same way).
