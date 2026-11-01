@@ -807,13 +807,16 @@ function renderInspector() {
                    <div id="pi-host" class="pi-host"><div class="insp-empty" style="padding:0">Loading settings…</div></div>
                  </div>`
               : `<div class="field">
-                   <label>Settings (JSON)</label>
-                   <textarea class="textarea" id="insp-plugin-settings" placeholder="{}">${esc(
-                     JSON.stringify(action.settings || {}, null, 2)
-                   )}</textarea>
-                 </div>
-                 <div class="insp-empty" style="padding:0;font-size:11px">
-                   Live images come from <b>${esc(plugin.name)}</b>. This action has no property inspector, so settings are edited as JSON.
+                   <div class="field-hint" style="margin:0 0 8px">
+                     This action has no settings page. Live images come from <b>${esc(plugin.name)}</b>.
+                   </div>
+                   <details class="insp-advanced" ${Object.keys(action.settings || {}).length ? 'open' : ''}>
+                     <summary>Advanced: edit settings JSON</summary>
+                     <textarea class="textarea" id="insp-plugin-settings" placeholder="{}">${esc(
+                       JSON.stringify(action.settings || {}, null, 2)
+                     )}</textarea>
+                     <div class="field-hint">Only needed for plugins that document their settings keys.</div>
+                   </details>
                  </div>`
         }
       `;

@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.8.2 — 2026-11-01
+
+### Changed
+- **Plugins without a property inspector** no longer show a raw JSON settings box by default. The inspector now says “This action has no settings page” and offers an **Advanced: edit settings JSON** disclosure, which opens automatically only when the action already has settings.
+
 ## 0.8.1 — 2026-11-01
 
 ### Fixed
