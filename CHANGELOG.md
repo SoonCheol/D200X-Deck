@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.8.3 — 2026-11-01
+
+### Changed
+- **Keys with a plugin live image** no longer offer the icon controls (Library, File, drop zone, Remove). The inspector shows “Live image from plugin” and explains that a custom icon is kept but hidden while the plugin is drawing.
+
 ## 0.8.2 — 2026-11-01
 
 ### Changed

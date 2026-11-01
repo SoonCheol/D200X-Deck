@@ -827,12 +827,22 @@ function renderInspector() {
     key.face === 'text' ? 'text' : key.face === 'icon' ? 'icon' : key.icon || autoIconFor(key) ? 'icon' : 'text';
   const isDefaultColor = String(key.color || DEFAULT_KEY_COLOR).toLowerCase() === DEFAULT_KEY_COLOR;
   const autoIcon = autoIconFor(key);
-  const iconSrc = key.icon || liveKey.icon || autoIcon;
+  // A plugin that pushes an image owns the key face: effectiveKey() replaces the
+  // stored icon, so offering the icon controls would silently do nothing.
+  const pluginActionId = action.type === 'plugin' ? action.actionid : null;
+  const stateIndex = Math.max(0, Number(key.stateIndex) || 0);
+  const liveImageActive = Boolean(
+    pluginActionId &&
+      (pluginImages.has(pluginActionId) || pluginStateImages.has(`${pluginActionId}:${stateIndex}`))
+  );
+  const iconSrc = liveImageActive ? liveKey.icon : key.icon || liveKey.icon || autoIcon;
+  const disabledAttr = liveImageActive ? 'disabled' : '';
   const iconField = `
     <div class="field insp-icon-field">
       <label>Icon</label>
       <div class="icon-row">
-        <div class="icon-drop compact" id="insp-icon-drop">
+        <div class="icon-drop compact ${liveImageActive ? 'disabled' : ''}" id="insp-icon-drop"
+             ${liveImageActive ? 'aria-disabled="true"' : ''}>
           ${
             iconSrc
               ? `<img src="${esc(iconSrc)}" alt="" />`
@@ -840,19 +850,32 @@ function renderInspector() {
           }
           <div class="meta">
             <div class="file-name">${
-              key.icon ? 'Custom' : liveKey.icon ? 'Live image' : autoIcon ? 'Action icon' : 'No icon'
+              liveImageActive
+                ? 'Live image from plugin'
+                : key.icon
+                  ? 'Custom'
+                  : liveKey.icon
+                    ? 'Live image'
+                    : autoIcon
+                      ? 'Action icon'
+                      : 'No icon'
             }</div>
-            <div>Drop or click to change</div>
+            <div>${liveImageActive ? 'The plugin controls this image' : 'Drop or click to change'}</div>
           </div>
         </div>
         <div class="icon-buttons">
-          <button class="btn small" id="insp-icon-library">Library</button>
-          <button class="btn small" id="insp-icon-file" title="Choose an image file">File</button>
-          ${action.type === 'app' && action.value ? '<button class="btn small" id="insp-use-app-icon">App icon</button>' : ''}
-          ${action.type === 'url' ? '<button class="btn small" id="insp-use-favicon">Favicon</button>' : ''}
-          ${key.icon ? '<button class="btn small danger" id="insp-icon-remove">Remove</button>' : ''}
+          <button class="btn small" id="insp-icon-library" ${disabledAttr}>Library</button>
+          <button class="btn small" id="insp-icon-file" title="Choose an image file" ${disabledAttr}>File</button>
+          ${action.type === 'app' && action.value ? `<button class="btn small" id="insp-use-app-icon" ${disabledAttr}>App icon</button>` : ''}
+          ${action.type === 'url' ? `<button class="btn small" id="insp-use-favicon" ${disabledAttr}>Favicon</button>` : ''}
+          ${key.icon ? `<button class="btn small danger" id="insp-icon-remove" ${disabledAttr}>Remove</button>` : ''}
         </div>
       </div>
+      ${
+        liveImageActive
+          ? '<div class="field-hint">This plugin draws the key image. A custom icon is kept but hidden while the plugin is active.</div>'
+          : ''
+      }
     </div>`;
   const textField = `
     <div class="field">
@@ -967,7 +990,7 @@ function renderInspector() {
     applyIcon(await downscaleImage(picked), 'custom');
   };
   const drop = $('#insp-icon-drop');
-  if (drop) {
+  if (drop && !liveImageActive) {
     drop.addEventListener('click', chooseIconFile);
     drop.addEventListener('dragover', (e) => {
       e.preventDefault();

@@ -475,6 +475,8 @@ body::before {
 
 .field-hint { font-size: 10px; color: var(--muted); margin-top: 5px; margin-bottom: 10px; }
 .insp-warning { color: var(--warn); }
+.icon-drop.disabled { opacity: 0.62; cursor: default; }
+.icon-drop.disabled:hover { border-color: var(--line); }
 .insp-advanced { margin-top: 2px; }
 .insp-advanced summary {
   cursor: pointer;
