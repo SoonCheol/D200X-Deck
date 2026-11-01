@@ -1,31 +1,12 @@
 'use strict';
 
-const { EventEmitter } = require('node:events');
-const { spawn } = require('node:child_process');
 const fs = require('node:fs');
 const path = require('node:path');
 const { isInside } = require('./paths');
 const { byExtension } = require('./mime');
+const { PluginHost, nodeRuntime } = require('./plugin-host');
 
-/**
- * The Electron main executable creates a Dock icon when spawned as a Node
- * child. Use the LSUIElement helper instead, which runs the same Node runtime
- * without flashing icons in the Dock while plugins start.
- */
-function nodeRuntime() {
-  if (process.env.ULANZI_NODE_BIN) return process.env.ULANZI_NODE_BIN;
-  try {
-    const exe = process.execPath;
-    const name = path.basename(exe);
-    const helper = path.join(path.dirname(exe), '..', 'Frameworks', `${name} Helper.app`, 'Contents', 'MacOS', `${name} Helper`);
-    if (require('node:fs').existsSync(helper)) return helper;
-  } catch {
-    /* fall through */
-  }
-  return process.execPath;
-}
 const os = require('node:os');
-const { WebSocketServer } = require('ws');
 
 function fileToDataUrl(file) {
   try {
@@ -57,114 +38,107 @@ function pluginRootDirs() {
   return dirs;
 }
 
-class PluginManager extends EventEmitter {
+class PluginManager extends PluginHost {
   constructor({ dirs = pluginRootDirs(), appPluginsDir = null, port = 3906, language = 'en-US', appVersion = '0.1.0' } = {}) {
-    super();
-    this.dirs = dirs;
-    this.appPluginsDir = appPluginsDir || dirs[0];
-    this.stopping = false;
-    this.port = port;
-    this.language = language;
-    this.appVersion = appVersion;
-    this.plugins = new Map(); // uuid -> meta
-    this.sockets = new Map(); // uuid -> ws
-    this.inspectors = new Map(); // actionid -> ws (property inspector)
-    this.openView = null; // assigned by the host wiring
-    this.selectDialog = null; // assigned by the host wiring
-    this.queues = new Map(); // uuid -> messages[]
-    this.children = new Map(); // uuid -> ChildProcess
-    this.actions = new Map(); // actionid -> {pluginUuid, actionUuid, key, settings, active, meta}
-    this.globalSettings = new Map(); // pluginUuid -> object
-    this.crashes = new Map(); // pluginUuid -> { count, last }
-    this.htmlRunning = new Set();
-    this.launchHtml = null;
-    this.stopHtml = null;
-    this.wss = null;
-    this._settingsFile = path.join(this.appPluginsDir, '.global-settings.json');
-    this._loadGlobalSettings();
+    super({ dirs, appPluginsDir, port, language, appVersion, label: 'plugins' });
   }
 
-  _loadGlobalSettings() {
-    try {
-      const data = JSON.parse(fs.readFileSync(this._settingsFile, 'utf8'));
-      for (const [uuid, value] of Object.entries(data || {})) this.globalSettings.set(uuid, value);
-    } catch {
-      /* no persisted settings yet */
+  // ------------------------------------------------------------- hooks
+
+  isPluginDir(entry) {
+    return entry.isDirectory() && entry.name.endsWith('.ulanziPlugin');
+  }
+
+  readPlugin(dir, root) {
+    const manifestPath = path.join(dir, 'manifest.json');
+    if (!fs.existsSync(manifestPath)) return null;
+    const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
+    const uuid = manifest.UUID || path.basename(dir).replace(/\.ulanziPlugin$/, '');
+    const type = manifest.Type || 'JavaScript';
+    const codePath = manifest.CodePath || '';
+    const isHtml = /\.html?$/i.test(codePath);
+    const compatible = type === 'JavaScript' && (/\.(c|m)?js$/i.test(codePath) || isHtml);
+    const icon = manifest.Icon ? fileToDataUrl(path.join(dir, manifest.Icon)) : null;
+    const actions = (manifest.Actions || []).map((a) => ({
+      uuid: a.UUID,
+      name: a.Name || a.UUID,
+      icon: a.Icon ? fileToDataUrl(path.join(dir, a.Icon)) : icon,
+      tooltip: a.Tooltip || '',
+      states: (a.States || []).map((s) => ({
+        name: s.Name || '',
+        image: s.Image ? fileToDataUrl(path.join(dir, s.Image)) : null,
+      })),
+      controllers: a.Controllers || ['Keypad'],
+      propertyInspector: a.PropertyInspectorPath || null,
+    }));
+    return {
+      uuid,
+      source: root,
+      writable: path.resolve(root) === path.resolve(this.appPluginsDir),
+      name: manifest.Name || uuid,
+      description: manifest.Description || '',
+      version: manifest.Version || '',
+      author: manifest.Author || '',
+      icon,
+      dir,
+      codePath: path.join(dir, codePath),
+      manifest,
+      compatible,
+      html: isHtml,
+      type,
+      actions,
+    };
+  }
+
+  isHtml(meta) {
+    return Boolean(meta?.html);
+  }
+
+  executableFor(meta) {
+    return meta.codePath;
+  }
+
+  spawnCommand(meta, executable, port) {
+    return {
+      command: nodeRuntime(),
+      args: [executable, '127.0.0.1', String(port), this.language, this.appVersion],
+      env: { ...process.env, ELECTRON_RUN_AS_NODE: '1' },
+    };
+  }
+
+  readOnlyMessage() {
+    return 'This plugin is read-only (installed by Ulanzi Studio)';
+  }
+
+  get noPluginMessage() {
+    return 'No manifest.json found in the plugin package';
+  }
+
+  findPluginRoot(workDir) {
+    const findManifest = (dir, depth = 0) => {
+      if (depth > 2) return null;
+      const direct = path.join(dir, 'manifest.json');
+      if (fs.existsSync(direct)) return dir;
+      for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+        if (!entry.isDirectory()) continue;
+        const found = findManifest(path.join(dir, entry.name), depth + 1);
+        if (found) return found;
+      }
+      return null;
+    };
+    return findManifest(workDir);
+  }
+
+  installTarget(root) {
+    const manifest = JSON.parse(fs.readFileSync(path.join(root, 'manifest.json'), 'utf8'));
+    const uuid = String(manifest.UUID || '').trim();
+    if (!uuid) throw new Error('manifest.json has no UUID');
+    if (!/^[A-Za-z0-9][A-Za-z0-9._-]*$/.test(uuid)) {
+      throw new Error('manifest.json has an invalid UUID');
     }
+    return { folder: `${uuid}.ulanziPlugin`, uuid, name: manifest.Name || uuid };
   }
-
-  _saveGlobalSettings() {
-    try {
-      fs.mkdirSync(this.appPluginsDir, { recursive: true });
-      const data = Object.fromEntries(this.globalSettings);
-      fs.writeFileSync(this._settingsFile, JSON.stringify(data, null, 2), { mode: 0o600 });
-    } catch (err) {
-      this.emit('error', `Could not save plugin settings: ${err.message}`);
-    }
-  }
-
   // ------------------------------------------------------------- discovery
-
-  scan() {
-    this.plugins.clear();
-    for (const root of this.dirs) {
-      let entries = [];
-      try {
-        entries = fs.readdirSync(root, { withFileTypes: true });
-      } catch {
-        continue;
-      }
-      for (const entry of entries) {
-        if (!entry.isDirectory() || !entry.name.endsWith('.ulanziPlugin')) continue;
-        const dir = path.join(root, entry.name);
-        const manifestPath = path.join(dir, 'manifest.json');
-        if (!fs.existsSync(manifestPath)) continue;
-        try {
-          const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
-          const uuid = manifest.UUID || entry.name.replace(/\.ulanziPlugin$/, '');
-          const type = manifest.Type || 'JavaScript';
-          const codePath = manifest.CodePath || '';
-          const isHtml = /\.html?$/i.test(codePath);
-          const compatible = type === 'JavaScript' && (/\.(c|m)?js$/i.test(codePath) || isHtml);
-          const icon = manifest.Icon ? fileToDataUrl(path.join(dir, manifest.Icon)) : null;
-          const actions = (manifest.Actions || []).map((a) => ({
-            uuid: a.UUID,
-            name: a.Name || a.UUID,
-            icon: a.Icon ? fileToDataUrl(path.join(dir, a.Icon)) : icon,
-            tooltip: a.Tooltip || '',
-            states: (a.States || []).map((s) => ({
-              name: s.Name || '',
-              image: s.Image ? fileToDataUrl(path.join(dir, s.Image)) : null,
-            })),
-            controllers: a.Controllers || ['Keypad'],
-            propertyInspector: a.PropertyInspectorPath || null,
-          }));
-          // First source wins: app-installed plugins shadow Ulanzi's copy.
-          if (this.plugins.has(uuid)) continue;
-          this.plugins.set(uuid, {
-            uuid,
-            source: root,
-            writable: path.resolve(root) === path.resolve(this.appPluginsDir),
-            name: manifest.Name || uuid,
-            description: manifest.Description || '',
-            version: manifest.Version || '',
-            author: manifest.Author || '',
-            icon,
-            dir,
-            codePath: path.join(dir, codePath),
-            manifest,
-            compatible,
-            html: isHtml,
-            type,
-            actions,
-          });
-        } catch (err) {
-          this.emit('error', `Failed to read ${manifestPath}: ${err.message}`);
-        }
-      }
-    }
-    return this.list();
-  }
 
   list() {
     return [...this.plugins.values()]
@@ -186,45 +160,6 @@ class PluginManager extends EventEmitter {
   }
 
   // ---------------------------------------------------------------- server
-
-  start() {
-    if (this.wss) return;
-    this._portPromise = new Promise((resolve) => {
-      const tryPort = (port, left) => {
-        const wss = new WebSocketServer({
-          host: '127.0.0.1',
-          port,
-          // Plugin processes are Node clients (no Origin). Property inspectors run
-          // in our own scheme. Anything coming from a web page is refused.
-          verifyClient: (info, done) => {
-            const origin = String(info.origin || info.req?.headers?.origin || '');
-            if (/^https?:/i.test(origin)) return done(false, 403, 'forbidden');
-            done(true);
-          },
-        });
-        wss.once('listening', () => {
-          this.wss = wss;
-          this.port = port;
-          console.log(`[plugins] listening on ${port}`);
-          wss.on('connection', (ws) => this._onConnection(ws));
-          resolve(port);
-        });
-        wss.once('error', (err) => {
-          if (err.code === 'EADDRINUSE' && left > 0) {
-            // Ulanzi Studio (or another instance) owns 3906. Plugins get the
-            // port as an argument and inspectors from the URL, so any free
-            // port works and we must not talk to the vendor app's server.
-            try { wss.close(); } catch { /* ignore */ }
-            tryPort(port + 1, left - 1);
-            return;
-          }
-          this.emit('error', `Plugin server: ${err.message}`);
-          resolve(null);
-        });
-      };
-      tryPort(this.port, 20);
-    });
-  }
 
   _onConnection(ws) {
     let pluginUuid = null;
@@ -341,119 +276,9 @@ class PluginManager extends EventEmitter {
     return url.toString();
   }
 
-  _send(pluginUuid, message) {
-    // NB: the Ulanzi SDK ignores host messages that carry a `code` field
-    // unless cmdType === "REQUEST".
-    const payload = { ...message };
-    const ws = this.sockets.get(pluginUuid);
-    if (ws && ws.readyState === 1) {
-      ws.send(JSON.stringify(payload));
-    } else {
-      if (!this.queues.has(pluginUuid)) this.queues.set(pluginUuid, []);
-      this.queues.get(pluginUuid).push(payload);
-    }
-  }
-
-  _flushQueue(pluginUuid) {
-    const queue = this.queues.get(pluginUuid);
-    if (!queue) return;
-    const ws = this.sockets.get(pluginUuid);
-    if (!ws || ws.readyState !== 1) return;
-    for (const msg of queue) ws.send(JSON.stringify(msg));
-    this.queues.delete(pluginUuid);
-  }
-
   // --------------------------------------------------------------- process
 
-  _ensurePlugin(pluginUuid) {
-    const meta = this.plugins.get(pluginUuid);
-    if (!meta) return null;
-    if (!meta.compatible) return null;
-    // The server port is resolved asynchronously; wait for it so the plugin
-    // and its inspector are pointed at our own server, not at 3906.
-    if (!this.wss && this._portPromise) {
-      this._portPromise.then((port) => { if (port) this._ensurePlugin(pluginUuid); });
-      return meta;
-    }
-    if (meta.html) {
-      // HTML plugins run inside a hidden BrowserWindow and connect to our host
-      // over the same WebSocket protocol; main.js owns the window lifecycle.
-      if (this.htmlRunning.has(pluginUuid)) return meta;
-      this.htmlRunning.add(pluginUuid);
-      this.launchHtml?.(meta);
-      return meta;
-    }
-    const child = this.children.get(pluginUuid);
-    if (child && child.exitCode === null) return meta;
-    if (!fs.existsSync(meta.codePath)) {
-      this.emit('error', `Plugin code not found: ${meta.codePath}`);
-      return null;
-    }
-    const proc = spawn(
-      nodeRuntime(),
-      [meta.codePath, '127.0.0.1', String(this.port), this.language, this.appVersion],
-      {
-        cwd: meta.dir,
-        env: { ...process.env, ELECTRON_RUN_AS_NODE: '1' },
-        stdio: ['ignore', 'pipe', 'pipe'],
-      }
-    );
-    proc.on('error', (err) => {
-      this.emit('error', `${meta.name || pluginUuid} could not start: ${err.message}`);
-      this.children.delete(pluginUuid);
-    });
-    this.children.set(pluginUuid, proc);
-    const prefix = `[plugin ${meta.name}]`;
-    const lineLogger = (stream) => {
-      let buffer = '';
-      return (data) => {
-        buffer += data.toString();
-        let idx;
-        while ((idx = buffer.indexOf('\n')) >= 0) {
-          const line = buffer.slice(0, idx);
-          buffer = buffer.slice(idx + 1);
-          if (line.trim()) {
-            stream.write(`${prefix} ${line.slice(0, 400)}${line.length > 400 ? '…' : ''}\n`);
-          }
-        }
-        if (buffer.length > 200000) buffer = buffer.slice(-2000);
-      };
-    };
-    proc.stdout.on('data', lineLogger(process.stdout));
-    proc.stderr.on('data', lineLogger(process.stderr));
-    proc.on('exit', (code) => {
-      if (this.restarting?.delete(pluginUuid)) return;
-      if (this.children.get(pluginUuid) === proc) this.children.delete(pluginUuid);
-      const ws = this.sockets.get(pluginUuid);
-      if (ws) this.sockets.delete(pluginUuid);
-      if (!this.stopping && this._hasActionsFor(pluginUuid)) {
-        const now = Date.now();
-        const state = this.crashes.get(pluginUuid) || { count: 0, last: 0 };
-        state.count = now - state.last < 60_000 ? state.count + 1 : 1;
-        state.last = now;
-        this.crashes.set(pluginUuid, state);
-        if (state.count > 5) {
-          this.emit('error', `${meta.name} keeps crashing — not restarting it.`);
-          return;
-        }
-        const delay = Math.min(30_000, 1000 * 2 ** (state.count - 1));
-        this.emit('error', `${meta.name} exited${code ? ` (${code})` : ''}; retrying in ${Math.round(delay / 1000)}s`);
-        setTimeout(() => {
-          if (!this.stopping && this._hasActionsFor(pluginUuid)) this._ensurePlugin(pluginUuid);
-        }, delay);
-      }
-    });
-    return meta;
-  }
-
   // --------------------------------------------------------------- actions
-
-  _hasActionsFor(pluginUuid) {
-    for (const action of this.actions.values()) {
-      if (action.pluginUuid === pluginUuid) return true;
-    }
-    return false;
-  }
 
   _replay(pluginUuid) {
     for (const action of this.actions.values()) {
@@ -475,148 +300,6 @@ class PluginManager extends EventEmitter {
         active: action.active,
       });
     }
-  }
-
-  /** Stop one plugin and start it again (used by Installed → Reload). */
-  restart(pluginUuid) {
-    this.restarting = this.restarting || new Set();
-    const meta = this.plugins.get(pluginUuid);
-    if (meta?.html) {
-      this.stopHtml?.(pluginUuid);
-      this.htmlRunning.delete(pluginUuid);
-      this.sockets.delete(pluginUuid);
-      this._ensurePlugin(pluginUuid);
-      return true;
-    }
-    const proc = this.children.get(pluginUuid);
-    if (proc) {
-      this.restarting.add(pluginUuid);
-      try { proc.kill(); } catch { /* ignore */ }
-      this.children.delete(pluginUuid);
-      this.sockets.delete(pluginUuid);
-      this.crashes.delete(pluginUuid);
-      setTimeout(() => {
-        if (!this.stopping) this._ensurePlugin(pluginUuid);
-      }, 200);
-      return true;
-    }
-    this.sockets.delete(pluginUuid);
-    this._ensurePlugin(pluginUuid);
-    return true;
-  }
-
-  reload() {
-    this.stopping = true;
-    for (const proc of this.children.values()) {
-      try { proc.kill(); } catch { /* ignore */ }
-    }
-    this.children.clear();
-    this.sockets.clear();
-    this.queues.clear();
-    this.actions.clear();
-    this.inspectors.clear();
-    this.stopping = false;
-    return this.scan();
-  }
-
-  /** Stop one plugin, rescan the folders, and restart it if it has actions. */
-  reloadOne(uuid) {
-    const id = String(uuid);
-    const meta = this.plugins.get(id);
-    if (meta?.html) {
-      try { this.stopHtml?.(id); } catch { /* ignore */ }
-      this.htmlRunning.delete(id);
-    }
-    const proc = this.children.get(id);
-    if (proc) {
-      this.restarting = this.restarting || new Set();
-      this.restarting.add(id);
-      try { proc.kill(); } catch { /* ignore */ }
-    }
-    this.children.delete(id);
-    this.sockets.delete(id);
-    this.queues.delete(id);
-    this.actions.delete(id);
-    this.inspectors.delete(id);
-    this.crashes.delete(id);
-    this.scan();
-    if (this._hasActionsFor(id)) this._ensurePlugin(id);
-    return this.list();
-  }
-
-  /** Install a .ulanziPlugin folder or a ZIP containing one. */
-  install(sourcePath) {
-    const fs = require('node:fs');
-    const os = require('node:os');
-    const { execFileSync } = require('node:child_process');
-    fs.mkdirSync(this.appPluginsDir, { recursive: true });
-
-    let workDir = sourcePath;
-    let temp = null;
-    if (fs.statSync(sourcePath).isFile()) {
-      temp = fs.mkdtempSync(path.join(os.tmpdir(), 'ulanzi-plugin-'));
-      try {
-        execFileSync('unzip', ['-oq', sourcePath, '-d', temp], { stdio: ['ignore', 'ignore', 'pipe'] });
-      } catch (err) {
-        const detail = String(err.stderr || '').trim().split('\n').filter(Boolean).pop();
-        throw new Error(`Could not unpack the plugin ZIP${detail ? `: ${detail}` : ''}`);
-      }
-      workDir = temp;
-    }
-
-    const findManifest = (dir, depth = 0) => {
-      if (depth > 2) return null;
-      const direct = path.join(dir, 'manifest.json');
-      if (fs.existsSync(direct)) return dir;
-      for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
-        if (!entry.isDirectory()) continue;
-        const found = findManifest(path.join(dir, entry.name), depth + 1);
-        if (found) return found;
-      }
-      return null;
-    };
-
-    try {
-      const root = findManifest(workDir);
-      if (!root) throw new Error('No manifest.json found in the plugin package');
-      const manifest = JSON.parse(fs.readFileSync(path.join(root, 'manifest.json'), 'utf8'));
-      const uuid = String(manifest.UUID || '').trim();
-      if (!uuid) throw new Error('manifest.json has no UUID');
-      if (!/^[A-Za-z0-9][A-Za-z0-9._-]*$/.test(uuid)) {
-        throw new Error('manifest.json has an invalid UUID');
-      }
-      const dest = path.join(this.appPluginsDir, `${uuid}.ulanziPlugin`);
-      if (path.relative(this.appPluginsDir, dest).startsWith('..')) {
-        throw new Error('plugin destination escapes the plugins folder');
-      }
-      if (fs.existsSync(dest)) fs.rmSync(dest, { recursive: true, force: true });
-      fs.cpSync(root, dest, { recursive: true, force: true });
-      return { uuid, name: manifest.Name || uuid, list: this.reloadOne(uuid) };
-    } finally {
-      if (temp) fs.rmSync(temp, { recursive: true, force: true });
-    }
-  }
-
-  /** Copy an official (read-only) plugin into the app folder so it can be managed. */
-  import(uuid) {
-    const meta = this.plugins.get(uuid);
-    if (!meta) throw new Error('Plugin not found');
-    if (meta.writable) return { uuid, list: this.list() };
-    const fs = require('node:fs');
-    fs.mkdirSync(this.appPluginsDir, { recursive: true });
-    const dest = path.join(this.appPluginsDir, path.basename(meta.dir));
-    if (fs.existsSync(dest)) fs.rmSync(dest, { recursive: true, force: true });
-    fs.cpSync(meta.dir, dest, { recursive: true, force: true });
-    return { uuid, list: this.reloadOne(uuid) };
-  }
-
-  remove(uuid) {
-    const meta = this.plugins.get(uuid);
-    if (!meta) throw new Error('Plugin not found');
-    if (!meta.writable) throw new Error('This plugin is read-only (installed by Ulanzi Studio)');
-    const fs = require('node:fs');
-    fs.rmSync(meta.dir, { recursive: true, force: true });
-    return this.reloadOne(uuid);
   }
 
   /**
@@ -874,59 +557,7 @@ class PluginManager extends EventEmitter {
     if (/^https?:|^mailto:/i.test(url)) shell.openExternal(url);
   }
 
-  /** Called by main.js when an HTML plugin window closes or is closed. */
-  htmlExited(pluginUuid) {
-    this.htmlRunning.delete(pluginUuid);
-    this.sockets.delete(pluginUuid);
-    if (this.stopping || !this._hasActionsFor(pluginUuid)) return;
-    const meta = this.plugins.get(pluginUuid);
-    const now = Date.now();
-    const state = this.crashes.get(pluginUuid) || { count: 0, last: 0 };
-    state.count = now - state.last < 60_000 ? state.count + 1 : 1;
-    state.last = now;
-    this.crashes.set(pluginUuid, state);
-    if (state.count > 5) {
-      this.emit('error', `${meta?.name || pluginUuid} keeps closing — not restarting it.`);
-      return;
-    }
-    const delay = Math.min(30_000, 1000 * 2 ** (state.count - 1));
-    setTimeout(() => {
-      if (!this.stopping && this._hasActionsFor(pluginUuid)) this._ensurePlugin(pluginUuid);
-    }, delay);
-  }
 
-  /** Graceful shutdown: SIGTERM every child, then SIGKILL whatever is left. */
-  async shutdown(timeoutMs = 1500) {
-    this.stopping = true;
-    for (const uuid of this.htmlRunning) {
-      try { this.stopHtml?.(uuid); } catch { /* ignore */ }
-    }
-    this.htmlRunning.clear();
-    const procs = [...this.children.values()];
-    this.children.clear();
-    this.inspectors.clear();
-    if (this.wss) {
-      this.wss.close();
-      this.wss = null;
-    }
-    await Promise.all(
-      procs.map(
-        (proc) =>
-          new Promise((resolve) => {
-            if (!proc || proc.exitCode !== null) return resolve(undefined);
-            const timer = setTimeout(() => {
-              try { proc.kill('SIGKILL'); } catch { /* ignore */ }
-              resolve(undefined);
-            }, timeoutMs);
-            proc.once('exit', () => {
-              clearTimeout(timer);
-              resolve(undefined);
-            });
-            try { proc.kill('SIGTERM'); } catch { /* ignore */ }
-          })
-      )
-    );
-  }
 }
 
 module.exports = { PluginManager, pluginRootDirs, nodeRuntime };

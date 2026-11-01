@@ -142,15 +142,20 @@ function createWindow() {
 
   setDockVisible(!launchHidden);
 
-  if (process.env.ULANZI_SHOT) {
-    require('./scripts/harness').attachScreenshotHarness({
-      win,
-      send,
-      quitNow: () => {
-        isQuitting = true;
-        app.quit();
-      },
-    });
+  // The screenshot harness is a development tool and is not packaged.
+  if (process.env.ULANZI_SHOT && !app.isPackaged) {
+    try {
+      require('./scripts/harness').attachScreenshotHarness({
+        win,
+        send,
+        quitNow: () => {
+          isQuitting = true;
+          app.quit();
+        },
+      });
+    } catch (err) {
+      console.error('[shot] harness unavailable:', err.message);
+    }
   }
 }
 

@@ -8,14 +8,12 @@ const { byExtension } = require('./mime');
 // the same protocol as the Elgato Stream Deck software. They can be Node
 // scripts, HTML pages, or native macOS binaries.
 
-const { EventEmitter } = require('node:events');
-const { spawn, spawnSync } = require('node:child_process');
+const { execFileSync, spawnSync } = require('node:child_process');
 const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
-const { WebSocketServer } = require('ws');
 
-const { nodeRuntime } = require('./plugins');
+const { PluginHost, nodeRuntime } = require('./plugin-host');
 
 const TARGET =
   process.arch === 'arm64' ? 'aarch64-apple-darwin' : process.arch === 'x64' ? 'x86_64-apple-darwin' : null;
@@ -115,167 +113,221 @@ function binaryArch(file) {
   }
 }
 
-class StreamDeckPlugins extends EventEmitter {
+class StreamDeckPlugins extends PluginHost {
   /**
    * @param {{ appPluginsDir: string, language?: string, appVersion?: string, port?: number, logFile?: string|null }} options
    */
   constructor({ appPluginsDir, language = 'en', appVersion = '0.1.0', port = 57116, logFile = null }) {
-    super();
-    this.dirs = streamDeckPluginDirs(appPluginsDir);
-    this.appPluginsDir = appPluginsDir;
-    this.language = language;
-    this.appVersion = appVersion;
-    this.port = port;
-    this.plugins = new Map(); // uuid -> meta
-    this.sockets = new Map(); // plugin uuid -> ws
-    this.inspectors = new Map(); // context/actionid -> ws
-    this._htmlRunning = new Set();
-    this.queues = new Map();
-    this.children = new Map();
-    this.actions = new Map(); // actionid -> action instance
-    this.globalSettings = new Map();
-    this.crashes = new Map();
-    this.wss = null;
-    this.stopping = false;
-    this.launchHtml = null;
-    this.stopHtml = null;
-    this._portPromise = null;
-    this.starting = new Set(); // plugin uuids reserved while the port resolves
-    this.spawn = spawn;
-    this.logFile = logFile;
+    super({
+      dirs: streamDeckPluginDirs(appPluginsDir),
+      appPluginsDir,
+      port,
+      language,
+      appVersion,
+      logFile,
+      label: 'sd-plugins',
+    });
     this._wine = null;
-    this._settingsFile = path.join(appPluginsDir, '.global-settings.json');
-    this._loadGlobalSettings();
+    this._rosetta = undefined;
   }
 
-  _loadGlobalSettings() {
+  // ------------------------------------------------------------- hooks
+
+  isPluginDir(entry) {
+    return entry.name.endsWith('.sdPlugin');
+  }
+
+  readPlugin(dir, root) {
     try {
-      const data = JSON.parse(fs.readFileSync(this._settingsFile, 'utf8'));
-      for (const [uuid, value] of Object.entries(data || {})) this.globalSettings.set(uuid, value);
+      if (!fs.statSync(dir).isDirectory()) return null;
     } catch {
-      /* first run */
+      return null;
     }
-  }
-
-  _saveGlobalSettings() {
-    try {
-      fs.mkdirSync(this.appPluginsDir, { recursive: true });
-      fs.writeFileSync(this._settingsFile, JSON.stringify(Object.fromEntries(this.globalSettings), null, 2), {
-        mode: 0o600,
-      });
-    } catch (err) {
-      this.emit('error', `Could not save Stream Deck plugin settings: ${err.message}`);
-    }
-  }
-
-  // ------------------------------------------------------------- discovery
-
-  scan() {
-    this.plugins.clear();
-    for (const root of this.dirs) {
-      let entries = [];
+    const manifestPath = path.join(dir, 'manifest.json');
+    if (!fs.existsSync(manifestPath)) return null;
+    let manifest = readJson(manifestPath);
+    const overrides =
+      process.platform === 'darwin'
+        ? ['manifest.mac.json', 'manifest.macos.json']
+        : [`manifest.${process.platform}.json`];
+    for (const name of overrides) {
+      const override = path.join(dir, name);
+      if (!fs.existsSync(override)) continue;
       try {
-        entries = fs.readdirSync(root, { withFileTypes: true });
+        manifest = mergePatch(manifest, readJson(override));
       } catch {
-        continue;
-      }
-      for (const entry of entries) {
-        if (!entry.name.endsWith('.sdPlugin')) continue;
-        const dir = path.join(root, entry.name);
-        try {
-          if (!fs.statSync(dir).isDirectory()) continue;
-        } catch {
-          continue;
-        }
-        const manifestPath = path.join(dir, 'manifest.json');
-        if (!fs.existsSync(manifestPath)) continue;
-        try {
-          let manifest = readJson(manifestPath);
-          const overrides =
-            process.platform === 'darwin'
-              ? ['manifest.mac.json', 'manifest.macos.json']
-              : [`manifest.${process.platform}.json`];
-          for (const name of overrides) {
-            const override = path.join(dir, name);
-            if (!fs.existsSync(override)) continue;
-            try {
-              manifest = mergePatch(manifest, readJson(override));
-            } catch {
-              /* ignore a broken platform override */
-            }
-          }
-          const uuid = entry.name;
-          let code = this._codeFor(manifest);
-          if (code && !fs.existsSync(path.join(dir, code.path))) code = null;
-          if (code && code.kind === 'native' && process.platform === 'darwin') {
-            const arch = binaryArch(path.join(dir, code.path));
-            code.arch = arch;
-            if (arch === 'x86_64' && process.arch === 'arm64' && !this.rosettaAvailable()) {
-              code.unsupported = 'rosetta';
-            }
-          }
-          const actionMeta = (manifest.Actions || [])
-            .filter((a) => a && a.UUID && (!Array.isArray(a.Controllers) || a.Controllers.includes('Keypad')))
-            .map((a) => {
-              const icon = resolveIcon(dir, a.Icon) || resolveIcon(dir, manifest.Icon);
-              const states = (a.States || []).map((state) => {
-                const image =
-                  state.Image === 'actionDefaultImage' || !state.Image
-                    ? icon
-                    : resolveIcon(dir, state.Image);
-                return {
-                  name: state.Name || '',
-                  image,
-                  text: state.Title || '',
-                  show: state.ShowTitle !== false,
-                  colour: state.TitleColor || '#ffffff',
-                  alignment: state.TitleAlignment || 'middle',
-                  family: state.FontFamily || '',
-                  style: state.FontStyle || '',
-                  size: Number(state.FontSize) || 16,
-                };
-              });
-              const pi = a.PropertyInspectorPath || manifest.PropertyInspectorPath || '';
-              return {
-                uuid: a.UUID,
-                name: a.Name || a.UUID,
-                tooltip: a.Tooltip || '',
-                icon,
-                states,
-                controllers: a.Controllers || ['Keypad'],
-                propertyInspector: pi ? path.join(dir, pi) : null,
-                supportedInMultiActions: a.SupportedInMultiActions !== false,
-                visibleInActionList: a.VisibleInActionList !== false,
-                disableAutomaticStates: a.DisableAutomaticStates === true,
-              };
-            });
-          if (!actionMeta.length) continue;
-          const meta = {
-            uuid,
-            sdk: 'streamdeck',
-            dir,
-            source: root,
-            writable: path.resolve(root) === path.resolve(this.appPluginsDir),
-            name: manifest.Name || uuid,
-            description: manifest.Description || '',
-            author: manifest.Author || '',
-            version: manifest.Version || '',
-            category: manifest.Category || 'Stream Deck',
-            icon: resolveIcon(dir, manifest.Icon),
-            manifest,
-            code,
-            compatible: Boolean(code) && !code.unsupported,
-            compatReason: code?.unsupported === 'rosetta' ? 'Needs Rosetta' : '',
-            actions: actionMeta,
-          };
-          if (!this.plugins.has(uuid)) this.plugins.set(uuid, meta);
-        } catch (err) {
-          this.emit('error', `Failed to read ${manifestPath}: ${err.message}`);
-        }
+        /* ignore a broken platform override */
       }
     }
-    return this.list();
+    const uuid = path.basename(dir);
+    let code = this._codeFor(manifest);
+    if (code && !fs.existsSync(path.join(dir, code.path))) code = null;
+    if (code && code.kind === 'native' && process.platform === 'darwin') {
+      const arch = binaryArch(path.join(dir, code.path));
+      code.arch = arch;
+      if (arch === 'x86_64' && process.arch === 'arm64' && !this.rosettaAvailable()) {
+        code.unsupported = 'rosetta';
+      }
+    }
+    const actionMeta = (manifest.Actions || [])
+      .filter((a) => a && a.UUID && (!Array.isArray(a.Controllers) || a.Controllers.includes('Keypad')))
+      .map((a) => {
+        const icon = resolveIcon(dir, a.Icon) || resolveIcon(dir, manifest.Icon);
+        const states = (a.States || []).map((state) => {
+          const image =
+            state.Image === 'actionDefaultImage' || !state.Image ? icon : resolveIcon(dir, state.Image);
+          return {
+            name: state.Name || '',
+            image,
+            text: state.Title || '',
+            show: state.ShowTitle !== false,
+            colour: state.TitleColor || '#ffffff',
+            alignment: state.TitleAlignment || 'middle',
+            family: state.FontFamily || '',
+            style: state.FontStyle || '',
+            size: Number(state.FontSize) || 16,
+          };
+        });
+        const pi = a.PropertyInspectorPath || manifest.PropertyInspectorPath || '';
+        return {
+          uuid: a.UUID,
+          name: a.Name || a.UUID,
+          tooltip: a.Tooltip || '',
+          icon,
+          states,
+          controllers: a.Controllers || ['Keypad'],
+          propertyInspector: pi ? path.join(dir, pi) : null,
+          supportedInMultiActions: a.SupportedInMultiActions !== false,
+          visibleInActionList: a.VisibleInActionList !== false,
+          disableAutomaticStates: a.DisableAutomaticStates === true,
+        };
+      });
+    if (!actionMeta.length) return null;
+    return {
+      uuid,
+      sdk: 'streamdeck',
+      dir,
+      source: root,
+      writable: path.resolve(root) === path.resolve(this.appPluginsDir),
+      name: manifest.Name || uuid,
+      description: manifest.Description || '',
+      author: manifest.Author || '',
+      version: manifest.Version || '',
+      category: manifest.Category || 'Stream Deck',
+      icon: resolveIcon(dir, manifest.Icon),
+      manifest,
+      code,
+      compatible: Boolean(code) && !code.unsupported,
+      compatReason: code?.unsupported === 'rosetta' ? 'Needs Rosetta' : '',
+      actions: actionMeta,
+    };
   }
+
+  isHtml(meta) {
+    return meta?.code?.kind === 'html';
+  }
+
+  executableFor(meta) {
+    return path.join(meta.dir, meta.code.path);
+  }
+
+  launchHtmlPlugin(meta) {
+    const uuid = meta.uuid;
+    const launch = (port) => {
+      if (port) {
+        this.launchHtml?.(meta, this.infoString(meta));
+        return;
+      }
+      this.htmlRunning.delete(uuid);
+      this.emit('error', `${meta.name} could not start: no free port`);
+    };
+    if (this._portPromise) this._portPromise.then(launch, launch);
+    else launch(this.port);
+  }
+
+  spawnCommand(meta, executable, port) {
+    const args = [
+      '-port',
+      String(port),
+      '-pluginUUID',
+      meta.uuid,
+      '-registerEvent',
+      'registerPlugin',
+      '-info',
+      this.infoString(meta),
+    ];
+    if (meta.code.kind === 'node') {
+      return {
+        command: nodeRuntime(),
+        args: [executable, ...args],
+        env: { ...process.env, ELECTRON_RUN_AS_NODE: '1' },
+      };
+    }
+    if (meta.code.kind === 'wine') {
+      return { command: 'wine', args: [executable, ...args], env: process.env };
+    }
+    try { fs.chmodSync(executable, 0o755); } catch { /* ignore */ }
+    return { command: executable, args, env: process.env };
+  }
+
+  beforeSend(pluginUuid, message) {
+    if (process.env.ULANZI_SD_DEBUG) {
+      console.log('[sd->]', pluginUuid, message.event, message.context || '', message.action || '', this.sockets.has(pluginUuid));
+    }
+    this._log(
+      `host->plugin ${pluginUuid} ${message.event}${message.context ? ` context=${message.context}` : ''}` +
+        `${message.action ? ` action=${message.action}` : ''}` +
+        `${message.event === 'didReceiveSettings' ? ` settings=${logSettings(message.payload?.settings)}` : ''}`
+    );
+  }
+
+  readOnlyMessage() {
+    return 'This plugin is read-only';
+  }
+
+  get noPluginMessage() {
+    return 'No .sdPlugin folder found in the package';
+  }
+
+  unpack(source, temp) {
+    const entries = execFileSync('unzip', ['-Z1', source], { encoding: 'utf8' }).split('\n').filter(Boolean);
+    for (const entry of entries) {
+      if (entry.startsWith('/') || entry.split(/[\\/]/).includes('..')) {
+        throw new Error('Plugin package contains an unsafe path');
+      }
+    }
+    execFileSync('unzip', ['-oq', source, '-d', temp], { stdio: ['ignore', 'ignore', 'pipe'] });
+  }
+
+  findPluginRoot(workDir) {
+    const findPlugin = (dir, depth = 0) => {
+      if (depth > 3) return null;
+      if (dir.endsWith('.sdPlugin') && fs.existsSync(path.join(dir, 'manifest.json'))) return dir;
+      for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+        if (!entry.isDirectory()) continue;
+        const found = findPlugin(path.join(dir, entry.name), depth + 1);
+        if (found) return found;
+      }
+      return null;
+    };
+    let root = findPlugin(workDir);
+    if (!root) {
+      if (!fs.existsSync(path.join(workDir, 'manifest.json'))) return null;
+      root = workDir;
+    }
+    return root;
+  }
+
+  installTarget(root) {
+    const manifest = readJson(path.join(root, 'manifest.json'));
+    if (!manifest.Name || !Array.isArray(manifest.Actions)) throw new Error('Invalid Stream Deck manifest');
+    let folder = path.basename(root);
+    if (!folder.endsWith('.sdPlugin')) {
+      folder = `${manifest.Name.replace(/[^A-Za-z0-9._-]/g, '')}.sdPlugin`;
+    }
+    return { folder, uuid: folder, name: manifest.Name };
+  }
+  // ------------------------------------------------------------- discovery
 
   _codeFor(manifest) {
     const osList = Array.isArray(manifest.OS) ? manifest.OS : [];
@@ -377,40 +429,6 @@ class StreamDeckPlugins extends EventEmitter {
   }
 
   // ---------------------------------------------------------------- server
-
-  start() {
-    if (this.wss) return;
-    this._portPromise = new Promise((resolve) => {
-      const tryPort = (port, left) => {
-        const wss = new WebSocketServer({
-          host: '127.0.0.1',
-          port,
-          verifyClient: (info, done) => {
-            const origin = String(info.origin || info.req?.headers?.origin || '');
-            if (/^https?:/i.test(origin)) return done(false, 403, 'forbidden');
-            done(true);
-          },
-        });
-        wss.once('listening', () => {
-          this.wss = wss;
-          this.port = port;
-          console.log(`[sd-plugins] listening on ${port}`);
-          wss.on('connection', (ws) => this._onConnection(ws));
-          resolve(port);
-        });
-        wss.once('error', (err) => {
-          if (err.code === 'EADDRINUSE' && left > 0) {
-            try { wss.close(); } catch { /* ignore */ }
-            tryPort(port + 1, left - 1);
-            return;
-          }
-          this.emit('error', `Stream Deck plugin server: ${err.message}`);
-          resolve(null);
-        });
-      };
-      tryPort(this.port, 20);
-    });
-  }
 
   _onConnection(ws) {
     let pluginUuid = null;
@@ -767,18 +785,6 @@ class StreamDeckPlugins extends EventEmitter {
     }
   }
 
-  _send(pluginUuid, message) {
-    if (process.env.ULANZI_SD_DEBUG) console.log('[sd->]', pluginUuid, message.event, message.context || '', message.action || '', this.sockets.has(pluginUuid));
-    this._log(`host->plugin ${pluginUuid} ${message.event}${message.context ? ` context=${message.context}` : ''}${message.action ? ` action=${message.action}` : ''}${message.event === 'didReceiveSettings' ? ` settings=${logSettings(message.payload?.settings)}` : ''}`);
-    const ws = this.sockets.get(pluginUuid);
-    if (!ws || ws.readyState !== 1) {
-      if (!this.queues.has(pluginUuid)) this.queues.set(pluginUuid, []);
-      this.queues.get(pluginUuid).push(message);
-      return;
-    }
-    ws.send(JSON.stringify(message));
-  }
-
   _sendToInspector(context, message) {
     this._log(`host->pi ${context} ${message.event}${message.event === 'didReceiveSettings' ? ` settings=${logSettings(message.payload?.settings)}` : ''}`);
     const ws = this.inspectors.get(context);
@@ -795,151 +801,6 @@ class StreamDeckPlugins extends EventEmitter {
   }
 
   // -------------------------------------------------------------- lifecycle
-
-  _ensurePlugin(pluginUuid) {
-    const meta = this.plugins.get(pluginUuid);
-    if (!meta || !meta.code) return null;
-    if (meta.code.unsupported === 'rosetta') {
-      this.emit('error', `${meta.name} is an Intel-only plugin — install Rosetta to run it.`);
-      return null;
-    }
-    if (!meta.compatible) return null;
-    if (meta.code.kind === 'html') {
-      if (this._htmlRunning.has(pluginUuid)) return meta;
-      this._htmlRunning.add(pluginUuid);
-      const launch = (port) => {
-        if (port) {
-          this.launchHtml?.(meta, this.infoString(meta));
-          return;
-        }
-        this._htmlRunning.delete(pluginUuid);
-        this.emit('error', `${meta.name} could not start: no free port`);
-      };
-      if (this._portPromise) this._portPromise.then(launch, launch);
-      else launch(this.port);
-      return meta;
-    }
-    const existing = this.children.get(pluginUuid);
-    if (existing && existing.exitCode === null) return meta;
-    // The server port is resolved asynchronously, so reserve the slot before
-    // waiting; otherwise a second action synced in the same tick launches the
-    // plugin again and two processes fight over the same contexts.
-    if (this.starting.has(pluginUuid)) return meta;
-    this.starting.add(pluginUuid);
-    const executable = path.join(meta.dir, meta.code.path);
-    if (!fs.existsSync(executable)) {
-      this.starting.delete(pluginUuid);
-      this.emit('error', `Plugin code not found: ${executable}`);
-      return null;
-    }
-    const args = [
-      '-port', '0',
-      '-pluginUUID', pluginUuid,
-      '-registerEvent', 'registerPlugin',
-      '-info', this.infoString(meta),
-    ];
-    const run = (port) => {
-      this.starting.delete(pluginUuid);
-      args[1] = String(port);
-      let command;
-      let commandArgs;
-      let env;
-      if (meta.code.kind === 'node') {
-        command = nodeRuntime();
-        commandArgs = [executable, ...args];
-        env = { ...process.env, ELECTRON_RUN_AS_NODE: '1' };
-      } else if (meta.code.kind === 'wine') {
-        command = 'wine';
-        commandArgs = [executable, ...args];
-        env = process.env;
-      } else {
-        try { fs.chmodSync(executable, 0o755); } catch { /* ignore */ }
-        command = executable;
-        commandArgs = args;
-        env = process.env;
-      }
-      if (process.env.ULANZI_SD_DEBUG) console.log('[sd-spawn]', pluginUuid);
-      this._log(`spawn ${pluginUuid} ${command} ${commandArgs.slice(1).join(' ')}`);
-      const proc = this.spawn(command, commandArgs, { cwd: meta.dir, env, stdio: ['ignore', 'pipe', 'pipe'] });
-      proc.on('error', (err) => {
-        this.emit('error', `${meta.name} could not start: ${err.message}`);
-        this.children.delete(pluginUuid);
-      });
-      this.children.set(pluginUuid, proc);
-      this._logStream(meta, proc.stdout, 'out');
-      this._logStream(meta, proc.stderr, 'err');
-      proc.on('exit', (code) => {
-        this._log(`exit ${pluginUuid} code=${code}`);
-        if (this.restarting?.delete(pluginUuid)) return;
-        if (this.children.get(pluginUuid) === proc) this.children.delete(pluginUuid);
-        this.sockets.delete(pluginUuid);
-        if (!this.stopping && this._hasActionsFor(pluginUuid)) {
-          const now = Date.now();
-          const state = this.crashes.get(pluginUuid) || { count: 0, last: 0 };
-          state.count = now - state.last < 60_000 ? state.count + 1 : 1;
-          state.last = now;
-          this.crashes.set(pluginUuid, state);
-          if (state.count > 5) {
-            this.emit('error', `${meta.name} keeps crashing — not restarting it.`);
-            return;
-          }
-          const delay = Math.min(30_000, 1000 * 2 ** (state.count - 1));
-          this.emit('error', `${meta.name} exited${code ? ` (${code})` : ''}; retrying in ${Math.round(delay / 1000)}s`);
-          setTimeout(() => {
-            if (!this.stopping && this._hasActionsFor(pluginUuid)) this._ensurePlugin(pluginUuid);
-          }, delay);
-        }
-      });
-    };
-    if (this._portPromise) {
-      this._portPromise.then((port) => {
-        if (port) run(port);
-        else this.starting.delete(pluginUuid);
-      });
-    } else {
-      run(this.port);
-    }
-    return meta;
-  }
-
-  // Appends a timestamped line to the plugin log (when configured) so users can
-  // share what the host, the plugin and its inspector actually exchanged.
-  _log(line) {
-    if (!this.logFile) return;
-    try {
-      const stat = fs.existsSync(this.logFile) ? fs.statSync(this.logFile) : null;
-      if (stat && stat.size > 1_000_000) {
-        try { fs.renameSync(this.logFile, `${this.logFile}.1`); } catch { /* ignore */ }
-      }
-      fs.appendFileSync(this.logFile, `${new Date().toISOString()} ${line}\n`);
-    } catch {
-      /* logging must never break the host */
-    }
-  }
-
-  _logStream(meta, stream, kind) {
-    if (!stream || typeof stream.on !== 'function') return;
-    let buffer = '';
-    stream.on('data', (data) => {
-      buffer += data.toString();
-      let idx;
-      while ((idx = buffer.indexOf('\n')) >= 0) {
-        const line = buffer.slice(0, idx).trim();
-        buffer = buffer.slice(idx + 1);
-        if (line) {
-          const target = kind === 'err' ? console.error : console.log;
-          target(`[sd:${meta.name}] ${line.slice(0, 500)}${line.length > 500 ? '…' : ''}`);
-          this._log(`${kind === 'err' ? 'plugin-err' : 'plugin-out'} ${meta.uuid} ${line.slice(0, 500)}`);
-        }
-      }
-      if (buffer.length > 200_000) buffer = buffer.slice(-2000);
-    });
-  }
-
-  _hasActionsFor(pluginUuid) {
-    for (const action of this.actions.values()) if (action.pluginUuid === pluginUuid) return true;
-    return false;
-  }
 
   _replay(pluginUuid) {
     for (const action of this.actions.values()) {
@@ -1137,201 +998,7 @@ class StreamDeckPlugins extends EventEmitter {
 
   // --------------------------------------------------------------- install
 
-  install(sourcePath) {
-    fs.mkdirSync(this.appPluginsDir, { recursive: true });
-    let workDir = sourcePath;
-    let temp = null;
-    if (fs.statSync(sourcePath).isFile()) {
-      temp = fs.mkdtempSync(path.join(os.tmpdir(), 'sd-plugin-'));
-      try {
-        const { execFileSync } = require('node:child_process');
-        const entries = execFileSync('unzip', ['-Z1', sourcePath], { encoding: 'utf8' }).split('\n').filter(Boolean);
-        for (const entry of entries) {
-          if (entry.startsWith('/') || entry.split(/[\\/]/).includes('..')) {
-            throw new Error('Plugin package contains an unsafe path');
-          }
-        }
-        execFileSync('unzip', ['-oq', sourcePath, '-d', temp], { stdio: ['ignore', 'ignore', 'pipe'] });
-      } catch (err) {
-        const detail = String(err.stderr || err.message || '').trim().split('\n').filter(Boolean).pop();
-        throw new Error(`Could not unpack the Stream Deck plugin ZIP${detail ? `: ${detail}` : ''}`);
-      }
-      workDir = temp;
-    }
-    const findPlugin = (dir, depth = 0) => {
-      if (depth > 3) return null;
-      if (dir.endsWith('.sdPlugin') && fs.existsSync(path.join(dir, 'manifest.json'))) return dir;
-      for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
-        if (!entry.isDirectory()) continue;
-        const found = findPlugin(path.join(dir, entry.name), depth + 1);
-        if (found) return found;
-      }
-      return null;
-    };
-    try {
-      let root = findPlugin(workDir);
-      if (!root) {
-        const fallback = path.join(workDir, 'manifest.json');
-        if (!fs.existsSync(fallback)) throw new Error('No .sdPlugin folder found in the package');
-        root = workDir;
-      }
-      const manifest = readJson(path.join(root, 'manifest.json'));
-      if (!manifest.Name || !Array.isArray(manifest.Actions)) throw new Error('Invalid Stream Deck manifest');
-      let folder = path.basename(root);
-      if (!folder.endsWith('.sdPlugin')) folder = `${manifest.Name.replace(/[^A-Za-z0-9._-]/g, '')}.sdPlugin`;
-      const dest = path.join(this.appPluginsDir, folder);
-      if (path.relative(this.appPluginsDir, dest).startsWith('..')) throw new Error('Invalid plugin destination');
-      if (fs.existsSync(dest)) fs.rmSync(dest, { recursive: true, force: true });
-      fs.cpSync(root, dest, { recursive: true, force: true });
-      return { uuid: folder, name: manifest.Name, list: this.reloadOne(folder) };
-    } finally {
-      if (temp) fs.rmSync(temp, { recursive: true, force: true });
-    }
-  }
 
-  import(uuid) {
-    const meta = this.plugins.get(uuid);
-    if (!meta) throw new Error('Plugin not found');
-    if (meta.writable) return { uuid, list: this.list() };
-    fs.mkdirSync(this.appPluginsDir, { recursive: true });
-    const dest = path.join(this.appPluginsDir, path.basename(meta.dir));
-    if (fs.existsSync(dest)) fs.rmSync(dest, { recursive: true, force: true });
-    fs.cpSync(meta.dir, dest, { recursive: true, force: true });
-    return { uuid, list: this.reloadOne(uuid) };
-  }
-
-  remove(uuid) {
-    const meta = this.plugins.get(uuid);
-    if (!meta) throw new Error('Plugin not found');
-    if (!meta.writable) throw new Error('This plugin is read-only');
-    fs.rmSync(meta.dir, { recursive: true, force: true });
-    return this.reloadOne(uuid);
-  }
-
-  reload() {
-    this.stopping = true;
-    for (const proc of this.children.values()) {
-      try { proc.kill(); } catch { /* ignore */ }
-    }
-    for (const uuid of this._htmlRunning) {
-      try { this.stopHtml?.(uuid); } catch { /* ignore */ }
-    }
-    this.children.clear();
-    this.sockets.clear();
-    this.queues.clear();
-    this.actions.clear();
-    this.inspectors.clear();
-    this._htmlRunning.clear();
-    this.stopping = false;
-    return this.scan();
-  }
-
-  /** Stop one plugin, rescan the folders, and restart it if it has actions. */
-  reloadOne(uuid) {
-    const id = String(uuid);
-    const meta = this.plugins.get(id);
-    if (meta?.code?.kind === 'html') {
-      try { this.stopHtml?.(id); } catch { /* ignore */ }
-      this._htmlRunning.delete(id);
-    }
-    const proc = this.children.get(id);
-    if (proc) {
-      this.restarting = this.restarting || new Set();
-      this.restarting.add(id);
-      try { proc.kill(); } catch { /* ignore */ }
-    }
-    this.children.delete(id);
-    this.sockets.delete(id);
-    this.queues.delete(id);
-    this.actions.delete(id);
-    this.inspectors.delete(id);
-    this.crashes.delete(id);
-    this.starting.delete(id);
-    this.scan();
-    if (this._hasActionsFor(id)) this._ensurePlugin(id);
-    return this.list();
-  }
-
-  htmlExited(pluginUuid) {
-    this._htmlRunning.delete(pluginUuid);
-    this.sockets.delete(pluginUuid);
-    if (this.stopping || !this._hasActionsFor(pluginUuid)) return;
-    const meta = this.plugins.get(pluginUuid);
-    const now = Date.now();
-    const state = this.crashes.get(pluginUuid) || { count: 0, last: 0 };
-    state.count = now - state.last < 60_000 ? state.count + 1 : 1;
-    state.last = now;
-    this.crashes.set(pluginUuid, state);
-    if (state.count > 5) {
-      this.emit('error', `${meta?.name || pluginUuid} keeps closing — not restarting it.`);
-      return;
-    }
-    setTimeout(() => {
-      if (!this.stopping && this._hasActionsFor(pluginUuid)) this._ensurePlugin(pluginUuid);
-    }, Math.min(30_000, 1000 * 2 ** (state.count - 1)));
-  }
-
-  /** Stop one plugin and start it again (used by Installed → Reload). */
-  restart(pluginUuid) {
-    this.restarting = this.restarting || new Set();
-    const meta = this.plugins.get(pluginUuid);
-    if (meta?.code?.kind === 'html') {
-      this.stopHtml?.(pluginUuid);
-      this._htmlRunning.delete(pluginUuid);
-      this.sockets.delete(pluginUuid);
-      this._ensurePlugin(pluginUuid);
-      return true;
-    }
-    const proc = this.children.get(pluginUuid);
-    if (proc) {
-      this.restarting.add(pluginUuid);
-      try { proc.kill(); } catch { /* ignore */ }
-      this.children.delete(pluginUuid);
-      this.sockets.delete(pluginUuid);
-      this.crashes.delete(pluginUuid);
-      setTimeout(() => {
-        if (!this.stopping) this._ensurePlugin(pluginUuid);
-      }, 200);
-      return true;
-    }
-    this.sockets.delete(pluginUuid);
-    this._ensurePlugin(pluginUuid);
-    return true;
-  }
-
-  /** Graceful shutdown: SIGTERM every child, then SIGKILL whatever is left. */
-  async shutdown(timeoutMs = 1500) {
-    this.stopping = true;
-    for (const uuid of this._htmlRunning) {
-      try { this.stopHtml?.(uuid); } catch { /* ignore */ }
-    }
-    this._htmlRunning.clear();
-    const procs = [...this.children.values()];
-    this.children.clear();
-    this.starting.clear();
-    this.inspectors.clear();
-    if (this.wss) {
-      this.wss.close();
-      this.wss = null;
-    }
-    await Promise.all(
-      procs.map(
-        (proc) =>
-          new Promise((resolve) => {
-            if (!proc || proc.exitCode !== null) return resolve(undefined);
-            const timer = setTimeout(() => {
-              try { proc.kill('SIGKILL'); } catch { /* ignore */ }
-              resolve(undefined);
-            }, timeoutMs);
-            proc.once('exit', () => {
-              clearTimeout(timer);
-              resolve(undefined);
-            });
-            try { proc.kill('SIGTERM'); } catch { /* ignore */ }
-          })
-      )
-    );
-  }
 }
 
 module.exports = { StreamDeckPlugins, streamDeckPluginDirs };
