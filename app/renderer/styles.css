@@ -41,15 +41,16 @@ body::before {
 
 #app {
   display: grid;
-  --side: 368px;
-  grid-template-columns: var(--side) minmax(0, 1fr) var(--side);
+  --sidebar: 300px;
+  --inspector: 440px;
+  grid-template-columns: var(--sidebar) minmax(0, 1fr) var(--inspector);
   height: 100vh;
   position: relative;
 }
 
-/* Keep both rails identical; shrink them together before the drawer kicks in. */
+/* The inspector carries the forms, so it gets the space the sidebar does not need. */
 @media (max-width: 1359px) {
-  #app { --side: 320px; }
+  #app { --sidebar: 260px; --inspector: 400px; }
 }
 
 /* ------------------------------------------------------------- sidebar */
@@ -1196,7 +1197,7 @@ body::before {
     top: 0;
     right: 0;
     bottom: 0;
-    width: min(368px, 92vw);
+    width: min(440px, 92vw);
     transform: translateX(105%);
     transition: transform 160ms cubic-bezier(.2,.8,.2,1);
     z-index: 70;
