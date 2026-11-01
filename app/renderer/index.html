@@ -151,6 +151,30 @@
               <button class="btn small" id="accessibility-grant">Grant…</button>
             </div>
             <div class="settings-note">Accessibility is needed for hotkeys and typed text.</div>
+
+            <div class="settings-row">
+              <span>Version</span>
+              <span id="app-version" class="settings-value" style="flex:1;text-align:left">—</span>
+              <button class="btn small" id="check-updates">Check…</button>
+            </div>
+            <div class="settings-row hidden" id="update-status-row">
+              <span id="update-status" class="settings-meta" style="flex:1"></span>
+              <button class="btn small hidden" id="update-release">Release page</button>
+            </div>
+            <label class="settings-row">
+              <span>Check for updates</span>
+              <input id="update-check" type="checkbox" checked />
+              <span class="settings-meta" style="flex:1">On launch and periodically</span>
+            </label>
+            <div class="settings-row">
+              <span>Check every</span>
+              <select id="update-hours" class="select" style="max-width:130px">
+                <option value="1">1 hour</option>
+                <option value="6">6 hours</option>
+                <option value="12">12 hours</option>
+                <option value="24">24 hours</option>
+              </select>
+            </div>
           </div>
         </div>
 
@@ -367,6 +391,23 @@
         </div>
 
         <div id="store-detail" class="store-detail hidden"></div>
+      </div>
+    </div>
+
+    <div id="update-modal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="update-title">
+      <div class="modal-card update-card">
+        <div class="modal-head">
+          <div>
+            <h2 id="update-title">Update available</h2>
+            <p id="update-sub"></p>
+          </div>
+          <button class="icon-btn" id="update-close" title="Close">×</button>
+        </div>
+        <div id="update-notes" class="update-notes"></div>
+        <div class="modal-actions update-actions">
+          <button class="btn ghost" id="update-later">Later</button>
+          <button class="btn primary" id="update-modal-open">Open release page</button>
+        </div>
       </div>
     </div>
 

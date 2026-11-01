@@ -119,6 +119,8 @@ function validateConfig(config) {
     lockScreen: config.settings?.lockScreen === true,
     lockImage: normalizeBackground(config.settings?.lockImage),
     launchAtLogin: config.settings?.launchAtLogin === true,
+    updateCheck: config.settings?.updateCheck !== false,
+    updateHours: clamp(Math.round(Number(config.settings?.updateHours) || 6), 1, 168),
   };
 
   // Profiles are a lightweight grouping: each page belongs to one profile and

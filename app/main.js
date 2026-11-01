@@ -219,53 +219,75 @@ async function requestQuit() {
 }
 
 let checkingForUpdates = false;
+let updateTimer = null;
+let notifiedVersion = '';
+let updateState = {
+  current: app.getVersion(),
+  latest: '',
+  url: '',
+  notes: '',
+  update: false,
+  checkedAt: 0,
+  error: '',
+};
 
 async function checkForUpdates() {
-  if (checkingForUpdates) return { ok: false, error: 'Already checking' };
+  if (checkingForUpdates) return { ok: false, error: 'Already checking', ...updateState };
   checkingForUpdates = true;
-  const parent = win && !win.isDestroyed() && win.isVisible() ? win : undefined;
   try {
     const release = await fetchLatestRelease();
     const current = app.getVersion();
     if (!release) {
-      await dialog.showMessageBox(parent, {
-        type: 'info',
-        message: 'No releases yet',
-        detail: 'There are no published releases to compare with.',
-        buttons: ['OK'],
-      });
-      return { ok: true, update: false, current };
+      updateState = { current, latest: '', url: '', notes: '', update: false, checkedAt: Date.now(), error: '' };
+      return { ok: true, ...updateState };
     }
-    if (!isNewer(release.version, current)) {
-      await dialog.showMessageBox(parent, {
-        type: 'info',
-        message: "You're up to date",
-        detail: `Ulanzi Deck Open ${current} is the latest version.`,
-        buttons: ['OK'],
-      });
-      return { ok: true, update: false, current, latest: release.version };
-    }
-    const { response } = await dialog.showMessageBox(parent, {
-      type: 'info',
-      message: `Ulanzi Deck Open ${release.version} is available`,
-      detail: `You have ${current}.\n\n${plainNotes(release.notes) || 'Open the release page for the full notes.'}`,
-      buttons: ['Open release page', 'Later'],
-      defaultId: 0,
-      cancelId: 1,
-    });
-    if (response === 0) shell.openExternal(release.url);
-    return { ok: true, update: true, current, latest: release.version, url: release.url };
+    updateState = {
+      current,
+      latest: release.version,
+      url: release.url,
+      notes: plainNotes(release.notes),
+      update: isNewer(release.version, current),
+      checkedAt: Date.now(),
+      error: '',
+    };
+    return { ok: true, ...updateState };
   } catch (err) {
-    await dialog.showMessageBox(parent, {
-      type: 'warning',
-      message: 'Could not check for updates',
-      detail: err.message || String(err),
-      buttons: ['OK'],
-    });
-    return { ok: false, error: err.message || String(err) };
+    updateState = {
+      ...updateState,
+      current: app.getVersion(),
+      checkedAt: Date.now(),
+      error: err.message || String(err),
+    };
+    return { ok: false, error: updateState.error, ...updateState };
   } finally {
     checkingForUpdates = false;
   }
+}
+
+function updateSettings() {
+  return store?.config?.settings || {};
+}
+
+function scheduleUpdateCheck(delayMs) {
+  clearTimeout(updateTimer);
+  if (updateSettings().updateCheck === false) return;
+  updateTimer = setTimeout(runScheduledUpdateCheck, delayMs);
+}
+
+async function runScheduledUpdateCheck() {
+  const settings = updateSettings();
+  if (settings.updateCheck === false) return;
+  const result = await checkForUpdates();
+  if (result.ok && result.update && result.latest && result.latest !== notifiedVersion) {
+    notifiedVersion = result.latest;
+    send('app:update-available', {
+      current: result.current,
+      latest: result.latest,
+      url: result.url,
+      notes: result.notes,
+    });
+  }
+  scheduleUpdateCheck(Math.max(1, Number(settings.updateHours) || 6) * 3_600_000);
 }
 
 function buildMenu() {
@@ -944,6 +966,7 @@ app.whenReady().then(() => {
   createWindow();
   buildMenu();
   createTray();
+  scheduleUpdateCheck(20_000);
 
   app.on('activate', () => showWindow());
 });
@@ -1043,6 +1066,11 @@ ipcMain.handle('app:open-external', (event, url) => {
 });
 
 ipcMain.handle('app:check-updates', () => checkForUpdates());
+ipcMain.handle('app:update-state', () => ({ ok: true, ...updateState }));
+ipcMain.handle('app:update-settings-changed', () => {
+  scheduleUpdateCheck(5_000);
+  return { ok: true };
+});
 
 ipcMain.handle('app:accessibility', () => ({
   trusted: systemPreferences.isTrustedAccessibilityClient(false),

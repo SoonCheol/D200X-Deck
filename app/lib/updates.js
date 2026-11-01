@@ -45,8 +45,9 @@ function releaseNotes(body) {
   return String(body || '').split(/\n---\n/)[0].trim();
 }
 
-// Markdown is noisy in a native dialog, so flatten the parts we use.
-function plainNotes(body, max = 1200) {
+// Markdown is noisy in the update dialog, so flatten the parts we use. The
+// dialog scrolls, so the full notes are kept unless a limit is requested.
+function plainNotes(body, max = 0) {
   let text = releaseNotes(body)
     .replace(/^## Changes\s*/i, '')
     .replace(/^### (.*)$/gm, '$1')
@@ -55,7 +56,7 @@ function plainNotes(body, max = 1200) {
     .replace(/`([^`]+)`/g, '$1')
     .replace(/\n{3,}/g, '\n\n')
     .trim();
-  if (text.length > max) text = `${text.slice(0, max).trimEnd()}…`;
+  if (max > 0 && text.length > max) text = `${text.slice(0, max).trimEnd()}…`;
   return text;
 }
 

@@ -591,6 +591,50 @@ async function refreshAccessibility() {
   }
 }
 
+let updateInfo = null;
+
+function renderUpdateStatus(info = updateInfo) {
+  const row = $('#update-status-row');
+  const status = $('#update-status');
+  const release = $('#update-release');
+  if (!row || !status) return;
+  if (info?.update) {
+    row.classList.remove('hidden');
+    status.textContent = `Update ${info.latest} available.`;
+    release?.classList.remove('hidden');
+  } else if (info?.error) {
+    row.classList.remove('hidden');
+    status.textContent = `Could not check for updates: ${info.error}`;
+    release?.classList.add('hidden');
+  } else if (info?.checkedAt) {
+    row.classList.remove('hidden');
+    status.textContent = 'Up to date.';
+    release?.classList.add('hidden');
+  } else {
+    row.classList.add('hidden');
+    release?.classList.add('hidden');
+  }
+  if (info?.current && $('#app-version')) $('#app-version').textContent = info.current;
+}
+
+function showUpdateModal(info) {
+  if (!info?.latest) return;
+  updateInfo = info;
+  $('#update-sub').textContent = `Ulanzi Deck Open ${info.latest} is available. You have ${info.current}.`;
+  $('#update-notes').textContent = info.notes || 'Open the release page for the full release notes.';
+  $('#update-modal').classList.remove('hidden');
+  window.focusModal?.('update-modal');
+}
+
+function closeUpdateModal() {
+  $('#update-modal')?.classList.add('hidden');
+}
+
+function openReleasePage() {
+  if (updateInfo?.url) api.openExternal(updateInfo.url);
+  closeUpdateModal();
+}
+
 let keyClipboard = null;
 let lastCleared = null;
 
@@ -601,7 +645,7 @@ function isTypingTarget(target) {
 }
 
 function anyModalOpen() {
-  return ['hotkey-modal', 'app-modal', 'icons-modal', 'store-modal', 'plugin-modal', 'import-modal', 'profile-modal']
+  return ['hotkey-modal', 'app-modal', 'icons-modal', 'store-modal', 'plugin-modal', 'import-modal', 'profile-modal', 'update-modal']
     .some((id) => {
       const el = document.getElementById(id);
       return el && !el.classList.contains('hidden');
@@ -698,6 +742,10 @@ function updateDeckSettingsMeta() {
   if (standbyState) standbyState.textContent = state.config.settings.standbyImage ? 'Custom image' : 'None';
   const launch = $('#launch-login');
   if (launch) launch.checked = state.config.settings.launchAtLogin === true;
+  const updateCheck = $('#update-check');
+  if (updateCheck) updateCheck.checked = state.config.settings.updateCheck !== false;
+  const updateHours = $('#update-hours');
+  if (updateHours) updateHours.value = String(state.config.settings.updateHours || 6);
   const lockToggle = $('#lock-screen');
   if (lockToggle) lockToggle.checked = state.config.settings.lockScreen === true;
   const lockState = $('#lock-image-state');
@@ -1148,6 +1196,35 @@ function bind() {
     toast(res.ok ? `Sleep set to ${seconds}s` : res.error, !res.ok);
   });
 
+  $('#check-updates').addEventListener('click', async () => {
+    const button = $('#check-updates');
+    button.disabled = true;
+    const res = await api.checkForUpdates();
+    button.disabled = false;
+    updateInfo = res;
+    renderUpdateStatus(res);
+    if (res.update) showUpdateModal(res);
+    else if (!res.ok) toast(res.error || 'Could not check for updates', true);
+    else toast(`You're up to date (${res.current})`);
+  });
+  $('#update-check').addEventListener('change', () => {
+    state.config.settings.updateCheck = $('#update-check').checked;
+    scheduleSave();
+    api.refreshUpdateSchedule();
+  });
+  $('#update-hours').addEventListener('change', () => {
+    state.config.settings.updateHours = Number($('#update-hours').value) || 6;
+    scheduleSave();
+    api.refreshUpdateSchedule();
+  });
+  $('#update-release').addEventListener('click', openReleasePage);
+  $('#update-modal-open').addEventListener('click', openReleasePage);
+  $('#update-later').addEventListener('click', closeUpdateModal);
+  $('#update-close').addEventListener('click', closeUpdateModal);
+  $('#update-modal').addEventListener('click', (event) => {
+    if (event.target === $('#update-modal')) closeUpdateModal();
+  });
+
   $('#launch-login').addEventListener('change', async () => {
     const enabled = $('#launch-login').checked;
     state.config.settings.launchAtLogin = enabled;
@@ -1290,6 +1367,7 @@ function bind() {
     'plugin-modal': closePluginModal,
     'import-modal': closeImportModal,
     'profile-modal': closeProfileModal,
+    'update-modal': closeUpdateModal,
     // The app picker opens on top of other dialogs (e.g. the profile form).
     'app-modal': closeAppPicker,
   };
@@ -1407,6 +1485,12 @@ function bind() {
     if (message) toast(message);
   });
 
+  api.onUpdateAvailable?.((info) => {
+    updateInfo = { ...info, update: true, checkedAt: Date.now() };
+    renderUpdateStatus(updateInfo);
+    toast(`Ulanzi Deck Open ${info.latest} is available`);
+  });
+
   api.onPluginError((message) => toast(message, true));
   api.onPluginAlert(() => toast('Plugin error', true));
   api.onPluginOk(() => toast('Plugin confirmed the action'));
@@ -1475,10 +1559,15 @@ async function hydrateAppIcons() {
   state.plugins = await api.listPlugins();
   updatePluginCount();
   $('#version').textContent = boot.version;
+  if ($('#app-version')) $('#app-version').textContent = boot.version;
   bind();
   renderAll();
   hydrateAppIcons();
   syncPlugins();
+  api.updateState().then((res) => {
+    updateInfo = res;
+    renderUpdateStatus(res);
+  }).catch(() => {});
   if (state.status.connected) {
     api.setBrightness(state.config.settings.brightness);
     api.setSleepTime(state.config.settings.sleepSeconds);

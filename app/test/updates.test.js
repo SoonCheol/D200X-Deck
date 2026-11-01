@@ -52,5 +52,6 @@ test('flattens release notes for the dialog and drops the build footer', () => {
   const body = '## Changes\n\n### Features\n- **Store** thing\n- `code` thing\n\n---\n\nUnsigned build notes';
   assert.equal(releaseNotes(body), '## Changes\n\n### Features\n- **Store** thing\n- `code` thing');
   assert.equal(plainNotes(body), 'Features\n• Store thing\n• code thing');
-  assert.match(plainNotes(`${'x'.repeat(2000)}`), /…$/);
+  assert.equal(plainNotes('x'.repeat(2000)).length, 2000);
+  assert.match(plainNotes('x'.repeat(2000), 1200), /…$/);
 });

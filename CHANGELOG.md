@@ -4,6 +4,8 @@
 
 ### Features
 - **Check for Updates…** in the app menu compares the installed version with the latest GitHub release, shows the release notes and opens the release page. It only notifies — installing the new version is still manual.
+- Updates are also checked on launch and then every 1, 6, 12 or 24 hours, configurable in **Deck settings → App**, which now shows the current version, a **Check…** button and the last result. Background checks never interrupt: they show a toast and an update line in that tab.
+- The update dialog scrolls long release notes (it used to grow with the changelog and could run off-screen).
 
 ## 0.2.0 — 2026-10-31
 
