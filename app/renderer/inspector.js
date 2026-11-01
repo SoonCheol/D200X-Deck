@@ -867,7 +867,7 @@ function renderInspector() {
         </div>
         <div class="icon-buttons">
           <button class="btn small" id="insp-icon-library">Library</button>
-          <button class="btn small" id="insp-icon-file" title="Choose an image file">File…</button>
+          <button class="btn small" id="insp-icon-file" title="Choose an image file">File</button>
           ${action.type === 'app' && action.value ? '<button class="btn small" id="insp-use-app-icon">App icon</button>' : ''}
           ${action.type === 'url' ? '<button class="btn small" id="insp-use-favicon">Use favicon</button>' : ''}
           ${key.icon ? '<button class="btn small danger" id="insp-icon-remove">Remove</button>' : ''}
