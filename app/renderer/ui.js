@@ -31,6 +31,7 @@ function renderAll() {
 
 function renderChrome() {
   const page = activePage();
+  if (!page) return;
   const title = $('#page-title');
   if (document.activeElement !== title) title.value = page.name;
   const back = $('#page-back');

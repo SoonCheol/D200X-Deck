@@ -361,7 +361,7 @@ function extractProfileZip(file) {
 
 /**
  * Parse one profile directory into our pages.
- * @returns {{name:string, device:string, pages:Array, report:object}}
+ * @returns {{name:string, device:string, current:string, pages:Array, report:object}}
  */
 function parseProfile(dir) {
   const manifest = readJson(path.join(dir, 'manifest.json'));

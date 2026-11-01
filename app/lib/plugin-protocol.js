@@ -13,7 +13,7 @@ const { byExtension } = require('./mime');
  * (or null). `transformHtml(html, url, dir)` may inject the inspector bridge.
  * Files are only served from inside that directory.
  */
-function createPluginProtocol({ getPluginDir, transformHtml = (html) => html }) {
+function createPluginProtocol({ getPluginDir, transformHtml = (html, _url, _dir) => html }) {
   return async (request) => {
     try {
       const url = new URL(request.url);

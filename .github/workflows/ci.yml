@@ -26,5 +26,7 @@ jobs:
           for f in main.js preload.js lib/*.js renderer/*.js; do node --check "$f"; done
       - name: Lint
         run: npm run lint
+      - name: Type check
+        run: npm run typecheck
       - name: Unit tests
         run: npm test

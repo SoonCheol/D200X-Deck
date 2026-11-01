@@ -74,7 +74,7 @@ function setDockVisible(visible) {
   try {
     if (visible) app.dock.show();
     else app.dock.hide();
-    console.log(`[dock] ${visible ? 'shown' : 'hidden'}`);
+    if (process.env.ULANZI_LOG_KEYS) console.log(`[dock] ${visible ? 'shown' : 'hidden'}`);
   } catch {
     /* dock not available (e.g. non-macOS) */
   }
@@ -365,9 +365,11 @@ function initDeck() {
     send(CH.deckStatus, status);
   });
   deck.on('key', (event) => {
-    console.log(
-      `[deck] key index=${event.index} ${event.pressed ? 'down' : 'up'} t=${Date.now()} flags=${event.flags}`
-    );
+    if (process.env.ULANZI_LOG_KEYS) {
+      console.log(
+        `[deck] key index=${event.index} ${event.pressed ? 'down' : 'up'} t=${Date.now()} flags=${event.flags}`
+      );
+    }
     send(CH.deckKey, event);
   });
   deck.on('brightness', (level) => send(CH.deckBrightness, level));

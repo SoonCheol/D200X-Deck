@@ -19,3 +19,4 @@ app/build/icon.iconset/
 *.log
 *.dmg
 app/build/helpers/
+app/bin/

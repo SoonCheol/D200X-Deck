@@ -7,7 +7,7 @@
 (function (root, factory) {
   if (typeof module === 'object' && module.exports) module.exports = factory();
   else root.DeckActions = factory();
-})(typeof self !== 'undefined' ? self : this, function () {
+})(globalThis, function () {
   const ACTION_TYPES = [
     'none',
     'app',

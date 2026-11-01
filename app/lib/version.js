@@ -36,5 +36,5 @@ function isNewer(latest, current) {
 if (typeof module === 'object' && module.exports) {
   module.exports = { normalizeVersion, compareVersions, isNewer };
 } else {
-  self.DeckVersion = { normalizeVersion, compareVersions, isNewer };
+  globalThis.DeckVersion = { normalizeVersion, compareVersions, isNewer };
 }

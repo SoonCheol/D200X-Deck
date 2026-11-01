@@ -39,6 +39,10 @@ async function readCapped(response, maxBytes = MAX_PACKAGE_BYTES) {
 }
 
 class StoreError extends Error {
+  /**
+   * @param {string} message
+   * @param {string|number} [code]
+   */
   constructor(message, code) {
     super(message);
     this.code = code;
@@ -51,6 +55,11 @@ const REDIRECT_STATUS = new Set([301, 302, 303, 307, 308]);
  * Follow redirects by hand so the session token is only ever sent to a host
  * the vendor owns. `fetch(..., { redirect: 'follow' })` would forward the
  * Authorization-style header to whatever host a 307/308 points at.
+ */
+/**
+ * @param {URL|string} url
+ * @param {any} [options]
+ * @param {number} [maxHops]
  */
 async function fetchFollowing(url, options = {}, maxHops = 5) {
   let current = new URL(String(url));
@@ -78,7 +87,10 @@ async function fetchFollowing(url, options = {}, maxHops = 5) {
 }
 
 class Market {
-  constructor({ dir, language = 'en_US', appVersion = '0.1.0' } = {}) {
+  /**
+   * @param {{ dir: string, language?: string, appVersion?: string }} options
+   */
+  constructor({ dir, language = 'en_US', appVersion = '0.1.0' }) {
     this.dir = dir;
     this.file = path.join(dir, 'store.json');
     this.language = language;
@@ -298,8 +310,8 @@ function normalizeItem(raw) {
     version: pick(raw, ['version', 'versionName', 'ver'], ''),
     uuid: pick(raw, ['uuid', 'pluginUuid'], ''),
     devices: pick(raw, ['device', 'support'], ''),
-    downloads: Number(pick(raw, ['download', 'downloadCount', 'down'], 0)) || 0,
-    stars: Number(pick(raw, ['star', 'collect', 'collectCount'], 0)) || 0,
+    downloads: Number(pick(raw, ['download', 'downloadCount', 'down'], '0')) || 0,
+    stars: Number(pick(raw, ['star', 'collect', 'collectCount'], '0')) || 0,
     categoryId: pick(raw, ['cateId'], ''),
     classify: pick(raw, ['classify'], ''),
     updatedAt: pick(raw, ['updateTime', 'createTime'], ''),

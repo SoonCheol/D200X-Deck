@@ -104,20 +104,36 @@ function normalizeBackground(value) {
   return typeof value === 'string' && value ? value : null;
 }
 
+// One source of defaults for new configs, migrations and validation.
+const DEFAULT_SETTINGS = {
+  brightness: 85,
+  sleepSeconds: 0,
+  autoPush: true,
+  standbySeconds: 0,
+  standbyImage: null,
+  standbyClock: true,
+  lockScreen: false,
+  lockImage: null,
+  launchAtLogin: false,
+  updateCheck: true,
+  updateHours: 6,
+};
+
 /** Coerce a config into the shape the app expects, without dropping user data. */
 function validateConfig(config) {
+  const current = config.settings || {};
   config.settings = {
-    brightness: clamp(Number(config.settings?.brightness) || 85, 0, 100),
-    sleepSeconds: Math.max(0, Number(config.settings?.sleepSeconds) || 0),
-    autoPush: config.settings?.autoPush !== false,
-    standbySeconds: Math.max(0, Math.round(Number(config.settings?.standbySeconds) || 0)),
-    standbyImage: normalizeBackground(config.settings?.standbyImage),
-    standbyClock: config.settings?.standbyClock !== false,
-    lockScreen: config.settings?.lockScreen === true,
-    lockImage: normalizeBackground(config.settings?.lockImage),
-    launchAtLogin: config.settings?.launchAtLogin === true,
-    updateCheck: config.settings?.updateCheck !== false,
-    updateHours: clamp(Math.round(Number(config.settings?.updateHours) || 6), 1, 168),
+    brightness: clamp(Number(current.brightness ?? DEFAULT_SETTINGS.brightness), 0, 100),
+    sleepSeconds: Math.max(0, Number(current.sleepSeconds ?? DEFAULT_SETTINGS.sleepSeconds) || 0),
+    autoPush: current.autoPush !== false,
+    standbySeconds: Math.max(0, Math.round(Number(current.standbySeconds ?? DEFAULT_SETTINGS.standbySeconds) || 0)),
+    standbyImage: normalizeBackground(current.standbyImage),
+    standbyClock: current.standbyClock !== false,
+    lockScreen: current.lockScreen === true,
+    lockImage: normalizeBackground(current.lockImage),
+    launchAtLogin: current.launchAtLogin === true,
+    updateCheck: current.updateCheck !== false,
+    updateHours: clamp(Math.round(Number(current.updateHours ?? DEFAULT_SETTINGS.updateHours) || DEFAULT_SETTINGS.updateHours), 1, 168),
   };
 
   // Profiles are a lightweight grouping: each page belongs to one profile and
@@ -265,7 +281,7 @@ function createDefaultConfig() {
   for (const page of pages) page.profileId = profileId;
   return {
     version: CONFIG_VERSION,
-    settings: { brightness: 85, sleepSeconds: 0, autoPush: true, standbySeconds: 0 },
+    settings: { ...DEFAULT_SETTINGS },
     profiles: [{ id: profileId, name: 'Default' }],
     activeProfileId: profileId,
     activePageId: pages[0].id,
@@ -401,7 +417,7 @@ class Store {
     if (!config || !Array.isArray(config.pages) || config.pages.length === 0) {
       return createDefaultConfig();
     }
-    config.settings = { brightness: 85, sleepSeconds: 0, autoPush: true, ...(config.settings || {}) };
+    config.settings = { ...DEFAULT_SETTINGS, ...(config.settings || {}) };
 
     for (const page of config.pages) {
       if (!page.keys) page.keys = {};
@@ -481,4 +497,5 @@ class Store {
   }
 }
 
-module.exports = { Store, createDefaultConfig, validateConfig };
+module.exports = {
+  DEFAULT_SETTINGS, Store, createDefaultConfig, validateConfig };

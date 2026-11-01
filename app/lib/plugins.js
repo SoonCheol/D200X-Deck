@@ -69,6 +69,8 @@ class PluginManager extends EventEmitter {
     this.plugins = new Map(); // uuid -> meta
     this.sockets = new Map(); // uuid -> ws
     this.inspectors = new Map(); // actionid -> ws (property inspector)
+    this.openView = null; // assigned by the host wiring
+    this.selectDialog = null; // assigned by the host wiring
     this.queues = new Map(); // uuid -> messages[]
     this.children = new Map(); // uuid -> ChildProcess
     this.actions = new Map(); // actionid -> {pluginUuid, actionUuid, key, settings, active, meta}
@@ -376,8 +378,8 @@ class PluginManager extends EventEmitter {
     if (meta.html) {
       // HTML plugins run inside a hidden BrowserWindow and connect to our host
       // over the same WebSocket protocol; main.js owns the window lifecycle.
-      if (this.htmlRunning?.has(pluginUuid)) return meta;
-      this.htmlRunning?.add(pluginUuid);
+      if (this.htmlRunning.has(pluginUuid)) return meta;
+      this.htmlRunning.add(pluginUuid);
       this.launchHtml?.(meta);
       return meta;
     }
@@ -481,7 +483,7 @@ class PluginManager extends EventEmitter {
     const meta = this.plugins.get(pluginUuid);
     if (meta?.html) {
       this.stopHtml?.(pluginUuid);
-      this.htmlRunning?.delete(pluginUuid);
+      this.htmlRunning.delete(pluginUuid);
       this.sockets.delete(pluginUuid);
       this._ensurePlugin(pluginUuid);
       return true;
@@ -523,7 +525,7 @@ class PluginManager extends EventEmitter {
     const meta = this.plugins.get(id);
     if (meta?.html) {
       try { this.stopHtml?.(id); } catch { /* ignore */ }
-      this.htmlRunning?.delete(id);
+      this.htmlRunning.delete(id);
     }
     const proc = this.children.get(id);
     if (proc) {
@@ -896,10 +898,10 @@ class PluginManager extends EventEmitter {
   /** Graceful shutdown: SIGTERM every child, then SIGKILL whatever is left. */
   async shutdown(timeoutMs = 1500) {
     this.stopping = true;
-    for (const uuid of this.htmlRunning || []) {
+    for (const uuid of this.htmlRunning) {
       try { this.stopHtml?.(uuid); } catch { /* ignore */ }
     }
-    this.htmlRunning?.clear();
+    this.htmlRunning.clear();
     const procs = [...this.children.values()];
     this.children.clear();
     this.inspectors.clear();
@@ -911,14 +913,14 @@ class PluginManager extends EventEmitter {
       procs.map(
         (proc) =>
           new Promise((resolve) => {
-            if (!proc || proc.exitCode !== null) return resolve();
+            if (!proc || proc.exitCode !== null) return resolve(undefined);
             const timer = setTimeout(() => {
               try { proc.kill('SIGKILL'); } catch { /* ignore */ }
-              resolve();
+              resolve(undefined);
             }, timeoutMs);
             proc.once('exit', () => {
               clearTimeout(timer);
-              resolve();
+              resolve(undefined);
             });
             try { proc.kill('SIGTERM'); } catch { /* ignore */ }
           })

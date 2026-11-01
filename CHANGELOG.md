@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.7.1 — 2026-11-01
+
+### Changed
+- **`lib/` is type-checked** with `tsc --checkJs` in CI. The first pass caught a Windows-only comparison that could never match (`process.platform !== 'windows'`).
+- **Dependabot** watches npm (weekly, minor/patch grouped) and GitHub Actions (monthly).
+- **Native helpers are built, not committed.** `npm start` / `npm run dev` compile them first, and the packaged bundle no longer ships tests, scripts, native sources or build intermediates.
+- **One settings default object** feeds new configs, migrations and validation.
+- **Tighter CSP**: `object-src 'none'` and `base-uri 'none'`.
+- **Key-by-key logging is opt-in** with `ULANZI_LOG_KEYS=1`, so a stuck key cannot flood the log.
+
+### Fixed
+- `renderChrome()` no longer throws when there is no active page.
+
 ## 0.7.0 — 2026-11-01
 
 ### Changed

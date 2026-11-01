@@ -20,6 +20,7 @@ async function fetchLatestRelease({ fetchImpl = fetch, timeout = 15_000 } = {}) 
     // A repository without releases answers 404.
     if (res.status === 404) return null;
     if (!res.ok) throw new Error(`GitHub returned ${res.status} ${res.statusText || ''}`.trim());
+    /** @type {any} */
     const release = await res.json();
     const version = normalizeVersion(release.tag_name || release.name || '');
     if (!version) throw new Error('The latest release has no version tag');

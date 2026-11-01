@@ -23,10 +23,10 @@ npm test
 npm start
 ```
 
-`npm start` is enough to use the app from source. The native helpers (`bin/hidseize`,
-`bin/hotkey`, `bin/mediakey`) are committed as universal binaries, so no compiler is
-needed for a normal run; `npm run build:native` rebuilds them from
-`native/`. The packaging scripts rebuild them automatically for both architectures.
+`npm start` builds the native helpers (`bin/hidseize`, `bin/hotkey`, `bin/mediakey`)
+from `native/` first, so they are not committed to the repository. `npm run
+build:native` rebuilds them on demand; the packaging scripts rebuild them
+automatically for both architectures.
 
 ## Package an app
 

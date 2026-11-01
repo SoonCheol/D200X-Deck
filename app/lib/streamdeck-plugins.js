@@ -116,7 +116,10 @@ function binaryArch(file) {
 }
 
 class StreamDeckPlugins extends EventEmitter {
-  constructor({ appPluginsDir, language = 'en', appVersion = '0.1.0', port = 57116, logFile = null } = {}) {
+  /**
+   * @param {{ appPluginsDir: string, language?: string, appVersion?: string, port?: number, logFile?: string|null }} options
+   */
+  constructor({ appPluginsDir, language = 'en', appVersion = '0.1.0', port = 57116, logFile = null }) {
     super();
     this.dirs = streamDeckPluginDirs(appPluginsDir);
     this.appPluginsDir = appPluginsDir;
@@ -126,6 +129,7 @@ class StreamDeckPlugins extends EventEmitter {
     this.plugins = new Map(); // uuid -> meta
     this.sockets = new Map(); // plugin uuid -> ws
     this.inspectors = new Map(); // context/actionid -> ws
+    this._htmlRunning = new Set();
     this.queues = new Map();
     this.children = new Map();
     this.actions = new Map(); // actionid -> action instance
@@ -313,7 +317,7 @@ class StreamDeckPlugins extends EventEmitter {
 
   wineAvailable() {
     if (this._wine !== null) return this._wine;
-    this._wine = process.platform !== 'windows' && availableOnPath('wine');
+    this._wine = process.platform !== 'win32' && availableOnPath('wine');
     return this._wine;
   }
 
@@ -801,15 +805,14 @@ class StreamDeckPlugins extends EventEmitter {
     }
     if (!meta.compatible) return null;
     if (meta.code.kind === 'html') {
-      if (this._htmlRunning?.has(pluginUuid)) return meta;
-      this._htmlRunning = this._htmlRunning || new Set();
+      if (this._htmlRunning.has(pluginUuid)) return meta;
       this._htmlRunning.add(pluginUuid);
       const launch = (port) => {
         if (port) {
           this.launchHtml?.(meta, this.infoString(meta));
           return;
         }
-        this._htmlRunning?.delete(pluginUuid);
+        this._htmlRunning.delete(pluginUuid);
         this.emit('error', `${meta.name} could not start: no free port`);
       };
       if (this._portPromise) this._portPromise.then(launch, launch);
@@ -1210,7 +1213,7 @@ class StreamDeckPlugins extends EventEmitter {
     for (const proc of this.children.values()) {
       try { proc.kill(); } catch { /* ignore */ }
     }
-    for (const uuid of this._htmlRunning || []) {
+    for (const uuid of this._htmlRunning) {
       try { this.stopHtml?.(uuid); } catch { /* ignore */ }
     }
     this.children.clear();
@@ -1218,7 +1221,7 @@ class StreamDeckPlugins extends EventEmitter {
     this.queues.clear();
     this.actions.clear();
     this.inspectors.clear();
-    this._htmlRunning?.clear();
+    this._htmlRunning.clear();
     this.stopping = false;
     return this.scan();
   }
@@ -1229,7 +1232,7 @@ class StreamDeckPlugins extends EventEmitter {
     const meta = this.plugins.get(id);
     if (meta?.code?.kind === 'html') {
       try { this.stopHtml?.(id); } catch { /* ignore */ }
-      this._htmlRunning?.delete(id);
+      this._htmlRunning.delete(id);
     }
     const proc = this.children.get(id);
     if (proc) {
@@ -1250,7 +1253,7 @@ class StreamDeckPlugins extends EventEmitter {
   }
 
   htmlExited(pluginUuid) {
-    this._htmlRunning?.delete(pluginUuid);
+    this._htmlRunning.delete(pluginUuid);
     this.sockets.delete(pluginUuid);
     if (this.stopping || !this._hasActionsFor(pluginUuid)) return;
     const meta = this.plugins.get(pluginUuid);
@@ -1274,7 +1277,7 @@ class StreamDeckPlugins extends EventEmitter {
     const meta = this.plugins.get(pluginUuid);
     if (meta?.code?.kind === 'html') {
       this.stopHtml?.(pluginUuid);
-      this._htmlRunning?.delete(pluginUuid);
+      this._htmlRunning.delete(pluginUuid);
       this.sockets.delete(pluginUuid);
       this._ensurePlugin(pluginUuid);
       return true;
@@ -1299,10 +1302,10 @@ class StreamDeckPlugins extends EventEmitter {
   /** Graceful shutdown: SIGTERM every child, then SIGKILL whatever is left. */
   async shutdown(timeoutMs = 1500) {
     this.stopping = true;
-    for (const uuid of this._htmlRunning || []) {
+    for (const uuid of this._htmlRunning) {
       try { this.stopHtml?.(uuid); } catch { /* ignore */ }
     }
-    this._htmlRunning?.clear();
+    this._htmlRunning.clear();
     const procs = [...this.children.values()];
     this.children.clear();
     this.starting.clear();
@@ -1315,14 +1318,14 @@ class StreamDeckPlugins extends EventEmitter {
       procs.map(
         (proc) =>
           new Promise((resolve) => {
-            if (!proc || proc.exitCode !== null) return resolve();
+            if (!proc || proc.exitCode !== null) return resolve(undefined);
             const timer = setTimeout(() => {
               try { proc.kill('SIGKILL'); } catch { /* ignore */ }
-              resolve();
+              resolve(undefined);
             }, timeoutMs);
             proc.once('exit', () => {
               clearTimeout(timer);
-              resolve();
+              resolve(undefined);
             });
             try { proc.kill('SIGTERM'); } catch { /* ignore */ }
           })

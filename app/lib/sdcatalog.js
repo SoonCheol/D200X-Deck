@@ -13,6 +13,7 @@ const CATALOGUE_URL = 'https://openactionapi.github.io/plugins/catalogue.json';
 const MAX_DOWNLOAD = 128 * 1024 * 1024;
 const UA = 'Ulanzi-Deck-Open';
 
+/** @returns {Promise<any>} */
 async function getJson(url) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), 20_000);

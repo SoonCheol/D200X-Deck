@@ -7,7 +7,7 @@
 (function (root, factory) {
   if (typeof module === 'object' && module.exports) module.exports = factory();
   else root.DeckGeometry = factory();
-})(typeof self !== 'undefined' ? self : this, function () {
+})(globalThis, function () {
   const COLUMNS = 5;
   const ROWS = 3;
   const KEY_SLOTS = COLUMNS * ROWS;
