@@ -591,6 +591,36 @@ protocol.registerSchemesAsPrivileged([
   },
 ]);
 
+const SD_PI_THEME = `
+<style id="ulanzi-sd-theme">
+  :root, html {
+    color-scheme: dark;
+    --bg: #0b0f16 !important;
+    --field: #141a25 !important;
+    --text: #e8ecf4 !important;
+    --label: #8b95a7 !important;
+    --sdpi-bgcolor: #0b0f16 !important;
+    --sdpi-color: #e8ecf4 !important;
+    --sdpi-background: #141a25 !important;
+  }
+  html, body {
+    background: #0b0f16 !important;
+    color: #e8ecf4 !important;
+  }
+  select, input, textarea, button {
+    background: #141a25 !important;
+    color: #e8ecf4 !important;
+    border-color: #2a3342 !important;
+    border-radius: 8px !important;
+  }
+  select:focus, input:focus, textarea:focus, button:focus {
+    outline: none !important;
+    border-color: #4f8cff !important;
+  }
+  input[type="checkbox"], input[type="radio"] { accent-color: #4f8cff !important; }
+  a { color: #6ea8ff !important; }
+</style>`;
+
 const PI_THEME = `
 <style id="ulanzi-deck-open-theme">
   :root { color-scheme: dark; }
@@ -773,7 +803,7 @@ app.whenReady().then(() => {
         const actionid = url.searchParams.get('actionid') || '';
         const connect = sdPlugins?.inspectorConnect(actionid);
         const payload = connect ? JSON.stringify(connect) : 'null';
-        const bridge = `<script>(function(){
+        const bridge = `${SD_PI_THEME}<script>(function(){
           const payload = ${payload};
           function connect() {
             if (!payload) return true;

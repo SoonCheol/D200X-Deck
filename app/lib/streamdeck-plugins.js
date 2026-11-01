@@ -343,6 +343,7 @@ class StreamDeckPlugins extends EventEmitter {
         wss.once('listening', () => {
           this.wss = wss;
           this.port = port;
+          console.log(`[sd-plugins] listening on ${port}`);
           wss.on('connection', (ws) => this._onConnection(ws));
           resolve(port);
         });
@@ -419,13 +420,17 @@ class StreamDeckPlugins extends EventEmitter {
             context,
             device: 'ulanzi-d200',
           });
-          this._sendToInspector(context, {
+          const settingsMessage = {
             event: 'didReceiveSettings',
             action: action.actionUuid,
             context,
             device: 'ulanzi-d200',
             payload: { ...this._payload(action), settings: action.settings },
-          });
+          };
+          this._sendToInspector(context, settingsMessage);
+          // Some inspectors replace their form on load; re-send once the page
+          // has had a chance to attach its message handler.
+          setTimeout(() => this._sendToInspector(context, settingsMessage), 150);
           return;
         }
         try { ws.close(4400, 'register first'); } catch { /* ignore */ }

@@ -3,6 +3,8 @@
 ## Unreleased
 
 ### Features
+- **Installed** plugin list is grouped into **Ulanzi** and **Stream Deck / OpenAction** sections, alphabetically, matching the Store's source split.
+- Stream Deck property inspectors follow the app theme (dark background/fields) instead of the plugin's default grey, and settings are re-sent after the inspector connects so controls reflect the key's stored settings.
 - **Store** now has **Ulanzi Plugins / Ulanzi Icons / Stream Deck Plugins** tabs; the Stream Deck tab browses the OpenAction catalogue and the community Elgato archive, search by name/author/ID, install with one click and update app-owned plugins. Downloads are HTTPS-only, size-capped and path-validated.
 - **Stream Deck SDK / OpenAction plugin support**: discovers `.sdPlugin` plugins from this app, OpenDeck and Elgato folders; runs Node, HTML and native macOS plugins (Windows-only plugins through Wine when available); installs `.sdPlugin`, `.streamdeckplugin` and ZIP packages; supports property inspectors, per-state images/titles/state, per-action and global settings, `sendToPlugin`/`sendToPropertyInspector`, real key-down/up events, `showAlert`/`showOk`, profile switching and device brightness. Existing Ulanzi plugins keep working alongside them.
 

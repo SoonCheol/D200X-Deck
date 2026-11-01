@@ -622,6 +622,19 @@ body::before {
 #store-sd { display: flex; flex-direction: column; flex: 1; min-height: 0; }
 .sdstore-search { flex: 1; min-width: 180px; }
 
+.plugin-group + .plugin-group { margin-top: 10px; border-top: 1px solid var(--line); padding-top: 8px; }
+.plugin-group-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 12px 4px;
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 1.2px;
+  text-transform: uppercase;
+}
+.plugin-group-head span { font-variant-numeric: tabular-nums; }
 .plugin-row {
   display: flex;
   align-items: center;

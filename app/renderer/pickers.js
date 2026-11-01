@@ -350,41 +350,52 @@ function renderPluginModal() {
     return;
   }
 
-  list.innerHTML = state.plugins
-    .map((p) => {
-      const actions = (p.actions || [])
-        .slice(0, 5)
-        .map((a) => `<span class="badge-tag">${esc(a.name)}</span>`)
-        .join('');
-      return `
-        <div class="plugin-row${p.compatible ? '' : ' disabled'}">
-          ${p.icon ? `<img class="plugin-icon" src="${esc(p.icon)}" alt="" />` : `<div class="plugin-icon">🔌</div>`}
-          <div class="plugin-meta">
-            <div class="plugin-name">
-              ${esc(p.name)}
-              <span class="badge-tag ${p.compatible ? 'good' : 'warn'}">${p.compatible ? 'Compatible' : 'Not supported'}</span>
-              <span class="badge-tag">${p.sdk === 'streamdeck' ? 'Stream Deck' : 'Ulanzi'}</span>
-              <span class="badge-tag ${p.writable ? 'good' : ''}" title="${
-                p.writable ? 'Installed in this app' : 'Read-only (installed by another app)'
-              }">${p.writable ? 'Installed' : '🔒 Read-only'}</span>
-            </div>
-            <div class="plugin-sub">
-              ${p.version ? `v${esc(p.version)} · ` : ''}${esc(p.author || 'unknown author')} · ${(p.actions || []).length} ${
-                (p.actions || []).length === 1 ? 'action' : 'actions'
-              }
-            </div>
-            <div class="plugin-badges">${actions}</div>
+  const row = (p) => {
+    const actions = (p.actions || [])
+      .slice(0, 5)
+      .map((a) => `<span class="badge-tag">${esc(a.name)}</span>`)
+      .join('');
+    return `
+      <div class="plugin-row${p.compatible ? '' : ' disabled'}">
+        ${p.icon ? `<img class="plugin-icon" src="${esc(p.icon)}" alt="" />` : `<div class="plugin-icon">🔌</div>`}
+        <div class="plugin-meta">
+          <div class="plugin-name">
+            ${esc(p.name)}
+            <span class="badge-tag ${p.compatible ? 'good' : 'warn'}">${p.compatible ? 'Compatible' : 'Not supported'}</span>
+            <span class="badge-tag">${p.sdk === 'streamdeck' ? 'Stream Deck' : 'Ulanzi'}</span>
+            <span class="badge-tag ${p.writable ? 'good' : ''}" title="${
+              p.writable ? 'Installed in this app' : 'Read-only (installed by another app)'
+            }">${p.writable ? 'Installed' : '🔒 Read-only'}</span>
           </div>
-          <div class="plugin-actions">
-            <button class="btn ghost" data-reveal="${esc(p.uuid)}">Show in Finder</button>
-            ${
-              p.writable
-                ? `<button class="btn danger" data-remove="${esc(p.uuid)}">Remove</button>`
-                : `<button class="btn" data-import="${esc(p.uuid)}" title="Copy into this app so you can edit or remove it">Copy</button>`
+          <div class="plugin-sub">
+            ${p.version ? `v${esc(p.version)} · ` : ''}${esc(p.author || 'unknown author')} · ${(p.actions || []).length} ${
+              (p.actions || []).length === 1 ? 'action' : 'actions'
             }
           </div>
-        </div>`;
-    })
+          <div class="plugin-badges">${actions}</div>
+        </div>
+        <div class="plugin-actions">
+          <button class="btn ghost" data-reveal="${esc(p.uuid)}">Show in Finder</button>
+          ${
+            p.writable
+              ? `<button class="btn danger" data-remove="${esc(p.uuid)}">Remove</button>`
+              : `<button class="btn" data-import="${esc(p.uuid)}" title="Copy into this app so you can edit or remove it">Copy</button>`
+          }
+        </div>
+      </div>`;
+  };
+  const groups = [
+    ['Ulanzi', state.plugins.filter((p) => p.sdk !== 'streamdeck')],
+    ['Stream Deck / OpenAction', state.plugins.filter((p) => p.sdk === 'streamdeck')],
+  ].filter(([, plugins]) => plugins.length);
+  list.innerHTML = groups
+    .map(
+      ([label, plugins]) =>
+        `<div class="plugin-group">
+          <div class="plugin-group-head">${esc(label)}<span>${plugins.length}</span></div>
+          ${plugins.sort((a, b) => a.name.localeCompare(b.name)).map(row).join('')}
+        </div>`
+    )
     .join('');
 
   list.querySelectorAll('[data-reveal]').forEach((btn) => {
