@@ -10,12 +10,9 @@ function key(emoji, label, action = { type: 'none' }, color = '#1b2130') {
   return { emoji, label, action, color, icon: null };
 }
 
-const ACTION_TYPES = new Set([
-  'none', 'app', 'url', 'command', 'hotkey', 'text', 'media', 'close', 'page', 'plugin', 'multi', 'toggle', 'indicator', 'sound',
-  'timer', 'brightness', 'pop',
-]);
-
-const MEDIA_OPS = new Set(['playpause', 'next', 'prev', 'volumeup', 'volumedown', 'mute']);
+const { ACTION_TYPES, MEDIA_OPS } = require('./actions-meta');
+const ACTION_TYPE_SET = new Set(ACTION_TYPES);
+const MEDIA_OP_SET = new Set(MEDIA_OPS);
 
 function str(value, fallback = '') {
   return typeof value === 'string' ? value : fallback;
@@ -23,10 +20,10 @@ function str(value, fallback = '') {
 
 function normalizeAction(action) {
   if (!action || typeof action !== 'object') return { type: 'none' };
-  const type = ACTION_TYPES.has(action.type) ? action.type : 'none';
+  const type = ACTION_TYPE_SET.has(action.type) ? action.type : 'none';
   const out = { ...action, type };
   if ('value' in out) out.value = str(out.value);
-  if (type === 'media') out.op = MEDIA_OPS.has(out.op) ? out.op : 'playpause';
+  if (type === 'media') out.op = MEDIA_OP_SET.has(out.op) ? out.op : 'playpause';
   if (type === 'sound') {
     out.op = out.op === 'stop' ? 'stop' : 'play';
     out.volume = Math.min(1, Math.max(0, Number(out.volume) || 1));

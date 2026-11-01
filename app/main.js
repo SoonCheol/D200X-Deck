@@ -1,31 +1,27 @@
 'use strict';
 
-const { app, BrowserWindow, ipcMain, dialog, Menu, shell, Tray, nativeImage, protocol, session, systemPreferences, powerMonitor, screen } = require('electron');
+const { app, BrowserWindow, dialog, Menu, shell, Tray, nativeImage, protocol, session, powerMonitor, screen } = require('electron');
 const path = require('node:path');
 const fs = require('node:fs');
-const os = require('node:os');
-const { randomUUID } = require('node:crypto');
 const { fileURLToPath } = require('node:url');
 
 const { Deck } = require('./lib/deck');
 const { Store } = require('./lib/store');
-const { buildPage } = require('./lib/page');
-const sysstats = require('./lib/sysstats');
-const { PluginManager, pluginRootDirs } = require('./lib/plugins');
-const { StreamDeckPlugins } = require('./lib/streamdeck-plugins');
 const { fetchLatestRelease, isNewer, plainNotes } = require('./lib/updates');
-const { StreamDeckCatalog, download: downloadPluginPackage } = require('./lib/sdcatalog');
-const { fetchSiteIcon } = require('./lib/siteicon');
-const { appIconDataUrl, resolveAppPath } = require('./lib/appicon');
+const { StreamDeckCatalog } = require('./lib/sdcatalog');
 const { Market } = require('./lib/market');
-const importUlanzi = require('./lib/import-ulanzi');
-const { childDir, parsePackId } = require('./lib/iconpacks');
 const { isInside } = require('./lib/paths');
-const { execFile, execFileSync, spawn } = require('node:child_process');
+const { createPluginProtocol } = require('./lib/plugin-protocol');
+const { buildPiBridge } = require('./lib/pi-theme');
+const { SD_PI_THEME, PI_THEME } = require('./lib/pi-themes');
+const { CH } = require('./lib/channels');
+const { registerIpc } = require('./ipc');
+const { initPluginHosts } = require('./plugin-hosts');
+const { spawn } = require('node:child_process');
 const actions = require('./lib/actions');
 
 // A failing `Run command` exits after the key press; surface the reason as a toast.
-actions.setShellErrorHandler((message) => send('plugin:error', `Command failed: ${message}`));
+actions.setShellErrorHandler((message) => send(CH.pluginError, `Command failed: ${message}`));
 
 process.on('unhandledRejection', (reason) => {
   console.error('[unhandledRejection]', reason instanceof Error ? reason.stack || reason.message : reason);
@@ -49,7 +45,6 @@ let reconnectTimer = null;
 let tray = null;
 let isQuitting = false;
 let quitPromptOpen = false;
-let popWindow = null;
 
 // A second launch would fight over the HID device and the plugin port. Dev and
 // screenshot runs set ULANZI_CONFIG_DIR, so they are allowed to coexist.
@@ -71,27 +66,6 @@ function isRendererFile(url) {
   } catch {
     return false;
   }
-}
-
-/** IPC handlers only accept calls from our own renderer page. */
-function trustedSender(event) {
-  try {
-    const parsed = new URL(String(event.senderFrame?.url || ''));
-    return parsed.protocol === 'file:' && path.resolve(fileURLToPath(parsed)) === path.join(RENDERER_DIR, 'index.html');
-  } catch {
-    return false;
-  }
-}
-
-/**
- * Register an IPC handler that refuses calls from anywhere but the app page.
- * Every channel is registered through this helper, so the default is deny.
- */
-function handle(channel, handler) {
-  ipcMain.handle(channel, (event, ...args) => {
-    if (!trustedSender(event)) return { ok: false, error: 'untrusted sender' };
-    return handler(event, ...args);
-  });
 }
 
 function setDockVisible(visible) {
@@ -309,7 +283,7 @@ async function runScheduledUpdateCheck() {
   const result = await checkForUpdates();
   if (result.ok && result.update && result.latest && result.latest !== notifiedVersion) {
     notifiedVersion = result.latest;
-    send('app:update-available', {
+    send(CH.appUpdateAvailable, {
       current: result.current,
       latest: result.latest,
       url: result.url,
@@ -326,7 +300,7 @@ function buildMenu() {
       ? [{
           label: app.name,
           submenu: [
-            { label: 'About Ulanzi Deck Open', click: () => send('app:show-about') },
+            { label: 'About Ulanzi Deck Open', click: () => send(CH.appShowAbout) },
             { label: 'Check for Updates…', click: () => checkForUpdates() },
             { type: 'separator' },
             {
@@ -334,7 +308,7 @@ function buildMenu() {
               accelerator: 'CmdOrCtrl+,',
               click: () => {
                 showWindow();
-                send('app:open-settings');
+                send(CH.appOpenSettings);
               },
             },
             { type: 'separator' },
@@ -382,241 +356,35 @@ const noDeck = Boolean(process.env.ULANZI_NO_DECK);
 function initDeck() {
   // The official app re-sends the current page when the Mac unlocks; without
   // that, a deck that fell back to its stored standby image stays there.
-  powerMonitor.on('lock-screen', () => send('app:lock-screen'));
-  powerMonitor.on('unlock-screen', () => send('app:display-restore'));
-  powerMonitor.on('resume', () => send('app:display-restore'));
+  powerMonitor.on('lock-screen', () => send(CH.appLockScreen));
+  powerMonitor.on('unlock-screen', () => send(CH.appDisplayRestore));
+  powerMonitor.on('resume', () => send(CH.appDisplayRestore));
   deck = new Deck();
   deck.on('status', (status) => {
     console.log(`[deck] ${status.connected ? 'connected' : 'offline'}: ${status.message}`);
-    send('deck:status', status);
+    send(CH.deckStatus, status);
   });
   deck.on('key', (event) => {
     console.log(
       `[deck] key index=${event.index} ${event.pressed ? 'down' : 'up'} t=${Date.now()} flags=${event.flags}`
     );
-    send('deck:key', event);
+    send(CH.deckKey, event);
   });
-  deck.on('brightness', (level) => send('deck:brightness', level));
-  deck.on('error', (message) => send('deck:error', message));
+  deck.on('brightness', (level) => send(CH.deckBrightness, level));
+  deck.on('error', (message) => send(CH.deckError, message));
 
   const tryConnect = () => {
     if (noDeck) {
-      send('deck:status', { connected: false, message: 'Disconnected', info: null });
+      send(CH.deckStatus, { connected: false, message: 'Disconnected', info: null });
       return;
     }
     if (!deck.connected) {
       const ok = deck.connect();
-      if (!ok) send('deck:status', deck.status());
+      if (!ok) send(CH.deckStatus, deck.status());
     }
   };
   tryConnect();
   reconnectTimer = setInterval(tryConnect, 4000);
-}
-
-function listApps() {
-  const roots = [
-    '/Applications',
-    '/System/Applications',
-    '/System/Applications/Utilities',
-    '/Applications/Utilities',
-    path.join(os.homedir(), 'Applications'),
-  ];
-  const seen = new Set();
-  const apps = [];
-  for (const root of roots) {
-    let entries = [];
-    try {
-      entries = fs.readdirSync(root, { withFileTypes: true });
-    } catch {
-      continue;
-    }
-    for (const entry of entries) {
-      if (!entry.name.toLowerCase().endsWith('.app')) continue;
-      const full = path.join(root, entry.name);
-      if (seen.has(full)) continue;
-      seen.add(full);
-      apps.push({ name: entry.name.replace(/\.app$/i, ''), path: full });
-    }
-  }
-  apps.sort((a, b) => a.name.localeCompare(b.name));
-  return apps;
-}
-
-const htmlPluginWindows = new Map();
-const sdHtmlWindows = new Map();
-
-function initPlugins() {
-  const baseDir = process.env.ULANZI_CONFIG_DIR || app.getPath('userData');
-  const dirs = [path.join(baseDir, 'Plugins'), ...pluginRootDirs()];
-  plugins = new PluginManager({ dirs, appPluginsDir: dirs[0], port: 3906, appVersion: app.getVersion() });
-  plugins.launchHtml = (meta) => {
-    if (htmlPluginWindows.has(meta.uuid)) return;
-    const frame = new BrowserWindow({
-      show: false,
-      width: 420,
-      height: 320,
-      webPreferences: {
-        contextIsolation: true,
-        nodeIntegration: false,
-        backgroundThrottling: false,
-      },
-    });
-    htmlPluginWindows.set(meta.uuid, frame);
-    frame.webContents.on('console-message', (event) => {
-      if (event.level === 'error') console.log(`[plugin:${meta.uuid}]`, String(event.message).slice(0, 200));
-    });
-    frame.on('closed', () => {
-      htmlPluginWindows.delete(meta.uuid);
-      plugins?.htmlExited(meta.uuid);
-    });
-    frame.loadFile(meta.codePath).catch((err) => {
-      console.error(`[plugin:${meta.uuid}] could not load ${meta.codePath}:`, err.message);
-      try { frame.close(); } catch { /* ignore */ }
-    });
-  };
-  plugins.openView = (msg, action) => {
-    let target = String(msg.url || '');
-    if (msg.param && typeof msg.param === 'object') {
-      const qs = new URLSearchParams(msg.param).toString();
-      if (qs) target += (target.includes('?') ? '&' : '?') + qs;
-    }
-    if (!/^https?:/i.test(target) && action) {
-      const file = path.resolve(action.meta.dir, target.replace(/^\.?\//, ''));
-      if (!isInside(action.meta.dir, file)) return;
-      const view = new BrowserWindow({
-        width: 760,
-        height: 680,
-        title: action.meta.name || 'Plugin',
-        backgroundColor: '#0b0e14',
-      });
-      view.loadFile(file).catch((err) => console.error('[plugin view]', err.message));
-      return;
-    }
-    if (/^https?:|^mailto:/i.test(target)) shell.openExternal(target);
-  };
-
-  plugins.selectDialog = async (msg) => {
-    const type = msg.type === 'folder' ? 'folder' : 'file';
-    const filters = [];
-    const extensions = [...String(msg.filter || '').matchAll(/\*\.([a-z0-9]+)/gi)].map((m) => m[1]);
-    if (extensions.length) filters.push({ name: 'Supported files', extensions });
-    const options = {
-      title: type === 'folder' ? 'Choose a folder' : 'Choose a file',
-      properties: type === 'folder' ? ['openDirectory', 'createDirectory'] : ['openFile'],
-      ...(filters.length ? { filters } : {}),
-    };
-    const result = win ? await dialog.showOpenDialog(win, options) : await dialog.showOpenDialog(options);
-    return result.canceled || !result.filePaths.length
-      ? { canceled: true, path: '' }
-      : { canceled: false, path: result.filePaths[0] };
-  };
-
-  plugins.stopHtml = (uuid) => {
-    const frame = htmlPluginWindows.get(uuid);
-    if (frame) {
-      htmlPluginWindows.delete(uuid);
-      try { frame.destroy(); } catch { /* ignore */ }
-    }
-  };
-  plugins.scan();
-  plugins.start();
-  plugins.on('state', (payload) => send('plugin:state', payload));
-  plugins.on('state-index', (payload) => send('plugin:state-index', payload));
-  plugins.on('title', (payload) => send('plugin:title', payload));
-  plugins.on('settings', (payload) => send('plugin:settings', payload));
-  plugins.on('toast', (payload) => send('plugin:toast', payload));
-  plugins.on('alert', (payload) => send('plugin:alert', payload));
-  plugins.on('error', (message) => {
-    console.error('[plugins]', message);
-    send('plugin:error', message);
-  });
-  plugins.on('connected', (uuid) => console.log('[plugins] connected', uuid));
-}
-
-function initSdPlugins() {
-  const baseDir = process.env.ULANZI_CONFIG_DIR || app.getPath('userData');
-  sdPlugins = new StreamDeckPlugins({
-    appPluginsDir: path.join(baseDir, 'StreamDeckPlugins'),
-    language: 'en',
-    appVersion: app.getVersion(),
-    logFile: path.join(baseDir, 'streamdeck.log'),
-  });
-  sdPlugins.launchHtml = (meta, info) => {
-    if (sdHtmlWindows.has(meta.uuid)) return;
-    const frame = new BrowserWindow({
-      show: false,
-      width: 420,
-      height: 320,
-      webPreferences: {
-        contextIsolation: true,
-        nodeIntegration: false,
-        backgroundThrottling: false,
-      },
-    });
-    sdHtmlWindows.set(meta.uuid, frame);
-    frame.on('closed', () => {
-      sdHtmlWindows.delete(meta.uuid);
-      sdPlugins?.htmlExited(meta.uuid);
-    });
-    const file = path.join(meta.dir, meta.code.path);
-    frame.loadFile(file).then(() => {
-      let tries = 0;
-      const connect = () => {
-        if (tries++ > 100) return;
-        const payload = [sdPlugins.port, meta.uuid, 'registerPlugin', info];
-        frame.webContents
-          .executeJavaScript(
-            `(() => {
-              try {
-                if (typeof connectOpenActionSocket === 'function') return connectOpenActionSocket(${JSON.stringify(
-                  payload[0]
-                )}, ${JSON.stringify(payload[1])}, ${JSON.stringify(payload[2])}, ${JSON.stringify(payload[3])}), true;
-                if (typeof connectElgatoStreamDeckSocket === 'function') return connectElgatoStreamDeckSocket(${JSON.stringify(
-                  payload[0]
-                )}, ${JSON.stringify(payload[1])}, ${JSON.stringify(payload[2])}, ${JSON.stringify(payload[3])}), true;
-              } catch (err) { console.error(err); }
-              return false;
-            })()`
-          )
-          .then((ok) => { if (!ok) setTimeout(connect, 100); })
-          .catch(() => setTimeout(connect, 100));
-      };
-      connect();
-    }).catch((err) => {
-      console.error(`[sd:${meta.uuid}] could not load ${file}:`, err.message);
-      try { frame.close(); } catch { /* ignore */ }
-    });
-  };
-  sdPlugins.stopHtml = (uuid) => {
-    const frame = sdHtmlWindows.get(uuid);
-    if (frame) {
-      sdHtmlWindows.delete(uuid);
-      try { frame.destroy(); } catch { /* ignore */ }
-    }
-  };
-  sdPlugins.scan();
-  sdPlugins.start();
-  sdPlugins.on('state', (payload) => send('plugin:state', payload));
-  sdPlugins.on('state-index', (payload) => send('plugin:state-index', payload));
-  sdPlugins.on('title', (payload) => send('plugin:title', payload));
-  sdPlugins.on('settings', (payload) => send('plugin:settings', payload));
-  sdPlugins.on('alert', (payload) => send('plugin:alert', payload));
-  sdPlugins.on('ok', (payload) => send('plugin:ok', payload));
-  sdPlugins.on('error', (message) => {
-    console.error('[sd-plugins]', message);
-    send('plugin:error', message);
-  });
-  sdPlugins.on('connected', (uuid) => console.log('[sd-plugins] connected', uuid));
-  sdPlugins.on('switch-profile', (payload) => send('plugin:switch-profile', payload));
-  sdPlugins.on('brightness', (payload) => {
-    const value = Number(payload.value) || 0;
-    const current = Number(store.config.settings.brightness) || 0;
-    const next = Math.max(0, Math.min(100, payload.action === 'increase' ? current + value : payload.action === 'decrease' ? current - value : value));
-    store.config.settings.brightness = next;
-    store.save(store.config);
-    try { deck?.setBrightness(next); } catch { /* ignore */ }
-    send('deck:brightness', next);
-  });
 }
 
 function allPluginManagers() {
@@ -658,7 +426,7 @@ function pluginInspectorUrl(payload) {
 
 function setSeizeState(running, message) {
   seizeState = { running, message };
-  send('seize:state', seizeState);
+  send(CH.seizeState, seizeState);
 }
 
 function startHidSeize() {
@@ -729,170 +497,19 @@ protocol.registerSchemesAsPrivileged([
   },
 ]);
 
-const SD_PI_THEME = `
-<style id="ulanzi-sd-theme">
-  :root, html {
-    color-scheme: dark;
-    --bg: #0b0f16 !important;
-    --field: #141a25 !important;
-    --text: #e8ecf4 !important;
-    --label: #8b95a7 !important;
-    --sdpi-bgcolor: #0b0f16 !important;
-    --sdpi-color: #e8ecf4 !important;
-    --sdpi-background: #141a25 !important;
-  }
-  html, body {
-    background: #0b0f16 !important;
-    color: #e8ecf4 !important;
-  }
-  select, input, textarea, button {
-    box-sizing: border-box !important;
-    min-width: 0 !important;
-    max-width: 100% !important;
-    background: #141a25 !important;
-    color: #e8ecf4 !important;
-    border-color: #2a3342 !important;
-    border-radius: 8px !important;
-  }
-  /* A custom background removes the native select arrow; draw our own. */
-  select {
-    -webkit-appearance: none !important;
-    appearance: none !important;
-    background-image: linear-gradient(45deg, transparent 50%, #8b97ab 50%), linear-gradient(135deg, #8b97ab 50%, transparent 50%) !important;
-    background-position: calc(100% - 16px) 50%, calc(100% - 11px) 50% !important;
-    background-size: 5px 5px, 5px 5px !important;
-    background-repeat: no-repeat !important;
-    background-color: #141a25 !important;
-    height: auto !important;
-    min-height: 30px;
-    line-height: normal !important;
-    padding: 6px 28px 6px 9px !important;
-  }
-  select:focus, input:focus, textarea:focus, button:focus {
-    outline: none !important;
-    border-color: #4f8cff !important;
-  }
-  input[type="checkbox"], input[type="radio"] { accent-color: #4f8cff !important; }
-  a { color: #6ea8ff !important; }
-</style>`;
 
-const PI_THEME = `
-<style id="ulanzi-deck-open-theme">
-  :root { color-scheme: dark; }
-  html { scrollbar-gutter: stable; }
-  html, body {
-    background: #0b0f16 !important;
-    color: #e8ecf4 !important;
-    font-family: -apple-system, "SF Pro Text", "Helvetica Neue", sans-serif !important;
-    font-size: 12px !important;
-    margin: 0 !important;
-  }
-  body { padding: 0 12px 8px 0 !important; }
-  .udpi-wrapper, .uspi-wrapper { background: transparent !important; }
-  .uspi-heading, .udpi-heading {
-    color: #8b95a7 !important;
-    font-size: 10.5px !important;
-    font-weight: 600 !important;
-    letter-spacing: 1.2px !important;
-    text-transform: uppercase !important;
-    border-bottom: 1px solid #232a36 !important;
-    padding: 10px 0 6px !important;
-    margin: 0 0 8px !important;
-  }
-  input, select, textarea {
-    box-sizing: border-box !important;
-    min-width: 0 !important;
-    max-width: 100% !important;
-    background: #141a25 !important;
-    border: 1px solid #2a3342 !important;
-    border-radius: 8px !important;
-    color: #e8ecf4 !important;
-    font-family: inherit !important;
-    font-size: 12px !important;
-    padding: 7px 9px !important;
-  }
-  /* A custom background removes the native select arrow; draw our own. */
-  select {
-    -webkit-appearance: none !important;
-    appearance: none !important;
-    background-image: linear-gradient(45deg, transparent 50%, #8b97ab 50%), linear-gradient(135deg, #8b97ab 50%, transparent 50%) !important;
-    background-position: calc(100% - 16px) 50%, calc(100% - 11px) 50% !important;
-    background-size: 5px 5px, 5px 5px !important;
-    background-repeat: no-repeat !important;
-    background-color: #141a25 !important;
-    height: auto !important;
-    min-height: 30px;
-    line-height: normal !important;
-    padding: 6px 28px 6px 9px !important;
-  }
-  /* Buttons keep the plugin's own layout (height/line-height/padding) and only
-     borrow the app's colour and border treatment. */
-  button {
-    background: #141a25 !important;
-    border: 1px solid #2a3342 !important;
-    border-radius: 8px !important;
-    color: #e8ecf4 !important;
-    font-family: inherit !important;
-    font-size: 12px !important;
-  }
-  input[type="checkbox"], input[type="radio"] { accent-color: #4f8cff !important; width: 14px; height: 14px; }
-  input:focus, select:focus, textarea:focus { outline: none !important; border-color: #4f8cff !important; }
-  label { color: #e8ecf4 !important; }
-  a { color: #6ea8ff !important; }
-  ::-webkit-scrollbar { width: 12px; height: 12px; }
-  ::-webkit-scrollbar-track {
-    background: rgba(255, 255, 255, 0.035) !important;
-    border-radius: 8px !important;
-  }
-  ::-webkit-scrollbar-thumb {
-    background: rgba(255, 255, 255, 0.24) !important;
-    border: 2px solid transparent !important;
-    background-clip: content-box !important;
-    border-radius: 8px !important;
-  }
-  ::-webkit-scrollbar-thumb:hover { background: rgba(255, 255, 255, 0.38) !important; background-clip: content-box !important; }
-  ::-webkit-scrollbar-thumb:active { background: rgba(255, 255, 255, 0.5) !important; background-clip: content-box !important; }
-  ::-webkit-scrollbar-corner { background: transparent !important; }
-</style>
-<script>
-  (function () {
-    function report() {
-      try {
-        var vh = window.innerHeight;
-        function visible(el) {
-          var style = getComputedStyle(el);
-          return style.display !== 'none' && style.visibility !== 'hidden' && Number(style.opacity) !== 0;
-        }
-        // Full-height wrappers (.udpi-wrapper is height:100%) would report the
-        // frame's own height and grow it forever; measure their children instead.
-        function measure(el) {
-          if (!visible(el)) return 0;
-          var r = el.getBoundingClientRect();
-          if (r.height >= vh - 2 && el.children.length) {
-            var max = 0;
-            for (var i = 0; i < el.children.length; i++) max = Math.max(max, measure(el.children[i]));
-            return max;
-          }
-          return r.bottom;
-        }
-        var h = 0;
-        for (var i = 0; i < document.body.children.length; i++) {
-          h = Math.max(h, measure(document.body.children[i]));
-        }
-        parent.postMessage({ type: 'ulanzi-pi-height', height: Math.ceil(h + 8) }, '*');
-      } catch (e) {}
-    }
-    window.addEventListener('load', report);
-    setTimeout(report, 250);
-    setTimeout(report, 800);
-    if (window.ResizeObserver) new ResizeObserver(report).observe(document.body);
-    window.addEventListener('resize', report);
-  })();
-</script>`;
 
 function injectPiTheme(html) {
-  if (/<\/body>/i.test(html)) return html.replace(/<\/body>/i, `${PI_THEME}</body>`);
-  return html + PI_THEME;
+  const theme = PI_THEME + buildPiBridge({});
+  if (/<\/body>/i.test(html)) return html.replace(/<\/body>/i, `${theme}</body>`);
+  return html + theme;
+}
+/** Inject the Stream Deck/OpenAction inspector bridge and theme into a page. */
+function injectSdBridge(html, url) {
+  const actionid = url.searchParams.get('actionid') || '';
+  const connect = sdPlugins?.inspectorConnect(actionid) || null;
+  const theme = SD_PI_THEME + buildPiBridge({ connect, openLinks: true });
+  return /<\/body>/i.test(html) ? html.replace(/<\/body>/i, `${theme}</body>`) : html + theme;
 }
 
 app.whenReady().then(() => {
@@ -931,141 +548,57 @@ app.whenReady().then(() => {
     appVersion: app.getVersion(),
   });
   initDeck();
-  initPlugins();
-  initSdPlugins();
+  ({ plugins, sdPlugins } = initPluginHosts({
+    baseDir: process.env.ULANZI_CONFIG_DIR || app.getPath('userData'),
+    appVersion: app.getVersion(),
+    send,
+    getWin: () => win,
+    getStore: () => store,
+    getDeck: () => deck,
+  }));
   startHidSeize();
-  protocol.handle('ulanzi-pi', async (request) => {
-    try {
-      const url = new URL(request.url);
-      const parts = url.pathname.split('/').filter(Boolean);
-      const folder = decodeURIComponent(parts[0] || '');
-      const rel = parts.slice(1).map(decodeURIComponent).join('/');
-      const meta = [...(plugins?.plugins?.values() || [])].find((m) => path.basename(m.dir) === folder);
-      if (!meta) return new Response('not found', { status: 404 });
-      const file = path.join(meta.dir, rel);
-      if (path.relative(meta.dir, file).startsWith('..')) return new Response('forbidden', { status: 403 });
-      const ext = path.extname(file).toLowerCase();
-      let body = fs.readFileSync(file);
-      if (ext === '.html' || ext === '.htm') {
-        body = Buffer.from(injectPiTheme(body.toString('utf8')), 'utf8');
-      }
-      const type =
-        ext === '.js' ? 'text/javascript' :
-        ext === '.css' ? 'text/css' :
-        ext === '.json' ? 'application/json' :
-        ext === '.svg' ? 'image/svg+xml' :
-        ext === '.png' ? 'image/png' :
-        ext === '.jpg' || ext === '.jpeg' ? 'image/jpeg' :
-        ext === '.woff2' ? 'font/woff2' :
-        ext === '.woff' ? 'font/woff' :
-        ext === '.html' || ext === '.htm' ? 'text/html' : 'application/octet-stream';
-      return new Response(body, { headers: { 'content-type': type } });
-    } catch (err) {
-      return new Response(String(err.message || err), { status: 500 });
-    }
+  registerIpc({
+    store,
+    deck,
+    plugins,
+    sdPlugins,
+    sdCatalog,
+    market,
+    send,
+    devRun,
+    checkForUpdates,
+    scheduleUpdateCheck,
+    allPluginList,
+    syncAllPlugins,
+    runPlugin,
+    setPluginSettings,
+    pluginInspectorUrl,
+    findPluginOwner,
+    getWin: () => win,
+    getUpdateState: () => updateState,
+    getSeizeState: () => seizeState,
   });
+  protocol.handle(
+    'ulanzi-pi',
+    createPluginProtocol({
+      getPluginDir: (folder) => {
+        const meta = [...(plugins?.plugins?.values() || [])].find((m) => path.basename(m.dir) === folder);
+        return meta ? meta.dir : null;
+      },
+      transformHtml: (html) => injectPiTheme(html),
+    })
+  );
 
-  protocol.handle('sd-pi', async (request) => {
-    try {
-      const url = new URL(request.url);
-      const parts = url.pathname.split('/').filter(Boolean);
-      const folder = decodeURIComponent(parts[0] || '');
-      const rel = parts.slice(1).map(decodeURIComponent).join('/');
-      const meta = [...(sdPlugins?.plugins?.values() || [])].find((m) => path.basename(m.dir) === folder);
-      if (!meta) return new Response('not found', { status: 404 });
-      const file = path.join(meta.dir, rel);
-      if (path.relative(meta.dir, file).startsWith('..')) return new Response('forbidden', { status: 403 });
-      const ext = path.extname(file).toLowerCase();
-      let body = fs.readFileSync(file);
-      if (ext === '.html' || ext === '.htm') {
-        const actionid = url.searchParams.get('actionid') || '';
-        const connect = sdPlugins?.inspectorConnect(actionid);
-        // Escape "<" so a setting containing "</script>" cannot close the tag.
-        const payload = connect ? JSON.stringify(connect).replace(/</g, '\\u003c') : 'null';
-        const bridge = `${SD_PI_THEME}<script>(function(){
-          const payload = ${payload};
-          function connect() {
-            if (!payload) {
-              // The action was not registered when this page was served (for
-              // example a plugin action that is still being synced). Reload
-              // with a fresh payload instead of staying disconnected forever.
-              const params = new URLSearchParams(location.search);
-              const attempt = Number(params.get('attempt') || 0);
-              if (attempt < 12) {
-                params.set('attempt', String(attempt + 1));
-                setTimeout(() => { location.href = location.pathname + '?' + params.toString(); }, 250);
-              }
-              return true;
-            }
-            try {
-              if (typeof connectOpenActionSocket === 'function') { connectOpenActionSocket(...payload); return true; }
-              if (typeof connectElgatoStreamDeckSocket === 'function') { connectElgatoStreamDeckSocket(...payload); return true; }
-            } catch (err) { console.error(err); return true; }
-            return false;
-          }
-          if (!connect()) {
-            let n = 0;
-            const timer = setInterval(() => { if (connect() || ++n > 100) clearInterval(timer); }, 50);
-          }
-          const sdOpen = window.open;
-          window.open = (url, target) => {
-            if (target === '_self' || target === '_top') return sdOpen.call(window, url, target);
-            try {
-              const absolute = new URL(url, window.location.href).href;
-              parent.postMessage({ type: 'sd-pi-open', url: absolute }, '*');
-            } catch (e) {}
-            return null;
-          };
-          function report() {
-            try {
-              const visible = (el) => {
-                const style = getComputedStyle(el);
-                return style.display !== 'none' && style.visibility !== 'hidden' && Number(style.opacity) !== 0;
-              };
-              const vh = window.innerHeight;
-              let h = 0;
-              for (const el of document.body.children) {
-                if (!visible(el)) continue;
-                const rect = el.getBoundingClientRect();
-                if (rect.height >= vh - 2) {
-                  // A full-height wrapper would otherwise report the iframe's
-                  // own height and grow without bound; measure its children.
-                  for (const child of el.children) {
-                    if (!visible(child)) continue;
-                    h = Math.max(h, child.getBoundingClientRect().bottom);
-                  }
-                } else {
-                  h = Math.max(h, rect.bottom);
-                }
-              }
-              parent.postMessage({ type: 'ulanzi-pi-height', height: Math.ceil(h + 8) }, '*');
-            } catch (e) {}
-          }
-          window.addEventListener('load', report);
-          setTimeout(report, 250);
-          setTimeout(report, 800);
-          if (window.ResizeObserver) new ResizeObserver(report).observe(document.body);
-          window.addEventListener('resize', report);
-        })();</script>`;
-        const html = body.toString('utf8');
-        body = Buffer.from(/<\/body>/i.test(html) ? html.replace(/<\/body>/i, `${bridge}</body>`) : html + bridge, 'utf8');
-      }
-      const type =
-        ext === '.js' ? 'text/javascript' :
-        ext === '.mjs' || ext === '.cjs' ? 'text/javascript' :
-        ext === '.css' ? 'text/css' :
-        ext === '.json' ? 'application/json' :
-        ext === '.svg' ? 'image/svg+xml' :
-        ext === '.png' ? 'image/png' :
-        ext === '.jpg' || ext === '.jpeg' ? 'image/jpeg' :
-        ext === '.woff2' ? 'font/woff2' :
-        ext === '.woff' ? 'font/woff' :
-        ext === '.html' || ext === '.htm' ? 'text/html' : 'application/octet-stream';
-      return new Response(body, { headers: { 'content-type': type } });
-    } catch (err) {
-      return new Response(String(err.message || err), { status: 500 });
-    }
-  });
+  protocol.handle(
+    'sd-pi',
+    createPluginProtocol({
+      getPluginDir: (folder) => {
+        const meta = [...(sdPlugins?.plugins?.values() || [])].find((m) => path.basename(m.dir) === folder);
+        return meta ? meta.dir : null;
+      },
+      transformHtml: (html, url) => injectSdBridge(html, url),
+    })
+  );
 
   createWindow();
   buildMenu();
@@ -1127,883 +660,3 @@ app.on('will-quit', (event) => {
     finish();
   });
 });
-
-// ---------------------------------------------------------------- IPC
-
-handle('app:state', () => ({
-  config: store.config,
-  status: deck.status(),
-  seize: seizeState,
-  recovery: store.takeRecovery(),
-  platform: process.platform,
-  version: app.getVersion(),
-}));
-
-handle('config:save', (_evt, config) => {
-  store.save(config);
-  return { ok: true };
-});
-
-handle('deck:push', async (_evt, images, wideMode) => {
-  if (!deck.connected) return { ok: false, error: 'not connected' };
-  try {
-    const zip = await buildPage(images, wideMode);
-    deck.pushPage(zip);
-    deck.setWideMode(wideMode);
-    console.log(`[deck] pushed page: ${images.length} keys, ${(zip.length / 1024).toFixed(1)} KB`);
-    return { ok: true, bytes: zip.length };
-  } catch (err) {
-    return { ok: false, error: err.message || String(err) };
-  }
-});
-
-handle('system:stats', () =>
-  new Promise((resolve) => sysstats.sample(resolve))
-);
-
-handle('deck:wide-mode', (_evt, mode) => {
-  if (!deck.connected) return { ok: false, error: 'not connected' };
-  try {
-    deck.setWideMode(mode);
-    return { ok: true };
-  } catch (err) {
-    return { ok: false, error: err.message || String(err) };
-  }
-});
-
-handle('deck:brightness', (_evt, level) => {
-  try {
-    deck.setBrightness(level);
-    return { ok: true };
-  } catch (err) {
-    return { ok: false, error: err.message || String(err) };
-  }
-});
-
-handle('deck:sleep', (_evt, seconds) => {
-  try {
-    deck.setSleepTime(seconds);
-    return { ok: true };
-  } catch (err) {
-    return { ok: false, error: err.message || String(err) };
-  }
-});
-
-handle('deck:reconnect', () => {
-  deck.disconnect('Reconnecting');
-  return { ok: deck.connect(), status: deck.status() };
-});
-
-handle('app:open-external', (event, url) => {
-  const target = String(url || '');
-  if (!/^https?:|^mailto:/i.test(target)) return { ok: false, error: 'Unsupported URL' };
-  shell.openExternal(target);
-  return { ok: true };
-});
-
-handle('app:check-updates', () => checkForUpdates());
-handle('app:update-state', () => ({ ok: true, ...updateState }));
-handle('app:update-settings-changed', () => {
-  scheduleUpdateCheck(5_000);
-  return { ok: true };
-});
-
-handle('app:accessibility', () => ({
-  trusted: systemPreferences.isTrustedAccessibilityClient(false),
-}));
-
-handle('app:request-accessibility', () => {
-  const trusted = systemPreferences.isTrustedAccessibilityClient(true);
-  // Always surface the pane: users press "Grant…" to inspect or change the
-  // permission, even when it is currently granted.
-  shell.openExternal('x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility');
-  return { trusted };
-});
-
-handle(
-  'action:run',
-  async (_evt, action) => actions.execute(action)
-);
-
-// ------------------------------------------------------------- store
-
-handle('store:session', () => market.session());
-
-handle('store:login', async (_evt, userName, password) => {
-  try {
-    return { ok: true, ...(await market.login(String(userName || ''), String(password || ''))) };
-  } catch (err) {
-    return { ok: false, error: err.message || String(err) };
-  }
-});
-
-handle('store:logout', () => {
-  market.logout();
-  return { ok: true };
-});
-
-handle('store:categories', async () => {
-  try {
-    return { ok: true, categories: await market.categories() };
-  } catch (err) {
-    return { ok: false, error: err.message || String(err) };
-  }
-});
-
-handle('store:list', async (_evt, query) => {
-  try {
-    return { ok: true, ...(await market.list(query || {})) };
-  } catch (err) {
-    return { ok: false, error: err.message || String(err) };
-  }
-});
-
-handle('store:check-file', async (_evt, id) => {
-  try {
-    const resource = await market.resource(String(id));
-    return { ok: true, ...(await market.checkFile(resource.files)) };
-  } catch (err) {
-    return { ok: false, error: err.message || String(err) };
-  }
-});
-
-handle('store:resource', async (_evt, id) => {
-  try {
-    return { ok: true, resource: await market.resource(String(id)) };
-  } catch (err) {
-    return { ok: false, error: err.message || String(err) };
-  }
-});
-
-const ICON_EXT = new Set(['.png', '.jpg', '.jpeg', '.svg', '.webp', '.gif']);
-
-function iconsRoot() {
-  return path.join(process.env.ULANZI_CONFIG_DIR || app.getPath('userData'), 'Icons');
-}
-
-function officialIconsRoot() {
-  return path.join(os.homedir(), 'Library/Application Support/Ulanzi/UlanziDeck/Icons');
-}
-
-/**
- * "app:<dir>" for packs managed here, "ulanzi:<dir>" for Ulanzi Studio's packs.
- * Returns null unless the id names a direct child of one of those roots.
- */
-function packDir(id) {
-  const parsed = parsePackId(id);
-  if (!parsed) return null;
-  return childDir(parsed.scope === 'ulanzi' ? officialIconsRoot() : iconsRoot(), parsed.name);
-}
-
-function walkFiles(dir) {
-  const out = [];
-  for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
-    const full = path.join(dir, entry.name);
-    if (entry.isDirectory()) out.push(...walkFiles(full));
-    else out.push(full);
-  }
-  return out;
-}
-
-handle('store:install-icons', async (_evt, id) => {
-  const tempZip = path.join(os.tmpdir(), `ulanzi-icons-${Date.now()}.zip`);
-  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'ulanzi-icons-'));
-  try {
-    const resource = await market.resource(String(id));
-    if (!resource.files) throw new Error('This icon pack has no downloadable file');
-    await market.download(resource.files, tempZip);
-    execFileSync('unzip', ['-oq', tempZip, '-d', tempDir], { stdio: ['ignore', 'ignore', 'pipe'] });
-
-    const slugify = (value) =>
-      String(value || '')
-        .replace(/[^a-z0-9]+/gi, '-')
-        .replace(/^-|-$/g, '')
-        .toLowerCase();
-    const slug = `${slugify(resource.name) || 'icons'}-${slugify(id) || 'pack'}`;
-    const dest = path.join(iconsRoot(), slug);
-    if (path.dirname(dest) !== iconsRoot()) throw new Error('Invalid icon pack name');
-    fs.rmSync(dest, { recursive: true, force: true });
-    fs.mkdirSync(dest, { recursive: true });
-
-    const images = walkFiles(tempDir).filter((file) => ICON_EXT.has(path.extname(file).toLowerCase()));
-    let count = 0;
-    for (const file of images) {
-      let name = path.basename(file);
-      let target = path.join(dest, name);
-      let n = 1;
-      while (fs.existsSync(target)) {
-        target = path.join(dest, `${path.basename(name, path.extname(name))}-${n++}${path.extname(name)}`);
-      }
-      fs.copyFileSync(file, target);
-      count += 1;
-    }
-    fs.writeFileSync(
-      path.join(dest, 'pack.json'),
-      JSON.stringify({ name: resource.name, author: resource.author, id: String(id), icon: resource.icon }, null, 2)
-    );
-    return { ok: true, pack: { id: slug, name: resource.name, count } };
-  } catch (err) {
-    return { ok: false, error: err.message || String(err) };
-  } finally {
-    try { fs.rmSync(tempZip, { force: true }); } catch { /* ignore */ }
-    try { fs.rmSync(tempDir, { recursive: true, force: true }); } catch { /* ignore */ }
-  }
-});
-
-handle('icons:list', () => {
-  const packs = [];
-  for (const [scope, root] of [['app', iconsRoot()], ['ulanzi', officialIconsRoot()]]) {
-    if (!fs.existsSync(root)) continue;
-    for (const entry of fs.readdirSync(root, { withFileTypes: true })) {
-      if (!entry.isDirectory()) continue;
-      const dir = path.join(root, entry.name);
-      let meta = {};
-      try {
-        meta = JSON.parse(fs.readFileSync(path.join(dir, 'pack.json'), 'utf8'));
-      } catch {
-        /* no metadata */
-      }
-      let files = [];
-      try {
-        files = fs
-          .readdirSync(dir)
-          .filter((f) => !f.startsWith('.')) // hide macOS AppleDouble/resource forks
-          .filter((f) => ICON_EXT.has(path.extname(f).toLowerCase()));
-      } catch {
-        continue;
-      }
-      if (!files.length) continue;
-      packs.push({
-        id: `${scope}:${entry.name}`,
-        name: meta.name || entry.name,
-        icon: meta.icon || null,
-        files,
-        source: scope,
-        readOnly: scope === 'ulanzi',
-      });
-    }
-  }
-  return packs;
-});
-
-handle('icons:read', (_evt, pack, file) => {
-  try {
-    const dir = packDir(pack);
-    if (!dir) return null;
-    const target = path.join(dir, path.basename(String(file)));
-    if (path.dirname(target) !== dir || !fs.existsSync(target)) return null;
-    const ext = path.extname(target).toLowerCase();
-    const mime =
-      ext === '.svg' ? 'image/svg+xml' :
-      ext === '.jpg' || ext === '.jpeg' ? 'image/jpeg' :
-      ext === '.webp' ? 'image/webp' :
-      ext === '.gif' ? 'image/gif' : 'image/png';
-    return `data:${mime};base64,${fs.readFileSync(target).toString('base64')}`;
-  } catch {
-    return null;
-  }
-});
-
-handle('icons:open-folder', () => {
-  fs.mkdirSync(iconsRoot(), { recursive: true });
-  shell.openPath(iconsRoot());
-  return { ok: true };
-});
-
-handle('icons:remove', (_evt, pack) => {
-  const id = String(pack);
-  if (!id.startsWith('app:')) {
-    return { ok: false, error: 'Icon packs installed by Ulanzi Studio are read-only' };
-  }
-  const dir = packDir(id);
-  if (!dir) return { ok: false, error: 'Unknown icon pack' };
-  fs.rmSync(dir, { recursive: true, force: true });
-  return { ok: true };
-});
-
-handle('store:install', async (_evt, id) => {
-  const temp = path.join(os.tmpdir(), `ulanzi-store-${Date.now()}.zip`);
-  try {
-    const resource = await market.resource(String(id));
-    if (!resource.files) throw new Error('This store item has no downloadable file');
-    await market.download(resource.files, temp);
-    const out = plugins.install(temp);
-    send('plugins:changed');
-    return { ok: true, ...out, list: allPluginList() };
-  } catch (err) {
-    return { ok: false, error: err.message || String(err) };
-  } finally {
-    try { fs.rmSync(temp, { force: true }); } catch { /* ignore */ }
-  }
-});
-
-handle('sdstore:list', (event) => {
-  return sdCatalog.list();
-});
-
-handle('sdstore:updates', (event, installed) => {
-  return sdCatalog.updates(installed || []);
-});
-
-handle('sdstore:install', async (event, id) => {
-  if (!sdPlugins) return { ok: false, error: 'Plugin host is not ready' };
-  const temp = path.join(os.tmpdir(), `ulanzi-sdstore-${Date.now()}.zip`);
-  try {
-    const resolved = await sdCatalog.resolve(String(id));
-    await downloadPluginPackage(resolved.url, temp);
-    const out = sdPlugins.install(temp);
-    send('plugins:changed');
-    return { ok: true, ...out, version: resolved.version, list: allPluginList() };
-  } catch (err) {
-    return { ok: false, error: err.message || String(err) };
-  } finally {
-    try { fs.rmSync(temp, { force: true }); } catch { /* ignore */ }
-  }
-});
-
-handle('plugins:list', () => allPluginList());
-
-handle('plugins:sync', (_evt, wanted) => {
-  syncAllPlugins(wanted);
-  return { ok: true };
-});
-
-handle('plugins:run', (_evt, actionid) => ({ ok: runPlugin(String(actionid)) }));
-
-handle('plugins:restart', (_evt, uuid) => {
-  const id = String(uuid);
-  const owner = findPluginOwner(id);
-  if (!owner) return { ok: false, error: 'Plugin not found' };
-  owner.restart(id);
-  return { ok: true };
-});
-
-handle('plugins:key', (_evt, actionid, pressed) => ({
-  ok: Boolean(sdPlugins?.key(String(actionid), Boolean(pressed))),
-}));
-
-handle('plugins:install-rosetta', () => {
-  const command = 'softwareupdate --install-rosetta --agree-to-license';
-  try {
-    spawn(
-      'osascript',
-      ['-e', `tell application "Terminal" to do script "${command}"`, '-e', 'tell application "Terminal" to activate'],
-      { detached: true, stdio: 'ignore' }
-    ).unref();
-    return { ok: true };
-  } catch (err) {
-    return { ok: false, error: err.message || String(err) };
-  }
-});
-
-function looksLikeStreamDeckPlugin(source) {
-  try {
-    if (fs.statSync(source).isDirectory()) {
-      if (source.endsWith('.sdPlugin')) return true;
-      const walk = (dir, depth = 0) => {
-        if (depth > 2) return false;
-        for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
-          if (!entry.isDirectory()) continue;
-          if (entry.name.endsWith('.sdPlugin')) return true;
-          if (walk(path.join(dir, entry.name), depth + 1)) return true;
-        }
-        return false;
-      };
-      if (walk(source)) return true;
-      try {
-        const manifest = JSON.parse(fs.readFileSync(path.join(source, 'manifest.json'), 'utf8').replace(/^\uFEFF/, ''));
-        return !manifest.UUID && Boolean(manifest.CodePathMac || manifest.CodePath || manifest.CodePaths || manifest.OS);
-      } catch {
-        return false;
-      }
-    }
-    const listing = execFileSync('unzip', ['-Z1', source], { encoding: 'utf8' });
-    if (/(^|\/)[^/]+\.sdPlugin(\/|$)/m.test(listing)) return true;
-    if (/(^|\/)[^/]+\.ulanziPlugin(\/|$)/m.test(listing)) return false;
-    try {
-      const raw = execFileSync('unzip', ['-p', source, 'manifest.json'], { encoding: 'utf8' }).replace(/^\uFEFF/, '');
-      const manifest = JSON.parse(raw);
-      return !manifest.UUID && Boolean(manifest.CodePathMac || manifest.CodePath || manifest.CodePaths || manifest.OS);
-    } catch {
-      return false;
-    }
-  } catch {
-    return false;
-  }
-}
-
-async function confirmPluginInstall() {
-  const { response } = await dialog.showMessageBox(win, {
-    type: 'warning',
-    buttons: ['Cancel', 'Install'],
-    defaultId: 0,
-    cancelId: 0,
-    message: 'Install this plugin?',
-    detail:
-      'Plugins run on your Mac with your user permissions, outside the app sandbox. Only install plugins you trust.',
-  });
-  return response === 1;
-}
-
-function installAnyPlugin(source) {
-  const manager = looksLikeStreamDeckPlugin(source) ? sdPlugins : plugins;
-  const out = manager.install(source);
-  return { ...out, sdk: manager === sdPlugins ? 'streamdeck' : 'ulanzi', list: allPluginList() };
-}
-
-handle('plugins:install-folder', async () => {
-  const res = await dialog.showOpenDialog(win, {
-    title: 'Select a plugin folder (.ulanziPlugin or .sdPlugin)',
-    properties: ['openDirectory'],
-  });
-  if (res.canceled || res.filePaths.length === 0) return { canceled: true };
-  if (!(await confirmPluginInstall())) return { ok: false, canceled: true };
-  try {
-    const out = installAnyPlugin(res.filePaths[0]);
-    send('plugins:changed');
-    return { ok: true, ...out };
-  } catch (err) {
-    return { ok: false, error: err.message || String(err) };
-  }
-});
-
-handle('plugins:install-zip', async () => {
-  const res = await dialog.showOpenDialog(win, {
-    title: 'Select a plugin ZIP',
-    properties: ['openFile'],
-    filters: [{ name: 'Plugin package', extensions: ['zip', 'streamdeckplugin'] }],
-  });
-  if (res.canceled || res.filePaths.length === 0) return { canceled: true };
-  if (!(await confirmPluginInstall())) return { ok: false, canceled: true };
-  try {
-    const out = installAnyPlugin(res.filePaths[0]);
-    send('plugins:changed');
-    return { ok: true, ...out };
-  } catch (err) {
-    return { ok: false, error: err.message || String(err) };
-  }
-});
-
-handle('plugins:inspector-url', (_evt, payload) => pluginInspectorUrl(payload || {}));
-
-handle('plugins:set-settings', (_evt, actionid, settings) => ({
-  ok: setPluginSettings(String(actionid), settings || {}),
-}));
-
-handle('plugins:reload', () => {
-  plugins?.reload();
-  sdPlugins?.reload();
-  const list = allPluginList();
-  send('plugins:changed');
-  return { ok: true, list };
-});
-
-handle('plugins:import', (_evt, uuid) => {
-  try {
-    const manager = findPluginOwner(String(uuid)) || plugins;
-    const out = manager.import(String(uuid));
-    send('plugins:changed');
-    return { ok: true, ...out, list: allPluginList() };
-  } catch (err) {
-    return { ok: false, error: err.message || String(err) };
-  }
-});
-
-handle('plugins:remove', (_evt, uuid) => {
-  try {
-    const manager = findPluginOwner(String(uuid)) || plugins;
-    manager.remove(String(uuid));
-    send('plugins:changed');
-    return { ok: true, list: allPluginList() };
-  } catch (err) {
-    return { ok: false, error: err.message || String(err) };
-  }
-});
-
-handle('plugins:open-folder', () => {
-  fs.mkdirSync(plugins.appPluginsDir, { recursive: true });
-  shell.openPath(plugins.appPluginsDir);
-  return { ok: true };
-});
-
-handle('plugins:open-sd-folder', () => {
-  fs.mkdirSync(sdPlugins.appPluginsDir, { recursive: true });
-  shell.openPath(sdPlugins.appPluginsDir);
-  return { ok: true };
-});
-
-handle('plugins:open-log', () => {
-  const file = path.join(process.env.ULANZI_CONFIG_DIR || app.getPath('userData'), 'streamdeck.log');
-  try {
-    if (!fs.existsSync(file)) fs.writeFileSync(file, '');
-  } catch { /* ignore */ }
-  shell.openPath(file);
-  return { ok: true, file };
-});
-
-handle('plugins:reveal', (_evt, uuid) => {
-  const owner = findPluginOwner(String(uuid));
-  const meta = owner?.plugins.get(String(uuid));
-  if (!meta) return { ok: false };
-  shell.showItemInFolder(meta.dir);
-  return { ok: true };
-});
-
-// ---------------------------------------------------------------- import
-
-function readImportTarget(target) {
-  return importUlanzi.previewProfile(target);
-}
-
-handle('import:scan', () => {
-  try {
-    return { ok: true, profiles: importUlanzi.listProfiles() };
-  } catch (err) {
-    return { ok: false, error: err.message || String(err) };
-  }
-});
-
-handle('import:pick', async () => {
-  const res = await dialog.showOpenDialog(win, {
-    title: 'Choose a Ulanzi profile',
-    properties: ['openFile'],
-    filters: [{ name: 'Ulanzi profile', extensions: ['ulanziDeckProfile', 'zip', 'ulanziDeckProfilePack'] }],
-  });
-  if (res.canceled || !res.filePaths.length) return { canceled: true };
-  try {
-    const { profiles, cleanup } = readImportTarget(res.filePaths[0]);
-    if (cleanup) fs.rmSync(cleanup, { recursive: true, force: true });
-    return { ok: true, file: res.filePaths[0], profiles: profiles.map((p) => ({ ...p, path: res.filePaths[0] })) };
-  } catch (err) {
-    return { ok: false, error: err.message || String(err) };
-  }
-});
-
-handle('import:preview', (_evt, target) => {
-  try {
-    const { profiles, cleanup } = readImportTarget(String(target));
-    if (cleanup) fs.rmSync(cleanup, { recursive: true, force: true });
-    return { ok: true, profiles };
-  } catch (err) {
-    return { ok: false, error: err.message || String(err) };
-  }
-});
-
-handle('import:apply', (_evt, payload) => {
-  const { target, pageIds } = payload || {};
-  let cleanup = null;
-  try {
-    const { profiles, cleanup: temp } = readImportTarget(String(target));
-    cleanup = temp;
-    const profile = profiles[0];
-    if (!profile) throw new Error('No pages found in this profile');
-    const wanted = new Set((pageIds || profile.pages.map((p) => p.id)).map(String));
-    const incoming = profile.pages.filter((p) => wanted.has(p.id)).map((p) => JSON.parse(JSON.stringify(p)));
-    if (!incoming.length) throw new Error('Select at least one page to import');
-
-    const mode = ['new', 'merge', 'replace'].includes(payload.mode) ? payload.mode : 'new';
-    if (!Array.isArray(store.config.profiles)) store.config.profiles = [];
-    const activeProfile =
-      store.config.profiles.find((p) => p.id === store.config.activeProfileId) || store.config.profiles[0];
-    if (!activeProfile) throw new Error('No profile to import into');
-
-    // Replacing a profile keeps the profile itself (and its pinned keys); only
-    // its pages are replaced. Creating a new profile leaves everything alone.
-    if (mode === 'replace') {
-      store.config.pages = store.config.pages.filter((p) => p.profileId !== activeProfile.id);
-    }
-
-    const usedIds = new Set(store.config.pages.map((p) => p.id));
-    const idMap = new Map();
-    for (const page of incoming) {
-      if (usedIds.has(page.id)) {
-        const next = randomUUID();
-        idMap.set(page.id, next);
-        page.id = next;
-      } else {
-        idMap.set(page.id, page.id);
-      }
-      usedIds.add(page.id);
-    }
-
-    const remapAction = (action) => {
-      if (!action || typeof action !== 'object') return action;
-      if (action.type === 'page' && action.op === 'goto' && idMap.has(action.value)) {
-        action.value = idMap.get(action.value);
-      }
-      if (Array.isArray(action.steps)) {
-        for (const step of action.steps) if (step?.action) step.action = remapAction(step.action);
-      }
-      return action;
-    };
-    for (const page of incoming) {
-      if (page.parentId) {
-        if (idMap.has(page.parentId)) page.parentId = idMap.get(page.parentId);
-        else delete page.parentId;
-      }
-      for (const key of Object.values(page.keys || {})) {
-        for (const field of ['action', 'holdAction', 'doubleAction']) {
-          if (key[field]) remapAction(key[field]);
-        }
-      }
-    }
-
-    let targetProfile;
-    let profileName;
-    if (mode === 'new') {
-      const takenProfiles = new Set(store.config.profiles.map((p) => String(p.name).toLowerCase()));
-      profileName = profile.name || 'Imported profile';
-      for (let i = 2; takenProfiles.has(profileName.toLowerCase()); i += 1) {
-        profileName = `${profile.name || 'Imported profile'} (${i})`;
-      }
-      targetProfile = { id: randomUUID(), name: profileName };
-      store.config.profiles.push(targetProfile);
-    } else {
-      targetProfile = activeProfile;
-      profileName = activeProfile.name;
-    }
-
-    const takenPages = new Set(
-      store.config.pages.filter((p) => p.profileId === targetProfile.id).map((p) => p.name.toLowerCase())
-    );
-    for (const page of incoming) {
-      const base = page.name || 'Page';
-      let name = base;
-      for (let i = 2; takenPages.has(name.toLowerCase()); i += 1) name = `${base} (${i})`;
-      page.name = name;
-      page.profileId = targetProfile.id;
-      takenPages.add(name.toLowerCase());
-    }
-
-    store.config.pages.push(...incoming);
-    store.config.activeProfileId = targetProfile.id;
-    store.config.activePageId = incoming[0].id;
-    store.save(store.config);
-
-    return {
-      ok: true,
-      mode,
-      profileName,
-      importedProfiles: mode === 'new' ? 1 : 0,
-      importedPages: incoming.length,
-      importedKeys: incoming.reduce((sum, p) => sum + Object.keys(p.keys || {}).length, 0),
-      skipped: profile.report.skipped,
-      unmapped: profile.report.unmapped,
-      missingPlugins: [...new Set(profile.report.missingPlugins)],
-      warnings: profile.report.warnings,
-    };
-  } catch (err) {
-    return { ok: false, error: err.message || String(err) };
-  } finally {
-    if (cleanup) fs.rmSync(cleanup, { recursive: true, force: true });
-  }
-});
-
-handle('dialog:pick-audio', async () => {
-  const res = await dialog.showOpenDialog(win, {
-    title: 'Choose an audio file',
-    properties: ['openFile'],
-    filters: [{ name: 'Audio', extensions: ['mp3', 'wav', 'm4a', 'aiff', 'aif', 'ogg', 'flac'] }],
-  });
-  if (res.canceled || !res.filePaths.length) return null;
-  return res.filePaths[0];
-});
-
-handle('dialog:pick-image', async () => {
-  const res = await dialog.showOpenDialog(win, {
-    title: 'Choose a key image',
-    properties: ['openFile'],
-    filters: [{ name: 'Images', extensions: ['png', 'jpg', 'jpeg', 'webp', 'gif', 'svg'] }],
-  });
-  if (res.canceled || res.filePaths.length === 0) return { canceled: true };
-  try {
-    const file = res.filePaths[0];
-    const ext = path.extname(file).toLowerCase().replace('.', '');
-    const mime = ext === 'svg' ? 'image/svg+xml' : ext === 'jpg' ? 'image/jpeg' : `image/${ext}`;
-    const data = fs.readFileSync(file);
-    return { ok: true, data: `data:${mime};base64,${data.toString('base64')}` };
-  } catch (err) {
-    return { ok: false, error: err.message || String(err) };
-  }
-});
-
-const execFileAsync = (file, args, options) =>
-  new Promise((resolve, reject) => {
-    execFile(file, args, options, (err, stdout) => (err ? reject(err) : resolve(stdout)));
-  });
-
-let frontmostCache = { at: 0, value: null, pending: null };
-
-/**
- * Non-blocking frontmost-app lookup. The renderer polls this every few seconds,
- * so spawning `lsappinfo` synchronously here would stutter the whole UI.
- */
-function frontmostApp() {
-  if (Date.now() - frontmostCache.at < 1000) return Promise.resolve(frontmostCache.value);
-  if (frontmostCache.pending) return frontmostCache.pending;
-  frontmostCache.pending = (async () => {
-    try {
-      const asn = (await execFileAsync('lsappinfo', ['front'], { encoding: 'utf8' }))
-        .trim()
-        .replace(/:$/, '');
-      if (!asn) return null;
-      const info = await execFileAsync(
-        'lsappinfo',
-        ['info', '-only', 'name', asn, '-only', 'bundleid', asn, '-only', 'bundlepath', asn],
-        { encoding: 'utf8' }
-      );
-      const bundleId = /bundleID="([^"]+)"/.exec(info)?.[1] || '';
-      const appPath = /bundle path="([^"]+)"/.exec(info)?.[1] || '';
-      const name = /^"([^"]+)"/.exec(info.trim())?.[1] || path.basename(appPath, '.app');
-      return { bundleId, name, path: appPath };
-    } catch {
-      return null;
-    } finally {
-      frontmostCache.pending = null;
-    }
-  })();
-  return frontmostCache.pending.then((value) => {
-    frontmostCache = { at: Date.now(), value, pending: null };
-    return value;
-  });
-}
-
-handle('app:login-item', (event, enabled) => {
-  try {
-    if (!devRun) {
-      app.setLoginItemSettings({ openAtLogin: enabled === true, openAsHidden: true });
-    }
-    return { ok: true };
-  } catch (err) {
-    return { ok: false, error: err.message || String(err) };
-  }
-});
-
-handle('profile:export', async (event, payload) => {
-  if (!payload || payload.format !== 'ulanzi-deck-open-profile') {
-    return { ok: false, error: 'invalid profile payload' };
-  }
-  const safe = String(payload.name || 'Profile').replace(/[^A-Za-z0-9 ._-]/g, '').trim() || 'Profile';
-  const result = await dialog.showSaveDialog(win, {
-    title: 'Export profile',
-    defaultPath: path.join(app.getPath('documents'), `${safe}.ulanzideckprofile`),
-    filters: [{ name: 'Ulanzi Deck Open profile', extensions: ['ulanzideckprofile'] }],
-  });
-  if (result.canceled || !result.filePath) return { ok: false, canceled: true };
-  try {
-    fs.writeFileSync(result.filePath, JSON.stringify(payload, null, 2));
-    return { ok: true, path: result.filePath };
-  } catch (err) {
-    return { ok: false, error: err.message || String(err) };
-  }
-});
-
-handle('profile:import', async (event) => {
-  const result = await dialog.showOpenDialog(win, {
-    title: 'Import profile',
-    properties: ['openFile'],
-    filters: [{ name: 'Ulanzi Deck Open profile', extensions: ['ulanzideckprofile', 'json'] }],
-  });
-  if (result.canceled || !result.filePaths.length) return { ok: false, canceled: true };
-  try {
-    const file = result.filePaths[0];
-    if (fs.statSync(file).size > 128 * 1024 * 1024) throw new Error('Profile file is too large (max 128 MB)');
-    const data = JSON.parse(fs.readFileSync(file, 'utf8'));
-    if (!data || data.format !== 'ulanzi-deck-open-profile') throw new Error('Not a Ulanzi Deck Open profile');
-    if (!Array.isArray(data.pages) || !data.pages.length) throw new Error('Profile has no pages');
-    return { ok: true, data, path: file };
-  } catch (err) {
-    return { ok: false, error: err.message || String(err) };
-  }
-});
-
-handle('pop:show', async (event, items) => {
-  if (!Array.isArray(items) || !items.length) return -1;
-  const clean = items.slice(0, 9).map((item) => ({
-    label: String(item?.label || '').slice(0, 60),
-    emoji: String(item?.emoji || '').slice(0, 8),
-  }));
-  if (popWindow) {
-    // A second POP press toggles the open palette closed instead of replacing it.
-    try { popWindow.destroy(); } catch { /* ignore */ }
-    popWindow = null;
-    return -1;
-  }
-  const width = 430;
-  const rows = Math.ceil(clean.length / 3);
-  const height = Math.min(520, Math.max(170, 62 + rows * 84));
-  return new Promise((resolve) => {
-    const win = new BrowserWindow({
-      width,
-      height,
-      show: false,
-      frame: false,
-      transparent: true,
-      resizable: false,
-      movable: false,
-      minimizable: false,
-      maximizable: false,
-      fullscreenable: false,
-      skipTaskbar: true,
-      alwaysOnTop: true,
-      focusable: false,
-      acceptFirstMouse: true,
-      hasShadow: true,
-      backgroundColor: '#00000000',
-      webPreferences: {
-        preload: path.join(__dirname, 'pop-preload.js'),
-        contextIsolation: true,
-        nodeIntegration: false,
-        sandbox: true,
-      },
-    });
-    popWindow = win;
-    let settled = false;
-    const finish = (index) => {
-      if (settled) return;
-      settled = true;
-      ipcMain.removeListener('pop:choice', onChoice);
-      if (popWindow === win) popWindow = null;
-      try { win.destroy(); } catch { /* already gone */ }
-      resolve(Number.isInteger(index) ? index : -1);
-    };
-    const onChoice = (choiceEvent, index) => {
-      if (choiceEvent.sender === win.webContents) finish(index);
-    };
-    ipcMain.on('pop:choice', onChoice);
-    win.on('closed', () => finish(-1));
-    win.webContents.once('did-finish-load', () => win.webContents.send('pop:items', clean));
-    win.once('ready-to-show', () => {
-      const cursor = screen.getCursorScreenPoint();
-      const area = screen.getDisplayNearestPoint(cursor).workArea;
-      const x = Math.max(area.x + 8, Math.min(area.x + area.width - width - 8, Math.round(cursor.x - width / 2)));
-      const y = Math.max(area.y + 8, Math.min(area.y + area.height - height - 8, Math.round(cursor.y - height / 2)));
-      win.setPosition(x, y);
-      win.setAlwaysOnTop(true, 'floating');
-      win.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
-      win.showInactive();
-    });
-    win.loadFile(path.join(__dirname, 'renderer', 'pop.html')).catch(() => finish(-1));
-    setTimeout(() => finish(-1), 15_000);
-  });
-});
-
-handle('apps:frontmost', () => frontmostApp());
-
-handle('apps:list', () => listApps());
-
-handle('apps:icon', async (_evt, appPath) => {
-  if (typeof appPath !== 'string' || !appPath.trim()) return null;
-  const resolved = await resolveAppPath(appPath);
-  return resolved ? appIconDataUrl(resolved) : null;
-});
-
-handle('fetch:site-icon', async (_evt, url) => {
-  try {
-    const icon = await fetchSiteIcon(url);
-    return { ok: true, ...icon };
-  } catch (err) {
-    return { ok: false, error: err.message || String(err) };
-  }
-});
-

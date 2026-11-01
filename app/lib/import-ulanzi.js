@@ -1,5 +1,8 @@
 'use strict';
 
+const { imageByExtension } = require('./mime');
+const { MEDIA_LABELS } = require('./actions-meta');
+
 // Import pages from Ulanzi Studio profiles.
 //
 // Formats handled:
@@ -23,15 +26,6 @@ const MAX_IMAGE_BYTES = 4 * 1024 * 1024;
 const MAX_TOTAL_IMAGE_BYTES = 64 * 1024 * 1024;
 const MAX_PAGES = 200;
 const MAX_ARCHIVE_BYTES = 256 * 1024 * 1024;
-
-const MIME = {
-  '.png': 'image/png',
-  '.jpg': 'image/jpeg',
-  '.jpeg': 'image/jpeg',
-  '.webp': 'image/webp',
-  '.gif': 'image/gif',
-  '.svg': 'image/svg+xml',
-};
 
 // ---------------------------------------------------------------- hotkeys
 
@@ -114,15 +108,6 @@ const MULTIMEDIA = {
   volumn_down: { type: 'media', op: 'volumedown' },
 };
 
-const SYSTEM_MEDIA_LABELS = {
-  playpause: 'Play / pause',
-  next: 'Next track',
-  prev: 'Previous track',
-  mute: 'Mute',
-  volumeup: 'Volume up',
-  volumedown: 'Volume down',
-};
-
 function fontColor(value) {
   if (typeof value === 'number' && Number.isFinite(value)) {
     return `#${(value >>> 0).toString(16).padStart(6, '0').slice(-6)}`;
@@ -174,7 +159,7 @@ function mapAction(entry, pageIds) {
     if (kind === 'multimedia') {
       const key = String(param.Hotkey || '').toLowerCase();
       const mapped = MULTIMEDIA[key];
-      if (mapped) return { action: mapped, label: SYSTEM_MEDIA_LABELS[mapped.op] };
+      if (mapped) return { action: mapped, label: MEDIA_LABELS[mapped.op] };
       return { action: null, label: null, raw: entry };
     }
     return { action: null, label: null, raw: entry };
@@ -263,7 +248,7 @@ function readImage(baseDirs, candidates, warnings, budget = null) {
             budget.bytes -= data.length;
             if (budget.bytes < 0) throw new Error('This profile embeds more than 64 MB of images');
           }
-          return `data:${MIME[ext] || 'image/png'};base64,${data.toString('base64')}`;
+          return `data:${imageByExtension(ext) || 'image/png'};base64,${data.toString('base64')}`;
         } catch {
           /* try next */
         }

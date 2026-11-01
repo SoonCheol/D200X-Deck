@@ -2,7 +2,7 @@
 
 const KEY_SIZE = 196;
 const WIDE_KEY_SIZE = { width: 402, height: 196 };
-const WIDE_INDEX = 13;
+const { WIDE_INDEX } = window.DeckGeometry;
 
 // Bounded image cache: live plugin images change constantly, so an unbounded map
 // would grow forever in a long-running menu-bar app.

@@ -11,12 +11,11 @@ const DEFAULT_FONT = {
   Weight: 80,
 };
 
-const COLUMNS = 5;
-const ROWS = 3;
-const KEY_COUNT = COLUMNS * ROWS; // 15 slots, two merged into the wide key
-const WIDE_INDEX = 13;
+const { COLUMNS, ROWS, KEY_SLOTS, WIDE_INDEX } = require('./geometry');
+
+const KEY_COUNT = KEY_SLOTS; // 15 slots, two merged into the wide key
 const WIDE_SLOT = '3_2';
 
-const MEDIA_OPS = ['playpause', 'next', 'prev', 'volumeup', 'volumedown', 'mute'];
+const { MEDIA_OPS } = require('./actions-meta');
 
 module.exports = { DEFAULT_FONT, COLUMNS, ROWS, KEY_COUNT, WIDE_INDEX, WIDE_SLOT, MEDIA_OPS };

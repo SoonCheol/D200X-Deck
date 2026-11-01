@@ -5,6 +5,7 @@ const { spawn } = require('node:child_process');
 const fs = require('node:fs');
 const path = require('node:path');
 const { isInside } = require('./paths');
+const { byExtension } = require('./mime');
 
 /**
  * The Electron main executable creates a Dock icon when spawned as a Node
@@ -26,19 +27,10 @@ function nodeRuntime() {
 const os = require('node:os');
 const { WebSocketServer } = require('ws');
 
-const MIME = {
-  '.png': 'image/png',
-  '.jpg': 'image/jpeg',
-  '.jpeg': 'image/jpeg',
-  '.gif': 'image/gif',
-  '.svg': 'image/svg+xml',
-  '.webp': 'image/webp',
-};
-
 function fileToDataUrl(file) {
   try {
     const ext = path.extname(file).toLowerCase();
-    const mime = MIME[ext] || 'application/octet-stream';
+    const mime = byExtension(ext);
     return `data:${mime};base64,${fs.readFileSync(file).toString('base64')}`;
   } catch {
     return null;

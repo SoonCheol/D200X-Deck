@@ -132,40 +132,12 @@ function normalizeActionMeta() {
 }
 const renderSystemPanel = window.KeyRenderer.drawSystemPanel;
 
-const COLS = 5;
-const ROWS = 3;
 // 13 square keys + one 2x1 key: 14 physical buttons.
-const KEY_COUNT = 14;
-const WIDE_KEY_INDEX = 13;
+const { COLUMNS: COLS, ROWS, KEY_COUNT, WIDE_INDEX: WIDE_KEY_INDEX } = window.DeckGeometry;
 
-const MEDIA_EMOJI = {
-  playpause: '⏯️',
-  next: '⏭️',
-  prev: '⏮️',
-  volumeup: '🔊',
-  volumedown: '🔉',
-  mute: '🔇',
-};
+const MEDIA_EMOJI = window.DeckActions.MEDIA_EMOJI;
 
-const ACTION_LABELS = {
-  none: 'Do nothing',
-  app: 'Open app',
-  url: 'Open URL',
-  command: 'Run shell command',
-  hotkey: 'Send hotkey',
-  text: 'Type text',
-  media: 'Media key',
-  close: 'Close app',
-  page: 'Switch to page',
-  plugin: 'Plugin action',
-  multi: 'Multi action',
-  toggle: 'Hotkey switch',
-  indicator: 'Page indicator',
-  sound: 'Play audio',
-  timer: 'Timer',
-  brightness: 'Key brightness',
-  pop: 'POP menu',
-};
+const ACTION_LABELS = window.DeckActions.ACTION_LABELS;
 
 const state = {
   config: null,

@@ -1,5 +1,7 @@
 'use strict';
 
+const { byExtension } = require('./mime');
+
 // Stream Deck SDK / OpenAction plugin host.
 //
 // Plugins are third-party programs that connect to a local WebSocket and use
@@ -19,27 +21,6 @@ const TARGET =
   process.arch === 'arm64' ? 'aarch64-apple-darwin' : process.arch === 'x64' ? 'x86_64-apple-darwin' : null;
 const FALLBACK_TARGET = process.arch === 'arm64' ? 'x86_64-apple-darwin' : 'aarch64-apple-darwin';
 
-const MIME = {
-  '.html': 'text/html',
-  '.htm': 'text/html',
-  '.js': 'text/javascript',
-  '.mjs': 'text/javascript',
-  '.cjs': 'text/javascript',
-  '.css': 'text/css',
-  '.json': 'application/json',
-  '.svg': 'image/svg+xml',
-  '.png': 'image/png',
-  '.jpg': 'image/jpeg',
-  '.jpeg': 'image/jpeg',
-  '.gif': 'image/gif',
-  '.webp': 'image/webp',
-  '.woff': 'font/woff',
-  '.woff2': 'font/woff2',
-  '.ttf': 'font/ttf',
-  '.wav': 'audio/wav',
-  '.mp3': 'audio/mpeg',
-};
-
 function readJson(file) {
   const text = fs.readFileSync(file, 'utf8').replace(/^\uFEFF/, '');
   return JSON.parse(text);
@@ -58,7 +39,7 @@ function mergePatch(base, patch) {
 function fileToDataUrl(file) {
   try {
     const ext = path.extname(file).toLowerCase();
-    return `data:${MIME[ext] || 'application/octet-stream'};base64,${fs.readFileSync(file).toString('base64')}`;
+    return `data:${byExtension(ext)};base64,${fs.readFileSync(file).toString('base64')}`;
   } catch {
     return null;
   }

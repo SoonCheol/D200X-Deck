@@ -12,13 +12,7 @@ const NO_ICON_GLYPH = `<svg width="20" height="20" viewBox="0 0 24 24" fill="non
   <path d="M4 4l16 16" />
 </svg>`;
 
-const ACTION_GROUPS = [
-  ['Basic', ['none']],
-  ['Device & pages', ['page', 'indicator', 'pop', 'multi', 'toggle', 'timer', 'brightness']],
-  ['Apps & links', ['app', 'url', 'close']],
-  ['System', ['hotkey', 'text', 'media', 'sound', 'command']],
-  ['Plugins', ['plugin']],
-];
+const ACTION_GROUPS = window.DeckActions.ACTION_GROUPS;
 
 function actionGroups(selected) {
   return ACTION_GROUPS.map(([label, types]) => {
@@ -35,12 +29,7 @@ function actionGroups(selected) {
 
 // The compact trigger editor only supports value-based actions. Complex
 // editors (Plugin, Multi, POP, Timer, ...) live on the main key action.
-const TRIGGER_GROUPS = [
-  ['Basic', ['none']],
-  ['Device & pages', ['page']],
-  ['Apps & links', ['app', 'url', 'close']],
-  ['System', ['hotkey', 'text', 'media', 'command']],
-];
+const TRIGGER_GROUPS = window.DeckActions.TRIGGER_GROUPS;
 
 function triggerGroups(selected) {
   return TRIGGER_GROUPS.map(([label, types]) => {
@@ -56,14 +45,7 @@ function triggerGroups(selected) {
   }).join('');
 }
 
-const MEDIA_LABELS = {
-  playpause: 'Play / pause',
-  next: 'Next track',
-  prev: 'Previous track',
-  volumeup: 'Volume up',
-  volumedown: 'Volume down',
-  mute: 'Mute',
-};
+const MEDIA_LABELS = window.DeckActions.MEDIA_LABELS;
 
 function basename(target) {
   const value = String(target || '').trim();
@@ -134,15 +116,7 @@ function syncActionMeta(key) {
   }
 }
 
-const MULTI_STEP_TYPES = [
-  ['hotkey', 'Hotkey'],
-  ['media', 'Media key'],
-  ['text', 'Type text'],
-  ['app', 'Open app'],
-  ['url', 'Open URL'],
-  ['command', 'Command'],
-  ['page', 'Switch page'],
-];
+const MULTI_STEP_TYPES = window.DeckActions.MULTI_STEP_TYPES;
 
 function multiEditor(action, page) {
   const steps = Array.isArray(action.steps) ? action.steps : [];
