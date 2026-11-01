@@ -1176,6 +1176,12 @@ function renderInspector() {
           return;
         }
         host.innerHTML = `<iframe class="pi-frame" data-actionid="${esc(action.actionid)}" src="${esc(url)}" sandbox="allow-scripts allow-forms allow-modals"></iframe>`;
+        // An inspector that never reports a size (script error, nothing to
+        // show) would otherwise leave a blank block in the panel.
+        setTimeout(() => {
+          const frame = host.querySelector('.pi-frame');
+          if (frame && !frame.dataset.sized) host.closest('.field')?.classList.add('pi-field-collapsed');
+        }, 2500);
       })
       .catch(() => {
         if (host.isConnected) host.innerHTML = '<div class="insp-empty" style="padding:0">Could not load the property inspector.</div>';

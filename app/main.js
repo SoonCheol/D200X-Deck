@@ -429,6 +429,7 @@ function initSdPlugins() {
     appPluginsDir: path.join(baseDir, 'StreamDeckPlugins'),
     language: 'en',
     appVersion: app.getVersion(),
+    logFile: path.join(baseDir, 'streamdeck.log'),
   });
   sdPlugins.launchHtml = (meta, info) => {
     if (sdHtmlWindows.has(meta.uuid)) return;
@@ -828,12 +829,26 @@ app.whenReady().then(() => {
           };
           function report() {
             try {
+              const visible = (el) => {
+                const style = getComputedStyle(el);
+                return style.display !== 'none' && style.visibility !== 'hidden' && Number(style.opacity) !== 0;
+              };
+              const vh = window.innerHeight;
               let h = 0;
               for (const el of document.body.children) {
+                if (!visible(el)) continue;
                 const rect = el.getBoundingClientRect();
-                h = Math.max(h, rect.bottom);
+                if (rect.height >= vh - 2) {
+                  // A full-height wrapper would otherwise report the iframe's
+                  // own height and grow without bound; measure its children.
+                  for (const child of el.children) {
+                    if (!visible(child)) continue;
+                    h = Math.max(h, child.getBoundingClientRect().bottom);
+                  }
+                } else {
+                  h = Math.max(h, rect.bottom);
+                }
               }
-              if (!h) h = document.body.scrollHeight;
               parent.postMessage({ type: 'ulanzi-pi-height', height: Math.ceil(h + 8) }, '*');
             } catch (e) {}
           }
@@ -1356,6 +1371,15 @@ ipcMain.handle('plugins:open-sd-folder', () => {
   fs.mkdirSync(sdPlugins.appPluginsDir, { recursive: true });
   shell.openPath(sdPlugins.appPluginsDir);
   return { ok: true };
+});
+
+ipcMain.handle('plugins:open-log', () => {
+  const file = path.join(process.env.ULANZI_CONFIG_DIR || app.getPath('userData'), 'streamdeck.log');
+  try {
+    if (!fs.existsSync(file)) fs.writeFileSync(file, '');
+  } catch { /* ignore */ }
+  shell.openPath(file);
+  return { ok: true, file };
 });
 
 ipcMain.handle('plugins:reveal', (_evt, uuid) => {

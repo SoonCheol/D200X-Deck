@@ -95,6 +95,19 @@ function availableOnPath(bin) {
 }
 
 
+// Settings can hold API tokens; keep them out of the diagnostics log.
+function logSettings(settings) {
+  try {
+    const clean = {};
+    for (const [key, value] of Object.entries(settings || {})) {
+      clean[key] = /token|secret|password|api[-_]?key/i.test(key) ? '***' : value;
+    }
+    return JSON.stringify(clean);
+  } catch {
+    return '{}';
+  }
+}
+
 // Reads the CPU architecture of a Mach-O executable. Universal ("fat")
 // binaries are reported as such; anything unreadable returns null.
 function binaryArch(file) {
@@ -122,7 +135,7 @@ function binaryArch(file) {
 }
 
 class StreamDeckPlugins extends EventEmitter {
-  constructor({ appPluginsDir, language = 'en', appVersion = '0.1.0', port = 57116 } = {}) {
+  constructor({ appPluginsDir, language = 'en', appVersion = '0.1.0', port = 57116, logFile = null } = {}) {
     super();
     this.dirs = streamDeckPluginDirs(appPluginsDir);
     this.appPluginsDir = appPluginsDir;
@@ -144,6 +157,7 @@ class StreamDeckPlugins extends EventEmitter {
     this._portPromise = null;
     this.starting = new Set(); // plugin uuids reserved while the port resolves
     this.spawn = spawn;
+    this.logFile = logFile;
     this._wine = null;
     this._settingsFile = path.join(appPluginsDir, '.global-settings.json');
     this._loadGlobalSettings();
@@ -426,6 +440,7 @@ class StreamDeckPlugins extends EventEmitter {
         return;
       }
       if (process.env.ULANZI_SD_DEBUG) console.log('[sd<-]', pluginUuid || 'pi', msg.event);
+      this._log(`${inspectorAction ? 'pi' : 'plugin'}->host ${pluginUuid || inspectorAction || ''} ${msg.event}${msg.context ? ` context=${msg.context}` : ''}${msg.action ? ` action=${msg.action}` : ''}${msg.event === 'setSettings' ? ` settings=${logSettings(msg.payload)}` : ''}`);
       if (!registered) {
         if (msg.event === 'registerPlugin') {
           const registeredUuid = String(msg.uuid || '');
@@ -501,6 +516,7 @@ class StreamDeckPlugins extends EventEmitter {
     ws.on('close', () => {
       if (pluginUuid && this.sockets.get(pluginUuid) === ws) this.sockets.delete(pluginUuid);
       if (inspectorAction) {
+        this._log(`pi-close ${inspectorAction}`);
         if (this.inspectors.get(inspectorAction) === ws) this.inspectors.delete(inspectorAction);
         const action = this.actions.get(inspectorAction);
         if (action) {
@@ -737,6 +753,7 @@ class StreamDeckPlugins extends EventEmitter {
   }
 
   _openUrl(url, action = null) {
+    this._log(`open-url ${url}`);
     if (!url) return;
     const { shell } = require('electron');
     if (/^https?:|^mailto:/i.test(url)) {
@@ -751,6 +768,7 @@ class StreamDeckPlugins extends EventEmitter {
 
   _send(pluginUuid, message) {
     if (process.env.ULANZI_SD_DEBUG) console.log('[sd->]', pluginUuid, message.event, message.context || '', message.action || '', this.sockets.has(pluginUuid));
+    this._log(`host->plugin ${pluginUuid} ${message.event}${message.context ? ` context=${message.context}` : ''}${message.action ? ` action=${message.action}` : ''}${message.event === 'didReceiveSettings' ? ` settings=${logSettings(message.payload?.settings)}` : ''}`);
     const ws = this.sockets.get(pluginUuid);
     if (!ws || ws.readyState !== 1) {
       if (!this.queues.has(pluginUuid)) this.queues.set(pluginUuid, []);
@@ -761,6 +779,7 @@ class StreamDeckPlugins extends EventEmitter {
   }
 
   _sendToInspector(context, message) {
+    this._log(`host->pi ${context} ${message.event}${message.event === 'didReceiveSettings' ? ` settings=${logSettings(message.payload?.settings)}` : ''}`);
     const ws = this.inspectors.get(context);
     if (ws && ws.readyState === 1) ws.send(JSON.stringify(message));
   }
@@ -835,6 +854,7 @@ class StreamDeckPlugins extends EventEmitter {
         env = process.env;
       }
       if (process.env.ULANZI_SD_DEBUG) console.log('[sd-spawn]', pluginUuid);
+      this._log(`spawn ${pluginUuid} ${command} ${commandArgs.slice(1).join(' ')}`);
       const proc = this.spawn(command, commandArgs, { cwd: meta.dir, env, stdio: ['ignore', 'pipe', 'pipe'] });
       proc.on('error', (err) => {
         this.emit('error', `${meta.name} could not start: ${err.message}`);
@@ -844,6 +864,7 @@ class StreamDeckPlugins extends EventEmitter {
       this._logStream(meta, proc.stdout, 'out');
       this._logStream(meta, proc.stderr, 'err');
       proc.on('exit', (code) => {
+        this._log(`exit ${pluginUuid} code=${code}`);
         if (this.children.get(pluginUuid) === proc) this.children.delete(pluginUuid);
         this.sockets.delete(pluginUuid);
         if (!this.stopping && this._hasActionsFor(pluginUuid)) {
@@ -875,6 +896,21 @@ class StreamDeckPlugins extends EventEmitter {
     return meta;
   }
 
+  // Appends a timestamped line to the plugin log (when configured) so users can
+  // share what the host, the plugin and its inspector actually exchanged.
+  _log(line) {
+    if (!this.logFile) return;
+    try {
+      const stat = fs.existsSync(this.logFile) ? fs.statSync(this.logFile) : null;
+      if (stat && stat.size > 1_000_000) {
+        try { fs.renameSync(this.logFile, `${this.logFile}.1`); } catch { /* ignore */ }
+      }
+      fs.appendFileSync(this.logFile, `${new Date().toISOString()} ${line}\n`);
+    } catch {
+      /* logging must never break the host */
+    }
+  }
+
   _logStream(meta, stream, kind) {
     if (!stream || typeof stream.on !== 'function') return;
     let buffer = '';
@@ -887,6 +923,7 @@ class StreamDeckPlugins extends EventEmitter {
         if (line) {
           const target = kind === 'err' ? console.error : console.log;
           target(`[sd:${meta.name}] ${line.slice(0, 500)}${line.length > 500 ? '…' : ''}`);
+          this._log(`${kind === 'err' ? 'plugin-err' : 'plugin-out'} ${meta.uuid} ${line.slice(0, 500)}`);
         }
       }
       if (buffer.length > 200_000) buffer = buffer.slice(-2000);

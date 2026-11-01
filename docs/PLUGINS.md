@@ -72,6 +72,11 @@ with the Elgato app are still picked up from Elgato's plugin folder.
 Downloads are HTTPS-only, capped at 128 MB, and ZIP paths are validated before
 extraction. Only install plugins you trust; native plugins are executables.
 
+If a plugin's property inspector does not react (empty panel, settings that do
+not stick), **Installed → Open plugin log** opens `streamdeck.log` next to the
+app's data. It records plugin start/exit, the messages exchanged with the plugin
+and its inspector, and the plugin's stderr.
+
 Some older marketplace plugins ship Intel-only (x86_64) binaries. On Apple Silicon
 they need Rosetta: the Installed list marks them **Needs Rosetta** and offers an
 **Install Rosetta…** button that opens Terminal with

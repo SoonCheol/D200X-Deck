@@ -3,6 +3,8 @@
 ## Unreleased
 
 ### Fixes
+- Property inspectors that render nothing no longer leave a large blank **Settings** block: the panel collapses until the inspector reports content, and full-height layouts no longer make the iframe grow to the maximum height.
+- Added a Stream Deck plugin log (`streamdeck.log` in the app data folder, **Installed → Open plugin log**) recording plugin spawn/exit, host↔plugin and host↔inspector messages, and plugin stderr, to diagnose plugins whose settings or property inspectors misbehave.
 - Intel-only (x86_64) plugins are detected on Apple Silicon. When Rosetta is missing they are marked **Needs Rosetta** in Installed, with an **Install Rosetta…** button, instead of silently failing to start; pressing one of their keys explains what is missing. This is why the Elgato **CPU** plugin showed only its static icon.
 - Stream Deck plugins are no longer started twice when several of their actions sync in the same tick. The duplicate process competed with the first for the same contexts, so property-inspector requests (e.g. macOS Controls' app list) went to the wrong process and settings changes only reached one copy — mute, Control Center and other key actions kept using their old settings.
 - A plugin that registers a second connection now replaces the old socket instead of leaving two active connections.

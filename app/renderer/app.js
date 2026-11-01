@@ -1068,6 +1068,7 @@ function bind() {
 
   $('#plugin-open-folder').addEventListener('click', () => api.openPluginsFolder());
   $('#plugin-open-sd-folder')?.addEventListener('click', () => api.openSdPluginsFolder());
+  $('#plugin-open-log')?.addEventListener('click', () => api.openPluginLog());
 
   $('#add-page').addEventListener('click', addPage);
   $('#page-back').addEventListener('click', () => {
@@ -1332,6 +1333,7 @@ function bind() {
     const collapsed = height < 24;
     if (field) field.classList.toggle('pi-field-collapsed', collapsed);
     if (collapsed) return;
+    frame.dataset.sized = '1';
     frame.style.height = `${Math.min(560, Math.max(60, height + 4))}px`;
   });
 
