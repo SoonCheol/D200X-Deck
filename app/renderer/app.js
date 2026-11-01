@@ -9,6 +9,7 @@ const ACTION_ICON_PATHS = {
   'page:goto': 'assets/actions/page-goto.svg',
   'page:back': 'assets/actions/page-back.svg',
   'page:profile': 'assets/actions/page-profile.svg',
+  'page:folder': 'assets/actions/page-folder.svg',
   'media:playpause': 'assets/actions/media-playpause.svg',
   'media:next': 'assets/actions/media-next.svg',
   'media:prev': 'assets/actions/media-prev.svg',
@@ -23,11 +24,15 @@ const ACTION_ICON_PATHS = {
   close: 'assets/actions/close.svg',
   plugin: 'assets/actions/plugin.svg',
   multi: 'assets/actions/multi.svg',
+  'multi:switch': 'assets/actions/multi-switch.svg',
+  'multi:random': 'assets/actions/multi-random.svg',
   toggle: 'assets/actions/toggle.svg',
   timer: 'assets/actions/timer.svg',
   brightness: 'assets/actions/brightness.svg',
   sound: 'assets/actions/sound.svg',
+  'sound:stop': 'assets/actions/sound-stop.svg',
   pop: 'assets/actions/pop.svg',
+  'pop:preset': 'assets/actions/pop-preset.svg',
 };
 
 /** Bundled icon for an action, used when the key has no custom image/emoji. */
@@ -35,7 +40,20 @@ function actionIconSrc(action) {
   if (!action) return null;
   if (action.type === 'page') {
     const op = ['next', 'prev', 'goto', 'back', 'profile'].includes(action.op) ? action.op : 'goto';
+    if (op === 'goto' && action.value) {
+      const target = state.config?.pages?.find((page) => page.id === action.value);
+      if (target?.parentId) return ACTION_ICON_PATHS['page:folder'] || null;
+    }
     return ACTION_ICON_PATHS[`page:${op}`] || null;
+  }
+  if (action.type === 'multi') {
+    const mode = action.mode || 'sequence';
+    if (mode === 'alternate') return ACTION_ICON_PATHS['multi:switch'] || null;
+    if (mode === 'random') return ACTION_ICON_PATHS['multi:random'] || null;
+    return ACTION_ICON_PATHS.multi || null;
+  }
+  if (action.type === 'sound') {
+    return (action.op === 'stop' ? ACTION_ICON_PATHS['sound:stop'] : ACTION_ICON_PATHS.sound) || null;
   }
   if (action.type === 'media') return ACTION_ICON_PATHS[`media:${action.op}`] || null;
   return ACTION_ICON_PATHS[action.type] || null;
