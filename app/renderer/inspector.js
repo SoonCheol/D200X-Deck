@@ -867,6 +867,7 @@ function renderInspector() {
         </div>
         <div class="icon-buttons">
           <button class="btn small" id="insp-icon-library">Library</button>
+          <button class="btn small" id="insp-icon-file" title="Choose an image file">File…</button>
           ${action.type === 'app' && action.value ? '<button class="btn small" id="insp-use-app-icon">App icon</button>' : ''}
           ${action.type === 'url' ? '<button class="btn small" id="insp-use-favicon">Use favicon</button>' : ''}
           ${key.icon ? '<button class="btn small danger" id="insp-icon-remove">Remove</button>' : ''}
@@ -971,22 +972,23 @@ function renderInspector() {
   });
 
   // icon drop / choose
+  const applyIcon = (dataUrl, source) => {
+    key.icon = dataUrl;
+    key.iconSource = source;
+    key.face = 'icon';
+    delete key.iconCleared;
+    drawIndex(state.selected);
+    commit();
+    renderInspector();
+  };
+  const chooseIconFile = async () => {
+    const picked = await api.pickImage();
+    if (!picked) return;
+    applyIcon(await downscaleImage(picked), 'custom');
+  };
   const drop = $('#insp-icon-drop');
   if (drop) {
-    const applyIcon = (dataUrl, source) => {
-      key.icon = dataUrl;
-      key.iconSource = source;
-      key.face = 'icon';
-      delete key.iconCleared;
-      drawIndex(state.selected);
-      commit();
-      renderInspector();
-    };
-    drop.addEventListener('click', async () => {
-      const picked = await api.pickImage();
-      if (!picked) return;
-      applyIcon(await downscaleImage(picked), 'custom');
-    });
+    drop.addEventListener('click', chooseIconFile);
     drop.addEventListener('dragover', (e) => {
       e.preventDefault();
       drop.classList.add('drag');
@@ -1020,6 +1022,9 @@ function renderInspector() {
       renderInspector();
     });
   }
+
+  const iconFileBtn = $('#insp-icon-file');
+  if (iconFileBtn) iconFileBtn.addEventListener('click', chooseIconFile);
 
   const libraryBtn = $('#insp-icon-library');
   if (libraryBtn) {
