@@ -7,6 +7,8 @@ const ACTION_ICON_PATHS = {
   'page:next': 'assets/actions/page-next.svg',
   'page:prev': 'assets/actions/page-prev.svg',
   'page:goto': 'assets/actions/page-goto.svg',
+  'page:back': 'assets/actions/page-back.svg',
+  'page:profile': 'assets/actions/page-profile.svg',
   'media:playpause': 'assets/actions/media-playpause.svg',
   'media:next': 'assets/actions/media-next.svg',
   'media:prev': 'assets/actions/media-prev.svg',
@@ -32,7 +34,7 @@ const ACTION_ICON_PATHS = {
 function actionIconSrc(action) {
   if (!action) return null;
   if (action.type === 'page') {
-    const op = action.op === 'next' || action.op === 'prev' ? action.op : 'goto';
+    const op = ['next', 'prev', 'goto', 'back', 'profile'].includes(action.op) ? action.op : 'goto';
     return ACTION_ICON_PATHS[`page:${op}`] || null;
   }
   if (action.type === 'media') return ACTION_ICON_PATHS[`media:${action.op}`] || null;
