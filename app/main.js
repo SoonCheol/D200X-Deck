@@ -688,6 +688,17 @@ const SD_PI_THEME = `
     border-color: #2a3342 !important;
     border-radius: 8px !important;
   }
+  /* A custom background removes the native select arrow; draw our own. */
+  select {
+    -webkit-appearance: none !important;
+    appearance: none !important;
+    background-image: linear-gradient(45deg, transparent 50%, #8b97ab 50%), linear-gradient(135deg, #8b97ab 50%, transparent 50%) !important;
+    background-position: calc(100% - 16px) 50%, calc(100% - 11px) 50% !important;
+    background-size: 5px 5px, 5px 5px !important;
+    background-repeat: no-repeat !important;
+    background-color: #141a25 !important;
+    padding-right: 28px !important;
+  }
   select:focus, input:focus, textarea:focus, button:focus {
     outline: none !important;
     border-color: #4f8cff !important;
@@ -730,6 +741,17 @@ const PI_THEME = `
     font-family: inherit !important;
     font-size: 12px !important;
     padding: 7px 9px !important;
+  }
+  /* A custom background removes the native select arrow; draw our own. */
+  select {
+    -webkit-appearance: none !important;
+    appearance: none !important;
+    background-image: linear-gradient(45deg, transparent 50%, #8b97ab 50%), linear-gradient(135deg, #8b97ab 50%, transparent 50%) !important;
+    background-position: calc(100% - 16px) 50%, calc(100% - 11px) 50% !important;
+    background-size: 5px 5px, 5px 5px !important;
+    background-repeat: no-repeat !important;
+    background-color: #141a25 !important;
+    padding-right: 28px !important;
   }
   /* Buttons keep the plugin's own layout (height/line-height/padding) and only
      borrow the app's colour and border treatment. */
