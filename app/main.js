@@ -764,19 +764,28 @@ const PI_THEME = `
   (function () {
     function report() {
       try {
-        // Measure the lowest visible element instead of scrollHeight: many
-        // inspector stylesheets give the body a min-height, which would make
-        // the frame grow to its own height.
-        var h = 0;
-        var nodes = document.body.querySelectorAll('*');
-        for (var i = 0; i < nodes.length; i++) {
-          var el = nodes[i];
-          var r = el.getBoundingClientRect();
-          if (r.height > 0 && r.width > 0 && getComputedStyle(el).visibility !== 'hidden') {
-            h = Math.max(h, r.bottom);
-          }
+        var vh = window.innerHeight;
+        function visible(el) {
+          var style = getComputedStyle(el);
+          return style.display !== 'none' && style.visibility !== 'hidden' && Number(style.opacity) !== 0;
         }
-        parent.postMessage({ type: 'ulanzi-pi-height', height: Math.ceil(h) }, '*');
+        // Full-height wrappers (.udpi-wrapper is height:100%) would report the
+        // frame's own height and grow it forever; measure their children instead.
+        function measure(el) {
+          if (!visible(el)) return 0;
+          var r = el.getBoundingClientRect();
+          if (r.height >= vh - 2 && el.children.length) {
+            var max = 0;
+            for (var i = 0; i < el.children.length; i++) max = Math.max(max, measure(el.children[i]));
+            return max;
+          }
+          return r.bottom;
+        }
+        var h = 0;
+        for (var i = 0; i < document.body.children.length; i++) {
+          h = Math.max(h, measure(document.body.children[i]));
+        }
+        parent.postMessage({ type: 'ulanzi-pi-height', height: Math.ceil(h + 8) }, '*');
       } catch (e) {}
     }
     window.addEventListener('load', report);

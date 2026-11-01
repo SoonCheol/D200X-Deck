@@ -3,6 +3,9 @@
 ## Unreleased
 
 ### Fixes
+- Ulanzi plugin inspectors now save settings and reach their plugin when another app owns the default plugin port: the Ulanzi host falls back to the next free port (3907, 3908…) instead of retrying 3906 forever and letting inspectors talk to Ulanzi Studio's server. This fixes OpenWeather not saving and not loading weather.
+- Inspector frames are allowed to use `localStorage` (some inspectors, e.g. OpenWeather, write the API key there before sending the settings; the sandbox exception used to abort the save).
+- Ulanzi inspectors no longer grow to a huge blank block: full-height wrappers (`.udpi-wrapper`) are measured by their content instead of their own frame height.
 - An empty `setImage` from a plugin now restores the action's manifest image instead of clearing it to the generic plugin icon. This fixes macOS Controls' **Show text under icon**: for example **Emoji & Symbols** now shows the emoji with its “Emoji” caption instead of the plugin icon with no label.
 
 ### UI

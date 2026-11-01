@@ -1182,7 +1182,7 @@ function renderInspector() {
           host.innerHTML = '<div class="insp-empty" style="padding:0">No property inspector for this action.</div>';
           return;
         }
-        host.innerHTML = `<iframe class="pi-frame" data-actionid="${esc(action.actionid)}" src="${esc(url)}" sandbox="allow-scripts allow-forms allow-modals"></iframe>`;
+        host.innerHTML = `<iframe class="pi-frame" data-actionid="${esc(action.actionid)}" src="${esc(url)}" sandbox="allow-scripts allow-forms allow-modals allow-same-origin"></iframe>`;
         // An inspector that never reports a size (script error, nothing to
         // show) would otherwise leave a blank block in the panel.
         setTimeout(() => {

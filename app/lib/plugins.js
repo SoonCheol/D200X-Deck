@@ -194,27 +194,40 @@ class PluginManager extends EventEmitter {
 
   start() {
     if (this.wss) return;
-    this.wss = new WebSocketServer({
-      host: '127.0.0.1',
-      port: this.port,
-      // Plugin processes are Node clients (no Origin). Property inspectors run
-      // in our own scheme. Anything coming from a web page is refused.
-      verifyClient: (info, done) => {
-        const origin = String(info.origin || info.req?.headers?.origin || '');
-        if (/^https?:/i.test(origin)) return done(false, 403, 'forbidden');
-        done(true);
-      },
-    });
-    this.wss.on('connection', (ws) => this._onConnection(ws));
-    this.wss.on('error', (err) => {
-      if (err.code === 'EADDRINUSE') {
-        this.emit('error', `Plugin port ${this.port} is busy (is Ulanzi Studio running?)`);
-        try { this.wss.close(); } catch { /* ignore */ }
-        this.wss = null;
-        setTimeout(() => this.start(), 10_000);
-      } else {
-        this.emit('error', `Plugin server: ${err.message}`);
-      }
+    this._portPromise = new Promise((resolve) => {
+      const tryPort = (port, left) => {
+        const wss = new WebSocketServer({
+          host: '127.0.0.1',
+          port,
+          // Plugin processes are Node clients (no Origin). Property inspectors run
+          // in our own scheme. Anything coming from a web page is refused.
+          verifyClient: (info, done) => {
+            const origin = String(info.origin || info.req?.headers?.origin || '');
+            if (/^https?:/i.test(origin)) return done(false, 403, 'forbidden');
+            done(true);
+          },
+        });
+        wss.once('listening', () => {
+          this.wss = wss;
+          this.port = port;
+          console.log(`[plugins] listening on ${port}`);
+          wss.on('connection', (ws) => this._onConnection(ws));
+          resolve(port);
+        });
+        wss.once('error', (err) => {
+          if (err.code === 'EADDRINUSE' && left > 0) {
+            // Ulanzi Studio (or another instance) owns 3906. Plugins get the
+            // port as an argument and inspectors from the URL, so any free
+            // port works and we must not talk to the vendor app's server.
+            try { wss.close(); } catch { /* ignore */ }
+            tryPort(port + 1, left - 1);
+            return;
+          }
+          this.emit('error', `Plugin server: ${err.message}`);
+          resolve(null);
+        });
+      };
+      tryPort(this.port, 20);
     });
   }
 
@@ -228,6 +241,7 @@ class PluginManager extends EventEmitter {
       } catch {
         return;
       }
+      if (process.env.ULANZI_SD_DEBUG) console.log('[ud]', msg.cmd, msg.actionid || msg.uuid || '', JSON.stringify(msg.param || msg.settings || {}).slice(0, 160));
       if (msg.cmd === 'connected') {
         // Property inspectors connect the same way but carry an actionid.
         if (msg.actionid) {
@@ -360,6 +374,12 @@ class PluginManager extends EventEmitter {
     const meta = this.plugins.get(pluginUuid);
     if (!meta) return null;
     if (!meta.compatible) return null;
+    // The server port is resolved asynchronously; wait for it so the plugin
+    // and its inspector are pointed at our own server, not at 3906.
+    if (!this.wss && this._portPromise) {
+      this._portPromise.then((port) => { if (port) this._ensurePlugin(pluginUuid); });
+      return meta;
+    }
     if (meta.html) {
       // HTML plugins run inside a hidden BrowserWindow and connect to our host
       // over the same WebSocket protocol; main.js owns the window lifecycle.
