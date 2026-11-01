@@ -21,6 +21,9 @@ const importUlanzi = require('./lib/import-ulanzi');
 const { execFileSync } = require('node:child_process');
 const actions = require('./lib/actions');
 
+// A failing `Run command` exits after the key press; surface the reason as a toast.
+actions.setShellErrorHandler((message) => send('plugin:error', `Command failed: ${message}`));
+
 let win = null;
 let store = null;
 let deck = null;
@@ -1380,6 +1383,14 @@ ipcMain.handle('plugins:sync', (_evt, wanted) => {
 });
 
 ipcMain.handle('plugins:run', (_evt, actionid) => ({ ok: runPlugin(String(actionid)) }));
+
+ipcMain.handle('plugins:restart', guarded((_evt, uuid) => {
+  const id = String(uuid);
+  const owner = findPluginOwner(id);
+  if (!owner) return { ok: false, error: 'Plugin not found' };
+  owner.restart(id);
+  return { ok: true };
+}));
 
 ipcMain.handle('plugins:key', (_evt, actionid, pressed) => ({
   ok: Boolean(sdPlugins?.key(String(actionid), Boolean(pressed))),

@@ -53,13 +53,31 @@ const MODIFIERS = {
  * other action passes argv arrays to execFile so config values can never be
  * interpreted by the shell.
  */
+let shellErrorHandler = null;
+
+/** Report non-zero exits from `Run command` without blocking the key press. */
+function setShellErrorHandler(handler) {
+  shellErrorHandler = typeof handler === 'function' ? handler : null;
+}
+
 function runShell(command) {
   return new Promise((resolve) => {
-    const child = spawn('/bin/sh', ['-c', String(command)], { detached: true, stdio: 'ignore' });
+    const child = spawn('/bin/sh', ['-c', String(command)], { detached: true, stdio: ['ignore', 'pipe', 'pipe'] });
+    let stderr = '';
+    child.stderr.on('data', (data) => {
+      stderr = (stderr + data.toString()).slice(-4000);
+    });
+    child.stdout.on('data', () => {});
     child.on('error', (err) => resolve({ ok: false, error: err.message }));
     child.on('spawn', () => {
       child.unref();
       resolve({ ok: true });
+    });
+    child.on('exit', (code, signal) => {
+      if (code === 0) return;
+      const detail = stderr.trim().split('\n').filter(Boolean).pop() || '';
+      const reason = detail || (signal ? `killed by ${signal}` : `exited with code ${code}`);
+      if (shellErrorHandler) shellErrorHandler(reason);
     });
   });
 }
@@ -244,4 +262,4 @@ async function execute(action) {
   }
 }
 
-module.exports = { execute, runHotkey, openTarget, openApp, openUrl };
+module.exports = { execute, runHotkey, openTarget, openApp, openUrl, setShellErrorHandler };

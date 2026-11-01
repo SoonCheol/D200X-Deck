@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+### Features
+- **Installed → Reload** restarts a single plugin (its process, sockets and crash counter) without reloading the others.
+- A failing **Run command** now shows a toast with the command's error (last stderr line or exit code) instead of failing silently.
+
 ## 0.5.0 — 2026-11-01
 
 ### Features

@@ -427,6 +427,7 @@ class PluginManager extends EventEmitter {
     proc.stdout.on('data', lineLogger(process.stdout));
     proc.stderr.on('data', lineLogger(process.stderr));
     proc.on('exit', (code) => {
+      if (this.restarting?.delete(pluginUuid)) return;
       if (this.children.get(pluginUuid) === proc) this.children.delete(pluginUuid);
       const ws = this.sockets.get(pluginUuid);
       if (ws) this.sockets.delete(pluginUuid);
@@ -479,6 +480,34 @@ class PluginManager extends EventEmitter {
         active: action.active,
       });
     }
+  }
+
+  /** Stop one plugin and start it again (used by Installed → Reload). */
+  restart(pluginUuid) {
+    this.restarting = this.restarting || new Set();
+    const meta = this.plugins.get(pluginUuid);
+    if (meta?.html) {
+      this.stopHtml?.(pluginUuid);
+      this.htmlRunning?.delete(pluginUuid);
+      this.sockets.delete(pluginUuid);
+      this._ensurePlugin(pluginUuid);
+      return true;
+    }
+    const proc = this.children.get(pluginUuid);
+    if (proc) {
+      this.restarting.add(pluginUuid);
+      try { proc.kill(); } catch { /* ignore */ }
+      this.children.delete(pluginUuid);
+      this.sockets.delete(pluginUuid);
+      this.crashes.delete(pluginUuid);
+      setTimeout(() => {
+        if (!this.stopping) this._ensurePlugin(pluginUuid);
+      }, 200);
+      return true;
+    }
+    this.sockets.delete(pluginUuid);
+    this._ensurePlugin(pluginUuid);
+    return true;
   }
 
   reload() {

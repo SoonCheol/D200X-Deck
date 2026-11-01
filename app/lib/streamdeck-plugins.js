@@ -881,6 +881,7 @@ class StreamDeckPlugins extends EventEmitter {
       this._logStream(meta, proc.stderr, 'err');
       proc.on('exit', (code) => {
         this._log(`exit ${pluginUuid} code=${code}`);
+        if (this.restarting?.delete(pluginUuid)) return;
         if (this.children.get(pluginUuid) === proc) this.children.delete(pluginUuid);
         this.sockets.delete(pluginUuid);
         if (!this.stopping && this._hasActionsFor(pluginUuid)) {
@@ -1252,6 +1253,34 @@ class StreamDeckPlugins extends EventEmitter {
     setTimeout(() => {
       if (!this.stopping && this._hasActionsFor(pluginUuid)) this._ensurePlugin(pluginUuid);
     }, Math.min(30_000, 1000 * 2 ** (state.count - 1)));
+  }
+
+  /** Stop one plugin and start it again (used by Installed → Reload). */
+  restart(pluginUuid) {
+    this.restarting = this.restarting || new Set();
+    const meta = this.plugins.get(pluginUuid);
+    if (meta?.code?.kind === 'html') {
+      this.stopHtml?.(pluginUuid);
+      this._htmlRunning?.delete(pluginUuid);
+      this.sockets.delete(pluginUuid);
+      this._ensurePlugin(pluginUuid);
+      return true;
+    }
+    const proc = this.children.get(pluginUuid);
+    if (proc) {
+      this.restarting.add(pluginUuid);
+      try { proc.kill(); } catch { /* ignore */ }
+      this.children.delete(pluginUuid);
+      this.sockets.delete(pluginUuid);
+      this.crashes.delete(pluginUuid);
+      setTimeout(() => {
+        if (!this.stopping) this._ensurePlugin(pluginUuid);
+      }, 200);
+      return true;
+    }
+    this.sockets.delete(pluginUuid);
+    this._ensurePlugin(pluginUuid);
+    return true;
   }
 
   stopAll() {

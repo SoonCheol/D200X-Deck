@@ -385,6 +385,7 @@ function renderPluginModal() {
           <div class="plugin-badges">${actions}</div>
         </div>
         <div class="plugin-actions">
+          <button class="btn ghost" data-reload="${esc(p.uuid)}" ${p.compatible ? '' : 'disabled'}>Reload</button>
           <button class="btn ghost" data-reveal="${esc(p.uuid)}">Show in Finder</button>
           ${
             p.compatReason === 'Needs Rosetta'
@@ -418,6 +419,12 @@ function renderPluginModal() {
       const res = await api.installRosetta();
       if (!res.ok) return toast(res.error || 'Could not open Terminal', true);
       toast('Install Rosetta in Terminal, then click Reload all');
+    });
+  });
+  list.querySelectorAll('[data-reload]').forEach((btn) => {
+    btn.addEventListener('click', async () => {
+      const res = await api.restartPlugin(btn.dataset.reload);
+      toast(res.ok ? 'Plugin reloaded' : res.error || 'Could not reload the plugin', !res.ok);
     });
   });
   list.querySelectorAll('[data-reveal]').forEach((btn) => {

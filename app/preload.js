@@ -71,6 +71,7 @@ contextBridge.exposeInMainWorld('deckApp', {
   openExternal: (url) => ipcRenderer.invoke('app:open-external', url),
   openSdPluginsFolder: () => ipcRenderer.invoke('plugins:open-sd-folder'),
   pluginKey: (actionid, pressed) => ipcRenderer.invoke('plugins:key', actionid, pressed),
+  restartPlugin: (uuid) => ipcRenderer.invoke('plugins:restart', uuid),
   installRosetta: () => ipcRenderer.invoke('plugins:install-rosetta'),
   openPluginLog: () => ipcRenderer.invoke('plugins:open-log'),
   revealPlugin: (uuid) => ipcRenderer.invoke('plugins:reveal', uuid),
