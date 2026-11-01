@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.3.1 — 2026-11-01
 
 ### Fixes
 - Plugins that only refresh when their settings change (e.g. **Currency**) now load their value on startup and when a key is placed: the host includes a fresh `forceRefresh` timestamp in the `add` message, so the plugin fetches immediately instead of waiting for its next interval.
