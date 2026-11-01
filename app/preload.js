@@ -17,6 +17,7 @@ contextBridge.exposeInMainWorld('deckApp', {
   setBrightness: (level) => ipcRenderer.invoke('deck:brightness', level),
   setSleepTime: (seconds) => ipcRenderer.invoke('deck:sleep', seconds),
   reconnect: () => ipcRenderer.invoke('deck:reconnect'),
+  checkForUpdates: () => ipcRenderer.invoke('app:check-updates'),
   accessibility: () => ipcRenderer.invoke('app:accessibility'),
   requestAccessibility: () => ipcRenderer.invoke('app:request-accessibility'),
   runAction: (action) => ipcRenderer.invoke('action:run', action),

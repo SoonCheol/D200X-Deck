@@ -12,6 +12,7 @@ const { buildPage } = require('./lib/page');
 const sysstats = require('./lib/sysstats');
 const { PluginManager, pluginRootDirs } = require('./lib/plugins');
 const { StreamDeckPlugins } = require('./lib/streamdeck-plugins');
+const { fetchLatestRelease, isNewer, plainNotes } = require('./lib/updates');
 const { StreamDeckCatalog, download: downloadPluginPackage } = require('./lib/sdcatalog');
 const { fetchSiteIcon } = require('./lib/siteicon');
 const { appIconDataUrl, resolveAppPath } = require('./lib/appicon');
@@ -217,6 +218,56 @@ async function requestQuit() {
   if (wasHidden && win && !win.isDestroyed()) win.hide();
 }
 
+let checkingForUpdates = false;
+
+async function checkForUpdates() {
+  if (checkingForUpdates) return { ok: false, error: 'Already checking' };
+  checkingForUpdates = true;
+  const parent = win && !win.isDestroyed() && win.isVisible() ? win : undefined;
+  try {
+    const release = await fetchLatestRelease();
+    const current = app.getVersion();
+    if (!release) {
+      await dialog.showMessageBox(parent, {
+        type: 'info',
+        message: 'No releases yet',
+        detail: 'There are no published releases to compare with.',
+        buttons: ['OK'],
+      });
+      return { ok: true, update: false, current };
+    }
+    if (!isNewer(release.version, current)) {
+      await dialog.showMessageBox(parent, {
+        type: 'info',
+        message: "You're up to date",
+        detail: `Ulanzi Deck Open ${current} is the latest version.`,
+        buttons: ['OK'],
+      });
+      return { ok: true, update: false, current, latest: release.version };
+    }
+    const { response } = await dialog.showMessageBox(parent, {
+      type: 'info',
+      message: `Ulanzi Deck Open ${release.version} is available`,
+      detail: `You have ${current}.\n\n${plainNotes(release.notes) || 'Open the release page for the full notes.'}`,
+      buttons: ['Open release page', 'Later'],
+      defaultId: 0,
+      cancelId: 1,
+    });
+    if (response === 0) shell.openExternal(release.url);
+    return { ok: true, update: true, current, latest: release.version, url: release.url };
+  } catch (err) {
+    await dialog.showMessageBox(parent, {
+      type: 'warning',
+      message: 'Could not check for updates',
+      detail: err.message || String(err),
+      buttons: ['OK'],
+    });
+    return { ok: false, error: err.message || String(err) };
+  } finally {
+    checkingForUpdates = false;
+  }
+}
+
 function buildMenu() {
   const isMac = process.platform === 'darwin';
   const template = [
@@ -225,6 +276,7 @@ function buildMenu() {
           label: app.name,
           submenu: [
             { role: 'about' },
+            { label: 'Check for Updates…', click: () => checkForUpdates() },
             { type: 'separator' },
             { label: 'Show Main Window', accelerator: 'CmdOrCtrl+0', click: showWindow },
             { label: 'Reconnect Deck', click: () => deck.connect() },
@@ -989,6 +1041,8 @@ ipcMain.handle('app:open-external', (event, url) => {
   shell.openExternal(target);
   return { ok: true };
 });
+
+ipcMain.handle('app:check-updates', () => checkForUpdates());
 
 ipcMain.handle('app:accessibility', () => ({
   trusted: systemPreferences.isTrustedAccessibilityClient(false),
