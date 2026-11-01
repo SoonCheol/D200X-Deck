@@ -5,6 +5,37 @@
 // (duplicate object keys, dead branches, unused locals) without a config
 // project the app does not need.
 
+const nodeGlobals = {
+  require: 'readonly',
+  module: 'writable',
+  exports: 'writable',
+  __dirname: 'readonly',
+  __filename: 'readonly',
+  process: 'readonly',
+  console: 'readonly',
+  Buffer: 'readonly',
+  global: 'readonly',
+  globalThis: 'readonly',
+  setTimeout: 'readonly',
+  clearTimeout: 'readonly',
+  setInterval: 'readonly',
+  clearInterval: 'readonly',
+  setImmediate: 'readonly',
+  clearImmediate: 'readonly',
+  queueMicrotask: 'readonly',
+  fetch: 'readonly',
+  URL: 'readonly',
+  URLSearchParams: 'readonly',
+  Request: 'readonly',
+  Response: 'readonly',
+  Headers: 'readonly',
+  AbortController: 'readonly',
+  AbortSignal: 'readonly',
+  structuredClone: 'readonly',
+  TextEncoder: 'readonly',
+  TextDecoder: 'readonly',
+};
+
 const rules = {
   'no-dupe-args': 'error',
   'no-dupe-keys': 'error',
@@ -20,9 +51,9 @@ module.exports = [
     ignores: ['dist/**', 'build/**', 'node_modules/**', 'bin/**', 'native/**', 'renderer/assets/**'],
   },
   {
-    files: ['main.js', 'preload.js', 'pop-preload.js', 'lib/**/*.js', 'test/**/*.js', 'scripts/**/*.js'],
-    languageOptions: { ecmaVersion: 2022, sourceType: 'commonjs' },
-    rules,
+    files: ['main.js', 'ipc.js', 'plugin-hosts.js', 'preload.js', 'pop-preload.js', 'lib/**/*.js', 'test/**/*.js', 'scripts/**/*.js'],
+    languageOptions: { ecmaVersion: 2022, sourceType: 'commonjs', globals: nodeGlobals },
+    rules: { ...rules, 'no-undef': 'error' },
   },
   {
     // The renderer files are plain <script> tags sharing one global scope.

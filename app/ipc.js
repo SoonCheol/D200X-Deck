@@ -15,6 +15,7 @@ const { fetchSiteIcon } = require('./lib/siteicon');
 const { childDir, parsePackId } = require('./lib/iconpacks');
 const { imageByExtension } = require('./lib/mime');
 const { CH } = require('./lib/channels');
+const { download: downloadPluginPackage } = require('./lib/sdcatalog');
 const { buildPage } = require('./lib/page');
 const sysstats = require('./lib/sysstats');
 

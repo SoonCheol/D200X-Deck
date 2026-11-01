@@ -1,7 +1,6 @@
 'use strict';
 
 const { BrowserWindow, dialog, shell } = require('electron');
-const fs = require('node:fs');
 const path = require('node:path');
 
 const { PluginManager, pluginRootDirs } = require('./lib/plugins');
@@ -69,7 +68,7 @@ function initPluginHosts({ baseDir, appVersion, send, getWin, getStore, getDeck 
         properties: type === 'folder' ? ['openDirectory', 'createDirectory'] : ['openFile'],
         ...(filters.length ? { filters } : {}),
       };
-      const result = win ? await dialog.showOpenDialog(getWin(), options) : await dialog.showOpenDialog(options);
+      const result = getWin() ? await dialog.showOpenDialog(getWin(), options) : await dialog.showOpenDialog(options);
       return result.canceled || !result.filePaths.length
         ? { canceled: true, path: '' }
         : { canceled: false, path: result.filePaths[0] };

@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.8.1 — 2026-11-01
+
+### Fixed
+- **Stream Deck plugins install from the Store again.** The install handler used `downloadPluginPackage` without importing it, so every OpenAction install failed with “downloadPluginPackage is not defined”.
+- **Plugin file/folder dialogs no longer throw.** The extracted plugin-host wiring still referenced the old `win` variable; it now uses the lazy `getWin()`.
+
+### Changed
+- ESLint checks `no-undef` on the Node-side files (`main.js`, `ipc.js`, `plugin-hosts.js`, `lib/`). Both regressions above were found by that check.
+
 ## 0.8.0 — 2026-11-01
 
 ### Changed
