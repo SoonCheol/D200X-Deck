@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.6.0 — 2026-11-01
 
 ### Features
 - **Installed → Reload** restarts a single plugin (its process, sockets and crash counter) without reloading the others.
