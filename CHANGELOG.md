@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.7.0 — 2026-11-01
+
+### Changed
+- **Smaller main process.** `main.js` dropped from ~1,900 to ~660 lines: IPC lives in `ipc.js`, both plugin hosts in `plugin-hosts.js`, and the inspector themes in `lib/pi-themes.js`.
+- **One inspector protocol handler** for `ulanzi-pi://` and `sd-pi://` (`lib/plugin-protocol.js`), with the same path containment for both.
+- **One inspector bridge** for height reporting, link handling and the Stream Deck socket connect (`lib/pi-theme.js`).
+- **Shared metadata**: MIME types (`lib/mime.js`), grid geometry (`lib/geometry.js`), action types/labels/groups and media keys (`lib/actions-meta.js`), version comparison (`lib/version.js`).
+- **IPC channel names** are declared once in `lib/channels.js`. The sandboxed preload cannot require it, so a test verifies every preload literal matches a declared channel and has a handler.
+- **One HTML-plugin window helper** (`lib/html-window.js`) used by both hosts.
+
+### Fixed
+- Inspector height reporting is now a single implementation, so the two schemes cannot drift apart again.
+
 ## 0.6.2 — 2026-11-01
 
 ### Security
