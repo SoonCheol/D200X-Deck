@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+### Fixes
+- Drop-downs no longer clip their text when a plugin fixes the select height (e.g. Claude Code Usage's Instance and Accent color): vertical padding and line-height are normalised while the custom chevron is kept.
+
 ## 0.3.1 — 2026-11-01
 
 ### Fixes

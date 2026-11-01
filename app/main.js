@@ -700,7 +700,10 @@ const SD_PI_THEME = `
     background-size: 5px 5px, 5px 5px !important;
     background-repeat: no-repeat !important;
     background-color: #141a25 !important;
-    padding-right: 28px !important;
+    height: auto !important;
+    min-height: 30px;
+    line-height: normal !important;
+    padding: 6px 28px 6px 9px !important;
   }
   select:focus, input:focus, textarea:focus, button:focus {
     outline: none !important;
@@ -754,7 +757,10 @@ const PI_THEME = `
     background-size: 5px 5px, 5px 5px !important;
     background-repeat: no-repeat !important;
     background-color: #141a25 !important;
-    padding-right: 28px !important;
+    height: auto !important;
+    min-height: 30px;
+    line-height: normal !important;
+    padding: 6px 28px 6px 9px !important;
   }
   /* Buttons keep the plugin's own layout (height/line-height/padding) and only
      borrow the app's colour and border treatment. */
