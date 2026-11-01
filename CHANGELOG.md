@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.8.0 — 2026-11-01
+
+### Changed
+- **One plugin-host lifecycle.** `lib/plugin-host.js` now owns discovery, the WebSocket server and port fallback, spawn/exit/backoff, settings persistence, install/import/remove, reload/restart and shutdown. `plugins.js` and `streamdeck-plugins.js` are protocol adapters: manifest reader, spawn command and messages.
+- Plugin stdout/stderr go through one stream handler with the same 1 MB rotation rules for both hosts.
+
+### Fixed
+- `reloadOne()` now removes only the affected plugin's actions. It previously deleted a map entry keyed by plugin UUID, so stale actions could keep the plugin running until the next sync.
+
 ## 0.7.1 — 2026-11-01
 
 ### Changed
