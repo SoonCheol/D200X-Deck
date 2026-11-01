@@ -868,7 +868,7 @@ function renderInspector() {
         <div class="icon-buttons">
           <button class="btn small" id="insp-icon-library">Library</button>
           ${action.type === 'app' && action.value ? '<button class="btn small" id="insp-use-app-icon">App icon</button>' : ''}
-          ${iconSrc ? '<button class="btn small danger" id="insp-icon-remove">Remove</button>' : ''}
+          ${key.icon ? '<button class="btn small danger" id="insp-icon-remove">Remove</button>' : ''}
         </div>
       </div>
     </div>`;

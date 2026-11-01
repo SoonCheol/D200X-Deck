@@ -61,7 +61,9 @@ function pageInfo() {
 }
 
 function autoIconFor(key) {
-  if (key.icon || key.iconCleared || key.face === 'text') return null;
+  // Removing a custom icon falls back to the action's own icon; `iconCleared`
+  // only stops app icons from being re-hydrated automatically.
+  if (key.icon || key.face === 'text') return null;
   return isAutoEmoji(key) ? actionIconSrc(key.action) : null;
 }
 
