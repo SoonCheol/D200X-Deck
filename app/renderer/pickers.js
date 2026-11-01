@@ -205,8 +205,9 @@ function renderSdStoreList() {
   list.innerHTML = items
     .map((item) => {
       const plugin = installed.get(item.id);
-      const latest = sdStore.updates[item.id] || item.version || '';
-      const canUpdate = plugin && latest && latest !== plugin.version;
+      const update = sdStore.updates[item.id];
+      const latest = update || item.version || (plugin && plugin.version) || '';
+      const canUpdate = Boolean(plugin && update);
       const label = !plugin ? 'Install' : canUpdate ? 'Update' : 'Installed';
       const disabled = plugin && !canUpdate;
       return `<div class="plugin-row">

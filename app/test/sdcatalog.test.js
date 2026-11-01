@@ -3,12 +3,30 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 
-const { StreamDeckCatalog, normalizeVersion } = require('../lib/sdcatalog');
+const { StreamDeckCatalog, normalizeVersion, compareVersions } = require('../lib/sdcatalog');
 
 test('normalizes release and manifest versions', () => {
   assert.equal(normalizeVersion('v1.2.3'), '1.2.3');
-  assert.equal(normalizeVersion('1.4.0'), '1.4');
+  assert.equal(normalizeVersion('1.4.0'), '1.4.0');
   assert.equal(normalizeVersion(''), '');
+});
+
+test('compares dotted versions numerically', () => {
+  assert.equal(compareVersions('1.0.0', '1.0'), 0);
+  assert.equal(compareVersions('1.0', '1.0.0'), 0);
+  assert.equal(compareVersions('v1.2.3', '1.2.3'), 0);
+  assert.equal(compareVersions('1.10.0', '1.9.9'), 1);
+  assert.equal(compareVersions('1.2.3', '1.2.4'), -1);
+  assert.equal(compareVersions('2.0.0', '2.0.0-beta'), 1);
+  assert.equal(compareVersions('2.0.0-beta', '2.0.0'), -1);
+});
+
+test('does not report an update when the versions are equivalent', async () => {
+  const catalog = new StreamDeckCatalog();
+  catalog.list = async () => [{ id: 'com.test.same', version: '', source: 'openaction' }];
+  catalog.release = async () => ({ version: '1.0', url: 'https://example.invalid/plugin.zip' });
+  const updates = await catalog.updates([{ uuid: 'com.test.same.sdPlugin', version: '1.0.0' }]);
+  assert.deepEqual(updates, {});
 });
 
 test('resolves versions from GitHub releases and reports updates', async () => {

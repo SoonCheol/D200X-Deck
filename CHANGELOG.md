@@ -3,6 +3,7 @@
 ## Unreleased
 
 ### Fixes
+- The Stream Deck store no longer offers a phantom **Update** when the installed plugin and the latest release are the same version written differently (`1.0.0` vs `1.0`). Versions are now compared numerically, component by component.
 - Property inspectors now connect when the plugin action was just added. The inspector iframe used to open before the action was registered with the plugin host, so it loaded without connection details: settings changes were never sent to the plugin (Control Center kept toggling Wi-Fi, mute kept its old mode, "show text" did nothing), `sendToPlugin` never reached the plugin (Open App stayed on "Loading…", Slack's help button did nothing) and the log had no inspector traffic. The action is now synced before the inspector opens, and an inspector that still lacks connection details reloads itself.
 - Property inspectors that render nothing no longer leave a large blank **Settings** block: the panel collapses until the inspector reports content, and full-height layouts no longer make the iframe grow to the maximum height.
 - Added a Stream Deck plugin log (`streamdeck.log` in the app data folder, **Installed → Open plugin log**) recording plugin spawn/exit, host↔plugin and host↔inspector messages, and plugin stderr, to diagnose plugins whose settings or property inspectors misbehave.
