@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.5.0 — 2026-11-01
 
 ### Features
 - **Settings…** (⌘,) in the app menu opens **Deck settings**, like the ⚙︎ Deck button.
