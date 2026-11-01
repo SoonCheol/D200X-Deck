@@ -94,6 +94,33 @@ function availableOnPath(bin) {
   }
 }
 
+
+// Reads the CPU architecture of a Mach-O executable. Universal ("fat")
+// binaries are reported as such; anything unreadable returns null.
+function binaryArch(file) {
+  let fd;
+  try {
+    fd = fs.openSync(file, 'r');
+    const buf = Buffer.alloc(8);
+    fs.readSync(fd, buf, 0, 8, 0);
+    const magic = buf.readUInt32BE(0);
+    if (magic === 0xcafebabe || magic === 0xbebafeca) return 'universal';
+    if (magic === 0xfeedface || magic === 0xfeedfacf || magic === 0xcefaedfe || magic === 0xcffaedfe) {
+      const littleEndian = magic === 0xcefaedfe || magic === 0xcffaedfe;
+      const cpu = littleEndian ? buf.readUInt32LE(4) : buf.readUInt32BE(4);
+      if (cpu === 0x0100000c || cpu === 12) return 'arm64';
+      if (cpu === 0x01000007 || cpu === 7) return 'x86_64';
+    }
+    return null;
+  } catch {
+    return null;
+  } finally {
+    if (fd !== undefined) {
+      try { fs.closeSync(fd); } catch { /* ignore */ }
+    }
+  }
+}
+
 class StreamDeckPlugins extends EventEmitter {
   constructor({ appPluginsDir, language = 'en', appVersion = '0.1.0', port = 57116 } = {}) {
     super();
@@ -181,6 +208,13 @@ class StreamDeckPlugins extends EventEmitter {
           const uuid = entry.name;
           let code = this._codeFor(manifest);
           if (code && !fs.existsSync(path.join(dir, code.path))) code = null;
+          if (code && code.kind === 'native' && process.platform === 'darwin') {
+            const arch = binaryArch(path.join(dir, code.path));
+            code.arch = arch;
+            if (arch === 'x86_64' && process.arch === 'arm64' && !this.rosettaAvailable()) {
+              code.unsupported = 'rosetta';
+            }
+          }
           const actionMeta = (manifest.Actions || [])
             .filter((a) => a && a.UUID && (!Array.isArray(a.Controllers) || a.Controllers.includes('Keypad')))
             .map((a) => {
@@ -231,7 +265,8 @@ class StreamDeckPlugins extends EventEmitter {
             icon: resolveIcon(dir, manifest.Icon),
             manifest,
             code,
-            compatible: Boolean(code),
+            compatible: Boolean(code) && !code.unsupported,
+            compatReason: code?.unsupported === 'rosetta' ? 'Needs Rosetta' : '',
             actions: actionMeta,
           };
           if (!this.plugins.has(uuid)) this.plugins.set(uuid, meta);
@@ -267,6 +302,20 @@ class StreamDeckPlugins extends EventEmitter {
     return null;
   }
 
+  rosettaAvailable() {
+    if (this._rosetta !== undefined) return this._rosetta;
+    if (process.arch !== 'arm64' || process.platform !== 'darwin') {
+      this._rosetta = true;
+      return this._rosetta;
+    }
+    try {
+      this._rosetta = spawnSync('arch', ['-x86_64', '/usr/bin/true'], { stdio: 'ignore' }).status === 0;
+    } catch {
+      this._rosetta = false;
+    }
+    return this._rosetta;
+  }
+
   wineAvailable() {
     if (this._wine !== null) return this._wine;
     this._wine = process.platform !== 'windows' && availableOnPath('wine');
@@ -285,6 +334,7 @@ class StreamDeckPlugins extends EventEmitter {
         category: p.category,
         icon: p.icon,
         compatible: p.compatible,
+        compatReason: p.compatReason || '',
         type: p.code?.kind || 'unsupported',
         source: p.source,
         writable: p.writable,
@@ -728,7 +778,12 @@ class StreamDeckPlugins extends EventEmitter {
 
   _ensurePlugin(pluginUuid) {
     const meta = this.plugins.get(pluginUuid);
-    if (!meta || !meta.compatible || !meta.code) return null;
+    if (!meta || !meta.code) return null;
+    if (meta.code.unsupported === 'rosetta') {
+      this.emit('error', `${meta.name} is an Intel-only plugin — install Rosetta to run it.`);
+      return null;
+    }
+    if (!meta.compatible) return null;
     if (meta.code.kind === 'html') {
       if (this._htmlRunning?.has(pluginUuid)) return meta;
       this._htmlRunning = this._htmlRunning || new Set();

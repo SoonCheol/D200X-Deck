@@ -87,3 +87,33 @@ test('launches a plugin once when several actions sync before the port resolves'
   assert.equal(spawned.length, 1, 'the plugin must not be launched twice');
   assert.equal(host.starting.size, 0, 'the reservation must be released after launch');
 });
+
+test('marks Intel-only plugins that need Rosetta', { skip: process.arch !== 'arm64' }, () => {
+  const appDir = tempDir();
+  const source = tempDir();
+  const dir = path.join(source, 'com.intel.sdPlugin');
+  fs.mkdirSync(dir, { recursive: true });
+  fs.writeFileSync(
+    path.join(dir, 'manifest.json'),
+    JSON.stringify({
+      Name: 'Intel Only',
+      Version: '1.0.0',
+      CodePathMac: 'bin',
+      OS: [{ Platform: 'mac' }],
+      Actions: [{ Name: 'Run', UUID: 'com.intel.action', States: [{}] }],
+    })
+  );
+  // Thin 64-bit Mach-O header for x86_64 (magic + cputype).
+  const header = Buffer.alloc(8);
+  header.writeUInt32BE(0xfeedfacf, 0);
+  header.writeUInt32BE(0x01000007, 4);
+  fs.writeFileSync(path.join(dir, 'bin'), header);
+
+  const host = new StreamDeckPlugins({ appPluginsDir: appDir });
+  host.dirs = [appDir, source];
+  host.rosettaAvailable = () => false;
+  const [plugin] = host.scan();
+  assert.equal(plugin.compatible, false);
+  assert.equal(plugin.compatReason, 'Needs Rosetta');
+  assert.equal(plugin.actions.length, 1);
+});

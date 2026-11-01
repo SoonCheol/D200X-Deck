@@ -72,6 +72,11 @@ with the Elgato app are still picked up from Elgato's plugin folder.
 Downloads are HTTPS-only, capped at 128 MB, and ZIP paths are validated before
 extraction. Only install plugins you trust; native plugins are executables.
 
+Some older marketplace plugins ship Intel-only (x86_64) binaries. On Apple Silicon
+they need Rosetta: the Installed list marks them **Needs Rosetta** and offers an
+**Install Rosetta…** button that opens Terminal with
+`softwareupdate --install-rosetta --agree-to-license`.
+
 ## Plugin settings (property inspectors)
 
 Both SDKs can ship an HTML property inspector (`PropertyInspectorPath` in the

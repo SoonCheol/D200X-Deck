@@ -177,7 +177,13 @@ function runKeyAction(action) {
   }
   if (action.type === 'plugin') {
     api.runPluginAction(action.actionid).then((res) => {
-      if (!res.ok) toast('Plugin action is not ready yet', true);
+      if (res.ok) return;
+      const plugin = (state.plugins || []).find((p) => p.uuid === action.plugin);
+      if (plugin?.compatReason) {
+        toast(`${plugin.name}: ${plugin.compatReason}. Install Rosetta to run Intel-only plugins.`, true);
+        return;
+      }
+      toast('Plugin action is not ready yet', true);
     });
     return;
   }

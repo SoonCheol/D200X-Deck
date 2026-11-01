@@ -361,7 +361,9 @@ function renderPluginModal() {
         <div class="plugin-meta">
           <div class="plugin-name">
             ${esc(p.name)}
-            <span class="badge-tag ${p.compatible ? 'good' : 'warn'}">${p.compatible ? 'Compatible' : 'Not supported'}</span>
+            <span class="badge-tag ${p.compatible ? 'good' : 'warn'}"${p.compatReason ? ` title="${esc(p.compatReason)}"` : ''}>${
+              p.compatible ? 'Compatible' : esc(p.compatReason || 'Not supported')
+            }</span>
             <span class="badge-tag">${p.sdk === 'streamdeck' ? 'Stream Deck' : 'Ulanzi'}</span>
             <span class="badge-tag ${p.writable ? 'good' : ''}" title="${
               p.writable ? 'Installed in this app' : 'Read-only (installed by another app)'
@@ -376,6 +378,11 @@ function renderPluginModal() {
         </div>
         <div class="plugin-actions">
           <button class="btn ghost" data-reveal="${esc(p.uuid)}">Show in Finder</button>
+          ${
+            p.compatReason === 'Needs Rosetta'
+              ? `<button class="btn primary" data-rosetta="1" title="Opens Terminal and installs Rosetta">Install Rosetta…</button>`
+              : ''
+          }
           ${
             p.writable
               ? `<button class="btn danger" data-remove="${esc(p.uuid)}">Remove</button>`
@@ -398,6 +405,13 @@ function renderPluginModal() {
     )
     .join('');
 
+  list.querySelectorAll('[data-rosetta]').forEach((btn) => {
+    btn.addEventListener('click', async () => {
+      const res = await api.installRosetta();
+      if (!res.ok) return toast(res.error || 'Could not open Terminal', true);
+      toast('Install Rosetta in Terminal, then click Reload all');
+    });
+  });
   list.querySelectorAll('[data-reveal]').forEach((btn) => {
     btn.addEventListener('click', () => api.revealPlugin(btn.dataset.reveal));
   });

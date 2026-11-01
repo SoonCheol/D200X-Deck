@@ -1221,6 +1221,21 @@ ipcMain.handle('plugins:key', (_evt, actionid, pressed) => ({
   ok: Boolean(sdPlugins?.key(String(actionid), Boolean(pressed))),
 }));
 
+ipcMain.handle('plugins:install-rosetta', () => {
+  const command = 'softwareupdate --install-rosetta --agree-to-license';
+  try {
+    const { spawn } = require('node:child_process');
+    spawn(
+      'osascript',
+      ['-e', `tell application "Terminal" to do script "${command}"`, '-e', 'tell application "Terminal" to activate'],
+      { detached: true, stdio: 'ignore' }
+    ).unref();
+    return { ok: true };
+  } catch (err) {
+    return { ok: false, error: err.message || String(err) };
+  }
+});
+
 function looksLikeStreamDeckPlugin(source) {
   try {
     if (fs.statSync(source).isDirectory()) {
