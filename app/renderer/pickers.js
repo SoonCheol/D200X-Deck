@@ -218,7 +218,7 @@ function renderSdStoreList() {
         <div class="plugin-meta">
           <div class="plugin-name">
             ${esc(item.name)}
-            <span class="badge-tag">${item.source === 'openaction' ? 'OpenAction' : 'Elgato archive'}</span>
+            <span class="badge-tag">OpenAction</span>
             ${latest ? `<span class="badge-tag">v${esc(latest)}</span>` : ''}
             ${plugin ? '<span class="badge-tag good">Installed</span>' : ''}
           </div>

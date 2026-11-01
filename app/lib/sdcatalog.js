@@ -4,10 +4,10 @@
 // public indexes and GitHub release metadata; plugin packages are downloaded
 // only when the user asks to install one.
 
-const CATALOGUE_URLS = {
-  openaction: 'https://openactionapi.github.io/plugins/catalogue.json',
-  elgato: 'https://plugins.amankhanna.me/catalogue.json',
-};
+// The OpenAction registry is the single catalogue. It lists one entry per plugin
+// with its GitHub repository; versions are resolved from the latest release at
+// install time, so the store never serves stale versions.
+const CATALOGUE_URL = 'https://openactionapi.github.io/plugins/catalogue.json';
 const MAX_DOWNLOAD = 128 * 1024 * 1024;
 const UA = 'Ulanzi-Deck-Open';
 
@@ -39,45 +39,21 @@ class StreamDeckCatalog {
 
   async list(force = false) {
     if (!force && this.items && Date.now() - this.loadedAt < 10 * 60_000) return this.items;
-    const [openaction, elgato] = await Promise.allSettled([
-      getJson(CATALOGUE_URLS.openaction),
-      getJson(CATALOGUE_URLS.elgato),
-    ]);
-    const items = [];
-    if (openaction.status === 'fulfilled' && openaction.value && typeof openaction.value === 'object') {
-      for (const [id, plugin] of Object.entries(openaction.value)) {
-        items.push({
-          id,
-          name: plugin.name || id,
-          author: plugin.author || '',
-          description: plugin.description || '',
-          version: '',
-          source: 'openaction',
-          repository: plugin.repository || '',
-          download: plugin.download_url || null,
-          icon: plugin.icon || `https://openactionapi.github.io/plugins/icons/${encodeURIComponent(id)}.png`,
-        });
-      }
-    }
-    if (elgato.status === 'fulfilled' && Array.isArray(elgato.value)) {
-      for (const plugin of elgato.value) {
-        if (!plugin || !plugin.id) continue;
-        items.push({
-          id: plugin.id,
-          name: plugin.name || plugin.id,
-          author: plugin.author || '',
-          description: plugin.description || '',
-          version: plugin.version || '',
-          source: 'elgato',
-          repository: '',
-          download: `https://plugins.amankhanna.me/rezipped/${encodeURIComponent(plugin.id)}.zip`,
-          icon: `https://plugins.amankhanna.me/icons/${encodeURIComponent(plugin.id)}.png`,
-        });
-      }
-    }
-    if (!items.length) {
+    const catalogue = await getJson(CATALOGUE_URL);
+    if (!catalogue || typeof catalogue !== 'object' || Array.isArray(catalogue)) {
       throw new Error('Could not load the Stream Deck plugin catalogue');
     }
+    const items = Object.entries(catalogue).map(([id, plugin]) => ({
+      id,
+      name: plugin.name || id,
+      author: plugin.author || '',
+      description: plugin.description || '',
+      version: '',
+      source: 'openaction',
+      repository: plugin.repository || '',
+      download: plugin.download_url || null,
+      icon: plugin.icon || `https://openactionapi.github.io/plugins/icons/${encodeURIComponent(id)}.png`,
+    }));
     items.sort((a, b) => a.name.localeCompare(b.name));
     this.items = items;
     this.loadedAt = Date.now();
@@ -104,9 +80,8 @@ class StreamDeckCatalog {
     const items = await this.list();
     const entry = items.find((item) => item.id === id);
     if (!entry) throw new Error('Plugin not found in the catalogue');
-    if (entry.download) return { entry, url: entry.download, version: entry.version || '' };
     const release = await this.release(entry);
-    return { entry, url: release.url, version: release.version || entry.version || '' };
+    return { entry, url: entry.download || release.url, version: release.version || entry.version || '' };
   }
 
   async updates(installed) {
@@ -118,7 +93,7 @@ class StreamDeckCatalog {
       const entry = byId.get(id);
       if (!entry || !plugin.version) continue;
       let latest = entry.version;
-      if (!latest && entry.source === 'openaction') {
+      if (!latest) {
         try {
           latest = (await this.release(entry)).version;
         } catch {

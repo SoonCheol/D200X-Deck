@@ -45,8 +45,8 @@ _The editor, the plugin manager and the store all run against the deck live._
   Ulanzi Studio, Elgato Stream Deck and OpenDeck plugin folders; `.sdPlugin` folders and
   `.streamdeckplugin`/`.zip` packages can be installed into the app. Windows-only
   plugins run through Wine when Wine is installed. **Store → Stream Deck Plugins**
-  browses the OpenAction catalogue and the community Elgato archive with one-click
-  install/update. See [`docs/PLUGINS.md`](docs/PLUGINS.md).
+  browses the OpenAction catalogue with one-click install/update. See
+  [`docs/PLUGINS.md`](docs/PLUGINS.md).
 * **Plugin Store** — browse the official Ulanzi Studio marketplace from the sidebar:
   categories (profiles, plugins, icons), search, sorting, plugin details, and one-click
   install into this app.

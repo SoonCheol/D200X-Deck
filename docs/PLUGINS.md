@@ -54,17 +54,20 @@ macOS may also ask you to allow a downloaded binary in Privacy & Security.
 
 ## Stream Deck Store
 
-**Store → Stream Deck Plugins** lists public plugin catalogues:
-
-* the **OpenAction** catalogue (`openactionapi.github.io`) with GitHub release downloads;
-* the **Elgato archive** (`plugins.amankhanna.me`), a community mirror of Elgato
-  marketplace packages.
+**Store → Stream Deck Plugins** lists the **OpenAction** catalogue
+(`openactionapi.github.io`), the same registry the Tacto/OpenAction marketplace uses.
+Every entry points at a GitHub repository, and packages are resolved from that
+repository's latest release, so versions are always current.
 
 The Store tabs are **Ulanzi Plugins**, **Ulanzi Icons** and **Stream Deck
 Plugins**. Search by name, author or ID and click **Install**. Installed plugins are compared by
-version; **Update** replaces the app-owned copy. OpenAction packages are resolved from
-the repository’s latest GitHub release, so no account is required. These are
-third-party/community indexes, not the official Elgato store.
+version; **Update** replaces the app-owned copy. No account is required. This is a
+third-party/community index, not the official Elgato store.
+
+The store deliberately does not ship the community Elgato marketplace mirror
+(`plugins.amankhanna.me`): its catalogue and packages were frozen in April 2024 and
+its upstream CDN is gone, so it could only offer stale versions. Plugins you install
+with the Elgato app are still picked up from Elgato's plugin folder.
 
 Downloads are HTTPS-only, capped at 128 MB, and ZIP paths are validated before
 extraction. Only install plugins you trust; native plugins are executables.
