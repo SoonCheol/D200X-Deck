@@ -328,7 +328,13 @@ async function renderInstalledIcons() {
   });
 }
 
+function closePluginMenu() {
+  $('#plugin-more-menu')?.classList.add('hidden');
+  $('#plugin-more')?.setAttribute('aria-expanded', 'false');
+}
+
 function openPluginModal() {
+  closePluginMenu();
   renderPluginModal();
   switchInstalledTab('plugins');
   $('#plugin-modal').classList.remove('hidden');
@@ -336,6 +342,7 @@ function openPluginModal() {
 }
 
 function closePluginModal() {
+  closePluginMenu();
   $('#plugin-modal').classList.add('hidden');
 }
 

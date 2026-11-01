@@ -1069,6 +1069,23 @@ function bind() {
   $('#plugin-open-folder').addEventListener('click', () => api.openPluginsFolder());
   $('#plugin-open-sd-folder')?.addEventListener('click', () => api.openSdPluginsFolder());
   $('#plugin-open-log')?.addEventListener('click', () => api.openPluginLog());
+  const pluginMore = $('#plugin-more');
+  const pluginMenu = $('#plugin-more-menu');
+  pluginMore?.addEventListener('click', (event) => {
+    event.stopPropagation();
+    const hidden = pluginMenu.classList.toggle('hidden');
+    pluginMore.setAttribute('aria-expanded', String(!hidden));
+  });
+  pluginMenu?.querySelectorAll('.menu-item').forEach((item) => {
+    item.addEventListener('click', () => closePluginMenu());
+  });
+  document.addEventListener('click', (event) => {
+    if (!pluginMenu || pluginMenu.classList.contains('hidden')) return;
+    if (!event.target.closest('.menu-wrap')) closePluginMenu();
+  });
+  document.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape') closePluginMenu();
+  });
 
   $('#add-page').addEventListener('click', addPage);
   $('#page-back').addEventListener('click', () => {

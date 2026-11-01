@@ -390,9 +390,14 @@
             <button class="btn primary" id="plugin-install-folder">Install folder…</button>
             <button class="btn" id="plugin-install-zip">Install .zip…</button>
             <button class="btn" id="plugin-reload">Reload all</button>
-            <button class="btn ghost" id="plugin-open-folder">Open plugins folder</button>
-            <button class="btn ghost" id="plugin-open-sd-folder">Open Stream Deck folder</button>
-            <button class="btn ghost" id="plugin-open-log" title="Diagnostics for Stream Deck plugins">Open plugin log</button>
+            <div class="menu-wrap">
+              <button class="btn ghost" id="plugin-more" title="More actions" aria-haspopup="menu" aria-expanded="false">⋯</button>
+              <div id="plugin-more-menu" class="menu hidden" role="menu">
+                <button class="menu-item" id="plugin-open-folder" role="menuitem">Open plugins folder</button>
+                <button class="menu-item" id="plugin-open-sd-folder" role="menuitem">Open Stream Deck folder</button>
+                <button class="menu-item" id="plugin-open-log" role="menuitem">Open plugin log</button>
+              </div>
+            </div>
           </div>
           <div id="plugin-list" class="plugin-list"></div>
         </div>
