@@ -4,6 +4,30 @@
 
 const DEFAULT_KEY_COLOR = '#1b2130';
 
+// At narrow widths the inspector is a fixed drawer. Its open state is explicit
+// so Page settings stays reachable without a selected key.
+function inspectorDrawerOpen() {
+  return Boolean($('#inspector')?.classList.contains('open'));
+}
+
+function openInspectorDrawer() {
+  if (window.innerWidth > 1179) return;
+  $('#inspector')?.classList.add('open');
+  $('#drawer-scrim')?.classList.remove('hidden');
+}
+
+function closeInspectorDrawer() {
+  $('#inspector')?.classList.remove('open');
+  $('#drawer-scrim')?.classList.add('hidden');
+}
+
+function closeInspector() {
+  state.selected = null;
+  closeInspectorDrawer();
+  renderGrid();
+  renderInspector();
+}
+
 // Shown in the Icon tab when a key intentionally has no image.
 const NO_ICON_GLYPH = `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
   <rect x="3" y="4" width="18" height="16" rx="3" />
@@ -442,11 +466,6 @@ function renderWideInspector(el, page) {
       api.setWideMode(next);
     });
   });
-  $('#insp-drawer-close')?.addEventListener('click', () => {
-    state.selected = null;
-    renderGrid();
-    renderInspector();
-  });
   const preview = $('#wide-preview');
   if (preview && typeof drawSystemPanel === 'function') drawSystemPanel(preview, wideOptions(page));
 }
@@ -458,10 +477,9 @@ function renderInspector() {
     el.innerHTML = '<div class="insp-empty" style="padding:24px">No page in this profile. Create one to start editing.</div>';
     return;
   }
+  if (state.selected !== null) openInspectorDrawer();
   if (state.selected === WIDE_KEY_INDEX) return renderWideInspector(el, page);
 
-  const inspectorEl = $('#inspector');
-  if (state.selected === null && inspectorEl) inspectorEl.classList.remove('open');
   if (state.selected === null) {
     const configured = Object.entries(page.keys).filter(
       ([index, k]) => Number(index) !== WIDE_KEY_INDEX && k &&
@@ -469,7 +487,9 @@ function renderInspector() {
     ).length;
     const pins = Object.entries(pinnedFor(page.profileId));
     el.innerHTML = `
-      <div class="insp-head"><h2>Page settings</h2><span class="index">${configured}/${KEY_COUNT - 1} keys</span></div>
+      <div class="insp-head"><h2>Page settings</h2><span class="index">${configured}/${KEY_COUNT - 1} keys</span>
+        <button class="icon-btn drawer-close" id="insp-drawer-close" title="Close">×</button>
+      </div>
       <div class="insp-actions">
         <button class="btn danger" id="insp-clear-page" ${configured ? '' : 'disabled'}>Clear page</button>
         <button class="btn" id="insp-duplicate-page">Duplicate</button>
@@ -1441,16 +1461,6 @@ function renderInspector() {
       drawIndex(selected);
       commit(false);
       renderInspector();
-    });
-  }
-
-  if (inspectorEl) inspectorEl.classList.toggle('open', window.innerWidth <= 1179);
-  const drawerClose = $('#insp-drawer-close');
-  if (drawerClose) {
-    drawerClose.addEventListener('click', () => {
-      state.selected = null;
-      renderInspector();
-      renderGrid();
     });
   }
 

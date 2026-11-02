@@ -183,6 +183,8 @@ body::before {
 .main { display: flex; flex-direction: column; min-width: 0; }
 
 .toolbar {
+  position: relative;
+  z-index: 80;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -1269,10 +1271,11 @@ body::before {
   #app { grid-template-columns: 200px minmax(0, 1fr) 0 !important; }
   .inspector {
     position: fixed;
-    top: 0;
+    top: var(--toolbar-h, 104px);
     right: 0;
     bottom: 0;
-    width: min(440px, 92vw);
+    width: min(360px, 92vw);
+    padding: 18px;
     transform: translateX(105%);
     transition: transform 160ms cubic-bezier(.2,.8,.2,1);
     z-index: 70;
@@ -1281,8 +1284,17 @@ body::before {
   }
   .inspector.open { transform: none; }
   .drawer-close { display: inline-flex !important; }
+  .drawer-scrim:not(.hidden) {
+    display: block;
+    position: fixed;
+    inset: var(--toolbar-h, 104px) 0 0 0;
+    z-index: 65;
+    background: rgba(4, 7, 12, 0.52);
+    backdrop-filter: blur(1px);
+  }
 }
 .drawer-close { display: none; }
+.drawer-scrim { display: none; }
 
 .icons-search-row { padding: 0 22px 10px; }
 

@@ -155,6 +155,13 @@ let brightnessTimer = null;
 
 const $ = (sel) => document.querySelector(sel);
 
+/** Keep the narrow-window drawer below the toolbar, whatever its wrapped height. */
+function syncToolbarHeight() {
+  const toolbar = document.querySelector('.toolbar');
+  if (!toolbar) return;
+  document.documentElement.style.setProperty('--toolbar-h', `${toolbar.offsetHeight}px`);
+}
+
 function debounce(fn, ms) {
   let timer = null;
   return (...args) => {
@@ -1277,6 +1284,24 @@ function bind() {
     if (parent) navigate(parent);
   });
   $('#push-btn').addEventListener('click', pushNow);
+  $('#page-settings-btn').addEventListener('click', () => {
+    state.selected = null;
+    renderGrid();
+    renderInspector();
+    openInspectorDrawer();
+    const inspector = $('#inspector');
+    if (inspector) inspector.scrollTop = 0;
+  });
+  // One delegated close handler serves Page settings, key and wide-key headers.
+  $('#inspector').addEventListener('click', (event) => {
+    if (event.target.closest('#insp-drawer-close')) closeInspector();
+  });
+  $('#drawer-scrim').addEventListener('click', closeInspector);
+  window.addEventListener('resize', () => {
+    syncToolbarHeight();
+    if (window.innerWidth > 1179) closeInspectorDrawer();
+  });
+  syncToolbarHeight();
 
   $('#page-title').addEventListener('input', (e) => {
     const page = activePage();
@@ -1485,6 +1510,7 @@ function bind() {
       if (!$('#hotkey-modal').classList.contains('hidden')) return closeHotkeyModal();
       if (!$('#app-modal').classList.contains('hidden')) return closeAppPicker();
       if (!$('#plugin-modal').classList.contains('hidden')) return closePluginModal();
+      if (inspectorDrawerOpen()) return closeInspector();
       state.selected = null;
       renderGrid();
       renderInspector();
