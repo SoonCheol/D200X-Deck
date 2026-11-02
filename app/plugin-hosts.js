@@ -6,7 +6,7 @@ const path = require('node:path');
 const { PluginManager, pluginRootDirs } = require('./lib/plugins');
 const { StreamDeckPlugins } = require('./lib/streamdeck-plugins');
 const { openHtmlPluginWindow } = require('./lib/html-window');
-const { isInside } = require('./lib/paths');
+const { viewTarget } = require('./lib/plugin-view');
 const { CH } = require('./lib/channels');
 
 /**
@@ -48,15 +48,16 @@ function initPluginHosts({ baseDir, appVersion, send, getWin, getStore, getDeck 
         if (qs) target += (target.includes('?') ? '&' : '?') + qs;
       }
       if (!/^https?:/i.test(target) && action) {
-        const file = path.resolve(action.meta.dir, target.replace(/^\.?\//, ''));
-        if (!isInside(action.meta.dir, file)) return;
-        const view = new BrowserWindow({
+        const view = viewTarget(action.meta.dir, msg.url, msg.param);
+        if (!view) return;
+        const popup = new BrowserWindow({
           width: 760,
           height: 680,
           title: action.meta.name || 'Plugin',
           backgroundColor: '#0b0e14',
         });
-        view.loadFile(file).catch((err) => console.error('[plugin view]', err.message));
+        const options = Object.keys(view.query).length ? { query: view.query } : undefined;
+        popup.loadFile(view.file, options).catch((err) => console.error('[plugin view]', err.message));
         return;
       }
       if (/^https?:|^mailto:/i.test(target)) shell.openExternal(target);
