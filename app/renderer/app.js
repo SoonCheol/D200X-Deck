@@ -29,6 +29,8 @@ const ACTION_ICON_PATHS = {
   toggle: 'assets/actions/toggle.svg',
   timer: 'assets/actions/timer.svg',
   brightness: 'assets/actions/brightness.svg',
+  'brightness:up': 'assets/actions/brightness-up.svg',
+  'brightness:down': 'assets/actions/brightness-down.svg',
   sound: 'assets/actions/sound.svg',
   'sound:stop': 'assets/actions/sound-stop.svg',
   pop: 'assets/actions/pop.svg',
@@ -53,6 +55,11 @@ function actionIconSrc(action) {
   }
   if (action.type === 'sound') {
     return (action.op === 'stop' ? ACTION_ICON_PATHS['sound:stop'] : ACTION_ICON_PATHS.sound) || null;
+  }
+  if (action.type === 'brightness') {
+    return (
+      ACTION_ICON_PATHS[action.op === 'down' ? 'brightness:down' : 'brightness:up'] || null
+    );
   }
   if (action.type === 'media') return ACTION_ICON_PATHS[`media:${action.op}`] || null;
   return ACTION_ICON_PATHS[action.type] || null;
