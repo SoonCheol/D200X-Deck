@@ -705,6 +705,7 @@ function closeUpdateModal() {
 function openDeckSettings(tab = 'display') {
   const sheet = $('#deck-settings');
   if (!sheet) return;
+  closeInspectorDrawer();
   sheet.classList.remove('hidden');
   selectSettingsTab(tab);
   updateDeckSettingsMeta();
@@ -1390,7 +1391,10 @@ function bind() {
   $('#deck-settings-btn').addEventListener('click', () => {
     const sheet = $('#deck-settings');
     const open = sheet.classList.toggle('hidden');
-    if (!open) openDeckSettings();
+    if (!open) {
+      closeInspectorDrawer();
+      openDeckSettings();
+    }
   });
   document.querySelectorAll('[data-settings-tab]').forEach((button) => {
     button.addEventListener('click', () => selectSettingsTab(button.dataset.settingsTab));
@@ -1556,6 +1560,7 @@ function bind() {
   $('#autopush').addEventListener('change', (e) => {
     state.config.settings.autoPush = e.target.checked;
     scheduleSave();
+    renderPushButton();
     if (e.target.checked) schedulePush();
   });
 

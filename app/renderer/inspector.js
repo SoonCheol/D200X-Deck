@@ -11,6 +11,7 @@ function inspectorDrawerOpen() {
 }
 
 function openInspectorDrawer() {
+  $('#deck-settings')?.classList.add('hidden');
   if (window.innerWidth > 1179) return;
   $('#inspector')?.classList.add('open');
   $('#drawer-scrim')?.classList.remove('hidden');
@@ -759,6 +760,9 @@ function renderInspector() {
         (k.label || k.emoji || k.icon || (k.action && k.action.type !== 'none'))
     ).length;
     const pins = Object.entries(pinnedFor(page.profileId));
+    const children = state.config.pages.filter(
+      (p) => p.parentId === page.id && p.profileId === page.profileId
+    );
     el.innerHTML = `
       <div class="insp-head"><h2>Page settings</h2><span class="index">${configured}/${KEY_COUNT - 1} keys</span>
         <button class="icon-btn drawer-close" id="insp-drawer-close" title="Close">×</button>
@@ -782,12 +786,38 @@ function renderInspector() {
           ${parentPageOptions(page)}
         </select>
         <div class="field-hint">
-          ${page.parentId ? `Subpage of “${esc(pageName(page.parentId))}”.` : '“Back” actions and folders return here.'}
+          ${
+            page.parentId
+              ? `Subpage of “${esc(pageName(page.parentId))}”.`
+              : 'This page is top-level. Set a parent to make it a subpage.'
+          }
         </div>
         ${page.parentId ? `<div class="row" style="margin-top:8px">
           <button class="btn small" id="insp-page-back">← Back to ${esc(pageName(page.parentId))}</button>
           <button class="btn small" id="insp-add-back">Add Back key</button>
         </div>` : ''}
+      </div>
+      <div class="settings-block">
+        <h3>Subpages</h3>
+        ${
+          children.length
+            ? `<div class="subpage-list">
+                ${children
+                  .map(
+                    (child) => `<div class="subpage-row">
+                      <span class="subpage-name">↳ ${esc(child.name)}</span>
+                      <span class="subpage-note">${Object.keys(child.keys || {}).length} keys</span>
+                      <button class="btn small" data-open-subpage="${esc(child.id)}">Add key</button>
+                    </div>`
+                  )
+                  .join('')}
+              </div>`
+            : '<div class="field-hint" style="margin:0">No subpages yet.</div>'
+        }
+        <div class="row" style="margin-top:8px">
+          <button class="btn small" id="insp-add-subpage">New subpage</button>
+        </div>
+        <div class="field-hint">A subpage is a page whose Parent page is this one. “Add key” creates a key here that opens it.</div>
       </div>
       ${page.parentId ? `<div class="field">
         <label>Auto exit</label>
@@ -831,6 +861,7 @@ function renderInspector() {
         <div class="insp-empty" style="padding:0">
           Click a key to edit it. Drag any image onto a key to use it as the icon (it is scaled to 196×196).
           Drag a page in the sidebar to reorder it, or press ⌥↑ / ⌥↓.
+          Use New subpage in Page settings to create a child page with its open and Back keys.
           Labels are rendered into the image, so the Deck shows exactly what you see here.
           Select a key and press ⌘C / ⌘V to duplicate it, Delete to clear it (⌘Z undoes).
         </div>
@@ -941,6 +972,10 @@ function renderInspector() {
       toast('Page cleared — ⌘Z to undo');
     });
     $('#insp-add-page').addEventListener('click', addPage);
+    $('#insp-add-subpage')?.addEventListener('click', () => addSubpage(page));
+    document.querySelectorAll('#inspector [data-open-subpage]').forEach((button) => {
+      button.addEventListener('click', () => addOpenKeyForPage(page, button.dataset.openSubpage));
+    });
     $('#insp-duplicate-page').addEventListener('click', () => {
       const copy = JSON.parse(JSON.stringify(page));
       copy.id = crypto.randomUUID ? crypto.randomUUID() : String(Date.now());
@@ -968,7 +1003,7 @@ function renderInspector() {
   const pageOptions = pagesFor(page.profileId)
     .map(
       (p) =>
-        `<option value="${esc(p.id)}" ${p.id === action.value ? 'selected' : ''}>${esc(p.name)}${p.id === page.id ? ' (this page)' : ''}</option>`
+        `<option value="${esc(p.id)}" ${p.id === action.value ? 'selected' : ''}>${p.parentId ? '↳ ' : ''}${esc(p.name)}${p.id === page.id ? ' (this page)' : ''}</option>`
     )
     .join('');
 
@@ -1000,7 +1035,7 @@ function renderInspector() {
       ['goto', 'Go to page'],
       ['next', 'Next page'],
       ['prev', 'Previous page'],
-      ['back', 'Back to parent page'],
+      ...(page.parentId || op === 'back' ? [['back', 'Back to parent page']] : []),
       ['profile', 'Switch profile'],
     ];
     const profileOptions = (state.config.profiles || [])

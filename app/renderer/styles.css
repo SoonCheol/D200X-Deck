@@ -183,7 +183,7 @@ body::before {
 
 /* --------------------------------------------------------------- main */
 
-.main { display: flex; flex-direction: column; min-width: 0; }
+.main { display: flex; flex-direction: column; min-width: 0; position: relative; }
 
 .toolbar {
   position: relative;
@@ -269,6 +269,7 @@ body::before {
 .btn.danger-solid:hover { background: #b83a4f; filter: brightness(1.04); }
 .btn:disabled { opacity: 0.45; cursor: not-allowed; }
 #push-btn { white-space: nowrap; min-width: 132px; position: relative; }
+.push-wrap { display: inline-flex; -webkit-app-region: no-drag; }
 #push-btn.unsynced::after {
   content: '';
   position: absolute;
@@ -413,6 +414,19 @@ body::before {
 }
 .pinned-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text); }
 .pinned-note { color: var(--text-3); font-size: 10px; }
+.subpage-list { display: flex; flex-direction: column; gap: 6px; }
+.subpage-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.035);
+  font-size: 11.5px;
+}
+.subpage-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text); }
+.subpage-note { color: var(--text-3); font-size: 10px; flex: none; }
+.subpage-row .btn { flex: none; }
 .key .pin-badge {
   position: absolute;
   top: 8px;
@@ -1250,13 +1264,15 @@ body::before {
 
 .settings-sheet {
   position: absolute;
-  top: 112px;
-  right: calc(var(--inspector) + 8px);
-  max-height: calc(100vh - 140px);
+  top: calc(var(--toolbar-h, 104px) + 10px);
+  left: 50%;
+  right: auto;
+  transform: translateX(-50%);
+  max-height: calc(100vh - var(--toolbar-h, 104px) - 24px);
   overflow-y: auto;
   -webkit-app-region: no-drag;
   z-index: 40;
-  width: 440px;
+  width: min(440px, calc(100% - 32px));
   padding: 14px 16px 16px;
   border-radius: 14px;
   border: 1px solid var(--line-strong);
@@ -1290,8 +1306,7 @@ body::before {
 
 @media (max-width: 1179px) {
   .settings-sheet {
-    right: 24px;
-    width: min(440px, calc(100vw - 48px));
+    width: min(440px, calc(100% - 24px));
   }
 }
 

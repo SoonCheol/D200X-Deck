@@ -63,16 +63,6 @@ function renderStatus() {
       : 'Connect the D200 over USB';
   $('#device-card').title = connected ? '' : String(message || '');
   $('#device-serial').textContent = connected ? info?.SerialNumber || info?.serial || '' : '';
-  const pushBtn = $('#push-btn');
-  if (pushBtn) {
-    pushBtn.disabled = !connected;
-    pushBtn.textContent = connected ? 'Push to Deck' : busy ? 'Deck in use' : 'Connect deck';
-    pushBtn.title = connected
-      ? 'Send this page to the Deck'
-      : busy
-        ? 'Quit Ulanzi Studio to connect'
-        : 'Connect the D200 first';
-  }
   const banner = $('#connect-banner');
   if (banner) {
     banner.classList.toggle('hidden', connected);
@@ -94,9 +84,43 @@ function renderStatus() {
 function renderSyncState() {
   const pushBtn = $('#push-btn');
   if (pushBtn) pushBtn.classList.toggle('unsynced', Boolean(state.unsynced));
+  renderPushButton();
   if (!state.status.connected || state.pushing || !state.unsynced) return;
   const stateEl = $('#push-state');
   if (stateEl) stateEl.textContent = 'unsynced changes';
+}
+
+/**
+ * Auto-push makes the button redundant while everything is in sync; keep it
+ * available when a push failed or auto-push is off, so there is always a manual
+ * retry. ⌘S still forces a push.
+ */
+function renderPushButton() {
+  const pushBtn = $('#push-btn');
+  if (!pushBtn) return;
+  const connected = Boolean(state.status.connected);
+  const busy = /busy|ulanzistudio|ulanzi studio/i.test(String(state.status.message || ''));
+  const autoPush = Boolean(state.config?.settings?.autoPush);
+  const retry = Boolean(state.unsynced);
+  const autoOnly = connected && autoPush && !retry;
+  pushBtn.disabled = !connected || state.pushing || autoOnly;
+  pushBtn.textContent = connected ? 'Push to Deck' : busy ? 'Deck in use' : 'Connect deck';
+  if (!connected) {
+    pushBtn.title = busy ? 'Quit Ulanzi Studio to connect' : 'Connect the D200 first';
+  } else if (state.pushing) {
+    pushBtn.title = 'Pushing this page to the Deck…';
+  } else if (autoOnly) {
+    pushBtn.title =
+      'Auto-push is on — changes go to the Deck automatically. Turn it off in Deck settings, or press ⌘S, to push manually.';
+  } else if (retry) {
+    pushBtn.title = 'Some changes have not reached the Deck yet — push to retry.';
+  } else {
+    pushBtn.title = 'Send this page to the Deck';
+  }
+  // A disabled button does not reliably raise its own tooltip in every shell;
+  // the wrapper still receives the hover.
+  const wrap = $('#push-wrap');
+  if (wrap) wrap.title = pushBtn.title;
 }
 
 let pageDragId = null;
@@ -674,6 +698,7 @@ async function pushNow() {
   }
   state.pushing = true;
   $('#push-state').textContent = 'pushing…';
+  renderPushButton();
   try {
     await drawGrid();
     const grid = $('#grid');
@@ -696,6 +721,7 @@ async function pushNow() {
     toast(err.message || String(err), true);
   } finally {
     state.pushing = false;
+    renderPushButton();
     if (state.pushAgain) {
       state.pushAgain = false;
       schedulePush();
@@ -759,6 +785,68 @@ function addPage() {
   state.selected = null;
   renderAll();
   commit();
+}
+
+/** Add a key on the parent that opens an existing child page. */
+function addOpenKeyForPage(parent, childId) {
+  const child = state.config.pages.find((p) => p.id === childId);
+  if (!parent || !child || child.parentId !== parent.id) return;
+  const slot = nextFreeIndex(parent);
+  if (slot < 0) return toast('No free key slot on this page', true);
+  parent.keys[slot] = {
+    emoji: '',
+    label: child.name,
+    color: '#1b2130',
+    icon: null,
+    action: { type: 'page', op: 'goto', value: child.id },
+  };
+  state.config.activePageId = parent.id;
+  state.selected = slot;
+  renderAll();
+  commit();
+  toast(`Added “${child.name}” to key ${slot + 1}`);
+}
+
+/** Create a child page with an open key on the parent and a Back key on it. */
+function addSubpage(parent) {
+  if (!parent) return;
+  const child = {
+    id: uuid(),
+    name: nextPageName(parent.profileId),
+    profileId: parent.profileId,
+    parentId: parent.id,
+    keys: {},
+  };
+  state.config.pages.push(child);
+  const openSlot = nextFreeIndex(parent);
+  if (openSlot >= 0) {
+    parent.keys[openSlot] = {
+      emoji: '',
+      label: child.name,
+      color: '#1b2130',
+      icon: null,
+      action: { type: 'page', op: 'goto', value: child.id },
+    };
+  }
+  const backSlot = nextFreeIndex(child);
+  if (backSlot >= 0) {
+    child.keys[backSlot] = {
+      emoji: '',
+      label: 'Back',
+      color: '#1b2130',
+      icon: null,
+      action: { type: 'page', op: 'back' },
+    };
+  }
+  state.config.activePageId = child.id;
+  state.selected = null;
+  renderAll();
+  commit();
+  toast(
+    openSlot >= 0
+      ? `Created “${child.name}” — key ${openSlot + 1} on “${parent.name}” opens it`
+      : `Created “${child.name}” — add a key on “${parent.name}” to open it`
+  );
 }
 
 async function deletePage(id) {
