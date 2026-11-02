@@ -18,6 +18,47 @@ function str(value, fallback = '') {
   return typeof value === 'string' ? value : fallback;
 }
 
+const SOURCE_ACTION_TEXT_LIMIT = 200;
+const SOURCE_ACTION_VALUE_LIMIT = 4096;
+const SOURCE_ACTION_ENTRY_LIMIT = 100;
+const SOURCE_ACTION_DEPTH_LIMIT = 3;
+
+/** Keep unmapped import metadata small, plain and safe to serialise. */
+function boundedSourceValue(value, depth = 0) {
+  if (depth >= SOURCE_ACTION_DEPTH_LIMIT) return undefined;
+  if (typeof value === 'string') return value.slice(0, SOURCE_ACTION_VALUE_LIMIT);
+  if (typeof value === 'number') return Number.isFinite(value) ? value : null;
+  if (typeof value === 'boolean' || value === null) return value;
+  if (Array.isArray(value)) {
+    return value
+      .slice(0, SOURCE_ACTION_ENTRY_LIMIT)
+      .map((item) => boundedSourceValue(item, depth + 1))
+      .filter((item) => item !== undefined);
+  }
+  if (value && typeof value === 'object') {
+    const out = {};
+    for (const [name, item] of Object.entries(value).slice(0, SOURCE_ACTION_ENTRY_LIMIT)) {
+      if (name === '__proto__' || name === 'constructor' || name === 'prototype') continue;
+      const bounded = boundedSourceValue(item, depth + 1);
+      if (bounded !== undefined) out[name.slice(0, SOURCE_ACTION_TEXT_LIMIT)] = bounded;
+    }
+    return out;
+  }
+  return undefined;
+}
+
+function normalizeSourceAction(raw) {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null;
+  const action = typeof raw.action === 'string' ? raw.action.slice(0, SOURCE_ACTION_TEXT_LIMIT) : '';
+  if (!action) return null;
+  const source = { action };
+  const param = boundedSourceValue(raw.param);
+  if (param && typeof param === 'object' && Object.keys(param).length) source.param = param;
+  const plugin = boundedSourceValue(raw.plugin);
+  if (plugin && typeof plugin === 'object' && Object.keys(plugin).length) source.plugin = plugin;
+  return source;
+}
+
 function normalizeAction(action) {
   if (!action || typeof action !== 'object') return { type: 'none' };
   const type = ACTION_TYPE_SET.has(action.type) ? action.type : 'none';
@@ -81,6 +122,8 @@ function normalizeKey(raw) {
   if (typeof raw.emojiAuto === 'string') key.emojiAuto = raw.emojiAuto;
   if (typeof raw.labelAuto === 'string') key.labelAuto = raw.labelAuto;
   if (raw.face === 'icon' || raw.face === 'text') key.face = raw.face;
+  const sourceAction = normalizeSourceAction(raw.sourceAction);
+  if (sourceAction) key.sourceAction = sourceAction;
   // Set when the user removes an icon: keep the icon face but stop falling
   // back to the automatic action image.
   if (raw.iconCleared === true) key.iconCleared = true;

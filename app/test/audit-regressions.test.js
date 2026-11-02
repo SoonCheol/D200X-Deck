@@ -385,6 +385,34 @@ test('plugin sync collects nested and alternate-trigger actions', () => {
   assert.notEqual(wanted[0].actionid, wanted[1].actionid);
 });
 
+test('an unmapped imported action keeps its bounded source data across load', (t) => {
+  const dir = fixture(t);
+  const config = createDefaultConfig();
+  const long = 'x'.repeat(10_000);
+  config.pages[0].keys[0] = {
+    emoji: '❓',
+    label: 'Unsupported',
+    color: '#2a2f45',
+    icon: null,
+    action: { type: 'none' },
+    sourceAction: {
+      action: long,
+      param: { token: long, nested: { deep: { deeper: { value: long } } } },
+      plugin: { uuid: long },
+    },
+  };
+  const store = new Store(dir);
+  store.save(config);
+
+  const loaded = new Store(dir).load();
+  const source = loaded.pages[0].keys[0].sourceAction;
+
+  assert.equal(source.action.length, 200);
+  assert.equal(source.param.token.length, 4096);
+  assert.equal(source.plugin.uuid.length, 4096);
+  assert.equal(source.param.nested.deep.deeper, undefined, 'the preserved payload has a depth bound');
+});
+
 test('a zero sound volume is preserved', () => {
   const config = createDefaultConfig();
   config.pages[0].keys[0] = {
