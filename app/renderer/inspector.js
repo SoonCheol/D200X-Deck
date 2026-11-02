@@ -557,6 +557,7 @@ function renderInspector() {
         <h3>Tips</h3>
         <div class="insp-empty" style="padding:0">
           Click a key to edit it. Drag any image onto a key to use it as the icon (it is scaled to 196×196).
+          Drag a page in the sidebar to reorder it, or press ⌥↑ / ⌥↓.
           Labels are rendered into the image, so the Deck shows exactly what you see here.
           Select a key and press ⌘C / ⌘V to duplicate it, Delete to clear it (⌘Z undoes).
         </div>

@@ -99,6 +99,55 @@ function renderSyncState() {
   if (stateEl) stateEl.textContent = 'unsynced changes';
 }
 
+let pageDragId = null;
+
+function clearPageDropMarkers() {
+  document
+    .querySelectorAll('#page-list .drop-before, #page-list .drop-after')
+    .forEach((row) => row.classList.remove('drop-before', 'drop-after'));
+}
+
+/** Move a page next to a sibling in the same profile; other profiles stay put. */
+function movePage(sourceId, targetId, after = false) {
+  if (!sourceId || !targetId || sourceId === targetId) return false;
+  const pages = state.config.pages;
+  const source = pages.find((p) => p.id === sourceId);
+  const target = pages.find((p) => p.id === targetId);
+  if (!source || !target || source.profileId !== target.profileId) return false;
+  const before = pages.indexOf(source);
+  pages.splice(before, 1);
+  const at = pages.indexOf(target) + (after ? 1 : 0);
+  if (at === before) {
+    pages.splice(before, 0, source);
+    return false;
+  }
+  pages.splice(at, 0, source);
+  return true;
+}
+
+function focusPage(id) {
+  requestAnimationFrame(() => {
+    const row = [...document.querySelectorAll('#page-list .page-item')].find(
+      (item) => item.dataset.pageId === id
+    );
+    row?.focus();
+  });
+}
+
+function movePageBy(pageId, delta) {
+  const page = state.config.pages.find((p) => p.id === pageId);
+  if (!page) return false;
+  const siblings = state.config.pages.filter((p) => p.profileId === page.profileId);
+  const index = siblings.findIndex((p) => p.id === pageId);
+  const target = siblings[index + delta];
+  if (!target) return false;
+  if (!movePage(pageId, target.id, delta > 0)) return false;
+  commit(false);
+  renderPageList();
+  focusPage(pageId);
+  return true;
+}
+
 function renderPageList() {
   const list = $('#page-list');
   list.innerHTML = '';
@@ -125,15 +174,61 @@ function renderPageList() {
     el.setAttribute('tabindex', '0');
     el.setAttribute('aria-current', page.id === state.config.activePageId ? 'page' : 'false');
     el.setAttribute('aria-label', `Page ${page.name}`);
+    el.dataset.pageId = page.id;
+    el.draggable = true;
+    el.title = 'Drag to reorder · ⌥↑/⌥↓';
     if (depth) {
       el.classList.add('subpage');
       el.style.paddingLeft = `${10 + depth * 12}px`;
     }
     el.innerHTML = `<span class="dot"></span><span class="name">${depth ? '↳ ' : ''}${esc(page.name)}</span>`;
     el.addEventListener('keydown', (e) => {
+      if (e.altKey && (e.key === 'ArrowUp' || e.key === 'ArrowDown')) {
+        e.preventDefault();
+        e.stopPropagation();
+        movePageBy(page.id, e.key === 'ArrowUp' ? -1 : 1);
+        return;
+      }
       if (e.key === 'Enter' || e.key === ' ') {
         e.preventDefault();
         selectPage(page.id);
+      }
+    });
+    el.addEventListener('dragstart', (e) => {
+      pageDragId = page.id;
+      e.dataTransfer.setData('application/x-ulanzi-page', page.id);
+      e.dataTransfer.effectAllowed = 'move';
+      el.classList.add('dragging');
+    });
+    el.addEventListener('dragend', () => {
+      pageDragId = null;
+      el.classList.remove('dragging');
+      clearPageDropMarkers();
+    });
+    el.addEventListener('dragover', (e) => {
+      if (!pageDragId && !Array.from(e.dataTransfer.types).includes('application/x-ulanzi-page')) return;
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'move';
+      const rect = el.getBoundingClientRect();
+      clearPageDropMarkers();
+      el.classList.add(e.clientY > rect.top + rect.height / 2 ? 'drop-after' : 'drop-before');
+    });
+    el.addEventListener('dragleave', (e) => {
+      if (e.relatedTarget && el.contains(e.relatedTarget)) return;
+      el.classList.remove('drop-before', 'drop-after');
+    });
+    el.addEventListener('drop', (e) => {
+      if (!pageDragId && !Array.from(e.dataTransfer.types).includes('application/x-ulanzi-page')) return;
+      e.preventDefault();
+      const sourceId = pageDragId || e.dataTransfer.getData('application/x-ulanzi-page');
+      const rect = el.getBoundingClientRect();
+      const after = e.clientY > rect.top + rect.height / 2;
+      pageDragId = null;
+      el.classList.remove('dragging');
+      clearPageDropMarkers();
+      if (movePage(sourceId, page.id, after)) {
+        commit(false);
+        renderPageList();
       }
     });
     const del = document.createElement('button');
