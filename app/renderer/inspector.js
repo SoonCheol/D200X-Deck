@@ -320,7 +320,8 @@ function multiEditor(action, page) {
 }
 
 function multiStepRow(step, index, total, page) {
-  const act = step.delay ? null : step.action || { type: 'hotkey', value: '' };
+  const isDelay = step.delay !== undefined;
+  const act = isDelay ? null : step.action || { type: 'hotkey', value: '' };
   const knownType = act && MULTI_STEP_TYPES.some(([value]) => value === act.type);
   const typeOptions =
     act && !knownType

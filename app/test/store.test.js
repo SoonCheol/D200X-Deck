@@ -37,6 +37,18 @@ test('POP menus are capped at nine actions', () => {
   assert.equal(validated.pages[0].keys[0].action.steps.length, 9);
 });
 
+test('a zero-millisecond delay step remains a delay', () => {
+  const config = createDefaultConfig();
+  config.pages[0].keys[0] = {
+    emoji: '',
+    label: 'Wait',
+    color: '#1b2130',
+    action: { type: 'multi', steps: [{ delay: 0 }] },
+  };
+  const validated = validateConfig(config);
+  assert.deepEqual(validated.pages[0].keys[0].action.steps[0], { delay: 0 });
+});
+
 test('caption fonts and lock-screen settings survive save/load', () => {
   const dir = tempDir();
   const store = new Store(dir);

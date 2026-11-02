@@ -161,7 +161,7 @@ function popItem(action) {
 
 /** A step is normally {action}, but imports may keep a bare action. */
 function stepAction(step) {
-  if (!step || typeof step !== 'object' || step.delay) return null;
+  if (!step || typeof step !== 'object' || step.delay !== undefined) return null;
   if (step.action && typeof step.action === 'object') return step.action;
   // A bare plugin step's `action` is its action UUID, not a nested action.
   return step.type ? step : null;
@@ -265,7 +265,7 @@ async function runMulti(action) {
     if (!sequenceAlive(action, run)) return { ok: false, error: 'cancelled' };
     const step = steps[index];
     if (!step) continue;
-    if (step.delay) {
+    if (step.delay !== undefined) {
       await new Promise((resolve) => setTimeout(resolve, Math.max(0, Number(step.delay) || 0)));
       continue;
     }
