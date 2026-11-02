@@ -868,6 +868,8 @@ function renderInspector() {
   const face =
     key.face === 'text' ? 'text' : key.face === 'icon' ? 'icon' : key.icon || autoIconFor(key) ? 'icon' : 'text';
   const isDefaultColor = String(key.color || DEFAULT_KEY_COLOR).toLowerCase() === DEFAULT_KEY_COLOR;
+  const captionVisible =
+    key.font?.showLabel !== false && (!liveKey.liveImage || key.font?.captionExplicit === true);
   const autoIcon = autoIconFor(key);
   // A plugin that pushes an image owns the key face: effectiveKey() replaces the
   // stored icon, so offering the icon controls would silently do nothing.
@@ -996,17 +998,18 @@ function renderInspector() {
 
     <div class="field">
       <label for="insp-label">Caption</label>
-      <label class="check-row caption-toggle"><input type="checkbox" id="insp-font-show" ${key.font?.showLabel !== false ? 'checked' : ''} /> Show caption</label>
-      <input class="input" id="insp-label" maxlength="40" value="${esc(key.label)}" placeholder="Optional small text under the key" ${key.font?.showLabel === false ? 'disabled' : ''} />
+      <label class="check-row caption-toggle"><input type="checkbox" id="insp-font-show" ${captionVisible ? 'checked' : ''} /> Show caption</label>
+      ${liveKey.liveImage && !key.font?.captionExplicit ? '<div class="field-hint">This plugin draws its own label. Turn on Show caption to add one over it.</div>' : ''}
+      <input class="input" id="insp-label" maxlength="40" value="${esc(key.label)}" placeholder="Optional small text under the key" ${captionVisible ? '' : 'disabled'} />
       <div class="font-row" style="margin-top:8px">
-        <input class="input" id="insp-font-size" type="number" min="10" max="40" step="1" value="${Number(key.font?.size) || 17}" title="Size" ${key.font?.showLabel === false ? 'disabled' : ''} />
-        <select class="select" id="insp-font-weight" title="Weight" ${key.font?.showLabel === false ? 'disabled' : ''}>
+        <input class="input" id="insp-font-size" type="number" min="10" max="40" step="1" value="${Number(key.font?.size) || 17}" title="Size" ${captionVisible ? '' : 'disabled'} />
+        <select class="select" id="insp-font-weight" title="Weight" ${captionVisible ? '' : 'disabled'}>
           ${[400, 500, 600, 700, 800].map((w) => `<option value="${w}" ${(Number(key.font?.weight) || 600) === w ? 'selected' : ''}>${w}</option>`).join('')}
         </select>
-        <select class="select" id="insp-font-align" title="Alignment" ${key.font?.showLabel === false ? 'disabled' : ''}>
+        <select class="select" id="insp-font-align" title="Alignment" ${captionVisible ? '' : 'disabled'}>
           ${['left', 'center', 'right'].map((a) => `<option value="${a}" ${(key.font?.align || 'left') === a ? 'selected' : ''}>${a[0].toUpperCase()}${a.slice(1)}</option>`).join('')}
         </select>
-        <input class="color-input" id="insp-font-color" type="color" value="${esc(key.font?.color || '#ffffff')}" title="Caption colour" ${key.font?.showLabel === false ? 'disabled' : ''} />
+        <input class="color-input" id="insp-font-color" type="color" value="${esc(key.font?.color || '#ffffff')}" title="Caption colour" ${captionVisible ? '' : 'disabled'} />
       </div>
     </div>`
     }
@@ -1162,7 +1165,7 @@ function renderInspector() {
   $('#insp-font-align')?.addEventListener('change', (e) => updateFont({ align: e.target.value }));
   $('#insp-font-color')?.addEventListener('input', (e) => updateFont({ color: e.target.value }));
   $('#insp-font-show')?.addEventListener('change', (e) => {
-    updateFont({ showLabel: e.target.checked });
+    updateFont({ showLabel: e.target.checked, captionExplicit: e.target.checked });
     ['#insp-label', '#insp-font-size', '#insp-font-weight', '#insp-font-align', '#insp-font-color'].forEach((sel) => {
       const el = $(sel);
       if (el) el.disabled = !e.target.checked;

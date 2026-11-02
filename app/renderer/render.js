@@ -185,7 +185,11 @@ async function drawKey(canvas, key, width = KEY_SIZE, height = KEY_SIZE, autoIco
   const font = key.font && typeof key.font === 'object' ? key.font : {};
   const timerText = typeof timerTextFor === 'function' ? timerTextFor(key.action) : '';
   const main = timerText || truncateMain(key.emoji || '');
-  const hasLabel = !isIndicator && Boolean(label) && font.showLabel !== false;
+  const hasLabel =
+    !isIndicator &&
+    Boolean(label) &&
+    font.showLabel !== false &&
+    (!key.liveImage || font.captionExplicit === true);
 
   let drewAutoIcon = false;
   if (!key.icon && showIcon && autoIcon && !timerText) {

@@ -91,6 +91,9 @@ function normalizeKey(raw) {
       align: ['left', 'center', 'right'].includes(raw.font.align) ? raw.font.align : 'left',
       color: /^#[0-9a-f]{6}$/i.test(raw.font.color || '') ? raw.font.color : '#ffffff',
       showLabel: raw.font.showLabel !== false,
+      // A plugin live image already carries its own text; only an explicit
+      // choice may draw the app caption over it.
+      ...(raw.font.captionExplicit === true ? { captionExplicit: true } : {}),
     };
   }
   if (raw.holdAction) key.holdAction = normalizeAction(raw.holdAction);

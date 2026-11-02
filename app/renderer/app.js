@@ -255,10 +255,10 @@ function effectiveKey(key) {
     let next = out;
     let touched = false;
     if (pluginStateImages.has(`${id}:${stateIndex}`)) {
-      next = { ...next, icon: pluginStateImages.get(`${id}:${stateIndex}`), emoji: '' };
+      next = { ...next, icon: pluginStateImages.get(`${id}:${stateIndex}`), emoji: '', liveImage: true };
       touched = true;
     } else if (pluginImages.has(id)) {
-      next = { ...next, icon: pluginImages.get(id), emoji: '' };
+      next = { ...next, icon: pluginImages.get(id), emoji: '', liveImage: true };
       touched = true;
     }
     if (pluginStateTitles.has(`${id}:${stateIndex}`)) {
