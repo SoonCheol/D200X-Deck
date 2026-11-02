@@ -21,7 +21,25 @@ function navigateRelative(step) {
 }
 
 const multiState = new WeakMap(); // action object -> alternate index
-let sequenceToken = 0;
+// Each action owns its run id, so one key's sequence cannot cancel another's.
+const sequenceRuns = new WeakMap();
+// Page/profile transitions bump the epoch, stopping every pending sequence.
+let sequenceEpoch = 0;
+
+function beginSequence(action) {
+  const id = (sequenceRuns.get(action) || 0) + 1;
+  sequenceRuns.set(action, id);
+  return { id, epoch: sequenceEpoch };
+}
+
+function sequenceAlive(action, run) {
+  return sequenceRuns.get(action) === run.id && sequenceEpoch === run.epoch;
+}
+
+/** Stop delayed/running sequences without touching hold/double timers. */
+function cancelSequences() {
+  sequenceEpoch += 1;
+}
 
 // Running timers live in memory only (not in the config): key -> { endsAt, handle }.
 const runningTimers = new Map();
@@ -158,55 +176,78 @@ async function openPop(action) {
   if (index >= 0 && steps[index]) runKeyAction(steps[index]);
 }
 
-function runKeyAction(action) {
-  if (!action || action.type === 'none') return;
-  if (action.type === 'indicator') return;
-  if (action.type === 'pop') return openPop(action);
-  if (action.type === 'timer') return toggleTimer(action);
-  if (action.type === 'brightness') return runBrightnessAction(action);
+async function runKeyAction(action) {
+  if (!action || action.type === 'none') return { ok: true };
+  if (action.type === 'indicator') return { ok: true };
+  if (action.type === 'pop') {
+    await openPop(action);
+    return { ok: true };
+  }
+  if (action.type === 'timer') {
+    toggleTimer(action);
+    return { ok: true };
+  }
+  if (action.type === 'brightness') {
+    runBrightnessAction(action);
+    return { ok: true };
+  }
   if (action.type === 'multi') return runMulti(action);
   if (action.type === 'toggle') return runToggle(action);
   if (action.type === 'page') {
-    if (action.op === 'next') return navigateRelative(1);
-    if (action.op === 'prev') return navigateRelative(-1);
-    if (action.op === 'profile') {
-      switchProfile(action.value);
-      return;
-    }
-    if (action.op === 'back') {
+    if (action.op === 'next') navigateRelative(1);
+    else if (action.op === 'prev') navigateRelative(-1);
+    else if (action.op === 'profile') switchProfile(action.value);
+    else if (action.op === 'back') {
       const parent = activePage().parentId;
-      if (parent) return navigate(parent);
-      return navigateRelative(-1);
+      if (parent) navigate(parent);
+      else navigateRelative(-1);
+    } else if (!action.value) {
+      // Older configs may have a goto with no target; move forward instead.
+      navigateRelative(1);
+    } else {
+      navigate(action.value);
     }
-    // Older configs may have a goto with no target; move forward instead.
-    if (!action.value) return navigateRelative(1);
-    navigate(action.value);
-    return;
+    return { ok: true };
   }
   if (action.type === 'plugin') {
-    api.runPluginAction(action.actionid).then((res) => {
-      if (res.ok) return;
+    try {
+      const res = await api.runPluginAction(action.actionid);
+      if (res.ok) return { ok: true };
       const plugin = (state.plugins || []).find((p) => p.uuid === action.plugin);
       if (plugin?.compatReason) {
-        toast(`${plugin.name}: ${plugin.compatReason}. Install Rosetta to run Intel-only plugins.`, true);
-        return;
+        const error = `${plugin.name}: ${plugin.compatReason}. Install Rosetta to run Intel-only plugins.`;
+        toast(error, true);
+        return { ok: false, error };
       }
-      toast('Plugin action is not ready yet', true);
-    });
-    return;
+      const error = 'Plugin action is not ready yet';
+      toast(error, true);
+      return { ok: false, error };
+    } catch (err) {
+      const error = err.message || String(err);
+      toast(error, true);
+      return { ok: false, error };
+    }
   }
-  api.runAction(action).then((res) => {
-    if (res.ok) return;
+  // Launch-only shell commands resolve when the process spawns (see
+  // lib/actions.js runShell); text and hotkeys resolve when they finish.
+  try {
+    const res = await api.runAction(action);
+    if (res.ok) return { ok: true };
     toast(res.error || 'action failed', true);
     if (res.permission === 'accessibility') api.requestAccessibility?.();
-  });
+    return { ok: false, error: res.error || 'action failed' };
+  } catch (err) {
+    const error = err.message || String(err);
+    toast(error, true);
+    return { ok: false, error };
+  }
 }
 
 /** Multi Action: sequence / alternate / random, with delay steps. */
 async function runMulti(action) {
   const steps = Array.isArray(action.steps) ? action.steps : [];
-  if (!steps.length) return;
-  const token = ++sequenceToken;
+  if (!steps.length) return { ok: true };
+  const run = beginSequence(action);
   let order = steps.map((_, index) => index);
   if (action.mode === 'alternate') {
     const current = multiState.get(action) || 0;
@@ -220,7 +261,7 @@ async function runMulti(action) {
     order = [pick];
   }
   for (const index of order) {
-    if (token !== sequenceToken) return; // a newer press cancelled this run
+    if (!sequenceAlive(action, run)) return { ok: false, error: 'cancelled' };
     const step = steps[index];
     if (!step) continue;
     if (step.delay) {
@@ -228,19 +269,24 @@ async function runMulti(action) {
       continue;
     }
     const stepToRun = stepAction(step);
-    if (stepToRun) runKeyAction(stepToRun);
+    if (!stepToRun) continue;
+    const result = await runKeyAction(stepToRun);
+    if (!sequenceAlive(action, run)) return { ok: false, error: 'cancelled' };
+    if (result && result.ok === false) return result;
   }
+  return { ok: true };
 }
 
 /** Hotkey Switch: alternate between two actions on each press. */
-function runToggle(action) {
+async function runToggle(action) {
   const steps = Array.isArray(action.steps) ? action.steps : [];
-  if (!steps.length) return;
+  if (!steps.length) return { ok: true };
   const index = multiState.get(action) || 0;
   multiState.set(action, (index + 1) % steps.length);
   const step = steps[index % steps.length];
   const nextAction = stepAction(step);
-  if (nextAction) runKeyAction(nextAction);
+  if (!nextAction) return { ok: true };
+  return runKeyAction(nextAction);
 }
 
 function flashKey(index) {

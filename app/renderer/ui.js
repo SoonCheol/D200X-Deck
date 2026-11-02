@@ -698,6 +698,7 @@ function clearPressTimers() {
     st.tapTimer = null;
   }
   pressState.clear();
+  if (typeof cancelSequences === 'function') cancelSequences();
 }
 
 function navigate(pageId) {
