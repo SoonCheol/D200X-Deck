@@ -1,9 +1,50 @@
 # Roadmap
 
-> **Status (2026-10-31):** this file is a planning record from the build-out of the app.
-> Most of what is described below has landed. Current open work: firmware update,
-> Python plugins, multi-device support and OBS actions. See
+> **Status (2026-11-02):** the original build-out is shipped. The remaining work is
+> driven by the two audits in [`reviews/`](reviews/) and the unimplemented
+> platform features listed at the end of this file. See
 > [`../CHANGELOG.md`](../CHANGELOG.md) for the shipped list.
+
+## Current plan (from the 2026-11-01 audits)
+
+Sources: [`reviews/2026-11-01-architecture-audit.md`](reviews/2026-11-01-architecture-audit.md)
+and [`reviews/2026-11-01-uiux-audit.md`](reviews/2026-11-01-uiux-audit.md). Phases 1
+and 2 of the architecture audit and the first UI batch are shipped through 0.8.4.
+
+### Next: 0.9.0 — the five structural UI issues
+
+1. **H1 — Page settings at ≤1179 px.** Add a persistent Page-settings entry and let
+   the drawer open with no key selected; add a scrim.
+2. **H2 — Caption over plugin live images.** Do not draw the app caption when the
+   key face comes from a plugin; make “Show caption” opt-in.
+3. **H4 — Dirty/unsynced state.** Track edits when auto-push is off, show
+   “Unsynced changes” and a dot on Push; clear it after a successful push.
+4. **H10 — 1080 drawer.** Keep Push reachable while editing (sticky toolbar or
+   smaller drawer with a Push action in its header).
+5. **H11 — Missing-plugin keys.** Warn in the inspector and on the key, with
+   Open Store / Clear action.
+
+### Then: UI mediums
+
+- Page reorder; multi/toggle step types + reordering (M7, M8).
+- POP keyboard access and action icons (M14).
+- PI loading placeholder/error (M15).
+- Store detail and card state (M27, M32); 1179 breakpoint (M16).
+- Type-scale consolidation (M3); icon-language cleanup (M4).
+- Remaining copy/nits from §8 of the UI report.
+
+### Later: architecture Phase 3 remainder
+
+- **3.3** Renderer modules + explicit store (optional, highest risk).
+- **L5** Send config images as `file:` refs and resolve them lazily (fits 3.3).
+- **L13 / L14** are done (helpers built from source; bundle trimmed).
+
+### Unimplemented platform features
+
+Firmware update, Python plugins, multi-device support (D200X / Dial / AU05) and
+OBS Studio actions. These were on the original roadmap and are unchanged.
+
+---
 
 Original planning notes for what comes after the store work. Ordered by value: import
 first (it makes the app usable for existing Ulanzi Studio users), then the
