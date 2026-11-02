@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.10.0 — 2026-11-02
+
+### Changed
+- **Destructive actions use an in-app confirmation** whose Cancel button is focused: Clear page, Delete page, Delete profile, Remove plugin, Delete icon pack and Replace import. The labels name the concrete action, and **Clear page can be undone with ⌘Z**. New page is now the primary control.
+- **Pages can be reordered** by dragging them in the sidebar or pressing ⌥↑ / ⌥↓. Next and Previous follow the new order.
+- **POP is now “Quick actions”:** the palette takes keyboard focus, supports arrows/Home/End/Enter/Escape, closes when you click away, restores the app you came from before running the action, and shows action icons.
+- **Multi and Toggle steps can now run plugin, audio, timer, brightness and close actions.** Every step type has inline controls, and steps reorder by drag or ↑/↓.
+
+### Fixed
+- **A zero-millisecond delay step stays a delay** across save and reload.
+
+### Tests
+- 100 → **102**.
+
 ## 0.9.0 — 2026-11-02
 
 ### Changed

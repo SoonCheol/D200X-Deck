@@ -1,6 +1,6 @@
 # 0.10.0 — editing depth and safe destructive actions
 
-Status: planned 2026-11-02, from **0.9.0**. Scope: the last open UI High (H9),
+Status: shipped 2026-11-02 in **0.10.0**. Scope: the last open UI High (H9),
 the three remaining editor Mediums (M7, M8, M14), and the hierarchy fix from
 M34. The two audits were re-triaged against the changelog first; the result is
 below so this plan does not reopen shipped findings.

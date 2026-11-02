@@ -26,7 +26,7 @@ both audits and lists what remains.
 5. **H11 — Missing-plugin keys.** Warn in the inspector and on the key, with
    Open Store / Clear action.
 
-### Next: 0.10.0 — editing depth and safe destructive actions
+### Shipped in 0.10.0 — editing depth and safe destructive actions
 
 Plan: [`PLAN-0.10.0.md`](PLAN-0.10.0.md). Triage of the two audits is in that
 file; H9 is the last open High.
@@ -42,7 +42,7 @@ file; H9 is the last open High.
 4. **M8 — complete Multi/Toggle steps.** Plugin, sound, timer, brightness and
    close steps, plus drag and ↑/↓ reordering.
 
-### 0.10.1 — architecture batch
+### Next: 0.10.1 — architecture batch
 
 - M3 per-generation child/socket ownership; M18 bounded extraction off main.
 - M24 fake-Electron IPC harness; L3/L4 round trips; L6 release-cache expiry.
