@@ -16,7 +16,6 @@ const {
   normalizeWeightPreset,
   normalizeAlign,
   normalizeColor,
-  normalizeEffect,
   normalizeBackground: normalizeStyleBackground,
 } = require('./text-style');
 const ACTION_TYPE_SET = new Set(ACTION_TYPES);
@@ -148,7 +147,6 @@ function normalizeKey(raw) {
     };
     // New style fields are optional so existing configs keep their exact shape.
     if ('family' in raw.font) key.font.family = normalizeFamily(raw.font.family);
-    if ('effect' in raw.font) key.font.effect = normalizeEffect(raw.font.effect, 'none');
     if ('background' in raw.font) key.font.background = normalizeStyleBackground(raw.font.background, 'gradient');
   }
   if (raw.textStyle && typeof raw.textStyle === 'object' && !Array.isArray(raw.textStyle)) {
@@ -156,7 +154,6 @@ function normalizeKey(raw) {
       family: normalizeFamily(raw.textStyle.family),
       weight: normalizeWeightPreset(raw.textStyle.weight, 700),
       color: normalizeColor(raw.textStyle.color, '#ffffff'),
-      effect: normalizeEffect(raw.textStyle.effect, 'shadow'),
     };
   }
   if (raw.holdAction) key.holdAction = normalizeAction(raw.holdAction);

@@ -21,17 +21,14 @@
     menlo: 'Menlo',
   };
   const WEIGHTS = { light: 300, regular: 400, bold: 700 };
-  const TEXT_EFFECTS = ['shadow', 'outline', 'none'];
   const CAPTION_BACKGROUNDS = ['gradient', 'solid', 'none'];
   const DEFAULT_TEXT_STYLE = {
     family: 'system',
     weight: 700,
     color: '#ffffff',
-    effect: 'shadow',
   };
   const DEFAULT_CAPTION_STYLE = {
     family: 'system',
-    effect: 'none',
     background: 'gradient',
   };
 
@@ -78,28 +75,8 @@
     return /^#[0-9a-f]{6}$/i.test(value || '') ? value : fallback;
   }
 
-  function normalizeEffect(value, fallback = 'none') {
-    return TEXT_EFFECTS.includes(value) ? value : fallback;
-  }
-
   function normalizeBackground(value, fallback = 'gradient') {
     return CAPTION_BACKGROUNDS.includes(value) ? value : fallback;
-  }
-
-  /** A dark outline for light text, a light outline for dark text. */
-  function contrastOutline(color) {
-    const match = /^#?([0-9a-f]{6})$/i.exec(color || '');
-    if (!match) return 'rgba(0,0,0,0.8)';
-    const value = parseInt(match[1], 16);
-    const r = (value >> 16) & 255;
-    const g = (value >> 8) & 255;
-    const b = value & 255;
-    const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
-    return luminance > 0.6 ? 'rgba(0,0,0,0.8)' : 'rgba(255,255,255,0.85)';
-  }
-
-  function outlineWidth(size) {
-    return Math.max(3, Math.min(8, Math.round((Number(size) || 17) * 0.1)));
   }
 
   return {
@@ -107,7 +84,6 @@
     FAMILY_IDS,
     FAMILY_LABELS,
     WEIGHTS,
-    TEXT_EFFECTS,
     CAPTION_BACKGROUNDS,
     DEFAULT_TEXT_STYLE,
     DEFAULT_CAPTION_STYLE,
@@ -119,9 +95,6 @@
     fontStack,
     normalizeAlign,
     normalizeColor,
-    normalizeEffect,
     normalizeBackground,
-    contrastOutline,
-    outlineWidth,
   };
 });

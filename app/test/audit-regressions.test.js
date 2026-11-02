@@ -51,10 +51,9 @@ test('an own-format profile keeps panel mode, auto-exit and its icon', async () 
         color: '#ffffff',
         showLabel: true,
         family: 'georgia',
-        effect: 'outline',
         background: 'solid',
       },
-      textStyle: { family: 'menlo', weight: 700, color: '#ffcc00', effect: 'outline' },
+      textStyle: { family: 'menlo', weight: 700, color: '#ffcc00' },
     },
   };
   const child = {

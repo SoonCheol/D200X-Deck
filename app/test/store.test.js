@@ -111,10 +111,9 @@ test('text and caption styles are bounded and survive save/load', () => {
       color: '#7fd1ff',
       showLabel: true,
       family: 'georgia',
-      effect: 'outline',
       background: 'solid',
     },
-    textStyle: { family: 'menlo', weight: 800, color: '#ff0000', effect: 'outline' },
+    textStyle: { family: 'menlo', weight: 800, color: '#ff0000' },
   };
   store.save(config);
 
@@ -126,14 +125,12 @@ test('text and caption styles are bounded and survive save/load', () => {
     color: '#7fd1ff',
     showLabel: true,
     family: 'georgia',
-    effect: 'outline',
     background: 'solid',
   });
   assert.deepEqual(key.textStyle, {
     family: 'menlo',
     weight: 700,
     color: '#ff0000',
-    effect: 'outline',
   });
 });
 
@@ -145,20 +142,18 @@ test('invalid text styles fall back to safe values', () => {
     color: '#1b2130',
     icon: null,
     action: { type: 'none' },
-    font: { family: 'comic', effect: 'glow', background: 'stars' },
-    textStyle: { family: 'comic', weight: 5000, color: 'red', effect: 'glow' },
+    font: { family: 'comic', background: 'stars' },
+    textStyle: { family: 'comic', weight: 5000, color: 'red' },
   };
 
   const key = validateConfig(config).pages[0].keys[0];
 
   assert.equal(key.font.family, 'system');
-  assert.equal(key.font.effect, 'none');
   assert.equal(key.font.background, 'gradient');
   assert.deepEqual(key.textStyle, {
     family: 'system',
     weight: 700,
     color: '#ffffff',
-    effect: 'shadow',
   });
 });
 

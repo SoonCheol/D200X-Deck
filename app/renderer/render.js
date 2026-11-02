@@ -256,7 +256,6 @@ async function drawKey(canvas, key, width = KEY_SIZE, height = KEY_SIZE, autoIco
     const family = DeckTextStyle.fontStack(textStyle.family);
     const weight = Math.max(100, Math.min(900, Math.round(Number(textStyle.weight) || 700)));
     const color = textStyle.color || '#fff';
-    const effect = DeckTextStyle.normalizeEffect(textStyle.effect, 'shadow');
     const emojiOnly = isEmojiOnly(main);
     const maxWidth = w - 26;
     let size = Math.round(min * (emojiOnly ? 0.5 : 0.6));
@@ -267,24 +266,14 @@ async function drawKey(canvas, key, width = KEY_SIZE, height = KEY_SIZE, autoIco
     ctx.save();
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    ctx.shadowColor = 'transparent';
-    ctx.shadowBlur = 0;
     ctx.font = fontFor(size);
     while (size > 16 && ctx.measureText(main).width > maxWidth) {
       size -= 2;
       ctx.font = fontFor(size);
     }
     const y = hasLabel ? h * 0.44 : h / 2;
-    if (effect === 'shadow') {
-      ctx.shadowColor = 'rgba(0,0,0,0.55)';
-      ctx.shadowBlur = 12;
-      ctx.shadowOffsetY = 1;
-    } else if (effect === 'outline' && !emojiOnly) {
-      ctx.strokeStyle = DeckTextStyle.contrastOutline(color);
-      ctx.lineWidth = DeckTextStyle.outlineWidth(size);
-      ctx.lineJoin = 'round';
-      ctx.strokeText(main, x, y);
-    }
+    ctx.shadowColor = 'rgba(0,0,0,0.35)';
+    ctx.shadowBlur = 8;
     ctx.fillStyle = color;
     ctx.fillText(main, x, y);
     ctx.restore();
@@ -308,7 +297,6 @@ async function drawKey(canvas, key, width = KEY_SIZE, height = KEY_SIZE, autoIco
     const weight = Math.max(100, Math.min(900, Math.round(Number(font.weight) || 400)));
     const align = ['left', 'center', 'right'].includes(font.align) ? font.align : 'left';
     const family = DeckTextStyle.fontStack(font.family);
-    const effect = DeckTextStyle.normalizeEffect(font.effect, 'none');
     const background = DeckTextStyle.normalizeBackground(font.background, 'gradient');
     if (background === 'gradient') {
       const shadeH = Math.max(62, Math.round(size) + 40);
@@ -334,19 +322,8 @@ async function drawKey(canvas, key, width = KEY_SIZE, height = KEY_SIZE, autoIco
     const inset = 14;
     const x = align === 'center' ? w / 2 : align === 'right' ? w - inset : inset;
     const y = h - 13;
-    const text = fitText(ctx, label, w - inset * 2);
-    if (effect === 'outline') {
-      ctx.strokeStyle = DeckTextStyle.contrastOutline(color);
-      ctx.lineWidth = DeckTextStyle.outlineWidth(size);
-      ctx.lineJoin = 'round';
-      ctx.strokeText(text, x, y);
-    } else if (effect === 'shadow') {
-      ctx.shadowColor = 'rgba(0,0,0,0.75)';
-      ctx.shadowBlur = 10;
-      ctx.shadowOffsetY = 1;
-    }
     ctx.fillStyle = color;
-    ctx.fillText(text, x, y);
+    ctx.fillText(fitText(ctx, label, w - inset * 2), x, y);
     ctx.restore();
   }
 

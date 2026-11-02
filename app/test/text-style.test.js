@@ -8,13 +8,10 @@ const {
   weightValue,
   normalizeWeightPreset,
   fontStack,
-  contrastOutline,
-  outlineWidth,
   normalizeFamily,
   normalizeWeight,
   normalizeAlign,
   normalizeColor,
-  normalizeEffect,
   normalizeBackground,
 } = require('../lib/text-style');
 
@@ -38,13 +35,6 @@ test('font families resolve to stable stacks', () => {
   assert.match(fontStack('missing'), /-apple-system/);
 });
 
-test('outline contrast follows the text colour', () => {
-  assert.match(contrastOutline('#ffffff'), /rgba\(0,0,0/);
-  assert.match(contrastOutline('#111111'), /rgba\(255,255,255/);
-  assert.equal(outlineWidth(17), 3);
-  assert.equal(outlineWidth(118), 8);
-});
-
 test('style values are clamped to their safe sets', () => {
   assert.equal(normalizeFamily('georgia'), 'georgia');
   assert.equal(normalizeFamily('comic'), 'system');
@@ -54,8 +44,6 @@ test('style values are clamped to their safe sets', () => {
   assert.equal(normalizeAlign(undefined, 'left'), 'left');
   assert.equal(normalizeColor('red'), '#ffffff');
   assert.equal(normalizeColor('#a1b2c3'), '#a1b2c3');
-  assert.equal(normalizeEffect('glow'), 'none');
-  assert.equal(normalizeEffect('outline'), 'outline');
   assert.equal(normalizeBackground('stars'), 'gradient');
   assert.equal(normalizeBackground('none'), 'none');
 });
