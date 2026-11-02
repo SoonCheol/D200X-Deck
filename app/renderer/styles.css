@@ -522,6 +522,15 @@ body::before {
   font-size: 10px; letter-spacing: 1.1px; text-transform: uppercase;
   color: var(--muted); margin-bottom: 6px; font-weight: 600;
 }
+.field-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 6px; }
+.field-head > label { margin-bottom: 0; }
+.field-inline-color { display: flex; align-items: center; gap: 7px; }
+.field-inline-label {
+  font-size: 9px; letter-spacing: 0.8px; text-transform: uppercase;
+  color: var(--muted); font-weight: 600;
+}
+.field-inline-color .color-input { width: 34px; height: 28px; padding: 1px; border-radius: 8px; }
+.field-inline-color .link-btn { font-size: 9px; }
 .field .row { display: flex; gap: 8px; }
 .field .color-row { display: flex; align-items: center; gap: 10px; }
 .link-btn {

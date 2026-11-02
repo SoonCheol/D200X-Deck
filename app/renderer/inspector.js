@@ -1336,9 +1336,20 @@ function renderInspector() {
   );
   const iconSrc = liveImageActive ? liveKey.icon : key.icon || liveKey.icon || autoIcon;
   const disabledAttr = liveImageActive ? 'disabled' : '';
+  const backgroundControl =
+    action.type === 'indicator'
+      ? ''
+      : `<div class="field-inline-color">
+        <span class="field-inline-label" id="insp-color-label">Background</span>
+        <input class="color-input" id="insp-color" type="color" value="${esc(key.color || DEFAULT_KEY_COLOR)}" title="Key background" aria-labelledby="insp-color-label" />
+        <button class="link-btn" id="insp-color-reset" ${isDefaultColor ? 'hidden' : ''} title="Reset background to default">Reset</button>
+      </div>`;
   const iconField = `
     <div class="field insp-icon-field">
-      <label>Icon</label>
+      <div class="field-head">
+        <label>Icon</label>
+        ${backgroundControl}
+      </div>
       <div class="icon-row">
         <div class="icon-drop compact ${liveImageActive ? 'disabled' : ''}" id="insp-icon-drop"
              ${liveImageActive ? 'aria-disabled="true"' : ''}>
@@ -1380,7 +1391,10 @@ function renderInspector() {
   const textWeight = DeckTextStyle.weightPreset(textStyle.weight ?? 700);
   const textField = `
     <div class="field">
-      <label for="insp-emoji">Key text</label>
+      <div class="field-head">
+        <label for="insp-emoji">Key text</label>
+        ${backgroundControl}
+      </div>
       <input class="input" id="insp-emoji" maxlength="12" value="${esc(key.emoji)}" placeholder="Text or emoji" />
       <div class="field-hint">Shrinks to fit · 12 characters max</div>
       ${liveKey.liveImage ? '<div class="field-hint">This plugin draws the key image; key text is hidden while it is active.</div>' : ''}
@@ -1474,14 +1488,6 @@ function renderInspector() {
       action.type === 'indicator'
         ? ''
         : `<div class="field">
-      <label for="insp-color">Background</label>
-      <div class="color-row">
-        <input class="color-input" id="insp-color" type="color" value="${esc(key.color || DEFAULT_KEY_COLOR)}" title="Key background" />
-        <button class="link-btn" id="insp-color-reset" ${isDefaultColor ? 'hidden' : ''}>Reset to default</button>
-      </div>
-    </div>
-
-    <div class="field">
       <label for="insp-label">Caption</label>
       <label class="check-row caption-toggle"><input type="checkbox" id="insp-font-show" ${captionVisible ? 'checked' : ''} /> Show caption</label>
       ${liveKey.liveImage && !key.font?.captionExplicit ? '<div class="field-hint">This plugin draws its own label. Turn on Show caption to add one over it.</div>' : ''}
