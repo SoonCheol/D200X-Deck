@@ -800,8 +800,8 @@ let frontmostCache = { at: 0, value: null, pending: null };
  * Non-blocking frontmost-app lookup. The renderer polls this every few seconds,
  * so spawning `lsappinfo` synchronously here would stutter the whole UI.
  */
-function frontmostApp() {
-  if (Date.now() - frontmostCache.at < 1000) return Promise.resolve(frontmostCache.value);
+function frontmostApp({ fresh = false } = {}) {
+  if (!fresh && Date.now() - frontmostCache.at < 1000) return Promise.resolve(frontmostCache.value);
   if (frontmostCache.pending) return frontmostCache.pending;
   frontmostCache.pending = (async () => {
     try {
@@ -884,6 +884,7 @@ handle(CH.popShow, async (event, items) => {
   const clean = items.slice(0, 9).map((item) => ({
     label: String(item?.label || '').slice(0, 60),
     emoji: String(item?.emoji || '').slice(0, 8),
+    icon: /^assets\/[a-z0-9/_-]+\.svg$/i.test(String(item?.icon || '')) ? String(item.icon) : '',
   }));
   if (popWindow) {
     // A second POP press toggles the open palette closed instead of replacing it.
@@ -891,6 +892,10 @@ handle(CH.popShow, async (event, items) => {
     popWindow = null;
     return -1;
   }
+  // The palette takes keyboard focus, so remember the app the user came from
+  // and restore it before the chosen action runs.
+  const previous = await frontmostApp({ fresh: true });
+  const fromThisApp = previous?.bundleId === 'com.edufalcao.ulanzideckopen';
   const width = 430;
   const rows = Math.ceil(clean.length / 3);
   const height = Math.min(520, Math.max(170, 62 + rows * 84));
@@ -908,7 +913,7 @@ handle(CH.popShow, async (event, items) => {
       fullscreenable: false,
       skipTaskbar: true,
       alwaysOnTop: true,
-      focusable: false,
+      focusable: true,
       acceptFirstMouse: true,
       hasShadow: true,
       backgroundColor: '#00000000',
@@ -921,12 +926,18 @@ handle(CH.popShow, async (event, items) => {
     });
     popWindow = popup;
     let settled = false;
-    const finish = (index) => {
+    let armed = false;
+    const restorePrevious = async () => {
+      if (!previous?.path || fromThisApp) return;
+      try { await actions.openApp(previous.path); } catch { /* focus is best-effort */ }
+    };
+    const finish = async (index, { restore = true } = {}) => {
       if (settled) return;
       settled = true;
       ipcMain.removeListener(CH.popChoice, onChoice);
       if (popWindow === popup) popWindow = null;
       try { popup.destroy(); } catch { /* already gone */ }
+      if (restore) await restorePrevious();
       resolve(Number.isInteger(index) ? index : -1);
     };
     const onChoice = (choiceEvent, index) => {
@@ -943,7 +954,13 @@ handle(CH.popShow, async (event, items) => {
       popup.setPosition(x, y);
       popup.setAlwaysOnTop(true, 'floating');
       popup.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
-      popup.showInactive();
+      popup.show();
+      popup.focus();
+      // Ignore the activation blur while the window is settling.
+      setTimeout(() => { armed = true; }, 250);
+    });
+    popup.on('blur', () => {
+      if (armed) finish(-1, { restore: false });
     });
     popup.loadFile(path.join(__dirname, 'renderer', 'pop.html')).catch(() => finish(-1));
     setTimeout(() => finish(-1), 15_000);

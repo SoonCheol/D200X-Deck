@@ -137,11 +137,12 @@ function runBrightnessAction(action) {
 }
 
 function popItem(action) {
-  if (!action) return { label: '', emoji: '' };
+  if (!action) return { label: '', emoji: '', icon: '' };
+  const icon = typeof actionIconSrc === 'function' ? actionIconSrc(action) || '' : '';
   if (action.type === 'text') {
     const text = String(action.value || '').trim();
     const emoji = typeof isEmojiOnly === 'function' && isEmojiOnly(text) ? text : '';
-    return { label: emoji ? '' : text || 'Type text', emoji };
+    return { label: emoji ? '' : text || 'Type text', emoji, icon };
   }
   const meta = typeof actionMeta === 'function' ? actionMeta(action) : {};
   const fallback = {
@@ -155,7 +156,7 @@ function popItem(action) {
     sound: ['🔊', 'Audio'],
     plugin: ['🔌', 'Plugin'],
   }[action.type] || ['⚡', action.type];
-  return { emoji: meta.emoji || fallback[0], label: meta.label || fallback[1] };
+  return { emoji: meta.emoji || fallback[0], label: meta.label || fallback[1], icon };
 }
 
 /** A step is normally {action}, but imports may keep a bare action. */
