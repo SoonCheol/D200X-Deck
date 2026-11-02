@@ -4,6 +4,9 @@
 
 const DEFAULT_KEY_COLOR = '#1b2130';
 
+// Preserve the user's manual collapse choice per key across inspector renders.
+const triggerSectionOpen = new WeakMap();
+
 // At narrow widths the inspector is a fixed drawer. Its open state is explicit
 // so Page settings stays reachable without a selected key.
 function inspectorDrawerOpen() {
@@ -666,8 +669,9 @@ function bindMultiEditor(key) {
   });
 }
 
-function triggerField(key, field, label, page) {
+function triggerField(key, field, label, page, disabled = false) {
   const action = key[field] || { type: 'none' };
+  const disabledAttr = disabled ? 'disabled' : '';
   const pageOptions = pagesFor(page.profileId)
     .map(
       (p) =>
@@ -676,7 +680,7 @@ function triggerField(key, field, label, page) {
     .join('');
   let control = '';
   if (action.type === 'hotkey') {
-    control = `<button class="btn hotkey-value" data-trigger-hotkey="${field}">${esc(
+    control = `<button class="btn hotkey-value" data-trigger-hotkey="${field}" ${disabledAttr}>${esc(
       action.value || 'Set hotkey…'
     )}</button>`;
   } else if (action.type === 'media') {
@@ -688,24 +692,24 @@ function triggerField(key, field, label, page) {
       ['volumedown', 'Volume down'],
       ['mute', 'Mute'],
     ];
-    control = `<select class="select" data-trigger-value="${field}">${ops
+    control = `<select class="select" data-trigger-value="${field}" ${disabledAttr}>${ops
       .map(([v, l]) => `<option value="${v}" ${v === action.op ? 'selected' : ''}>${l}</option>`)
       .join('')}</select>`;
   } else if (action.type === 'page') {
-    control = `<select class="select" data-trigger-value="${field}">${pageOptions}</select>`;
+    control = `<select class="select" data-trigger-value="${field}" ${disabledAttr}>${pageOptions}</select>`;
   } else if (action.type === 'app' || action.type === 'close') {
     control = `<div class="row">
-      <input class="input" data-trigger-value="${field}" value="${esc(action.value || '')}" placeholder="Safari" />
-      <button class="btn small" data-trigger-app="${field}">Choose…</button>
+      <input class="input" data-trigger-value="${field}" value="${esc(action.value || '')}" placeholder="Safari" ${disabledAttr} />
+      <button class="btn small" data-trigger-app="${field}" ${disabledAttr}>Choose…</button>
     </div>`;
   } else if (action.type !== 'none') {
     control = `<input class="input" data-trigger-value="${field}" value="${esc(
       action.value || ''
-    )}" placeholder="${action.type === 'url' ? 'https://…' : ''}" />`;
+    )}" placeholder="${action.type === 'url' ? 'https://…' : ''}" ${disabledAttr} />`;
   }
   return `<div class="field trigger-field">
     <label>${label}</label>
-    <select class="select" data-trigger-type="${field}">
+    <select class="select" data-trigger-type="${field}" ${disabledAttr}>
       ${triggerGroups(action.type)}
     </select>
     ${control}
@@ -771,6 +775,12 @@ function bindTriggerFields(key) {
     holdMs.addEventListener('change', () => {
       key.holdMs = Math.max(150, Math.min(2000, Number(holdMs.value) || 500));
       commit(false);
+    });
+  }
+  const triggerSection = el.querySelector('#trigger-section');
+  if (triggerSection) {
+    triggerSection.addEventListener('toggle', () => {
+      triggerSectionOpen.set(key, triggerSection.open);
     });
   }
 }
@@ -1098,6 +1108,11 @@ function renderInspector() {
   const key = pinned ? pinnedFor(page.profileId)[state.selected] : ensureKey(page, state.selected);
   const liveKey = effectiveKey(key);
   const action = key.action || { type: 'none', value: '' };
+  const hasHold = Boolean(key.holdAction && key.holdAction.type !== 'none');
+  const hasDouble = Boolean(key.doubleAction && key.doubleAction.type !== 'none');
+  const triggersActive = hasHold || hasDouble;
+  const triggersEnabled = action.type !== 'none' || triggersActive;
+  const triggersOpen = triggerSectionOpen.has(key) ? triggerSectionOpen.get(key) : triggersActive;
   const pageOptions = pagesFor(page.profileId)
     .map(
       (p) =>
@@ -1402,15 +1417,30 @@ function renderInspector() {
     ${
       action.type === 'indicator'
         ? ''
-        : `<div class="insp-section">Press triggers</div>
-    ${triggerField(key, 'holdAction', 'On hold', page)}
-    ${key.holdAction && key.holdAction.type !== 'none' ? `<div class="field"><label>Hold time (ms)</label><input class="input" id="insp-hold-ms" type="number" min="150" max="2000" step="50" value="${Number(key.holdMs) || 500}" /></div>` : ''}
-    ${triggerField(key, 'doubleAction', 'On double press', page)}
-    <div class="field-hint">
-      ${key.holdAction && key.holdAction.type !== 'none' ? `Hold for ${Number(key.holdMs) || 500} ms. ` : ''}
-      ${key.doubleAction && key.doubleAction.type !== 'none' ? 'Double-press within 300 ms. ' : ''}
-      ${key.holdAction || key.doubleAction ? 'A tap still runs the action above.' : 'Tap still runs the action above.'}
-    </div>`
+        : `<details class="trigger-section" id="trigger-section" ${triggersOpen ? 'open' : ''}>
+      <summary>
+        <span>Press triggers</span>
+        ${
+          triggersActive
+            ? `<span class="trigger-badges">${hasHold ? '<span>Hold</span>' : ''}${hasDouble ? '<span>2×</span>' : ''}</span>`
+            : ''
+        }
+      </summary>
+      <div class="trigger-body">
+        ${triggerField(key, 'holdAction', 'On hold', page, !triggersEnabled)}
+        ${hasHold ? `<div class="field"><label>Hold time (ms)</label><input class="input" id="insp-hold-ms" type="number" min="150" max="2000" step="50" value="${Number(key.holdMs) || 500}" /></div>` : ''}
+        ${triggerField(key, 'doubleAction', 'On double press', page, !triggersEnabled)}
+        ${
+          triggersEnabled
+            ? `<div class="field-hint">
+                ${hasHold ? `Hold for ${Number(key.holdMs) || 500} ms. ` : ''}
+                ${hasDouble ? 'Double-press within 300 ms. ' : ''}
+                ${action.type === 'none' ? 'The tap action is empty; only hold/double triggers run.' : 'A tap still runs the action above.'}
+              </div>`
+            : '<div class="field-hint trigger-disabled">Choose an action above to set press triggers.</div>'
+        }
+      </div>
+    </details>`
     }
 
     <div class="insp-section">Appearance</div>

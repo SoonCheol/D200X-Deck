@@ -1133,6 +1133,53 @@ body::before {
   border-top: 1px solid var(--line);
   padding-top: 14px;
 }
+.trigger-section {
+  margin: 18px 0 8px;
+  border-top: 1px solid var(--line);
+  padding-top: 14px;
+}
+.trigger-section > summary {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  list-style: none;
+  cursor: pointer;
+  font-size: 10.5px;
+  letter-spacing: 1.4px;
+  text-transform: uppercase;
+  color: var(--muted);
+  user-select: none;
+}
+.trigger-section > summary::-webkit-details-marker { display: none; }
+.trigger-section > summary::before {
+  content: '';
+  width: 0;
+  height: 0;
+  border-left: 4px solid currentColor;
+  border-top: 3px solid transparent;
+  border-bottom: 3px solid transparent;
+  flex: none;
+  transition: transform 120ms ease;
+}
+.trigger-section[open] > summary::before { transform: rotate(90deg); }
+.trigger-section > summary:hover { color: var(--text); }
+.trigger-section > summary:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 3px;
+  border-radius: 4px;
+}
+.trigger-body { padding-top: 10px; }
+.trigger-badges { margin-left: auto; display: flex; gap: 4px; }
+.trigger-badges span {
+  padding: 1px 6px;
+  border-radius: 5px;
+  border: 1px solid var(--line);
+  color: var(--text-3);
+  font-size: 8.5px;
+  letter-spacing: 0.6px;
+  text-transform: none;
+}
+.trigger-disabled { color: var(--text-3); }
 .trigger-field { gap: 6px; }
 
 /* ------------------------------------------------------------ icon library */
