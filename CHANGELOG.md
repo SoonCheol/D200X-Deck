@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.8.8 — 2026-11-02
+
+### Fixed
+- The import walker now treats a bare plugin step’s `action` (its UUID) as data rather than a nested action, so shorthand plugin steps are visited correctly.
+
 ## 0.8.7 — 2026-11-02
 
 ### Fixed
