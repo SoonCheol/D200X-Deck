@@ -745,7 +745,7 @@ async function pushNow({ background = false } = {}) {
   }
   state.pushing = true;
   state.backgroundPush = background;
-  if (!background) lastLivePushAt = Date.now();
+  lastLivePushAt = Date.now();
   if (!background) {
     $('#push-state').textContent = 'pushing…';
     renderPushButton();

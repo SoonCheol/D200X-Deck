@@ -81,7 +81,7 @@ function stopTimer(action, { beep = false } = {}) {
   const index = slotForAction(action);
   if (index >= 0) {
     drawIndex(index);
-    scheduleLivePush();
+    pushNow({ background: true });
   }
   if (beep) {
     if (action.sound !== false) {
@@ -98,7 +98,7 @@ function toggleTimer(action) {
     return;
   }
   const seconds = Math.max(1, Number(action.seconds) || 300);
-  const timer = { endsAt: Date.now() + seconds * 1000, handle: null, lastPush: 0 };
+  const timer = { endsAt: Date.now() + seconds * 1000, handle: null };
   const tick = () => {
     const left = timer.endsAt - Date.now();
     if (left <= 0) {
@@ -108,12 +108,10 @@ function toggleTimer(action) {
     const index = slotForAction(action);
     if (index >= 0) {
       drawIndex(index);
-      // A full page push is ~400 KB over HID, so refresh the deck every five
-      // seconds; the on-screen countdown still ticks every second.
-      if (Date.now() - timer.lastPush >= 5000) {
-        timer.lastPush = Date.now();
-        scheduleLivePush();
-      }
+      // A timer must count down in real time on the deck. This is a deliberate
+      // exception to the 5 s live-image throttle; the push stays silent and
+      // only happens while a timer is running.
+      pushNow({ background: true });
     }
   };
   timer.handle = setInterval(tick, 1000);
