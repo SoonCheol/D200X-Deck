@@ -99,8 +99,10 @@ function actionMeta(action) {
   switch (action.type) {
     case 'media':
       return { emoji: MEDIA_EMOJI[action.op], label: MEDIA_LABELS[action.op] };
-    case 'text':
-      return { emoji: '⌨️', label: 'Type text' };
+    case 'text': {
+      const text = String(action.value || '').trim();
+      return text ? { emoji: text } : { emoji: '⌨️', label: 'Type text' };
+    }
     case 'hotkey':
       return { emoji: '⌨️', label: action.value || 'Hotkey' };
     case 'close':
@@ -134,8 +136,21 @@ function actionMeta(action) {
  */
 function syncActionMeta(key) {
   const meta = actionMeta(key.action);
-  const emojiIsAuto = !key.emoji || key.emoji === key.emojiAuto;
+  const emojiIsAuto = !key.emoji || key.emoji === key.emojiAuto || key.emoji === '⌨️';
   const labelIsAuto = !key.label || key.label === key.labelAuto;
+  if (key.action.type === 'text') {
+    const text = String(key.action.value || '').trim();
+    if (emojiIsAuto) {
+      key.emoji = text || '⌨️';
+      key.emojiAuto = text || '⌨️';
+    }
+    if (labelIsAuto) {
+      key.label = text ? '' : 'Type text';
+      if (text) delete key.labelAuto;
+      else key.labelAuto = 'Type text';
+    }
+    return;
+  }
   if (meta.emoji && emojiIsAuto) {
     key.emoji = meta.emoji;
     key.emojiAuto = meta.emoji;
@@ -210,6 +225,9 @@ function defaultStepAction(type) {
 }
 
 function multiStepControls(act, index) {
+  if (!act.type) {
+    return '<span class="field-hint" style="margin:0">Choose an action type.</span>';
+  }
   if (act.type === 'hotkey') {
     return `<button class="btn hotkey-value" data-hotkey="${index}">${esc(
       prettyHotkey(act.value) || act.value || 'Set hotkey…'
@@ -327,14 +345,15 @@ function multiEditor(action, page) {
 
 function multiStepRow(step, index, total, page) {
   const isDelay = step.delay !== undefined;
-  const act = isDelay ? null : step.action || { type: 'hotkey', value: '' };
-  const knownType = act && MULTI_STEP_TYPES.some(([value]) => value === act.type);
+  const act = isDelay ? null : step.action || { type: '' };
+  const knownType = Boolean(act?.type) && MULTI_STEP_TYPES.some(([value]) => value === act.type);
   const typeOptions =
-    act && !knownType
+    act?.type && !knownType
       ? [[act.type, window.DeckActions.ACTION_LABELS?.[act.type] || act.type], ...MULTI_STEP_TYPES]
       : MULTI_STEP_TYPES;
+  const placeholder = act && !act.type ? '<option value="" selected disabled>Select…</option>' : '';
   const typeField = act
-    ? `<select class="select multi-type" data-type="${index}" aria-label="Step ${index + 1} type">${typeOptions
+    ? `<select class="select multi-type" data-type="${index}" aria-label="Step ${index + 1} type">${placeholder}${typeOptions
         .map(
           ([value, label]) =>
             `<option value="${esc(value)}" ${act.type === value ? 'selected' : ''}>${esc(label)}</option>`
@@ -391,10 +410,14 @@ function bindMultiEditor(key) {
     if (action.type !== 'pop' && steps.length >= 12) {
       return toast('A multi action can hold up to 12 steps', true);
     }
-    steps.push({ action: defaultStepAction('hotkey') });
+    steps.push({ action: { type: '' } });
     commit();
     renderInspector();
-    focusStep(steps.length - 1, 'down');
+    requestAnimationFrame(() => {
+      document
+        .querySelector(`#inspector .multi-row[data-step="${steps.length - 1}"] [data-type]`)
+        ?.focus();
+    });
   });
   $('#insp-multi-delay')?.addEventListener('click', () => {
     if (steps.length >= 12) return toast('A multi action can hold up to 12 steps', true);

@@ -136,13 +136,30 @@ function runBrightnessAction(action) {
   toast(`Brightness ${next}%`);
 }
 
+function popTextSize(text) {
+  const length = [...String(text || '')].length;
+  return Math.max(11, 18 - Math.round(Math.max(0, length - 4) * 0.9));
+}
+
 function popItem(action) {
   if (!action) return { label: '', emoji: '', icon: '' };
   const icon = typeof actionIconSrc === 'function' ? actionIconSrc(action) || '' : '';
   if (action.type === 'text') {
     const text = String(action.value || '').trim();
-    const emoji = typeof isEmojiOnly === 'function' && isEmojiOnly(text) ? text : '';
-    return { label: emoji ? '' : text || 'Type text', emoji, icon };
+    if (!text) return { label: 'Type text', emoji: '', icon };
+    if (typeof isEmojiOnly === 'function' && isEmojiOnly(text)) {
+      return { label: '', emoji: text, icon: '' };
+    }
+    const truncate = window.KeyRenderer?.truncateMain;
+    const label = typeof truncate === 'function' ? truncate(text) : text.slice(0, 12);
+    return {
+      label,
+      emoji: '',
+      icon: '',
+      text: true,
+      fontSize: popTextSize(label),
+      title: text,
+    };
   }
   const meta = typeof actionMeta === 'function' ? actionMeta(action) : {};
   const fallback = {
@@ -162,7 +179,7 @@ function popItem(action) {
 /** A step is normally {action}, but imports may keep a bare action. */
 function stepAction(step) {
   if (!step || typeof step !== 'object' || step.delay !== undefined) return null;
-  if (step.action && typeof step.action === 'object') return step.action;
+  if (step.action && typeof step.action === 'object') return step.action.type ? step.action : null;
   // A bare plugin step's `action` is its action UUID, not a nested action.
   return step.type ? step : null;
 }
@@ -178,7 +195,7 @@ async function openPop(action) {
 }
 
 async function runKeyAction(action) {
-  if (!action || action.type === 'none') return { ok: true };
+  if (!action || action.type === 'none' || !action.type) return { ok: true };
   if (action.type === 'indicator') return { ok: true };
   if (action.type === 'pop') {
     await openPop(action);

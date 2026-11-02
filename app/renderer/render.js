@@ -509,7 +509,7 @@ async function drawSystemPanel(canvas, options = {}) {
   ctx.restore();
 }
 
-window.KeyRenderer = { drawKey, drawSystemPanel, KEY_SIZE, WIDE_KEY_SIZE, WIDE_INDEX };
+window.KeyRenderer = { drawKey, drawSystemPanel, truncateMain, KEY_SIZE, WIDE_KEY_SIZE, WIDE_INDEX };
 
 // Standby/screensaver: one 980×588 canvas sliced into the 13 square keys.
 async function renderStandbySlices(settings = {}) {

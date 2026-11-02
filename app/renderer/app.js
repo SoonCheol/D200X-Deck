@@ -85,6 +85,8 @@ function autoIconFor(key) {
   // Removing a custom icon falls back to the action's own icon; `iconCleared`
   // only stops app icons from being re-hydrated automatically.
   if (key.icon || key.face === 'text') return null;
+  // A Type text key shows the text itself, not the keyboard glyph.
+  if (key.action?.type === 'text') return null;
   return isAutoEmoji(key) ? actionIconSrc(key.action) : null;
 }
 
@@ -104,6 +106,26 @@ function normalizeActionMeta() {
       if (key.action.type === 'plugin' && key.emoji === '🔌' && !key.emojiAuto) {
         key.emoji = '';
         changed = true;
+      }
+      if (key.action.type === 'text') {
+        const text = String(key.action.value || '').trim();
+        const emojiIsAuto = !key.emoji || key.emoji === key.emojiAuto || key.emoji === '⌨️';
+        if (emojiIsAuto && key.emoji !== (text || '⌨️')) {
+          key.emoji = text || '⌨️';
+          key.emojiAuto = text || '⌨️';
+          changed = true;
+        }
+        const labelIsAuto = !key.label || key.label === key.labelAuto || key.label === 'Type text';
+        if (labelIsAuto) {
+          const desired = text ? '' : 'Type text';
+          if (key.label !== desired) {
+            key.label = desired;
+            if (desired) key.labelAuto = desired;
+            else delete key.labelAuto;
+            changed = true;
+          }
+        }
+        continue;
       }
       const meta = actionMeta(key.action);
       if (!meta.emoji && !meta.label) continue;

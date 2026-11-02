@@ -11,20 +11,22 @@ function focusFirst() {
 
 window.popAPI.onItems((items) => {
   grid.innerHTML = (items || [])
-    .map(
-      (item, index) => `<button class="item" type="button" data-index="${index}" title="${esc(
-        item.label || ''
-      )}" aria-label="${esc(item.label || `Action ${index + 1}`)}">
-        ${
-          item.icon
-            ? `<img class="icon" src="${esc(item.icon)}" alt="" draggable="false" />`
-            : item.emoji
-              ? `<span class="emoji">${esc(item.emoji)}</span>`
-              : ''
-        }
-        ${item.label ? `<span class="label">${esc(item.label)}</span>` : ''}
-      </button>`
-    )
+    .map((item, index) => {
+      const title = item.title || item.label || `Action ${index + 1}`;
+      const body = item.text
+        ? `<span class="text-face" style="font-size:${Number(item.fontSize) || 15}px">${esc(item.label)}</span>`
+        : `${
+            item.icon
+              ? `<img class="icon" src="${esc(item.icon)}" alt="" draggable="false" />`
+              : item.emoji
+                ? `<span class="emoji">${esc(item.emoji)}</span>`
+                : ''
+          }
+          ${item.label ? `<span class="label">${esc(item.label)}</span>` : ''}`;
+      return `<button class="item" type="button" data-index="${index}" title="${esc(
+        title
+      )}" aria-label="${esc(title)}">${body}</button>`;
+    })
     .join('');
   grid.querySelectorAll('.item').forEach((button) => {
     button.addEventListener('click', () => window.popAPI.choose(Number(button.dataset.index)));

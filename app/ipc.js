@@ -881,11 +881,19 @@ handle(CH.profileImport, async (event) => {
 
 handle(CH.popShow, async (event, items) => {
   if (!Array.isArray(items) || !items.length) return -1;
-  const clean = items.slice(0, 9).map((item) => ({
-    label: String(item?.label || '').slice(0, 60),
-    emoji: String(item?.emoji || '').slice(0, 8),
-    icon: /^assets\/[a-z0-9/_-]+\.svg$/i.test(String(item?.icon || '')) ? String(item.icon) : '',
-  }));
+  const clean = items.slice(0, 9).map((item) => {
+    const fontSize = Number(item?.fontSize);
+    return {
+      label: String(item?.label || '').slice(0, 60),
+      emoji: String(item?.emoji || '').slice(0, 8),
+      icon: /^assets\/[a-z0-9/_-]+\.svg$/i.test(String(item?.icon || '')) ? String(item.icon) : '',
+      text: item?.text === true,
+      fontSize: Number.isFinite(fontSize)
+        ? Math.min(20, Math.max(10, Math.round(fontSize)))
+        : 0,
+      title: String(item?.title || '').slice(0, 160),
+    };
+  });
   if (popWindow) {
     // A second POP press toggles the open palette closed instead of replacing it.
     try { popWindow.destroy(); } catch { /* ignore */ }
