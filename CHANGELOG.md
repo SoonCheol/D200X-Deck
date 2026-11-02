@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.11.0 — 2026-11-02
+
+### Changed
+- **Key text and captions have independent typography.** Both support System, Avenir Next, Georgia and Menlo fonts, Light / Regular / Bold weights and a text colour.
+- **Caption styling also has size, alignment and background** (gradient, solid or none).
+- **Key text keeps its auto-shrink and 12-character limit.** The key background control now sits in the key face header instead of its own section.
+- **Caption controls use the same font / weight / colour row as key text**, with size, alignment and background on the next row.
+- Legacy numeric weights are snapped to the Light / Regular / Bold presets so the three options render distinctly.
+
+### Tests
+- 121 → **126**.
+
 ## 0.10.7 — 2026-11-02
 
 ### Changed

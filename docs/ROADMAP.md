@@ -99,6 +99,14 @@ file; H9 is the last open High.
   metadata expires on refresh; renderer `no-undef` is enforced.
 - AgentDeck's setup tutorial opens instead of a blank `openView` window.
 
+### Shipped in 0.11.0 — key and caption typography
+
+- Key text and captions have independent font family, weight preset and colour
+  controls.
+- Captions also support size, alignment and a gradient/solid/none background.
+- Key background moved into the key face header; the caption controls mirror the
+  key-text layout.
+
 ### Next: visual and store polish
 
 - Store detail and remaining card state (M27).
