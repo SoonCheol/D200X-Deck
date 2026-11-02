@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.8.7 — 2026-11-02
+
+### Fixed
+- **Key capture reports the real state.** It no longer says “Capturing keys” before the helper has seized the Deck: it shows starting / waiting for the Deck / the specific permission or busy error, and only switches to “Capturing keys” on a confirmed `seized` record. Helper output is parsed line-by-line, so chunk boundaries no longer hide a record.
+- **Ulanzi plugin global settings are persisted** and survive a restart.
+- **Nested plugin actions now run.** Plugin actions inside Multi, Toggle and POP steps, and on hold/double triggers, are registered with the host instead of failing with “Plugin action is not ready yet”.
+
+### Tests
+- 88 → **90**: nested plugin sync and Ulanzi global-settings persistence.
+
 ## 0.8.6 — 2026-11-02
 
 ### Security
