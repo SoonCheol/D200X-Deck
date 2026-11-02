@@ -59,7 +59,9 @@ function actionIconSrc(action) {
 }
 
 // Emoji the app used to assign automatically before action icons existed.
-const LEGACY_AUTO_EMOJI = new Set(['🎵']);
+// ↩️ was the old Back-key default; treat it as auto so existing keys pick up
+// the SVG without a manual reset.
+const LEGACY_AUTO_EMOJI = new Set(['🎵', '↩️']);
 
 /** True when the key's emoji is one the app picked (not something the user typed). */
 function isAutoEmoji(key) {
@@ -153,6 +155,7 @@ const state = {
 let saveTimer = null;
 let pushTimer = null;
 let brightnessTimer = null;
+let pageSettingsFlashTimer = null;
 
 const $ = (sel) => document.querySelector(sel);
 
@@ -1387,7 +1390,15 @@ function bind() {
     renderInspector();
     openInspectorDrawer();
     const inspector = $('#inspector');
-    if (inspector) inspector.scrollTop = 0;
+    if (!inspector) return;
+    inspector.scrollTop = 0;
+    // Pressing the button while Page settings is already open must still give
+    // feedback: pulse the panel it is pointing at.
+    inspector.classList.remove('attention');
+    void inspector.offsetWidth;
+    inspector.classList.add('attention');
+    clearTimeout(pageSettingsFlashTimer);
+    pageSettingsFlashTimer = setTimeout(() => inspector.classList.remove('attention'), 800);
   });
   // One delegated close handler serves Page settings, key and wide-key headers.
   $('#inspector').addEventListener('click', (event) => {

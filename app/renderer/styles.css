@@ -260,6 +260,11 @@ body::before {
 }
 .btn.primary:hover { filter: brightness(1.06); }
 .btn.ghost { background: transparent; }
+.btn.active {
+  border-color: rgba(79, 140, 255, 0.5);
+  background: rgba(79, 140, 255, 0.14);
+  color: var(--text);
+}
 .btn.danger { color: var(--bad); border-color: rgba(255, 93, 115, 0.3); }
 .btn.danger-solid {
   background: #a83246;
@@ -491,6 +496,12 @@ body::before {
   padding: 10px 6px;
 }
 .insp-empty h3 { color: var(--text); font-size: 14px; margin: 0 0 8px; }
+
+.inspector.attention { animation: inspector-attention 700ms ease-out; }
+@keyframes inspector-attention {
+  0%, 100% { outline: 2px solid transparent; outline-offset: -2px; }
+  30% { outline: 2px solid rgba(79, 140, 255, 0.8); outline-offset: -2px; }
+}
 
 .insp-head {
   display: flex; align-items: center; justify-content: space-between;

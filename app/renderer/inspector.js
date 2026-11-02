@@ -29,6 +29,11 @@ function closeInspector() {
   renderInspector();
 }
 
+function syncPageSettingsButton() {
+  const button = $('#page-settings-btn');
+  if (button) button.classList.toggle('active', state.selected === null);
+}
+
 // Shown in the Icon tab when a key intentionally has no image.
 const NO_ICON_GLYPH = `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
   <rect x="3" y="4" width="18" height="16" rx="3" />
@@ -749,8 +754,10 @@ function renderInspector() {
   const page = activePage();
   if (!page) {
     el.innerHTML = '<div class="insp-empty" style="padding:24px">No page in this profile. Create one to start editing.</div>';
+    syncPageSettingsButton();
     return;
   }
+  syncPageSettingsButton();
   if (state.selected !== null) openInspectorDrawer();
   if (state.selected === WIDE_KEY_INDEX) return renderWideInspector(el, page);
 
@@ -888,7 +895,7 @@ function renderInspector() {
       const slot = nextFreeIndex(page);
       if (slot < 0) return toast('No free key slot for a Back key', true);
       page.keys[slot] = {
-        emoji: '↩️',
+        emoji: '',
         label: 'Back',
         color: '#1b2130',
         icon: null,
