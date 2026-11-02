@@ -494,7 +494,7 @@ class StreamDeckPlugins extends PluginHost {
           if (previous && previous !== ws) {
             try { previous.close(4409, 'replaced'); } catch { /* ignore */ }
           }
-          this.sockets.set(pluginUuid, ws);
+          this._registerSocket(pluginUuid, ws);
           this._noteConnected(pluginUuid);
           this.emit('connected', pluginUuid);
           this._send(pluginUuid, {

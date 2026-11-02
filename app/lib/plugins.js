@@ -196,7 +196,7 @@ class PluginManager extends PluginHost {
           try { ws.close(4402, 'unknown plugin'); } catch { /* ignore */ }
           return;
         }
-        this.sockets.set(pluginUuid, ws);
+        this._registerSocket(pluginUuid, ws);
         this._noteConnected(pluginUuid);
         this.emit('connected', pluginUuid);
         if (this.globalSettings.has(pluginUuid)) {

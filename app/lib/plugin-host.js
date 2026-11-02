@@ -79,6 +79,9 @@ class PluginHost extends EventEmitter {
     this.inspectors = new Map(); // actionid/context -> ws
     this.queues = new Map(); // uuid -> messages[]
     this.children = new Map(); // uuid -> ChildProcess
+    this.generations = new Map(); // uuid -> current child generation
+    this.childGenerations = new WeakMap(); // ChildProcess -> generation
+    this.socketGenerations = new WeakMap(); // ws -> generation
     this.actions = new Map(); // actionid -> action instance
     this.globalSettings = new Map(); // uuid -> object
     this.crashes = new Map(); // uuid -> { count, last }
@@ -271,6 +274,19 @@ class PluginHost extends EventEmitter {
     this.queues.delete(pluginUuid);
   }
 
+  /** Bump the child generation so exits from the previous child become stale. */
+  _nextGeneration(pluginUuid) {
+    const generation = (this.generations.get(pluginUuid) || 0) + 1;
+    this.generations.set(pluginUuid, generation);
+    return generation;
+  }
+
+  /** Record a plugin connection against the child generation that owns it. */
+  _registerSocket(pluginUuid, ws) {
+    this.socketGenerations.set(ws, this.generations.get(pluginUuid) ?? null);
+    this.sockets.set(pluginUuid, ws);
+  }
+
   // ---------------------------------------------------------- lifecycle
 
   /** Clear crash history only when the previous crash is older than the window. */
@@ -323,10 +339,12 @@ class PluginHost extends EventEmitter {
   _spawn(meta, executable, port) {
     const { command, args, env } = this.spawnCommand(meta, executable, port);
     this._log(`spawn ${meta.uuid} ${command} ${args.slice(1).join(' ')}`);
+    const generation = this._nextGeneration(meta.uuid);
     const proc = this.spawn(command, args, { cwd: meta.dir, env, stdio: ['ignore', 'pipe', 'pipe'] });
+    this.childGenerations.set(proc, generation);
     proc.on('error', (err) => {
       this._reportError(`${meta.name} could not start: ${err.message}`);
-      this.children.delete(meta.uuid);
+      if (this.children.get(meta.uuid) === proc) this.children.delete(meta.uuid);
     });
     this.children.set(meta.uuid, proc);
     this._logStream(meta, proc.stdout, 'out');
@@ -337,9 +355,18 @@ class PluginHost extends EventEmitter {
 
   _onChildExit(meta, proc, code) {
     this._log(`exit ${meta.uuid} code=${code}`);
-    if (this.restarting.delete(meta.uuid)) return;
+    if (this.restarting.delete(proc)) return;
+    const generation = this.childGenerations.get(proc);
+    // A replacement can exit before its predecessor. Only the child that owns
+    // the current generation may clear that generation's socket or crash
+    // policy; a stale exit must not touch the newer child's state.
+    const current = generation !== undefined && this.generations.get(meta.uuid) === generation;
     if (this.children.get(meta.uuid) === proc) this.children.delete(meta.uuid);
-    this.sockets.delete(meta.uuid);
+    if (!current) return;
+    const socket = this.sockets.get(meta.uuid);
+    if (socket && (this.socketGenerations.get(socket) == null || this.socketGenerations.get(socket) === generation)) {
+      this.sockets.delete(meta.uuid);
+    }
     if (this.stopping || !this._hasActionsFor(meta.uuid)) return;
     const now = Date.now();
     const state = this.crashes.get(meta.uuid) || { count: 0, last: 0 };
@@ -377,7 +404,7 @@ class PluginHost extends EventEmitter {
     }
     const proc = this.children.get(pluginUuid);
     if (proc) {
-      this.restarting.add(pluginUuid);
+      this.restarting.add(proc);
       try { proc.kill(); } catch { /* ignore */ }
       this.children.delete(pluginUuid);
       this.sockets.delete(pluginUuid);
@@ -410,6 +437,7 @@ class PluginHost extends EventEmitter {
     for (const uuid of this.htmlRunning) {
       try { this.stopHtml?.(uuid); } catch { /* ignore */ }
     }
+    for (const uuid of this.children.keys()) this._nextGeneration(uuid);
     this.children.clear();
     this.sockets.clear();
     this.queues.clear();
@@ -431,10 +459,11 @@ class PluginHost extends EventEmitter {
     }
     const proc = this.children.get(id);
     if (proc) {
-      this.restarting.add(id);
+      this.restarting.add(proc);
       try { proc.kill(); } catch { /* ignore */ }
     }
     this.children.delete(id);
+    this._nextGeneration(id);
     this.sockets.delete(id);
     this.queues.delete(id);
     for (const [actionid, action] of this.actions) {

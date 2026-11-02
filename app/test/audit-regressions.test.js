@@ -177,6 +177,75 @@ test('restart waits for the previous child to exit before replacing it', async (
   assert.equal(children.length, 2, 'the replacement starts after the old child exits');
 });
 
+test('a stale child exit does not clear the replacement socket', (t) => {
+  const { host } = hostFixture(t);
+  const meta = { uuid: 'audit.plugin', name: 'Audit' };
+  const oldChild = {};
+  const replacement = {};
+  const socket = {};
+  host.generations.set('audit.plugin', 2);
+  host.childGenerations.set(oldChild, 1);
+  host.childGenerations.set(replacement, 2);
+  host.socketGenerations.set(socket, 2);
+  host.children.set('audit.plugin', replacement);
+  host.sockets.set('audit.plugin', socket);
+
+  host._onChildExit(meta, oldChild, 0);
+
+  assert.equal(host.sockets.get('audit.plugin'), socket, 'a stale exit must not clear the newer socket');
+  assert.equal(host.children.get('audit.plugin'), replacement);
+  assert.equal(host.crashes.has('audit.plugin'), false, 'a stale exit must not count as a crash');
+});
+
+test('restart suppression belongs to the old child, not the plugin UUID', (t) => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  const { host } = hostFixture(t);
+  const meta = { uuid: 'audit.plugin', name: 'Audit' };
+  const oldChild = {};
+  const replacement = {};
+  host.generations.set('audit.plugin', 2);
+  host.childGenerations.set(oldChild, 1);
+  host.childGenerations.set(replacement, 2);
+  host.children.set('audit.plugin', replacement);
+  host.restarting.add(oldChild);
+  host.crashes.set('audit.plugin', { count: 1, last: Date.now() });
+
+  host._onChildExit(meta, replacement, 1);
+
+  assert.equal(host.crashes.get('audit.plugin').count, 2, 'the replacement exit must still be handled');
+  assert.equal(host.restarting.has(oldChild), true, 'the old child keeps its own suppression marker');
+
+  host._onChildExit(meta, oldChild, 0);
+  assert.equal(host.crashes.get('audit.plugin').count, 2, 'the stale exit must not add another crash');
+});
+
+test('a child retired by reload cannot clear a newer socket', (t) => {
+  const { host } = hostFixture(t);
+  const oldChild = { kill() {}, once() {}, exitCode: null };
+  host.generations.set('audit.plugin', 1);
+  host.childGenerations.set(oldChild, 1);
+  host.children.set('audit.plugin', oldChild);
+  host.sockets.set('audit.plugin', {});
+  host.scan = () => [];
+  host.list = () => [];
+
+  host.reload();
+
+  const generation = host._nextGeneration('audit.plugin');
+  const newChild = {};
+  const newSocket = {};
+  host.childGenerations.set(newChild, generation);
+  host.socketGenerations.set(newSocket, generation);
+  host.children.set('audit.plugin', newChild);
+  host.sockets.set('audit.plugin', newSocket);
+  host.actions.set('audit.action', { pluginUuid: 'audit.plugin' });
+
+  host._onChildExit({ uuid: 'audit.plugin', name: 'Audit' }, oldChild, 0);
+
+  assert.equal(host.sockets.get('audit.plugin'), newSocket);
+  assert.equal(host.crashes.has('audit.plugin'), false);
+});
+
 test('a bad manifest does not abort scanning before an error listener exists', (t) => {
   const dir = fixture(t);
   const pluginDir = path.join(dir, 'bad.ulanziPlugin');
