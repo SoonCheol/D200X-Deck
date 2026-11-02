@@ -1,5 +1,27 @@
 # Changelog
 
+## 0.8.11 — 2026-11-02
+
+### Security
+- **Store redirects are constrained:** every hop must be HTTPS; a credential-bearing POST redirected to another origin is refused; and credentials never cross an origin or transport change.
+
+### Fixed
+- **The Stream Deck inspector retry works again** when the action is not registered yet (the shared bridge used to omit the retry entirely when the payload was null).
+- **A first run is no longer reported as a damaged config**, while an existing empty config is reported as reset instead of silently replaced.
+- **Plugin-local views ignore query/hash** when resolving a file.
+
+### Changed
+- **Tabs are keyboard-operable** (roving tabindex, Arrow/Home/End) across settings, store and Installed.
+- **A plugin inspector keeps a 120 px placeholder** and offers **Retry** after 5 s instead of collapsing the panel.
+- **Icon tiles have readable accessible names** instead of the raw filename.
+- **Copy:** “Reveal in Finder”, “Top rated”, “Add key combination”, “20 icons”, and “OpenAction” casing.
+
+### CI
+- GitHub Actions are pinned to commit SHAs.
+
+### Tests
+- 97 → **99**.
+
 ## 0.8.10 — 2026-11-02
 
 ### Changed
