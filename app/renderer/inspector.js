@@ -167,6 +167,7 @@ function syncActionMeta(key) {
 }
 
 const MULTI_STEP_TYPES = window.DeckActions.MULTI_STEP_TYPES;
+const MULTI_STEP_GROUPS = window.DeckActions.MULTI_STEP_GROUPS;
 
 const VALUE_LABELS = {
   hotkey: 'Combination',
@@ -375,18 +376,24 @@ function multiStepRow(step, index, total, page) {
   const isDelay = step.delay !== undefined;
   const act = isDelay ? null : step.action || { type: '' };
   const knownType = Boolean(act?.type) && MULTI_STEP_TYPES.some(([value]) => value === act.type);
-  const typeOptions =
+  const unknownType =
     act?.type && !knownType
-      ? [[act.type, window.DeckActions.ACTION_LABELS?.[act.type] || act.type], ...MULTI_STEP_TYPES]
-      : MULTI_STEP_TYPES;
+      ? `<option value="${esc(act.type)}" selected>${esc(
+          window.DeckActions.ACTION_LABELS?.[act.type] || act.type
+        )}</option>`
+      : '';
+  const typeGroups = MULTI_STEP_GROUPS.map(
+    ([label, types]) =>
+      `<optgroup label="${esc(label)}">${types
+        .map(
+          ([value, text]) =>
+            `<option value="${esc(value)}" ${act?.type === value ? 'selected' : ''}>${esc(text)}</option>`
+        )
+        .join('')}</optgroup>`
+  ).join('');
   const placeholder = act && !act.type ? '<option value="" selected disabled>Select…</option>' : '';
   const typeField = act
-    ? `<select class="select multi-type" data-type="${index}" aria-label="Step ${index + 1} type">${placeholder}${typeOptions
-        .map(
-          ([value, label]) =>
-            `<option value="${esc(value)}" ${act.type === value ? 'selected' : ''}>${esc(label)}</option>`
-        )
-        .join('')}</select>`
+    ? `<select class="select multi-type" data-type="${index}" aria-label="Step ${index + 1} type">${placeholder}${unknownType}${typeGroups}</select>`
     : '<span class="multi-type multi-delay">Wait</span>';
   const controls = act
     ? multiStepControls(act, index)

@@ -63,6 +63,17 @@ test('multi steps cover the editor set without recursive actions', () => {
   }
 });
 
+test('multi step groups cover every step type once', () => {
+  const grouped = meta.MULTI_STEP_GROUPS.flatMap(([, types]) => types.map(([type]) => type));
+  const flat = meta.MULTI_STEP_TYPES.map(([type]) => type);
+  assert.equal(new Set(grouped).size, grouped.length, 'duplicate step type in a group');
+  assert.deepEqual([...grouped].sort(), [...flat].sort());
+  for (const [label, types] of meta.MULTI_STEP_GROUPS) {
+    assert.ok(label, 'missing group label');
+    assert.ok(types.length > 0, `empty group: ${label}`);
+  }
+});
+
 test('media keys have one label each', () => {
   assert.equal(new Set(meta.MEDIA_OPS).size, meta.MEDIA_OPS.length);
   for (const op of meta.MEDIA_OPS) {

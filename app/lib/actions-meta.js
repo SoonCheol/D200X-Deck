@@ -64,20 +64,15 @@
     ['System', ['hotkey', 'text', 'media', 'command']],
   ];
 
-  const MULTI_STEP_TYPES = [
-    ['hotkey', 'Hotkey'],
-    ['media', 'Media key'],
-    ['text', 'Type text'],
-    ['app', 'Open app'],
-    ['url', 'Open URL'],
-    ['close', 'Close app'],
-    ['command', 'Command'],
-    ['sound', 'Play audio'],
-    ['timer', 'Timer'],
-    ['brightness', 'Deck brightness'],
-    ['plugin', 'Plugin action'],
-    ['page', 'Switch page'],
+  /** @type {Array<[string, Array<[string, string]>]>} */
+  const MULTI_STEP_GROUPS = [
+    ['Device & pages', [['page', 'Switch page'], ['timer', 'Timer'], ['brightness', 'Deck brightness']]],
+    ['Apps & links', [['app', 'Open app'], ['url', 'Open URL'], ['close', 'Close app']]],
+    ['System', [['hotkey', 'Hotkey'], ['text', 'Type text'], ['media', 'Media key'], ['sound', 'Play audio'], ['command', 'Command']]],
+    ['Plugins', [['plugin', 'Plugin action']]],
   ];
+
+  const MULTI_STEP_TYPES = MULTI_STEP_GROUPS.flatMap(([, types]) => types);
 
   const MEDIA = [
     { op: 'playpause', label: 'Play / pause' },
@@ -97,6 +92,7 @@
     ACTION_GROUPS,
     TRIGGER_GROUPS,
     MULTI_STEP_TYPES,
+    MULTI_STEP_GROUPS,
     MEDIA,
     MEDIA_OPS,
     MEDIA_LABELS,
