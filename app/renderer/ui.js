@@ -87,6 +87,16 @@ function renderStatus() {
     const stateEl = $('#push-state');
     if (stateEl) stateEl.textContent = busy ? 'in use' : 'no deck';
   }
+  renderSyncState();
+}
+
+/** The deck and the editor agree only after a successful push. */
+function renderSyncState() {
+  const pushBtn = $('#push-btn');
+  if (pushBtn) pushBtn.classList.toggle('unsynced', Boolean(state.unsynced));
+  if (!state.status.connected || state.pushing || !state.unsynced) return;
+  const stateEl = $('#push-state');
+  if (stateEl) stateEl.textContent = 'unsynced changes';
 }
 
 function renderPageList() {
@@ -463,6 +473,12 @@ async function loadSiteIcon(key, report = false) {
 function commit(redraw = true) {
   scheduleSave();
   if (redraw) drawGrid();
+  // Without auto-push (or without a deck) an edit leaves the physical keypad
+  // behind until the user pushes.
+  if (!state.config.settings.autoPush || !state.status.connected) {
+    state.unsynced = true;
+    renderSyncState();
+  }
   schedulePush();
   schedulePluginsSync();
 }
@@ -573,11 +589,15 @@ async function pushNow() {
     const res = await api.pushPage(images, activePage()?.wideMode || 'clock');
     if (!res.ok) throw new Error(res.error || 'push failed');
     const time = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    state.unsynced = false;
     $('#push-state').textContent = `synced ${time}`;
+    renderSyncState();
     state.config.settings.lastPush = Date.now();
     scheduleSave();
   } catch (err) {
+    state.unsynced = true;
     $('#push-state').textContent = 'push failed';
+    renderSyncState();
     toast(err.message || String(err), true);
   } finally {
     state.pushing = false;

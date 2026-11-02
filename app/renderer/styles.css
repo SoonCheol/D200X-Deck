@@ -259,7 +259,18 @@ body::before {
 .btn.ghost { background: transparent; }
 .btn.danger { color: var(--bad); border-color: rgba(255, 93, 115, 0.3); }
 .btn:disabled { opacity: 0.45; cursor: not-allowed; }
-#push-btn { white-space: nowrap; min-width: 132px; }
+#push-btn { white-space: nowrap; min-width: 132px; position: relative; }
+#push-btn.unsynced::after {
+  content: '';
+  position: absolute;
+  top: 7px;
+  right: 8px;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--warn);
+  box-shadow: 0 0 0 2px rgba(255, 189, 89, 0.16);
+}
 .toggle span { white-space: nowrap; }
 
 /* -------------------------------------------------------------- stage */

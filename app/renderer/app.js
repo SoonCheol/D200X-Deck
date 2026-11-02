@@ -145,6 +145,7 @@ const state = {
   selected: null,
   pushing: false,
   pushAgain: false,
+  unsynced: false,
   plugins: [],
   apps: [],
 };
