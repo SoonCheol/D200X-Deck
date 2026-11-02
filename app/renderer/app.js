@@ -551,11 +551,16 @@ function importProfileData(data) {
     };
     if (sourcePage.parentId && idMap.has(sourcePage.parentId)) page.parentId = idMap.get(sourcePage.parentId);
     if (sourcePage.background) page.background = sourcePage.background;
+    if (sourcePage.wideMode === 'stats' || sourcePage.wideMode === 'blank') page.wideMode = sourcePage.wideMode;
+    if (page.parentId && Number(sourcePage.autoExitSeconds) > 0) {
+      page.autoExitSeconds = Math.min(86_400, Math.max(1, Math.round(Number(sourcePage.autoExitSeconds))));
+    }
     pages.push(page);
   }
   if (!pages.length) throw new Error('Profile has no usable pages');
 
   const profile = { id: profileId, name };
+  if (typeof source.icon === 'string' && source.icon) profile.icon = source.icon;
   if (typeof source.appPath === 'string' && source.appPath) {
     profile.appPath = source.appPath;
     profile.appName = source.appName || basename(source.appPath);

@@ -28,6 +28,58 @@ const importEnd = renderer.indexOf('function saveProfile(');
 assert.ok(importStart >= 0 && importEnd > importStart, 'profile import flow must be available');
 const importFlow = new vm.Script(renderer.slice(importStart, importEnd));
 
+test('an own-format profile keeps panel mode, auto-exit and its icon', async () => {
+  const start = renderer.indexOf('async function exportActiveProfile(');
+  const end = renderer.indexOf('function saveProfile(');
+  assert.ok(start >= 0 && end > start, 'profile export/import flow must be available');
+
+  const config = createDefaultConfig();
+  const profile = config.profiles[0];
+  profile.icon = 'data:image/png;base64,YQ==';
+  const parent = config.pages[0];
+  const child = {
+    id: randomUUID(),
+    name: 'Child',
+    profileId: profile.id,
+    parentId: parent.id,
+    wideMode: 'stats',
+    autoExitSeconds: 45,
+    keys: {},
+  };
+  config.pages.push(child);
+  config.activeProfileId = profile.id;
+  config.activePageId = parent.id;
+
+  let payload = null;
+  const context = vm.createContext({
+    state: { config },
+    api: {
+      exportProfile: async (data) => {
+        payload = data;
+        return { ok: true };
+      },
+    },
+    uuid: randomUUID,
+    basename: path.basename,
+    closeProfileModal() {},
+    renderAll() {},
+    toast() {},
+    commit() {},
+    confirm: () => true,
+  });
+  new vm.Script(renderer.slice(start, end)).runInContext(context);
+  await context.exportActiveProfile();
+  assert.equal(payload.profile.icon, profile.icon);
+
+  context.importProfileData(payload);
+
+  const imported = config.profiles.at(-1);
+  const importedChild = config.pages.find((page) => page.profileId === imported.id && page.name.startsWith('Child'));
+  assert.equal(imported.icon, profile.icon, 'the profile icon survives the round trip');
+  assert.equal(importedChild.wideMode, 'stats', 'the wide-panel mode survives the round trip');
+  assert.equal(importedChild.autoExitSeconds, 45, 'the folder auto-exit survives the round trip');
+});
+
 for (const type of ['multi', 'toggle', 'pop']) {
   test(`import consent covers shorthand command steps in ${type} actions`, async (t) => {
     const data = {
