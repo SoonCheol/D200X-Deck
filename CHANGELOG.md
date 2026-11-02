@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.10.7 — 2026-11-02
+
+### Changed
+- **Plugin lifecycle is generation-aware.** A stale child exit can no longer clear a replacement plugin's socket, consume its restart suppression, or change its crash policy.
+- **Archive extraction is bounded and off the main process.** Profile, plugin and icon-pack ZIPs are inspected before expansion, reject unsafe paths and excessive entry counts, are unpacked asynchronously, and are stopped if the extracted tree crosses the size budget.
+- **Catalogue release metadata expires when the catalogue refreshes**, so the store cannot keep offering an old version or download URL.
+- **Profile round trips keep the wide-panel mode, folder auto-exit and profile icon.**
+- **Unmapped imported actions keep a bounded copy of their source action data across reload.**
+- **Renderer linting now checks undefined globals** with explicit per-file cross-file bindings.
+
+### Fixed
+- **AgentDeck's Setup tutorial opens its page instead of a blank window.** `openView` parameters are passed to `loadFile` as a query instead of being appended to the filename.
+
+### Tests
+- 104 → **121**. Added a fake-Electron IPC harness, archive-limit checks, plugin-view parameter checks, and profile/source-action round-trip coverage.
+
 ## 0.10.6 — 2026-11-02
 
 ### Changed

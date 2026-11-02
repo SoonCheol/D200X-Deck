@@ -89,13 +89,17 @@ file; H9 is the last open High.
 - The local installer launches through LaunchServices so the menu bar item is
   created; the repo release skill is included.
 
-### Next: architecture batch
+### Shipped in 0.10.7 — architecture hardening
 
-- M3 per-generation child/socket ownership; M18 bounded extraction off main.
-- M24 fake-Electron IPC harness; L3/L4 round trips; L6 release-cache expiry.
-- Renderer `no-undef` with explicit cross-file contracts.
+- Plugin child/socket ownership is generation-aware; stale exits are inert.
+- Profile, plugin and icon-pack ZIPs are bounded before and during extraction.
+- A fake-Electron IPC harness covers registration, sender checks, lazy dialogs
+  and SD store install.
+- Profile and source-action round trips preserve their data; catalogue release
+  metadata expires on refresh; renderer `no-undef` is enforced.
+- AgentDeck's setup tutorial opens instead of a blank `openView` window.
 
-### Then: visual and store polish
+### Next: visual and store polish
 
 - Store detail and remaining card state (M27).
 - 1179 breakpoint (M16); type-scale consolidation (M3); icon-language cleanup
