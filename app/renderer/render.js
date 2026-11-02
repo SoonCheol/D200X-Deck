@@ -1,6 +1,6 @@
 'use strict';
 
-/* global timerTextFor */
+/* global timerTextFor, DeckTextStyle */
 
 const KEY_SIZE = 196;
 const WIDE_KEY_SIZE = { width: 402, height: 196 };
@@ -299,21 +299,42 @@ async function drawKey(canvas, key, width = KEY_SIZE, height = KEY_SIZE, autoIco
     const size = Math.max(10, Math.min(40, Number(font.size) || 17));
     const weight = Math.max(100, Math.min(900, Math.round(Number(font.weight) || 600)));
     const align = ['left', 'center', 'right'].includes(font.align) ? font.align : 'left';
-    const shadeH = Math.max(62, Math.round(size) + 40);
-    const g = ctx.createLinearGradient(0, h - shadeH, 0, h);
-    g.addColorStop(0, 'rgba(0,0,0,0)');
-    g.addColorStop(1, 'rgba(0,0,0,0.78)');
-    ctx.fillStyle = g;
-    ctx.fillRect(0, h - shadeH, w, shadeH);
+    const family = DeckTextStyle.fontStack(font.family);
+    const effect = DeckTextStyle.normalizeEffect(font.effect, 'none');
+    const background = DeckTextStyle.normalizeBackground(font.background, 'gradient');
+    if (background === 'gradient') {
+      const shadeH = Math.max(62, Math.round(size) + 40);
+      const g = ctx.createLinearGradient(0, h - shadeH, 0, h);
+      g.addColorStop(0, 'rgba(0,0,0,0)');
+      g.addColorStop(1, 'rgba(0,0,0,0.78)');
+      ctx.fillStyle = g;
+      ctx.fillRect(0, h - shadeH, w, shadeH);
+    } else if (background === 'solid') {
+      const barH = Math.max(34, Math.round(size) + 20);
+      ctx.fillStyle = 'rgba(0,0,0,0.55)';
+      ctx.fillRect(0, h - barH, w, barH);
+    }
 
     ctx.save();
     ctx.textAlign = align;
     ctx.textBaseline = 'alphabetic';
-    ctx.font = `${weight} ${size}px -apple-system, "SF Pro Text", "Helvetica Neue", sans-serif`;
-    ctx.fillStyle = font.color || 'rgba(255,255,255,0.94)';
+    ctx.font = `${weight} ${size}px ${family}`;
+    const color = font.color || 'rgba(255,255,255,0.94)';
     const inset = 14;
     const x = align === 'center' ? w / 2 : align === 'right' ? w - inset : inset;
-    ctx.fillText(fitText(ctx, label, w - inset * 2), x, h - 13);
+    const y = h - 13;
+    const text = fitText(ctx, label, w - inset * 2);
+    if (effect === 'outline') {
+      ctx.strokeStyle = DeckTextStyle.contrastOutline(color);
+      ctx.lineWidth = DeckTextStyle.outlineWidth(size);
+      ctx.lineJoin = 'round';
+      ctx.strokeText(text, x, y);
+    } else if (effect === 'shadow') {
+      ctx.shadowColor = 'rgba(0,0,0,0.55)';
+      ctx.shadowBlur = 6;
+    }
+    ctx.fillStyle = color;
+    ctx.fillText(text, x, y);
     ctx.restore();
   }
 

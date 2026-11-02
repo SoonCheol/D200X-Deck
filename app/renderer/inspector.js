@@ -1474,13 +1474,28 @@ function renderInspector() {
       <div class="font-row" style="margin-top:8px">
         <input class="input" id="insp-font-size" type="number" min="10" max="40" step="1" value="${Number(key.font?.size) || 17}" title="Size" ${captionVisible ? '' : 'disabled'} />
         <select class="select" id="insp-font-weight" title="Weight" ${captionVisible ? '' : 'disabled'}>
-          ${[400, 500, 600, 700, 800].map((w) => `<option value="${w}" ${(Number(key.font?.weight) || 600) === w ? 'selected' : ''}>${w}</option>`).join('')}
+          ${['light', 'regular', 'bold'].map((preset) => {
+            const selected = DeckTextStyle.weightPreset(key.font?.weight) === preset;
+            return `<option value="${preset}" ${selected ? 'selected' : ''}>${preset[0].toUpperCase()}${preset.slice(1)}</option>`;
+          }).join('')}
         </select>
         <select class="select" id="insp-font-align" title="Alignment" ${captionVisible ? '' : 'disabled'}>
           ${['left', 'center', 'right'].map((a) => `<option value="${a}" ${(key.font?.align || 'left') === a ? 'selected' : ''}>${a[0].toUpperCase()}${a.slice(1)}</option>`).join('')}
         </select>
         <input class="color-input" id="insp-font-color" type="color" value="${esc(key.font?.color || '#ffffff')}" title="Caption colour" ${captionVisible ? '' : 'disabled'} />
       </div>
+      <div class="font-row three" style="margin-top:6px">
+        <select class="select" id="insp-font-family" title="Font" ${captionVisible ? '' : 'disabled'}>
+          ${DeckTextStyle.FAMILY_IDS.map((id) => `<option value="${id}" ${(key.font?.family || 'system') === id ? 'selected' : ''}>${DeckTextStyle.FAMILY_LABELS[id]}</option>`).join('')}
+        </select>
+        <select class="select" id="insp-font-effect" title="Text effect" ${captionVisible ? '' : 'disabled'}>
+          ${['none', 'shadow', 'outline'].map((effect) => `<option value="${effect}" ${(key.font?.effect || 'none') === effect ? 'selected' : ''}>${effect[0].toUpperCase()}${effect.slice(1)}</option>`).join('')}
+        </select>
+        <select class="select" id="insp-font-background" title="Caption background" ${captionVisible ? '' : 'disabled'}>
+          ${['gradient', 'solid', 'none'].map((background) => `<option value="${background}" ${(key.font?.background || 'gradient') === background ? 'selected' : ''}>${background[0].toUpperCase()}${background.slice(1)}</option>`).join('')}
+        </select>
+      </div>
+      <button class="link-btn" id="insp-font-reset" type="button" style="margin-top:6px" ${captionVisible ? '' : 'disabled'}>Reset style</button>
     </div>`
     }
 
@@ -1620,6 +1635,9 @@ function renderInspector() {
       align: 'left',
       color: '#ffffff',
       showLabel: true,
+      family: 'system',
+      effect: 'none',
+      background: 'gradient',
       ...(key.font || {}),
       ...patch,
     };
@@ -1631,12 +1649,39 @@ function renderInspector() {
     e.target.value = String(size);
     updateFont({ size });
   });
-  $('#insp-font-weight')?.addEventListener('change', (e) => updateFont({ weight: Number(e.target.value) }));
+  $('#insp-font-weight')?.addEventListener('change', (e) =>
+    updateFont({ weight: DeckTextStyle.weightValue(e.target.value) })
+  );
   $('#insp-font-align')?.addEventListener('change', (e) => updateFont({ align: e.target.value }));
   $('#insp-font-color')?.addEventListener('input', (e) => updateFont({ color: e.target.value }));
+  $('#insp-font-family')?.addEventListener('change', (e) => updateFont({ family: e.target.value }));
+  $('#insp-font-effect')?.addEventListener('change', (e) => updateFont({ effect: e.target.value }));
+  $('#insp-font-background')?.addEventListener('change', (e) => updateFont({ background: e.target.value }));
+  $('#insp-font-reset')?.addEventListener('click', () => {
+    updateFont({
+      size: 17,
+      weight: 600,
+      align: 'left',
+      color: '#ffffff',
+      family: 'system',
+      effect: 'none',
+      background: 'gradient',
+    });
+    renderInspector();
+  });
   $('#insp-font-show')?.addEventListener('change', (e) => {
     updateFont({ showLabel: e.target.checked, captionExplicit: e.target.checked });
-    ['#insp-label', '#insp-font-size', '#insp-font-weight', '#insp-font-align', '#insp-font-color'].forEach((sel) => {
+    [
+      '#insp-label',
+      '#insp-font-size',
+      '#insp-font-weight',
+      '#insp-font-align',
+      '#insp-font-color',
+      '#insp-font-family',
+      '#insp-font-effect',
+      '#insp-font-background',
+      '#insp-font-reset',
+    ].forEach((sel) => {
       const el = $(sel);
       if (el) el.disabled = !e.target.checked;
     });

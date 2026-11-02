@@ -393,6 +393,7 @@ body::before {
 }
 .font-row .input,
 .font-row .select { min-width: 0; padding: 6px 8px; font-size: 11px; }
+.font-row.three { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1fr); }
 .check-row {
   display: flex;
   align-items: center;

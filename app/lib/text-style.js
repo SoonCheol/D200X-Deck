@@ -14,6 +14,12 @@
     menlo: 'Menlo, "Courier New", monospace',
   };
   const FAMILY_IDS = Object.keys(FAMILIES);
+  const FAMILY_LABELS = {
+    system: 'System',
+    avenir: 'Avenir Next',
+    georgia: 'Georgia',
+    menlo: 'Menlo',
+  };
   const WEIGHTS = { light: 300, regular: 600, bold: 800 };
   const TEXT_EFFECTS = ['shadow', 'outline', 'none'];
   const CAPTION_BACKGROUNDS = ['gradient', 'solid', 'none'];
@@ -94,6 +100,7 @@
   return {
     FAMILIES,
     FAMILY_IDS,
+    FAMILY_LABELS,
     WEIGHTS,
     TEXT_EFFECTS,
     CAPTION_BACKGROUNDS,
