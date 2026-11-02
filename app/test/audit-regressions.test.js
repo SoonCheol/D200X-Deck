@@ -11,7 +11,7 @@ const { randomUUID } = require('node:crypto');
 
 const { Store, createDefaultConfig } = require('../lib/store');
 const { PluginManager } = require('../lib/plugins');
-const { PluginHost } = require('../lib/plugin-host');
+const { PluginHost, isAllowedWsOrigin } = require('../lib/plugin-host');
 
 function fixture(t) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ulanzi-audit-test-'));
@@ -184,4 +184,31 @@ test('a bad manifest does not abort scanning before an error listener exists', (
   const manager = new PluginManager({ dirs: [dir], appPluginsDir: dir });
 
   assert.doesNotThrow(() => manager.scan(), 'one bad manifest must not abort startup');
+});
+
+test('a recent connection does not clear the crash history', (t) => {
+  const host = new PluginHost({ dirs: [fixture(t)], port: 3906, label: 'test' });
+  host.crashes.set('p', { count: 3, last: Date.now() });
+  host._noteConnected('p');
+  assert.equal(host.crashes.has('p'), true, 'a quick reconnect must keep the crash count');
+
+  host.crashes.set('p', { count: 3, last: Date.now() - 120_000 });
+  host._noteConnected('p');
+  assert.equal(host.crashes.has('p'), false, 'a stable run clears the history');
+});
+
+test('a plugin that gave up is not restarted by key or sync', (t) => {
+  const { host, launches } = hostFixture(t);
+  host.crashes.set('audit.plugin', { count: 6, last: Date.now(), giveUp: true });
+  host._ensurePlugin('audit.plugin');
+  assert.equal(launches.length, 0, 'the crash cap must survive key presses and syncs');
+});
+
+test('the websocket guard admits SDK and inspector origins only', () => {
+  for (const origin of ['', undefined, 'file://', 'ulanzi-pi://local', 'sd-pi://local']) {
+    assert.equal(isAllowedWsOrigin(origin), true, `allowed: ${origin}`);
+  }
+  for (const origin of ['null', 'https://evil.example', 'http://127.0.0.1', 'chrome-extension://abc', 'data:text/html,x']) {
+    assert.equal(isAllowedWsOrigin(origin), false, `blocked: ${origin}`);
+  }
 });

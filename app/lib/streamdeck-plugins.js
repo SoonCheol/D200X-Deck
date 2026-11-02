@@ -467,7 +467,7 @@ class StreamDeckPlugins extends PluginHost {
             try { previous.close(4409, 'replaced'); } catch { /* ignore */ }
           }
           this.sockets.set(pluginUuid, ws);
-          this.crashes.delete(pluginUuid);
+          this._noteConnected(pluginUuid);
           this.emit('connected', pluginUuid);
           this._send(pluginUuid, {
             event: 'deviceDidConnect',

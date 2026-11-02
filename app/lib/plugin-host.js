@@ -34,6 +34,21 @@ function nodeRuntime() {
 }
 
 /**
+ * Plugins are Node/native processes and send no Origin. Property inspectors run
+ * on our private schemes. Browsers send http(s) or a literal "null" for opaque
+ * origins, which must not be admitted.
+ */
+function isAllowedWsOrigin(origin) {
+  if (!origin) return true;
+  const value = String(origin).toLowerCase();
+  return (
+    value.startsWith('file://') ||
+    value.startsWith('ulanzi-pi://') ||
+    value.startsWith('sd-pi://')
+  );
+}
+
+/**
  * Shared lifecycle for the Ulanzi and Stream Deck plugin hosts: discovery,
  * the WebSocket server and port fallback, spawn/exit/backoff, settings
  * persistence, install/import/remove and shutdown.
@@ -206,7 +221,7 @@ class PluginHost extends EventEmitter {
           // run in our own scheme. Anything from a web page is refused.
           verifyClient: (info, done) => {
             const origin = String(info.origin || info.req?.headers?.origin || '');
-            if (/^https?:/i.test(origin)) return done(false, 403, 'forbidden');
+            if (!isAllowedWsOrigin(origin)) return done(false, 403, 'forbidden');
             done(true);
           },
         });
@@ -258,10 +273,17 @@ class PluginHost extends EventEmitter {
 
   // ---------------------------------------------------------- lifecycle
 
+  /** Clear crash history only when the previous crash is older than the window. */
+  _noteConnected(pluginUuid) {
+    const state = this.crashes.get(pluginUuid);
+    if (state && Date.now() - state.last >= 60_000) this.crashes.delete(pluginUuid);
+  }
+
   _ensurePlugin(pluginUuid) {
     const meta = this.plugins.get(pluginUuid);
     if (!meta || !meta.compatible) return null;
     if (this.stopping || this._portFailed) return meta;
+    if (this.crashes.get(pluginUuid)?.giveUp) return meta;
     // The server port is resolved asynchronously; wait for it so the plugin
     // is pointed at our own server, not at the vendor app's.
     if (!this.wss && this._portPromise && !this._portReady) {
@@ -325,7 +347,8 @@ class PluginHost extends EventEmitter {
     state.last = now;
     this.crashes.set(meta.uuid, state);
     if (state.count > 5) {
-      this._reportError(`${meta.name} keeps crashing — not restarting it.`);
+      state.giveUp = true;
+      this._reportError(`${meta.name} keeps crashing — not restarting it. Use Reload to try again.`);
       return;
     }
     const delay = Math.min(30_000, 1000 * 2 ** (state.count - 1));
@@ -437,7 +460,8 @@ class PluginHost extends EventEmitter {
     state.last = now;
     this.crashes.set(pluginUuid, state);
     if (state.count > 5) {
-      this._reportError(`${meta?.name || pluginUuid} keeps closing — not restarting it.`);
+      state.giveUp = true;
+      this._reportError(`${meta?.name || pluginUuid} keeps closing — not restarting it. Use Reload to try again.`);
       return;
     }
     setTimeout(() => {
@@ -608,4 +632,4 @@ class PluginHost extends EventEmitter {
   }
 }
 
-module.exports = { PluginHost, nodeRuntime };
+module.exports = { PluginHost, nodeRuntime, isAllowedWsOrigin };

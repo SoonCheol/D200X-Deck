@@ -195,7 +195,7 @@ class PluginManager extends PluginHost {
           return;
         }
         this.sockets.set(pluginUuid, ws);
-        this.crashes.delete(pluginUuid);
+        this._noteConnected(pluginUuid);
         this.emit('connected', pluginUuid);
         if (this.globalSettings.has(pluginUuid)) {
           this._send(pluginUuid, {
