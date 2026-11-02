@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.10.1 — 2026-11-02
+
+### Changed
+- **Deck settings is centered over the editor** instead of sitting beside the inspector. Opening it closes the narrow drawer, and selecting a key closes it.
+- **Push is disabled while auto-push is on and the deck is in sync.** Its tooltip explains that changes go automatically, how to turn auto-push off, and that ⌘S still pushes. It stays available when auto-push is off or a push needs a retry.
+- **Subpages are discoverable:** Page settings lists child pages and **New subpage** creates the child plus an open key on the parent and a Back key on the child.
+- **Back to parent page** is only offered on subpages, and page targets mark them with ↳.
+
+### Tests
+- 102 (unchanged).
+
 ## 0.10.0 — 2026-11-02
 
 ### Changed

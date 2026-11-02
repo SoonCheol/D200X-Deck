@@ -44,7 +44,7 @@ M32 in 0.8.12. UI lows L7–L12 are cosmetic and stay backlog.
 
 ### Architecture audit
 
-Open findings, deferred to **0.10.1**:
+Open findings, deferred to **0.10.2**:
 
 | Finding | Notes |
 | --- | --- |
@@ -227,7 +227,7 @@ a reload; recursive types are not offered.
 4. M8 (largest; one editor commit).
 5. Release 0.10.0.
 
-## 0.10.1 — architecture batch
+## 0.10.2 — architecture batch
 
 After 0.10.0: M3 (per-generation child/socket ownership), M18 (bounded
 extraction off main), M24 (fake-Electron IPC harness), L3/L4 (round trips),
@@ -243,7 +243,7 @@ the remaining UI lows. No new structural work.
 
 - Firmware update, Python plugins, multi-device support (D200X / Dial / AU05),
   OBS actions.
-- Renderer module split and L5 lazy image refs (ride on the 0.10.1 contracts
+- Renderer module split and L5 lazy image refs (ride on the 0.10.2 contracts
   and the 1.0 measurement).
 - Native confirmations for security consent (shell commands, Rosetta, store
   install) — they stay native for now.

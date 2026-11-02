@@ -42,7 +42,19 @@ file; H9 is the last open High.
 4. **M8 — complete Multi/Toggle steps.** Plugin, sound, timer, brightness and
    close steps, plus drag and ↑/↓ reordering.
 
-### Next: 0.10.1 — architecture batch
+### Shipped in 0.10.1 — settings, Push and subpages
+
+- **Deck settings is centered** over the editor, closes the narrow drawer and
+  closes when a key is selected.
+- **Push is disabled while auto-push keeps the deck in sync**, with a tooltip
+  explaining how to push manually (⌘S). It stays available for retries and
+  when auto-push is off.
+- **Subpages are discoverable:** Page settings lists children, and **New
+  subpage** creates the child plus an open key on the parent and a Back key.
+- **Back to parent page** is offered only on subpages; page targets mark them
+  with ↳.
+
+### Next: 0.10.2 — architecture batch
 
 - M3 per-generation child/socket ownership; M18 bounded extraction off main.
 - M24 fake-Electron IPC harness; L3/L4 round trips; L6 release-cache expiry.
