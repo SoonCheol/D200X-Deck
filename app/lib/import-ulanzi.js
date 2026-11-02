@@ -16,8 +16,8 @@ const { MEDIA_LABELS } = require('./actions-meta');
 const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
-const { execFileSync } = require('node:child_process');
 const { randomUUID } = require('node:crypto');
+const { extractZip } = require('./archive');
 
 const ULANZI_DIR = path.join(os.homedir(), 'Library/Application Support/Ulanzi/UlanziDeck');
 const PROFILES_DIR = path.join(ULANZI_DIR, 'ProfilesV2');
@@ -312,17 +312,7 @@ function listProfiles() {
   return profiles;
 }
 
-function dirSize(dir) {
-  let total = 0;
-  for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
-    const full = path.join(dir, entry.name);
-    if (entry.isDirectory()) total += dirSize(full);
-    else if (entry.isFile()) total += fs.statSync(full).size;
-  }
-  return total;
-}
-
-function extractProfileZip(file) {
+async function extractProfileZip(file) {
   const temp = fs.mkdtempSync(path.join(os.tmpdir(), 'ulanzi-import-'));
   let source = file;
   try {
@@ -335,7 +325,7 @@ function extractProfileZip(file) {
       source = path.join(temp, 'profile.zip');
       fs.writeFileSync(source, data);
     }
-    execFileSync('unzip', ['-oq', source, '-d', temp], { stdio: ['ignore', 'ignore', 'pipe'] });
+    await extractZip(source, temp, { maxExpandedBytes: MAX_ARCHIVE_BYTES });
     const dirs = [];
     const walk = (dir, depth = 0) => {
       if (depth > 2) return;
@@ -347,9 +337,7 @@ function extractProfileZip(file) {
       }
     };
     walk(temp);
-    if (dirSize(temp) > MAX_ARCHIVE_BYTES) {
-      throw new Error('This profile expands to more than 256 MB');
-    }
+    if (!dirs.length) throw new Error('No .ulanziProfile found in this file');
     return { temp, dirs };
   } catch (err) {
     fs.rmSync(temp, { recursive: true, force: true });
@@ -489,13 +477,13 @@ function parseProfile(dir) {
 }
 
 /** Map files or a directory, for the preview UI. */
-function previewProfile(target) {
+async function previewProfile(target) {
   const stat = fs.statSync(target);
   let cleanup = null;
   let dirs = [];
   if (stat.isDirectory()) dirs = [target];
   else {
-    const extracted = extractProfileZip(target);
+    const extracted = await extractProfileZip(target);
     cleanup = extracted.temp;
     dirs = extracted.dirs;
   }

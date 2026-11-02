@@ -42,7 +42,7 @@ function writePlugin(root, name = 'com.test.sdPlugin') {
   return dir;
 }
 
-test('scans and installs Stream Deck plugins', () => {
+test('scans and installs Stream Deck plugins', async () => {
   const appDir = tempDir();
   const source = tempDir();
   const pluginDir = writePlugin(source);
@@ -57,7 +57,7 @@ test('scans and installs Stream Deck plugins', () => {
   assert.equal(list[0].actions[0].uuid, 'com.test.action');
   assert.equal(list[0].actions[0].states.length, 2);
 
-  const installed = host.install(pluginDir);
+  const installed = await host.install(pluginDir);
   assert.equal(installed.uuid, 'com.test.sdPlugin');
   assert.equal(host.list().length, 1);
   assert.equal(host.list()[0].writable, true);

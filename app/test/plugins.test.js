@@ -22,7 +22,7 @@ function writePlugin(dir, manifest) {
   return dir;
 }
 
-test('install copies a valid plugin folder', () => {
+test('install copies a valid plugin folder', async () => {
   const { root, plugins } = workspace();
   const source = writePlugin(path.join(root, 'src', 'Demo.ulanziPlugin'), {
     UUID: 'com.example.demo',
@@ -30,12 +30,12 @@ test('install copies a valid plugin folder', () => {
     Actions: [{ UUID: 'com.example.demo.action', Name: 'Run' }],
   });
   const manager = new PluginManager({ dirs: [plugins], appPluginsDir: plugins });
-  const out = manager.install(source);
+  const out = await manager.install(source);
   assert.equal(out.uuid, 'com.example.demo');
   assert.ok(fs.existsSync(path.join(plugins, 'com.example.demo.ulanziPlugin', 'app.js')));
 });
 
-test('install rejects a UUID that would escape the plugins folder', () => {
+test('install rejects a UUID that would escape the plugins folder', async () => {
   const { root, plugins } = workspace();
   const source = writePlugin(path.join(root, 'src', 'Evil.ulanziPlugin'), {
     UUID: '../../../../tmp/evil',
@@ -43,16 +43,16 @@ test('install rejects a UUID that would escape the plugins folder', () => {
     Actions: [],
   });
   const manager = new PluginManager({ dirs: [plugins], appPluginsDir: plugins });
-  assert.throws(() => manager.install(source), /invalid UUID/i);
+  await assert.rejects(manager.install(source), /invalid UUID/i);
   assert.equal(fs.existsSync('/tmp/evil.ulanziPlugin'), false);
 });
 
-test('install rejects a package without a manifest', () => {
+test('install rejects a package without a manifest', async () => {
   const { root, plugins } = workspace();
   const empty = path.join(root, 'empty');
   fs.mkdirSync(empty, { recursive: true });
   const manager = new PluginManager({ dirs: [plugins], appPluginsDir: plugins });
-  assert.throws(() => manager.install(empty), /manifest/i);
+  await assert.rejects(manager.install(empty), /manifest/i);
 });
 
 test('selectdialog replies to the action with the chosen path', async () => {

@@ -1,11 +1,12 @@
 'use strict';
 
 const { EventEmitter } = require('node:events');
-const { spawn, execFileSync } = require('node:child_process');
+const { spawn } = require('node:child_process');
 const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
 const { WebSocketServer } = require('ws');
+const { extractZip } = require('./archive');
 
 /**
  * The Electron main executable creates a Dock icon when spawned as a Node
@@ -500,8 +501,8 @@ class PluginHost extends EventEmitter {
 
   // ------------------------------------------------------------ install
 
-  unpack(source, temp) {
-    execFileSync('unzip', ['-oq', source, '-d', temp], { stdio: ['ignore', 'ignore', 'pipe'] });
+  async unpack(source, temp) {
+    await extractZip(source, temp);
   }
 
   /** Locate the plugin root inside an unpacked package. */
@@ -521,7 +522,7 @@ class PluginHost extends EventEmitter {
     return 'No plugin found in the package';
   }
 
-  install(sourcePath) {
+  async install(sourcePath) {
     fs.mkdirSync(this.appPluginsDir, { recursive: true });
     let workDir = sourcePath;
     let temp = null;
@@ -529,7 +530,7 @@ class PluginHost extends EventEmitter {
       if (fs.statSync(sourcePath).isFile()) {
         temp = fs.mkdtempSync(path.join(os.tmpdir(), 'plugin-'));
         try {
-          this.unpack(sourcePath, temp);
+          await this.unpack(sourcePath, temp);
         } catch (err) {
           const detail = String(err.stderr || err.message || '').trim().split('\n').filter(Boolean).pop();
           throw new Error(`Could not unpack the plugin ZIP${detail ? `: ${detail}` : ''}`);

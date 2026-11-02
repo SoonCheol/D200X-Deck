@@ -8,7 +8,7 @@ const { byExtension } = require('./mime');
 // the same protocol as the Elgato Stream Deck software. They can be Node
 // scripts, HTML pages, or native macOS binaries.
 
-const { execFileSync, spawnSync } = require('node:child_process');
+const { spawnSync } = require('node:child_process');
 const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
@@ -315,16 +315,6 @@ class StreamDeckPlugins extends PluginHost {
 
   get noPluginMessage() {
     return 'No .sdPlugin folder found in the package';
-  }
-
-  unpack(source, temp) {
-    const entries = execFileSync('unzip', ['-Z1', source], { encoding: 'utf8' }).split('\n').filter(Boolean);
-    for (const entry of entries) {
-      if (entry.startsWith('/') || entry.split(/[\\/]/).includes('..')) {
-        throw new Error('Plugin package contains an unsafe path');
-      }
-    }
-    execFileSync('unzip', ['-oq', source, '-d', temp], { stdio: ['ignore', 'ignore', 'pipe'] });
   }
 
   findPluginRoot(workDir) {

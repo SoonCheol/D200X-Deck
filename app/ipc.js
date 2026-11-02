@@ -5,11 +5,12 @@ const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
 const { randomUUID } = require('node:crypto');
-const { execFile, execFileSync, spawn } = require('node:child_process');
+const { execFile, spawn } = require('node:child_process');
 const { fileURLToPath } = require('node:url');
 
 const actions = require('./lib/actions');
 const importUlanzi = require('./lib/import-ulanzi');
+const { extractZip, inspectZip, readZipEntry } = require('./lib/archive');
 const { appIconDataUrl, resolveAppPath } = require('./lib/appicon');
 const { fetchSiteIcon } = require('./lib/siteicon');
 const { childDir, parsePackId } = require('./lib/iconpacks');
@@ -280,7 +281,7 @@ handle(CH.storeInstallIcons, async (_evt, id) => {
     const resource = await market.resource(String(id));
     if (!resource.files) throw new Error('This icon pack has no downloadable file');
     await market.download(resource.files, tempZip);
-    execFileSync('unzip', ['-oq', tempZip, '-d', tempDir], { stdio: ['ignore', 'ignore', 'pipe'] });
+    await extractZip(tempZip, tempDir);
 
     const slugify = (value) =>
       String(value || '')
@@ -390,7 +391,7 @@ handle(CH.storeInstall, async (_evt, id) => {
     const resource = await market.resource(String(id));
     if (!resource.files) throw new Error('This store item has no downloadable file');
     await market.download(resource.files, temp);
-    const out = plugins.install(temp);
+    const out = await plugins.install(temp);
     send(CH.pluginsChanged);
     return { ok: true, ...out, list: allPluginList() };
   } catch (err) {
@@ -414,7 +415,7 @@ handle(CH.sdstoreInstall, async (event, id) => {
   try {
     const resolved = await sdCatalog.resolve(String(id));
     await downloadPluginPackage(resolved.url, temp);
-    const out = sdPlugins.install(temp);
+    const out = await sdPlugins.install(temp);
     send(CH.pluginsChanged);
     return { ok: true, ...out, version: resolved.version, list: allPluginList() };
   } catch (err) {
@@ -459,7 +460,7 @@ handle(CH.pluginsInstallRosetta, () => {
   }
 });
 
-function looksLikeStreamDeckPlugin(source) {
+async function looksLikeStreamDeckPlugin(source) {
   try {
     if (fs.statSync(source).isDirectory()) {
       if (source.endsWith('.sdPlugin')) return true;
@@ -480,11 +481,12 @@ function looksLikeStreamDeckPlugin(source) {
         return false;
       }
     }
-    const listing = execFileSync('unzip', ['-Z1', source], { encoding: 'utf8' });
+    const { names } = inspectZip(source);
+    const listing = names.join('\n');
     if (/(^|\/)[^/]+\.sdPlugin(\/|$)/m.test(listing)) return true;
     if (/(^|\/)[^/]+\.ulanziPlugin(\/|$)/m.test(listing)) return false;
     try {
-      const raw = execFileSync('unzip', ['-p', source, 'manifest.json'], { encoding: 'utf8' }).replace(/^\uFEFF/, '');
+      const raw = (await readZipEntry(source, 'manifest.json')).replace(/^\uFEFF/, '');
       const manifest = JSON.parse(raw);
       return !manifest.UUID && Boolean(manifest.CodePathMac || manifest.CodePath || manifest.CodePaths || manifest.OS);
     } catch {
@@ -508,9 +510,9 @@ async function confirmPluginInstall() {
   return response === 1;
 }
 
-function installAnyPlugin(source) {
-  const manager = looksLikeStreamDeckPlugin(source) ? sdPlugins : plugins;
-  const out = manager.install(source);
+async function installAnyPlugin(source) {
+  const manager = (await looksLikeStreamDeckPlugin(source)) ? sdPlugins : plugins;
+  const out = await manager.install(source);
   return { ...out, sdk: manager === sdPlugins ? 'streamdeck' : 'ulanzi', list: allPluginList() };
 }
 
@@ -522,7 +524,7 @@ handle(CH.pluginsInstallFolder, async () => {
   if (res.canceled || res.filePaths.length === 0) return { canceled: true };
   if (!(await confirmPluginInstall())) return { ok: false, canceled: true };
   try {
-    const out = installAnyPlugin(res.filePaths[0]);
+    const out = await installAnyPlugin(res.filePaths[0]);
     send(CH.pluginsChanged);
     return { ok: true, ...out };
   } catch (err) {
@@ -539,7 +541,7 @@ handle(CH.pluginsInstallZip, async () => {
   if (res.canceled || res.filePaths.length === 0) return { canceled: true };
   if (!(await confirmPluginInstall())) return { ok: false, canceled: true };
   try {
-    const out = installAnyPlugin(res.filePaths[0]);
+    const out = await installAnyPlugin(res.filePaths[0]);
     send(CH.pluginsChanged);
     return { ok: true, ...out };
   } catch (err) {
@@ -614,7 +616,7 @@ handle(CH.pluginsReveal, (_evt, uuid) => {
 
 // ---------------------------------------------------------------- import
 
-function readImportTarget(target) {
+async function readImportTarget(target) {
   return importUlanzi.previewProfile(target);
 }
 
@@ -634,7 +636,7 @@ handle(CH.importPick, async () => {
   });
   if (res.canceled || !res.filePaths.length) return { canceled: true };
   try {
-    const { profiles, cleanup } = readImportTarget(res.filePaths[0]);
+    const { profiles, cleanup } = await readImportTarget(res.filePaths[0]);
     if (cleanup) fs.rmSync(cleanup, { recursive: true, force: true });
     return { ok: true, file: res.filePaths[0], profiles: profiles.map((p) => ({ ...p, path: res.filePaths[0] })) };
   } catch (err) {
@@ -642,9 +644,9 @@ handle(CH.importPick, async () => {
   }
 });
 
-handle(CH.importPreview, (_evt, target) => {
+handle(CH.importPreview, async (_evt, target) => {
   try {
-    const { profiles, cleanup } = readImportTarget(String(target));
+    const { profiles, cleanup } = await readImportTarget(String(target));
     if (cleanup) fs.rmSync(cleanup, { recursive: true, force: true });
     return { ok: true, profiles };
   } catch (err) {
@@ -652,11 +654,11 @@ handle(CH.importPreview, (_evt, target) => {
   }
 });
 
-handle(CH.importApply, (_evt, payload) => {
+handle(CH.importApply, async (_evt, payload) => {
   const { target, pageIds } = payload || {};
   let cleanup = null;
   try {
-    const { profiles, cleanup: temp } = readImportTarget(String(target));
+    const { profiles, cleanup: temp } = await readImportTarget(String(target));
     cleanup = temp;
     const profile = profiles[0];
     if (!profile) throw new Error('No pages found in this profile');

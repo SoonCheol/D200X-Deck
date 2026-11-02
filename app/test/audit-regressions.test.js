@@ -92,7 +92,7 @@ test('backup recovery restores file-backed key icons and page backgrounds', (t) 
   assert.equal(loaded.pages[0].background, image);
 });
 
-test('installing an already-managed plugin folder preserves its files', (t) => {
+test('installing an already-managed plugin folder preserves its files', async (t) => {
   const plugins = fixture(t);
   const source = path.join(plugins, 'audit.plugin.ulanziPlugin');
   fs.mkdirSync(source);
@@ -103,7 +103,7 @@ test('installing an already-managed plugin folder preserves its files', (t) => {
   fs.writeFileSync(code, '// inert fixture\n');
   const manager = new PluginManager({ dirs: [plugins], appPluginsDir: plugins });
   try {
-    manager.install(source);
+    await manager.install(source);
   } catch {
     // Rejecting a self-install is acceptable; deleting the selected source is not.
   }
