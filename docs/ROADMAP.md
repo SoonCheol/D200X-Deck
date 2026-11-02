@@ -65,6 +65,12 @@ file; H9 is the last open High.
 - The Push tooltip appears **instantly** on hover or keyboard focus, is styled
   like the app, and replaces the delayed native title.
 
+### Shipped in 0.10.4 — Back SVG and Page settings feedback
+
+- Add Back key uses the bundled SVG; legacy ↩️ keys migrate automatically.
+- The folder-plus icon is centered and larger.
+- Page settings is marked active and pulses when pressed again.
+
 ### Next: architecture batch
 
 - M3 per-generation child/socket ownership; M18 bounded extraction off main.

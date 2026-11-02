@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.10.4 — 2026-11-02
+
+### Fixed
+- **Add Back key now uses the bundled back arrow SVG** instead of the old ↩️ emoji. Existing Back keys with that emoji are treated as automatic and pick up the SVG too.
+- **The child-page folder icon’s plus is larger and centered** in the folder body.
+
+### Changed
+- **Page settings shows when it is active** and pulses the inspector when pressed again, so pressing it while the panel is already open no longer looks like a no-op.
+
+### Tests
+- 102 (unchanged).
+
 ## 0.10.3 — 2026-11-02
 
 ### Changed
