@@ -81,6 +81,14 @@ file; H9 is the last open High.
 - Default action faces use SVGs instead of emojis; auto-emoji keys migrate.
 - Plugin live-image pushes are throttled to one silent 5-second background push.
 
+### Shipped in 0.10.6 — triggers, timers and install
+
+- Press triggers is a collapsible, per-key section; empty keys get disabled
+  controls until a primary action exists, and trigger-only keys stay editable.
+- Running timers push a silent per-second refresh to the deck.
+- The local installer launches through LaunchServices so the menu bar item is
+  created; the repo release skill is included.
+
 ### Next: architecture batch
 
 - M3 per-generation child/socket ownership; M18 bounded extraction off main.

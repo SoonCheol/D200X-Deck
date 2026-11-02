@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.10.6 — 2026-11-02
+
+### Changed
+- **Press triggers is collapsible.** It starts closed on a fresh key, opens automatically when a hold or double-press trigger exists, remembers a manual collapse, and shows Hold / 2× badges.
+- **A Do nothing key cannot set triggers until it has a primary action**, unless a hold/double trigger already exists. Existing trigger-only keys stay editable.
+- **Running timers refresh the deck every second** with a silent background push instead of the 5-second live-image throttle, and push their final face when stopped.
+
+### Tooling
+- **`npm run install-app` launches through LaunchServices** so macOS creates the menu bar item instead of starting a GUI-less process from the shell.
+- Added the repo release skill at `.opencode/skills/ulanzi-release`.
+
+### Tests
+- 104 (unchanged).
+
 ## 0.10.5 — 2026-11-02
 
 ### Changed
