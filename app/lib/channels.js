@@ -67,6 +67,7 @@ const CH = Object.freeze({
   appsIcon: 'apps:icon',
   fetchSiteIcon: 'fetch:site-icon',
   appUpdateAvailable: 'app:update-available',
+  appUpdateResult: 'app:update-result',
   appShowAbout: 'app:show-about',
   appOpenSettings: 'app:open-settings',
   deckKey: 'deck:key',

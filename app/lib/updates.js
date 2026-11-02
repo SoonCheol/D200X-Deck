@@ -4,6 +4,7 @@
 // newer version and links to it; installing is left to the user for now.
 
 const { normalizeVersion, isNewer } = require('./version');
+const { readCapped } = require('./http');
 
 const REPO = 'edufalcao/ulanzi-deck-open';
 const RELEASE_URL = `https://api.github.com/repos/${REPO}/releases/latest`;
@@ -21,7 +22,7 @@ async function fetchLatestRelease({ fetchImpl = fetch, timeout = 15_000 } = {}) 
     if (res.status === 404) return null;
     if (!res.ok) throw new Error(`GitHub returned ${res.status} ${res.statusText || ''}`.trim());
     /** @type {any} */
-    const release = await res.json();
+    const release = JSON.parse((await readCapped(res, 2 * 1024 * 1024, 'Release metadata')).toString('utf8'));
     const version = normalizeVersion(release.tag_name || release.name || '');
     if (!version) throw new Error('The latest release has no version tag');
     return {

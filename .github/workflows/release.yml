@@ -29,6 +29,10 @@ jobs:
 
       - name: Test
         run: npm test
+      - name: Lint
+        run: npm run lint
+      - name: Type check
+        run: npm run typecheck
 
       - name: Package universal app
         run: npm run package:all

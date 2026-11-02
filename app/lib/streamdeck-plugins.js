@@ -74,14 +74,25 @@ function availableOnPath(bin) {
 }
 
 
-// Settings can hold API tokens; keep them out of the diagnostics log.
+// Settings can hold API tokens; keep them out of the diagnostics log, at any depth.
+function redactSettings(value, depth = 0) {
+  if (depth > 6) return '…';
+  if (Array.isArray(value)) return value.map((entry) => redactSettings(entry, depth + 1));
+  if (value && typeof value === 'object') {
+    const out = {};
+    for (const [key, entry] of Object.entries(value)) {
+      out[key] = /token|secret|password|api[-_]?key|authorization/i.test(key)
+        ? '***'
+        : redactSettings(entry, depth + 1);
+    }
+    return out;
+  }
+  return value;
+}
+
 function logSettings(settings) {
   try {
-    const clean = {};
-    for (const [key, value] of Object.entries(settings || {})) {
-      clean[key] = /token|secret|password|api[-_]?key/i.test(key) ? '***' : value;
-    }
-    return JSON.stringify(clean);
+    return JSON.stringify(redactSettings(settings || {}));
   } catch {
     return '{}';
   }
@@ -268,6 +279,18 @@ class StreamDeckPlugins extends PluginHost {
     }
     try { fs.chmodSync(executable, 0o755); } catch { /* ignore */ }
     return { command: executable, args, env: process.env };
+  }
+
+  reload() {
+    this._rosetta = undefined;
+    this._wine = null;
+    return super.reload();
+  }
+
+  reloadOne(uuid) {
+    this._rosetta = undefined;
+    this._wine = null;
+    return super.reloadOne(uuid);
   }
 
   beforeSend(pluginUuid, message) {
@@ -1001,4 +1024,4 @@ class StreamDeckPlugins extends PluginHost {
 
 }
 
-module.exports = { StreamDeckPlugins, streamDeckPluginDirs };
+module.exports = { StreamDeckPlugins, streamDeckPluginDirs, logSettings };

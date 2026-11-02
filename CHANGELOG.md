@@ -1,5 +1,25 @@
 # Changelog
 
+## 0.8.9 — 2026-11-02
+
+### Security
+- **Marketplace responses and downloads are bounded while streaming**, so a hostile or broken endpoint cannot allocate the whole body before the size check. JSON requests have a 20 s deadline and HEAD checks 15 s.
+- **Diagnostics redact nested secret names**, not only top-level token/password/API-key fields.
+
+### Fixed
+- **Re-enabling automatic updates now reschedules them.** The renderer's debounced save meant main still saw the old value when it rescheduled.
+- **“Install Rosetta, then Reload all” now works** — reload clears the negative Rosetta/Wine caches instead of keeping them for the process lifetime.
+- **Page and profile switches clear pending hold/double timers**, so a departed page's action cannot fire.
+- **A zero sound volume stays zero** instead of becoming full volume.
+- **`ULANZI_NO_DECK=1` no longer starts the real key-capture helper.**
+- **The native “Check for Updates…” menu item** now shows its result in the app instead of discarding it.
+
+### CI
+- The release workflow runs **lint and typecheck** before packaging, not just tests.
+
+### Tests
+- 90 → **96**.
+
 ## 0.8.8 — 2026-11-02
 
 ### Fixed

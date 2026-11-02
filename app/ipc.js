@@ -106,7 +106,12 @@ handle(CH.appState, () => ({
 }));
 
 handle(CH.configSave, (_evt, config) => {
+  const before = store.config?.settings || {};
   store.save(config);
+  const after = store.config.settings;
+  if (before.updateCheck !== after.updateCheck || before.updateHours !== after.updateHours) {
+    scheduleUpdateCheck(5_000);
+  }
   return { ok: true };
 });
 

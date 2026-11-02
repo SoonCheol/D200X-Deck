@@ -203,7 +203,7 @@ function mapAction(entry, pageIds) {
   // soundboard
   if (lower.includes('sound.play')) {
     return {
-      action: { type: 'sound', op: 'play', value: String(param.Value || param.File || ''), volume: Number(param.Volumn || param.Volume || 1) },
+      action: { type: 'sound', op: 'play', value: String(param.Value || param.File || ''), volume: (() => { const v = Number(param.Volumn ?? param.Volume); return Number.isFinite(v) ? Math.min(1, Math.max(0, v)) : 1; })() },
       label: 'Play audio',
     };
   }

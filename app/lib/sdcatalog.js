@@ -1,6 +1,7 @@
 'use strict';
 
 const { normalizeVersion, compareVersions } = require('./version');
+const { readCapped } = require('./http');
 
 // Catalogue metadata for Stream Deck / OpenAction plugins. This only fetches
 // public indexes and GitHub release metadata; plugin packages are downloaded
@@ -23,7 +24,8 @@ async function getJson(url) {
       signal: controller.signal,
     });
     if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
-    return await res.json();
+    const text = (await readCapped(res, 8 * 1024 * 1024, 'Catalogue')).toString('utf8');
+    return JSON.parse(text);
   } finally {
     clearTimeout(timer);
   }
@@ -116,7 +118,7 @@ async function download(url, dest) {
     if (!res.ok) throw new Error(`Download failed: ${res.status} ${res.statusText}`);
     const length = Number(res.headers.get('content-length')) || 0;
     if (length > MAX_DOWNLOAD) throw new Error('Plugin package is too large');
-    const data = Buffer.from(await res.arrayBuffer());
+    const data = await readCapped(res, MAX_DOWNLOAD, 'Plugin package');
     if (data.length > MAX_DOWNLOAD) throw new Error('Plugin package is too large');
     require('node:fs').writeFileSync(dest, data);
     return dest;

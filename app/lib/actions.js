@@ -199,7 +199,8 @@ function playSound(action, id = 'default') {
     if (previous) {
       try { previous.kill(); } catch { /* ignore */ }
     }
-    const volume = Math.min(1, Math.max(0, Number(action.volume) || 1));
+    const rawVolume = Number(action.volume);
+    const volume = Number.isFinite(rawVolume) ? Math.min(1, Math.max(0, rawVolume)) : 1;
     const child = spawn('/usr/bin/afplay', ['-v', String(volume), file], { stdio: 'ignore' });
     audioPlayers.set(id, child);
     child.on('exit', () => {

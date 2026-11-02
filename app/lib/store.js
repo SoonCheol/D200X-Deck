@@ -26,7 +26,8 @@ function normalizeAction(action) {
   if (type === 'media') out.op = MEDIA_OP_SET.has(out.op) ? out.op : 'playpause';
   if (type === 'sound') {
     out.op = out.op === 'stop' ? 'stop' : 'play';
-    out.volume = Math.min(1, Math.max(0, Number(out.volume) || 1));
+    const volume = Number(out.volume);
+    out.volume = Number.isFinite(volume) ? Math.min(1, Math.max(0, volume)) : 1;
   }
   if (type === 'plugin') {
     out.plugin = str(out.plugin);

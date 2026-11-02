@@ -328,6 +328,7 @@ function renderProfileSelect() {
 const lastPageByProfile = new Map();
 
 function switchProfile(profileId) {
+  if (typeof clearPressTimers === 'function') clearPressTimers();
   const profile = (state.config.profiles || []).find((p) => p.id === profileId);
   if (!profile) return;
   if (state.config.activeProfileId === profileId) return;
@@ -1627,6 +1628,14 @@ function bind() {
 
   api.onShowAbout?.(() => openAboutModal());
   api.onOpenSettings?.(() => openDeckSettings());
+
+  api.onUpdateResult?.((res) => {
+    updateInfo = res;
+    renderUpdateStatus(res);
+    if (res.update) showUpdateModal(res);
+    else if (!res.ok) toast(friendlyUpdateError(res.error), true);
+    else toast(`You're up to date (${res.current})`);
+  });
 
   api.onUpdateAvailable?.((info) => {
     updateInfo = { ...info, update: true, checkedAt: Date.now() };

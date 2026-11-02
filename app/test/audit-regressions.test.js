@@ -9,9 +9,10 @@ const vm = require('node:vm');
 const { EventEmitter } = require('node:events');
 const { randomUUID } = require('node:crypto');
 
-const { Store, createDefaultConfig } = require('../lib/store');
+const { Store, createDefaultConfig, validateConfig } = require('../lib/store');
 const { PluginManager } = require('../lib/plugins');
 const { PluginHost, isAllowedWsOrigin } = require('../lib/plugin-host');
+const { StreamDeckPlugins, logSettings } = require('../lib/streamdeck-plugins');
 
 function fixture(t) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ulanzi-audit-test-'));
@@ -260,4 +261,35 @@ test('plugin sync collects nested and alternate-trigger actions', () => {
   assert.equal(wanted[0].sdk, 'streamdeck');
   assert.ok(wanted[0].actionid && wanted[1].actionid);
   assert.notEqual(wanted[0].actionid, wanted[1].actionid);
+});
+
+test('a zero sound volume is preserved', () => {
+  const config = createDefaultConfig();
+  config.pages[0].keys[0] = {
+    emoji: '', label: '', color: '#1b2130',
+    action: { type: 'sound', value: '/tmp/inert.mp3', volume: 0 },
+  };
+  const validated = validateConfig(config);
+  assert.equal(validated.pages[0].keys[0].action.volume, 0);
+});
+
+test('reload clears negative Rosetta and Wine caches', (t) => {
+  const host = new StreamDeckPlugins({ appPluginsDir: fixture(t) });
+  host._rosetta = false;
+  host._wine = false;
+  host.scan = () => [];
+  host.list = () => [];
+  host.reload();
+  assert.equal(host._rosetta, undefined);
+  assert.equal(host._wine, null);
+});
+
+test('diagnostics redact nested settings names', () => {
+  const parsed = JSON.parse(
+    logSettings({ apiKey: 'a', nested: { token: 'b', keep: 1 }, list: [{ secret: 'c' }] })
+  );
+  assert.equal(parsed.apiKey, '***');
+  assert.equal(parsed.nested.token, '***');
+  assert.equal(parsed.nested.keep, 1);
+  assert.equal(parsed.list[0].secret, '***');
 });

@@ -576,6 +576,7 @@ async function pushNow() {
 // ------------------------------------------------------------------ pages
 
 function selectPage(id) {
+  clearPressTimers();
   if (state.config.activePageId === id) {
     state.selected = null;
     renderInspector();

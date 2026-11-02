@@ -306,7 +306,13 @@ function buildMenu() {
           label: app.name,
           submenu: [
             { label: 'About Ulanzi Deck Open', click: () => send(CH.appShowAbout) },
-            { label: 'Check for Updates…', click: () => checkForUpdates() },
+            {
+              label: 'Check for Updates…',
+              click: async () => {
+                showWindow();
+                send(CH.appUpdateResult, await checkForUpdates());
+              },
+            },
             { type: 'separator' },
             {
               label: 'Settings…',
@@ -437,6 +443,10 @@ function setSeizeState(running, message) {
 }
 
 function startHidSeize() {
+  if (noDeck) {
+    setSeizeState(false, 'Key capture is off (no-deck mode)');
+    return;
+  }
   const bin = app.isPackaged
     ? path.join(process.resourcesPath, 'bin', 'hidseize')
     : path.join(__dirname, 'bin', 'hidseize');
@@ -454,7 +464,7 @@ function startHidSeize() {
  * typing a URL into the frontmost app, so a dead helper must be respawned.
  */
 function scheduleSeizeRestart() {
-  if (isQuitting || seizeTimer) return;
+  if (noDeck || isQuitting || seizeTimer) return;
   const delay = seizeRetryMs;
   seizeRetryMs = Math.min(60_000, seizeRetryMs * 2);
   console.log(`[seize] helper down; retrying in ${Math.round(delay / 1000)}s`);

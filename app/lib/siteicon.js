@@ -3,6 +3,8 @@
 const dns = require('node:dns').promises;
 const net = require('node:net');
 
+const { readCapped } = require('./http');
+
 const MAX_BYTES = 2 * 1024 * 1024;
 const REDIRECT_STATUS = new Set([301, 302, 303, 307, 308]);
 const UA =
@@ -102,10 +104,8 @@ async function fetchImage(url, signal) {
   if (!res.ok) return null;
   const type = (res.headers.get('content-type') || '').split(';')[0].trim();
   if (!type.startsWith('image/')) return null;
-  const length = Number(res.headers.get('content-length') || 0);
-  if (length > MAX_BYTES) return null;
-  const buffer = Buffer.from(await res.arrayBuffer());
-  if (buffer.length === 0 || buffer.length > MAX_BYTES) return null;
+  const buffer = await readCapped(res, MAX_BYTES, 'Image');
+  if (buffer.length === 0) return null;
   return { dataUrl: dataUrl(buffer, type), type, bytes: buffer.length, source: url };
 }
 
@@ -129,7 +129,7 @@ async function iconFor(base) {
     headers: { 'user-agent': UA, accept: 'text/html,application/xhtml+xml' },
   });
   if (!res.ok) throw new Error(`Site returned HTTP ${res.status}`);
-  const html = (await res.text()).slice(0, 1_000_000);
+  const html = (await readCapped(res, 1_000_000, 'Page')).toString('utf8');
 
   const candidates = [];
   for (const match of html.matchAll(/<link\b[^>]*>/gi)) {

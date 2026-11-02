@@ -6,11 +6,8 @@ const assert = require('node:assert/strict');
 const { fetchLatestRelease, isNewer, plainNotes, releaseNotes } = require('../lib/updates');
 
 function releaseResponse(overrides = {}) {
-  return {
-    status: 200,
-    ok: true,
-    statusText: 'OK',
-    json: async () => ({
+  return new Response(
+    JSON.stringify({
       tag_name: 'v0.3.0',
       html_url: 'https://github.com/edufalcao/ulanzi-deck-open/releases/tag/v0.3.0',
       body: '## Changes\n\n### Features\n- **Store** thing\n- Another thing\n\n---\n\nUnsigned build notes',
@@ -21,7 +18,8 @@ function releaseResponse(overrides = {}) {
       ],
       ...overrides,
     }),
-  };
+    { status: 200, headers: { 'content-type': 'application/json' } }
+  );
 }
 
 test('reads the latest release and its DMG asset', async () => {
