@@ -9,6 +9,22 @@ const HOTKEY_MODS = [
   { token: 'shift', label: '⇧ Shift', symbol: '⇧' },
 ];
 
+const HOTKEY_GLYPHS = {
+  cmd: '⌘', command: '⌘', ctrl: '⌃', control: '⌃', alt: '⌥', option: '⌥', shift: '⇧',
+  return: '↩', enter: '↩', space: 'Space', tab: '⇥', escape: 'Esc', esc: 'Esc',
+  delete: '⌫', backspace: '⌫', left: '←', right: '→', up: '↑', down: '↓',
+};
+
+/** "cmd+shift+4" → "⌘ ⇧ 4" */
+function prettyHotkey(value) {
+  return String(value || '')
+    .split('+')
+    .map((part) => part.trim())
+    .filter(Boolean)
+    .map((part) => HOTKEY_GLYPHS[part.toLowerCase()] || part.toUpperCase())
+    .join(' ');
+}
+
 const HOTKEY_CATEGORIES = [
   { id: 'modifiers', name: 'Modifier Keys', keys: HOTKEY_MODS },
   {

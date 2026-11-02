@@ -71,10 +71,11 @@
         <header class="toolbar">
           <div class="title-wrap">
             <button id="page-back" class="icon-btn hidden" title="Back to parent page">←</button>
-            <input id="page-title" class="page-title" spellcheck="false" />
+            <input id="page-title" class="page-title" spellcheck="false" maxlength="40" />
           </div>
           <div class="tools">
-            <span id="status-pill" class="pill">Disconnected</span>
+            <span id="status-pill" class="pill" role="status" aria-live="polite">Disconnected</span>
+            <button id="tips-btn" class="icon-btn" title="Editing tips" aria-label="Editing tips">?</button>
             <button id="deck-settings-btn" class="btn icon-text" title="Deck settings">⚙︎ Deck</button>
             <button id="push-btn" class="btn primary">Push to Deck</button>
           </div>
@@ -192,6 +193,10 @@
         </div>
 
         <section class="stage">
+          <div id="connect-banner" class="connect-banner hidden" role="status">
+            <span>Connect your D200. If Ulanzi Studio is open, quit it.</span>
+            <button class="btn small" id="connect-banner-reconnect">Reconnect</button>
+          </div>
           <div class="device-shell">
             <div class="device-top">
               <span class="device-led" id="device-led"></span>
@@ -200,11 +205,11 @@
             </div>
             <div class="deck-grid" id="grid"></div>
             <div class="device-bottom">
-              <span class="device-hint" id="push-state">ready</span>
+              <span class="device-hint" id="push-state" role="status" aria-live="polite">ready</span>
             </div>
           </div>
           <p class="stage-hint">
-            Click a key to edit · drag an image onto a key · Ctrl/Cmd+S pushes
+            Click a key to edit · drag any image onto a key · ⌘S pushes
           </p>
         </section>
       </main>
@@ -404,6 +409,27 @@
         </div>
 
         <div id="store-detail" class="store-detail hidden"></div>
+      </div>
+    </div>
+
+    <div id="tips-modal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="tips-title">
+      <div class="modal-card tips-card">
+        <div class="modal-head">
+          <div>
+            <h2 id="tips-title">Editing tips</h2>
+            <p>Fast ways to build a page.</p>
+          </div>
+          <button id="tips-close" class="icon-btn" title="Close">×</button>
+        </div>
+        <div class="tips-body">
+          <ul>
+            <li>Click a key to edit it.</li>
+            <li>Drag any image onto a key to use it as the icon (scaled to 196×196).</li>
+            <li>Select a key and press ⌘C / ⌘V to duplicate, Delete to clear (⌘Z undoes).</li>
+            <li>Press ⌘S to push the page to the Deck.</li>
+            <li>Pinned keys appear on every page of the profile.</li>
+          </ul>
+        </div>
       </div>
     </div>
 

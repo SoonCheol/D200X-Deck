@@ -701,6 +701,15 @@ async function pickImageData() {
   return res.data || null;
 }
 
+function openTipsModal() {
+  $('#tips-modal')?.classList.remove('hidden');
+  window.focusModal?.('tips-modal');
+}
+
+function closeTipsModal() {
+  $('#tips-modal')?.classList.add('hidden');
+}
+
 function openAboutModal() {
   $('#about-modal')?.classList.remove('hidden');
   window.focusModal?.('about-modal');
@@ -1246,7 +1255,19 @@ function bind() {
   $('#push-btn').addEventListener('click', pushNow);
 
   $('#page-title').addEventListener('input', (e) => {
-    activePage().name = e.target.value;
+    const page = activePage();
+    const value = String(e.target.value).slice(0, 40);
+    if (e.target.value !== value) e.target.value = value;
+    page.name = value;
+    renderPageList();
+    scheduleSave();
+  });
+  $('#page-title').addEventListener('change', () => {
+    const page = activePage();
+    const name = uniquePageName(page.name, page.profileId, page.id);
+    if (name === page.name) return;
+    page.name = name;
+    $('#page-title').value = name;
     renderPageList();
     scheduleSave();
   });
@@ -1318,6 +1339,15 @@ function bind() {
   $('#update-close').addEventListener('click', closeUpdateModal);
   $('#update-modal').addEventListener('click', (event) => {
     if (event.target === $('#update-modal')) closeUpdateModal();
+  });
+  $('#tips-btn').addEventListener('click', openTipsModal);
+  $('#tips-close').addEventListener('click', closeTipsModal);
+  $('#tips-modal').addEventListener('click', (event) => {
+    if (event.target === $('#tips-modal')) closeTipsModal();
+  });
+  $('#connect-banner-reconnect').addEventListener('click', async () => {
+    const res = await api.reconnect();
+    toast(res.ok ? 'Deck connected' : 'Still no Deck — check the USB cable or quit Ulanzi Studio', !res.ok);
   });
   $('#about-open').addEventListener('click', openAboutModal);
   $('#about-close').addEventListener('click', closeAboutModal);
@@ -1474,6 +1504,7 @@ function bind() {
     'profile-modal': closeProfileModal,
     'update-modal': closeUpdateModal,
     'about-modal': closeAboutModal,
+    'tips-modal': closeTipsModal,
     // The app picker opens on top of other dialogs (e.g. the profile form).
     'app-modal': closeAppPicker,
   };

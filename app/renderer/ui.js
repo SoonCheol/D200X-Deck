@@ -48,29 +48,44 @@ function renderChrome() {
 
 function renderStatus() {
   const { connected, info, message } = state.status;
+  const busy = /busy|ulanzistudio|ulanzi studio/i.test(String(message || ''));
   const pill = $('#status-pill');
-  pill.textContent = connected ? 'Connected' : 'Disconnected';
+  pill.textContent = connected ? 'Connected' : busy ? 'In use' : 'No deck';
   pill.classList.toggle('on', connected);
+  pill.classList.toggle('warn', !connected && busy);
   $('#device-dot').classList.toggle('on', connected);
   $('#device-led').classList.toggle('on', connected);
-  const busy = /busy|ulanzistudio|ulanzi studio/i.test(String(message || ''));
-  $('#device-name').textContent = connected ? 'Ulanzi D200' : busy ? 'Deck busy' : 'No Deck found';
+  $('#device-name').textContent = connected ? 'Ulanzi D200' : busy ? 'Deck in use' : 'No deck connected';
   $('#device-detail').textContent = connected
     ? `${info?.Dversion ? `fw ${info.Dversion} · ` : ''}${info?.SerialNumber || info?.serial || 'USB 2207:0019'}`
     : busy
-      ? 'Ulanzi Studio is using it'
-      : message || 'Connect the D200 over USB';
+      ? 'In use by Ulanzi Studio — quit it to connect'
+      : 'Connect the D200 over USB';
   $('#device-card').title = connected ? '' : String(message || '');
   $('#device-serial').textContent = connected ? info?.SerialNumber || info?.serial || '' : '';
   const pushBtn = $('#push-btn');
   if (pushBtn) {
     pushBtn.disabled = !connected;
-    pushBtn.textContent = connected ? 'Push to Deck' : 'Deck offline';
-    pushBtn.title = connected ? 'Send this page to the Deck' : 'Connect the Deck first (or quit Ulanzi Studio)';
+    pushBtn.textContent = connected ? 'Push to Deck' : busy ? 'Deck in use' : 'Connect deck';
+    pushBtn.title = connected
+      ? 'Send this page to the Deck'
+      : busy
+        ? 'Quit Ulanzi Studio to connect'
+        : 'Connect the D200 first';
+  }
+  const banner = $('#connect-banner');
+  if (banner) {
+    banner.classList.toggle('hidden', connected);
+    const text = banner.querySelector('span');
+    if (text) {
+      text.textContent = busy
+        ? 'The Deck is in use by Ulanzi Studio. Quit it, then reconnect.'
+        : 'Connect your D200. If Ulanzi Studio is open, quit it.';
+    }
   }
   if (!connected) {
     const stateEl = $('#push-state');
-    if (stateEl) stateEl.textContent = 'not connected';
+    if (stateEl) stateEl.textContent = busy ? 'in use' : 'no deck';
   }
 }
 

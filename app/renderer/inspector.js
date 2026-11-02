@@ -468,7 +468,7 @@ function renderInspector() {
     el.innerHTML = `
       <div class="insp-head"><h2>Page settings</h2><span class="index">${configured}/${KEY_COUNT - 1} keys</span></div>
       <div class="insp-actions">
-        <button class="btn danger" id="insp-clear-page">Clear page</button>
+        <button class="btn danger" id="insp-clear-page" ${configured ? '' : 'disabled'}>Clear page</button>
         <button class="btn" id="insp-duplicate-page">Duplicate</button>
         <button class="btn" id="insp-add-page">New page</button>
       </div>
@@ -681,7 +681,8 @@ function renderInspector() {
     valueField = `${importedNote}<textarea class="textarea" id="insp-value" placeholder="osascript -e 'set volume output muted'">${esc(action.value)}</textarea>`;
   } else if (action.type === 'hotkey') {
     valueField = `<div class="row">
-      <button class="btn hotkey-value" id="insp-hotkey-open">${esc(action.value || 'Set hotkey…')}</button>
+      <button class="btn hotkey-value" id="insp-hotkey-open">${esc(prettyHotkey(action.value) || 'Set hotkey…')}</button>
+      <button class="btn ghost" id="insp-hotkey-test">Test</button>
       <button class="btn ghost" id="insp-hotkey-clear">Clear</button>
     </div>`;
   } else if (action.type === 'page') {
@@ -935,7 +936,10 @@ function renderInspector() {
     ${valueField && action.type !== 'plugin' ? `<div class="field"><label>${VALUE_LABELS[action.type] || 'Value'}</label>${valueField}</div>` : ''}
     ${pluginFields}
 
-    <div class="insp-section">Press triggers</div>
+    ${
+      action.type === 'indicator'
+        ? ''
+        : `<div class="insp-section">Press triggers</div>
     ${triggerField(key, 'holdAction', 'On hold', page)}
     ${key.holdAction && key.holdAction.type !== 'none' ? `<div class="field"><label>Hold time (ms)</label><input class="input" id="insp-hold-ms" type="number" min="150" max="2000" step="50" value="${Number(key.holdMs) || 500}" /></div>` : ''}
     ${triggerField(key, 'doubleAction', 'On double press', page)}
@@ -943,7 +947,8 @@ function renderInspector() {
       ${key.holdAction && key.holdAction.type !== 'none' ? `Hold for ${Number(key.holdMs) || 500} ms. ` : ''}
       ${key.doubleAction && key.doubleAction.type !== 'none' ? 'Double-press within 300 ms. ' : ''}
       ${key.holdAction || key.doubleAction ? 'A tap still runs the action above.' : 'Tap still runs the action above.'}
-    </div>
+    </div>`
+    }
 
     <div class="insp-section">Appearance</div>
     ${
@@ -955,7 +960,10 @@ function renderInspector() {
     </div>
     ${face === 'icon' ? iconField : textField}`
     }
-    <div class="field">
+    ${
+      action.type === 'indicator'
+        ? ''
+        : `<div class="field">
       <label for="insp-color">Background</label>
       <div class="color-row">
         <input class="color-input" id="insp-color" type="color" value="${esc(key.color || DEFAULT_KEY_COLOR)}" title="Key background" />
@@ -977,7 +985,8 @@ function renderInspector() {
         </select>
         <input class="color-input" id="insp-font-color" type="color" value="${esc(key.font?.color || '#ffffff')}" title="Caption colour" ${key.font?.showLabel === false ? 'disabled' : ''} />
       </div>
-    </div>
+    </div>`
+    }
 
 
   `;
@@ -1102,7 +1111,7 @@ function renderInspector() {
     drawIndex(state.selected);
     commit(false);
   });
-  $('#insp-label').addEventListener('input', (e) => {
+  $('#insp-label')?.addEventListener('input', (e) => {
     key.label = e.target.value;
     delete key.labelAuto;
     drawIndex(state.selected);

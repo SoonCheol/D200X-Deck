@@ -1,5 +1,22 @@
 # Changelog
 
+## 0.8.10 — 2026-11-02
+
+### Changed
+- **One disconnected-state vocabulary:** the pill reads “No deck” / “In use”, the device card “No deck connected” / “Deck in use”, the button “Connect deck”, and the deck footer “no deck”.
+- **A connect banner** above the deck explains “Connect your D200. If Ulanzi Studio is open, quit it.” with a **Reconnect** button.
+- **Connection and push state are live regions**, so screen readers announce changes.
+- **The page title** enforces the same 40-character limit and uniqueness rule as the inspector.
+- **Hotkeys render as macOS glyphs** (⌘ ⇧ 4) in the inspector and gain a **Test** button.
+- **Page-indicator keys** hide press triggers and appearance controls; the key face draws only the number and dots.
+- **Every unsupported plugin has a reason** (“No compatible code for this Mac”, “Needs Rosetta”) instead of a bare “Not supported”.
+- **Update notes keep their line breaks.**
+- **Editing tips** are reachable from a “?” toolbar button at any window width, not only in Page settings.
+- **Clear page** is disabled when the page has no keys.
+
+### Tests
+- 96 → **97**: the hotkey formatter.
+
 ## 0.8.9 — 2026-11-02
 
 ### Security

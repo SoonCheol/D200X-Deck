@@ -229,7 +229,12 @@ class StreamDeckPlugins extends PluginHost {
       manifest,
       code,
       compatible: Boolean(code) && !code.unsupported,
-      compatReason: code?.unsupported === 'rosetta' ? 'Needs Rosetta' : '',
+      compatReason:
+        code?.unsupported === 'rosetta'
+          ? 'Needs Rosetta'
+          : !code
+            ? 'No compatible code for this Mac'
+            : '',
       actions: actionMeta,
     };
   }

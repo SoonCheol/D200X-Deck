@@ -223,6 +223,7 @@ body::before {
   border: 1px solid var(--line);
 }
 .pill.on { color: var(--good); border-color: rgba(61, 220, 151, 0.3); background: rgba(61, 220, 151, 0.08); }
+.pill.warn { color: var(--warn); border-color: rgba(255, 189, 89, 0.3); background: rgba(255, 189, 89, 0.08); }
 
 .tools { display: flex; align-items: center; gap: 16px; }
 
@@ -674,7 +675,27 @@ body::before {
 .about-link:hover { text-decoration: underline; }
 .about-link-sub { font-size: 11px; color: var(--text-3); }
 .about-license { margin-top: 10px; font-size: 10.5px; color: var(--text-3); }
+.connect-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  width: min(760px, 92%);
+  margin-bottom: 14px;
+  padding: 10px 14px;
+  border: 1px solid rgba(255, 189, 89, 0.3);
+  border-radius: 12px;
+  background: rgba(255, 189, 89, 0.08);
+  color: var(--text);
+  font-size: 12px;
+}
+.connect-banner.hidden { display: none; }
+.tips-card { width: min(420px, calc(100vw - 64px)); height: auto; }
+.tips-body { padding: 4px 22px 22px; }
+.tips-body ul { margin: 0; padding-left: 18px; display: flex; flex-direction: column; gap: 8px; }
+.tips-body li { font-size: 12px; line-height: 1.5; color: var(--muted); }
 .update-notes {
+  white-space: pre-wrap;
   flex: 1;
   min-height: 0;
   overflow: auto;

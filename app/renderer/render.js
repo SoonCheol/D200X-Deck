@@ -185,7 +185,7 @@ async function drawKey(canvas, key, width = KEY_SIZE, height = KEY_SIZE, autoIco
   const font = key.font && typeof key.font === 'object' ? key.font : {};
   const timerText = typeof timerTextFor === 'function' ? timerTextFor(key.action) : '';
   const main = timerText || truncateMain(key.emoji || '');
-  const hasLabel = Boolean(label) && font.showLabel !== false;
+  const hasLabel = !isIndicator && Boolean(label) && font.showLabel !== false;
 
   let drewAutoIcon = false;
   if (!key.icon && showIcon && autoIcon && !timerText) {
@@ -314,7 +314,7 @@ async function drawKey(canvas, key, width = KEY_SIZE, height = KEY_SIZE, autoIco
   const badges = [];
   if (key.holdAction && key.holdAction.type && key.holdAction.type !== 'none') badges.push('H');
   if (key.doubleAction && key.doubleAction.type && key.doubleAction.type !== 'none') badges.push('2×');
-  if (badges.length) {
+  if (!isIndicator && badges.length) {
     ctx.save();
     ctx.font = '700 11px -apple-system, "SF Pro Text", sans-serif';
     ctx.textAlign = 'left';
