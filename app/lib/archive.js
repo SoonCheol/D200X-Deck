@@ -110,9 +110,9 @@ function inspectZip(file, options = {}) {
   }
 }
 
-function runUnzip(args, { timeoutMs = EXTRACT_TIMEOUT_MS, maxBuffer = 4 * 1024 * 1024 } = {}) {
+function runUnzip(args, { timeoutMs = EXTRACT_TIMEOUT_MS, maxBuffer = 4 * 1024 * 1024 } = {}, onChild = null) {
   return new Promise((resolve, reject) => {
-    execFile('unzip', args, { encoding: 'utf8', timeout: timeoutMs, maxBuffer }, (err, stdout, stderr) => {
+    const child = execFile('unzip', args, { encoding: 'utf8', timeout: timeoutMs, maxBuffer }, (err, stdout, stderr) => {
       if (err) {
         const detail = String(stderr || err.message || '').trim().split('\n').filter(Boolean).pop();
         reject(new Error(detail || 'Could not unpack the archive'));
@@ -120,6 +120,7 @@ function runUnzip(args, { timeoutMs = EXTRACT_TIMEOUT_MS, maxBuffer = 4 * 1024 *
       }
       resolve(stdout);
     });
+    if (onChild) onChild(child);
   });
 }
 
@@ -157,13 +158,38 @@ async function dirSize(dir) {
 /** Unpack a ZIP after checking entry count, expanded size and entry paths. */
 async function extractZip(source, destination, options = {}) {
   const info = inspectZip(source, options);
-  fs.mkdirSync(destination, { recursive: true });
-  await runUnzip(['-oq', source, '-d', destination], options);
-  const extractedBytes = await dirSize(destination);
   const maxExpandedBytes = options.maxExpandedBytes ?? MAX_EXPANDED_BYTES;
-  if (extractedBytes > maxExpandedBytes) {
-    throw new Error(`This archive expands to more than ${megabytes(maxExpandedBytes)} MB`);
+  const overLimit = () => new Error(`This archive expands to more than ${megabytes(maxExpandedBytes)} MB`);
+  fs.mkdirSync(destination, { recursive: true });
+  let exceeded = false;
+  let measuring = false;
+  let monitor = null;
+  try {
+    await runUnzip(['-oq', source, '-d', destination], options, (child) => {
+      // The central directory can understate the stream size. Watch the real
+      // extracted bytes and stop unzip before a hostile archive fills the disk.
+      monitor = setInterval(async () => {
+        if (exceeded || measuring) return;
+        measuring = true;
+        try {
+          if ((await dirSize(destination)) > maxExpandedBytes) {
+            exceeded = true;
+            try { child.kill('SIGKILL'); } catch { /* already gone */ }
+          }
+        } finally {
+          measuring = false;
+        }
+      }, 250);
+    });
+  } catch (err) {
+    if (exceeded) throw overLimit();
+    throw err;
+  } finally {
+    if (monitor) clearInterval(monitor);
   }
+  if (exceeded) throw overLimit();
+  const extractedBytes = await dirSize(destination);
+  if (extractedBytes > maxExpandedBytes) throw overLimit();
   return { ...info, extractedBytes };
 }
 
