@@ -1461,6 +1461,7 @@ body::before {
 .multi-inline .input, .multi-inline .select { min-width: 0; }
 .multi-inline .multi-value { flex: 1; }
 .multi-small { flex: 0 0 70px; width: 70px; }
+.multi-direction { flex: 0 0 104px; width: 104px; }
 .multi-unit { color: var(--text-3); font-size: 11px; flex: none; }
 .multi-check { margin: 0; font-size: 10px; white-space: nowrap; flex: none; }
 .multi-plugin { display: flex; flex-direction: column; gap: 4px; }

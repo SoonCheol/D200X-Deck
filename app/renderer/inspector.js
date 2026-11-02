@@ -265,7 +265,7 @@ function multiStepControls(act, index) {
   }
   if (act.type === 'brightness') {
     return `<div class="multi-inline">
-      <select class="select multi-small" data-field="op" aria-label="Brightness direction">
+      <select class="select multi-small multi-direction" data-field="op" aria-label="Brightness direction">
         <option value="up" ${(act.op || 'up') === 'up' ? 'selected' : ''}>Brighter</option>
         <option value="down" ${act.op === 'down' ? 'selected' : ''}>Dimmer</option>
       </select>
