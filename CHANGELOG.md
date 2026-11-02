@@ -1,5 +1,24 @@
 # Changelog
 
+## 0.10.5 — 2026-11-02
+
+### Changed
+- **Type text keys show the typed text as their default face**, with the same ~12-character truncation and font shrinking as the Quick actions item. Empty text keys use the text SVG; typed emoji text is kept as-is.
+- **Quick actions text steps show their text** with an adaptive font and a full-text tooltip. The window now fits three rows, so nine actions need no scrollbar.
+- **POP/Multi step types are grouped** like the main action picker: Device & pages, Apps & links, System and Plugins.
+- **Open app and Close app steps have Choose…**, using the existing app picker.
+- **Brighter and Dimmer have distinct sun icons** with a centered + and −, and the direction dropdown is wide enough to show both labels.
+- **Toggle two actions is capped at exactly two steps**; Add delay is hidden for toggles.
+- **Default action faces no longer use emojis.** POP, timer, brightness, audio, command, hotkey, close, media, page and empty text now use their bundled SVGs. Existing auto-emoji keys migrate; custom emoji and typed emoji text are preserved.
+- **The Toggle two actions knob meets the track edge**, removing the hairline gap.
+- **Tooltips are instant and render-stable**: Push and the capped Add action use CSS hover/focus, so status re-renders cannot flicker them.
+
+### Fixed
+- **Plugin live-image pushes are throttled** to one background push every 5 seconds. Identical images, unchanged state indexes and repeated titles are skipped, and background pushes no longer toggle the Push button or footer. This stops the constant full-page pushes and the Push-button flicker.
+
+### Tests
+- 102 → **104**.
+
 ## 0.10.4 — 2026-11-02
 
 ### Fixed

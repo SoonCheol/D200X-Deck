@@ -71,6 +71,16 @@ file; H9 is the last open High.
 - The folder-plus icon is centered and larger.
 - Page settings is marked active and pulses when pressed again.
 
+### Shipped in 0.10.5 — editor and live-push polish
+
+- Type text keys and Quick actions items show the typed text; nine Quick
+  actions fit without a scrollbar.
+- POP/Multi step types are grouped like the main action picker; Open app and
+  Close app steps have an app picker.
+- Brighter/Dimmer have distinct sun icons; Toggle two actions is capped at two.
+- Default action faces use SVGs instead of emojis; auto-emoji keys migrate.
+- Plugin live-image pushes are throttled to one silent 5-second background push.
+
 ### Next: architecture batch
 
 - M3 per-generation child/socket ownership; M18 bounded extraction off main.
