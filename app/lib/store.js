@@ -47,7 +47,7 @@ function normalizeAction(action) {
     out.step = Math.min(50, Math.max(1, Math.round(Number(out.step) || 5)));
   }
   if (type === 'multi' || type === 'toggle' || type === 'pop') {
-    const maxSteps = type === 'pop' ? 9 : 12;
+    const maxSteps = type === 'pop' ? 9 : type === 'toggle' ? 2 : 12;
     out.steps = Array.isArray(out.steps)
       ? out.steps.slice(0, maxSteps).map((step) => {
           if (step && step.delay !== undefined) return { delay: Math.max(0, Number(step.delay) || 0) };

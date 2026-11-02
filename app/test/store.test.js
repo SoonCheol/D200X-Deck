@@ -37,6 +37,22 @@ test('POP menus are capped at nine actions', () => {
   assert.equal(validated.pages[0].keys[0].action.steps.length, 9);
 });
 
+test('Toggle actions are capped at two actions', () => {
+  const config = createDefaultConfig();
+  config.pages[0].keys[0] = {
+    emoji: '',
+    label: 'Toggle',
+    color: '#1b2130',
+    icon: null,
+    action: {
+      type: 'toggle',
+      steps: Array.from({ length: 4 }, () => ({ action: { type: 'text', value: 'x' } })),
+    },
+  };
+  const validated = validateConfig(config);
+  assert.equal(validated.pages[0].keys[0].action.steps.length, 2);
+});
+
 test('a zero-millisecond delay step remains a delay', () => {
   const config = createDefaultConfig();
   config.pages[0].keys[0] = {

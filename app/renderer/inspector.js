@@ -347,13 +347,15 @@ function multiEditor(action, page) {
         .map(([v, l]) => `<option value="${v}" ${(action.mode || 'sequence') === v ? 'selected' : ''}>${l}</option>`)
         .join('')}
     </select>` : '';
-  const limit = action.type === 'pop' ? 9 : 12;
+  const limit = action.type === 'pop' ? 9 : action.type === 'toggle' ? 2 : 12;
   const atLimit = steps.length >= limit;
   const addTip = atLimit
     ? `<span class="hover-tip left" role="tooltip">${
         action.type === 'pop'
           ? 'A POP menu can hold up to 9 actions.'
-          : 'A multi action can hold up to 12 steps.'
+          : action.type === 'toggle'
+            ? 'A Toggle can hold exactly 2 actions.'
+            : 'A multi action can hold up to 12 steps.'
       }</span>`
     : '';
   const delayAtLimit = steps.length >= 12;
@@ -369,7 +371,7 @@ function multiEditor(action, page) {
         ${addTip}
       </span>
       ${
-        action.type === 'pop'
+        action.type === 'pop' || action.type === 'toggle'
           ? ''
           : `<span class="tip-wrap">
                <button class="btn small" id="insp-multi-delay" ${delayAtLimit ? 'aria-disabled="true"' : ''}>Add delay</button>
@@ -449,7 +451,10 @@ function bindMultiEditor(key) {
     if (action.type === 'pop' && steps.length >= 9) {
       return toast('A POP menu can hold up to 9 actions', true);
     }
-    if (action.type !== 'pop' && steps.length >= 12) {
+    if (action.type === 'toggle' && steps.length >= 2) {
+      return toast('A Toggle can hold exactly 2 actions', true);
+    }
+    if (action.type !== 'pop' && action.type !== 'toggle' && steps.length >= 12) {
       return toast('A multi action can hold up to 12 steps', true);
     }
     steps.push({ action: { type: '' } });
@@ -462,6 +467,7 @@ function bindMultiEditor(key) {
     });
   });
   $('#insp-multi-delay')?.addEventListener('click', () => {
+    if (action.type === 'toggle') return;
     if (steps.length >= 12) return toast('A multi action can hold up to 12 steps', true);
     steps.push({ delay: 250 });
     commit();
