@@ -363,7 +363,8 @@ function openProfileModal(mode) {
   profileModalTarget = mode;
   const editing = mode === 'edit';
   const profile = (state.config.profiles || []).find((p) => p.id === state.config.activeProfileId);
-  $('#profile-export').disabled = !editing;
+  $('#profile-export').classList.toggle('hidden', !editing);
+  $('#profile-import').classList.toggle('hidden', !editing);
   profileDraft = {
     appPath: editing ? profile?.appPath || '' : '',
     appName: editing ? profile?.appName || '' : '',
@@ -622,6 +623,15 @@ async function refreshAccessibility() {
 
 let updateInfo = null;
 
+function friendlyUpdateError(message) {
+  const text = String(message || '');
+  if (/ENOTFOUND|EAI_AGAIN|ECONNREFUSED|ETIMEDOUT|network|fetch failed/i.test(text)) {
+    return "Couldn't reach GitHub. Check your connection and try again.";
+  }
+  if (/rate limit|403/i.test(text)) return 'GitHub is rate-limiting update checks. Try again later.';
+  return text || 'Update check failed.';
+}
+
 function renderUpdateStatus(info = updateInfo) {
   const row = $('#update-status-row');
   const status = $('#update-status');
@@ -633,7 +643,7 @@ function renderUpdateStatus(info = updateInfo) {
     release?.classList.remove('hidden');
   } else if (info?.error) {
     row.classList.remove('hidden');
-    status.textContent = `Could not check for updates: ${info.error}`;
+    status.textContent = friendlyUpdateError(info.error);
     release?.classList.add('hidden');
   } else if (info?.checkedAt) {
     row.classList.remove('hidden');
@@ -1277,7 +1287,7 @@ function bind() {
     updateInfo = res;
     renderUpdateStatus(res);
     if (res.update) showUpdateModal(res);
-    else if (!res.ok) toast(res.error || 'Could not check for updates', true);
+    else if (!res.ok) toast(friendlyUpdateError(res.error), true);
     else toast(`You're up to date (${res.current})`);
   });
   $('#update-check').addEventListener('change', () => {
@@ -1442,6 +1452,7 @@ function bind() {
     }
   });
 
+  const modalReturnFocus = new Map();
   const MODAL_CLOSERS = {
     'hotkey-modal': closeHotkeyModal,
     'icons-modal': closeIconLibrary,
@@ -1454,6 +1465,28 @@ function bind() {
     // The app picker opens on top of other dialogs (e.g. the profile form).
     'app-modal': closeAppPicker,
   };
+
+  // Remember where focus was before a dialog opened and put it back when the
+  // dialog hides, whichever path closed it (button, Escape, backdrop).
+  for (const id of Object.keys(MODAL_CLOSERS)) {
+    const modal = document.getElementById(id);
+    if (!modal) continue;
+    let open = !modal.classList.contains('hidden');
+    new MutationObserver(() => {
+      const nowOpen = !modal.classList.contains('hidden');
+      if (nowOpen === open) return;
+      open = nowOpen;
+      if (nowOpen) {
+        modalReturnFocus.set(id, document.activeElement);
+        return;
+      }
+      const target = modalReturnFocus.get(id);
+      modalReturnFocus.delete(id);
+      if (target && document.contains(target) && typeof target.focus === 'function') {
+        setTimeout(() => target.focus(), 0);
+      }
+    }).observe(modal, { attributes: true, attributeFilter: ['class'] });
+  }
 
   function topModal() {
     const ids = Object.keys(MODAL_CLOSERS);
@@ -1472,7 +1505,9 @@ function bind() {
   window.focusModal = (id) => {
     const modal = document.getElementById(id);
     if (!modal) return;
-    const first = focusable(modal)[0];
+    const preferred = [...modal.querySelectorAll('[data-autofocus]')].find((el) => el.offsetParent !== null);
+    const items = focusable(modal);
+    const first = preferred || items.find((el) => !el.classList.contains('icon-btn')) || items[0];
     if (first) setTimeout(() => first.focus(), 30);
   };
 

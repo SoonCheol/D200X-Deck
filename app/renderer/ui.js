@@ -115,6 +115,7 @@ function renderPageList() {
     del.className = 'del';
     del.textContent = '×';
     del.title = 'Delete page';
+    del.setAttribute('aria-label', `Delete page ${page.name}`);
     del.addEventListener('click', (e) => {
       e.stopPropagation();
       deletePage(page.id);
@@ -143,6 +144,14 @@ async function renderGrid() {
 
     const wide = i === WIDE_KEY_INDEX;
     if (wide) btn.classList.add('wide');
+    const slotKey = keyAt(page, i) || emptyKey();
+    const actionLabel =
+      slotKey.action && slotKey.action.type !== 'none'
+        ? ACTION_LABELS[slotKey.action.type] || slotKey.action.type
+        : 'Empty key';
+    const keyName = (slotKey.label || slotKey.emoji || '').trim();
+    btn.setAttribute('aria-label', `Key ${i + 1}: ${keyName || 'empty'} — ${actionLabel}`);
+
     const canvas = document.createElement('canvas');
     canvas.width = wide ? 402 : 196;
     canvas.height = 196;
@@ -151,10 +160,12 @@ async function renderGrid() {
     const badge = document.createElement('span');
     badge.className = 'badge';
     badge.textContent = String(i + 1);
+    badge.setAttribute('aria-hidden', 'true');
     btn.appendChild(badge);
 
     if (wide) {
       btn.title = 'Wide key — clock, system stats or background';
+      btn.setAttribute('aria-label', 'Wide key — clock, system stats or background');
       btn.classList.add('system');
       btn.addEventListener('click', () => {
         state.selected = WIDE_KEY_INDEX;

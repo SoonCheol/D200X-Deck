@@ -284,7 +284,7 @@ async function drawKey(canvas, key, width = KEY_SIZE, height = KEY_SIZE, autoIco
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
     ctx.font = `300 ${Math.round(min * 0.28)}px -apple-system, "Helvetica Neue", sans-serif`;
-    ctx.fillStyle = 'rgba(255,255,255,0.10)';
+    ctx.fillStyle = 'rgba(255,255,255,0.24)';
     ctx.fillText('+', w / 2, hasLabel ? h * 0.44 : h / 2);
     ctx.restore();
   }

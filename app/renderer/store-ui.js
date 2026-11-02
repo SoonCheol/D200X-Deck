@@ -266,8 +266,22 @@ async function loadStoreItems(reset = false) {
 
 function renderStoreGrid() {
   const grid = $('#store-grid');
+  const query = storeState.search.trim();
   if (!storeState.items.length) {
-    grid.innerHTML = '<div class="store-empty">No plugins found.</div>';
+    grid.innerHTML = `<div class="store-empty">${
+      query ? `No plugins match “${esc(query)}”.` : 'No plugins found.'
+    }${
+      query ? '<button class="btn small" id="store-clear-search">Clear search</button>' : ''
+    }</div>`;
+    const clear = $('#store-clear-search');
+    if (clear) {
+      clear.addEventListener('click', () => {
+        storeState.search = '';
+        const input = $('#store-search');
+        if (input) input.value = '';
+        loadStoreItems(true);
+      });
+    }
   } else {
     grid.innerHTML = storeState.items
       .map(
@@ -293,7 +307,7 @@ function renderStoreGrid() {
       btn.addEventListener('click', () => openStoreDetail(btn.dataset.id));
     });
   }
-  $('#store-count').textContent = `${storeState.items.length} of ${storeState.total}`;
+  $('#store-count').textContent = storeState.items.length ? `${storeState.items.length} of ${storeState.total}` : '';
   const cat = storeState.categories.find((c) => String(c.id) === String(storeState.cateId));
   const kind = /icons?/i.test(cat?.name || '') ? 'icons' : 'plugins';
   const searchEl = $('#store-search');

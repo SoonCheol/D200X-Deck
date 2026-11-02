@@ -199,7 +199,18 @@ function renderSdStoreList() {
   if (!items.length) {
     list.innerHTML = `<div class="plugin-empty">${
       query ? `No Stream Deck plugins match “${esc(sdStore.query)}”.` : 'No Stream Deck plugins found.'
+    }${
+      query ? '<button class="btn small" id="sdstore-clear-search">Clear search</button>' : ''
     }</div>`;
+    const clear = document.getElementById('sdstore-clear-search');
+    if (clear) {
+      clear.addEventListener('click', () => {
+        sdStore.query = '';
+        const input = $('#sdstore-search');
+        if (input) input.value = '';
+        renderSdStoreList();
+      });
+    }
     return;
   }
   list.innerHTML = items

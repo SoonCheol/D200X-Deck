@@ -40,11 +40,11 @@
     page: 'Switch to page',
     plugin: 'Plugin action',
     multi: 'Multi action',
-    toggle: 'Hotkey switch',
+    toggle: 'Toggle two actions',
     indicator: 'Page indicator',
     sound: 'Play audio',
     timer: 'Timer',
-    brightness: 'Key brightness',
+    brightness: 'Deck brightness',
     pop: 'POP menu',
   };
 

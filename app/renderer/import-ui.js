@@ -64,7 +64,7 @@ function renderImportSources() {
   box.innerHTML = importSources
     .map(
       (p, i) => `<button class="import-source${p.path === importActive?.path ? ' active' : ''}" data-source="${i}">
-        ${esc(p.name)}<small>${esc(p.device || 'unknown device')} · ${p.pages.length} pages</small>
+        ${esc(p.name)}<small>${esc(p.device || 'unknown device')} · ${p.pages.length} page${p.pages.length === 1 ? '' : 's'}</small>
       </button>`
     )
     .join('');

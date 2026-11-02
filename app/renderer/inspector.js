@@ -118,6 +118,24 @@ function syncActionMeta(key) {
 
 const MULTI_STEP_TYPES = window.DeckActions.MULTI_STEP_TYPES;
 
+const VALUE_LABELS = {
+  hotkey: 'Combination',
+  page: 'Navigation',
+  app: 'Application',
+  url: 'URL',
+  multi: 'Steps',
+  toggle: 'Actions',
+  pop: 'Actions',
+  indicator: 'About',
+  text: 'Text to type',
+  command: 'Command',
+  sound: 'Sound file',
+  close: 'Application',
+  timer: 'Duration (seconds)',
+  media: 'Media key',
+  brightness: 'Step (%)',
+};
+
 function multiEditor(action, page) {
   const steps = Array.isArray(action.steps) ? action.steps : [];
   const rows = steps.map((step, index) => multiStepRow(step, index, page)).join('');
@@ -914,7 +932,7 @@ function renderInspector() {
       </select>
     </div>
 
-    ${valueField && action.type !== 'plugin' ? `<div class="field"><label>${action.type === 'hotkey' ? 'Combination' : action.type === 'page' ? 'Navigation' : action.type === 'app' ? 'Application' : action.type === 'url' ? 'URL' : action.type === 'multi' ? 'Steps' : action.type === 'toggle' || action.type === 'pop' ? 'Actions' : action.type === 'indicator' ? 'About' : 'Value'}</label>${valueField}</div>` : ''}
+    ${valueField && action.type !== 'plugin' ? `<div class="field"><label>${VALUE_LABELS[action.type] || 'Value'}</label>${valueField}</div>` : ''}
     ${pluginFields}
 
     <div class="insp-section">Press triggers</div>
