@@ -406,7 +406,7 @@ function renderWideInspector(el, page) {
   const options = [
     ['clock', 'Clock', 'Time and date, rendered by the Deck.'],
     ['stats', 'System stats', 'Live CPU, memory and GPU usage from this Mac.'],
-    ['blank', 'Background', 'No clock or stats — just the page background image.'],
+    ['blank', 'Page wallpaper', 'No clock or stats — just the page wallpaper.'],
   ];
   el.innerHTML = `
     <div class="insp-head">
@@ -426,6 +426,7 @@ function renderWideInspector(el, page) {
       </div>
       <div class="field-hint">${options.find(([value]) => value === mode)[2]}</div>
     </div>
+    <div class="wide-preview"><canvas id="wide-preview" width="402" height="196"></canvas></div>
     <div class="field-hint">The 2×1 key is drawn by the Deck firmware, so it has no action of its own. The preview matches the panel you choose here.</div>
   `;
 
@@ -446,6 +447,8 @@ function renderWideInspector(el, page) {
     renderGrid();
     renderInspector();
   });
+  const preview = $('#wide-preview');
+  if (preview && typeof drawSystemPanel === 'function') drawSystemPanel(preview, wideOptions(page));
 }
 
 function renderInspector() {

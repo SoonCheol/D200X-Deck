@@ -21,10 +21,11 @@ async function openIconLibrary(onPick = null) {
 
 function renderIconPacks() {
   const list = $('#icons-packs');
+  $('#icons-modal')?.classList.toggle('icons-no-packs', !iconLibraryPacks.length);
   if (!iconLibraryPacks.length) {
     list.innerHTML = '';
     $('#icons-grid').innerHTML = `<div class="icons-empty">
-        <div style="font-size:26px;margin-bottom:6px">🖼</div>
+        <div style="font-size:44px;margin-bottom:8px">🖼</div>
         <div style="margin-bottom:10px">No icon packs yet.</div>
         <button class="btn primary" id="icons-empty-store">Browse icon packs</button>
       </div>`;
@@ -290,8 +291,16 @@ function renderStoreGrid() {
     }
   } else {
     grid.innerHTML = storeState.items
-      .map(
-        (item) => `
+      .map((item) => {
+        const installed = state.plugins.find(
+          (p) => (item.uuid && p.uuid === item.uuid) || p.name === item.name
+        );
+        const updatable =
+          installed &&
+          item.version &&
+          typeof DeckVersion !== 'undefined' &&
+          DeckVersion.compareVersions(item.version, installed.version || '0') > 0;
+        return `
         <button class="store-item" data-id="${esc(item.id)}">
           ${
             item.icon
@@ -299,15 +308,17 @@ function renderStoreGrid() {
               : '<div class="store-thumb empty">🧩</div>'
           }
           <div class="store-item-name">${esc(item.name)}${
-            state.plugins.some((p) => (item.uuid && p.uuid === item.uuid) || p.name === item.name)
-              ? '<span class="badge-tag good" style="margin-left:6px">Installed</span>'
+            installed
+              ? `<span class="badge-tag ${updatable ? 'warn' : 'good'}" style="margin-left:6px">${
+                  updatable ? 'Update' : 'Installed'
+                }</span>`
               : ''
           }</div>
           <div class="store-item-meta"><span>${esc(item.author || 'Ulanzi')}</span><span>${
             item.version ? `v${esc(item.version)}` : ''
           }</span></div>
-        </button>`
-      )
+        </button>`;
+      })
       .join('');
     grid.querySelectorAll('[data-id]').forEach((btn) => {
       btn.addEventListener('click', () => openStoreDetail(btn.dataset.id));

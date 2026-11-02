@@ -429,6 +429,10 @@ function renderPluginModal() {
 
   list.querySelectorAll('[data-rosetta]').forEach((btn) => {
     btn.addEventListener('click', async () => {
+      const ok = confirm(
+        'Install Rosetta?\n\nThis opens Terminal and runs Apple’s softwareupdate command. Only continue if you trust the plugin and your network.'
+      );
+      if (!ok) return;
       const res = await api.installRosetta();
       if (!res.ok) return toast(res.error || 'Could not open Terminal', true);
       toast('Install Rosetta in Terminal, then click Reload all');

@@ -712,7 +712,7 @@ body::before {
 }
 
 .plugin-list {
-  padding: 10px 14px 18px;
+  padding: 10px 14px 28px;
   overflow-y: auto;
   flex: 1;
   min-height: 0;
@@ -738,6 +738,10 @@ body::before {
 
 .plugin-group + .plugin-group { margin-top: 10px; border-top: 1px solid var(--line); padding-top: 8px; }
 .plugin-group-head {
+  position: sticky;
+  top: -10px;
+  z-index: 2;
+  background: #10151f;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -1054,6 +1058,8 @@ body::before {
 .icons-card { width: min(900px, calc(100vw - 80px)); height: min(640px, calc(100vh - 100px)); display: flex; flex-direction: column; }
 .icons-body { display: grid; grid-template-columns: 200px 1fr; gap: 12px; padding: 0 22px 18px; min-height: 0; flex: 1; }
 .icons-packs { display: flex; flex-direction: column; gap: 2px; overflow: auto; }
+.icons-no-packs .icons-body { grid-template-columns: 1fr; }
+.icons-no-packs .icons-packs { display: none; }
 .icons-pack {
   text-align: left; padding: 8px 10px; border-radius: 8px; border: 1px solid transparent;
   background: transparent; color: var(--muted); font-size: 12px; cursor: pointer;
@@ -1107,6 +1113,8 @@ body::before {
 
 /* --------------------------------------------------- plugin property inspector */
 
+.wide-preview { margin: 2px 0 10px; }
+.wide-preview canvas { display: block; width: 100%; height: auto; border: 1px solid var(--line); border-radius: 12px; }
 .pi-host { margin: 0; min-height: 120px; }
 .pi-frame {
   width: 100%;
@@ -1252,6 +1260,11 @@ body::before {
 }
 
 /* Inspector becomes a drawer on narrow windows */
+@media (max-height: 620px) {
+  .stage { overflow-y: auto; padding-bottom: 12px; }
+  .stage-hint { display: none; }
+}
+
 @media (max-width: 1179px) {
   #app { grid-template-columns: 200px minmax(0, 1fr) 0 !important; }
   .inspector {
