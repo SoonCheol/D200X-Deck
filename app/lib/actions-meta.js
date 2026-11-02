@@ -70,7 +70,12 @@
     ['text', 'Type text'],
     ['app', 'Open app'],
     ['url', 'Open URL'],
+    ['close', 'Close app'],
     ['command', 'Command'],
+    ['sound', 'Play audio'],
+    ['timer', 'Timer'],
+    ['brightness', 'Deck brightness'],
+    ['plugin', 'Plugin action'],
     ['page', 'Switch page'],
   ];
 

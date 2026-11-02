@@ -36,6 +36,33 @@ test('every action type has a label and belongs to a group', () => {
   for (const type of meta.ACTION_TYPES) assert.ok(grouped.has(type), `not in any group: ${type}`);
 });
 
+test('multi steps cover the editor set without recursive actions', () => {
+  const types = meta.MULTI_STEP_TYPES.map(([type]) => type);
+  for (const type of [
+    'hotkey',
+    'media',
+    'text',
+    'app',
+    'url',
+    'close',
+    'command',
+    'sound',
+    'timer',
+    'brightness',
+    'plugin',
+    'page',
+  ]) {
+    assert.ok(types.includes(type), `missing step type: ${type}`);
+  }
+  for (const type of ['multi', 'toggle', 'pop', 'indicator', 'none']) {
+    assert.ok(!types.includes(type), `recursive step type: ${type}`);
+  }
+  for (const [type, label] of meta.MULTI_STEP_TYPES) {
+    assert.ok(meta.ACTION_TYPES.includes(type), `unknown step type: ${type}`);
+    assert.ok(label, `missing step label: ${type}`);
+  }
+});
+
 test('media keys have one label and emoji each', () => {
   assert.equal(new Set(meta.MEDIA_OPS).size, meta.MEDIA_OPS.length);
   for (const op of meta.MEDIA_OPS) {

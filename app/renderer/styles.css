@@ -1382,14 +1382,42 @@ body::before {
 .import-actions { border-bottom: 0; }
 
 /* Multi-action editor */
-.multi-steps { display: flex; flex-direction: column; gap: 6px; margin: 8px 0; }
-.multi-row { display: flex; align-items: center; gap: 6px; }
-.multi-index { width: 14px; color: var(--text-3); font-size: 10.5px; flex: none; }
-.multi-label { color: var(--muted); font-size: 11px; flex: 0 0 34px; }
-.multi-unit { color: var(--text-3); font-size: 11px; }
-.multi-type { width: 112px; flex: none; }
-.multi-value { flex: 1; min-width: 0; }
-.multi-row .icon-btn { width: 24px; height: 24px; flex: none; }
+.multi-steps { display: flex; flex-direction: column; gap: 8px; margin: 8px 0; }
+.multi-row {
+  display: grid;
+  grid-template-columns: 14px 14px minmax(0, 1fr) auto;
+  grid-template-areas:
+    "grip index type buttons"
+    "controls controls controls controls";
+  align-items: center;
+  gap: 6px;
+  padding: 7px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.02);
+}
+.multi-grip { grid-area: grip; color: var(--text-3); cursor: grab; text-align: center; font-size: 12px; user-select: none; }
+.multi-grip:active { cursor: grabbing; }
+.multi-index { grid-area: index; color: var(--text-3); font-size: 10.5px; text-align: center; }
+.multi-type { grid-area: type; width: 100%; }
+.multi-type.multi-delay { color: var(--muted); font-size: 11px; padding-left: 4px; }
+.multi-buttons { grid-area: buttons; display: flex; gap: 2px; }
+.multi-row .icon-btn { width: 22px; height: 22px; flex: none; font-size: 12px; }
+.multi-row .icon-btn:disabled { opacity: 0.28; cursor: default; }
+.multi-controls { grid-area: controls; min-width: 0; }
+.multi-controls > .input,
+.multi-controls > .select,
+.multi-controls > .btn { width: 100%; }
+.multi-inline { display: flex; align-items: center; gap: 6px; min-width: 0; }
+.multi-inline .input, .multi-inline .select { min-width: 0; }
+.multi-inline .multi-value { flex: 1; }
+.multi-small { flex: 0 0 70px; width: 70px; }
+.multi-unit { color: var(--text-3); font-size: 11px; flex: none; }
+.multi-check { margin: 0; font-size: 10px; white-space: nowrap; flex: none; }
+.multi-plugin { display: flex; flex-direction: column; gap: 4px; }
+.multi-textarea { min-height: 44px; resize: vertical; }
+.multi-row.dragging { opacity: 0.45; }
+.multi-row.drop-target { border-color: var(--accent); background: rgba(79, 140, 255, 0.08); }
 
 .profile-row { display: flex; gap: 6px; align-items: center; margin: 0 6px 8px; }
 .profile-select { flex: 1; min-width: 0; font-size: 11.5px; padding: 6px 26px 6px 8px; }

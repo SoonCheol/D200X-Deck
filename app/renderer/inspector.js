@@ -160,9 +160,150 @@ const VALUE_LABELS = {
   brightness: 'Step (%)',
 };
 
+const MEDIA_STEP_OPTIONS = [
+  ['playpause', 'Play / pause'],
+  ['next', 'Next track'],
+  ['prev', 'Previous track'],
+  ['volumeup', 'Volume up'],
+  ['volumedown', 'Volume down'],
+  ['mute', 'Mute'],
+];
+
+function stepPluginList() {
+  return state.plugins.filter((p) => p.compatible);
+}
+
+function stepPlugin(act) {
+  const compatible = stepPluginList();
+  return (
+    compatible.find(
+      (p) => p.uuid === act.plugin && (p.sdk || 'ulanzi') === (act.sdk || 'ulanzi')
+    ) ||
+    compatible.find((p) => p.uuid === act.plugin) ||
+    null
+  );
+}
+
+function defaultStepAction(type) {
+  if (type === 'media') return { type, op: 'playpause' };
+  if (type === 'timer') return { type, seconds: 300, sound: true };
+  if (type === 'brightness') return { type, op: 'up', step: 5 };
+  if (type === 'sound') return { type, op: 'play', value: '', volume: 1 };
+  if (type === 'plugin') {
+    const plugin = stepPluginList()[0] || null;
+    return {
+      type,
+      sdk: plugin?.sdk || 'ulanzi',
+      plugin: plugin?.uuid || '',
+      action: plugin?.actions?.[0]?.uuid || '',
+      actionid: uuid(),
+      settings: {},
+    };
+  }
+  return { type, value: '' };
+}
+
+function multiStepControls(act, index) {
+  if (act.type === 'hotkey') {
+    return `<button class="btn hotkey-value" data-hotkey="${index}">${esc(
+      prettyHotkey(act.value) || act.value || 'Set hotkey…'
+    )}</button>`;
+  }
+  if (act.type === 'media') {
+    return `<select class="select" data-field="op" aria-label="Media key">${MEDIA_STEP_OPTIONS.map(
+      ([value, label]) =>
+        `<option value="${value}" ${act.op === value ? 'selected' : ''}>${label}</option>`
+    ).join('')}</select>`;
+  }
+  if (act.type === 'page') {
+    return `<select class="select" data-field="value" aria-label="Target page">${pagesFor()
+      .map(
+        (p) =>
+          `<option value="${esc(p.id)}" ${p.id === act.value ? 'selected' : ''}>${esc(p.name)}</option>`
+      )
+      .join('')}</select>`;
+  }
+  if (act.type === 'timer') {
+    return `<div class="multi-inline">
+      <input class="input multi-small" type="number" min="1" max="86400" step="1" data-field="seconds"
+        value="${Math.max(1, Number(act.seconds) || 300)}" aria-label="Timer seconds" />
+      <span class="multi-unit">sec</span>
+      <label class="check-row multi-check"><input type="checkbox" data-field="sound" ${
+        act.sound !== false ? 'checked' : ''
+      } /> Sound</label>
+    </div>`;
+  }
+  if (act.type === 'brightness') {
+    return `<div class="multi-inline">
+      <select class="select multi-small" data-field="op" aria-label="Brightness direction">
+        <option value="up" ${(act.op || 'up') === 'up' ? 'selected' : ''}>Brighter</option>
+        <option value="down" ${act.op === 'down' ? 'selected' : ''}>Dimmer</option>
+      </select>
+      <input class="input multi-small" type="number" min="1" max="50" step="1" data-field="step"
+        value="${Math.min(50, Math.max(1, Number(act.step) || 5))}" aria-label="Brightness step percent" />
+      <span class="multi-unit">%</span>
+    </div>`;
+  }
+  if (act.type === 'sound') {
+    const op = act.op === 'stop' ? 'stop' : 'play';
+    return `<div class="multi-inline">
+      <select class="select multi-small" data-field="op" aria-label="Audio action">
+        <option value="play" ${op === 'play' ? 'selected' : ''}>Play</option>
+        <option value="stop" ${op === 'stop' ? 'selected' : ''}>Stop</option>
+      </select>
+      ${
+        op === 'play'
+          ? `<input class="input multi-value" data-field="value" value="${esc(act.value || '')}"
+               placeholder="/path/to/sound.mp3" aria-label="Sound file" />
+             <button class="btn small" data-pick-audio="${index}">Choose…</button>`
+          : '<span class="field-hint" style="margin:0">Stops audio started by this key.</span>'
+      }
+    </div>`;
+  }
+  if (act.type === 'plugin') {
+    const plugin = stepPlugin(act);
+    return `<div class="multi-plugin">
+      <select class="select" data-plugin="${index}" aria-label="Step plugin">
+        <option value="">Choose a plugin…</option>
+        ${stepPluginList()
+          .map(
+            (p) =>
+              `<option value="${esc(p.uuid)}" ${p.uuid === act.plugin ? 'selected' : ''}>${esc(p.name)}</option>`
+          )
+          .join('')}
+      </select>
+      <select class="select" data-plugin-action="${index}" aria-label="Step plugin action" ${
+        plugin ? '' : 'disabled'
+      }>
+        <option value="">Choose an action…</option>
+        ${(plugin?.actions || [])
+          .map(
+            (a) =>
+              `<option value="${esc(a.uuid)}" ${a.uuid === act.action ? 'selected' : ''}>${esc(a.name)}</option>`
+          )
+          .join('')}
+      </select>
+    </div>`;
+  }
+  const placeholders = {
+    text: 'Text to type',
+    app: 'Safari or /Applications/Safari.app',
+    url: 'https://example.com',
+    command: "osascript -e '…'",
+    close: 'Safari',
+  };
+  const placeholder = placeholders[act.type] || 'Value';
+  if (act.type === 'command') {
+    return `<textarea class="textarea multi-textarea" data-field="value" rows="2"
+      placeholder="${esc(placeholder)}" aria-label="Command">${esc(act.value || '')}</textarea>`;
+  }
+  return `<input class="input" data-field="value" value="${esc(act.value || '')}"
+    placeholder="${esc(placeholder)}" aria-label="${esc(placeholder)}" />`;
+}
+
 function multiEditor(action, page) {
   const steps = Array.isArray(action.steps) ? action.steps : [];
-  const rows = steps.map((step, index) => multiStepRow(step, index, page)).join('');
+  const rows = steps.map((step, index) => multiStepRow(step, index, steps.length, page)).join('');
   const mode = action.type === 'multi' ? `
     <select class="select" id="insp-multi-mode">
       ${[['sequence', 'Run in order'], ['alternate', 'Alternate'], ['random', 'Random']]
@@ -178,48 +319,50 @@ function multiEditor(action, page) {
     </div>`;
 }
 
-function multiStepRow(step, index, page) {
-  const remove = `<button class="icon-btn" data-remove="${index}" title="Remove">×</button>`;
-  if (step.delay) {
-    return `<div class="multi-row">
-      <span class="multi-index">${index + 1}</span>
-      <span class="multi-label">Wait</span>
-      <input class="input multi-value" type="number" min="0" step="50" data-delay="${index}" value="${Number(step.delay) || 0}" />
-      <span class="multi-unit">ms</span>
-      ${remove}
-    </div>`;
-  }
-  const act = step.action || { type: 'hotkey', value: '' };
-  let control = `<input class="input multi-value" data-value="${index}" value="${esc(act.value || '')}" placeholder="Value" />`;
-  if (act.type === 'hotkey') {
-    control = `<button class="btn hotkey-value multi-value" data-hotkey="${index}">${esc(
-      act.value || 'Set hotkey…'
-    )}</button>`;
-  }
-  if (act.type === 'media') {
-    control = `<select class="select multi-value" data-value="${index}">${[
-      ['playpause', 'Play / pause'],
-      ['next', 'Next track'],
-      ['prev', 'Previous track'],
-      ['volumeup', 'Volume up'],
-      ['volumedown', 'Volume down'],
-      ['mute', 'Mute'],
-    ]
-      .map(([v, l]) => `<option value="${v}" ${act.op === v ? 'selected' : ''}>${l}</option>`)
-      .join('')}</select>`;
-  } else if (act.type === 'page') {
-    control = `<select class="select multi-value" data-value="${index}">${pagesFor()
-      .map((p) => `<option value="${esc(p.id)}" ${p.id === act.value ? 'selected' : ''}>${esc(p.name)}</option>`)
-      .join('')}</select>`;
-  }
-  return `<div class="multi-row">
+function multiStepRow(step, index, total, page) {
+  const act = step.delay ? null : step.action || { type: 'hotkey', value: '' };
+  const knownType = act && MULTI_STEP_TYPES.some(([value]) => value === act.type);
+  const typeOptions =
+    act && !knownType
+      ? [[act.type, window.DeckActions.ACTION_LABELS?.[act.type] || act.type], ...MULTI_STEP_TYPES]
+      : MULTI_STEP_TYPES;
+  const typeField = act
+    ? `<select class="select multi-type" data-type="${index}" aria-label="Step ${index + 1} type">${typeOptions
+        .map(
+          ([value, label]) =>
+            `<option value="${esc(value)}" ${act.type === value ? 'selected' : ''}>${esc(label)}</option>`
+        )
+        .join('')}</select>`
+    : '<span class="multi-type multi-delay">Wait</span>';
+  const controls = act
+    ? multiStepControls(act, index)
+    : `<div class="multi-inline">
+         <input class="input multi-small" type="number" min="0" step="50" data-delay="${index}"
+           value="${Number(step.delay) || 0}" aria-label="Delay milliseconds" />
+         <span class="multi-unit">ms</span>
+       </div>`;
+  return `<div class="multi-row${act ? '' : ' multi-row-delay'}" data-step="${index}">
+    <span class="multi-grip" data-grip="${index}" draggable="true" title="Drag to reorder" aria-hidden="true">⠿</span>
     <span class="multi-index">${index + 1}</span>
-    <select class="select multi-type" data-type="${index}">
-      ${MULTI_STEP_TYPES.map(([v, l]) => `<option value="${v}" ${act.type === v ? 'selected' : ''}>${l}</option>`).join('')}
-    </select>
-    ${control}
-    ${remove}
+    ${typeField}
+    <div class="multi-buttons">
+      <button class="icon-btn" data-move="up" data-step="${index}" title="Move up" aria-label="Move step ${index + 1} up" ${index === 0 ? 'disabled' : ''}>↑</button>
+      <button class="icon-btn" data-move="down" data-step="${index}" title="Move down" aria-label="Move step ${index + 1} down" ${index === total - 1 ? 'disabled' : ''}>↓</button>
+      <button class="icon-btn" data-remove="${index}" title="Remove" aria-label="Remove step ${index + 1}">×</button>
+    </div>
+    <div class="multi-controls">${controls}</div>
   </div>`;
+}
+
+function focusStep(index, preferred = 'up') {
+  requestAnimationFrame(() => {
+    const row = document.querySelector(`#inspector .multi-row[data-step="${index}"]`);
+    if (!row) return;
+    const button =
+      row.querySelector(`[data-move="${preferred}"]:not(:disabled)`) ||
+      row.querySelector('[data-move]:not(:disabled)');
+    (button || row.querySelector('.multi-type'))?.focus?.();
+  });
 }
 
 function bindMultiEditor(key) {
@@ -238,22 +381,28 @@ function bindMultiEditor(key) {
     if (action.type === 'pop' && steps.length >= 9) {
       return toast('A POP menu can hold up to 9 actions', true);
     }
-    steps.push({ action: { type: 'hotkey', value: '' } });
+    if (action.type !== 'pop' && steps.length >= 12) {
+      return toast('A multi action can hold up to 12 steps', true);
+    }
+    steps.push({ action: defaultStepAction('hotkey') });
     commit();
     renderInspector();
+    focusStep(steps.length - 1, 'down');
   });
   $('#insp-multi-delay')?.addEventListener('click', () => {
+    if (steps.length >= 12) return toast('A multi action can hold up to 12 steps', true);
     steps.push({ delay: 250 });
     commit();
     renderInspector();
+    focusStep(steps.length - 1, 'down');
   });
   document.querySelectorAll('#inspector [data-type]').forEach((select) => {
     select.addEventListener('change', () => {
       const index = Number(select.dataset.type);
-      const type = select.value;
-      steps[index] = { action: type === 'media' ? { type, op: 'playpause' } : { type, value: '' } };
+      steps[index] = { action: defaultStepAction(select.value) };
       commit();
       renderInspector();
+      focusStep(index, 'down');
     });
   });
   document.querySelectorAll('#inspector [data-hotkey]').forEach((btn) => {
@@ -267,18 +416,84 @@ function bindMultiEditor(key) {
       });
     });
   });
-  document.querySelectorAll('#inspector [data-value]').forEach((input) => {
+  document.querySelectorAll('#inspector .multi-row [data-field]').forEach((input) => {
+    const row = input.closest('.multi-row');
+    const index = Number(row?.dataset.step);
+    const field = input.dataset.field;
     const apply = () => {
-      const index = Number(input.dataset.value);
       const act = steps[index]?.action;
       if (!act) return;
-      steps[index] = {
-        action: act.type === 'media' ? { ...act, op: input.value } : { ...act, value: input.value },
-      };
+      if (field === 'sound') {
+        steps[index] = { action: { ...act, sound: input.checked } };
+      } else if (field === 'seconds') {
+        const seconds = Math.min(86_400, Math.max(1, Math.round(Number(input.value) || 300)));
+        input.value = String(seconds);
+        steps[index] = { action: { ...act, seconds } };
+      } else if (field === 'step') {
+        const step = Math.min(50, Math.max(1, Math.round(Number(input.value) || 5)));
+        input.value = String(step);
+        steps[index] = { action: { ...act, step } };
+      } else if (field === 'op') {
+        steps[index] = { action: { ...act, op: input.value } };
+        if (act.type === 'sound') {
+          commit();
+          renderInspector();
+          return;
+        }
+      } else {
+        steps[index] = { action: { ...act, value: input.value } };
+      }
       commit(false);
     };
-    input.addEventListener('input', apply);
-    input.addEventListener('change', apply);
+    if (input.tagName === 'SELECT' || input.type === 'checkbox' || input.type === 'number') {
+      input.addEventListener('change', apply);
+    } else {
+      input.addEventListener('input', apply);
+    }
+  });
+  document.querySelectorAll('#inspector [data-plugin]').forEach((select) => {
+    select.addEventListener('change', () => {
+      const index = Number(select.closest('.multi-row')?.dataset.step);
+      const plugin = stepPluginList().find((p) => p.uuid === select.value);
+      if (!plugin) return;
+      steps[index] = {
+        action: {
+          type: 'plugin',
+          sdk: plugin.sdk || 'ulanzi',
+          plugin: plugin.uuid,
+          action: plugin.actions?.[0]?.uuid || '',
+          actionid: uuid(),
+          settings: {},
+        },
+      };
+      commit();
+      renderInspector();
+      focusStep(index, 'down');
+    });
+  });
+  document.querySelectorAll('#inspector [data-plugin-action]').forEach((select) => {
+    select.addEventListener('change', () => {
+      const index = Number(select.closest('.multi-row')?.dataset.step);
+      const act = steps[index]?.action;
+      if (!act || act.type !== 'plugin') return;
+      steps[index] = { action: { ...act, action: select.value, actionid: uuid(), settings: {} } };
+      commit();
+      renderInspector();
+      focusStep(index, 'down');
+    });
+  });
+  document.querySelectorAll('#inspector [data-pick-audio]').forEach((btn) => {
+    btn.addEventListener('click', async () => {
+      const index = Number(btn.closest('.multi-row')?.dataset.step);
+      const act = steps[index]?.action;
+      if (!act) return;
+      const file = await api.pickAudio();
+      if (!file) return;
+      steps[index] = { action: { ...act, value: file } };
+      commit();
+      renderInspector();
+      focusStep(index, 'down');
+    });
   });
   document.querySelectorAll('#inspector [data-delay]').forEach((input) => {
     input.addEventListener('change', () => {
@@ -289,9 +504,66 @@ function bindMultiEditor(key) {
   });
   document.querySelectorAll('#inspector [data-remove]').forEach((btn) => {
     btn.addEventListener('click', () => {
-      steps.splice(Number(btn.dataset.remove), 1);
+      const index = Number(btn.dataset.remove);
+      steps.splice(index, 1);
       commit();
       renderInspector();
+      focusStep(Math.min(index, steps.length - 1), 'down');
+    });
+  });
+  document.querySelectorAll('#inspector [data-move]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const from = Number(btn.closest('.multi-row')?.dataset.step);
+      const direction = btn.dataset.move === 'up' ? -1 : 1;
+      const to = from + direction;
+      if (from < 0 || to < 0 || to >= steps.length) return;
+      const [step] = steps.splice(from, 1);
+      steps.splice(to, 0, step);
+      commit();
+      renderInspector();
+      focusStep(to, btn.dataset.move);
+    });
+  });
+
+  let dragFrom = null;
+  document.querySelectorAll('#inspector [data-grip]').forEach((grip) => {
+    grip.addEventListener('dragstart', (event) => {
+      dragFrom = Number(grip.dataset.grip);
+      event.dataTransfer.setData('application/x-ulanzi-step', String(dragFrom));
+      event.dataTransfer.effectAllowed = 'move';
+      grip.closest('.multi-row')?.classList.add('dragging');
+    });
+    grip.addEventListener('dragend', () => {
+      dragFrom = null;
+      document
+        .querySelectorAll('#inspector .multi-row.dragging, #inspector .multi-row.drop-target')
+        .forEach((row) => row.classList.remove('dragging', 'drop-target'));
+    });
+  });
+  document.querySelectorAll('#inspector .multi-row').forEach((row) => {
+    row.addEventListener('dragover', (event) => {
+      const carriesStep = Array.from(event.dataTransfer.types).includes('application/x-ulanzi-step');
+      if (dragFrom === null && !carriesStep) return;
+      event.preventDefault();
+      event.dataTransfer.dropEffect = 'move';
+      row.classList.add('drop-target');
+    });
+    row.addEventListener('dragleave', (event) => {
+      if (event.relatedTarget && row.contains(event.relatedTarget)) return;
+      row.classList.remove('drop-target');
+    });
+    row.addEventListener('drop', (event) => {
+      event.preventDefault();
+      const from = dragFrom ?? Number(event.dataTransfer.getData('application/x-ulanzi-step'));
+      const to = Number(row.dataset.step);
+      row.classList.remove('drop-target');
+      dragFrom = null;
+      if (!Number.isInteger(from) || from === to || from < 0 || from >= steps.length) return;
+      const [step] = steps.splice(from, 1);
+      steps.splice(to, 0, step);
+      commit();
+      renderInspector();
+      focusStep(to, 'down');
     });
   });
 }
