@@ -94,6 +94,76 @@ test('caption fonts and lock-screen settings survive save/load', () => {
   assert.match(loaded.settings.lockImage, /^data:image\/png/);
 });
 
+test('text and caption styles are bounded and survive save/load', () => {
+  const dir = tempDir();
+  const store = new Store(dir);
+  const config = createDefaultConfig();
+  config.pages[0].keys[0] = {
+    emoji: 'Hi',
+    label: 'Cap',
+    color: '#1b2130',
+    icon: null,
+    action: { type: 'none' },
+    font: {
+      size: 26,
+      weight: 800,
+      align: 'right',
+      color: '#7fd1ff',
+      showLabel: true,
+      family: 'georgia',
+      effect: 'outline',
+      background: 'solid',
+    },
+    textStyle: { family: 'menlo', weight: 800, align: 'right', color: '#ff0000', effect: 'outline' },
+  };
+  store.save(config);
+
+  const key = store.load().pages[0].keys[0];
+  assert.deepEqual(key.font, {
+    size: 26,
+    weight: 800,
+    align: 'right',
+    color: '#7fd1ff',
+    showLabel: true,
+    family: 'georgia',
+    effect: 'outline',
+    background: 'solid',
+  });
+  assert.deepEqual(key.textStyle, {
+    family: 'menlo',
+    weight: 800,
+    align: 'right',
+    color: '#ff0000',
+    effect: 'outline',
+  });
+});
+
+test('invalid text styles fall back to safe values', () => {
+  const config = createDefaultConfig();
+  config.pages[0].keys[0] = {
+    emoji: 'Hi',
+    label: 'Cap',
+    color: '#1b2130',
+    icon: null,
+    action: { type: 'none' },
+    font: { family: 'comic', effect: 'glow', background: 'stars' },
+    textStyle: { family: 'comic', weight: 5000, align: 'justify', color: 'red', effect: 'glow' },
+  };
+
+  const key = validateConfig(config).pages[0].keys[0];
+
+  assert.equal(key.font.family, 'system');
+  assert.equal(key.font.effect, 'none');
+  assert.equal(key.font.background, 'gradient');
+  assert.deepEqual(key.textStyle, {
+    family: 'system',
+    weight: 900,
+    align: 'center',
+    color: '#ffffff',
+    effect: 'shadow',
+  });
+});
+
 test('a plugin caption is explicit and survives save/load', () => {
   const dir = tempDir();
   const store = new Store(dir);

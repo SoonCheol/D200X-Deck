@@ -11,6 +11,14 @@ function key(emoji, label, action = { type: 'none' }, color = '#1b2130') {
 }
 
 const { ACTION_TYPES, MEDIA_OPS } = require('./actions-meta');
+const {
+  normalizeFamily,
+  normalizeWeight,
+  normalizeAlign,
+  normalizeColor,
+  normalizeEffect,
+  normalizeBackground: normalizeStyleBackground,
+} = require('./text-style');
 const ACTION_TYPE_SET = new Set(ACTION_TYPES);
 const MEDIA_OP_SET = new Set(MEDIA_OPS);
 
@@ -131,12 +139,25 @@ function normalizeKey(raw) {
     key.font = {
       size: clamp(Math.round(Number(raw.font.size) || 17), 10, 40),
       weight: clamp(Math.round(Number(raw.font.weight) || 600), 100, 900),
-      align: ['left', 'center', 'right'].includes(raw.font.align) ? raw.font.align : 'left',
-      color: /^#[0-9a-f]{6}$/i.test(raw.font.color || '') ? raw.font.color : '#ffffff',
+      align: normalizeAlign(raw.font.align, 'left'),
+      color: normalizeColor(raw.font.color, '#ffffff'),
       showLabel: raw.font.showLabel !== false,
       // A plugin live image already carries its own text; only an explicit
       // choice may draw the app caption over it.
       ...(raw.font.captionExplicit === true ? { captionExplicit: true } : {}),
+    };
+    // New style fields are optional so existing configs keep their exact shape.
+    if ('family' in raw.font) key.font.family = normalizeFamily(raw.font.family);
+    if ('effect' in raw.font) key.font.effect = normalizeEffect(raw.font.effect, 'none');
+    if ('background' in raw.font) key.font.background = normalizeStyleBackground(raw.font.background, 'gradient');
+  }
+  if (raw.textStyle && typeof raw.textStyle === 'object' && !Array.isArray(raw.textStyle)) {
+    key.textStyle = {
+      family: normalizeFamily(raw.textStyle.family),
+      weight: normalizeWeight(raw.textStyle.weight, 700),
+      align: normalizeAlign(raw.textStyle.align, 'center'),
+      color: normalizeColor(raw.textStyle.color, '#ffffff'),
+      effect: normalizeEffect(raw.textStyle.effect, 'shadow'),
     };
   }
   if (raw.holdAction) key.holdAction = normalizeAction(raw.holdAction);

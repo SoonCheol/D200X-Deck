@@ -74,6 +74,7 @@ const browserGlobals = {
   crypto: 'readonly',
   confirm: 'readonly',
   DeckVersion: 'readonly',
+  DeckTextStyle: 'readonly',
 };
 
 module.exports = [
