@@ -420,7 +420,9 @@ function remapImportedAction(action, idMap) {
   if (Array.isArray(out.steps)) {
     out.steps = out.steps.map((step) => {
       if (!step || typeof step !== 'object') return step;
-      if (step.action) return { ...step, action: remapImportedAction(step.action, idMap) };
+      if (step.action && typeof step.action === 'object') {
+        return { ...step, action: remapImportedAction(step.action, idMap) };
+      }
       return remapImportedAction(step, idMap);
     });
   }
@@ -505,9 +507,10 @@ function eachImportedAction(data, fn) {
       for (const step of action.steps) {
         if (!step || typeof step !== 'object') continue;
         // Steps are normally {action}, but the canonical normaliser also accepts
-        // a bare action object; both must be scanned for commands.
-        if (step.action) walkAction(step.action);
-        else if (step.type) walkAction(step);
+        // a bare action object; both must be scanned for commands. A bare plugin
+        // step's `action` is its UUID, so only an object is a nested action.
+        const nested = step.action && typeof step.action === 'object' ? step.action : step;
+        walkAction(nested);
       }
     }
   };
