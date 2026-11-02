@@ -63,10 +63,9 @@ test('multi steps cover the editor set without recursive actions', () => {
   }
 });
 
-test('media keys have one label and emoji each', () => {
+test('media keys have one label each', () => {
   assert.equal(new Set(meta.MEDIA_OPS).size, meta.MEDIA_OPS.length);
   for (const op of meta.MEDIA_OPS) {
     assert.ok(meta.MEDIA_LABELS[op], `missing label for ${op}`);
-    assert.ok(meta.MEDIA_EMOJI[op], `missing emoji for ${op}`);
   }
 });

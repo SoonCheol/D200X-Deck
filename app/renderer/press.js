@@ -162,18 +162,18 @@ function popItem(action) {
     };
   }
   const meta = typeof actionMeta === 'function' ? actionMeta(action) : {};
-  const fallback = {
-    app: ['📱', 'Open app'],
-    url: ['🌐', 'Open URL'],
-    hotkey: ['⌨️', 'Hotkey'],
-    command: ['💻', 'Command'],
-    media: ['🎵', 'Media'],
-    page: ['📄', 'Page'],
-    close: ['✖️', 'Close app'],
-    sound: ['🔊', 'Audio'],
-    plugin: ['🔌', 'Plugin'],
-  }[action.type] || ['⚡', action.type];
-  return { emoji: meta.emoji || fallback[0], label: meta.label || fallback[1], icon };
+  const fallbackLabel = {
+    app: 'Open app',
+    url: 'Open URL',
+    hotkey: 'Hotkey',
+    command: 'Command',
+    media: 'Media',
+    page: 'Page',
+    close: 'Close app',
+    sound: 'Audio',
+    plugin: 'Plugin',
+  }[action.type] || action.type;
+  return { emoji: '', label: meta.label || fallbackLabel, icon };
 }
 
 /** A step is normally {action}, but imports may keep a bare action. */

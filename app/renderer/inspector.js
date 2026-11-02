@@ -98,33 +98,34 @@ function actionMeta(action) {
   if (!action) return {};
   switch (action.type) {
     case 'media':
-      return { emoji: MEDIA_EMOJI[action.op], label: MEDIA_LABELS[action.op] };
+      return { label: MEDIA_LABELS[action.op] };
     case 'text': {
       const text = String(action.value || '').trim();
-      return text ? { emoji: text } : { emoji: '⌨️', label: 'Type text' };
+      return text ? { emoji: text } : { label: 'Type text' };
     }
     case 'hotkey':
-      return { emoji: '⌨️', label: action.value || 'Hotkey' };
+      return { label: action.value || 'Hotkey' };
     case 'close':
-      return { emoji: '✖️', label: action.value ? `Quit ${basename(action.value)}` : 'Close app' };
+      return { label: action.value ? `Quit ${basename(action.value)}` : 'Close app' };
     case 'command':
-      return { emoji: '💻', label: 'Command' };
+      return { label: 'Command' };
     case 'app':
       return { label: basename(action.value) };
     case 'url':
       return { label: action.value ? action.value.replace(/^https?:\/\//i, '').replace(/\/$/, '') : 'URL' };
     case 'page':
-      if (action.op === 'next') return { emoji: '➡️', label: 'Next page' };
-      if (action.op === 'prev') return { emoji: '⬅️', label: 'Previous page' };
-      return { emoji: '📄', label: action.value ? pageName(action.value) : 'Page' };
+      if (action.op === 'next') return { label: 'Next page' };
+      if (action.op === 'prev') return { label: 'Previous page' };
+      if (action.op === 'back') return { label: 'Back' };
+      return { label: action.value ? pageName(action.value) : 'Page' };
     case 'timer':
-      return { emoji: '⏱️', label: 'Timer' };
+      return { label: 'Timer' };
     case 'brightness':
-      return { emoji: action.op === 'down' ? '🔅' : '🔆', label: action.op === 'down' ? 'Dimmer' : 'Brighter' };
+      return { label: action.op === 'down' ? 'Dimmer' : 'Brighter' };
     case 'pop':
-      return { emoji: '💬', label: 'POP menu' };
+      return { label: 'POP menu' };
     case 'sound':
-      return { emoji: '🔊', label: action.op === 'stop' ? 'Stop audio' : 'Play audio' };
+      return { label: action.op === 'stop' ? 'Stop audio' : 'Play audio' };
     default:
       return {};
   }
@@ -136,13 +137,15 @@ function actionMeta(action) {
  */
 function syncActionMeta(key) {
   const meta = actionMeta(key.action);
-  const emojiIsAuto = !key.emoji || key.emoji === key.emojiAuto || key.emoji === '⌨️';
+  const legacy = LEGACY_DEFAULT_EMOJI[key.action.type];
+  const emojiIsAuto =
+    !key.emoji || key.emoji === key.emojiAuto || Boolean(legacy?.has(key.emoji));
   const labelIsAuto = !key.label || key.label === key.labelAuto;
   if (key.action.type === 'text') {
     const text = String(key.action.value || '').trim();
     if (emojiIsAuto) {
-      key.emoji = text || '⌨️';
-      key.emojiAuto = text || '⌨️';
+      key.emoji = text || '';
+      key.emojiAuto = text || '';
     }
     if (labelIsAuto) {
       key.label = text ? '' : 'Type text';
@@ -151,9 +154,11 @@ function syncActionMeta(key) {
     }
     return;
   }
-  if (meta.emoji && emojiIsAuto) {
-    key.emoji = meta.emoji;
-    key.emojiAuto = meta.emoji;
+  if (emojiIsAuto) {
+    const nextEmoji = meta.emoji || '';
+    if (key.emoji !== nextEmoji) key.emoji = nextEmoji;
+    if (nextEmoji) key.emojiAuto = nextEmoji;
+    else delete key.emojiAuto;
   }
   if (meta.label && labelIsAuto) {
     key.label = meta.label;

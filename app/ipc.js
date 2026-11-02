@@ -906,7 +906,9 @@ handle(CH.popShow, async (event, items) => {
   const fromThisApp = previous?.bundleId === 'com.edufalcao.ulanzideckopen';
   const width = 430;
   const rows = Math.ceil(clean.length / 3);
-  const height = Math.min(520, Math.max(170, 62 + rows * 84));
+  // Header + three 84px item rows with 8px gaps, plus room for the panel
+  // padding so nine actions never need a scrollbar.
+  const height = Math.min(520, Math.max(170, 62 + rows * 92));
   return new Promise((resolve) => {
     const popup = new BrowserWindow({
       width,

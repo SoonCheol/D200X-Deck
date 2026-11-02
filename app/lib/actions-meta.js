@@ -80,17 +80,16 @@
   ];
 
   const MEDIA = [
-    { op: 'playpause', label: 'Play / pause', emoji: '⏯️' },
-    { op: 'next', label: 'Next track', emoji: '⏭️' },
-    { op: 'prev', label: 'Previous track', emoji: '⏮️' },
-    { op: 'volumeup', label: 'Volume up', emoji: '🔊' },
-    { op: 'volumedown', label: 'Volume down', emoji: '🔉' },
-    { op: 'mute', label: 'Mute', emoji: '🔇' },
+    { op: 'playpause', label: 'Play / pause' },
+    { op: 'next', label: 'Next track' },
+    { op: 'prev', label: 'Previous track' },
+    { op: 'volumeup', label: 'Volume up' },
+    { op: 'volumedown', label: 'Volume down' },
+    { op: 'mute', label: 'Mute' },
   ];
 
   const MEDIA_OPS = MEDIA.map((entry) => entry.op);
   const MEDIA_LABELS = Object.fromEntries(MEDIA.map((entry) => [entry.op, entry.label]));
-  const MEDIA_EMOJI = Object.fromEntries(MEDIA.map((entry) => [entry.op, entry.emoji]));
 
   return {
     ACTION_TYPES,
@@ -101,6 +100,5 @@
     MEDIA,
     MEDIA_OPS,
     MEDIA_LABELS,
-    MEDIA_EMOJI,
   };
 });

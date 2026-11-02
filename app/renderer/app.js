@@ -59,9 +59,25 @@ function actionIconSrc(action) {
 }
 
 // Emoji the app used to assign automatically before action icons existed.
-// ↩️ was the old Back-key default; treat it as auto so existing keys pick up
-// the SVG without a manual reset.
-const LEGACY_AUTO_EMOJI = new Set(['🎵', '↩️']);
+// These are migrated away from keys and treated as auto so an existing key
+// picks up its SVG instead of showing a stale emoji.
+const LEGACY_DEFAULT_EMOJI = {
+  app: new Set(['📱']),
+  url: new Set(['🌐']),
+  media: new Set(['⏯️', '⏭️', '⏮️', '🔊', '🔉', '🔇', '🎵']),
+  hotkey: new Set(['⌨️']),
+  close: new Set(['✖️']),
+  command: new Set(['💻']),
+  page: new Set(['➡️', '⬅️', '📄', '↩️']),
+  timer: new Set(['⏱️']),
+  brightness: new Set(['🔅', '🔆']),
+  pop: new Set(['💬']),
+  sound: new Set(['🔊']),
+  plugin: new Set(['🔌']),
+};
+const LEGACY_AUTO_EMOJI = new Set([
+  ...Object.values(LEGACY_DEFAULT_EMOJI).flatMap((set) => [...set]),
+]);
 
 /** True when the key's emoji is one the app picked (not something the user typed). */
 function isAutoEmoji(key) {
@@ -85,8 +101,11 @@ function autoIconFor(key) {
   // Removing a custom icon falls back to the action's own icon; `iconCleared`
   // only stops app icons from being re-hydrated automatically.
   if (key.icon || key.face === 'text') return null;
-  // A Type text key shows the text itself, not the keyboard glyph.
-  if (key.action?.type === 'text') return null;
+  // A Type text key shows the typed text itself. An empty one falls back to
+  // its bundled text icon.
+  if (key.action?.type === 'text') {
+    return key.emoji ? null : actionIconSrc(key.action);
+  }
   return isAutoEmoji(key) ? actionIconSrc(key.action) : null;
 }
 
@@ -105,6 +124,16 @@ function normalizeActionMeta() {
       if (!key || !key.action) continue;
       if (key.action.type === 'plugin' && key.emoji === '🔌' && !key.emojiAuto) {
         key.emoji = '';
+        changed = true;
+      }
+      const legacyEmoji = LEGACY_DEFAULT_EMOJI[key.action.type];
+      if (
+        legacyEmoji &&
+        legacyEmoji.has(key.emoji) &&
+        (!key.emojiAuto || key.emoji === key.emojiAuto)
+      ) {
+        key.emoji = '';
+        delete key.emojiAuto;
         changed = true;
       }
       if (key.action.type === 'text') {
@@ -158,8 +187,6 @@ const renderSystemPanel = window.KeyRenderer.drawSystemPanel;
 
 // 13 square keys + one 2x1 key: 14 physical buttons.
 const { COLUMNS: COLS, ROWS, KEY_COUNT, WIDE_INDEX: WIDE_KEY_INDEX } = window.DeckGeometry;
-
-const MEDIA_EMOJI = window.DeckActions.MEDIA_EMOJI;
 
 const ACTION_LABELS = window.DeckActions.ACTION_LABELS;
 
