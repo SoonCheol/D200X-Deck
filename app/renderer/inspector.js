@@ -323,6 +323,13 @@ function multiStepControls(act, index) {
     close: 'Safari',
   };
   const placeholder = placeholders[act.type] || 'Value';
+  if (act.type === 'app' || act.type === 'close') {
+    return `<div class="multi-inline">
+      <input class="input multi-value" data-field="value" value="${esc(act.value || '')}"
+        placeholder="${esc(placeholder)}" aria-label="${esc(placeholder)}" />
+      <button class="btn small" data-pick-app="${index}">Choose…</button>
+    </div>`;
+  }
   if (act.type === 'command') {
     return `<textarea class="textarea multi-textarea" data-field="value" rows="2"
       placeholder="${esc(placeholder)}" aria-label="Command">${esc(act.value || '')}</textarea>`;
@@ -558,6 +565,26 @@ function bindMultiEditor(key) {
       commit();
       renderInspector();
       focusStep(index, 'down');
+    });
+  });
+  document.querySelectorAll('#inspector [data-pick-app]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const index = Number(btn.closest('.multi-row')?.dataset.step);
+      const act = steps[index]?.action;
+      if (!act) return;
+      openAppPicker('trigger', (app) => {
+        const current = steps[index]?.action || act;
+        steps[index] = {
+          action: {
+            ...current,
+            type: current.type === 'close' ? 'close' : 'app',
+            value: app.path,
+          },
+        };
+        commit();
+        renderInspector();
+        focusStep(index, 'down');
+      });
     });
   });
   document.querySelectorAll('#inspector [data-delay]').forEach((input) => {
