@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.10.2 — 2026-11-02
+
+### Fixed
+- **The auto-push tooltip on Push now works.** The button keeps its native title and keyboard focus by using `aria-disabled` instead of the `disabled` attribute. It still looks disabled, and clicking it explains why nothing was pushed.
+
+### Tests
+- 102 (unchanged).
+
 ## 0.10.1 — 2026-11-02
 
 ### Changed

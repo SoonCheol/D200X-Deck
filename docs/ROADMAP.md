@@ -54,7 +54,13 @@ file; H9 is the last open High.
 - **Back to parent page** is offered only on subpages; page targets mark them
   with ↳.
 
-### Next: 0.10.2 — architecture batch
+### Shipped in 0.10.2 — Push tooltip fix
+
+- **The auto-push tooltip now appears.** Push uses `aria-disabled` instead of
+  the native `disabled` attribute, so it stays hoverable and focusable; clicking
+  it explains why nothing was pushed. It is still visually disabled.
+
+### Next: 0.10.3 — architecture batch
 
 - M3 per-generation child/socket ownership; M18 bounded extraction off main.
 - M24 fake-Electron IPC harness; L3/L4 round trips; L6 release-cache expiry.

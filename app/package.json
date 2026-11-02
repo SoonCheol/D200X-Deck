@@ -1,7 +1,7 @@
 {
   "name": "ulanzi-deck-open",
   "productName": "Ulanzi Deck Open",
-  "version": "0.10.1",
+  "version": "0.10.2",
   "description": "Open-source control for Ulanzi D200 decks",
   "main": "main.js",
   "type": "commonjs",
