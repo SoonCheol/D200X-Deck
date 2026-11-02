@@ -25,11 +25,30 @@ const dialog = {
   showSaveDialog: async () => ({ canceled: true }),
 };
 
+let exposedWorld = {};
+const rendererCalls = [];
+const ipcRenderer = {
+  invoke(channel, ...args) {
+    rendererCalls.push({ kind: 'invoke', channel, args });
+    return Promise.resolve(null);
+  },
+  on(channel, listener) {
+    rendererCalls.push({ kind: 'on', channel, listener });
+  },
+  removeListener() {},
+};
+
 const electron = {
   app: { getVersion: () => '9.9.9', getPath: () => os.tmpdir() },
   BrowserWindow: class {},
+  contextBridge: {
+    exposeInMainWorld(name, api) {
+      exposedWorld[name] = api;
+    },
+  },
   dialog,
   ipcMain,
+  ipcRenderer,
   screen: {
     getCursorScreenPoint: () => ({ x: 0, y: 0 }),
     getDisplayNearestPoint: () => ({ workArea: { x: 0, y: 0, width: 1000, height: 1000 } }),
@@ -111,7 +130,89 @@ function harness(ctx) {
   return { handlers, listeners };
 }
 
-test('registerIpc wires every preload channel and refuses untrusted senders', async () => {
+function loadPreloadApi() {
+  exposedWorld = {};
+  rendererCalls.length = 0;
+  const original = Module._load;
+  Module._load = function load(request, parent, isMain) {
+    if (request === 'electron') return electron;
+    return original.call(this, request, parent, isMain);
+  };
+  try {
+    delete require.cache[require.resolve('../preload')];
+    require('../preload');
+  } finally {
+    Module._load = original;
+  }
+  return { api: exposedWorld.deckApp || {}, calls: rendererCalls };
+}
+
+test('preload only invokes declared channels that have handlers', () => {
+  const { api, calls } = loadPreloadApi();
+  const { handlers } = harness(makeCtx());
+  const known = new Set(Object.values(CH));
+
+  assert.ok(Object.keys(api).length > 50, 'expected the full preload API');
+  for (const fn of Object.values(api)) {
+    if (typeof fn === 'function') fn();
+  }
+
+  const invoked = calls.filter((call) => call.kind === 'invoke').map((call) => call.channel);
+  const subscribed = calls.filter((call) => call.kind === 'on').map((call) => call.channel);
+  assert.ok(invoked.length > 50, 'expected the preload bridge to invoke channels');
+  assert.ok(subscribed.length > 10, 'expected the preload bridge to subscribe to channels');
+
+  for (const channel of invoked) {
+    assert.ok(known.has(channel), `preload invokes an undeclared channel: ${channel}`);
+    assert.ok(handlers.has(channel), `no handler for preload channel: ${channel}`);
+  }
+  for (const channel of subscribed) {
+    assert.ok(known.has(channel), `preload subscribes to an undeclared channel: ${channel}`);
+  }
+});
+
+test('every IPC handler rejects an untrusted sender', async () => {
+  const { handlers } = harness(makeCtx());
+  assert.ok(handlers.size >= 60, `expected all handlers, got ${handlers.size}`);
+
+  const renderer = pathToFileURL(path.join(__dirname, '..', 'renderer', 'index.html')).href;
+  const events = [
+    { senderFrame: { url: 'https://evil.example/' } },
+    { senderFrame: { url: 'file:///etc/passwd' } },
+    { senderFrame: { url: pathToFileURL(path.join(__dirname, '..', 'renderer', 'other.html')).href } },
+    { senderFrame: { url: `${renderer}?query=1` } },
+    { senderFrame: { url: `${renderer}#hash` } },
+    { senderFrame: { url: renderer.replace('/renderer/index.html', '/renderer/../index.html') } },
+    { senderFrame: {} },
+    {},
+  ];
+
+  for (const [channel, handler] of handlers) {
+    for (const event of events) {
+      const result = await handler(event, {});
+      assert.deepEqual(
+        result,
+        { ok: false, error: 'untrusted sender' },
+        `${channel} accepted ${JSON.stringify(event)}`
+      );
+    }
+  }
+});
+
+test('the exact renderer page is a trusted sender', async () => {
+  const ctx = makeCtx({
+    deck: { status: () => ({ ok: true }), connected: false },
+  });
+  const { handlers } = harness(ctx);
+
+  const result = await handlers.get(CH.appState)(trustedEvent());
+
+  assert.equal(result.version, '9.9.9');
+  assert.equal(result.platform, process.platform);
+  assert.deepEqual(result.status, { ok: true });
+});
+
+test('an untrusted sender never reaches the store', async () => {
   let saved = false;
   const ctx = makeCtx({
     store: {
@@ -124,10 +225,6 @@ test('registerIpc wires every preload channel and refuses untrusted senders', as
   });
   const { handlers } = harness(ctx);
 
-  const preload = fs.readFileSync(path.join(__dirname, '..', 'preload.js'), 'utf8');
-  const invoked = [...preload.matchAll(/invoke\('([^']+)'/g)].map((match) => match[1]);
-  for (const channel of invoked) assert.ok(handlers.has(channel), `no handler for: ${channel}`);
-
   const rejected = await handlers.get(CH.configSave)(
     { senderFrame: { url: 'https://evil.example/' } },
     { settings: {} }
@@ -138,6 +235,13 @@ test('registerIpc wires every preload channel and refuses untrusted senders', as
   const accepted = await handlers.get(CH.configSave)(trustedEvent(), { settings: {} });
   assert.deepEqual(accepted, { ok: true });
   assert.equal(saved, true, 'a trusted sender reaches the store');
+});
+
+test('every channel the main process sends is declared', () => {
+  const source = fs.readFileSync(path.join(__dirname, '..', 'ipc.js'), 'utf8');
+  const names = [...source.matchAll(/send\(CH\.(\w+)/g)].map((match) => match[1]);
+  assert.ok(names.length > 0, 'expected send(CH.*) calls');
+  for (const name of names) assert.equal(typeof CH[name], 'string', `unknown send channel: ${name}`);
 });
 
 test('dialog handlers resolve getWin lazily after registration', async () => {

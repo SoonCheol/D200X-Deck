@@ -25,8 +25,11 @@ const RENDERER_DIR = path.join(__dirname, 'renderer');
 /** IPC handlers only accept calls from our own renderer page. */
 function trustedSender(event) {
   try {
-    const parsed = new URL(String(event.senderFrame?.url || ''));
-    return parsed.protocol === 'file:' && path.resolve(fileURLToPath(parsed)) === path.join(RENDERER_DIR, 'index.html');
+    const url = String(event.senderFrame?.url || '');
+    if (!url) return false;
+    const parsed = new URL(url);
+    if (parsed.protocol !== 'file:' || parsed.host || parsed.search || parsed.hash) return false;
+    return path.resolve(fileURLToPath(parsed)) === path.join(RENDERER_DIR, 'index.html');
   } catch {
     return false;
   }
