@@ -109,18 +109,19 @@ function renderPushButton() {
   pushBtn.disabled = false;
   pushBtn.setAttribute('aria-disabled', String(blocked));
   pushBtn.textContent = connected ? 'Push to Deck' : busy ? 'Deck in use' : 'Connect deck';
+  let tipText = 'Send this page to the Deck';
   if (!connected) {
-    pushBtn.title = busy ? 'Quit Ulanzi Studio to connect' : 'Connect the D200 first';
+    tipText = busy ? 'Quit Ulanzi Studio to connect' : 'Connect the D200 first';
   } else if (state.pushing) {
-    pushBtn.title = 'Pushing this page to the Deck…';
+    tipText = 'Pushing this page to the Deck…';
   } else if (autoOnly) {
-    pushBtn.title =
+    tipText =
       'Auto-push is on — changes go to the Deck automatically. Turn it off in Deck settings, or press ⌘S, to push manually.';
   } else if (retry) {
-    pushBtn.title = 'Some changes have not reached the Deck yet — push to retry.';
-  } else {
-    pushBtn.title = 'Send this page to the Deck';
+    tipText = 'Some changes have not reached the Deck yet — push to retry.';
   }
+  const tip = $('#push-tip');
+  if (tip) tip.textContent = tipText;
 }
 
 let pageDragId = null;
