@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.8.12 — 2026-11-02
+
+### Changed
+- **The wide-key inspector shows a live preview** of the clock, stats or wallpaper panel; “Background” is now “Page wallpaper”.
+- **Installed keeps its group headers visible while scrolling** and has room at the bottom of the list.
+- **The icon library’s empty state uses the full pane** instead of a blank pack column.
+- **Store cards show Installed / Update** without opening the detail view.
+- **Installing Rosetta asks for confirmation** before opening Terminal.
+- **Short windows (≤620 px)** hide the stage hint and let the stage scroll.
+
 ## 0.8.11 — 2026-11-02
 
 ### Security
