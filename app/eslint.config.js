@@ -46,6 +46,36 @@ const rules = {
   'no-unused-vars': ['warn', { args: 'none', caughtErrors: 'none', vars: 'local' }],
 };
 
+const browserGlobals = {
+  window: 'readonly',
+  document: 'readonly',
+  navigator: 'readonly',
+  localStorage: 'readonly',
+  CustomEvent: 'readonly',
+  Image: 'readonly',
+  FileReader: 'readonly',
+  Blob: 'readonly',
+  fetch: 'readonly',
+  URL: 'readonly',
+  URLSearchParams: 'readonly',
+  requestAnimationFrame: 'readonly',
+  cancelAnimationFrame: 'readonly',
+  setTimeout: 'readonly',
+  clearTimeout: 'readonly',
+  setInterval: 'readonly',
+  clearInterval: 'readonly',
+  console: 'readonly',
+  performance: 'readonly',
+  matchMedia: 'readonly',
+  getComputedStyle: 'readonly',
+  Event: 'readonly',
+  Element: 'readonly',
+  MutationObserver: 'readonly',
+  crypto: 'readonly',
+  confirm: 'readonly',
+  DeckVersion: 'readonly',
+};
+
 module.exports = [
   {
     ignores: ['dist/**', 'build/**', 'node_modules/**', 'bin/**', 'native/**', 'renderer/assets/**'],
@@ -58,7 +88,7 @@ module.exports = [
   {
     // The renderer files are plain <script> tags sharing one global scope.
     files: ['renderer/**/*.js'],
-    languageOptions: { ecmaVersion: 2022, sourceType: 'script' },
-    rules,
+    languageOptions: { ecmaVersion: 2022, sourceType: 'script', globals: browserGlobals },
+    rules: { ...rules, 'no-undef': 'error' },
   },
 ];

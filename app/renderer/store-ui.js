@@ -1,5 +1,7 @@
 'use strict';
 
+/* global $, activePage, api, commit, confirm, drawIndex, esc, loadSdStore, renderInspector, renderPluginModal, state, syncPlugins, toast, updatePluginCount */
+
 // -------------------------------------------------------------- icon library
 
 let iconLibraryPick = null;

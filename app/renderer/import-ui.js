@@ -1,5 +1,7 @@
 'use strict';
 
+/* global $, api, confirmAction, esc, renderAll, state, syncPlugins, toast */
+
 // "Import from Ulanzi Studio" modal: pick a live profile (or a file), choose
 // pages, and merge them into the current config.
 

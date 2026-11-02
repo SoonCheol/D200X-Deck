@@ -1,5 +1,7 @@
 'use strict';
 
+/* global $, ACTION_LABELS, activePage, addOpenKeyForPage, addPage, addSubpage, api, autoIconFor, backgroundFor, capturePageImage, COLS, commit, confirmAction, downscaleBackground, downscaleImage, drawIndex, drawSystemPanel, effectiveKey, ensureKey, esc, isPinnedSlot, KEY_COUNT, keyIndexToSlot, lastCleared, lastPageCleared, LEGACY_DEFAULT_EMOJI, loadSiteIcon, navigate, openAppPicker, openHotkeyModal, openIconLibrary, openStoreModal, pickImageData, pinnedFor, pluginImages, pluginStateImages, prettyHotkey, readFileAsDataUrl, refreshWideStats, renderAll, renderGrid, renderPageList, scheduleAutoExit, scheduleSave, setKeyIconFromLibrary, state, syncPlugins, toast, uniquePageName, uuid, WIDE_KEY_INDEX, wideOptions */
+
 // --------------------------------------------------------------- inspector
 
 const DEFAULT_KEY_COLOR = '#1b2130';

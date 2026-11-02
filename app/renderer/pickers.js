@@ -1,5 +1,7 @@
 'use strict';
 
+/* global $, activePage, api, commit, confirm, confirmAction, drawIndex, ensureKey, esc, openIconLibrary, renderInspector, setProfileApp, state, syncActionMeta, syncPlugins, toast */
+
 // --------------------------------------------------------------- app picker
 
 let appPickerKey = null;

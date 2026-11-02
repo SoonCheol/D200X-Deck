@@ -1,5 +1,7 @@
 'use strict';
 
+/* global $, commit, esc, renderInspector, toast */
+
 // --------------------------------------------------------------- hotkeys
 
 const HOTKEY_MODS = [

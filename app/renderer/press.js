@@ -1,5 +1,7 @@
 'use strict';
 
+/* global $, actionIconSrc, actionMeta, activePage, api, commit, drawIndex, exitStandby, isEmojiOnly, keyAt, lockActive, navigate, noteActivity, pinnedFor, pushNow, refreshWideStats, renderInspector, scheduleSave, standbyActive, state, switchProfile, toast, WIDE_KEY_INDEX */
+
 // -------------------------------------------------------------- key presses
 
 const pressState = new Map();

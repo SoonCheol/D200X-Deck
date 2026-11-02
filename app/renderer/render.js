@@ -1,5 +1,7 @@
 'use strict';
 
+/* global timerTextFor */
+
 const KEY_SIZE = 196;
 const WIDE_KEY_SIZE = { width: 402, height: 196 };
 const { WIDE_INDEX } = window.DeckGeometry;
