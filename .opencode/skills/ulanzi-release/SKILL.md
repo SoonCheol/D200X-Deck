@@ -184,11 +184,21 @@ pgrep -f "Ulanzi Deck Open.app/Contents/MacOS"
 
 `install-app` packages from the current source (arm64 on Apple Silicon,
 universal on Intel), stops the running app, copies to `~/Applications`,
-registers the bundle with LaunchServices/Spotlight and launches it.
+registers the bundle with LaunchServices/Spotlight and launches it with `open`.
 
 The installed version must equal `X.Y.Z` and the process must be running. The
 build is unsigned; first launch may be quarantined. Do not change the user's
 real config just to verify the release.
+
+If this is a headless/agent shell, `open`, `pgrep` and `sysmond` may be
+unavailable even though Finder/Dock are running. Do **not** fall back to running
+`Contents/MacOS/Ulanzi Deck Open` directly: the process starts, but it is not
+attached to the Aqua session, so no menu bar item appears. Ask the user to open
+the installed app from Finder or Spotlight, then verify with `ps`:
+
+```sh
+ps -axo pid,ppid,stat,etime,command | grep "Ulanzi Deck Open.app/Contents/MacOS/Ulanzi Deck Open$" | grep -v grep
+```
 
 ## 7. Report
 

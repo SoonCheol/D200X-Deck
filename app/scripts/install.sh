@@ -38,6 +38,11 @@ LSREGISTER=/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchSe
 mdimport "$DEST"
 
 echo "==> launching"
-nohup "$DEST/Contents/MacOS/$APP_NAME" >/tmp/ulanziapp.log 2>&1 &
+# Launch through LaunchServices so macOS attaches the app to the GUI session
+# and creates its menu bar item. Running the executable directly from a
+# terminal/agent session can leave the process alive with no menu bar icon.
+if ! open "$DEST"; then
+  echo "Could not launch automatically. Open it from Finder: $DEST"
+fi
 
 echo "done: $DEST"
