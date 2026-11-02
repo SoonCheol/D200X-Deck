@@ -252,33 +252,39 @@ async function drawKey(canvas, key, width = KEY_SIZE, height = KEY_SIZE, autoIco
   }
 
   if (main && !isIndicator && (!key.icon || !showIcon) && !drewAutoIcon) {
-    ctx.save();
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.shadowColor = 'rgba(0,0,0,0.35)';
-    ctx.shadowBlur = 8;
-    ctx.fillStyle = '#fff';
+    const textStyle = key.textStyle && typeof key.textStyle === 'object' ? key.textStyle : {};
+    const family = DeckTextStyle.fontStack(textStyle.family);
+    const weight = Math.max(100, Math.min(900, Math.round(Number(textStyle.weight) || 700)));
+    const align = ['left', 'center', 'right'].includes(textStyle.align) ? textStyle.align : 'center';
+    const color = textStyle.color || '#fff';
+    const effect = DeckTextStyle.normalizeEffect(textStyle.effect, 'shadow');
+    const emojiOnly = isEmojiOnly(main);
+    const maxWidth = w - 26;
+    let size = Math.round(min * (emojiOnly ? 0.5 : 0.6));
+    const fontFor = (s) =>
+      emojiOnly ? `${s}px "Apple Color Emoji", "Segoe UI Emoji", sans-serif` : `${weight} ${s}px ${family}`;
+    const x = align === 'center' ? w / 2 : align === 'right' ? w - 14 : 14;
     const y = hasLabel ? h * 0.44 : h / 2;
-    if (isEmojiOnly(main)) {
-      let size = Math.round(min * 0.5);
-      const fontFor = (s) => `${s}px "Apple Color Emoji", "Segoe UI Emoji", sans-serif`;
+
+    ctx.save();
+    ctx.textAlign = align;
+    ctx.textBaseline = 'middle';
+    ctx.font = fontFor(size);
+    while (size > 16 && ctx.measureText(main).width > maxWidth) {
+      size -= 2;
       ctx.font = fontFor(size);
-      while (size > 16 && ctx.measureText(main).width > w - 26) {
-        size -= 2;
-        ctx.font = fontFor(size);
-      }
-      ctx.fillText(main, w / 2, y);
-    } else {
-      const maxWidth = w - 26;
-      let size = Math.round(min * 0.6);
-      const fontFor = (s) => `700 ${s}px -apple-system, "SF Pro Text", "Helvetica Neue", sans-serif`;
-      ctx.font = fontFor(size);
-      while (size > 16 && ctx.measureText(main).width > maxWidth) {
-        size -= 2;
-        ctx.font = fontFor(size);
-      }
-      ctx.fillText(main, w / 2, y);
     }
+    if (effect === 'shadow') {
+      ctx.shadowColor = 'rgba(0,0,0,0.35)';
+      ctx.shadowBlur = 8;
+    } else if (effect === 'outline' && !emojiOnly) {
+      ctx.strokeStyle = DeckTextStyle.contrastOutline(color);
+      ctx.lineWidth = DeckTextStyle.outlineWidth(size);
+      ctx.lineJoin = 'round';
+      ctx.strokeText(main, x, y);
+    }
+    ctx.fillStyle = color;
+    ctx.fillText(main, x, y);
     ctx.restore();
   }
 

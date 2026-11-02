@@ -1376,11 +1376,31 @@ function renderInspector() {
           : ''
       }
     </div>`;
+  const textStyle = key.textStyle && typeof key.textStyle === 'object' ? key.textStyle : {};
+  const textWeight = DeckTextStyle.weightPreset(textStyle.weight ?? 700);
   const textField = `
     <div class="field">
       <label for="insp-emoji">Key text</label>
       <input class="input" id="insp-emoji" maxlength="12" value="${esc(key.emoji)}" placeholder="Text or emoji" />
       <div class="field-hint">Shrinks to fit · 12 characters max</div>
+      <div class="font-row three" style="margin-top:8px">
+        <select class="select" id="insp-text-family" title="Font">
+          ${DeckTextStyle.FAMILY_IDS.map((id) => `<option value="${id}" ${(textStyle.family || 'system') === id ? 'selected' : ''}>${DeckTextStyle.FAMILY_LABELS[id]}</option>`).join('')}
+        </select>
+        <select class="select" id="insp-text-weight" title="Weight">
+          ${['light', 'regular', 'bold'].map((preset) => `<option value="${preset}" ${textWeight === preset ? 'selected' : ''}>${preset[0].toUpperCase()}${preset.slice(1)}</option>`).join('')}
+        </select>
+        <select class="select" id="insp-text-align" title="Alignment">
+          ${['left', 'center', 'right'].map((a) => `<option value="${a}" ${(textStyle.align || 'center') === a ? 'selected' : ''}>${a[0].toUpperCase()}${a.slice(1)}</option>`).join('')}
+        </select>
+      </div>
+      <div class="font-row three" style="margin-top:6px">
+        <input class="color-input" id="insp-text-color" type="color" value="${esc(textStyle.color || '#ffffff')}" title="Key text colour" />
+        <select class="select" id="insp-text-effect" title="Text effect">
+          ${['shadow', 'outline', 'none'].map((effect) => `<option value="${effect}" ${(textStyle.effect || 'shadow') === effect ? 'selected' : ''}>${effect[0].toUpperCase()}${effect.slice(1)}</option>`).join('')}
+        </select>
+        <button class="link-btn" id="insp-text-reset" type="button">Reset style</button>
+      </div>
     </div>`;
 
   el.innerHTML = `
@@ -1606,6 +1626,30 @@ function renderInspector() {
     delete key.emojiAuto;
     drawIndex(state.selected);
     commit(false);
+  });
+  const updateTextStyle = (patch) => {
+    key.textStyle = {
+      family: 'system',
+      weight: 700,
+      align: 'center',
+      color: '#ffffff',
+      effect: 'shadow',
+      ...(key.textStyle || {}),
+      ...patch,
+    };
+    drawIndex(state.selected);
+    commit(false);
+  };
+  $('#insp-text-family')?.addEventListener('change', (e) => updateTextStyle({ family: e.target.value }));
+  $('#insp-text-weight')?.addEventListener('change', (e) =>
+    updateTextStyle({ weight: DeckTextStyle.weightValue(e.target.value) })
+  );
+  $('#insp-text-align')?.addEventListener('change', (e) => updateTextStyle({ align: e.target.value }));
+  $('#insp-text-color')?.addEventListener('input', (e) => updateTextStyle({ color: e.target.value }));
+  $('#insp-text-effect')?.addEventListener('change', (e) => updateTextStyle({ effect: e.target.value }));
+  $('#insp-text-reset')?.addEventListener('click', () => {
+    updateTextStyle({ family: 'system', weight: 700, align: 'center', color: '#ffffff', effect: 'shadow' });
+    renderInspector();
   });
   const colorReset = $('#insp-color-reset');
   colorReset?.addEventListener('click', () => {
