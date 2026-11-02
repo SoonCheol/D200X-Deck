@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.8.5 — 2026-11-02
+
+### Security
+- **Imported shorthand command steps are covered by consent.** Multi, toggle and POP steps written as bare actions (instead of `{action: …}`) are now included in the shell-command scan and `imported` marking, so they can no longer become executable commands after a reload without confirmation.
+
+### Fixed
+- **A malformed plugin manifest no longer aborts startup.** The host logs the bad manifest and keeps scanning; error listeners are attached before the first scan.
+- **Installing a plugin from its own folder no longer deletes it.** Installs are staged before the old copy is replaced, so a failed copy also preserves the previous working version.
+- **One malformed page no longer discards the configuration.** Pages are filtered before migration, and backup recovery restores file-backed icons and backgrounds as image data.
+- **A failed plugin port bind no longer launches plugins** against a dead port, and shutdown invalidates pending launches.
+- **Restarting a plugin waits for the previous process to exit** before starting the replacement; reloaded processes stay tracked for shutdown escalation.
+
+### Tests
+- 75 → **85**. The new audit suite covers import consent, malformed pages, backup images, self-install, port failure, shutdown, restart races and bad manifests.
+
 ## 0.8.4 — 2026-11-01
 
 ### Changed
