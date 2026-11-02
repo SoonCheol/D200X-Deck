@@ -37,6 +37,26 @@ test('an own-format profile keeps panel mode, auto-exit and its icon', async () 
   const profile = config.profiles[0];
   profile.icon = 'data:image/png;base64,YQ==';
   const parent = config.pages[0];
+  parent.keys = {
+    0: {
+      emoji: 'BC',
+      label: 'conductor',
+      color: '#1b2130',
+      icon: null,
+      action: { type: 'none' },
+      font: {
+        size: 17,
+        weight: 600,
+        align: 'center',
+        color: '#ffffff',
+        showLabel: true,
+        family: 'georgia',
+        effect: 'outline',
+        background: 'solid',
+      },
+      textStyle: { family: 'menlo', weight: 800, align: 'right', color: '#ffcc00', effect: 'outline' },
+    },
+  };
   const child = {
     id: randomUUID(),
     name: 'Child',
@@ -75,9 +95,12 @@ test('an own-format profile keeps panel mode, auto-exit and its icon', async () 
 
   const imported = config.profiles.at(-1);
   const importedChild = config.pages.find((page) => page.profileId === imported.id && page.name.startsWith('Child'));
+  const importedParent = config.pages.find((page) => page.profileId === imported.id && !page.parentId);
   assert.equal(imported.icon, profile.icon, 'the profile icon survives the round trip');
   assert.equal(importedChild.wideMode, 'stats', 'the wide-panel mode survives the round trip');
   assert.equal(importedChild.autoExitSeconds, 45, 'the folder auto-exit survives the round trip');
+  assert.deepEqual({ ...importedParent.keys[0].font }, parent.keys[0].font, 'the caption style survives the round trip');
+  assert.deepEqual({ ...importedParent.keys[0].textStyle }, parent.keys[0].textStyle, 'the key-text style survives the round trip');
 });
 
 for (const type of ['multi', 'toggle', 'pop']) {
