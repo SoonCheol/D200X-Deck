@@ -58,6 +58,9 @@ class StreamDeckCatalog {
     items.sort((a, b) => a.name.localeCompare(b.name));
     this.items = items;
     this.loadedAt = Date.now();
+    // A refreshed catalogue can point at different repositories/releases, so
+    // resolved release URLs and versions must not outlive the item list.
+    this.releases.clear();
     return items;
   }
 

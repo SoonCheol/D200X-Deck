@@ -52,3 +52,43 @@ test('skips plugins that are missing from the catalogue or have no version', asy
   ]);
   assert.deepEqual(updates, {});
 });
+
+function jsonResponse(body) {
+  const data = Buffer.from(JSON.stringify(body));
+  return {
+    ok: true,
+    status: 200,
+    statusText: 'OK',
+    headers: { get: (name) => (String(name).toLowerCase() === 'content-length' ? String(data.length) : null) },
+    arrayBuffer: async () => data,
+    body: null,
+  };
+}
+
+test('refreshing the catalogue expires resolved releases', async (t) => {
+  const originalFetch = global.fetch;
+  let releaseTag = 'v1.0.0';
+  global.fetch = async (url) => {
+    if (String(url).includes('catalogue.json')) {
+      return jsonResponse({
+        'com.test.plugin': { name: 'Test plugin', repository: 'https://github.com/test/plugin' },
+      });
+    }
+    return jsonResponse({
+      tag_name: releaseTag,
+      assets: [{ name: 'plugin.zip', browser_download_url: 'https://example.invalid/plugin.zip' }],
+    });
+  };
+  t.after(() => {
+    global.fetch = originalFetch;
+  });
+
+  const catalog = new StreamDeckCatalog();
+  const [entry] = await catalog.list(true);
+  assert.equal((await catalog.release(entry)).version, '1.0.0');
+
+  releaseTag = 'v2.0.0';
+  await catalog.list(true);
+
+  assert.equal((await catalog.release(entry)).version, '2.0.0');
+});
