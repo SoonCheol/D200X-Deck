@@ -11,7 +11,7 @@ Sources: [`reviews/2026-11-01-architecture-audit.md`](reviews/2026-11-01-archite
 and [`reviews/2026-11-01-uiux-audit.md`](reviews/2026-11-01-uiux-audit.md). Phases 1
 and 2 of the architecture audit and the first UI batch are shipped through 0.8.4.
 
-### Next: 0.9.0 — the five structural UI issues
+### Shipped in 0.9.0 — the five structural UI issues
 
 1. **H1 — Page settings at ≤1179 px.** Add a persistent Page-settings entry and let
    the drawer open with no key selected; add a scrim.
@@ -24,7 +24,7 @@ and 2 of the architecture audit and the first UI batch are shipped through 0.8.4
 5. **H11 — Missing-plugin keys.** Warn in the inspector and on the key, with
    Open Store / Clear action.
 
-### Then: UI mediums
+### Next: UI mediums
 
 - Page reorder; multi/toggle step types + reordering (M7, M8).
 - POP keyboard access and action icons (M14).

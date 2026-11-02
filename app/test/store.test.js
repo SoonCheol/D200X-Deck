@@ -66,6 +66,29 @@ test('caption fonts and lock-screen settings survive save/load', () => {
   assert.match(loaded.settings.lockImage, /^data:image\/png/);
 });
 
+test('a plugin caption is explicit and survives save/load', () => {
+  const dir = tempDir();
+  const store = new Store(dir);
+  const config = createDefaultConfig();
+  config.pages[0].keys[0] = {
+    emoji: '',
+    label: 'Claude',
+    color: '#1b2130',
+    icon: null,
+    action: { type: 'plugin', plugin: 'com.example.claude', action: 'run', actionid: 'a1', settings: {} },
+    font: { showLabel: true, captionExplicit: true },
+  };
+  config.pages[0].keys[1] = {
+    ...config.pages[0].keys[0],
+    font: { showLabel: true },
+  };
+  store.save(config);
+  const loaded = store.load();
+  assert.equal(loaded.pages[0].keys[0].font.captionExplicit, true);
+  assert.equal(loaded.pages[0].keys[1].font.showLabel, true);
+  assert.equal(loaded.pages[0].keys[1].font.captionExplicit, undefined);
+});
+
 test('a cleared icon keeps its face and suppresses automatic icons', () => {
   const dir = tempDir();
   const store = new Store(dir);

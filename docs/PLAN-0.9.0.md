@@ -1,6 +1,6 @@
 # 0.9.0 — structural UI plan
 
-Status: planned 2026-11-02, from **0.8.12**. Scope: the five remaining High
+Status: shipped 2026-11-02 in **0.9.0**. Scope: the five remaining High
 findings from the UI audit plus the two action-sequencing Mediums from the
 architecture audit. Everything here is independent of the deferred renderer
 rewrite and image IPC.
