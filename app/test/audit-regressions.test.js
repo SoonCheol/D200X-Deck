@@ -174,3 +174,14 @@ test('restart waits for the previous child to exit before replacing it', async (
   assert.equal(childrenBeforeExit, 1, 'a live old child must not overlap its replacement');
   assert.equal(children.length, 2, 'the replacement starts after the old child exits');
 });
+
+test('a bad manifest does not abort scanning before an error listener exists', (t) => {
+  const dir = fixture(t);
+  const pluginDir = path.join(dir, 'bad.ulanziPlugin');
+  fs.mkdirSync(pluginDir);
+  fs.writeFileSync(path.join(pluginDir, 'manifest.json'), '{not json');
+
+  const manager = new PluginManager({ dirs: [dir], appPluginsDir: dir });
+
+  assert.doesNotThrow(() => manager.scan(), 'one bad manifest must not abort startup');
+});

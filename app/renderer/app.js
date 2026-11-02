@@ -418,9 +418,11 @@ function remapImportedAction(action, idMap) {
     out.value = idMap.get(out.value);
   }
   if (Array.isArray(out.steps)) {
-    out.steps = out.steps.map((step) =>
-      step && step.action ? { ...step, action: remapImportedAction(step.action, idMap) } : step
-    );
+    out.steps = out.steps.map((step) => {
+      if (!step || typeof step !== 'object') return step;
+      if (step.action) return { ...step, action: remapImportedAction(step.action, idMap) };
+      return remapImportedAction(step, idMap);
+    });
   }
   return out;
 }
@@ -500,7 +502,13 @@ function eachImportedAction(data, fn) {
     if (!action || typeof action !== 'object') return;
     fn(action);
     if (Array.isArray(action.steps)) {
-      for (const step of action.steps) walkAction(step && step.action);
+      for (const step of action.steps) {
+        if (!step || typeof step !== 'object') continue;
+        // Steps are normally {action}, but the canonical normaliser also accepts
+        // a bare action object; both must be scanned for commands.
+        if (step.action) walkAction(step.action);
+        else if (step.type) walkAction(step);
+      }
     }
   };
   const walkKeys = (keys) => {

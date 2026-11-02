@@ -79,6 +79,8 @@ class PluginHost extends EventEmitter {
     this.selectDialog = null;
     this._portPromise = null;
     this._portReady = false;
+    this._portFailed = false;
+    this.retired = new Set();
     this.spawn = spawn;
     this._settingsFile = path.join(this.appPluginsDir, '.global-settings.json');
     this._loadGlobalSettings();
@@ -148,6 +150,12 @@ class PluginHost extends EventEmitter {
     }
   }
 
+  /** Report an error without assuming a listener is attached yet. */
+  _reportError(message) {
+    if (this.listenerCount('error') > 0) this.emit('error', message);
+    else console.error(`[${this.label}] ${message}`);
+  }
+
   _saveGlobalSettings() {
     try {
       fs.mkdirSync(this.appPluginsDir, { recursive: true });
@@ -155,7 +163,7 @@ class PluginHost extends EventEmitter {
         mode: 0o600,
       });
     } catch (err) {
-      this.emit('error', `Could not save plugin settings: ${err.message}`);
+      this._reportError(`Could not save plugin settings: ${err.message}`);
     }
   }
 
@@ -178,7 +186,7 @@ class PluginHost extends EventEmitter {
           // First source wins: app-installed plugins shadow the vendor copy.
           if (meta && !this.plugins.has(meta.uuid)) this.plugins.set(meta.uuid, meta);
         } catch (err) {
-          this.emit('error', `Failed to read ${path.join(dir, 'manifest.json')}: ${err.message}`);
+          this._reportError(`Failed to read ${path.join(dir, 'manifest.json')}: ${err.message}`);
         }
       }
     }
@@ -206,6 +214,7 @@ class PluginHost extends EventEmitter {
           this.wss = wss;
           this.port = port;
           this._portReady = true;
+          this._portFailed = false;
           console.log(`[${this.label}] listening on ${port}`);
           wss.on('connection', (ws) => this._onConnection(ws));
           resolve(port);
@@ -218,7 +227,8 @@ class PluginHost extends EventEmitter {
             tryPort(port + 1, left - 1);
             return;
           }
-          this.emit('error', `Plugin server: ${err.message}`);
+          this._portFailed = true;
+          this._reportError(`Plugin server: ${err.message}`);
           resolve(null);
         });
       };
@@ -251,12 +261,19 @@ class PluginHost extends EventEmitter {
   _ensurePlugin(pluginUuid) {
     const meta = this.plugins.get(pluginUuid);
     if (!meta || !meta.compatible) return null;
+    if (this.stopping || this._portFailed) return meta;
     // The server port is resolved asynchronously; wait for it so the plugin
     // is pointed at our own server, not at the vendor app's.
     if (!this.wss && this._portPromise && !this._portReady) {
       this._portPromise.then((port) => {
         this._portReady = true;
-        if (port) this._ensurePlugin(pluginUuid);
+        if (this.stopping) return;
+        if (!port) {
+          this._portFailed = true;
+          this._reportError('Plugin server did not start; plugins will not be launched.');
+          return;
+        }
+        this._ensurePlugin(pluginUuid);
       });
       return meta;
     }
@@ -273,7 +290,7 @@ class PluginHost extends EventEmitter {
     const executable = this.executableFor(meta);
     if (!executable || !fs.existsSync(executable)) {
       this.starting.delete(pluginUuid);
-      this.emit('error', `Plugin code not found: ${executable}`);
+      this._reportError(`Plugin code not found: ${executable}`);
       return null;
     }
     this._spawn(meta, executable, this.port);
@@ -286,7 +303,7 @@ class PluginHost extends EventEmitter {
     this._log(`spawn ${meta.uuid} ${command} ${args.slice(1).join(' ')}`);
     const proc = this.spawn(command, args, { cwd: meta.dir, env, stdio: ['ignore', 'pipe', 'pipe'] });
     proc.on('error', (err) => {
-      this.emit('error', `${meta.name} could not start: ${err.message}`);
+      this._reportError(`${meta.name} could not start: ${err.message}`);
       this.children.delete(meta.uuid);
     });
     this.children.set(meta.uuid, proc);
@@ -308,11 +325,11 @@ class PluginHost extends EventEmitter {
     state.last = now;
     this.crashes.set(meta.uuid, state);
     if (state.count > 5) {
-      this.emit('error', `${meta.name} keeps crashing — not restarting it.`);
+      this._reportError(`${meta.name} keeps crashing — not restarting it.`);
       return;
     }
     const delay = Math.min(30_000, 1000 * 2 ** (state.count - 1));
-    this.emit('error', `${meta.name} exited${code ? ` (${code})` : ''}; retrying in ${Math.round(delay / 1000)}s`);
+    this._reportError(`${meta.name} exited${code ? ` (${code})` : ''}; retrying in ${Math.round(delay / 1000)}s`);
     setTimeout(() => {
       if (!this.stopping && this._hasActionsFor(meta.uuid)) this._ensurePlugin(meta.uuid);
     }, delay);
@@ -342,9 +359,15 @@ class PluginHost extends EventEmitter {
       this.children.delete(pluginUuid);
       this.sockets.delete(pluginUuid);
       this.crashes.delete(pluginUuid);
-      setTimeout(() => {
+      // Do not overlap the replacement with a child that may still be alive.
+      let started = false;
+      const start = () => {
+        if (started) return;
+        started = true;
         if (!this.stopping) this._ensurePlugin(pluginUuid);
-      }, 200);
+      };
+      proc.once('exit', start);
+      setTimeout(start, 2000);
       return true;
     }
     this.sockets.delete(pluginUuid);
@@ -355,6 +378,10 @@ class PluginHost extends EventEmitter {
   reload() {
     this.stopping = true;
     for (const proc of this.children.values()) {
+      // Keep a handle until it exits, so shutdown can still SIGKILL a process
+      // that ignores SIGTERM after the reload.
+      this.retired.add(proc);
+      proc.once('exit', () => this.retired.delete(proc));
       try { proc.kill(); } catch { /* ignore */ }
     }
     for (const uuid of this.htmlRunning) {
@@ -410,7 +437,7 @@ class PluginHost extends EventEmitter {
     state.last = now;
     this.crashes.set(pluginUuid, state);
     if (state.count > 5) {
-      this.emit('error', `${meta?.name || pluginUuid} keeps closing — not restarting it.`);
+      this._reportError(`${meta?.name || pluginUuid} keeps closing — not restarting it.`);
       return;
     }
     setTimeout(() => {
@@ -463,8 +490,16 @@ class PluginHost extends EventEmitter {
       if (path.relative(this.appPluginsDir, dest).startsWith('..')) {
         throw new Error('Invalid plugin destination');
       }
-      if (fs.existsSync(dest)) fs.rmSync(dest, { recursive: true, force: true });
-      fs.cpSync(root, dest, { recursive: true, force: true });
+      // Stage the copy first: a failed install must not destroy the previous
+      // working copy, and selecting the installed folder itself must be safe.
+      const staging = `${dest}.installing-${process.pid}-${Date.now()}`;
+      try {
+        fs.cpSync(root, staging, { recursive: true, force: true });
+        if (fs.existsSync(dest)) fs.rmSync(dest, { recursive: true, force: true });
+        fs.renameSync(staging, dest);
+      } finally {
+        if (fs.existsSync(staging)) fs.rmSync(staging, { recursive: true, force: true });
+      }
       return { uuid: target.uuid, name: target.name, list: this.reloadOne(target.uuid) };
     } finally {
       if (temp) fs.rmSync(temp, { recursive: true, force: true });
@@ -544,8 +579,9 @@ class PluginHost extends EventEmitter {
       try { this.stopHtml?.(uuid); } catch { /* ignore */ }
     }
     this.htmlRunning.clear();
-    const procs = [...this.children.values()];
+    const procs = [...this.children.values(), ...this.retired];
     this.children.clear();
+    this.retired.clear();
     this.starting.clear();
     this.inspectors.clear();
     if (this.wss) {

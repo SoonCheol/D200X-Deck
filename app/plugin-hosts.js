@@ -22,6 +22,10 @@ function initPluginHosts({ baseDir, appVersion, send, getWin, getStore, getDeck 
   function initPlugins() {
     const dirs = [path.join(baseDir, 'Plugins'), ...pluginRootDirs()];
     plugins = new PluginManager({ dirs, appPluginsDir: dirs[0], port: 3906, appVersion });
+    plugins.on('error', (message) => {
+      console.error('[plugins]', message);
+      send(CH.pluginError, message);
+    });
     plugins.launchHtml = (meta) => {
       if (htmlPluginWindows.has(meta.uuid)) return;
       const frame = openHtmlPluginWindow({
@@ -89,10 +93,6 @@ function initPluginHosts({ baseDir, appVersion, send, getWin, getStore, getDeck 
     plugins.on('settings', (payload) => send(CH.pluginSettings, payload));
     plugins.on('toast', (payload) => send(CH.pluginToast, payload));
     plugins.on('alert', (payload) => send(CH.pluginAlert, payload));
-    plugins.on('error', (message) => {
-      console.error('[plugins]', message);
-      send(CH.pluginError, message);
-    });
     plugins.on('connected', (uuid) => console.log('[plugins] connected', uuid));
   }
 
@@ -102,6 +102,10 @@ function initPluginHosts({ baseDir, appVersion, send, getWin, getStore, getDeck 
       language: 'en',
       appVersion,
       logFile: path.join(baseDir, 'streamdeck.log'),
+    });
+    sdPlugins.on('error', (message) => {
+      console.error('[sd-plugins]', message);
+      send(CH.pluginError, message);
     });
     sdPlugins.launchHtml = (meta, info) => {
       if (sdHtmlWindows.has(meta.uuid)) return;
@@ -154,10 +158,6 @@ function initPluginHosts({ baseDir, appVersion, send, getWin, getStore, getDeck 
     sdPlugins.on('settings', (payload) => send(CH.pluginSettings, payload));
     sdPlugins.on('alert', (payload) => send(CH.pluginAlert, payload));
     sdPlugins.on('ok', (payload) => send(CH.pluginOk, payload));
-    sdPlugins.on('error', (message) => {
-      console.error('[sd-plugins]', message);
-      send(CH.pluginError, message);
-    });
     sdPlugins.on('connected', (uuid) => console.log('[sd-plugins] connected', uuid));
     sdPlugins.on('switch-profile', (payload) => send(CH.pluginSwitchProfile, payload));
     sdPlugins.on('brightness', (payload) => {

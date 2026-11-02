@@ -313,6 +313,7 @@ class Store {
   _imageSlots(config) {
     const slots = [];
     for (const page of config.pages || []) {
+      if (!page || typeof page !== 'object') continue;
       if (page.background) slots.push({ get: () => page.background, set: (v) => { page.background = v; } });
       for (const key of Object.values(page.keys || {})) {
         if (!key) continue;
@@ -323,6 +324,7 @@ class Store {
       }
     }
     for (const profile of config.profiles || []) {
+      if (!profile || typeof profile !== 'object') continue;
       if (profile.background) slots.push({ get: () => profile.background, set: (v) => { profile.background = v; } });
       for (const key of Object.values(profile.pinned || {})) {
         if (!key) continue;
@@ -400,7 +402,7 @@ class Store {
         /* nothing to preserve */
       }
       try {
-        this.config = this._migrate(read(`${this.file}.bak`));
+        this.config = this._migrate(this._internalize(read(`${this.file}.bak`)));
         this.recovery = 'backup';
         this.save();
         return this.config;
@@ -417,6 +419,9 @@ class Store {
     if (!config || !Array.isArray(config.pages) || config.pages.length === 0) {
       return createDefaultConfig();
     }
+    // One hand-edited null page must not discard the whole configuration.
+    config.pages = config.pages.filter((page) => page && typeof page === 'object');
+    if (!config.pages.length) return createDefaultConfig();
     config.settings = { ...DEFAULT_SETTINGS, ...(config.settings || {}) };
 
     for (const page of config.pages) {
