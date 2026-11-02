@@ -1383,6 +1383,7 @@ function renderInspector() {
       <label for="insp-emoji">Key text</label>
       <input class="input" id="insp-emoji" maxlength="12" value="${esc(key.emoji)}" placeholder="Text or emoji" />
       <div class="field-hint">Shrinks to fit · 12 characters max</div>
+      ${liveKey.liveImage ? '<div class="field-hint">This plugin draws the key image; key text is hidden while it is active.</div>' : ''}
       <div class="font-row three" style="margin-top:8px">
         <select class="select" id="insp-text-family" title="Font">
           ${DeckTextStyle.FAMILY_IDS.map((id) => `<option value="${id}" ${(textStyle.family || 'system') === id ? 'selected' : ''}>${DeckTextStyle.FAMILY_LABELS[id]}</option>`).join('')}
@@ -1390,15 +1391,12 @@ function renderInspector() {
         <select class="select" id="insp-text-weight" title="Weight">
           ${['light', 'regular', 'bold'].map((preset) => `<option value="${preset}" ${textWeight === preset ? 'selected' : ''}>${preset[0].toUpperCase()}${preset.slice(1)}</option>`).join('')}
         </select>
-        <select class="select" id="insp-text-align" title="Alignment">
-          ${['left', 'center', 'right'].map((a) => `<option value="${a}" ${(textStyle.align || 'center') === a ? 'selected' : ''}>${a[0].toUpperCase()}${a.slice(1)}</option>`).join('')}
-        </select>
-      </div>
-      <div class="font-row three" style="margin-top:6px">
-        <input class="color-input" id="insp-text-color" type="color" value="${esc(textStyle.color || '#ffffff')}" title="Key text colour" />
         <select class="select" id="insp-text-effect" title="Text effect">
           ${['shadow', 'outline', 'none'].map((effect) => `<option value="${effect}" ${(textStyle.effect || 'shadow') === effect ? 'selected' : ''}>${effect[0].toUpperCase()}${effect.slice(1)}</option>`).join('')}
         </select>
+      </div>
+      <div class="font-row two" style="margin-top:6px">
+        <input class="color-input" id="insp-text-color" type="color" value="${esc(textStyle.color || '#ffffff')}" title="Key text colour" />
         <button class="link-btn" id="insp-text-reset" type="button">Reset style</button>
       </div>
     </div>`;
@@ -1631,7 +1629,6 @@ function renderInspector() {
     key.textStyle = {
       family: 'system',
       weight: 700,
-      align: 'center',
       color: '#ffffff',
       effect: 'shadow',
       ...(key.textStyle || {}),
@@ -1644,11 +1641,10 @@ function renderInspector() {
   $('#insp-text-weight')?.addEventListener('change', (e) =>
     updateTextStyle({ weight: DeckTextStyle.weightValue(e.target.value) })
   );
-  $('#insp-text-align')?.addEventListener('change', (e) => updateTextStyle({ align: e.target.value }));
   $('#insp-text-color')?.addEventListener('input', (e) => updateTextStyle({ color: e.target.value }));
   $('#insp-text-effect')?.addEventListener('change', (e) => updateTextStyle({ effect: e.target.value }));
   $('#insp-text-reset')?.addEventListener('click', () => {
-    updateTextStyle({ family: 'system', weight: 700, align: 'center', color: '#ffffff', effect: 'shadow' });
+    updateTextStyle({ family: 'system', weight: 700, color: '#ffffff', effect: 'shadow' });
     renderInspector();
   });
   const colorReset = $('#insp-color-reset');
@@ -1675,7 +1671,7 @@ function renderInspector() {
   const updateFont = (patch) => {
     key.font = {
       size: 17,
-      weight: 600,
+      weight: 400,
       align: 'left',
       color: '#ffffff',
       showLabel: true,
@@ -1704,7 +1700,7 @@ function renderInspector() {
   $('#insp-font-reset')?.addEventListener('click', () => {
     updateFont({
       size: 17,
-      weight: 600,
+      weight: 400,
       align: 'left',
       color: '#ffffff',
       family: 'system',

@@ -387,13 +387,14 @@ body::before {
 .key.pressed canvas { transform: scale(0.96); filter: brightness(1.35); }
 .font-row {
   display: grid;
-  grid-template-columns: 58px 70px minmax(82px, 1fr) 32px;
-  gap: 6px;
+  grid-template-columns: 54px 88px 92px 32px;
+  gap: 5px;
   align-items: center;
 }
 .font-row .input,
 .font-row .select { min-width: 0; padding: 6px 8px; font-size: 11px; }
 .font-row.three { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1fr); }
+.font-row.two { grid-template-columns: 44px minmax(0, 1fr); }
 .check-row {
   display: flex;
   align-items: center;

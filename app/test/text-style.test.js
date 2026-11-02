@@ -6,6 +6,7 @@ const assert = require('node:assert/strict');
 const {
   weightPreset,
   weightValue,
+  normalizeWeightPreset,
   fontStack,
   contrastOutline,
   outlineWidth,
@@ -19,14 +20,15 @@ const {
 
 test('weights map to the three caption presets', () => {
   assert.equal(weightPreset(300), 'light');
-  assert.equal(weightPreset(450), 'light');
-  assert.equal(weightPreset(500), 'regular');
+  assert.equal(weightPreset(400), 'regular');
   assert.equal(weightPreset(600), 'regular');
   assert.equal(weightPreset(700), 'bold');
   assert.equal(weightPreset(800), 'bold');
   assert.equal(weightValue('light'), 300);
-  assert.equal(weightValue('regular'), 600);
-  assert.equal(weightValue('bold'), 800);
+  assert.equal(weightValue('regular'), 400);
+  assert.equal(weightValue('bold'), 700);
+  assert.equal(normalizeWeightPreset(800, 400), 700);
+  assert.equal(normalizeWeightPreset(undefined, 700), 700);
 });
 
 test('font families resolve to stable stacks', () => {
@@ -39,8 +41,8 @@ test('font families resolve to stable stacks', () => {
 test('outline contrast follows the text colour', () => {
   assert.match(contrastOutline('#ffffff'), /rgba\(0,0,0/);
   assert.match(contrastOutline('#111111'), /rgba\(255,255,255/);
-  assert.equal(outlineWidth(17), 2);
-  assert.equal(outlineWidth(118), 6);
+  assert.equal(outlineWidth(17), 3);
+  assert.equal(outlineWidth(118), 8);
 });
 
 test('style values are clamped to their safe sets', () => {

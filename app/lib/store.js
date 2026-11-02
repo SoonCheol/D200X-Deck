@@ -13,7 +13,7 @@ function key(emoji, label, action = { type: 'none' }, color = '#1b2130') {
 const { ACTION_TYPES, MEDIA_OPS } = require('./actions-meta');
 const {
   normalizeFamily,
-  normalizeWeight,
+  normalizeWeightPreset,
   normalizeAlign,
   normalizeColor,
   normalizeEffect,
@@ -138,7 +138,7 @@ function normalizeKey(raw) {
   if (raw.font && typeof raw.font === 'object') {
     key.font = {
       size: clamp(Math.round(Number(raw.font.size) || 17), 10, 40),
-      weight: clamp(Math.round(Number(raw.font.weight) || 600), 100, 900),
+      weight: normalizeWeightPreset(raw.font.weight, 400),
       align: normalizeAlign(raw.font.align, 'left'),
       color: normalizeColor(raw.font.color, '#ffffff'),
       showLabel: raw.font.showLabel !== false,
@@ -154,8 +154,7 @@ function normalizeKey(raw) {
   if (raw.textStyle && typeof raw.textStyle === 'object' && !Array.isArray(raw.textStyle)) {
     key.textStyle = {
       family: normalizeFamily(raw.textStyle.family),
-      weight: normalizeWeight(raw.textStyle.weight, 700),
-      align: normalizeAlign(raw.textStyle.align, 'center'),
+      weight: normalizeWeightPreset(raw.textStyle.weight, 700),
       color: normalizeColor(raw.textStyle.color, '#ffffff'),
       effect: normalizeEffect(raw.textStyle.effect, 'shadow'),
     };

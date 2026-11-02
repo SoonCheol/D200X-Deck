@@ -20,13 +20,12 @@
     georgia: 'Georgia',
     menlo: 'Menlo',
   };
-  const WEIGHTS = { light: 300, regular: 600, bold: 800 };
+  const WEIGHTS = { light: 300, regular: 400, bold: 700 };
   const TEXT_EFFECTS = ['shadow', 'outline', 'none'];
   const CAPTION_BACKGROUNDS = ['gradient', 'solid', 'none'];
   const DEFAULT_TEXT_STYLE = {
     family: 'system',
     weight: 700,
-    align: 'center',
     color: '#ffffff',
     effect: 'shadow',
   };
@@ -47,14 +46,20 @@
 
   /** Map any stored weight to the three UI presets. */
   function weightPreset(value) {
-    const weight = clampWeight(value, 600);
-    if (weight < 500) return 'light';
-    if (weight < 700) return 'regular';
+    const weight = clampWeight(value, 400);
+    if (weight < 350) return 'light';
+    if (weight < 650) return 'regular';
     return 'bold';
   }
 
   function weightValue(preset) {
     return WEIGHTS[preset] || WEIGHTS.regular;
+  }
+
+  /** Snap legacy numeric weights to one of the three rendered presets. */
+  function normalizeWeightPreset(value, fallback = 400) {
+    const preset = weightPreset(Number.isFinite(Number(value)) ? value : fallback);
+    return WEIGHTS[preset] || fallback;
   }
 
   function normalizeFamily(value) {
@@ -84,17 +89,17 @@
   /** A dark outline for light text, a light outline for dark text. */
   function contrastOutline(color) {
     const match = /^#?([0-9a-f]{6})$/i.exec(color || '');
-    if (!match) return 'rgba(0,0,0,0.62)';
+    if (!match) return 'rgba(0,0,0,0.8)';
     const value = parseInt(match[1], 16);
     const r = (value >> 16) & 255;
     const g = (value >> 8) & 255;
     const b = value & 255;
     const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
-    return luminance > 0.6 ? 'rgba(0,0,0,0.62)' : 'rgba(255,255,255,0.72)';
+    return luminance > 0.6 ? 'rgba(0,0,0,0.8)' : 'rgba(255,255,255,0.85)';
   }
 
   function outlineWidth(size) {
-    return Math.max(2, Math.min(6, Math.round((Number(size) || 17) * 0.06)));
+    return Math.max(3, Math.min(8, Math.round((Number(size) || 17) * 0.1)));
   }
 
   return {
@@ -107,6 +112,7 @@
     DEFAULT_TEXT_STYLE,
     DEFAULT_CAPTION_STYLE,
     normalizeWeight,
+    normalizeWeightPreset,
     weightPreset,
     weightValue,
     normalizeFamily,

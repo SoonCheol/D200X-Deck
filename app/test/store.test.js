@@ -76,7 +76,7 @@ test('caption fonts and lock-screen settings survive save/load', () => {
     color: '#1b2130',
     icon: null,
     action: { type: 'none' },
-    font: { size: 26, weight: 800, align: 'center', color: '#7fd1ff', showLabel: false },
+    font: { size: 26, weight: 700, align: 'center', color: '#7fd1ff', showLabel: false },
   };
   config.settings.lockScreen = true;
   config.settings.lockImage = png;
@@ -84,7 +84,7 @@ test('caption fonts and lock-screen settings survive save/load', () => {
   const loaded = store.load();
   assert.deepEqual(loaded.pages[0].keys[0].font, {
     size: 26,
-    weight: 800,
+    weight: 700,
     align: 'center',
     color: '#7fd1ff',
     showLabel: false,
@@ -114,14 +114,14 @@ test('text and caption styles are bounded and survive save/load', () => {
       effect: 'outline',
       background: 'solid',
     },
-    textStyle: { family: 'menlo', weight: 800, align: 'right', color: '#ff0000', effect: 'outline' },
+    textStyle: { family: 'menlo', weight: 800, color: '#ff0000', effect: 'outline' },
   };
   store.save(config);
 
   const key = store.load().pages[0].keys[0];
   assert.deepEqual(key.font, {
     size: 26,
-    weight: 800,
+    weight: 700,
     align: 'right',
     color: '#7fd1ff',
     showLabel: true,
@@ -131,8 +131,7 @@ test('text and caption styles are bounded and survive save/load', () => {
   });
   assert.deepEqual(key.textStyle, {
     family: 'menlo',
-    weight: 800,
-    align: 'right',
+    weight: 700,
     color: '#ff0000',
     effect: 'outline',
   });
@@ -147,7 +146,7 @@ test('invalid text styles fall back to safe values', () => {
     icon: null,
     action: { type: 'none' },
     font: { family: 'comic', effect: 'glow', background: 'stars' },
-    textStyle: { family: 'comic', weight: 5000, align: 'justify', color: 'red', effect: 'glow' },
+    textStyle: { family: 'comic', weight: 5000, color: 'red', effect: 'glow' },
   };
 
   const key = validateConfig(config).pages[0].keys[0];
@@ -157,8 +156,7 @@ test('invalid text styles fall back to safe values', () => {
   assert.equal(key.font.background, 'gradient');
   assert.deepEqual(key.textStyle, {
     family: 'system',
-    weight: 900,
-    align: 'center',
+    weight: 700,
     color: '#ffffff',
     effect: 'shadow',
   });
