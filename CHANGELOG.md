@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.9.0 — 2026-11-02
+
+### Changed
+- **Page settings stay reachable below 1180 px:** a toolbar button opens the inspector drawer without a selected key; the drawer is 360 px wide, starts below the toolbar and has a scrim. Push stays usable while editing.
+- **Plugin live images no longer get the app caption** printed over them by default. “Show caption” is an explicit opt-in and persists across reloads.
+- **Unsynced edits are visible:** with auto-push off or no deck connected, the editor shows “unsynced changes” and a dot on Push until a successful push.
+- **Missing plugins are flagged:** the inspector names the unavailable plugin, keeps its stored settings and offers Open Store / Clear action; the key face shows a warning badge.
+
+### Fixed
+- **Multi Action waits for each step** — text and hotkeys finish before the next step — and stops after a failed one.
+- **Sequences are independent per key** and are cancelled when the page or profile changes.
+
+### Tests
+- 99 → **100**.
+
 ## 0.8.12 — 2026-11-02
 
 ### Changed
