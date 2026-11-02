@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.10.3 — 2026-11-02
+
+### Changed
+- **The Push tooltip appears instantly** on hover or keyboard focus instead of using the delayed native title. It is styled like the app and still explains the auto-push state, the retry state and the disconnected state.
+
+### Tests
+- 102 (unchanged).
+
 ## 0.10.2 — 2026-11-02
 
 ### Fixed

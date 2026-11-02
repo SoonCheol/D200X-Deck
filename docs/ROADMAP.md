@@ -60,13 +60,18 @@ file; H9 is the last open High.
   the native `disabled` attribute, so it stays hoverable and focusable; clicking
   it explains why nothing was pushed. It is still visually disabled.
 
-### Next: 0.10.3 — architecture batch
+### Shipped in 0.10.3 — instant Push tooltip
+
+- The Push tooltip appears **instantly** on hover or keyboard focus, is styled
+  like the app, and replaces the delayed native title.
+
+### Next: architecture batch
 
 - M3 per-generation child/socket ownership; M18 bounded extraction off main.
 - M24 fake-Electron IPC harness; L3/L4 round trips; L6 release-cache expiry.
 - Renderer `no-undef` with explicit cross-file contracts.
 
-### Then: 0.11.0 — visual and store polish
+### Then: visual and store polish
 
 - Store detail and remaining card state (M27).
 - 1179 breakpoint (M16); type-scale consolidation (M3); icon-language cleanup
