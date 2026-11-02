@@ -1,5 +1,24 @@
 # Changelog
 
+## 0.8.4 — 2026-11-01
+
+### Changed
+- **Toasts** render above dialogs and carry a success/error glyph.
+- **The sidebar scrolls its page list**, so the device card, Store and Installed stay reachable with many pages.
+- **Deck settings** sits beside the inspector (8px gap) instead of overlapping it by 48px.
+- **Dialogs size to their content** (profile, hotkey, update); only list dialogs keep a fixed height.
+- **Dialogs focus the primary field and return focus** to the trigger when closed.
+- **Grid keys have accessible names**; the page-delete button is visible on focus and labelled.
+- **Store empty states** name the search and offer **Clear search**.
+- **Update failures** are humanised (“Couldn’t reach GitHub. Check your connection and try again.”).
+- Labels: **Deck brightness**, **Toggle two actions**, and per-type value labels (Text to type, Command, Sound file, Duration…).
+- The empty-key “+” is brighter, and import counts are pluralised.
+
+### Fixed
+- The brightness step input is usable again (was 22px wide).
+- The profile select no longer clips its label at 1080.
+- The profile dialog hides Export/Import when creating a profile.
+
 ## 0.8.3 — 2026-11-01
 
 ### Changed
