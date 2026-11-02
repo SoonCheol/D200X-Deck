@@ -1375,23 +1375,8 @@ function bind() {
     const parent = activePage()?.parentId;
     if (parent) navigate(parent);
   });
-  const pushWrap = $('#push-wrap');
-  const pushTip = $('#push-tip');
-  const showPushTip = () => {
-    if (pushTip && pushTip.textContent) pushTip.hidden = false;
-  };
-  const hidePushTip = () => {
-    if (pushTip) pushTip.hidden = true;
-  };
-  pushWrap?.addEventListener('mouseenter', showPushTip);
-  pushWrap?.addEventListener('mouseleave', hidePushTip);
-  pushWrap?.addEventListener('focusin', showPushTip);
-  pushWrap?.addEventListener('focusout', (event) => {
-    if (!pushWrap.contains(event.relatedTarget)) hidePushTip();
-  });
   $('#push-btn').addEventListener('click', () => {
     const button = $('#push-btn');
-    hidePushTip();
     if (button.getAttribute('aria-disabled') !== 'true') {
       pushNow();
       return;

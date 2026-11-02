@@ -107,8 +107,10 @@ function renderPushButton() {
   // focus; the click handler explains the block instead of pushing.
   const blocked = !connected || state.pushing || autoOnly;
   pushBtn.disabled = false;
-  pushBtn.setAttribute('aria-disabled', String(blocked));
-  pushBtn.textContent = connected ? 'Push to Deck' : busy ? 'Deck in use' : 'Connect deck';
+  const aria = String(blocked);
+  if (pushBtn.getAttribute('aria-disabled') !== aria) pushBtn.setAttribute('aria-disabled', aria);
+  const label = connected ? 'Push to Deck' : busy ? 'Deck in use' : 'Connect deck';
+  if (pushBtn.textContent !== label) pushBtn.textContent = label;
   let tipText = 'Send this page to the Deck';
   if (!connected) {
     tipText = busy ? 'Quit Ulanzi Studio to connect' : 'Connect the D200 first';
@@ -121,7 +123,7 @@ function renderPushButton() {
     tipText = 'Some changes have not reached the Deck yet — push to retry.';
   }
   const tip = $('#push-tip');
-  if (tip) tip.textContent = tipText;
+  if (tip && tip.textContent !== tipText) tip.textContent = tipText;
 }
 
 let pageDragId = null;

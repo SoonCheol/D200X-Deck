@@ -274,13 +274,14 @@ body::before {
 .btn.danger-solid:hover { background: #b83a4f; filter: brightness(1.04); }
 .btn:disabled { opacity: 0.45; cursor: not-allowed; }
 #push-btn { white-space: nowrap; min-width: 132px; position: relative; }
-#push-btn[aria-disabled="true"] { opacity: 0.45; cursor: not-allowed; }
-.push-wrap { position: relative; display: inline-flex; -webkit-app-region: no-drag; }
-.push-tip {
+.btn[aria-disabled="true"] { opacity: 0.45; cursor: not-allowed; }
+.tip-wrap { position: relative; display: inline-flex; -webkit-app-region: no-drag; }
+.hover-tip {
   position: absolute;
   top: calc(100% + 8px);
   right: 0;
   z-index: 90;
+  display: none;
   width: max-content;
   max-width: 300px;
   padding: 9px 11px;
@@ -294,6 +295,9 @@ body::before {
   box-shadow: 0 12px 30px rgba(0, 0, 0, 0.45);
   pointer-events: none;
 }
+.hover-tip.left { left: 0; right: auto; max-width: 220px; }
+.tip-wrap:hover .hover-tip:not(:empty),
+.tip-wrap:focus-within .hover-tip:not(:empty) { display: block; }
 #push-btn.unsynced::after {
   content: '';
   position: absolute;

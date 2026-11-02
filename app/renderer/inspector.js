@@ -334,12 +334,35 @@ function multiEditor(action, page) {
         .map(([v, l]) => `<option value="${v}" ${(action.mode || 'sequence') === v ? 'selected' : ''}>${l}</option>`)
         .join('')}
     </select>` : '';
+  const limit = action.type === 'pop' ? 9 : 12;
+  const atLimit = steps.length >= limit;
+  const addTip = atLimit
+    ? `<span class="hover-tip left" role="tooltip">${
+        action.type === 'pop'
+          ? 'A POP menu can hold up to 9 actions.'
+          : 'A multi action can hold up to 12 steps.'
+      }</span>`
+    : '';
+  const delayAtLimit = steps.length >= 12;
+  const delayTip = delayAtLimit
+    ? '<span class="hover-tip left" role="tooltip">A multi action can hold up to 12 steps.</span>'
+    : '';
   return `
     ${mode}
     <div class="multi-steps">${rows || '<div class="insp-empty" style="padding:0">No steps yet.</div>'}</div>
     <div class="row">
-      <button class="btn small" id="insp-multi-add">Add action</button>
-      ${action.type === 'pop' ? '' : '<button class="btn small" id="insp-multi-delay">Add delay</button>'}
+      <span class="tip-wrap">
+        <button class="btn small" id="insp-multi-add" ${atLimit ? 'aria-disabled="true"' : ''}>Add action</button>
+        ${addTip}
+      </span>
+      ${
+        action.type === 'pop'
+          ? ''
+          : `<span class="tip-wrap">
+               <button class="btn small" id="insp-multi-delay" ${delayAtLimit ? 'aria-disabled="true"' : ''}>Add delay</button>
+               ${delayTip}
+             </span>`
+      }
     </div>`;
 }
 
