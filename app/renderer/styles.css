@@ -269,7 +269,7 @@ body::before {
 .btn.danger-solid:hover { background: #b83a4f; filter: brightness(1.04); }
 .btn:disabled { opacity: 0.45; cursor: not-allowed; }
 #push-btn { white-space: nowrap; min-width: 132px; position: relative; }
-.push-wrap { display: inline-flex; -webkit-app-region: no-drag; }
+#push-btn[aria-disabled="true"] { opacity: 0.45; cursor: not-allowed; }
 #push-btn.unsynced::after {
   content: '';
   position: absolute;

@@ -1350,7 +1350,22 @@ function bind() {
     const parent = activePage()?.parentId;
     if (parent) navigate(parent);
   });
-  $('#push-btn').addEventListener('click', pushNow);
+  $('#push-btn').addEventListener('click', () => {
+    const button = $('#push-btn');
+    if (button.getAttribute('aria-disabled') !== 'true') {
+      pushNow();
+      return;
+    }
+    if (state.pushing) return;
+    if (!state.status.connected) {
+      const busy = /busy|ulanzistudio|ulanzi studio/i.test(String(state.status.message || ''));
+      toast(busy ? 'Quit Ulanzi Studio, then reconnect' : 'Connect the D200 first', true);
+      return;
+    }
+    if (state.config?.settings?.autoPush && !state.unsynced) {
+      toast('Auto-push is on — changes go to the Deck automatically. Turn it off in Deck settings to push manually.');
+    }
+  });
   $('#page-settings-btn').addEventListener('click', () => {
     state.selected = null;
     renderGrid();

@@ -103,7 +103,11 @@ function renderPushButton() {
   const autoPush = Boolean(state.config?.settings?.autoPush);
   const retry = Boolean(state.unsynced);
   const autoOnly = connected && autoPush && !retry;
-  pushBtn.disabled = !connected || state.pushing || autoOnly;
+  // aria-disabled (not disabled) keeps the native title tooltip and keyboard
+  // focus; the click handler explains the block instead of pushing.
+  const blocked = !connected || state.pushing || autoOnly;
+  pushBtn.disabled = false;
+  pushBtn.setAttribute('aria-disabled', String(blocked));
   pushBtn.textContent = connected ? 'Push to Deck' : busy ? 'Deck in use' : 'Connect deck';
   if (!connected) {
     pushBtn.title = busy ? 'Quit Ulanzi Studio to connect' : 'Connect the D200 first';
@@ -117,10 +121,6 @@ function renderPushButton() {
   } else {
     pushBtn.title = 'Send this page to the Deck';
   }
-  // A disabled button does not reliably raise its own tooltip in every shell;
-  // the wrapper still receives the hover.
-  const wrap = $('#push-wrap');
-  if (wrap) wrap.title = pushBtn.title;
 }
 
 let pageDragId = null;
