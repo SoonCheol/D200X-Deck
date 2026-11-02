@@ -169,6 +169,7 @@ const state = {
   selected: null,
   pushing: false,
   pushAgain: false,
+  backgroundPush: false,
   unsynced: false,
   plugins: [],
   apps: [],
@@ -304,24 +305,27 @@ function effectiveKey(key) {
 }
 
 function bumpKeyState(actionid, index) {
+  const next = Math.max(0, Number(index) || 0);
   for (const page of state.config.pages) {
     for (const [slot, key] of Object.entries(page.keys)) {
       if (!key?.action || key.action.type !== 'plugin' || key.action.actionid !== actionid) continue;
-      key.stateIndex = Math.max(0, Number(index) || 0);
+      if (key.stateIndex === next) continue;
+      key.stateIndex = next;
       if (page.id === state.config.activePageId) drawIndex(Number(slot));
       scheduleSave();
-      schedulePush();
+      scheduleLivePush();
     }
   }
   for (const profile of state.config.profiles || []) {
     for (const [slot, key] of Object.entries(profile.pinned || {})) {
       if (!key?.action || key.action.type !== 'plugin' || key.action.actionid !== actionid) continue;
-      key.stateIndex = Math.max(0, Number(index) || 0);
+      if (key.stateIndex === next) continue;
+      key.stateIndex = next;
       if (profile.id === state.config.activeProfileId && !activePage()?.keys?.[slot]) {
         drawIndex(Number(slot));
       }
       scheduleSave();
-      schedulePush();
+      scheduleLivePush();
     }
   }
 }
@@ -1785,18 +1789,16 @@ function bind() {
   api.onPluginStateIndex(({ actionid, state: index }) => bumpKeyState(actionid, index));
 
   api.onPluginState(({ actionid, image, state }) => {
-    if (Number.isInteger(state) && state >= 0) {
-      if (image) pluginStateImages.set(`${actionid}:${state}`, image);
-      else pluginStateImages.delete(`${actionid}:${state}`);
-    } else if (image) {
-      pluginImages.set(actionid, image);
-    } else {
-      pluginImages.delete(actionid);
-    }
+    const hasState = Number.isInteger(state) && state >= 0;
+    const mapKey = hasState ? `${actionid}:${state}` : actionid;
+    const map = hasState ? pluginStateImages : pluginImages;
+    if ((image || null) === (map.get(mapKey) || null)) return; // no visible change
+    if (image) map.set(mapKey, image);
+    else map.delete(mapKey);
     const loc = findPluginAction(actionid);
     if (pluginLocVisible(loc)) {
       drawIndex(loc.index);
-      schedulePush();
+      scheduleLivePush();
     }
   });
 
@@ -1811,15 +1813,33 @@ function bind() {
   api.onPluginTitle(({ actionid, text, state }) => {
     const loc = findPluginAction(actionid);
     if (!loc) return;
+    const value = String(text ?? '');
+    let changed = false;
     if (Number.isInteger(state) && state >= 0) {
-      if (text) pluginStateTitles.set(`${actionid}:${state}`, String(text));
-      else pluginStateTitles.delete(`${actionid}:${state}`);
+      const mapKey = `${actionid}:${state}`;
+      if (value) {
+        if (pluginStateTitles.get(mapKey) !== value) {
+          pluginStateTitles.set(mapKey, value);
+          changed = true;
+        }
+      } else if (pluginStateTitles.has(mapKey)) {
+        pluginStateTitles.delete(mapKey);
+        changed = true;
+      }
       const index = Math.max(0, Number(loc.key.stateIndex) || 0);
-      if (state === index) loc.key.label = String(text ?? '');
-    } else {
-      loc.key.label = String(text ?? '');
+      if (state === index && loc.key.label !== value) {
+        loc.key.label = value;
+        changed = true;
+      }
+    } else if (loc.key.label !== value) {
+      loc.key.label = value;
+      changed = true;
     }
-    if (pluginLocVisible(loc)) drawIndex(loc.index);
+    if (!changed) return;
+    if (pluginLocVisible(loc)) {
+      drawIndex(loc.index);
+      scheduleLivePush();
+    }
     scheduleSave();
   });
 

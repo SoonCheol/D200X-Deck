@@ -81,7 +81,7 @@ function stopTimer(action, { beep = false } = {}) {
   const index = slotForAction(action);
   if (index >= 0) {
     drawIndex(index);
-    schedulePush();
+    scheduleLivePush();
   }
   if (beep) {
     if (action.sound !== false) {
@@ -112,7 +112,7 @@ function toggleTimer(action) {
       // seconds; the on-screen countdown still ticks every second.
       if (Date.now() - timer.lastPush >= 5000) {
         timer.lastPush = Date.now();
-        schedulePush();
+        scheduleLivePush();
       }
     }
   };

@@ -103,9 +103,11 @@ function renderPushButton() {
   const autoPush = Boolean(state.config?.settings?.autoPush);
   const retry = Boolean(state.unsynced);
   const autoOnly = connected && autoPush && !retry;
+  // A background live-image push must not toggle the toolbar button.
+  const foregroundPushing = state.pushing && !state.backgroundPush;
   // aria-disabled (not disabled) keeps the native title tooltip and keyboard
   // focus; the click handler explains the block instead of pushing.
-  const blocked = !connected || state.pushing || autoOnly;
+  const blocked = !connected || foregroundPushing || autoOnly;
   pushBtn.disabled = false;
   const aria = String(blocked);
   if (pushBtn.getAttribute('aria-disabled') !== aria) pushBtn.setAttribute('aria-disabled', aria);
@@ -114,7 +116,7 @@ function renderPushButton() {
   let tipText = 'Send this page to the Deck';
   if (!connected) {
     tipText = busy ? 'Quit Ulanzi Studio to connect' : 'Connect the D200 first';
-  } else if (state.pushing) {
+  } else if (foregroundPushing) {
     tipText = 'Pushing this page to the Deck…';
   } else if (autoOnly) {
     tipText =
@@ -676,32 +678,78 @@ function syncPlugins() {
   return api.syncPlugins(wanted).catch((err) => toast(err.message || String(err), true));
 }
 
+const LIVE_PUSH_INTERVAL = 5000;
+let livePushTimer = null;
+let livePushPending = false;
+let lastLivePushAt = 0;
+
+/**
+ * Plugin live images can update every second. A full page is hundreds of KB
+ * over HID, so coalesce those updates and refresh at most once every few
+ * seconds. These pushes are background-only: they must not toggle the Push
+ * button or claim the page was manually synced.
+ */
+function scheduleLivePush() {
+  if (typeof standbyActive === 'function' && standbyActive()) return;
+  if (typeof lockActive === 'function' && lockActive()) return;
+  if (!state.status.connected || !state.config.settings.autoPush) return;
+  livePushPending = true;
+  if (livePushTimer) return;
+  const wait = Math.max(0, LIVE_PUSH_INTERVAL - (Date.now() - lastLivePushAt));
+  livePushTimer = setTimeout(() => {
+    livePushTimer = null;
+    if (!livePushPending) return;
+    livePushPending = false;
+    if (state.pushing) {
+      lastLivePushAt = Date.now();
+      scheduleLivePush();
+      return;
+    }
+    lastLivePushAt = Date.now();
+    pushNow({ background: true });
+  }, wait);
+}
+
 function schedulePush() {
   if (typeof standbyActive === 'function' && standbyActive()) return;
   if (typeof lockActive === 'function' && lockActive()) return;
   if (!state.status.connected || !state.config.settings.autoPush) return;
+  clearTimeout(livePushTimer);
+  livePushTimer = null;
+  livePushPending = false;
   clearTimeout(pushTimer);
   pushTimer = setTimeout(pushNow, 400);
 }
 
-async function pushNow() {
-  // An explicit push (button, navigation, wake) always leaves a screensaver.
-  if (typeof standbyActive === 'function' && standbyActive()) {
-    standby.active = false;
-    clearStandbyTimers();
+async function pushNow({ background = false } = {}) {
+  if (background) {
+    // Never wake a sleeping/locked deck or push with auto-push off.
+    if (!state.status.connected || !state.config.settings.autoPush) return;
+    if (typeof standbyActive === 'function' && standbyActive()) return;
+    if (typeof lockActive === 'function' && lockActive()) return;
+  } else {
+    // An explicit push (button, navigation, wake) always leaves a screensaver.
+    if (typeof standbyActive === 'function' && standbyActive()) {
+      standby.active = false;
+      clearStandbyTimers();
+    }
+    if (typeof lockActive === 'function' && lockActive()) stopLock();
   }
-  if (typeof lockActive === 'function' && lockActive()) stopLock();
   if (!state.status.connected) {
-    toast('Deck not connected — quit Ulanzi Studio and reconnect', true);
+    if (!background) toast('Deck not connected — quit Ulanzi Studio and reconnect', true);
     return;
   }
   if (state.pushing) {
-    state.pushAgain = true;
+    if (!background) state.pushAgain = true;
     return;
   }
   state.pushing = true;
-  $('#push-state').textContent = 'pushing…';
-  renderPushButton();
+  state.backgroundPush = background;
+  if (!background) lastLivePushAt = Date.now();
+  if (!background) {
+    $('#push-state').textContent = 'pushing…';
+    renderPushButton();
+  }
   try {
     await drawGrid();
     const grid = $('#grid');
@@ -711,20 +759,28 @@ async function pushNow() {
     }));
     const res = await api.pushPage(images, activePage()?.wideMode || 'clock');
     if (!res.ok) throw new Error(res.error || 'push failed');
-    const time = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    if (!background) {
+      const time = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+      $('#push-state').textContent = `synced ${time}`;
+    }
     state.unsynced = false;
-    $('#push-state').textContent = `synced ${time}`;
     renderSyncState();
-    state.config.settings.lastPush = Date.now();
-    scheduleSave();
+    if (!background) {
+      state.config.settings.lastPush = Date.now();
+      scheduleSave();
+    }
   } catch (err) {
     state.unsynced = true;
-    $('#push-state').textContent = 'push failed';
-    renderSyncState();
-    toast(err.message || String(err), true);
+    if (!background) {
+      $('#push-state').textContent = 'push failed';
+      renderSyncState();
+      toast(err.message || String(err), true);
+    }
   } finally {
     state.pushing = false;
+    state.backgroundPush = false;
     renderPushButton();
+    if (background && state.unsynced) renderSyncState();
     if (state.pushAgain) {
       state.pushAgain = false;
       schedulePush();
