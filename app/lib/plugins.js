@@ -454,6 +454,7 @@ class PluginManager extends PluginHost {
       case 'setGlobalSettings':
         if (msg.uuid) {
           this.globalSettings.set(msg.uuid, msg.settings || {});
+          this._saveGlobalSettings();
           this.emit('global-settings', { plugin: msg.uuid, settings: msg.settings || {} });
         }
         break;

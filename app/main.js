@@ -445,7 +445,7 @@ function startHidSeize() {
     return;
   }
   if (seizeProc && seizeProc.exitCode === null) return;
-  setSeizeState(true, 'Capturing keys');
+  setSeizeState(false, 'Starting key capture…');
   seizeProc = spawnHelper(bin);
 }
 
@@ -473,15 +473,28 @@ function spawnHelper(bin) {
     scheduleSeizeRestart();
   });
   proc.stdout.on('data', (d) => console.log('[seize]', d.toString().trim()));
+  let stderrBuffer = '';
   proc.stderr.on('data', (d) => {
-    const text = d.toString().trim();
-    console.log('[seize]', text);
-    if (text.includes('notpermitted')) {
-      setSeizeState(false, 'Input Monitoring permission needed');
-    }
-    if (text.startsWith('seized')) {
-      seizeRetryMs = 5000;
-      setSeizeState(true, 'Capturing keys');
+    stderrBuffer += d.toString();
+    let idx;
+    while ((idx = stderrBuffer.indexOf('\n')) >= 0) {
+      const line = stderrBuffer.slice(0, idx).trim();
+      stderrBuffer = stderrBuffer.slice(idx + 1);
+      if (!line) continue;
+      console.log('[seize]', line);
+      if (/^access\s+0\b/.test(line)) {
+        // Permission granted; the helper is waiting for the Deck to appear.
+        setSeizeState(true, 'Waiting for the Deck…');
+      } else if (/^access\s+[12]\b/.test(line) || line.includes('notpermitted')) {
+        setSeizeState(false, 'Input Monitoring permission needed');
+      } else if (/^seized\b/.test(line)) {
+        seizeRetryMs = 5000;
+        setSeizeState(true, 'Capturing keys');
+      } else if (/^manager\s+0x/i.test(line)) {
+        setSeizeState(false, 'Input Monitoring permission needed');
+      } else if (/^seize\s+0x/i.test(line)) {
+        setSeizeState(false, 'The Deck is in use by another app');
+      }
     }
   });
   proc.on('exit', () => {

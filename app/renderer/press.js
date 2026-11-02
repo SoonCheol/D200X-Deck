@@ -140,9 +140,17 @@ function popItem(action) {
   return { emoji: meta.emoji || fallback[0], label: meta.label || fallback[1] };
 }
 
+/** A step is normally {action}, but imports may keep a bare action. */
+function stepAction(step) {
+  if (!step || typeof step !== 'object' || step.delay) return null;
+  if (step.action && typeof step.action === 'object') return step.action;
+  // A bare plugin step's `action` is its action UUID, not a nested action.
+  return step.type ? step : null;
+}
+
 async function openPop(action) {
   const steps = (Array.isArray(action.steps) ? action.steps : [])
-    .map((step) => step?.action)
+    .map((step) => stepAction(step))
     .filter((step) => step && step.type !== 'none')
     .slice(0, 9);
   if (!steps.length) return toast('POP menu has no actions', true);
@@ -219,7 +227,8 @@ async function runMulti(action) {
       await new Promise((resolve) => setTimeout(resolve, Math.max(0, Number(step.delay) || 0)));
       continue;
     }
-    if (step.action) runKeyAction(step.action);
+    const stepToRun = stepAction(step);
+    if (stepToRun) runKeyAction(stepToRun);
   }
 }
 
@@ -230,7 +239,8 @@ function runToggle(action) {
   const index = multiState.get(action) || 0;
   multiState.set(action, (index + 1) % steps.length);
   const step = steps[index % steps.length];
-  if (step?.action) runKeyAction(step.action);
+  const nextAction = stepAction(step);
+  if (nextAction) runKeyAction(nextAction);
 }
 
 function flashKey(index) {

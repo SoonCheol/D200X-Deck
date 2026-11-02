@@ -465,42 +465,60 @@ function schedulePluginsSync() {
   pluginSyncTimer = setTimeout(syncPlugins, 250);
 }
 
+function collectPluginActions(action, slot, active, wanted, seen) {
+  if (!action || typeof action !== 'object') return;
+  if (action.type === 'plugin') {
+    if (!action.plugin || !action.action) return;
+    if (!action.actionid) action.actionid = uuid();
+    if (seen.has(action.actionid)) return;
+    seen.add(action.actionid);
+    wanted.push({
+      actionid: action.actionid,
+      sdk: action.sdk || state.plugins.find((p) => p.uuid === action.plugin)?.sdk || 'ulanzi',
+      plugin: action.plugin,
+      action: action.action,
+      key: slot,
+      settings: action.settings || {},
+      active,
+    });
+    return;
+  }
+  if (Array.isArray(action.steps)) {
+    for (const step of action.steps) {
+      if (!step || typeof step !== 'object') continue;
+      // Steps are normally {action}, but imports may keep a bare action. A
+      // bare plugin step's `action` is its action UUID, so check the type.
+      const nested = step.action && typeof step.action === 'object' ? step.action : step;
+      collectPluginActions(nested, slot, active, wanted, seen);
+    }
+  }
+}
+
 function syncPlugins() {
   if (!state.config) return;
   const wanted = [];
+  const seen = new Set();
   for (const page of state.config.pages) {
+    const active = page.id === state.config.activePageId;
     for (const [index, key] of Object.entries(page.keys)) {
-      if (Number(index) === WIDE_KEY_INDEX) continue;
-      if (!key || key.action?.type !== 'plugin') continue;
-      if (!key.action.plugin || !key.action.action) continue;
-      if (!key.action.actionid) key.action.actionid = uuid();
-      wanted.push({
-        actionid: key.action.actionid,
-        sdk: key.action.sdk || state.plugins.find((p) => p.uuid === key.action.plugin)?.sdk || 'ulanzi',
-        plugin: key.action.plugin,
-        action: key.action.action,
-        key: keyIndexToSlot(Number(index)),
-        settings: key.action.settings || {},
-        active: page.id === state.config.activePageId,
-      });
+      if (Number(index) === WIDE_KEY_INDEX || !key) continue;
+      const slot = keyIndexToSlot(Number(index));
+      // Hold/double and multi/toggle/POP steps need the same registration as
+      // the face action, or their plugin actions cannot run.
+      for (const action of [key.action, key.holdAction, key.doubleAction]) {
+        collectPluginActions(action, slot, active, wanted, seen);
+      }
     }
   }
   // Pinned keys are visible on every page of the active profile (unless a page
   // overrides that slot).
   for (const [index, key] of Object.entries(pinnedFor())) {
-    if (Number(index) === WIDE_KEY_INDEX) continue;
-    if (!key || key.action?.type !== 'plugin') continue;
-    if (!key.action.plugin || !key.action.action) continue;
-    if (!key.action.actionid) key.action.actionid = uuid();
-    wanted.push({
-      actionid: key.action.actionid,
-      sdk: key.action.sdk || state.plugins.find((p) => p.uuid === key.action.plugin)?.sdk || 'ulanzi',
-      plugin: key.action.plugin,
-      action: key.action.action,
-      key: keyIndexToSlot(Number(index)),
-      settings: key.action.settings || {},
-      active: !activePage()?.keys?.[index],
-    });
+    if (Number(index) === WIDE_KEY_INDEX || !key) continue;
+    const slot = keyIndexToSlot(Number(index));
+    const active = !activePage()?.keys?.[index];
+    for (const action of [key.action, key.holdAction, key.doubleAction]) {
+      collectPluginActions(action, slot, active, wanted, seen);
+    }
   }
   return api.syncPlugins(wanted).catch((err) => toast(err.message || String(err), true));
 }

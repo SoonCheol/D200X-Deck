@@ -212,3 +212,52 @@ test('the websocket guard admits SDK and inspector origins only', () => {
     assert.equal(isAllowedWsOrigin(origin), false, `blocked: ${origin}`);
   }
 });
+
+test('Ulanzi global settings survive a manager restart', (t) => {
+  const dir = fixture(t);
+  const manager = new PluginManager({ dirs: [dir], appPluginsDir: dir });
+  manager._onPluginMessage({
+    cmd: 'setGlobalSettings',
+    uuid: 'audit.plugin',
+    settings: { token: 'persisted' },
+  });
+
+  const restarted = new PluginManager({ dirs: [dir], appPluginsDir: dir });
+  assert.deepEqual(restarted.globalSettings.get('audit.plugin'), { token: 'persisted' });
+});
+
+test('plugin sync collects nested and alternate-trigger actions', () => {
+  const ui = fs.readFileSync(path.join(__dirname, '../renderer/ui.js'), 'utf8');
+  const start = ui.indexOf('function collectPluginActions(');
+  const end = ui.indexOf('function syncPlugins(');
+  assert.ok(start >= 0 && end > start, 'collectPluginActions must be available');
+
+  let next = 0;
+  const context = vm.createContext({
+    uuid: () => `id-${++next}`,
+    state: { plugins: [{ uuid: 'p', sdk: 'streamdeck' }] },
+  });
+  new vm.Script(ui.slice(start, end)).runInContext(context);
+
+  const wanted = [];
+  const seen = new Set();
+  context.collectPluginActions(
+    {
+      type: 'multi',
+      steps: [
+        { action: { type: 'plugin', plugin: 'p', action: 'a' } },
+        { type: 'plugin', plugin: 'p', action: 'b' },
+        { delay: 100 },
+      ],
+    },
+    '0_0',
+    true,
+    wanted,
+    seen
+  );
+
+  assert.equal(wanted.length, 2, 'wrapped and bare plugin steps are both collected');
+  assert.equal(wanted[0].sdk, 'streamdeck');
+  assert.ok(wanted[0].actionid && wanted[1].actionid);
+  assert.notEqual(wanted[0].actionid, wanted[1].actionid);
+});
