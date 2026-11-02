@@ -251,6 +251,13 @@ function effectiveKey(key) {
     };
   }
   const id = out.action?.type === 'plugin' ? out.action.actionid : null;
+  if (
+    out.action?.type === 'plugin' &&
+    out.action.plugin &&
+    !(state.plugins || []).some((plugin) => plugin.uuid === out.action.plugin && plugin.compatible)
+  ) {
+    out = { ...out, missingPlugin: true };
+  }
   if (id) {
     const stateIndex = Math.max(0, Number(out.stateIndex) || 0);
     let next = out;

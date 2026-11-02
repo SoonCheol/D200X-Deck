@@ -798,6 +798,24 @@ function renderInspector() {
       null;
     const pluginActions = plugin ? plugin.actions : [];
     const pluginAction = pluginActions.find((a) => a.uuid === action.action) || null;
+    const knownPlugin = state.plugins.find((p) => p.uuid === action.plugin) || null;
+    const missingPlugin = Boolean(action.plugin) && !plugin;
+    const missingWarning = missingPlugin
+      ? `<div class="field">
+           <div class="insp-missing" role="status">
+             <div class="insp-missing-title">${
+               knownPlugin
+                 ? `“${esc(knownPlugin.name)}” is installed but can’t be used here.`
+                 : `“${esc(action.plugin)}” isn’t installed.`
+             }</div>
+             <div class="field-hint" style="margin:4px 0 8px">Its stored settings are kept until you clear the action.</div>
+             <div class="row">
+               <button class="btn small" id="insp-plugin-store">Open Store</button>
+               <button class="btn small danger" id="insp-plugin-clear">Clear action</button>
+             </div>
+           </div>
+         </div>`
+      : '';
     if (!compatible.length) {
       pluginFields = `<div class="field"><div class="insp-empty" style="padding:0">
         No compatible JavaScript plugins found. Install Ulanzi plugins in
@@ -805,6 +823,7 @@ function renderInspector() {
       </div></div>`;
     } else {
       pluginFields = `
+        ${missingWarning}
         <div class="field">
           <label>Plugin</label>
           <select class="select" id="insp-plugin">
@@ -1373,6 +1392,13 @@ function renderInspector() {
         renderInspector();
       });
     }
+    $('#insp-plugin-store')?.addEventListener('click', () => openStoreModal('sd-plugins'));
+    $('#insp-plugin-clear')?.addEventListener('click', () => {
+      key.action = { type: 'none' };
+      commit();
+      renderInspector();
+      toast('Action cleared — the key face is kept');
+    });
     const actionSel = $('#insp-plugin-action');
     if (actionSel) {
       actionSel.addEventListener('change', (e) => {
