@@ -1486,22 +1486,22 @@ function renderInspector() {
       <label class="check-row caption-toggle"><input type="checkbox" id="insp-font-show" ${captionVisible ? 'checked' : ''} /> Show caption</label>
       ${liveKey.liveImage && !key.font?.captionExplicit ? '<div class="field-hint">This plugin draws its own label. Turn on Show caption to add one over it.</div>' : ''}
       <input class="input" id="insp-label" maxlength="40" value="${esc(key.label)}" placeholder="Optional small text under the key" ${captionVisible ? '' : 'disabled'} />
-      <div class="font-row" style="margin-top:8px">
-        <input class="input" id="insp-font-size" type="number" min="10" max="40" step="1" value="${Number(key.font?.size) || 17}" title="Size" ${captionVisible ? '' : 'disabled'} />
+      <div class="font-row text-style" style="margin-top:8px">
+        <select class="select" id="insp-font-family" title="Font" ${captionVisible ? '' : 'disabled'}>
+          ${DeckTextStyle.FAMILY_IDS.map((id) => `<option value="${id}" ${(key.font?.family || 'system') === id ? 'selected' : ''}>${DeckTextStyle.FAMILY_LABELS[id]}</option>`).join('')}
+        </select>
         <select class="select" id="insp-font-weight" title="Weight" ${captionVisible ? '' : 'disabled'}>
           ${['light', 'regular', 'bold'].map((preset) => {
             const selected = DeckTextStyle.weightPreset(key.font?.weight) === preset;
             return `<option value="${preset}" ${selected ? 'selected' : ''}>${preset[0].toUpperCase()}${preset.slice(1)}</option>`;
           }).join('')}
         </select>
-        <select class="select" id="insp-font-align" title="Alignment" ${captionVisible ? '' : 'disabled'}>
-          ${['left', 'center', 'right'].map((a) => `<option value="${a}" ${(key.font?.align || 'left') === a ? 'selected' : ''}>${a[0].toUpperCase()}${a.slice(1)}</option>`).join('')}
-        </select>
         <input class="color-input" id="insp-font-color" type="color" value="${esc(key.font?.color || '#ffffff')}" title="Caption colour" ${captionVisible ? '' : 'disabled'} />
       </div>
-      <div class="font-row split" style="margin-top:6px">
-        <select class="select" id="insp-font-family" title="Font" ${captionVisible ? '' : 'disabled'}>
-          ${DeckTextStyle.FAMILY_IDS.map((id) => `<option value="${id}" ${(key.font?.family || 'system') === id ? 'selected' : ''}>${DeckTextStyle.FAMILY_LABELS[id]}</option>`).join('')}
+      <div class="font-row caption-extra" style="margin-top:6px">
+        <input class="input" id="insp-font-size" type="number" min="10" max="40" step="1" value="${Number(key.font?.size) || 17}" title="Size" ${captionVisible ? '' : 'disabled'} />
+        <select class="select" id="insp-font-align" title="Alignment" ${captionVisible ? '' : 'disabled'}>
+          ${['left', 'center', 'right'].map((a) => `<option value="${a}" ${(key.font?.align || 'left') === a ? 'selected' : ''}>${a[0].toUpperCase()}${a.slice(1)}</option>`).join('')}
         </select>
         <select class="select" id="insp-font-background" title="Caption background" ${captionVisible ? '' : 'disabled'}>
           ${['gradient', 'solid', 'none'].map((background) => `<option value="${background}" ${(key.font?.background || 'gradient') === background ? 'selected' : ''}>${background[0].toUpperCase()}${background.slice(1)}</option>`).join('')}
