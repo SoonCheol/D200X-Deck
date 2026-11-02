@@ -7,9 +7,11 @@
 
 ## Current plan (from the 2026-11-01 audits)
 
-Sources: [`reviews/2026-11-01-architecture-audit.md`](reviews/2026-11-01-architecture-audit.md)
-and [`reviews/2026-11-01-uiux-audit.md`](reviews/2026-11-01-uiux-audit.md). Phases 1
-and 2 of the architecture audit and the first UI batch are shipped through 0.8.4.
+Sources: [`reviews/2026-11-01-architecture-audit.md`](reviews/2026-11-01-architecture-audit.md),
+[`reviews/2026-11-01-uiux-audit.md`](reviews/2026-11-01-uiux-audit.md) and
+[`reviews/2026-11-02-architecture-audit-2.md`](reviews/2026-11-02-architecture-audit-2.md).
+The 0.9.0 UI batch is shipped; [`PLAN-0.10.0.md`](PLAN-0.10.0.md) re-triages
+both audits and lists what remains.
 
 ### Shipped in 0.9.0 — the five structural UI issues
 
@@ -24,19 +26,40 @@ and 2 of the architecture audit and the first UI batch are shipped through 0.8.4
 5. **H11 — Missing-plugin keys.** Warn in the inspector and on the key, with
    Open Store / Clear action.
 
-### Next: UI mediums
+### Next: 0.10.0 — editing depth and safe destructive actions
 
-- Page reorder; multi/toggle step types + reordering (M7, M8).
-- POP keyboard access and action icons (M14).
-- PI loading placeholder/error (M15).
-- Store detail and card state (M27, M32); 1179 breakpoint (M16).
-- Type-scale consolidation (M3); icon-language cleanup (M4).
+Plan: [`PLAN-0.10.0.md`](PLAN-0.10.0.md). Triage of the two audits is in that
+file; H9 is the last open High.
+
+1. **H9 — safe destructive actions.** Replace native confirms with an in-app
+   modal (Cancel focused), name the concrete action, add Clear-page undo and
+   make New page primary.
+2. **M7 — page reorder.** Drag rows or `Alt+↑/↓`; persist and keep Next/Previous
+   in step.
+3. **M14 — POP keyboard access.** Focus the palette, arrow/Enter/Escape, close
+   on blur, restore the previous app, show action icons and rename it “Quick
+   actions”.
+4. **M8 — complete Multi/Toggle steps.** Plugin, sound, timer, brightness and
+   close steps, plus drag and ↑/↓ reordering.
+
+### 0.10.1 — architecture batch
+
+- M3 per-generation child/socket ownership; M18 bounded extraction off main.
+- M24 fake-Electron IPC harness; L3/L4 round trips; L6 release-cache expiry.
+- Renderer `no-undef` with explicit cross-file contracts.
+
+### Then: 0.11.0 — visual and store polish
+
+- Store detail and remaining card state (M27).
+- 1179 breakpoint (M16); type-scale consolidation (M3); icon-language cleanup
+  (M4).
 - Remaining copy/nits from §8 of the UI report.
 
-### Later: architecture Phase 3 remainder
+### Later: 1.0
 
 - **3.3** Renderer modules + explicit store (optional, highest risk).
-- **L5** Send config images as `file:` refs and resolve them lazily (fits 3.3).
+- **L5/L8** Send config images as `file:` refs and resolve them lazily, after a
+  representative large-profile measurement.
 - **L13 / L14** are done (helpers built from source; bundle trimmed).
 
 ### Unimplemented platform features
