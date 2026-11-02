@@ -43,10 +43,11 @@ const REDIRECT_STATUS = new Set([301, 302, 303, 307, 308]);
  */
 async function fetchFollowing(url, options = {}, maxHops = 5) {
   let current = new URL(String(url));
+  const originalOrigin = current.origin;
   let request = { ...options };
   for (let hop = 0; hop <= maxHops; hop += 1) {
-    if (!/^https?:$/.test(current.protocol)) {
-      throw new StoreError('The store redirected to an unsupported address');
+    if (current.protocol !== 'https:') {
+      throw new StoreError('The store must use HTTPS');
     }
     const headers = { ...(request.headers || {}) };
     if (headers.authToken && !isVendorHost(current.hostname)) delete headers.authToken;
@@ -54,7 +55,11 @@ async function fetchFollowing(url, options = {}, maxHops = 5) {
     if (!REDIRECT_STATUS.has(res.status)) return res;
     const location = res.headers.get('location');
     if (!location) return res;
-    current = new URL(location, current);
+    const next = new URL(location, current);
+    if (request.body && next.origin !== originalOrigin) {
+      throw new StoreError('The store redirected a credentials request to another host');
+    }
+    current = next;
     const toGet =
       res.status === 303 || ((res.status === 301 || res.status === 302) && request.method === 'POST');
     if (toGet) {

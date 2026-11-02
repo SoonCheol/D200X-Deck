@@ -538,7 +538,7 @@ function injectPiTheme(html) {
 function injectSdBridge(html, url) {
   const actionid = url.searchParams.get('actionid') || '';
   const connect = sdPlugins?.inspectorConnect(actionid) || null;
-  const theme = SD_PI_THEME + buildPiBridge({ connect, openLinks: true });
+  const theme = SD_PI_THEME + buildPiBridge({ connect, openLinks: true, connectMode: true });
   return /<\/body>/i.test(html) ? html.replace(/<\/body>/i, `${theme}</body>`) : html + theme;
 }
 

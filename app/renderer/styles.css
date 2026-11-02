@@ -1107,7 +1107,7 @@ body::before {
 
 /* --------------------------------------------------- plugin property inspector */
 
-.pi-host { margin: 0; }
+.pi-host { margin: 0; min-height: 120px; }
 .pi-frame {
   width: 100%;
   height: 120px;
@@ -1134,13 +1134,8 @@ body::before {
 ::-webkit-scrollbar-thumb:active { background: rgba(255, 255, 255, 0.5); background-clip: content-box; }
 ::-webkit-scrollbar-corner { background: transparent; }
 
-.field.pi-field-collapsed {
-  max-height: 0;
-  overflow: hidden;
-  margin: 0 !important;
-  padding: 0 !important;
-  border: 0;
-}
+.pi-error { color: var(--warn); }
+.badge-tag.case { text-transform: none; letter-spacing: 0; }
 
 /* --------------------------------------------------------------- focus ring */
 

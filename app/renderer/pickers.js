@@ -147,6 +147,8 @@ function switchInstalledTab(tab) {
   $('#tab-icons').classList.toggle('hidden', !isIcons);
   $('#tab-plugins-btn').classList.toggle('active', !isIcons);
   $('#tab-icons-btn').classList.toggle('active', isIcons);
+  $('#tab-plugins-btn').setAttribute('aria-selected', String(!isIcons));
+  $('#tab-icons-btn').setAttribute('aria-selected', String(isIcons));
   if (isIcons) renderInstalledIcons();
 }
 
@@ -230,7 +232,7 @@ function renderSdStoreList() {
         <div class="plugin-meta">
           <div class="plugin-name">
             ${esc(item.name)}
-            <span class="badge-tag">OpenAction</span>
+            <span class="badge-tag case">OpenAction</span>
             ${latest ? `<span class="badge-tag">v${esc(latest)}</span>` : ''}
             ${plugin ? '<span class="badge-tag good">Installed</span>' : ''}
           </div>
@@ -397,7 +399,7 @@ function renderPluginModal() {
         </div>
         <div class="plugin-actions">
           <button class="btn ghost" data-reload="${esc(p.uuid)}" ${p.compatible ? '' : 'disabled'}>Reload</button>
-          <button class="btn ghost" data-reveal="${esc(p.uuid)}">Show in Finder</button>
+          <button class="btn ghost" data-reveal="${esc(p.uuid)}">Reveal in Finder</button>
           ${
             p.compatReason === 'Needs Rosetta'
               ? `<button class="btn primary" data-rosetta="1" title="Opens Terminal and installs Rosetta">Install Rosetta…</button>`

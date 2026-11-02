@@ -38,7 +38,7 @@ function renderIconPacks() {
     .map(
       (pack, index) =>
         `<button class="icons-pack${index === 0 ? ' active' : ''}" data-pack="${esc(pack.id)}">
-           <span>${esc(pack.name)}</span><span class="count">${pack.files.length}</span>
+           <span>${esc(pack.name)}</span><span class="count">${pack.files.length} ${pack.files.length === 1 ? 'icon' : 'icons'}</span>
          </button>`
     )
     .join('');
@@ -74,6 +74,10 @@ async function renderIconGrid(pack) {
     const btn = document.createElement('button');
     btn.className = 'icon-tile';
     btn.title = tile.file;
+    btn.setAttribute('aria-label', tile.file
+      .replace(/\.[^.]+$/, '')
+      .replace(/[-_]+/g, ' ')
+      .replace(/\b\w/g, (c) => c.toUpperCase()));
     const img = document.createElement('img');
     img.src = tile.src;
     img.alt = '';
@@ -137,7 +141,9 @@ function storeCategoryFor(source) {
 
 function renderStoreSourceTabs() {
   document.querySelectorAll('[data-store-source]').forEach((btn) => {
-    btn.classList.toggle('active', btn.dataset.storeSource === storeState.source);
+    const active = btn.dataset.storeSource === storeState.source;
+    btn.classList.toggle('active', active);
+    btn.setAttribute('aria-selected', String(active));
   });
 }
 

@@ -388,9 +388,32 @@ class Store {
   load() {
     fs.mkdirSync(this.dir, { recursive: true });
     const read = (file) => JSON.parse(fs.readFileSync(file, 'utf8'));
+    const defaults = (recovery) => {
+      this.config = createDefaultConfig();
+      this.recovery = recovery;
+      this.save();
+      return this.config;
+    };
+
+    // A missing config is normal first use, not a recovery. A leftover backup
+    // is still worth using, but the absence itself is not a failure.
+    if (!fs.existsSync(this.file)) {
+      try {
+        this.config = this._migrate(this._internalize(read(`${this.file}.bak`)));
+        this.recovery = 'backup';
+        this.save();
+        return this.config;
+      } catch {
+        return defaults(null);
+      }
+    }
 
     try {
       const parsed = this._internalize(read(this.file));
+      if (!Array.isArray(parsed.pages) || parsed.pages.length === 0) {
+        try { fs.copyFileSync(this.file, `${this.file}.corrupt`); } catch { /* ignore */ }
+        return defaults('defaults');
+      }
       const previous = Number(parsed.version) || 1;
       this.config = this._migrate(parsed);
       if (previous !== CONFIG_VERSION) this.save();
@@ -408,10 +431,7 @@ class Store {
         this.save();
         return this.config;
       } catch {
-        this.config = createDefaultConfig();
-        this.recovery = 'defaults';
-        this.save();
-        return this.config;
+        return defaults('defaults');
       }
     }
   }

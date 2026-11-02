@@ -24,10 +24,10 @@ const SELECT_ARROW_CSS = `
  * `connect` is the socket payload for Stream Deck/OpenAction (or null);
  * `openLinks` forwards window.open() to the app instead of opening a window.
  */
-function buildPiBridge({ connect = null, openLinks = false } = {}) {
+function buildPiBridge({ connect = null, openLinks = false, connectMode = false } = {}) {
   // Escape "<" so a setting containing "</script>" cannot close the tag.
   const payload = connect ? JSON.stringify(connect).replace(/</g, '\\u003c') : 'null';
-  const connectBlock = connect
+  const connectBlock = connectMode
     ? `
     function connectInspector() {
       if (!payload) {

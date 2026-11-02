@@ -13,6 +13,7 @@ const { Store, createDefaultConfig, validateConfig } = require('../lib/store');
 const { PluginManager } = require('../lib/plugins');
 const { PluginHost, isAllowedWsOrigin } = require('../lib/plugin-host');
 const { StreamDeckPlugins, logSettings } = require('../lib/streamdeck-plugins');
+const { buildPiBridge } = require('../lib/pi-theme');
 
 function fixture(t) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ulanzi-audit-test-'));
@@ -292,4 +293,24 @@ test('diagnostics redact nested settings names', () => {
   assert.equal(parsed.nested.token, '***');
   assert.equal(parsed.nested.keep, 1);
   assert.equal(parsed.list[0].secret, '***');
+});
+
+test('the Stream Deck inspector bridge keeps its retry without a payload', () => {
+  const sd = buildPiBridge({ connect: null, connectMode: true });
+  assert.match(sd, /connectInspector/);
+  assert.match(sd, /attempt/);
+  const ulanzi = buildPiBridge({});
+  assert.doesNotMatch(ulanzi, /connectInspector/);
+});
+
+test('a fresh store is not a recovery, an existing empty one is', (t) => {
+  const dir = fixture(t);
+  const first = new Store(dir);
+  first.load();
+  assert.equal(first.takeRecovery(), null, 'first use is not a recovery');
+
+  fs.writeFileSync(first.file, JSON.stringify({ version: 6, pages: [] }));
+  const second = new Store(dir);
+  second.load();
+  assert.equal(second.takeRecovery(), 'defaults', 'an empty existing config is reported');
 });

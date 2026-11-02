@@ -531,7 +531,7 @@ function renderInspector() {
       <div class="settings-block">
         <h3>Tips</h3>
         <div class="insp-empty" style="padding:0">
-          Click a key to edit it. Drag a 196×196 image onto a key to use it as the icon.
+          Click a key to edit it. Drag any image onto a key to use it as the icon (it is scaled to 196×196).
           Labels are rendered into the image, so the Deck shows exactly what you see here.
           Select a key and press ⌘C / ⌘V to duplicate it, Delete to clear it (⌘Z undoes).
         </div>
@@ -1219,12 +1219,25 @@ function renderInspector() {
           return;
         }
         host.innerHTML = `<iframe class="pi-frame" data-actionid="${esc(action.actionid)}" src="${esc(url)}" sandbox="allow-scripts allow-forms allow-modals allow-same-origin"></iframe>`;
-        // An inspector that never reports a size (script error, nothing to
-        // show) would otherwise leave a blank block in the panel.
+        // Keep the 120px placeholder instead of collapsing the panel. If the
+        // inspector never reports, offer a retry rather than leaving a blank.
         setTimeout(() => {
           const frame = host.querySelector('.pi-frame');
-          if (frame && !frame.dataset.sized) host.closest('.field')?.classList.add('pi-field-collapsed');
-        }, 2500);
+          if (!frame || frame.dataset.sized || !host.isConnected) return;
+          const note = document.createElement('div');
+          note.className = 'field-hint pi-error';
+          note.textContent = 'Plugin settings didn’t load. ';
+          const retry = document.createElement('button');
+          retry.className = 'link-btn';
+          retry.type = 'button';
+          retry.textContent = 'Retry';
+          retry.addEventListener('click', () => {
+            note.remove();
+            frame.setAttribute('src', frame.getAttribute('src') || '');
+          });
+          note.appendChild(retry);
+          host.after(note);
+        }, 5000);
       })
       .catch(() => {
         if (host.isConnected) host.innerHTML = '<div class="insp-empty" style="padding:0">Could not load the property inspector.</div>';

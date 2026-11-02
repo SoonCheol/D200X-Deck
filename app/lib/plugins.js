@@ -548,7 +548,8 @@ class PluginManager extends PluginHost {
     const { shell } = require('electron');
     let url = msg.url || '';
     if (msg.local && action) {
-      const file = path.resolve(action.meta.dir, url.replace(/^\.?\//, ''));
+      const [pathPart] = String(url).split(/[?#]/);
+      const file = path.resolve(action.meta.dir, pathPart.replace(/^\.?\//, ''));
       if (!isInside(action.meta.dir, file)) return;
       shell.openPath(file);
       return;

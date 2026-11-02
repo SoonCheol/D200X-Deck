@@ -221,8 +221,8 @@
       <div class="modal-card hotkey-card">
         <div class="modal-head">
           <div>
-            <h2 id="hotkey-title">Add Keyboard Key</h2>
-            <p>Press a button or add one below.</p>
+            <h2 id="hotkey-title">Add key combination</h2>
+            <p>Press a combination, or pick keys below.</p>
           </div>
           <button id="hotkey-close" class="icon-btn" title="Close">×</button>
         </div>
@@ -388,7 +388,7 @@
             <input id="store-search" class="input store-search" data-autofocus placeholder="Search plugins…" />
             <select id="store-sort" class="input store-sort">
               <option value="hot">Popular</option>
-              <option value="star">Most starred</option>
+              <option value="star">Top rated</option>
               <option value="new">Latest</option>
             </select>
           </div>
@@ -474,8 +474,8 @@
         </div>
 
         <div class="tabs">
-          <button class="tab active" id="tab-plugins-btn">Plugins</button>
-          <button class="tab" id="tab-icons-btn">Icons</button>
+          <button class="tab active" id="tab-plugins-btn" role="tab" aria-selected="true" aria-controls="tab-plugins" data-plugin-tab="plugins">Plugins</button>
+          <button class="tab" id="tab-icons-btn" role="tab" aria-selected="false" aria-controls="tab-icons" data-plugin-tab="icons">Icons</button>
         </div>
 
         <div id="tab-plugins">

@@ -816,6 +816,30 @@ function selectSettingsTab(name) {
   });
 }
 
+/** Roving tabindex + arrow keys for a tab group; clicks still select. */
+function wireTabs(selector) {
+  const tabs = [...document.querySelectorAll(selector)];
+  const sync = () => tabs.forEach((tab) => {
+    tab.tabIndex = tab.classList.contains('active') ? 0 : -1;
+  });
+  tabs.forEach((tab) => {
+    tab.addEventListener('click', () => setTimeout(sync, 0));
+    tab.addEventListener('keydown', (event) => {
+      const index = tabs.indexOf(tab);
+      let next = null;
+      if (event.key === 'ArrowRight') next = tabs[(index + 1) % tabs.length];
+      else if (event.key === 'ArrowLeft') next = tabs[(index - 1 + tabs.length) % tabs.length];
+      else if (event.key === 'Home') next = tabs[0];
+      else if (event.key === 'End') next = tabs[tabs.length - 1];
+      if (!next) return;
+      event.preventDefault();
+      next.focus();
+      next.click();
+    });
+  });
+  sync();
+}
+
 let seizeState = null;
 
 function renderSeizeState() {
@@ -1340,6 +1364,9 @@ function bind() {
   $('#update-modal').addEventListener('click', (event) => {
     if (event.target === $('#update-modal')) closeUpdateModal();
   });
+  wireTabs('[data-settings-tab]');
+  wireTabs('[data-store-source]');
+  wireTabs('[data-plugin-tab]');
   $('#tips-btn').addEventListener('click', openTipsModal);
   $('#tips-close').addEventListener('click', closeTipsModal);
   $('#tips-modal').addEventListener('click', (event) => {
@@ -1591,16 +1618,12 @@ function bind() {
     }
     if (data.type !== 'ulanzi-pi-height') return;
     const height = Number(data.height) || 0;
-    const host = $('#pi-host');
-    const field = host ? host.closest('.field') : null;
-    // Collapse (rather than hide) an inspector that has not rendered anything
-    // yet: the iframe keeps running, so it can expand again when the plugin
-    // fills the form after connecting.
-    const collapsed = height < 24;
-    if (field) field.classList.toggle('pi-field-collapsed', collapsed);
-    if (collapsed) return;
+    // A PI with no form reports a tiny height; keep the 120px placeholder and
+    // let the retry prompt appear instead of collapsing the field.
+    if (height < 24) return;
     frame.dataset.sized = '1';
     frame.style.height = `${Math.min(560, Math.max(60, height + 4))}px`;
+    $('#pi-host')?.parentElement?.querySelector('.pi-error')?.remove();
   });
 
   api.onKey(({ index, pressed }) => handleKeyEvent(index, pressed));

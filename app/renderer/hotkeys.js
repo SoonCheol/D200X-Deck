@@ -158,7 +158,7 @@ function renderHotkeyModal() {
   if (hotkeyKeyToken) {
     chips.push(`<span class="hotkey-chip">${esc(hotkeyKeyLabel || hotkeyKeyToken)}</span>`);
   }
-  display.innerHTML = chips.length ? chips.join('') : 'Press a button or add one below';
+  display.innerHTML = chips.length ? chips.join('') : 'Press a combination, or pick keys below';
 
   const cats = $('#hotkey-cats');
   cats.innerHTML = HOTKEY_CATEGORIES.map(
