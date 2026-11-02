@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.8.6 — 2026-11-02
+
+### Security
+- **WebSocket admission is now an allowlist.** Only an absent `Origin` (SDK child processes) and the app’s own inspector schemes (`file:`, `ulanzi-pi:`, `sd-pi:`) are accepted; opaque `null` and web/extension origins are rejected.
+
+### Fixed
+- **The five-crash limit now holds.** A plugin that connects and immediately crashes no longer resets its crash counter on every reconnect, and a plugin that gave up stays stopped until an explicit **Reload**.
+
+### Tests
+- 85 → **88**: recent vs. stable reconnects, the give-up state, and the Origin allowlist.
+
 ## 0.8.5 — 2026-11-02
 
 ### Security
