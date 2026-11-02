@@ -120,7 +120,14 @@ function renderImportPages() {
 async function runImport() {
   if (!importActive || !importSelection || !importSelection.size) return;
   const mode = $('#import-mode').value;
-  if (mode === 'replace' && !confirm('Replace the pages in the current profile with the imported ones?')) return;
+  if (mode === 'replace') {
+    const ok = await confirmAction({
+      title: 'Replace the current pages?',
+      message: 'The imported pages replace every page in the current profile. This can’t be undone.',
+      confirmLabel: 'Replace pages',
+    });
+    if (!ok) return;
+  }
   const button = $('#import-run');
   const cancel = $('#import-cancel');
   button.disabled = true;

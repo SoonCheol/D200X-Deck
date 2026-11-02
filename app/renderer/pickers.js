@@ -333,7 +333,12 @@ async function renderInstalledIcons() {
   list.querySelectorAll('[data-pack-remove]').forEach((btn) => {
     btn.addEventListener('click', async () => {
       const pack = packs.find((p) => p.id === btn.dataset.packRemove);
-      if (!confirm(`Delete the icon pack “${pack?.name || ''}”?`)) return;
+      const ok = await confirmAction({
+        title: `Delete “${pack?.name || 'this pack'}”?`,
+        message: 'This removes the icon pack from this Mac. This can’t be undone.',
+        confirmLabel: 'Delete pack',
+      });
+      if (!ok) return;
       const res = await api.removeIconPack(btn.dataset.packRemove);
       if (!res.ok) return toast(res.error, true);
       toast('Icon pack deleted');
@@ -462,7 +467,12 @@ function renderPluginModal() {
     btn.addEventListener('click', async () => {
       const uuid = btn.dataset.remove;
       const plugin = state.plugins.find((p) => p.uuid === uuid);
-      if (!confirm(`Remove “${plugin?.name || uuid}”?`)) return;
+      const ok = await confirmAction({
+        title: `Remove “${plugin?.name || uuid}”?`,
+        message: 'The plugin files are removed from this Mac. Keys keep their settings until you clear them.',
+        confirmLabel: 'Remove plugin',
+      });
+      if (!ok) return;
       const res = await api.removePlugin(uuid);
       if (!res.ok) return toast(res.error, true);
       state.plugins = res.list;

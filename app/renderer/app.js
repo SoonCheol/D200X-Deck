@@ -618,12 +618,18 @@ function saveProfile() {
   commit();
 }
 
-function deleteCurrentProfile() {
+async function deleteCurrentProfile() {
   const profiles = state.config.profiles || [];
   if (profiles.length <= 1) return toast('At least one profile is required', true);
   const profile = profiles.find((p) => p.id === state.config.activeProfileId);
   if (!profile) return;
-  if (!confirm(`Delete profile “${profile.name}” and its pages?`)) return;
+  const pages = state.config.pages.filter((p) => p.profileId === profile.id).length;
+  const ok = await confirmAction({
+    title: `Delete “${profile.name}”?`,
+    message: `This removes the profile and its ${pages} page${pages === 1 ? '' : 's'}. This can’t be undone.`,
+    confirmLabel: 'Delete profile',
+  });
+  if (!ok) return;
   state.config.profiles = profiles.filter((p) => p.id !== profile.id);
   state.config.pages = state.config.pages.filter((p) => p.profileId !== profile.id);
   const nextProfile = state.config.profiles[0];
@@ -734,6 +740,40 @@ function closeAboutModal() {
   $('#about-modal')?.classList.add('hidden');
 }
 
+let confirmResolve = null;
+
+/**
+ * In-app replacement for window.confirm(). Cancel is focused by default, and
+ * the returned promise settles from the button, Escape or the backdrop.
+ */
+function confirmAction({ title = 'Confirm', message = '', confirmLabel = 'Confirm', tone = 'danger' } = {}) {
+  const modal = $('#confirm-modal');
+  if (!modal) return Promise.resolve(false);
+  if (confirmResolve) {
+    const previous = confirmResolve;
+    confirmResolve = null;
+    previous(false);
+  }
+  $('#confirm-title').textContent = title;
+  $('#confirm-message').textContent = message;
+  const ok = $('#confirm-ok');
+  ok.textContent = confirmLabel;
+  ok.classList.toggle('danger-solid', tone === 'danger');
+  ok.classList.toggle('primary', tone === 'primary');
+  modal.classList.remove('hidden');
+  window.focusModal?.('confirm-modal');
+  return new Promise((resolve) => {
+    confirmResolve = resolve;
+  });
+}
+
+function closeConfirmModal(result = false) {
+  const resolve = confirmResolve;
+  confirmResolve = null;
+  $('#confirm-modal')?.classList.add('hidden');
+  if (resolve) resolve(Boolean(result));
+}
+
 function openReleasePage() {
   if (updateInfo?.url) api.openExternal(updateInfo.url);
   closeUpdateModal();
@@ -741,6 +781,7 @@ function openReleasePage() {
 
 let keyClipboard = null;
 let lastCleared = null;
+let lastPageCleared = null;
 
 function isTypingTarget(target) {
   if (!(target instanceof Element)) return false;
@@ -749,7 +790,7 @@ function isTypingTarget(target) {
 }
 
 function anyModalOpen() {
-  return ['hotkey-modal', 'app-modal', 'icons-modal', 'store-modal', 'plugin-modal', 'import-modal', 'profile-modal', 'update-modal', 'about-modal']
+  return ['confirm-modal', 'hotkey-modal', 'app-modal', 'icons-modal', 'store-modal', 'plugin-modal', 'import-modal', 'profile-modal', 'update-modal', 'about-modal']
     .some((id) => {
       const el = document.getElementById(id);
       return el && !el.classList.contains('hidden');
@@ -771,6 +812,7 @@ function pasteKeyIntoSelection() {
   if (!page || state.selected == null) return false;
   if (!keyClipboard) return false;
   lastCleared = { pageId: page.id, index: state.selected, key: page.keys[state.selected] || null };
+  lastPageCleared = null;
   const copy = JSON.parse(JSON.stringify(keyClipboard));
   if (copy.action && copy.action.type === 'plugin') copy.action.actionid = uuid();
   if (copy.holdAction && copy.holdAction.type === 'plugin') copy.holdAction.actionid = uuid();
@@ -794,6 +836,7 @@ function clearSelectedKey() {
   if (!existing) return false;
   const index = state.selected;
   lastCleared = { pageId: page.id, index, key: existing };
+  lastPageCleared = null;
   delete page.keys[index];
   // Deselect: the inspector lazily creates a key for the selected slot, which
   // would put the "deleted" key straight back.
@@ -806,6 +849,21 @@ function clearSelectedKey() {
 }
 
 function undoLastClear() {
+  if (lastPageCleared) {
+    const page = state.config.pages.find((p) => p.id === lastPageCleared.pageId);
+    if (page) {
+      page.keys = lastPageCleared.keys;
+      state.config.activePageId = page.id;
+      state.selected = lastPageCleared.selected ?? null;
+      lastPageCleared = null;
+      lastCleared = null;
+      commit();
+      renderAll();
+      toast('Page restored');
+      return true;
+    }
+    lastPageCleared = null;
+  }
   if (!lastCleared) return false;
   const page = state.config.pages.find((p) => p.id === lastCleared.pageId);
   if (!page) return false;
@@ -1405,6 +1463,11 @@ function bind() {
   $('#tips-modal').addEventListener('click', (event) => {
     if (event.target === $('#tips-modal')) closeTipsModal();
   });
+  $('#confirm-ok').addEventListener('click', () => closeConfirmModal(true));
+  $('#confirm-cancel').addEventListener('click', () => closeConfirmModal(false));
+  $('#confirm-modal').addEventListener('click', (event) => {
+    if (event.target === $('#confirm-modal')) closeConfirmModal(false);
+  });
   $('#connect-banner-reconnect').addEventListener('click', async () => {
     const res = await api.reconnect();
     toast(res.ok ? 'Deck connected' : 'Still no Deck — check the USB cable or quit Ulanzi Studio', !res.ok);
@@ -1568,6 +1631,8 @@ function bind() {
     'tips-modal': closeTipsModal,
     // The app picker opens on top of other dialogs (e.g. the profile form).
     'app-modal': closeAppPicker,
+    // Destructive confirmations stack on top of every other dialog.
+    'confirm-modal': () => closeConfirmModal(false),
   };
 
   // Remember where focus was before a dialog opened and put it back when the

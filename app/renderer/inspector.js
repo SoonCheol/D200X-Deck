@@ -491,9 +491,11 @@ function renderInspector() {
         <button class="icon-btn drawer-close" id="insp-drawer-close" title="Close">×</button>
       </div>
       <div class="insp-actions">
-        <button class="btn danger" id="insp-clear-page" ${configured ? '' : 'disabled'}>Clear page</button>
+        <button class="btn primary" id="insp-add-page">New page</button>
         <button class="btn" id="insp-duplicate-page">Duplicate</button>
-        <button class="btn" id="insp-add-page">New page</button>
+        <button class="btn danger insp-clear-btn" id="insp-clear-page" ${configured ? '' : 'disabled'}>${
+          configured ? `Clear ${configured} ${configured === 1 ? 'key' : 'keys'}` : 'Clear page'
+        }</button>
       </div>
       <div class="insp-separator"></div>
       <div class="field">
@@ -647,12 +649,22 @@ function renderInspector() {
       if (document.activeElement !== $('#page-title')) $('#page-title').value = page.name;
       scheduleSave();
     });
-    $('#insp-clear-page').addEventListener('click', () => {
-      if (!confirm(`Clear all keys on “${page.name}”?`)) return;
+    $('#insp-clear-page').addEventListener('click', async () => {
+      if (!configured) return;
+      const snapshot = JSON.parse(JSON.stringify(page.keys || {}));
+      const ok = await confirmAction({
+        title: `Clear “${page.name}”?`,
+        message: `This removes all ${configured} keys from “${page.name}”. You can undo with ⌘Z.`,
+        confirmLabel: `Clear ${configured} ${configured === 1 ? 'key' : 'keys'}`,
+      });
+      if (!ok) return;
+      lastCleared = null;
+      lastPageCleared = { pageId: page.id, keys: snapshot, selected: state.selected };
       page.keys = {};
       state.selected = null;
       renderAll();
       commit();
+      toast('Page cleared — ⌘Z to undo');
     });
     $('#insp-add-page').addEventListener('click', addPage);
     $('#insp-duplicate-page').addEventListener('click', () => {

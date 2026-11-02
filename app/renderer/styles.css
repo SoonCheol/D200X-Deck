@@ -258,6 +258,12 @@ body::before {
 .btn.primary:hover { filter: brightness(1.06); }
 .btn.ghost { background: transparent; }
 .btn.danger { color: var(--bad); border-color: rgba(255, 93, 115, 0.3); }
+.btn.danger-solid {
+  background: #a83246;
+  border-color: rgba(255, 93, 115, 0.55);
+  color: #fff;
+}
+.btn.danger-solid:hover { background: #b83a4f; filter: brightness(1.04); }
 .btn:disabled { opacity: 0.45; cursor: not-allowed; }
 #push-btn { white-space: nowrap; min-width: 132px; position: relative; }
 #push-btn.unsynced::after {
@@ -531,6 +537,7 @@ body::before {
 
 .insp-actions { display: flex; gap: 8px; margin: 0 0 14px; }
 .insp-actions .btn { flex: 1; }
+.insp-actions .btn.insp-clear-btn { flex: 0 0 auto; margin-left: auto; }
 .insp-separator { border-top: 1px solid var(--line); margin: 0 0 16px; }
 
 .settings-block { border-top: 1px solid var(--line); margin-top: 18px; padding-top: 16px; }
@@ -714,6 +721,9 @@ body::before {
 }
 .connect-banner.hidden { display: none; }
 .tips-card { width: min(420px, calc(100vw - 64px)); height: auto; }
+.confirm-card { width: min(440px, calc(100vw - 64px)); height: auto; }
+#confirm-message { white-space: pre-line; }
+.confirm-actions { justify-content: flex-end; border-bottom: 0; padding-top: 4px; }
 .tips-body { padding: 4px 22px 22px; }
 .tips-body ul { margin: 0; padding-left: 18px; display: flex; flex-direction: column; gap: 8px; }
 .tips-body li { font-size: 12px; line-height: 1.5; color: var(--muted); }

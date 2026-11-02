@@ -666,7 +666,7 @@ function addPage() {
   commit();
 }
 
-function deletePage(id) {
+async function deletePage(id) {
   const page = state.config.pages.find((p) => p.id === id);
   if (!page) return;
   const profilePages = state.config.pages.filter(
@@ -676,7 +676,13 @@ function deletePage(id) {
     toast('A profile needs at least one page', true);
     return;
   }
-  if (!confirm(`Delete page “${page.name}”?`)) return;
+  const keys = Object.keys(page.keys || {}).length;
+  const ok = await confirmAction({
+    title: `Delete “${page.name}”?`,
+    message: `This removes the page and its ${keys} key${keys === 1 ? '' : 's'}. This can’t be undone.`,
+    confirmLabel: 'Delete page',
+  });
+  if (!ok) return;
   state.config.pages = state.config.pages.filter((p) => p.id !== id);
   if (state.config.activePageId === id) {
     const remaining = state.config.pages.filter(
