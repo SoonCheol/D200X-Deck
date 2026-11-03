@@ -1599,7 +1599,12 @@ function renderInspector() {
   const tileGlyph = $('#insp-tile-glyph');
   if (tileGlyph) tileGlyph.addEventListener('input', (e) => updateTile('glyph', e.target.value));
   const tileGlyphColor = $('#insp-tile-glyph-color');
-  if (tileGlyphColor) tileGlyphColor.addEventListener('input', (e) => updateTile('glyphColor', e.target.value));
+  if (tileGlyphColor) {
+    tileGlyphColor.addEventListener('input', (e) => {
+      updateTile('glyphColor', e.target.value);
+      $('#insp-tile-glyph-color-reset')?.removeAttribute('hidden');
+    });
+  }
   $('#insp-tile-glyph-color-reset')?.addEventListener('click', () => {
     key.tile = { ...(key.tile || {}) };
     delete key.tile.glyphColor;
