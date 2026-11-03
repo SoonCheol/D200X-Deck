@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.13.4 — 2026-11-03
+
+### Changed
+- **Tile controls are labelled.** The colour picker for the top bar is now labelled **Accent bar**, and the glyph colour picker is labelled **Glyph colour**, so they are no longer confused with each other. Size fields now say **Size** with tooltips explaining that blank means automatic.
+
+### Tests
+- 270 passing, plus one opt-in Electron smoke test that is skipped without a GUI session.
+
 ## 0.13.3 — 2026-11-03
 
 ### Added

@@ -176,6 +176,11 @@ file; H9 is the last open High.
 - Tile glyphs can have their own colour (#9), with an immediate reset link.
 - 270 tests passing.
 
+### Shipped in 0.13.4 — clearer tile controls
+
+- Tile colour pickers are labelled **Accent bar** and **Glyph colour**;
+  size fields show **Size** and explain automatic sizing in tooltips.
+
 ### Next: visual and store polish
 
 - 1179 breakpoint (M16); type-scale consolidation (M3); icon-language cleanup
