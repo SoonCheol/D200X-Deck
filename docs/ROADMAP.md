@@ -161,6 +161,11 @@ file; H9 is the last open High.
 - Reload results in `reload.log`; failed commands flash red and log stderr.
 - Replace-import keeps imported page IDs when they do not collide.
 
+### Shipped in 0.13.1 — tile text sizing
+
+- Optional pixel sizes for tile glyph/title/subtitle; blank keeps automatic
+  sizing, which shrinks to fit instead of truncating.
+
 ### Next: visual and store polish
 
 - 1179 breakpoint (M16); type-scale consolidation (M3); icon-language cleanup

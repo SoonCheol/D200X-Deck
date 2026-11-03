@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.13.1 — 2026-11-03
+
+### Added
+- **Tile text size controls.** Glyph, title and subtitle now have optional pixel-size fields in the inspector. Leave a field blank for automatic sizing; automatic text also shrinks to fit instead of being cut off.
+
+### Tests
+- 266 passing, plus one opt-in Electron smoke test that is skipped without a GUI session.
+
 ## 0.13.0 — 2026-11-03
 
 ### Added
