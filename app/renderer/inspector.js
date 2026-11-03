@@ -1333,7 +1333,15 @@ function renderInspector() {
   }
 
   const face =
-    key.face === 'text' ? 'text' : key.face === 'icon' ? 'icon' : key.icon || autoIconFor(key) ? 'icon' : 'text';
+    key.face === 'tile'
+      ? 'tile'
+      : key.face === 'text'
+        ? 'text'
+        : key.face === 'icon'
+          ? 'icon'
+          : key.icon || autoIconFor(key)
+            ? 'icon'
+            : 'text';
   const isDefaultColor = String(key.color || DEFAULT_KEY_COLOR).toLowerCase() === DEFAULT_KEY_COLOR;
   const captionVisible =
     key.font?.showLabel !== false && (!liveKey.liveImage || key.font?.captionExplicit === true);
@@ -1424,6 +1432,21 @@ function renderInspector() {
       </div>
     </div>`;
 
+  const tileField = `
+    <div class="field">
+      <div class="field-head">
+        <label for="insp-tile-title">Tile</label>
+        ${backgroundControl}
+      </div>
+      <div class="row">
+        <input class="color-input" id="insp-tile-accent" type="color" value="${esc(key.tile?.accent || '#4f8cff')}" title="Accent bar" />
+        <input class="input" id="insp-tile-glyph" maxlength="8" value="${esc(key.tile?.glyph || key.emoji)}" placeholder="Glyph" />
+      </div>
+      <input class="input" id="insp-tile-title" maxlength="80" value="${esc(key.tile?.title || key.label)}" placeholder="Title" style="margin-top:8px" />
+      <input class="input" id="insp-tile-subtitle" maxlength="80" value="${esc(key.tile?.subtitle || '')}" placeholder="Subtitle" style="margin-top:6px" />
+      <div class="field-hint">A native tile: accent bar, glyph, title and subtitle. Text is stored in config.json, not as an image.</div>
+    </div>`;
+
   el.innerHTML = `
     <div class="insp-head">
       <h2>${state.selected === WIDE_KEY_INDEX ? 'Wide key' : `Key ${state.selected + 1}`}</h2>
@@ -1493,8 +1516,9 @@ function renderInspector() {
         : `<div class="face-tabs" role="tablist" aria-label="Key face">
       <button class="tab ${face === 'icon' ? 'active' : ''}" data-key-face="icon" role="tab" aria-selected="${face === 'icon' ? 'true' : 'false'}">Icon</button>
       <button class="tab ${face === 'text' ? 'active' : ''}" data-key-face="text" role="tab" aria-selected="${face === 'text' ? 'true' : 'false'}">Text</button>
+      <button class="tab ${face === 'tile' ? 'active' : ''}" data-key-face="tile" role="tab" aria-selected="${face === 'tile' ? 'true' : 'false'}">Tile</button>
     </div>
-    ${face === 'icon' ? iconField : textField}`
+    ${face === 'icon' ? iconField : face === 'text' ? textField : tileField}`
     }
     ${
       action.type === 'indicator'
@@ -1534,7 +1558,7 @@ function renderInspector() {
 
   `;
 
-  // appearance tabs: a key shows either an image or its text
+  // appearance tabs: a key shows either an image, its text, or a native tile
   el.querySelectorAll('[data-key-face]').forEach((btn) => {
     btn.addEventListener('click', () => {
       key.face = btn.dataset.keyFace;
@@ -1543,6 +1567,21 @@ function renderInspector() {
       renderInspector();
     });
   });
+
+  const updateTile = (field, value) => {
+    key.face = 'tile';
+    key.tile = { ...(key.tile || {}), [field]: value };
+    drawIndex(state.selected);
+    commit(false);
+  };
+  const tileAccent = $('#insp-tile-accent');
+  if (tileAccent) tileAccent.addEventListener('input', (e) => updateTile('accent', e.target.value));
+  const tileGlyph = $('#insp-tile-glyph');
+  if (tileGlyph) tileGlyph.addEventListener('input', (e) => updateTile('glyph', e.target.value));
+  const tileTitle = $('#insp-tile-title');
+  if (tileTitle) tileTitle.addEventListener('input', (e) => updateTile('title', e.target.value));
+  const tileSubtitle = $('#insp-tile-subtitle');
+  if (tileSubtitle) tileSubtitle.addEventListener('input', (e) => updateTile('subtitle', e.target.value));
 
   // icon drop / choose
   const applyIcon = (dataUrl, source) => {

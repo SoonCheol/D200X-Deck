@@ -16,9 +16,11 @@ _The editor, the plugin manager and the store all run against the deck live._
 * **Profiles & pages** — multiple profiles, each with its own pages; profiles can be
   linked to an app so the deck follows the frontmost window. Page/profile wallpapers and
   “snapshot page” backgrounds are sliced across the keys.
-* **Keys** — emoji or text, captions, background colour, or a custom image (click or
-  drag & drop), with per-key caption size/weight/alignment/colour (official fonts are
-  imported). Keys show either an image or their text, chosen with the **Icon / Text**
+* **Keys** — emoji or text, captions, background colour, a custom image (click or
+  drag & drop), or a native **tile** face with an accent bar, glyph, title and
+  subtitle. Tile text lives in `config.json`, so script-generated profiles stay
+  small and editable. Per-key caption size/weight/alignment/colour is supported
+  (official fonts are imported); choose the face with the **Icon / Text / Tile**
   tabs.
 * **Wide key** — choose **Clock** (analog dial + digital time), **System stats** (live
   CPU / RAM / GPU) or **Background** (page image). Pressing the physical wide key cycles
@@ -33,7 +35,9 @@ _The editor, the plugin manager and the store all run against the deck live._
 * **Press triggers** — separate actions for tap, hold and double press.
 * **Pinned keys** — pin an action to every page, with per-page overrides.
 * **Backup & share** — export a profile to one `.ulanzideckprofile` file and import it
-  back as a new profile, or replace the existing profile with the same name.
+  back as a new profile, or replace the existing profile with the same name. Replace keeps
+  the imported page IDs when they do not collide, so script-generated profiles can be
+  regenerated and reimported.
 * **Launch at login** — start in the menu bar; subpages can auto-return to their parent
   after an idle timeout.
 * **POP menus** — import and use POP keys: press one to get a compact action palette at
@@ -173,7 +177,9 @@ added later.
 4. Open-app, URL, shell and page actions need no special permission.
 
 Config lives in `~/Library/Application Support/Ulanzi Deck Open/config.json`. The app
-keeps a `.bak` and prunes unreferenced images on save.
+keeps a `.bak` and prunes unreferenced images on save. Reload results are appended to
+`~/Library/Logs/Ulanzi Deck Open/reload.log`; failed shell commands and their stderr go to
+`~/Library/Logs/Ulanzi Deck Open/commands.log` and flash the key red.
 
 If you generate or edit `config.json` outside the app, use **File → Reload Config from
 Disk**. From a script, run `open -n -a "Ulanzi Deck Open" --args --reload-config` against

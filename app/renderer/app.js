@@ -1,6 +1,6 @@
 'use strict';
 
-/* global actionMeta, addPage, basename, clearPressTimers, closeAppPicker, closeHotkeyModal, closeIconLibrary, closeImportModal, closeInspector, closeInspectorDrawer, closePluginMenu, closePluginModal, closeStoreModal, commit, downscaleBackground, drawIndex, handleKeyEvent, iconLibraryPacks, iconLibraryQuery, importSources, inspectorDrawerOpen, loadSdStore, loadStoreCategories, loadStoreItems, navigate, openAppPicker, openImportModal, openInspectorDrawer, openPluginModal, openStoreModal, pushNow, refreshPlugins, refreshWideStats, renderAll, renderAppList, renderGrid, renderIconGrid, renderImportSources, renderInspector, renderPageList, renderPluginModal, renderPushButton, renderSdStoreList, renderStandbySlices, renderStatus, renderStoreChrome, renderSyncState, resetImportState, runImport, saveHotkey, scheduleAutoExit, scheduleLivePush, schedulePush, scheduleSave, sdStore, selectImportSource, selectStoreSource, storeState, switchInstalledTab, syncPlugins, toast, uniquePageName, updatePluginCount */
+/* global actionMeta, addPage, basename, clearPressTimers, closeAppPicker, closeHotkeyModal, closeIconLibrary, closeImportModal, closeInspector, closeInspectorDrawer, closePluginMenu, closePluginModal, closeStoreModal, commit, downscaleBackground, drawIndex, flashKey, handleKeyEvent, iconLibraryPacks, iconLibraryQuery, importSources, inspectorDrawerOpen, loadSdStore, loadStoreCategories, loadStoreItems, navigate, openAppPicker, openImportModal, openInspectorDrawer, openPluginModal, openStoreModal, pushNow, refreshPlugins, refreshWideStats, renderAll, renderAppList, renderGrid, renderIconGrid, renderImportSources, renderInspector, renderPageList, renderPluginModal, renderPushButton, renderSdStoreList, renderStandbySlices, renderStatus, renderStoreChrome, renderSyncState, resetImportState, runImport, saveHotkey, scheduleAutoExit, scheduleLivePush, schedulePush, scheduleSave, sdStore, selectImportSource, selectStoreSource, storeState, switchInstalledTab, syncPlugins, toast, uniquePageName, updatePluginCount */
 
 const api = window.deckApp;
 const renderKey = window.KeyRenderer.drawKey;
@@ -668,6 +668,7 @@ function importProfileData(data, { replace = false } = {}) {
     basename,
     remapKeys: remapImportedKeys,
     replace,
+    keepPageIds: replace,
   });
   state.config.profiles = plan.profiles;
   state.config.pages = plan.pages;
@@ -1963,6 +1964,10 @@ function bind() {
   api.onKey(({ index, pressed }) => handleKeyEvent(index, pressed));
 
   api.onError((message) => toast(message, true));
+  api.onCommandFailed(({ message, meta }) => {
+    if (meta && meta.pageId === state.config.activePageId) flashKey(Number(meta.index), 'error');
+    toast(message, true);
+  });
 
   api.onPluginStateIndex(({ actionid, state: index }) => bumpKeyState(actionid, index));
 

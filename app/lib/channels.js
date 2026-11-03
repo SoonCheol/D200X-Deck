@@ -8,6 +8,7 @@ const CH = Object.freeze({
   configSave: 'config:save',
   configReloaded: 'config:reloaded',
   commandOutput: 'command:output',
+  commandFailed: 'command:failed',
   deckPush: 'deck:push',
   systemStats: 'system:stats',
   deckWideMode: 'deck:wide-mode',

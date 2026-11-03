@@ -137,7 +137,15 @@ function normalizeKey(raw) {
   }
   if (typeof raw.emojiAuto === 'string') key.emojiAuto = raw.emojiAuto;
   if (typeof raw.labelAuto === 'string') key.labelAuto = raw.labelAuto;
-  if (raw.face === 'icon' || raw.face === 'text') key.face = raw.face;
+  if (raw.face === 'icon' || raw.face === 'text' || raw.face === 'tile') key.face = raw.face;
+  if (raw.tile && typeof raw.tile === 'object' && !Array.isArray(raw.tile)) {
+    key.tile = {
+      accent: normalizeColor(raw.tile.accent, '#4f8cff'),
+      glyph: str(raw.tile.glyph).slice(0, 8),
+      title: str(raw.tile.title).slice(0, 80),
+      subtitle: str(raw.tile.subtitle).slice(0, 80),
+    };
+  }
   const sourceAction = normalizeSourceAction(raw.sourceAction);
   if (sourceAction) key.sourceAction = sourceAction;
   // Set when the user removes an icon: keep the icon face but stop falling

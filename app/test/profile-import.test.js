@@ -114,6 +114,41 @@ test('duplicate page ids and self-parents are rejected or dropped', () => {
   assert.equal(plan.pages[0].parentId, undefined);
 });
 
+test('replace can keep imported page ids for script-generated profiles', () => {
+  const plan = planProfileImport(data, {
+    profiles: [{ id: 'old', name: 'Marcelo' }],
+    pages: [
+      { id: 'old-page', profileId: 'old', keys: {} },
+      { id: 'other-page', profileId: 'other', keys: {} },
+    ],
+    uuid: ids(),
+    basename: (p) => p.split('/').pop(),
+    remapKeys,
+    replace: true,
+    keepPageIds: true,
+  });
+
+  assert.equal(plan.pages.find((page) => page.name === 'Main').id, 'p1');
+  assert.equal(plan.pages.find((page) => page.name === 'Apps').id, 'p2');
+  assert.equal(plan.pages.find((page) => page.name === 'Apps').parentId, 'p1');
+});
+
+test('kept page ids that collide with another profile are remapped', () => {
+  const plan = planProfileImport(data, {
+    profiles: [{ id: 'old', name: 'Marcelo' }],
+    pages: [{ id: 'p1', profileId: 'other', keys: {} }],
+    uuid: ids(),
+    basename: (p) => p.split('/').pop(),
+    remapKeys,
+    replace: true,
+    keepPageIds: true,
+  });
+
+  const main = plan.pages.find((page) => page.name === 'Main');
+  assert.notEqual(main.id, 'p1');
+  assert.equal(plan.pages.find((page) => page.name === 'Apps').parentId, main.id);
+});
+
 test('invalid profile payloads are rejected', () => {
   assert.throws(() => planProfileImport({ format: 'nope', pages: [] }), /Not a valid/);
   assert.throws(

@@ -197,7 +197,7 @@ handle(CH.appRequestAccessibility, () => {
   return { trusted };
 });
 
-handle(CH.actionRun, async (_evt, action) => actions.execute(action));
+handle(CH.actionRun, async (_evt, action, meta) => actions.execute(action, meta));
 
 // ------------------------------------------------------------- store
 

@@ -194,7 +194,7 @@ async function openPop(action) {
   if (index >= 0 && steps[index]) runKeyAction(steps[index]);
 }
 
-async function runKeyAction(action) {
+async function runKeyAction(action, meta = null) {
   if (!action || action.type === 'none' || !action.type) return { ok: true };
   if (action.type === 'indicator') return { ok: true };
   if (action.type === 'pop') {
@@ -255,7 +255,7 @@ async function runKeyAction(action) {
   // Launch-only shell commands resolve when the process spawns (see
   // lib/actions.js runShell); text and hotkeys resolve when they finish.
   try {
-    const res = await api.runAction(action);
+    const res = await api.runAction(action, meta);
     if (res.ok) return { ok: true };
     toast(res.error || 'action failed', true);
     if (res.permission === 'accessibility') api.requestAccessibility?.();
@@ -313,11 +313,11 @@ async function runToggle(action) {
   return runKeyAction(nextAction);
 }
 
-function flashKey(index) {
+function flashKey(index, kind = 'pressed') {
   const tile = $('#grid').children[index];
   if (!tile) return;
-  tile.classList.add('pressed');
-  setTimeout(() => tile.classList.remove('pressed'), 160);
+  tile.classList.add(kind);
+  setTimeout(() => tile.classList.remove(kind), kind === 'error' ? 700 : 160);
 }
 
 const WIDE_MODE_ORDER = ['clock', 'stats', 'blank'];
@@ -377,6 +377,7 @@ function handleKeyEvent(index, pressed) {
   }
   const key = keyAt(activePage(), index);
   if (!key) return;
+  const meta = (field) => ({ pageId: activePage()?.id, index, field });
 
   // Stream Deck plugins own their own keyDown/keyUp state machine (tap, hold,
   // double press, etc.), so forward real press/release events instead of
@@ -392,7 +393,7 @@ function handleKeyEvent(index, pressed) {
   if (!hasHold && !hasDouble) {
     if (pressed) {
       flashKey(index);
-      runKeyAction(key.action);
+      runKeyAction(key.action, meta('action'));
     }
     return;
   }
@@ -411,7 +412,7 @@ function handleKeyEvent(index, pressed) {
       st.tapTimer = null;
       if (hasDouble) {
         st.doubleFired = true;
-        runKeyAction(key.doubleAction);
+        runKeyAction(key.doubleAction, meta('doubleAction'));
         return;
       }
     }
@@ -421,7 +422,7 @@ function handleKeyEvent(index, pressed) {
       st.holdTimer = setTimeout(() => {
         st.holdTimer = null;
         st.held = true;
-        runKeyAction(key.holdAction);
+        runKeyAction(key.holdAction, meta('holdAction'));
       }, Math.max(150, Number(key.holdMs) || 500));
     }
     return;
@@ -442,10 +443,10 @@ function handleKeyEvent(index, pressed) {
   if (hasDouble) {
     st.tapTimer = setTimeout(() => {
       st.tapTimer = null;
-      runKeyAction(key.action);
+      runKeyAction(key.action, meta('action'));
     }, DOUBLE_WINDOW);
   } else {
-    runKeyAction(key.action);
+    runKeyAction(key.action, meta('action'));
   }
 }
 

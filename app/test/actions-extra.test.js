@@ -97,6 +97,26 @@ test('openUrl accepts web, mail and app links and blocks local/script schemes', 
   });
 });
 
+test('a failing command reports stderr with the key metadata', async () => {
+  const errors = [];
+  actions.setShellErrorHandler((message, meta) => errors.push({ message, meta }));
+  spawnCalls.length = 0;
+  const pending = actions.execute(
+    { type: 'command', value: 'gh --version' },
+    { pageId: 'page-1', index: 4, field: 'action' }
+  );
+  await Promise.resolve();
+  const child = spawnCalls[0].child;
+  child.emit('spawn');
+  assert.deepEqual(await pending, { ok: true });
+  child.stderr.emit('data', Buffer.from('gh: command not found\n'));
+  child.emit('exit', 127, null);
+  assert.deepEqual(errors, [
+    { message: 'gh: command not found', meta: { pageId: 'page-1', index: 4, field: 'action' } },
+  ]);
+  actions.setShellErrorHandler(null);
+});
+
 test('runHotkey builds the expected command for the platform', async (t) => {
   if (process.platform !== 'darwin' && process.platform !== 'linux') {
     t.skip('hotkeys are only implemented on macOS/Linux');

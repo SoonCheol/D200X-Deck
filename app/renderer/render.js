@@ -93,6 +93,60 @@ function isEmojiOnly(text) {
  * @param {number} width  196 for normal keys, 402 for the wide key
  * @param {number} height 196
  */
+function fitText(ctx, text, maxWidth) {
+  let value = String(text || '');
+  while (value.length > 1 && ctx.measureText(value).width > maxWidth) value = value.slice(0, -1);
+  return value;
+}
+
+/** Native text tile: accent bar, glyph, title and subtitle, all editable. */
+function drawTile(ctx, key, w, h) {
+  const tile = key.tile && typeof key.tile === 'object' ? key.tile : {};
+  const accent = /^#[0-9a-f]{6}$/i.test(tile.accent || '') ? tile.accent : '#4f8cff';
+  const base = key.color || '#1b2130';
+  const top = shade(base, 26);
+  const bottom = shade(base, -18);
+  const glyph = String(tile.glyph || key.emoji || '').trim();
+  const title = String(tile.title || key.label || '').trim();
+  const subtitle = String(tile.subtitle || '').trim();
+
+  ctx.save();
+  roundRect(ctx, 0, 0, w, h, 15);
+  ctx.clip();
+  const grad = ctx.createLinearGradient(0, 0, 0, h);
+  grad.addColorStop(0, rgb(top));
+  grad.addColorStop(1, rgb(bottom));
+  ctx.fillStyle = grad;
+  ctx.fillRect(0, 0, w, h);
+
+  ctx.fillStyle = accent;
+  ctx.fillRect(0, 0, w, Math.max(5, Math.round(h * 0.06)));
+
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  if (glyph) {
+    ctx.font = `500 ${Math.round(h * 0.3)}px -apple-system, "SF Pro Text", sans-serif`;
+    ctx.fillStyle = '#f4f7ff';
+    ctx.fillText(fitText(ctx, glyph, w - 18), w / 2, h * 0.39);
+  }
+  if (title) {
+    ctx.font = `700 ${Math.round(h * 0.12)}px -apple-system, "SF Pro Text", sans-serif`;
+    ctx.fillStyle = '#f4f7ff';
+    ctx.fillText(fitText(ctx, title, w - 16), w / 2, h * 0.67);
+  }
+  if (subtitle) {
+    ctx.font = `400 ${Math.round(h * 0.095)}px -apple-system, "SF Pro Text", sans-serif`;
+    ctx.fillStyle = 'rgba(232,237,246,0.62)';
+    ctx.fillText(fitText(ctx, subtitle, w - 16), w / 2, h * 0.82);
+  }
+
+  ctx.strokeStyle = 'rgba(255,255,255,0.09)';
+  ctx.lineWidth = 1;
+  roundRect(ctx, 0.5, 0.5, w - 1, h - 1, 15);
+  ctx.stroke();
+  ctx.restore();
+}
+
 async function drawKey(canvas, key, width = KEY_SIZE, height = KEY_SIZE, autoIcon = null, pageInfo = null) {
   const w = width;
   const h = height;
@@ -101,6 +155,10 @@ async function drawKey(canvas, key, width = KEY_SIZE, height = KEY_SIZE, autoIco
   if (canvas.height !== h) canvas.height = h;
   const ctx = canvas.getContext('2d');
   ctx.clearRect(0, 0, w, h);
+  if (key.face === 'tile') {
+    drawTile(ctx, key, w, h);
+    return;
+  }
   // A key can show an image or its text, never both. The page indicator is
   // drawn dynamically (number + dots), so an imported icon/emoji must not
   // cover it.

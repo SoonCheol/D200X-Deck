@@ -12,7 +12,7 @@
    */
   function planProfileImport(
     data,
-    { profiles = [], pages = [], uuid = null, basename = null, remapKeys = null, replace = false } = {}
+    { profiles = [], pages = [], uuid = null, basename = null, remapKeys = null, replace = false, keepPageIds = false } = {}
   ) {
     if (!data || data.format !== 'ulanzi-deck-open-profile' || !Array.isArray(data.pages) || !data.pages.length) {
       throw new Error('Not a valid Ulanzi Deck Open profile');
@@ -34,10 +34,19 @@
 
     const profileId = existing ? existing.id : uuid();
     const idMap = new Map();
+    const reserved = new Set(
+      pages.filter((page) => !existing || page.profileId !== profileId).map((page) => page.id)
+    );
     for (const page of data.pages) {
       if (!page || typeof page.id !== 'string') continue;
       if (idMap.has(page.id)) throw new Error('Profile has duplicate page ids');
-      idMap.set(page.id, uuid());
+      let mapped = page.id;
+      if (!keepPageIds || reserved.has(mapped)) {
+        mapped = uuid();
+        while (reserved.has(mapped)) mapped = uuid();
+      }
+      reserved.add(mapped);
+      idMap.set(page.id, mapped);
     }
 
     const pageNames = new Set();

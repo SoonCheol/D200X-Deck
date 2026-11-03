@@ -5,6 +5,7 @@ const path = require('node:path');
 const fs = require('node:fs');
 const { isRendererFile: isRendererFileIn } = require('./lib/renderer-url');
 const { applyLoginPath } = require('./lib/shell-path');
+const { appendAppLog } = require('./lib/app-log');
 
 const { Deck } = require('./lib/deck');
 const { Store } = require('./lib/store');
@@ -21,7 +22,10 @@ const { spawn } = require('node:child_process');
 const actions = require('./lib/actions');
 
 // A failing `Run command` exits after the key press; surface the reason as a toast.
-actions.setShellErrorHandler((message) => send(CH.pluginError, `Command failed: ${message}`));
+actions.setShellErrorHandler((message, meta, detail) => {
+  appendAppLog('commands', detail || message);
+  send(CH.commandFailed, { message, meta: meta || null });
+});
 
 process.on('unhandledRejection', (reason) => {
   console.error('[unhandledRejection]', reason instanceof Error ? reason.stack || reason.message : reason);
@@ -346,9 +350,12 @@ function reloadConfigFromDisk() {
   try {
     send(CH.configReloaded, store.reload());
     applyLoginItemSettings();
+    appendAppLog('reload', `OK ${store.file}`);
     return true;
   } catch (err) {
-    send(CH.pluginError, `Could not reload config: ${err.message || String(err)}`);
+    const message = err.message || String(err);
+    appendAppLog('reload', `FAIL ${store.file} — ${message}`);
+    send(CH.pluginError, `Could not reload config: ${message}`);
     return false;
   }
 }

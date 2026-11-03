@@ -385,6 +385,14 @@ body::before {
 .key:hover { transform: translateY(-2px); }
 .key.selected canvas { box-shadow: 0 0 0 2px var(--accent), 0 8px 22px rgba(79, 140, 255, 0.3); }
 .key.pressed canvas { transform: scale(0.96); filter: brightness(1.35); }
+.key.error canvas {
+  box-shadow: 0 0 0 2px var(--bad), 0 0 18px rgba(255, 93, 115, 0.55);
+  animation: key-error 700ms ease;
+}
+@keyframes key-error {
+  0%, 100% { filter: none; }
+  30% { filter: brightness(1.45) saturate(1.4); }
+}
 .font-row {
   display: grid;
   gap: 5px;

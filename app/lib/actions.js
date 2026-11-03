@@ -62,7 +62,7 @@ function setShellErrorHandler(handler) {
   shellErrorHandler = typeof handler === 'function' ? handler : null;
 }
 
-function runShell(command) {
+function runShell(command, meta = null) {
   return new Promise((resolve) => {
     const child = spawn('/bin/sh', ['-c', String(command)], { detached: true, stdio: ['ignore', 'pipe', 'pipe'] });
     let stderr = '';
@@ -79,7 +79,7 @@ function runShell(command) {
       if (code === 0) return;
       const detail = stderr.trim().split('\n').filter(Boolean).pop() || '';
       const reason = detail || (signal ? `killed by ${signal}` : `exited with code ${code}`);
-      if (shellErrorHandler) shellErrorHandler(reason);
+      if (shellErrorHandler) shellErrorHandler(reason, meta, stderr.trim());
     });
   });
 }
@@ -324,7 +324,7 @@ function mediaKey(op) {
  * Execute a key action.
  * Page actions are handled by the renderer (it owns navigation).
  */
-async function execute(action) {
+async function execute(action, meta = null) {
   if (!action || !action.type || action.type === 'none') return { ok: true };
   switch (action.type) {
     case 'app':
@@ -335,7 +335,7 @@ async function execute(action) {
       // legacy configs
       return openTarget(action.value);
     case 'command':
-      return runShell(action.value);
+      return runShell(action.value, meta);
     case 'hotkey':
       return runHotkey(action.value);
     case 'text':
