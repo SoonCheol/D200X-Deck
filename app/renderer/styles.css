@@ -687,6 +687,9 @@ body::before {
 .modal.hidden { display: none; }
 
 #app-modal { z-index: 90; }
+/* Confirmations can be opened from inside any modal (plugin removal, icon pack
+   deletion, profile delete), so they must paint above all of them. */
+#confirm-modal { z-index: 200; }
 
 .modal-card {
   width: min(760px, calc(100vw - 64px));
