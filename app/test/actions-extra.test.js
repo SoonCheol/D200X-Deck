@@ -61,14 +61,23 @@ test('openUrl accepts web and mail links and rejects other schemes', async () =>
   assert.deepEqual(opened, ['https://example.com', 'mailto:test@example.com']);
 });
 
-test('runHotkey builds the expected AppleScript for character keys', async () => {
+test('runHotkey builds the expected command for the platform', async (t) => {
+  if (process.platform !== 'darwin' && process.platform !== 'linux') {
+    t.skip('hotkeys are only implemented on macOS/Linux');
+    return;
+  }
   execCalls.length = 0;
   const result = await actions.runHotkey('cmd+plus');
 
   assert.deepEqual(result, { ok: true });
-  assert.equal(execCalls[0].file, '/usr/bin/osascript');
-  assert.match(execCalls[0].args[1], /keystroke "\+"/);
-  assert.match(execCalls[0].args[1], /using \{command down\}/);
+  if (process.platform === 'darwin') {
+    assert.equal(execCalls[0].file, '/usr/bin/osascript');
+    assert.match(execCalls[0].args[1], /keystroke "\+"/);
+    assert.match(execCalls[0].args[1], /using \{command down\}/);
+  } else {
+    assert.equal(execCalls[0].file, '/usr/bin/xdotool');
+    assert.deepEqual(execCalls[0].args, ['key', 'cmd+plus']);
+  }
 });
 
 test('close and text actions use System Events', async () => {
