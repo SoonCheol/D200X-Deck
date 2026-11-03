@@ -69,6 +69,7 @@ function makeHarness(t, overrides = {}, fakeTimers = true) {
     noteActivity: () => {
       calls.activity += 1;
     },
+    notePluginKeyPress: () => {},
     drawIndex: () => {},
     renderInspector: () => {},
     refreshWideStats: () => {},

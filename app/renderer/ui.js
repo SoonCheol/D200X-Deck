@@ -683,9 +683,20 @@ function syncPlugins() {
 }
 
 const LIVE_PUSH_INTERVAL = 5000;
+const LIVE_PUSH_URGENT_INTERVAL = 200;
 let livePushTimer = null;
 let livePushPending = false;
 let lastLivePushAt = 0;
+let livePushUrgentUntil = 0;
+
+/**
+ * A physical plugin key press usually produces a new image ~300 ms later. Let
+ * those updates through quickly instead of waiting for the 5 s background
+ * coalescer; the window is short so periodic plugin frames stay throttled.
+ */
+function notePluginKeyPress() {
+  livePushUrgentUntil = Date.now() + 2000;
+}
 
 /**
  * Plugin live images can update every second. A full page is hundreds of KB
@@ -698,8 +709,14 @@ function scheduleLivePush() {
   if (typeof lockActive === 'function' && lockActive()) return;
   if (!state.status.connected || !state.config.settings.autoPush) return;
   livePushPending = true;
-  if (livePushTimer) return;
-  const wait = Math.max(0, LIVE_PUSH_INTERVAL - (Date.now() - lastLivePushAt));
+  const urgent = Date.now() < livePushUrgentUntil;
+  if (livePushTimer) {
+    if (!urgent) return;
+    clearTimeout(livePushTimer);
+    livePushTimer = null;
+  }
+  const interval = urgent ? LIVE_PUSH_URGENT_INTERVAL : LIVE_PUSH_INTERVAL;
+  const wait = Math.max(0, interval - (Date.now() - lastLivePushAt));
   livePushTimer = setTimeout(() => {
     livePushTimer = null;
     if (!livePushPending) return;

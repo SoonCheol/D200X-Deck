@@ -1,6 +1,6 @@
 'use strict';
 
-/* global $, actionIconSrc, actionMeta, activePage, api, commit, drawIndex, exitStandby, isEmojiOnly, keyAt, lockActive, navigate, noteActivity, pinnedFor, pushNow, refreshCommandOutput, refreshWideStats, renderInspector, scheduleSave, standbyActive, state, switchProfile, toast, WIDE_KEY_INDEX */
+/* global $, actionIconSrc, actionMeta, activePage, api, commit, drawIndex, exitStandby, isEmojiOnly, keyAt, lockActive, navigate, noteActivity, notePluginKeyPress, pinnedFor, pushNow, refreshCommandOutput, refreshWideStats, renderInspector, scheduleSave, standbyActive, state, switchProfile, toast, WIDE_KEY_INDEX */
 
 // -------------------------------------------------------------- key presses
 
@@ -229,6 +229,7 @@ async function runKeyAction(action, meta = null) {
   }
   if (action.type === 'plugin') {
     try {
+      notePluginKeyPress();
       const res = await api.runPluginAction(action.actionid);
       if (res.ok) return { ok: true };
       const plugin = (state.plugins || []).find((p) => p.uuid === action.plugin);
@@ -383,7 +384,10 @@ function handleKeyEvent(index, pressed) {
   // double press, etc.), so forward real press/release events instead of
   // synthesising a tap.
   if (key.action?.type === 'plugin' && key.action.sdk === 'streamdeck') {
-    if (pressed) flashKey(index);
+    if (pressed) {
+      flashKey(index);
+      notePluginKeyPress();
+    }
     api.pluginKey(key.action.actionid, pressed);
     return;
   }
