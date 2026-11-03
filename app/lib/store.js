@@ -148,6 +148,9 @@ function normalizeKey(raw) {
       titleSize: clamp(Math.round(Number(raw.tile.titleSize) || 0), 0, 48),
       subtitleSize: clamp(Math.round(Number(raw.tile.subtitleSize) || 0), 0, 40),
     };
+    // Optional: an unset glyph colour keeps the default white.
+    const glyphColor = normalizeColor(raw.tile.glyphColor, '');
+    if (glyphColor) key.tile.glyphColor = glyphColor;
   }
   const sourceAction = normalizeSourceAction(raw.sourceAction);
   if (sourceAction) key.sourceAction = sourceAction;

@@ -62,6 +62,19 @@ test('tile faces keep their accent, glyph, text and sizes', () => {
   });
 });
 
+test('tile glyph colour is kept when valid and dropped otherwise', () => {
+  const config = createDefaultConfig();
+  config.pages[0].keys[0] = {
+    face: 'tile',
+    tile: { glyph: '?', glyphColor: '#e5a00d' },
+    action: { type: 'none' },
+  };
+  assert.equal(validateConfig(config).pages[0].keys[0].tile.glyphColor, '#e5a00d');
+
+  config.pages[0].keys[0].tile.glyphColor = 'red';
+  assert.equal('glyphColor' in validateConfig(config).pages[0].keys[0].tile, false);
+});
+
 test('tile glyphs allow a short string, not just an emoji', () => {
   const config = createDefaultConfig();
   config.pages[0].keys[0] = {

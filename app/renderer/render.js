@@ -141,7 +141,7 @@ function drawTile(ctx, key, w, h) {
       ? Math.min(80, Math.max(8, Number(tile.glyphSize)))
       : fitFontSize(ctx, glyph, w - 18, Math.round(h * 0.3), 14, fontFor);
     ctx.font = fontFor(size);
-    ctx.fillStyle = '#f4f7ff';
+    ctx.fillStyle = /^#[0-9a-f]{6}$/i.test(tile.glyphColor || '') ? tile.glyphColor : '#f4f7ff';
     ctx.fillText(fitText(ctx, glyph, w - 18), w / 2, h * 0.39);
   }
   if (title) {

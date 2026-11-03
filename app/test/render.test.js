@@ -271,3 +271,16 @@ test('standby renders one image per key and a placeholder wide key', async () =>
   assert.deepEqual(Array.from(images, (image) => image.index), [...Array(14).keys()]);
   assert.equal(typeof images[13].png, 'string');
 });
+
+test('a tile glyph uses its own colour and defaults to white', async () => {
+  const renderer = loadRenderer();
+  const coloured = makeCanvas();
+  const plain = makeCanvas();
+
+  await renderer.drawKey(coloured, key({ face: 'tile', tile: { glyph: '?', glyphColor: '#e5a00d', title: 'T' } }));
+  await renderer.drawKey(plain, key({ face: 'tile', tile: { glyph: '?', title: 'T' } }));
+
+  assert.equal(textCalls(coloured).find((call) => call.text === '?').fill, '#e5a00d');
+  assert.equal(textCalls(plain).find((call) => call.text === '?').fill, '#f4f7ff');
+  assert.equal(textCalls(coloured).find((call) => call.text === 'T').fill, '#f4f7ff', 'the title stays white');
+});

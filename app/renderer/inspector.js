@@ -1441,6 +1441,7 @@ function renderInspector() {
       <div class="row">
         <input class="color-input" id="insp-tile-accent" type="color" value="${esc(key.tile?.accent || '#4f8cff')}" title="Accent bar" />
         <input class="input" id="insp-tile-glyph" maxlength="40" value="${esc(key.tile?.glyph || key.emoji)}" placeholder="Glyph" />
+        <input class="color-input" id="insp-tile-glyph-color" type="color" value="${esc(key.tile?.glyphColor || '#f4f7ff')}" title="Glyph colour" />
         <input class="input tile-size" id="insp-tile-glyph-size" type="number" min="8" max="80" value="${key.tile?.glyphSize || ''}" placeholder="Auto" title="Glyph size" />
       </div>
       <div class="row" style="margin-top:8px">
@@ -1452,6 +1453,9 @@ function renderInspector() {
         <input class="input tile-size" id="insp-tile-subtitle-size" type="number" min="6" max="40" value="${key.tile?.subtitleSize || ''}" placeholder="Auto" title="Subtitle size" />
       </div>
       <div class="field-hint">A native tile: accent bar, glyph, title and subtitle. Text is stored in config.json, not as an image. Leave a size blank for automatic sizing.</div>
+      <div class="style-reset">
+        <button class="link-btn" id="insp-tile-glyph-color-reset" type="button" ${key.tile?.glyphColor ? '' : 'hidden'}>Reset glyph colour</button>
+      </div>
     </div>`;
 
   el.innerHTML = `
@@ -1594,6 +1598,15 @@ function renderInspector() {
   if (tileAccent) tileAccent.addEventListener('input', (e) => updateTile('accent', e.target.value));
   const tileGlyph = $('#insp-tile-glyph');
   if (tileGlyph) tileGlyph.addEventListener('input', (e) => updateTile('glyph', e.target.value));
+  const tileGlyphColor = $('#insp-tile-glyph-color');
+  if (tileGlyphColor) tileGlyphColor.addEventListener('input', (e) => updateTile('glyphColor', e.target.value));
+  $('#insp-tile-glyph-color-reset')?.addEventListener('click', () => {
+    key.tile = { ...(key.tile || {}) };
+    delete key.tile.glyphColor;
+    drawIndex(state.selected);
+    commit(false);
+    renderInspector();
+  });
   const tileTitle = $('#insp-tile-title');
   if (tileTitle) tileTitle.addEventListener('input', (e) => updateTile('title', e.target.value));
   const tileSubtitle = $('#insp-tile-subtitle');
