@@ -226,8 +226,12 @@ async function drawKey(canvas, key, width = KEY_SIZE, height = KEY_SIZE, autoIco
         const iw = img.width * scale;
         const ih = img.height * scale;
         ctx.drawImage(img, (w - iw) / 2, (h - ih) / 2, iw, ih);
-        ctx.fillStyle = 'rgba(0,0,0,0.28)';
-        ctx.fillRect(0, 0, w, h);
+        // A live image (plugin or command output) is shown as drawn, as in the
+        // vendor app, unless a caption was explicitly turned on over it.
+        if (!key.liveImage || key.font?.captionExplicit === true) {
+          ctx.fillStyle = 'rgba(0,0,0,0.28)';
+          ctx.fillRect(0, 0, w, h);
+        }
       }
     } catch {
       /* broken image: fall through */

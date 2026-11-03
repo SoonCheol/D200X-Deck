@@ -89,7 +89,9 @@ class FakeContext {
   arcTo() {}
   closePath() {}
   clip() {}
-  drawImage() {}
+  drawImage(img, x, y, w, h) {
+    this.calls.push({ op: 'drawImage', src: img.src, x, y, w, h });
+  }
   arc() {}
   fill() {}
   stroke() {}
@@ -106,7 +108,7 @@ function makeCanvas(width = 196, height = 196) {
   };
 }
 
-function loadRenderer() {
+function loadRenderer({ Image = class {} } = {}) {
   const document = {
     createElement: (tag) => (tag === 'canvas' ? makeCanvas() : {}),
   };
@@ -115,7 +117,7 @@ function loadRenderer() {
     window,
     document,
     DeckTextStyle: textStyle,
-    Image: class {},
+    Image,
     setTimeout,
     clearTimeout,
     console,
@@ -283,4 +285,39 @@ test('a tile glyph uses its own colour and defaults to white', async () => {
   assert.equal(textCalls(coloured).find((call) => call.text === '?').fill, '#e5a00d');
   assert.equal(textCalls(plain).find((call) => call.text === '?').fill, '#f4f7ff');
   assert.equal(textCalls(coloured).find((call) => call.text === 'T').fill, '#f4f7ff', 'the title stays white');
+});
+
+test('a live image is not darkened unless captioned, a static full-bleed icon is', async () => {
+  // An Image stub that loads immediately.
+  class ReadyImage {
+    constructor() {
+      this.width = 196;
+      this.height = 196;
+    }
+
+    set src(value) {
+      this._src = value;
+      setTimeout(() => this.onload());
+    }
+
+    get src() {
+      return this._src;
+    }
+  }
+  const renderer = loadRenderer({ Image: ReadyImage });
+  const dimmed = (canvas) =>
+    canvas.context.calls.some((call) => call.op === 'fillRect' && call.fill === 'rgba(0,0,0,0.28)');
+
+  const live = makeCanvas();
+  await renderer.drawKey(live, key({ icon: 'data:image/png;base64,live', liveImage: true }));
+  assert.equal(dimmed(live), false);
+  assert.ok(live.context.calls.some((call) => call.op === 'drawImage' && call.src === 'data:image/png;base64,live'));
+
+  const captioned = makeCanvas();
+  await renderer.drawKey(captioned, key({ icon: 'data:image/png;base64,cap', liveImage: true, font: { captionExplicit: true } }));
+  assert.equal(dimmed(captioned), true, 'an explicit caption keeps the dim for contrast');
+
+  const still = makeCanvas();
+  await renderer.drawKey(still, key({ icon: 'data:image/png;base64,still' }));
+  assert.equal(dimmed(still), true);
 });
