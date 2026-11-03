@@ -398,6 +398,67 @@ test('pinned keys, backgrounds and standby settings survive save/load', () => {
   assert.equal(loaded.profiles[0].pinned[4].action.seconds, 60);
 });
 
+test('state, pinned, profile and lock images stay file-backed', () => {
+  const dir = tempDir();
+  const store = new Store(dir);
+  const png = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==';
+  const svg = 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciLz4=';
+  const key = (icon) => ({
+    emoji: '',
+    label: '',
+    color: '#1b2130',
+    icon,
+    action: { type: 'none' },
+    states: [{ icon: svg }, { icon: svg }],
+  });
+  const config = createDefaultConfig();
+  config.pages[0].keys[0] = key(png);
+  config.pages[0].background = png;
+  config.profiles[0].background = png;
+  config.profiles[0].pinned = { 1: key(png) };
+  config.settings.lockImage = svg;
+  config.settings.standbyImage = png;
+  store.save(config);
+
+  const onDisk = JSON.parse(fs.readFileSync(store.file, 'utf8'));
+  assert.match(onDisk.pages[0].keys[0].icon, /^file:/);
+  assert.match(onDisk.pages[0].keys[0].states[0].icon, /^file:/);
+  assert.match(onDisk.pages[0].background, /^file:/);
+  assert.match(onDisk.profiles[0].background, /^file:/);
+  assert.match(onDisk.profiles[0].pinned[1].icon, /^file:/);
+  assert.match(onDisk.profiles[0].pinned[1].states[0].icon, /^file:/);
+  assert.match(onDisk.settings.lockImage, /^file:.*\.svg$/);
+  assert.equal(onDisk.settings.lockImage.includes('data:image'), false);
+
+  const loaded = store.load();
+  assert.equal(loaded.pages[0].keys[0].icon, png);
+  assert.equal(loaded.pages[0].keys[0].states[0].icon, svg);
+  assert.equal(loaded.pages[0].background, png);
+  assert.equal(loaded.profiles[0].background, png);
+  assert.equal(loaded.profiles[0].pinned[1].icon, png);
+  assert.equal(loaded.profiles[0].pinned[1].states[0].icon, svg);
+  assert.equal(loaded.settings.lockImage, svg);
+});
+
+test('a missing or traversing file image becomes null on load', () => {
+  const dir = tempDir();
+  const store = new Store(dir);
+  fs.mkdirSync(path.join(dir, 'Images'), { recursive: true });
+  fs.writeFileSync(path.join(dir, 'outside.png'), 'outside');
+  const config = createDefaultConfig();
+  config.pages[0].keys[0] = {
+    emoji: '',
+    label: '',
+    color: '#1b2130',
+    icon: 'file:../outside.png',
+    action: { type: 'none' },
+  };
+  store.save(config);
+
+  const loaded = store.load();
+  assert.equal(loaded.pages[0].keys[0].icon, null);
+});
+
 test('one malformed page is dropped instead of discarding the config', () => {
   const config = createDefaultConfig();
   const good = config.pages[0];
