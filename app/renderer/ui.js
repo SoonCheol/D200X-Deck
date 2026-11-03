@@ -682,7 +682,10 @@ function syncPlugins() {
   return api.syncPlugins(wanted).catch((err) => toast(err.message || String(err), true));
 }
 
-const LIVE_PUSH_INTERVAL = 5000;
+// Periodic plugin frames (system monitors, graphs) change about once a second.
+// Push at that cadence; the image comparison in onPluginState already drops
+// unchanged frames, and identical keys are deduped inside the page ZIP.
+const LIVE_PUSH_INTERVAL = 1000;
 const LIVE_PUSH_URGENT_INTERVAL = 200;
 let livePushTimer = null;
 let livePushPending = false;
@@ -700,8 +703,8 @@ function notePluginKeyPress() {
 
 /**
  * Plugin live images can update every second. A full page is hundreds of KB
- * over HID, so coalesce those updates and refresh at most once every few
- * seconds. These pushes are background-only: they must not toggle the Push
+ * over HID, so coalesce those updates to at most one background push per
+ * second. These pushes are background-only: they must not toggle the Push
  * button or claim the page was manually synced.
  */
 function scheduleLivePush() {
