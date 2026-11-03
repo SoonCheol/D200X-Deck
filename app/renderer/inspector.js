@@ -1440,7 +1440,7 @@ function renderInspector() {
       </div>
       <div class="row">
         <input class="color-input" id="insp-tile-accent" type="color" value="${esc(key.tile?.accent || '#4f8cff')}" title="Accent bar" />
-        <input class="input" id="insp-tile-glyph" maxlength="8" value="${esc(key.tile?.glyph || key.emoji)}" placeholder="Glyph" />
+        <input class="input" id="insp-tile-glyph" maxlength="40" value="${esc(key.tile?.glyph || key.emoji)}" placeholder="Glyph" />
         <input class="input tile-size" id="insp-tile-glyph-size" type="number" min="8" max="80" value="${key.tile?.glyphSize || ''}" placeholder="Auto" title="Glyph size" />
       </div>
       <div class="row" style="margin-top:8px">

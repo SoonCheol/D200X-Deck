@@ -62,6 +62,19 @@ test('tile faces keep their accent, glyph, text and sizes', () => {
   });
 });
 
+test('tile glyphs allow a short string, not just an emoji', () => {
+  const config = createDefaultConfig();
+  config.pages[0].keys[0] = {
+    face: 'tile',
+    tile: { glyph: '12345678', title: 'T', subtitle: '' },
+    action: { type: 'none' },
+  };
+  assert.equal(validateConfig(config).pages[0].keys[0].tile.glyph, '12345678');
+
+  config.pages[0].keys[0].tile.glyph = 'x'.repeat(60);
+  assert.equal(validateConfig(config).pages[0].keys[0].tile.glyph.length, 40);
+});
+
 test('command output settings are validated', () => {
   const config = createDefaultConfig();
   config.pages[0].keys[0] = {

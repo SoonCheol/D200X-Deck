@@ -141,7 +141,7 @@ function normalizeKey(raw) {
   if (raw.tile && typeof raw.tile === 'object' && !Array.isArray(raw.tile)) {
     key.tile = {
       accent: normalizeColor(raw.tile.accent, '#4f8cff'),
-      glyph: str(raw.tile.glyph).slice(0, 8),
+      glyph: str(raw.tile.glyph).slice(0, 40),
       title: str(raw.tile.title).slice(0, 80),
       subtitle: str(raw.tile.subtitle).slice(0, 80),
       glyphSize: clamp(Math.round(Number(raw.tile.glyphSize) || 0), 0, 80),
