@@ -118,6 +118,9 @@ async function download(url, dest) {
   const timer = setTimeout(() => controller.abort(), 120_000);
   try {
     const res = await fetch(url, { headers: { 'User-Agent': UA }, redirect: 'follow', signal: controller.signal });
+    if (!/^https:\/\//i.test(String(res.url || url))) {
+      throw new Error('Only HTTPS plugin downloads are allowed');
+    }
     if (!res.ok) throw new Error(`Download failed: ${res.status} ${res.statusText}`);
     const length = Number(res.headers.get('content-length')) || 0;
     if (length > MAX_DOWNLOAD) throw new Error('Plugin package is too large');

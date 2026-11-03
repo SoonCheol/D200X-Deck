@@ -2,8 +2,11 @@
 
 const test = require('node:test');
 const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const os = require('node:os');
+const path = require('node:path');
 
-const { StreamDeckCatalog, normalizeVersion, compareVersions } = require('../lib/sdcatalog');
+const { StreamDeckCatalog, download, normalizeVersion, compareVersions } = require('../lib/sdcatalog');
 
 test('normalizes release and manifest versions', () => {
   assert.equal(normalizeVersion('v1.2.3'), '1.2.3');
@@ -64,6 +67,71 @@ function jsonResponse(body) {
     body: null,
   };
 }
+
+function downloadResponse({ url = 'https://example.invalid/plugin.zip', status = 200, contentLength = null, body = 'PK' } = {}) {
+  const data = Buffer.from(body);
+  return {
+    ok: status >= 200 && status < 300,
+    status,
+    statusText: status === 200 ? 'OK' : 'Error',
+    url,
+    headers: {
+      get: (name) => (String(name).toLowerCase() === 'content-length' ? contentLength : null),
+    },
+    arrayBuffer: async () => data,
+    body: null,
+  };
+}
+
+test('resolve requires a catalogue entry and returns the release', async () => {
+  const catalog = new StreamDeckCatalog();
+  catalog.list = async () => [{ id: 'com.test.plugin' }];
+  catalog.release = async (entry) => {
+    assert.equal(entry.id, 'com.test.plugin');
+    return { url: 'https://example.invalid/plugin.zip', version: '2.0.0' };
+  };
+
+  assert.deepEqual(await catalog.resolve('com.test.plugin'), {
+    entry: { id: 'com.test.plugin' },
+    url: 'https://example.invalid/plugin.zip',
+    version: '2.0.0',
+  });
+  await assert.rejects(catalog.resolve('missing'), /not found/i);
+});
+
+test('a release without a package asset is rejected', async (t) => {
+  const originalFetch = global.fetch;
+  global.fetch = async () => jsonResponse({ tag_name: 'v1.0.0', assets: [{ name: 'notes.txt' }] });
+  t.after(() => {
+    global.fetch = originalFetch;
+  });
+
+  await assert.rejects(
+    new StreamDeckCatalog().release({ id: 'com.test', repository: 'https://github.com/test/plugin' }),
+    /no downloadable release asset/i
+  );
+});
+
+test('download rejects HTTP, redirect downgrades, oversize and non-200 responses', async (t) => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ulanzi-sd-download-'));
+  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+  const destination = `${dir}/plugin.zip`;
+  const originalFetch = global.fetch;
+  t.after(() => {
+    global.fetch = originalFetch;
+  });
+
+  await assert.rejects(download('http://example.invalid/plugin.zip', destination), /Only HTTPS/i);
+
+  global.fetch = async () => downloadResponse({ url: 'http://evil.example/plugin.zip' });
+  await assert.rejects(download('https://example.invalid/plugin.zip', destination), /Only HTTPS/i);
+
+  global.fetch = async () => downloadResponse({ contentLength: '999999999' });
+  await assert.rejects(download('https://example.invalid/plugin.zip', destination), /too large/i);
+
+  global.fetch = async () => downloadResponse({ status: 500 });
+  await assert.rejects(download('https://example.invalid/plugin.zip', destination), /Download failed/i);
+});
 
 test('refreshing the catalogue expires resolved releases', async (t) => {
   const originalFetch = global.fetch;
