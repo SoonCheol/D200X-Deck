@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.13.6 — 2026-11-03
+
+### Fixed
+- **The remove-plugin confirmation is no longer hidden behind the Installed dialog.** Confirmations now paint above every modal, so removing a plugin, deleting an icon pack or deleting a profile works from inside its own list.
+
+### Tests
+- 275 passing, plus two opt-in Electron smoke tests that are skipped without a GUI session.
+
 ## 0.13.5 — 2026-11-03
 
 ### Added

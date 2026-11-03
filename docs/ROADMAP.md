@@ -188,6 +188,11 @@ file; H9 is the last open High.
 - Live plugin/command images keep their own colours (#12).
 - 275 tests passing.
 
+### Shipped in 0.13.6 — confirmation layering
+
+- The confirmation modal now paints above the Installed plugin list, icon packs
+  and other modals.
+
 ### Next: visual and store polish
 
 - 1179 breakpoint (M16); type-scale consolidation (M3); icon-language cleanup
