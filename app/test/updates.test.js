@@ -46,6 +46,26 @@ test('throws on other HTTP failures', async () => {
   );
 });
 
+test('rejects malformed release JSON and a release without a version', async () => {
+  await assert.rejects(
+    fetchLatestRelease({ fetchImpl: async () => new Response('{bad', { status: 200 }) }),
+    /JSON/
+  );
+  await assert.rejects(
+    fetchLatestRelease({ fetchImpl: async () => releaseResponse({ tag_name: '', name: '' }) }),
+    /no version/i
+  );
+});
+
+test('aborts a stalled release request at the timeout', async () => {
+  const fetchImpl = (_url, { signal }) =>
+    new Promise((_resolve, reject) => {
+      signal.addEventListener('abort', () => reject(new Error('aborted')));
+    });
+
+  await assert.rejects(fetchLatestRelease({ fetchImpl, timeout: 5 }), /aborted/);
+});
+
 test('flattens release notes for the dialog and drops the build footer', () => {
   const body = '## Changes\n\n### Features\n- **Store** thing\n- `code` thing\n\n---\n\nUnsigned build notes';
   assert.equal(releaseNotes(body), '## Changes\n\n### Features\n- **Store** thing\n- `code` thing');
