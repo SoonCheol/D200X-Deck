@@ -126,9 +126,16 @@ file; H9 is the last open High.
 - Timer countdown, finish beep and cancel paths are tested.
 - POP palette keyboard navigation and focus restore are tested.
 
+### Shipped in 0.11.4 — store detail polish (M27)
+
+- Detail view puts Back at the top-left and shows screenshots, category,
+  installed/update state, installed version, download size, downloads and stars.
+- Long descriptions are used when available; the plugin ID moves into a
+  disclosure.
+- Updating an installed plugin from the detail view now works.
+
 ### Next: visual and store polish
 
-- Store detail and remaining card state (M27).
 - 1179 breakpoint (M16); type-scale consolidation (M3); icon-language cleanup
   (M4).
 - Remaining copy/nits from §8 of the UI report.

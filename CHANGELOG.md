@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.11.4 — 2026-11-03
+
+### Changed
+- **The store detail now helps you decide whether to install.** Screenshots from the listing appear above the description, with a thumbnail strip; the metadata row shows category, installed/update state, installed version, download size, downloads and stars.
+- **Back sits at the top-left** of the detail view instead of floating at the far right.
+- **The raw plugin ID is now a collapsible disclosure**, and long descriptions replace the one-line summary when the listing provides one.
+
+### Fixed
+- **Installed plugins with a newer store version can be updated from the detail view.** The button previously stayed disabled as “Installed”.
+
+### Tests
+- 234 → **238** passing, plus one opt-in Electron smoke test that is skipped without a GUI session.
+
 ## 0.11.3 — 2026-11-02
 
 ### Changed
