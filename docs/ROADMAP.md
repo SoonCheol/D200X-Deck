@@ -134,6 +134,13 @@ file; H9 is the last open High.
   disclosure.
 - Updating an installed plugin from the detail view now works.
 
+### Shipped in 0.11.5 — store cover fixes
+
+- Legacy `/static/` covers resolve against the main site, so broken store icons
+  such as Nanoleaf’s load again.
+- Broken covers fall back to the first screenshot and then the placeholder.
+- Plugin listings without a package say “No download” instead of “Not a plugin”.
+
 ### Next: visual and store polish
 
 - 1179 breakpoint (M16); type-scale consolidation (M3); icon-language cleanup

@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.11.5 — 2026-11-03
+
+### Fixed
+- **Store covers hosted under `/static/` now load.** Legacy listings such as Nanoleaf point at the main Ulanzi site rather than the UGC asset host, so their icons were broken.
+- **A stale store cover falls back to the listing’s first screenshot**, then to the placeholder, instead of showing a broken image.
+- **Plugin listings without a downloadable package say “No download”** instead of the misleading “Not a plugin”.
+
+### Tests
+- 238 → **240** passing, plus one opt-in Electron smoke test that is skipped without a GUI session.
+
 ## 0.11.4 — 2026-11-03
 
 ### Changed
