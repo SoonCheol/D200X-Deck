@@ -6,6 +6,7 @@ const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
 const Module = require('node:module');
+const { EventEmitter } = require('node:events');
 const { pathToFileURL } = require('node:url');
 const JSZip = require('jszip');
 
@@ -39,9 +40,38 @@ const ipcRenderer = {
   removeListener() {},
 };
 
+const createdWindows = [];
+class FakeWindow extends EventEmitter {
+  constructor(options) {
+    super();
+    this.options = options;
+    this.destroyed = false;
+    this.sent = [];
+    this.webContents = new EventEmitter();
+    this.webContents.send = (channel, payload) => this.sent.push({ channel, payload });
+    createdWindows.push(this);
+  }
+
+  loadFile() {
+    return Promise.resolve();
+  }
+
+  destroy() {
+    if (this.destroyed) return;
+    this.destroyed = true;
+    this.emit('closed');
+  }
+
+  show() {}
+  focus() {}
+  setPosition() {}
+  setAlwaysOnTop() {}
+  setVisibleOnAllWorkspaces() {}
+}
+
 const electron = {
   app: { getVersion: () => '9.9.9', getPath: () => os.tmpdir() },
-  BrowserWindow: class {},
+  BrowserWindow: FakeWindow,
   contextBridge: {
     exposeInMainWorld(name, api) {
       exposedWorld[name] = api;
@@ -65,6 +95,16 @@ const electron = {
   },
 };
 
+const fakeChildProcess = {
+  execFile(file, args, options, callback) {
+    const done = typeof options === 'function' ? options : callback;
+    if (done) done(new Error(`no ${file} in tests`), '', '');
+  },
+  spawn() {
+    throw new Error('unexpected spawn in IPC tests');
+  },
+};
+
 let downloadImpl = null;
 sdcatalog.download = (...args) => {
   if (!downloadImpl) throw new Error('download is not configured');
@@ -74,6 +114,7 @@ sdcatalog.download = (...args) => {
 const originalLoad = Module._load;
 Module._load = function load(request, parent, isMain) {
   if (request === 'electron') return electron;
+  if (request === 'node:child_process') return fakeChildProcess;
   return originalLoad.call(this, request, parent, isMain);
 };
 let registerIpc;
@@ -441,6 +482,229 @@ test('import:apply rejects a preview with no profiles and cleans up', async (t) 
   assert.equal(fs.existsSync(cleanup), false);
 });
 
+test('icon packs install, list, read and remove safely', async (t) => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'ulanzi-icon-ipc-'));
+  const oldConfig = process.env.ULANZI_CONFIG_DIR;
+  process.env.ULANZI_CONFIG_DIR = root;
+  t.after(() => {
+    if (oldConfig === undefined) delete process.env.ULANZI_CONFIG_DIR;
+    else process.env.ULANZI_CONFIG_DIR = oldConfig;
+    fs.rmSync(root, { recursive: true, force: true });
+  });
+  const market = {
+    resource: async (id) => ({
+      id,
+      name: 'Test Pack',
+      author: 'Tester',
+      icon: null,
+      files: 'https://ugc.ulanzistudio.com/pack.zip',
+    }),
+    download: async (_url, destination) => {
+      const zip = new JSZip();
+      zip.file('a.png', Buffer.from('one'));
+      zip.file('nested/a.png', Buffer.from('two'));
+      zip.file('notes.txt', 'ignore me');
+      fs.writeFileSync(destination, await zip.generateAsync({ type: 'nodebuffer' }));
+    },
+  };
+  const { handlers } = harness(makeCtx({ market }));
+  const install = await handlers.get(CH.storeInstallIcons)(trustedEvent(), '42');
+
+  assert.equal(install.ok, true);
+  assert.equal(install.pack.id, 'test-pack-42');
+  assert.equal(install.pack.count, 2);
+  assert.equal(fs.existsSync(path.join(root, 'Icons', 'test-pack-42', 'a-1.png')), true);
+  assert.equal(fs.existsSync(path.join(root, 'Icons', 'test-pack-42', 'notes.txt')), false);
+
+  const packs = await handlers.get(CH.iconsList)(trustedEvent());
+  const pack = packs.find((item) => item.id === 'app:test-pack-42');
+  assert.equal(pack.name, 'Test Pack');
+  assert.deepEqual(pack.files.sort(), ['a-1.png', 'a.png']);
+
+  const image = await handlers.get(CH.iconsRead)(trustedEvent(), 'app:test-pack-42', 'a.png');
+  assert.match(image, /^data:image\/png;base64,/);
+  assert.equal(await handlers.get(CH.iconsRead)(trustedEvent(), 'app:test-pack-42', '../../evil.png'), null);
+
+  assert.deepEqual(await handlers.get(CH.iconsRemove)(trustedEvent(), 'ulanzi:other'), {
+    ok: false,
+    error: 'Icon packs installed by Ulanzi Studio are read-only',
+  });
+  assert.deepEqual(await handlers.get(CH.iconsRemove)(trustedEvent(), 'app:test-pack-42'), { ok: true });
+  assert.equal(fs.existsSync(path.join(root, 'Icons', 'test-pack-42')), false);
+});
+
+test('plugin install asks for consent and installs the selected folder', async (t) => {
+  const folder = fs.mkdtempSync(path.join(os.tmpdir(), 'ulanzi-plugin-ipc-'));
+  const pluginDir = path.join(folder, 'Demo.sdPlugin');
+  fs.mkdirSync(pluginDir);
+  t.after(() => fs.rmSync(folder, { recursive: true, force: true }));
+  const installed = [];
+  const sent = [];
+  const sdPlugins = {
+    install: async (source) => {
+      installed.push(source);
+      return { uuid: 'Demo.sdPlugin', name: 'Demo' };
+    },
+  };
+  const { handlers } = harness(makeCtx({
+    sdPlugins,
+    send: (channel) => sent.push(channel),
+    allPluginList: () => [{ uuid: 'Demo.sdPlugin' }],
+  }));
+  dialog.showOpenDialog = async () => ({ canceled: false, filePaths: [pluginDir] });
+  dialog.showMessageBox = async () => ({ response: 1 });
+
+  const result = await handlers.get(CH.pluginsInstallFolder)(trustedEvent());
+
+  assert.equal(result.ok, true);
+  assert.equal(result.sdk, 'streamdeck');
+  assert.deepEqual(installed, [pluginDir]);
+  assert.deepEqual(sent, [CH.pluginsChanged]);
+});
+
+test('declining plugin consent does not install anything', async (t) => {
+  const folder = fs.mkdtempSync(path.join(os.tmpdir(), 'ulanzi-plugin-ipc-'));
+  const pluginDir = path.join(folder, 'Demo.sdPlugin');
+  fs.mkdirSync(pluginDir);
+  t.after(() => fs.rmSync(folder, { recursive: true, force: true }));
+  let installed = false;
+  const sdPlugins = {
+    install: async () => {
+      installed = true;
+      return { uuid: 'Demo.sdPlugin' };
+    },
+  };
+  const { handlers } = harness(makeCtx({ sdPlugins }));
+  dialog.showOpenDialog = async () => ({ canceled: false, filePaths: [pluginDir] });
+  dialog.showMessageBox = async () => ({ response: 0 });
+
+  const result = await handlers.get(CH.pluginsInstallFolder)(trustedEvent());
+
+  assert.deepEqual(result, { ok: false, canceled: true });
+  assert.equal(installed, false);
+});
+
+test('plugin remove and import delegate to the owning manager', async (t) => {
+  const removed = [];
+  const imported = [];
+  const manager = {
+    remove(uuid) {
+      removed.push(uuid);
+    },
+    import(uuid) {
+      imported.push(uuid);
+      return { uuid, list: [] };
+    },
+  };
+  const sent = [];
+  const { handlers } = harness(makeCtx({
+    findPluginOwner: () => manager,
+    send: (channel) => sent.push(channel),
+    allPluginList: () => [],
+  }));
+
+  const remove = await handlers.get(CH.pluginsRemove)(trustedEvent(), 'plugin');
+  const importResult = await handlers.get(CH.pluginsImport)(trustedEvent(), 'vendor-plugin');
+
+  assert.deepEqual(remove, { ok: true, list: [] });
+  assert.deepEqual(importResult, { ok: true, uuid: 'vendor-plugin', list: [] });
+  assert.deepEqual(removed, ['plugin']);
+  assert.deepEqual(imported, ['vendor-plugin']);
+  assert.deepEqual(sent, [CH.pluginsChanged, CH.pluginsChanged]);
+});
+
+test('dialog pickers return image data and audio paths', async (t) => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ulanzi-dialog-ipc-'));
+  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+  const image = path.join(dir, 'icon.png');
+  fs.writeFileSync(image, Buffer.from('fake-png'));
+  const audio = path.join(dir, 'tone.mp3');
+  fs.writeFileSync(audio, 'fake-audio');
+  const { handlers } = harness(makeCtx());
+  dialog.showOpenDialog = async () => ({ canceled: false, filePaths: [image] });
+
+  const picked = await handlers.get(CH.dialogPickImage)(trustedEvent());
+  assert.equal(picked.ok, true);
+  assert.match(picked.data, /^data:image\/png;base64,/);
+
+  dialog.showOpenDialog = async () => ({ canceled: false, filePaths: [audio] });
+  assert.equal(await handlers.get(CH.dialogPickAudio)(trustedEvent()), audio);
+  dialog.showOpenDialog = async () => ({ canceled: true, filePaths: [] });
+  assert.deepEqual(await handlers.get(CH.dialogPickImage)(trustedEvent()), { canceled: true });
+  assert.equal(await handlers.get(CH.dialogPickAudio)(trustedEvent()), null);
+});
+
+test('profile export validates the payload and writes the file', async (t) => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ulanzi-profile-ipc-'));
+  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+  const destination = path.join(dir, 'profile.json');
+  const { handlers } = harness(makeCtx());
+  dialog.showSaveDialog = async () => ({ canceled: false, filePath: destination });
+
+  assert.deepEqual(
+    await handlers.get(CH.profileExport)(trustedEvent(), { format: 'wrong' }),
+    { ok: false, error: 'invalid profile payload' }
+  );
+  const payload = { format: 'ulanzi-deck-open-profile', name: 'My Profile', pages: [{ id: 'p' }] };
+  const result = await handlers.get(CH.profileExport)(trustedEvent(), payload);
+  assert.deepEqual(result, { ok: true, path: destination });
+  assert.deepEqual(JSON.parse(fs.readFileSync(destination, 'utf8')), payload);
+});
+
+test('profile import validates the file format and pages', async (t) => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ulanzi-profile-ipc-'));
+  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+  const file = path.join(dir, 'profile.json');
+  const { handlers } = harness(makeCtx());
+  dialog.showOpenDialog = async () => ({ canceled: false, filePaths: [file] });
+
+  fs.writeFileSync(file, JSON.stringify({ format: 'wrong', pages: [] }));
+  const invalid = await handlers.get(CH.profileImport)(trustedEvent());
+  assert.equal(invalid.ok, false);
+  assert.match(invalid.error, /Not a Ulanzi Deck Open profile/);
+
+  const payload = { format: 'ulanzi-deck-open-profile', pages: [{ id: 'p' }] };
+  fs.writeFileSync(file, JSON.stringify(payload));
+  const valid = await handlers.get(CH.profileImport)(trustedEvent());
+  assert.deepEqual(valid, { ok: true, data: payload, path: file });
+});
+
+test('openExternal only accepts web and mail links', async () => {
+  const opened = [];
+  const original = electron.shell.openExternal;
+  electron.shell.openExternal = async (url) => opened.push(url);
+  try {
+    const { handlers } = harness(makeCtx());
+    assert.deepEqual(await handlers.get(CH.appOpenExternal)(trustedEvent(), 'file:///etc/passwd'), {
+      ok: false,
+      error: 'Unsupported URL',
+    });
+    assert.deepEqual(await handlers.get(CH.appOpenExternal)(trustedEvent(), 'https://example.com'), { ok: true });
+    assert.deepEqual(opened, ['https://example.com']);
+  } finally {
+    electron.shell.openExternal = original;
+  }
+});
+
+test('appState reports recovery once', async () => {
+  let recovery = 'backup';
+  const ctx = makeCtx({
+    store: {
+      config: { settings: {} },
+      save() {},
+      takeRecovery: () => {
+        const value = recovery;
+        recovery = null;
+        return value;
+      },
+    },
+  });
+  const { handlers } = harness(ctx);
+
+  assert.equal((await handlers.get(CH.appState)(trustedEvent())).recovery, 'backup');
+  assert.equal((await handlers.get(CH.appState)(trustedEvent())).recovery, null);
+});
+
 test('dialog handlers resolve getWin lazily after registration', async () => {
   const calls = [];
   dialog.showOpenDialog = async (...args) => {
@@ -458,6 +722,101 @@ test('dialog handlers resolve getWin lazily after registration', async () => {
   assert.deepEqual(result, { canceled: true });
   assert.equal(calls.length, 1);
   assert.equal(calls[0][0], win, 'the dialog must receive the window that exists when it opens');
+});
+
+test('POP sanitizes items and resolves the chosen index', async (t) => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  createdWindows.length = 0;
+  const actions = require('../lib/actions');
+  const originalOpenApp = actions.openApp;
+  actions.openApp = async () => ({ ok: true });
+  t.after(() => {
+    actions.openApp = originalOpenApp;
+  });
+  const { handlers, listeners } = harness(makeCtx());
+  const promise = handlers.get(CH.popShow)(trustedEvent(), [
+    {
+      label: 'x'.repeat(100),
+      emoji: '😀'.repeat(20),
+      icon: 'https://evil.example/icon.png',
+      text: true,
+      fontSize: 99,
+      title: 't'.repeat(200),
+    },
+    { label: 'Second', icon: 'assets/actions/page-next.svg', fontSize: 8 },
+  ]);
+  for (let i = 0; i < 100 && !createdWindows.length; i += 1) {
+    await new Promise((resolve) => setImmediate(resolve));
+  }
+  const win = createdWindows.at(-1);
+  assert.ok(win, 'the POP window is created');
+  win.emit('ready-to-show');
+  win.webContents.emit('did-finish-load');
+
+  const sent = win.sent.find((entry) => entry.channel === CH.popItems);
+  assert.ok(sent);
+  assert.equal(sent.payload[0].label.length, 60);
+  assert.equal(sent.payload[0].emoji.length, 8);
+  assert.equal(sent.payload[0].icon, '');
+  assert.equal(sent.payload[0].fontSize, 20);
+  assert.equal(sent.payload[0].title.length, 160);
+  assert.equal(sent.payload[1].icon, 'assets/actions/page-next.svg');
+
+  const onChoice = listeners.get(CH.popChoice);
+  assert.ok(onChoice);
+  onChoice({ sender: win.webContents }, 1);
+
+  assert.equal(await promise, 1);
+  assert.equal(win.destroyed, true);
+});
+
+test('a second POP press closes the open palette', async (t) => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  createdWindows.length = 0;
+  const actions = require('../lib/actions');
+  const originalOpenApp = actions.openApp;
+  actions.openApp = async () => ({ ok: true });
+  t.after(() => {
+    actions.openApp = originalOpenApp;
+  });
+  const { handlers } = harness(makeCtx());
+  const first = handlers.get(CH.popShow)(trustedEvent(), [{ label: 'One' }]);
+  for (let i = 0; i < 100 && !createdWindows.length; i += 1) {
+    await new Promise((resolve) => setImmediate(resolve));
+  }
+  const win = createdWindows.at(-1);
+  assert.ok(win);
+  win.emit('ready-to-show');
+
+  const second = await handlers.get(CH.popShow)(trustedEvent(), [{ label: 'Two' }]);
+
+  assert.equal(second, -1);
+  assert.equal(win.destroyed, true);
+  assert.equal(await first, -1);
+});
+
+test('POP closes on blur after it is armed', async (t) => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  createdWindows.length = 0;
+  const actions = require('../lib/actions');
+  const originalOpenApp = actions.openApp;
+  actions.openApp = async () => ({ ok: true });
+  t.after(() => {
+    actions.openApp = originalOpenApp;
+  });
+  const { handlers } = harness(makeCtx());
+  const promise = handlers.get(CH.popShow)(trustedEvent(), [{ label: 'One' }]);
+  for (let i = 0; i < 100 && !createdWindows.length; i += 1) {
+    await new Promise((resolve) => setImmediate(resolve));
+  }
+  const win = createdWindows.at(-1);
+  assert.ok(win);
+  win.emit('ready-to-show');
+  t.mock.timers.tick(250);
+  win.emit('blur');
+
+  assert.equal(await promise, -1);
+  assert.equal(win.destroyed, true);
 });
 
 test('SD store install downloads and installs the resolved package', async (t) => {
