@@ -257,3 +257,38 @@ test('formatTimer renders hours, minutes and seconds', () => {
   assert.equal(context.formatTimer(65), '1:05');
   assert.equal(context.formatTimer(3661), '1:01:01');
 });
+
+test('a timer counts down, beeps on finish and clears its face', async () => {
+  const { context, calls, key, page } = makeHarness(undefined, {}, false);
+  const timer = { type: 'timer', seconds: 1, sound: true };
+  key.action = timer;
+  page.keys[0] = key;
+
+  context.toggleTimer(timer);
+  assert.match(context.timerTextFor(timer), /^0:0[01]$/);
+  assert.equal(calls.toasts.some(([message]) => /Timer started/.test(message)), true);
+
+  await new Promise((resolve) => setTimeout(resolve, 1150));
+
+  assert.equal(context.timerTextFor(timer), '');
+  assert.equal(calls.toasts.some(([message]) => message === 'Timer finished'), true);
+  assert.equal(
+    calls.actions.some((action) => action.type === 'command' && /afplay/.test(action.value)),
+    true
+  );
+  assert.ok(calls.push > 0);
+});
+
+test('a second timer press cancels it without a beep', () => {
+  const { context, calls, key, page } = makeHarness();
+  const timer = { type: 'timer', seconds: 1, sound: true };
+  key.action = timer;
+  page.keys[0] = key;
+
+  context.toggleTimer(timer);
+  context.toggleTimer(timer);
+
+  assert.equal(context.timerTextFor(timer), '');
+  assert.equal(calls.toasts.some(([message]) => message === 'Timer cancelled'), true);
+  assert.equal(calls.actions.some((action) => /afplay/.test(action.value)), false);
+});

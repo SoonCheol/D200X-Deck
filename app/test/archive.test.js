@@ -110,3 +110,30 @@ test('readZipEntry enforces its output cap', async (t) => {
   await assert.rejects(readZipEntry(file, 'large.txt', 2));
 });
 
+test('extractZip stops an archive that expands beyond the budget while unpacking', async (t) => {
+  const file = await makeZip(t, { 'safe.txt': 'x' });
+  const bin = fs.mkdtempSync(path.join(os.tmpdir(), 'archive-fake-unzip-'));
+  const destination = fs.mkdtempSync(path.join(os.tmpdir(), 'archive-monitor-'));
+  t.after(() => {
+    fs.rmSync(bin, { recursive: true, force: true });
+    fs.rmSync(destination, { recursive: true, force: true });
+  });
+  const script = path.join(bin, 'unzip');
+  fs.writeFileSync(
+    script,
+    `#!/bin/sh\nout=""\nwhile [ $# -gt 0 ]; do case "$1" in -d) out="$2"; shift 2;; *) shift;; esac; done\nmkdir -p "$out"\ndd if=/dev/zero of="$out/chunk.bin" bs=1024 count=1024 2>/dev/null\nsleep 0.8\necho done > "$out/completed"\n`
+  );
+  fs.chmodSync(script, 0o755);
+  const originalPath = process.env.PATH;
+  process.env.PATH = `${bin}:${originalPath}`;
+  t.after(() => {
+    process.env.PATH = originalPath;
+  });
+
+  await assert.rejects(
+    extractZip(file, destination, { maxExpandedBytes: 1024 }),
+    /expands to more/i
+  );
+  assert.equal(fs.existsSync(path.join(destination, 'completed')), false, 'unzip was stopped');
+});
+
