@@ -99,6 +99,17 @@ function fitText(ctx, text, maxWidth) {
   return value;
 }
 
+/** Shrink an auto-sized line until it fits, never above the default size. */
+function fitFontSize(ctx, text, maxWidth, startSize, minSize, fontFor) {
+  let size = startSize;
+  while (size > minSize) {
+    ctx.font = fontFor(size);
+    if (ctx.measureText(String(text || '')).width <= maxWidth) break;
+    size -= 1;
+  }
+  return size;
+}
+
 /** Native text tile: accent bar, glyph, title and subtitle, all editable. */
 function drawTile(ctx, key, w, h) {
   const tile = key.tile && typeof key.tile === 'object' ? key.tile : {};
@@ -125,20 +136,29 @@ function drawTile(ctx, key, w, h) {
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
   if (glyph) {
-    const size = Math.min(80, Math.max(8, Number(tile.glyphSize) || Math.round(h * 0.3)));
-    ctx.font = `500 ${size}px -apple-system, "SF Pro Text", sans-serif`;
+    const fontFor = (size) => `500 ${size}px -apple-system, "SF Pro Text", sans-serif`;
+    const size = tile.glyphSize
+      ? Math.min(80, Math.max(8, Number(tile.glyphSize)))
+      : fitFontSize(ctx, glyph, w - 18, Math.round(h * 0.3), 14, fontFor);
+    ctx.font = fontFor(size);
     ctx.fillStyle = '#f4f7ff';
     ctx.fillText(fitText(ctx, glyph, w - 18), w / 2, h * 0.39);
   }
   if (title) {
-    const size = Math.min(48, Math.max(7, Number(tile.titleSize) || Math.round(h * 0.12)));
-    ctx.font = `700 ${size}px -apple-system, "SF Pro Text", sans-serif`;
+    const fontFor = (size) => `700 ${size}px -apple-system, "SF Pro Text", sans-serif`;
+    const size = tile.titleSize
+      ? Math.min(48, Math.max(7, Number(tile.titleSize)))
+      : fitFontSize(ctx, title, w - 16, Math.round(h * 0.12), 8, fontFor);
+    ctx.font = fontFor(size);
     ctx.fillStyle = '#f4f7ff';
     ctx.fillText(fitText(ctx, title, w - 16), w / 2, h * 0.67);
   }
   if (subtitle) {
-    const size = Math.min(40, Math.max(6, Number(tile.subtitleSize) || Math.round(h * 0.095)));
-    ctx.font = `400 ${size}px -apple-system, "SF Pro Text", sans-serif`;
+    const fontFor = (size) => `400 ${size}px -apple-system, "SF Pro Text", sans-serif`;
+    const size = tile.subtitleSize
+      ? Math.min(40, Math.max(6, Number(tile.subtitleSize)))
+      : fitFontSize(ctx, subtitle, w - 16, Math.round(h * 0.095), 7, fontFor);
+    ctx.font = fontFor(size);
     ctx.fillStyle = 'rgba(232,237,246,0.62)';
     ctx.fillText(fitText(ctx, subtitle, w - 16), w / 2, h * 0.82);
   }
