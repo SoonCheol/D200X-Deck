@@ -4,26 +4,9 @@
   if (typeof module === 'object' && module.exports) module.exports = factory();
   else root.DeckUrlSafety = factory();
 })(globalThis, function () {
-  // App-link schemes we open without a prompt. Everything else asks once.
-  const KNOWN_SCHEMES = new Set([
-    'http',
-    'https',
-    'mailto',
-    'slack',
-    'zoommtg',
-    'linear',
-    'obsidian',
-    'notion',
-    'vscode',
-    'cursor',
-    'figma',
-    'spotify',
-    'discord',
-    'telegram',
-    'whatsapp',
-    'msteams',
-    'ms-outlook',
-  ]);
+  // App-link schemes we open without a prompt. Power-user handlers such as
+  // vscode:// and obsidian:// ask once, because they can execute local actions.
+  const KNOWN_SCHEMES = new Set(['http', 'https', 'mailto', 'slack', 'zoommtg', 'linear']);
 
   // These must never be handed to the OS protocol handler.
   const BLOCKED_SCHEMES = new Set([

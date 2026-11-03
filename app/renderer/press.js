@@ -246,16 +246,17 @@ async function runKeyAction(action) {
       return { ok: false, error };
     }
   }
+  // A command that displays its output is refreshed instead of executed twice:
+  // the periodic runner is the single place that spawns it.
+  if (action.type === 'command' && action.showOutput && typeof refreshCommandOutput === 'function') {
+    refreshCommandOutput(action);
+    return { ok: true };
+  }
   // Launch-only shell commands resolve when the process spawns (see
   // lib/actions.js runShell); text and hotkeys resolve when they finish.
   try {
     const res = await api.runAction(action);
-    if (res.ok) {
-      if (action.type === 'command' && action.showOutput && typeof refreshCommandOutput === 'function') {
-        refreshCommandOutput(action);
-      }
-      return { ok: true };
-    }
+    if (res.ok) return { ok: true };
     toast(res.error || 'action failed', true);
     if (res.permission === 'accessibility') api.requestAccessibility?.();
     return { ok: false, error: res.error || 'action failed' };

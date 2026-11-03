@@ -5,7 +5,7 @@ const { execFileSync } = require('node:child_process');
 // LaunchServices starts GUI apps with a minimal PATH. A login shell knows the
 // user's real PATH (Homebrew, version managers, ~/bin), so resolve it once and
 // merge it into process.env for every child process the app starts.
-const PRINT_PATH = 'printenv PATH';
+const PRINT_PATH = "printf '__PATH_START__\\n'; printenv PATH; printf '__PATH_END__\\n'";
 
 function readLoginPath({ shell = process.env.SHELL || '/bin/zsh', exec = execFileSync, timeout = 1500 } = {}) {
   try {
@@ -15,9 +15,12 @@ function readLoginPath({ shell = process.env.SHELL || '/bin/zsh', exec = execFil
       killSignal: 'SIGKILL',
       stdio: ['ignore', 'pipe', 'ignore'],
     });
-    // rc files sometimes print a banner before printenv's output; PATH itself
-    // has no newlines, so the last non-empty line is the one we want.
-    return String(output || '')
+    // rc/logout scripts can print before or after the markers; extract the
+    // marked block, or fall back to the last non-empty line.
+    const text = String(output || '');
+    const marked = /__PATH_START__\r?\n([\s\S]*?)\r?\n__PATH_END__/.exec(text);
+    if (marked) return marked[1].trim();
+    return text
       .trim()
       .split(/\r?\n/)
       .filter(Boolean)
@@ -40,7 +43,7 @@ function mergePath(loginPath, currentPath = '') {
  * Apply the login-shell PATH to `process.env` (or a supplied env object).
  * Returns false when the shell could not be read or PATH is unchanged.
  */
-function applyLoginPath({ env = process.env, exec = execFileSync, shell = '', timeout = 3000 } = {}) {
+function applyLoginPath({ env = process.env, exec = execFileSync, shell = '', timeout = 1500 } = {}) {
   if (process.platform === 'win32') return false;
   const loginPath = readLoginPath({ shell: shell || env.SHELL, exec, timeout });
   if (!loginPath) return false;
@@ -50,4 +53,4 @@ function applyLoginPath({ env = process.env, exec = execFileSync, shell = '', ti
   return true;
 }
 
-module.exports = { readLoginPath, mergePath, applyLoginPath };
+module.exports = { PRINT_PATH, readLoginPath, mergePath, applyLoginPath };

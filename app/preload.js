@@ -20,6 +20,7 @@ contextBridge.exposeInMainWorld('deckApp', {
   reconnect: () => ipcRenderer.invoke('deck:reconnect'),
   checkForUpdates: () => ipcRenderer.invoke('app:check-updates'),
   updateState: () => ipcRenderer.invoke('app:update-state'),
+  onFlush: (cb) => subscribe('app:flush', cb),
   refreshUpdateSchedule: () => ipcRenderer.invoke('app:update-settings-changed'),
   onUpdateAvailable: (cb) => subscribe('app:update-available', cb),
   onUpdateResult: (cb) => subscribe('app:update-result', cb),

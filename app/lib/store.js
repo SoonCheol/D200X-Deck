@@ -213,6 +213,7 @@ function validateConfig(config) {
   // the sidebar shows the active profile's pages.
   let profiles = Array.isArray(config.profiles) ? config.profiles.filter((p) => p && typeof p.id === 'string') : [];
   if (!profiles.length) profiles = [{ id: randomUUID(), name: 'Default' }];
+  const usedProfileIds = new Set();
   profiles = profiles.map((profile) => {
     const pinned = {};
     for (const [index, raw] of Object.entries(profile.pinned || {})) {
@@ -221,8 +222,11 @@ function validateConfig(config) {
       const key = normalizeKey(raw);
       if (key) pinned[slot] = key;
     }
+    let id = profile.id;
+    if (usedProfileIds.has(id)) id = randomUUID();
+    usedProfileIds.add(id);
     return {
-      id: profile.id,
+      id,
       name: str(profile.name, 'Profile'),
       ...(typeof profile.icon === 'string' && profile.icon ? { icon: profile.icon } : {}),
       ...(typeof profile.appPath === 'string' && profile.appPath ? { appPath: profile.appPath } : {}),
@@ -235,6 +239,7 @@ function validateConfig(config) {
 
   const pages = [];
   const sourcePages = Array.isArray(config.pages) ? config.pages : [];
+  const usedPageIds = new Set();
   for (const page of sourcePages) {
     if (!page || typeof page !== 'object') continue;
     const keys = {};
@@ -244,8 +249,11 @@ function validateConfig(config) {
       const key = normalizeKey(raw);
       if (key) keys[slot] = key;
     }
+    let pageId = str(page.id) || randomUUID();
+    if (usedPageIds.has(pageId)) pageId = randomUUID();
+    usedPageIds.add(pageId);
     const normalized = {
-      id: str(page.id) || randomUUID(),
+      id: pageId,
       name: str(page.name, 'Page'),
       profileId: profileIds.has(page.profileId) ? page.profileId : profiles[0].id,
       keys,

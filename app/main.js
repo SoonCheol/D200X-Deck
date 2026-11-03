@@ -53,7 +53,8 @@ const wantsQuit = process.argv.includes('--quit');
 // Started by the login item: stay in the menu bar instead of opening the editor.
 const launchHidden = app.isPackaged && !devRun && app.getLoginItemSettings().wasOpenedAsHidden;
 if (!devRun && !app.requestSingleInstanceLock()) {
-  app.quit();
+  isQuitting = true;
+  app.exit(0);
 } else if (wantsQuit) {
   isQuitting = true;
   app.exit(0);
@@ -314,16 +315,34 @@ let quitSoonTimer = null;
 function quitSoon() {
   isQuitting = true;
   if (quitSoonTimer) return;
+  try {
+    send(CH.appFlush);
+  } catch {
+    /* renderer not ready */
+  }
   quitSoonTimer = setTimeout(() => {
     quitSoonTimer = null;
     app.quit();
-  }, 400);
+  }, 600);
+}
+
+function applyLoginItemSettings() {
+  if (!app.isPackaged || devRun || !store) return;
+  try {
+    app.setLoginItemSettings({
+      openAtLogin: store.config.settings.launchAtLogin === true,
+      openAsHidden: true,
+    });
+  } catch {
+    /* launch items can be unavailable in some environments */
+  }
 }
 
 function reloadConfigFromDisk() {
   if (!store) return false;
   try {
     send(CH.configReloaded, store.reload());
+    applyLoginItemSettings();
     return true;
   } catch (err) {
     send(CH.pluginError, `Could not reload config: ${err.message || String(err)}`);
@@ -606,16 +625,7 @@ app.whenReady().then(() => {
 
   store = new Store(process.env.ULANZI_CONFIG_DIR || app.getPath('userData'));
   store.load();
-  if (app.isPackaged && !devRun) {
-    try {
-      app.setLoginItemSettings({
-        openAtLogin: store.config.settings.launchAtLogin === true,
-        openAsHidden: true,
-      });
-    } catch {
-      /* launch items can be unavailable in some environments */
-    }
-  }
+  applyLoginItemSettings();
   market = new Market({
     dir: process.env.ULANZI_CONFIG_DIR || app.getPath('userData'),
     language: 'en',

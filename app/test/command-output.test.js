@@ -66,6 +66,13 @@ test('command output reads an image file path', async (t) => {
   const huge = path.join(dir, 'huge.png');
   fs.writeFileSync(huge, Buffer.alloc(600 * 1024));
   assert.deepEqual(await run(huge), { ok: true, text: huge });
+
+  const link = path.join(dir, 'link.png');
+  fs.symlinkSync(file, link);
+  assert.deepEqual(await run(link), {
+    ok: true,
+    image: `data:image/png;base64,${Buffer.from('png').toString('base64')}`,
+  });
 });
 
 test('a failing command reports the last stderr line', async () => {

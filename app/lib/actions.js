@@ -3,7 +3,7 @@
 const { spawn, execFile } = require('node:child_process');
 const path = require('node:path');
 const fs = require('node:fs');
-const { shell, app, dialog } = require('electron');
+const { shell, app, dialog, BrowserWindow } = require('electron');
 const { schemeOf, hasControlCharacters, isBlockedScheme, isKnownScheme } = require('./url-safety');
 
 const { MEDIA_OPS } = require('./constants');
@@ -119,7 +119,7 @@ function runCommandOutput(command) {
         }[path.extname(file).toLowerCase()];
         if (mime && fs.existsSync(file)) {
           try {
-            const stat = fs.lstatSync(file);
+            const stat = fs.statSync(file);
             if (stat.isFile() && stat.size <= 512 * 1024) {
               const image = fs.readFileSync(file);
               return resolve({ ok: true, image: `data:${mime};base64,${image.toString('base64')}` });
@@ -199,20 +199,26 @@ const approvedSchemes = new Set();
 
 function askToOpenScheme(scheme, url) {
   if (!dialog?.showMessageBox) return Promise.resolve(false);
+  const win = BrowserWindow?.getAllWindows?.().find((candidate) => !candidate.isDestroyed()) || null;
   try {
+    if (win) {
+      if (!win.isVisible()) win.show();
+      win.focus();
+    }
     app.focus({ steal: true });
   } catch {
     /* focus is best-effort */
   }
-  return dialog
-    .showMessageBox({
-      type: 'question',
-      buttons: ['Cancel', 'Open'],
-      defaultId: 0,
-      cancelId: 0,
-      message: `Open a “${scheme}” link?`,
-      detail: `${url}\n\nThis launches another app. Only continue if you trust this link.`,
-    })
+  /** @type {import('electron').MessageBoxOptions} */
+  const options = {
+    type: 'question',
+    buttons: ['Cancel', 'Open'],
+    defaultId: 0,
+    cancelId: 0,
+    message: `Open a “${scheme}” link?`,
+    detail: `${url}\n\nThis launches another app. Only continue if you trust this link.`,
+  };
+  return (win ? dialog.showMessageBox(win, options) : dialog.showMessageBox(options))
     .then((result) => result.response === 1)
     .catch(() => false);
 }

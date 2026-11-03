@@ -21,6 +21,17 @@ test('createDefaultConfig is valid and has no wide key', () => {
   }
 });
 
+test('duplicate profile and page ids are regenerated on validation', () => {
+  const config = createDefaultConfig();
+  const profile = config.profiles[0];
+  config.profiles.push({ id: profile.id, name: 'Duplicate' });
+  const page = config.pages[0];
+  config.pages.push({ id: page.id, name: 'Duplicate page', profileId: profile.id, keys: {} });
+  const valid = validateConfig(config);
+  assert.equal(new Set(valid.profiles.map((p) => p.id)).size, valid.profiles.length);
+  assert.equal(new Set(valid.pages.map((p) => p.id)).size, valid.pages.length);
+});
+
 test('command output settings are validated', () => {
   const config = createDefaultConfig();
   config.pages[0].keys[0] = {

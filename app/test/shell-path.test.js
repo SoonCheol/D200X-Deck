@@ -3,7 +3,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 
-const { mergePath, readLoginPath, applyLoginPath } = require('../lib/shell-path');
+const { PRINT_PATH, mergePath, readLoginPath, applyLoginPath } = require('../lib/shell-path');
 
 test('mergePath keeps login order and drops duplicate or empty entries', () => {
   assert.equal(
@@ -25,7 +25,11 @@ test('readLoginPath returns the shell PATH and survives a failing shell', () => 
 
   assert.equal(path, '/opt/homebrew/bin:/usr/bin');
   assert.equal(calls[0].file, '/bin/zsh');
-  assert.deepEqual(calls[0].args, ['-ilc', 'printenv PATH']);
+  assert.deepEqual(calls[0].args, ['-ilc', PRINT_PATH]);
+  assert.equal(
+    readLoginPath({ exec: () => '__PATH_START__\n/opt/homebrew/bin:/usr/bin\n__PATH_END__\n' }),
+    '/opt/homebrew/bin:/usr/bin'
+  );
   assert.equal(readLoginPath({ exec: () => 'banner\n/opt/homebrew/bin:/usr/bin\n' }), '/opt/homebrew/bin:/usr/bin');
   assert.equal(readLoginPath({ exec: () => { throw new Error('no shell'); } }), '');
 });

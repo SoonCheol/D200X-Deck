@@ -1,6 +1,6 @@
 'use strict';
 
-/* global actionMeta, addPage, basename, clearPressTimers, closeAppPicker, closeHotkeyModal, closeIconLibrary, closeImportModal, closeInspector, closeInspectorDrawer, closePluginMenu, closePluginModal, closeStoreModal, commit, downscaleBackground, drawIndex, handleKeyEvent, iconLibraryPacks, iconLibraryQuery, importSources, inspectorDrawerOpen, loadSdStore, loadStoreCategories, loadStoreItems, navigate, openAppPicker, openImportModal, openInspectorDrawer, openPluginModal, openStoreModal, pushNow, refreshPlugins, refreshWideStats, renderAll, renderAppList, renderGrid, renderIconGrid, renderImportSources, renderInspector, renderPageList, renderPluginModal, renderPushButton, renderSdStoreList, renderStandbySlices, renderStatus, renderStoreChrome, resetImportState, runImport, saveHotkey, scheduleAutoExit, scheduleLivePush, schedulePush, scheduleSave, sdStore, selectImportSource, selectStoreSource, storeState, switchInstalledTab, syncPlugins, toast, uniquePageName, updatePluginCount */
+/* global actionMeta, addPage, basename, clearPressTimers, closeAppPicker, closeHotkeyModal, closeIconLibrary, closeImportModal, closeInspector, closeInspectorDrawer, closePluginMenu, closePluginModal, closeStoreModal, commit, downscaleBackground, drawIndex, handleKeyEvent, iconLibraryPacks, iconLibraryQuery, importSources, inspectorDrawerOpen, loadSdStore, loadStoreCategories, loadStoreItems, navigate, openAppPicker, openImportModal, openInspectorDrawer, openPluginModal, openStoreModal, pushNow, refreshPlugins, refreshWideStats, renderAll, renderAppList, renderGrid, renderIconGrid, renderImportSources, renderInspector, renderPageList, renderPluginModal, renderPushButton, renderSdStoreList, renderStandbySlices, renderStatus, renderStoreChrome, renderSyncState, resetImportState, runImport, saveHotkey, scheduleAutoExit, scheduleLivePush, schedulePush, scheduleSave, sdStore, selectImportSource, selectStoreSource, storeState, switchInstalledTab, syncPlugins, toast, uniquePageName, updatePluginCount */
 
 const api = window.deckApp;
 const renderKey = window.KeyRenderer.drawKey;
@@ -470,9 +470,13 @@ function syncCommandOutputs() {
     const existing = commandTimers.get(key);
     if (existing && existing.signature === signature) return;
     if (existing) clearEntry(key, existing);
-    const entry = { signature, timer: null, startTimer: null, running: false };
+    const entry = { signature, timer: null, startTimer: null, running: false, pending: false };
     const tick = async () => {
-      if (entry.running || commandTimers.get(key) !== entry) return;
+      if (commandTimers.get(key) !== entry) return;
+      if (entry.running) {
+        entry.pending = true;
+        return;
+      }
       entry.running = true;
       try {
         const out = await api.runCommandOutput(command);
@@ -493,6 +497,10 @@ function syncCommandOutputs() {
         commandOutputs.set(key, { image: '', text: '—' });
       } finally {
         entry.running = false;
+        if (entry.pending) {
+          entry.pending = false;
+          entry.tick();
+        }
       }
     };
     entry.tick = tick;
@@ -745,8 +753,8 @@ async function importProfileFromFile() {
   }
   const links = importedCustomLinks(res.data);
   if (links.length) {
-    const shown = links.slice(0, 3).join('\n');
-    const extra = links.length > 3 ? `\n…and ${links.length - 3} more` : '';
+    const shown = links.slice(0, 10).join('\n');
+    const extra = links.length > 10 ? `\n…and ${links.length - 10} more` : '';
     const ok = confirm(
       `This profile opens ${links.length} custom link${links.length === 1 ? '' : 's'} in other apps:\n\n${shown}${extra}\n\nOnly import it if you trust the profile.`
     );
@@ -2099,7 +2107,13 @@ function applyReloadedConfig(config) {
   api.setSleepTime(state.config.settings.sleepSeconds);
   api.refreshUpdateSchedule?.();
   scheduleStandby();
-  pushNow();
+  if (!state.config.settings.autoPush) {
+    state.unsynced = true;
+    renderSyncState();
+  } else {
+    pushNow({ background: true });
+  }
+  scheduleStandby();
   toast('Configuration reloaded from disk');
 }
 
@@ -2107,6 +2121,7 @@ function applyReloadedConfig(config) {
   const boot = await api.getState();
   state.config = boot.config;
   api.onConfigReloaded(applyReloadedConfig);
+  api.onFlush(() => api.saveConfig(state.config).catch(() => {}));
   if (normalizeActionMeta()) scheduleSave();
   state.status = boot.status;
   seizeState = boot.seize || null;

@@ -17,6 +17,7 @@ const CH = Object.freeze({
   appOpenExternal: 'app:open-external',
   appCheckUpdates: 'app:check-updates',
   appUpdateState: 'app:update-state',
+  appFlush: 'app:flush',
   appUpdateSettingsChanged: 'app:update-settings-changed',
   appAccessibility: 'app:accessibility',
   appRequestAccessibility: 'app:request-accessibility',
