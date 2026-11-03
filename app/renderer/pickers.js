@@ -169,7 +169,7 @@ async function loadSdStore(force = false) {
   const list = $('#sdstore-list');
   if (!list || sdStore.loading) return;
   sdStore.loading = true;
-  if (!sdStore.items.length || force) list.innerHTML = '<div class="plugin-empty">Loading Stream Deck catalogue…</div>';
+  if (!sdStore.items.length || force) list.innerHTML = '<div class="plugin-empty">Loading OpenAction catalogue…</div>';
   try {
     if (force || !sdStore.items.length) sdStore.items = await api.sdStoreList();
     const installed = installedSdPlugins();
@@ -202,7 +202,7 @@ function renderSdStoreList() {
   });
   if (!items.length) {
     list.innerHTML = `<div class="plugin-empty">${
-      query ? `No Stream Deck plugins match “${esc(sdStore.query)}”.` : 'No Stream Deck plugins found.'
+      query ? `No OpenAction plugins match “${esc(sdStore.query)}”.` : 'No OpenAction plugins found.'
     }${
       query ? '<button class="btn small" id="sdstore-clear-search">Clear search</button>' : ''
     }</div>`;

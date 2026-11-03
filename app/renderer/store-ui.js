@@ -159,7 +159,7 @@ async function selectStoreSource(source) {
     $('#store-signin').classList.add('hidden');
     $('#store-browse').classList.add('hidden');
     $('#store-sd').classList.remove('hidden');
-    $('#store-sub').textContent = 'Stream Deck / OpenAction plugins from public catalogues.';
+    $('#store-sub').textContent = 'Stream Deck-compatible plugins from the OpenAction registry.';
     $('#store-user').classList.add('hidden');
     $('#store-logout').classList.add('hidden');
     await loadSdStore();

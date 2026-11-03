@@ -52,14 +52,14 @@ need an adapter:
 Native plugin binaries are third-party executables. Only install plugins you trust;
 macOS may also ask you to allow a downloaded binary in Privacy & Security.
 
-## Stream Deck Store
+## OpenAction Store
 
-**Store → Stream Deck Plugins** lists the **OpenAction** catalogue
+**Store → OpenAction Plugins** lists the **OpenAction** catalogue
 (`openactionapi.github.io`), the same registry the Tacto/OpenAction marketplace uses.
 Every entry points at a GitHub repository, and packages are resolved from that
 repository's latest release, so versions are always current.
 
-The Store tabs are **Ulanzi Plugins**, **Ulanzi Icons** and **Stream Deck
+The Store tabs are **Ulanzi Plugins**, **Ulanzi Icons** and **OpenAction
 Plugins**. Search by name, author or ID and click **Install**. Installed plugins are compared by
 version; **Update** replaces the app-owned copy. No account is required. This is a
 third-party/community index, not the official Elgato store.

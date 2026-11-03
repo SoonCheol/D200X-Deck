@@ -99,7 +99,7 @@ inspector silently falls back to “Choose a plugin…”.
 **Files:** `renderer/inspector.js`, `renderer/render.js`.
 
 **Acceptance:** an unknown plugin UUID shows the badge and warning; Open Store
-opens the Stream Deck catalogue; Clear action removes only that action.
+opens the OpenAction catalogue; Clear action removes only that action.
 
 ## 6. Arch M13 — Multi Action does not await steps or stop on failure
 
