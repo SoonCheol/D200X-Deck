@@ -306,7 +306,9 @@ function renderStoreGrid() {
         <button class="store-item" data-id="${esc(item.id)}">
           ${
             item.icon
-              ? `<img class="store-thumb" src="${esc(item.icon)}" alt="" loading="lazy" />`
+              ? `<img class="store-thumb" src="${esc(item.icon)}" data-fallback="${esc(
+                  (item.screenshots || []).find((src) => src !== item.icon) || ''
+                )}" alt="" loading="lazy" />`
               : '<div class="store-thumb empty">🧩</div>'
           }
           <div class="store-item-name">${esc(item.name)}${
@@ -326,6 +328,7 @@ function renderStoreGrid() {
       btn.addEventListener('click', () => openStoreDetail(btn.dataset.id));
     });
   }
+  attachImageFallbacks(grid);
   $('#store-count').textContent = storeState.items.length ? `${storeState.items.length} of ${storeState.total}` : '';
   const cat = storeState.categories.find((c) => String(c.id) === String(storeState.cateId));
   const kind = /icons?/i.test(cat?.name || '') ? 'icons' : 'plugins';
@@ -356,6 +359,26 @@ function formatBytes(bytes) {
   return `${unit === 0 || size >= 10 ? Math.round(size) : size.toFixed(1)} ${units[unit]}`;
 }
 
+/** Fall back to another store image when a cover URL is stale. */
+function attachImageFallbacks(root) {
+  root.querySelectorAll('img[data-fallback]').forEach((img) => {
+    img.addEventListener('error', () => {
+      const fallback = img.dataset.fallback;
+      if (fallback && img.src !== fallback) {
+        img.dataset.fallback = '';
+        img.src = fallback;
+        return;
+      }
+      const placeholder = document.createElement('div');
+      placeholder.className = img.classList.contains('store-detail-icon')
+        ? 'store-thumb empty store-detail-icon'
+        : 'store-thumb empty';
+      placeholder.textContent = '🧩';
+      img.replaceWith(placeholder);
+    });
+  });
+}
+
 async function openStoreDetail(id) {
   const detail = $('#store-detail');
   document.querySelector('.store-card')?.classList.add('detail-mode');
@@ -379,6 +402,7 @@ async function openStoreDetail(id) {
   const kind = category?.name || '';
   const installable = /plugins?/i.test(kind) && /\.zip$/i.test(item.files || '');
   const iconPack = /icons?/i.test(kind) && /\.zip$/i.test(item.files || '');
+  const pluginKind = /plugins?/i.test(kind);
   const screenshots = Array.isArray(item.screenshots) ? item.screenshots : [];
   const longText = item.longDescription || '';
   const summary = item.summary || '';
@@ -392,7 +416,13 @@ async function openStoreDetail(id) {
       <button class="btn ghost store-back-top" id="store-back">← Back</button>
     </div>
     <div class="store-detail-head">
-      ${item.icon ? `<img src="${esc(item.icon)}" alt="" />` : '<div class="store-thumb empty">🧩</div>'}
+      ${
+        item.icon
+          ? `<img class="store-detail-icon" src="${esc(item.icon)}" data-fallback="${esc(
+              screenshots.find((src) => src !== item.icon) || ''
+            )}" alt="" />`
+          : '<div class="store-thumb empty store-detail-icon">🧩</div>'
+      }
       <div>
         <h3>${esc(item.name)}</h3>
         <div class="store-detail-sub">
@@ -439,16 +469,20 @@ async function openStoreDetail(id) {
              </button>`
           : iconPack
             ? '<button class="btn primary" id="store-download-icons">Download icons</button>'
-            : '<span class="badge-tag">Not a plugin</span>'
+            : pluginKind
+              ? '<span class="badge-tag">No download</span>'
+              : '<span class="badge-tag">Not a plugin</span>'
       }
     </div>
     ${
       installable || iconPack
         ? ''
         : `<p class="store-note">${
-            /icons?/i.test(kind) && !item.files
-              ? 'This icon pack has no downloadable file on the Ulanzi store.'
-              : `${kind ? `${esc(kind)} items` : 'This item'} can be downloaded from the Ulanzi marketplace, but only JavaScript <b>plugins</b> and <b>icon packs</b> can be installed into this app.`
+            pluginKind && !item.files
+              ? 'This plugin listing has no downloadable package on the Ulanzi store.'
+              : /icons?/i.test(kind) && !item.files
+                ? 'This icon pack has no downloadable file on the Ulanzi store.'
+                : `${kind ? `${esc(kind)}` : 'This item'} can be downloaded from the Ulanzi marketplace, but only JavaScript <b>plugins</b> and <b>icon packs</b> can be installed into this app.`
           }</p>`
     }
     ${lead ? `<p class="store-detail-lead">${esc(lead)}</p>` : ''}
@@ -459,6 +493,7 @@ async function openStoreDetail(id) {
         : ''
     }
   `;
+  attachImageFallbacks(detail);
   detail.querySelectorAll('[data-shot]').forEach((button) => {
     button.addEventListener('click', () => {
       const shot = $('#store-shot');

@@ -131,6 +131,7 @@ test('store detail puts Back first, shows screenshots, metadata and the plugin i
   assert.match(detail.innerHTML, /Update plugin\s*<\/button>/);
   assert.match(detail.innerHTML, /<details class="store-detail-id"><summary>Plugin ID<\/summary><code>com\.test\.weather<\/code>/);
   assert.match(detail.innerHTML, /Long text\n• One\n• Two/);
+  assert.match(detail.innerHTML, /data-fallback="https:\/\/ugc\.ulanzistudio\.com\/shot-1\.png"/);
 
   shots[0].handlers.click();
   assert.equal(context.$('#store-shot').src, 'https://ugc.ulanzistudio.com/shot-2.png');
@@ -153,4 +154,26 @@ test('an installed up-to-date plugin disables install and skips the file check',
   assert.match(detail.innerHTML, /\bInstalled\b<\/span>/);
   assert.match(detail.innerHTML, /id="store-install" disabled/);
   assert.equal(calls.checks, 0);
+});
+
+test('a plugin listing without a package says No download, not Not a plugin', async () => {
+  const { context, detail } = makeHarness(
+    {
+      ...resource,
+      id: '262',
+      version: '1.6.1',
+      uuid: 'com.ulanzi.ulanzideck.nanoleaf',
+      files: '',
+      icon: 'https://www.ulanzistudio.com/static/release/deck/marketplace/plugin/nanoleaf.png',
+      screenshots: ['https://ugc.ulanzistudio.com/profile/nanoleaf.png'],
+    },
+    { plugins: [] }
+  );
+  context.setCategories([{ id: '1', name: 'plugins' }]);
+
+  await context.openStoreDetail('262');
+
+  assert.match(detail.innerHTML, />No download</);
+  assert.doesNotMatch(detail.innerHTML, />Not a plugin</);
+  assert.match(detail.innerHTML, /no downloadable package on the Ulanzi store/);
 });

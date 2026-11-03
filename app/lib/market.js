@@ -261,12 +261,16 @@ function pick(obj, keys, fallback = '') {
 }
 
 const ASSET_BASE = WEB;
+// Legacy store rows point their cover at /static/..., which is served by the
+// main site rather than the UGC asset host.
+const STATIC_BASE = 'https://www.ulanzistudio.com';
 
 function absolute(url) {
-  const value = String(url || '');
+  const value = String(url || '').trim();
   if (!value) return '';
   if (/^https?:\/\//i.test(value) || value.startsWith('data:')) return value;
-  return `${ASSET_BASE}/${value.replace(/^\/+/, '')}`;
+  const base = /^\/?static\//i.test(value) ? STATIC_BASE : ASSET_BASE;
+  return `${base}/${value.replace(/^\/+/, '')}`;
 }
 
 function plainText(html) {

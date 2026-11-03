@@ -1117,6 +1117,7 @@ body::before {
 .store-detail { padding: 0 22px 20px; overflow: auto; }
 .store-detail-head { display: flex; gap: 16px; margin-bottom: 14px; }
 .store-detail-head img { width: 96px; height: 96px; border-radius: 14px; object-fit: contain; background: #0b0f16; flex: none; }
+.store-detail-head .store-thumb.empty { width: 96px; height: 96px; border-radius: 14px; flex: none; aspect-ratio: auto; }
 .store-detail h3 { margin: 0 0 4px; font-size: 18px; }
 .store-detail .store-detail-sub { color: var(--muted); font-size: 12px; }
 .store-detail p { color: var(--muted); font-size: 12px; line-height: 1.65; white-space: pre-wrap; }

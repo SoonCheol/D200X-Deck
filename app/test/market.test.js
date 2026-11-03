@@ -200,3 +200,31 @@ test('a resource without a cover uses the first screenshot as its icon', async (
   assert.deepEqual(item.screenshots, ['https://ugc.ulanzistudio.com/cdn/only.png']);
   assert.equal(item.longDescription, '');
 });
+
+test('a legacy /static cover is resolved against the main site', async (t) => {
+  const market = new Market({ dir: tempDir(t) });
+  mockFetch(t, () =>
+    response({
+      code: 200,
+      tResources: {
+        id: 262,
+        titleEn: 'Nanoleaf',
+        version: '1.6.1',
+        uuid: 'com.ulanzi.ulanzideck.nanoleaf',
+        coverUrl: '/static/release/deck/marketplace/plugin/nanoleaf.png',
+        banner: '/profile/upload/2025/09/25/1971098156473073666.png',
+        files: '',
+      },
+    })
+  );
+
+  const item = await market.resource(262);
+
+  assert.equal(
+    item.icon,
+    'https://www.ulanzistudio.com/static/release/deck/marketplace/plugin/nanoleaf.png'
+  );
+  assert.deepEqual(item.screenshots, [
+    'https://ugc.ulanzistudio.com/profile/upload/2025/09/25/1971098156473073666.png',
+  ]);
+});
