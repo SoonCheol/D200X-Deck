@@ -170,6 +170,12 @@ file; H9 is the last open High.
 
 - Tile glyphs accept up to 40 characters instead of 8.
 
+### Shipped in 0.13.3 — tile polish from contributors
+
+- Tiles without a glyph centre and enlarge the title (#8).
+- Tile glyphs can have their own colour (#9), with an immediate reset link.
+- 270 tests passing.
+
 ### Next: visual and store polish
 
 - 1179 breakpoint (M16); type-scale consolidation (M3); icon-language cleanup

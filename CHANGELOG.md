@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.13.3 — 2026-11-03
+
+### Added
+- **Tile glyph colour.** Tile glyphs can use their own colour, with a reset link back to white. Contributed by @marcelopazzo in #9.
+
+### Changed
+- **Tiles without a glyph centre and enlarge their title**, using the empty glyph area instead of leaving a gap. Contributed by @marcelopazzo in #8.
+
+### Fixed
+- The **Reset glyph colour** link appears as soon as a colour is picked.
+
+### Tests
+- 267 → **270** passing, plus one opt-in Electron smoke test that is skipped without a GUI session.
+
 ## 0.13.2 — 2026-11-03
 
 ### Changed
