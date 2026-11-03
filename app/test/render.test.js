@@ -234,6 +234,89 @@ test('caption uses its font, size, alignment, colour and solid background', asyn
   );
 });
 
+// An Image stub that loads immediately with a fixed 100×50 size.
+class LoadedImage {
+  constructor() {
+    this.width = 100;
+    this.height = 50;
+  }
+
+  set src(value) {
+    this._src = value;
+    setTimeout(() => this.onload());
+  }
+
+  get src() {
+    return this._src;
+  }
+}
+
+test('a tile with no glyph text draws the key image in the glyph area', async () => {
+  const renderer = loadRenderer({ Image: LoadedImage });
+  const canvas = makeCanvas();
+
+  await renderer.drawKey(canvas, key({
+    face: 'tile',
+    emoji: 'x',
+    icon: 'data:image/png;base64,logo',
+    tile: { glyph: '', title: 'Linear', subtitle: 'app' },
+  }));
+
+  const image = canvas.context.calls.find((call) => call.op === 'drawImage');
+  assert.ok(image, 'the image is drawn');
+  assert.equal(image.src, 'data:image/png;base64,logo');
+  assert.ok(Math.abs(image.x + image.w / 2 - 98) < 0.01, 'the image is centred horizontally');
+  assert.equal(image.w / image.h, 2, 'the aspect ratio is kept');
+  assert.deepEqual(textCalls(canvas).map((call) => call.text), ['Linear', 'app'], 'the emoji fallback is not drawn');
+});
+
+test('a tile image keeps the title below it', async () => {
+  const renderer = loadRenderer({ Image: LoadedImage });
+  const canvas = makeCanvas();
+
+  await renderer.drawKey(canvas, key({
+    face: 'tile',
+    emoji: '',
+    icon: 'data:image/png;base64,logo',
+    tile: { glyph: '', title: 'Linear' },
+  }));
+
+  const title = textCalls(canvas).find((call) => call.text === 'Linear');
+  assert.ok(Math.abs(title.y - 196 * 0.67) < 0.01, 'the title stays in the lower half');
+});
+
+test('a tile ignores live plugin images and automatic icons', async () => {
+  const renderer = loadRenderer({ Image: LoadedImage });
+  const live = makeCanvas();
+  const auto = makeCanvas();
+
+  await renderer.drawKey(live, key({
+    face: 'tile',
+    emoji: '',
+    icon: 'data:image/png;base64,frame',
+    liveImage: true,
+    tile: { glyph: '', title: 'Plugin' },
+  }));
+  await renderer.drawKey(auto, key({ face: 'tile', emoji: '', tile: { glyph: '', title: 'Site' } }), 196, 196, 'data:image/png;base64,favicon');
+
+  assert.equal(live.context.calls.some((call) => call.op === 'drawImage'), false);
+  assert.equal(auto.context.calls.some((call) => call.op === 'drawImage'), false);
+});
+
+test('a tile glyph wins over the key image', async () => {
+  const renderer = loadRenderer({ Image: LoadedImage });
+  const canvas = makeCanvas();
+
+  await renderer.drawKey(canvas, key({
+    face: 'tile',
+    icon: 'data:image/png;base64,logo',
+    tile: { glyph: '?', title: 'T' },
+  }));
+
+  assert.equal(canvas.context.calls.some((call) => call.op === 'drawImage'), false);
+  assert.deepEqual(textCalls(canvas).map((call) => call.text), ['?', 'T']);
+});
+
 test('a live plugin image suppresses the caption unless explicitly enabled', async () => {
   const renderer = loadRenderer();
   const hidden = makeCanvas();

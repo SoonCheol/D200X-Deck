@@ -110,14 +110,18 @@ function fitFontSize(ctx, text, maxWidth, startSize, minSize, fontFor) {
   return size;
 }
 
-/** Native text tile: accent bar, glyph, title and subtitle, all editable. */
-function drawTile(ctx, key, w, h) {
+/**
+ * Native text tile: accent bar, glyph, title and subtitle, all editable. With no glyph
+ * text, the key's own image (set on the Icon tab) is drawn in the glyph's place. Automatic
+ * app/site icons and live plugin images are not used, so those tiles keep a centred title.
+ */
+async function drawTile(ctx, key, w, h) {
   const tile = key.tile && typeof key.tile === 'object' ? key.tile : {};
   const accent = /^#[0-9a-f]{6}$/i.test(tile.accent || '') ? tile.accent : '#4f8cff';
   const base = key.color || '#1b2130';
   const top = shade(base, 26);
   const bottom = shade(base, -18);
-  const glyph = String(tile.glyph || key.emoji || '').trim();
+  const imageSrc = String(tile.glyph || '').trim() || key.liveImage ? null : key.icon;
   const title = String(tile.title || key.label || '').trim();
   const subtitle = String(tile.subtitle || '').trim();
 
@@ -132,6 +136,17 @@ function drawTile(ctx, key, w, h) {
 
   ctx.fillStyle = accent;
   ctx.fillRect(0, 0, w, Math.max(5, Math.round(h * 0.06)));
+
+  // Background and accent bar are painted first, so an image still loading leaves a tile, not a blank key.
+  const image = imageSrc ? await loadImage(imageSrc).catch(() => null) : null;
+  const glyph = image ? '' : String(tile.glyph || key.emoji || '').trim();
+  if (image) {
+    const box = h * 0.4;
+    const scale = Math.min(box / image.width, box / image.height);
+    const iw = image.width * scale;
+    const ih = image.height * scale;
+    ctx.drawImage(image, (w - iw) / 2, h * 0.39 - ih / 2, iw, ih);
+  }
 
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
@@ -148,11 +163,11 @@ function drawTile(ctx, key, w, h) {
     const fontFor = (size) => `700 ${size}px -apple-system, "SF Pro Text", sans-serif`;
     const size = tile.titleSize
       ? Math.min(48, Math.max(7, Number(tile.titleSize)))
-      : fitFontSize(ctx, title, w - 16, Math.round(h * (glyph ? 0.12 : 0.17)), 8, fontFor);
+      : fitFontSize(ctx, title, w - 16, Math.round(h * (glyph || image ? 0.12 : 0.17)), 8, fontFor);
     ctx.font = fontFor(size);
     ctx.fillStyle = '#f4f7ff';
-    // Without a glyph the title takes the glyph's place instead of leaving a gap above it.
-    ctx.fillText(fitText(ctx, title, w - 16), w / 2, glyph ? h * 0.67 : h * 0.47);
+    // Without a glyph or image the title takes their place instead of leaving a gap above it.
+    ctx.fillText(fitText(ctx, title, w - 16), w / 2, glyph || image ? h * 0.67 : h * 0.47);
   }
   if (subtitle) {
     const fontFor = (size) => `400 ${size}px -apple-system, "SF Pro Text", sans-serif`;
@@ -180,7 +195,7 @@ async function drawKey(canvas, key, width = KEY_SIZE, height = KEY_SIZE, autoIco
   const ctx = canvas.getContext('2d');
   ctx.clearRect(0, 0, w, h);
   if (key.face === 'tile') {
-    drawTile(ctx, key, w, h);
+    await drawTile(ctx, key, w, h);
     return;
   }
   // A key can show an image or its text, never both. The page indicator is

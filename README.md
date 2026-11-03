@@ -18,10 +18,10 @@ _The editor, the plugin manager and the store all run against the deck live._
   “snapshot page” backgrounds are sliced across the keys.
 * **Keys** — emoji or text, captions, background colour, a custom image (click or
   drag & drop), or a native **tile** face with an accent bar, glyph, title and
-  subtitle. Tile text lives in `config.json`, so script-generated profiles stay
-  small and editable. Per-key caption size/weight/alignment/colour is supported
-  (official fonts are imported); choose the face with the **Icon / Text / Tile**
-  tabs.
+  subtitle; with the glyph left empty, the key's image takes its place. Tile text
+  lives in `config.json`, so script-generated profiles stay small and editable.
+  Per-key caption size/weight/alignment/colour is supported (official fonts are
+  imported); choose the face with the **Icon / Text / Tile** tabs.
 * **Wide key** — choose **Clock** (analog dial + digital time), **System stats** (live
   CPU / RAM / GPU) or **Background** (page image). Pressing the physical wide key cycles
   the three panels and the dashboard follows.

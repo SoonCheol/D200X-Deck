@@ -1449,7 +1449,7 @@ function renderInspector() {
         </label>
       </div>
       <div class="row">
-        <input class="input" id="insp-tile-glyph" maxlength="40" value="${esc(key.tile?.glyph || key.emoji)}" placeholder="Glyph" />
+        <input class="input" id="insp-tile-glyph" maxlength="40" value="${esc(key.tile?.glyph || (key.icon ? '' : key.emoji))}" placeholder="Glyph" />
         <input class="input tile-size" id="insp-tile-glyph-size" type="number" min="8" max="80" value="${key.tile?.glyphSize || ''}" placeholder="Size" title="Glyph size (blank = auto)" />
       </div>
       <div class="row" style="margin-top:8px">
@@ -1460,7 +1460,7 @@ function renderInspector() {
         <input class="input" id="insp-tile-subtitle" maxlength="80" value="${esc(key.tile?.subtitle || '')}" placeholder="Subtitle" />
         <input class="input tile-size" id="insp-tile-subtitle-size" type="number" min="6" max="40" value="${key.tile?.subtitleSize || ''}" placeholder="Size" title="Subtitle size (blank = auto)" />
       </div>
-      <div class="field-hint">A native tile: accent bar, glyph, title and subtitle. Text is stored in config.json, not as an image. Leave a size blank for automatic sizing.</div>
+      <div class="field-hint">A native tile: accent bar, glyph, title and subtitle. Text is stored in config.json, not as an image. Leave a size blank for automatic sizing, and leave the glyph empty to show the key's image from the Icon tab instead.</div>
       <div class="style-reset">
         <button class="link-btn" id="insp-tile-glyph-color-reset" type="button" ${key.tile?.glyphColor ? '' : 'hidden'}>Reset glyph colour</button>
       </div>
