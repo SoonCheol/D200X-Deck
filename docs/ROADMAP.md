@@ -166,6 +166,10 @@ file; H9 is the last open High.
 - Optional pixel sizes for tile glyph/title/subtitle; blank keeps automatic
   sizing, which shrinks to fit instead of truncating.
 
+### Shipped in 0.13.2 — longer tile glyphs
+
+- Tile glyphs accept up to 40 characters instead of 8.
+
 ### Next: visual and store polish
 
 - 1179 breakpoint (M16); type-scale consolidation (M3); icon-language cleanup

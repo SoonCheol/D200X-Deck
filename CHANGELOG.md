@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.13.2 — 2026-11-03
+
+### Changed
+- **Tile glyphs accept up to 40 characters** instead of 8. Short words and numbers can be the main tile line; automatic sizing still shrinks them to fit.
+
+### Tests
+- 267 passing, plus one opt-in Electron smoke test that is skipped without a GUI session.
+
 ## 0.13.1 — 2026-11-03
 
 ### Added
