@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.13.0 — 2026-11-03
+
+### Added
+- **Native tile key face.** Choose **Tile** in the inspector to draw a coloured accent bar, glyph, title and subtitle directly on the key. Text is stored in `config.json`, so script-generated profiles stay small and editable instead of embedding a PNG per key.
+- **Reload results are logged.** `--reload-config` and the File menu append `OK` or `FAIL` with the config path and error to `~/Library/Logs/Ulanzi Deck Open/reload.log`.
+- **Failed commands flash and log.** A non-zero command exit flashes the key red, shows the last stderr line as a toast, and writes the full stderr to `~/Library/Logs/Ulanzi Deck Open/commands.log`.
+- **Replace-import keeps page IDs.** Replacing a same-name profile preserves the imported page IDs when they do not collide with another profile, so script-generated profiles can be regenerated and reimported instead of patching key by key.
+
+### Fixed
+- Tile fields are normalised and persist through save/load; command-failure metadata stays tied to the key that ran it.
+
+### Tests
+- 259 → **266** passing, plus one opt-in Electron smoke test that is skipped without a GUI session.
+
 ## 0.12.0 — 2026-11-03
 
 ### Added

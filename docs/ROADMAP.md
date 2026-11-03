@@ -155,6 +155,12 @@ file; H9 is the last open High.
   and script-friendly `--quit`/SIGTERM.
 - Hardened reload, duplicate IDs, image-output size checks and command timers.
 
+### Shipped in 0.13.0 — tiles, logs and stable IDs
+
+- Native Tile face with accent bar, glyph, title and subtitle.
+- Reload results in `reload.log`; failed commands flash red and log stderr.
+- Replace-import keeps imported page IDs when they do not collide.
+
 ### Next: visual and store polish
 
 - 1179 breakpoint (M16); type-scale consolidation (M3); icon-language cleanup
