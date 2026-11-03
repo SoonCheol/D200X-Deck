@@ -3,7 +3,7 @@
 const fs = require('node:fs');
 const path = require('node:path');
 
-const { isInside } = require('./paths');
+const { isInside, isInsideReal } = require('./paths');
 const { byExtension } = require('./mime');
 
 /**
@@ -23,7 +23,9 @@ function createPluginProtocol({ getPluginDir, transformHtml = (html, _url, _dir)
       const dir = getPluginDir(folder);
       if (!dir) return new Response('not found', { status: 404 });
       const file = path.join(dir, rel);
-      if (!isInside(dir, file)) return new Response('forbidden', { status: 403 });
+      if (!isInside(dir, file) || !isInsideReal(dir, file)) {
+        return new Response('forbidden', { status: 403 });
+      }
       const ext = path.extname(file).toLowerCase();
       let body = fs.readFileSync(file);
       if (ext === '.html' || ext === '.htm') {

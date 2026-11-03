@@ -1,7 +1,8 @@
 'use strict';
 
+const fs = require('node:fs');
 const path = require('node:path');
-const { isInside } = require('./paths');
+const { isInside, isInsideReal } = require('./paths');
 
 /**
  * Split an openView URL into a local file path and its query parameters.
@@ -24,6 +25,7 @@ function viewTarget(baseDir, url, param) {
   }
   const file = path.resolve(baseDir, pathname.replace(/^\.?\//, ''));
   if (!isInside(baseDir, file) || file === path.resolve(baseDir)) return null;
+  if (fs.existsSync(file) && !isInsideReal(baseDir, file)) return null;
   return { file, query };
 }
 

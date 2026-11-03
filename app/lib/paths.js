@@ -1,5 +1,6 @@
 'use strict';
 
+const fs = require('node:fs');
 const path = require('node:path');
 
 /**
@@ -12,4 +13,13 @@ function isInside(parent, child) {
   return Boolean(rel) && !rel.startsWith('..') && !path.isAbsolute(rel);
 }
 
-module.exports = { isInside };
+/** Like isInside, but resolves symlinks before comparing. */
+function isInsideReal(parent, child) {
+  try {
+    return isInside(fs.realpathSync(parent), fs.realpathSync(child));
+  } catch {
+    return false;
+  }
+}
+
+module.exports = { isInside, isInsideReal };

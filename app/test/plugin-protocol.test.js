@@ -57,3 +57,19 @@ test('returns 404 for an unknown plugin folder', async () => {
   const res = await handler(new Request('ulanzi-pi://local/other/index.html'));
   assert.equal(res.status, 404);
 });
+
+test('refuses a symlink that points outside the plugin directory', async (t) => {
+  const dir = fixture();
+  const outside = fs.mkdtempSync(path.join(os.tmpdir(), 'ulanzi-protocol-outside-'));
+  t.after(() => {
+    fs.rmSync(dir, { recursive: true, force: true });
+    fs.rmSync(outside, { recursive: true, force: true });
+  });
+  fs.writeFileSync(path.join(outside, 'secret.html'), 'secret');
+  fs.symlinkSync(path.join(outside, 'secret.html'), path.join(dir, 'link.html'));
+  const handler = handlerFor(dir);
+
+  const res = await handler(new Request('ulanzi-pi://local/plug/link.html'));
+
+  assert.equal(res.status, 403);
+});
