@@ -181,6 +181,13 @@ file; H9 is the last open High.
 - Tile colour pickers are labelled **Accent bar** and **Glyph colour**;
   size fields show **Size** and explain automatic sizing in tooltips.
 
+### Shipped in 0.13.5 — tile images, SIGTERM and live-image colour
+
+- Tiles with an empty glyph draw `key.icon`; app and site icons included (#10).
+- SIGTERM quits without the confirmation and runs cleanup (#11).
+- Live plugin/command images keep their own colours (#12).
+- 275 tests passing.
+
 ### Next: visual and store polish
 
 - 1179 breakpoint (M16); type-scale consolidation (M3); icon-language cleanup

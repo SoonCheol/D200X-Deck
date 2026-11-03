@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.13.5 — 2026-11-03
+
+### Added
+- **Tile images.** A tile with an empty glyph now draws the key image from the Icon tab in the glyph area, keeping the title below it. Every `key.icon` source is shown, including app logos and site icons. Contributed by @marcelopazzo in #10.
+
+### Fixed
+- **SIGTERM quits cleanly.** The handler is registered after Electron starts, and cleanup now finishes with `app.exit(0)` instead of an ignored second `app.quit()`. `npm run install-app` no longer leaves the app running or skips plugin/deck cleanup. Contributed by @marcelopazzo in #11.
+- **Live key images are no longer darkened.** Plugin and command-output images render at full brightness unless an explicit caption needs the contrast overlay. Contributed by @marcelopazzo in #12.
+
+### Tests
+- 270 → **275** passing, plus two opt-in Electron smoke tests that are skipped without a GUI session.
+
 ## 0.13.4 — 2026-11-03
 
 ### Changed
