@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.11.1 — 2026-11-02
+
+### Changed
+- **Expanded automated coverage** across the IPC trust boundary, both plugin connection protocols, profile import/apply, plugin and icon installs, key press/hold/double/timers, renderer typography and panel drawing, the deck HID state machine, archives, store images, market/updates and the inspector/POP/dialog wiring.
+- The Electron boot smoke test is opt-in with `RUN_ELECTRON_SMOKE=1`; the agent shell has no Aqua session and cannot launch Electron.
+
+### Fixed
+- **DRM-protected Elgato Marketplace plugins now show a clear message** instead of a JSON parse error. Their encrypted manifests cannot be installed without circumventing Elgato's DRM.
+- **Stream Deck plugin downloads reject redirect downgrades to HTTP.**
+- **Plugin inspector files and `openView` targets reject symlinks that escape the plugin directory.**
+- **Renderer navigation uses a shared, symlink-aware file-origin guard.**
+- **IPC sender checks reject query strings, fragments and non-empty file hosts**, not just the wrong path.
+
+### Tests
+- 126 → **227** passing, plus one opt-in Electron smoke test that is skipped without a GUI session.
+
 ## 0.11.0 — 2026-11-02
 
 ### Changed

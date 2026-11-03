@@ -107,6 +107,14 @@ file; H9 is the last open High.
 - Key background moved into the key face header; the caption controls mirror the
   key-text layout.
 
+### Shipped in 0.11.1 — test coverage and hardening
+
+- P0/P1/P2 coverage for IPC trust boundaries, plugin protocols, imports,
+  installs, press/timers, renderer typography, deck HID, archives, store images,
+  market/updates and inspector wiring.
+- Clear DRM error for Elgato Marketplace plugins; HTTPS redirect and symlink
+  escape hardening.
+
 ### Next: visual and store polish
 
 - Store detail and remaining card state (M27).
