@@ -10,6 +10,7 @@ const { pathToFileURL } = require('node:url');
 const JSZip = require('jszip');
 
 const { CH } = require('../lib/channels');
+const importUlanzi = require('../lib/import-ulanzi');
 const sdcatalog = require('../lib/sdcatalog');
 const { StreamDeckPlugins } = require('../lib/streamdeck-plugins');
 
@@ -147,6 +148,42 @@ function loadPreloadApi() {
   return { api: exposedWorld.deckApp || {}, calls: rendererCalls };
 }
 
+function mockImportPreview(t, { name = 'Imported', pages, report = {} }) {
+  const cleanup = fs.mkdtempSync(path.join(os.tmpdir(), 'ulanzi-ipc-import-'));
+  const original = importUlanzi.previewProfile;
+  importUlanzi.previewProfile = async () => ({
+    profiles: [
+      {
+        name,
+        pages,
+        report: { skipped: [], unmapped: [], missingPlugins: [], warnings: [], ...report },
+      },
+    ],
+    cleanup,
+  });
+  t.after(() => {
+    importUlanzi.previewProfile = original;
+    fs.rmSync(cleanup, { recursive: true, force: true });
+  });
+  return cleanup;
+}
+
+function importContext(config) {
+  const saves = [];
+  return {
+    saves,
+    ctx: makeCtx({
+      store: {
+        config,
+        save(value) {
+          saves.push(value);
+        },
+        takeRecovery: () => null,
+      },
+    }),
+  };
+}
+
 test('preload only invokes declared channels that have handlers', () => {
   const { api, calls } = loadPreloadApi();
   const { handlers } = harness(makeCtx());
@@ -242,6 +279,166 @@ test('every channel the main process sends is declared', () => {
   const names = [...source.matchAll(/send\(CH\.(\w+)/g)].map((match) => match[1]);
   assert.ok(names.length > 0, 'expected send(CH.*) calls');
   for (const name of names) assert.equal(typeof CH[name], 'string', `unknown send channel: ${name}`);
+});
+
+test('import:apply creates a new profile and keeps page links', async (t) => {
+  const cleanup = mockImportPreview(t, {
+    name: 'Imported',
+    pages: [
+      {
+        id: 'incoming',
+        name: 'Home',
+        keys: { 0: { action: { type: 'page', op: 'goto', value: 'child' } } },
+      },
+      { id: 'child', name: 'Child', keys: {}, parentId: 'incoming' },
+    ],
+    report: { unmapped: [{ action: 'x' }], missingPlugins: ['p', 'p'] },
+  });
+  const config = {
+    profiles: [{ id: 'p1', name: 'Imported', pinned: { 0: { label: 'pin' } } }],
+    pages: [{ id: 'home', name: 'Home', profileId: 'p1', keys: {} }],
+    activeProfileId: 'p1',
+    activePageId: 'home',
+  };
+  const { saves, ctx } = importContext(config);
+  const { handlers } = harness(ctx);
+
+  const result = await handlers.get(CH.importApply)(trustedEvent(), { target: 'x', mode: 'new' });
+
+  assert.equal(result.ok, true);
+  assert.equal(result.mode, 'new');
+  assert.equal(result.profileName, 'Imported (2)');
+  assert.equal(result.importedProfiles, 1);
+  assert.equal(result.importedPages, 2);
+  assert.equal(result.importedKeys, 1);
+  assert.deepEqual(result.missingPlugins, ['p']);
+  assert.equal(config.profiles.length, 2);
+  assert.equal(config.pages.length, 3);
+  const importedProfile = config.profiles[1];
+  assert.equal(config.activeProfileId, importedProfile.id);
+  assert.equal(config.activePageId, 'incoming');
+  assert.equal(fs.existsSync(cleanup), false, 'the preview temp directory is removed');
+  assert.equal(saves.length, 1);
+});
+
+test('import:apply merge remaps colliding pages, parents and goto links', async (t) => {
+  const cleanup = mockImportPreview(t, {
+    pages: [
+      {
+        id: 'page',
+        name: 'Home',
+        keys: { 0: { action: { type: 'page', op: 'goto', value: 'child' } } },
+      },
+      { id: 'child', name: 'Child', keys: {}, parentId: 'page' },
+    ],
+  });
+  const config = {
+    profiles: [{ id: 'p1', name: 'Default', pinned: { 0: { label: 'pin' } } }],
+    pages: [
+      { id: 'page', name: 'Home', profileId: 'p1', keys: {} },
+      { id: 'child', name: 'Child', profileId: 'p1', keys: {} },
+    ],
+    activeProfileId: 'p1',
+    activePageId: 'page',
+  };
+  const { ctx } = importContext(config);
+  const { handlers } = harness(ctx);
+
+  const result = await handlers.get(CH.importApply)(trustedEvent(), {
+    target: 'x',
+    mode: 'merge',
+    pageIds: ['page', 'child'],
+  });
+
+  assert.equal(result.ok, true);
+  assert.equal(result.mode, 'merge');
+  assert.equal(result.importedProfiles, 0);
+  assert.equal(result.importedPages, 2);
+  assert.equal(config.pages.length, 4);
+  const importedPage = config.pages.find((page) => page.name === 'Home (2)');
+  const importedChild = config.pages.find((page) => page.name === 'Child (2)');
+  assert.ok(importedPage && importedChild);
+  assert.notEqual(importedPage.id, 'page');
+  assert.notEqual(importedChild.id, 'child');
+  assert.equal(importedPage.keys[0].action.value, importedChild.id);
+  assert.equal(importedChild.parentId, importedPage.id);
+  assert.equal(config.profiles[0].pinned[0].label, 'pin');
+  assert.equal(config.activePageId, importedPage.id);
+  assert.equal(fs.existsSync(cleanup), false);
+});
+
+test('import:apply replace removes only the active profile pages', async (t) => {
+  mockImportPreview(t, { pages: [{ id: 'new-page', name: 'Home', keys: {} }] });
+  const config = {
+    profiles: [
+      { id: 'p1', name: 'One', pinned: { 0: { label: 'pin' } } },
+      { id: 'p2', name: 'Two' },
+    ],
+    pages: [
+      { id: 'a', name: 'A', profileId: 'p1', keys: {} },
+      { id: 'b', name: 'B', profileId: 'p1', keys: {} },
+      { id: 'c', name: 'C', profileId: 'p2', keys: {} },
+    ],
+    activeProfileId: 'p1',
+    activePageId: 'a',
+  };
+  const { ctx } = importContext(config);
+  const { handlers } = harness(ctx);
+
+  const result = await handlers.get(CH.importApply)(trustedEvent(), { target: 'x', mode: 'replace' });
+
+  assert.equal(result.ok, true);
+  assert.equal(result.mode, 'replace');
+  assert.equal(result.importedProfiles, 0);
+  assert.equal(result.importedPages, 1);
+  assert.deepEqual(config.pages.map((page) => page.profileId).sort(), ['p1', 'p2']);
+  assert.equal(config.pages.find((page) => page.profileId === 'p1').id, 'new-page');
+  assert.equal(config.pages.find((page) => page.profileId === 'p2').id, 'c');
+  assert.equal(config.profiles[0].pinned[0].label, 'pin');
+  assert.equal(config.activePageId, 'new-page');
+});
+
+test('import:apply rejects an empty page selection and cleans up', async (t) => {
+  const cleanup = mockImportPreview(t, { pages: [{ id: 'only', name: 'Only', keys: {} }] });
+  const config = {
+    profiles: [{ id: 'p1', name: 'Default' }],
+    pages: [],
+    activeProfileId: 'p1',
+    activePageId: '',
+  };
+  const { ctx } = importContext(config);
+  const { handlers } = harness(ctx);
+
+  const result = await handlers.get(CH.importApply)(trustedEvent(), {
+    target: 'x',
+    mode: 'merge',
+    pageIds: ['missing'],
+  });
+
+  assert.deepEqual(result, { ok: false, error: 'Select at least one page to import' });
+  assert.equal(fs.existsSync(cleanup), false);
+});
+
+test('import:apply rejects a preview with no profiles and cleans up', async (t) => {
+  const cleanup = fs.mkdtempSync(path.join(os.tmpdir(), 'ulanzi-ipc-import-'));
+  const original = importUlanzi.previewProfile;
+  importUlanzi.previewProfile = async () => ({ profiles: [], cleanup });
+  t.after(() => {
+    importUlanzi.previewProfile = original;
+    fs.rmSync(cleanup, { recursive: true, force: true });
+  });
+  const { ctx } = importContext({
+    profiles: [{ id: 'p1', name: 'Default' }],
+    pages: [],
+    activeProfileId: 'p1',
+    activePageId: '',
+  });
+  const { handlers } = harness(ctx);
+
+  const result = await handlers.get(CH.importApply)(trustedEvent(), { target: 'x' });
+
+  assert.deepEqual(result, { ok: false, error: 'No pages found in this profile' });
+  assert.equal(fs.existsSync(cleanup), false);
 });
 
 test('dialog handlers resolve getWin lazily after registration', async () => {
