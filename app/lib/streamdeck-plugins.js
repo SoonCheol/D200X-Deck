@@ -19,8 +19,12 @@ const TARGET =
   process.arch === 'arm64' ? 'aarch64-apple-darwin' : process.arch === 'x64' ? 'x86_64-apple-darwin' : null;
 const FALLBACK_TARGET = process.arch === 'arm64' ? 'x86_64-apple-darwin' : 'aarch64-apple-darwin';
 
+const DRM_MANIFEST_MESSAGE =
+  'This plugin is DRM-protected by Elgato Marketplace. Its manifest is encrypted, so Ulanzi Deck Open cannot install it. Ask the plugin author for a DRM-free build, or use the Elgato Stream Deck app.';
+
 function readJson(file) {
   const text = fs.readFileSync(file, 'utf8').replace(/^\uFEFF/, '');
+  if (text.startsWith('ELGATO')) throw new Error(DRM_MANIFEST_MESSAGE);
   return JSON.parse(text);
 }
 

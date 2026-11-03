@@ -64,6 +64,16 @@ test('scans and installs Stream Deck plugins', async () => {
   assert.ok(fs.existsSync(path.join(appDir, 'com.test.sdPlugin', 'manifest.json')));
 });
 
+test('rejects a DRM-protected Stream Deck manifest with a clear message', async () => {
+  const appDir = tempDir();
+  const source = tempDir();
+  const pluginDir = writePlugin(source);
+  fs.writeFileSync(path.join(pluginDir, 'manifest.json'), 'ELGATO\x01\x00encrypted');
+  const host = new StreamDeckPlugins({ appPluginsDir: appDir });
+
+  await assert.rejects(host.install(pluginDir), /DRM-protected by Elgato Marketplace/);
+});
+
 test('launches a plugin once when several actions sync before the port resolves', async () => {
   const appDir = tempDir();
   const source = tempDir();
