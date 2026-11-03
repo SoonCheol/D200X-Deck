@@ -1438,19 +1438,27 @@ function renderInspector() {
         <label for="insp-tile-title">Tile</label>
         ${backgroundControl}
       </div>
+      <div class="tile-colors">
+        <label class="tile-color" for="insp-tile-accent">
+          <input class="color-input" id="insp-tile-accent" type="color" value="${esc(key.tile?.accent || '#4f8cff')}" title="Accent bar colour" />
+          Accent bar
+        </label>
+        <label class="tile-color" for="insp-tile-glyph-color">
+          <input class="color-input" id="insp-tile-glyph-color" type="color" value="${esc(key.tile?.glyphColor || '#f4f7ff')}" title="Glyph colour" />
+          Glyph colour
+        </label>
+      </div>
       <div class="row">
-        <input class="color-input" id="insp-tile-accent" type="color" value="${esc(key.tile?.accent || '#4f8cff')}" title="Accent bar" />
         <input class="input" id="insp-tile-glyph" maxlength="40" value="${esc(key.tile?.glyph || key.emoji)}" placeholder="Glyph" />
-        <input class="color-input" id="insp-tile-glyph-color" type="color" value="${esc(key.tile?.glyphColor || '#f4f7ff')}" title="Glyph colour" />
-        <input class="input tile-size" id="insp-tile-glyph-size" type="number" min="8" max="80" value="${key.tile?.glyphSize || ''}" placeholder="Auto" title="Glyph size" />
+        <input class="input tile-size" id="insp-tile-glyph-size" type="number" min="8" max="80" value="${key.tile?.glyphSize || ''}" placeholder="Size" title="Glyph size (blank = auto)" />
       </div>
       <div class="row" style="margin-top:8px">
         <input class="input" id="insp-tile-title" maxlength="80" value="${esc(key.tile?.title || key.label)}" placeholder="Title" />
-        <input class="input tile-size" id="insp-tile-title-size" type="number" min="7" max="48" value="${key.tile?.titleSize || ''}" placeholder="Auto" title="Title size" />
+        <input class="input tile-size" id="insp-tile-title-size" type="number" min="7" max="48" value="${key.tile?.titleSize || ''}" placeholder="Size" title="Title size (blank = auto)" />
       </div>
       <div class="row" style="margin-top:6px">
         <input class="input" id="insp-tile-subtitle" maxlength="80" value="${esc(key.tile?.subtitle || '')}" placeholder="Subtitle" />
-        <input class="input tile-size" id="insp-tile-subtitle-size" type="number" min="6" max="40" value="${key.tile?.subtitleSize || ''}" placeholder="Auto" title="Subtitle size" />
+        <input class="input tile-size" id="insp-tile-subtitle-size" type="number" min="6" max="40" value="${key.tile?.subtitleSize || ''}" placeholder="Size" title="Subtitle size (blank = auto)" />
       </div>
       <div class="field-hint">A native tile: accent bar, glyph, title and subtitle. Text is stored in config.json, not as an image. Leave a size blank for automatic sizing.</div>
       <div class="style-reset">

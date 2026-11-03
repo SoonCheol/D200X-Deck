@@ -1243,6 +1243,18 @@ body::before {
 
 /* Icon / Text selector in the key inspector */
 .tile-size { flex: 0 0 66px; text-align: center; }
+.tile-colors { display: flex; gap: 16px; align-items: center; margin-bottom: 8px; }
+.tile-color {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.tile-color .color-input { flex: none; }
 .face-tabs {
   display: flex;
   gap: 3px;
