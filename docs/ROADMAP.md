@@ -120,6 +120,12 @@ file; H9 is the last open High.
 - Hotkey assertions follow the macOS and Linux command paths, restoring the
   Ubuntu CI gate.
 
+### Shipped in 0.11.3 — runtime-path test depth
+
+- Archive extraction halts when the expanded bytes exceed the budget.
+- Timer countdown, finish beep and cancel paths are tested.
+- POP palette keyboard navigation and focus restore are tested.
+
 ### Next: visual and store polish
 
 - Store detail and remaining card state (M27).

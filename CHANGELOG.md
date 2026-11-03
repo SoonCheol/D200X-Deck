@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.11.3 — 2026-11-02
+
+### Changed
+- **More automated coverage for the riskiest runtime paths:** archive extraction is now proven to stop an `unzip` that expands past the byte budget, timers are proven to count down, beep and cancel cleanly, and the POP palette keyboard navigation (arrows, Home/End, Enter, Space, Escape and focus restore) is covered.
+
+### Tests
+- 227 → **234** passing, plus one opt-in Electron smoke test that is skipped without a GUI session.
+
 ## 0.11.2 — 2026-11-03
 
 ### Fixed
