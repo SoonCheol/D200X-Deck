@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.11.6 — 2026-11-03
+
+### Changed
+- **The store tab is now “OpenAction Plugins”.** The tab has always listed the OpenAction registry, and every row is already tagged OpenAction, so the old “Stream Deck Plugins” name described the SDK rather than the source. The subtitle, search placeholder, loading/empty copy and documentation follow the same name.
+- “Stream Deck / OpenAction” is retained where it describes plugin compatibility, such as the Installed list and inspector groups.
+
+### Tests
+- 240 passing, plus one opt-in Electron smoke test that is skipped without a GUI session.
+
 ## 0.11.5 — 2026-11-03
 
 ### Fixed

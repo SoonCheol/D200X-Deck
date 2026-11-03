@@ -141,6 +141,12 @@ file; H9 is the last open High.
 - Broken covers fall back to the first screenshot and then the placeholder.
 - Plugin listings without a package say “No download” instead of “Not a plugin”.
 
+### Shipped in 0.11.6 — OpenAction naming
+
+- The store tab is now **OpenAction Plugins**, matching the registry it lists;
+  the subtitle, search and empty-state copy follow.
+- Compatibility descriptions elsewhere still say **Stream Deck / OpenAction**.
+
 ### Next: visual and store polish
 
 - 1179 breakpoint (M16); type-scale consolidation (M3); icon-language cleanup
