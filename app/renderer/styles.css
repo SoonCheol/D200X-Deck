@@ -1242,6 +1242,7 @@ body::before {
 .tab.active { color: var(--text); background: rgba(79,140,255,.14); border-color: rgba(79,140,255,.42); }
 
 /* Icon / Text selector in the key inspector */
+.tile-size { flex: 0 0 66px; text-align: center; }
 .face-tabs {
   display: flex;
   gap: 3px;

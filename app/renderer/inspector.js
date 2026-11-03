@@ -1441,10 +1441,17 @@ function renderInspector() {
       <div class="row">
         <input class="color-input" id="insp-tile-accent" type="color" value="${esc(key.tile?.accent || '#4f8cff')}" title="Accent bar" />
         <input class="input" id="insp-tile-glyph" maxlength="8" value="${esc(key.tile?.glyph || key.emoji)}" placeholder="Glyph" />
+        <input class="input tile-size" id="insp-tile-glyph-size" type="number" min="8" max="80" value="${key.tile?.glyphSize || ''}" placeholder="Auto" title="Glyph size" />
       </div>
-      <input class="input" id="insp-tile-title" maxlength="80" value="${esc(key.tile?.title || key.label)}" placeholder="Title" style="margin-top:8px" />
-      <input class="input" id="insp-tile-subtitle" maxlength="80" value="${esc(key.tile?.subtitle || '')}" placeholder="Subtitle" style="margin-top:6px" />
-      <div class="field-hint">A native tile: accent bar, glyph, title and subtitle. Text is stored in config.json, not as an image.</div>
+      <div class="row" style="margin-top:8px">
+        <input class="input" id="insp-tile-title" maxlength="80" value="${esc(key.tile?.title || key.label)}" placeholder="Title" />
+        <input class="input tile-size" id="insp-tile-title-size" type="number" min="7" max="48" value="${key.tile?.titleSize || ''}" placeholder="Auto" title="Title size" />
+      </div>
+      <div class="row" style="margin-top:6px">
+        <input class="input" id="insp-tile-subtitle" maxlength="80" value="${esc(key.tile?.subtitle || '')}" placeholder="Subtitle" />
+        <input class="input tile-size" id="insp-tile-subtitle-size" type="number" min="6" max="40" value="${key.tile?.subtitleSize || ''}" placeholder="Auto" title="Subtitle size" />
+      </div>
+      <div class="field-hint">A native tile: accent bar, glyph, title and subtitle. Text is stored in config.json, not as an image. Leave a size blank for automatic sizing.</div>
     </div>`;
 
   el.innerHTML = `
@@ -1574,6 +1581,15 @@ function renderInspector() {
     drawIndex(state.selected);
     commit(false);
   };
+  const updateTileSize = (field, raw) => {
+    const value = Math.round(Number(raw) || 0);
+    key.face = 'tile';
+    key.tile = { ...(key.tile || {}) };
+    if (value) key.tile[field] = value;
+    else delete key.tile[field];
+    drawIndex(state.selected);
+    commit(false);
+  };
   const tileAccent = $('#insp-tile-accent');
   if (tileAccent) tileAccent.addEventListener('input', (e) => updateTile('accent', e.target.value));
   const tileGlyph = $('#insp-tile-glyph');
@@ -1582,6 +1598,12 @@ function renderInspector() {
   if (tileTitle) tileTitle.addEventListener('input', (e) => updateTile('title', e.target.value));
   const tileSubtitle = $('#insp-tile-subtitle');
   if (tileSubtitle) tileSubtitle.addEventListener('input', (e) => updateTile('subtitle', e.target.value));
+  const tileGlyphSize = $('#insp-tile-glyph-size');
+  if (tileGlyphSize) tileGlyphSize.addEventListener('input', (e) => updateTileSize('glyphSize', e.target.value));
+  const tileTitleSize = $('#insp-tile-title-size');
+  if (tileTitleSize) tileTitleSize.addEventListener('input', (e) => updateTileSize('titleSize', e.target.value));
+  const tileSubtitleSize = $('#insp-tile-subtitle-size');
+  if (tileSubtitleSize) tileSubtitleSize.addEventListener('input', (e) => updateTileSize('subtitleSize', e.target.value));
 
   // icon drop / choose
   const applyIcon = (dataUrl, source) => {

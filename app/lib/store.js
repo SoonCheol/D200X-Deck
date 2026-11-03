@@ -144,6 +144,9 @@ function normalizeKey(raw) {
       glyph: str(raw.tile.glyph).slice(0, 8),
       title: str(raw.tile.title).slice(0, 80),
       subtitle: str(raw.tile.subtitle).slice(0, 80),
+      glyphSize: clamp(Math.round(Number(raw.tile.glyphSize) || 0), 0, 80),
+      titleSize: clamp(Math.round(Number(raw.tile.titleSize) || 0), 0, 48),
+      subtitleSize: clamp(Math.round(Number(raw.tile.subtitleSize) || 0), 0, 40),
     };
   }
   const sourceAction = normalizeSourceAction(raw.sourceAction);

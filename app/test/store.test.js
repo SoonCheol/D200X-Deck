@@ -32,18 +32,34 @@ test('duplicate profile and page ids are regenerated on validation', () => {
   assert.equal(new Set(valid.pages.map((p) => p.id)).size, valid.pages.length);
 });
 
-test('tile faces keep their accent, glyph and text', () => {
+test('tile faces keep their accent, glyph, text and sizes', () => {
   const config = createDefaultConfig();
   config.pages[0].keys[0] = {
     face: 'tile',
     color: '#1b2130',
     label: 'Fallback',
-    tile: { accent: '#ff0000', glyph: '🐙', title: 'GitHub', subtitle: 'Open repo' },
+    tile: {
+      accent: '#ff0000',
+      glyph: '🐙',
+      title: 'GitHub',
+      subtitle: 'Open repo',
+      glyphSize: 40,
+      titleSize: 18,
+      subtitleSize: 11,
+    },
     action: { type: 'url', value: 'https://github.com' },
   };
   const key = validateConfig(config).pages[0].keys[0];
   assert.equal(key.face, 'tile');
-  assert.deepEqual(key.tile, { accent: '#ff0000', glyph: '🐙', title: 'GitHub', subtitle: 'Open repo' });
+  assert.deepEqual(key.tile, {
+    accent: '#ff0000',
+    glyph: '🐙',
+    title: 'GitHub',
+    subtitle: 'Open repo',
+    glyphSize: 40,
+    titleSize: 18,
+    subtitleSize: 11,
+  });
 });
 
 test('command output settings are validated', () => {

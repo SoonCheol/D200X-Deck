@@ -164,11 +164,22 @@ test('a tile face draws the accent bar, glyph, title and subtitle', async () => 
     face: 'tile',
     label: 'fallback',
     emoji: 'x',
-    tile: { accent: '#ff0000', glyph: '🐙', title: 'GitHub', subtitle: 'Open repo' },
+    tile: {
+      accent: '#ff0000',
+      glyph: '🐙',
+      title: 'GitHub',
+      subtitle: 'Open repo',
+      glyphSize: 36,
+      titleSize: 18,
+      subtitleSize: 11,
+    },
   }));
 
-  const texts = textCalls(canvas).map((call) => call.text);
-  assert.deepEqual(texts, ['🐙', 'GitHub', 'Open repo']);
+  const texts = textCalls(canvas);
+  assert.deepEqual(texts.map((call) => call.text), ['🐙', 'GitHub', 'Open repo']);
+  assert.match(texts[0].font, /500 36px/);
+  assert.match(texts[1].font, /700 18px/);
+  assert.match(texts[2].font, /400 11px/);
   const accent = canvas.context.calls.find((call) => call.op === 'fillRect' && call.fill === '#ff0000');
   assert.ok(accent, 'the accent bar uses the tile colour');
 });

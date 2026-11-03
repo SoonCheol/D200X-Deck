@@ -125,17 +125,20 @@ function drawTile(ctx, key, w, h) {
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
   if (glyph) {
-    ctx.font = `500 ${Math.round(h * 0.3)}px -apple-system, "SF Pro Text", sans-serif`;
+    const size = Math.min(80, Math.max(8, Number(tile.glyphSize) || Math.round(h * 0.3)));
+    ctx.font = `500 ${size}px -apple-system, "SF Pro Text", sans-serif`;
     ctx.fillStyle = '#f4f7ff';
     ctx.fillText(fitText(ctx, glyph, w - 18), w / 2, h * 0.39);
   }
   if (title) {
-    ctx.font = `700 ${Math.round(h * 0.12)}px -apple-system, "SF Pro Text", sans-serif`;
+    const size = Math.min(48, Math.max(7, Number(tile.titleSize) || Math.round(h * 0.12)));
+    ctx.font = `700 ${size}px -apple-system, "SF Pro Text", sans-serif`;
     ctx.fillStyle = '#f4f7ff';
     ctx.fillText(fitText(ctx, title, w - 16), w / 2, h * 0.67);
   }
   if (subtitle) {
-    ctx.font = `400 ${Math.round(h * 0.095)}px -apple-system, "SF Pro Text", sans-serif`;
+    const size = Math.min(40, Math.max(6, Number(tile.subtitleSize) || Math.round(h * 0.095)));
+    ctx.font = `400 ${size}px -apple-system, "SF Pro Text", sans-serif`;
     ctx.fillStyle = 'rgba(232,237,246,0.62)';
     ctx.fillText(fitText(ctx, subtitle, w - 16), w / 2, h * 0.82);
   }
