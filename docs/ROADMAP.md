@@ -198,6 +198,11 @@ file; H9 is the last open High.
 - Plugin key presses push the returned image in ~200 ms instead of waiting for
   the 5 s background coalescer; periodic frames remain throttled.
 
+### Shipped in 0.13.8 — one-second live updates
+
+- Periodic plugin images now coalesce to one background push per second, so
+  macOS Controls System Monitor keys follow the plugin’s own cadence.
+
 ### Next: visual and store polish
 
 - 1179 breakpoint (M16); type-scale consolidation (M3); icon-language cleanup

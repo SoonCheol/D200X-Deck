@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.13.8 — 2026-11-03
+
+### Changed
+- **Periodic plugin images update once per second** instead of every five seconds, matching plugins such as macOS Controls’ System Monitor. Unchanged frames are still dropped, and key presses keep the faster 200 ms path.
+
+### Tests
+- 275 passing, plus two opt-in Electron smoke tests that are skipped without a GUI session.
+
 ## 0.13.7 — 2026-11-03
 
 ### Fixed
