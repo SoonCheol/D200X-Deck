@@ -102,6 +102,86 @@ test('an own-format profile keeps panel mode, auto-exit and its icon', async () 
   assert.deepEqual({ ...importedParent.keys[0].textStyle }, parent.keys[0].textStyle, 'the key-text style survives the round trip');
 });
 
+test('own-format export/import preserves profile metadata, pinned keys and triggers', async () => {
+  const start = renderer.indexOf('async function exportActiveProfile(');
+  const end = renderer.indexOf('function saveProfile(');
+  assert.ok(start >= 0 && end > start, 'profile export/import flow must be available');
+
+  const image = 'data:image/png;base64,YQ==';
+  const config = createDefaultConfig();
+  const profile = config.profiles[0];
+  profile.name = 'Imported';
+  profile.icon = image;
+  profile.background = image;
+  profile.appPath = '/Applications/Demo.app';
+  profile.appName = 'Demo';
+  profile.pinned = {
+    0: {
+      label: 'Pinned',
+      action: { type: 'plugin', plugin: 'p', action: 'a', actionid: 'original-pinned', settings: {} },
+    },
+  };
+  const page = config.pages[0];
+  page.background = image;
+  page.keys = {
+    0: {
+      label: 'Key',
+      action: { type: 'plugin', plugin: 'p', action: 'a', actionid: 'original-key', settings: {} },
+      holdAction: { type: 'plugin', plugin: 'p', action: 'h', actionid: 'original-hold', settings: {} },
+      doubleAction: { type: 'plugin', plugin: 'p', action: 'd', actionid: 'original-double', settings: {} },
+    },
+    1: {
+      label: 'Multi',
+      action: {
+        type: 'multi',
+        mode: 'sequence',
+        steps: [
+          { action: { type: 'plugin', plugin: 'p', action: 'n', actionid: 'original-nested', settings: {} } },
+          { delay: 10 },
+        ],
+      },
+    },
+  };
+  config.activeProfileId = profile.id;
+  config.activePageId = page.id;
+  let payload = null;
+  const context = vm.createContext({
+    state: { config },
+    api: {
+      exportProfile: async (data) => {
+        payload = data;
+        return { ok: true };
+      },
+    },
+    uuid: randomUUID,
+    basename: path.basename,
+    closeProfileModal() {},
+    renderAll() {},
+    toast() {},
+    commit() {},
+    confirm: () => true,
+  });
+  new vm.Script(renderer.slice(start, end)).runInContext(context);
+  await context.exportActiveProfile();
+  context.importProfileData(payload);
+
+  const imported = config.profiles.at(-1);
+  const importedPage = config.pages.find((item) => item.profileId === imported.id);
+  assert.equal(imported.name, 'Imported (2)');
+  assert.equal(imported.icon, image);
+  assert.equal(imported.background, image);
+  assert.equal(imported.appPath, '/Applications/Demo.app');
+  assert.equal(imported.appName, 'Demo');
+  assert.equal(importedPage.background, image);
+  assert.equal(imported.pinned[0].label, 'Pinned');
+  assert.notEqual(imported.pinned[0].action.actionid, 'original-pinned');
+  assert.notEqual(importedPage.keys[0].action.actionid, 'original-key');
+  assert.notEqual(importedPage.keys[0].holdAction.actionid, 'original-hold');
+  assert.notEqual(importedPage.keys[0].doubleAction.actionid, 'original-double');
+  assert.notEqual(importedPage.keys[1].action.steps[0].action.actionid, 'original-nested');
+  assert.throws(() => context.importProfileData({ format: 'not-ours', pages: [] }), /not a valid/i);
+});
+
 for (const type of ['multi', 'toggle', 'pop']) {
   test(`import consent covers shorthand command steps in ${type} actions`, async (t) => {
     const data = {
