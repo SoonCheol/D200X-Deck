@@ -162,6 +162,9 @@ function createWindow() {
         quitNow: () => {
           isQuitting = true;
           app.quit();
+          // The screenshot harness must never require a manual Ctrl+C. If the
+          // normal quit path is blocked by a plugin/child handle, exit anyway.
+          setTimeout(() => app.exit(0), 1500);
         },
       });
     } catch (err) {
