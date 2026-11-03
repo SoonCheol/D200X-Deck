@@ -55,12 +55,12 @@ const launchHidden = app.isPackaged && !devRun && app.getLoginItemSettings().was
 if (!devRun && !app.requestSingleInstanceLock()) {
   app.quit();
 } else if (wantsQuit) {
-  app.quit();
+  isQuitting = true;
+  app.exit(0);
 }
 app.on('second-instance', (_event, argv) => {
   if (argv.includes('--quit')) {
-    isQuitting = true;
-    app.quit();
+    quitSoon();
     return;
   }
   if (argv.includes('--reload-config')) {
@@ -308,6 +308,18 @@ async function runScheduledUpdateCheck() {
   scheduleUpdateCheck(Math.max(1, Number(settings.updateHours) || 6) * 3_600_000);
 }
 
+let quitSoonTimer = null;
+
+/** Quit from a script without the dialog, but give the renderer a moment to save. */
+function quitSoon() {
+  isQuitting = true;
+  if (quitSoonTimer) return;
+  quitSoonTimer = setTimeout(() => {
+    quitSoonTimer = null;
+    app.quit();
+  }, 400);
+}
+
 function reloadConfigFromDisk() {
   if (!store) return false;
   try {
@@ -366,7 +378,8 @@ function buildMenu() {
         {
           label: 'Reload Config from Disk',
           click: () => {
-            if (reloadConfigFromDisk()) showWindow();
+            reloadConfigFromDisk();
+            showWindow();
           },
         },
       ],
@@ -683,8 +696,7 @@ app.on('window-all-closed', () => {
 // Scripts and OS logout use SIGTERM. Skip the interactive confirmation but
 // keep the normal will-quit plugin/deck cleanup.
 process.on('SIGTERM', () => {
-  isQuitting = true;
-  app.quit();
+  quitSoon();
 });
 
 app.on('before-quit', (event) => {

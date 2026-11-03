@@ -66,11 +66,9 @@ test('a colliding name gets a suffix when replace is off', () => {
 });
 
 test('replace keeps the profile id and name and removes only its pages', () => {
+  const original = { id: 'old', name: 'Marcelo', icon: 'old-icon', appPath: '/old', pinned: { 0: {} } };
   const plan = planProfileImport(data, {
-    profiles: [
-      { id: 'old', name: 'Marcelo', icon: 'old-icon', appPath: '/old', pinned: { 0: {} } },
-      { id: 'other', name: 'Other' },
-    ],
+    profiles: [original, { id: 'other', name: 'Other' }],
     pages: [
       { id: 'old-page', profileId: 'old', keys: {} },
       { id: 'other-page', profileId: 'other', keys: {} },
@@ -84,12 +82,36 @@ test('replace keeps the profile id and name and removes only its pages', () => {
   assert.equal(plan.replaced, true);
   assert.equal(plan.name, 'Marcelo');
   assert.equal(plan.profiles.length, 2);
+  assert.equal(original.icon, 'old-icon', 'the live profile is not mutated before the plan is accepted');
   const profile = plan.profiles.find((p) => p.id === 'old');
   assert.equal(profile.appPath, '/Applications/Safari.app');
   assert.equal(profile.icon, undefined, 'old icon is replaced');
   assert.equal(plan.pages.some((page) => page.id === 'old-page'), false);
   assert.equal(plan.pages.some((page) => page.id === 'other-page'), true);
   assert.equal(plan.pages.filter((page) => page.profileId === 'old').length, 2);
+});
+
+test('duplicate page ids and self-parents are rejected or dropped', () => {
+  assert.throws(
+    () =>
+      planProfileImport(
+        {
+          format: 'ulanzi-deck-open-profile',
+          pages: [
+            { id: 'same', name: 'One', keys: {} },
+            { id: 'same', name: 'Two', keys: {} },
+          ],
+        },
+        { uuid: ids(), basename: () => '', remapKeys }
+      ),
+    /duplicate page ids/
+  );
+
+  const plan = planProfileImport(
+    { format: 'ulanzi-deck-open-profile', pages: [{ id: 'same', name: 'One', parentId: 'same', keys: {} }] },
+    { uuid: ids(), basename: () => '', remapKeys }
+  );
+  assert.equal(plan.pages[0].parentId, undefined);
 });
 
 test('invalid profile payloads are rejected', () => {

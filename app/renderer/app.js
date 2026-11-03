@@ -410,6 +410,17 @@ function commandInterval(action) {
   return Math.min(86_400, Math.max(5, Math.round(Number(action.outputInterval) || 30)));
 }
 
+let commandSyncTimer = null;
+
+/** Debounced by commit(), so typing a command does not start it mid-word. */
+function scheduleCommandOutputSync() {
+  clearTimeout(commandSyncTimer);
+  commandSyncTimer = setTimeout(() => {
+    commandSyncTimer = null;
+    syncCommandOutputs();
+  }, 500);
+}
+
 function keyLocation(key) {
   for (const page of state.config.pages || []) {
     for (const [index, candidate] of Object.entries(page.keys || {})) {
@@ -426,10 +437,28 @@ function keyLocation(key) {
   return null;
 }
 
+function commandKeyVisible(loc) {
+  if (!loc) return false;
+  return loc.pinned
+    ? loc.profileId === state.config.activeProfileId && !activePage()?.keys?.[loc.index]
+    : loc.page.id === state.config.activePageId;
+}
+
 /** Start/stop periodic command-output timers to match the current config. */
 function syncCommandOutputs() {
   if (!state.config) return;
   const wanted = new Set();
+  const clearEntry = (key, entry) => {
+    clearInterval(entry.timer);
+    clearTimeout(entry.startTimer);
+    commandTimers.delete(key);
+    commandOutputs.delete(key);
+    const loc = keyLocation(key);
+    if (commandKeyVisible(loc)) {
+      drawIndex(loc.index);
+      scheduleLivePush();
+    }
+  };
   const consider = (key) => {
     const action = key?.action;
     if (!action || action.type !== 'command' || action.showOutput !== true) return;
@@ -440,38 +469,36 @@ function syncCommandOutputs() {
     const signature = `${command}\u0000${interval}`;
     const existing = commandTimers.get(key);
     if (existing && existing.signature === signature) return;
-    if (existing) {
-      clearInterval(existing.timer);
-      commandOutputs.delete(key);
-    }
-    const entry = { signature, timer: null, running: false };
+    if (existing) clearEntry(key, existing);
+    const entry = { signature, timer: null, startTimer: null, running: false };
     const tick = async () => {
       if (entry.running || commandTimers.get(key) !== entry) return;
       entry.running = true;
       try {
         const out = await api.runCommandOutput(command);
-        if (!out?.ok || commandTimers.get(key) !== entry) return;
-        if (out.image) commandOutputs.set(key, { image: out.image, text: '' });
-        else commandOutputs.set(key, { image: '', text: String(out.text || '').slice(0, 120) });
+        if (commandTimers.get(key) !== entry) return;
+        if (!out?.ok) {
+          commandOutputs.set(key, { image: '', text: '—' });
+        } else if (out.image) {
+          commandOutputs.set(key, { image: out.image, text: '' });
+        } else {
+          commandOutputs.set(key, { image: '', text: String(out.text || '').slice(0, 120) });
+        }
         const loc = keyLocation(key);
-        const visible =
-          loc &&
-          (!loc.pinned
-            ? loc.page.id === state.config.activePageId
-            : loc.profileId === state.config.activeProfileId && !activePage()?.keys?.[loc.index]);
-        if (visible) {
+        if (commandKeyVisible(loc)) {
           drawIndex(loc.index);
           scheduleLivePush();
         }
       } catch {
-        /* a transient command failure keeps the previous output */
+        commandOutputs.set(key, { image: '', text: '—' });
       } finally {
         entry.running = false;
       }
     };
+    entry.tick = tick;
     entry.timer = setInterval(tick, interval * 1000);
+    entry.startTimer = setTimeout(tick, 600);
     commandTimers.set(key, entry);
-    tick();
   };
   for (const page of state.config.pages || []) {
     for (const key of Object.values(page.keys || {})) consider(key);
@@ -480,10 +507,14 @@ function syncCommandOutputs() {
     for (const key of Object.values(profile.pinned || {})) consider(key);
   }
   for (const [key, entry] of commandTimers) {
-    if (wanted.has(key)) continue;
-    clearInterval(entry.timer);
-    commandTimers.delete(key);
-    commandOutputs.delete(key);
+    if (!wanted.has(key)) clearEntry(key, entry);
+  }
+}
+
+/** Re-run a command immediately after its key is pressed. */
+function refreshCommandOutput(action) {
+  for (const [key, entry] of commandTimers) {
+    if (key.action === action && typeof entry.tick === 'function') entry.tick();
   }
 }
 
@@ -677,11 +708,12 @@ function importedCommandActions(data) {
 
 function importedCustomLinks(data) {
   const links = [];
-  const blocked = /^(file|javascript|data|vbscript|about|blob|chrome|chrome-extension|view-source):/i;
+  const { schemeOf, isBlockedScheme } = window.DeckUrlSafety;
   eachImportedAction(data, (action) => {
     if (action.type !== 'url') return;
     const value = String(action.value || '').trim();
-    if (/^[a-z][a-z0-9+.-]*:/i.test(value) && !/^(https?:|mailto:)/i.test(value) && !blocked.test(value)) {
+    const scheme = schemeOf(value);
+    if (scheme && scheme !== 'http' && scheme !== 'https' && scheme !== 'mailto' && !isBlockedScheme(scheme)) {
       links.push(value);
     }
   });
@@ -703,7 +735,12 @@ async function importProfileFromFile() {
     );
     if (!ok) return;
     eachImportedAction(res.data, (action) => {
-      if (action.type === 'command') action.imported = true;
+      if (action.type !== 'command') return;
+      action.imported = true;
+      // A shared profile must not start running commands on a timer; the user
+      // can opt in after reviewing the command in the inspector.
+      delete action.showOutput;
+      delete action.outputInterval;
     });
   }
   const links = importedCustomLinks(res.data);
@@ -722,8 +759,12 @@ async function importProfileFromFile() {
   const replace =
     Boolean(sameName) &&
     confirm(
-      `A profile named “${sameName.name}” already exists.\n\nOK replaces its pages and settings, keeping the name. Cancel imports a second copy.`
+      `A profile named “${sameName.name}” already exists.\n\nOK replaces its pages and settings, keeping the name. Cancel asks whether to import a second copy.`
     );
+  if (sameName && !replace) {
+    const copy = confirm(`Import “${sameName.name}” as a second copy instead?`);
+    if (!copy) return;
+  }
   try {
     importProfileData(res.data, { replace });
   } catch (err) {
@@ -2054,12 +2095,18 @@ function applyReloadedConfig(config) {
   state.selected = null;
   renderAll();
   syncPlugins();
+  api.setBrightness(state.config.settings.brightness);
+  api.setSleepTime(state.config.settings.sleepSeconds);
+  api.refreshUpdateSchedule?.();
+  scheduleStandby();
+  pushNow();
   toast('Configuration reloaded from disk');
 }
 
 (async function init() {
   const boot = await api.getState();
   state.config = boot.config;
+  api.onConfigReloaded(applyReloadedConfig);
   if (normalizeActionMeta()) scheduleSave();
   state.status = boot.status;
   seizeState = boot.seize || null;
@@ -2069,7 +2116,6 @@ function applyReloadedConfig(config) {
   if ($('#app-version')) $('#app-version').textContent = boot.version;
   if ($('#about-version')) $('#about-version').textContent = boot.version;
   bind();
-  api.onConfigReloaded(applyReloadedConfig);
   renderSeizeState();
   renderAll();
   if (boot.recovery === 'backup') {

@@ -94,9 +94,9 @@ npm start
 If you prefer a ZIP, use **Code → Download ZIP** on GitHub, unzip it, then run the same
 `npm install` / `npm start` inside the `app` folder.
 
-**npm 12 and newer block dependency install scripts by default.** Electron downloads its
-runtime from a postinstall script, so `npm start` can fail with a missing Electron binary.
-If that happens, run Electron's installer once and start again:
+**npm 12 and newer block dependency install scripts by default.** This project does not
+need them: Electron downloads its runtime on first use. If that download is skipped or
+fails, run its installer once and start again:
 
 ```bash
 node node_modules/electron/install.js
@@ -176,10 +176,11 @@ Config lives in `~/Library/Application Support/Ulanzi Deck Open/config.json`. Th
 keeps a `.bak` and prunes unreferenced images on save.
 
 If you generate or edit `config.json` outside the app, use **File → Reload Config from
-Disk**. From a script, run `open -a "Ulanzi Deck Open" --args --reload-config` against the
-running app; an invalid file is rejected without rewriting it. `--quit` (or a normal
-SIGTERM) quits without the interactive confirmation, and the login shell's `PATH` is used
-for command actions so Homebrew tools are found.
+Disk**. From a script, run `open -n -a "Ulanzi Deck Open" --args --reload-config` against
+the running app (`-n` is required so the flag reaches a second process); an invalid file is
+copied to `config.json.rejected` and left untouched. `--quit` (or a normal SIGTERM) quits
+without the interactive confirmation, and the login shell's `PATH` is used for command
+actions so Homebrew tools are found.
 
 ## Troubleshooting
 

@@ -268,7 +268,10 @@ test('a timer counts down, beeps on finish and clears its face', async () => {
   assert.match(context.timerTextFor(timer), /^0:0[01]$/);
   assert.equal(calls.toasts.some(([message]) => /Timer started/.test(message)), true);
 
-  await new Promise((resolve) => setTimeout(resolve, 1150));
+  const deadline = Date.now() + 3000;
+  while (context.timerTextFor(timer) && Date.now() < deadline) {
+    await new Promise((resolve) => setTimeout(resolve, 50));
+  }
 
   assert.equal(context.timerTextFor(timer), '');
   assert.equal(calls.toasts.some(([message]) => message === 'Timer finished'), true);

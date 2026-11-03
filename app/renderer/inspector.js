@@ -1409,7 +1409,7 @@ function renderInspector() {
       </div>
       <input class="input" id="insp-emoji" maxlength="12" value="${esc(key.emoji)}" placeholder="Text or emoji" />
       <div class="field-hint">Shrinks to fit · 12 characters max</div>
-      ${liveKey.liveImage ? '<div class="field-hint">This plugin draws the key image; key text is hidden while it is active.</div>' : ''}
+      ${liveKey.liveImage ? `<div class="field-hint">${key.action?.type === 'command' ? 'This command draws the key image; key text is hidden while it is active.' : 'This plugin draws the key image; key text is hidden while it is active.'}</div>` : ''}
       <div class="font-row text-style" style="margin-top:8px">
         <select class="select" id="insp-text-family" title="Font">
           ${DeckTextStyle.FAMILY_IDS.map((id) => `<option value="${id}" ${(textStyle.family || 'system') === id ? 'selected' : ''}>${DeckTextStyle.FAMILY_LABELS[id]}</option>`).join('')}

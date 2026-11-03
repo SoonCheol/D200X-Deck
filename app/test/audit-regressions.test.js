@@ -15,6 +15,7 @@ const { PluginHost, isAllowedWsOrigin } = require('../lib/plugin-host');
 const { StreamDeckPlugins, logSettings } = require('../lib/streamdeck-plugins');
 const { buildPiBridge } = require('../lib/pi-theme');
 const { planProfileImport } = require('../lib/profile-import');
+const urlSafety = require('../lib/url-safety');
 
 function fixture(t) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ulanzi-audit-test-'));
@@ -219,6 +220,48 @@ for (const type of ['multi', 'toggle', 'pop']) {
     }
   });
 }
+
+test('imported command output timers stay off until the user opts in', async (t) => {
+  const data = {
+    format: 'ulanzi-deck-open-profile',
+    pages: [
+      {
+        id: 'incoming',
+        name: 'Imported',
+        keys: [
+          {
+            action: {
+              type: 'command',
+              value: 'INERT_AUDIT_SENTINEL',
+              showOutput: true,
+              outputInterval: 5,
+            },
+          },
+        ],
+      },
+    ],
+  };
+  const context = vm.createContext({
+    state: { config: createDefaultConfig() },
+    api: { importProfile: async () => ({ ok: true, data }) },
+    window: { DeckUrlSafety: urlSafety },
+    uuid: randomUUID,
+    basename: path.basename,
+    planProfileImport,
+    closeProfileModal() {},
+    renderAll() {},
+    toast() {},
+    confirm: () => true,
+    commit() {},
+  });
+  importFlow.runInContext(context);
+  await context.importProfileFromFile();
+
+  const imported = context.state.config.pages.find((page) => page.name === 'Imported');
+  assert.equal(imported.keys[0].action.imported, true);
+  assert.equal(imported.keys[0].action.showOutput, undefined);
+  assert.equal(imported.keys[0].action.outputInterval, undefined);
+});
 
 test('loading one malformed page preserves the other pages', (t) => {
   const store = new Store(fixture(t));

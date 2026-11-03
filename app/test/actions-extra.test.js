@@ -59,6 +59,14 @@ test('openUrl accepts web, mail and app links and blocks local/script schemes', 
     ok: false,
     error: 'unsupported URL scheme',
   });
+  assert.deepEqual(await actions.openUrl('FILE:///etc/passwd'), {
+    ok: false,
+    error: 'unsupported URL scheme',
+  });
+  assert.deepEqual(await actions.openUrl('java\tscript:alert(1)'), {
+    ok: false,
+    error: 'unsupported URL scheme',
+  });
   assert.deepEqual(await actions.openUrl('data:text/html,hello'), {
     ok: false,
     error: 'unsupported URL scheme',
@@ -74,6 +82,19 @@ test('openUrl accepts web, mail and app links and blocks local/script schemes', 
     'slack://channel?team=T1&id=C1',
     'zoommtg://zoom.us/join?confno=1',
   ]);
+
+  const prompts = [];
+  const confirmScheme = async (scheme, url) => {
+    prompts.push({ scheme, url });
+    return scheme !== 'deniedapp';
+  };
+  assert.deepEqual(await actions.openUrl('customapp://open/1', { confirmScheme }), { ok: true });
+  assert.equal(opened.at(-1), 'customapp://open/1');
+  assert.deepEqual(prompts[0], { scheme: 'customapp', url: 'customapp://open/1' });
+  assert.deepEqual(await actions.openUrl('deniedapp://open/1', { confirmScheme }), {
+    ok: false,
+    error: 'URL scheme not approved',
+  });
 });
 
 test('runHotkey builds the expected command for the platform', async (t) => {

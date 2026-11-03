@@ -25,7 +25,8 @@ test('readLoginPath returns the shell PATH and survives a failing shell', () => 
 
   assert.equal(path, '/opt/homebrew/bin:/usr/bin');
   assert.equal(calls[0].file, '/bin/zsh');
-  assert.deepEqual(calls[0].args, ['-lc', 'printenv PATH']);
+  assert.deepEqual(calls[0].args, ['-ilc', 'printenv PATH']);
+  assert.equal(readLoginPath({ exec: () => 'banner\n/opt/homebrew/bin:/usr/bin\n' }), '/opt/homebrew/bin:/usr/bin');
   assert.equal(readLoginPath({ exec: () => { throw new Error('no shell'); } }), '');
 });
 

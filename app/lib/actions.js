@@ -3,7 +3,8 @@
 const { spawn, execFile } = require('node:child_process');
 const path = require('node:path');
 const fs = require('node:fs');
-const { shell, app } = require('electron');
+const { shell, app, dialog } = require('electron');
+const { schemeOf, hasControlCharacters, isBlockedScheme, isKnownScheme } = require('./url-safety');
 
 const { MEDIA_OPS } = require('./constants');
 const MEDIA = new Set(MEDIA_OPS);
@@ -118,8 +119,9 @@ function runCommandOutput(command) {
         }[path.extname(file).toLowerCase()];
         if (mime && fs.existsSync(file)) {
           try {
-            const image = fs.readFileSync(file);
-            if (image.length <= 512 * 1024) {
+            const stat = fs.lstatSync(file);
+            if (stat.isFile() && stat.size <= 512 * 1024) {
+              const image = fs.readFileSync(file);
               return resolve({ ok: true, image: `data:${mime};base64,${image.toString('base64')}` });
             }
           } catch {
@@ -190,18 +192,46 @@ async function runHotkey(combo) {
   return { ok: false, error: 'hotkeys are only implemented on macOS/Linux' };
 }
 
-// Custom app schemes (slack://, zoommtg://, linear://) are useful, but local
-// files and script schemes must never be handed to the OS protocol handler.
-const BLOCKED_SCHEMES = /^(file|javascript|data|vbscript|about|blob|chrome|chrome-extension|view-source):/i;
+// Custom app schemes (slack://, zoommtg://, linear://) are useful. Known ones
+// open directly; anything else asks once per app session. Local files and
+// script schemes never reach the OS handler.
+const approvedSchemes = new Set();
 
-async function openUrl(value) {
+function askToOpenScheme(scheme, url) {
+  if (!dialog?.showMessageBox) return Promise.resolve(false);
+  try {
+    app.focus({ steal: true });
+  } catch {
+    /* focus is best-effort */
+  }
+  return dialog
+    .showMessageBox({
+      type: 'question',
+      buttons: ['Cancel', 'Open'],
+      defaultId: 0,
+      cancelId: 0,
+      message: `Open a “${scheme}” link?`,
+      detail: `${url}\n\nThis launches another app. Only continue if you trust this link.`,
+    })
+    .then((result) => result.response === 1)
+    .catch(() => false);
+}
+
+async function openUrl(value, { confirmScheme = askToOpenScheme } = {}) {
   const target = String(value || '').trim();
   if (!target) return { ok: false, error: 'empty URL' };
-  const hasScheme = /^[a-z][a-z0-9+.-]*:/i.test(target);
-  if (hasScheme && BLOCKED_SCHEMES.test(target)) {
+  if (hasControlCharacters(target)) return { ok: false, error: 'unsupported URL scheme' };
+  const scheme = schemeOf(target);
+  if (scheme && isBlockedScheme(scheme)) {
     return { ok: false, error: 'unsupported URL scheme' };
   }
-  const url = hasScheme ? target : `https://${target}`;
+  if (scheme && !isKnownScheme(scheme) && !approvedSchemes.has(scheme)) {
+    if (!(await confirmScheme(scheme, target))) {
+      return { ok: false, error: 'URL scheme not approved' };
+    }
+    approvedSchemes.add(scheme);
+  }
+  const url = scheme ? target : `https://${target}`;
   await shell.openExternal(url);
   return { ok: true };
 }

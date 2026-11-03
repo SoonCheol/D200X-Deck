@@ -7,14 +7,21 @@ const { execFileSync } = require('node:child_process');
 // merge it into process.env for every child process the app starts.
 const PRINT_PATH = 'printenv PATH';
 
-function readLoginPath({ shell = process.env.SHELL || '/bin/zsh', exec = execFileSync, timeout = 3000 } = {}) {
+function readLoginPath({ shell = process.env.SHELL || '/bin/zsh', exec = execFileSync, timeout = 1500 } = {}) {
   try {
-    const output = exec(shell, ['-lc', PRINT_PATH], {
+    const output = exec(shell, ['-ilc', PRINT_PATH], {
       encoding: 'utf8',
       timeout,
+      killSignal: 'SIGKILL',
       stdio: ['ignore', 'pipe', 'ignore'],
     });
-    return String(output || '').trim();
+    // rc files sometimes print a banner before printenv's output; PATH itself
+    // has no newlines, so the last non-empty line is the one we want.
+    return String(output || '')
+      .trim()
+      .split(/\r?\n/)
+      .filter(Boolean)
+      .pop() || '';
   } catch {
     return '';
   }

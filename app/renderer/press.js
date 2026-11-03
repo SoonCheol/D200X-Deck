@@ -1,6 +1,6 @@
 'use strict';
 
-/* global $, actionIconSrc, actionMeta, activePage, api, commit, drawIndex, exitStandby, isEmojiOnly, keyAt, lockActive, navigate, noteActivity, pinnedFor, pushNow, refreshWideStats, renderInspector, scheduleSave, standbyActive, state, switchProfile, toast, WIDE_KEY_INDEX */
+/* global $, actionIconSrc, actionMeta, activePage, api, commit, drawIndex, exitStandby, isEmojiOnly, keyAt, lockActive, navigate, noteActivity, pinnedFor, pushNow, refreshCommandOutput, refreshWideStats, renderInspector, scheduleSave, standbyActive, state, switchProfile, toast, WIDE_KEY_INDEX */
 
 // -------------------------------------------------------------- key presses
 
@@ -250,7 +250,12 @@ async function runKeyAction(action) {
   // lib/actions.js runShell); text and hotkeys resolve when they finish.
   try {
     const res = await api.runAction(action);
-    if (res.ok) return { ok: true };
+    if (res.ok) {
+      if (action.type === 'command' && action.showOutput && typeof refreshCommandOutput === 'function') {
+        refreshCommandOutput(action);
+      }
+      return { ok: true };
+    }
     toast(res.error || 'action failed', true);
     if (res.permission === 'accessibility') api.requestAccessibility?.();
     return { ok: false, error: res.error || 'action failed' };

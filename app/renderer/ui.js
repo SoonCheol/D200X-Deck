@@ -1,6 +1,6 @@
 'use strict';
 
-/* global $, ACTION_LABELS, activePage, api, autoIconFor, backgroundFor, cancelSequences, clearStandbyTimers, COLS, confirmAction, effectiveKey, emptyKey, ensureKey, esc, isPinnedSlot, KEY_COUNT, keyAt, lockActive, nextFreeIndex, pageInfo, pinnedFor, pressState, pushTimer, renderInspector, renderKey, renderProfileSelect, renderSystemPanel, saveTimer, standby, standbyActive, state, stopLock, syncCommandOutputs, uuid, WIDE_KEY_INDEX */
+/* global $, ACTION_LABELS, activePage, api, autoIconFor, backgroundFor, cancelSequences, clearStandbyTimers, COLS, confirmAction, effectiveKey, emptyKey, ensureKey, esc, isPinnedSlot, KEY_COUNT, keyAt, lockActive, nextFreeIndex, pageInfo, pinnedFor, pressState, pushTimer, renderInspector, renderKey, renderProfileSelect, renderSystemPanel, saveTimer, scheduleCommandOutputSync, standby, standbyActive, state, stopLock, syncCommandOutputs, uuid, WIDE_KEY_INDEX */
 
 // --------------------------------------------------------------- rendering
 
@@ -608,6 +608,7 @@ function commit(redraw = true) {
   }
   schedulePush();
   schedulePluginsSync();
+  scheduleCommandOutputSync();
 }
 
 // --------------------------------------------------------------- plugins

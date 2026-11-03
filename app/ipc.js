@@ -119,16 +119,6 @@ handle(CH.configSave, (_evt, config) => {
   return { ok: true };
 });
 
-handle(CH.configReload, () => {
-  try {
-    const config = store.reload();
-    send(CH.configReloaded, config);
-    return { ok: true, config };
-  } catch (err) {
-    return { ok: false, error: err.message || String(err) };
-  }
-});
-
 handle(CH.commandOutput, (_evt, command) => actions.runCommandOutput(String(command || '')));
 
 handle(CH.deckPush, async (_evt, images, wideMode) => {

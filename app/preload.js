@@ -11,7 +11,6 @@ function subscribe(channel, callback) {
 contextBridge.exposeInMainWorld('deckApp', {
   getState: () => ipcRenderer.invoke('app:state'),
   saveConfig: (config) => ipcRenderer.invoke('config:save', config),
-  reloadConfig: () => ipcRenderer.invoke('config:reload'),
   runCommandOutput: (command) => ipcRenderer.invoke('command:output', command),
   pushPage: (images, wideMode) => ipcRenderer.invoke('deck:push', images, wideMode),
   setWideMode: (mode) => ipcRenderer.invoke('deck:wide-mode', mode),

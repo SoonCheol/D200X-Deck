@@ -20,13 +20,14 @@ else
 fi
 
 echo "==> stopping running instance"
-# SIGTERM triggers the app's quit confirmation (by design), so force it while
-# replacing the bundle.
-pkill -9 -f "$DEST/Contents/MacOS" 2>/dev/null || true
-for i in 1 2 3 4 5; do
+# SIGTERM skips the interactive confirmation and lets plugins/deck cleanup run.
+pkill -TERM -f "$DEST/Contents/MacOS" 2>/dev/null || true
+for i in 1 2 3 4; do
   pgrep -f "$DEST/Contents/MacOS" >/dev/null || break
   sleep 1
 done
+# Last resort only: a stuck helper must not hold the HID handle.
+pkill -9 -f "$DEST/Contents/MacOS" 2>/dev/null || true
 
 echo "==> installing to $DEST"
 rm -rf "$DEST"

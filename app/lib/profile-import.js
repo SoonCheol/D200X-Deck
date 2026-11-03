@@ -17,8 +17,8 @@
     if (!data || data.format !== 'ulanzi-deck-open-profile' || !Array.isArray(data.pages) || !data.pages.length) {
       throw new Error('Not a valid Ulanzi Deck Open profile');
     }
-    if (typeof uuid !== 'function' || typeof remapKeys !== 'function') {
-      throw new Error('profile import requires uuid and remapKeys');
+    if (typeof uuid !== 'function' || typeof basename !== 'function' || typeof remapKeys !== 'function') {
+      throw new Error('profile import requires uuid, basename and remapKeys');
     }
 
     const source = data.profile && typeof data.profile === 'object' ? data.profile : {};
@@ -35,7 +35,9 @@
     const profileId = existing ? existing.id : uuid();
     const idMap = new Map();
     for (const page of data.pages) {
-      if (page && typeof page.id === 'string') idMap.set(page.id, uuid());
+      if (!page || typeof page.id !== 'string') continue;
+      if (idMap.has(page.id)) throw new Error('Profile has duplicate page ids');
+      idMap.set(page.id, uuid());
     }
 
     const pageNames = new Set();
@@ -51,7 +53,9 @@
         profileId,
         keys: remapKeys(sourcePage.keys, idMap),
       };
-      if (sourcePage.parentId && idMap.has(sourcePage.parentId)) page.parentId = idMap.get(sourcePage.parentId);
+      if (sourcePage.parentId && sourcePage.parentId !== sourcePage.id && idMap.has(sourcePage.parentId)) {
+      page.parentId = idMap.get(sourcePage.parentId);
+    }
       if (sourcePage.background) page.background = sourcePage.background;
       if (sourcePage.wideMode === 'stats' || sourcePage.wideMode === 'blank') page.wideMode = sourcePage.wideMode;
       if (page.parentId && Number(sourcePage.autoExitSeconds) > 0) {
@@ -61,7 +65,7 @@
     }
     if (!importedPages.length) throw new Error('Profile has no usable pages');
 
-    const profile = existing || { id: profileId, name };
+    const profile = existing ? { ...existing, id: profileId, name } : { id: profileId, name };
     for (const field of ['icon', 'appPath', 'appName', 'background', 'pinned']) delete profile[field];
     if (typeof source.icon === 'string' && source.icon) profile.icon = source.icon;
     if (typeof source.appPath === 'string' && source.appPath) {
@@ -74,7 +78,9 @@
       if (Object.keys(pinned).length) profile.pinned = pinned;
     }
 
-    const nextProfiles = existing ? profiles : [...profiles, profile];
+    const nextProfiles = existing
+      ? profiles.map((p) => (p.id === profileId ? profile : p))
+      : [...profiles, profile];
     const keptPages = existing ? pages.filter((p) => p.profileId !== profileId) : pages;
     return {
       profiles: nextProfiles,

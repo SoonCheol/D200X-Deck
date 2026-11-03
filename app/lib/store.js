@@ -91,8 +91,13 @@ function normalizeAction(action) {
     out.sound = out.sound !== false;
   }
   if (type === 'command') {
-    out.showOutput = out.showOutput === true;
-    out.outputInterval = Math.min(86_400, Math.max(5, Math.round(Number(out.outputInterval) || 30)));
+    if (out.showOutput === true) {
+      out.showOutput = true;
+      out.outputInterval = Math.min(86_400, Math.max(5, Math.round(Number(out.outputInterval) || 30)));
+    } else {
+      delete out.showOutput;
+      delete out.outputInterval;
+    }
   }
   if (type === 'brightness') {
     out.op = out.op === 'down' ? 'down' : 'up';
@@ -458,12 +463,24 @@ class Store {
    * leave the running config and the file untouched.
    */
   reload() {
-    const parsed = this._internalize(JSON.parse(fs.readFileSync(this.file, 'utf8')));
-    if (!Array.isArray(parsed.pages) || parsed.pages.length === 0) {
-      throw new Error('config.json has no pages');
+    try {
+      const parsed = this._internalize(JSON.parse(fs.readFileSync(this.file, 'utf8')));
+      const usable = Array.isArray(parsed.pages) ? parsed.pages.filter((page) => page && typeof page === 'object') : [];
+      if (!usable.length) throw new Error('config.json has no usable pages');
+      const migrated = this._migrate(parsed);
+      if (!migrated || !Array.isArray(migrated.pages) || !migrated.pages.length) {
+        throw new Error('config.json has no usable pages');
+      }
+      this.config = migrated;
+      return this.config;
+    } catch (err) {
+      try {
+        fs.copyFileSync(this.file, `${this.file}.rejected`);
+      } catch {
+        /* the file may be unreadable; keep the current config */
+      }
+      throw err;
     }
-    this.config = this._migrate(parsed);
-    return this.config;
   }
 
   load() {

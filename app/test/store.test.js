@@ -27,8 +27,14 @@ test('command output settings are validated', () => {
     action: { type: 'command', value: 'status', showOutput: 'yes', outputInterval: 1 },
   };
   const key = validateConfig(config).pages[0].keys[0];
-  assert.equal(key.action.showOutput, false);
-  assert.equal(key.action.outputInterval, 5);
+  assert.equal(key.action.showOutput, undefined);
+  assert.equal(key.action.outputInterval, undefined);
+
+  config.pages[0].keys[0].action.showOutput = true;
+  config.pages[0].keys[0].action.outputInterval = 1;
+  const enabled = validateConfig(config).pages[0].keys[0];
+  assert.equal(enabled.action.showOutput, true);
+  assert.equal(enabled.action.outputInterval, 5);
 });
 
 test('POP menus are capped at nine actions', () => {
@@ -88,8 +94,17 @@ test('reload reads an external edit and refuses an invalid file without overwrit
 
   const broken = '{ not json';
   fs.writeFileSync(store.file, broken);
+  const previous = store.config;
   assert.throws(() => store.reload());
   assert.equal(fs.readFileSync(store.file, 'utf8'), broken, 'a failed reload must not write defaults');
+  assert.equal(store.config, previous, 'a failed reload keeps the running config');
+  assert.equal(fs.readFileSync(`${store.file}.rejected`, 'utf8'), broken);
+
+  fs.writeFileSync(store.file, JSON.stringify({ pages: [null] }));
+  assert.throws(() => store.reload(), /no usable pages/);
+  assert.equal(store.config, previous, 'parseable but unusable input is rejected too');
+
+  fs.rmSync(dir, { recursive: true, force: true });
 });
 
 test('caption fonts and lock-screen settings survive save/load', () => {
