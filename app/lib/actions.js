@@ -2,6 +2,7 @@
 
 const { spawn, execFile } = require('node:child_process');
 const path = require('node:path');
+const fs = require('node:fs');
 const { shell, app } = require('electron');
 
 const { MEDIA_OPS } = require('./constants');
@@ -82,6 +83,55 @@ function runShell(command) {
   });
 }
 
+/**
+ * Run a shell command for a key that displays its output. The output may be
+ * plain text, a data URL, raw SVG, or a path to an image file.
+ */
+function runCommandOutput(command) {
+  return new Promise((resolve) => {
+    execFile(
+      '/bin/sh',
+      ['-c', String(command)],
+      { timeout: 8000, maxBuffer: 256 * 1024, encoding: 'utf8' },
+      (err, stdout) => {
+        if (err) {
+          const detail = String(err.stderr || err.message || '').trim().split('\n').pop() || 'command failed';
+          return resolve({ ok: false, error: detail });
+        }
+        const value = String(stdout || '').trim();
+        if (!value) return resolve({ ok: true, text: '' });
+        if (/^data:image\/[a-z0-9.+-]+;base64,/i.test(value)) return resolve({ ok: true, image: value });
+        if (/^<svg[\s>]/i.test(value)) {
+          return resolve({
+            ok: true,
+            image: `data:image/svg+xml;base64,${Buffer.from(value).toString('base64')}`,
+          });
+        }
+        const file = value.split(/\r?\n/)[0].trim();
+        const mime = {
+          '.png': 'image/png',
+          '.jpg': 'image/jpeg',
+          '.jpeg': 'image/jpeg',
+          '.webp': 'image/webp',
+          '.gif': 'image/gif',
+          '.svg': 'image/svg+xml',
+        }[path.extname(file).toLowerCase()];
+        if (mime && fs.existsSync(file)) {
+          try {
+            const image = fs.readFileSync(file);
+            if (image.length <= 512 * 1024) {
+              return resolve({ ok: true, image: `data:${mime};base64,${image.toString('base64')}` });
+            }
+          } catch {
+            /* fall through to text */
+          }
+        }
+        return resolve({ ok: true, text: value.replace(/\s+/g, ' ').slice(0, 120) });
+      }
+    );
+  });
+}
+
 function execFileResult(file, args, timeout = 10000) {
   return new Promise((resolve) => {
     execFile(file, args, { timeout }, (err, stdout, stderr) => {
@@ -140,13 +190,15 @@ async function runHotkey(combo) {
   return { ok: false, error: 'hotkeys are only implemented on macOS/Linux' };
 }
 
-const SAFE_SCHEMES = /^(https?:|mailto:)/i;
+// Custom app schemes (slack://, zoommtg://, linear://) are useful, but local
+// files and script schemes must never be handed to the OS protocol handler.
+const BLOCKED_SCHEMES = /^(file|javascript|data|vbscript|about|blob|chrome|chrome-extension|view-source):/i;
 
 async function openUrl(value) {
   const target = String(value || '').trim();
   if (!target) return { ok: false, error: 'empty URL' };
   const hasScheme = /^[a-z][a-z0-9+.-]*:/i.test(target);
-  if (hasScheme && !SAFE_SCHEMES.test(target)) {
+  if (hasScheme && BLOCKED_SCHEMES.test(target)) {
     return { ok: false, error: 'unsupported URL scheme' };
   }
   const url = hasScheme ? target : `https://${target}`;
@@ -263,4 +315,4 @@ async function execute(action) {
   }
 }
 
-module.exports = { execute, runHotkey, openTarget, openApp, openUrl, setShellErrorHandler };
+module.exports = { execute, runHotkey, openTarget, openApp, openUrl, runCommandOutput, setShellErrorHandler };

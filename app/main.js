@@ -4,6 +4,7 @@ const { app, BrowserWindow, dialog, Menu, shell, Tray, nativeImage, protocol, se
 const path = require('node:path');
 const fs = require('node:fs');
 const { isRendererFile: isRendererFileIn } = require('./lib/renderer-url');
+const { applyLoginPath } = require('./lib/shell-path');
 
 const { Deck } = require('./lib/deck');
 const { Store } = require('./lib/store');
@@ -48,12 +49,27 @@ let quitPromptOpen = false;
 // A second launch would fight over the HID device and the plugin port. Dev and
 // screenshot runs set ULANZI_CONFIG_DIR, so they are allowed to coexist.
 const devRun = Boolean(process.env.ULANZI_SHOT || process.env.ULANZI_CONFIG_DIR);
+const wantsQuit = process.argv.includes('--quit');
 // Started by the login item: stay in the menu bar instead of opening the editor.
 const launchHidden = app.isPackaged && !devRun && app.getLoginItemSettings().wasOpenedAsHidden;
 if (!devRun && !app.requestSingleInstanceLock()) {
   app.quit();
+} else if (wantsQuit) {
+  app.quit();
 }
-app.on('second-instance', () => showWindow());
+app.on('second-instance', (_event, argv) => {
+  if (argv.includes('--quit')) {
+    isQuitting = true;
+    app.quit();
+    return;
+  }
+  if (argv.includes('--reload-config')) {
+    reloadConfigFromDisk();
+    showWindow();
+    return;
+  }
+  showWindow();
+});
 
 const RENDERER_DIR = path.join(__dirname, 'renderer');
 
@@ -292,6 +308,17 @@ async function runScheduledUpdateCheck() {
   scheduleUpdateCheck(Math.max(1, Number(settings.updateHours) || 6) * 3_600_000);
 }
 
+function reloadConfigFromDisk() {
+  if (!store) return false;
+  try {
+    send(CH.configReloaded, store.reload());
+    return true;
+  } catch (err) {
+    send(CH.pluginError, `Could not reload config: ${err.message || String(err)}`);
+    return false;
+  }
+}
+
 function buildMenu() {
   const isMac = process.platform === 'darwin';
   const template = [
@@ -333,6 +360,13 @@ function buildMenu() {
           accelerator: 'CmdOrCtrl+W',
           click: () => {
             if (win && !win.isDestroyed()) win.close();
+          },
+        },
+        { type: 'separator' },
+        {
+          label: 'Reload Config from Disk',
+          click: () => {
+            if (reloadConfigFromDisk()) showWindow();
           },
         },
       ],
@@ -537,6 +571,9 @@ function injectSdBridge(html, url) {
 }
 
 app.whenReady().then(() => {
+  // Finder/Spotlight launches have launchd's minimal PATH. Resolve the login
+  // shell once so Homebrew tools and user scripts work from key actions.
+  applyLoginPath();
   // Plugin property inspectors talk to their own local services (e.g. a daemon
   // on 127.0.0.1). Their pages come from our private scheme, so allow them the
   // same loopback access the vendor app gives them.
@@ -641,6 +678,13 @@ app.whenReady().then(() => {
 
 app.on('window-all-closed', () => {
   // Keep running in the menu bar; quitting goes through requestQuit().
+});
+
+// Scripts and OS logout use SIGTERM. Skip the interactive confirmation but
+// keep the normal will-quit plugin/deck cleanup.
+process.on('SIGTERM', () => {
+  isQuitting = true;
+  app.quit();
 });
 
 app.on('before-quit', (event) => {

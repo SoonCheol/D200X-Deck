@@ -14,6 +14,7 @@ const { PluginManager } = require('../lib/plugins');
 const { PluginHost, isAllowedWsOrigin } = require('../lib/plugin-host');
 const { StreamDeckPlugins, logSettings } = require('../lib/streamdeck-plugins');
 const { buildPiBridge } = require('../lib/pi-theme');
+const { planProfileImport } = require('../lib/profile-import');
 
 function fixture(t) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ulanzi-audit-test-'));
@@ -80,6 +81,7 @@ test('an own-format profile keeps panel mode, auto-exit and its icon', async () 
     },
     uuid: randomUUID,
     basename: path.basename,
+    planProfileImport,
     closeProfileModal() {},
     renderAll() {},
     toast() {},
@@ -155,6 +157,7 @@ test('own-format export/import preserves profile metadata, pinned keys and trigg
     },
     uuid: randomUUID,
     basename: path.basename,
+    planProfileImport,
     closeProfileModal() {},
     renderAll() {},
     toast() {},

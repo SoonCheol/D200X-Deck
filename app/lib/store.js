@@ -90,6 +90,10 @@ function normalizeAction(action) {
     out.seconds = Math.min(86_400, Math.max(1, Math.round(Number(out.seconds) || 300)));
     out.sound = out.sound !== false;
   }
+  if (type === 'command') {
+    out.showOutput = out.showOutput === true;
+    out.outputInterval = Math.min(86_400, Math.max(5, Math.round(Number(out.outputInterval) || 30)));
+  }
   if (type === 'brightness') {
     out.op = out.op === 'down' ? 'down' : 'up';
     out.step = Math.min(50, Math.max(1, Math.round(Number(out.step) || 5)));
@@ -448,10 +452,23 @@ class Store {
     return config;
   }
 
+  /**
+   * Re-read config.json without falling back to defaults or rewriting it.
+   * Used by the explicit "Reload config" command: an invalid external edit must
+   * leave the running config and the file untouched.
+   */
+  reload() {
+    const parsed = this._internalize(JSON.parse(fs.readFileSync(this.file, 'utf8')));
+    if (!Array.isArray(parsed.pages) || parsed.pages.length === 0) {
+      throw new Error('config.json has no pages');
+    }
+    this.config = this._migrate(parsed);
+    return this.config;
+  }
+
   load() {
     fs.mkdirSync(this.dir, { recursive: true });
-    const read = (file) => JSON.parse(fs.readFileSync(file, 'utf8'));
-    const defaults = (recovery) => {
+    const read = (file) => JSON.parse(fs.readFileSync(file, 'utf8'));    const defaults = (recovery) => {
       this.config = createDefaultConfig();
       this.recovery = recovery;
       this.save();

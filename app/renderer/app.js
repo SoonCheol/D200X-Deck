@@ -4,6 +4,7 @@
 
 const api = window.deckApp;
 const renderKey = window.KeyRenderer.drawKey;
+const { planProfileImport } = window.DeckProfileImport;
 
 const ACTION_ICON_PATHS = {
   'page:next': 'assets/actions/page-next.svg',
@@ -299,6 +300,11 @@ const pluginImages = new Map();
 const pluginStateImages = new Map();
 const pluginStateTitles = new Map();
 
+// Runtime output for `command` actions with "Show output on key". Keyed by the
+// key object, so it never leaks into config.json. Timers live in commandTimers.
+const commandOutputs = new WeakMap();
+const commandTimers = new Map();
+
 function effectiveKey(key) {
   if (!key) return key;
   let out = key;
@@ -336,6 +342,15 @@ function effectiveKey(key) {
       touched = true;
     }
     if (touched) return next;
+  }
+  const runtime = commandOutputs.get(key);
+  if (runtime) {
+    if (runtime.image) {
+      return { ...out, icon: runtime.image, emoji: '', face: 'icon', liveImage: true };
+    }
+    if (runtime.text) {
+      return { ...out, label: runtime.text, emoji: '', icon: null, face: 'text', liveImage: false };
+    }
   }
   return out;
 }
@@ -387,6 +402,89 @@ function findPluginAction(actionid) {
     }
   }
   return null;
+}
+
+// ------------------------------------------------------- command output keys
+
+function commandInterval(action) {
+  return Math.min(86_400, Math.max(5, Math.round(Number(action.outputInterval) || 30)));
+}
+
+function keyLocation(key) {
+  for (const page of state.config.pages || []) {
+    for (const [index, candidate] of Object.entries(page.keys || {})) {
+      if (candidate === key) return { page, index: Number(index), pinned: false };
+    }
+  }
+  for (const profile of state.config.profiles || []) {
+    for (const [index, candidate] of Object.entries(profile.pinned || {})) {
+      if (candidate === key) {
+        return { page: activePage(), index: Number(index), pinned: true, profileId: profile.id };
+      }
+    }
+  }
+  return null;
+}
+
+/** Start/stop periodic command-output timers to match the current config. */
+function syncCommandOutputs() {
+  if (!state.config) return;
+  const wanted = new Set();
+  const consider = (key) => {
+    const action = key?.action;
+    if (!action || action.type !== 'command' || action.showOutput !== true) return;
+    const command = String(action.value || '').trim();
+    if (!command) return;
+    wanted.add(key);
+    const interval = commandInterval(action);
+    const signature = `${command}\u0000${interval}`;
+    const existing = commandTimers.get(key);
+    if (existing && existing.signature === signature) return;
+    if (existing) {
+      clearInterval(existing.timer);
+      commandOutputs.delete(key);
+    }
+    const entry = { signature, timer: null, running: false };
+    const tick = async () => {
+      if (entry.running || commandTimers.get(key) !== entry) return;
+      entry.running = true;
+      try {
+        const out = await api.runCommandOutput(command);
+        if (!out?.ok || commandTimers.get(key) !== entry) return;
+        if (out.image) commandOutputs.set(key, { image: out.image, text: '' });
+        else commandOutputs.set(key, { image: '', text: String(out.text || '').slice(0, 120) });
+        const loc = keyLocation(key);
+        const visible =
+          loc &&
+          (!loc.pinned
+            ? loc.page.id === state.config.activePageId
+            : loc.profileId === state.config.activeProfileId && !activePage()?.keys?.[loc.index]);
+        if (visible) {
+          drawIndex(loc.index);
+          scheduleLivePush();
+        }
+      } catch {
+        /* a transient command failure keeps the previous output */
+      } finally {
+        entry.running = false;
+      }
+    };
+    entry.timer = setInterval(tick, interval * 1000);
+    commandTimers.set(key, entry);
+    tick();
+  };
+  for (const page of state.config.pages || []) {
+    for (const key of Object.values(page.keys || {})) consider(key);
+  }
+  for (const profile of state.config.profiles || []) {
+    for (const key of Object.values(profile.pinned || {})) consider(key);
+  }
+  for (const [key, entry] of commandTimers) {
+    if (wanted.has(key)) continue;
+    clearInterval(entry.timer);
+    commandTimers.delete(key);
+    commandOutputs.delete(key);
+  }
 }
 
 // -------------------------------------------------------------- bootstrap
@@ -523,65 +621,24 @@ function remapImportedKeys(keys, idMap) {
   return out;
 }
 
-function importProfileData(data) {
-  if (!data || data.format !== 'ulanzi-deck-open-profile' || !Array.isArray(data.pages) || !data.pages.length) {
-    throw new Error('Not a valid Ulanzi Deck Open profile');
-  }
-  const source = data.profile && typeof data.profile === 'object' ? data.profile : {};
-  const wanted = String(source.name || data.name || 'Imported profile').trim() || 'Imported profile';
-  const takenProfiles = new Set((state.config.profiles || []).map((p) => p.name.trim().toLowerCase()));
-  let name = wanted;
-  for (let i = 2; takenProfiles.has(name.toLowerCase()); i += 1) name = `${wanted} (${i})`;
-
-  const profileId = uuid();
-  const idMap = new Map();
-  for (const page of data.pages) {
-    if (page && typeof page.id === 'string') idMap.set(page.id, uuid());
-  }
-  const pageNames = new Set();
-  const pages = [];
-  for (const sourcePage of data.pages) {
-    if (!sourcePage || typeof sourcePage !== 'object') continue;
-    let pageName = String(sourcePage.name || 'Page').trim() || 'Page';
-    for (let i = 2; pageNames.has(pageName.toLowerCase()); i += 1) pageName = `${sourcePage.name || 'Page'} (${i})`;
-    pageNames.add(pageName.toLowerCase());
-    const page = {
-      id: idMap.get(sourcePage.id) || uuid(),
-      name: pageName,
-      profileId,
-      keys: remapImportedKeys(sourcePage.keys, idMap),
-    };
-    if (sourcePage.parentId && idMap.has(sourcePage.parentId)) page.parentId = idMap.get(sourcePage.parentId);
-    if (sourcePage.background) page.background = sourcePage.background;
-    if (sourcePage.wideMode === 'stats' || sourcePage.wideMode === 'blank') page.wideMode = sourcePage.wideMode;
-    if (page.parentId && Number(sourcePage.autoExitSeconds) > 0) {
-      page.autoExitSeconds = Math.min(86_400, Math.max(1, Math.round(Number(sourcePage.autoExitSeconds))));
-    }
-    pages.push(page);
-  }
-  if (!pages.length) throw new Error('Profile has no usable pages');
-
-  const profile = { id: profileId, name };
-  if (typeof source.icon === 'string' && source.icon) profile.icon = source.icon;
-  if (typeof source.appPath === 'string' && source.appPath) {
-    profile.appPath = source.appPath;
-    profile.appName = source.appName || basename(source.appPath);
-  }
-  if (source.background) profile.background = source.background;
-  if (source.pinned && typeof source.pinned === 'object') {
-    const pinned = remapImportedKeys(source.pinned, idMap);
-    if (Object.keys(pinned).length) profile.pinned = pinned;
-  }
-
-  state.config.profiles.push(profile);
-  state.config.pages.push(...pages);
-  state.config.activeProfileId = profileId;
-  state.config.activePageId = pages[0].id;
+function importProfileData(data, { replace = false } = {}) {
+  const plan = planProfileImport(data, {
+    profiles: state.config.profiles || [],
+    pages: state.config.pages || [],
+    uuid,
+    basename,
+    remapKeys: remapImportedKeys,
+    replace,
+  });
+  state.config.profiles = plan.profiles;
+  state.config.pages = plan.pages;
+  state.config.activeProfileId = plan.activeProfileId;
+  state.config.activePageId = plan.activePageId;
   state.selected = null;
   closeProfileModal();
   renderAll();
   commit();
-  toast(`Imported profile “${name}” (${pages.length} pages)`);
+  toast(`${plan.replaced ? 'Replaced' : 'Imported'} profile “${plan.name}” (${plan.pageCount} pages)`);
 }
 
 /** Visit every action inside an imported profile, including multi-action steps. */
@@ -618,6 +675,19 @@ function importedCommandActions(data) {
   return commands.filter(Boolean);
 }
 
+function importedCustomLinks(data) {
+  const links = [];
+  const blocked = /^(file|javascript|data|vbscript|about|blob|chrome|chrome-extension|view-source):/i;
+  eachImportedAction(data, (action) => {
+    if (action.type !== 'url') return;
+    const value = String(action.value || '').trim();
+    if (/^[a-z][a-z0-9+.-]*:/i.test(value) && !/^(https?:|mailto:)/i.test(value) && !blocked.test(value)) {
+      links.push(value);
+    }
+  });
+  return [...new Set(links)];
+}
+
 async function importProfileFromFile() {
   const res = await api.importProfile();
   if (res.canceled) return;
@@ -636,8 +706,26 @@ async function importProfileFromFile() {
       if (action.type === 'command') action.imported = true;
     });
   }
+  const links = importedCustomLinks(res.data);
+  if (links.length) {
+    const shown = links.slice(0, 3).join('\n');
+    const extra = links.length > 3 ? `\n…and ${links.length - 3} more` : '';
+    const ok = confirm(
+      `This profile opens ${links.length} custom link${links.length === 1 ? '' : 's'} in other apps:\n\n${shown}${extra}\n\nOnly import it if you trust the profile.`
+    );
+    if (!ok) return;
+  }
+  const wanted = String(res.data.profile?.name || res.data.name || 'Imported profile').trim();
+  const sameName = (state.config.profiles || []).find(
+    (p) => p.name.trim().toLowerCase() === wanted.toLowerCase()
+  );
+  const replace =
+    Boolean(sameName) &&
+    confirm(
+      `A profile named “${sameName.name}” already exists.\n\nOK replaces its pages and settings, keeping the name. Cancel imports a second copy.`
+    );
   try {
-    importProfileData(res.data);
+    importProfileData(res.data, { replace });
   } catch (err) {
     toast(err.message || String(err), true);
   }
@@ -1960,6 +2048,15 @@ async function hydrateAppIcons() {
   }
 }
 
+function applyReloadedConfig(config) {
+  if (!config) return;
+  state.config = config;
+  state.selected = null;
+  renderAll();
+  syncPlugins();
+  toast('Configuration reloaded from disk');
+}
+
 (async function init() {
   const boot = await api.getState();
   state.config = boot.config;
@@ -1972,6 +2069,7 @@ async function hydrateAppIcons() {
   if ($('#app-version')) $('#app-version').textContent = boot.version;
   if ($('#about-version')) $('#about-version').textContent = boot.version;
   bind();
+  api.onConfigReloaded(applyReloadedConfig);
   renderSeizeState();
   renderAll();
   if (boot.recovery === 'backup') {

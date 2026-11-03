@@ -49,16 +49,31 @@ try {
   Module._load = originalLoad;
 }
 
-test('openUrl accepts web and mail links and rejects other schemes', async () => {
+test('openUrl accepts web, mail and app links and blocks local/script schemes', async () => {
   assert.deepEqual(await actions.openUrl(''), { ok: false, error: 'empty URL' });
   assert.deepEqual(await actions.openUrl('javascript:alert(1)'), {
+    ok: false,
+    error: 'unsupported URL scheme',
+  });
+  assert.deepEqual(await actions.openUrl('file:///etc/passwd'), {
+    ok: false,
+    error: 'unsupported URL scheme',
+  });
+  assert.deepEqual(await actions.openUrl('data:text/html,hello'), {
     ok: false,
     error: 'unsupported URL scheme',
   });
 
   assert.deepEqual(await actions.openUrl('example.com'), { ok: true });
   assert.deepEqual(await actions.openUrl('mailto:test@example.com'), { ok: true });
-  assert.deepEqual(opened, ['https://example.com', 'mailto:test@example.com']);
+  assert.deepEqual(await actions.openUrl('slack://channel?team=T1&id=C1'), { ok: true });
+  assert.deepEqual(await actions.openUrl('zoommtg://zoom.us/join?confno=1'), { ok: true });
+  assert.deepEqual(opened, [
+    'https://example.com',
+    'mailto:test@example.com',
+    'slack://channel?team=T1&id=C1',
+    'zoommtg://zoom.us/join?confno=1',
+  ]);
 });
 
 test('runHotkey builds the expected command for the platform', async (t) => {

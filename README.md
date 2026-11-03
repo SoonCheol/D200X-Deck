@@ -24,15 +24,16 @@ _The editor, the plugin manager and the store all run against the deck live._
   CPU / RAM / GPU) or **Background** (page image). Pressing the physical wide key cycles
   the three panels and the dashboard follows.
 * **Actions** — open an app (searchable in-app picker with real app icons), open a URL
-  (fetches the site icon), run a shell command, send a hotkey, type text, media keys,
-  close an app, switch page/profile, timer/key brightness, or run an existing Ulanzi
-  plugin action.
+  or a custom app link (`slack://`, `zoommtg://`, `linear://`), run a shell command
+  (optionally showing its text or image output on the key on a timer), send a hotkey,
+  type text, media keys, close an app, switch page/profile, timer/key brightness, or run
+  an existing Ulanzi plugin action.
 * **Multi actions** — sequence / alternate / random steps with delays, plus a two-way
   Hotkey Switch.
 * **Press triggers** — separate actions for tap, hold and double press.
 * **Pinned keys** — pin an action to every page, with per-page overrides.
 * **Backup & share** — export a profile to one `.ulanzideckprofile` file and import it
-  back (as a new profile, or merged into / replacing the current one).
+  back as a new profile, or replace the existing profile with the same name.
 * **Launch at login** — start in the menu bar; subpages can auto-return to their parent
   after an idle timeout.
 * **POP menus** — import and use POP keys: press one to get a compact action palette at
@@ -92,6 +93,19 @@ npm start
 
 If you prefer a ZIP, use **Code → Download ZIP** on GitHub, unzip it, then run the same
 `npm install` / `npm start` inside the `app` folder.
+
+**npm 12 and newer block dependency install scripts by default.** Electron downloads its
+runtime from a postinstall script, so `npm start` can fail with a missing Electron binary.
+If that happens, run Electron's installer once and start again:
+
+```bash
+node node_modules/electron/install.js
+npm start
+```
+
+For daily use, prefer `npm run install-app` over `npm start` (see below). Launching through
+`electron .` identifies the app as **Electron.app** in macOS prompts such as the login-item
+and Accessibility dialogs; the installed bundle uses the real **Ulanzi Deck Open** name.
 
 **No Apple Developer account, certificate, signing or notarization is required.**
 
@@ -160,6 +174,12 @@ added later.
 
 Config lives in `~/Library/Application Support/Ulanzi Deck Open/config.json`. The app
 keeps a `.bak` and prunes unreferenced images on save.
+
+If you generate or edit `config.json` outside the app, use **File → Reload Config from
+Disk**. From a script, run `open -a "Ulanzi Deck Open" --args --reload-config` against the
+running app; an invalid file is rejected without rewriting it. `--quit` (or a normal
+SIGTERM) quits without the interactive confirmation, and the login shell's `PATH` is used
+for command actions so Homebrew tools are found.
 
 ## Troubleshooting
 

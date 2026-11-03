@@ -11,6 +11,8 @@ function subscribe(channel, callback) {
 contextBridge.exposeInMainWorld('deckApp', {
   getState: () => ipcRenderer.invoke('app:state'),
   saveConfig: (config) => ipcRenderer.invoke('config:save', config),
+  reloadConfig: () => ipcRenderer.invoke('config:reload'),
+  runCommandOutput: (command) => ipcRenderer.invoke('command:output', command),
   pushPage: (images, wideMode) => ipcRenderer.invoke('deck:push', images, wideMode),
   setWideMode: (mode) => ipcRenderer.invoke('deck:wide-mode', mode),
   systemStats: () => ipcRenderer.invoke('system:stats'),
@@ -22,6 +24,7 @@ contextBridge.exposeInMainWorld('deckApp', {
   refreshUpdateSchedule: () => ipcRenderer.invoke('app:update-settings-changed'),
   onUpdateAvailable: (cb) => subscribe('app:update-available', cb),
   onUpdateResult: (cb) => subscribe('app:update-result', cb),
+  onConfigReloaded: (cb) => subscribe('config:reloaded', cb),
   onShowAbout: (cb) => subscribe('app:show-about', cb),
   onOpenSettings: (cb) => subscribe('app:open-settings', cb),
   accessibility: () => ipcRenderer.invoke('app:accessibility'),

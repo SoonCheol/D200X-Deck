@@ -1,6 +1,6 @@
 'use strict';
 
-/* global $, ACTION_LABELS, activePage, addOpenKeyForPage, addPage, addSubpage, api, autoIconFor, backgroundFor, capturePageImage, COLS, commit, confirmAction, downscaleBackground, downscaleImage, drawIndex, drawSystemPanel, effectiveKey, ensureKey, esc, isPinnedSlot, KEY_COUNT, keyIndexToSlot, lastCleared, lastPageCleared, LEGACY_DEFAULT_EMOJI, loadSiteIcon, navigate, openAppPicker, openHotkeyModal, openIconLibrary, openStoreModal, pickImageData, pinnedFor, pluginImages, pluginStateImages, prettyHotkey, readFileAsDataUrl, refreshWideStats, renderAll, renderGrid, renderPageList, scheduleAutoExit, scheduleSave, setKeyIconFromLibrary, state, syncPlugins, toast, uniquePageName, uuid, WIDE_KEY_INDEX, wideOptions */
+/* global $, ACTION_LABELS, activePage, addOpenKeyForPage, addPage, addSubpage, api, autoIconFor, backgroundFor, capturePageImage, COLS, commit, confirmAction, downscaleBackground, downscaleImage, drawIndex, drawSystemPanel, effectiveKey, ensureKey, esc, isPinnedSlot, KEY_COUNT, keyIndexToSlot, lastCleared, lastPageCleared, LEGACY_DEFAULT_EMOJI, loadSiteIcon, navigate, openAppPicker, openHotkeyModal, openIconLibrary, openStoreModal, pickImageData, pinnedFor, pluginImages, pluginStateImages, prettyHotkey, readFileAsDataUrl, refreshWideStats, renderAll, renderGrid, renderPageList, scheduleAutoExit, scheduleSave, setKeyIconFromLibrary, state, syncCommandOutputs, syncPlugins, toast, uniquePageName, uuid, WIDE_KEY_INDEX, wideOptions */
 
 // --------------------------------------------------------------- inspector
 
@@ -1132,12 +1132,24 @@ function renderInspector() {
     valueField = `<div class="row">
       <input class="input" id="insp-value" placeholder="https://example.com" value="${esc(action.value)}" />
       <button class="btn" id="insp-fetch-icon">Favicon</button>
-    </div>`;
+    </div>
+    <div class="field-hint">Custom links such as <code>slack://</code> or <code>zoommtg://</code> open the other app. Only use links you trust.</div>`;
   } else if (action.type === 'command') {
     const importedNote = action.imported
       ? '<div class="field-hint insp-warning">This command came from an imported profile. Check what it does before pressing the key.</div>'
       : '';
-    valueField = `${importedNote}<textarea class="textarea" id="insp-value" placeholder="osascript -e 'set volume output muted'">${esc(action.value)}</textarea>`;
+    const outputOn = action.showOutput === true;
+    const interval = Math.min(86_400, Math.max(5, Math.round(Number(action.outputInterval) || 30)));
+    valueField = `${importedNote}<textarea class="textarea" id="insp-value" placeholder="osascript -e 'set volume output muted'">${esc(action.value)}</textarea>
+      <label class="check-row"><input type="checkbox" id="insp-command-output" ${
+        outputOn ? 'checked' : ''
+      } /> Show command output on this key</label>
+      <div class="row${outputOn ? '' : ' hidden'}" id="insp-command-output-options">
+        <span class="field-hint">Refresh every</span>
+        <input class="input" id="insp-command-interval" type="number" min="5" max="86400" value="${interval}" />
+        <span class="field-hint">seconds</span>
+      </div>
+      <div class="field-hint">Text is shown as the key caption. A data URL, raw SVG, or PNG/JPG/SVG file path is shown as the key image.</div>`;
   } else if (action.type === 'hotkey') {
     valueField = `<div class="row">
       <button class="btn hotkey-value" id="insp-hotkey-open">${esc(prettyHotkey(action.value) || 'Set hotkey…')}</button>
@@ -1972,6 +1984,28 @@ function renderInspector() {
     valueEl.addEventListener('change', (e) => {
       applyValue(e.target.value);
       if (key.action.type === 'url' && !key.icon) loadSiteIcon(key);
+    });
+  }
+
+  const commandOutput = $('#insp-command-output');
+  if (commandOutput) {
+    commandOutput.addEventListener('change', (e) => {
+      const next = { ...key.action, showOutput: e.target.checked };
+      if (!e.target.checked) delete next.showOutput;
+      key.action = next;
+      commit(false);
+      renderInspector();
+      syncCommandOutputs();
+    });
+  }
+  const commandInterval = $('#insp-command-interval');
+  if (commandInterval) {
+    commandInterval.addEventListener('change', (e) => {
+      const value = Math.min(86_400, Math.max(5, Math.round(Number(e.target.value) || 30)));
+      e.target.value = String(value);
+      key.action = { ...key.action, outputInterval: value };
+      commit(false);
+      syncCommandOutputs();
     });
   }
 

@@ -21,6 +21,16 @@ test('createDefaultConfig is valid and has no wide key', () => {
   }
 });
 
+test('command output settings are validated', () => {
+  const config = createDefaultConfig();
+  config.pages[0].keys[0] = {
+    action: { type: 'command', value: 'status', showOutput: 'yes', outputInterval: 1 },
+  };
+  const key = validateConfig(config).pages[0].keys[0];
+  assert.equal(key.action.showOutput, false);
+  assert.equal(key.action.outputInterval, 5);
+});
+
 test('POP menus are capped at nine actions', () => {
   const config = createDefaultConfig();
   config.pages[0].keys[0] = {
@@ -63,6 +73,23 @@ test('a zero-millisecond delay step remains a delay', () => {
   };
   const validated = validateConfig(config);
   assert.deepEqual(validated.pages[0].keys[0].action.steps[0], { delay: 0 });
+});
+
+test('reload reads an external edit and refuses an invalid file without overwriting it', () => {
+  const dir = tempDir();
+  const store = new Store(dir);
+  const config = createDefaultConfig();
+  store.save(config);
+  const edited = JSON.parse(fs.readFileSync(store.file, 'utf8'));
+  edited.pages[0].name = 'Edited on disk';
+  fs.writeFileSync(store.file, JSON.stringify(edited));
+
+  assert.equal(store.reload().pages[0].name, 'Edited on disk');
+
+  const broken = '{ not json';
+  fs.writeFileSync(store.file, broken);
+  assert.throws(() => store.reload());
+  assert.equal(fs.readFileSync(store.file, 'utf8'), broken, 'a failed reload must not write defaults');
 });
 
 test('caption fonts and lock-screen settings survive save/load', () => {
