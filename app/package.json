@@ -16,6 +16,7 @@
     "package:all": "electron-packager . 'Ulanzi Deck Open' --platform=darwin --arch=universal --out=dist --overwrite --icon=build/icon --app-bundle-id=com.edufalcao.ulanzideckopen --prune=true --ignore='^/(dist|build/icon\\.iconset|test|scripts|native|docs|build/helpers|eslint\\.config\\.js|\\.github)' --osx-universal.x64ArchFiles='Contents/Resources/app.asar.unpacked/node_modules/node-hid/prebuilds/**'",
     "postpackage": "sh scripts/after-package.sh",
     "install-app": "sh scripts/install.sh",
+    "readme-screenshot": "sh scripts/readme-screenshot.sh",
     "test": "node --test \"test/*.test.js\"",
     "make:dmg": "sh scripts/make-dmg.sh",
     "prepackage:all": "sh scripts/build-helpers.sh",
