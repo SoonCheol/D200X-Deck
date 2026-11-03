@@ -613,6 +613,13 @@ function injectSdBridge(html, url) {
 }
 
 app.whenReady().then(() => {
+  // Scripts and OS logout use SIGTERM. Skip the interactive confirmation but
+  // keep the normal will-quit plugin/deck cleanup. Registered once the app is
+  // ready: Electron installs its own SIGTERM handler at startup, which goes
+  // through before-quit (and so the confirmation) and replaces an earlier one.
+  process.on('SIGTERM', () => {
+    quitSoon();
+  });
   // Finder/Spotlight launches have launchd's minimal PATH. Resolve the login
   // shell once so Homebrew tools and user scripts work from key actions.
   applyLoginPath();
@@ -713,12 +720,6 @@ app.on('window-all-closed', () => {
   // Keep running in the menu bar; quitting goes through requestQuit().
 });
 
-// Scripts and OS logout use SIGTERM. Skip the interactive confirmation but
-// keep the normal will-quit plugin/deck cleanup.
-process.on('SIGTERM', () => {
-  quitSoon();
-});
-
 app.on('before-quit', (event) => {
   if (!isQuitting) {
     event.preventDefault();
@@ -748,13 +749,11 @@ app.on('will-quit', (event) => {
     if (quitCleanupDone) return;
     quitCleanupDone = true;
     if (tray) tray.destroy();
-    app.quit();
-  };
-  const fallback = setTimeout(() => {
-    if (tray) tray.destroy();
-    quitCleanupDone = true;
+    // Cleanup is done. A second app.quit() is ignored once will-quit has been
+    // prevented, which left the app running with no window or tray.
     app.exit(0);
-  }, 3000);
+  };
+  const fallback = setTimeout(finish, 3000);
   Promise.allSettled([plugins?.shutdown?.(), sdPlugins?.shutdown?.()]).then(() => {
     clearTimeout(fallback);
     finish();
