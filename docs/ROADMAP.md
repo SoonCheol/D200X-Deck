@@ -115,6 +115,11 @@ file; H9 is the last open High.
 - Clear DRM error for Elgato Marketplace plugins; HTTPS redirect and symlink
   escape hardening.
 
+### Shipped in 0.11.2 — CI test fix
+
+- Hotkey assertions follow the macOS and Linux command paths, restoring the
+  Ubuntu CI gate.
+
 ### Next: visual and store polish
 
 - Store detail and remaining card state (M27).

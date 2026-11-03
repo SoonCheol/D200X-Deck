@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.11.2 — 2026-11-03
+
+### Fixed
+- **The hotkey test now checks the correct macOS and Linux command paths**, so the Ubuntu CI gate passes again. The 0.11.1 app build itself was unaffected.
+
+### Tests
+- 227 passing, one opt-in Electron smoke test skipped without a GUI session.
+
 ## 0.11.1 — 2026-11-02
 
 ### Changed
