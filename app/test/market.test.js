@@ -153,3 +153,50 @@ test('categories and list normalize the store payload', async (t) => {
   assert.equal(list.items[0].name, 'Weather');
   assert.equal(list.items[0].files, 'https://ugc.ulanzistudio.com/weather.zip');
 });
+
+test('a store resource exposes cover, banner screenshots and the long description', async (t) => {
+  const market = new Market({ dir: tempDir(t) });
+  mockFetch(t, () =>
+    response({
+      code: 200,
+      tResources: {
+        id: 7,
+        titleEn: 'Weather',
+        author: 'Dev',
+        version: '2.0.1',
+        uuid: 'com.test.weather',
+        files: '/cdn/weather.zip',
+        coverUrl: '/cdn/cover.png',
+        banner: '/cdn/shot-1.png, https://cdn.example/shot-2.png ,',
+        overviewEn: 'Short <b>summary</b>',
+        detailDescEn: '<p>Long <b>text</b></p><ul><li>One</li><li>Two</li></ul>',
+      },
+    })
+  );
+
+  const item = await market.resource(7);
+
+  assert.equal(item.icon, 'https://ugc.ulanzistudio.com/cdn/cover.png');
+  assert.deepEqual(item.screenshots, [
+    'https://ugc.ulanzistudio.com/cdn/shot-1.png',
+    'https://cdn.example/shot-2.png',
+  ]);
+  assert.equal(item.summary, 'Short summary');
+  assert.equal(item.longDescription, 'Long text\n• One\n• Two');
+});
+
+test('a resource without a cover uses the first screenshot as its icon', async (t) => {
+  const market = new Market({ dir: tempDir(t) });
+  mockFetch(t, () =>
+    response({
+      code: 200,
+      tResources: { id: 8, titleEn: 'Icons', banner: '/cdn/only.png', files: '/cdn/icons.zip' },
+    })
+  );
+
+  const item = await market.resource(8);
+
+  assert.equal(item.icon, 'https://ugc.ulanzistudio.com/cdn/only.png');
+  assert.deepEqual(item.screenshots, ['https://ugc.ulanzistudio.com/cdn/only.png']);
+  assert.equal(item.longDescription, '');
+});

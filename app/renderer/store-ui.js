@@ -343,6 +343,19 @@ function formatCount(n) {
   return String(value);
 }
 
+function formatBytes(bytes) {
+  const value = Number(bytes) || 0;
+  if (value <= 0) return '';
+  const units = ['B', 'KB', 'MB', 'GB'];
+  let size = value;
+  let unit = 0;
+  while (size >= 1024 && unit < units.length - 1) {
+    size /= 1024;
+    unit += 1;
+  }
+  return `${unit === 0 || size >= 10 ? Math.round(size) : size.toFixed(1)} ${units[unit]}`;
+}
+
 async function openStoreDetail(id) {
   const detail = $('#store-detail');
   document.querySelector('.store-card')?.classList.add('detail-mode');
@@ -366,7 +379,18 @@ async function openStoreDetail(id) {
   const kind = category?.name || '';
   const installable = /plugins?/i.test(kind) && /\.zip$/i.test(item.files || '');
   const iconPack = /icons?/i.test(kind) && /\.zip$/i.test(item.files || '');
+  const screenshots = Array.isArray(item.screenshots) ? item.screenshots : [];
+  const longText = item.longDescription || '';
+  const summary = item.summary || '';
+  const lead = longText && summary && summary !== longText ? summary : '';
+  const body = longText || summary || 'No description provided.';
+  const stateBadge = `<span class="badge-tag ${
+    installed ? (updatable ? 'warn' : 'good') : 'hidden'
+  }" id="store-install-state">${updatable ? 'Update available' : 'Installed'}</span>`;
   detail.innerHTML = `
+    <div class="store-detail-bar">
+      <button class="btn ghost store-back-top" id="store-back">← Back</button>
+    </div>
     <div class="store-detail-head">
       ${item.icon ? `<img src="${esc(item.icon)}" alt="" />` : '<div class="store-thumb empty">🧩</div>'}
       <div>
@@ -375,19 +399,43 @@ async function openStoreDetail(id) {
           ${esc(item.author || 'Ulanzi')}${item.version ? ` · v${esc(item.version)}` : ''}
         </div>
         <div class="store-detail-meta">
+          ${stateBadge}
           <span class="badge-tag">${esc(kind || 'Item')}</span>
+          ${
+            installed && installedPlugin.version
+              ? `<span id="store-installed-version">Installed v${esc(installedPlugin.version)}</span>`
+              : '<span id="store-installed-version" class="hidden"></span>'
+          }
+          <span id="store-detail-size"></span>
           ${item.downloads ? `<span>${formatCount(item.downloads)} downloads</span>` : ''}
           ${item.stars ? `<span>${formatCount(item.stars)} stars</span>` : ''}
-          ${item.uuid ? `<span>${esc(item.uuid)}</span>` : ''}
         </div>
       </div>
-      <button class="btn ghost store-back-top" id="store-back">Back</button>
     </div>
+    ${
+      screenshots.length
+        ? `<div class="store-shots">
+            <img class="store-shot" id="store-shot" src="${esc(screenshots[0])}" alt="${esc(item.name)} screenshot" />
+            ${
+              screenshots.length > 1
+                ? `<div class="store-shot-strip">${screenshots
+                    .map(
+                      (src, index) =>
+                        `<button class="store-shot-thumb${index === 0 ? ' active' : ''}" type="button" data-shot="${esc(
+                          src
+                        )}" aria-label="Screenshot ${index + 1}"><img src="${esc(src)}" alt="" loading="lazy" /></button>`
+                    )
+                    .join('')}</div>`
+                : ''
+            }
+          </div>`
+        : ''
+    }
     <div class="store-detail-actions">
       ${
         installable
-          ? `<button class="btn primary" id="store-install" ${installed ? 'disabled' : ''}>
-               ${installed ? 'Installed' : 'Install plugin'}
+          ? `<button class="btn primary" id="store-install" ${installed && !updatable ? 'disabled' : ''}>
+               ${updatable ? 'Update plugin' : installed ? 'Installed' : 'Install plugin'}
              </button>`
           : iconPack
             ? '<button class="btn primary" id="store-download-icons">Download icons</button>'
@@ -403,8 +451,22 @@ async function openStoreDetail(id) {
               : `${kind ? `${esc(kind)} items` : 'This item'} can be downloaded from the Ulanzi marketplace, but only JavaScript <b>plugins</b> and <b>icon packs</b> can be installed into this app.`
           }</p>`
     }
-    <p>${esc(item.summary || 'No description provided.')}</p>
+    ${lead ? `<p class="store-detail-lead">${esc(lead)}</p>` : ''}
+    <p class="store-detail-desc">${esc(body)}</p>
+    ${
+      item.uuid
+        ? `<details class="store-detail-id"><summary>Plugin ID</summary><code>${esc(item.uuid)}</code></details>`
+        : ''
+    }
   `;
+  detail.querySelectorAll('[data-shot]').forEach((button) => {
+    button.addEventListener('click', () => {
+      const shot = $('#store-shot');
+      if (!shot) return;
+      shot.src = button.dataset.shot;
+      detail.querySelectorAll('[data-shot]').forEach((other) => other.classList.toggle('active', other === button));
+    });
+  });
   $('#store-back').addEventListener('click', () => {
     detail.classList.add('hidden');
     document.querySelector('.store-card')?.classList.remove('detail-mode');
@@ -433,9 +495,10 @@ async function openStoreDetail(id) {
       downloadIcons.textContent = 'Download icons';
     });
   }
-  // Ask the CDN whether the package still exists before offering a download.
+  // Ask the CDN whether the package still exists and how large it is before
+  // offering a download.
   const actionBtn = $('#store-install') || $('#store-download-icons');
-  if (actionBtn && !installed && !actionBtn.disabled) {
+  if (actionBtn && (!installed || updatable) && !actionBtn.disabled) {
     const readyLabel = actionBtn.textContent;
     actionBtn.disabled = true;
     actionBtn.textContent = 'Checking…';
@@ -443,6 +506,8 @@ async function openStoreDetail(id) {
       actionBtn.textContent = readyLabel;
       if (check.ok) {
         actionBtn.disabled = false;
+        const size = $('#store-detail-size');
+        if (size && check.size) size.textContent = formatBytes(check.size);
         return;
       }
       actionBtn.disabled = true;
@@ -457,6 +522,7 @@ async function openStoreDetail(id) {
 
   const install = $('#store-install');
   if (install && (!installed || updatable)) {
+    const label = updatable ? 'Update plugin' : 'Install plugin';
     install.addEventListener('click', async () => {
       const ok = confirm(
         `${updatable ? 'Update' : 'Install'} “${item.name}”?\n\nPlugins run on your Mac with your user permissions, outside the app sandbox. Only install plugins you trust.`
@@ -467,7 +533,7 @@ async function openStoreDetail(id) {
       const out = await api.storeInstall(item.id);
       if (!out.ok) {
         install.disabled = false;
-        install.textContent = 'Install plugin';
+        install.textContent = label;
         return toast(out.error, true);
       }
       state.plugins = out.list || (await api.listPlugins());
@@ -475,6 +541,25 @@ async function openStoreDetail(id) {
       renderPluginModal();
       syncPlugins();
       install.textContent = 'Installed';
+      install.disabled = true;
+      const stateBadgeEl = $('#store-install-state');
+      if (stateBadgeEl) {
+        stateBadgeEl.textContent = 'Installed';
+        stateBadgeEl.classList.remove('warn', 'hidden');
+        stateBadgeEl.classList.add('good');
+      }
+      const updated = state.plugins.find(
+        (p) => (item.uuid && p.uuid === item.uuid) || p.name === item.name
+      );
+      const versionEl = $('#store-installed-version');
+      if (versionEl) {
+        if (updated?.version) {
+          versionEl.textContent = `Installed v${updated.version}`;
+          versionEl.classList.remove('hidden');
+        } else {
+          versionEl.classList.add('hidden');
+        }
+      }
       toast(`${updatable ? 'Updated' : 'Installed'} ${out.name || item.name}`);
     });
   }

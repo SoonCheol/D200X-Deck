@@ -277,10 +277,36 @@ function plainText(html) {
     .trim();
 }
 
+/** Strip markup but keep paragraph/list line breaks for long descriptions. */
+function plainTextBlock(html) {
+  return String(html || '')
+    .replace(/<\s*br\s*\/?>/gi, '\n')
+    .replace(/<\/(p|div|li|h[1-6]|tr)>/gi, '\n')
+    .replace(/<li[^>]*>/gi, '• ')
+    .replace(/<[^>]*>/g, '')
+    .replace(/&nbsp;/g, ' ')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/&amp;/g, '&')
+    .replace(/[ \t]+\n/g, '\n')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+}
+
+/** The store sends banner screenshots as one comma-separated string. */
+function bannerList(value) {
+  return String(value || '')
+    .split(',')
+    .map((entry) => absolute(entry.trim()))
+    .filter(Boolean);
+}
+
 function normalizeItem(raw) {
   const suffix = 'En';
   const files = absolute(pick(raw, ['files', 'file', 'fileUrl', 'downloadUrl'], ''));
-  const banner = String(pick(raw, ['banner'], '')).split(',')[0];
+  const screenshots = bannerList(pick(raw, ['banner'], ''));
   const cover = pick(raw, ['coverUrl'], '');
   const iconUrl = pick(raw, ['iconUrl'], '');
   // Some store rows use a bare file name for iconUrl (e.g. "Davinci Resolve.png")
@@ -290,7 +316,11 @@ function normalizeItem(raw) {
     id: String(pick(raw, ['id', 'resourceId'], '')),
     name: pick(raw, [`title${suffix}`, `productName${suffix}`, 'title', 'name', 'titleCn', 'productNameZh'], 'Untitled'),
     summary: plainText(pick(raw, [`overview${suffix}`, 'overview', `detailDesc${suffix}`, 'detailDesc', 'remark'], '')),
-    icon: absolute(cover || banner || usableIcon || pick(raw, ['avatar'], '')),
+    longDescription: plainTextBlock(
+      pick(raw, [`detailDesc${suffix}`, 'detailDesc', 'detailDescZh', 'detailDescPt'], '')
+    ),
+    screenshots,
+    icon: absolute(cover || screenshots[0] || usableIcon || pick(raw, ['avatar'], '')),
     author: pick(raw, ['author', 'nickname', 'createBy'], ''),
     version: pick(raw, ['version', 'versionName', 'ver'], ''),
     uuid: pick(raw, ['uuid', 'pluginUuid'], ''),
