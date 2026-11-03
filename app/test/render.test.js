@@ -184,6 +184,23 @@ test('a tile face draws the accent bar, glyph, title and subtitle', async () => 
   assert.ok(accent, 'the accent bar uses the tile colour');
 });
 
+test('a tile without a glyph moves the title up and enlarges it', async () => {
+  const renderer = loadRenderer();
+  const withGlyph = makeCanvas();
+  const without = makeCanvas();
+
+  await renderer.drawKey(withGlyph, key({ face: 'tile', emoji: '', tile: { glyph: '?', title: 'Repo', subtitle: 'org' } }));
+  await renderer.drawKey(without, key({ face: 'tile', emoji: '', tile: { glyph: '', title: 'Repo', subtitle: 'org' } }));
+
+  const title = (canvas) => textCalls(canvas).find((call) => call.text === 'Repo');
+  const subtitle = (canvas) => textCalls(canvas).find((call) => call.text === 'org');
+  const px = (call) => Number(/(\d+)px/.exec(call.font)[1]);
+  assert.deepEqual(textCalls(without).map((call) => call.text), ['Repo', 'org']);
+  assert.ok(title(without).y < title(withGlyph).y, 'the title moves up into the empty glyph area');
+  assert.ok(px(title(without)) > px(title(withGlyph)), 'the title is larger without a glyph');
+  assert.equal(subtitle(without).y, subtitle(withGlyph).y, 'the subtitle stays at the bottom');
+});
+
 test('caption uses its font, size, alignment, colour and solid background', async () => {
   const renderer = loadRenderer();
   const canvas = makeCanvas();

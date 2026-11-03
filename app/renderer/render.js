@@ -148,10 +148,11 @@ function drawTile(ctx, key, w, h) {
     const fontFor = (size) => `700 ${size}px -apple-system, "SF Pro Text", sans-serif`;
     const size = tile.titleSize
       ? Math.min(48, Math.max(7, Number(tile.titleSize)))
-      : fitFontSize(ctx, title, w - 16, Math.round(h * 0.12), 8, fontFor);
+      : fitFontSize(ctx, title, w - 16, Math.round(h * (glyph ? 0.12 : 0.17)), 8, fontFor);
     ctx.font = fontFor(size);
     ctx.fillStyle = '#f4f7ff';
-    ctx.fillText(fitText(ctx, title, w - 16), w / 2, h * 0.67);
+    // Without a glyph the title takes the glyph's place instead of leaving a gap above it.
+    ctx.fillText(fitText(ctx, title, w - 16), w / 2, glyph ? h * 0.67 : h * 0.47);
   }
   if (subtitle) {
     const fontFor = (size) => `400 ${size}px -apple-system, "SF Pro Text", sans-serif`;
