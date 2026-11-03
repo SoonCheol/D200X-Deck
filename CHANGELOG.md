@@ -1,5 +1,25 @@
 # Changelog
 
+## 0.12.0 — 2026-11-03
+
+### Added
+- **Custom app links.** `slack://`, `zoommtg://` and `linear://` open directly; other schemas ask once per app session. Local files and script schemes remain blocked.
+- **Command output on keys.** A shell command can refresh a key every 5–86 400 seconds with text, a data URL, raw SVG or a PNG/JPG/WebP/SVG file path. Pressing the key refreshes it once, without running the command twice.
+- **Reload config from disk.** Use **File → Reload Config from Disk** or `open -n -a "Ulanzi Deck Open" --args --reload-config`. Invalid files are copied to `config.json.rejected` and never replace the running config.
+- **Replace a profile on import.** Importing a profile with an existing name offers Replace, Import as copy, or Cancel.
+- **Script-friendly quit.** `--quit` and SIGTERM skip the confirmation and flush pending config saves first.
+
+### Fixed
+- **Finder/Spotlight launches now use the login shell’s PATH**, so Homebrew tools and user scripts work from command actions. Login banner/logout output is ignored.
+- **Command output settings are bounded and imported profiles cannot start timers.** The user opts in after reviewing an imported command.
+- **Duplicate profile/page IDs are repaired on load**, and importing duplicate page IDs is rejected.
+- **Image output paths are size-checked before reading** and symlinked images work.
+- **Reloading while the deck sleeps or is locked no longer wakes or unlocks it**, and it applies brightness, sleep, launch-at-login and standby settings.
+- Store covers under `/static/` resolve against the main site, with a screenshot fallback.
+
+### Tests
+- 240 → **259** passing, plus one opt-in Electron smoke test that is skipped without a GUI session.
+
 ## 0.11.6 — 2026-11-03
 
 ### Changed

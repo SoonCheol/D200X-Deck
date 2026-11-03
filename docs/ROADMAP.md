@@ -147,6 +147,14 @@ file; H9 is the last open High.
   the subtitle, search and empty-state copy follow.
 - Compatibility descriptions elsewhere still say **Stream Deck / OpenAction**.
 
+### Shipped in 0.12.0 — actions, reload and script friction
+
+- Custom app links, periodic command output keys and a per-scheme prompt.
+- Login-shell PATH for command actions.
+- Reload config from disk (menu and `--reload-config`), replace-profile import,
+  and script-friendly `--quit`/SIGTERM.
+- Hardened reload, duplicate IDs, image-output size checks and command timers.
+
 ### Next: visual and store polish
 
 - 1179 breakpoint (M16); type-scale consolidation (M3); icon-language cleanup
