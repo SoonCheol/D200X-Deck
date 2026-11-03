@@ -193,6 +193,11 @@ file; H9 is the last open High.
 - The confirmation modal now paints above the Installed plugin list, icon packs
   and other modals.
 
+### Shipped in 0.13.7 — faster plugin key feedback
+
+- Plugin key presses push the returned image in ~200 ms instead of waiting for
+  the 5 s background coalescer; periodic frames remain throttled.
+
 ### Next: visual and store polish
 
 - 1179 breakpoint (M16); type-scale consolidation (M3); icon-language cleanup

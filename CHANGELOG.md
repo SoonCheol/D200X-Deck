@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.13.7 — 2026-11-03
+
+### Fixed
+- **Plugin key images update promptly after a press.** A physical Stream Deck plugin key press now opens a short urgent window, so the image the plugin sends back reaches the deck in roughly 200 ms instead of waiting up to 5 seconds for the background live-image coalescer. Periodic plugin frames stay throttled, and Ulanzi plugin actions use the same fast path.
+
+### Tests
+- 275 passing, plus two opt-in Electron smoke tests that are skipped without a GUI session.
+
 ## 0.13.6 — 2026-11-03
 
 ### Fixed
