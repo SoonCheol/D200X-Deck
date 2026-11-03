@@ -3,14 +3,13 @@
 const { app, BrowserWindow, dialog, Menu, shell, Tray, nativeImage, protocol, session, powerMonitor, screen } = require('electron');
 const path = require('node:path');
 const fs = require('node:fs');
-const { fileURLToPath } = require('node:url');
+const { isRendererFile: isRendererFileIn } = require('./lib/renderer-url');
 
 const { Deck } = require('./lib/deck');
 const { Store } = require('./lib/store');
 const { fetchLatestRelease, isNewer, plainNotes } = require('./lib/updates');
 const { StreamDeckCatalog } = require('./lib/sdcatalog');
 const { Market } = require('./lib/market');
-const { isInside } = require('./lib/paths');
 const { createPluginProtocol } = require('./lib/plugin-protocol');
 const { buildPiBridge } = require('./lib/pi-theme');
 const { SD_PI_THEME, PI_THEME } = require('./lib/pi-themes');
@@ -60,12 +59,7 @@ const RENDERER_DIR = path.join(__dirname, 'renderer');
 
 /** True when `url` is a file inside our own renderer directory. */
 function isRendererFile(url) {
-  try {
-    const parsed = new URL(String(url));
-    return parsed.protocol === 'file:' && isInside(RENDERER_DIR, fileURLToPath(parsed));
-  } catch {
-    return false;
-  }
+  return isRendererFileIn(url, RENDERER_DIR);
 }
 
 function setDockVisible(visible) {
