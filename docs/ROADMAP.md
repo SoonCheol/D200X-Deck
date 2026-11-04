@@ -223,8 +223,10 @@ file; H9 is the last open High.
 ### Next: 1.0
 
 - **3.3** Renderer modules + explicit store (optional, highest risk).
-- **L5/L8** Send config images as `file:` refs and resolve them lazily, after a
-  representative large-profile measurement.
+- **L8** Serve config images lazily: the 2026-11-04 measurement
+  ([`reviews/2026-11-04-large-profile-measurement.md`](reviews/2026-11-04-large-profile-measurement.md))
+  found 26 MB of startup payload on a large mixed profile and 134 MB photo-heavy,
+  against 66 KB of config. L5 (disk refs) is done.
 - **L13 / L14** are done (helpers built from source; bundle trimmed).
 
 ### Unimplemented platform features

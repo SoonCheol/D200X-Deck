@@ -21,6 +21,7 @@
     "install-app": "sh scripts/install.sh",
     "readme-screenshot": "sh scripts/readme-screenshot.sh",
     "proto13-test": "node scripts/proto13-test.js",
+    "measure:config": "node scripts/measure-config.js",
     "test": "node --test \"test/*.test.js\"",
     "make:dmg": "sh scripts/make-dmg.sh",
     "prepackage:all": "sh scripts/build-helpers.sh",
