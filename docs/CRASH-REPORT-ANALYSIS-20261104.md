@@ -2,7 +2,7 @@
 
 - Machine: HawkMacStudio, Mac Studio (Mac16,9, Apple M4 Max, 64 GB), macOS 27.2 (build 26B123)
 - Revision 2, 2026-11-04 ~14:50 -03, from a diagnosis session outside this repo. Revision 1 (14:12) blamed orphaned plugins. Tests later that day ruled that out as the main cause (section 9).
-- Revision 3, 2026-11-04 14:57 -03, by the Ulanzi Deck Open session: section 7 steps 1/3/4/5 and the code refs were verified, the plugin-lifetime fixes landed (`97dda2c`, `ead59cd`), and 5.1 has a recommendation plus a draft upstream issue. See section 10.
+- Revision 3, 2026-11-04 17:30 -03, by the Ulanzi Deck Open session: section 7 steps 1-5 and the code refs were verified, the plugin-lifetime fixes landed (`97dda2c`, `ead59cd`), the A/B completed (section 11), and 5.1 has a recommendation plus a draft upstream issue. See sections 10 and 11.
 - Audience: the session that works on Ulanzi Deck Open. Every claim has a command in section 7 or Appendix B so you can check it.
 
 Confidence tags: **[Certain]** = seen in logs, process tables or code. **[Likely]** = strong inference. **[Guessing]** = not proven.
@@ -11,7 +11,7 @@ Confidence tags: **[Certain]** = seen in logs, process tables or code. **[Likely
 
 1. **[Certain]** Twice, WindowServer died and macOS ended the GUI session, so all apps closed and the login screen came back. The Mac did not reboot (uptime 7 days 21 hours).
 2. **[Likely]** The kernel killed WindowServer because it ran out of Mach port space (exit reason namespace 30 = `PORT_SPACE`).
-3. **[Likely]** The main driver is **process churn** from 2 Stream Deck plugins running in Ulanzi Deck Open. Each one starts a new `osascript` process on a timer, and WindowServer seems to keep about 1 Mach port per `osascript` process.
+3. **[Certain] (correlation)** The main driver is **process churn** from 2 Stream Deck plugins running in Ulanzi Deck Open. Each one starts a new `osascript` process on a timer; the port growth tracks it at about 1.1 ports per process (A/B in section 11). The exact one-port-per-process leak stays [Likely].
    - `com.hmarr.amphetamine` (Harry Marr): every 2 s, about 30 per minute.
    - `com.marcelopazzo.meetmute` (Marcelo Almeida): every 2 s during a call, every 15 s when idle.
 4. **[Certain]** Measured WindowServer port growth on 4 Nov:
@@ -146,7 +146,7 @@ Both plugins are third-party code installed under Application Support. The host 
 1. **Settings, no code.** Raise Meet Mute's poll intervals in its property inspector (`callPoll` up to 60 s, `idlePoll` up to 300 s). Amphetamine has no setting, so remove its key from the deck until it is fixed.
 2. **Upstream fix in each plugin.** Keep one long-lived process for the checks, for example a single `osascript -l JavaScript` loop that reads requests on stdin, instead of a new process per check. One long-lived client means one WindowServer connection instead of 1,700 per hour. For Meet Mute, open an issue or PR at `marcelopazzo/meet-mute`. For Amphetamine (version 0.1.0, no URL in its manifest), fork it or replace it.
 3. **Built-in action in this app.** Add an "Amphetamine session" action that uses the same long-lived approach inside the host. Only worth it if 2 is not possible.
-4. **Report to Apple** with Feedback Assistant: WindowServer gains about 1 Mach port per short-lived `osascript` process on macOS 27.2 (26B123) and is killed with `PORT_SPACE`. Attach the test table from section 2.5.
+4. **Report to Apple** with Feedback Assistant: WindowServer gains about 1 Mach port per short-lived `osascript` process on macOS 27.2 (26B123) and is killed with `PORT_SPACE`. Attach the test tables from sections 2.5 and 11.
 
 **Revision 3 recommendation.** Do option 1 now (no code, no rebuild): raise Meet Mute's
 `callPoll` and `idlePoll` through its property inspector to 60 s / 300 s, and take the
@@ -225,7 +225,7 @@ After line 30, add `pkill -9 -f "$DEST/Contents/Frameworks/" 2>/dev/null || true
      ```
    - If the port count still climbs steadily with no `osascript` churn, section 3 is wrong at step 3. Find the next churn source with the "new connections by PID" command in Appendix B.
 
-   **Result (Revision 3): not started.** Needs about 2 hours with the app quit or the two keys off the deck; waiting for owner approval.
+   **Result (Revision 3): confirmed.** Baseline 15:03:45–17:10:06 (app quit, 126.3 min): 4,836 → 4,843 = **+0.06/min**, 0 `osascript`. Both plugins on 17:12:06–17:22:08 (10.0 min): 5,047 → 5,754 = **+70.5/min**, ~62 `osascript`/min (Amphetamine 30, Meet Mute 32). The on-window was stopped after 10 minutes because the trend was already decisive; the logger then recorded the post-quit return (17:25–17:28: +4.6/min, 0 `osascript`). See section 11.
 
 3. **Reproduce the lifetime gap on 0.16.0.** Start the app with Amphetamine on a key. Note its plugin PID (a child of the main PID). Run `kill -9 <main pid>`. Expected today: the Amphetamine plugin survives with parent PID 1. Clean up with the command in Appendix B.
 
@@ -254,6 +254,32 @@ After line 30, add `pkill -9 -f "$DEST/Contents/Frameworks/" 2>/dev/null || true
 - Revision 1 named the orphans as the main cause of the churn. Wrong: killing all 38 did not change the slope (test 2). They were idle.
 - Revision 1 reported "about 60 `osascript` per minute". Wrong: loginwindow logs 2 lines per process. The real rate was about 28 per minute.
 - Revision 1 counted 37 orphans. The correct count is 38 (18 `currency`, not 17).
+
+## 11. Revision 3 A/B result
+
+| Phase | Window | Ports | Rate | `osascript` |
+|---|---|---|---|---|
+| Baseline, app quit | 15:03:45–17:10:06 (126.3 min) | 4,836 → 4,843 | **+0.06/min** | 0 |
+| Both plugins on | 17:12:06–17:22:08 (10.0 min) | 5,047 → 5,754 | **+70.5/min** | ~62/min |
+| Post-quit | 17:25:08–17:28:09 (3.0 min) | 5,848 → 5,862 | **+4.6/min** | 0 |
+
+- Both keys were on Page 1 for the on-window. The owner added Meet Mute to slot 10 for
+  the test; it was removed afterwards, and Page 3 slot 9 is untouched.
+- `ps` loop, 30 s sample: Amphetamine **30 starts/min**, Meet Mute **32/min**. The ratio
+  is 70.5 / 62 ≈ **1.14 ports per process**, close to section 3's "about 1".
+- The on-window was stopped after 10 minutes because the trend was already unambiguous;
+  section 2.5's own rule is to judge over 10 minutes or more. The first 3 minutes after
+  quit showed +4.6/min with 0 `osascript`, within the ±30-port swing noted in section 2.5;
+  a longer off-leg was not needed once the on-window was decisive.
+- Appendix B's `log show` count returned **0** on macOS 27.2 while the `ps` loop caught
+  62/min. The unified-log "Process creation" event is no longer usable for this; use the
+  `ps` loop for `osascript` counts on this build.
+- With Meet Mute in call mode (2 s), the churn is ~62/min ≈ 3,700/hour, not the ~28/min
+  in Revision 2, and the port rate scales with it. The settings workaround in 5.1
+  (60 s / 300 s) would cut that plugin's share to ~4/min; Amphetamine has no setting.
+- The churn → port-growth correlation is now **[Certain]**. The leak mechanism
+  (WindowServer holding the port) stays **[Likely]**, and the time-to-limit stays
+  **[Guessing]**.
 
 ## Appendix A: orphan list (killed 2026-11-04 ~14:18:50)
 
@@ -296,6 +322,8 @@ last | grep -E "console|reboot|shutdown" | head
 strings /System/Library/CoreServices/ReportCrash | grep -E "^(JETSAM|SIGNAL|PAC_EXCEPTION|BLUETOOTH_CHIP|PORT_SPACE|WEBKIT)$"
 
 # Short-lived processes registered with WindowServer, last minute, by name
+# On macOS 27.2 (26B123) this returned 0 while `ps` caught 62 osascript/min; use the
+# ps loop below for the count.
 /usr/bin/log show --last 60s --style compact \
   --predicate 'process == "WindowServer" AND eventMessage CONTAINS "Process creation"' \
   | grep -oE "Process creation: [^ ]+ \([^)]*\)" | sed -E 's/Process creation: [^ ]+ //' | sort | uniq -c | sort -rn
