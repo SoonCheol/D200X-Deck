@@ -6,8 +6,9 @@ The Node/Electron documentation is largely accurate through 0.15.0: version, bui
 package scripts, the release workflow, protocol framing, plugin paths and relative links
 all check out. The highest-impact problems are a Python quick start that fails on a fresh
 clone and a protocol reference that omits the shipped `0x0d` incremental-key protocol.
-The README's first image is also a 0.12.0 screenshot, so the project's main visual is
-stale. The remaining findings are status/UI-label drift and a few small reference errors.
+The README's first image was also a 0.12.0 screenshot; it has since been recaptured
+from 0.15.0 (see Resolution). The remaining findings are status/UI-label drift and a few
+small reference errors.
 
 ## Findings
 
@@ -349,8 +350,8 @@ stale. The remaining findings are status/UI-label drift and a few small referenc
   with network access before documenting it.
 - Do not rewrite `docs/PLAN-0.10.0.md`; it is a historical plan record. Only the roadmap
   should be brought forward.
-- Screenshot regeneration needs a GUI session and was not performed here; the report only
-  records that the current image is stale.
+- Screenshot regeneration needs a GUI session; it was performed afterwards from a GUI
+  Terminal and is included in this commit.
 - Historical audit records in `docs/reviews/` were treated as records, not re-judged.
   Their internal findings were not reassessed; only their links and the roadmap's
   characterisation of them were checked.
@@ -381,11 +382,12 @@ Fixed in this commit:
   this app bakes titles and sends `Text: ''`.
 - **12** — the wide-key capture README describes the incremental ZIP shape instead of
   naming uncommitted files.
+- **8** — `docs/screenshots/main.png` was recaptured at 1600×900 from 0.15.0 with
+  `npm run readme-screenshot`, so the README now shows the current icons, toolbar and
+  type scale.
 
 Still open:
 
-- **8 (screenshot)** — `docs/screenshots/main.png` is still the 0.12.0 capture;
-  regenerating it needs a GUI session.
 - **3 (permission test)** — whether media keys require Accessibility has not been
   answered on a clean account, so the docs keep the conditional wording.
 - **9** — the Python package's version, metadata, `CMD_KEY_EVENT` value and missing
