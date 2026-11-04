@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.16.2 — 2026-11-04
+
+### Fixed
+- **The startup orphan sweep no longer matches processes that merely mention a plugin folder.** It now matches a native executable inside a plugin root, or a Node plugin running under one of the app's runtimes with a plugin-root argument. An editor opened on that folder is left alone.
+- The sweep now covers `~/.ulanzi/Plugins` and shares its folder list with the plugin hosts, so a new plugin folder cannot be missed.
+
+### Tests
+- 293 → **296** passing, plus two opt-in Electron smoke tests that are skipped without a GUI session.
+
 ## 0.16.1 — 2026-11-04
 
 ### Fixed
