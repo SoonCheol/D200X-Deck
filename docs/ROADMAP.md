@@ -203,6 +203,13 @@ file; H9 is the last open High.
 - Periodic plugin images now coalesce to one background push per second, so
   macOS Controls System Monitor keys follow the plugin’s own cadence.
 
+### Shipped in 0.14.0 — incremental live keys
+
+- Live plugin and command-output updates use the D200 incremental one-key
+  protocol (`0x0d`) with a full-page fallback.
+- Verified on hardware with the official captured protocol 13 sample.
+- 278 tests passing.
+
 ### Next: visual and store polish
 
 - 1179 breakpoint (M16); type-scale consolidation (M3); icon-language cleanup

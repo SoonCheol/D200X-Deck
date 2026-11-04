@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.14.0 — 2026-11-03
+
+### Changed
+- **Live plugin and command-output keys now use the D200’s incremental protocol (`0x0d`).** Only the key that changed is sent instead of repainting and transferring the whole page. This keeps System Monitor and other one-second plugins smooth while cutting HID and CPU work.
+- Periodic live images still coalesce to at most one update per second; a key press uses the faster 200 ms path.
+- Full-page pushes remain the fallback for wide keys, unsynced pages, or a failed incremental send.
+
+### Tests
+- 275 → **278** passing, plus two opt-in Electron smoke tests that are skipped without a GUI session.
+
 ## 0.13.8 — 2026-11-03
 
 ### Changed
