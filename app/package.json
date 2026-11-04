@@ -7,6 +7,9 @@
   "type": "commonjs",
   "author": "",
   "license": "MIT",
+  "engines": {
+    "node": ">=22.13.0"
+  },
   "scripts": {
     "build:native": "sh scripts/build-helpers.sh",
     "prepackage": "sh scripts/build-helpers.sh",

@@ -76,7 +76,7 @@ what the deck shows (labels are rendered into the images).
 
 * **macOS 13 or newer.** Apple Silicon is the default build; Intel Macs can build the
   universal app.
-* **Node.js 22 LTS or newer** (`node -v`).
+* **Node.js 22.13 or newer** (`node -v`).
 * **Xcode Command Line Tools** — `xcode-select --install`. Needed for `clang`/`lipo`
   when the native helpers are rebuilt, and for `hdiutil` when making a DMG.
 * The D200 connected over USB. **Quit Ulanzi Studio first** — the deck's control

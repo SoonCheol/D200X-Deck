@@ -9,7 +9,7 @@ See [`../README.md`](../README.md#build-from-source-unsigned) for the short vers
 ## Prerequisites
 
 * macOS 13 or newer.
-* Node.js 22 LTS or newer.
+* Node.js 22.13 or newer.
 * Xcode Command Line Tools: `xcode-select --install`.
 * No Apple account, signing identity, or notarization credentials.
 
