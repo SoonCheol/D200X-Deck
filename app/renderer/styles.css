@@ -213,7 +213,7 @@ body::before {
 }
 .toolbar input, .toolbar button, .toolbar label { -webkit-app-region: no-drag; }
 
-.title-wrap { display: flex; align-items: center; gap: 12px; min-width: 0; }
+.title-wrap { display: flex; align-items: center; gap: 12px; min-width: 0; flex: 1 1 auto; }
 
 .page-title {
   background: transparent;
@@ -239,6 +239,7 @@ body::before {
   text-transform: uppercase;
   padding: 4px 9px;
   border-radius: 99px;
+  white-space: nowrap;
   color: var(--muted);
   background: rgba(255, 255, 255, 0.05);
   border: 1px solid var(--line);
@@ -246,7 +247,7 @@ body::before {
 .pill.on { color: var(--good); border-color: rgba(61, 220, 151, 0.3); background: rgba(61, 220, 151, 0.08); }
 .pill.warn { color: var(--warn); border-color: rgba(255, 189, 89, 0.3); background: rgba(255, 189, 89, 0.08); }
 
-.tools { display: flex; align-items: center; gap: 16px; }
+.tools { display: flex; align-items: center; gap: 16px; flex: 0 0 auto; }
 
 .brightness {
   display: flex; align-items: center; gap: 8px;
@@ -265,6 +266,7 @@ body::before {
   padding: 8px 14px;
   border-radius: 9px;
   font-size: var(--fs-sm); font-weight: 600;
+  white-space: nowrap;
   cursor: pointer;
 }
 .btn:hover { background: rgba(255, 255, 255, 0.09); }
@@ -1473,6 +1475,10 @@ body::before {
 
 @media (max-width: 1100px) {
   #app { grid-template-columns: 200px minmax(0, 1fr) 0 !important; }
+  .sidebar { padding-left: 10px; padding-right: 10px; }
+  .brand-sub { display: none; }
+  .profile-row { margin: 0 0 8px; gap: 4px; }
+  .profile-row .icon-btn { width: 22px; height: 22px; }
   .inspector {
     position: fixed;
     top: var(--toolbar-h, 104px);
