@@ -1479,6 +1479,9 @@ body::before {
   .brand-sub { display: none; }
   .profile-row { margin: 0 0 8px; gap: 4px; }
   .profile-row .icon-btn { width: 22px; height: 22px; }
+  /* The card cannot fit a name, a detail line and a button at 200px; the
+     toolbar and Deck settings still offer Reconnect. */
+  .device-card .icon-btn { display: none; }
   .inspector {
     position: fixed;
     top: var(--toolbar-h, 104px);
