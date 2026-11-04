@@ -53,12 +53,12 @@ function renderStatus() {
   const { connected, info, message } = state.status;
   const busy = /busy|ulanzistudio|ulanzi studio/i.test(String(message || ''));
   const pill = $('#status-pill');
-  pill.textContent = connected ? 'Connected' : busy ? 'In use' : 'No deck';
+  pill.textContent = connected ? 'Connected' : busy ? 'In use' : 'No Deck';
   pill.classList.toggle('on', connected);
   pill.classList.toggle('warn', !connected && busy);
   $('#device-dot').classList.toggle('on', connected);
   $('#device-led').classList.toggle('on', connected);
-  $('#device-name').textContent = connected ? 'Ulanzi D200' : busy ? 'Deck in use' : 'No deck connected';
+  $('#device-name').textContent = connected ? 'Ulanzi D200' : busy ? 'Deck in use' : 'No Deck connected';
   $('#device-detail').textContent = connected
     ? `${info?.Dversion ? `fw ${info.Dversion} · ` : ''}${info?.SerialNumber || info?.serial || 'USB 2207:0019'}`
     : busy
@@ -78,7 +78,7 @@ function renderStatus() {
   }
   if (!connected) {
     const stateEl = $('#push-state');
-    if (stateEl) stateEl.textContent = busy ? 'in use' : 'no deck';
+    if (stateEl) stateEl.textContent = busy ? 'in use' : 'No Deck';
   }
   renderSyncState();
 }
@@ -114,7 +114,7 @@ function renderPushButton() {
   pushBtn.disabled = false;
   const aria = String(blocked);
   if (pushBtn.getAttribute('aria-disabled') !== aria) pushBtn.setAttribute('aria-disabled', aria);
-  const label = connected ? 'Push to Deck' : busy ? 'Deck in use' : 'Connect deck';
+  const label = connected ? 'Push to Deck' : busy ? 'Deck in use' : 'Connect Deck';
   if (pushBtn.textContent !== label) pushBtn.textContent = label;
   let tipText = 'Send this page to the Deck';
   if (!connected) {

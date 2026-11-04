@@ -7,6 +7,7 @@
 - **One type scale replaces 17 ad-hoc sizes.** Hints, field labels, badges and device metadata are 11 px instead of 9–10.5 px, so status text is no longer the smallest text on screen.
 - **One icon language.** The sidebar, toolbar, reconnect, add-page and plugin fallbacks use the same SVG set instead of emoji and mixed text glyphs.
 - The sidebar stays readable at the 1080 px minimum width: the profile row tightens, the decorative “OPEN” label hides, and the device card keeps its full text.
+- “Deck” is capitalized consistently in status and button copy (“No Deck connected”, “Connect Deck”).
 
 ### Maintenance
 - Electron 45.2.1, ESLint 10.14, `ws` 8.22.1.
