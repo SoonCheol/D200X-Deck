@@ -3,6 +3,7 @@
 - Machine: HawkMacStudio, Mac Studio (Mac16,9, Apple M4 Max, 64 GB), macOS 27.2 (build 26B123)
 - Revision 2, 2026-11-04 ~14:50 -03, from a diagnosis session outside this repo. Revision 1 (14:12) blamed orphaned plugins. Tests later that day ruled that out as the main cause (section 9).
 - Revision 3, 2026-11-04 17:30 -03, by the Ulanzi Deck Open session: section 7 steps 1-5 and the code refs were verified, the plugin-lifetime fixes landed (`97dda2c`, `ead59cd`), the A/B completed (section 11), and 5.1 has a recommendation plus a draft upstream issue. See sections 10 and 11.
+- Review of Revision 3, 2026-11-04 19:03 -03, by the diagnosis session: the startup orphan sweep (`ead59cd`) needs a narrower matcher and the full root list. See section 12.
 - Audience: the session that works on Ulanzi Deck Open. Every claim has a command in section 7 or Appendix B so you can check it.
 
 Confidence tags: **[Certain]** = seen in logs, process tables or code. **[Likely]** = strong inference. **[Guessing]** = not proven.
@@ -404,3 +405,70 @@ manifest, so it needs a replace/fork decision.
   `SHASUMS256.txt` in the no-DNS session. The same package and install steps were run
   with the cached Electron zip, so the installed app is still the packaged arm64 build
   from this commit.
+
+## 12. Review feedback: startup orphan sweep (`ead59cd`)
+
+From the diagnosis session, 2026-11-04 19:03 -03, reviewed against `v0.16.1`. The watchdog (`97dda2c`) and the `install.sh` change are fine. On the live 0.16.1 app, every Node plugin runs with `-r …/app.asar/lib/plugin-watchdog.js` and has stayed up for over 1 hour. This section is about `app/lib/orphan-cleanup.js` only.
+
+### 12.1 The matcher can SIGKILL a process that is not a plugin [Likely]
+
+- `findOrphans()` (`app/lib/orphan-cleanup.js:10`) accepts any process that has parent PID 1 and whose command line *contains* a plugin root anywhere.
+- **[Certain]** Parent PID 1 does not mean "orphan". Every GUI app started from Finder, the Dock or `open`, and every launchd agent, has parent PID 1. On this Mac right now that includes Logi Options+, Chrome's `chrome_crashpad_handler` and the cmux helpers.
+- Failure scenario: some app or tool is running with parent PID 1, and a plugin path appears in its arguments. For example, an editor opened on a plugin folder from the command line: `/Applications/Visual Studio Code.app/Contents/MacOS/Electron /Users/eduardo/Library/Application Support/Ulanzi Deck Open/StreamDeckPlugins/x.sdPlugin`. When Ulanzi Deck Open starts, `findOrphans` returns that PID and `cleanOrphans` sends SIGKILL, so unsaved work is lost without a prompt.
+- The current test (`test/orphan-cleanup.test.js:30`) misses this case. Its only non-plugin line is `/usr/bin/other /tmp/not-ours.js`, which mentions no plugin root.
+
+### 12.2 Proposed rule: match the executable
+
+A process is a leftover plugin only if its parent PID is 1 **and** one of these holds:
+
+1. **Native plugin.** The command starts with `<root>/`. Native plugins run their own binary from inside the plugin folder (`sdmicmute`, `MacControls`).
+2. **Node plugin.** The command starts with a known plugin runtime followed by a space, **and** a later argument starts with `<root>/`. Pass the runtimes in from the caller, for example `[nodeRuntime(), process.execPath]`. A packaged instance's `nodeRuntime()` is the same Helper path that the pre-0.16.1 orphans used, so leftovers from older installs still match.
+
+Implementation notes:
+- Both the runtime path and the plugin paths contain spaces, and `ps -o command=` joins argv with spaces. Compare with `command.startsWith(runtime + ' ')` and `command.includes(' ' + root + '/')`. Splitting on whitespace gives wrong results.
+- Keep `findOrphans(psOutput, roots, runtimes)` pure, so the tests can call it without `ps`.
+
+### 12.3 The root list is a second copy, and it misses a folder [Certain]
+
+- `app/main.js:696-704` hard-codes 5 roots.
+- The hosts build their own lists:
+  - `plugin-hosts.js:23`: `[path.join(baseDir, 'Plugins'), ...pluginRootDirs()]`
+  - `pluginRootDirs()` (`lib/plugins.js:34`) also adds `~/.ulanzi/Plugins`
+  - `streamDeckPluginDirs(appDir)` (`lib/streamdeck-plugins.js:61`) builds the Stream Deck list, with `appPluginsDir` from `plugin-hosts.js:102`
+- `~/.ulanzi/Plugins` is missing from the sweep list, so orphans from that folder are never swept.
+- Build the sweep roots from `pluginRootDirs()` and `streamDeckPluginDirs()` (plus the app's own `Plugins` and `StreamDeckPlugins` folders). Then a new plugin folder needs one edit, not two.
+
+### 12.4 Work to do, test-first
+
+1. Add a test that goes **red** on `v0.16.1`. Give `findOrphans` a parent-PID-1 line whose executable is outside every root and is not a runtime, with a plugin root in one argument. Expected: no match.
+2. Add a test with a parent-PID-1 `<runtime> -r <watchdog> <root>/x/plugin.js …` line, where both paths contain spaces. Expected: a match.
+3. Add a test with a parent-PID-1 `<root>/x.sdPlugin/sdmicmute -port …` line. Expected: a match.
+4. Add a test that the sweep roots include every folder from `pluginRootDirs()` and `streamDeckPluginDirs()`. Expected: **red** on `v0.16.1`, for `~/.ulanzi/Plugins`.
+5. Implement 12.2 and 12.3, then make all four tests green.
+
+Done when:
+- the 4 tests pass and `npm test` passes
+- the existing real re-parented process test (`test/orphan-cleanup.test.js:60`) still passes
+- on a packaged build, `kill -9` on the main process and then starting the app again leaves no parent-PID-1 processes under any plugin root (section 7 step 1 command)
+
+### 12.5 Resolution (Revision 3, 19:12 -03)
+
+- **12.1 confirmed.** The editor line matched both processes (`301`, `302`) in the new
+  test before the fix; it now returns none.
+- **12.2 implemented in `518a242`.** `findOrphans(psOutput, roots, runtimes)`: a native
+  plugin must start with `<root>/`; a Node plugin must start with one of our runtimes
+  followed by a space and contain ` <root>/` in an argument. Spaces are compared with
+  `startsWith`/`includes`, never by splitting.
+- **12.3 implemented in `518a242`.** `lib/plugin-dirs.js` now owns `pluginRootDirs()`,
+  `streamDeckPluginDirs()` and `sweepRoots()`; the hosts and the sweep use it, and
+  `~/.ulanzi/Plugins` is included.
+- **Tests:** editor false-positive, runtime+root, native, multiple roots, the full root
+  list and the real re-parented process. 298 total, 296 pass, 2 skipped; lint and
+  typecheck clean. The editor test was red on `v0.16.1` before the change.
+- **Packaged verification (fixed build):**
+  - a real orphan (`Helper -e … <root>/fake.js`, ppid 1) was killed at startup;
+  - a false positive (`/opt/homebrew/bin/node … <root>`, ppid 1) survived the sweep;
+  - `kill -9` on the main left no plugin children and no ppid-1 leftovers;
+  - starting the app again left no ppid-1 leftovers.
+- **Not released:** `518a242` is on `main` after `v0.16.1`; the installed
+  `~/Applications` build contains it, but the 0.16.1 DMG does not.
