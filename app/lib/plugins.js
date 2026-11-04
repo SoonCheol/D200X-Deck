@@ -2,6 +2,8 @@
 
 const fs = require('node:fs');
 const path = require('node:path');
+
+const WATCHDOG = path.join(__dirname, 'plugin-watchdog.js');
 const { isInside } = require('./paths');
 const { byExtension } = require('./mime');
 const { PluginHost, nodeRuntime } = require('./plugin-host');
@@ -102,7 +104,7 @@ class PluginManager extends PluginHost {
   spawnCommand(meta, executable, port) {
     return {
       command: nodeRuntime(),
-      args: [executable, '127.0.0.1', String(port), this.language, this.appVersion],
+      args: ['-r', WATCHDOG, executable, '127.0.0.1', String(port), this.language, this.appVersion],
       env: { ...process.env, ELECTRON_RUN_AS_NODE: '1' },
     };
   }

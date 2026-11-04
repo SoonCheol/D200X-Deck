@@ -28,6 +28,8 @@ for i in 1 2 3 4; do
 done
 # Last resort only: a stuck helper must not hold the HID handle.
 pkill -9 -f "$DEST/Contents/MacOS" 2>/dev/null || true
+# Plugin children run from Contents/Frameworks; the pattern above misses them.
+pkill -9 -f "$DEST/Contents/Frameworks/" 2>/dev/null || true
 
 echo "==> installing to $DEST"
 rm -rf "$DEST"

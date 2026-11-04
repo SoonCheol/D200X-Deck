@@ -13,6 +13,8 @@ const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
 
+const WATCHDOG = path.join(__dirname, 'plugin-watchdog.js');
+
 const { PluginHost, nodeRuntime } = require('./plugin-host');
 
 const TARGET =
@@ -279,7 +281,7 @@ class StreamDeckPlugins extends PluginHost {
     if (meta.code.kind === 'node') {
       return {
         command: nodeRuntime(),
-        args: [executable, ...args],
+        args: ['-r', WATCHDOG, executable, ...args],
         env: { ...process.env, ELECTRON_RUN_AS_NODE: '1' },
       };
     }
