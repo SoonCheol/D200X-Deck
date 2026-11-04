@@ -1,6 +1,6 @@
 # Roadmap
 
-> **Status (2026-11-04, 0.16.0):** the original build-out is shipped. The remaining work
+> **Status (2026-11-04, 0.16.1):** the original build-out is shipped. The remaining work
 > is driven by the two audits in [`reviews/`](reviews/) and the unimplemented
 > platform features listed at the end of this file. See
 > [`../CHANGELOG.md`](../CHANGELOG.md) for the shipped list.
@@ -219,6 +219,13 @@ file; H9 is the last open High.
 - Sidebar, toolbar, reconnect and plugin fallback glyphs use the SVG set.
 - The sidebar reads fully at the 1080 px minimum window.
 - 282 tests passing.
+
+### Shipped in 0.16.1 — plugin lifetime
+
+- Node plugins exit about 1 s after a host crash, `install.sh` stops helpers under
+  `Contents/Frameworks/`, and startup kills leftovers from an earlier instance.
+- Verified on the packaged build (SIGTERM and SIGKILL) and recorded in
+  [`CRASH-REPORT-ANALYSIS-20261104.md`](CRASH-REPORT-ANALYSIS-20261104.md).
 
 ### Shipped in 0.16.0 — lazy config images
 

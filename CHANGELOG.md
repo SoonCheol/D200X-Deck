@@ -1,9 +1,12 @@
 # Changelog
 
-## Unreleased
+## 0.16.1 — 2026-11-04
 
 ### Fixed
 - **Plugin processes no longer outlive the app.** Node plugins preload a watchdog and exit within about 1 s if the host dies without `will-quit`; `install.sh` also stops helpers under `Contents/Frameworks/`; and startup kills plugin processes left by an earlier instance.
+
+### Tests
+- 282 → **293** passing, plus two opt-in Electron smoke tests that are skipped without a GUI session.
 
 ## 0.16.0 — 2026-11-04
 
