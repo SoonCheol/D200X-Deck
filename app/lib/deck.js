@@ -115,6 +115,11 @@ class Deck extends EventEmitter {
     this.sendFrame(0, P.PROTO.PAGE, zipBuffer);
   }
 
+  /** Protocol 0x0d: replace one slot without re-sending the page. */
+  pushKey(zipBuffer) {
+    this.sendFrame(0, P.PROTO.KEY, zipBuffer);
+  }
+
   setBrightness(percent) {
     // Ulanzi sends QString::number(value, 10): plain ASCII decimal 0..100.
     // The device parses the digits as BCD in its acknowledgement.

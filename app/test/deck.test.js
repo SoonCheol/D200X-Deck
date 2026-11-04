@@ -117,6 +117,17 @@ test('brightness and sleep clamp and encode their payloads', (t) => {
   assert.equal(deck._sleepSeconds, 30);
 });
 
+test('pushKey sends a protocol 0x0d single-key package', (t) => {
+  const deck = connectedDeck(t);
+  deck.device.writes.length = 0;
+
+  deck.pushKey(Buffer.from('one-key-zip'));
+
+  const frame = P.decodeReport(deck.device.writes[0].subarray(1));
+  assert.equal(frame.proto, P.PROTO.KEY);
+  assert.equal(frame.payload.toString(), 'one-key-zip');
+});
+
 test('wide mode selects the clock interval', (t) => {
   const deck = connectedDeck(t);
 

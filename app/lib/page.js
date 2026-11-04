@@ -15,8 +15,7 @@ const { DEFAULT_FONT, COLUMNS, ROWS, WIDE_INDEX, WIDE_SLOT } = require('./consta
  */
 const WIDE_MODES = { stats: 0, clock: 1, blank: 2 };
 
-async function buildPage(images, wideMode = 'clock') {
-  const zip = new JSZip();
+async function buildPage(images, wideMode = 'clock') {  const zip = new JSZip();
   zip.file('Images/', '');
   const manifest = {};
 
@@ -55,4 +54,23 @@ async function buildPage(images, wideMode = 'clock') {
   return zip.generateAsync({ type: 'nodebuffer', compression: 'DEFLATE', compressionOptions: { level: 6 } });
 }
 
-module.exports = { buildPage, WIDE_MODES, COLUMNS, ROWS, WIDE_INDEX, WIDE_SLOT, DEFAULT_FONT };
+/**
+ * Build a protocol 0x0d one-slot package. Used by the device-test probe and,
+ * once validated, by incremental live-image updates.
+ */
+async function buildKeyUpdate(slot, png) {
+  const data = Buffer.isBuffer(png) ? png : Buffer.from(png, 'base64');
+  const zip = new JSZip();
+  zip.file('Images/', '');
+  const name = `Images/${createHash('sha1').update(data).digest('hex')}.png`;
+  zip.file(name, data);
+  zip.file(
+    'manifest.json',
+    JSON.stringify({
+      [slot]: { State: 0, ViewParam: [{ Font: DEFAULT_FONT, Icon: name, Text: '' }] },
+    })
+  );
+  return zip.generateAsync({ type: 'nodebuffer', compression: 'DEFLATE', compressionOptions: { level: 6 } });
+}
+
+module.exports = { buildPage, buildKeyUpdate, WIDE_MODES, COLUMNS, ROWS, WIDE_INDEX, WIDE_SLOT, DEFAULT_FONT };

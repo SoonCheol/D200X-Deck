@@ -10,6 +10,7 @@ const PROTO = {
   CLOCK: 0x06,
   BRIGHTNESS: 0x0a,
   FONT: 0x0b,
+  KEY: 0x0d,
   SLEEP: 0x1a,
 };
 

@@ -13,6 +13,7 @@ const { fetchLatestRelease, isNewer, plainNotes } = require('./lib/updates');
 const { StreamDeckCatalog } = require('./lib/sdcatalog');
 const { Market } = require('./lib/market');
 const { createPluginProtocol } = require('./lib/plugin-protocol');
+const { buildKeyUpdate } = require('./lib/page');
 const { buildPiBridge } = require('./lib/pi-theme');
 const { SD_PI_THEME, PI_THEME } = require('./lib/pi-themes');
 const { CH } = require('./lib/channels');
@@ -360,6 +361,35 @@ function reloadConfigFromDisk() {
   }
 }
 
+async function runProto13Test() {
+  if (!deck?.connected) {
+    send(CH.pluginError, 'Protocol 13 test: deck is not connected');
+    return;
+  }
+  try {
+    const sample = process.env.ULANZI_PROTO13_ZIP;
+    const zip = sample
+      ? fs.readFileSync(sample)
+      : await buildKeyUpdate(
+          '0_0',
+          nativeImage.createFromPath(path.join(__dirname, 'build', 'icon.png')).resize({
+            width: 196,
+            height: 196,
+          }).toPNG()
+        );
+    deck.pushKey(zip);
+    console.log(`[proto13] sent ${sample ? 'captured sample' : 'one-key update'} (${zip.length} bytes)`);
+    send(
+      CH.pluginToast,
+      sample
+        ? `Protocol 13 sample sent (${path.basename(sample)}) — other keys must stay unchanged`
+        : 'Protocol 13 test sent to key 1 — other keys must stay unchanged'
+    );
+  } catch (err) {
+    send(CH.pluginError, `Protocol 13 test failed: ${err.message || String(err)}`);
+  }
+}
+
 function buildMenu() {
   const isMac = process.platform === 'darwin';
   const template = [
@@ -427,6 +457,17 @@ function buildMenu() {
         { role: 'resetZoom' }, { role: 'zoomIn' }, { role: 'zoomOut' },
       ],
     },
+    ...(process.argv.includes('--dev')
+      ? [{
+          label: 'Developer',
+          submenu: [
+            {
+              label: 'Send protocol 13 test key',
+              click: runProto13Test,
+            },
+          ],
+        }]
+      : []),
     { role: 'windowMenu' },
   ];
   Menu.setApplicationMenu(Menu.buildFromTemplate(template));
