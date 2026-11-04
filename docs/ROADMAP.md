@@ -1,6 +1,6 @@
 # Roadmap
 
-> **Status (2026-11-03, 0.15.0):** the original build-out is shipped. The remaining work
+> **Status (2026-11-04, 0.16.0):** the original build-out is shipped. The remaining work
 > is driven by the two audits in [`reviews/`](reviews/) and the unimplemented
 > platform features listed at the end of this file. See
 > [`../CHANGELOG.md`](../CHANGELOG.md) for the shipped list.
@@ -220,7 +220,7 @@ file; H9 is the last open High.
 - The sidebar reads fully at the 1080 px minimum window.
 - 282 tests passing.
 
-### Unreleased on main — lazy config images
+### Shipped in 0.16.0 — lazy config images
 
 - The renderer now receives `file:<name>` refs instead of base64 data URLs;
   `ulanzi-image://images/<name>` serves them with CORS so key canvases stay
