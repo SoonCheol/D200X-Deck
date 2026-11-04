@@ -169,7 +169,8 @@ added later.
 3. Grant macOS permissions when asked:
    * **Accessibility** — required for hotkeys and typing text. The app offers a
      **Grant…** button in **Deck settings**, or use System Settings → Privacy & Security
-     → Accessibility. Media keys use a native helper and need no permission.
+     → Accessibility. Media keys use the native `mediakey` helper. If a media key
+     does nothing, grant Accessibility and relaunch.
    * **Input Monitoring** — required by the bundled `hidseize` helper so the D200's
      firmware fallback cannot type `www.ulanzistudio.com` into the frontmost app. If the
      toast appears, enable the app in System Settings → Privacy & Security → Input
@@ -200,7 +201,8 @@ actions so Homebrew tools are found.
   `xcode-select --install`.
 * **Port 3906 is busy** — quit Ulanzi Studio. The plugin host retries automatically.
 * **A Stream Deck plugin does nothing** — check its badge in **Installed → Plugins**:
-  “Not supported” means no macOS code path (or no Wine for a Windows-only plugin).
+  “Needs Rosetta” means it only ships an Intel binary — use its **Install Rosetta…**
+  button — and “No compatible code for this Mac” means it has no macOS code path.
   Native plugin binaries may also need to be allowed in System Settings → Privacy &
   Security if macOS blocks them.
 
@@ -208,19 +210,22 @@ actions so Homebrew tools are found.
 
 ```
 app/                 Electron GUI (the app)
-  main.js            window, IPC, tray-less lifecycle
+  main.js            window, tray, menu-bar lifecycle
+  ipc.js             IPC handlers (config, plugins, store, imports)
   preload.js         context-isolated bridge
+  plugin-hosts.js    starts and wires both plugin hosts
   lib/protocol.js    frame encoding/decoding
   lib/deck.js        node-hid transport, read loop, key events, wide-key feed
   lib/page.js        page ZIP builder (content-addressed PNGs)
   lib/store.js       config schema + defaults
   lib/actions.js     open/hotkey/command execution
   lib/sysstats.js    CPU / RAM / GPU sampling for the wide key
-  lib/plugins.js     Ulanzi plugin host (spawn, WebSocket, images)
-  lib/streamdeck-plugins.js  Stream Deck SDK / OpenAction plugin host
+  lib/plugin-host.js shared plugin lifecycle (WebSocket server, spawn, backoff)
+  lib/plugins.js     Ulanzi plugin adapter on the shared host
+  lib/streamdeck-plugins.js  Stream Deck SDK / OpenAction adapter on the shared host
   renderer/          UI (HTML/CSS/JS, canvas key rendering)
   scripts/           build, package and install helpers
-ulanzi_deck/         small Python library and protocol prototype
+ulanzi_deck/         Python protocol prototype (the app does not use it)
 examples/hello.py    Python: draw a numbered page on the deck
 docs/PROTOCOL.md     reverse-engineered USB/HID protocol
 ```
@@ -257,7 +262,7 @@ Pages are a ZIP with `manifest.json` (`"column_row"` → `Icon` / `Text` / `Font
   screenshots and UI work without hardware).
 * Run the tests with `npm test` (Node's built-in test runner).
 * The Python prototype remains for protocol experiments:
-  `python3 -m venv .venv && .venv/bin/pip install pillow && .venv/bin/python examples/hello.py`.
+  `python3 -m venv .venv && .venv/bin/pip install pillow && PYTHONPATH=. .venv/bin/python examples/hello.py`.
 
 ## Legal
 

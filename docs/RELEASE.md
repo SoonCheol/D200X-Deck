@@ -99,9 +99,10 @@ recipient can either:
 
 Document this next to any download link. Do not describe the build as notarized.
 
-The app also needs **Accessibility** (hotkeys/text/media keys) and **Input Monitoring**
-(the `hidseize` helper) permissions; macOS will prompt on first use. Keep the app at a
-stable path (e.g. `/Applications`) so TCC remembers the grant.
+The app also needs **Accessibility** (hotkeys/text) and **Input Monitoring** (the
+`hidseize` helper) permissions; macOS will prompt on first use. Media keys use the
+native `mediakey` helper. If a media key does nothing, grant Accessibility and relaunch.
+Keep the app at a stable path (e.g. `/Applications`) so TCC remembers the grant.
 
 ## Signing and notarization (future)
 

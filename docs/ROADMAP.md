@@ -1,7 +1,7 @@
 # Roadmap
 
-> **Status (2026-11-02):** the original build-out is shipped. The remaining work is
-> driven by the two audits in [`reviews/`](reviews/) and the unimplemented
+> **Status (2026-11-03, 0.15.0):** the original build-out is shipped. The remaining work
+> is driven by the two audits in [`reviews/`](reviews/) and the unimplemented
 > platform features listed at the end of this file. See
 > [`../CHANGELOG.md`](../CHANGELOG.md) for the shipped list.
 
@@ -10,8 +10,8 @@
 Sources: [`reviews/2026-11-01-architecture-audit.md`](reviews/2026-11-01-architecture-audit.md),
 [`reviews/2026-11-01-uiux-audit.md`](reviews/2026-11-01-uiux-audit.md) and
 [`reviews/2026-11-02-architecture-audit-2.md`](reviews/2026-11-02-architecture-audit-2.md).
-The 0.9.0 UI batch is shipped; [`PLAN-0.10.0.md`](PLAN-0.10.0.md) re-triages
-both audits and lists what remains.
+The 0.9.0 UI batch is shipped; [`PLAN-0.10.0.md`](PLAN-0.10.0.md) is the historical
+plan that re-triaged both audits (0.10.0 has shipped).
 
 ### Shipped in 0.9.0 — the five structural UI issues
 
@@ -220,13 +220,7 @@ file; H9 is the last open High.
 - The sidebar reads fully at the 1080 px minimum window.
 - 282 tests passing.
 
-### Next: store detail polish
-
-- M27: store detail spacing, meta and screenshot placement.
-- Then the 1.0 items below: renderer modules (3.3) and lazy `file:` images
-  (L5/L8) after a large-profile measurement.
-
-### Later: 1.0
+### Next: 1.0
 
 - **3.3** Renderer modules + explicit store (optional, highest risk).
 - **L5/L8** Send config images as `file:` refs and resolve them lazily, after a
@@ -333,7 +327,7 @@ What the official app has that we don't (from its `System/Plugins` manifests):
 | Multi Action | multi action, switch, random, delay | done | – |
 | Key behaviour | Action Trigger: short / long / double press, combinations | done | – |
 | System actions | Open, Close, Website, Text, Hotkey, Multimedia, Hotkey Switch | done (+ timer, key brightness) | – |
-| Soundboard | play / stop audio | done | – |
+| Soundboard | `sound` action (play / stop audio) | done | – |
 | Pages | prev/next/goto, page indicator, parent/subpage, wallpapers | done | – |
 | Icon library | browsable icon packs, delete pack | done | – |
 | Plugin properties | per-action property inspector | done | – |
@@ -389,7 +383,7 @@ Also done: **HTML plugins** (hidden BrowserWindow + same SDK bridge), **Page Ind
 (big page number + dots), grouped action picker.
 
 Also done: **multi-state keys** (per-state icon/label, plugin `setState` updates the
-tile, import keeps every `ViewParam`), **soundboard** (play/stop audio via `afplay`,
+tile, import keeps every `ViewParam`), **`sound` action** (play/stop audio via `afplay`,
 volume, imported from vendor profiles), **store updates** (Update button when the
 installed version differs).
 
@@ -407,7 +401,8 @@ actions.
 ## Order of work (agreed)
 
 1. **Action model v2** — system actions, multi-action and press triggers.
-   OBS Studio and Soundboard move to v3; Ulanzi Connect / TC002 are Bluetooth
+   OBS Studio moves to v3, and the richer Soundboard multi-action is deferred; the
+   `sound` play/stop action itself is done. Ulanzi Connect / TC002 are Bluetooth
    (BLE) products and go to a later milestone — the D200 itself is USB only.
    Detailed spec: [`ACTION-MODEL-V2.md`](ACTION-MODEL-V2.md).
 2. **Profiles** — multiple profiles per device, switch-profile action.
@@ -418,7 +413,8 @@ actions.
 
 ### v3 and later
 
-* **v3** — OBS Studio (obs-websocket) and Soundboard (play/stop audio).
+* **v3** — OBS Studio (obs-websocket) and the richer Soundboard multi-action; the
+  `sound` play/stop action is done.
 * **Later** — Ulanzi Connect lights and TC002 display (Bluetooth LE; needs a
   CoreBluetooth helper and protocol reverse-engineering).
 

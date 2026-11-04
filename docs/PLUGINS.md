@@ -15,9 +15,9 @@ home automation, …) keep working while the D200 itself is driven by our app.
 | --- | --- | --- |
 | **This app — Ulanzi** | `~/Library/Application Support/Ulanzi Deck Open/Plugins` | install / update / remove |
 | **This app — Stream Deck** | `~/Library/Application Support/Ulanzi Deck Open/StreamDeckPlugins` | install / remove |
-| **Ulanzi Studio** | `~/Library/Application Support/Ulanzi/UlanziDeck/Plugins` | read-only, shown with 🔒 |
-| **Elgato Stream Deck** | `~/Library/Application Support/com.elgato.StreamDeck/Plugins` | read-only, shown with 🔒 |
-| **OpenDeck** | `~/Library/Application Support/opendeck/plugins` | read-only, shown with 🔒 |
+| **Ulanzi Studio** | `~/Library/Application Support/Ulanzi/UlanziDeck/Plugins` | read-only, shown as **Read-only** |
+| **Elgato Stream Deck** | `~/Library/Application Support/com.elgato.StreamDeck/Plugins` | read-only, shown as **Read-only** |
+| **OpenDeck** | `~/Library/Application Support/opendeck/plugins` | read-only, shown as **Read-only** |
 
 App-installed plugins shadow a read-only plugin with the same UUID. A read-only plugin
 can be adopted with **Copy** in the plugin manager: it is copied into this app's folder
@@ -111,8 +111,8 @@ Because inspector pages come from that custom scheme, responses from loopback se
 daemon (AgentDeck's port 9120, for example), which the vendor app allows too.
 
 The settings are persisted on the key (`action.settings`) exactly like before, so
-configs stay compatible. Actions without an inspector still fall back to the JSON
-editor.
+configs stay compatible. Actions without an inspector expose their raw settings behind
+**Advanced: edit settings JSON**.
 
 **Stream Deck / OpenAction** inspectors are served through `sd-pi://` and receive the
 standard `connectElgatoStreamDeckSocket(port, context, "registerPropertyInspector",
@@ -150,8 +150,8 @@ an icon downscales it to 392 px and stores it on the key. Profile files
 
 **Installed** (sidebar → Plugins & Icons) has two tabs:
 
-* **Plugins** — this app's plugins (install / reload / remove) plus read-only 🔒
-  plugins installed by Ulanzi Studio, which can be copied into this app.
+* **Plugins** — this app's plugins (install / reload / remove) plus plugins installed by
+  Ulanzi Studio, shown as **Read-only** and copied into this app with **Copy**.
 * **Icons** — icon packs downloaded here (delete allowed) and packs found in Ulanzi
   Studio's own `Icons` folder, shown read-only so they stay intact.
 
@@ -172,7 +172,9 @@ an icon downscales it to 392 px and stores it on the key. Profile files
    with `ELECTRON_RUN_AS_NODE=1`, cwd = plugin directory. This is the same contract
    Ulanzi Studio uses (`node app.js <host> <port> <lang> <version>`), so the shipped
    SDK connects unchanged.
-4. The app runs a WebSocket server on `127.0.0.1:3906`. The plugin sends:
+4. The app runs a WebSocket server on `127.0.0.1:3906`, falling back to the next free
+   port if that one is taken. Plugins must use the port passed on the command line. The
+   plugin sends:
 
    ```json
    {"code":0,"cmd":"connected","uuid":"com.example.plugin"}
@@ -228,7 +230,7 @@ The g1 plugin’s SVG (with an embedded JPEG) is passed straight to Chromium’s
 
 ## Managing plugins in the app
 
-Click **Plugins** in the sidebar:
+Click **Installed** in the sidebar:
 
 * **Install folder…** — pick a `.ulanziPlugin` or `.sdPlugin` directory
 * **Install .zip…** — pick a plugin ZIP / `.streamdeckplugin`; the SDK is detected automatically
@@ -251,8 +253,8 @@ plugins get `willAppear` for every active action.
 
 In the key inspector choose **Plugin action**, then the plugin and action. The picker
 groups **Stream Deck / OpenAction** and **Ulanzi** plugins. If the action ships a
-property inspector, its form is embedded in the panel; otherwise settings are edited as
-JSON. The key shows the plugin’s live image.
+property inspector, its form is embedded in the panel; otherwise its raw settings live
+behind **Advanced: edit settings JSON**. The key shows the plugin’s live image.
 
 * **Ulanzi** keys send `keydown`, `run`, `keyup`.
 * **Stream Deck** keys forward the physical `keyDown`/`keyUp`, so plugin-side hold and
@@ -264,14 +266,17 @@ JSON. The key shows the plugin’s live image.
 * The D200 has no encoders or touchscreen, so Stream Deck encoder/dial/touchscreen
   actions are not usable.
 * Windows-only Stream Deck plugins need **Wine** installed; otherwise they show
-  **Not supported**.
-* Ulanzi plugins use port 3906; Stream Deck plugins use a dynamic port starting at
-  57116. Quit Ulanzi Studio/other deck software if a port is busy.
+  **No compatible code for this Mac**. Intel-only plugins on Apple Silicon show
+  **Needs Rosetta** with an install button.
+* The plugin host starts on `127.0.0.1:3906` and falls back to the next free port, so
+  plugins must use the port passed on the command line. Stream Deck plugins use a
+  dynamic port starting at 57116.
 * Python plugins are not supported.
-* A read-only plugin (from Ulanzi Studio, Elgato Stream Deck or OpenDeck) is shown with
-  🔒 until you copy it into this app's plugin folder.
+* A read-only plugin (from Ulanzi Studio, Elgato Stream Deck or OpenDeck) is shown as
+  **Read-only** until you copy it into this app's plugin folder.
 * Plugin catalogues/store fronts from OpenDeck/Elgato are not built in; use
-  **Install folder/ZIP** or the Ulanzi Store.
+  **Install folder/ZIP**, the Ulanzi Store, or the built-in **Store → OpenAction
+  Plugins** tab.
 
 ## Developing a Stream Deck / OpenAction plugin
 

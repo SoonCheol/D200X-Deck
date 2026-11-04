@@ -1,8 +1,8 @@
 # Action model v2
 
 > **Status (2026-10-31):** implemented. This is kept as the design record for the
-> action model (config v6 added profiles on top; Soundboard and press triggers are now
-> live). The remaining deferred items are OBS Studio and BLE devices.
+> action model (config v6 added profiles on top; the `sound` action and press triggers
+> are now live). The remaining deferred items are OBS Studio and BLE devices.
 
 Scope agreed for the next block: bring the action vocabulary up to what Ulanzi Studio
 ships, minus the Soundboard (deferred to v3). Order of work overall:
@@ -162,15 +162,15 @@ over stdio) next to `hidseize`/`mediakey`, then protocol work per device.
 * **Done (v2.1a)** — `text`, `media`, `close` action types (executor + inspector),
   plus the bundled `mediakey` helper for macOS media keys. Verified end-to-end on the
   deck app (`mediakey` toggles mute from inside the app, not just from a shell).
-  Choosing a media key pre-fills the key emoji (⏯️ ⏭️ ⏮️ 🔊 🔉 🔇) and keeps it in
-  sync with the selected operation unless the emoji was customised.
+  Media key faces use the bundled SVG (0.10.5) unless the key has a custom emoji.
 * **Done (v2.1b)** — press triggers: `holdAction`, `doubleAction`, `holdMs`. The
   renderer owns a per-key state machine (500 ms hold, 300 ms double window, 60 ms
   bounce guard). Verified on the deck: tap → page A, hold → page B, double → page C,
   each firing exactly once.
-* **Then (v2.2)** — `multi` (sequence / alternate / random with delay steps) and
-  `toggle`, with the step editor.
-* **Then (v2.3)** — polish: action state indicators, docs, migration tests.
+* **Done (v2.2, shipped in 0.10.0)** — `multi` (sequence / alternate / random with
+  delay steps) and `toggle`, with the step editor.
+* **Done (v2.3, shipped in 0.10.0)** — polish: action state indicators, docs, migration
+  tests.
 * **v3** — OBS Studio and Soundboard. **Later** — BLE (Connect / TC002).
 
 ## Testing

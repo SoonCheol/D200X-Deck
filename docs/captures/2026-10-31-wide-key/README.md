@@ -26,9 +26,10 @@ app.
 Same shape as our `lib/page.js` output.
 
 **Incremental single-key updates** (`protocolID=13`): a ZIP with **one slot** and
-one image. Examples are in `proto13-2_1.json`, `proto13-3_1.json`,
-`proto13-4_1.json` (slots `2_1`, `3_1`, `4_1`). This is how the official app
-updates a single key (e.g. a plugin live image) without re-sending the page.
+one image. The captures covered the normal key slots (`2_1`, `3_1`, `4_1`), each
+manifest with a single `column_row` entry pointing at one `Images/<sha1>.png`. This is
+how the official app updates a single key (e.g. a plugin live image) without
+re-sending the page.
 
 **No `3_2` payload was observed.** The wide key stayed on
 `com.ulanzi.ulanzideck.smallwindow.window` / `SmallViewMode:1`, and the captures
