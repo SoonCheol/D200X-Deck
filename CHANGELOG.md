@@ -1,5 +1,22 @@
 # Changelog
 
+## 0.15.0 — 2026-11-03
+
+### Changed
+- **The inspector can be collapsed** with a new toolbar toggle, and the choice is remembered. The drawer breakpoint moved from 1179 px to 1100 px and the inline inspector narrowed to 360 px, so resizing no longer makes the stage jump and the toolbar stays on one row.
+- **One type scale replaces 17 ad-hoc sizes.** Hints, field labels, badges and device metadata are 11 px instead of 9–10.5 px, so status text is no longer the smallest text on screen.
+- **One icon language.** The sidebar, toolbar, reconnect, add-page and plugin fallbacks use the same SVG set instead of emoji and mixed text glyphs.
+- The sidebar stays readable at the 1080 px minimum width: the profile row tightens, the decorative “OPEN” label hides, and the device card keeps its full text.
+
+### Maintenance
+- Electron 45.2.1, ESLint 10.14, `ws` 8.22.1.
+- GitHub Actions: checkout 7, setup-node 7, upload-artifact 7 — smoke-tested through the release workflow on `main`.
+- Node 22.13 or newer is now declared in `engines`.
+- Pull requests into `main` require the CI `test` check; Dependabot security alerts are enabled.
+
+### Tests
+- 278 → **282** passing, plus two opt-in Electron smoke tests that are skipped without a GUI session.
+
 ## 0.14.0 — 2026-11-03
 
 ### Changed

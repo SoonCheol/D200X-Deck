@@ -210,11 +210,21 @@ file; H9 is the last open High.
 - Verified on hardware with the official captured protocol 13 sample.
 - 278 tests passing.
 
-### Next: visual and store polish
+### Shipped in 0.15.0 — layout, type and icons
 
-- 1179 breakpoint (M16); type-scale consolidation (M3); icon-language cleanup
-  (M4).
-- Remaining copy/nits from §8 of the UI report.
+- The inspector collapses from a toolbar toggle at every width; the drawer
+  breakpoint is 1100 px and the inline inspector is 360 px.
+- A single type scale replaces 17 sizes; hints and metadata went from
+  9–10.5 px to 11 px.
+- Sidebar, toolbar, reconnect and plugin fallback glyphs use the SVG set.
+- The sidebar reads fully at the 1080 px minimum window.
+- 282 tests passing.
+
+### Next: store detail polish
+
+- M27: store detail spacing, meta and screenshot placement.
+- Then the 1.0 items below: renderer modules (3.3) and lazy `file:` images
+  (L5/L8) after a large-profile measurement.
 
 ### Later: 1.0
 

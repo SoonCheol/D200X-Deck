@@ -1482,6 +1482,7 @@ body::before {
   /* The card cannot fit a name, a detail line and a button at 200px; the
      toolbar and Deck settings still offer Reconnect. */
   .device-card .icon-btn { display: none; }
+  .device-detail { white-space: normal; line-height: 1.3; }
   .inspector {
     position: fixed;
     top: var(--toolbar-h, 104px);
