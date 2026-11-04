@@ -2,7 +2,7 @@
 
 - Machine: HawkMacStudio, Mac Studio (Mac16,9, Apple M4 Max, 64 GB), macOS 27.2 (build 26B123)
 - Revision 2, 2026-11-04 ~14:50 -03, from a diagnosis session outside this repo. Revision 1 (14:12) blamed orphaned plugins. Tests later that day ruled that out as the main cause (section 9).
-- Revision 3, 2026-11-04 14:57 -03, by the Ulanzi Deck Open session: section 7 steps 1/3/4/5 and the code refs were verified, the plugin-lifetime fix landed (`97dda2c`), and 5.1 has a recommendation plus a draft upstream issue. See section 10.
+- Revision 3, 2026-11-04 14:57 -03, by the Ulanzi Deck Open session: section 7 steps 1/3/4/5 and the code refs were verified, the plugin-lifetime fixes landed (`97dda2c`, `ead59cd`), and 5.1 has a recommendation plus a draft upstream issue. See section 10.
 - Audience: the session that works on Ulanzi Deck Open. Every claim has a command in section 7 or Appendix B so you can check it.
 
 Confidence tags: **[Certain]** = seen in logs, process tables or code. **[Likely]** = strong inference. **[Guessing]** = not proven.
@@ -134,7 +134,7 @@ There are no Meet Mute orphans. Its code has `ws.onclose = () => process.exit(0)
 ### 4.3 Gaps in 0.16.0 and their status [Certain]
 
 1. **Plugin lifetime is not tied to host lifetime.** If the main process dies without `will-quit` (crash, `kill -9`, the `install.sh` fallback, a force quit), every Node plugin that ignores socket close becomes an orphan. **Fixed** in `97dda2c` (watchdog preload).
-2. **No cleanup on startup.** A new instance does not look for orphans from an earlier one. **Still open.**
+2. **No cleanup on startup.** A new instance does not look for orphans from an earlier one. **Fixed** in `ead59cd` (startup sweep).
 3. **The `install.sh` fallback kills only the main binary.** Plugin helpers live under `Contents/Frameworks/`, so the pattern at line 30 misses them. **Fixed** in `97dda2c` (line 32).
 
 ## 5. Recommended fixes, in order
@@ -335,6 +335,7 @@ ps -axo pid=,ppid=,command= \
 | 4.1: Meet Mute exits on socket close, the others do not | **Confirmed** | `plugin.js:186` `ws.onclose = () => process.exit(0)`; Amphetamine's bundle has no equivalent exit. |
 | 7.4: graceful quit stops the plugins | **Confirmed** | Packaged fixed build: `kill -TERM` left 0 main and 0 of 6 plugin children after 3.5 s. |
 | 7.5: the watchdog stops plugins after `kill -9` | **Confirmed** | Packaged fixed build: all 6 plugin children were gone at the 2 s sample, with no parent-PID-1 leftovers. |
+| 4.3 gap 2: cleanup on startup | **Confirmed by test** | `test/orphan-cleanup.test.js` creates a real re-parented process under a plugin root and asserts the sweep kills it. |
 
 ### Changes
 
@@ -344,9 +345,11 @@ ps -axo pid=,ppid=,command= \
 | `97dda2c` | `scripts/install.sh:32` also kills helpers under `Contents/Frameworks/` | the last-resort kill stops plugin children too. |
 | `97dda2c` | `test/plugin-lifetime.test.js` + `test/fixtures/plugin-host-runner.js` | red before the fix, green after (1.2 s). |
 | `97dda2c` | tests | 291 total, 289 pass, 2 skipped; lint/typecheck clean. |
+| `ead59cd` | `lib/orphan-cleanup.js` + startup call in `main.js` | leftovers from an earlier instance (parent PID 1 under a plugin folder) are killed before this instance spawns any plugin. |
+| `ead59cd` | `test/orphan-cleanup.test.js` | parser, injected kill path and a real re-parented process; 4 tests. |
 
-Gap 2 (cleanup on startup) is still open: a new instance does not kill orphans from an
-earlier one.
+Gap 2 (cleanup on startup) is fixed in `ead59cd`: a new instance kills leftovers from an
+earlier one before it starts its own plugins.
 
 ### 5.1 write-up
 
@@ -359,7 +362,7 @@ manifest, so it needs a replace/fork decision.
 
 - 5.2's asar bullet: **[Guessing] → refuted**; no `asar.unpack` is needed.
 - 5.2's `-r` bullet: **[Likely] → [Certain]**.
-- 4.3 gaps 1 and 3: **open → fixed in `97dda2c`**.
+- 4.3 gaps 1 and 3: **open → fixed in `97dda2c`**; gap 2: **open → fixed in `ead59cd`**.
 - Summary item 5: **still broken → fixed on `main`** (unreleased).
 - 2.2: the namespace **string** order is confirmed; the numeric 30 mapping stays [Likely].
 
