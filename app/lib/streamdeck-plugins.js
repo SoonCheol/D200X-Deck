@@ -13,6 +13,8 @@ const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
 
+const { streamDeckPluginDirs } = require('./plugin-dirs');
+
 const WATCHDOG = path.join(__dirname, 'plugin-watchdog.js');
 
 const { PluginHost, nodeRuntime } = require('./plugin-host');
@@ -56,18 +58,6 @@ function resolveIcon(base, value) {
     if (fs.existsSync(file) && fs.statSync(file).isFile()) return fileToDataUrl(file);
   }
   return null;
-}
-
-function streamDeckPluginDirs(appDir) {
-  const home = os.homedir();
-  const dirs = [appDir];
-  if (process.platform === 'darwin') {
-    dirs.push(
-      path.join(home, 'Library/Application Support/opendeck/plugins'),
-      path.join(home, 'Library/Application Support/com.elgato.StreamDeck/Plugins')
-    );
-  }
-  return dirs;
 }
 
 function availableOnPath(bin) {

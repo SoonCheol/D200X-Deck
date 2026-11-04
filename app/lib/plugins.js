@@ -7,8 +7,7 @@ const WATCHDOG = path.join(__dirname, 'plugin-watchdog.js');
 const { isInside } = require('./paths');
 const { byExtension } = require('./mime');
 const { PluginHost, nodeRuntime } = require('./plugin-host');
-
-const os = require('node:os');
+const { pluginRootDirs } = require('./plugin-dirs');
 
 function fileToDataUrl(file) {
   try {
@@ -29,15 +28,6 @@ function normalizeImage(data, fallbackMime = 'image/svg+xml') {
   }
   // base64 without a data: prefix
   return `data:${fallbackMime};base64,${data}`;
-}
-
-function pluginRootDirs() {
-  const dirs = [path.join(os.homedir(), 'Library/Application Support/Ulanzi/UlanziDeck/Plugins')];
-  if (process.platform !== 'darwin') {
-    dirs.length = 0;
-  }
-  dirs.push(path.join(os.homedir(), '.ulanzi', 'Plugins'));
-  return dirs;
 }
 
 class PluginManager extends PluginHost {

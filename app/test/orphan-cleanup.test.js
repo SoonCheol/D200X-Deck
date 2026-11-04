@@ -8,6 +8,7 @@ const path = require('node:path');
 const { spawn } = require('node:child_process');
 
 const { findOrphans, cleanOrphans } = require('../lib/orphan-cleanup');
+const { pluginRootDirs, streamDeckPluginDirs, sweepRoots } = require('../lib/plugin-dirs');
 
 function alive(pid) {
   try {
@@ -27,34 +28,72 @@ async function waitFor(condition, timeoutMs, stepMs = 100) {
   return condition();
 }
 
-test('findOrphans only matches parent-PID-1 processes under a plugin root', () => {
-  const roots = ['/Users/me/Library/Application Support/Ulanzi Deck Open/StreamDeckPlugins'];
+const APP = '/Users/me/Library/Application Support/Ulanzi Deck Open';
+const RUNTIME = `${APP}-install/Contents/Frameworks/Ulanzi Deck Open Helper.app/Contents/MacOS/Ulanzi Deck Open Helper`;
+
+test('an external app that merely mentions a plugin path is not an orphan', () => {
+  const roots = [`${APP}/StreamDeckPlugins`];
   const ps = [
-    '  101     1 /usr/bin/helper /Users/me/Library/Application Support/Ulanzi Deck Open/StreamDeckPlugins/a.sdPlugin/plugin.js',
-    '  102   101 /usr/bin/helper /Users/me/Library/Application Support/Ulanzi Deck Open/StreamDeckPlugins/a.sdPlugin/plugin.js',
-    '  103     1 /usr/bin/helper /Users/me/Library/Application Support/Ulanzi Deck Open/Plugins/b.ulanziPlugin/app.js',
-    '  104     1 /usr/bin/other /tmp/not-ours.js',
+    `  301     1 /Applications/Visual Studio Code.app/Contents/MacOS/Electron ${APP}/StreamDeckPlugins/a.sdPlugin`,
+    `  302     1 /usr/bin/open ${APP}/StreamDeckPlugins/a.sdPlugin/manifest.json`,
   ].join('\n');
 
-  assert.deepEqual(findOrphans(ps, roots), [101]);
+  assert.deepEqual(findOrphans(ps, roots, [RUNTIME]), []);
+});
+
+test('a Node plugin is matched by its runtime and a plugin-root argument', () => {
+  const roots = [`${APP}/StreamDeckPlugins`];
+  const ps = [
+    `  303     1 ${RUNTIME} -r ${APP}-install/Contents/Resources/app.asar/lib/plugin-watchdog.js ${APP}/StreamDeckPlugins/a.sdPlugin/plugin.js 127.0.0.1 57116 en 0.16.1`,
+    `  304     2 ${RUNTIME} ${APP}/StreamDeckPlugins/a.sdPlugin/plugin.js`,
+  ].join('\n');
+
+  assert.deepEqual(findOrphans(ps, roots, [RUNTIME]), [303]);
+});
+
+test('a native plugin is matched when its executable is inside a root', () => {
+  const roots = [`${APP}/StreamDeckPlugins`];
+  const ps = [
+    `  305     1 ${APP}/StreamDeckPlugins/x.sdPlugin/sdmicmute -port 57116`,
+    `  306     1 /usr/local/bin/sdmicmute -port 57116`,
+  ].join('\n');
+
+  assert.deepEqual(findOrphans(ps, roots, [RUNTIME]), [305]);
 });
 
 test('findOrphans accepts several roots and ignores missing input', () => {
-  const ps = '  201     1 node /x/Plugins/a.js\n  202     1 node /x/StreamDeckPlugins/b.js\n';
-  assert.deepEqual(findOrphans(ps, ['/x/Plugins/', '/x/StreamDeckPlugins']), [201, 202]);
-  assert.deepEqual(findOrphans('', ['/x']), []);
+  const ps = '  201     1 /usr/bin/node /x/Plugins/a.js\n  202     1 /usr/bin/node /x/StreamDeckPlugins/b.js\n';
+  assert.deepEqual(findOrphans(ps, ['/x/Plugins/', '/x/StreamDeckPlugins'], ['/usr/bin/node']), [201, 202]);
+  assert.deepEqual(findOrphans('', ['/x'], ['/usr/bin/node']), []);
 });
 
 test('cleanOrphans kills only the matched pids', () => {
   const killed = [];
   const pids = cleanOrphans({
     roots: ['/x/Plugins'],
-    exec: () => '  301     1 node /x/Plugins/a.js\n  302     2 node /x/Plugins/b.js\n',
+    runtimes: ['/usr/bin/node'],
+    exec: () => '  301     1 /usr/bin/node /x/Plugins/a.js\n  302     2 /usr/bin/node /x/Plugins/b.js\n',
     kill: (pid) => killed.push(pid),
     log: () => {},
   });
   assert.deepEqual(pids, [301]);
   assert.deepEqual(killed, [301]);
+});
+
+test('the sweep roots cover every host plugin folder', () => {
+  const base = '/tmp/ulanzi-sweep';
+  const roots = sweepRoots(base).map((root) => path.resolve(root));
+  const expected = [
+    path.join(base, 'Plugins'),
+    ...pluginRootDirs(),
+    ...streamDeckPluginDirs(path.join(base, 'StreamDeckPlugins')),
+  ].map((root) => path.resolve(root));
+
+  for (const root of expected) assert.ok(roots.includes(root), `missing ${root}`);
+  assert.ok(
+    roots.includes(path.resolve(path.join(os.homedir(), '.ulanzi', 'Plugins'))),
+    'the legacy ~/.ulanzi/Plugins folder is included'
+  );
 });
 
 test('a real orphaned plugin process is killed at startup', async (t) => {
@@ -91,7 +130,7 @@ test('a real orphaned plugin process is killed at startup', async (t) => {
     return ppid === 1;
   }, 5_000), 'plugin is re-parented to launchd');
 
-  const killed = cleanOrphans({ roots: [root], log: () => {} });
+  const killed = cleanOrphans({ roots: [root], runtimes: [process.execPath], log: () => {} });
   assert.ok(killed.includes(pid), 'cleanup found the orphan');
   assert.ok(await waitFor(() => !alive(pid), 2_000), 'orphan exited');
 

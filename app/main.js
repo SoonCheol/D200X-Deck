@@ -8,6 +8,8 @@ const { applyLoginPath } = require('./lib/shell-path');
 const { appendAppLog } = require('./lib/app-log');
 const { createImageProtocol } = require('./lib/image-protocol');
 const { cleanOrphans } = require('./lib/orphan-cleanup');
+const { sweepRoots } = require('./lib/plugin-dirs');
+const { nodeRuntime } = require('./lib/plugin-host');
 
 const { Deck } = require('./lib/deck');
 const { Store } = require('./lib/store');
@@ -694,13 +696,8 @@ app.whenReady().then(() => {
   // Plugin children are spawned below; sweep only leftovers from an earlier
   // instance (parent pid 1), never this one's children.
   cleanOrphans({
-    roots: [
-      path.join(store.dir, 'Plugins'),
-      path.join(store.dir, 'StreamDeckPlugins'),
-      path.join(app.getPath('home'), 'Library/Application Support/Ulanzi/UlanziDeck/Plugins'),
-      path.join(app.getPath('home'), 'Library/Application Support/com.elgato.StreamDeck/Plugins'),
-      path.join(app.getPath('home'), 'Library/Application Support/opendeck/plugins'),
-    ],
+    roots: sweepRoots(store.dir),
+    runtimes: [nodeRuntime(), process.execPath],
   });
   applyLoginItemSettings();
   market = new Market({
