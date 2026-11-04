@@ -1,6 +1,6 @@
 'use strict';
 
-/* global actionMeta, addPage, basename, clearPressTimers, closeAppPicker, closeHotkeyModal, closeIconLibrary, closeImportModal, closeInspector, closeInspectorDrawer, closePluginMenu, closePluginModal, closeStoreModal, commit, downscaleBackground, drawIndex, flashKey, handleKeyEvent, iconLibraryPacks, iconLibraryQuery, importSources, inspectorDrawerOpen, loadSdStore, loadStoreCategories, loadStoreItems, navigate, openAppPicker, openImportModal, openInspectorDrawer, openPluginModal, openStoreModal, pushNow, refreshPlugins, refreshWideStats, renderAll, renderAppList, renderGrid, renderIconGrid, renderImportSources, renderInspector, renderPageList, renderPluginModal, renderPushButton, renderSdStoreList, renderStandbySlices, renderStatus, renderStoreChrome, renderSyncState, resetImportState, runImport, saveHotkey, scheduleAutoExit, scheduleLivePush, schedulePush, scheduleSave, sdStore, selectImportSource, selectStoreSource, storeState, switchInstalledTab, syncPlugins, toast, uniquePageName, updatePluginCount */
+/* global actionMeta, addPage, applyInspectorState, basename, clearPressTimers, closeAppPicker, closeHotkeyModal, closeIconLibrary, closeImportModal, closeInspector, closeInspectorDrawer, closePluginMenu, closePluginModal, closeStoreModal, commit, downscaleBackground, drawIndex, flashKey, handleKeyEvent, iconLibraryPacks, iconLibraryQuery, INSPECTOR_BREAKPOINT, importSources, inspectorDrawerOpen, loadSdStore, loadStoreCategories, loadStoreItems, navigate, openAppPicker, openImportModal, openInspectorDrawer, openPluginModal, openStoreModal, pushNow, refreshPlugins, refreshWideStats, renderAll, renderAppList, renderGrid, renderIconGrid, renderImportSources, renderInspector, renderPageList, renderPluginModal, renderPushButton, renderSdStoreList, renderStandbySlices, renderStatus, renderStoreChrome, renderSyncState, resetImportState, runImport, saveHotkey, scheduleAutoExit, scheduleLivePush, schedulePush, scheduleSave, sdStore, selectImportSource, selectStoreSource, storeState, switchInstalledTab, syncPlugins, toast, toggleInspector, uniquePageName, updatePluginCount */
 
 const api = window.deckApp;
 const renderKey = window.KeyRenderer.drawKey;
@@ -1593,11 +1593,14 @@ function bind() {
     if (event.target.closest('#insp-drawer-close')) closeInspector();
   });
   $('#drawer-scrim').addEventListener('click', closeInspector);
+  $('#inspector-toggle').addEventListener('click', toggleInspector);
   window.addEventListener('resize', () => {
     syncToolbarHeight();
-    if (window.innerWidth > 1179) closeInspectorDrawer();
+    if (window.innerWidth > INSPECTOR_BREAKPOINT) closeInspectorDrawer();
+    applyInspectorState();
   });
   syncToolbarHeight();
+  applyInspectorState();
 
   $('#page-title').addEventListener('input', (e) => {
     const page = activePage();

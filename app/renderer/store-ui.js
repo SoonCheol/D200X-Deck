@@ -27,7 +27,9 @@ function renderIconPacks() {
   if (!iconLibraryPacks.length) {
     list.innerHTML = '';
     $('#icons-grid').innerHTML = `<div class="icons-empty">
-        <div style="font-size:44px;margin-bottom:8px">🖼</div>
+        <svg class="icons-empty-mark" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <rect x="3" y="4" width="18" height="16" rx="3"/><path d="M3.5 16.5l5-5 3.5 3.5 2-2 5.5 5.5"/><circle cx="9" cy="9" r="1.4"/>
+        </svg>
         <div style="margin-bottom:10px">No icon packs yet.</div>
         <button class="btn primary" id="icons-empty-store">Browse icon packs</button>
       </div>`;

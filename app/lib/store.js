@@ -204,6 +204,7 @@ const DEFAULT_SETTINGS = {
   launchAtLogin: false,
   updateCheck: true,
   updateHours: 6,
+  inspectorCollapsed: false,
 };
 
 /** Coerce a config into the shape the app expects, without dropping user data. */
@@ -221,6 +222,7 @@ function validateConfig(config) {
     launchAtLogin: current.launchAtLogin === true,
     updateCheck: current.updateCheck !== false,
     updateHours: clamp(Math.round(Number(current.updateHours ?? DEFAULT_SETTINGS.updateHours) || DEFAULT_SETTINGS.updateHours), 1, 168),
+    inspectorCollapsed: current.inspectorCollapsed === true,
   };
 
   // Profiles are a lightweight grouping: each page belongs to one profile and

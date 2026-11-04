@@ -203,6 +203,21 @@ test('caption fonts and lock-screen settings survive save/load', () => {
   assert.match(loaded.settings.lockImage, /^data:image\/png/);
 });
 
+test('the inspector collapse preference is boolean and survives save/load', () => {
+  const dir = tempDir();
+  const store = new Store(dir);
+  const config = createDefaultConfig();
+
+  assert.equal(config.settings.inspectorCollapsed, false);
+
+  config.settings.inspectorCollapsed = 'yes';
+  assert.equal(validateConfig(config).settings.inspectorCollapsed, false);
+
+  config.settings.inspectorCollapsed = true;
+  store.save(config);
+  assert.equal(store.load().settings.inspectorCollapsed, true);
+});
+
 test('text and caption styles are bounded and survive save/load', () => {
   const dir = tempDir();
   const store = new Store(dir);

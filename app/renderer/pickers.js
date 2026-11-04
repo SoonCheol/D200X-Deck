@@ -155,6 +155,7 @@ function switchInstalledTab(tab) {
 }
 
 const sdStore = { items: [], loading: false, query: '', updates: {} };
+const PLUG_GLYPH = `<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 3v5"/><path d="M15 3v5"/><path d="M6.5 8h11v3.5a5.5 5.5 0 0 1-11 0V8z"/><path d="M12 17v4"/></svg>`;
 
 function installedSdPlugins() {
   const map = new Map();
@@ -229,7 +230,7 @@ function renderSdStoreList() {
         ${
           item.icon
             ? `<img class="plugin-icon" src="${esc(item.icon)}" alt="" loading="lazy" />`
-            : '<div class="plugin-icon">🔌</div>'
+            : `<div class="plugin-icon">${PLUG_GLYPH}</div>`
         }
         <div class="plugin-meta">
           <div class="plugin-name">
@@ -253,7 +254,7 @@ function renderSdStoreList() {
     img.addEventListener('error', () => {
       const fallback = document.createElement('div');
       fallback.className = 'plugin-icon';
-      fallback.textContent = '🔌';
+      fallback.innerHTML = PLUG_GLYPH;
       img.replaceWith(fallback);
     });
   });
@@ -385,7 +386,7 @@ function renderPluginModal() {
       .join('');
     return `
       <div class="plugin-row${p.compatible ? '' : ' disabled'}">
-        ${p.icon ? `<img class="plugin-icon" src="${esc(p.icon)}" alt="" />` : `<div class="plugin-icon">🔌</div>`}
+        ${p.icon ? `<img class="plugin-icon" src="${esc(p.icon)}" alt="" />` : `<div class="plugin-icon">${PLUG_GLYPH}</div>`}
         <div class="plugin-meta">
           <div class="plugin-name">
             ${esc(p.name)}
@@ -395,7 +396,7 @@ function renderPluginModal() {
             <span class="badge-tag">${p.sdk === 'streamdeck' ? 'Stream Deck' : 'Ulanzi'}</span>
             <span class="badge-tag ${p.writable ? 'good' : ''}" title="${
               p.writable ? 'Installed in this app' : 'Read-only (installed by another app)'
-            }">${p.writable ? 'Installed' : '🔒 Read-only'}</span>
+            }">${p.writable ? 'Installed' : 'Read-only'}</span>
           </div>
           <div class="plugin-sub">
             ${p.version ? `v${esc(p.version)} · ` : ''}${esc(p.author || 'unknown author')} · ${(p.actions || []).length} ${

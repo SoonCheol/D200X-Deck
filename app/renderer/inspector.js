@@ -8,23 +8,68 @@ const DEFAULT_KEY_COLOR = '#1b2130';
 
 // Preserve the user's manual collapse choice per key across inspector renders.
 const triggerSectionOpen = new WeakMap();
+// Only a selection change should reveal the inspector, not every re-render.
+let lastInspectorSelection;
 
 // At narrow widths the inspector is a fixed drawer. Its open state is explicit
 // so Page settings stays reachable without a selected key.
+const INSPECTOR_BREAKPOINT = 1100;
+
 function inspectorDrawerOpen() {
   return Boolean($('#inspector')?.classList.contains('open'));
 }
 
+function inspectorCollapsed() {
+  if (window.innerWidth <= INSPECTOR_BREAKPOINT) return false;
+  return Boolean(state.config?.settings?.inspectorCollapsed);
+}
+
+/** Keep the inline/drawer layout and the toolbar toggle in agreement. */
+function applyInspectorState() {
+  const narrow = window.innerWidth <= INSPECTOR_BREAKPOINT;
+  const collapsed = !narrow && Boolean(state.config?.settings?.inspectorCollapsed);
+  $('#app')?.classList.toggle('inspector-collapsed', collapsed);
+  const button = $('#inspector-toggle');
+  if (!button) return;
+  const expanded = narrow ? inspectorDrawerOpen() : !collapsed;
+  button.setAttribute('aria-pressed', String(expanded));
+  const label = expanded ? 'Hide inspector' : 'Show inspector';
+  button.title = label;
+  button.setAttribute('aria-label', label);
+}
+
 function openInspectorDrawer() {
   $('#deck-settings')?.classList.add('hidden');
-  if (window.innerWidth > 1179) return;
+  if (window.innerWidth > INSPECTOR_BREAKPOINT) {
+    // Selecting a key or opening Page settings should reveal an inline
+    // inspector the user had collapsed.
+    if (state.config?.settings?.inspectorCollapsed) {
+      state.config.settings.inspectorCollapsed = false;
+      scheduleSave();
+    }
+    applyInspectorState();
+    return;
+  }
   $('#inspector')?.classList.add('open');
   $('#drawer-scrim')?.classList.remove('hidden');
+  applyInspectorState();
 }
 
 function closeInspectorDrawer() {
   $('#inspector')?.classList.remove('open');
   $('#drawer-scrim')?.classList.add('hidden');
+  applyInspectorState();
+}
+
+function toggleInspector() {
+  if (window.innerWidth <= INSPECTOR_BREAKPOINT) {
+    if (inspectorDrawerOpen()) closeInspectorDrawer();
+    else openInspectorDrawer();
+    return;
+  }
+  state.config.settings.inspectorCollapsed = !inspectorCollapsed();
+  applyInspectorState();
+  scheduleSave();
 }
 
 function closeInspector() {
@@ -861,7 +906,9 @@ function renderInspector() {
     return;
   }
   syncPageSettingsButton();
-  if (state.selected !== null) openInspectorDrawer();
+  const selectionChanged = state.selected !== lastInspectorSelection;
+  lastInspectorSelection = state.selected;
+  if (state.selected !== null && selectionChanged) openInspectorDrawer();
   if (state.selected === WIDE_KEY_INDEX) return renderWideInspector(el, page);
 
   if (state.selected === null) {
@@ -1307,7 +1354,7 @@ function renderInspector() {
         </div>
         ${
           !pluginAction
-            ? `<div class="insp-empty" style="padding:0;font-size:11px">
+            ? `<div class="insp-empty" style="padding:0">
                  ${plugin ? 'Choose an action to configure its settings.' : 'Choose a plugin and an action to configure its settings.'}
                </div>`
             : pluginAction.propertyInspector

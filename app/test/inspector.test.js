@@ -10,6 +10,7 @@ const textStyle = require('../lib/text-style');
 const source = fs.readFileSync(path.join(__dirname, '../renderer/inspector.js'), 'utf8');
 
 function node() {
+  const classes = new Set();
   return {
     innerHTML: '',
     value: '',
@@ -20,9 +21,25 @@ function node() {
     dataset: {},
     children: [],
     handlers: {},
-    classList: { add() {}, remove() {}, toggle() {} },
+    classList: {
+      add(...names) { names.forEach((name) => classes.add(name)); },
+      remove(...names) { names.forEach((name) => classes.delete(name)); },
+      toggle(name, force) {
+        const on = force === undefined ? !classes.has(name) : Boolean(force);
+        if (on) classes.add(name);
+        else classes.delete(name);
+        return on;
+      },
+      contains(name) { return classes.has(name); },
+    },
     addEventListener(type, handler) {
       this.handlers[type] = handler;
+    },
+    setAttribute(name, value) {
+      this[name] = value;
+    },
+    getAttribute(name) {
+      return this[name];
     },
     querySelectorAll() {
       return [];
@@ -135,7 +152,7 @@ function makeHarness() {
   };
   vm.createContext(context);
   vm.runInContext(source, context);
-  return { context, inspector, nodes, key, page, calls };
+  return { context, inspector, nodes, key, page, calls, state };
 }
 
 test('the inspector renders the current key and caption style controls', () => {
@@ -194,4 +211,48 @@ test('showing and hiding a caption toggles its controls', () => {
   assert.equal(nodes.get('#insp-font-family').disabled, true);
   assert.equal(nodes.get('#insp-font-background').disabled, true);
   assert.equal(nodes.get('#insp-font-reset').disabled, true);
+});
+
+test('the inspector toggle persists the collapsed state on wide windows', () => {
+  const { context, nodes, state } = makeHarness();
+  context.window.innerWidth = 1400;
+  state.config.settings.inspectorCollapsed = false;
+
+  context.toggleInspector();
+
+  assert.equal(state.config.settings.inspectorCollapsed, true);
+  assert.equal(nodes.get('#app').classList.contains('inspector-collapsed'), true);
+  assert.equal(nodes.get('#inspector-toggle').getAttribute('aria-pressed'), 'false');
+  assert.equal(nodes.get('#inspector-toggle').title, 'Show inspector');
+
+  context.toggleInspector();
+
+  assert.equal(state.config.settings.inspectorCollapsed, false);
+  assert.equal(nodes.get('#app').classList.contains('inspector-collapsed'), false);
+  assert.equal(nodes.get('#inspector-toggle').getAttribute('aria-pressed'), 'true');
+});
+
+test('selecting a key reopens a collapsed inspector', () => {
+  const { context, nodes, state } = makeHarness();
+  context.window.innerWidth = 1400;
+  state.config.settings.inspectorCollapsed = true;
+
+  context.renderInspector();
+
+  assert.equal(state.config.settings.inspectorCollapsed, false);
+  assert.equal(nodes.get('#app').classList.contains('inspector-collapsed'), false);
+});
+
+test('narrow windows keep the drawer instead of collapsing it', () => {
+  const { context, nodes, state } = makeHarness();
+  context.window.innerWidth = 900;
+  state.config.settings.inspectorCollapsed = true;
+
+  context.renderInspector();
+
+  // The stored desktop preference survives, but the drawer must stay usable.
+  assert.equal(state.config.settings.inspectorCollapsed, true);
+  assert.equal(nodes.get('#app').classList.contains('inspector-collapsed'), false);
+  assert.equal(nodes.get('#inspector').classList.contains('open'), true);
+  assert.equal(nodes.get('#drawer-scrim').classList.contains('hidden'), false);
 });
