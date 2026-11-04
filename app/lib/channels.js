@@ -10,6 +10,7 @@ const CH = Object.freeze({
   commandOutput: 'command:output',
   commandFailed: 'command:failed',
   deckPush: 'deck:push',
+  deckPushKey: 'deck:push-key',
   systemStats: 'system:stats',
   deckWideMode: 'deck:wide-mode',
   deckBrightness: 'deck:brightness',

@@ -14,6 +14,7 @@ contextBridge.exposeInMainWorld('deckApp', {
   runCommandOutput: (command) => ipcRenderer.invoke('command:output', command),
   onCommandFailed: (cb) => subscribe('command:failed', cb),
   pushPage: (images, wideMode) => ipcRenderer.invoke('deck:push', images, wideMode),
+  pushKey: (slot, png) => ipcRenderer.invoke('deck:push-key', slot, png),
   setWideMode: (mode) => ipcRenderer.invoke('deck:wide-mode', mode),
   systemStats: () => ipcRenderer.invoke('system:stats'),
   setBrightness: (level) => ipcRenderer.invoke('deck:brightness', level),

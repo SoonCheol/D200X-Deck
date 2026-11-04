@@ -290,6 +290,23 @@ test('the exact renderer page is a trusted sender', async () => {
   assert.deepEqual(result.status, { ok: true });
 });
 
+test('deck:push-key builds and sends a one-slot package', async () => {
+  const sent = [];
+  const ctx = makeCtx({
+    deck: { status: () => ({}), connected: true, pushKey: (zip) => sent.push(zip) },
+  });
+  const { handlers } = harness(ctx);
+  const png = Buffer.from('png').toString('base64');
+
+  const result = await handlers.get(CH.deckPushKey)(trustedEvent(), '2_1', png);
+
+  assert.equal(result.ok, true);
+  assert.equal(sent.length, 1);
+  const zip = await JSZip.loadAsync(sent[0]);
+  const manifest = JSON.parse(await zip.file('manifest.json').async('string'));
+  assert.deepEqual(Object.keys(manifest), ['2_1']);
+});
+
 test('an untrusted sender never reaches the store', async () => {
   let saved = false;
   const ctx = makeCtx({

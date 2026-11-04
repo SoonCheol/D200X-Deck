@@ -459,7 +459,7 @@ function drawIndex(index) {
   }
   const page = activePage();
   const key = effectiveKey(keyAt(page, index) || emptyKey());
-  renderKey(
+  return renderKey(
     tile.querySelector('canvas'),
     key,
     196,
@@ -691,6 +691,8 @@ let livePushTimer = null;
 let livePushPending = false;
 let lastLivePushAt = 0;
 let livePushUrgentUntil = 0;
+const livePushIndices = new Set();
+let livePushFull = false;
 
 /**
  * A physical plugin key press usually produces a new image ~300 ms later. Let
@@ -707,10 +709,12 @@ function notePluginKeyPress() {
  * second. These pushes are background-only: they must not toggle the Push
  * button or claim the page was manually synced.
  */
-function scheduleLivePush() {
+function scheduleLivePush(index = null) {
   if (typeof standbyActive === 'function' && standbyActive()) return;
   if (typeof lockActive === 'function' && lockActive()) return;
   if (!state.status.connected || !state.config.settings.autoPush) return;
+  if (index == null) livePushFull = true;
+  else livePushIndices.add(Number(index));
   livePushPending = true;
   const urgent = Date.now() < livePushUrgentUntil;
   if (livePushTimer) {
@@ -720,18 +724,50 @@ function scheduleLivePush() {
   }
   const interval = urgent ? LIVE_PUSH_URGENT_INTERVAL : LIVE_PUSH_INTERVAL;
   const wait = Math.max(0, interval - (Date.now() - lastLivePushAt));
-  livePushTimer = setTimeout(() => {
-    livePushTimer = null;
-    if (!livePushPending) return;
-    livePushPending = false;
-    if (state.pushing) {
-      lastLivePushAt = Date.now();
-      scheduleLivePush();
-      return;
-    }
+  livePushTimer = setTimeout(flushLivePush, wait);
+}
+
+/** Send the rendered canvas for one slot through protocol 0x0d. */
+async function pushKeyNow(index) {
+  if (index === WIDE_KEY_INDEX || state.unsynced) return false;
+  if (!state.status.connected || !state.config.settings.autoPush) return false;
+  const tile = $('#grid').children[index];
+  const canvas = tile?.querySelector('canvas');
+  if (!canvas) return false;
+  const slot = `${index % COLS}_${Math.floor(index / COLS)}`;
+  const png = canvas.toDataURL('image/png').split(',')[1];
+  if (!png) return false;
+  const res = await api.pushKey(slot, png);
+  return Boolean(res?.ok);
+}
+
+async function flushLivePush() {
+  livePushTimer = null;
+  if (!livePushPending) return;
+  if (state.pushing) {
     lastLivePushAt = Date.now();
-    pushNow({ background: true });
-  }, wait);
+    livePushTimer = setTimeout(flushLivePush, LIVE_PUSH_URGENT_INTERVAL);
+    return;
+  }
+  const indices = [...livePushIndices];
+  livePushIndices.clear();
+  const full = livePushFull;
+  livePushFull = false;
+  livePushPending = false;
+  lastLivePushAt = Date.now();
+  if (!full && indices.length && !state.unsynced) {
+    let ok = true;
+    for (const index of indices) {
+      try {
+        ok = await pushKeyNow(index);
+      } catch {
+        ok = false;
+      }
+      if (!ok) break;
+    }
+    if (ok) return;
+  }
+  pushNow({ background: true });
 }
 
 function schedulePush() {

@@ -362,9 +362,10 @@ function bumpKeyState(actionid, index) {
       if (!key?.action || key.action.type !== 'plugin' || key.action.actionid !== actionid) continue;
       if (key.stateIndex === next) continue;
       key.stateIndex = next;
-      if (page.id === state.config.activePageId) drawIndex(Number(slot));
+      if (page.id === state.config.activePageId) {
+        Promise.resolve(drawIndex(Number(slot))).then(() => scheduleLivePush(Number(slot)));
+      }
       scheduleSave();
-      scheduleLivePush();
     }
   }
   for (const profile of state.config.profiles || []) {
@@ -373,10 +374,9 @@ function bumpKeyState(actionid, index) {
       if (key.stateIndex === next) continue;
       key.stateIndex = next;
       if (profile.id === state.config.activeProfileId && !activePage()?.keys?.[slot]) {
-        drawIndex(Number(slot));
+        Promise.resolve(drawIndex(Number(slot))).then(() => scheduleLivePush(Number(slot)));
       }
       scheduleSave();
-      scheduleLivePush();
     }
   }
 }
@@ -455,8 +455,7 @@ function syncCommandOutputs() {
     commandOutputs.delete(key);
     const loc = keyLocation(key);
     if (commandKeyVisible(loc)) {
-      drawIndex(loc.index);
-      scheduleLivePush();
+      Promise.resolve(drawIndex(loc.index)).then(() => scheduleLivePush(loc.index));
     }
   };
   const consider = (key) => {
@@ -490,8 +489,7 @@ function syncCommandOutputs() {
         }
         const loc = keyLocation(key);
         if (commandKeyVisible(loc)) {
-          drawIndex(loc.index);
-          scheduleLivePush();
+          Promise.resolve(drawIndex(loc.index)).then(() => scheduleLivePush(loc.index));
         }
       } catch {
         commandOutputs.set(key, { image: '', text: '—' });
@@ -1980,8 +1978,7 @@ function bind() {
     else map.delete(mapKey);
     const loc = findPluginAction(actionid);
     if (pluginLocVisible(loc)) {
-      drawIndex(loc.index);
-      scheduleLivePush();
+      Promise.resolve(drawIndex(loc.index)).then(() => scheduleLivePush(loc.index));
     }
   });
 
@@ -2020,8 +2017,7 @@ function bind() {
     }
     if (!changed) return;
     if (pluginLocVisible(loc)) {
-      drawIndex(loc.index);
-      scheduleLivePush();
+      Promise.resolve(drawIndex(loc.index)).then(() => scheduleLivePush(loc.index));
     }
     scheduleSave();
   });

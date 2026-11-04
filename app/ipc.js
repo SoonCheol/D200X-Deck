@@ -17,7 +17,7 @@ const { childDir, parsePackId } = require('./lib/iconpacks');
 const { imageByExtension } = require('./lib/mime');
 const { CH } = require('./lib/channels');
 const { download: downloadPluginPackage } = require('./lib/sdcatalog');
-const { buildPage } = require('./lib/page');
+const { buildPage, buildKeyUpdate } = require('./lib/page');
 const sysstats = require('./lib/sysstats');
 
 const RENDERER_DIR = path.join(__dirname, 'renderer');
@@ -128,6 +128,21 @@ handle(CH.deckPush, async (_evt, images, wideMode) => {
     deck.pushPage(zip);
     deck.setWideMode(wideMode);
     console.log(`[deck] pushed page: ${images.length} keys, ${(zip.length / 1024).toFixed(1)} KB`);
+    return { ok: true, bytes: zip.length };
+  } catch (err) {
+    return { ok: false, error: err.message || String(err) };
+  }
+});
+
+handle(CH.deckPushKey, async (_evt, slot, png) => {
+  if (!deck.connected) return { ok: false, error: 'not connected' };
+  if (!/^[0-4]_[0-2]$/.test(String(slot || ''))) return { ok: false, error: 'invalid slot' };
+  if (typeof png !== 'string' || !png || png.length > 1_500_000) {
+    return { ok: false, error: 'invalid key image' };
+  }
+  try {
+    const zip = await buildKeyUpdate(String(slot), png);
+    deck.pushKey(zip);
     return { ok: true, bytes: zip.length };
   } catch (err) {
     return { ok: false, error: err.message || String(err) };
