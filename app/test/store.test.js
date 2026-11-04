@@ -200,7 +200,9 @@ test('caption fonts and lock-screen settings survive save/load', () => {
   });
   assert.equal(loaded.settings.lockScreen, true);
   assert.equal(loaded.settings.launchAtLogin, false);
-  assert.match(loaded.settings.lockImage, /^data:image\/png/);
+  // Ref stays on load; the renderer resolves it through ulanzi-image://.
+  assert.match(loaded.settings.lockImage, /^file:[a-f0-9]{40}\.png$/);
+  assert.match(store.expandImages(loaded.settings.lockImage), /^data:image\/png/);
 });
 
 test('the inspector collapse preference is boolean and survives save/load', () => {
@@ -475,7 +477,8 @@ test('key images are stored as files, not inside config.json', () => {
 
   const reloaded = new Store(dir);
   reloaded.load();
-  assert.match(reloaded.config.pages[0].keys[0].icon, /^data:image\/png;base64,/);
+  assert.match(reloaded.config.pages[0].keys[0].icon, /^file:[a-f0-9]{40}\.png$/);
+  assert.match(reloaded.expandImages(reloaded.config.pages[0].keys[0].icon), /^data:image\/png;base64,/);
 });
 
 test('a profile without pages gets a default page on load', () => {
@@ -517,8 +520,9 @@ test('pinned keys, backgrounds and standby settings survive save/load', () => {
 
   const loaded = store.load();
   assert.equal(loaded.settings.standbySeconds, 45);
-  assert.match(loaded.settings.standbyImage, /^data:image\/png/);
-  assert.match(loaded.pages[0].background, /^data:image\/png/);
+  assert.match(loaded.settings.standbyImage, /^file:[a-f0-9]{40}\.png$/);
+  assert.match(loaded.pages[0].background, /^file:[a-f0-9]{40}\.png$/);
+  assert.match(store.expandImages(loaded.settings.standbyImage), /^data:image\/png/);
   assert.equal(loaded.profiles[0].pinned[4].action.seconds, 60);
 });
 
@@ -555,13 +559,17 @@ test('state, pinned, profile and lock images stay file-backed', () => {
   assert.equal(onDisk.settings.lockImage.includes('data:image'), false);
 
   const loaded = store.load();
-  assert.equal(loaded.pages[0].keys[0].icon, png);
-  assert.equal(loaded.pages[0].keys[0].states[0].icon, svg);
-  assert.equal(loaded.pages[0].background, png);
-  assert.equal(loaded.profiles[0].background, png);
-  assert.equal(loaded.profiles[0].pinned[1].icon, png);
-  assert.equal(loaded.profiles[0].pinned[1].states[0].icon, svg);
-  assert.equal(loaded.settings.lockImage, svg);
+  const ref = /^file:[a-f0-9]{40}\.(png|svg)$/;
+  assert.match(loaded.pages[0].keys[0].icon, ref);
+  assert.match(loaded.pages[0].keys[0].states[0].icon, ref);
+  assert.match(loaded.pages[0].background, ref);
+  assert.match(loaded.profiles[0].background, ref);
+  assert.match(loaded.profiles[0].pinned[1].icon, ref);
+  assert.match(loaded.profiles[0].pinned[1].states[0].icon, ref);
+  assert.match(loaded.settings.lockImage, ref);
+  // Exports still carry the bytes.
+  assert.equal(store.expandImages(loaded.pages[0].keys[0].icon), png);
+  assert.equal(store.expandImages(loaded.settings.lockImage), svg);
 });
 
 test('a missing or traversing file image becomes null on load', () => {

@@ -1,6 +1,6 @@
 'use strict';
 
-/* global $, ACTION_LABELS, activePage, addOpenKeyForPage, addPage, addSubpage, api, autoIconFor, backgroundFor, capturePageImage, COLS, commit, confirmAction, downscaleBackground, downscaleImage, drawIndex, drawSystemPanel, effectiveKey, ensureKey, esc, isPinnedSlot, KEY_COUNT, keyIndexToSlot, lastCleared, lastPageCleared, LEGACY_DEFAULT_EMOJI, loadSiteIcon, navigate, openAppPicker, openHotkeyModal, openIconLibrary, openStoreModal, pickImageData, pinnedFor, pluginImages, pluginStateImages, prettyHotkey, readFileAsDataUrl, refreshWideStats, renderAll, renderGrid, renderPageList, scheduleAutoExit, scheduleSave, setKeyIconFromLibrary, state, syncCommandOutputs, syncPlugins, toast, uniquePageName, uuid, WIDE_KEY_INDEX, wideOptions */
+/* global $, ACTION_LABELS, activePage, addOpenKeyForPage, addPage, addSubpage, api, autoIconFor, backgroundFor, capturePageImage, COLS, commit, confirmAction, DeckImageUrl, downscaleBackground, downscaleImage, drawIndex, drawSystemPanel, effectiveKey, ensureKey, esc, isPinnedSlot, KEY_COUNT, keyIndexToSlot, lastCleared, lastPageCleared, LEGACY_DEFAULT_EMOJI, loadSiteIcon, navigate, openAppPicker, openHotkeyModal, openIconLibrary, openStoreModal, pickImageData, pinnedFor, pluginImages, pluginStateImages, prettyHotkey, readFileAsDataUrl, refreshWideStats, renderAll, renderGrid, renderPageList, scheduleAutoExit, scheduleSave, setKeyIconFromLibrary, state, syncCommandOutputs, syncPlugins, toast, uniquePageName, uuid, WIDE_KEY_INDEX, wideOptions */
 
 // --------------------------------------------------------------- inspector
 
@@ -1422,7 +1422,7 @@ function renderInspector() {
              ${liveImageActive ? 'aria-disabled="true"' : ''}>
           ${
             iconSrc
-              ? `<img src="${esc(iconSrc)}" alt="" />`
+              ? `<img src="${esc(DeckImageUrl.imageUrl(iconSrc))}" alt="" />`
               : `<div class="icon-plus icon-none" title="No icon">${NO_ICON_GLYPH}</div>`
           }
           <div class="meta">

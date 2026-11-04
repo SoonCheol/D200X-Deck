@@ -218,6 +218,8 @@ app/                 Electron GUI (the app)
   lib/deck.js        node-hid transport, read loop, key events, wide-key feed
   lib/page.js        page ZIP builder (content-addressed PNGs)
   lib/store.js       config schema + defaults
+  lib/image-url.js   file: refs ↔ ulanzi-image:// URLs
+  lib/image-protocol.js  serves Images/ to the renderer
   lib/actions.js     open/hotkey/command execution
   lib/sysstats.js    CPU / RAM / GPU sampling for the wide key
   lib/plugin-host.js shared plugin lifecycle (WebSocket server, spawn, backoff)

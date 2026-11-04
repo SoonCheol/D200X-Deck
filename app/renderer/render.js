@@ -1,6 +1,6 @@
 'use strict';
 
-/* global timerTextFor, DeckTextStyle */
+/* global timerTextFor, DeckImageUrl, DeckTextStyle */
 
 const KEY_SIZE = 196;
 const WIDE_KEY_SIZE = { width: 402, height: 196 };
@@ -12,21 +12,26 @@ const IMAGE_CACHE_MAX = 120;
 const imageCache = new Map();
 
 function loadImage(src) {
-  if (imageCache.has(src)) {
-    const hit = imageCache.get(src);
+  // Config images are stored as file: refs; the private scheme serves them and
+  // CORS keeps drawImage() from tainting the key canvases (toDataURL is used
+  // when pushing a page).
+  const resolved = DeckImageUrl.imageUrl(src);
+  if (imageCache.has(resolved)) {
+    const hit = imageCache.get(resolved);
     // refresh recency
-    imageCache.delete(src);
-    imageCache.set(src, hit);
+    imageCache.delete(resolved);
+    imageCache.set(resolved, hit);
     return hit;
   }
   const promise = new Promise((resolve, reject) => {
     const img = new Image();
+    if (resolved.startsWith(`${DeckImageUrl.SCHEME}://`)) img.crossOrigin = 'anonymous';
     img.onload = () => resolve(img);
     img.onerror = () => reject(new Error('image failed to load'));
-    img.src = src;
+    img.src = resolved;
   });
-  promise.catch(() => imageCache.delete(src));
-  imageCache.set(src, promise);
+  promise.catch(() => imageCache.delete(resolved));
+  imageCache.set(resolved, promise);
   while (imageCache.size > IMAGE_CACHE_MAX) {
     const oldest = imageCache.keys().next().value;
     imageCache.delete(oldest);

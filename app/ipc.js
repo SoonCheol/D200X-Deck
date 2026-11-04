@@ -875,7 +875,8 @@ handle(CH.profileExport, async (event, payload) => {
   });
   if (result.canceled || !result.filePath) return { ok: false, canceled: true };
   try {
-    fs.writeFileSync(result.filePath, JSON.stringify(payload, null, 2));
+    // Profiles are shared, so image refs become self-contained data URLs.
+    fs.writeFileSync(result.filePath, JSON.stringify(store.expandImages(payload), null, 2));
     return { ok: true, path: result.filePath };
   } catch (err) {
     return { ok: false, error: err.message || String(err) };

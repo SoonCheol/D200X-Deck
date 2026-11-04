@@ -288,8 +288,11 @@ test('backup recovery restores file-backed key icons and page backgrounds', (t) 
   const loaded = store.load();
 
   assert.equal(store.takeRecovery(), 'backup');
-  assert.equal(loaded.pages[0].keys[0].icon, image);
-  assert.equal(loaded.pages[0].background, image);
+  // The running config keeps file refs; the scheme serves them to the renderer.
+  assert.match(loaded.pages[0].keys[0].icon, /^file:[a-f0-9]{40}\.png$/);
+  assert.match(loaded.pages[0].background, /^file:[a-f0-9]{40}\.png$/);
+  // An export expands the same refs back to data URLs.
+  assert.equal(store.expandImages(loaded.pages[0].keys[0].icon), image);
 });
 
 test('installing an already-managed plugin folder preserves its files', async (t) => {

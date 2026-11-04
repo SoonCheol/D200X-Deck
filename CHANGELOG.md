@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+### Changed
+- **Config images no longer travel to the renderer as base64.** The running config keeps `file:<name>` refs and the renderer loads them through the private `ulanzi-image://` scheme, with CORS so key canvases stay untainted. A 20-page, 260-key profile drops from **25.9 MB to 0.04 MB** of startup payload; the photo-heavy case from **133.8 MB to 0.04 MB**. Profile export still embeds the images.
+- `npm run measure:config` reports the startup payload for a real or synthetic profile.
+
 ## 0.15.0 — 2026-11-03
 
 ### Changed

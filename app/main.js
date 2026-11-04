@@ -6,6 +6,7 @@ const fs = require('node:fs');
 const { isRendererFile: isRendererFileIn } = require('./lib/renderer-url');
 const { applyLoginPath } = require('./lib/shell-path');
 const { appendAppLog } = require('./lib/app-log');
+const { createImageProtocol } = require('./lib/image-protocol');
 
 const { Deck } = require('./lib/deck');
 const { Store } = require('./lib/store');
@@ -636,6 +637,11 @@ protocol.registerSchemesAsPrivileged([
     scheme: 'sd-pi',
     privileges: { standard: true, secure: true, supportFetchAPI: true, corsEnabled: true, stream: true },
   },
+  {
+    // Config images are content-addressed files in the store's Images folder.
+    scheme: 'ulanzi-image',
+    privileges: { standard: true, secure: true, supportFetchAPI: true, corsEnabled: true },
+  },
 ]);
 
 
@@ -683,6 +689,7 @@ app.whenReady().then(() => {
 
   store = new Store(process.env.ULANZI_CONFIG_DIR || app.getPath('userData'));
   store.load();
+  protocol.handle('ulanzi-image', createImageProtocol({ imagesDir: store.imagesDir }));
   applyLoginItemSettings();
   market = new Market({
     dir: process.env.ULANZI_CONFIG_DIR || app.getPath('userData'),

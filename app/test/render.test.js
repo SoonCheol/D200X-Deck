@@ -117,6 +117,7 @@ function loadRenderer({ Image = class {} } = {}) {
     window,
     document,
     DeckTextStyle: textStyle,
+    DeckImageUrl: require('../lib/image-url'),
     Image,
     setTimeout,
     clearTimeout,

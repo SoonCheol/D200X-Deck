@@ -3,6 +3,7 @@
 const fs = require('node:fs');
 const path = require('node:path');
 const { randomUUID, createHash } = require('node:crypto');
+const { fileName: imageFileName } = require('./image-url');
 
 const CONFIG_VERSION = 6;
 
@@ -463,22 +464,44 @@ class Store {
     return changed;
   }
 
-  /** Expand `file:<name>` refs back into data URLs for the renderer. */
-  _internalize(config) {
+  /**
+   * Drop refs whose name is invalid or whose file is gone, so a hand-edited
+   * config cannot point the renderer at an arbitrary path or a broken image.
+   */
+  _sanitizeImages(config) {
+    if (!config || typeof config !== 'object') return config;
     for (const slot of this._imageSlots(config)) {
       const value = slot.get();
       if (typeof value !== 'string' || !value.startsWith('file:')) continue;
-      const name = path.basename(value.slice(5));
-      const file = path.join(this.imagesDir, name);
+      const name = imageFileName(value);
+      if (!name || !fs.existsSync(path.join(this.imagesDir, name))) slot.set(null);
+    }
+    return config;
+  }
+
+  /**
+   * Expand `file:<name>` refs into data URLs for a self-contained export.
+   * The running config keeps refs: the renderer resolves them through the
+   * `ulanzi-image://` scheme, so startup does not carry every image as base64.
+   */
+  expandImages(value) {
+    if (typeof value === 'string') {
+      const name = imageFileName(value);
+      if (!name) return value;
       try {
         const ext = path.extname(name).slice(1).toLowerCase();
         const mime = MIME_FOR[ext] || 'image/png';
-        slot.set(`data:${mime};base64,${fs.readFileSync(file).toString('base64')}`);
+        return `data:${mime};base64,${fs.readFileSync(path.join(this.imagesDir, name)).toString('base64')}`;
       } catch {
-        slot.set(null);
+        return value;
       }
     }
-    return config;
+    if (Array.isArray(value)) return value.map((entry) => this.expandImages(entry));
+    if (value && typeof value === 'object') {
+      for (const key of Object.keys(value)) value[key] = this.expandImages(value[key]);
+      return value;
+    }
+    return value;
   }
 
   /**
@@ -488,7 +511,7 @@ class Store {
    */
   reload() {
     try {
-      const parsed = this._internalize(JSON.parse(fs.readFileSync(this.file, 'utf8')));
+      const parsed = this._sanitizeImages(JSON.parse(fs.readFileSync(this.file, 'utf8')));
       const usable = Array.isArray(parsed.pages) ? parsed.pages.filter((page) => page && typeof page === 'object') : [];
       if (!usable.length) throw new Error('config.json has no usable pages');
       const migrated = this._migrate(parsed);
@@ -509,7 +532,8 @@ class Store {
 
   load() {
     fs.mkdirSync(this.dir, { recursive: true });
-    const read = (file) => JSON.parse(fs.readFileSync(file, 'utf8'));    const defaults = (recovery) => {
+    const read = (file) => this._sanitizeImages(JSON.parse(fs.readFileSync(file, 'utf8')));
+    const defaults = (recovery) => {
       this.config = createDefaultConfig();
       this.recovery = recovery;
       this.save();
@@ -520,7 +544,7 @@ class Store {
     // is still worth using, but the absence itself is not a failure.
     if (!fs.existsSync(this.file)) {
       try {
-        this.config = this._migrate(this._internalize(read(`${this.file}.bak`)));
+        this.config = this._migrate(read(`${this.file}.bak`));
         this.recovery = 'backup';
         this.save();
         return this.config;
@@ -530,7 +554,7 @@ class Store {
     }
 
     try {
-      const parsed = this._internalize(read(this.file));
+      const parsed = read(this.file);
       if (!Array.isArray(parsed.pages) || parsed.pages.length === 0) {
         try { fs.copyFileSync(this.file, `${this.file}.corrupt`); } catch { /* ignore */ }
         return defaults('defaults');
@@ -547,7 +571,7 @@ class Store {
         /* nothing to preserve */
       }
       try {
-        this.config = this._migrate(this._internalize(read(`${this.file}.bak`)));
+        this.config = this._migrate(read(`${this.file}.bak`));
         this.recovery = 'backup';
         this.save();
         return this.config;

@@ -138,6 +138,7 @@ function makeCtx(overrides = {}) {
       config: { settings: {} },
       save() {},
       takeRecovery: () => null,
+      expandImages: (value) => value,
     },
     deck: { status: () => ({}), connected: false },
     plugins: null,

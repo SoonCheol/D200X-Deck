@@ -211,7 +211,7 @@ function main() {
   const configFile = fs.statSync(store.file).size;
   const images = dirSize(store.imagesDir);
   const dataUrls = (json.match(/"data:image\//g) || []).length;
-  const fileRefs = (fs.readFileSync(store.file, 'utf8').match(/"file:/g) || []).length;
+  const fileRefs = (json.match(/"file:/g) || []).length;
   const keyCount = (config.pages || []).reduce(
     (sum, page) => sum + Object.keys(page.keys || {}).length,
     0
@@ -222,9 +222,9 @@ function main() {
   console.log(`images dir:  ${mb(images.bytes)} (${images.files} files, largest ${kb(images.largest)})`);
   console.log(`pages:       ${(config.pages || []).length}`);
   console.log(`keys:        ${keyCount}`);
-  console.log(`data URLs:   ${dataUrls} (what the renderer receives)`);
+  console.log(`payload refs: ${fileRefs} file: refs, ${dataUrls} data URLs`);
   console.log('');
-  console.log(`internalized payload: ${mb(payload)}`);
+  console.log(`startup payload: ${mb(payload)}`);
   console.log(`  vs on-disk config:  ${(payload / Math.max(1, configFile)).toFixed(1)}x`);
   console.log(`  vs image bytes:     ${(payload / Math.max(1, images.bytes)).toFixed(1)}x`);
   console.log('');

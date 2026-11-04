@@ -22,7 +22,7 @@ Run it with `npm run measure:config` or point it at a profile:
 npm run measure:config -- --config "$HOME/Library/Application Support/Ulanzi Deck Open"
 ```
 
-## Results
+## Results before L8
 
 | Profile | Pages / keys | Images on disk | Payload to renderer | `store.load()` | `stringify` |
 | --- | --- | --- | --- | --- | --- |
@@ -32,6 +32,18 @@ npm run measure:config -- --config "$HOME/Library/Application Support/Ulanzi Dec
 
 The generated config file itself is 66 KB in both synthetic runs (282 `file:`
 refs); everything else is image data, inflated ~1.5–2× by base64.
+
+## Results after L8
+
+| Profile | Payload to renderer | `store.load()` | `stringify` |
+| --- | --- | --- | --- |
+| This machine's real profile | **0.01 MB** | 9 ms | 0.0 ms |
+| Large mixed | **0.04 MB** | 4 ms | 0.1 ms |
+| Photo-heavy | **0.04 MB** | 6 ms | 0.1 ms |
+
+`load()` now does one `stat` per ref (to drop missing or invalid names) instead
+of reading and base64-encoding every image; the payload is the config JSON with
+`file:` refs. The renderer resolves them through `ulanzi-image://images/<name>`.
 
 ## What it means
 
@@ -44,10 +56,13 @@ refs); everything else is image data, inflated ~1.5–2× by base64.
 
 ## Decision
 
-**L5 is done** (images live on disk and the config file is small). **L8 is
-justified for large profiles**, but it is a structural change, not a tweak:
-serve images from a custom scheme instead of data URLs, keep `file:` refs in the
-renderer, and let the canvas/image loader resolve them on demand. That also
-removes the repeated inflation on every `config:state` and `config:save`.
+**L5 was already done** (images live on disk and the config file is small).
+**L8 is implemented on main** (unreleased at the time of writing): the store
+keeps `file:<name>` refs for the running config, the renderer loads them through
+a private CORS-enabled scheme, and profile export still expands them into data
+URLs so exported profiles remain self-contained.
 
-This measurement is the evidence for scheduling L8; it does not implement it.
+The scheme is `ulanzi-image://images/<sha1>.<ext>`; names are validated and the
+handler never joins a caller-supplied path. The renderer sets
+`crossOrigin="anonymous"` for those images so `drawImage()` keeps the key
+canvases untainted and `toDataURL()` still works when pushing a page.
