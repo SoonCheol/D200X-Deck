@@ -199,3 +199,31 @@ test('plugin settings still persist', () => {
   assert.equal(h.saves.length, 1);
   assert.deepEqual(h.key.action.settings, { volume: 3 });
 });
+
+// ------------------------------------------------ lock screen has no clock
+
+test('the lock screen frame has no clock and no refresh timer', async () => {
+  const slice = region('const lock = {', 'async function exitLockScreen');
+  const rendered = [];
+  const timers = [];
+  const context = {
+    state: { config: { settings: { lockScreen: true } }, status: { connected: true } },
+    api: { pushPage: async () => ({ ok: true }) },
+    standby: { active: false },
+    clearStandbyTimers() {},
+    renderStandbySlices: async (settings) => {
+      rendered.push(settings);
+      return [];
+    },
+    setInterval: (...args) => timers.push(args),
+    clearInterval() {},
+  };
+  vm.createContext(context);
+  vm.runInContext(`${slice}\nthis.enterLockScreen = enterLockScreen;`, context);
+
+  await context.enterLockScreen();
+
+  assert.equal(rendered.length, 1);
+  assert.equal(rendered[0].standbyClock, false, 'the firmware wide key already shows the time');
+  assert.equal(timers.length, 0, 'a static frame needs no refresh');
+});

@@ -43,7 +43,7 @@ _The editor, the plugin manager and the store all run against the deck live._
 * **POP menus** — import and use POP keys: press one to get a compact action palette at
   the pointer (up to 9 actions).
 * **Device control** — brightness (0–100 %), screen sleep timeout, clock sync, standby
-  clock/wallpaper, optional lock-screen image/clock, and message/caption styling.
+  clock/wallpaper, optional lock-screen image, and message/caption styling.
 * **Plugins** — runs **Ulanzi** plugins and **Stream Deck SDK / OpenAction** plugins:
   Node, HTML and native macOS binaries, with live images/titles, states, per-action and
   global settings, property inspectors, and real key-down/key-up events. It scans

@@ -1234,15 +1234,13 @@ function startFrontmostWatch() {
 // ------------------------------------------------------- standby screensaver
 
 const standby = { active: false, timer: null, refresh: null };
-const lock = { active: false, refresh: null };
+const lock = { active: false };
 
 function lockActive() {
   return lock.active;
 }
 
 function stopLock() {
-  if (lock.refresh) clearInterval(lock.refresh);
-  lock.refresh = null;
   lock.active = false;
 }
 
@@ -1251,8 +1249,9 @@ function lockImageSrc() {
 }
 
 async function pushLockFrame() {
+  // No clock: a bitmap clock freezes when the Mac sleeps. The firmware wide key keeps the time.
   return api.pushPage(
-    await renderStandbySlices({ standbyImage: lockImageSrc(), standbyClock: true })
+    await renderStandbySlices({ standbyImage: lockImageSrc(), standbyClock: false })
   );
 }
 
@@ -1264,14 +1263,6 @@ async function enterLockScreen() {
   try {
     const res = await pushLockFrame();
     if (!res.ok) throw new Error(res.error || 'push failed');
-    lock.refresh = setInterval(async () => {
-      if (!lock.active || !state.status.connected) return;
-      try {
-        await pushLockFrame();
-      } catch {
-        /* keep the last frame */
-      }
-    }, 30_000);
   } catch {
     stopLock();
   }

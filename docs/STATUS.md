@@ -13,7 +13,7 @@ file holds what is still open, what is verified, and what the next agent should 
 | Release | **v0.16.5** — https://github.com/edufalcao/ulanzi-deck-open/releases/tag/v0.16.5 |
 | `main` | `b7403ca` ("Record the 0.16.5 test count") |
 | Installed app | `~/Applications/Ulanzi Deck Open.app` — 0.16.5, ad-hoc signed |
-| Tests | **330 total, 328 pass, 2 skipped**; eslint and `tsc --noEmit` clean |
+| Tests | **331 total, 329 pass, 2 skipped**; eslint and `tsc --noEmit` clean |
 | Deck | Ulanzi D200, firmware 2.0.3, macOS 27.2 (26B123) |
 | Release assets | `Ulanzi-Deck-Open-0.16.5.dmg` (247,951,594 bytes) + `SHA256SUMS.txt`, checksum verified |
 
@@ -214,7 +214,7 @@ paths, and a clean-machine DMG install.
 | `app/lib/deck.js` | HID protocol, page/key pushes, clock/stats |
 | `app/native/hidseize.c` | Keyboard seize helper (see P1) |
 | `app/renderer/` | Editor UI (classic scripts; `app.js`, `ui.js`, `press.js`, `pickers.js`) |
-| `app/test/` | 330 node:test cases; renderer tests use vm slices |
+| `app/test/` | 331 node:test cases; renderer tests use vm slices |
 | `docs/reviews/` | Audits (2026-11-01/02/04) |
 | `docs/CRASH-REPORT-ANALYSIS-20261104.md` | WindowServer/osascript evidence |
 

@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+### Fixed
+- **The lock screen no longer shows a frozen clock.** The lock image used to include a drawn clock that stopped updating when the Mac slept, so it showed an old time. The lock screen now shows only the wallpaper; the deck's wide key keeps the correct time.
+
 ### Documented
 - **Key capture is unavailable on macOS 27.** The kernel refuses the Deck keyboard seize (`0xe00002c1`) and the ad-hoc build cannot hold an Input Monitoring grant. The README now says so. No behavior changed. A Developer ID build is needed to test further. On firmware 2.0.3 the URL fallback does not reproduce.
 
