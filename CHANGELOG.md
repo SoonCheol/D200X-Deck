@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.16.7 — 2026-11-05
 
 ### Fixed
 - **Type text keeps emoji and accents.** The action used System Events `keystroke`, which types "a" for any character with no key on the keyboard layout (a shrug emoji came out as `aaaa`). It now posts Unicode text through the native `hotkey` helper, and no longer starts an `osascript` process per press. Without the helper (a source run that skipped `build:native`) it falls back to the old path.
