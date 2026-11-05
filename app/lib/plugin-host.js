@@ -569,8 +569,15 @@ class PluginHost extends EventEmitter {
     if (meta.writable) return { uuid, list: this.list() };
     fs.mkdirSync(this.appPluginsDir, { recursive: true });
     const dest = path.join(this.appPluginsDir, path.basename(meta.dir));
-    if (fs.existsSync(dest)) fs.rmSync(dest, { recursive: true, force: true });
-    fs.cpSync(meta.dir, dest, { recursive: true, force: true });
+    // Stage first: a failed copy must not destroy the previous local copy.
+    const staging = `${dest}.importing-${process.pid}-${Date.now()}`;
+    try {
+      fs.cpSync(meta.dir, staging, { recursive: true, force: true });
+      if (fs.existsSync(dest)) fs.rmSync(dest, { recursive: true, force: true });
+      fs.renameSync(staging, dest);
+    } finally {
+      if (fs.existsSync(staging)) fs.rmSync(staging, { recursive: true, force: true });
+    }
     return { uuid, list: this.reloadOne(uuid) };
   }
 

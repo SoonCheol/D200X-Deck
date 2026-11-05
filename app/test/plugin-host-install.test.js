@@ -85,3 +85,29 @@ test('import copies a read-only plugin and remove refuses it', (t) => {
   assert.equal(result.uuid, meta.uuid);
   assert.ok(fs.existsSync(path.join(plugins, path.basename(source), 'app.js')));
 });
+
+test('a failed import copy keeps the previous installed copy', (t) => {
+  const { root, plugins } = workspace(t);
+  const vendor = path.join(root, 'vendor');
+  const source = path.join(vendor, 'com.example.vendor.ulanziPlugin');
+  writePlugin(source, 'com.example.vendor', '// new\n');
+  const destination = path.join(plugins, 'com.example.vendor.ulanziPlugin');
+  writePlugin(destination, 'com.example.vendor', '// old\n');
+
+  const manager = new PluginManager({ dirs: [plugins, vendor], appPluginsDir: plugins });
+  const meta = manager.readPlugin(source, vendor);
+  manager.plugins.set(meta.uuid, { ...meta, writable: false });
+  manager.scan = () => [];
+  manager.list = () => [];
+
+  const originalCopy = fs.cpSync;
+  fs.cpSync = () => {
+    throw new Error('disk full');
+  };
+  t.after(() => {
+    fs.cpSync = originalCopy;
+  });
+
+  assert.throws(() => manager.import(meta.uuid), /disk full/i);
+  assert.equal(fs.readFileSync(path.join(destination, 'app.js'), 'utf8'), '// old\n');
+});
