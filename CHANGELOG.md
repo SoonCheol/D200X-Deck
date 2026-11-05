@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.16.4 — 2026-11-04
+
+### Security
+- **The plugin trust boundary is documented and app data is owner-only.** Plugins are local programs that run with your account; the host rejects browser origins but has no per-plugin secret, so a local process that knows a plugin UUID can register as it. `config.json`, its backup and the data directory are now `0600`/`0700`, and the README states the boundary. No protocol change, so every plugin still connects.
+
+### Fixed
+- **`hidseize` re-seizes the deck after an unplug/replug.** It used to leave the match loop after the first seizure, so the firmware fallback could type into the front app until the app restarted. Helper output now also goes to `~/Library/Logs/Ulanzi Deck Open/seize.log`.
+
+### Tests
+- 309 → **311** passing, plus two opt-in Electron smoke tests that are skipped without a GUI session.
+
 ## 0.16.3 — 2026-11-04
 
 ### Fixed
