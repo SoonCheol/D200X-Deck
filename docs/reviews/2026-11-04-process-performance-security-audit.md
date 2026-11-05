@@ -333,7 +333,7 @@ remaining verification gaps are in [`../STATUS.md`](../STATUS.md).
 | L5 | ✅ `createThumbnailFromPath` first, `plutil`/`sips` fallback | `a24ccd8` |
 | L6 | ✅ Key-command pipes close at shell exit | `5067711` |
 | §4 WS | Documented, no secret; app data `0600`/`0700` | `3ad27e0` |
-| §4 hidseize | Re-arm implemented; hardware test blocked by macOS 27/TCC | `aefd21c` |
+| §4 hidseize | Re-arm implemented; hardware test blocked by macOS 27/TCC. Key capture documented as unavailable on macOS 27 (owner decision 2026-11-05; no certificate) | `aefd21c` |
 | §4 import() | Staged copy before replacing | `4a37f10` |
 
 Follow-ups found during the 0.16.x gates:

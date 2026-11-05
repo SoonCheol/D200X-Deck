@@ -54,7 +54,12 @@ does **not** work, and the app now reports why:
 - The deck's URL fallback does **not** reproduce on firmware 2.0.3 with the app
   running, so the practical impact here is unclear.
 
-What to try next, in order:
+**Decision (owner, 2026-11-05): no certificate, so key capture is documented as
+unavailable on macOS 27** (README, CHANGELOG). Code and the Grant… button are
+unchanged. Gating the seize attempt (option B) or removing the feature (option C)
+was offered and not chosen. Reopen only if a Developer ID certificate appears.
+
+What to try next if a certificate appears, in order:
 
 1. **Verify on a Developer ID–signed build.** TCC needs a stable code identity.
    With a real certificate, grant Input Monitoring and check
@@ -159,6 +164,7 @@ paths, and a clean-machine DMG install.
 | 2026-11-04 | Ad-hoc sign every packaged build | TCC had no code identity at all before; still unstable across builds |
 | 2026-11-04 | Ship the `hidseize` re-arm as code-verified despite the blocked hardware test | It is a strict improvement and the fallback no longer reproduces here |
 | 2026-11-04 | Timers keyed by page/slot instead of the action object | The inspector replaces `key.action`; the countdown must follow the slot |
+| 2026-11-05 | Document key capture as unavailable on macOS 27 (docs only, code and Grant… unchanged) | No Developer ID certificate (0 signing identities); ad-hoc builds cannot hold a TCC grant; the kernel refused the seize even with a grant (PR #13); the URL fallback does not reproduce on firmware 2.0.3. Retest only with a Developer ID build |
 | 2026-11-05 | Merge PR #13 (key-capture state + App tab) | `0xe00002c1` is `kIOReturnNotPrivileged`; the old text misdiagnosed it |
 
 ## 5. Environment and tooling (agent shell)
@@ -211,8 +217,7 @@ paths, and a clean-machine DMG install.
 
 ## 8. Next three actions
 
-1. Decide the signing path for P1 (Developer ID vs. document key capture as
-   unavailable on macOS 27). This unblocks the only unresolved product issue.
+1. P1 is decided (documented unavailable). Reopen only with a Developer ID.
 2. Run the P2 GUI/hardware checklist on the installed 0.16.5 build.
 3. If those pass, close the 2026-11-04 audit in the roadmap and start the 1.0
    hardware acceptance matrix.
