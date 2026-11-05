@@ -140,14 +140,30 @@ test('runHotkey builds the expected command for the platform', async (t) => {
   }
 });
 
-test('close and text actions use System Events', async () => {
+test('close uses System Events', async () => {
   execCalls.length = 0;
   assert.deepEqual(await actions.execute({ type: 'close', value: 'Finder' }), { ok: true });
   assert.match(execCalls[0].args[1], /tell application "Finder" to quit/);
+});
 
-  assert.deepEqual(await actions.execute({ type: 'text', value: 'Hello', enter: true }), { ok: true });
-  assert.match(execCalls[1].args[1], /keystroke "Hello"/);
-  assert.match(execCalls[1].args[1], /key code 36/);
+test('text is typed through the native helper so emoji and accents survive', async (t) => {
+  if (process.platform !== 'darwin') {
+    t.skip('the text helper is macOS only');
+    return;
+  }
+  const helper = path.join(__dirname, '..', 'bin', 'hotkey');
+  execCalls.length = 0;
+  const emoji = '🤷‍♂️ é';
+  assert.deepEqual(await actions.execute({ type: 'text', value: emoji, enter: true }), { ok: true });
+  assert.deepEqual(await actions.execute({ type: 'text', value: '', enter: true }), { ok: true });
+  if (fs.existsSync(helper)) {
+    assert.deepEqual(execCalls[0], { file: helper, args: ['text', emoji, 'enter'] });
+    assert.deepEqual(execCalls[1], { file: helper, args: ['36'] });
+  } else {
+    // Without the helper (not built) the AppleScript path still types ASCII.
+    assert.equal(execCalls[0].file, '/usr/bin/osascript');
+    assert.match(execCalls[0].args[1], /keystroke/);
+  }
 });
 
 test('unknown media keys and actions fail without spawning', async () => {

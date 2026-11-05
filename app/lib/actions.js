@@ -347,6 +347,11 @@ async function openTarget(value) {
 async function typeText(value, enter = false) {
   const text = String(value ?? '');
   if (!text && !enter) return { ok: false, error: 'empty text' };
+  // The helper posts Unicode, so emoji work; System Events keystroke types "a" for them.
+  const helper = helperBinary('hotkey');
+  if (process.platform === 'darwin' && require('node:fs').existsSync(helper)) {
+    return execFileResult(helper, text ? ['text', text, ...(enter ? ['enter'] : [])] : ['36']);
+  }
   const parts = [];
   if (text) parts.push(`keystroke ${JSON.stringify(text)}`);
   if (enter) parts.push('key code 36');
