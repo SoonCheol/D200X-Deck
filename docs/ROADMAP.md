@@ -1,11 +1,11 @@
 # Roadmap
 
-> **Status (2026-11-04, 0.16.3):** the original build-out is shipped. The remaining work
+> **Status (2026-11-04, 0.16.5):** the original build-out is shipped. The remaining work
 > is driven by the two audits in [`reviews/`](reviews/) and the unimplemented
 > platform features listed at the end of this file. See
 > [`../CHANGELOG.md`](../CHANGELOG.md) for the shipped list.
 
-## Next: 0.16.4–0.16.5 — host hardening (2026-11-04 audit)
+## 0.16.4–0.16.5 — host hardening (2026-11-04 audit)
 
 Source: [`reviews/2026-11-04-process-performance-security-audit.md`](reviews/2026-11-04-process-performance-security-audit.md).
 The crash report covered third-party plugins; this audit found the same defect
@@ -48,16 +48,27 @@ accepted on the device and in the editor, including across a page change.
 - **Amphetamine** — a built-in action was dropped; the noisy plugin is not in
   current use.
 
-### 0.16.5 — main thread and I/O
+### 0.16.5 — main thread and I/O (shipped)
 
-- **M2** Replace the 3 s `lsappinfo` poll with one
-  `lsappinfo listen +becameFrontmost` child; keep the poll as a fallback.
-- **L2** Limit renderer crash reloads (3 in 60 s, then stop and report).
-- **L3** Use `HID.devicesAsync()` and back off to 15 s while no deck is present.
-- **L4** Keep the log size in memory and append through one stream.
-- **L5** Try `nativeImage.createThumbnailFromPath` before `plutil`/`sips`.
-- **L6** Key-press commands no longer hold stdout pipes for background children.
-- **import()** Stage the copy before removing the previous folder.
+- **M2** ✅ One long-lived `lsappinfo listen +becameFrontmost` triggers the
+  existing lookup; the old poll remains the fallback when it exits.
+- **L2** ✅ Three renderer crashes in 60 s are retried; the next shows an error
+  instead of reloading forever.
+- **L3** ✅ `HID.devicesAsync()` and a 15 s backoff once the deck has been
+  missing for a minute.
+- **L4** ✅ The log size is tracked in memory, so a message costs one append
+  instead of exists + stat + append.
+- **L5** ✅ `nativeImage.createThumbnailFromPath` first, `plutil`/`sips` as the
+  fallback.
+- **L6** ✅ Key-press commands send stdout to /dev/null and close stderr when
+  the shell exits.
+- **import()** ✅ Staged copy, so a failed import keeps the previous folder.
+- **Key capture UI** ✅ (PR 13) A refused seize reads "Not allowed by macOS",
+  and Key capture lives in Deck settings → App with a Grant… button only when
+  Input Monitoring is missing.
+
+Gate pending: packaged build and GUI acceptance (key capture tab, an app-linked
+profile switch, and a deck replug). Tests and lint/typecheck are clean.
 
 ### Decisions recorded
 

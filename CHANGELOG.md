@@ -1,12 +1,22 @@
 # Changelog
 
-## Unreleased
+## 0.16.5 — 2026-11-04
 
 ### Fixed
 - **Key capture reports a refused seize correctly.** `hidseize` logs `seize 0xe00002c1` when macOS refuses to seize the Deck's keyboard. That code is `kIOReturnNotPrivileged`, not "in use", so the state now reads **Not allowed by macOS** and the help text says no permission setting changes it. A real exclusive-access error still reads "The Deck is in use by another app".
+- **A renderer that keeps crashing is not reloaded forever.** Three crashes in 60 s are retried; the next leaves the window closed and shows an error instead of starting a new renderer each time.
+- **A failed read-only plugin import keeps the previous copy.** The import stages the copy before replacing the installed folder, the same way install does.
+- **A key-press command releases its pipes when the shell exits.** Background children no longer hold two read fds per launched command; error reporting still works.
 
 ### Changed
 - **Key capture moved to Deck settings → App**, next to Accessibility. A **Grant…** button opens Input Monitoring, and it appears only when that permission is missing. Each state has its own help text.
+- **Plugin logs track their size in memory.** A Stream Deck message costs one append instead of exists/stat/append on the main thread.
+- **HID enumeration is asynchronous and backs off.** Reconnects use `devicesAsync()` and drop to 15 s once the deck has been missing for a minute.
+- **The front app is watched with one `lsappinfo listen` child.** It replaces two `lsappinfo` processes every 3 s; the existing lookup is the fallback if the listener exits.
+- **App picker icons use an in-process thumbnail first**, with `plutil` + `sips` only as a fallback.
+
+### Tests
+- 313 → **327** passing, plus two opt-in Electron smoke tests that are skipped without a GUI session.
 
 ## 0.16.4 — 2026-11-04
 
