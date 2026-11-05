@@ -336,6 +336,10 @@ remaining verification gaps are in [`../STATUS.md`](../STATUS.md).
 | §4 hidseize | Re-arm implemented; hardware test blocked by macOS 27/TCC. Key capture documented as unavailable on macOS 27 (owner decision 2026-11-05; no certificate) | `aefd21c` |
 | §4 import() | Staged copy before replacing | `4a37f10` |
 
+GUI/hardware acceptance on the installed 0.16.5 build passed on 2026-11-05
+(owner-observed): App-tab key capture row, frontmost profile switching (M2
+listener), deck replug (L3), app picker thumbnails (L5).
+
 Follow-ups found during the 0.16.x gates:
 
 - **Timer identity** (`a13afa7`): timers keyed by page/slot, so a page change or

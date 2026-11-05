@@ -77,6 +77,14 @@ shows `released` then `seized 1`, with no URL typed into a focused text field.
 
 ### P2 — Hardware and GUI acceptance
 
+**Passed 2026-11-05 on the installed 0.16.5 build (owner-observed, no log
+evidence):** key capture row and state text, Grant… only for the permission
+state, profile follows the front app, keys work after unplug/replug, app picker
+thumbnails. Still open from this list: lock/unlock/sleep, helper crash/restart,
+HID error paths, clean-machine DMG.
+
+Original checklist:
+
 The 0.16.5 gate was green on unit tests, but these were not re-confirmed after
 the final build:
 
