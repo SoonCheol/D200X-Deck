@@ -512,18 +512,36 @@ function initDeck() {
   deck.on('brightness', (level) => send(CH.deckBrightness, level));
   deck.on('error', (message) => send(CH.deckError, message));
 
-  const tryConnect = () => {
+  // Enumerate HID devices off the main thread, and back off to 15 s once the
+  // deck has been missing for a minute. The first retry stays at 4 s.
+  let reconnectMs = 4000;
+  let failedSince = 0;
+  const scheduleReconnect = () => {
+    if (reconnectTimer) clearTimeout(reconnectTimer);
+    reconnectTimer = setTimeout(tryConnect, reconnectMs);
+  };
+  const tryConnect = async () => {
     if (noDeck) {
       send(CH.deckStatus, { connected: false, message: 'Disconnected', info: null });
+      scheduleReconnect();
       return;
     }
     if (!deck.connected) {
-      const ok = deck.connect();
-      if (!ok) send(CH.deckStatus, deck.status());
+      const ok = await deck.connectAsync();
+      if (ok) {
+        reconnectMs = 4000;
+        failedSince = 0;
+      } else {
+        if (!failedSince) failedSince = Date.now();
+        send(CH.deckStatus, deck.status());
+        if (Date.now() - failedSince >= 60_000) reconnectMs = 15_000;
+      }
+    } else {
+      failedSince = 0;
     }
+    scheduleReconnect();
   };
   tryConnect();
-  reconnectTimer = setInterval(tryConnect, 4000);
 }
 
 function allPluginManagers() {
@@ -798,7 +816,7 @@ app.on('will-quit', (event) => {
   if (quitCleanupStarted) return;
   quitCleanupStarted = true;
 
-  if (reconnectTimer) clearInterval(reconnectTimer);
+  if (reconnectTimer) clearTimeout(reconnectTimer);
   if (seizeTimer) clearTimeout(seizeTimer);
   if (deck) deck.disconnect('App closed');
   if (seizeProc) {

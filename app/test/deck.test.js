@@ -35,7 +35,7 @@ const originalLoad = Module._load;
 let Deck;
 try {
   Module._load = function load(request, parent, isMain) {
-    if (request === 'node-hid') return { devices: () => devices, HID: FakeHID };
+    if (request === 'node-hid') return { devices: () => devices, devicesAsync: async () => devices, HID: FakeHID };
     return originalLoad.call(this, request, parent, isMain);
   };
   ({ Deck } = require('../lib/deck'));
@@ -173,4 +173,18 @@ test('disconnect closes the device and clears status', (t) => {
   assert.equal(deck.device, null);
   assert.equal(deck.status().connected, false);
   assert.equal(deck.status().message, 'Unplugged');
+});
+
+
+test('findAsync resolves the control interface without the sync scan', async () => {
+  const found = await Deck.findAsync();
+  assert.equal(found.path, 'control');
+});
+
+test('connectAsync opens the deck found asynchronously', async (t) => {
+  restoreStats(t);
+  const deck = new Deck();
+  assert.equal(await deck.connectAsync(), true);
+  assert.equal(deck.info.path, 'control');
+  deck.disconnect();
 });

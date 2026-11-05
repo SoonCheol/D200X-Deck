@@ -31,6 +31,14 @@ class Deck extends EventEmitter {
     return devices.find((d) => d.interface === CONTROL_INTERFACE) || devices[0] || null;
   }
 
+  /** The same lookup without blocking the main thread during HID enumeration. */
+  static async findAsync() {
+    const devices = (await HID.devicesAsync()).filter(
+      (d) => d.vendorId === VENDOR_ID && d.productId === PRODUCT_ID
+    );
+    return devices.find((d) => d.interface === CONTROL_INTERFACE) || devices[0] || null;
+  }
+
   get connected() {
     return Boolean(this.device);
   }
@@ -44,6 +52,22 @@ class Deck extends EventEmitter {
     } catch (err) {
       scanError = err.message || 'Device scan failed';
     }
+    return this._openFound(found, scanError);
+  }
+
+  async connectAsync() {
+    if (this.device) return true;
+    let found = null;
+    let scanError = '';
+    try {
+      found = await Deck.findAsync();
+    } catch (err) {
+      scanError = err.message || 'Device scan failed';
+    }
+    return this._openFound(found, scanError);
+  }
+
+  _openFound(found, scanError) {
     if (!found) {
       this._status(false, scanError || 'Not connected');
       return false;
