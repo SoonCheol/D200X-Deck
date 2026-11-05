@@ -23,6 +23,7 @@ const CH = Object.freeze({
   appUpdateSettingsChanged: 'app:update-settings-changed',
   appAccessibility: 'app:accessibility',
   appRequestAccessibility: 'app:request-accessibility',
+  appOpenInputMonitoring: 'app:open-input-monitoring',
   actionRun: 'action:run',
   storeSession: 'store:session',
   storeLogin: 'store:login',

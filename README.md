@@ -168,13 +168,13 @@ added later.
 2. Connect the D200 and launch **Ulanzi Deck Open**.
 3. Grant macOS permissions when asked:
    * **Accessibility** — required for hotkeys and typing text. The app offers a
-     **Grant…** button in **Deck settings**, or use System Settings → Privacy & Security
-     → Accessibility. Media keys use the native `mediakey` helper. If a media key
+     **Grant…** button in **Deck settings → App**, or use System Settings → Privacy & Security
+     → Accessibility (named **Device Control and Data Access** on macOS 27). Media keys use the native `mediakey` helper. If a media key
      does nothing, grant Accessibility and relaunch.
    * **Input Monitoring** — required by the bundled `hidseize` helper so the D200's
-     firmware fallback cannot type `www.ulanzistudio.com` into the frontmost app. If the
-     toast appears, enable the app in System Settings → Privacy & Security → Input
-     Monitoring and relaunch.
+     firmware fallback cannot type `www.ulanzistudio.com` into the frontmost app. When
+     **Deck settings → App → Key capture** asks for it, press **Grant…**, enable the app in
+     Input Monitoring and relaunch.
 4. Open-app, URL, shell and page actions need no special permission.
 
 Config lives in `~/Library/Application Support/Ulanzi Deck Open/config.json`. The app
@@ -195,6 +195,9 @@ actions so Homebrew tools are found.
   deck). The control interface is exclusive.
 * **Hotkeys do nothing** — grant Accessibility, then quit and relaunch the app.
 * **The wide key types a URL** — grant Input Monitoring (see above).
+* **Key capture says “Not allowed by macOS”** — the kernel refused the keyboard seize
+  (`seize 0xe00002c1`, `kIOReturnNotPrivileged`, in `~/Library/Logs/Ulanzi Deck Open/seize.log`).
+  No permission setting changes this.
 * **Input Monitoring is still requested after an update** — the app is ad-hoc signed, so its signature changes with each build. Remove and re-add the app in Input Monitoring after installing a new version.
 * **The app does not appear in Spotlight/Launchpad** — run `npm run install-app` so
   LaunchServices is refreshed, or open the app once from Finder.

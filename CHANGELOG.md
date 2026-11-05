@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased
+
+### Fixed
+- **Key capture reports a refused seize correctly.** `hidseize` logs `seize 0xe00002c1` when macOS refuses to seize the Deck's keyboard. That code is `kIOReturnNotPrivileged`, not "in use", so the state now reads **Not allowed by macOS** and the help text says no permission setting changes it. A real exclusive-access error still reads "The Deck is in use by another app".
+
+### Changed
+- **Key capture moved to Deck settings → App**, next to Accessibility. A **Grant…** button opens Input Monitoring, and it appears only when that permission is missing. Each state has its own help text.
+
 ## 0.16.4 — 2026-11-04
 
 ### Security

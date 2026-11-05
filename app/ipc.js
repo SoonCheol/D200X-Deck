@@ -212,6 +212,11 @@ handle(CH.appRequestAccessibility, () => {
   return { trusted };
 });
 
+handle(CH.appOpenInputMonitoring, () => {
+  shell.openExternal('x-apple.systempreferences:com.apple.preference.security?Privacy_ListenEvent');
+  return { ok: true };
+});
+
 handle(CH.actionRun, async (_evt, action, meta) => actions.execute(action, meta));
 
 // ------------------------------------------------------------- store

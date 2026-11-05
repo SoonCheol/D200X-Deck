@@ -1139,6 +1139,14 @@ function wireTabs(selector) {
 
 let seizeState = null;
 
+const SEIZE_NOTE = 'Key capture stops the Deck’s firmware from typing its setup URL into the frontmost app.';
+const SEIZE_NOTES = {
+  permission: `${SEIZE_NOTE} Grant Input Monitoring to Ulanzi Deck Open, then relaunch.`,
+  privilege:
+    'macOS refused to let the helper take over the Deck’s keyboard. No permission setting changes this, so the ' +
+    'Deck’s firmware can still type its setup URL into the frontmost app.',
+};
+
 function renderSeizeState() {
   const row = $('#seize-row');
   const label = $('#seize-state');
@@ -1153,6 +1161,8 @@ function renderSeizeState() {
   const running = seizeState.running === true;
   label.textContent = seizeState.message || (running ? 'Capturing keys' : 'Not running');
   label.classList.toggle('settings-warn', !running);
+  $('#seize-grant')?.classList.toggle('hidden', seizeState.need !== 'permission');
+  if (note) note.textContent = SEIZE_NOTES[seizeState.need] || SEIZE_NOTE;
   note?.classList.toggle('hidden', running);
 }
 
@@ -1671,6 +1681,10 @@ function bind() {
     const res = await api.requestAccessibility();
     toast(res.trusted ? 'Already granted — opening System Settings' : 'Opening System Settings…');
     setTimeout(refreshAccessibility, 1500);
+  });
+  $('#seize-grant').addEventListener('click', () => {
+    api.openInputMonitoring();
+    toast('Opening System Settings…');
   });
   $('#insp-sleep-apply').addEventListener('click', async () => {
     const seconds = Math.max(0, parseInt($('#insp-sleep').value || '0', 10));

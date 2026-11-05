@@ -31,6 +31,7 @@ contextBridge.exposeInMainWorld('deckApp', {
   onOpenSettings: (cb) => subscribe('app:open-settings', cb),
   accessibility: () => ipcRenderer.invoke('app:accessibility'),
   requestAccessibility: () => ipcRenderer.invoke('app:request-accessibility'),
+  openInputMonitoring: () => ipcRenderer.invoke('app:open-input-monitoring'),
   runAction: (action, meta) => ipcRenderer.invoke('action:run', action, meta),
   pickImage: () => ipcRenderer.invoke('dialog:pick-image'),
   pickAudio: () => ipcRenderer.invoke('dialog:pick-audio'),

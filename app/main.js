@@ -6,6 +6,7 @@ const fs = require('node:fs');
 const { isRendererFile: isRendererFileIn } = require('./lib/renderer-url');
 const { applyLoginPath } = require('./lib/shell-path');
 const { appendAppLog } = require('./lib/app-log');
+const { seizeLineState } = require('./lib/seize');
 const { createImageProtocol } = require('./lib/image-protocol');
 const { cleanOrphans } = require('./lib/orphan-cleanup');
 const { sweepRoots } = require('./lib/plugin-dirs');
@@ -552,8 +553,8 @@ function pluginInspectorUrl(payload) {
   return url || sdPlugins?.inspectorUrl(payload) || null;
 }
 
-function setSeizeState(running, message) {
-  seizeState = { running, message };
+function setSeizeState(running, message, need) {
+  seizeState = { running, message, need };
   send(CH.seizeState, seizeState);
 }
 
@@ -608,19 +609,10 @@ function spawnHelper(bin) {
       if (!line) continue;
       console.log('[seize]', line);
       appendAppLog('seize', line);
-      if (/^access\s+0\b/.test(line)) {
-        // Permission granted; the helper is waiting for the Deck to appear.
-        setSeizeState(true, 'Waiting for the Deck…');
-      } else if (/^access\s+[12]\b/.test(line) || line.includes('notpermitted')) {
-        setSeizeState(false, 'Input Monitoring permission needed');
-      } else if (/^seized\b/.test(line)) {
-        seizeRetryMs = 5000;
-        setSeizeState(true, 'Capturing keys');
-      } else if (/^manager\s+0x/i.test(line)) {
-        setSeizeState(false, 'Input Monitoring permission needed');
-      } else if (/^seize\s+0x/i.test(line)) {
-        setSeizeState(false, 'The Deck is in use by another app');
-      }
+      const next = seizeLineState(line);
+      if (!next) continue;
+      if (/^seized\b/.test(line)) seizeRetryMs = 5000;
+      setSeizeState(next.running, next.message, next.need);
     }
   });
   proc.on('exit', () => {
