@@ -7,6 +7,7 @@ const os = require('node:os');
 const path = require('node:path');
 const { WebSocketServer } = require('ws');
 const { extractZip } = require('./archive');
+const { LogSink } = require('./log-sink');
 
 /**
  * The Electron main executable creates a Dock icon when spawned as a Node
@@ -73,6 +74,7 @@ class PluginHost extends EventEmitter {
     this.language = language;
     this.appVersion = appVersion;
     this.logFile = logFile;
+    this.logSink = logFile ? new LogSink(logFile) : null;
     this.label = label;
 
     this.plugins = new Map(); // uuid -> meta
@@ -612,16 +614,7 @@ class PluginHost extends EventEmitter {
 
   /** Append a timestamped line to the diagnostics log, when configured. */
   _log(line) {
-    if (!this.logFile) return;
-    try {
-      const stat = fs.existsSync(this.logFile) ? fs.statSync(this.logFile) : null;
-      if (stat && stat.size > 1_000_000) {
-        try { fs.renameSync(this.logFile, `${this.logFile}.1`); } catch { /* ignore */ }
-      }
-      fs.appendFileSync(this.logFile, `${new Date().toISOString()} ${line}\n`);
-    } catch {
-      /* logging must never break the host */
-    }
+    this.logSink?.write(line);
   }
 
   // ------------------------------------------------------------ shutdown
@@ -659,6 +652,7 @@ class PluginHost extends EventEmitter {
           })
       )
     );
+    await this.logSink?.close();
   }
 }
 
