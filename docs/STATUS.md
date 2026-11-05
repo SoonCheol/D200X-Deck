@@ -1,6 +1,6 @@
 # Project status, open items and handoff
 
-Last updated: 2026-11-04 (after v0.16.5).
+Last updated: 2026-11-05 (after v0.16.6).
 
 This is the live status of the app. [`ROADMAP.md`](ROADMAP.md) holds the plan and
 shipped history; [`../CHANGELOG.md`](../CHANGELOG.md) holds user-facing notes; this
@@ -10,14 +10,17 @@ file holds what is still open, what is verified, and what the next agent should 
 
 | Item | Value |
 |---|---|
-| Release | **v0.16.5** — https://github.com/edufalcao/ulanzi-deck-open/releases/tag/v0.16.5 |
-| `main` | `b7403ca` ("Record the 0.16.5 test count") |
-| Installed app | `~/Applications/Ulanzi Deck Open.app` — 0.16.5, ad-hoc signed |
+| Release | **v0.16.6** — https://github.com/edufalcao/ulanzi-deck-open/releases/tag/v0.16.6 |
+| `main` | `243336d` ("Prepare 0.16.6"), tag `v0.16.6` |
+| Installed app | `~/Applications/Ulanzi Deck Open.app` — 0.16.6, ad-hoc signed |
 | Tests | **331 total, 329 pass, 2 skipped**; eslint and `tsc --noEmit` clean |
 | Deck | Ulanzi D200, firmware 2.0.3, macOS 27.2 (26B123) |
-| Release assets | `Ulanzi-Deck-Open-0.16.5.dmg` (247,951,594 bytes) + `SHA256SUMS.txt`, checksum verified |
+| Release assets | `Ulanzi-Deck-Open-0.16.6.dmg` (247,958,279 bytes) + `SHA256SUMS.txt`, checksum verified |
 
-### What 0.16.3–0.16.5 changed
+### What 0.16.3–0.16.6 changed
+
+- **0.16.6** — the lock screen shows only the wallpaper (the drawn clock froze
+  while the Mac slept); key capture documented as unavailable on macOS 27.
 
 - **0.16.3** — command-output keys only run while visible; plugin titles no longer
   save the config; command timeout kills the process group; timers push one key
