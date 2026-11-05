@@ -17,7 +17,7 @@
 - **App picker icons use an in-process thumbnail first**, with `plutil` + `sips` only as a fallback.
 
 ### Tests
-- 313 → **327** passing, plus two opt-in Electron smoke tests that are skipped without a GUI session.
+- 313 → **328** passing, plus two opt-in Electron smoke tests that are skipped without a GUI session.
 
 ## 0.16.4 — 2026-11-04
 
