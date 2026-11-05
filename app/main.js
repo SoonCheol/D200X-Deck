@@ -7,6 +7,7 @@ const { isRendererFile: isRendererFileIn } = require('./lib/renderer-url');
 const { applyLoginPath } = require('./lib/shell-path');
 const { appendAppLog } = require('./lib/app-log');
 const { seizeLineState } = require('./lib/seize');
+const { createCrashGuard } = require('./lib/renderer-crash');
 const { createImageProtocol } = require('./lib/image-protocol');
 const { cleanOrphans } = require('./lib/orphan-cleanup');
 const { sweepRoots } = require('./lib/plugin-dirs');
@@ -102,6 +103,7 @@ function setDockVisible(visible) {
 }
 
 function createWindow() {
+  const rendererCrashes = createCrashGuard();
   const [wantedW, wantedH] = String(process.env.ULANZI_SIZE || '').split('x').map(Number);
   const area = screen.getPrimaryDisplay().workAreaSize;
   const defaultW = Math.min(1600, Math.max(1080, area.width - 80));
@@ -150,7 +152,15 @@ function createWindow() {
   });
   win.webContents.on('render-process-gone', (_event, details) => {
     console.error('[renderer] gone:', details.reason);
-    if (win && !win.isDestroyed()) win.reload();
+    if (!win || win.isDestroyed()) return;
+    if (rendererCrashes.record()) {
+      win.reload();
+      return;
+    }
+    dialog.showErrorBox(
+      'Ulanzi Deck Open',
+      'The editor crashed repeatedly, so it was not reloaded. Quit and reopen the app; if it happens again, check the console log.'
+    );
   });
   win.webContents.on('unresponsive', () => console.error('[renderer] unresponsive'));
 
