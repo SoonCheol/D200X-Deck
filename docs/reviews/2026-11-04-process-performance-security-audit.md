@@ -313,3 +313,41 @@ The audit was re-checked against `04cb983` and the live machine. These edits wer
 Re-verified without change: M1, M2, M3 (orphan reproduced with ppid 1), L1, L2,
 L3, L4, L5, L6, the B.2 `otool` table, and the M2 fix syntax
 (`lsappinfo listen +becameFrontmost`).
+
+## 8. Resolution status (v0.16.5)
+
+All findings are addressed in `v0.16.5` unless noted. Live detail and the
+remaining verification gaps are in [`../STATUS.md`](../STATUS.md).
+
+| ID | Status | Where |
+|---|---|---|
+| M1 | ✅ Hidden command-output keys no longer run; catch-up on page/profile/visibility | `7a02acf` |
+| M2 | ✅ One `lsappinfo listen +becameFrontmost` child; old lookup is the fallback | `3017c56` |
+| M3 | ✅ Timeout/cap kills the shell's process group | `d4c22e3` |
+| M4 | ✅ Plugin titles stay in memory; `setSettings` still saves | `7a02acf` |
+| M5 | ✅ Timer updates one key via `0x0d`, not the full page | `d5d2e86` |
+| L1 | ✅ `install.sh` patterns anchored | `7a154c0` |
+| L2 | ✅ Three renderer crashes in 60 s, then an error | `7f0a0d6` |
+| L3 | ✅ `HID.devicesAsync()` + 15 s backoff | `4ec7289` |
+| L4 | ✅ Log size in memory; one append per line | `4c28dad` |
+| L5 | ✅ `createThumbnailFromPath` first, `plutil`/`sips` fallback | `a24ccd8` |
+| L6 | ✅ Key-command pipes close at shell exit | `5067711` |
+| §4 WS | Documented, no secret; app data `0600`/`0700` | `3ad27e0` |
+| §4 hidseize | Re-arm implemented; hardware test blocked by macOS 27/TCC | `aefd21c` |
+| §4 import() | Staged copy before replacing | `4a37f10` |
+
+Follow-ups found during the 0.16.x gates:
+
+- **Timer identity** (`a13afa7`): timers keyed by page/slot, so a page change or
+  an inspector edit no longer resets the countdown.
+- **Key capture state** (`00f2c31`, PR #13): `0xe00002c1` is
+  `kIOReturnNotPrivileged`; Key capture moved to the App tab with the Grant…
+  button for the permission state.
+- **Open App icon** (`6a6e19d`): changing the app replaces an app-derived icon
+  and keeps a custom one.
+- **Signing** (`ed107d8`): packaged builds are ad-hoc signed after the helper
+  copy; TCC still needs a stable identity, so Input Monitoring is not resolved.
+
+Verification note: the audit’s M1/M4/M5 checks were converted to red/green tests,
+but the GUI/hardware acceptance for M2, the key-capture tab and a deck replug was
+not fully re-confirmed after the final build (see STATUS P2).

@@ -228,6 +228,23 @@ account and are trusted in the same way as any other program you install.
 - **Plugins may open URLs.** A plugin can ask the host to open an `http(s)` or `mailto`
   link with `shell.openExternal`; treat a plugin's presence as permission to do that.
 
+## Known limitations
+
+- **Key capture on macOS 27.** The bundled `hidseize` helper needs Input
+  Monitoring and, on macOS 27, the kernel may refuse the keyboard seize
+  (`kIOReturnNotPrivileged`). Deck settings → App then shows **Not allowed by
+  macOS**. Without capture, the deck's firmware fallback can type its setup URL
+  into the frontmost app. The state and the remaining options are in
+  [`docs/STATUS.md`](docs/STATUS.md).
+- **Ad-hoc signing.** Builds are ad-hoc signed, so the signature changes with
+  each release. After an update, remove and re-add the app in Input Monitoring;
+  macOS may list stale duplicate entries.
+- **Plugins are trusted local code.** Plugin IPC is loopback-only but has no
+  per-plugin secret, so a local process that knows a plugin UUID can act as it.
+  See **Local security** above.
+- **One deck, macOS.** The native helpers are macOS-only. Firmware update,
+  Python plugins, multi-device support and OBS actions are not implemented.
+
 ## Project layout
 
 ```

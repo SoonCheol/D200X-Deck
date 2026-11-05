@@ -1,9 +1,10 @@
 # Roadmap
 
 > **Status (2026-11-04, 0.16.5):** the original build-out is shipped. The remaining work
-> is driven by the two audits in [`reviews/`](reviews/) and the unimplemented
-> platform features listed at the end of this file. See
-> [`../CHANGELOG.md`](../CHANGELOG.md) for the shipped list.
+> is driven by the audit in [`reviews/2026-11-04-process-performance-security-audit.md`](reviews/2026-11-04-process-performance-security-audit.md),
+> the open items in [`STATUS.md`](STATUS.md) and the unimplemented platform features
+> listed at the end of this file. See [`../CHANGELOG.md`](../CHANGELOG.md) for the
+> shipped list. **Live status and the next actions are in [`STATUS.md`](STATUS.md).**
 
 ## 0.16.4–0.16.5 — host hardening (2026-11-04 audit)
 
@@ -78,6 +79,16 @@ profile switch, and a deck replug). Tests and lint/typecheck are clean.
 - **hidseize:** polling re-arm chosen over a callback-based design; the hardware
   test is the gate.
 - **Amphetamine:** dropped unless the plugin comes back into use.
+- **Ad-hoc signing:** every packaged build is signed after the helpers are copied.
+  TCC still needs a stable identity, so Input Monitoring has to be re-granted
+  after each update, and the feature is unresolved on macOS 27 (see STATUS P1).
+- **Timers:** keyed by page/slot, not by the action object, so the countdown
+  survives page changes and inspector edits.
+- **Key capture state:** `0xe00002c1` is reported as “Not allowed by macOS”
+  instead of “Deck in use”; the App tab owns the state and the Grant… button
+  (PR #13).
+- **Open App icons:** an icon whose source is “app” is replaced when the app
+  changes; a custom icon is kept.
 
 ## Current plan (from the 2026-11-01 audits)
 
@@ -319,12 +330,18 @@ file; H9 is the last open High.
 
 ### Next: 1.0
 
-- **3.3** Renderer modules + explicit store (optional, highest risk).
-- **Hardware acceptance** — unplug/replug, lock/unlock/sleep, Input Monitoring
-  denied vs granted, helper crash/restart and HID errors.
-- **Release confidence** — clean-machine DMG, packaged file/architecture
-  inspection, Electron advisory review.
-- **L13 / L14** are done (helpers built from source; bundle trimmed).
+Ordered by what blocks a credible 1.0; see [`STATUS.md`](STATUS.md) for detail.
+
+1. **Key capture / Input Monitoring** — the only unresolved product issue. On
+   macOS 27 the kernel refuses the seize (`kIOReturnNotPrivileged`), and TCC does
+   not hold an ad-hoc build's grant. Decide: Developer ID signing (retest) or
+   document key capture as unavailable and drop the TCC prompt.
+2. **Hardware acceptance** — unplug/replug, lock/unlock/sleep, Input Monitoring
+   denied vs granted, helper crash/restart and HID errors, a clean-machine DMG.
+3. **Release confidence** — packaged file/architecture inspection and an Electron
+   dependency advisory review (still offline-only).
+4. **3.3** Renderer modules + explicit store (optional, highest risk).
+5. **L13 / L14** are done (helpers built from source; bundle trimmed).
 
 ### Unimplemented platform features
 

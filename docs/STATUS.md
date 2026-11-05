@@ -1,0 +1,218 @@
+# Project status, open items and handoff
+
+Last updated: 2026-11-04 (after v0.16.5).
+
+This is the live status of the app. [`ROADMAP.md`](ROADMAP.md) holds the plan and
+shipped history; [`../CHANGELOG.md`](../CHANGELOG.md) holds user-facing notes; this
+file holds what is still open, what is verified, and what the next agent should know.
+
+## 1. Current state
+
+| Item | Value |
+|---|---|
+| Release | **v0.16.5** — https://github.com/edufalcao/ulanzi-deck-open/releases/tag/v0.16.5 |
+| `main` | `b7403ca` ("Record the 0.16.5 test count") |
+| Installed app | `~/Applications/Ulanzi Deck Open.app` — 0.16.5, ad-hoc signed |
+| Tests | **330 total, 328 pass, 2 skipped**; eslint and `tsc --noEmit` clean |
+| Deck | Ulanzi D200, firmware 2.0.3, macOS 27.2 (26B123) |
+| Release assets | `Ulanzi-Deck-Open-0.16.5.dmg` (247,951,594 bytes) + `SHA256SUMS.txt`, checksum verified |
+
+### What 0.16.3–0.16.5 changed
+
+- **0.16.3** — command-output keys only run while visible; plugin titles no longer
+  save the config; command timeout kills the process group; timers push one key
+  via `0x0d`; timers keyed by page/slot; `install.sh` patterns anchored.
+- **0.16.4** — plugin IPC boundary documented, app data `0600`/`0700`; `hidseize`
+  polling re-arm; packaged builds ad-hoc signed.
+- **0.16.5** — the audit's main-thread/I/O batch (M2, L2–L6, `import()`
+  staging), the key-capture state fix from PR #13, and the Open App icon fix.
+
+The full finding list and code references are in
+[`reviews/2026-11-04-process-performance-security-audit.md`](reviews/2026-11-04-process-performance-security-audit.md);
+§8 there records the resolution.
+
+## 2. Open items
+
+Priority order for the next session.
+
+### P1 — Key capture / Input Monitoring (the main unresolved product issue)
+
+Key capture (`hidseize`) seizes the deck's keyboard collection so its firmware
+fallback cannot type `www.ulanzistudio.com` into the frontmost app. On this Mac it
+does **not** work, and the app now reports why:
+
+- With Input Monitoring denied: `access 1` / `manager 0xe00002e2`
+  (`kIOReturnNotPermitted`).
+- With Input Monitoring granted (as reported in PR #13): `access 0`, then
+  `seize 0xe00002c1` (`kIOReturnNotPrivileged`, not `kIOReturnExclusiveAccess`).
+  macOS refuses the keyboard seize itself; the PR's unverified hypothesis is that
+  it requires root.
+- On this machine, TCC never granted the ad-hoc build: macOS shows an entry and a
+  toggle, but the helper still logs `access 1`. `tccutil reset ListenEvent` finds
+  no bundle-id entry, so the entries are path-based. Removing and re-adding the
+  app (and the helper path) did not help.
+- The deck's URL fallback does **not** reproduce on firmware 2.0.3 with the app
+  running, so the practical impact here is unclear.
+
+What to try next, in order:
+
+1. **Verify on a Developer ID–signed build.** TCC needs a stable code identity.
+   With a real certificate, grant Input Monitoring and check
+   `~/Library/Logs/Ulanzi Deck Open/seize.log` for `access 0` and `seized 1`.
+   The ad-hoc build's cdhash changes on every rebuild, which is why manual grants
+   do not stick.
+2. If `seize 0xe00002c1` persists with a real signature, test whether a
+   **privileged helper** (SMJobBless / launchd) can seize; if not, document that
+   key capture is unavailable on macOS 27 and consider removing the feature and
+   the TCC prompt.
+3. Do **not** keep fighting TCC with ad-hoc builds; it cannot hold a stable grant.
+
+Acceptance: the log shows `access 0` and `seized 1`, and after unplug/replug it
+shows `released` then `seized 1`, with no URL typed into a focused text field.
+
+### P2 — Hardware and GUI acceptance
+
+The 0.16.5 gate was green on unit tests, but these were not re-confirmed after
+the final build:
+
+- **Key capture tab:** Deck settings → App, with the correct state text and the
+  Grant… button only for the permission state.
+- **Frontmost profile switching:** link a profile to an app, switch apps, and
+  confirm the profile follows within ~3 s. The watcher is unit-tested; the
+  installed config had no linked profile, so it was not observed.
+- **Deck replug:** unplug/replug and confirm keys still work with the async HID
+  and 15 s backoff.
+- **App picker thumbnails:** visual quality of the in-process thumbnail versus
+  the old `sips` output.
+- **Timer on the deck:** verified at 0.16.3, including across a page change.
+
+Other hardware work for 1.0: lock/unlock/sleep, helper crash/restart, HID error
+paths, and a clean-machine DMG install.
+
+### P3 — Packaging and TCC stability
+
+- The app is **ad-hoc signed** (`scripts/after-package.sh`). `codesign` gives it
+  a real identity, but the cdhash changes every build, so Input Monitoring must
+  be removed and re-added after each update. Documented in the README.
+- The DMG is **not notarized**; Gatekeeper on another Mac may require
+  right-click → Open. A Developer ID + notarization is the fix if the app is
+  distributed more widely.
+- TCC may show duplicate “Ulanzi Deck Open” entries from earlier builds. Remove
+  the stale ones before granting.
+
+### P4 — Security decisions already made
+
+- **Plugin WebSocket has no per-plugin secret.** Any local process that knows a
+  plugin UUID can register as it, read its settings and replace its socket. The
+  practical boundary is another macOS user on the same Mac; a token in argv is
+  readable and a Unix socket would break third-party plugins. Decision: document
+  the boundary and keep app data owner-only. Revisit only if the threat model
+  changes (multi-user Mac, untrusted local software).
+- **`config.json`, `.bak` and the data directory are `0600`/`0700`.** The plugin
+  settings file and market token are already `0600`.
+- **`hidseize` re-arm** is implemented (`aefd21c`): after a replug it returns to
+  polling and seizes the new device. Code-verified only; blocked by P1.
+
+### P5 — Upstream and third-party
+
+- **Meet Mute** (`com.fredemmott.micmutetoggle`): the issue message was sent
+  directly to the author; check for a reply. Workaround if needed: set
+  `callPoll` 60 s / `idlePoll` 300 s in its property inspector.
+- **Amphetamine:** a built-in native action was considered and **dropped**; the
+  noisy plugin is not in current use. Revisit only if it returns.
+
+### P6 — Machine state
+
+- WindowServer has ~8k leaked Mach ports on this Mac; only logout/reboot returns
+  them. The app is quiet while idle (0.16.3 gate: +3.9 ports/min with four
+  plugins, 0 `osascript`).
+- No DNS in the agent shell; see §5.
+
+## 3. Known limitations and gaps
+
+- **Ad-hoc signing / TCC** as above.
+- **Key capture unavailable on macOS 27** until P1 is resolved.
+- **Single deck, macOS-focused.** The native helpers (`hidseize`, `mediakey`,
+  `hotkey`) are macOS-only; plugin folders are otherwise platform-aware.
+- **Timers are keyed by page/slot.** Moving a key to another slot while its timer
+  runs leaves the old timer running invisibly and starts fresh on the new slot.
+  Rare; acceptable unless it bites.
+- **Log rotation** renames the file while appending; on macOS this is safe. The
+  sink tracks size in memory, so an external truncation is not noticed until the
+  next size threshold.
+- **Frontmost watcher** treats any `lsappinfo listen` output as “changed” and
+  re-resolves; if the child exits, the renderer's poll falls back to the old
+  two-process lookup. It is not a parser of the payload by design.
+- **Renderer modules (3.3)** remain optional and the highest-risk refactor; not
+  started.
+- **Unimplemented platform features:** firmware update, Python plugins,
+  multi-device (D200X / Dial / AU05), OBS Studio actions.
+- **Dependency advisory review** is still offline-only; no audit was run.
+
+## 4. Decisions log
+
+| Date | Decision | Why |
+|---|---|---|
+| 2026-11-04 | Plugin WebSocket stays unauthenticated; document the same-user boundary, make app data owner-only | A secret cannot be kept from the same user; Unix sockets break third-party plugins |
+| 2026-11-04 | `hidseize` uses a polling re-arm, not IOHID callbacks | Smaller C change; hardware test remains the gate |
+| 2026-11-04 | Drop the built-in Amphetamine action | The plugin is not in current use |
+| 2026-11-04 | Ad-hoc sign every packaged build | TCC had no code identity at all before; still unstable across builds |
+| 2026-11-04 | Ship the `hidseize` re-arm as code-verified despite the blocked hardware test | It is a strict improvement and the fallback no longer reproduces here |
+| 2026-11-04 | Timers keyed by page/slot instead of the action object | The inspector replaces `key.action`; the countdown must follow the slot |
+| 2026-11-05 | Merge PR #13 (key-capture state + App tab) | `0xe00002c1` is `kIOReturnNotPrivileged`; the old text misdiagnosed it |
+
+## 5. Environment and tooling (agent shell)
+
+- **No DNS.** Start `python3 /tmp/ulanzi-github-proxy.py` in the background and
+  use `HTTPS_PROXY=http://127.0.0.1:8899` (plus `HTTP_PROXY`, `SSL_CERT_FILE`)
+  for GitHub/`gh`. Stop it when done.
+- **GUI apps cannot be launched from the agent shell** (`kLSNoExecutableErr`).
+  The owner opens the app from Finder/Spotlight.
+- **`hdiutil attach/create` fails** with "Device not configured";
+  `makehybrid` + `convert` works.
+- **`pgrep`/`pkill` are unreliable**; use `ps` + `kill`.
+- **Packaging:** `npm run package:all -- --electron-zip-dir=/tmp` (cached Electron
+  zips in `/tmp`). `after-package.sh` copies helpers and ad-hoc signs.
+- **Release:** tag `vX.Y.Z`, push `main` and the tag; CI (`419…`) and the
+  “Unsigned DMG” workflow publish the release. Verify `SHA256SUMS.txt`.
+- **Screenshots:** `ULANZI_NO_DECK=1 ULANZI_SIZE=1600x900 ULANZI_SHOT=…`.
+- **Port sampling:** `top -pid <WindowServer> -stats pid,ports` prints a `+`/`-`
+  suffix; strip it before parsing.
+- **`lsappinfo front` returns `[ NULL ]`** without an Aqua session, so the
+  frontmost watcher cannot be observed from the agent shell.
+
+## 6. Repository map
+
+| Path | What |
+|---|---|
+| `app/main.js` | Window, tray, deck lifecycle, helper spawn, crash guard |
+| `app/ipc.js` | IPC handlers, image/plugin protocols, frontmost cache |
+| `app/lib/plugin-host.js` | Plugin discovery, WebSocket server, spawn, settings, install/import |
+| `app/lib/plugins.js`, `streamdeck-plugins.js` | Ulanzi and Stream Deck protocol adapters |
+| `app/lib/orphan-cleanup.js`, `plugin-dirs.js` | Startup orphan sweep and shared roots |
+| `app/lib/actions.js` | Key actions, command output, shell pipes |
+| `app/lib/deck.js` | HID protocol, page/key pushes, clock/stats |
+| `app/native/hidseize.c` | Keyboard seize helper (see P1) |
+| `app/renderer/` | Editor UI (classic scripts; `app.js`, `ui.js`, `press.js`, `pickers.js`) |
+| `app/test/` | 330 node:test cases; renderer tests use vm slices |
+| `docs/reviews/` | Audits (2026-11-01/02/04) |
+| `docs/CRASH-REPORT-ANALYSIS-20261104.md` | WindowServer/osascript evidence |
+
+## 7. How to work
+
+1. Read this file, [`ROADMAP.md`](ROADMAP.md) and the latest
+   [`CHANGELOG.md`](../CHANGELOG.md).
+2. Test-first for fixes; one commit per finding; run `npm test`, `npm run lint`
+   and `npm run typecheck` from `app/`.
+3. Do not modify files in the installed third-party plugin folders
+   (`~/Library/Application Support/Ulanzi/…`, `com.fredemmott.micmutetoggle`, …).
+4. Ask before long A/B measurements, new features, or cutting a release/tag.
+5. Prefer evidence over claims: a log line or a red test, not “looks fine”.
+
+## 8. Next three actions
+
+1. Decide the signing path for P1 (Developer ID vs. document key capture as
+   unavailable on macOS 27). This unblocks the only unresolved product issue.
+2. Run the P2 GUI/hardware checklist on the installed 0.16.5 build.
+3. If those pass, close the 2026-11-04 audit in the roadmap and start the 1.0
+   hardware acceptance matrix.

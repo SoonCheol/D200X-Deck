@@ -4,6 +4,7 @@
 - Revision 2, 2026-11-04 ~14:50 -03, from a diagnosis session outside this repo. Revision 1 (14:12) blamed orphaned plugins. Tests later that day ruled that out as the main cause (section 9).
 - Revision 3, 2026-11-04 17:30 -03, by the Ulanzi Deck Open session: section 7 steps 1-5 and the code refs were verified, the plugin-lifetime fixes landed (`97dda2c`, `ead59cd`), the A/B completed (section 11), and 5.1 has a recommendation plus a draft upstream issue. See sections 10 and 11.
 - Review of Revision 3, 2026-11-04 19:03 -03, by the diagnosis session: the startup orphan sweep (`ead59cd`) needs a narrower matcher and the full root list. See section 12.
+- Status, 2026-11-04 (v0.16.5): the plugin-lifetime fixes and the audit follow-ups are shipped, and the current machine is quiet (section 13). Open: key capture/Input Monitoring on macOS 27, the Meet Mute reply, and the leaked WindowServer ports.
 - Audience: the session that works on Ulanzi Deck Open. Every claim has a command in section 7 or Appendix B so you can check it.
 
 Confidence tags: **[Certain]** = seen in logs, process tables or code. **[Likely]** = strong inference. **[Guessing]** = not proven.
@@ -472,3 +473,19 @@ Done when:
   - starting the app again left no ppid-1 leftovers.
 - **Not released:** `518a242` is on `main` after `v0.16.1`; the installed
   `~/Applications` build contains it, but the 0.16.1 DMG does not.
+
+## 13. Status after 0.16.5 (2026-11-04)
+
+- **Plugin lifetime / orphans:** shipped in 0.16.1–0.16.2 (watchdog, startup
+  sweep, strict matcher, shared roots). Verified on a packaged build: a real
+  orphan is killed, an editor-style process survives, and `kill -9` leaves no
+  leftovers.
+- **Churn in the app's own code:** the 2026-11-04 audit's M1–M5 and L1–L6 are
+  shipped in 0.16.3–0.16.5; the audit's §8 has the resolution table.
+- **Current machine:** the noisy pair (Meet Mute and macOS Controls) is not in
+  the active profile set. A 10-minute packaged run at 0.16.3 added 3.9
+  WindowServer ports/min with four plugins and 0 `osascript`.
+- **Still open:** the ~8k leaked WindowServer ports only clear with logout/reboot;
+  Meet Mute has not replied; and key capture is unresolved on macOS 27 (the
+  kernel refuses the seize with `kIOReturnNotPrivileged`, and TCC does not hold
+  an ad-hoc build's grant). See [`STATUS.md`](STATUS.md) P1.
