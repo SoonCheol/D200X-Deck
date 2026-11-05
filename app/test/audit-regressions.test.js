@@ -627,3 +627,27 @@ test('install.sh anchors its kill patterns to the bundle path', () => {
     assert.match(line, /-f "\^/, `pattern must start with ^ so it cannot match an editor's arguments: ${line}`);
   }
 });
+
+test('changing an Open App action replaces its app icon but keeps a custom icon', () => {
+  const source = fs.readFileSync(path.join(__dirname, '../renderer/pickers.js'), 'utf8');
+  const start = source.indexOf('function applyAppChoice(');
+  const end = source.indexOf('\n}', start) + 2;
+  assert.ok(start >= 0 && end > start, 'applyAppChoice must be present');
+  const context = vm.createContext({});
+  new vm.Script(source.slice(start, end), { filename: 'pickers.js#applyAppChoice' }).runInContext(context);
+
+  const fromApp = { icon: 'A', iconSource: 'app', action: { type: 'app', value: '/A.app' } };
+  assert.equal(context.applyAppChoice(fromApp, { path: '/B.app', name: 'B' }), true);
+  assert.equal(fromApp.action.value, '/B.app');
+  assert.equal(fromApp.icon, null, 'the previous app icon is dropped');
+  assert.equal(fromApp.iconSource, undefined);
+
+  const custom = { icon: 'custom', action: { type: 'app', value: '/A.app' } };
+  assert.equal(context.applyAppChoice(custom, { path: '/C.app', name: 'C' }), false);
+  assert.equal(custom.icon, 'custom', 'a user icon is kept');
+  assert.equal(custom.action.value, '/C.app');
+
+  const empty = { action: { type: 'app', value: '' } };
+  assert.equal(context.applyAppChoice(empty, { path: '/D.app', name: 'D' }), true);
+  assert.equal(empty.emoji, 'D');
+});

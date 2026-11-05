@@ -6,6 +6,7 @@
 - **Key capture reports a refused seize correctly.** `hidseize` logs `seize 0xe00002c1` when macOS refuses to seize the Deck's keyboard. That code is `kIOReturnNotPrivileged`, not "in use", so the state now reads **Not allowed by macOS** and the help text says no permission setting changes it. A real exclusive-access error still reads "The Deck is in use by another app".
 - **A renderer that keeps crashing is not reloaded forever.** Three crashes in 60 s are retried; the next leaves the window closed and shows an error instead of starting a new renderer each time.
 - **A failed read-only plugin import keeps the previous copy.** The import stages the copy before replacing the installed folder, the same way install does.
+- **Changing an Open App key's app updates its icon.** The picker only fetched an icon when the key had none, so the first app's icon stayed after selecting another; a custom icon is still kept.
 - **A key-press command releases its pipes when the shell exits.** Background children no longer hold two read fds per launched command; error reporting still works.
 
 ### Changed

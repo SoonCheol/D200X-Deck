@@ -67,6 +67,25 @@ function closeAppPicker() {
   appPickerTriggerPick = null;
 }
 
+/**
+ * Apply an app choice to a key. Returns true when the key's icon should be
+ * replaced: an icon that came from the previous app is not a custom icon, so
+ * selecting a new app must not leave the old app's icon behind.
+ */
+function applyAppChoice(key, app) {
+  const refreshIcon = !key.icon || key.iconSource === 'app';
+  key.action = {
+    type: key.action?.type === 'close' ? 'close' : 'app',
+    value: app.path,
+  };
+  if (!key.emoji) key.emoji = app.name;
+  if (refreshIcon) {
+    key.icon = null;
+    delete key.iconSource;
+  }
+  return refreshIcon;
+}
+
 function renderAppList(query) {
   const q = String(query || '').toLowerCase();
   const apps = state.apps.filter(
@@ -104,18 +123,17 @@ function renderAppList(query) {
       const key = appPickerKey;
       if (!key) return;
       const index = state.selected;
-      key.action = {
-        type: key.action?.type === 'close' ? 'close' : 'app',
-        value: row.dataset.path,
-      };
-      if (!key.emoji) key.emoji = row.dataset.name;
+      const appPath = row.dataset.path;
+      const refreshIcon = applyAppChoice(key, { path: appPath, name: row.dataset.name });
       syncActionMeta(key);
       commit();
       closeAppPicker();
       renderInspector();
-      if (!key.icon) {
-        api.appIcon(row.dataset.path).then((icon) => {
+      if (refreshIcon) {
+        api.appIcon(appPath).then((icon) => {
           if (!icon) return;
+          // A later choice may have replaced this one while the icon loaded.
+          if (key.action?.value !== appPath) return;
           key.icon = icon;
           key.iconSource = 'app';
           key.face = 'icon';
