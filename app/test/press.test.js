@@ -78,6 +78,7 @@ function makeHarness(t, overrides = {}, fakeTimers = true) {
     pushNow: () => {
       calls.push += 1;
     },
+    scheduleLivePush: () => {},
     toast: (...args) => calls.toasts.push(args),
     actionMeta: () => ({ label: 'App' }),
     actionIconSrc: () => '',
@@ -92,7 +93,7 @@ function makeHarness(t, overrides = {}, fakeTimers = true) {
     Math,
     ...overrides,
   };
-  if (fakeTimers && t) t.mock.timers.enable({ apis: ['setTimeout'] });
+  if (fakeTimers && t) t.mock.timers.enable({ apis: ['setTimeout', 'setInterval'] });
   vm.createContext(context);
   new vm.Script(source, { filename: 'press.js' }).runInContext(context);
   return { context, calls, state, page, key };
@@ -295,4 +296,24 @@ test('a second timer press cancels it without a beep', () => {
   assert.equal(context.timerTextFor(timer), '');
   assert.equal(calls.toasts.some(([message]) => message === 'Timer cancelled'), true);
   assert.equal(calls.actions.some((action) => /afplay/.test(action.value)), false);
+});
+
+test('a running timer updates one key instead of pushing the page', async (t) => {
+  const live = [];
+  const { context, calls, key, page } = makeHarness(
+    undefined,
+    { scheduleLivePush: (index) => live.push(index) },
+    false
+  );
+  const timer = { type: 'timer', seconds: 300, sound: false };
+  key.action = timer;
+  page.keys[0] = key;
+  t.after(() => context.toggleTimer(timer));
+
+  context.toggleTimer(timer);
+  await new Promise((resolve) => setTimeout(resolve, 1100));
+
+  assert.ok(live.length >= 2, `expected a per-second key update, got ${live.length}`);
+  assert.deepEqual([...new Set(live)], [0], 'only the timer key is sent');
+  assert.equal(calls.push, 0, 'the full page is not pushed while the timer runs');
 });

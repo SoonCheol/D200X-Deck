@@ -1,6 +1,6 @@
 'use strict';
 
-/* global $, actionIconSrc, actionMeta, activePage, api, commit, drawIndex, exitStandby, isEmojiOnly, keyAt, lockActive, navigate, noteActivity, notePluginKeyPress, pinnedFor, pushNow, refreshCommandOutput, refreshWideStats, renderInspector, scheduleSave, standbyActive, state, switchProfile, toast, WIDE_KEY_INDEX */
+/* global $, actionIconSrc, actionMeta, activePage, api, commit, drawIndex, exitStandby, isEmojiOnly, keyAt, lockActive, navigate, noteActivity, notePluginKeyPress, pinnedFor, pushNow, refreshCommandOutput, refreshWideStats, renderInspector, scheduleLivePush, scheduleSave, standbyActive, state, switchProfile, toast, WIDE_KEY_INDEX */
 
 // -------------------------------------------------------------- key presses
 
@@ -110,10 +110,9 @@ function toggleTimer(action) {
     const index = slotForAction(action);
     if (index >= 0) {
       drawIndex(index);
-      // A timer must count down in real time on the deck. This is a deliberate
-      // exception to the 5 s live-image throttle; the push stays silent and
-      // only happens while a timer is running.
-      pushNow({ background: true });
+      // A timer must count down in real time. Send only its slot through
+      // protocol 0x0d instead of rebuilding and writing the whole page.
+      scheduleLivePush(index);
     }
   };
   timer.handle = setInterval(tick, 1000);
