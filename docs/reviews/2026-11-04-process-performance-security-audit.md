@@ -340,6 +340,10 @@ GUI/hardware acceptance on the installed 0.16.5 build passed on 2026-11-05
 (owner-observed): App-tab key capture row, frontmost profile switching (M2
 listener), deck replug (L3), app picker thumbnails (L5).
 
+`npm audit` (2026-11-05): 0 production advisories, none for Electron 45.2.1;
+7 moderate dev-tooling advisories (`glob`, `minimatch`), not shipped. Details in
+[`../STATUS.md`](../STATUS.md) §3.
+
 Follow-ups found during the 0.16.x gates:
 
 - **Timer identity** (`a13afa7`): timers keyed by page/slot, so a page change or

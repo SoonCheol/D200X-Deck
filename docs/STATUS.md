@@ -160,7 +160,13 @@ paths, and a clean-machine DMG install.
   started.
 - **Unimplemented platform features:** firmware update, Python plugins,
   multi-device (D200X / Dial / AU05), OBS Studio actions.
-- **Dependency advisory review** is still offline-only; no audit was run.
+- **Dependency advisories (`npm audit`, 2026-11-05):** 0 in production
+  dependencies (`--omit=dev`), and none for `electron@45.2.1`. 7 moderate in dev
+  tooling only: `glob` (GHSA-3g3m-2fjr-6pw4) and `minimatch` (GHSA-g3hv-75wg-m249)
+  via `@electron/packager` and `eslint`. They run at build/lint time on our own
+  files, not in the shipped app. `npm audit fix --force` proposes *downgrades*
+  (`@electron/packager@18`, `eslint@9`), so it is not applied. Wait for upstream
+  releases and re-run before 1.0.
 
 ## 4. Decisions log
 
