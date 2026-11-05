@@ -188,3 +188,20 @@ test('connectAsync opens the deck found asynchronously', async (t) => {
   assert.equal(deck.info.path, 'control');
   deck.disconnect();
 });
+
+test('a failed write marks the deck disconnected so the reconnect loop can recover', (t) => {
+  const deck = connectedDeck(t);
+  const statuses = [];
+  deck.on('status', (status) => statuses.push(status));
+  deck.device.write = () => {
+    throw new Error('could not write to device');
+  };
+
+  assert.throws(() => deck.pushKey(Buffer.from('zip')), /could not write/);
+
+  assert.equal(deck.connected, false);
+  assert.deepEqual(
+    statuses.map((status) => [status.connected, status.message]),
+    [[false, 'Device lost']]
+  );
+});

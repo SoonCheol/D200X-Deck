@@ -132,7 +132,15 @@ class Deck extends EventEmitter {
   sendFrame(cmd, proto, payload = Buffer.alloc(0)) {
     if (!this.device) throw new Error('device not connected');
     const reports = P.splitReports(P.encodeFrame(cmd, proto, payload));
-    for (const report of reports) this.device.write(report);
+    try {
+      for (const report of reports) this.device.write(report);
+    } catch (err) {
+      // A failed write means the handle is dead (unplug, USB reset, sleep).
+      // Drop it so the reconnect loop opens the deck again instead of
+      // reporting "Connected" forever.
+      this.disconnect('Device lost');
+      throw err;
+    }
   }
 
   pushPage(zipBuffer) {

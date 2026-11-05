@@ -497,8 +497,14 @@ function initDeck() {
   powerMonitor.on('unlock-screen', () => send(CH.appDisplayRestore));
   powerMonitor.on('resume', () => send(CH.appDisplayRestore));
   deck = new Deck();
+  let loggedConnected = null;
   deck.on('status', (status) => {
     console.log(`[deck] ${status.connected ? 'connected' : 'offline'}: ${status.message}`);
+    // Log transitions only: the reconnect loop repeats "Not connected" every few seconds.
+    if (status.connected !== loggedConnected) {
+      loggedConnected = status.connected;
+      appendAppLog('deck', `${status.connected ? 'connected' : 'offline'}: ${status.message}`);
+    }
     send(CH.deckStatus, status);
   });
   deck.on('key', (event) => {
