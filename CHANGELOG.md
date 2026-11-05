@@ -7,6 +7,7 @@
 - **Plugin titles no longer rewrite the config.** A clock or timer plugin that changed its title every second was rewriting `config.json` and `config.json.bak` on every tick; the title now lives in memory and is persisted by the next real edit.
 - **A timed-out command-output command kills its whole process group.** Pipelines and `;` lists no longer leave children on PID 1, and the 256 KB output cap still applies.
 - **A running Timer updates one key** through protocol 0x0d instead of rebuilding and writing the full page every second.
+- **A running Timer keeps its countdown across page changes and edits to its duration.** Timers are keyed by the key's page/slot instead of the action object, which the inspector replaces when a field changes; editing the duration or sound now also updates the action in place.
 - `install.sh` kill patterns are anchored to the bundle path, so an editor opened on a file inside the bundle is not killed.
 
 ### Tests

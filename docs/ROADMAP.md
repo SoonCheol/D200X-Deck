@@ -23,6 +23,9 @@ classes in the app's own code. One commit per finding, each with a red test.
   no longer save the config. `setSettings` still persists.
 - **M5** ✅ A running Timer pushes one key through protocol 0x0d instead of the
   full page every second.
+- **Timer identity** ✅ A running Timer is keyed by page/slot, so it keeps
+  counting across page changes and when the inspector edits its duration or
+  sound.
 
 Gate before the tag: tests, lint/typecheck, a packaged run with the four plugins
 for 10 minutes, and deck acceptance for M5.
