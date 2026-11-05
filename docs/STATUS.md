@@ -1,6 +1,6 @@
 # Project status, open items and handoff
 
-Last updated: 2026-11-05 (after v0.16.7).
+Last updated: 2026-11-05 (after v0.16.8).
 
 This is the live status of the app. [`ROADMAP.md`](ROADMAP.md) holds the plan and
 shipped history; [`../CHANGELOG.md`](../CHANGELOG.md) holds user-facing notes; this
@@ -10,14 +10,18 @@ file holds what is still open, what is verified, and what the next agent should 
 
 | Item | Value |
 |---|---|
-| Release | **v0.16.7** — https://github.com/edufalcao/ulanzi-deck-open/releases/tag/v0.16.7 |
-| `main` | `68185bb` ("Prepare 0.16.7"), tag `v0.16.7` |
-| Installed app | `~/Applications/Ulanzi Deck Open.app` — 0.16.7 (local build of the same code), ad-hoc signed |
-| Tests | **332 total, 330 pass, 2 skipped**; eslint and `tsc --noEmit` clean |
+| Release | **v0.16.8** — https://github.com/edufalcao/ulanzi-deck-open/releases/tag/v0.16.8 |
+| `main` | `f800f05` ("Prepare 0.16.8"), tag `v0.16.8` |
+| Installed app | `~/Applications/Ulanzi Deck Open.app` — 0.16.7 (0.16.8 not installed yet), ad-hoc signed |
+| Tests | **333 total, 331 pass, 2 skipped**; eslint and `tsc --noEmit` clean |
 | Deck | Ulanzi D200, firmware 2.0.3, macOS 27.2 (26B123) |
-| Release assets | `Ulanzi-Deck-Open-0.16.7.dmg` (247,985,054 bytes) + `SHA256SUMS.txt`, checksum verified |
+| Release assets | `Ulanzi-Deck-Open-0.16.8.dmg` (247,985,551 bytes) + `SHA256SUMS.txt`, checksum verified |
 
-### What 0.16.3–0.16.7 changed
+### What 0.16.3–0.16.8 changed
+
+- **0.16.8** — a failed deck write drops the handle ("Device lost") so the app
+  reconnects instead of staying "Connected"; `deck.log` records connects and
+  disconnects. Unit-tested; the hardware unplug test of this build is pending.
 
 - **0.16.7** — Type text posts Unicode through the native `hotkey` helper
   (emoji no longer type `aaaa`, no `osascript` per press); README explains the
@@ -224,7 +228,7 @@ paths, and a clean-machine DMG install.
 | `app/lib/deck.js` | HID protocol, page/key pushes, clock/stats |
 | `app/native/hidseize.c` | Keyboard seize helper (see P1) |
 | `app/renderer/` | Editor UI (classic scripts; `app.js`, `ui.js`, `press.js`, `pickers.js`) |
-| `app/test/` | 332 node:test cases; renderer tests use vm slices |
+| `app/test/` | 333 node:test cases; renderer tests use vm slices |
 | `docs/reviews/` | Audits (2026-11-01/02/04) |
 | `docs/CRASH-REPORT-ANALYSIS-20261104.md` | WindowServer/osascript evidence |
 
@@ -241,7 +245,16 @@ paths, and a clean-machine DMG install.
 
 ## 8. Next three actions
 
-1. P1 is decided (documented unavailable). Reopen only with a Developer ID.
-2. Run the P2 GUI/hardware checklist on the installed 0.16.5 build.
-3. If those pass, close the 2026-11-04 audit in the roadmap and start the 1.0
-   hardware acceptance matrix.
+**1.0.0 plan (owner decision, 2026-11-05): ship the 0.16.x line as is and make
+1.0.0 the first Developer ID + notarized release.**
+
+1. Get an Apple Developer account, then sign (hardened runtime + Electron
+   entitlements, helpers first), notarize and staple in CI. Ask before adding
+   credentials or changing the release flow. This also reopens P1 (key capture).
+2. Install 0.16.8 and unplug the deck once; `deck.log` should show `offline`
+   then `connected`.
+3. Hardware matrix, 2026-11-05 (owner-observed): lock/unlock passed (wallpaper
+   only, wide key keeps the clock); sleep passed for a short sleep (a long sleep
+   was not tried); replug passed; `hidseize` kill/respawn passed (new pid, app
+   kept running). **Not done:** clean-machine DMG install, long sleep.
+4. Then bump to 1.0.0 and tag.

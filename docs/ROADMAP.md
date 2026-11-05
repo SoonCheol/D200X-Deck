@@ -1,10 +1,17 @@
 # Roadmap
 
-> **Status (2026-11-04, 0.16.5):** the original build-out is shipped. The remaining work
+> **Status (2026-11-05, 0.16.8):** the original build-out is shipped. The remaining work
 > is driven by the audit in [`reviews/2026-11-04-process-performance-security-audit.md`](reviews/2026-11-04-process-performance-security-audit.md),
 > the open items in [`STATUS.md`](STATUS.md) and the unimplemented platform features
 > listed at the end of this file. See [`../CHANGELOG.md`](../CHANGELOG.md) for the
 > shipped list. **Live status and the next actions are in [`STATUS.md`](STATUS.md).**
+
+## 1.0.0 — planned: Developer ID + notarization
+
+The 0.16.x line ships ad-hoc signed (0.16.6–0.16.8: lock-screen clock, Type text
+Unicode, lost-deck recovery, `deck.log`). 1.0.0 is gated on a Developer ID
+certificate and notarized builds, a clean-machine DMG install, and a long
+sleep test. Details and the hardware results are in [`STATUS.md`](STATUS.md) §8.
 
 ## 0.16.4–0.16.5 — host hardening (2026-11-04 audit)
 
