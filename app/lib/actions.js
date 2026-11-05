@@ -64,22 +64,28 @@ function setShellErrorHandler(handler) {
 
 function runShell(command, meta = null) {
   return new Promise((resolve) => {
-    const child = spawn('/bin/sh', ['-c', String(command)], { detached: true, stdio: ['ignore', 'pipe', 'pipe'] });
+    const child = spawn('/bin/sh', ['-c', String(command)], {
+      detached: true,
+      // A background child inherits these handles, so stdout goes to /dev/null
+      // and stderr is closed as soon as the shell exits.
+      stdio: ['ignore', 'ignore', 'pipe'],
+    });
     let stderr = '';
     child.stderr.on('data', (data) => {
       stderr = (stderr + data.toString()).slice(-4000);
     });
-    child.stdout.on('data', () => {});
     child.on('error', (err) => resolve({ ok: false, error: err.message }));
     child.on('spawn', () => {
       child.unref();
       resolve({ ok: true });
     });
     child.on('exit', (code, signal) => {
+      stderr = stderr.trim();
+      child.stderr.destroy();
       if (code === 0) return;
-      const detail = stderr.trim().split('\n').filter(Boolean).pop() || '';
+      const detail = stderr.split('\n').filter(Boolean).pop() || '';
       const reason = detail || (signal ? `killed by ${signal}` : `exited with code ${code}`);
-      if (shellErrorHandler) shellErrorHandler(reason, meta, stderr.trim());
+      if (shellErrorHandler) shellErrorHandler(reason, meta, stderr);
     });
   });
 }

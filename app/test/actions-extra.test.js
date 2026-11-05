@@ -17,13 +17,17 @@ function fakeExecFile(file, args, _options, callback) {
   callback(null, '', '');
 }
 
-function fakeSpawn(file, args, _options) {
+function fakeSpawn(file, args, options) {
   const child = new EventEmitter();
   child.kill = () => {};
   child.unref = () => {};
   child.stdout = new EventEmitter();
   child.stderr = new EventEmitter();
-  spawnCalls.push({ file, args, child });
+  child.stderr.destroyed = false;
+  child.stderr.destroy = () => {
+    child.stderr.destroyed = true;
+  };
+  spawnCalls.push({ file, args, options, child });
   return child;
 }
 
@@ -173,4 +177,20 @@ test('playSound clamps volume, rejects missing files and stops cleanly', async (
     error: 'audio file not found',
   });
   assert.deepEqual(await actions.execute({ type: 'sound', op: 'stop', value: 'sound-id' }), { ok: true });
+});
+
+test('a key command releases its pipes when the shell exits', async () => {
+  spawnCalls.length = 0;
+  const pending = actions.execute({ type: 'command', value: 'server &' });
+  await Promise.resolve();
+
+  const { options, child } = spawnCalls[0];
+  assert.deepEqual(options.stdio, ['ignore', 'ignore', 'pipe'], 'stdout goes to /dev/null');
+
+  child.emit('spawn');
+  await pending;
+  child.stderr.emit('data', Buffer.from('late error\n'));
+  child.emit('exit', 0, null);
+
+  assert.equal(child.stderr.destroyed, true, 'the read end is closed at shell exit');
 });
