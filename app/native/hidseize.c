@@ -99,7 +99,11 @@ int main(void) {
                 CFSetRef now = IOHIDManagerCopyDevices(mgr);
                 CFIndex present = now ? CFSetGetCount(now) : 0;
                 if (now) CFRelease(now);
-                if (present == 0) break;
+                if (present == 0) {
+                    fprintf(stderr, "released\n");
+                    fflush(stderr);
+                    break;
+                }
             }
             IOHIDManagerClose(mgr, kIOHIDOptionsTypeNone);
             CFRelease(mgr);

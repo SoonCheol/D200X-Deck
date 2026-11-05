@@ -607,6 +607,7 @@ function spawnHelper(bin) {
       stderrBuffer = stderrBuffer.slice(idx + 1);
       if (!line) continue;
       console.log('[seize]', line);
+      appendAppLog('seize', line);
       if (/^access\s+0\b/.test(line)) {
         // Permission granted; the helper is waiting for the Deck to appear.
         setSeizeState(true, 'Waiting for the Deck…');
