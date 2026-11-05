@@ -5,6 +5,45 @@
 > platform features listed at the end of this file. See
 > [`../CHANGELOG.md`](../CHANGELOG.md) for the shipped list.
 
+## Next: 0.16.3–0.16.4 — host hardening (2026-11-04 audit)
+
+Source: [`reviews/2026-11-04-process-performance-security-audit.md`](reviews/2026-11-04-process-performance-security-audit.md).
+The crash report covered third-party plugins; this audit found the same defect
+classes in the app's own code. One commit per finding, each with a red test.
+
+### 0.16.3 — churn and orphans (in progress)
+
+- **M3** ✅ Command-output timeouts kill the shell's whole process group, so a
+  pipeline or `;` list leaves no children on PID 1; the 256 KB output cap stays.
+- **L1** ✅ `install.sh` kill patterns are anchored to the bundle path.
+- **M1** Command-output timers skip keys that are not visible, and run once when
+  a key becomes visible.
+- **M4** Plugin title updates stay in renderer memory and no longer trigger a
+  config save; `setSettings` still persists.
+- **M5** A running Timer pushes one key through protocol 0x0d instead of the
+  full page every second.
+
+Gate before the tag: tests, lint/typecheck, a packaged run with the four plugins
+for 10 minutes, and deck acceptance for M5.
+
+### 0.16.4 — main thread and I/O
+
+- **M2** Replace the 3 s `lsappinfo` poll with one
+  `lsappinfo listen +becameFrontmost` child; keep the poll as a fallback.
+- **L2** Limit renderer crash reloads (3 in 60 s, then stop and report).
+- **L3** Use `HID.devicesAsync()` and back off to 15 s while no deck is present.
+- **L4** Keep the log size in memory and append through one stream.
+- **L5** Try `nativeImage.createThumbnailFromPath` before `plutil`/`sips`.
+- **L6** Key-press commands no longer hold stdout pipes for background children.
+- **import()** Stage the copy before removing the previous folder.
+
+### Decisions pending
+
+- Plugin WebSocket registration still has no secret. The practical boundary is
+  another local user; a token in argv is readable, so the options are to document
+  it or move plugin IPC to a Unix socket, which would break third-party plugins.
+- `hidseize` re-seizing a re-plugged deck needs a hardware test.
+
 ## Current plan (from the 2026-11-01 audits)
 
 Sources: [`reviews/2026-11-01-architecture-audit.md`](reviews/2026-11-01-architecture-audit.md),
