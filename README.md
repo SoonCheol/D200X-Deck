@@ -162,6 +162,25 @@ the current process, and unsigned builds have **no auto-updater**; installing a 
 build means replacing the app. See [`docs/RELEASE.md`](docs/RELEASE.md) if signing is
 added later.
 
+## After installing an update: re-grant Accessibility
+
+Builds are ad-hoc signed, so macOS sees every new build as a different app. The
+Accessibility entry can still show as **on** while macOS refuses it. Symptoms: hotkeys,
+media keys or **Type text** do nothing, or a "would like to control this Mac" prompt
+appears on every key press. A plain off/on toggle does not fix it. Remove and re-add the app:
+
+1. Quit Ulanzi Deck Open.
+2. Open **System Settings → Privacy & Security → Accessibility** (named **Device Control
+   and Data Access** on macOS 27).
+3. Select **Ulanzi Deck Open** and click the **−** button. Remove any duplicate entries too.
+4. Open the app and press a key that needs it (a hotkey or Type text), or press **Grant…** in
+   **Deck settings → App**.
+5. Turn the new **Ulanzi Deck Open** entry on, then quit and reopen the app.
+
+Do the same in **Input Monitoring** if you use it (see Known limitations: key capture is
+unavailable on macOS 27). A build signed with a stable identity avoids this; see
+[`docs/RELEASE.md`](docs/RELEASE.md).
+
 ## First run
 
 1. Quit **Ulanzi Studio** (menu bar → Quit).
@@ -194,7 +213,7 @@ actions so Homebrew tools are found.
 
 * **“Deck busy” / cannot connect** — quit Ulanzi Studio (and any other app using the
   deck). The control interface is exclusive.
-* **Hotkeys do nothing** — grant Accessibility, then quit and relaunch the app.
+* **Hotkeys or Type text do nothing, or a permission prompt appears on every press** — grant Accessibility, then quit and relaunch the app. If it shows as on but still fails after an update, remove and re-add the app ([steps](#after-installing-an-update-re-grant-accessibility)).
 * **The wide key types a URL** — on macOS before 27, grant Input Monitoring (see above). On macOS 27 key capture is unavailable.
 * **Key capture says “Not allowed by macOS”** — the kernel refused the keyboard seize
   (`seize 0xe00002c1`, `kIOReturnNotPrivileged`, in `~/Library/Logs/Ulanzi Deck Open/seize.log`).
