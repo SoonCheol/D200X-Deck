@@ -1,9 +1,9 @@
 # Changelog
 
-## Unreleased
+## 0.16.8 — 2026-11-05
 
 ### Fixed
-- **A lost deck no longer shows "Connected".** If a write to the deck fails (unplug, USB reset, sleep), the app now drops the dead handle, shows "Device lost" and reconnects within a few seconds. Before, only an HID error event did that, and a deck that vanished without one stayed "Connected" while showing the Ulanzi logo.
+- **A lost deck no longer shows "Connected".** If a write to the deck fails (unplug, USB reset, sleep), the app now drops the dead handle, shows "Device lost" and reconnects within a few seconds. Before, only an HID error event did that, and a deck that vanished without one stayed "Connected" while showing the Ulanzi logo. The write-failure path is unit-tested; a hardware unplug test of this build is still pending.
 
 ### Added
 - **`deck.log`.** Deck connects and disconnects (not every retry) are appended to `~/Library/Logs/Ulanzi Deck Open/deck.log`.
