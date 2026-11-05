@@ -21,15 +21,16 @@ fi
 
 echo "==> stopping running instance"
 # SIGTERM skips the interactive confirmation and lets plugins/deck cleanup run.
-pkill -TERM -f "$DEST/Contents/MacOS" 2>/dev/null || true
+# Anchored so an editor opened on a file inside the bundle is never matched.
+pkill -TERM -f "^$DEST/Contents/MacOS" 2>/dev/null || true
 for i in 1 2 3 4; do
-  pgrep -f "$DEST/Contents/MacOS" >/dev/null || break
+  pgrep -f "^$DEST/Contents/MacOS" >/dev/null || break
   sleep 1
 done
 # Last resort only: a stuck helper must not hold the HID handle.
-pkill -9 -f "$DEST/Contents/MacOS" 2>/dev/null || true
+pkill -9 -f "^$DEST/Contents/MacOS" 2>/dev/null || true
 # Plugin children run from Contents/Frameworks; the pattern above misses them.
-pkill -9 -f "$DEST/Contents/Frameworks/" 2>/dev/null || true
+pkill -9 -f "^$DEST/Contents/Frameworks/" 2>/dev/null || true
 
 echo "==> installing to $DEST"
 rm -rf "$DEST"

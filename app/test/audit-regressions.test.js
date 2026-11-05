@@ -614,3 +614,16 @@ test('a fresh store is not a recovery, an existing empty one is', (t) => {
   second.load();
   assert.equal(second.takeRecovery(), 'defaults', 'an empty existing config is reported');
 });
+
+test('install.sh anchors its kill patterns to the bundle path', () => {
+  const script = fs.readFileSync(path.join(__dirname, '../scripts/install.sh'), 'utf8');
+  const patterns = script
+    .split('\n')
+    .map((line) => line.trim())
+    .filter((line) => /^(pkill|pgrep)\b/.test(line) && /-f\b/.test(line));
+
+  assert.equal(patterns.length, 4, 'SIGTERM, pgrep wait, SIGKILL and Frameworks patterns');
+  for (const line of patterns) {
+    assert.match(line, /-f "\^/, `pattern must start with ^ so it cannot match an editor's arguments: ${line}`);
+  }
+});
