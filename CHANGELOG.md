@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.16.3 — 2026-11-04
+
+### Fixed
+- **Command-output keys no longer run while hidden.** They update only on the active page, or while the deck is connected; a hidden editor with no deck runs nothing. Page and profile changes refresh the newly visible keys once.
+- **Plugin titles no longer rewrite the config.** A clock or timer plugin that changed its title every second was rewriting `config.json` and `config.json.bak` on every tick; the title now lives in memory and is persisted by the next real edit.
+- **A timed-out command-output command kills its whole process group.** Pipelines and `;` lists no longer leave children on PID 1, and the 256 KB output cap still applies.
+- **A running Timer updates one key** through protocol 0x0d instead of rebuilding and writing the full page every second.
+- `install.sh` kill patterns are anchored to the bundle path, so an editor opened on a file inside the bundle is not killed.
+
+### Tests
+- 296 → **307** passing, plus two opt-in Electron smoke tests that are skipped without a GUI session.
+
 ## 0.16.2 — 2026-11-04
 
 ### Fixed

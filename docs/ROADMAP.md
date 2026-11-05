@@ -1,6 +1,6 @@
 # Roadmap
 
-> **Status (2026-11-04, 0.16.2):** the original build-out is shipped. The remaining work
+> **Status (2026-11-04, 0.16.3):** the original build-out is shipped. The remaining work
 > is driven by the two audits in [`reviews/`](reviews/) and the unimplemented
 > platform features listed at the end of this file. See
 > [`../CHANGELOG.md`](../CHANGELOG.md) for the shipped list.
