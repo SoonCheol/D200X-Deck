@@ -13,6 +13,7 @@ const importUlanzi = require('./lib/import-ulanzi');
 const { extractZip, inspectZip, readZipEntry } = require('./lib/archive');
 const { appIconDataUrl, resolveAppPath } = require('./lib/appicon');
 const { fetchSiteIcon } = require('./lib/siteicon');
+const { FrontmostWatcher } = require('./lib/frontmost-watcher');
 const { childDir, parsePackId } = require('./lib/iconpacks');
 const { imageByExtension } = require('./lib/mime');
 const { CH } = require('./lib/channels');
@@ -822,12 +823,32 @@ const execFileAsync = (file, args, options) =>
   });
 
 let frontmostCache = { at: 0, value: null, pending: null };
+let frontmostWatcher = null;
+
+/**
+ * Start the long-lived `lsappinfo listen` the first time the renderer asks for
+ * the front app. The renderer still polls, but each poll now reads this cache.
+ */
+function ensureFrontmostWatcher() {
+  if (frontmostWatcher) return;
+  frontmostWatcher = new FrontmostWatcher();
+  frontmostWatcher.on('change', () => {
+    frontmostApp({ fresh: true }).catch(() => {});
+  });
+  frontmostWatcher.start();
+}
+
+app?.once?.('will-quit', () => {
+  frontmostWatcher?.stop();
+  frontmostWatcher = null;
+});
 
 /**
  * Non-blocking frontmost-app lookup. The renderer polls this every few seconds,
  * so spawning `lsappinfo` synchronously here would stutter the whole UI.
  */
 function frontmostApp({ fresh = false } = {}) {
+  ensureFrontmostWatcher();
   if (!fresh && Date.now() - frontmostCache.at < 1000) return Promise.resolve(frontmostCache.value);
   if (frontmostCache.pending) return frontmostCache.pending;
   frontmostCache.pending = (async () => {
