@@ -131,15 +131,19 @@ paths, and a clean-machine DMG install.
 
 ### P5 — Upstream and third-party
 
-- **Meet Mute** (`com.fredemmott.micmutetoggle`): the issue message was sent
-  directly to the author; check for a reply. Workaround if needed: set
-  `callPoll` 60 s / `idlePoll` 300 s in its property inspector.
+- **Meet Mute** (`com.fredemmott.micmutetoggle`): **fixed upstream in v1.0.4**
+  (2026-11-05). The author replied to the direct message and replaced the
+  per-poll `osascript` with one long-lived JXA helper. Installed on page 1;
+  a 60 s sample (6 reads, 10 s apart) showed one `osascript -l JavaScript`
+  process and WindowServer ports flat (12,441–12,453). Not yet re-measured over
+  a long idle period or a call. The `callPoll`/`idlePoll` workaround is no
+  longer needed.
 - **Amphetamine:** a built-in native action was considered and **dropped**; the
   noisy plugin is not in current use. Revisit only if it returns.
 
 ### P6 — Machine state
 
-- WindowServer has ~8k leaked Mach ports on this Mac; only logout/reboot returns
+- WindowServer has ~12.4k Mach ports on this Mac (8k earlier today); only logout/reboot returns
   them. The app is quiet while idle (0.16.3 gate: +3.9 ports/min with four
   plugins, 0 `osascript`).
 - No DNS in the agent shell; see §5.
