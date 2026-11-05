@@ -16,7 +16,7 @@ function tempApp(t) {
   return app;
 }
 
-function loadAppicon(t, execImpl) {
+function loadAppicon(t, execImpl, electron = null) {
   execImpl[promisify.custom] = (file, args, options) =>
     new Promise((resolve, reject) => {
       execImpl(file, args, options, (err, stdout, stderr) => {
@@ -27,6 +27,7 @@ function loadAppicon(t, execImpl) {
   const original = Module._load;
   Module._load = function load(request, parent, isMain) {
     if (request === 'node:child_process') return { execFile: execImpl };
+    if (request === 'electron' && electron) return electron;
     return original.call(this, request, parent, isMain);
   };
   try {
@@ -90,4 +91,55 @@ test('appIconDataUrl converts through sips and caches the result', async (t) => 
   assert.equal(first, 'data:image/png;base64,cG5n');
   assert.equal(second, first);
   assert.equal(sips, 1, 'the icon is cached');
+});
+
+
+test('appIconDataUrl prefers the in-process thumbnail', async (t) => {
+  const app = tempApp(t);
+  let execs = 0;
+  const appicon = loadAppicon(
+    t,
+    (_file, _args, _options, callback) => {
+      execs += 1;
+      callback(null, '');
+    },
+    {
+      nativeImage: {
+        createThumbnailFromPath: async (target, size) => {
+          assert.equal(target, app);
+          assert.deepEqual(size, { width: 196, height: 196 });
+          return { isEmpty: () => false, toPNG: () => Buffer.from('png') };
+        },
+      },
+    }
+  );
+
+  assert.equal(await appicon.appIconDataUrl(app), 'data:image/png;base64,cG5n');
+  assert.equal(execs, 0, 'no plutil or sips');
+});
+
+test('a failed thumbnail falls back to the .icns path', async (t) => {
+  const app = tempApp(t);
+  fs.writeFileSync(path.join(app, 'Contents', 'Resources', 'AppIcon.icns'), 'icns');
+  let sips = 0;
+  const appicon = loadAppicon(
+    t,
+    (_file, args, _options, callback) => {
+      if (args.includes('--out')) {
+        sips += 1;
+        fs.writeFileSync(args[args.indexOf('--out') + 1], Buffer.from('png'));
+      }
+      callback(null, '');
+    },
+    {
+      nativeImage: {
+        createThumbnailFromPath: async () => {
+          throw new Error('no thumbnail');
+        },
+      },
+    }
+  );
+
+  assert.equal(await appicon.appIconDataUrl(app), 'data:image/png;base64,cG5n');
+  assert.equal(sips, 1);
 });

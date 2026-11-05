@@ -9,6 +9,16 @@ const path = require('node:path');
 const execFileAsync = promisify(execFile);
 const cache = new Map();
 
+// Resolve once at load: tests replace electron's loader only while requiring
+// this module, and the app has the real nativeImage API.
+const nativeImage = (() => {
+  try {
+    return require('electron').nativeImage || null;
+  } catch {
+    return null;
+  }
+})();
+
 async function findIconFile(appPath) {
   const resDir = path.join(appPath, 'Contents', 'Resources');
   const infoPath = path.join(appPath, 'Contents', 'Info.plist');
@@ -93,6 +103,22 @@ async function resolveAppPath(value) {
 async function appIconDataUrl(appPath) {
   if (cache.has(appPath)) return cache.get(appPath);
   let result = null;
+  // One in-process call is much cheaper than plutil + sips per app.
+  if (nativeImage && typeof nativeImage.createThumbnailFromPath === 'function') {
+    try {
+      const image = await nativeImage.createThumbnailFromPath(appPath, { width: 196, height: 196 });
+      if (image && typeof image.isEmpty === 'function' && !image.isEmpty()) {
+        const png = image.toPNG();
+        if (png && png.length) result = `data:image/png;base64,${png.toString('base64')}`;
+      }
+    } catch {
+      /* fall back to the .icns + sips path */
+    }
+  }
+  if (result) {
+    cache.set(appPath, result);
+    return result;
+  }
   try {
     const icns = await findIconFile(appPath);
     if (icns) {
