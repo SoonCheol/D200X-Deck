@@ -317,3 +317,43 @@ test('a running timer updates one key instead of pushing the page', async (t) =>
   assert.deepEqual([...new Set(live)], [0], 'only the timer key is sent');
   assert.equal(calls.push, 0, 'the full page is not pushed while the timer runs');
 });
+
+test('a running timer keeps counting across a page change', async () => {
+  const { context, key, page } = makeHarness(undefined, {}, false);
+  const timer = { type: 'timer', seconds: 600, sound: false };
+  key.action = timer;
+  page.keys[0] = key;
+  const other = { id: 'other', profileId: 'profile', keys: {} };
+  context.state.config.pages.push(other);
+
+  context.toggleTimer(timer);
+  const before = context.timerTextFor(timer);
+
+  context.state.config.activePageId = 'other';
+  await new Promise((resolve) => setTimeout(resolve, 1100));
+  context.state.config.activePageId = 'page';
+  const after = context.timerTextFor(timer);
+
+  assert.notEqual(after, '', 'the timer is still in the map after the page change');
+  assert.notEqual(after, before, 'the remaining time kept counting down');
+  context.toggleTimer(timer);
+});
+
+test('a timer survives the inspector replacing its action object', async () => {
+  const { context, key, page } = makeHarness(undefined, {}, false);
+  const timer = { type: 'timer', seconds: 600, sound: false };
+  key.action = timer;
+  page.keys[0] = key;
+
+  context.toggleTimer(timer);
+  const before = context.timerTextFor(timer);
+  assert.match(before, /^\d+:\d{2}$/);
+
+  // Editing the duration or sound in the inspector replaces key.action.
+  const replacement = { ...timer };
+  page.keys[0] = { ...key, action: replacement };
+  assert.equal(context.timerTextFor(replacement), before, 'the countdown follows the slot');
+
+  context.toggleTimer(replacement);
+  assert.equal(context.timerTextFor(replacement), '', 'cancel found the running timer');
+});

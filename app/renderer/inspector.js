@@ -1972,14 +1972,16 @@ function renderInspector() {
     timerSeconds.addEventListener('change', () => {
       const seconds = Math.max(1, Math.min(86_400, Math.round(Number(timerSeconds.value) || 300)));
       timerSeconds.value = String(seconds);
-      key.action = { ...key.action, seconds };
+      // Mutate in place: a running timer and its sequence ids are keyed by the
+      // slot, but other action state still expects the same object.
+      key.action.seconds = seconds;
       commit(false);
     });
   }
   const timerSound = $('#insp-timer-sound');
   if (timerSound) {
     timerSound.addEventListener('change', () => {
-      key.action = { ...key.action, sound: timerSound.checked };
+      key.action.sound = timerSound.checked;
       commit(false);
     });
   }

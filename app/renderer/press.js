@@ -43,7 +43,10 @@ function cancelSequences() {
   sequenceEpoch += 1;
 }
 
-// Running timers live in memory only (not in the config): key -> { endsAt, handle }.
+// Running timers live in memory only (not in the config), keyed by the key's
+// location ("page:<id>:<slot>" or "pin:<profile>:<slot>"). The action object is
+// not stable: the inspector replaces it when a field changes, and a config
+// reload replaces the whole graph. A timer belongs to the slot, not the object.
 const runningTimers = new Map();
 const TIMER_SOUND = '/System/Library/Sounds/Glass.aiff';
 
@@ -56,58 +59,89 @@ function formatTimer(seconds) {
   return `${h ? `${h}:` : ''}${mm}:${String(s).padStart(2, '0')}`;
 }
 
+/** Find where this action lives: a page slot or a pinned slot. */
+function timerLocation(action) {
+  for (const page of state.config?.pages || []) {
+    for (const [index, key] of Object.entries(page.keys || {})) {
+      if (key?.action === action) {
+        return { pageId: page.id, profileId: null, index: Number(index) };
+      }
+    }
+  }
+  for (const profile of state.config?.profiles || []) {
+    for (const [index, key] of Object.entries(profile.pinned || {})) {
+      if (key?.action === action) {
+        return { pageId: null, profileId: profile.id, index: Number(index) };
+      }
+    }
+  }
+  return null;
+}
+
+function timerId(loc) {
+  return loc.pageId ? `page:${loc.pageId}:${loc.index}` : `pin:${loc.profileId}:${loc.index}`;
+}
+
+/** The slot this timer occupies on the active page, or -1 when it is not shown. */
+function timerSlot(loc) {
+  const page = activePage();
+  if (!page) return -1;
+  if (loc.pageId) return loc.pageId === page.id ? loc.index : -1;
+  if (loc.profileId !== page.profileId) return -1;
+  return page.keys?.[loc.index] ? -1 : loc.index;
+}
+
 function timerTextFor(action) {
   if (!action || action.type !== 'timer') return '';
-  const timer = runningTimers.get(action);
+  const loc = timerLocation(action);
+  if (!loc) return '';
+  const timer = runningTimers.get(timerId(loc));
   if (!timer) return '';
   return formatTimer((timer.endsAt - Date.now()) / 1000);
 }
 
-/** Find the slot showing this action on the active page (page key or pinned). */
-function slotForAction(action) {
-  const page = activePage();
-  if (!page) return -1;
-  for (const source of [page.keys, pinnedFor(page.profileId)]) {
-    for (const [index, key] of Object.entries(source || {})) {
-      if (key?.action === action) return Number(index);
-    }
-  }
-  return -1;
-}
-
-function stopTimer(action, { beep = false } = {}) {
-  const timer = runningTimers.get(action);
+function stopTimerAt(loc, id, { beep = false } = {}) {
+  const timer = runningTimers.get(id);
   if (!timer) return;
   clearInterval(timer.handle);
-  runningTimers.delete(action);
-  const index = slotForAction(action);
+  runningTimers.delete(id);
+  const index = timerSlot(loc);
   if (index >= 0) {
     drawIndex(index);
     pushNow({ background: true });
   }
   if (beep) {
-    if (action.sound !== false) {
+    if (timer.sound !== false) {
       api.runAction({ type: 'command', value: `afplay ${TIMER_SOUND}` }).catch(() => {});
     }
     toast('Timer finished');
   }
 }
 
+function stopTimer(action, options) {
+  const loc = timerLocation(action);
+  if (!loc) return;
+  stopTimerAt(loc, timerId(loc), options);
+}
+
 function toggleTimer(action) {
-  if (runningTimers.has(action)) {
-    stopTimer(action);
+  const loc = timerLocation(action);
+  if (!loc) return;
+  const id = timerId(loc);
+  if (runningTimers.has(id)) {
+    stopTimerAt(loc, id);
     toast('Timer cancelled');
     return;
   }
   const seconds = Math.max(1, Number(action.seconds) || 300);
-  const timer = { endsAt: Date.now() + seconds * 1000, handle: null };
+  const timer = { endsAt: Date.now() + seconds * 1000, handle: null, sound: action.sound };
   const tick = () => {
     const left = timer.endsAt - Date.now();
     if (left <= 0) {
-      stopTimer(action, { beep: true });
+      stopTimerAt(loc, id, { beep: true });
       return;
     }
-    const index = slotForAction(action);
+    const index = timerSlot(loc);
     if (index >= 0) {
       drawIndex(index);
       // A timer must count down in real time. Send only its slot through
@@ -116,7 +150,7 @@ function toggleTimer(action) {
     }
   };
   timer.handle = setInterval(tick, 1000);
-  runningTimers.set(action, timer);
+  runningTimers.set(id, timer);
   tick();
   toast(`Timer started — ${formatTimer(seconds)}`);
 }
