@@ -85,52 +85,127 @@ function runShell(command, meta = null) {
 }
 
 /**
- * Run a shell command for a key that displays its output. The output may be
- * plain text, a data URL, raw SVG, or a path to an image file.
+ * Turn a command's stdout into a key face: text, a data URL, raw SVG, or a
+ * path to an image file. Kept separate so the parsing rules are testable
+ * without starting a process.
  */
-function runCommandOutput(command) {
-  return new Promise((resolve) => {
-    execFile(
-      '/bin/sh',
-      ['-c', String(command)],
-      { timeout: 8000, maxBuffer: 256 * 1024, encoding: 'utf8' },
-      (err, stdout) => {
-        if (err) {
-          const detail = String(err.stderr || err.message || '').trim().split('\n').pop() || 'command failed';
-          return resolve({ ok: false, error: detail });
-        }
-        const value = String(stdout || '').trim();
-        if (!value) return resolve({ ok: true, text: '' });
-        if (/^data:image\/[a-z0-9.+-]+;base64,/i.test(value)) return resolve({ ok: true, image: value });
-        if (/^<svg[\s>]/i.test(value)) {
-          return resolve({
-            ok: true,
-            image: `data:image/svg+xml;base64,${Buffer.from(value).toString('base64')}`,
-          });
-        }
-        const file = value.split(/\r?\n/)[0].trim();
-        const mime = {
-          '.png': 'image/png',
-          '.jpg': 'image/jpeg',
-          '.jpeg': 'image/jpeg',
-          '.webp': 'image/webp',
-          '.gif': 'image/gif',
-          '.svg': 'image/svg+xml',
-        }[path.extname(file).toLowerCase()];
-        if (mime && fs.existsSync(file)) {
-          try {
-            const stat = fs.statSync(file);
-            if (stat.isFile() && stat.size <= 512 * 1024) {
-              const image = fs.readFileSync(file);
-              return resolve({ ok: true, image: `data:${mime};base64,${image.toString('base64')}` });
-            }
-          } catch {
-            /* fall through to text */
-          }
-        }
-        return resolve({ ok: true, text: value.replace(/\s+/g, ' ').slice(0, 120) });
+function parseCommandOutput(value) {
+  const text = String(value || '').trim();
+  if (!text) return { ok: true, text: '' };
+  if (/^data:image\/[a-z0-9.+-]+;base64,/i.test(text)) return { ok: true, image: text };
+  if (/^<svg[\s>]/i.test(text)) {
+    return {
+      ok: true,
+      image: `data:image/svg+xml;base64,${Buffer.from(text).toString('base64')}`,
+    };
+  }
+  const file = text.split(/\r?\n/)[0].trim();
+  const mime = {
+    '.png': 'image/png',
+    '.jpg': 'image/jpeg',
+    '.jpeg': 'image/jpeg',
+    '.webp': 'image/webp',
+    '.gif': 'image/gif',
+    '.svg': 'image/svg+xml',
+  }[path.extname(file).toLowerCase()];
+  if (mime && fs.existsSync(file)) {
+    try {
+      const stat = fs.statSync(file);
+      if (stat.isFile() && stat.size <= 512 * 1024) {
+        const image = fs.readFileSync(file);
+        return { ok: true, image: `data:${mime};base64,${image.toString('base64')}` };
       }
-    );
+    } catch {
+      /* fall through to text */
+    }
+  }
+  return { ok: true, text: text.replace(/\s+/g, ' ').slice(0, 120) };
+}
+
+const COMMAND_OUTPUT_MAX = 256 * 1024;
+const COMMAND_STDERR_KEEP = 4000;
+
+/**
+ * Run a shell command for a key that displays its output. The shell leads its
+ * own process group, so a timeout or the output cap kills pipelines and `;`
+ * lists too; killing only `/bin/sh` would leave their children on PID 1.
+ */
+function runCommandOutput(command, { timeout = 8000 } = {}) {
+  return new Promise((resolve) => {
+    let child;
+    try {
+      child = spawn('/bin/sh', ['-c', String(command)], {
+        detached: true,
+        stdio: ['ignore', 'pipe', 'pipe'],
+      });
+    } catch (err) {
+      return resolve({ ok: false, error: err.message });
+    }
+
+    let settled = false;
+    let timedOut = false;
+    let overflow = false;
+    const chunks = [];
+    let bytes = 0;
+    let stderr = Buffer.alloc(0);
+
+    const stop = () => {
+      try {
+        process.kill(-child.pid, 'SIGKILL');
+      } catch {
+        try {
+          child.kill('SIGKILL');
+        } catch {
+          /* already gone */
+        }
+      }
+    };
+    let timer = null;
+    const finish = (result) => {
+      if (settled) return;
+      settled = true;
+      if (timer) clearTimeout(timer);
+      resolve(result);
+    };
+    timer = setTimeout(() => {
+      timedOut = true;
+      stop();
+    }, timeout);
+
+    child.stdout.on('data', (chunk) => {
+      if (overflow) return;
+      bytes += chunk.length;
+      if (bytes > COMMAND_OUTPUT_MAX) {
+        overflow = true;
+        const keep = chunk.length - (bytes - COMMAND_OUTPUT_MAX);
+        if (keep > 0) chunks.push(chunk.subarray(0, keep));
+        stop();
+        return;
+      }
+      chunks.push(chunk);
+    });
+    child.stderr.on('data', (chunk) => {
+      stderr = Buffer.concat([stderr, chunk]);
+      if (stderr.length > COMMAND_STDERR_KEEP) {
+        stderr = stderr.subarray(stderr.length - COMMAND_STDERR_KEEP);
+      }
+    });
+    child.on('error', (err) => finish({ ok: false, error: err.message }));
+    child.on('close', (code, signal) => {
+      if (timedOut) return finish({ ok: false, error: 'command timed out' });
+      if (overflow) {
+        return finish({ ok: false, error: `command output exceeded ${COMMAND_OUTPUT_MAX / 1024} KB` });
+      }
+      if (code !== 0) {
+        const detail = stderr.toString('utf8').trim();
+        const last = detail.split('\n').filter(Boolean).pop();
+        return finish({
+          ok: false,
+          error: last || (signal ? `killed by ${signal}` : 'command failed'),
+        });
+      }
+      finish(parseCommandOutput(Buffer.concat(chunks).toString('utf8')));
+    });
   });
 }
 
@@ -351,4 +426,13 @@ async function execute(action, meta = null) {
   }
 }
 
-module.exports = { execute, runHotkey, openTarget, openApp, openUrl, runCommandOutput, setShellErrorHandler };
+module.exports = {
+  execute,
+  runHotkey,
+  openTarget,
+  openApp,
+  openUrl,
+  runCommandOutput,
+  parseCommandOutput,
+  setShellErrorHandler,
+};
