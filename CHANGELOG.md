@@ -6,7 +6,10 @@
 - **The plugin trust boundary is documented and app data is owner-only.** Plugins are local programs that run with your account; the host rejects browser origins but has no per-plugin secret, so a local process that knows a plugin UUID can register as it. `config.json`, its backup and the data directory are now `0600`/`0700`, and the README states the boundary. No protocol change, so every plugin still connects.
 
 ### Fixed
-- **`hidseize` re-seizes the deck after an unplug/replug.** It used to leave the match loop after the first seizure, so the firmware fallback could type into the front app until the app restarted. Helper output now also goes to `~/Library/Logs/Ulanzi Deck Open/seize.log`.
+- **`hidseize` re-seizes the deck after an unplug/replug.** It used to leave the match loop after the first seizure, so the firmware fallback could type into the front app until the app restarted. Helper output now also goes to `~/Library/Logs/Ulanzi Deck Open/seize.log`. The re-arm is code-verified; the hardware check is blocked on macOS 27, which does not grant Input Monitoring to this ad-hoc build, and the URL fallback no longer reproduces on firmware 2.0.3.
+
+### Changed
+- **Packaged builds are now ad-hoc code-signed** after the native helpers are copied. The bundle previously had no code signature at all, which left TCC with nothing stable to attach to. Input Monitoring may still need re-granting after an update because the signature changes with each build.
 
 ### Tests
 - 309 → **311** passing, plus two opt-in Electron smoke tests that are skipped without a GUI session.

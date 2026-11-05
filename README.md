@@ -195,6 +195,7 @@ actions so Homebrew tools are found.
   deck). The control interface is exclusive.
 * **Hotkeys do nothing** — grant Accessibility, then quit and relaunch the app.
 * **The wide key types a URL** — grant Input Monitoring (see above).
+* **Input Monitoring is still requested after an update** — the app is ad-hoc signed, so its signature changes with each build. Remove and re-add the app in Input Monitoring after installing a new version.
 * **The app does not appear in Spotlight/Launchpad** — run `npm run install-app` so
   LaunchServices is refreshed, or open the app once from Finder.
 * **`npm run package` fails on clang/lipo** — install the Xcode Command Line Tools:

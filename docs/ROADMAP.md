@@ -5,13 +5,13 @@
 > platform features listed at the end of this file. See
 > [`../CHANGELOG.md`](../CHANGELOG.md) for the shipped list.
 
-## Next: 0.16.3–0.16.4 — host hardening (2026-11-04 audit)
+## Next: 0.16.4–0.16.5 — host hardening (2026-11-04 audit)
 
 Source: [`reviews/2026-11-04-process-performance-security-audit.md`](reviews/2026-11-04-process-performance-security-audit.md).
 The crash report covered third-party plugins; this audit found the same defect
 classes in the app's own code. One commit per finding, each with a red test.
 
-### 0.16.3 — churn and orphans (in progress)
+### 0.16.3 — churn and orphans (shipped)
 
 - **M3** ✅ Command-output timeouts kill the shell's whole process group, so a
   pipeline or `;` list leaves no children on PID 1; the 256 KB output cap stays.
@@ -31,7 +31,24 @@ Gate passed (2026-11-04): 311 tests, lint/typecheck clean; the packaged 0.16.3
 run added 3.9 ports/min over 10 minutes with no `osascript`; the timer was
 accepted on the device and in the editor, including across a page change.
 
-### 0.16.4 — main thread and I/O
+### 0.16.4 — security and hot-plug (shipped)
+
+- **Plugin IPC** ✅ The same-user boundary is documented; `config.json`, its
+  backup and the data directory are now `0600`/`0700`. No protocol change, so
+  every plugin still connects. The remaining exposure is another macOS user on
+  the same Mac; a Unix socket would fix it but breaks third-party plugins.
+- **hidseize** ✅ Polling re-arm: an unplugged deck is seized again on replug
+  instead of letting the firmware fallback type into the front app. The
+  hardware check is blocked on this Mac: macOS 27 does not grant Input
+  Monitoring to an ad-hoc build (`access 1`), and the fallback no longer
+  reproduces on firmware 2.0.3. The re-arm is code-verified only.
+- **Signing** ✅ Packaged builds are ad-hoc signed after the helpers are copied;
+  the bundle previously had no code signature at all, so TCC had nothing
+  stable to attach to.
+- **Amphetamine** — a built-in action was dropped; the noisy plugin is not in
+  current use.
+
+### 0.16.5 — main thread and I/O
 
 - **M2** Replace the 3 s `lsappinfo` poll with one
   `lsappinfo listen +becameFrontmost` child; keep the poll as a fallback.
@@ -42,12 +59,14 @@ accepted on the device and in the editor, including across a page change.
 - **L6** Key-press commands no longer hold stdout pipes for background children.
 - **import()** Stage the copy before removing the previous folder.
 
-### Decisions pending
+### Decisions recorded
 
-- Plugin WebSocket registration still has no secret. The practical boundary is
-  another local user; a token in argv is readable, so the options are to document
-  it or move plugin IPC to a Unix socket, which would break third-party plugins.
-- `hidseize` re-seizing a re-plugged deck needs a hardware test.
+- **Plugin WebSocket secret:** not added. The practical boundary is another local
+  user; a token in argv is readable, and a Unix socket would break third-party
+  plugins. Documented instead, with owner-only data files.
+- **hidseize:** polling re-arm chosen over a callback-based design; the hardware
+  test is the gate.
+- **Amphetamine:** dropped unless the plugin comes back into use.
 
 ## Current plan (from the 2026-11-01 audits)
 
