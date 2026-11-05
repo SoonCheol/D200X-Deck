@@ -91,10 +91,20 @@ int main(void) {
         if (seized > 0) {
             fprintf(stderr, "seized %d\n", seized);
             fflush(stderr);
-            while (running && getppid() != 1) sleep(1);
+            // Hold the seizure while the deck stays attached. When it is
+            // unplugged, close the manager and go back to polling so a
+            // re-plugged deck is seized again without restarting the app.
+            while (running && getppid() != 1) {
+                sleep(1);
+                CFSetRef now = IOHIDManagerCopyDevices(mgr);
+                CFIndex present = now ? CFSetGetCount(now) : 0;
+                if (now) CFRelease(now);
+                if (present == 0) break;
+            }
             IOHIDManagerClose(mgr, kIOHIDOptionsTypeNone);
             CFRelease(mgr);
-            break;
+            warned = 1;
+            continue;
         }
         CFRelease(mgr);
         warned = 1;
