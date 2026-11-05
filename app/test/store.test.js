@@ -622,3 +622,27 @@ test('load reports a reset when the backup is unusable too', () => {
   store.load();
   assert.equal(store.takeRecovery(), 'defaults');
 });
+
+test('the config and its backup are written owner-only', (t) => {
+  const dir = tempDir();
+  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+  const store = new Store(dir);
+  store.load();
+  store.save(); // the second save creates the backup
+
+  const mode = (name) => fs.statSync(path.join(dir, name)).mode & 0o777;
+  assert.equal(mode('config.json'), 0o600);
+  assert.equal(mode('config.json.bak'), 0o600);
+});
+
+test('load tightens a config left world-readable by an older version', (t) => {
+  const dir = tempDir();
+  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+  const file = path.join(dir, 'config.json');
+  fs.writeFileSync(file, JSON.stringify(createDefaultConfig()));
+  fs.chmodSync(file, 0o644);
+
+  const store = new Store(dir);
+  store.load();
+  assert.equal(fs.statSync(file).mode & 0o777, 0o600);
+});

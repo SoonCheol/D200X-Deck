@@ -206,6 +206,24 @@ actions so Homebrew tools are found.
   Native plugin binaries may also need to be allowed in System Settings → Privacy &
   Security if macOS blocks them.
 
+## Local security
+
+The app is a single-user desktop tool: plugins are local programs that run with your
+account and are trusted in the same way as any other program you install.
+
+- **Plugin IPC is loopback-only.** Each plugin host listens on `127.0.0.1` and passes
+  the port to its plugins. It rejects browser origins, but it has no per-plugin secret:
+  a local process that knows a plugin UUID can register as that plugin, receive its
+  settings (including API keys stored in action settings), and replace the running
+  plugin's socket. Same-account processes can already do anything your account can;
+  the practical boundary is another macOS user on the same Mac, who can reach
+  loopback. Do not run untrusted local software or let other users use this account.
+- **Application data is owner-only.** `config.json`, `config.json.bak`, the plugin
+  settings file and the store token are written with mode `0600` under
+  `~/Library/Application Support/Ulanzi Deck Open`, and the directory is `0700`.
+- **Plugins may open URLs.** A plugin can ask the host to open an `http(s)` or `mailto`
+  link with `shell.openExternal`; treat a plugin's presence as permission to do that.
+
 ## Project layout
 
 ```

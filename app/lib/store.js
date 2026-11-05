@@ -6,6 +6,17 @@ const { randomUUID, createHash } = require('node:crypto');
 const { fileName: imageFileName } = require('./image-url');
 
 const CONFIG_VERSION = 6;
+const CONFIG_MODE = 0o600;
+const CONFIG_DIR_MODE = 0o700;
+
+/** Best-effort owner-only mode; plugin settings can hold API keys. */
+function restrictMode(file, mode = CONFIG_MODE) {
+  try {
+    fs.chmodSync(file, mode);
+  } catch {
+    /* missing or read-only */
+  }
+}
 
 function key(emoji, label, action = { type: 'none' }, color = '#1b2130') {
   return { emoji, label, action, color, icon: null };
@@ -532,6 +543,11 @@ class Store {
 
   load() {
     fs.mkdirSync(this.dir, { recursive: true });
+    // The app data directory holds plugin settings, so keep it and the config
+    // owner-only even if an older version created them world-readable.
+    restrictMode(this.dir, CONFIG_DIR_MODE);
+    restrictMode(this.file);
+    restrictMode(`${this.file}.bak`);
     const read = (file) => this._sanitizeImages(JSON.parse(fs.readFileSync(file, 'utf8')));
     const defaults = (recovery) => {
       this.config = createDefaultConfig();
@@ -647,13 +663,17 @@ class Store {
     const tmp = `${this.file}.tmp`;
     const onDisk = JSON.parse(JSON.stringify(config));
     this._externalize(onDisk);
-    fs.writeFileSync(tmp, JSON.stringify(onDisk, null, 2));
+    // Plugin settings can contain API keys, so the config is owner-only.
+    fs.writeFileSync(tmp, JSON.stringify(onDisk, null, 2), { mode: CONFIG_MODE });
+    restrictMode(tmp);
     try {
       fs.copyFileSync(this.file, `${this.file}.bak`);
+      restrictMode(`${this.file}.bak`);
     } catch {
       /* first save, no backup yet */
     }
     fs.renameSync(tmp, this.file);
+    restrictMode(this.file);
     let backup = null;
     try {
       backup = JSON.parse(fs.readFileSync(`${this.file}.bak`, 'utf8'));
