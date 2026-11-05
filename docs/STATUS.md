@@ -1,6 +1,6 @@
 # Project status, open items and handoff
 
-Last updated: 2026-11-05 (after v0.16.6).
+Last updated: 2026-11-05 (after v0.16.7).
 
 This is the live status of the app. [`ROADMAP.md`](ROADMAP.md) holds the plan and
 shipped history; [`../CHANGELOG.md`](../CHANGELOG.md) holds user-facing notes; this
@@ -10,15 +10,18 @@ file holds what is still open, what is verified, and what the next agent should 
 
 | Item | Value |
 |---|---|
-| Release | **v0.16.6** — https://github.com/edufalcao/ulanzi-deck-open/releases/tag/v0.16.6 |
-| `main` | `243336d` ("Prepare 0.16.6"), tag `v0.16.6` |
-| Installed app | `~/Applications/Ulanzi Deck Open.app` — 0.16.6, ad-hoc signed |
-| Tests | **331 total, 329 pass, 2 skipped**; eslint and `tsc --noEmit` clean |
+| Release | **v0.16.7** — https://github.com/edufalcao/ulanzi-deck-open/releases/tag/v0.16.7 |
+| `main` | `68185bb` ("Prepare 0.16.7"), tag `v0.16.7` |
+| Installed app | `~/Applications/Ulanzi Deck Open.app` — 0.16.7 (local build of the same code), ad-hoc signed |
+| Tests | **332 total, 330 pass, 2 skipped**; eslint and `tsc --noEmit` clean |
 | Deck | Ulanzi D200, firmware 2.0.3, macOS 27.2 (26B123) |
-| Release assets | `Ulanzi-Deck-Open-0.16.6.dmg` (247,958,279 bytes) + `SHA256SUMS.txt`, checksum verified |
+| Release assets | `Ulanzi-Deck-Open-0.16.7.dmg` (247,985,054 bytes) + `SHA256SUMS.txt`, checksum verified |
 
-### What 0.16.3–0.16.6 changed
+### What 0.16.3–0.16.7 changed
 
+- **0.16.7** — Type text posts Unicode through the native `hotkey` helper
+  (emoji no longer type `aaaa`, no `osascript` per press); README explains the
+  Accessibility re-grant after an update.
 - **0.16.6** — the lock screen shows only the wallpaper (the drawn clock froze
   while the Mac slept); key capture documented as unavailable on macOS 27.
 
@@ -221,7 +224,7 @@ paths, and a clean-machine DMG install.
 | `app/lib/deck.js` | HID protocol, page/key pushes, clock/stats |
 | `app/native/hidseize.c` | Keyboard seize helper (see P1) |
 | `app/renderer/` | Editor UI (classic scripts; `app.js`, `ui.js`, `press.js`, `pickers.js`) |
-| `app/test/` | 331 node:test cases; renderer tests use vm slices |
+| `app/test/` | 332 node:test cases; renderer tests use vm slices |
 | `docs/reviews/` | Audits (2026-11-01/02/04) |
 | `docs/CRASH-REPORT-ANALYSIS-20261104.md` | WindowServer/osascript evidence |
 
