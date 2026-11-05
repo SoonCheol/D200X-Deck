@@ -16,11 +16,12 @@ classes in the app's own code. One commit per finding, each with a red test.
 - **M3** ✅ Command-output timeouts kill the shell's whole process group, so a
   pipeline or `;` list leaves no children on PID 1; the 256 KB output cap stays.
 - **L1** ✅ `install.sh` kill patterns are anchored to the bundle path.
-- **M1** Command-output timers skip keys that are not visible, and run once when
-  a key becomes visible.
-- **M4** Plugin title updates stay in renderer memory and no longer trigger a
-  config save; `setSettings` still persists.
-- **M5** A running Timer pushes one key through protocol 0x0d instead of the
+- **M1** ✅ Command-output timers skip keys that are not visible, and run once
+  when a key becomes visible, after a page/profile change or when the window is
+  shown again. A hidden editor with no deck runs nothing.
+- **M4** ✅ Plugin title updates stay in renderer memory: they redraw the key but
+  no longer save the config. `setSettings` still persists.
+- **M5** ✅ A running Timer pushes one key through protocol 0x0d instead of the
   full page every second.
 
 Gate before the tag: tests, lint/typecheck, a packaged run with the four plugins
