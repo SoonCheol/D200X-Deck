@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.16.6 — 2026-11-05
 
 ### Fixed
 - **The lock screen no longer shows a frozen clock.** The lock image used to include a drawn clock that stopped updating when the Mac slept, so it showed an old time. The lock screen now shows only the wallpaper; the deck's wide key keeps the correct time.
