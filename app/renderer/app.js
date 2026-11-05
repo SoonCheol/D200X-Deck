@@ -472,6 +472,11 @@ function syncCommandOutputs() {
     const entry = { signature, timer: null, startTimer: null, running: false, pending: false };
     const tick = async () => {
       if (commandTimers.get(key) !== entry) return;
+      // A key that is not on screen does not need the output, and with the
+      // editor hidden and no deck nothing displays it at all. Running those
+      // commands anyway was pure churn.
+      if (!commandKeyVisible(keyLocation(key))) return;
+      if (document.hidden && !state.status.connected) return;
       if (entry.running) {
         entry.pending = true;
         return;
@@ -517,6 +522,17 @@ function syncCommandOutputs() {
   }
 }
 
+/**
+ * Refresh the command-output keys that are on screen now. Called after a page
+ * or profile change, and when the window becomes visible, so a key that was
+ * skipped while hidden shows current output instead of a stale one.
+ */
+function tickVisibleCommandOutputs() {
+  for (const [key, entry] of commandTimers) {
+    if (commandKeyVisible(keyLocation(key))) entry.tick();
+  }
+}
+
 /** Re-run a command immediately after its key is pressed. */
 function refreshCommandOutput(action) {
   for (const [key, entry] of commandTimers) {
@@ -557,6 +573,7 @@ function switchProfile(profileId) {
   state.selected = null;
   renderAll();
   commit();
+  if (typeof tickVisibleCommandOutputs === 'function') tickVisibleCommandOutputs();
 }
 
 let profileModalTarget = 'new';
@@ -2022,7 +2039,8 @@ function bind() {
     if (pluginLocVisible(loc)) {
       Promise.resolve(drawIndex(loc.index)).then(() => scheduleLivePush(loc.index));
     }
-    scheduleSave();
+    // The plugin owns its title, so keep it in memory only. Saving here would
+    // rewrite config.json and config.json.bak once per title tick.
   });
 
   api.onPluginToast((message) => {
@@ -2155,6 +2173,10 @@ function applyReloadedConfig(config) {
   }
   scheduleStandby();
   startFrontmostWatch();
+  // A hidden editor skips command-output timers; catch up when it is shown.
+  document.addEventListener('visibilitychange', () => {
+    if (!document.hidden) tickVisibleCommandOutputs();
+  });
   // Keep the wide-key panel in step with the deck: the analog second hand
   // moves every second, and stats are sampled at the same rate.
   setInterval(() => refreshWideStats(), 1000);

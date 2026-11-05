@@ -1,6 +1,6 @@
 'use strict';
 
-/* global $, ACTION_LABELS, activePage, api, autoIconFor, backgroundFor, cancelSequences, clearStandbyTimers, COLS, confirmAction, effectiveKey, emptyKey, ensureKey, esc, isPinnedSlot, KEY_COUNT, keyAt, lockActive, nextFreeIndex, pageInfo, pinnedFor, pressState, pushTimer, renderInspector, renderKey, renderProfileSelect, renderSystemPanel, saveTimer, scheduleCommandOutputSync, standby, standbyActive, state, stopLock, syncCommandOutputs, uuid, WIDE_KEY_INDEX */
+/* global $, ACTION_LABELS, activePage, api, autoIconFor, backgroundFor, cancelSequences, clearStandbyTimers, COLS, confirmAction, effectiveKey, emptyKey, ensureKey, esc, isPinnedSlot, KEY_COUNT, keyAt, lockActive, nextFreeIndex, pageInfo, pinnedFor, pressState, pushTimer, renderInspector, renderKey, renderProfileSelect, renderSystemPanel, saveTimer, scheduleCommandOutputSync, standby, standbyActive, state, stopLock, syncCommandOutputs, tickVisibleCommandOutputs, uuid, WIDE_KEY_INDEX */
 
 // --------------------------------------------------------------- rendering
 
@@ -1016,6 +1016,7 @@ function navigate(pageId) {
   state.selected = null;
   scheduleSave();
   renderAll();
+  if (typeof tickVisibleCommandOutputs === 'function') tickVisibleCommandOutputs();
   pushNow();
   schedulePluginsSync();
 }
