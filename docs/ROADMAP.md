@@ -27,8 +27,9 @@ classes in the app's own code. One commit per finding, each with a red test.
   counting across page changes and when the inspector edits its duration or
   sound.
 
-Gate before the tag: tests, lint/typecheck, a packaged run with the four plugins
-for 10 minutes, and deck acceptance for M5.
+Gate passed (2026-11-04): 311 tests, lint/typecheck clean; the packaged 0.16.3
+run added 3.9 ports/min over 10 minutes with no `osascript`; the timer was
+accepted on the device and in the editor, including across a page change.
 
 ### 0.16.4 — main thread and I/O
 
