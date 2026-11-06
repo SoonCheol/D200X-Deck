@@ -178,7 +178,9 @@ paths, and a clean-machine DMG install.
   `69ac518` in `ulanzi-codex`): lazy command lookup, cached lookup and login
   (30 min), one shared `codex app-server` for keys refreshing together. On the full
   profile: old code +12.9/min (six jumps), new code −1.3/min (no jumps over four
-  cycles). One run per condition. `codex app-server` still starts once per refresh
+  cycles). Page 2 with the new plugin, mac left alone, 18:32 to 18:46: +0.5/min
+  excluding one macOS-caused step (+203/−103 with `SetStoreUpdateService`). Page 3 not
+  yet measured. One run per condition. `codex app-server` still starts once per refresh
   and runs its own `git` checks, which the plugin cannot change.
 - The earlier Meet Mute / Amphetamine `osascript` leak (about 25 to 29 a minute)
   is fixed upstream and is gone.
