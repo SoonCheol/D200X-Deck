@@ -55,3 +55,42 @@ test('reloadOne stops one plugin and leaves the others alone', () => {
   assert.deepEqual(a.signals, ['SIGTERM']);
   assert.deepEqual(b.signals, []);
 });
+
+const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+test('a plugin with no keys left is stopped after a grace period; one in use is kept', async () => {
+  const host = new TestHost();
+  host.idleStopMs = 20;
+  host.plugins.set('a', { uuid: 'a', compatible: true });
+  host.plugins.set('b', { uuid: 'b', compatible: true });
+  host.actions.set('b1', { pluginUuid: 'b' });
+  const a = fakeProcess();
+  const b = fakeProcess();
+  host.children.set('a', a);
+  host.children.set('b', b);
+
+  host.reapIdle();
+  assert.deepEqual(a.signals, [], 'not stopped at once, so moving a key does not restart it');
+
+  await wait(80);
+  assert.deepEqual(a.signals, ['SIGTERM']);
+  assert.equal(host.children.has('a'), false);
+  assert.deepEqual(b.signals, []);
+  assert.equal(host.children.has('b'), true);
+});
+
+test('adding the key back within the grace period keeps the plugin running', async () => {
+  const host = new TestHost();
+  host.idleStopMs = 40;
+  host.plugins.set('a', { uuid: 'a', compatible: true });
+  const a = fakeProcess();
+  host.children.set('a', a);
+
+  host.reapIdle();
+  host.actions.set('a1', { pluginUuid: 'a' });
+  host.reapIdle();
+  await wait(100);
+
+  assert.deepEqual(a.signals, []);
+  assert.equal(host.children.has('a'), true);
+});

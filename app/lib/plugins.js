@@ -377,6 +377,7 @@ class PluginManager extends PluginHost {
         }
       }
     }
+    this.reapIdle();
   }
 
   _clearAction(action) {

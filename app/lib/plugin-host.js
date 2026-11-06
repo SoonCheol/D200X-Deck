@@ -91,6 +91,8 @@ class PluginHost extends EventEmitter {
     this.htmlRunning = new Set();
     this.starting = new Set();
     this.restarting = new Set();
+    this.idleTimers = new Map(); // uuid -> timer for a plugin no key uses any more
+    this.idleStopMs = 30_000;
 
     this.wss = null;
     this.stopping = false;
@@ -395,6 +397,53 @@ class PluginHost extends EventEmitter {
     return false;
   }
 
+  /**
+   * Stop plugins that no key uses any more. Removing a key sends the plugin
+   * its disappear event but left the process running until the app quit. The
+   * grace period keeps a moved or re-added key from restarting its plugin.
+   */
+  reapIdle() {
+    const running = new Set([...this.children.keys(), ...this.htmlRunning]);
+    for (const uuid of running) {
+      if (this._hasActionsFor(uuid)) {
+        this._cancelIdle(uuid);
+      } else if (!this.idleTimers.has(uuid)) {
+        const timer = setTimeout(() => {
+          this.idleTimers.delete(uuid);
+          if (!this.stopping && !this._hasActionsFor(uuid)) this._stopPlugin(uuid);
+        }, this.idleStopMs);
+        timer.unref?.();
+        this.idleTimers.set(uuid, timer);
+      }
+    }
+    for (const uuid of [...this.idleTimers.keys()]) {
+      if (!running.has(uuid)) this._cancelIdle(uuid);
+    }
+  }
+
+  _cancelIdle(uuid) {
+    clearTimeout(this.idleTimers.get(uuid));
+    this.idleTimers.delete(uuid);
+  }
+
+  /** Stop one plugin without restarting it. */
+  _stopPlugin(uuid) {
+    this._log(`stop ${uuid} (no keys use it)`);
+    if (this.htmlRunning.has(uuid)) {
+      try { this.stopHtml?.(uuid); } catch { /* ignore */ }
+      this.htmlRunning.delete(uuid);
+    }
+    const proc = this.children.get(uuid);
+    if (proc) {
+      this.restarting.add(proc);
+      try { proc.kill(); } catch { /* ignore */ }
+      this.children.delete(uuid);
+    }
+    this.sockets.delete(uuid);
+    this.queues.delete(uuid);
+    this.crashes.delete(uuid);
+  }
+
   /** Stop one plugin and start it again (used by Installed → Reload). */
   restart(pluginUuid) {
     const meta = this.plugins.get(pluginUuid);
@@ -629,6 +678,7 @@ class PluginHost extends EventEmitter {
   /** Graceful shutdown: SIGTERM every child, then SIGKILL whatever is left. */
   async shutdown(timeoutMs = 1500) {
     this.stopping = true;
+    for (const uuid of [...this.idleTimers.keys()]) this._cancelIdle(uuid);
     for (const uuid of this.htmlRunning) {
       try { this.stopHtml?.(uuid); } catch { /* ignore */ }
     }

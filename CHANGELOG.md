@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased
+
+### Changed
+- **A plugin stops when no key uses it any more.** Removing the last key of a plugin used to leave its process running until the app quit (a removed Meet Mute kept its `osascript` helper alive). The app now stops it 30 s after the last key goes, and starts it again if you add a key back. The delay keeps moving or re-adding a key from restarting the plugin.
+
+### Tests
+- 334 → **336** passing, plus two opt-in Electron smoke tests that are skipped without a GUI session.
+
 ## 0.16.10 — 2026-11-06
 
 ### Changed

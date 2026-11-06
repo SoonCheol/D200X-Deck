@@ -922,6 +922,7 @@ class StreamDeckPlugins extends PluginHost {
         existing.key = item.key || existing.key;
       }
     }
+    this.reapIdle();
   }
 
   run(actionid) {
