@@ -164,10 +164,26 @@ paths, and a clean-machine DMG install.
 
 ### P6 — Machine state
 
-- WindowServer has ~12.4k Mach ports on this Mac (8k earlier today); only logout/reboot returns
-  them. The app is quiet while idle (0.16.3 gate: +3.9 ports/min with four
-  plugins, 0 `osascript`).
-- No DNS in the agent shell; see §5.
+- **WindowServer port growth — cause found (2026-11-06).** `app/scripts/port-monitor.sh`
+  logs the WindowServer port count and short-lived programs every minute to
+  `~/Library/Logs/Ulanzi Deck Open/port-monitor.log`. Results (ports per minute):
+  app closed +0.9; app open with the old config +7.7 to +8.5 (window visible or
+  closed makes no difference); empty config about 0; page 1 only +7.4; page 1
+  without Claude usage and Codex limits +2.1 (median step 0); Claude usage and
+  Codex limits only +7.5; **Claude usage only: no growth**. The remaining cause is
+  the **Ulanzi Codex limits plugin** (`com.ulanzi.codexLimits`): with
+  `refreshMinutes: 3` each Codex key starts `codex app-server`, `npm exec`,
+  `npm ls @openai/codex` and `corepack pnpm root -g` (and `codex app-server` runs
+  `git clone` / `git ls-remote`) on every refresh, and the ports jump +30 to +130
+  within seconds of each cycle. Each short-lived process registers with
+  WindowServer; some ports are only freed by logout or reboot. One run per
+  condition, 9 to 14 samples each. **Mitigation (owner's call):** raise the Codex
+  keys' refresh minutes (3 → 15 or 30) or use one Codex key instead of two. The
+  plugin is Ulanzi's, not ours; not modified.
+- The earlier Meet Mute / Amphetamine `osascript` leak (about 25 to 29 a minute)
+  is fixed upstream and is gone.
+- No DNS in the agent shell on 2026-11-04; DNS worked again after the reboot on
+  2026-11-06.
 
 ## 3. Known limitations and gaps
 
