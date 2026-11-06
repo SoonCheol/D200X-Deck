@@ -1,6 +1,6 @@
 # Project status, open items and handoff
 
-Last updated: 2026-11-05 (after v0.16.9).
+Last updated: 2026-11-05 (after v0.16.10).
 
 This is the live status of the app. [`ROADMAP.md`](ROADMAP.md) holds the plan and
 shipped history; [`../CHANGELOG.md`](../CHANGELOG.md) holds user-facing notes; this
@@ -10,14 +10,17 @@ file holds what is still open, what is verified, and what the next agent should 
 
 | Item | Value |
 |---|---|
-| Release | **v0.16.9** — https://github.com/edufalcao/ulanzi-deck-open/releases/tag/v0.16.9 |
-| `main` | `7ef835b` ("Prepare 0.16.9"), tag `v0.16.9` |
-| Installed app | `~/Applications/Ulanzi Deck Open.app` — 0.16.9 (local build of the release), ad-hoc signed |
-| Tests | **335 total, 333 pass, 2 skipped**; eslint and `tsc --noEmit` clean |
+| Release | **v0.16.10** — https://github.com/edufalcao/ulanzi-deck-open/releases/tag/v0.16.10 |
+| `main` | `f7c3c1e` ("Prepare 0.16.10"), tag `v0.16.10` |
+| Installed app | `~/Applications/Ulanzi Deck Open.app` — 0.16.10 (local build of the release), ad-hoc signed |
+| Tests | **336 total, 334 pass, 2 skipped**; eslint and `tsc --noEmit` clean |
 | Deck | Ulanzi D200, firmware 2.0.3, macOS 27.2 (26B123) |
-| Release assets | `Ulanzi-Deck-Open-0.16.9.dmg` (247,986,335 bytes) + `SHA256SUMS.txt`, checksum verified |
+| Release assets | `Ulanzi-Deck-Open-0.16.10.dmg` (248,684,712 bytes) + `SHA256SUMS.txt`, checksum verified |
 
-### What 0.16.3–0.16.9 changed
+### What 0.16.3–0.16.10 changed
+
+- **0.16.10** — hotkey and Type text report a missing Accessibility grant (with
+  the remove/re-add hint) instead of failing silently; Electron 45.2.3.
 
 - **0.16.9** — key capture is skipped on macOS 27+ (App tab shows "Not needed on
   macOS 27"); no more `hidseize` polling there. Plugin retry fixes (currency,
@@ -234,7 +237,7 @@ paths, and a clean-machine DMG install.
 | `app/lib/deck.js` | HID protocol, page/key pushes, clock/stats |
 | `app/native/hidseize.c` | Keyboard seize helper (see P1) |
 | `app/renderer/` | Editor UI (classic scripts; `app.js`, `ui.js`, `press.js`, `pickers.js`) |
-| `app/test/` | 335 node:test cases; renderer tests use vm slices |
+| `app/test/` | 336 node:test cases; renderer tests use vm slices |
 | `docs/reviews/` | Audits (2026-11-01/02/04) |
 | `docs/CRASH-REPORT-ANALYSIS-20261104.md` | WindowServer/osascript evidence |
 
