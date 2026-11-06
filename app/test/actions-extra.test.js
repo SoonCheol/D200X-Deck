@@ -210,3 +210,30 @@ test('a key command releases its pipes when the shell exits', async () => {
 
   assert.equal(child.stderr.destroyed, true, 'the read end is closed at shell exit');
 });
+
+test('hotkeys and text report a missing Accessibility grant instead of failing silently', async (t) => {
+  if (process.platform !== 'darwin') {
+    t.skip('the helper posts events on macOS only');
+    return;
+  }
+  const helper = path.join(__dirname, '..', 'bin', 'hotkey');
+  if (!fs.existsSync(helper)) {
+    t.skip('native helper not built');
+    return;
+  }
+  electron.systemPreferences = { isTrustedAccessibilityClient: () => false };
+  t.after(() => {
+    delete electron.systemPreferences;
+  });
+  execCalls.length = 0;
+
+  for (const result of [await actions.runHotkey('cmd+a'), await actions.execute({ type: 'text', value: 'hi' })]) {
+    assert.equal(result.ok, false);
+    assert.equal(result.permission, 'accessibility');
+    assert.match(result.error, /remove .*add it again/i);
+  }
+  assert.equal(execCalls.length, 0, 'no events are posted without the grant');
+
+  electron.systemPreferences = { isTrustedAccessibilityClient: () => true };
+  assert.deepEqual(await actions.runHotkey('cmd+a'), { ok: true });
+});

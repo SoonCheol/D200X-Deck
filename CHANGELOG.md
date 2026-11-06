@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+### Fixed
+- **A hotkey or Type text key says when Accessibility is not granted.** After an update macOS can keep the Accessibility entry switched on but drop the native helpers' events without any error, so the key did nothing. The app now checks the grant first, shows "Remove Ulanzi Deck Open in Device Control and Data Access, then add it again", and opens the pane.
+
 ## 0.16.9 — 2026-11-05
 
 ### Changed

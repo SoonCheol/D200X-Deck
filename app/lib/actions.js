@@ -3,7 +3,8 @@
 const { spawn, execFile } = require('node:child_process');
 const path = require('node:path');
 const fs = require('node:fs');
-const { shell, app, dialog, BrowserWindow } = require('electron');
+const electron = require('electron');
+const { shell, app, dialog, BrowserWindow } = electron;
 const { schemeOf, hasControlCharacters, isBlockedScheme, isKnownScheme } = require('./url-safety');
 
 const { MEDIA_OPS } = require('./constants');
@@ -233,6 +234,25 @@ function execFileResult(file, args, timeout = 10000) {
   });
 }
 
+// After an ad-hoc update macOS can keep the Accessibility entry switched on but
+// drop the native helpers' events without any error, so check before posting.
+function accessibilityBlocked() {
+  try {
+    return (
+      process.platform === 'darwin' && electron.systemPreferences?.isTrustedAccessibilityClient(false) === false
+    );
+  } catch {
+    return false;
+  }
+}
+
+const ACCESSIBILITY_STALE = {
+  ok: false,
+  permission: 'accessibility',
+  error:
+    'Accessibility is not granted to this build. Remove Ulanzi Deck Open in Device Control and Data Access, then add it again.',
+};
+
 function applescript(script) {
   return execFileResult('/usr/bin/osascript', ['-e', script]);
 }
@@ -254,6 +274,7 @@ async function runHotkey(combo) {
       // System Events keystrokes.
       const helper = helperBinary('hotkey');
       if (require('node:fs').existsSync(helper)) {
+        if (accessibilityBlocked()) return { ...ACCESSIBILITY_STALE };
         const flags = [];
         if (parts.includes('cmd') || parts.includes('command') || parts.includes('meta')) flags.push('cmd');
         if (parts.includes('shift')) flags.push('shift');
@@ -350,6 +371,7 @@ async function typeText(value, enter = false) {
   // The helper posts Unicode, so emoji work; System Events keystroke types "a" for them.
   const helper = helperBinary('hotkey');
   if (process.platform === 'darwin' && require('node:fs').existsSync(helper)) {
+    if (accessibilityBlocked()) return { ...ACCESSIBILITY_STALE };
     return execFileResult(helper, text ? ['text', text, ...(enter ? ['enter'] : [])] : ['36']);
   }
   const parts = [];
