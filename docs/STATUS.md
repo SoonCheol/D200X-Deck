@@ -255,8 +255,9 @@ paths, and a clean-machine DMG install.
 
 ## 8. Next three actions
 
-**1.0.0 plan (owner decision, 2026-11-05): ship the 0.16.x line as is and make
-1.0.0 the first Developer ID + notarized release.**
+**1.0.0 is parked (owner, 2026-11-06).** The 0.16.x line stays the current line.
+Plan when revived (decision of 2026-11-05): make 1.0.0 the first Developer ID +
+notarized release.
 
 1. Get an Apple Developer account, then sign (hardened runtime + Electron
    entitlements, helpers first), notarize and staple in CI. Ask before adding

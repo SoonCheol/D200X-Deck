@@ -6,7 +6,7 @@
 > listed at the end of this file. See [`../CHANGELOG.md`](../CHANGELOG.md) for the
 > shipped list. **Live status and the next actions are in [`STATUS.md`](STATUS.md).**
 
-## 1.0.0 — planned: Developer ID + notarization
+## 1.0.0 — parked: Developer ID + notarization
 
 The 0.16.x line ships ad-hoc signed (0.16.6–0.16.8: lock-screen clock, Type text
 Unicode, lost-deck recovery, `deck.log`). 1.0.0 is gated on a Developer ID
