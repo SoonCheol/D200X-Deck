@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.16.9 — 2026-11-05
 
 ### Changed
 - **Key capture is skipped on macOS 27 and later.** The kernel refuses the Deck keyboard seize there even with Input Monitoring granted, and the firmware URL fallback does not appear on firmware 2.0.3 (checked with the wide key in TextEdit). The app no longer starts the `hidseize` helper, which polled every 3 s and hit the permission check each time. Deck settings → App shows **Not needed on macOS 27** with no Grant… button. Older macOS is unchanged.
