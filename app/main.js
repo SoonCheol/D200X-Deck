@@ -6,7 +6,7 @@ const fs = require('node:fs');
 const { isRendererFile: isRendererFileIn } = require('./lib/renderer-url');
 const { applyLoginPath } = require('./lib/shell-path');
 const { appendAppLog } = require('./lib/app-log');
-const { seizeLineState } = require('./lib/seize');
+const { seizeLineState, keyCaptureUnsupported, UNSUPPORTED_STATE } = require('./lib/seize');
 const { createCrashGuard } = require('./lib/renderer-crash');
 const { createImageProtocol } = require('./lib/image-protocol');
 const { cleanOrphans } = require('./lib/orphan-cleanup');
@@ -595,6 +595,10 @@ function setSeizeState(running, message, need) {
 function startHidSeize() {
   if (noDeck) {
     setSeizeState(false, 'Key capture is off (no-deck mode)');
+    return;
+  }
+  if (process.platform === 'darwin' && keyCaptureUnsupported(process.getSystemVersion())) {
+    setSeizeState(UNSUPPORTED_STATE.running, UNSUPPORTED_STATE.message, UNSUPPORTED_STATE.need);
     return;
   }
   const bin = app.isPackaged

@@ -227,3 +227,34 @@ test('the lock screen frame has no clock and no refresh timer', async () => {
   assert.equal(rendered[0].standbyClock, false, 'the firmware wide key already shows the time');
   assert.equal(timers.length, 0, 'a static frame needs no refresh');
 });
+
+// ------------------------------------------------ key capture row on macOS 27
+
+test('the unsupported key capture state is neither a warning nor a grant prompt', () => {
+  const slice = region('const SEIZE_NOTE =', 'function updateDeckSettingsMeta');
+  const el = () => {
+    const classes = new Set(['hidden']);
+    return {
+      textContent: '',
+      classList: {
+        add: (c) => classes.add(c),
+        remove: (c) => classes.delete(c),
+        toggle: (c, on) => (on ? classes.add(c) : classes.delete(c)),
+        contains: (c) => classes.has(c),
+      },
+    };
+  };
+  const els = { '#seize-row': el(), '#seize-state': el(), '#seize-note': el(), '#seize-grant': el() };
+  const context = { $: (selector) => els[selector], seizeState: null };
+  vm.createContext(context);
+  vm.runInContext(`${slice}\nthis.renderSeizeState = renderSeizeState;`, context);
+
+  context.seizeState = { running: false, message: 'Not needed on macOS 27', need: 'unsupported' };
+  context.renderSeizeState();
+
+  assert.equal(els['#seize-state'].textContent, 'Not needed on macOS 27');
+  assert.equal(els['#seize-state'].classList.contains('settings-warn'), false);
+  assert.equal(els['#seize-grant'].classList.contains('hidden'), true);
+  assert.match(els['#seize-note'].textContent, /not needed|no longer/i);
+  assert.equal(els['#seize-note'].classList.contains('hidden'), false);
+});

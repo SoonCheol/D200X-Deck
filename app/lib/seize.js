@@ -19,4 +19,16 @@ function seizeLineState(line) {
   return null;
 }
 
-module.exports = { seizeLineState };
+/**
+ * From macOS 27 the kernel refuses the keyboard seize (kIOReturnNotPrivileged)
+ * even with Input Monitoring granted, and the firmware URL fallback does not
+ * show up on firmware 2.0.3. Skip the helper there; an unknown version still tries it.
+ */
+function keyCaptureUnsupported(systemVersion) {
+  const major = parseInt(String(systemVersion || ''), 10);
+  return Number.isFinite(major) && major >= 27;
+}
+
+const UNSUPPORTED_STATE = { running: false, message: 'Not needed on macOS 27', need: 'unsupported' };
+
+module.exports = { seizeLineState, keyCaptureUnsupported, UNSUPPORTED_STATE };

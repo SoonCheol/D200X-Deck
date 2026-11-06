@@ -1145,6 +1145,8 @@ const SEIZE_NOTES = {
   privilege:
     'macOS refused to let the helper take over the Deck’s keyboard. No permission setting changes this, so the ' +
     'Deck’s firmware can still type its setup URL into the frontmost app.',
+  unsupported:
+    'Not needed on macOS 27: the Deck’s firmware does not type its setup URL here, and macOS refuses key capture anyway.',
 };
 
 function renderSeizeState() {
@@ -1160,7 +1162,7 @@ function renderSeizeState() {
   row.classList.remove('hidden');
   const running = seizeState.running === true;
   label.textContent = seizeState.message || (running ? 'Capturing keys' : 'Not running');
-  label.classList.toggle('settings-warn', !running);
+  label.classList.toggle('settings-warn', !running && seizeState.need !== 'unsupported');
   $('#seize-grant')?.classList.toggle('hidden', seizeState.need !== 'permission');
   if (note) note.textContent = SEIZE_NOTES[seizeState.need] || SEIZE_NOTE;
   note?.classList.toggle('hidden', running);

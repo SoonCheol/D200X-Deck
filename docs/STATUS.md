@@ -66,8 +66,10 @@ does **not** work, and the app now reports why:
 
 **Decision (owner, 2026-11-05): no certificate, so key capture is documented as
 unavailable on macOS 27** (README, CHANGELOG). Code and the Grant… button are
-unchanged. Gating the seize attempt (option B) or removing the feature (option C)
-was offered and not chosen. Reopen only if a Developer ID certificate appears.
+unchanged at the time. Superseded 2026-11-05 by option B: after the owner saw no
+URL typed with the wide key in TextEdit, the app skips the helper on macOS 27+
+(`keyCaptureUnsupported`) and the App tab shows "Not needed on macOS 27". Reopen
+only if a Developer ID certificate appears.
 
 What to try next if a certificate appears, in order:
 

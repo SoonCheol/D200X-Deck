@@ -178,7 +178,7 @@ appears on every key press. A plain off/on toggle does not fix it. Remove and re
 5. Turn the new **Ulanzi Deck Open** entry on, then quit and reopen the app.
 
 Do the same in **Input Monitoring** if you use it (see Known limitations: key capture is
-unavailable on macOS 27). A build signed with a stable identity avoids this; see
+skipped on macOS 27). A build signed with a stable identity avoids this; see
 [`docs/RELEASE.md`](docs/RELEASE.md).
 
 ## First run
@@ -192,9 +192,9 @@ unavailable on macOS 27). A build signed with a stable identity avoids this; see
      does nothing, grant Accessibility and relaunch.
    * **Input Monitoring** — used by the bundled `hidseize` helper so the D200's
      firmware fallback cannot type `www.ulanzistudio.com` into the frontmost app.
-     **Key capture does not work on macOS 27** (see Known limitations), so granting it
-     does not help there. On older macOS, press **Grant…** in **Deck settings → App →
-     Key capture**, enable the app in Input Monitoring and relaunch.
+     **On macOS 27 the app skips key capture** (see Known limitations), so there is nothing
+     to grant. On older macOS, press **Grant…** in **Deck settings → App → Key capture**,
+     enable the app in Input Monitoring and relaunch.
 4. Open-app, URL, shell and page actions need no special permission.
 
 Config lives in `~/Library/Application Support/Ulanzi Deck Open/config.json`. The app
@@ -214,7 +214,7 @@ actions so Homebrew tools are found.
 * **“Deck busy” / cannot connect** — quit Ulanzi Studio (and any other app using the
   deck). The control interface is exclusive.
 * **Hotkeys or Type text do nothing, or a permission prompt appears on every press** — grant Accessibility, then quit and relaunch the app. If it shows as on but still fails after an update, remove and re-add the app ([steps](#after-installing-an-update-re-grant-accessibility)).
-* **The wide key types a URL** — on macOS before 27, grant Input Monitoring (see above). On macOS 27 key capture is unavailable.
+* **The wide key types a URL** — on macOS before 27, grant Input Monitoring (see above). On macOS 27 the app does not run key capture.
 * **Key capture says “Not allowed by macOS”** — the kernel refused the keyboard seize
   (`seize 0xe00002c1`, `kIOReturnNotPrivileged`, in `~/Library/Logs/Ulanzi Deck Open/seize.log`).
   No permission setting changes this.
@@ -250,11 +250,12 @@ account and are trusted in the same way as any other program you install.
 
 ## Known limitations
 
-- **Key capture is unavailable on macOS 27.** The bundled `hidseize` helper needs
+- **Key capture is skipped on macOS 27.** The bundled `hidseize` helper needs
   Input Monitoring, and on macOS 27 the kernel refuses the keyboard seize even
   when it is granted (`kIOReturnNotPrivileged`; whether root is required is
-  unverified). Ad-hoc builds also cannot hold the grant. Deck settings → App
-  shows **Not allowed by macOS**. Without capture, the deck's firmware fallback can type its setup URL
+  unverified). The app no longer starts the helper there, and Deck settings → App
+  shows **Not needed on macOS 27**. On firmware 2.0.3 the URL fallback does not
+  reproduce. Without capture, the deck's firmware fallback can type its setup URL
   into the frontmost app. The state and the remaining options are in
   [`docs/STATUS.md`](docs/STATUS.md).
 - **Ad-hoc signing.** Builds are ad-hoc signed, so the signature changes with
