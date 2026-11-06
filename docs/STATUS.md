@@ -202,6 +202,7 @@ paths, and a clean-machine DMG install.
 | 2026-11-04 | Ship the `hidseize` re-arm as code-verified despite the blocked hardware test | It is a strict improvement and the fallback no longer reproduces here |
 | 2026-11-04 | Timers keyed by page/slot instead of the action object | The inspector replaces `key.action`; the countdown must follow the slot |
 | 2026-11-05 | Document key capture as unavailable on macOS 27 (docs only, code and Grant… unchanged) | No Developer ID certificate (0 signing identities); ad-hoc builds cannot hold a TCC grant; the kernel refused the seize even with a grant (PR #13); the URL fallback does not reproduce on firmware 2.0.3. Retest only with a Developer ID build |
+| 2026-11-06 | Rebrand parked (owner). If revived: drop "Ulanzi" from the app name (trademark risk), rename together with the 1.0.0 Developer ID signing, migrate `~/Library/Application Support/Ulanzi Deck Open`. GitHub/npm check found no exact-name repo for DeckOpen, Deckable, Padwright; avoid OpenDeck, ODeck, UDeck, MacroDeck. Trademark and domain search not done | Name "Ulanzi Deck Open" starts with Ulanzi's brand; bundle ID changes reset permissions anyway |
 | 2026-11-05 | Merge PR #13 (key-capture state + App tab) | `0xe00002c1` is `kIOReturnNotPrivileged`; the old text misdiagnosed it |
 
 ## 5. Environment and tooling (agent shell)
