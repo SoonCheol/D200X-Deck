@@ -1639,6 +1639,4 @@ body::before {
 .profile-app-name { flex: 1; min-width: 120px; font-size: var(--fs-sm); color: var(--muted); }
 .profile-footer { justify-content: flex-end; }
 .profile-footer #profile-delete { margin-right: auto; }
-.profile-io-row { padding-top: 0; padding-bottom: 4px; align-items: center; }
-.profile-io-row .field-hint { flex: 1; min-width: 140px; }
 #profile-modal .modal-actions { padding-top: 12px; }

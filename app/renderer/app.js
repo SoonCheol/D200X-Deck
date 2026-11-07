@@ -596,8 +596,6 @@ function openProfileModal(mode) {
   profileModalTarget = mode;
   const editing = mode === 'edit';
   const profile = (state.config.profiles || []).find((p) => p.id === state.config.activeProfileId);
-  $('#profile-export').classList.toggle('hidden', !editing);
-  $('#profile-import').classList.toggle('hidden', !editing);
   profileDraft = {
     appPath: editing ? profile?.appPath || '' : '',
     appName: editing ? profile?.appName || '' : '',
@@ -1386,6 +1384,24 @@ function bind() {
   });
 
   $('#profile-select').addEventListener('change', (e) => switchProfile(e.target.value));
+  const profileMenu = $('#profile-menu');
+  const profileMenuBtn = $('#profile-menu-btn');
+  const closeProfileMenu = () => {
+    profileMenu.classList.add('hidden');
+    profileMenuBtn.setAttribute('aria-expanded', 'false');
+  };
+  profileMenuBtn.addEventListener('click', (event) => {
+    event.stopPropagation();
+    const hidden = profileMenu.classList.toggle('hidden');
+    profileMenuBtn.setAttribute('aria-expanded', String(!hidden));
+  });
+  profileMenu.querySelectorAll('.menu-item').forEach((item) => item.addEventListener('click', closeProfileMenu));
+  document.addEventListener('click', (event) => {
+    if (!event.target.closest('#profile-menu, #profile-menu-btn')) closeProfileMenu();
+  });
+  document.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape') closeProfileMenu();
+  });
   $('#profile-add').addEventListener('click', () => openProfileModal('new'));
   $('#profile-edit').addEventListener('click', () => openProfileModal('edit'));
   $('#profile-modal-close').addEventListener('click', closeProfileModal);
