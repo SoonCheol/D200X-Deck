@@ -1,6 +1,6 @@
 # Project status, open items and handoff
 
-Last updated: 2026-11-05 (after v0.16.11).
+Last updated: 2026-11-07 (after v0.16.12).
 
 This is the live status of the app. [`ROADMAP.md`](ROADMAP.md) holds the plan and
 shipped history; [`../CHANGELOG.md`](../CHANGELOG.md) holds user-facing notes; this
@@ -10,15 +10,17 @@ file holds what is still open, what is verified, and what the next agent should 
 
 | Item | Value |
 |---|---|
-| Release | **v0.16.11** — https://github.com/edufalcao/ulanzi-deck-open/releases/tag/v0.16.11 |
-| `main` | `0dc1476` ("Prepare 0.16.11"), tag `v0.16.11` |
-| Installed app | `~/Applications/Ulanzi Deck Open.app` — 0.16.11 (local build of the release), ad-hoc signed |
-| Tests | **338 total, 336 pass, 2 skipped**; eslint and `tsc --noEmit` clean |
+| Release | **v0.16.12** — https://github.com/edufalcao/ulanzi-deck-open/releases/tag/v0.16.12 |
+| `main` | `ded5e05` ("Prepare 0.16.12"), tag `v0.16.12` |
+| Installed app | `~/Applications/Ulanzi Deck Open.app` — 0.16.12 (local build of the release), ad-hoc signed |
+| Tests | **339 total, 337 pass, 2 skipped**; eslint and `tsc --noEmit` clean |
 | Deck | Ulanzi D200, firmware 2.0.3, macOS 27.2 (26B123) |
-| Release assets | `Ulanzi-Deck-Open-0.16.11.dmg` (246,999,048 bytes) + `SHA256SUMS.txt`, checksum verified |
+| Release assets | `Ulanzi-Deck-Open-0.16.12.dmg` (248,641,957 bytes) + `SHA256SUMS.txt`, checksum verified |
 
-### What 0.16.3–0.16.11 changed
+### What 0.16.3–0.16.12 changed
 
+- **0.16.12** — choosing "Choose a plugin…" on a plugin key clears the plugin,
+  action and settings (it used to leave the old action on the key).
 - **0.16.11** — a plugin is stopped 30 s after its last key is removed
   (`reapIdle` in `lib/plugin-host.js`). Unit-tested; the live check (remove a
   plugin's last key, confirm the plugin and its helper are gone after ~40 s) is
