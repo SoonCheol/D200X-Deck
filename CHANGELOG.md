@@ -1,5 +1,24 @@
 # Changelog
 
+## 0.16.13 — 2026-11-07
+
+### Changed
+- **One profile menu.** The three icons beside the profile picker (Ulanzi import, new, manage) are now one `⋯` menu: New profile…, Profile settings…, Import profile…, Export profile….
+- **One Import profile dialog.** It lists the live Ulanzi Studio profiles under **Ulanzi Studio on this Mac**, and **Choose file…** takes a Studio ZIP or a Deck Open profile (it detects which). A chosen file shows under **From file**. With no Studio profiles, the dialog says so and Choose file becomes the main button. The Mode row shows only once a profile is selected.
+- **Name a new imported profile.** Create a new profile has a Name field pre-filled with the Studio name. A taken name still gets a number. The Replace option and its confirmation name the profile whose pages they replace.
+- **Save is in the profile dialog footer** with Cancel (Create profile for a new one), not beside the name field, because it also saves the linked app and background.
+- **The Store header has Install folder… and Install .zip…**, the same local install as Installed.
+
+### Fixed
+- **Icon button glyphs are centred.** The 24 px buttons kept the default button padding, so the `+` and the other glyphs sat about 2 px right of centre.
+- **Choosing "Choose a plugin…" on a key clears its plugin action.** It used to leave the old plugin, action and settings on the key.
+
+### Removed
+- The `profile:import` channel. `import:pick` now reads both profile formats.
+
+### Tests
+- 337 → **349** passing, plus two opt-in Electron smoke tests that are skipped without a GUI session.
+
 ## 0.16.12 — 2026-11-07
 
 ### Fixed
