@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.16.12 — 2026-11-07
+
+### Fixed
+- **Choosing "Choose a plugin…" clears the key's plugin action.** Setting the plugin back to the empty entry left the old plugin, action and settings on the key, so the key still ran the old action. It now resets the whole chain (plugin, action, settings) and keeps the key face.
+
+### Tests
+- 336 → **337** passing, plus two opt-in Electron smoke tests that are skipped without a GUI session.
+
 ## 0.16.11 — 2026-11-06
 
 ### Changed
