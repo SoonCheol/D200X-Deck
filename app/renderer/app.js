@@ -605,7 +605,8 @@ function openProfileModal(mode) {
   };
   $('#profile-title').textContent = editing ? 'Manage profile' : 'New profile';
   $('#profile-name').value = editing ? profile?.name || '' : '';
-  $('#profile-delete-row').classList.toggle('hidden', !editing);
+  $('#profile-delete').classList.toggle('hidden', !editing);
+  $('#profile-save').textContent = editing ? 'Save changes' : 'Create profile';
   $('#profile-delete').disabled = (state.config.profiles || []).length <= 1;
   renderProfileDraft();
   $('#profile-modal').classList.remove('hidden');
@@ -1388,6 +1389,7 @@ function bind() {
   $('#profile-add').addEventListener('click', () => openProfileModal('new'));
   $('#profile-edit').addEventListener('click', () => openProfileModal('edit'));
   $('#profile-modal-close').addEventListener('click', closeProfileModal);
+  $('#profile-cancel').addEventListener('click', closeProfileModal);
   $('#profile-modal').addEventListener('click', (e) => {
     if (e.target === $('#profile-modal')) closeProfileModal();
   });

@@ -311,11 +311,11 @@
           </div>
           <button id="profile-modal-close" class="icon-btn" title="Close">×</button>
         </div>
-        <div class="modal-actions" style="border-bottom:0">
-          <input id="profile-name" data-autofocus class="input" maxlength="40" placeholder="Profile name" />
-          <button class="btn primary" id="profile-save">Save</button>
-        </div>
         <div class="profile-body">
+          <div class="field">
+            <label for="profile-name">Name</label>
+            <input id="profile-name" data-autofocus class="input" maxlength="40" placeholder="Profile name" />
+          </div>
           <div class="field">
             <label>Linked app</label>
             <div class="row profile-link-row">
@@ -340,8 +340,10 @@
           <button class="btn small" id="profile-import">Import…</button>
           <span class="field-hint">Back up or share this profile as one file.</span>
         </div>
-        <div class="modal-actions" id="profile-delete-row" style="border-bottom:0">
+        <div class="modal-actions profile-footer" style="border-bottom:0">
           <button class="btn danger" id="profile-delete">Delete profile</button>
+          <button class="btn ghost" id="profile-cancel">Cancel</button>
+          <button class="btn primary" id="profile-save">Save changes</button>
         </div>
       </div>
     </div>

@@ -1637,8 +1637,8 @@ body::before {
 .profile-body { padding: 2px 22px 4px; display: flex; flex-direction: column; gap: 12px; }
 .profile-link-row { flex-wrap: wrap; align-items: center; }
 .profile-app-name { flex: 1; min-width: 120px; font-size: var(--fs-sm); color: var(--muted); }
-#profile-delete-row { padding-top: 0; }
+.profile-footer { justify-content: flex-end; }
+.profile-footer #profile-delete { margin-right: auto; }
 .profile-io-row { padding-top: 0; padding-bottom: 4px; align-items: center; }
 .profile-io-row .field-hint { flex: 1; min-width: 140px; }
-#profile-name { flex: 1; min-width: 0; }
 #profile-modal .modal-actions { padding-top: 12px; }
