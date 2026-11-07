@@ -235,6 +235,7 @@ paths, and a clean-machine DMG install.
 | 2026-11-04 | Timers keyed by page/slot instead of the action object | The inspector replaces `key.action`; the countdown must follow the slot |
 | 2026-11-05 | Document key capture as unavailable on macOS 27 (docs only, code and Grant… unchanged) | No Developer ID certificate (0 signing identities); ad-hoc builds cannot hold a TCC grant; the kernel refused the seize even with a grant (PR #13); the URL fallback does not reproduce on firmware 2.0.3. Retest only with a Developer ID build |
 | 2026-11-06 | Rebrand parked (owner). If revived: drop "Ulanzi" from the app name (trademark risk), rename together with the 1.0.0 Developer ID signing, migrate `~/Library/Application Support/Ulanzi Deck Open`. GitHub/npm check found no exact-name repo for DeckOpen, Deckable, Padwright; avoid OpenDeck, ODeck, UDeck, MacroDeck. Trademark and domain search not done | Name "Ulanzi Deck Open" starts with Ulanzi's brand; bundle ID changes reset permissions anyway |
+| 2026-11-07 | Owner adopted all Ulanzi plugins into `~/Library/Application Support/Ulanzi Deck Open/Plugins` and deleted `~/Library/Application Support/Ulanzi` (Ulanzi Studio data). Plugin installs for the agent now go to the app folder, not the Studio folder | The app's copy wins over the Studio copy, so an rsync into the old folder would be ignored silently. The Studio profile list in Import profile is now empty; `~/Library/Application Support/UlanziDeck` is not Studio's, it holds the Currency plugin's rate history |
 | 2026-11-05 | Merge PR #13 (key-capture state + App tab) | `0xe00002c1` is `kIOReturnNotPrivileged`; the old text misdiagnosed it |
 
 ## 5. Environment and tooling (agent shell)
@@ -281,7 +282,8 @@ paths, and a clean-machine DMG install.
 2. Test-first for fixes; one commit per finding; run `npm test`, `npm run lint`
    and `npm run typecheck` from `app/`.
 3. Do not modify files in the installed third-party plugin folders
-   (`~/Library/Application Support/Ulanzi/…`, `com.fredemmott.micmutetoggle`, …).
+   (the app's `Plugins` and `StreamDeckPlugins` folders, `com.fredemmott.micmutetoggle`, …).
+   Plugin installs are done by the owner with `rsync -a` into the app's `Plugins` folder.
 4. Ask before long A/B measurements, new features, or cutting a release/tag.
 5. Prefer evidence over claims: a log line or a red test, not “looks fine”.
 
