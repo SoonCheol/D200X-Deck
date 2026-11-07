@@ -29,10 +29,17 @@ test('profile actions live in one menu next to the profile picker', () => {
   const html = read('index.html');
   const menu = html.match(/<div id="profile-menu"[\s\S]*?\n {10}<\/div>/);
   assert.ok(menu, 'profile menu exists');
-  for (const id of ['profile-add', 'profile-edit', 'profile-import', 'import-btn', 'profile-export']) {
+  for (const id of ['profile-add', 'profile-edit', 'import-btn', 'profile-export']) {
     assert.match(menu[0], new RegExp(`id="${id}"`), `${id} is in the menu`);
     assert.equal(html.split(`id="${id}"`).length - 1, 1, `${id} appears once`);
   }
   const row = html.slice(html.indexOf('class="profile-row"'), html.indexOf('class="sidebar-sep"'));
   assert.equal((row.match(/class="icon-btn"/g) || []).length, 1, 'one icon button beside the picker');
+});
+
+test('there is one import entry and one file picker for both profile formats', () => {
+  const html = read('index.html');
+  assert.doesNotMatch(html, /id="profile-import"/);
+  assert.match(html, /<h2 id="import-title">Import profile<\/h2>/);
+  assert.match(read('app.js'), /res\.kind === 'deckopen'/);
 });

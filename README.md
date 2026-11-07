@@ -34,8 +34,8 @@ _The editor, the plugin manager and the store all run against the deck live._
   Hotkey Switch.
 * **Press triggers** — separate actions for tap, hold and double press.
 * **Pinned keys** — pin an action to every page, with per-page overrides.
-* **Backup & share** — export a profile to one `.ulanzideckprofile` file and import it
-  back as a new profile, or replace the existing profile with the same name. Replace keeps
+* **Backup & share** — **⋯ → Export profile…** writes one `.ulanzideckprofile` file;
+  **⋯ → Import profile…** reads it back as a new profile, or replace the existing profile with the same name. Replace keeps
   the imported page IDs when they do not collide, so script-generated profiles can be
   regenerated and reimported.
 * **Launch at login** — start in the menu bar; subpages can auto-return to their parent
@@ -57,8 +57,9 @@ _The editor, the plugin manager and the store all run against the deck live._
   install into this app.
 * **Icon library** — download icon packs from the Store, manage them in
   **Installed → Icons**, and apply any icon to a key.
-* **Import from Ulanzi Studio** — bring pages and keys over from a live Ulanzi profile or
-  an exported `.ulanziDeckProfile`/ZIP: actions, hotkeys, plugin settings and icons are
+* **Import from Ulanzi Studio** — the same **⋯ → Import profile…** dialog lists the live
+  Ulanzi profiles on this Mac, and **Choose file…** takes an exported
+  `.ulanziDeckProfile`/ZIP or a Deck Open profile (it detects which). Studio imports: actions, hotkeys, plugin settings and icons are
   converted; unsupported actions are kept as placeholders instead of being dropped.
 * **Hotkeys** — a proper picker (modifiers, letters, symbols, function keys, F keys,
   numpad) plus physical key capture.

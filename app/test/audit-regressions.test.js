@@ -198,7 +198,6 @@ for (const type of ['multi', 'toggle', 'pop']) {
     let saved = false;
     const context = vm.createContext({
       state: { config: createDefaultConfig() },
-      api: { importProfile: async () => ({ ok: true, data }) },
       uuid: randomUUID,
       basename: path.basename,
       closeProfileModal() {},
@@ -208,7 +207,7 @@ for (const type of ['multi', 'toggle', 'pop']) {
       commit() { store.save(context.state.config); saved = true; },
     });
     importFlow.runInContext(context);
-    await context.importProfileFromFile();
+    await context.importDeckOpenProfile({ ok: true, kind: 'deckopen', data });
 
     if (saved) {
       const loaded = store.load();
@@ -243,7 +242,6 @@ test('imported command output timers stay off until the user opts in', async (t)
   };
   const context = vm.createContext({
     state: { config: createDefaultConfig() },
-    api: { importProfile: async () => ({ ok: true, data }) },
     window: { DeckUrlSafety: urlSafety },
     uuid: randomUUID,
     basename: path.basename,
@@ -255,7 +253,7 @@ test('imported command output timers stay off until the user opts in', async (t)
     commit() {},
   });
   importFlow.runInContext(context);
-  await context.importProfileFromFile();
+  await context.importDeckOpenProfile({ ok: true, kind: 'deckopen', data });
 
   const imported = context.state.config.pages.find((page) => page.name === 'Imported');
   assert.equal(imported.keys[0].action.imported, true);

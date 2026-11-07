@@ -2,8 +2,9 @@
 
 /* global $, api, confirmAction, esc, renderAll, state, syncPlugins, toast */
 
-// "Import from Ulanzi Studio" modal: pick a live profile (or a file), choose
-// pages, and merge them into the current config.
+// "Import profile" modal: pick a live Ulanzi Studio profile (or a file), choose
+// pages, and merge them into the current config. A Deck Open profile file is
+// handed to importDeckOpenProfile in app.js instead.
 
 let importSources = [];
 let importActive = null;
@@ -58,7 +59,7 @@ async function openImportModal() {
   renderImportSources();
   if (importSources.length) selectImportSource(importSources[0]);
   else $('#import-sources').innerHTML =
-    '<div class="insp-empty" style="padding:0">No Ulanzi profiles found on this Mac. Use “Choose profile file…” instead.</div>';
+    '<div class="insp-empty" style="padding:0">No Ulanzi Studio profiles found on this Mac. Use “Choose file…” instead.</div>';
 }
 
 function renderImportSources() {

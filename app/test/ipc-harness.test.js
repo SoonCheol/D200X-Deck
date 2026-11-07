@@ -669,7 +669,7 @@ test('profile export validates the payload and writes the file', async (t) => {
   assert.deepEqual(JSON.parse(fs.readFileSync(destination, 'utf8')), payload);
 });
 
-test('profile import validates the file format and pages', async (t) => {
+test('the import picker tells a Deck Open profile from a Ulanzi Studio file and validates it', async (t) => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ulanzi-profile-ipc-'));
   t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
   const file = path.join(dir, 'profile.json');
@@ -677,14 +677,14 @@ test('profile import validates the file format and pages', async (t) => {
   dialog.showOpenDialog = async () => ({ canceled: false, filePaths: [file] });
 
   fs.writeFileSync(file, JSON.stringify({ format: 'wrong', pages: [] }));
-  const invalid = await handlers.get(CH.profileImport)(trustedEvent());
+  const invalid = await handlers.get(CH.importPick)(trustedEvent());
   assert.equal(invalid.ok, false);
   assert.match(invalid.error, /Not a Ulanzi Deck Open profile/);
 
   const payload = { format: 'ulanzi-deck-open-profile', pages: [{ id: 'p' }] };
   fs.writeFileSync(file, JSON.stringify(payload));
-  const valid = await handlers.get(CH.profileImport)(trustedEvent());
-  assert.deepEqual(valid, { ok: true, data: payload, path: file });
+  const valid = await handlers.get(CH.importPick)(trustedEvent());
+  assert.deepEqual(valid, { ok: true, kind: 'deckopen', data: payload, path: file });
 });
 
 test('openExternal only accepts web and mail links', async () => {

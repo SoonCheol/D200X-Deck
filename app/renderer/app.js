@@ -743,10 +743,7 @@ function importedCustomLinks(data) {
   return [...new Set(links)];
 }
 
-async function importProfileFromFile() {
-  const res = await api.importProfile();
-  if (res.canceled) return;
-  if (!res.ok) return toast(res.error || 'Could not import profile', true);
+async function importDeckOpenProfile(res) {
   // A shared profile is a document, but a command action runs /bin/sh. Never
   // execute one that arrived in a file without the user seeing what it does.
   const commands = importedCommandActions(res.data);
@@ -1415,7 +1412,6 @@ function bind() {
   });
   $('#profile-delete').addEventListener('click', deleteCurrentProfile);
   $('#profile-export').addEventListener('click', exportActiveProfile);
-  $('#profile-import').addEventListener('click', importProfileFromFile);
   $('#profile-app-pick').addEventListener('click', () => openAppPicker('profile'));
   $('#profile-app-clear').addEventListener('click', () => setProfileApp('', ''));
   $('#profile-bg-pick').addEventListener('click', async () => {
@@ -1438,6 +1434,10 @@ function bind() {
   $('#import-pick').addEventListener('click', async () => {
     const res = await api.importPick();
     if (!res.ok || res.canceled) return res.ok ? null : toast(res.error, true);
+    if (res.kind === 'deckopen') {
+      closeImportModal();
+      return importDeckOpenProfile(res);
+    }
     importSources = [...(res.profiles || []), ...importSources];
     renderImportSources();
     if (res.profiles?.length) selectImportSource(res.profiles[0]);

@@ -66,7 +66,6 @@ const CH = Object.freeze({
   dialogPickImage: 'dialog:pick-image',
   appLoginItem: 'app:login-item',
   profileExport: 'profile:export',
-  profileImport: 'profile:import',
   popShow: 'pop:show',
   appsFrontmost: 'apps:frontmost',
   appsList: 'apps:list',

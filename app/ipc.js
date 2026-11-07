@@ -654,17 +654,39 @@ handle(CH.importScan, () => {
   }
 });
 
+// One picker for both profile formats. A Deck Open profile is a JSON file; a
+// Ulanzi Studio profile is a ZIP, so the first character tells them apart.
 handle(CH.importPick, async () => {
   const res = await dialog.showOpenDialog(getWin(), {
-    title: 'Choose a Ulanzi profile',
+    title: 'Import profile',
     properties: ['openFile'],
-    filters: [{ name: 'Ulanzi profile', extensions: ['ulanziDeckProfile', 'zip', 'ulanziDeckProfilePack'] }],
+    filters: [
+      {
+        name: 'Profile',
+        extensions: ['ulanzideckprofile', 'json', 'ulanziDeckProfile', 'zip', 'ulanziDeckProfilePack'],
+      },
+    ],
   });
   if (res.canceled || !res.filePaths.length) return { canceled: true };
+  const file = res.filePaths[0];
   try {
-    const { profiles, cleanup } = await readImportTarget(res.filePaths[0]);
+    if (fs.statSync(file).size > 128 * 1024 * 1024) throw new Error('Profile file is too large (max 128 MB)');
+    const head = Buffer.alloc(64);
+    const fd = fs.openSync(file, 'r');
+    try {
+      fs.readSync(fd, head, 0, head.length, 0);
+    } finally {
+      fs.closeSync(fd);
+    }
+    if (head.toString('utf8').replace(/^\uFEFF/, '').trimStart().startsWith('{')) {
+      const data = JSON.parse(fs.readFileSync(file, 'utf8'));
+      if (!data || data.format !== 'ulanzi-deck-open-profile') throw new Error('Not a Ulanzi Deck Open profile');
+      if (!Array.isArray(data.pages) || !data.pages.length) throw new Error('Profile has no pages');
+      return { ok: true, kind: 'deckopen', data, path: file };
+    }
+    const { profiles, cleanup } = await readImportTarget(file);
     if (cleanup) fs.rmSync(cleanup, { recursive: true, force: true });
-    return { ok: true, file: res.filePaths[0], profiles: profiles.map((p) => ({ ...p, path: res.filePaths[0] })) };
+    return { ok: true, kind: 'studio', file, profiles: profiles.map((p) => ({ ...p, path: file })) };
   } catch (err) {
     return { ok: false, error: err.message || String(err) };
   }
@@ -904,25 +926,6 @@ handle(CH.profileExport, async (event, payload) => {
     // Profiles are shared, so image refs become self-contained data URLs.
     fs.writeFileSync(result.filePath, JSON.stringify(store.expandImages(payload), null, 2));
     return { ok: true, path: result.filePath };
-  } catch (err) {
-    return { ok: false, error: err.message || String(err) };
-  }
-});
-
-handle(CH.profileImport, async (event) => {
-  const result = await dialog.showOpenDialog(getWin(), {
-    title: 'Import profile',
-    properties: ['openFile'],
-    filters: [{ name: 'Ulanzi Deck Open profile', extensions: ['ulanzideckprofile', 'json'] }],
-  });
-  if (result.canceled || !result.filePaths.length) return { ok: false, canceled: true };
-  try {
-    const file = result.filePaths[0];
-    if (fs.statSync(file).size > 128 * 1024 * 1024) throw new Error('Profile file is too large (max 128 MB)');
-    const data = JSON.parse(fs.readFileSync(file, 'utf8'));
-    if (!data || data.format !== 'ulanzi-deck-open-profile') throw new Error('Not a Ulanzi Deck Open profile');
-    if (!Array.isArray(data.pages) || !data.pages.length) throw new Error('Profile has no pages');
-    return { ok: true, data, path: file };
   } catch (err) {
     return { ok: false, error: err.message || String(err) };
   }
