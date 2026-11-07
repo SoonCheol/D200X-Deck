@@ -34,11 +34,27 @@ function markImportCompleted() {
   }
 }
 
+// The Mode row only matters once a profile is selected, and Choose file is the
+// main action when there is nothing to pick from the list.
+function syncImportChrome() {
+  $('#import-mode-row').classList.toggle('hidden', !importPreview);
+  $('#import-pick').classList.toggle('primary', importSources.length === 0);
+}
+
+function addImportFile(res) {
+  const name = String(res.file || '').split('/').pop();
+  const fromFile = (res.profiles || []).map((p) => ({ ...p, fromFile: name }));
+  importSources = [...fromFile, ...importSources];
+  renderImportSources();
+  if (fromFile.length) selectImportSource(fromFile[0]);
+}
+
 function closeImportModal() {
   $('#import-modal').classList.add('hidden');
   importPreview = null;
   importSelection = null;
   resetImportState();
+  syncImportChrome();
 }
 
 async function openImportModal() {
@@ -56,24 +72,32 @@ async function openImportModal() {
     return;
   }
   importSources = res.profiles || [];
+  importPreview = null;
   renderImportSources();
   if (importSources.length) selectImportSource(importSources[0]);
-  else $('#import-sources').innerHTML =
-    '<div class="insp-empty" style="padding:0">No Ulanzi Studio profiles found on this Mac. Use “Choose file…” instead.</div>';
 }
 
 function renderImportSources() {
   const box = $('#import-sources');
-  box.innerHTML = importSources
-    .map(
-      (p, i) => `<button class="import-source${p.path === importActive?.path ? ' active' : ''}" data-source="${i}">
-        ${esc(p.name)}<small>${esc(p.device || 'unknown device')} · ${p.pages.length} page${p.pages.length === 1 ? '' : 's'}</small>
-      </button>`
-    )
-    .join('');
+  if (!importSources.length) {
+    box.innerHTML =
+      '<div class="insp-empty" style="padding:0">Ulanzi Studio is not installed or has no profiles yet. Choose a file to import.</div>';
+    syncImportChrome();
+    return;
+  }
+  const card = (p, i) => `<button class="import-source${p.path === importActive?.path ? ' active' : ''}" data-source="${i}">
+        ${esc(p.name)}<small>${esc(p.fromFile ? `${p.fromFile} · ` : '')}${esc(p.device || 'unknown device')} · ${p.pages.length} page${p.pages.length === 1 ? '' : 's'}</small>
+      </button>`;
+  const group = (label, test) => {
+    const rows = importSources.map((p, i) => (test(p) ? card(p, i) : '')).join('');
+    return rows ? `<div class="import-group">${label}</div>${rows}` : '';
+  };
+  box.innerHTML =
+    group('Ulanzi Studio on this Mac', (p) => !p.fromFile) + group('From file', (p) => Boolean(p.fromFile));
   box.querySelectorAll('[data-source]').forEach((btn) => {
     btn.addEventListener('click', () => selectImportSource(importSources[Number(btn.dataset.source)]));
   });
+  syncImportChrome();
 }
 
 async function selectImportSource(source) {
@@ -85,17 +109,21 @@ async function selectImportSource(source) {
   if (!res.ok) {
     $('#import-pages').innerHTML = `<div class="store-error">${esc(res.error)}</div>`;
     $('#import-run').disabled = true;
+    importPreview = null;
+    syncImportChrome();
     return;
   }
   importPreview = res.profiles?.[0] || null;
   if (!importPreview) {
     $('#import-pages').innerHTML = '<div class="insp-empty" style="padding:0">No pages in this profile.</div>';
     $('#import-run').disabled = true;
+    syncImportChrome();
     return;
   }
   importSelection = new Set(importPreview.pages.map((p) => p.id));
   renderImportPages();
   $('#import-run').disabled = false;
+  syncImportChrome();
 }
 
 function renderImportPages() {

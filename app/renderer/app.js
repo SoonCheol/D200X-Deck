@@ -1,6 +1,6 @@
 'use strict';
 
-/* global actionMeta, addPage, applyInspectorState, basename, clearPressTimers, closeAppPicker, closeHotkeyModal, closeIconLibrary, closeImportModal, closeInspector, closeInspectorDrawer, closePluginMenu, closePluginModal, closeStoreModal, commit, downscaleBackground, drawIndex, flashKey, handleKeyEvent, iconLibraryPacks, iconLibraryQuery, INSPECTOR_BREAKPOINT, importSources, inspectorDrawerOpen, loadSdStore, loadStoreCategories, loadStoreItems, navigate, openAppPicker, openImportModal, openInspectorDrawer, openPluginModal, openStoreModal, pushNow, refreshPlugins, refreshWideStats, renderAll, renderAppList, renderGrid, renderIconGrid, renderImportSources, renderInspector, renderPageList, renderPluginModal, renderPushButton, renderSdStoreList, renderStandbySlices, renderStatus, renderStoreChrome, renderSyncState, resetImportState, runImport, saveHotkey, scheduleAutoExit, scheduleLivePush, schedulePush, scheduleSave, sdStore, selectImportSource, selectStoreSource, storeState, switchInstalledTab, syncPlugins, toast, toggleInspector, uniquePageName, updatePluginCount */
+/* global actionMeta, addImportFile, addPage, applyInspectorState, basename, clearPressTimers, closeAppPicker, closeHotkeyModal, closeIconLibrary, closeImportModal, closeInspector, closeInspectorDrawer, closePluginMenu, closePluginModal, closeStoreModal, commit, downscaleBackground, drawIndex, flashKey, handleKeyEvent, iconLibraryPacks, iconLibraryQuery, INSPECTOR_BREAKPOINT, importSources, inspectorDrawerOpen, loadSdStore, loadStoreCategories, loadStoreItems, navigate, openAppPicker, openImportModal, openInspectorDrawer, openPluginModal, openStoreModal, pushNow, refreshPlugins, refreshWideStats, renderAll, renderAppList, renderGrid, renderIconGrid, renderImportSources, renderInspector, renderPageList, renderPluginModal, renderPushButton, renderSdStoreList, renderStandbySlices, renderStatus, renderStoreChrome, renderSyncState, resetImportState, runImport, saveHotkey, scheduleAutoExit, scheduleLivePush, schedulePush, scheduleSave, sdStore, selectImportSource, selectStoreSource, storeState, switchInstalledTab, syncPlugins, toast, toggleInspector, uniquePageName, updatePluginCount */
 
 const api = window.deckApp;
 const renderKey = window.KeyRenderer.drawKey;
@@ -1438,9 +1438,7 @@ function bind() {
       closeImportModal();
       return importDeckOpenProfile(res);
     }
-    importSources = [...(res.profiles || []), ...importSources];
-    renderImportSources();
-    if (res.profiles?.length) selectImportSource(res.profiles[0]);
+    addImportFile(res);
   });
   $('#import-run').addEventListener('click', runImport);
   $('#import-mode').addEventListener('change', () => resetImportState());
