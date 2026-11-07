@@ -177,3 +177,12 @@ test('a plugin listing without a package says No download, not Not a plugin', as
   assert.doesNotMatch(detail.innerHTML, />Not a plugin</);
   assert.match(detail.innerHTML, /no downloadable package on the Ulanzi store/);
 });
+
+test('the Store header offers the same local folder and ZIP install as Installed', () => {
+  const html = fs.readFileSync(path.join(__dirname, '../renderer/index.html'), 'utf8');
+  const app = fs.readFileSync(path.join(__dirname, '../renderer/app.js'), 'utf8');
+  const store = html.slice(html.indexOf('id="store-modal"'));
+  assert.match(store, /id="store-install-folder"/);
+  assert.match(store, /id="store-install-zip"/);
+  assert.match(app, /\['plugin', 'store'\][\s\S]*-install-folder[\s\S]*-install-zip/);
+});

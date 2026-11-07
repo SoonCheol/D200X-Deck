@@ -1518,8 +1518,8 @@ function bind() {
     if (e.target === $('#plugin-modal')) closePluginModal();
   });
 
-  $('#plugin-install-folder').addEventListener('click', async () => {
-    const res = await api.installPluginFolder();
+  const installLocalPlugin = (pick) => async () => {
+    const res = await pick();
     if (res.canceled) return;
     if (!res.ok) return toast(res.error, true);
     state.plugins = res.list;
@@ -1527,18 +1527,11 @@ function bind() {
     renderPluginModal();
     syncPlugins();
     toast(`Installed ${res.name}`);
-  });
-
-  $('#plugin-install-zip').addEventListener('click', async () => {
-    const res = await api.installPluginZip();
-    if (res.canceled) return;
-    if (!res.ok) return toast(res.error, true);
-    state.plugins = res.list;
-    updatePluginCount();
-    renderPluginModal();
-    syncPlugins();
-    toast(`Installed ${res.name}`);
-  });
+  };
+  for (const prefix of ['plugin', 'store']) {
+    $(`#${prefix}-install-folder`).addEventListener('click', installLocalPlugin(() => api.installPluginFolder()));
+    $(`#${prefix}-install-zip`).addEventListener('click', installLocalPlugin(() => api.installPluginZip()));
+  }
 
   $('#plugin-reload').addEventListener('click', async () => {
     const res = await api.reloadPlugins();
