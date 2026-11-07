@@ -256,3 +256,28 @@ test('narrow windows keep the drawer instead of collapsing it', () => {
   assert.equal(nodes.get('#inspector').classList.contains('open'), true);
   assert.equal(nodes.get('#drawer-scrim').classList.contains('hidden'), false);
 });
+
+test('choosing "Choose a plugin…" clears the plugin chain and keeps the key face', () => {
+  const { context, nodes, key, calls, state } = makeHarness();
+  state.plugins = [
+    { uuid: 'com.mac.controls', name: 'macOS Controls', sdk: 'streamdeck', actions: [{ uuid: 'volume', name: 'Volume' }] },
+  ];
+  key.action = {
+    type: 'plugin',
+    sdk: 'streamdeck',
+    plugin: 'com.mac.controls',
+    action: 'volume',
+    actionid: 'old',
+    settings: { op: 'down' },
+  };
+  context.renderInspector();
+
+  nodes.get('#insp-plugin').handlers.change({ target: { value: '' } });
+
+  assert.equal(key.action.type, 'plugin');
+  assert.equal(key.action.plugin, '');
+  assert.equal(key.action.action, '');
+  assert.deepEqual({ ...key.action.settings }, {});
+  assert.equal(key.emoji, 'BC');
+  assert.ok(calls.commit > 0);
+});

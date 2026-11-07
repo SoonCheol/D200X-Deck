@@ -2058,7 +2058,13 @@ function renderInspector() {
     if (pluginSel) {
       pluginSel.addEventListener('change', (e) => {
         const p = state.plugins.find((x) => x.uuid === e.target.value);
-        if (!p) return;
+        if (!p) {
+          // "Choose a plugin…" drops the whole chain: plugin, action and settings.
+          key.action = { type: 'plugin', sdk: 'streamdeck', plugin: '', action: '', actionid: uuid(), settings: {} };
+          commit();
+          renderInspector();
+          return;
+        }
         const a = p.actions[0];
         key.action = {
           type: 'plugin',
