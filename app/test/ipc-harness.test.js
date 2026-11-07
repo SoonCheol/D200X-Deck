@@ -380,6 +380,28 @@ test('import:apply creates a new profile and keeps page links', async (t) => {
   assert.equal(saves.length, 1);
 });
 
+test('import:apply names a new profile with the chosen name, numbering a taken one', async (t) => {
+  mockImportPreview(t, { name: 'Default Profile', pages: [{ id: 'incoming', name: 'Home', keys: {} }] });
+  const make = () => ({
+    profiles: [{ id: 'p1', name: 'Default Profile' }, { id: 'p2', name: 'Work' }],
+    pages: [{ id: 'home', name: 'Home', profileId: 'p1', keys: {} }],
+    activeProfileId: 'p1',
+    activePageId: 'home',
+  });
+  const run = async (name) => {
+    const config = make();
+    const { handlers } = harness(importContext(config).ctx);
+    const result = await handlers.get(CH.importApply)(trustedEvent(), { target: 'x', mode: 'new', name });
+    return { result, config };
+  };
+
+  assert.equal((await run('Studio import')).result.profileName, 'Studio import');
+  assert.equal((await run('  work  ')).result.profileName, 'work (2)');
+  assert.equal((await run('')).result.profileName, 'Default Profile (2)');
+  const { config } = await run('Studio import');
+  assert.equal(config.profiles[2].name, 'Studio import');
+});
+
 test('import:apply merge remaps colliding pages, parents and goto links', async (t) => {
   const cleanup = mockImportPreview(t, {
     pages: [

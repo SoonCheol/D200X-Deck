@@ -358,8 +358,12 @@
             <select id="import-mode" class="select">
               <option value="new" selected>Create a new profile</option>
               <option value="merge">Add pages to the current profile</option>
-              <option value="replace">Replace the current profile</option>
+              <option value="replace" id="import-mode-replace">Replace the current profile</option>
             </select>
+          </label>
+          <label class="settings-row import-mode-row hidden" id="import-name-row">
+            <span>Name</span>
+            <input id="import-name" class="input" maxlength="40" placeholder="Profile name" />
           </label>
           <div id="import-report" class="import-report hidden"></div>
         </div>

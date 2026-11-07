@@ -765,9 +765,10 @@ handle(CH.importApply, async (_evt, payload) => {
     let profileName;
     if (mode === 'new') {
       const takenProfiles = new Set(store.config.profiles.map((p) => String(p.name).toLowerCase()));
-      profileName = profile.name || 'Imported profile';
+      const baseName = String(payload.name || '').trim().slice(0, 40) || profile.name || 'Imported profile';
+      profileName = baseName;
       for (let i = 2; takenProfiles.has(profileName.toLowerCase()); i += 1) {
-        profileName = `${profile.name || 'Imported profile'} (${i})`;
+        profileName = `${baseName} (${i})`;
       }
       targetProfile = { id: randomUUID(), name: profileName };
       store.config.profiles.push(targetProfile);

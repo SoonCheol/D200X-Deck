@@ -38,6 +38,11 @@ function markImportCompleted() {
 // main action when there is nothing to pick from the list.
 function syncImportChrome() {
   $('#import-mode-row').classList.toggle('hidden', !importPreview);
+  $('#import-name-row').classList.toggle('hidden', !importPreview || $('#import-mode').value !== 'new');
+  const current = (state.config?.profiles || []).find((p) => p.id === state.config.activeProfileId);
+  $('#import-mode-replace').textContent = current
+    ? `Replace the pages of “${current.name}”`
+    : 'Replace the current profile';
   $('#import-pick').classList.toggle('primary', importSources.length === 0);
 }
 
@@ -121,6 +126,7 @@ async function selectImportSource(source) {
     return;
   }
   importSelection = new Set(importPreview.pages.map((p) => p.id));
+  $('#import-name').value = source.name || '';
   renderImportPages();
   $('#import-run').disabled = false;
   syncImportChrome();
@@ -152,9 +158,10 @@ async function runImport() {
   if (!importActive || !importSelection || !importSelection.size) return;
   const mode = $('#import-mode').value;
   if (mode === 'replace') {
+    const current = (state.config?.profiles || []).find((p) => p.id === state.config.activeProfileId);
     const ok = await confirmAction({
-      title: 'Replace the current pages?',
-      message: 'The imported pages replace every page in the current profile. This can’t be undone.',
+      title: `Replace the pages of ${current ? `“${current.name}”` : 'the current profile'}?`,
+      message: 'The imported pages replace every page in that profile. This can’t be undone.',
       confirmLabel: 'Replace pages',
     });
     if (!ok) return;
@@ -164,7 +171,12 @@ async function runImport() {
   button.disabled = true;
   button.textContent = 'Importing…';
   if (cancel) cancel.disabled = true;
-  const res = await api.importApply({ target: importActive.path, pageIds: [...importSelection], mode });
+  const res = await api.importApply({
+    target: importActive.path,
+    pageIds: [...importSelection],
+    mode,
+    name: $('#import-name').value,
+  });
   if (cancel) cancel.disabled = false;
   button.textContent = 'Import';
   button.disabled = false;

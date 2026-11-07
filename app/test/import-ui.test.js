@@ -33,6 +33,7 @@ function fakeNode() {
 
 function makeHarness({ profiles }) {
   const nodes = new Map();
+  const applied = [];
   const $ = (selector) => {
     if (!nodes.has(selector)) nodes.set(selector, fakeNode());
     return nodes.get(selector);
@@ -40,13 +41,20 @@ function makeHarness({ profiles }) {
   const context = {
     $,
     window: {},
-    state: {},
+    state: {
+      config: { activeProfileId: 'p1', profiles: [{ id: 'p1', name: 'Default Profile' }] },
+    },
     esc: (v) => String(v ?? ''),
     confirmAction: async () => true,
     renderAll() {},
     syncPlugins() {},
     toast() {},
     api: {
+      importApply: async (payload) => {
+        applied.push(payload);
+        return { ok: true, importedPages: 1, importedKeys: 0 };
+      },
+      getState: async () => ({ config: {}, status: {} }),
       importScan: async () => ({ ok: true, profiles }),
       importPreview: async () => ({
         ok: true,
@@ -56,7 +64,7 @@ function makeHarness({ profiles }) {
   };
   vm.createContext(context);
   vm.runInContext(source, context);
-  return { context, $ };
+  return { context, $, applied };
 }
 
 const studio = { name: 'Default Profile', device: 'D200', path: '/studio/a', pages: [{}, {}] };
@@ -95,4 +103,27 @@ test('the Mode row appears once a profile is selected', async () => {
   await new Promise((resolve) => setImmediate(resolve));
   assert.equal($('#import-mode-row').classes.has('hidden'), false);
   assert.ok(!$('#import-pick').classes.has('primary'));
+});
+
+test('a new profile can be named, pre-filled with the Studio name', async () => {
+  const { context, $, applied } = makeHarness({ profiles: [studio] });
+  await context.openImportModal();
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.equal($('#import-name').value, 'Default Profile');
+  assert.equal($('#import-name-row').classes.has('hidden'), false);
+
+  $('#import-name').value = 'Studio import';
+  await context.runImport();
+  assert.equal(applied[0].name, 'Studio import');
+  assert.equal(applied[0].mode, 'new');
+});
+
+test('the name field hides for merge and replace, and Replace names the profile it wipes', async () => {
+  const { context, $ } = makeHarness({ profiles: [studio] });
+  await context.openImportModal();
+  await new Promise((resolve) => setImmediate(resolve));
+  $('#import-mode').value = 'replace';
+  context.syncImportChrome();
+  assert.equal($('#import-name-row').classes.has('hidden'), true);
+  assert.match($('#import-mode-replace').textContent, /pages of “Default Profile”/);
 });
