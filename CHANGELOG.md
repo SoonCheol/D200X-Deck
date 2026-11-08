@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.16.14 — 2026-11-08
+
+### Changed
+- **A tile owns its title.** A tile never drew its caption, but it used the caption as its title when the title was empty, so clearing the title brought the caption back. The renderer no longer does that. Choosing the Tile tab copies the caption into an empty title once, and a saved tile with an empty title and a caption adopts the caption on load, so existing tiles look the same. The Caption controls give way to a one-line hint on tiles and return for Icon and Text keys.
+- **Reset colours** replaces Reset glyph colour. It clears both the tile accent bar and the glyph colour, and shows once either is changed. The accent bar had no reset before.
+
+### Tests
+- 349 → **355** passing, plus two opt-in Electron smoke tests that are skipped without a GUI session.
+
 ## 0.16.13 — 2026-11-07
 
 ### Changed
