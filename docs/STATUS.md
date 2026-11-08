@@ -1,6 +1,6 @@
 # Project status, open items and handoff
 
-Last updated: 2026-11-07 (after v0.16.13).
+Last updated: 2026-11-07 (after v0.16.14).
 
 This is the live status of the app. [`ROADMAP.md`](ROADMAP.md) holds the plan and
 shipped history; [`../CHANGELOG.md`](../CHANGELOG.md) holds user-facing notes; this
@@ -10,15 +10,18 @@ file holds what is still open, what is verified, and what the next agent should 
 
 | Item | Value |
 |---|---|
-| Release | **v0.16.13** — https://github.com/edufalcao/ulanzi-deck-open/releases/tag/v0.16.13 |
-| `main` | `9c3958c` ("Prepare 0.16.13"), tag `v0.16.13` |
-| Installed app | `~/Applications/Ulanzi Deck Open.app` — 0.16.13 (local build of the release), ad-hoc signed |
-| Tests | **351 total, 349 pass, 2 skipped**; eslint and `tsc --noEmit` clean |
+| Release | **v0.16.14** — https://github.com/edufalcao/ulanzi-deck-open/releases/tag/v0.16.14 |
+| `main` | `bda2550` ("Prepare 0.16.14"), tag `v0.16.14` |
+| Installed app | `~/Applications/Ulanzi Deck Open.app` — 0.16.14 (local build of the release), ad-hoc signed |
+| Tests | **357 total, 355 pass, 2 skipped**; eslint and `tsc --noEmit` clean |
 | Deck | Ulanzi D200, firmware 2.0.3, macOS 27.2 (26B123) |
-| Release assets | `Ulanzi-Deck-Open-0.16.13.dmg` (248,608,495 bytes) + `SHA256SUMS.txt`, checksum verified |
+| Release assets | `Ulanzi-Deck-Open-0.16.14.dmg` (248646069 bytes) + `SHA256SUMS.txt`, checksum verified |
 
-### What 0.16.3–0.16.13 changed
+### What 0.16.3–0.16.14 changed
 
+- **0.16.14** — a tile owns its title (no hidden fallback to the caption; the
+  Caption controls are hidden on tiles; saved tiles adopt the caption on load),
+  and Reset colours clears the accent bar and glyph colour together.
 - **0.16.13** — one profile `⋯` menu and one Import profile dialog (Studio list
   plus a file picker that detects both formats, a Name field for a new profile,
   Save in the dialog footer), Store header install buttons, centred icon buttons,
