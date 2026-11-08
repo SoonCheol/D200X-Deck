@@ -127,7 +127,7 @@ async function drawTile(ctx, key, w, h) {
   const top = shade(base, 26);
   const bottom = shade(base, -18);
   const imageSrc = String(tile.glyph || '').trim() || key.liveImage ? null : key.icon;
-  const title = String(tile.title || key.label || '').trim();
+  const title = String(tile.title || '').trim();
   const subtitle = String(tile.subtitle || '').trim();
 
   ctx.save();

@@ -163,6 +163,9 @@ function normalizeKey(raw) {
     // Optional: an unset glyph colour keeps the default white.
     const glyphColor = normalizeColor(raw.tile.glyphColor, '');
     if (glyphColor) key.tile.glyphColor = glyphColor;
+    // Older tiles showed the caption as their title when the title was empty.
+    // The tile now owns its title, so keep what was on screen.
+    if (key.face === 'tile' && !key.tile.title && key.label) key.tile.title = key.label.slice(0, 80);
   }
   const sourceAction = normalizeSourceAction(raw.sourceAction);
   if (sourceAction) key.sourceAction = sourceAction;

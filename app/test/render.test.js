@@ -405,3 +405,10 @@ test('a live image is not darkened unless captioned, a static full-bleed icon is
   await renderer.drawKey(still, key({ icon: 'data:image/png;base64,still' }));
   assert.equal(dimmed(still), true);
 });
+
+test('a tile with an empty title does not borrow the key caption', async () => {
+  const renderer = loadRenderer();
+  const canvas = makeCanvas();
+  await renderer.drawKey(canvas, key({ face: 'tile', label: 'hidden caption', emoji: '', tile: { glyph: 'MP', title: '' } }));
+  assert.deepEqual(textCalls(canvas).map((call) => call.text), ['MP']);
+});

@@ -646,3 +646,17 @@ test('load tightens a config left world-readable by an older version', (t) => {
   store.load();
   assert.equal(fs.statSync(file).mode & 0o777, 0o600);
 });
+
+test('a saved tile with no title adopts the key caption once; other keys are left alone', () => {
+  const config = createDefaultConfig();
+  config.pages[0].keys[0] = { face: 'tile', label: '32', tile: { glyph: 'MP', title: '' } };
+  config.pages[0].keys[1] = { face: 'tile', label: 'caption', tile: { glyph: 'A', title: 'Own' } };
+  config.pages[0].keys[2] = { face: 'icon', label: 'caption', tile: { glyph: 'B', title: '' } };
+  config.pages[0].keys[3] = { face: 'tile', label: '', tile: { glyph: 'C', title: '' } };
+  const keys = validateConfig(config).pages[0].keys;
+  assert.equal(keys[0].tile.title, '32');
+  assert.equal(keys[0].label, '32', 'the caption itself is kept');
+  assert.equal(keys[1].tile.title, 'Own');
+  assert.equal(keys[2].tile.title, '', 'a non-tile face is not touched');
+  assert.equal(keys[3].tile.title, '');
+});

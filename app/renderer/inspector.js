@@ -897,6 +897,12 @@ function renderWideInspector(el, page) {
   if (preview && typeof drawSystemPanel === 'function') drawSystemPanel(preview, wideOptions(page));
 }
 
+// Choosing the Tile tab keeps the caption text as the tile title, once, so
+// switching faces does not lose it. After that the tile owns its title.
+function adoptCaptionAsTileTitle(key) {
+  if (key.label && !key.tile?.title) key.tile = { ...(key.tile || {}), title: key.label };
+}
+
 function renderInspector() {
   const el = $('#inspector');
   const page = activePage();
@@ -1500,7 +1506,7 @@ function renderInspector() {
         <input class="input tile-size" id="insp-tile-glyph-size" type="number" min="8" max="80" value="${key.tile?.glyphSize || ''}" placeholder="Size" title="Glyph size (blank = auto)" />
       </div>
       <div class="row" style="margin-top:8px">
-        <input class="input" id="insp-tile-title" maxlength="80" value="${esc(key.tile?.title || key.label)}" placeholder="Title" />
+        <input class="input" id="insp-tile-title" maxlength="80" value="${esc(key.tile?.title || '')}" placeholder="Title" />
         <input class="input tile-size" id="insp-tile-title-size" type="number" min="7" max="48" value="${key.tile?.titleSize || ''}" placeholder="Size" title="Title size (blank = auto)" />
       </div>
       <div class="row" style="margin-top:6px">
@@ -1589,7 +1595,9 @@ function renderInspector() {
     ${
       action.type === 'indicator'
         ? ''
-        : `<div class="field">
+        : face === 'tile'
+          ? '<div class="field"><div class="field-hint">Tiles use their own title and subtitle above, not a caption.</div></div>'
+          : `<div class="field">
       <label for="insp-label">Caption</label>
       <label class="check-row caption-toggle"><input type="checkbox" id="insp-font-show" ${captionVisible ? 'checked' : ''} /> Show caption</label>
       ${liveKey.liveImage && !key.font?.captionExplicit ? '<div class="field-hint">This plugin draws its own label. Turn on Show caption to add one over it.</div>' : ''}
@@ -1628,6 +1636,7 @@ function renderInspector() {
   el.querySelectorAll('[data-key-face]').forEach((btn) => {
     btn.addEventListener('click', () => {
       key.face = btn.dataset.keyFace;
+      if (key.face === 'tile') adoptCaptionAsTileTitle(key);
       drawIndex(state.selected);
       commit();
       renderInspector();

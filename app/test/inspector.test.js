@@ -305,3 +305,32 @@ test('Reset colours is hidden while both tile colours are the defaults', () => {
   context.renderInspector();
   assert.match(inspector.innerHTML, /id="insp-tile-colors-reset"[^>]*hidden/);
 });
+
+test('tiles hide the caption controls and show their own title only', () => {
+  const { context, inspector, key } = makeHarness();
+  key.face = 'tile';
+  key.label = 'hidden caption';
+  key.tile = { glyph: 'MP', title: '' };
+  context.renderInspector();
+  assert.doesNotMatch(inspector.innerHTML, /id="insp-font-show"/);
+  assert.doesNotMatch(inspector.innerHTML, /id="insp-label"/);
+  assert.match(inspector.innerHTML, /Tiles use their own title and subtitle/);
+  assert.match(inspector.innerHTML, /id="insp-tile-title"[^>]*value=""/);
+
+  key.face = 'text';
+  context.renderInspector();
+  assert.match(inspector.innerHTML, /id="insp-font-show"/);
+});
+
+test('choosing the Tile tab keeps the caption text as the tile title', () => {
+  const { context } = makeHarness();
+  const withCaption = { label: 'cap', tile: undefined };
+  context.adoptCaptionAsTileTitle(withCaption);
+  assert.equal(withCaption.tile.title, 'cap');
+  const hasTitle = { label: 'cap', tile: { title: 'Own' } };
+  context.adoptCaptionAsTileTitle(hasTitle);
+  assert.equal(hasTitle.tile.title, 'Own');
+  const noCaption = { label: '', tile: undefined };
+  context.adoptCaptionAsTileTitle(noCaption);
+  assert.equal(noCaption.tile, undefined);
+});
