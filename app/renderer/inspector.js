@@ -1509,7 +1509,7 @@ function renderInspector() {
       </div>
       <div class="field-hint">A native tile: accent bar, glyph, title and subtitle. Text is stored in config.json, not as an image. Leave a size blank for automatic sizing, and leave the glyph empty to show the key's image from the Icon tab instead.</div>
       <div class="style-reset">
-        <button class="link-btn" id="insp-tile-glyph-color-reset" type="button" ${key.tile?.glyphColor ? '' : 'hidden'}>Reset glyph colour</button>
+        <button class="link-btn" id="insp-tile-colors-reset" type="button" ${key.tile?.accent || key.tile?.glyphColor ? '' : 'hidden'}>Reset colours</button>
       </div>
     </div>`;
 
@@ -1649,19 +1649,26 @@ function renderInspector() {
     drawIndex(state.selected);
     commit(false);
   };
+  const showTileColorsReset = () => $('#insp-tile-colors-reset')?.removeAttribute('hidden');
   const tileAccent = $('#insp-tile-accent');
-  if (tileAccent) tileAccent.addEventListener('input', (e) => updateTile('accent', e.target.value));
+  if (tileAccent) {
+    tileAccent.addEventListener('input', (e) => {
+      updateTile('accent', e.target.value);
+      showTileColorsReset();
+    });
+  }
   const tileGlyph = $('#insp-tile-glyph');
   if (tileGlyph) tileGlyph.addEventListener('input', (e) => updateTile('glyph', e.target.value));
   const tileGlyphColor = $('#insp-tile-glyph-color');
   if (tileGlyphColor) {
     tileGlyphColor.addEventListener('input', (e) => {
       updateTile('glyphColor', e.target.value);
-      $('#insp-tile-glyph-color-reset')?.removeAttribute('hidden');
+      showTileColorsReset();
     });
   }
-  $('#insp-tile-glyph-color-reset')?.addEventListener('click', () => {
+  $('#insp-tile-colors-reset')?.addEventListener('click', () => {
     key.tile = { ...(key.tile || {}) };
+    delete key.tile.accent;
     delete key.tile.glyphColor;
     drawIndex(state.selected);
     commit(false);

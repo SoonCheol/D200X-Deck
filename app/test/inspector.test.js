@@ -281,3 +281,27 @@ test('choosing "Choose a plugin…" clears the plugin chain and keeps the key fa
   assert.equal(key.emoji, 'BC');
   assert.ok(calls.commit > 0);
 });
+
+test('Reset colours clears the tile accent bar and glyph colour together', () => {
+  const { context, inspector, nodes, key, calls } = makeHarness();
+  key.face = 'tile';
+  key.tile = { accent: '#ff0000', glyphColor: '#00ff00', title: 'keep' };
+  context.renderInspector();
+
+  assert.match(inspector.innerHTML, /id="insp-tile-colors-reset"[^>]*>Reset colours</);
+  assert.doesNotMatch(inspector.innerHTML, /id="insp-tile-colors-reset"[^>]*hidden/);
+  nodes.get('#insp-tile-colors-reset').handlers.click();
+
+  assert.equal(key.tile.accent, undefined);
+  assert.equal(key.tile.glyphColor, undefined);
+  assert.equal(key.tile.title, 'keep');
+  assert.ok(calls.commit > 0);
+});
+
+test('Reset colours is hidden while both tile colours are the defaults', () => {
+  const { context, inspector, key } = makeHarness();
+  key.face = 'tile';
+  key.tile = { title: 'x' };
+  context.renderInspector();
+  assert.match(inspector.innerHTML, /id="insp-tile-colors-reset"[^>]*hidden/);
+});
