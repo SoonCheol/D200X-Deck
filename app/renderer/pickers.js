@@ -155,7 +155,8 @@ function renderAppList(query) {
     row.addEventListener('click', () => selectPickedApp({
       path: row.dataset.path,
       name: row.dataset.name,
-    }));  });
+    }));
+  });
 }
 
 
