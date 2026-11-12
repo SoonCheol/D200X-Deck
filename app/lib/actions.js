@@ -257,6 +257,18 @@ function applescript(script) {
   return execFileResult('/usr/bin/osascript', ['-e', script]);
 }
 
+/** Windows input via a checked-in, argv-only PowerShell/Win32 bridge. */
+function windowsInput(mode, value, enter = false) {
+  const args = [
+    '-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass',
+    '-File', path.join(__dirname, 'windows-input.ps1'),
+    '-Mode', mode,
+    '-PayloadBase64', Buffer.from(String(value), 'utf8').toString('base64'),
+  ];
+  if (enter) args.push('-Enter');
+  return execFileResult('powershell.exe', args, 15000);
+}
+
 async function runHotkey(combo) {
   const parts = String(combo || '')
     .toLowerCase()
@@ -291,7 +303,10 @@ async function runHotkey(combo) {
     const comboName = [...parts, keyName].join('+');
     return execFileResult('/usr/bin/xdotool', ['key', comboName]);
   }
-  return { ok: false, error: 'hotkeys are only implemented on macOS/Linux' };
+  if (process.platform === 'win32') {
+    return windowsInput('hotkey', parts.concat(keyName).join('+'));
+  }
+  return { ok: false, error: 'hotkeys unsupported on this platform' };
 }
 
 // Custom app schemes (slack://, zoommtg://, linear://) are useful. Known ones
@@ -374,6 +389,9 @@ async function typeText(value, enter = false) {
     if (accessibilityBlocked()) return { ...ACCESSIBILITY_STALE };
     return execFileResult(helper, text ? ['text', text, ...(enter ? ['enter'] : [])] : ['36']);
   }
+  if (process.platform === 'win32') {
+    return windowsInput('text', text, enter);
+  }
   const parts = [];
   if (text) parts.push(`keystroke ${JSON.stringify(text)}`);
   if (enter) parts.push('key code 36');
@@ -383,6 +401,14 @@ async function typeText(value, enter = false) {
 async function closeApp(value) {
   const name = String(value || '').trim();
   if (!name) return { ok: false, error: 'empty app name' };
+  if (process.platform === 'win32') {
+    // A graceful request only: never force-kill apps with unsaved documents.
+    const base = path.win32.basename(name);
+    if (!/^[\w .()-]+\.exe$/i.test(base)) {
+      return { ok: false, error: 'Windows close requires an executable name ending in .exe' };
+    }
+    return execFileResult('taskkill.exe', ['/IM', base]);
+  }
   return applescript(`tell application ${JSON.stringify(name)} to quit`);
 }
 
