@@ -1998,7 +1998,7 @@ function bind() {
     $('#pi-host')?.parentElement?.querySelector('.pi-error')?.remove();
   });
 
-  api.onKey(({ index, pressed }) => handleKeyEvent(index, pressed));
+  api.onKey(({ index, pressed, state: dialState }) => handleKeyEvent(index, pressed, dialState));
 
   api.onError((message) => toast(message, true));
   api.onCommandFailed(({ message, meta }) => {
