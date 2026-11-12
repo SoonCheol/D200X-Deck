@@ -86,6 +86,49 @@ function applyAppChoice(key, app) {
   return refreshIcon;
 }
 
+function selectPickedApp(app) {
+  if (!app || !app.path) return;
+  if (appPickerMode === 'profile') {
+    setProfileApp(app.path, app.name);
+    closeAppPicker();
+    return;
+  }
+  if (appPickerMode === 'trigger' && appPickerTriggerPick) {
+    appPickerTriggerPick({ path: app.path, name: app.name });
+    closeAppPicker();
+    return;
+  }
+  const key = appPickerKey;
+  if (!key) return;
+  const index = state.selected;
+  const refreshIcon = applyAppChoice(key, app);
+  syncActionMeta(key);
+  commit();
+  closeAppPicker();
+  renderInspector();
+  if (refreshIcon) {
+    api.appIcon(app.path).then((icon) => {
+      if (!icon || key.action?.value !== app.path) return;
+      key.icon = icon;
+      key.iconSource = 'app';
+      key.face = 'icon';
+      delete key.iconCleared;
+      if (state.selected === index) drawIndex(index);
+      commit();
+      renderInspector();
+    }).catch(() => {});
+  }
+}
+
+async function browseAppFile() {
+  try {
+    const app = await api.pickAppFile();
+    if (app) selectPickedApp(app);
+  } catch (err) {
+    toast(err.message || String(err), true);
+  }
+}
+
 function renderAppList(query) {
   const q = String(query || '').toLowerCase();
   const apps = state.apps.filter(
@@ -109,42 +152,10 @@ function renderAppList(query) {
     .join('');
   list.querySelectorAll('.app-avatar').forEach((el) => queueAppIcon(el.dataset.path, el));
   list.querySelectorAll('.app-row').forEach((row) => {
-    row.addEventListener('click', () => {
-      if (appPickerMode === 'profile') {
-        setProfileApp(row.dataset.path, row.dataset.name);
-        closeAppPicker();
-        return;
-      }
-      if (appPickerMode === 'trigger' && appPickerTriggerPick) {
-        appPickerTriggerPick({ path: row.dataset.path, name: row.dataset.name });
-        closeAppPicker();
-        return;
-      }
-      const key = appPickerKey;
-      if (!key) return;
-      const index = state.selected;
-      const appPath = row.dataset.path;
-      const refreshIcon = applyAppChoice(key, { path: appPath, name: row.dataset.name });
-      syncActionMeta(key);
-      commit();
-      closeAppPicker();
-      renderInspector();
-      if (refreshIcon) {
-        api.appIcon(appPath).then((icon) => {
-          if (!icon) return;
-          // A later choice may have replaced this one while the icon loaded.
-          if (key.action?.value !== appPath) return;
-          key.icon = icon;
-          key.iconSource = 'app';
-          key.face = 'icon';
-          delete key.iconCleared;
-          if (state.selected === index) drawIndex(index);
-          commit();
-          renderInspector();
-        });
-      }
-    });
-  });
+    row.addEventListener('click', () => selectPickedApp({
+      path: row.dataset.path,
+      name: row.dataset.name,
+    }));  });
 }
 
 
