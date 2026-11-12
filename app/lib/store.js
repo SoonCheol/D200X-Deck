@@ -238,6 +238,12 @@ function validateConfig(config) {
     updateCheck: current.updateCheck !== false,
     updateHours: clamp(Math.round(Number(current.updateHours ?? DEFAULT_SETTINGS.updateHours) || DEFAULT_SETTINGS.updateHours), 1, 168),
     inspectorCollapsed: current.inspectorCollapsed === true,
+    physicalControls: Object.fromEntries(
+      Object.entries(current.physicalControls && typeof current.physicalControls === 'object'
+        ? current.physicalControls : {})
+        .filter(([name, value]) => /^(sideLeft|sideRight|knob[123]|knob[123]Press)$/.test(name) &&
+          typeof value === 'string' && value.length <= 32)
+    ),
   };
 
   // Profiles are a lightweight grouping: each page belongs to one profile and
