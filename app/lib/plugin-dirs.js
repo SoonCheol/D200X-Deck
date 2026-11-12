@@ -25,6 +25,12 @@ function streamDeckPluginDirs(appDir) {
       path.join(home, 'Library/Application Support/opendeck/plugins'),
       path.join(home, 'Library/Application Support/com.elgato.StreamDeck/Plugins')
     );
+  } else if (process.platform === 'win32') {
+    const appData = process.env.APPDATA || path.join(home, 'AppData', 'Roaming');
+    dirs.push(
+      path.join(appData, 'opendeck', 'plugins'),
+      path.join(appData, 'Elgato', 'StreamDeck', 'Plugins')
+    );
   }
   return dirs;
 }
