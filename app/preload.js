@@ -36,6 +36,7 @@ contextBridge.exposeInMainWorld('deckApp', {
   pickImage: () => ipcRenderer.invoke('dialog:pick-image'),
   pickAudio: () => ipcRenderer.invoke('dialog:pick-audio'),
   listApps: () => ipcRenderer.invoke('apps:list'),
+  pickAppFile: () => ipcRenderer.invoke('apps:pick-file'),
   frontmostApp: () => ipcRenderer.invoke('apps:frontmost'),
   showPop: (items) => ipcRenderer.invoke('pop:show', items),
   setLoginItem: (enabled) => ipcRenderer.invoke('app:login-item', enabled),
