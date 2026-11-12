@@ -69,6 +69,7 @@ const CH = Object.freeze({
   popShow: 'pop:show',
   appsFrontmost: 'apps:frontmost',
   appsList: 'apps:list',
+  appsPickFile: 'apps:pick-file',
   appsIcon: 'apps:icon',
   fetchSiteIcon: 'fetch:site-icon',
   appUpdateAvailable: 'app:update-available',
