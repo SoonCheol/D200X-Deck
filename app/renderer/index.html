@@ -253,6 +253,17 @@
               <span class="device-serial" id="device-serial"></span>
             </div>
             <div class="deck-grid" id="grid"></div>
+            <div class="device-controls" id="physical-controls">
+              <div class="physical-buttons">
+                <label>왼쪽 물리 버튼<select id="physical-side-left" class="select"></select></label>
+                <label>오른쪽 물리 버튼<select id="physical-side-right" class="select"></select></label>
+              </div>
+              <div class="physical-knobs">
+                <label>노브 1<select id="physical-knob-1" class="select"></select></label>
+                <label>노브 2<select id="physical-knob-2" class="select"></select></label>
+                <label>노브 3<select id="physical-knob-3" class="select"></select></label>
+              </div>
+            </div>
             <div class="device-bottom">
               <span class="device-hint" id="push-state" role="status" aria-live="polite">ready</span>
             </div>
@@ -597,5 +608,6 @@
     <script src="app.js"></script>
     <script src="ko.js"></script>
     <script src="action-catalog.js"></script>
+    <script src="physical-controls.js"></script>
   </body>
 </html>
