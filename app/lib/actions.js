@@ -447,8 +447,9 @@ function stopSound(id = 'default') {
 }
 
 function mediaKey(op) {
+  if (!MEDIA.has(op)) return Promise.resolve({ ok: false, error: `unknown media key: ${op}` });
+  if (process.platform === 'win32') return windowsInput('hotkey', op);
   return new Promise((resolve) => {
-    if (!MEDIA.has(op)) return resolve({ ok: false, error: `unknown media key: ${op}` });
     // Native helper mirrors Ulanzi Studio's MediaKeysBridge (prime the event
     // queue, key-down, key-up with no gap). See native/mediakey.m.
     const child = spawn(mediaBinary(), [op], { stdio: 'ignore' });
