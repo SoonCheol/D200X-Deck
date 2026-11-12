@@ -156,7 +156,9 @@ class StreamDeckPlugins extends PluginHost {
     const overrides =
       process.platform === 'darwin'
         ? ['manifest.mac.json', 'manifest.macos.json']
-        : [`manifest.${process.platform}.json`];
+        : process.platform === 'win32'
+          ? ['manifest.windows.json', 'manifest.win.json', 'manifest.win32.json']
+          : [`manifest.${process.platform}.json`];
     for (const name of overrides) {
       const override = path.join(dir, name);
       if (!fs.existsSync(override)) continue;
@@ -345,21 +347,31 @@ class StreamDeckPlugins extends PluginHost {
 
   _codeFor(manifest) {
     const osList = Array.isArray(manifest.OS) ? manifest.OS : [];
-    const macSupported =
-      !osList.length ||
-      osList.some((os) => ['mac', 'macos', 'darwin'].includes(String(os?.Platform || '').toLowerCase()));
+    const supports = (names) => !osList.length || osList.some(
+      (os) => names.includes(String(os?.Platform || '').toLowerCase())
+    );
     const paths = manifest.CodePaths || {};
-    let code = macSupported
-      ? paths[TARGET] || paths[FALLBACK_TARGET] || manifest.CodePathMac || manifest.CodePath
-      : null;
-    if (code) {
+    const classify = (code) => {
+      if (!code) return null;
       const kind = /\.(html?|xhtml)$/i.test(code)
         ? 'html'
         : /\.(c|m)?js$/i.test(code)
           ? 'node'
           : 'native';
       return { path: code, kind, wine: false };
+    };
+    if (process.platform === 'win32') {
+      if (!supports(['windows', 'win', 'win32'])) return null;
+      return classify(
+        paths['x86_64-pc-windows-msvc'] || paths['i686-pc-windows-msvc']
+        || manifest.CodePathWin || manifest.CodePath
+      );
     }
+    const macSupported = supports(['mac', 'macos', 'darwin']);
+    const macCode = macSupported
+      ? paths[TARGET] || paths[FALLBACK_TARGET] || manifest.CodePathMac || manifest.CodePath
+      : null;
+    if (macCode) return classify(macCode);
     const windows = manifest.CodePathWin || manifest.CodePath || paths['x86_64-pc-windows-msvc'];
     if (windows && this.wineAvailable()) {
       return { path: windows, kind: 'wine', wine: true };
@@ -413,7 +425,7 @@ class StreamDeckPlugins extends PluginHost {
       application: {
         font: 'ui-sans-serif',
         language: this.language,
-        platform: meta?.code?.wine ? 'windows' : 'mac',
+        platform: (process.platform === 'win32' || meta?.code?.wine) ? 'windows' : 'mac',
         platformVersion: os.release(),
         version: '7.1.0',
       },
