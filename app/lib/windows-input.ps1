@@ -62,11 +62,12 @@ public static class DeckWinInput {
             }
         }
         ushort vk;
+        int fn, digit;
         if (!map.TryGetValue(name, out vk)) {
             if (name.Length == 1 && name[0] >= 'a' && name[0] <= 'z') vk = (ushort)Char.ToUpperInvariant(name[0]);
             else if (name.Length == 1 && name[0] >= '0' && name[0] <= '9') vk = (ushort)name[0];
-            else if (name.Length > 1 && name[0] == 'f' && int.TryParse(name.Substring(1), out int fn) && fn >= 1 && fn <= 24) vk = (ushort)(0x70 + fn - 1);
-            else if (name.StartsWith("numpad") && int.TryParse(name.Substring(6), out int digit) && digit >= 0 && digit <= 9) vk = (ushort)(0x60 + digit);
+            else if (name.Length > 1 && name[0] == 'f' && int.TryParse(name.Substring(1), out fn) && fn >= 1 && fn <= 24) vk = (ushort)(0x70 + fn - 1);
+            else if (name.StartsWith("numpad") && int.TryParse(name.Substring(6), out digit) && digit >= 0 && digit <= 9) vk = (ushort)(0x60 + digit);
             else if (name.Length == 1) {
                 short mapped = VkKeyScanW(name[0]);
                 if (mapped == -1) throw new ArgumentException("Unsupported key: " + name);
