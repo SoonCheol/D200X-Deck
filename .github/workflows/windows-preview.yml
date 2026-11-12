@@ -8,6 +8,11 @@ on:
 permissions:
   contents: read
 
+# Only the newest preview needs packaging while the Windows port is changing.
+concurrency:
+  group: windows-preview-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   package-windows:
     runs-on: windows-latest
@@ -50,6 +55,18 @@ jobs:
             if ($parseErrors.Count -gt 0) {
               $parseErrors | ForEach-Object { Write-Error $_.Message }
               exit 1
+            }
+          }
+
+      - name: Smoke-test Windows application listing
+        shell: pwsh
+        run: |
+          $json = & powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File lib/windows-apps.ps1 -Mode list
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $result = $json | ConvertFrom-Json
+          if ($null -ne $result) {
+            @($result) | Select-Object -First 3 | ForEach-Object {
+              Write-Output ("App: " + $_.name)
             }
           }
 
