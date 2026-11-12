@@ -1039,6 +1039,20 @@ handle(CH.appsFrontmost, () => frontmostApp());
 
 handle(CH.appsList, () => listApps());
 
+handle(CH.appsPickFile, async () => {
+  const selected = await dialog.showOpenDialog(getWin(), {
+    title: 'Choose a Windows application',
+    properties: ['openFile'],
+    filters: [
+      { name: 'Applications', extensions: ['exe', 'com', 'bat', 'cmd'] },
+      { name: 'All files', extensions: ['*'] },
+    ],
+  });
+  if (selected.canceled || selected.filePaths.length === 0) return null;
+  const selectedPath = selected.filePaths[0];
+  return { name: path.basename(selectedPath, path.extname(selectedPath)), path: selectedPath };
+});
+
 handle(CH.appsIcon, async (_evt, appPath) => {
   if (typeof appPath !== 'string' || !appPath.trim()) return null;
   if (process.platform === 'win32') {
