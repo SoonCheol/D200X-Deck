@@ -280,7 +280,29 @@ function windowsInput(mode, value, enter = false) {
     '-PayloadBase64', Buffer.from(String(value), 'utf8').toString('base64'),
   ];
   if (enter) args.push('-Enter');
-  return execFileResult('powershell.exe', args, 15000);
+  return new Promise((resolve) => {
+    execFile('powershell.exe', args, { timeout: 15000, windowsHide: true }, (err, stdout, stderr) => {
+      if (!err) return resolve({ ok: true });
+      // PowerShell's console encoding on Korean Windows is not always UTF-8.
+      // The helper provides an exact UTF-8 encoded error on stdout.
+      const encoded = /D200X_ERROR_BASE64:([A-Za-z0-9+/=]+)/.exec(String(stdout || ''))?.[1];
+      if (encoded) {
+        try {
+          return resolve({ ok: false, error: Buffer.from(encoded, 'base64').toString('utf8') });
+        } catch { /* show process fallback */ }
+      }
+      const exit = typeof err.code === 'number' ? err.code : String(err.code || 'unknown');
+      const detail = String(stderr || '').trim();
+      // Do not show potentially mojibake Windows console bytes as an actionable error.
+      appendWindowsInputError(err, detail);
+      resolve({ ok: false, error: `Windows input helper failed (exit ${exit}); check application log` });
+    });
+  });
+}
+
+function appendWindowsInputError(err, detail) {
+  // Keep a diagnostic in the main-process console without disrupting the key press.
+  console.error('[windows-input]', err?.message || String(err), detail.slice(0, 1500));
 }
 
 async function runHotkey(combo) {
