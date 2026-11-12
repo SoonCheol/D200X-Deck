@@ -390,6 +390,7 @@ async function typeText(value, enter = false) {
     return execFileResult(helper, text ? ['text', text, ...(enter ? ['enter'] : [])] : ['36']);
   }
   if (process.platform === 'win32') {
+    if (!text && enter) return windowsInput('hotkey', 'enter');
     return windowsInput('text', text, enter);
   }
   const parts = [];
