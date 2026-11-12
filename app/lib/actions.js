@@ -65,7 +65,9 @@ function setShellErrorHandler(handler) {
 
 function runShell(command, meta = null) {
   return new Promise((resolve) => {
-    const child = spawn('/bin/sh', ['-c', String(command)], {
+    const win = process.platform === 'win32';
+    const child = spawn(win ? 'cmd.exe' : '/bin/sh', win ? ['/d', '/s', '/c', String(command)] : ['-c', String(command)], {
+      windowsHide: win,
       detached: true,
       // A background child inherits these handles, so stdout goes to /dev/null
       // and stderr is closed as soon as the shell exits.
@@ -141,7 +143,9 @@ function runCommandOutput(command, { timeout = 8000 } = {}) {
   return new Promise((resolve) => {
     let child;
     try {
-      child = spawn('/bin/sh', ['-c', String(command)], {
+      const win = process.platform === 'win32';
+      child = spawn(win ? 'cmd.exe' : '/bin/sh', win ? ['/d', '/s', '/c', String(command)] : ['-c', String(command)], {
+        windowsHide: win,
         detached: true,
         stdio: ['ignore', 'pipe', 'pipe'],
       });
@@ -157,6 +161,16 @@ function runCommandOutput(command, { timeout = 8000 } = {}) {
     let stderr = Buffer.alloc(0);
 
     const stop = () => {
+      if (process.platform === 'win32') {
+        // A command-output timeout must terminate the launched command tree.
+        if (child.pid) {
+          const killer = spawn('taskkill.exe', ['/PID', String(child.pid), '/T', '/F'], {
+            windowsHide: true, stdio: 'ignore',
+          });
+          killer.on('error', () => { try { child.kill(); } catch { /* gone */ } });
+        }
+        return;
+      }
       try {
         process.kill(-child.pid, 'SIGKILL');
       } catch {
