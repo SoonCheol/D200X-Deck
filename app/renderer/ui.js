@@ -354,7 +354,11 @@ async function renderGrid() {
       document.querySelectorAll('.key.drop-target').forEach((el) => el.classList.remove('drop-target'));
     });
     btn.addEventListener('dragover', (e) => {
-      if (e.dataTransfer.types.includes('application/x-ulanzi-key')) {
+      if (e.dataTransfer.types.includes('application/x-d200x-action')) {
+        e.preventDefault();
+        e.dataTransfer.dropEffect = 'copy';
+        btn.classList.add('drop-target');
+      } else if (e.dataTransfer.types.includes('application/x-ulanzi-key')) {
         e.preventDefault();
         e.dataTransfer.dropEffect = 'move';
         btn.classList.add('drop-target');
@@ -370,6 +374,11 @@ async function renderGrid() {
     btn.addEventListener('drop', async (e) => {
       e.preventDefault();
       btn.classList.remove('drag', 'drop-target');
+      const actionId = e.dataTransfer.getData('application/x-d200x-action');
+      if (actionId && window.D200XActionCatalog) {
+        window.D200XActionCatalog.applyAction(actionId, i);
+        return;
+      }
       const src = Number(e.dataTransfer.getData('application/x-ulanzi-key'));
       if (!Number.isNaN(src) && e.dataTransfer.getData('application/x-ulanzi-key')) {
         moveKey(page, src, i);
