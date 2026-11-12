@@ -14,6 +14,7 @@ const { extractZip, inspectZip, readZipEntry } = require('./lib/archive');
 const { appIconDataUrl, resolveAppPath } = require('./lib/appicon');
 const { fetchSiteIcon } = require('./lib/siteicon');
 const { FrontmostWatcher } = require('./lib/frontmost-watcher');
+const { listWindowsApps, frontmostWindowsApp } = require('./lib/windows-apps');
 const { childDir, parsePackId } = require('./lib/iconpacks');
 const { imageByExtension } = require('./lib/mime');
 const { CH } = require('./lib/channels');
@@ -71,6 +72,7 @@ function registerIpc(ctx) {
   let popWindow = null;
 
 function listApps() {
+  if (process.platform === 'win32') return listWindowsApps();
   const roots = [
     '/Applications',
     '/System/Applications',
@@ -853,6 +855,7 @@ let frontmostWatcher = null;
  * the front app. The renderer still polls, but each poll now reads this cache.
  */
 function ensureFrontmostWatcher() {
+  if (process.platform !== 'darwin') return;
   if (frontmostWatcher) return;
   frontmostWatcher = new FrontmostWatcher();
   frontmostWatcher.on('change', () => {
@@ -875,6 +878,8 @@ function frontmostApp({ fresh = false } = {}) {
   if (!fresh && Date.now() - frontmostCache.at < 1000) return Promise.resolve(frontmostCache.value);
   if (frontmostCache.pending) return frontmostCache.pending;
   frontmostCache.pending = (async () => {
+    if (process.platform === 'win32') return frontmostWindowsApp();
+    if (process.platform !== 'darwin') return null;
     try {
       const asn = (await execFileAsync('lsappinfo', ['front'], { encoding: 'utf8' }))
         .trim()
@@ -1036,6 +1041,12 @@ handle(CH.appsList, () => listApps());
 
 handle(CH.appsIcon, async (_evt, appPath) => {
   if (typeof appPath !== 'string' || !appPath.trim()) return null;
+  if (process.platform === 'win32') {
+    try {
+      const image = await app.getFileIcon(appPath, { size: 'large' });
+      return image && !image.isEmpty() ? image.toDataURL() : null;
+    } catch { return null; }
+  }
   const resolved = await resolveAppPath(appPath);
   return resolved ? appIconDataUrl(resolved) : null;
 });
