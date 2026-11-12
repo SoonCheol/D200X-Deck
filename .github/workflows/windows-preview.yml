@@ -70,6 +70,17 @@ jobs:
             }
           }
 
+      - name: Verify Windows media input bridge
+        shell: pwsh
+        run: |
+          # Validate the actual PowerShell -> C# -> SendInput path, not only script syntax.
+          $encoded = [Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes('volumeup'))
+          $output = & powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File lib/windows-input.ps1 -Mode hotkey -PayloadBase64 $encoded 2>&1
+          if ($LASTEXITCODE -ne 0) {
+            $output | ForEach-Object { Write-Output $_ }
+            exit 1
+          }
+
       - name: Package Windows x64 preview
         shell: pwsh
         run: |
