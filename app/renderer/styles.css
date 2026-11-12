@@ -1698,10 +1698,151 @@ body::before {
 .action-library-item:active { cursor: grabbing; }
 .action-library-empty { color: var(--muted); padding: 12px 8px; font-size: var(--fs-sm); }
 
-/* D200X physical controls below the compact key display. */
-.device-controls { margin-top: 14px; display: grid; gap: 9px; }
-.physical-buttons, .physical-knobs { display: grid; gap: 8px; }
-.physical-buttons { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-.physical-knobs { grid-template-columns: repeat(3, minmax(0, 1fr)); }
-.device-controls label { display: grid; gap: 5px; min-width: 0; color: var(--muted); font-size: var(--fs-xs); }
-.device-controls .select { width: 100%; min-width: 0; padding: 7px 24px 7px 8px; font-size: var(--fs-xs); }
+/* D200X lower hardware: two small push buttons on the left, three
+   rotary encoders on the right, following the actual device layout. */
+.device-controls {
+  margin: 15px -10px 0;
+  padding: 12px 15px 9px;
+  border: 1px solid rgba(255,255,255,.1);
+  border-radius: 16px 16px 22px 22px;
+  background: linear-gradient(172deg, #222831 0%, #161b23 48%, #0a0c12 100%);
+  box-shadow: inset 0 2px 3px rgba(255,255,255,.075), 0 5px 14px rgba(0,0,0,.25);
+}
+.physical-hardware {
+  display: grid;
+  grid-template-columns: 2fr 3fr;
+  align-items: start;
+  gap: 12px;
+  width: 100%;
+}
+.physical-hardware-buttons,
+.physical-hardware-knobs {
+  display: grid;
+  align-items: start;
+  justify-items: center;
+  gap: 5px;
+  min-width: 0;
+}
+.physical-hardware-buttons { grid-template-columns: repeat(2, minmax(0,1fr)); padding-top: 13px; }
+.physical-hardware-knobs { grid-template-columns: repeat(3, minmax(0,1fr)); }
+.hardware-control {
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--text);
+  font-family: inherit;
+  min-width: 0;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 1px 7px;
+  border-radius: 10px;
+  cursor: pointer;
+}
+.hardware-control:hover,
+.hardware-control:focus-visible,
+.hardware-control.selected {
+  border-color: rgba(100,157,255,.58);
+  background: rgba(79,140,255,.12);
+  outline: none;
+}
+.hardware-side-face {
+  display: block;
+  width: 26px;
+  height: 26px;
+  flex: none;
+  border-radius: 50%;
+  border: 1px solid #080a0d;
+  background: radial-gradient(circle at 34% 28%, #444b55, #252a32 48%, #11151a 75%);
+  box-shadow: inset 0 1px 1px rgba(255,255,255,.28), 0 4px 3px #05070a, 0 0 0 2px #0c1015;
+}
+.hardware-knob-face {
+  display: block;
+  position: relative;
+  width: clamp(40px, 5vw, 52px);
+  height: clamp(40px, 5vw, 52px);
+  flex: none;
+  border-radius: 50%;
+  border: 2px solid #141820;
+  background: repeating-conic-gradient(from 0deg, #262b32 0deg 7deg, #171b21 7deg 12deg);
+  box-shadow: 0 5px 4px rgba(0,0,0,.75), inset 0 1px 1px rgba(255,255,255,.28);
+}
+.hardware-knob-face::before {
+  content: "";
+  position: absolute;
+  inset: 5px;
+  border-radius: 50%;
+  background: conic-gradient(from -30deg, #171b21, #59606b 58deg, #292f39 140deg, #10131a 220deg, #414955 310deg, #171b21);
+  border: 1px solid rgba(255,255,255,.14);
+  box-shadow: inset 0 1px 2px rgba(255,255,255,.17), inset 0 -2px 3px rgba(0,0,0,.6);
+}
+.hardware-knob-marker {
+  position: absolute;
+  z-index: 1;
+  top: 5px;
+  left: calc(50% - 1px);
+  width: 2px;
+  height: 7px;
+  border-radius: 2px;
+  background: #b7c8e0;
+  box-shadow: 0 0 2px rgba(255,255,255,.35);
+}
+.hardware-action-label {
+  display: block;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-align: center;
+  line-height: 1.3;
+  font-size: 11px;
+  color: #dfe8f8;
+}
+.hardware-press-label {
+  display: block;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-align: center;
+  font-size: 10px;
+  line-height: 1.25;
+  color: #91a0b6;
+}
+.physical-editor[hidden], .physical-editor-fields label[hidden] { display: none !important; }
+.physical-editor {
+  margin: 10px 2px 0;
+  padding: 10px;
+  border-radius: 11px;
+  border: 1px solid rgba(92,146,232,.25);
+  background: #101722;
+}
+.physical-editor-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 9px;
+  font-size: var(--fs-sm);
+}
+.physical-editor-fields {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 10px;
+}
+.physical-editor-fields label {
+  display: grid;
+  gap: 5px;
+  min-width: 0;
+  color: var(--muted);
+  font-size: var(--fs-xs);
+}
+.physical-editor-fields .select { width: 100%; min-width: 0; font-size: var(--fs-sm); }
+@media (max-width: 660px) {
+  .physical-hardware { gap: 5px; }
+  .hardware-knob-face { width: 39px; height: 39px; }
+  .device-controls { margin-left: -14px; margin-right: -14px; padding-inline: 7px; }
+  .hardware-action-label { font-size: 10px; }
+  .hardware-press-label { font-size: 9px; }
+}
