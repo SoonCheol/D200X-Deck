@@ -254,14 +254,48 @@
             </div>
             <div class="deck-grid" id="grid"></div>
             <div class="device-controls" id="physical-controls">
-              <div class="physical-buttons">
-                <label>왼쪽 물리 버튼<select id="physical-side-left" class="select"></select></label>
-                <label>오른쪽 물리 버튼<select id="physical-side-right" class="select"></select></label>
+              <div class="physical-hardware" aria-label="D200X 하단 물리 조작부">
+                <div class="physical-hardware-buttons">
+                  <button type="button" class="hardware-control side-control" data-physical="sideLeft" aria-label="왼쪽 물리 버튼 설정">
+                    <span class="hardware-side-face" aria-hidden="true"></span>
+                    <span class="hardware-action-label" data-action-label="sideLeft">첫 페이지</span>
+                  </button>
+                  <button type="button" class="hardware-control side-control" data-physical="sideRight" aria-label="오른쪽 물리 버튼 설정">
+                    <span class="hardware-side-face" aria-hidden="true"></span>
+                    <span class="hardware-action-label" data-action-label="sideRight">뒤로 가기</span>
+                  </button>
+                </div>
+                <div class="physical-hardware-knobs">
+                  <button type="button" class="hardware-control knob-control" data-physical="knob1" aria-label="첫 번째 노브 설정">
+                    <span class="hardware-knob-face" aria-hidden="true"><span class="hardware-knob-marker"></span></span>
+                    <span class="hardware-action-label" data-action-label="knob1">미지정</span>
+                    <span class="hardware-press-label" data-press-label="knob1">누름: 없음</span>
+                  </button>
+                  <button type="button" class="hardware-control knob-control" data-physical="knob2" aria-label="두 번째 노브 설정">
+                    <span class="hardware-knob-face" aria-hidden="true"><span class="hardware-knob-marker"></span></span>
+                    <span class="hardware-action-label" data-action-label="knob2">미지정</span>
+                    <span class="hardware-press-label" data-press-label="knob2">누름: 없음</span>
+                  </button>
+                  <button type="button" class="hardware-control knob-control" data-physical="knob3" aria-label="세 번째 노브 설정">
+                    <span class="hardware-knob-face" aria-hidden="true"><span class="hardware-knob-marker"></span></span>
+                    <span class="hardware-action-label" data-action-label="knob3">페이지 이동</span>
+                    <span class="hardware-press-label" data-press-label="knob3">누름: 없음</span>
+                  </button>
+                </div>
               </div>
-              <div class="physical-knobs">
-                <div class="physical-knob-setting"><label>노브 1 회전<select id="physical-knob-1" class="select"></select></label><label>노브 1 누름<select id="physical-knob-1-press" class="select"></select></label></div>
-                <div class="physical-knob-setting"><label>노브 2 회전<select id="physical-knob-2" class="select"></select></label><label>노브 2 누름<select id="physical-knob-2-press" class="select"></select></label></div>
-                <div class="physical-knob-setting"><label>노브 3 회전<select id="physical-knob-3" class="select"></select></label><label>노브 3 누름<select id="physical-knob-3-press" class="select"></select></label></div>
+              <div class="physical-editor" id="physical-editor" hidden>
+                <div class="physical-editor-head">
+                  <strong id="physical-editor-title">물리 버튼 설정</strong>
+                  <button class="icon-btn" type="button" id="physical-editor-close" aria-label="설정 닫기" title="닫기">×</button>
+                </div>
+                <div class="physical-editor-fields">
+                  <label>실행할 기능
+                    <select class="select" id="physical-action-select"></select>
+                  </label>
+                  <label id="physical-press-field" hidden>노브 누름
+                    <select class="select" id="physical-press-select"></select>
+                  </label>
+                </div>
               </div>
             </div>
             <div class="device-bottom">
