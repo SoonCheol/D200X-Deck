@@ -2144,6 +2144,7 @@ function applyReloadedConfig(config) {
   state.config = config;
   state.selected = null;
   renderAll();
+  window.D200XPhysicalControls?.sync();
   syncPlugins();
   api.setBrightness(state.config.settings.brightness);
   api.setSleepTime(state.config.settings.sleepSeconds);
@@ -2175,6 +2176,7 @@ function applyReloadedConfig(config) {
   bind();
   renderSeizeState();
   renderAll();
+  window.D200XPhysicalControls?.sync();
   if (boot.recovery === 'backup') {
     toast('Your configuration was damaged, so the last backup was restored. The broken file was kept as config.json.corrupt.', true);
   } else if (boot.recovery === 'defaults') {
