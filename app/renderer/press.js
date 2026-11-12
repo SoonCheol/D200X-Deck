@@ -400,23 +400,9 @@ function handleKeyEvent(index, pressed, dialState = null) {
     wakeSwallow.delete(index);
     return;
   }
-  // D200X physical navigation: two side buttons (15/16) and third dial (19).
-  // Dial report states: 0=release, 1=press, 2=left, 3=right.
-  // Keep these controls global instead of requiring an action on every page.
-  if (index === 19) {
-    if (dialState === 2 || dialState === 3) {
-      if (typeof noteActivity === 'function') noteActivity();
-      navigateRelative(dialState === 2 ? -1 : 1);
-    }
-    return;
-  }
-  if (index === 15 || index === 16) {
-    if (pressed) {
-      if (index === 15) navigateHome();
-      else navigateBack();
-    }
-    return;
-  }
+  // The side keys and encoders have independently configurable actions.
+  // Unknown events remain untouched by the normal square-key handling.
+  if (window.D200XPhysicalControls?.handle(index, pressed, dialState)) return;
   // The wide key cycles the firmware panel: clock → system stats → background.
   // Never send an action for it (proto 0x0e resets the deck to its factory profile).
   if (index === WIDE_KEY_INDEX) {
