@@ -1641,3 +1641,59 @@ body::before {
 .profile-footer { justify-content: flex-end; }
 .profile-footer #profile-delete { margin-right: auto; }
 #profile-modal .modal-actions { padding-top: 12px; }
+
+
+/* OpenDeck-style action finder. Intentionally kept separate from the key
+   inspector to preserve the original D200X configuration format. */
+.action-library {
+  display: flex;
+  flex-direction: column;
+  flex: 0 1 330px;
+  min-height: 110px;
+  overflow: hidden;
+}
+.action-library:not([open]) { flex: 0 0 auto; }
+.action-library > summary { cursor: pointer; list-style-position: inside; }
+.action-library-hint {
+  color: var(--text-3);
+  font-size: var(--fs-xs);
+  letter-spacing: 0;
+  text-transform: none;
+}
+#action-library-search {
+  flex: none;
+  width: calc(100% - 12px);
+  margin: 4px 6px 8px;
+}
+.action-library-list {
+  min-height: 0;
+  overflow-y: auto;
+  padding: 0 6px 6px;
+}
+.action-library-group + .action-library-group { margin-top: 10px; }
+.action-library-group-name {
+  color: var(--muted);
+  font-size: var(--fs-xs);
+  font-weight: 700;
+  padding: 4px 8px;
+}
+.action-library-item {
+  display: block;
+  width: 100%;
+  border: 1px solid transparent;
+  background: rgba(255,255,255,0.035);
+  color: var(--text);
+  border-radius: 8px;
+  padding: 9px 10px;
+  margin: 3px 0;
+  text-align: left;
+  font: inherit;
+  font-size: var(--fs-sm);
+  cursor: grab;
+}
+.action-library-item:hover, .action-library-item:focus-visible {
+  background: rgba(79,140,255,0.15);
+  border-color: rgba(79,140,255,0.3);
+}
+.action-library-item:active { cursor: grabbing; }
+.action-library-empty { color: var(--muted); padding: 12px 8px; font-size: var(--fs-sm); }
