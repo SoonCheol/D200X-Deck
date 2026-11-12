@@ -1,6 +1,6 @@
 'use strict';
 
-/* global $, actionIconSrc, actionMeta, activePage, api, commit, drawIndex, exitStandby, isEmojiOnly, keyAt, lockActive, navigate, noteActivity, notePluginKeyPress, pinnedFor, pushNow, refreshCommandOutput, refreshWideStats, renderInspector, scheduleLivePush, scheduleSave, standbyActive, state, switchProfile, toast, WIDE_KEY_INDEX */
+/* global $, actionIconSrc, actionMeta, activePage, api, commit, drawIndex, exitStandby, isEmojiOnly, keyAt, lockActive, navigate, navigateBack, navigateHome, noteActivity, notePluginKeyPress, pinnedFor, pushNow, refreshCommandOutput, refreshWideStats, renderInspector, scheduleLivePush, scheduleSave, standbyActive, state, switchProfile, toast, WIDE_KEY_INDEX */
 
 // -------------------------------------------------------------- key presses
 
@@ -378,8 +378,8 @@ function cycleWideMode() {
   toast(`Wide key: ${WIDE_MODE_LABELS[next]}`);
 }
 
-function handleKeyEvent(index, pressed) {
-  // While the Mac is locked the deck shows the lock screen; ignore key presses.
+function handleKeyEvent(index, pressed, dialState = null) {
+  // While the lock screen is active, ignore hardware input.
   if (typeof lockActive === 'function' && lockActive()) return;
   if (pressed) {
     const now = Date.now();
@@ -398,6 +398,23 @@ function handleKeyEvent(index, pressed) {
   }
   if (!pressed && wakeSwallow.has(index)) {
     wakeSwallow.delete(index);
+    return;
+  }
+  // D200X physical navigation: two side buttons (15/16) and third dial (19).
+  // Dial report states: 0=release, 1=press, 2=left, 3=right.
+  // Keep these controls global instead of requiring an action on every page.
+  if (index === 19) {
+    if (dialState === 2 || dialState === 3) {
+      if (typeof noteActivity === 'function') noteActivity();
+      navigateRelative(dialState === 2 ? -1 : 1);
+    }
+    return;
+  }
+  if (index === 15 || index === 16) {
+    if (pressed) {
+      if (index === 15) navigateHome();
+      else navigateBack();
+    }
     return;
   }
   // The wide key cycles the firmware panel: clock → system stats → background.
