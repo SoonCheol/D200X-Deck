@@ -45,6 +45,14 @@
 
         <div class="sidebar-sep"></div>
 
+        <details id="action-library" class="action-library" open>
+          <summary class="section-head">동작 목록 <span class="action-library-hint">검색 · 클릭 · 드래그</span></summary>
+          <input id="action-library-search" class="input" type="search" placeholder="동작 검색…" aria-label="동작 검색" />
+          <div id="action-library-list" class="action-library-list" role="list"></div>
+        </details>
+
+        <div class="sidebar-sep"></div>
+
         <div class="section-head">
           <span>Plugins &amp; Icons</span>
           <span id="plugin-count" class="plug-count">0</span>
@@ -588,5 +596,6 @@
     <script src="import-ui.js"></script>
     <script src="app.js"></script>
     <script src="ko.js"></script>
+    <script src="action-catalog.js"></script>
   </body>
 </html>
