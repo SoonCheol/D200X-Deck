@@ -6,6 +6,14 @@ param(
   [switch]$Enter
 )
 $ErrorActionPreference = 'Stop'
+# Return native Windows/PowerShell failures as UTF-8 base64. Node decodes the
+# exact message instead of misinterpreting Korean Windows console code pages.
+trap {
+  $details = $_.Exception.GetType().Name + ': ' + $_.Exception.Message
+  $encoded = [Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes($details))
+  [Console]::Out.WriteLine('D200X_ERROR_BASE64:' + $encoded)
+  exit 1
+}
 Add-Type -TypeDefinition @'
 using System;
 using System.Collections.Generic;
