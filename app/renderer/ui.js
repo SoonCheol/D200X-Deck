@@ -1009,8 +1009,35 @@ function clearPressTimers() {
   if (typeof cancelSequences === 'function') cancelSequences();
 }
 
-function navigate(pageId) {
-  if (!state.config.pages.some((p) => p.id === pageId)) return;
+// History is scoped to the current profile: going Back never jumps to another app.
+const pageBackHistory = [];
+
+function navigateBack() {
+  while (pageBackHistory.length) {
+    const target = pageBackHistory.pop();
+    const page = state.config.pages.find((p) => p.id === target);
+    if (page && page.profileId === state.config.activeProfileId && page.id !== state.config.activePageId) {
+      navigate(page.id, false);
+      return;
+    }
+  }
+  const current = activePage();
+  if (current?.parentId) navigate(current.parentId, false);
+}
+
+function navigateHome() {
+  const home = state.config.pages.find((p) => p.profileId === state.config.activeProfileId && !p.parentId)
+    || state.config.pages.find((p) => p.profileId === state.config.activeProfileId);
+  if (home && home.id !== state.config.activePageId) navigate(home.id);
+}
+
+function navigate(pageId, remember = true) {
+  const next = state.config.pages.find((p) => p.id === pageId && p.profileId === state.config.activeProfileId);
+  if (!next || next.id === state.config.activePageId) return;
+  if (remember && state.config.activePageId) {
+    pageBackHistory.push(state.config.activePageId);
+    if (pageBackHistory.length > 50) pageBackHistory.shift();
+  }
   clearPressTimers();
   state.config.activePageId = pageId;
   state.selected = null;
