@@ -368,7 +368,9 @@ async function openApp(value) {
     return execFileResult('/usr/bin/open', [target]);
   }
   if (process.platform === 'win32') {
-    return execFileResult('cmd', ['/c', 'start', '', target]);
+    // Electron launches the selected executable/file without cmd.exe quoting or injection.
+    const error = await shell.openPath(target);
+    return error ? { ok: false, error } : { ok: true };
   }
   return execFileResult('/usr/bin/xdg-open', [target]);
 }
