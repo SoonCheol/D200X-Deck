@@ -58,6 +58,15 @@
     button.setAttribute('role', 'tab');
     switcher.append(button);
   }
+  // Put the existing searchable action input at the top of the right pane.
+  // Moving the input preserves action-catalog.js's 'input' listener.
+  const search = $('#action-library-search', library);
+  if (search) {
+    const searchBar = document.createElement('div');
+    searchBar.className = 'sd-action-search';
+    searchBar.append(search);
+    sidebar.insertBefore(searchBar, library);
+  }
   sidebar.insertBefore(switcher, library);
   const pluginPanel = document.createElement('div');
   pluginPanel.className = 'sd-plugin-panel';
