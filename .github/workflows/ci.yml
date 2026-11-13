@@ -30,3 +30,34 @@ jobs:
         run: npm run typecheck
       - name: Unit tests
         run: npm test
+
+  catalogue-preview:
+    if: github.event_name == 'pull_request' && github.head_ref == 'codex/streamdeck-761-key-catalog-24'
+    runs-on: windows-latest
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: app
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: app/package-lock.json
+      - name: Install dependencies
+        run: npm ci
+      - name: Build Windows x64 preview
+        shell: pwsh
+        run: |
+          npx --no-install electron-packager . D200X-Deck --platform=win32 --arch=x64 --out=dist --overwrite --prune=true --ignore='^/(dist|test|scripts|native|docs|build/helpers|eslint\.config\.js|\.github)'
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Zip Windows preview
+        shell: pwsh
+        run: Compress-Archive -Path 'dist/D200X-Deck-win32-x64/*' -DestinationPath 'dist/D200X-Deck-win-x64-catalogue-preview.zip' -Force
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: D200X-Deck-win-x64-catalogue-preview
+          path: app/dist/D200X-Deck-win-x64-catalogue-preview.zip
+          if-no-files-found: error
+          retention-days: 14
