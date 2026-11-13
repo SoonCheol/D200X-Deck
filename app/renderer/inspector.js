@@ -742,6 +742,7 @@ function triggerField(key, field, label, page, disabled = false) {
   } else if (action.type === 'media') {
     const ops = [
       ['playpause', 'Play / pause'],
+      ['stop', 'Stop'],
       ['next', 'Next track'],
       ['prev', 'Previous track'],
       ['volumeup', 'Volume up'],
