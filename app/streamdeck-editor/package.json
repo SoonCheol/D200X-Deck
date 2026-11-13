@@ -1,0 +1,8 @@
+{
+  "name": "d200x-streamdeck-preview",
+  "productName": "D200X StreamDeck Preview",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Standalone Stream Deck 7.6.1 UI prototype for D200X — hardware not connected",
+  "main": "main.cjs"
+}
