@@ -161,3 +161,7 @@
   .device-layout{gap:6px;}
   .physical-controls{gap:3px;padding:3px;}
 }
+
+/* Small HID status light in the approved sidebar header; no geometry changes. */
+.deck-status{display:inline-block;width:7px;height:7px;border-radius:50%;background:#747474;flex-shrink:0;box-shadow:0 0 0 1px #161616}
+.deck-status.online{background:#47c787;box-shadow:0 0 6px #47c7877a}
