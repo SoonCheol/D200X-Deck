@@ -2141,6 +2141,12 @@ function renderInspector() {
     }
   }
 
+  const textEnter = $('#insp-text-enter');
+  if (textEnter) textEnter.addEventListener('change', () => {
+    key.action.enter = textEnter.checked;
+    commit(false);
+  });
+
   const valueEl = $('#insp-value');
   if (valueEl) {
     const applyValue = (raw) => {
