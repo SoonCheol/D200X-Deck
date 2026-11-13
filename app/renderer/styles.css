@@ -2129,3 +2129,52 @@ body::before {
     grid-template-rows: minmax(0, 1fr) 0;
   }
 }
+
+
+/* Stream Deck 7.6.1 Key tab: observed category and 24-action hierarchy. */
+#app > .sidebar .action-library-group-name {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  gap: 9px;
+  text-align: left;
+  font: inherit;
+  cursor: pointer;
+  border-right: 0;
+  border-left: 0;
+  color: #e7e7e7;
+}
+#app > .sidebar .sd-group-chevron {
+  width: 10px;
+  flex: 0 0 10px;
+  line-height: 1;
+  color: #aaa;
+  transform: rotate(-90deg);
+  transition: transform 120ms ease;
+}
+#app > .sidebar .action-library-group-name[aria-expanded="true"] .sd-group-chevron {
+  transform: rotate(0);
+}
+#app > .sidebar .sd-group-icon,
+#app > .sidebar .sd-action-icon {
+  width: 20px;
+  height: 20px;
+  display: inline-flex;
+  flex: 0 0 20px;
+  align-items: center;
+  justify-content: center;
+  color: #bcbcbc;
+}
+#app > .sidebar .action-library-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  text-align: left;
+}
+#app > .sidebar .sd-action-unavailable {
+  opacity: .55;
+  cursor: not-allowed;
+}
+#app > .sidebar .sd-action-group-items[hidden] { display: none !important; }
+#app > .sidebar .sd-action-name { flex: 1; min-width: 0; }
+#app > .sidebar .action-library-group-name:focus-visible { outline: 2px solid #8bb3ff; outline-offset: -2px; }
