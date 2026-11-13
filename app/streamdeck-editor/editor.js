@@ -14,9 +14,9 @@ const $ = id => document.getElementById(id);
 const clone = value => JSON.parse(JSON.stringify(value));
 const KEY_COUNT = 14;
 const CONTROLS = [{name:"첫 페이지",kind:"side"},{name:"뒤로 가기",kind:"side"},{name:"노브 1",kind:"knob"},{name:"노브 2",kind:"knob"},{name:"노브 3",kind:"knob"}];
-const blankPage = () => Array.from({length:KEY_COUNT+CONTROLS.length},()=>null);
-let state={pages:[blankPage()],page:0,selected:null};
-try {const saved=JSON.parse(localStorage.getItem(STORAGE_KEY));if(saved&&Array.isArray(saved.pages)&&saved.pages.length) state=saved;} catch {}
+const blankPage = () => DeckCore.blankPage();
+let state=DeckCore.migrateState(null);
+try {state=DeckCore.migrateState(JSON.parse(localStorage.getItem(STORAGE_KEY)));} catch {state=DeckCore.migrateState(null);}
 const persist=()=>{try{localStorage.setItem(STORAGE_KEY,JSON.stringify(state));}catch{};window.scheduleDeckSync?.();};
 // Migration: preserve the existing 14 key assignments and extend with 5 physical controls.
 state.pages.forEach(page=>{while(page.length<KEY_COUNT+CONTROLS.length)page.push(null);});
@@ -40,17 +40,7 @@ function updateTitleAppearance(label,item){
   label.style.textDecoration=style.underline?"underline":"none";
   label.style.color=style.color||"#ffffff";
 }
-function newAction(id){
-  const defaults={
-    "audio-play":{file:"",mode:"play-stop",fade:"none",volume:50,output:"default"},
-    timer:{seconds:30,sound:"connect"},brightness:{mode:"up"},website:{url:"",open:"default"},
-    text:{body:"",enter:false,mode:"clipboard"},media:{op:"playpause"},
-    "open-app":{app:"",hold:"close",foreground:true},close:{path:"",force:false},
-    open:{path:""},hotkey:{keys:""}, "hotkey-switch":{first:"",second:""},
-    goto:{page:0},profile:{profile:"next"}
-  };
-  return {type:id,title:id==="folder"?"폴더":"",settings:clone(defaults[id]||{}),children:[]};
-}
+function newAction(id){return DeckCore.createAction(id);}
 function currentPage(){return state.pages[state.page];}
 function setItem(index,item){currentPage()[index]=item;state.selected=index;persist();render();}
 function choose(index){state.selected=index;persist();render();}
@@ -145,7 +135,7 @@ function actionFields(item){
     default:return "";
   }
 }
-const DEFAULT_TITLE_STYLE = {visible:true,align:"left",family:"default",size:12,bold:false,italic:false,underline:false,color:"#ffffff"};
+const DEFAULT_TITLE_STYLE = DeckCore.TITLE;
 let previewRequest=0;
 async function refreshSelectedVisual(){
   const item=state.selected===null?null:currentPage()[state.selected];
