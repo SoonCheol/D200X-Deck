@@ -57,7 +57,7 @@ public static class DeckWinInput {
             {"enter",13},{"return",13},{"tab",9},{"space",32},{"escape",27},{"esc",27},
             {"backspace",8},{"delete",46},{"left",37},{"up",38},{"right",39},{"down",40},
             {"home",36},{"end",35},{"pageup",33},{"pagedown",34},{"insert",45},
-            {"playpause",179},{"next",176},{"prev",177},{"volumeup",175},
+            {"playpause",179},{"stop",178},{"next",176},{"prev",177},{"volumeup",175},
             {"volumedown",174},{"mute",173},
             {"numpadplus",107},{"numpadminus",109},{"numpadmultiply",106},
             {"numpaddivide",111},{"numpaddecimal",110}
