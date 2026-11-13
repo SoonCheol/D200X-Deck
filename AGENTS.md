@@ -1,5 +1,7 @@
 # D200X Stream Deck 7.6.1 복제 작업 규칙 (AGENTS.md)
 
+**작업 시작 전 필독:** [`docs/D200X-STREAMDECK-ROADMAP.md`](docs/D200X-STREAMDECK-ROADMAP.md). 세 계층 개발 계약과 달성 체크리스트의 단일 기준이다. 기능 변경 시 체크박스 및 검증 근거를 동시에 갱신한다. 단순 코드 작성이나 빌드 성공만으로 실기 완료 체크 금지.
+
 ## 단 하나의 제품 기준
 
 - **복제 대상:** Elgato Stream Deck **7.6.1 (23033), 한국어 Windows UI**, 24개 내장 키 액션, 속성 편집기, 실제 액션 등록 흐름, 상태별 우클릭 메뉴.
