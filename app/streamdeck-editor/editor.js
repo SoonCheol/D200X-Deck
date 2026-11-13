@@ -146,6 +146,25 @@ function actionFields(item){
   }
 }
 const DEFAULT_TITLE_STYLE = {visible:true,align:"left",family:"default",size:12,bold:false,italic:false,underline:false,color:"#ffffff"};
+let previewRequest=0;
+async function refreshSelectedVisual(){
+  const item=state.selected===null?null:currentPage()[state.selected];
+  if(!item||!window.renderDeckKeyImage)return;
+  const request=++previewRequest;
+  try{
+    const data=await window.renderDeckKeyImage(item);
+    if(request!==previewRequest||currentPage()[state.selected]!==item)return;
+    const host=$("icon-preview-content");
+    if(!host)return;
+    const image=document.createElement("img");
+    image.className="icon-image rendered-key-image";
+    image.src="data:image/png;base64,"+data;
+    host.replaceChildren(image);
+    const fallback=$("icon-preview")?.querySelector(".preview-title");
+    if(fallback)fallback.hidden=true;
+  }catch(error){console.warn("미리보기 이미지 생성 실패",error);}
+}
+window.refreshSelectedVisual=refreshSelectedVisual;
 function refreshTitlePreview(item){
   const host=$("icon-preview");if(!host)return;
   let label=host.querySelector(".preview-title");
@@ -160,6 +179,7 @@ function refreshTitlePreview(item){
   label.style.fontStyle=style.italic?"italic":"normal";
   label.style.textDecoration=style.underline?"underline":"none";
   label.style.color=style.color;
+  refreshSelectedVisual();
 }
 function bindTitleStyle(item){
   const style=item.titleStyle={...DEFAULT_TITLE_STYLE,...item.titleStyle};
