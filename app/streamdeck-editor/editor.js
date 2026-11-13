@@ -111,7 +111,9 @@ const select=(field,label,opts)=>`<div class="field"><label for="s-${field}">${l
 const pathPicker=(field,label,kind='file')=>
   '<div class="field"><label for="s-'+field+'">'+label+'</label><div class="compound">'+
   '<input id="s-'+field+'" data-field="'+field+'" value="'+escapeHtml(valueOf(active,field))+'">'+
-  '<button type="button" data-path-picker="'+field+'" data-path-kind="'+kind+'" title="찾아보기">…</button>'+
+  '<button type="button" data-path-picker="'+field+'" data-path-kind="'+kind+'" title="파일 찾아보기">…</button>'+
+  (field==='path'&&active?.type==='open'
+    ? '<button type="button" data-path-picker="'+field+'" data-path-kind="folder" title="폴더 선택">▣</button>' : '')+
   '</div></div>';
 const check=(field,label)=>`<div class="field"><label for="s-${field}">${label}</label><input id="s-${field}" type="checkbox" data-field="${field}" ${valueOf(active,field)?"checked":""}></div>`;
 let active=null;
