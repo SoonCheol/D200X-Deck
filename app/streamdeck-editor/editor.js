@@ -123,9 +123,9 @@ function actionFields(item){
     case "open":return input("path","앱 / 파일");
     case "open-app":return input("app","앱")+select("hold","길게 누르기",[["none","아무것도 하지 않음"],["close","응용 프로그램 종료"],["force","응용 프로그램 강제 종료"]])+check("foreground","이미 실행 중이면 맨 앞으로");
     case "close":return input("path","앱 / 파일")+check("force","강제 종료");
-    case "hotkey":return input("keys","단축키","클릭하여 할당");
+    case "hotkey":return `<div class="field"><label>동작 선택기</label><span class="hint">프리셋 동작 (상세 프리셋 선택은 후속 구현)</span></div>`+input("keys","단축키","클릭하여 할당");
     case "hotkey-switch":return input("first","단축키 1")+input("second","단축키 2");
-    case "text":return `<div class="field"><label for="s-body">텍스트</label><textarea id="s-body" data-field="body">${escapeHtml(valueOf(item,"body"))}</textarea></div>`+check("enter","메시지 뒤 Enter")+select("mode","텍스트 모드",[["clipboard","클립보드에서 붙여넣기"],["typing","타이핑 시뮬레이션"]]);
+    case "text":return `<div class="field"><label for="s-body">텍스트</label><div><textarea id="s-body" data-field="body">${escapeHtml(valueOf(item,"body"))}</textarea><div class="hint" id="text-count">${String(valueOf(item,"body")).length} / -</div></div></div>`+check("enter","메시지 뒤 Enter")+select("mode","텍스트 모드",[["clipboard","클립보드에서 붙여넣기"],["typing","타이핑 시뮬레이션"]]);
     case "media":return select("op","동작",[["previous","이전 트랙"],["playpause","재생 / 일시정지"],["next","다음 트랙"],["stop","정지"],["mute","음소거"],["up","음량 키우기"],["down","음량 줄이기"]]);
     case "folder":case "multi":case "random":return `<div class="field"><label>내용</label><div>${item.children.length}개의 ${item.type==="folder"?"항목":"동작"} <span class="hint">· 내부 편집 기능 미구현</span></div></div>`;
     case "multi-switch":return `<div class="field"><label>상태</label><span>1 / 2 · 내부 편집 기능 미구현</span></div>`;
@@ -245,11 +245,40 @@ function renderInspector(){
   refreshTitlePreview(item);
   $("delete-action").addEventListener("click",()=>setItem(state.selected,null));
   $("key-title").addEventListener("input",ev=>{item.title=ev.target.value;persist();renderGrid();refreshTitlePreview(item);});
+  // Capture combinations for supported native fields without actually sending
+  // the shortcut to Windows. Escape cancels; Backspace clears an assignment.
+  if(["hotkey","hotkey-switch"].includes(item.type)){
+    for(const field of ["keys","first","second"]){
+      const node=root.querySelector('[data-field="'+field+'"]');
+      if(!node)continue;
+      node.readOnly=true;node.title="클릭한 뒤 원하는 단축키를 누르세요 · Esc 취소 · Backspace 삭제";
+      let armed=false;
+      node.addEventListener("focus",()=>{armed=true;node.placeholder="단축키를 누르세요 (Esc 취소)";});
+      node.addEventListener("blur",()=>{armed=false;node.placeholder="클릭하여 할당";});
+      node.addEventListener("keydown",event=>{
+        if(!armed)return;
+        event.preventDefault();event.stopPropagation();
+        if(event.key==="Escape"){node.blur();return;}
+        if(event.key==="Backspace"&&!event.ctrlKey&&!event.altKey&&!event.shiftKey&&!event.metaKey){
+          node.value="";item.settings[field]="";persist();node.blur();return;
+        }
+        if(["Control","Shift","Alt","Meta"].includes(event.key))return;
+        const key=event.code?.startsWith("Key")?event.code.slice(3)
+          :event.code?.startsWith("Digit")?event.code.slice(5)
+          :event.key===" "?"Space":event.key;
+        if(!key||key==="Unidentified")return;
+        const combo=[event.ctrlKey?"Ctrl":null,event.altKey?"Alt":null,
+          event.shiftKey?"Shift":null,event.metaKey?"Win":null,key].filter(Boolean).join("+");
+        node.value=combo;item.settings[field]=combo;persist();node.blur();
+      });
+    }
+  }
   root.querySelectorAll("[data-field]").forEach(node=>{
-    node.addEventListener(node.type==="range"?"input":"change",()=>{
+    node.addEventListener(node.type==="range"||node.tagName==="TEXTAREA"?"input":"change",()=>{
       let value=node.type==="checkbox"?node.checked:node.type==="number"||node.type==="range"?Number(node.value):node.value;
       item.settings[node.dataset.field]=value;persist();
       if(node.dataset.field==="volume") $("volume-display").textContent=String(value);
+      if(node.dataset.field==="body"&&$("text-count")) $("text-count").textContent=String(value.length)+" / -";
     });
   });
 }
