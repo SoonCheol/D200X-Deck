@@ -1,6 +1,6 @@
 'use strict';
 
-const { app, BrowserWindow, Menu, ipcMain } = require('electron');
+const { app, BrowserWindow, Menu, ipcMain, clipboard } = require('electron');
 const path = require('node:path');
 const { D200XTransport } = require('./transport.cjs');
 
@@ -44,6 +44,16 @@ ipcMain.on('d200x:sync-page', (event, images) => {
     index: entry.index,
     png: Buffer.from(entry.png, 'base64'),
   })));
+});
+
+// Local clipboard image only; never reads arbitrary files or executes clipboard content.
+ipcMain.handle('d200x:clipboard-image', async event => {
+  if (!window || event.sender !== window.webContents) return null;
+  const image = clipboard.readImage();
+  if (image.isEmpty()) return null;
+  const png = image.resize({width:196,height:196,quality:'best'}).toPNG();
+  if (png.length > 1024*1024) throw new Error('클립보드 이미지가 너무 큽니다.');
+  return 'data:image/png;base64,' + png.toString('base64');
 });
 
 app.whenReady().then(async () => {
