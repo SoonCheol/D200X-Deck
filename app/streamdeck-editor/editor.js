@@ -17,7 +17,7 @@ const CONTROLS = [{name:"첫 페이지",kind:"side"},{name:"뒤로 가기",kind:
 const blankPage = () => Array.from({length:KEY_COUNT+CONTROLS.length},()=>null);
 let state={pages:[blankPage()],page:0,selected:null};
 try {const saved=JSON.parse(localStorage.getItem(STORAGE_KEY));if(saved&&Array.isArray(saved.pages)&&saved.pages.length) state=saved;} catch {}
-const persist=()=>{try{localStorage.setItem(STORAGE_KEY,JSON.stringify(state));}catch{}};
+const persist=()=>{try{localStorage.setItem(STORAGE_KEY,JSON.stringify(state));}catch{};window.scheduleDeckSync?.();};
 // Migration: preserve the existing 14 key assignments and extend with 5 physical controls.
 state.pages.forEach(page=>{while(page.length<KEY_COUNT+CONTROLS.length)page.push(null);});
 const valueOf=(item,field,fallback="")=>item?.settings?.[field]??fallback;
