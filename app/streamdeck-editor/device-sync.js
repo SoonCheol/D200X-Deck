@@ -118,6 +118,7 @@
 
   // Same compositor feeds the inspector preview and the D200X transfer.
   window.renderDeckKeyImage = async item => (await drawSlot(item, 0)).png;
+  window.refreshSelectedVisual?.();
 
   async function synchronize() {
     const serial = ++renderSerial;
