@@ -98,3 +98,6 @@
   .sidebar-header{padding-left:11px;padding-right:11px}
   .device-name{font-size:11px}
 }
+
+.icon-library-groups.compact .icon-grid{grid-template-columns:repeat(5,minmax(0,1fr));gap:7px}
+.icon-library-groups.compact .icon-swatch{font-size:27px}
