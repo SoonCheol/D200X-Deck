@@ -79,9 +79,18 @@ function closeInspector() {
   renderInspector();
 }
 
+let pageSettingsRequested = false;
+
 function syncPageSettingsButton() {
   const button = $('#page-settings-btn');
-  if (button) button.classList.toggle('active', state.selected === null);
+  if (button) button.classList.toggle('active', state.selected === null && pageSettingsRequested);
+}
+
+function showPageSettings() {
+  pageSettingsRequested = true;
+  state.selected = null;
+  renderGrid();
+  renderInspector();
 }
 
 // Shown in the Icon tab when a key intentionally has no image.
@@ -911,11 +920,17 @@ function renderInspector() {
     syncPageSettingsButton();
     return;
   }
+  if (state.selected !== null) pageSettingsRequested = false;
   syncPageSettingsButton();
   const selectionChanged = state.selected !== lastInspectorSelection;
   lastInspectorSelection = state.selected;
   if (state.selected !== null && selectionChanged) openInspectorDrawer();
   if (state.selected === WIDE_KEY_INDEX) return renderWideInspector(el, page);
+
+  if (state.selected === null && !pageSettingsRequested) {
+    el.innerHTML = '<div class="insp-empty sd-inspector-idle">키를 선택하거나 오른쪽 목록의 동작을 키로 끌어 놓으세요.</div>';
+    return;
+  }
 
   if (state.selected === null) {
     const configured = Object.entries(page.keys).filter(
