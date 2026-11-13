@@ -1,4 +1,5 @@
 'use strict';
+/* global state, commit, navigateHome, navigateBack, navigateRelative, runKeyAction, runBrightnessAction, noteActivity */
 
 // Configurable D200X physical side buttons and three rotary/push encoders.
 // 15/16 = side buttons; 17/18/19 = encoders (state 1 push, 2 left, 3 right).
