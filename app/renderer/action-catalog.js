@@ -73,7 +73,8 @@
       // Press, double-press and hold are configured through the existing
       // trigger section; do not fabricate an unsupported standalone action.
       key.action = { type: 'none', value: '' };
-      toast('아래 속성의 누름 트리거에서 짧게·두 번·길게 누름을 설정하세요.');
+      key.keyLogic = true;
+      toast('아래 속성에서 누름·두 번 누름·길게 누름 동작을 설정하세요.');
     }
     if (id === 'open') {
       // Existing 'app' picker can open file paths, but this is not yet
