@@ -12,10 +12,14 @@ const ACTIONS = new Map(CATALOG.flatMap(([category, entries]) => entries.map(([i
 const STORAGE_KEY="d200x-streamdeck-editor-prototype-v1";
 const $ = id => document.getElementById(id);
 const clone = value => JSON.parse(JSON.stringify(value));
-const blankPage = () => Array.from({length:14},()=>null);
+const KEY_COUNT = 14;
+const CONTROLS = [{name:"첫 페이지",kind:"side"},{name:"뒤로 가기",kind:"side"},{name:"노브 1",kind:"knob"},{name:"노브 2",kind:"knob"},{name:"노브 3",kind:"knob"}];
+const blankPage = () => Array.from({length:KEY_COUNT+CONTROLS.length},()=>null);
 let state={pages:[blankPage()],page:0,selected:null};
 try {const saved=JSON.parse(localStorage.getItem(STORAGE_KEY));if(saved&&Array.isArray(saved.pages)&&saved.pages.length) state=saved;} catch {}
 const persist=()=>{try{localStorage.setItem(STORAGE_KEY,JSON.stringify(state));}catch{}};
+// Migration: preserve the existing 14 key assignments and extend with 5 physical controls.
+state.pages.forEach(page=>{while(page.length<KEY_COUNT+CONTROLS.length)page.push(null);});
 const valueOf=(item,field,fallback="")=>item?.settings?.[field]??fallback;
 function keyName(item){return item?.title||ACTIONS.get(item?.type)?.label||"";}
 function newAction(id){
@@ -34,7 +38,7 @@ function setItem(index,item){currentPage()[index]=item;state.selected=index;pers
 function choose(index){state.selected=index;persist();render();}
 function renderGrid(){
   const grid=$("key-grid");grid.replaceChildren();
-  currentPage().forEach((item,i)=>{
+  currentPage().slice(0,KEY_COUNT).forEach((item,i)=>{
     const b=document.createElement("button");b.type="button";b.className="deck-key"+(i===13?" wide":"")+(state.selected===i?" selected":"");
     b.dataset.index=i;b.setAttribute("aria-label",`키 ${i+1}: ${keyName(item)||"비어 있음"}`);
     const glyph=document.createElement("span");glyph.className="glyph";glyph.textContent=ACTIONS.get(item?.type)?.icon||"+";
@@ -46,7 +50,32 @@ function renderGrid(){
     b.addEventListener("drop",ev=>{ev.preventDefault();b.classList.remove("drag-over");const id=ev.dataTransfer.getData("application/x-d200x-action");if(ACTIONS.has(id))setItem(i,newAction(id));});
     grid.append(b);
   });
+  renderPhysicalControls();
   $("page-label").textContent=`페이지 ${state.page+1} / ${state.pages.length}`;
+}
+function renderPhysicalControls(){
+  const root=$("physical-controls");
+  root.replaceChildren();
+  CONTROLS.forEach(({name,kind},offset)=>{
+    const index=KEY_COUNT+offset, item=currentPage()[index];
+    const button=document.createElement("button");button.type="button";
+    button.className="physical-control "+kind+(state.selected===index?" selected":"");
+    button.setAttribute("aria-label",name+" — "+(keyName(item)||"비어 있음"));
+    button.title=name+" — 액션을 드래그해 등록";
+    const symbol=document.createElement("span");symbol.className="physical-symbol";
+    const label=document.createElement("span");label.className="physical-name";label.textContent=item?keyName(item):name;
+    button.append(symbol,label);
+    button.addEventListener("click",()=>choose(index));
+    button.addEventListener("contextmenu",event=>{event.preventDefault();choose(index);showMenu(index,event.clientX,event.clientY);});
+    button.addEventListener("dragover",event=>{event.preventDefault();button.classList.add("drag-over");});
+    button.addEventListener("dragleave",()=>button.classList.remove("drag-over"));
+    button.addEventListener("drop",event=>{
+      event.preventDefault();button.classList.remove("drag-over");
+      const id=event.dataTransfer.getData("application/x-d200x-action");
+      if(ACTIONS.has(id))setItem(index,newAction(id));
+    });
+    root.append(button);
+  });
 }
 function renderLibrary(){
   const root=$("library-list");root.replaceChildren();
@@ -98,14 +127,66 @@ function actionFields(item){
     default:return "";
   }
 }
+const DEFAULT_TITLE_STYLE = {visible:true,align:"left",family:"default",size:12,bold:false,italic:false,underline:false,color:"#ffffff"};
+function bindTitleStyle(item){
+  const style=item.titleStyle={...DEFAULT_TITLE_STYLE,...item.titleStyle};
+  const menu=$("title-style-popover"),toggle=$("title-style-trigger");
+  toggle.addEventListener("click",()=>{
+    menu.hidden=!menu.hidden;toggle.setAttribute("aria-expanded",String(!menu.hidden));
+  });
+  const save=(field,value)=>{style[field]=value;persist();};
+  const visible=$("title-visible");visible.checked=style.visible;
+  visible.addEventListener("change",()=>save("visible",visible.checked));
+  menu.querySelectorAll("[data-align]").forEach(button=>{
+    button.classList.toggle("active",button.dataset.align===style.align);
+    button.addEventListener("click",()=>{
+      save("align",button.dataset.align);
+      menu.querySelectorAll("[data-align]").forEach(b=>b.classList.toggle("active",b===button));
+    });
+  });
+  const family=$("title-family");family.value=style.family;
+  family.addEventListener("change",()=>save("family",family.value));
+  const size=$("title-size");size.value=style.size;
+  size.addEventListener("change",()=>{size.value=String(Math.max(8,Math.min(48,Number(size.value)||12)));save("size",Number(size.value));});
+  menu.querySelectorAll("[data-style]").forEach(button=>{
+    const field=button.dataset.style;button.classList.toggle("active",Boolean(style[field]));
+    button.addEventListener("click",()=>{save(field,!style[field]);button.classList.toggle("active",style[field]);});
+  });
+  const color=$("title-color");color.value=style.color;
+  color.addEventListener("input",()=>save("color",color.value));
+  $("title-reset").addEventListener("click",()=>{item.titleStyle={...DEFAULT_TITLE_STYLE};persist();renderInspector();});
+  document.addEventListener("pointerdown",event=>{
+    if(!menu.isConnected)return;
+    if(!menu.contains(event.target)&&!toggle.contains(event.target)){
+      menu.hidden=true;toggle.setAttribute("aria-expanded","false");
+    }
+  },{signal:inspectorListener.signal});
+}
+let inspectorListener=new AbortController();
 function renderInspector(){
+  inspectorListener.abort();inspectorListener=new AbortController();
   const root=$("inspector");root.replaceChildren();const item=state.selected===null?null:currentPage()[state.selected];
   if(!item){root.className="inspector empty";root.textContent=state.selected===null?"버튼을 선택하세요":"액션을 끌어 이 키에 놓으세요";return;}
   root.className="inspector";const action=ACTIONS.get(item.type);const fields=actionFields(item);
   root.innerHTML=`<div class="action-head"><strong>${escapeHtml(action?.category)}: ${escapeHtml(action?.label)}</strong><button id="delete-action" title="액션 삭제" type="button">×</button></div>
     <div class="properties"><div class="preview"><div class="preview-key">${escapeHtml(action?.icon)}</div><button type="button" id="icon-button" disabled title="아이콘 변경 미구현">아이콘 변경 ▾</button></div>
-    <div class="fields"><div class="field"><label for="key-title">제목</label><input id="key-title" value="${escapeHtml(item.title)}"></div>
-    <div class="field"><label>제목 스타일</label><span class="hint">원본 상세 메뉴와 연결 예정</span></div>${fields}</div></div>`;
+    <div class="fields"><div class="field"><label for="key-title">제목</label>
+      <div class="title-line"><input id="key-title" value="${escapeHtml(item.title)}">
+      <button type="button" class="title-style-trigger" id="title-style-trigger" aria-label="제목 글꼴 속성" aria-expanded="false" aria-controls="title-style-popover">T⌄</button>
+      <div class="title-style-popover" id="title-style-popover" hidden>
+        <label><input type="checkbox" id="title-visible"> 제목 보기</label>
+        <div class="title-align" role="group" aria-label="제목 정렬">
+          <button type="button" data-align="left" title="왼쪽 정렬">▤</button>
+          <button type="button" data-align="center" title="가운데 정렬">≡</button>
+          <button type="button" data-align="right" title="오른쪽 정렬">▥</button>
+        </div>
+        <select id="title-family" aria-label="글꼴"><option value="default">기본</option><option value="Malgun Gothic">맑은 고딕</option><option value="Segoe UI">Segoe UI</option></select>
+        <div class="title-format"><input id="title-size" type="number" min="8" max="48" aria-label="글꼴 크기">
+        <button type="button" data-style="bold" aria-label="굵게">B</button><button type="button" data-style="italic" aria-label="기울임">I</button><button type="button" data-style="underline" aria-label="밑줄">U</button>
+        <input id="title-color" type="color" aria-label="글꼴 색상"></div>
+        <button type="button" class="style-reset" id="title-reset" title="기본 스타일 복원">↺</button>
+      </div></div></div>${fields}</div></div>`;
+  bindTitleStyle(item);
   $("delete-action").addEventListener("click",()=>setItem(state.selected,null));
   $("key-title").addEventListener("input",ev=>{item.title=ev.target.value;persist();renderGrid();});
   root.querySelectorAll("[data-field]").forEach(node=>{
