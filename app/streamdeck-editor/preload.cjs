@@ -3,6 +3,7 @@ const { contextBridge, ipcRenderer } = require('electron');
 
 contextBridge.exposeInMainWorld('deckBridge', Object.freeze({
   ready: () => ipcRenderer.send('d200x:renderer-ready'),
+  readClipboardImage: () => ipcRenderer.invoke('d200x:clipboard-image'),
   syncPage: images => ipcRenderer.send('d200x:sync-page', images),
   onStatus: callback => {
     if (typeof callback !== 'function') return;
