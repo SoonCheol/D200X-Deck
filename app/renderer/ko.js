@@ -1,4 +1,5 @@
 'use strict';
+/* global Node */
 
 // Korean display translation for the Windows fork.
 // Exact-match UI text only: action IDs, stored values, plugin settings and
