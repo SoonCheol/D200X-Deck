@@ -108,21 +108,26 @@ function renderLibrary(){
 function escapeHtml(x){return String(x??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));}
 const input=(field,label,placeholder="")=>`<div class="field"><label for="s-${field}">${label}</label><input id="s-${field}" data-field="${field}" value="${escapeHtml(valueOf(active,field))}" placeholder="${placeholder}"></div>`;
 const select=(field,label,opts)=>`<div class="field"><label for="s-${field}">${label}</label><select id="s-${field}" data-field="${field}">${opts.map(([v,n])=>`<option value="${escapeHtml(v)}" ${valueOf(active,field)===v?"selected":""}>${escapeHtml(n)}</option>`).join("")}</select></div>`;
+const pathPicker=(field,label,kind='file')=>
+  '<div class="field"><label for="s-'+field+'">'+label+'</label><div class="compound">'+
+  '<input id="s-'+field+'" data-field="'+field+'" value="'+escapeHtml(valueOf(active,field))+'">'+
+  '<button type="button" data-path-picker="'+field+'" data-path-kind="'+kind+'" title="찾아보기">…</button>'+
+  '</div></div>';
 const check=(field,label)=>`<div class="field"><label for="s-${field}">${label}</label><input id="s-${field}" type="checkbox" data-field="${field}" ${valueOf(active,field)?"checked":""}></div>`;
 let active=null;
 function actionFields(item){
   active=item;
   switch(item.type){
-    case "audio-play":return input("file","파일")+select("mode","동작",[["play-stop","재생 / 정지"],["overlap","재생 / 오버랩"],["restart","재생 / 재시작"],["loop-stop","반복 / 정지"]])+select("fade","페이드",[["none","페이드 없음"],["in","페이드 인"],["out","페이드 아웃"],["in-out","페이드 인 앤 아웃"]])+`<div class="field"><label for="s-volume">음량</label><div class="compound"><input id="s-volume" type="range" min="0" max="100" data-field="volume" value="${valueOf(item,"volume",50)}"><output id="volume-display">${valueOf(item,"volume",50)}</output></div></div>`+select("output","출력",[["default","기본"]])+`<div class="field"><span></span><span class="hint">출력 장치 전체 목록·실제 재생 엔진은 아직 미연결</span></div>`;
+    case "audio-play":return pathPicker("file","파일")+select("mode","동작",[["play-stop","재생 / 정지"],["overlap","재생 / 오버랩"],["restart","재생 / 재시작"],["loop-stop","반복 / 정지"]])+select("fade","페이드",[["none","페이드 없음"],["in","페이드 인"],["out","페이드 아웃"],["in-out","페이드 인 앤 아웃"]])+`<div class="field"><label for="s-volume">음량</label><div class="compound"><input id="s-volume" type="range" min="0" max="100" data-field="volume" value="${valueOf(item,"volume",50)}"><output id="volume-display">${valueOf(item,"volume",50)}</output></div></div>`+select("output","출력",[["default","기본"]])+`<div class="field"><span></span><span class="hint">출력 장치 전체 목록·실제 재생 엔진은 아직 미연결</span></div>`;
     case "audio-stop": case "previous": case "next": case "indicator":return "";
     case "timer":return `<div class="field"><label for="s-seconds">지속</label><div class="compound"><input type="number" min="1" id="s-seconds" data-field="seconds" value="${valueOf(item,"seconds",30)}"><span>초</span></div></div>`+select("sound","사운드",[["none","없음"],["connect","접속"],["disconnect","접속 끊김"],["release","접속 해제"],["find","찾기"],["other","기타"]]);
     case "brightness":return select("mode","동작",[["up","밝게"],["down","어둡게"],["max","최대"],["high","높음"],["medium","중간"],["low","낮음"],["min","최소"]]);
     case "sleep":return `<div class="field"><label>잠자기 설정</label><span class="hint">환경설정 열기… (기기 설정 연동 예정)</span></div>`;
     case "virtual":return `<div class="field"><label>기기</label><span class="hint">구성된 Virtual Stream Decks 없음</span></div>`;
     case "website":return input("url","URL","https://")+select("open","다음으로 열기",[["default","기본 브라우저"],["get","백그라운드에서 GET 요청"],["choose","브라우저 직접 선택"]]);
-    case "open":return input("path","앱 / 파일");
-    case "open-app":return input("app","앱")+select("hold","길게 누르기",[["none","아무것도 하지 않음"],["close","응용 프로그램 종료"],["force","응용 프로그램 강제 종료"]])+check("foreground","이미 실행 중이면 맨 앞으로");
-    case "close":return input("path","앱 / 파일")+check("force","강제 종료");
+    case "open":return pathPicker("path","앱 / 파일");
+    case "open-app":return pathPicker("app","앱","app")+select("hold","길게 누르기",[["none","아무것도 하지 않음"],["close","응용 프로그램 종료"],["force","응용 프로그램 강제 종료"]])+check("foreground","이미 실행 중이면 맨 앞으로");
+    case "close":return pathPicker("path","앱 / 파일")+check("force","강제 종료");
     case "hotkey":return `<div class="field"><label>동작 선택기</label><span class="hint">프리셋 동작 (상세 프리셋 선택은 후속 구현)</span></div>`+input("keys","단축키","클릭하여 할당");
     case "hotkey-switch":return input("first","단축키 1")+input("second","단축키 2");
     case "text":return `<div class="field"><label for="s-body">텍스트</label><div><textarea id="s-body" data-field="body">${escapeHtml(valueOf(item,"body"))}</textarea><div class="hint" id="text-count">${String(valueOf(item,"body")).length} / -</div></div></div>`+check("enter","메시지 뒤 Enter")+select("mode","텍스트 모드",[["clipboard","클립보드에서 붙여넣기"],["typing","타이핑 시뮬레이션"]]);
@@ -245,6 +250,22 @@ function renderInspector(){
   refreshTitlePreview(item);
   $("delete-action").addEventListener("click",()=>setItem(state.selected,null));
   $("key-title").addEventListener("input",ev=>{item.title=ev.target.value;persist();renderGrid();refreshTitlePreview(item);});
+  root.querySelectorAll("[data-path-picker]").forEach(button=>{
+    button.addEventListener("click",async()=>{
+      if(!window.deckBridge?.choosePath){
+        alert("파일 선택은 Windows 편집기 EXE에서 지원합니다.");return;
+      }
+      const field=button.dataset.pathPicker;
+      try{
+        const selected=await window.deckBridge.choosePath(button.dataset.pathKind);
+        if(!selected||!state.pages.some(page=>page.includes(item)))return;
+        const inputNode=root.querySelector('[data-field="'+field+'"]');
+        item.settings[field]=selected;
+        if(inputNode)inputNode.value=selected;
+        persist();
+      }catch(error){alert("파일 선택 오류: "+String(error?.message||error));}
+    });
+  });
   // Capture combinations for supported native fields without actually sending
   // the shortcut to Windows. Escape cancels; Backspace clears an assignment.
   if(["hotkey","hotkey-switch"].includes(item.type)){
