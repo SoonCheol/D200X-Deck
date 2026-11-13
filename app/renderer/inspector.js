@@ -1166,8 +1166,8 @@ function renderInspector() {
   const hasHold = Boolean(key.holdAction && key.holdAction.type !== 'none');
   const hasDouble = Boolean(key.doubleAction && key.doubleAction.type !== 'none');
   const triggersActive = hasHold || hasDouble;
-  const triggersEnabled = action.type !== 'none' || triggersActive;
-  const triggersOpen = triggerSectionOpen.has(key) ? triggerSectionOpen.get(key) : triggersActive;
+  const triggersEnabled = action.type !== 'none' || triggersActive || key.keyLogic === true;
+  const triggersOpen = triggerSectionOpen.has(key) ? triggerSectionOpen.get(key) : (triggersActive || key.keyLogic === true);
   const pageOptions = pagesFor(page.profileId)
     .map(
       (p) =>
