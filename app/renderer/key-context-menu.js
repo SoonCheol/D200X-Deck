@@ -103,8 +103,8 @@
     menu.style.left = '0px';
     menu.style.top = '0px';
     const rect = menu.getBoundingClientRect();
-    menu.style.left = Math.max(5, Math.min(event.clientX, innerWidth - rect.width - 6)) + 'px';
-    menu.style.top = Math.max(5, Math.min(event.clientY, innerHeight - rect.height - 6)) + 'px';
+    menu.style.left = Math.max(5, Math.min(event.clientX, window.innerWidth - rect.width - 6)) + 'px';
+    menu.style.top = Math.max(5, Math.min(event.clientY, window.innerHeight - rect.height - 6)) + 'px';
     menu.querySelector('button:not(:disabled)')?.focus();
   });
   document.addEventListener('pointerdown', (event) => {
