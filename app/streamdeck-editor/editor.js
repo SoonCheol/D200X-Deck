@@ -377,7 +377,10 @@ function bindSidebarHeader(){
 $("close-icon-library").addEventListener("click",closeIconLibrary);
 $("icon-library").addEventListener("click",event=>{if(event.target===$("icon-library"))closeIconLibrary();});
 $("icon-library-search").addEventListener("input",renderIconLibrary);
-$("icon-library-layout").addEventListener("click",()=>{});
+$("icon-library-layout").addEventListener("click",()=>{
+  const groups=$("icon-library-groups");groups.classList.toggle("compact");
+  $("icon-library-layout").setAttribute("aria-pressed",String(groups.classList.contains("compact")));
+});
 $("custom-icon-file").addEventListener("change",event=>{
   setIconFile(event.target.files?.[0]);event.target.value="";
 });
