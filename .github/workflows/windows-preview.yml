@@ -2,7 +2,7 @@ name: Windows preview build
 
 on:
   push:
-    branches: [windows-port]
+    branches: [windows-port, codex/streamdeck-761-key-catalog-24]
   pull_request:
     branches: [windows-port]
   workflow_dispatch:
