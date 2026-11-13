@@ -14,6 +14,7 @@ const ACTION_ICON_PATHS = {
   'page:profile': 'assets/actions/page-profile.svg',
   'page:folder': 'assets/actions/page-folder.svg',
   'media:playpause': 'assets/actions/media-playpause.svg',
+  'media:stop': 'assets/actions/sound-stop.svg',
   'media:next': 'assets/actions/media-next.svg',
   'media:prev': 'assets/actions/media-prev.svg',
   'media:volumeup': 'assets/actions/media-volumeup.svg',
