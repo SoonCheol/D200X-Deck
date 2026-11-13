@@ -1,4 +1,5 @@
 'use strict';
+/* global WIDE_KEY_INDEX, toast, activePage, isPinnedSlot, state, renderGrid, renderInspector, $ */
 
 // OpenDeck-inspired searchable action catalog for the D200X UI.
 // This is a new implementation using the app's existing action editor.
