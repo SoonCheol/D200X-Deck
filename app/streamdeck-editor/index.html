@@ -41,7 +41,16 @@
       <footer class="icon-library-footer"><span id="icon-library-count">아이콘 선택</span><span class="icon-zoom">⌕　⊕</span></footer>
     </section>
   </div>
-  <input type="file" id="custom-icon-file" accept="image/png,image/jpeg,image/webp,image/svg+xml,image/gif" hidden />
+  <div class="icon-maker-overlay" id="icon-maker" hidden>
+    <section class="icon-maker-dialog" role="dialog" aria-modal="true" aria-labelledby="icon-maker-title">
+      <header><strong id="icon-maker-title">새로운 아이콘 만들기</strong><button type="button" id="icon-maker-close" aria-label="닫기">×</button></header>
+      <canvas width="196" height="196" id="icon-maker-canvas" aria-label="생성할 아이콘 미리보기"></canvas>
+      <label>아이콘 문자 <input id="icon-maker-text" maxlength="3" placeholder="★" value="★"></label>
+      <div class="icon-maker-colors"><label>글자 색 <input id="icon-maker-foreground" type="color" value="#ffffff"></label><label>배경 색 <input id="icon-maker-background" type="color" value="#1b5e95"></label></div>
+      <footer><button type="button" id="icon-maker-cancel">취소</button><button type="button" id="icon-maker-save">아이콘 적용</button></footer>
+    </section>
+  </div>
+  <input type="file" id="custom-icon-file" accept="image/png,image/jpeg,image/webp,image/gif" hidden />
   <p class="prototype-note">D200X 장치 확인 중 · 액션 실행은 아직 연결되지 않았습니다.</p>
 </body>
 </html>
