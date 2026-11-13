@@ -146,13 +146,28 @@ function actionFields(item){
   }
 }
 const DEFAULT_TITLE_STYLE = {visible:true,align:"left",family:"default",size:12,bold:false,italic:false,underline:false,color:"#ffffff"};
+function refreshTitlePreview(item){
+  const host=$("icon-preview");if(!host)return;
+  let label=host.querySelector(".preview-title");
+  if(!label){label=document.createElement("span");label.className="preview-title";host.append(label);}
+  label.textContent=item.title||ACTIONS.get(item.type)?.label||"";
+  const style={...DEFAULT_TITLE_STYLE,...item.titleStyle};
+  label.hidden=style.visible===false;
+  label.style.textAlign=style.align;
+  label.style.fontFamily=style.family==="default"?"Malgun Gothic, sans-serif":style.family;
+  label.style.fontSize=Math.min(28,Math.max(8,Number(style.size)||12))+"px";
+  label.style.fontWeight=style.bold?"bold":"normal";
+  label.style.fontStyle=style.italic?"italic":"normal";
+  label.style.textDecoration=style.underline?"underline":"none";
+  label.style.color=style.color;
+}
 function bindTitleStyle(item){
   const style=item.titleStyle={...DEFAULT_TITLE_STYLE,...item.titleStyle};
   const menu=$("title-style-popover"),toggle=$("title-style-trigger");
   toggle.addEventListener("click",()=>{
     menu.hidden=!menu.hidden;toggle.setAttribute("aria-expanded",String(!menu.hidden));
   });
-  const save=(field,value)=>{style[field]=value;persist();renderGrid();};
+  const save=(field,value)=>{style[field]=value;persist();renderGrid();refreshTitlePreview(item);};
   const visible=$("title-visible");visible.checked=style.visible;
   visible.addEventListener("change",()=>save("visible",visible.checked));
   menu.querySelectorAll("[data-align]").forEach(button=>{
@@ -172,7 +187,7 @@ function bindTitleStyle(item){
   });
   const color=$("title-color");color.value=style.color;
   color.addEventListener("input",()=>save("color",color.value));
-  $("title-reset").addEventListener("click",()=>{item.titleStyle={...DEFAULT_TITLE_STYLE};persist();renderInspector();});
+  $("title-reset").addEventListener("click",()=>{item.titleStyle={...DEFAULT_TITLE_STYLE};persist();renderGrid();renderInspector();});
   document.addEventListener("pointerdown",event=>{
     if(!menu.isConnected)return;
     if(!menu.contains(event.target)&&!toggle.contains(event.target)){
@@ -217,8 +232,9 @@ function renderInspector(){
       </div></div></div>${fields}</div></div>`;
   bindTitleStyle(item);
   bindIconControls(item);
+  refreshTitlePreview(item);
   $("delete-action").addEventListener("click",()=>setItem(state.selected,null));
-  $("key-title").addEventListener("input",ev=>{item.title=ev.target.value;persist();renderGrid();});
+  $("key-title").addEventListener("input",ev=>{item.title=ev.target.value;persist();renderGrid();refreshTitlePreview(item);});
   root.querySelectorAll("[data-field]").forEach(node=>{
     node.addEventListener(node.type==="range"?"input":"change",()=>{
       let value=node.type==="checkbox"?node.checked:node.type==="number"||node.type==="range"?Number(node.value):node.value;
@@ -298,33 +314,74 @@ function openIconLibrary(item){
 function closeIconLibrary(){
   $("icon-library").hidden=true;libraryTarget=null;
 }
-function setIconFile(file){
-  if(!file)return;
-  if(!/^image\/(png|jpeg|webp|gif|svg\+xml)$/.test(file.type)||file.size>3*1024*1024){
-    alert("3MB 이하의 PNG/JPG/WebP/GIF/SVG 파일을 선택해 주세요.");return;
-  }
-  const target=currentPage()[state.selected];if(!target)return;
-  const reader=new FileReader();
-  reader.onload=()=>{
-    if(currentPage().includes(target)){target.icon={kind:"file",value:reader.result};persist();render();}
-  };
-  reader.readAsDataURL(file);
+let fileIconTarget=null;
+let makerTarget=null;
+
+function applyIconData(target,uri){
+  if(!target||!uri||!state.pages.some(page=>page.includes(target)))return;
+  target.icon={kind:"file",value:uri};
+  persist();render();
 }
-async function pasteIcon(){
+function rasterizeIcon(uri){
+  return new Promise((resolve,reject)=>{
+    const image=new Image();
+    image.onload=()=>{
+      const canvas=document.createElement("canvas");canvas.width=196;canvas.height=196;
+      const ctx=canvas.getContext("2d");
+      const scale=Math.min(196/image.width,196/image.height);
+      const w=image.width*scale,h=image.height*scale;
+      ctx.drawImage(image,(196-w)/2,(196-h)/2,w,h);
+      resolve(canvas.toDataURL("image/png"));
+    };
+    image.onerror=()=>reject(new Error("이미지를 열 수 없습니다."));
+    image.src=uri;
+  });
+}
+async function setIconFile(file,target=fileIconTarget){
+  if(!file||!target)return;
+  if(!["image/png","image/jpeg","image/webp","image/gif"].includes(file.type)||file.size>5*1024*1024){
+    alert("5MB 이하 PNG/JPEG/WebP/GIF 이미지 파일을 선택해 주세요.");return;
+  }
   try{
-    if(!navigator.clipboard?.read)throw new Error("클립보드 이미지 API를 사용할 수 없습니다.");
-    for(const entry of await navigator.clipboard.read()){
-      const format=entry.types.find(type=>type.startsWith("image/"));
-      if(format){
-        const blob=await entry.getType(format);
-        setIconFile(blob);return;
-      }
-    }
-    alert("클립보드에서 이미지가 발견되지 않았습니다.");
-  }catch{
-    alert("클립보드 이미지 접근이 허용되지 않았습니다. 파일에서 설정을 사용하세요.");
-  }
+    const uri=await new Promise((resolve,reject)=>{
+      const reader=new FileReader();
+      reader.onerror=()=>reject(new Error("파일 읽기 실패"));
+      reader.onload=()=>resolve(reader.result);
+      reader.readAsDataURL(file);
+    });
+    applyIconData(target,await rasterizeIcon(uri));
+  }catch(error){alert("아이콘 적용 실패: "+String(error?.message||error));}
 }
+async function pasteIcon(target){
+  try{
+    if(window.deckBridge?.readClipboardImage){
+      const image=await window.deckBridge.readClipboardImage();
+      if(!image){alert("클립보드에 이미지가 없습니다.");return;}
+      applyIconData(target,await rasterizeIcon(image));return;
+    }
+    if(!navigator.clipboard?.read)throw new Error("이미지 클립보드를 사용할 수 없습니다.");
+    for(const entry of await navigator.clipboard.read()){
+      const format=entry.types.find(type=>["image/png","image/jpeg","image/webp"].includes(type));
+      if(format){await setIconFile(await entry.getType(format),target);return;}
+    }
+    alert("클립보드에 이미지가 없습니다.");
+  }catch(error){alert("클립보드 이미지 접근 실패: "+String(error?.message||error));}
+}
+function renderIconMaker(){
+  const canvas=$("icon-maker-canvas"),ctx=canvas.getContext("2d");
+  ctx.fillStyle=$("icon-maker-background").value;ctx.fillRect(0,0,196,196);
+  const glyph=$("icon-maker-text").value.trim()||"★";
+  ctx.fillStyle=$("icon-maker-foreground").value;
+  ctx.textAlign="center";ctx.textBaseline="middle";
+  ctx.font=(Array.from(glyph).length>1?65:115)+'px "Segoe UI Symbol","Malgun Gothic",sans-serif';
+  ctx.fillText(glyph,98,98,178);
+}
+function openIconMaker(target){
+  makerTarget=target;
+  $("icon-maker").hidden=false;
+  renderIconMaker();
+}
+function closeIconMaker(){makerTarget=null;$("icon-maker").hidden=true;}
 function bindIconControls(item){
   const host=$("icon-preview-content");host.replaceChildren(iconNode(item,ACTIONS.get(item.type)?.icon||"+"));
   $("icon-library-open").addEventListener("click",()=>openIconLibrary(item));
@@ -338,9 +395,9 @@ function bindIconControls(item){
       dropdown.hidden=true;toggle.setAttribute("aria-expanded","false");
       const cmd=button.dataset.iconCommand;
       if(cmd==="library")openIconLibrary(item);
-      else if(cmd==="file")$("custom-icon-file").click();
-      else if(cmd==="paste")pasteIcon();
-      else if(cmd==="new")alert("새로운 아이콘 편집기는 아직 구현되지 않았습니다.");
+      else if(cmd==="file"){fileIconTarget=item;$("custom-icon-file").click();}
+      else if(cmd==="paste")pasteIcon(item);
+      else if(cmd==="new")openIconMaker(item);
     });
   });
   document.addEventListener("pointerdown",event=>{
@@ -382,10 +439,21 @@ $("icon-library-layout").addEventListener("click",()=>{
   $("icon-library-layout").setAttribute("aria-pressed",String(groups.classList.contains("compact")));
 });
 $("custom-icon-file").addEventListener("change",event=>{
-  setIconFile(event.target.files?.[0]);event.target.value="";
+  const target=fileIconTarget;fileIconTarget=null;
+  setIconFile(event.target.files?.[0],target);event.target.value="";
 });
 window.addEventListener("keydown",event=>{
   if(event.key==="Escape"&&!$("icon-library").hidden)closeIconLibrary();
+  if(event.key==="Escape"&&!$("icon-maker").hidden)closeIconMaker();
+});
+["icon-maker-text","icon-maker-foreground","icon-maker-background"].forEach(id=>
+  $(id).addEventListener("input",renderIconMaker));
+$("icon-maker-close").addEventListener("click",closeIconMaker);
+$("icon-maker-cancel").addEventListener("click",closeIconMaker);
+$("icon-maker").addEventListener("click",event=>{if(event.target===$("icon-maker"))closeIconMaker();});
+$("icon-maker-save").addEventListener("click",()=>{
+  if(makerTarget)applyIconData(makerTarget,$("icon-maker-canvas").toDataURL("image/png"));
+  closeIconMaker();
 });
 bindSidebarHeader();
 
