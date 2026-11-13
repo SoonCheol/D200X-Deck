@@ -137,6 +137,7 @@
         });
         list.append(button);
       }
+      root.append(section);
     }
     if (!root.children.length) {
       const empty = document.createElement('p');
