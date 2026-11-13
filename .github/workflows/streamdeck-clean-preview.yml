@@ -38,6 +38,13 @@ jobs:
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           node --check app/streamdeck-editor/device-sync.js
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Validate shared action core and migration
+        shell: pwsh
+        run: |
+          node --check app/streamdeck-editor/deck-core.js
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          node --test test/streamdeck-core.test.cjs
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - name: Assemble isolated preview with only D200X HID dependencies
         shell: pwsh
         run: |
