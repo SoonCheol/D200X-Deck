@@ -10,10 +10,6 @@
 <body>
   <div id="app">
     <main class="work">
-      <header class="toolbar">
-        <div class="identity"><div class="device-symbol">▦</div><div><strong>D200X</strong><small>기본 프로필　⌄</small></div></div>
-        <div class="tools"><button type="button" aria-label="설정" title="설정 (미구현)">⚙</button></div>
-      </header>
       <section class="canvas" aria-label="D200X 버튼 배치">
         <div class="device-layout"><div id="key-grid" class="key-grid"></div><div id="physical-controls" class="physical-controls" aria-label="D200X 물리 버튼과 노브"></div></div>
         <div class="page-controls"><button type="button" id="back-page" title="이전 페이지">‹</button><span id="page-label">페이지 1</span><button type="button" id="next-page" title="다음 페이지">›</button><button type="button" id="add-page" title="페이지 추가">＋</button></div>
@@ -21,12 +17,30 @@
       <section class="inspector" id="inspector" aria-label="선택된 액션 속성"></section>
     </main>
     <aside class="library">
+      <header class="sidebar-header">
+        <div class="profile-picker">
+          <button id="profile-trigger" class="profile-trigger" type="button" aria-expanded="false" aria-controls="profile-menu" aria-label="프로필 선택">
+            <span id="profile-name">기본 프로필</span><span class="chevron">⌄</span>
+          </button>
+          <div id="profile-menu" class="profile-menu" hidden></div>
+        </div>
+        <div class="sidebar-device"><span class="device-name">D200X</span><button type="button" id="settings-trigger" class="settings-trigger" aria-label="설정" title="설정">⚙</button></div>
+      </header>
       <div class="search"><input id="action-search" placeholder="검색" aria-label="액션 검색"></div>
       <div class="library-tabs"><button class="active" type="button">키</button><button type="button" disabled title="이번 구현 범위에서 제외">플러그인</button></div>
       <div class="library-list" id="library-list"></div>
     </aside>
   </div>
   <div id="key-menu" class="key-menu" role="menu" hidden></div>
+  <div id="icon-library" class="icon-library-overlay" hidden>
+    <section class="icon-library-dialog" role="dialog" aria-modal="true" aria-labelledby="icon-library-heading">
+      <header class="icon-library-heading"><span class="library-badge">▦</span><strong id="icon-library-heading">Icon Library - Stream Deck</strong><button type="button" id="close-icon-library" aria-label="닫기">×</button></header>
+      <div class="icon-library-search"><input type="search" id="icon-library-search" placeholder="아이콘 검색..." aria-label="아이콘 검색"><button type="button" id="icon-library-layout" aria-label="아이콘 보기 방식">☷</button></div>
+      <div id="icon-library-groups" class="icon-library-groups"></div>
+      <footer class="icon-library-footer"><span id="icon-library-count">아이콘 선택</span><span class="icon-zoom">⌕　⊕</span></footer>
+    </section>
+  </div>
+  <input type="file" id="custom-icon-file" accept="image/png,image/jpeg,image/webp,image/svg+xml,image/gif" hidden />
   <p class="prototype-note">Stream Deck 7.6.1 복제 개발용 독립 UI · 하드웨어 통신은 아직 연결되지 않았습니다.</p>
 </body>
 </html>
