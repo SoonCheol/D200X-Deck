@@ -3,6 +3,8 @@ name: Windows preview build
 on:
   push:
     branches: [windows-port]
+  pull_request:
+    branches: [windows-port]
   workflow_dispatch:
 
 permissions:
