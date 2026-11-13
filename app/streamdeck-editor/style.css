@@ -101,3 +101,63 @@
 
 .icon-library-groups.compact .icon-grid{grid-template-columns:repeat(5,minmax(0,1fr));gap:7px}
 .icon-library-groups.compact .icon-swatch{font-size:27px}
+
+
+/* Single-screen D200X canvas. Size the hardware controls to viewport height:
+   on the packaged Windows preview (min 630px tall), every key, side button,
+   knob and page control should fit above the Inspector without scrolling.
+   At extreme OS zoom / smaller embedded viewports this may still require scaling. */
+#app { min-height:0; height:100dvh; }
+.work {
+  --key-edge:clamp(52px,calc(100dvh / 10),74px);
+  --key-gap:clamp(7px,1.2dvh,11px);
+  grid-template-rows:minmax(0,min(395px,calc(100dvh - 235px))) minmax(0,1fr);
+  min-height:0;
+}
+.canvas {
+  overflow:hidden;
+  min-height:0;
+  padding:clamp(5px,1.2dvh,12px) 10px 2px;
+  gap:clamp(5px,1dvh,9px);
+  justify-content:flex-start;
+}
+.device-layout { flex:0 0 auto; gap:clamp(5px,1dvh,9px); }
+.key-grid {
+  grid-template-columns:repeat(5,var(--key-edge));
+  grid-template-rows:repeat(3,var(--key-edge));
+  gap:var(--key-gap);
+}
+.physical-controls {
+  width:calc(5 * var(--key-edge) + 4 * var(--key-gap));
+  max-width:100%;
+  min-height:0;
+  padding:4px 4px 2px;
+  gap:clamp(3px,0.8dvh,9px);
+}
+.physical-control { min-width:0; flex:1; padding:2px 0; gap:3px; }
+.physical-control.knob .physical-symbol {
+  width:clamp(26px,4.3dvh,35px);
+  height:clamp(26px,4.3dvh,35px);
+}
+.physical-control .physical-name {
+  max-width:100%; overflow:hidden; text-overflow:ellipsis;
+}
+.page-controls { flex:0 0 auto; gap:12px; min-height:23px; }
+@media(max-height:690px) {
+  .work { --key-edge:clamp(47px,calc(100dvh / 10),64px); --key-gap:7px; grid-template-rows:minmax(0,calc(100dvh - 220px)) minmax(0,1fr); }
+  .canvas{padding-top:5px;gap:5px;}
+  .device-layout{gap:5px;}
+  .physical-controls{padding:2px 3px;}
+  .physical-control .physical-name{font-size:9px;}
+  .page-controls{min-height:20px;}
+}
+@media(max-width:1000px) {
+  .work {
+    --key-edge:clamp(47px,calc(100dvh / 10),62px);
+    --key-gap:clamp(6px,1dvh,9px);
+    grid-template-rows:minmax(0,min(360px,calc(100dvh - 220px))) minmax(0,1fr);
+  }
+  .canvas{padding:6px 8px 2px;gap:6px;}
+  .device-layout{gap:6px;}
+  .physical-controls{gap:3px;padding:3px;}
+}
