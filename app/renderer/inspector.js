@@ -1250,7 +1250,9 @@ function renderInspector() {
       }
     </div>`;
   } else if (action.type === 'text') {
-    valueField = `<input class="input" id="insp-value" placeholder="Text to type into the frontmost app" value="${esc(action.value || '')}" />`;
+    valueField = `<textarea class="textarea" id="insp-value" rows="3" placeholder="입력할 텍스트">${esc(action.value || '')}</textarea>
+      <label class="check-row"><input type="checkbox" id="insp-text-enter" ${action.enter ? 'checked' : ''} /> 입력 후 Enter 누르기</label>
+      <div class="field-hint">입력 방식: 키보드 입력 시뮬레이션 (클립보드를 변경하지 않음)</div>`;
   } else if (action.type === 'media') {
     const ops = [
       ['playpause', 'Play / pause'],
