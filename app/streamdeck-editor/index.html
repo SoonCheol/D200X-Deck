@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>D200X — Stream Deck 7.6.1 편집기 작업본</title>
+  <link rel="stylesheet" href="./style.css" />
+  <script src="./editor.js" defer></script>
+</head>
+<body>
+  <div id="app">
+    <main class="work">
+      <header class="toolbar">
+        <div class="identity"><div class="device-symbol">▦</div><div><strong>D200X</strong><small>기본 프로필　⌄</small></div></div>
+        <div class="tools"><button type="button" aria-label="설정" title="설정 (미구현)">⚙</button></div>
+      </header>
+      <section class="canvas" aria-label="D200X 버튼 배치">
+        <div id="key-grid" class="key-grid"></div>
+        <div class="page-controls"><button type="button" id="back-page" title="이전 페이지">‹</button><span id="page-label">페이지 1</span><button type="button" id="next-page" title="다음 페이지">›</button><button type="button" id="add-page" title="페이지 추가">＋</button></div>
+      </section>
+      <section class="inspector" id="inspector" aria-label="선택된 액션 속성"></section>
+    </main>
+    <aside class="library">
+      <div class="search"><input id="action-search" placeholder="검색" aria-label="액션 검색"></div>
+      <div class="library-tabs"><button class="active" type="button">키</button><button type="button" disabled title="이번 구현 범위에서 제외">플러그인</button></div>
+      <div class="library-list" id="library-list"></div>
+    </aside>
+  </div>
+  <div id="key-menu" class="key-menu" role="menu" hidden></div>
+  <p class="prototype-note">Stream Deck 7.6.1 복제 개발용 독립 UI · 하드웨어 통신은 아직 연결되지 않았습니다.</p>
+</body>
+</html>
