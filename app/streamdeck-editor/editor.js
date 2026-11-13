@@ -22,6 +22,24 @@ const persist=()=>{try{localStorage.setItem(STORAGE_KEY,JSON.stringify(state));}
 state.pages.forEach(page=>{while(page.length<KEY_COUNT+CONTROLS.length)page.push(null);});
 const valueOf=(item,field,fallback="")=>item?.settings?.[field]??fallback;
 function keyName(item){return item?.title||ACTIONS.get(item?.type)?.label||"";}
+function iconNode(item,defaultGlyph){
+  if(item?.icon?.kind==="file"&&typeof item.icon.value==="string"){
+    const image=document.createElement("img");image.className="icon-image";image.src=item.icon.value;image.alt="";return image;
+  }
+  const symbol=document.createElement("span");symbol.className="icon-glyph";
+  symbol.textContent=item?.icon?.glyph||defaultGlyph;return symbol;
+}
+function updateTitleAppearance(label,item){
+  const style=item?.titleStyle;if(!style)return;
+  label.hidden=style.visible===false;
+  label.style.textAlign=style.align||"left";
+  label.style.fontFamily=style.family==="default"?"":style.family;
+  label.style.fontSize=(Number(style.size)||12)+"px";
+  label.style.fontWeight=style.bold?"700":"400";
+  label.style.fontStyle=style.italic?"italic":"normal";
+  label.style.textDecoration=style.underline?"underline":"none";
+  label.style.color=style.color||"#ffffff";
+}
 function newAction(id){
   const defaults={
     "audio-play":{file:"",mode:"play-stop",fade:"none",volume:50,output:"default"},
@@ -41,8 +59,8 @@ function renderGrid(){
   currentPage().slice(0,KEY_COUNT).forEach((item,i)=>{
     const b=document.createElement("button");b.type="button";b.className="deck-key"+(i===13?" wide":"")+(state.selected===i?" selected":"");
     b.dataset.index=i;b.setAttribute("aria-label",`키 ${i+1}: ${keyName(item)||"비어 있음"}`);
-    const glyph=document.createElement("span");glyph.className="glyph";glyph.textContent=ACTIONS.get(item?.type)?.icon||"+";
-    const label=document.createElement("span");label.className="caption";label.textContent=keyName(item);
+    const glyph=iconNode(item,ACTIONS.get(item?.type)?.icon||"+");glyph.classList.add("glyph");
+    const label=document.createElement("span");label.className="caption";label.textContent=keyName(item);updateTitleAppearance(label,item);
     b.append(glyph,label);b.addEventListener("click",()=>choose(i));
     b.addEventListener("contextmenu",ev=>{ev.preventDefault();choose(i);showMenu(i,ev.clientX,ev.clientY);});
     b.addEventListener("dragover",ev=>{ev.preventDefault();b.classList.add("drag-over");});
@@ -134,7 +152,7 @@ function bindTitleStyle(item){
   toggle.addEventListener("click",()=>{
     menu.hidden=!menu.hidden;toggle.setAttribute("aria-expanded",String(!menu.hidden));
   });
-  const save=(field,value)=>{style[field]=value;persist();};
+  const save=(field,value)=>{style[field]=value;persist();renderGrid();};
   const visible=$("title-visible");visible.checked=style.visible;
   visible.addEventListener("change",()=>save("visible",visible.checked));
   menu.querySelectorAll("[data-align]").forEach(button=>{
@@ -169,7 +187,18 @@ function renderInspector(){
   if(!item){root.className="inspector empty";root.textContent=state.selected===null?"버튼을 선택하세요":"액션을 끌어 이 키에 놓으세요";return;}
   root.className="inspector";const action=ACTIONS.get(item.type);const fields=actionFields(item);
   root.innerHTML=`<div class="action-head"><strong>${escapeHtml(action?.category)}: ${escapeHtml(action?.label)}</strong><button id="delete-action" title="액션 삭제" type="button">×</button></div>
-    <div class="properties"><div class="preview"><div class="preview-key">${escapeHtml(action?.icon)}</div><button type="button" id="icon-button" disabled title="아이콘 변경 미구현">아이콘 변경 ▾</button></div>
+    <div class="properties"><div class="preview"><div class="preview-key" id="icon-preview">
+      <span id="icon-preview-content"></span>
+      <button class="icon-preview-control icon-preview-plus" type="button" id="icon-library-open" aria-label="아이콘 라이브러리 열기" title="아이콘 라이브러리">+</button>
+      <button class="icon-preview-control icon-preview-menu" type="button" id="icon-menu-trigger" aria-label="아이콘 변경 메뉴" aria-expanded="false" aria-controls="icon-dropdown" title="아이콘 메뉴">⌄</button>
+    </div>
+    <div class="icon-dropdown" id="icon-dropdown" role="menu" hidden>
+      <button type="button" data-icon-command="library">아이콘</button>
+      <button type="button" data-icon-command="file">파일에서 설정</button>
+      <button type="button" data-icon-command="paste">클립보드에서 붙여넣기</button>
+      <button type="button" data-icon-command="new">새로운 아이콘</button>
+      <button type="button" data-icon-command="library">Stream Deck 아이콘 라이브러리 열기</button>
+    </div></div>
     <div class="fields"><div class="field"><label for="key-title">제목</label>
       <div class="title-line"><input id="key-title" value="${escapeHtml(item.title)}">
       <button type="button" class="title-style-trigger" id="title-style-trigger" aria-label="제목 글꼴 속성" aria-expanded="false" aria-controls="title-style-popover">T⌄</button>
@@ -187,6 +216,7 @@ function renderInspector(){
         <button type="button" class="style-reset" id="title-reset" title="기본 스타일 복원">↺</button>
       </div></div></div>${fields}</div></div>`;
   bindTitleStyle(item);
+  bindIconControls(item);
   $("delete-action").addEventListener("click",()=>setItem(state.selected,null));
   $("key-title").addEventListener("input",ev=>{item.title=ev.target.value;persist();renderGrid();});
   root.querySelectorAll("[data-field]").forEach(node=>{
@@ -213,4 +243,147 @@ $("add-page").addEventListener("click",()=>{state.pages.push(blankPage());state.
 $("back-page").addEventListener("click",()=>{state.page=Math.max(0,state.page-1);state.selected=null;persist();render();});
 $("next-page").addEventListener("click",()=>{state.page=Math.min(state.pages.length-1,state.page+1);state.selected=null;persist();render();});
 function render(){renderGrid();renderInspector();}
+
+/* Reference UI controls: library appearance is modeled after the supplied 7.6.1
+ * screenshots. Icons below are clearly a small placeholder catalogue, not the
+ * complete Elgato library. No legacy renderer code is imported. */
+const ICON_SETS=[
+  ["Elgato Legacy Icons",["▶","◉","▣","♫","♩","▤","♢","⌨","◴","☼","☾","□","▢","◇","⊞","⏻","◀","▷","⚑","☷","↗","♜","✦","◎","⇄","◈","⚙","⌘"]],
+  ["Elgato Logo Icons (Color)",["✦","◈","●","▶","◉","▣","◇","■"]],
+  ["Elgato Icons (Black)",["☼","☾","□","◉","▣","☷","◎","▤"]],
+  ["Elgato Icons (White)",["☼","☾","□","◉","▣","☷","◎","▤"]],
+  ["Elgato Logo Icons (Black)",["✦","◈","◇","◎","▶","●"]],
+  ["Elgato Logo Icons (White)",["✦","◈","◇","◎","▶","●"]]
+];
+let libraryTarget=null;
+function renderIconLibrary(){
+  const root=$("icon-library-groups");root.replaceChildren();
+  const search=$("icon-library-search").value.trim().toLocaleLowerCase();
+  let count=0;
+  ICON_SETS.forEach(([name,icons],setIndex)=>{
+    const matches=icons.filter(glyph=>!search||name.toLocaleLowerCase().includes(search)||glyph.includes(search));
+    if(!matches.length)return;
+    const title=document.createElement("button");title.type="button";title.className="icon-group-title";
+    const arrow=document.createElement("span");arrow.className="icon-group-arrow";arrow.textContent="▸";
+    const nameEl=document.createElement("span");nameEl.textContent=name;
+    const number=document.createElement("span");number.className="icon-group-count";number.textContent="("+matches.length+"개 미리보기)";
+    title.append(arrow,nameEl,number);
+    const grid=document.createElement("div");grid.className="icon-grid";grid.hidden=true;
+    title.addEventListener("click",()=>{grid.hidden=!grid.hidden;arrow.textContent=grid.hidden?"▸":"⌄";});
+    if(setIndex===0){grid.hidden=false;arrow.textContent="⌄";}
+    matches.forEach(glyph=>{
+      count++;
+      const tile=document.createElement("button");tile.type="button";
+      tile.className="icon-swatch"+(setIndex===1||setIndex===0&&["◴","▶","☼","◉"].includes(glyph)?" blue":"");
+      tile.textContent=glyph;tile.title="아이콘 선택: "+glyph;
+      tile.addEventListener("click",()=>{
+        if(libraryTarget&&currentPage().includes(libraryTarget)){
+          libraryTarget.icon={kind:"glyph",glyph};persist();render();
+        }
+        closeIconLibrary();
+      });
+      grid.append(tile);
+    });
+    root.append(title,grid);
+  });
+  $("icon-library-count").textContent="임시 아이콘 샘플 "+count+"개 (정식 라이브러리 미연결)";
+}
+function openIconLibrary(item){
+  libraryTarget=item;
+  $("icon-library-search").value="";
+  renderIconLibrary();
+  $("icon-library").hidden=false;
+  $("icon-library-search").focus();
+}
+function closeIconLibrary(){
+  $("icon-library").hidden=true;libraryTarget=null;
+}
+function setIconFile(file){
+  if(!file)return;
+  if(!/^image\/(png|jpeg|webp|gif|svg\+xml)$/.test(file.type)||file.size>3*1024*1024){
+    alert("3MB 이하의 PNG/JPG/WebP/GIF/SVG 파일을 선택해 주세요.");return;
+  }
+  const target=currentPage()[state.selected];if(!target)return;
+  const reader=new FileReader();
+  reader.onload=()=>{
+    if(currentPage().includes(target)){target.icon={kind:"file",value:reader.result};persist();render();}
+  };
+  reader.readAsDataURL(file);
+}
+async function pasteIcon(){
+  try{
+    if(!navigator.clipboard?.read)throw new Error("클립보드 이미지 API를 사용할 수 없습니다.");
+    for(const entry of await navigator.clipboard.read()){
+      const format=entry.types.find(type=>type.startsWith("image/"));
+      if(format){
+        const blob=await entry.getType(format);
+        setIconFile(blob);return;
+      }
+    }
+    alert("클립보드에서 이미지가 발견되지 않았습니다.");
+  }catch{
+    alert("클립보드 이미지 접근이 허용되지 않았습니다. 파일에서 설정을 사용하세요.");
+  }
+}
+function bindIconControls(item){
+  const host=$("icon-preview-content");host.replaceChildren(iconNode(item,ACTIONS.get(item.type)?.icon||"+"));
+  $("icon-library-open").addEventListener("click",()=>openIconLibrary(item));
+  const dropdown=$("icon-dropdown"),toggle=$("icon-menu-trigger");
+  toggle.addEventListener("click",()=>{
+    dropdown.hidden=!dropdown.hidden;
+    toggle.setAttribute("aria-expanded",String(!dropdown.hidden));
+  });
+  dropdown.querySelectorAll("[data-icon-command]").forEach(button=>{
+    button.addEventListener("click",()=>{
+      dropdown.hidden=true;toggle.setAttribute("aria-expanded","false");
+      const cmd=button.dataset.iconCommand;
+      if(cmd==="library")openIconLibrary(item);
+      else if(cmd==="file")$("custom-icon-file").click();
+      else if(cmd==="paste")pasteIcon();
+      else if(cmd==="new")alert("새로운 아이콘 편집기는 아직 구현되지 않았습니다.");
+    });
+  });
+  document.addEventListener("pointerdown",event=>{
+    if(!dropdown.isConnected)return;
+    if(!dropdown.contains(event.target)&&!toggle.contains(event.target)){
+      dropdown.hidden=true;toggle.setAttribute("aria-expanded","false");
+    }
+  },{signal:inspectorListener.signal});
+}
+function bindSidebarHeader(){
+  const trigger=$("profile-trigger"),menu=$("profile-menu");
+  const renderProfiles=()=>{
+    menu.replaceChildren();
+    const option=document.createElement("button");option.type="button";
+    option.textContent="✓ 기본 프로필";
+    option.setAttribute("aria-current","true");
+    option.addEventListener("click",()=>{menu.hidden=true;trigger.setAttribute("aria-expanded","false");});
+    menu.append(option);
+    const hint=document.createElement("div");hint.className="hint";hint.style.padding="8px 11px";
+    hint.textContent="다중 프로필 관리는 아직 연결되지 않았습니다.";
+    menu.append(hint);
+  };
+  renderProfiles();
+  trigger.addEventListener("click",()=>{
+    menu.hidden=!menu.hidden;trigger.setAttribute("aria-expanded",String(!menu.hidden));
+  });
+  document.addEventListener("pointerdown",event=>{
+    if(!menu.contains(event.target)&&!trigger.contains(event.target)){
+      menu.hidden=true;trigger.setAttribute("aria-expanded","false");
+    }
+  });
+  $("settings-trigger").addEventListener("click",()=>alert("설정 화면은 아직 연결되지 않았습니다."));
+}
+$("close-icon-library").addEventListener("click",closeIconLibrary);
+$("icon-library").addEventListener("click",event=>{if(event.target===$("icon-library"))closeIconLibrary();});
+$("icon-library-search").addEventListener("input",renderIconLibrary);
+$("icon-library-layout").addEventListener("click",()=>{});
+$("custom-icon-file").addEventListener("change",event=>{
+  setIconFile(event.target.files?.[0]);event.target.value="";
+});
+window.addEventListener("keydown",event=>{
+  if(event.key==="Escape"&&!$("icon-library").hidden)closeIconLibrary();
+});
+bindSidebarHeader();
+
 renderLibrary();render();
