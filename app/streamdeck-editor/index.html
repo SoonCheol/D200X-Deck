@@ -6,6 +6,7 @@
   <title>D200X — Stream Deck 7.6.1 편집기 작업본</title>
   <link rel="stylesheet" href="./style.css" />
   <script src="./editor.js" defer></script>
+  <script src="./device-sync.js" defer></script>
 </head>
 <body>
   <div id="app">
@@ -24,7 +25,7 @@
           </button>
           <div id="profile-menu" class="profile-menu" hidden></div>
         </div>
-        <div class="sidebar-device"><span class="device-name">D200X</span><button type="button" id="settings-trigger" class="settings-trigger" aria-label="설정" title="설정">⚙</button></div>
+        <div class="sidebar-device"><span id="deck-status" class="deck-status" role="status" title="USB 장치 확인 중"></span><span class="device-name">D200X</span><button type="button" id="settings-trigger" class="settings-trigger" aria-label="설정" title="설정">⚙</button></div>
       </header>
       <div class="search"><input id="action-search" placeholder="검색" aria-label="액션 검색"></div>
       <div class="library-tabs"><button class="active" type="button">키</button><button type="button" disabled title="이번 구현 범위에서 제외">플러그인</button></div>
@@ -41,6 +42,6 @@
     </section>
   </div>
   <input type="file" id="custom-icon-file" accept="image/png,image/jpeg,image/webp,image/svg+xml,image/gif" hidden />
-  <p class="prototype-note">Stream Deck 7.6.1 복제 개발용 독립 UI · 하드웨어 통신은 아직 연결되지 않았습니다.</p>
+  <p class="prototype-note">D200X 장치 확인 중 · 액션 실행은 아직 연결되지 않았습니다.</p>
 </body>
 </html>
