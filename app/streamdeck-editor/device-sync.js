@@ -42,29 +42,36 @@
 
   function drawText(ctx, title, width, height, style) {
     if (!title || style?.visible === false) return;
-    const size = Math.max(11, Math.min(27, Number(style?.size) || 15));
+    const size = Math.max(8, Math.min(48, Number(style?.size) || 12));
+    const family = style?.family === 'Segoe UI' ? '"Segoe UI"'
+      : style?.family === 'Malgun Gothic' ? '"Malgun Gothic"' : '"Malgun Gothic"';
     ctx.font = (style?.italic ? 'italic ' : '') +
-      (style?.bold ? 'bold ' : '') + size + 'px "Malgun Gothic", sans-serif';
+      (style?.bold ? 'bold ' : '') + size + 'px ' + family + ',sans-serif';
     ctx.fillStyle = style?.color || '#ffffff';
     ctx.textAlign = style?.align === 'left' ? 'left' : style?.align === 'right' ? 'right' : 'center';
     const x = ctx.textAlign === 'left' ? 10 : ctx.textAlign === 'right' ? width - 10 : width / 2;
     ctx.textBaseline = 'bottom';
-    // Ensure a long filename does not spill outside the physical key.
-    const words = Array.from(String(title));
     const lines = [];
-    let line = '';
-    for (const ch of words) {
-      if (ctx.measureText(line + ch).width > width - 20 && line) {
-        lines.push(line);
-        line = '';
-        if (lines.length === 2) break;
+    for (const textLine of String(title).split(/\r?\n/)) {
+      let line = '';
+      for (const ch of Array.from(textLine)) {
+        if (ctx.measureText(line + ch).width > width - 20 && line) {
+          lines.push(line);
+          line = '';
+        }
+        line += ch;
       }
-      line += ch;
+      if (line) lines.push(line);
     }
-    if (line) lines.push(line);
-    lines.slice(-2).forEach((value, i, arr) => {
-      const y = height - 13 - (arr.length - i - 1) * (size + 4);
+    const shown = lines.slice(-Math.max(1, Math.min(3, Math.floor((height * 0.48) / (size + 4)))));
+    shown.forEach((value, i) => {
+      const y = height - 13 - (shown.length - i - 1) * (size + 4);
       ctx.fillText(value, x, y, width - 20);
+      if (style?.underline) {
+        const measured = Math.min(width - 20, ctx.measureText(value).width);
+        const left = ctx.textAlign === 'left' ? x : ctx.textAlign === 'right' ? x - measured : x - measured/2;
+        ctx.fillRect(left, y + 2, measured, Math.max(1, size/14));
+      }
     });
   }
 
@@ -109,7 +116,7 @@
     return {index, png: canvas.toDataURL('image/png').split(',')[1]};
   }
 
-  async function synchronize() {
+  // Same compositor feeds the inspector preview and the D200X transfer.\n  window.renderDeckKeyImage = async item => (await drawSlot(item, 0)).png;\n\n  async function synchronize() {
     const serial = ++renderSerial;
     const page = currentPage().slice(0, 14).map(item => item ? JSON.parse(JSON.stringify(item)) : null);
     try {
