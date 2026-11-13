@@ -99,10 +99,10 @@
       if (item.icon?.kind === 'file' && typeof item.icon.value === 'string') {
         const image = await imageLoaded(item.icon.value);
         if (image) {
-          const limitWidth = width * 0.75, limitHeight = height * 0.72;
+          const limitWidth = width, limitHeight = height;
           const scale = Math.min(limitWidth / image.width, limitHeight / image.height);
           const w = image.width * scale, h = image.height * scale;
-          ctx.drawImage(image, (width - w)/2, Math.max(5, (height - h)/2 - 12), w, h);
+          ctx.drawImage(image, (width - w)/2, (height - h)/2, w, h);
         }
       } else {
         ctx.font = '67px "Segoe UI Symbol","Malgun Gothic",sans-serif';
