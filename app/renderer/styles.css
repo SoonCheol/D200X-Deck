@@ -1906,3 +1906,226 @@ body::before {
     display: none;
   }
 }
+
+
+/* Stream Deck 7.6.1 screen reference: restrained flat charcoal palette,
+   device/profile top-left, canvas upper-left, properties lower-left, and
+   a full-height action browser on the right. Physical controls are unchanged;
+   their size and spacing will be reviewed in a separate pass. */
+@media (min-width: 1101px) {
+  #app {
+    --sidebar: clamp(285px, 29vw, 338px);
+    grid-template-rows: minmax(0, 60%) minmax(220px, 40%);
+    background: #2c2c2c;
+  }
+  body::before { display: none; }
+  #app > .main { background: #2c2c2c; }
+  #app > .sidebar {
+    background: #242424;
+    border-left: 1px solid #383838;
+    padding: 0 0 12px;
+    backdrop-filter: none;
+    gap: 0;
+  }
+  #app > .sidebar .sidebar-sep { display: none; }
+  #app > .sidebar .sd-action-search {
+    flex: 0 0 auto;
+    padding: 12px 15px 10px;
+    border-bottom: 1px solid #303030;
+  }
+  #app > .sidebar #action-library-search {
+    display: block;
+    margin: 0;
+    width: 100%;
+    height: 32px;
+    background: #383838;
+    border: 0;
+    border-radius: 5px;
+    padding: 5px 12px;
+    font-size: 13px;
+  }
+  #app > .sidebar .sd-sidebar-tabs {
+    display: flex;
+    flex: 0 0 auto;
+    gap: 8px;
+    height: 44px;
+    align-items: center;
+    padding: 0 15px;
+    border-bottom: 1px solid #343434;
+  }
+  #app > .sidebar .sd-sidebar-tab {
+    flex: 1;
+    background: transparent;
+    border: 0;
+    border-radius: 20px;
+    color: #aaa;
+    padding: 6px 8px;
+    font: inherit;
+    font-size: 13px;
+    cursor: pointer;
+  }
+  #app > .sidebar .sd-sidebar-tab.active {
+    color: #eee;
+    background: #363636;
+  }
+  #app > .sidebar .sd-sidebar-tab:focus-visible { outline: 2px solid var(--focus); }
+  #app > .sidebar #action-library {
+    display: flex;
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow: hidden;
+  }
+  #app > .sidebar #action-library[hidden],
+  #app > .sidebar .sd-plugin-panel[hidden] { display: none !important; }
+  #app > .sidebar #action-library > summary { display: none; }
+  #app > .sidebar .action-library-list {
+    padding: 0 0 14px;
+    scrollbar-color: #555 #242424;
+  }
+  #app > .sidebar .action-library-group + .action-library-group { margin-top: 0; }
+  #app > .sidebar .action-library-group-name {
+    padding: 14px 16px;
+    background: #2c2c2c;
+    border-top: 1px solid #333;
+    border-bottom: 1px solid #313131;
+    font-size: 13px;
+    color: #e7e7e7;
+  }
+  #app > .sidebar .action-library-item {
+    margin: 0;
+    min-height: 39px;
+    padding: 10px 22px 10px 38px;
+    border: 0;
+    border-radius: 0;
+    background: #242424;
+    color: #bbb;
+    font-size: 12px;
+  }
+  #app > .sidebar .action-library-item:hover,
+  #app > .sidebar .action-library-item:focus-visible { background: #373737; color: #eee; }
+  #app > .sidebar .sd-plugin-panel {
+    flex: 1 1 auto;
+    padding: 16px;
+    overflow: auto;
+  }
+  #app > .sidebar .sidebar-foot {
+    padding: 10px 14px 0;
+    margin-top: auto;
+    border-top: 1px solid #333;
+  }
+
+  #app > .main .toolbar {
+    z-index: 40;
+    padding: 32px 50px 8px 58px;
+    min-height: 94px;
+    align-items: flex-start;
+    gap: 8px;
+  }
+  #app > .main .title-wrap {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 4px;
+  }
+  #app > .main .sd-identity {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 4px;
+  }
+  #app > .main .brand {
+    padding: 0;
+    gap: 0;
+  }
+  #app > .main .brand-mark { display: none; }
+  #app > .main .brand-name { font-size: 16px; font-weight: 700; color: #f0f0f0; }
+  #app > .main .brand-sub { display: none; }
+  #app > .main .profile-row {
+    margin: 0;
+    gap: 6px;
+    min-width: 0;
+  }
+  #app > .main .profile-select {
+    max-width: 205px;
+    padding: 2px 4px;
+    background: transparent;
+    border: 0;
+    font-size: 13px;
+    color: #e6e6e6;
+  }
+  #app > .main .sd-page-title { display: flex; align-items: center; gap: 6px; }
+  #app > .main .page-title {
+    font-size: 11px;
+    font-weight: 400;
+    color: #999;
+    padding: 1px 3px;
+    min-width: 40px;
+    max-width: 210px;
+    margin: 0;
+  }
+  #app > .main .tools { gap: 12px; }
+  #app > .main #status-pill { font-size: 11px; }
+  #app > .main .stage {
+    padding: 4px 15px 12px;
+    gap: 8px;
+    justify-content: flex-start;
+  }
+  #app > .main .device-shell {
+    width: min(480px, 100%);
+    padding: 12px 13px 10px;
+    background: transparent;
+    border: 0;
+    border-radius: 0;
+    box-shadow: none;
+  }
+  #app > .main .device-top { display: none; }
+  #app > .main .deck-grid { gap: 12px; }
+  #app > .main .key { border-radius: 13px; }
+  #app > .main .key canvas {
+    border-radius: 13px;
+    box-shadow: 0 0 0 3px #494949;
+    background: #222;
+  }
+  #app > .main .key.selected canvas {
+    box-shadow: 0 0 0 3px #a7b8d7;
+  }
+  #app > .main .device-bottom { display: none; }
+  #app > .main .stage-hint { font-size: 10px; color: #858585; }
+  #app > .main .sd-pages {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    min-height: 32px;
+    padding: 0 14px;
+  }
+  #app > .main .sd-pages .section-head {
+    margin: 0;
+    padding: 0;
+    flex: 0 0 auto;
+    font-size: 11px;
+  }
+  #app > .main .sd-pages .page-list {
+    display: flex;
+    align-items: center;
+    flex-direction: row;
+    flex-wrap: nowrap;
+    flex: 0 1 auto;
+    max-height: 34px;
+    max-width: min(350px, 56vw);
+    min-height: 0;
+    overflow-x: auto;
+    overflow-y: hidden;
+    gap: 4px;
+    margin: 0;
+  }
+  #app > .inspector {
+    border-top: 1px solid #3e3e3e;
+    padding: 22px 28px 26px;
+    background: #2c2c2c;
+    backdrop-filter: none;
+  }
+  #app .insp-empty { text-align: center; padding-top: 9vh; }
+  #app.inspector-collapsed {
+    grid-template-rows: minmax(0, 1fr) 0;
+  }
+}
