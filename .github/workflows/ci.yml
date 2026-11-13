@@ -52,12 +52,9 @@ jobs:
         run: |
           npx --no-install electron-packager . D200X-Deck --platform=win32 --arch=x64 --out=dist --overwrite --prune=true --ignore='^/(dist|test|scripts|native|docs|build/helpers|eslint\.config\.js|\.github)'
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-      - name: Zip Windows preview
-        shell: pwsh
-        run: Compress-Archive -Path 'dist/D200X-Deck-win32-x64/*' -DestinationPath 'dist/D200X-Deck-win-x64-catalogue-preview.zip' -Force
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: D200X-Deck-win-x64-catalogue-preview
-          path: app/dist/D200X-Deck-win-x64-catalogue-preview.zip
+          path: app/dist/D200X-Deck-win32-x64/
           if-no-files-found: error
           retention-days: 14
