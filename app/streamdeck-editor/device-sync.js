@@ -116,7 +116,10 @@
     return {index, png: canvas.toDataURL('image/png').split(',')[1]};
   }
 
-  // Same compositor feeds the inspector preview and the D200X transfer.\n  window.renderDeckKeyImage = async item => (await drawSlot(item, 0)).png;\n\n  async function synchronize() {
+  // Same compositor feeds the inspector preview and the D200X transfer.
+  window.renderDeckKeyImage = async item => (await drawSlot(item, 0)).png;
+
+  async function synchronize() {
     const serial = ++renderSerial;
     const page = currentPage().slice(0, 14).map(item => item ? JSON.parse(JSON.stringify(item)) : null);
     try {
