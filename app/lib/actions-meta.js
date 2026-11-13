@@ -76,6 +76,7 @@
 
   const MEDIA = [
     { op: 'playpause', label: 'Play / pause' },
+    { op: 'stop', label: 'Stop' },
     { op: 'next', label: 'Next track' },
     { op: 'prev', label: 'Previous track' },
     { op: 'volumeup', label: 'Volume up' },
