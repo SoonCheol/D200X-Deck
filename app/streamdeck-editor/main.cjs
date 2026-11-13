@@ -1,6 +1,6 @@
 'use strict';
 
-const { app, BrowserWindow, Menu, ipcMain, clipboard } = require('electron');
+const { app, BrowserWindow, Menu, ipcMain, clipboard, dialog } = require('electron');
 const path = require('node:path');
 const { D200XTransport } = require('./transport.cjs');
 
@@ -54,6 +54,19 @@ ipcMain.handle('d200x:clipboard-image', async event => {
   const png = image.resize({width:196,height:196,quality:'best'}).toPNG();
   if (png.length > 1024*1024) throw new Error('클립보드 이미지가 너무 큽니다.');
   return 'data:image/png;base64,' + png.toString('base64');
+});
+
+// Explicit user gesture only. Return a selected path; never open or execute it.
+ipcMain.handle('d200x:choose-path', async (event, kind) => {
+  if (!window || event.sender !== window.webContents) return null;
+  if (!['file','folder','app'].includes(kind)) throw new Error('지원하지 않는 선택 유형');
+  const properties = kind === 'folder' ? ['openDirectory'] : ['openFile'];
+  const result = await dialog.showOpenDialog(window, {
+    title: kind === 'folder' ? '폴더 선택' : kind === 'app' ? '프로그램 선택' : '파일 선택',
+    properties,
+    ...(kind === 'app' ? {filters:[{name:'응용 프로그램',extensions:['exe','lnk','bat','cmd']},{name:'모든 파일',extensions:['*']}]} : {}),
+  });
+  return result.canceled ? null : (result.filePaths[0] || null);
 });
 
 app.whenReady().then(async () => {
