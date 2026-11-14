@@ -328,3 +328,10 @@
 - **구현:** `icon-pack.cjs`에서 JSZip 기반 `.streamDeckIconPack` ZIP 읽기, `manifest.json`/`icons.json` 탐색, 이미지 유형·매직 바이트·경로 검증, 압축·전체 해제 크기·개수 제한. Electron `main.cjs`의 사용자 클릭 기반 파일 선택과 `userData/streamdeck-icon-packs-v1.json` 등록(중복 팩 ID 재등록, 임시 파일+rename), `preload.cjs` 브리지. 기존 `index.html` 아이콘 라이브러리에 '＋ 팩 가져오기' 버튼; `editor.js`에서 설치 팩 검색·목록·아이콘 적용(196px PNG 변환 후 기존 개별 버튼 `icon.kind=file` 저장). `style.css`는 라이브러리 내부 최소 스타일만 수정. 프로필/페이지/액션 실행 계약은 변경하지 않음.
 - **검증:** `test/streamdeck-icon-pack.test.cjs`에서 ZIP 읽기, 아이콘 데이터 추출, 경로 탈출 차단, 등록·재등록·재실행 후 목록 조회를 단위 검증. Windows workflow에서 `node --check` 및 해당 테스트 실행. 최신 앱 소스 SHA **`5a6fec5aeb064e28725276f18b24531116c0a387`**, CI #43627356979 **success**, Windows preview #43627351604 **success**, ZIP Artifact **`D200X-StreamDeck-Device-Sync-win-x64`** (ID 14126951152, 163909908 bytes, 14일 보존). [빌드 실행 페이지](https://github.com/SoonCheol/D200X-Deck/actions/runs/43627351604).
 - **한계:** Windows GUI에서 실제 팩 파일 선택·목록 표시·버튼 적용 및 물리 D200X에 출력되는 이미지는 아직 사용자 실기 검증 전. 대용량 SVG, 서명 검증, 팩 삭제·수정·제작 기능은 이번 범위 밖. ZIP 가져오기 지원은 현재 PNG/JPEG/WebP/GIF 파일 기반 팩, 제한 20MB·400 아이콘·32팩. 사용자가 받은 다른 팩 구조와 차이는 실제 파일별 확인 필요.
+
+## 2026-11-15 아이콘 라이브러리 펼침/접힘 버그 수정
+
+- 사용자 Windows GUI 실기 제보: 아이콘 그룹이 모두 펼쳐져 보이고 제목을 눌러도 접히지 않음.
+- 원인: `editor.js`의 `grid.hidden` 토글은 존재했으나 `style.css`의 `.icon-grid{display:grid}`가 `hidden` 표시 속성을 CSS 우선순위로 덮어씀.
+- 최소 수정: `.icon-grid[hidden]{display:none}` 추가. 액션·버튼 이미지·팩 데이터·프로필 저장 코드는 변경하지 않음.
+- 수정 SHA: `ecc6ac0e0d9856acdbbe9720d3f662cef89981a2` (브랜치 `codex/streamdeck-761-clean-editor`). CSS 동작 원인 확인 및 소스 수정 완료; 사용자 Windows GUI에서 실제 수정 확인은 새 EXE 테스트 대기.
