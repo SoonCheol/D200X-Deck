@@ -76,3 +76,30 @@ test('outline defaults and user selections survive legacy migration',()=>{
   assert.equal(bad.titleStyle.outlineColor,'#000000');
   assert.equal(bad.titleStyle.outlineWidth,'thin');
 });
+
+test('hardware release and unsupported slots cannot execute actions',()=>{
+  const state=core.migrateState({pages:[[
+    {type:'next'},null,null,null,null,null,null,null,null,null,null,null,null,
+    {type:'website',settings:{url:'https://example.org'}}
+  ]]});
+  assert.equal(core.resolveKeyPress(state,{kind:1,index:0,pressed:false}),null);
+  assert.equal(core.resolveKeyPress(state,{kind:2,index:0,pressed:true}),null);
+  assert.equal(core.resolveKeyPress(state,{kind:1,index:14,pressed:true}),null);
+  assert.equal(core.resolveKeyPress(state,{kind:1,index:1,pressed:true}),null);
+  assert.equal(core.resolveKeyPress(state,{kind:1,index:0,pressed:true}).action.type,'next');
+  assert.equal(core.resolveKeyPress(state,{kind:1,index:13,pressed:true}).action.type,'website');
+});
+
+test('first actions navigate within available page boundaries and plan websites',()=>{
+  assert.deepEqual(core.planAction(core.createAction('next'),0,3),{kind:'page',page:1});
+  assert.deepEqual(core.planAction(core.createAction('next'),2,3),{kind:'page',page:2});
+  assert.deepEqual(core.planAction(core.createAction('previous'),0,3),{kind:'page',page:0});
+  const goto=core.createAction('goto');goto.settings.page=2;
+  assert.deepEqual(core.planAction(goto,0,3),{kind:'page',page:2});
+  goto.settings.page=77;
+  assert.equal(core.planAction(goto,0,3).kind,'invalid');
+  const site=core.createAction('website');
+  site.settings.url='https://example.org/';site.settings.open='default';
+  assert.deepEqual(core.planAction(site,1,3),{kind:'website',url:'https://example.org/',mode:'default'});
+  assert.equal(core.planAction(core.createAction('hotkey'),1,3).kind,'unsupported');
+});
