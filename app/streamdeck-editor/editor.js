@@ -780,6 +780,39 @@ const activeAudioPlayers=new Map();
 const allPlayingAudio=new Set();
 const activeActionTimers=new Map();
 const runningMultiActions=new Set();
+const waitMultiDelay=ms=>new Promise(resolve=>setTimeout(resolve,ms));
+// Await the Windows bridge rather than firing each step concurrently.
+// Unknown and UI-only actions stop the sequence with an explicit error.
+async function executeMultiStep(action){
+  const outcome=DeckCore.planAction(action,state.page,state.pages.length);
+  const bridge=window.deckBridge;
+  if(!bridge)throw new Error('다중 동작은 Windows EXE에서만 실행할 수 있습니다.');
+  switch(outcome.kind){
+    case 'windows-hotkey':
+      return bridge.sendHotkey(outcome.keys);
+    case 'media-control':
+      return bridge.mediaControl(outcome.operation);
+    case 'website':
+      return bridge.openWebsite(outcome.url,outcome.mode);
+    case 'open-local-path':
+      return bridge.openLocalPath(outcome.path,outcome.target);
+    case 'type-text':
+      return bridge.typeText(outcome.text,outcome.enter);
+    case 'mute':
+      return bridge.adjustWindows('mute',0,1);
+    case 'adjust':
+      return bridge.adjustWindows(outcome.target,outcome.direction,outcome.count||1);
+    case 'zoom-reset':
+      return bridge.adjustWindows('zoom-reset',0,1);
+    case 'device-brightness':
+      return bridge.adjustBrightness(outcome.direction,outcome.count||1);
+    case 'system-shortcut':
+      return bridge.systemShortcut(outcome.target,outcome.operation);
+    default:
+      throw new Error('아직 다중 동작에서 실행할 수 없는 액션: '+action.type);
+  }
+}
+
 const hotkeySwitchPositions=new Map();
 const lastHardwareDown=new Map();
 function runActionPreview(gesture='down'){
