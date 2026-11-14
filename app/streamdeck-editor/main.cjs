@@ -226,6 +226,29 @@ ipcMain.handle('d200x:device-brightness',(event,args)=>{
   return transport.adjustBrightness(args.direction,args.count);
 });
 
+// Only close processes whose resolved executable path equals the user-selected path.
+ipcMain.handle('d200x:close-local-app',async(event,args)=>{
+  if(!window||event.sender!==window.webContents)throw new Error('허용되지 않은 호출입니다.');
+  const filePath=args?.filePath;
+  if(typeof filePath!=='string'||filePath.length>4096||!path.win32.isAbsolute(filePath)||
+      !/\.exe$/i.test(filePath)||/[\x00-\x1f\x7f]/.test(filePath)||typeof args.force!=='boolean')
+    throw new Error('닫을 Windows 실행 파일(.exe)을 지정하세요.');
+  const stats=await fs.promises.stat(filePath);
+  if(!stats.isFile())throw new Error('대상 실행 파일이 존재하지 않습니다.');
+  if(process.platform!=='win32')throw new Error('Windows에서만 지원합니다.');
+  const encoded=Buffer.from(filePath,'utf16le').toString('base64');
+  const ps=`$target=[Text.Encoding]::Unicode.GetString([Convert]::FromBase64String('${encoded}'));
+$matches=@(Get-Process | Where-Object { try {[string]::Equals($_.Path,$target,[StringComparison]::OrdinalIgnoreCase)}catch{$false} });
+if($matches.Count -eq 0){throw '해당 실행 파일의 실행 중인 창을 찾지 못했습니다.'};
+foreach($p in $matches){
+  if(${args.force?'$true':'$false'}){Stop-Process -Id $p.Id -Force -ErrorAction Stop}
+  elseif(-not $p.CloseMainWindow()){throw '일반 종료 가능한 창이 없습니다.'}
+}`;
+  await execFileAsync('powershell.exe',['-NoProfile','-NonInteractive','-WindowStyle','Hidden','-Command',ps],
+    {windowsHide:true,timeout:12000,maxBuffer:32768});
+  return true;
+});
+
 // Validate a user-selected audio file before handing its file:// URL to the
 // isolated renderer. Playback/stop is in the renderer, not an external player.
 ipcMain.handle('d200x:audio-file-url',async(event,args)=>{
