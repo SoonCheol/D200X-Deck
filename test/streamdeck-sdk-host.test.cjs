@@ -24,9 +24,9 @@ test('SDK plugin importer extracts nested sdPlugin folder and preserves manifest
   assert.deepEqual(pack.files.map(x=>x.name).sort(),['manifest.json','pi.html','plugin.html']);
 });
 test('SDK plugin importer blocks unsafe paths and missing manifest',async()=>{
-  await assert.rejects(()=>parseArchive(await zipWith({'other/file.txt':'x'})),/manifest/);
+  await assert.rejects(parseArchive(await zipWith({'other/file.txt':'x'})),/manifest/);
   const prefix=M.UUID+'.sdPlugin/';
-  await assert.rejects(()=>parseArchive(await zipWith({
+  await assert.rejects(parseArchive(await zipWith({
     [prefix+'manifest.json']:JSON.stringify(M),[prefix+'plugin.html']:'ok','outside.txt':'bad'
   })),/외부 파일/);
 });
