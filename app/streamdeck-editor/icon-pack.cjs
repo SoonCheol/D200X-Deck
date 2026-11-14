@@ -38,9 +38,18 @@ async function parseIconPack(input){
   if(!Buffer.isBuffer(input)||input.length<10||input.length>MAX_ARCHIVE)
     throw new Error('아이콘팩 크기는 20MB 이하여야 합니다.');
   if(input.toString('latin1',0,2)!=='PK')throw new Error('ZIP 기반 Stream Deck 아이콘팩이 아닙니다.');
-  const zip=await JSZip.loadAsync(input,{checkCRC32:true,createFolders:false});
+  const zip=await JSZip.loadAsync(input,{checkCRC32:false,createFolders:false});
   const entries=Object.values(zip.files);
   if(entries.length>MAX_ICONS+30)throw new Error('압축 파일에 항목이 너무 많습니다.');
+  let expanded=0;
+  for(const entry of entries){
+    if(entry.dir)continue;
+    const length=Number(entry._data?.uncompressedSize);
+    if(!Number.isSafeInteger(length)||length<0)
+      throw new Error('압축 해제 크기를 확인할 수 없습니다.');
+    expanded+=length;
+    if(expanded>MAX_EXPANDED)throw new Error('압축 해제 용량 제한을 초과했습니다.');
+  }
   const candidates=entries.filter(f=>!f.dir&&/^(?:[^/]+\.sdIconPack\/)?manifest\.json$/i.test(f.name));
   if(candidates.length!==1)throw new Error('manifest.json이 없거나 여러 개입니다.');
   const root=candidates[0].name.slice(0,-'manifest.json'.length);
