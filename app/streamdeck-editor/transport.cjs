@@ -7,6 +7,8 @@ const { buildPage } = require('../lib/page');
 const { PROTO } = require('../lib/protocol');
 
 const KEEPALIVE_MS = 5000;
+// Never dim the hardware screen below a visible safety floor.
+const MIN_BRIGHTNESS = 20;
 const RECONNECT_MS = 4000;
 const TICK_MS = 1000;
 const IMAGE_MODE_PAYLOAD = Buffer.from('2|||||24H|', 'utf8');
@@ -112,7 +114,7 @@ class D200XTransport extends EventEmitter {
     if(this.closed||!this.deck.connected)throw new Error('D200X가 연결되지 않았습니다.');
     if(this.brightness===null)throw new Error('기기 밝기 값을 아직 확인하지 못했습니다.');
     if(![-1,1].includes(direction)||![1,2,5,10].includes(count))throw new Error('잘못된 밝기 조절 요청입니다.');
-    const next=Math.max(0,Math.min(100,this.brightness+direction*count));
+    const next=Math.max(MIN_BRIGHTNESS,Math.min(100,this.brightness+direction*count));
     if(next!==this.brightness){
       this.deck.setBrightness(next);this.brightness=next;
       this.lastWriteAt=this.now();this.log('brightness-change',String(next));
@@ -176,4 +178,4 @@ class D200XTransport extends EventEmitter {
   }
 }
 
-module.exports = { D200XTransport, KEEPALIVE_MS, RECONNECT_MS };
+module.exports = { D200XTransport, KEEPALIVE_MS, RECONNECT_MS, MIN_BRIGHTNESS };
