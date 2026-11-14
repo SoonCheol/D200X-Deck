@@ -20,7 +20,7 @@
     'audio-play':{file:'',mode:'play-stop',fade:'none',volume:50,output:'default'},
     'audio-stop':{},timer:{seconds:30,sound:'connect'},
     brightness:{mode:'up'},sleep:{},virtual:{},
-    multi:{},'multi-switch':{},random:{},logic:{},
+    multi:{},'multi-switch':{activeState:0},random:{},logic:{},
     website:{url:'',open:'default'},'hotkey-switch':{first:'',second:''},
     hotkey:{keys:'',source:'preset'},open:{path:''},
     'open-app':{app:'',hold:'close',foreground:true},close:{path:'',force:false},
@@ -75,6 +75,23 @@
       .map(child=>cleanCompositeEntry(child)).filter(Boolean);
     // Multi Action Switch stores two independent sequences. Older profiles only
     // had children[]: leave them untouched rather than guessing the state.
+    if(value.type==='multi-switch'){
+      base.settings.activeState=value.settings?.activeState===1?1:0;
+      if(Array.isArray(value.stateVisuals)){
+        base.stateVisuals=[0,1].map(index=>{
+          const source=value.stateVisuals[index];
+          if(!source||typeof source!=='object'||Array.isArray(source))return {};
+          const visual={};
+          if(typeof source.title==='string')visual.title=source.title.slice(0,256);
+          if(source.icon?.kind==='glyph'&&typeof source.icon.glyph==='string')
+            visual.icon={kind:'glyph',glyph:source.icon.glyph.slice(0,8)};
+          if(source.icon?.kind==='file'&&typeof source.icon.value==='string'&&
+            /^data:image\/png;base64,[A-Za-z0-9+/]+=*$/.test(source.icon.value)&&source.icon.value.length<1024*1024)
+            visual.icon={kind:'file',value:source.icon.value};
+          return visual;
+        });
+      }
+    }
     if(value.type==='multi-switch' && Array.isArray(value.sequences)){
       base.sequences=[0,1].map(i=>Array.isArray(value.sequences[i])
         ?value.sequences[i].slice(0,100).map(cleanCompositeEntry).filter(Boolean):[]);
@@ -84,6 +101,14 @@
       base.slots={single:cleanAction(value.slots.single),double:cleanAction(value.slots.double),hold:cleanAction(value.slots.hold)};
     }
     return base;
+  }
+  function displaySwitchAction(action){
+    if(!action||action.type!=='multi-switch')return action;
+    const state=action.settings?.activeState===1?1:0;
+    const visual=action.stateVisuals?.[state];
+    if(!visual)return action;
+    return {...action,title:visual.title||action.title,
+      icon:visual.icon||action.icon};
   }
   // Delay is an internal Multi step, never a new right-panel action ID.
   // The limits below guard malformed saved data; they do not claim to be the
@@ -422,5 +447,5 @@
       url:action.settings?.url||'',mode:action.settings?.open||'default'};
     return {kind:'unsupported',message:'이 동작의 실행 기능은 아직 구현되지 않았습니다.'};
   }
-  return {ACTION_IDS,D200X_ACTION_IDS,DEFAULTS,TITLE,createAction,cleanAction,cleanCompositeEntry,compositeModel,planComposite,runComposite,blankPage,migrateState,previewHardwareEvent,physicalSlot,hardwareGesture,resolveHardwareEvent,resolveKeyPress,planHardwareEvent,deletePage,planAction,emptyBinding,cleanBinding,ensureControls,controlBinding,changeControlScope};
+  return {ACTION_IDS,D200X_ACTION_IDS,DEFAULTS,TITLE,createAction,cleanAction,cleanCompositeEntry,displaySwitchAction,compositeModel,planComposite,runComposite,blankPage,migrateState,previewHardwareEvent,physicalSlot,hardwareGesture,resolveHardwareEvent,resolveKeyPress,planHardwareEvent,deletePage,planAction,emptyBinding,cleanBinding,ensureControls,controlBinding,changeControlScope};
 });
