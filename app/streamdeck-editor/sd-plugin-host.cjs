@@ -278,7 +278,9 @@ class StreamDeckPluginHost{
           ctx.settings=msg.payload||{};
           this.onUpdate({kind:'settings',context:ctx.context,settings:ctx.settings});
           const payload=this.payload(ctx);
-          this.send(inst?.ws,{event:'didReceiveSettings',action:ctx.actionUUID,context:ctx.context,device:DEVICE,payload});
+          // setSettings commonly originates in the Property Inspector, where inst is null.
+          // Deliver to the live plugin by UUID, not just the message sender.
+          this.send(this.instances.get(uuid)?.ws,{event:'didReceiveSettings',action:ctx.actionUUID,context:ctx.context,device:DEVICE,payload});
           this.send(this.inspectors.get(ctx.context)?.ws,{event:'didReceiveSettings',action:ctx.actionUUID,context:ctx.context,device:DEVICE,payload});
         }break;
       case 'sendToPlugin':if(ctx)this.send(this.instances.get(uuid)?.ws,msg);break;
