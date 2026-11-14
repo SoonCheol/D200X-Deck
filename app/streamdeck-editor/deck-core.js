@@ -13,7 +13,7 @@
     'profile','previous','next','goto','indicator'
   ];
   // New D200X actions stay separate from the original 24.
-  const D200X_ACTION_IDS=['system-volume','system-mute','system-scroll','edit-history','window-switch','desktop-switch'];
+  const D200X_ACTION_IDS=['system-volume','system-mute','system-scroll','edit-history','window-switch','desktop-switch','device-brightness','system-zoom'];
   const DEFAULTS={
     'audio-play':{file:'',mode:'play-stop',fade:'none',volume:50,output:'default'},
     'audio-stop':{},timer:{seconds:30,sound:'connect'},
@@ -28,7 +28,8 @@
     'system-volume':{direction:'up',step:1},'system-mute':{},
     'system-scroll':{axis:'vertical',direction:'down',step:1},
     'edit-history':{operation:'undo',step:1},
-    'window-switch':{direction:'next'},'desktop-switch':{direction:'next'}
+    'window-switch':{direction:'next'},'desktop-switch':{direction:'next'},
+    'device-brightness':{direction:'up',step:5},'system-zoom':{operation:'in',step:1}
   };
   const TITLE={visible:true,align:'bottom',family:'default',size:12,
     bold:false,italic:false,underline:false,color:'#ffffff',
@@ -69,7 +70,7 @@
     return base;
   }
   const CONTROL_MODES=['trigger','adjust','stack'];
-  const ADJUST_TARGETS=['page','volume','zoom','scroll','scroll-x','history','window','desktop'];
+  const ADJUST_TARGETS=['page','volume','zoom','scroll','scroll-x','history','window','desktop','brightness'];
   function emptyBinding(){
     return {mode:'trigger',down:null,left:null,right:null,target:'page',
       stack:['page','volume'],stackIndex:0,step:1,reverseDirection:false};
@@ -142,6 +143,8 @@
       // Old projects assigned a single action to each physical control on
       // each page. Keep these assignments instead of silently dropping them.
       for(let i=0;i<5;i++){
+        const legacy=state.pages.map(row=>JSON.stringify(row[14+i]||null));
+        if(new Set(legacy).size>1)state.controls.scopes[i]='page';
         const source=state.pages.find(row=>row[14+i])?.[14+i]||null;
         state.controls.global[i].down=source;
         // Legacy knobs interpreted previous/next as bidirectional page rotation.
@@ -206,6 +209,7 @@
       ...(includeCount||count!==1?{count}:{})};
     if(target==='history')return {kind:'edit-history',operation:direction<0?'undo':'redo',count};
     if(target==='window'||target==='desktop')return {kind:'windows-switch',target,direction,count};
+    if(target==='brightness')return {kind:'device-brightness',direction,count};
     return {kind:'adjust',target,direction,...(includeCount||count!==1?{count}:{})};
   }
   function planHardwareEvent(state,event,activeStack=0){
@@ -254,6 +258,13 @@
     if(action.type==='system-volume'){
       const direction=action.settings?.direction==='down'?-1:1;
       return planAdjustment('volume',direction,Number(action.settings?.step),page,count,true);
+    }
+    if(action.type==='device-brightness')return {kind:'device-brightness',direction:action.settings?.direction==='down'?-1:1,
+      count:[1,2,5,10].includes(Number(action.settings?.step))?Number(action.settings.step):5};
+    if(action.type==='system-zoom'){
+      if(action.settings?.operation==='reset')return {kind:'zoom-reset'};
+      return planAdjustment('zoom',action.settings?.operation==='out'?-1:1,
+        Number(action.settings?.step),page,count,true);
     }
     if(action.type==='window-switch'||action.type==='desktop-switch')
       return {kind:'windows-switch',target:action.type==='window-switch'?'window':'desktop',
