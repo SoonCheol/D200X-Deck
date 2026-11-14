@@ -70,8 +70,8 @@ jobs:
           $commit = '77ab5fdef0cb76f4a2bf8bfa84a61af9b12c0006'
           $upstream = Join-Path $env:RUNNER_TEMP 'fluentui-system-icons.zip'
           $url = "https://codeload.github.com/czottmann/streamdeck-iconpack-fluentui-system-icons/zip/$commit"
-          Invoke-WebRequest -Uri $url -OutFile $upstream -TimeoutSec 180
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          Invoke-WebRequest -Uri $url -OutFile $upstream -TimeoutSec 180 -ErrorAction Stop
+          if (-not (Test-Path $upstream) -or (Get-Item $upstream).Length -lt 1MB) { throw 'Fluent UI upstream archive missing or empty' }
           node app/streamdeck-editor/build-fluent-icons.cjs $upstream
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           if (-not (Test-Path 'app/streamdeck-editor/builtin-iconpacks.json')) { throw 'Fluent UI bundle missing' }
