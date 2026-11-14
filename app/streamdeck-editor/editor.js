@@ -22,6 +22,10 @@ const persist=()=>{try{localStorage.setItem(STORAGE_KEY,JSON.stringify(state));}
 state.pages.forEach(page=>{while(page.length<KEY_COUNT+CONTROLS.length)page.push(null);});
 const valueOf=(item,field,fallback="")=>item?.settings?.[field]??fallback;
 function keyName(item){return item?.title||ACTIONS.get(item?.type)?.label||"";}
+function displayItem(item){
+  if(!item||item.type!=="indicator")return item;
+  return {...item,icon:{kind:"glyph",glyph:String(state.page+1)}};
+}
 function iconNode(item,defaultGlyph){
   if(item?.icon?.kind==="file"&&typeof item.icon.value==="string"){
     const image=document.createElement("img");image.className="icon-image";image.src=item.icon.value;image.alt="";return image;
@@ -49,13 +53,14 @@ function renderGrid(){
   currentPage().slice(0,KEY_COUNT).forEach((item,i)=>{
     const b=document.createElement("button");b.type="button";b.className="deck-key"+(i===13?" wide":"")+(state.selected===i?" selected":"");
     b.dataset.index=i;b.setAttribute("aria-label",`키 ${i+1}: ${keyName(item)||"비어 있음"}`);
-    const glyph=iconNode(item,ACTIONS.get(item?.type)?.icon||"+");glyph.classList.add("glyph");
+    const visual=displayItem(item);
+    const glyph=iconNode(visual,ACTIONS.get(item?.type)?.icon||"+");glyph.classList.add("glyph");
     const label=document.createElement("span");label.className="caption";label.textContent=item?.title||"";updateTitleAppearance(label,item);
     b.append(glyph,label);
     // Render the actual D200X PNG as the editor key surface. Icon and title
     // must stay in fixed coordinates, independent of the title font size.
     if(item&&window.renderDeckKeyImage){
-      window.renderDeckKeyImage(item,i).then(png=>{
+      window.renderDeckKeyImage(visual,i).then(png=>{
         if(!b.isConnected||currentPage()[i]!==item)return;
         const preview=document.createElement("img");
         preview.className="rendered-key-image";
@@ -73,6 +78,7 @@ function renderGrid(){
   });
   renderPhysicalControls();
   $("page-label").textContent=`페이지 ${state.page+1} / ${state.pages.length}`;
+  $("delete-page").disabled=state.pages.length<=1;
 }
 function renderPhysicalControls(){
   const root=$("physical-controls");
@@ -162,7 +168,7 @@ async function refreshSelectedVisual(){
   if(!item||!window.renderDeckKeyImage)return;
   const request=++previewRequest;
   try{
-    const data=await window.renderDeckKeyImage(item);
+    const data=await window.renderDeckKeyImage(displayItem(item));
     if(request!==previewRequest||currentPage()[state.selected]!==item)return;
     const host=$("icon-preview-content");
     if(!host)return;
@@ -422,6 +428,11 @@ window.addEventListener("click",ev=>{if(!ev.target.closest("#key-menu"))$("key-m
 window.addEventListener("keydown",ev=>{if(ev.key==="Escape")$("key-menu").hidden=true;if(ev.ctrlKey&&ev.key.toLowerCase()==="v"&&clipboard&&state.selected!==null&&!["INPUT","TEXTAREA"].includes(document.activeElement.tagName)){ev.preventDefault();setItem(state.selected,clone(clipboard));}});
 $("action-search").addEventListener("input",renderLibrary);
 $("add-page").addEventListener("click",()=>{state.pages.push(blankPage());state.page=state.pages.length-1;state.selected=null;persist();render();});
+$("delete-page").addEventListener("click",()=>{
+  if(state.pages.length<=1)return;
+  if(!confirm("현재 페이지 "+(state.page+1)+"을(를) 삭제하시겠습니까? 이 페이지의 모든 액션이 삭제됩니다."))return;
+  if(DeckCore.deletePage(state)){persist();render();}
+});
 $("back-page").addEventListener("click",()=>{state.page=Math.max(0,state.page-1);state.selected=null;persist();render();});
 $("next-page").addEventListener("click",()=>{state.page=Math.min(state.pages.length-1,state.page+1);state.selected=null;persist();render();});
 // Physical D200X button presses run the selected page's action; clicking a
@@ -429,8 +440,8 @@ $("next-page").addEventListener("click",()=>{state.page=Math.min(state.pages.len
 const pressedHardwareKeys=new Set();
 function executeHardwareAction(event){
   if(!event||Number(event.kind)!==1)return null;
-  const index=Number(event.index);
-  if(!Number.isInteger(index)||index<0||index>=KEY_COUNT)return null;
+  const index=DeckCore.physicalSlot(event);
+  if(index===null)return null;
   if(!event.pressed){pressedHardwareKeys.delete(index);return null;}
   if(pressedHardwareKeys.has(index))return null;
   pressedHardwareKeys.add(index);
