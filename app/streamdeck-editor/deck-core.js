@@ -78,6 +78,11 @@
       .map(child=>value.type==='folder'?cleanAction(child):cleanCompositeEntry(child));
     if(value.type!=='folder')base.children=base.children.filter(Boolean);
     if(value.type==='folder'){
+      // Page one remains children[] for backward compatibility with existing profiles.
+      base.pages=Array.isArray(value.pages)?value.pages.slice(0,9).map(page=>
+        Array.from({length:14},(_,index)=>cleanAction(Array.isArray(page)?page[index]:null))):[];
+      base.pageIndex=Number.isInteger(value.pageIndex)?
+        Math.max(0,Math.min(value.pageIndex,base.pages.length)):0;
       base.settings.autoExitSeconds=Number.isInteger(value.settings?.autoExitSeconds)
         ?Math.max(0,Math.min(60,value.settings.autoExitSeconds)):0;
       base.settings.autoExitEnabled=value.settings?.autoExitEnabled===true ||
@@ -246,7 +251,37 @@
     if(!action||action.type!=='folder')return null;
     if(!Array.isArray(action.children))action.children=[];
     while(action.children.length<14)action.children.push(null);
-    return action.children;
+    if(!Array.isArray(action.pages))action.pages=[];
+    const current=Math.max(0,Math.min(action.pageIndex||0,action.pages.length));
+    action.pageIndex=current;
+    if(!current)return action.children;
+    const page=action.pages[current-1];
+    while(page.length<14)page.push(null);
+    return page;
+  }
+  function folderPageCount(state){const folder=activeFolder(state);return folder?1+(folder.pages?.length||0):0;}
+  function changeFolderPage(state,index){
+    const folder=activeFolder(state);if(!folder)return false;
+    const count=folderPageCount(state);
+    folder.pageIndex=Math.max(0,Math.min(count-1,index));
+    state.selected=null;return true;
+  }
+  function addFolderPage(state){
+    const folder=activeFolder(state);if(!folder)return false;
+    folder.pages??=[];
+    if(folder.pages.length>=9)return false;
+    folder.pages.push(Array.from({length:14},()=>null));
+    folder.pageIndex=folder.pages.length;state.selected=null;return true;
+  }
+  function deleteFolderPage(state){
+    const folder=activeFolder(state);
+    if(!folder||folderPageCount(state)<=1)return false;
+    const current=folder.pageIndex||0;
+    if(current===0){
+      folder.children=folder.pages.shift();
+    }else folder.pages.splice(current-1,1);
+    folder.pageIndex=Math.max(0,Math.min(current,folder.pages.length));
+    state.selected=null;return true;
   }
   function visibleActions(state){
     const actions=currentActions(state);
@@ -617,5 +652,5 @@
       url:action.settings?.url||'',mode:action.settings?.open||'default',browserPath:action.settings?.browserPath||''};
     return {kind:'unsupported',message:'이 동작의 실행 기능은 아직 구현되지 않았습니다.'};
   }
-  return {ACTION_IDS,D200X_ACTION_IDS,PLUGIN_ACTION_IDS,DEFAULTS,TITLE,createAction,cleanAction,cleanCompositeEntry,displaySwitchAction,compositeModel,planComposite,runComposite,blankPage,folderContents,currentActions,visibleActions,togglePinned,activeFolder,enterFolder,exitFolder,migrateState,profileSnapshot,switchProfile,createProfile,renameProfile,setProfileApp,matchForegroundProfile,deleteProfile,previewHardwareEvent,physicalSlot,hardwareGesture,resolveHardwareEvent,resolveKeyPress,planHardwareEvent,deletePage,planAction,emptyBinding,cleanBinding,ensureControls,controlBinding,changeControlScope};
+  return {ACTION_IDS,D200X_ACTION_IDS,PLUGIN_ACTION_IDS,DEFAULTS,TITLE,createAction,cleanAction,cleanCompositeEntry,displaySwitchAction,compositeModel,planComposite,runComposite,blankPage,folderContents,folderPageCount,changeFolderPage,addFolderPage,deleteFolderPage,currentActions,visibleActions,togglePinned,activeFolder,enterFolder,exitFolder,migrateState,profileSnapshot,switchProfile,createProfile,renameProfile,setProfileApp,matchForegroundProfile,deleteProfile,previewHardwareEvent,physicalSlot,hardwareGesture,resolveHardwareEvent,resolveKeyPress,planHardwareEvent,deletePage,planAction,emptyBinding,cleanBinding,ensureControls,controlBinding,changeControlScope};
 });
