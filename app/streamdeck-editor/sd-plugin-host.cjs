@@ -193,7 +193,8 @@ class StreamDeckPluginHost{
   key(context,gesture,ticks=1){
     const ctx=this.contexts.get(context);
     if(!ctx)return false;
-    const event=gesture==='left'||gesture==='right'?'dialRotate':gesture==='up'?'keyUp':'keyDown';
+    const event=gesture==='left'||gesture==='right'?'dialRotate':
+      ctx.slot>=16?(gesture==='up'?'dialUp':'dialDown'):(gesture==='up'?'keyUp':'keyDown');
     const payload={...this.payload(ctx),...(event==='dialRotate'?{ticks:gesture==='left'?-Math.max(1,ticks):Math.max(1,ticks),pressed:false}: {})};
     this.send(this.instances.get(ctx.pluginUUID)?.ws,{event,action:ctx.actionUUID,context,device:DEVICE,payload});
     return true;
@@ -225,7 +226,7 @@ class StreamDeckPluginHost{
       case 'getGlobalSettings':
         this.send(ws,{event:'didReceiveGlobalSettings',context:msg.context,payload:{settings:await this.readGlobal(uuid)}});break;
       case 'setGlobalSettings':
-        await this.storeGlobal(uuid,msg.payload);for(const target of [inst?.ws,...[...this.inspectors.values()].filter(x=>x.pluginUUID===uuid).map(x=>x.ws)])
+        await this.storeGlobal(uuid,msg.payload);for(const target of [this.instances.get(uuid)?.ws,...[...this.inspectors.values()].filter(x=>x.pluginUUID===uuid).map(x=>x.ws)])
           this.send(target,{event:'didReceiveGlobalSettings',context:msg.context,payload:{settings:msg.payload}});
         break;
       case 'getSettings':
