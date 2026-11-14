@@ -319,3 +319,12 @@
   - D200X input execution verification **#43622202465: success**
   - Windows preview EXE **#43622202463: success**, Artifact **`D200X-StreamDeck-Device-Sync-win-x64`**, artifact ID **14124427716**, ZIP 크기 163,906,311 bytes, 보존 14일. [빌드 실행 페이지](https://github.com/SoonCheol/D200X-Deck/actions/runs/43622202463).
 - **판정 주의:** 위 success는 Node/Windows CI 및 EXE 패키징 증거다. 사용자의 실제 Windows GUI, 물리 D200X, 하드웨어 화면 갱신, 사용 중 오디오 출력/브라우저/전경 제어의 **실기 성공 증거는 없다**. 이전 절의 오래된 '미구현/빌드 보류' 설명은 시간순 기록이며 이 절의 새로운 코드 상태로 최신화하되 완료/실기 검증으로 오인하지 말 것. 미지원 커스텀 URI, 원본 앱별 프리셋 전체, 선택형 오디오 장치의 실제 호환성은 별도 보완 대상.
+
+
+## 2026-11-15 Stream Deck 아이콘팩 가져오기 및 라이브러리 등록 (최신)
+
+- **요청:** 사용자가 첨부한 `com.cliftonharvey.simplegraytones.streamDeckIconPack` 분석 후 D200X 편집기의 기존 `Icon Library - Stream Deck`에 등록 및 범용 팩 가져오기 연결. `main`, PR #5는 수정·병합하지 않음.
+- **원본 팩 실제 검사:** ZIP 안의 `com.cliftonharvey.simplegraytones.sdIconPack/manifest.json`, `icons.json`, `icons/*.png`, `license.txt` 열람. 이름 `Simple Gray Tones`, 버전 `1.0.1`, 제작자 `Rob Clifton-Harvey`, MIT 라이선스, 144×144 RGB 단색 PNG 다섯 개(Black #000000, Gray Dark #232323, Gray #444444, Gray Light #808080, White #FFFFFF). 원본은 저장소에 배포하지 않고 확인된 색상 픽셀을 캔버스에서 재생성한 작은 기본 샘플을 `sample-icon-pack.js`에 포함.
+- **구현:** `icon-pack.cjs`에서 JSZip 기반 `.streamDeckIconPack` ZIP 읽기, `manifest.json`/`icons.json` 탐색, 이미지 유형·매직 바이트·경로 검증, 압축·전체 해제 크기·개수 제한. Electron `main.cjs`의 사용자 클릭 기반 파일 선택과 `userData/streamdeck-icon-packs-v1.json` 등록(중복 팩 ID 재등록, 임시 파일+rename), `preload.cjs` 브리지. 기존 `index.html` 아이콘 라이브러리에 '＋ 팩 가져오기' 버튼; `editor.js`에서 설치 팩 검색·목록·아이콘 적용(196px PNG 변환 후 기존 개별 버튼 `icon.kind=file` 저장). `style.css`는 라이브러리 내부 최소 스타일만 수정. 프로필/페이지/액션 실행 계약은 변경하지 않음.
+- **검증:** `test/streamdeck-icon-pack.test.cjs`에서 ZIP 읽기, 아이콘 데이터 추출, 경로 탈출 차단, 등록·재등록·재실행 후 목록 조회를 단위 검증. Windows workflow에서 `node --check` 및 해당 테스트 실행. 최신 앱 소스 SHA **`5a6fec5aeb064e28725276f18b24531116c0a387`**, CI #43627356979 **success**, Windows preview #43627351604 **success**, ZIP Artifact **`D200X-StreamDeck-Device-Sync-win-x64`** (ID 14126951152, 163909908 bytes, 14일 보존). [빌드 실행 페이지](https://github.com/SoonCheol/D200X-Deck/actions/runs/43627351604).
+- **한계:** Windows GUI에서 실제 팩 파일 선택·목록 표시·버튼 적용 및 물리 D200X에 출력되는 이미지는 아직 사용자 실기 검증 전. 대용량 SVG, 서명 검증, 팩 삭제·수정·제작 기능은 이번 범위 밖. ZIP 가져오기 지원은 현재 PNG/JPEG/WebP/GIF 파일 기반 팩, 제한 20MB·400 아이콘·32팩. 사용자가 받은 다른 팩 구조와 차이는 실제 파일별 확인 필요.
