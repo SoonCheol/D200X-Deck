@@ -1792,7 +1792,7 @@ function renderIconLibrary(){
     const amount=document.createElement('span');amount.className='icon-group-count';amount.textContent='('+matching.length+'개)';
     title.append(arrow,name,amount);
     let heading=title;
-    if(pack.source!=='bundled'&&pack.id!=='bundled-simple-gray-tones-1.0.1'){
+    if(pack.source!=='bundled'){
       const wrapper=document.createElement('div');wrapper.className='icon-group-heading';
       const remove=document.createElement('button');remove.type='button';
       remove.className='icon-pack-remove';remove.textContent='삭제';
