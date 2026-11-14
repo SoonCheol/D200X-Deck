@@ -490,7 +490,11 @@ function renderControlInspector(){
       node.addEventListener(node.type==='range'||node.tagName==='TEXTAREA'?'input':'change',()=>{
         const value=node.type==='checkbox'?node.checked:
           node.type==='number'||node.type==='range'?Number(node.value):node.value;
-        current.settings[node.dataset.field]=value;persist();
+        current.settings[node.dataset.field]=value;
+        if(current.type==='system-scroll'&&node.dataset.field==='axis')
+          current.settings.direction=value==='horizontal'?'right':'down';
+        persist();
+        if(current.type==='system-scroll'&&node.dataset.field==='axis')renderControlInspector();
       });
     });
     editor.append(fields);root.append(editor);
@@ -611,7 +615,11 @@ function renderInspector(){
   root.querySelectorAll("[data-field]").forEach(node=>{
     node.addEventListener(node.type==="range"||node.tagName==="TEXTAREA"?"input":"change",()=>{
       let value=node.type==="checkbox"?node.checked:node.type==="number"||node.type==="range"?Number(node.value):node.value;
-      item.settings[node.dataset.field]=value;persist();
+      item.settings[node.dataset.field]=value;
+      if(item.type==='system-scroll'&&node.dataset.field==='axis')
+        item.settings.direction=value==='horizontal'?'right':'down';
+      persist();
+      if(item.type==='system-scroll'&&node.dataset.field==='axis')renderInspector();
       if(node.dataset.field==="volume") $("volume-display").textContent=String(value);
       if(node.dataset.field==="body"&&$("text-count")) $("text-count").textContent=String(value.length)+" / -";
     });
