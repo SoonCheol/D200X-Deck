@@ -25,7 +25,8 @@
     goto:{page:0},indicator:{}
   };
   const TITLE={visible:true,align:'bottom',family:'default',size:12,
-    bold:false,italic:false,underline:false,color:'#ffffff'};
+    bold:false,italic:false,underline:false,color:'#ffffff',
+    outlineColor:'#000000',outlineWidth:'thin'};
   const copy=x=>JSON.parse(JSON.stringify(x));
   const validId=id=>ACTION_IDS.includes(id);
   function createAction(id){
@@ -49,6 +50,8 @@
     st.size=Math.max(8,Math.min(48,Number(st.size)||12));
     for(const key of ['bold','italic','underline'])st[key]=Boolean(st[key]);
     st.color=/^#[0-9a-fA-F]{6}$/.test(st.color)?st.color:'#ffffff';
+    st.outlineColor=/^#[0-9a-fA-F]{6}$/.test(st.outlineColor)?st.outlineColor:'#000000';
+    st.outlineWidth=['none','thin','medium','thick'].includes(st.outlineWidth)?st.outlineWidth:'thin';
     if(value.icon&&value.icon.kind==='glyph'&&typeof value.icon.glyph==='string')
       base.icon={kind:'glyph',glyph:value.icon.glyph.slice(0,8)};
     if(value.icon&&value.icon.kind==='file'&&typeof value.icon.value==='string'&&
