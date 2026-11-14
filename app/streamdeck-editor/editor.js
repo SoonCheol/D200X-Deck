@@ -58,7 +58,7 @@ function updateTitleAppearance(label,item){
   label.style.color=style.color||"#ffffff";
 }
 function newAction(id){return DeckCore.createAction(id);}
-function currentPage(){return state.pages[state.page];}
+function currentPage(){return DeckCore.currentActions(state);}
 function setItem(index,item){
   if(index>=14){
     const binding=DeckCore.controlBinding(state,index);
@@ -127,7 +127,7 @@ function renderGrid(){
     grid.append(b);
   });
   renderPhysicalControls();
-  $("page-label").textContent=`페이지 ${state.page+1} / ${state.pages.length}`;
+  $("page-label").textContent=state.folderPath?.length?`폴더 ${state.folderPath.length}단계 · 페이지 ${state.page+1}`:`페이지 ${state.page+1} / ${state.pages.length}`;
   $("delete-page").disabled=state.pages.length<=1;
 }
 function renderPhysicalControls(){
@@ -242,7 +242,7 @@ function actionFields(item){
       select("step","변화량",[[1,"1"],[2,"2"],[5,"5"],[10,"10"]]);
     case "multi":return `<div class="field"><label>내용</label><div>${item.children.length}개의 단계 · 아래에서 추가·수정</div></div>`;
     case "random":return `<div class="field"><label>내용</label><div>${item.children.length}개의 후보 · 아래 목록에서 편집</div></div>`;
-    case "folder":return `<div class="field"><label>내용</label><div>${item.children.length}개의 항목 <span class="hint">· 내부 편집 기능 미구현</span></div></div>`;
+    case "folder":return `<div class="field"><label>내용</label><div>폴더 내부 항목 편집은 아래 버튼을 사용하세요.</div></div>`;
     case "multi-switch":return `<div class="field"><label>상태</label><span>상태 1 / 상태 2 별도 동작 목록 · 아래에서 편집</span></div>`;
     case "logic":return `<div class="field"><label>슬롯</label><span>한 번 누르기 / 두 번 누르기 / 유지 · 내부 편집 기능 미구현</span></div>`;
     case "profile":return select("profile","프로필",[["next","다음 프로필"]]);
@@ -430,6 +430,16 @@ function renderMultiEditor(item,root){
   toolbar.append(select,addButton,delay,cancel);
   area.append(heading,note,list,toolbar);
   root.querySelector('.fields')?.append(area);
+}
+function renderFolderInspector(item,root){
+  const host=document.createElement('div');host.className='multi-action-editor';
+  const open=document.createElement('button');open.type='button';open.textContent='폴더 내부 편집 →';
+  open.addEventListener('click',()=>{
+    const index=state.selected;
+    if(index<14&&DeckCore.enterFolder(state,index)){persist();render();}
+  });
+  host.append(open);
+  root.querySelector('.fields')?.append(host);
 }
 const DEFAULT_TITLE_STYLE = DeckCore.TITLE;
 let previewRequest=0;
@@ -860,6 +870,7 @@ function renderInspector(){
     });
   });
   if(['multi','multi-switch','random'].includes(item.type))renderMultiEditor(item,root);
+  if(item.type==='folder')renderFolderInspector(item,root);
 }
 function showMenu(index,x,y){
   const menu=$("key-menu");menu.replaceChildren();const item=currentPage()[index];
@@ -879,8 +890,8 @@ $("delete-page").addEventListener("click",()=>{
   if(!confirm("현재 페이지 "+(state.page+1)+"을(를) 삭제하시겠습니까? 이 페이지의 모든 액션이 삭제됩니다."))return;
   if(DeckCore.deletePage(state)){persist();render();}
 });
-$("back-page").addEventListener("click",()=>{state.page=Math.max(0,state.page-1);state.selected=null;persist();render();});
-$("next-page").addEventListener("click",()=>{state.page=Math.min(state.pages.length-1,state.page+1);state.selected=null;persist();render();});
+$("back-page").addEventListener("click",()=>{if(!DeckCore.exitFolder(state))state.page=Math.max(0,state.page-1);state.selected=null;persist();render();});
+$("next-page").addEventListener("click",()=>{state.folderPath=[];state.page=Math.min(state.pages.length-1,state.page+1);state.selected=null;persist();render();});
 // Physical D200X button presses run the selected page's action; clicking a
 // PC editor key still only selects it for editing.
 const activeAudioPlayers=new Map();
@@ -974,6 +985,10 @@ function executeHardwareAction(event,preview=false){
     renderPhysicalControls();
     const target=DeckCore.controlBinding(state,index).stack[stackPositions[idx]];
     return '노브 '+(idx+1)+' 조절 대상: '+({page:'페이지',volume:'음량',zoom:'확대/축소',scroll:'세로 스크롤','scroll-x':'가로 스크롤',history:'실행 취소·다시 실행',window:'창 전환',desktop:'가상 데스크톱',brightness:'기기 밝기'}[target]);
+  }
+  if(outcome.kind==='folder-enter'){
+    if(!DeckCore.enterFolder(state,index))return '폴더를 열 수 없습니다.';
+    lastHardwareDown.clear();persist();render();return '폴더 열기';
   }
   if(outcome.kind==='composite' && ['multi','multi-switch','random'].includes(outcome.type)){
     const action=index<14?state.pages[state.page][index]:
@@ -1176,7 +1191,7 @@ function executeHardwareAction(event,preview=false){
   }
   if(outcome.kind==='page'){
     if(outcome.page===state.page)return '페이지 '+(state.page+1)+' · 이동 없음';
-    state.page=outcome.page;state.selected=null;
+    state.page=outcome.page;state.folderPath=[];state.selected=null;
     lastHardwareDown.clear();persist();render();return '페이지 '+(outcome.page+1)+' 표시';
   }
   if(outcome.kind==='website'){
