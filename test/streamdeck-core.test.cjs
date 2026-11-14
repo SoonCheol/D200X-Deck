@@ -855,3 +855,43 @@ test('Sleep plans a device-only sleep command and Key Logic uses gesture slots',
   await core.runComposite(logic,{gesture:'single',execute:async a=>calls.push(a.settings.keys),wait:async()=>{}});
   assert.deepEqual(calls,['Ctrl+A']);
 });
+
+test('unfinished built-in action plans carry their configured executable options',()=>{
+  const sound=core.createAction('audio-play');
+  sound.settings.fade='in-out';sound.settings.fadeDuration=5;sound.settings.output='speaker-device-1';
+  const audio=core.planAction(sound,0,3);
+  assert.equal(audio.kind,'audio-play');
+  assert.equal(audio.fade,'in-out');
+  assert.equal(audio.fadeDuration,5);
+  assert.equal(audio.output,'speaker-device-1');
+  const website=core.createAction('website');
+  website.settings.open='choose';website.settings.browserPath='C:\\Programs\\browser.exe';
+  assert.deepEqual(core.planAction(website,0,3),{
+    kind:'website',url:'',mode:'choose',browserPath:'C:\\Programs\\browser.exe'});
+  const opened=core.createAction('open-app');
+  opened.settings.app='C:\\Programs\\app.exe';
+  opened.settings.foreground=true;opened.settings.hold='close';
+  assert.deepEqual(core.planAction(opened,0,3),{
+    kind:'open-local-path',path:'C:\\Programs\\app.exe',
+    target:'file',foreground:true,hold:'close'});
+  const text=core.createAction('text');text.settings.mode='clipboard';
+  assert.equal(core.planAction(text,0,3).mode,'clipboard');
+  assert.equal(core.planAction(core.createAction('virtual'),0,3).kind,'unsupported');
+});
+
+test('Multi Action retains bounded delays and rejects unsupported nested composites',async()=>{
+  const multi=core.createAction('multi');
+  multi.children=[core.createAction('audio-play'),{kind:'delay',ms:2},core.createAction('close')];
+  const planned=core.planComposite(multi,{});
+  assert.deepEqual(planned.steps.map(step=>step.kind||step.type),['audio-play','delay','close']);
+  const calls=[];
+  await core.runComposite(multi,{
+    execute:async action=>calls.push(action.type),
+    wait:async ms=>calls.push('wait:'+ms),
+    nextActionMs:5
+  });
+  assert.deepEqual(calls,['audio-play','wait:2','close']);
+  const nested=core.createAction('multi');
+  nested.children=[core.createAction('multi')];
+  assert.equal(core.planComposite(nested).kind,'invalid');
+});
