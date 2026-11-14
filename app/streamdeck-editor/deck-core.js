@@ -115,6 +115,8 @@
     }
     if(model.type==='random'){
       if(model.choices.length===0)return {kind:'invalid',message:'후보 동작이 없습니다.'};
+      if(model.choices.some(choice=>choice.kind==='delay'))
+        return {kind:'invalid',message:'무작위 동작은 지연 단계가 아닌 실제 동작만 선택할 수 있습니다.'};
       const random=Number(options.random);
       if(!Number.isFinite(random)||random<0||random>=1)
         return {kind:'invalid',message:'검증된 무작위 선택 값이 필요합니다.'};
@@ -346,6 +348,7 @@
     if(action.type==='system-mute')return {kind:'mute'};
     if(action.type==='multi')return {kind:'composite',type:'multi'};
     if(action.type==='multi-switch')return {kind:'composite',type:'multi-switch'};
+    if(action.type==='random')return {kind:'composite',type:'random'};
     if(action.type==='brightness'){
       const mode=action.settings?.mode||'up';
       const fixed={max:100,high:75,medium:50,low:30,min:20};
