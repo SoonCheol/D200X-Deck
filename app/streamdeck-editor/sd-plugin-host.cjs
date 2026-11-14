@@ -237,6 +237,26 @@ class StreamDeckPluginHost{
     this.send(inst.ws,{event:'propertyInspectorDidAppear',action:ctx.actionUUID,context,device:DEVICE});
     return true;
   }
+  async stateArtwork(ctx,rawState){
+    const inst=this.instances.get(ctx.pluginUUID),manifestAction=inst?.manifest.Actions.find(x=>x.UUID===ctx.actionUUID);
+    const state=Number(rawState);
+    if(!Number.isInteger(state)||state<0||state>=Math.min(16,manifestAction?.States?.length||0))return null;
+    const base=manifestAction.States[state]?.Image;
+    if(!filename(base))return null;
+    for(const extension of ['', '.png', '.svg', '.jpg', '.jpeg', '.webp']){
+      const name=base+extension,mime=name.endsWith('.svg')?'image/svg+xml':
+        name.endsWith('.jpg')||name.endsWith('.jpeg')?'image/jpeg':
+        name.endsWith('.webp')?'image/webp':'image/png';
+      const absolute=path.resolve(inst.dir,name);
+      if(!absolute.startsWith(inst.dir+path.sep))continue;
+      try{
+        const stat=await fs.promises.stat(absolute);
+        if(!stat.isFile()||stat.size>1024*1024)continue;
+        return 'data:'+mime+';base64,'+(await fs.promises.readFile(absolute)).toString('base64');
+      }catch(e){if(e.code!=='ENOENT')throw e;}
+    }
+    return null;
+  }
   async message(msg,inst,pi,ws){
     const uuid=inst?.uuid||pi?.pluginUUID;
     const ctx=this.contexts.get(msg.context);
@@ -261,7 +281,13 @@ class StreamDeckPluginHost{
       case 'sendToPlugin':if(ctx)this.send(this.instances.get(uuid)?.ws,msg);break;
       case 'sendToPropertyInspector':if(ctx)this.send(this.inspectors.get(ctx.context)?.ws,msg);break;
       case 'setTitle':case 'setImage':case 'setState':
-        if(ctx&&ctx.pluginUUID===uuid)this.onUpdate({kind:msg.event,context:ctx.context,payload:msg.payload});break;
+        if(ctx&&ctx.pluginUUID===uuid){
+          this.onUpdate({kind:msg.event,context:ctx.context,payload:msg.payload});
+          if(msg.event==='setState'){
+            const image=await this.stateArtwork(ctx,msg.payload?.state);
+            if(image)this.onUpdate({kind:'setImage',context:ctx.context,payload:{image}});
+          }
+        }break;
       case 'showAlert':case 'showOk':
         this.onUpdate({kind:msg.event,context:msg.context});break;
       case 'logMessage':break;
