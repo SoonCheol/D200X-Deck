@@ -54,6 +54,15 @@ test('observed device brightness may be reused without changing the value',async
   assert.deepEqual(deck.calls.at(-1),['brightness',37]);t.stop();
 });
 
+test('brightness clamp and keepalive preserve the requested value',async()=>{
+  let time=10000;const deck=new FakeDeck(),t=new D200XTransport({deck,now:()=>time});
+  await t.start();assert.throws(()=>t.adjustBrightness(1,5),/아직 확인/);
+  deck.emit('brightness',97);
+  assert.equal(t.adjustBrightness(1,10),100);
+  assert.equal(t.adjustBrightness(-1,2),98);
+  time+=5000;t.tick();assert.deepEqual(deck.calls.at(-1),['brightness',98]);t.stop();
+});
+
 test('device-info repeated connected events do not resend; reconnect restores last page',async()=>{
   const deck=new FakeDeck();
   const t=new D200XTransport({deck,buildPage:async()=>Buffer.from('zip')});
