@@ -35,6 +35,7 @@ state.pages.forEach(page=>{while(page.length<KEY_COUNT+CONTROLS.length)page.push
 const valueOf=(item,field,fallback="")=>item?.settings?.[field]??fallback;
 function keyName(item){return item?.title||ACTIONS.get(item?.type)?.label||"";}
 function displayItem(item){
+  if(item?.type==='multi-switch')return DeckCore.displaySwitchAction(item);
   if(!item||item.type!=="indicator")return item;
   return {...item,icon:{kind:"glyph",glyph:String(state.page+1)}};
 }
@@ -104,7 +105,7 @@ function renderGrid(){
     b.dataset.index=i;b.setAttribute("aria-label",`키 ${i+1}: ${keyName(item)||"비어 있음"}`);
     const visual=displayItem(item);
     const glyph=iconNode(visual,ACTIONS.get(item?.type)?.icon||"+");glyph.classList.add("glyph");
-    const label=document.createElement("span");label.className="caption";label.textContent=item?.title||"";updateTitleAppearance(label,item);
+    const label=document.createElement("span");label.className="caption";label.textContent=visual?.title||"";updateTitleAppearance(label,visual);
     b.append(glyph,label);
     // Render the actual D200X PNG as the editor key surface. Icon and title
     // must stay in fixed coordinates, independent of the title font size.
@@ -280,6 +281,27 @@ function renderMultiEditor(item,root){
       tabs.append(tab);
     }
     area.append(tabs);
+    if(!Array.isArray(item.stateVisuals))item.stateVisuals=[{},{}];
+    const visual=item.stateVisuals[selected]||(item.stateVisuals[selected]={});
+    const fields=document.createElement('div');fields.className='multi-switch-visuals';
+    const titleLabel=document.createElement('label');titleLabel.textContent='상태 '+(selected+1)+' 제목';
+    const titleField=document.createElement('input');titleField.type='text';titleField.maxLength=256;
+    titleField.value=visual.title||'';titleField.placeholder='공통 제목 사용';
+    titleField.addEventListener('change',()=>{
+      visual.title=titleField.value;persist();renderGrid();
+    });
+    const iconLabel=document.createElement('label');iconLabel.textContent='상태 '+(selected+1)+' 아이콘 문자';
+    const iconField=document.createElement('input');iconField.type='text';iconField.maxLength=8;
+    iconField.value=visual.icon?.kind==='glyph'?visual.icon.glyph:'';
+    iconField.placeholder='공통 아이콘 사용';
+    iconField.addEventListener('change',()=>{
+      visual.icon=iconField.value?{kind:'glyph',glyph:iconField.value}:undefined;
+      persist();renderGrid();
+    });
+    fields.append(titleLabel,titleField,iconLabel,iconField);
+    const hint=document.createElement('small');hint.className='hint';
+    hint.textContent='각 상태별 이미지 파일 선택 기능은 후속 구현';
+    fields.append(hint);area.append(fields);
   }
   const heading=document.createElement('strong');
   heading.textContent=randomAction?'무작위 동작 · 후보 중 하나 실행':switching?'다중 동작 스위치 · 상태별 실행':'다중 동작 · 순서대로 실행';
@@ -829,7 +851,7 @@ const runningMultiActions=new Set();
 const runningMultiControllers=new WeakMap();
 // The original switch begins in state 1. Runtime state is distinct from the
 // editor tab and advances only after its selected sequence succeeds.
-const multiSwitchRuntimeState=new WeakMap();
+// Runtime position is persisted only after the selected sequence succeeds.
 const waitMultiDelay=(ms,signal)=>new Promise((resolve,reject)=>{
   if(signal?.aborted)return reject(new Error('복합 동작이 취소되었습니다.'));
   let onAbort;
@@ -921,7 +943,7 @@ function executeHardwareAction(event,preview=false){
     const scope=index>=14&&state.controls.scopes[index-14]==='global'?'global':String(state.page);
     const key=scope+':'+index+':'+resolved.gesture;
     if(runningMultiActions.has(key))return '복합 동작이 이미 실행 중입니다.';
-    const position=outcome.type==='multi-switch'?(multiSwitchRuntimeState.get(action)||0):0;
+    const position=outcome.type==='multi-switch'?(action.settings?.activeState===1?1:0):0;
     const random=outcome.type==='random'?Math.random():undefined;
     const check=DeckCore.planComposite(action,{state:position,random});
     if(check.kind!=='composite')return check.message;
@@ -938,7 +960,8 @@ function executeHardwareAction(event,preview=false){
     }).then(
       count=>{
         if(outcome.type==='multi-switch'){
-          multiSwitchRuntimeState.set(action,1-position);
+          action.settings.activeState=1-position;
+          persist();renderGrid();
           window.d200xActionStatus?.('다중 동작 스위치 상태 '+(position+1)+' · '+count+'단계 완료');
         }else if(outcome.type==='random')window.d200xActionStatus?.('무작위 동작 '+count+'개 실행 완료');
         else window.d200xActionStatus?.('다중 동작 '+count+'단계 완료');
