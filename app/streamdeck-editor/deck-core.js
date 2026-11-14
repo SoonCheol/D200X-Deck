@@ -25,7 +25,7 @@
     hotkey:{keys:'',source:'preset'},open:{path:''},
     'open-app':{app:'',hold:'close',foreground:true},close:{path:'',force:false},
     text:{body:'',enter:false,mode:'clipboard'},media:{op:'playpause'},
-    folder:{},profile:{profile:'next'},previous:{},next:{},
+    folder:{autoExitSeconds:0},profile:{profile:'next'},previous:{},next:{},
     goto:{page:0},indicator:{},
     'system-volume':{direction:'up',step:1},'system-mute':{},
     'system-scroll':{axis:'vertical',direction:'down',step:1},
@@ -74,6 +74,8 @@
     if(Array.isArray(value.children))base.children=value.children.slice(0,value.type==='folder'?14:100)
       .map(child=>value.type==='folder'?cleanAction(child):cleanCompositeEntry(child));
     if(value.type!=='folder')base.children=base.children.filter(Boolean);
+    if(value.type==='folder')base.settings.autoExitSeconds=Number.isInteger(value.settings?.autoExitSeconds)
+      ?Math.max(0,Math.min(60,value.settings.autoExitSeconds)):0;
     // Folder positions (including empty holes) must survive reloading.
     // Multi Action Switch stores two independent sequences. Older profiles only
     // had children[]: leave them untouched rather than guessing the state.
@@ -261,6 +263,15 @@
       if(!actions)return null;
     }
     return actions;
+  }
+  function activeFolder(state){
+    let actions=state.pages?.[state.page],folder=null;
+    for(const index of state.folderPath||[]){
+      folder=actions?.[index];
+      if(folder?.type!=='folder')return null;
+      actions=folderContents(folder);
+    }
+    return folder;
   }
   function enterFolder(state,index){
     if(!Number.isInteger(index)||index<0||index>=14||(state.folderPath||[]).length>=8)return false;
@@ -574,5 +585,5 @@
       url:action.settings?.url||'',mode:action.settings?.open||'default'};
     return {kind:'unsupported',message:'이 동작의 실행 기능은 아직 구현되지 않았습니다.'};
   }
-  return {ACTION_IDS,D200X_ACTION_IDS,DEFAULTS,TITLE,createAction,cleanAction,cleanCompositeEntry,displaySwitchAction,compositeModel,planComposite,runComposite,blankPage,folderContents,currentActions,visibleActions,togglePinned,enterFolder,exitFolder,migrateState,profileSnapshot,switchProfile,createProfile,renameProfile,deleteProfile,previewHardwareEvent,physicalSlot,hardwareGesture,resolveHardwareEvent,resolveKeyPress,planHardwareEvent,deletePage,planAction,emptyBinding,cleanBinding,ensureControls,controlBinding,changeControlScope};
+  return {ACTION_IDS,D200X_ACTION_IDS,DEFAULTS,TITLE,createAction,cleanAction,cleanCompositeEntry,displaySwitchAction,compositeModel,planComposite,runComposite,blankPage,folderContents,currentActions,visibleActions,togglePinned,activeFolder,enterFolder,exitFolder,migrateState,profileSnapshot,switchProfile,createProfile,renameProfile,deleteProfile,previewHardwareEvent,physicalSlot,hardwareGesture,resolveHardwareEvent,resolveKeyPress,planHardwareEvent,deletePage,planAction,emptyBinding,cleanBinding,ensureControls,controlBinding,changeControlScope};
 });
