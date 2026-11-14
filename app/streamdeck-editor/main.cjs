@@ -3,6 +3,8 @@
 const { app, BrowserWindow, Menu, ipcMain, clipboard, dialog, shell } = require('electron');
 const path = require('node:path');
 const { pathToFileURL } = require('node:url');
+const http = require('node:http');
+const https = require('node:https');
 const fs = require('node:fs');
 const { execFile } = require('node:child_process');
 const { promisify } = require('node:util');
@@ -74,7 +76,7 @@ ipcMain.on('d200x:sync-page', (event, images) => {
 ipcMain.handle('d200x:open-website', async (event, args) => {
   if (!window || event.sender !== window.webContents)
     throw new Error('허용되지 않은 호출입니다.');
-  if (!args || args.mode !== 'default' || typeof args.url !== 'string'
+  if (!args || !['default','get'].includes(args.mode) || typeof args.url !== 'string'
       || args.url.length > 2048 || /[\x00-\x1f\x7f]/.test(args.url))
     throw new Error('기본 브라우저로 열기만 지원합니다.');
   let url;
@@ -83,7 +85,18 @@ ipcMain.handle('d200x:open-website', async (event, args) => {
   if (!['http:','https:'].includes(url.protocol) || !url.hostname
       || url.username || url.password)
     throw new Error('HTTP 또는 HTTPS 웹사이트 주소만 지원합니다.');
-  await shell.openExternal(url.href);
+  if(args.mode==='get'){
+    // Deliberate user-configured request; no response body or cookies are stored.
+    await new Promise((resolve,reject)=>{
+      const request=(url.protocol==='https:'?https:http).get(url,{timeout:6000},response=>{
+        response.resume();
+        if((response.statusCode||0)>=400)reject(new Error('HTTP 상태 '+response.statusCode));
+        else resolve(true);
+      });
+      request.on('timeout',()=>request.destroy(new Error('요청 시간 초과')));
+      request.on('error',reject);
+    });
+  }else await shell.openExternal(url.href);
   return true;
 });
 
