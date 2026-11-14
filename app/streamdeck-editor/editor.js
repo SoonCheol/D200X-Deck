@@ -1708,6 +1708,7 @@ let libraryTarget=null;
 let importedIconPacks=[];
 const ICON_PAGE_SIZE=84;
 const iconVisibleCounts=new Map();
+const expandedIconPacks=new Set();
 async function refreshImportedIconPacks(){
   if(!window.deckBridge?.listIconPacks)return;
   try{
@@ -1799,9 +1800,15 @@ function renderIconLibrary(){
       remove.addEventListener('click',()=>removeIconPackFromLibrary(pack));
       wrapper.append(title,remove);heading=wrapper;
     }
-    const grid=document.createElement('div');grid.className='icon-grid';grid.hidden=true;
-    arrow.textContent='▸';
-    title.addEventListener('click',()=>{grid.hidden=!grid.hidden;arrow.textContent=grid.hidden?'▸':'⌄';});
+    const grid=document.createElement('div');grid.className='icon-grid';
+    grid.hidden=!expandedIconPacks.has(pack.id);
+    arrow.textContent=grid.hidden?'▸':'⌄';
+    title.addEventListener('click',()=>{
+      grid.hidden=!grid.hidden;
+      if(grid.hidden)expandedIconPacks.delete(pack.id);
+      else expandedIconPacks.add(pack.id);
+      arrow.textContent=grid.hidden?'▸':'⌄';
+    });
     const limit=iconVisibleCounts.get(pack.id)||ICON_PAGE_SIZE;
     for(const icon of matching.slice(0,limit)){
       count++;
@@ -1842,6 +1849,7 @@ function openIconLibrary(item){
   libraryTarget=item;
   $("icon-library-search").value="";
   iconVisibleCounts.clear();
+  expandedIconPacks.clear();
   renderIconLibrary();
   $("icon-library").hidden=false;
   refreshImportedIconPacks();
