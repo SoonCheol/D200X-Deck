@@ -241,7 +241,7 @@ function actionFields(item){
       select("step","변화량",[[1,"1"],[2,"2"],[5,"5"],[10,"10"]]);
     case "multi":return `<div class="field"><label>내용</label><div>${item.children.length}개의 단계 · 아래에서 추가·수정</div></div>`;
     case "folder":case "random":return `<div class="field"><label>내용</label><div>${item.children.length}개의 ${item.type==="folder"?"항목":"동작"} <span class="hint">· 내부 편집 기능 미구현</span></div></div>`;
-    case "multi-switch":return `<div class="field"><label>상태</label><span>1 / 2 · 내부 편집 기능 미구현</span></div>`;
+    case "multi-switch":return `<div class="field"><label>상태</label><span>상태 1 / 상태 2 별도 동작 목록 · 아래에서 편집</span></div>`;
     case "logic":return `<div class="field"><label>슬롯</label><span>한 번 누르기 / 두 번 누르기 / 유지 · 내부 편집 기능 미구현</span></div>`;
     case "profile":return select("profile","프로필",[["next","다음 프로필"]]);
     case "goto":return select("page","대상",state.pages.map((_,i)=>[String(i),String(i+1)]));
@@ -253,16 +253,42 @@ function actionFields(item){
 const MULTI_ALLOWED=['hotkey','media','website','open','open-app','text',
   'system-volume','system-mute','system-zoom','device-brightness',
   'screenshot','clipboard-edit','explorer-open','file-open','folder-shortcut'];
+const multiSwitchEditorTabs=new WeakMap();
 function renderMultiEditor(item,root){
-  const area=document.createElement('section');
-  area.className='multi-action-editor';
-  const heading=document.createElement('strong');heading.textContent='다중 동작 · 순서대로 실행';
+  const area=document.createElement('section');area.className='multi-action-editor';
+  const switching=item.type==='multi-switch';
+  let steps=item.children;
+  if(switching){
+    if(!Array.isArray(item.sequences)){
+      // Safely migrate legacy steps to state 1. Keep old children[] intact.
+      item.sequences=[item.children.slice(),[]];persist();
+    }
+    const selected=multiSwitchEditorTabs.get(item)||0;
+    steps=item.sequences[selected];
+    const tabs=document.createElement('div');tabs.className='multi-switch-tabs';
+    for(const i of [0,1]){
+      const tab=document.createElement('button');tab.type='button';
+      tab.textContent='상태 '+(i+1)+' · '+item.sequences[i].length+'개';
+      tab.setAttribute('aria-pressed',String(selected===i));
+      tab.addEventListener('click',()=>{
+        multiSwitchEditorTabs.set(item,i);
+        if(state.selected>=14)renderControlInspector();
+        else renderInspector();
+      });
+      tabs.append(tab);
+    }
+    area.append(tabs);
+  }
+  const heading=document.createElement('strong');
+  heading.textContent=switching?'다중 동작 스위치 · 상태별 실행':'다중 동작 · 순서대로 실행';
   const note=document.createElement('p');note.className='hint';
   note.textContent='오른쪽 액션 목록에서 아래로 끌어놓기 · 지연은 별도 단계 · 중첩은 지원하지 않음';
   const list=document.createElement('div');list.className='multi-action-steps';
   const add=(id)=>{
-    if(!MULTI_ALLOWED.includes(id)||item.children.length>=100)return;
-    item.children.push(newAction(id));persist();renderInspector();
+    if(!MULTI_ALLOWED.includes(id)||steps.length>=100)return;
+    steps.push(newAction(id));persist();
+    if(state.selected>=14)renderControlInspector();
+    else renderInspector();
   };
   list.addEventListener('dragover',e=>e.preventDefault());
   list.addEventListener('drop',e=>{
@@ -271,18 +297,22 @@ function renderMultiEditor(item,root){
     if(MULTI_ALLOWED.includes(id))add(id);
     else window.d200xActionStatus?.('지원하지 않는 하위 액션입니다.');
   });
-  item.children.forEach((step,i)=>{
+  steps.forEach((step,i)=>{
     const row=document.createElement('div');row.className='multi-action-row';
     const title=document.createElement('span');
     title.textContent=(i+1)+'. '+(step.kind==='delay'?'지연 '+step.ms+'ms':keyName(step));
     row.append(title);
     const command=(text,fn)=>{
       const button=document.createElement('button');button.type='button';button.textContent=text;
-      button.addEventListener('click',()=>{fn();persist();renderInspector();});row.append(button);
+      button.addEventListener('click',()=>{
+        fn();persist();
+        if(state.selected>=14)renderControlInspector();
+        else renderInspector();
+      });row.append(button);
     };
-    if(i>0)command('↑',()=>{[item.children[i-1],item.children[i]]=[item.children[i],item.children[i-1]];});
-    if(i<item.children.length-1)command('↓',()=>{[item.children[i],item.children[i+1]]=[item.children[i+1],item.children[i]];});
-    command('삭제',()=>item.children.splice(i,1));
+    if(i>0)command('↑',()=>{[steps[i-1],steps[i]]=[steps[i],steps[i-1]];});
+    if(i<steps.length-1)command('↓',()=>{[steps[i],steps[i+1]]=[steps[i+1],steps[i]];});
+    command('삭제',()=>steps.splice(i,1));
     list.append(row);
     if(step.kind==='delay'){
       const input=document.createElement('input');input.type='number';input.min='0';input.max='600000';
@@ -318,8 +348,10 @@ function renderMultiEditor(item,root){
   addButton.addEventListener('click',()=>add(select.value));
   const delay=document.createElement('button');delay.type='button';delay.textContent='지연 추가';
   delay.addEventListener('click',()=>{
-    if(item.children.length>=100)return;
-    item.children.push({kind:'delay',ms:1000});persist();renderInspector();
+    if(steps.length>=100)return;
+    steps.push({kind:'delay',ms:1000});persist();
+    if(state.selected>=14)renderControlInspector();
+    else renderInspector();
   });
   toolbar.append(select,addButton,delay);
   area.append(heading,note,list,toolbar);
@@ -603,7 +635,7 @@ function renderControlInspector(){
       });
     });
     editor.append(fields);root.append(editor);
-    if(current.type==='multi')renderMultiEditor(current,editor);
+    if(['multi','multi-switch'].includes(current.type))renderMultiEditor(current,editor);
     // A physical-control file picker needs the same bridge as the screen-key inspector.
     fields.querySelectorAll('[data-path-picker]').forEach(button=>button.addEventListener('click',async()=>{
       if(!window.deckBridge?.choosePath){window.d200xActionStatus?.('Windows EXE에서만 파일을 선택할 수 있습니다.');return;}
@@ -753,7 +785,7 @@ function renderInspector(){
       if(node.dataset.field==="body"&&$("text-count")) $("text-count").textContent=String(value.length)+" / -";
     });
   });
-  if(item.type==='multi')renderMultiEditor(item,root);
+  if(['multi','multi-switch'].includes(item.type))renderMultiEditor(item,root);
 }
 function showMenu(index,x,y){
   const menu=$("key-menu");menu.replaceChildren();const item=currentPage()[index];
