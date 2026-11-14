@@ -62,6 +62,55 @@
       .map(child=>child&&typeof child==='object'?cleanAction(child):null).filter(Boolean);
     return base;
   }
+  const CONTROL_MODES=['trigger','adjust','stack'];
+  const ADJUST_TARGETS=['page','volume','zoom'];
+  function emptyBinding(){
+    return {mode:'trigger',down:null,left:null,right:null,target:'page',
+      stack:['page','volume'],stackIndex:0};
+  }
+  function cleanBinding(value){
+    const out=emptyBinding();
+    if(!value||typeof value!=='object'||Array.isArray(value))return out;
+    out.mode=CONTROL_MODES.includes(value.mode)?value.mode:'trigger';
+    for(const key of ['down','left','right'])out[key]=cleanAction(value[key]);
+    out.target=ADJUST_TARGETS.includes(value.target)?value.target:'page';
+    if(Array.isArray(value.stack)){
+      out.stack=[...new Set(value.stack.filter(x=>ADJUST_TARGETS.includes(x)))].slice(0,3);
+      if(!out.stack.length)out.stack=['page'];
+    }
+    out.stackIndex=Math.max(0,Math.min(out.stack.length-1,Number.isInteger(value.stackIndex)?value.stackIndex:0));
+    return out;
+  }
+  function emptyControls(pageCount){
+    return {scopes:Array(5).fill('global'),global:Array.from({length:5},emptyBinding),
+      pages:Array.from({length:pageCount},()=>Array.from({length:5},emptyBinding))};
+  }
+  function ensureControls(state){
+    if(!state.controls)state.controls=emptyControls(state.pages.length);
+    return state.controls;
+  }
+  function controlBinding(state,slot){
+    if(slot<14||slot>18)return null;
+    const controls=ensureControls(state),index=slot-14;
+    return controls.scopes[index]==='page'
+      ? controls.pages[state.page][index] : controls.global[index];
+  }
+  function changeControlScope(state,slot,scope){
+    if(slot<14||slot>18||!['page','global'].includes(scope))return false;
+    const controls=ensureControls(state),index=slot-14;
+    if(controls.scopes[index]===scope)return true;
+    if(scope==='page'){
+      // Current page starts with the global binding; other pages retain
+      // their own imported/previously edited entries.
+      const local=controls.pages[state.page][index];
+      if(!local?.down&&!local?.left&&!local?.right&&local?.mode==='trigger')
+        controls.pages[state.page][index]=cleanBinding(controls.global[index]);
+    }else{
+      controls.global[index]=cleanBinding(controls.pages[state.page][index]);
+    }
+    controls.scopes[index]=scope;
+    return true;
+  }
   function blankPage(){return Array.from({length:19},()=>null);}
   function migrateState(value){
     const state={pages:[blankPage()],page:0,selected:null};
@@ -75,6 +124,23 @@
     const index=Number(value.page);
     state.page=Number.isInteger(index)?Math.max(0,Math.min(state.pages.length-1,index)):0;
     state.selected=Number.isInteger(value.selected)&&value.selected>=0&&value.selected<19?value.selected:null;
+    state.controls=emptyControls(state.pages.length);
+    if(value.controls && typeof value.controls==='object'){
+      const c=value.controls;
+      state.controls.scopes=state.controls.scopes.map((_,i)=>c.scopes?.[i]==='page'?'page':'global');
+      state.controls.global=state.controls.global.map((_,i)=>cleanBinding(c.global?.[i]));
+      state.controls.pages=state.controls.pages.map((row,p)=>row.map((_,i)=>cleanBinding(c.pages?.[p]?.[i])));
+    } else {
+      // Old projects assigned a single action to each physical control on
+      // each page. Keep these assignments instead of silently dropping them.
+      for(let i=0;i<5;i++){
+        const source=state.pages.find(row=>row[14+i])?.[14+i]||null;
+        state.controls.global[i].down=source;
+        for(let p=0;p<state.pages.length;p++){
+          state.controls.pages[p][i].down=state.pages[p][14+i];
+        }
+      }
+    }
     return state;
   }
   // Hardware indices: 0..13 screen keys; 15/16 physical buttons;
@@ -105,38 +171,51 @@
     if(!state||!Array.isArray(state.pages)||!Number.isInteger(state.page))return null;
     const index=physicalSlot(event),gesture=hardwareGesture(event);
     if(index===null||!gesture)return null;
-    const action=state.pages[state.page]?.[index];
-    return {index,gesture,action:action&&validId(action.type)?action:null,knob:index>=16};
+    const knob=index>=16;
+    const binding=index>=14?controlBinding(state,index):null;
+    const action=index<14?state.pages[state.page]?.[index]:(binding?.down||null);
+    return {index,gesture,knob,binding,
+      action:action&&validId(action.type)?action:null};
   }
   function resolveKeyPress(state,event){
     const resolved=resolveHardwareEvent(state,event);
     return resolved?.gesture==='down'&&resolved.action?{index:resolved.index,action:resolved.action}:null;
   }
-  function planHardwareEvent(state,event){
+  function planHardwareEvent(state,event,activeStack=0){
     const resolved=resolveHardwareEvent(state,event);
-    if(!resolved)return null;
-    if(resolved.gesture==='up')return null;
-    if(resolved.knob && (resolved.gesture==='left'||resolved.gesture==='right')){
-      // Page rotation must keep working after navigating to a different
-      // page. An empty knob slot inherits a navigation binding from another
-      // page; an explicitly assigned non-navigation action blocks it.
-      const effective=resolved.action || state.pages
-        .map(page=>page?.[resolved.index])
-        .find(action=>action&&['previous','next'].includes(action.type));
-      if(!effective||!['previous','next'].includes(effective.type))return null;
-      const direction=resolved.gesture==='left'?-1:1;
-      return {index:resolved.index,gesture:resolved.gesture,
-        outcome:{kind:'page',page:Math.max(0,Math.min(state.pages.length-1,state.page+direction))}};
+    if(!resolved||resolved.gesture==='up')return null;
+    const {index,gesture,knob,binding}=resolved;
+    if(binding && knob){
+      if(binding.mode==='adjust'||binding.mode==='stack'){
+        if(gesture==='down'){
+          if(binding.down)return {index,gesture,outcome:planAction(binding.down,state.page,state.pages.length)};
+          if(binding.mode==='stack')return {index,gesture,outcome:{kind:'stack-next',size:binding.stack.length}};
+          return null;
+        }
+        if(gesture!=='left'&&gesture!=='right')return null;
+        const target=binding.mode==='stack'
+          ? binding.stack[Math.abs(activeStack)%binding.stack.length]:binding.target;
+        if(!ADJUST_TARGETS.includes(target))return null;
+        const direction=gesture==='left'?-1:1;
+        return {index,gesture,outcome:target==='page'
+          ? {kind:'page',page:Math.max(0,Math.min(state.pages.length-1,state.page+direction))}
+          : {kind:'adjust',target,direction}};
+      }
+      if(gesture==='left'||gesture==='right'){
+        const action=binding[gesture];
+        return action?{index,gesture,outcome:planAction(action,state.page,state.pages.length)}:null;
+      }
     }
+    if(gesture!=='down')return null;
+    if(binding && !binding.down)return null;
     if(!resolved.action)return null;
-    if(resolved.gesture!=='down')return null;
-    return {index:resolved.index,gesture:resolved.gesture,
-      outcome:planAction(resolved.action,state.page,state.pages.length)};
+    return {index,gesture,outcome:planAction(resolved.action,state.page,state.pages.length)};
   }
   function deletePage(state){
     if(!state||!Array.isArray(state.pages)||state.pages.length<=1)return false;
     const removed=state.page;
     state.pages.splice(removed,1);
+    if(state.controls?.pages)state.controls.pages.splice(removed,1);
     state.page=Math.max(0,Math.min(removed,state.pages.length-1));
     state.selected=null;
     // Preserve other pages. A target beyond the new range remains invalid
@@ -157,5 +236,5 @@
       url:action.settings?.url||'',mode:action.settings?.open||'default'};
     return {kind:'unsupported',message:'이 동작의 실행 기능은 아직 구현되지 않았습니다.'};
   }
-  return {ACTION_IDS,DEFAULTS,TITLE,createAction,cleanAction,blankPage,migrateState,physicalSlot,hardwareGesture,resolveHardwareEvent,resolveKeyPress,planHardwareEvent,deletePage,planAction};
+  return {ACTION_IDS,DEFAULTS,TITLE,createAction,cleanAction,blankPage,migrateState,physicalSlot,hardwareGesture,resolveHardwareEvent,resolveKeyPress,planHardwareEvent,deletePage,planAction,emptyBinding,cleanBinding,ensureControls,controlBinding,changeControlScope};
 });
