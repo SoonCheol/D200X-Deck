@@ -1714,11 +1714,15 @@ const ICON_SETS=[
   ["Elgato Logo Icons (White)",["✦","◈","◇","◎","▶","●"]]
 ];
 let libraryTarget=null;
-let importedIconPacks=[];
+let importedIconPacks=window.D200XSampleIconPack?[window.D200XSampleIconPack]:[];
 async function refreshImportedIconPacks(){
   if(!window.deckBridge?.listIconPacks)return;
   try{
-    importedIconPacks=await window.deckBridge.listIconPacks();
+    const installed=await window.deckBridge.listIconPacks();
+    importedIconPacks=[
+      ...(window.D200XSampleIconPack?[window.D200XSampleIconPack]:[]),
+      ...installed.filter(pack=>pack.name!=='Simple Gray Tones'||pack.version!=='1.0.1')
+    ];
     if(!$("icon-library").hidden)renderIconLibrary();
   }catch(error){
     window.d200xActionStatus?.('아이콘팩 목록 읽기 실패: '+String(error?.message||error));
