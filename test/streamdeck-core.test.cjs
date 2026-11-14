@@ -317,6 +317,40 @@ test('multi runner refuses nested composites and honors cancellation',async()=>{
   assert.deepEqual(executed,['media']);
 });
 
+test('folder navigation retains empty slot positions, nested actions and back navigation',()=>{
+  const saved={pages:[[
+    {type:'folder',title:'음악',children:[
+      null,{type:'media',settings:{op:'next'}},
+      {type:'folder',title:'하위',children:[null,{type:'hotkey',settings:{keys:'Ctrl+A'}}]}
+    ]}
+  ]]};
+  const state=core.migrateState(saved);
+  assert.equal(state.pages[0][0].children[0],null);
+  assert.equal(state.pages[0][0].children[1].settings.op,'next');
+  assert.equal(core.enterFolder(state,0),true);
+  assert.equal(core.currentActions(state)[1].type,'media');
+  assert.equal(core.planHardwareEvent(state,{kind:1,index:1,pressed:true}).outcome.kind,'media-control');
+  assert.equal(core.enterFolder(state,2),true);
+  assert.equal(core.currentActions(state)[1].settings.keys,'Ctrl+A');
+  assert.equal(core.exitFolder(state),true);
+  assert.equal(core.currentActions(state)[1].type,'media');
+  assert.equal(core.exitFolder(state),true);
+  assert.equal(core.exitFolder(state),false);
+  const restored=core.migrateState(JSON.parse(JSON.stringify(state)));
+  assert.equal(restored.pages[0][0].children[2].children[1].settings.keys,'Ctrl+A');
+});
+
+test('folder migration safely restores valid active folder paths and removes invalid tails',()=>{
+  const saved={pages:[[{type:'folder',children:[{type:'media'}]}]],folderPath:[0,3,7]};
+  const state=core.migrateState(saved);
+  assert.deepEqual(state.folderPath,[0]);
+  assert.equal(core.currentActions(state)[0].type,'media');
+  const again=core.migrateState(JSON.parse(JSON.stringify(state)));
+  assert.deepEqual(again.folderPath,[0]);
+  assert.equal(core.enterFolder(again,9),false);
+  assert.equal(core.currentActions(again)[0].type,'media');
+});
+
 test('original brightness action respects the 20 percent floor for fixed presets',()=>{
   const a=core.createAction('brightness');
   a.settings.mode='min';
