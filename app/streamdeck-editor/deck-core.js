@@ -113,7 +113,7 @@
   }
   function blankPage(){return Array.from({length:19},()=>null);}
   function migrateState(value){
-    const state={pages:[blankPage()],page:0,selected:null};
+    const state={pages:[blankPage()],page:0,selected:null,controls:emptyControls(1)};
     if(!value||typeof value!=='object'||!Array.isArray(value.pages)||!value.pages.length)return state;
     state.pages=value.pages.slice(0,128).map(raw=>{
       const page=blankPage();
