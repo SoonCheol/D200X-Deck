@@ -1744,6 +1744,18 @@ async function importIconPackIntoLibrary(){
     window.d200xActionStatus?.('아이콘팩 등록 실패: '+String(error?.message||error));
   }finally{button.disabled=false;}
 }
+async function removeIconPackFromLibrary(pack){
+  if(pack.source==='bundled'||pack.id==='bundled-simple-gray-tones-1.0.1')return;
+  if(!window.deckBridge?.removeIconPack)return;
+  if(!window.confirm('아이콘팩 '+pack.name+'을(를) 라이브러리에서 제거할까요?\n이미 버튼에 적용된 아이콘은 유지됩니다.'))return;
+  try{
+    const removed=await window.deckBridge.removeIconPack(pack.id);
+    await refreshImportedIconPacks();
+    window.d200xActionStatus?.(removed?'아이콘팩 제거 완료: '+pack.name:'등록된 아이콘팩을 찾을 수 없습니다.');
+  }catch(error){
+    window.d200xActionStatus?.('아이콘팩 제거 실패: '+String(error?.message||error));
+  }
+}
 function renderIconLibrary(){
   const root=$("icon-library-groups");root.replaceChildren();
   const search=$("icon-library-search").value.trim().toLocaleLowerCase();
@@ -1786,6 +1798,15 @@ function renderIconLibrary(){
     const name=document.createElement('span');name.textContent=pack.name+' · '+pack.version;
     const amount=document.createElement('span');amount.className='icon-group-count';amount.textContent='('+matching.length+'개)';
     title.append(arrow,name,amount);
+    let heading=title;
+    if(pack.source!=='bundled'&&pack.id!=='bundled-simple-gray-tones-1.0.1'){
+      const wrapper=document.createElement('div');wrapper.className='icon-group-heading';
+      const remove=document.createElement('button');remove.type='button';
+      remove.className='icon-pack-remove';remove.textContent='삭제';
+      remove.title=pack.name+' 제거';remove.setAttribute('aria-label',pack.name+' 아이콘팩 제거');
+      remove.addEventListener('click',()=>removeIconPackFromLibrary(pack));
+      wrapper.append(title,remove);heading=wrapper;
+    }
     const grid=document.createElement('div');grid.className='icon-grid';
     title.addEventListener('click',()=>{grid.hidden=!grid.hidden;arrow.textContent=grid.hidden?'▸':'⌄';});
     for(const icon of matching){
@@ -1808,7 +1829,7 @@ function renderIconLibrary(){
       });
       grid.append(tile);
     }
-    root.append(title,grid);
+    root.append(heading,grid);
   }
   $("icon-library-count").textContent='아이콘 '+count+'개 · 등록된 팩 '+importedIconPacks.length+'개';
 }
