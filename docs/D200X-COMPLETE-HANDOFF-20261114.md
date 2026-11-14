@@ -363,3 +363,12 @@
 - **실제 생성 로그:** Filled **1914**, Regular **1914** 아이콘. 내장 JSON **10,326,954 bytes (9.85 MiB)**, 생성/스테이징 크기 동일. ASAR에 `builtin-iconpacks.json` 경로 존재 검증 성공. 고정 입력 SHA-256: `2cbb28bed64c711ae41968c682582933227e897fef11b720ea304ac29a4723a5`.
 - **최종 Actions:** CI [#43633125464](https://github.com/SoonCheol/D200X-Deck/actions/runs/43633125464) **success**. Windows EXE [#43633121041](https://github.com/SoonCheol/D200X-Deck/actions/runs/43633121041) **success**. Artifact `D200X-StreamDeck-Device-Sync-win-x64`, ID **14128044954**, ZIP 크기 **170,312,753 bytes** (14일 보존). 이전 버전보다 용량이 커져 실제 이미지 번들이 들어갔다는 정황과 ASAR 항목 검사 일치.
 - **검증 범위:** Node CI, Windows 패키징 및 ASAR 내 데이터 경로·개수 확인만 완료. Windows GUI에서 3,828개 라이브러리 표시, 아이콘 선택, 삭제 확인/기본 복구, 실물 D200X 화면은 사용자 실기 확인 전. 사용자가 이미 가져온 팩과 기존 프로필은 자동 삭제하지 않음. 앞서 보고된 외부 팩 가져오기 실패는 이 교체만으로 해결됐다고 간주하지 말 것.
+
+
+## 2026-11-15 — 모든 파일/폴더 불러오기에서 마지막 사용 폴더 기억
+
+- **사용자 실기 확인:** 최근 EXE의 외부 아이콘팩 등록은 정상 동작함. 추가 요청: 가져오기/탐색기 창에서 마지막으로 사용한 폴더가 다음 불러오기 시 초기 폴더여야 하며, 모든 불러오기 기능에 동일하게 적용.
+- **구현:** `main.cjs`에 공용 `openRememberedPicker()`를 도입. 사용자 선택이 완료될 때에만 `userData/last-picker-folder.json`에 마지막 폴더를 저장(원자적 임시 파일 + rename), 다음 `showOpenDialog`의 `defaultPath`에 사용. 저장 폴더가 없어졌으면 Windows 기본값으로 열고, 취소 시 위치는 보존. 프로필/액션 데이터와 별도 파일.
+- 연결 범위: 아이콘팩 가져오기, 기존 `choosePath` 파일·폴더·프로그램 선택, 액션목록 아이콘 변경, 버튼 커스텀 아이콘, 상태별 아이콘, 전체 프로필·설정 JSON 가져오기. 이미지는 140KB/5MB 제한 유지, 프로필 JSON 20MB 제한 및 기존 복원 확인 절차 유지. 브라우저 폴백의 순수 HTML `input[type=file]`은 브라우저 보안 제한상 시작 폴더를 임의 설정할 수 없어 EXE에서만 공용 네이티브 대화상자를 사용한다.
+- `preload.cjs`에서 검증된 `chooseImportFile(kind)`만 노출. 파일 선택은 사용자 동작에만 반응, 경로는 renderer에 전달하지 않음(데이터 URI / JSON 텍스트 사용). 취소해도 기존 입력/설정은 변경하지 않음.
+- **실기 미검증:** 실제 Windows 열기 대화상자가 마지막 폴더를 정확히 복원하는지 및 모든 선택기 정상 사용은 새 EXE 실기 확인 필요. Windows CI/자동 빌드 결과를 확인 후 별도 기록.
