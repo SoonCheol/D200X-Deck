@@ -1702,27 +1702,17 @@ window.executeD200XKey=executeHardwareAction;
 let refreshProfilesMenu=()=>{};
 function render(){renderGrid();renderInspector();refreshProfilesMenu();}
 
-/* Reference UI controls: library appearance is modeled after the supplied 7.6.1
- * screenshots. Icons below are clearly a small placeholder catalogue, not the
- * complete Elgato library. No legacy renderer code is imported. */
-const ICON_SETS=[
-  ["Elgato Legacy Icons",["▶","◉","▣","♫","♩","▤","♢","⌨","◴","☼","☾","□","▢","◇","⊞","⏻","◀","▷","⚑","☷","↗","♜","✦","◎","⇄","◈","⚙","⌘"]],
-  ["Elgato Logo Icons (Color)",["✦","◈","●","▶","◉","▣","◇","■"]],
-  ["Elgato Icons (Black)",["☼","☾","□","◉","▣","☷","◎","▤"]],
-  ["Elgato Icons (White)",["☼","☾","□","◉","▣","☷","◎","▤"]],
-  ["Elgato Logo Icons (Black)",["✦","◈","◇","◎","▶","●"]],
-  ["Elgato Logo Icons (White)",["✦","◈","◇","◎","▶","●"]]
-];
+// Installed packs are read from the application's packaged library.
+// The prototype glyph groups have been removed; only genuine packs appear.
 let libraryTarget=null;
-let importedIconPacks=window.D200XSampleIconPack?[window.D200XSampleIconPack]:[];
+let importedIconPacks=[];
+const ICON_PAGE_SIZE=84;
+const iconVisibleCounts=new Map();
 async function refreshImportedIconPacks(){
   if(!window.deckBridge?.listIconPacks)return;
   try{
     const installed=await window.deckBridge.listIconPacks();
-    importedIconPacks=[
-      ...(window.D200XSampleIconPack?[window.D200XSampleIconPack]:[]),
-      ...installed.filter(pack=>pack.name!=='Simple Gray Tones'||pack.version!=='1.0.1')
-    ];
+    importedIconPacks=installed;
     if(!$("icon-library").hidden)renderIconLibrary();
   }catch(error){
     window.d200xActionStatus?.('아이콘팩 목록 읽기 실패: '+String(error?.message||error));
@@ -1760,32 +1750,6 @@ function renderIconLibrary(){
   const root=$("icon-library-groups");root.replaceChildren();
   const search=$("icon-library-search").value.trim().toLocaleLowerCase();
   let count=0;
-  ICON_SETS.forEach(([name,icons],setIndex)=>{
-    const matches=icons.filter(glyph=>!search||name.toLocaleLowerCase().includes(search)||glyph.includes(search));
-    if(!matches.length)return;
-    const title=document.createElement("button");title.type="button";title.className="icon-group-title";
-    const arrow=document.createElement("span");arrow.className="icon-group-arrow";arrow.textContent="▸";
-    const nameEl=document.createElement("span");nameEl.textContent=name;
-    const number=document.createElement("span");number.className="icon-group-count";number.textContent="("+matches.length+"개 미리보기)";
-    title.append(arrow,nameEl,number);
-    const grid=document.createElement("div");grid.className="icon-grid";grid.hidden=true;
-    title.addEventListener("click",()=>{grid.hidden=!grid.hidden;arrow.textContent=grid.hidden?"▸":"⌄";});
-    if(setIndex===0){grid.hidden=false;arrow.textContent="⌄";}
-    matches.forEach(glyph=>{
-      count++;
-      const tile=document.createElement("button");tile.type="button";
-      tile.className="icon-swatch"+(setIndex===1||setIndex===0&&["◴","▶","☼","◉"].includes(glyph)?" blue":"");
-      tile.textContent=glyph;tile.title="아이콘 선택: "+glyph;
-      tile.addEventListener("click",()=>{
-        if(libraryTarget&&currentPage().includes(libraryTarget)){
-          libraryTarget.icon={kind:"glyph",glyph};persist();render();
-        }
-        closeIconLibrary();
-      });
-      grid.append(tile);
-    });
-    root.append(title,grid);
-  });
   for(const pack of importedIconPacks){
     const matching=pack.icons.filter(icon=>{
       const text=[pack.name,icon.name,...icon.tags].join(' ').toLocaleLowerCase();
@@ -1807,9 +1771,11 @@ function renderIconLibrary(){
       remove.addEventListener('click',()=>removeIconPackFromLibrary(pack));
       wrapper.append(title,remove);heading=wrapper;
     }
-    const grid=document.createElement('div');grid.className='icon-grid';
+    const grid=document.createElement('div');grid.className='icon-grid';grid.hidden=true;
+    arrow.textContent='▸';
     title.addEventListener('click',()=>{grid.hidden=!grid.hidden;arrow.textContent=grid.hidden?'▸':'⌄';});
-    for(const icon of matching){
+    const limit=iconVisibleCounts.get(pack.id)||ICON_PAGE_SIZE;
+    for(const icon of matching.slice(0,limit)){
       count++;
       const tile=document.createElement('button');tile.type='button';
       tile.className='icon-swatch icon-pack-swatch';tile.title=pack.name+' / '+icon.name;
@@ -1821,7 +1787,7 @@ function renderIconLibrary(){
         try{
           const png=await rasterizeIcon(icon.image);
           if(!currentPage().includes(target))return;
-          target.icon={kind:'file',value:png};
+          target.icon={kind:'file',value:png,packId:pack.id};
           persist();render();closeIconLibrary();
         }catch(error){
           window.d200xActionStatus?.('팩 아이콘 적용 실패: '+String(error?.message||error));
@@ -1829,6 +1795,17 @@ function renderIconLibrary(){
       });
       grid.append(tile);
     }
+    if(matching.length>limit){
+      const more=document.createElement('button');
+      more.type='button';more.className='icon-pack-more';
+      more.textContent='더 보기 ('+Math.min(ICON_PAGE_SIZE,matching.length-limit)+'개)';
+      more.addEventListener('click',()=>{
+        iconVisibleCounts.set(pack.id,limit+ICON_PAGE_SIZE);
+        renderIconLibrary();
+      });
+      grid.append(more);
+    }
+    count+=matching.length-Math.min(limit,matching.length);
     root.append(heading,grid);
   }
   $("icon-library-count").textContent='아이콘 '+count+'개 · 등록된 팩 '+importedIconPacks.length+'개';
@@ -1836,6 +1813,7 @@ function renderIconLibrary(){
 function openIconLibrary(item){
   libraryTarget=item;
   $("icon-library-search").value="";
+  iconVisibleCounts.clear();
   renderIconLibrary();
   $("icon-library").hidden=false;
   refreshImportedIconPacks();
