@@ -91,14 +91,15 @@ ipcMain.handle('d200x:open-website', async (event, args) => {
 ipcMain.handle('d200x:adjust-windows', async (event, args) => {
   if (!window || event.sender !== window.webContents)
     throw new Error('허용되지 않은 호출입니다.');
-  if (!args || !['volume','zoom'].includes(args.target) ||
-      ![-1,1].includes(args.direction) ||
-      ![1,2,5,10].includes(args.count ?? 1))
+  if (!args || !['volume','zoom','mute'].includes(args.target) ||
+      (args.target==='mute' ? args.direction!==0 : ![-1,1].includes(args.direction)) ||
+      ![1,2,5,10].includes(args.count ?? 1) ||
+      (args.target==='mute' && (args.count ?? 1)!==1))
     throw new Error('지원하지 않는 노브 조절 동작입니다.');
   if (process.platform !== 'win32')
     throw new Error('Windows에서만 지원하는 조절 동작입니다.');
-  const key = args.target === 'volume'
-    ? (args.direction > 0 ? 0xAF : 0xAE)
+  const key = args.target === 'mute' ? 0xAD
+    : args.target === 'volume' ? (args.direction > 0 ? 0xAF : 0xAE)
     : (args.direction > 0 ? 0xBB : 0xBD);
   // Always use constant C# source; only the allowlisted numeric virtual key
   // changes. No shell, file paths, profile input, or arbitrary commands.
