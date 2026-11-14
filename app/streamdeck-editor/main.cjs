@@ -71,7 +71,7 @@ ipcMain.handle('d200x:open-website', async (event, args) => {
   if (!window || event.sender !== window.webContents)
     throw new Error('허용되지 않은 호출입니다.');
   if (!args || args.mode !== 'default' || typeof args.url !== 'string'
-      || args.url.length > 2048 || /[\\x00-\\x1f\\x7f]/.test(args.url))
+      || args.url.length > 2048 || /[\x00-\x1f\x7f]/.test(args.url))
     throw new Error('기본 브라우저로 열기만 지원합니다.');
   let url;
   try { url = new URL(args.url.trim()); }
