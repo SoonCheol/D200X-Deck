@@ -9,10 +9,12 @@ window.D200XPanelIcons=(()=>{
     ["파일·프로그램 실행",["website","open","open-app","close","file-open","folder-shortcut"]],
     ["D200X 장치·화면",["brightness","sleep","virtual","device-brightness","folder","profile","previous","next","goto","indicator"]],
     ["자동화·다중 동작",["multi","multi-switch","random","logic","timer"]],
-    ["미디어·사운드",["audio-play","audio-stop","media"]]
+    ["미디어·사운드",["audio-play","audio-stop","media"]],
+    ["플러그인 · Home Assistant",["ha-toggle"]]
   ];
   // Compact, self-contained 24px stroke SVGs (no remote assets or emoji fonts).
   const paths={
+    "ha-toggle":'<path d="M3 11 12 3l9 8v10H3V11Z"/><path d="M8 21v-8h8v8"/><circle cx="12" cy="9" r="1"/>',
     "system-volume":'<polygon points="3 9 7 9 12 5 12 19 7 15 3 15"/><path d="M16 9a5 5 0 0 1 0 6M19 6a9 9 0 0 1 0 12"/>',
     "system-mute":'<polygon points="3 9 7 9 12 5 12 19 7 15 3 15"/><path d="m16 9 6 6m0-6-6 6"/>',
     "window-switch":'<rect x="3" y="7" width="13" height="13" rx="2"/><path d="M8 4h11a2 2 0 0 1 2 2v11M7 11h6m-3-3 3 3-3 3"/>',
