@@ -155,13 +155,11 @@ function displayItem(item,index){
     // Resolve by physical slot, not object identity: the hardware renderer clones actions.
     const slot=Number.isInteger(index)?index:DeckCore.visibleActions(state).findIndex(x=>x===item);
     const visual=slot>=0?sdkVisuals.get(sdkContext(slot,'down')):null;
-    if(visual){
-      // User-selected icon pack / file artwork wins over plugin runtime artwork.
-      const hasUserIcon=item.icon?.kind==='file'&&typeof item.icon.value==='string'||
-        item.icon?.kind==='glyph'&&typeof item.icon.glyph==='string';
-      return {...item,title:visual.title??item.title,
-        ...(!hasUserIcon&&visual.image?{icon:{kind:'file',value:visual.image}}:{})};
-    }
+    const stateName=visual?.state===1?'on':'off';
+    const assigned=item.settings?.sdkStateIcons?.[stateName];
+    const stateIcon=assigned?.kind==='file'&&typeof assigned.value==='string'?assigned:null;
+    const icon=stateIcon||item.icon||(visual?.image?{kind:'file',value:visual.image}:null);
+    if(icon||visual)return {...item,title:visual?.title??item.title,...(icon?{icon}:{})};
   }
   if(!item||item.type!=="indicator")return item;
   return {...item,icon:{kind:"glyph",glyph:String(state.page+1)}};
@@ -386,9 +384,6 @@ function renderLibrary(){
   if(libraryTab==='plugins'){
     const setup=document.createElement('button');setup.type='button';setup.textContent='⚙ Home Assistant 연결 설정';
     setup.addEventListener('click',configureHomeAssistant);root.append(setup);
-    const install=document.createElement('button');install.type='button';
-    install.textContent='＋ Stream Deck 플러그인 설치 (.streamDeckPlugin)';
-    install.addEventListener('click',installSdkPlugin);root.append(install);
     renderInstalledSdkPlugins(root,query);
   }
   for(const [category,entries] of CATALOG){
@@ -476,7 +471,20 @@ function bindActionAppearance(){
     }
   });
   host.append(label,select,reset);
+  host.id='action-appearance-toolbar';
   $("library-list").before(host);
+  const pluginToolbar=document.createElement('div');
+  pluginToolbar.id='plugin-install-toolbar';pluginToolbar.className='action-appearance plugin-install-toolbar';
+  const add=document.createElement('button');add.type='button';add.className='plugin-add-button';
+  add.textContent='＋ 플러그인 추가';
+  add.addEventListener('click',installSdkPlugin);pluginToolbar.append(add);
+  host.after(pluginToolbar);
+  updatePluginToolbar();
+}
+function updatePluginToolbar(){
+  const plugins=libraryTab==='plugins';
+  if($("action-appearance-toolbar"))$("action-appearance-toolbar").hidden=plugins;
+  if($("plugin-install-toolbar"))$("plugin-install-toolbar").hidden=!plugins;
 }
 function escapeHtml(x){return String(x??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));}
 const input=(field,label,placeholder="")=>`<div class="field"><label for="s-${field}">${label}</label><input id="s-${field}" data-field="${field}" value="${escapeHtml(valueOf(active,field))}" placeholder="${placeholder}"></div>`;
@@ -495,7 +503,9 @@ function actionFields(item){
   switch(item.type){
     case "audio-play":return pathPicker("file","파일")+select("mode","동작",[["play-stop","재생 / 정지"],["overlap","재생 / 오버랩"],["restart","재생 / 재시작"],["loop-stop","반복 / 정지"]])+select("fade","페이드",[["none","페이드 없음"],["in","페이드 인"],["out","페이드 아웃"],["in-out","페이드 인 앤 아웃"]])+select("fadeDuration","페이드 시간",[[1,"1초"],[2,"2초"],[3,"3초"],[4,"4초"],[5,"5초"]])+`<div class="field"><label for="s-volume">음량</label><div class="compound"><input id="s-volume" type="range" min="0" max="100" data-field="volume" value="${valueOf(item,"volume",50)}"><output id="volume-display">${valueOf(item,"volume",50)}</output></div></div>`+select("output","출력",[["default","기본"]])+`<div class="field"><span></span><span class="hint">연결된 출력 장치를 선택할 수 있습니다. 장치 전환은 실행 시 적용됩니다.</span></div>`;
     case "sd-plugin":return '<div class="field"><label>설치된 플러그인</label><span class="hint">'+escapeHtml(item.settings?.actionName||item.settings?.actionUUID||'')+'</span></div>'+
-      '<div class="field"><label>원본 속성 편집기</label><button type="button" data-sdk-inspector>설정 열기</button></div>';
+      '<div class="field"><label>원본 속성 편집기</label><button type="button" class="sdk-settings-open" data-sdk-inspector>설정 열기</button></div>'+
+      '<div class="field"><label>상태별 아이콘</label><span class="hint">OFF / ON 이미지를 각각 설정합니다. 플러그인 상태 0 / 1에 따라 표시됩니다.</span></div>'+
+      '<div class="sdk-state-icons" data-sdk-state-icons></div>';
     case "ha-toggle":return input("entityId","HA 엔티티 ID","switch.living_room")+
       '<div class="field"><label>엔티티</label><button type="button" data-ha-entities>목록에서 선택</button></div>';
     case "audio-stop": case "previous": case "next": case "indicator":return "";
@@ -1118,8 +1128,47 @@ function renderControlInspector(){
   }
   root.append(testBar);
 }
+function bindSdkStateIcons(root,item){
+  const panel=root.querySelector('[data-sdk-state-icons]');
+  if(!panel)return;
+  const draw=()=>{
+    panel.replaceChildren();
+    for(const [key,label] of [['off','OFF'],['on','ON']]){
+      const group=document.createElement('div');group.className='sdk-state-icon';
+      const heading=document.createElement('strong');heading.textContent=label;
+      const image=document.createElement('div');image.className='sdk-state-preview';
+      const selected=item.settings?.sdkStateIcons?.[key];
+      if(selected?.kind==='file'){
+        const img=document.createElement('img');img.src=selected.value;img.alt=label+' 상태 아이콘';image.append(img);
+      }else image.textContent='기본';
+      const choose=document.createElement('button');choose.type='button';choose.textContent='라이브러리';
+      choose.addEventListener('click',()=>openIconLibrary(item,key));
+      const file=document.createElement('button');file.type='button';file.textContent='파일';
+      file.addEventListener('click',async()=>{
+        try{
+          if(!window.deckBridge?.chooseImportFile)throw Error('Windows EXE에서 사용할 수 있습니다.');
+          const chosen=await chooseNativeImage('image');
+          if(!chosen?.dataUrl)return;
+          const png=await rasterizeIcon(chosen.dataUrl);
+          if(!currentPage().includes(item))return;
+          item.settings.sdkStateIcons??={};
+          item.settings.sdkStateIcons[key]={kind:'file',value:png};
+          persist();render();
+        }catch(error){window.d200xActionStatus?.('상태 아이콘 선택 실패: '+String(error?.message||error));}
+      });
+      const reset=document.createElement('button');reset.type='button';reset.textContent='초기화';
+      reset.addEventListener('click',()=>{
+        if(item.settings?.sdkStateIcons)delete item.settings.sdkStateIcons[key];
+        persist();render();
+      });
+      group.append(heading,image,choose,file,reset);panel.append(group);
+    }
+  };
+  draw();
+}
 function bindExtendedActionFields(root,item){
   if(item.type==='sd-plugin'){
+    bindSdkStateIcons(root,item);
     root.querySelector('[data-sdk-inspector]')?.addEventListener('click',async()=>{
       const context=pluginSlotContext(item);
       if(!context)return;
@@ -1913,6 +1962,7 @@ function render(){renderGrid();renderInspector();refreshProfilesMenu();scheduleS
 // Installed packs are read from the application's packaged library.
 // The prototype glyph groups have been removed; only genuine packs appear.
 let libraryTarget=null;
+let libraryStateKey=null;
 let importedIconPacks=[];
 const ICON_PAGE_SIZE=84;
 const iconVisibleCounts=new Map();
@@ -2030,7 +2080,10 @@ function renderIconLibrary(){
         try{
           const png=await rasterizeIcon(icon.image);
           if(!currentPage().includes(target))return;
-          target.icon={kind:'file',value:png,packId:pack.id};
+          if(libraryStateKey&&target.type==='sd-plugin'){
+            target.settings.sdkStateIcons??={};
+            target.settings.sdkStateIcons[libraryStateKey]={kind:'file',value:png,packId:pack.id};
+          }else target.icon={kind:'file',value:png,packId:pack.id};
           persist();render();closeIconLibrary();
         }catch(error){
           window.d200xActionStatus?.('팩 아이콘 적용 실패: '+String(error?.message||error));
@@ -2053,8 +2106,9 @@ function renderIconLibrary(){
   }
   $("icon-library-count").textContent='아이콘 '+count+'개 · 등록된 팩 '+importedIconPacks.length+'개';
 }
-function openIconLibrary(item){
+function openIconLibrary(item,stateKey=null){
   libraryTarget=item;
+  libraryStateKey=stateKey;
   $("icon-library-search").value="";
   iconVisibleCounts.clear();
   expandedIconPacks.clear();
@@ -2064,7 +2118,7 @@ function openIconLibrary(item){
   $("icon-library-search").focus();
 }
 function closeIconLibrary(){
-  $("icon-library").hidden=true;libraryTarget=null;
+  $("icon-library").hidden=true;libraryTarget=null;libraryStateKey=null;
 }
 let fileIconTarget=null;
 let makerTarget=null;
@@ -2320,6 +2374,7 @@ tabs[1].disabled=false;tabs[1].removeAttribute('title');
 tabs.forEach((button,index)=>button.addEventListener('click',()=>{
   libraryTab=index?'plugins':'keys';
   tabs.forEach((tab,i)=>tab.classList.toggle('active',i===index));
+  updatePluginToolbar();
   renderLibrary();
 }));
 // Poll only when explicitly enabled. The native bridge refuses to identify
