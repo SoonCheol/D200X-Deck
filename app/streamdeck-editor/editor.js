@@ -276,12 +276,12 @@ function renderLibrary(){
           }
           const reader=new FileReader();
           reader.onload=()=>{
-            if(window.D200XPanelIcons.setOverride(id,String(reader.result))){renderLibrary();renderGrid();renderInspector();}
+            if(window.D200XPanelIcons.setOverride(id,String(reader.result))){renderLibrary();renderGrid();renderInspector();window.scheduleDeckSync?.();}
           };
           reader.readAsDataURL(selected);
         });
         const reset=document.createElement("button");reset.type="button";reset.textContent="기본 아이콘";
-        reset.addEventListener("click",ev=>{ev.stopPropagation();window.D200XPanelIcons.clearOverride(id);renderLibrary();renderGrid();renderInspector();});
+        reset.addEventListener("click",ev=>{ev.stopPropagation();window.D200XPanelIcons.clearOverride(id);renderLibrary();renderGrid();renderInspector();window.scheduleDeckSync?.();});
         tools.addEventListener("click",ev=>ev.stopPropagation());
         tools.append(upload,file,reset);entry.append(tools);
       });
@@ -307,12 +307,12 @@ function bindActionAppearance(){
     const option=document.createElement("option");option.value=value;option.textContent=name;select.append(option);
   });
   select.value=window.D200XPanelIcons.theme;
-  select.addEventListener("change",()=>{window.D200XPanelIcons.setTheme(select.value);renderLibrary();renderGrid();renderInspector();});
+  select.addEventListener("change",()=>{window.D200XPanelIcons.setTheme(select.value);renderLibrary();renderGrid();renderInspector();window.scheduleDeckSync?.();});
   const reset=document.createElement("button");reset.type="button";reset.textContent="개별 초기화";
   reset.title="오른쪽 목록의 개별 아이콘 설정만 초기화";
   reset.addEventListener("click",()=>{
     if(confirm("오른쪽 액션 목록의 개별 아이콘만 모두 초기화할까요?")){
-      window.D200XPanelIcons.clearAll();renderLibrary();renderGrid();renderInspector();
+      window.D200XPanelIcons.clearAll();renderLibrary();renderGrid();renderInspector();window.scheduleDeckSync?.();
     }
   });
   host.append(label,select,reset);
@@ -1578,7 +1578,7 @@ function bindSidebarHeader(){
             if(!window.D200XPanelIcons.restoreConfig(parsed.actionPanelAppearance))
               window.d200xActionStatus?.('프로필은 복원했지만 액션 목록 테마 복원은 실패했습니다.');
           }
-          controlGesture='down';render();renderLibrary();
+          controlGesture='down';render();renderLibrary();window.scheduleDeckSync?.();
           window.d200xActionStatus?.('전체 프로필 가져오기 완료 (이전 설정 안전 백업 보관)');
         }catch(error){alert('프로필 가져오기 실패: '+String(error?.message||error));}
       },{once:true});
