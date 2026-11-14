@@ -72,7 +72,7 @@
 - 본 브랜치에 page/volume/zoom 노브 공통 옵션 및 물리 버튼/노브 입력 처리 코드가 존재하고 Node CI 및 Windows 프리뷰 빌드는 성공 기록이 있다. **Windows 앱 동작·D200X 실기 검증은 별개**이다. 실행 확인 없이 완료 처리 금지.
 - 8개 핵심 액션을 우선하고, 페이지 이동 액션 소실/무반응 문제를 회귀 대상으로 기록한다. 실제로 보고하지 않은 긴 누르기 이벤트 지원을 추측해서 구현하지 않는다.
 - 기능 추가는 작업 단위별로 커밋, 테스트 결과, 미완료 사항을 GitHub 문서에 남기고 다음 Codex 세션이 이어받을 수 있도록 한다.
-- **사용자 빌드 보류(2026-11-14):** 변경마다 EXE/ZIP을 만들지 않는다. GitHub CI/Node 검증은 유지하되 Windows EXE는 사용자가 요청할 때 `streamdeck-clean-preview.yml`을 수동 실행한다.
+- **최신 사용자 지시(2026-11-15) — 자동 EXE 빌드:** `streamdeck-clean-preview.yml`은 `codex/streamdeck-761-clean-editor` 브랜치의 `app/streamdeck-editor/**`, `app/lib/**`, `app/package.json`, `app/package-lock.json` 또는 해당 워크플로 파일 변경 시 자동 실행한다. 문서만 변경한 커밋은 빌드하지 않는다. `workflow_dispatch` 수동 실행도 유지한다. 위 과거 보류 기록보다 이 항목이 우선한다. 실제 Windows GUI/D200X 실기 검증과 빌드 성공은 구분하며 PR #5 병합 금지.
 
 ## 페이지 이동 오류 — 재작업 방지 (2026-11-14)
 
