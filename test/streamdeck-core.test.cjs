@@ -131,6 +131,18 @@ test('local path action planning preserves user selected path safely',()=>{
   assert.equal(restored.pages[0][1].settings.path,a.settings.path);
 });
 
+test('conflicting legacy page bindings and global single knob both survive migration',()=>{
+  const a=core.blankPage(),b=core.blankPage(),c=core.blankPage();
+  a[14]=core.createAction('next');b[14]=core.createAction('previous');
+  a[16]=core.createAction('next');
+  const s=core.migrateState({pages:[a,b,c],page:0});
+  assert.equal(s.controls.scopes[0],'page');
+  assert.equal(s.controls.scopes[2],'global');
+  s.page=1;
+  assert.equal(core.planHardwareEvent(s,{kind:1,index:15,pressed:true}).outcome.page,0);
+  assert.equal(core.planHardwareEvent(s,{kind:2,index:17,state:3}).outcome.page,2);
+});
+
 test('legacy state migration retains visible and physical slots, selected page and icon',()=>{
   const old={pages:[[{type:'timer',title:'내 타이머',settings:{seconds:45},
     icon:{kind:'glyph',glyph:'◴'},titleStyle:{color:'#ff0000'}}],[]],page:1,selected:15};
