@@ -740,6 +740,13 @@ function executeHardwareAction(event,preview=false){
     );
     return 'Windows 음소거 전환 요청';
   }
+  if(outcome.kind==='close-local-app'){
+    if(!window.deckBridge?.closeLocalApp)return 'Windows 실행 환경에서만 사용할 수 있습니다.';
+    window.deckBridge.closeLocalApp(outcome.path,outcome.force).then(
+      ()=>window.d200xActionStatus?.('선택한 프로그램 닫기 요청 완료'),
+      error=>window.d200xActionStatus?.('프로그램 닫기 실패: '+String(error?.message||error)));
+    return '선택한 프로그램 '+(outcome.force?'강제 종료':'닫기')+' 요청';
+  }
   if(outcome.kind==='audio-stop'){
     for(const audio of allPlayingAudio){audio.pause();audio.currentTime=0;}
     allPlayingAudio.clear();activeAudioPlayers.clear();
