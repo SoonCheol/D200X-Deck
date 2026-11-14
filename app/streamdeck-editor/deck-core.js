@@ -402,13 +402,13 @@
   function setProfileApp(state,id,appPath){
     const profile=state.profileNames?.find(p=>p.id===id);
     if(!profile||typeof appPath!=='string'||appPath.length>1024)return false;
-    if(appPath&&(!/^[A-Za-z]:\\\\/.test(appPath)||!/\\.exe$/i.test(appPath)))return false;
+    if(appPath&&(!/^[A-Za-z]:/.test(appPath)||appPath.charCodeAt(2)!==92||!appPath.toLowerCase().endsWith('.exe')))return false;
     profile.appPath=appPath;return true;
   }
   function matchForegroundProfile(state,appPath){
     if(!state?.smartProfilesEnabled||typeof appPath!=='string'||!appPath)return null;
-    const normalized=appPath.replace(/\\//g,'\\\\').toLowerCase();
-    return state.profileNames.find(p=>p.appPath&&p.appPath.replace(/\\//g,'\\\\').toLowerCase()===normalized)?.id||null;
+    const normalized=appPath.replaceAll('/',String.fromCharCode(92)).toLowerCase();
+    return state.profileNames.find(p=>p.appPath&&p.appPath.replaceAll('/',String.fromCharCode(92)).toLowerCase()===normalized)?.id||null;
   }
   function deleteProfile(state,id){
     if(!state.profileNames?.some(p=>p.id===id)||state.profileNames.length<=1)return false;
