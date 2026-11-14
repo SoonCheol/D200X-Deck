@@ -17,7 +17,7 @@
     'screenshot','clipboard-edit','window-state','window-monitor','explorer-open',
     'brush-size','timeline-step','timeline-zoom','file-open','folder-shortcut'];
   const DEFAULTS={
-    'audio-play':{file:'',mode:'play-stop',fade:'none',volume:50,output:'default'},
+    'audio-play':{file:'',mode:'play-stop',fade:'none',fadeDuration:2,volume:50,output:'default'},
     'audio-stop':{},timer:{seconds:30,sound:'connect'},
     brightness:{mode:'up'},sleep:{},virtual:{},
     multi:{},'multi-switch':{activeState:0},random:{},logic:{},
@@ -544,6 +544,7 @@
       file:String(action.settings?.file||''),mode:action.settings?.mode||'play-stop',
       volume:Math.max(0,Math.min(100,Number(action.settings?.volume)||0)),
       fade:['none','in','out','in-out'].includes(action.settings?.fade)?action.settings.fade:'none',
+      fadeDuration:[1,2,3,4,5].includes(Number(action.settings?.fadeDuration))?Number(action.settings.fadeDuration):2,
       output:typeof action.settings?.output==='string'?action.settings.output:'default'};
     if(action.type==='audio-stop')return {kind:'audio-stop'};
     if(action.type==='text')return {kind:'type-text',text:String(action.settings?.body||''),
