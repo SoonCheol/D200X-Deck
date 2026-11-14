@@ -62,3 +62,17 @@ test('legacy horizontal alignment migrates to title vertical overlay positions',
   }
   assert.equal(core.cleanAction({type:'timer',titleStyle:{align:'top'}}).titleStyle.align,'top');
 });
+
+test('outline defaults and user selections survive legacy migration',()=>{
+  const a=core.createAction('timer');
+  assert.equal(a.titleStyle.outlineColor,'#000000');
+  assert.equal(a.titleStyle.outlineWidth,'thin');
+  const b=core.migrateState({pages:[[{type:'timer',titleStyle:{
+    color:'#80aaff',outlineColor:'#123456',outlineWidth:'thick'
+  }}]]});
+  assert.equal(b.pages[0][0].titleStyle.outlineColor,'#123456');
+  assert.equal(b.pages[0][0].titleStyle.outlineWidth,'thick');
+  const bad=core.cleanAction({type:'timer',titleStyle:{outlineColor:'bad',outlineWidth:'huge'}});
+  assert.equal(bad.titleStyle.outlineColor,'#000000');
+  assert.equal(bad.titleStyle.outlineWidth,'thin');
+});
