@@ -291,3 +291,11 @@
 - **저장 안전:** 액션 목록의 테마/개별 이미지는 별도 `localStorage` 키 `d200x-action-panel-appearance-v1`에 보관. 기존 프로필/버튼/노브/화면 키 아이콘 및 D200X 전송 PNG 저장 형식은 변경하지 않음. 개별 이미지 파일은 PNG/JPEG/WebP/GIF 최대 140KB(선택 화면 기준)이고, SVG 외부 파일은 업로드하지 않음.
 - **단축키 안내:** Windows 고정 단축키와 앱별 단축키는 오른쪽 목록에 텍스트로만 표시. 실행 엔진/기존 설정은 변경하지 않고, 앱별 키맵과 실제 Windows/D200X 동작은 추후 실기 확인.
 - **검증 범위:** 기존 카탈로그 42개 ID 및 새 그룹 42개가 일대일 대응(누락·중복 0), SVG 42개 ID 중복 0으로 GitHub 소스 수준 대조. 실제 GUI 시각·클릭·업로드 저장/복원 및 실물 D200X 시험은 **미검증**. 새 Windows EXE/ZIP은 사용자 별도 요청 전까지 빌드하지 않음. PR #5 병합 금지.
+
+
+## 2026-11-15 자동 Windows EXE 빌드 정책 (최신 사용자 승인)
+
+- 사용자 지시로 `.github/workflows/streamdeck-clean-preview.yml`의 기존 수동 전용 `workflow_dispatch`를 유지하면서, `codex/streamdeck-761-clean-editor`의 편집기 코드(`app/streamdeck-editor/**`, `app/lib/**`), 앱 의존성(`app/package.json`, `app/package-lock.json`) 또는 워크플로 파일 변경 시 `push` 자동 실행을 추가.
+- 문서/로드맵만 변경한 커밋은 Windows EXE 자동 패키징에서 제외. `main`에 PR #5를 병합하지 않음.
+- 빌드 산출물/만료/다운로드: 기존 `D200X-StreamDeck-Device-Sync-win-x64` ZIP, 14일 보존, GitHub Actions 성공 실행 페이지의 Artifacts에서 다운로드. EXE 빌드와 실제 Windows GUI 및 실물 D200X 기능 검증을 혼동 금지.
+- 과거의 “EXE는 요청 시에만 수동 실행” 지침보다 위 최신 승인 정책 우선.
