@@ -898,7 +898,7 @@ test('Multi Action retains bounded delays and rejects unsupported nested composi
 
 
 test('HA plugin action is separate and survives profile migration and hardware planning',()=>{
-  assert.deepEqual(core.PLUGIN_ACTION_IDS,['ha-toggle']);
+  assert.deepEqual(core.PLUGIN_ACTION_IDS,['ha-toggle','sd-plugin']);
   assert.equal(core.ACTION_IDS.length,24);
   assert.equal(core.D200X_ACTION_IDS.length,18);
   const state=core.migrateState(null);
@@ -913,4 +913,19 @@ test('HA plugin action is separate and survives profile migration and hardware p
   assert.deepEqual(core.planAction(restored.pages[0][0],0,1),
     {kind:'ha-toggle',entityId:'switch.kitchen'});
   assert.equal(core.controlBinding(restored,16).down.settings.entityId,'fan.bathroom');
+});
+
+test('SDK plugin binding is kept separately from its old HA REST toggle',()=>{
+  const a=core.createAction('sd-plugin');
+  a.settings.pluginUUID='de.perdoctus.streamdeck.homeassistant';
+  a.settings.actionUUID='de.perdoctus.streamdeck.homeassistant.entity';
+  a.settings.pluginSettings={display:{entityId:'switch.kitchen'}};
+  const state=core.migrateState(null);
+  state.pages[0][0]=a;
+  const restored=core.migrateState(JSON.parse(JSON.stringify(state)));
+  assert.equal(restored.pages[0][0].settings.pluginUUID,a.settings.pluginUUID);
+  assert.equal(restored.pages[0][0].settings.pluginSettings.display.entityId,'switch.kitchen');
+  assert.deepEqual(core.planAction(restored.pages[0][0],0,1),{
+    kind:'sd-plugin',pluginUUID:a.settings.pluginUUID,actionUUID:a.settings.actionUUID
+  });
 });
