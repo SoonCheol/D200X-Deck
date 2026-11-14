@@ -66,7 +66,7 @@
   const ADJUST_TARGETS=['page','volume','zoom'];
   function emptyBinding(){
     return {mode:'trigger',down:null,left:null,right:null,target:'page',
-      stack:['page','volume'],stackIndex:0};
+      stack:['page','volume'],stackIndex:0,step:1,reverseDirection:false};
   }
   function cleanBinding(value){
     const out=emptyBinding();
@@ -79,6 +79,8 @@
       if(!out.stack.length)out.stack=['page'];
     }
     out.stackIndex=Math.max(0,Math.min(out.stack.length-1,Number.isInteger(value.stackIndex)?value.stackIndex:0));
+    out.step=[1,2,5,10].includes(value.step)?value.step:1;
+    out.reverseDirection=value.reverseDirection===true;
     return out;
   }
   function emptyControls(pageCount){
@@ -206,10 +208,11 @@
         const target=binding.mode==='stack'
           ? binding.stack[Math.abs(activeStack)%binding.stack.length]:binding.target;
         if(!ADJUST_TARGETS.includes(target))return null;
-        const direction=gesture==='left'?-1:1;
+        const direction=(gesture==='left'?-1:1)*(binding.reverseDirection?-1:1);
+        const step=[1,2,5,10].includes(binding.step)?binding.step:1;
         return {index,gesture,outcome:target==='page'
-          ? {kind:'page',page:Math.max(0,Math.min(state.pages.length-1,state.page+direction))}
-          : {kind:'adjust',target,direction}};
+          ? {kind:'page',page:Math.max(0,Math.min(state.pages.length-1,state.page+direction*step))}
+          : {kind:'adjust',target,direction,...(step===1?{}:{count:step})}};
       }
       if(gesture==='left'||gesture==='right'){
         const action=binding[gesture];
