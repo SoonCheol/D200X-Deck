@@ -20,7 +20,7 @@ test('all 24 observed Stream Deck actions have independent defaults',()=>{
 test('separate D200X volume/mute actions preserve the original 24',()=>{
   assert.equal(core.ACTION_IDS.length,24);
   assert.deepEqual(core.D200X_ACTION_IDS,['system-volume','system-mute','system-scroll','edit-history','window-switch','desktop-switch','device-brightness','system-zoom',
-    'screenshot','clipboard-edit','window-state','window-monitor','explorer-open','brush-size','timeline-step','file-open','folder-shortcut']);
+    'screenshot','clipboard-edit','window-state','window-monitor','explorer-open','brush-size','timeline-step','timeline-zoom','file-open','folder-shortcut']);
   const volume=core.createAction('system-volume');
   assert.deepEqual(core.planAction(volume,0,1),{kind:'adjust',target:'volume',direction:1,count:1});
   volume.settings.direction='down';volume.settings.step=5;
@@ -115,7 +115,7 @@ test('brightness and zoom action planner',()=>{
 test('P1/P2 closed shortcut actions preserve 24 original entries',()=>{
   assert.equal(core.ACTION_IDS.length,24);
   for(const [id,op] of [['screenshot','capture'],['clipboard-edit','copy'],['window-state','maximize'],
-    ['window-monitor','right'],['explorer-open','open'],['brush-size','increase'],['timeline-step','next']]){
+    ['window-monitor','right'],['explorer-open','open'],['brush-size','increase'],['timeline-step','next'],['timeline-zoom','in']]){
     const a=core.createAction(id);
     assert.deepEqual(core.planAction(a,0,1),{kind:'system-shortcut',target:id,operation:op});
     const state=core.migrateState(null);state.pages[0][0]=a;
