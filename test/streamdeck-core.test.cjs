@@ -236,3 +236,14 @@ test('physical controls do not execute an action after a release',()=>{
   assert.equal(core.planHardwareEvent(state,{kind:1,index:15,pressed:true}).outcome.kind,'page');
   assert.equal(core.planHardwareEvent(state,{kind:2,index:17,state:0}),null);
 });
+
+test('stack cycles even when a previous press action is still saved',()=>{
+  const state=core.migrateState(null);
+  const knob=core.controlBinding(state,16);
+  knob.mode='stack';knob.stack=['page','volume','zoom'];
+  knob.down=core.createAction('previous');
+  assert.deepEqual(core.planHardwareEvent(state,{kind:2,index:17,state:1}).outcome,
+    {kind:'stack-next',size:3});
+  assert.deepEqual(core.planHardwareEvent(state,{kind:2,index:17,state:2},1).outcome,
+    {kind:'adjust',target:'volume',direction:-1});
+});
