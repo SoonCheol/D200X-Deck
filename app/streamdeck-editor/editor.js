@@ -76,7 +76,9 @@ function controlDrop(index,id,gesture='down'){
     binding.target='page';
     binding.down=newAction(id);
   }else{
-    if(binding.mode!=='trigger')binding.mode='trigger';
+    // A knob press action can coexist with rotate-to-adjust (volume/page/zoom).
+    if(binding.mode!=='trigger' && !(index>=16&&gesture==='down'&&binding.mode==='adjust'))
+      binding.mode='trigger';
     binding[gesture]=newAction(id);
   }
   state.selected=index;controlGesture=gesture;
