@@ -139,6 +139,7 @@
       if(step.kind==='delay')await wait(step.ms,signal);
       else await execute(step,signal);
     }
+    if(signal?.aborted)throw new Error('복합 동작이 취소되었습니다.');
     return plan.steps.length;
   }
   const CONTROL_MODES=['trigger','adjust','stack'];
