@@ -22,12 +22,14 @@ function load(){
   },console});
   return {panel:window.D200XPanelIcons,storage};
 }
-test("All 42 existing action IDs have distinct SVGs and seven groups",()=>{
+test("Original 42 action icons are preserved and HA adds one separate plugin icon",()=>{
   const {panel}=load();
   const ids=panel.groups.flatMap(group=>group[1]);
-  assert.equal(ids.length,42);
-  assert.equal(new Set(ids).size,42);
-  assert.equal(panel.ids.length,42);
+  assert.equal(ids.length,43);
+  assert.equal(new Set(ids).size,43);
+  assert.equal(panel.ids.length,43);
+  assert.deepEqual(Array.from(panel.groups.at(-1)[1]),['ha-toggle']);
+  assert.equal(panel.groups.slice(0,-1).flatMap(group=>group[1]).length,42);
   for(const id of ids){
     assert.ok(panel.ids.includes(id),id);
     const icon=panel.create(id);
