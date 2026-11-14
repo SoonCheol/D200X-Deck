@@ -351,6 +351,52 @@ test('folder migration safely restores valid active folder paths and removes inv
   assert.equal(core.currentActions(again)[0].type,'media');
 });
 
+test('legacy state becomes default profile without changing buttons, folder and knobs',()=>{
+  const legacy={pages:[[{type:'timer',title:'안전',settings:{seconds:42}},
+    {type:'folder',children:[null,{type:'media'}]}]],page:0};
+  const s=core.migrateState(legacy);
+  assert.equal(s.profileId,'default');
+  assert.equal(s.profileNames.length,1);
+  assert.equal(s.pages[0][0].settings.seconds,42);
+  assert.equal(s.pages[0][1].children[1].type,'media');
+  const restored=core.migrateState(JSON.parse(JSON.stringify(s)));
+  assert.equal(restored.pages[0][0].title,'안전');
+});
+
+test('profile create, switch, rename and duplicate isolate page, knobs and folders',()=>{
+  const s=core.migrateState(null);
+  s.pages[0][0]=core.createAction('media');
+  core.controlBinding(s,16).down=core.createAction('next');
+  const second=core.createProfile(s,'포토샵');
+  assert.ok(second);
+  assert.equal(core.switchProfile(s,second),true);
+  assert.equal(s.pages[0][0],null);
+  assert.equal(core.controlBinding(s,16).down,null);
+  s.pages[0][0]=core.createAction('folder');
+  assert.equal(core.enterFolder(s,0),true);
+  assert.equal(core.renameProfile(s,second,'영상 편집'),true);
+  assert.equal(core.switchProfile(s,'default'),true);
+  assert.equal(s.pages[0][0].type,'media');
+  assert.equal(core.controlBinding(s,16).down.type,'next');
+  assert.deepEqual(s.folderPath,[]);
+  const duplicate=core.createProfile(s,'복사본',true);
+  assert.ok(duplicate);
+  assert.equal(core.switchProfile(s,duplicate),true);
+  assert.equal(s.pages[0][0].type,'media');
+  s.pages[0][0].title='바뀜';
+  assert.equal(core.switchProfile(s,'default'),true);
+  assert.equal(s.pages[0][0].title,'');
+  const r=core.migrateState(JSON.parse(JSON.stringify(s)));
+  assert.equal(r.profileNames.length,3);
+  assert.equal(core.switchProfile(r,second),true);
+  assert.equal(r.pages[0][0].type,'folder');
+  assert.deepEqual(r.folderPath,[0]);
+  assert.equal(core.deleteProfile(r,second),true);
+  assert.equal(r.profileNames.length,2);
+  assert.equal(core.deleteProfile(r,'default'),true);
+  assert.equal(core.deleteProfile(r,r.profileId),false);
+});
+
 test('original brightness action respects the 20 percent floor for fixed presets',()=>{
   const a=core.createAction('brightness');
   a.settings.mode='min';
