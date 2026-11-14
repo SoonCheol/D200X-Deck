@@ -17,6 +17,22 @@ const CATALOG = window.D200XPanelIcons.groups.map(([category,ids])=>[
     return entry;
   })
 ]);
+const HOTKEY_PRESETS={
+  copy:'Ctrl+C',paste:'Ctrl+V',cut:'Ctrl+X',
+  undo:'Ctrl+Z',redo:'Ctrl+Y',save:'Ctrl+S',
+  selectAll:'Ctrl+A',find:'Ctrl+F',newWindow:'Ctrl+N',
+  switchWindow:'Alt+Tab',showDesktop:'Win+D',
+  explorer:'Win+E',lock:'Win+L',taskManager:'Ctrl+Shift+Escape',
+  screenshot:'Win+Shift+S'
+};
+const HOTKEY_PRESET_LABELS=[
+  ['','직접 지정'],['copy','복사'],['paste','붙여넣기'],['cut','잘라내기'],
+  ['undo','실행 취소'],['redo','다시 실행'],['save','저장'],
+  ['selectAll','전체 선택'],['find','찾기'],['newWindow','새 창'],
+  ['switchWindow','창 전환'],['showDesktop','바탕화면 보기'],
+  ['explorer','파일 탐색기'],['lock','Windows 잠금'],['taskManager','작업 관리자'],
+  ['screenshot','영역 캡처']
+];
 const PANEL_SHORTCUTS={
   "window-monitor":"Win + Shift + ← / →",
   "window-state":"Win + ↑ / ↓",
@@ -343,7 +359,7 @@ function actionFields(item){
     case "open":return pathPicker("path","앱 / 파일");
     case "open-app":return pathPicker("app","앱","app")+select("hold","길게 누르기",[["none","아무것도 하지 않음"],["close","응용 프로그램 종료"],["force","응용 프로그램 강제 종료"]])+check("foreground","이미 실행 중이면 맨 앞으로");
     case "close":return pathPicker("path","앱 / 파일")+check("force","강제 종료");
-    case "hotkey":return `<div class="field"><label>동작 선택기</label><span class="hint">프리셋 동작 (상세 프리셋 선택은 후속 구현)</span></div>`+input("keys","단축키","클릭하여 할당");
+    case "hotkey":return select("preset","동작 선택기",HOTKEY_PRESET_LABELS)+input("keys","단축키","클릭하여 할당");
     case "hotkey-switch":return input("first","단축키 1")+input("second","단축키 2");
     case "text":return `<div class="field"><label for="s-body">텍스트</label><div><textarea id="s-body" data-field="body">${escapeHtml(valueOf(item,"body"))}</textarea><div class="hint" id="text-count">${String(valueOf(item,"body")).length} / -</div></div></div>`+check("enter","메시지 뒤 Enter")+select("mode","텍스트 모드",[["clipboard","클립보드에서 붙여넣기"],["typing","타이핑 시뮬레이션"]]);
     case "media":return select("op","동작",[["previous","이전 트랙"],["playpause","재생 / 일시정지"],["next","다음 트랙"],["stop","정지"],["mute","음소거"],["up","음량 키우기"],["down","음량 줄이기"]]);
@@ -1059,6 +1075,17 @@ function renderInspector(){
         node.value=combo;item.settings[field]=combo;persist();node.blur();
       });
     }
+  }
+  if(item.type==='hotkey'){
+    const preset=root.querySelector('[data-field="preset"]');
+    preset?.addEventListener('change',()=>{
+      item.settings.preset=preset.value;
+      if(preset.value&&HOTKEY_PRESETS[preset.value]){
+        item.settings.keys=HOTKEY_PRESETS[preset.value];
+        const keys=root.querySelector('[data-field="keys"]');if(keys)keys.value=item.settings.keys;
+      }
+      persist();
+    });
   }
   root.querySelectorAll("[data-field]").forEach(node=>{
     node.addEventListener(node.type==="range"||node.tagName==="TEXTAREA"?"input":"change",()=>{
