@@ -57,6 +57,6 @@ test('removes only user-imported pack, leaving other packs intact',async()=>{
     assert.equal(await removePack(target,pack.id),true);
     assert.equal(await removePack(target,pack.id),false);
     assert.deepEqual((await readPacks(target)).map(x=>x.name),['Second']);
-    await assert.rejects(removePack(target,'bundled-simple-gray-tones-1.0.1'),/기본 아이콘팩/);
+    await assert.rejects(removePack(target,'builtin-fluentui-filled'),/기본 아이콘팩/);
   }finally{await fs.rm(dir,{recursive:true,force:true});}
 });
