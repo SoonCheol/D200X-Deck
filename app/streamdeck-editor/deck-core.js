@@ -238,6 +238,21 @@
     while(action.children.length<14)action.children.push(null);
     return action.children;
   }
+  function visibleActions(state){
+    const actions=currentActions(state);
+    if(!actions)return [];
+    if((state.folderPath||[]).length)return actions;
+    return actions.map((item,i)=>item||state.pinned?.[i]||null);
+  }
+  function togglePinned(state,index){
+    if((state.folderPath||[]).length||!Number.isInteger(index)||index<0||index>=14)return false;
+    if(!Array.isArray(state.pinned))state.pinned=Array.from({length:14},()=>null);
+    if(state.pinned[index]){state.pinned[index]=null;return true;}
+    const item=state.pages?.[state.page]?.[index];
+    if(!item)return false;
+    state.pinned[index]=cleanAction(item);
+    return true;
+  }
   function currentActions(state){
     let actions=state.pages?.[state.page];
     if(!actions)return null;
@@ -260,7 +275,7 @@
   }
 
   function migrateState(value){
-    const state={pages:[blankPage()],page:0,selected:null,controls:emptyControls(1),folderPath:[]};
+    const state={pages:[blankPage()],page:0,selected:null,controls:emptyControls(1),folderPath:[],pinned:Array.from({length:14},()=>null)};
     // Legacy single-profile storage gains metadata but never loses its pages.
     if(!value||typeof value!=='object'||!Array.isArray(value.pages)||!value.pages.length){
       initProfiles(state,value);return state;
@@ -306,6 +321,7 @@
         }
       }
     }
+    state.pinned=Array.from({length:14},(_,i)=>cleanAction(value.pinned?.[i]));
     state.folderPath=[];
     if(Array.isArray(value.folderPath)){
       for(const entry of value.folderPath.slice(0,8)){
@@ -320,7 +336,7 @@
   // existing top-level pages/page/controls fields, avoiding doubled icon data.
   function profileSnapshot(state){
     return {pages:copy(state.pages),page:state.page,controls:copy(state.controls),
-      folderPath:copy(state.folderPath||[])};
+      folderPath:copy(state.folderPath||[]),pinned:copy(state.pinned||Array(14).fill(null))};
   }
   function initProfiles(state,value){
     const source=Array.isArray(value?.profileNames)?value.profileNames:null;
@@ -348,7 +364,7 @@
     state.inactiveProfiles.push(old);
     const clean=migrateState(next);
     state.pages=clean.pages;state.page=clean.page;state.controls=clean.controls;
-    state.folderPath=clean.folderPath;state.selected=null;state.profileId=id;
+    state.folderPath=clean.folderPath;state.pinned=clean.pinned;state.selected=null;state.profileId=id;
     return true;
   }
   function createProfile(state,name,duplicate=false){
@@ -413,7 +429,7 @@
     if(index===null||!gesture)return null;
     const knob=index>=16;
     const binding=index>=14?controlBinding(state,index):null;
-    const action=index<14?currentActions(state)?.[index]:(binding?.down||null);
+    const action=index<14?visibleActions(state)?.[index]:(binding?.down||null);
     return {index,gesture,knob,binding,
       action:action&&validId(action.type)?action:null};
   }
@@ -558,5 +574,5 @@
       url:action.settings?.url||'',mode:action.settings?.open||'default'};
     return {kind:'unsupported',message:'이 동작의 실행 기능은 아직 구현되지 않았습니다.'};
   }
-  return {ACTION_IDS,D200X_ACTION_IDS,DEFAULTS,TITLE,createAction,cleanAction,cleanCompositeEntry,displaySwitchAction,compositeModel,planComposite,runComposite,blankPage,folderContents,currentActions,enterFolder,exitFolder,migrateState,profileSnapshot,switchProfile,createProfile,renameProfile,deleteProfile,previewHardwareEvent,physicalSlot,hardwareGesture,resolveHardwareEvent,resolveKeyPress,planHardwareEvent,deletePage,planAction,emptyBinding,cleanBinding,ensureControls,controlBinding,changeControlScope};
+  return {ACTION_IDS,D200X_ACTION_IDS,DEFAULTS,TITLE,createAction,cleanAction,cleanCompositeEntry,displaySwitchAction,compositeModel,planComposite,runComposite,blankPage,folderContents,currentActions,visibleActions,togglePinned,enterFolder,exitFolder,migrateState,profileSnapshot,switchProfile,createProfile,renameProfile,deleteProfile,previewHardwareEvent,physicalSlot,hardwareGesture,resolveHardwareEvent,resolveKeyPress,planHardwareEvent,deletePage,planAction,emptyBinding,cleanBinding,ensureControls,controlBinding,changeControlScope};
 });
