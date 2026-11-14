@@ -334,7 +334,7 @@ async function refreshSdkPlugins(){
     sdkPlugins=await window.deckBridge.sdkList();
     sdkActionNames.clear();
     for(const plugin of sdkPlugins)for(const action of plugin.actions)
-      sdkActionNames.set(action.uuid,action.name);
+      sdkActionNames.set(action.uuid,sdkCatalogueLabel(action));
     if(libraryTab==='plugins')renderLibrary();
   }catch(error){window.d200xActionStatus?.('SDK 플러그인 목록 오류: '+String(error?.message||error));}
 }
@@ -517,7 +517,7 @@ function actionFields(item){
   active=item;
   switch(item.type){
     case "audio-play":return pathPicker("file","파일")+select("mode","동작",[["play-stop","재생 / 정지"],["overlap","재생 / 오버랩"],["restart","재생 / 재시작"],["loop-stop","반복 / 정지"]])+select("fade","페이드",[["none","페이드 없음"],["in","페이드 인"],["out","페이드 아웃"],["in-out","페이드 인 앤 아웃"]])+select("fadeDuration","페이드 시간",[[1,"1초"],[2,"2초"],[3,"3초"],[4,"4초"],[5,"5초"]])+`<div class="field"><label for="s-volume">음량</label><div class="compound"><input id="s-volume" type="range" min="0" max="100" data-field="volume" value="${valueOf(item,"volume",50)}"><output id="volume-display">${valueOf(item,"volume",50)}</output></div></div>`+select("output","출력",[["default","기본"]])+`<div class="field"><span></span><span class="hint">연결된 출력 장치를 선택할 수 있습니다. 장치 전환은 실행 시 적용됩니다.</span></div>`;
-    case "sd-plugin":return '<div class="field"><label>설치된 플러그인</label><span class="hint">'+escapeHtml(item.settings?.actionName||item.settings?.actionUUID||'')+'</span></div>'+
+    case "sd-plugin":return '<div class="field"><label>설치된 플러그인</label><span class="hint">'+escapeHtml(item.settings?.actionUUID===HA_CUSTOM_ACTION?'Home Assistant 장치 제어':item.settings?.actionName||item.settings?.actionUUID||'')+'</span></div>'+
       '<div class="field"><label>원본 속성 편집기</label><button type="button" class="sdk-settings-open" data-sdk-inspector>설정 열기</button></div>'+
       '<div class="field"><label>상태별 아이콘</label><span class="hint">OFF / ON 이미지를 각각 설정합니다. 플러그인 상태 0 / 1에 따라 표시됩니다.</span></div>'+
       '<div class="sdk-state-icons" data-sdk-state-icons></div>';
