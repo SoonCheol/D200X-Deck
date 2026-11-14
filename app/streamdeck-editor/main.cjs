@@ -428,6 +428,35 @@ ipcMain.handle('d200x:choose-path', async (event, kind) => {
   return result.canceled ? null : (result.filePaths[0] || null);
 });
 
+// Read only the foreground process executable; never execute profile-provided
+// values or return other window text. Smart Profiles require a minimized editor.
+ipcMain.handle('d200x:foreground-app',async event=>{
+  if(!window||event.sender!==window.webContents||!window.isMinimized()||process.platform!=='win32')
+    return null;
+  const script=String.raw`
+Add-Type -TypeDefinition @'
+using System;
+using System.Runtime.InteropServices;
+public static class D200XFocus {
+  [DllImport("user32.dll")] public static extern IntPtr GetForegroundWindow();
+  [DllImport("user32.dll")] public static extern uint GetWindowThreadProcessId(IntPtr hwnd, out uint processId);
+}
+'@ -ErrorAction Stop
+$handle=[D200XFocus]::GetForegroundWindow()
+[uint32]$targetPid=0
+[void][D200XFocus]::GetWindowThreadProcessId($handle,[ref]$targetPid)
+if($targetPid -gt 0){try{(Get-Process -Id $targetPid -ErrorAction Stop).Path}catch{''}}
+`;
+  try{
+    const result=await execFileAsync('powershell.exe',
+      ['-NoProfile','-NonInteractive','-WindowStyle','Hidden','-Command',script],
+      {windowsHide:true,timeout:3500,maxBuffer:4096});
+    const value=String(result.stdout||'').trim();
+    return /^[A-Za-z]:/.test(value)&&value.charCodeAt(2)===92&&value.toLowerCase().endsWith('.exe')
+      ?value:null;
+  }catch{return null;}
+});
+
 app.whenReady().then(async () => {
   diagnosticPath = path.join(app.getPath('userData'), 'd200x-connection.log');
   Menu.setApplicationMenu(null);
