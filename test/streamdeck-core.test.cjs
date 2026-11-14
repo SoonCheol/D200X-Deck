@@ -136,3 +136,45 @@ test('deleting pages preserves other pages, never deletes final page',()=>{
   assert.equal(core.deletePage(state),false);
   assert.equal(state.pages.length,1);
 });
+
+test('D200X knob 17..19 rotation resolves to editor slots 16..18',()=>{
+  for(const [hardware,slot] of [[17,16],[18,17],[19,18]]){
+    for(const kind of [1,2]){
+      assert.equal(core.physicalSlot({kind,index:hardware,state:2}),slot);
+      assert.equal(core.hardwareGesture({kind,index:hardware,state:2}),'left');
+      assert.equal(core.hardwareGesture({kind,index:hardware,state:3}),'right');
+      assert.equal(core.hardwareGesture({kind,index:hardware,state:1}),'down');
+      assert.equal(core.hardwareGesture({kind,index:hardware,state:0}),'up');
+    }
+  }
+  assert.equal(core.hardwareGesture({kind:1,index:15,state:3,pressed:false}),'up');
+  assert.equal(core.physicalSlot({kind:2,index:15,state:3}),null);
+});
+
+test('knob with previous or next action turns pages both directions and presses assigned action',()=>{
+  const row=Array.from({length:19},()=>null);
+  row[16]={type:'previous'};row[17]={type:'next'};row[18]={type:'goto',settings:{page:2}};
+  const state=core.migrateState({pages:[row,row,row],page:1});
+  for(const index of [17,18]){
+    assert.equal(core.planHardwareEvent(state,{kind:2,index,state:2}).outcome.page,0);
+    assert.equal(core.planHardwareEvent(state,{kind:2,index,state:3}).outcome.page,2);
+  }
+  assert.equal(core.planHardwareEvent(state,{kind:2,index:17,state:1}).outcome.page,0);
+  assert.equal(core.planHardwareEvent(state,{kind:2,index:18,state:1}).outcome.page,2);
+  assert.equal(core.planHardwareEvent(state,{kind:2,index:19,state:1}).outcome.page,2);
+  assert.equal(core.planHardwareEvent(state,{kind:2,index:19,state:3}),null);
+  assert.equal(core.planHardwareEvent(state,{kind:2,index:17,state:0}),null);
+  state.page=0;
+  assert.equal(core.planHardwareEvent(state,{kind:2,index:17,state:2}).outcome.page,0);
+  state.page=2;
+  assert.equal(core.planHardwareEvent(state,{kind:2,index:18,state:3}).outcome.page,2);
+});
+
+test('knob with unsupported action never triggers it by rotation',()=>{
+  const row=Array.from({length:19},()=>null);
+  row[16]={type:'website',settings:{url:'https://example.org',open:'default'}};
+  const state=core.migrateState({pages:[row]});
+  assert.equal(core.planHardwareEvent(state,{kind:2,index:17,state:2}),null);
+  assert.equal(core.planHardwareEvent(state,{kind:2,index:17,state:3}),null);
+  assert.equal(core.planHardwareEvent(state,{kind:2,index:17,state:1}).outcome.kind,'website');
+});
