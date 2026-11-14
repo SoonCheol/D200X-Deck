@@ -373,7 +373,7 @@ function actionFields(item){
       `<div class="field"><label>액션 실행 후 자동 나가기</label><input type="checkbox" data-field="autoExitEnabled" ${item.settings?.autoExitEnabled?'checked':''}></div>`+
       `<div class="field"><label>실행 후 대기 (0=즉시 나가기)</label><input type="number" min="0" max="60" data-field="autoExitSeconds" value="${Number(item.settings?.autoExitSeconds)||0}"><span>초</span></div>`;
     case "multi-switch":return `<div class="field"><label>상태</label><span>상태 1 / 상태 2 별도 동작 목록 · 아래에서 편집</span></div>`;
-    case "logic":return `<div class="field"><label>슬롯</label><span>한 번 누르기 / 두 번 누르기 / 유지 · 내부 편집 기능 미구현</span></div>`;
+    case "logic":return `<div class="field"><label>입력 구분</label><span>한 번 / 두 번 / 길게 누르기 · 각각 실행 액션 지정</span></div>`;
     case "profile":return select("profile","프로필",[
       ["next","다음 프로필"],...state.profileNames.map(p=>[p.id,p.name])
     ]);
@@ -560,6 +560,51 @@ function renderMultiEditor(item,root){
   });
   toolbar.append(select,addButton,delay,cancel);
   area.append(heading,note,list,toolbar);
+  root.querySelector('.fields')?.append(area);
+}
+// Key Logic: three independent single-step assignments, no nested composites.
+function renderLogicEditor(item,root){
+  if(!item.slots)item.slots={single:null,double:null,hold:null};
+  const area=document.createElement('section');area.className='multi-action-editor';
+  const heading=document.createElement('strong');heading.textContent='Key Logic · 누름 유형별 동작';
+  area.append(heading);
+  for(const [slot,label] of [['single','한 번 누르기'],['double','두 번 누르기'],['hold','길게 누르기']]){
+    const row=document.createElement('div');row.className='control-config';
+    const title=document.createElement('label');title.textContent=label;
+    const select=document.createElement('select');
+    select.add(new Option('동작 없음',''));
+    for(const id of MULTI_ALLOWED)select.add(new Option(ACTIONS.get(id)?.label||id,id));
+    select.value=item.slots[slot]?.type||'';
+    const apply=()=>{
+      const original=item.slots[slot];
+      item.slots[slot]=select.value?(original?.type===select.value?original:newAction(select.value)):null;
+      persist();
+      if(state.selected>=14)renderControlInspector();else renderInspector();
+    };
+    select.addEventListener('change',apply);
+    row.append(title,select);area.append(row);
+    const action=item.slots[slot];
+    if(action){
+      const fields=document.createElement('div');fields.className='fields multi-step-fields';
+      fields.innerHTML=actionFields(action);
+      fields.querySelectorAll('[data-field]').forEach(node=>node.addEventListener(
+        node.type==='range'||node.tagName==='TEXTAREA'?'input':'change',()=>{
+          action.settings[node.dataset.field]=node.type==='checkbox'?node.checked:
+            node.type==='number'||node.type==='range'?Number(node.value):node.value;
+          persist();
+        }));
+      fields.querySelectorAll('[data-path-picker]').forEach(button=>button.addEventListener('click',async()=>{
+        if(!window.deckBridge?.choosePath)return;
+        try{
+          const path=await window.deckBridge.choosePath(button.dataset.pathKind);
+          if(!path)return;
+          action.settings[button.dataset.pathPicker]=path;persist();
+          if(state.selected>=14)renderControlInspector();else renderInspector();
+        }catch(error){window.d200xActionStatus?.('파일 선택 실패: '+String(error?.message||error));}
+      }));
+      area.append(fields);
+    }
+  }
   root.querySelector('.fields')?.append(area);
 }
 function renderFolderInspector(item,root){
@@ -858,6 +903,7 @@ function renderControlInspector(){
     });
     editor.append(fields);root.append(editor);
     if(['multi','multi-switch','random'].includes(current.type))renderMultiEditor(current,editor);
+    if(current.type==='logic')renderLogicEditor(current,editor);
     // A physical-control file picker needs the same bridge as the screen-key inspector.
     fields.querySelectorAll('[data-path-picker]').forEach(button=>button.addEventListener('click',async()=>{
       if(!window.deckBridge?.choosePath){window.d200xActionStatus?.('Windows EXE에서만 파일을 선택할 수 있습니다.');return;}
@@ -1008,6 +1054,7 @@ function renderInspector(){
     });
   });
   if(['multi','multi-switch','random'].includes(item.type))renderMultiEditor(item,root);
+  if(item.type==='logic')renderLogicEditor(item,root);
   if(item.type==='folder')renderFolderInspector(item,root);
 }
 function showMenu(index,x,y){
@@ -1100,6 +1147,52 @@ async function executeMultiStep(action){
   }
 }
 
+const logicPresses=new Map();
+function triggerLogicSlot(action,slot,index){
+  const check=DeckCore.planComposite(action,{gesture:slot});
+  if(check.kind!=='composite')return window.d200xActionStatus?.(check.message);
+  if(check.steps.length===0)return;
+  if(check.steps.some(step=>!MULTI_ALLOWED.includes(step.type)))
+    return window.d200xActionStatus?.('Key Logic에 지원하지 않는 하위 액션이 있습니다.');
+  const key='logic:'+index;
+  if(runningMultiActions.has(key))return window.d200xActionStatus?.('Key Logic 실행 중입니다.');
+  runningMultiActions.add(key);
+  DeckCore.runComposite(action,{gesture:slot,execute:executeMultiStep,wait:waitMultiDelay})
+    .then(()=>{scheduleFolderExitAfterAction();window.d200xActionStatus?.('Key Logic '+slot+' 실행 완료');},
+      error=>window.d200xActionStatus?.('Key Logic 실행 실패: '+String(error?.message||error)))
+    .finally(()=>runningMultiActions.delete(key));
+}
+// Single is delayed until the double-press window closes; hold fires once.
+function handleLogicGesture(action,index,gesture,preview){
+  const prior=logicPresses.get(index);
+  if(preview){triggerLogicSlot(action,'single',index);return 'Key Logic 한 번 누르기 테스트';}
+  if(gesture==='down'){
+    if(prior?.held)return null;
+    if(prior?.singleTimer){
+      clearTimeout(prior.singleTimer);clearTimeout(prior.holdTimer);
+      logicPresses.delete(index);triggerLogicSlot(action,'double',index);
+      return 'Key Logic 두 번 누르기';
+    }
+    if(prior)return null;
+    const record={action,held:true,holdFired:false,holdTimer:null,singleTimer:null};
+    record.holdTimer=setTimeout(()=>{
+      if(logicPresses.get(index)!==record||!record.held)return;
+      record.holdFired=true;
+      triggerLogicSlot(action,'hold',index);
+    },600);
+    logicPresses.set(index,record);return 'Key Logic 누름 감지';
+  }
+  if(gesture==='up'&&prior?.action===action){
+    prior.held=false;clearTimeout(prior.holdTimer);
+    if(prior.holdFired){logicPresses.delete(index);return 'Key Logic 길게 누르기 완료';}
+    prior.singleTimer=setTimeout(()=>{
+      if(logicPresses.get(index)!==prior)return;
+      logicPresses.delete(index);triggerLogicSlot(action,'single',index);
+    },300);
+    return 'Key Logic 입력 확인 중';
+  }
+  return null;
+}
 const hotkeySwitchPositions=new Map();
 const lastHardwareDown=new Map();
 function runActionPreview(gesture='down'){
@@ -1114,6 +1207,8 @@ function executeHardwareAction(event,preview=false){
   const resolved=DeckCore.resolveHardwareEvent(state,event);
   if(!resolved)return null;
   const index=resolved.index,offset=index-14;
+  if(resolved.action?.type==='logic'&&['down','up'].includes(resolved.gesture))
+    return handleLogicGesture(resolved.action,index,resolved.gesture,preview);
   if(resolved.gesture==='up'){lastHardwareDown.delete(index);return null;}
   if(resolved.gesture==='down'&&!preview){
     const now=Date.now();
