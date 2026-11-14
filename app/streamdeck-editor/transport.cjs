@@ -30,6 +30,7 @@ class D200XTransport extends EventEmitter {
     this.lastConnectAttempt = 0;
     this.brightness = null; // Never invent/override the user's brightness.
     this.session = 0;
+    this.sleeping = false;
     this.deck.on('status', status => {
       const connected = Boolean(status.connected);
       this.emit('status', status);
@@ -42,6 +43,7 @@ class D200XTransport extends EventEmitter {
       }
       if (!this.wasConnected) {
         this.wasConnected = true;
+        this.sleeping = false;
         this.session++;
         this.lastWriteAt = this.now();
         this.log('connected', 'HID connection opened; restoring saved page');
@@ -50,7 +52,14 @@ class D200XTransport extends EventEmitter {
       // Device info may cause repeated connected status events. Do not resend
       // the entire page for each such event.
     });
-    this.deck.on('key', event => this.emit('key', event));
+    this.deck.on('key', event => {
+      if(this.sleeping&&event.pressed===true){
+        try{this.wakeDisplay();}catch(error){this.emit('error-message',String(error?.message||error));}
+        // First key wakes the screen; it must not also run a dangerous action.
+        return;
+      }
+      if(!this.sleeping)this.emit('key',event);
+    });
     this.deck.on('brightness', value => {
       if (Number.isFinite(Number(value)) && Number(value) >= 0 && Number(value) <= 100)
         this.brightness = Math.round(Number(value));
@@ -91,7 +100,7 @@ class D200XTransport extends EventEmitter {
         this.connect().catch(error => this.emit('error-message', String(error?.message || error)));
       return;
     }
-    if (this.inFlight || this.pending || this.now() - this.lastWriteAt < KEEPALIVE_MS) return;
+    if (this.sleeping || this.inFlight || this.pending || this.now() - this.lastWriteAt < KEEPALIVE_MS) return;
     try {
       // Re-state known brightness (as OpenDeck does) without redrawing keys.
       // When no brightness has ever been observed, use the existing image-mode
@@ -131,6 +140,28 @@ class D200XTransport extends EventEmitter {
       this.lastWriteAt=this.now();this.log('brightness-change',String(next));
     }
     return next;
+  }
+
+  sleepDisplay(){
+    if(this.closed||!this.deck.connected)throw new Error('D200X가 연결되지 않았습니다.');
+    if(this.sleeping)return true;
+    // Native Ulanzi D200X SLEEP protocol; a one-second idle timer.
+    this.deck.setSleepTime(1);
+    this.sleeping=true;
+    this.lastWriteAt=this.now();
+    this.log('display-sleep','Native device sleep requested');
+    return true;
+  }
+
+  wakeDisplay(){
+    if(this.closed||!this.deck.connected)throw new Error('D200X가 연결되지 않았습니다.');
+    if(!this.sleeping)return true;
+    this.deck.setSleepTime(0);
+    this.sleeping=false;
+    this.lastWriteAt=this.now();
+    if(this.currentImages)this.schedule(this.currentImages);
+    this.log('display-wake','Display sleep disabled; page restore requested');
+    return true;
   }
 
   schedule(images) {
@@ -182,6 +213,7 @@ class D200XTransport extends EventEmitter {
 
   stop() {
     this.closed = true;
+    this.sleeping = false;
     if (this.timer) clearInterval(this.timer);
     this.timer = null;
     this.pending = null;
