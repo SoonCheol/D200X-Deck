@@ -114,16 +114,21 @@
   }
   function planHardwareEvent(state,event){
     const resolved=resolveHardwareEvent(state,event);
-    if(!resolved||!resolved.action)return null;
+    if(!resolved)return null;
     if(resolved.gesture==='up')return null;
     if(resolved.knob && (resolved.gesture==='left'||resolved.gesture==='right')){
-      // A previous/next action on any knob enables bidirectional page
-      // rotation: counterclockwise = previous, clockwise = next.
-      if(!['previous','next'].includes(resolved.action.type))return null;
+      // Page rotation must keep working after navigating to a different
+      // page. An empty knob slot inherits a navigation binding from another
+      // page; an explicitly assigned non-navigation action blocks it.
+      const effective=resolved.action || state.pages
+        .map(page=>page?.[resolved.index])
+        .find(action=>action&&['previous','next'].includes(action.type));
+      if(!effective||!['previous','next'].includes(effective.type))return null;
       const direction=resolved.gesture==='left'?-1:1;
       return {index:resolved.index,gesture:resolved.gesture,
         outcome:{kind:'page',page:Math.max(0,Math.min(state.pages.length-1,state.page+direction))}};
     }
+    if(!resolved.action)return null;
     if(resolved.gesture!=='down')return null;
     return {index:resolved.index,gesture:resolved.gesture,
       outcome:planAction(resolved.action,state.page,state.pages.length)};
