@@ -6,7 +6,7 @@ const path=require('node:path');
 const crypto=require('node:crypto');
 const {WebSocketServer}=require('ws');
 const JSZip=require('jszip');
-const {BrowserWindow,safeStorage}=require('electron');
+const {BrowserWindow,safeStorage,screen}=require('electron');
 const UUID=/^[a-zA-Z0-9][a-zA-Z0-9._-]{2,180}$/;
 const MAX_ARCHIVE=40*1024*1024,MAX_FILES=2500,MAX_EXPANDED=100*1024*1024;
 const DEVICE='d200x-device';
@@ -47,7 +47,8 @@ async function parseArchive(data){
   return {manifest,files};
 }
 class StreamDeckPluginHost{
-  constructor(userData,onUpdate=()=>{}){
+  constructor(userData,onUpdate=()=>{},getParent=()=>null){
+    this.getParent=getParent;
     this.root=path.join(userData,'streamdeck-sdk-plugins');
     this.onUpdate=onUpdate;this.server=null;this.port=0;
     this.plugins=new Map();this.contexts=new Map();this.global=new Map();
@@ -218,8 +219,20 @@ class StreamDeckPluginHost{
     if(!action||!filename(action.PropertyInspectorPath))throw Error('이 동작에는 속성 편집기가 없습니다.');
     let pi=this.inspectors.get(context);
     if(pi?.window&&!pi.window.isDestroyed()){pi.window.show();pi.window.focus();return true;}
-    const win=new BrowserWindow({width:560,height:780,minWidth:420,minHeight:500,title:inst.manifest.Name+' · 설정',
+    const parent=this.getParent();
+    const win=new BrowserWindow({width:560,height:780,minWidth:420,minHeight:500,
+      show:false,backgroundColor:'#111217',title:inst.manifest.Name+' · 설정',
+      ...(parent&&!parent.isDestroyed()?{parent,modal:true}:{}),
       webPreferences:{nodeIntegration:false,contextIsolation:false,sandbox:true,webSecurity:true}});
+    if(parent&&!parent.isDestroyed()){
+      const p=parent.getBounds();
+      const area=screen.getDisplayMatching(p).workArea;
+      const w=560,h=780;
+      win.setPosition(
+        Math.max(area.x,Math.min(area.x+area.width-w,p.x+Math.round((p.width-w)/2))),
+        Math.max(area.y,Math.min(area.y+area.height-h,p.y+Math.round((p.height-h)/2)))
+      );
+    }
     win.webContents.setWindowOpenHandler(({url})=>{
       if(/^https?:\/\//i.test(url))require('electron').shell.openExternal(url).catch(()=>{});
       return {action:'deny'};
@@ -238,6 +251,7 @@ class StreamDeckPluginHost{
     const actionInfo=json({action:ctx.actionUUID,context,device:DEVICE,payload:this.payload(ctx)});
     await win.webContents.executeJavaScript('typeof connectElgatoStreamDeckSocket==="function" && connectElgatoStreamDeckSocket('+[this.port,context,'registerPropertyInspector',info,actionInfo].map(json).join(',')+')');
     this.send(inst.ws,{event:'propertyInspectorDidAppear',action:ctx.actionUUID,context,device:DEVICE});
+    win.show();win.focus();
     return true;
   }
   async stateArtwork(ctx,rawState){
