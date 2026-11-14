@@ -1,6 +1,6 @@
 'use strict';
 
-const { app, BrowserWindow, Menu, ipcMain, clipboard, dialog } = require('electron');
+const { app, BrowserWindow, Menu, ipcMain, clipboard, dialog, shell } = require('electron');
 const path = require('node:path');
 const fs = require('node:fs');
 const { D200XTransport } = require('./transport.cjs');
@@ -63,6 +63,24 @@ ipcMain.on('d200x:sync-page', (event, images) => {
     index: entry.index,
     png: Buffer.from(entry.png, 'base64'),
   })));
+});
+
+// Only user-configured HTTP(S) URLs may be opened by a physical key press.
+// The other original Stream Deck URL modes (GET/browser selection) are pending.
+ipcMain.handle('d200x:open-website', async (event, args) => {
+  if (!window || event.sender !== window.webContents)
+    throw new Error('허용되지 않은 호출입니다.');
+  if (!args || args.mode !== 'default' || typeof args.url !== 'string'
+      || args.url.length > 2048 || /[\\x00-\\x1f\\x7f]/.test(args.url))
+    throw new Error('기본 브라우저로 열기만 지원합니다.');
+  let url;
+  try { url = new URL(args.url.trim()); }
+  catch { throw new Error('올바른 URL을 입력하세요.'); }
+  if (!['http:','https:'].includes(url.protocol) || !url.hostname
+      || url.username || url.password)
+    throw new Error('HTTP 또는 HTTPS 웹사이트 주소만 지원합니다.');
+  await shell.openExternal(url.href);
+  return true;
 });
 
 // Local clipboard image only; never reads arbitrary files or executes clipboard content.
