@@ -248,7 +248,7 @@ test('first actions navigate within available page boundaries and plan websites'
   const site=core.createAction('website');
   site.settings.url='https://example.org/';site.settings.open='default';
   assert.deepEqual(core.planAction(site,1,3),{kind:'website',url:'https://example.org/',mode:'default'});
-  assert.equal(core.planAction(core.createAction('hotkey'),1,3).kind,'unsupported');
+  assert.equal(core.planAction(core.createAction('hotkey'),1,3).kind,'windows-hotkey');
 });
 
 test('D200X side-key report 15 and 16 map to editor slots 14 and 15',()=>{
