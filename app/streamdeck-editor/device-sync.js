@@ -14,6 +14,7 @@
   let renderSerial = 0;
   let timeout = null;
   let online = false;
+  const pressedKeys=new Set();
   const text = message => { if (notice) notice.textContent = message; };
 
   bridge.onStatus(status => {
@@ -35,6 +36,16 @@
   });
   window.d200xActionStatus = message => text('D200X 동작 · ' + message);
   bridge.onKey(event => {
+    // A brief visual press acknowledgement, independent of action/HA state.
+    const keyIndex=Number(event?.index);
+    if(Number(event?.kind)===1&&Number.isInteger(keyIndex)&&keyIndex>=0&&keyIndex<14){
+      if(event.pressed){
+        pressedKeys.add(keyIndex);
+        schedule(0);
+      }else{
+        setTimeout(()=>{pressedKeys.delete(keyIndex);schedule(0);},120);
+      }
+    }
     const result = window.executeD200XKey?.(event);
     if (result) { text('D200X 버튼 #' + event.index + ' · ' + result); return; }
     const where = Number(event?.kind) === 1 ? '버튼' : '입력 종류 ' + event?.kind;
@@ -168,6 +179,14 @@
         ctx.fillText(item.icon?.glyph || fallback, width/2, height/2, Math.min(172,width-12));
       }
       drawText(ctx, item.title || '', width, height, item.titleStyle);
+      if(pressedKeys.has(index)){
+        const snapshot=document.createElement('canvas');
+        snapshot.width=width;snapshot.height=height;
+        snapshot.getContext('2d').drawImage(canvas,0,0);
+        ctx.fillStyle='#08090c';ctx.fillRect(0,0,width,height);
+        const inset=Math.round(Math.min(width,height)*0.05);
+        ctx.drawImage(snapshot,inset,inset,width-inset*2,height-inset*2);
+      }
     }
     return {index, png: canvas.toDataURL('image/png').split(',')[1]};
   }
@@ -198,10 +217,10 @@
       text('D200X 아이콘 생성 오류: ' + String(error?.message || error));
     }
   }
-  function schedule() {
+  function schedule(delay=250) {
     ++renderSerial;
     if (timeout !== null) clearTimeout(timeout);
-    timeout = setTimeout(() => { timeout = null; synchronize(); }, 250);
+    timeout = setTimeout(() => { timeout = null; synchronize(); }, delay);
   }
   window.scheduleDeckSync = schedule;
   bridge.ready();
