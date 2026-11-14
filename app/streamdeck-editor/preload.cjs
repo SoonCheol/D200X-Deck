@@ -11,6 +11,7 @@ contextBridge.exposeInMainWorld('deckBridge', Object.freeze({
   scrollWindows: (axis,direction,count=1) => ipcRenderer.invoke('d200x:scroll-windows', {axis,direction,count}),
   editHistory: (operation,count=1) => ipcRenderer.invoke('d200x:edit-history', {operation,count}),
   switchWindows: (target,direction,count=1) => ipcRenderer.invoke('d200x:switch-windows', {target,direction,count}),
+  sleepDisplay: () => ipcRenderer.invoke('d200x:sleep-display'),
   adjustBrightness: (direction,count=1) => ipcRenderer.invoke('d200x:device-brightness', {direction,count}),
   setBrightness: value => ipcRenderer.invoke('d200x:set-safe-brightness', {value}),
   systemShortcut: (target,operation) => ipcRenderer.invoke('d200x:system-shortcut', {target,operation}),
