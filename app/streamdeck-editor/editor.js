@@ -114,7 +114,9 @@ function controlDrop(index,id,gesture='down'){
 }
 function renderGrid(){
   const grid=$("key-grid");grid.replaceChildren();
-  currentPage().slice(0,KEY_COUNT).forEach((item,i)=>{
+  currentPage().slice(0,KEY_COUNT).forEach((raw,i)=>{
+    const folderBack=state.folderPath?.length>0&&i===13&&!raw;
+    const item=folderBack?{type:'folder-back',title:'뒤로',icon:{kind:'glyph',glyph:'↩'}}:raw;
     const b=document.createElement("button");b.type="button";b.className="deck-key"+(i===13?" wide":"")+(state.selected===i?" selected":"");
     b.dataset.index=i;b.setAttribute("aria-label",`키 ${i+1}: ${keyName(item)||"비어 있음"}`);
     const visual=displayItem(item);
@@ -133,7 +135,7 @@ function renderGrid(){
         b.replaceChildren(preview);
       }).catch(error=>console.warn("버튼 이미지 미리보기 실패",error));
     }
-    b.addEventListener("click",()=>choose(i));
+    b.addEventListener("click",()=>{if(folderBack){DeckCore.exitFolder(state);persist();render();}else choose(i);});
     b.addEventListener("contextmenu",ev=>{ev.preventDefault();choose(i);showMenu(i,ev.clientX,ev.clientY);});
     b.addEventListener("dragover",ev=>{ev.preventDefault();b.classList.add("drag-over");});
     b.addEventListener("dragleave",()=>b.classList.remove("drag-over"));
@@ -1008,6 +1010,10 @@ function executeHardwareAction(event,preview=false){
     const id=outcome.profile==='next'?names[(pos+1)%names.length]?.id:outcome.profile;
     if(!id||!DeckCore.switchProfile(state,id))return '프로필을 찾을 수 없습니다.';
     lastHardwareDown.clear();persist();render();return '프로필 전환: '+state.profileNames.find(p=>p.id===id)?.name;
+  }
+  if(outcome.kind==='folder-back'){
+    if(!DeckCore.exitFolder(state))return '상위 폴더가 없습니다.';
+    lastHardwareDown.clear();persist();render();return '상위 폴더로 이동';
   }
   if(outcome.kind==='folder-enter'){
     if(!DeckCore.enterFolder(state,index))return '폴더를 열 수 없습니다.';
