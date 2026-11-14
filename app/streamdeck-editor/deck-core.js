@@ -106,9 +106,11 @@
     if(!action||action.type!=='multi-switch')return action;
     const state=action.settings?.activeState===1?1:0;
     const visual=action.stateVisuals?.[state];
-    if(!visual)return action;
-    return {...action,title:visual.title||action.title,
-      icon:visual.icon||action.icon};
+    const sharedTitle=action.settings?.linkStateTitles===true
+      ?action.stateVisuals?.[0]?.title:null;
+    if(!visual&&!sharedTitle)return action;
+    return {...action,title:sharedTitle||visual?.title||action.title,
+      icon:visual?.icon||action.icon};
   }
   // Delay is an internal Multi step, never a new right-panel action ID.
   // The limits below guard malformed saved data; they do not claim to be the
