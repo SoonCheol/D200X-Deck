@@ -261,7 +261,11 @@
 
   function migrateState(value){
     const state={pages:[blankPage()],page:0,selected:null,controls:emptyControls(1),folderPath:[]};
-    if(!value||typeof value!=='object'||!Array.isArray(value.pages)||!value.pages.length)return state;
+    // Legacy single-profile storage gains metadata but never loses its pages.
+    if(!value||typeof value!=='object'||!Array.isArray(value.pages)||!value.pages.length){
+      initProfiles(state,value);return state;
+    }
+
     state.pages=value.pages.slice(0,128).map(raw=>{
       const page=blankPage();
       if(Array.isArray(raw))for(let i=0;i<Math.min(19,raw.length);i++)
@@ -309,7 +313,68 @@
         state.folderPath.push(entry);
       }
     }
+    initProfiles(state,value);
     return state;
+  }
+  // Only inactive profiles are stored as snapshots. The active one uses the
+  // existing top-level pages/page/controls fields, avoiding doubled icon data.
+  function profileSnapshot(state){
+    return {pages:copy(state.pages),page:state.page,controls:copy(state.controls),
+      folderPath:copy(state.folderPath||[])};
+  }
+  function initProfiles(state,value){
+    const source=Array.isArray(value?.profileNames)?value.profileNames:null;
+    state.profileNames=source?source.slice(0,50).filter(p=>p&&typeof p.id==='string'&&typeof p.name==='string')
+      .map(p=>({id:p.id.slice(0,40),name:p.name.slice(0,80)})):[];
+    const seen=new Set();
+    state.profileNames=state.profileNames.filter(p=>p.id&& !seen.has(p.id)&&seen.add(p.id));
+    if(!state.profileNames.length)state.profileNames=[{id:'default',name:'기본 프로필'}];
+    state.profileId=state.profileNames.some(p=>p.id===value?.profileId)?value.profileId:state.profileNames[0].id;
+    const inactive=Array.isArray(value?.inactiveProfiles)?value.inactiveProfiles:[];
+    state.inactiveProfiles=state.profileNames.filter(p=>p.id!==state.profileId).map(p=>{
+      const source=inactive.find(s=>s?.id===p.id);
+      const clean=migrateState(source&&Array.isArray(source.pages)?source:{pages:[blankPage()]});
+      return {id:p.id,...profileSnapshot(clean)};
+    });
+    state.profileSeq=Math.max(state.profileNames.length,Number.isInteger(value?.profileSeq)?value.profileSeq:1);
+  }
+  function switchProfile(state,id){
+    if(!state.profileNames?.some(p=>p.id===id))return false;
+    if(state.profileId===id)return true;
+    const next=state.inactiveProfiles.find(p=>p.id===id);
+    if(!next)return false;
+    const old={id:state.profileId,...profileSnapshot(state)};
+    state.inactiveProfiles=state.inactiveProfiles.filter(p=>p.id!==id);
+    state.inactiveProfiles.push(old);
+    const clean=migrateState(next);
+    state.pages=clean.pages;state.page=clean.page;state.controls=clean.controls;
+    state.folderPath=clean.folderPath;state.selected=null;state.profileId=id;
+    return true;
+  }
+  function createProfile(state,name,duplicate=false){
+    if((state.profileNames||[]).length>=50)return null;
+    const label=String(name||'새 프로필').trim().slice(0,80)||'새 프로필';
+    let id;
+    do{id='profile-'+(++state.profileSeq);}while(state.profileNames.some(p=>p.id===id));
+    state.profileNames.push({id,name:label});
+    const source=duplicate?profileSnapshot(state):profileSnapshot(migrateState(null));
+    state.inactiveProfiles.push({id,...source});
+    return id;
+  }
+  function renameProfile(state,id,name){
+    const record=state.profileNames?.find(p=>p.id===id);
+    if(!record||!String(name||'').trim())return false;
+    record.name=String(name).trim().slice(0,80);return true;
+  }
+  function deleteProfile(state,id){
+    if(!state.profileNames?.some(p=>p.id===id)||state.profileNames.length<=1)return false;
+    if(state.profileId===id){
+      const fallback=state.profileNames.find(p=>p.id!==id);
+      if(!switchProfile(state,fallback.id))return false;
+    }
+    state.profileNames=state.profileNames.filter(p=>p.id!==id);
+    state.inactiveProfiles=state.inactiveProfiles.filter(p=>p.id!==id);
+    return true;
   }
   // Hardware indices: 0..13 screen keys; 15/16 physical buttons;
   // 17..19 rotary encoders. Editor stores them in slots 0..18.
@@ -486,5 +551,5 @@
       url:action.settings?.url||'',mode:action.settings?.open||'default'};
     return {kind:'unsupported',message:'이 동작의 실행 기능은 아직 구현되지 않았습니다.'};
   }
-  return {ACTION_IDS,D200X_ACTION_IDS,DEFAULTS,TITLE,createAction,cleanAction,cleanCompositeEntry,displaySwitchAction,compositeModel,planComposite,runComposite,blankPage,folderContents,currentActions,enterFolder,exitFolder,migrateState,previewHardwareEvent,physicalSlot,hardwareGesture,resolveHardwareEvent,resolveKeyPress,planHardwareEvent,deletePage,planAction,emptyBinding,cleanBinding,ensureControls,controlBinding,changeControlScope};
+  return {ACTION_IDS,D200X_ACTION_IDS,DEFAULTS,TITLE,createAction,cleanAction,cleanCompositeEntry,displaySwitchAction,compositeModel,planComposite,runComposite,blankPage,folderContents,currentActions,enterFolder,exitFolder,migrateState,profileSnapshot,switchProfile,createProfile,renameProfile,deleteProfile,previewHardwareEvent,physicalSlot,hardwareGesture,resolveHardwareEvent,resolveKeyPress,planHardwareEvent,deletePage,planAction,emptyBinding,cleanBinding,ensureControls,controlBinding,changeControlScope};
 });
