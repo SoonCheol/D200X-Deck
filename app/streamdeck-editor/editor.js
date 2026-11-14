@@ -1416,7 +1416,7 @@ function showMenu(index,x,y){
   const item=DeckCore.visibleActions(state)[index];
   const add=(label,handler)=>{const b=document.createElement("button");b.type="button";b.role="menuitem";b.textContent=label;
     if(typeof handler==='function')b.addEventListener("click",()=>{menu.hidden=true;handler();});
-    else{b.disabled=true;b.title="아직 구현되지 않은 기능입니다.";}menu.append(b);};
+    else{b.disabled=true;b.title=label.startsWith("붙여넣기")?"먼저 액션을 복사하세요.":"아직 구현되지 않은 기능입니다.";}menu.append(b);};
   const divider=()=>menu.append(document.createElement("hr"));
   if(!item){
     add("폴더 생성",()=>setItem(index,newAction("folder")));
