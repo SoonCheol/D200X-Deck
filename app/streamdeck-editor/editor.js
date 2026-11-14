@@ -609,9 +609,10 @@ function renderInspector(){
         <button type="button" class="style-reset" id="title-reset" title="기본 스타일 복원">↺</button>
       </div></div></div>${fields}</div></div>`;
   const previewButton=document.createElement('button');previewButton.type='button';
-  previewButton.textContent='▶ 실행 테스트';previewButton.title='실제 Windows/D200X 동작을 한 번 실행합니다';
+  previewButton.textContent='▶ 실행 테스트';previewButton.className='action-preview-test';
+  previewButton.title='실제 Windows/D200X 동작을 한 번 실행합니다';
   previewButton.addEventListener('click',()=>runActionPreview('down'));
-  root.querySelector('.action-head').append(previewButton);
+  root.querySelector('#delete-action').before(previewButton);
   bindTitleStyle(item);
   bindIconControls(item);
   refreshTitlePreview(item);
