@@ -120,6 +120,31 @@ ${args.target === 'zoom' ? '[D200XKey]::keybd_event(0x11,0,2,[UIntPtr]::Zero);' 
   return true;
 });
 
+// Only fixed wheel events, never arbitrary shell input or scripts.
+ipcMain.handle('d200x:scroll-windows', async (event, args) => {
+  if (!window || event.sender !== window.webContents)
+    throw new Error('허용되지 않은 호출입니다.');
+  if (!args || !['vertical','horizontal'].includes(args.axis) ||
+      ![-1,1].includes(args.direction) || ![1,2,5,10].includes(args.count ?? 1))
+    throw new Error('지원하지 않는 스크롤 동작입니다.');
+  if (process.platform !== 'win32')throw new Error('Windows에서만 지원합니다.');
+  const flag=args.axis==='horizontal'?0x1000:0x0800;
+  // Positive planner direction means down/right. Win32 vertical wheel is inverted.
+  const delta=120*args.direction*(args.axis==='vertical'?-1:1)*(args.count??1);
+  const code=`Add-Type -TypeDefinition @'
+using System;
+using System.Runtime.InteropServices;
+public class D200XWheel {
+  [DllImport("user32.dll")] public static extern void mouse_event(uint flags, uint dx, uint dy, int data, UIntPtr extra);
+}
+'@;
+[D200XWheel]::mouse_event(${flag},0,0,${delta},[UIntPtr]::Zero)`;
+  await execFileAsync('powershell.exe',
+    ['-NoProfile','-NonInteractive','-WindowStyle','Hidden','-Command',code],
+    {windowsHide:true,timeout:6000,maxBuffer:32768});
+  return true;
+});
+
 // Local clipboard image only; never reads arbitrary files or executes clipboard content.
 ipcMain.handle('d200x:clipboard-image', async event => {
   if (!window || event.sender !== window.webContents) return null;
