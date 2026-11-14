@@ -442,3 +442,12 @@
 - 사용자가 실제 버튼에서 작동하지 않는다고 보고. 원인 후보를 GitHub 코드에서 직접 확인: `sd-plugin-host.cjs` `setSettings` 처리 시 PI 소켓에서 들어온 메시지는 `inst=null`인데 `this.send(inst?.ws,...)`로 전송하여 실행 중 플러그인으로 `didReceiveSettings`가 전달되지 않음. 원본 upstream `src/components/PluginComponent.vue` 190행에 `didReceiveSettings` 수신 처리 존재.
 - **최소 코드 수정:** 전송 대상 `inst?.ws`를 `this.instances.get(uuid)?.ws`로 변경 (커밋 `da437a5c199daad727d201f44714322bc3a50947`). 단위 테스트는 `test/streamdeck-sdk-host.test.cjs`에 PI → 플러그인·PI 양쪽 통지 확인 추가 (커밋 `51cccf869892ed126d5a46b9dd910084dbda1cad`).
 - 실제 사용자 재시험 전이므로 **문제 해결 실기 확인 없음**. CI/Windows 프리뷰 결과 확인 후 링크를 제공하고, 최신 빌드에서 기존 설정창의 Save configuration 다시 누른 뒤 물리 키 확인. HA URL/토큰을 채팅에 노출하지 않는다. 변경은 개발 브랜치 한정, main/PR #5 그대로.
+
+
+### HA 버튼·아이콘팩 아이콘이 편집기/실기에서 적용되지 않는 문제 (2026-11-15)
+
+- 사용자 스크린샷: `Home Assistant (3.8.4.66)`의 Entity (generic) / Entity (custom icons) 두 액션, 편집기와 실물 모두 거실등1에 토글 스위치 모양, 옆 버튼에는 HA 로고가 나타남. 사용자: 아이콘팩은 등록됐으나 버튼 변경 이미지가 편집기와 실기에 반영되지 않음.
+- 원인 1: `editor.js`의 `displayItem`에서 플러그인 런타임 `sdkVisuals.image`가 `item.icon`에 있는 사용자 지정 PNG 또는 글리프를 무조건 덮어씀. 수정: 사용자 아이콘이 있으면 우선 보존하고, 지정 아이콘이 없을 때만 플러그인 동적 이미지를 사용.
+- 원인 2: `displayItem(item)`이 `DeckCore.visibleActions(state).findIndex(x=>x===item)`로 슬롯을 찾으나 D200X 장치 전송 과정 `device-sync.js`가 아이템을 JSON 복제하므로 객체 동일성 검색에 실패. 수정: `displayItem(item,index)`에 명시적 슬롯 인덱스를 전달, 편집기 렌더와 `window.getD200XDisplayItem(item,index)`가 동일한 컨텍스트로 플러그인 이미지를 검색.
+- 기능 코드 커밋 `f25bf70f7035ed8dcfc487ffd7f9b4f4c4eb39bf`. `test/streamdeck-sdk-visual.test.cjs`에서 클론 아이템 동적 이미지, 사용자 선택 팩 우선순위 확인; Windows 프리뷰 workflow에도 테스트 추가 (최신 변경 `2b3b4c94210a4c787a1b87c364ffcec0fb7ea1e4`).
+- CI #43642035160 success 확인. Windows preview #43642030211 최종 결과 및 artifact 확인 후 반영. **실제 하드웨어/원본 플러그인 상태 변경/아이콘 적용은 새 EXE 사용자 실기 확인 전**. 기존 플러그인 PI의 Icon Source=Plugin 설정은 플러그인 자체 아이콘을 선호한다는 뜻이며 D200X 편집기의 수동 아이콘팩 적용 정책과 별개.
