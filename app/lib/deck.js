@@ -291,8 +291,11 @@ class Deck extends EventEmitter {
     const gesture = knob ? ({0:'up',1:'down',2:'left',3:'right'}[state] || null)
       : (state === 1 ? 'down' : state === 0 ? 'up' : null);
     if (!gesture) return;
-    this.emit('key', { kind, index, flags, state, pressed: state === 1,
-      gesture, knob });
+    const event = { kind, index, flags, state, pressed: state === 1 };
+    // Leave ordinary key events byte-for-byte shape-compatible with
+    // existing consumers. Expose extra gesture fields only for knobs.
+    if (knob) { event.gesture = gesture; event.knob = true; }
+    this.emit('key', event);
   }
 }
 
