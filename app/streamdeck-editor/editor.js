@@ -1379,13 +1379,63 @@ function renderInspector(){
   if(item.type==='logic')renderLogicEditor(item,root);
   if(item.type==='folder')renderFolderInspector(item,root);
 }
+async function importSlotAction(index){
+  try{
+    if(!window.deckBridge?.chooseImportFile)throw Error('Windows EXE에서만 액션을 불러올 수 있습니다.');
+    const chosen=await window.deckBridge.chooseImportFile('action');
+    if(!chosen)return;
+    const parsed=JSON.parse(chosen.text);
+    if(parsed?.format!=='d200x-action-v1')throw Error('D200X 액션 파일 형식이 아닙니다.');
+    const action=DeckCore.cleanAction(parsed.action);
+    if(!action)throw Error('지원되지 않는 액션입니다.');
+    if(DeckCore.visibleActions(state)[index]&&!confirm('현재 버튼의 액션을 가져온 액션으로 교체하시겠습니까?'))return;
+    setItem(index,action);
+  }catch(error){window.d200xActionStatus?.('동작 불러오기 실패: '+String(error?.message||error));}
+}
+function exportSlotAction(action){
+  try{
+    const safe=DeckCore.cleanAction(action);
+    if(!safe)throw Error('내보낼 수 없는 액션입니다.');
+    const blob=new Blob([JSON.stringify({format:'d200x-action-v1',action:safe},null,2)],{type:'application/json'});
+    const url=URL.createObjectURL(blob),link=document.createElement('a');
+    link.href=url;link.download='D200X-action.json';document.body.append(link);link.click();link.remove();
+    setTimeout(()=>URL.revokeObjectURL(url),1000);
+  }catch(error){window.d200xActionStatus?.('동작 내보내기 실패: '+String(error?.message||error));}
+}
 function showMenu(index,x,y){
-  const menu=$("key-menu");menu.replaceChildren();const item=DeckCore.visibleActions(state)[index];
-  const add=(label,handler)=>{const b=document.createElement("button");b.type="button";b.role="menuitem";b.textContent=label;if(typeof handler==='function')b.addEventListener("click",()=>{menu.hidden=true;handler();});else{b.disabled=true;b.title="아직 구현되지 않은 기능입니다.";}menu.append(b);};
+  const menu=$("key-menu");menu.replaceChildren();
+  const item=DeckCore.visibleActions(state)[index];
+  const add=(label,handler)=>{const b=document.createElement("button");b.type="button";b.role="menuitem";b.textContent=label;
+    if(typeof handler==='function')b.addEventListener("click",()=>{menu.hidden=true;handler();});
+    else{b.disabled=true;b.title="아직 구현되지 않은 기능입니다.";}menu.append(b);};
   const divider=()=>menu.append(document.createElement("hr"));
-  if(!item){add("폴더 생성",()=>setItem(index,newAction("folder")));add("다중 동작 생성",()=>setItem(index,newAction("multi")));add("Key Logic 동작 생성",()=>setItem(index,newAction("logic")));divider();add("동작 불러오기…",null);divider();add("현재 배경",null);add("파일에서 설정…",null);}
-  else {add(state.pinned?.[index]?"고정 해제":"고정",()=>{if(DeckCore.togglePinned(state,index)){persist();render();}});add("복사하기　Ctrl+C",()=>{clipboard=clone(item);});add("폴더로 이동",null);add("Key Logic으로 이동",null);divider();add("동작 불러오기…",null);add("동작 내보내기…",null);divider();add("현재 배경",null);add("파일에서 설정…",null);divider();add("삭제",()=>{if(confirm("이 동작을 삭제하시겠습니까?"))removeSlotAction(index);});}
-  menu.style.left=Math.min(x,window.innerWidth-220)+"px";menu.style.top=Math.min(y,window.innerHeight-360)+"px";menu.hidden=false;
+  if(!item){
+    add("폴더 생성",()=>setItem(index,newAction("folder")));
+    add("다중 동작 생성",()=>setItem(index,newAction("multi")));
+    add("Key Logic 동작 생성",()=>setItem(index,newAction("logic")));
+    divider();add("동작 불러오기…",()=>importSlotAction(index));
+  }else{
+    const isLocal=Boolean(currentPage()[index]);
+    if(!state.folderPath?.length)add(state.pinned?.[index]?"고정 해제":"고정",()=>{if(DeckCore.togglePinned(state,index)){persist();render();}});
+    add("복사하기　Ctrl+C",()=>{clipboard=clone(item);});
+    add("폴더로 이동",isLocal?()=>{
+      if(item.type==='folder')return;
+      const folder=newAction('folder');folder.children=[DeckCore.cleanAction(item)];
+      setItem(index,folder);
+    }:null);
+    add("Key Logic으로 이동",isLocal?()=>{
+      const logic=newAction('logic');logic.slots={single:DeckCore.cleanAction(item),double:null,hold:null};
+      setItem(index,logic);
+    }:null);
+    divider();
+    add("동작 불러오기…",()=>importSlotAction(index));
+    add("동작 내보내기…",()=>exportSlotAction(item));
+    divider();
+    add("삭제",()=>{if(confirm("이 동작을 삭제하시겠습니까?"))removeSlotAction(index);});
+  }
+  menu.style.left=Math.max(0,Math.min(x,window.innerWidth-230))+"px";
+  menu.style.top=Math.max(0,Math.min(y,window.innerHeight-380))+"px";
+  menu.hidden=false;
 }
 let clipboard=null;
 window.addEventListener("click",ev=>{if(!ev.target.closest("#key-menu"))$("key-menu").hidden=true;});
