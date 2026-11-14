@@ -255,6 +255,8 @@ function wideDisplayAvailable(){
 function wideVisual(){
   return {type:'wide-display',title:WIDE_LABELS[state.wideDisplay?.current]||WIDE_LABELS.clock};
 }
+window.D200XWideModeName=()=>wideDisplayAvailable()?state.wideDisplay?.current:null;
+window.renderGridWideClock=()=>{if(wideDisplayAvailable())renderGrid();};
 window.getD200XWideMode=()=>wideDisplayAvailable()
   ?(state.wideDisplay?.current==='clock'?'clock':state.wideDisplay?.current==='stats'?'stats':'blank'):'blank';
 function renderWideInspector(){
