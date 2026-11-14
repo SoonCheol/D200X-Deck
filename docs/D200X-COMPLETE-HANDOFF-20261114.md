@@ -398,3 +398,30 @@
 - Windows ZIP Artifact: `D200X-StreamDeck-Device-Sync-win-x64`, ID `14129968068`, 크기 `170316974` bytes. 새 코드에는 HA 통신/설정/플러그인 탭/토글 실행까지 포함됨.
 - 후속 테스트 전용 커밋 `80342c2570b06c5a1485148d942b49a015874073`: 프로필/노브에 넣은 HA 액션의 JSON 복원 및 실행 플래너 계약 회귀 테스트 추가. 이 테스트의 Actions 실행 결과는 별도 확인 필요.
 - **실기 상태:** HA 서버 설정 저장/불러오기, 엔티티 목록, 실제 스위치 서비스 호출 및 ON/OFF 아이콘 동기화는 사용자 Windows/D200X 실기 미검증. ON/OFF 상태별 아이콘 자동 변경 및 WebSocket 구독은 아직 구현하지 않음. 개발 브랜치만 수정, PR #5 미병합.
+
+
+## 2026-11-15 — 기존 Stream Deck SDK 플러그인 호스트 1차 구현 (cgiesche HA 3.8.4 대상)
+
+### 사용자 최신 결정
+- 앞서 자체 REST 방식으로 만든 `ha-toggle`은 실제 Elgato 플러그인을 재사용하는 것과 **다르다**. 사용자 지시에 따라 기존 `cgiesche/streamdeck-homeassistant` **공개 릴리스 3.8.4**를 첫 호환성 대상으로 선정하여 Stream Deck SDK 방식으로 플러그인 호스트를 구현한다.
+- 마켓플레이스 구축은 이 기존 플러그인의 실제 설치/등록/실행이 검증된 후 진행한다. 공개 마켓이나 NAS/GitHub Pages 스토어는 이번 작업 범위 밖. 승인된 기존 화면 레이아웃, 24개 기본 액션, D200X 18개, 프로필, 페이지/폴더/버튼/노브 설정은 보존하고 새 SDK 액션 `sd-plugin`을 별도 ID로 추가한다.
+
+### 원본 근거
+- 실제 GitHub Releases API에서 `3.8.4` 릴리스 파일 `de.perdoctus.streamdeck.homeassistant.streamDeckPlugin` (1,497,023 bytes) 존재 확인: https://github.com/cgiesche/streamdeck-homeassistant/releases/tag/3.8.4.
+- 동일 릴리스 태그의 `public/manifest.json`을 실제 읽음. `UUID=de.perdoctus.streamdeck.homeassistant`, `SDKVersion=3`, `CodePath=plugin.html`, 속성 편집기 `pi.html`, `Entity (generic)` / `Entity (custom icons)` 2개 액션 UUID, `Controllers=[Keypad,Encoder]` (generic), 후자 2상태.
+- 원본 `src/modules/common/streamdeck.js` 실제 읽음. 플러그인은 `connectElgatoStreamDeckSocket(port,uuid,registerEvent,info,actionInfo)` 호출로 `ws://localhost:port` 접속, `registerPlugin` 또는 `registerPropertyInspector`로 등록. `willAppear/willDisappear`, `keyDown/keyUp`, `dialRotate`, `didReceiveSettings`, `didReceiveGlobalSettings`, `setImage/setTitle/setState` 등 SDK 이벤트 교환.
+- 공식 SDK: https://docs.elgato.com/streamdeck/sdk/references/websocket/plugin/ 및 https://docs.elgato.com/streamdeck/sdk/references/websocket/ui/ .
+- GitHub connector는 바이너리 Release 다운로드를 제공하지 않고 이번 작업 환경에서 실물 `.streamDeckPlugin` ZIP을 입수·내부 실물 검사하지 못함. **릴리스 태그의 소스 manifest를 확인한 것과 배포 바이너리 압축을 직접 테스트한 것은 다르다.**
+
+### 실제 구현
+- `app/streamdeck-editor/sd-plugin-host.cjs`: 사용자 요청으로 로컬 파일 선택한 `.streamDeckPlugin`/ZIP에서 `*.sdPlugin/manifest.json` 확인 후 안전한 파일만 `userData/streamdeck-sdk-plugins/<UUID>.sdPlugin`에 설치. 덮어쓰기 거부, 압축 경로 탈출/심볼릭 링크/대용량 제한, SDK3 HTML `CodePath`만 1차 지원. Node/native 바이너리 CodePath 실행 및 임의 마켓 자동 다운로드는 미지원.
+- Windows Electron 안에서 `ws` WebSocket 서버, 플러그인 `plugin.html`의 비표시 BrowserWindow, 속성 편집기 `pi.html` 별도 BrowserWindow. `registerPlugin`/`registerPropertyInspector`, `willAppear`/`willDisappear`, `keyDown`/`keyUp`, 노브 `dialDown`/`dialUp`/`dialRotate`, 플러그인 설정과 전역 설정 조회·갱신, PI 메시지 전달, `setImage/setTitle/setState`, 디버그 통지의 기본 경로 구현. 전역 설정은 Electron `safeStorage` 암호화 파일로 저장, 기존 프로필 JSON으로 인증 토큰 유출하지 않음.
+- `main.cjs` / `preload.cjs`에 제한된 IPC로 설치·조회·현재 페이지 동기화·실행·PI 열기 연결. 기존 마지막 사용한 폴더 기억 선택기 재사용.
+- `deck-core.js`에 기존 24 + 18 배열을 그대로 둔 채 `PLUGIN_ACTION_IDS`에 `sd-plugin`만 추가. `editor.js` 플러그인 탭에서 `+ Stream Deck 플러그인 설치`, 설치된 플러그인 액션 목록/드래그/할당, 화면키·노브 실행, 플러그인 원본 속성 편집기 실행, `setImage/setTitle` 화면 상태 반영. 프로필 저장에는 `pluginUUID/actionUUID/pluginSettings`만 추가되며 구 프로필 필드는 변경하지 않음. 기존 직접 REST `ha-toggle`도 임의 제거하지 않음.
+- `.github/workflows/streamdeck-clean-preview.yml`에서 Windows 프리뷰 staging에 `ws 8.22.1`을 포함하고 SDK 호스트 검사/테스트 추가. `test/streamdeck-sdk-host.test.cjs`에 임시 ZIP으로 구조·경로 안전성 검증 추가.
+
+### 검증 상태 및 주의사항
+- 초기 Preview 시 새 테스트 파일 추가 전 경로 누락, 이후 테스트 내부 잘못된 `await` 문법으로 실패. 수정 커밋 `22a310b25427490dca040116f2d9444bd6346c1e` 이후 CI 통과 확인 필요.
+- `sd-plugin-host.cjs`의 SDK 네비게이션 제한/비동기 메시지 오류 처리 후 코드 SHA `745a7392424a39a064634ff18f65a578a03446a6`. 이 SHA에 대한 **CI 및 Windows Preview 최신 결과 확인 필요**. 이전 실패를 성공으로 보고하지 않는다.
+- **실제 Windows에서 `cgiesche` 플러그인 설치·WebSocket 접속·PI HA 설정·실시간 상태·D200X 버튼·노브 제어는 모두 미검증.** HTML 기반 SDK3의 최소 실행 계약 구현이며 모든 Stream Deck SDK 플러그인 호환·원본 Stream Deck UI 완전 동일을 주장하지 않는다. 화면 내 원본 PI 임베딩 대신 별도 설정창으로 일단 열도록 구현(원본과의 UI 차이).
+- 우선 다음 실기 단계: 공식 3.8.4 ZIP을 사용자 Windows에서 내려받아 새 프리뷰 EXE의 플러그인 탭→설치→액션 선택→원본 속성 편집기에서 HA 서버 설정→D200X 버튼으로 ON/OFF 및 상태 이미지 관찰. 실제 실패 로그를 기반으로 필요한 최소 SDK 이벤트/설정 보정만 할 것.
