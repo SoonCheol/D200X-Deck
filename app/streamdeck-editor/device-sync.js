@@ -130,6 +130,25 @@
           const w = image.width * scale, h = image.height * scale;
           ctx.drawImage(image, (width - w)/2, (height - h)/2, w, h);
         }
+      } else if ((item.type === 'previous' || item.type === 'next') && !item.icon?.glyph) {
+        // The current placeholder font renders arrow symbols inconsistently
+        // on some Windows fonts; draw the direction explicitly instead.
+        const backward = item.type === 'previous';
+        const centerX = width/2;
+        const centerY = height/2;
+        const extent = Math.min(width,height) * 0.30;
+        const sign = backward ? -1 : 1;
+        ctx.strokeStyle = '#f3f3f3';
+        ctx.lineWidth = Math.max(10,height*0.105);
+        ctx.lineCap = 'round';
+        ctx.lineJoin = 'round';
+        ctx.beginPath();
+        ctx.moveTo(centerX-sign*extent,centerY);
+        ctx.lineTo(centerX+sign*extent,centerY);
+        ctx.moveTo(centerX,centerY-extent*0.72);
+        ctx.lineTo(centerX-sign*extent,centerY);
+        ctx.lineTo(centerX,centerY+extent*0.72);
+        ctx.stroke();
       } else {
         ctx.font = '154px "Segoe UI Symbol","Malgun Gothic",sans-serif';
         ctx.fillStyle = '#f3f3f3';
