@@ -146,7 +146,7 @@
         ctx.moveTo(centerX-sign*extent,centerY);
         ctx.lineTo(centerX+sign*extent,centerY);
         ctx.moveTo(centerX,centerY-extent*0.72);
-        ctx.lineTo(centerX-sign*extent,centerY);
+        ctx.lineTo(centerX+sign*extent,centerY);
         ctx.lineTo(centerX,centerY+extent*0.72);
         ctx.stroke();
       } else {
