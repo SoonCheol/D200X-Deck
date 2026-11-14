@@ -11,6 +11,7 @@ contextBridge.exposeInMainWorld('deckBridge', Object.freeze({
   editHistory: (operation,count=1) => ipcRenderer.invoke('d200x:edit-history', {operation,count}),
   switchWindows: (target,direction,count=1) => ipcRenderer.invoke('d200x:switch-windows', {target,direction,count}),
   adjustBrightness: (direction,count=1) => ipcRenderer.invoke('d200x:device-brightness', {direction,count}),
+  setBrightness: value => ipcRenderer.invoke('d200x:set-safe-brightness', {value}),
   systemShortcut: (target,operation) => ipcRenderer.invoke('d200x:system-shortcut', {target,operation}),
   openLocalPath: (filePath,target) => ipcRenderer.invoke('d200x:open-local-path', {filePath,target}),
   mediaControl: operation => ipcRenderer.invoke('d200x:media-control', {operation}),
