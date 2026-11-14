@@ -255,3 +255,7 @@
 .multi-action-toolbar{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
 .multi-action-toolbar select,.multi-action-steps>input{background:#363636;color:#eee;border:1px solid #555;border-radius:4px;padding:6px;max-width:100%}
 .multi-step-fields{padding:6px 0 9px 0;margin-bottom:8px;border-bottom:1px solid #414141}
+
+.multi-switch-tabs{display:flex;gap:8px;margin-bottom:12px}
+.multi-switch-tabs button{border:1px solid #666;border-radius:5px;background:#414141;padding:7px 12px}
+.multi-switch-tabs button[aria-pressed="true"]{background:#345579;border-color:#8ab5d8;color:#fff}
