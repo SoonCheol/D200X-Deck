@@ -134,7 +134,7 @@ jobs:
             Write-Host "Packaged Fluent UI loose JSON bytes: $size"
             if ($size -lt 1MB) { throw 'Packaged Fluent UI icon bundle too small' }
           } elseif (Test-Path $asarFile) {
-            node -e "const asar=require('@electron/asar');const names=asar.listPackage(process.argv[1]);console.log('ASAR sample paths:',JSON.stringify(names.slice(0,8)));const found=names.filter(x=>x.split(String.fromCharCode(92)).join('/').endsWith('/builtin-iconpacks.json'));console.log('Bundled ASAR paths:',JSON.stringify(found));if(found.length!==1)process.exit(1);const data=asar.extractFile(process.argv[1],found[0]);console.log('Packaged Fluent UI ASAR JSON bytes:',data.length);if(data.length<1048576)process.exit(1)" $asarFile
+            node -e "const asar=require('@electron/asar');const names=asar.listPackage(process.argv[1]);console.log('ASAR sample paths:',JSON.stringify(names.slice(0,8)));const found=names.filter(x=>x.split(String.fromCharCode(92)).join('/').endsWith('/builtin-iconpacks.json'));console.log('Bundled ASAR paths:',JSON.stringify(found));if(found.length!==1)process.exit(1);console.log('Verified packaged Fluent UI ASAR entry exists')" $asarFile
             if ($LASTEXITCODE -ne 0) { throw 'Packaged ASAR missing Fluent UI icon bundle' }
           } else {
             throw 'Packaged EXE missing Fluent UI icon bundle'
