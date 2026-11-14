@@ -93,6 +93,19 @@ test('new edits during ZIP compression are sent after the outdated build complet
   t.stop();
 });
 
+test('known brightness and last page persist through reconnect without idle redraw',async()=>{
+  let now=20000;const deck=new FakeDeck();
+  const t=new D200XTransport({deck,now:()=>now,buildPage:async()=>Buffer.from('zip')});
+  await t.start();deck.emit('brightness',60);
+  assert.equal(t.adjustBrightness(-1,5),55);
+  t.schedule([{index:0,png:Buffer.from('key')}]);await idle();
+  deck.disconnect();await t.connect();await idle();
+  assert.equal(deck.calls.filter(x=>x[0]==='page').length,2);
+  now+=KEEPALIVE_MS;t.tick();
+  assert.deepEqual(deck.calls.at(-1),['brightness',55]);
+  t.stop();
+});
+
 test('disconnection after failed transfer does not lose the current page',async()=>{
   const deck=new FakeDeck();let first=true;
   deck.pushPage=(zip)=>{
