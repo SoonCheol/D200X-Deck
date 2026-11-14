@@ -218,8 +218,76 @@ function bindTitleStyle(item){
     const field=button.dataset.style;button.classList.toggle("active",Boolean(style[field]));
     button.addEventListener("click",()=>{save(field,!style[field]);button.classList.toggle("active",style[field]);});
   });
-  const color=$("title-color");color.value=style.color;
-  color.addEventListener("input",()=>save("color",color.value));
+  // Shared palette is persistent across all actions; saving a color is explicit.
+  const paletteKey="d200x-streamdeck-custom-title-colors-v1";
+  const swatches=["#ffffff","#000000","#ff0000","#ff8800","#ffff00","#00cc66",
+    "#00ffff","#0088ff","#0000ff","#a855f7","#ff66cc","#808080"];
+  const validHex=value=>/^#[0-9a-fA-F]{6}$/.test(value);
+  const loadCustom=()=>{
+    try{
+      const list=JSON.parse(localStorage.getItem(paletteKey));
+      return Array.isArray(list)?[...new Set(list.filter(validHex).map(v=>v.toLowerCase()))].slice(0,24):[];
+    }catch{return [];}
+  };
+  let customColors=loadCustom();
+  const colorFields=[["title-color","color"],["outline-color","outlineColor"]];
+  let selectedColorField="color";
+  const palette=$("title-palette");
+  function updatePalette(){
+    const grid=$("title-palette-presets");grid.replaceChildren();
+    const mine=$("title-palette-mine");mine.replaceChildren();
+    const add=(parent,color,saved)=>{
+      const tile=document.createElement("button");tile.type="button";
+      tile.className="title-color-swatch";
+      tile.style.backgroundColor=color;
+      tile.title=color+(saved?" · 나의 색상":"");
+      tile.setAttribute("aria-label",color+" 색상 적용");
+      tile.addEventListener("click",()=>{
+        save(selectedColorField,color);
+        const fieldId=selectedColorField==="color"?"title-color":"outline-color";
+        $(fieldId).value=color;
+      });
+      parent.append(tile);
+      if(saved){
+        const remove=document.createElement("button");remove.type="button";
+        remove.className="title-color-remove";remove.textContent="×";
+        remove.title=color+" 저장 색상 삭제";
+        remove.addEventListener("click",()=>{
+          customColors=customColors.filter(c=>c!==color);
+          try{localStorage.setItem(paletteKey,JSON.stringify(customColors));}catch{}
+          updatePalette();
+        });
+        parent.append(remove);
+      }
+    };
+    swatches.forEach(color=>add(grid,color,false));
+    customColors.forEach(color=>add(mine,color,true));
+    $("title-palette-empty").hidden=customColors.length>0;
+  }
+  function openPalette(field){
+    selectedColorField=field;
+    palette.hidden=false;
+    $("title-palette-heading").textContent=field==="color"?"글자 색상":"외곽선 색상";
+    updatePalette();
+  }
+  colorFields.forEach(([id,field])=>{
+    const color=$(id);color.value=style[field];
+    color.addEventListener("input",()=>save(field,color.value));
+    $(id+"-palette").addEventListener("click",()=>openPalette(field));
+  });
+  $("title-palette-save").addEventListener("click",()=>{
+    const color=String(style[selectedColorField]||"").toLowerCase();
+    if(!validHex(color))return;
+    customColors=[...customColors.filter(value=>value!==color),color].slice(-24);
+    try{localStorage.setItem(paletteKey,JSON.stringify(customColors));}catch{
+      alert("나의 색상을 저장할 수 없습니다. 저장소 공간을 확인해 주세요.");
+    }
+    updatePalette();
+  });
+  $("title-palette-close").addEventListener("click",()=>{palette.hidden=true;});
+  updatePalette();
+  const outlineWidth=$("outline-width");outlineWidth.value=style.outlineWidth;
+  outlineWidth.addEventListener("change",()=>save("outlineWidth",outlineWidth.value));
   $("title-reset").addEventListener("click",()=>{item.titleStyle={...DEFAULT_TITLE_STYLE};persist();renderGrid();renderInspector();});
   document.addEventListener("pointerdown",event=>{
     if(!menu.isConnected)return;
@@ -260,7 +328,27 @@ function renderInspector(){
         <select id="title-family" aria-label="글꼴"><option value="default">기본</option><option value="Malgun Gothic">맑은 고딕</option><option value="Segoe UI">Segoe UI</option></select>
         <div class="title-format"><input id="title-size" type="number" min="8" max="48" aria-label="글꼴 크기">
         <button type="button" data-style="bold" aria-label="굵게">B</button><button type="button" data-style="italic" aria-label="기울임">I</button><button type="button" data-style="underline" aria-label="밑줄">U</button>
-        <input id="title-color" type="color" aria-label="글꼴 색상"></div>
+        <input id="title-color" type="color" aria-label="글꼴 색상">
+        <button type="button" id="title-color-palette" class="title-palette-open" title="색상 팔레트">▦</button></div>
+        <div class="outline-settings">
+          <span>외곽선</span>
+          <select id="outline-width" aria-label="외곽선 두께">
+            <option value="none">없음</option><option value="thin">얇게</option>
+            <option value="medium">보통</option><option value="thick">두껍게</option>
+          </select>
+          <input id="outline-color" type="color" aria-label="외곽선 색상">
+          <button type="button" id="outline-color-palette" class="title-palette-open" title="외곽선 색상 팔레트">▦</button>
+        </div>
+        <div id="title-palette" class="title-palette" hidden>
+          <div class="title-palette-header"><strong id="title-palette-heading">글자 색상</strong>
+            <button type="button" id="title-palette-close" title="팔레트 닫기">×</button></div>
+          <div class="title-palette-label">기본 색상</div>
+          <div id="title-palette-presets" class="title-palette-grid"></div>
+          <div class="title-palette-label">나의 색상</div>
+          <div id="title-palette-mine" class="title-palette-grid my-colors"></div>
+          <span id="title-palette-empty" class="hint">저장된 색상이 없습니다.</span>
+          <button type="button" id="title-palette-save">현재 색상을 나의 색상에 저장</button>
+        </div>
         <button type="button" class="style-reset" id="title-reset" title="기본 스타일 복원">↺</button>
       </div></div></div>${fields}</div></div>`;
   bindTitleStyle(item);
