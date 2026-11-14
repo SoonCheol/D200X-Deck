@@ -77,5 +77,29 @@
     state.selected=Number.isInteger(value.selected)&&value.selected>=0&&value.selected<19?value.selected:null;
     return state;
   }
-  return {ACTION_IDS,DEFAULTS,TITLE,createAction,cleanAction,blankPage,migrateState};
+  // First executable slice. Only known 14 display-key press events are routed;
+  // release events and side/knob gestures are not interchangeable with presses.
+  function resolveKeyPress(state,event){
+    if(!state||!Array.isArray(state.pages)||!Number.isInteger(state.page))return null;
+    if(!event||Number(event.kind)!==1||event.pressed!==true)return null;
+    const index=Number(event.index);
+    if(!Number.isInteger(index)||index<0||index>=14)return null;
+    const action=state.pages[state.page]?.[index];
+    return action&&validId(action.type)?{index,action}:null;
+  }
+  function planAction(action,page,count){
+    if(!action||!validId(action.type))return {kind:'unsupported',message:'알 수 없는 동작'};
+    if(action.type==='previous')return {kind:'page',page:Math.max(0,page-1)};
+    if(action.type==='next')return {kind:'page',page:Math.min(count-1,page+1)};
+    if(action.type==='goto'){
+      const target=Number(action.settings?.page);
+      if(!Number.isInteger(target)||target<0||target>=count)
+        return {kind:'invalid',message:'대상 페이지가 존재하지 않습니다.'};
+      return {kind:'page',page:target};
+    }
+    if(action.type==='website')return {kind:'website',
+      url:action.settings?.url||'',mode:action.settings?.open||'default'};
+    return {kind:'unsupported',message:'이 동작의 실행 기능은 아직 구현되지 않았습니다.'};
+  }
+  return {ACTION_IDS,DEFAULTS,TITLE,createAction,cleanAction,blankPage,migrateState,resolveKeyPress,planAction};
 });
