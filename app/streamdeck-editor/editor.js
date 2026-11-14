@@ -1314,6 +1314,7 @@ function executeHardwareAction(event,preview=false){
     return outcome.type==='multi-switch'
       ?'다중 동작 스위치 상태 '+(position+1)+' 실행 요청':outcome.type==='random'?'무작위 동작 실행 요청':'다중 동작 실행 요청';
   }
+  if(outcome.kind==='display-only')return '페이지 표시기는 현재 페이지를 표시하는 전용 액션입니다.';
   if(outcome.kind==='device-sleep'){
     if(!window.deckBridge?.sleepDisplay)return 'D200X 화면 절전은 Windows EXE에서만 실행됩니다.';
     window.deckBridge.sleepDisplay().then(
