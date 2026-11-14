@@ -21,7 +21,7 @@
     'audio-stop':{},timer:{seconds:30,sound:'connect'},
     brightness:{mode:'up'},sleep:{},virtual:{},
     multi:{},'multi-switch':{activeState:0},random:{},logic:{},
-    website:{url:'',open:'default'},'hotkey-switch':{first:'',second:''},
+    website:{url:'',open:'default',browserPath:''},'hotkey-switch':{first:'',second:''},
     hotkey:{keys:'',source:'preset'},open:{path:''},
     'open-app':{app:'',hold:'close',foreground:true},close:{path:'',force:false},
     text:{body:'',enter:false,mode:'clipboard'},media:{op:'playpause'},
@@ -550,7 +550,8 @@
     if(action.type==='hotkey-switch')return {kind:'windows-hotkey-switch',
       first:String(action.settings?.first||''),second:String(action.settings?.second||'')};
     if(action.type==='open')return {kind:'open-local-path',path:String(action.settings?.path||''),target:'auto'};
-    if(action.type==='open-app')return {kind:'open-local-path',path:String(action.settings?.app||''),target:'file'};
+    if(action.type==='open-app')return {kind:'open-local-path',path:String(action.settings?.app||''),target:'file',
+      foreground:action.settings?.foreground===true,hold:action.settings?.hold||'none'};
     if(action.type==='close')return {kind:'close-local-app',path:String(action.settings?.path||''),force:action.settings?.force===true};
     if(action.type==='file-open'||action.type==='folder-shortcut')
       return {kind:'open-local-path',path:typeof action.settings?.path==='string'?action.settings.path:'',
@@ -602,7 +603,7 @@
       return {kind:'page',page:target};
     }
     if(action.type==='website')return {kind:'website',
-      url:action.settings?.url||'',mode:action.settings?.open||'default'};
+      url:action.settings?.url||'',mode:action.settings?.open||'default',browserPath:action.settings?.browserPath||''};
     return {kind:'unsupported',message:'이 동작의 실행 기능은 아직 구현되지 않았습니다.'};
   }
   return {ACTION_IDS,D200X_ACTION_IDS,DEFAULTS,TITLE,createAction,cleanAction,cleanCompositeEntry,displaySwitchAction,compositeModel,planComposite,runComposite,blankPage,folderContents,currentActions,visibleActions,togglePinned,activeFolder,enterFolder,exitFolder,migrateState,profileSnapshot,switchProfile,createProfile,renameProfile,setProfileApp,matchForegroundProfile,deleteProfile,previewHardwareEvent,physicalSlot,hardwareGesture,resolveHardwareEvent,resolveKeyPress,planHardwareEvent,deletePage,planAction,emptyBinding,cleanBinding,ensureControls,controlBinding,changeControlScope};
