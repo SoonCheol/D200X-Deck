@@ -248,6 +248,20 @@ test('outline defaults and user selections survive legacy migration',()=>{
   assert.equal(bad.titleStyle.outlineWidth,'thin');
 });
 
+test('editor preview produces the same virtual events as physical D200X controls',()=>{
+  assert.deepEqual(core.previewHardwareEvent(0),{kind:1,index:0,state:1,pressed:true});
+  assert.deepEqual(core.previewHardwareEvent(14),{kind:1,index:15,state:1,pressed:true});
+  assert.deepEqual(core.previewHardwareEvent(16,'left'),{kind:2,index:17,state:2,pressed:false});
+  assert.deepEqual(core.previewHardwareEvent(18,'right'),{kind:2,index:19,state:3,pressed:false});
+  assert.equal(core.previewHardwareEvent(15,'left'),null);
+  assert.equal(core.previewHardwareEvent(19),null);
+  const state=core.migrateState(null);
+  core.controlBinding(state,16).mode='adjust';
+  core.controlBinding(state,16).target='volume';
+  assert.deepEqual(core.planHardwareEvent(state,core.previewHardwareEvent(16,'right')).outcome,
+    {kind:'adjust',target:'volume',direction:1});
+});
+
 test('hardware release and unsupported slots cannot execute actions',()=>{
   const state=core.migrateState({pages:[[
     {type:'next'},null,null,null,null,null,null,null,null,null,null,null,null,
