@@ -696,6 +696,7 @@ $("back-page").addEventListener("click",()=>{state.page=Math.max(0,state.page-1)
 $("next-page").addEventListener("click",()=>{state.page=Math.min(state.pages.length-1,state.page+1);state.selected=null;persist();render();});
 // Physical D200X button presses run the selected page's action; clicking a
 // PC editor key still only selects it for editing.
+const hotkeySwitchPositions=new Map();
 const lastHardwareDown=new Map();
 function runActionPreview(gesture='down'){
   const index=state.selected;
@@ -742,6 +743,18 @@ function executeHardwareAction(event,preview=false){
       ()=>window.d200xActionStatus?.('미디어 키 전송 완료'),
       error=>window.d200xActionStatus?.('미디어 실행 실패: '+String(error?.message||error)));
     return '미디어 제어 요청';
+  }
+  if(outcome.kind==='windows-hotkey-switch'){
+    if(!window.deckBridge?.sendHotkey)return 'Windows 실행 환경에서만 사용할 수 있습니다.';
+    const scope=index>=14&&state.controls.scopes[index-14]==='global'?'global':String(state.page);
+    const key=scope+':'+index;
+    const position=hotkeySwitchPositions.get(key)||0;
+    const keys=position===0?outcome.first:outcome.second;
+    if(!keys)return '전환할 단축키가 설정되지 않았습니다.';
+    window.deckBridge.sendHotkey(keys).then(
+      ()=>{hotkeySwitchPositions.set(key,1-position);window.d200xActionStatus?.('단축키 전환 '+(position+1)+' 실행');},
+      error=>window.d200xActionStatus?.('단축키 전환 실패: '+String(error?.message||error)));
+    return '단축키 전환 '+(position+1)+' 요청';
   }
   if(outcome.kind==='windows-hotkey'){
     if(!window.deckBridge?.sendHotkey)return 'Windows 실행 환경에서만 사용할 수 있습니다.';
