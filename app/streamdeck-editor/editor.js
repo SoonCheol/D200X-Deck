@@ -7,6 +7,7 @@ const ORIGINAL_CATALOG = [
   ["다중 동작", [["multi","다중 동작","▤"],["multi-switch","다중 동작 스위치","⇄"],["random","무작위 동작","⚄"],["logic","Key Logic","⇧"]]],
   ["시스템", [["website","웹사이트","◎"],["hotkey-switch","단축키 전환","⇄"],["hotkey","단축키","⌨"],["open","열기","▢"],["open-app","응용 프로그램 열기","▣"],["close","닫기","×"],["text","텍스트","¶"],["media","멀티미디어","♫"]]],
   ["탐색", [["folder","폴더 생성","▣"],["profile","프로필 전환","⇆"],["previous","이전 페이지","←"],["next","다음 페이지","→"],["goto","페이지로 이동","↗"],["indicator","페이지 표시기","①"]]],
+  ["플러그인 · Home Assistant", [["ha-toggle","HA 장치 켜기/끄기","⌂"]]],
   ["D200X 추가 액션", [["system-volume","Windows 음량 조절","🔊"],["system-mute","Windows 음소거","🔇"],["system-scroll","Windows 스크롤","↕"],["edit-history","실행 취소·다시 실행","↶"],["window-switch","창 전환","▣"],["desktop-switch","가상 데스크톱 전환","⇄"],["device-brightness","D200X 화면 밝기","☀"],["system-zoom","화면 확대·축소","⊕"],["screenshot","화면 캡처","▣"],["clipboard-edit","클립보드 편집","▤"],["window-state","창 상태","□"],["window-monitor","다른 모니터로 이동","⇆"],["explorer-open","파일 탐색기 열기","▢"],["brush-size","브러시 크기","◉"],["timeline-step","타임라인 한 단계","▶"],["timeline-zoom","타임라인 확대 단축키 (앱별)","⊕"],["file-open","지정 파일 열기","▣"],["folder-shortcut","지정 폴더 열기","▢"]]]
 ];
 // The catalogue changes presentation only: stable IDs, settings and executable actions remain unchanged.
@@ -264,10 +265,28 @@ async function chooseNativeImage(kind='image'){
   if(!window.deckBridge?.chooseImportFile)return null;
   return window.deckBridge.chooseImportFile(kind);
 }
+let libraryTab='keys';
+async function configureHomeAssistant(){
+  if(!window.deckBridge?.haSave)return window.d200xActionStatus?.('HA 플러그인은 Windows EXE에서 사용 가능합니다.');
+  try{
+    const current=await window.deckBridge.haStatus();
+    const url=prompt('Home Assistant 서버 주소',current.url||'http://192.168.0.100:8123');
+    if(url===null)return;
+    const token=prompt('Home Assistant 장기 액세스 토큰 (기존 토큰은 표시되지 않음)');
+    if(token===null)return;
+    await window.deckBridge.haSave(url,token);
+    window.d200xActionStatus?.('Home Assistant 연결 확인 및 설정 저장 완료');
+  }catch(error){window.d200xActionStatus?.('Home Assistant 연결 실패: '+String(error?.message||error));}
+}
 function renderLibrary(){
   const root=$("library-list");root.replaceChildren();
   const query=$("action-search").value.trim().toLocaleLowerCase();
+  if(libraryTab==='plugins'){
+    const setup=document.createElement('button');setup.type='button';setup.textContent='⚙ Home Assistant 연결 설정';
+    setup.addEventListener('click',configureHomeAssistant);root.append(setup);
+  }
   for(const [category,entries] of CATALOG){
+    if((category==='플러그인 · Home Assistant')!==(libraryTab==='plugins'))continue;
     const visible=entries.filter(([id,label])=>(category+" "+label+" "+(PANEL_SHORTCUTS[id]||"")).toLocaleLowerCase().includes(query));
     if(!visible.length)continue;
     const section=document.createElement("section");section.className="group";
@@ -369,6 +388,8 @@ function actionFields(item){
   active=item;
   switch(item.type){
     case "audio-play":return pathPicker("file","파일")+select("mode","동작",[["play-stop","재생 / 정지"],["overlap","재생 / 오버랩"],["restart","재생 / 재시작"],["loop-stop","반복 / 정지"]])+select("fade","페이드",[["none","페이드 없음"],["in","페이드 인"],["out","페이드 아웃"],["in-out","페이드 인 앤 아웃"]])+select("fadeDuration","페이드 시간",[[1,"1초"],[2,"2초"],[3,"3초"],[4,"4초"],[5,"5초"]])+`<div class="field"><label for="s-volume">음량</label><div class="compound"><input id="s-volume" type="range" min="0" max="100" data-field="volume" value="${valueOf(item,"volume",50)}"><output id="volume-display">${valueOf(item,"volume",50)}</output></div></div>`+select("output","출력",[["default","기본"]])+`<div class="field"><span></span><span class="hint">연결된 출력 장치를 선택할 수 있습니다. 장치 전환은 실행 시 적용됩니다.</span></div>`;
+    case "ha-toggle":return input("entityId","HA 엔티티 ID","switch.living_room")+
+      '<div class="field"><label>엔티티</label><button type="button" data-ha-entities>목록에서 선택</button></div>';
     case "audio-stop": case "previous": case "next": case "indicator":return "";
     case "timer":return `<div class="field"><label for="s-seconds">지속</label><div class="compound"><input type="number" min="1" id="s-seconds" data-field="seconds" value="${valueOf(item,"seconds",30)}"><span>초</span></div></div>`+select("sound","사운드",[["none","없음"],["connect","접속"],["disconnect","접속 끊김"],["release","접속 해제"],["find","찾기"],["other","기타"]]);
     case "brightness":return select("mode","동작",[["up","밝게"],["down","어둡게"],["max","최대"],["high","높음"],["medium","중간"],["low","낮음"],["min","최소"]]);
@@ -990,6 +1011,28 @@ function renderControlInspector(){
   root.append(testBar);
 }
 function bindExtendedActionFields(root,item){
+  if(item.type==='ha-toggle'){
+    root.querySelector('[data-ha-entities]')?.addEventListener('click',async()=>{
+      try{
+        const entities=await window.deckBridge.haEntities();
+        if(!entities.length)throw new Error('제어 가능한 엔티티가 없습니다.');
+        const current=item.settings?.entityId||'';
+        const names=entities.map((e,i)=>(i+1)+'. '+e.name+' ['+e.entity_id+'] ('+e.state+')').join('\n');
+        // Native prompt may truncate enormous lists; offer a searchable ID first.
+        const filter=prompt('엔티티 이름/ID 검색어 (빈칸은 처음 30개)',current);
+        if(filter===null)return;
+        const found=entities.filter(e=>(e.name+' '+e.entity_id).toLowerCase().includes(filter.trim().toLowerCase())).slice(0,30);
+        if(!found.length)throw new Error('검색 결과가 없습니다.');
+        const chosen=prompt(found.map((e,i)=>(i+1)+'. '+e.name+' ['+e.entity_id+']').join('\n')+'\n\n번호 또는 엔티티 ID 입력','1');
+        if(chosen===null)return;
+        const selected=/^\d+$/.test(chosen.trim())?found[Number(chosen.trim())-1]?.entity_id:chosen.trim();
+        if(!entities.some(e=>e.entity_id===selected))throw new Error('유효한 엔티티를 선택하세요.');
+        item.settings.entityId=selected;
+        const input=root.querySelector('[data-field="entityId"]');if(input)input.value=selected;
+        persist();
+      }catch(error){window.d200xActionStatus?.('HA 엔티티 조회 실패: '+String(error?.message||error));}
+    });
+  }
   if(item.type==='audio-play')populateAudioOutputs(root.querySelector('[data-field="output"]'),item);
   if(item.type!=='hotkey')return;
   const preset=root.querySelector('[data-field="preset"]');
@@ -1280,6 +1323,8 @@ async function executeMultiStep(action,signal){
   const bridge=window.deckBridge;
   if(!bridge)throw new Error('다중 동작은 Windows EXE에서만 실행할 수 있습니다.');
   switch(outcome.kind){
+    case 'ha-toggle':
+      return bridge.haToggle(outcome.entityId);
     case 'windows-hotkey':
       return bridge.sendHotkey(outcome.keys);
     case 'windows-hotkey-switch':{
@@ -1537,6 +1582,13 @@ function executeHardwareAction(event,preview=false){
     });
     return outcome.type==='multi-switch'
       ?'다중 동작 스위치 상태 '+(position+1)+' 실행 요청':outcome.type==='random'?'무작위 동작 실행 요청':'다중 동작 실행 요청';
+  }
+  if(outcome.kind==='ha-toggle'){
+    if(!window.deckBridge?.haToggle)return 'Home Assistant는 Windows EXE에서만 실행됩니다.';
+    window.deckBridge.haToggle(outcome.entityId).then(
+      ()=>window.d200xActionStatus?.('HA 장치 토글 요청 완료: '+outcome.entityId),
+      error=>window.d200xActionStatus?.('HA 동작 실패: '+String(error?.message||error)));
+    return 'HA 장치 토글 요청: '+outcome.entityId;
   }
   if(outcome.kind==='display-only')return '페이지 표시기는 현재 페이지를 표시하는 전용 액션입니다.';
   if(outcome.kind==='device-sleep'){
@@ -2130,6 +2182,13 @@ $("icon-maker-save").addEventListener("click",()=>{
   closeIconMaker();
 });
 bindSidebarHeader();
+const tabs=document.querySelectorAll('.library-tabs button');
+tabs[1].disabled=false;tabs[1].removeAttribute('title');
+tabs.forEach((button,index)=>button.addEventListener('click',()=>{
+  libraryTab=index?'plugins':'keys';
+  tabs.forEach((tab,i)=>tab.classList.toggle('active',i===index));
+  renderLibrary();
+}));
 // Poll only when explicitly enabled. The native bridge refuses to identify
 // foreground programs while the editor is not minimized.
 let smartProfileBusy=false;
