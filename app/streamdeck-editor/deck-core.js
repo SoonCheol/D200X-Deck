@@ -263,6 +263,12 @@
   function planAction(action,page,count){
     if(!action||!validId(action.type))return {kind:'unsupported',message:'알 수 없는 동작'};
     if(action.type==='system-mute')return {kind:'mute'};
+    if(action.type==='brightness'){
+      const mode=action.settings?.mode||'up';
+      const fixed={max:100,high:75,medium:50,low:30,min:20};
+      if(Object.hasOwn(fixed,mode))return {kind:'device-brightness-set',value:fixed[mode]};
+      return {kind:'device-brightness',direction:mode==='down'?-1:1,count:5};
+    }
     if(action.type==='media')return {kind:'media-control',operation:action.settings?.op||'playpause'};
     if(action.type==='hotkey')return {kind:'windows-hotkey',keys:String(action.settings?.keys||'')};
     if(action.type==='open')return {kind:'open-local-path',path:String(action.settings?.path||''),target:'auto'};
