@@ -66,3 +66,34 @@ test('SDK property inspector save notifies the running plugin as well as the ins
   assert.equal(sent[0].msg.event,'didReceiveSettings');
   assert.equal(sent[0].msg.payload.settings.button.serviceShortPress.serviceId,'switch.toggle');
 });
+
+
+test('HA custom-icons action follows actual HA on/off state and ignores unknown states',async()=>{
+  const uuid=M.UUID,actionUUID=uuid+'.dual-state-entity',context='profile:0::1:down';
+  const states=[],calls=[];
+  const host=new StreamDeckPluginHost('/tmp/d200x-ha-test',event=>states.push(event));
+  host.contexts.set(context,{context,pluginUUID:uuid,actionUUID,slot:1,
+    settings:{display:{entityId:'switch.living_1'}}});
+  host.global.set(uuid,{serverUrl:'https://ha.example.test',accessToken:'secret'});
+  const fetchMock=async (url,options)=>{
+    calls.push({url,auth:options.headers.Authorization});
+    return {ok:true,json:async()=>({state:calls.length===1?'on':calls.length===2?'off':'unavailable'})};
+  };
+  await host.refreshHaDualStates(fetchMock);
+  await host.refreshHaDualStates(fetchMock);
+  await host.refreshHaDualStates(fetchMock);
+  assert.deepEqual(states.filter(x=>x.kind==='setState').map(x=>x.payload.state),[1,0]);
+  assert.ok(calls.every(x=>x.auth==='Bearer secret'));
+  assert.ok(calls.every(x=>x.url.endsWith('/api/states/switch.living_1')));
+  assert.equal(host.contexts.get(context).lastState,0);
+});
+test('HA fallback does not query settings for generic actions or unconfigured entities',async()=>{
+  const uuid=M.UUID;
+  const host=new StreamDeckPluginHost('/tmp/d200x-ha-test');
+  host.global.set(uuid,{serverUrl:'https://ha.example.test',accessToken:'secret'});
+  host.contexts.set('key',{context:'key',pluginUUID:uuid,
+    actionUUID:uuid+'.entity',settings:{display:{entityId:'switch.living_1'}}});
+  let called=0;
+  await host.refreshHaDualStates(async()=>{called++;return {ok:true,json:async()=>({state:'on'})};});
+  assert.equal(called,0);
+});
