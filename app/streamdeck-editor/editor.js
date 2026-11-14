@@ -239,7 +239,8 @@ function actionFields(item){
       select("direction","스크롤 방향",item.settings?.axis==='horizontal'
         ?[["right","오른쪽"],["left","왼쪽"]]:[["down","아래"],["up","위"]])+
       select("step","변화량",[[1,"1"],[2,"2"],[5,"5"],[10,"10"]]);
-    case "folder":case "multi":case "random":return `<div class="field"><label>내용</label><div>${item.children.length}개의 ${item.type==="folder"?"항목":"동작"} <span class="hint">· 내부 편집 기능 미구현</span></div></div>`;
+    case "multi":return `<div class="field"><label>내용</label><div>${item.children.length}개의 단계 · 아래에서 추가·수정</div></div>`;
+    case "folder":case "random":return `<div class="field"><label>내용</label><div>${item.children.length}개의 ${item.type==="folder"?"항목":"동작"} <span class="hint">· 내부 편집 기능 미구현</span></div></div>`;
     case "multi-switch":return `<div class="field"><label>상태</label><span>1 / 2 · 내부 편집 기능 미구현</span></div>`;
     case "logic":return `<div class="field"><label>슬롯</label><span>한 번 누르기 / 두 번 누르기 / 유지 · 내부 편집 기능 미구현</span></div>`;
     case "profile":return select("profile","프로필",[["next","다음 프로필"]]);
@@ -674,6 +675,7 @@ function renderInspector(){
       if(node.dataset.field==="body"&&$("text-count")) $("text-count").textContent=String(value.length)+" / -";
     });
   });
+  if(item.type==='multi')renderMultiEditor(item,root);
 }
 function showMenu(index,x,y){
   const menu=$("key-menu");menu.replaceChildren();const item=currentPage()[index];
@@ -700,6 +702,7 @@ $("next-page").addEventListener("click",()=>{state.page=Math.min(state.pages.len
 const activeAudioPlayers=new Map();
 const allPlayingAudio=new Set();
 const activeActionTimers=new Map();
+const runningMultiActions=new Set();
 const hotkeySwitchPositions=new Map();
 const lastHardwareDown=new Map();
 function runActionPreview(gesture='down'){
@@ -730,6 +733,20 @@ function executeHardwareAction(event,preview=false){
     renderPhysicalControls();
     const target=DeckCore.controlBinding(state,index).stack[stackPositions[idx]];
     return '노브 '+(idx+1)+' 조절 대상: '+({page:'페이지',volume:'음량',zoom:'확대/축소',scroll:'세로 스크롤','scroll-x':'가로 스크롤',history:'실행 취소·다시 실행',window:'창 전환',desktop:'가상 데스크톱',brightness:'기기 밝기'}[target]);
+  }
+  if(outcome.kind==='composite' && outcome.type==='multi'){
+    const action=index<14?state.pages[state.page][index]:
+      DeckCore.controlBinding(state,index)?.[resolved.gesture];
+    if(!action||action.type!=='multi')return '다중 동작 설정이 없습니다.';
+    const scope=index>=14&&state.controls.scopes[index-14]==='global'?'global':String(state.page);
+    const key=scope+':'+index+':'+resolved.gesture;
+    if(runningMultiActions.has(key))return '다중 동작이 이미 실행 중입니다.';
+    runningMultiActions.add(key);
+    DeckCore.runComposite(action,{execute:executeMultiStep,wait:waitMultiDelay}).then(
+      count=>window.d200xActionStatus?.('다중 동작 '+count+'단계 완료'),
+      error=>window.d200xActionStatus?.('다중 동작 중단: '+String(error?.message||error))
+    ).finally(()=>runningMultiActions.delete(key));
+    return '다중 동작 실행 요청';
   }
   if(outcome.kind==='mute'){
     if(!window.deckBridge?.adjustWindows)return 'Windows 실행 환경에서만 사용할 수 있습니다.';
