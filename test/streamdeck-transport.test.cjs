@@ -25,6 +25,7 @@ class FakeDeck extends EventEmitter {
   setWideMode(mode) { this.calls.push(['wide',mode]); }
   pushPage(bytes) { this.calls.push(['page',bytes.toString()]); }
   setBrightness(value) { this.calls.push(['brightness',value]); }
+  setSleepTime(value) { this.calls.push(['sleep',value]); }
   sendFrame(cmd,proto,body) { this.calls.push(['frame',cmd,proto,body.toString()]); }
   disconnect() { this.connected=false;this.emit('status',this.status()); }
 }
@@ -137,5 +138,25 @@ test('disconnection after failed transfer does not lose the current page',async(
   assert.equal(deck.connected,false);
   await t.connect();await idle();
   assert.equal(deck.calls.filter(x=>x[0]==='page').length,1);
+  t.stop();
+});
+
+test('native device sleep suspends keepalive; the first hardware press wakes without executing actions',async()=>{
+  let now=20000;const deck=new FakeDeck();
+  const t=new D200XTransport({deck,now:()=>now,buildPage:async()=>Buffer.from('zip')});
+  const events=[];t.on('key',event=>events.push(event));
+  await t.start();
+  t.schedule([{index:0,png:Buffer.from('saved')}]);await idle();
+  assert.equal(t.sleepDisplay(),true);
+  assert.deepEqual(deck.calls.at(-1),['sleep',1]);
+  now+=KEEPALIVE_MS;t.tick();
+  assert.equal(deck.calls.filter(x=>x[0]==='frame').length,0);
+  deck.emit('key',{index:0,pressed:true,kind:1,state:1});
+  await idle();
+  assert.deepEqual(deck.calls.filter(x=>x[0]==='sleep').map(x=>x[1]),[1,0]);
+  assert.equal(events.length,0);
+  assert.equal(deck.calls.filter(x=>x[0]==='page').length,2);
+  deck.emit('key',{index:0,pressed:false,kind:1,state:0});
+  assert.equal(events.length,1);
   t.stop();
 });
