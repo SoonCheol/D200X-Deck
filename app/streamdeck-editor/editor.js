@@ -248,6 +248,83 @@ function actionFields(item){
     default:return "";
   }
 }
+// Multi Action editor: uses the original right-hand action catalogue and does
+// not change the approved editor layout. Unsupported nested composites are blocked.
+const MULTI_ALLOWED=['hotkey','media','website','open','open-app','text',
+  'system-volume','system-mute','system-zoom','device-brightness',
+  'screenshot','clipboard-edit','explorer-open','file-open','folder-shortcut'];
+function renderMultiEditor(item,root){
+  const area=document.createElement('section');
+  area.className='multi-action-editor';
+  const heading=document.createElement('strong');heading.textContent='다중 동작 · 순서대로 실행';
+  const note=document.createElement('p');note.className='hint';
+  note.textContent='오른쪽 액션 목록에서 아래로 끌어놓기 · 지연은 별도 단계 · 중첩은 지원하지 않음';
+  const list=document.createElement('div');list.className='multi-action-steps';
+  const add=(id)=>{
+    if(!MULTI_ALLOWED.includes(id)||item.children.length>=100)return;
+    item.children.push(newAction(id));persist();renderInspector();
+  };
+  list.addEventListener('dragover',e=>e.preventDefault());
+  list.addEventListener('drop',e=>{
+    e.preventDefault();
+    const id=e.dataTransfer.getData('application/x-d200x-action');
+    if(MULTI_ALLOWED.includes(id))add(id);
+    else window.d200xActionStatus?.('지원하지 않는 하위 액션입니다.');
+  });
+  item.children.forEach((step,i)=>{
+    const row=document.createElement('div');row.className='multi-action-row';
+    const title=document.createElement('span');
+    title.textContent=(i+1)+'. '+(step.kind==='delay'?'지연 '+step.ms+'ms':keyName(step));
+    row.append(title);
+    const command=(text,fn)=>{
+      const button=document.createElement('button');button.type='button';button.textContent=text;
+      button.addEventListener('click',()=>{fn();persist();renderInspector();});row.append(button);
+    };
+    if(i>0)command('↑',()=>{[item.children[i-1],item.children[i]]=[item.children[i],item.children[i-1]];});
+    if(i<item.children.length-1)command('↓',()=>{[item.children[i],item.children[i+1]]=[item.children[i+1],item.children[i]];});
+    command('삭제',()=>item.children.splice(i,1));
+    list.append(row);
+    if(step.kind==='delay'){
+      const input=document.createElement('input');input.type='number';input.min='0';input.max='600000';
+      input.value=String(step.ms);input.title='지연 (밀리초)';
+      input.addEventListener('change',()=>{
+        step.ms=Math.min(600000,Math.max(0,Math.round(Number(input.value)||0)));
+        persist();renderInspector();
+      });
+      list.append(input);
+    }else{
+      const fields=document.createElement('div');fields.className='fields multi-step-fields';
+      fields.innerHTML=actionFields(step);
+      fields.querySelectorAll('[data-field]').forEach(node=>node.addEventListener('change',()=>{
+        step.settings[node.dataset.field]=node.type==='checkbox'?node.checked:
+          node.type==='number'||node.type==='range'?Number(node.value):node.value;
+        persist();
+      }));
+      fields.querySelectorAll('[data-path-picker]').forEach(button=>button.addEventListener('click',async()=>{
+        if(!window.deckBridge?.choosePath)return window.d200xActionStatus?.('Windows EXE에서만 파일 선택이 가능합니다.');
+        try{
+          const path=await window.deckBridge.choosePath(button.dataset.pathKind);
+          if(!path)return;
+          step.settings[button.dataset.pathPicker]=path;persist();renderInspector();
+        }catch(error){window.d200xActionStatus?.('경로 선택 실패: '+String(error?.message||error));}
+      }));
+      list.append(fields);
+    }
+  });
+  const toolbar=document.createElement('div');toolbar.className='multi-action-toolbar';
+  const select=document.createElement('select');
+  for(const id of MULTI_ALLOWED)select.add(new Option(ACTIONS.get(id)?.label||id,id));
+  const addButton=document.createElement('button');addButton.type='button';addButton.textContent='동작 추가';
+  addButton.addEventListener('click',()=>add(select.value));
+  const delay=document.createElement('button');delay.type='button';delay.textContent='지연 추가';
+  delay.addEventListener('click',()=>{
+    if(item.children.length>=100)return;
+    item.children.push({kind:'delay',ms:1000});persist();renderInspector();
+  });
+  toolbar.append(select,addButton,delay);
+  area.append(heading,note,list,toolbar);
+  root.querySelector('.fields')?.append(area);
+}
 const DEFAULT_TITLE_STYLE = DeckCore.TITLE;
 let previewRequest=0;
 async function refreshSelectedVisual(){
