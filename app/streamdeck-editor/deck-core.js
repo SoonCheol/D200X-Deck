@@ -77,25 +77,56 @@
     state.selected=Number.isInteger(value.selected)&&value.selected>=0&&value.selected<19?value.selected:null;
     return state;
   }
-  // D200X reports 14 display keys as indices 0..13. Its side keys use
-  // report indices 15 and 16, mapped to editor slots 14 and 15.
-  // Knob events (17..19) must NOT be confused with ordinary key presses.
+  // Hardware indices: 0..13 screen keys; 15/16 physical buttons;
+  // 17..19 rotary encoders. Editor stores them in slots 0..18.
   function physicalSlot(event){
-    if(!event || Number(event.kind)!==1) return null;
+    if (!event) return null;
     const index=Number(event.index);
     if(!Number.isInteger(index))return null;
-    if(index>=0 && index<=13)return index;
+    if(index>=17&&index<=19)return index-1;
+    if(Number(event.kind)!==1)return null;
+    if(index>=0&&index<=13)return index;
     if(index===15)return 14;
     if(index===16)return 15;
     return null;
   }
-  function resolveKeyPress(state,event){
+  function hardwareGesture(event){
+    if(!event)return null;
+    const index=Number(event.index);
+    if(index>=17&&index<=19){
+      // 'pressed' is true only for the knob's down event; left/right
+      // rotations carry state 2/3 and should execute on every tick.
+      return ({0:'up',1:'down',2:'left',3:'right'})[Number(event.state)]||null;
+    }
+    if(Number(event.kind)!==1)return null;
+    return event.pressed===true?'down':event.pressed===false?'up':null;
+  }
+  function resolveHardwareEvent(state,event){
     if(!state||!Array.isArray(state.pages)||!Number.isInteger(state.page))return null;
-    if(!event||event.pressed!==true)return null;
-    const index=physicalSlot(event);
-    if(index===null)return null;
+    const index=physicalSlot(event),gesture=hardwareGesture(event);
+    if(index===null||!gesture)return null;
     const action=state.pages[state.page]?.[index];
-    return action&&validId(action.type)?{index,action}:null;
+    return {index,gesture,action:action&&validId(action.type)?action:null,knob:index>=16};
+  }
+  function resolveKeyPress(state,event){
+    const resolved=resolveHardwareEvent(state,event);
+    return resolved?.gesture==='down'&&resolved.action?{index:resolved.index,action:resolved.action}:null;
+  }
+  function planHardwareEvent(state,event){
+    const resolved=resolveHardwareEvent(state,event);
+    if(!resolved||!resolved.action)return null;
+    if(resolved.gesture==='up')return null;
+    if(resolved.knob && (resolved.gesture==='left'||resolved.gesture==='right')){
+      // A previous/next action on any knob enables bidirectional page
+      // rotation: counterclockwise = previous, clockwise = next.
+      if(!['previous','next'].includes(resolved.action.type))return null;
+      const direction=resolved.gesture==='left'?-1:1;
+      return {index:resolved.index,gesture:resolved.gesture,
+        outcome:{kind:'page',page:Math.max(0,Math.min(state.pages.length-1,state.page+direction))}};
+    }
+    if(resolved.gesture!=='down')return null;
+    return {index:resolved.index,gesture:resolved.gesture,
+      outcome:planAction(resolved.action,state.page,state.pages.length)};
   }
   function deletePage(state){
     if(!state||!Array.isArray(state.pages)||state.pages.length<=1)return false;
@@ -121,5 +152,5 @@
       url:action.settings?.url||'',mode:action.settings?.open||'default'};
     return {kind:'unsupported',message:'이 동작의 실행 기능은 아직 구현되지 않았습니다.'};
   }
-  return {ACTION_IDS,DEFAULTS,TITLE,createAction,cleanAction,blankPage,migrateState,physicalSlot,resolveKeyPress,deletePage,planAction};
+  return {ACTION_IDS,DEFAULTS,TITLE,createAction,cleanAction,blankPage,migrateState,physicalSlot,hardwareGesture,resolveHardwareEvent,resolveKeyPress,planHardwareEvent,deletePage,planAction};
 });
