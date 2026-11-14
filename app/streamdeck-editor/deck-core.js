@@ -15,7 +15,7 @@
   // New D200X actions stay separate from the original 24.
   const D200X_ACTION_IDS=['system-volume','system-mute','system-scroll','edit-history','window-switch','desktop-switch','device-brightness','system-zoom',
     'screenshot','clipboard-edit','window-state','window-monitor','explorer-open',
-    'brush-size','timeline-step','file-open','folder-shortcut'];
+    'brush-size','timeline-step','timeline-zoom','file-open','folder-shortcut'];
   const DEFAULTS={
     'audio-play':{file:'',mode:'play-stop',fade:'none',volume:50,output:'default'},
     'audio-stop':{},timer:{seconds:30,sound:'connect'},
@@ -35,7 +35,7 @@
     screenshot:{},'clipboard-edit':{operation:'copy'},
     'window-state':{operation:'maximize'},'window-monitor':{direction:'right'},
     'explorer-open':{},'brush-size':{direction:'increase'},
-    'timeline-step':{direction:'next'},'file-open':{path:''},'folder-shortcut':{path:''}
+    'timeline-step':{direction:'next'},'timeline-zoom':{operation:'in'},'file-open':{path:''},'folder-shortcut':{path:''}
   };
   const TITLE={visible:true,align:'bottom',family:'default',size:12,
     bold:false,italic:false,underline:false,color:'#ffffff',
@@ -273,7 +273,8 @@
       'window-monitor':['left','right'],
       'explorer-open':['open'],
       'brush-size':['increase','decrease'],
-      'timeline-step':['next','previous']
+      'timeline-step':['next','previous'],
+      'timeline-zoom':['in','out']
     };
     if(Object.prototype.hasOwnProperty.call(shortcutOptions,action.type)){
       const options=shortcutOptions[action.type],requested=action.settings?.operation||action.settings?.direction;
