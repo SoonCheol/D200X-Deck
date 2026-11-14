@@ -17,6 +17,24 @@ test('all 24 observed Stream Deck actions have independent defaults',()=>{
   assert.equal(second.settings.volume,50);
 });
 
+test('separate D200X volume/mute actions preserve the original 24',()=>{
+  assert.equal(core.ACTION_IDS.length,24);
+  assert.deepEqual(core.D200X_ACTION_IDS,['system-volume','system-mute']);
+  const volume=core.createAction('system-volume');
+  assert.deepEqual(core.planAction(volume,0,1),{kind:'adjust',target:'volume',direction:1,count:1});
+  volume.settings.direction='down';volume.settings.step=5;
+  assert.deepEqual(core.planAction(volume,0,1),{kind:'adjust',target:'volume',direction:-1,count:5});
+  const mute=core.createAction('system-mute');
+  assert.deepEqual(core.planAction(mute,0,1),{kind:'mute'});
+  const state=core.migrateState(null);
+  const knob=core.controlBinding(state,16);
+  knob.mode='adjust';knob.target='volume';knob.down=mute;
+  assert.deepEqual(core.planHardwareEvent(state,{kind:2,index:17,state:3}).outcome,{kind:'adjust',target:'volume',direction:1});
+  assert.deepEqual(core.planHardwareEvent(state,{kind:2,index:17,state:1}).outcome,{kind:'mute'});
+  const restored=core.migrateState(JSON.parse(JSON.stringify(state)));
+  assert.equal(core.controlBinding(restored,16).down.type,'system-mute');
+});
+
 test('legacy state migration retains visible and physical slots, selected page and icon',()=>{
   const old={pages:[[{type:'timer',title:'내 타이머',settings:{seconds:45},
     icon:{kind:'glyph',glyph:'◴'},titleStyle:{color:'#ff0000'}}],[]],page:1,selected:15};
