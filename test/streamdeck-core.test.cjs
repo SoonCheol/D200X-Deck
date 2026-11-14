@@ -524,11 +524,11 @@ test('P1/P2 closed shortcut actions preserve 24 original entries',()=>{
 test('original Soundboard actions expose playback and stop planning',()=>{
   const audio=core.createAction('audio-play');audio.settings.file='C:\\Audio\\sample.mp3';
   audio.settings.volume=65;audio.settings.mode='play-stop';
-  assert.deepEqual(core.planAction(audio,0,1),{kind:'audio-play',file:'C:\\Audio\\sample.mp3',mode:'play-stop',volume:65});
+  assert.deepEqual(core.planAction(audio,0,1),{kind:'audio-play',file:'C:\\Audio\\sample.mp3',mode:'play-stop',volume:65,fade:'none',fadeDuration:2,output:'default'});
   assert.deepEqual(core.planAction(core.createAction('audio-stop'),0,1),{kind:'audio-stop'});
 });
 
-test('original text action plans Unicode strings without changing clipboard',()=>{
+test('original text action plans either clipboard or Unicode typing with chosen mode',()=>{
   const a=core.createAction('text');a.settings.body='한글과 English';a.settings.enter=true;
   assert.deepEqual(core.planAction(a,0,1),{kind:'type-text',text:'한글과 English',enter:true,mode:'clipboard'});
 });
@@ -673,7 +673,7 @@ test('first actions navigate within available page boundaries and plan websites'
   assert.equal(core.planAction(goto,0,3).kind,'invalid');
   const site=core.createAction('website');
   site.settings.url='https://example.org/';site.settings.open='default';
-  assert.deepEqual(core.planAction(site,1,3),{kind:'website',url:'https://example.org/',mode:'default'});
+  assert.deepEqual(core.planAction(site,1,3),{kind:'website',url:'https://example.org/',mode:'default',browserPath:''});
   assert.equal(core.planAction(core.createAction('hotkey'),1,3).kind,'windows-hotkey');
 });
 
