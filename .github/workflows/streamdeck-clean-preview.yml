@@ -76,6 +76,13 @@ jobs:
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           if (-not (Test-Path 'app/streamdeck-editor/builtin-iconpacks.json')) { throw 'Fluent UI bundle missing' }
           if (-not (Test-Path 'app/streamdeck-editor/fluentui-LICENSE.md')) { throw 'Fluent UI license missing' }
+          $bundle = Get-Item 'app/streamdeck-editor/builtin-iconpacks.json'
+          Write-Host "Fluent UI pack JSON bytes: $($bundle.Length)"
+          if ($bundle.Length -lt 1MB) { throw 'Fluent UI icon bundle too small' }
+          $bundled = Get-Content -Raw $bundle.FullName | ConvertFrom-Json
+          if ($bundled.Count -ne 2 -or $bundled[0].icons.Count -ne 1914 -or $bundled[1].icons.Count -ne 1914) {
+            throw 'Fluent UI icon pack counts incorrect'
+          }
       - name: Assemble isolated preview with only D200X HID dependencies
         shell: pwsh
         run: |
@@ -106,6 +113,11 @@ jobs:
           npx --no-install electron-packager ./preview-device-build D200X-StreamDeck-Preview --platform=win32 --arch=x64 --electron-version=45.2.1 --out=dist --overwrite --prune=false
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           if (-not (Test-Path 'dist/D200X-StreamDeck-Preview-win32-x64/D200X-StreamDeck-Preview.exe')) { throw "EXE missing" }
+          $packaged = 'dist/D200X-StreamDeck-Preview-win32-x64/resources/app/streamdeck-editor/builtin-iconpacks.json'
+          if (-not (Test-Path $packaged)) { throw 'Packaged EXE missing Fluent UI icon bundle' }
+          $size = (Get-Item $packaged).Length
+          Write-Host "Packaged Fluent UI icon bytes: $size"
+          if ($size -lt 1MB) { throw 'Packaged Fluent UI icon bundle too small' }
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: D200X-StreamDeck-Device-Sync-win-x64
