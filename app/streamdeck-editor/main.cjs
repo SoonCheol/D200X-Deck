@@ -2,6 +2,7 @@
 
 const { app, BrowserWindow, Menu, ipcMain, clipboard, dialog, shell } = require('electron');
 const path = require('node:path');
+const { pathToFileURL } = require('node:url');
 const fs = require('node:fs');
 const { execFile } = require('node:child_process');
 const { promisify } = require('node:util');
@@ -210,6 +211,19 @@ ipcMain.handle('d200x:device-brightness',(event,args)=>{
   if(!window||event.sender!==window.webContents)throw new Error('허용되지 않은 호출입니다.');
   if(!args||![-1,1].includes(args.direction)||![1,2,5,10].includes(args.count))throw new Error('잘못된 밝기 조절 요청입니다.');
   return transport.adjustBrightness(args.direction,args.count);
+});
+
+// Validate a user-selected audio file before handing its file:// URL to the
+// isolated renderer. Playback/stop is in the renderer, not an external player.
+ipcMain.handle('d200x:audio-file-url',async(event,args)=>{
+  if(!window||event.sender!==window.webContents)throw new Error('허용되지 않은 호출입니다.');
+  const filePath=args?.filePath;
+  if(typeof filePath!=='string'||filePath.length>4096||!path.win32.isAbsolute(filePath)||
+      /[\x00-\x1f\x7f]/.test(filePath))throw new Error('올바른 Windows 오디오 파일을 선택하세요.');
+  if(!/\.(mp3|wav|flac|ogg|m4a|aac)$/i.test(filePath))throw new Error('지원하지 않는 오디오 파일 확장자입니다.');
+  const stat=await fs.promises.stat(filePath);
+  if(!stat.isFile())throw new Error('파일을 찾을 수 없습니다.');
+  return pathToFileURL(filePath).href;
 });
 
 // Unicode typing uses SendInput/KEYEVENTF_UNICODE: no PowerShell source interpolation
