@@ -162,6 +162,8 @@ test('original media/hotkey/open actions share execution planning',()=>{
   assert.deepEqual(core.planAction(sw,0,1),{kind:'windows-hotkey-switch',first:'Ctrl+C',second:'Ctrl+V'});
   const open=core.createAction('open');open.settings.path='C:\\Temp';
   assert.deepEqual(core.planAction(open,0,1),{kind:'open-local-path',path:'C:\\Temp',target:'auto'});
+  const close=core.createAction('close');close.settings.path='C:\\Tools\\app.exe';close.settings.force=true;
+  assert.deepEqual(core.planAction(close,0,1),{kind:'close-local-app',path:'C:\\Tools\\app.exe',force:true});
   const app=core.createAction('open-app');app.settings.app='C:\\Program Files\\Example\\app.exe';
   assert.equal(core.planAction(app,0,1).target,'file');
 });
