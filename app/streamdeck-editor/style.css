@@ -337,3 +337,14 @@
 .profile-name-actions button.primary{background:#2977c9;border-color:#2977c9}
 .key-menu button:disabled,.profile-menu button:disabled,.settings-trigger:disabled{opacity:.42;cursor:not-allowed}
 .key-menu button:disabled:hover,.profile-menu button:disabled:hover{background:transparent}
+
+/* Profile selector: a short list with per-profile gear controls. */
+.profile-menu{min-width:260px;max-width:315px;max-height:min(80vh,650px);overflow-y:auto}
+.profile-list-row{display:grid;grid-template-columns:minmax(0,1fr) 32px;align-items:center}
+.profile-list-select{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.profile-list-row .profile-row-gear{width:30px;text-align:center;font-size:16px;padding:7px 4px}
+.profile-row-tools{grid-column:1 / -1;background:#282828;border-left:2px solid #4b91d4;margin:2px 4px 8px 10px;padding:4px}
+.profile-row-tools[hidden],.profile-global-panel[hidden]{display:none}
+.profile-row-tools button,.profile-global-panel button{font-size:12px}
+.profile-row-tools button:disabled{opacity:.4;cursor:not-allowed}
+.profile-global-panel{background:#282828;border-left:2px solid #666;margin:4px 5px;padding:4px}
