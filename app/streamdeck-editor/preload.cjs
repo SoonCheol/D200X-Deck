@@ -17,6 +17,7 @@ contextBridge.exposeInMainWorld('deckBridge', Object.freeze({
   mediaControl: operation => ipcRenderer.invoke('d200x:media-control', {operation}),
   sendHotkey: keys => ipcRenderer.invoke('d200x:send-hotkey', {keys}),
   typeText: (text,enter=false) => ipcRenderer.invoke('d200x:type-text', {text,enter}),
+  audioFileUrl: filePath => ipcRenderer.invoke('d200x:audio-file-url', {filePath}),
   syncPage: images => ipcRenderer.send('d200x:sync-page', images),
   onStatus: callback => {
     if (typeof callback !== 'function') return;
