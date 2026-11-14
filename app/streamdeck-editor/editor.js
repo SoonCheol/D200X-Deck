@@ -738,6 +738,13 @@ function executeHardwareAction(event,preview=false){
     );
     return 'Windows 음소거 전환 요청';
   }
+  if(outcome.kind==='type-text'){
+    if(!window.deckBridge?.typeText)return 'Windows 실행 환경에서만 사용할 수 있습니다.';
+    window.deckBridge.typeText(outcome.text,outcome.enter).then(
+      ()=>window.d200xActionStatus?.('텍스트 입력 완료 (클립보드 변경 없음)'),
+      error=>window.d200xActionStatus?.('텍스트 입력 실패: '+String(error?.message||error)));
+    return '유니코드 직접 입력 요청 · 클립보드 모드도 현재는 직접 입력으로 처리';
+  }
   if(outcome.kind==='timer'){
     const scope=index>=14&&state.controls.scopes[index-14]==='global'?'global':String(state.page);
     const key=scope+':'+index;
