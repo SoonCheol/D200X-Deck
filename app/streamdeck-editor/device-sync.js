@@ -81,9 +81,15 @@
       const y = top + (index + 0.5) * lineHeight;
       // A subtle black outline is readable over bright icons without
       // introducing an extra title background not shown in Stream Deck.
-      ctx.strokeStyle = '#000000';
-      ctx.lineWidth = Math.max(1, fontSize / 16);
-      ctx.strokeText(value,width/2,y,maxWidth);
+      const outlineColor = /^#[0-9a-fA-F]{6}$/.test(style?.outlineColor)
+        ? style.outlineColor : '#000000';
+      const outlineWidth = {none:0,thin:fontSize/16,medium:fontSize/10,thick:fontSize/6}
+        [style?.outlineWidth || 'thin'] ?? fontSize/16;
+      if(outlineWidth>0){
+        ctx.strokeStyle=outlineColor;
+        ctx.lineWidth=Math.max(1,outlineWidth);
+        ctx.strokeText(value,width/2,y,maxWidth);
+      }
       ctx.fillText(value,width/2,y,maxWidth);
       if(style?.underline){
         const actual = Math.min(maxWidth,ctx.measureText(value).width);
