@@ -114,7 +114,8 @@ class StreamDeckPluginHost{
             }});
             return;
           }
-          if(owner||inspector)this.message(msg,owner,inspector,ws);
+          if(owner||inspector)Promise.resolve(this.message(msg,owner,inspector,ws))
+            .catch(error=>this.onUpdate({kind:'error',message:'SDK 설정 요청 실패: '+error.message}));
         }catch(error){this.onUpdate({kind:'error',message:'플러그인 메시지 처리 오류: '+error.message});}
       });
       ws.on('close',()=>{
@@ -152,6 +153,8 @@ class StreamDeckPluginHost{
     const manifest=validateManifest(JSON.parse(await fs.promises.readFile(path.join(dir,'manifest.json'),'utf8')));
     const instance={uuid,manifest,dir,ws:null,window:null};
     const win=new BrowserWindow({show:false,webPreferences:{nodeIntegration:false,contextIsolation:false,sandbox:true,webSecurity:true}});
+    win.webContents.setWindowOpenHandler(()=>({action:'deny'}));
+    win.webContents.on('will-navigate',(event,url)=>{if(!url.startsWith('file://'))event.preventDefault();});
     instance.window=win;this.instances.set(uuid,instance);
     win.on('closed',()=>{if(this.instances.get(uuid)===instance)this.instances.delete(uuid);});
     await win.loadFile(path.join(dir,manifest.CodePath));
@@ -209,6 +212,13 @@ class StreamDeckPluginHost{
     if(pi?.window&&!pi.window.isDestroyed()){pi.window.show();pi.window.focus();return true;}
     const win=new BrowserWindow({width:560,height:780,minWidth:420,minHeight:500,title:inst.manifest.Name+' · 설정',
       webPreferences:{nodeIntegration:false,contextIsolation:false,sandbox:true,webSecurity:true}});
+    win.webContents.setWindowOpenHandler(({url})=>{
+      if(/^https?:\/\//i.test(url))require('electron').shell.openExternal(url).catch(()=>{});
+      return {action:'deny'};
+    });
+    win.webContents.on('will-navigate',(event,url)=>{
+      if(!url.startsWith('file://'))event.preventDefault();
+    });
     pi={context,actionUUID:ctx.actionUUID,slot:ctx.slot,window:win,ws:null,pluginUUID:ctx.pluginUUID};
     this.inspectors.set(context,pi);
     win.on('closed',()=>{this.inspectors.delete(context);});
