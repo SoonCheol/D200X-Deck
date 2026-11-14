@@ -46,3 +46,23 @@ test('SDK manifest dual-state icon can be read without modifying the profile',as
     assert.equal(result,'data:image/png;base64,iVBORw==');
   }finally{await fs.rm(tmp,{recursive:true,force:true});}
 });
+
+
+test('SDK property inspector save notifies the running plugin as well as the inspector',async()=>{
+  const host=new StreamDeckPluginHost('/tmp/d200x-sdk-test');
+  const sent=[];
+  host.send=(ws,msg)=>{if(ws)sent.push({ws:ws.name,msg});};
+  const uuid=M.UUID,context='profile:0::0:down',actionUUID=M.Actions[0].UUID;
+  const settings={version:8,display:{entityId:'switch.living_1'},button:{serviceShortPress:{
+    serviceId:'switch.toggle',entityId:'switch.living_1',serviceData:''}}};
+  host.contexts.set(context,{context,slot:0,pluginUUID:uuid,actionUUID,settings:{}});
+  host.instances.set(uuid,{uuid,ws:{name:'plugin'}});
+  host.inspectors.set(context,{context,pluginUUID:uuid,ws:{name:'inspector'}});
+  await host.message({event:'setSettings',context,payload:settings},null,{
+    pluginUUID:uuid,context
+  },{name:'inspector'});
+  assert.equal(host.contexts.get(context).settings.display.entityId,'switch.living_1');
+  assert.deepEqual(sent.map(x=>x.ws),['plugin','inspector']);
+  assert.equal(sent[0].msg.event,'didReceiveSettings');
+  assert.equal(sent[0].msg.payload.settings.button.serviceShortPress.serviceId,'switch.toggle');
+});
