@@ -76,6 +76,7 @@
 .icon-group-title .icon-group-count{color:#828282;font-weight:400}
 .icon-group-title .icon-group-arrow{font-size:12px;color:#aaa}
 .icon-grid{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:4px;padding:11px 8px}
+.icon-grid[hidden]{display:none}
 .icon-swatch{aspect-ratio:1;background:#353535;border:1px solid transparent;border-radius:5px;display:flex;align-items:center;justify-content:center;font-size:23px;color:#f3f3f3}
 .icon-swatch:hover,.icon-swatch:focus-visible{border-color:#368ae8;background:#3d4553}
 .icon-swatch.blue{color:#3e90ec;background:#172233}
