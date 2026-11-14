@@ -5,7 +5,7 @@ const path=require('node:path');
 const os=require('node:os');
 const fs=require('node:fs/promises');
 const JSZip=require('../app/node_modules/jszip');
-const {parseIconPack,readPacks,registerPack}=require('../app/streamdeck-editor/icon-pack.cjs');
+const {parseIconPack,readPacks,registerPack,removePack}=require('../app/streamdeck-editor/icon-pack.cjs');
 
 const png=Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Y5fAJkAAAAASUVORK5CYII=','base64');
 async function fixture(overrides={}){
@@ -44,5 +44,19 @@ test('persists icon packs separately from profiles and overwrites duplicate regi
     assert.equal(installed.length,1);
     assert.equal(installed[0].name,'Gray Test');
     assert.deepEqual(installed[0].icons[0].image,pack.icons[0].image);
+  }finally{await fs.rm(dir,{recursive:true,force:true});}
+});
+
+test('removes only user-imported pack, leaving other packs intact',async()=>{
+  const dir=await fs.mkdtemp(path.join(os.tmpdir(),'d200x-iconpack-remove-'));
+  const target=path.join(dir,'packs.json');
+  try{
+    const pack=await parseIconPack(await fixture());
+    await registerPack(target,pack);
+    await registerPack(target,{...pack,id:'second-pack',name:'Second'});
+    assert.equal(await removePack(target,pack.id),true);
+    assert.equal(await removePack(target,pack.id),false);
+    assert.deepEqual((await readPacks(target)).map(x=>x.name),['Second']);
+    await assert.rejects(removePack(target,'bundled-simple-gray-tones-1.0.1'),/기본 아이콘팩/);
   }finally{await fs.rm(dir,{recursive:true,force:true});}
 });
