@@ -220,3 +220,23 @@
 .title-color-swatch{width:100%;aspect-ratio:1;border:1px solid #999!important;border-radius:4px!important;padding:0!important;min-width:0!important;}
 .title-color-remove{font-size:12px!important;border:1px solid #666!important;background:#333!important;border-radius:4px!important;padding:0!important;}
 #title-palette-save{padding:7px!important;background:#3f566f!important;border:1px solid #718399!important;border-radius:4px!important;}
+
+
+/* Per-gesture inspector for the two physical buttons and three rotary knobs.
+   Lives below the locked D200X grid; never expands its top hardware layout. */
+.control-inspector{display:block}
+.control-config{display:flex;flex-wrap:wrap;align-items:center;gap:10px;margin:11px 0}
+.control-config>label{min-width:90px;color:#bfc4cf}
+.control-config>select{background:#373737;color:#eee;border:1px solid #656565;border-radius:5px;padding:7px;min-width:170px}
+.control-gesture-strip{display:flex;flex-wrap:wrap;gap:10px;margin:14px 0}
+.control-gesture-tile{flex:1;min-width:110px;max-width:210px;border:1px solid #5b5b5b;background:#25282e;border-radius:9px;display:flex;align-items:center;flex-direction:column;gap:5px;padding:9px;color:#ddd}
+.control-gesture-tile.active{border:2px solid #4d9ee9;background:#303b49}
+.control-gesture-tile.drag-over{outline:3px solid #68b8fa;outline-offset:2px}
+.control-gesture-symbol{font-size:24px;line-height:1.1;color:#eee}
+.control-gesture-value{font-size:11px;color:#abc3e4;min-height:20px;text-align:center;overflow-wrap:anywhere}
+.control-action-editor{border-top:1px solid #484848;padding:14px 0}
+.control-action-header{display:flex;gap:12px;align-items:center;justify-content:space-between;margin-bottom:12px}
+.control-action-header button{background:#444;border:1px solid #777;border-radius:5px;padding:5px 10px}
+.control-stack-targets{display:flex;flex-wrap:wrap;gap:10px}
+.control-stack-targets label{display:flex;align-items:center;gap:4px}
+.control-stack-targets input{accent-color:#529eea}
