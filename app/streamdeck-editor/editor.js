@@ -7,7 +7,7 @@ const CATALOG = [
   ["다중 동작", [["multi","다중 동작","▤"],["multi-switch","다중 동작 스위치","⇄"],["random","무작위 동작","⚄"],["logic","Key Logic","⇧"]]],
   ["시스템", [["website","웹사이트","◎"],["hotkey-switch","단축키 전환","⇄"],["hotkey","단축키","⌨"],["open","열기","▢"],["open-app","응용 프로그램 열기","▣"],["close","닫기","×"],["text","텍스트","¶"],["media","멀티미디어","♫"]]],
   ["탐색", [["folder","폴더 생성","▣"],["profile","프로필 전환","⇆"],["previous","이전 페이지","←"],["next","다음 페이지","→"],["goto","페이지로 이동","↗"],["indicator","페이지 표시기","①"]]],
-  ["D200X 추가 액션", [["system-volume","Windows 음량 조절","🔊"],["system-mute","Windows 음소거","🔇"],["system-scroll","Windows 스크롤","↕"],["edit-history","실행 취소·다시 실행","↶"]]]
+  ["D200X 추가 액션", [["system-volume","Windows 음량 조절","🔊"],["system-mute","Windows 음소거","🔇"],["system-scroll","Windows 스크롤","↕"],["edit-history","실행 취소·다시 실행","↶"],["window-switch","창 전환","▣"],["desktop-switch","가상 데스크톱 전환","⇄"]]]
 ];
 const ACTIONS = new Map(CATALOG.flatMap(([category, entries]) => entries.map(([id,label,icon]) => [id,{category,id,label,icon}])));
 const STORAGE_KEY="d200x-streamdeck-editor-prototype-v1";
@@ -65,9 +65,12 @@ function controlDrop(index,id,gesture='down'){
   if(!ACTIONS.has(id))return;
   const binding=DeckCore.controlBinding(state,index);
   if(!binding)return;
-  if(index>=16&&gesture==='down'&&['system-volume','system-scroll','edit-history'].includes(id)){
+  if(index>=16&&gesture==='down'&&['system-volume','system-scroll','edit-history','window-switch','desktop-switch'].includes(id)){
     // Rotation runs the shared adjustment planner; preserve the press assignment.
-    binding.mode='adjust';binding.target=id==='system-volume'?'volume':id==='edit-history'?'history':'scroll';
+    binding.mode='adjust';binding.target=({
+      'system-volume':'volume','system-scroll':'scroll','edit-history':'history',
+      'window-switch':'window','desktop-switch':'desktop'
+    })[id];
   }else if(index>=16&&gesture==='down'&&['previous','next'].includes(id)){
     // Dropping a navigation action directly on the knob preserves the
     // familiar bidirectional rotation behavior; per-gesture tiles remain
@@ -128,8 +131,8 @@ function renderPhysicalControls(){
     button.title=name+" — 클릭하거나 액션을 끌어 설정";
     const symbol=document.createElement("span");symbol.className="physical-symbol";
     const label=document.createElement("span");label.className="physical-name";
-    label.textContent=binding?.mode==='adjust'?'조절: '+({page:'페이지',volume:'음량',zoom:'확대/축소',scroll:'세로 스크롤','scroll-x':'가로 스크롤',history:'실행 취소·다시 실행'}[binding.target])
-      :binding?.mode==='stack'?'스택: '+({page:'페이지',volume:'음량',zoom:'확대/축소',scroll:'세로 스크롤','scroll-x':'가로 스크롤',history:'실행 취소·다시 실행'}[binding.stack[stackPositions[offset-2]%binding.stack.length]])
+    label.textContent=binding?.mode==='adjust'?'조절: '+({page:'페이지',volume:'음량',zoom:'확대/축소',scroll:'세로 스크롤','scroll-x':'가로 스크롤',history:'실행 취소·다시 실행',window:'창 전환',desktop:'가상 데스크톱'}[binding.target])
+      :binding?.mode==='stack'?'스택: '+({page:'페이지',volume:'음량',zoom:'확대/축소',scroll:'세로 스크롤','scroll-x':'가로 스크롤',history:'실행 취소·다시 실행',window:'창 전환',desktop:'가상 데스크톱'}[binding.stack[stackPositions[offset-2]%binding.stack.length]])
       :(item?keyName(item):name);
     button.append(symbol,label);
     button.addEventListener("click",()=>choose(index));
@@ -208,6 +211,7 @@ function actionFields(item){
     case "media":return select("op","동작",[["previous","이전 트랙"],["playpause","재생 / 일시정지"],["next","다음 트랙"],["stop","정지"],["mute","음소거"],["up","음량 키우기"],["down","음량 줄이기"]]);
     case "system-volume":return select("direction","동작",[["up","음량 키우기"],["down","음량 줄이기"]])+select("step","변화량",[[1,"1"],[2,"2"],[5,"5"],[10,"10"]]);
     case "system-mute":return '<div class="field"><span></span><span class="hint">누를 때마다 음소거 전환</span></div>';
+    case "window-switch":case "desktop-switch":return select("direction","전환 방향",[["next","다음"],["previous","이전"]]);
     case "edit-history":return select("operation","동작",[["undo","실행 취소 (Ctrl+Z)"],["redo","다시 실행 (Ctrl+Y)"]])+
       select("step","횟수",[[1,"1"],[2,"2"],[5,"5"],[10,"10"]]);
     case "system-scroll":return select("axis","방향 축",[["vertical","세로"],["horizontal","가로"]])+
@@ -405,14 +409,14 @@ function renderControlInspector(){
     config.append(label);
     if(binding.mode==='adjust'){
       const select=document.createElement('select');
-      for(const [value,title] of [['page','페이지 이동'],['volume','Windows 음량'],['zoom','활성 앱 확대/축소'],['scroll','세로 스크롤'],['scroll-x','가로 스크롤'],['history','실행 취소·다시 실행']])
+      for(const [value,title] of [['page','페이지 이동'],['volume','Windows 음량'],['zoom','활성 앱 확대/축소'],['scroll','세로 스크롤'],['scroll-x','가로 스크롤'],['history','실행 취소·다시 실행'],['window','창 전환'],['desktop','가상 데스크톱']])
         select.add(new Option(title,value));
       select.value=binding.target;
       select.addEventListener('change',()=>{binding.target=select.value;persist();renderPhysicalControls();});
       config.append(select);
     }else{
       const area=document.createElement('div');area.className='control-stack-targets';
-      const targets=[['page','페이지 이동'],['volume','Windows 음량'],['zoom','활성 앱 확대/축소'],['scroll','세로 스크롤'],['scroll-x','가로 스크롤'],['history','실행 취소·다시 실행']];
+      const targets=[['page','페이지 이동'],['volume','Windows 음량'],['zoom','활성 앱 확대/축소'],['scroll','세로 스크롤'],['scroll-x','가로 스크롤'],['history','실행 취소·다시 실행'],['window','창 전환'],['desktop','가상 데스크톱']];
       for(const [value,title] of targets){
         const label=document.createElement('label');
         const check=document.createElement('input');check.type='checkbox';
@@ -669,7 +673,7 @@ function executeHardwareAction(event){
     stackPositions[idx]=(stackPositions[idx]+1)%outcome.size;
     renderPhysicalControls();
     const target=DeckCore.controlBinding(state,index).stack[stackPositions[idx]];
-    return '노브 '+(idx+1)+' 조절 대상: '+({page:'페이지',volume:'음량',zoom:'확대/축소',scroll:'세로 스크롤','scroll-x':'가로 스크롤',history:'실행 취소·다시 실행'}[target]);
+    return '노브 '+(idx+1)+' 조절 대상: '+({page:'페이지',volume:'음량',zoom:'확대/축소',scroll:'세로 스크롤','scroll-x':'가로 스크롤',history:'실행 취소·다시 실행',window:'창 전환',desktop:'가상 데스크톱'}[target]);
   }
   if(outcome.kind==='mute'){
     if(!window.deckBridge?.adjustWindows)return 'Windows 실행 환경에서만 사용할 수 있습니다.';
@@ -678,6 +682,14 @@ function executeHardwareAction(event){
       error=>window.d200xActionStatus?.('음소거 전환 실패: '+String(error?.message||error))
     );
     return 'Windows 음소거 전환 요청';
+  }
+  if(outcome.kind==='windows-switch'){
+    if(!window.deckBridge?.switchWindows)return 'Windows 실행 환경에서만 사용할 수 있습니다.';
+    window.deckBridge.switchWindows(outcome.target,outcome.direction,outcome.count||1).then(
+      ()=>window.d200xActionStatus?.('전환 키 입력 완료'),
+      error=>window.d200xActionStatus?.('전환 실패: '+String(error?.message||error))
+    );
+    return outcome.target==='window'?'창 전환 요청':'가상 데스크톱 전환 요청';
   }
   if(outcome.kind==='edit-history'){
     if(!window.deckBridge?.editHistory)return 'Windows 실행 환경에서만 사용할 수 있습니다.';
