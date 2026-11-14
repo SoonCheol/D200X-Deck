@@ -113,7 +113,7 @@ window.D200XPanelIcons=(()=>{
     const overrides={};
     for(const [id,data] of Object.entries(value.overrides)){
       if(!Object.prototype.hasOwnProperty.call(paths,id)||
-        typeof data!=='string'||!/^data:image\\/(png|jpeg|webp|gif);base64,/.test(data)||
+        typeof data!=='string'||!/^data:image\/(png|jpeg|webp|gif);base64,/.test(data)||
         data.length>200000)return false;
       overrides[id]=data;
     }
