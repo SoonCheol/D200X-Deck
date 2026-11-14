@@ -434,3 +434,11 @@
 - **주의:** 첫 Windows CI가 실패한 이유는 테스트 파일 누락 → 임시 ZIP 테스트의 잘못된 await 문법 → 새 SDK 액션 ID 정확 일치 테스트 → 모의 PNG Base64 기대 문자열 오타로 각각 확인되고 수정됨. 최종 자동 CI와 Windows 패키징 결과는 성공이지만, **이것은 실제 공개 HA 3.8.4 배포 ZIP의 수동 설치·HA 네트워크 연결·원본 HTML PI 기능·실기 상태 동기화 성공을 증명하지 않음**.
 - 사용자 실기 1차 절차: https://github.com/cgiesche/streamdeck-homeassistant/releases/tag/3.8.4 에서 `de.perdoctus.streamdeck.homeassistant.streamDeckPlugin` 다운로드 → 최신 Windows 프리뷰 압축 해제·EXE 실행 → 오른쪽 플러그인 탭의 `＋ Stream Deck 플러그인 설치` → 파일 선택 → 설치 목록에서 `Entity (generic)`을 화면 키에 할당 → 해당 키를 선택해 `설정 열기`(원본 `pi.html` 별도창) → HA URL 및 장기 토큰/엔티티 설정 → 실제 화면키 실행. 문제가 있으면 정확한 오류 메시지/증상 기록.
 - 최신 작업 범위에서는 `main`, PR #5, 기존 사용자 저장 프로필의 실제 PC 파일을 직접 변경하지 않았다. Marketplace 구축은 이 HA 플러그인의 실기 호환성 확인 후.
+
+
+### HA 원본 설정창에서 엔티티 저장 후 실제 토글 미작동 제보 및 수정 (2026-11-15)
+
+- 사용자 실제 Windows 화면: 원본 `cgiesche` PI가 실행되고 녹색 HA 연결 표시, `거실등 1` 엔티티 및 `switch.toggle` 서비스 선택 가능. `Service Data JSON`의 `{"option":"value"}`는 upstream `src/components/ServiceCallConfiguration.vue`의 **placeholder**, 실제 입력 데이터 아님.
+- 사용자가 실제 버튼에서 작동하지 않는다고 보고. 원인 후보를 GitHub 코드에서 직접 확인: `sd-plugin-host.cjs` `setSettings` 처리 시 PI 소켓에서 들어온 메시지는 `inst=null`인데 `this.send(inst?.ws,...)`로 전송하여 실행 중 플러그인으로 `didReceiveSettings`가 전달되지 않음. 원본 upstream `src/components/PluginComponent.vue` 190행에 `didReceiveSettings` 수신 처리 존재.
+- **최소 코드 수정:** 전송 대상 `inst?.ws`를 `this.instances.get(uuid)?.ws`로 변경 (커밋 `da437a5c199daad727d201f44714322bc3a50947`). 단위 테스트는 `test/streamdeck-sdk-host.test.cjs`에 PI → 플러그인·PI 양쪽 통지 확인 추가 (커밋 `51cccf869892ed126d5a46b9dd910084dbda1cad`).
+- 실제 사용자 재시험 전이므로 **문제 해결 실기 확인 없음**. CI/Windows 프리뷰 결과 확인 후 링크를 제공하고, 최신 빌드에서 기존 설정창의 Save configuration 다시 누른 뒤 물리 키 확인. HA URL/토큰을 채팅에 노출하지 않는다. 변경은 개발 브랜치 한정, main/PR #5 그대로.
