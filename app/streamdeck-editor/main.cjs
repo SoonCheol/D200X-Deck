@@ -212,6 +212,48 @@ ipcMain.handle('d200x:device-brightness',(event,args)=>{
   return transport.adjustBrightness(args.direction,args.count);
 });
 
+// Unicode typing uses SendInput/KEYEVENTF_UNICODE: no PowerShell source interpolation
+// from user text (only a fixed, Base64-encoded UTF-16LE literal).
+ipcMain.handle('d200x:type-text',async(event,args)=>{
+  if(!window||event.sender!==window.webContents)throw new Error('허용되지 않은 호출입니다.');
+  if(typeof args?.text!=='string'||args.text.length>2048||typeof args.enter!=='boolean')
+    throw new Error('텍스트 입력은 최대 2048자로 제한됩니다.');
+  if(!args.text&&!args.enter)return false;
+  if(process.platform!=='win32')throw new Error('Windows에서만 지원합니다.');
+  const encoded=Buffer.from(args.text,'utf16le').toString('base64');
+  const ps=`Add-Type -TypeDefinition @'
+using System;
+using System.Runtime.InteropServices;
+public static class D200XUnicode {
+  [StructLayout(LayoutKind.Sequential)] public struct KEYBDINPUT {
+    public ushort wVk, wScan;
+    public uint dwFlags, time;
+    public UIntPtr dwExtraInfo;
+  }
+  [StructLayout(LayoutKind.Explicit, Size=40)] public struct INPUT {
+    [FieldOffset(0)] public uint type;
+    [FieldOffset(8)] public KEYBDINPUT ki;
+  }
+  [DllImport("user32.dll",SetLastError=true)] static extern uint SendInput(uint nInputs, INPUT[] pInputs, int cbSize);
+  [DllImport("user32.dll")] static extern void keybd_event(byte vk,byte scan,uint flags,UIntPtr extra);
+  public static void Write(string text,bool enter) {
+    foreach(char c in text) {
+      INPUT[] input=new INPUT[2];
+      input[0].type=1;input[0].ki.wScan=c;input[0].ki.dwFlags=4;
+      input[1].type=1;input[1].ki.wScan=c;input[1].ki.dwFlags=6;
+      if(SendInput(2,input,Marshal.SizeOf(typeof(INPUT)))!=2)throw new Exception("SendInput failed");
+    }
+    if(enter){keybd_event(0x0D,0,0,UIntPtr.Zero);keybd_event(0x0D,0,2,UIntPtr.Zero);}
+  }
+}
+'@;
+$text=[Text.Encoding]::Unicode.GetString([Convert]::FromBase64String('${encoded}'));
+[D200XUnicode]::Write($text,${args.enter?'$true':'$false'});`;
+  await execFileAsync('powershell.exe',['-NoProfile','-NonInteractive','-WindowStyle','Hidden','-Command',ps],
+    {windowsHide:true,timeout:15000,maxBuffer:32768});
+  return true;
+});
+
 // Original Stream Deck media keys. Never execute user-supplied code.
 const MEDIA_CODES=Object.freeze({previous:0xB1,playpause:0xB3,next:0xB0,stop:0xB2,mute:0xAD,up:0xAF,down:0xAE});
 function emitWindowsKeys(held,key){
