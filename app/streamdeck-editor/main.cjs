@@ -3,6 +3,9 @@
 const { app, BrowserWindow, Menu, ipcMain, clipboard, dialog, shell } = require('electron');
 const path = require('node:path');
 const fs = require('node:fs');
+const { execFile } = require('node:child_process');
+const { promisify } = require('node:util');
+const execFileAsync = promisify(execFile);
 const { D200XTransport } = require('./transport.cjs');
 
 let window = null;
@@ -80,6 +83,38 @@ ipcMain.handle('d200x:open-website', async (event, args) => {
       || url.username || url.password)
     throw new Error('HTTP 또는 HTTPS 웹사이트 주소만 지원합니다.');
   await shell.openExternal(url.href);
+  return true;
+});
+
+// Only fixed, built-in Win32 media/zoom key codes; no user-provided script.
+// The foreground app interprets Ctrl+plus/minus; actual zoom support varies.
+ipcMain.handle('d200x:adjust-windows', async (event, args) => {
+  if (!window || event.sender !== window.webContents)
+    throw new Error('허용되지 않은 호출입니다.');
+  if (!args || !['volume','zoom'].includes(args.target) ||
+      ![-1,1].includes(args.direction))
+    throw new Error('지원하지 않는 노브 조절 동작입니다.');
+  if (process.platform !== 'win32')
+    throw new Error('Windows에서만 지원하는 조절 동작입니다.');
+  const key = args.target === 'volume'
+    ? (args.direction > 0 ? 0xAF : 0xAE)
+    : (args.direction > 0 ? 0xBB : 0xBD);
+  // Always use constant C# source; only the allowlisted numeric virtual key
+  // changes. No shell, file paths, profile input, or arbitrary commands.
+  const code = `Add-Type -TypeDefinition @'
+using System;
+using System.Runtime.InteropServices;
+public class D200XKey {
+  [DllImport("user32.dll")] public static extern void keybd_event(byte vk, byte scan, uint flags, UIntPtr extra);
+}
+'@;
+${args.target === 'zoom' ? '[D200XKey]::keybd_event(0x11,0,0,[UIntPtr]::Zero);' : ''}
+[D200XKey]::keybd_event(${key},0,0,[UIntPtr]::Zero);
+[D200XKey]::keybd_event(${key},0,2,[UIntPtr]::Zero);
+${args.target === 'zoom' ? '[D200XKey]::keybd_event(0x11,0,2,[UIntPtr]::Zero);' : ''}`;
+  await execFileAsync('powershell.exe',
+    ['-NoProfile','-NonInteractive','-WindowStyle','Hidden','-Command',code],
+    {windowsHide:true,timeout:6000,maxBuffer:32768});
   return true;
 });
 
