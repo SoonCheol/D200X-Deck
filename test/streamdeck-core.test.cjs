@@ -19,7 +19,7 @@ test('all 24 observed Stream Deck actions have independent defaults',()=>{
 
 test('separate D200X volume/mute actions preserve the original 24',()=>{
   assert.equal(core.ACTION_IDS.length,24);
-  assert.deepEqual(core.D200X_ACTION_IDS,['system-volume','system-mute','system-scroll','edit-history','window-switch','desktop-switch']);
+  assert.deepEqual(core.D200X_ACTION_IDS,['system-volume','system-mute','system-scroll','edit-history','window-switch','desktop-switch','device-brightness','system-zoom']);
   const volume=core.createAction('system-volume');
   assert.deepEqual(core.planAction(volume,0,1),{kind:'adjust',target:'volume',direction:1,count:1});
   volume.settings.direction='down';volume.settings.step=5;
@@ -97,6 +97,18 @@ test('window/desktop switching uses shared button and knob planner',()=>{
   }
   const restored=core.migrateState(JSON.parse(JSON.stringify(state)));
   assert.equal(core.controlBinding(restored,16).target,'desktop');
+});
+
+test('brightness and zoom action planner',()=>{
+  const a=core.createAction('device-brightness');
+  assert.deepEqual(core.planAction(a,0,1),{kind:'device-brightness',direction:1,count:5});
+  const z=core.createAction('system-zoom');
+  assert.equal(core.planAction(z,0,1).target,'zoom');
+  z.settings.operation='reset';assert.deepEqual(core.planAction(z,0,1),{kind:'zoom-reset'});
+  const s=core.migrateState(null),k=core.controlBinding(s,16);
+  k.mode='adjust';k.target='brightness';k.step=10;
+  assert.deepEqual(core.planHardwareEvent(s,{kind:2,index:17,state:2}).outcome,
+    {kind:'device-brightness',direction:-1,count:10});
 });
 
 test('legacy state migration retains visible and physical slots, selected page and icon',()=>{
