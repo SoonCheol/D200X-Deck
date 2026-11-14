@@ -103,3 +103,36 @@ test('first actions navigate within available page boundaries and plan websites'
   assert.deepEqual(core.planAction(site,1,3),{kind:'website',url:'https://example.org/',mode:'default'});
   assert.equal(core.planAction(core.createAction('hotkey'),1,3).kind,'unsupported');
 });
+
+test('D200X side-key report 15 and 16 map to editor slots 14 and 15',()=>{
+  assert.equal(core.physicalSlot({kind:1,index:0}),0);
+  assert.equal(core.physicalSlot({kind:1,index:13}),13);
+  assert.equal(core.physicalSlot({kind:1,index:14}),null);
+  assert.equal(core.physicalSlot({kind:1,index:15}),14);
+  assert.equal(core.physicalSlot({kind:1,index:16}),15);
+  assert.equal(core.physicalSlot({kind:2,index:15}),null);
+  assert.equal(core.physicalSlot({kind:1,index:17}),null);
+  const state=core.migrateState({pages:[Array.from({length:19},(_,i)=>
+    i===14?{type:'previous'}:i===15?{type:'next'}:null)]});
+  assert.equal(core.resolveKeyPress(state,{kind:1,index:15,pressed:true}).action.type,'previous');
+  assert.equal(core.resolveKeyPress(state,{kind:1,index:16,pressed:true}).action.type,'next');
+  assert.equal(core.resolveKeyPress(state,{kind:1,index:15,pressed:false}),null);
+});
+
+test('deleting pages preserves other pages, never deletes final page',()=>{
+  const state=core.migrateState({pages:[
+    [{type:'website',title:'첫째'}],
+    [{type:'next',title:'둘째'}],
+    [{type:'previous',title:'셋째'}]
+  ],page:1,selected:4});
+  assert.equal(core.deletePage(state),true);
+  assert.equal(state.pages.length,2);
+  assert.equal(state.page,1);
+  assert.equal(state.selected,null);
+  assert.equal(state.pages[0][0].title,'첫째');
+  assert.equal(state.pages[1][0].title,'셋째');
+  assert.equal(core.deletePage(state),true);
+  assert.equal(state.page,0);
+  assert.equal(core.deletePage(state),false);
+  assert.equal(state.pages.length,1);
+});
