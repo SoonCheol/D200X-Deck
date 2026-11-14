@@ -167,7 +167,10 @@ function renderLibrary(){
       const name=document.createElement("span");name.textContent=label;entry.append(symbol,name);
       entry.addEventListener("dragstart",ev=>ev.dataTransfer.setData("application/x-d200x-action",id));
       entry.addEventListener("click",()=>{
-        if(state.selected!==null)setItem(state.selected,newAction(id));
+        if(state.selected!==null){
+          if(state.selected>=14)controlDrop(state.selected,id,controlGesture);
+          else setItem(state.selected,newAction(id));
+        }
       });
       body.append(entry);
     }
@@ -206,7 +209,8 @@ function actionFields(item){
     case "system-volume":return select("direction","동작",[["up","음량 키우기"],["down","음량 줄이기"]])+select("step","변화량",[[1,"1"],[2,"2"],[5,"5"],[10,"10"]]);
     case "system-mute":return '<div class="field"><span></span><span class="hint">누를 때마다 음소거 전환</span></div>';
     case "system-scroll":return select("axis","방향 축",[["vertical","세로"],["horizontal","가로"]])+
-      select("direction","스크롤 방향",[["down","아래"],["up","위"],["right","오른쪽"],["left","왼쪽"]])+
+      select("direction","스크롤 방향",item.settings?.axis==='horizontal'
+        ?[["right","오른쪽"],["left","왼쪽"]]:[["down","아래"],["up","위"]])+
       select("step","변화량",[[1,"1"],[2,"2"],[5,"5"],[10,"10"]]);
     case "folder":case "multi":case "random":return `<div class="field"><label>내용</label><div>${item.children.length}개의 ${item.type==="folder"?"항목":"동작"} <span class="hint">· 내부 편집 기능 미구현</span></div></div>`;
     case "multi-switch":return `<div class="field"><label>상태</label><span>1 / 2 · 내부 편집 기능 미구현</span></div>`;
