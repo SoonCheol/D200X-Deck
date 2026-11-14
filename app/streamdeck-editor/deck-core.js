@@ -475,6 +475,7 @@
     if(action?.type==='folder')return {kind:'folder-enter'};
     if(!action||!validId(action.type))return {kind:'unsupported',message:'알 수 없는 동작'};
     if(action.type==='system-mute')return {kind:'mute'};
+    if(action.type==='profile')return {kind:'profile',profile:action.settings?.profile||'next'};
     if(action.type==='multi')return {kind:'composite',type:'multi'};
     if(action.type==='multi-switch')return {kind:'composite',type:'multi-switch'};
     if(action.type==='random')return {kind:'composite',type:'random'};
