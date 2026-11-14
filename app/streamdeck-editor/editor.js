@@ -1395,8 +1395,11 @@ function handleOpenAppHold(action,index,event,gesture){
     if(openAppHoldTimers.has(index))return '프로그램 버튼 입력 유지 중';
     const token={action,page:state.page,profile:state.profileId,fired:false,timer:null};
     token.timer=setTimeout(()=>{
-      if(openAppHoldTimers.get(index)!==token||state.page!==token.page||
-        state.profileId!==token.profile)return;
+      if(openAppHoldTimers.get(index)!==token)return;
+      const current=index<14?DeckCore.visibleActions(state)[index]:DeckCore.controlBinding(state,index)?.down;
+      if(state.page!==token.page||state.profileId!==token.profile||current!==action){
+        openAppHoldTimers.delete(index);return;
+      }
       token.fired=true;
       const path=action.settings?.app;
       if(!path)return window.d200xActionStatus?.('종료할 프로그램을 먼저 선택하세요.');
