@@ -173,6 +173,36 @@ test('multi runner awaits each action, delay, and ordered completion',async()=>{
   assert.deepEqual(sequence,['hotkey:start','hotkey:done','delay:25','media:start','media:done']);
 });
 
+test('multi switch dispatches both independent sequences and awaits the selected state',async()=>{
+  const sw=core.cleanAction({type:'multi-switch',
+    sequences:[
+      [{type:'hotkey',settings:{keys:'Ctrl+C'}},{kind:'delay',ms:200}],
+      [{type:'media',settings:{op:'playpause'}}]
+    ]
+  });
+  assert.deepEqual(core.planAction(sw,0,1),{kind:'composite',type:'multi-switch'});
+  const events=[];
+  const bridge={
+    execute:async a=>{events.push(a.type);},
+    wait:async ms=>{events.push('wait:'+ms);}
+  };
+  const one=await core.runComposite(sw,{...bridge,state:0});
+  const two=await core.runComposite(sw,{...bridge,state:1});
+  const three=await core.runComposite(sw,{...bridge,state:0});
+  assert.deepEqual([one,two,three],[2,1,2]);
+  assert.deepEqual(events,['hotkey','wait:200','media','hotkey','wait:200']);
+});
+
+test('multi switch rejects nested composite and old profiles retain children',async()=>{
+  const old=core.cleanAction({type:'multi-switch',children:[{type:'hotkey',settings:{keys:'Ctrl+Z'}}]});
+  assert.equal(core.planComposite(old,{state:0}).steps[0].type,'hotkey');
+  const migrated=core.migrateState({pages:[[old]]});
+  assert.equal(migrated.pages[0][0].children[0].settings.keys,'Ctrl+Z');
+  assert.deepEqual(core.planComposite(migrated.pages[0][0],{state:1}).steps,[]);
+  const bad=core.cleanAction({type:'multi-switch',sequences:[[{type:'multi'}],[]]});
+  await assert.rejects(core.runComposite(bad,{state:0,execute:async()=>{},wait:async()=>{}}),/중첩/);
+});
+
 test('multi runner refuses nested composites and honors cancellation',async()=>{
   const blocked=core.cleanAction({type:'multi',children:[{type:'multi'}]});
   await assert.rejects(core.runComposite(blocked,{execute:async()=>{},wait:async()=>{}}),/중첩/);
