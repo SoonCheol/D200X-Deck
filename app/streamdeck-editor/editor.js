@@ -32,7 +32,7 @@ function iconNode(item,defaultGlyph){
 function updateTitleAppearance(label,item){
   const style=item?.titleStyle;if(!style)return;
   label.hidden=style.visible===false;
-  label.style.textAlign=style.align||"left";
+  label.style.textAlign="center";
   label.style.fontFamily=style.family==="default"?"":style.family;
   label.style.fontSize=(Number(style.size)||12)+"px";
   label.style.fontWeight=style.bold?"700":"400";
@@ -50,8 +50,21 @@ function renderGrid(){
     const b=document.createElement("button");b.type="button";b.className="deck-key"+(i===13?" wide":"")+(state.selected===i?" selected":"");
     b.dataset.index=i;b.setAttribute("aria-label",`키 ${i+1}: ${keyName(item)||"비어 있음"}`);
     const glyph=iconNode(item,ACTIONS.get(item?.type)?.icon||"+");glyph.classList.add("glyph");
-    const label=document.createElement("span");label.className="caption";label.textContent=keyName(item);updateTitleAppearance(label,item);
-    b.append(glyph,label);b.addEventListener("click",()=>choose(i));
+    const label=document.createElement("span");label.className="caption";label.textContent=item?.title||"";updateTitleAppearance(label,item);
+    b.append(glyph,label);
+    // Render the actual D200X PNG as the editor key surface. Icon and title
+    // must stay in fixed coordinates, independent of the title font size.
+    if(item&&window.renderDeckKeyImage){
+      window.renderDeckKeyImage(item,i).then(png=>{
+        if(!b.isConnected||currentPage()[i]!==item)return;
+        const preview=document.createElement("img");
+        preview.className="rendered-key-image";
+        preview.alt="";
+        preview.src="data:image/png;base64,"+png;
+        b.replaceChildren(preview);
+      }).catch(error=>console.warn("버튼 이미지 미리보기 실패",error));
+    }
+    b.addEventListener("click",()=>choose(i));
     b.addEventListener("contextmenu",ev=>{ev.preventDefault();choose(i);showMenu(i,ev.clientX,ev.clientY);});
     b.addEventListener("dragover",ev=>{ev.preventDefault();b.classList.add("drag-over");});
     b.addEventListener("dragleave",()=>b.classList.remove("drag-over"));
@@ -166,16 +179,19 @@ function refreshTitlePreview(item){
   const host=$("icon-preview");if(!host)return;
   let label=host.querySelector(".preview-title");
   if(!label){label=document.createElement("span");label.className="preview-title";host.append(label);}
-  label.textContent=item.title||ACTIONS.get(item.type)?.label||"";
+  label.textContent=item.title||"";
   const style={...DEFAULT_TITLE_STYLE,...item.titleStyle};
   label.hidden=style.visible===false;
-  label.style.textAlign=style.align;
+  label.style.textAlign="center";
   label.style.fontFamily=style.family==="default"?"Malgun Gothic, sans-serif":style.family;
-  label.style.fontSize=Math.min(28,Math.max(8,Number(style.size)||12))+"px";
+  label.style.fontSize=(Math.max(8,Math.min(48,Number(style.size)||12))*98/72)+"px";
   label.style.fontWeight=style.bold?"bold":"normal";
   label.style.fontStyle=style.italic?"italic":"normal";
   label.style.textDecoration=style.underline?"underline":"none";
   label.style.color=style.color;
+  label.style.top=style.align==="top"?"5px":style.align==="middle"?"50%":"auto";
+  label.style.bottom=style.align==="bottom"?"5px":"auto";
+  label.style.transform=style.align==="middle"?"translateY(-50%)":"none";
   refreshSelectedVisual();
 }
 function bindTitleStyle(item){
@@ -237,9 +253,9 @@ function renderInspector(){
       <div class="title-style-popover" id="title-style-popover" hidden>
         <label><input type="checkbox" id="title-visible"> 제목 보기</label>
         <div class="title-align" role="group" aria-label="제목 정렬">
-          <button type="button" data-align="left" title="왼쪽 정렬">▤</button>
-          <button type="button" data-align="center" title="가운데 정렬">≡</button>
-          <button type="button" data-align="right" title="오른쪽 정렬">▥</button>
+          <button type="button" data-align="bottom" title="아래쪽 배치">▤</button>
+          <button type="button" data-align="middle" title="가운데 배치">≡</button>
+          <button type="button" data-align="top" title="위쪽 배치">▥</button>
         </div>
         <select id="title-family" aria-label="글꼴"><option value="default">기본</option><option value="Malgun Gothic">맑은 고딕</option><option value="Segoe UI">Segoe UI</option></select>
         <div class="title-format"><input id="title-size" type="number" min="8" max="48" aria-label="글꼴 크기">
