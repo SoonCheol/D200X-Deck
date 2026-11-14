@@ -92,7 +92,8 @@ ipcMain.handle('d200x:adjust-windows', async (event, args) => {
   if (!window || event.sender !== window.webContents)
     throw new Error('허용되지 않은 호출입니다.');
   if (!args || !['volume','zoom'].includes(args.target) ||
-      ![-1,1].includes(args.direction))
+      ![-1,1].includes(args.direction) ||
+      ![1,2,5,10].includes(args.count ?? 1))
     throw new Error('지원하지 않는 노브 조절 동작입니다.');
   if (process.platform !== 'win32')
     throw new Error('Windows에서만 지원하는 조절 동작입니다.');
@@ -101,6 +102,7 @@ ipcMain.handle('d200x:adjust-windows', async (event, args) => {
     : (args.direction > 0 ? 0xBB : 0xBD);
   // Always use constant C# source; only the allowlisted numeric virtual key
   // changes. No shell, file paths, profile input, or arbitrary commands.
+  const count=args.count ?? 1;
   const code = `Add-Type -TypeDefinition @'
 using System;
 using System.Runtime.InteropServices;
@@ -109,8 +111,7 @@ public class D200XKey {
 }
 '@;
 ${args.target === 'zoom' ? '[D200XKey]::keybd_event(0x11,0,0,[UIntPtr]::Zero);' : ''}
-[D200XKey]::keybd_event(${key},0,0,[UIntPtr]::Zero);
-[D200XKey]::keybd_event(${key},0,2,[UIntPtr]::Zero);
+${Array.from({length:count},()=>`[D200XKey]::keybd_event(${key},0,0,[UIntPtr]::Zero);\n[D200XKey]::keybd_event(${key},0,2,[UIntPtr]::Zero);`).join('\n')}
 ${args.target === 'zoom' ? '[D200XKey]::keybd_event(0x11,0,2,[UIntPtr]::Zero);' : ''}`;
   await execFileAsync('powershell.exe',
     ['-NoProfile','-NonInteractive','-WindowStyle','Hidden','-Command',code],
