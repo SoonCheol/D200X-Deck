@@ -143,7 +143,9 @@
       // Old projects assigned a single action to each physical control on
       // each page. Keep these assignments instead of silently dropping them.
       for(let i=0;i<5;i++){
-        const legacy=state.pages.map(row=>JSON.stringify(row[14+i]||null));
+        const legacy=state.pages.map(row=>row[14+i]).filter(Boolean).map(a=>JSON.stringify(a));
+        // A single assigned legacy knob remains global across otherwise empty pages.
+        // Conflicting nonempty per-page assignments must remain page-specific.
         if(new Set(legacy).size>1)state.controls.scopes[i]='page';
         const source=state.pages.find(row=>row[14+i])?.[14+i]||null;
         state.controls.global[i].down=source;
