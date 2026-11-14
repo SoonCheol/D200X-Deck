@@ -299,3 +299,23 @@
 - 문서/로드맵만 변경한 커밋은 Windows EXE 자동 패키징에서 제외. `main`에 PR #5를 병합하지 않음.
 - 빌드 산출물/만료/다운로드: 기존 `D200X-StreamDeck-Device-Sync-win-x64` ZIP, 14일 보존, GitHub Actions 성공 실행 페이지의 Artifacts에서 다운로드. EXE 빌드와 실제 Windows GUI 및 실물 D200X 기능 검증을 혼동 금지.
 - 과거의 “EXE는 요청 시에만 수동 실행” 지침보다 위 최신 승인 정책 우선.
+
+
+## 2026-11-15 기본 액션 미완성 옵션 보완 — Windows 자동 빌드 확인 (최신)
+
+- **사용자 명시 요청:** 앞서 구분한 미완성 기본 액션의 세부 옵션을 구현. `Virtual Stream Deck`은 **항목만 표시하고 비활성화** 유지. 오직 `codex/streamdeck-761-clean-editor` 개발 브랜치에서 작업, PR #5 및 `main` 미병합.
+- **실제 변경 사항:** `editor.js`, `deck-core.js`, `main.cjs`, `preload.cjs`, `device-sync.js`, `test/streamdeck-core.test.cjs` 등.
+  1. Soundboard: 기존 재생·정지·반복에 더해 페이드 인/아웃 및 1~5초 지속시간, Windows 브라우저 `HTMLMediaElement.setSinkId` 지원 시 특정 출력 장치로 재생. 출력 장치는 `navigator.mediaDevices.enumerateDevices`로 조회. 지원하지 않거나 접근 불가한 출력 장치에는 오류 표시. **실제 장치 라우팅/페이드 청감 시험 없음.**
+  2. Timer: 기존 시작·취소·완료 음 외에 남은 시간 키 제목 표시(편집기 약 1초 단위, 장치 화면 동기화는 약 5초 주기). **실물 표시 갱신 성능은 미검증.**
+  3. Open Application: `hold=close/force`에 대한 약 650ms 길게 누르기 판정과 기존 경로와 일치하는 프로세스만 종료하는 브리지 연결. 실행 중 창 앞으로 가져오기는 선택한 `.exe` 경로의 창이 확인되면 Win32 전경 전환 시도, 없으면 정상 실행. 입력 중 페이지·프로필·키 재할당이 바뀌면 과거 종료 동작 차단. **길게 누르기 시간 및 Windows 포커스 규칙은 원본 관찰/실기 미확정.**
+  4. Website: 기본 브라우저/GET 외에 사용자가 선택한 `.exe` 브라우저에 HTTP(S) URL 전달. 커스텀 프로토콜·다른 URI는 아직 지원하지 않음.
+  5. Text: UTF-16 Unicode 직접 입력 이외에 지정 텍스트를 Windows 클립보드에 기록하고 Ctrl+V, 필요 시 Enter 실행. **기존 클립보드 내용은 의도적으로 변경되며 자동 복구하지 않음.**
+  6. Hotkey: Windows 기본 복사·붙여넣기·저장·창 전환 등 프리셋을 추가. 기존 직접 지정 키 유지. 앱별 동적 명령 검색/원본 7.6.1 전체 프리셋 구성은 재현하지 않음.
+  7. Multi Action / Multi Action Switch / Random / Key Logic: 지원하는 단일 액션의 하위 실행 종류 확대(오디오, 닫기, 타이머, 단축키 전환, Windows 미디어·시스템 등), 취소 시 지연 중단, 액션 간 간격 2~200ms 설정. 원본 공식 매뉴얼에 따라 복합 액션 자체의 중첩은 계속 금지. 타이머 하위 액션은 별도 알림을 예약하며 주 버튼의 타이머 카운트다운과 동일한 화면 기능으로 취급하지 않음. Key Logic의 double/hold 입력 실기 판정 미확정.
+  8. 페이지 표시기는 화면 정보 표시 전용. `Virtual Stream Deck`은 드래그/클릭 배치 불가, 흐리게 표시, 웹서버 기반 구현도 추후 별도 요청 시 검토.
+- **저장 안전:** 기존 24개 액션 ID, 프로필 저장 모델, 버튼·노브 할당, 개별 아이콘 우선 순위 보존. 사운드 파일 및 사용자 설정 파일 직접 수정·삭제 없음.
+- **검증:** 처음 Windows 프리뷰/입력 검증이 실패한 원인은 `planAction()` 확장 결과를 반영하지 않은 기존 2개 단위 테스트의 정확 일치 예상값. 실제 로그 확인 후 테스트를 새 계약으로 갱신. 최종 앱 코드 커밋 **`821a320791bb8d2869a11e7c834f716c64622d77`**에서:
+  - CI **#43622207328: success**
+  - D200X input execution verification **#43622202465: success**
+  - Windows preview EXE **#43622202463: success**, Artifact **`D200X-StreamDeck-Device-Sync-win-x64`**, artifact ID **14124427716**, ZIP 크기 163,906,311 bytes, 보존 14일. [빌드 실행 페이지](https://github.com/SoonCheol/D200X-Deck/actions/runs/43622202463).
+- **판정 주의:** 위 success는 Node/Windows CI 및 EXE 패키징 증거다. 사용자의 실제 Windows GUI, 물리 D200X, 하드웨어 화면 갱신, 사용 중 오디오 출력/브라우저/전경 제어의 **실기 성공 증거는 없다**. 이전 절의 오래된 '미구현/빌드 보류' 설명은 시간순 기록이며 이 절의 새로운 코드 상태로 최신화하되 완료/실기 검증으로 오인하지 말 것. 미지원 커스텀 URI, 원본 앱별 프리셋 전체, 선택형 오디오 장치의 실제 호환성은 별도 보완 대상.
