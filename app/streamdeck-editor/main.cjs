@@ -16,7 +16,7 @@ const HA = require('./ha-client.cjs');
 const {StreamDeckPluginHost}=require('./sd-plugin-host.cjs');
 let sdkHost=null;
 function sdk(){
-  if(!sdkHost)sdkHost=new StreamDeckPluginHost(app.getPath('userData'),payload=>send('d200x:sdk-event',payload));
+  if(!sdkHost)sdkHost=new StreamDeckPluginHost(app.getPath('userData'),payload=>send('d200x:sdk-event',payload),()=>window);
   return sdkHost;
 }
 ipcMain.handle('d200x:sdk-list',async event=>{assertEditor(event);return sdk().list();});
