@@ -24,7 +24,7 @@
     folder:{},profile:{profile:'next'},previous:{},next:{},
     goto:{page:0},indicator:{}
   };
-  const TITLE={visible:true,align:'left',family:'default',size:12,
+  const TITLE={visible:true,align:'bottom',family:'default',size:12,
     bold:false,italic:false,underline:false,color:'#ffffff'};
   const copy=x=>JSON.parse(JSON.stringify(x));
   const validId=id=>ACTION_IDS.includes(id);
@@ -43,7 +43,8 @@
       base.titleStyle={...base.titleStyle,...value.titleStyle};
     const st=base.titleStyle;
     st.visible=st.visible!==false;
-    st.align=['left','center','right'].includes(st.align)?st.align:'left';
+    st.align=({left:'bottom',center:'middle',right:'top'}[st.align]) ||
+      (['bottom','middle','top'].includes(st.align)?st.align:'bottom');
     st.family=['default','Malgun Gothic','Segoe UI'].includes(st.family)?st.family:'default';
     st.size=Math.max(8,Math.min(48,Number(st.size)||12));
     for(const key of ['bold','italic','underline'])st[key]=Boolean(st[key]);
