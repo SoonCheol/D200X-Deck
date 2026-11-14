@@ -100,6 +100,16 @@ test('window/desktop switching uses shared button and knob planner',()=>{
   assert.equal(core.controlBinding(restored,16).target,'desktop');
 });
 
+test('original brightness action respects the 20 percent floor for fixed presets',()=>{
+  const a=core.createAction('brightness');
+  a.settings.mode='min';
+  assert.deepEqual(core.planAction(a,0,1),{kind:'device-brightness-set',value:20});
+  a.settings.mode='max';
+  assert.deepEqual(core.planAction(a,0,1),{kind:'device-brightness-set',value:100});
+  a.settings.mode='down';
+  assert.deepEqual(core.planAction(a,0,1),{kind:'device-brightness',direction:-1,count:5});
+});
+
 test('brightness and zoom action planner',()=>{
   const a=core.createAction('device-brightness');
   assert.deepEqual(core.planAction(a,0,1),{kind:'device-brightness',direction:1,count:5});
