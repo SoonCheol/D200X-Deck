@@ -1,3 +1,20 @@
-// Five original 144px PNG images from the user-provided MIT-licensed Stream Deck icon pack.
-// Attribution: Rob Clifton-Harvey, Simple Gray Tones 1.0.1 (MIT).
-window.D200XSampleIconPack = Object.freeze({"id":"bundled-simple-gray-tones-1.0.1","name":"Simple Gray Tones","version":"1.0.1","author":"Rob Clifton-Harvey","source":"bundled","icons":[{"name":"Black","tags":["gray","grey","monochrome","black"],"image":"data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAJAAAACQCAIAAABoJHXvAAAACXBIWXMAAC4jAAAuIwF4pT92AAAAU0lEQVR42u3BAQ0AAADCoPdPbQ43oAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAHgy85AAAUbxcDwAAAAASUVORK5CYII="},{"name":"Gray Dark","tags":["gray","grey","monochrome","gray dark"],"image":"data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAJAAAACQCAIAAABoJHXvAAAAB3RJTUUH5gcSFA0KCq2NxAAAAAlwSFlzAAALEgAACxIB0t1+/AAAAARnQU1BAACxjwv8YQUAAAFhSURBVHja7dFBCQAwDMDAeql/j9Ww1wjcKQhklpT5HcAbw2IMizxrAYw2IMizxrAYw2IMizxrAYw2IMizxrAYw2IMizxrAYw2IMizxrAYw2IMizxrAYw2IMizxrAYw2IMizxrAYw2IMizxrAYw2IMizxrAYw2IMizxrAYw2IMizxrAYw2IMizxrAYw2IMizxrAYw2IMizxrAYw2IMizxrAYw2IMizxrAYw2IMizxrAYw2IMizxrAYw2IMizxrAYw2IMizxrAYw2IMizxrAYw2IMizxrAYw2IMizxrAYw2IMizxrAYw2IMizxrAYw2IMizxrAYw2IMizxrAYw2IMizxrAYw2IMizxrAYw2IMizxrAYw2IMizxrAYw2IMizxrAYw2IMizxrAYw2IMizmZ7TrwRlOFNAAAAABJRU5ErkJggg=="},{"name":"Gray","tags":["gray","grey","monochrome","gray"],"image":"data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAJAAAACQCAIAAABoJHXvAAAAB3RJTUUH5gcSFA4CL1tWNQAAAAlwSFlzAAALEgAACxIB0t1+/AAAAARnQU1BAACxjwv8YQUAAAFhSURBVHja7dFBCQAwDMDAiqt/TdWw1wjcKQhklpT5HcAbw2IMizxrAYw2IMizxrAYw2IMizxrAYw2IMizxrAYw2IMizxrAYw2IMizxrAYw2IMizxrAYw2IMizxrAYw2IMizxrAYw2IMizxrAYw2IMizxrAYw2IMizxrAYw2IMizxrAYw2IMizxrAYw2IMizxrAYw2IMizxrAYw2IMizxrAYw2IMizxrAYw2IMizxrAYw2IMizxrAYw2IMizxrAYw2IMizxrAYw2IMizxrAYw2IMizxrAYw2IMizxrAYw2IMizxrAYw2IMizxrAYw2IMizxrAYw2IMizxrAYw2IMizxrAYw2IMizxrAYw2IMizxrAYw2IMizxrAYw2IMizxrAYw2IMizxrAYw2IMizkDmY/B/DtLbQAAAABJRU5ErkJggg=="},{"name":"Gray Light","tags":["gray","grey","monochrome","gray light"],"image":"data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAJAAAACQCAIAAABoJHXvAAAAB3RJTUUH5gcSFQMX9uqmpAAAAAlwSFlzAAALEgAACxIB0t1+/AAAAARnQU1BAACxjwv8YQUAAAHbSURBVHja7c5BDQAwEMOwQD/ow5BXNSlGYC5fYR2IwzoQh3UgDutAHNaBOKwDcVgH4rAOxGEdiMM6EId1IA7rQBzWgTisA3FYB+KwDsRhHYjDOhCHdSAO60Ac1oE4rANxWAfisA7EYR2IwzoQh3UgDutAHNaBOKwDcVgH4rAOxGEdiMM6EId1IA7rQBzWgTisA3FYB+KwDsRhHYjDOhCHdSAO60Ac1oE4rANxWAfisA7EYR2IwzoQh3UgDutAHNaBOKwDcVgH4rAOxGEdiMM6EId1IA7rQBzWgTisA3FYB+KwDsRhHYjDOhCHdSAO60Ac1oE4rANxWAfisA7EYR2IwzoQh3UgDutAHNaBOKwDcVgH4rAOxGEdiMM6EId1IA7rQBzWgTisA3FYB+KwDsRhHYjDOhCHdSAO60Ac1oE4rANxWAfisA7EYR2IwzoQh3UgDutAHNaBOKwDcVgH4rAOxGEdiMM6EId1IA7rQBzWgTisA3FYB+KwDsRhHYjDOhCHdSAO60Ac1oE4rANxWAfisA7EYR2IwzoQh3UgDutAHNaBOKwDcVgH4rAOxGEdiMM6EId1IA7rQBzWgTisA3FYB+KwDsRhHYjDOhCHdSAO60Ac1oE4rANxWAfisA7EYR2IwzoQh3UgDutAHNaBOKwDcVgH4rAOxGEdiMM6EId1IA7rQBzWgTisA3FYB+KwDsRhHYjDOhCHdSAO60Ac1oE4rANxWAfiPCDAhxioEzu/AAAAAElFTkSuQmCC"},{"name":"White","tags":["gray","grey","monochrome","white"],"image":"data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAJAAAACQCAIAAABoJHXvAAAAB3RJTUUH5gcSDi8DxXJV5gAAAAlwSFlzAAALEgAACxIB0t1+/AAAAARnQU1BAACxjwv8YQUAAAFgSURBVHja7dFBCQAwDMDA+jfdathrBO4UBDJLyvwO4I1hMYbFGBZjWIxhMYbFGBZjWIxhMYbFGBZjWIxhMYbFGBZjWIxhMYbFGBZjWIxhMYbFGBZjWIxhMYbFGBZjWIxhMYbFGBZjWIxhMYbFGBZjWIxhMYbFGBZjWIxhMYbFGBZjWIxhMYbFGBZjWIxhMYbFGBZjWIxhMYbFGBZjWIxhMYbFGBZjWIxhMYbFGBZjWIxhMYbFGBZjWIxhMYbFGBZjWIxhMYbFGBZjWIxhMYbFGBZjWIxhMYbFGBZjWIxhMYbFGBZjWIxhMYbFGBZjWIxhMYbFGBZjWIxhMYbFGBZjWIxhMYbFGBZjWIxhMYbFGBZjWIxhMYbFGBZjWIxhMYbFGBZjWIxhMYbFGBZjWIxhMYbFGBZjWIxhMYbFGBZjWIxhMYbFGBZjWIxhMYbFGBZjWIxhMYbFGBZjWIxhMYbFHK+BGy/q6i6JAAAAAElFTkSuQmCC"}]});
+'use strict';
+// Bundled visual sample reconstructed from the five solid-color 144x144 PNGs
+// inspected in the user-provided Simple Gray Tones v1.0.1 icon pack.
+// Original pack: Rob Clifton-Harvey, MIT. Metadata and names preserved.
+(() => {
+  const colors=[['Black',0],['Gray Dark',35],['Gray',68],['Gray Light',128],['White',255]];
+  const canvas=document.createElement('canvas');canvas.width=144;canvas.height=144;
+  const ctx=canvas.getContext('2d');
+  const icons=colors.map(([name,value])=>{
+    ctx.fillStyle='rgb('+value+','+value+','+value+')';
+    ctx.fillRect(0,0,144,144);
+    return {name,tags:['gray','grey','monochrome',name.toLowerCase()],
+      image:canvas.toDataURL('image/png')};
+  });
+  window.D200XSampleIconPack=Object.freeze({
+    id:'bundled-simple-gray-tones-1.0.1',name:'Simple Gray Tones',
+    version:'1.0.1',author:'Rob Clifton-Harvey',
+    source:'bundled',icons
+  });
+})();
