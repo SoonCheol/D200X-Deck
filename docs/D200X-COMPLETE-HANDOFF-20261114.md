@@ -469,3 +469,20 @@
 - `test/streamdeck-sdk-visual.test.cjs`에 ON/OFF 별도 아이콘 우선순위와 공통 아이콘 fallback 확인 추가. Windows Preview 자동 테스트에 기존부터 포함됨.
 - 개발 커밋: `dcc2f5fe580840966fad14da95a3b47a66200946` (UI), `9ed0dffa445010edc4bcaea06192581a8cd707dd` (parent getter), `a9a46796be95fe11e8f0be7be40a33456b6298fd` (modal), `c33d8389e4ed1e03e1eb551578ff7d6b431b0d78` (CSS), `8357c5020bacf5b70bca2faa62901a32c05dad38` (tests).
 - **자동 CI/Windows preview 최종 결과와 사용자 실제 UI·실물 버튼 반영은 확인 필요.** 특히 플러그인 SDK가 실제 setState를 보내야 ON/OFF 그림이 자동 전환됨. 기존 사용자 프로필/기타 액션/메인 브랜치는 건드리지 않음.
+
+## 2026-11-15 — 프로필·아이콘·폴더 UI 연속 개선 (코드 수준)
+
+브랜치: `codex/streamdeck-761-clean-editor`, `main`은 수정하지 않음. 기본 24개 액션, D200X 추가 18개 액션, 기존 프로필 데이터와 HA SDK 플러그인 실행 경로 보존.
+
+- **중복 HA 액션 목록 정리**: 독립 REST `ha-toggle` 및 원본 SDK `Entity (generic)`는 **새로 할당하는 목록에서만 숨김**. 기존 할당/설정/실행 코드는 유지. `Entity (custom icons)`를 `Home Assistant 장치 제어`로 표시. 커밋 `591bc092`.
+- **프로필 관리 UI**: 프로필 이름 선택은 전환 용도, 각 프로필 행의 ⚙에서 이름 변경/복제/삭제/프로그램 연결/Smart Profile 활성화. 맨 아래 `＋ 새 프로필`, `전체 프로필 관리` 안에 전체 JSON 가져오기·내보내기. Electron 미지원 `prompt()` 대신 `<dialog>` 입력창 사용. 비활성 프로필을 선택하지 않고도 올바른 프로필을 복제하도록 `createProfile(...,sourceId)` 추가. 복제 중 원본 ID가 새 ID를 덮어쓰지 않도록 회귀 수정 `74188af3`, 테스트 `c3189a71`.
+- **Smart Profile**: `profileNames[].smartEnabled`로 각 프로필별 ON/OFF, 기존 `appPath` 유지. 호환용 `smartProfilesEnabled` 전역은 활성 프로필 존재 여부로 관리. 프로그램 감지는 기존대로 **편집기를 최소화했을 때만 4초 간격**. 활성 스마트 프로필에서 미등록 프로그램으로 이동하면 기본 프로필로 복귀 시도. Windows 전경 EXE 실기 검증 필요.
+- **아이콘 자동 채움**: 팩의 이미지 원본 `filename` 메타데이터 보존. 라이브러리에서 `_off` 또는 `_on` 접미사를 가진 항목을 선택하면 같은 팩의 상보 이름을 검색해 OFF/ON 슬롯을 **선택 시점에만** 채움. 짝 없거나 구분 없는 이름은 같은 PNG 양쪽 등록. 일반 파일 선택에서는 보안상 선택된 파일만 읽어 **동일 이미지 양쪽 등록**. 나중에 한 슬롯만 개별 수정 가능하며 HA 상태 판정·토글 실행 로직 변경 없음. 기존 등록 팩에 `filename` 필드가 없다면 `icon.name`으로 대체 검색하므로, 아이콘 이름이 원래 파일명과 다르면 팩 재등록 필요.
+- **중복 실행 방지**: `main.cjs`의 Electron `app.requestSingleInstanceLock()`. 두 번째 실행은 기존 창 복원·전면 활성화, 신규 창/장치 세션 중복 방지.
+- **폴더별 다중 페이지**: 기존 `folder.children[]`을 1페이지로 보존하고 추가 2~10페이지를 `folder.pages[]`, 현재 인덱스는 `pageIndex`에 저장. 폴더 안에서 페이지 이동 버튼·추가·삭제, 페이지에 중첩 폴더 생성 가능. 부모 프로필 기본 페이지와 독립. `planHardwareEvent`의 페이지·노브 조절도 현재 폴더 기준, SDK 컨텍스트는 폴더 페이지 인덱스를 포함. 새 코어 테스트 추가.
+- **우클릭 메뉴**: 기존 액션 → 폴더로 묶기(기존 액션은 첫 자식 버튼), Key Logic 단일 동작으로 변환, `D200X-action.json` 단일 액션 가져오기·내보내기 연결. 미구현 배경 메뉴는 제거. 안전하지 않은/미구현 기타 메뉴는 비활성화. 전체 프로필 JSON 형식과 액션 JSON 형식을 구별하여 검사.
+- **버튼 눌림 시각 피드백**: D200X 물리 키 입력을 받으면 장치 전송 PNG에 90% 축소된 순간 화면을 적용, 뗀 다음 기존 크기로 복귀하도록 코드 추가. **USB 전송 대기시간으로 실제 짧은 누름이 얼마나 보이는지는 실물 시험 필요**. HA ON/OFF 상태 변경 판정과 독립.
+- **작업 검증 주의**: 자동 Node 검사와 Windows EXE 패키징의 성공은 실제 UI 작동 증명이 아니다. 특히 새 프로필 ⚙ 팝업, 하위 폴더 2페이지 이동과 액션 실행, 아이콘 이름 자동 쌍 연결, USB 눌림 애니메이션은 Windows 실기 점검 필요. 각 최신 CI/Windows workflow 최종 성공 및 artifact ID는 실행 결과로 재확인할 것. 비활성 메뉴를 구현 완료라고 표시하지 말 것.
+
+핵심 파일: `app/streamdeck-editor/{editor.js,deck-core.js,main.cjs,device-sync.js,icon-pack.cjs,style.css}`, `test/streamdeck-core.test.cjs`.
+
