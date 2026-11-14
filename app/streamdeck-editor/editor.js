@@ -109,6 +109,10 @@ const valueOf=(item,field,fallback="")=>item?.settings?.[field]??fallback;
 function keyName(item){return item?.title||ACTIONS.get(item?.type)?.label||"";}
 function displayItem(item){
   if(item?.type==='multi-switch')return DeckCore.displaySwitchAction(item);
+  if(item?.type==='timer'&&timerDeadlines.has(item)){
+    const remaining=Math.max(0,Math.ceil((timerDeadlines.get(item)-Date.now())/1000));
+    return {...item,title:(item.title?item.title+'\n':'')+remaining+'초'};
+  }
   if(!item||item.type!=="indicator")return item;
   return {...item,icon:{kind:"glyph",glyph:String(state.page+1)}};
 }
@@ -1203,6 +1207,7 @@ async function playAudioAction(outcome,index){
   return '오디오 재생 시작';
 }
 const activeActionTimers=new Map();
+const timerDeadlines=new WeakMap();
 const runningMultiActions=new Set();
 const runningMultiControllers=new WeakMap();
 // The original switch begins in state 1. Runtime state is distinct from the
@@ -1506,18 +1511,32 @@ function executeHardwareAction(event,preview=false){
   }
   if(outcome.kind==='timer'){
     const scope=index>=14&&state.controls.scopes[index-14]==='global'?'global':String(state.page);
-    const key=scope+':'+index;
-    if(activeActionTimers.has(key)){
-      clearTimeout(activeActionTimers.get(key));activeActionTimers.delete(key);
+    const key=state.profileId+':'+scope+':'+index;
+    const active=activeActionTimers.get(key);
+    if(active){
+      clearTimeout(active.handle);clearInterval(active.interval);
+      activeActionTimers.delete(key);timerDeadlines.delete(active.action);
+      renderGrid();window.scheduleDeckSync?.();
       return '타이머 중지';
     }
     const seconds=outcome.seconds;
+    const action=resolved.action;
+    const deadline=Date.now()+seconds*1000;
+    timerDeadlines.set(action,deadline);
+    const interval=setInterval(()=>{
+      if(!activeActionTimers.has(key)){clearInterval(interval);return;}
+      if(DeckCore.visibleActions(state).includes(action)){
+        renderGrid();
+        if(Math.ceil((deadline-Date.now())/1000)%5===0)window.scheduleDeckSync?.();
+      }
+    },1000);
     const handle=setTimeout(()=>{
-      activeActionTimers.delete(key);
-      playTimerChime(resolved.action?.settings?.sound||'connect');
+      clearInterval(interval);activeActionTimers.delete(key);timerDeadlines.delete(action);
+      renderGrid();window.scheduleDeckSync?.();
+      playTimerChime(action.settings?.sound||'connect');
       window.d200xActionStatus?.('타이머 '+seconds+'초 완료');
     },seconds*1000);
-    activeActionTimers.set(key,handle);
+    activeActionTimers.set(key,{handle,interval,action});renderGrid();window.scheduleDeckSync?.();
     return '타이머 '+seconds+'초 시작 · 다시 누르면 취소';
   }
   if(outcome.kind==='media-control'){
