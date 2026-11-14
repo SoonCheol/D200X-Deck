@@ -6,7 +6,7 @@ contextBridge.exposeInMainWorld('deckBridge', Object.freeze({
   readClipboardImage: () => ipcRenderer.invoke('d200x:clipboard-image'),
   choosePath: kind => ipcRenderer.invoke('d200x:choose-path', kind),
   openWebsite: (url,mode) => ipcRenderer.invoke('d200x:open-website', {url,mode}),
-  adjustWindows: (target,direction) => ipcRenderer.invoke('d200x:adjust-windows', {target,direction}),
+  adjustWindows: (target,direction,count=1) => ipcRenderer.invoke('d200x:adjust-windows', {target,direction,count}),
   syncPage: images => ipcRenderer.send('d200x:sync-page', images),
   onStatus: callback => {
     if (typeof callback !== 'function') return;
