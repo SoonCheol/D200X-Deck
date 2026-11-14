@@ -164,6 +164,22 @@ test('key and device-info reports are emitted and merged', (t) => {
   assert.equal(deck.status().connected, true);
 });
 
+test('rotary knobs decode turn directions and alternate input frame without changing key events', (t) => {
+  const deck = connectedDeck(t);
+  const events = [];
+  deck.on('key', event => events.push(event));
+  for(const [proto,state,gesture] of [
+    [0x01,2,'left'],[0x02,3,'right'],[0x01,1,'down'],[0x01,0,'up']
+  ]){
+    const packet=P.encodeFrame(P.CMD.KEY_EVENT,proto,Buffer.from([2,17,2,state]));
+    deck.device.emit('data',Buffer.concat([Buffer.from([0]),packet]));
+    assert.equal(events.at(-1).gesture,gesture);
+    assert.equal(events.at(-1).knob,true);
+    assert.equal(events.at(-1).index,17);
+  }
+  assert.equal(events.length,4);
+});
+
 test('disconnect closes the device and clears status', (t) => {
   const deck = connectedDeck(t);
 
