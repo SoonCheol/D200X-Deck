@@ -213,6 +213,11 @@ ${held.slice().reverse().map(v=>`[D200XSwitchKey]::keybd_event(${v},0,2,[UIntPtr
   return true;
 });
 
+ipcMain.handle('d200x:sleep-display',(event)=>{
+  if(!window||event.sender!==window.webContents)throw new Error('허용되지 않은 호출입니다.');
+  return transport.sleepDisplay();
+});
+
 ipcMain.handle('d200x:set-safe-brightness',(event,args)=>{
   if(!window||event.sender!==window.webContents)throw new Error('허용되지 않은 호출입니다.');
   if(!Number.isInteger(args?.value)||args.value<20||args.value>100)
