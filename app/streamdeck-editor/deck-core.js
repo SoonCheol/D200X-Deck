@@ -13,7 +13,7 @@
     'profile','previous','next','goto','indicator'
   ];
   // New D200X actions stay separate from the original 24.
-  const D200X_ACTION_IDS=['system-volume','system-mute','system-scroll'];
+  const D200X_ACTION_IDS=['system-volume','system-mute','system-scroll','edit-history'];
   const DEFAULTS={
     'audio-play':{file:'',mode:'play-stop',fade:'none',volume:50,output:'default'},
     'audio-stop':{},timer:{seconds:30,sound:'connect'},
@@ -26,7 +26,8 @@
     folder:{},profile:{profile:'next'},previous:{},next:{},
     goto:{page:0},indicator:{},
     'system-volume':{direction:'up',step:1},'system-mute':{},
-    'system-scroll':{axis:'vertical',direction:'down',step:1}
+    'system-scroll':{axis:'vertical',direction:'down',step:1},
+    'edit-history':{operation:'undo',step:1}
   };
   const TITLE={visible:true,align:'bottom',family:'default',size:12,
     bold:false,italic:false,underline:false,color:'#ffffff',
@@ -67,7 +68,7 @@
     return base;
   }
   const CONTROL_MODES=['trigger','adjust','stack'];
-  const ADJUST_TARGETS=['page','volume','zoom','scroll','scroll-x'];
+  const ADJUST_TARGETS=['page','volume','zoom','scroll','scroll-x','history'];
   function emptyBinding(){
     return {mode:'trigger',down:null,left:null,right:null,target:'page',
       stack:['page','volume'],stackIndex:0,step:1,reverseDirection:false};
@@ -202,6 +203,7 @@
     if(target==='page')return {kind:'page',page:Math.max(0,Math.min(pageCount-1,page+direction*count))};
     if(target==='scroll'||target==='scroll-x')return {kind:'scroll',axis:target==='scroll'?'vertical':'horizontal',direction,
       ...(includeCount||count!==1?{count}:{})};
+    if(target==='history')return {kind:'edit-history',operation:direction<0?'undo':'redo',count};
     return {kind:'adjust',target,direction,...(includeCount||count!==1?{count}:{})};
   }
   function planHardwareEvent(state,event,activeStack=0){
@@ -250,6 +252,10 @@
     if(action.type==='system-volume'){
       const direction=action.settings?.direction==='down'?-1:1;
       return planAdjustment('volume',direction,Number(action.settings?.step),page,count,true);
+    }
+    if(action.type==='edit-history'){
+      const operation=action.settings?.operation==='redo'?'redo':'undo';
+      return {kind:'edit-history',operation,count:[1,2,5,10].includes(Number(action.settings?.step))?Number(action.settings.step):1};
     }
     if(action.type==='system-scroll'){
       const axis=action.settings?.axis==='horizontal'?'horizontal':'vertical';
