@@ -37,7 +37,7 @@ contextBridge.exposeInMainWorld('deckBridge', Object.freeze({
   focusLocalApp: filePath => ipcRenderer.invoke('d200x:focus-local-app',{filePath}),
   audioFileUrl: filePath => ipcRenderer.invoke('d200x:audio-file-url', {filePath}),
   closeLocalApp: (filePath,force=false) => ipcRenderer.invoke('d200x:close-local-app', {filePath,force}),
-  syncPage: images => ipcRenderer.send('d200x:sync-page', images),
+  syncPage: (images,mode='blank') => ipcRenderer.send('d200x:sync-page', images,mode),
   onStatus: callback => {
     if (typeof callback !== 'function') return;
     ipcRenderer.on('d200x:status', (_event, status) => callback(status));
