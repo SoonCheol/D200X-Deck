@@ -353,7 +353,7 @@ let active=null;
 function actionFields(item){
   active=item;
   switch(item.type){
-    case "audio-play":return pathPicker("file","파일")+select("mode","동작",[["play-stop","재생 / 정지"],["overlap","재생 / 오버랩"],["restart","재생 / 재시작"],["loop-stop","반복 / 정지"]])+select("fade","페이드",[["none","페이드 없음"],["in","페이드 인"],["out","페이드 아웃"],["in-out","페이드 인 앤 아웃"]])+`<div class="field"><label for="s-volume">음량</label><div class="compound"><input id="s-volume" type="range" min="0" max="100" data-field="volume" value="${valueOf(item,"volume",50)}"><output id="volume-display">${valueOf(item,"volume",50)}</output></div></div>`+select("output","출력",[["default","기본"]])+`<div class="field"><span></span><span class="hint">연결된 출력 장치를 선택할 수 있습니다. 장치 전환은 실행 시 적용됩니다.</span></div>`;
+    case "audio-play":return pathPicker("file","파일")+select("mode","동작",[["play-stop","재생 / 정지"],["overlap","재생 / 오버랩"],["restart","재생 / 재시작"],["loop-stop","반복 / 정지"]])+select("fade","페이드",[["none","페이드 없음"],["in","페이드 인"],["out","페이드 아웃"],["in-out","페이드 인 앤 아웃"]])+select("fadeDuration","페이드 시간",[[1,"1초"],[2,"2초"],[3,"3초"],[4,"4초"],[5,"5초"]])+`<div class="field"><label for="s-volume">음량</label><div class="compound"><input id="s-volume" type="range" min="0" max="100" data-field="volume" value="${valueOf(item,"volume",50)}"><output id="volume-display">${valueOf(item,"volume",50)}</output></div></div>`+select("output","출력",[["default","기본"]])+`<div class="field"><span></span><span class="hint">연결된 출력 장치를 선택할 수 있습니다. 장치 전환은 실행 시 적용됩니다.</span></div>`;
     case "audio-stop": case "previous": case "next": case "indicator":return "";
     case "timer":return `<div class="field"><label for="s-seconds">지속</label><div class="compound"><input type="number" min="1" id="s-seconds" data-field="seconds" value="${valueOf(item,"seconds",30)}"><span>초</span></div></div>`+select("sound","사운드",[["none","없음"],["connect","접속"],["disconnect","접속 끊김"],["release","접속 해제"],["find","찾기"],["other","기타"]]);
     case "brightness":return select("mode","동작",[["up","밝게"],["down","어둡게"],["max","최대"],["high","높음"],["medium","중간"],["low","낮음"],["min","최소"]]);
@@ -1193,6 +1193,7 @@ async function playAudioAction(outcome,index){
   const url=await window.deckBridge.audioFileUrl(outcome.file);
   const audio=new Audio(url);
   const level=outcome.volume/100;
+  const fadeDuration=outcome.fadeDuration*1000;
   const fadeIn=['in','in-out'].includes(outcome.fade);
   const fadeOut=['out','in-out'].includes(outcome.fade);
   audio.volume=fadeIn?0:level;
@@ -1209,15 +1210,15 @@ async function playAudioAction(outcome,index){
     audio.addEventListener('timeupdate',()=>{
       if(audio.loop||!Number.isFinite(audio.duration)||audio.duration<=0)return;
       const remaining=(audio.duration-audio.currentTime)*1000;
-      if(remaining<=AUDIO_FADE_MS&&remaining>=0){
+      if(remaining<=fadeDuration&&remaining>=0){
         cancelAudioFade(audio);
-        audio.volume=level*Math.max(0,remaining/AUDIO_FADE_MS);
+        audio.volume=level*Math.max(0,remaining/fadeDuration);
       }
     });
   }
   try{
     await audio.play();
-    if(fadeIn)fadeAudio(audio,level).catch(error=>console.warn('페이드 인 오류',error));
+    if(fadeIn)fadeAudio(audio,level,fadeDuration).catch(error=>console.warn('페이드 인 오류',error));
   }catch(error){cleanup();throw error;}
   return '오디오 재생 시작';
 }
