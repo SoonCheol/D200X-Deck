@@ -10,6 +10,7 @@ contextBridge.exposeInMainWorld('deckBridge', Object.freeze({
   scrollWindows: (axis,direction,count=1) => ipcRenderer.invoke('d200x:scroll-windows', {axis,direction,count}),
   editHistory: (operation,count=1) => ipcRenderer.invoke('d200x:edit-history', {operation,count}),
   switchWindows: (target,direction,count=1) => ipcRenderer.invoke('d200x:switch-windows', {target,direction,count}),
+  adjustBrightness: (direction,count=1) => ipcRenderer.invoke('d200x:device-brightness', {direction,count}),
   syncPage: images => ipcRenderer.send('d200x:sync-page', images),
   onStatus: callback => {
     if (typeof callback !== 'function') return;
