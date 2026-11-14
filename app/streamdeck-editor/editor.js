@@ -2282,24 +2282,67 @@ function askProfileName(title,initialValue){
 }
 function bindSidebarHeader(){
   const trigger=$("profile-trigger"),menu=$("profile-menu");
+  const close=()=>{menu.hidden=true;trigger.setAttribute('aria-expanded','false');};
+  const run=(fn)=>async()=>{close();try{await fn();}catch(error){window.d200xActionStatus?.('프로필 작업 실패: '+String(error?.message||error));}};
   const renderProfiles=()=>{
     menu.replaceChildren();
     $("profile-name").textContent=state.profileNames.find(p=>p.id===state.profileId)?.name||'기본 프로필';
-    const close=()=>{menu.hidden=true;trigger.setAttribute('aria-expanded','false');};
-    const add=(label,handler)=>{
-      const button=document.createElement('button');button.type='button';button.textContent=label;
-      button.addEventListener('click',()=>{handler();close();renderProfiles();});
-      menu.append(button);
+    const entry=(parent,label,fn,cls='')=>{
+      const button=document.createElement('button');button.type='button';button.textContent=label;button.className=cls;
+      button.addEventListener('click',fn);parent.append(button);return button;
     };
     for(const profile of state.profileNames){
-      add((profile.id===state.profileId?'✓ ':'  ')+profile.name,()=>{
-        if(DeckCore.switchProfile(state,profile.id)){
-          controlGesture='down';persist();render();
-        }
+      const row=document.createElement('div');row.className='profile-list-row';
+      entry(row,(profile.id===state.profileId?'✓ ':'　')+profile.name,run(()=>{
+        if(DeckCore.switchProfile(state,profile.id)){controlGesture='down';persist();render();}
+      }),'profile-list-select');
+      const gear=entry(row,'⚙',()=>{const open=tools.hidden;menu.querySelectorAll('.profile-row-tools').forEach(el=>el.hidden=true);tools.hidden=!open;},
+        'profile-row-gear');
+      gear.title=profile.name+' 설정';gear.setAttribute('aria-label',profile.name+' 설정');
+      const tools=document.createElement('div');tools.className='profile-row-tools';tools.hidden=true;
+      entry(tools,'이름 변경',run(async()=>{
+        const name=await askProfileName('프로필 이름 변경',profile.name);
+        if(name!==null&&DeckCore.renameProfile(state,profile.id,name)){persist();render();}
+      }));
+      entry(tools,'프로필 복제',run(async()=>{
+        const name=await askProfileName('복사본 이름',profile.name+' 복사본');
+        if(name===null)return;
+        const id=DeckCore.createProfile(state,name,true,profile.id);
+        if(id){DeckCore.switchProfile(state,id);persist();render();}
+      }));
+      entry(tools,(profile.smartEnabled?'✓ ':'')+'Smart Profile 사용',()=>{
+        profile.smartEnabled=!profile.smartEnabled;
+        state.smartProfilesEnabled=state.profileNames.some(p=>p.smartEnabled);
+        persist();renderProfiles();
       });
+      entry(tools,'연결 프로그램 선택'+(profile.appPath?' · '+profile.appPath.split(String.fromCharCode(92)).pop():''),run(async()=>{
+        if(!window.deckBridge?.choosePath)return;
+        const path=await window.deckBridge.choosePath('app');
+        if(path&&DeckCore.setProfileApp(state,profile.id,path)){persist();renderProfiles();}
+      }));
+      const del=entry(tools,'프로필 삭제',run(()=>{
+        if(state.profileNames.length<=1)return;
+        if(confirm('프로필 "'+profile.name+'"과 설정을 삭제하시겠습니까?')){
+          if(DeckCore.deleteProfile(state,profile.id)){
+            state.smartProfilesEnabled=state.profileNames.some(p=>p.smartEnabled);
+            persist();render();
+          }
+        }
+      }));
+      del.disabled=state.profileNames.length<=1;
+      row.append(tools);menu.append(row);
     }
-    const separator=document.createElement('hr');menu.append(separator);
-    add('전체 프로필·설정 JSON 내보내기',()=>{
+    menu.append(document.createElement('hr'));
+    entry(menu,'＋ 새 프로필',run(async()=>{
+      const name=await askProfileName('새 프로필 이름','새 프로필');
+      if(name===null)return;
+      const id=DeckCore.createProfile(state,name);
+      if(id){DeckCore.switchProfile(state,id);persist();render();}
+    }));
+    const overall=entry(menu,'전체 프로필 관리 ▸',()=>{globalPanel.hidden=!globalPanel.hidden;},'profile-global-trigger');
+    const globalPanel=document.createElement('div');globalPanel.className='profile-global-panel';globalPanel.hidden=true;
+    const globalAction=(label,fn)=>entry(globalPanel,label,run(fn));
+    globalAction('전체 프로필·설정 JSON 내보내기',()=>{
       try{
         const payload={...state,actionPanelAppearance:window.D200XPanelIcons.exportConfig()};
         const blob=new Blob([JSON.stringify(payload,null,2)],{type:'application/json;charset=utf-8'});
@@ -2309,7 +2352,7 @@ function bindSidebarHeader(){
         setTimeout(()=>URL.revokeObjectURL(url),1000);
       }catch(error){window.d200xActionStatus?.('설정 내보내기 실패: '+String(error?.message||error));}
     });
-    add('전체 프로필·설정 JSON 가져오기',()=>{
+    globalAction('전체 프로필·설정 JSON 가져오기',()=>{
       const picker=document.createElement('input');
       picker.type='file';picker.accept='.json,application/json';
       const restoreBackup=async file=>{
@@ -2356,52 +2399,16 @@ function bindSidebarHeader(){
         picker.click();
       }
     });
-    add('＋ 새 프로필',async()=>{
-      const name=await askProfileName('새 프로필 이름','새 프로필');
-      if(name===null)return;
-      const id=DeckCore.createProfile(state,name);
-      if(id){DeckCore.switchProfile(state,id);persist();render();}
-    });
-    add('현재 프로필 복제',async()=>{
-      const name=await askProfileName('복사본 이름',($("profile-name").textContent||'프로필')+' 복사본');
-      if(name===null)return;
-      const id=DeckCore.createProfile(state,name,true);
-      if(id){DeckCore.switchProfile(state,id);persist();render();}
-    });
-    const selectedProfile=state.profileNames.find(p=>p.id===state.profileId);
-    add('현재 프로필 프로그램 지정'+(selectedProfile?.appPath?' · '+selectedProfile.appPath.split(String.fromCharCode(92)).pop():''),async()=>{
-      if(!window.deckBridge?.choosePath)return window.d200xActionStatus?.('Windows EXE에서만 프로그램을 선택할 수 있습니다.');
-      try{
-        const path=await window.deckBridge.choosePath('app');
-        if(path&&DeckCore.setProfileApp(state,state.profileId,path)){persist();renderProfiles();}
-      }catch(error){window.d200xActionStatus?.('프로그램 선택 실패: '+String(error?.message||error));}
-    });
-    add((state.smartProfilesEnabled?'✓ ':'')+'Smart Profile 자동 전환',()=>{
-      state.smartProfilesEnabled=!state.smartProfilesEnabled;
-      persist();renderProfiles();
-    });
-    add('현재 프로필 이름 변경',async()=>{
-      const name=await askProfileName('새 이름',$("profile-name").textContent);
-      if(name!==null&&DeckCore.renameProfile(state,state.profileId,name)){persist();render();}
-    });
-    add('현재 프로필 삭제',()=>{
-      if(state.profileNames.length<=1)return;
-      if(confirm('현재 프로필과 그 안의 설정을 삭제하시겠습니까? 복구할 수 없습니다.')){
-        if(DeckCore.deleteProfile(state,state.profileId)){persist();render();}
-      }
-    });
+
+    menu.append(globalPanel);
   };
   refreshProfilesMenu=renderProfiles;
   renderProfiles();
-  trigger.addEventListener("click",()=>{
-    menu.hidden=!menu.hidden;trigger.setAttribute("aria-expanded",String(!menu.hidden));
+  trigger.addEventListener('click',()=>{menu.hidden=!menu.hidden;trigger.setAttribute('aria-expanded',String(!menu.hidden));});
+  document.addEventListener('pointerdown',event=>{
+    if(!menu.contains(event.target)&&!trigger.contains(event.target))close();
   });
-  document.addEventListener("pointerdown",event=>{
-    if(!menu.contains(event.target)&&!trigger.contains(event.target)){
-      menu.hidden=true;trigger.setAttribute("aria-expanded","false");
-    }
-  });
-  // Settings screen is not implemented; its control is visibly disabled in HTML.
+  // The main settings screen remains explicitly disabled.
 }
 $("icon-pack-import").addEventListener("click",importIconPackIntoLibrary);
 $("close-icon-library").addEventListener("click",closeIconLibrary);
@@ -2446,7 +2453,10 @@ setInterval(async()=>{
   smartProfileBusy=true;
   try{
     const app=await window.deckBridge.foregroundApp();
-    const id=DeckCore.matchForegroundProfile(state,app);
+    const matched=DeckCore.matchForegroundProfile(state,app);
+    const activeProfile=state.profileNames.find(p=>p.id===state.profileId);
+    const fallback=state.profileNames.find(p=>p.id==='default')?.id||state.profileNames[0]?.id;
+    const id=matched||(activeProfile?.smartEnabled?fallback:null);
     if(id&&id!==state.profileId&&DeckCore.switchProfile(state,id)){
       cancelFolderAutoExit();lastHardwareDown.clear();
       persist();render();
