@@ -107,6 +107,11 @@ jobs:
           npm install --omit=dev --no-audit --no-fund
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           Pop-Location
+          Write-Host 'Fluent UI bundle source/staging contents:'
+          Get-ChildItem 'app/streamdeck-editor' -Filter '*iconpack*' | Select-Object Name,Length | Format-Table
+          Get-ChildItem 'app/preview-device-build/streamdeck-editor' | Select-Object -First 12 Name,Length | Format-Table
+          Copy-Item -LiteralPath 'app/streamdeck-editor/builtin-iconpacks.json' -Destination 'app/preview-device-build/streamdeck-editor/builtin-iconpacks.json' -Force
+          Copy-Item -LiteralPath 'app/streamdeck-editor/fluentui-LICENSE.md' -Destination 'app/preview-device-build/streamdeck-editor/fluentui-LICENSE.md' -Force
           $staged = Get-Item 'app/preview-device-build/streamdeck-editor/builtin-iconpacks.json' -ErrorAction SilentlyContinue
           if (-not $staged) { throw 'Staged preview missing Fluent UI icon bundle' }
           if (-not (Test-Path 'app/preview-device-build/streamdeck-editor/main.cjs')) { throw 'Staged main.cjs missing' }
