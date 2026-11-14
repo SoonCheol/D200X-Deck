@@ -3,6 +3,10 @@ const { contextBridge, ipcRenderer } = require('electron');
 
 contextBridge.exposeInMainWorld('deckBridge', Object.freeze({
   foregroundApp: () => ipcRenderer.invoke('d200x:foreground-app'),
+  haStatus: () => ipcRenderer.invoke('d200x:ha-status'),
+  haSave: (url,token) => ipcRenderer.invoke('d200x:ha-save',{url,token}),
+  haEntities: () => ipcRenderer.invoke('d200x:ha-entities'),
+  haToggle: entityId => ipcRenderer.invoke('d200x:ha-toggle',entityId),
   ready: () => ipcRenderer.send('d200x:renderer-ready'),
   readClipboardImage: () => ipcRenderer.invoke('d200x:clipboard-image'),
   choosePath: kind => ipcRenderer.invoke('d200x:choose-path', kind),
