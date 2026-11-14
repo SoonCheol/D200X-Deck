@@ -40,6 +40,12 @@ jobs:
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           node --check app/streamdeck-editor/action-panel-icons.js
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          node --check app/streamdeck-editor/sample-icon-pack.js
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          node --check app/streamdeck-editor/icon-pack.cjs
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          node --test test/streamdeck-icon-pack.test.cjs
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - name: Check hardware bridge and renderer scripts
         shell: pwsh
         run: |
