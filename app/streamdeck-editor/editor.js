@@ -750,7 +750,7 @@ function executeHardwareAction(event,preview=false){
     if(!outcome.file)return '재생할 오디오 파일을 먼저 선택하세요.';
     const key=String(state.page)+':'+index;
     const old=activeAudioPlayers.get(key);
-    if(old&&outcome.mode==='play-stop'&&!old.paused){old.pause();old.currentTime=0;allPlayingAudio.delete(old);activeAudioPlayers.delete(key);return '오디오 정지';}
+    if(old&&['play-stop','loop-stop'].includes(outcome.mode)&&!old.paused){old.pause();old.currentTime=0;allPlayingAudio.delete(old);activeAudioPlayers.delete(key);return '오디오 정지';}
     if(old&&outcome.mode!=='overlap'){old.pause();old.currentTime=0;allPlayingAudio.delete(old);activeAudioPlayers.delete(key);}
     window.deckBridge.audioFileUrl(outcome.file).then(url=>{
       const audio=new Audio(url);
