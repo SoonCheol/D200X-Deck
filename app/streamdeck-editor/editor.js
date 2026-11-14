@@ -116,6 +116,8 @@ function displayItem(item){
   if(!item||item.type!=="indicator")return item;
   return {...item,icon:{kind:"glyph",glyph:String(state.page+1)}};
 }
+// Share actual key visuals (including timer countdown) with the USB renderer.
+window.getD200XDisplayItem=(item,index)=>displayItem(DeckCore.visibleActions(state)[index]||item);
 function iconNode(item,defaultGlyph){
   if(item?.icon?.kind==="file"&&typeof item.icon.value==="string"){
     const image=document.createElement("img");image.className="icon-image";image.src=item.icon.value;image.alt="";return image;
@@ -1296,8 +1298,6 @@ async function executeMultiStep(action,signal){
       return bridge.scrollWindows(outcome.axis,outcome.direction,outcome.count||1);
     case 'edit-history':
       return bridge.editHistory(outcome.operation,outcome.count||1);
-    case 'windows-switch':
-      return bridge.switchWindows(outcome.target,outcome.direction,outcome.count||1);
     case 'windows-switch':
       return bridge.switchWindows(outcome.target,outcome.direction,outcome.count||1);
     case 'system-shortcut':
