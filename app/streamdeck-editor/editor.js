@@ -1162,7 +1162,10 @@ function bindSdkStateIcons(root,item){
           const png=await rasterizeIcon(chosen.dataUrl);
           if(!currentPage().includes(item))return;
           item.settings.sdkStateIcons??={};
-          item.settings.sdkStateIcons[key]={kind:'file',value:png};
+          // File picker provides one file only: prefill both slots with that image.
+          // Pack selections can resolve a matching _on/_off companion.
+          item.settings.sdkStateIcons.off={kind:'file',value:png};
+          item.settings.sdkStateIcons.on={kind:'file',value:png};
           persist();render();
         }catch(error){window.d200xActionStatus?.('상태 아이콘 선택 실패: '+String(error?.message||error));}
       });
@@ -2043,6 +2046,20 @@ async function removeIconPackFromLibrary(pack){
     window.d200xActionStatus?.('아이콘팩 제거 실패: '+String(error?.message||error));
   }
 }
+// Pair icon files only while selecting artwork; never change HA execution logic.
+function iconPairType(icon){
+  const name=String(icon.filename||icon.name||'').split(/[\\/]/).pop().replace(/\.[^.]+$/,'');
+  const match=/^(.*)_(off|on)$/i.exec(name);
+  return match?{base:match[1].toLowerCase(),state:match[2].toLowerCase()}:null;
+}
+function findIconCompanion(pack,icon){
+  const pair=iconPairType(icon);
+  if(!pair)return null;
+  return pack.icons.find(other=>other!==icon&&(()=>{
+    const test=iconPairType(other);
+    return test?.base===pair.base&&test.state!==(pair.state);
+  })())||null;
+}
 function renderIconLibrary(){
   const root=$("icon-library-groups");root.replaceChildren();
   const search=$("icon-library-search").value.trim().toLocaleLowerCase();
@@ -2091,8 +2108,18 @@ function renderIconLibrary(){
           const png=await rasterizeIcon(icon.image);
           if(!currentPage().includes(target))return;
           if(libraryStateKey&&target.type==='sd-plugin'){
+            const companion=findIconCompanion(pack,icon);
+            const pair=iconPairType(icon);
+            const off=pair?.state==='on'?companion:icon;
+            const on=pair?.state==='off'?companion:icon;
+            const fallback=icon;
+            const offIcon=off||fallback,onIcon=on||fallback;
+            const offPng=offIcon===icon?png:await rasterizeIcon(offIcon.image);
+            const onPng=onIcon===icon?png:await rasterizeIcon(onIcon.image);
+            if(!currentPage().includes(target))return;
             target.settings.sdkStateIcons??={};
-            target.settings.sdkStateIcons[libraryStateKey]={kind:'file',value:png,packId:pack.id};
+            target.settings.sdkStateIcons.off={kind:'file',value:offPng,packId:pack.id};
+            target.settings.sdkStateIcons.on={kind:'file',value:onPng,packId:pack.id};
           }else target.icon={kind:'file',value:png,packId:pack.id};
           persist();render();closeIconLibrary();
         }catch(error){
