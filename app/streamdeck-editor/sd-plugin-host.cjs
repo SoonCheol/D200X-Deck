@@ -119,7 +119,10 @@ class StreamDeckPluginHost{
         }catch(error){this.onUpdate({kind:'error',message:'플러그인 메시지 처리 오류: '+error.message});}
       });
       ws.on('close',()=>{
-        if(owner&&owner.ws===ws)owner.ws=null;
+        if(owner&&owner.ws===ws){
+          owner.ws=null;
+          for(const ctx of this.contexts.values())if(ctx.pluginUUID===owner.uuid)ctx.appeared=false;
+        }
         if(inspector&&inspector.ws===ws)inspector.ws=null;
       });
     });
@@ -167,7 +170,9 @@ class StreamDeckPluginHost{
     settings:ctx.settings||{}};}
   willAppear(ctx){
     const inst=this.instances.get(ctx.pluginUUID);
-    this.send(inst?.ws,{event:'willAppear',action:ctx.actionUUID,context:ctx.context,device:DEVICE,payload:this.payload(ctx)});
+    if(ctx.appeared||!inst?.ws||inst.ws.readyState!==1)return;
+    this.send(inst.ws,{event:'willAppear',action:ctx.actionUUID,context:ctx.context,device:DEVICE,payload:this.payload(ctx)});
+    ctx.appeared=true;
   }
   async sync(configs){
     const seen=new Set();
@@ -180,7 +185,7 @@ class StreamDeckPluginHost{
       let ctx=this.contexts.get(cfg.context);
       if(!ctx||ctx.pluginUUID!==cfg.pluginUUID||ctx.actionUUID!==cfg.actionUUID){
         if(ctx)this.disappear(ctx);
-        ctx={...cfg,settings:cfg.settings||{}};
+        ctx={...cfg,settings:cfg.settings||{},appeared:false};
         this.contexts.set(cfg.context,ctx);
         await this.ensure(cfg.pluginUUID);
         this.willAppear(ctx);
@@ -221,7 +226,10 @@ class StreamDeckPluginHost{
     });
     pi={context,actionUUID:ctx.actionUUID,slot:ctx.slot,window:win,ws:null,pluginUUID:ctx.pluginUUID};
     this.inspectors.set(context,pi);
-    win.on('closed',()=>{this.inspectors.delete(context);});
+    win.on('closed',()=>{
+      this.inspectors.delete(context);
+      this.send(inst.ws,{event:'propertyInspectorDidDisappear',action:ctx.actionUUID,context,device:DEVICE});
+    });
     await win.loadFile(path.join(inst.dir,action.PropertyInspectorPath));
     const info=json({application:{language:'ko',platform:'windows',version:'7.6.1'},devices:[{id:DEVICE,name:'D200X'}],plugin:{version:inst.manifest.Version}});
     const actionInfo=json({action:ctx.actionUUID,context,device:DEVICE,payload:this.payload(ctx)});
