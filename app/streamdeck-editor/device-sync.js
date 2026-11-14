@@ -174,7 +174,7 @@
       const images = await Promise.all(page.map((item,index) => drawSlot(
         item?.type === 'indicator'
           ? {...item, icon:{kind:'glyph',glyph:String(state.page+1)}}
-          : item, index
+          : DeckCore.displaySwitchAction(item), index
       )));
       if (serial !== renderSerial) return;
       bridge.syncPage(images);
