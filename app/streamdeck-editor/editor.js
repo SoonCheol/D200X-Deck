@@ -114,6 +114,7 @@ function updateTitleAppearance(label,item){
   label.style.textDecoration=style.underline?"underline":"none";
   label.style.color=style.color||"#ffffff";
 }
+function isAssignableAction(id){return ACTIONS.has(id)&&id!=='virtual';}
 function newAction(id){return DeckCore.createAction(id);}
 function currentPage(){return DeckCore.currentActions(state);}
 function setItem(index,item){
@@ -137,7 +138,7 @@ function choose(index){
   state.selected=index;persist();render();
 }
 function controlDrop(index,id,gesture='down'){
-  if(!ACTIONS.has(id))return;
+  if(!isAssignableAction(id))return;
   const binding=DeckCore.controlBinding(state,index);
   if(!binding)return;
   if(index>=16&&gesture==='down'&&['system-volume','system-scroll','edit-history','window-switch','desktop-switch','device-brightness','system-zoom'].includes(id)){
@@ -190,7 +191,7 @@ function renderGrid(){
     b.addEventListener("contextmenu",ev=>{ev.preventDefault();choose(i);showMenu(i,ev.clientX,ev.clientY);});
     b.addEventListener("dragover",ev=>{ev.preventDefault();b.classList.add("drag-over");});
     b.addEventListener("dragleave",()=>b.classList.remove("drag-over"));
-    b.addEventListener("drop",ev=>{ev.preventDefault();b.classList.remove("drag-over");const id=ev.dataTransfer.getData("application/x-d200x-action");if(ACTIONS.has(id))setItem(i,newAction(id));});
+    b.addEventListener("drop",ev=>{ev.preventDefault();b.classList.remove("drag-over");const id=ev.dataTransfer.getData("application/x-d200x-action");if(isAssignableAction(id))setItem(i,newAction(id));});
     grid.append(b);
   });
   renderPhysicalControls();
@@ -228,7 +229,7 @@ function renderPhysicalControls(){
     button.addEventListener("drop",event=>{
       event.preventDefault();button.classList.remove("drag-over");
       const id=event.dataTransfer.getData("application/x-d200x-action");
-      if(ACTIONS.has(id))controlDrop(index,id);
+      if(isAssignableAction(id))controlDrop(index,id);
     });
     root.append(button);
   });
@@ -243,16 +244,20 @@ function renderLibrary(){
     const title=document.createElement("div");title.className="group-title";title.textContent=category;
     const body=document.createElement("div");title.addEventListener("click",()=>{body.hidden=!body.hidden;});
     for(const [id,label] of visible){
-      const entry=document.createElement("div");entry.className="action-item";entry.draggable=true;
-      entry.title="드래그하여 빈 버튼에 놓기";
+      const disabled=id==='virtual';
+      const entry=document.createElement("div");entry.className="action-item"+(disabled?" action-disabled":"");entry.draggable=!disabled;
+      if(disabled){entry.setAttribute("aria-disabled","true");entry.setAttribute("title","추후 지원 예정 · 현재 등록 불가");}
+      if(!disabled)entry.title="드래그하여 빈 버튼에 놓기";
       const symbol=document.createElement("span");symbol.className="action-icon";symbol.append(window.D200XPanelIcons.create(id));
       const caption=document.createElement("span");caption.className="action-caption";
       const name=document.createElement("span");name.textContent=label;caption.append(name);
+      if(disabled){const note=document.createElement("small");note.className="action-unavailable";note.textContent="지원 예정 · 비활성화";caption.append(note);}
       if(PANEL_SHORTCUTS[id]){
         const hint=document.createElement("small");hint.className="action-shortcut";hint.textContent=PANEL_SHORTCUTS[id];caption.append(hint);
       }
       const customise=document.createElement("button");customise.type="button";customise.className="action-customize";
       customise.textContent="⋯";customise.title=label+" 아이콘 개별 설정";customise.setAttribute("aria-label",label+" 아이콘 개별 설정");
+      if(disabled)customise.disabled=true;
       customise.addEventListener("click",event=>{
         event.stopPropagation();
         const old=body.querySelector(".action-override-controls");
@@ -280,8 +285,9 @@ function renderLibrary(){
         tools.append(upload,file,reset);entry.append(tools);
       });
       entry.append(symbol,caption,customise);
-      entry.addEventListener("dragstart",ev=>ev.dataTransfer.setData("application/x-d200x-action",id));
+      if(!disabled)entry.addEventListener("dragstart",ev=>ev.dataTransfer.setData("application/x-d200x-action",id));
       entry.addEventListener("click",()=>{
+        if(disabled)return;
         if(state.selected!==null){
           if(state.selected>=14)controlDrop(state.selected,id,controlGesture);
           else setItem(state.selected,newAction(id));
