@@ -43,6 +43,6 @@ test('SDK manifest dual-state icon can be read without modifying the profile',as
     const host=new StreamDeckPluginHost(tmp);
     host.instances.set(uuid,{uuid,dir,manifest:{Actions:[{UUID:M.Actions[0].UUID,States:[{Image:'images/off'}]}]}});
     const result=await host.stateArtwork({pluginUUID:uuid,actionUUID:M.Actions[0].UUID},0);
-    assert.equal(result,'data:image/png;base64,iVBORRw==');
+    assert.equal(result,'data:image/png;base64,iVBORw==');
   }finally{await fs.rm(tmp,{recursive:true,force:true});}
 });
