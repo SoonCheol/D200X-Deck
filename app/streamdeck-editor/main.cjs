@@ -145,6 +145,31 @@ public class D200XWheel {
   return true;
 });
 
+// Only fixed Ctrl+Z / Ctrl+Y commands for the foreground Windows app.
+ipcMain.handle('d200x:edit-history', async (event, args) => {
+  if (!window || event.sender !== window.webContents)
+    throw new Error('허용되지 않은 호출입니다.');
+  if (!args || !['undo','redo'].includes(args.operation) || ![1,2,5,10].includes(args.count ?? 1))
+    throw new Error('지원하지 않는 편집 동작입니다.');
+  if (process.platform !== 'win32')throw new Error('Windows에서만 지원합니다.');
+  const key=args.operation==='undo'?0x5A:0x59;
+  const code=`Add-Type -TypeDefinition @'
+using System;
+using System.Runtime.InteropServices;
+public class D200XEditKey {
+  [DllImport("user32.dll")] public static extern void keybd_event(byte vk, byte scan, uint flags, UIntPtr extra);
+}
+'@;
+${Array.from({length:args.count??1},()=>`[D200XEditKey]::keybd_event(0x11,0,0,[UIntPtr]::Zero);
+[D200XEditKey]::keybd_event(${key},0,0,[UIntPtr]::Zero);
+[D200XEditKey]::keybd_event(${key},0,2,[UIntPtr]::Zero);
+[D200XEditKey]::keybd_event(0x11,0,2,[UIntPtr]::Zero);`).join('\n')}`;
+  await execFileAsync('powershell.exe',
+    ['-NoProfile','-NonInteractive','-WindowStyle','Hidden','-Command',code],
+    {windowsHide:true,timeout:6000,maxBuffer:32768});
+  return true;
+});
+
 // Local clipboard image only; never reads arbitrary files or executes clipboard content.
 ipcMain.handle('d200x:clipboard-image', async event => {
   if (!window || event.sender !== window.webContents) return null;
