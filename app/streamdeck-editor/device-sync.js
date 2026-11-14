@@ -130,6 +130,17 @@
           const w = image.width * scale, h = image.height * scale;
           ctx.drawImage(image, (width - w)/2, (height - h)/2, w, h);
         }
+      } else if (!item.icon?.glyph && window.D200XPanelIcons?.artwork?.(item.type)) {
+        const image = await imageLoaded(window.D200XPanelIcons.artwork(item.type));
+        if (image) {
+          const side = Math.min(width, height) * 0.79;
+          ctx.drawImage(image, (width-side)/2, (height-side)/2, side, side);
+        } else {
+          ctx.font = '154px "Segoe UI Symbol","Malgun Gothic",sans-serif';
+          ctx.fillStyle = '#f3f3f3';
+          ctx.textAlign = 'center';ctx.textBaseline = 'middle';
+          ctx.fillText(fallback, width/2, height/2);
+        }
       } else if ((item.type === 'previous' || item.type === 'next') && !item.icon?.glyph) {
         // The current placeholder font renders arrow symbols inconsistently
         // on some Windows fonts; draw the direction explicitly instead.
