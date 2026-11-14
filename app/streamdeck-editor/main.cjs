@@ -34,7 +34,7 @@ ipcMain.handle('d200x:sdk-install',async event=>{
 });
 ipcMain.handle('d200x:sdk-sync',async(event,configs)=>{
   assertEditor(event);
-  if(!Array.isArray(configs)||configs.length>19)throw Error('플러그인 액션 목록 크기 오류');
+  if(!Array.isArray(configs)||configs.length>32)throw Error('플러그인 액션 목록 크기 오류');
   await sdk().sync(configs);return true;
 });
 ipcMain.handle('d200x:sdk-key',async(event,context,gesture,ticks)=>{
