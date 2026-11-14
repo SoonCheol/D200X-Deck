@@ -529,6 +529,7 @@
     if(action.type==='multi')return {kind:'composite',type:'multi'};
     if(action.type==='multi-switch')return {kind:'composite',type:'multi-switch'};
     if(action.type==='random')return {kind:'composite',type:'random'};
+    if(action.type==='logic')return {kind:'composite',type:'logic'};
     if(action.type==='brightness'){
       const mode=action.settings?.mode||'up';
       const fixed={max:100,high:75,medium:50,low:30,min:20};
