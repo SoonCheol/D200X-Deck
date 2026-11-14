@@ -152,7 +152,11 @@
     const page = currentPage().slice(0, 14).map(item => item ? JSON.parse(JSON.stringify(item)) : null);
     try {
       await document.fonts?.ready;
-      const images = await Promise.all(page.map(drawSlot));
+      const images = await Promise.all(page.map((item,index) => drawSlot(
+        item?.type === 'indicator'
+          ? {...item, icon:{kind:'glyph',glyph:String(state.page+1)}}
+          : item, index
+      )));
       if (serial !== renderSerial) return;
       bridge.syncPage(images);
     } catch (error) {
