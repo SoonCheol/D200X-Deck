@@ -35,3 +35,23 @@ test('user selected icon pack artwork is not replaced by SDK image updates',()=>
   assert.equal(result.icon.packId,'pack-1');
   assert.equal(result.title,'Living');
 });
+
+
+test('OFF and ON state icons override plugin visual and common icon independently',()=>{
+  const off='data:image/png;base64,b2Zm';
+  const on='data:image/png;base64,b24=';
+  const item={type:'sd-plugin',icon:{kind:'file',value:'common'},settings:{sdkStateIcons:{
+    off:{kind:'file',value:off,packId:'icons'},on:{kind:'file',value:on,packId:'icons'}
+  }}};
+  assert.equal(render(item,{state:0,image:'runtime'},0,true).icon.value,off);
+  assert.equal(render(item,{state:1,image:'runtime'},0,true).icon.value,on);
+  assert.equal(render(item,{state:1,image:'runtime'},0,true).icon.packId,'icons');
+  assert.equal(render(item,{state:0,image:'runtime'}).icon.value,off);
+});
+test('a missing state-specific image falls back to the normal user icon',()=>{
+  const item={type:'sd-plugin',icon:{kind:'file',value:'common'},settings:{sdkStateIcons:{
+    on:{kind:'file',value:'on'}
+  }}};
+  assert.equal(render(item,{state:0,image:'runtime'}).icon.value,'common');
+  assert.equal(render(item,{state:1,image:'runtime'}).icon.value,'on');
+});
