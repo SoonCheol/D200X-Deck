@@ -40,22 +40,30 @@
          ' · 동작 실행은 아직 미구현');
   });
 
+  // Stream Deck renders title ON TOP of a fixed full-key icon. The source
+  // font size is calibrated to a 72px Stream Deck key; D200X accepts 196px PNG.
+  // Rendering both views from this compositor prevents CSS flex layout drift.
   function drawText(ctx, title, width, height, style) {
     if (!title || style?.visible === false) return;
-    const size = Math.max(8, Math.min(48, Number(style?.size) || 12));
+    const alignment = ({left:'bottom',center:'middle',right:'top'})[style?.align]
+      || (['top','middle','bottom'].includes(style?.align) ? style.align : 'bottom');
+    const baseSize = Math.max(8, Math.min(48, Number(style?.size) || 12));
+    const fontSize = baseSize * height / 72;
     const family = style?.family === 'Segoe UI' ? '"Segoe UI"'
-      : style?.family === 'Malgun Gothic' ? '"Malgun Gothic"' : '"Malgun Gothic"';
+      : '"Malgun Gothic"';
     ctx.font = (style?.italic ? 'italic ' : '') +
-      (style?.bold ? 'bold ' : '') + size + 'px ' + family + ',sans-serif';
+      (style?.bold ? 'bold ' : '') + fontSize + 'px ' + family + ',sans-serif';
     ctx.fillStyle = style?.color || '#ffffff';
-    ctx.textAlign = style?.align === 'left' ? 'left' : style?.align === 'right' ? 'right' : 'center';
-    const x = ctx.textAlign === 'left' ? 10 : ctx.textAlign === 'right' ? width - 10 : width / 2;
-    ctx.textBaseline = 'bottom';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.lineJoin = 'round';
+    // Stream Deck text is overlaid on the icon, never used to reposition it.
+    const maxWidth = width - 16;
     const lines = [];
-    for (const textLine of String(title).split(/\r?\n/)) {
+    for (const paragraph of String(title).split(/\r?\n/)) {
       let line = '';
-      for (const ch of Array.from(textLine)) {
-        if (ctx.measureText(line + ch).width > width - 20 && line) {
+      for (const ch of Array.from(paragraph)) {
+        if (ctx.measureText(line + ch).width > maxWidth && line) {
           lines.push(line);
           line = '';
         }
@@ -63,14 +71,23 @@
       }
       if (line) lines.push(line);
     }
-    const shown = lines.slice(-Math.max(1, Math.min(3, Math.floor((height * 0.48) / (size + 4)))));
-    shown.forEach((value, i) => {
-      const y = height - 13 - (shown.length - i - 1) * (size + 4);
-      ctx.fillText(value, x, y, width - 20);
-      if (style?.underline) {
-        const measured = Math.min(width - 20, ctx.measureText(value).width);
-        const left = ctx.textAlign === 'left' ? x : ctx.textAlign === 'right' ? x - measured : x - measured/2;
-        ctx.fillRect(left, y + 2, measured, Math.max(1, size/14));
+    const lineHeight = fontSize * 1.13;
+    const visibleLines = lines.slice(0, Math.max(1, Math.min(3, Math.floor((height - 12) / lineHeight))));
+    const blockHeight = visibleLines.length * lineHeight;
+    const top = alignment === 'top' ? 6
+      : alignment === 'middle' ? (height - blockHeight)/2
+      : height - blockHeight - 6;
+    visibleLines.forEach((value,index)=>{
+      const y = top + (index + 0.5) * lineHeight;
+      // A subtle black outline is readable over bright icons without
+      // introducing an extra title background not shown in Stream Deck.
+      ctx.strokeStyle = '#000000';
+      ctx.lineWidth = Math.max(1, fontSize / 16);
+      ctx.strokeText(value,width/2,y,maxWidth);
+      ctx.fillText(value,width/2,y,maxWidth);
+      if(style?.underline){
+        const actual = Math.min(maxWidth,ctx.measureText(value).width);
+        ctx.fillRect((width-actual)/2,y+fontSize*0.48,actual,Math.max(1,fontSize/15));
       }
     });
   }
@@ -105,19 +122,20 @@
           ctx.drawImage(image, (width - w)/2, (height - h)/2, w, h);
         }
       } else {
-        ctx.font = '67px "Segoe UI Symbol","Malgun Gothic",sans-serif';
+        ctx.font = '154px "Segoe UI Symbol","Malgun Gothic",sans-serif';
         ctx.fillStyle = '#f3f3f3';
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
-        ctx.fillText(item.icon?.glyph || fallback, width/2, 78, width - 20);
+        ctx.fillText(item.icon?.glyph || fallback, width/2, height/2, Math.min(172,width-12));
       }
-      drawText(ctx, item.title || ACTIONS.get(item.type)?.label, width, height, item.titleStyle);
+      drawText(ctx, item.title || '', width, height, item.titleStyle);
     }
     return {index, png: canvas.toDataURL('image/png').split(',')[1]};
   }
 
   // Same compositor feeds the inspector preview and the D200X transfer.
-  window.renderDeckKeyImage = async item => (await drawSlot(item, 0)).png;
+  window.renderDeckKeyImage = async (item,index=0) => (await drawSlot(item, index)).png;
+  renderGrid();
   window.refreshSelectedVisual?.();
 
   async function synchronize() {
