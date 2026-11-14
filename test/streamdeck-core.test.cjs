@@ -340,6 +340,16 @@ test('folder navigation retains empty slot positions, nested actions and back na
   assert.equal(restored.pages[0][0].children[2].children[1].settings.keys,'Ctrl+A');
 });
 
+test('nested folder back uses last free grid key or side key without overwriting data',()=>{
+  const state=core.migrateState({pages:[[{type:'folder',children:[]}] ]});
+  assert.equal(core.enterFolder(state,0),true);
+  assert.equal(core.planHardwareEvent(state,{kind:1,index:13,pressed:true}).outcome.kind,'folder-back');
+  assert.equal(core.planHardwareEvent(state,{kind:1,index:16,pressed:true}).outcome.kind,'folder-back');
+  core.currentActions(state)[13]=core.createAction('media');
+  assert.equal(core.planHardwareEvent(state,{kind:1,index:13,pressed:true}).outcome.kind,'media-control');
+  assert.equal(core.planHardwareEvent(state,{kind:1,index:16,pressed:true}).outcome.kind,'folder-back');
+});
+
 test('folder migration safely restores valid active folder paths and removes invalid tails',()=>{
   const saved={pages:[[{type:'folder',children:[{type:'media'}]}]],folderPath:[0,3,7]};
   const state=core.migrateState(saved);
