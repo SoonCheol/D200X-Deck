@@ -353,7 +353,16 @@ function renderMultiEditor(item,root){
     if(state.selected>=14)renderControlInspector();
     else renderInspector();
   });
-  toolbar.append(select,addButton,delay);
+  const cancel=document.createElement('button');cancel.type='button';
+  cancel.textContent='■ 실행 중단';
+  cancel.title='실행 중인 단계가 끝나거나 지연 중일 때 다음 단계를 중단합니다';
+  cancel.addEventListener('click',()=>{
+    const controller=runningMultiControllers.get(item);
+    if(!controller)return window.d200xActionStatus?.('실행 중인 복합 동작이 없습니다.');
+    controller.abort();
+    window.d200xActionStatus?.('복합 동작 중단 요청');
+  });
+  toolbar.append(select,addButton,delay,cancel);
   area.append(heading,note,list,toolbar);
   root.querySelector('.fields')?.append(area);
 }
@@ -813,10 +822,23 @@ const activeAudioPlayers=new Map();
 const allPlayingAudio=new Set();
 const activeActionTimers=new Map();
 const runningMultiActions=new Set();
+const runningMultiControllers=new WeakMap();
 // The original switch begins in state 1. Runtime state is distinct from the
 // editor tab and advances only after its selected sequence succeeds.
 const multiSwitchRuntimeState=new WeakMap();
-const waitMultiDelay=ms=>new Promise(resolve=>setTimeout(resolve,ms));
+const waitMultiDelay=(ms,signal)=>new Promise((resolve,reject)=>{
+  if(signal?.aborted)return reject(new Error('복합 동작이 취소되었습니다.'));
+  let onAbort;
+  const timer=setTimeout(()=>{
+    if(onAbort)signal.removeEventListener('abort',onAbort);
+    resolve();
+  },ms);
+  onAbort=()=>{
+    clearTimeout(timer);signal.removeEventListener('abort',onAbort);
+    reject(new Error('복합 동작이 취소되었습니다.'));
+  };
+  signal?.addEventListener('abort',onAbort,{once:true});
+});
 // Await the Windows bridge rather than firing each step concurrently.
 // Unknown and UI-only actions stop the sequence with an explicit error.
 async function executeMultiStep(action){
@@ -903,7 +925,12 @@ function executeHardwareAction(event,preview=false){
     if(check.steps.some(step=>step.kind!=='delay'&&!MULTI_ALLOWED.includes(step.type)))
       return '지원하지 않는 하위 액션이 있어 실행하지 않았습니다.';
     runningMultiActions.add(key);
-    DeckCore.runComposite(action,{execute:executeMultiStep,wait:waitMultiDelay,state:position}).then(
+    const controller=new AbortController();
+    runningMultiControllers.set(action,controller);
+    DeckCore.runComposite(action,{
+      execute:executeMultiStep,wait:waitMultiDelay,
+      state:position,signal:controller.signal
+    }).then(
       count=>{
         if(outcome.type==='multi-switch'){
           multiSwitchRuntimeState.set(action,1-position);
@@ -911,7 +938,10 @@ function executeHardwareAction(event,preview=false){
         }else window.d200xActionStatus?.('다중 동작 '+count+'단계 완료');
       },
       error=>window.d200xActionStatus?.('복합 동작 중단: '+String(error?.message||error))
-    ).finally(()=>runningMultiActions.delete(key));
+    ).finally(()=>{
+      runningMultiActions.delete(key);
+      if(runningMultiControllers.get(action)===controller)runningMultiControllers.delete(action);
+    });
     return outcome.type==='multi-switch'
       ?'다중 동작 스위치 상태 '+(position+1)+' 실행 요청':'다중 동작 실행 요청';
   }
