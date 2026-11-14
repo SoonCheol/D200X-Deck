@@ -174,6 +174,13 @@
   }
   // Hardware indices: 0..13 screen keys; 15/16 physical buttons;
   // 17..19 rotary encoders. Editor stores them in slots 0..18.
+  function previewHardwareEvent(slot,gesture='down'){
+    if(!Number.isInteger(slot)||slot<0||slot>18)return null;
+    const knob=slot>=16;
+    const state=knob?({down:1,left:2,right:3})[gesture]:(gesture==='down'?1:null);
+    if(!state)return null;
+    return {kind:knob?2:1,index:slot<14?slot:slot+1,state,pressed:gesture==='down'};
+  }
   function physicalSlot(event){
     if (!event) return null;
     const index=Number(event.index);
@@ -336,5 +343,5 @@
       url:action.settings?.url||'',mode:action.settings?.open||'default'};
     return {kind:'unsupported',message:'이 동작의 실행 기능은 아직 구현되지 않았습니다.'};
   }
-  return {ACTION_IDS,D200X_ACTION_IDS,DEFAULTS,TITLE,createAction,cleanAction,blankPage,migrateState,physicalSlot,hardwareGesture,resolveHardwareEvent,resolveKeyPress,planHardwareEvent,deletePage,planAction,emptyBinding,cleanBinding,ensureControls,controlBinding,changeControlScope};
+  return {ACTION_IDS,D200X_ACTION_IDS,DEFAULTS,TITLE,createAction,cleanAction,blankPage,migrateState,previewHardwareEvent,physicalSlot,hardwareGesture,resolveHardwareEvent,resolveKeyPress,planHardwareEvent,deletePage,planAction,emptyBinding,cleanBinding,ensureControls,controlBinding,changeControlScope};
 });
