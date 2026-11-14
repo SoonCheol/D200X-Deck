@@ -240,7 +240,8 @@ function actionFields(item){
         ?[["right","오른쪽"],["left","왼쪽"]]:[["down","아래"],["up","위"]])+
       select("step","변화량",[[1,"1"],[2,"2"],[5,"5"],[10,"10"]]);
     case "multi":return `<div class="field"><label>내용</label><div>${item.children.length}개의 단계 · 아래에서 추가·수정</div></div>`;
-    case "folder":case "random":return `<div class="field"><label>내용</label><div>${item.children.length}개의 ${item.type==="folder"?"항목":"동작"} <span class="hint">· 내부 편집 기능 미구현</span></div></div>`;
+    case "random":return `<div class="field"><label>내용</label><div>${item.children.length}개의 후보 · 아래 목록에서 편집</div></div>`;
+    case "folder":return `<div class="field"><label>내용</label><div>${item.children.length}개의 항목 <span class="hint">· 내부 편집 기능 미구현</span></div></div>`;
     case "multi-switch":return `<div class="field"><label>상태</label><span>상태 1 / 상태 2 별도 동작 목록 · 아래에서 편집</span></div>`;
     case "logic":return `<div class="field"><label>슬롯</label><span>한 번 누르기 / 두 번 누르기 / 유지 · 내부 편집 기능 미구현</span></div>`;
     case "profile":return select("profile","프로필",[["next","다음 프로필"]]);
@@ -257,6 +258,7 @@ const multiSwitchEditorTabs=new WeakMap();
 function renderMultiEditor(item,root){
   const area=document.createElement('section');area.className='multi-action-editor';
   const switching=item.type==='multi-switch';
+  const randomAction=item.type==='random';
   let steps=item.children;
   if(switching){
     if(!Array.isArray(item.sequences)){
@@ -280,9 +282,10 @@ function renderMultiEditor(item,root){
     area.append(tabs);
   }
   const heading=document.createElement('strong');
-  heading.textContent=switching?'다중 동작 스위치 · 상태별 실행':'다중 동작 · 순서대로 실행';
+  heading.textContent=randomAction?'무작위 동작 · 후보 중 하나 실행':switching?'다중 동작 스위치 · 상태별 실행':'다중 동작 · 순서대로 실행';
   const note=document.createElement('p');note.className='hint';
-  note.textContent='오른쪽 액션 목록에서 아래로 끌어놓기 · 지연은 별도 단계 · 중첩은 지원하지 않음';
+  note.textContent=randomAction?'오른쪽 목록에서 후보를 추가하면 실행할 때 한 개를 무작위 선택합니다. 중첩 및 지연은 지원하지 않습니다.':
+    '오른쪽 액션 목록에서 아래로 끌어놓기 · 지연은 별도 단계 · 중첩은 지원하지 않음';
   const list=document.createElement('div');list.className='multi-action-steps';
   const add=(id)=>{
     if(!MULTI_ALLOWED.includes(id)||steps.length>=100)return;
@@ -347,6 +350,7 @@ function renderMultiEditor(item,root){
   const addButton=document.createElement('button');addButton.type='button';addButton.textContent='동작 추가';
   addButton.addEventListener('click',()=>add(select.value));
   const delay=document.createElement('button');delay.type='button';delay.textContent='지연 추가';
+  delay.hidden=randomAction;
   delay.addEventListener('click',()=>{
     if(steps.length>=100)return;
     steps.push({kind:'delay',ms:1000});persist();
@@ -644,7 +648,7 @@ function renderControlInspector(){
       });
     });
     editor.append(fields);root.append(editor);
-    if(['multi','multi-switch'].includes(current.type))renderMultiEditor(current,editor);
+    if(['multi','multi-switch','random'].includes(current.type))renderMultiEditor(current,editor);
     // A physical-control file picker needs the same bridge as the screen-key inspector.
     fields.querySelectorAll('[data-path-picker]').forEach(button=>button.addEventListener('click',async()=>{
       if(!window.deckBridge?.choosePath){window.d200xActionStatus?.('Windows EXE에서만 파일을 선택할 수 있습니다.');return;}
@@ -794,7 +798,7 @@ function renderInspector(){
       if(node.dataset.field==="body"&&$("text-count")) $("text-count").textContent=String(value.length)+" / -";
     });
   });
-  if(['multi','multi-switch'].includes(item.type))renderMultiEditor(item,root);
+  if(['multi','multi-switch','random'].includes(item.type))renderMultiEditor(item,root);
 }
 function showMenu(index,x,y){
   const menu=$("key-menu");menu.replaceChildren();const item=currentPage()[index];
@@ -910,7 +914,7 @@ function executeHardwareAction(event,preview=false){
     const target=DeckCore.controlBinding(state,index).stack[stackPositions[idx]];
     return '노브 '+(idx+1)+' 조절 대상: '+({page:'페이지',volume:'음량',zoom:'확대/축소',scroll:'세로 스크롤','scroll-x':'가로 스크롤',history:'실행 취소·다시 실행',window:'창 전환',desktop:'가상 데스크톱',brightness:'기기 밝기'}[target]);
   }
-  if(outcome.kind==='composite' && ['multi','multi-switch'].includes(outcome.type)){
+  if(outcome.kind==='composite' && ['multi','multi-switch','random'].includes(outcome.type)){
     const action=index<14?state.pages[state.page][index]:
       DeckCore.controlBinding(state,index)?.[resolved.gesture];
     if(!action||action.type!==outcome.type)return '복합 동작 설정이 없습니다.';
@@ -918,7 +922,8 @@ function executeHardwareAction(event,preview=false){
     const key=scope+':'+index+':'+resolved.gesture;
     if(runningMultiActions.has(key))return '복합 동작이 이미 실행 중입니다.';
     const position=outcome.type==='multi-switch'?(multiSwitchRuntimeState.get(action)||0):0;
-    const check=DeckCore.planComposite(action,{state:position});
+    const random=outcome.type==='random'?Math.random():undefined;
+    const check=DeckCore.planComposite(action,{state:position,random});
     if(check.kind!=='composite')return check.message;
     // Reject unsupported steps BEFORE running any command, so a late invalid
     // step cannot unexpectedly leave a partially-executed sequence.
@@ -929,13 +934,14 @@ function executeHardwareAction(event,preview=false){
     runningMultiControllers.set(action,controller);
     DeckCore.runComposite(action,{
       execute:executeMultiStep,wait:waitMultiDelay,
-      state:position,signal:controller.signal,nextActionMs:100
+      state:position,random,signal:controller.signal,nextActionMs:100
     }).then(
       count=>{
         if(outcome.type==='multi-switch'){
           multiSwitchRuntimeState.set(action,1-position);
           window.d200xActionStatus?.('다중 동작 스위치 상태 '+(position+1)+' · '+count+'단계 완료');
-        }else window.d200xActionStatus?.('다중 동작 '+count+'단계 완료');
+        }else if(outcome.type==='random')window.d200xActionStatus?.('무작위 동작 '+count+'개 실행 완료');
+        else window.d200xActionStatus?.('다중 동작 '+count+'단계 완료');
       },
       error=>window.d200xActionStatus?.('복합 동작 중단: '+String(error?.message||error))
     ).finally(()=>{
@@ -943,7 +949,7 @@ function executeHardwareAction(event,preview=false){
       if(runningMultiControllers.get(action)===controller)runningMultiControllers.delete(action);
     });
     return outcome.type==='multi-switch'
-      ?'다중 동작 스위치 상태 '+(position+1)+' 실행 요청':'다중 동작 실행 요청';
+      ?'다중 동작 스위치 상태 '+(position+1)+' 실행 요청':outcome.type==='random'?'무작위 동작 실행 요청':'다중 동작 실행 요청';
   }
   if(outcome.kind==='mute'){
     if(!window.deckBridge?.adjustWindows)return 'Windows 실행 환경에서만 사용할 수 있습니다.';
