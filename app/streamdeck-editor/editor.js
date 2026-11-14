@@ -382,8 +382,8 @@ function renderLibrary(){
   const root=$("library-list");root.replaceChildren();
   const query=$("action-search").value.trim().toLocaleLowerCase();
   if(libraryTab==='plugins'){
-    const setup=document.createElement('button');setup.type='button';setup.textContent='⚙ Home Assistant 연결 설정';
-    setup.addEventListener('click',configureHomeAssistant);root.append(setup);
+    // SDK plugins own their connection settings via the original Property Inspector.
+    // The old standalone HA REST setup control was redundant and looked like a white bar.
     renderInstalledSdkPlugins(root,query);
   }
   for(const [category,entries] of CATALOG){
