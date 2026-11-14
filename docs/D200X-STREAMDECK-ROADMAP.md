@@ -139,7 +139,8 @@ editor-ui (Stream Deck식 UI, Electron renderer)
 
 - [x] GitHub에 신규 24개 후보(기존 액션 재사용 포함), 8개 P0 핵심, 버튼·노브 공통화, 단계별 검증 기준 기록. 문서 커밋 `0e319814`.
 - [x] **코드 변경만:** 기존 노브 페이지/음량/확대축소에 단계량(1/2/5/10)과 회전 반전 옵션을 추가하고 구형 저장값 기본값 유지. `deck-core.js`, `editor.js`, `main.cjs`, `preload.cjs`, `test/streamdeck-core.test.cjs` 수정. **테스트 실행/Windows EXE/D200X 실기 검증 전**, 기능 완료 아님.
-- [ ] P0-A 신규 옵션에 대한 Node 단위 테스트 실행 및 Windows/D200X 실기 결과 기록. 노브 빠른 회전과 장치 입력 이벤트 단위 확인.
+- [x] **CI(Node) 확인:** 현재 코드 및 단위 테스트 포함 GitHub Actions CI 성공 (브랜치 커밋 `40d94409`, [run 43567590349](https://github.com/SoonCheol/D200X-Deck/actions/runs/43567590349)). 이 결과는 실물 기기 검증이 아님.
+- [ ] P0-A Windows EXE 및 D200X 실기 확인. 노브 빠른 회전·상태 저장/복원·USB 입력 이벤트·페이지 경계 동작 검사.
 - [ ] P0-B 버튼/노브 공통 카탈로그 및 실행기 구조.
 - [ ] P0-C 8개 우선 기능 실제 실행/검증.
 - [ ] P0-D 페이지 이동 후 액션 사라짐/무반응 회귀 원인 분석 및 수정.
