@@ -1365,10 +1365,10 @@ function renderInspector(){
 }
 function showMenu(index,x,y){
   const menu=$("key-menu");menu.replaceChildren();const item=DeckCore.visibleActions(state)[index];
-  const add=(label,handler)=>{const b=document.createElement("button");b.type="button";b.role="menuitem";b.textContent=label;b.addEventListener("click",()=>{menu.hidden=true;handler?.();});menu.append(b);};
+  const add=(label,handler)=>{const b=document.createElement("button");b.type="button";b.role="menuitem";b.textContent=label;if(typeof handler==='function')b.addEventListener("click",()=>{menu.hidden=true;handler();});else{b.disabled=true;b.title="아직 구현되지 않은 기능입니다.";}menu.append(b);};
   const divider=()=>menu.append(document.createElement("hr"));
-  if(!item){add("폴더 생성",()=>setItem(index,newAction("folder")));add("다중 동작 생성",()=>setItem(index,newAction("multi")));add("Key Logic 동작 생성",()=>setItem(index,newAction("logic")));divider();add("동작 불러오기…",()=>alert("동작 불러오기는 아직 미구현"));divider();add("현재 배경",()=>{});add("파일에서 설정…",()=>alert("배경 파일 선택 미구현"));}
-  else {add(state.pinned?.[index]?"고정 해제":"고정",()=>{if(DeckCore.togglePinned(state,index)){persist();render();}});add("복사하기　Ctrl+C",()=>{clipboard=clone(item);});add("폴더로 이동",()=>alert("폴더로 이동 미구현"));add("Key Logic으로 이동",()=>alert("변환 기능 미구현"));divider();add("동작 불러오기…",()=>alert("불러오기 미구현"));add("동작 내보내기…",()=>alert("내보내기 미구현"));divider();add("현재 배경",()=>{});add("파일에서 설정…",()=>alert("배경 파일 선택 미구현"));divider();add("삭제",()=>{if(confirm("이 동작을 삭제하시겠습니까?"))removeSlotAction(index);});}
+  if(!item){add("폴더 생성",()=>setItem(index,newAction("folder")));add("다중 동작 생성",()=>setItem(index,newAction("multi")));add("Key Logic 동작 생성",()=>setItem(index,newAction("logic")));divider();add("동작 불러오기…",null);divider();add("현재 배경",null);add("파일에서 설정…",null);}
+  else {add(state.pinned?.[index]?"고정 해제":"고정",()=>{if(DeckCore.togglePinned(state,index)){persist();render();}});add("복사하기　Ctrl+C",()=>{clipboard=clone(item);});add("폴더로 이동",null);add("Key Logic으로 이동",null);divider();add("동작 불러오기…",null);add("동작 내보내기…",null);divider();add("현재 배경",()=>{});add("파일에서 설정…",()=>alert("배경 파일 선택 미구현"));divider();add("삭제",()=>{if(confirm("이 동작을 삭제하시겠습니까?"))removeSlotAction(index);});}
   menu.style.left=Math.min(x,window.innerWidth-220)+"px";menu.style.top=Math.min(y,window.innerHeight-360)+"px";menu.hidden=false;
 }
 let clipboard=null;
@@ -2220,6 +2220,29 @@ function bindIconControls(item){
     }
   },{signal:inspectorListener.signal});
 }
+// Electron does not implement window.prompt; use an in-app modal.
+function askProfileName(title,initialValue){
+  return new Promise(resolve=>{
+    const dialog=document.createElement('dialog');dialog.className='profile-name-dialog';
+    const form=document.createElement('form');form.method='dialog';
+    const heading=document.createElement('strong');heading.textContent=title;
+    const input=document.createElement('input');input.type='text';input.maxLength=80;
+    input.required=true;input.value=initialValue;input.setAttribute('aria-label',title);
+    const actions=document.createElement('div');actions.className='profile-name-actions';
+    const cancel=document.createElement('button');cancel.type='button';cancel.textContent='취소';
+    const save=document.createElement('button');save.type='submit';save.textContent='확인';save.className='primary';
+    cancel.addEventListener('click',()=>dialog.close('cancel'));
+    form.addEventListener('submit',event=>{
+      event.preventDefault();
+      if(!input.value.trim()){input.setCustomValidity('프로필 이름을 입력하세요.');input.reportValidity();return;}
+      dialog.close('save');
+    });
+    input.addEventListener('input',()=>input.setCustomValidity(''));
+    actions.append(cancel,save);form.append(heading,input,actions);dialog.append(form);
+    dialog.addEventListener('close',()=>{const value=dialog.returnValue==='save'?input.value.trim():null;dialog.remove();resolve(value);},{once:true});
+    document.body.append(dialog);dialog.showModal();input.focus();input.select();
+  });
+}
 function bindSidebarHeader(){
   const trigger=$("profile-trigger"),menu=$("profile-menu");
   const renderProfiles=()=>{
@@ -2296,14 +2319,14 @@ function bindSidebarHeader(){
         picker.click();
       }
     });
-    add('＋ 새 프로필',()=>{
-      const name=prompt('새 프로필 이름','새 프로필');
+    add('＋ 새 프로필',async()=>{
+      const name=await askProfileName('새 프로필 이름','새 프로필');
       if(name===null)return;
       const id=DeckCore.createProfile(state,name);
       if(id){DeckCore.switchProfile(state,id);persist();render();}
     });
-    add('현재 프로필 복제',()=>{
-      const name=prompt('복사본 이름',($("profile-name").textContent||'프로필')+' 복사본');
+    add('현재 프로필 복제',async()=>{
+      const name=await askProfileName('복사본 이름',($("profile-name").textContent||'프로필')+' 복사본');
       if(name===null)return;
       const id=DeckCore.createProfile(state,name,true);
       if(id){DeckCore.switchProfile(state,id);persist();render();}
@@ -2320,8 +2343,8 @@ function bindSidebarHeader(){
       state.smartProfilesEnabled=!state.smartProfilesEnabled;
       persist();renderProfiles();
     });
-    add('현재 프로필 이름 변경',()=>{
-      const name=prompt('새 이름',$("profile-name").textContent);
+    add('현재 프로필 이름 변경',async()=>{
+      const name=await askProfileName('새 이름',$("profile-name").textContent);
       if(name!==null&&DeckCore.renameProfile(state,state.profileId,name)){persist();render();}
     });
     add('현재 프로필 삭제',()=>{
@@ -2341,7 +2364,7 @@ function bindSidebarHeader(){
       menu.hidden=true;trigger.setAttribute("aria-expanded","false");
     }
   });
-  $("settings-trigger").addEventListener("click",()=>alert("설정 화면은 아직 연결되지 않았습니다."));
+  // Settings screen is not implemented; its control is visibly disabled in HTML.
 }
 $("icon-pack-import").addEventListener("click",importIconPackIntoLibrary);
 $("close-icon-library").addEventListener("click",closeIconLibrary);
