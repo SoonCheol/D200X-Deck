@@ -282,6 +282,7 @@
       first:String(action.settings?.first||''),second:String(action.settings?.second||'')};
     if(action.type==='open')return {kind:'open-local-path',path:String(action.settings?.path||''),target:'auto'};
     if(action.type==='open-app')return {kind:'open-local-path',path:String(action.settings?.app||''),target:'file'};
+    if(action.type==='close')return {kind:'close-local-app',path:String(action.settings?.path||''),force:action.settings?.force===true};
     if(action.type==='file-open'||action.type==='folder-shortcut')
       return {kind:'open-local-path',path:typeof action.settings?.path==='string'?action.settings.path:'',
         target:action.type==='file-open'?'file':'folder'};
