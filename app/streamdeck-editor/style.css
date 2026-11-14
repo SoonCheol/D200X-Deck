@@ -63,7 +63,12 @@
 .icon-library-heading strong{flex:1}
 .icon-library-heading button{border:0;background:transparent;font-size:22px;font-weight:300}
 .icon-library-search{display:flex;align-items:center;justify-content:flex-end;gap:8px;padding:8px 14px}
-.icon-library-search input{background:#383838;border:0;border-radius:5px;color:#ddd;padding:6px 11px;width:220px}
+.icon-library-search input{background:#383838;border:0;border-radius:5px;color:#ddd;padding:6px 11px;width:min(195px,45%)}
+.icon-library-search #icon-pack-import{border:1px solid #606060;border-radius:4px;padding:7px 9px;background:#383838;color:#eee;white-space:nowrap;font-size:11px}
+.icon-library-search #icon-pack-import:hover{background:#464646}
+.icon-library-search #icon-pack-import:disabled{opacity:.45}
+.icon-pack-swatch img{width:100%;height:100%;object-fit:contain;image-rendering:auto}
+
 .icon-library-search button{border:0;background:transparent;color:#bbb;font-size:19px}
 .icon-library-groups{overflow:auto}
 .icon-group-title{width:100%;display:flex;align-items:center;gap:9px;padding:11px 15px;border:0;border-top:1px solid #3b3b3b;background:#303030;text-align:left;font-size:12px;font-weight:600}
