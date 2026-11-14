@@ -556,7 +556,7 @@ function renderMultiEditor(item,root){
       list.append(input);
     }else{
       const fields=document.createElement('div');fields.className='fields multi-step-fields';
-      fields.innerHTML=actionFields(step);
+      fields.innerHTML=actionFields(step);bindExtendedActionFields(fields,step);
       fields.querySelectorAll('[data-field]').forEach(node=>node.addEventListener('change',()=>{
         step.settings[node.dataset.field]=node.type==='checkbox'?node.checked:
           node.type==='number'||node.type==='range'?Number(node.value):node.value;
@@ -623,7 +623,7 @@ function renderLogicEditor(item,root){
     const action=item.slots[slot];
     if(action){
       const fields=document.createElement('div');fields.className='fields multi-step-fields';
-      fields.innerHTML=actionFields(action);
+      fields.innerHTML=actionFields(action);bindExtendedActionFields(fields,action);
       fields.querySelectorAll('[data-field]').forEach(node=>node.addEventListener(
         node.type==='range'||node.tagName==='TEXTAREA'?'input':'change',()=>{
           action.settings[node.dataset.field]=node.type==='checkbox'?node.checked:
@@ -926,7 +926,7 @@ function renderControlInspector(){
     remove.addEventListener('click',()=>{binding[controlGesture]=null;persist();render();});
     row.append(label,remove);editor.append(row);
     const fields=document.createElement('div');fields.className='fields';
-    fields.innerHTML=actionFields(current);
+    fields.innerHTML=actionFields(current);bindExtendedActionFields(fields,current);
     fields.querySelectorAll('[data-field]').forEach(node=>{
       node.addEventListener(node.type==='range'||node.tagName==='TEXTAREA'?'input':'change',()=>{
         const value=node.type==='checkbox'?node.checked:
@@ -965,6 +965,20 @@ function renderControlInspector(){
     button.addEventListener('click',()=>runActionPreview(gesture));testBar.append(button);
   }
   root.append(testBar);
+}
+function bindExtendedActionFields(root,item){
+  if(item.type==='audio-play')populateAudioOutputs(root.querySelector('[data-field="output"]'),item);
+  if(item.type!=='hotkey')return;
+  const preset=root.querySelector('[data-field="preset"]');
+  preset?.addEventListener('change',()=>{
+    item.settings.preset=preset.value;
+    if(preset.value&&HOTKEY_PRESETS[preset.value]){
+      item.settings.keys=HOTKEY_PRESETS[preset.value];
+      const keys=root.querySelector('[data-field="keys"]');
+      if(keys)keys.value=item.settings.keys;
+    }
+    persist();
+  });
 }
 async function populateAudioOutputs(select,item){
   if(!select||!navigator.mediaDevices?.enumerateDevices)return;
@@ -1049,10 +1063,7 @@ function renderInspector(){
   refreshTitlePreview(item);
   $("delete-action").addEventListener("click",()=>removeSlotAction(state.selected));
   $("key-title").addEventListener("input",ev=>{item.title=ev.target.value;persist();renderGrid();refreshTitlePreview(item);});
-  if(item.type==='audio-play'){
-    const select=root.querySelector('[data-field="output"]');
-    populateAudioOutputs(select,item);
-  }
+  bindExtendedActionFields(root,item);
   root.querySelectorAll("[data-path-picker]").forEach(button=>{
     button.addEventListener("click",async()=>{
       if(!window.deckBridge?.choosePath){
@@ -1093,20 +1104,15 @@ function renderInspector(){
         if(!key||key==="Unidentified")return;
         const combo=[event.ctrlKey?"Ctrl":null,event.altKey?"Alt":null,
           event.shiftKey?"Shift":null,event.metaKey?"Win":null,key].filter(Boolean).join("+");
-        node.value=combo;item.settings[field]=combo;persist();node.blur();
+        node.value=combo;item.settings[field]=combo;
+        if(item.type==='hotkey'){
+          item.settings.preset='';
+          const preset=root.querySelector('[data-field="preset"]');
+          if(preset)preset.value='';
+        }
+        persist();node.blur();
       });
     }
-  }
-  if(item.type==='hotkey'){
-    const preset=root.querySelector('[data-field="preset"]');
-    preset?.addEventListener('change',()=>{
-      item.settings.preset=preset.value;
-      if(preset.value&&HOTKEY_PRESETS[preset.value]){
-        item.settings.keys=HOTKEY_PRESETS[preset.value];
-        const keys=root.querySelector('[data-field="keys"]');if(keys)keys.value=item.settings.keys;
-      }
-      persist();
-    });
   }
   root.querySelectorAll("[data-field]").forEach(node=>{
     node.addEventListener(node.type==="range"||node.tagName==="TEXTAREA"?"input":"change",()=>{
