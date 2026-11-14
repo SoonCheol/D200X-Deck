@@ -931,3 +931,34 @@ test('SDK plugin binding is kept separately from its old HA REST toggle',()=>{
     kind:'sd-plugin',pluginUUID:a.settings.pluginUUID,actionUUID:a.settings.actionUUID
   });
 });
+
+
+test('nested folders keep independent pages and preserve content through migration',()=>{
+  const state=core.migrateState(null);
+  const folder=core.createAction('folder');
+  state.pages[0][0]=folder;
+  assert.equal(core.enterFolder(state,0),true);
+  assert.equal(core.folderPageCount(state),1);
+  core.currentActions(state)[1]=core.createAction('website');
+  assert.equal(core.addFolderPage(state),true);
+  assert.equal(core.folderPageCount(state),2);
+  const nested=core.createAction('folder');
+  core.currentActions(state)[2]=nested;
+  assert.equal(core.enterFolder(state,2),true);
+  assert.equal(core.addFolderPage(state),true);
+  core.currentActions(state)[3]=core.createAction('hotkey');
+  assert.equal(core.exitFolder(state),true);
+  assert.equal(core.changeFolderPage(state,0),true);
+  assert.equal(core.currentActions(state)[1].type,'website');
+  assert.equal(core.currentActions(state)[2],null);
+  assert.equal(core.changeFolderPage(state,1),true);
+  assert.equal(core.currentActions(state)[2].type,'folder');
+  const restored=core.migrateState(JSON.parse(JSON.stringify(state)));
+  assert.equal(core.folderPageCount(restored),2);
+  assert.equal(core.currentActions(restored)[2].type,'folder');
+  assert.equal(core.enterFolder(restored,2),true);
+  assert.equal(core.folderPageCount(restored),2);
+  assert.equal(core.currentActions(restored)[3].type,'hotkey');
+  assert.equal(core.deleteFolderPage(restored),true);
+  assert.equal(core.folderPageCount(restored),1);
+});
