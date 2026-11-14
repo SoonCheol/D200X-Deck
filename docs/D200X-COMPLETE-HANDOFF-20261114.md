@@ -425,3 +425,12 @@
 - `sd-plugin-host.cjs`의 SDK 네비게이션 제한/비동기 메시지 오류 처리 후 코드 SHA `745a7392424a39a064634ff18f65a578a03446a6`. 이 SHA에 대한 **CI 및 Windows Preview 최신 결과 확인 필요**. 이전 실패를 성공으로 보고하지 않는다.
 - **실제 Windows에서 `cgiesche` 플러그인 설치·WebSocket 접속·PI HA 설정·실시간 상태·D200X 버튼·노브 제어는 모두 미검증.** HTML 기반 SDK3의 최소 실행 계약 구현이며 모든 Stream Deck SDK 플러그인 호환·원본 Stream Deck UI 완전 동일을 주장하지 않는다. 화면 내 원본 PI 임베딩 대신 별도 설정창으로 일단 열도록 구현(원본과의 UI 차이).
 - 우선 다음 실기 단계: 공식 3.8.4 ZIP을 사용자 Windows에서 내려받아 새 프리뷰 EXE의 플러그인 탭→설치→액션 선택→원본 속성 편집기에서 HA 서버 설정→D200X 버튼으로 ON/OFF 및 상태 이미지 관찰. 실제 실패 로그를 기반으로 필요한 최소 SDK 이벤트/설정 보정만 할 것.
+
+
+### 기존 SDK 플러그인 호스트 1차 Windows 빌드 확인 — 2026-11-15
+
+- **최종 앱 소스 SHA:** `78af770701893a09a78a664b79ef46e1eb038928`. 이 단계에서 `manifest.States[].Image`의 ON/OFF 기본 아이콘 참조를 읽는 경로, 노브 Encoder 좌표 변환, 압축의 예상 해제 크기 사전 검사 추가.
+- **실제 성공:** CI [#43638881856](https://github.com/SoonCheol/D200X-Deck/actions/runs/43638881856) success; Windows 프리뷰 [#43638877662](https://github.com/SoonCheol/D200X-Deck/actions/runs/43638877662) success. ZIP Artifact `D200X-StreamDeck-Device-Sync-win-x64`, artifact ID `14130634333`, 크기 `170358711` bytes, 확인 시 expired=false.
+- **주의:** 첫 Windows CI가 실패한 이유는 테스트 파일 누락 → 임시 ZIP 테스트의 잘못된 await 문법 → 새 SDK 액션 ID 정확 일치 테스트 → 모의 PNG Base64 기대 문자열 오타로 각각 확인되고 수정됨. 최종 자동 CI와 Windows 패키징 결과는 성공이지만, **이것은 실제 공개 HA 3.8.4 배포 ZIP의 수동 설치·HA 네트워크 연결·원본 HTML PI 기능·실기 상태 동기화 성공을 증명하지 않음**.
+- 사용자 실기 1차 절차: https://github.com/cgiesche/streamdeck-homeassistant/releases/tag/3.8.4 에서 `de.perdoctus.streamdeck.homeassistant.streamDeckPlugin` 다운로드 → 최신 Windows 프리뷰 압축 해제·EXE 실행 → 오른쪽 플러그인 탭의 `＋ Stream Deck 플러그인 설치` → 파일 선택 → 설치 목록에서 `Entity (generic)`을 화면 키에 할당 → 해당 키를 선택해 `설정 열기`(원본 `pi.html` 별도창) → HA URL 및 장기 토큰/엔티티 설정 → 실제 화면키 실행. 문제가 있으면 정확한 오류 메시지/증상 기록.
+- 최신 작업 범위에서는 `main`, PR #5, 기존 사용자 저장 프로필의 실제 PC 파일을 직접 변경하지 않았다. Marketplace 구축은 이 HA 플러그인의 실기 호환성 확인 후.
