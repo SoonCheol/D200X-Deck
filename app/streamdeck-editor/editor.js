@@ -145,25 +145,29 @@ function scheduleSdkSync(){
     await window.deckBridge.sdkSync(sdkActionInstances());
   }).catch(error=>window.d200xActionStatus?.('SDK 플러그인 등록 오류: '+String(error?.message||error)));
 }
-function displayItem(item){
+function displayItem(item,index){
   if(item?.type==='multi-switch')return DeckCore.displaySwitchAction(item);
   if(item?.type==='timer'&&timerDeadlines.has(item)){
     const remaining=Math.max(0,Math.ceil((timerDeadlines.get(item)-Date.now())/1000));
     return {...item,title:(item.title?item.title+'\n':'')+remaining+'초'};
   }
   if(item?.type==='sd-plugin'){
-    // Plugin-supplied images/titles are runtime overlays; never write them to profile JSON.
-    const key=sdkContext(state.selected>=0&&state.selected<14&&DeckCore.visibleActions(state)[state.selected]===item?state.selected:
-      DeckCore.visibleActions(state).findIndex(x=>x===item),'down');
-    const visual=sdkVisuals.get(key);
-    if(visual)return {...item,title:visual.title??item.title,
-      ...(visual.image?{icon:{kind:'file',value:visual.image}}:{})};
+    // Resolve by physical slot, not object identity: the hardware renderer clones actions.
+    const slot=Number.isInteger(index)?index:DeckCore.visibleActions(state).findIndex(x=>x===item);
+    const visual=slot>=0?sdkVisuals.get(sdkContext(slot,'down')):null;
+    if(visual){
+      // User-selected icon pack / file artwork wins over plugin runtime artwork.
+      const hasUserIcon=item.icon?.kind==='file'&&typeof item.icon.value==='string'||
+        item.icon?.kind==='glyph'&&typeof item.icon.glyph==='string';
+      return {...item,title:visual.title??item.title,
+        ...(!hasUserIcon&&visual.image?{icon:{kind:'file',value:visual.image}}:{})};
+    }
   }
   if(!item||item.type!=="indicator")return item;
   return {...item,icon:{kind:"glyph",glyph:String(state.page+1)}};
 }
 // Share actual key visuals (including timer countdown) with the USB renderer.
-window.getD200XDisplayItem=(item,index)=>displayItem(DeckCore.visibleActions(state)[index]||item);
+window.getD200XDisplayItem=(item,index)=>displayItem(DeckCore.visibleActions(state)[index]||item,index);
 function iconNode(item,defaultGlyph){
   if(item?.icon?.kind==="file"&&typeof item.icon.value==="string"){
     const image=document.createElement("img");image.className="icon-image";image.src=item.icon.value;image.alt="";return image;
@@ -251,7 +255,7 @@ function renderGrid(){
     const item=folderBack?{type:'folder-back',title:'뒤로',icon:{kind:'glyph',glyph:'↩'}}:raw;
     const b=document.createElement("button");b.type="button";b.className="deck-key"+(i===13?" wide":"")+(state.selected===i?" selected":"");
     b.dataset.index=i;b.setAttribute("aria-label",`키 ${i+1}: ${keyName(item)||"비어 있음"}`);
-    const visual=displayItem(item);
+    const visual=displayItem(item,i);
     const glyph=iconNode(visual,ACTIONS.get(item?.type)?.icon||"+");glyph.classList.add("glyph");
     const label=document.createElement("span");label.className="caption";label.textContent=visual?.title||"";updateTitleAppearance(label,visual);
     b.append(glyph,label);
