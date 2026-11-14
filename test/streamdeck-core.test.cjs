@@ -407,6 +407,41 @@ test('profile create, switch, rename and duplicate isolate page, knobs and folde
   assert.equal(core.deleteProfile(r,r.profileId),false);
 });
 
+test('pinned actions inherit only empty root slots and local overrides win',()=>{
+  const s=core.migrateState({pages:[[{type:'media'}],[],[]]});
+  assert.equal(core.togglePinned(s,0),true);
+  s.page=1;
+  assert.equal(core.currentActions(s)[0],null);
+  assert.equal(core.visibleActions(s)[0].type,'media');
+  assert.equal(core.planHardwareEvent(s,{kind:1,index:0,pressed:true}).outcome.kind,'media-control');
+  s.pages[1][0]=core.createAction('hotkey');
+  assert.equal(core.visibleActions(s)[0].type,'hotkey');
+  s.page=2;
+  assert.equal(core.visibleActions(s)[0].type,'media');
+  assert.equal(core.togglePinned(s,0),true);
+  assert.equal(core.visibleActions(s)[0],null);
+  assert.equal(s.pages[0][0].type,'media');
+  assert.equal(s.pages[1][0].type,'hotkey');
+});
+
+test('pinned keys remain profile-specific, survive migration, and do not enter folders',()=>{
+  const s=core.migrateState({pages:[[ {type:'media'},{type:'folder',children:[]} ],[]]});
+  assert.equal(core.togglePinned(s,0),true);
+  const other=core.createProfile(s,'두 번째');
+  core.switchProfile(s,other);
+  assert.equal(core.visibleActions(s)[0],null);
+  core.switchProfile(s,'default');
+  s.page=1;
+  assert.equal(core.visibleActions(s)[0].type,'media');
+  s.page=0;
+  assert.equal(core.enterFolder(s,1),true);
+  assert.equal(core.visibleActions(s)[0],null);
+  const restored=core.migrateState(JSON.parse(JSON.stringify(s)));
+  assert.equal(restored.pinned[0].type,'media');
+  assert.deepEqual(restored.folderPath,[1]);
+  assert.equal(core.visibleActions(restored)[0],null);
+});
+
 test('original brightness action respects the 20 percent floor for fixed presets',()=>{
   const a=core.createAction('brightness');
   a.settings.mode='min';
