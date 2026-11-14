@@ -6,6 +6,8 @@ contextBridge.exposeInMainWorld('deckBridge', Object.freeze({
   ready: () => ipcRenderer.send('d200x:renderer-ready'),
   readClipboardImage: () => ipcRenderer.invoke('d200x:clipboard-image'),
   choosePath: kind => ipcRenderer.invoke('d200x:choose-path', kind),
+  listIconPacks: () => ipcRenderer.invoke('d200x:list-icon-packs'),
+  importIconPack: () => ipcRenderer.invoke('d200x:import-icon-pack'),
   openWebsite: (url,mode,browserPath='') => ipcRenderer.invoke('d200x:open-website', {url,mode,browserPath}),
   adjustWindows: (target,direction,count=1) => ipcRenderer.invoke('d200x:adjust-windows', {target,direction,count}),
   scrollWindows: (axis,direction,count=1) => ipcRenderer.invoke('d200x:scroll-windows', {axis,direction,count}),
