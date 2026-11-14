@@ -23,7 +23,7 @@ transport.on('diagnostic', info => {
   // A successful keep-alive every 5 seconds is routine. Summarize it once
   // per minute to keep logs small while preserving all failure transitions.
   if (info.type === 'keepalive' && ++keepaliveLogCounter % 12 !== 1) return;
-  const line = JSON.stringify(info) + '\\n';
+  const line = JSON.stringify(info) + '\n';
   console.info('[D200X]', info.type, info.detail);
   if (!diagnosticPath) return;
   try {
