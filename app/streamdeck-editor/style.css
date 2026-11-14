@@ -201,3 +201,22 @@
 .deck-key > .glyph.icon-image{width:100%;height:100%;object-fit:contain;}
 .deck-key > .caption{position:absolute;left:4px;right:4px;bottom:4px;z-index:1;pointer-events:none;}
 .preview-title{max-height:95%;line-height:1.12;}
+
+
+/* Title palette and adjustable outline live inside the existing T menu. */
+.title-style-popover{max-height:min(80dvh,660px);overflow-y:auto;}
+.title-format input[type=color],.outline-settings input[type=color]{width:35px;height:30px;flex:none;padding:2px;border:1px solid #666;border-radius:3px;background:#414141;}
+.title-format .title-palette-open,.outline-settings .title-palette-open{flex:none;width:29px;padding:4px 2px;background:#505050;border:1px solid #666;border-radius:4px;}
+.outline-settings{display:flex;gap:7px;align-items:center;}
+.outline-settings span{flex:1;color:#ddd;}
+.outline-settings select{width:92px;flex:none;min-height:30px;}
+.title-palette{border:1px solid #595959;border-radius:5px;padding:9px;background:#303030;display:flex;flex-direction:column;gap:8px;}
+.title-palette[hidden]{display:none;}
+.title-palette-header{display:flex;align-items:center;justify-content:space-between;}
+.title-palette-header button{background:transparent;border:0;font-size:18px;}
+.title-palette-label{font-size:11px;color:#ccc;}
+.title-palette-grid{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:6px;}
+.title-palette-grid.my-colors{grid-template-columns:repeat(6,minmax(0,1fr));}
+.title-color-swatch{width:100%;aspect-ratio:1;border:1px solid #999!important;border-radius:4px!important;padding:0!important;min-width:0!important;}
+.title-color-remove{font-size:12px!important;border:1px solid #666!important;background:#333!important;border-radius:4px!important;padding:0!important;}
+#title-palette-save{padding:7px!important;background:#3f566f!important;border:1px solid #718399!important;border-radius:4px!important;}
