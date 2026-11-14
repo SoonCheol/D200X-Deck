@@ -40,7 +40,7 @@ jobs:
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           node --check app/streamdeck-editor/action-panel-icons.js
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          node --check app/streamdeck-editor/sample-icon-pack.js
+          node --check app/streamdeck-editor/build-fluent-icons.cjs
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           node --check app/streamdeck-editor/icon-pack.cjs
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
@@ -64,6 +64,18 @@ jobs:
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           node --test test/streamdeck-core.test.cjs
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Bundle pinned MIT Fluent UI Filled and Regular icon packs
+        shell: pwsh
+        run: |
+          $commit = '77ab5fdef0cb76f4a2bf8bfa84a61af9b12c0006'
+          $upstream = Join-Path $env:RUNNER_TEMP 'fluentui-system-icons.zip'
+          $url = "https://codeload.github.com/czottmann/streamdeck-iconpack-fluentui-system-icons/zip/$commit"
+          Invoke-WebRequest -Uri $url -OutFile $upstream -TimeoutSec 180
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          node app/streamdeck-editor/build-fluent-icons.cjs $upstream
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          if (-not (Test-Path 'app/streamdeck-editor/builtin-iconpacks.json')) { throw 'Fluent UI bundle missing' }
+          if (-not (Test-Path 'app/streamdeck-editor/fluentui-LICENSE.md')) { throw 'Fluent UI license missing' }
       - name: Assemble isolated preview with only D200X HID dependencies
         shell: pwsh
         run: |
