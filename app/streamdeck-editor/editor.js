@@ -1404,6 +1404,13 @@ function exportSlotAction(action){
     setTimeout(()=>URL.revokeObjectURL(url),1000);
   }catch(error){window.d200xActionStatus?.('동작 내보내기 실패: '+String(error?.message||error));}
 }
+function pasteClipboardAction(index){
+  if(!clipboard||!Number.isInteger(index)||index<0||index>=14)return false;
+  const existing=DeckCore.visibleActions(state)[index];
+  if(existing&&!confirm('이 버튼의 기존 액션을 복사한 액션으로 교체하시겠습니까?'))return false;
+  setItem(index,clone(clipboard));
+  return true;
+}
 function showMenu(index,x,y){
   const menu=$("key-menu");menu.replaceChildren();
   const item=DeckCore.visibleActions(state)[index];
@@ -1415,11 +1422,14 @@ function showMenu(index,x,y){
     add("폴더 생성",()=>setItem(index,newAction("folder")));
     add("다중 동작 생성",()=>setItem(index,newAction("multi")));
     add("Key Logic 동작 생성",()=>setItem(index,newAction("logic")));
-    divider();add("동작 불러오기…",()=>importSlotAction(index));
+    divider();
+    add("붙여넣기　Ctrl+V",clipboard?()=>pasteClipboardAction(index):null);
+    add("동작 불러오기…",()=>importSlotAction(index));
   }else{
     const isLocal=Boolean(currentPage()[index]);
     if(!state.folderPath?.length)add(state.pinned?.[index]?"고정 해제":"고정",()=>{if(DeckCore.togglePinned(state,index)){persist();render();}});
     add("복사하기　Ctrl+C",()=>{clipboard=clone(item);});
+    add("붙여넣기　Ctrl+V",clipboard?()=>pasteClipboardAction(index):null);
     add("폴더로 이동",isLocal?()=>{
       if(item.type==='folder')return;
       const folder=newAction('folder');folder.children=[DeckCore.cleanAction(item)];
@@ -1441,7 +1451,18 @@ function showMenu(index,x,y){
 }
 let clipboard=null;
 window.addEventListener("click",ev=>{if(!ev.target.closest("#key-menu"))$("key-menu").hidden=true;});
-window.addEventListener("keydown",ev=>{if(ev.key==="Escape")$("key-menu").hidden=true;if(ev.ctrlKey&&ev.key.toLowerCase()==="v"&&clipboard&&state.selected!==null&&!["INPUT","TEXTAREA"].includes(document.activeElement.tagName)){ev.preventDefault();setItem(state.selected,clone(clipboard));}});
+window.addEventListener("keydown",ev=>{
+  if(ev.key==="Escape")$("key-menu").hidden=true;
+  if(!ev.ctrlKey||ev.altKey||ev.metaKey||["INPUT","TEXTAREA"].includes(document.activeElement.tagName))return;
+  const key=ev.key.toLowerCase(),index=state.selected;
+  if(index===null||index<0||index>=14)return;
+  if(key==="c"){
+    const item=DeckCore.visibleActions(state)[index];
+    if(item){ev.preventDefault();clipboard=clone(item);}
+  }else if(key==="v"&&clipboard){
+    ev.preventDefault();pasteClipboardAction(index);
+  }
+});
 $("action-search").addEventListener("input",renderLibrary);
 $("add-page").addEventListener("click",()=>{
   if(state.folderPath?.length){
