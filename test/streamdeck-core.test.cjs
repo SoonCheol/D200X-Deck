@@ -424,6 +424,20 @@ test('pinned actions inherit only empty root slots and local overrides win',()=>
   assert.equal(s.pages[1][0].type,'hotkey');
 });
 
+test('pinned folder opens from another page and preserves nested slot contents',()=>{
+  const state=core.migrateState({pages:[
+    [{type:'folder',title:'공유 폴더',children:[null,{type:'media'}]}],[]
+  ]});
+  assert.equal(core.togglePinned(state,0),true);
+  state.page=1;
+  assert.equal(core.visibleActions(state)[0].type,'folder');
+  assert.equal(core.enterFolder(state,0),true);
+  assert.equal(core.currentActions(state)[1].type,'media');
+  assert.equal(core.activeFolder(state).title,'공유 폴더');
+  const restored=core.migrateState(JSON.parse(JSON.stringify(state)));
+  assert.deepEqual(restored.folderPath,[0]);
+  assert.equal(core.currentActions(restored)[1].type,'media');
+});
 test('pinned keys remain profile-specific, survive migration, and do not enter folders',()=>{
   const s=core.migrateState({pages:[[ {type:'media'},{type:'folder',children:[]} ],[]]});
   assert.equal(core.togglePinned(s,0),true);
