@@ -6,6 +6,7 @@ contextBridge.exposeInMainWorld('deckBridge', Object.freeze({
   ready: () => ipcRenderer.send('d200x:renderer-ready'),
   readClipboardImage: () => ipcRenderer.invoke('d200x:clipboard-image'),
   choosePath: kind => ipcRenderer.invoke('d200x:choose-path', kind),
+  chooseImportFile: kind => ipcRenderer.invoke('d200x:choose-import-file',kind),
   listIconPacks: () => ipcRenderer.invoke('d200x:list-icon-packs'),
   importIconPack: () => ipcRenderer.invoke('d200x:import-icon-pack'),
   removeIconPack: id => ipcRenderer.invoke('d200x:remove-icon-pack',id),
