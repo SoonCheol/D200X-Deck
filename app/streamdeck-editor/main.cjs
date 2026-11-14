@@ -147,16 +147,19 @@ ipcMain.on('d200x:renderer-ready', event => {
   rendererReady = true;
   send('d200x:status', transport.deck.status());
 });
-ipcMain.on('d200x:sync-page', (event, images) => {
+ipcMain.on('d200x:sync-page', (event, images, wideMode='blank') => {
   if (!window || event.sender !== window.webContents) return;
   if (!validImages(images)) {
     send('d200x:error', '페이지 이미지 형식이 올바르지 않습니다.');
     return;
   }
+  if(!['blank','clock','stats'].includes(wideMode)){
+    send('d200x:error','지원되지 않는 가로 화면 모드입니다.');return;
+  }
   transport.schedule(images.map(entry => ({
     index: entry.index,
     png: Buffer.from(entry.png, 'base64'),
-  })));
+  })),wideMode);
 });
 
 // Only user-configured HTTP(S) URLs may be opened by a physical key press.
