@@ -339,7 +339,7 @@ function actionFields(item){
     case "brightness":return select("mode","동작",[["up","밝게"],["down","어둡게"],["max","최대"],["high","높음"],["medium","중간"],["low","낮음"],["min","최소"]]);
     case "sleep":return `<div class="field"><label>장치 화면</label><span class="hint">D200X 화면 잠자기 · 다음 물리 버튼 누름은 화면 깨우기에 사용 (PC 절전 아님)</span></div>`;
     case "virtual":return `<div class="field"><label>기기</label><span class="hint">구성된 Virtual Stream Decks 없음</span></div>`;
-    case "website":return input("url","URL","https://")+select("open","다음으로 열기",[["default","기본 브라우저"],["get","백그라운드에서 GET 요청"],["choose","브라우저 직접 선택"]]);
+    case "website":return input("url","URL","https://")+select("open","다음으로 열기",[["default","기본 브라우저"],["get","백그라운드에서 GET 요청"],["choose","브라우저 직접 선택"]])+pathPicker("browserPath","선택 브라우저 (.exe)","app");
     case "open":return pathPicker("path","앱 / 파일");
     case "open-app":return pathPicker("app","앱","app")+select("hold","길게 누르기",[["none","아무것도 하지 않음"],["close","응용 프로그램 종료"],["force","응용 프로그램 강제 종료"]])+check("foreground","이미 실행 중이면 맨 앞으로");
     case "close":return pathPicker("path","앱 / 파일")+check("force","강제 종료");
@@ -1119,11 +1119,12 @@ async function executeMultiStep(action){
     case 'media-control':
       return bridge.mediaControl(outcome.operation);
     case 'website':
-      return bridge.openWebsite(outcome.url,outcome.mode);
+      return bridge.openWebsite(outcome.url,outcome.mode,outcome.browserPath);
     case 'open-local-path':
+      if(action.type==='open-app'&&outcome.foreground&&await bridge.focusLocalApp(outcome.path))return true;
       return bridge.openLocalPath(outcome.path,outcome.target);
     case 'type-text':
-      return bridge.typeText(outcome.text,outcome.enter);
+      return outcome.mode==='clipboard'?bridge.pasteText(outcome.text,outcome.enter):bridge.typeText(outcome.text,outcome.enter);
     case 'mute':
       return bridge.adjustWindows('mute',0,1);
     case 'adjust':
@@ -1368,11 +1369,13 @@ function executeHardwareAction(event,preview=false){
     return '오디오 재생 요청 · 페이드/출력 장치 지정은 미구현';
   }
   if(outcome.kind==='type-text'){
-    if(!window.deckBridge?.typeText)return 'Windows 실행 환경에서만 사용할 수 있습니다.';
-    window.deckBridge.typeText(outcome.text,outcome.enter).then(
-      ()=>window.d200xActionStatus?.('텍스트 입력 완료 (클립보드 변경 없음)'),
+    const useClipboard=outcome.mode==='clipboard';
+    const command=useClipboard?window.deckBridge?.pasteText:window.deckBridge?.typeText;
+    if(!command)return 'Windows 실행 환경에서만 사용할 수 있습니다.';
+    command(outcome.text,outcome.enter).then(
+      ()=>window.d200xActionStatus?.(useClipboard?'클립보드에 기록하고 붙여넣기 완료':'유니코드 직접 입력 완료'),
       error=>window.d200xActionStatus?.('텍스트 입력 실패: '+String(error?.message||error)));
-    return '유니코드 직접 입력 요청 · 클립보드 모드도 현재는 직접 입력으로 처리';
+    return useClipboard?'Windows 클립보드 붙여넣기 요청':'유니코드 직접 입력 요청';
   }
   if(outcome.kind==='timer'){
     const scope=index>=14&&state.controls.scopes[index-14]==='global'?'global':String(state.page);
@@ -1418,7 +1421,9 @@ function executeHardwareAction(event,preview=false){
   }
   if(outcome.kind==='open-local-path'){
     if(!window.deckBridge?.openLocalPath)return 'Windows 실행 환경에서만 사용할 수 있습니다.';
-    window.deckBridge.openLocalPath(outcome.path,outcome.target).then(
+    (resolved.action?.type==='open-app'&&outcome.foreground
+      ?window.deckBridge.focusLocalApp(outcome.path).then(found=>found?true:window.deckBridge.openLocalPath(outcome.path,outcome.target))
+      :window.deckBridge.openLocalPath(outcome.path,outcome.target)).then(
       ()=>window.d200xActionStatus?.('경로 열기 완료'),
       error=>window.d200xActionStatus?.('경로 열기 실패: '+String(error?.message||error)));
     return '지정 경로 열기 요청';
@@ -1492,7 +1497,7 @@ function executeHardwareAction(event,preview=false){
   }
   if(outcome.kind==='website'){
     if(!window.deckBridge?.openWebsite)return '웹사이트 열기는 Windows EXE에서만 실행됩니다.';
-    window.deckBridge.openWebsite(outcome.url,outcome.mode).then(
+    window.deckBridge.openWebsite(outcome.url,outcome.mode,outcome.browserPath).then(
       ()=>window.d200xActionStatus?.('웹사이트 열기 완료'),
       error=>window.d200xActionStatus?.('웹사이트 열기 실패: '+String(error?.message||error))
     );
