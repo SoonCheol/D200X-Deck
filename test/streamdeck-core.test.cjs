@@ -123,6 +123,17 @@ test('P1/P2 closed shortcut actions preserve 24 original entries',()=>{
   }
 });
 
+test('original media/hotkey/open actions share execution planning',()=>{
+  const media=core.createAction('media');media.settings.op='next';
+  assert.deepEqual(core.planAction(media,0,1),{kind:'media-control',operation:'next'});
+  const hotkey=core.createAction('hotkey');hotkey.settings.keys='Ctrl+Z';
+  assert.deepEqual(core.planAction(hotkey,0,1),{kind:'windows-hotkey',keys:'Ctrl+Z'});
+  const open=core.createAction('open');open.settings.path='C:\\Temp';
+  assert.deepEqual(core.planAction(open,0,1),{kind:'open-local-path',path:'C:\\Temp',target:'auto'});
+  const app=core.createAction('open-app');app.settings.app='C:\\Program Files\\Example\\app.exe';
+  assert.equal(core.planAction(app,0,1).target,'file');
+});
+
 test('local path action planning preserves user selected path safely',()=>{
   const a=core.createAction('folder-shortcut');a.settings.path='C:\\Users\\Public';
   assert.deepEqual(core.planAction(a,0,1),{kind:'open-local-path',path:'C:\\Users\\Public',target:'folder'});
