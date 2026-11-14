@@ -80,6 +80,7 @@ async function parseIconPack(input){
     if(size>MAX_EXPANDED)throw new Error('아이콘 전체 용량이 너무 큽니다.');
     icons.push({
       name:typeof item.name==='string'&&item.name.trim()?item.name.slice(0,100):item.path,
+      filename:item.path,
       tags:Array.isArray(item.tags)?item.tags.filter(x=>typeof x==='string').slice(0,30).map(x=>x.slice(0,60)):[],
       image:'data:'+mime+';base64,'+bytes.toString('base64')
     });
