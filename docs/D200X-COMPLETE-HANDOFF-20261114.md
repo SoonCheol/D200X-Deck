@@ -389,3 +389,12 @@
 - 첫 HA 변경 과정에서 `D200X_ACTION_IDS`에 HA를 섞으면서 기존 정확 일치 회귀 테스트가 실패했다. **해결:** `deck-core.js`에 독립 `PLUGIN_ACTION_IDS=['ha-toggle']`를 정의하고 `validId`에만 추가. 기존 원본 24개 및 D200X 18개 배열은 변경 전 그대로 유지. 수정 커밋 `69d1398e15a837eb178e975651cfb47faf3f9747`.
 - 카탈로그는 기존 42개 + 새 플러그인 1개(총 43개)로 검증하도록 `app/test/action-panel-icons.test.js` 수정. 수정 후 전체 CI #43635777418 성공. 실제 EXE/실기 판정 아님.
 - 이후 코드 커밋 SHA `69d1398e`에 대한 새 CI, 입력 검증, Windows 프리뷰는 별도 Actions 결과 확인 대기. 기존 실패를 숨기지 않고 새 실행 성공 시에만 성공으로 갱신한다.
+
+
+### HA 첫 Windows EXE 및 CI 검증 결과 (2026-11-15)
+
+- **기능 코드 SHA:** `69d1398e15a837eb178e975651cfb47faf3f9747`; 원본 24개 및 D200X 확장 18개 ID를 그대로 보존하고 HA 플러그인 1개만 추가.
+- **GitHub Actions 실행 결과:** CI [#43635892364](https://github.com/SoonCheol/D200X-Deck/actions/runs/43635892364) success, D200X input execution verification [#43635886172](https://github.com/SoonCheol/D200X-Deck/actions/runs/43635886172) success, Windows preview [#43635886158](https://github.com/SoonCheol/D200X-Deck/actions/runs/43635886158) **preview 작업 success / Artifact 생성 확인**.
+- Windows ZIP Artifact: `D200X-StreamDeck-Device-Sync-win-x64`, ID `14129968068`, 크기 `170316974` bytes. 새 코드에는 HA 통신/설정/플러그인 탭/토글 실행까지 포함됨.
+- 후속 테스트 전용 커밋 `80342c2570b06c5a1485148d942b49a015874073`: 프로필/노브에 넣은 HA 액션의 JSON 복원 및 실행 플래너 계약 회귀 테스트 추가. 이 테스트의 Actions 실행 결과는 별도 확인 필요.
+- **실기 상태:** HA 서버 설정 저장/불러오기, 엔티티 목록, 실제 스위치 서비스 호출 및 ON/OFF 아이콘 동기화는 사용자 Windows/D200X 실기 미검증. ON/OFF 상태별 아이콘 자동 변경 및 WebSocket 구독은 아직 구현하지 않음. 개발 브랜치만 수정, PR #5 미병합.
