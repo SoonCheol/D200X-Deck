@@ -1,0 +1,102 @@
+name: D200X StreamDeck device-sync preview
+
+# Automatically build the D200X Windows preview when its application code changes.
+# Keep workflow_dispatch for optional manual builds; documentation-only commits are skipped.
+on:
+  push:
+    branches:
+      - codex/streamdeck-761-clean-editor
+    paths:
+      - 'app/streamdeck-editor/**'
+      - 'app/lib/**'
+      - 'app/package.json'
+      - 'app/package-lock.json'
+      - '.github/workflows/streamdeck-clean-preview.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  preview:
+    runs-on: windows-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: app/package-lock.json
+      - name: Install Electron packaging tools
+        working-directory: app
+        run: npm ci
+      - name: Check standalone preview scripts
+        shell: pwsh
+        run: |
+          node --check app/streamdeck-editor/main.cjs
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          node --check app/streamdeck-editor/editor.js
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          node --check app/streamdeck-editor/action-panel-icons.js
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          node --check app/streamdeck-editor/sample-icon-pack.js
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          node --check app/streamdeck-editor/icon-pack.cjs
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          node --test test/streamdeck-icon-pack.test.cjs
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Check hardware bridge and renderer scripts
+        shell: pwsh
+        run: |
+          node --check app/streamdeck-editor/transport.cjs
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          node --test test/streamdeck-transport.test.cjs
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          node --check app/streamdeck-editor/preload.cjs
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          node --check app/streamdeck-editor/device-sync.js
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Validate shared action core and migration
+        shell: pwsh
+        run: |
+          node --check app/streamdeck-editor/deck-core.js
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          node --test test/streamdeck-core.test.cjs
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Assemble isolated preview with only D200X HID dependencies
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force app/preview-device-build | Out-Null
+          Copy-Item app/streamdeck-editor app/preview-device-build/streamdeck-editor -Recurse
+          Copy-Item app/lib app/preview-device-build/lib -Recurse
+          @'
+          {
+            "name": "d200x-streamdeck-device-sync",
+            "productName": "D200X StreamDeck Device Sync",
+            "version": "0.2.0",
+            "private": true,
+            "main": "streamdeck-editor/main.cjs",
+            "dependencies": {
+              "jszip": "3.10.2",
+              "node-hid": "3.4.0"
+            }
+          }
+          '@ | Set-Content app/preview-device-build/package.json -Encoding utf8
+          Push-Location app/preview-device-build
+          npm install --omit=dev --no-audit --no-fund
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          Pop-Location
+      - name: Package isolated device-sync Windows executable
+        working-directory: app
+        shell: pwsh
+        run: |
+          npx --no-install electron-packager ./preview-device-build D200X-StreamDeck-Preview --platform=win32 --arch=x64 --electron-version=45.2.1 --out=dist --overwrite --prune=false
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          if (-not (Test-Path 'dist/D200X-StreamDeck-Preview-win32-x64/D200X-StreamDeck-Preview.exe')) { throw "EXE missing" }
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: D200X-StreamDeck-Device-Sync-win-x64
+          path: app/dist/D200X-StreamDeck-Preview-win32-x64/
+          if-no-files-found: error
+          retention-days: 14

@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>D200X — Stream Deck 7.6.1 편집기 작업본</title>
+  <link rel="stylesheet" href="./style.css" />
+  <script src="./deck-core.js" defer></script>
+  <script src="./action-panel-icons.js" defer></script>
+  <script src="./sample-icon-pack.js" defer></script>
+  <script src="./editor.js" defer></script>
+  <script src="./device-sync.js" defer></script>
+</head>
+<body>
+  <div id="app">
+    <main class="work">
+      <section class="canvas" aria-label="D200X 버튼 배치">
+        <div class="device-layout"><div id="key-grid" class="key-grid"></div><div id="physical-controls" class="physical-controls" aria-label="D200X 물리 버튼과 노브"></div></div>
+        <div class="page-controls"><button type="button" id="back-page" title="이전 페이지">‹</button><span id="page-label">페이지 1</span><button type="button" id="next-page" title="다음 페이지">›</button><button type="button" id="add-page" title="페이지 추가">＋</button><button type="button" id="delete-page" title="현재 페이지 삭제" aria-label="현재 페이지 삭제">−</button></div>
+      </section>
+      <section class="inspector" id="inspector" aria-label="선택된 액션 속성"></section>
+    </main>
+    <aside class="library">
+      <header class="sidebar-header">
+        <div class="profile-picker">
+          <button id="profile-trigger" class="profile-trigger" type="button" aria-expanded="false" aria-controls="profile-menu" aria-label="프로필 선택">
+            <span id="profile-name">기본 프로필</span><span class="chevron">⌄</span>
+          </button>
+          <div id="profile-menu" class="profile-menu" hidden></div>
+        </div>
+        <div class="sidebar-device"><span id="deck-status" class="deck-status" role="status" title="USB 장치 확인 중"></span><span class="device-name">D200X</span><button type="button" id="settings-trigger" class="settings-trigger" aria-label="설정" title="설정">⚙</button></div>
+      </header>
+      <div class="search"><input id="action-search" placeholder="검색" aria-label="액션 검색"></div>
+      <div class="library-tabs"><button class="active" type="button">키</button><button type="button" disabled title="이번 구현 범위에서 제외">플러그인</button></div>
+      <div class="library-list" id="library-list"></div>
+    </aside>
+  </div>
+  <div id="key-menu" class="key-menu" role="menu" hidden></div>
+  <div id="icon-library" class="icon-library-overlay" hidden>
+    <section class="icon-library-dialog" role="dialog" aria-modal="true" aria-labelledby="icon-library-heading">
+      <header class="icon-library-heading"><span class="library-badge">▦</span><strong id="icon-library-heading">Icon Library - Stream Deck</strong><button type="button" id="close-icon-library" aria-label="닫기">×</button></header>
+      <div class="icon-library-search"><button type="button" id="icon-pack-import" title="Stream Deck 아이콘팩 등록">＋ 팩 가져오기</button><input type="search" id="icon-library-search" placeholder="아이콘 검색..." aria-label="아이콘 검색"><button type="button" id="icon-library-layout" aria-label="아이콘 보기 방식">☷</button></div>
+      <div id="icon-library-groups" class="icon-library-groups"></div>
+      <footer class="icon-library-footer"><span id="icon-library-count">아이콘 선택</span><span class="icon-zoom">⌕　⊕</span></footer>
+    </section>
+  </div>
+  <div class="icon-maker-overlay" id="icon-maker" hidden>
+    <section class="icon-maker-dialog" role="dialog" aria-modal="true" aria-labelledby="icon-maker-title">
+      <header><strong id="icon-maker-title">새로운 아이콘 만들기</strong><button type="button" id="icon-maker-close" aria-label="닫기">×</button></header>
+      <canvas width="196" height="196" id="icon-maker-canvas" aria-label="생성할 아이콘 미리보기"></canvas>
+      <label>아이콘 문자 <input id="icon-maker-text" maxlength="3" placeholder="★" value="★"></label>
+      <div class="icon-maker-colors"><label>글자 색 <input id="icon-maker-foreground" type="color" value="#ffffff"></label><label>배경 색 <input id="icon-maker-background" type="color" value="#1b5e95"></label></div>
+      <footer><button type="button" id="icon-maker-cancel">취소</button><button type="button" id="icon-maker-save">아이콘 적용</button></footer>
+    </section>
+  </div>
+  <input type="file" id="custom-icon-file" accept="image/png,image/jpeg,image/webp,image/gif" hidden />
+  <p class="prototype-note">D200X 장치 확인 중 · 액션 실행은 아직 연결되지 않았습니다.</p>
+</body>
+</html>

@@ -1,0 +1,897 @@
+'use strict';
+const test=require('node:test');
+const assert=require('node:assert/strict');
+const core=require('../app/streamdeck-editor/deck-core.js');
+
+test('all 24 observed Stream Deck actions have independent defaults',()=>{
+  assert.equal(core.ACTION_IDS.length,24);
+  assert.equal(new Set(core.ACTION_IDS).size,24);
+  for(const type of core.ACTION_IDS){
+    const a=core.createAction(type);
+    assert.equal(a.type,type);
+    assert.ok(a.settings&&typeof a.settings==='object');
+    assert.equal(a.titleStyle.visible,true);
+  }
+  const first=core.createAction('audio-play'),second=core.createAction('audio-play');
+  first.settings.volume=0;
+  assert.equal(second.settings.volume,50);
+});
+
+test('separate D200X volume/mute actions preserve the original 24',()=>{
+  assert.equal(core.ACTION_IDS.length,24);
+  assert.deepEqual(core.D200X_ACTION_IDS,['system-volume','system-mute','system-scroll','edit-history','window-switch','desktop-switch','device-brightness','system-zoom',
+    'screenshot','clipboard-edit','window-state','window-monitor','explorer-open','brush-size','timeline-step','timeline-zoom','file-open','folder-shortcut']);
+  const volume=core.createAction('system-volume');
+  assert.deepEqual(core.planAction(volume,0,1),{kind:'adjust',target:'volume',direction:1,count:1});
+  volume.settings.direction='down';volume.settings.step=5;
+  assert.deepEqual(core.planAction(volume,0,1),{kind:'adjust',target:'volume',direction:-1,count:5});
+  const mute=core.createAction('system-mute');
+  assert.deepEqual(core.planAction(mute,0,1),{kind:'mute'});
+  const state=core.migrateState(null);
+  const knob=core.controlBinding(state,16);
+  knob.mode='adjust';knob.target='volume';knob.down=mute;
+  assert.deepEqual(core.planHardwareEvent(state,{kind:2,index:17,state:3}).outcome,{kind:'adjust',target:'volume',direction:1});
+  assert.deepEqual(core.planHardwareEvent(state,{kind:2,index:17,state:1}).outcome,{kind:'mute'});
+  const restored=core.migrateState(JSON.parse(JSON.stringify(state)));
+  assert.equal(core.controlBinding(restored,16).down.type,'system-mute');
+});
+
+test('D200X scroll action uses shared planner for keys and rotary control',()=>{
+  assert.equal(core.ACTION_IDS.length,24);
+  assert.ok(core.D200X_ACTION_IDS.includes('system-scroll'));
+  const a=core.createAction('system-scroll');
+  assert.deepEqual(core.planAction(a,0,1),{kind:'scroll',axis:'vertical',direction:1,count:1});
+  a.settings.axis='horizontal';a.settings.direction='left';a.settings.step=5;
+  assert.deepEqual(core.planAction(a,0,1),{kind:'scroll',axis:'horizontal',direction:-1,count:5});
+  const state=core.migrateState(null);
+  state.pages[0][0]=a;
+  assert.deepEqual(core.planHardwareEvent(state,{kind:1,index:0,pressed:true}).outcome,
+    {kind:'scroll',axis:'horizontal',direction:-1,count:5});
+  const knob=core.controlBinding(state,16);
+  knob.mode='adjust';knob.target='scroll';knob.step=2;
+  assert.deepEqual(core.planHardwareEvent(state,{kind:2,index:17,state:3}).outcome,
+    {kind:'scroll',axis:'vertical',direction:1,count:2});
+  knob.target='scroll-x';
+  assert.deepEqual(core.planHardwareEvent(state,{kind:2,index:17,state:2}).outcome,
+    {kind:'scroll',axis:'horizontal',direction:-1,count:2});
+});
+
+test('edit-history shares planner for buttons and knob rotation',()=>{
+  assert.equal(core.ACTION_IDS.length,24);
+  const action=core.createAction('edit-history');
+  assert.deepEqual(core.planAction(action,0,1),{kind:'edit-history',operation:'undo',count:1});
+  action.settings.operation='redo';action.settings.step=5;
+  assert.deepEqual(core.planAction(action,0,1),{kind:'edit-history',operation:'redo',count:5});
+  const state=core.migrateState(null);
+  state.pages[0][0]=action;
+  assert.deepEqual(core.planHardwareEvent(state,{kind:1,index:0,pressed:true}).outcome,
+    {kind:'edit-history',operation:'redo',count:5});
+  const knob=core.controlBinding(state,16);
+  knob.mode='adjust';knob.target='history';knob.step=2;
+  assert.deepEqual(core.planHardwareEvent(state,{kind:2,index:17,state:2}).outcome,
+    {kind:'edit-history',operation:'undo',count:2});
+  assert.deepEqual(core.planHardwareEvent(state,{kind:2,index:17,state:3}).outcome,
+    {kind:'edit-history',operation:'redo',count:2});
+  knob.reverseDirection=true;
+  assert.equal(core.planHardwareEvent(state,{kind:2,index:17,state:2}).outcome.operation,'redo');
+  const restored=core.migrateState(JSON.parse(JSON.stringify(state)));
+  assert.equal(core.controlBinding(restored,16).target,'history');
+});
+
+test('window/desktop switching uses shared button and knob planner',()=>{
+  assert.equal(core.ACTION_IDS.length,24);
+  const state=core.migrateState(null);
+  for(const [type,target] of [['window-switch','window'],['desktop-switch','desktop']]){
+    const action=core.createAction(type);
+    assert.deepEqual(core.planAction(action,0,1),{kind:'windows-switch',target,direction:1,count:1});
+    action.settings.direction='previous';
+    state.pages[0][0]=action;
+    assert.deepEqual(core.planHardwareEvent(state,{kind:1,index:0,pressed:true}).outcome,
+      {kind:'windows-switch',target,direction:-1,count:1});
+    const knob=core.controlBinding(state,16);
+    knob.mode='adjust';knob.target=target;knob.step=2;
+    assert.deepEqual(core.planHardwareEvent(state,{kind:2,index:17,state:3}).outcome,
+      {kind:'windows-switch',target,direction:1,count:2});
+    knob.reverseDirection=true;
+    assert.equal(core.planHardwareEvent(state,{kind:2,index:17,state:2}).outcome.direction,1);
+    knob.reverseDirection=false;
+  }
+  const restored=core.migrateState(JSON.parse(JSON.stringify(state)));
+  assert.equal(core.controlBinding(restored,16).target,'desktop');
+});
+
+test('composite model preserves legacy children, Delay, and unrelated page data',()=>{
+  const legacy={
+    pages:[[
+      {type:'multi',title:'작업 묶음',children:[
+        {type:'hotkey',settings:{keys:'Ctrl+A'}},
+        {kind:'delay',ms:1200},
+        {type:'media',settings:{op:'playpause'}}
+      ]},
+      {type:'folder',title:'기존 폴더',children:[{type:'website',settings:{url:'https://example.org'}}]},
+      {type:'profile',settings:{profile:'next'}}
+    ]],page:0
+  };
+  const state=core.migrateState(legacy);
+  assert.deepEqual(state.pages[0][0].children[1],{kind:'delay',ms:1200});
+  assert.equal(state.pages[0][1].children[0].type,'website');
+  assert.equal(state.pages[0][2].settings.profile,'next');
+  const restored=core.migrateState(JSON.parse(JSON.stringify(state)));
+  assert.deepEqual(restored.pages[0][0].children,state.pages[0][0].children);
+  const planned=core.planComposite(restored.pages[0][0]);
+  assert.equal(planned.kind,'composite');
+  assert.deepEqual(planned.steps.map(x=>x.kind||x.type),['hotkey','delay','media']);
+});
+
+test('multi switch has independent states and legacy steps are retained',()=>{
+  const sw=core.cleanAction({type:'multi-switch',children:[{type:'timer'}],sequences:[
+    [{type:'hotkey',settings:{keys:'Ctrl+C'}}],
+    [{type:'media',settings:{op:'next'}},{kind:'delay',ms:50}]
+  ]});
+  const model=core.compositeModel(sw);
+  assert.deepEqual(model.states.map(x=>x.length),[1,2]);
+  assert.equal(sw.children[0].type,'timer');
+  assert.equal(core.planComposite(sw,{state:0}).steps[0].type,'hotkey');
+  assert.equal(core.planComposite(sw,{state:1}).steps[0].type,'media');
+  const legacy=core.cleanAction({type:'multi-switch',children:[{type:'hotkey'}]});
+  assert.equal(core.planComposite(legacy,{state:0}).steps[0].type,'hotkey');
+  assert.deepEqual(core.planComposite(legacy,{state:1}).steps,[]);
+});
+
+test('random and Key Logic use independent paths without invented physical events',()=>{
+  const random=core.cleanAction({type:'random',children:[{type:'hotkey'},{type:'media'}]});
+  assert.equal(core.planComposite(random,{random:0}).steps[0].type,'hotkey');
+  assert.equal(core.planComposite(random,{random:0.999}).steps[0].type,'media');
+  assert.equal(core.planComposite(random).kind,'invalid');
+  assert.equal(core.planComposite(core.createAction('random'),{random:0.5}).kind,'invalid');
+  const logic=core.cleanAction({type:'logic',slots:{
+    single:{type:'hotkey'},double:{type:'media'},hold:{type:'timer'}
+  }});
+  assert.equal(core.planComposite(logic,{gesture:'double'}).steps[0].type,'media');
+  assert.equal(core.planComposite(logic,{gesture:'hold'}).steps[0].type,'timer');
+  assert.equal(core.planComposite(logic,{gesture:'down'}).kind,'invalid');
+});
+
+test('nested composite actions are rejected without silently removing saved data',()=>{
+  const action=core.cleanAction({type:'multi',children:[{type:'multi',children:[{type:'media'}]}]});
+  assert.equal(action.children[0].children[0].type,'media');
+  assert.equal(core.planComposite(action).kind,'invalid');
+  assert.equal(core.ACTION_IDS.length,24);
+});
+
+test('multi runner awaits each action, delay, and ordered completion',async()=>{
+  const multi=core.cleanAction({type:'multi',children:[
+    {type:'hotkey',settings:{keys:'Ctrl+A'}},{kind:'delay',ms:25},
+    {type:'media',settings:{op:'playpause'}}
+  ]});
+  const sequence=[];
+  const count=await core.runComposite(multi,{
+    execute:async action=>{sequence.push(action.type+':start');await Promise.resolve();sequence.push(action.type+':done');},
+    wait:async ms=>{sequence.push('delay:'+ms);}
+  });
+  assert.equal(count,3);
+  assert.deepEqual(sequence,['hotkey:start','hotkey:done','delay:25','media:start','media:done']);
+});
+
+test('Multi Switch active state and visual overrides survive save and migration',()=>{
+  const source=core.cleanAction({
+    type:'multi-switch',title:'공통',icon:{kind:'glyph',glyph:'A'},
+    settings:{activeState:1},
+    stateVisuals:[
+      {title:'켜기',icon:{kind:'glyph',glyph:'▶'}},
+      {title:'끄기',icon:{kind:'glyph',glyph:'■'}}
+    ],
+    sequences:[[{type:'media'}],[{type:'hotkey'}]]
+  });
+  assert.equal(core.displaySwitchAction(source).title,'끄기');
+  assert.equal(core.displaySwitchAction(source).icon.glyph,'■');
+  const profile=core.migrateState({pages:[[source]]});
+  const restored=core.migrateState(JSON.parse(JSON.stringify(profile)));
+  assert.equal(restored.pages[0][0].settings.activeState,1);
+  assert.equal(core.displaySwitchAction(restored.pages[0][0]).title,'끄기');
+  assert.equal(core.planComposite(restored.pages[0][0],{state:1}).steps[0].type,'hotkey');
+  restored.pages[0][0].settings.activeState=0;
+  assert.equal(core.displaySwitchAction(restored.pages[0][0]).title,'켜기');
+});
+
+test('Multi Switch linked titles share the first title while preserving both originals',()=>{
+  const source=core.cleanAction({
+    type:'multi-switch',title:'공통',settings:{activeState:1,linkStateTitles:true},
+    stateVisuals:[
+      {title:'연결 제목',icon:{kind:'glyph',glyph:'1'}},
+      {title:'독립 제목',icon:{kind:'glyph',glyph:'2'}}
+    ]
+  });
+  assert.equal(core.displaySwitchAction(source).title,'연결 제목');
+  assert.equal(core.displaySwitchAction(source).icon.glyph,'2');
+  assert.equal(source.stateVisuals[1].title,'독립 제목');
+  const restored=core.cleanAction(JSON.parse(JSON.stringify(source)));
+  assert.equal(core.displaySwitchAction(restored).title,'연결 제목');
+  restored.settings.linkStateTitles=false;
+  assert.equal(core.displaySwitchAction(restored).title,'독립 제목');
+});
+
+test('Multi Switch visual input validation and legacy fallbacks preserve common icon',()=>{
+  const legacy=core.cleanAction({type:'multi-switch',title:'원래',icon:{kind:'glyph',glyph:'●'},children:[{type:'media'}]});
+  assert.strictEqual(core.displaySwitchAction(legacy),legacy);
+  const clean=core.cleanAction({type:'multi-switch',
+    settings:{activeState:7},
+    stateVisuals:[{title:123,icon:{kind:'file',value:'file:///private'}} ,{title:'두번째'}]
+  });
+  assert.equal(clean.settings.activeState,0);
+  assert.equal(core.displaySwitchAction(clean).title,'');
+  clean.settings.activeState=1;
+  assert.equal(core.displaySwitchAction(clean).title,'두번째');
+});
+
+test('Random Action plans actual hardware presses and selects exactly one candidate',async()=>{
+  const a=core.cleanAction({type:'random',children:[
+    {type:'hotkey',settings:{keys:'Ctrl+A'}},
+    {type:'media',settings:{op:'playpause'}},
+    {type:'text',settings:{body:'가'}}
+  ]});
+  const state=core.migrateState({pages:[[a]]});
+  assert.deepEqual(core.planHardwareEvent(state,{kind:1,index:0,pressed:true}).outcome,
+    {kind:'composite',type:'random'});
+  for(const [r,type] of [[0,'hotkey'],[0.33,'hotkey'],[0.34,'media'],[0.7,'text'],[0.9999,'text']]){
+    let selected=[];
+    const result=await core.runComposite(a,{random:r,execute:async step=>selected.push(step.type),wait:async()=>{}});
+    assert.equal(result,1);
+    assert.deepEqual(selected,[type]);
+  }
+  assert.equal(core.ACTION_IDS.length,24);
+});
+
+test('Random Action rejects missing candidates and Delay without running anything',async()=>{
+  let called=0;
+  const executor={execute:async()=>{called++},wait:async()=>{called++}};
+  await assert.rejects(core.runComposite(core.createAction('random'),{random:0.5,...executor}),/후보/);
+  const delayed=core.cleanAction({type:'random',children:[{type:'media'},{kind:'delay',ms:100}]});
+  await assert.rejects(core.runComposite(delayed,{random:0.1,...executor}),/지연/);
+  assert.equal(called,0);
+});
+
+test('multi switch dispatches both independent sequences and awaits the selected state',async()=>{
+  const sw=core.cleanAction({type:'multi-switch',
+    sequences:[
+      [{type:'hotkey',settings:{keys:'Ctrl+C'}},{kind:'delay',ms:200}],
+      [{type:'media',settings:{op:'playpause'}}]
+    ]
+  });
+  assert.deepEqual(core.planAction(sw,0,1),{kind:'composite',type:'multi-switch'});
+  const events=[];
+  const bridge={
+    execute:async a=>{events.push(a.type);},
+    wait:async ms=>{events.push('wait:'+ms);}
+  };
+  const one=await core.runComposite(sw,{...bridge,state:0});
+  const two=await core.runComposite(sw,{...bridge,state:1});
+  const three=await core.runComposite(sw,{...bridge,state:0});
+  assert.deepEqual([one,two,three],[2,1,2]);
+  assert.deepEqual(events,['hotkey','wait:200','media','hotkey','wait:200']);
+});
+
+test('multi switch rejects nested composite and old profiles retain children',async()=>{
+  const old=core.cleanAction({type:'multi-switch',children:[{type:'hotkey',settings:{keys:'Ctrl+Z'}}]});
+  assert.equal(core.planComposite(old,{state:0}).steps[0].type,'hotkey');
+  const migrated=core.migrateState({pages:[[old]]});
+  assert.equal(migrated.pages[0][0].children[0].settings.keys,'Ctrl+Z');
+  assert.deepEqual(core.planComposite(migrated.pages[0][0],{state:1}).steps,[]);
+  const bad=core.cleanAction({type:'multi-switch',sequences:[[{type:'multi'}],[]]});
+  await assert.rejects(core.runComposite(bad,{state:0,execute:async()=>{},wait:async()=>{}}),/중첩/);
+});
+
+test('Multi pacing separates implicit next action gap from explicit Delay',async()=>{
+  const multi=core.cleanAction({type:'multi',children:[
+    {type:'media'},{type:'hotkey'},{kind:'delay',ms:200},{type:'media'}
+  ]});
+  const seen=[];
+  const result=await core.runComposite(multi,{
+    nextActionMs:100,
+    execute:async item=>seen.push(item.type),
+    wait:async ms=>seen.push('wait:'+ms)
+  });
+  assert.equal(result,4);
+  assert.deepEqual(seen,['media','wait:100','hotkey','wait:200','media']);
+});
+
+test('Multi abort during last step is reported as cancellation, not success',async()=>{
+  const controller=new AbortController();
+  const multi=core.cleanAction({type:'multi',children:[{type:'media'}]});
+  await assert.rejects(core.runComposite(multi,{
+    execute:async()=>{controller.abort();},wait:async()=>{},
+    signal:controller.signal
+  }),/취소/);
+});
+
+test('multi runner refuses nested composites and honors cancellation',async()=>{
+  const blocked=core.cleanAction({type:'multi',children:[{type:'multi'}]});
+  await assert.rejects(core.runComposite(blocked,{execute:async()=>{},wait:async()=>{}}),/중첩/);
+  const controller=new AbortController();
+  const a=core.cleanAction({type:'multi',children:[{type:'media'},{type:'hotkey'}]});
+  const executed=[];
+  await assert.rejects(core.runComposite(a,{
+    execute:async step=>{executed.push(step.type);controller.abort();},
+    wait:async()=>{},signal:controller.signal
+  }),/취소/);
+  assert.deepEqual(executed,['media']);
+});
+
+test('folder navigation retains empty slot positions, nested actions and back navigation',()=>{
+  const saved={pages:[[
+    {type:'folder',title:'음악',children:[
+      null,{type:'media',settings:{op:'next'}},
+      {type:'folder',title:'하위',children:[null,{type:'hotkey',settings:{keys:'Ctrl+A'}}]}
+    ]}
+  ]]};
+  const state=core.migrateState(saved);
+  assert.equal(state.pages[0][0].children[0],null);
+  assert.equal(state.pages[0][0].children[1].settings.op,'next');
+  assert.equal(core.enterFolder(state,0),true);
+  assert.equal(core.currentActions(state)[1].type,'media');
+  assert.equal(core.planHardwareEvent(state,{kind:1,index:1,pressed:true}).outcome.kind,'media-control');
+  assert.equal(core.enterFolder(state,2),true);
+  assert.equal(core.currentActions(state)[1].settings.keys,'Ctrl+A');
+  assert.equal(core.exitFolder(state),true);
+  assert.equal(core.currentActions(state)[1].type,'media');
+  assert.equal(core.exitFolder(state),true);
+  assert.equal(core.exitFolder(state),false);
+  const restored=core.migrateState(JSON.parse(JSON.stringify(state)));
+  assert.equal(restored.pages[0][0].children[2].children[1].settings.keys,'Ctrl+A');
+});
+
+test('nested folder back uses last free grid key or side key without overwriting data',()=>{
+  const state=core.migrateState({pages:[[{type:'folder',children:[]}] ]});
+  assert.equal(core.enterFolder(state,0),true);
+  assert.equal(core.planHardwareEvent(state,{kind:1,index:13,pressed:true}).outcome.kind,'folder-back');
+  assert.equal(core.planHardwareEvent(state,{kind:1,index:16,pressed:true}).outcome.kind,'folder-back');
+  core.currentActions(state)[13]=core.createAction('media');
+  assert.equal(core.planHardwareEvent(state,{kind:1,index:13,pressed:true}).outcome.kind,'media-control');
+  assert.equal(core.planHardwareEvent(state,{kind:1,index:16,pressed:true}).outcome.kind,'folder-back');
+});
+
+test('folder migration safely restores valid active folder paths and removes invalid tails',()=>{
+  const saved={pages:[[{type:'folder',children:[{type:'media'}]}]],folderPath:[0,3,7]};
+  const state=core.migrateState(saved);
+  assert.deepEqual(state.folderPath,[0]);
+  assert.equal(core.currentActions(state)[0].type,'media');
+  const again=core.migrateState(JSON.parse(JSON.stringify(state)));
+  assert.deepEqual(again.folderPath,[0]);
+  assert.equal(core.enterFolder(again,9),false);
+  assert.equal(core.currentActions(again)[0].type,'media');
+});
+
+test('legacy state becomes default profile without changing buttons, folder and knobs',()=>{
+  const legacy={pages:[[{type:'timer',title:'안전',settings:{seconds:42}},
+    {type:'folder',children:[null,{type:'media'}]}]],page:0};
+  const s=core.migrateState(legacy);
+  assert.equal(s.profileId,'default');
+  assert.equal(s.profileNames.length,1);
+  assert.equal(s.pages[0][0].settings.seconds,42);
+  assert.equal(s.pages[0][1].children[1].type,'media');
+  const restored=core.migrateState(JSON.parse(JSON.stringify(s)));
+  assert.equal(restored.pages[0][0].title,'안전');
+});
+
+test('profile create, switch, rename and duplicate isolate page, knobs and folders',()=>{
+  const s=core.migrateState(null);
+  s.pages[0][0]=core.createAction('media');
+  core.controlBinding(s,16).down=core.createAction('next');
+  const second=core.createProfile(s,'포토샵');
+  assert.ok(second);
+  assert.equal(core.switchProfile(s,second),true);
+  assert.equal(s.pages[0][0],null);
+  assert.equal(core.controlBinding(s,16).down,null);
+  s.pages[0][0]=core.createAction('folder');
+  assert.equal(core.enterFolder(s,0),true);
+  assert.equal(core.renameProfile(s,second,'영상 편집'),true);
+  assert.equal(core.switchProfile(s,'default'),true);
+  assert.equal(s.pages[0][0].type,'media');
+  assert.equal(core.controlBinding(s,16).down.type,'next');
+  assert.deepEqual(s.folderPath,[]);
+  const duplicate=core.createProfile(s,'복사본',true);
+  assert.ok(duplicate);
+  assert.equal(core.switchProfile(s,duplicate),true);
+  assert.equal(s.pages[0][0].type,'media');
+  s.pages[0][0].title='바뀜';
+  assert.equal(core.switchProfile(s,'default'),true);
+  assert.equal(s.pages[0][0].title,'');
+  const r=core.migrateState(JSON.parse(JSON.stringify(s)));
+  assert.equal(r.profileNames.length,3);
+  assert.equal(core.switchProfile(r,second),true);
+  assert.equal(r.pages[0][0].type,'folder');
+  assert.deepEqual(r.folderPath,[0]);
+  assert.equal(core.deleteProfile(r,second),true);
+  assert.equal(r.profileNames.length,2);
+  assert.equal(core.deleteProfile(r,'default'),true);
+  assert.equal(core.deleteProfile(r,r.profileId),false);
+});
+
+test('pinned actions inherit only empty root slots and local overrides win',()=>{
+  const s=core.migrateState({pages:[[{type:'media'}],[],[]]});
+  assert.equal(core.togglePinned(s,0),true);
+  s.page=1;
+  assert.equal(core.currentActions(s)[0],null);
+  assert.equal(core.visibleActions(s)[0].type,'media');
+  assert.equal(core.planHardwareEvent(s,{kind:1,index:0,pressed:true}).outcome.kind,'media-control');
+  s.pages[1][0]=core.createAction('hotkey');
+  assert.equal(core.visibleActions(s)[0].type,'hotkey');
+  s.page=2;
+  assert.equal(core.visibleActions(s)[0].type,'media');
+  assert.equal(core.togglePinned(s,0),true);
+  assert.equal(core.visibleActions(s)[0],null);
+  assert.equal(s.pages[0][0].type,'media');
+  assert.equal(s.pages[1][0].type,'hotkey');
+});
+
+test('pinned folder opens from another page and preserves nested slot contents',()=>{
+  const state=core.migrateState({pages:[
+    [{type:'folder',title:'공유 폴더',children:[null,{type:'media'}]}],[]
+  ]});
+  assert.equal(core.togglePinned(state,0),true);
+  state.page=1;
+  assert.equal(core.visibleActions(state)[0].type,'folder');
+  assert.equal(core.enterFolder(state,0),true);
+  assert.equal(core.currentActions(state)[1].type,'media');
+  assert.equal(core.activeFolder(state).title,'공유 폴더');
+  const restored=core.migrateState(JSON.parse(JSON.stringify(state)));
+  assert.deepEqual(restored.folderPath,[0]);
+  assert.equal(core.currentActions(restored)[1].type,'media');
+});
+test('pinned keys remain profile-specific, survive migration, and do not enter folders',()=>{
+  const s=core.migrateState({pages:[[ {type:'media'},{type:'folder',children:[]} ],[]]});
+  assert.equal(core.togglePinned(s,0),true);
+  const other=core.createProfile(s,'두 번째');
+  core.switchProfile(s,other);
+  assert.equal(core.visibleActions(s)[0],null);
+  core.switchProfile(s,'default');
+  s.page=1;
+  assert.equal(core.visibleActions(s)[0].type,'media');
+  s.page=0;
+  assert.equal(core.enterFolder(s,1),true);
+  assert.equal(core.visibleActions(s)[0],null);
+  const restored=core.migrateState(JSON.parse(JSON.stringify(s)));
+  assert.equal(restored.pinned[0].type,'media');
+  assert.deepEqual(restored.folderPath,[1]);
+  assert.equal(core.visibleActions(restored)[0],null);
+});
+
+test('Auto Folder Exit keeps enabled state separate from zero-second immediate return',()=>{
+  const disabled=core.cleanAction({type:'folder',settings:{autoExitEnabled:false,autoExitSeconds:0}});
+  const immediate=core.cleanAction({type:'folder',settings:{autoExitEnabled:true,autoExitSeconds:0}});
+  assert.equal(disabled.settings.autoExitEnabled,false);
+  assert.equal(immediate.settings.autoExitEnabled,true);
+  assert.equal(immediate.settings.autoExitSeconds,0);
+  const restored=core.migrateState({pages:[[immediate]]});
+  assert.equal(restored.pages[0][0].settings.autoExitEnabled,true);
+  assert.equal(restored.pages[0][0].settings.autoExitSeconds,0);
+  const legacy=core.cleanAction({type:'folder',settings:{autoExitSeconds:25}});
+  assert.equal(legacy.settings.autoExitEnabled,true);
+  assert.equal(core.cleanAction({type:'folder',settings:{autoExitEnabled:true,autoExitSeconds:100}}).settings.autoExitSeconds,60);
+});
+
+test('Smart Profiles match only enabled exact Windows executable paths and persist',()=>{
+  const s=core.migrateState(null);
+  const id=core.createProfile(s,'편집기');
+  const exe=String.raw`C:\\Program Files\\Editor\\Editor.exe`;
+  assert.equal(core.setProfileApp(s,id,exe),true);
+  assert.equal(core.matchForegroundProfile(s,exe),null);
+  s.smartProfilesEnabled=true;
+  assert.equal(core.matchForegroundProfile(s,exe.toUpperCase()),id);
+  assert.equal(core.matchForegroundProfile(s,String.raw`C:\\Program Files\\Editor\\NotEditor.exe`),null);
+  assert.equal(core.setProfileApp(s,id,'calc.exe'),false);
+  assert.equal(core.setProfileApp(s,id,String.raw`C:\\Temp\\script.bat`),false);
+  const restored=core.migrateState(JSON.parse(JSON.stringify(s)));
+  assert.equal(restored.smartProfilesEnabled,true);
+  assert.equal(core.matchForegroundProfile(restored,exe),id);
+  assert.equal(core.switchProfile(restored,id),true);
+  assert.equal(core.matchForegroundProfile(restored,exe),id);
+});
+
+test('original brightness action respects the 20 percent floor for fixed presets',()=>{
+  const a=core.createAction('brightness');
+  a.settings.mode='min';
+  assert.deepEqual(core.planAction(a,0,1),{kind:'device-brightness-set',value:20});
+  a.settings.mode='max';
+  assert.deepEqual(core.planAction(a,0,1),{kind:'device-brightness-set',value:100});
+  a.settings.mode='down';
+  assert.deepEqual(core.planAction(a,0,1),{kind:'device-brightness',direction:-1,count:5});
+});
+
+test('brightness and zoom action planner',()=>{
+  const a=core.createAction('device-brightness');
+  assert.deepEqual(core.planAction(a,0,1),{kind:'device-brightness',direction:1,count:5});
+  const z=core.createAction('system-zoom');
+  assert.equal(core.planAction(z,0,1).target,'zoom');
+  z.settings.operation='reset';assert.deepEqual(core.planAction(z,0,1),{kind:'zoom-reset'});
+  const s=core.migrateState(null),k=core.controlBinding(s,16);
+  k.mode='adjust';k.target='brightness';k.step=10;
+  assert.deepEqual(core.planHardwareEvent(s,{kind:2,index:17,state:2}).outcome,
+    {kind:'device-brightness',direction:-1,count:10});
+});
+
+test('P1/P2 closed shortcut actions preserve 24 original entries',()=>{
+  assert.equal(core.ACTION_IDS.length,24);
+  for(const [id,op] of [['screenshot','capture'],['clipboard-edit','copy'],['window-state','maximize'],
+    ['window-monitor','right'],['explorer-open','open'],['brush-size','increase'],['timeline-step','next'],['timeline-zoom','in']]){
+    const a=core.createAction(id);
+    assert.deepEqual(core.planAction(a,0,1),{kind:'system-shortcut',target:id,operation:op});
+    const state=core.migrateState(null);state.pages[0][0]=a;
+    assert.equal(core.planHardwareEvent(state,{kind:1,index:0,pressed:true}).outcome.target,id);
+  }
+});
+
+test('original Soundboard actions expose playback and stop planning',()=>{
+  const audio=core.createAction('audio-play');audio.settings.file='C:\\Audio\\sample.mp3';
+  audio.settings.volume=65;audio.settings.mode='play-stop';
+  assert.deepEqual(core.planAction(audio,0,1),{kind:'audio-play',file:'C:\\Audio\\sample.mp3',mode:'play-stop',volume:65,fade:'none',fadeDuration:2,output:'default'});
+  assert.deepEqual(core.planAction(core.createAction('audio-stop'),0,1),{kind:'audio-stop'});
+});
+
+test('original text action plans either clipboard or Unicode typing with chosen mode',()=>{
+  const a=core.createAction('text');a.settings.body='한글과 English';a.settings.enter=true;
+  assert.deepEqual(core.planAction(a,0,1),{kind:'type-text',text:'한글과 English',enter:true,mode:'clipboard'});
+});
+
+test('original timer planning validates bounds',()=>{
+  const a=core.createAction('timer');
+  assert.deepEqual(core.planAction(a,0,1),{kind:'timer',seconds:30});
+  a.settings.seconds=0;assert.equal(core.planAction(a,0,1).seconds,30);
+  a.settings.seconds=999999;assert.equal(core.planAction(a,0,1).seconds,86400);
+});
+
+test('original media/hotkey/open actions share execution planning',()=>{
+  const media=core.createAction('media');media.settings.op='next';
+  assert.deepEqual(core.planAction(media,0,1),{kind:'media-control',operation:'next'});
+  const hotkey=core.createAction('hotkey');hotkey.settings.keys='Ctrl+Z';
+  assert.deepEqual(core.planAction(hotkey,0,1),{kind:'windows-hotkey',keys:'Ctrl+Z'});
+  const sw=core.createAction('hotkey-switch');
+  sw.settings.first='Ctrl+C';sw.settings.second='Ctrl+V';
+  assert.deepEqual(core.planAction(sw,0,1),{kind:'windows-hotkey-switch',first:'Ctrl+C',second:'Ctrl+V'});
+  const open=core.createAction('open');open.settings.path='C:\\Temp';
+  assert.deepEqual(core.planAction(open,0,1),{kind:'open-local-path',path:'C:\\Temp',target:'auto'});
+  const close=core.createAction('close');close.settings.path='C:\\Tools\\app.exe';close.settings.force=true;
+  assert.deepEqual(core.planAction(close,0,1),{kind:'close-local-app',path:'C:\\Tools\\app.exe',force:true});
+  const app=core.createAction('open-app');app.settings.app='C:\\Program Files\\Example\\app.exe';
+  assert.equal(core.planAction(app,0,1).target,'file');
+});
+
+test('local path action planning preserves user selected path safely',()=>{
+  const a=core.createAction('folder-shortcut');a.settings.path='C:\\Users\\Public';
+  assert.deepEqual(core.planAction(a,0,1),{kind:'open-local-path',path:'C:\\Users\\Public',target:'folder'});
+  const state=core.migrateState(null);state.pages[0][1]=a;
+  const restored=core.migrateState(JSON.parse(JSON.stringify(state)));
+  assert.equal(restored.pages[0][1].settings.path,a.settings.path);
+});
+
+test('conflicting legacy page bindings and global single knob both survive migration',()=>{
+  const a=core.blankPage(),b=core.blankPage(),c=core.blankPage();
+  a[14]=core.createAction('next');b[14]=core.createAction('previous');
+  a[16]=core.createAction('next');
+  const s=core.migrateState({pages:[a,b,c],page:0});
+  assert.equal(s.controls.scopes[0],'page');
+  assert.equal(s.controls.scopes[2],'global');
+  s.page=1;
+  assert.equal(core.planHardwareEvent(s,{kind:1,index:15,pressed:true}).outcome.page,0);
+  assert.equal(core.planHardwareEvent(s,{kind:2,index:17,state:3}).outcome.page,2);
+});
+
+test('legacy state migration retains visible and physical slots, selected page and icon',()=>{
+  const old={pages:[[{type:'timer',title:'내 타이머',settings:{seconds:45},
+    icon:{kind:'glyph',glyph:'◴'},titleStyle:{color:'#ff0000'}}],[]],page:1,selected:15};
+  const migrated=core.migrateState(old);
+  assert.equal(migrated.pages.length,2);
+  assert.equal(migrated.pages[0].length,19);
+  assert.equal(migrated.pages[0][0].settings.seconds,45);
+  assert.equal(migrated.pages[0][0].icon.glyph,'◴');
+  assert.equal(migrated.pages[0][0].titleStyle.color,'#ff0000');
+  assert.equal(migrated.page,1);
+  assert.equal(migrated.selected,15);
+});
+
+test('malformed state and unknown actions do not poison valid slots',()=>{
+  const value={pages:[[null,{type:'unknown'}, {type:'text',settings:{body:'hi'}}]],page:900,selected:-1};
+  const next=core.migrateState(value);
+  assert.equal(next.pages[0][0],null);
+  assert.equal(next.pages[0][1],null);
+  assert.equal(next.pages[0][2].settings.body,'hi');
+  assert.equal(next.page,0);
+  assert.equal(next.selected,null);
+  assert.equal(core.migrateState({pages:'bad'}).pages.length,1);
+});
+
+test('invalid titles, style and file URI are filtered',()=>{
+  const next=core.cleanAction({
+    type:'hotkey',title:17,
+    icon:{kind:'file',value:'file:///private/data'},
+    titleStyle:{size:200,align:'diagonal',color:'red'}
+  });
+  assert.equal(next.title,'');
+  assert.equal(next.icon,undefined);
+  assert.equal(next.titleStyle.size,48);
+  assert.equal(next.titleStyle.align,'bottom');
+  assert.equal(next.titleStyle.color,'#ffffff');
+});
+
+test('legacy horizontal alignment migrates to title vertical overlay positions',()=>{
+  assert.equal(core.createAction('timer').titleStyle.align,'bottom');
+  for(const [legacy,position] of [['left','bottom'],['center','middle'],['right','top']]){
+    const next=core.cleanAction({type:'timer',titleStyle:{align:legacy}});
+    assert.equal(next.titleStyle.align,position);
+  }
+  assert.equal(core.cleanAction({type:'timer',titleStyle:{align:'top'}}).titleStyle.align,'top');
+});
+
+test('outline defaults and user selections survive legacy migration',()=>{
+  const a=core.createAction('timer');
+  assert.equal(a.titleStyle.outlineColor,'#000000');
+  assert.equal(a.titleStyle.outlineWidth,'thin');
+  const b=core.migrateState({pages:[[{type:'timer',titleStyle:{
+    color:'#80aaff',outlineColor:'#123456',outlineWidth:'thick'
+  }}]]});
+  assert.equal(b.pages[0][0].titleStyle.outlineColor,'#123456');
+  assert.equal(b.pages[0][0].titleStyle.outlineWidth,'thick');
+  const bad=core.cleanAction({type:'timer',titleStyle:{outlineColor:'bad',outlineWidth:'huge'}});
+  assert.equal(bad.titleStyle.outlineColor,'#000000');
+  assert.equal(bad.titleStyle.outlineWidth,'thin');
+});
+
+test('editor preview produces the same virtual events as physical D200X controls',()=>{
+  assert.deepEqual(core.previewHardwareEvent(0),{kind:1,index:0,state:1,pressed:true});
+  assert.deepEqual(core.previewHardwareEvent(14),{kind:1,index:15,state:1,pressed:true});
+  assert.deepEqual(core.previewHardwareEvent(16,'left'),{kind:2,index:17,state:2,pressed:false});
+  assert.deepEqual(core.previewHardwareEvent(18,'right'),{kind:2,index:19,state:3,pressed:false});
+  assert.equal(core.previewHardwareEvent(15,'left'),null);
+  assert.equal(core.previewHardwareEvent(19),null);
+  const state=core.migrateState(null);
+  core.controlBinding(state,16).mode='adjust';
+  core.controlBinding(state,16).target='volume';
+  assert.deepEqual(core.planHardwareEvent(state,core.previewHardwareEvent(16,'right')).outcome,
+    {kind:'adjust',target:'volume',direction:1});
+});
+
+test('hardware release and unsupported slots cannot execute actions',()=>{
+  const state=core.migrateState({pages:[[
+    {type:'next'},null,null,null,null,null,null,null,null,null,null,null,null,
+    {type:'website',settings:{url:'https://example.org'}}
+  ]]});
+  assert.equal(core.resolveKeyPress(state,{kind:1,index:0,pressed:false}),null);
+  assert.equal(core.resolveKeyPress(state,{kind:2,index:0,pressed:true}),null);
+  assert.equal(core.resolveKeyPress(state,{kind:1,index:14,pressed:true}),null);
+  assert.equal(core.resolveKeyPress(state,{kind:1,index:1,pressed:true}),null);
+  assert.equal(core.resolveKeyPress(state,{kind:1,index:0,pressed:true}).action.type,'next');
+  assert.equal(core.resolveKeyPress(state,{kind:1,index:13,pressed:true}).action.type,'website');
+});
+
+test('first actions navigate within available page boundaries and plan websites',()=>{
+  assert.deepEqual(core.planAction(core.createAction('next'),0,3),{kind:'page',page:1});
+  assert.deepEqual(core.planAction(core.createAction('next'),2,3),{kind:'page',page:2});
+  assert.deepEqual(core.planAction(core.createAction('previous'),0,3),{kind:'page',page:0});
+  const goto=core.createAction('goto');goto.settings.page=2;
+  assert.deepEqual(core.planAction(goto,0,3),{kind:'page',page:2});
+  goto.settings.page=77;
+  assert.equal(core.planAction(goto,0,3).kind,'invalid');
+  const site=core.createAction('website');
+  site.settings.url='https://example.org/';site.settings.open='default';
+  assert.deepEqual(core.planAction(site,1,3),{kind:'website',url:'https://example.org/',mode:'default',browserPath:''});
+  assert.equal(core.planAction(core.createAction('hotkey'),1,3).kind,'windows-hotkey');
+});
+
+test('D200X side-key report 15 and 16 map to editor slots 14 and 15',()=>{
+  assert.equal(core.physicalSlot({kind:1,index:0}),0);
+  assert.equal(core.physicalSlot({kind:1,index:13}),13);
+  assert.equal(core.physicalSlot({kind:1,index:14}),null);
+  assert.equal(core.physicalSlot({kind:1,index:15}),14);
+  assert.equal(core.physicalSlot({kind:1,index:16}),15);
+  assert.equal(core.physicalSlot({kind:2,index:15}),null);
+  assert.equal(core.physicalSlot({kind:1,index:17}),16);
+  const state=core.migrateState({pages:[Array.from({length:19},(_,i)=>
+    i===14?{type:'previous'}:i===15?{type:'next'}:null)]});
+  assert.equal(core.resolveKeyPress(state,{kind:1,index:15,pressed:true}).action.type,'previous');
+  assert.equal(core.resolveKeyPress(state,{kind:1,index:16,pressed:true}).action.type,'next');
+  assert.equal(core.resolveKeyPress(state,{kind:1,index:15,pressed:false}),null);
+});
+
+test('deleting pages preserves other pages, never deletes final page',()=>{
+  const state=core.migrateState({pages:[
+    [{type:'website',title:'첫째'}],
+    [{type:'next',title:'둘째'}],
+    [{type:'previous',title:'셋째'}]
+  ],page:1,selected:4});
+  assert.equal(core.deletePage(state),true);
+  assert.equal(state.pages.length,2);
+  assert.equal(state.page,1);
+  assert.equal(state.selected,null);
+  assert.equal(state.pages[0][0].title,'첫째');
+  assert.equal(state.pages[1][0].title,'셋째');
+  assert.equal(core.deletePage(state),true);
+  assert.equal(state.page,0);
+  assert.equal(core.deletePage(state),false);
+  assert.equal(state.pages.length,1);
+});
+
+test('D200X knob 17..19 rotation resolves to editor slots 16..18',()=>{
+  for(const [hardware,slot] of [[17,16],[18,17],[19,18]]){
+    for(const kind of [1,2]){
+      assert.equal(core.physicalSlot({kind,index:hardware,state:2}),slot);
+      assert.equal(core.hardwareGesture({kind,index:hardware,state:2}),'left');
+      assert.equal(core.hardwareGesture({kind,index:hardware,state:3}),'right');
+      assert.equal(core.hardwareGesture({kind,index:hardware,state:1}),'down');
+      assert.equal(core.hardwareGesture({kind,index:hardware,state:0}),'up');
+    }
+  }
+  assert.equal(core.hardwareGesture({kind:1,index:15,state:3,pressed:false}),'up');
+  assert.equal(core.physicalSlot({kind:2,index:15,state:3}),null);
+});
+
+test('knob with previous or next action turns pages both directions and presses assigned action',()=>{
+  const row=Array.from({length:19},()=>null);
+  row[16]={type:'previous'};row[17]={type:'next'};row[18]={type:'goto',settings:{page:2}};
+  const state=core.migrateState({pages:[row,row,row],page:1});
+  for(const index of [17,18]){
+    assert.equal(core.planHardwareEvent(state,{kind:2,index,state:2}).outcome.page,0);
+    assert.equal(core.planHardwareEvent(state,{kind:2,index,state:3}).outcome.page,2);
+  }
+  assert.equal(core.planHardwareEvent(state,{kind:2,index:17,state:1}).outcome.page,0);
+  assert.equal(core.planHardwareEvent(state,{kind:2,index:18,state:1}).outcome.page,2);
+  assert.equal(core.planHardwareEvent(state,{kind:2,index:19,state:1}).outcome.page,2);
+  assert.equal(core.planHardwareEvent(state,{kind:2,index:19,state:3}),null);
+  assert.equal(core.planHardwareEvent(state,{kind:2,index:17,state:0}),null);
+  state.page=0;
+  assert.equal(core.planHardwareEvent(state,{kind:2,index:17,state:2}).outcome.page,0);
+  state.page=2;
+  assert.equal(core.planHardwareEvent(state,{kind:2,index:18,state:3}).outcome.page,2);
+});
+
+test('knob with unsupported action never triggers it by rotation',()=>{
+  const row=Array.from({length:19},()=>null);
+  row[16]={type:'website',settings:{url:'https://example.org',open:'default'}};
+  const state=core.migrateState({pages:[row]});
+  assert.equal(core.planHardwareEvent(state,{kind:2,index:17,state:2}),null);
+  assert.equal(core.planHardwareEvent(state,{kind:2,index:17,state:3}),null);
+  assert.equal(core.planHardwareEvent(state,{kind:2,index:17,state:1}).outcome.kind,'website');
+});
+
+test('page-rotation knob persists across pages where that knob is empty',()=>{
+  const first=Array.from({length:19},()=>null);
+  const middle=Array.from({length:19},()=>null);
+  const last=Array.from({length:19},()=>null);
+  first[16]={type:'next'};
+  const state=core.migrateState({pages:[first,middle,last],page:1});
+  assert.equal(core.planHardwareEvent(state,{kind:2,index:17,state:3}).outcome.page,2);
+  assert.equal(core.planHardwareEvent(state,{kind:2,index:17,state:2}).outcome.page,0);
+  assert.equal(core.planHardwareEvent(state,{kind:2,index:17,state:1}).outcome.page,2);
+  // Explicit page binding overrides the migrated global knob settings.
+  core.changeControlScope(state,16,'page');
+  const local=core.controlBinding(state,16);
+  local.mode='trigger';local.right=core.createAction('timer');
+  assert.equal(core.planHardwareEvent(state,{kind:2,index:17,state:3}).outcome.kind,'timer');
+});
+
+test('control gesture assignments, scope and stack are persisted independently',()=>{
+  const state=core.migrateState(null);
+  const knob=core.controlBinding(state,16);
+  knob.mode='trigger';
+  knob.left=core.createAction('previous');
+  knob.right=core.createAction('next');
+  knob.down=core.createAction('goto');knob.down.settings.page=0;
+  const left=core.planHardwareEvent(state,{kind:2,index:17,state:2});
+  assert.equal(left.outcome.kind,'page');
+  assert.equal(core.planHardwareEvent(state,{kind:2,index:17,state:3}).outcome.kind,'page');
+  knob.mode='adjust';knob.target='volume';
+  assert.deepEqual(core.planHardwareEvent(state,{kind:2,index:17,state:3}).outcome,
+    {kind:'adjust',target:'volume',direction:1});
+  knob.target='zoom';
+  assert.equal(core.planHardwareEvent(state,{kind:2,index:17,state:2}).outcome.target,'zoom');
+  knob.mode='stack';knob.down=null;knob.stack=['page','volume','zoom'];
+  assert.deepEqual(core.planHardwareEvent(state,{kind:2,index:17,state:1}).outcome,
+    {kind:'stack-next',size:3});
+  assert.equal(core.planHardwareEvent(state,{kind:2,index:17,state:2},1).outcome.target,'volume');
+  assert.equal(core.planHardwareEvent(state,{kind:2,index:17,state:3},2).outcome.target,'zoom');
+  state.pages.push(core.blankPage());state.controls.pages.push(Array.from({length:5},core.emptyBinding));
+  assert.equal(core.changeControlScope(state,16,'page'),true);
+  const local=core.controlBinding(state,16);
+  local.mode='trigger';local.left=core.createAction('next');
+  assert.equal(core.planHardwareEvent(state,{kind:2,index:17,state:2}).outcome.kind,'page');
+  state.page=1;
+  assert.equal(core.controlBinding(state,16).left,null);
+  const restored=core.migrateState(JSON.parse(JSON.stringify(state)));
+  assert.equal(restored.controls.scopes[2],'page');
+  assert.equal(core.controlBinding(restored,16).mode,'trigger');
+  restored.page=0;
+  assert.equal(core.controlBinding(restored,16).left.type,'next');
+});
+
+test('knob step and reverse direction persist with legacy-safe defaults',()=>{
+  const state=core.migrateState({pages:[[],[],[],[],[],[]],page:2});
+  const knob=core.controlBinding(state,16);
+  assert.equal(knob.step,1);
+  assert.equal(knob.reverseDirection,false);
+  knob.mode='adjust';knob.target='page';knob.step=2;knob.reverseDirection=true;
+  assert.equal(core.planHardwareEvent(state,{kind:2,index:17,state:2}).outcome.page,4);
+  assert.equal(core.planHardwareEvent(state,{kind:2,index:17,state:3}).outcome.page,0);
+  knob.target='volume';
+  assert.deepEqual(core.planHardwareEvent(state,{kind:2,index:17,state:2}).outcome,
+    {kind:'adjust',target:'volume',direction:1,count:2});
+  const saved=core.migrateState(JSON.parse(JSON.stringify(state)));
+  assert.equal(core.controlBinding(saved,16).step,2);
+  assert.equal(core.controlBinding(saved,16).reverseDirection,true);
+  const bad=core.cleanBinding({mode:'adjust',step:100,reverseDirection:'yes'});
+  assert.equal(bad.step,1);
+  assert.equal(bad.reverseDirection,false);
+});
+
+test('physical controls do not execute an action after a release',()=>{
+  const state=core.migrateState(null);
+  core.controlBinding(state,14).down=core.createAction('next');
+  assert.equal(core.planHardwareEvent(state,{kind:1,index:15,pressed:false}),null);
+  assert.equal(core.planHardwareEvent(state,{kind:1,index:15,pressed:true}).outcome.kind,'page');
+  assert.equal(core.planHardwareEvent(state,{kind:2,index:17,state:0}),null);
+});
+
+test('stack cycles even when a previous press action is still saved',()=>{
+  const state=core.migrateState(null);
+  const knob=core.controlBinding(state,16);
+  knob.mode='stack';knob.stack=['page','volume','zoom'];
+  knob.down=core.createAction('previous');
+  assert.deepEqual(core.planHardwareEvent(state,{kind:2,index:17,state:1}).outcome,
+    {kind:'stack-next',size:3});
+  assert.deepEqual(core.planHardwareEvent(state,{kind:2,index:17,state:2},1).outcome,
+    {kind:'adjust',target:'volume',direction:-1});
+});
+
+test('Sleep plans a device-only sleep command and Key Logic uses gesture slots',async()=>{
+  assert.deepEqual(core.planAction(core.createAction('sleep'),0,1),{kind:'device-sleep'});
+  const logic=core.createAction('logic');
+  logic.slots={single:core.createAction('hotkey'),double:core.createAction('media'),hold:core.createAction('open')};
+  logic.slots.single.settings.keys='Ctrl+A';
+  assert.deepEqual(core.planAction(logic,0,1),{kind:'composite',type:'logic'});
+  assert.equal(core.planComposite(logic,{gesture:'double'}).steps[0].type,'media');
+  assert.equal(core.planComposite(logic,{gesture:'hold'}).steps[0].type,'open');
+  assert.equal(core.planComposite(logic,{gesture:'single'}).steps[0].settings.keys,'Ctrl+A');
+  const restored=core.migrateState({pages:[[logic]],page:0});
+  assert.equal(restored.pages[0][0].slots.double.type,'media');
+  const calls=[];
+  await core.runComposite(logic,{gesture:'single',execute:async a=>calls.push(a.settings.keys),wait:async()=>{}});
+  assert.deepEqual(calls,['Ctrl+A']);
+});
+
+test('unfinished built-in action plans carry their configured executable options',()=>{
+  const sound=core.createAction('audio-play');
+  sound.settings.fade='in-out';sound.settings.fadeDuration=5;sound.settings.output='speaker-device-1';
+  const audio=core.planAction(sound,0,3);
+  assert.equal(audio.kind,'audio-play');
+  assert.equal(audio.fade,'in-out');
+  assert.equal(audio.fadeDuration,5);
+  assert.equal(audio.output,'speaker-device-1');
+  const website=core.createAction('website');
+  website.settings.open='choose';website.settings.browserPath='C:\\Programs\\browser.exe';
+  assert.deepEqual(core.planAction(website,0,3),{
+    kind:'website',url:'',mode:'choose',browserPath:'C:\\Programs\\browser.exe'});
+  const opened=core.createAction('open-app');
+  opened.settings.app='C:\\Programs\\app.exe';
+  opened.settings.foreground=true;opened.settings.hold='close';
+  assert.deepEqual(core.planAction(opened,0,3),{
+    kind:'open-local-path',path:'C:\\Programs\\app.exe',
+    target:'file',foreground:true,hold:'close'});
+  const text=core.createAction('text');text.settings.mode='clipboard';
+  assert.equal(core.planAction(text,0,3).mode,'clipboard');
+  assert.equal(core.planAction(core.createAction('virtual'),0,3).kind,'unsupported');
+});
+
+test('Multi Action retains bounded delays and rejects unsupported nested composites',async()=>{
+  const multi=core.createAction('multi');
+  multi.children=[core.createAction('audio-play'),{kind:'delay',ms:2},core.createAction('close')];
+  const planned=core.planComposite(multi,{});
+  assert.deepEqual(planned.steps.map(step=>step.kind||step.type),['audio-play','delay','close']);
+  const calls=[];
+  await core.runComposite(multi,{
+    execute:async action=>calls.push(action.type),
+    wait:async ms=>calls.push('wait:'+ms),
+    nextActionMs:5
+  });
+  assert.deepEqual(calls,['audio-play','wait:2','close']);
+  const nested=core.createAction('multi');
+  nested.children=[core.createAction('multi')];
+  assert.equal(core.planComposite(nested).kind,'invalid');
+});

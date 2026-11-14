@@ -1,0 +1,301 @@
+:root{font-family:"Segoe UI","Malgun Gothic",sans-serif;color:#e6e6e6;background:#292929;font-size:13px}*{box-sizing:border-box}body{margin:0}button,input,select,textarea{font:inherit}button{color:inherit;cursor:pointer}#app{height:100vh;min-height:600px;display:grid;grid-template-columns:minmax(540px,1fr) 315px}.work{display:grid;grid-template-rows:94px minmax(270px,55%) minmax(210px,1fr);min-height:0}.toolbar{display:flex;align-items:center;justify-content:space-between;padding:18px 48px}.identity{display:flex;align-items:center;gap:15px}.device-symbol{border:1px solid #888;border-radius:5px;font-size:23px;padding:8px}.identity strong,.identity small{display:block}.identity small{margin-top:6px;color:#bdbdbd}.tools button,.page-controls button{border:0;background:none;font-size:19px}.canvas{padding:0 36px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:19px}.key-grid{display:grid;grid-template-columns:repeat(5,76px);grid-template-rows:repeat(3,76px);gap:15px}.deck-key{background:#0d0d0f;border:3px solid #111;border-radius:12px;box-shadow:0 0 0 1px #494949;color:#c9c9c9;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;overflow:hidden;padding:6px;text-align:center}.deck-key:focus-visible,.deck-key.selected{outline:2px solid #328cde;outline-offset:3px}.deck-key.drag-over{box-shadow:0 0 0 3px #42a9e5}.deck-key.wide{grid-column:4/span 2}.deck-key .glyph{font-size:25px;line-height:1}.deck-key .caption{font-size:10px;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.page-controls{display:flex;align-items:center;gap:18px;color:#bbb}.inspector{border-top:1px solid #444;min-height:0;overflow:auto;padding:16px 40px;background:#2a2a2a}.inspector.empty{display:flex;align-items:center;justify-content:center;color:#8a8a8a}.action-head{border-bottom:1px solid #404040;padding-bottom:11px;display:flex;justify-content:space-between;align-items:center}.action-head strong{font-weight:600}.action-head button{border:0;background:transparent;color:#aaa;font-size:18px}.properties{display:grid;grid-template-columns:108px minmax(0,1fr);gap:28px;padding-top:14px}.preview-key{width:98px;height:98px;background:#101013;border:2px solid #555;border-radius:11px;display:flex;justify-content:center;align-items:center;font-size:38px}.preview button{margin-top:11px;background:#414141;border:1px solid #666;border-radius:4px;padding:5px 9px}.fields{display:flex;flex-direction:column;gap:10px;max-width:760px}.field{display:grid;grid-template-columns:130px minmax(0,1fr);align-items:center;gap:12px}.field label{text-align:right;color:#cacaca}.field input,.field select,.field textarea{width:100%;background:#363636;border:1px solid #555;border-radius:4px;color:#eee;padding:6px 9px;min-height:31px}.field textarea{resize:vertical;min-height:80px}.field input[type=range]{padding:0;min-height:20px}.field input[type=checkbox]{width:auto;min-height:0}.field .compound{display:flex;gap:9px;align-items:center}.field .compound input{flex:1;min-width:0}.field .compound button{padding:6px 12px;background:#454545;border:1px solid #666;border-radius:4px}.hint{font-size:11px;color:#9e9e9e}.library{background:#232323;border-left:1px solid #3f3f3f;display:flex;flex-direction:column;min-height:0}.search{padding:14px;border-bottom:1px solid #333}.search input{width:100%;background:#383838;border:0;border-radius:5px;color:#eee;padding:9px}.library-tabs{display:flex;gap:12px;padding:8px 14px;border-bottom:1px solid #333}.library-tabs button{flex:1;border:0;background:transparent;padding:8px}.library-tabs .active{background:#3a3a3a;border-radius:18px}.library-tabs button:disabled{opacity:.4}.library-list{overflow:auto;flex:1}.group-title{background:#303030;color:#e1e1e1;font-weight:600;padding:13px 16px;cursor:pointer}.action-item{padding:10px 18px 10px 37px;display:flex;align-items:center;gap:12px;cursor:grab;color:#d0d0d0}.action-item:hover{background:#393939}.action-item .action-icon{width:22px;text-align:center;font-size:18px}.action-item[hidden],.group[hidden]{display:none}.key-menu{position:fixed;z-index:100;border:1px solid #656565;border-radius:6px;background:#303030;box-shadow:0 8px 25px #0009;padding:5px;min-width:205px}.key-menu button{display:block;text-align:left;width:100%;background:transparent;border:0;padding:8px 12px}.key-menu button:hover{background:#444}.key-menu hr{border:0;border-top:1px solid #555;margin:5px 0}.prototype-note{position:fixed;bottom:3px;left:7px;color:#888;font-size:10px;pointer-events:none;margin:0}@media(max-width:1000px){#app{grid-template-columns:minmax(440px,1fr) 250px}.work{grid-template-rows:75px minmax(260px,52%) 1fr}.toolbar{padding:12px 20px}.canvas{padding:0 10px}.key-grid{grid-template-columns:repeat(5,60px);grid-template-rows:repeat(3,60px);gap:10px}.inspector{padding:12px 16px}.properties{gap:15px}.field{grid-template-columns:95px minmax(0,1fr)}}
+/* Keep the device at the top rather than vertically centering it as the window grows. */
+.work{grid-template-rows:76px minmax(330px,auto) minmax(210px,1fr)}
+.canvas{justify-content:flex-start;padding-top:8px;gap:11px;min-height:0;overflow:auto}
+.device-layout{display:flex;flex-direction:column;align-items:center;gap:9px}
+.physical-controls{width:100%;display:flex;align-items:center;justify-content:center;gap:18px;padding:9px 10px 4px;border-radius:11px;background:#25282d;border:1px solid #383c42}
+.physical-control{display:flex;min-width:55px;flex-direction:column;align-items:center;justify-content:center;gap:5px;border:0;background:none;padding:3px;color:#bfc6d0;cursor:pointer}
+.physical-control .physical-symbol{border-radius:50%;width:22px;height:22px;background:radial-gradient(circle at 35% 30%,#555d6d,#10131b 68%);border:2px solid #13151a;box-shadow:0 0 0 1px #525866}
+.physical-control.knob .physical-symbol{width:37px;height:37px;border:4px solid #252a31;box-shadow:0 0 0 2px #555b65,inset 0 0 0 1px #89909b}
+.physical-control .physical-name{font-size:10px;white-space:nowrap}
+.physical-control.selected .physical-symbol{outline:2px solid #328cde;outline-offset:3px}
+.physical-control.drag-over .physical-symbol{outline:2px solid #5db3ff}
+.title-line{display:flex;position:relative;gap:7px;align-items:center;min-width:0}
+.title-line>input{flex:1;min-width:0}
+.title-style-trigger{border:0;background:transparent;padding:4px 6px;white-space:nowrap;font-size:16px}
+.title-style-trigger[aria-expanded=true]{background:#444;border-radius:3px}
+.title-style-popover{position:absolute;z-index:80;top:calc(100% + 5px);right:0;width:277px;padding:13px;border:1px solid #4e4e4e;background:#383838;border-radius:5px;box-shadow:0 10px 23px #0009;display:flex;flex-direction:column;gap:10px}
+.title-style-popover[hidden]{display:none}
+.title-style-popover label{display:flex;align-items:center;gap:6px;text-align:left;color:#eee}
+.title-style-popover input[type=checkbox]{width:auto}
+.title-align{display:flex;gap:3px}
+.title-align button{flex:1;border:1px solid #666;border-radius:3px;background:#515151;padding:6px}
+.title-align button.active{background:#217ce5;border-color:#217ce5}
+.title-style-popover select{width:100%}
+.title-format{display:flex;gap:6px;align-items:center}
+.title-format input[type=number]{width:65px;flex:none}
+.title-format input[type=color]{width:35px;height:30px;padding:2px;min-height:30px}
+.title-format button{flex:1;min-width:0;border:1px solid #666;border-radius:4px;background:#555;padding:6px 2px}
+.title-format button.active{background:#2676c1}
+.title-style-popover .style-reset{align-self:end;background:#555;border:1px solid #666;border-radius:3px;padding:4px 10px}
+@media(max-width:1000px){.work{grid-template-rows:70px minmax(290px,auto) minmax(210px,1fr)}.canvas{padding-top:5px;gap:7px}.physical-controls{gap:8px;padding:4px}.physical-control.knob .physical-symbol{width:29px;height:29px}.physical-control .physical-name{font-size:9px}}
+
+
+/* Stream Deck geometry pass: the keypad starts high and the inspector owns the remaining height. */
+#app{min-height:620px;grid-template-columns:minmax(530px,1fr) 320px}
+.work{grid-template-rows:clamp(358px,48vh,413px) minmax(220px,1fr);min-height:0}
+.canvas{padding-top:15px;justify-content:flex-start;overflow:auto;gap:9px}
+.device-layout{gap:11px}
+.key-grid{gap:12px;grid-template-columns:repeat(5,74px);grid-template-rows:repeat(3,74px)}
+.physical-controls{max-width:418px;gap:10px;padding:7px 8px 4px}
+.physical-control{min-width:55px}
+.page-controls{gap:14px;min-height:25px}
+.sidebar-header{height:61px;min-height:61px;display:flex;align-items:flex-start;justify-content:space-between;gap:12px;padding:14px 16px 9px;border-bottom:1px solid #353535;position:relative;z-index:5}
+.profile-picker{position:relative;min-width:0;flex:1}
+.profile-trigger{background:transparent;border:0;padding:4px 2px;font-size:13px;display:flex;align-items:center;gap:9px;max-width:185px;text-align:left}
+.profile-trigger:hover,.profile-trigger[aria-expanded=true]{color:#fff}
+.profile-trigger .chevron{color:#a6a6a6}
+#profile-name{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.sidebar-device{display:flex;align-items:center;gap:10px;padding-top:1px;white-space:nowrap}
+.device-name{font-weight:600;font-size:12px}
+.settings-trigger{background:transparent;border:0;padding:0 3px;font-size:20px;color:#d5d5d5}
+.profile-menu{position:absolute;left:0;top:32px;min-width:205px;max-width:260px;z-index:20;background:#333;border:1px solid #555;border-radius:6px;padding:5px;box-shadow:0 10px 28px #0009}
+.profile-menu[hidden]{display:none}
+.profile-menu button{border:0;background:transparent;width:100%;text-align:left;padding:9px 11px;color:#ddd;border-radius:4px}
+.profile-menu button:hover,.profile-menu button[aria-current=true]{background:#484848}
+.library .search{padding:7px 13px 11px}
+.library .search input{height:33px}
+.icon-library-overlay{position:fixed;inset:0;z-index:150;background:#0005;display:flex;justify-content:center;align-items:center}
+.icon-library-overlay[hidden]{display:none}
+.icon-library-dialog{display:grid;grid-template-rows:37px 51px minmax(0,1fr) 38px;width:min(455px,calc(100vw - 32px));height:min(530px,calc(100vh - 60px));border:1px solid #4d4d4d;border-radius:7px;background:#252525;box-shadow:0 14px 45px #000c;overflow:hidden}
+.icon-library-heading{display:flex;align-items:center;gap:10px;padding:0 12px;background:#222;border-bottom:1px solid #3c3c3c;font-size:12px}
+.library-badge{font-size:16px;color:#7757ef}
+.icon-library-heading strong{flex:1}
+.icon-library-heading button{border:0;background:transparent;font-size:22px;font-weight:300}
+.icon-library-search{display:flex;align-items:center;justify-content:flex-end;gap:8px;padding:8px 14px}
+.icon-library-search input{background:#383838;border:0;border-radius:5px;color:#ddd;padding:6px 11px;width:min(195px,45%)}
+.icon-library-search #icon-pack-import{border:1px solid #606060;border-radius:4px;padding:7px 9px;background:#383838;color:#eee;white-space:nowrap;font-size:11px}
+.icon-library-search #icon-pack-import:hover{background:#464646}
+.icon-library-search #icon-pack-import:disabled{opacity:.45}
+.icon-pack-swatch img{width:100%;height:100%;object-fit:contain;image-rendering:auto}
+
+.icon-library-search button{border:0;background:transparent;color:#bbb;font-size:19px}
+.icon-library-groups{overflow:auto}
+.icon-group-title{width:100%;display:flex;align-items:center;gap:9px;padding:11px 15px;border:0;border-top:1px solid #3b3b3b;background:#303030;text-align:left;font-size:12px;font-weight:600}
+.icon-group-title:hover{background:#393939}
+.icon-group-title .icon-group-count{color:#828282;font-weight:400}
+.icon-group-title .icon-group-arrow{font-size:12px;color:#aaa}
+.icon-grid{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:4px;padding:11px 8px}
+.icon-swatch{aspect-ratio:1;background:#353535;border:1px solid transparent;border-radius:5px;display:flex;align-items:center;justify-content:center;font-size:23px;color:#f3f3f3}
+.icon-swatch:hover,.icon-swatch:focus-visible{border-color:#368ae8;background:#3d4553}
+.icon-swatch.blue{color:#3e90ec;background:#172233}
+.icon-library-footer{display:flex;align-items:center;justify-content:space-between;border-top:1px solid #444;padding:0 14px;color:#aaa;font-size:11px}
+.icon-zoom{font-size:20px}
+.preview-key{position:relative;overflow:hidden}
+.preview-key .icon-image{width:100%;height:100%;object-fit:contain}
+.preview-key .icon-glyph{font-size:38px}
+.preview .preview-key{position:relative}
+.icon-preview-control{position:absolute;top:1px;border:0!important;border-radius:50%!important;background:#292929!important;color:white!important;width:23px;height:23px;padding:0!important;font-size:13px!important;margin:0!important;z-index:2}
+.icon-preview-plus{left:1px}
+.icon-preview-menu{right:1px}
+.icon-preview-menu[aria-expanded=true]{background:#444!important}
+.icon-dropdown{position:absolute;top:46px;left:60px;width:236px;background:#373737;border:1px solid #575757;border-radius:6px;box-shadow:0 10px 28px #000a;z-index:100;padding:5px}
+.icon-dropdown[hidden]{display:none}
+.icon-dropdown button{display:block;margin:0;padding:5px 12px;width:100%;background:transparent;border:0;text-align:left;font-size:12px}
+.icon-dropdown button:hover{background:#4a4a4a}
+.preview{position:relative}
+@media(max-width:1000px){
+  #app{grid-template-columns:minmax(430px,1fr) 270px}
+  .work{grid-template-rows:clamp(318px,47vh,380px) minmax(210px,1fr)}
+  .canvas{padding-top:12px}
+  .key-grid{grid-template-columns:repeat(5,60px);grid-template-rows:repeat(3,60px);gap:9px}
+  .physical-controls{max-width:338px;gap:5px;padding:6px 3px}
+  .sidebar-header{padding-left:11px;padding-right:11px}
+  .device-name{font-size:11px}
+}
+
+.icon-library-groups.compact .icon-grid{grid-template-columns:repeat(5,minmax(0,1fr));gap:7px}
+.icon-library-groups.compact .icon-swatch{font-size:27px}
+
+
+/* Single-screen D200X canvas. Size the hardware controls to viewport height:
+   on the packaged Windows preview (min 630px tall), every key, side button,
+   knob and page control should fit above the Inspector without scrolling.
+   At extreme OS zoom / smaller embedded viewports this may still require scaling. */
+#app { min-height:0; height:100dvh; }
+.work {
+  --key-edge:clamp(52px,calc(100dvh / 10),74px);
+  --key-gap:clamp(7px,1.2dvh,11px);
+  grid-template-rows:minmax(0,min(395px,calc(100dvh - 235px))) minmax(0,1fr);
+  min-height:0;
+}
+.canvas {
+  overflow:hidden;
+  min-height:0;
+  padding:clamp(5px,1.2dvh,12px) 10px 2px;
+  gap:clamp(5px,1dvh,9px);
+  justify-content:flex-start;
+}
+.device-layout { flex:0 0 auto; gap:clamp(5px,1dvh,9px); }
+.key-grid {
+  grid-template-columns:repeat(5,var(--key-edge));
+  grid-template-rows:repeat(3,var(--key-edge));
+  gap:var(--key-gap);
+}
+.physical-controls {
+  width:calc(5 * var(--key-edge) + 4 * var(--key-gap));
+  max-width:100%;
+  min-height:0;
+  padding:4px 4px 2px;
+  gap:clamp(3px,0.8dvh,9px);
+}
+.physical-control { min-width:0; flex:1; padding:2px 0; gap:3px; }
+.physical-control.knob .physical-symbol {
+  width:clamp(26px,4.3dvh,35px);
+  height:clamp(26px,4.3dvh,35px);
+}
+.physical-control .physical-name {
+  max-width:100%; overflow:hidden; text-overflow:ellipsis;
+}
+.page-controls { flex:0 0 auto; gap:12px; min-height:23px; }
+@media(max-height:690px) {
+  .work { --key-edge:clamp(47px,calc(100dvh / 10),64px); --key-gap:7px; grid-template-rows:minmax(0,calc(100dvh - 220px)) minmax(0,1fr); }
+  .canvas{padding-top:5px;gap:5px;}
+  .device-layout{gap:5px;}
+  .physical-controls{padding:2px 3px;}
+  .physical-control .physical-name{font-size:9px;}
+  .page-controls{min-height:20px;}
+}
+@media(max-width:1000px) {
+  .work {
+    --key-edge:clamp(47px,calc(100dvh / 10),62px);
+    --key-gap:clamp(6px,1dvh,9px);
+    grid-template-rows:minmax(0,min(360px,calc(100dvh - 220px))) minmax(0,1fr);
+  }
+  .canvas{padding:6px 8px 2px;gap:6px;}
+  .device-layout{gap:6px;}
+  .physical-controls{gap:3px;padding:3px;}
+}
+
+/* Small HID status light in the approved sidebar header; no geometry changes. */
+.deck-status{display:inline-block;width:7px;height:7px;border-radius:50%;background:#747474;flex-shrink:0;box-shadow:0 0 0 1px #161616}
+.deck-status.online{background:#47c787;box-shadow:0 0 6px #47c7877a}
+
+
+/* Common action properties: preview title mirrors the current typography settings. */
+#icon-preview { position:relative; }
+#icon-preview-content { display:flex;align-items:center;justify-content:center;width:100%;height:100%;overflow:hidden; }
+#icon-preview-content .icon-image {max-width:100%;max-height:100%;object-fit:contain;}
+.preview-title {position:absolute;bottom:5px;left:5px;right:5px;max-height:65%;overflow:hidden;line-height:1.15;overflow-wrap:anywhere;white-space:normal;pointer-events:none;text-shadow:0 1px 3px #000;}
+/* Minimal local icon creator dialog; does not change the approved editor layout. */
+.icon-maker-overlay {position:fixed;inset:0;z-index:160;background:#0009;display:flex;align-items:center;justify-content:center;}
+.icon-maker-overlay[hidden] {display:none;}
+.icon-maker-dialog {width:min(320px,calc(100vw - 30px));background:#303030;border:1px solid #626262;border-radius:7px;box-shadow:0 14px 40px #000b;padding:15px;display:flex;flex-direction:column;align-items:stretch;gap:13px;}
+.icon-maker-dialog header{display:flex;justify-content:space-between;align-items:center;}
+.icon-maker-dialog header button{background:none;border:0;font-size:20px;}
+#icon-maker-canvas{width:148px;height:148px;align-self:center;border-radius:9px;box-shadow:0 0 0 1px #555;}
+.icon-maker-dialog label{display:flex;justify-content:space-between;align-items:center;gap:12px;}
+.icon-maker-dialog label input[type=text],.icon-maker-dialog label input:not([type]){background:#414141;border:1px solid #666;border-radius:4px;color:#eee;width:150px;padding:7px;}
+.icon-maker-colors{display:flex;gap:14px;justify-content:space-between;}
+.icon-maker-colors label{gap:6px;}
+.icon-maker-colors input[type=color]{width:44px;height:32px;background:transparent;border:0;cursor:pointer;}
+.icon-maker-dialog footer{display:flex;justify-content:flex-end;gap:8px;}
+.icon-maker-dialog footer button{padding:7px 13px;background:#444;border:1px solid #777;border-radius:4px;}
+#icon-maker-save{background:#2977c9;border-color:#2977c9;}
+
+
+/* Stream Deck title overlay: fixed icon bitmap, title drawn over it in the
+   shared 196px compositor. Never vertically reflow the key when font grows. */
+.deck-key{position:relative;}
+.deck-key:has(> .rendered-key-image){padding:0;gap:0;}
+.deck-key > .rendered-key-image{
+  display:block;position:absolute;inset:0;
+  width:100%;height:100%;object-fit:fill;
+  border-radius:inherit;pointer-events:none;
+}
+.deck-key > .glyph.icon-image{width:100%;height:100%;object-fit:contain;}
+.deck-key > .caption{position:absolute;left:4px;right:4px;bottom:4px;z-index:1;pointer-events:none;}
+.preview-title{max-height:95%;line-height:1.12;}
+
+
+/* Title palette and adjustable outline live inside the existing T menu. */
+.title-style-popover{max-height:min(80dvh,660px);overflow-y:auto;}
+.title-format input[type=color],.outline-settings input[type=color]{width:35px;height:30px;flex:none;padding:2px;border:1px solid #666;border-radius:3px;background:#414141;}
+.title-format .title-palette-open,.outline-settings .title-palette-open{flex:none;width:29px;padding:4px 2px;background:#505050;border:1px solid #666;border-radius:4px;}
+.outline-settings{display:flex;gap:7px;align-items:center;}
+.outline-settings span{flex:1;color:#ddd;}
+.outline-settings select{width:92px;flex:none;min-height:30px;}
+.title-palette{border:1px solid #595959;border-radius:5px;padding:9px;background:#303030;display:flex;flex-direction:column;gap:8px;}
+.title-palette[hidden]{display:none;}
+.title-palette-header{display:flex;align-items:center;justify-content:space-between;}
+.title-palette-header button{background:transparent;border:0;font-size:18px;}
+.title-palette-label{font-size:11px;color:#ccc;}
+.title-palette-grid{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:6px;}
+.title-palette-grid.my-colors{grid-template-columns:repeat(6,minmax(0,1fr));}
+.title-color-swatch{width:100%;aspect-ratio:1;border:1px solid #999!important;border-radius:4px!important;padding:0!important;min-width:0!important;}
+.title-color-remove{font-size:12px!important;border:1px solid #666!important;background:#333!important;border-radius:4px!important;padding:0!important;}
+#title-palette-save{padding:7px!important;background:#3f566f!important;border:1px solid #718399!important;border-radius:4px!important;}
+
+
+/* Per-gesture inspector for the two physical buttons and three rotary knobs.
+   Lives below the locked D200X grid; never expands its top hardware layout. */
+.control-inspector{display:block}
+.control-config{display:flex;flex-wrap:wrap;align-items:center;gap:10px;margin:11px 0}
+.control-config>label{min-width:90px;color:#bfc4cf}
+/* Explicit action tests only; ordinary key clicks remain edit-only. */
+.action-head .action-preview-test{margin-left:auto;margin-right:12px;background:#345579;border:1px solid #7397ba;border-radius:5px;padding:5px 12px;font-size:12px;color:#fff}
+.control-config>button{background:#345579;border:1px solid #7397ba;border-radius:5px;padding:6px 12px;color:#fff}
+.action-head .action-preview-test:hover,.control-config>button:hover{background:#416b98}
+.control-config>select{background:#373737;color:#eee;border:1px solid #656565;border-radius:5px;padding:7px;min-width:170px}
+.control-gesture-strip{display:flex;flex-wrap:wrap;gap:10px;margin:14px 0}
+.control-gesture-tile{flex:1;min-width:110px;max-width:210px;border:1px solid #5b5b5b;background:#25282e;border-radius:9px;display:flex;align-items:center;flex-direction:column;gap:5px;padding:9px;color:#ddd}
+.control-gesture-tile.active{border:2px solid #4d9ee9;background:#303b49}
+.control-gesture-tile.drag-over{outline:3px solid #68b8fa;outline-offset:2px}
+.control-gesture-symbol{font-size:24px;line-height:1.1;color:#eee}
+.control-gesture-value{font-size:11px;color:#abc3e4;min-height:20px;text-align:center;overflow-wrap:anywhere}
+.control-action-editor{border-top:1px solid #484848;padding:14px 0}
+.control-action-header{display:flex;gap:12px;align-items:center;justify-content:space-between;margin-bottom:12px}
+.control-action-header button{background:#444;border:1px solid #777;border-radius:5px;padding:5px 10px}
+.control-stack-targets{display:flex;flex-wrap:wrap;gap:10px}
+.control-stack-targets label{display:flex;align-items:center;gap:4px}
+.control-stack-targets input{accent-color:#529eea}
+
+/* Multi Action editor stays inside the existing inspector, no layout redesign. */
+.multi-action-editor{margin-top:12px;border-top:1px solid #555;padding-top:12px;min-width:0}
+.multi-action-editor>strong{display:block;margin-bottom:4px}
+.multi-action-steps{display:flex;flex-direction:column;gap:7px;margin-top:10px;min-height:36px}
+.multi-action-row{display:flex;align-items:center;gap:6px;min-width:0}
+.multi-action-row span{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis}
+.multi-action-row button,.multi-action-toolbar button{background:#414141;border:1px solid #666;border-radius:4px;padding:5px 9px}
+.multi-action-toolbar{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
+.multi-action-toolbar select,.multi-action-steps>input{background:#363636;color:#eee;border:1px solid #555;border-radius:4px;padding:6px;max-width:100%}
+.multi-step-fields{padding:6px 0 9px 0;margin-bottom:8px;border-bottom:1px solid #414141}
+
+.multi-switch-tabs{display:flex;gap:8px;margin-bottom:12px}
+.multi-switch-tabs button{border:1px solid #666;border-radius:5px;background:#414141;padding:7px 12px}
+.multi-switch-tabs button[aria-pressed="true"]{background:#345579;border-color:#8ab5d8;color:#fff}
+
+.multi-switch-visuals{display:grid;grid-template-columns:minmax(85px,auto) minmax(0,1fr);gap:7px;align-items:center;margin:8px 0 12px}
+.multi-switch-visuals input{min-width:0;background:#363636;color:#eee;border:1px solid #666;border-radius:4px;padding:6px}
+.multi-switch-visuals .hint{grid-column:1/-1}
+
+/* Action catalogue appearance: scoped to right-hand panel only. */
+.action-appearance{display:flex;align-items:center;gap:7px;padding:5px 12px 8px;border-bottom:1px solid #343434;font-size:11px;color:#bfc3ca}
+.action-appearance label{white-space:nowrap}
+.action-appearance select{min-width:0;flex:1;background:#34383e;color:#f4f4f4;border:1px solid #555;border-radius:5px;padding:5px;font-size:11px}
+.action-appearance button{border:1px solid #555;background:#383b40;border-radius:5px;color:#dedede;padding:5px 7px;font-size:10px;white-space:nowrap}
+.library .action-item{position:relative;min-height:32px;gap:8px;padding:4px 12px 4px 16px}
+.library .action-item .action-icon{width:30px;min-width:30px;display:grid;place-items:center;line-height:1}
+.action-caption{display:flex;flex:1;min-width:0;flex-direction:column;gap:3px;font-size:12px}
+.action-caption>span{white-space:normal;overflow-wrap:anywhere}
+.action-shortcut{font-size:10px;color:#acb6c7;line-height:1.2;white-space:normal}
+.action-customize{margin-left:auto;flex:none;border:0;background:transparent;color:#acb3bd;border-radius:4px;padding:2px 6px;font-size:19px;line-height:1.1;cursor:pointer}
+.action-customize:hover,.action-customize:focus-visible{background:#515966;color:#fff}
+.action-override-controls{position:absolute;z-index:10;right:10px;top:100%;background:#292d35;box-shadow:0 6px 18px #0009;border:1px solid #606874;border-radius:6px;display:flex;gap:5px;padding:7px}
+.action-override-controls button{font-size:11px;border:1px solid #616975;border-radius:4px;background:#434c59;color:#fff;padding:6px;cursor:pointer;white-space:nowrap}
+.panel-action-svg{height:27px;width:27px;display:grid;place-items:center;flex:none;color:#e2e7ef}
+.panel-action-svg svg,.panel-action-svg img{width:20px;height:20px;display:block;object-fit:contain}
+.panel-action-svg.theme-line{color:#d6e0ed}
+.panel-action-svg.theme-color{border-radius:8px;background:color-mix(in srgb,var(--icon-accent) 19%,#21252d);color:var(--icon-accent)}
+.panel-action-svg.theme-button{border-radius:7px;background:linear-gradient(145deg,#4e5b6b,#1b222e);border:1px solid #657083;color:#fff;box-shadow:inset 0 1px 0 #ffffff25,0 1px 2px #0008}
+.panel-action-svg.theme-button svg{height:18px;width:18px}
+
+/* Keep unavailable Virtual Stream Deck visible without allowing assignment. */
+.library .action-item.action-disabled{opacity:.48;cursor:not-allowed}
+.library .action-item.action-disabled:hover{background:transparent}
+.library .action-item.action-disabled .action-unavailable{font-size:10px;color:#b9b9b9}
+.library .action-item.action-disabled .action-customize{visibility:hidden}
+
+/* Single-key artwork retains the existing pressed/released visual feedback. */
+.deck-key:active .rendered-key-image,.deck-key:active .glyph{transform:scale(.94)}
+.deck-key .rendered-key-image,.deck-key .glyph{transition:transform 90ms ease}

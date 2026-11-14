@@ -1,3 +1,5 @@
+> ⚠️ **보관용 과거 설계 자료 — 현행 D200X Stream Deck Windows 편집기 구현 기준이 아님.** 이 문서는 기존 Ulanzi Deck/다른 플랫폼의 v2 모델과 OBS·BLE·macOS 구현을 다룬다. 현재 독립 편집기는 [완전 인수인계](D200X-COMPLETE-HANDOFF-20261114.md), [기본 액션 확장 계획](D200X-BUILTIN-ACTIONS-EXPANSION.md), 실제 `app/streamdeck-editor/` 소스를 기준으로 한다. 이 파일의 '완료' 표시는 **현 편집기의 기능 완료 증거가 아님**. 삭제하지 않고 역사적 참고 자료로 보관한다.
+
 # Action model v2
 
 > **Status (2026-10-31):** implemented. This is kept as the design record for the
