@@ -48,6 +48,10 @@ jobs:
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           node --check app/streamdeck-editor/ha-client.cjs
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          node --check app/streamdeck-editor/sd-plugin-host.cjs
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          node --test test/streamdeck-sdk-host.test.cjs
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           node --test test/streamdeck-ha.test.cjs
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - name: Check hardware bridge and renderer scripts
@@ -103,7 +107,8 @@ jobs:
             "main": "streamdeck-editor/main.cjs",
             "dependencies": {
               "jszip": "3.10.2",
-              "node-hid": "3.4.0"
+              "node-hid": "3.4.0",
+              "ws": "8.22.1"
             }
           }
           '@ | Set-Content app/preview-device-build/package.json -Encoding utf8
