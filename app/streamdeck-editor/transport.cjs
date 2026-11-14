@@ -110,6 +110,17 @@ class D200XTransport extends EventEmitter {
     }
   }
 
+  setSafeBrightness(value) {
+    if(this.closed||!this.deck.connected)throw new Error('D200X가 연결되지 않았습니다.');
+    if(!Number.isInteger(value)||value<MIN_BRIGHTNESS||value>100)
+      throw new Error('밝기는 20~100% 범위만 설정할 수 있습니다.');
+    this.deck.setBrightness(value);
+    this.brightness=value;
+    this.lastWriteAt=this.now();
+    this.log('brightness-change',String(value));
+    return value;
+  }
+
   adjustBrightness(direction,count=1) {
     if(this.closed||!this.deck.connected)throw new Error('D200X가 연결되지 않았습니다.');
     if(this.brightness===null)throw new Error('기기 밝기 값을 아직 확인하지 못했습니다.');
