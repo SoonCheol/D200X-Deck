@@ -6,7 +6,8 @@ const CATALOG = [
   ["Stream Deck", [["timer","타이머","◴"],["brightness","밝기","☼"],["sleep","잠자기","☾"],["virtual","Virtual Stream Deck 토글","▣"]]],
   ["다중 동작", [["multi","다중 동작","▤"],["multi-switch","다중 동작 스위치","⇄"],["random","무작위 동작","⚄"],["logic","Key Logic","⇧"]]],
   ["시스템", [["website","웹사이트","◎"],["hotkey-switch","단축키 전환","⇄"],["hotkey","단축키","⌨"],["open","열기","▢"],["open-app","응용 프로그램 열기","▣"],["close","닫기","×"],["text","텍스트","¶"],["media","멀티미디어","♫"]]],
-  ["탐색", [["folder","폴더 생성","▣"],["profile","프로필 전환","⇆"],["previous","이전 페이지","←"],["next","다음 페이지","→"],["goto","페이지로 이동","↗"],["indicator","페이지 표시기","①"]]]
+  ["탐색", [["folder","폴더 생성","▣"],["profile","프로필 전환","⇆"],["previous","이전 페이지","←"],["next","다음 페이지","→"],["goto","페이지로 이동","↗"],["indicator","페이지 표시기","①"]]],
+  ["D200X 추가 액션", [["system-volume","Windows 음량 조절","🔊"],["system-mute","Windows 음소거","🔇"]]]
 ];
 const ACTIONS = new Map(CATALOG.flatMap(([category, entries]) => entries.map(([id,label,icon]) => [id,{category,id,label,icon}])));
 const STORAGE_KEY="d200x-streamdeck-editor-prototype-v1";
@@ -64,7 +65,10 @@ function controlDrop(index,id,gesture='down'){
   if(!ACTIONS.has(id))return;
   const binding=DeckCore.controlBinding(state,index);
   if(!binding)return;
-  if(index>=16&&gesture==='down'&&['previous','next'].includes(id)){
+  if(index>=16&&gesture==='down'&&id==='system-volume'){
+    // Rotation adjusts volume; preserve any existing press action.
+    binding.mode='adjust';binding.target='volume';
+  }else if(index>=16&&gesture==='down'&&['previous','next'].includes(id)){
     // Dropping a navigation action directly on the knob preserves the
     // familiar bidirectional rotation behavior; per-gesture tiles remain
     // available for independent left/right assignments.
@@ -197,6 +201,8 @@ function actionFields(item){
     case "hotkey-switch":return input("first","단축키 1")+input("second","단축키 2");
     case "text":return `<div class="field"><label for="s-body">텍스트</label><div><textarea id="s-body" data-field="body">${escapeHtml(valueOf(item,"body"))}</textarea><div class="hint" id="text-count">${String(valueOf(item,"body")).length} / -</div></div></div>`+check("enter","메시지 뒤 Enter")+select("mode","텍스트 모드",[["clipboard","클립보드에서 붙여넣기"],["typing","타이핑 시뮬레이션"]]);
     case "media":return select("op","동작",[["previous","이전 트랙"],["playpause","재생 / 일시정지"],["next","다음 트랙"],["stop","정지"],["mute","음소거"],["up","음량 키우기"],["down","음량 줄이기"]]);
+    case "system-volume":return select("direction","동작",[["up","음량 키우기"],["down","음량 줄이기"]])+select("step","변화량",[[1,"1"],[2,"2"],[5,"5"],[10,"10"]]);
+    case "system-mute":return '<div class="field"><span></span><span class="hint">누를 때마다 음소거 전환</span></div>';
     case "folder":case "multi":case "random":return `<div class="field"><label>내용</label><div>${item.children.length}개의 ${item.type==="folder"?"항목":"동작"} <span class="hint">· 내부 편집 기능 미구현</span></div></div>`;
     case "multi-switch":return `<div class="field"><label>상태</label><span>1 / 2 · 내부 편집 기능 미구현</span></div>`;
     case "logic":return `<div class="field"><label>슬롯</label><span>한 번 누르기 / 두 번 누르기 / 유지 · 내부 편집 기능 미구현</span></div>`;
@@ -645,6 +651,14 @@ function executeHardwareAction(event){
     renderPhysicalControls();
     const target=DeckCore.controlBinding(state,index).stack[stackPositions[idx]];
     return '노브 '+(idx+1)+' 조절 대상: '+({page:'페이지',volume:'음량',zoom:'확대/축소'}[target]);
+  }
+  if(outcome.kind==='mute'){
+    if(!window.deckBridge?.adjustWindows)return 'Windows 실행 환경에서만 사용할 수 있습니다.';
+    window.deckBridge.adjustWindows('mute',0,1).then(
+      ()=>window.d200xActionStatus?.('음소거 전환 완료'),
+      error=>window.d200xActionStatus?.('음소거 전환 실패: '+String(error?.message||error))
+    );
+    return 'Windows 음소거 전환 요청';
   }
   if(outcome.kind==='adjust'){
     if(!window.deckBridge?.adjustWindows)return 'Windows 실행 환경에서만 사용할 수 있습니다.';
