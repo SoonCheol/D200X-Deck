@@ -424,10 +424,10 @@ function renderControlInspector(){
     const tile=document.createElement('button');tile.type='button';
     tile.className='control-gesture-tile'+(controlGesture===gesture?' active':'');
     const action=binding[gesture];
-    const allowed=binding.mode==='trigger'||gesture==='down';
+    const allowed=binding.mode==='trigger'||(binding.mode==='adjust'&&gesture==='down');
     tile.innerHTML='<span class="control-gesture-symbol">'+glyph+'</span><strong>'+title+
       '</strong><span class="control-gesture-value">'+(allowed?(action?escapeHtml(keyName(action)):'＋ 액션 놓기'):
-      '조절 동작 자동 지정')+'</span>';
+      (binding.mode==='stack'&&gesture==='down'?'누르면 조절 대상 전환':'조절 동작 자동 지정'))+'</span>';
     tile.addEventListener('click',()=>{controlGesture=gesture;renderControlInspector();});
     tile.addEventListener('dragover',e=>{if(allowed){e.preventDefault();tile.classList.add('drag-over');}});
     tile.addEventListener('dragleave',()=>tile.classList.remove('drag-over'));
@@ -440,7 +440,7 @@ function renderControlInspector(){
   }
   root.append(strip);
   const current=binding[controlGesture];
-  if(current&&(binding.mode==='trigger'||controlGesture==='down')){
+  if(current&&(binding.mode==='trigger'||(binding.mode==='adjust'&&controlGesture==='down'))){
     const editor=document.createElement('div');editor.className='control-action-editor';
     const row=document.createElement('div');row.className='control-action-header';
     const label=document.createElement('strong');label.textContent=keyName(current);
