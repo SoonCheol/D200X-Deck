@@ -260,6 +260,10 @@ function renderPhysicalControls(){
     root.append(button);
   });
 }
+async function chooseNativeImage(kind='image'){
+  if(!window.deckBridge?.chooseImportFile)return null;
+  return window.deckBridge.chooseImportFile(kind);
+}
 function renderLibrary(){
   const root=$("library-list");root.replaceChildren();
   const query=$("action-search").value.trim().toLocaleLowerCase();
@@ -289,7 +293,16 @@ function renderLibrary(){
         const upload=document.createElement("button");upload.type="button";upload.textContent="이미지 선택";
         const file=document.createElement("input");file.type="file";file.hidden=true;
         file.accept="image/png,image/jpeg,image/webp,image/gif";
-        upload.addEventListener("click",ev=>{ev.stopPropagation();file.click();});
+        upload.addEventListener("click",async ev=>{
+          ev.stopPropagation();
+          if(!window.deckBridge?.chooseImportFile){file.click();return;}
+          try{
+            const chosen=await chooseNativeImage('panel-icon');
+            if(chosen?.dataUrl&&window.D200XPanelIcons.setOverride(id,chosen.dataUrl)){
+              renderLibrary();renderGrid();renderInspector();window.scheduleDeckSync?.();
+            }
+          }catch(error){window.d200xActionStatus?.('이미지 선택 실패: '+String(error?.message||error));}
+        });
         file.addEventListener("change",()=>{
           const selected=file.files?.[0];
           if(!selected)return;
@@ -471,7 +484,17 @@ function renderMultiEditor(item,root){
     chooseImage.textContent='상태 '+(selected+1)+' 이미지 선택…';
     const imageInput=document.createElement('input');imageInput.type='file';
     imageInput.accept='image/png,image/jpeg,image/webp,image/gif';imageInput.hidden=true;
-    chooseImage.addEventListener('click',()=>imageInput.click());
+    chooseImage.addEventListener('click',async()=>{
+      if(!window.deckBridge?.chooseImportFile){imageInput.click();return;}
+      try{
+        const chosen=await chooseNativeImage('image');
+        if(!chosen)return;
+        const image=await rasterizeIcon(chosen.dataUrl);
+        if(image.length>=1024*1024)throw new Error('변환된 PNG가 1MB를 넘습니다.');
+        visual.icon={kind:'file',value:image};
+        persist();renderGrid();refreshSelectedVisual();
+      }catch(error){window.d200xActionStatus?.('상태 이미지 선택 실패: '+String(error?.message||error));}
+    });
     imageInput.addEventListener('change',async()=>{
       const file=imageInput.files?.[0];imageInput.value='';
       if(!file)return;
@@ -1939,7 +1962,14 @@ function bindIconControls(item){
       dropdown.hidden=true;toggle.setAttribute("aria-expanded","false");
       const cmd=button.dataset.iconCommand;
       if(cmd==="library")openIconLibrary(item);
-      else if(cmd==="file"){fileIconTarget=item;$("custom-icon-file").click();}
+      else if(cmd==="file"){
+        if(window.deckBridge?.chooseImportFile){
+          chooseNativeImage('image').then(async chosen=>{
+            if(!chosen)return;
+            applyIconData(item,await rasterizeIcon(chosen.dataUrl));
+          }).catch(error=>window.d200xActionStatus?.('아이콘 선택 실패: '+String(error?.message||error)));
+        }else{fileIconTarget=item;$("custom-icon-file").click();}
+      }
       else if(cmd==="paste")pasteIcon(item);
       else if(cmd==="new")openIconMaker(item);
     });
@@ -1983,8 +2013,8 @@ function bindSidebarHeader(){
     add('전체 프로필·설정 JSON 가져오기',()=>{
       const picker=document.createElement('input');
       picker.type='file';picker.accept='.json,application/json';
-      picker.addEventListener('change',async()=>{
-        const file=picker.files?.[0];if(!file)return;
+      const restoreBackup=async file=>{
+        if(!file)return;
         try{
           if(file.size>20*1024*1024)throw new Error('백업 파일이 20MB를 초과합니다.');
           const parsed=JSON.parse(await file.text());
@@ -2014,8 +2044,18 @@ function bindSidebarHeader(){
           controlGesture='down';render();renderLibrary();window.scheduleDeckSync?.();
           window.d200xActionStatus?.('전체 프로필 가져오기 완료 (이전 설정 안전 백업 보관)');
         }catch(error){alert('프로필 가져오기 실패: '+String(error?.message||error));}
-      },{once:true});
-      picker.click();
+      };
+      if(window.deckBridge?.chooseImportFile){
+        window.deckBridge.chooseImportFile('profile').then(chosen=>{
+          if(chosen)restoreBackup({
+            name:chosen.name,size:new Blob([chosen.text]).size,
+            text:async()=>chosen.text
+          });
+        }).catch(error=>window.d200xActionStatus?.('프로필 파일 선택 실패: '+String(error?.message||error)));
+      }else{
+        picker.addEventListener('change',()=>restoreBackup(picker.files?.[0]),{once:true});
+        picker.click();
+      }
     });
     add('＋ 새 프로필',()=>{
       const name=prompt('새 프로필 이름','새 프로필');
