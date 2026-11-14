@@ -736,6 +736,20 @@ function executeHardwareAction(event,preview=false){
     );
     return 'Windows 음소거 전환 요청';
   }
+  if(outcome.kind==='media-control'){
+    if(!window.deckBridge?.mediaControl)return 'Windows 실행 환경에서만 사용할 수 있습니다.';
+    window.deckBridge.mediaControl(outcome.operation).then(
+      ()=>window.d200xActionStatus?.('미디어 키 전송 완료'),
+      error=>window.d200xActionStatus?.('미디어 실행 실패: '+String(error?.message||error)));
+    return '미디어 제어 요청';
+  }
+  if(outcome.kind==='windows-hotkey'){
+    if(!window.deckBridge?.sendHotkey)return 'Windows 실행 환경에서만 사용할 수 있습니다.';
+    window.deckBridge.sendHotkey(outcome.keys).then(
+      ()=>window.d200xActionStatus?.('단축키 전송 완료'),
+      error=>window.d200xActionStatus?.('단축키 실행 실패: '+String(error?.message||error)));
+    return '단축키 실행 요청';
+  }
   if(outcome.kind==='open-local-path'){
     if(!window.deckBridge?.openLocalPath)return 'Windows 실행 환경에서만 사용할 수 있습니다.';
     window.deckBridge.openLocalPath(outcome.path,outcome.target).then(
