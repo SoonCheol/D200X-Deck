@@ -262,16 +262,16 @@
   function currentActions(state){
     let actions=state.pages?.[state.page];
     if(!actions)return null;
-    for(const index of state.folderPath||[]){
-      actions=folderContents(actions[index]);
+    for(const [depth,index] of (state.folderPath||[]).entries()){
+      actions=folderContents(actions[index]||(depth===0?state.pinned?.[index]:null));
       if(!actions)return null;
     }
     return actions;
   }
   function activeFolder(state){
     let actions=state.pages?.[state.page],folder=null;
-    for(const index of state.folderPath||[]){
-      folder=actions?.[index];
+    for(const [depth,index] of (state.folderPath||[]).entries()){
+      folder=actions?.[index]||(depth===0?state.pinned?.[index]:null);
       if(folder?.type!=='folder')return null;
       actions=folderContents(folder);
     }
@@ -279,7 +279,7 @@
   }
   function enterFolder(state,index){
     if(!Number.isInteger(index)||index<0||index>=14||(state.folderPath||[]).length>=8)return false;
-    const action=currentActions(state)?.[index];
+    const action=visibleActions(state)?.[index];
     if(action?.type!=='folder')return false;
     state.folderPath=[...(state.folderPath||[]),index];state.selected=null;
     return true;
