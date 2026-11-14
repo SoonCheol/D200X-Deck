@@ -121,6 +121,47 @@
     });
   }
 
+  function drawWidePanel(ctx,width,height,mode){
+    const now=new Date();
+    const text=(value,x,y,font,align='center',color='#f2f5fa')=>{
+      ctx.font=font;ctx.textAlign=align;ctx.textBaseline='middle';ctx.fillStyle=color;ctx.fillText(value,x,y);
+    };
+    ctx.fillStyle='#111823';ctx.fillRect(0,0,width,height);
+    const w=width,h=height;
+    if(mode==='clock'){
+      const radius=69,cx=88,cy=h/2;
+      ctx.strokeStyle='#7e93ab';ctx.lineWidth=3;ctx.beginPath();ctx.arc(cx,cy,radius,0,Math.PI*2);ctx.stroke();
+      for(let i=0;i<12;i++){
+        const angle=i*Math.PI/6-Math.PI/2;
+        const x1=cx+Math.cos(angle)*(radius-12),y1=cy+Math.sin(angle)*(radius-12);
+        const x2=cx+Math.cos(angle)*(radius-5),y2=cy+Math.sin(angle)*(radius-5);
+        ctx.beginPath();ctx.moveTo(x1,y1);ctx.lineTo(x2,y2);ctx.stroke();
+      }
+      const hands=[[((now.getHours()%12)+now.getMinutes()/60)*Math.PI/6,39,5],
+        [(now.getMinutes()+now.getSeconds()/60)*Math.PI/30,56,3],
+        [now.getSeconds()*Math.PI/30,60,1]];
+      hands.forEach(([angle,len,lineWidth])=>{
+        const a=angle-Math.PI/2;ctx.lineWidth=lineWidth;
+        ctx.strokeStyle=lineWidth===1?'#fa7272':'#e8f1fa';
+        ctx.beginPath();ctx.moveTo(cx,cy);
+        ctx.lineTo(cx+Math.cos(a)*len,cy+Math.sin(a)*len);ctx.stroke();
+      });
+      const hh=String(now.getHours()).padStart(2,'0'),mm=String(now.getMinutes()).padStart(2,'0');
+      text(hh+':'+mm,278,82,'bold 49px "Segoe UI",sans-serif');
+      text(now.toLocaleDateString('ko-KR',{month:'2-digit',day:'2-digit',weekday:'short'}),278,134,'22px "Malgun Gothic",sans-serif','center','#aebbd0');
+    }else if(mode==='datetime'){
+      const date=now.toLocaleDateString('ko-KR',{year:'numeric',month:'long',day:'numeric'});
+      const day=now.toLocaleDateString('ko-KR',{weekday:'long'});
+      text(date,w/2,43,'bold 27px "Malgun Gothic",sans-serif');
+      text(now.toLocaleTimeString('ko-KR',{hour12:false,hour:'2-digit',minute:'2-digit'}),w/2,107,'bold 60px "Segoe UI",sans-serif');
+      text(day,w/2,167,'24px "Malgun Gothic",sans-serif','center','#aebbd0');
+    }else{
+      text('CPU',76,55,'bold 25px "Segoe UI",sans-serif');
+      text('RAM',196,55,'bold 25px "Segoe UI",sans-serif');
+      text('GPU',316,55,'bold 25px "Segoe UI",sans-serif');
+      text('장치에서 실시간 표시',w/2,125,'21px "Malgun Gothic",sans-serif','center','#aebbd0');
+    }
+  }
   async function drawSlot(item, index) {
     const wide = index === 13;
     const width = wide ? 392 : 196;
@@ -131,6 +172,10 @@
     const ctx = canvas.getContext('2d');
     ctx.fillStyle = '#08090c';
     ctx.fillRect(0, 0, width, height);
+    if(item?.type==='wide-display'){
+      drawWidePanel(ctx,width,height,window.D200XWideModeName?.()||'clock');
+      return {index,png:canvas.toDataURL('image/png').split(',')[1]};
+    }
     if (item) {
       const fallback = ACTIONS.get(item.type)?.icon || '•';
       if (item.icon?.kind === 'file' && typeof item.icon.value === 'string') {
@@ -212,7 +257,7 @@
             : DeckCore.displaySwitchAction(item),index
       )));
       if (serial !== renderSerial) return;
-      bridge.syncPage(images);
+      bridge.syncPage(images,window.getD200XWideMode?.()||'blank');
     } catch (error) {
       text('D200X 아이콘 생성 오류: ' + String(error?.message || error));
     }
@@ -225,4 +270,10 @@
   window.scheduleDeckSync = schedule;
   bridge.ready();
   schedule();
+  // Refresh the date/time image without polling or overwriting unrelated keys.
+  setInterval(()=>{
+    if(window.getD200XWideMode?.()==='blank'&&window.D200XWideModeName?.()==='datetime'){
+      window.renderGridWideClock?.();schedule();
+    }
+  },60_000);
 })();
