@@ -259,3 +259,7 @@
 .multi-switch-tabs{display:flex;gap:8px;margin-bottom:12px}
 .multi-switch-tabs button{border:1px solid #666;border-radius:5px;background:#414141;padding:7px 12px}
 .multi-switch-tabs button[aria-pressed="true"]{background:#345579;border-color:#8ab5d8;color:#fff}
+
+.multi-switch-visuals{display:grid;grid-template-columns:minmax(85px,auto) minmax(0,1fr);gap:7px;align-items:center;margin:8px 0 12px}
+.multi-switch-visuals input{min-width:0;background:#363636;color:#eee;border:1px solid #666;border-radius:4px;padding:6px}
+.multi-switch-visuals .hint{grid-column:1/-1}
