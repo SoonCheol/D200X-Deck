@@ -118,6 +118,7 @@ class D200XTransport extends EventEmitter {
   async flush() {
     if (this.inFlight || !this.deck.connected || !this.pending || this.closed) return;
     this.inFlight = true;
+    let failed = false;
     try {
       while (this.pending && this.deck.connected && !this.closed) {
         const images = this.pending;
@@ -135,7 +136,11 @@ class D200XTransport extends EventEmitter {
           this.log('page-sent', String(images.length) + ' slots');
           this.emit('synced', { slots: images.length });
         } catch (error) {
-          this.pending = this.currentImages;
+          failed = true;
+          // Keep the page in currentImages for the next reconnect or edit.
+          // If still connected, leave the queue idle rather than retrying
+          // an invalid ZIP forever or blocking keep-alives.
+          this.pending = this.deck.connected ? null : this.currentImages;
           this.log('write-failure', 'Page transfer failed');
           this.emit('error-message', String(error?.message || error));
           // Avoid immediate retry loops for errors unrelated to unplugging.
@@ -144,11 +149,9 @@ class D200XTransport extends EventEmitter {
       }
     } finally {
       this.inFlight = false;
-      if (this.pending && this.deck.connected && !this.closed) {
-        // A new page may arrive while compression was underway. Reenter only
-        // for new edits; a write failure must wait for a real reconnect/edit.
-        // If the most recent write failed, flush will be retried by schedule().
-      }
+      if (!failed && this.pending && this.deck.connected && !this.closed)
+        queueMicrotask(() => this.flush().catch(error =>
+          this.emit('error-message', String(error?.message || error))));
     }
   }
 
