@@ -14,7 +14,7 @@
   ];
   // New D200X actions stay separate from the original 24.
   const D200X_ACTION_IDS=['system-volume','system-mute','system-scroll','edit-history','window-switch','desktop-switch','device-brightness','system-zoom',
-    'screenshot','clipboard-edit','window-state','window-monitor','explorer-open',
+    'ha-toggle','screenshot','clipboard-edit','window-state','window-monitor','explorer-open',
     'brush-size','timeline-step','timeline-zoom','file-open','folder-shortcut'];
   const DEFAULTS={
     'audio-play':{file:'',mode:'play-stop',fade:'none',fadeDuration:2,volume:50,output:'default'},
@@ -32,6 +32,7 @@
     'edit-history':{operation:'undo',step:1},
     'window-switch':{direction:'next'},'desktop-switch':{direction:'next'},
     'device-brightness':{direction:'up',step:5},'system-zoom':{operation:'in',step:1},
+    'ha-toggle':{entityId:''},
     screenshot:{},'clipboard-edit':{operation:'copy'},
     'window-state':{operation:'maximize'},'window-monitor':{direction:'right'},
     'explorer-open':{},'brush-size':{direction:'increase'},
@@ -526,6 +527,7 @@
   function planAction(action,page,count){
     if(action?.type==='folder')return {kind:'folder-enter'};
     if(!action||!validId(action.type))return {kind:'unsupported',message:'알 수 없는 동작'};
+    if(action.type==='ha-toggle')return {kind:'ha-toggle',entityId:String(action.settings?.entityId||'')};
     if(action.type==='system-mute')return {kind:'mute'};
     if(action.type==='sleep')return {kind:'device-sleep'};
     if(action.type==='indicator')return {kind:'display-only'};
