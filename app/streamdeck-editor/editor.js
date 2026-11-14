@@ -167,7 +167,7 @@ function displayItem(item,index){
   return {...item,icon:{kind:"glyph",glyph:String((DeckCore.activeFolder(state)?.pageIndex??state.page)+1)}};
 }
 // Share actual key visuals (including timer countdown) with the USB renderer.
-window.getD200XDisplayItem=(item,index)=>displayItem(DeckCore.visibleActions(state)[index]||item,index);
+window.getD200XDisplayItem=(item,index)=>index===13&&wideDisplayAvailable()?wideVisual():displayItem(DeckCore.visibleActions(state)[index]||item,index);
 function iconNode(item,defaultGlyph){
   if(item?.icon?.kind==="file"&&typeof item.icon.value==="string"){
     const image=document.createElement("img");image.className="icon-image";image.src=item.icon.value;image.alt="";return image;
@@ -248,11 +248,67 @@ function controlDrop(index,id,gesture='down'){
   state.selected=index;controlGesture=gesture;
   persist();render();
 }
+const WIDE_LABELS={clock:'아날로그 + 디지털 시계',datetime:'날짜 · 시간 · 요일',stats:'CPU · RAM · GPU'};
+function wideDisplayAvailable(){
+  return !state.folderPath?.length&&!DeckCore.visibleActions(state)[13];
+}
+function wideVisual(){
+  return {type:'wide-display',title:WIDE_LABELS[state.wideDisplay?.current]||WIDE_LABELS.clock};
+}
+window.getD200XWideMode=()=>wideDisplayAvailable()
+  ?(state.wideDisplay?.current==='clock'?'clock':state.wideDisplay?.current==='stats'?'stats':'blank'):'blank';
+function renderWideInspector(){
+  const root=$('inspector');
+  root.replaceChildren();root.className='inspector';
+  const title=document.createElement('div');title.className='action-head';
+  const strong=document.createElement('strong');strong.textContent='가로 화면 표시 설정';
+  title.append(strong);root.append(title);
+  const instructions=document.createElement('p');instructions.className='hint';
+  instructions.textContent='체크한 화면만 버튼을 누를 때마다 순환합니다. 항목을 끌어서 순서를 변경하세요.';
+  root.append(instructions);
+  const list=document.createElement('div');list.className='wide-mode-list';
+  const cfg=state.wideDisplay=DeckCore.cleanWideDisplay(state.wideDisplay);
+  let moving=null;
+  for(const id of cfg.order){
+    const row=document.createElement('div');row.className='wide-mode-row';
+    row.draggable=true;row.dataset.mode=id;
+    const handle=document.createElement('span');handle.textContent='☰';handle.className='wide-mode-handle';
+    const input=document.createElement('input');input.type='checkbox';input.checked=cfg.enabled.includes(id);
+    input.setAttribute('aria-label',WIDE_LABELS[id]+' 표시');
+    input.addEventListener('change',()=>{
+      if(!input.checked&&cfg.enabled.length===1){input.checked=true;return;}
+      cfg.enabled=input.checked?Array.from(new Set([...cfg.enabled,id])):cfg.enabled.filter(v=>v!==id);
+      if(!cfg.enabled.includes(cfg.current))cfg.current=cfg.order.find(v=>cfg.enabled.includes(v));
+      persist();render();
+    });
+    const text=document.createElement('span');text.textContent=WIDE_LABELS[id];
+    const current=document.createElement('small');current.textContent=cfg.current===id?'현재 표시':'';
+    row.append(handle,input,text,current);
+    row.addEventListener('dragstart',event=>{moving=id;event.dataTransfer?.setData('text/plain',id);});
+    row.addEventListener('dragover',event=>{event.preventDefault();});
+    row.addEventListener('drop',event=>{
+      event.preventDefault();const source=moving;if(!source||source===id)return;
+      const order=cfg.order.filter(v=>v!==source);
+      order.splice(order.indexOf(id),0,source);
+      cfg.order=order;moving=null;persist();renderWideInspector();
+    });
+    row.addEventListener('dragend',()=>{moving=null;});
+    list.append(row);
+  }
+  root.append(list);
+  const notice=document.createElement('p');notice.className='hint';
+  notice.textContent='노브 정보 등 다른 원본 표시 방식은 동작 확인 전이므로 선택 목록에 포함하지 않았습니다.';
+  root.append(notice);
+  const reset=document.createElement('button');reset.type='button';
+  reset.className='wide-mode-reset';reset.textContent='기본 순서로 복원 (시계 → 날짜·시간·요일 → CPU·RAM·GPU)';
+  reset.addEventListener('click',()=>{state.wideDisplay=DeckCore.cleanWideDisplay(null);persist();render();});
+  root.append(reset);
+}
 function renderGrid(){
   const grid=$("key-grid");grid.replaceChildren();
   DeckCore.visibleActions(state).slice(0,KEY_COUNT).forEach((raw,i)=>{
     const folderBack=state.folderPath?.length>0&&i===13&&!raw;
-    const item=folderBack?{type:'folder-back',title:'뒤로',icon:{kind:'glyph',glyph:'↩'}}:raw;
+    const item=folderBack?{type:'folder-back',title:'뒤로',icon:{kind:'glyph',glyph:'↩'}}:(i===13&&!raw&&wideDisplayAvailable()?wideVisual():raw);
     const b=document.createElement("button");b.type="button";b.className="deck-key"+(i===13?" wide":"")+(state.selected===i?" selected":"");
     b.dataset.index=i;b.setAttribute("aria-label",`키 ${i+1}: ${keyName(item)||"비어 있음"}`);
     const visual=displayItem(item,i);
@@ -263,7 +319,7 @@ function renderGrid(){
     // must stay in fixed coordinates, independent of the title font size.
     if(item&&window.renderDeckKeyImage){
       window.renderDeckKeyImage(visual,i).then(png=>{
-        if(!b.isConnected||DeckCore.visibleActions(state)[i]!==item)return;
+        if(!b.isConnected||(item.type!=='wide-display'&&DeckCore.visibleActions(state)[i]!==item))return;
         const preview=document.createElement("img");
         preview.className="rendered-key-image";
         preview.alt="";
@@ -1253,6 +1309,7 @@ function renderInspector(){
     return;
   }
   const root=$("inspector");root.replaceChildren();const item=state.selected===null?null:DeckCore.visibleActions(state)[state.selected];
+  if(!item&&state.selected===13&&wideDisplayAvailable()){renderWideInspector();return;}
   if(!item){root.className="inspector empty";root.textContent=state.selected===null?"버튼을 선택하세요":"액션을 끌어 이 키에 놓으세요";return;}
   root.className="inspector";const action=ACTIONS.get(item.type);const fields=actionFields(item);
   root.innerHTML=`<div class="action-head"><strong>${escapeHtml(action?.category)}: ${escapeHtml(action?.label)}</strong><button id="delete-action" title="액션 삭제" type="button">×</button></div>
@@ -1778,6 +1835,12 @@ function runActionPreview(gesture='down'){
   window.d200xActionStatus?.(result||'등록된 동작이 없어 실행하지 않았습니다.');
 }
 function executeHardwareAction(event,preview=false){
+  if(Number(event?.index)===13&&Number(event?.kind)===1&&
+    event.pressed===true&&wideDisplayAvailable()){
+    const mode=DeckCore.cycleWideDisplay(state);
+    persist();render();
+    return '가로 화면 전환: '+WIDE_LABELS[mode];
+  }
   const resolved=DeckCore.resolveHardwareEvent(state,event);
   if(!resolved)return null;
   const index=resolved.index,offset=index-14;
