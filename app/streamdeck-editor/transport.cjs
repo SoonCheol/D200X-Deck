@@ -24,6 +24,7 @@ class D200XTransport extends EventEmitter {
     this.inFlight = false;
     this.pending = null;
     this.currentImages = null;
+    this.wideMode = 'blank';
     this.closed = false;
     this.wasConnected = false;
     this.lastWriteAt = 0;
@@ -101,6 +102,8 @@ class D200XTransport extends EventEmitter {
       return;
     }
     if (this.sleeping || this.inFlight || this.pending || this.now() - this.lastWriteAt < KEEPALIVE_MS) return;
+    // Native clock and stats modes have their own firmware update timer.
+    if (this.brightness === null && this.wideMode !== 'blank') return;
     try {
       // Re-state known brightness (as OpenDeck does) without redrawing keys.
       // When no brightness has ever been observed, use the existing image-mode
@@ -164,8 +167,10 @@ class D200XTransport extends EventEmitter {
     return true;
   }
 
-  schedule(images) {
+  schedule(images,wideMode='blank') {
+    if(!['blank','clock','stats'].includes(wideMode))return;
     if (this.closed) return;
+    this.wideMode=wideMode;
     this.currentImages = images;
     this.pending = images;
     this.flush().catch(error => this.emit('error-message', String(error?.message || error)));
@@ -182,11 +187,11 @@ class D200XTransport extends EventEmitter {
         const generation = this.session;
         let zip;
         try {
-          zip = await this.buildPage(images, 'blank');
+          zip = await this.buildPage(images, this.wideMode);
           if (this.pending || this.closed || !this.deck.connected || generation !== this.session) continue;
           // Synchronous multi-report write: the keep-alive timer cannot
           // interleave its HID reports inside a page transfer.
-          this.deck.setWideMode('blank');
+          this.deck.setWideMode(this.wideMode);
           this.deck.pushPage(zip);
           this.lastWriteAt = this.now();
           this.log('page-sent', String(images.length) + ' slots');
