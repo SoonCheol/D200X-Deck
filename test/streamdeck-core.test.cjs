@@ -173,6 +173,33 @@ test('multi runner awaits each action, delay, and ordered completion',async()=>{
   assert.deepEqual(sequence,['hotkey:start','hotkey:done','delay:25','media:start','media:done']);
 });
 
+test('Random Action plans actual hardware presses and selects exactly one candidate',async()=>{
+  const a=core.cleanAction({type:'random',children:[
+    {type:'hotkey',settings:{keys:'Ctrl+A'}},
+    {type:'media',settings:{op:'playpause'}},
+    {type:'text',settings:{body:'가'}}
+  ]});
+  const state=core.migrateState({pages:[[a]]});
+  assert.deepEqual(core.planHardwareEvent(state,{kind:1,index:0,pressed:true}).outcome,
+    {kind:'composite',type:'random'});
+  for(const [r,type] of [[0,'hotkey'],[0.33,'hotkey'],[0.34,'media'],[0.7,'text'],[0.9999,'text']]){
+    let selected=[];
+    const result=await core.runComposite(a,{random:r,execute:async step=>selected.push(step.type),wait:async()=>{}});
+    assert.equal(result,1);
+    assert.deepEqual(selected,[type]);
+  }
+  assert.equal(core.ACTION_IDS.length,24);
+});
+
+test('Random Action rejects missing candidates and Delay without running anything',async()=>{
+  let called=0;
+  const executor={execute:async()=>{called++},wait:async()=>{called++}};
+  await assert.rejects(core.runComposite(core.createAction('random'),{random:0.5,...executor}),/후보/);
+  const delayed=core.cleanAction({type:'random',children:[{type:'media'},{kind:'delay',ms:100}]});
+  await assert.rejects(core.runComposite(delayed,{random:0.1,...executor}),/지연/);
+  assert.equal(called,0);
+});
+
 test('multi switch dispatches both independent sequences and awaits the selected state',async()=>{
   const sw=core.cleanAction({type:'multi-switch',
     sequences:[
