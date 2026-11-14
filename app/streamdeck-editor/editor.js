@@ -1734,14 +1734,42 @@ async function importIconPackIntoLibrary(){
     window.d200xActionStatus?.('아이콘팩 등록 실패: '+String(error?.message||error));
   }finally{button.disabled=false;}
 }
+// Every saved action keeps its applied PNG and the originating pack ID.
+// Traversing the complete state includes inactive profiles, nested folders,
+// pinned actions and knob bindings, without touching unrelated settings.
+function visitIconReferences(root,packId,reset=false){
+  const seen=new WeakSet();
+  let count=0;
+  function walk(value){
+    if(!value||typeof value!=='object'||seen.has(value))return;
+    seen.add(value);
+    if(value.icon?.kind==='file'&&value.icon.packId===packId){
+      count++;
+      if(reset)delete value.icon; // built-in artwork/glyph becomes the default
+    }
+    for(const [key,child] of Object.entries(value)){
+      if(key==='icon')continue;
+      if(child&&typeof child==='object')walk(child);
+    }
+  }
+  walk(root);
+  return count;
+}
 async function removeIconPackFromLibrary(pack){
-  if(pack.source==='bundled'||pack.id==='bundled-simple-gray-tones-1.0.1')return;
-  if(!window.deckBridge?.removeIconPack)return;
-  if(!window.confirm('아이콘팩 '+pack.name+'을(를) 라이브러리에서 제거할까요?\n이미 버튼에 적용된 아이콘은 유지됩니다.'))return;
+  if(pack.source==='bundled'||!window.deckBridge?.removeIconPack)return;
+  const assigned=visitIconReferences(state,pack.id,false);
+  const warning='아이콘팩 "'+pack.name+'"을(를) 삭제하시겠습니까?\n'+
+    (assigned?'이 팩을 사용 중인 버튼/상태 아이콘 '+assigned+'개가 기본 아이콘으로 복구됩니다.\n':'')+
+    '아이콘팩은 라이브러리에서 제거됩니다.\n계속하려면 확인을 누르세요.';
+  if(!window.confirm(warning))return;
   try{
     const removed=await window.deckBridge.removeIconPack(pack.id);
+    if(!removed){window.d200xActionStatus?.('등록된 아이콘팩을 찾을 수 없습니다.');return;}
+    const reset=visitIconReferences(state,pack.id,true);
+    if(reset)persist();
+    render();
     await refreshImportedIconPacks();
-    window.d200xActionStatus?.(removed?'아이콘팩 제거 완료: '+pack.name:'등록된 아이콘팩을 찾을 수 없습니다.');
+    window.d200xActionStatus?.('아이콘팩 제거: '+pack.name+' · 기본 아이콘 복구 '+reset+'개');
   }catch(error){
     window.d200xActionStatus?.('아이콘팩 제거 실패: '+String(error?.message||error));
   }
