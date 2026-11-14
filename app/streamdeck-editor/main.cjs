@@ -213,7 +213,8 @@ const D200X_SHORTCUTS=Object.freeze({
   'window-monitor':{left:{held:[0x5B,0x10],key:0x25},right:{held:[0x5B,0x10],key:0x27}},
   'explorer-open':{open:{held:[0x5B],key:0x45}},
   'brush-size':{increase:{held:[],key:0xDD},decrease:{held:[],key:0xDB}},
-  'timeline-step':{next:{held:[],key:0x27},previous:{held:[],key:0x25}}
+  'timeline-step':{next:{held:[],key:0x27},previous:{held:[],key:0x25}},
+  'timeline-zoom':{in:{held:[0x11],key:0xBB},out:{held:[0x11],key:0xBD}}
 });
 ipcMain.handle('d200x:system-shortcut',async(event,args)=>{
   if(!window||event.sender!==window.webContents)throw new Error('허용되지 않은 호출입니다.');
