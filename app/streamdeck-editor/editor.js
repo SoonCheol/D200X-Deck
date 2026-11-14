@@ -1442,6 +1442,18 @@ function bindSidebarHeader(){
       const id=DeckCore.createProfile(state,name,true);
       if(id){DeckCore.switchProfile(state,id);persist();render();}
     });
+    const selectedProfile=state.profileNames.find(p=>p.id===state.profileId);
+    add('현재 프로필 프로그램 지정'+(selectedProfile?.appPath?' · '+selectedProfile.appPath.split(String.fromCharCode(92)).pop():''),async()=>{
+      if(!window.deckBridge?.choosePath)return window.d200xActionStatus?.('Windows EXE에서만 프로그램을 선택할 수 있습니다.');
+      try{
+        const path=await window.deckBridge.choosePath('app');
+        if(path&&DeckCore.setProfileApp(state,state.profileId,path)){persist();renderProfiles();}
+      }catch(error){window.d200xActionStatus?.('프로그램 선택 실패: '+String(error?.message||error));}
+    });
+    add((state.smartProfilesEnabled?'✓ ':'')+'Smart Profile 자동 전환',()=>{
+      state.smartProfilesEnabled=!state.smartProfilesEnabled;
+      persist();renderProfiles();
+    });
     add('현재 프로필 이름 변경',()=>{
       const name=prompt('새 이름',$("profile-name").textContent);
       if(name!==null&&DeckCore.renameProfile(state,state.profileId,name)){persist();render();}
@@ -1490,5 +1502,23 @@ $("icon-maker-save").addEventListener("click",()=>{
   closeIconMaker();
 });
 bindSidebarHeader();
+// Poll only when explicitly enabled. The native bridge refuses to identify
+// foreground programs while the editor is not minimized.
+let smartProfileBusy=false;
+setInterval(async()=>{
+  if(smartProfileBusy||!state.smartProfilesEnabled||runningMultiActions.size||
+    !state.profileNames.some(p=>p.appPath)||!window.deckBridge?.foregroundApp)return;
+  smartProfileBusy=true;
+  try{
+    const app=await window.deckBridge.foregroundApp();
+    const id=DeckCore.matchForegroundProfile(state,app);
+    if(id&&id!==state.profileId&&DeckCore.switchProfile(state,id)){
+      cancelFolderAutoExit();lastHardwareDown.clear();
+      persist();render();
+    }
+  }catch(error){
+    console.warn('Smart Profile 확인 실패',String(error?.message||error));
+  }finally{smartProfileBusy=false;}
+},4000);
 
 renderLibrary();render();
