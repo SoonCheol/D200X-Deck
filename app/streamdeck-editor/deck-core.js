@@ -271,6 +271,8 @@
     }
     if(action.type==='media')return {kind:'media-control',operation:action.settings?.op||'playpause'};
     if(action.type==='timer')return {kind:'timer',seconds:Math.max(1,Math.min(86400,Number(action.settings?.seconds)||30))};
+    if(action.type==='text')return {kind:'type-text',text:String(action.settings?.body||''),
+      enter:action.settings?.enter===true,mode:action.settings?.mode==='typing'?'typing':'clipboard'};
     if(action.type==='hotkey')return {kind:'windows-hotkey',keys:String(action.settings?.keys||'')};
     if(action.type==='hotkey-switch')return {kind:'windows-hotkey-switch',
       first:String(action.settings?.first||''),second:String(action.settings?.second||'')};
