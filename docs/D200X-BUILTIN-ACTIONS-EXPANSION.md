@@ -6,6 +6,12 @@
 > 선행 문서: [D200X-STREAMDECK-ROADMAP.md](D200X-STREAMDECK-ROADMAP.md), `../AGENTS.md`.
 > 작업 브랜치: `codex/streamdeck-761-clean-editor`. GitHub 원격 커밋/검증 근거가 없는 작업은 완료라고 쓰지 않는다.
 
+## 개발 진행 — 공통 복합 모델과 Multi 첫 단계 (2026-11-14)
+
+- `deck-core.js`의 `compositeModel/planComposite/runComposite`와 `cleanCompositeEntry`로 **Multi·Switch·Random·Key Logic을 분리한 데이터 계약** 추가. 구형 단일 `children[]` 보존·Delay 단계 변환·중첩 거부 및 순서/취소 단위 테스트.
+- `editor.js`에서 **Multi 액션 내부 목록 편집**(추가/드래그/재정렬/삭제/지연/하위 설정) 및 **실제 입력/미리 실행 경로**에 순차 실행기 연결. 지원 하위 액션은 제한된 목록이며, 나머지 구현/원본 GUI 검증은 보류.
+- **완료 판정 금지:** 원본 UI와 실제 Windows/D200X 작동 검증 없음, 기본 24개 전체 완료 아님, Switch/Random/Logic 실제 실행 없음. 기존 프로필/폴더 및 플러그인 개발 미착수; EXE 빌드 보류.
+
 ## 최신 개발 우선순위: 기본 24개 액션 먼저 (2026-11-14)
 
 - 기존 D200X 추가 액션 후보/P0~P2 기록은 보존하되 **오른쪽 패널의 원본 기본 액션 완성**이 이번 단계의 최우선이다.
