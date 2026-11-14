@@ -705,10 +705,8 @@ const lastHardwareDown=new Map();
 function runActionPreview(gesture='down'){
   const index=state.selected;
   if(!Number.isInteger(index)||index<0||index>18)return;
-  const deviceIndex=index<14?index:index+1;
-  const isKnob=index>=16;
-  const stateValue=isKnob?({down:1,left:2,right:3}[gesture]):1;
-  const event={kind:isKnob?2:1,index:deviceIndex,state:stateValue,pressed:gesture==='down'};
+  const event=DeckCore.previewHardwareEvent(index,gesture);
+  if(!event)return;
   const result=executeHardwareAction(event,true);
   window.d200xActionStatus?.(result||'등록된 동작이 없어 실행하지 않았습니다.');
 }
