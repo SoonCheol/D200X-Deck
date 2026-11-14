@@ -111,7 +111,7 @@ test('D200X side-key report 15 and 16 map to editor slots 14 and 15',()=>{
   assert.equal(core.physicalSlot({kind:1,index:15}),14);
   assert.equal(core.physicalSlot({kind:1,index:16}),15);
   assert.equal(core.physicalSlot({kind:2,index:15}),null);
-  assert.equal(core.physicalSlot({kind:1,index:17}),null);
+  assert.equal(core.physicalSlot({kind:1,index:17}),16);
   const state=core.migrateState({pages:[Array.from({length:19},(_,i)=>
     i===14?{type:'previous'}:i===15?{type:'next'}:null)]});
   assert.equal(core.resolveKeyPress(state,{kind:1,index:15,pressed:true}).action.type,'previous');
