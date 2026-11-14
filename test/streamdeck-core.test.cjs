@@ -349,7 +349,7 @@ test('page-rotation knob persists across pages where that knob is empty',()=>{
   core.changeControlScope(state,16,'page');
   const local=core.controlBinding(state,16);
   local.mode='trigger';local.right=core.createAction('timer');
-  assert.equal(core.planHardwareEvent(state,{kind:2,index:17,state:3}).outcome.kind,'unsupported');
+  assert.equal(core.planHardwareEvent(state,{kind:2,index:17,state:3}).outcome.kind,'timer');
 });
 
 test('control gesture assignments, scope and stack are persisted independently',()=>{
