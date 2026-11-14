@@ -333,7 +333,7 @@ let active=null;
 function actionFields(item){
   active=item;
   switch(item.type){
-    case "audio-play":return pathPicker("file","파일")+select("mode","동작",[["play-stop","재생 / 정지"],["overlap","재생 / 오버랩"],["restart","재생 / 재시작"],["loop-stop","반복 / 정지"]])+select("fade","페이드",[["none","페이드 없음"],["in","페이드 인"],["out","페이드 아웃"],["in-out","페이드 인 앤 아웃"]])+`<div class="field"><label for="s-volume">음량</label><div class="compound"><input id="s-volume" type="range" min="0" max="100" data-field="volume" value="${valueOf(item,"volume",50)}"><output id="volume-display">${valueOf(item,"volume",50)}</output></div></div>`+select("output","출력",[["default","기본"]])+`<div class="field"><span></span><span class="hint">출력 장치 전체 목록·실제 재생 엔진은 아직 미연결</span></div>`;
+    case "audio-play":return pathPicker("file","파일")+select("mode","동작",[["play-stop","재생 / 정지"],["overlap","재생 / 오버랩"],["restart","재생 / 재시작"],["loop-stop","반복 / 정지"]])+select("fade","페이드",[["none","페이드 없음"],["in","페이드 인"],["out","페이드 아웃"],["in-out","페이드 인 앤 아웃"]])+`<div class="field"><label for="s-volume">음량</label><div class="compound"><input id="s-volume" type="range" min="0" max="100" data-field="volume" value="${valueOf(item,"volume",50)}"><output id="volume-display">${valueOf(item,"volume",50)}</output></div></div>`+select("output","출력",[["default","기본"]])+`<div class="field"><span></span><span class="hint">연결된 출력 장치를 선택할 수 있습니다. 장치 전환은 실행 시 적용됩니다.</span></div>`;
     case "audio-stop": case "previous": case "next": case "indicator":return "";
     case "timer":return `<div class="field"><label for="s-seconds">지속</label><div class="compound"><input type="number" min="1" id="s-seconds" data-field="seconds" value="${valueOf(item,"seconds",30)}"><span>초</span></div></div>`+select("sound","사운드",[["none","없음"],["connect","접속"],["disconnect","접속 끊김"],["release","접속 해제"],["find","찾기"],["other","기타"]]);
     case "brightness":return select("mode","동작",[["up","밝게"],["down","어둡게"],["max","최대"],["high","높음"],["medium","중간"],["low","낮음"],["min","최소"]]);
@@ -929,6 +929,21 @@ function renderControlInspector(){
   }
   root.append(testBar);
 }
+async function populateAudioOutputs(select,item){
+  if(!select||!navigator.mediaDevices?.enumerateDevices)return;
+  try{
+    const outputs=(await navigator.mediaDevices.enumerateDevices()).filter(device=>device.kind==='audiooutput');
+    if(!select.isConnected)return;
+    select.replaceChildren(new Option('기본 출력 장치','default'));
+    for(const [index,device] of outputs.entries()){
+      if(device.deviceId==='default')continue;
+      select.add(new Option(device.label||'오디오 출력 '+(index+1),device.deviceId));
+    }
+    if(item.settings?.output&&!Array.from(select.options).some(option=>option.value===item.settings.output))
+      select.add(new Option('이전에 선택한 출력 장치 (연결 안 됨)',item.settings.output));
+    select.value=item.settings?.output||'default';
+  }catch(error){console.warn('출력 장치 목록 조회 실패',String(error?.message||error));}
+}
 function renderInspector(){
   inspectorListener.abort();inspectorListener=new AbortController();
   if(state.selected!==null&&state.selected>=14){
@@ -997,6 +1012,10 @@ function renderInspector(){
   refreshTitlePreview(item);
   $("delete-action").addEventListener("click",()=>removeSlotAction(state.selected));
   $("key-title").addEventListener("input",ev=>{item.title=ev.target.value;persist();renderGrid();refreshTitlePreview(item);});
+  if(item.type==='audio-play'){
+    const select=root.querySelector('[data-field="output"]');
+    populateAudioOutputs(select,item);
+  }
   root.querySelectorAll("[data-path-picker]").forEach(button=>{
     button.addEventListener("click",async()=>{
       if(!window.deckBridge?.choosePath){
