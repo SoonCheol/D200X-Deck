@@ -71,8 +71,10 @@
       /^data:image\/png;base64,[A-Za-z0-9+/]+=*$/.test(value.icon.value)&&value.icon.value.length<1024*1024)
       base.icon={kind:'file',value:value.icon.value};
     // Preserve known child structure but do not execute untrusted or unknown actions.
-    if(Array.isArray(value.children))base.children=value.children.slice(0,100)
-      .map(child=>cleanCompositeEntry(child)).filter(Boolean);
+    if(Array.isArray(value.children))base.children=value.children.slice(0,value.type==='folder'?14:100)
+      .map(child=>value.type==='folder'?cleanAction(child):cleanCompositeEntry(child));
+    if(value.type!=='folder')base.children=base.children.filter(Boolean);
+    // Folder positions (including empty holes) must survive reloading.
     // Multi Action Switch stores two independent sequences. Older profiles only
     // had children[]: leave them untouched rather than guessing the state.
     if(value.type==='multi-switch'){
@@ -230,8 +232,35 @@
     return true;
   }
   function blankPage(){return Array.from({length:19},()=>null);}
+  function folderContents(action){
+    if(!action||action.type!=='folder')return null;
+    if(!Array.isArray(action.children))action.children=[];
+    while(action.children.length<14)action.children.push(null);
+    return action.children;
+  }
+  function currentActions(state){
+    let actions=state.pages?.[state.page];
+    if(!actions)return null;
+    for(const index of state.folderPath||[]){
+      actions=folderContents(actions[index]);
+      if(!actions)return null;
+    }
+    return actions;
+  }
+  function enterFolder(state,index){
+    if(!Number.isInteger(index)||index<0||index>=14||(state.folderPath||[]).length>=8)return false;
+    const action=currentActions(state)?.[index];
+    if(action?.type!=='folder')return false;
+    state.folderPath=[...(state.folderPath||[]),index];state.selected=null;
+    return true;
+  }
+  function exitFolder(state){
+    if(!(state.folderPath||[]).length)return false;
+    state.folderPath.pop();state.selected=null;return true;
+  }
+
   function migrateState(value){
-    const state={pages:[blankPage()],page:0,selected:null,controls:emptyControls(1)};
+    const state={pages:[blankPage()],page:0,selected:null,controls:emptyControls(1),folderPath:[]};
     if(!value||typeof value!=='object'||!Array.isArray(value.pages)||!value.pages.length)return state;
     state.pages=value.pages.slice(0,128).map(raw=>{
       const page=blankPage();
@@ -273,6 +302,13 @@
         }
       }
     }
+    state.folderPath=[];
+    if(Array.isArray(value.folderPath)){
+      for(const entry of value.folderPath.slice(0,8)){
+        if(!Number.isInteger(entry)||entry<0||entry>=14||currentActions(state)?.[entry]?.type!=='folder')break;
+        state.folderPath.push(entry);
+      }
+    }
     return state;
   }
   // Hardware indices: 0..13 screen keys; 15/16 physical buttons;
@@ -312,7 +348,7 @@
     if(index===null||!gesture)return null;
     const knob=index>=16;
     const binding=index>=14?controlBinding(state,index):null;
-    const action=index<14?state.pages[state.page]?.[index]:(binding?.down||null);
+    const action=index<14?currentActions(state)?.[index]:(binding?.down||null);
     return {index,gesture,knob,binding,
       action:action&&validId(action.type)?action:null};
   }
@@ -371,6 +407,7 @@
     return true;
   }
   function planAction(action,page,count){
+    if(action?.type==='folder')return {kind:'folder-enter'};
     if(!action||!validId(action.type))return {kind:'unsupported',message:'알 수 없는 동작'};
     if(action.type==='system-mute')return {kind:'mute'};
     if(action.type==='multi')return {kind:'composite',type:'multi'};
@@ -449,5 +486,5 @@
       url:action.settings?.url||'',mode:action.settings?.open||'default'};
     return {kind:'unsupported',message:'이 동작의 실행 기능은 아직 구현되지 않았습니다.'};
   }
-  return {ACTION_IDS,D200X_ACTION_IDS,DEFAULTS,TITLE,createAction,cleanAction,cleanCompositeEntry,displaySwitchAction,compositeModel,planComposite,runComposite,blankPage,migrateState,previewHardwareEvent,physicalSlot,hardwareGesture,resolveHardwareEvent,resolveKeyPress,planHardwareEvent,deletePage,planAction,emptyBinding,cleanBinding,ensureControls,controlBinding,changeControlScope};
+  return {ACTION_IDS,D200X_ACTION_IDS,DEFAULTS,TITLE,createAction,cleanAction,cleanCompositeEntry,displaySwitchAction,compositeModel,planComposite,runComposite,blankPage,folderContents,currentActions,enterFolder,exitFolder,migrateState,previewHardwareEvent,physicalSlot,hardwareGesture,resolveHardwareEvent,resolveKeyPress,planHardwareEvent,deletePage,planAction,emptyBinding,cleanBinding,ensureControls,controlBinding,changeControlScope};
 });
