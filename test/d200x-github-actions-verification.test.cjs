@@ -88,6 +88,6 @@ test('REGRESSION C1: legacy DIFFERENT page-specific physical bindings must survi
 test('existing 24 built-in action IDs retained, not falsely reported as executable',()=>{
   assert.equal(core.ACTION_IDS.length,24);
   assert.equal(new Set(core.ACTION_IDS).size,24);
-  assert.equal(core.planAction(core.createAction('hotkey'),0,3).kind,'unsupported');
-  assert.equal(core.planAction(core.createAction('media'),0,3).kind,'unsupported');
+  assert.equal(core.planAction(core.createAction('hotkey'),0,3).kind,'windows-hotkey');
+  assert.equal(core.planAction(core.createAction('media'),0,3).kind,'media-control');
 });
