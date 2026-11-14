@@ -244,3 +244,14 @@
 .control-stack-targets{display:flex;flex-wrap:wrap;gap:10px}
 .control-stack-targets label{display:flex;align-items:center;gap:4px}
 .control-stack-targets input{accent-color:#529eea}
+
+/* Multi Action editor stays inside the existing inspector, no layout redesign. */
+.multi-action-editor{margin-top:12px;border-top:1px solid #555;padding-top:12px;min-width:0}
+.multi-action-editor>strong{display:block;margin-bottom:4px}
+.multi-action-steps{display:flex;flex-direction:column;gap:7px;margin-top:10px;min-height:36px}
+.multi-action-row{display:flex;align-items:center;gap:6px;min-width:0}
+.multi-action-row span{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis}
+.multi-action-row button,.multi-action-toolbar button{background:#414141;border:1px solid #666;border-radius:4px;padding:5px 9px}
+.multi-action-toolbar{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
+.multi-action-toolbar select,.multi-action-steps>input{background:#363636;color:#eee;border:1px solid #555;border-radius:4px;padding:6px;max-width:100%}
+.multi-step-fields{padding:6px 0 9px 0;margin-bottom:8px;border-bottom:1px solid #414141}
