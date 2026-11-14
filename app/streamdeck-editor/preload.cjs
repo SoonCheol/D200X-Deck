@@ -16,6 +16,7 @@ contextBridge.exposeInMainWorld('deckBridge', Object.freeze({
   openLocalPath: (filePath,target) => ipcRenderer.invoke('d200x:open-local-path', {filePath,target}),
   mediaControl: operation => ipcRenderer.invoke('d200x:media-control', {operation}),
   sendHotkey: keys => ipcRenderer.invoke('d200x:send-hotkey', {keys}),
+  typeText: (text,enter=false) => ipcRenderer.invoke('d200x:type-text', {text,enter}),
   syncPage: images => ipcRenderer.send('d200x:sync-page', images),
   onStatus: callback => {
     if (typeof callback !== 'function') return;
