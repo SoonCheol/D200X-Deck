@@ -74,9 +74,6 @@ try {
       });
     return;
   }
-  if(process.platform!=='darwin'){
-    gpuBusy=false;if(callback)callback(gpu);return;
-  }
   execFile('ioreg', ['-r', '-d', '1', '-c', 'IOAccelerator'], { timeout: 3000 }, (err, stdout) => {
     gpuBusy = false;
     if (err || !stdout) {
