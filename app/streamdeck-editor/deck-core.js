@@ -263,6 +263,10 @@
   function planAction(action,page,count){
     if(!action||!validId(action.type))return {kind:'unsupported',message:'알 수 없는 동작'};
     if(action.type==='system-mute')return {kind:'mute'};
+    if(action.type==='media')return {kind:'media-control',operation:action.settings?.op||'playpause'};
+    if(action.type==='hotkey')return {kind:'windows-hotkey',keys:String(action.settings?.keys||'')};
+    if(action.type==='open')return {kind:'open-local-path',path:String(action.settings?.path||''),target:'auto'};
+    if(action.type==='open-app')return {kind:'open-local-path',path:String(action.settings?.app||''),target:'file'};
     if(action.type==='file-open'||action.type==='folder-shortcut')
       return {kind:'open-local-path',path:typeof action.settings?.path==='string'?action.settings.path:'',
         target:action.type==='file-open'?'file':'folder'};
