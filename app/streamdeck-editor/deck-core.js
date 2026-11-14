@@ -12,6 +12,8 @@
     'hotkey','open','open-app','close','text','media','folder',
     'profile','previous','next','goto','indicator'
   ];
+  // New D200X actions stay separate from the original 24.
+  const D200X_ACTION_IDS=['system-volume','system-mute'];
   const DEFAULTS={
     'audio-play':{file:'',mode:'play-stop',fade:'none',volume:50,output:'default'},
     'audio-stop':{},timer:{seconds:30,sound:'connect'},
@@ -22,13 +24,14 @@
     'open-app':{app:'',hold:'close',foreground:true},close:{path:'',force:false},
     text:{body:'',enter:false,mode:'clipboard'},media:{op:'playpause'},
     folder:{},profile:{profile:'next'},previous:{},next:{},
-    goto:{page:0},indicator:{}
+    goto:{page:0},indicator:{},
+    'system-volume':{direction:'up',step:1},'system-mute':{}
   };
   const TITLE={visible:true,align:'bottom',family:'default',size:12,
     bold:false,italic:false,underline:false,color:'#ffffff',
     outlineColor:'#000000',outlineWidth:'thin'};
   const copy=x=>JSON.parse(JSON.stringify(x));
-  const validId=id=>ACTION_IDS.includes(id);
+  const validId=id=>ACTION_IDS.includes(id)||D200X_ACTION_IDS.includes(id);
   function createAction(id){
     if(!validId(id))throw new Error('Unsupported built-in action: '+String(id));
     return {type:id,title:id==='folder'?'폴더':'',
@@ -237,6 +240,12 @@
   }
   function planAction(action,page,count){
     if(!action||!validId(action.type))return {kind:'unsupported',message:'알 수 없는 동작'};
+    if(action.type==='system-mute')return {kind:'mute'};
+    if(action.type==='system-volume'){
+      const direction=action.settings?.direction==='down'?-1:1;
+      const count=[1,2,5,10].includes(Number(action.settings?.step))?Number(action.settings.step):1;
+      return {kind:'adjust',target:'volume',direction,count};
+    }
     if(action.type==='previous')return {kind:'page',page:Math.max(0,page-1)};
     if(action.type==='next')return {kind:'page',page:Math.min(count-1,page+1)};
     if(action.type==='goto'){
@@ -249,5 +258,5 @@
       url:action.settings?.url||'',mode:action.settings?.open||'default'};
     return {kind:'unsupported',message:'이 동작의 실행 기능은 아직 구현되지 않았습니다.'};
   }
-  return {ACTION_IDS,DEFAULTS,TITLE,createAction,cleanAction,blankPage,migrateState,physicalSlot,hardwareGesture,resolveHardwareEvent,resolveKeyPress,planHardwareEvent,deletePage,planAction,emptyBinding,cleanBinding,ensureControls,controlBinding,changeControlScope};
+  return {ACTION_IDS,D200X_ACTION_IDS,DEFAULTS,TITLE,createAction,cleanAction,blankPage,migrateState,physicalSlot,hardwareGesture,resolveHardwareEvent,resolveKeyPress,planHardwareEvent,deletePage,planAction,emptyBinding,cleanBinding,ensureControls,controlBinding,changeControlScope};
 });
