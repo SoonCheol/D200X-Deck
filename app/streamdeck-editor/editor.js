@@ -2032,10 +2032,7 @@ function executeHardwareAction(event,preview=false){
     cancelFolderAutoExit();
     if(state.folderPath?.length){
       const folder=DeckCore.activeFolder(state);
-      const old=folder?.pageIndex||0;
-      const movement=resolved.action?.type==='previous'?-1:resolved.action?.type==='next'?1:
-        resolved.gesture==='left'?-1:resolved.gesture==='right'?1:0;
-      const next=movement?old+movement:outcome.page;
+      const next=outcome.page;
       if(!DeckCore.changeFolderPage(state,next))return '폴더 페이지 이동 실패';
       lastHardwareDown.clear();persist();render();
       return '폴더 페이지 '+((folder.pageIndex||0)+1)+' 표시';
