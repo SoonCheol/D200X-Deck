@@ -271,6 +271,8 @@
     }
     if(action.type==='media')return {kind:'media-control',operation:action.settings?.op||'playpause'};
     if(action.type==='hotkey')return {kind:'windows-hotkey',keys:String(action.settings?.keys||'')};
+    if(action.type==='hotkey-switch')return {kind:'windows-hotkey-switch',
+      first:String(action.settings?.first||''),second:String(action.settings?.second||'')};
     if(action.type==='open')return {kind:'open-local-path',path:String(action.settings?.path||''),target:'auto'};
     if(action.type==='open-app')return {kind:'open-local-path',path:String(action.settings?.app||''),target:'file'};
     if(action.type==='file-open'||action.type==='folder-shortcut')
