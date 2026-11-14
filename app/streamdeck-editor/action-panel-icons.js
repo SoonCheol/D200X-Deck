@@ -86,9 +86,25 @@ window.D200XPanelIcons=(()=>{
     }
     return img;
   }
+  // Shared catalogue artwork for the editor preview and the physical D200X PNG.
+  // User-assigned key icons always take priority over this default.
+  function artwork(id){
+    if(!Object.prototype.hasOwnProperty.call(paths,id))return null;
+    const override=config.overrides[id];
+    if(typeof override==="string"&&/^data:image\/(png|jpeg|webp|gif);base64,/.test(override))return override;
+    const accent=accents[Math.max(0,groups.findIndex(([,ids])=>ids.includes(id)))];
+    const background=config.theme==='color'
+      ?'<rect width="96" height="96" rx="24" fill="'+accent+'" fill-opacity=".19"/>'
+      :config.theme==='button'
+        ?'<rect x="1.5" y="1.5" width="93" height="93" rx="22" fill="#293443" stroke="#657083" stroke-width="3"/>'
+        :'';
+    const ink=config.theme==='color'?accent:config.theme==='button'?'#ffffff':'#d6e0ed';
+    const shape='<g transform="translate(8 8) scale(3.333333)" fill="none" stroke="'+ink+'" stroke-width="'+(config.theme==='button'?2:1.8)+'" stroke-linecap="round" stroke-linejoin="round">'+paths[id]+'</g>';
+    return 'data:image/svg+xml;charset=utf-8,'+encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 96">'+background+shape+'</svg>');
+  }
   function setTheme(value){if(!themeNames[value])return;config.theme=value;save();}
   function setOverride(id,data){if(!paths[id]||typeof data!=="string"||!/^data:image\/(png|jpeg|webp|gif);base64,/.test(data)||data.length>200000)return false;config.overrides[id]=data;return save();}
   function clearOverride(id){delete config.overrides[id];return save();}
   function clearAll(){config.overrides={};return save();}
-  return {groups,themeNames,create,setTheme,setOverride,clearOverride,clearAll,get theme(){return config.theme;},hasOverride:id=>!!config.overrides[id],ids:Object.keys(paths)};
+  return {groups,themeNames,create,artwork,setTheme,setOverride,clearOverride,clearAll,get theme(){return config.theme;},hasOverride:id=>!!config.overrides[id],ids:Object.keys(paths)};
 })();
