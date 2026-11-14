@@ -404,8 +404,8 @@ function actionFields(item){
 // Multi Action editor: uses the original right-hand action catalogue and does
 // not change the approved editor layout. Unsupported nested composites are blocked.
 // Directly executable simple actions; UI-only actions and nested composites stay excluded.
-const MULTI_ALLOWED=['hotkey','media','website','open','open-app','close','text',
-  'audio-play','audio-stop','brightness','system-volume','system-mute',
+const MULTI_ALLOWED=['hotkey','hotkey-switch','media','website','open','open-app','close','text',
+  'audio-play','audio-stop','timer','brightness','system-volume','system-mute',
   'system-scroll','edit-history','window-switch','desktop-switch',
   'system-zoom','device-brightness','screenshot','clipboard-edit',
   'window-state','window-monitor','explorer-open','brush-size',
@@ -496,6 +496,17 @@ function renderMultiEditor(item,root){
     });
     fields.append(linked,titleLabel,titleField,iconLabel,iconField,chooseImage,imageInput,resetIcon);
     area.append(fields);
+  }
+  if(!randomAction){
+    const spacing=document.createElement('div');spacing.className='control-config';
+    const label=document.createElement('label');label.textContent='동작 간격 (2~200ms)';
+    const input=document.createElement('input');input.type='number';input.min='2';input.max='200';input.step='1';
+    input.value=String(Math.max(2,Math.min(200,Number(item.settings?.nextActionMs)||100)));
+    input.addEventListener('change',()=>{
+      item.settings.nextActionMs=Math.max(2,Math.min(200,Math.round(Number(input.value)||100)));
+      input.value=String(item.settings.nextActionMs);persist();
+    });
+    spacing.append(label,input);area.append(spacing);
   }
   const heading=document.createElement('strong');
   heading.textContent=randomAction?'무작위 동작 · 후보 중 하나 실행':switching?'다중 동작 스위치 · 상태별 실행':'다중 동작 · 순서대로 실행';
@@ -1232,13 +1243,27 @@ const waitMultiDelay=(ms,signal)=>new Promise((resolve,reject)=>{
 });
 // Await the Windows bridge rather than firing each step concurrently.
 // Unknown and UI-only actions stop the sequence with an explicit error.
-async function executeMultiStep(action){
+async function executeMultiStep(action,signal){
   const outcome=DeckCore.planAction(action,state.page,state.pages.length);
   const bridge=window.deckBridge;
   if(!bridge)throw new Error('다중 동작은 Windows EXE에서만 실행할 수 있습니다.');
   switch(outcome.kind){
     case 'windows-hotkey':
       return bridge.sendHotkey(outcome.keys);
+    case 'windows-hotkey-switch':{
+      const signature='multi-hotkey:'+outcome.first+'|'+outcome.second;
+      const current=compositeHotkeyPositions.get(signature)||0;
+      const keys=current===0?outcome.first:outcome.second;
+      if(!keys)throw new Error('다중 동작의 단축키 전환 설정이 비어 있습니다.');
+      await bridge.sendHotkey(keys);compositeHotkeyPositions.set(signature,1-current);
+      return true;
+    }
+    case 'timer':{
+      if(signal?.aborted)throw new Error('복합 동작이 취소되었습니다.');
+      const timer=setTimeout(()=>playTimerChime(action.settings?.sound||'connect'),outcome.seconds*1000);
+      signal?.addEventListener('abort',()=>clearTimeout(timer),{once:true});
+      return true;
+    }
     case 'media-control':
       return bridge.mediaControl(outcome.operation);
     case 'close-local-app':
@@ -1251,7 +1276,8 @@ async function executeMultiStep(action){
     case 'website':
       return bridge.openWebsite(outcome.url,outcome.mode,outcome.browserPath);
     case 'open-local-path':
-      if(action.type==='open-app'&&outcome.foreground&&await bridge.focusLocalApp(outcome.path))return true;
+      if(action.type==='open-app'&&outcome.foreground&&/\.exe$/i.test(outcome.path)&&
+        await bridge.focusLocalApp(outcome.path))return true;
       return bridge.openLocalPath(outcome.path,outcome.target);
     case 'type-text':
       return outcome.mode==='clipboard'?bridge.pasteText(outcome.text,outcome.enter):bridge.typeText(outcome.text,outcome.enter);
@@ -1280,6 +1306,7 @@ async function executeMultiStep(action){
   }
 }
 
+const compositeHotkeyPositions=new Map();
 const logicPresses=new Map();
 function triggerLogicSlot(action,slot,index){
   const check=DeckCore.planComposite(action,{gesture:slot});
@@ -1458,7 +1485,8 @@ function executeHardwareAction(event,preview=false){
     runningMultiControllers.set(action,controller);
     DeckCore.runComposite(action,{
       execute:executeMultiStep,wait:waitMultiDelay,
-      state:position,random,signal:controller.signal,nextActionMs:100
+      state:position,random,signal:controller.signal,
+      nextActionMs:Math.max(2,Math.min(200,Number(action.settings?.nextActionMs)||100))
     }).then(
       count=>{
         scheduleFolderExitAfterAction();
@@ -1576,7 +1604,7 @@ function executeHardwareAction(event,preview=false){
   }
   if(outcome.kind==='open-local-path'){
     if(!window.deckBridge?.openLocalPath)return 'Windows 실행 환경에서만 사용할 수 있습니다.';
-    (resolved.action?.type==='open-app'&&outcome.foreground
+    (resolved.action?.type==='open-app'&&outcome.foreground&&/\.exe$/i.test(outcome.path)
       ?window.deckBridge.focusLocalApp(outcome.path).then(found=>found?true:window.deckBridge.openLocalPath(outcome.path,outcome.target))
       :window.deckBridge.openLocalPath(outcome.path,outcome.target)).then(
       ()=>window.d200xActionStatus?.('경로 열기 완료'),
