@@ -168,7 +168,7 @@
 
   async function synchronize() {
     const serial = ++renderSerial;
-    const page = currentPage().slice(0, 14).map(item => item ? JSON.parse(JSON.stringify(item)) : null);
+    const page = DeckCore.visibleActions(state).slice(0, 14).map(item => item ? JSON.parse(JSON.stringify(item)) : null);
     try {
       await document.fonts?.ready;
       const images = await Promise.all(page.map((item,index) => drawSlot(
