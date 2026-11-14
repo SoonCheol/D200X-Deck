@@ -116,4 +116,19 @@ async function registerPack(filename,pack){
   }catch(error){await fs.rm(temp,{force:true}).catch(()=>{});throw error;}
   return packs;
 }
-module.exports={parseIconPack,readPacks,registerPack};
+async function removePack(filename,id){
+  if(typeof id!=='string'||!id||id.length>128||id==='bundled-simple-gray-tones-1.0.1')
+    throw new Error('기본 아이콘팩은 삭제할 수 없습니다.');
+  const packs=await readPacks(filename);
+  const found=packs.find(pack=>pack.id===id);
+  if(!found)return false;
+  if(found.source==='bundled')throw new Error('기본 아이콘팩은 삭제할 수 없습니다.');
+  const remaining=packs.filter(pack=>pack.id!==id);
+  const temp=filename+'.'+process.pid+'.tmp';
+  try{
+    await fs.writeFile(temp,JSON.stringify(remaining),'utf8');
+    await fs.rename(temp,filename);
+  }catch(error){await fs.rm(temp,{force:true}).catch(()=>{});throw error;}
+  return true;
+}
+module.exports={parseIconPack,readPacks,registerPack,removePack};
