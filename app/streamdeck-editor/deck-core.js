@@ -198,8 +198,8 @@
     if(binding && knob){
       if(binding.mode==='adjust'||binding.mode==='stack'){
         if(gesture==='down'){
-          if(binding.down)return {index,gesture,outcome:planAction(binding.down,state.page,state.pages.length)};
           if(binding.mode==='stack')return {index,gesture,outcome:{kind:'stack-next',size:binding.stack.length}};
+          if(binding.down)return {index,gesture,outcome:planAction(binding.down,state.page,state.pages.length)};
           return null;
         }
         if(gesture!=='left'&&gesture!=='right')return null;
