@@ -52,6 +52,7 @@ const PANEL_SHORTCUTS={
   "text":"유니코드 텍스트 입력"
 };
 const ACTIONS = new Map(CATALOG.flatMap(([category, entries]) => entries.map(([id,label,icon]) => [id,{category,id,label,icon}])));
+ACTIONS.set('sd-plugin',{category:'플러그인',id:'sd-plugin',label:'Stream Deck SDK 플러그인',icon:'▣'});
 const STORAGE_KEY="d200x-streamdeck-editor-prototype-v1";
 const $ = id => document.getElementById(id);
 const clone = value => JSON.parse(JSON.stringify(value));
@@ -108,11 +109,55 @@ const persist=()=>{
 state.pages.forEach(page=>{while(page.length<KEY_COUNT+CONTROLS.length)page.push(null);});
 const valueOf=(item,field,fallback="")=>item?.settings?.[field]??fallback;
 function keyName(item){return item?.title||ACTIONS.get(item?.type)?.label||"";}
+const sdkVisuals=new Map();
+function sdkContext(index,gesture='down'){
+  return String(state.profileId)+':'+state.page+':'+(state.folderPath||[]).join('-')+':'+index+':'+gesture;
+}
+function pluginSlotContext(item){
+  if(item?.type!=='sd-plugin')return '';
+  if(state.selected>=14)return sdkContext(state.selected,controlGesture);
+  return sdkContext(state.selected,'down');
+}
+function sdkActionInstances(){
+  const entries=[];
+  const append=(item,index,gesture)=>{
+    if(item?.type!=='sd-plugin')return;
+    const settings=item.settings||{};
+    entries.push({context:sdkContext(index,gesture),slot:index,
+      pluginUUID:settings.pluginUUID,actionUUID:settings.actionUUID,
+      settings:settings.pluginSettings||{}});
+  };
+  DeckCore.visibleActions(state).slice(0,14).forEach((item,index)=>append(item,index,'down'));
+  for(let index=14;index<=18;index++){
+    const binding=DeckCore.controlBinding(state,index);
+    if(binding?.mode==='trigger')for(const gesture of (index>=16?['down','left','right']:['down']))
+      append(binding[gesture],index,gesture);
+    else if(binding?.mode==='adjust')append(binding?.down,index,'down');
+  }
+  return entries;
+}
+let sdkSyncSerial=0;
+function scheduleSdkSync(){
+  if(!window.deckBridge?.sdkSync)return;
+  const serial=++sdkSyncSerial;
+  Promise.resolve().then(async()=>{
+    if(serial!==sdkSyncSerial)return;
+    await window.deckBridge.sdkSync(sdkActionInstances());
+  }).catch(error=>window.d200xActionStatus?.('SDK 플러그인 등록 오류: '+String(error?.message||error)));
+}
 function displayItem(item){
   if(item?.type==='multi-switch')return DeckCore.displaySwitchAction(item);
   if(item?.type==='timer'&&timerDeadlines.has(item)){
     const remaining=Math.max(0,Math.ceil((timerDeadlines.get(item)-Date.now())/1000));
     return {...item,title:(item.title?item.title+'\n':'')+remaining+'초'};
+  }
+  if(item?.type==='sd-plugin'){
+    // Plugin-supplied images/titles are runtime overlays; never write them to profile JSON.
+    const key=sdkContext(state.selected>=0&&state.selected<14&&DeckCore.visibleActions(state)[state.selected]===item?state.selected:
+      DeckCore.visibleActions(state).findIndex(x=>x===item),'down');
+    const visual=sdkVisuals.get(key);
+    if(visual)return {...item,title:visual.title??item.title,
+      ...(visual.image?{icon:{kind:'file',value:visual.image}}:{})};
   }
   if(!item||item.type!=="indicator")return item;
   return {...item,icon:{kind:"glyph",glyph:String(state.page+1)}};
@@ -141,8 +186,16 @@ function updateTitleAppearance(label,item){
   label.style.textDecoration=style.underline?"underline":"none";
   label.style.color=style.color||"#ffffff";
 }
-function isAssignableAction(id){return ACTIONS.has(id)&&id!=='virtual';}
-function newAction(id){return DeckCore.createAction(id);}
+function isAssignableAction(id){return (ACTIONS.has(id)&&id!=='virtual')||String(id).startsWith('sd::');}
+function newAction(id){
+  if(!String(id).startsWith('sd::'))return DeckCore.createAction(id);
+  const parts=String(id).split('::');
+  if(parts.length!==3)return null;
+  const item=DeckCore.createAction('sd-plugin');
+  item.settings.pluginUUID=parts[1];item.settings.actionUUID=parts[2];
+  item.settings.actionName=sdkActionNames.get(parts[2])||parts[2];
+  return item;
+}
 function currentPage(){return DeckCore.currentActions(state);}
 function setItem(index,item){
   if(index>=14){
@@ -266,6 +319,51 @@ async function chooseNativeImage(kind='image'){
   return window.deckBridge.chooseImportFile(kind);
 }
 let libraryTab='keys';
+let sdkPlugins=[];
+const sdkActionNames=new Map();
+async function refreshSdkPlugins(){
+  if(!window.deckBridge?.sdkList)return;
+  try{
+    sdkPlugins=await window.deckBridge.sdkList();
+    sdkActionNames.clear();
+    for(const plugin of sdkPlugins)for(const action of plugin.actions)
+      sdkActionNames.set(action.uuid,action.name);
+    if(libraryTab==='plugins')renderLibrary();
+  }catch(error){window.d200xActionStatus?.('SDK 플러그인 목록 오류: '+String(error?.message||error));}
+}
+async function installSdkPlugin(){
+  if(!window.deckBridge?.sdkInstall)return window.d200xActionStatus?.('Windows EXE에서만 설치 가능합니다.');
+  try{
+    const plugin=await window.deckBridge.sdkInstall();
+    if(!plugin)return;
+    await refreshSdkPlugins();
+    window.d200xActionStatus?.('Stream Deck 플러그인 설치: '+plugin.name+' '+plugin.version);
+  }catch(error){window.d200xActionStatus?.('플러그인 설치 실패: '+String(error?.message||error));}
+}
+function renderInstalledSdkPlugins(root,query){
+  for(const plugin of sdkPlugins){
+    const matching=plugin.actions.filter(a=>(plugin.name+' '+a.name+' '+a.uuid).toLowerCase().includes(query));
+    if(!matching.length)continue;
+    const section=document.createElement('section');section.className='group';
+    const title=document.createElement('div');title.className='group-title';
+    title.textContent=plugin.name+' ('+plugin.version+')';
+    const body=document.createElement('div');
+    title.addEventListener('click',()=>{body.hidden=!body.hidden;});
+    for(const action of matching){
+      const id='sd::'+plugin.uuid+'::'+action.uuid;
+      const tile=document.createElement('div');tile.className='action-item';tile.draggable=true;
+      tile.title='드래그하여 버튼에 놓기';tile.textContent='▣  '+action.name;
+      tile.addEventListener('dragstart',ev=>ev.dataTransfer.setData('application/x-d200x-action',id));
+      tile.addEventListener('click',()=>{
+        if(state.selected===null)return;
+        if(state.selected>=14)controlDrop(state.selected,id,controlGesture);
+        else setItem(state.selected,newAction(id));
+      });
+      body.append(tile);
+    }
+    section.append(title,body);root.append(section);
+  }
+}
 async function configureHomeAssistant(){
   if(!window.deckBridge?.haSave)return window.d200xActionStatus?.('HA 플러그인은 Windows EXE에서 사용 가능합니다.');
   try{
@@ -284,6 +382,10 @@ function renderLibrary(){
   if(libraryTab==='plugins'){
     const setup=document.createElement('button');setup.type='button';setup.textContent='⚙ Home Assistant 연결 설정';
     setup.addEventListener('click',configureHomeAssistant);root.append(setup);
+    const install=document.createElement('button');install.type='button';
+    install.textContent='＋ Stream Deck 플러그인 설치 (.streamDeckPlugin)';
+    install.addEventListener('click',installSdkPlugin);root.append(install);
+    renderInstalledSdkPlugins(root,query);
   }
   for(const [category,entries] of CATALOG){
     if((category==='플러그인 · Home Assistant')!==(libraryTab==='plugins'))continue;
@@ -388,6 +490,8 @@ function actionFields(item){
   active=item;
   switch(item.type){
     case "audio-play":return pathPicker("file","파일")+select("mode","동작",[["play-stop","재생 / 정지"],["overlap","재생 / 오버랩"],["restart","재생 / 재시작"],["loop-stop","반복 / 정지"]])+select("fade","페이드",[["none","페이드 없음"],["in","페이드 인"],["out","페이드 아웃"],["in-out","페이드 인 앤 아웃"]])+select("fadeDuration","페이드 시간",[[1,"1초"],[2,"2초"],[3,"3초"],[4,"4초"],[5,"5초"]])+`<div class="field"><label for="s-volume">음량</label><div class="compound"><input id="s-volume" type="range" min="0" max="100" data-field="volume" value="${valueOf(item,"volume",50)}"><output id="volume-display">${valueOf(item,"volume",50)}</output></div></div>`+select("output","출력",[["default","기본"]])+`<div class="field"><span></span><span class="hint">연결된 출력 장치를 선택할 수 있습니다. 장치 전환은 실행 시 적용됩니다.</span></div>`;
+    case "sd-plugin":return '<div class="field"><label>설치된 플러그인</label><span class="hint">'+escapeHtml(item.settings?.actionName||item.settings?.actionUUID||'')+'</span></div>'+
+      '<div class="field"><label>원본 속성 편집기</label><button type="button" data-sdk-inspector>설정 열기</button></div>';
     case "ha-toggle":return input("entityId","HA 엔티티 ID","switch.living_room")+
       '<div class="field"><label>엔티티</label><button type="button" data-ha-entities>목록에서 선택</button></div>';
     case "audio-stop": case "previous": case "next": case "indicator":return "";
@@ -1011,6 +1115,16 @@ function renderControlInspector(){
   root.append(testBar);
 }
 function bindExtendedActionFields(root,item){
+  if(item.type==='sd-plugin'){
+    root.querySelector('[data-sdk-inspector]')?.addEventListener('click',async()=>{
+      const context=pluginSlotContext(item);
+      if(!context)return;
+      try{
+        await window.deckBridge.sdkSync(sdkActionInstances());
+        await window.deckBridge.sdkInspector(context);
+      }catch(error){window.d200xActionStatus?.('SDK 속성 편집기 오류: '+String(error?.message||error));}
+    });
+  }
   if(item.type==='ha-toggle'){
     root.querySelector('[data-ha-entities]')?.addEventListener('click',async()=>{
       try{
@@ -1323,6 +1437,8 @@ async function executeMultiStep(action,signal){
   const bridge=window.deckBridge;
   if(!bridge)throw new Error('다중 동작은 Windows EXE에서만 실행할 수 있습니다.');
   switch(outcome.kind){
+    case 'sd-plugin':
+      throw new Error('복합 동작의 SDK 플러그인은 아직 지원하지 않습니다.');
     case 'ha-toggle':
       return bridge.haToggle(outcome.entityId);
     case 'windows-hotkey':
@@ -1506,6 +1622,17 @@ function executeHardwareAction(event,preview=false){
     return handleOpenAppHold(resolved.action,index,event,resolved.gesture);
   if(resolved.action?.type==='logic'&&['down','up'].includes(resolved.gesture))
     return handleLogicGesture(resolved.action,index,resolved.gesture,preview);
+  if(resolved.action?.type==='sd-plugin'){
+    const ctx=sdkContext(index,
+      resolved.gesture==='up'?'down':resolved.gesture);
+    if(!window.deckBridge?.sdkKey)return 'SDK 플러그인은 Windows EXE에서만 실행됩니다.';
+    if(resolved.gesture==='up')lastHardwareDown.delete(index);
+    window.deckBridge.sdkKey(ctx,resolved.gesture).then(ok=>{
+      if(!ok)window.d200xActionStatus?.('SDK 플러그인이 활성화되지 않았습니다.');
+    }).catch(error=>window.d200xActionStatus?.('SDK 플러그인 실행 실패: '+String(error?.message||error)));
+    if(preview&&resolved.gesture==='down')setTimeout(()=>window.deckBridge.sdkKey(ctx,'up'),100);
+    return 'Stream Deck 플러그인 이벤트: '+resolved.gesture;
+  }
   if(resolved.gesture==='up'){lastHardwareDown.delete(index);return null;}
   if(resolved.gesture==='down'&&!preview){
     const now=Date.now();
@@ -1775,7 +1902,7 @@ function executeHardwareAction(event,preview=false){
 }
 window.executeD200XKey=executeHardwareAction;
 let refreshProfilesMenu=()=>{};
-function render(){renderGrid();renderInspector();refreshProfilesMenu();}
+function render(){renderGrid();renderInspector();refreshProfilesMenu();scheduleSdkSync();}
 
 // Installed packs are read from the application's packaged library.
 // The prototype glyph groups have been removed; only genuine packs appear.
@@ -2208,4 +2335,31 @@ setInterval(async()=>{
   }finally{smartProfileBusy=false;}
 },4000);
 
-bindActionAppearance();renderLibrary();render();
+if(window.deckBridge?.onSdkEvent){
+  window.deckBridge.onSdkEvent(message=>{
+    const ctx=message?.context;
+    if(message.kind==='settings'){
+      const index=sdkActionInstances().find(x=>x.context===ctx);
+      if(index){
+        const item=index.slot<14?DeckCore.visibleActions(state)[index.slot]:
+          DeckCore.controlBinding(state,index.slot)?.[ctx.split(':').at(-1)];
+        if(item?.type==='sd-plugin'){
+          item.settings.pluginSettings=message.settings;
+          persist();
+        }
+      }
+    }else if(['setTitle','setImage','setState'].includes(message.kind)){
+      const old=sdkVisuals.get(ctx)||{};
+      if(message.kind==='setTitle'&&typeof message.payload?.title==='string')
+        old.title=message.payload.title.slice(0,256);
+      if(message.kind==='setImage'&&typeof message.payload?.image==='string'&&
+        /^data:image\/(png|jpeg|webp|svg\+xml);/.test(message.payload.image)&&
+        message.payload.image.length<1024*1024)
+        old.image=message.payload.image;
+      if(message.kind==='setState')old.state=message.payload?.state;
+      sdkVisuals.set(ctx,old);
+      renderGrid();window.scheduleDeckSync?.();
+    }else if(message.kind==='error')window.d200xActionStatus?.(message.message);
+  });
+}
+bindActionAppearance();renderLibrary();render();refreshSdkPlugins();
