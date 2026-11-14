@@ -138,6 +138,9 @@ test('original media/hotkey/open actions share execution planning',()=>{
   assert.deepEqual(core.planAction(media,0,1),{kind:'media-control',operation:'next'});
   const hotkey=core.createAction('hotkey');hotkey.settings.keys='Ctrl+Z';
   assert.deepEqual(core.planAction(hotkey,0,1),{kind:'windows-hotkey',keys:'Ctrl+Z'});
+  const sw=core.createAction('hotkey-switch');
+  sw.settings.first='Ctrl+C';sw.settings.second='Ctrl+V';
+  assert.deepEqual(core.planAction(sw,0,1),{kind:'windows-hotkey-switch',first:'Ctrl+C',second:'Ctrl+V'});
   const open=core.createAction('open');open.settings.path='C:\\Temp';
   assert.deepEqual(core.planAction(open,0,1),{kind:'open-local-path',path:'C:\\Temp',target:'auto'});
   const app=core.createAction('open-app');app.settings.app='C:\\Program Files\\Example\\app.exe';
