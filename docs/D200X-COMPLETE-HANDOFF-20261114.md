@@ -344,3 +344,13 @@
 - `main.cjs`/`preload.cjs`에 삭제 IPC 연결. `editor.js`의 사용자가 설치한 팩 제목에만 **삭제** 버튼 표시, 확인 대화상자 거쳐 제거 및 목록 갱신. 기본 샘플과 임시 기본 그룹에는 삭제 버튼 없음. 최소 CSS 적용.
 - 단위 테스트: 여러 팩 중 선택 제거·기본팩 거부·중복 제거 확인을 `test/streamdeck-icon-pack.test.cjs`에 추가.
 - 최신 기능 커밋: `180cca0266c0777eec5b0511f361474b113c2609` (Windows GUI 실기 확인 전). **이전 사용자의 작은 팩도 불러오지 못한다는 문제는 별개의 미해결 건이며, 제거 기능 구현으로 해결됐다고 주장하지 않는다.**
+
+
+## 2026-11-15 — Fluent UI Filled/Regular 기본 아이콘팩으로 전면 교체 (최신)
+
+- **사용자 지시:** Fluent UI Filled와 Regular **두 팩만 기본 아이콘으로 내장**하고 기존 임시 Elgato 문자 아이콘 그룹 및 Simple Gray Tones 내장 샘플을 모두 제거. 사용자가 직접 설치한 팩은 별도 저장 데이터로 남겨 두며, 임의 삭제하지 않음.
+- **원본:** `czottmann/streamdeck-iconpack-fluentui-system-icons` commit **`77ab5fdef0cb76f4a2bf8bfa84a61af9b12c0006`**에 고정. `fluentui-system-icons-filled.sdIconPack`과 `fluentui-system-icons-regular.sdIconPack` 각각 `icons.json` 기준 **1,914개**, 총 **3,828개 PNG**. MIT 라이선스는 Carlo Zottmann의 `LICENSE.md` 및 Microsoft의 MIT 저작권 고지.
+- **배포 구조:** GitHub 소스에는 대용량 PNG 복사본을 직접 커밋하지 않는다. `app/streamdeck-editor/build-fluent-icons.cjs`가 GitHub Actions Windows EXE 빌드 중 고정 업스트림 소스 ZIP에서 `manifest.json`, `icons.json`, 각 PNG를 검증·추출해 `builtin-iconpacks.json` 생성 및 `fluentui-LICENSE.md` 저장. 원본 Microsoft MIT 라이선스는 `fluentui-Microsoft-LICENSE.md`로 포함. **완성된 EXE 패키지에는 오프라인 이미지 전체가 내장**된다. 빌드 시에는 GitHub 다운로드가 필요하지만 앱 실행·아이콘 사용에는 네트워크 불필요.
+- **코드:** `main.cjs`는 패키지의 내장 JSON 두 팩을 로드해 기존 사용자가 설치한 아이콘팩 목록과 합쳐 반환. `editor.js`의 모든 `ICON_SETS` 가짜 그룹 삭제, `index.html`의 `sample-icon-pack.js` 참조 삭제, 샘플 JS 파일 자체 삭제. 기본 팩에 삭제 버튼 없음. 목록은 84개씩 점진 표시(더 보기)·전체 검색 가능, 펼침 상태는 더 보기/검색 동안 유지. `style.css`에는 최소한의 버튼 스타일.
+- **기존 사용자 요구 통합:** 사용자가 설치한 팩은 삭제 전에 적용 버튼 수와 **기본 아이콘으로 초기화** 경고/확인. 아이콘을 적용할 때 `packId`를 저장하고 `deck-core.js`의 state/profile 마이그레이션 중 보존. 제거 후 현재/비활성 프로필·폴더·고정 키·노브 등 상태 안에서 해당 `packId`가 붙은 아이콘만 삭제하여 각 액션의 기본 아트워크/기호를 보여 줌. **과거 버전에서 적용한 출처 정보가 없는 PNG는 정확한 팩 추적 불가**, 자동 삭제하지 않음. 사용자의 프로필·액션·등록된 사용자 팩 파일 자체는 무차별 삭제하지 않음.
+- **검증 주의:** GitHub Actions CI 및 Windows EXE 패키징 결과와 사용자 Windows GUI 및 D200X 실기 확인을 구분할 것. 기본 팩 이미지의 적용·검색·삭제 경고/복구는 사용자 실제 PC에서 추가 확인 필요. 기존 임포트의 400개/20MB 제한은 별도 미해결이며 **내장 팩은 별도 경로로 로드**한다.
