@@ -2,6 +2,7 @@
 const { contextBridge, ipcRenderer } = require('electron');
 
 contextBridge.exposeInMainWorld('deckBridge', Object.freeze({
+  foregroundApp: () => ipcRenderer.invoke('d200x:foreground-app'),
   ready: () => ipcRenderer.send('d200x:renderer-ready'),
   readClipboardImage: () => ipcRenderer.invoke('d200x:clipboard-image'),
   choosePath: kind => ipcRenderer.invoke('d200x:choose-path', kind),
