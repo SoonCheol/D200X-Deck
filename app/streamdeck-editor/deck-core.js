@@ -136,8 +136,18 @@
       for(let i=0;i<5;i++){
         const source=state.pages.find(row=>row[14+i])?.[14+i]||null;
         state.controls.global[i].down=source;
+        // Legacy knobs interpreted previous/next as bidirectional page rotation.
+        // Migrate that behavior rather than silently removing it.
+        if(i>=2&&['previous','next'].includes(source?.type)){
+          state.controls.global[i].mode='adjust';
+          state.controls.global[i].target='page';
+        }
         for(let p=0;p<state.pages.length;p++){
-          state.controls.pages[p][i].down=state.pages[p][14+i];
+          const local=state.controls.pages[p][i];
+          local.down=state.pages[p][14+i];
+          if(i>=2&&['previous','next'].includes(local.down?.type)){
+            local.mode='adjust';local.target='page';
+          }
         }
       }
     }
