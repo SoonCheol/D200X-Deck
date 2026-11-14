@@ -1,7 +1,7 @@
 "use strict";
 /* Independent Stream Deck 7.6.1-oriented UI. No legacy Ulanzi inspector imports.
  * D200X physical key dispatch: page navigation and default-browser URL only. */
-const CATALOG = [
+const ORIGINAL_CATALOG = [
   ["Soundboard", [["audio-play","오디오 재생","♫"],["audio-stop","오디오 정지","◼"]]],
   ["Stream Deck", [["timer","타이머","◴"],["brightness","밝기","☼"],["sleep","잠자기","☾"],["virtual","Virtual Stream Deck 토글","▣"]]],
   ["다중 동작", [["multi","다중 동작","▤"],["multi-switch","다중 동작 스위치","⇄"],["random","무작위 동작","⚄"],["logic","Key Logic","⇧"]]],
@@ -9,6 +9,31 @@ const CATALOG = [
   ["탐색", [["folder","폴더 생성","▣"],["profile","프로필 전환","⇆"],["previous","이전 페이지","←"],["next","다음 페이지","→"],["goto","페이지로 이동","↗"],["indicator","페이지 표시기","①"]]],
   ["D200X 추가 액션", [["system-volume","Windows 음량 조절","🔊"],["system-mute","Windows 음소거","🔇"],["system-scroll","Windows 스크롤","↕"],["edit-history","실행 취소·다시 실행","↶"],["window-switch","창 전환","▣"],["desktop-switch","가상 데스크톱 전환","⇄"],["device-brightness","D200X 화면 밝기","☀"],["system-zoom","화면 확대·축소","⊕"],["screenshot","화면 캡처","▣"],["clipboard-edit","클립보드 편집","▤"],["window-state","창 상태","□"],["window-monitor","다른 모니터로 이동","⇆"],["explorer-open","파일 탐색기 열기","▢"],["brush-size","브러시 크기","◉"],["timeline-step","타임라인 한 단계","▶"],["timeline-zoom","타임라인 확대 단축키 (앱별)","⊕"],["file-open","지정 파일 열기","▣"],["folder-shortcut","지정 폴더 열기","▢"]]]
 ];
+// The catalogue changes presentation only: stable IDs, settings and executable actions remain unchanged.
+const CATALOG = window.D200XPanelIcons.groups.map(([category,ids])=>[
+  category,ids.map(id=>{
+    const entry=ORIGINAL_CATALOG.flatMap(([,items])=>items).find(item=>item[0]===id);
+    if(!entry)throw new Error("액션 목록 누락: "+id);
+    return entry;
+  })
+]);
+const PANEL_SHORTCUTS={
+  "window-monitor":"Win + Shift + ← / →",
+  "window-state":"Win + ↑ / ↓",
+  "window-switch":"Alt + Tab",
+  "desktop-switch":"Win + Ctrl + ← / →",
+  "screenshot":"Win + Shift + S",
+  "explorer-open":"Win + E",
+  "clipboard-edit":"Ctrl + C / V / X",
+  "edit-history":"Ctrl + Z / Y",
+  "system-zoom":"Ctrl + + / - / 0 (앱별)",
+  "brush-size":"[ / ] (앱별)",
+  "timeline-step":"← / → (앱별)",
+  "timeline-zoom":"Ctrl + + / - (앱별)",
+  "hotkey":"사용자 지정",
+  "hotkey-switch":"사용자 지정",
+  "text":"유니코드 텍스트 입력"
+};
 const ACTIONS = new Map(CATALOG.flatMap(([category, entries]) => entries.map(([id,label,icon]) => [id,{category,id,label,icon}])));
 const STORAGE_KEY="d200x-streamdeck-editor-prototype-v1";
 const $ = id => document.getElementById(id);
@@ -212,15 +237,49 @@ function renderLibrary(){
   const root=$("library-list");root.replaceChildren();
   const query=$("action-search").value.trim().toLocaleLowerCase();
   for(const [category,entries] of CATALOG){
-    const visible=entries.filter(([,label])=>(category+" "+label).toLocaleLowerCase().includes(query));
+    const visible=entries.filter(([id,label])=>(category+" "+label+" "+(PANEL_SHORTCUTS[id]||"")).toLocaleLowerCase().includes(query));
     if(!visible.length)continue;
     const section=document.createElement("section");section.className="group";
     const title=document.createElement("div");title.className="group-title";title.textContent=category;
     const body=document.createElement("div");title.addEventListener("click",()=>{body.hidden=!body.hidden;});
-    for(const [id,label,icon] of visible){
-      const entry=document.createElement("div");entry.className="action-item";entry.draggable=true;entry.title="드래그하여 빈 버튼에 놓기";
-      const symbol=document.createElement("span");symbol.className="action-icon";symbol.textContent=icon;
-      const name=document.createElement("span");name.textContent=label;entry.append(symbol,name);
+    for(const [id,label] of visible){
+      const entry=document.createElement("div");entry.className="action-item";entry.draggable=true;
+      entry.title="드래그하여 빈 버튼에 놓기";
+      const symbol=document.createElement("span");symbol.className="action-icon";symbol.append(window.D200XPanelIcons.create(id));
+      const caption=document.createElement("span");caption.className="action-caption";
+      const name=document.createElement("span");name.textContent=label;caption.append(name);
+      if(PANEL_SHORTCUTS[id]){
+        const hint=document.createElement("small");hint.className="action-shortcut";hint.textContent=PANEL_SHORTCUTS[id];caption.append(hint);
+      }
+      const customise=document.createElement("button");customise.type="button";customise.className="action-customize";
+      customise.textContent="⋯";customise.title=label+" 아이콘 개별 설정";customise.setAttribute("aria-label",label+" 아이콘 개별 설정");
+      customise.addEventListener("click",event=>{
+        event.stopPropagation();
+        const old=body.querySelector(".action-override-controls");
+        if(old){const same=old.parentElement===entry;old.remove();if(same)return;}
+        const tools=document.createElement("div");tools.className="action-override-controls";
+        const upload=document.createElement("button");upload.type="button";upload.textContent="이미지 선택";
+        const file=document.createElement("input");file.type="file";file.hidden=true;
+        file.accept="image/png,image/jpeg,image/webp,image/gif";
+        upload.addEventListener("click",ev=>{ev.stopPropagation();file.click();});
+        file.addEventListener("change",()=>{
+          const selected=file.files?.[0];
+          if(!selected)return;
+          if(!["image/png","image/jpeg","image/webp","image/gif"].includes(selected.type)||selected.size>140000){
+            window.d200xActionStatus?.("이미지 파일은 PNG/JPG/WebP/GIF, 140KB 이하만 가능합니다.");return;
+          }
+          const reader=new FileReader();
+          reader.onload=()=>{
+            if(window.D200XPanelIcons.setOverride(id,String(reader.result)))renderLibrary();
+          };
+          reader.readAsDataURL(selected);
+        });
+        const reset=document.createElement("button");reset.type="button";reset.textContent="기본 아이콘";
+        reset.addEventListener("click",ev=>{ev.stopPropagation();window.D200XPanelIcons.clearOverride(id);renderLibrary();});
+        tools.addEventListener("click",ev=>ev.stopPropagation());
+        tools.append(upload,file,reset);entry.append(tools);
+      });
+      entry.append(symbol,caption,customise);
       entry.addEventListener("dragstart",ev=>ev.dataTransfer.setData("application/x-d200x-action",id));
       entry.addEventListener("click",()=>{
         if(state.selected!==null){
@@ -232,6 +291,25 @@ function renderLibrary(){
     }
     section.append(title,body);root.append(section);
   }
+}
+function bindActionAppearance(){
+  const host=document.createElement("div");host.className="action-appearance";
+  const label=document.createElement("label");label.textContent="액션 아이콘";
+  const select=document.createElement("select");select.setAttribute("aria-label","오른쪽 액션 아이콘 테마");
+  Object.entries(window.D200XPanelIcons.themeNames).forEach(([value,name])=>{
+    const option=document.createElement("option");option.value=value;option.textContent=name;select.append(option);
+  });
+  select.value=window.D200XPanelIcons.theme;
+  select.addEventListener("change",()=>{window.D200XPanelIcons.setTheme(select.value);renderLibrary();});
+  const reset=document.createElement("button");reset.type="button";reset.textContent="개별 초기화";
+  reset.title="오른쪽 목록의 개별 아이콘 설정만 초기화";
+  reset.addEventListener("click",()=>{
+    if(confirm("오른쪽 액션 목록의 개별 아이콘만 모두 초기화할까요?")){
+      window.D200XPanelIcons.clearAll();renderLibrary();
+    }
+  });
+  host.append(label,select,reset);
+  $("library-list").before(host);
 }
 function escapeHtml(x){return String(x??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));}
 const input=(field,label,placeholder="")=>`<div class="field"><label for="s-${field}">${label}</label><input id="s-${field}" data-field="${field}" value="${escapeHtml(valueOf(active,field))}" placeholder="${placeholder}"></div>`;
@@ -1545,4 +1623,4 @@ setInterval(async()=>{
   }finally{smartProfileBusy=false;}
 },4000);
 
-renderLibrary();render();
+bindActionAppearance();renderLibrary();render();
