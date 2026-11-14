@@ -354,3 +354,12 @@
 - **코드:** `main.cjs`는 패키지의 내장 JSON 두 팩을 로드해 기존 사용자가 설치한 아이콘팩 목록과 합쳐 반환. `editor.js`의 모든 `ICON_SETS` 가짜 그룹 삭제, `index.html`의 `sample-icon-pack.js` 참조 삭제, 샘플 JS 파일 자체 삭제. 기본 팩에 삭제 버튼 없음. 목록은 84개씩 점진 표시(더 보기)·전체 검색 가능, 펼침 상태는 더 보기/검색 동안 유지. `style.css`에는 최소한의 버튼 스타일.
 - **기존 사용자 요구 통합:** 사용자가 설치한 팩은 삭제 전에 적용 버튼 수와 **기본 아이콘으로 초기화** 경고/확인. 아이콘을 적용할 때 `packId`를 저장하고 `deck-core.js`의 state/profile 마이그레이션 중 보존. 제거 후 현재/비활성 프로필·폴더·고정 키·노브 등 상태 안에서 해당 `packId`가 붙은 아이콘만 삭제하여 각 액션의 기본 아트워크/기호를 보여 줌. **과거 버전에서 적용한 출처 정보가 없는 PNG는 정확한 팩 추적 불가**, 자동 삭제하지 않음. 사용자의 프로필·액션·등록된 사용자 팩 파일 자체는 무차별 삭제하지 않음.
 - **검증 주의:** GitHub Actions CI 및 Windows EXE 패키징 결과와 사용자 Windows GUI 및 D200X 실기 확인을 구분할 것. 기본 팩 이미지의 적용·검색·삭제 경고/복구는 사용자 실제 PC에서 추가 확인 필요. 기존 임포트의 400개/20MB 제한은 별도 미해결이며 **내장 팩은 별도 경로로 로드**한다.
+
+
+### Fluent UI 기본 팩 최신 검증 및 Windows 배포 (2026-11-15)
+
+- **최신 실제 코드 SHA:** `43363a584cef33ba83849418ede3dd7815c5c694`; 이 커밋에는 두 기본 팩 이외의 임시 문자 그룹·Simple Gray Tones 샘플 삭제, 기본 팩 삭제 보호, 아이콘 검색/84개씩 펼치기, 사용자 팩 삭제 전 경고/아이콘 출처 복구 로직이 포함됨.
+- **빌드 오류 수정:** 초기 패키징 시 `Invoke-WebRequest` 뒤 `$LASTEXITCODE`가 미설정(`$null`)인데 `if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }`로 조기 종료하여 데이터 생성 단계를 건너뛰는 문제를 수정. 프리뷰 조립 단계에서 JSON/라이선스 강제 복사·검사 추가. 패키지 내부는 Windows 경로를 사용하는 `app.asar`이며, ASAR에 `\streamdeck-editor\builtin-iconpacks.json` 항목이 존재하는지 확인함.
+- **실제 생성 로그:** Filled **1914**, Regular **1914** 아이콘. 내장 JSON **10,326,954 bytes (9.85 MiB)**, 생성/스테이징 크기 동일. ASAR에 `builtin-iconpacks.json` 경로 존재 검증 성공. 고정 입력 SHA-256: `2cbb28bed64c711ae41968c682582933227e897fef11b720ea304ac29a4723a5`.
+- **최종 Actions:** CI [#43633125464](https://github.com/SoonCheol/D200X-Deck/actions/runs/43633125464) **success**. Windows EXE [#43633121041](https://github.com/SoonCheol/D200X-Deck/actions/runs/43633121041) **success**. Artifact `D200X-StreamDeck-Device-Sync-win-x64`, ID **14128044954**, ZIP 크기 **170,312,753 bytes** (14일 보존). 이전 버전보다 용량이 커져 실제 이미지 번들이 들어갔다는 정황과 ASAR 항목 검사 일치.
+- **검증 범위:** Node CI, Windows 패키징 및 ASAR 내 데이터 경로·개수 확인만 완료. Windows GUI에서 3,828개 라이브러리 표시, 아이콘 선택, 삭제 확인/기본 복구, 실물 D200X 화면은 사용자 실기 확인 전. 사용자가 이미 가져온 팩과 기존 프로필은 자동 삭제하지 않음. 앞서 보고된 외부 팩 가져오기 실패는 이 교체만으로 해결됐다고 간주하지 말 것.
