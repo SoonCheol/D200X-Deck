@@ -1,8 +1,7 @@
 name: D200X StreamDeck device-sync preview
 
+# Build only on explicit request; routine feature commits should not package EXEs.
 on:
-  push:
-    branches: [codex/streamdeck-761-clean-editor]
   workflow_dispatch:
 
 permissions:
