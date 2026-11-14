@@ -6,6 +6,16 @@
 > 선행 문서: [D200X-STREAMDECK-ROADMAP.md](D200X-STREAMDECK-ROADMAP.md), `../AGENTS.md`.
 > 작업 브랜치: `codex/streamdeck-761-clean-editor`. GitHub 원격 커밋/검증 근거가 없는 작업은 완료라고 쓰지 않는다.
 
+## 2026-11-14 다중 동작 보완·다중 동작 스위치 1차 구현
+
+- **원본 재확인:** Elgato 공식 4.4 릴리스 노트의 Multi Action Switch는 상태 1·2의 두 동작 묶음을 **누를 때마다 번갈아 실행**한다. 공식 5.3 지연 가이드는 가상 키 눌림 시간과 **다음 동작 간 간격**을 구별하고 기본 간격 100ms를 설명한다. 정확한 7.6.1 슬라이더 범위/상태별 제목·아이콘은 GUI 추가 비교 대기.
+- **코드:** `deck-core.js`의 `multi-switch`를 공통 복합 실행기로 연결하고, `editor.js`에 **상태 1 / 상태 2 별도 탭과 하위 동작 편집**을 추가했다. 예전 `children[]`은 그대로 보존하면서 상태 1로 옮길 수 있도록 했다. 화면·물리 버튼/노브와 명시적 미리보기에서 **현재 상태의 동작이 성공하면 다음 상태로 넘어간다**. 실패/중단 시 다음 상태로 넘어가지 않는다.
+- **안전:** 같은 키의 실행 중복 차단, 하위 액션 허용 목록 사전 검사, **명시적 ■ 실행 중단** 버튼, 지연 중 취소 가능, 마지막 동작 수행 중 중단 시 성공으로 오보고하지 않도록 검사. 각 연속 일반 동작 사이 기본 100ms(명시적 Delay 앞뒤 중복 추가 없음)를 적용했다. 원본과의 실제 타이밍 일치/작동은 실기 대기.
+- **현 시점 제한:** 스위치 활성 상태는 **실행 프로세스 메모리에서만 유지되어 앱 재시작 시 상태 1로 시작**한다. 상태별 아이콘·제목 연결 및 실제 D200X 화면 표시, 모든 24개 하위 액션/앱·플러그인 지원, UI 실기/물리 키 확인은 아직 미완료. 정확한 Stream Deck 7.6.1 상태 복원 규칙은 미확정. 다른 원본 24개 액션 목록과 승인 배치 유지.
+- **검증:** `test/streamdeck-core.test.cjs`에 두 시퀀스별 순서·기존 저장 이관·중첩 거부·기본 동작 간격/명시 지연·마지막 액션 취소 테스트를 추가. GitHub CI 및 Windows 입력 모의 검증과 실제 장치 실기 결과는 구분한다. EXE 빌드/PR 병합 없음.
+
+근거: [Elgato 4.4 Multi Action Switch](https://help.elgato.com/hc/en-us/articles/5162934218637-Elgato-Stream-Deck-4-4-Release-Notes) · [Elgato Multi Action Delays](https://help.elgato.com/hc/en-us/articles/7092527123725-Elgato-Stream-Deck-Customizable-Multi-Action-Delays).
+
 ## 개발 진행 — 공통 복합 모델과 Multi 첫 단계 (2026-11-14)
 
 - `deck-core.js`의 `compositeModel/planComposite/runComposite`와 `cleanCompositeEntry`로 **Multi·Switch·Random·Key Logic을 분리한 데이터 계약** 추가. 구형 단일 `children[]` 보존·Delay 단계 변환·중첩 거부 및 순서/취소 단위 테스트.
