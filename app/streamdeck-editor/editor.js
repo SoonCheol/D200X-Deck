@@ -813,6 +813,9 @@ const activeAudioPlayers=new Map();
 const allPlayingAudio=new Set();
 const activeActionTimers=new Map();
 const runningMultiActions=new Set();
+// The original switch begins in state 1. Runtime state is distinct from the
+// editor tab and advances only after its selected sequence succeeds.
+const multiSwitchRuntimeState=new WeakMap();
 const waitMultiDelay=ms=>new Promise(resolve=>setTimeout(resolve,ms));
 // Await the Windows bridge rather than firing each step concurrently.
 // Unknown and UI-only actions stop the sequence with an explicit error.
@@ -839,6 +842,14 @@ async function executeMultiStep(action){
       return bridge.adjustWindows('zoom-reset',0,1);
     case 'device-brightness':
       return bridge.adjustBrightness(outcome.direction,outcome.count||1);
+    case 'device-brightness-set':
+      return bridge.setBrightness(outcome.value);
+    case 'scroll':
+      return bridge.scrollWindows(outcome.axis,outcome.direction,outcome.count||1);
+    case 'edit-history':
+      return bridge.editHistory(outcome.operation,outcome.count||1);
+    case 'windows-switch':
+      return bridge.switchWindows(outcome.target,outcome.direction,outcome.count||1);
     case 'system-shortcut':
       return bridge.systemShortcut(outcome.target,outcome.operation);
     default:
@@ -877,19 +888,32 @@ function executeHardwareAction(event,preview=false){
     const target=DeckCore.controlBinding(state,index).stack[stackPositions[idx]];
     return '노브 '+(idx+1)+' 조절 대상: '+({page:'페이지',volume:'음량',zoom:'확대/축소',scroll:'세로 스크롤','scroll-x':'가로 스크롤',history:'실행 취소·다시 실행',window:'창 전환',desktop:'가상 데스크톱',brightness:'기기 밝기'}[target]);
   }
-  if(outcome.kind==='composite' && outcome.type==='multi'){
+  if(outcome.kind==='composite' && ['multi','multi-switch'].includes(outcome.type)){
     const action=index<14?state.pages[state.page][index]:
       DeckCore.controlBinding(state,index)?.[resolved.gesture];
-    if(!action||action.type!=='multi')return '다중 동작 설정이 없습니다.';
+    if(!action||action.type!==outcome.type)return '복합 동작 설정이 없습니다.';
     const scope=index>=14&&state.controls.scopes[index-14]==='global'?'global':String(state.page);
     const key=scope+':'+index+':'+resolved.gesture;
-    if(runningMultiActions.has(key))return '다중 동작이 이미 실행 중입니다.';
+    if(runningMultiActions.has(key))return '복합 동작이 이미 실행 중입니다.';
+    const position=outcome.type==='multi-switch'?(multiSwitchRuntimeState.get(action)||0):0;
+    const check=DeckCore.planComposite(action,{state:position});
+    if(check.kind!=='composite')return check.message;
+    // Reject unsupported steps BEFORE running any command, so a late invalid
+    // step cannot unexpectedly leave a partially-executed sequence.
+    if(check.steps.some(step=>step.kind!=='delay'&&!MULTI_ALLOWED.includes(step.type)))
+      return '지원하지 않는 하위 액션이 있어 실행하지 않았습니다.';
     runningMultiActions.add(key);
-    DeckCore.runComposite(action,{execute:executeMultiStep,wait:waitMultiDelay}).then(
-      count=>window.d200xActionStatus?.('다중 동작 '+count+'단계 완료'),
-      error=>window.d200xActionStatus?.('다중 동작 중단: '+String(error?.message||error))
+    DeckCore.runComposite(action,{execute:executeMultiStep,wait:waitMultiDelay,state:position}).then(
+      count=>{
+        if(outcome.type==='multi-switch'){
+          multiSwitchRuntimeState.set(action,1-position);
+          window.d200xActionStatus?.('다중 동작 스위치 상태 '+(position+1)+' · '+count+'단계 완료');
+        }else window.d200xActionStatus?.('다중 동작 '+count+'단계 완료');
+      },
+      error=>window.d200xActionStatus?.('복합 동작 중단: '+String(error?.message||error))
     ).finally(()=>runningMultiActions.delete(key));
-    return '다중 동작 실행 요청';
+    return outcome.type==='multi-switch'
+      ?'다중 동작 스위치 상태 '+(position+1)+' 실행 요청':'다중 동작 실행 요청';
   }
   if(outcome.kind==='mute'){
     if(!window.deckBridge?.adjustWindows)return 'Windows 실행 환경에서만 사용할 수 있습니다.';
