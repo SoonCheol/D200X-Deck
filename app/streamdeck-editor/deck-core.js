@@ -14,8 +14,9 @@
   ];
   // New D200X actions stay separate from the original 24.
   const D200X_ACTION_IDS=['system-volume','system-mute','system-scroll','edit-history','window-switch','desktop-switch','device-brightness','system-zoom',
-    'ha-toggle','screenshot','clipboard-edit','window-state','window-monitor','explorer-open',
+    'screenshot','clipboard-edit','window-state','window-monitor','explorer-open',
     'brush-size','timeline-step','timeline-zoom','file-open','folder-shortcut'];
+  const PLUGIN_ACTION_IDS=['ha-toggle'];
   const DEFAULTS={
     'audio-play':{file:'',mode:'play-stop',fade:'none',fadeDuration:2,volume:50,output:'default'},
     'audio-stop':{},timer:{seconds:30,sound:'connect'},
@@ -42,7 +43,7 @@
     bold:false,italic:false,underline:false,color:'#ffffff',
     outlineColor:'#000000',outlineWidth:'thin'};
   const copy=x=>JSON.parse(JSON.stringify(x));
-  const validId=id=>ACTION_IDS.includes(id)||D200X_ACTION_IDS.includes(id);
+  const validId=id=>ACTION_IDS.includes(id)||D200X_ACTION_IDS.includes(id)||PLUGIN_ACTION_IDS.includes(id);
   function createAction(id){
     if(!validId(id))throw new Error('Unsupported built-in action: '+String(id));
     return {type:id,title:id==='folder'?'폴더':'',
@@ -613,5 +614,5 @@
       url:action.settings?.url||'',mode:action.settings?.open||'default',browserPath:action.settings?.browserPath||''};
     return {kind:'unsupported',message:'이 동작의 실행 기능은 아직 구현되지 않았습니다.'};
   }
-  return {ACTION_IDS,D200X_ACTION_IDS,DEFAULTS,TITLE,createAction,cleanAction,cleanCompositeEntry,displaySwitchAction,compositeModel,planComposite,runComposite,blankPage,folderContents,currentActions,visibleActions,togglePinned,activeFolder,enterFolder,exitFolder,migrateState,profileSnapshot,switchProfile,createProfile,renameProfile,setProfileApp,matchForegroundProfile,deleteProfile,previewHardwareEvent,physicalSlot,hardwareGesture,resolveHardwareEvent,resolveKeyPress,planHardwareEvent,deletePage,planAction,emptyBinding,cleanBinding,ensureControls,controlBinding,changeControlScope};
+  return {ACTION_IDS,D200X_ACTION_IDS,PLUGIN_ACTION_IDS,DEFAULTS,TITLE,createAction,cleanAction,cleanCompositeEntry,displaySwitchAction,compositeModel,planComposite,runComposite,blankPage,folderContents,currentActions,visibleActions,togglePinned,activeFolder,enterFolder,exitFolder,migrateState,profileSnapshot,switchProfile,createProfile,renameProfile,setProfileApp,matchForegroundProfile,deleteProfile,previewHardwareEvent,physicalSlot,hardwareGesture,resolveHardwareEvent,resolveKeyPress,planHardwareEvent,deletePage,planAction,emptyBinding,cleanBinding,ensureControls,controlBinding,changeControlScope};
 });
