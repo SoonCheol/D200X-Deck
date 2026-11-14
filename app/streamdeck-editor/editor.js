@@ -414,6 +414,28 @@ function renderControlInspector(){
       hint.textContent='노브 누름: 페이지 → 음량 → 확대/축소 등 선택한 순서로 전환';
       config.append(hint);
     }
+    const stepLabel=document.createElement('label');stepLabel.textContent='한 칸 회전 변화량';
+    const stepSelect=document.createElement('select');
+    for(const step of [1,2,5,10])stepSelect.add(new Option(String(step),String(step)));
+    stepSelect.value=String(binding.step||1);
+    stepSelect.addEventListener('change',()=>{
+      binding.step=Number(stepSelect.value);persist();
+    });
+    const reverseLabel=document.createElement('label');reverseLabel.textContent='회전 방향 반대로';
+    const reverse=document.createElement('input');reverse.type='checkbox';
+    reverse.checked=binding.reverseDirection===true;
+    reverse.addEventListener('change',()=>{binding.reverseDirection=reverse.checked;persist();});
+    reverseLabel.append(reverse);
+    const preview=document.createElement('small');preview.className='hint';
+    const updatePreview=()=>{
+      const size=binding.step||1;
+      preview.textContent='왼쪽 '+(binding.reverseDirection?'+':'−')+size+
+        ' / 오른쪽 '+(binding.reverseDirection?'−':'+')+size;
+    };
+    stepSelect.addEventListener('change',updatePreview);
+    reverse.addEventListener('change',updatePreview);
+    updatePreview();
+    config.append(stepLabel,stepSelect,reverseLabel,preview);
     root.append(config);
   }
   const gestures=info.kind==='knob'
@@ -626,7 +648,7 @@ function executeHardwareAction(event){
   }
   if(outcome.kind==='adjust'){
     if(!window.deckBridge?.adjustWindows)return 'Windows 실행 환경에서만 사용할 수 있습니다.';
-    window.deckBridge.adjustWindows(outcome.target,outcome.direction).then(
+    window.deckBridge.adjustWindows(outcome.target,outcome.direction,outcome.count||1).then(
       ()=>window.d200xActionStatus?.('조절 완료: '+outcome.target),
       error=>window.d200xActionStatus?.('조절 실패: '+String(error?.message||error))
     );
