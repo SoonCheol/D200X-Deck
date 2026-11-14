@@ -11,6 +11,49 @@ const { promisify } = require('node:util');
 const execFileAsync = promisify(execFile);
 const { D200XTransport } = require('./transport.cjs');
 const { parseIconPack, readPacks, registerPack, removePack } = require('./icon-pack.cjs');
+const { safeStorage } = require('electron');
+const HA = require('./ha-client.cjs');
+const haConfigPath=()=>path.join(app.getPath('userData'),'home-assistant-connection-v1.json');
+function readHaConfig(){
+  try{
+    const saved=JSON.parse(fs.readFileSync(haConfigPath(),'utf8'));
+    if(!saved?.tokenEncrypted||!safeStorage.isEncryptionAvailable())return null;
+    return {url:HA.normalizeUrl(saved.url),token:safeStorage.decryptString(Buffer.from(saved.tokenEncrypted,'base64'))};
+  }catch{return null;}
+}
+function saveHaConfig(url,token){
+  if(!safeStorage.isEncryptionAvailable())throw new Error('암호화 저장을 사용할 수 없습니다. 토큰을 저장하지 않았습니다.');
+  const next={url:HA.normalizeUrl(url),tokenEncrypted:safeStorage.encryptString(token).toString('base64')};
+  const dest=haConfigPath(),tmp=dest+'.tmp';
+  try{fs.writeFileSync(tmp,JSON.stringify(next),{encoding:'utf8',mode:0o600});fs.renameSync(tmp,dest);}
+  catch(error){try{fs.unlinkSync(tmp);}catch{}throw error;}
+}
+function assertEditor(event){
+  if(!window||event.sender!==window.webContents)throw new Error('허용되지 않은 호출입니다.');
+}
+ipcMain.handle('d200x:ha-status',event=>{
+  assertEditor(event);
+  const config=readHaConfig();
+  return {configured:!!config,url:config?.url||''};
+});
+ipcMain.handle('d200x:ha-save',async(event,args)=>{
+  assertEditor(event);
+  if(typeof args?.token!=='string'||!args.token.trim()||args.token.length>4096)
+    throw new Error('유효한 HA 장기 액세스 토큰을 입력하세요.');
+  const config={url:HA.normalizeUrl(args.url),token:args.token.trim()};
+  await HA.test(config);
+  saveHaConfig(config.url,config.token);
+  return {configured:true,url:config.url};
+});
+ipcMain.handle('d200x:ha-entities',async event=>{
+  assertEditor(event);
+  return HA.listEntities(readHaConfig());
+});
+ipcMain.handle('d200x:ha-toggle',async(event,entityId)=>{
+  assertEditor(event);
+  return HA.toggle(readHaConfig(),entityId);
+});
+
 
 let window = null;
 let rendererReady = false;
