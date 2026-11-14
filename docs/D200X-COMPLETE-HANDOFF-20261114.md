@@ -486,3 +486,15 @@
 
 핵심 파일: `app/streamdeck-editor/{editor.js,deck-core.js,main.cjs,device-sync.js,icon-pack.cjs,style.css}`, `test/streamdeck-core.test.cjs`.
 
+
+
+## 2026-11-15 — D200X 가로 화면 3종 순환 + 속성창 정렬
+
+- 원본 D200X 공식 설명서 페이지 4 영문 그림에서 `Dial Time`, `Date, Time & Weekday`, `CPU+RAM+GPU`, `Knobs` 옵션의 존재를 확인. 원본 `Knobs` 예시에서는 가로 화면에 CCT, Brightness, Volume가 보이고, 노브 속성창 `Title: Volume`가 보임. **제목 수정에 따라 가로 화면 이름이 즉시 변경되는지는 공식 이미지만으로 입증할 수 없으며 직접 Ulanzi Studio A/B 시험 또는 원본 로직 분석 필요**. 그래서 노브 정보 옵션은 아직 선택 가능하게 만들지 않음.
+- 사용자 확정 기본 모드: 1) 아날로그+디지털 시계, 2) 날짜·시간·요일, 3) CPU/RAM/GPU 한 화면. **13번 가로 슬롯이 비어 있고 최상위 프로필 페이지일 때** 전용 위젯을 기본 표시하며 하드웨어 해당 키를 누를 때마다 순환. 다른 액션이 기존에 등록되었으면 덮어쓰지 않고 원래 액션 유지. 하위 폴더의 뒤로가기 슬롯도 보존.
+- 가로 빈 슬롯을 편집기에서 클릭하면 `가로 화면 표시 설정` 속성창에서 3개 체크박스·HTML 드래그 재정렬·기본 순서 복원 제공. 최소 1개 선택 유지; 설정은 프로필별 `wideDisplay`에 저장 및 백업/마이그레이션/프로필 전환에 포함.
+- 장치 출력: 프로젝트의 기존 `app/lib/page.js` `SmallViewMode`(clock:1, stats:0, blank:2) + `app/lib/deck.js` CLOCK 0x06 프로토콜을 사용. 시계/통계는 펌웨어 네이티브 모드를 선택하고, 날짜·시간·요일은 `device-sync.js`의 392×196 PNG로 출력하며 60초 간격 갱신. 별도 `transport.cjs`가 현재 모드를 기억해 전송 중 keepalive와 충돌하지 않도록 조정. 편집기 시계/통계 화면은 네이티브 기기와 완전히 동일한 이미지가 아닌 별도 프리뷰.
+- CPU 사용량/메모리 값은 기존 `app/lib/sysstats.js`; Windows GPU는 GPU Engine 성능 카운터 기반의 3D 엔진 합계를 5초 간격으로 읽는 시도를 추가. **한국어 Windows 성능 카운터 경로와 RX 7800 XT 실제 GPU 사용률은 검증 전**. 카운터가 없으면 마지막 값(초기 0)을 유지하므로 사용자가 실제 수치 확인 필요.
+- 코드: `deck-core.js`, `editor.js`, `device-sync.js`, `transport.cjs`, `main.cjs`, `preload.cjs`, `sysstats.js`, `style.css`; `test/streamdeck-core.test.cjs`와 `test/streamdeck-transport.test.cjs`에 표시 순서·프로필 보존·전송 모드 테스트. CI 최초 GPU 테스트 실패 후 비Windows 기본 GPU 테스트 호환성 수정 `a42c0319` 및 CI 성공.
+- 주의: 자동 CI와 Windows ZIP 패키징은 하드웨어 실기 검증이 아님. 특히 가로 키가 실제 물리 입력 index13을 송신하는지, 시계와 통계 전환 시 펌웨어 모습, 날짜·요일 PNG가 가로 슬롯에 반영되는지, Windows GPU 3D 성능 카운터 값, 버튼 누를 때 순환은 새 Windows EXE 실기 확인해야 함.
+
