@@ -15,6 +15,8 @@ const clone = value => JSON.parse(JSON.stringify(value));
 const KEY_COUNT = 14;
 const CONTROLS = [{name:"첫 페이지",kind:"side"},{name:"뒤로 가기",kind:"side"},{name:"노브 1",kind:"knob"},{name:"노브 2",kind:"knob"},{name:"노브 3",kind:"knob"}];
 const blankPage = () => DeckCore.blankPage();
+let controlGesture="down";
+const stackPositions=[0,0,0];
 let state=DeckCore.migrateState(null);
 try {state=DeckCore.migrateState(JSON.parse(localStorage.getItem(STORAGE_KEY)));} catch {state=DeckCore.migrateState(null);}
 const persist=()=>{try{localStorage.setItem(STORAGE_KEY,JSON.stringify(state));}catch{};window.scheduleDeckSync?.();};
@@ -46,8 +48,27 @@ function updateTitleAppearance(label,item){
 }
 function newAction(id){return DeckCore.createAction(id);}
 function currentPage(){return state.pages[state.page];}
-function setItem(index,item){currentPage()[index]=item;state.selected=index;persist();render();}
-function choose(index){state.selected=index;persist();render();}
+function setItem(index,item){
+  if(index>=14){
+    const binding=DeckCore.controlBinding(state,index);
+    if(binding.mode!=='trigger')binding.mode='trigger';
+    binding[controlGesture]=item;
+  }else currentPage()[index]=item;
+  state.selected=index;persist();render();
+}
+function choose(index){
+  if(state.selected!==index)controlGesture='down';
+  state.selected=index;persist();render();
+}
+function controlDrop(index,id,gesture='down'){
+  if(!ACTIONS.has(id))return;
+  const binding=DeckCore.controlBinding(state,index);
+  if(!binding)return;
+  if(binding.mode!=='trigger')binding.mode='trigger';
+  binding[gesture]=newAction(id);
+  state.selected=index;controlGesture=gesture;
+  persist();render();
+}
 function renderGrid(){
   const grid=$("key-grid");grid.replaceChildren();
   currentPage().slice(0,KEY_COUNT).forEach((item,i)=>{
@@ -84,22 +105,26 @@ function renderPhysicalControls(){
   const root=$("physical-controls");
   root.replaceChildren();
   CONTROLS.forEach(({name,kind},offset)=>{
-    const index=KEY_COUNT+offset, item=currentPage()[index];
+    const index=KEY_COUNT+offset, binding=DeckCore.controlBinding(state,index);
+    const item=binding?.down;
     const button=document.createElement("button");button.type="button";
     button.className="physical-control "+kind+(state.selected===index?" selected":"");
     button.setAttribute("aria-label",name+" — "+(keyName(item)||"비어 있음"));
-    button.title=name+" — 액션을 드래그해 등록"+(kind==="knob"?" · 이전/다음 페이지 액션: 왼쪽 회전 이전, 오른쪽 회전 다음, 누름은 등록된 동작 실행":"");
+    button.title=name+" — 클릭하거나 액션을 끌어 설정";
     const symbol=document.createElement("span");symbol.className="physical-symbol";
-    const label=document.createElement("span");label.className="physical-name";label.textContent=item?keyName(item):name;
+    const label=document.createElement("span");label.className="physical-name";
+    label.textContent=binding?.mode==='adjust'?'조절: '+({page:'페이지',volume:'음량',zoom:'확대/축소'}[binding.target])
+      :binding?.mode==='stack'?'스택 ('+binding.stack.length+')'
+      :(item?keyName(item):name);
     button.append(symbol,label);
     button.addEventListener("click",()=>choose(index));
-    button.addEventListener("contextmenu",event=>{event.preventDefault();choose(index);showMenu(index,event.clientX,event.clientY);});
+    button.addEventListener("contextmenu",event=>{event.preventDefault();choose(index);});
     button.addEventListener("dragover",event=>{event.preventDefault();button.classList.add("drag-over");});
     button.addEventListener("dragleave",()=>button.classList.remove("drag-over"));
     button.addEventListener("drop",event=>{
       event.preventDefault();button.classList.remove("drag-over");
       const id=event.dataTransfer.getData("application/x-d200x-action");
-      if(ACTIONS.has(id))setItem(index,newAction(id));
+      if(ACTIONS.has(id))controlDrop(index,id);
     });
     root.append(button);
   });
@@ -118,7 +143,9 @@ function renderLibrary(){
       const symbol=document.createElement("span");symbol.className="action-icon";symbol.textContent=icon;
       const name=document.createElement("span");name.textContent=label;entry.append(symbol,name);
       entry.addEventListener("dragstart",ev=>ev.dataTransfer.setData("application/x-d200x-action",id));
-      entry.addEventListener("click",()=>{if(state.selected!==null)setItem(state.selected,newAction(id));});
+      entry.addEventListener("click",()=>{
+        if(state.selected!==null)setItem(state.selected,newAction(id));
+      });
       body.append(entry);
     }
     section.append(title,body);root.append(section);
@@ -303,8 +330,129 @@ function bindTitleStyle(item){
   },{signal:inspectorListener.signal});
 }
 let inspectorListener=new AbortController();
+// Physical controls use a dedicated compact inspector instead of pretending
+// each knob has a single key. Drag to an individual gesture or click it to edit.
+function renderControlInspector(){
+  const root=$("inspector"),index=state.selected,offset=index-14;
+  const info=CONTROLS[offset],binding=DeckCore.controlBinding(state,index);
+  root.className="inspector control-inspector";
+  root.replaceChildren();
+  const head=document.createElement('div');head.className='action-head';
+  const name=document.createElement('strong');name.textContent=info.name+' · 액션 할당';
+  head.append(name);root.append(head);
+  const scopeRow=document.createElement('div');scopeRow.className='control-config';
+  const scopeLabel=document.createElement('label');scopeLabel.textContent='적용 범위';
+  const scope=document.createElement('select');
+  for(const [value,label] of [['global','모든 페이지 공통'],['page','현재 페이지에만']]){
+    const option=new Option(label,value);scope.add(option);
+  }
+  scope.value=state.controls.scopes[offset];
+  scope.addEventListener('change',()=>{
+    DeckCore.changeControlScope(state,index,scope.value);
+    persist();render();
+  });
+  scopeRow.append(scopeLabel,scope);
+  if(info.kind==='knob'){
+    const modeLabel=document.createElement('label');modeLabel.textContent='설정 방식';
+    const mode=document.createElement('select');
+    for(const [value,label] of [['trigger','동작별 할당'],['adjust','조절형 액션'],['stack','다이얼 스택']])
+      mode.add(new Option(label,value));
+    mode.value=binding.mode;
+    mode.addEventListener('change',()=>{
+      binding.mode=mode.value;persist();render();
+    });
+    scopeRow.append(modeLabel,mode);
+  }
+  root.append(scopeRow);
+  if(info.kind==='knob'&&['adjust','stack'].includes(binding.mode)){
+    const config=document.createElement('div');config.className='control-config';
+    const label=document.createElement('label');
+    label.textContent=binding.mode==='adjust'?'회전 조절 대상':'스택 조절 대상';
+    config.append(label);
+    if(binding.mode==='adjust'){
+      const select=document.createElement('select');
+      for(const [value,title] of [['page','페이지 이동'],['volume','Windows 음량'],['zoom','활성 앱 확대/축소']])
+        select.add(new Option(title,value));
+      select.value=binding.target;
+      select.addEventListener('change',()=>{binding.target=select.value;persist();renderPhysicalControls();});
+      config.append(select);
+    }else{
+      const area=document.createElement('div');area.className='control-stack-targets';
+      const targets=[['page','페이지 이동'],['volume','Windows 음량'],['zoom','활성 앱 확대/축소']];
+      for(const [value,title] of targets){
+        const label=document.createElement('label');
+        const check=document.createElement('input');check.type='checkbox';
+        check.checked=binding.stack.includes(value);
+        check.addEventListener('change',()=>{
+          const next=targets.map(x=>x[0]).filter(x=>x===value?check.checked:binding.stack.includes(x));
+          if(!next.length){check.checked=true;return;}
+          binding.stack=next;
+          stackPositions[offset-2]=0;
+          persist();render();
+        });
+        label.append(check,document.createTextNode(title));area.append(label);
+      }
+      config.append(area);
+      const hint=document.createElement('small');hint.className='hint';
+      hint.textContent='노브 누름: 페이지 → 음량 → 확대/축소 등 선택한 순서로 전환';
+      config.append(hint);
+    }
+    root.append(config);
+  }
+  const gestures=info.kind==='knob'
+    ? [['left','↶','왼쪽 회전'],['right','↷','오른쪽 회전'],['down','●','누르기']]
+    : [['down','●','누르기']];
+  const strip=document.createElement('div');strip.className='control-gesture-strip';
+  for(const [gesture,glyph,title] of gestures){
+    const tile=document.createElement('button');tile.type='button';
+    tile.className='control-gesture-tile'+(controlGesture===gesture?' active':'');
+    const action=binding[gesture];
+    const allowed=binding.mode==='trigger'||gesture==='down';
+    tile.innerHTML='<span class="control-gesture-symbol">'+glyph+'</span><strong>'+title+
+      '</strong><span class="control-gesture-value">'+(allowed?(action?escapeHtml(keyName(action)):'＋ 액션 놓기'):
+      '조절 동작 자동 지정')+'</span>';
+    tile.addEventListener('click',()=>{controlGesture=gesture;renderControlInspector();});
+    tile.addEventListener('dragover',e=>{if(allowed){e.preventDefault();tile.classList.add('drag-over');}});
+    tile.addEventListener('dragleave',()=>tile.classList.remove('drag-over'));
+    tile.addEventListener('drop',e=>{
+      if(!allowed)return;
+      e.preventDefault();const id=e.dataTransfer.getData('application/x-d200x-action');
+      if(ACTIONS.has(id))controlDrop(index,id,gesture);
+    });
+    strip.append(tile);
+  }
+  root.append(strip);
+  const current=binding[controlGesture];
+  if(current&&(binding.mode==='trigger'||controlGesture==='down')){
+    const editor=document.createElement('div');editor.className='control-action-editor';
+    const row=document.createElement('div');row.className='control-action-header';
+    const label=document.createElement('strong');label.textContent=keyName(current);
+    const remove=document.createElement('button');remove.type='button';remove.textContent='이 동작 삭제';
+    remove.addEventListener('click',()=>{binding[controlGesture]=null;persist();render();});
+    row.append(label,remove);editor.append(row);
+    const fields=document.createElement('div');fields.className='fields';
+    fields.innerHTML=actionFields(current);
+    fields.querySelectorAll('[data-field]').forEach(node=>{
+      node.addEventListener(node.type==='range'||node.tagName==='TEXTAREA'?'input':'change',()=>{
+        const value=node.type==='checkbox'?node.checked:
+          node.type==='number'||node.type==='range'?Number(node.value):node.value;
+        current.settings[node.dataset.field]=value;persist();
+      });
+    });
+    editor.append(fields);root.append(editor);
+  }else{
+    const help=document.createElement('p');help.className='hint';
+    help.textContent=binding.mode==='trigger'?'오른쪽 목록의 액션을 위 동작 칸에 끌어 넣으세요.':
+      '회전은 조절 대상으로 실행되며, 누르기 칸에는 별도 액션도 등록할 수 있습니다.';
+    root.append(help);
+  }
+}
 function renderInspector(){
   inspectorListener.abort();inspectorListener=new AbortController();
+  if(state.selected!==null&&state.selected>=14){
+    renderControlInspector();
+    return;
+  }
   const root=$("inspector");root.replaceChildren();const item=state.selected===null?null:currentPage()[state.selected];
   if(!item){root.className="inspector empty";root.textContent=state.selected===null?"버튼을 선택하세요":"액션을 끌어 이 키에 놓으세요";return;}
   root.className="inspector";const action=ACTIONS.get(item.type);const fields=actionFields(item);
@@ -427,7 +575,7 @@ let clipboard=null;
 window.addEventListener("click",ev=>{if(!ev.target.closest("#key-menu"))$("key-menu").hidden=true;});
 window.addEventListener("keydown",ev=>{if(ev.key==="Escape")$("key-menu").hidden=true;if(ev.ctrlKey&&ev.key.toLowerCase()==="v"&&clipboard&&state.selected!==null&&!["INPUT","TEXTAREA"].includes(document.activeElement.tagName)){ev.preventDefault();setItem(state.selected,clone(clipboard));}});
 $("action-search").addEventListener("input",renderLibrary);
-$("add-page").addEventListener("click",()=>{state.pages.push(blankPage());state.page=state.pages.length-1;state.selected=null;persist();render();});
+$("add-page").addEventListener("click",()=>{state.pages.push(blankPage());DeckCore.ensureControls(state).pages.push(Array.from({length:5},DeckCore.emptyBinding));state.page=state.pages.length-1;state.selected=null;persist();render();});
 $("delete-page").addEventListener("click",()=>{
   if(state.pages.length<=1)return;
   if(!confirm("현재 페이지 "+(state.page+1)+"을(를) 삭제하시겠습니까? 이 페이지의 모든 액션이 삭제됩니다."))return;
@@ -441,27 +589,35 @@ const pressedHardwareKeys=new Set();
 function executeHardwareAction(event){
   const resolved=DeckCore.resolveHardwareEvent(state,event);
   if(!resolved)return null;
-  const index=resolved.index;
-  if(resolved.gesture==='up'){
-    pressedHardwareKeys.delete(index);
-    return null;
-  }
+  const index=resolved.index,offset=index-14;
+  if(resolved.gesture==='up'){pressedHardwareKeys.delete(index);return null;}
   if(resolved.gesture==='down'){
     if(pressedHardwareKeys.has(index))return null;
     pressedHardwareKeys.add(index);
   }
-  // Each rotary tick is a distinct event; do not require a release
-  // between left/right turns as ordinary push buttons do.
-  const planned=DeckCore.planHardwareEvent(state,event);
+  const planned=DeckCore.planHardwareEvent(state,event,
+    offset>=2?stackPositions[offset-2]:0);
   if(!planned)return null;
   const outcome=planned.outcome;
+  if(outcome.kind==='stack-next'){
+    const idx=offset-2;
+    stackPositions[idx]=(stackPositions[idx]+1)%outcome.size;
+    const target=DeckCore.controlBinding(state,index).stack[stackPositions[idx]];
+    return '노브 '+(idx+1)+' 조절 대상: '+({page:'페이지',volume:'음량',zoom:'확대/축소'}[target]);
+  }
+  if(outcome.kind==='adjust'){
+    if(!window.deckBridge?.adjustWindows)return 'Windows 실행 환경에서만 사용할 수 있습니다.';
+    window.deckBridge.adjustWindows(outcome.target,outcome.direction).then(
+      ()=>window.d200xActionStatus?.('조절 완료: '+outcome.target),
+      error=>window.d200xActionStatus?.('조절 실패: '+String(error?.message||error))
+    );
+    return (outcome.target==='volume'?'Windows 음량':'활성 앱 확대/축소')+
+      (outcome.direction>0?' 증가':' 감소');
+  }
   if(outcome.kind==='page'){
     if(outcome.page===state.page)return '페이지 '+(state.page+1)+' · 이동 없음';
-    state.page=outcome.page;
-    state.selected=null;
-    persist();
-    render();
-    return '페이지 '+(outcome.page+1)+' 표시';
+    state.page=outcome.page;state.selected=null;
+    persist();render();return '페이지 '+(outcome.page+1)+' 표시';
   }
   if(outcome.kind==='website'){
     if(!window.deckBridge?.openWebsite)return '웹사이트 열기는 Windows EXE에서만 실행됩니다.';
