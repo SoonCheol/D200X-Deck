@@ -87,6 +87,18 @@ ipcMain.handle('d200x:ha-toggle',async(event,entityId)=>{
 });
 
 
+// One editor process per user-data directory. A second launch focuses the first window.
+const singleInstanceLock=app.requestSingleInstanceLock();
+if(!singleInstanceLock){
+  app.quit();
+}else{
+  app.on('second-instance',()=>{
+    if(!window||window.isDestroyed())return;
+    if(window.isMinimized())window.restore();
+    window.show();
+    window.focus();
+  });
+}
 let window = null;
 let rendererReady = false;
 const transport = new D200XTransport();
@@ -713,7 +725,7 @@ if($targetPid -gt 0){try{(Get-Process -Id $targetPid -ErrorAction Stop).Path}cat
   }catch{return null;}
 });
 
-app.whenReady().then(async () => {
+if(singleInstanceLock)app.whenReady().then(async () => {
   diagnosticPath = path.join(app.getPath('userData'), 'd200x-connection.log');
   Menu.setApplicationMenu(null);
   window = new BrowserWindow({
