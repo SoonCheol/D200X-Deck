@@ -348,3 +348,13 @@
 .profile-row-tools button,.profile-global-panel button{font-size:12px}
 .profile-row-tools button:disabled{opacity:.4;cursor:not-allowed}
 .profile-global-panel{background:#282828;border-left:2px solid #666;margin:4px 5px;padding:4px}
+
+/* Wide D200X window: per-profile mode checkbox and drag-to-sort inspector. */
+.wide-mode-list{display:flex;flex-direction:column;gap:6px;margin:10px 0}
+.wide-mode-row{display:grid;grid-template-columns:22px 22px minmax(0,1fr) auto;align-items:center;gap:7px;background:#333;border:1px solid #4b4b4b;border-radius:6px;padding:10px 9px;font-size:12px;cursor:grab}
+.wide-mode-row:active{cursor:grabbing}
+.wide-mode-row input{accent-color:#e9a300;width:16px;height:16px}
+.wide-mode-handle{color:#aaa;font-size:16px}
+.wide-mode-row small{font-size:10px;color:#e4ac39}
+.wide-mode-reset{font-size:11px;padding:9px 12px;border:1px solid #555;background:#383838;color:#eee;border-radius:5px;text-align:left}
+.wide-mode-reset:hover{background:#494949}
