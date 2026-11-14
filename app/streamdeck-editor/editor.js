@@ -21,11 +21,16 @@ const stackPositions=[0,0,0];
 let state=DeckCore.migrateState(null);
 let backupPending=false;
 let folderExitTimer=null;
-function refreshFolderAutoExit(){
+function cancelFolderAutoExit(){
   if(folderExitTimer!==null)clearTimeout(folderExitTimer);
   folderExitTimer=null;
-  const seconds=DeckCore.activeFolder(state)?.settings?.autoExitSeconds;
-  if(!Number.isInteger(seconds)||seconds<1||seconds>60)return;
+}
+function scheduleFolderExitAfterAction(){
+  cancelFolderAutoExit();
+  const settings=DeckCore.activeFolder(state)?.settings;
+  if(settings?.autoExitEnabled!==true)return;
+  const seconds=Number(settings.autoExitSeconds);
+  if(!Number.isInteger(seconds)||seconds<0||seconds>60)return;
   const profile=state.profileId,path=JSON.stringify(state.folderPath);
   folderExitTimer=setTimeout(()=>{
     folderExitTimer=null;
@@ -272,7 +277,8 @@ function actionFields(item){
     case "multi":return `<div class="field"><label>내용</label><div>${item.children.length}개의 단계 · 아래에서 추가·수정</div></div>`;
     case "random":return `<div class="field"><label>내용</label><div>${item.children.length}개의 후보 · 아래 목록에서 편집</div></div>`;
     case "folder":return `<div class="field"><label>내용</label><div>폴더 내부 항목 편집은 아래 버튼을 사용하세요.</div></div>`+
-      `<div class="field"><label>자동 폴더 나가기 (0=사용 안 함)</label><input type="number" min="0" max="60" data-field="autoExitSeconds" value="${Number(item.settings?.autoExitSeconds)||0}"><span>초</span></div>`;
+      `<div class="field"><label>액션 실행 후 자동 나가기</label><input type="checkbox" data-field="autoExitEnabled" ${item.settings?.autoExitEnabled?'checked':''}></div>`+
+      `<div class="field"><label>실행 후 대기 (0=즉시 나가기)</label><input type="number" min="0" max="60" data-field="autoExitSeconds" value="${Number(item.settings?.autoExitSeconds)||0}"><span>초</span></div>`;
     case "multi-switch":return `<div class="field"><label>상태</label><span>상태 1 / 상태 2 별도 동작 목록 · 아래에서 편집</span></div>`;
     case "logic":return `<div class="field"><label>슬롯</label><span>한 번 누르기 / 두 번 누르기 / 유지 · 내부 편집 기능 미구현</span></div>`;
     case "profile":return select("profile","프로필",[
@@ -1007,11 +1013,12 @@ function executeHardwareAction(event,preview=false){
     if(now-(lastHardwareDown.get(index)||0)<250)return null;
     lastHardwareDown.set(index,now);
   }
-  refreshFolderAutoExit();
   const planned=DeckCore.planHardwareEvent(state,event,
     offset>=2?stackPositions[offset-2]:0);
   if(!planned)return null;
   const outcome=planned.outcome;
+  if(!['stack-next','page','profile','folder-back','folder-enter','composite','unsupported','invalid'].includes(outcome.kind))
+    scheduleFolderExitAfterAction();
   if(outcome.kind==='stack-next'){
     const idx=offset-2;
     stackPositions[idx]=(stackPositions[idx]+1)%outcome.size;
@@ -1020,6 +1027,7 @@ function executeHardwareAction(event,preview=false){
     return '노브 '+(idx+1)+' 조절 대상: '+({page:'페이지',volume:'음량',zoom:'확대/축소',scroll:'세로 스크롤','scroll-x':'가로 스크롤',history:'실행 취소·다시 실행',window:'창 전환',desktop:'가상 데스크톱',brightness:'기기 밝기'}[target]);
   }
   if(outcome.kind==='profile'){
+    cancelFolderAutoExit();
     const names=state.profileNames||[];
     const pos=names.findIndex(p=>p.id===state.profileId);
     const id=outcome.profile==='next'?names[(pos+1)%names.length]?.id:outcome.profile;
@@ -1027,10 +1035,12 @@ function executeHardwareAction(event,preview=false){
     lastHardwareDown.clear();persist();render();return '프로필 전환: '+state.profileNames.find(p=>p.id===id)?.name;
   }
   if(outcome.kind==='folder-back'){
+    cancelFolderAutoExit();
     if(!DeckCore.exitFolder(state))return '상위 폴더가 없습니다.';
     lastHardwareDown.clear();persist();render();return '상위 폴더로 이동';
   }
   if(outcome.kind==='folder-enter'){
+    cancelFolderAutoExit();
     if(!DeckCore.enterFolder(state,index))return '폴더를 열 수 없습니다.';
     lastHardwareDown.clear();persist();render();return '폴더 열기';
   }
@@ -1057,6 +1067,7 @@ function executeHardwareAction(event,preview=false){
       state:position,random,signal:controller.signal,nextActionMs:100
     }).then(
       count=>{
+        scheduleFolderExitAfterAction();
         if(outcome.type==='multi-switch'){
           action.settings.activeState=1-position;
           persist();renderGrid();
@@ -1234,6 +1245,7 @@ function executeHardwareAction(event,preview=false){
       (outcome.direction>0?' 증가':' 감소');
   }
   if(outcome.kind==='page'){
+    cancelFolderAutoExit();
     if(outcome.page===state.page)return '페이지 '+(state.page+1)+' · 이동 없음';
     state.page=outcome.page;state.folderPath=[];state.selected=null;
     lastHardwareDown.clear();persist();render();return '페이지 '+(outcome.page+1)+' 표시';
@@ -1250,7 +1262,7 @@ function executeHardwareAction(event,preview=false){
 }
 window.executeD200XKey=executeHardwareAction;
 let refreshProfilesMenu=()=>{};
-function render(){renderGrid();renderInspector();refreshProfilesMenu();refreshFolderAutoExit();}
+function render(){renderGrid();renderInspector();refreshProfilesMenu();}
 
 /* Reference UI controls: library appearance is modeled after the supplied 7.6.1
  * screenshots. Icons below are clearly a small placeholder catalogue, not the
