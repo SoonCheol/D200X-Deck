@@ -19,9 +19,23 @@ const blankPage = () => DeckCore.blankPage();
 let controlGesture="down";
 const stackPositions=[0,0,0];
 let state=DeckCore.migrateState(null);
-try {state=DeckCore.migrateState(JSON.parse(localStorage.getItem(STORAGE_KEY)));} catch {state=DeckCore.migrateState(null);}
+let backupPending=false;
+try {
+  const raw=localStorage.getItem(STORAGE_KEY);
+  if(raw){
+    state=DeckCore.migrateState(JSON.parse(raw));
+    backupPending=!localStorage.getItem(STORAGE_KEY+'-pre-profiles-backup');
+  }
+} catch {state=DeckCore.migrateState(null);}
 const persist=()=>{
-  try {localStorage.setItem(STORAGE_KEY,JSON.stringify(state));}
+  try {
+    if(backupPending){
+      const old=localStorage.getItem(STORAGE_KEY);
+      if(old&&!localStorage.getItem(STORAGE_KEY+'-pre-profiles-backup'))
+        localStorage.setItem(STORAGE_KEY+'-pre-profiles-backup',old);
+      backupPending=false;
+    }
+    localStorage.setItem(STORAGE_KEY,JSON.stringify(state));
   catch(error) {
     console.error('D200X 설정 저장 실패',error);
     window.d200xActionStatus?.('설정 저장 실패: 저장 공간/권한을 확인하세요.');
@@ -245,7 +259,9 @@ function actionFields(item){
     case "folder":return `<div class="field"><label>내용</label><div>폴더 내부 항목 편집은 아래 버튼을 사용하세요.</div></div>`;
     case "multi-switch":return `<div class="field"><label>상태</label><span>상태 1 / 상태 2 별도 동작 목록 · 아래에서 편집</span></div>`;
     case "logic":return `<div class="field"><label>슬롯</label><span>한 번 누르기 / 두 번 누르기 / 유지 · 내부 편집 기능 미구현</span></div>`;
-    case "profile":return select("profile","프로필",[["next","다음 프로필"]]);
+    case "profile":return select("profile","프로필",[
+      ["next","다음 프로필"],...state.profileNames.map(p=>[p.id,p.name])
+    ]);
     case "goto":return select("page","대상",state.pages.map((_,i)=>[String(i),String(i+1)]));
     default:return "";
   }
@@ -986,6 +1002,13 @@ function executeHardwareAction(event,preview=false){
     const target=DeckCore.controlBinding(state,index).stack[stackPositions[idx]];
     return '노브 '+(idx+1)+' 조절 대상: '+({page:'페이지',volume:'음량',zoom:'확대/축소',scroll:'세로 스크롤','scroll-x':'가로 스크롤',history:'실행 취소·다시 실행',window:'창 전환',desktop:'가상 데스크톱',brightness:'기기 밝기'}[target]);
   }
+  if(outcome.kind==='profile'){
+    const names=state.profileNames||[];
+    const pos=names.findIndex(p=>p.id===state.profileId);
+    const id=outcome.profile==='next'?names[(pos+1)%names.length]?.id:outcome.profile;
+    if(!id||!DeckCore.switchProfile(state,id))return '프로필을 찾을 수 없습니다.';
+    lastHardwareDown.clear();persist();render();return '프로필 전환: '+state.profileNames.find(p=>p.id===id)?.name;
+  }
   if(outcome.kind==='folder-enter'){
     if(!DeckCore.enterFolder(state,index))return '폴더를 열 수 없습니다.';
     lastHardwareDown.clear();persist();render();return '폴더 열기';
@@ -1205,7 +1228,8 @@ function executeHardwareAction(event,preview=false){
   return outcome.message;
 }
 window.executeD200XKey=executeHardwareAction;
-function render(){renderGrid();renderInspector();}
+let refreshProfilesMenu=()=>{};
+function render(){renderGrid();renderInspector();refreshProfilesMenu();}
 
 /* Reference UI controls: library appearance is modeled after the supplied 7.6.1
  * screenshots. Icons below are clearly a small placeholder catalogue, not the
@@ -1358,15 +1382,45 @@ function bindSidebarHeader(){
   const trigger=$("profile-trigger"),menu=$("profile-menu");
   const renderProfiles=()=>{
     menu.replaceChildren();
-    const option=document.createElement("button");option.type="button";
-    option.textContent="✓ 기본 프로필";
-    option.setAttribute("aria-current","true");
-    option.addEventListener("click",()=>{menu.hidden=true;trigger.setAttribute("aria-expanded","false");});
-    menu.append(option);
-    const hint=document.createElement("div");hint.className="hint";hint.style.padding="8px 11px";
-    hint.textContent="다중 프로필 관리는 아직 연결되지 않았습니다.";
-    menu.append(hint);
+    $("profile-name").textContent=state.profileNames.find(p=>p.id===state.profileId)?.name||'기본 프로필';
+    const close=()=>{menu.hidden=true;trigger.setAttribute('aria-expanded','false');};
+    const add=(label,handler)=>{
+      const button=document.createElement('button');button.type='button';button.textContent=label;
+      button.addEventListener('click',()=>{handler();close();renderProfiles();});
+      menu.append(button);
+    };
+    for(const profile of state.profileNames){
+      add((profile.id===state.profileId?'✓ ':'  ')+profile.name,()=>{
+        if(DeckCore.switchProfile(state,profile.id)){
+          controlGesture='down';persist();render();
+        }
+      });
+    }
+    const separator=document.createElement('hr');menu.append(separator);
+    add('＋ 새 프로필',()=>{
+      const name=prompt('새 프로필 이름','새 프로필');
+      if(name===null)return;
+      const id=DeckCore.createProfile(state,name);
+      if(id){DeckCore.switchProfile(state,id);persist();render();}
+    });
+    add('현재 프로필 복제',()=>{
+      const name=prompt('복사본 이름',($("profile-name").textContent||'프로필')+' 복사본');
+      if(name===null)return;
+      const id=DeckCore.createProfile(state,name,true);
+      if(id){DeckCore.switchProfile(state,id);persist();render();}
+    });
+    add('현재 프로필 이름 변경',()=>{
+      const name=prompt('새 이름',$("profile-name").textContent);
+      if(name!==null&&DeckCore.renameProfile(state,state.profileId,name)){persist();render();}
+    });
+    add('현재 프로필 삭제',()=>{
+      if(state.profileNames.length<=1)return;
+      if(confirm('현재 프로필과 그 안의 설정을 삭제하시겠습니까? 복구할 수 없습니다.')){
+        if(DeckCore.deleteProfile(state,state.profileId)){persist();render();}
+      }
+    });
   };
+  refreshProfilesMenu=renderProfiles;
   renderProfiles();
   trigger.addEventListener("click",()=>{
     menu.hidden=!menu.hidden;trigger.setAttribute("aria-expanded",String(!menu.hidden));
