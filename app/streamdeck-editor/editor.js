@@ -1622,7 +1622,9 @@ function executeHardwareAction(event,preview=false){
     return handleOpenAppHold(resolved.action,index,event,resolved.gesture);
   if(resolved.action?.type==='logic'&&['down','up'].includes(resolved.gesture))
     return handleLogicGesture(resolved.action,index,resolved.gesture,preview);
-  if(resolved.action?.type==='sd-plugin'){
+  const sdkAction=index>=16&&['left','right'].includes(resolved.gesture)
+    ?resolved.binding?.[resolved.gesture]:resolved.action;
+  if(sdkAction?.type==='sd-plugin'){
     const ctx=sdkContext(index,
       resolved.gesture==='up'?'down':resolved.gesture);
     if(!window.deckBridge?.sdkKey)return 'SDK 플러그인은 Windows EXE에서만 실행됩니다.';
