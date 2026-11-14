@@ -63,6 +63,13 @@ test('brightness clamp and keepalive preserve the requested value',async()=>{
   time+=5000;t.tick();assert.deepEqual(deck.calls.at(-1),['brightness',98]);t.stop();
 });
 
+test('absolute brightness presets enforce the safety floor and update keepalive',async()=>{
+  let time=12000;const deck=new FakeDeck();const t=new D200XTransport({deck,now:()=>time});
+  await t.start();assert.throws(()=>t.setSafeBrightness(0),/20~100/);
+  assert.equal(t.setSafeBrightness(30),30);time+=KEEPALIVE_MS;t.tick();
+  assert.deepEqual(deck.calls.at(-1),['brightness',30]);t.stop();
+});
+
 test('repeated brightness decreases stop at the visible safety floor',async()=>{
   assert.equal(MIN_BRIGHTNESS,20);
   const deck=new FakeDeck();const t=new D200XTransport({deck});await t.start();
