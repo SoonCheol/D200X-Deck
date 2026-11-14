@@ -239,6 +239,20 @@ ${held.slice().reverse().map(v=>`[D200XSafeKey]::keybd_event(${v},0,2,[UIntPtr]:
   return true;
 });
 
+ipcMain.handle('d200x:open-local-path',async(event,args)=>{
+  if(!window||event.sender!==window.webContents)throw new Error('허용되지 않은 호출입니다.');
+  const filePath=args?.filePath;
+  if(!['file','folder'].includes(args?.target)||typeof filePath!=='string'||
+      !path.win32.isAbsolute(filePath)||filePath.length>4096||/[\x00-\x1f\x7f]/.test(filePath))
+    throw new Error('올바른 Windows 파일/폴더 경로를 선택하세요.');
+  const stat=await fs.promises.stat(filePath);
+  if(args.target==='file'&&!stat.isFile()||args.target==='folder'&&!stat.isDirectory())
+    throw new Error('선택한 파일/폴더 유형이 일치하지 않습니다.');
+  const error=await shell.openPath(filePath);
+  if(error)throw new Error(error);
+  return true;
+});
+
 // Local clipboard image only; never reads arbitrary files or executes clipboard content.
 ipcMain.handle('d200x:clipboard-image', async event => {
   if (!window || event.sender !== window.webContents) return null;
