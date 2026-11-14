@@ -11,7 +11,7 @@ const UUID=/^[a-zA-Z0-9][a-zA-Z0-9._-]{2,180}$/;
 const MAX_ARCHIVE=40*1024*1024,MAX_FILES=2500,MAX_EXPANDED=100*1024*1024;
 const DEVICE='d200x-device';
 const json=x=>JSON.stringify(x);
-const filename=x=>typeof x==='string'&&/^[a-zA-Z0-9_.\/-]+$/.test(x)&&!x.startsWith('/')&&!x.split('/').includes('..')&&!x.includes('\\');
+const filename=x=>typeof x==='string'&&x.length>0&&x.length<1024&&!x.startsWith('/')&&!x.includes('\\')&&!/[\x00-\x1f\x7f]/.test(x)&&x.split('/').every(segment=>segment.length>0&&segment!=='.'&&segment!=='..'&&!segment.includes(':'));
 function validateManifest(m){
   if(!m||!UUID.test(m.UUID)||!Array.isArray(m.Actions)||!m.Actions.length||
     !m.Actions.every(a=>UUID.test(a.UUID)&&typeof a.Name==='string')||
