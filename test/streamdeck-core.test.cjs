@@ -194,6 +194,23 @@ test('Multi Switch active state and visual overrides survive save and migration'
   assert.equal(core.displaySwitchAction(restored.pages[0][0]).title,'켜기');
 });
 
+test('Multi Switch linked titles share the first title while preserving both originals',()=>{
+  const source=core.cleanAction({
+    type:'multi-switch',title:'공통',settings:{activeState:1,linkStateTitles:true},
+    stateVisuals:[
+      {title:'연결 제목',icon:{kind:'glyph',glyph:'1'}},
+      {title:'독립 제목',icon:{kind:'glyph',glyph:'2'}}
+    ]
+  });
+  assert.equal(core.displaySwitchAction(source).title,'연결 제목');
+  assert.equal(core.displaySwitchAction(source).icon.glyph,'2');
+  assert.equal(source.stateVisuals[1].title,'독립 제목');
+  const restored=core.cleanAction(JSON.parse(JSON.stringify(source)));
+  assert.equal(core.displaySwitchAction(restored).title,'연결 제목');
+  restored.settings.linkStateTitles=false;
+  assert.equal(core.displaySwitchAction(restored).title,'독립 제목');
+});
+
 test('Multi Switch visual input validation and legacy fallbacks preserve common icon',()=>{
   const legacy=core.cleanAction({type:'multi-switch',title:'원래',icon:{kind:'glyph',glyph:'●'},children:[{type:'media'}]});
   assert.strictEqual(core.displaySwitchAction(legacy),legacy);
