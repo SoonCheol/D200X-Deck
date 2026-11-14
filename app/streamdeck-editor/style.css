@@ -68,6 +68,8 @@
 .icon-library-search #icon-pack-import:hover{background:#464646}
 .icon-library-search #icon-pack-import:disabled{opacity:.45}
 .icon-pack-swatch img{width:100%;height:100%;object-fit:contain;image-rendering:auto}
+.icon-pack-more{grid-column:1/-1;padding:9px;border:1px solid #555;background:#3c3c3c;border-radius:4px;color:#eee;font-size:12px}
+.icon-pack-more:hover{background:#505050}
 
 .icon-library-search button{border:0;background:transparent;color:#bbb;font-size:19px}
 .icon-library-groups{overflow:auto}
