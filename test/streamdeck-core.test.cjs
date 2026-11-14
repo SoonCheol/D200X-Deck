@@ -962,3 +962,21 @@ test('nested folders keep independent pages and preserve content through migrati
   assert.equal(core.deleteFolderPage(restored),true);
   assert.equal(core.folderPageCount(restored),1);
 });
+
+
+test('copying an inactive profile keeps the new ID and preserves original action data',()=>{
+  const state=core.migrateState(null);
+  const first=core.createProfile(state,'첫 번째');
+  assert.equal(core.switchProfile(state,first),true);
+  state.pages[0][1]=core.createAction('website');
+  const second=core.createProfile(state,'두 번째');
+  assert.equal(core.switchProfile(state,second),true);
+  const copied=core.createProfile(state,'첫 번째 복제',true,first);
+  assert.notEqual(copied,first);
+  assert.equal(state.inactiveProfiles.find(p=>p.id===copied)?.pages[0][1]?.type,'website');
+  assert.equal(core.switchProfile(state,copied),true);
+  assert.equal(state.profileId,copied);
+  assert.equal(state.pages[0][1].type,'website');
+  assert.equal(core.switchProfile(state,first),true);
+  assert.equal(state.pages[0][1].type,'website');
+});
