@@ -451,3 +451,21 @@
 - 원인 2: `displayItem(item)`이 `DeckCore.visibleActions(state).findIndex(x=>x===item)`로 슬롯을 찾으나 D200X 장치 전송 과정 `device-sync.js`가 아이템을 JSON 복제하므로 객체 동일성 검색에 실패. 수정: `displayItem(item,index)`에 명시적 슬롯 인덱스를 전달, 편집기 렌더와 `window.getD200XDisplayItem(item,index)`가 동일한 컨텍스트로 플러그인 이미지를 검색.
 - 기능 코드 커밋 `f25bf70f7035ed8dcfc487ffd7f9b4f4c4eb39bf`. `test/streamdeck-sdk-visual.test.cjs`에서 클론 아이템 동적 이미지, 사용자 선택 팩 우선순위 확인; Windows 프리뷰 workflow에도 테스트 추가 (최신 변경 `2b3b4c94210a4c787a1b87c364ffcec0fb7ea1e4`).
 - CI #43642035160 success 확인. Windows preview #43642030211 최종 결과 및 artifact 확인 후 반영. **실제 하드웨어/원본 플러그인 상태 변경/아이콘 적용은 새 EXE 사용자 실기 확인 전**. 기존 플러그인 PI의 Icon Source=Plugin 설정은 플러그인 자체 아이콘을 선호한다는 뜻이며 D200X 편집기의 수동 아이콘팩 적용 정책과 별개.
+
+
+### 2026-11-15 — HA 플러그인 OFF/ON 아이콘·설정 모달·플러그인 탭 UI 수정
+
+사용자 요청 및 실제 스크린샷:
+- HA `Entity (custom icons)` 액션의 사용자 지정 **OFF/ON 2개 아이콘을 각각 저장**하는 조작이 없었다.
+- 오른쪽 플러그인 탭 상단의 `액션 아이콘` 테마/개별 초기화 줄은 불필요. **해당 탭에서는 없애고 `＋ 플러그인 추가`를 같은 자리에 배치**. 키 탭에서는 기존 테마 줄 유지.
+- `원본 속성 편집기 → 설정 열기` 버튼이 흰색 기본 버튼이었으며 원본 PI 창이 다른 모니터에 떠 불편. **부모 편집기 위에 중앙 정렬된 모달 창**으로 변경하고 어두운 버튼 스타일 적용.
+
+구현:
+- `editor.js`의 `sd-plugin` 속성에 OFF 및 ON 각 `라이브러리/파일/초기화` 버튼과 미리보기 추가. `settings.sdkStateIcons.off/on={kind:'file',value:PNG data URL,packId?:...}`를 기존 액션 데이터에 추가해 프로필에 개별 저장. `displayItem(item,index)`이 SDK `setState(0/1)`로 받은 실제 상태에 따라 OFF/ON 아이콘을 최우선 표시(이전 일반 수동 아이콘, 다음 플러그인 동적 이미지 순). 편집기/실기 동기화는 공통 렌더러를 사용.
+- 아이콘 라이브러리 `openIconLibrary(item,stateKey)`를 확장해 해당 상태의 그림에 저장되게 하며 상태 선택 정보는 라이브러리 종료 시 초기화. 등록된 아이콘팩 삭제 시 기존 액션 하위 상태 이미지도 탐색/초기화하도록 기존 재귀 탐색 `visitIconReferences`가 상태 이미지 경로를 순회.
+- `bindActionAppearance`는 기존 `액션 아이콘` UI 유지, `plugin-install-toolbar` 신규 설치 버튼을 생성. `updatePluginToolbar()`가 탭 선택에 따라 둘 중 하나만 표시. 기존 우측 플러그인 목록 내부 중복 설치 버튼 제거. 기존 `Home Assistant 연결 설정` 자체 REST 항목은 보존.
+- `main.cjs`에서 원본 편집기 BrowserWindow getter를 SDK 호스트에 전달, `sd-plugin-host.cjs`에서 `parent` + `modal:true` + 같은 모니터 workArea 내 부모 중앙 위치, `show:false` 후 PI 로딩·SDK 연결 완료 시 `show();focus()`. 다른 모니터에 생성되는 현상을 방지하도록 설계. 이미 열린 PI는 기존 창 포커스.
+- `style.css`에서 플러그인 설치 버튼, OFF/ON 미리보기, `설정 열기` 버튼을 다크 스타일로 지정하고 탭 툴바 `[hidden]` 스타일 우선 처리.
+- `test/streamdeck-sdk-visual.test.cjs`에 ON/OFF 별도 아이콘 우선순위와 공통 아이콘 fallback 확인 추가. Windows Preview 자동 테스트에 기존부터 포함됨.
+- 개발 커밋: `dcc2f5fe580840966fad14da95a3b47a66200946` (UI), `9ed0dffa445010edc4bcaea06192581a8cd707dd` (parent getter), `a9a46796be95fe11e8f0be7be40a33456b6298fd` (modal), `c33d8389e4ed1e03e1eb551578ff7d6b431b0d78` (CSS), `8357c5020bacf5b70bca2faa62901a32c05dad38` (tests).
+- **자동 CI/Windows preview 최종 결과와 사용자 실제 UI·실물 버튼 반영은 확인 필요.** 특히 플러그인 SDK가 실제 setState를 보내야 ON/OFF 그림이 자동 전환됨. 기존 사용자 프로필/기타 액션/메인 브랜치는 건드리지 않음.
