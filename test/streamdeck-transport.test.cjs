@@ -160,3 +160,28 @@ test('native device sleep suspends keepalive; the first hardware press wakes wit
   assert.equal(events.length,1);
   t.stop();
 });
+
+
+test('native clock and stats display modes reach the firmware without blank keepalive',async()=>{
+  let time=10000;
+  const deck=new FakeDeck();
+  const sent=[];
+  const t=new D200XTransport({deck,now:()=>time,buildPage:async(_images,mode)=>{
+    sent.push(mode);return Buffer.from('zip');
+  }});
+  await t.start();
+  t.schedule([{index:13,png:Buffer.from('clock')}],'clock');
+  await idle();
+  assert.deepEqual(sent,['clock']);
+  assert.ok(deck.calls.some(c=>c[0]==='wide'&&c[1]==='clock'));
+  time+=KEEPALIVE_MS;t.tick();
+  assert.equal(deck.calls.filter(c=>c[0]==='frame').length,0);
+  t.schedule([{index:13,png:Buffer.from('stats')}],'stats');
+  await idle();
+  assert.deepEqual(sent,['clock','stats']);
+  assert.ok(deck.calls.some(c=>c[0]==='wide'&&c[1]==='stats'));
+  t.schedule([{index:13,png:Buffer.from('date')}],'blank');
+  await idle();
+  assert.deepEqual(sent,['clock','stats','blank']);
+  t.stop();
+});
