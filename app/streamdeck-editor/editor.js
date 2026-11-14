@@ -1714,6 +1714,32 @@ const ICON_SETS=[
   ["Elgato Logo Icons (White)",["✦","◈","◇","◎","▶","●"]]
 ];
 let libraryTarget=null;
+let importedIconPacks=[];
+async function refreshImportedIconPacks(){
+  if(!window.deckBridge?.listIconPacks)return;
+  try{
+    importedIconPacks=await window.deckBridge.listIconPacks();
+    if(!$("icon-library").hidden)renderIconLibrary();
+  }catch(error){
+    window.d200xActionStatus?.('아이콘팩 목록 읽기 실패: '+String(error?.message||error));
+  }
+}
+async function importIconPackIntoLibrary(){
+  if(!window.deckBridge?.importIconPack){
+    window.d200xActionStatus?.('아이콘팩 등록은 Windows EXE에서 사용할 수 있습니다.');
+    return;
+  }
+  const button=$("icon-pack-import");
+  button.disabled=true;
+  try{
+    const pack=await window.deckBridge.importIconPack();
+    if(!pack)return;
+    await refreshImportedIconPacks();
+    window.d200xActionStatus?.('아이콘팩 등록 완료: '+pack.name+' · '+pack.icons.length+'개');
+  }catch(error){
+    window.d200xActionStatus?.('아이콘팩 등록 실패: '+String(error?.message||error));
+  }finally{button.disabled=false;}
+}
 function renderIconLibrary(){
   const root=$("icon-library-groups");root.replaceChildren();
   const search=$("icon-library-search").value.trim().toLocaleLowerCase();
@@ -1744,13 +1770,50 @@ function renderIconLibrary(){
     });
     root.append(title,grid);
   });
-  $("icon-library-count").textContent="임시 아이콘 샘플 "+count+"개 (정식 라이브러리 미연결)";
+  for(const pack of importedIconPacks){
+    const matching=pack.icons.filter(icon=>{
+      const text=[pack.name,icon.name,...icon.tags].join(' ').toLocaleLowerCase();
+      return !search||text.includes(search);
+    });
+    if(!matching.length)continue;
+    const title=document.createElement('button');
+    title.type='button';title.className='icon-group-title';
+    const arrow=document.createElement('span');arrow.className='icon-group-arrow';arrow.textContent='⌄';
+    const name=document.createElement('span');name.textContent=pack.name+' · '+pack.version;
+    const amount=document.createElement('span');amount.className='icon-group-count';amount.textContent='('+matching.length+'개)';
+    title.append(arrow,name,amount);
+    const grid=document.createElement('div');grid.className='icon-grid';
+    title.addEventListener('click',()=>{grid.hidden=!grid.hidden;arrow.textContent=grid.hidden?'▸':'⌄';});
+    for(const icon of matching){
+      count++;
+      const tile=document.createElement('button');tile.type='button';
+      tile.className='icon-swatch icon-pack-swatch';tile.title=pack.name+' / '+icon.name;
+      const image=document.createElement('img');image.src=icon.image;image.alt=icon.name;
+      tile.append(image);
+      tile.addEventListener('click',async()=>{
+        const target=libraryTarget;
+        if(!target||!currentPage().includes(target))return;
+        try{
+          const png=await rasterizeIcon(icon.image);
+          if(!currentPage().includes(target))return;
+          target.icon={kind:'file',value:png};
+          persist();render();closeIconLibrary();
+        }catch(error){
+          window.d200xActionStatus?.('팩 아이콘 적용 실패: '+String(error?.message||error));
+        }
+      });
+      grid.append(tile);
+    }
+    root.append(title,grid);
+  }
+  $("icon-library-count").textContent='아이콘 '+count+'개 · 등록된 팩 '+importedIconPacks.length+'개';
 }
 function openIconLibrary(item){
   libraryTarget=item;
   $("icon-library-search").value="";
   renderIconLibrary();
   $("icon-library").hidden=false;
+  refreshImportedIconPacks();
   $("icon-library-search").focus();
 }
 function closeIconLibrary(){
@@ -1962,6 +2025,7 @@ function bindSidebarHeader(){
   });
   $("settings-trigger").addEventListener("click",()=>alert("설정 화면은 아직 연결되지 않았습니다."));
 }
+$("icon-pack-import").addEventListener("click",importIconPackIntoLibrary);
 $("close-icon-library").addEventListener("click",closeIconLibrary);
 $("icon-library").addEventListener("click",event=>{if(event.target===$("icon-library"))closeIconLibrary();});
 $("icon-library-search").addEventListener("input",renderIconLibrary);
