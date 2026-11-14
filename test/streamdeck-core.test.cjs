@@ -895,3 +895,22 @@ test('Multi Action retains bounded delays and rejects unsupported nested composi
   nested.children=[core.createAction('multi')];
   assert.equal(core.planComposite(nested).kind,'invalid');
 });
+
+
+test('HA plugin action is separate and survives profile migration and hardware planning',()=>{
+  assert.deepEqual(core.PLUGIN_ACTION_IDS,['ha-toggle']);
+  assert.equal(core.ACTION_IDS.length,24);
+  assert.equal(core.D200X_ACTION_IDS.length,18);
+  const state=core.migrateState(null);
+  const action=core.createAction('ha-toggle');
+  action.settings.entityId='switch.kitchen';
+  state.pages[0][0]=action;
+  const knob=core.controlBinding(state,16);
+  knob.mode='trigger';knob.down=core.createAction('ha-toggle');
+  knob.down.settings.entityId='fan.bathroom';
+  const restored=core.migrateState(JSON.parse(JSON.stringify(state)));
+  assert.equal(restored.pages[0][0].settings.entityId,'switch.kitchen');
+  assert.deepEqual(core.planAction(restored.pages[0][0],0,1),
+    {kind:'ha-toggle',entityId:'switch.kitchen'});
+  assert.equal(core.controlBinding(restored,16).down.settings.entityId,'fan.bathroom');
+});
