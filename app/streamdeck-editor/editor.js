@@ -119,6 +119,14 @@ function renderPhysicalControls(){
     button.append(symbol,label);
     button.addEventListener("click",()=>choose(index));
     button.addEventListener("contextmenu",event=>{event.preventDefault();choose(index);});
+    button.addEventListener("dragenter",()=>{
+      // Reveal the gesture targets below while an action is dragged over
+      // the physical button/knob, without replacing the drop target.
+      if(state.selected!==index){
+        state.selected=index;controlGesture='down';
+        persist();renderControlInspector();
+      }
+    });
     button.addEventListener("dragover",event=>{event.preventDefault();button.classList.add("drag-over");});
     button.addEventListener("dragleave",()=>button.classList.remove("drag-over"));
     button.addEventListener("drop",event=>{
@@ -585,15 +593,16 @@ $("back-page").addEventListener("click",()=>{state.page=Math.max(0,state.page-1)
 $("next-page").addEventListener("click",()=>{state.page=Math.min(state.pages.length-1,state.page+1);state.selected=null;persist();render();});
 // Physical D200X button presses run the selected page's action; clicking a
 // PC editor key still only selects it for editing.
-const pressedHardwareKeys=new Set();
+const lastHardwareDown=new Map();
 function executeHardwareAction(event){
   const resolved=DeckCore.resolveHardwareEvent(state,event);
   if(!resolved)return null;
   const index=resolved.index,offset=index-14;
-  if(resolved.gesture==='up'){pressedHardwareKeys.delete(index);return null;}
+  if(resolved.gesture==='up'){lastHardwareDown.delete(index);return null;}
   if(resolved.gesture==='down'){
-    if(pressedHardwareKeys.has(index))return null;
-    pressedHardwareKeys.add(index);
+    const now=Date.now();
+    if(now-(lastHardwareDown.get(index)||0)<250)return null;
+    lastHardwareDown.set(index,now);
   }
   const planned=DeckCore.planHardwareEvent(state,event,
     offset>=2?stackPositions[offset-2]:0);
@@ -617,7 +626,7 @@ function executeHardwareAction(event){
   if(outcome.kind==='page'){
     if(outcome.page===state.page)return '페이지 '+(state.page+1)+' · 이동 없음';
     state.page=outcome.page;state.selected=null;
-    persist();render();return '페이지 '+(outcome.page+1)+' 표시';
+    lastHardwareDown.clear();persist();render();return '페이지 '+(outcome.page+1)+' 표시';
   }
   if(outcome.kind==='website'){
     if(!window.deckBridge?.openWebsite)return '웹사이트 열기는 Windows EXE에서만 실행됩니다.';
