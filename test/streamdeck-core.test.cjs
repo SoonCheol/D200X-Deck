@@ -442,6 +442,38 @@ test('pinned keys remain profile-specific, survive migration, and do not enter f
   assert.equal(core.visibleActions(restored)[0],null);
 });
 
+test('Auto Folder Exit keeps enabled state separate from zero-second immediate return',()=>{
+  const disabled=core.cleanAction({type:'folder',settings:{autoExitEnabled:false,autoExitSeconds:0}});
+  const immediate=core.cleanAction({type:'folder',settings:{autoExitEnabled:true,autoExitSeconds:0}});
+  assert.equal(disabled.settings.autoExitEnabled,false);
+  assert.equal(immediate.settings.autoExitEnabled,true);
+  assert.equal(immediate.settings.autoExitSeconds,0);
+  const restored=core.migrateState({pages:[[immediate]]});
+  assert.equal(restored.pages[0][0].settings.autoExitEnabled,true);
+  assert.equal(restored.pages[0][0].settings.autoExitSeconds,0);
+  const legacy=core.cleanAction({type:'folder',settings:{autoExitSeconds:25}});
+  assert.equal(legacy.settings.autoExitEnabled,true);
+  assert.equal(core.cleanAction({type:'folder',settings:{autoExitEnabled:true,autoExitSeconds:100}}).settings.autoExitSeconds,60);
+});
+
+test('Smart Profiles match only enabled exact Windows executable paths and persist',()=>{
+  const s=core.migrateState(null);
+  const id=core.createProfile(s,'편집기');
+  const exe=String.raw`C:\\Program Files\\Editor\\Editor.exe`;
+  assert.equal(core.setProfileApp(s,id,exe),true);
+  assert.equal(core.matchForegroundProfile(s,exe),null);
+  s.smartProfilesEnabled=true;
+  assert.equal(core.matchForegroundProfile(s,exe.toUpperCase()),id);
+  assert.equal(core.matchForegroundProfile(s,String.raw`C:\\Program Files\\Editor\\NotEditor.exe`),null);
+  assert.equal(core.setProfileApp(s,id,'calc.exe'),false);
+  assert.equal(core.setProfileApp(s,id,String.raw`C:\\Temp\\script.bat`),false);
+  const restored=core.migrateState(JSON.parse(JSON.stringify(s)));
+  assert.equal(restored.smartProfilesEnabled,true);
+  assert.equal(core.matchForegroundProfile(restored,exe),id);
+  assert.equal(core.switchProfile(restored,id),true);
+  assert.equal(core.matchForegroundProfile(restored,exe),id);
+});
+
 test('original brightness action respects the 20 percent floor for fixed presets',()=>{
   const a=core.createAction('brightness');
   a.settings.mode='min';
