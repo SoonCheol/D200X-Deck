@@ -33,11 +33,14 @@
   bridge.onSynced(details => {
     if (online) text('D200X 화면 동기화 전송 완료 (' + details.slots + '개 키) · 실제 화면 확인 필요');
   });
+  window.d200xActionStatus = message => text('D200X 동작 · ' + message);
   bridge.onKey(event => {
-    const where = Number(event?.kind) === 1 ? '버튼' : '입력 종류 ' + event.kind;
+    const result = window.executeD200XKey?.(event);
+    if (result) { text('D200X 버튼 #' + event.index + ' · ' + result); return; }
+    const where = Number(event?.kind) === 1 ? '버튼' : '입력 종류 ' + event?.kind;
     const direction = event?.pressed ? '누름' : '뗌';
-    text('D200X 입력 수신 · ' + where + ' #' + event.index + ' ' + direction +
-         ' · 동작 실행은 아직 미구현');
+    if (event?.pressed) text('D200X 입력 수신 · ' + where + ' #' + event.index +
+      ' · 해당 동작은 아직 실행되지 않음');
   });
 
   // Stream Deck renders title ON TOP of a fixed full-key icon. The source
