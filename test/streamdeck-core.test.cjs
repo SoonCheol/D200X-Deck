@@ -50,6 +50,15 @@ test('invalid titles, style and file URI are filtered',()=>{
   assert.equal(next.title,'');
   assert.equal(next.icon,undefined);
   assert.equal(next.titleStyle.size,48);
-  assert.equal(next.titleStyle.align,'left');
+  assert.equal(next.titleStyle.align,'bottom');
   assert.equal(next.titleStyle.color,'#ffffff');
+});
+
+test('legacy horizontal alignment migrates to title vertical overlay positions',()=>{
+  assert.equal(core.createAction('timer').titleStyle.align,'bottom');
+  for(const [legacy,position] of [['left','bottom'],['center','middle'],['right','top']]){
+    const next=core.cleanAction({type:'timer',titleStyle:{align:legacy}});
+    assert.equal(next.titleStyle.align,position);
+  }
+  assert.equal(core.cleanAction({type:'timer',titleStyle:{align:'top'}}).titleStyle.align,'top');
 });
