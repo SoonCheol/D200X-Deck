@@ -13,6 +13,38 @@ const { D200XTransport } = require('./transport.cjs');
 const { parseIconPack, readPacks, registerPack, removePack } = require('./icon-pack.cjs');
 const { safeStorage } = require('electron');
 const HA = require('./ha-client.cjs');
+const {StreamDeckPluginHost}=require('./sd-plugin-host.cjs');
+let sdkHost=null;
+function sdk(){
+  if(!sdkHost)sdkHost=new StreamDeckPluginHost(app.getPath('userData'),payload=>send('d200x:sdk-event',payload));
+  return sdkHost;
+}
+ipcMain.handle('d200x:sdk-list',async event=>{assertEditor(event);return sdk().list();});
+ipcMain.handle('d200x:sdk-install',async event=>{
+  assertEditor(event);
+  const selected=await openRememberedPicker({
+    title:'Stream Deck 플러그인 설치',
+    properties:['openFile'],
+    filters:[{name:'Stream Deck 플러그인',extensions:['streamDeckPlugin','zip']}]
+  });
+  if(!selected)return null;
+  const stat=await fs.promises.stat(selected);
+  if(!stat.isFile()||stat.size>40*1024*1024)throw Error('40MB 이하의 플러그인만 가져올 수 있습니다.');
+  return sdk().install(await fs.promises.readFile(selected));
+});
+ipcMain.handle('d200x:sdk-sync',async(event,configs)=>{
+  assertEditor(event);
+  if(!Array.isArray(configs)||configs.length>19)throw Error('플러그인 액션 목록 크기 오류');
+  await sdk().sync(configs);return true;
+});
+ipcMain.handle('d200x:sdk-key',async(event,context,gesture,ticks)=>{
+  assertEditor(event);
+  return sdk().key(context,gesture,ticks);
+});
+ipcMain.handle('d200x:sdk-inspector',async(event,context)=>{
+  assertEditor(event);return sdk().inspector(context);
+});
+
 const haConfigPath=()=>path.join(app.getPath('userData'),'home-assistant-connection-v1.json');
 function readHaConfig(){
   try{
@@ -707,5 +739,5 @@ app.whenReady().then(async () => {
   window.on('closed', () => { rendererReady = false; window = null; app.quit(); });
   transport.start().catch(err => send('d200x:error', String(err)));
 });
-app.on('before-quit', () => transport.stop());
+app.on('before-quit', () => {transport.stop();sdkHost?.close().catch(error=>console.warn('SDK host shutdown:',error.message));});
 app.on('window-all-closed', () => app.quit());
