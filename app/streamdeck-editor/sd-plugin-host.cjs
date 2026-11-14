@@ -10,6 +10,9 @@ const {BrowserWindow,safeStorage,screen}=require('electron');
 const UUID=/^[a-zA-Z0-9][a-zA-Z0-9._-]{2,180}$/;
 const MAX_ARCHIVE=40*1024*1024,MAX_FILES=2500,MAX_EXPANDED=100*1024*1024;
 const DEVICE='d200x-device';
+const HA_PLUGIN='de.perdoctus.streamdeck.homeassistant';
+const HA_DUAL_ACTION=HA_PLUGIN+'.dual-state-entity';
+const HA_SWITCH_ENTITY=/^(switch|light|fan|input_boolean)\.[a-z0-9_]+$/;
 const json=x=>JSON.stringify(x);
 const filename=x=>typeof x==='string'&&x.length>0&&x.length<1024&&!x.startsWith('/')&&!x.includes('\\')&&!/[\x00-\x1f\x7f]/.test(x)&&x.split('/').every(segment=>segment.length>0&&segment!=='.'&&segment!=='..'&&!segment.includes(':'));
 function validateManifest(m){
@@ -53,6 +56,7 @@ class StreamDeckPluginHost{
     this.onUpdate=onUpdate;this.server=null;this.port=0;
     this.plugins=new Map();this.contexts=new Map();this.global=new Map();
     this.instances=new Map();this.inspectors=new Map();
+    this.haPollTimer=null;this.haPollBusy=false;
   }
   async list(){
     await fs.promises.mkdir(this.root,{recursive:true});
@@ -97,6 +101,10 @@ class StreamDeckPluginHost{
     this.server=new WebSocketServer({host:'localhost',port:0,maxPayload:1024*1024});
     await new Promise((resolve,reject)=>{this.server.once('listening',resolve);this.server.once('error',reject);});
     this.port=this.server.address().port;
+    // The SDK remains authoritative; this small HA dual-state compatibility
+    // fallback resynchronizes states if an upstream event was missed.
+    this.haPollTimer=setInterval(()=>this.refreshHaDualStates().catch(()=>{}),6000);
+    this.haPollTimer.unref?.();
     this.server.on('connection',ws=>{
       let owner=null,inspector=null;
       ws.on('message',raw=>{
@@ -198,9 +206,50 @@ class StreamDeckPluginHost{
     for(const [key,ctx] of this.contexts)if(!seen.has(key)){
       this.disappear(ctx);this.contexts.delete(key);
     }
+    // Load the initial ON/OFF state even if HA connected before this key was assigned.
+    await this.refreshHaDualStates();
   }
   disappear(ctx){
     this.send(this.instances.get(ctx.pluginUUID)?.ws,{event:'willDisappear',action:ctx.actionUUID,context:ctx.context,device:DEVICE,payload:this.payload(ctx)});
+  }
+  async refreshHaDualStates(fetcher=globalThis.fetch){
+    if(this.haPollBusy)return;
+    const dual=[...this.contexts.values()].filter(ctx=>
+      ctx.pluginUUID===HA_PLUGIN&&ctx.actionUUID===HA_DUAL_ACTION&&
+      HA_SWITCH_ENTITY.test(ctx.settings?.display?.entityId||''));
+    if(!dual.length)return;
+    const config=await this.readGlobal(HA_PLUGIN);
+    if(!config||typeof config.accessToken!=='string'||!config.accessToken||
+      typeof config.serverUrl!=='string')return;
+    let base;
+    try{
+      base=new URL(config.serverUrl);
+      if(!['http:','https:'].includes(base.protocol)||base.username||base.password)return;
+    }catch{return;}
+    this.haPollBusy=true;
+    try{
+      const unique=[...new Set(dual.map(ctx=>ctx.settings.display.entityId))];
+      const results=await Promise.all(unique.map(async entity=>{
+        try{
+          const endpoint=new URL('api/states/'+encodeURIComponent(entity),base.href.endsWith('/')?base:base.href+'/');
+          const response=await fetcher(endpoint.href,{headers:{Authorization:'Bearer '+config.accessToken},
+            signal:AbortSignal.timeout(4000)});
+          if(!response.ok)return [entity,null];
+          const data=await response.json();
+          return [entity,data?.state==='on'?1:data?.state==='off'?0:null];
+        }catch{return [entity,null];}
+      }));
+      const states=new Map(results);
+      for(const ctx of dual){
+        if(this.contexts.get(ctx.context)!==ctx)continue;
+        const state=states.get(ctx.settings.display.entityId);
+        if(state!==0&&state!==1||ctx.lastState===state)continue;
+        ctx.lastState=state;
+        this.onUpdate({kind:'setState',context:ctx.context,payload:{state}});
+        const artwork=await this.stateArtwork(ctx,state);
+        if(artwork)this.onUpdate({kind:'setImage',context:ctx.context,payload:{image:artwork}});
+      }
+    }finally{this.haPollBusy=false;}
   }
   key(context,gesture,ticks=1){
     const ctx=this.contexts.get(context);
@@ -281,7 +330,9 @@ class StreamDeckPluginHost{
       case 'getGlobalSettings':
         this.send(ws,{event:'didReceiveGlobalSettings',context:msg.context,payload:{settings:await this.readGlobal(uuid)}});break;
       case 'setGlobalSettings':
-        await this.storeGlobal(uuid,msg.payload);for(const target of [this.instances.get(uuid)?.ws,...[...this.inspectors.values()].filter(x=>x.pluginUUID===uuid).map(x=>x.ws)])
+        await this.storeGlobal(uuid,msg.payload);
+        this.refreshHaDualStates().catch(()=>{});
+        for(const target of [this.instances.get(uuid)?.ws,...[...this.inspectors.values()].filter(x=>x.pluginUUID===uuid).map(x=>x.ws)])
           this.send(target,{event:'didReceiveGlobalSettings',context:msg.context,payload:{settings:msg.payload}});
         break;
       case 'getSettings':
@@ -291,6 +342,7 @@ class StreamDeckPluginHost{
         if(ctx&&ctx.pluginUUID===uuid){
           ctx.settings=msg.payload||{};
           this.onUpdate({kind:'settings',context:ctx.context,settings:ctx.settings});
+          this.refreshHaDualStates().catch(()=>{});
           const payload=this.payload(ctx);
           // setSettings commonly originates in the Property Inspector, where inst is null.
           // Deliver to the live plugin by UUID, not just the message sender.
@@ -303,6 +355,7 @@ class StreamDeckPluginHost{
         if(ctx&&ctx.pluginUUID===uuid){
           this.onUpdate({kind:msg.event,context:ctx.context,payload:msg.payload});
           if(msg.event==='setState'){
+            ctx.lastState=Number(msg.payload?.state);
             const image=await this.stateArtwork(ctx,msg.payload?.state);
             if(image)this.onUpdate({kind:'setImage',context:ctx.context,payload:{image}});
           }
@@ -317,6 +370,7 @@ class StreamDeckPluginHost{
     }
   }
   async close(){
+    if(this.haPollTimer){clearInterval(this.haPollTimer);this.haPollTimer=null;}
     for(const pi of this.inspectors.values())if(!pi.window.isDestroyed())pi.window.close();
     for(const inst of this.instances.values())if(!inst.window.isDestroyed())inst.window.close();
     if(this.server)await new Promise(resolve=>this.server.close(resolve));
