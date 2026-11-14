@@ -696,6 +696,7 @@ $("back-page").addEventListener("click",()=>{state.page=Math.max(0,state.page-1)
 $("next-page").addEventListener("click",()=>{state.page=Math.min(state.pages.length-1,state.page+1);state.selected=null;persist();render();});
 // Physical D200X button presses run the selected page's action; clicking a
 // PC editor key still only selects it for editing.
+const activeAudioPlayers=new Map();
 const activeActionTimers=new Map();
 const hotkeySwitchPositions=new Map();
 const lastHardwareDown=new Map();
@@ -737,6 +738,31 @@ function executeHardwareAction(event,preview=false){
       error=>window.d200xActionStatus?.('음소거 전환 실패: '+String(error?.message||error))
     );
     return 'Windows 음소거 전환 요청';
+  }
+  if(outcome.kind==='audio-stop'){
+    for(const audio of activeAudioPlayers.values()){
+      audio.pause();audio.currentTime=0;
+    }
+    activeAudioPlayers.clear();
+    return '오디오 재생 정지';
+  }
+  if(outcome.kind==='audio-play'){
+    if(!window.deckBridge?.audioFileUrl)return 'Windows 실행 환경에서만 사용할 수 있습니다.';
+    if(!outcome.file)return '재생할 오디오 파일을 먼저 선택하세요.';
+    const key=String(state.page)+':'+index;
+    const old=activeAudioPlayers.get(key);
+    if(old&&outcome.mode==='play-stop'&&!old.paused){old.pause();old.currentTime=0;activeAudioPlayers.delete(key);return '오디오 정지';}
+    if(old&&outcome.mode!=='overlap'){old.pause();old.currentTime=0;activeAudioPlayers.delete(key);}
+    window.deckBridge.audioFileUrl(outcome.file).then(url=>{
+      const audio=new Audio(url);
+      audio.volume=outcome.volume/100;
+      audio.loop=outcome.mode==='loop-stop';
+      activeAudioPlayers.set(key,audio);
+      audio.addEventListener('ended',()=>{if(activeAudioPlayers.get(key)===audio)activeAudioPlayers.delete(key);},{once:true});
+      return audio.play();
+    }).then(()=>window.d200xActionStatus?.('오디오 재생 시작'),
+      error=>window.d200xActionStatus?.('오디오 재생 실패: '+String(error?.message||error)));
+    return '오디오 재생 요청 · 페이드/출력 장치 지정은 미구현';
   }
   if(outcome.kind==='type-text'){
     if(!window.deckBridge?.typeText)return 'Windows 실행 환경에서만 사용할 수 있습니다.';
