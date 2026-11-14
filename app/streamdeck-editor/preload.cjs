@@ -4,6 +4,12 @@ const { contextBridge, ipcRenderer } = require('electron');
 contextBridge.exposeInMainWorld('deckBridge', Object.freeze({
   foregroundApp: () => ipcRenderer.invoke('d200x:foreground-app'),
   haStatus: () => ipcRenderer.invoke('d200x:ha-status'),
+  sdkList: () => ipcRenderer.invoke('d200x:sdk-list'),
+  sdkInstall: () => ipcRenderer.invoke('d200x:sdk-install'),
+  sdkSync: contexts => ipcRenderer.invoke('d200x:sdk-sync',contexts),
+  sdkKey: (context,gesture,ticks=1) => ipcRenderer.invoke('d200x:sdk-key',context,gesture,ticks),
+  sdkInspector: context => ipcRenderer.invoke('d200x:sdk-inspector',context),
+  onSdkEvent: fn => ipcRenderer.on('d200x:sdk-event',(_event,data)=>fn(data)),
   haSave: (url,token) => ipcRenderer.invoke('d200x:ha-save',{url,token}),
   haEntities: () => ipcRenderer.invoke('d200x:ha-entities'),
   haToggle: entityId => ipcRenderer.invoke('d200x:ha-toggle',entityId),
