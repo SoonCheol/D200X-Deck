@@ -269,7 +269,7 @@
 .action-appearance label{white-space:nowrap}
 .action-appearance select{min-width:0;flex:1;background:#34383e;color:#f4f4f4;border:1px solid #555;border-radius:5px;padding:5px;font-size:11px}
 .action-appearance button{border:1px solid #555;background:#383b40;border-radius:5px;color:#dedede;padding:5px 7px;font-size:10px;white-space:nowrap}
-.library .action-item{position:relative;min-height:40px;gap:9px}
+.library .action-item{position:relative;min-height:32px;gap:8px;padding:4px 12px 4px 16px}
 .library .action-item .action-icon{width:30px;min-width:30px;display:grid;place-items:center;line-height:1}
 .action-caption{display:flex;flex:1;min-width:0;flex-direction:column;gap:3px;font-size:12px}
 .action-caption>span{white-space:normal;overflow-wrap:anywhere}
@@ -290,3 +290,7 @@
 .library .action-item.action-disabled:hover{background:transparent}
 .library .action-item.action-disabled .action-unavailable{font-size:10px;color:#b9b9b9}
 .library .action-item.action-disabled .action-customize{visibility:hidden}
+
+/* Single-key artwork retains the existing pressed/released visual feedback. */
+.deck-key:active .rendered-key-image,.deck-key:active .glyph{transform:scale(.94)}
+.deck-key .rendered-key-image,.deck-key .glyph{transition:transform 90ms ease}
