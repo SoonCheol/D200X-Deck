@@ -839,3 +839,19 @@ test('stack cycles even when a previous press action is still saved',()=>{
   assert.deepEqual(core.planHardwareEvent(state,{kind:2,index:17,state:2},1).outcome,
     {kind:'adjust',target:'volume',direction:-1});
 });
+
+test('Sleep plans a device-only sleep command and Key Logic uses gesture slots',async()=>{
+  assert.deepEqual(core.planAction(core.createAction('sleep'),0,1),{kind:'device-sleep'});
+  const logic=core.createAction('logic');
+  logic.slots={single:core.createAction('hotkey'),double:core.createAction('media'),hold:core.createAction('open')};
+  logic.slots.single.settings.keys='Ctrl+A';
+  assert.deepEqual(core.planAction(logic,0,1),{kind:'composite',type:'logic'});
+  assert.equal(core.planComposite(logic,{gesture:'double'}).steps[0].type,'media');
+  assert.equal(core.planComposite(logic,{gesture:'hold'}).steps[0].type,'open');
+  assert.equal(core.planComposite(logic,{gesture:'single'}).steps[0].settings.keys,'Ctrl+A');
+  const restored=core.migrateState({pages:[[logic]],page:0});
+  assert.equal(restored.pages[0][0].slots.double.type,'media');
+  const calls=[];
+  await core.runComposite(logic,{gesture:'single',execute:async a=>calls.push(a.settings.keys),wait:async()=>{}});
+  assert.deepEqual(calls,['Ctrl+A']);
+});
