@@ -270,6 +270,7 @@
       return {kind:'device-brightness',direction:mode==='down'?-1:1,count:5};
     }
     if(action.type==='media')return {kind:'media-control',operation:action.settings?.op||'playpause'};
+    if(action.type==='timer')return {kind:'timer',seconds:Math.max(1,Math.min(86400,Number(action.settings?.seconds)||30))};
     if(action.type==='hotkey')return {kind:'windows-hotkey',keys:String(action.settings?.keys||'')};
     if(action.type==='hotkey-switch')return {kind:'windows-hotkey-switch',
       first:String(action.settings?.first||''),second:String(action.settings?.second||'')};
