@@ -697,6 +697,7 @@ $("next-page").addEventListener("click",()=>{state.page=Math.min(state.pages.len
 // Physical D200X button presses run the selected page's action; clicking a
 // PC editor key still only selects it for editing.
 const activeAudioPlayers=new Map();
+const allPlayingAudio=new Set();
 const activeActionTimers=new Map();
 const hotkeySwitchPositions=new Map();
 const lastHardwareDown=new Map();
@@ -740,10 +741,8 @@ function executeHardwareAction(event,preview=false){
     return 'Windows 음소거 전환 요청';
   }
   if(outcome.kind==='audio-stop'){
-    for(const audio of activeAudioPlayers.values()){
-      audio.pause();audio.currentTime=0;
-    }
-    activeAudioPlayers.clear();
+    for(const audio of allPlayingAudio){audio.pause();audio.currentTime=0;}
+    allPlayingAudio.clear();activeAudioPlayers.clear();
     return '오디오 재생 정지';
   }
   if(outcome.kind==='audio-play'){
@@ -751,15 +750,22 @@ function executeHardwareAction(event,preview=false){
     if(!outcome.file)return '재생할 오디오 파일을 먼저 선택하세요.';
     const key=String(state.page)+':'+index;
     const old=activeAudioPlayers.get(key);
-    if(old&&outcome.mode==='play-stop'&&!old.paused){old.pause();old.currentTime=0;activeAudioPlayers.delete(key);return '오디오 정지';}
-    if(old&&outcome.mode!=='overlap'){old.pause();old.currentTime=0;activeAudioPlayers.delete(key);}
+    if(old&&outcome.mode==='play-stop'&&!old.paused){old.pause();old.currentTime=0;allPlayingAudio.delete(old);activeAudioPlayers.delete(key);return '오디오 정지';}
+    if(old&&outcome.mode!=='overlap'){old.pause();old.currentTime=0;allPlayingAudio.delete(old);activeAudioPlayers.delete(key);}
     window.deckBridge.audioFileUrl(outcome.file).then(url=>{
       const audio=new Audio(url);
       audio.volume=outcome.volume/100;
       audio.loop=outcome.mode==='loop-stop';
-      activeAudioPlayers.set(key,audio);
-      audio.addEventListener('ended',()=>{if(activeAudioPlayers.get(key)===audio)activeAudioPlayers.delete(key);},{once:true});
-      return audio.play();
+      activeAudioPlayers.set(key,audio);allPlayingAudio.add(audio);
+      audio.addEventListener('ended',()=>{
+        allPlayingAudio.delete(audio);
+        if(activeAudioPlayers.get(key)===audio)activeAudioPlayers.delete(key);
+      },{once:true});
+      return audio.play().catch(error=>{
+        allPlayingAudio.delete(audio);
+        if(activeAudioPlayers.get(key)===audio)activeAudioPlayers.delete(key);
+        throw error;
+      });
     }).then(()=>window.d200xActionStatus?.('오디오 재생 시작'),
       error=>window.d200xActionStatus?.('오디오 재생 실패: '+String(error?.message||error)));
     return '오디오 재생 요청 · 페이드/출력 장치 지정은 미구현';
