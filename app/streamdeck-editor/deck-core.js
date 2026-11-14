@@ -72,8 +72,63 @@
       base.icon={kind:'file',value:value.icon.value};
     // Preserve known child structure but do not execute untrusted or unknown actions.
     if(Array.isArray(value.children))base.children=value.children.slice(0,100)
-      .map(child=>child&&typeof child==='object'?cleanAction(child):null).filter(Boolean);
+      .map(child=>cleanCompositeEntry(child)).filter(Boolean);
+    // Multi Action Switch stores two independent sequences. Older profiles only
+    // had children[]: leave them untouched rather than guessing the state.
+    if(value.type==='multi-switch' && Array.isArray(value.sequences)){
+      base.sequences=[0,1].map(i=>Array.isArray(value.sequences[i])
+        ?value.sequences[i].slice(0,100).map(cleanCompositeEntry).filter(Boolean):[]);
+    }
+    // Key Logic keeps its physical gestures separate from a sequential list.
+    if(value.type==='logic' && value.slots && typeof value.slots==='object' && !Array.isArray(value.slots)){
+      base.slots={single:cleanAction(value.slots.single),double:cleanAction(value.slots.double),hold:cleanAction(value.slots.hold)};
+    }
     return base;
+  }
+  // Delay is an internal Multi step, never a new right-panel action ID.
+  // The limits below guard malformed saved data; they do not claim to be the
+  // Stream Deck 7.6.1 UI's observed minimum/maximum delay settings.
+  function cleanCompositeEntry(value){
+    if(!value||typeof value!=='object'||Array.isArray(value))return null;
+    if(value.kind==='delay')return {kind:'delay',ms:Number.isFinite(value.ms)
+      ?Math.max(0,Math.min(600000,Math.round(value.ms))):0};
+    return cleanAction(value);
+  }
+  const COMPOSITE_TYPES=['multi','multi-switch','random','logic'];
+  function compositeModel(action){
+    if(!action||!COMPOSITE_TYPES.includes(action.type))return null;
+    const prepared=cleanAction(action);
+    if(action.type==='multi')return {type:'multi',steps:prepared.children};
+    if(action.type==='random')return {type:'random',choices:prepared.children};
+    if(action.type==='multi-switch')return {type:'multi-switch',
+      states:prepared.sequences||[prepared.children,[]]};
+    return {type:'logic',slots:prepared.slots||{single:null,double:null,hold:null}};
+  }
+  function planComposite(action,options={}){
+    const model=compositeModel(action);
+    if(!model)return {kind:'invalid',message:'복합 액션이 아닙니다.'};
+    let steps=[];
+    if(model.type==='multi')steps=model.steps;
+    if(model.type==='multi-switch'){
+      const index=options.state===1?1:0;
+      steps=model.states[index];
+    }
+    if(model.type==='random'){
+      if(model.choices.length===0)return {kind:'invalid',message:'후보 동작이 없습니다.'};
+      const random=Number(options.random);
+      if(!Number.isFinite(random)||random<0||random>=1)
+        return {kind:'invalid',message:'검증된 무작위 선택 값이 필요합니다.'};
+      steps=[model.choices[Math.floor(random*model.choices.length)]];
+    }
+    if(model.type==='logic'){
+      if(!['single','double','hold'].includes(options.gesture))
+        return {kind:'invalid',message:'물리 키 누름 유형을 확인해야 합니다.'};
+      steps=model.slots[options.gesture]?[model.slots[options.gesture]]:[];
+    }
+    // No nested Multi/other composites until original 7.6.1 permits them.
+    if(steps.some(step=>step.kind!=='delay'&&COMPOSITE_TYPES.includes(step.type)))
+      return {kind:'invalid',message:'복합 액션 중첩 지원 여부가 확인되지 않았습니다.'};
+    return {kind:'composite',type:model.type,steps:copy(steps)};
   }
   const CONTROL_MODES=['trigger','adjust','stack'];
   const ADJUST_TARGETS=['page','volume','zoom','scroll','scroll-x','history','window','desktop','brightness'];
@@ -343,5 +398,5 @@
       url:action.settings?.url||'',mode:action.settings?.open||'default'};
     return {kind:'unsupported',message:'이 동작의 실행 기능은 아직 구현되지 않았습니다.'};
   }
-  return {ACTION_IDS,D200X_ACTION_IDS,DEFAULTS,TITLE,createAction,cleanAction,blankPage,migrateState,previewHardwareEvent,physicalSlot,hardwareGesture,resolveHardwareEvent,resolveKeyPress,planHardwareEvent,deletePage,planAction,emptyBinding,cleanBinding,ensureControls,controlBinding,changeControlScope};
+  return {ACTION_IDS,D200X_ACTION_IDS,DEFAULTS,TITLE,createAction,cleanAction,cleanCompositeEntry,compositeModel,planComposite,blankPage,migrateState,previewHardwareEvent,physicalSlot,hardwareGesture,resolveHardwareEvent,resolveKeyPress,planHardwareEvent,deletePage,planAction,emptyBinding,cleanBinding,ensureControls,controlBinding,changeControlScope};
 });
