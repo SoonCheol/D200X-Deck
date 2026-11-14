@@ -304,3 +304,14 @@ editor-ui (Stream Deck식 UI, Electron renderer)
 - [x] 기능 코드 `69d1398e` 대상 CI #43635892364 및 물리 입력 모의 #43635886172 성공. Windows 프리뷰 #43635886158의 패키징 작업 성공 및 ZIP Artifact `D200X-StreamDeck-Device-Sync-win-x64`(14129968068) 생성 확인.
 - [ ] 후속 HA 프로필/노브 저장 복원 테스트의 최신 CI 결과 확인.
 - [ ] 실제 Windows GUI / HA 서버 / D200X 실기 확인. 자동 상태 표시·WebSocket은 미구현.
+
+
+## 2026-11-15 — 기존 Stream Deck SDK 플러그인 호스트 (HA 3.8.4 우선)
+
+- [x] 기존 `cgiesche/streamdeck-homeassistant` 3.8.4 공개 릴리스와 SDK3 `manifest.json`, 원본 플러그인 소켓 코드, Elgato 공식 SDK 프로토콜 확인. 실제 Release ZIP 바이너리 확보/시험은 아직 미완료.
+- [x] `sd-plugin-host.cjs`의 SDK3 HTML 플러그인 수동 설치·manifest 검증·WebSocket 등록·`willAppear/willDisappear`·키/노브 입력·글로벌/액션 설정·`setImage/setTitle/setState`·원본 PI 별도창 기본 경로 코드 구현. Electron preload/main IPC 및 기존 플러그인 탭에서 설치·목록·버튼 할당 연결. 프로필에 별도 `sd-plugin` ID로 저장, 이전 REST HA 토글 ID는 보존.
+- [x] 압축 파일 보안 테스트 추가, 프리뷰 패키지에 `ws` 종속성 추가. 기존 기본 24개 + D200X 18개 데이터 구조는 보존.
+- [x] 최신 별도 Core 저장 복원 테스트 추가 후 CI [#43638441482](https://github.com/SoonCheol/D200X-Deck/actions/runs/43638441482) 성공; 입력 모의 [#43638437564](https://github.com/SoonCheol/D200X-Deck/actions/runs/43638437564) 성공. 이는 실제 Windows GUI/HA/실물 장치 검증이 아님.
+- [ ] 최신 SDK 호스트 변경 코드 SHA `84e3e67bb9b786ef18ab80ea29f25ab4eadb7829`의 Windows 프리뷰 빌드와 ZIP Artifact 성공 확인 (검증 시 실행 번호 갱신).
+- [ ] Windows에서 원본 `.streamDeckPlugin` 파일 실제 설치, `plugin.html` WebSocket 등록, `pi.html` 속성창/HA 토큰 저장, 실시간 상태 이미지, 실물 D200X 키/노브 토글 실기 검증.
+- [ ] 이 호환성 검증 이후 마켓플레이스 구축. 현재 기본 마켓/다운로드·임의 플러그인 자동 실행은 미구현; SDK3 HTML만 1차 지원, 모든 Elgato 플러그인 호환은 미보장.
