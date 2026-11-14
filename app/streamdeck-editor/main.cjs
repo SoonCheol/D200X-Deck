@@ -205,6 +205,40 @@ ipcMain.handle('d200x:device-brightness',(event,args)=>{
   return transport.adjustBrightness(args.direction,args.count);
 });
 
+// Fixed Win32 shortcuts; choices are validated against this closed allowlist.
+const D200X_SHORTCUTS=Object.freeze({
+  'screenshot':{capture:{held:[0x5B,0x10],key:0x53}},
+  'clipboard-edit':{copy:{held:[0x11],key:0x43},paste:{held:[0x11],key:0x56},cut:{held:[0x11],key:0x58}},
+  'window-state':{maximize:{held:[0x5B],key:0x26},minimize:{held:[0x5B],key:0x28}},
+  'window-monitor':{left:{held:[0x5B,0x10],key:0x25},right:{held:[0x5B,0x10],key:0x27}},
+  'explorer-open':{open:{held:[0x5B],key:0x45}},
+  'brush-size':{increase:{held:[],key:0xDD},decrease:{held:[],key:0xDB}},
+  'timeline-step':{next:{held:[],key:0x27},previous:{held:[],key:0x25}}
+});
+ipcMain.handle('d200x:system-shortcut',async(event,args)=>{
+  if(!window||event.sender!==window.webContents)throw new Error('허용되지 않은 호출입니다.');
+  const group=typeof args?.target==='string'&&Object.prototype.hasOwnProperty.call(D200X_SHORTCUTS,args.target)
+    ?D200X_SHORTCUTS[args.target]:null;
+  const shortcut=group&&Object.prototype.hasOwnProperty.call(group,args.operation)?group[args.operation]:null;
+  if(!shortcut)throw new Error('지원하지 않는 단축키입니다.');
+  if(process.platform!=='win32')throw new Error('Windows에서만 지원합니다.');
+  const held=shortcut.held,key=shortcut.key;
+  const code=`Add-Type -TypeDefinition @'
+using System;
+using System.Runtime.InteropServices;
+public class D200XSafeKey {
+  [DllImport("user32.dll")] public static extern void keybd_event(byte vk, byte scan, uint flags, UIntPtr extra);
+}
+'@;
+${held.map(v=>`[D200XSafeKey]::keybd_event(${v},0,0,[UIntPtr]::Zero);`).join('\n')}
+[D200XSafeKey]::keybd_event(${key},0,0,[UIntPtr]::Zero);
+[D200XSafeKey]::keybd_event(${key},0,2,[UIntPtr]::Zero);
+${held.slice().reverse().map(v=>`[D200XSafeKey]::keybd_event(${v},0,2,[UIntPtr]::Zero);`).join('\n')}`;
+  await execFileAsync('powershell.exe',['-NoProfile','-NonInteractive','-WindowStyle','Hidden','-Command',code],
+    {windowsHide:true,timeout:6000,maxBuffer:32768});
+  return true;
+});
+
 // Local clipboard image only; never reads arbitrary files or executes clipboard content.
 ipcMain.handle('d200x:clipboard-image', async event => {
   if (!window || event.sender !== window.webContents) return null;
