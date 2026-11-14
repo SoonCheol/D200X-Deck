@@ -520,11 +520,14 @@
     const resolved=resolveHardwareEvent(state,event);
     if(!resolved||resolved.gesture==='up')return null;
     const {index,gesture,knob,binding}=resolved;
+    const folder=activeFolder(state);
+    const page=folder?(folder.pageIndex||0):state.page;
+    const pageCount=folder?folderPageCount(state):state.pages.length;
     if(binding && knob){
       if(binding.mode==='adjust'||binding.mode==='stack'){
         if(gesture==='down'){
           if(binding.mode==='stack')return {index,gesture,outcome:{kind:'stack-next',size:binding.stack.length}};
-          if(binding.down)return {index,gesture,outcome:planAction(binding.down,state.page,state.pages.length)};
+          if(binding.down)return {index,gesture,outcome:planAction(binding.down,page,pageCount)};
           return null;
         }
         if(gesture!=='left'&&gesture!=='right')return null;
@@ -533,11 +536,11 @@
         if(!ADJUST_TARGETS.includes(target))return null;
         const direction=(gesture==='left'?-1:1)*(binding.reverseDirection?-1:1);
         const step=[1,2,5,10].includes(binding.step)?binding.step:1;
-        return {index,gesture,outcome:planAdjustment(target,direction,step,state.page,state.pages.length)};
+        return {index,gesture,outcome:planAdjustment(target,direction,step,page,pageCount)};
       }
       if(gesture==='left'||gesture==='right'){
         const action=binding[gesture];
-        return action?{index,gesture,outcome:planAction(action,state.page,state.pages.length)}:null;
+        return action?{index,gesture,outcome:planAction(action,page,pageCount)}:null;
       }
     }
     if(gesture!=='down')return null;
@@ -549,7 +552,7 @@
       return {index,gesture,outcome:{kind:'folder-back'}};
     if(binding && !binding.down)return null;
     if(!resolved.action)return null;
-    return {index,gesture,outcome:planAction(resolved.action,state.page,state.pages.length)};
+    return {index,gesture,outcome:planAction(resolved.action,page,pageCount)};
   }
   function deletePage(state){
     if(!state||!Array.isArray(state.pages)||state.pages.length<=1)return false;
