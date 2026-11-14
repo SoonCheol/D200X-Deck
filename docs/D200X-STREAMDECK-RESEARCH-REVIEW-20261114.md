@@ -28,6 +28,15 @@
 | 실행 지연 사용자 경험 | Reddit에서 멀티액션 중 단축키 미수신, 상태 중지/재입력, 지연·표시 오버레이 관련 사례 제보 | 독립 키 성공과 멀티액션 중 성공을 **별도 검증**, 포커스 변화/장시간 실행/두 번 누름 중단·중복 실행 정책을 사전에 명시 | 테스트 추가 |
 | D200X 다이얼 | Ulanzi SDK: `Keypad`의 key down/up과 `Encoder`의 dial down/up/rotate 구분. D200X 다이얼 별도 레이아웃 크기·구성 제공 | D200X 물리 제스처가 어느 보고서로 오는지 확인 후 재사용, **Elgato 터치스크린 전용 기능 가정 금지**. UI는 Stream Deck 원본을 유지하고 D200X 고유 표시·통신만 참고 | 비교 결론 |
 
+## Ulanzi Studio D200X 보조 조사 추가 — 하드웨어 지원과 제품 차이
+
+- **Ulanzi Studio 포럼의 D200X 소프트웨어 설명**은 노브 조작을 회전 CW/CCW, 누름, **누른 상태에서 CW/CCW 회전**으로 구분한다. 기존 D200X 입력 파서/코어가 단순 좌·우 회전과 누름만 처리하는 상태와 차이가 있다. **장치 HID 보고서에서 누른 채 회전을 구별할 수 있는지는 현재 빌드에 대한 실기 로그로 별도 확인해야 하며, 확인 전 UI에 가짜 제스처를 넣지 않는다.**
+- 공식 Ulanzi 포럼은 프로필 자동 추종과 D200X 와이드 화면·노브 설정을 설명한다. Stream Deck Smart Profile UI와 동작을 동일하다고 가정하지 말고 *Ulanzi 고유 동작의 보조 참고*로만 취급한다.
+- Ulanzi Studio 측은 2026-07 포럼 답변에서 D200X의 **시간 경과에 따른 페이지 자동 복귀 기능을 당시 지원하지 않는다**고 답했다. 이것은 Elgato의 **폴더 Auto Exit**가 불가능하다는 뜻이 아니며, D200X용 새 편집기의 폴더 자동 종료는 호스트 소프트웨어에서 구현 가능한지 별도로 판단해야 한다.
+- Ulanzi 공식 Studio 3.4.4+ 문서의 POP 메뉴는 **8개 동작 팝업을 노브로 선택**하는 별도 기능이다. 사용자가 요청하지 않은 Ulanzi POP UI를 원본 Stream Deck의 Random/Multi/Folder 기능으로 혼합하지 않는다.
+
+**출처:** [Ulanzi Studio D200X 포럼 안내](https://bbs.ulanzistudio.com/thread-180-1-1.html), [Ulanzi 시간 기반 복귀 불지원 답변](https://www.bbs.ulanzistudio.com/archiver/tid-492.html), [Ulanzi POP 문서](https://docs.ulanzistudio.com/dialmini/en/software/pop-plugin.html).
+
 ## 다음 작업 순서 — 기존 계획 수정본
 
 | 순서 | 작업 | 구체적 구현/검증 수락 기준 |
