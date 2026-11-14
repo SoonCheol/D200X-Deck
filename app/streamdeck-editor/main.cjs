@@ -2,6 +2,7 @@
 
 const { app, BrowserWindow, Menu, ipcMain, clipboard, dialog } = require('electron');
 const path = require('node:path');
+const fs = require('node:fs');
 const { D200XTransport } = require('./transport.cjs');
 
 let window = null;
@@ -16,6 +17,24 @@ transport.on('status', status => send('d200x:status', status));
 transport.on('key', event => send('d200x:key', event));
 transport.on('synced', details => send('d200x:synced', details));
 transport.on('error-message', message => send('d200x:error', message));
+let diagnosticPath = null;
+let keepaliveLogCounter = 0;
+transport.on('diagnostic', info => {
+  // A successful keep-alive every 5 seconds is routine. Summarize it once
+  // per minute to keep logs small while preserving all failure transitions.
+  if (info.type === 'keepalive' && ++keepaliveLogCounter % 12 !== 1) return;
+  const line = JSON.stringify(info) + '\\n';
+  console.info('[D200X]', info.type, info.detail);
+  if (!diagnosticPath) return;
+  try {
+    if (fs.existsSync(diagnosticPath) && fs.statSync(diagnosticPath).size > 1024 * 1024) {
+      fs.renameSync(diagnosticPath, diagnosticPath + '.previous');
+    }
+    fs.appendFileSync(diagnosticPath, line, {encoding:'utf8'});
+  } catch (error) {
+    console.warn('[D200X] Cannot write diagnostic log:', error.message);
+  }
+});
 
 // Accept only the 14 known display slots, not arbitrary file paths or code.
 function validImages(value) {
@@ -70,6 +89,7 @@ ipcMain.handle('d200x:choose-path', async (event, kind) => {
 });
 
 app.whenReady().then(async () => {
+  diagnosticPath = path.join(app.getPath('userData'), 'd200x-connection.log');
   Menu.setApplicationMenu(null);
   window = new BrowserWindow({
     width: 1180,
