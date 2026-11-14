@@ -10,6 +10,7 @@ const { execFile } = require('node:child_process');
 const { promisify } = require('node:util');
 const execFileAsync = promisify(execFile);
 const { D200XTransport } = require('./transport.cjs');
+const { parseIconPack, readPacks, registerPack } = require('./icon-pack.cjs');
 
 let window = null;
 let rendererReady = false;
@@ -477,6 +478,30 @@ ipcMain.handle('d200x:open-local-path',async(event,args)=>{
   const error=await shell.openPath(filePath);
   if(error)throw new Error(error);
   return true;
+});
+
+// Installed icon packs live in Electron userData, separately from profiles.
+function iconPacksFile(){return path.join(app.getPath('userData'),'streamdeck-icon-packs-v1.json');}
+ipcMain.handle('d200x:list-icon-packs',async event=>{
+  if(!window||event.sender!==window.webContents)throw new Error('허용되지 않은 호출입니다.');
+  return readPacks(iconPacksFile());
+});
+ipcMain.handle('d200x:import-icon-pack',async event=>{
+  if(!window||event.sender!==window.webContents)throw new Error('허용되지 않은 호출입니다.');
+  const result=await dialog.showOpenDialog(window,{
+    title:'Stream Deck 아이콘팩 가져오기',
+    properties:['openFile'],
+    filters:[{name:'Stream Deck 아이콘팩',extensions:['streamDeckIconPack']},
+      {name:'ZIP 아이콘팩',extensions:['zip']}]
+  });
+  if(result.canceled||!result.filePaths[0])return null;
+  const file=result.filePaths[0];
+  const stat=await fs.promises.stat(file);
+  if(!stat.isFile()||stat.size>20*1024*1024)
+    throw new Error('20MB 이하의 아이콘팩을 선택하세요.');
+  const pack=await parseIconPack(await fs.promises.readFile(file));
+  await registerPack(iconPacksFile(),pack);
+  return pack;
 });
 
 // Local clipboard image only; never reads arbitrary files or executes clipboard content.
