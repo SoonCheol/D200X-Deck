@@ -130,11 +130,18 @@
       return {kind:'invalid',message:'복합 액션 중첩 지원 여부가 확인되지 않았습니다.'};
     return {kind:'composite',type:model.type,steps:copy(steps)};
   }
-  async function runComposite(action,{execute,wait,signal,state=0,random,gesture}={}){
+  async function runComposite(action,{execute,wait,signal,state=0,random,gesture,nextActionMs=0}={}){
     if(typeof execute!=='function'||typeof wait!=='function')throw new TypeError('execute and wait callbacks are required');
     const plan=planComposite(action,{state,random,gesture});
     if(plan.kind!=='composite')throw new Error(plan.message||'복합 동작 실행 불가');
-    for(const step of plan.steps){
+    const gap=Number.isInteger(nextActionMs)&&nextActionMs>=0&&nextActionMs<=1000?nextActionMs:0;
+    for(let i=0;i<plan.steps.length;i++){
+      const step=plan.steps[i],previous=plan.steps[i-1];
+      if(signal?.aborted)throw new Error('복합 동작이 취소되었습니다.');
+      // An explicit Delay step already represents a pause: don't silently
+      // add the default next-action gap beside it.
+      if(i>0&&gap>0&&step.kind!=='delay'&&previous.kind!=='delay')
+        await wait(gap,signal);
       if(signal?.aborted)throw new Error('복합 동작이 취소되었습니다.');
       if(step.kind==='delay')await wait(step.ms,signal);
       else await execute(step,signal);
