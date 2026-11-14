@@ -229,6 +229,25 @@ test('control gesture assignments, scope and stack are persisted independently',
   assert.equal(core.controlBinding(restored,16).left.type,'next');
 });
 
+test('knob step and reverse direction persist with legacy-safe defaults',()=>{
+  const state=core.migrateState({pages:[[],[],[],[],[],[]],page:2});
+  const knob=core.controlBinding(state,16);
+  assert.equal(knob.step,1);
+  assert.equal(knob.reverseDirection,false);
+  knob.mode='adjust';knob.target='page';knob.step=2;knob.reverseDirection=true;
+  assert.equal(core.planHardwareEvent(state,{kind:2,index:17,state:2}).outcome.page,4);
+  assert.equal(core.planHardwareEvent(state,{kind:2,index:17,state:3}).outcome.page,0);
+  knob.target='volume';
+  assert.deepEqual(core.planHardwareEvent(state,{kind:2,index:17,state:2}).outcome,
+    {kind:'adjust',target:'volume',direction:1,count:2});
+  const saved=core.migrateState(JSON.parse(JSON.stringify(state)));
+  assert.equal(core.controlBinding(saved,16).step,2);
+  assert.equal(core.controlBinding(saved,16).reverseDirection,true);
+  const bad=core.cleanBinding({mode:'adjust',step:100,reverseDirection:'yes'});
+  assert.equal(bad.step,1);
+  assert.equal(bad.reverseDirection,false);
+});
+
 test('physical controls do not execute an action after a release',()=>{
   const state=core.migrateState(null);
   core.controlBinding(state,14).down=core.createAction('next');
