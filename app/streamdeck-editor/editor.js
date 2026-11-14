@@ -64,8 +64,17 @@ function controlDrop(index,id,gesture='down'){
   if(!ACTIONS.has(id))return;
   const binding=DeckCore.controlBinding(state,index);
   if(!binding)return;
-  if(binding.mode!=='trigger')binding.mode='trigger';
-  binding[gesture]=newAction(id);
+  if(index>=16&&gesture==='down'&&['previous','next'].includes(id)){
+    // Dropping a navigation action directly on the knob preserves the
+    // familiar bidirectional rotation behavior; per-gesture tiles remain
+    // available for independent left/right assignments.
+    binding.mode='adjust';
+    binding.target='page';
+    binding.down=newAction(id);
+  }else{
+    if(binding.mode!=='trigger')binding.mode='trigger';
+    binding[gesture]=newAction(id);
+  }
   state.selected=index;controlGesture=gesture;
   persist();render();
 }
@@ -114,7 +123,7 @@ function renderPhysicalControls(){
     const symbol=document.createElement("span");symbol.className="physical-symbol";
     const label=document.createElement("span");label.className="physical-name";
     label.textContent=binding?.mode==='adjust'?'조절: '+({page:'페이지',volume:'음량',zoom:'확대/축소'}[binding.target])
-      :binding?.mode==='stack'?'스택 ('+binding.stack.length+')'
+      :binding?.mode==='stack'?'스택: '+({page:'페이지',volume:'음량',zoom:'확대/축소'}[binding.stack[stackPositions[offset-2]%binding.stack.length]])
       :(item?keyName(item):name);
     button.append(symbol,label);
     button.addEventListener("click",()=>choose(index));
@@ -611,6 +620,7 @@ function executeHardwareAction(event){
   if(outcome.kind==='stack-next'){
     const idx=offset-2;
     stackPositions[idx]=(stackPositions[idx]+1)%outcome.size;
+    renderPhysicalControls();
     const target=DeckCore.controlBinding(state,index).stack[stackPositions[idx]];
     return '노브 '+(idx+1)+' 조절 대상: '+({page:'페이지',volume:'음량',zoom:'확대/축소'}[target]);
   }
