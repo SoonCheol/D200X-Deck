@@ -187,3 +187,17 @@
 .icon-maker-dialog footer{display:flex;justify-content:flex-end;gap:8px;}
 .icon-maker-dialog footer button{padding:7px 13px;background:#444;border:1px solid #777;border-radius:4px;}
 #icon-maker-save{background:#2977c9;border-color:#2977c9;}
+
+
+/* Stream Deck title overlay: fixed icon bitmap, title drawn over it in the
+   shared 196px compositor. Never vertically reflow the key when font grows. */
+.deck-key{position:relative;}
+.deck-key:has(> .rendered-key-image){padding:0;gap:0;}
+.deck-key > .rendered-key-image{
+  display:block;position:absolute;inset:0;
+  width:100%;height:100%;object-fit:fill;
+  border-radius:inherit;pointer-events:none;
+}
+.deck-key > .glyph.icon-image{width:100%;height:100%;object-fit:contain;}
+.deck-key > .caption{position:absolute;left:4px;right:4px;bottom:4px;z-index:1;pointer-events:none;}
+.preview-title{max-height:95%;line-height:1.12;}
