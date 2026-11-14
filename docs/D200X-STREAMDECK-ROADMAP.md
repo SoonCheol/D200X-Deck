@@ -82,6 +82,7 @@ editor-ui (Stream Deck식 UI, Electron renderer)
 - [x] **코드 수준:** 공통 아이콘 파일 선택(196px PNG 변환), Electron 이미지 클립보드 붙여넣기, 간단한 문자·배경색 아이콘 제작기, 변경/저장 및 장치 PNG 합성 경로 구현. 근거: `editor.js`, `preload.cjs`, `main.cjs`. 실제 PC/기기 시험은 미검증.
 - [ ] 아이콘 라이브러리 정식 카탈로그/검색/아이콘 편집·파일 선택/붙여넣기 완성 (현재는 **대체 샘플**).
 - [x] **코드 수준 수정:** Stream Deck 7.6.1 원본 `title-options.png` 및 Elgato 공식 키 제목 문서 기준으로 제목 위치를 **아래/가운데/위** 오버레이로 교정. 기존 좌/중/우 값은 각각 아래/가운데/위로 변환. 편집기 버튼은 실기 전송 PNG를 표시하여 아이콘 좌표가 글꼴 크기에 따라 이동하지 않도록 변경. D200X 196px 전송 글꼴은 Stream Deck 72px 기준의 비율로 확대. 근거: `deck-core.js`, `device-sync.js`, `editor.js`, `style.css`, `test/streamdeck-core.test.cjs`. **실기/픽셀 일치 여부는 아직 확인되지 않음.**
+- [x] **코드 수준:** 제목 글자색 기본 팔레트 12개 및 '나의 색상' 저장/재적용/삭제(localStorage), 외곽선 색상·두께(없음/얇게/보통/두껍게)를 공통 속성 팝오버에 추가. D200X와 편집기 공용 PNG 합성에 연결. 근거: `editor.js`, `deck-core.js`, `device-sync.js`, `style.css`, `test/streamdeck-core.test.cjs`. **원본 Stream Deck 고유 팔레트 복제 아님; D200X 실기 미검증.**
 - [ ] 제목 서체·정렬·크기·색상 및 아이콘 표시 결과, 원본 캡처와 대조 검증.
 - [ ] 프로필 선택/관리, 페이지 및 폴더 탐색, 복합 액션 내부 편집 완성.
 - [ ] 일반 키와 측면 버튼·노브에서 UI 액션 선택, 등록, 속성 표시 동작 완성.
