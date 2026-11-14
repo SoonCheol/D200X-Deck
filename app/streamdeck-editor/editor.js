@@ -922,7 +922,14 @@ let clipboard=null;
 window.addEventListener("click",ev=>{if(!ev.target.closest("#key-menu"))$("key-menu").hidden=true;});
 window.addEventListener("keydown",ev=>{if(ev.key==="Escape")$("key-menu").hidden=true;if(ev.ctrlKey&&ev.key.toLowerCase()==="v"&&clipboard&&state.selected!==null&&!["INPUT","TEXTAREA"].includes(document.activeElement.tagName)){ev.preventDefault();setItem(state.selected,clone(clipboard));}});
 $("action-search").addEventListener("input",renderLibrary);
-$("add-page").addEventListener("click",()=>{state.pages.push(blankPage());DeckCore.ensureControls(state).pages.push(Array.from({length:5},DeckCore.emptyBinding));state.page=state.pages.length-1;state.selected=null;persist();render();});
+$("add-page").addEventListener("click",()=>{
+  if(state.pages.length>=10){
+    window.d200xActionStatus?.('원본 기준 새 페이지는 프로필당 최대 10개입니다. 기존 페이지는 보존됩니다.');
+    return;
+  }
+  state.pages.push(blankPage());DeckCore.ensureControls(state).pages.push(Array.from({length:5},DeckCore.emptyBinding));
+  state.page=state.pages.length-1;state.folderPath=[];state.selected=null;persist();render();
+});
 $("delete-page").addEventListener("click",()=>{
   if(state.pages.length<=1)return;
   if(!confirm("현재 페이지 "+(state.page+1)+"을(를) 삭제하시겠습니까? 이 페이지의 모든 액션이 삭제됩니다."))return;
@@ -1430,6 +1437,15 @@ function bindSidebarHeader(){
       });
     }
     const separator=document.createElement('hr');menu.append(separator);
+    add('전체 프로필·설정 JSON 내보내기',()=>{
+      try{
+        const blob=new Blob([JSON.stringify(state,null,2)],{type:'application/json;charset=utf-8'});
+        const url=URL.createObjectURL(blob),link=document.createElement('a');
+        link.href=url;link.download='D200X-profiles-backup.json';
+        document.body.append(link);link.click();link.remove();
+        setTimeout(()=>URL.revokeObjectURL(url),1000);
+      }catch(error){window.d200xActionStatus?.('설정 내보내기 실패: '+String(error?.message||error));}
+    });
     add('＋ 새 프로필',()=>{
       const name=prompt('새 프로필 이름','새 프로필');
       if(name===null)return;
