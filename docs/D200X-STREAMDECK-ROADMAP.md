@@ -267,3 +267,13 @@ editor-ui (Stream Deck식 UI, Electron renderer)
 - [ ] Electron 실제 실행·UI·IPC, Windows 음량/확대, USB 장치·D200X 실기 검증. C2/R1 별도 검증.
 - **판정 주의:** 워크플로 failure는 C1의 회귀 테스트 실패를 반영한 정확한 결과이며, 테스트 전체 미실시를 뜻하지 않음. 장치 실기 통과로 오인하지 말 것.
 
+
+## 구형 브랜치/PR 정리 현황 및 단일 작업 브랜치 고정 — 2026-11-14
+
+- **유일한 D200X 편집기 개발 작업 브랜치:** `codex/streamdeck-761-clean-editor`. 이후 작업자는 브랜치가 모호하다고 재질문하지 말고 이 브랜치와 최신 HEAD, `AGENTS.md`, 인수인계서를 우선 확인한다. `main`은 저장소 기본 브랜치로 유지한다.
+- **[x] 구형 PR 정리 완료:** PR [#1](https://github.com/SoonCheol/D200X-Deck/pull/1), [#2](https://github.com/SoonCheol/D200X-Deck/pull/2), [#3](https://github.com/SoonCheol/D200X-Deck/pull/3), [#4](https://github.com/SoonCheol/D200X-Deck/pull/4)를 **병합하지 않고 종료**했다. 현재 핵심 PR [#5](https://github.com/SoonCheol/D200X-Deck/pull/5)는 Draft/open 유지하며 변경하지 않았다.
+- **[ ] 구형 브랜치 삭제는 미완료:** 연결된 GitHub 도구에는 브랜치 삭제 기능이 없다. 기존 8개 브랜치는 보존 중이다. 사용자가 GitHub 웹 UI에서 확인 후 삭제해야 한다.
+- **현재 개발 브랜치 이력에 완전 포함된 삭제 후보:** `codex/streamdeck-761-editor-layout`, `codex/streamdeck-761-key-catalog-24`, `windows-port`. 비교 결과 각각 현재 개발 브랜치보다 뒤에 있으며 고유 커밋 0개. 삭제는 이력 보존과 별개로 원격 참조만 제거한다.
+- **당장 삭제 금지:** `codex/streamdeck-761-gui-evidence`는 PR #5의 **현재 base 브랜치**이다. PR #5를 건드리지 않는 조건에서 유지.
+- **고유 자료 때문에 보존:** `codex/streamdeck-7.6.1-rea-research`는 REA 정적 분석·GUI 문서가, `codex/streamdeck-761-windows-gap-audit`는 과거 Windows 갭 조사 문서가 현재 개발 브랜치의 커밋 이력에 없는 별도 커밋 1개씩으로 남아 있다. **삭제 전 별도 백업/포함 여부 검증 필수.**
+- 개발 편집기 소스, EXE, PR #5 병합은 변경하지 않았다. 구형 PR 종료와 개발 브랜치 단일화 원칙을 기록한 것이며, **브랜치 삭제까지 완료했다는 의미가 아니다.**
