@@ -7,6 +7,18 @@
 >
 > **진행 저장소:** [SoonCheol/D200X-Deck](https://github.com/SoonCheol/D200X-Deck) / 브랜치 `codex/streamdeck-761-clean-editor` / Draft [PR #5](https://github.com/SoonCheol/D200X-Deck/pull/5). **임의 병합 금지.**
 
+## 최신 현황 — 2026-11-14 사용자 승인 1~6번 범위
+
+> **EXE/ZIP 신규 빌드는 사용자가 재요청할 때까지 보류.** 과거 문서의 '매 커밋 빌드' 지침보다 이 결정이 우선하며 `.github/workflows/streamdeck-clean-preview.yml`은 수동 실행 전용. 2026-11-14 이후 확장 코드는 사용자의 PC EXE에 설치되지 않았다.
+
+- **1~2 P0 핵심:** D200X 밝기(현재 알려진 장치 밝기 기반 ±1·2·5·10, 범위 제한), 확대/축소 및 Ctrl+0 초기화, 기존 음량·음소거·스크롤·실행 취소/다시 실행·창/데스크톱 전환 코드 적용. 기존 24개 액션 별도 보존.
+- **3 P0-B:** 버튼 누름과 노브 회전은 `deck-core` 공통 액션 계획 함수를 활용. 다만 완전한 동일 `type/settings` 저장 및 다중 실행 엔진은 **미완료**.
+- **4 P0-D:** C1 구형 페이지별 물리 할당 이관 버그 수정. 서로 충돌하는 레거시 페이지별 값은 `page` 범위로, 한 페이지에만 설정된 노브는 기존 `global`로 유지. GitHub [모의 입력 Actions #43585143293](https://github.com/SoonCheol/D200X-Deck/actions/runs/43585143293) 통과. 페이지 이동 한 번 후 무반응은 사용자 최신 EXE 실기 결과 별개.
+- **5 P1 일부 코드:** 화면 캡처, 클립보드 복사/붙여넣기/잘라내기, 창 최대화/복원·최소화, 모니터 간 창 이동, 탐색기 열기, 지정 파일/폴더 열기. **마이크 음소거, 출력 장치 선택 등 미구현.**
+- **6 P2 일부 코드와 안정화:** 브러시 크기·타임라인 좌/우 이동·앱별 Ctrl+± 확대 단축키(앱별 지원 여부 미확인), 설정 저장 실패 가시화, 밝기/5초 유지통신/USB 재연결 페이지 복원 모의 테스트. 다중 동작 지연/토글/순환, 앱별 정확한 매핑, 실기 10분/재연결/급회전 미완료.
+- 새로 추가한 액션은 `D200X 추가 액션`에 별도 등록. 테스트는 **Node.js 계획 함수·모의 장치 및 JavaScript 구문 검사**, Windows OS 실제 효과/기기 물리 조작과 구분한다. 최신 범위별 상세는 [D200X-BUILTIN-ACTIONS-EXPANSION.md](D200X-BUILTIN-ACTIONS-EXPANSION.md).
+- 원본 24개 보존, GitHub `codex/streamdeck-761-clean-editor`, Draft PR #5 유지·미병합. 새 실행기 빌드 지시가 없다면 자동 테스트만 수행.
+
 ## 0. 새 세션 시작 시 즉시 해야 할 일
 
 1. 이 문서 및 `AGENTS.md`, `docs/D200X-STREAMDECK-ROADMAP.md`, `docs/D200X-BUILTIN-ACTIONS-EXPANSION.md`를 읽는다.
