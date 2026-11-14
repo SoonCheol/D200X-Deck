@@ -340,7 +340,7 @@
     state.folderPath=[];
     if(Array.isArray(value.folderPath)){
       for(const entry of value.folderPath.slice(0,8)){
-        if(!Number.isInteger(entry)||entry<0||entry>=14||currentActions(state)?.[entry]?.type!=='folder')break;
+        if(!Number.isInteger(entry)||entry<0||entry>=14||visibleActions(state)?.[entry]?.type!=='folder')break;
         state.folderPath.push(entry);
       }
     }
