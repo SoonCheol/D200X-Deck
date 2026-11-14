@@ -12,6 +12,7 @@ contextBridge.exposeInMainWorld('deckBridge', Object.freeze({
   switchWindows: (target,direction,count=1) => ipcRenderer.invoke('d200x:switch-windows', {target,direction,count}),
   adjustBrightness: (direction,count=1) => ipcRenderer.invoke('d200x:device-brightness', {direction,count}),
   systemShortcut: (target,operation) => ipcRenderer.invoke('d200x:system-shortcut', {target,operation}),
+  openLocalPath: (filePath,target) => ipcRenderer.invoke('d200x:open-local-path', {filePath,target}),
   syncPage: images => ipcRenderer.send('d200x:sync-page', images),
   onStatus: callback => {
     if (typeof callback !== 'function') return;
