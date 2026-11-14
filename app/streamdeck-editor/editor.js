@@ -277,8 +277,11 @@ function renderGrid(){
     grid.append(b);
   });
   renderPhysicalControls();
-  $("page-label").textContent=state.folderPath?.length?`폴더 ${state.folderPath.length}단계 · 페이지 ${state.page+1}`:`페이지 ${state.page+1} / ${state.pages.length}`;
-  $("delete-page").disabled=state.pages.length<=1;
+  const folder=DeckCore.activeFolder(state);
+  $("page-label").textContent=folder
+    ?`폴더 ${state.folderPath.length}단계 · 페이지 ${(folder.pageIndex||0)+1} / ${DeckCore.folderPageCount(state)}`
+    :`페이지 ${state.page+1} / ${state.pages.length}`;
+  $("delete-page").disabled=folder?DeckCore.folderPageCount(state)<=1:state.pages.length<=1;
 }
 function renderPhysicalControls(){
   const root=$("physical-controls");
@@ -1381,7 +1384,7 @@ function showMenu(index,x,y){
   const add=(label,handler)=>{const b=document.createElement("button");b.type="button";b.role="menuitem";b.textContent=label;if(typeof handler==='function')b.addEventListener("click",()=>{menu.hidden=true;handler();});else{b.disabled=true;b.title="아직 구현되지 않은 기능입니다.";}menu.append(b);};
   const divider=()=>menu.append(document.createElement("hr"));
   if(!item){add("폴더 생성",()=>setItem(index,newAction("folder")));add("다중 동작 생성",()=>setItem(index,newAction("multi")));add("Key Logic 동작 생성",()=>setItem(index,newAction("logic")));divider();add("동작 불러오기…",null);divider();add("현재 배경",null);add("파일에서 설정…",null);}
-  else {add(state.pinned?.[index]?"고정 해제":"고정",()=>{if(DeckCore.togglePinned(state,index)){persist();render();}});add("복사하기　Ctrl+C",()=>{clipboard=clone(item);});add("폴더로 이동",null);add("Key Logic으로 이동",null);divider();add("동작 불러오기…",null);add("동작 내보내기…",null);divider();add("현재 배경",()=>{});add("파일에서 설정…",()=>alert("배경 파일 선택 미구현"));divider();add("삭제",()=>{if(confirm("이 동작을 삭제하시겠습니까?"))removeSlotAction(index);});}
+  else {add(state.pinned?.[index]?"고정 해제":"고정",()=>{if(DeckCore.togglePinned(state,index)){persist();render();}});add("복사하기　Ctrl+C",()=>{clipboard=clone(item);});add("폴더로 이동",null);add("Key Logic으로 이동",null);divider();add("동작 불러오기…",null);add("동작 내보내기…",null);divider();add("현재 배경",null);add("파일에서 설정…",null);divider();add("삭제",()=>{if(confirm("이 동작을 삭제하시겠습니까?"))removeSlotAction(index);});}
   menu.style.left=Math.min(x,window.innerWidth-220)+"px";menu.style.top=Math.min(y,window.innerHeight-360)+"px";menu.hidden=false;
 }
 let clipboard=null;
@@ -1389,6 +1392,11 @@ window.addEventListener("click",ev=>{if(!ev.target.closest("#key-menu"))$("key-m
 window.addEventListener("keydown",ev=>{if(ev.key==="Escape")$("key-menu").hidden=true;if(ev.ctrlKey&&ev.key.toLowerCase()==="v"&&clipboard&&state.selected!==null&&!["INPUT","TEXTAREA"].includes(document.activeElement.tagName)){ev.preventDefault();setItem(state.selected,clone(clipboard));}});
 $("action-search").addEventListener("input",renderLibrary);
 $("add-page").addEventListener("click",()=>{
+  if(state.folderPath?.length){
+    if(!DeckCore.addFolderPage(state))window.d200xActionStatus?.('폴더별 페이지는 최대 10개입니다.');
+    else {persist();render();}
+    return;
+  }
   if(state.pages.length>=10){
     window.d200xActionStatus?.('원본 기준 새 페이지는 프로필당 최대 10개입니다. 기존 페이지는 보존됩니다.');
     return;
@@ -1397,12 +1405,30 @@ $("add-page").addEventListener("click",()=>{
   state.page=state.pages.length-1;state.folderPath=[];state.selected=null;persist();render();
 });
 $("delete-page").addEventListener("click",()=>{
+  if(state.folderPath?.length){
+    if(DeckCore.folderPageCount(state)<=1)return;
+    const folder=DeckCore.activeFolder(state);
+    if(confirm('폴더 페이지 '+((folder?.pageIndex||0)+1)+'을 삭제하시겠습니까?')){
+      if(DeckCore.deleteFolderPage(state)){persist();render();}
+    }
+    return;
+  }
   if(state.pages.length<=1)return;
   if(!confirm("현재 페이지 "+(state.page+1)+"을(를) 삭제하시겠습니까? 이 페이지의 모든 액션이 삭제됩니다."))return;
   if(DeckCore.deletePage(state)){persist();render();}
 });
-$("back-page").addEventListener("click",()=>{if(!DeckCore.exitFolder(state))state.page=Math.max(0,state.page-1);state.selected=null;persist();render();});
-$("next-page").addEventListener("click",()=>{state.folderPath=[];state.page=Math.min(state.pages.length-1,state.page+1);state.selected=null;persist();render();});
+$("back-page").addEventListener("click",()=>{
+  const folder=DeckCore.activeFolder(state);
+  if(folder)DeckCore.changeFolderPage(state,Math.max(0,(folder.pageIndex||0)-1));
+  else state.page=Math.max(0,state.page-1);
+  state.selected=null;persist();render();
+});
+$("next-page").addEventListener("click",()=>{
+  const folder=DeckCore.activeFolder(state);
+  if(folder)DeckCore.changeFolderPage(state,Math.min(DeckCore.folderPageCount(state)-1,(folder.pageIndex||0)+1));
+  else state.page=Math.min(state.pages.length-1,state.page+1);
+  state.selected=null;persist();render();
+});
 // Physical D200X button presses run the selected page's action; clicking a
 // PC editor key still only selects it for editing.
 const activeAudioPlayers=new Map();
@@ -1954,6 +1980,16 @@ function executeHardwareAction(event,preview=false){
   }
   if(outcome.kind==='page'){
     cancelFolderAutoExit();
+    if(state.folderPath?.length){
+      const folder=DeckCore.activeFolder(state);
+      const old=folder?.pageIndex||0;
+      const movement=resolved.action?.type==='previous'?-1:resolved.action?.type==='next'?1:
+        resolved.gesture==='left'?-1:resolved.gesture==='right'?1:0;
+      const next=movement?old+movement:outcome.page;
+      if(!DeckCore.changeFolderPage(state,next))return '폴더 페이지 이동 실패';
+      lastHardwareDown.clear();persist();render();
+      return '폴더 페이지 '+((folder.pageIndex||0)+1)+' 표시';
+    }
     if(outcome.page===state.page)return '페이지 '+(state.page+1)+' · 이동 없음';
     state.page=outcome.page;state.folderPath=[];state.selected=null;
     lastHardwareDown.clear();persist();render();return '페이지 '+(outcome.page+1)+' 표시';
