@@ -298,10 +298,37 @@ function renderMultiEditor(item,root){
       visual.icon=iconField.value?{kind:'glyph',glyph:iconField.value}:undefined;
       persist();renderGrid();
     });
-    fields.append(titleLabel,titleField,iconLabel,iconField);
-    const hint=document.createElement('small');hint.className='hint';
-    hint.textContent='각 상태별 이미지 파일 선택 기능은 후속 구현';
-    fields.append(hint);area.append(fields);
+    const chooseImage=document.createElement('button');chooseImage.type='button';
+    chooseImage.textContent='상태 '+(selected+1)+' 이미지 선택…';
+    const imageInput=document.createElement('input');imageInput.type='file';
+    imageInput.accept='image/png,image/jpeg,image/webp,image/gif';imageInput.hidden=true;
+    chooseImage.addEventListener('click',()=>imageInput.click());
+    imageInput.addEventListener('change',async()=>{
+      const file=imageInput.files?.[0];imageInput.value='';
+      if(!file)return;
+      if(!['image/png','image/jpeg','image/webp','image/gif'].includes(file.type)||file.size>5*1024*1024){
+        window.d200xActionStatus?.('5MB 이하의 PNG/JPEG/WebP/GIF 이미지만 선택할 수 있습니다.');return;
+      }
+      try{
+        const raw=await new Promise((resolve,reject)=>{
+          const reader=new FileReader();
+          reader.onerror=()=>reject(new Error('파일 읽기 실패'));
+          reader.onload=()=>resolve(reader.result);
+          reader.readAsDataURL(file);
+        });
+        const image=await rasterizeIcon(raw);
+        if(image.length>=1024*1024)throw new Error('변환된 PNG가 1MB를 넘습니다.');
+        visual.icon={kind:'file',value:image};
+        persist();renderGrid();
+      }catch(error){window.d200xActionStatus?.('상태별 이미지 적용 실패: '+String(error?.message||error));}
+    });
+    const resetIcon=document.createElement('button');resetIcon.type='button';
+    resetIcon.textContent='공통 아이콘으로';
+    resetIcon.addEventListener('click',()=>{
+      delete visual.icon;iconField.value='';persist();renderGrid();
+    });
+    fields.append(titleLabel,titleField,iconLabel,iconField,chooseImage,imageInput,resetIcon);
+    area.append(fields);
   }
   const heading=document.createElement('strong');
   heading.textContent=randomAction?'무작위 동작 · 후보 중 하나 실행':switching?'다중 동작 스위치 · 상태별 실행':'다중 동작 · 순서대로 실행';
