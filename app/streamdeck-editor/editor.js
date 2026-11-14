@@ -525,12 +525,30 @@ function renderControlInspector(){
       });
     });
     editor.append(fields);root.append(editor);
+    // A physical-control file picker needs the same bridge as the screen-key inspector.
+    fields.querySelectorAll('[data-path-picker]').forEach(button=>button.addEventListener('click',async()=>{
+      if(!window.deckBridge?.choosePath){window.d200xActionStatus?.('Windows EXE에서만 파일을 선택할 수 있습니다.');return;}
+      try{
+        const selected=await window.deckBridge.choosePath(button.dataset.pathKind);
+        if(!selected)return;
+        current.settings[button.dataset.pathPicker]=selected;
+        const field=fields.querySelector('[data-field="'+button.dataset.pathPicker+'"]');
+        if(field)field.value=selected;
+        persist();
+      }catch(error){window.d200xActionStatus?.('경로 선택 실패: '+String(error?.message||error));}
+    }));
   }else{
     const help=document.createElement('p');help.className='hint';
     help.textContent=binding.mode==='trigger'?'오른쪽 목록의 액션을 위 동작 칸에 끌어 넣으세요.':
       '회전은 조절 대상으로 실행되며, 누르기 칸에는 별도 액션도 등록할 수 있습니다.';
     root.append(help);
   }
+  const testBar=document.createElement('div');testBar.className='control-config';
+  for(const [gesture,title] of (info.kind==='knob'?[['left','◀ 왼쪽 회전 테스트'],['right','오른쪽 회전 테스트 ▶'],['down','● 누름 테스트']]:[['down','▶ 실행 테스트']])){
+    const button=document.createElement('button');button.type='button';button.textContent=title;
+    button.addEventListener('click',()=>runActionPreview(gesture));testBar.append(button);
+  }
+  root.append(testBar);
 }
 function renderInspector(){
   inspectorListener.abort();inspectorListener=new AbortController();
@@ -590,6 +608,10 @@ function renderInspector(){
         </div>
         <button type="button" class="style-reset" id="title-reset" title="기본 스타일 복원">↺</button>
       </div></div></div>${fields}</div></div>`;
+  const previewButton=document.createElement('button');previewButton.type='button';
+  previewButton.textContent='▶ 실행 테스트';previewButton.title='실제 Windows/D200X 동작을 한 번 실행합니다';
+  previewButton.addEventListener('click',()=>runActionPreview('down'));
+  root.querySelector('.action-head').append(previewButton);
   bindTitleStyle(item);
   bindIconControls(item);
   refreshTitlePreview(item);
@@ -675,12 +697,22 @@ $("next-page").addEventListener("click",()=>{state.page=Math.min(state.pages.len
 // Physical D200X button presses run the selected page's action; clicking a
 // PC editor key still only selects it for editing.
 const lastHardwareDown=new Map();
-function executeHardwareAction(event){
+function runActionPreview(gesture='down'){
+  const index=state.selected;
+  if(!Number.isInteger(index)||index<0||index>18)return;
+  const deviceIndex=index<14?index:index+1;
+  const isKnob=index>=16;
+  const stateValue=isKnob?({down:1,left:2,right:3}[gesture]):1;
+  const event={kind:isKnob?2:1,index:deviceIndex,state:stateValue,pressed:gesture==='down'};
+  const result=executeHardwareAction(event,true);
+  window.d200xActionStatus?.(result||'등록된 동작이 없어 실행하지 않았습니다.');
+}
+function executeHardwareAction(event,preview=false){
   const resolved=DeckCore.resolveHardwareEvent(state,event);
   if(!resolved)return null;
   const index=resolved.index,offset=index-14;
   if(resolved.gesture==='up'){lastHardwareDown.delete(index);return null;}
-  if(resolved.gesture==='down'){
+  if(resolved.gesture==='down'&&!preview){
     const now=Date.now();
     if(now-(lastHardwareDown.get(index)||0)<250)return null;
     lastHardwareDown.set(index,now);
