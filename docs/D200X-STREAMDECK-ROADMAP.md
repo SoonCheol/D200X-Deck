@@ -5,6 +5,12 @@
 >
 > 기준일: 2026-11-14. 상태는 **GitHub 소스·이전 Actions 기록으로 확인한 것**만 표시하며, 실제 D200X/Windows UI 실기 검증을 완료한 것으로 혼동하지 않는다.
 
+## 2026-11-14 추가 개선 — Multi Action Switch 제목 연결
+
+- Elgato 공식 6.2 릴리스 노트의 **Link Action State Titles** 및 제목 도움말을 근거로 상태 1/2 제목 연결 체크박스를 편집기 속성 영역에 추가. 연결 시 1번 상태 제목을 공유 표시하지만 **2번 상태의 기존 개별 제목은 덮어쓰지 않아** 연결 해제 시 복원 가능. 상태별 아이콘은 계속 독립적으로 적용.
+- `deck-core.js`의 `displaySwitchAction`, `editor.js`의 상태별 설정 UI 및 저장·재읽기 단위 테스트에 반영. 실제 Elgato 7.6.1 UI/실물 D200X에서는 아직 검증하지 않음. 새 EXE/병합 없음.
+- 출처: [Elgato 6.2 Release Notes](https://help.elgato.com/hc/en-us/articles/15618534999821-Elgato-Stream-Deck-6-2-Release-Notes) · [Custom Titles](https://help.elgato.com/hc/en-us/articles/360027958532-Elgato-Stream-Deck-Custom-Titles-for-Actions).
+
 ## 2026-11-14 실기 테스트 보류 중 코드 개발 진행 — Random 및 Switch 표시/복원
 
 - **사용자 제약:** 현재 Windows GUI·실물 D200X 테스트가 불가능하므로 실기 검증은 보류하고 소스/자동 CI로 개발을 계속한다. EXE 빌드는 계속 보류, 원본 24개 ID와 승인된 편집기 화면 배치는 보존한다.
