@@ -19,7 +19,7 @@ test('all 24 observed Stream Deck actions have independent defaults',()=>{
 
 test('separate D200X volume/mute actions preserve the original 24',()=>{
   assert.equal(core.ACTION_IDS.length,24);
-  assert.deepEqual(core.D200X_ACTION_IDS,['system-volume','system-mute','system-scroll']);
+  assert.deepEqual(core.D200X_ACTION_IDS,['system-volume','system-mute','system-scroll','edit-history']);
   const volume=core.createAction('system-volume');
   assert.deepEqual(core.planAction(volume,0,1),{kind:'adjust',target:'volume',direction:1,count:1});
   volume.settings.direction='down';volume.settings.step=5;
@@ -53,6 +53,28 @@ test('D200X scroll action uses shared planner for keys and rotary control',()=>{
   knob.target='scroll-x';
   assert.deepEqual(core.planHardwareEvent(state,{kind:2,index:17,state:2}).outcome,
     {kind:'scroll',axis:'horizontal',direction:-1,count:2});
+});
+
+test('edit-history shares planner for buttons and knob rotation',()=>{
+  assert.equal(core.ACTION_IDS.length,24);
+  const action=core.createAction('edit-history');
+  assert.deepEqual(core.planAction(action,0,1),{kind:'edit-history',operation:'undo',count:1});
+  action.settings.operation='redo';action.settings.step=5;
+  assert.deepEqual(core.planAction(action,0,1),{kind:'edit-history',operation:'redo',count:5});
+  const state=core.migrateState(null);
+  state.pages[0][0]=action;
+  assert.deepEqual(core.planHardwareEvent(state,{kind:1,index:0,pressed:true}).outcome,
+    {kind:'edit-history',operation:'redo',count:5});
+  const knob=core.controlBinding(state,16);
+  knob.mode='adjust';knob.target='history';knob.step=2;
+  assert.deepEqual(core.planHardwareEvent(state,{kind:2,index:17,state:2}).outcome,
+    {kind:'edit-history',operation:'undo',count:2});
+  assert.deepEqual(core.planHardwareEvent(state,{kind:2,index:17,state:3}).outcome,
+    {kind:'edit-history',operation:'redo',count:2});
+  knob.reverseDirection=true;
+  assert.equal(core.planHardwareEvent(state,{kind:2,index:17,state:2}).outcome.operation,'redo');
+  const restored=core.migrateState(JSON.parse(JSON.stringify(state)));
+  assert.equal(core.controlBinding(restored,16).target,'history');
 });
 
 test('legacy state migration retains visible and physical slots, selected page and icon',()=>{
