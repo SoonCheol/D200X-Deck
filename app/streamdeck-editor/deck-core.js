@@ -69,7 +69,8 @@
       base.icon={kind:'glyph',glyph:value.icon.glyph.slice(0,8)};
     if(value.icon&&value.icon.kind==='file'&&typeof value.icon.value==='string'&&
       /^data:image\/png;base64,[A-Za-z0-9+/]+=*$/.test(value.icon.value)&&value.icon.value.length<1024*1024)
-      base.icon={kind:'file',value:value.icon.value};
+      base.icon={kind:'file',value:value.icon.value,
+        ...(typeof value.icon.packId==='string'&&value.icon.packId.length<=128?{packId:value.icon.packId}:{})};
     // Preserve known child structure but do not execute untrusted or unknown actions.
     if(Array.isArray(value.children))base.children=value.children.slice(0,value.type==='folder'?14:100)
       .map(child=>value.type==='folder'?cleanAction(child):cleanCompositeEntry(child));
@@ -95,7 +96,8 @@
             visual.icon={kind:'glyph',glyph:source.icon.glyph.slice(0,8)};
           if(source.icon?.kind==='file'&&typeof source.icon.value==='string'&&
             /^data:image\/png;base64,[A-Za-z0-9+/]+=*$/.test(source.icon.value)&&source.icon.value.length<1024*1024)
-            visual.icon={kind:'file',value:source.icon.value};
+            visual.icon={kind:'file',value:source.icon.value,
+              ...(typeof source.icon.packId==='string'&&source.icon.packId.length<=128?{packId:source.icon.packId}:{})};
           return visual;
         });
       }
