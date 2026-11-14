@@ -248,7 +248,7 @@ class Deck extends EventEmitter {
     const frame = P.decodeReport(data[0] === 0 ? data.subarray(1) : data) || P.decodeReport(data);
     if (!frame) return;
 
-    if (frame.cmd === P.CMD.KEY_EVENT && frame.proto === 0x01) {
+    if (frame.cmd === P.CMD.KEY_EVENT && (frame.proto === 0x01 || frame.proto === 0x02)) {
       this._onKeyEvent(frame.payload);
       return;
     }
@@ -276,8 +276,10 @@ class Deck extends EventEmitter {
   }
 
   /**
-   * Key event payload: [kind, index, flags, state]
-   * kind 1 = key, state 1 = press / 0 = release
+   * D200X input body: [kind, index, flags, state].
+   * Indices 0..13: LCD keys; 15/16: physical buttons;
+   * 17..19: rotary knobs (0 release, 1 down, 2 left, 3 right).
+   * Preserve raw fields for diagnostics, but expose named knob operations.
    */
   _onKeyEvent(payload) {
     if (payload.length < 4) return;
@@ -285,7 +287,12 @@ class Deck extends EventEmitter {
     const index = payload[1];
     const flags = payload[2];
     const state = payload[3];
-    this.emit('key', { kind, index, flags, state, pressed: state === 1 });
+    const knob = (index >= 17 && index <= 19) || kind === 2;
+    const gesture = knob ? ({0:'up',1:'down',2:'left',3:'right'}[state] || null)
+      : (state === 1 ? 'down' : state === 0 ? 'up' : null);
+    if (!gesture) return;
+    this.emit('key', { kind, index, flags, state, pressed: state === 1,
+      gesture, knob });
   }
 }
 
