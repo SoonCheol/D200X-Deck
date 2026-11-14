@@ -65,7 +65,7 @@ class StreamDeckPluginHost{
         await fs.promises.access(target);
         items.push({uuid:manifest.UUID,name:String(manifest.Name||manifest.UUID),
           version:String(manifest.Version||''),actions:manifest.Actions.map(a=>({uuid:a.UUID,name:a.Name,
-            states:Array.isArray(a.States)?a.States.length:1,propertyInspectorPath:a.PropertyInspectorPath||''}))});
+            states:Array.isArray(a.States)?a.States.length:1,controllers:Array.isArray(a.Controllers)?a.Controllers:['Keypad'],propertyInspectorPath:a.PropertyInspectorPath||''}))});
       }catch{}
     }
     return items;
@@ -166,7 +166,7 @@ class StreamDeckPluginHost{
     return instance;
   }
   payload(ctx){return {controller:ctx.slot>=16?'Encoder':'Keypad',
-    coordinates:{column:ctx.slot%4,row:Math.floor(ctx.slot/4)},isInMultiAction:false,
+    coordinates:ctx.slot>=16?{column:ctx.slot-16,row:0}:{column:ctx.slot%4,row:Math.floor(ctx.slot/4)},isInMultiAction:false,
     settings:ctx.settings||{}};}
   willAppear(ctx){
     const inst=this.instances.get(ctx.pluginUUID);
