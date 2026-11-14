@@ -86,9 +86,10 @@ jobs:
       - name: Assemble isolated preview with only D200X HID dependencies
         shell: pwsh
         run: |
-          New-Item -ItemType Directory -Force app/preview-device-build | Out-Null
-          Copy-Item app/streamdeck-editor app/preview-device-build/streamdeck-editor -Recurse
-          Copy-Item app/lib app/preview-device-build/lib -Recurse
+          New-Item -ItemType Directory -Force app/preview-device-build/streamdeck-editor | Out-Null
+          New-Item -ItemType Directory -Force app/preview-device-build/lib | Out-Null
+          Copy-Item 'app/streamdeck-editor/*' 'app/preview-device-build/streamdeck-editor/' -Recurse -Force
+          Copy-Item 'app/lib/*' 'app/preview-device-build/lib/' -Recurse -Force
           @'
           {
             "name": "d200x-streamdeck-device-sync",
@@ -108,6 +109,8 @@ jobs:
           Pop-Location
           $staged = Get-Item 'app/preview-device-build/streamdeck-editor/builtin-iconpacks.json' -ErrorAction SilentlyContinue
           if (-not $staged) { throw 'Staged preview missing Fluent UI icon bundle' }
+          if (-not (Test-Path 'app/preview-device-build/streamdeck-editor/main.cjs')) { throw 'Staged main.cjs missing' }
+          if (-not (Test-Path 'app/preview-device-build/streamdeck-editor/fluentui-LICENSE.md')) { throw 'Staged Fluent UI license missing' }
           Write-Host "Staged Fluent UI icon bytes: $($staged.Length)"
       - name: Package isolated device-sync Windows executable
         working-directory: app
