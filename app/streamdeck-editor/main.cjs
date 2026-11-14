@@ -76,9 +76,9 @@ ipcMain.on('d200x:sync-page', (event, images) => {
 ipcMain.handle('d200x:open-website', async (event, args) => {
   if (!window || event.sender !== window.webContents)
     throw new Error('허용되지 않은 호출입니다.');
-  if (!args || !['default','get'].includes(args.mode) || typeof args.url !== 'string'
+  if (!args || !['default','get','choose'].includes(args.mode) || typeof args.url !== 'string'
       || args.url.length > 2048 || /[\x00-\x1f\x7f]/.test(args.url))
-    throw new Error('기본 브라우저로 열기만 지원합니다.');
+    throw new Error('지원하지 않는 웹사이트 열기 방식입니다.');
   let url;
   try { url = new URL(args.url.trim()); }
   catch { throw new Error('올바른 URL을 입력하세요.'); }
@@ -96,6 +96,21 @@ ipcMain.handle('d200x:open-website', async (event, args) => {
       request.on('timeout',()=>request.destroy(new Error('요청 시간 초과')));
       request.on('error',reject);
     });
+  }else if(args.mode==='choose'){
+    const browserPath=args.browserPath;
+    if(typeof browserPath!=='string'||browserPath.length>4096||
+      !path.win32.isAbsolute(browserPath)||!/\.exe$/i.test(browserPath)||
+      /[\x00-\x1f\x7f]/.test(browserPath))
+      throw new Error('브라우저 실행 파일(.exe)을 먼저 선택하세요.');
+    const stat=await fs.promises.stat(browserPath);
+    if(!stat.isFile())throw new Error('브라우저 실행 파일을 찾을 수 없습니다.');
+    const child=require('node:child_process').spawn(browserPath,[url.href],{
+      detached:true,stdio:'ignore',windowsHide:false
+    });
+    await new Promise((resolve,reject)=>{
+      child.once('spawn',resolve);child.once('error',reject);
+    });
+    child.unref();
   }else await shell.openExternal(url.href);
   return true;
 });
@@ -265,6 +280,60 @@ ipcMain.handle('d200x:audio-file-url',async(event,args)=>{
   const stat=await fs.promises.stat(filePath);
   if(!stat.isFile())throw new Error('파일을 찾을 수 없습니다.');
   return pathToFileURL(filePath).href;
+});
+
+// Explicit clipboard mode: clipboard contents deliberately change to the supplied text.
+ipcMain.handle('d200x:paste-text',async(event,args)=>{
+  if(!window||event.sender!==window.webContents)throw new Error('허용되지 않은 호출입니다.');
+  if(typeof args?.text!=='string'||args.text.length>2048||typeof args.enter!=='boolean')
+    throw new Error('붙여넣을 텍스트는 최대 2048자입니다.');
+  if(process.platform!=='win32')throw new Error('Windows에서만 지원합니다.');
+  clipboard.writeText(args.text);
+  await emitWindowsKeys([0x11],0x56);
+  if(args.enter)await emitWindowsKeys([],0x0D);
+  return true;
+});
+
+// Focus a window whose process path matches the selected exe; no arbitrary commands.
+ipcMain.handle('d200x:focus-local-app',async(event,args)=>{
+  if(!window||event.sender!==window.webContents)throw new Error('허용되지 않은 호출입니다.');
+  const filePath=args?.filePath;
+  if(typeof filePath!=='string'||filePath.length>4096||!path.win32.isAbsolute(filePath)||
+      !/\.exe$/i.test(filePath)||/[\x00-\x1f\x7f]/.test(filePath))
+    throw new Error('Windows 프로그램(.exe)을 지정하세요.');
+  if(process.platform!=='win32')throw new Error('Windows에서만 지원합니다.');
+  const encoded=Buffer.from(filePath,'utf16le').toString('base64');
+  const ps=`Add-Type -TypeDefinition @'
+using System;
+using System.Runtime.InteropServices;
+public static class D200XForeground {
+ [DllImport("user32.dll")] public static extern bool EnumWindows(EnumWindowsProc callback,IntPtr data);
+ public delegate bool EnumWindowsProc(IntPtr hwnd,IntPtr data);
+ [DllImport("user32.dll")] public static extern uint GetWindowThreadProcessId(IntPtr hwnd,out uint pid);
+ [DllImport("user32.dll")] public static extern bool IsWindowVisible(IntPtr hwnd);
+ [DllImport("user32.dll")] public static extern bool SetForegroundWindow(IntPtr hwnd);
+ [DllImport("user32.dll")] public static extern bool ShowWindow(IntPtr hwnd,int command);
+ public static bool Activate(uint pid) {
+   bool found=false;
+   EnumWindows((hwnd,data)=>{
+     uint current;GetWindowThreadProcessId(hwnd,out current);
+     if(current==pid && IsWindowVisible(hwnd)) {
+       ShowWindow(hwnd,9);found=SetForegroundWindow(hwnd);return false;
+     }
+     return true;
+   },IntPtr.Zero);return found;
+ }
+}
+'@ -ErrorAction Stop
+$target=[Text.Encoding]::Unicode.GetString([Convert]::FromBase64String('${encoded}'));
+$matches=@(Get-Process | Where-Object {try{[string]::Equals($_.Path,$target,[StringComparison]::OrdinalIgnoreCase)}catch{$false}});
+$found=$false;
+foreach($p in $matches){if([D200XForeground]::Activate([uint32]$p.Id)){$found=$true;break}};
+if($found){'FOUND'}else{'NOT_FOUND'}`;
+  const {stdout}=await execFileAsync('powershell.exe',
+    ['-NoProfile','-NonInteractive','-WindowStyle','Hidden','-Command',ps],
+    {windowsHide:true,timeout:10000,maxBuffer:32768});
+  return String(stdout).trim()==='FOUND';
 });
 
 // Unicode typing uses SendInput/KEYEVENTF_UNICODE: no PowerShell source interpolation
