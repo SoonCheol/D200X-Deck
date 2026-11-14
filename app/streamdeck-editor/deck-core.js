@@ -542,7 +542,9 @@
     if(action.type==='timer')return {kind:'timer',seconds:Math.max(1,Math.min(86400,Number(action.settings?.seconds)||30))};
     if(action.type==='audio-play')return {kind:'audio-play',
       file:String(action.settings?.file||''),mode:action.settings?.mode||'play-stop',
-      volume:Math.max(0,Math.min(100,Number(action.settings?.volume)||0))};
+      volume:Math.max(0,Math.min(100,Number(action.settings?.volume)||0)),
+      fade:['none','in','out','in-out'].includes(action.settings?.fade)?action.settings.fade:'none',
+      output:typeof action.settings?.output==='string'?action.settings.output:'default'};
     if(action.type==='audio-stop')return {kind:'audio-stop'};
     if(action.type==='text')return {kind:'type-text',text:String(action.settings?.body||''),
       enter:action.settings?.enter===true,mode:action.settings?.mode==='typing'?'typing':'clipboard'};
