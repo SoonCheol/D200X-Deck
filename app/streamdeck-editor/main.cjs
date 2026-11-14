@@ -482,9 +482,23 @@ ipcMain.handle('d200x:open-local-path',async(event,args)=>{
 
 // Installed icon packs live in Electron userData, separately from profiles.
 function iconPacksFile(){return path.join(app.getPath('userData'),'streamdeck-icon-packs-v1.json');}
+let builtinPacksCache=null;
+async function listIconPacks(){
+  if(!builtinPacksCache){
+    const file=path.join(__dirname,'builtin-iconpacks.json');
+    const contents=await fs.promises.readFile(file,'utf8');
+    const parsed=JSON.parse(contents);
+    if(!Array.isArray(parsed)||parsed.length!==2||
+      !parsed.every(pack=>pack.source==='bundled'&&pack.icons.length>1500))
+      throw new Error('내장 Fluent UI 아이콘팩 데이터가 올바르지 않습니다.');
+    builtinPacksCache=parsed;
+  }
+  const installed=await readPacks(iconPacksFile());
+  return [...builtinPacksCache,...installed.filter(pack=>pack.source!=='bundled')];
+}
 ipcMain.handle('d200x:list-icon-packs',async event=>{
   if(!window||event.sender!==window.webContents)throw new Error('허용되지 않은 호출입니다.');
-  return readPacks(iconPacksFile());
+  return listIconPacks();
 });
 ipcMain.handle('d200x:remove-icon-pack',async(event,id)=>{
   if(!window||event.sender!==window.webContents)throw new Error('허용되지 않은 호출입니다.');
