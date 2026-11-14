@@ -1193,6 +1193,35 @@ function handleLogicGesture(action,index,gesture,preview){
   }
   return null;
 }
+// Generated local tones: no external sound files, commands or dependencies.
+function playTimerChime(kind){
+  if(kind==='none')return;
+  const AudioContextClass=window.AudioContext||window.webkitAudioContext;
+  if(!AudioContextClass)return;
+  const context=new AudioContextClass();
+  const patterns={
+    connect:[660,880],disconnect:[880,550],release:[880,660,440],
+    find:[740,880,740],other:[523,659,784]
+  };
+  const tones=patterns[kind]||patterns.connect;
+  Promise.resolve(context.resume()).then(()=>{
+    tones.forEach((freq,i)=>{
+      const oscillator=context.createOscillator();
+      const gain=context.createGain();
+      const start=context.currentTime+i*0.16;
+      oscillator.type='sine';oscillator.frequency.value=freq;
+      gain.gain.setValueAtTime(0.0001,start);
+      gain.gain.exponentialRampToValueAtTime(0.09,start+0.015);
+      gain.gain.exponentialRampToValueAtTime(0.0001,start+0.14);
+      oscillator.connect(gain);gain.connect(context.destination);
+      oscillator.start(start);oscillator.stop(start+0.145);
+    });
+    return new Promise(resolve=>setTimeout(resolve,tones.length*160+100));
+  }).then(()=>context.close()).catch(error=>{
+    console.warn('타이머 알림음 재생 실패',String(error?.message||error));
+    context.close().catch(()=>{});
+  });
+}
 const hotkeySwitchPositions=new Map();
 const lastHardwareDown=new Map();
 function runActionPreview(gesture='down'){
@@ -1347,7 +1376,8 @@ function executeHardwareAction(event,preview=false){
     const seconds=outcome.seconds;
     const handle=setTimeout(()=>{
       activeActionTimers.delete(key);
-      window.d200xActionStatus?.('타이머 '+seconds+'초 완료 · 소리 알림은 아직 미구현');
+      playTimerChime(resolved.action?.settings?.sound||'connect');
+      window.d200xActionStatus?.('타이머 '+seconds+'초 완료');
     },seconds*1000);
     activeActionTimers.set(key,handle);
     return '타이머 '+seconds+'초 시작 · 다시 누르면 취소';
