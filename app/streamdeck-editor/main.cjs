@@ -91,14 +91,14 @@ ipcMain.handle('d200x:open-website', async (event, args) => {
 ipcMain.handle('d200x:adjust-windows', async (event, args) => {
   if (!window || event.sender !== window.webContents)
     throw new Error('허용되지 않은 호출입니다.');
-  if (!args || !['volume','zoom','mute'].includes(args.target) ||
-      (args.target==='mute' ? args.direction!==0 : ![-1,1].includes(args.direction)) ||
+  if (!args || !['volume','zoom','mute','zoom-reset'].includes(args.target) ||
+      (['mute','zoom-reset'].includes(args.target) ? args.direction!==0 : ![-1,1].includes(args.direction)) ||
       ![1,2,5,10].includes(args.count ?? 1) ||
-      (args.target==='mute' && (args.count ?? 1)!==1))
+      (['mute','zoom-reset'].includes(args.target) && (args.count ?? 1)!==1))
     throw new Error('지원하지 않는 노브 조절 동작입니다.');
   if (process.platform !== 'win32')
     throw new Error('Windows에서만 지원하는 조절 동작입니다.');
-  const key = args.target === 'mute' ? 0xAD
+  const key = args.target === 'zoom-reset' ? 0x30 : args.target === 'mute' ? 0xAD
     : args.target === 'volume' ? (args.direction > 0 ? 0xAF : 0xAE)
     : (args.direction > 0 ? 0xBB : 0xBD);
   // Always use constant C# source; only the allowlisted numeric virtual key
@@ -111,9 +111,9 @@ public class D200XKey {
   [DllImport("user32.dll")] public static extern void keybd_event(byte vk, byte scan, uint flags, UIntPtr extra);
 }
 '@;
-${args.target === 'zoom' ? '[D200XKey]::keybd_event(0x11,0,0,[UIntPtr]::Zero);' : ''}
+${['zoom','zoom-reset'].includes(args.target) ? '[D200XKey]::keybd_event(0x11,0,0,[UIntPtr]::Zero);' : ''}
 ${Array.from({length:count},()=>`[D200XKey]::keybd_event(${key},0,0,[UIntPtr]::Zero);\n[D200XKey]::keybd_event(${key},0,2,[UIntPtr]::Zero);`).join('\n')}
-${args.target === 'zoom' ? '[D200XKey]::keybd_event(0x11,0,2,[UIntPtr]::Zero);' : ''}`;
+${['zoom','zoom-reset'].includes(args.target) ? '[D200XKey]::keybd_event(0x11,0,2,[UIntPtr]::Zero);' : ''}`;
   await execFileAsync('powershell.exe',
     ['-NoProfile','-NonInteractive','-WindowStyle','Hidden','-Command',code],
     {windowsHide:true,timeout:6000,maxBuffer:32768});
@@ -197,6 +197,12 @@ ${held.slice().reverse().map(v=>`[D200XSwitchKey]::keybd_event(${v},0,2,[UIntPtr
     ['-NoProfile','-NonInteractive','-WindowStyle','Hidden','-Command',code],
     {windowsHide:true,timeout:6000,maxBuffer:32768});
   return true;
+});
+
+ipcMain.handle('d200x:device-brightness',(event,args)=>{
+  if(!window||event.sender!==window.webContents)throw new Error('허용되지 않은 호출입니다.');
+  if(!args||![-1,1].includes(args.direction)||![1,2,5,10].includes(args.count))throw new Error('잘못된 밝기 조절 요청입니다.');
+  return transport.adjustBrightness(args.direction,args.count);
 });
 
 // Local clipboard image only; never reads arbitrary files or executes clipboard content.
