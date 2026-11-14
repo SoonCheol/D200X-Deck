@@ -361,7 +361,8 @@
     const source=Array.isArray(value?.profileNames)?value.profileNames:null;
     state.profileNames=source?source.slice(0,50).filter(p=>p&&typeof p.id==='string'&&typeof p.name==='string')
       .map(p=>({id:p.id.slice(0,40),name:p.name.slice(0,80),
-        appPath:typeof p.appPath==='string'&&p.appPath.length<=1024?p.appPath:''})):[];
+        appPath:typeof p.appPath==='string'&&p.appPath.length<=1024?p.appPath:'',
+        smartEnabled:p.smartEnabled===true||(p.smartEnabled===undefined&&value?.smartProfilesEnabled===true&&!!p.appPath)})):[];
     const seen=new Set();
     state.profileNames=state.profileNames.filter(p=>p.id&& !seen.has(p.id)&&seen.add(p.id));
     if(!state.profileNames.length)state.profileNames=[{id:'default',name:'기본 프로필'}];
@@ -388,13 +389,14 @@
     state.folderPath=clean.folderPath;state.pinned=clean.pinned;state.selected=null;state.profileId=id;
     return true;
   }
-  function createProfile(state,name,duplicate=false){
+  function createProfile(state,name,duplicate=false,sourceId=state.profileId){
     if((state.profileNames||[]).length>=50)return null;
     const label=String(name||'새 프로필').trim().slice(0,80)||'새 프로필';
     let id;
     do{id='profile-'+(++state.profileSeq);}while(state.profileNames.some(p=>p.id===id));
-    state.profileNames.push({id,name:label,appPath:''});
-    const source=duplicate?profileSnapshot(state):profileSnapshot(migrateState(null));
+    state.profileNames.push({id,name:label,appPath:'',smartEnabled:false});
+    const original=sourceId===state.profileId?profileSnapshot(state):state.inactiveProfiles.find(p=>p.id===sourceId);
+    const source=duplicate&&original?copy(original):profileSnapshot(migrateState(null));
     state.inactiveProfiles.push({id,...source});
     return id;
   }
@@ -412,7 +414,7 @@
   function matchForegroundProfile(state,appPath){
     if(!state?.smartProfilesEnabled||typeof appPath!=='string'||!appPath)return null;
     const normalized=appPath.replaceAll('/',String.fromCharCode(92)).toLowerCase();
-    return state.profileNames.find(p=>p.appPath&&p.appPath.replaceAll('/',String.fromCharCode(92)).toLowerCase()===normalized)?.id||null;
+    return state.profileNames.find(p=>p.smartEnabled&&p.appPath&&p.appPath.replaceAll('/',String.fromCharCode(92)).toLowerCase()===normalized)?.id||null;
   }
   function deleteProfile(state,id){
     if(!state.profileNames?.some(p=>p.id===id)||state.profileNames.length<=1)return false;
