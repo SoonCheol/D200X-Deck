@@ -284,11 +284,23 @@ function renderMultiEditor(item,root){
     if(!Array.isArray(item.stateVisuals))item.stateVisuals=[{},{}];
     const visual=item.stateVisuals[selected]||(item.stateVisuals[selected]={});
     const fields=document.createElement('div');fields.className='multi-switch-visuals';
-    const titleLabel=document.createElement('label');titleLabel.textContent='상태 '+(selected+1)+' 제목';
+    const linked=document.createElement('label');
+    const checkbox=document.createElement('input');checkbox.type='checkbox';
+    checkbox.checked=item.settings?.linkStateTitles===true;
+    linked.append(checkbox,document.createTextNode(' 두 상태 제목 연결'));
+    checkbox.addEventListener('change',()=>{
+      item.settings.linkStateTitles=checkbox.checked;persist();
+      if(state.selected>=14)renderControlInspector();
+      else renderInspector();
+      renderGrid();
+    });
+    const titleLabel=document.createElement('label');
+    titleLabel.textContent=checkbox.checked?'연결된 제목':'상태 '+(selected+1)+' 제목';
     const titleField=document.createElement('input');titleField.type='text';titleField.maxLength=256;
-    titleField.value=visual.title||'';titleField.placeholder='공통 제목 사용';
+    const target=checkbox.checked?item.stateVisuals[0]:visual;
+    titleField.value=target.title||'';titleField.placeholder='공통 제목 사용';
     titleField.addEventListener('change',()=>{
-      visual.title=titleField.value;persist();renderGrid();
+      target.title=titleField.value;persist();renderGrid();refreshSelectedVisual();
     });
     const iconLabel=document.createElement('label');iconLabel.textContent='상태 '+(selected+1)+' 아이콘 문자';
     const iconField=document.createElement('input');iconField.type='text';iconField.maxLength=8;
@@ -327,7 +339,7 @@ function renderMultiEditor(item,root){
     resetIcon.addEventListener('click',()=>{
       delete visual.icon;iconField.value='';persist();renderGrid();
     });
-    fields.append(titleLabel,titleField,iconLabel,iconField,chooseImage,imageInput,resetIcon);
+    fields.append(linked,titleLabel,titleField,iconLabel,iconField,chooseImage,imageInput,resetIcon);
     area.append(fields);
   }
   const heading=document.createElement('strong');
