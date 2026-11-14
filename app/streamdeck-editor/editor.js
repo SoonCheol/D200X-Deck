@@ -342,9 +342,17 @@ async function installSdkPlugin(){
     window.d200xActionStatus?.('Stream Deck 플러그인 설치: '+plugin.name+' '+plugin.version);
   }catch(error){window.d200xActionStatus?.('플러그인 설치 실패: '+String(error?.message||error));}
 }
+// Only change what the user can add from the catalogue. Existing action IDs,
+// saved profiles and the original SDK plugin remain intact.
+const HA_GENERIC_ACTION='de.perdoctus.streamdeck.homeassistant.entity';
+const HA_CUSTOM_ACTION='de.perdoctus.streamdeck.homeassistant.dual-state-entity';
+function sdkCatalogueLabel(action){
+  return action.uuid===HA_CUSTOM_ACTION?'Home Assistant 장치 제어':action.name;
+}
 function renderInstalledSdkPlugins(root,query){
   for(const plugin of sdkPlugins){
-    const matching=plugin.actions.filter(a=>(plugin.name+' '+a.name+' '+a.uuid).toLowerCase().includes(query));
+    const matching=plugin.actions.filter(a=>a.uuid!==HA_GENERIC_ACTION &&
+      (plugin.name+' '+sdkCatalogueLabel(a)+' '+a.name+' '+a.uuid).toLowerCase().includes(query));
     if(!matching.length)continue;
     const section=document.createElement('section');section.className='group';
     const title=document.createElement('div');title.className='group-title';
@@ -354,7 +362,7 @@ function renderInstalledSdkPlugins(root,query){
     for(const action of matching){
       const id='sd::'+plugin.uuid+'::'+action.uuid;
       const tile=document.createElement('div');tile.className='action-item';tile.draggable=true;
-      tile.title='드래그하여 버튼에 놓기';tile.textContent='▣  '+action.name;
+      tile.title='드래그하여 버튼에 놓기';tile.textContent='▣  '+sdkCatalogueLabel(action);
       tile.addEventListener('dragstart',ev=>ev.dataTransfer.setData('application/x-d200x-action',id));
       tile.addEventListener('click',()=>{
         if(state.selected===null)return;
@@ -387,7 +395,9 @@ function renderLibrary(){
     renderInstalledSdkPlugins(root,query);
   }
   for(const [category,entries] of CATALOG){
-    if((category==='플러그인 · Home Assistant')!==(libraryTab==='plugins'))continue;
+    // The legacy built-in HA action stays executable for saved profiles, but is no longer offered.
+    if(category==='플러그인 · Home Assistant')continue;
+    if(libraryTab==='plugins')continue;
     const visible=entries.filter(([id,label])=>(category+" "+label+" "+(PANEL_SHORTCUTS[id]||"")).toLocaleLowerCase().includes(query));
     if(!visible.length)continue;
     const section=document.createElement("section");section.className="group";
