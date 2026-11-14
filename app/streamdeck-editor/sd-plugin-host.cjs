@@ -31,6 +31,9 @@ async function parseArchive(data){
   if(!entries.some(x=>x.name===root+manifest.CodePath))throw Error('CodePath 파일이 없습니다.');
   const files=[],names=new Set();let total=0;
   for(const entry of entries){
+    const advertised=Number(entry._data?.uncompressedSize);
+    if(Number.isFinite(advertised)&&advertised>=0&&total+advertised>MAX_EXPANDED)
+      throw Error('압축 해제 예상 크기 제한 초과');
     if(!entry.name.startsWith(root))throw Error('압축에 플러그인 폴더 외부 파일이 있습니다.');
     const name=entry.name.slice(root.length);
     if(!filename(name)||names.has(name))throw Error('안전하지 않은 압축 경로입니다.');
