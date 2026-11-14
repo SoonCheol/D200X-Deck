@@ -8,6 +8,9 @@ on:
       - 'test/d200x-github-actions-verification.test.cjs'
       - 'test/streamdeck-core.test.cjs'
       - 'app/streamdeck-editor/deck-core.js'
+      - 'app/streamdeck-editor/editor.js'
+      - 'app/streamdeck-editor/main.cjs'
+      - 'app/streamdeck-editor/preload.cjs'
       - '.github/workflows/d200x-input-verification.yml'
   workflow_dispatch:
 
