@@ -324,3 +324,16 @@
 .sdk-state-icon button{background:#444c58;border:1px solid #646d7a;border-radius:4px;color:#f0f2f5;padding:6px 3px;font-size:11px;cursor:pointer}
 .sdk-state-icon button:hover{background:#556171}
 @media(max-width:1000px){.sdk-state-icons{padding-left:107px}}
+
+/* Electron-safe profile name dialog and explicit unfinished-menu state. */
+.profile-name-dialog{width:min(350px,calc(100vw - 32px));background:#303030;color:#eee;border:1px solid #626262;border-radius:8px;box-shadow:0 14px 40px #000b;padding:20px}
+.profile-name-dialog::backdrop{background:#0009}
+.profile-name-dialog form{display:flex;flex-direction:column;gap:15px}
+.profile-name-dialog strong{font-size:14px}
+.profile-name-dialog input{width:100%;background:#414141;color:#eee;border:1px solid #777;border-radius:5px;padding:9px 10px}
+.profile-name-dialog input:focus{outline:2px solid #328cde;outline-offset:1px}
+.profile-name-actions{display:flex;justify-content:flex-end;gap:8px}
+.profile-name-actions button{background:#444;color:#eee;border:1px solid #777;border-radius:5px;padding:8px 16px}
+.profile-name-actions button.primary{background:#2977c9;border-color:#2977c9}
+.key-menu button:disabled,.profile-menu button:disabled,.settings-trigger:disabled{opacity:.42;cursor:not-allowed}
+.key-menu button:disabled:hover,.profile-menu button:disabled:hover{background:transparent}
