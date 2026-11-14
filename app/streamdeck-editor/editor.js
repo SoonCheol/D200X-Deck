@@ -20,7 +20,16 @@ let controlGesture="down";
 const stackPositions=[0,0,0];
 let state=DeckCore.migrateState(null);
 try {state=DeckCore.migrateState(JSON.parse(localStorage.getItem(STORAGE_KEY)));} catch {state=DeckCore.migrateState(null);}
-const persist=()=>{try{localStorage.setItem(STORAGE_KEY,JSON.stringify(state));}catch{};window.scheduleDeckSync?.();};
+const persist=()=>{
+  try {localStorage.setItem(STORAGE_KEY,JSON.stringify(state));}
+  catch(error) {
+    console.error('D200X 설정 저장 실패',error);
+    window.d200xActionStatus?.('설정 저장 실패: 저장 공간/권한을 확인하세요.');
+    return false;
+  }
+  window.scheduleDeckSync?.();
+  return true;
+};
 // Migration: preserve the existing 14 key assignments and extend with 5 physical controls.
 state.pages.forEach(page=>{while(page.length<KEY_COUNT+CONTROLS.length)page.push(null);});
 const valueOf=(item,field,fallback="")=>item?.settings?.[field]??fallback;
