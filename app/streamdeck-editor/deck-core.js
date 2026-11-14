@@ -130,6 +130,17 @@
       return {kind:'invalid',message:'복합 액션 중첩 지원 여부가 확인되지 않았습니다.'};
     return {kind:'composite',type:model.type,steps:copy(steps)};
   }
+  async function runComposite(action,{execute,wait,signal,state=0,random,gesture}={}){
+    if(typeof execute!=='function'||typeof wait!=='function')throw new TypeError('execute and wait callbacks are required');
+    const plan=planComposite(action,{state,random,gesture});
+    if(plan.kind!=='composite')throw new Error(plan.message||'복합 동작 실행 불가');
+    for(const step of plan.steps){
+      if(signal?.aborted)throw new Error('복합 동작이 취소되었습니다.');
+      if(step.kind==='delay')await wait(step.ms,signal);
+      else await execute(step,signal);
+    }
+    return plan.steps.length;
+  }
   const CONTROL_MODES=['trigger','adjust','stack'];
   const ADJUST_TARGETS=['page','volume','zoom','scroll','scroll-x','history','window','desktop','brightness'];
   function emptyBinding(){
@@ -325,6 +336,7 @@
   function planAction(action,page,count){
     if(!action||!validId(action.type))return {kind:'unsupported',message:'알 수 없는 동작'};
     if(action.type==='system-mute')return {kind:'mute'};
+    if(action.type==='multi')return {kind:'composite',type:'multi'};
     if(action.type==='brightness'){
       const mode=action.settings?.mode||'up';
       const fixed={max:100,high:75,medium:50,low:30,min:20};
@@ -398,5 +410,5 @@
       url:action.settings?.url||'',mode:action.settings?.open||'default'};
     return {kind:'unsupported',message:'이 동작의 실행 기능은 아직 구현되지 않았습니다.'};
   }
-  return {ACTION_IDS,D200X_ACTION_IDS,DEFAULTS,TITLE,createAction,cleanAction,cleanCompositeEntry,compositeModel,planComposite,blankPage,migrateState,previewHardwareEvent,physicalSlot,hardwareGesture,resolveHardwareEvent,resolveKeyPress,planHardwareEvent,deletePage,planAction,emptyBinding,cleanBinding,ensureControls,controlBinding,changeControlScope};
+  return {ACTION_IDS,D200X_ACTION_IDS,DEFAULTS,TITLE,createAction,cleanAction,cleanCompositeEntry,compositeModel,planComposite,runComposite,blankPage,migrateState,previewHardwareEvent,physicalSlot,hardwareGesture,resolveHardwareEvent,resolveKeyPress,planHardwareEvent,deletePage,planAction,emptyBinding,cleanBinding,ensureControls,controlBinding,changeControlScope};
 });
