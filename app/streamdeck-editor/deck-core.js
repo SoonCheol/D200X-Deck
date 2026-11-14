@@ -246,6 +246,22 @@
     controls.scopes[index]=scope;
     return true;
   }
+  const WIDE_CHOICES=['clock','datetime','stats'];
+  function cleanWideDisplay(value){
+    const selected=Array.isArray(value?.order)?value.order.filter(id=>WIDE_CHOICES.includes(id)):[];
+    const order=[...new Set([...selected,...WIDE_CHOICES])];
+    const enabled=Array.isArray(value?.enabled)?
+      [...new Set(value.enabled.filter(id=>WIDE_CHOICES.includes(id)))]:[...WIDE_CHOICES];
+    if(!enabled.length)enabled.push('clock');
+    const current=enabled.includes(value?.current)?value.current:order.find(id=>enabled.includes(id));
+    return {order,enabled,current};
+  }
+  function cycleWideDisplay(state){
+    const config=state.wideDisplay=cleanWideDisplay(state.wideDisplay);
+    const modes=config.order.filter(id=>config.enabled.includes(id));
+    config.current=modes[(modes.indexOf(config.current)+1)%modes.length];
+    return config.current;
+  }
   function blankPage(){return Array.from({length:19},()=>null);}
   function folderContents(action){
     if(!action||action.type!=='folder')return null;
@@ -329,7 +345,7 @@
   }
 
   function migrateState(value){
-    const state={pages:[blankPage()],page:0,selected:null,controls:emptyControls(1),folderPath:[],pinned:Array.from({length:14},()=>null)};
+    const state={pages:[blankPage()],page:0,selected:null,controls:emptyControls(1),folderPath:[],pinned:Array.from({length:14},()=>null),wideDisplay:cleanWideDisplay(value?.wideDisplay)};
     // Legacy single-profile storage gains metadata but never loses its pages.
     if(!value||typeof value!=='object'||!Array.isArray(value.pages)||!value.pages.length){
       initProfiles(state,value);return state;
@@ -390,7 +406,7 @@
   // existing top-level pages/page/controls fields, avoiding doubled icon data.
   function profileSnapshot(state){
     return {pages:copy(state.pages),page:state.page,controls:copy(state.controls),
-      folderPath:copy(state.folderPath||[]),pinned:copy(state.pinned||Array(14).fill(null))};
+      folderPath:copy(state.folderPath||[]),pinned:copy(state.pinned||Array(14).fill(null)),wideDisplay:cleanWideDisplay(state.wideDisplay)};
   }
   function initProfiles(state,value){
     const source=Array.isArray(value?.profileNames)?value.profileNames:null;
@@ -421,7 +437,7 @@
     state.inactiveProfiles.push(old);
     const clean=migrateState(next);
     state.pages=clean.pages;state.page=clean.page;state.controls=clean.controls;
-    state.folderPath=clean.folderPath;state.pinned=clean.pinned;state.selected=null;state.profileId=id;
+    state.folderPath=clean.folderPath;state.pinned=clean.pinned;state.wideDisplay=cleanWideDisplay(next.wideDisplay);state.selected=null;state.profileId=id;
     return true;
   }
   function createProfile(state,name,duplicate=false,sourceId=state.profileId){
@@ -655,5 +671,5 @@
       url:action.settings?.url||'',mode:action.settings?.open||'default',browserPath:action.settings?.browserPath||''};
     return {kind:'unsupported',message:'이 동작의 실행 기능은 아직 구현되지 않았습니다.'};
   }
-  return {ACTION_IDS,D200X_ACTION_IDS,PLUGIN_ACTION_IDS,DEFAULTS,TITLE,createAction,cleanAction,cleanCompositeEntry,displaySwitchAction,compositeModel,planComposite,runComposite,blankPage,folderContents,folderPageCount,changeFolderPage,addFolderPage,deleteFolderPage,currentActions,visibleActions,togglePinned,activeFolder,enterFolder,exitFolder,migrateState,profileSnapshot,switchProfile,createProfile,renameProfile,setProfileApp,matchForegroundProfile,deleteProfile,previewHardwareEvent,physicalSlot,hardwareGesture,resolveHardwareEvent,resolveKeyPress,planHardwareEvent,deletePage,planAction,emptyBinding,cleanBinding,ensureControls,controlBinding,changeControlScope};
+  return {ACTION_IDS,D200X_ACTION_IDS,PLUGIN_ACTION_IDS,DEFAULTS,TITLE,createAction,cleanAction,cleanCompositeEntry,displaySwitchAction,compositeModel,planComposite,runComposite,blankPage,cleanWideDisplay,cycleWideDisplay,folderContents,folderPageCount,changeFolderPage,addFolderPage,deleteFolderPage,currentActions,visibleActions,togglePinned,activeFolder,enterFolder,exitFolder,migrateState,profileSnapshot,switchProfile,createProfile,renameProfile,setProfileApp,matchForegroundProfile,deleteProfile,previewHardwareEvent,physicalSlot,hardwareGesture,resolveHardwareEvent,resolveKeyPress,planHardwareEvent,deletePage,planAction,emptyBinding,cleanBinding,ensureControls,controlBinding,changeControlScope};
 });
