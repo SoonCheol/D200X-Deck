@@ -383,3 +383,9 @@
 - **코드 파일:** `main.cjs`, `preload.cjs`, `deck-core.js`, `editor.js`, `action-panel-icons.js`, `ha-client.cjs`; `test/streamdeck-ha.test.cjs` 및 `app/test/action-panel-icons.test.js` 수정, 프리뷰 워크플로에 HA 단위 시험 추가.
 - **검증 상태:** 기능 코드는 GitHub에 반영. 첫 전체 CI는 기존 42개 아이콘만 가정하던 테스트의 `43 !== 42` 실패를 확인하였으며, 기존 42개 보존 + HA 1개를 명시하는 테스트로 수정했다. **이 후속 커밋의 CI/Windows EXE 결과는 별도로 확인해야 하며 현재 성공으로 단정하지 않는다.** 사용자의 실제 HA 로그인, 엔티티 조회, Windows GUI, D200X USB/노브 실기 테스트는 아직 미실시.
 - **다음 단계 후보:** 실제 Windows EXE의 HA 연결과 버튼/노브 토글 실기 확인 → ON/OFF 상태별 표시 및 WebSocket 상태 구독 → 엔티티 목록 전용 검색 UI·서비스별 상세 옵션. 사용자가 명시하지 않은 자동화/그룹 액션 확장은 보류.
+
+### HA 플러그인 액션 ID 호환성 수정 및 CI 재확인
+
+- 첫 HA 변경 과정에서 `D200X_ACTION_IDS`에 HA를 섞으면서 기존 정확 일치 회귀 테스트가 실패했다. **해결:** `deck-core.js`에 독립 `PLUGIN_ACTION_IDS=['ha-toggle']`를 정의하고 `validId`에만 추가. 기존 원본 24개 및 D200X 18개 배열은 변경 전 그대로 유지. 수정 커밋 `69d1398e15a837eb178e975651cfb47faf3f9747`.
+- 카탈로그는 기존 42개 + 새 플러그인 1개(총 43개)로 검증하도록 `app/test/action-panel-icons.test.js` 수정. 수정 후 전체 CI #43635777418 성공. 실제 EXE/실기 판정 아님.
+- 이후 코드 커밋 SHA `69d1398e`에 대한 새 CI, 입력 검증, Windows 프리뷰는 별도 Actions 결과 확인 대기. 기존 실패를 숨기지 않고 새 실행 성공 시에만 성공으로 갱신한다.
