@@ -203,6 +203,29 @@ test('multi switch rejects nested composite and old profiles retain children',as
   await assert.rejects(core.runComposite(bad,{state:0,execute:async()=>{},wait:async()=>{}}),/중첩/);
 });
 
+test('Multi pacing separates implicit next action gap from explicit Delay',async()=>{
+  const multi=core.cleanAction({type:'multi',children:[
+    {type:'media'},{type:'hotkey'},{kind:'delay',ms:200},{type:'media'}
+  ]});
+  const seen=[];
+  const result=await core.runComposite(multi,{
+    nextActionMs:100,
+    execute:async item=>seen.push(item.type),
+    wait:async ms=>seen.push('wait:'+ms)
+  });
+  assert.equal(result,4);
+  assert.deepEqual(seen,['media','wait:100','hotkey','wait:200','media']);
+});
+
+test('Multi abort during last step is reported as cancellation, not success',async()=>{
+  const controller=new AbortController();
+  const multi=core.cleanAction({type:'multi',children:[{type:'media'}]});
+  await assert.rejects(core.runComposite(multi,{
+    execute:async()=>{controller.abort();},wait:async()=>{},
+    signal:controller.signal
+  }),/취소/);
+});
+
 test('multi runner refuses nested composites and honors cancellation',async()=>{
   const blocked=core.cleanAction({type:'multi',children:[{type:'multi'}]});
   await assert.rejects(core.runComposite(blocked,{execute:async()=>{},wait:async()=>{}}),/중첩/);
