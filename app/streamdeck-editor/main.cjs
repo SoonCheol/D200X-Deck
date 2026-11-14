@@ -199,6 +199,13 @@ ${held.slice().reverse().map(v=>`[D200XSwitchKey]::keybd_event(${v},0,2,[UIntPtr
   return true;
 });
 
+ipcMain.handle('d200x:set-safe-brightness',(event,args)=>{
+  if(!window||event.sender!==window.webContents)throw new Error('허용되지 않은 호출입니다.');
+  if(!Number.isInteger(args?.value)||args.value<20||args.value>100)
+    throw new Error('화면 보호 범위는 20~100%입니다.');
+  return transport.setSafeBrightness(args.value);
+});
+
 ipcMain.handle('d200x:device-brightness',(event,args)=>{
   if(!window||event.sender!==window.webContents)throw new Error('허용되지 않은 호출입니다.');
   if(!args||![-1,1].includes(args.direction)||![1,2,5,10].includes(args.count))throw new Error('잘못된 밝기 조절 요청입니다.');
@@ -237,7 +244,8 @@ function parseWindowsHotkey(value){
   if(parts.length<1||parts.length>5)return null;
   const held=[],seen=new Set();let key=null;
   for(const part of parts){
-    const mod=({Ctrl:0x11,Control:0x11,Alt:0x12,Shift:0x10,Win:0x5B,Meta:0x5B})[part];
+    const mods={Ctrl:0x11,Control:0x11,Alt:0x12,Shift:0x10,Win:0x5B,Meta:0x5B};
+    const mod=Object.hasOwn(mods,part)?mods[part]:null;
     if(mod){if(seen.has(mod))return null;seen.add(mod);held.push(mod);continue;}
     if(key!==null)return null;
     if(/^[A-Z]$/i.test(part))key=part.toUpperCase().charCodeAt(0);
