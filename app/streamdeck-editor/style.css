@@ -284,3 +284,9 @@
 .panel-action-svg.theme-color{border-radius:8px;background:color-mix(in srgb,var(--icon-accent) 19%,#21252d);color:var(--icon-accent)}
 .panel-action-svg.theme-button{border-radius:7px;background:linear-gradient(145deg,#4e5b6b,#1b222e);border:1px solid #657083;color:#fff;box-shadow:inset 0 1px 0 #ffffff25,0 1px 2px #0008}
 .panel-action-svg.theme-button svg{height:18px;width:18px}
+
+/* Keep unavailable Virtual Stream Deck visible without allowing assignment. */
+.library .action-item.action-disabled{opacity:.48;cursor:not-allowed}
+.library .action-item.action-disabled:hover{background:transparent}
+.library .action-item.action-disabled .action-unavailable{font-size:10px;color:#b9b9b9}
+.library .action-item.action-disabled .action-customize{visibility:hidden}
