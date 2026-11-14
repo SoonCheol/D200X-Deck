@@ -111,7 +111,9 @@ const valueOf=(item,field,fallback="")=>item?.settings?.[field]??fallback;
 function keyName(item){return item?.title||ACTIONS.get(item?.type)?.label||"";}
 const sdkVisuals=new Map();
 function sdkContext(index,gesture='down'){
-  return String(state.profileId)+':'+state.page+':'+(state.folderPath||[]).join('-')+':'+index+':'+gesture;
+  const folder=DeckCore.activeFolder(state);
+  return String(state.profileId)+':'+state.page+':'+(state.folderPath||[]).join('-')+
+    (folder?'-p'+(folder.pageIndex||0):'')+':'+index+':'+gesture;
 }
 function pluginSlotContext(item){
   if(item?.type!=='sd-plugin')return '';
@@ -162,7 +164,7 @@ function displayItem(item,index){
     if(icon||visual)return {...item,title:visual?.title??item.title,...(icon?{icon}:{})};
   }
   if(!item||item.type!=="indicator")return item;
-  return {...item,icon:{kind:"glyph",glyph:String(state.page+1)}};
+  return {...item,icon:{kind:"glyph",glyph:String((DeckCore.activeFolder(state)?.pageIndex??state.page)+1)}};
 }
 // Share actual key visuals (including timer countdown) with the USB renderer.
 window.getD200XDisplayItem=(item,index)=>displayItem(DeckCore.visibleActions(state)[index]||item,index);
