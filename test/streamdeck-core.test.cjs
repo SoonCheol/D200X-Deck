@@ -187,8 +187,52 @@ test('page-rotation knob persists across pages where that knob is empty',()=>{
   const state=core.migrateState({pages:[first,middle,last],page:1});
   assert.equal(core.planHardwareEvent(state,{kind:2,index:17,state:3}).outcome.page,2);
   assert.equal(core.planHardwareEvent(state,{kind:2,index:17,state:2}).outcome.page,0);
-  assert.equal(core.planHardwareEvent(state,{kind:2,index:17,state:1}),null);
-  // Explicit assignment on this page overrides inherited rotation behavior.
-  state.pages[1][16]=core.createAction('timer');
-  assert.equal(core.planHardwareEvent(state,{kind:2,index:17,state:3}),null);
+  assert.equal(core.planHardwareEvent(state,{kind:2,index:17,state:1}).outcome.page,2);
+  // Explicit page binding overrides the migrated global knob settings.
+  core.changeControlScope(state,16,'page');
+  const local=core.controlBinding(state,16);
+  local.mode='trigger';local.right=core.createAction('timer');
+  assert.equal(core.planHardwareEvent(state,{kind:2,index:17,state:3}).outcome.kind,'unsupported');
+});
+
+test('control gesture assignments, scope and stack are persisted independently',()=>{
+  const state=core.migrateState(null);
+  const knob=core.controlBinding(state,16);
+  knob.mode='trigger';
+  knob.left=core.createAction('previous');
+  knob.right=core.createAction('next');
+  knob.down=core.createAction('goto');knob.down.settings.page=0;
+  const left=core.planHardwareEvent(state,{kind:2,index:17,state:2});
+  assert.equal(left.outcome.kind,'page');
+  assert.equal(core.planHardwareEvent(state,{kind:2,index:17,state:3}).outcome.kind,'page');
+  knob.mode='adjust';knob.target='volume';
+  assert.deepEqual(core.planHardwareEvent(state,{kind:2,index:17,state:3}).outcome,
+    {kind:'adjust',target:'volume',direction:1});
+  knob.target='zoom';
+  assert.equal(core.planHardwareEvent(state,{kind:2,index:17,state:2}).outcome.target,'zoom');
+  knob.mode='stack';knob.down=null;knob.stack=['page','volume','zoom'];
+  assert.deepEqual(core.planHardwareEvent(state,{kind:2,index:17,state:1}).outcome,
+    {kind:'stack-next',size:3});
+  assert.equal(core.planHardwareEvent(state,{kind:2,index:17,state:2},1).outcome.target,'volume');
+  assert.equal(core.planHardwareEvent(state,{kind:2,index:17,state:3},2).outcome.target,'zoom');
+  state.pages.push(core.blankPage());state.controls.pages.push(Array.from({length:5},core.emptyBinding));
+  assert.equal(core.changeControlScope(state,16,'page'),true);
+  const local=core.controlBinding(state,16);
+  local.mode='trigger';local.left=core.createAction('next');
+  assert.equal(core.planHardwareEvent(state,{kind:2,index:17,state:2}).outcome.kind,'page');
+  state.page=1;
+  assert.equal(core.controlBinding(state,16).left,null);
+  const restored=core.migrateState(JSON.parse(JSON.stringify(state)));
+  assert.equal(restored.controls.scopes[2],'page');
+  assert.equal(core.controlBinding(restored,16).mode,'trigger');
+  restored.page=0;
+  assert.equal(core.controlBinding(restored,16).left.type,'next');
+});
+
+test('physical controls do not execute an action after a release',()=>{
+  const state=core.migrateState(null);
+  core.controlBinding(state,14).down=core.createAction('next');
+  assert.equal(core.planHardwareEvent(state,{kind:1,index:15,pressed:false}),null);
+  assert.equal(core.planHardwareEvent(state,{kind:1,index:15,pressed:true}).outcome.kind,'page');
+  assert.equal(core.planHardwareEvent(state,{kind:2,index:17,state:0}),null);
 });
