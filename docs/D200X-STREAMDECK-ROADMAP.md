@@ -315,3 +315,11 @@ editor-ui (Stream Deck식 UI, Electron renderer)
 - [ ] 최신 SDK 호스트 변경 코드 SHA `84e3e67bb9b786ef18ab80ea29f25ab4eadb7829`의 Windows 프리뷰 빌드와 ZIP Artifact 성공 확인 (검증 시 실행 번호 갱신).
 - [ ] Windows에서 원본 `.streamDeckPlugin` 파일 실제 설치, `plugin.html` WebSocket 등록, `pi.html` 속성창/HA 토큰 저장, 실시간 상태 이미지, 실물 D200X 키/노브 토글 실기 검증.
 - [ ] 이 호환성 검증 이후 마켓플레이스 구축. 현재 기본 마켓/다운로드·임의 플러그인 자동 실행은 미구현; SDK3 HTML만 1차 지원, 모든 Elgato 플러그인 호환은 미보장.
+
+
+### SDK3 HA 호스트 첫 배포 검증 — 2026-11-15
+
+- [x] 최종 앱 소스 `78af7707` 대상 CI #43638881856 success, Windows 프리뷰 #43638877662 success. Artifact `D200X-StreamDeck-Device-Sync-win-x64` ID `14130634333`, ZIP 170358711 bytes.
+- [x] HTML 기반 Stream Deck SDK 3 호스트 기초 및 HA 3.8.4 대상 설치 파일 선택·manifest 파싱·WebSocket·원본 PI·키/노브 이벤트·상태 이미지 경로 코드와 자동 검사 반영.
+- [ ] 사용자의 실제 Windows EXE에서 `cgiesche` 공식 배포 바이너리 ZIP 설치와 SDK 실행/PI/HA 토글/실물 아이콘/노브 확인.
+- [ ] 실제 시험 후 SDK 프로토콜 호환성 보완(필요한 이벤트/PI 웹뷰 차이만 최소 수정); 그 다음 마켓플레이스.
