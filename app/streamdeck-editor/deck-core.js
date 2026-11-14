@@ -13,7 +13,9 @@
     'profile','previous','next','goto','indicator'
   ];
   // New D200X actions stay separate from the original 24.
-  const D200X_ACTION_IDS=['system-volume','system-mute','system-scroll','edit-history','window-switch','desktop-switch','device-brightness','system-zoom'];
+  const D200X_ACTION_IDS=['system-volume','system-mute','system-scroll','edit-history','window-switch','desktop-switch','device-brightness','system-zoom',
+    'screenshot','clipboard-edit','window-state','window-monitor','explorer-open',
+    'brush-size','timeline-step'];
   const DEFAULTS={
     'audio-play':{file:'',mode:'play-stop',fade:'none',volume:50,output:'default'},
     'audio-stop':{},timer:{seconds:30,sound:'connect'},
@@ -29,7 +31,11 @@
     'system-scroll':{axis:'vertical',direction:'down',step:1},
     'edit-history':{operation:'undo',step:1},
     'window-switch':{direction:'next'},'desktop-switch':{direction:'next'},
-    'device-brightness':{direction:'up',step:5},'system-zoom':{operation:'in',step:1}
+    'device-brightness':{direction:'up',step:5},'system-zoom':{operation:'in',step:1},
+    screenshot:{},'clipboard-edit':{operation:'copy'},
+    'window-state':{operation:'maximize'},'window-monitor':{direction:'right'},
+    'explorer-open':{},'brush-size':{direction:'increase'},
+    'timeline-step':{direction:'next'}
   };
   const TITLE={visible:true,align:'bottom',family:'default',size:12,
     bold:false,italic:false,underline:false,color:'#ffffff',
@@ -257,6 +263,19 @@
   function planAction(action,page,count){
     if(!action||!validId(action.type))return {kind:'unsupported',message:'알 수 없는 동작'};
     if(action.type==='system-mute')return {kind:'mute'};
+    const shortcutOptions={
+      screenshot:['capture'],
+      'clipboard-edit':['copy','paste','cut'],
+      'window-state':['maximize','minimize'],
+      'window-monitor':['left','right'],
+      'explorer-open':['open'],
+      'brush-size':['increase','decrease'],
+      'timeline-step':['next','previous']
+    };
+    if(Object.prototype.hasOwnProperty.call(shortcutOptions,action.type)){
+      const options=shortcutOptions[action.type],requested=action.settings?.operation||action.settings?.direction;
+      return {kind:'system-shortcut',target:action.type,operation:options.includes(requested)?requested:options[0]};
+    }
     if(action.type==='system-volume'){
       const direction=action.settings?.direction==='down'?-1:1;
       return planAdjustment('volume',direction,Number(action.settings?.step),page,count,true);
