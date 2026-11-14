@@ -1,7 +1,10 @@
 name: D200X StreamDeck device-sync preview
 
-# Build only on explicit request; routine feature commits should not package EXEs.
+# One-time explicitly approved build; restore manual-only policy after triggering.
 on:
+  push:
+    branches: [codex/streamdeck-761-clean-editor]
+    paths: ['.github/workflows/streamdeck-clean-preview.yml']
   workflow_dispatch:
 
 permissions:
