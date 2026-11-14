@@ -36,7 +36,7 @@ const persist=()=>{
       backupPending=false;
     }
     localStorage.setItem(STORAGE_KEY,JSON.stringify(state));
-  catch(error) {
+  } catch(error) {
     console.error('D200X 설정 저장 실패',error);
     window.d200xActionStatus?.('설정 저장 실패: 저장 공간/권한을 확인하세요.');
     return false;
