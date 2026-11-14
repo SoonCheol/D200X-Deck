@@ -133,6 +133,13 @@ test('P1/P2 closed shortcut actions preserve 24 original entries',()=>{
   }
 });
 
+test('original timer planning validates bounds',()=>{
+  const a=core.createAction('timer');
+  assert.deepEqual(core.planAction(a,0,1),{kind:'timer',seconds:30});
+  a.settings.seconds=0;assert.equal(core.planAction(a,0,1).seconds,30);
+  a.settings.seconds=999999;assert.equal(core.planAction(a,0,1).seconds,86400);
+});
+
 test('original media/hotkey/open actions share execution planning',()=>{
   const media=core.createAction('media');media.settings.op='next';
   assert.deepEqual(core.planAction(media,0,1),{kind:'media-control',operation:'next'});
