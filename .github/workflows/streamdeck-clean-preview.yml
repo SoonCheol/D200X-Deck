@@ -113,11 +113,21 @@ jobs:
           npx --no-install electron-packager ./preview-device-build D200X-StreamDeck-Preview --platform=win32 --arch=x64 --electron-version=45.2.1 --out=dist --overwrite --prune=false
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           if (-not (Test-Path 'dist/D200X-StreamDeck-Preview-win32-x64/D200X-StreamDeck-Preview.exe')) { throw "EXE missing" }
-          $packaged = 'dist/D200X-StreamDeck-Preview-win32-x64/resources/app/streamdeck-editor/builtin-iconpacks.json'
-          if (-not (Test-Path $packaged)) { throw 'Packaged EXE missing Fluent UI icon bundle' }
-          $size = (Get-Item $packaged).Length
-          Write-Host "Packaged Fluent UI icon bytes: $size"
-          if ($size -lt 1MB) { throw 'Packaged Fluent UI icon bundle too small' }
+          $resources = 'dist/D200X-StreamDeck-Preview-win32-x64/resources'
+          Write-Host 'Windows packaged resources:'
+          Get-ChildItem $resources -Force | Select-Object Name, Length | Format-Table
+          $packaged = Join-Path $resources 'app/streamdeck-editor/builtin-iconpacks.json'
+          $asarFile = Join-Path $resources 'app.asar'
+          if (Test-Path $packaged) {
+            $size = (Get-Item $packaged).Length
+            Write-Host "Packaged Fluent UI loose JSON bytes: $size"
+            if ($size -lt 1MB) { throw 'Packaged Fluent UI icon bundle too small' }
+          } elseif (Test-Path $asarFile) {
+            node -e "const asar=require('@electron/asar');const data=asar.extractFile(process.argv[1],'streamdeck-editor/builtin-iconpacks.json');console.log('Packaged Fluent UI ASAR JSON bytes:',data.length);if(data.length<1048576)process.exit(1)" $asarFile
+            if ($LASTEXITCODE -ne 0) { throw 'Packaged ASAR missing Fluent UI icon bundle' }
+          } else {
+            throw 'Packaged EXE missing Fluent UI icon bundle'
+          }
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: D200X-StreamDeck-Device-Sync-win-x64
