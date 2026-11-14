@@ -480,6 +480,47 @@ ipcMain.handle('d200x:open-local-path',async(event,args)=>{
   return true;
 });
 
+// One shared last-used directory for every native import/file/folder chooser.
+// A cancelled dialog does not change the remembered location.
+let lastPickerDirectory=null;
+function pickerLocationFile(){return path.join(app.getPath('userData'),'last-picker-folder.json');}
+async function pickerDefaultPath(){
+  if(lastPickerDirectory===null){
+    lastPickerDirectory='';
+    try{
+      const saved=JSON.parse(await fs.promises.readFile(pickerLocationFile(),'utf8'));
+      if(typeof saved.folder==='string'&&path.isAbsolute(saved.folder))
+        lastPickerDirectory=saved.folder;
+    }catch(error){if(error.code!=='ENOENT')console.warn('[D200X] Picker location ignored:',error.message);}
+  }
+  try{
+    if(lastPickerDirectory&&(await fs.promises.stat(lastPickerDirectory)).isDirectory())
+      return lastPickerDirectory;
+  }catch{}
+  return undefined;
+}
+async function savePickerLocation(selectedPath,kind='file'){
+  const folder=kind==='folder'?selectedPath:path.dirname(selectedPath);
+  if(!path.isAbsolute(folder))return;
+  lastPickerDirectory=folder;
+  await fs.promises.mkdir(path.dirname(pickerLocationFile()),{recursive:true});
+  const temp=pickerLocationFile()+'.'+process.pid+'.tmp';
+  try{
+    await fs.promises.writeFile(temp,JSON.stringify({folder}),'utf8');
+    await fs.promises.rename(temp,pickerLocationFile());
+  }catch(error){
+    await fs.promises.rm(temp,{force:true}).catch(()=>{});
+    console.warn('[D200X] Could not remember picker folder:',error.message);
+  }
+}
+async function openRememberedPicker(options,kind='file'){
+  const defaultPath=await pickerDefaultPath();
+  const result=await dialog.showOpenDialog(window,{...options,...(defaultPath?{defaultPath}:{})});
+  if(result.canceled||!result.filePaths?.[0])return null;
+  const selected=result.filePaths[0];
+  await savePickerLocation(selected,kind);
+  return selected;
+}
 // Installed icon packs live in Electron userData, separately from profiles.
 function iconPacksFile(){return path.join(app.getPath('userData'),'streamdeck-icon-packs-v1.json');}
 let builtinPacksCache=null;
@@ -506,14 +547,13 @@ ipcMain.handle('d200x:remove-icon-pack',async(event,id)=>{
 });
 ipcMain.handle('d200x:import-icon-pack',async event=>{
   if(!window||event.sender!==window.webContents)throw new Error('허용되지 않은 호출입니다.');
-  const result=await dialog.showOpenDialog(window,{
+  const file=await openRememberedPicker({
     title:'Stream Deck 아이콘팩 가져오기',
     properties:['openFile'],
     filters:[{name:'Stream Deck 아이콘팩',extensions:['streamDeckIconPack']},
       {name:'ZIP 아이콘팩',extensions:['zip']}]
   });
-  if(result.canceled||!result.filePaths[0])return null;
-  const file=result.filePaths[0];
+  if(!file)return null;
   const stat=await fs.promises.stat(file);
   if(!stat.isFile()||stat.size>20*1024*1024)
     throw new Error('20MB 이하의 아이콘팩을 선택하세요.');
@@ -537,14 +577,38 @@ ipcMain.handle('d200x:choose-path', async (event, kind) => {
   if (!window || event.sender !== window.webContents) return null;
   if (!['file','folder','app'].includes(kind)) throw new Error('지원하지 않는 선택 유형');
   const properties = kind === 'folder' ? ['openDirectory'] : ['openFile'];
-  const result = await dialog.showOpenDialog(window, {
+  return openRememberedPicker({
     title: kind === 'folder' ? '폴더 선택' : kind === 'app' ? '프로그램 선택' : '파일 선택',
     properties,
     ...(kind === 'app' ? {filters:[{name:'응용 프로그램',extensions:['exe','lnk','bat','cmd']},{name:'모든 파일',extensions:['*']}]} : {}),
-  });
-  return result.canceled ? null : (result.filePaths[0] || null);
+  },kind);
 });
 
+// Browser file inputs cannot specify a safe initial directory. Route image
+// and profile JSON imports through the same OS chooser instead.
+ipcMain.handle('d200x:choose-import-file',async(event,kind)=>{
+  if(!window||event.sender!==window.webContents)throw new Error('허용되지 않은 호출입니다.');
+  const types={
+    image:{title:'이미지 선택',extensions:['png','jpg','jpeg','webp','gif'],limit:5*1024*1024},
+    'panel-icon':{title:'액션 아이콘 선택',extensions:['png','jpg','jpeg','webp','gif'],limit:140000},
+    profile:{title:'전체 프로필 JSON 가져오기',extensions:['json'],limit:20*1024*1024}
+  };
+  const type=types[kind];if(!type)throw new Error('지원하지 않는 파일 선택 유형입니다.');
+  const selected=await openRememberedPicker({
+    title:type.title,properties:['openFile'],
+    filters:[{name:kind==='profile'?'JSON 백업':'이미지 파일',extensions:type.extensions}]
+  });
+  if(!selected)return null;
+  const stat=await fs.promises.stat(selected);
+  if(!stat.isFile()||stat.size>type.limit)throw new Error('파일 크기 또는 유형을 확인하세요.');
+  const ext=path.extname(selected).slice(1).toLowerCase();
+  if(!type.extensions.includes(ext))throw new Error('지원하지 않는 파일 확장자입니다.');
+  const bytes=await fs.promises.readFile(selected);
+  if(kind==='profile')return {name:path.basename(selected),text:bytes.toString('utf8').replace(/^\uFEFF/,'')};
+  const mime=ext==='jpg'?'image/jpeg':ext==='jpeg'?'image/jpeg':ext==='png'?'image/png':ext==='gif'?'image/gif':'image/webp';
+  return {name:path.basename(selected),type:mime,size:bytes.length,
+    dataUrl:'data:'+mime+';base64,'+bytes.toString('base64')};
+});
 // Read only the foreground process executable; never execute profile-provided
 // values or return other window text. Smart Profiles require a minimized editor.
 ipcMain.handle('d200x:foreground-app',async event=>{
