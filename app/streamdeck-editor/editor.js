@@ -337,7 +337,7 @@ function actionFields(item){
     case "audio-stop": case "previous": case "next": case "indicator":return "";
     case "timer":return `<div class="field"><label for="s-seconds">지속</label><div class="compound"><input type="number" min="1" id="s-seconds" data-field="seconds" value="${valueOf(item,"seconds",30)}"><span>초</span></div></div>`+select("sound","사운드",[["none","없음"],["connect","접속"],["disconnect","접속 끊김"],["release","접속 해제"],["find","찾기"],["other","기타"]]);
     case "brightness":return select("mode","동작",[["up","밝게"],["down","어둡게"],["max","최대"],["high","높음"],["medium","중간"],["low","낮음"],["min","최소"]]);
-    case "sleep":return `<div class="field"><label>잠자기 설정</label><span class="hint">환경설정 열기… (기기 설정 연동 예정)</span></div>`;
+    case "sleep":return `<div class="field"><label>장치 화면</label><span class="hint">D200X 화면 잠자기 · 다음 물리 버튼 누름은 화면 깨우기에 사용 (PC 절전 아님)</span></div>`;
     case "virtual":return `<div class="field"><label>기기</label><span class="hint">구성된 Virtual Stream Decks 없음</span></div>`;
     case "website":return input("url","URL","https://")+select("open","다음으로 열기",[["default","기본 브라우저"],["get","백그라운드에서 GET 요청"],["choose","브라우저 직접 선택"]]);
     case "open":return pathPicker("path","앱 / 파일");
@@ -1313,6 +1313,13 @@ function executeHardwareAction(event,preview=false){
     });
     return outcome.type==='multi-switch'
       ?'다중 동작 스위치 상태 '+(position+1)+' 실행 요청':outcome.type==='random'?'무작위 동작 실행 요청':'다중 동작 실행 요청';
+  }
+  if(outcome.kind==='device-sleep'){
+    if(!window.deckBridge?.sleepDisplay)return 'D200X 화면 절전은 Windows EXE에서만 실행됩니다.';
+    window.deckBridge.sleepDisplay().then(
+      ()=>window.d200xActionStatus?.('D200X 화면 잠자기 요청 완료 · 다음 버튼으로 깨우기'),
+      error=>window.d200xActionStatus?.('D200X 잠자기 실패: '+String(error?.message||error)));
+    return 'D200X 화면 잠자기 요청';
   }
   if(outcome.kind==='mute'){
     if(!window.deckBridge?.adjustWindows)return 'Windows 실행 환경에서만 사용할 수 있습니다.';
