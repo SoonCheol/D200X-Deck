@@ -10,7 +10,7 @@ const { execFile } = require('node:child_process');
 const { promisify } = require('node:util');
 const execFileAsync = promisify(execFile);
 const { D200XTransport } = require('./transport.cjs');
-const { parseIconPack, readPacks, registerPack } = require('./icon-pack.cjs');
+const { parseIconPack, readPacks, registerPack, removePack } = require('./icon-pack.cjs');
 
 let window = null;
 let rendererReady = false;
@@ -485,6 +485,10 @@ function iconPacksFile(){return path.join(app.getPath('userData'),'streamdeck-ic
 ipcMain.handle('d200x:list-icon-packs',async event=>{
   if(!window||event.sender!==window.webContents)throw new Error('허용되지 않은 호출입니다.');
   return readPacks(iconPacksFile());
+});
+ipcMain.handle('d200x:remove-icon-pack',async(event,id)=>{
+  if(!window||event.sender!==window.webContents)throw new Error('허용되지 않은 호출입니다.');
+  return removePack(iconPacksFile(),id);
 });
 ipcMain.handle('d200x:import-icon-pack',async event=>{
   if(!window||event.sender!==window.webContents)throw new Error('허용되지 않은 호출입니다.');
