@@ -77,15 +77,35 @@
     state.selected=Number.isInteger(value.selected)&&value.selected>=0&&value.selected<19?value.selected:null;
     return state;
   }
-  // First executable slice. Only known 14 display-key press events are routed;
-  // release events and side/knob gestures are not interchangeable with presses.
+  // D200X reports 14 display keys as indices 0..13. Its side keys use
+  // report indices 15 and 16, mapped to editor slots 14 and 15.
+  // Knob events (17..19) must NOT be confused with ordinary key presses.
+  function physicalSlot(event){
+    if(!event || Number(event.kind)!==1) return null;
+    const index=Number(event.index);
+    if(!Number.isInteger(index))return null;
+    if(index>=0 && index<=13)return index;
+    if(index===15)return 14;
+    if(index===16)return 15;
+    return null;
+  }
   function resolveKeyPress(state,event){
     if(!state||!Array.isArray(state.pages)||!Number.isInteger(state.page))return null;
-    if(!event||Number(event.kind)!==1||event.pressed!==true)return null;
-    const index=Number(event.index);
-    if(!Number.isInteger(index)||index<0||index>=14)return null;
+    if(!event||event.pressed!==true)return null;
+    const index=physicalSlot(event);
+    if(index===null)return null;
     const action=state.pages[state.page]?.[index];
     return action&&validId(action.type)?{index,action}:null;
+  }
+  function deletePage(state){
+    if(!state||!Array.isArray(state.pages)||state.pages.length<=1)return false;
+    const removed=state.page;
+    state.pages.splice(removed,1);
+    state.page=Math.max(0,Math.min(removed,state.pages.length-1));
+    state.selected=null;
+    // Preserve other pages. A target beyond the new range remains invalid
+    // until explicitly edited, rather than silently redirecting it.
+    return true;
   }
   function planAction(action,page,count){
     if(!action||!validId(action.type))return {kind:'unsupported',message:'알 수 없는 동작'};
@@ -101,5 +121,5 @@
       url:action.settings?.url||'',mode:action.settings?.open||'default'};
     return {kind:'unsupported',message:'이 동작의 실행 기능은 아직 구현되지 않았습니다.'};
   }
-  return {ACTION_IDS,DEFAULTS,TITLE,createAction,cleanAction,blankPage,migrateState,resolveKeyPress,planAction};
+  return {ACTION_IDS,DEFAULTS,TITLE,createAction,cleanAction,blankPage,migrateState,physicalSlot,resolveKeyPress,deletePage,planAction};
 });
