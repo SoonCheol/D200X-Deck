@@ -764,6 +764,13 @@ function executeHardwareAction(event,preview=false){
       error=>window.d200xActionStatus?.('단축키 실패: '+String(error?.message||error)));
     return 'Windows 단축키 요청: '+outcome.target;
   }
+  if(outcome.kind==='device-brightness-set'){
+    if(!window.deckBridge?.setBrightness)return 'Windows 실행 환경에서만 사용할 수 있습니다.';
+    window.deckBridge.setBrightness(outcome.value).then(
+      value=>window.d200xActionStatus?.('D200X 밝기: '+value+'%'),
+      error=>window.d200xActionStatus?.('밝기 설정 실패: '+String(error?.message||error)));
+    return 'D200X 밝기 '+outcome.value+'% 설정 요청';
+  }
   if(outcome.kind==='device-brightness'){
     if(!window.deckBridge?.adjustBrightness)return 'Windows 실행 환경에서만 사용할 수 있습니다.';
     window.deckBridge.adjustBrightness(outcome.direction,outcome.count||1).then(
