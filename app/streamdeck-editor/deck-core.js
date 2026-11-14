@@ -431,7 +431,7 @@
     do{id='profile-'+(++state.profileSeq);}while(state.profileNames.some(p=>p.id===id));
     state.profileNames.push({id,name:label,appPath:'',smartEnabled:false});
     const original=sourceId===state.profileId?profileSnapshot(state):state.inactiveProfiles.find(p=>p.id===sourceId);
-    const source=duplicate&&original?copy(original):profileSnapshot(migrateState(null));
+    const source=duplicate&&original?profileSnapshot(original):profileSnapshot(migrateState(null));
     state.inactiveProfiles.push({id,...source});
     return id;
   }
