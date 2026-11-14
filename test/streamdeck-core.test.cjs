@@ -178,3 +178,17 @@ test('knob with unsupported action never triggers it by rotation',()=>{
   assert.equal(core.planHardwareEvent(state,{kind:2,index:17,state:3}),null);
   assert.equal(core.planHardwareEvent(state,{kind:2,index:17,state:1}).outcome.kind,'website');
 });
+
+test('page-rotation knob persists across pages where that knob is empty',()=>{
+  const first=Array.from({length:19},()=>null);
+  const middle=Array.from({length:19},()=>null);
+  const last=Array.from({length:19},()=>null);
+  first[16]={type:'next'};
+  const state=core.migrateState({pages:[first,middle,last],page:1});
+  assert.equal(core.planHardwareEvent(state,{kind:2,index:17,state:3}).outcome.page,2);
+  assert.equal(core.planHardwareEvent(state,{kind:2,index:17,state:2}).outcome.page,0);
+  assert.equal(core.planHardwareEvent(state,{kind:2,index:17,state:1}),null);
+  // Explicit assignment on this page overrides inherited rotation behavior.
+  state.pages[1][16]=core.createAction('timer');
+  assert.equal(core.planHardwareEvent(state,{kind:2,index:17,state:3}),null);
+});
