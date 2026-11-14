@@ -403,9 +403,13 @@ function actionFields(item){
 }
 // Multi Action editor: uses the original right-hand action catalogue and does
 // not change the approved editor layout. Unsupported nested composites are blocked.
-const MULTI_ALLOWED=['hotkey','media','website','open','open-app','text',
-  'system-volume','system-mute','system-zoom','device-brightness',
-  'screenshot','clipboard-edit','explorer-open','file-open','folder-shortcut'];
+// Directly executable simple actions; UI-only actions and nested composites stay excluded.
+const MULTI_ALLOWED=['hotkey','media','website','open','open-app','close','text',
+  'audio-play','audio-stop','brightness','system-volume','system-mute',
+  'system-scroll','edit-history','window-switch','desktop-switch',
+  'system-zoom','device-brightness','screenshot','clipboard-edit',
+  'window-state','window-monitor','explorer-open','brush-size',
+  'timeline-step','timeline-zoom','file-open','folder-shortcut'];
 const multiSwitchEditorTabs=new WeakMap();
 function renderMultiEditor(item,root){
   const area=document.createElement('section');area.className='multi-action-editor';
@@ -1237,6 +1241,9 @@ async function executeMultiStep(action){
       return bridge.sendHotkey(outcome.keys);
     case 'media-control':
       return bridge.mediaControl(outcome.operation);
+    case 'close-local-app':
+      return bridge.closeLocalApp(outcome.path,outcome.force);
+
     case 'audio-play':
       return playAudioAction(outcome,'multi-'+action.type);
     case 'audio-stop':
@@ -1262,6 +1269,8 @@ async function executeMultiStep(action){
       return bridge.scrollWindows(outcome.axis,outcome.direction,outcome.count||1);
     case 'edit-history':
       return bridge.editHistory(outcome.operation,outcome.count||1);
+    case 'windows-switch':
+      return bridge.switchWindows(outcome.target,outcome.direction,outcome.count||1);
     case 'windows-switch':
       return bridge.switchWindows(outcome.target,outcome.direction,outcome.count||1);
     case 'system-shortcut':
