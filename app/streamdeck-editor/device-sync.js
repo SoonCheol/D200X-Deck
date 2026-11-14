@@ -168,7 +168,10 @@
 
   async function synchronize() {
     const serial = ++renderSerial;
-    const page = DeckCore.visibleActions(state).slice(0, 14).map(item => item ? JSON.parse(JSON.stringify(item)) : null);
+    const page = DeckCore.visibleActions(state).slice(0, 14).map((item,index) =>
+      item?JSON.parse(JSON.stringify(item)):
+        state.folderPath?.length&&index===13
+          ?{type:'folder-back',title:'뒤로',icon:{kind:'glyph',glyph:'↩'},titleStyle:DeckCore.TITLE}:null);
     try {
       await document.fonts?.ready;
       const images = await Promise.all(page.map((item,index) => drawSlot(
