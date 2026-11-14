@@ -19,7 +19,7 @@ test('all 24 observed Stream Deck actions have independent defaults',()=>{
 
 test('separate D200X volume/mute actions preserve the original 24',()=>{
   assert.equal(core.ACTION_IDS.length,24);
-  assert.deepEqual(core.D200X_ACTION_IDS,['system-volume','system-mute','system-scroll','edit-history']);
+  assert.deepEqual(core.D200X_ACTION_IDS,['system-volume','system-mute','system-scroll','edit-history','window-switch','desktop-switch']);
   const volume=core.createAction('system-volume');
   assert.deepEqual(core.planAction(volume,0,1),{kind:'adjust',target:'volume',direction:1,count:1});
   volume.settings.direction='down';volume.settings.step=5;
@@ -75,6 +75,28 @@ test('edit-history shares planner for buttons and knob rotation',()=>{
   assert.equal(core.planHardwareEvent(state,{kind:2,index:17,state:2}).outcome.operation,'redo');
   const restored=core.migrateState(JSON.parse(JSON.stringify(state)));
   assert.equal(core.controlBinding(restored,16).target,'history');
+});
+
+test('window/desktop switching uses shared button and knob planner',()=>{
+  assert.equal(core.ACTION_IDS.length,24);
+  const state=core.migrateState(null);
+  for(const [type,target] of [['window-switch','window'],['desktop-switch','desktop']]){
+    const action=core.createAction(type);
+    assert.deepEqual(core.planAction(action,0,1),{kind:'windows-switch',target,direction:1,count:1});
+    action.settings.direction='previous';
+    state.pages[0][0]=action;
+    assert.deepEqual(core.planHardwareEvent(state,{kind:1,index:0,pressed:true}).outcome,
+      {kind:'windows-switch',target,direction:-1,count:1});
+    const knob=core.controlBinding(state,16);
+    knob.mode='adjust';knob.target=target;knob.step=2;
+    assert.deepEqual(core.planHardwareEvent(state,{kind:2,index:17,state:3}).outcome,
+      {kind:'windows-switch',target,direction:1,count:2});
+    knob.reverseDirection=true;
+    assert.equal(core.planHardwareEvent(state,{kind:2,index:17,state:2}).outcome.direction,1);
+    knob.reverseDirection=false;
+  }
+  const restored=core.migrateState(JSON.parse(JSON.stringify(state)));
+  assert.equal(core.controlBinding(restored,16).target,'desktop');
 });
 
 test('legacy state migration retains visible and physical slots, selected page and icon',()=>{
