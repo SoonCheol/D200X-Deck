@@ -2,7 +2,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const { EventEmitter } = require('node:events');
-const { D200XTransport, KEEPALIVE_MS } = require('../app/streamdeck-editor/transport.cjs');
+const { D200XTransport, KEEPALIVE_MS, MIN_BRIGHTNESS } = require('../app/streamdeck-editor/transport.cjs');
 const { PROTO } = require('../app/lib/protocol');
 
 class FakeDeck extends EventEmitter {
@@ -61,6 +61,17 @@ test('brightness clamp and keepalive preserve the requested value',async()=>{
   assert.equal(t.adjustBrightness(1,10),100);
   assert.equal(t.adjustBrightness(-1,2),98);
   time+=5000;t.tick();assert.deepEqual(deck.calls.at(-1),['brightness',98]);t.stop();
+});
+
+test('repeated brightness decreases stop at the visible safety floor',async()=>{
+  assert.equal(MIN_BRIGHTNESS,20);
+  const deck=new FakeDeck();const t=new D200XTransport({deck});await t.start();
+  deck.emit('brightness',23);
+  assert.equal(t.adjustBrightness(-1,10),20);
+  assert.equal(t.adjustBrightness(-1,10),20);
+  assert.deepEqual(deck.calls.filter(call=>call[0]==='brightness'),[['brightness',20]]);
+  assert.equal(t.adjustBrightness(1,5),25);
+  t.stop();
 });
 
 test('device-info repeated connected events do not resend; reconnect restores last page',async()=>{
