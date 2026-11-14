@@ -477,12 +477,14 @@ test('Smart Profiles match only enabled exact Windows executable paths and persi
   assert.equal(core.setProfileApp(s,id,exe),true);
   assert.equal(core.matchForegroundProfile(s,exe),null);
   s.smartProfilesEnabled=true;
+  s.profileNames.find(p=>p.id===id).smartEnabled=true;
   assert.equal(core.matchForegroundProfile(s,exe.toUpperCase()),id);
   assert.equal(core.matchForegroundProfile(s,String.raw`C:\\Program Files\\Editor\\NotEditor.exe`),null);
   assert.equal(core.setProfileApp(s,id,'calc.exe'),false);
   assert.equal(core.setProfileApp(s,id,String.raw`C:\\Temp\\script.bat`),false);
   const restored=core.migrateState(JSON.parse(JSON.stringify(s)));
   assert.equal(restored.smartProfilesEnabled,true);
+  assert.equal(restored.profileNames.find(p=>p.id===id).smartEnabled,true);
   assert.equal(core.matchForegroundProfile(restored,exe),id);
   assert.equal(core.switchProfile(restored,id),true);
   assert.equal(core.matchForegroundProfile(restored,exe),id);
