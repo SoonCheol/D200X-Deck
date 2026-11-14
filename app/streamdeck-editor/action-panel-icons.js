@@ -106,5 +106,21 @@ window.D200XPanelIcons=(()=>{
   function setOverride(id,data){if(!paths[id]||typeof data!=="string"||!/^data:image\/(png|jpeg|webp|gif);base64,/.test(data)||data.length>200000)return false;config.overrides[id]=data;return save();}
   function clearOverride(id){delete config.overrides[id];return save();}
   function clearAll(){config.overrides={};return save();}
-  return {groups,themeNames,create,artwork,setTheme,setOverride,clearOverride,clearAll,get theme(){return config.theme;},hasOverride:id=>!!config.overrides[id],ids:Object.keys(paths)};
+  function exportConfig(){return {theme:config.theme,overrides:{...config.overrides}};}
+  function restoreConfig(value){
+    if(!value||typeof value!=='object'||!themeNames[value.theme]||
+      !value.overrides||typeof value.overrides!=='object'||Array.isArray(value.overrides))return false;
+    const overrides={};
+    for(const [id,data] of Object.entries(value.overrides)){
+      if(!Object.prototype.hasOwnProperty.call(paths,id)||
+        typeof data!=='string'||!/^data:image\\/(png|jpeg|webp|gif);base64,/.test(data)||
+        data.length>200000)return false;
+      overrides[id]=data;
+    }
+    const old=config;
+    config={theme:value.theme,overrides};
+    if(save())return true;
+    config=old;return false;
+  }
+  return {groups,themeNames,create,artwork,setTheme,exportConfig,restoreConfig,setOverride,clearOverride,clearAll,get theme(){return config.theme;},hasOverride:id=>!!config.overrides[id],ids:Object.keys(paths)};
 })();
