@@ -100,6 +100,65 @@ test('window/desktop switching uses shared button and knob planner',()=>{
   assert.equal(core.controlBinding(restored,16).target,'desktop');
 });
 
+test('composite model preserves legacy children, Delay, and unrelated page data',()=>{
+  const legacy={
+    pages:[[
+      {type:'multi',title:'작업 묶음',children:[
+        {type:'hotkey',settings:{keys:'Ctrl+A'}},
+        {kind:'delay',ms:1200},
+        {type:'media',settings:{op:'playpause'}}
+      ]},
+      {type:'folder',title:'기존 폴더',children:[{type:'website',settings:{url:'https://example.org'}}]},
+      {type:'profile',settings:{profile:'next'}}
+    ]],page:0
+  };
+  const state=core.migrateState(legacy);
+  assert.deepEqual(state.pages[0][0].children[1],{kind:'delay',ms:1200});
+  assert.equal(state.pages[0][1].children[0].type,'website');
+  assert.equal(state.pages[0][2].settings.profile,'next');
+  const restored=core.migrateState(JSON.parse(JSON.stringify(state)));
+  assert.deepEqual(restored.pages[0][0].children,state.pages[0][0].children);
+  const planned=core.planComposite(restored.pages[0][0]);
+  assert.equal(planned.kind,'composite');
+  assert.deepEqual(planned.steps.map(x=>x.kind||x.type),['hotkey','delay','media']);
+});
+
+test('multi switch has independent states and legacy steps are retained',()=>{
+  const sw=core.cleanAction({type:'multi-switch',children:[{type:'timer'}],sequences:[
+    [{type:'hotkey',settings:{keys:'Ctrl+C'}}],
+    [{type:'media',settings:{op:'next'}},{kind:'delay',ms:50}]
+  ]});
+  const model=core.compositeModel(sw);
+  assert.deepEqual(model.states.map(x=>x.length),[1,2]);
+  assert.equal(sw.children[0].type,'timer');
+  assert.equal(core.planComposite(sw,{state:0}).steps[0].type,'hotkey');
+  assert.equal(core.planComposite(sw,{state:1}).steps[0].type,'media');
+  const legacy=core.cleanAction({type:'multi-switch',children:[{type:'hotkey'}]});
+  assert.equal(core.planComposite(legacy,{state:0}).steps[0].type,'hotkey');
+  assert.deepEqual(core.planComposite(legacy,{state:1}).steps,[]);
+});
+
+test('random and Key Logic use independent paths without invented physical events',()=>{
+  const random=core.cleanAction({type:'random',children:[{type:'hotkey'},{type:'media'}]});
+  assert.equal(core.planComposite(random,{random:0}).steps[0].type,'hotkey');
+  assert.equal(core.planComposite(random,{random:0.999}).steps[0].type,'media');
+  assert.equal(core.planComposite(random).kind,'invalid');
+  assert.equal(core.planComposite(core.createAction('random'),{random:0.5}).kind,'invalid');
+  const logic=core.cleanAction({type:'logic',slots:{
+    single:{type:'hotkey'},double:{type:'media'},hold:{type:'timer'}
+  }});
+  assert.equal(core.planComposite(logic,{gesture:'double'}).steps[0].type,'media');
+  assert.equal(core.planComposite(logic,{gesture:'hold'}).steps[0].type,'timer');
+  assert.equal(core.planComposite(logic,{gesture:'down'}).kind,'invalid');
+});
+
+test('nested composite actions are rejected without silently removing saved data',()=>{
+  const action=core.cleanAction({type:'multi',children:[{type:'multi',children:[{type:'media'}]}]});
+  assert.equal(action.children[0].children[0].type,'media');
+  assert.equal(core.planComposite(action).kind,'invalid');
+  assert.equal(core.ACTION_IDS.length,24);
+});
+
 test('original brightness action respects the 20 percent floor for fixed presets',()=>{
   const a=core.createAction('brightness');
   a.settings.mode='min';
