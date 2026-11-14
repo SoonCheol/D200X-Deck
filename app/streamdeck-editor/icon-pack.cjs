@@ -117,7 +117,7 @@ async function registerPack(filename,pack){
   return packs;
 }
 async function removePack(filename,id){
-  if(typeof id!=='string'||!id||id.length>128||id==='bundled-simple-gray-tones-1.0.1')
+  if(typeof id!=='string'||!id||id.length>128||['builtin-fluentui-filled','builtin-fluentui-regular'].includes(id))
     throw new Error('기본 아이콘팩은 삭제할 수 없습니다.');
   const packs=await readPacks(filename);
   const found=packs.find(pack=>pack.id===id);
