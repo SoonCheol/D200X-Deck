@@ -830,7 +830,7 @@ const waitMultiDelay=(ms,signal)=>new Promise((resolve,reject)=>{
   if(signal?.aborted)return reject(new Error('복합 동작이 취소되었습니다.'));
   let onAbort;
   const timer=setTimeout(()=>{
-    if(onAbort)signal.removeEventListener('abort',onAbort);
+    if(onAbort)signal?.removeEventListener('abort',onAbort);
     resolve();
   },ms);
   onAbort=()=>{
@@ -929,7 +929,7 @@ function executeHardwareAction(event,preview=false){
     runningMultiControllers.set(action,controller);
     DeckCore.runComposite(action,{
       execute:executeMultiStep,wait:waitMultiDelay,
-      state:position,signal:controller.signal
+      state:position,signal:controller.signal,nextActionMs:100
     }).then(
       count=>{
         if(outcome.type==='multi-switch'){
