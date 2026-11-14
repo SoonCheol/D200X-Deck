@@ -424,6 +424,38 @@ $("action-search").addEventListener("input",renderLibrary);
 $("add-page").addEventListener("click",()=>{state.pages.push(blankPage());state.page=state.pages.length-1;state.selected=null;persist();render();});
 $("back-page").addEventListener("click",()=>{state.page=Math.max(0,state.page-1);state.selected=null;persist();render();});
 $("next-page").addEventListener("click",()=>{state.page=Math.min(state.pages.length-1,state.page+1);state.selected=null;persist();render();});
+// Physical D200X button presses run the selected page's action; clicking a
+// PC editor key still only selects it for editing.
+const pressedHardwareKeys=new Set();
+function executeHardwareAction(event){
+  if(!event||Number(event.kind)!==1)return null;
+  const index=Number(event.index);
+  if(!Number.isInteger(index)||index<0||index>=KEY_COUNT)return null;
+  if(!event.pressed){pressedHardwareKeys.delete(index);return null;}
+  if(pressedHardwareKeys.has(index))return null;
+  pressedHardwareKeys.add(index);
+  const match=DeckCore.resolveKeyPress(state,event);
+  if(!match)return null;
+  const outcome=DeckCore.planAction(match.action,state.page,state.pages.length);
+  if(outcome.kind==='page'){
+    if(outcome.page===state.page)return '페이지 '+(state.page+1)+' · 이동 없음';
+    state.page=outcome.page;
+    state.selected=null;
+    persist();
+    render();
+    return '페이지 '+(outcome.page+1)+' 표시';
+  }
+  if(outcome.kind==='website'){
+    if(!window.deckBridge?.openWebsite)return '웹사이트 열기는 Windows EXE에서만 실행됩니다.';
+    window.deckBridge.openWebsite(outcome.url,outcome.mode).then(
+      ()=>window.d200xActionStatus?.('웹사이트 열기 완료'),
+      error=>window.d200xActionStatus?.('웹사이트 열기 실패: '+String(error?.message||error))
+    );
+    return '웹사이트 열기 요청';
+  }
+  return outcome.message;
+}
+window.executeD200XKey=executeHardwareAction;
 function render(){renderGrid();renderInspector();}
 
 /* Reference UI controls: library appearance is modeled after the supplied 7.6.1
