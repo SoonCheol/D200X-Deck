@@ -100,6 +100,10 @@ function iconNode(item,defaultGlyph){
   if(item?.icon?.kind==="file"&&typeof item.icon.value==="string"){
     const image=document.createElement("img");image.className="icon-image";image.src=item.icon.value;image.alt="";return image;
   }
+  if(!item?.icon?.glyph && window.D200XPanelIcons?.artwork?.(item?.type)){
+    const image=document.createElement("img");image.className="icon-image";
+    image.src=window.D200XPanelIcons.artwork(item.type);image.alt="";return image;
+  }
   const symbol=document.createElement("span");symbol.className="icon-glyph";
   symbol.textContent=item?.icon?.glyph||defaultGlyph;return symbol;
 }
@@ -252,9 +256,6 @@ function renderLibrary(){
       const caption=document.createElement("span");caption.className="action-caption";
       const name=document.createElement("span");name.textContent=label;caption.append(name);
       if(disabled){const note=document.createElement("small");note.className="action-unavailable";note.textContent="지원 예정 · 비활성화";caption.append(note);}
-      if(PANEL_SHORTCUTS[id]){
-        const hint=document.createElement("small");hint.className="action-shortcut";hint.textContent=PANEL_SHORTCUTS[id];caption.append(hint);
-      }
       const customise=document.createElement("button");customise.type="button";customise.className="action-customize";
       customise.textContent="⋯";customise.title=label+" 아이콘 개별 설정";customise.setAttribute("aria-label",label+" 아이콘 개별 설정");
       if(disabled)customise.disabled=true;
@@ -275,12 +276,12 @@ function renderLibrary(){
           }
           const reader=new FileReader();
           reader.onload=()=>{
-            if(window.D200XPanelIcons.setOverride(id,String(reader.result)))renderLibrary();
+            if(window.D200XPanelIcons.setOverride(id,String(reader.result))){renderLibrary();renderGrid();renderInspector();}
           };
           reader.readAsDataURL(selected);
         });
         const reset=document.createElement("button");reset.type="button";reset.textContent="기본 아이콘";
-        reset.addEventListener("click",ev=>{ev.stopPropagation();window.D200XPanelIcons.clearOverride(id);renderLibrary();});
+        reset.addEventListener("click",ev=>{ev.stopPropagation();window.D200XPanelIcons.clearOverride(id);renderLibrary();renderGrid();renderInspector();});
         tools.addEventListener("click",ev=>ev.stopPropagation());
         tools.append(upload,file,reset);entry.append(tools);
       });
@@ -306,12 +307,12 @@ function bindActionAppearance(){
     const option=document.createElement("option");option.value=value;option.textContent=name;select.append(option);
   });
   select.value=window.D200XPanelIcons.theme;
-  select.addEventListener("change",()=>{window.D200XPanelIcons.setTheme(select.value);renderLibrary();});
+  select.addEventListener("change",()=>{window.D200XPanelIcons.setTheme(select.value);renderLibrary();renderGrid();renderInspector();});
   const reset=document.createElement("button");reset.type="button";reset.textContent="개별 초기화";
   reset.title="오른쪽 목록의 개별 아이콘 설정만 초기화";
   reset.addEventListener("click",()=>{
     if(confirm("오른쪽 액션 목록의 개별 아이콘만 모두 초기화할까요?")){
-      window.D200XPanelIcons.clearAll();renderLibrary();
+      window.D200XPanelIcons.clearAll();renderLibrary();renderGrid();renderInspector();
     }
   });
   host.append(label,select,reset);
@@ -747,6 +748,13 @@ function renderControlInspector(){
     scopeRow.append(modeLabel,mode);
   }
   root.append(scopeRow);
+  const selectedBinding=DeckCore.controlBinding(state,index);
+  const selectedAction=selectedBinding?.[controlGesture]||selectedBinding?.down;
+  if(selectedAction&&PANEL_SHORTCUTS[selectedAction.type]){
+    const shortcut=document.createElement('div');shortcut.className='control-config';
+    shortcut.textContent='단축키 안내: '+PANEL_SHORTCUTS[selectedAction.type];
+    root.append(shortcut);
+  }
   if(info.kind==='knob'&&['adjust','stack'].includes(binding.mode)){
     const config=document.createElement('div');config.className='control-config';
     const label=document.createElement('label');
@@ -932,7 +940,7 @@ function renderInspector(){
           <button type="button" id="title-palette-save">현재 색상을 나의 색상에 저장</button>
         </div>
         <button type="button" class="style-reset" id="title-reset" title="기본 스타일 복원">↺</button>
-      </div></div></div>${fields}</div></div>`;
+      </div></div></div>${PANEL_SHORTCUTS[item.type]?'<div class="field"><label>단축키 안내</label><span class="hint">'+escapeHtml(PANEL_SHORTCUTS[item.type])+'</span></div>':''}${fields}</div></div>`;
   const previewButton=document.createElement('button');previewButton.type='button';
   previewButton.textContent='▶ 실행 테스트';previewButton.className='action-preview-test';
   previewButton.title='실제 Windows/D200X 동작을 한 번 실행합니다';
@@ -1531,12 +1539,50 @@ function bindSidebarHeader(){
     const separator=document.createElement('hr');menu.append(separator);
     add('전체 프로필·설정 JSON 내보내기',()=>{
       try{
-        const blob=new Blob([JSON.stringify(state,null,2)],{type:'application/json;charset=utf-8'});
+        const payload={...state,actionPanelAppearance:window.D200XPanelIcons.exportConfig()};
+        const blob=new Blob([JSON.stringify(payload,null,2)],{type:'application/json;charset=utf-8'});
         const url=URL.createObjectURL(blob),link=document.createElement('a');
         link.href=url;link.download='D200X-profiles-backup.json';
         document.body.append(link);link.click();link.remove();
         setTimeout(()=>URL.revokeObjectURL(url),1000);
       }catch(error){window.d200xActionStatus?.('설정 내보내기 실패: '+String(error?.message||error));}
+    });
+    add('전체 프로필·설정 JSON 가져오기',()=>{
+      const picker=document.createElement('input');
+      picker.type='file';picker.accept='.json,application/json';
+      picker.addEventListener('change',async()=>{
+        const file=picker.files?.[0];if(!file)return;
+        try{
+          if(file.size>20*1024*1024)throw new Error('백업 파일이 20MB를 초과합니다.');
+          const parsed=JSON.parse(await file.text());
+          if(!parsed||typeof parsed!=='object'||!Array.isArray(parsed.pages)||
+            parsed.pages.length<1||parsed.pages.length>128||
+            !Array.isArray(parsed.profileNames)||parsed.profileNames.length<1||
+            parsed.profileNames.length>50||typeof parsed.profileId!=='string')
+            throw new Error('올바른 D200X 전체 프로필 백업 파일이 아닙니다.');
+          const restored=DeckCore.migrateState(parsed);
+          if(!restored.profileNames?.length)throw new Error('프로필 정보가 올바르지 않습니다.');
+          const snapshot=JSON.stringify(state);
+          if(!confirm('현재 모든 프로필과 버튼 설정을 백업 파일로 교체합니다. 계속하시겠습니까?'))return;
+          const safetyKey=STORAGE_KEY+'-before-import-backup';
+          localStorage.setItem(safetyKey,snapshot);
+          const prior=state;
+          state=restored;
+          if(!persist()){
+            state=prior;
+            localStorage.setItem(STORAGE_KEY,snapshot);
+            throw new Error('설정을 저장할 수 없습니다. 기존 설정으로 복구했습니다.');
+          }
+          // Older exports contain profiles only; keep current catalogue theme.
+          if(parsed.actionPanelAppearance){
+            if(!window.D200XPanelIcons.restoreConfig(parsed.actionPanelAppearance))
+              window.d200xActionStatus?.('프로필은 복원했지만 액션 목록 테마 복원은 실패했습니다.');
+          }
+          controlGesture='down';render();renderLibrary();
+          window.d200xActionStatus?.('전체 프로필 가져오기 완료 (이전 설정 안전 백업 보관)');
+        }catch(error){alert('프로필 가져오기 실패: '+String(error?.message||error));}
+      },{once:true});
+      picker.click();
     });
     add('＋ 새 프로필',()=>{
       const name=prompt('새 프로필 이름','새 프로필');
