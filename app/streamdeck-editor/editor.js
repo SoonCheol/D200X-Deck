@@ -1314,6 +1314,32 @@ function playTimerChime(kind){
     context.close().catch(()=>{});
   });
 }
+const openAppHoldTimers=new Map();
+function handleOpenAppHold(action,index,event,gesture){
+  if(gesture==='down'){
+    if(openAppHoldTimers.has(index))return '프로그램 버튼 입력 유지 중';
+    const token={action,page:state.page,profile:state.profileId,fired:false,timer:null};
+    token.timer=setTimeout(()=>{
+      if(openAppHoldTimers.get(index)!==token||state.page!==token.page||
+        state.profileId!==token.profile)return;
+      token.fired=true;
+      const path=action.settings?.app;
+      if(!path)return window.d200xActionStatus?.('종료할 프로그램을 먼저 선택하세요.');
+      window.deckBridge?.closeLocalApp?.(path,action.settings?.hold==='force').then(
+        ()=>window.d200xActionStatus?.('길게 누르기: 프로그램 종료 요청 완료'),
+        error=>window.d200xActionStatus?.('길게 누르기 종료 실패: '+String(error?.message||error)));
+    },650);
+    openAppHoldTimers.set(index,token);
+    return '프로그램 버튼 누름 대기';
+  }
+  const token=openAppHoldTimers.get(index);
+  if(!token)return null;
+  clearTimeout(token.timer);openAppHoldTimers.delete(index);
+  if(token.fired)return '길게 누르기 동작 완료';
+  if(token.action!==action||token.page!==state.page||token.profile!==state.profileId)return null;
+  const pressed={...event,state:1,pressed:true};
+  return executeHardwareAction(pressed,true);
+}
 const hotkeySwitchPositions=new Map();
 const lastHardwareDown=new Map();
 function runActionPreview(gesture='down'){
@@ -1328,6 +1354,10 @@ function executeHardwareAction(event,preview=false){
   const resolved=DeckCore.resolveHardwareEvent(state,event);
   if(!resolved)return null;
   const index=resolved.index,offset=index-14;
+  if(!preview&&resolved.action?.type==='open-app'&&
+    ['close','force'].includes(resolved.action.settings?.hold)&&
+    ['down','up'].includes(resolved.gesture))
+    return handleOpenAppHold(resolved.action,index,event,resolved.gesture);
   if(resolved.action?.type==='logic'&&['down','up'].includes(resolved.gesture))
     return handleLogicGesture(resolved.action,index,resolved.gesture,preview);
   if(resolved.gesture==='up'){lastHardwareDown.delete(index);return null;}
