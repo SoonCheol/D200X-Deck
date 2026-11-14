@@ -456,6 +456,12 @@
       }
     }
     if(gesture!=='down')return null;
+    // Reserve a back key in the last free folder slot. Legacy populated
+    // slots never get overwritten. A physical side-key fallback follows.
+    if((state.folderPath||[]).length && index===13 && !currentActions(state)?.[13])
+      return {index,gesture,outcome:{kind:'folder-back'}};
+    if((state.folderPath||[]).length && index===15 && !binding?.down)
+      return {index,gesture,outcome:{kind:'folder-back'}};
     if(binding && !binding.down)return null;
     if(!resolved.action)return null;
     return {index,gesture,outcome:planAction(resolved.action,state.page,state.pages.length)};
