@@ -205,6 +205,57 @@ ipcMain.handle('d200x:device-brightness',(event,args)=>{
   return transport.adjustBrightness(args.direction,args.count);
 });
 
+// Original Stream Deck media keys. Never execute user-supplied code.
+const MEDIA_CODES=Object.freeze({previous:0xB1,playpause:0xB3,next:0xB0,stop:0xB2,mute:0xAD,up:0xAF,down:0xAE});
+function emitWindowsKeys(held,key){
+  const code=`Add-Type -TypeDefinition @'
+using System;
+using System.Runtime.InteropServices;
+public class D200XPreviewKeys {
+  [DllImport("user32.dll")] public static extern void keybd_event(byte vk, byte scan, uint flags, UIntPtr extra);
+}
+'@;
+${held.map(v=>`[D200XPreviewKeys]::keybd_event(${v},0,0,[UIntPtr]::Zero);`).join('\n')}
+[D200XPreviewKeys]::keybd_event(${key},0,0,[UIntPtr]::Zero);
+[D200XPreviewKeys]::keybd_event(${key},0,2,[UIntPtr]::Zero);
+${held.slice().reverse().map(v=>`[D200XPreviewKeys]::keybd_event(${v},0,2,[UIntPtr]::Zero);`).join('\n')}`;
+  return execFileAsync('powershell.exe',['-NoProfile','-NonInteractive','-WindowStyle','Hidden','-Command',code],
+    {windowsHide:true,timeout:6000,maxBuffer:32768});
+}
+ipcMain.handle('d200x:media-control',async(event,args)=>{
+  if(!window||event.sender!==window.webContents)throw new Error('허용되지 않은 호출입니다.');
+  if(typeof args?.operation!=='string'||!Object.hasOwn(MEDIA_CODES,args.operation))throw new Error('미지원 미디어 동작');
+  if(process.platform!=='win32')throw new Error('Windows에서만 지원합니다.');
+  await emitWindowsKeys([],MEDIA_CODES[args.operation]);return true;
+});
+const HOTKEY_SPECIAL=Object.freeze({Enter:0x0D,Space:0x20,Tab:0x09,Escape:0x1B,Backspace:0x08,Delete:0x2E,
+  Left:0x25,Up:0x26,Right:0x27,Down:0x28,Home:0x24,End:0x23,PageUp:0x21,PageDown:0x22,
+  Insert:0x2D});
+function parseWindowsHotkey(value){
+  if(typeof value!=='string'||value.length>60)return null;
+  const parts=value.split('+').map(x=>x.trim()).filter(Boolean);
+  if(parts.length<1||parts.length>5)return null;
+  const held=[],seen=new Set();let key=null;
+  for(const part of parts){
+    const mod=({Ctrl:0x11,Control:0x11,Alt:0x12,Shift:0x10,Win:0x5B,Meta:0x5B})[part];
+    if(mod){if(seen.has(mod))return null;seen.add(mod);held.push(mod);continue;}
+    if(key!==null)return null;
+    if(/^[A-Z]$/i.test(part))key=part.toUpperCase().charCodeAt(0);
+    else if(/^[0-9]$/.test(part))key=part.charCodeAt(0);
+    else if(/^F(?:[1-9]|1[0-2])$/i.test(part))key=0x6F+Number(part.slice(1));
+    else key=Object.hasOwn(HOTKEY_SPECIAL,part)?HOTKEY_SPECIAL[part]:null;
+    if(key===null)return null;
+  }
+  return key===null?null:{held,key};
+}
+ipcMain.handle('d200x:send-hotkey',async(event,args)=>{
+  if(!window||event.sender!==window.webContents)throw new Error('허용되지 않은 호출입니다.');
+  const parsed=parseWindowsHotkey(args?.keys);
+  if(!parsed)throw new Error('지원하지 않는 단축키 형식입니다.');
+  if(process.platform!=='win32')throw new Error('Windows에서만 지원합니다.');
+  await emitWindowsKeys(parsed.held,parsed.key);return true;
+});
+
 // Fixed Win32 shortcuts; choices are validated against this closed allowlist.
 const D200X_SHORTCUTS=Object.freeze({
   'screenshot':{capture:{held:[0x5B,0x10],key:0x53}},
@@ -243,7 +294,7 @@ ${held.slice().reverse().map(v=>`[D200XSafeKey]::keybd_event(${v},0,2,[UIntPtr]:
 ipcMain.handle('d200x:open-local-path',async(event,args)=>{
   if(!window||event.sender!==window.webContents)throw new Error('허용되지 않은 호출입니다.');
   const filePath=args?.filePath;
-  if(!['file','folder'].includes(args?.target)||typeof filePath!=='string'||
+  if(!['file','folder','auto'].includes(args?.target)||typeof filePath!=='string'||
       !path.win32.isAbsolute(filePath)||filePath.length>4096||/[\x00-\x1f\x7f]/.test(filePath))
     throw new Error('올바른 Windows 파일/폴더 경로를 선택하세요.');
   const stat=await fs.promises.stat(filePath);
