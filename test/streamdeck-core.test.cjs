@@ -19,7 +19,7 @@ test('all 24 observed Stream Deck actions have independent defaults',()=>{
 
 test('separate D200X volume/mute actions preserve the original 24',()=>{
   assert.equal(core.ACTION_IDS.length,24);
-  assert.deepEqual(core.D200X_ACTION_IDS,['system-volume','system-mute']);
+  assert.deepEqual(core.D200X_ACTION_IDS,['system-volume','system-mute','system-scroll']);
   const volume=core.createAction('system-volume');
   assert.deepEqual(core.planAction(volume,0,1),{kind:'adjust',target:'volume',direction:1,count:1});
   volume.settings.direction='down';volume.settings.step=5;
@@ -33,6 +33,26 @@ test('separate D200X volume/mute actions preserve the original 24',()=>{
   assert.deepEqual(core.planHardwareEvent(state,{kind:2,index:17,state:1}).outcome,{kind:'mute'});
   const restored=core.migrateState(JSON.parse(JSON.stringify(state)));
   assert.equal(core.controlBinding(restored,16).down.type,'system-mute');
+});
+
+test('D200X scroll action uses shared planner for keys and rotary control',()=>{
+  assert.equal(core.ACTION_IDS.length,24);
+  assert.ok(core.D200X_ACTION_IDS.includes('system-scroll'));
+  const a=core.createAction('system-scroll');
+  assert.deepEqual(core.planAction(a,0,1),{kind:'scroll',axis:'vertical',direction:1,count:1});
+  a.settings.axis='horizontal';a.settings.direction='left';a.settings.step=5;
+  assert.deepEqual(core.planAction(a,0,1),{kind:'scroll',axis:'horizontal',direction:-1,count:5});
+  const state=core.migrateState(null);
+  state.pages[0][0]=a;
+  assert.deepEqual(core.planHardwareEvent(state,{kind:1,index:0,pressed:true}).outcome,
+    {kind:'scroll',axis:'horizontal',direction:-1,count:5});
+  const knob=core.controlBinding(state,16);
+  knob.mode='adjust';knob.target='scroll';knob.step=2;
+  assert.deepEqual(core.planHardwareEvent(state,{kind:2,index:17,state:3}).outcome,
+    {kind:'scroll',axis:'vertical',direction:1,count:2});
+  knob.target='scroll-x';
+  assert.deepEqual(core.planHardwareEvent(state,{kind:2,index:17,state:2}).outcome,
+    {kind:'scroll',axis:'horizontal',direction:-1,count:2});
 });
 
 test('legacy state migration retains visible and physical slots, selected page and icon',()=>{
