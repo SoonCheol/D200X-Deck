@@ -159,6 +159,33 @@ test('nested composite actions are rejected without silently removing saved data
   assert.equal(core.ACTION_IDS.length,24);
 });
 
+test('multi runner awaits each action, delay, and ordered completion',async()=>{
+  const multi=core.cleanAction({type:'multi',children:[
+    {type:'hotkey',settings:{keys:'Ctrl+A'}},{kind:'delay',ms:25},
+    {type:'media',settings:{op:'playpause'}}
+  ]});
+  const sequence=[];
+  const count=await core.runComposite(multi,{
+    execute:async action=>{sequence.push(action.type+':start');await Promise.resolve();sequence.push(action.type+':done');},
+    wait:async ms=>{sequence.push('delay:'+ms);}
+  });
+  assert.equal(count,3);
+  assert.deepEqual(sequence,['hotkey:start','hotkey:done','delay:25','media:start','media:done']);
+});
+
+test('multi runner refuses nested composites and honors cancellation',async()=>{
+  const blocked=core.cleanAction({type:'multi',children:[{type:'multi'}]});
+  await assert.rejects(core.runComposite(blocked,{execute:async()=>{},wait:async()=>{}}),/중첩/);
+  const controller=new AbortController();
+  const a=core.cleanAction({type:'multi',children:[{type:'media'},{type:'hotkey'}]});
+  const executed=[];
+  await assert.rejects(core.runComposite(a,{
+    execute:async step=>{executed.push(step.type);controller.abort();},
+    wait:async()=>{},signal:controller.signal
+  }),/취소/);
+  assert.deepEqual(executed,['media']);
+});
+
 test('original brightness action respects the 20 percent floor for fixed presets',()=>{
   const a=core.createAction('brightness');
   a.settings.mode='min';
