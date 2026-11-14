@@ -372,3 +372,14 @@
 - 연결 범위: 아이콘팩 가져오기, 기존 `choosePath` 파일·폴더·프로그램 선택, 액션목록 아이콘 변경, 버튼 커스텀 아이콘, 상태별 아이콘, 전체 프로필·설정 JSON 가져오기. 이미지는 140KB/5MB 제한 유지, 프로필 JSON 20MB 제한 및 기존 복원 확인 절차 유지. 브라우저 폴백의 순수 HTML `input[type=file]`은 브라우저 보안 제한상 시작 폴더를 임의 설정할 수 없어 EXE에서만 공용 네이티브 대화상자를 사용한다.
 - `preload.cjs`에서 검증된 `chooseImportFile(kind)`만 노출. 파일 선택은 사용자 동작에만 반응, 경로는 renderer에 전달하지 않음(데이터 URI / JSON 텍스트 사용). 취소해도 기존 입력/설정은 변경하지 않음.
 - **실기 미검증:** 실제 Windows 열기 대화상자가 마지막 폴더를 정확히 복원하는지 및 모든 선택기 정상 사용은 새 EXE 실기 확인 필요. Windows CI/자동 빌드 결과를 확인 후 별도 기록.
+
+
+## 2026-11-15 — 첫 플러그인 Home Assistant 토글 (초기 코드 단계)
+
+- **사용자 지시:** 기본 액션 개발에서 플러그인 개발로 우선순위 전환. Home Assistant 연결을 첫 번째 플러그인으로 구현한다. 기존 Stream Deck 24개, D200X 확장 18개, 프로필/버튼/노브/화면키 설정과 승인 레이아웃 보존. 개발 브랜치 `codex/streamdeck-761-clean-editor`만 사용, PR #5 병합 금지.
+- **구조:** `app/streamdeck-editor/ha-client.cjs`를 별도 REST 클라이언트로 추가. `GET /api/` 연결 검사, `GET /api/states` 엔티티 목록, `POST /api/services/{domain}/toggle` 실행. 1차 허용 도메인은 `light`, `switch`, `fan`, `input_boolean`. 실제 제어 서비스가 미지원인 개별 엔티티는 HA HTTP 오류로 보고하며 자동 대체하지 않는다. Home Assistant 공식 Bearer 토큰 인증은 필요하며, 이전 모바일 웹 기능의 '인증 없음' 결정은 HA API 인증 제거를 뜻하지 않는다.
+- **연결 보안:** Windows Electron `safeStorage`가 암호화 저장을 지원할 때만 토큰을 `userData/home-assistant-connection-v1.json`에 암호화하여 저장. 서버 URL과 토큰은 프로필 및 전체 설정 JSON에 포함하지 않음. 서버 설정 테스트 성공 시 저장. Electron IPC에서 편집기 renderer 발신자만 허용, 액션에서는 엔티티 ID만 전달. 토큰을 console/log에 기록하지 않음.
+- **UI:** 오른쪽의 기존 비활성 `플러그인` 탭 활성화. 플러그인 탭의 HA 연결 설정(서버 URL/장기 토큰)과 'HA 장치 켜기/끄기' 액션을 제공. 화면 키 또는 물리 버튼/노브의 개별 동작 슬롯에 놓은 후 `entityId`를 직접 입력하거나 HA 엔티티 목록에서 검색·선택. 토글 실행 결과/HTTP 오류는 상태 메시지로 보고. 기본 42개 액션 아이콘·기능은 보존하고 HA 아이콘 1개를 별도 그룹으로 추가.
+- **코드 파일:** `main.cjs`, `preload.cjs`, `deck-core.js`, `editor.js`, `action-panel-icons.js`, `ha-client.cjs`; `test/streamdeck-ha.test.cjs` 및 `app/test/action-panel-icons.test.js` 수정, 프리뷰 워크플로에 HA 단위 시험 추가.
+- **검증 상태:** 기능 코드는 GitHub에 반영. 첫 전체 CI는 기존 42개 아이콘만 가정하던 테스트의 `43 !== 42` 실패를 확인하였으며, 기존 42개 보존 + HA 1개를 명시하는 테스트로 수정했다. **이 후속 커밋의 CI/Windows EXE 결과는 별도로 확인해야 하며 현재 성공으로 단정하지 않는다.** 사용자의 실제 HA 로그인, 엔티티 조회, Windows GUI, D200X USB/노브 실기 테스트는 아직 미실시.
+- **다음 단계 후보:** 실제 Windows EXE의 HA 연결과 버튼/노브 토글 실기 확인 → ON/OFF 상태별 표시 및 WebSocket 상태 구독 → 엔티티 목록 전용 검색 UI·서비스별 상세 옵션. 사용자가 명시하지 않은 자동화/그룹 액션 확장은 보류.
