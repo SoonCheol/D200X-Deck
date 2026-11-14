@@ -356,7 +356,8 @@
   function initProfiles(state,value){
     const source=Array.isArray(value?.profileNames)?value.profileNames:null;
     state.profileNames=source?source.slice(0,50).filter(p=>p&&typeof p.id==='string'&&typeof p.name==='string')
-      .map(p=>({id:p.id.slice(0,40),name:p.name.slice(0,80)})):[];
+      .map(p=>({id:p.id.slice(0,40),name:p.name.slice(0,80),
+        appPath:typeof p.appPath==='string'&&p.appPath.length<=1024?p.appPath:''})):[];
     const seen=new Set();
     state.profileNames=state.profileNames.filter(p=>p.id&& !seen.has(p.id)&&seen.add(p.id));
     if(!state.profileNames.length)state.profileNames=[{id:'default',name:'기본 프로필'}];
@@ -368,6 +369,7 @@
       return {id:p.id,...profileSnapshot(clean)};
     });
     state.profileSeq=Math.max(state.profileNames.length,Number.isInteger(value?.profileSeq)?value.profileSeq:1);
+    state.smartProfilesEnabled=value?.smartProfilesEnabled===true;
   }
   function switchProfile(state,id){
     if(!state.profileNames?.some(p=>p.id===id))return false;
@@ -387,7 +389,7 @@
     const label=String(name||'새 프로필').trim().slice(0,80)||'새 프로필';
     let id;
     do{id='profile-'+(++state.profileSeq);}while(state.profileNames.some(p=>p.id===id));
-    state.profileNames.push({id,name:label});
+    state.profileNames.push({id,name:label,appPath:''});
     const source=duplicate?profileSnapshot(state):profileSnapshot(migrateState(null));
     state.inactiveProfiles.push({id,...source});
     return id;
@@ -396,6 +398,17 @@
     const record=state.profileNames?.find(p=>p.id===id);
     if(!record||!String(name||'').trim())return false;
     record.name=String(name).trim().slice(0,80);return true;
+  }
+  function setProfileApp(state,id,appPath){
+    const profile=state.profileNames?.find(p=>p.id===id);
+    if(!profile||typeof appPath!=='string'||appPath.length>1024)return false;
+    if(appPath&&(!/^[A-Za-z]:\\\\/.test(appPath)||!/\\.exe$/i.test(appPath)))return false;
+    profile.appPath=appPath;return true;
+  }
+  function matchForegroundProfile(state,appPath){
+    if(!state?.smartProfilesEnabled||typeof appPath!=='string'||!appPath)return null;
+    const normalized=appPath.replace(/\\//g,'\\\\').toLowerCase();
+    return state.profileNames.find(p=>p.appPath&&p.appPath.replace(/\\//g,'\\\\').toLowerCase()===normalized)?.id||null;
   }
   function deleteProfile(state,id){
     if(!state.profileNames?.some(p=>p.id===id)||state.profileNames.length<=1)return false;
@@ -589,5 +602,5 @@
       url:action.settings?.url||'',mode:action.settings?.open||'default'};
     return {kind:'unsupported',message:'이 동작의 실행 기능은 아직 구현되지 않았습니다.'};
   }
-  return {ACTION_IDS,D200X_ACTION_IDS,DEFAULTS,TITLE,createAction,cleanAction,cleanCompositeEntry,displaySwitchAction,compositeModel,planComposite,runComposite,blankPage,folderContents,currentActions,visibleActions,togglePinned,activeFolder,enterFolder,exitFolder,migrateState,profileSnapshot,switchProfile,createProfile,renameProfile,deleteProfile,previewHardwareEvent,physicalSlot,hardwareGesture,resolveHardwareEvent,resolveKeyPress,planHardwareEvent,deletePage,planAction,emptyBinding,cleanBinding,ensureControls,controlBinding,changeControlScope};
+  return {ACTION_IDS,D200X_ACTION_IDS,DEFAULTS,TITLE,createAction,cleanAction,cleanCompositeEntry,displaySwitchAction,compositeModel,planComposite,runComposite,blankPage,folderContents,currentActions,visibleActions,togglePinned,activeFolder,enterFolder,exitFolder,migrateState,profileSnapshot,switchProfile,createProfile,renameProfile,setProfileApp,matchForegroundProfile,deleteProfile,previewHardwareEvent,physicalSlot,hardwareGesture,resolveHardwareEvent,resolveKeyPress,planHardwareEvent,deletePage,planAction,emptyBinding,cleanBinding,ensureControls,controlBinding,changeControlScope};
 });
