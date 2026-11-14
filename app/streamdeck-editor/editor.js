@@ -88,7 +88,7 @@ function renderPhysicalControls(){
     const button=document.createElement("button");button.type="button";
     button.className="physical-control "+kind+(state.selected===index?" selected":"");
     button.setAttribute("aria-label",name+" — "+(keyName(item)||"비어 있음"));
-    button.title=name+" — 액션을 드래그해 등록";
+    button.title=name+" — 액션을 드래그해 등록"+(kind==="knob"?" · 이전/다음 페이지 액션: 왼쪽 회전 이전, 오른쪽 회전 다음, 누름은 등록된 동작 실행":"");
     const symbol=document.createElement("span");symbol.className="physical-symbol";
     const label=document.createElement("span");label.className="physical-name";label.textContent=item?keyName(item):name;
     button.append(symbol,label);
@@ -439,15 +439,22 @@ $("next-page").addEventListener("click",()=>{state.page=Math.min(state.pages.len
 // PC editor key still only selects it for editing.
 const pressedHardwareKeys=new Set();
 function executeHardwareAction(event){
-  if(!event||Number(event.kind)!==1)return null;
-  const index=DeckCore.physicalSlot(event);
-  if(index===null)return null;
-  if(!event.pressed){pressedHardwareKeys.delete(index);return null;}
-  if(pressedHardwareKeys.has(index))return null;
-  pressedHardwareKeys.add(index);
-  const match=DeckCore.resolveKeyPress(state,event);
-  if(!match)return null;
-  const outcome=DeckCore.planAction(match.action,state.page,state.pages.length);
+  const resolved=DeckCore.resolveHardwareEvent(state,event);
+  if(!resolved)return null;
+  const index=resolved.index;
+  if(resolved.gesture==='up'){
+    pressedHardwareKeys.delete(index);
+    return null;
+  }
+  if(resolved.gesture==='down'){
+    if(pressedHardwareKeys.has(index))return null;
+    pressedHardwareKeys.add(index);
+  }
+  // Each rotary tick is a distinct event; do not require a release
+  // between left/right turns as ordinary push buttons do.
+  const planned=DeckCore.planHardwareEvent(state,event);
+  if(!planned)return null;
+  const outcome=planned.outcome;
   if(outcome.kind==='page'){
     if(outcome.page===state.page)return '페이지 '+(state.page+1)+' · 이동 없음';
     state.page=outcome.page;
