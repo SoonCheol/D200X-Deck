@@ -114,7 +114,7 @@ function controlDrop(index,id,gesture='down'){
 }
 function renderGrid(){
   const grid=$("key-grid");grid.replaceChildren();
-  currentPage().slice(0,KEY_COUNT).forEach((raw,i)=>{
+  DeckCore.visibleActions(state).slice(0,KEY_COUNT).forEach((raw,i)=>{
     const folderBack=state.folderPath?.length>0&&i===13&&!raw;
     const item=folderBack?{type:'folder-back',title:'뒤로',icon:{kind:'glyph',glyph:'↩'}}:raw;
     const b=document.createElement("button");b.type="button";b.className="deck-key"+(i===13?" wide":"")+(state.selected===i?" selected":"");
@@ -127,7 +127,7 @@ function renderGrid(){
     // must stay in fixed coordinates, independent of the title font size.
     if(item&&window.renderDeckKeyImage){
       window.renderDeckKeyImage(visual,i).then(png=>{
-        if(!b.isConnected||currentPage()[i]!==item)return;
+        if(!b.isConnected||DeckCore.visibleActions(state)[i]!==item)return;
         const preview=document.createElement("img");
         preview.className="rendered-key-image";
         preview.alt="";
@@ -462,7 +462,7 @@ function renderFolderInspector(item,root){
 const DEFAULT_TITLE_STYLE = DeckCore.TITLE;
 let previewRequest=0;
 async function refreshSelectedVisual(){
-  const item=state.selected===null?null:currentPage()[state.selected];
+  const item=state.selected===null?null:DeckCore.visibleActions(state)[state.selected];
   if(!item||!window.renderDeckKeyImage)return;
   const request=++previewRequest;
   try{
@@ -769,7 +769,7 @@ function renderInspector(){
     renderControlInspector();
     return;
   }
-  const root=$("inspector");root.replaceChildren();const item=state.selected===null?null:currentPage()[state.selected];
+  const root=$("inspector");root.replaceChildren();const item=state.selected===null?null:DeckCore.visibleActions(state)[state.selected];
   if(!item){root.className="inspector empty";root.textContent=state.selected===null?"버튼을 선택하세요":"액션을 끌어 이 키에 놓으세요";return;}
   root.className="inspector";const action=ACTIONS.get(item.type);const fields=actionFields(item);
   root.innerHTML=`<div class="action-head"><strong>${escapeHtml(action?.category)}: ${escapeHtml(action?.label)}</strong><button id="delete-action" title="액션 삭제" type="button">×</button></div>
@@ -891,11 +891,11 @@ function renderInspector(){
   if(item.type==='folder')renderFolderInspector(item,root);
 }
 function showMenu(index,x,y){
-  const menu=$("key-menu");menu.replaceChildren();const item=currentPage()[index];
+  const menu=$("key-menu");menu.replaceChildren();const item=DeckCore.visibleActions(state)[index];
   const add=(label,handler)=>{const b=document.createElement("button");b.type="button";b.role="menuitem";b.textContent=label;b.addEventListener("click",()=>{menu.hidden=true;handler?.();});menu.append(b);};
   const divider=()=>menu.append(document.createElement("hr"));
   if(!item){add("폴더 생성",()=>setItem(index,newAction("folder")));add("다중 동작 생성",()=>setItem(index,newAction("multi")));add("Key Logic 동작 생성",()=>setItem(index,newAction("logic")));divider();add("동작 불러오기…",()=>alert("동작 불러오기는 아직 미구현"));divider();add("현재 배경",()=>{});add("파일에서 설정…",()=>alert("배경 파일 선택 미구현"));}
-  else {add("고정",()=>alert("고정 기능 미구현"));add("복사하기　Ctrl+C",()=>{clipboard=clone(item);});add("폴더로 이동",()=>alert("폴더로 이동 미구현"));add("Key Logic으로 이동",()=>alert("변환 기능 미구현"));divider();add("동작 불러오기…",()=>alert("불러오기 미구현"));add("동작 내보내기…",()=>alert("내보내기 미구현"));divider();add("현재 배경",()=>{});add("파일에서 설정…",()=>alert("배경 파일 선택 미구현"));divider();add("삭제",()=>{if(confirm("이 동작을 삭제하시겠습니까?"))setItem(index,null);});}
+  else {add(state.pinned?.[index]?"고정 해제":"고정",()=>{if(DeckCore.togglePinned(state,index)){persist();render();}});add("복사하기　Ctrl+C",()=>{clipboard=clone(item);});add("폴더로 이동",()=>alert("폴더로 이동 미구현"));add("Key Logic으로 이동",()=>alert("변환 기능 미구현"));divider();add("동작 불러오기…",()=>alert("불러오기 미구현"));add("동작 내보내기…",()=>alert("내보내기 미구현"));divider();add("현재 배경",()=>{});add("파일에서 설정…",()=>alert("배경 파일 선택 미구현"));divider();add("삭제",()=>{if(confirm("이 동작을 삭제하시겠습니까?"))setItem(index,null);});}
   menu.style.left=Math.min(x,window.innerWidth-220)+"px";menu.style.top=Math.min(y,window.innerHeight-360)+"px";menu.hidden=false;
 }
 let clipboard=null;
