@@ -335,3 +335,12 @@
 - 원인: `editor.js`의 `grid.hidden` 토글은 존재했으나 `style.css`의 `.icon-grid{display:grid}`가 `hidden` 표시 속성을 CSS 우선순위로 덮어씀.
 - 최소 수정: `.icon-grid[hidden]{display:none}` 추가. 액션·버튼 이미지·팩 데이터·프로필 저장 코드는 변경하지 않음.
 - 수정 SHA: `ecc6ac0e0d9856acdbbe9720d3f662cef89981a2` (브랜치 `codex/streamdeck-761-clean-editor`). CSS 동작 원인 확인 및 소스 수정 완료; 사용자 Windows GUI에서 실제 수정 확인은 새 EXE 테스트 대기.
+
+
+## 2026-11-15 아이콘팩 제거 기능 및 기본 팩 보호
+
+- 사용자 추가 요청: 외부에서 설치한 아이콘팩은 라이브러리에서 제거 가능해야 하며 기본 내장 아이콘팩은 제거 불가.
+- 변경: `icon-pack.cjs`에 `removePack()` 추가. 기본 샘플 ID `bundled-simple-gray-tones-1.0.1` 및 `source='bundled'` 삭제 거부. 등록 파일(`userData/streamdeck-icon-packs-v1.json`)에서 선택된 팩만 제거하며 버튼/프로필 데이터에는 영향 없음.
+- `main.cjs`/`preload.cjs`에 삭제 IPC 연결. `editor.js`의 사용자가 설치한 팩 제목에만 **삭제** 버튼 표시, 확인 대화상자 거쳐 제거 및 목록 갱신. 기본 샘플과 임시 기본 그룹에는 삭제 버튼 없음. 최소 CSS 적용.
+- 단위 테스트: 여러 팩 중 선택 제거·기본팩 거부·중복 제거 확인을 `test/streamdeck-icon-pack.test.cjs`에 추가.
+- 최신 기능 커밋: `180cca0266c0777eec5b0511f361474b113c2609` (Windows GUI 실기 확인 전). **이전 사용자의 작은 팩도 불러오지 못한다는 문제는 별개의 미해결 건이며, 제거 기능 구현으로 해결됐다고 주장하지 않는다.**
