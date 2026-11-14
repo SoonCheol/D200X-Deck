@@ -173,6 +173,40 @@ test('multi runner awaits each action, delay, and ordered completion',async()=>{
   assert.deepEqual(sequence,['hotkey:start','hotkey:done','delay:25','media:start','media:done']);
 });
 
+test('Multi Switch active state and visual overrides survive save and migration',()=>{
+  const source=core.cleanAction({
+    type:'multi-switch',title:'공통',icon:{kind:'glyph',glyph:'A'},
+    settings:{activeState:1},
+    stateVisuals:[
+      {title:'켜기',icon:{kind:'glyph',glyph:'▶'}},
+      {title:'끄기',icon:{kind:'glyph',glyph:'■'}}
+    ],
+    sequences:[[{type:'media'}],[{type:'hotkey'}]]
+  });
+  assert.equal(core.displaySwitchAction(source).title,'끄기');
+  assert.equal(core.displaySwitchAction(source).icon.glyph,'■');
+  const profile=core.migrateState({pages:[[source]]});
+  const restored=core.migrateState(JSON.parse(JSON.stringify(profile)));
+  assert.equal(restored.pages[0][0].settings.activeState,1);
+  assert.equal(core.displaySwitchAction(restored.pages[0][0]).title,'끄기');
+  assert.equal(core.planComposite(restored.pages[0][0],{state:1}).steps[0].type,'hotkey');
+  restored.pages[0][0].settings.activeState=0;
+  assert.equal(core.displaySwitchAction(restored.pages[0][0]).title,'켜기');
+});
+
+test('Multi Switch visual input validation and legacy fallbacks preserve common icon',()=>{
+  const legacy=core.cleanAction({type:'multi-switch',title:'원래',icon:{kind:'glyph',glyph:'●'},children:[{type:'media'}]});
+  assert.strictEqual(core.displaySwitchAction(legacy),legacy);
+  const clean=core.cleanAction({type:'multi-switch',
+    settings:{activeState:7},
+    stateVisuals:[{title:123,icon:{kind:'file',value:'file:///private'}} ,{title:'두번째'}]
+  });
+  assert.equal(clean.settings.activeState,0);
+  assert.equal(core.displaySwitchAction(clean).title,'');
+  clean.settings.activeState=1;
+  assert.equal(core.displaySwitchAction(clean).title,'두번째');
+});
+
 test('Random Action plans actual hardware presses and selects exactly one candidate',async()=>{
   const a=core.cleanAction({type:'random',children:[
     {type:'hotkey',settings:{keys:'Ctrl+A'}},
