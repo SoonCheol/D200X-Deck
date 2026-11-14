@@ -603,6 +603,7 @@ function renderControlInspector(){
       });
     });
     editor.append(fields);root.append(editor);
+    if(current.type==='multi')renderMultiEditor(current,editor);
     // A physical-control file picker needs the same bridge as the screen-key inspector.
     fields.querySelectorAll('[data-path-picker]').forEach(button=>button.addEventListener('click',async()=>{
       if(!window.deckBridge?.choosePath){window.d200xActionStatus?.('Windows EXE에서만 파일을 선택할 수 있습니다.');return;}
