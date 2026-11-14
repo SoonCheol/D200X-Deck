@@ -20,6 +20,19 @@ let controlGesture="down";
 const stackPositions=[0,0,0];
 let state=DeckCore.migrateState(null);
 let backupPending=false;
+let folderExitTimer=null;
+function refreshFolderAutoExit(){
+  if(folderExitTimer!==null)clearTimeout(folderExitTimer);
+  folderExitTimer=null;
+  const seconds=DeckCore.activeFolder(state)?.settings?.autoExitSeconds;
+  if(!Number.isInteger(seconds)||seconds<1||seconds>60)return;
+  const profile=state.profileId,path=JSON.stringify(state.folderPath);
+  folderExitTimer=setTimeout(()=>{
+    folderExitTimer=null;
+    if(state.profileId!==profile||JSON.stringify(state.folderPath)!==path)return;
+    if(DeckCore.exitFolder(state)){persist();render();}
+  },seconds*1000);
+}
 try {
   const raw=localStorage.getItem(STORAGE_KEY);
   if(raw){
@@ -258,7 +271,8 @@ function actionFields(item){
       select("step","변화량",[[1,"1"],[2,"2"],[5,"5"],[10,"10"]]);
     case "multi":return `<div class="field"><label>내용</label><div>${item.children.length}개의 단계 · 아래에서 추가·수정</div></div>`;
     case "random":return `<div class="field"><label>내용</label><div>${item.children.length}개의 후보 · 아래 목록에서 편집</div></div>`;
-    case "folder":return `<div class="field"><label>내용</label><div>폴더 내부 항목 편집은 아래 버튼을 사용하세요.</div></div>`;
+    case "folder":return `<div class="field"><label>내용</label><div>폴더 내부 항목 편집은 아래 버튼을 사용하세요.</div></div>`+
+      `<div class="field"><label>자동 폴더 나가기 (0=사용 안 함)</label><input type="number" min="0" max="60" data-field="autoExitSeconds" value="${Number(item.settings?.autoExitSeconds)||0}"><span>초</span></div>`;
     case "multi-switch":return `<div class="field"><label>상태</label><span>상태 1 / 상태 2 별도 동작 목록 · 아래에서 편집</span></div>`;
     case "logic":return `<div class="field"><label>슬롯</label><span>한 번 누르기 / 두 번 누르기 / 유지 · 내부 편집 기능 미구현</span></div>`;
     case "profile":return select("profile","프로필",[
@@ -993,6 +1007,7 @@ function executeHardwareAction(event,preview=false){
     if(now-(lastHardwareDown.get(index)||0)<250)return null;
     lastHardwareDown.set(index,now);
   }
+  refreshFolderAutoExit();
   const planned=DeckCore.planHardwareEvent(state,event,
     offset>=2?stackPositions[offset-2]:0);
   if(!planned)return null;
@@ -1235,7 +1250,7 @@ function executeHardwareAction(event,preview=false){
 }
 window.executeD200XKey=executeHardwareAction;
 let refreshProfilesMenu=()=>{};
-function render(){renderGrid();renderInspector();refreshProfilesMenu();}
+function render(){renderGrid();renderInspector();refreshProfilesMenu();refreshFolderAutoExit();}
 
 /* Reference UI controls: library appearance is modeled after the supplied 7.6.1
  * screenshots. Icons below are clearly a small placeholder catalogue, not the
