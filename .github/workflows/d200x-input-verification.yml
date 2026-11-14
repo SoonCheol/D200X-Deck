@@ -26,6 +26,13 @@ jobs:
         uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: '22'
+      - name: Check editor scripts without packaging EXE
+        shell: pwsh
+        run: |
+          foreach ($file in @('app/streamdeck-editor/deck-core.js', 'app/streamdeck-editor/editor.js', 'app/streamdeck-editor/main.cjs', 'app/streamdeck-editor/preload.cjs')) {
+            node --check $file
+            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          }
       - name: Verify existing and new D200X planner tests
         shell: pwsh
         run: |
