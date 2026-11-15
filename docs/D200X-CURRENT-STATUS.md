@@ -92,6 +92,18 @@
 | 플러그인(레거시, 액션 탭 숨김) | `ha-toggle` | HA 장치 켜기/끄기 | 기존 저장 설정용 코드 보존 | `editor.js`의 `renderLibrary`가 레거시 HA 카테고리를 숨긴다. 기존 프로필 실행 경로는 남겨둠. 현재 사용자 플러그인 탭의 SDK HA 액션과 구별 |
 | 플러그인 | `sd-plugin` | Stream Deck SDK 플러그인 | 부분 구현·사용자 실사용 확인 | 플러그인 탭·로컬 설치·액션 배치·속성창 사용 가능. HTML CodePath 지원, Node.js CodePath는 미지원 |
 
+## 2026-11-15 사용자 최종 목표 정의 — Stream Deck 플러그인을 D200X에서 그대로 사용
+
+> **최우선 제품 목표:** Stream Deck용 기존 플러그인을 D200X 편집기의 플러그인 탭에 원본 형태로 등록하고, D200X 물리 버튼·노브로 실행·설정·상태·이미지까지 동작하도록 하는 범용 호환 호스트 구축. Autodesk FusionStreamDeck은 첫 호환성 시험 대상이며 Fusion 전용 개발이 목표가 아니다.
+
+- **공식 참조 기준:** [Elgato Stream Deck SDK 공개 소스](https://github.com/elgatosf/streamdeck), [Manifest](https://docs.elgato.com/streamdeck/sdk/references/manifest/), [WebSocket 플러그인 등록](https://docs.elgato.com/streamdeck/sdk/references/websocket/plugin/), [플러그인 환경/생명주기](https://docs.elgato.com/streamdeck/sdk/introduction/plugin-environment/). 비공개 Stream Deck 데스크톱 앱 내부 구현이 공개됐다고 전제하지 않는다.
+- **호환 구현 범위:** 원본 Stream Deck 플러그인의 manifest, CodePath, Nodejs.Version, Action UUID, WebSocket 이벤트, Property Inspector, 설정/상태 저장, 동적 이미지/제목, 키·노브 입력, 실행·종료·복구 계약을 D200X에 연결한다. Fusion 전용 하드코딩 및 원본 플러그인 수정은 기본 전략에서 제외한다.
+- **기존 기능 보존:** 현재 사용 중인 플러그인 탭, HTML CodePath 호스트, Home Assistant 플러그인, 버튼·노브·프로필·아이콘을 유지하며 필요한 경우 HTML/Node 실행기를 분기한다.
+- **첫 검증 대상:** [AutodeskFusion360/FusionStreamDeck](https://github.com/AutodeskFusion360/FusionStreamDeck). 매니페스트 CodePath=bin/plugin.js, Nodejs.Version=24, SDKVersion=2, PropertyInspectorPath=ui/run-command.html. 실제 Fusion 명령 실행에는 별도의 Fusion Python 애드인이 필요하다.
+- **구현 단계:** (1) 공식 SDK/예제와 기존 호스트 차이 분석, (2) 매니페스트·패키지 설치·Node 프로세스, (3) WebSocket/Property Inspector/설정/이미지, (4) D200X 버튼·노브 연동, (5) 원본 Fusion 플러그인 등록과 실제 Fusion 명령 검증, (6) HTML·HA·프로필 회귀 검사.
+- **완료 판정:** 코드/CI, Windows EXE, 실제 D200X와 Fusion 실행을 분리한다. 한 플러그인 성공을 모든 Stream Deck 플러그인 호환성 확보로 과장하지 않는다. 네이티브 플러그인과 미지원 컨트롤러는 후속 확장으로 구분한다.
+- **현 상태:** 목표/기준 확정. Node.js 지원 코드는 아직 미구현. 개발 실행·빌드는 별도 요청 시 진행.
+
 ## 2026-11-15 사용자 지정 Node.js 플러그인 호환성 목표 — Autodesk FusionStreamDeck
 
 > **상태: 목표 확정 / 구현 미착수.** 사용자가 직접 지정한 첫 Node.js 플러그인 호환성 검증 대상은 [AutodeskFusion360/FusionStreamDeck](https://github.com/AutodeskFusion360/FusionStreamDeck)이다. 이 항목은 기존 24개 기본 액션이나 현재 사용 중인 HTML 기반 SDK 플러그인 기능을 대체하는 작업이 아니다. 사용자 별도 구현 지시가 있을 때만 코드를 수정한다.
