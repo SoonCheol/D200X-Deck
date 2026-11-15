@@ -248,7 +248,7 @@ function controlDrop(index,id,gesture='down'){
   state.selected=index;controlGesture=gesture;
   persist();render();
 }
-const WIDE_LABELS={clock:'아날로그 + 디지털 시계',datetime:'날짜 · 시간 · 요일',stats:'CPU · RAM · GPU'};
+const WIDE_LABELS={clock:'아날로그 + 디지털 시계',datetime:'날짜 · 시간 · 요일',stats:'CPU · RAM · GPU',knobs:'노브 정보'};
 function wideDisplayAvailable(){
   return !state.folderPath?.length&&!DeckCore.visibleActions(state)[13];
 }
@@ -256,6 +256,19 @@ function wideVisual(){
   return {type:'wide-display',title:WIDE_LABELS[state.wideDisplay?.current]||WIDE_LABELS.clock};
 }
 window.D200XWideModeName=()=>wideDisplayAvailable()?state.wideDisplay?.current:null;
+const KNOB_TARGET_LABELS={page:'페이지 이동',volume:'Windows 음량',zoom:'확대/축소',scroll:'세로 스크롤','scroll-x':'가로 스크롤',history:'실행 취소·다시 실행',window:'창 전환',desktop:'가상 데스크톱',brightness:'기기 밝기'};
+window.D200XKnobInfo=()=>[16,17,18].map((index,i)=>{
+  const binding=DeckCore.controlBinding(state,index);
+  const active=binding?.mode==='stack'
+    ?binding.stack?.[binding.stackIndex||0]
+    :binding?.target;
+  const assigned=[binding?.down,binding?.left,binding?.right].filter(Boolean);
+  const named=assigned.find(action=>typeof action.title==='string'&&action.title.trim());
+  const functionName=binding?.mode==='adjust'||binding?.mode==='stack'
+    ?KNOB_TARGET_LABELS[active]||'조절'
+    :assigned.map(action=>ACTIONS.get(action.type)?.label||action.type).filter(Boolean).join(' / ')||'미설정';
+  return {name:'노브 '+(i+1),title:named?.title?.trim()||functionName,detail:functionName};
+});
 window.renderGridWideClock=()=>{if(wideDisplayAvailable())renderGrid();};
 window.getD200XWideMode=()=>wideDisplayAvailable()
   ?(state.wideDisplay?.current==='clock'?'clock':state.wideDisplay?.current==='stats'?'stats':'blank'):'blank';
@@ -273,8 +286,8 @@ function renderWideInspector(){
   let moving=null;
   for(const id of cfg.order){
     const row=document.createElement('div');row.className='wide-mode-row';
-    row.draggable=true;row.dataset.mode=id;
-    const handle=document.createElement('span');handle.textContent='☰';handle.className='wide-mode-handle';
+    row.draggable=false;row.dataset.mode=id;
+    const handle=document.createElement('span');handle.textContent='☰';handle.className='wide-mode-handle';handle.draggable=true;handle.setAttribute('aria-label','순서 끌기');
     const input=document.createElement('input');input.type='checkbox';input.checked=cfg.enabled.includes(id);
     input.setAttribute('aria-label',WIDE_LABELS[id]+' 표시');
     input.addEventListener('change',()=>{
@@ -286,7 +299,7 @@ function renderWideInspector(){
     const text=document.createElement('span');text.textContent=WIDE_LABELS[id];
     const current=document.createElement('small');current.textContent=cfg.current===id?'현재 표시':'';
     row.append(handle,input,text,current);
-    row.addEventListener('dragstart',event=>{moving=id;event.dataTransfer?.setData('text/plain',id);});
+    handle.addEventListener('dragstart',event=>{moving=id;event.dataTransfer?.setData('text/plain',id);});
     row.addEventListener('dragover',event=>{event.preventDefault();});
     row.addEventListener('drop',event=>{
       event.preventDefault();const source=moving;if(!source||source===id)return;
@@ -294,12 +307,12 @@ function renderWideInspector(){
       order.splice(order.indexOf(id),0,source);
       cfg.order=order;moving=null;persist();renderWideInspector();
     });
-    row.addEventListener('dragend',()=>{moving=null;});
+    handle.addEventListener('dragend',()=>{moving=null;});
     list.append(row);
   }
   root.append(list);
   const notice=document.createElement('p');notice.className='hint';
-  notice.textContent='노브 정보 등 다른 원본 표시 방식은 동작 확인 전이므로 선택 목록에 포함하지 않았습니다.';
+  notice.textContent='노브 정보는 기본 해제입니다. 선택하면 현재 프로필의 노브 1~3 설정을 표시합니다.';
   root.append(notice);
   const reset=document.createElement('button');reset.type='button';
   reset.className='wide-mode-reset';reset.textContent='기본 순서로 복원 (시계 → 날짜·시간·요일 → CPU·RAM·GPU)';
@@ -329,7 +342,7 @@ function renderGrid(){
         b.replaceChildren(preview);
       }).catch(error=>console.warn("버튼 이미지 미리보기 실패",error));
     }
-    b.addEventListener("click",()=>{if(folderBack){DeckCore.exitFolder(state);persist();render();}else choose(i);});
+    b.addEventListener("click",()=>{if(folderBack){DeckCore.exitFolder(state);persist();render();}else if(i===13&&wideDisplayAvailable()){state.selected=i;DeckCore.cycleWideDisplay(state);persist();render();}else choose(i);});
     b.addEventListener("contextmenu",ev=>{ev.preventDefault();choose(i);showMenu(i,ev.clientX,ev.clientY);});
     b.addEventListener("dragover",ev=>{ev.preventDefault();b.classList.add("drag-over");});
     b.addEventListener("dragleave",()=>b.classList.remove("drag-over"));
