@@ -1471,7 +1471,7 @@ function renderInspector(){
   if(state.selected===13&&wideDisplayAvailable()){renderWideInspector();return;}
   if(!item){root.className="inspector empty";root.textContent=state.selected===null?"버튼을 선택하세요":"액션을 끌어 이 키에 놓으세요";
     if(inspectorSession?.dirty)appendInspectorSaveBar(root);return;}
-  root.className="inspector";const action=ACTIONS.get(item.type);const fields=actionFields(item);
+  root.className="inspector"+(item.type==='hotkey-switch'?' hotkey-switch-inspector':'');const action=ACTIONS.get(item.type);const fields=actionFields(item);
   root.innerHTML=`<div class="action-head"><strong>${escapeHtml(action?.category)}: ${escapeHtml(action?.label)}</strong></div>
     <div class="properties"><div class="preview"><div class="preview-key" id="icon-preview"><button id="delete-action" class="control-tile-remove preview-action-remove" title="동작 삭제" type="button">×</button>
       <span id="icon-preview-content"></span>
@@ -1520,7 +1520,7 @@ function renderInspector(){
           <button type="button" id="title-palette-save">현재 색상을 나의 색상에 저장</button>
         </div>
         <button type="button" class="style-reset" id="title-reset" title="기본 스타일 복원">↺</button>
-      </div></div></div>${PANEL_SHORTCUTS[item.type]?'<div class="field"><label>단축키 안내</label><span class="hint">'+escapeHtml(PANEL_SHORTCUTS[item.type])+'</span></div>':''}${fields}</div></div>`;
+      </div></div></div>${item.type!=='hotkey-switch'&&PANEL_SHORTCUTS[item.type]?'<div class="field"><label>단축키 안내</label><span class="hint">'+escapeHtml(PANEL_SHORTCUTS[item.type])+'</span></div>':''}${fields}</div></div>`;
   const previewButton=document.createElement('button');previewButton.type='button';
   previewButton.textContent='▶ 실행 테스트';previewButton.className='action-preview-test';
   previewButton.title='실제 Windows/D200X 동작을 한 번 실행합니다';
