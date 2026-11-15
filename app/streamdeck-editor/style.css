@@ -351,8 +351,9 @@
 
 /* Wide D200X window: per-profile mode checkbox and drag-to-sort inspector. */
 .wide-mode-list{display:flex;flex-direction:column;gap:6px;margin:10px 0}
-.wide-mode-row{display:grid;grid-template-columns:22px 22px minmax(0,1fr) auto;align-items:center;gap:7px;background:#333;border:1px solid #4b4b4b;border-radius:6px;padding:10px 9px;font-size:12px;cursor:grab}
-.wide-mode-row:active{cursor:grabbing}
+.wide-mode-row{display:grid;grid-template-columns:22px 22px minmax(0,1fr) auto;align-items:center;gap:7px;background:#333;border:1px solid #4b4b4b;border-radius:6px;padding:10px 9px;font-size:12px;cursor:default}
+.wide-mode-handle{cursor:grab;user-select:none}
+.wide-mode-handle:active{cursor:grabbing}
 .wide-mode-row input{accent-color:#e9a300;width:16px;height:16px}
 .wide-mode-handle{color:#aaa;font-size:16px}
 .wide-mode-row small{font-size:10px;color:#e4ac39}
