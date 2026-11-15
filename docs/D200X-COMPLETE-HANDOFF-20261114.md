@@ -535,3 +535,5 @@
 - 변경 커밋: `a8f66498` (와이드 슬롯 보완), `0df4df60` (공통 순환 및 속성창 수동 전환), `70fd4c57` (index 13/14 격리 테스트). 기존 24개 액션, 프로필, 노브 기능, USB 전송 스키마 변경하지 않음.
 - CI/입력 검증: `a8f66498` 및 `0df4df60`의 CI·입력 모의 검증 성공, `70fd4c57` 추가 회귀 테스트와 Windows Preview 최종 상태 확인 필요. Windows Preview https://github.com/SoonCheol/D200X-Deck/actions/runs/43658108140 .
 - **남은 핵심 검증:** 실제 D200X 와이드 키 누름이 index=13/14 중 어느 값으로 오는지는 이 세션에서 USB 실측하지 못함. 새 EXE에서 편집기 속성창의 `다음 화면 표시 ▶`로 순환되는지 먼저 확인하고, 별도로 실물 가로 키를 눌러 관찰. 속성창 수동 전환은 되고 물리키만 안 되면 USB 원본 이벤트 캡처 후 해당 입력 조건만 수정; 임의로 15/16번 물리 버튼의 기존 할당을 바꾸지 말 것.
+
+- **추가 보완 빌드 검증 완료:** Windows Preview [#43658108140](https://github.com/SoonCheol/D200X-Deck/actions/runs/43658108140) `success` (소스 `0df4df60b8c0df38ffa35471a8d17166912f4425`), Artifact [D200X-StreamDeck-Device-Sync-win-x64](https://github.com/SoonCheol/D200X-Deck/actions/runs/43658108140/artifacts/14138698965) ID `14138698965`, 170,369,093 bytes, 조회 시 만료되지 않음. 추가 테스트 커밋 `70fd4c57`의 입력 검증 #43658121717 성공. 실기 재시험 필요.
