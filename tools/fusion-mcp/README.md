@@ -8,7 +8,7 @@ Codex에서 **이미 실행 중인 Fusion 360의 FusionStreamDeck 애드인**이
 
 ## DeckForge 1.0 설치형 사용 (권장)
 
-GitHub Actions의 **DeckForge-1.0-Setup-win-x64** 아티팩트에서 `DeckForge-Setup-1.0.0.exe`를 내려받아 설치한다. 설치 위치는 사용자 계정의 `%LOCALAPPDATA%\\Programs\\DeckForge`이며 설치 이후 업데이트해도 동일한 경로를 사용한다.
+[GitHub Actions #43699754327](https://github.com/SoonCheol/D200X-Deck/actions/runs/43699754327)의 **DeckForge-1.0-Setup-win-x64** 아티팩트에서 `DeckForge-Setup-1.0.0.exe`를 내려받아 설치한다. 설치 위치는 사용자 계정의 `%LOCALAPPDATA%\\Programs\\DeckForge`이며 설치 이후 업데이트해도 동일한 경로를 사용한다.
 
 **Codex MCP 등록은 설치 후 한 번만 수행한다.** 아래는 설치형 PC의 PowerShell에서 실행하는 명령이다.
 

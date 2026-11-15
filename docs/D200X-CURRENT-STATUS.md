@@ -1,3 +1,11 @@
+## 2026-11-15 DeckForge 1.0 설치 EXE 자동 빌드 통과
+
+- 구현 커밋 `ee3401cd3048606ca112930b22a189c35fe5bcb5`.
+- [DeckForge 1.0 Windows build #43699754327](https://github.com/SoonCheol/D200X-Deck/actions/runs/43699754327) **success**; CI `Check DeckForge installed-mode behavior` 통과, 기존 포터블 EXE/SDK/Fusion 호환 검사 통과, `electron-builder@26.0.12` NSIS 패키징 성공(로그: `oneClick=true perMachine=false`).
+- **설치 파일** 아티팩트: `DeckForge-1.0-Setup-win-x64`, ID `14155877709` (아티팩트 ZIP 약 123,384,519바이트). 내부 `DeckForge-Setup-1.0.0.exe` 생성 확인(123,391,849바이트).
+- 기존 포터블 EXE도 별도 아티팩트 `DeckForge-1.0-win-x64`로 보존. 설치형 이용 시 **Setup** 아티팩트를 선택한다.
+- **실기 미확인:** Windows 설치 프로그램 실제 실행, 설치 위치·시작 메뉴·자동 로그인·트레이 유지·설치한 MCP 동작은 사용자의 Windows PC에서 확인이 필요하다. 자동 테스트 통과를 실기 검증으로 취급하지 말 것.
+
 ## 2026-11-15 DeckForge 설치형·트레이·내장 MCP 개발
 
 - **설치형:** GitHub Actions에서 기존 포터블 실행 파일과 별도로 per-user Windows NSIS `DeckForge-Setup-1.0.0.exe` 생성. 관리자 권한을 요구하지 않는 기본 설치 경로 `%LOCALAPPDATA%\\Programs\\DeckForge\\DeckForge.exe`를 고정 (oneClick/perMachine=false). 업데이트할 때 같은 설치 프로그램을 재실행. **설치 위치를 사용자 정의하는 옵션 없음.**
