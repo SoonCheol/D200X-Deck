@@ -135,6 +135,10 @@ function sdkActionInstances(){
     if(binding?.mode==='trigger')for(const gesture of (index>=16?['down','left','right']:['down']))
       append(binding[gesture],index,gesture);
     else if(binding?.mode==='adjust')append(binding?.down,index,'down');
+    if(index>=16){
+      append(binding?.holdLeft,index,'hold-left');
+      append(binding?.holdRight,index,'hold-right');
+    }
   }
   return entries;
 }
@@ -209,7 +213,9 @@ function setItem(index,item){
   }
   if(index>=14){
     const binding=DeckCore.controlBinding(state,index);
-    if(binding.mode!=='trigger'&&!(index>=16&&controlGesture==='down'&&binding.mode==='adjust'))binding.mode='trigger';
+    if(binding.mode!=='trigger'&&!(index>=16&&(
+      controlGesture==='holdLeft'||controlGesture==='holdRight'||
+      (controlGesture==='down'&&binding.mode==='adjust'))))binding.mode='trigger';
     binding[controlGesture]=item;
   }else currentPage()[index]=item;
   state.selected=index;persist();render();
@@ -276,7 +282,9 @@ function controlDrop(index,id,gesture='down'){
     binding.down=newAction(id);
   }else{
     // A knob press action can coexist with rotate-to-adjust (volume/page/zoom).
-    if(binding.mode!=='trigger' && !(index>=16&&gesture==='down'&&binding.mode==='adjust'))
+    if(binding.mode!=='trigger' && !(index>=16&&(
+      gesture==='holdLeft'||gesture==='holdRight'||
+      (gesture==='down'&&binding.mode==='adjust'))))
       binding.mode='trigger';
     binding[gesture]=newAction(id);
   }
@@ -299,7 +307,7 @@ window.D200XKnobInfo=()=>[16,17,18].map((index,i)=>{
   const active=binding?.mode==='stack'
     ?binding.stack?.[binding.stackIndex||0]
     :binding?.target;
-  const assigned=[binding?.down,binding?.left,binding?.right].filter(Boolean);
+  const assigned=[binding?.down,binding?.left,binding?.right,binding?.holdLeft,binding?.holdRight].filter(Boolean);
   const named=assigned.find(action=>typeof action.title==='string'&&action.title.trim());
   const functionName=binding?.mode==='adjust'||binding?.mode==='stack'
     ?KNOB_TARGET_LABELS[active]||'조절'
@@ -685,7 +693,7 @@ function actionFields(item){
     case "multi-switch":return `<div class="field"><label>상태</label><span>상태 1 / 상태 2 별도 동작 목록 · 아래에서 편집</span></div>`;
     case "logic":return `<div class="field"><label>입력 구분</label><span>한 번 / 두 번 / 길게 누르기 · 각각 실행 액션 지정</span></div>`;
     case "profile":return select("profile","프로필",[
-      ["next","다음 프로필"],...state.profileNames.map(p=>[p.id,p.name])
+      ["next","다음 프로필"],["previous","이전 프로필"],...state.profileNames.map(p=>[p.id,p.name])
     ]);
     case "goto":return select("page","대상",state.pages.map((_,i)=>[String(i),String(i+1)]));
     default:return "";
@@ -1193,14 +1201,16 @@ function renderControlInspector(){
     root.append(config);
   }
   const gestures=info.kind==='knob'
-    ? [['left','↶','왼쪽 회전'],['right','↷','오른쪽 회전'],['down','●','누르기']]
+    ? [['left','↶','왼쪽 회전'],['right','↷','오른쪽 회전'],['down','●','누르기'],
+       ['holdLeft','◀●','누른 채 왼쪽 회전'],['holdRight','●▶','누른 채 오른쪽 회전']]
     : [['down','●','누르기']];
   const strip=document.createElement('div');strip.className='control-gesture-strip';
   for(const [gesture,glyph,title] of gestures){
     const tile=document.createElement('button');tile.type='button';
     tile.className='control-gesture-tile'+(controlGesture===gesture?' active':'');
     const action=binding[gesture];
-    const allowed=binding.mode==='trigger'||(binding.mode==='adjust'&&gesture==='down');
+    const held=gesture==='holdLeft'||gesture==='holdRight';
+    const allowed=held||binding.mode==='trigger'||(binding.mode==='adjust'&&gesture==='down');
     tile.innerHTML='<span class="control-gesture-symbol">'+glyph+'</span><strong>'+title+
       '</strong><span class="control-gesture-value">'+(allowed?(action?escapeHtml(keyName(action)):'＋ 액션 놓기'):
       (binding.mode==='stack'&&gesture==='down'?'누르면 조절 대상 전환':'조절 동작 자동 지정'))+'</span>';
@@ -1216,7 +1226,9 @@ function renderControlInspector(){
   }
   root.append(strip);
   const current=binding[controlGesture];
-  if(current&&(binding.mode==='trigger'||(binding.mode==='adjust'&&controlGesture==='down'))){
+  if(current&&(binding.mode==='trigger'||
+    ['holdLeft','holdRight'].includes(controlGesture)||
+    (binding.mode==='adjust'&&controlGesture==='down'))){
     const editor=document.createElement('div');editor.className='control-action-editor';
     const row=document.createElement('div');row.className='control-action-header';
     const label=document.createElement('strong');label.textContent=keyName(current);
@@ -1258,7 +1270,7 @@ function renderControlInspector(){
     root.append(help);
   }
   const testBar=document.createElement('div');testBar.className='control-config';
-  for(const [gesture,title] of (info.kind==='knob'?[['left','◀ 왼쪽 회전 테스트'],['right','오른쪽 회전 테스트 ▶'],['down','● 누름 테스트']]:[['down','▶ 실행 테스트']])){
+  for(const [gesture,title] of (info.kind==='knob'?[['left','◀ 왼쪽 회전 테스트'],['right','오른쪽 회전 테스트 ▶'],['down','● 누름 테스트'],['hold-left','●◀ 누른 채 왼쪽 테스트'],['hold-right','●▶ 누른 채 오른쪽 테스트']]:[['down','▶ 실행 테스트']])){
     const button=document.createElement('button');button.type='button';button.textContent=title;
     button.addEventListener('click',()=>runActionPreview(gesture));testBar.append(button);
   }
@@ -1917,7 +1929,41 @@ function advanceWideDisplay(){
   window.d200xActionStatus?.('가로 화면 전환: '+WIDE_LABELS[mode]);
   return mode;
 }
-function executeHardwareAction(event,preview=false){
+// Raw D200X dial packets report press (1), release (0), left (2) and right (3).
+// Ulanzi's higher-level SDK also names held rotations. Recognize both forms
+// while leaving ordinary knob assignments and stack/adjust modes intact.
+const knobPresses=new Map();
+function heldKnobEvent(event,preview){
+  if(preview)return {event,consume:false,replay:false};
+  const rawIndex=Number(event?.index),stateByte=Number(event?.state);
+  if(rawIndex<17||rawIndex>19||!Number.isInteger(rawIndex))return {event,consume:false,replay:false};
+  const binding=DeckCore.controlBinding(state,rawIndex-1);
+  const hasHeld=Boolean(binding?.holdLeft||binding?.holdRight);
+  if(stateByte===1){knobPresses.set(rawIndex,{rotated:false,defer:hasHeld});
+    return {event,consume:hasHeld,replay:false};}
+  const pressed=knobPresses.get(rawIndex);
+  if(stateByte===0){knobPresses.delete(rawIndex);
+    return {event,consume:Boolean(pressed?.defer),replay:Boolean(pressed?.defer&&!pressed.rotated)};}
+  if(stateByte===2||stateByte===3){
+    if(pressed){pressed.rotated=true;
+      if(pressed.defer)return {event:{...event,state:stateByte===2?4:5},consume:false,replay:false};}
+  }
+  return {event,consume:false,replay:false};
+}
+function executeHardwareAction(event,preview=false,skipKnobGesture=false){
+  if(!skipKnobGesture){
+    const held=heldKnobEvent(event,preview);
+    if(held.replay){
+      const index=Number(event.index);
+      const result=executeHardwareAction({...event,state:1},false,true);
+      // The physical release is still forwarded for SDK actions.
+      if(DeckCore.controlBinding(state,index-1)?.down?.type==='sd-plugin')
+        executeHardwareAction({...event,state:0},false,true);
+      return result;
+    }
+    if(held.consume)return null;
+    event=held.event;
+  }
   if(DeckCore.isWideDisplayPress(event)&&wideDisplayAvailable()){
     // The merged key can report both halves of one physical press.
     // Ignore duplicate press packets, but do not affect other controls.
@@ -1936,8 +1982,8 @@ function executeHardwareAction(event,preview=false){
     return handleOpenAppHold(resolved.action,index,event,resolved.gesture);
   if(resolved.action?.type==='logic'&&['down','up'].includes(resolved.gesture))
     return handleLogicGesture(resolved.action,index,resolved.gesture,preview);
-  const sdkAction=index>=16&&['left','right'].includes(resolved.gesture)
-    ?resolved.binding?.[resolved.gesture]:resolved.action;
+  const sdkAction=index>=16&&['left','right','hold-left','hold-right'].includes(resolved.gesture)
+    ?resolved.binding?.[({'hold-left':'holdLeft','hold-right':'holdRight'})[resolved.gesture]||resolved.gesture]:resolved.action;
   if(sdkAction?.type==='sd-plugin'){
     const ctx=sdkContext(index,
       resolved.gesture==='up'?'down':resolved.gesture);
@@ -1972,9 +2018,10 @@ function executeHardwareAction(event,preview=false){
     cancelFolderAutoExit();
     const names=state.profileNames||[];
     const pos=names.findIndex(p=>p.id===state.profileId);
-    const id=outcome.profile==='next'?names[(pos+1)%names.length]?.id:outcome.profile;
+    const id=outcome.profile==='next'?names[(pos+1)%names.length]?.id:
+      outcome.profile==='previous'?names[(pos-1+names.length)%names.length]?.id:outcome.profile;
     if(!id||!DeckCore.switchProfile(state,id))return '프로필을 찾을 수 없습니다.';
-    lastHardwareDown.clear();persist();render();return '프로필 전환: '+state.profileNames.find(p=>p.id===id)?.name;
+    lastHardwareDown.clear();knobPresses.clear();persist();render();return '프로필 전환: '+state.profileNames.find(p=>p.id===id)?.name;
   }
   if(outcome.kind==='folder-back'){
     cancelFolderAutoExit();
