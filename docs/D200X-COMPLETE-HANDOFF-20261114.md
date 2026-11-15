@@ -581,3 +581,14 @@
 - 주요 기능 커밋 `c1ee9357`, 테스트 `b5346b1c`, 최종 Windows Preview 트리거 `642ffa18`; CI/Windows Preview 결과는 별도 조회 필요. 빌드 자동 성공을 실물 전환 성공으로 오인 금지. `main`/PR/프로필·노브·일반 액션 설정 무변경. 
 
 - **실제 새 EXE 검증:** 소스 커밋 `642ffa18b5d80f3a441d6ffab0bf9bf9b65a9a07`의 CI [#43682570458](https://github.com/SoonCheol/D200X-Deck/actions/runs/43682570458) `success`, Windows Preview [#43682567982](https://github.com/SoonCheol/D200X-Deck/actions/runs/43682567982) `success`, Artifact [D200X-StreamDeck-Device-Sync-win-x64](https://github.com/SoonCheol/D200X-Deck/actions/runs/43682567982/artifacts/14149630319) ID `14149630319`, 170,370,149 bytes, 조회 시 미만료. **이는 소프트웨어 빌드/모의 테스트 성공이며 사용자 D200X 실기 중첩·두 번 누름 해결은 미확인**.
+
+
+### 2026-11-15 — 와이드 슬롯 액션 등록 방지·물리 버튼 우클릭 삭제·통계 화면 입력 수정
+
+- **사용자 실기:** 최종 CPU/RAM/GPU 겹침이 사라졌고 일반 가로 화면은 한 번 눌러 순환 성공. **CPU/RAM/GPU 네이티브 통계 화면에서만 여러 번 눌러야 다음 화면으로 전환**되는 상태로 보고. 기존 다른 가로 화면 정상 동작은 유지한다.
+- `app/lib/deck.js` _onKeyEvent의 `knob = (index>=17&&index<=19)||kind===2`는 D200X 네이티브 통계 모드에서 kind 값이 2로 오는 가로 버튼 이벤트를 노브로 분류하여 `isWideDisplayPress`가 배제할 위험이 있었다. 노브 판별을 물리 인덱스 17~19만으로 한정하고, 화면 모드 blank 클록 패킷도 검증된 `2|0|0|00:00:00|0`으로 통일했다. 실기 입력 변동 여부는 사용자 재검증 필요.
+- `app/streamdeck-editor/editor.js` 가로 인덱스 13은 루트/폴더 모두 **액션 할당 금지**: `setItem` 진입 차단, 드롭 불허, 붙여넣기·액션 불러오기·키보드 붙여넣기·우클릭 액션 메뉴 차단. 루트의 와이드 화면은 기존 저장된 슬롯 13 액션보다 우선 화면 모드 UI/출력 표시. **기존 저장된 액션을 자동 삭제하거나 프로필 JSON 스키마 변경하지 않음**. 다른 13개 버튼 및 5개 물리 입력 설정은 보존.
+- 물리 버튼 2개와 노브 누름 3개(즉 모든 물리 제어 인덱스 14~18)에 **우클릭 → '누르기 액션 삭제'** 메뉴 추가. 할당이 없는 경우 메뉴 비활성. 해당 컨트롤 `down`만 지우므로 노브 left/right, 조절 방식/스택/프로필/다른 물리 버튼은 유지. 속성창 '이 동작 삭제'와 우클릭 메뉴 모두 `removeControlAction`을 공통 호출하여 같은 확인/제거/렌더링 처리.
+- 일반 LCD 버튼 역시 속성창 X와 우클릭 삭제가 같은 `removeSlotAction`을 경유하게 하고 확인 창 중복 제거. 고정된 액션은 기존 고정 해제 분기를 보존. 스크립트/화면 경로 일관화.
+- 커밋: `60dc1162`(native stats 입력), `12e6615a`(와이드 할당 차단), `794a2da4`(물리 우클릭 삭제), `749671fd`(와이드 루트/폴더·속성창), `c738f160`(일반 LCD 삭제 일관화). 최종 코드는 `c738f16095996d64b2dd8b215515743fba299390`.
+- 검증: CI [#43683897871](https://github.com/SoonCheol/D200X-Deck/actions/runs/43683897871) 성공, 입력 검증 [#43683894235](https://github.com/SoonCheol/D200X-Deck/actions/runs/43683894235) 성공, Windows Preview [#43683894213](https://github.com/SoonCheol/D200X-Deck/actions/runs/43683894213) 성공. EXE Artifact [D200X-StreamDeck-Device-Sync-win-x64](https://github.com/SoonCheol/D200X-Deck/actions/runs/43683894213/artifacts/14149443199), ID `14149443199`, 170,370,664 bytes, 조회 시 `expired=false`. **최종 해결은 사용자 D200X 실기 미검증**. `main` 또는 PR 무변경.
