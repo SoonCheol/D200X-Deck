@@ -1,3 +1,11 @@
+## 2026-11-15 DeckForge 1.0 브랜드 변경 및 Windows EXE 검증 성공
+
+- **브랜드 변경 커밋:** `a750512a1405d9fadc1a5b3c703940d3d0cc7601`. 앱 표시명 **DeckForge 1.0**, 패키지 버전 **1.0.0**, 실행 파일 **`DeckForge.exe`**.
+- **Windows 빌드:** [DeckForge 1.0 Windows build #43698785366](https://github.com/SoonCheol/D200X-Deck/actions/runs/43698785366) **success**; 로그에 `dist/DeckForge-win32-x64` 생성, `DeckForge.exe` 확인, 패키지 버전 확인, 내장 Node v24.22.1 확인. 기존 Autodesk Fusion 원본 플러그인 프로토콜 검증 단계도 통과.
+- **추가 CI:** [CI #43698790843](https://github.com/SoonCheol/D200X-Deck/actions/runs/43698790843) **success**, [입력 검증 #43698785371](https://github.com/SoonCheol/D200X-Deck/actions/runs/43698785371) **success**.
+- **다운로드:** Workflow run의 Artifacts → `DeckForge-1.0-win-x64` (ID `14154689045`, 170,373,903 bytes, 당시 미만료). ZIP 전체 압축 해제 후 `DeckForge.exe` 실행.
+- **기존 데이터 보호:** 구 Windows 제품명 `D200X StreamDeck Device Sync`에 대응하는 기존 `userData` 경로를 재사용하도록 명시. 실제 사용자 PC에서 구 프로필·기존 플러그인 재인식 및 창 제목은 다음 사용자 실행에서 확인 필요. 구 EXE는 삭제하지 않으며 저장소 이름 및 `main` 브랜치 변경 없음.
+
 ## 2026-11-15 제품명·공식 버전 확정 — DeckForge 1.0
 
 - **사용자 확정:** 제품명 **DeckForge**, 사용자 표시 버전 **1.0**, 앱·빌드 메타데이터 버전 **1.0.0** (SemVer).
