@@ -1317,7 +1317,7 @@ document.addEventListener('click',event=>{
   if(!inspectorSession?.dirty)return;
   // The modal is not part of the inspector. Never intercept its own controls:
   // otherwise Cancel / Discard / Save and move all become unclickable.
-  if(event.target.closest('#inspector-unsaved-dialog'))return;
+  if(event.target.closest('#inspector-unsaved-dialog, .inspector-help-dialog'))return;
   const root=$('inspector');
   if(root?.contains(event.target))return;
   // Key/knob selection already checks for unsaved edits in choose(index).
