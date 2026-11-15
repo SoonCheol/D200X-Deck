@@ -19,6 +19,8 @@
 - 한계는 **Node.js 실행형 플러그인, 네이티브 실행형 플러그인, 온라인 마켓플레이스의 별도 지원 여부**다. HTML 실행형 호스트가 있다는 사실과 모든 SDK 플러그인과의 호환성을 혼동하지 않는다.
 - **재발 방지:** 정적 HTML의 disabled, placeholder, 오래된 주석만으로 실행 상태를 판정하지 않고 렌더러 초기화, 이벤트 핸들러, IPC, 실행 호스트, 최신 실사용 피드백을 함께 확인한다. 2026-11-15 전체 코드 경로 재감사 결과는 아래 '코드 경로 재검증' 절을 따른다.
 
+**사용자 결정 (2026-11-15): `Virtual Stream Deck`은 미구현 작업 대상이 아니라 **개발 보류** 항목으로 관리한다. 현재 비활성 표시를 유지하며, 사용자가 명시적으로 개발 재개를 지시하기 전에는 구현하거나 미완성 우선 개발 목록에 넣지 않는다.**
+
 ## 최신 UI 메뉴·프로필·장치 현황
 
 | 메뉴·기능 | 현재 상태 | 남은 작업 또는 검증 |
@@ -50,7 +52,7 @@
 | Stream Deck | `timer` | 타이머 | 코드 구현·실기 미검증 | 완료 음·잔여 시간 표시 구현; 실제 기기 갱신 간격 확인 필요 |
 | Stream Deck | `brightness` | 밝기 | 코드 구현·실기 미검증 | 장치 밝기 단계 및 경계 실측 필요 |
 | Stream Deck | `sleep` | 잠자기 | 코드 구현·실기 미검증 | D200X 화면 잠자기/깨우기 실측 필요 |
-| Stream Deck | `virtual` | Virtual Stream Deck 토글 | 명시적 미구현 | 목록 표시만, 클릭·드래그 등록 비활성 |
+| Stream Deck | `virtual` | Virtual Stream Deck 토글 | **사용자 지시로 개발 보류** | 현재 목록 표시만, 클릭·드래그 등록 비활성. 사용자 별도 재개 지시 전 구현 대상·우선순위에서 제외 |
 | 다중 동작 | `multi` | 다중 동작 | 부분 구현 | 하위 동작·지연·중단 지원; 모든 조합과 원본 일치 미확인 |
 | 다중 동작 | `multi-switch` | 다중 동작 스위치 | 부분 구현 | 상태별 동작·제목·아이콘 지원; 복원·실물 전환 검증 필요 |
 | 다중 동작 | `random` | 무작위 동작 | 부분 구현 | 후보 편집 및 무작위 실행; 지원 하위 액션 범위 제한 |
@@ -114,7 +116,7 @@
 | 플러그인 속성창·상태 | `actionFields('sd-plugin')`에서 원본 설정창 버튼 → `sdkInspector`; SDK 이벤트 `setTitle/setImage/setState/settings` 처리 | **코드 연결**. 각 플러그인별 실제 속성·이미지 갱신은 별도 실기 |
 | Node.js/네이티브 호스트 | `sd-plugin-host.cjs:validateManifest`에서 `CodePath`가 `.html`이 아니면 거부 | **미구현** (플러그인 탭 미구현과 혼동 금지) |
 | 설정 ⚙ | `index.html`의 설정 버튼 disabled 및 `editor.js`의 'main settings remains disabled' 주석, 활성화 경로 없음 | **상단 설정 화면 미구현**. 프로필·플러그인별 설정 기능은 별도로 존재 |
-| Virtual Stream Deck | `renderLibrary()`에서 `virtual` 항목 draggable=false·disabled 표시, `isAssignableAction()`에서도 제외 | **의도적 미구현** |
+| Virtual Stream Deck | `renderLibrary()`에서 `virtual` 항목 draggable=false·disabled 표시, `isAssignableAction()`에서도 제외 | **사용자 지시로 개발 보류** (코드상 비활성은 유지) |
 | 프로필 JSON 가져오기/내보내기 | `editor.js:2593` 이후 전체 JSON 다운로드·가져오기/검증·기존 상태 백업·복원 처리 | **코드 구현**, 원자적 디스크 저장과 다른 기능 |
 | Smart Profile 기본 복귀 | `editor.js:2701` 4초 폴링의 `matched || fallback`, `main.cjs:705` 최소화·Windows 전경 앱 IPC 제한 | **코드 구현**, 실제 앱 전환·예외 조건은 실기 미확인. 과거 '기본 복귀 미구현'을 현행 상태로 인용 금지 |
 | Multi/Random/Switch/Logic | `deck-core.js:planComposite/runComposite` 및 `editor.js:1725` 이후 하위 실행 엔진·`executeHardwareAction`의 복합 분기 | **부분 구현**. SDK 플러그인의 Multi 하위 실행은 `executeMultiStep`에서 명시적으로 거부 |
