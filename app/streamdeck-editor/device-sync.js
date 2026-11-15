@@ -254,6 +254,16 @@
         ctx.fillText(item.icon?.glyph || fallback, width/2, height/2, Math.min(172,width-12));
       }
       drawText(ctx, item.title || '', width, height, item.titleStyle);
+      // Offline indicator is an overlay; never alter the original cached PNG.
+      if(item.fusionOffline){
+        const r=Math.max(11,Math.round(Math.min(width,height)*0.095));
+        const x=width-r-8,y=r+8;
+        ctx.fillStyle='#15171c';ctx.beginPath();ctx.arc(x,y,r+4,0,Math.PI*2);ctx.fill();
+        ctx.fillStyle='#e5484d';ctx.beginPath();ctx.arc(x,y,r,0,Math.PI*2);ctx.fill();
+        ctx.strokeStyle='#fff';ctx.lineWidth=Math.max(3,r*.2);ctx.lineCap='round';
+        ctx.beginPath();ctx.moveTo(x-r*.45,y-r*.45);ctx.lineTo(x+r*.45,y+r*.45);
+        ctx.moveTo(x+r*.45,y-r*.45);ctx.lineTo(x-r*.45,y+r*.45);ctx.stroke();
+      }
       if(pressedKeys.has(index)){
         const snapshot=document.createElement('canvas');
         snapshot.width=width;snapshot.height=height;
