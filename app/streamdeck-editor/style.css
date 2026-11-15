@@ -511,3 +511,25 @@
   }
   .canvas{justify-content:center;padding-top:8px;padding-bottom:8px}
 }
+
+/* Prevent the action-panel toolbar from spilling past the right window edge.
+   Equal 12px side insets; widths include borders/padding. */
+.library{min-width:0;overflow:hidden}
+.action-appearance{
+  box-sizing:border-box;width:100%;min-width:0;
+  display:grid;grid-template-columns:max-content minmax(0,1fr) max-content;
+  align-items:center;column-gap:6px;row-gap:7px;
+  padding:7px 12px 8px;
+}
+.action-appearance label{min-width:0;white-space:nowrap}
+.action-appearance select{box-sizing:border-box;width:100%;max-width:100%;min-width:0;flex:none}
+.action-appearance button{box-sizing:border-box;max-width:100%;min-width:0;flex:none;white-space:nowrap}
+.plugin-install-toolbar{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}
+.plugin-install-toolbar button{width:100%;white-space:normal;overflow-wrap:break-word}
+/* On especially narrow panels, place reset below the selector instead of
+   clipping its text or spilling beyond the equal right padding. */
+@container action-panel (max-width:285px){
+  #action-appearance-toolbar{grid-template-columns:max-content minmax(0,1fr)}
+  #action-appearance-toolbar>button{grid-column:2;justify-self:end}
+}
+.library{container-type:inline-size;container-name:action-panel}
