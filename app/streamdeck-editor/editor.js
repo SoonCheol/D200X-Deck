@@ -823,13 +823,13 @@ function actionFields(item){
       select("direction","스크롤 방향",item.settings?.axis==='horizontal'
         ?[["right","오른쪽"],["left","왼쪽"]]:[["down","아래"],["up","위"]])+
       select("step","변화량",[[1,"1"],[2,"2"],[5,"5"],[10,"10"]]);
-    case "multi":return `<div class="field"><label>내용</label><div>${item.children.length}개의 단계 · 아래에서 추가·수정</div></div>`;
-    case "random":return `<div class="field"><label>내용</label><div>${item.children.length}개의 후보 · 아래 목록에서 편집</div></div>`;
+    case "multi":return "";
+    case "random":return "";
     case "folder":return `<div class="field"><label>내용</label><div>폴더 내부 항목 편집은 아래 버튼을 사용하세요.</div></div>`+
       `<div class="field"><label>액션 실행 후 자동 나가기</label><input type="checkbox" data-field="autoExitEnabled" ${item.settings?.autoExitEnabled?'checked':''}></div>`+
       `<div class="field"><label>실행 후 대기 (0=즉시 나가기)</label><input type="number" min="0" max="60" data-field="autoExitSeconds" value="${Number(item.settings?.autoExitSeconds)||0}"><span>초</span></div>`;
-    case "multi-switch":return `<div class="field"><label>상태</label><span>상태 1 / 상태 2 별도 동작 목록 · 아래에서 편집</span></div>`;
-    case "logic":return `<div class="field"><label>입력 구분</label><span>한 번 / 두 번 / 길게 누르기 · 각각 실행 액션 지정</span></div>`;
+    case "multi-switch":return "";
+    case "logic":return "";
     case "profile":return select("profile","프로필",[
       ["next","다음 프로필"],["previous","이전 프로필"],...state.profileNames.map(p=>[p.id,p.name])
     ]);
@@ -902,7 +902,7 @@ function renderMultiEditor(item,root){
       persist();renderGrid();
     });
     const chooseImage=document.createElement('button');chooseImage.type='button';
-    chooseImage.textContent='상태 '+(selected+1)+' 이미지 선택…';
+    chooseImage.textContent='이미지 선택…';chooseImage.className='state-image-choose';
     const imageInput=document.createElement('input');imageInput.type='file';
     imageInput.accept='image/png,image/jpeg,image/webp,image/gif';imageInput.hidden=true;
     chooseImage.addEventListener('click',async()=>{
@@ -936,11 +936,14 @@ function renderMultiEditor(item,root){
       }catch(error){window.d200xActionStatus?.('상태별 이미지 적용 실패: '+String(error?.message||error));}
     });
     const resetIcon=document.createElement('button');resetIcon.type='button';
-    resetIcon.textContent='공통 아이콘으로';
+    resetIcon.textContent='공통 아이콘 사용';resetIcon.className='state-image-reset';
     resetIcon.addEventListener('click',()=>{
       delete visual.icon;iconField.value='';persist();renderGrid();
     });
-    fields.append(linked,titleLabel,titleField,iconLabel,iconField,chooseImage,imageInput,resetIcon);
+    const imageActions=document.createElement('div');imageActions.className='state-image-actions';
+    imageActions.append(chooseImage,resetIcon);
+    const imageLabel=document.createElement('label');imageLabel.textContent='상태 '+(selected+1)+' 이미지';
+    fields.append(linked,titleLabel,titleField,iconLabel,iconField,imageLabel,imageActions,imageInput);
     area.append(fields);
   }
   if(!randomAction){
@@ -1040,15 +1043,14 @@ function renderMultiEditor(item,root){
     window.d200xActionStatus?.('복합 동작 중단 요청');
   });
   toolbar.append(select,addButton,delay,cancel);
-  area.append(heading,note,list,toolbar);
+  area.append(list,toolbar);
   root.querySelector('.fields')?.append(area);
 }
 // Key Logic: three independent single-step assignments, no nested composites.
 function renderLogicEditor(item,root){
   if(!item.slots)item.slots={single:null,double:null,hold:null};
   const area=document.createElement('section');area.className='multi-action-editor';
-  const heading=document.createElement('strong');heading.textContent='Key Logic · 누름 유형별 동작';
-  area.append(heading);
+  // Detailed usage belongs in the header help modal.
   for(const [slot,label] of [['single','한 번 누르기'],['double','두 번 누르기'],['hold','길게 누르기']]){
     const row=document.createElement('div');row.className='control-config';
     const title=document.createElement('label');title.textContent=label;
@@ -1603,6 +1605,98 @@ async function populateAudioOutputs(select,item){
     select.value=item.settings?.output||'default';
   }catch(error){console.warn('출력 장치 목록 조회 실패',String(error?.message||error));}
 }
+// The root breadcrumb reflects the catalogue that owns the assignment.
+// Help is shown only for actions needing usage/limitation explanations.
+const INSPECTOR_HELP={
+  multi:{
+    title:'다중 동작',description:'등록한 단계를 위에서 아래 순서대로 실행합니다.',
+    steps:['오른쪽 액션 목록을 아래 단계 목록에 끌어놓거나 동작 추가를 사용하세요.','단계는 위/아래 버튼으로 순서를 바꾸고, 필요한 위치에 지연을 넣을 수 있습니다.'],
+    cautions:['복합 동작 중첩은 지원하지 않습니다.','실행 중단은 진행 중인 단계를 즉시 취소하지 않을 수 있습니다.']
+  },
+  'multi-switch':{
+    title:'다중 동작 스위치',description:'상태 1과 상태 2에 서로 다른 동작 목록을 등록하고 상태에 따라 실행합니다.',
+    steps:['상태 탭을 선택해 각 상태의 실행 단계를 편집하세요.','제목 연결 옵션과 상태별 아이콘·이미지를 원하는 대로 지정하세요.'],
+    cautions:['단계 안에 다른 복합 동작을 중첩할 수 없습니다.','상태별 설정은 선택된 상태에만 적용됩니다.']
+  },
+  random:{
+    title:'무작위 동작',description:'등록한 후보 중 하나를 무작위로 선택하여 실행합니다.',
+    steps:['오른쪽 목록에서 후보를 끌어놓거나 동작 추가 버튼을 사용하세요.','후보 목록에서 순서와 삭제를 관리하세요.'],
+    cautions:['복합 동작 중첩 및 지연 단계는 지원하지 않습니다.','후보가 없으면 실행할 동작이 없습니다.']
+  },
+  logic:{
+    title:'Key Logic',description:'한 번 누르기, 두 번 누르기, 길게 누르기에 서로 다른 동작을 연결합니다.',
+    steps:['각 입력 유형의 동작을 선택하고 아래에서 해당 설정을 입력하세요.'],
+    cautions:['중첩 복합 동작은 허용되지 않습니다.','물리 입력 패턴에 따라 선택한 동작이 실행됩니다.']
+  },
+  timer:{
+    title:'타이머',description:'정해진 지속 시간에 맞춰 타이머를 사용하고 소리를 설정합니다.',
+    steps:['지속 시간을 초 단위로 입력하고 사운드를 선택하세요.'],
+    cautions:[]
+  },
+  'hotkey-switch':{
+    title:'단축키 전환',description:'두 개의 단축키를 번갈아 실행합니다.',
+    steps:['단축키 1과 단축키 2를 각각 입력하세요.','입력칸을 클릭하고 원하는 키 조합을 누르세요.'],
+    cautions:['단축키 지원 범위는 실행 중인 Windows 앱에 따라 달라집니다.']
+  },
+  'sd-plugin':{
+    title:'플러그인 설정',description:'설치된 Stream Deck SDK 플러그인의 동작과 표시 상태를 설정합니다.',
+    steps:['플러그인 속성 열기로 해당 플러그인의 설정을 확인하세요.','OFF/ON 이미지는 필요할 때 각 상태에 지정하세요.'],
+    cautions:['지원되는 설정은 설치된 플러그인의 구현에 따라 다릅니다.']
+  },
+  'ha-toggle':{
+    title:'Home Assistant 장치 제어',description:'선택한 Home Assistant 엔티티를 켜거나 끕니다.',
+    steps:['목록에서 사용할 엔티티를 선택하고 연결 상태를 확인하세요.'],
+    cautions:['Home Assistant 서버에 연결되어 있어야 동작합니다.']
+  }
+};
+function inspectorBreadcrumb(item,action,inspectorName){
+  const plugin=item.type==='sd-plugin';
+  const root=plugin?'플러그인':'액션';
+  const category=plugin
+    ?sdkPlugins.find(p=>p.uuid===item.settings?.pluginUUID)?.name||
+      (item.settings?.actionUUID===HA_CUSTOM_ACTION?'Home Assistant':'설치된 플러그인')
+    :action?.category||'기타';
+  return [root,category,inspectorName].filter(Boolean).join(' › ');
+}
+function inspectorOverview(item){
+  switch(item.type){
+    case 'multi':return (item.children?.length||0)+'개의 단계';
+    case 'multi-switch':return '상태 1 · '+(item.sequences?.[0]?.length||0)+'개 / 상태 2 · '+(item.sequences?.[1]?.length||0)+'개';
+    case 'random':return (item.children?.length||0)+'개의 후보';
+    case 'timer':return '지속 시간 및 사운드 설정';
+    case 'logic':return '한 번 · 두 번 · 길게 누르기';
+    default:return '';
+  }
+}
+function appendInspectorHelp(head,item){
+  const help=INSPECTOR_HELP[item.type];if(!help)return;
+  const trigger=document.createElement('button');
+  trigger.type='button';trigger.className='inspector-help-trigger';
+  trigger.textContent='?';trigger.title=help.title+' 설명';trigger.setAttribute('aria-label',help.title+' 도움말');
+  const dialog=document.createElement('dialog');dialog.className='inspector-help-dialog';
+  const heading=document.createElement('strong');heading.textContent=help.title;
+  const description=document.createElement('p');description.textContent=help.description;
+  const addItems=(headingText,items)=>{
+    if(!items.length)return;
+    const h=document.createElement('h3');h.textContent=headingText;
+    const list=document.createElement('ul');
+    for(const text of items){const li=document.createElement('li');li.textContent=text;list.append(li);}
+    dialog.append(h,list);
+  };
+  dialog.append(heading,description);
+  addItems('사용 방법',help.steps);
+  addItems('참고 사항',help.cautions);
+  const close=document.createElement('button');close.type='button';close.className='inspector-help-close';close.textContent='닫기';
+  close.addEventListener('click',()=>dialog.close());
+  dialog.append(close);
+  dialog.addEventListener('close',()=>dialog.remove(),{once:true});
+  trigger.addEventListener('click',()=>{
+    if(!dialog.isConnected)document.body.append(dialog);
+    dialog.showModal();
+  });
+  const test=head.querySelector('.action-preview-test');
+  if(test)head.insertBefore(trigger,test);else head.append(trigger);
+}
 function renderInspector(){
   beginInspectorSession();
   inspectorListener.abort();inspectorListener=new AbortController();
@@ -1621,8 +1715,8 @@ function renderInspector(){
       sdkActionNames.get(item.settings?.actionUUID)||item.settings?.actionName||item.settings?.actionUUID||'설치된 플러그인')
     :null;
   const inspectorName=sdkName||action?.label;
-  root.innerHTML=`<div class="action-head"><strong>${escapeHtml(item.type==='sd-plugin'?'플러그인':action?.category)} &gt; ${escapeHtml(inspectorName)}</strong></div>
-    <div class="properties"><div class="preview"><div class="preview-key" id="icon-preview"><button id="delete-action" class="control-tile-remove preview-action-remove" title="동작 삭제" type="button">×</button>
+  root.innerHTML=`<div class="action-head"><strong>${escapeHtml(inspectorBreadcrumb(item,action,inspectorName))}</strong></div>
+    <div class="properties"><div class="preview"><div class="preview-key" id="icon-preview">
       <span id="icon-preview-content"></span>
       <button class="icon-preview-control icon-preview-plus" type="button" id="icon-library-open" aria-label="아이콘 라이브러리 열기" title="아이콘 라이브러리">+</button>
       <button class="icon-preview-control icon-preview-menu" type="button" id="icon-menu-trigger" aria-label="아이콘 변경 메뉴" aria-expanded="false" aria-controls="icon-dropdown" title="아이콘 메뉴">⌄</button>
@@ -1675,6 +1769,18 @@ function renderInspector(){
   previewButton.title='실제 Windows/D200X 동작을 한 번 실행합니다';
   previewButton.addEventListener('click',()=>runActionPreview('down'));
   root.querySelector('.action-head').append(previewButton);
+  appendInspectorHelp(root.querySelector('.action-head'),item);
+  const overview=inspectorOverview(item);
+  if(overview){
+    const mainFields=root.querySelector('.properties>.fields');
+    const first=mainFields?.querySelector('.field');
+    if(mainFields&&first){
+      const line=document.createElement('div');line.className='field inspector-overview';
+      const label=document.createElement('label');label.textContent='요약';
+      const content=document.createElement('span');content.textContent=overview;
+      line.append(label,content);first.after(line);
+    }
+  }
   if(item.type==='sd-plugin'){
     const titleLine=root.querySelector('.title-line');
     const controls=document.createElement('div');controls.className='sdk-title-controls';
@@ -1687,7 +1793,6 @@ function renderInspector(){
   bindTitleStyle(item);
   bindIconControls(item);
   refreshTitlePreview(item);
-  $("delete-action").addEventListener("click",()=>removeSlotAction(state.selected));
   $("key-title").addEventListener("input",ev=>{item.title=ev.target.value;persist();renderGrid();refreshTitlePreview(item);});
   bindExtendedActionFields(root,item);
   bindShortcutOptionPreviews(root,item);
