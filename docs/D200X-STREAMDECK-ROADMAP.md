@@ -8,6 +8,13 @@
 - **주의:** 첫 커밋은 **코드 경로 구현**이며 Windows EXE에서 Node 24 실행, Fusion 실제 명령, 원본 Property Inspector 실기는 아직 확인 전이다. `ELECTRON_RUN_AS_NODE` 기본 fuse에 의존하므로 빌드 후 런타임 확인 필요.
 - **진행 기록 규칙:** 이후 커밋별 CI 결과·실패/수정·소스 SHA를 이 절 아래 덧붙인다. 사용자 PC 전원을 요구하지 않으며 사용자 실기 요청 전까지 원격에서 가능한 범위만 처리한다.
 
+## 2026-11-15 플러그인 호환성 구현 현황
+
+- **코드 반영 1:** `0499bf2164a65af10ea5524a1fd01c5434993861` — Node.js 실행 호스트, Fusion manifest 검증, Electron Node 런타임 선택.
+- **코드 반영 2:** `f7207e8fe5a03fbe4704cc30cac8b274dcb18ab2` — `.sdPlugin` 폴더 가져오기, 실제 Node 프로세스 SDK WebSocket 통합 테스트, 플러그인 탭에 '폴더에서 추가'.
+- **검증:** [CI #43688058250](https://github.com/SoonCheol/D200X-Deck/actions/runs/43688058250), [입력 #43688053891](https://github.com/SoonCheol/D200X-Deck/actions/runs/43688053891), [Windows EXE #43688053882](https://github.com/SoonCheol/D200X-Deck/actions/runs/43688053882) 성공. 실제 Fusion/Python 애드인/D200X 실기는 미검증.
+- **다음:** 패키징된 EXE의 Node 24 실행 검사 후, Fusion 원본 명령/PI 실기. [전용 인수인계](D200X-NODE-PLUGIN-HANDOFF-20261115.md) 참조.
+
 ## 2026-11-15 사용자 최종 목표 정의 — Stream Deck 플러그인을 D200X에서 그대로 사용
 
 > **최우선 제품 목표:** Stream Deck용 기존 플러그인을 D200X 편집기의 플러그인 탭에 원본 형태로 등록하고, D200X 물리 버튼·노브로 실행·설정·상태·이미지까지 동작하도록 하는 범용 호환 호스트 구축. Autodesk FusionStreamDeck은 첫 호환성 시험 대상이며 Fusion 전용 개발이 목표가 아니다.

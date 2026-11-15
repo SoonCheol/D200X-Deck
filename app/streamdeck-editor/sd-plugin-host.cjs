@@ -287,7 +287,15 @@ class StreamDeckPluginHost{
         this.contexts.set(cfg.context,ctx);
         await this.ensure(cfg.pluginUUID);
         this.willAppear(ctx);
-      }else{ctx.settings=cfg.settings||{};ctx.slot=cfg.slot;}
+      }else{
+        ctx.settings=cfg.settings||{};ctx.slot=cfg.slot;
+        // A Node process can exit while its saved key remains assigned.
+        // Re-establish it on the next explicit editor sync, not by resetting the profile.
+        if(!this.instances.has(cfg.pluginUUID)){
+          await this.ensure(cfg.pluginUUID);
+          this.willAppear(ctx);
+        }
+      }
     }
     for(const [key,ctx] of this.contexts)if(!seen.has(key)){
       this.disappear(ctx);this.contexts.delete(key);

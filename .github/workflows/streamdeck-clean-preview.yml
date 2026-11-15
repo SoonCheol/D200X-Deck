@@ -150,6 +150,27 @@ jobs:
           } else {
             throw 'Packaged EXE missing Fluent UI icon bundle'
           }
+      - name: Verify packaged Electron includes a usable Node.js 24 runtime for plugins
+        working-directory: app
+        shell: pwsh
+        run: |
+          $exe = (Resolve-Path 'dist/D200X-StreamDeck-Preview-win32-x64/D200X-StreamDeck-Preview.exe').Path
+          $env:ELECTRON_RUN_AS_NODE = '1'
+          try {
+            $nodeVersion = (& $exe -p 'process.versions.node' | Out-String).Trim()
+            if ($LASTEXITCODE -ne 0) { throw 'Packaged Electron cannot run as Node.js' }
+            Write-Host "Packaged Electron Node.js version: $nodeVersion"
+            if ($nodeVersion -notmatch '^(\d+)\.\d+\.\d+
+        with:
+          name: D200X-StreamDeck-Device-Sync-win-x64
+          path: app/dist/D200X-StreamDeck-Preview-win32-x64/
+          if-no-files-found: error
+          retention-days: 14
+) { throw "Invalid Node version: $nodeVersion" }
+            if ([int]$Matches[1] -lt 24) { throw "Fusion plugin requires Node.js 24, found $nodeVersion" }
+          } finally {
+            Remove-Item Env:ELECTRON_RUN_AS_NODE -ErrorAction SilentlyContinue
+          }
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: D200X-StreamDeck-Device-Sync-win-x64

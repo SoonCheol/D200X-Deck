@@ -90,13 +90,16 @@
 | D200X 추가 | `file-open` | 지정 파일 열기 | 코드 구현·실기 미검증 | 대상 파일·연결 앱별 확인 필요 |
 | D200X 추가 | `folder-shortcut` | 지정 폴더 열기 | 코드 구현·실기 미검증 | 탐색기 및 경로 실측 필요 |
 | 플러그인(레거시, 액션 탭 숨김) | `ha-toggle` | HA 장치 켜기/끄기 | 기존 저장 설정용 코드 보존 | `editor.js`의 `renderLibrary`가 레거시 HA 카테고리를 숨긴다. 기존 프로필 실행 경로는 남겨둠. 현재 사용자 플러그인 탭의 SDK HA 액션과 구별 |
-| 플러그인 | `sd-plugin` | Stream Deck SDK 플러그인 | 부분 구현·사용자 실사용 확인 | 플러그인 탭·로컬 설치·액션 배치·속성창 사용 가능. HTML CodePath 지원, Node.js CodePath는 미지원 |
+| 플러그인 | `sd-plugin` | Stream Deck SDK 플러그인 | **HTML 실사용 확인 + Node.js 실행 코드 구현·실기 미검증** | HTML SDK/HA 기존 기능 유지, `.js/.cjs/.mjs` 플러그인 프로세스·통신, 개발자 `.sdPlugin` 폴더 설치 및 원본 PI 지원 코드. Fusion 실제 설치·명령 실행 및 다른 플러그인은 별도 검증 |
 
 ## 2026-11-15 Node.js 호스트 단계별 실행 기록
 
 - **1차 코드 커밋:** `0499bf2164a65af10ea5524a1fd01c5434993861`. HTML 전용 매니페스트 검증을 HTML·Node.js로 확장, Node 런타임 버전 체크, Electron 포함 Node 실행환경에 원본 SDK 인수로 독립 프로세스 시작, WebSocket 연결, 프로세스 종료 처리 및 Fusion manifest 단위 테스트 추가.
 - **CI:** [#43687825178](https://github.com/SoonCheol/D200X-Deck/actions/runs/43687825178) 성공. **Windows 패키징:** [#43687820764](https://github.com/SoonCheol/D200X-Deck/actions/runs/43687820764) 성공. 성공은 앱 실행/실물 호환성의 증거가 아닌 자동 빌드 결과.
-- **2차 보완 예정:** Node 기반 플러그인 실제 WebSocket 등록·키 이벤트 자동 통합 테스트, 개발자 `.sdPlugin` 폴더 설치, 루프백 IPv4 통일, 기존 HTML 경로 확인. 원본 Fusion Python 애드인과 실제 명령 실행은 이후 실기로 분리.
+- **2차 코드 커밋:** `f7207e8fe5a03fbe4704cc30cac8b274dcb18ab2`. `.sdPlugin` 개발자 폴더 안전 설치, `127.0.0.1` SDK 서버, 실제 Node 하위 프로세스 + WebSocket 등록 + 물리 키 입력 모의 통합 테스트. 기존 HTML manifest 테스트 유지.
+- **2차 CI:** [#43688058250](https://github.com/SoonCheol/D200X-Deck/actions/runs/43688058250) 성공, [D200X 입력 검증 #43688053891](https://github.com/SoonCheol/D200X-Deck/actions/runs/43688053891) 성공, [Windows EXE #43688053882](https://github.com/SoonCheol/D200X-Deck/actions/runs/43688053882) 성공. Windows Artifact `14151515746`, 170,372,386 bytes, 당시 미만료. **이 테스트는 모의 Node 플러그인으로 진행됐으며 Autodesk Fusion 실제 명령 실행을 입증하지 않는다.**
+- **3차 진행:** Windows 패키지에서 Electron의 Node 24 실행 자체를 검증하는 Actions 단계 추가; 저장된 Node 플러그인 프로세스 종료 후 다음 동기화에서 재시작하도록 보완.
+- **단독 인수인계:** [D200X-NODE-PLUGIN-HANDOFF-20261115.md](D200X-NODE-PLUGIN-HANDOFF-20261115.md)
 
 ## 2026-11-15 개발 시작 기록 — Node.js SDK 호스트 1단계
 
@@ -138,7 +141,7 @@
 |---|---|---|
 | Windows 마이크 음소거 | **미구현** | 오른쪽 18개 D200X 추가 액션과 별도 후속 후보. 기존 액션에 있다고 쓰지 말 것 |
 | Windows 기본 출력 장치 전환 | **미구현** | Soundboard 재생 대상 출력 선택과 다름 |
-| Node.js Stream Deck 플러그인 실행 | **미구현 · 다음 호환성 목표 확정** | 첫 대상: [Autodesk FusionStreamDeck](https://github.com/AutodeskFusion360/FusionStreamDeck)의 `bin/plugin.js` (Node 24). 기존 HTML 지원 유지, 실제 Fusion 애드인과 연동 실기 검증을 완료 기준으로 삼음. **개발 착수 전** |
+| Node.js Stream Deck 플러그인 실행 | **코드 구현·CI 통과, 실제 Fusion 실기 미검증** | `sd-plugin-host.cjs`에서 Node 20+ 및 manifest 선언 버전 검증, Electron 내장 Node 실행, SDK WebSocket, key event, 폴더 설치 코드. Fusion의 Node 24는 Windows 패키지 실행 확인 추가 예정. 무제한 플러그인 호환 의미 아님 |
 | 네이티브 Stream Deck 플러그인 실행 | **미구현** | 별도 프로세스/SDK 호환 체계 필요 |
 | 온라인 플러그인 마켓플레이스 | **미구현** | 플러그인 탭과 로컬 설치는 이미 구현·사용 중. 웹 기반 플러그인 검색·다운로드 마켓만 별도 미구현 |
 | 원본 전체 아이콘 편집기/앱별 프리셋 검색 | **미완성** | 간이 아이콘 제작·고정 단축키 프리셋은 존재 |
@@ -154,7 +157,7 @@
 | 플러그인 추가 | `editor.js:458` 설치 요청 → `preload.cjs` `sdkInstall` → `main.cjs:23` 파일 선택/설치 → `sd-plugin-host.cjs` `parseArchive/install` | **구현**. 실제 설치 가능한 것은 검증에 통과한 HTML 기반 `.sdPlugin`; Node.js 지원을 뜻하지 않음 |
 | 플러그인 액션 등록·실행 | `renderInstalledSdkPlugins()`에서 드래그/클릭 → `newAction('sd::...')` → `scheduleSdkSync()` / `sdkActionInstances()` → IPC `sdk-sync`, `sdk-key` → SDK 호스트 | **코드 연결 + 사용자 플러그인 사용 보고**. 임의 플러그인 전체 호환은 보장하지 않음 |
 | 플러그인 속성창·상태 | `actionFields('sd-plugin')`에서 원본 설정창 버튼 → `sdkInspector`; SDK 이벤트 `setTitle/setImage/setState/settings` 처리 | **코드 연결**. 각 플러그인별 실제 속성·이미지 갱신은 별도 실기 |
-| Node.js/네이티브 호스트 | `sd-plugin-host.cjs:validateManifest`에서 `CodePath`가 `.html`이 아니면 거부 | **미구현** (플러그인 탭 미구현과 혼동 금지) |
+| Node.js/네이티브 호스트 | `sd-plugin-host.cjs:validateManifest`에서 `.html` 및 `.js/.cjs/.mjs` 허용, native `.exe` 거부. Node 프로세스와 SDK WebSocket 연결 코드 존재 | **Node.js 코드 구현·Windows/Fusion 실기 미검증, 네이티브 별도 미구현** |
 | 설정 ⚙ | `index.html`의 설정 버튼 disabled 및 `editor.js`의 'main settings remains disabled' 주석, 활성화 경로 없음 | **상단 설정 화면 미구현**. 프로필·플러그인별 설정 기능은 별도로 존재 |
 | Virtual Stream Deck | `renderLibrary()`에서 `virtual` 항목 draggable=false·disabled 표시, `isAssignableAction()`에서도 제외 | **사용자 지시로 개발 보류** (코드상 비활성은 유지) |
 | 프로필 JSON 가져오기/내보내기 | `editor.js:2593` 이후 전체 JSON 다운로드·가져오기/검증·기존 상태 백업·복원 처리 | **코드 구현**, 원자적 디스크 저장과 다른 기능 |

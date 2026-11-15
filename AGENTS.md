@@ -1,6 +1,6 @@
 # D200X Stream Deck 7.6.1 복제 작업 규칙 (AGENTS.md)
 
-**최우선 현재 상태:** [최신 기능 상태표](docs/D200X-CURRENT-STATUS.md). 모든 개발 시작/끝에 이 표를 소스·증거와 대조해 갱신하고, 과거 문서에 남은 미구현 문구가 현재 상태를 덮어쓰지 못하게 한다.
+**최우선 현재 상태:** [최신 기능 상태표](docs/D200X-CURRENT-STATUS.md). **Node 플러그인 개발 인수인계:** [전용 기록](docs/D200X-NODE-PLUGIN-HANDOFF-20261115.md). 모든 개발 시작/끝에 이 표를 소스·증거와 대조해 갱신하고, 과거 문서에 남은 미구현 문구가 현재 상태를 덮어쓰지 못하게 한다.
 
 **작업 시작 전 필독:** [`docs/D200X-COMPLETE-HANDOFF-20261114.md`](docs/D200X-COMPLETE-HANDOFF-20261114.md)와 [`docs/D200X-STREAMDECK-ROADMAP.md`](docs/D200X-STREAMDECK-ROADMAP.md). 현재 구현/미완료/실기 상태는 최신 기능 상태표를 우선한다. 이 두 문서는 상세 이력·계획으로서만 참고하고 과거 단계별 기록을 현재 상태로 해석하지 않는다. 기능 변경 시 체크박스 및 검증 근거를 동시에 갱신한다. 단순 코드 작성이나 빌드 성공만으로 실기 완료 체크 금지.
 
