@@ -6,6 +6,8 @@ contextBridge.exposeInMainWorld('deckBridge', Object.freeze({
   checkForUpdates: () => ipcRenderer.invoke('d200x:check-updates'),
   haStatus: () => ipcRenderer.invoke('d200x:ha-status'),
   sdkList: () => ipcRenderer.invoke('d200x:sdk-list'),
+  fusionIconRead: id => ipcRenderer.invoke('d200x:fusion-icon-read',id),
+  fusionIconWrite: (id,png) => ipcRenderer.invoke('d200x:fusion-icon-write',id,png),
   sdkInstall: () => ipcRenderer.invoke('d200x:sdk-install'),
   sdkInstallFolder: () => ipcRenderer.invoke('d200x:sdk-install-folder'),
   sdkSync: contexts => ipcRenderer.invoke('d200x:sdk-sync',contexts),
