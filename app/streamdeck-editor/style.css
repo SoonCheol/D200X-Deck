@@ -533,3 +533,8 @@
   #action-appearance-toolbar>button{grid-column:2;justify-self:end}
 }
 .library{container-type:inline-size;container-name:action-panel}
+
+/* The editor track must shrink instead of pushing the right panel off-screen.
+   Keep a guaranteed 280–320px sidebar, even while resizing the window. */
+#app{grid-template-columns:minmax(0,1fr) minmax(280px,320px);min-width:0}
+.work,.library{min-width:0}
