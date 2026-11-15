@@ -712,10 +712,7 @@ function actionFields(item){
   active=item;
   switch(item.type){
     case "audio-play":return pathPicker("file","파일")+select("mode","동작",[["play-stop","재생 / 정지"],["overlap","재생 / 오버랩"],["restart","재생 / 재시작"],["loop-stop","반복 / 정지"]])+select("fade","페이드",[["none","페이드 없음"],["in","페이드 인"],["out","페이드 아웃"],["in-out","페이드 인 앤 아웃"]])+select("fadeDuration","페이드 시간",[[1,"1초"],[2,"2초"],[3,"3초"],[4,"4초"],[5,"5초"]])+`<div class="field"><label for="s-volume">음량</label><div class="compound"><input id="s-volume" type="range" min="0" max="100" data-field="volume" value="${valueOf(item,"volume",50)}"><output id="volume-display">${valueOf(item,"volume",50)}</output></div></div>`+select("output","출력",[["default","기본"]])+`<div class="field"><span></span><span class="hint">연결된 출력 장치를 선택할 수 있습니다. 장치 전환은 실행 시 적용됩니다.</span></div>`;
-    case "sd-plugin":return '<div class="field"><label>설치된 플러그인</label><span class="hint">'+escapeHtml(item.settings?.actionUUID===HA_CUSTOM_ACTION?'Home Assistant 장치 제어':item.settings?.actionName||item.settings?.actionUUID||'')+'</span></div>'+
-      '<div class="field"><label>원본 속성 편집기</label><button type="button" class="sdk-settings-open" data-sdk-inspector>설정 열기</button></div>'+
-      '<div class="field"><label>상태별 아이콘</label><span class="hint">OFF / ON 이미지를 각각 설정합니다. 플러그인 상태 0 / 1에 따라 표시됩니다.</span></div>'+
-      '<div class="sdk-state-icons" data-sdk-state-icons></div>';
+    case "sd-plugin":return '<div class="sdk-state-icons" data-sdk-state-icons></div>';
     case "ha-toggle":return input("entityId","HA 엔티티 ID","switch.living_room")+
       '<div class="field"><label>엔티티</label><button type="button" data-ha-entities>목록에서 선택</button></div>';
     case "audio-stop": case "previous": case "next": case "indicator":return "";
@@ -1527,8 +1524,14 @@ function renderInspector(){
   if(state.selected===13&&wideDisplayAvailable()){renderWideInspector();return;}
   if(!item){root.className="inspector empty";root.textContent=state.selected===null?"버튼을 선택하세요":"액션을 끌어 이 키에 놓으세요";
     if(inspectorSession?.dirty)appendInspectorSaveBar(root);return;}
-  root.className="inspector"+(item.type==='hotkey-switch'?' hotkey-switch-inspector':'');const action=ACTIONS.get(item.type);const fields=actionFields(item);
-  root.innerHTML=`<div class="action-head"><strong>액션 &gt; ${escapeHtml(action?.category)} &gt; ${escapeHtml(action?.label)}</strong></div>
+  root.className="inspector"+(item.type==='hotkey-switch'?' hotkey-switch-inspector':'')+(item.type==='sd-plugin'?' sdk-plugin-inspector':'');
+  const action=ACTIONS.get(item.type),fields=actionFields(item);
+  const sdkName=item.type==='sd-plugin'
+    ?(item.settings?.actionUUID===HA_CUSTOM_ACTION?'Home Assistant 장치 제어':
+      sdkActionNames.get(item.settings?.actionUUID)||item.settings?.actionName||item.settings?.actionUUID||'설치된 플러그인')
+    :null;
+  const inspectorName=sdkName||action?.label;
+  root.innerHTML=`<div class="action-head"><strong>액션 &gt; ${escapeHtml(action?.category)} &gt; ${escapeHtml(inspectorName)}</strong></div>
     <div class="properties"><div class="preview"><div class="preview-key" id="icon-preview"><button id="delete-action" class="control-tile-remove preview-action-remove" title="동작 삭제" type="button">×</button>
       <span id="icon-preview-content"></span>
       <button class="icon-preview-control icon-preview-plus" type="button" id="icon-library-open" aria-label="아이콘 라이브러리 열기" title="아이콘 라이브러리">+</button>
@@ -1582,6 +1585,15 @@ function renderInspector(){
   previewButton.title='실제 Windows/D200X 동작을 한 번 실행합니다';
   previewButton.addEventListener('click',()=>runActionPreview('down'));
   root.querySelector('.action-head').append(previewButton);
+  if(item.type==='sd-plugin'){
+    const titleLine=root.querySelector('.title-line');
+    const controls=document.createElement('div');controls.className='sdk-title-controls';
+    titleLine.before(controls);controls.append(titleLine);
+    const settingsButton=document.createElement('button');settingsButton.type='button';
+    settingsButton.className='sdk-settings-open';settingsButton.dataset.sdkInspector='';
+    settingsButton.textContent='⚙ 플러그인 속성 열기';
+    controls.append(settingsButton);
+  }
   bindTitleStyle(item);
   bindIconControls(item);
   refreshTitlePreview(item);
