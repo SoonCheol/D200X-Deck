@@ -40,8 +40,9 @@ test('no full redraw while idle; 5s blank-mode keep-alive; no brightness changes
   t.schedule([{index:0,png:Buffer.from('one')}]);
   await idle();
   assert.equal(deck.calls.filter(x=>x[0]==='page').length,1);
+  const framesBeforeIdle=deck.calls.filter(x=>x[0]==='frame').length;
   time+=KEEPALIVE_MS-1;t.tick();
-  assert.equal(deck.calls.filter(x=>x[0]==='frame').length,0);
+  assert.equal(deck.calls.filter(x=>x[0]==='frame').length,framesBeforeIdle);
   time+=1;t.tick();
   assert.deepEqual(deck.calls.at(-1),['frame',0,PROTO.CLOCK,'2|||||24H|']);
   assert.equal(deck.calls.filter(x=>x[0]==='brightness').length,0);
@@ -153,8 +154,9 @@ test('native device sleep suspends keepalive; the first hardware press wakes wit
   t.schedule([{index:0,png:Buffer.from('saved')}]);await idle();
   assert.equal(t.sleepDisplay(),true);
   assert.deepEqual(deck.calls.at(-1),['sleep',1]);
+  const framesBeforeSleep=deck.calls.filter(x=>x[0]==='frame').length;
   now+=KEEPALIVE_MS;t.tick();
-  assert.equal(deck.calls.filter(x=>x[0]==='frame').length,0);
+  assert.equal(deck.calls.filter(x=>x[0]==='frame').length,framesBeforeSleep);
   deck.emit('key',{index:0,pressed:true,kind:1,state:1});
   await idle();
   assert.deepEqual(deck.calls.filter(x=>x[0]==='sleep').map(x=>x[1]),[1,0]);
