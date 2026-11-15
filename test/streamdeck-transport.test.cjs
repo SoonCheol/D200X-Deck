@@ -121,7 +121,8 @@ test('known brightness and last page persist through reconnect without idle redr
   deck.disconnect();await t.connect();await idle();
   assert.equal(deck.calls.filter(x=>x[0]==='page').length,2);
   now+=KEEPALIVE_MS;t.tick();
-  assert.deepEqual(deck.calls.at(-1),['brightness',55]);
+  assert.ok(deck.calls.some(x=>x[0]==='brightness'&&x[1]===55));
+  assert.deepEqual(deck.calls.at(-1),['frame',0,PROTO.CLOCK,'2|||||24H|']);
   t.stop();
 });
 
@@ -183,5 +184,25 @@ test('native clock and stats display modes reach the firmware without blank keep
   t.schedule([{index:13,png:Buffer.from('date')}],'blank');
   await idle();
   assert.deepEqual(sent,['clock','stats','blank']);
+  t.stop();
+});
+
+test('switching from native stats to uploaded wide PNG clears stale stats and selects image after ZIP',async()=>{
+  const deck=new FakeDeck();
+  const t=new D200XTransport({deck,buildPage:async()=>Buffer.from('zip')});
+  await t.start();
+  t.schedule([{index:13,png:Buffer.from('stats')}],'stats');await idle();
+  const from=deck.calls.length;
+  t.schedule([{index:13,png:Buffer.from('knobs')}],'blank');await idle();
+  assert.deepEqual(deck.calls.slice(from).filter(x=>['frame','wide','page'].includes(x[0])),[
+    ['frame',0,PROTO.CLOCK,'0|||||24H|'],
+    ['frame',0,PROTO.CLOCK,'1|||||24H|'],
+    ['wide','blank'],
+    ['page','zip'],
+    ['frame',0,PROTO.CLOCK,'2|||||24H|'],
+  ]);
+  const next=deck.calls.length;
+  t.schedule([{index:13,png:Buffer.from('date')}],'blank');await idle();
+  assert.deepEqual(deck.calls.slice(next).filter(x=>x[0]==='frame').map(x=>x[3]),['2|||||24H|']);
   t.stop();
 });
