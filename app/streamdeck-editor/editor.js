@@ -201,7 +201,12 @@ function newAction(id){
   return item;
 }
 function currentPage(){return DeckCore.currentActions(state);}
+function reservedWideSlot(index){return index===13&&!state.folderPath?.length;}
 function setItem(index,item){
+  if(reservedWideSlot(index)){
+    window.d200xActionStatus?.('가로 화면은 표시 모드 전용입니다. 일반 액션을 등록할 수 없습니다.');
+    state.selected=index;render();return;
+  }
   if(index>=14){
     const binding=DeckCore.controlBinding(state,index);
     if(binding.mode!=='trigger'&&!(index>=16&&controlGesture==='down'&&binding.mode==='adjust'))binding.mode='trigger';
@@ -250,7 +255,9 @@ function controlDrop(index,id,gesture='down'){
 }
 const WIDE_LABELS={clock:'아날로그 + 디지털 시계',datetime:'날짜 · 시간 · 요일',stats:'CPU · RAM · GPU',knobs:'노브 정보'};
 function wideDisplayAvailable(){
-  return !state.folderPath?.length&&!DeckCore.visibleActions(state)[13];
+  // The physical wide screen is reserved on root pages. Previously stored
+  // actions remain in saved profile data but are not displayed or executed.
+  return !state.folderPath?.length;
 }
 function wideVisual(){
   return {type:'wide-display',title:WIDE_LABELS[state.wideDisplay?.current]||WIDE_LABELS.clock};
@@ -327,7 +334,7 @@ function renderGrid(){
   const grid=$("key-grid");grid.replaceChildren();
   DeckCore.visibleActions(state).slice(0,KEY_COUNT).forEach((raw,i)=>{
     const folderBack=state.folderPath?.length>0&&i===13&&!raw;
-    const item=folderBack?{type:'folder-back',title:'뒤로',icon:{kind:'glyph',glyph:'↩'}}:(i===13&&!raw&&wideDisplayAvailable()?wideVisual():raw);
+    const item=folderBack?{type:'folder-back',title:'뒤로',icon:{kind:'glyph',glyph:'↩'}}:(i===13&&wideDisplayAvailable()?wideVisual():raw);
     const b=document.createElement("button");b.type="button";b.className="deck-key"+(i===13?" wide":"")+(state.selected===i?" selected":"");
     b.dataset.index=i;b.setAttribute("aria-label",`키 ${i+1}: ${keyName(item)||"비어 있음"}`);
     const visual=displayItem(item,i);
@@ -348,9 +355,9 @@ function renderGrid(){
     }
     b.addEventListener("click",()=>{if(folderBack){DeckCore.exitFolder(state);persist();render();}else if(i===13&&wideDisplayAvailable()){state.selected=i;advanceWideDisplay();}else choose(i);});
     b.addEventListener("contextmenu",ev=>{ev.preventDefault();choose(i);showMenu(i,ev.clientX,ev.clientY);});
-    b.addEventListener("dragover",ev=>{ev.preventDefault();b.classList.add("drag-over");});
+    b.addEventListener("dragover",ev=>{if(!reservedWideSlot(i)){ev.preventDefault();b.classList.add("drag-over");}});
     b.addEventListener("dragleave",()=>b.classList.remove("drag-over"));
-    b.addEventListener("drop",ev=>{ev.preventDefault();b.classList.remove("drag-over");const id=ev.dataTransfer.getData("application/x-d200x-action");if(isAssignableAction(id))setItem(i,newAction(id));});
+    b.addEventListener("drop",ev=>{if(reservedWideSlot(i))return;ev.preventDefault();b.classList.remove("drag-over");const id=ev.dataTransfer.getData("application/x-d200x-action");if(isAssignableAction(id))setItem(i,newAction(id));});
     grid.append(b);
   });
   renderPhysicalControls();
@@ -1458,6 +1465,7 @@ function renderInspector(){
   if(item.type==='folder')renderFolderInspector(item,root);
 }
 async function importSlotAction(index){
+  if(reservedWideSlot(index))return window.d200xActionStatus?.('가로 화면에는 액션을 불러올 수 없습니다.');
   try{
     if(!window.deckBridge?.chooseImportFile)throw Error('Windows EXE에서만 액션을 불러올 수 있습니다.');
     const chosen=await window.deckBridge.chooseImportFile('action');
@@ -1481,13 +1489,18 @@ function exportSlotAction(action){
   }catch(error){window.d200xActionStatus?.('동작 내보내기 실패: '+String(error?.message||error));}
 }
 function pasteClipboardAction(index){
-  if(!clipboard||!Number.isInteger(index)||index<0||index>=14)return false;
+  if(!clipboard||!Number.isInteger(index)||index<0||index>=14||reservedWideSlot(index))return false;
   const existing=DeckCore.visibleActions(state)[index];
   if(existing&&!confirm('이 버튼의 기존 액션을 복사한 액션으로 교체하시겠습니까?'))return false;
   setItem(index,clone(clipboard));
   return true;
 }
 function showMenu(index,x,y){
+  if(reservedWideSlot(index)){
+    $("key-menu").hidden=true;
+    state.selected=index;renderInspector();
+    return;
+  }
   const menu=$("key-menu");menu.replaceChildren();
   const item=DeckCore.visibleActions(state)[index];
   const add=(label,handler)=>{const b=document.createElement("button");b.type="button";b.role="menuitem";b.textContent=label;
@@ -1531,7 +1544,7 @@ window.addEventListener("keydown",ev=>{
   if(ev.key==="Escape")$("key-menu").hidden=true;
   if(!ev.ctrlKey||ev.altKey||ev.metaKey||["INPUT","TEXTAREA"].includes(document.activeElement.tagName))return;
   const key=ev.key.toLowerCase(),index=state.selected;
-  if(index===null||index<0||index>=14)return;
+  if(index===null||index<0||index>=14||reservedWideSlot(index))return;
   if(key==="c"){
     const item=DeckCore.visibleActions(state)[index];
     if(item){ev.preventDefault();clipboard=clone(item);}
