@@ -419,3 +419,6 @@
 .inspector-unsaved-actions button.primary{background:#287acb;border-color:#438cce}
 .inspector.empty{display:flex;flex-wrap:wrap;align-content:center;justify-content:center}
 .inspector.empty .inspector-save-bar{width:100%;align-self:flex-end}
+
+/* Keep icon picker controls accessible: the remove circle owns top-right, the picker menu moves below. */
+.preview-key .icon-preview-menu{top:auto;bottom:1px;right:1px}
