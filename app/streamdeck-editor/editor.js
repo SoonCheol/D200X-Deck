@@ -1279,11 +1279,26 @@ for(const type of ['click','change','input','drop'])document.addEventListener(ty
 },true);
 document.addEventListener('click',event=>{
   if(!inspectorSession?.dirty)return;
+  // The modal is not part of the inspector. Never intercept its own controls:
+  // otherwise Cancel / Discard / Save and move all become unclickable.
+  if(event.target.closest('#inspector-unsaved-dialog'))return;
   const root=$('inspector');
   if(root?.contains(event.target))return;
+  // Key/knob selection already checks for unsaved edits in choose(index).
+  // Let that handler own the navigation so it survives inspector re-render.
+  if(event.target.closest('#key-grid, #physical-controls'))return;
   event.preventDefault();event.stopImmediatePropagation();
   const target=event.target;
-  showInspectorLeaveDialog(()=>{if(target?.isConnected)setTimeout(()=>target.click(),0);});
+  const targetProfileId=target.closest('.profile-list-select')?.dataset.profileId;
+  showInspectorLeaveDialog(()=>{
+    if(targetProfileId){
+      const match=[...document.querySelectorAll('.profile-list-select')].find(
+        node=>node.dataset.profileId===targetProfileId
+      );
+      if(match){match.click();return;}
+    }
+    if(target.isConnected)setTimeout(()=>target.click(),0);
+  });
 },true);
 
 let inspectorListener=new AbortController();
@@ -2791,9 +2806,10 @@ function bindSidebarHeader(){
     };
     for(const profile of state.profileNames){
       const row=document.createElement('div');row.className='profile-list-row';
-      entry(row,(profile.id===state.profileId?'✓ ':'　')+profile.name,run(()=>{
+      const profileSelect=entry(row,(profile.id===state.profileId?'✓ ':'　')+profile.name,run(()=>{
         if(DeckCore.switchProfile(state,profile.id)){controlGesture='down';persist();render();}
       }),'profile-list-select');
+      profileSelect.dataset.profileId=profile.id;
       const gear=entry(row,'⚙',()=>{const open=tools.hidden;menu.querySelectorAll('.profile-row-tools').forEach(el=>el.hidden=true);tools.hidden=!open;},
         'profile-row-gear');
       gear.title=profile.name+' 설정';gear.setAttribute('aria-label',profile.name+' 설정');
