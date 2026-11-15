@@ -199,7 +199,7 @@ class Deck extends EventEmitter {
       const stats = sysstats.latest();
       return Buffer.from(`0|${stats.cpu}|${stats.mem}|${hhmmss}|${stats.gpu}|24H|`, 'utf8');
     }
-    if (this._wideMode === 'blank') return Buffer.from('2|||||24H|', 'utf8');
+    if (this._wideMode === 'blank') return Buffer.from('2|0|0|00:00:00|0', 'ascii');
     return P.clockPayload();
   }
 
@@ -287,7 +287,9 @@ class Deck extends EventEmitter {
     const index = payload[1];
     const flags = payload[2];
     const state = payload[3];
-    const knob = (index >= 17 && index <= 19) || kind === 2;
+    // The device may vary kind on wide-key presses in native stats mode.
+    // Classify rotary controls by their dedicated hardware indices only.
+    const knob = index >= 17 && index <= 19;
     const gesture = knob ? ({0:'up',1:'down',2:'left',3:'right'}[state] || null)
       : (state === 1 ? 'down' : state === 0 ? 'up' : null);
     if (!gesture) return;
