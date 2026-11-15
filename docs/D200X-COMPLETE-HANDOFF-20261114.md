@@ -525,3 +525,13 @@
 - **중요:** 원본 Ulanzi Studio의 노브 제목 반영은 아직 실물 비교 미완료. 사용자 Windows GUI/물리 버튼의 순환·USB PNG 화면은 새 EXE 실기 검증 전. CI 성공은 실물 검증을 뜻하지 않음. 최신 Windows Preview 작업: https://github.com/SoonCheol/D200X-Deck/actions/runs/43657350031 (결과 및 Artifact는 실행 종료 후 별도 확인).
 
 - **최종 Windows Preview 확인:** [#43657350031](https://github.com/SoonCheol/D200X-Deck/actions/runs/43657350031) success (source `12757e830b6940a493681c214f1e96fe83ac68ae`); Artifact [D200X-StreamDeck-Device-Sync-win-x64](https://github.com/SoonCheol/D200X-Deck/actions/runs/43657350031/artifacts/14138985954), ID `14138985954`, 170,368,881 bytes, 확인 시 `expired=false`. 포장/업로드 성공이며 Windows 실제 GUI·물리 D200X 시험 완료를 뜻하지 않음.
+
+
+### 2026-11-15 — 사용자 실기 회귀 제보: 가로 화면 순환 안 됨
+
+- 사용자 실제 증상: **가로 화면 모드를 하나만 체크하면 해당 화면은 표시되지만, 여러 개 체크 후 버튼을 눌러도 순환되지 않음**. 이전 CI 및 EXE 패키징 성공을 실물 순환 성공으로 해석하지 말 것.
+- 기존 코드 조사: `editor.js`의 하드웨어 입력 순환은 `kind=1, index=13, pressed=true`에만 반응. `deck-core.js`는 일반 액션 슬롯 14를 미사용으로 유지. 외부 OpenDeck D200X 구현 문헌에서는 13번 와이드 LCD 버튼과 14번 비활성 오른쪽 셀을 별도로 기술하며 물리키로서 가로 버튼 누름은 지원한다고 설명함(https://github.com/kastro5/opendeck-ulanzi-d200).
+- 안전한 보완: `deck-core.js`에 `isWideDisplayPress()` 추가. 원래 13번 또는 14번 입력을 **오직 가로 가상 화면 순환일 때만** 받되, 기존 `physicalSlot()`에서 14번에 일반 액션을 할당하지 않는 규칙은 그대로 유지. `editor.js`의 물리 버튼/편집기 이미지 버튼/속성창의 새 `다음 화면 표시 ▶` 모두 같은 `advanceWideDisplay()` 함수를 호출해 현재 프로필의 선택된 모드 순환·저장·전송을 진행.
+- 변경 커밋: `a8f66498` (와이드 슬롯 보완), `0df4df60` (공통 순환 및 속성창 수동 전환), `70fd4c57` (index 13/14 격리 테스트). 기존 24개 액션, 프로필, 노브 기능, USB 전송 스키마 변경하지 않음.
+- CI/입력 검증: `a8f66498` 및 `0df4df60`의 CI·입력 모의 검증 성공, `70fd4c57` 추가 회귀 테스트와 Windows Preview 최종 상태 확인 필요. Windows Preview https://github.com/SoonCheol/D200X-Deck/actions/runs/43658108140 .
+- **남은 핵심 검증:** 실제 D200X 와이드 키 누름이 index=13/14 중 어느 값으로 오는지는 이 세션에서 USB 실측하지 못함. 새 EXE에서 편집기 속성창의 `다음 화면 표시 ▶`로 순환되는지 먼저 확인하고, 별도로 실물 가로 키를 눌러 관찰. 속성창 수동 전환은 되고 물리키만 안 되면 USB 원본 이벤트 캡처 후 해당 입력 조건만 수정; 임의로 15/16번 물리 버튼의 기존 할당을 바꾸지 말 것.
