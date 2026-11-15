@@ -246,12 +246,13 @@
     controls.scopes[index]=scope;
     return true;
   }
-  const WIDE_CHOICES=['clock','datetime','stats'];
+  const WIDE_CHOICES=['clock','datetime','stats','knobs'];
+  const DEFAULT_WIDE=['clock','datetime','stats'];
   function cleanWideDisplay(value){
     const selected=Array.isArray(value?.order)?value.order.filter(id=>WIDE_CHOICES.includes(id)):[];
     const order=[...new Set([...selected,...WIDE_CHOICES])];
     const enabled=Array.isArray(value?.enabled)?
-      [...new Set(value.enabled.filter(id=>WIDE_CHOICES.includes(id)))]:[...WIDE_CHOICES];
+      [...new Set(value.enabled.filter(id=>WIDE_CHOICES.includes(id)))]:[...DEFAULT_WIDE];
     if(!enabled.length)enabled.push('clock');
     const current=enabled.includes(value?.current)?value.current:order.find(id=>enabled.includes(id));
     return {order,enabled,current};
