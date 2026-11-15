@@ -51,7 +51,8 @@ test('unsaved dialog remains interactive and original navigation is protected',(
 
 test('breadcrumb starts with owning category and gives optional modal help',()=>{
   assert.match(editor,/function inspectorBreadcrumb\(item,action,inspectorName\)/);
-  assert.match(editor,/const root=plugin\?'플러그인':'액션'/);
+  assert.match(editor,/const root=libraryTab==='plugins'\?'플러그인':'액션'/);
+  assert.match(editor,/updatePluginToolbar\(\);\s*renderLibrary\(\);\s*renderInspector\(\)/);
   assert.match(editor,/function appendInspectorHelp\(head,item\)/);
   assert.match(editor,/dialog\.showModal\(\)/);
   for(const key of ['multi','multi-switch','random','logic','timer']){
