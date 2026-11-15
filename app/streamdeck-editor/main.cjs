@@ -119,6 +119,11 @@ let tray = null;
 let quitting = false;
 let trayPreferences = null;
 const BUILDS_PAGE = 'https://github.com/SoonCheol/D200X-Deck/actions/workflows/streamdeck-clean-preview.yml';
+ipcMain.handle('d200x:check-updates',async event=>{
+  assertEditor(event);
+  await shell.openExternal(BUILDS_PAGE);
+  return true;
+});
 function trayPreferencePath(){return path.join(app.getPath('userData'),'deckforge-tray-preferences-v1.json');}
 function isInstalledBuild(){
   if(process.platform!=='win32'||!app.isPackaged)return false;
