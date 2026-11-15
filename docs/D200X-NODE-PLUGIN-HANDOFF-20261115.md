@@ -40,6 +40,16 @@
 - 별도 Windows Node 설치 없이 패키징된 Electron 자체로 `CodePath` JS를 실행하는 경로를 점검하는 데 목적이 있다. **사용자의 Fusion 360과 실물 D200X 확인을 대체하지 않는다.**
 - 커밋 이후 Windows Workflow run 결과를 반드시 확인하고 성공/실패 및 SHA를 이 문서에 갱신할 것.
 
+## 2026-11-15 Node.js 플러그인 호스트 자동 검증 완료 — 실기와 구분
+
+- **현재 기능 커밋:** `c38b50d8742325d8b79df7b06e94c95d148ce8cc` (Node.js 호스트·폴더 설치·SDK 통신·Windows 검증 워크플로; 기존 HTML/HA 보존).
+- **CI:** [#43688950761](https://github.com/SoonCheol/D200X-Deck/actions/runs/43688950761) **success**.
+- **Windows 패키징/SDK 통합:** [#43688944909](https://github.com/SoonCheol/D200X-Deck/actions/runs/43688944909) **success**. 실제 Windows GitHub Actions 실행 환경에서 완성된 `D200X-StreamDeck-Preview.exe`를 `ELECTRON_RUN_AS_NODE=1`로 실행하여 **Node v24.22.1** 확인. 해당 EXE를 테스트 플러그인의 실제 Node 실행기로 지정하여 **SDK 테스트 12개 통과, 실패 0**(매니페스트/ZIP/폴더 가져오기, HTML/HA 호환용 모의 테스트, Node 프로세스·WebSocket 등록·키 입력 테스트 포함).
+- **Windows ZIP Artifact:** `D200X-StreamDeck-Device-Sync-win-x64`, ID **14151905591**, 170,372,503 bytes, 확인 당시 `expired=false`(일시적 보관).
+- **정확한 검증 한계:** 실제 Autodesk FusionStreamDeck 원본 `bin/plugin.js`를 Windows EXE에서 설치·실행하는 시험은 아직 하지 않았고, Fusion 360 Python 애드인·Property Inspector 검색·물리 D200X 버튼 실기는 미확인. 현재 테스트 Node 플러그인은 **모의 구현**. 모든 상용/네이티브/DRM Stream Deck 플러그인의 호환을 의미하지 않음.
+- **실패 및 재수정 기록:** Actions #43688432536 (YAML step 생성 오류), #43688638822 (루트·app 상대 경로 오류), #43688783937 (첫 테스트 경로 오류)를 수정하여 최종 #43688944909 success 달성. 오류 원인과 커밋별 기록은 [전용 인수인계](D200X-NODE-PLUGIN-HANDOFF-20261115.md)에 남김.
+- **다음 순서:** 원본 Fusion 플러그인 샘플을 통한 WebSocket/PI/아이콘 검증 강화 → 필요 시 SDK 호환 이벤트 추가 → 사용자 PC에서 Fusion 실제 명령·D200X 실기. 기존 사용자 데이터·HTML/HA 설정은 무손실 보존.
+
 ## 코드·검증 이력 (사실만)
 
 | 단계 | 커밋/Actions | 실제 작업 및 증거 |
