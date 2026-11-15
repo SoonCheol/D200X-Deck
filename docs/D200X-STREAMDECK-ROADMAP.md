@@ -1,5 +1,20 @@
 # D200X × Stream Deck 7.6.1 구현 기준·달성표
 
+## 2026-11-15 사용자 지정 Node.js 플러그인 호환성 목표 — Autodesk FusionStreamDeck
+
+> **상태: 목표 확정 / 구현 미착수.** 사용자가 직접 지정한 첫 Node.js 플러그인 호환성 검증 대상은 [AutodeskFusion360/FusionStreamDeck](https://github.com/AutodeskFusion360/FusionStreamDeck)이다. 이 항목은 기존 24개 기본 액션이나 현재 사용 중인 HTML 기반 SDK 플러그인 기능을 대체하는 작업이 아니다. 사용자 별도 구현 지시가 있을 때만 코드를 수정한다.
+
+- **정확한 대상:** `com.autodesk.fusionstreamdeck.sdPlugin` (`manifest.json`의 `UUID: com.autodesk.fusionstreamdeck`, `CodePath: bin/plugin.js`, `Nodejs.Version: "24"`, `SDKVersion: 2`, `PropertyInspectorPath: ui/run-command.html`).
+- **목표 원칙:** Fusion 전용 하드코딩이 아니라 **범용 Stream Deck Node.js 실행 호스트를 추가**하고 Autodesk Fusion의 `Run Command` 액션을 첫 실사용 호환성 목표로 검증한다.
+- **기존 기능 보존:** 현재 플러그인 탭의 HTML CodePath 설치·실행, HA 플러그인, 등록 액션/프로필/아이콘, 노브·물리 버튼·와이드 화면 기능을 변경 없이 보존한다.
+- **개발 시 확인할 요소:** Node 24 런타임 실행/패키징, 독립 플러그인 프로세스와 생명주기, 기존 WebSocket SDK 등록 및 `keyDown` 이벤트, HTML Property Inspector의 설정 검색·선택, `setImage` 등 상태 업데이트, 장애·종료 처리, 설치/압축 검증, 이전 HTML 호환성.
+- **실사용 완료 기준:** (1) Autodesk 플러그인 등록 및 `Fusion 360 / Run Command` 표시, (2) 액션을 D200X 버튼에 배치·저장·복원, (3) 원본 Property Inspector에서 Fusion 명령 검색·선택, (4) 실제 Fusion 명령 실행, (5) 해당 명령 아이콘 및 오프라인 표시/복귀 확인, (6) 기존 HTML/HA 플러그인 회귀 없음. 테스트/CI 성공과 실제 Windows/Fusion/D200X 실기는 구분해서 기록한다.
+- **별도 전제:** 이 저장소 README에 따르면 플러그인뿐 아니라 **Fusion 360 내부에서 동작하는 `FusionStreamDeck` Python 애드인도 설치·실행**해야 한다. 애드인 없이 플러그인 호스트만 추가해서 실제 명령이 실행된다고 주장하지 않는다.
+- **패키징 확인:** 프로젝트 README는 개발자용 `.sdPlugin` 폴더 복사 절차를 안내한다. D200X 기존 설치 UI가 `.streamDeckPlugin`/ZIP을 받는 방식과 차이가 있으므로 **정확한 설치 파일 준비 또는 지원 확장 필요 여부를 먼저 검증**한다.
+- **범위 한계:** 이 단계의 목표는 Node.js 플러그인 호환성이지 모든 SDK 플러그인/네이티브 플러그인 지원을 약속하는 것이 아니다. 현재 다중 동작 안의 SDK 플러그인 실행 제한도 별도 개선 과제이며, Fusion 매니페스트의 `SupportedInMultiActions` 선언만으로 D200X의 다중 동작 지원이 완료되지는 않는다.
+- **기록 규칙:** 실제 구현 전 `미착수`, 기능 코드 반영 후 `코드 구현·실기 미검증`, 사용자 실기 증거 확보 후에만 해당 범위 `실기 확인`으로 변경한다.
+
+
 > **문서 상태 정합성 공지 (2026-11-15):** 현재 코드 구현·미구현·실기 검증의 **유일한 기준은 [최신 기능 상태표](D200X-CURRENT-STATUS.md)**입니다. 이 문서의 아래 날짜별 절, 체크박스, 당시의 '최신'·'미구현'·'EXE 보류' 문구는 **작성 시점 이력**입니다. 2026-11-15 이후 기능 구현 여부를 여기의 과거 문구로 판단하거나 이미 구현한 기능을 재개발하지 마세요. 상세 이력은 삭제하지 않고 보존합니다.
 
 > **2026-11-14 최신 코드 진행:** P0 밝기·확대·초기화, C1 보정, P1 Windows 창·클립보드·캡처·파일/폴더 액션, P2 앱별 브러시·타임라인 단축키의 **코드/자동 검증** 진행. 원래 24개는 보존. P0-B 완전 통합, P1 출력 장치/마이크, P2 다중동작·앱별 매핑, 실기 안정성은 아직 남아 있다. EXE는 사용자 요청에 따라 보류. 세부 목록은 [기본 액션 확장 계획](D200X-BUILTIN-ACTIONS-EXPANSION.md)을 따른다.

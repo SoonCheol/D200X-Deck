@@ -92,13 +92,27 @@
 | 플러그인(레거시, 액션 탭 숨김) | `ha-toggle` | HA 장치 켜기/끄기 | 기존 저장 설정용 코드 보존 | `editor.js`의 `renderLibrary`가 레거시 HA 카테고리를 숨긴다. 기존 프로필 실행 경로는 남겨둠. 현재 사용자 플러그인 탭의 SDK HA 액션과 구별 |
 | 플러그인 | `sd-plugin` | Stream Deck SDK 플러그인 | 부분 구현·사용자 실사용 확인 | 플러그인 탭·로컬 설치·액션 배치·속성창 사용 가능. HTML CodePath 지원, Node.js CodePath는 미지원 |
 
+## 2026-11-15 사용자 지정 Node.js 플러그인 호환성 목표 — Autodesk FusionStreamDeck
+
+> **상태: 목표 확정 / 구현 미착수.** 사용자가 직접 지정한 첫 Node.js 플러그인 호환성 검증 대상은 [AutodeskFusion360/FusionStreamDeck](https://github.com/AutodeskFusion360/FusionStreamDeck)이다. 이 항목은 기존 24개 기본 액션이나 현재 사용 중인 HTML 기반 SDK 플러그인 기능을 대체하는 작업이 아니다. 사용자 별도 구현 지시가 있을 때만 코드를 수정한다.
+
+- **정확한 대상:** `com.autodesk.fusionstreamdeck.sdPlugin` (`manifest.json`의 `UUID: com.autodesk.fusionstreamdeck`, `CodePath: bin/plugin.js`, `Nodejs.Version: "24"`, `SDKVersion: 2`, `PropertyInspectorPath: ui/run-command.html`).
+- **목표 원칙:** Fusion 전용 하드코딩이 아니라 **범용 Stream Deck Node.js 실행 호스트를 추가**하고 Autodesk Fusion의 `Run Command` 액션을 첫 실사용 호환성 목표로 검증한다.
+- **기존 기능 보존:** 현재 플러그인 탭의 HTML CodePath 설치·실행, HA 플러그인, 등록 액션/프로필/아이콘, 노브·물리 버튼·와이드 화면 기능을 변경 없이 보존한다.
+- **개발 시 확인할 요소:** Node 24 런타임 실행/패키징, 독립 플러그인 프로세스와 생명주기, 기존 WebSocket SDK 등록 및 `keyDown` 이벤트, HTML Property Inspector의 설정 검색·선택, `setImage` 등 상태 업데이트, 장애·종료 처리, 설치/압축 검증, 이전 HTML 호환성.
+- **실사용 완료 기준:** (1) Autodesk 플러그인 등록 및 `Fusion 360 / Run Command` 표시, (2) 액션을 D200X 버튼에 배치·저장·복원, (3) 원본 Property Inspector에서 Fusion 명령 검색·선택, (4) 실제 Fusion 명령 실행, (5) 해당 명령 아이콘 및 오프라인 표시/복귀 확인, (6) 기존 HTML/HA 플러그인 회귀 없음. 테스트/CI 성공과 실제 Windows/Fusion/D200X 실기는 구분해서 기록한다.
+- **별도 전제:** 이 저장소 README에 따르면 플러그인뿐 아니라 **Fusion 360 내부에서 동작하는 `FusionStreamDeck` Python 애드인도 설치·실행**해야 한다. 애드인 없이 플러그인 호스트만 추가해서 실제 명령이 실행된다고 주장하지 않는다.
+- **패키징 확인:** 프로젝트 README는 개발자용 `.sdPlugin` 폴더 복사 절차를 안내한다. D200X 기존 설치 UI가 `.streamDeckPlugin`/ZIP을 받는 방식과 차이가 있으므로 **정확한 설치 파일 준비 또는 지원 확장 필요 여부를 먼저 검증**한다.
+- **범위 한계:** 이 단계의 목표는 Node.js 플러그인 호환성이지 모든 SDK 플러그인/네이티브 플러그인 지원을 약속하는 것이 아니다. 현재 다중 동작 안의 SDK 플러그인 실행 제한도 별도 개선 과제이며, Fusion 매니페스트의 `SupportedInMultiActions` 선언만으로 D200X의 다중 동작 지원이 완료되지는 않는다.
+- **기록 규칙:** 실제 구현 전 `미착수`, 기능 코드 반영 후 `코드 구현·실기 미검증`, 사용자 실기 증거 확보 후에만 해당 범위 `실기 확인`으로 변경한다.
+
 ## 카탈로그 외 명시적 미완성 / 추가 후보
 
 | 기능 | 현재 상태 | 구분 |
 |---|---|---|
 | Windows 마이크 음소거 | **미구현** | 오른쪽 18개 D200X 추가 액션과 별도 후속 후보. 기존 액션에 있다고 쓰지 말 것 |
 | Windows 기본 출력 장치 전환 | **미구현** | Soundboard 재생 대상 출력 선택과 다름 |
-| Node.js Stream Deck 플러그인 실행 | **미구현** | `sd-plugin-host.cjs`는 `.html` CodePath만 허용; Autodesk FusionStreamDeck 직접 설치 불가. 사용자 별도 구현 지시 전 수정하지 않음 |
+| Node.js Stream Deck 플러그인 실행 | **미구현 · 다음 호환성 목표 확정** | 첫 대상: [Autodesk FusionStreamDeck](https://github.com/AutodeskFusion360/FusionStreamDeck)의 `bin/plugin.js` (Node 24). 기존 HTML 지원 유지, 실제 Fusion 애드인과 연동 실기 검증을 완료 기준으로 삼음. **개발 착수 전** |
 | 네이티브 Stream Deck 플러그인 실행 | **미구현** | 별도 프로세스/SDK 호환 체계 필요 |
 | 온라인 플러그인 마켓플레이스 | **미구현** | 플러그인 탭과 로컬 설치는 이미 구현·사용 중. 웹 기반 플러그인 검색·다운로드 마켓만 별도 미구현 |
 | 원본 전체 아이콘 편집기/앱별 프리셋 검색 | **미완성** | 간이 아이콘 제작·고정 단축키 프리셋은 존재 |
