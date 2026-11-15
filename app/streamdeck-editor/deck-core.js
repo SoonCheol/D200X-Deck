@@ -261,8 +261,12 @@
   // Handle that slot only for the virtual wide-screen mode; leave all normal
   // physical key/action slot mapping unchanged.
   function isWideDisplayPress(event){
-    return Number(event?.kind)===1 &&
-      (Number(event?.index)===13||Number(event?.index)===14) &&
+    // D200X input payload byte 0 is firmware state, not necessarily a
+    // constant key kind. Only the reserved wide key index 13 (or its
+    // unassigned right half 14) may advance this virtual display.
+    const index=Number(event?.index);
+    return (index===13||index===14) &&
+      event?.knob!==true &&
       (event?.pressed===true||Number(event?.state)===1);
   }
   function cycleWideDisplay(state){
