@@ -39,7 +39,9 @@
   bridge.onKey(event => {
     // A brief visual press acknowledgement, independent of action/HA state.
     const keyIndex=Number(event?.index);
-    if(Number(event?.kind)===1&&Number.isInteger(keyIndex)&&keyIndex>=0&&keyIndex<14){
+    // Wide key (13/14) has its own mode switch. Do not schedule full-page
+    // press/release repaints: those can overwrite the newly chosen mode.
+    if(Number(event?.kind)===1&&Number.isInteger(keyIndex)&&keyIndex>=0&&keyIndex<13){
       if(event.pressed){
         pressedKeys.add(keyIndex);
         schedule(0);
