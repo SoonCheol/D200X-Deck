@@ -1088,3 +1088,17 @@ test('separate normal and pressed rotary modes persist, profile direction works 
   assert.equal(core.controlBinding(restored,16).mode,'adjust');
   assert.equal(core.controlBinding(restored,16).target,'page');
 });
+
+test('individual rotary overrides preserve automatic action on the other direction',()=>{
+  const state=core.migrateState(null);
+  state.pages.push(core.blankPage());
+  state.controls.pages.push(Array.from({length:5},core.emptyBinding));
+  const knob=core.controlBinding(state,16);
+  knob.mode='trigger';knob.autoAssign=true;knob.target='page';
+  assert.deepEqual(core.planHardwareEvent(state,{kind:2,index:17,state:3}).outcome,{kind:'page',page:1});
+  knob.right=core.createAction('media');
+  assert.equal(core.planHardwareEvent(state,{kind:2,index:17,state:3}).outcome.kind,'media-control');
+  assert.deepEqual(core.planHardwareEvent(state,{kind:2,index:17,state:2}).outcome,{kind:'page',page:0});
+  const restored=core.migrateState(JSON.parse(JSON.stringify(state)));
+  assert.equal(core.controlBinding(restored,16).autoAssign,true);
+});
