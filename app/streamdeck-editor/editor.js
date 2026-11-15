@@ -120,15 +120,26 @@ const valueOf=(item,field,fallback="")=>item?.settings?.[field]??fallback;
 function keyName(item){return item?.title||ACTIONS.get(item?.type)?.label||"";}
 const sdkVisuals=new Map();
 const FUSION_PLUGIN='com.autodesk.fusionstreamdeck';
-const fusionIconCache=new Map(),fusionCachePending=new Set(),fusionConnected=new Set();
+const fusionIconCache=new Map(),fusionCachePending=new Set(),fusionCacheMisses=new Set(),
+  fusionConnected=new Set(),fusionOfflineContexts=new Set();
+function fusionCommandId(item){return isFusionAction(item)?item.settings?.pluginSettings?.commandId:null;}
+function fusionDisabledImage(uri){
+  if(typeof uri!=='string'||!uri.startsWith('data:image/svg+xml;base64,'))return false;
+  try{
+    const svg=atob(uri.slice('data:image/svg+xml;base64,'.length));
+    return (svg.includes('id="disabled"')&&svg.includes('opacity="0.35"'))||
+      (svg.includes('stroke="#999"')&&svg.includes('opacity="0.35"')&&svg.includes('<circle'));
+  }catch{return false;}
+}
 function isFusionAction(item){return item?.type==='sd-plugin'&&
   item.settings?.pluginUUID===FUSION_PLUGIN&&
   typeof item.settings?.actionUUID==='string'&&item.settings.actionUUID.startsWith(FUSION_PLUGIN+'.');}
 function requestFusionIcon(id){
-  if(fusionIconCache.has(id)||fusionCachePending.has(id)||!window.deckBridge?.fusionIconRead)return;
+  if(!id||fusionIconCache.has(id)||fusionCachePending.has(id)||fusionCacheMisses.has(id)||!window.deckBridge?.fusionIconRead)return;
   fusionCachePending.add(id);
   window.deckBridge.fusionIconRead(id).then(png=>{
     if(typeof png==='string'){fusionIconCache.set(id,png);renderGrid();window.scheduleDeckSync?.();}
+    else fusionCacheMisses.add(id);
   }).catch(error=>console.warn('Fusion 아이콘 캐시 읽기 실패',error))
     .finally(()=>fusionCachePending.delete(id));
 }
@@ -136,7 +147,7 @@ async function rememberFusionIcon(id,image){
   if(!window.deckBridge?.fusionIconWrite||typeof image!=='string')return;
   try{
     const png=image.startsWith('data:image/png;base64,')?image:await rasterizeIcon(image);
-    if(await window.deckBridge.fusionIconWrite(id,png))fusionIconCache.set(id,png);
+    if(await window.deckBridge.fusionIconWrite(id,png)){fusionCacheMisses.delete(id);fusionIconCache.set(id,png);}
   }catch(error){console.warn('Fusion 아이콘 캐시 저장 실패',error);}
 }
 
@@ -195,13 +206,15 @@ function displayItem(item,index){
     const assigned=item.settings?.sdkStateIcons?.[stateName];
     const stateIcon=assigned?.kind==='file'&&typeof assigned.value==='string'?assigned:null;
     if(isFusionAction(item)){
-      const id=item.settings.actionUUID;
-      requestFusionIcon(id);
-      const connected=fusionConnected.has(FUSION_PLUGIN);
-      const cached=fusionIconCache.get(id);
-      const icon=stateIcon||item.icon||(connected&&visual?.image?{kind:'file',value:visual.image}:null)||
-        (cached?{kind:'file',value:cached}:null);
-      return {...item,title:visual?.title??item.title,...(icon?{icon}:{}),fusionOffline:!connected};
+      const id=fusionCommandId(item),connected=fusionConnected.has(FUSION_PLUGIN);
+      if(id)requestFusionIcon(id);
+      const cached=id?fusionIconCache.get(id):null;
+      const offline=!connected||fusionOfflineContexts.has(sdkContext(slot,'down'));
+      const runtimeImage=!offline&&visual?.image?visual.image:null;
+      const icon=stateIcon||item.icon||(runtimeImage?{kind:'file',value:runtimeImage}:null)||
+        (cached?{kind:'file',value:cached}:null)||
+        (visual?.image?{kind:'file',value:visual.image}:null);
+      return {...item,title:visual?.title??item.title,...(icon?{icon}:{}),fusionOffline:offline};
     }
     const icon=stateIcon||item.icon||(visual?.image?{kind:'file',value:visual.image}:null);
     if(icon||visual)return {...item,title:visual?.title??item.title,...(icon?{icon}:{})};
@@ -3244,9 +3257,17 @@ if(window.deckBridge?.onSdkEvent){
         old.image=message.payload.image;
       if(message.kind==='setState')old.state=message.payload?.state;
       sdkVisuals.set(ctx,old);
-      if(message.kind==='setImage'&&old.image&&fusionConnected.has(FUSION_PLUGIN)){
+      if(message.kind==='setImage'&&old.image){
         const cfg=sdkActionInstances().find(x=>x.context===ctx);
-        if(cfg?.pluginUUID===FUSION_PLUGIN)void rememberFusionIcon(cfg.actionUUID,old.image);
+        if(cfg?.pluginUUID===FUSION_PLUGIN){
+          const disabled=fusionDisabledImage(old.image);
+          if(disabled)fusionOfflineContexts.add(ctx);
+          else{
+            fusionOfflineContexts.delete(ctx);
+            if(fusionConnected.has(FUSION_PLUGIN)&&typeof cfg.settings?.commandId==='string')
+              void rememberFusionIcon(cfg.settings.commandId,old.image);
+          }
+        }
       }
       renderGrid();window.scheduleDeckSync?.();
     }else if(message.kind==='error')window.d200xActionStatus?.(message.message);
