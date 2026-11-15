@@ -691,7 +691,8 @@ ipcMain.handle('d200x:choose-import-file',async(event,kind)=>{
     image:{title:'이미지 선택',extensions:['png','jpg','jpeg','webp','gif'],limit:5*1024*1024},
     'panel-icon':{title:'액션 아이콘 선택',extensions:['png','jpg','jpeg','webp','gif'],limit:140000},
     profile:{title:'전체 프로필 JSON 가져오기',extensions:['json'],limit:20*1024*1024},
-    action:{title:'D200X 액션 JSON 불러오기',extensions:['json'],limit:5*1024*1024}
+    action:{title:'D200X 액션 JSON 불러오기',extensions:['json'],limit:5*1024*1024},
+    'fusion-batch':{title:'Fusion 명령 일괄 등록 JSON',extensions:['json'],limit:2*1024*1024}
   };
   const type=types[kind];if(!type)throw new Error('지원하지 않는 파일 선택 유형입니다.');
   const selected=await openRememberedPicker({
@@ -704,7 +705,7 @@ ipcMain.handle('d200x:choose-import-file',async(event,kind)=>{
   const ext=path.extname(selected).slice(1).toLowerCase();
   if(!type.extensions.includes(ext))throw new Error('지원하지 않는 파일 확장자입니다.');
   const bytes=await fs.promises.readFile(selected);
-  if(kind==='profile'||kind==='action')return {name:path.basename(selected),text:bytes.toString('utf8').replace(/^\uFEFF/,'')};
+  if(['profile','action','fusion-batch'].includes(kind))return {name:path.basename(selected),text:bytes.toString('utf8').replace(/^\uFEFF/,'')};
   const mime=ext==='jpg'?'image/jpeg':ext==='jpeg'?'image/jpeg':ext==='png'?'image/png':ext==='gif'?'image/gif':'image/webp';
   return {name:path.basename(selected),type:mime,size:bytes.length,
     dataUrl:'data:'+mime+';base64,'+bytes.toString('base64')};

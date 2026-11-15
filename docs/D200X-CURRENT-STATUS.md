@@ -1,3 +1,11 @@
+## 2026-11-15 Fusion 명령 일괄 등록 MCP 1단계 코드 반영
+
+- **목표:** Codex MCP로 실행 중인 Fusion 애드인의 `GET /commands`를 읽어 실제 명령 ID를 일괄 확인하고, D200X의 기존 프로필을 보존하면서 새 Fusion 전용 프로필에 14개/페이지로 버튼을 배치할 JSON 생성.
+- **추가:** `tools/fusion-mcp/server.cjs`(stdio JSON-RPC MCP 도구 2종), `app/streamdeck-editor/fusion-batch.js`(파일 검증·새 프로필만 추가), `test/streamdeck-fusion-mcp.test.cjs`, `tools/fusion-mcp/README.md`.
+- **앱:** 프로필 메뉴 > 전체 프로필 관리 > Fusion 360 명령 일괄 등록 JSON 가져오기. 기존 전체 프로필 JSON 교체와 달리 사용자 확인 후 새 프로필 생성; 기존 프로필·키·HA 플러그인 보존.
+- **실기 분리:** 이 커밋에서는 로컬 Codex MCP 설치·Fusion 실제 명령 목록·GUI 일괄 등록 성공을 주장하지 않는다. Windows Actions 테스트 결과를 별도로 확인해야 한다.
+- **개발 브랜치:** `codex/streamdeck-761-clean-editor`만 사용. `main` 변경 금지.
+
 # D200X-Deck 최신 기능 현황 — 단일 상태 기준
 
 > **기준:** 2026-11-15 · 저장소 `SoonCheol/D200X-Deck` · 개발 브랜치 `codex/streamdeck-761-clean-editor` · 코드 커밋 `c738f16095996d64b2dd8b215515743fba299390` · 직전 HEAD(문서) `6c663193e6e81201c27e9ebbe282f47b58392da1`.

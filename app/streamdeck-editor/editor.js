@@ -2655,6 +2655,35 @@ function bindSidebarHeader(){
       }
     });
 
+    globalAction('Fusion 360 명령 일괄 등록 JSON 가져오기',async()=>{
+      if(!window.deckBridge?.chooseImportFile)throw Error('Windows EXE에서만 이용할 수 있습니다.');
+      const chosen=await window.deckBridge.chooseImportFile('fusion-batch');
+      if(!chosen)return;
+      const input=window.D200XFusionBatch.validate(JSON.parse(chosen.text));
+      if(!sdkPlugins.some(plugin=>plugin.uuid===input.pluginUUID))
+        throw Error('Fusion 360 플러그인을 먼저 설치해야 합니다.');
+      if(state.profileNames.length>=50)throw Error('프로필 최대 50개 제한에 도달했습니다.');
+      const pages=Math.ceil(input.commands.length/14);
+      if(!confirm('Fusion 360 명령 '+input.commands.length+'개를 새 프로필 "'+
+        input.profileName+'" ('+pages+'페이지)에 등록하시겠습니까?\\n'+
+        '기존 프로필과 버튼은 보존됩니다.'))return;
+      const snapshot=JSON.stringify(state);
+      try{
+        const outcome=window.D200XFusionBatch.apply(state,input,DeckCore);
+        if(!persist()){
+          state=JSON.parse(snapshot);
+          throw Error('프로필 저장에 실패했습니다. 기존 데이터로 복구했습니다.');
+        }
+        render();renderLibrary();window.scheduleDeckSync?.();
+        window.d200xActionStatus?.('Fusion 일괄 등록 완료: '+outcome.count+
+          '개 · '+outcome.pageCount+'페이지 · '+outcome.profileName);
+      }catch(error){
+        state=DeckCore.migrateState(JSON.parse(snapshot));
+        persist();render();
+        throw error;
+      }
+    });
+
     menu.append(globalPanel);
   };
   refreshProfilesMenu=renderProfiles;

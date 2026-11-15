@@ -1,3 +1,10 @@
+## 2026-11-15 새 작업: Codex용 Fusion 명령 일괄 등록 MCP
+
+- 사용자 실기 확인: FusionStreamDeck 원본 플러그인 설치, 검색창에서 `extrude` 검색, 원본 PI 검색 결과 표시, 실제 D200X 물리 키로 Fusion 돌출 실행 **사용자 보고 성공**. 이 사실을 자동 테스트와 구분한다.
+- 다음 개발은 **Codex MCP 기반 일괄 등록**. 별도 `tools/fusion-mcp/README.md` 및 `docs/D200X-CURRENT-STATUS.md` 참조.
+- MCP는 Fusion 애드인 endpoint 파일을 읽고 실제 명령 ID 조회·새 프로필용 JSON 생성. 기존 사용자 저장 데이터를 직접 변경하지 않는다.
+- 앱의 새 메뉴는 검증한 JSON을 받아 **기존 프로필을 유지하면서 별도 Fusion 프로필 생성**. 실기 GUI 검증은 사용자 작업 후 반영.
+
 # D200X Stream Deck SDK Node.js 호환성 — 2026-11-15 전용 인수인계
 
 > **이 문서를 다음 채팅/작업의 첫 진입점으로 사용한다.** 최신 상태를 판단할 때 `docs/D200X-CURRENT-STATUS.md`와 실제 최신 개발 브랜치 소스를 함께 확인한다. 과거 계획의 'Node 미구현' 문구는 날짜별 이력이다.
