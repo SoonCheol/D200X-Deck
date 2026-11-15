@@ -1531,7 +1531,7 @@ function renderInspector(){
       sdkActionNames.get(item.settings?.actionUUID)||item.settings?.actionName||item.settings?.actionUUID||'설치된 플러그인')
     :null;
   const inspectorName=sdkName||action?.label;
-  root.innerHTML=`<div class="action-head"><strong>액션 &gt; ${escapeHtml(action?.category)} &gt; ${escapeHtml(inspectorName)}</strong></div>
+  root.innerHTML=`<div class="action-head"><strong>${escapeHtml(item.type==='sd-plugin'?'플러그인':action?.category)} &gt; ${escapeHtml(inspectorName)}</strong></div>
     <div class="properties"><div class="preview"><div class="preview-key" id="icon-preview"><button id="delete-action" class="control-tile-remove preview-action-remove" title="동작 삭제" type="button">×</button>
       <span id="icon-preview-content"></span>
       <button class="icon-preview-control icon-preview-plus" type="button" id="icon-library-open" aria-label="아이콘 라이브러리 열기" title="아이콘 라이브러리">+</button>
