@@ -523,3 +523,5 @@
 - `test/streamdeck-core.test.cjs`: 전체 순서 4개, 기본 활성 3개, 네 번째 체크 시 순환, 프로필 분리 및 복원 회귀 검증 수정. 새 CI #43657256117 및 입력 실행 검증 #43657251385는 성공.
 - 구현 커밋: `8ff14c6e` (속성/순환/노브 정보), `e438bacb` (PNG), `db7aa219` (손잡이 커서), `f4d64bbe` (테스트), `12757e83` (새 테스트 포함 최종 Preview 트리거).
 - **중요:** 원본 Ulanzi Studio의 노브 제목 반영은 아직 실물 비교 미완료. 사용자 Windows GUI/물리 버튼의 순환·USB PNG 화면은 새 EXE 실기 검증 전. CI 성공은 실물 검증을 뜻하지 않음. 최신 Windows Preview 작업: https://github.com/SoonCheol/D200X-Deck/actions/runs/43657350031 (결과 및 Artifact는 실행 종료 후 별도 확인).
+
+- **최종 Windows Preview 확인:** [#43657350031](https://github.com/SoonCheol/D200X-Deck/actions/runs/43657350031) success (source `12757e830b6940a493681c214f1e96fe83ac68ae`); Artifact [D200X-StreamDeck-Device-Sync-win-x64](https://github.com/SoonCheol/D200X-Deck/actions/runs/43657350031/artifacts/14138985954), ID `14138985954`, 170,368,881 bytes, 확인 시 `expired=false`. 포장/업로드 성공이며 Windows 실제 GUI·물리 D200X 시험 완료를 뜻하지 않음.
