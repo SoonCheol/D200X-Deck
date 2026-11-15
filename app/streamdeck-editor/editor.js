@@ -314,6 +314,10 @@ function renderWideInspector(){
   const notice=document.createElement('p');notice.className='hint';
   notice.textContent='노브 정보는 기본 해제입니다. 선택하면 현재 프로필의 노브 1~3 설정을 표시합니다.';
   root.append(notice);
+  const advance=document.createElement('button');advance.type='button';
+  advance.className='wide-mode-reset';advance.textContent='다음 화면 표시 ▶';
+  advance.addEventListener('click',()=>{advanceWideDisplay();});
+  root.append(advance);
   const reset=document.createElement('button');reset.type='button';
   reset.className='wide-mode-reset';reset.textContent='기본 순서로 복원 (시계 → 날짜·시간·요일 → CPU·RAM·GPU)';
   reset.addEventListener('click',()=>{state.wideDisplay=DeckCore.cleanWideDisplay(null);persist();render();});
@@ -342,7 +346,7 @@ function renderGrid(){
         b.replaceChildren(preview);
       }).catch(error=>console.warn("버튼 이미지 미리보기 실패",error));
     }
-    b.addEventListener("click",()=>{if(folderBack){DeckCore.exitFolder(state);persist();render();}else if(i===13&&wideDisplayAvailable()){state.selected=i;DeckCore.cycleWideDisplay(state);persist();render();}else choose(i);});
+    b.addEventListener("click",()=>{if(folderBack){DeckCore.exitFolder(state);persist();render();}else if(i===13&&wideDisplayAvailable()){state.selected=i;advanceWideDisplay();}else choose(i);});
     b.addEventListener("contextmenu",ev=>{ev.preventDefault();choose(i);showMenu(i,ev.clientX,ev.clientY);});
     b.addEventListener("dragover",ev=>{ev.preventDefault();b.classList.add("drag-over");});
     b.addEventListener("dragleave",()=>b.classList.remove("drag-over"));
@@ -1849,11 +1853,16 @@ function runActionPreview(gesture='down'){
   const result=executeHardwareAction(event,true);
   window.d200xActionStatus?.(result||'등록된 동작이 없어 실행하지 않았습니다.');
 }
+function advanceWideDisplay(){
+  if(!wideDisplayAvailable())return null;
+  const mode=DeckCore.cycleWideDisplay(state);
+  persist();render();
+  window.d200xActionStatus?.('가로 화면 전환: '+WIDE_LABELS[mode]);
+  return mode;
+}
 function executeHardwareAction(event,preview=false){
-  if(Number(event?.index)===13&&Number(event?.kind)===1&&
-    event.pressed===true&&wideDisplayAvailable()){
-    const mode=DeckCore.cycleWideDisplay(state);
-    persist();render();
+  if(DeckCore.isWideDisplayPress(event)&&wideDisplayAvailable()){
+    const mode=advanceWideDisplay();
     return '가로 화면 전환: '+WIDE_LABELS[mode];
   }
   const resolved=DeckCore.resolveHardwareEvent(state,event);
