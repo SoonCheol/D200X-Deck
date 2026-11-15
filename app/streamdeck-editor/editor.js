@@ -215,12 +215,16 @@ function setItem(index,item){
   state.selected=index;persist();render();
 }
 function removeSlotAction(index){
+  if(reservedWideSlot(index))return false;
   if(index<14&&!currentPage()[index]&&state.pinned?.[index]){
-    if(!confirm('고정 액션을 모든 페이지에서 해제하시겠습니까?'))return;
-    if(DeckCore.togglePinned(state,index)){persist();render();}
-    return;
+    if(!confirm('고정 액션을 모든 페이지에서 해제하시겠습니까?'))return false;
+    if(DeckCore.togglePinned(state,index)){persist();render();return true;}
+    return false;
   }
+  if(!currentPage()?.[index])return false;
+  if(!confirm('이 동작을 삭제하시겠습니까?'))return false;
   setItem(index,null);
+  return true;
 }
 function removeControlAction(index,gesture='down'){
   const binding=DeckCore.controlBinding(state,index);
@@ -1564,7 +1568,7 @@ function showMenu(index,x,y){
     add("동작 불러오기…",()=>importSlotAction(index));
     add("동작 내보내기…",()=>exportSlotAction(item));
     divider();
-    add("삭제",()=>{if(confirm("이 동작을 삭제하시겠습니까?"))removeSlotAction(index);});
+    add("삭제",()=>removeSlotAction(index));
   }
   menu.style.left=Math.max(0,Math.min(x,window.innerWidth-230))+"px";
   menu.style.top=Math.max(0,Math.min(y,window.innerHeight-380))+"px";
