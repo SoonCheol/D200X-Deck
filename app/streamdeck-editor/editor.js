@@ -2251,6 +2251,15 @@ function executeHardwareAction(event,preview=false,skipKnobGesture=false){
     offset>=2?stackPositions[offset-2]:0);
   if(!planned)return null;
   const outcome=planned.outcome;
+  // Hardware-driven navigation cannot silently abandon an unsaved inspector.
+  if(!preview&&inspectorSession?.dirty&&
+    ['page','profile','folder-back','folder-enter'].includes(outcome.kind)){
+    showInspectorLeaveDialog(()=>{
+      lastHardwareDown.delete(index);
+      executeHardwareAction(event,false,true);
+    });
+    return '저장하지 않은 변경 사항 확인';
+  }
   if(!['stack-next','page','profile','folder-back','folder-enter','composite','unsupported','invalid'].includes(outcome.kind))
     scheduleFolderExitAfterAction();
   if(outcome.kind==='stack-next'){
