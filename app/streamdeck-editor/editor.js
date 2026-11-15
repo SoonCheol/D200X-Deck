@@ -2913,7 +2913,7 @@ if(window.deckBridge?.onSdkEvent){
           DeckCore.controlBinding(state,index.slot)?.[ctx.split(':').at(-1)];
         if(item?.type==='sd-plugin'){
           item.settings.pluginSettings=message.settings;
-          persist();
+          persistInspectorChange();
         }
       }
     }else if(['setTitle','setImage','setState'].includes(message.kind)){
