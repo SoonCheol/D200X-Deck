@@ -24,6 +24,11 @@
 - 커밋 `ff8dfc44940709114745dfc5d5d28565185ff0b2`: 첫 Windows Node24 패키징 검증 step이 잘못 생성되면서 YAML 문자열 구성이 깨져 Actions [#43688432536](https://github.com/SoonCheol/D200X-Deck/actions/runs/43688432536)이 **워크플로 구문 오류/잡 미생성으로 실패**. 앱 코드 실행 실패가 아님.
 - 이 커밋은 **workflow 파일의 깨진 step만 복구**하고 정규식 대신 단순 숫자 파싱으로 검사를 변경. CI 및 패키징 실행 결과가 확인되기 전까지 성공 표시 금지.
 
+## 4차 Workflow 경로 2차 수정 — 실행 단계별 작업 폴더 구분
+
+- [Windows Preview #43688783937](https://github.com/SoonCheol/D200X-Deck/actions/runs/43688783937) 실패: 처음 `Check standalone preview scripts` 단계는 리포지터리 루트 작업 폴더이므로 `test/streamdeck-sdk-host.test.cjs`가 맞음. 앞선 경로 수정에서 원래 있던 첫 번째 테스트 경로를 잘못 바꾸었고, 초기 `node --test`에서 파일을 찾지 못함.
+- **정확한 해결:** 루트에서 실행하는 첫 번째 테스트는 `test/...`, `working-directory: app`가 있는 **패키징 후 검증 단계만** `../test/...`로 지정. 이번 수정 커밋의 Windows Actions 성공 여부를 확인 전까지 완료로 단정하지 말 것.
+
 ## 4차 Windows Node24 검증 결과 및 경로 수정
 
 - **소스 `582451d71b14709a36780b354454b2f7d5b88c43` 빌드 로그:** [Windows Preview #43688638822](https://github.com/SoonCheol/D200X-Deck/actions/runs/43688638822)에서 **패키징된 Electron Node.js `24.22.1` 실행에 성공**. 다만 후속 테스트 커맨드의 작업 디렉터리가 `app/`인데 `test/streamdeck-sdk-host.test.cjs`를 상대 경로로 지정해 파일을 못 찾아 run이 실패. 앱 SDK 런타임 실패가 아닌 **워크플로 테스트 경로 오류**임.

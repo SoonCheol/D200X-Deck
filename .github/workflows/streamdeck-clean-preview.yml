@@ -50,7 +50,7 @@ jobs:
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           node --check app/streamdeck-editor/sd-plugin-host.cjs
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          node --test ../test/streamdeck-sdk-host.test.cjs
+          node --test test/streamdeck-sdk-host.test.cjs
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           node --test test/streamdeck-sdk-visual.test.cjs
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
@@ -170,7 +170,7 @@ jobs:
           # Electron executable as the Node plugin runtime (not runner node.exe).
           $env:D200X_NODE_PATH = $exe
           try {
-            node --test test/streamdeck-sdk-host.test.cjs
+            node --test ../test/streamdeck-sdk-host.test.cjs
             if ($LASTEXITCODE -ne 0) { throw 'Packaged Electron Node SDK integration tests failed' }
           } finally {
             Remove-Item Env:D200X_NODE_PATH -ErrorAction SilentlyContinue
