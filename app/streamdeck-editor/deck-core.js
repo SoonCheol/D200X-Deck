@@ -198,14 +198,14 @@
   const CONTROL_MODES=['trigger','adjust','stack'];
   const ADJUST_TARGETS=['page','volume','zoom','scroll','scroll-x','history','window','desktop','brightness'];
   function emptyBinding(){
-    return {mode:'trigger',down:null,left:null,right:null,target:'page',
+    return {mode:'trigger',down:null,left:null,right:null,holdLeft:null,holdRight:null,target:'page',
       stack:['page','volume'],stackIndex:0,step:1,reverseDirection:false};
   }
   function cleanBinding(value){
     const out=emptyBinding();
     if(!value||typeof value!=='object'||Array.isArray(value))return out;
     out.mode=CONTROL_MODES.includes(value.mode)?value.mode:'trigger';
-    for(const key of ['down','left','right'])out[key]=cleanAction(value[key]);
+    for(const key of ['down','left','right','holdLeft','holdRight'])out[key]=cleanAction(value[key]);
     out.target=ADJUST_TARGETS.includes(value.target)?value.target:'page';
     if(Array.isArray(value.stack)){
       out.stack=[...new Set(value.stack.filter(x=>ADJUST_TARGETS.includes(x)))].slice(0,3);
@@ -238,7 +238,7 @@
       // Current page starts with the global binding; other pages retain
       // their own imported/previously edited entries.
       const local=controls.pages[state.page][index];
-      if(!local?.down&&!local?.left&&!local?.right&&local?.mode==='trigger')
+      if(!local?.down&&!local?.left&&!local?.right&&!local?.holdLeft&&!local?.holdRight&&local?.mode==='trigger')
         controls.pages[state.page][index]=cleanBinding(controls.global[index]);
     }else{
       controls.global[index]=cleanBinding(controls.pages[state.page][index]);
@@ -495,7 +495,7 @@
   function previewHardwareEvent(slot,gesture='down'){
     if(!Number.isInteger(slot)||slot<0||slot>18)return null;
     const knob=slot>=16;
-    const state=knob?({down:1,left:2,right:3})[gesture]:(gesture==='down'?1:null);
+    const state=knob?({down:1,left:2,right:3,'hold-left':4,'hold-right':5})[gesture]:(gesture==='down'?1:null);
     if(!state)return null;
     return {kind:knob?2:1,index:slot<14?slot:slot+1,state,pressed:gesture==='down'};
   }
@@ -516,7 +516,7 @@
     if(index>=17&&index<=19){
       // 'pressed' is true only for the knob's down event; left/right
       // rotations carry state 2/3 and should execute on every tick.
-      return ({0:'up',1:'down',2:'left',3:'right'})[Number(event.state)]||null;
+      return ({0:'up',1:'down',2:'left',3:'right',4:'hold-left',5:'hold-right'})[Number(event.state)]||null;
     }
     if(Number(event.kind)!==1)return null;
     return event.pressed===true?'down':event.pressed===false?'up':null;
@@ -553,6 +553,10 @@
     const page=folder?(folder.pageIndex||0):state.page;
     const pageCount=folder?folderPageCount(state):state.pages.length;
     if(binding && knob){
+      if(gesture==='hold-left'||gesture==='hold-right'){
+        const action=binding[gesture==='hold-left'?'holdLeft':'holdRight'];
+        return action?{index,gesture,outcome:planAction(action,page,pageCount)}:null;
+      }
       if(binding.mode==='adjust'||binding.mode==='stack'){
         if(gesture==='down'){
           if(binding.mode==='stack')return {index,gesture,outcome:{kind:'stack-next',size:binding.stack.length}};
