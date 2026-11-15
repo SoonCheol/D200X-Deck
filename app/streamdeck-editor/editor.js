@@ -222,6 +222,32 @@ function removeSlotAction(index){
   }
   setItem(index,null);
 }
+function removeControlAction(index,gesture='down'){
+  const binding=DeckCore.controlBinding(state,index);
+  if(!binding||!binding[gesture])return false;
+  if(!confirm('이 입력에 할당된 액션을 삭제하시겠습니까?'))return false;
+  binding[gesture]=null;
+  state.selected=index;controlGesture=gesture;
+  persist();render();
+  return true;
+}
+function showControlMenu(index,x,y){
+  const menu=$('key-menu');menu.replaceChildren();
+  const binding=DeckCore.controlBinding(state,index);
+  const item=binding?.down;
+  const option=document.createElement('button');
+  option.type='button';option.role='menuitem';
+  option.textContent='누르기 액션 삭제';
+  option.disabled=!item;
+  option.addEventListener('click',()=>{
+    menu.hidden=true;
+    removeControlAction(index,'down');
+  });
+  menu.append(option);
+  menu.style.left=Math.max(0,Math.min(x,window.innerWidth-230))+'px';
+  menu.style.top=Math.max(0,Math.min(y,window.innerHeight-150))+'px';
+  menu.hidden=false;
+}
 function choose(index){
   if(state.selected!==index)controlGesture='down';
   state.selected=index;persist();render();
@@ -384,7 +410,12 @@ function renderPhysicalControls(){
       :(item?keyName(item):name);
     button.append(symbol,label);
     button.addEventListener("click",()=>choose(index));
-    button.addEventListener("contextmenu",event=>{event.preventDefault();choose(index);});
+    button.addEventListener("contextmenu",event=>{
+      event.preventDefault();
+      state.selected=index;controlGesture='down';
+      renderPhysicalControls();renderControlInspector();
+      showControlMenu(index,event.clientX,event.clientY);
+    });
     button.addEventListener("dragenter",()=>{
       // Reveal the gesture targets below while an action is dragged over
       // the physical button/knob, without replacing the drop target.
@@ -1182,7 +1213,7 @@ function renderControlInspector(){
     const row=document.createElement('div');row.className='control-action-header';
     const label=document.createElement('strong');label.textContent=keyName(current);
     const remove=document.createElement('button');remove.type='button';remove.textContent='이 동작 삭제';
-    remove.addEventListener('click',()=>{binding[controlGesture]=null;persist();render();});
+    remove.addEventListener('click',()=>removeControlAction(index,controlGesture));
     row.append(label,remove);editor.append(row);
     const fields=document.createElement('div');fields.className='fields';
     fields.innerHTML=actionFields(current);bindExtendedActionFields(fields,current);
