@@ -200,7 +200,7 @@ class D200XTransport extends EventEmitter {
           }
           this.deck.setWideMode(this.wideMode);
           this.deck.pushPage(zip);
-          // Firmware mode verification: keep the last command in image mode.
+          // The final frame remains image mode after each uploaded page.
           // A page upload may re-activate stale firmware overlays; finish
           // with an explicit image mode packet AFTER the manifest.
           if(this.wideMode==='blank')
