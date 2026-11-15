@@ -366,3 +366,43 @@
 .settings-menu[hidden]{display:none}
 .settings-menu button{display:block;width:100%;border:0;background:transparent;color:#ddd;text-align:left;padding:9px 11px;border-radius:4px;white-space:nowrap}
 .settings-menu button:hover,.settings-menu button:focus-visible{background:#484848}
+
+/* Consistent inspector header, compact knob tabs, and action buttons. */
+.control-head{gap:9px;min-height:34px}
+.control-head strong{white-space:nowrap}
+.control-mode-badge{flex:none;border:1px solid #478bd0;background:#243d5d;color:#f2f7ff;border-radius:5px;padding:4px 9px;font-size:11px}
+.control-mode-badge.trigger{border-color:#ae854b;background:#4d3822}
+.control-mode-badge.stack{border-color:#9877c9;background:#3f3054}
+.control-mode-tabs{display:flex;margin-left:auto;gap:3px;border-radius:8px;background:#202020;padding:3px}
+.control-mode-tabs button{border:0;border-radius:6px;padding:7px 11px;background:transparent;font-size:12px;color:#b4b4b4;white-space:nowrap}
+.control-mode-tabs button.active{background:#373737;color:white}
+.control-held-enable{display:flex;align-items:center;gap:7px;white-space:nowrap}
+.control-adjust-config>select{min-width:145px}
+.control-adjust-config>select.control-step{min-width:64px;width:68px}
+.control-adjust-config>label{min-width:auto}
+.control-adjust-config>.control-reverse{display:flex;align-items:center;gap:6px}
+.control-gesture-strip{flex-wrap:nowrap;gap:10px}
+.control-tile-holder{position:relative;flex:1 1 0;min-width:0;max-width:215px}
+.control-gesture-tile{width:100%;min-width:0;max-width:none;min-height:104px;height:104px;justify-content:center;gap:3px;padding:7px 6px}
+.control-gesture-tile strong{font-size:12px;line-height:1.25;text-align:center}
+.control-gesture-tile:disabled{cursor:default;opacity:.56;border-color:#444;background:#2b2b2b}
+.control-gesture-value{font-size:11px;min-height:12px;line-height:1.25}
+.control-tile-remove{position:absolute;z-index:4;top:5px;right:5px;width:21px;height:21px;border-radius:50%;background:#515966;border:1px solid #88909d;color:white;font-size:16px;display:grid;place-items:center;padding:0;line-height:1}
+.control-tile-remove:disabled{opacity:.25;cursor:default}
+.control-tile-remove:not(:disabled):hover{background:#8b4545}
+.preview-action-remove{top:4px;right:4px}
+.control-test-row{display:flex;flex-wrap:nowrap;gap:5px;margin:8px 0 2px;max-width:100%}
+.control-test-row>button{flex:1 1 0;min-width:0;white-space:nowrap;text-align:center;background:#345579;border:1px solid #7397ba;border-radius:5px;padding:6px 5px;font-size:11px;color:#fff}
+.control-test-row>button:hover{background:#416b98}
+.inspector-save-bar{position:sticky;bottom:-16px;z-index:20;background:#292929;border-top:1px solid #505050;display:flex;align-items:center;justify-content:flex-end;gap:8px;padding:11px 0;margin-top:12px}
+.inspector-save-bar button{border-radius:5px;padding:7px 16px;font-size:12px;color:#fff;background:#494949;border:1px solid #666}
+.inspector-save-bar .inspector-save{background:#2678ca;border-color:#388de3}
+.inspector-save-bar button:disabled{opacity:.4;cursor:default}
+/* Fixed size SDK state cards: original compact proportion with vertical equal-size buttons. */
+.sdk-state-icons{padding-left:142px;gap:12px}
+.sdk-state-icon{width:196px;min-width:196px;max-width:196px;display:grid;grid-template-columns:84px 76px;grid-template-rows:auto 84px;column-gap:9px;row-gap:7px;align-items:center;justify-content:start;padding:10px}
+.sdk-state-icon strong{grid-column:1 / 3}
+.sdk-state-preview{grid-column:1;grid-row:2;width:84px;height:84px;border-radius:5px}
+.sdk-state-icon .sdk-state-buttons{grid-column:2;grid-row:2;display:flex;flex-direction:column;gap:4px;width:76px}
+.sdk-state-icon .sdk-state-buttons button{width:76px;min-width:76px;max-width:76px;height:25px;min-height:25px;padding:2px 3px;text-align:center;white-space:nowrap;line-height:1.1}
+@media(max-width:1000px){.sdk-state-icons{padding-left:107px}}
