@@ -88,7 +88,7 @@ try {
     backupPending=!localStorage.getItem(STORAGE_KEY+'-pre-profiles-backup');
   }
 } catch {state=DeckCore.migrateState(null);}
-const persist=()=>{
+const persist=(scheduleSync=true)=>{
   try {
     if(backupPending){
       const old=localStorage.getItem(STORAGE_KEY);
@@ -102,7 +102,7 @@ const persist=()=>{
     window.d200xActionStatus?.('설정 저장 실패: 저장 공간/권한을 확인하세요.');
     return false;
   }
-  window.scheduleDeckSync?.();
+  if(scheduleSync)window.scheduleDeckSync?.();
   return true;
 };
 // Migration: preserve the existing 14 key assignments and extend with 5 physical controls.
@@ -1853,15 +1853,24 @@ function runActionPreview(gesture='down'){
   const result=executeHardwareAction(event,true);
   window.d200xActionStatus?.(result||'등록된 동작이 없어 실행하지 않았습니다.');
 }
+let lastWideHardwarePress=0;
 function advanceWideDisplay(){
   if(!wideDisplayAvailable())return null;
   const mode=DeckCore.cycleWideDisplay(state);
-  persist();render();
+  persist(false);render();
+  // A wide-only switch must not race with 14 full-key repaints.
+  if(window.scheduleD200XWideSync)window.scheduleD200XWideSync();
+  else window.scheduleDeckSync?.(0);
   window.d200xActionStatus?.('가로 화면 전환: '+WIDE_LABELS[mode]);
   return mode;
 }
 function executeHardwareAction(event,preview=false){
   if(DeckCore.isWideDisplayPress(event)&&wideDisplayAvailable()){
+    // The merged key can report both halves of one physical press.
+    // Ignore duplicate press packets, but do not affect other controls.
+    const now=Date.now();
+    if(!preview&&now-lastWideHardwarePress<240)return null;
+    if(!preview)lastWideHardwarePress=now;
     const mode=advanceWideDisplay();
     return '가로 화면 전환: '+WIDE_LABELS[mode];
   }
