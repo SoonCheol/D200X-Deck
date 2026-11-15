@@ -124,3 +124,59 @@ test('Node.js runtime enforces requested major version',async()=>{
   assert.ok(Number(runtime.version.split('.')[0])>=20);
   await assert.rejects(nodeRuntime(99),/Node.js 99 이상/);
 });
+
+
+test('Node SDK plugin runs a real WebSocket handshake and key event with original registration arguments',async()=>{
+  const dir=await fs.mkdtemp(path.join(os.tmpdir(),'d200x-node-plugin-'));
+  const uuid='com.d200x.nodeintegration',actions=[{UUID:uuid+'.button',Name:'Test Button'}];
+  const installed=path.join(dir,'streamdeck-sdk-plugins',uuid+'.sdPlugin');
+  const events=[];
+  const host=new StreamDeckPluginHost(dir,message=>events.push(message));
+  try{
+    await fs.mkdir(installed,{recursive:true});
+    const manifest={UUID:uuid,Name:'Test Node Plugin',Version:'1.0.0',
+      CodePath:'plugin.js',Nodejs:{Version:'20'},Actions:actions};
+    const script=[
+      "const args=process.argv;",
+      "const value=key=>args[args.indexOf(key)+1];",
+      "const ws=new WebSocket('ws://127.0.0.1:'+value('-port'));",
+      "ws.addEventListener('open',()=>ws.send(JSON.stringify({event:value('-registerEvent'),uuid:value('-pluginUUID')})));",
+      "ws.addEventListener('message',event=>{",
+      " const data=JSON.parse(event.data);",
+      " if(data.event==='keyDown')ws.send(JSON.stringify({event:'setTitle',context:data.context,payload:{title:'NODE_OK'}}));",
+      "});"
+    ].join('\n');
+    await fs.writeFile(path.join(installed,'manifest.json'),JSON.stringify(manifest));
+    await fs.writeFile(path.join(installed,'plugin.js'),script);
+    const context='default:0::0:down';
+    await host.sync([{context,slot:0,pluginUUID:uuid,actionUUID:actions[0].UUID,settings:{}}]);
+    const deadline=Date.now()+5000;
+    while(!host.instances.get(uuid)?.ws&&Date.now()<deadline)
+      await new Promise(r=>setTimeout(r,30));
+    assert.ok(host.instances.get(uuid)?.ws,'Node process must register over SDK WebSocket');
+    assert.equal(host.key(context,'down'),true);
+    while(!events.some(x=>x.kind==='setTitle')&&Date.now()<deadline)
+      await new Promise(r=>setTimeout(r,30));
+    assert.equal(events.find(x=>x.kind==='setTitle')?.payload?.title,'NODE_OK');
+  }finally{
+    await host.close();
+    await fs.rm(dir,{recursive:true,force:true,maxRetries:6,retryDelay:150});
+  }
+});
+
+test('Developer .sdPlugin folder installs through the same validated archive path',async()=>{
+  const tmp=await fs.mkdtemp(path.join(os.tmpdir(),'d200x-sdk-folder-'));
+  try{
+    const uuid=fusionManifest.UUID,folder=path.join(tmp,uuid+'.sdPlugin');
+    await fs.mkdir(path.join(folder,'bin'),{recursive:true});
+    await fs.mkdir(path.join(folder,'ui'),{recursive:true});
+    await fs.writeFile(path.join(folder,'manifest.json'),JSON.stringify(fusionManifest));
+    await fs.writeFile(path.join(folder,'bin','plugin.js'),'// test fixture');
+    await fs.writeFile(path.join(folder,'ui','run-command.html'),'<html></html>');
+    const host=new StreamDeckPluginHost(path.join(tmp,'target'));
+    const installed=await host.installDirectory(folder);
+    assert.equal(installed.uuid,uuid);
+    assert.equal((await host.list())[0].name,'Fusion 360');
+    await assert.rejects(host.installDirectory(folder),/이미 있습니다/);
+  }finally{await fs.rm(tmp,{recursive:true,force:true,maxRetries:6,retryDelay:150});}
+});

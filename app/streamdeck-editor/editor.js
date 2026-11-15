@@ -455,10 +455,10 @@ async function refreshSdkPlugins(){
     if(libraryTab==='plugins')renderLibrary();
   }catch(error){window.d200xActionStatus?.('SDK 플러그인 목록 오류: '+String(error?.message||error));}
 }
-async function installSdkPlugin(){
+async function installSdkPlugin(fromFolder=false){
   if(!window.deckBridge?.sdkInstall)return window.d200xActionStatus?.('Windows EXE에서만 설치 가능합니다.');
   try{
-    const plugin=await window.deckBridge.sdkInstall();
+    const plugin=fromFolder?await window.deckBridge.sdkInstallFolder():await window.deckBridge.sdkInstall();
     if(!plugin)return;
     await refreshSdkPlugins();
     window.d200xActionStatus?.('Stream Deck 플러그인 설치: '+plugin.name+' '+plugin.version);
@@ -609,7 +609,11 @@ function bindActionAppearance(){
   pluginToolbar.id='plugin-install-toolbar';pluginToolbar.className='action-appearance plugin-install-toolbar';
   const add=document.createElement('button');add.type='button';add.className='plugin-add-button';
   add.textContent='＋ 플러그인 추가';
-  add.addEventListener('click',installSdkPlugin);pluginToolbar.append(add);
+  add.addEventListener('click',()=>installSdkPlugin());pluginToolbar.append(add);
+  const fromDir=document.createElement('button');fromDir.type='button';
+  fromDir.className='plugin-add-button';fromDir.textContent='＋ 폴더에서 추가';
+  fromDir.title='개발자 배포 .sdPlugin 폴더 설치';
+  fromDir.addEventListener('click',()=>installSdkPlugin(true));pluginToolbar.append(fromDir);
   host.after(pluginToolbar);
   updatePluginToolbar();
 }

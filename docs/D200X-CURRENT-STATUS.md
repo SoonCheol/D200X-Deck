@@ -92,6 +92,12 @@
 | 플러그인(레거시, 액션 탭 숨김) | `ha-toggle` | HA 장치 켜기/끄기 | 기존 저장 설정용 코드 보존 | `editor.js`의 `renderLibrary`가 레거시 HA 카테고리를 숨긴다. 기존 프로필 실행 경로는 남겨둠. 현재 사용자 플러그인 탭의 SDK HA 액션과 구별 |
 | 플러그인 | `sd-plugin` | Stream Deck SDK 플러그인 | 부분 구현·사용자 실사용 확인 | 플러그인 탭·로컬 설치·액션 배치·속성창 사용 가능. HTML CodePath 지원, Node.js CodePath는 미지원 |
 
+## 2026-11-15 Node.js 호스트 단계별 실행 기록
+
+- **1차 코드 커밋:** `0499bf2164a65af10ea5524a1fd01c5434993861`. HTML 전용 매니페스트 검증을 HTML·Node.js로 확장, Node 런타임 버전 체크, Electron 포함 Node 실행환경에 원본 SDK 인수로 독립 프로세스 시작, WebSocket 연결, 프로세스 종료 처리 및 Fusion manifest 단위 테스트 추가.
+- **CI:** [#43687825178](https://github.com/SoonCheol/D200X-Deck/actions/runs/43687825178) 성공. **Windows 패키징:** [#43687820764](https://github.com/SoonCheol/D200X-Deck/actions/runs/43687820764) 성공. 성공은 앱 실행/실물 호환성의 증거가 아닌 자동 빌드 결과.
+- **2차 보완 예정:** Node 기반 플러그인 실제 WebSocket 등록·키 이벤트 자동 통합 테스트, 개발자 `.sdPlugin` 폴더 설치, 루프백 IPv4 통일, 기존 HTML 경로 확인. 원본 Fusion Python 애드인과 실제 명령 실행은 이후 실기로 분리.
+
 ## 2026-11-15 개발 시작 기록 — Node.js SDK 호스트 1단계
 
 - **목표:** Elgato 공식 SDK 규약으로 기존 Stream Deck Node.js 플러그인 실행. 첫 호환성 시험 대상은 Autodesk FusionStreamDeck. 특정 제조사 전용 코드는 넣지 않는다.

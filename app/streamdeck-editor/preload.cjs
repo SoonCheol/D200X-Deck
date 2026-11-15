@@ -6,6 +6,7 @@ contextBridge.exposeInMainWorld('deckBridge', Object.freeze({
   haStatus: () => ipcRenderer.invoke('d200x:ha-status'),
   sdkList: () => ipcRenderer.invoke('d200x:sdk-list'),
   sdkInstall: () => ipcRenderer.invoke('d200x:sdk-install'),
+  sdkInstallFolder: () => ipcRenderer.invoke('d200x:sdk-install-folder'),
   sdkSync: contexts => ipcRenderer.invoke('d200x:sdk-sync',contexts),
   sdkKey: (context,gesture,ticks=1) => ipcRenderer.invoke('d200x:sdk-key',context,gesture,ticks),
   sdkInspector: context => ipcRenderer.invoke('d200x:sdk-inspector',context),

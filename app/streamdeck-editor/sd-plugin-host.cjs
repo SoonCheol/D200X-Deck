@@ -126,9 +126,37 @@ class StreamDeckPluginHost{
     }catch(e){await fs.promises.rm(staging,{recursive:true,force:true});throw e;}
     return {uuid:manifest.UUID,name:manifest.Name,version:manifest.Version,actions:manifest.Actions.map(a=>({uuid:a.UUID,name:a.Name}))};
   }
+  // Developer repositories (e.g. FusionStreamDeck) may distribute an unpacked
+  // *.sdPlugin directory rather than a .streamDeckPlugin archive.
+  async installDirectory(selected){
+    const dir=path.resolve(selected),name=path.basename(dir);
+    const st=await fs.promises.lstat(dir);
+    if(!st.isDirectory()||!name.endsWith('.sdPlugin')||!UUID.test(name.slice(0,-9)))
+      throw Error('설치할 .sdPlugin 폴더 자체를 선택하세요.');
+    const archive=new JSZip();
+    let count=0,total=0;
+    async function walk(current,relative=''){
+      for(const ent of await fs.promises.readdir(current,{withFileTypes:true})){
+        if(ent.isSymbolicLink()||(!ent.isDirectory()&&!ent.isFile()))
+          throw Error('심볼릭 링크나 특수 파일은 가져올 수 없습니다.');
+        const file=relative?relative+'/'+ent.name:ent.name;
+        if(!filename(file))throw Error('안전하지 않은 플러그인 파일 경로입니다.');
+        if(ent.isDirectory()){await walk(path.join(current,ent.name),file);continue;}
+        if(++count>MAX_FILES)throw Error('플러그인 파일 개수 제한 초과');
+        const full=path.join(current,ent.name),stat=await fs.promises.stat(full);
+        if((total+=stat.size)>MAX_EXPANDED)throw Error('플러그인 폴더 크기 제한 초과');
+        archive.file(name+'/'+file,await fs.promises.readFile(full));
+      }
+    }
+    await walk(dir);
+    const bytes=await archive.generateAsync({type:'nodebuffer',compression:'DEFLATE'});
+    // Reuse the same trusted archive validator and atomic installer.
+    return this.install(bytes);
+  }
   async start(){
     if(this.server)return;
-    this.server=new WebSocketServer({host:'localhost',port:0,maxPayload:1024*1024});
+    // Explicit IPv4: SDK property inspectors, including Fusion, dial 127.0.0.1.
+    this.server=new WebSocketServer({host:'127.0.0.1',port:0,maxPayload:1024*1024});
     await new Promise((resolve,reject)=>{this.server.once('listening',resolve);this.server.once('error',reject);});
     this.port=this.server.address().port;
     // The SDK remains authoritative; this small HA dual-state compatibility

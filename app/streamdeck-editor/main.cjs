@@ -32,6 +32,15 @@ ipcMain.handle('d200x:sdk-install',async event=>{
   if(!stat.isFile()||stat.size>40*1024*1024)throw Error('40MB 이하의 플러그인만 가져올 수 있습니다.');
   return sdk().install(await fs.promises.readFile(selected));
 });
+ipcMain.handle('d200x:sdk-install-folder',async event=>{
+  assertEditor(event);
+  const selected=await openRememberedPicker({
+    title:'Stream Deck 플러그인 폴더 선택',
+    properties:['openDirectory']
+  },'sdk-plugin-folder');
+  if(!selected)return null;
+  return sdk().installDirectory(selected);
+});
 ipcMain.handle('d200x:sdk-sync',async(event,configs)=>{
   assertEditor(event);
   if(!Array.isArray(configs)||configs.length>32)throw Error('플러그인 액션 목록 크기 오류');
