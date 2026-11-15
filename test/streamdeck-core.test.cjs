@@ -1017,7 +1017,9 @@ test('wide merged screen press accepts both halves without changing ordinary key
   assert.equal(core.isWideDisplayPress({kind:1,index:13,state:1,pressed:true}),true);
   assert.equal(core.isWideDisplayPress({kind:1,index:14,state:1,pressed:true}),true);
   assert.equal(core.isWideDisplayPress({kind:1,index:14,state:0,pressed:false}),false);
-  assert.equal(core.isWideDisplayPress({kind:2,index:14,state:1,pressed:true}),false);
+  assert.equal(core.isWideDisplayPress({kind:0,index:13,state:1,pressed:true}),true);
+  assert.equal(core.isWideDisplayPress({kind:2,index:14,state:1,pressed:true}),true);
+  assert.equal(core.isWideDisplayPress({kind:2,index:17,state:1,pressed:true,knob:true}),false);
   assert.equal(core.isWideDisplayPress({kind:1,index:15,state:1,pressed:true}),false);
   assert.equal(core.physicalSlot({kind:1,index:14,pressed:true}),null);
   assert.equal(core.cycleWideDisplay(state),'datetime');
