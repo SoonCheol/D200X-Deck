@@ -172,7 +172,7 @@ class StreamDeckPluginHost{
           if(msg.event==='registerPlugin'){
             owner=[...this.instances.values()].find(x=>x.uuid===msg.uuid&&((x.window&&!x.window.isDestroyed())||(x.process&&!x.process.killed&&x.process.exitCode===null)));
             if(!owner)return ws.close();
-            owner.ws=ws;this.send(ws,{event:'applicationDidLaunch'});
+            owner.ws=ws;this.onUpdate({kind:'pluginConnection',pluginUUID:owner.uuid,connected:true});this.send(ws,{event:'applicationDidLaunch'});
             for(const ctx of this.contexts.values())if(ctx.pluginUUID===owner.uuid)this.willAppear(ctx);
             return;
           }
@@ -192,6 +192,7 @@ class StreamDeckPluginHost{
       ws.on('close',()=>{
         if(owner&&owner.ws===ws){
           owner.ws=null;
+          this.onUpdate({kind:'pluginConnection',pluginUUID:owner.uuid,connected:false});
           for(const ctx of this.contexts.values())if(ctx.pluginUUID===owner.uuid)ctx.appeared=false;
         }
         if(inspector&&inspector.ws===ws)inspector.ws=null;
@@ -244,6 +245,7 @@ class StreamDeckPluginHost{
       child.once('error',fail);
       child.once('exit',(code,signal)=>{
         if(this.instances.get(uuid)===instance)this.instances.delete(uuid);
+        this.onUpdate({kind:'pluginConnection',pluginUUID:uuid,connected:false});
         instance.ws?.close();
         for(const ctx of this.contexts.values())if(ctx.pluginUUID===uuid)ctx.appeared=false;
         if(code!==0&&signal!=='SIGTERM')
