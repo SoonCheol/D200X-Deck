@@ -1122,6 +1122,7 @@ function beginInspectorSession(){
 function updateInspectorSaveButtons(){
   const dirty=inspectorSession?.dirty===true;
   document.querySelectorAll('.inspector-save,.inspector-cancel').forEach(button=>{button.disabled=!dirty;});
+  document.querySelectorAll('.action-preview-test,.control-test-row button').forEach(button=>{button.disabled=dirty;button.title=dirty?'먼저 변경 사항을 저장하세요.':'저장된 동작 실행 테스트';});
 }
 function saveInspector(){
   if(!inspectorSession?.dirty)return;
@@ -1167,6 +1168,7 @@ function appendInspectorSaveBar(root){
   save.className='inspector-save';save.textContent='저장';save.disabled=!inspectorSession?.dirty;
   save.addEventListener('click',saveInspector);
   footer.append(cancel,save);root.append(footer);
+  updateInspectorSaveButtons();
 }
 // Capture outside clicks so a different key, profile, page, or tool cannot
 // silently discard a dirty inspector. Programmatic profile switches are
@@ -1296,7 +1298,7 @@ function renderControlInspector(){
     const tile=document.createElement('button');tile.type='button';
     tile.className='control-gesture-tile'+(controlGesture===gesture?' active':'');
     const assigned=binding[gesture];
-    const allowed=currentMode==='trigger';
+    const allowed=currentMode==='trigger'&&!(knob&&gesture==='down'&&binding.heldEnabled===true);
     const targetKey=held?'heldTarget':'target',reverseKey=held?'heldReverseDirection':'reverseDirection';
     const reverse=binding[reverseKey]===true;
     const left=gesture==='left'||gesture==='holdLeft';
