@@ -2021,7 +2021,7 @@ function executeHardwareAction(event,preview=false,skipKnobGesture=false){
     const id=outcome.profile==='next'?names[(pos+1)%names.length]?.id:
       outcome.profile==='previous'?names[(pos-1+names.length)%names.length]?.id:outcome.profile;
     if(!id||!DeckCore.switchProfile(state,id))return '프로필을 찾을 수 없습니다.';
-    lastHardwareDown.clear();knobPresses.clear();persist();render();return '프로필 전환: '+state.profileNames.find(p=>p.id===id)?.name;
+    lastHardwareDown.clear();persist();render();return '프로필 전환: '+state.profileNames.find(p=>p.id===id)?.name;
   }
   if(outcome.kind==='folder-back'){
     cancelFolderAutoExit();
