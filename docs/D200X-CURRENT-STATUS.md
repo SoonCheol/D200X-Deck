@@ -1,3 +1,13 @@
+## 2026-11-15 Fusion MCP 1차 자동 검증 및 Windows 빌드 성공
+
+- **구현 커밋:** `c3035724c8b8165dbb26ce0c3513339638d8cf3b`: Fusion 애드인 실제 명령 ID 조회·MCP stdio 도구 2개·선택 또는 전체 명령의 일괄 JSON 생성·D200X 편집기에 기존 프로필을 유지하며 **새 Fusion 전용 프로필로 가져오기** 구현.
+- **테스트 편입:** `28276f0373828e1cb783fd489f0abc386fc290fc`: Windows workflow에 `test/streamdeck-fusion-mcp.test.cjs` 6개 테스트 및 MCP 문법 검사 추가.
+- **검증 증거:** [GitHub Actions #43697585224](https://github.com/SoonCheol/D200X-Deck/actions/runs/43697585224) **success**. 해당 작업 로그에서 **Fusion MCP 테스트 6개 통과, 실패 0**, 기존 Windows 패키징·원본 Fusion 플러그인 SDK 통신 단계도 성공.
+- **Windows 빌드 Artifact:** `D200X-StreamDeck-Device-Sync-win-x64`, ID `14154958192`, 170,373,787 bytes, 확인 당시 미만료.
+- **적용 방법:** Codex MCP 등록은 `tools/fusion-mcp/README.md`; Codex로 생성된 JSON을 앱의 **프로필 메뉴 → 전체 프로필 관리 → Fusion 360 명령 일괄 등록 JSON 가져오기**에서 선택. 기존 설정을 자동 수정하거나 덮어쓰지 않음.
+- **미검증:** 사용자 컴퓨터의 Codex CLI에 실제 MCP 등록, 실시간 `GET /commands` 수신, 생성 JSON 앱 UI 가져오기, 여러 페이지에서 원본 아이콘 자동 갱신은 아직 실기 전. 실제 Fusion 명령 한 건의 D200X 실행 성공은 사용자 보고로 이미 확인됨.
+- **기능 제약:** 현재 Fusion에서 로드된 작업 공간 명령만 가져오며, 명령별 기능을 수동 선택하지 않고 모두 등록할 수 있지만 최대 1,792개(14개/페이지 × 128페이지) 제한. 사용자 기존 프로필 무손실 보존 우선.
+
 ## 2026-11-15 Fusion 명령 일괄 등록 MCP 1단계 코드 반영
 
 - **목표:** Codex MCP로 실행 중인 Fusion 애드인의 `GET /commands`를 읽어 실제 명령 ID를 일괄 확인하고, D200X의 기존 프로필을 보존하면서 새 Fusion 전용 프로필에 14개/페이지로 버튼을 배치할 JSON 생성.
