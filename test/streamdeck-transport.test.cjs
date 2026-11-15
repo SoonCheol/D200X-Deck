@@ -192,7 +192,7 @@ test('native clock and stats display modes reach the firmware without blank keep
   t.stop();
 });
 
-test('switching from native stats to uploaded wide PNG clears stale stats and selects image after ZIP',async()=>{
+test('switching from native stats to uploaded PNG never reactivates native stats overlay',async()=>{
   const deck=new FakeDeck();
   const t=new D200XTransport({deck,buildPage:async()=>Buffer.from('zip')});
   await t.start();
@@ -200,12 +200,12 @@ test('switching from native stats to uploaded wide PNG clears stale stats and se
   const from=deck.calls.length;
   t.schedule([{index:13,png:Buffer.from('knobs')}],'blank');await idle();
   assert.deepEqual(deck.calls.slice(from).filter(x=>['frame','wide','page'].includes(x[0])),[
-    ['frame',0,PROTO.CLOCK,'0|||||24H|'],
-    ['frame',0,PROTO.CLOCK,'1|||||24H|'],
     ['wide','blank'],
     ['page','zip'],
     ['frame',0,PROTO.CLOCK,'2|||||24H|'],
   ]);
+  assert.equal(deck.calls.slice(from).some(x=>x[0]==='frame'&&
+    (String(x[3]).startsWith('0|')||String(x[3]).startsWith('1|'))),false);
   const next=deck.calls.length;
   t.schedule([{index:13,png:Buffer.from('date')}],'blank');await idle();
   assert.deepEqual(deck.calls.slice(next).filter(x=>x[0]==='frame').map(x=>x[3]),['2|||||24H|']);
