@@ -19,6 +19,11 @@
 - 첫 목표: https://github.com/AutodeskFusion360/FusionStreamDeck (`streamdeck_plugin/com.autodesk.fusionstreamdeck.sdPlugin/manifest.json`, `CodePath: bin/plugin.js`, `Nodejs.Version:24`, `SDKVersion:2`, `PropertyInspectorPath: ui/run-command.html`).
 - Electron 45는 Node 24를 포함하며 `ELECTRON_RUN_AS_NODE=1`은 기본 runAsNode 퓨즈가 켜진 경우 Electron 실행 파일을 Node로 실행한다. **Windows 패키징 이후 실제 런타임 검증해야 함**.
 
+## 3차 Workflow 오류와 수정 기록
+
+- 커밋 `ff8dfc44940709114745dfc5d5d28565185ff0b2`: 첫 Windows Node24 패키징 검증 step이 잘못 생성되면서 YAML 문자열 구성이 깨져 Actions [#43688432536](https://github.com/SoonCheol/D200X-Deck/actions/runs/43688432536)이 **워크플로 구문 오류/잡 미생성으로 실패**. 앱 코드 실행 실패가 아님.
+- 이 커밋은 **workflow 파일의 깨진 step만 복구**하고 정규식 대신 단순 숫자 파싱으로 검사를 변경. CI 및 패키징 실행 결과가 확인되기 전까지 성공 표시 금지.
+
 ## 코드·검증 이력 (사실만)
 
 | 단계 | 커밋/Actions | 실제 작업 및 증거 |

@@ -160,14 +160,9 @@ jobs:
             $nodeVersion = (& $exe -p 'process.versions.node' | Out-String).Trim()
             if ($LASTEXITCODE -ne 0) { throw 'Packaged Electron cannot run as Node.js' }
             Write-Host "Packaged Electron Node.js version: $nodeVersion"
-            if ($nodeVersion -notmatch '^(\d+)\.\d+\.\d+
-        with:
-          name: D200X-StreamDeck-Device-Sync-win-x64
-          path: app/dist/D200X-StreamDeck-Preview-win32-x64/
-          if-no-files-found: error
-          retention-days: 14
-) { throw "Invalid Node version: $nodeVersion" }
-            if ([int]$Matches[1] -lt 24) { throw "Fusion plugin requires Node.js 24, found $nodeVersion" }
+            if ($nodeVersion -notmatch '^[0-9]+[.][0-9]+[.][0-9]+$') { throw "Invalid Node version: $nodeVersion" }
+            $major = [int]($nodeVersion.Split('.')[0])
+            if ($major -lt 24) { throw "Fusion plugin requires Node.js 24, found $nodeVersion" }
           } finally {
             Remove-Item Env:ELECTRON_RUN_AS_NODE -ErrorAction SilentlyContinue
           }
