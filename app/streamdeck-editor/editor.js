@@ -294,7 +294,7 @@ function controlDrop(index,id,gesture='down'){
     if(binding.mode!=='trigger' && !(index>=16&&(
       gesture==='holdLeft'||gesture==='holdRight'||
       (gesture==='down'&&binding.mode==='adjust'))))
-      binding.mode='trigger';
+      {binding.mode='trigger';binding.autoAssign=true;}
     binding[gesture]=newAction(id);
   }
   state.selected=index;controlGesture=gesture;
@@ -1305,7 +1305,7 @@ function renderControlInspector(){
     const named={page:['이전 페이지','다음 페이지'],profile:['이전 프로필','다음 프로필'],volume:['음량 감소','음량 증가'],zoom:['축소','확대'],history:['실행 취소','다시 실행']};
     const auto=named[binding[targetKey]]?.[(left?0:1)^(reverse?1:0)]||'자동 조절';
     tile.innerHTML='<span class="control-gesture-symbol">'+glyph+'</span><strong>'+title+
-      '</strong><span class="control-gesture-value">'+(allowed?(assigned?escapeHtml(keyName(assigned)):gesture==='down'?'＋ 액션 놓기':auto):'조절 동작 자동 지정')+'</span>';
+      '</strong><span class="control-gesture-value">'+(allowed?(assigned?escapeHtml(keyName(assigned)):gesture==='down'?'＋ 액션 놓기':auto):gesture==='down'&&binding.heldEnabled?'누르기 비활성':'조절 동작 자동 지정')+'</span>';
     tile.disabled=!allowed;
     tile.addEventListener('click',()=>{controlGesture=gesture;renderControlInspector();});
     tile.addEventListener('dragover',e=>{if(allowed){e.preventDefault();tile.classList.add('drag-over');}});
