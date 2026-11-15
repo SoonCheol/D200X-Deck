@@ -641,6 +641,62 @@ function updatePluginToolbar(){
   if($("plugin-install-toolbar"))$("plugin-install-toolbar").hidden=!plugins;
 }
 function escapeHtml(x){return String(x??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));}
+const FIXED_SHORTCUT_OPTIONS={
+  'window-monitor':{left:'Win + Shift + ←',right:'Win + Shift + →'},
+  'window-state':{maximize:'Win + ↑',minimize:'Win + ↓'},
+  'window-switch':{next:'Alt + Tab',previous:'Alt + Shift + Tab'},
+  'desktop-switch':{next:'Win + Ctrl + →',previous:'Win + Ctrl + ←'},
+  'clipboard-edit':{copy:'Ctrl + C',paste:'Ctrl + V',cut:'Ctrl + X'},
+  'edit-history':{undo:'Ctrl + Z',redo:'Ctrl + Y'},
+  'system-zoom':{in:'Ctrl + +',out:'Ctrl + -',reset:'Ctrl + 0'},
+  'brush-size':{increase:']',decrease:'['},
+  'timeline-step':{previous:'←',next:'→'},
+  'timeline-zoom':{in:'Ctrl + +',out:'Ctrl + -'}
+};
+// Native <option> cannot reliably align a label left and shortcut right
+// on Windows, so only fixed-shortcut selectors receive this compact popup.
+function bindShortcutOptionPreviews(root,item){
+  const mapping=FIXED_SHORTCUT_OPTIONS[item.type];
+  if(!mapping)return;
+  for(const original of root.querySelectorAll('select[data-field]')){
+    if(!Array.from(original.options).some(option=>mapping[option.value]))continue;
+    const holder=document.createElement('div');holder.className='shortcut-select-wrap';
+    const trigger=document.createElement('button');trigger.type='button';trigger.className='shortcut-select-trigger';
+    const menu=document.createElement('div');menu.className='shortcut-select-menu';menu.hidden=true;
+    const redraw=()=>{
+      const opt=original.selectedOptions[0];
+      trigger.replaceChildren();
+      const label=document.createElement('span');label.textContent=opt?.textContent||'';
+      const short=document.createElement('small');short.textContent=mapping[original.value]||'';
+      const arrow=document.createElement('span');arrow.textContent='⌄';
+      trigger.append(label,short,arrow);
+    };
+    for(const option of original.options){
+      const button=document.createElement('button');button.type='button';
+      const label=document.createElement('span');label.textContent=option.textContent;
+      const shortcut=document.createElement('small');shortcut.textContent=mapping[option.value]||'';
+      button.append(label,shortcut);
+      button.addEventListener('click',()=>{
+        original.value=option.value;
+        original.dispatchEvent(new Event('change',{bubbles:true}));
+        menu.hidden=true;trigger.setAttribute('aria-expanded','false');redraw();
+      });
+      menu.append(button);
+    }
+    trigger.setAttribute('aria-expanded','false');
+    trigger.addEventListener('click',()=>{
+      menu.hidden=!menu.hidden;
+      trigger.setAttribute('aria-expanded',String(!menu.hidden));
+    });
+    document.addEventListener('pointerdown',e=>{
+      if(!holder.contains(e.target)){menu.hidden=true;trigger.setAttribute('aria-expanded','false');}
+    },{signal:inspectorListener.signal});
+    original.addEventListener('change',redraw);
+    original.parentNode.insertBefore(holder,original);
+    holder.append(original,trigger,menu);
+    redraw();
+  }
+}
 const input=(field,label,placeholder="")=>`<div class="field"><label for="s-${field}">${label}</label><input id="s-${field}" data-field="${field}" value="${escapeHtml(valueOf(active,field))}" placeholder="${placeholder}"></div>`;
 const select=(field,label,opts)=>`<div class="field"><label for="s-${field}">${label}</label><select id="s-${field}" data-field="${field}">${opts.map(([v,n])=>`<option value="${escapeHtml(v)}" ${valueOf(active,field)===v?"selected":""}>${escapeHtml(n)}</option>`).join("")}</select></div>`;
 const pathPicker=(field,label,kind='file')=>
@@ -1472,7 +1528,7 @@ function renderInspector(){
   if(!item){root.className="inspector empty";root.textContent=state.selected===null?"버튼을 선택하세요":"액션을 끌어 이 키에 놓으세요";
     if(inspectorSession?.dirty)appendInspectorSaveBar(root);return;}
   root.className="inspector"+(item.type==='hotkey-switch'?' hotkey-switch-inspector':'');const action=ACTIONS.get(item.type);const fields=actionFields(item);
-  root.innerHTML=`<div class="action-head"><strong>${escapeHtml(action?.category)}: ${escapeHtml(action?.label)}</strong></div>
+  root.innerHTML=`<div class="action-head"><strong>액션 &gt; ${escapeHtml(action?.category)} &gt; ${escapeHtml(action?.label)}</strong></div>
     <div class="properties"><div class="preview"><div class="preview-key" id="icon-preview"><button id="delete-action" class="control-tile-remove preview-action-remove" title="동작 삭제" type="button">×</button>
       <span id="icon-preview-content"></span>
       <button class="icon-preview-control icon-preview-plus" type="button" id="icon-library-open" aria-label="아이콘 라이브러리 열기" title="아이콘 라이브러리">+</button>
@@ -1520,7 +1576,7 @@ function renderInspector(){
           <button type="button" id="title-palette-save">현재 색상을 나의 색상에 저장</button>
         </div>
         <button type="button" class="style-reset" id="title-reset" title="기본 스타일 복원">↺</button>
-      </div></div></div>${item.type!=='hotkey-switch'&&PANEL_SHORTCUTS[item.type]?'<div class="field"><label>단축키 안내</label><span class="hint">'+escapeHtml(PANEL_SHORTCUTS[item.type])+'</span></div>':''}${fields}</div></div>`;
+      </div></div></div>${item.type!=='hotkey-switch'&&!FIXED_SHORTCUT_OPTIONS[item.type]&&PANEL_SHORTCUTS[item.type]?'<div class="field"><label>단축키 안내</label><span class="hint">'+escapeHtml(PANEL_SHORTCUTS[item.type])+'</span></div>':''}${fields}</div></div>`;
   const previewButton=document.createElement('button');previewButton.type='button';
   previewButton.textContent='▶ 실행 테스트';previewButton.className='action-preview-test';
   previewButton.title='실제 Windows/D200X 동작을 한 번 실행합니다';
@@ -1532,6 +1588,7 @@ function renderInspector(){
   $("delete-action").addEventListener("click",()=>removeSlotAction(state.selected));
   $("key-title").addEventListener("input",ev=>{item.title=ev.target.value;persist();renderGrid();refreshTitlePreview(item);});
   bindExtendedActionFields(root,item);
+  bindShortcutOptionPreviews(root,item);
   appendInspectorSaveBar(root);
   root.querySelectorAll("[data-path-picker]").forEach(button=>{
     button.addEventListener("click",async()=>{
