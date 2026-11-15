@@ -44,7 +44,7 @@ test('no full redraw while idle; 5s blank-mode keep-alive; no brightness changes
   time+=KEEPALIVE_MS-1;t.tick();
   assert.equal(deck.calls.filter(x=>x[0]==='frame').length,framesBeforeIdle);
   time+=1;t.tick();
-  assert.deepEqual(deck.calls.at(-1),['frame',0,PROTO.CLOCK,'2|||||24H|']);
+  assert.deepEqual(deck.calls.at(-1),['frame',0,PROTO.CLOCK,'2|0|0|00:00:00|0']);
   assert.equal(deck.calls.filter(x=>x[0]==='brightness').length,0);
   t.stop();
 });
@@ -54,7 +54,7 @@ test('observed device brightness may be reused without changing the value',async
   const t=new D200XTransport({deck,now:()=>time});
   await t.start();deck.emit('brightness',37);time+=5000;t.tick();
   assert.ok(deck.calls.some(x=>x[0]==='brightness'&&x[1]===37));
-  assert.deepEqual(deck.calls.at(-1),['frame',0,PROTO.CLOCK,'2|||||24H|']);t.stop();
+  assert.deepEqual(deck.calls.at(-1),['frame',0,PROTO.CLOCK,'2|0|0|00:00:00|0']);t.stop();
 });
 
 test('brightness clamp and keepalive preserve the requested value',async()=>{
@@ -64,7 +64,7 @@ test('brightness clamp and keepalive preserve the requested value',async()=>{
   assert.equal(t.adjustBrightness(1,10),100);
   assert.equal(t.adjustBrightness(-1,2),98);
   time+=5000;t.tick();assert.ok(deck.calls.some(x=>x[0]==='brightness'&&x[1]===98));
-  assert.deepEqual(deck.calls.at(-1),['frame',0,PROTO.CLOCK,'2|||||24H|']);t.stop();
+  assert.deepEqual(deck.calls.at(-1),['frame',0,PROTO.CLOCK,'2|0|0|00:00:00|0']);t.stop();
 });
 
 test('absolute brightness presets enforce the safety floor and update keepalive',async()=>{
@@ -72,7 +72,7 @@ test('absolute brightness presets enforce the safety floor and update keepalive'
   await t.start();assert.throws(()=>t.setSafeBrightness(0),/20~100/);
   assert.equal(t.setSafeBrightness(30),30);time+=KEEPALIVE_MS;t.tick();
   assert.ok(deck.calls.some(x=>x[0]==='brightness'&&x[1]===30));
-  assert.deepEqual(deck.calls.at(-1),['frame',0,PROTO.CLOCK,'2|||||24H|']);t.stop();
+  assert.deepEqual(deck.calls.at(-1),['frame',0,PROTO.CLOCK,'2|0|0|00:00:00|0']);t.stop();
 });
 
 test('repeated brightness decreases stop at the visible safety floor',async()=>{
@@ -126,7 +126,7 @@ test('known brightness and last page persist through reconnect without idle redr
   assert.equal(deck.calls.filter(x=>x[0]==='page').length,2);
   now+=KEEPALIVE_MS;t.tick();
   assert.ok(deck.calls.some(x=>x[0]==='brightness'&&x[1]===55));
-  assert.deepEqual(deck.calls.at(-1),['frame',0,PROTO.CLOCK,'2|||||24H|']);
+  assert.deepEqual(deck.calls.at(-1),['frame',0,PROTO.CLOCK,'2|0|0|00:00:00|0']);
   t.stop();
 });
 
@@ -201,13 +201,16 @@ test('switching from native stats to uploaded PNG never reactivates native stats
   t.schedule([{index:13,png:Buffer.from('knobs')}],'blank');await idle();
   assert.deepEqual(deck.calls.slice(from).filter(x=>['frame','wide','page'].includes(x[0])),[
     ['wide','blank'],
+    ['frame',0,PROTO.CLOCK,'2|0|0|00:00:00|0'],
     ['page','zip'],
-    ['frame',0,PROTO.CLOCK,'2|||||24H|'],
+    ['frame',0,PROTO.CLOCK,'2|0|0|00:00:00|0'],
   ]);
   assert.equal(deck.calls.slice(from).some(x=>x[0]==='frame'&&
     (String(x[3]).startsWith('0|')||String(x[3]).startsWith('1|'))),false);
   const next=deck.calls.length;
   t.schedule([{index:13,png:Buffer.from('date')}],'blank');await idle();
-  assert.deepEqual(deck.calls.slice(next).filter(x=>x[0]==='frame').map(x=>x[3]),['2|||||24H|']);
+  assert.deepEqual(deck.calls.slice(next).filter(x=>x[0]==='frame').map(x=>x[3]),[
+    '2|0|0|00:00:00|0','2|0|0|00:00:00|0'
+  ]);
   t.stop();
 });
