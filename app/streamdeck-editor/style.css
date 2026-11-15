@@ -468,3 +468,36 @@
   .sdk-plugin-inspector .sdk-title-controls{grid-template-columns:minmax(0,1fr) 148px}
   .sdk-plugin-inspector .sdk-title-controls .sdk-settings-open{width:148px;max-width:148px}
 }
+
+/* Shared compact inspector geometry. All single-value fields use the exact
+   404px span of the two fixed 196px OFF/ON cards and their 12px gap.
+   The labels remain independent of that width. */
+#app{grid-template-columns:minmax(640px,1fr) 320px}
+.inspector{padding:16px 22px}
+.properties{grid-template-columns:108px minmax(0,1fr);gap:12px}
+.fields{width:100%;max-width:476px;min-width:0}
+.fields>.field{grid-template-columns:64px minmax(0,404px);gap:8px}
+.fields>.field>label{text-align:right}
+.fields>.field>input,.fields>.field>select,.fields>.field>.title-line,.fields>.field>.compound{min-width:0;max-width:404px}
+.hotkey-switch-inspector .fields>.field{grid-template-columns:64px minmax(0,404px)}
+.sdk-plugin-inspector .sdk-state-icons{padding-left:72px;padding-top:7px}
+.action-head .action-preview-test{
+  flex:0 0 105px;width:105px;height:29px;min-width:105px;
+  margin-left:auto;margin-right:0;padding:5px 8px;white-space:nowrap
+}
+.inspector-save-bar{padding-right:0}
+.inspector-save-bar .inspector-cancel,
+.inspector-save-bar .inspector-save{width:60px;min-width:60px;height:32px;padding:5px 8px}
+/* Preserve the entire hardware region's height; center the keypad, physical
+   buttons/knobs and page controls as one vertical group within it. */
+.canvas{justify-content:center;padding-top:8px;padding-bottom:8px}
+.work{--key-edge:64px;--key-gap:9px}
+@media(max-width:1000px){
+  #app{grid-template-columns:minmax(640px,1fr) 320px}
+  .inspector{padding:16px 22px}
+  .properties{gap:12px}
+  .fields>.field,.hotkey-switch-inspector .fields>.field{grid-template-columns:64px minmax(0,404px);gap:8px}
+  .sdk-plugin-inspector .sdk-state-icons{padding-left:72px}
+  .work{--key-edge:64px;--key-gap:9px}
+  .canvas{justify-content:center;padding-top:8px;padding-bottom:8px}
+}
