@@ -55,7 +55,7 @@ test('breadcrumb starts with owning category and gives optional modal help',()=>
   assert.match(editor,/function appendInspectorHelp\(head,item\)/);
   assert.match(editor,/dialog\.showModal\(\)/);
   for(const key of ['multi','multi-switch','random','logic','timer']){
-    assert.match(editor,new RegExp("'"+key+"'\\s*:\\s*\\{"));
+    assert.match(editor,new RegExp("(?:'"+key+"'|"+key+")\\s*:\\s*\\{"));
   }
   assert.match(editor,/appendInspectorHelp\(root\.querySelector\('\.action-head'\),item\)/);
 });
