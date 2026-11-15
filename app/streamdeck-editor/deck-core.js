@@ -196,9 +196,9 @@
     return plan.steps.length;
   }
   const CONTROL_MODES=['trigger','adjust','stack'];
-  const ADJUST_TARGETS=['page','volume','zoom','scroll','scroll-x','history','window','desktop','brightness'];
+  const ADJUST_TARGETS=['page','profile','volume','zoom','scroll','scroll-x','history','window','desktop','brightness'];
   function emptyBinding(){
-    return {mode:'trigger',down:null,left:null,right:null,holdLeft:null,holdRight:null,target:'page',
+    return {mode:'trigger',down:null,left:null,right:null,holdLeft:null,holdRight:null,target:'page',heldEnabled:false,heldMode:'adjust',heldTarget:'profile',heldStep:1,heldReverseDirection:false,heldStack:['page','volume'],
       stack:['page','volume'],stackIndex:0,step:1,reverseDirection:false};
   }
   function cleanBinding(value){
@@ -207,6 +207,13 @@
     out.mode=CONTROL_MODES.includes(value.mode)?value.mode:'trigger';
     for(const key of ['down','left','right','holdLeft','holdRight'])out[key]=cleanAction(value[key]);
     out.target=ADJUST_TARGETS.includes(value.target)?value.target:'page';
+    out.heldEnabled=value.heldEnabled===true;
+    out.heldMode=CONTROL_MODES.includes(value.heldMode)?value.heldMode:'adjust';
+    out.heldTarget=ADJUST_TARGETS.includes(value.heldTarget)?value.heldTarget:'profile';
+    out.heldStep=[1,2,5,10].includes(value.heldStep)?value.heldStep:1;
+    out.heldReverseDirection=value.heldReverseDirection===true;
+    out.heldStack=Array.isArray(value.heldStack)?[...new Set(value.heldStack.filter(x=>ADJUST_TARGETS.includes(x)))].slice(0,3):['page','volume'];
+    if(!out.heldStack.length)out.heldStack=['page','volume'];
     if(Array.isArray(value.stack)){
       out.stack=[...new Set(value.stack.filter(x=>ADJUST_TARGETS.includes(x)))].slice(0,3);
       if(!out.stack.length)out.stack=['page'];
@@ -537,6 +544,7 @@
   }
   function planAdjustment(target,direction,step,page,pageCount,includeCount=false){
     const count=[1,2,5,10].includes(step)?step:1;
+    if(target==='profile')return {kind:'profile',profile:direction<0?'previous':'next'};
     if(target==='page')return {kind:'page',page:Math.max(0,Math.min(pageCount-1,page+direction*count))};
     if(target==='scroll'||target==='scroll-x')return {kind:'scroll',axis:target==='scroll'?'vertical':'horizontal',direction,
       ...(includeCount||count!==1?{count}:{})};
@@ -554,9 +562,21 @@
     const pageCount=folder?folderPageCount(state):state.pages.length;
     if(binding && knob){
       if(gesture==='hold-left'||gesture==='hold-right'){
+        if(binding.heldEnabled===true){
+          const key=gesture==='hold-left'?'holdLeft':'holdRight';
+          if(binding.heldMode==='trigger'){
+            const action=binding[key];
+            return action?{index,gesture,outcome:planAction(action,page,pageCount)}:null;
+          }
+          const target=binding.heldMode==='stack'
+            ?binding.heldStack[Math.abs(activeStack)%binding.heldStack.length]:binding.heldTarget;
+          const direction=(gesture==='hold-left'?-1:1)*(binding.heldReverseDirection?-1:1);
+          return {index,gesture,outcome:planAdjustment(target,direction,binding.heldStep,page,pageCount)};
+        }
         const action=binding[gesture==='hold-left'?'holdLeft':'holdRight'];
         return action?{index,gesture,outcome:planAction(action,page,pageCount)}:null;
       }
+      if(binding.heldEnabled===true&&gesture==='down')return null;
       if(binding.mode==='adjust'||binding.mode==='stack'){
         if(gesture==='down'){
           if(binding.mode==='stack')return {index,gesture,outcome:{kind:'stack-next',size:binding.stack.length}};
