@@ -551,3 +551,11 @@
 - **실기 남음:** 수정 후 물리 버튼 순환/중첩 제거/노브 글자 크기를 사용자 장치에서 다시 확인 필요. 원본 Studio 동일성 주장하지 않음. `main` 변경/PR 병합/기존 프로필 삭제 없음.
 
 - **최종 검증 (2026-11-15):** 변경 후 밝기·대기중·절전 관련 테스트 기준값 수정 커밋 `8291c530` 및 `b904a145`; 최종 Preview 트리거 `8dcc5ee10316ea2729025f6983af1db39ee03c00`. 해당 커밋 CI [#43680502705](https://github.com/SoonCheol/D200X-Deck/actions/runs/43680502705) 및 Windows Preview [#43680499020](https://github.com/SoonCheol/D200X-Deck/actions/runs/43680499020) 확인 대상. Windows Preview는 **success** 및 Artifact [D200X-StreamDeck-Device-Sync-win-x64](https://github.com/SoonCheol/D200X-Deck/actions/runs/43680499020/artifacts/14147384143) 업로드 확인(artifact ID 14147384143, 170,369,611 bytes, 확인 시 expired=false). 이전 진행 중인 중간 preview의 결과와 혼동 금지. 사용자 물리 D200X에서 실제 중첩 제거·순환 작동은 아직 미검증.
+
+
+### 2026-11-15 — 사용자 실기 재확인: 순환 성공, 날짜 화면에 통계 겹침
+
+- 사용자가 Ulanzi Studio의 잔류 트레이 아이콘을 Windows Explorer 재시작으로 정리한 이후 D200X-Deck에서 **아날로그+디지털 시계**와 **날짜·시간·요일** 2개만 활성화했으며, **물리 가로 버튼 누를 때 이 두 화면 사이 순환은 정상적으로 됨**을 직접 확인. 더 이상 이 조합에서 버튼 순환을 고장으로 분류하거나 무조건 재수정하지 말 것.
+- 남은 실기 문제는 날짜 화면 위에 체크하지 않은 **CPU/RAM/GPU 통계 UI가 중첩**되는 것. 이전 D200X 전송 코드 `transport.cjs`는 펌웨어 모드 2(이미지)로 들어가기 전에 `0|||||24H|`와 `1|||||24H|`를 '초기화' 명령이라고 보내고 있었으나 `app/lib/page.js`와 `app/lib/deck.js` 상에서 **mode 0은 실제 통계 표시**이므로 원치 않는 통계 화면을 켰을 가능성이 큼.
+- 최소 수정 `193895a3`: 이미지 전환 때 모드 0/1을 보내는 이전 초기화 구간 삭제. 기존 `setWideMode('blank')`, ZIP PNG 전송 및 최종 mode 2 이미지 명령은 유지. 액션·프로필·노브 저장 스키마 변경 없음.
+- 회귀 검증 `560fb5fb`: 통계→PNG 화면 전환 시 mode 0/1 전송 없음, 이미지 모드 2와 ZIP 전송 순서를 확인. Windows Preview 테스트 코드 포함 재트리거 `5fe22f92`. **기기에서 중첩 제거 검증 전까지 해결 완료라고 주장 금지.** 노브 정보 및 CPU/RAM/GPU 화면 개별 기능 보존, `main`/PR 불변.
