@@ -20,9 +20,8 @@ function sdk(){
   return sdkHost;
 }
 // Local-only Fusion artwork cache: filenames are stable SDK command IDs.
-const FUSION_PLUGIN='com.autodesk.fusionstreamdeck';
 const fusionCacheDir=()=>path.join(app.getPath('userData'),'fusion-command-icons');
-function safeFusionCommand(id){return typeof id==='string'&&id.startsWith(FUSION_PLUGIN+'.')&&
+function safeFusionCommand(id){return typeof id==='string'&&id!=='.'&&id!=='..'&&
   /^[a-zA-Z0-9._-]{1,180}$/.test(id);}
 ipcMain.handle('d200x:fusion-icon-read',async(event,id)=>{
   assertEditor(event);if(!safeFusionCommand(id))return null;
