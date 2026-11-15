@@ -1689,7 +1689,7 @@ function appendInspectorHelp(head,item){
   const close=document.createElement('button');close.type='button';close.className='inspector-help-close';close.textContent='닫기';
   close.addEventListener('click',()=>dialog.close());
   dialog.append(close);
-  dialog.addEventListener('close',()=>dialog.remove(),{once:true});
+  dialog.addEventListener('close',()=>dialog.remove());
   trigger.addEventListener('click',()=>{
     if(!dialog.isConnected)document.body.append(dialog);
     dialog.showModal();
