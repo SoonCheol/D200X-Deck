@@ -155,6 +155,18 @@
       text(date,w/2,43,'bold 27px "Malgun Gothic",sans-serif');
       text(now.toLocaleTimeString('ko-KR',{hour12:false,hour:'2-digit',minute:'2-digit'}),w/2,107,'bold 60px "Segoe UI",sans-serif');
       text(day,w/2,167,'24px "Malgun Gothic",sans-serif','center','#aebbd0');
+    }else if(mode==='knobs'){
+      const info=window.D200XKnobInfo?.()||[];
+      info.slice(0,3).forEach((knob,i)=>{
+        const x=65+i*131;
+        if(i){ctx.strokeStyle='#364657';ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(i*131,25);ctx.lineTo(i*131,171);ctx.stroke();}
+        text(knob.name||'노브 '+(i+1),x,36,'bold 19px "Malgun Gothic",sans-serif','center','#aebbd0');
+        const title=String(knob.title||'미설정');
+        const max=11;
+        text(title.length>max?title.slice(0,max-1)+'…':title,x,96,'bold 18px "Malgun Gothic",sans-serif');
+        const detail=String(knob.detail||'');
+        if(detail&&detail!==title)text(detail.length>max?detail.slice(0,max-1)+'…':detail,x,148,'14px "Malgun Gothic",sans-serif','center','#aebbd0');
+      });
     }else{
       text('CPU',76,55,'bold 25px "Segoe UI",sans-serif');
       text('RAM',196,55,'bold 25px "Segoe UI",sans-serif');
