@@ -498,3 +498,16 @@
 - 코드: `deck-core.js`, `editor.js`, `device-sync.js`, `transport.cjs`, `main.cjs`, `preload.cjs`, `sysstats.js`, `style.css`; `test/streamdeck-core.test.cjs`와 `test/streamdeck-transport.test.cjs`에 표시 순서·프로필 보존·전송 모드 테스트. CI 최초 GPU 테스트 실패 후 비Windows 기본 GPU 테스트 호환성 수정 `a42c0319` 및 CI 성공.
 - 주의: 자동 CI와 Windows ZIP 패키징은 하드웨어 실기 검증이 아님. 특히 가로 키가 실제 물리 입력 index13을 송신하는지, 시계와 통계 전환 시 펌웨어 모습, 날짜·요일 PNG가 가로 슬롯에 반영되는지, Windows GPU 3D 성능 카운터 값, 버튼 누를 때 순환은 새 Windows EXE 실기 확인해야 함.
 
+
+## 새 대화 인수인계 — 노브 정보 모드 미완료 (2026-11-15)
+
+**중요: 진행 중인 변경을 완료 또는 빌드 성공으로 말하지 말 것.**
+
+- 사용자는 가로로 긴 D200X 13번 LCD 버튼 표시 모드를 **아날로그+디지털 시계 → 날짜·시간·요일 → CPU+RAM+GPU**의 3종으로 시작하기를 원함. 체크박스로 모드 포함 여부 설정, 속성창에서 항목을 끌어서 순서 변경. 이 3종 기능은 코드 반영, CI와 Windows 프리뷰 성공(기준 코드 `a42c0319`; Windows 프리뷰 #43654756026, ZIP artifact 14136988517). 실제 Ulanzi D200X 실기 사용·표시·GPU 수치 검증은 아직 안 됨.
+- 추가로 사용자가 **노브 정보(Knobs)를 체크해서 가로 화면에 실제 무엇이 표시되는지 볼 수 있어야 한다**고 명시. 이전에 원본의 제목 연동 여부가 확실하지 않다는 이유로 옵션에서 누락한 것은 잘못; 노브 정보는 추가해 검증해야 함.
+- 현재 **마지막 기능 커밋 `9eb5fe113efa10ff8c057ad874140873cb5c4c60`**은 `app/streamdeck-editor/deck-core.js`의 `WIDE_CHOICES`에 `knobs`를 추가하고, 기본 enabled 목록은 기존 3종으로 유지한 단계뿐. `editor.js`의 `WIDE_LABELS` 및 `device-sync.js` 노브 정보 화면 렌더러는 **미구현**. 따라서 네 번째 항목을 지금 실행하면 표시명이 `undefined`이고, 기본 날짜/시간 화면과 혼동될 수 있음. 절대 완료라고 하지 말 것.
+- 확인한 최신 GitHub Actions: 이 불완전한 `9eb5fe11` 커밋 CI #43656521498 success지만 **D200X input execution verification #43656517886 failure, Windows preview #43656517835 failure**. 먼저 실패 원인 로그 확인, 미완성 UI/표시 기능 구현 후 재빌드·artifact 검증 필요. 현재 마지막 *성공한* Windows 빌드는 이전 3모드 버전 #43654756026이며 노브 정보가 들어 있지 않음.
+- 구현해야 할 것: (1) `editor.js` 가로 모드 이름 `knobs:'노브 정보'` 추가, 네 번째 체크박스/드래그로 선택 가능하지만 기본은 체크 해제; (2) 현재 프로필의 노브1~3 설정에서 `DeckCore.controlBinding(state,16..18)`를 통해 **사용자가 설정한 제목을 우선, 제목 없을 땐 노브에 설정된 기능/조절 대상 이름으로 대체**해 가로 화면에 3칸 표시; (3) `device-sync.js`에서는 `knobs` 화면을 사용자 지정 392×196 PNG로 렌더하고 `getD200XWideMode`가 `blank`를 반환하게 하여 시계/통계 내장 표시와 충돌하지 않게 처리; (4) 노브 설정을 바꿀 때 가로 화면도 동기화, 기존 프로필·액션·폴더·노브 구동 보존; (5) CI + Windows preview + artifact 검사. 실제 원본 Ulanzi Studio의 노브 제목 연동 동작은 사용자의 기기에서 아직 검증되지 않았으므로 **원본과 동일하다고 주장하지 말 것**.
+- 관련 소스: `app/streamdeck-editor/{deck-core.js,editor.js,device-sync.js,transport.cjs,main.cjs,preload.cjs,style.css}`, `app/lib/{deck.js,page.js,sysstats.js}`, `test/streamdeck-core.test.cjs`, `test/streamdeck-transport.test.cjs`.
+- 저장소 `SoonCheol/D200X-Deck`; **유일한 개발 브랜치 `codex/streamdeck-761-clean-editor`**. `main` 수정/병합 금지. 사용자 지시 없이 외부 프로젝트 이동/기존 프로필 삭제 금지. Windows GitHub Actions EXE 제공과 커밋/성공 여부 정확히 보고. 인수인계 완료 시 이 문서를 갱신.
+
