@@ -191,13 +191,9 @@ class D200XTransport extends EventEmitter {
           if (this.pending || this.closed || !this.deck.connected || generation !== this.session) continue;
           // Synchronous multi-report write: the keep-alive timer cannot
           // interleave its HID reports inside a page transfer.
-          if(this.wideMode==='blank'&&this.appliedWideMode!=='blank'){
-            // D200-family firmware can retain stale native CPU/RAM/GPU
-            // overlays when switching from the native monitor to uploaded
-            // images. Clear native fields before selecting image mode.
-            this.deck.sendFrame(0,PROTO.CLOCK,Buffer.from('0|||||24H|','utf8'));
-            this.deck.sendFrame(0,PROTO.CLOCK,Buffer.from('1|||||24H|','utf8'));
-          }
+          // Never send firmware mode 0/1 as a "clear": mode 0 actually
+          // enables the native CPU/RAM/GPU overlay. Select background
+          // image mode (2) without activating another built-in panel.
           this.deck.setWideMode(this.wideMode);
           this.deck.pushPage(zip);
           // The final frame remains image mode after each uploaded page.
