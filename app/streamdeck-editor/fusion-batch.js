@@ -7,7 +7,8 @@
   const PLUGIN='com.autodesk.fusionstreamdeck';
   const ACTION=PLUGIN+'.runcommand';
   const FORMAT='d200x-fusion-batch-v1';
-  const MAX=1792; // 128 D200X pages x 14 assignable physical keys
+  const KEYS_PER_PAGE=13; // D200X index 13 is the wide information display, not a button.
+  const MAX=128*KEYS_PER_PAGE;
   const SAFE_ID=/^[^\x00-\x1f\x7f]{1,256}$/;
   function validate(raw){
     if(!raw||typeof raw!=='object'||Array.isArray(raw)||
@@ -36,18 +37,18 @@
     if(!id)throw Error('프로필 생성에 실패했습니다.');
     const target=state.inactiveProfiles.find(p=>p.id===id);
     if(!target)throw Error('새 프로필 데이터를 찾지 못했습니다.');
-    target.pages=Array.from({length:Math.ceil(input.commands.length/14)},()=>core.blankPage());
+    target.pages=Array.from({length:Math.ceil(input.commands.length/KEYS_PER_PAGE)},()=>core.blankPage());
     input.commands.forEach((cmd,index)=>{
       const action=core.createAction('sd-plugin');
       action.title=cmd.name.slice(0,30);
       action.settings.pluginUUID=PLUGIN;
       action.settings.actionUUID=ACTION;
       action.settings.pluginSettings={commandId:cmd.id,name:cmd.name};
-      target.pages[Math.floor(index/14)][index%14]=action;
+      target.pages[Math.floor(index/KEYS_PER_PAGE)][index%KEYS_PER_PAGE]=action;
     });
     core.switchProfile(state,id);
     return {id,count:input.commands.length,pageCount:target.pages.length,
       profileName:input.profileName};
   }
-  return {FORMAT,PLUGIN,ACTION,MAX,validate,apply};
+  return {FORMAT,PLUGIN,ACTION,KEYS_PER_PAGE,MAX,validate,apply};
 });

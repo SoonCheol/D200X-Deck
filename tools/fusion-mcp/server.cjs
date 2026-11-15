@@ -67,14 +67,14 @@ async function exportBatch(args,{getCommands=catalogue,writeFile=fs.writeFile,
   const stamp=now.toISOString().replace(/[:.]/g,'-');
   const destination=path.join(output,'D200X-Fusion-Commands-'+stamp+'.json');
   await writeFile(destination,JSON.stringify(payload,null,2)+'\n',{flag:'wx',encoding:'utf8',mode:0o600});
-  return {path:destination,count:commands.length,pages:Math.ceil(commands.length/14),
+  return {path:destination,count:commands.length,pages:Math.ceil(commands.length/B.KEYS_PER_PAGE),
     profile:payload.profileName,warning:'D200X 편집기에서 JSON을 가져와야 실제 버튼에 적용됩니다.'};
 }
 const TOOLS=[
  {name:'fusion_list_commands',description:'Fusion 360 애드인이 제공하는 현재 작업공간 명령을 검색합니다. 읽기 전용.',
   inputSchema:{type:'object',properties:{query:{type:'string'},offset:{type:'integer',minimum:0},limit:{type:'integer',minimum:1,maximum:100},refresh:{type:'boolean'}},additionalProperties:false}},
- {name:'fusion_export_batch',description:'선택한 Fusion 명령을 14키/페이지 D200X 새 프로필용 JSON으로 출력합니다. 기존 설정을 건드리지 않으며 D200X 앱에서 명시적 가져오기가 필요합니다.',
-  inputSchema:{type:'object',properties:{all:{type:'boolean'},command_ids:{type:'array',items:{type:'string'},maxItems:1792},profile_name:{type:'string',maxLength:80}},
+ {name:'fusion_export_batch',description:'선택한 Fusion 명령을 13개 일반 키/페이지 D200X 새 프로필용 JSON으로 출력합니다. 기존 설정을 건드리지 않으며 D200X 앱에서 명시적 가져오기가 필요합니다.',
+  inputSchema:{type:'object',properties:{all:{type:'boolean'},command_ids:{type:'array',items:{type:'string'},maxItems:1664},profile_name:{type:'string',maxLength:80}},
     additionalProperties:false}}
 ];
 function reply(id,result){return {jsonrpc:'2.0',id,result};}

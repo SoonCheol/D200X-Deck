@@ -51,7 +51,8 @@ test('Batch preserves existing assignments and spreads 15 commands over two page
   const result=B.apply(state,{format:B.FORMAT,pluginUUID:B.PLUGIN,actionUUID:B.ACTION,
     profileName:'Fusion',commands:cmds},Core);
   assert.equal(result.pageCount,2);
-  assert.equal(state.pages[1][0].settings.pluginSettings.commandId,'command14');
+  assert.equal(state.pages[0][13],null,'wide information display must remain unassigned');
+  assert.equal(state.pages[1][0].settings.pluginSettings.commandId,'command13');
   assert.equal(state.inactiveProfiles.find(p=>p.id==='default').pages[0][0].type,'hotkey');
 });
 test('Invalid, duplicate and excessive command batches rejected',()=>{
