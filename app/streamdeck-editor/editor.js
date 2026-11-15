@@ -1651,7 +1651,7 @@ const INSPECTOR_HELP={
 };
 function inspectorBreadcrumb(item,action,inspectorName){
   const plugin=item.type==='sd-plugin';
-  const root=plugin?'플러그인':'액션';
+  const root=libraryTab==='plugins'?'플러그인':'액션';
   const category=plugin
     ?sdkPlugins.find(p=>p.uuid===item.settings?.pluginUUID)?.name||
       (item.settings?.actionUUID===HA_CUSTOM_ACTION?'Home Assistant':'설치된 플러그인')
@@ -3157,6 +3157,7 @@ tabs.forEach((button,index)=>button.addEventListener('click',()=>{
   tabs.forEach((tab,i)=>tab.classList.toggle('active',i===index));
   updatePluginToolbar();
   renderLibrary();
+  renderInspector();
 }));
 // Poll only when explicitly enabled. The native bridge refuses to identify
 // foreground programs while the editor is not minimized.
