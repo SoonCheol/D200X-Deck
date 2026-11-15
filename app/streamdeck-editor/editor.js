@@ -314,7 +314,7 @@ const KNOB_TARGET_LABELS={page:'페이지 이동',profile:'프로필 전환',vol
 window.D200XKnobInfo=()=>[16,17,18].map((index,i)=>{
   const binding=DeckCore.controlBinding(state,index);
   const active=binding?.mode==='stack'
-    ?binding.stack?.[binding.stackIndex||0]
+    ?binding.stack?.[stackPositions[i]%binding.stack.length]
     :binding?.target;
   const assigned=[binding?.down,binding?.left,binding?.right,binding?.holdLeft,binding?.holdRight].filter(Boolean);
   const named=assigned.find(action=>typeof action.title==='string'&&action.title.trim());
@@ -427,7 +427,7 @@ function renderPhysicalControls(){
     button.title=name+" — 클릭하거나 액션을 끌어 설정";
     const symbol=document.createElement("span");symbol.className="physical-symbol";
     const label=document.createElement("span");label.className="physical-name";
-    label.textContent=binding?.mode==='adjust'?'조절: '+({page:'페이지',volume:'음량',zoom:'확대/축소',scroll:'세로 스크롤','scroll-x':'가로 스크롤',history:'실행 취소·다시 실행',window:'창 전환',desktop:'가상 데스크톱',brightness:'기기 밝기'}[binding.target])
+    label.textContent=binding?.mode==='adjust'?'조절: '+({page:'페이지',profile:'프로필',volume:'음량',zoom:'확대/축소',scroll:'세로 스크롤','scroll-x':'가로 스크롤',history:'실행 취소·다시 실행',window:'창 전환',desktop:'가상 데스크톱',brightness:'기기 밝기'}[binding.target])
       :binding?.mode==='stack'?'스택: '+({page:'페이지',volume:'음량',zoom:'확대/축소',scroll:'세로 스크롤','scroll-x':'가로 스크롤',history:'실행 취소·다시 실행',window:'창 전환',desktop:'가상 데스크톱',brightness:'기기 밝기'}[binding.stack[stackPositions[offset-2]%binding.stack.length]])
       :(item?keyName(item):name);
     button.append(symbol,label);
@@ -2085,6 +2085,7 @@ function executeHardwareAction(event,preview=false,skipKnobGesture=false){
     const idx=offset-2;
     stackPositions[idx]=(stackPositions[idx]+1)%outcome.size;
     renderPhysicalControls();
+    window.scheduleD200XWideSync?.();
     const target=DeckCore.controlBinding(state,index).stack[stackPositions[idx]];
     return '노브 '+(idx+1)+' 조절 대상: '+({page:'페이지',volume:'음량',zoom:'확대/축소',scroll:'세로 스크롤','scroll-x':'가로 스크롤',history:'실행 취소·다시 실행',window:'창 전환',desktop:'가상 데스크톱',brightness:'기기 밝기'}[target]);
   }
