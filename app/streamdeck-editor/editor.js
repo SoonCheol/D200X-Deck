@@ -707,7 +707,7 @@ const COMPACT_FIELD_GROUPS={
   'edit-history':[['operation','step']],
   'timer':[['seconds','sound']],
   'audio-play':[['fade','fadeDuration']],
-  'text':[['mode','enter']],
+  'text':[['enter','mode']],
   'folder':[['autoExitEnabled','autoExitSeconds']]
 };
 const COMPACT_FIELD_LABELS={
@@ -737,6 +737,37 @@ function groupCompactActionFields(root,actionType){
       group.append(node);
     }
   }
+}
+// Place the selected preset's actual shortcut inside the title input, to
+// the left of the existing T⌄ control. Never show placeholder "user-defined"
+// or text-entry hints as if they were a real keyboard shortcut.
+function inspectorShortcut(item,root){
+  const values=FIXED_SHORTCUT_OPTIONS[item.type];
+  if(values){
+    for(const select of root.querySelectorAll('select[data-field]')){
+      if(Object.prototype.hasOwnProperty.call(values,select.value))
+        return values[select.value];
+    }
+  }
+  if(item.type==='hotkey')return String(item.settings?.keys||'').trim();
+  if(item.type==='hotkey-switch'||item.type==='text')return '';
+  return PANEL_SHORTCUTS[item.type]||'';
+}
+function bindInspectorShortcut(root,item){
+  const line=root.querySelector('.title-line');
+  if(!line)return;
+  const caption=document.createElement('span');
+  caption.className='title-shortcut-display';
+  caption.setAttribute('aria-live','polite');
+  line.append(caption);
+  const update=()=>{
+    const value=inspectorShortcut(item,root);
+    caption.textContent=value;
+    caption.title=value;
+    line.classList.toggle('has-shortcut',Boolean(value));
+  };
+  root.querySelectorAll('[data-field]').forEach(field=>field.addEventListener('change',update));
+  update();
 }
 const input=(field,label,placeholder="")=>`<div class="field"><label for="s-${field}">${label}</label><input id="s-${field}" data-field="${field}" value="${escapeHtml(valueOf(active,field))}" placeholder="${placeholder}"></div>`;
 const select=(field,label,opts)=>`<div class="field"><label for="s-${field}">${label}</label><select id="s-${field}" data-field="${field}">${opts.map(([v,n])=>`<option value="${escapeHtml(v)}" ${valueOf(active,field)===v?"selected":""}>${escapeHtml(n)}</option>`).join("")}</select></div>`;
@@ -1635,7 +1666,7 @@ function renderInspector(){
           <button type="button" id="title-palette-save">현재 색상을 나의 색상에 저장</button>
         </div>
         <button type="button" class="style-reset" id="title-reset" title="기본 스타일 복원">↺</button>
-      </div></div></div>${item.type!=='hotkey-switch'&&!FIXED_SHORTCUT_OPTIONS[item.type]&&PANEL_SHORTCUTS[item.type]?'<div class="field"><label>단축키 안내</label><span class="hint">'+escapeHtml(PANEL_SHORTCUTS[item.type])+'</span></div>':''}${fields}</div></div>`;
+      </div></div></div>${fields}</div></div>`;
   const previewButton=document.createElement('button');previewButton.type='button';
   previewButton.textContent='▶ 실행 테스트';previewButton.className='action-preview-test';
   previewButton.title='실제 Windows/D200X 동작을 한 번 실행합니다';
@@ -1658,6 +1689,7 @@ function renderInspector(){
   bindExtendedActionFields(root,item);
   bindShortcutOptionPreviews(root,item);
   groupCompactActionFields(root,item.type);
+  bindInspectorShortcut(root,item);
   appendInspectorSaveBar(root);
   root.querySelectorAll("[data-path-picker]").forEach(button=>{
     button.addEventListener("click",async()=>{
