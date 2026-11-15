@@ -175,6 +175,26 @@ jobs:
           } finally {
             Remove-Item Env:D200X_NODE_PATH -ErrorAction SilentlyContinue
           }
+      - name: Fetch pinned Autodesk Fusion open-source plugin reference
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: AutodeskFusion360/FusionStreamDeck
+          ref: bc153b8cddedba91614f932f4210f1ecb451c2a8
+          path: fusion-compat-fixture
+          persist-credentials: false
+      - name: Verify unchanged Fusion Node plugin registration and offline Property Inspector protocol
+        working-directory: app
+        shell: pwsh
+        run: |
+          $env:D200X_NODE_PATH = (Resolve-Path 'dist/D200X-StreamDeck-Preview-win32-x64/D200X-StreamDeck-Preview.exe').Path
+          $env:D200X_FUSION_SOURCE = (Resolve-Path '../fusion-compat-fixture/streamdeck_plugin/com.autodesk.fusionstreamdeck.sdPlugin').Path
+          try {
+            node --test ../test/streamdeck-fusion-original.test.cjs
+            if ($LASTEXITCODE -ne 0) { throw 'Original Fusion plugin SDK protocol compatibility test failed' }
+          } finally {
+            Remove-Item Env:D200X_NODE_PATH -ErrorAction SilentlyContinue
+            Remove-Item Env:D200X_FUSION_SOURCE -ErrorAction SilentlyContinue
+          }
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: D200X-StreamDeck-Device-Sync-win-x64

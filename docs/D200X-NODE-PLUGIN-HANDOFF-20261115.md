@@ -50,6 +50,12 @@
 - **실패 및 재수정 기록:** Actions #43688432536 (YAML step 생성 오류), #43688638822 (루트·app 상대 경로 오류), #43688783937 (첫 테스트 경로 오류)를 수정하여 최종 #43688944909 success 달성. 오류 원인과 커밋별 기록은 [전용 인수인계](D200X-NODE-PLUGIN-HANDOFF-20261115.md)에 남김.
 - **다음 순서:** 원본 Fusion 플러그인 샘플을 통한 WebSocket/PI/아이콘 검증 강화 → 필요 시 SDK 호환 이벤트 추가 → 사용자 PC에서 Fusion 실제 명령·D200X 실기. 기존 사용자 데이터·HTML/HA 설정은 무손실 보존.
 
+## 5차: 원본 Fusion 플러그인 자동 프로토콜 검증 계획
+
+- **실제 외부 테스트 대상:** AutodeskFusion360/FusionStreamDeck 커밋 `bc153b8cddedba91614f932f4210f1ecb451c2a8`에 고정. GitHub Actions에서 소스를 별도 체크아웃하고, Windows 패키지의 Electron Node24를 사용해 **원본 `bin/plugin.js`를 수정하지 않고** 실행한다.
+- **검증:** `.sdPlugin` 폴더 설치/액션 목록 → 원본 Node SDK WebSocket 등록 → D200X 버튼 `keyDown` → Fusion 애드인이 없는 경우 원본 `showAlert` → `sendToPlugin` 검색 요청에 대한 원본 `sendToPropertyInspector/searchError` 반환.
+- **한계:** Fusion Python 애드인, 실제 명령 아이콘·명령 실행, 실제 D200X 버튼, GUI PI 렌더링은 아직 미검증. 다음 CI 결과 확인 후에만 통과 표시할 것.
+
 ## 코드·검증 이력 (사실만)
 
 | 단계 | 커밋/Actions | 실제 작업 및 증거 |
