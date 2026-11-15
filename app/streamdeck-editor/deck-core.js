@@ -198,7 +198,7 @@
   const CONTROL_MODES=['trigger','adjust','stack'];
   const ADJUST_TARGETS=['page','profile','volume','zoom','scroll','scroll-x','history','window','desktop','brightness'];
   function emptyBinding(){
-    return {mode:'trigger',down:null,left:null,right:null,holdLeft:null,holdRight:null,target:'page',heldEnabled:false,heldMode:'adjust',heldTarget:'profile',heldStep:1,heldReverseDirection:false,heldStack:['page','volume'],
+    return {mode:'trigger',down:null,left:null,right:null,holdLeft:null,holdRight:null,target:'page',heldEnabled:false,heldMode:'adjust',heldTarget:'profile',heldStep:1,heldReverseDirection:false,heldStack:['page','volume'],autoAssign:false,heldAutoAssign:false,
       stack:['page','volume'],stackIndex:0,step:1,reverseDirection:false};
   }
   function cleanBinding(value){
@@ -207,6 +207,8 @@
     out.mode=CONTROL_MODES.includes(value.mode)?value.mode:'trigger';
     for(const key of ['down','left','right','holdLeft','holdRight'])out[key]=cleanAction(value[key]);
     out.target=ADJUST_TARGETS.includes(value.target)?value.target:'page';
+    out.autoAssign=value.autoAssign===true;
+    out.heldAutoAssign=value.heldAutoAssign===true;
     out.heldEnabled=value.heldEnabled===true;
     out.heldMode=CONTROL_MODES.includes(value.heldMode)?value.heldMode:'adjust';
     out.heldTarget=ADJUST_TARGETS.includes(value.heldTarget)?value.heldTarget:'profile';
@@ -566,7 +568,10 @@
           const key=gesture==='hold-left'?'holdLeft':'holdRight';
           if(binding.heldMode==='trigger'){
             const action=binding[key];
-            return action?{index,gesture,outcome:planAction(action,page,pageCount)}:null;
+            if(action)return {index,gesture,outcome:planAction(action,page,pageCount)};
+            if(!binding.heldAutoAssign)return null;
+            const direction=(gesture==='hold-left'?-1:1)*(binding.heldReverseDirection?-1:1);
+            return {index,gesture,outcome:planAdjustment(binding.heldTarget,direction,binding.heldStep,page,pageCount)};
           }
           const target=binding.heldMode==='stack'
             ?binding.heldStack[Math.abs(activeStack)%binding.heldStack.length]:binding.heldTarget;
@@ -593,7 +598,12 @@
       }
       if(gesture==='left'||gesture==='right'){
         const action=binding[gesture];
-        return action?{index,gesture,outcome:planAction(action,page,pageCount)}:null;
+        if(action)return {index,gesture,outcome:planAction(action,page,pageCount)};
+        if(binding.mode==='trigger'&&binding.autoAssign){
+          const direction=(gesture==='left'?-1:1)*(binding.reverseDirection?-1:1);
+          return {index,gesture,outcome:planAdjustment(binding.target,direction,binding.step,page,pageCount)};
+        }
+        return null;
       }
     }
     if(gesture!=='down')return null;
