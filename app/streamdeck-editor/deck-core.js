@@ -257,6 +257,14 @@
     const current=enabled.includes(value?.current)?value.current:order.find(id=>enabled.includes(id));
     return {order,enabled,current};
   }
+  // Some layouts expose the right half of the double-width screen as slot 14.
+  // Handle that slot only for the virtual wide-screen mode; leave all normal
+  // physical key/action slot mapping unchanged.
+  function isWideDisplayPress(event){
+    return Number(event?.kind)===1 &&
+      (Number(event?.index)===13||Number(event?.index)===14) &&
+      (event?.pressed===true||Number(event?.state)===1);
+  }
   function cycleWideDisplay(state){
     const config=state.wideDisplay=cleanWideDisplay(state.wideDisplay);
     const modes=config.order.filter(id=>config.enabled.includes(id));
@@ -672,5 +680,5 @@
       url:action.settings?.url||'',mode:action.settings?.open||'default',browserPath:action.settings?.browserPath||''};
     return {kind:'unsupported',message:'이 동작의 실행 기능은 아직 구현되지 않았습니다.'};
   }
-  return {ACTION_IDS,D200X_ACTION_IDS,PLUGIN_ACTION_IDS,DEFAULTS,TITLE,createAction,cleanAction,cleanCompositeEntry,displaySwitchAction,compositeModel,planComposite,runComposite,blankPage,cleanWideDisplay,cycleWideDisplay,folderContents,folderPageCount,changeFolderPage,addFolderPage,deleteFolderPage,currentActions,visibleActions,togglePinned,activeFolder,enterFolder,exitFolder,migrateState,profileSnapshot,switchProfile,createProfile,renameProfile,setProfileApp,matchForegroundProfile,deleteProfile,previewHardwareEvent,physicalSlot,hardwareGesture,resolveHardwareEvent,resolveKeyPress,planHardwareEvent,deletePage,planAction,emptyBinding,cleanBinding,ensureControls,controlBinding,changeControlScope};
+  return {ACTION_IDS,D200X_ACTION_IDS,PLUGIN_ACTION_IDS,DEFAULTS,TITLE,createAction,cleanAction,cleanCompositeEntry,displaySwitchAction,compositeModel,planComposite,runComposite,blankPage,cleanWideDisplay,cycleWideDisplay,isWideDisplayPress,folderContents,folderPageCount,changeFolderPage,addFolderPage,deleteFolderPage,currentActions,visibleActions,togglePinned,activeFolder,enterFolder,exitFolder,migrateState,profileSnapshot,switchProfile,createProfile,renameProfile,setProfileApp,matchForegroundProfile,deleteProfile,previewHardwareEvent,physicalSlot,hardwareGesture,resolveHardwareEvent,resolveKeyPress,planHardwareEvent,deletePage,planAction,emptyBinding,cleanBinding,ensureControls,controlBinding,changeControlScope};
 });
