@@ -16,7 +16,7 @@ async function zipWith(entries){
 }
 test('Stream Deck SDK manifest is compatible with HTML Home Assistant action',()=>{
   assert.equal(validateManifest(M).UUID,M.UUID);
-  assert.throws(()=>validateManifest({...M,CodePath:'plugin.exe'}),/HTML CodePath/);
+  assert.throws(()=>validateManifest({...M,CodePath:'plugin.exe'}),/HTML 또는 Node.js CodePath/);
 });
 test('SDK plugin importer extracts nested sdPlugin folder and preserves manifest',async()=>{
   const prefix=M.UUID+'.sdPlugin/';
@@ -96,4 +96,31 @@ test('HA fallback does not query settings for generic actions or unconfigured en
   let called=0;
   await host.refreshHaDualStates(async()=>{called++;return {ok:true,json:async()=>({state:'on'})};});
   assert.equal(called,0);
+});
+
+const fusionManifest={UUID:'com.autodesk.fusionstreamdeck',Name:'Fusion 360',Version:'1.0.0.0',
+  CodePath:'bin/plugin.js',Nodejs:{Version:'24'},SDKVersion:2,Actions:[
+    {UUID:'com.autodesk.fusionstreamdeck.runcommand',Name:'Run Command',
+      PropertyInspectorPath:'ui/run-command.html'}]};
+test('FusionStreamDeck Node.js 24 manifest accepted without changing original SDK fields',()=>{
+  assert.equal(validateManifest(fusionManifest).CodePath,'bin/plugin.js');
+  assert.equal(validateManifest(fusionManifest).Nodejs.Version,'24');
+  assert.throws(()=>validateManifest({...fusionManifest,CodePath:'bin/plugin.exe'}),/HTML 또는 Node.js/);
+  assert.throws(()=>validateManifest({...fusionManifest,CodePath:'../outside.js'}),/HTML 또는 Node.js/);
+});
+test('Node plugin importer preserves its entrypoint and inspector assets',async()=>{
+  const prefix=fusionManifest.UUID+'.sdPlugin/';
+  const pack=await parseArchive(await zipWith({
+    [prefix+'manifest.json']:JSON.stringify(fusionManifest),
+    [prefix+'bin/plugin.js']:'// Node stub',
+    [prefix+'ui/run-command.html']:'<html></html>'
+  }));
+  assert.equal(pack.manifest.Nodejs.Version,'24');
+  assert.deepEqual(pack.files.map(x=>x.name).sort(),['bin/plugin.js','manifest.json','ui/run-command.html']);
+});
+test('Node.js runtime enforces requested major version',async()=>{
+  const {nodeRuntime}=require('../app/streamdeck-editor/sd-plugin-host.cjs');
+  const runtime=await nodeRuntime(20);
+  assert.ok(Number(runtime.version.split('.')[0])>=20);
+  await assert.rejects(nodeRuntime(99),/Node.js 99 이상/);
 });

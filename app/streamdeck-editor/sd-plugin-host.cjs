@@ -4,6 +4,9 @@
 const fs=require('node:fs');
 const path=require('node:path');
 const crypto=require('node:crypto');
+const {spawn,execFile}=require('node:child_process');
+const {promisify}=require('node:util');
+const execFileAsync=promisify(execFile);
 const {WebSocketServer}=require('ws');
 const JSZip=require('jszip');
 const {BrowserWindow,safeStorage,screen}=require('electron');
@@ -15,12 +18,39 @@ const HA_DUAL_ACTION=HA_PLUGIN+'.dual-state-entity';
 const HA_SWITCH_ENTITY=/^(switch|light|fan|input_boolean)\.[a-z0-9_]+$/;
 const json=x=>JSON.stringify(x);
 const filename=x=>typeof x==='string'&&x.length>0&&x.length<1024&&!x.startsWith('/')&&!x.includes('\\')&&!/[\x00-\x1f\x7f]/.test(x)&&x.split('/').every(segment=>segment.length>0&&segment!=='.'&&segment!=='..'&&!segment.includes(':'));
+// Only HTML or Node.js entries are accepted; never execute a native binary.
+function pluginKind(codePath){
+  if(typeof codePath!=='string')return null;
+  const ext=path.extname(codePath).toLowerCase();
+  return ext==='.html'?'html':['.js','.cjs','.mjs'].includes(ext)?'node':null;
+}
 function validateManifest(m){
   if(!m||!UUID.test(m.UUID)||!Array.isArray(m.Actions)||!m.Actions.length||
     !m.Actions.every(a=>UUID.test(a.UUID)&&typeof a.Name==='string')||
-    !filename(m.CodePath)||!m.CodePath.toLowerCase().endsWith('.html'))
-    throw Error('첫 단계는 HTML CodePath를 제공하는 Stream Deck SDK 플러그인만 지원합니다.');
+    !filename(m.CodePath)||!pluginKind(m.CodePath))
+    throw Error('Stream Deck SDK 플러그인은 HTML 또는 Node.js CodePath만 지원합니다.');
+  if(pluginKind(m.CodePath)==='node' &&
+    (m.Nodejs && (!m.Nodejs.Version||!/^(20|2[1-9]|[3-9][0-9])$/.test(String(m.Nodejs.Version)))))
+    throw Error('Node.js 플러그인의 런타임 버전이 올바르지 않습니다.');
   return m;
+}
+async function nodeRuntime(minimumVersion=20){
+  // Use the already packaged Electron binary as Node, avoiding an installation
+  // dependency on the user's Windows PC. This requires the default runAsNode fuse.
+  const executable=process.env.D200X_NODE_PATH||process.execPath;
+  const env={...process.env,...(process.env.D200X_NODE_PATH?{}:{ELECTRON_RUN_AS_NODE:'1'})};
+  let stdout;
+  try{
+    ({stdout}=await execFileAsync(executable,['-p','process.versions.node'],
+      {env,windowsHide:true,timeout:5000,maxBuffer:1024}));
+  }catch(error){
+    throw Error('Node.js 실행 환경을 확인할 수 없습니다: '+error.message);
+  }
+  const version=String(stdout).trim();
+  const major=Number(version.split('.')[0]);
+  if(!/^\d+\.\d+\.\d+$/.test(version)||!Number.isInteger(major)||major<minimumVersion)
+    throw Error('이 플러그인은 Node.js '+minimumVersion+' 이상이 필요합니다. 현재: '+version);
+  return {executable,env,version};
 }
 async function parseArchive(data){
   if(!Buffer.isBuffer(data)||data.length>MAX_ARCHIVE||data.length<50)throw Error('플러그인 압축 크기가 올바르지 않습니다.');
@@ -111,7 +141,7 @@ class StreamDeckPluginHost{
         try{
           const msg=JSON.parse(String(raw));
           if(msg.event==='registerPlugin'){
-            owner=[...this.instances.values()].find(x=>x.uuid===msg.uuid&&x.window&&!x.window.isDestroyed());
+            owner=[...this.instances.values()].find(x=>x.uuid===msg.uuid&&((x.window&&!x.window.isDestroyed())||(x.process&&!x.process.killed&&x.process.exitCode===null)));
             if(!owner)return ws.close();
             owner.ws=ws;this.send(ws,{event:'applicationDidLaunch'});
             for(const ctx of this.contexts.values())if(ctx.pluginUUID===owner.uuid)this.willAppear(ctx);
@@ -166,7 +196,35 @@ class StreamDeckPluginHost{
     if(!plugins.some(x=>x.uuid===uuid))throw Error('설치되지 않은 플러그인입니다.');
     const dir=path.join(this.root,uuid+'.sdPlugin');
     const manifest=validateManifest(JSON.parse(await fs.promises.readFile(path.join(dir,'manifest.json'),'utf8')));
-    const instance={uuid,manifest,dir,ws:null,window:null};
+    const instance={uuid,manifest,dir,ws:null,window:null,process:null};
+    if(pluginKind(manifest.CodePath)==='node'){
+      const required=manifest.Nodejs?.Version?Number(manifest.Nodejs.Version):20;
+      const runtime=await nodeRuntime(required);
+      const info=json({application:{font:'Arial',language:'ko',platform:'windows',
+        platformVersion:'10',version:'7.6.1'},devices:[{id:DEVICE,name:'D200X',
+        size:{columns:4,rows:4},type:0}],plugin:{version:manifest.Version||'1.0.0'},devicePixelRatio:1});
+      const args=[path.join(dir,manifest.CodePath),'-port',String(this.port),
+        '-pluginUUID',uuid,'-registerEvent','registerPlugin','-info',info];
+      const child=spawn(runtime.executable,args,{cwd:dir,env:runtime.env,
+        windowsHide:true,stdio:['ignore','pipe','pipe']});
+      instance.process=child;this.instances.set(uuid,instance);
+      const fail=error=>{
+        if(this.instances.get(uuid)===instance)this.instances.delete(uuid);
+        this.onUpdate({kind:'error',message:'Node.js 플러그인 '+uuid+' 실행 실패: '+error.message});
+      };
+      child.once('error',fail);
+      child.once('exit',(code,signal)=>{
+        if(this.instances.get(uuid)===instance)this.instances.delete(uuid);
+        instance.ws?.close();
+        for(const ctx of this.contexts.values())if(ctx.pluginUUID===uuid)ctx.appeared=false;
+        if(code!==0&&signal!=='SIGTERM')
+          this.onUpdate({kind:'error',message:'Node.js 플러그인 '+uuid+' 종료 (code '+code+')'});
+      });
+      // Drain stdout/stderr to prevent child process blocking on full pipes.
+      child.stdout?.on('data',()=>{});
+      child.stderr?.on('data',()=>{});
+      return instance;
+    }
     const win=new BrowserWindow({show:false,webPreferences:{nodeIntegration:false,contextIsolation:false,sandbox:true,webSecurity:true}});
     win.webContents.setWindowOpenHandler(()=>({action:'deny'}));
     win.webContents.on('will-navigate',(event,url)=>{if(!url.startsWith('file://'))event.preventDefault();});
@@ -372,9 +430,13 @@ class StreamDeckPluginHost{
   async close(){
     if(this.haPollTimer){clearInterval(this.haPollTimer);this.haPollTimer=null;}
     for(const pi of this.inspectors.values())if(!pi.window.isDestroyed())pi.window.close();
-    for(const inst of this.instances.values())if(!inst.window.isDestroyed())inst.window.close();
+    for(const inst of this.instances.values()){
+      if(inst.window&&!inst.window.isDestroyed())inst.window.close();
+      if(inst.process&&!inst.process.killed&&inst.process.exitCode===null)
+        inst.process.kill();
+    }
     if(this.server)await new Promise(resolve=>this.server.close(resolve));
     this.server=null;
   }
 }
-module.exports={StreamDeckPluginHost,parseArchive,validateManifest};
+module.exports={StreamDeckPluginHost,parseArchive,validateManifest,pluginKind,nodeRuntime};

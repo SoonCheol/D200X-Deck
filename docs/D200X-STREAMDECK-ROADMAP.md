@@ -1,5 +1,13 @@
 # D200X × Stream Deck 7.6.1 구현 기준·달성표
 
+## 2026-11-15 개발 시작 기록 — Node.js SDK 호스트 1단계
+
+- **목표:** Elgato 공식 SDK 규약으로 기존 Stream Deck Node.js 플러그인 실행. 첫 호환성 시험 대상은 Autodesk FusionStreamDeck. 특정 제조사 전용 코드는 넣지 않는다.
+- **변경 예정 코드:** `sd-plugin-host.cjs`에 HTML 이외의 `.js/.cjs/.mjs` CodePath, Node 런타임 버전 검증, Electron 내장 Node 기반 독립 플러그인 프로세스, 기존 SDK WebSocket 등록 공유, 종료 정리 추가. `test/streamdeck-sdk-host.test.cjs`에 Fusion manifest/ZIP/버전 검증 추가.
+- **지켜야 할 범위:** 기존 HTML/HA 경로와 사용자 설정은 유지; native/DRM/Marketplace 호환은 별개. 설치 시 실행되지 않고 버튼에 등록되어 `ensure`할 때만 실행한다.
+- **주의:** 첫 커밋은 **코드 경로 구현**이며 Windows EXE에서 Node 24 실행, Fusion 실제 명령, 원본 Property Inspector 실기는 아직 확인 전이다. `ELECTRON_RUN_AS_NODE` 기본 fuse에 의존하므로 빌드 후 런타임 확인 필요.
+- **진행 기록 규칙:** 이후 커밋별 CI 결과·실패/수정·소스 SHA를 이 절 아래 덧붙인다. 사용자 PC 전원을 요구하지 않으며 사용자 실기 요청 전까지 원격에서 가능한 범위만 처리한다.
+
 ## 2026-11-15 사용자 최종 목표 정의 — Stream Deck 플러그인을 D200X에서 그대로 사용
 
 > **최우선 제품 목표:** Stream Deck용 기존 플러그인을 D200X 편집기의 플러그인 탭에 원본 형태로 등록하고, D200X 물리 버튼·노브로 실행·설정·상태·이미지까지 동작하도록 하는 범용 호환 호스트 구축. Autodesk FusionStreamDeck은 첫 호환성 시험 대상이며 Fusion 전용 개발이 목표가 아니다.
