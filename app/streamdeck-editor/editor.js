@@ -697,6 +697,47 @@ function bindShortcutOptionPreviews(root,item){
     redraw();
   }
 }
+// Compact groups only reposition existing controls. Keep their data-field values,
+// native listeners and persisted settings unchanged; long inputs stay full-width.
+const COMPACT_FIELD_GROUPS={
+  'system-scroll':[['axis','direction','step']],
+  'system-volume':[['direction','step']],
+  'device-brightness':[['direction','step']],
+  'system-zoom':[['operation','step']],
+  'edit-history':[['operation','step']],
+  'timer':[['seconds','sound']],
+  'audio-play':[['fade','fadeDuration']],
+  'text':[['mode','enter']],
+  'folder':[['autoExitEnabled','autoExitSeconds']]
+};
+const COMPACT_FIELD_LABELS={
+  'autoExitEnabled':'자동 나가기','autoExitSeconds':'대기 시간',
+  'fadeDuration':'페이드 시간','seconds':'지속 시간','enter':'Enter 추가'
+};
+function groupCompactActionFields(root,actionType){
+  const sequences=COMPACT_FIELD_GROUPS[actionType];
+  if(!sequences)return;
+  const fields=root.querySelector('.properties>.fields');
+  if(!fields)return;
+  for(const keys of sequences){
+    const nodes=keys.map(key=>fields.querySelector('.field [data-field="'+key+'"]')?.closest('.field'));
+    if(nodes.some(node=>!node||node.parentElement!==fields))continue;
+    const position=Array.from(fields.children).indexOf(nodes[0]);
+    if(position<0||nodes.some((node,i)=>Array.from(fields.children).indexOf(node)!==position+i))continue;
+    const group=document.createElement('div');
+    group.className='compact-property-group compact-count-'+nodes.length;
+    group.setAttribute('role','group');
+    fields.insertBefore(group,nodes[0]);
+    for(const [i,node] of nodes.entries()){
+      const field=keys[i],label=node.querySelector('label');
+      if(label&&COMPACT_FIELD_LABELS[field]){
+        label.title=label.textContent;
+        label.textContent=COMPACT_FIELD_LABELS[field];
+      }
+      group.append(node);
+    }
+  }
+}
 const input=(field,label,placeholder="")=>`<div class="field"><label for="s-${field}">${label}</label><input id="s-${field}" data-field="${field}" value="${escapeHtml(valueOf(active,field))}" placeholder="${placeholder}"></div>`;
 const select=(field,label,opts)=>`<div class="field"><label for="s-${field}">${label}</label><select id="s-${field}" data-field="${field}">${opts.map(([v,n])=>`<option value="${escapeHtml(v)}" ${valueOf(active,field)===v?"selected":""}>${escapeHtml(n)}</option>`).join("")}</select></div>`;
 const pathPicker=(field,label,kind='file')=>
@@ -1601,6 +1642,7 @@ function renderInspector(){
   $("key-title").addEventListener("input",ev=>{item.title=ev.target.value;persist();renderGrid();refreshTitlePreview(item);});
   bindExtendedActionFields(root,item);
   bindShortcutOptionPreviews(root,item);
+  groupCompactActionFields(root,item.type);
   appendInspectorSaveBar(root);
   root.querySelectorAll("[data-path-picker]").forEach(button=>{
     button.addEventListener("click",async()=>{
