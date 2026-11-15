@@ -1231,7 +1231,8 @@ function renderControlInspector(){
     for(const [value,label] of [['trigger','동작별 할당'],['adjust','조절형 액션'],['stack','다이얼 스택']])mode.add(new Option(label,value));
     mode.value=held?binding.heldMode:binding.mode;
     mode.addEventListener('change',()=>{
-      if(held)binding.heldMode=mode.value;else binding.mode=mode.value;
+      if(held){binding.heldMode=mode.value;if(mode.value==='trigger')binding.heldAutoAssign=true;}
+      else{binding.mode=mode.value;if(mode.value==='trigger')binding.autoAssign=true;}
       persist();renderControlInspector();
     });
     scopeRow.append(modeLabel,mode);
