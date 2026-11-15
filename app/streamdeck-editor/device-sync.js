@@ -159,13 +159,21 @@
       const info=window.D200XKnobInfo?.()||[];
       info.slice(0,3).forEach((knob,i)=>{
         const x=65+i*131;
-        if(i){ctx.strokeStyle='#364657';ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(i*131,25);ctx.lineTo(i*131,171);ctx.stroke();}
-        text(knob.name||'노브 '+(i+1),x,36,'bold 19px "Malgun Gothic",sans-serif','center','#aebbd0');
-        const title=String(knob.title||'미설정');
-        const max=11;
-        text(title.length>max?title.slice(0,max-1)+'…':title,x,96,'bold 18px "Malgun Gothic",sans-serif');
-        const detail=String(knob.detail||'');
-        if(detail&&detail!==title)text(detail.length>max?detail.slice(0,max-1)+'…':detail,x,148,'14px "Malgun Gothic",sans-serif','center','#aebbd0');
+        if(i){
+          ctx.strokeStyle='#364657';ctx.lineWidth=1;
+          ctx.beginPath();ctx.moveTo(i*131,22);ctx.lineTo(i*131,174);ctx.stroke();
+        }
+        // Bound each label to its own 112px column; never spill into a
+        // neighboring knob, even with long Korean titles.
+        const draw=(value,y,size,color='#f2f5fa')=>{
+          ctx.font='bold '+size+'px "Malgun Gothic",sans-serif';
+          ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillStyle=color;
+          ctx.fillText(String(value),x,y,112);
+        };
+        draw(knob.name||'노브 '+(i+1),38,18,'#aebbd0');
+        draw(knob.title||'미설정',99,19);
+        if(knob.detail&&knob.detail!==knob.title)
+          draw(knob.detail,150,14,'#aebbd0');
       });
     }else{
       text('CPU',76,55,'bold 25px "Segoe UI",sans-serif');
