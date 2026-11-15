@@ -185,6 +185,7 @@
     ctx.fillStyle = '#08090c';
     ctx.fillRect(0, 0, width, height);
     if(item?.type==='wide-display'){
+      // The custom knobs screen is rendered as PNG; the device-native mode must stay blank.
       drawWidePanel(ctx,width,height,window.D200XWideModeName?.()||'clock');
       return {index,png:canvas.toDataURL('image/png').split(',')[1]};
     }
