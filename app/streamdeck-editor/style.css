@@ -406,3 +406,16 @@
 .sdk-state-icon .sdk-state-buttons{grid-column:2;grid-row:2;display:flex;flex-direction:column;gap:4px;width:76px}
 .sdk-state-icon .sdk-state-buttons button{width:76px;min-width:76px;max-width:76px;height:25px;min-height:25px;padding:2px 3px;text-align:center;white-space:nowrap;line-height:1.1}
 @media(max-width:1000px){.sdk-state-icons{padding-left:107px}}
+
+/* Keep all test controls single-line and compact; avoid consuming inspector height. */
+.control-test-row>button{flex:0 0 auto;min-width:92px;max-width:135px;height:32px;padding:5px 9px}
+.control-test-row>button:disabled,.action-preview-test:disabled{opacity:.42;cursor:default}
+.inspector-unsaved-dialog{width:min(440px,calc(100vw - 32px));border:1px solid #696969;border-radius:8px;background:#303030;color:#eee;padding:20px;box-shadow:0 14px 40px #000b}
+.inspector-unsaved-dialog::backdrop{background:#0009}
+.inspector-unsaved-dialog strong{font-size:14px}
+.inspector-unsaved-dialog p{margin:15px 0;line-height:1.6;font-size:12px}
+.inspector-unsaved-actions{display:flex;justify-content:flex-end;gap:7px;flex-wrap:wrap}
+.inspector-unsaved-actions button{border:1px solid #707070;background:#474747;color:#fff;border-radius:5px;padding:8px 12px;font-size:12px}
+.inspector-unsaved-actions button.primary{background:#287acb;border-color:#438cce}
+.inspector.empty{display:flex;flex-wrap:wrap;align-content:center;justify-content:center}
+.inspector.empty .inspector-save-bar{width:100%;align-self:flex-end}
