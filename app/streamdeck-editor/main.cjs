@@ -1,6 +1,6 @@
 'use strict';
 
-const { app, BrowserWindow, Menu, ipcMain, clipboard, dialog, shell } = require('electron');
+const { app, BrowserWindow, Menu, Tray, nativeImage, ipcMain, clipboard, dialog, shell } = require('electron');
 const path = require('node:path');
 const { pathToFileURL } = require('node:url');
 const http = require('node:http');
@@ -115,6 +115,79 @@ if(!singleInstanceLock){
 }
 let window = null;
 let rendererReady = false;
+let tray = null;
+let quitting = false;
+let trayPreferences = null;
+const BUILDS_PAGE = 'https://github.com/SoonCheol/D200X-Deck/actions/workflows/streamdeck-clean-preview.yml';
+function trayPreferencePath(){return path.join(app.getPath('userData'),'deckforge-tray-preferences-v1.json');}
+function isInstalledBuild(){
+  if(process.platform!=='win32'||!app.isPackaged)return false;
+  const folder=path.join(process.env.LOCALAPPDATA||'', 'Programs','DeckForge');
+  return !!process.env.LOCALAPPDATA && path.normalize(process.execPath).toLowerCase()===
+    path.join(folder,'DeckForge.exe').toLowerCase();
+}
+function readTrayPreferences(){
+  try{
+    const value=JSON.parse(fs.readFileSync(trayPreferencePath(),'utf8'));
+    return {autoStart:value.autoStart===true};
+  }catch{
+    return {autoStart:isInstalledBuild()};
+  }
+}
+function saveTrayPreferences(){
+  const tmp=trayPreferencePath()+'.tmp';
+  fs.mkdirSync(path.dirname(tmp),{recursive:true});
+  fs.writeFileSync(tmp,JSON.stringify(trayPreferences),{encoding:'utf8',mode:0o600});
+  fs.renameSync(tmp,trayPreferencePath());
+}
+function setLoginStart(enabled){
+  if(!isInstalledBuild())return;
+  app.setLoginItemSettings({openAtLogin:!!enabled,path:process.execPath,args:['--hidden']});
+}
+function revealEditor(){
+  if(!window||window.isDestroyed())return;
+  if(window.isMinimized())window.restore();
+  window.show();
+  window.focus();
+}
+function quitDeckForge(){
+  quitting=true;
+  app.quit();
+}
+function updateTrayMenu(){
+  if(!tray)return;
+  tray.setContextMenu(Menu.buildFromTemplate([
+    {label:'DeckForge 1.0 열기',click:revealEditor},
+    {type:'separator'},
+    {label:'Windows 로그인 시 자동 실행',type:'checkbox',
+      enabled:isInstalledBuild(),checked:trayPreferences?.autoStart===true,
+      click:item=>{
+        try{
+          setLoginStart(item.checked);
+          trayPreferences.autoStart=item.checked;
+          saveTrayPreferences();
+        }catch(error){
+          dialog.showErrorBox('자동 시작 설정 실패',String(error.message||error));
+          updateTrayMenu();
+        }
+      }},
+    {label:'GitHub에서 새 빌드 확인',click:()=>shell.openExternal(BUILDS_PAGE)},
+    {type:'separator'},
+    {label:'DeckForge 종료',click:quitDeckForge}
+  ]));
+}
+function initializeTray(){
+  const file=path.join(__dirname,'tray.png');
+  const icon=nativeImage.createFromPath(file);
+  if(icon.isEmpty())throw Error('DeckForge 트레이 아이콘이 없습니다: '+file);
+  tray=new Tray(icon);
+  tray.setToolTip('DeckForge 1.0 · D200X');
+  tray.on('double-click',revealEditor);
+  trayPreferences=readTrayPreferences();
+  try{if(isInstalledBuild())setLoginStart(trayPreferences.autoStart);}
+  catch(error){console.warn('DeckForge login startup setup failed:',error.message);}
+  updateTrayMenu();
+}
 const transport = new D200XTransport();
 function send(channel, payload) {
   if (rendererReady && window && !window.isDestroyed()) {
@@ -747,12 +820,14 @@ if($targetPid -gt 0){try{(Get-Process -Id $targetPid -ErrorAction Stop).Path}cat
 if(singleInstanceLock)app.whenReady().then(async () => {
   diagnosticPath = path.join(app.getPath('userData'), 'd200x-connection.log');
   Menu.setApplicationMenu(null);
+  initializeTray();
   window = new BrowserWindow({
     width: 1180,
     height: 800,
     minWidth: 960,
     minHeight: 630,
     backgroundColor: '#292929',
+    show:!process.argv.includes('--hidden'),
     title: 'DeckForge 1.0 — D200X',
     webPreferences: {
       preload: path.join(__dirname, 'preload.cjs'),
@@ -767,8 +842,22 @@ if(singleInstanceLock)app.whenReady().then(async () => {
   window.webContents.on('will-navigate', (event, url) => {
     if (!url.startsWith('file://')) event.preventDefault();
   });
-  window.on('closed', () => { rendererReady = false; window = null; app.quit(); });
+  window.on('close',event=>{
+    if(!quitting){
+      event.preventDefault();
+      window.hide(); // Renderer, plugin host, and HID input remain alive in the tray.
+    }
+  });
+  window.on('closed', () => {rendererReady=false;window=null;});
   transport.start().catch(err => send('d200x:error', String(err)));
 });
-app.on('before-quit', () => {transport.stop();sdkHost?.close().catch(error=>console.warn('SDK host shutdown:',error.message));});
-app.on('window-all-closed', () => app.quit());
+app.on('activate',revealEditor);
+app.on('before-quit', () => {
+  quitting=true;
+  transport.stop();
+  sdkHost?.close().catch(error=>console.warn('SDK host shutdown:',error.message));
+});
+app.on('window-all-closed', () => {
+  // The tray is the application owner; closing only the editor must not quit.
+  if(quitting)app.quit();
+});

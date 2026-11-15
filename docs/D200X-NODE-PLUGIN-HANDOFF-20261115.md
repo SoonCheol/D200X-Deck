@@ -1,3 +1,12 @@
+## 2026-11-15 DeckForge 설치형·트레이·내장 MCP 개발
+
+- **설치형:** GitHub Actions에서 기존 포터블 실행 파일과 별도로 per-user Windows NSIS `DeckForge-Setup-1.0.0.exe` 생성. 관리자 권한을 요구하지 않는 기본 설치 경로 `%LOCALAPPDATA%\\Programs\\DeckForge\\DeckForge.exe`를 고정 (oneClick/perMachine=false). 업데이트할 때 같은 설치 프로그램을 재실행. **설치 위치를 사용자 정의하는 옵션 없음.**
+- **트레이:** 로그인 후 자동 시작(설치형 앱에 한해 기본 ON), 창 닫기는 숨기기, D200X HID/플러그인 유지, 트레이 더블클릭으로 편집기 열기, 트레이에서 자동 시작 토글·새 빌드 확인·명시적 종료 지원. 진짜 Windows 서비스(LocalSystem)가 아니며 사용자 로그인 세션의 앱.
+- **내장 MCP:** 별도 개발 체크아웃이나 Node 설치 없이 설치 디렉터리의 Electron(Node 24) 런타임으로 `resources\\mcp\\deckforge-mcp.cmd`를 실행. 패키지 내부 `resources\\mcp\\tools\\fusion-mcp\\server.cjs`와 `resources\\mcp\\app\\streamdeck-editor\\fusion-batch.js`를 함께 제공. 향후 업데이트에서도 MCP 실행 명령·경로 동일.
+- **데이터 보존:** 이전 `%APPDATA%\\D200X StreamDeck Device Sync` userData를 계속 사용. 설치·덮어쓰기 과정에서 프로필·HA 토큰·SDK 플러그인 저장소 변경·삭제하지 않음. 제거해도 사용자 데이터 삭제 옵션 비활성.
+- **업데이트:** 트레이 'GitHub에서 새 빌드 확인'에서 사용자가 최신 Actions 설치 EXE를 직접 받아 재설치하는 **명시적 승인 방식**. 자동 다운로드·무인 업데이트·새 버전 자동 감지는 구현하지 않았음. 설치 전에 현재 앱을 'DeckForge 종료'로 명시 종료하도록 안내.
+- **검증 구분:** 단위검사와 GitHub 빌드는 Windows 설치·업데이트/사용자 PC 실기 검증을 대체하지 않음. NSIS 설치 실행과 로그인 자동 시작 및 Codex MCP 연결은 사용자 실기 확인 필요.
+
 ## 2026-11-15 DeckForge 1.0 브랜드 변경 및 Windows EXE 검증 성공
 
 - **브랜드 변경 커밋:** `a750512a1405d9fadc1a5b3c703940d3d0cc7601`. 앱 표시명 **DeckForge 1.0**, 패키지 버전 **1.0.0**, 실행 파일 **`DeckForge.exe`**.

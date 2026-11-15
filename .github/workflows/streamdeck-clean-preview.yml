@@ -60,6 +60,11 @@ jobs:
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           node --test test/streamdeck-ha.test.cjs
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Check DeckForge installed-mode behavior
+        shell: pwsh
+        run: |
+          node --test test/deckforge-install.test.cjs
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - name: Check hardware bridge and renderer scripts
         shell: pwsh
         run: |
@@ -104,6 +109,14 @@ jobs:
           New-Item -ItemType Directory -Force app/preview-device-build/lib | Out-Null
           Copy-Item 'app/streamdeck-editor/*' 'app/preview-device-build/streamdeck-editor/' -Recurse -Force
           Copy-Item 'app/lib/*' 'app/preview-device-build/lib/' -Recurse -Force
+          # Keep the original dedicated D200X app and add only the independent
+          # resources required for tray mode and bundled Fusion MCP.
+          Copy-Item 'app/build/tray.png' 'app/preview-device-build/streamdeck-editor/tray.png' -Force
+          New-Item -ItemType Directory -Force app/preview-device-build/mcp/tools/fusion-mcp | Out-Null
+          New-Item -ItemType Directory -Force app/preview-device-build/mcp/app/streamdeck-editor | Out-Null
+          Copy-Item 'tools/fusion-mcp/server.cjs' 'app/preview-device-build/mcp/tools/fusion-mcp/server.cjs' -Force
+          Copy-Item 'tools/fusion-mcp/deckforge-mcp.cmd' 'app/preview-device-build/mcp/deckforge-mcp.cmd' -Force
+          Copy-Item 'app/streamdeck-editor/fusion-batch.js' 'app/preview-device-build/mcp/app/streamdeck-editor/fusion-batch.js' -Force
           @'
           {
             "name": "deckforge",
@@ -204,6 +217,26 @@ jobs:
             Remove-Item Env:D200X_NODE_PATH -ErrorAction SilentlyContinue
             Remove-Item Env:D200X_FUSION_SOURCE -ErrorAction SilentlyContinue
           }
+      - name: Create DeckForge per-user NSIS installer
+        working-directory: app
+        shell: pwsh
+        run: |
+          # The installer uses the exact same staged app as the already-tested portable build.
+          # Builder only packages; it must not rebuild native HID bindings.
+          Copy-Item 'streamdeck-editor/deckforge-installer.json' 'preview-device-build/electron-builder.json' -Force
+          npm install --no-save --package-lock=false --ignore-scripts electron-builder@26.0.12
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          npx --no-install electron-builder --projectDir preview-device-build --win nsis --x64 --publish never
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          if (-not (Test-Path 'dist-installer/DeckForge-Setup-1.0.0.exe')) { throw 'DeckForge NSIS setup missing' }
+          if ((Get-Item 'dist-installer/DeckForge-Setup-1.0.0.exe').Length -lt 30MB) { throw 'DeckForge NSIS setup unexpectedly small' }
+          Write-Host "DeckForge installer ready: $((Get-Item 'dist-installer/DeckForge-Setup-1.0.0.exe').Length) bytes"
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: DeckForge-1.0-Setup-win-x64
+          path: app/dist-installer/DeckForge-Setup-1.0.0.exe
+          if-no-files-found: error
+          retention-days: 14
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: DeckForge-1.0-win-x64

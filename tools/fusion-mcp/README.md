@@ -6,6 +6,20 @@ Codex에서 **이미 실행 중인 Fusion 360의 FusionStreamDeck 애드인**이
 
 **안전한 적용:** MCP는 기존 D200X 프로필·Electron 저장소·Fusion 디자인을 변경하지 않는다. 파일 생성 이후 D200X 편집기의 **프로필 메뉴 → 전체 프로필 관리 → Fusion 360 명령 일괄 등록 JSON 가져오기**를 눌러서 사용자가 명시적으로 적용해야 한다. 가져오기 시 기존 모든 프로필을 유지하고 새로운 Fusion 프로필을 생성한다. 페이지당 **일반 버튼 13개**, 최대 128페이지(1,664개 명령). **와이드 정보 화면(14번째 슬롯)은 액션을 등록하지 않습니다.**
 
+## DeckForge 1.0 설치형 사용 (권장)
+
+GitHub Actions의 **DeckForge-1.0-Setup-win-x64** 아티팩트에서 `DeckForge-Setup-1.0.0.exe`를 내려받아 설치한다. 설치 위치는 사용자 계정의 `%LOCALAPPDATA%\\Programs\\DeckForge`이며 설치 이후 업데이트해도 동일한 경로를 사용한다.
+
+**Codex MCP 등록은 설치 후 한 번만 수행한다.** 아래는 설치형 PC의 PowerShell에서 실행하는 명령이다.
+
+```powershell
+codex mcp add deckforge-fusion -- cmd.exe /d /c "$env:LOCALAPPDATA\\Programs\\DeckForge\\resources\\mcp\\deckforge-mcp.cmd"
+```
+
+배포 패키지 안에 포함된 `deckforge-mcp.cmd`는 DeckForge의 Electron 내장 Node.js 런타임을 사용하므로, Node.js 실행 파일 및 `E:\\Codex` 개발 폴더에 의존하지 않는다. 등록 전에 `Test-Path "$env:LOCALAPPDATA\\Programs\\DeckForge\\resources\\mcp\\deckforge-mcp.cmd"`로 파일이 설치되었는지 확인한다. PC에서 Codex와의 실제 MCP 통신은 별도 검증이 필요하다.
+
+## 개발용 별도 실행 (설치형이 아닌 경우)
+
 ## 준비
 
 1. Fusion 360에서 FusionStreamDeck 애드인 실행(시작 시 자동 실행 권장).
