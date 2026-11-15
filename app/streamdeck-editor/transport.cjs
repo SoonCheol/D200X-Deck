@@ -191,7 +191,7 @@ class D200XTransport extends EventEmitter {
           if (this.pending || this.closed || !this.deck.connected || generation !== this.session) continue;
           // Synchronous multi-report write: the keep-alive timer cannot
           // interleave its HID reports inside a page transfer.
-          // Never send firmware mode 0/1 as a "clear": mode 0 actually
+          // Regression-covered: never send firmware mode 0/1 as a "clear": mode 0 actually
           // enables the native CPU/RAM/GPU overlay. Select background
           // image mode (2) without activating another built-in panel.
           this.deck.setWideMode(this.wideMode);
