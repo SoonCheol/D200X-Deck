@@ -1357,7 +1357,9 @@ function bindSdkStateIcons(root,item){
         if(item.settings?.sdkStateIcons)delete item.settings.sdkStateIcons[key];
         persist();render();
       });
-      group.append(heading,image,choose,file,reset);panel.append(group);
+      const buttons=document.createElement('div');buttons.className='sdk-state-buttons';
+      buttons.append(choose,file,reset);
+      group.append(heading,image,buttons);panel.append(group);
     }
   };
   draw();
