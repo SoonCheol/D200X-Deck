@@ -17,7 +17,7 @@
 - 실제 `app/streamdeck-editor/editor.js` 초기화는 `tabs[1].disabled=false`로 버튼을 켜며, `libraryTab='plugins'`, `installSdkPlugin()`, `renderInstalledSdkPlugins()`, `data-sdk-inspector`와 `main.cjs`의 SDK IPC가 로컬 플러그인 사용 흐름을 제공한다.
 - **사용자는 플러그인 탭을 실제로 사용 중이라고 확인**했다. 따라서 탭 자체와 로컬 설치를 '미구현' 목록에 다시 넣지 않는다.
 - 한계는 **Node.js 실행형 플러그인, 네이티브 실행형 플러그인, 온라인 마켓플레이스의 별도 지원 여부**다. HTML 실행형 호스트가 있다는 사실과 모든 SDK 플러그인과의 호환성을 혼동하지 않는다.
-- **재발 방지:** 정적 HTML의 disabled, placeholder, 오래된 주석만으로 실행 상태를 판정하지 않고 렌더러 초기화, 이벤트 핸들러, IPC, 실행 호스트, 최신 실사용 피드백을 함께 확인한다.
+- **재발 방지:** 정적 HTML의 disabled, placeholder, 오래된 주석만으로 실행 상태를 판정하지 않고 렌더러 초기화, 이벤트 핸들러, IPC, 실행 호스트, 최신 실사용 피드백을 함께 확인한다. 2026-11-15 전체 코드 경로 재감사 결과는 아래 '코드 경로 재검증' 절을 따른다.
 
 ## 최신 UI 메뉴·프로필·장치 현황
 
@@ -41,7 +41,7 @@
 
 ## 오른쪽 액션 카탈로그 현재 상태
 
-실제 카탈로그 그룹 목록은 `app/streamdeck-editor/action-panel-icons.js`가 제어한다. 기존 Stream Deck 기본 **24개 ID**, D200X 확장 **18개 ID**, HA **1개 ID**를 분리하며, `sd-plugin`은 별도 SDK 액션 유형으로 관리한다.
+카탈로그 그룹 정의는 `app/streamdeck-editor/action-panel-icons.js`가 제어한다. 정의된 ID **43개 = Stream Deck 기본 24개 + D200X 확장 18개 + 레거시 HA 1개**다. 단, 실제 **액션 탭 렌더링에서 레거시 HA 카테고리를 건너뛰므로 42개가 표시되며**, 그중 `virtual` 1개는 비활성화된다. 설치된 SDK 플러그인은 **별도의 작동 중인 플러그인 탭**에서 동적으로 표시하고, 저장 모델에서는 `sd-plugin` 유형을 사용한다. 따라서 '43개 모두 액션 탭에 표시'라고 해석하지 말 것.
 
 | 분류 | ID | 표시 기능 | 현재 상태 | 잔여 확인/제약 |
 |---|---|---|---|---|
@@ -87,7 +87,7 @@
 | D200X 추가 | `timeline-zoom` | 타임라인 확대 | 부분 구현 | Ctrl +/− 기반, 앱별 키맵 미완성 |
 | D200X 추가 | `file-open` | 지정 파일 열기 | 코드 구현·실기 미검증 | 대상 파일·연결 앱별 확인 필요 |
 | D200X 추가 | `folder-shortcut` | 지정 폴더 열기 | 코드 구현·실기 미검증 | 탐색기 및 경로 실측 필요 |
-| 플러그인 | `ha-toggle` | HA 장치 켜기/끄기 | 부분 구현 | 레거시 액션과 SDK 경로 존재; 실제 HA 환경·상태 표시 확인 필요 |
+| 플러그인(레거시, 액션 탭 숨김) | `ha-toggle` | HA 장치 켜기/끄기 | 기존 저장 설정용 코드 보존 | `editor.js`의 `renderLibrary`가 레거시 HA 카테고리를 숨긴다. 기존 프로필 실행 경로는 남겨둠. 현재 사용자 플러그인 탭의 SDK HA 액션과 구별 |
 | 플러그인 | `sd-plugin` | Stream Deck SDK 플러그인 | 부분 구현·사용자 실사용 확인 | 플러그인 탭·로컬 설치·액션 배치·속성창 사용 가능. HTML CodePath 지원, Node.js CodePath는 미지원 |
 
 ## 카탈로그 외 명시적 미완성 / 추가 후보
@@ -101,6 +101,32 @@
 | 온라인 플러그인 마켓플레이스 | **미구현** | 플러그인 탭과 로컬 설치는 이미 구현·사용 중. 웹 기반 플러그인 검색·다운로드 마켓만 별도 미구현 |
 | 원본 전체 아이콘 편집기/앱별 프리셋 검색 | **미완성** | 간이 아이콘 제작·고정 단축키 프리셋은 존재 |
 | 프로필 저장 원자성·파일 버전 관리 | **미구현** | 무손실 이관·백업 전략 선행 |
+
+## 2026-11-15 코드 경로 재검증 — 정적 UI만으로 판정하지 않음
+
+**대상 코드:** `c738f16095996d64b2dd8b215515743fba299390` (이후 문서 커밋만 적용). `index.html`, `editor.js`, `action-panel-icons.js`, `deck-core.js`, `preload.cjs`, `main.cjs`, `sd-plugin-host.cjs` 및 관련 테스트 3종을 GitHub에서 읽어 비교했다. **이 확인은 소스 수준 감사이며 EXE 실행이나 물리 D200X 전체 실기 검증은 아니다.**
+
+| 대상 | 증거 코드 연결 | 판정 |
+|---|---|---|
+| 플러그인 탭 | `index.html` 초기 disabled → `editor.js:2691` 해제 → 탭 클릭 시 `libraryTab='plugins'` 및 `renderLibrary()` → `renderInstalledSdkPlugins()` | **구현 및 사용자 실사용 확인**. 이전 '미구현' 판정 철회 |
+| 플러그인 추가 | `editor.js:458` 설치 요청 → `preload.cjs` `sdkInstall` → `main.cjs:23` 파일 선택/설치 → `sd-plugin-host.cjs` `parseArchive/install` | **구현**. 실제 설치 가능한 것은 검증에 통과한 HTML 기반 `.sdPlugin`; Node.js 지원을 뜻하지 않음 |
+| 플러그인 액션 등록·실행 | `renderInstalledSdkPlugins()`에서 드래그/클릭 → `newAction('sd::...')` → `scheduleSdkSync()` / `sdkActionInstances()` → IPC `sdk-sync`, `sdk-key` → SDK 호스트 | **코드 연결 + 사용자 플러그인 사용 보고**. 임의 플러그인 전체 호환은 보장하지 않음 |
+| 플러그인 속성창·상태 | `actionFields('sd-plugin')`에서 원본 설정창 버튼 → `sdkInspector`; SDK 이벤트 `setTitle/setImage/setState/settings` 처리 | **코드 연결**. 각 플러그인별 실제 속성·이미지 갱신은 별도 실기 |
+| Node.js/네이티브 호스트 | `sd-plugin-host.cjs:validateManifest`에서 `CodePath`가 `.html`이 아니면 거부 | **미구현** (플러그인 탭 미구현과 혼동 금지) |
+| 설정 ⚙ | `index.html`의 설정 버튼 disabled 및 `editor.js`의 'main settings remains disabled' 주석, 활성화 경로 없음 | **상단 설정 화면 미구현**. 프로필·플러그인별 설정 기능은 별도로 존재 |
+| Virtual Stream Deck | `renderLibrary()`에서 `virtual` 항목 draggable=false·disabled 표시, `isAssignableAction()`에서도 제외 | **의도적 미구현** |
+| 프로필 JSON 가져오기/내보내기 | `editor.js:2593` 이후 전체 JSON 다운로드·가져오기/검증·기존 상태 백업·복원 처리 | **코드 구현**, 원자적 디스크 저장과 다른 기능 |
+| Smart Profile 기본 복귀 | `editor.js:2701` 4초 폴링의 `matched || fallback`, `main.cjs:705` 최소화·Windows 전경 앱 IPC 제한 | **코드 구현**, 실제 앱 전환·예외 조건은 실기 미확인. 과거 '기본 복귀 미구현'을 현행 상태로 인용 금지 |
+| Multi/Random/Switch/Logic | `deck-core.js:planComposite/runComposite` 및 `editor.js:1725` 이후 하위 실행 엔진·`executeHardwareAction`의 복합 분기 | **부분 구현**. SDK 플러그인의 Multi 하위 실행은 `executeMultiStep`에서 명시적으로 거부 |
+| 전체 카탈로그 | `action-panel-icons.js`의 43개 그룹 ID ↔ `deck-core.js` 24+18+2 모델 ID ↔ `editor.js` 속성 분기 ↔ 이 상태표 ID | **모든 43개 ID가 상태표에 존재함을 대조**. UI에서 보이는 항목은 42개(레거시 HA 제외), 그중 Virtual은 비활성 |
+| 아이콘 라이브러리 하단 확대 표시 | `index.html`의 `span.icon-zoom`은 표시용 마크업. `editor.js`에 해당 요소의 이벤트 핸들러 없음 | **이 표시 자체는 조작 가능한 확대/축소 버튼으로 확인되지 않음**. 실제 목록 표시 방식 버튼 `icon-library-layout`과 구분 |
+
+### 자동 검사와 실기의 범위
+
+- `test/streamdeck-core.test.cjs`에서 액션 플래닝·프로필·와이드/노브, `test/streamdeck-sdk-host.test.cjs`에서 HTML 매니페스트·호스트, `test/streamdeck-transport.test.cjs`에서 전송·절전·재연결 등의 테스트 정의를 확인했다. **이번 감사에서 테스트를 새로 실행하지 않았다.**
+- 기능 소스 `c738f160` 기준 GitHub Actions [CI #43683897871](https://github.com/SoonCheol/D200X-Deck/actions/runs/43683897871), [입력 검증 #43683894235](https://github.com/SoonCheol/D200X-Deck/actions/runs/43683894235), [Windows Preview #43683894213](https://github.com/SoonCheol/D200X-Deck/actions/runs/43683894213)은 각각 `success`로 재조회됐다.
+- **실물/Windows 미확인:** 모든 액션에 대한 앱별 효과, 여러 종류의 Stream Deck 플러그인 호환성, 최근 와이드 통계 화면 1회 입력, 물리 버튼·노브 삭제 UI 등.
+- 이후 상태 변경은 HTML 초기 속성·주석만으로 결정하지 않고 반드시 **렌더러 실행 경로 → preload/IPC → 실행기 → 자동 검사/실기 보고**로 판단한다.
 
 ## 최종 사용자 실기 / 자동 검증을 혼동하지 말 것
 
