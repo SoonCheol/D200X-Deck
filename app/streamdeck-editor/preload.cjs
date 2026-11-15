@@ -3,6 +3,7 @@ const { contextBridge, ipcRenderer } = require('electron');
 
 contextBridge.exposeInMainWorld('deckBridge', Object.freeze({
   foregroundApp: () => ipcRenderer.invoke('d200x:foreground-app'),
+  checkForUpdates: () => ipcRenderer.invoke('d200x:check-updates'),
   haStatus: () => ipcRenderer.invoke('d200x:ha-status'),
   sdkList: () => ipcRenderer.invoke('d200x:sdk-list'),
   sdkInstall: () => ipcRenderer.invoke('d200x:sdk-install'),
