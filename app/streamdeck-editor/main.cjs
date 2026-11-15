@@ -1,6 +1,6 @@
 'use strict';
 
-const { app, BrowserWindow, Menu, Tray, nativeImage, ipcMain, clipboard, dialog, shell } = require('electron');
+const { app, BrowserWindow, Menu, Tray, nativeImage, ipcMain, clipboard, dialog, shell, screen } = require('electron');
 const path = require('node:path');
 const { pathToFileURL } = require('node:url');
 const http = require('node:http');
@@ -826,11 +826,23 @@ if(singleInstanceLock)app.whenReady().then(async () => {
   diagnosticPath = path.join(app.getPath('userData'), 'd200x-connection.log');
   Menu.setApplicationMenu(null);
   initializeTray();
+  // Initial size fits the current monitor's usable work area (taskbar excluded).
+  // Keep a compact editor width, and leave balanced free space above/below.
+  const workArea=screen.getDisplayNearestPoint(screen.getCursorScreenPoint()).workArea;
+  const windowMargin=18;
+  const usableWidth=Math.max(1,workArea.width-windowMargin*2);
+  const usableHeight=Math.max(1,workArea.height-windowMargin*2);
+  const initialWidth=Math.min(980,usableWidth);
+  const initialHeight=usableHeight;
+  const minimumWidth=Math.min(960,initialWidth);
+  const minimumHeight=Math.min(630,initialHeight);
   window = new BrowserWindow({
-    width: 1180,
-    height: 800,
-    minWidth: 960,
-    minHeight: 630,
+    x:workArea.x+Math.max(0,Math.floor((workArea.width-initialWidth)/2)),
+    y:workArea.y+Math.max(0,Math.floor((workArea.height-initialHeight)/2)),
+    width:initialWidth,
+    height:initialHeight,
+    minWidth:minimumWidth,
+    minHeight:minimumHeight,
     backgroundColor: '#292929',
     show:!process.argv.includes('--hidden'),
     title: 'DeckForge 1.0 — D200X',
