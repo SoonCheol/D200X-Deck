@@ -89,7 +89,9 @@ try {
     backupPending=!localStorage.getItem(STORAGE_KEY+'-pre-profiles-backup');
   }
 } catch {state=DeckCore.migrateState(null);}
+let inspectorSession=null;
 const persist=(scheduleSync=true)=>{
+  if(inspectorSession){inspectorSession.dirty=JSON.stringify(state)!==inspectorSession.snapshot;updateInspectorSaveButtons();return true;}
   try {
     if(backupPending){
       const old=localStorage.getItem(STORAGE_KEY);
@@ -260,6 +262,7 @@ function showControlMenu(index,x,y){
   menu.hidden=false;
 }
 function choose(index){
+  if(inspectorSession?.dirty&&!confirmInspectorLeave())return;
   if(state.selected!==index){controlGesture='down';knobTab='normal';}
   state.selected=index;persist();render();
 }
@@ -1102,10 +1105,68 @@ function bindTitleStyle(item){
     }
   },{signal:inspectorListener.signal});
 }
+
+// Inspector writes remain drafts until explicitly saved. A single snapshot covers
+// nested icon, SDK, button, and rotary settings without altering the export schema.
+function beginInspectorSession(){
+  const key=state.profileId+':'+state.page+':'+JSON.stringify(state.folderPath||[])+':'+state.selected;
+  if(inspectorSession?.key===key)return;
+  inspectorSession=state.selected===null?null:{key,snapshot:JSON.stringify(state),dirty:false};
+}
+function updateInspectorSaveButtons(){
+  const dirty=inspectorSession?.dirty===true;
+  document.querySelectorAll('.inspector-save,.inspector-cancel').forEach(button=>{button.disabled=!dirty;});
+}
+function saveInspector(){
+  if(!inspectorSession?.dirty)return;
+  const previous=inspectorSession;
+  inspectorSession=null;
+  if(!persist()){inspectorSession=previous;return;}
+  beginInspectorSession();
+  updateInspectorSaveButtons();
+}
+function discardInspector(){
+  if(!inspectorSession?.dirty)return;
+  const snapshot=JSON.parse(inspectorSession.snapshot);
+  inspectorSession=null;state=DeckCore.migrateState(snapshot);
+  render();beginInspectorSession();
+}
+function confirmInspectorLeave(){
+  if(!inspectorSession?.dirty)return true;
+  const answer=prompt('저장하지 않은 변경 사항이 있습니다.\n저장 후 이동: 1 / 저장 안 함: 2 / 취소: 3','3');
+  if(answer==='1'){saveInspector();return !inspectorSession?.dirty;}
+  if(answer==='2'){discardInspector();return true;}
+  return false;
+}
+function appendInspectorSaveBar(root){
+  const footer=document.createElement('div');footer.className='inspector-save-bar';
+  const cancel=document.createElement('button');cancel.type='button';
+  cancel.className='inspector-cancel';cancel.textContent='취소';cancel.disabled=!inspectorSession?.dirty;
+  cancel.addEventListener('click',discardInspector);
+  const save=document.createElement('button');save.type='button';
+  save.className='inspector-save';save.textContent='저장';save.disabled=!inspectorSession?.dirty;
+  save.addEventListener('click',saveInspector);
+  footer.append(cancel,save);root.append(footer);
+}
+// Capture outside clicks so a different key, profile, page, or tool cannot
+// silently discard a dirty inspector. Programmatic profile switches are
+// separately guarded where they originate.
+document.addEventListener('click',event=>{
+  if(!inspectorSession?.dirty)return;
+  const root=$('inspector');
+  if(root?.contains(event.target))return;
+  event.preventDefault();event.stopImmediatePropagation();
+  if(confirmInspectorLeave()&&event.target?.isConnected){
+    const target=event.target;
+    setTimeout(()=>target.click(),0);
+  }
+},true);
+
 let inspectorListener=new AbortController();
 // Physical controls use a dedicated compact inspector instead of pretending
 // each knob has a single key. Drag to an individual gesture or click it to edit.
 function renderControlInspector(){
+  beginInspectorSession();
   const root=$("inspector"),index=state.selected,offset=index-14;
   const info=CONTROLS[offset],binding=DeckCore.controlBinding(state,index);
   root.className="inspector control-inspector";
@@ -1364,6 +1425,7 @@ async function populateAudioOutputs(select,item){
   }catch(error){console.warn('출력 장치 목록 조회 실패',String(error?.message||error));}
 }
 function renderInspector(){
+  beginInspectorSession();
   inspectorListener.abort();inspectorListener=new AbortController();
   if(state.selected!==null&&state.selected>=14){
     renderControlInspector();
@@ -1426,13 +1488,14 @@ function renderInspector(){
   previewButton.textContent='▶ 실행 테스트';previewButton.className='action-preview-test';
   previewButton.title='실제 Windows/D200X 동작을 한 번 실행합니다';
   previewButton.addEventListener('click',()=>runActionPreview('down'));
-  root.querySelector('#delete-action').before(previewButton);
+  root.querySelector('.action-head').append(previewButton);
   bindTitleStyle(item);
   bindIconControls(item);
   refreshTitlePreview(item);
-  $("delete-action").addEventListener("click",()=>removeSlotAction(state.selected));
+  $("delete-action").addEventListener("click",()=>{if(confirm('등록된 동작을 삭제하시겠습니까?'))removeSlotAction(state.selected);});
   $("key-title").addEventListener("input",ev=>{item.title=ev.target.value;persist();renderGrid();refreshTitlePreview(item);});
   bindExtendedActionFields(root,item);
+  appendInspectorSaveBar(root);
   root.querySelectorAll("[data-path-picker]").forEach(button=>{
     button.addEventListener("click",async()=>{
       if(!window.deckBridge?.choosePath){
