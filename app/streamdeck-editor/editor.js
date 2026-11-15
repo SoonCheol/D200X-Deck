@@ -117,7 +117,7 @@ function sdkContext(index,gesture='down'){
 }
 function pluginSlotContext(item){
   if(item?.type!=='sd-plugin')return '';
-  if(state.selected>=14)return sdkContext(state.selected,controlGesture);
+  if(state.selected>=14)return sdkContext(state.selected,({holdLeft:'hold-left',holdRight:'hold-right'})[controlGesture]||controlGesture);
   return sdkContext(state.selected,'down');
 }
 function sdkActionInstances(){
