@@ -96,6 +96,11 @@ ipcMain.handle('d200x:ha-toggle',async(event,entityId)=>{
 });
 
 
+// Keep the exact legacy Windows userData folder when the executable is renamed.
+// This preserves user profiles, installed SDK plugins, HA credentials, and picker
+// history without copying or modifying any existing data.
+app.setPath('userData',path.join(app.getPath('appData'),'D200X StreamDeck Device Sync'));
+
 // One editor process per user-data directory. A second launch focuses the first window.
 const singleInstanceLock=app.requestSingleInstanceLock();
 if(!singleInstanceLock){
@@ -748,7 +753,7 @@ if(singleInstanceLock)app.whenReady().then(async () => {
     minWidth: 960,
     minHeight: 630,
     backgroundColor: '#292929',
-    title: 'D200X StreamDeck — Device Sync Preview',
+    title: 'DeckForge 1.0 — D200X',
     webPreferences: {
       preload: path.join(__dirname, 'preload.cjs'),
       contextIsolation: true,

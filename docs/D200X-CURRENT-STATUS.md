@@ -1,3 +1,11 @@
+## 2026-11-15 제품명·공식 버전 확정 — DeckForge 1.0
+
+- **사용자 확정:** 제품명 **DeckForge**, 사용자 표시 버전 **1.0**, 앱·빌드 메타데이터 버전 **1.0.0** (SemVer).
+- **적용 지점:** `app/streamdeck-editor/index.html` 창 제목, `main.cjs` Electron 창 제목, `app/streamdeck-editor/package.json`, Windows GitHub Actions 패키지 메타데이터, 실행 파일 **`DeckForge.exe`**, Artifact **`DeckForge-1.0-win-x64`**.
+- **데이터 보존:** 이름이 바뀌어도 구버전의 Electron 사용자 데이터 디렉터리 `%APPDATA%\\D200X StreamDeck Device Sync`를 그대로 사용하도록 `app.setPath('userData', ...)`를 단일 인스턴스 잠금 이전에 명시. 기존 프로필(localStorage), 플러그인 폴더, HA 인증 및 불러오기 위치 정보 유지. 데이터 이동·복사·삭제 없음.
+- **범위:** 새 D200X 전용 편집기와 전용 Windows 빌드만 변경. GitHub 저장소 `SoonCheol/D200X-Deck`, 개발 브랜치 `codex/streamdeck-761-clean-editor`, 기존 Ulanzi Deck Open 메인 앱/릴리스 빌드, 이미 생성된 자료의 역사적 이름은 유지.
+- **검증:** 빌드 결과가 성공일 때만 완료로 기록하며 새 이름으로 사용자 GUI를 직접 실행한 실기는 별도.
+
 ## 2026-11-15 Fusion MCP 일괄 등록 1차 구현·Windows 빌드 검증 완료
 
 - **기능 커밋:** `c3035724c8b8165dbb26ce0c3513339638d8cf3b`. **와이드 슬롯 보호 수정:** `de8e7fb1113de684bd7b3a7f76ad4c045a6b59bc` (13개 일반 버튼/페이지, wide index 13에 액션 등록 없음).

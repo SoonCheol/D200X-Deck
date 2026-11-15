@@ -1,6 +1,6 @@
-name: D200X StreamDeck device-sync preview
+name: DeckForge 1.0 Windows build
 
-# Automatically build the D200X Windows preview when its application code changes.
+# Automatically build DeckForge 1.0 Windows app when editor code changes.
 # Keep workflow_dispatch for optional manual builds; documentation-only commits are skipped.
 on:
   push:
@@ -106,9 +106,9 @@ jobs:
           Copy-Item 'app/lib/*' 'app/preview-device-build/lib/' -Recurse -Force
           @'
           {
-            "name": "d200x-streamdeck-device-sync",
-            "productName": "D200X StreamDeck Device Sync",
-            "version": "0.2.0",
+            "name": "deckforge",
+            "productName": "DeckForge",
+            "version": "1.0.0",
             "private": true,
             "main": "streamdeck-editor/main.cjs",
             "dependencies": {
@@ -132,14 +132,19 @@ jobs:
           if (-not (Test-Path 'app/preview-device-build/streamdeck-editor/main.cjs')) { throw 'Staged main.cjs missing' }
           if (-not (Test-Path 'app/preview-device-build/streamdeck-editor/fluentui-LICENSE.md')) { throw 'Staged Fluent UI license missing' }
           Write-Host "Staged Fluent UI icon bytes: $($staged.Length)"
-      - name: Package isolated device-sync Windows executable
+      - name: Package DeckForge 1.0 Windows executable
         working-directory: app
         shell: pwsh
         run: |
-          npx --no-install electron-packager ./preview-device-build D200X-StreamDeck-Preview --platform=win32 --arch=x64 --electron-version=45.2.1 --out=dist --overwrite --prune=false
+          npx --no-install electron-packager ./preview-device-build DeckForge --platform=win32 --arch=x64 --electron-version=45.2.1 --out=dist --overwrite --prune=false
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          if (-not (Test-Path 'dist/D200X-StreamDeck-Preview-win32-x64/D200X-StreamDeck-Preview.exe')) { throw "EXE missing" }
-          $resources = 'dist/D200X-StreamDeck-Preview-win32-x64/resources'
+          if (-not (Test-Path 'dist/DeckForge-win32-x64/DeckForge.exe')) { throw "EXE missing" }
+          $metadata = Get-Content -Raw 'preview-device-build/package.json' | ConvertFrom-Json
+          if ($metadata.name -ne 'deckforge' -or $metadata.productName -ne 'DeckForge' -or $metadata.version -ne '1.0.0') {
+            throw 'DeckForge 1.0 packaged metadata mismatch'
+          }
+          Write-Host 'DeckForge 1.0.exe verified; legacy userData preserved in main.cjs'
+          $resources = 'dist/DeckForge-win32-x64/resources'
           Write-Host 'Windows packaged resources:'
           Get-ChildItem $resources -Force | Select-Object Name, Length | Format-Table
           $packaged = Join-Path $resources 'app/streamdeck-editor/builtin-iconpacks.json'
@@ -158,7 +163,7 @@ jobs:
         working-directory: app
         shell: pwsh
         run: |
-          $exe = (Resolve-Path 'dist/D200X-StreamDeck-Preview-win32-x64/D200X-StreamDeck-Preview.exe').Path
+          $exe = (Resolve-Path 'dist/DeckForge-win32-x64/DeckForge.exe').Path
           $env:ELECTRON_RUN_AS_NODE = '1'
           try {
             $nodeVersion = (& $exe -p 'process.versions.node' | Out-String).Trim()
@@ -190,7 +195,7 @@ jobs:
         working-directory: app
         shell: pwsh
         run: |
-          $env:D200X_NODE_PATH = (Resolve-Path 'dist/D200X-StreamDeck-Preview-win32-x64/D200X-StreamDeck-Preview.exe').Path
+          $env:D200X_NODE_PATH = (Resolve-Path 'dist/DeckForge-win32-x64/DeckForge.exe').Path
           $env:D200X_FUSION_SOURCE = (Resolve-Path '../fusion-compat-fixture/streamdeck_plugin/com.autodesk.fusionstreamdeck.sdPlugin').Path
           try {
             node --test ../test/streamdeck-fusion-original.test.cjs
@@ -201,7 +206,7 @@ jobs:
           }
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          name: D200X-StreamDeck-Device-Sync-win-x64
-          path: app/dist/D200X-StreamDeck-Preview-win32-x64/
+          name: DeckForge-1.0-win-x64
+          path: app/dist/DeckForge-win32-x64/
           if-no-files-found: error
           retention-days: 14
