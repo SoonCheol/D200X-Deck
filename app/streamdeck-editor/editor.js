@@ -1119,6 +1119,10 @@ function beginInspectorSession(){
   if(inspectorSession?.key===key)return;
   inspectorSession=state.selected===null?null:{key,snapshot:JSON.stringify(state),dirty:false};
 }
+function persistInspectorChange(){
+  if(inspectorSession){inspectorSession.dirty=JSON.stringify(state)!==inspectorSession.snapshot;updateInspectorSaveButtons();return true;}
+  return persist();
+}
 function updateInspectorSaveButtons(){
   const dirty=inspectorSession?.dirty===true;
   document.querySelectorAll('.inspector-save,.inspector-cancel').forEach(button=>{button.disabled=!dirty;});
@@ -1379,7 +1383,7 @@ function bindSdkStateIcons(root,item){
           // Pack selections can resolve a matching _on/_off companion.
           item.settings.sdkStateIcons.off={kind:'file',value:png};
           item.settings.sdkStateIcons.on={kind:'file',value:png};
-          persist();render();
+          persistInspectorChange();render();
         }catch(error){window.d200xActionStatus?.('상태 아이콘 선택 실패: '+String(error?.message||error));}
       });
       const reset=document.createElement('button');reset.type='button';reset.textContent='초기화';
@@ -2504,7 +2508,7 @@ function renderIconLibrary(){
             target.settings.sdkStateIcons.off={kind:'file',value:offPng,packId:pack.id};
             target.settings.sdkStateIcons.on={kind:'file',value:onPng,packId:pack.id};
           }else target.icon={kind:'file',value:png,packId:pack.id};
-          persist();render();closeIconLibrary();
+          persistInspectorChange();render();closeIconLibrary();
         }catch(error){
           window.d200xActionStatus?.('팩 아이콘 적용 실패: '+String(error?.message||error));
         }
@@ -2546,7 +2550,7 @@ let makerTarget=null;
 function applyIconData(target,uri){
   if(!target||!uri||!state.pages.some(page=>page.includes(target)))return;
   target.icon={kind:"file",value:uri};
-  persist();render();
+  persistInspectorChange();render();
 }
 function rasterizeIcon(uri){
   return new Promise((resolve,reject)=>{
