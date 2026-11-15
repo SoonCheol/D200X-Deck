@@ -43,8 +43,39 @@ test('shortcut hint line removed; actual current shortcut appears inside title',
   assert.match(css,/\.title-shortcut-display\s*\{[^}]*position:absolute/s);
 });
 test('unsaved dialog remains interactive and original navigation is protected',()=>{
-  assert.match(editor,/event\.target\.closest\('#inspector-unsaved-dialog'\)\)return;/);
+  assert.match(editor,/event\.target\.closest\('#inspector-unsaved-dialog, \.inspector-help-dialog'\)\)return;/);
   assert.match(editor,/add\('저장 안 함',/);
   assert.match(editor,/add\('저장 후 이동',/);
   assert.match(editor,/if\(inspectorSession\?\.dirty\|\|smartProfileBusy/);
+});
+
+test('breadcrumb starts with owning category and gives optional modal help',()=>{
+  assert.match(editor,/function inspectorBreadcrumb\(item,action,inspectorName\)/);
+  assert.match(editor,/const root=plugin\?'플러그인':'액션'/);
+  assert.match(editor,/function appendInspectorHelp\(head,item\)/);
+  assert.match(editor,/dialog\.showModal\(\)/);
+  for(const key of ['multi','multi-switch','random','logic','timer']){
+    assert.match(editor,new RegExp("'"+key+"'\\s*:\\s*\\{"));
+  }
+  assert.match(editor,/appendInspectorHelp\(root\.querySelector\('\.action-head'\),item\)/);
+});
+test('preview keeps icon controls but no longer deletes assigned action',()=>{
+  assert.doesNotMatch(editor,/id="delete-action"/);
+  assert.match(editor,/id="icon-library-open"/);
+  assert.match(editor,/id="icon-menu-trigger"/);
+  assert.match(editor,/function removeSlotAction\(index\)/);
+});
+test('composites use one summary row and no duplicated verbose inline guidance',()=>{
+  assert.match(editor,/function inspectorOverview\(item\)/);
+  assert.match(editor,/className='field inspector-overview'/);
+  assert.doesNotMatch(editor,/area\.append\(heading,note,list,toolbar\)/);
+  assert.doesNotMatch(editor,/case "multi":return `<div class="field"><label>내용/);
+  assert.doesNotMatch(editor,/case "multi-switch":return `<div class="field"><label>상태/);
+  assert.match(css,/\.properties>\.fields>\.multi-action-editor\s*\{[^}]*max-width:404px/s);
+});
+test('state image selector is a naturally sized button, not a full-width input',()=>{
+  assert.match(editor,/chooseImage\.className='state-image-choose'/);
+  assert.match(editor,/imageActions\.className='state-image-actions'/);
+  assert.match(css,/\.multi-switch-visuals>\.state-image-actions>button\s*\{[^}]*width:auto/s);
+  assert.match(css,/\.state-image-actions>\.state-image-choose\s*\{[^}]*background:/s);
 });
