@@ -1,6 +1,7 @@
 "use strict";
 /* Independent Stream Deck 7.6.1-oriented UI. No legacy Ulanzi inspector imports.
- * D200X physical key dispatch: page navigation and default-browser URL only. */
+ * D200X physical key dispatch: page navigation and default-browser URL only.
+ * Packaging rebuild marker: no runtime behavior changes. */
 const ORIGINAL_CATALOG = [
   ["Soundboard", [["audio-play","오디오 재생","♫"],["audio-stop","오디오 정지","◼"]]],
   ["Stream Deck", [["timer","타이머","◴"],["brightness","밝기","☼"],["sleep","잠자기","☾"],["virtual","Virtual Stream Deck 토글","▣"]]],
