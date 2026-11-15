@@ -90,8 +90,12 @@ try {
   }
 } catch {state=DeckCore.migrateState(null);}
 let inspectorSession=null;
+let inspectorEditing=false;
 const persist=(scheduleSync=true)=>{
-  if(inspectorSession){inspectorSession.dirty=JSON.stringify(state)!==inspectorSession.snapshot;updateInspectorSaveButtons();return true;}
+  if(inspectorSession&&(inspectorEditing||inspectorSession.dirty)){
+    inspectorSession.dirty=JSON.stringify(state)!==inspectorSession.snapshot;
+    updateInspectorSaveButtons();return true;
+  }
   try {
     if(backupPending){
       const old=localStorage.getItem(STORAGE_KEY);
@@ -105,6 +109,7 @@ const persist=(scheduleSync=true)=>{
     window.d200xActionStatus?.('설정 저장 실패: 저장 공간/권한을 확인하세요.');
     return false;
   }
+  if(inspectorSession&&!inspectorSession.dirty)inspectorSession.snapshot=JSON.stringify(state);
   if(scheduleSync)window.scheduleDeckSync?.();
   return true;
 };
@@ -262,7 +267,7 @@ function showControlMenu(index,x,y){
   menu.hidden=false;
 }
 function choose(index){
-  if(inspectorSession?.dirty&&!confirmInspectorLeave())return;
+  if(inspectorSession?.dirty){showInspectorLeaveDialog(()=>choose(index));return;}
   if(state.selected!==index){controlGesture='down';knobTab='normal';}
   state.selected=index;persist();render();
 }
@@ -371,6 +376,7 @@ function renderWideInspector(){
   reset.className='wide-mode-reset';reset.textContent='기본 순서로 복원 (시계 → 날짜·시간·요일 → CPU·RAM·GPU)';
   reset.addEventListener('click',()=>{state.wideDisplay=DeckCore.cleanWideDisplay(null);persist();render();});
   root.append(reset);
+  appendInspectorSaveBar(root);
 }
 function renderGrid(){
   const grid=$("key-grid");grid.replaceChildren();
@@ -1131,12 +1137,26 @@ function discardInspector(){
   inspectorSession=null;state=DeckCore.migrateState(snapshot);
   render();beginInspectorSession();
 }
-function confirmInspectorLeave(){
-  if(!inspectorSession?.dirty)return true;
-  const answer=prompt('저장하지 않은 변경 사항이 있습니다.\n저장 후 이동: 1 / 저장 안 함: 2 / 취소: 3','3');
-  if(answer==='1'){saveInspector();return !inspectorSession?.dirty;}
-  if(answer==='2'){discardInspector();return true;}
-  return false;
+function showInspectorLeaveDialog(onProceed){
+  if(!inspectorSession?.dirty){onProceed();return;}
+  if(document.querySelector('#inspector-unsaved-dialog'))return;
+  const dialog=document.createElement('dialog');dialog.id='inspector-unsaved-dialog';
+  dialog.className='inspector-unsaved-dialog';
+  const title=document.createElement('strong');title.textContent='저장하지 않은 변경 사항';
+  const message=document.createElement('p');message.textContent='변경한 내용이 저장되지 않았습니다. 저장하지 않고 이동하시겠습니까?';
+  const actions=document.createElement('div');actions.className='inspector-unsaved-actions';
+  const add=(label,handler,primary=false)=>{
+    const button=document.createElement('button');button.type='button';button.textContent=label;
+    if(primary)button.className='primary';
+    button.addEventListener('click',()=>{dialog.close();dialog.remove();handler();});
+    actions.append(button);
+  };
+  add('취소',()=>{});
+  add('저장 안 함',()=>{discardInspector();onProceed();});
+  add('저장 후 이동',()=>{saveInspector();if(!inspectorSession?.dirty)onProceed();},true);
+  dialog.append(title,message,actions);document.body.append(dialog);
+  dialog.addEventListener('close',()=>dialog.remove(),{once:true});
+  dialog.showModal();
 }
 function appendInspectorSaveBar(root){
   const footer=document.createElement('div');footer.className='inspector-save-bar';
@@ -1151,15 +1171,19 @@ function appendInspectorSaveBar(root){
 // Capture outside clicks so a different key, profile, page, or tool cannot
 // silently discard a dirty inspector. Programmatic profile switches are
 // separately guarded where they originate.
+for(const type of ['click','change','input','drop'])document.addEventListener(type,event=>{
+  if($('inspector')?.contains(event.target)){
+    inspectorEditing=true;
+    setTimeout(()=>{inspectorEditing=false;},0);
+  }
+},true);
 document.addEventListener('click',event=>{
   if(!inspectorSession?.dirty)return;
   const root=$('inspector');
   if(root?.contains(event.target))return;
   event.preventDefault();event.stopImmediatePropagation();
-  if(confirmInspectorLeave()&&event.target?.isConnected){
-    const target=event.target;
-    setTimeout(()=>target.click(),0);
-  }
+  const target=event.target;
+  showInspectorLeaveDialog(()=>{if(target?.isConnected)setTimeout(()=>target.click(),0);});
 },true);
 
 let inspectorListener=new AbortController();
@@ -1287,7 +1311,7 @@ function renderControlInspector(){
     const remove=document.createElement('button');remove.type='button';remove.className='control-tile-remove';
     remove.textContent='×';remove.title='등록된 동작 삭제';
     remove.disabled=!assigned||!allowed;
-    remove.addEventListener('click',e=>{e.stopPropagation();if(confirm('등록된 동작을 삭제하시겠습니까?'))removeControlAction(index,gesture);});
+    remove.addEventListener('click',e=>{e.stopPropagation();removeControlAction(index,gesture);});
     const holder=document.createElement('div');holder.className='control-tile-holder';
     holder.append(tile,remove);strip.append(holder);
   }
@@ -1435,7 +1459,8 @@ function renderInspector(){
   }
   const root=$("inspector");root.replaceChildren();const item=state.selected===null?null:DeckCore.visibleActions(state)[state.selected];
   if(state.selected===13&&wideDisplayAvailable()){renderWideInspector();return;}
-  if(!item){root.className="inspector empty";root.textContent=state.selected===null?"버튼을 선택하세요":"액션을 끌어 이 키에 놓으세요";return;}
+  if(!item){root.className="inspector empty";root.textContent=state.selected===null?"버튼을 선택하세요":"액션을 끌어 이 키에 놓으세요";
+    if(inspectorSession?.dirty)appendInspectorSaveBar(root);return;}
   root.className="inspector";const action=ACTIONS.get(item.type);const fields=actionFields(item);
   root.innerHTML=`<div class="action-head"><strong>${escapeHtml(action?.category)}: ${escapeHtml(action?.label)}</strong></div>
     <div class="properties"><div class="preview"><div class="preview-key" id="icon-preview"><button id="delete-action" class="control-tile-remove preview-action-remove" title="동작 삭제" type="button">×</button>
@@ -1494,7 +1519,7 @@ function renderInspector(){
   bindTitleStyle(item);
   bindIconControls(item);
   refreshTitlePreview(item);
-  $("delete-action").addEventListener("click",()=>{if(confirm('등록된 동작을 삭제하시겠습니까?'))removeSlotAction(state.selected);});
+  $("delete-action").addEventListener("click",()=>removeSlotAction(state.selected));
   $("key-title").addEventListener("input",ev=>{item.title=ev.target.value;persist();renderGrid();refreshTitlePreview(item);});
   bindExtendedActionFields(root,item);
   appendInspectorSaveBar(root);
