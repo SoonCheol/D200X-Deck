@@ -92,6 +92,15 @@
 | 플러그인(레거시, 액션 탭 숨김) | `ha-toggle` | HA 장치 켜기/끄기 | 기존 저장 설정용 코드 보존 | `editor.js`의 `renderLibrary`가 레거시 HA 카테고리를 숨긴다. 기존 프로필 실행 경로는 남겨둠. 현재 사용자 플러그인 탭의 SDK HA 액션과 구별 |
 | 플러그인 | `sd-plugin` | Stream Deck SDK 플러그인 | **HTML 실사용 확인 + Node.js 실행 코드 구현·실기 미검증** | HTML SDK/HA 기존 기능 유지, `.js/.cjs/.mjs` 플러그인 프로세스·통신, 개발자 `.sdPlugin` 폴더 설치 및 원본 PI 지원 코드. Fusion 실제 설치·명령 실행 및 다른 플러그인은 별도 검증 |
 
+## 2026-11-15 원본 Autodesk FusionStreamDeck 플러그인 자동 호환성 검증 성공
+
+- **코드 커밋:** `1cfc6a43f6c50cdb779662409f1a2ea6ba6ab73b` — 외부 원본 플러그인의 **수정 없는** SDK 통신 검증을 GitHub Actions Windows 패키징에 추가. 상위 리포지터리 [AutodeskFusion360/FusionStreamDeck](https://github.com/AutodeskFusion360/FusionStreamDeck)의 커밋 `bc153b8cddedba91614f932f4210f1ecb451c2a8`을 고정 사용(소스 저장소에 복제하지 않고 CI에서 별도 체크아웃).
+- **자동 검사:** [Windows Preview #43689297460](https://github.com/SoonCheol/D200X-Deck/actions/runs/43689297460) **success**. 해당 run 로그의 'Unmodified Autodesk FusionStreamDeck Node24 plugin speaks D200X SDK WebSocket' **1개 테스트 통과, 실패 0**. 기존 패키징된 Electron Node24 SDK 통합 테스트도 통과. [CI #43689301936](https://github.com/SoonCheol/D200X-Deck/actions/runs/43689301936) **success**.
+- **실제 확인된 내용:** Fusion 원본 `.sdPlugin` 폴더 설치 및 manifest 액션 인식 → 원본 `bin/plugin.js`를 **패키징된 Electron Node 24 실행기**로 시작 → SDK WebSocket 등록 → D200X 호스트의 `keyDown` 수신 → Fusion 애드인 부재 상황에서 원본의 `showAlert` 응답 → `sendToPlugin` 검색 요청에 대해 원본이 `sendToPropertyInspector/searchError`를 보내고 D200X 호스트가 속성 편집기 소켓으로 전달하는 경로.
+- **빌드:** Artifact `D200X-StreamDeck-Device-Sync-win-x64` ID `14151338602`, 170,372,503 bytes, 확인 당시 `expired=false`.
+- **검증되지 않은 것:** 실제 Fusion 360 설치/애드인 HTTP 서버 연결, `extrude` 실제 명령 실행, Fusion 정상 연결에서 명령 목록·아이콘 표시, 실제 PI GUI, 물리 D200X 버튼/노브. 따라서 **'Fusion 플러그인 완전 호환'으로 표시하지 않는다**.
+- **다음 단계:** Windows 실제 Fusion 360/애드인과 D200X에서 기능 실기. 다른 무료 공개 Stream Deck 플러그인도 SDK 이벤트/manifest 차이 검토 후 지원 범위 확대. 기존 HTML·HA 플러그인 및 프로필 보존.
+
 ## 2026-11-15 Node.js 플러그인 호스트 자동 검증 완료 — 실기와 구분
 
 - **현재 기능 커밋:** `c38b50d8742325d8b79df7b06e94c95d148ce8cc` (Node.js 호스트·폴더 설치·SDK 통신·Windows 검증 워크플로; 기존 HTML/HA 보존).
@@ -151,7 +160,7 @@
 |---|---|---|
 | Windows 마이크 음소거 | **미구현** | 오른쪽 18개 D200X 추가 액션과 별도 후속 후보. 기존 액션에 있다고 쓰지 말 것 |
 | Windows 기본 출력 장치 전환 | **미구현** | Soundboard 재생 대상 출력 선택과 다름 |
-| Node.js Stream Deck 플러그인 실행 | **코드 구현·CI 통과, 실제 Fusion 실기 미검증** | `sd-plugin-host.cjs`에서 Node 20+ 및 manifest 선언 버전 검증, Electron 내장 Node 실행, SDK WebSocket, key event, 폴더 설치 코드. Fusion의 Node 24는 Windows 패키지 Node 24.22.1 실행 및 SDK 통합 테스트 12개 성공; 실제 Fusion 실기 미검증. 무제한 플러그인 호환 의미 아님 |
+| Node.js Stream Deck 플러그인 실행 | **원본 Fusion Node 플러그인 자동 SDK 검증 통과·실제 Fusion 실기 미검증** | `sd-plugin-host.cjs`에서 Node 20+ 및 manifest 선언 버전 검증, Electron 내장 Node 실행, SDK WebSocket, key event, 폴더 설치 코드. Fusion의 Node 24는 Windows 패키지 Node 24.22.1 실행 및 SDK 통합 테스트 12개 성공; 실제 Fusion 실기 미검증. 무제한 플러그인 호환 의미 아님 |
 | 네이티브 Stream Deck 플러그인 실행 | **미구현** | 별도 프로세스/SDK 호환 체계 필요 |
 | 온라인 플러그인 마켓플레이스 | **미구현** | 플러그인 탭과 로컬 설치는 이미 구현·사용 중. 웹 기반 플러그인 검색·다운로드 마켓만 별도 미구현 |
 | 원본 전체 아이콘 편집기/앱별 프리셋 검색 | **미완성** | 간이 아이콘 제작·고정 단축키 프리셋은 존재 |

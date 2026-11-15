@@ -8,6 +8,15 @@
 - **주의:** 첫 커밋은 **코드 경로 구현**이며 Windows EXE에서 Node 24 실행, Fusion 실제 명령, 원본 Property Inspector 실기는 아직 확인 전이다. `ELECTRON_RUN_AS_NODE` 기본 fuse에 의존하므로 빌드 후 런타임 확인 필요.
 - **진행 기록 규칙:** 이후 커밋별 CI 결과·실패/수정·소스 SHA를 이 절 아래 덧붙인다. 사용자 PC 전원을 요구하지 않으며 사용자 실기 요청 전까지 원격에서 가능한 범위만 처리한다.
 
+## 2026-11-15 원본 Autodesk FusionStreamDeck 플러그인 자동 호환성 검증 성공
+
+- **코드 커밋:** `1cfc6a43f6c50cdb779662409f1a2ea6ba6ab73b` — 외부 원본 플러그인의 **수정 없는** SDK 통신 검증을 GitHub Actions Windows 패키징에 추가. 상위 리포지터리 [AutodeskFusion360/FusionStreamDeck](https://github.com/AutodeskFusion360/FusionStreamDeck)의 커밋 `bc153b8cddedba91614f932f4210f1ecb451c2a8`을 고정 사용(소스 저장소에 복제하지 않고 CI에서 별도 체크아웃).
+- **자동 검사:** [Windows Preview #43689297460](https://github.com/SoonCheol/D200X-Deck/actions/runs/43689297460) **success**. 해당 run 로그의 'Unmodified Autodesk FusionStreamDeck Node24 plugin speaks D200X SDK WebSocket' **1개 테스트 통과, 실패 0**. 기존 패키징된 Electron Node24 SDK 통합 테스트도 통과. [CI #43689301936](https://github.com/SoonCheol/D200X-Deck/actions/runs/43689301936) **success**.
+- **실제 확인된 내용:** Fusion 원본 `.sdPlugin` 폴더 설치 및 manifest 액션 인식 → 원본 `bin/plugin.js`를 **패키징된 Electron Node 24 실행기**로 시작 → SDK WebSocket 등록 → D200X 호스트의 `keyDown` 수신 → Fusion 애드인 부재 상황에서 원본의 `showAlert` 응답 → `sendToPlugin` 검색 요청에 대해 원본이 `sendToPropertyInspector/searchError`를 보내고 D200X 호스트가 속성 편집기 소켓으로 전달하는 경로.
+- **빌드:** Artifact `D200X-StreamDeck-Device-Sync-win-x64` ID `14151338602`, 170,372,503 bytes, 확인 당시 `expired=false`.
+- **검증되지 않은 것:** 실제 Fusion 360 설치/애드인 HTTP 서버 연결, `extrude` 실제 명령 실행, Fusion 정상 연결에서 명령 목록·아이콘 표시, 실제 PI GUI, 물리 D200X 버튼/노브. 따라서 **'Fusion 플러그인 완전 호환'으로 표시하지 않는다**.
+- **다음 단계:** Windows 실제 Fusion 360/애드인과 D200X에서 기능 실기. 다른 무료 공개 Stream Deck 플러그인도 SDK 이벤트/manifest 차이 검토 후 지원 범위 확대. 기존 HTML·HA 플러그인 및 프로필 보존.
+
 ## 2026-11-15 Node.js 플러그인 호스트 자동 검증 완료 — 실기와 구분
 
 - **현재 기능 커밋:** `c38b50d8742325d8b79df7b06e94c95d148ce8cc` (Node.js 호스트·폴더 설치·SDK 통신·Windows 검증 워크플로; 기존 HTML/HA 보존).
