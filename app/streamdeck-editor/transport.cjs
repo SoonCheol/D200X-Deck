@@ -25,6 +25,7 @@ class D200XTransport extends EventEmitter {
     this.pending = null;
     this.currentImages = null;
     this.wideMode = 'blank';
+    this.appliedWideMode = null;
     this.closed = false;
     this.wasConnected = false;
     this.lastWriteAt = 0;
@@ -38,6 +39,7 @@ class D200XTransport extends EventEmitter {
       if (!connected) {
         if (this.wasConnected) this.log('disconnect', status.message || 'Disconnected');
         this.wasConnected = false;
+        this.appliedWideMode = null;
         // A failed large page transfer must not discard the saved page.
         if (this.currentImages) this.pending = this.currentImages;
         return;
@@ -108,11 +110,9 @@ class D200XTransport extends EventEmitter {
       // Re-state known brightness (as OpenDeck does) without redrawing keys.
       // When no brightness has ever been observed, use the existing image-mode
       // time packet used by D200X controllers; don't change brightness blindly.
-      if (this.brightness !== null) {
-        this.deck.setBrightness(this.brightness);
-      } else {
+      if (this.brightness !== null) this.deck.setBrightness(this.brightness);
+      if (this.wideMode === 'blank' || this.brightness === null)
         this.deck.sendFrame(0, PROTO.CLOCK, IMAGE_MODE_PAYLOAD);
-      }
       this.lastWriteAt = this.now();
       this.log('keepalive', this.brightness === null ? 'image-mode packet' : 'existing brightness');
     } catch (error) {
@@ -191,8 +191,20 @@ class D200XTransport extends EventEmitter {
           if (this.pending || this.closed || !this.deck.connected || generation !== this.session) continue;
           // Synchronous multi-report write: the keep-alive timer cannot
           // interleave its HID reports inside a page transfer.
+          if(this.wideMode==='blank'&&this.appliedWideMode!=='blank'){
+            // D200-family firmware can retain stale native CPU/RAM/GPU
+            // overlays when switching from the native monitor to uploaded
+            // images. Clear native fields before selecting image mode.
+            this.deck.sendFrame(0,PROTO.CLOCK,Buffer.from('0|||||24H|','utf8'));
+            this.deck.sendFrame(0,PROTO.CLOCK,Buffer.from('1|||||24H|','utf8'));
+          }
           this.deck.setWideMode(this.wideMode);
           this.deck.pushPage(zip);
+          // A page upload may re-activate stale firmware overlays; finish
+          // with an explicit image mode packet AFTER the manifest.
+          if(this.wideMode==='blank')
+            this.deck.sendFrame(0,PROTO.CLOCK,IMAGE_MODE_PAYLOAD);
+          this.appliedWideMode=this.wideMode;
           this.lastWriteAt = this.now();
           this.log('page-sent', String(images.length) + ' slots');
           this.emit('synced', { slots: images.length });
