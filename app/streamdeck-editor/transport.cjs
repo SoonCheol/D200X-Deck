@@ -11,7 +11,7 @@ const KEEPALIVE_MS = 5000;
 const MIN_BRIGHTNESS = 20;
 const RECONNECT_MS = 4000;
 const TICK_MS = 1000;
-const IMAGE_MODE_PAYLOAD = Buffer.from('2|||||24H|', 'utf8');
+const IMAGE_MODE_PAYLOAD = Buffer.from('2|0|0|00:00:00|0', 'ascii');
 
 class D200XTransport extends EventEmitter {
   constructor(options = {}) {
@@ -191,14 +191,14 @@ class D200XTransport extends EventEmitter {
           if (this.pending || this.closed || !this.deck.connected || generation !== this.session) continue;
           // Synchronous multi-report write: the keep-alive timer cannot
           // interleave its HID reports inside a page transfer.
-          // Regression-covered: never send firmware mode 0/1 as a "clear": mode 0 actually
-          // enables the native CPU/RAM/GPU overlay. Select background
-          // image mode (2) without activating another built-in panel.
+          // Firmware can retain the previous native CPU/RAM/GPU renderer
+          // over a newly uploaded PNG. Select image mode both before and
+          // after the complete page transfer; never send a stats/clock reset
+          // packet as that activates the corresponding native overlay.
           this.deck.setWideMode(this.wideMode);
+          if(this.wideMode==='blank')
+            this.deck.sendFrame(0,PROTO.CLOCK,IMAGE_MODE_PAYLOAD);
           this.deck.pushPage(zip);
-          // The final frame remains image mode after each uploaded page.
-          // A page upload may re-activate stale firmware overlays; finish
-          // with an explicit image mode packet AFTER the manifest.
           if(this.wideMode==='blank')
             this.deck.sendFrame(0,PROTO.CLOCK,IMAGE_MODE_PAYLOAD);
           this.appliedWideMode=this.wideMode;
