@@ -604,3 +604,80 @@
   }
   .sdk-plugin-inspector .sdk-state-icons{padding-left:86px}
 }
+
+/* One inspector design language: single breadcrumb row, optional contextual
+   help, consistent summary line and compact natural-width command buttons. */
+.action-head{gap:8px;min-width:0}
+.action-head>strong{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.action-head .action-preview-test{margin-left:auto;margin-right:0}
+.action-head .inspector-help-trigger{
+  order:0;flex:0 0 22px;min-width:22px;width:22px;height:22px;
+  display:inline-grid;place-items:center;padding:0;border:1px solid #8a929e;
+  border-radius:50%;background:#34383e;color:#edf1f8;font-weight:700;
+  font-size:12px;line-height:1;cursor:pointer
+}
+.action-head .inspector-help-trigger:hover{background:#45617d;border-color:#91c7f8}
+.inspector-overview>span{min-width:0;color:#dce1eb;line-height:1.4}
+.inspector-overview{min-height:26px}
+.inspector-help-dialog{
+  width:min(440px,calc(100vw - 40px));max-height:min(80vh,650px);overflow:auto;
+  border:1px solid #6b7480;border-radius:9px;background:#30343a;color:#f2f4f7;
+  padding:21px 23px;box-shadow:0 16px 45px #000a;font-size:13px
+}
+.inspector-help-dialog::backdrop{background:#000a}
+.inspector-help-dialog>strong{display:block;font-size:16px;margin-bottom:12px}
+.inspector-help-dialog p{line-height:1.6;margin:0 0 11px}
+.inspector-help-dialog h3{font-size:13px;margin:14px 0 6px}
+.inspector-help-dialog ul{margin:4px 0 12px;padding-left:20px;line-height:1.6}
+.inspector-help-dialog li+li{margin-top:4px}
+.inspector-help-close{
+  display:block;margin:20px 0 0 auto;min-width:68px;height:32px;
+  padding:5px 14px;background:#3b6b99;border:1px solid #75a1d0;
+  color:white;border-radius:5px;cursor:pointer
+}
+/* Multi action variants follow the same compact 404px value-column system.
+   The help modal owns long explanations, so only active controls appear here. */
+.properties>.fields>.multi-action-editor{
+  width:calc(100% - 86px);max-width:404px;margin-left:86px;
+  min-width:0;margin-top:12px;padding-top:12px
+}
+.multi-action-editor{min-width:0}
+.multi-action-editor>.multi-action-toolbar{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.multi-action-toolbar button{
+  flex:0 0 auto;width:auto;max-width:max-content;min-height:32px;
+  padding:5px 10px;white-space:nowrap
+}
+.multi-action-toolbar select{
+  flex:0 1 176px;min-width:110px;max-width:190px;height:32px
+}
+.multi-action-editor>.control-config{gap:8px;margin:12px 0}
+.multi-action-editor>.control-config>label{min-width:0;flex:0 0 auto;white-space:nowrap}
+.multi-action-editor>.control-config>input[type="number"]{width:72px;min-width:56px;flex:0 0 72px}
+.multi-switch-visuals{
+  display:grid;grid-template-columns:116px minmax(0,1fr);
+  align-items:center;gap:8px;max-width:404px;margin:8px 0 12px
+}
+.multi-switch-visuals>label{white-space:nowrap;min-width:0;color:#d0d5df}
+.multi-switch-visuals>label:first-child{grid-column:1/-1;display:flex;align-items:center;gap:5px}
+.multi-switch-visuals>input[type="text"]{width:100%;min-width:0;max-width:100%}
+.multi-switch-visuals>.state-image-actions{
+  display:flex;align-items:center;gap:8px;flex-wrap:wrap;min-width:0
+}
+.multi-switch-visuals>.state-image-actions>button{
+  width:auto;max-width:max-content;min-height:30px;flex:0 0 auto;
+  padding:5px 9px;border-radius:5px;white-space:nowrap;cursor:pointer;
+  background:#414954;border:1px solid #727e8d;color:#f0f2f6;font-size:11px
+}
+.multi-switch-visuals>.state-image-actions>button:hover{background:#546374}
+.multi-switch-visuals>.state-image-actions>.state-image-choose{
+  background:#355777;border-color:#678db0;color:#fff
+}
+.multi-switch-visuals>.state-image-actions>.state-image-reset{background:#414141}
+.multi-switch-visuals>input[type="file"][hidden]{display:none}
+.multi-switch-tabs{margin:0 0 9px}
+.multi-action-steps{min-height:0}
+.multi-action-steps:empty{margin-top:0}
+.multi-action-row button{flex:0 0 auto}
+.multi-step-fields{width:100%;max-width:404px}
+/* Nested key logic uses the same compact dropdown size as other actions. */
+.multi-action-editor>.control-config>select{min-width:0;max-width:240px;flex:1 1 175px}
