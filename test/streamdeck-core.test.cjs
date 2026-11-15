@@ -1026,3 +1026,38 @@ test('wide merged screen press accepts both halves without changing ordinary key
   assert.equal(core.cycleWideDisplay(state),'stats');
   assert.equal(core.cycleWideDisplay(state),'clock');
 });
+
+test('held dial rotations preserve normal action bindings, adjusted mode and saved profiles',()=>{
+  const state=core.migrateState(null);
+  state.pages.push(core.blankPage());
+  state.controls.pages.push(Array.from({length:5},core.emptyBinding));
+  state.profileNames.push({id:'fusion',name:'Fusion',appPath:'',smartEnabled:false});
+  const knob=core.controlBinding(state,16);
+  knob.mode='adjust';knob.target='page';
+  knob.down=core.createAction('media');
+  knob.holdLeft=core.createAction('profile');
+  knob.holdLeft.settings.profile='previous';
+  knob.holdRight=core.createAction('profile');
+  knob.holdRight.settings.profile='next';
+  assert.equal(core.hardwareGesture({index:17,state:4}),'hold-left');
+  assert.equal(core.hardwareGesture({index:17,state:5}),'hold-right');
+  assert.equal(core.previewHardwareEvent(16,'hold-left').state,4);
+  assert.equal(core.previewHardwareEvent(16,'hold-right').state,5);
+  assert.deepEqual(core.planHardwareEvent(state,{kind:2,index:17,state:4}).outcome,
+    {kind:'profile',profile:'previous'});
+  assert.deepEqual(core.planHardwareEvent(state,{kind:2,index:17,state:5}).outcome,
+    {kind:'profile',profile:'next'});
+  assert.deepEqual(core.planHardwareEvent(state,{kind:2,index:17,state:3}).outcome,
+    {kind:'page',page:1});
+  assert.equal(core.planHardwareEvent(state,{kind:2,index:17,state:1}).outcome.kind,'media-control');
+  const restored=core.migrateState(JSON.parse(JSON.stringify(state)));
+  assert.equal(core.controlBinding(restored,16).mode,'adjust');
+  assert.equal(core.controlBinding(restored,16).holdLeft.settings.profile,'previous');
+  assert.equal(core.controlBinding(restored,16).holdRight.settings.profile,'next');
+  const other=core.controlBinding(restored,17);
+  assert.equal(other.holdLeft,null);
+  other.mode='trigger';other.left=core.createAction('media');
+  other.holdRight=core.createAction('profile');
+  assert.equal(core.planHardwareEvent(restored,{kind:2,index:18,state:2}).outcome.kind,'media-control');
+  assert.equal(core.planHardwareEvent(restored,{kind:2,index:18,state:5}).outcome.kind,'profile');
+});
