@@ -537,3 +537,15 @@
 - **남은 핵심 검증:** 실제 D200X 와이드 키 누름이 index=13/14 중 어느 값으로 오는지는 이 세션에서 USB 실측하지 못함. 새 EXE에서 편집기 속성창의 `다음 화면 표시 ▶`로 순환되는지 먼저 확인하고, 별도로 실물 가로 키를 눌러 관찰. 속성창 수동 전환은 되고 물리키만 안 되면 USB 원본 이벤트 캡처 후 해당 입력 조건만 수정; 임의로 15/16번 물리 버튼의 기존 할당을 바꾸지 말 것.
 
 - **추가 보완 빌드 검증 완료:** Windows Preview [#43658108140](https://github.com/SoonCheol/D200X-Deck/actions/runs/43658108140) `success` (소스 `0df4df60b8c0df38ffa35471a8d17166912f4425`), Artifact [D200X-StreamDeck-Device-Sync-win-x64](https://github.com/SoonCheol/D200X-Deck/actions/runs/43658108140/artifacts/14138698965) ID `14138698965`, 170,369,093 bytes, 조회 시 만료되지 않음. 추가 테스트 커밋 `70fd4c57`의 입력 검증 #43658121717 성공. 실기 재시험 필요.
+
+
+### 2026-11-15 — 실제 사용자 사진: Knobs PNG 위 CPU/RAM/GPU 겹침, 순환 불가
+
+- **새 실제 증거:** 사용자 D200X LCD 사진 `20261115_140716.jpg`에 노브1/2/3 이름 및 기능명과 CPU/RAM/GPU + 0% 텍스트가 동시에 겹쳐 표시됨. 하나만 체크하면 그 항목은 화면에 나타나지만, 여러 개 체크한 상태에서 가로 키 눌림 순환 불가. 이전 성공한 EXE 빌드가 실물 표시 성공을 의미하지 않음.
+- **교차 확인:** 프로젝트의 `device-sync.js`는 Knobs/날짜용 PNG를 `blank`(SmallViewMode=2) 이미지로 송신하나, 시계/통계는 펌웨어 네이티브 모드로 전환. 외부 독립 D200 프로토콜 자료 [marcelobrake/ulanzi-linux](https://github.com/marcelobrake/ulanzi-linux/blob/main/docs/protocol.md)는 네이티브 통계 ↔ 사용자 PNG 혼합 시 이전 CPU/RAM/GPU 표기가 남는 펌웨어 사례를 기록하며 네이티브 캐시 비움 후 BACKGROUND 모드 유지 방식을 설명. 사용자 기기의 정확한 펌웨어 원인까지 입증한 것은 아님.
+- **변경한 코드:** `app/streamdeck-editor/transport.cjs`에서 통계/시계→PNG 모드로 진입할 때 0/1 모드의 값 필드를 빈 값으로 전송해 이전 네이티브 표시값 정리, 페이지 ZIP 완료 후 이미지 모드(2) 명령 재전송, 이미지 모드의 주기적 keepalive에서도 이미지 모드 복구. 기존 밝기 값이나 시계/통계 네이티브 모드 업데이트는 보존.
+- `deck-core.js`의 가로 버튼 입력은 LCD 13(미사용 오른쪽 14 포함) 및 pressed/state를 기준으로 판단하며, 첫 바이트 firmware internal state에 대해 `kind===1` 고정을 제거. 기존 일반 액션 슬롯 매핑 변경하지 않음. `device-sync.js`에 가로 버튼 index/kind/state 진단 로그와 미처리 시 메시지 추가.
+- `device-sync.js` 3열 노브 화면은 `ctx.fillText(...,maxWidth=112)`로 각 열을 넘지 않도록 축소. 원본 액션 제목·기능 내용이나 프로필 JSON은 변경하지 않음.
+- **회귀 테스트:** `test/streamdeck-transport.test.cjs`에서 통계→PNG 전환의 네이티브 캐시 비움/ZIP 전송/후속 이미지 모드 순서, 이미지 모드 내 추가 전송 시 비움 반복 방지, 기존 밝기/재연결을 확인. `test/streamdeck-core.test.cjs`에서 kind=0인 가로 눌림 처리와 17~19 노브 격리 추가.
+- 코드 커밋: `8858817c`(입력), `a8bbb453`(노브 영역), `4d353159`(모드/캐시), `f9437b7b`(입력 시험), `2dd05d7d`(전송 시험), `d72b7722`(진단 및 최종 EXE 트리거). 중간 윈도 빌드의 옛 테스트 실패는 실제 오류와 분리; **최종 Windows Preview** [#43680236607](https://github.com/SoonCheol/D200X-Deck/actions/runs/43680236607) 및 CI [#43680240182](https://github.com/SoonCheol/D200X-Deck/actions/runs/43680240182) 결과를 별도로 확인해야 함.
+- **실기 남음:** 수정 후 물리 버튼 순환/중첩 제거/노브 글자 크기를 사용자 장치에서 다시 확인 필요. 원본 Studio 동일성 주장하지 않음. `main` 변경/PR 병합/기존 프로필 삭제 없음.
