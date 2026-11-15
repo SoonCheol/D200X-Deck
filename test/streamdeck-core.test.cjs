@@ -1061,3 +1061,30 @@ test('held dial rotations preserve normal action bindings, adjusted mode and sav
   assert.equal(core.planHardwareEvent(restored,{kind:2,index:18,state:2}).outcome.kind,'media-control');
   assert.equal(core.planHardwareEvent(restored,{kind:2,index:18,state:5}).outcome.kind,'profile');
 });
+
+test('separate normal and pressed rotary modes persist, profile direction works and press is disabled',()=>{
+  const state=core.migrateState(null);
+  state.profileNames.push({id:'extra',name:'Extra'});
+  state.pages.push(core.blankPage());
+  state.controls.pages.push(Array.from({length:5},core.emptyBinding));
+  const knob=core.controlBinding(state,16);
+  knob.mode='adjust';knob.target='page';knob.step=1;
+  knob.down=core.createAction('media');
+  knob.heldEnabled=true;
+  knob.heldMode='adjust';knob.heldTarget='profile';knob.heldStep=1;
+  assert.equal(core.planHardwareEvent(state,{kind:2,index:17,state:1}),null);
+  assert.deepEqual(core.planHardwareEvent(state,{kind:2,index:17,state:2}).outcome,{kind:'page',page:0});
+  assert.deepEqual(core.planHardwareEvent(state,{kind:2,index:17,state:3}).outcome,{kind:'page',page:1});
+  assert.deepEqual(core.planHardwareEvent(state,{kind:2,index:17,state:4}).outcome,{kind:'profile',profile:'previous'});
+  assert.deepEqual(core.planHardwareEvent(state,{kind:2,index:17,state:5}).outcome,{kind:'profile',profile:'next'});
+  knob.heldMode='trigger';knob.holdLeft=core.createAction('media');
+  assert.equal(core.planHardwareEvent(state,{kind:2,index:17,state:4}).outcome.kind,'media-control');
+  knob.heldMode='adjust';knob.heldReverseDirection=true;
+  assert.deepEqual(core.planHardwareEvent(state,{kind:2,index:17,state:4}).outcome,{kind:'profile',profile:'next'});
+  const restored=core.migrateState(JSON.parse(JSON.stringify(state)));
+  assert.equal(core.controlBinding(restored,16).heldTarget,'profile');
+  assert.equal(core.controlBinding(restored,16).heldEnabled,true);
+  assert.equal(core.controlBinding(restored,16).heldReverseDirection,true);
+  assert.equal(core.controlBinding(restored,16).mode,'adjust');
+  assert.equal(core.controlBinding(restored,16).target,'page');
+});
