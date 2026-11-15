@@ -290,7 +290,7 @@ class Deck extends EventEmitter {
     // The device may vary kind on wide-key presses in native stats mode.
     // Classify rotary controls by their dedicated hardware indices only.
     const knob = index >= 17 && index <= 19;
-    const gesture = knob ? ({0:'up',1:'down',2:'left',3:'right'}[state] || null)
+    const gesture = knob ? ({0:'up',1:'down',2:'left',3:'right',4:'hold-left',5:'hold-right'}[state] || null)
       : (state === 1 ? 'down' : state === 0 ? 'up' : null);
     if (!gesture) return;
     const event = { kind, index, flags, state, pressed: state === 1 };
