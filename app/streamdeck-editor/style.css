@@ -422,3 +422,15 @@
 
 /* Keep icon picker controls accessible: the remove circle owns top-right, the picker menu moves below. */
 .preview-key .icon-preview-menu{top:auto;bottom:1px;right:1px}
+
+/* Hotkey-switch text fields line up with the two fixed 196px SDK icon cards.
+   Only the value column is width-constrained; the left labels stay unchanged. */
+.hotkey-switch-inspector .fields>.field{grid-template-columns:130px minmax(0,404px)}
+.hotkey-switch-inspector .fields>.field>input{min-width:0}
+@media(max-width:1000px){.hotkey-switch-inspector .fields>.field{grid-template-columns:95px minmax(0,404px)}}
+/* The title typography control sits inside the right end of the existing input,
+   consistently for every title field, without shrinking the text itself. */
+.title-line{gap:0;position:relative}
+.title-line>input{padding-right:43px}
+.title-line>.title-style-trigger{position:absolute;right:3px;top:50%;transform:translateY(-50%);z-index:3;padding:4px 6px;font-size:14px;border-radius:3px}
+.title-line>.title-style-trigger:hover{background:#484848}
