@@ -538,3 +538,69 @@
    Keep a guaranteed 280–320px sidebar, even while resizing the window. */
 #app{grid-template-columns:minmax(0,1fr) minmax(280px,320px);min-width:0}
 .work,.library{min-width:0}
+
+/* Completed shared inspector field grid. The label sits OUTSIDE the 404px
+   value span, which equals two 196px state-icon cards plus their 12px gap.
+   Both header test and footer actions now share the 600px content edge. */
+.inspector{padding:16px max(20px,calc((100% - 600px)/2))}
+.properties{grid-template-columns:98px minmax(0,1fr);gap:12px}
+.fields{width:100%;max-width:490px;min-width:0}
+.fields>.field,.hotkey-switch-inspector .fields>.field{
+  grid-template-columns:78px minmax(0,404px);gap:8px;min-width:0
+}
+.fields>.field>label{
+  white-space:nowrap;overflow:visible;text-align:right;justify-self:end;
+}
+.fields>.field>input,.fields>.field>select,.fields>.field>.title-line,
+.fields>.field>.compound,.fields>.field>.shortcut-select-wrap{
+  min-width:0;max-width:404px
+}
+.sdk-plugin-inspector .sdk-state-icons{padding-left:86px}
+/* Compact action parameters: their combined width lines up with the title
+   value (not with the title label or preview), without changing data fields. */
+.fields>.compact-property-group{
+  width:404px;max-width:calc(100% - 86px);margin-left:86px;
+  display:grid;gap:8px;align-items:end;min-width:0
+}
+.compact-property-group.compact-count-2{grid-template-columns:minmax(0,1fr) 110px}
+.compact-property-group.compact-count-3{grid-template-columns:116px minmax(0,1fr) 96px}
+.compact-property-group:has([data-field="seconds"]){grid-template-columns:114px minmax(0,1fr)}
+.compact-property-group:has([data-field="fadeDuration"]){grid-template-columns:minmax(0,1fr) 134px}
+.compact-property-group:has([data-field="enter"]){grid-template-columns:120px minmax(0,1fr)}
+.compact-property-group:has([data-field="autoExitSeconds"]){grid-template-columns:minmax(0,1fr) 150px}
+.compact-property-group>.field{
+  display:flex;flex-direction:column;align-items:stretch;gap:6px;
+  min-width:0;width:100%
+}
+.compact-property-group>.field>label{
+  display:block;width:100%;min-width:0;text-align:left;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+  color:#cacaca;font-size:11px;line-height:1.25
+}
+.compact-property-group>.field>select,
+.compact-property-group>.field>input:not([type="checkbox"]),
+.compact-property-group>.field>.compound,
+.compact-property-group>.field>.shortcut-select-wrap{
+  width:100%;max-width:100%;min-width:0
+}
+.compact-property-group>.field>.compound input{min-width:0}
+.compact-property-group>.field>input[type="checkbox"]{align-self:start;margin:8px 0;min-height:0}
+.compact-property-group>.field>.shortcut-select-wrap{flex:1}
+.compact-property-group .shortcut-select-trigger{max-width:100%;min-width:0}
+/* Preset shortcut lives inside the title text box, just left of T⌄. */
+.title-line.has-shortcut>input{padding-right:clamp(132px,45%,215px)}
+.title-shortcut-display{
+  position:absolute;right:41px;top:50%;transform:translateY(-50%);
+  z-index:2;max-width:165px;overflow:hidden;text-overflow:ellipsis;
+  white-space:nowrap;pointer-events:none;font-size:11px;color:#b8c5d6
+}
+.title-shortcut-display:empty{display:none}
+@media(max-width:1000px){
+  .inspector{padding:16px max(20px,calc((100% - 600px)/2))}
+  .properties{grid-template-columns:98px minmax(0,1fr);gap:12px}
+  .fields{max-width:490px}
+  .fields>.field,.hotkey-switch-inspector .fields>.field{
+    grid-template-columns:78px minmax(0,404px);gap:8px
+  }
+  .sdk-plugin-inspector .sdk-state-icons{padding-left:86px}
+}
