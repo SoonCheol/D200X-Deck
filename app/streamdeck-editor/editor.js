@@ -1204,7 +1204,10 @@ function renderControlInspector(){
   if(knob){
     const modeBadge=document.createElement('span');
     modeBadge.className='control-mode-badge '+(held?binding.heldMode:binding.mode);
-    modeBadge.textContent=({trigger:'동작별 할당',adjust:'조절형 액션',stack:'다이얼 스택'})[held?binding.heldMode:binding.mode];
+    const snapshot=inspectorSession?.dirty?DeckCore.migrateState(JSON.parse(inspectorSession.snapshot)):null;
+    const committed=snapshot?DeckCore.controlBinding(snapshot,index):binding;
+    modeBadge.textContent=held&&committed.heldEnabled!==true?'사용 안 함':
+      ({trigger:'동작별 할당',adjust:'조절형 액션',stack:'다이얼 스택'})[held?committed.heldMode:committed.mode];
     head.append(modeBadge);
     const tabs=document.createElement('div');tabs.className='control-mode-tabs';
     for(const [value,label] of [['normal','좌우 회전'],['held','누르고 좌우 회전']]){
@@ -1305,7 +1308,7 @@ function renderControlInspector(){
     const named={page:['이전 페이지','다음 페이지'],profile:['이전 프로필','다음 프로필'],volume:['음량 감소','음량 증가'],zoom:['축소','확대'],history:['실행 취소','다시 실행']};
     const auto=named[binding[targetKey]]?.[(left?0:1)^(reverse?1:0)]||'자동 조절';
     tile.innerHTML='<span class="control-gesture-symbol">'+glyph+'</span><strong>'+title+
-      '</strong><span class="control-gesture-value">'+(allowed?(assigned?escapeHtml(keyName(assigned)):gesture==='down'?'＋ 액션 놓기':auto):gesture==='down'&&binding.heldEnabled?'누르기 비활성':'조절 동작 자동 지정')+'</span>';
+      '</strong><span class="control-gesture-value">'+(allowed?(assigned?escapeHtml(keyName(assigned)):gesture==='down'?'＋ 액션 놓기':auto):gesture==='down'&&binding.heldEnabled?(assigned?escapeHtml(keyName(assigned))+' · 비활성':'누르기 비활성'):'조절 동작 자동 지정')+'</span>';
     tile.disabled=!allowed;
     tile.addEventListener('click',()=>{controlGesture=gesture;renderControlInspector();});
     tile.addEventListener('dragover',e=>{if(allowed){e.preventDefault();tile.classList.add('drag-over');}});
