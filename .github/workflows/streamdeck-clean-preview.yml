@@ -166,6 +166,15 @@ jobs:
           } finally {
             Remove-Item Env:ELECTRON_RUN_AS_NODE -ErrorAction SilentlyContinue
           }
+          # Run the real SDK protocol integration tests using the packaged
+          # Electron executable as the Node plugin runtime (not runner node.exe).
+          $env:D200X_NODE_PATH = $exe
+          try {
+            node --test test/streamdeck-sdk-host.test.cjs
+            if ($LASTEXITCODE -ne 0) { throw 'Packaged Electron Node SDK integration tests failed' }
+          } finally {
+            Remove-Item Env:D200X_NODE_PATH -ErrorAction SilentlyContinue
+          }
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: D200X-StreamDeck-Device-Sync-win-x64

@@ -38,7 +38,8 @@ async function nodeRuntime(minimumVersion=20){
   // Use the already packaged Electron binary as Node, avoiding an installation
   // dependency on the user's Windows PC. This requires the default runAsNode fuse.
   const executable=process.env.D200X_NODE_PATH||process.execPath;
-  const env={...process.env,...(process.env.D200X_NODE_PATH?{}:{ELECTRON_RUN_AS_NODE:'1'})};
+  // Safe for normal node.exe too; required when D200X_NODE_PATH points to the packaged Electron EXE.
+  const env={...process.env,ELECTRON_RUN_AS_NODE:'1'};
   let stdout;
   try{
     ({stdout}=await execFileAsync(executable,['-p','process.versions.node'],

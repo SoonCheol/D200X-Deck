@@ -24,6 +24,12 @@
 - 커밋 `ff8dfc44940709114745dfc5d5d28565185ff0b2`: 첫 Windows Node24 패키징 검증 step이 잘못 생성되면서 YAML 문자열 구성이 깨져 Actions [#43688432536](https://github.com/SoonCheol/D200X-Deck/actions/runs/43688432536)이 **워크플로 구문 오류/잡 미생성으로 실패**. 앱 코드 실행 실패가 아님.
 - 이 커밋은 **workflow 파일의 깨진 step만 복구**하고 정규식 대신 단순 숫자 파싱으로 검사를 변경. CI 및 패키징 실행 결과가 확인되기 전까지 성공 표시 금지.
 
+## 4차 원격 실기 대체 자동 검증 목표
+
+- **패키징된 EXE를 Node 실행기로 사용하는 진짜 플러그인 통합 테스트를 자동화한다.** `D200X_NODE_PATH`에 Windows 패키지의 `D200X-StreamDeck-Preview.exe`를 넣고, `ELECTRON_RUN_AS_NODE=1`로 Node 24 환경을 활성화한 뒤 `test/streamdeck-sdk-host.test.cjs`의 실제 WebSocket 플러그인 등록·키 입력 테스트를 다시 실행한다.
+- 별도 Windows Node 설치 없이 패키징된 Electron 자체로 `CodePath` JS를 실행하는 경로를 점검하는 데 목적이 있다. **사용자의 Fusion 360과 실물 D200X 확인을 대체하지 않는다.**
+- 커밋 이후 Windows Workflow run 결과를 반드시 확인하고 성공/실패 및 SHA를 이 문서에 갱신할 것.
+
 ## 코드·검증 이력 (사실만)
 
 | 단계 | 커밋/Actions | 실제 작업 및 증거 |
