@@ -1,3 +1,12 @@
+## 2026-11-15 Fusion MCP 일괄 등록 1차 구현·Windows 빌드 검증 완료
+
+- **기능 커밋:** `c3035724c8b8165dbb26ce0c3513339638d8cf3b`. **와이드 슬롯 보호 수정:** `de8e7fb1113de684bd7b3a7f76ad4c045a6b59bc` (13개 일반 버튼/페이지, wide index 13에 액션 등록 없음).
+- **검증:** [Windows Actions #43697835588](https://github.com/SoonCheol/D200X-Deck/actions/runs/43697835588) **success**. 추가된 Fusion MCP 테스트 6개 통과(명령 목록 조회 모의 통신·독립 프로필 만들기·기존 할당 보존·페이지 분할·잘못된 JSON 거부·MCP 도구 발견). 기존 SDK/Fusion 원본 호환 자동 검증 유지.
+- **Windows EXE:** `D200X-StreamDeck-Device-Sync-win-x64` Artifact ID `14155193200`, 170,373,818 bytes (조회 당시).
+- **MCP 사용:** `tools/fusion-mcp/server.cjs` 로컬 stdio 서버; `fusion_list_commands` 및 `fusion_export_batch`. 생성 JSON은 D200X 편집기에서 **전체 프로필 관리 → Fusion 360 명령 일괄 등록 JSON 가져오기**로 가져오며 기존 프로필은 그대로 유지한다.
+- **자동화 수준:** Codex가 실제 Fusion 애드인이 보고한 명령을 선택 또는 전체 내보내어 새 프로필을 생성하는 JSON 파일까지 자동 작성. 가져오기는 사용자 명시 클릭 1회. **사용자 PC에서 Codex MCP 등록과 Fusion 라이브 조회, 앱 GUI 실제 가져오기 테스트는 아직 하지 않음.**
+- **다음:** PC에서 신규 Windows EXE 실행 → 프로젝트 최신 코드 확보 → MCP 등록 → Fusion 명령 조회 → JSON 생성 → GUI에서 새 프로필 가져오기·버튼/아이콘 검증. 원본 FusionStreamDeck 플러그인과 기존 HA 설정은 수정하지 않는다.
+
 ## 2026-11-15 배치 배치 위치 정정 — 와이드 화면 보호
 
 - D200X의 물리 키 배치는 페이지당 **일반 버튼 13개 + 와이드 정보 화면 1개**이며, 사용자가 와이드에는 액션이 등록되지 않도록 명시적으로 요청했다.
