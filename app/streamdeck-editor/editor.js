@@ -201,7 +201,7 @@ function newAction(id){
   return item;
 }
 function currentPage(){return DeckCore.currentActions(state);}
-function reservedWideSlot(index){return index===13&&!state.folderPath?.length;}
+function reservedWideSlot(index){return index===13;}
 function setItem(index,item){
   if(reservedWideSlot(index)){
     window.d200xActionStatus?.('가로 화면은 표시 모드 전용입니다. 일반 액션을 등록할 수 없습니다.');
@@ -1366,7 +1366,7 @@ function renderInspector(){
     return;
   }
   const root=$("inspector");root.replaceChildren();const item=state.selected===null?null:DeckCore.visibleActions(state)[state.selected];
-  if(!item&&state.selected===13&&wideDisplayAvailable()){renderWideInspector();return;}
+  if(state.selected===13&&wideDisplayAvailable()){renderWideInspector();return;}
   if(!item){root.className="inspector empty";root.textContent=state.selected===null?"버튼을 선택하세요":"액션을 끌어 이 키에 놓으세요";return;}
   root.className="inspector";const action=ACTIONS.get(item.type);const fields=actionFields(item);
   root.innerHTML=`<div class="action-head"><strong>${escapeHtml(action?.category)}: ${escapeHtml(action?.label)}</strong><button id="delete-action" title="액션 삭제" type="button">×</button></div>
@@ -1530,6 +1530,7 @@ function showMenu(index,x,y){
   if(reservedWideSlot(index)){
     $("key-menu").hidden=true;
     state.selected=index;renderInspector();
+    window.d200xActionStatus?.('가로 버튼은 화면 표시 전용입니다. 액션은 등록할 수 없습니다.');
     return;
   }
   const menu=$("key-menu");menu.replaceChildren();
