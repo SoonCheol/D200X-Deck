@@ -766,7 +766,10 @@ function bindInspectorShortcut(root,item){
     caption.title=value;
     line.classList.toggle('has-shortcut',Boolean(value));
   };
-  root.querySelectorAll('[data-field]').forEach(field=>field.addEventListener('change',update));
+  root.querySelectorAll('[data-field]').forEach(field=>{
+    field.addEventListener('change',update);
+    field.addEventListener('input',update);
+  });
   update();
 }
 const input=(field,label,placeholder="")=>`<div class="field"><label for="s-${field}">${label}</label><input id="s-${field}" data-field="${field}" value="${escapeHtml(valueOf(active,field))}" placeholder="${placeholder}"></div>`;
@@ -1722,7 +1725,8 @@ function renderInspector(){
         event.preventDefault();event.stopPropagation();
         if(event.key==="Escape"){node.blur();return;}
         if(event.key==="Backspace"&&!event.ctrlKey&&!event.altKey&&!event.shiftKey&&!event.metaKey){
-          node.value="";item.settings[field]="";persist();node.blur();return;
+          node.value="";item.settings[field]="";persist();
+          node.dispatchEvent(new Event('input',{bubbles:true}));node.blur();return;
         }
         if(["Control","Shift","Alt","Meta"].includes(event.key))return;
         const key=event.code?.startsWith("Key")?event.code.slice(3)
@@ -1737,7 +1741,7 @@ function renderInspector(){
           const preset=root.querySelector('[data-field="preset"]');
           if(preset)preset.value='';
         }
-        persist();node.blur();
+        persist();node.dispatchEvent(new Event('input',{bubbles:true}));node.blur();
       });
     }
   }
@@ -3044,7 +3048,8 @@ tabs.forEach((button,index)=>button.addEventListener('click',()=>{
 // foreground programs while the editor is not minimized.
 let smartProfileBusy=false;
 setInterval(async()=>{
-  if(smartProfileBusy||!state.smartProfilesEnabled||runningMultiActions.size||
+  // Defer automatic profile switches while unsaved inspector edits exist.
+  if(inspectorSession?.dirty||smartProfileBusy||!state.smartProfilesEnabled||runningMultiActions.size||
     !state.profileNames.some(p=>p.appPath)||!window.deckBridge?.foregroundApp)return;
   smartProfileBusy=true;
   try{
