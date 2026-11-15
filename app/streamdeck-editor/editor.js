@@ -1288,8 +1288,8 @@ function renderControlInspector(){
     remove.textContent='×';remove.title='등록된 동작 삭제';
     remove.disabled=!assigned||!allowed;
     remove.addEventListener('click',e=>{e.stopPropagation();if(confirm('등록된 동작을 삭제하시겠습니까?'))removeControlAction(index,gesture);});
-    tile.append(remove);
-    strip.append(tile);
+    const holder=document.createElement('div');holder.className='control-tile-holder';
+    holder.append(tile,remove);strip.append(holder);
   }
   root.append(strip);
   const chosen=gestures.some(x=>x[0]===controlGesture)?controlGesture:gestures[0][0];
@@ -1435,8 +1435,8 @@ function renderInspector(){
   if(state.selected===13&&wideDisplayAvailable()){renderWideInspector();return;}
   if(!item){root.className="inspector empty";root.textContent=state.selected===null?"버튼을 선택하세요":"액션을 끌어 이 키에 놓으세요";return;}
   root.className="inspector";const action=ACTIONS.get(item.type);const fields=actionFields(item);
-  root.innerHTML=`<div class="action-head"><strong>${escapeHtml(action?.category)}: ${escapeHtml(action?.label)}</strong><button id="delete-action" title="액션 삭제" type="button">×</button></div>
-    <div class="properties"><div class="preview"><div class="preview-key" id="icon-preview">
+  root.innerHTML=`<div class="action-head"><strong>${escapeHtml(action?.category)}: ${escapeHtml(action?.label)}</strong></div>
+    <div class="properties"><div class="preview"><div class="preview-key" id="icon-preview"><button id="delete-action" class="control-tile-remove preview-action-remove" title="동작 삭제" type="button">×</button>
       <span id="icon-preview-content"></span>
       <button class="icon-preview-control icon-preview-plus" type="button" id="icon-library-open" aria-label="아이콘 라이브러리 열기" title="아이콘 라이브러리">+</button>
       <button class="icon-preview-control icon-preview-menu" type="button" id="icon-menu-trigger" aria-label="아이콘 변경 메뉴" aria-expanded="false" aria-controls="icon-dropdown" title="아이콘 메뉴">⌄</button>
