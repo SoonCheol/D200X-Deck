@@ -984,25 +984,30 @@ test('copying an inactive profile keeps the new ID and preserves original action
 
 test('wide display defaults to clock, date/week and CPU/RAM/GPU and cycles in saved order',()=>{
   const s=core.migrateState(null);
-  assert.deepEqual(s.wideDisplay.order,['clock','datetime','stats']);
+  assert.deepEqual(s.wideDisplay.order,['clock','datetime','stats','knobs']);
   assert.deepEqual(s.wideDisplay.enabled,['clock','datetime','stats']);
   assert.equal(s.wideDisplay.current,'clock');
   assert.equal(core.cycleWideDisplay(s),'datetime');
   assert.equal(core.cycleWideDisplay(s),'stats');
   assert.equal(core.cycleWideDisplay(s),'clock');
-  s.wideDisplay.order=['stats','clock','datetime'];
+  s.wideDisplay.enabled.push('knobs');
+  assert.equal(core.cycleWideDisplay(s),'datetime');
+  assert.equal(core.cycleWideDisplay(s),'stats');
+  assert.equal(core.cycleWideDisplay(s),'knobs');
+  assert.equal(core.cycleWideDisplay(s),'clock');
+  s.wideDisplay.order=['stats','clock','datetime','knobs'];
   s.wideDisplay.enabled=['clock','stats'];
   assert.equal(core.cycleWideDisplay(s),'stats');
   assert.equal(core.cycleWideDisplay(s),'clock');
   const profile=core.createProfile(s,'분리된 화면',true);
   assert.equal(core.switchProfile(s,profile),true);
-  assert.deepEqual(s.wideDisplay.order,['stats','clock','datetime']);
+  assert.deepEqual(s.wideDisplay.order,['stats','clock','datetime','knobs']);
   assert.deepEqual(s.wideDisplay.enabled,['clock','stats']);
   assert.equal(core.switchProfile(s,'default'),true);
   const copy=core.migrateState(JSON.parse(JSON.stringify(s)));
-  assert.deepEqual(copy.wideDisplay.order,['stats','clock','datetime']);
+  assert.deepEqual(copy.wideDisplay.order,['stats','clock','datetime','knobs']);
   assert.deepEqual(copy.wideDisplay.enabled,['clock','stats']);
   const bad=core.cleanWideDisplay({order:['stats','invalid','stats'],enabled:[],current:'invalid'});
-  assert.deepEqual(bad.order,['stats','clock','datetime']);
+  assert.deepEqual(bad.order,['stats','clock','datetime','knobs']);
   assert.deepEqual(bad.enabled,['clock']);
 });
