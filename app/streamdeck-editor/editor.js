@@ -205,7 +205,8 @@ function displayItem(item,index){
     const stateName=visual?.state===1?'on':'off';
     const assigned=item.settings?.sdkStateIcons?.[stateName];
     const stateIcon=assigned?.kind==='file'&&typeof assigned.value==='string'?assigned:null;
-    if(isFusionAction(item)){
+    if(item?.settings?.pluginUUID==='com.autodesk.fusionstreamdeck'&&
+      item.settings?.actionUUID==='com.autodesk.fusionstreamdeck.runcommand'){
       const id=fusionCommandId(item),connected=fusionConnected.has(FUSION_PLUGIN);
       if(id)requestFusionIcon(id);
       const cached=id?fusionIconCache.get(id):null;
