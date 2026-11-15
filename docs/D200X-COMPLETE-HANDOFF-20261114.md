@@ -571,3 +571,11 @@
 - 새 Windows Preview [#43681874878](https://github.com/SoonCheol/D200X-Deck/actions/runs/43681874878) 및 CI [#43681878317](https://github.com/SoonCheol/D200X-Deck/actions/runs/43681878317) 확인 후 Artifact 제공. **실물 누름 1회당 1회 화면 전환**은 사용자 재검증 전까지 확인된 것으로 말하지 말 것.
 
 - **빌드 결과 확인:** 최종 기능 커밋 `aa272f9fa423b72dfb0ebd44b319698710503132` CI [#43681878317](https://github.com/SoonCheol/D200X-Deck/actions/runs/43681878317) `success`, Windows Preview [#43681874878](https://github.com/SoonCheol/D200X-Deck/actions/runs/43681874878) `success`. Artifact [D200X-StreamDeck-Device-Sync-win-x64](https://github.com/SoonCheol/D200X-Deck/actions/runs/43681874878/artifacts/14148613104), ID `14148613104`, 170,370,165 bytes, 조회 당시 만료되지 않음. 기존 코드는 사용자 실기 테스트 전까지 1회/2회 증상 해결 확정 불가.
+
+
+### 2026-11-15 — 사용자 재시험: 네이티브 시계 정상, 모든 다른 화면 통계 오버레이, 간헐적 두 번 누름
+
+- 최신 실기: 아날로그+디지털 시계 모드는 CPU/RAM/GPU 정보가 겹치지 않음. 날짜·시간·요일 및 다른 사용자 지정 정보 화면은 CPU/RAM/GPU가 겹쳐 나타남. CPU/RAM/GPU 자체 모드는 같은 정보가 겹치는 탓에 정상처럼 보일 수 있음. 물리 가로 버튼의 1회/2회 누름 교대 문제도 남음. **오버레이 제거/버튼 모두 실기 해결 미확인**.
+- 외부 D200X 실기 확인 자료: `arturs03/ulanzi-d200x` 공개 저장소의 `Protocol.cs` `DisplayPackets()`와 README의 Preview 1~3 해결 기록을 조사. 동일한 기본 CPU/RAM/GPU 오버레이 문제를 물리 기기에서 해결한 구현은 0x0006 이미지 모드 패킷 `2|0|0|00:00:00|0`을 **페이지 ZIP(0x0001) 전후 모두** 송신. 빈 필드 패킷 `2|||||24H|`을 쓰지 않음. 외부 GPL 코드 복사 없음(해당 저장소는 MIT이나 직접 구현만 변경).
+- 코드 변경: `app/streamdeck-editor/transport.cjs`에서 이미지 모드 패킷을 실제 입증된 형식 `2|0|0|00:00:00|0`으로 교체하고 `this.deck.pushPage(zip)` 전/후로 한 번씩 전송. `stats`/기본 `clock`은 기존 네이티브 분기를 그대로 유지하고 이미지 모드 외에는 패킷 추가하지 않음. `test/streamdeck-transport.test.cjs`의 모든 패킷값 및 전후 순서·native overlay 비활성 검증을 갱신.
+- 주요 기능 커밋 `c1ee9357`, 테스트 `b5346b1c`, 최종 Windows Preview 트리거 `642ffa18`; CI/Windows Preview 결과는 별도 조회 필요. 빌드 자동 성공을 실물 전환 성공으로 오인 금지. `main`/PR/프로필·노브·일반 액션 설정 무변경. 
