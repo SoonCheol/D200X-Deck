@@ -19,6 +19,28 @@ function sdk(){
   if(!sdkHost)sdkHost=new StreamDeckPluginHost(app.getPath('userData'),payload=>send('d200x:sdk-event',payload),()=>window);
   return sdkHost;
 }
+// Local-only Fusion artwork cache: filenames are stable SDK command IDs.
+const FUSION_PLUGIN='com.autodesk.fusionstreamdeck';
+const fusionCacheDir=()=>path.join(app.getPath('userData'),'fusion-command-icons');
+function safeFusionCommand(id){return typeof id==='string'&&id.startsWith(FUSION_PLUGIN+'.')&&
+  /^[a-zA-Z0-9._-]{1,180}$/.test(id);}
+ipcMain.handle('d200x:fusion-icon-read',async(event,id)=>{
+  assertEditor(event);if(!safeFusionCommand(id))return null;
+  try{
+    const bytes=await fs.promises.readFile(path.join(fusionCacheDir(),id+'.png'));
+    return bytes.length<=1024*1024?'data:image/png;base64,'+bytes.toString('base64'):null;
+  }catch(error){if(error.code==='ENOENT')return null;throw error;}
+});
+ipcMain.handle('d200x:fusion-icon-write',async(event,id,data)=>{
+  assertEditor(event);
+  if(!safeFusionCommand(id)||typeof data!=='string'||!/^data:image\/png;base64,[A-Za-z0-9+/]+={0,2}$/.test(data)||data.length>1024*1024)return false;
+  const bytes=Buffer.from(data.slice('data:image/png;base64,'.length),'base64');
+  if(bytes.length<8||bytes.length>768*1024||bytes.subarray(0,8).toString('hex')!=='89504e470d0a1a0a')return false;
+  await fs.promises.mkdir(fusionCacheDir(),{recursive:true});
+  const target=path.join(fusionCacheDir(),id+'.png'),tmp=target+'.tmp';
+  await fs.promises.writeFile(tmp,bytes);await fs.promises.rename(tmp,target);
+  return true;
+});
 ipcMain.handle('d200x:sdk-list',async event=>{assertEditor(event);return sdk().list();});
 ipcMain.handle('d200x:sdk-install',async event=>{
   assertEditor(event);
