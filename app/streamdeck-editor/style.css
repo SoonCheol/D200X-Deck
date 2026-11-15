@@ -434,3 +434,17 @@
 .title-line>input{padding-right:43px}
 .title-line>.title-style-trigger{position:absolute;right:3px;top:50%;transform:translateY(-50%);z-index:3;padding:4px 6px;font-size:14px;border-radius:3px}
 .title-line>.title-style-trigger:hover{background:#484848}
+
+/* Compact fixed-shortcut selector: left label, shortcut aligned right.
+   Real select stays in DOM for existing field persistence handlers. */
+.shortcut-select-wrap{position:relative;min-width:0;width:100%}
+.shortcut-select-wrap>select{position:absolute!important;width:1px!important;height:1px!important;min-height:0!important;opacity:0;pointer-events:none;overflow:hidden;padding:0!important;border:0!important}
+.shortcut-select-trigger{display:flex;align-items:center;gap:12px;width:100%;min-height:32px;background:#373737;color:#eee;border:1px solid #626262;border-radius:4px;padding:6px 10px;text-align:left}
+.shortcut-select-trigger>span:first-child{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.shortcut-select-trigger>small{color:#bdc7d7;font-size:11px;white-space:nowrap}
+.shortcut-select-trigger>span:last-child{color:#b9b9b9}
+.shortcut-select-menu{position:absolute;top:calc(100% + 2px);left:0;right:0;z-index:100;padding:3px;background:#353535;border:1px solid #686868;border-radius:4px;box-shadow:0 8px 18px #0009;max-height:220px;overflow-y:auto}
+.shortcut-select-menu[hidden]{display:none}
+.shortcut-select-menu button{display:flex;align-items:center;justify-content:space-between;gap:12px;width:100%;min-height:29px;padding:5px 8px;border:0;background:transparent;color:#eee;text-align:left}
+.shortcut-select-menu button:hover,.shortcut-select-menu button:focus-visible{background:#2869be}
+.shortcut-select-menu small{color:#bdc7d7;white-space:nowrap;font-size:11px}
