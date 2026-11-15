@@ -11,6 +11,7 @@ const KEEPALIVE_MS = 5000;
 const MIN_BRIGHTNESS = 20;
 const RECONNECT_MS = 4000;
 const TICK_MS = 1000;
+// Valid D200X mode-2 packet: numeric placeholders and HH:mm:ss, not empty fields.
 const IMAGE_MODE_PAYLOAD = Buffer.from('2|0|0|00:00:00|0', 'ascii');
 
 class D200XTransport extends EventEmitter {
