@@ -488,16 +488,26 @@
 .inspector-save-bar{padding-right:0}
 .inspector-save-bar .inspector-cancel,
 .inspector-save-bar .inspector-save{width:60px;min-width:60px;height:32px;padding:5px 8px}
-/* Preserve the entire hardware region's height; center the keypad, physical
-   buttons/knobs and page controls as one vertical group within it. */
+/* Restore original responsive D200X key sizes and text, while keeping
+   the whole keypad/knob/page group centered. Allow a little more height when
+   needed so top and bottom breathing room remain balanced. */
+.work{
+  --key-edge:clamp(52px,calc(100dvh / 10),74px);
+  --key-gap:clamp(7px,1.2dvh,11px);
+  grid-template-rows:minmax(0,min(425px,calc(100dvh - 220px))) minmax(0,1fr);
+}
 .canvas{justify-content:center;padding-top:8px;padding-bottom:8px}
-.work{--key-edge:64px;--key-gap:9px}
+.deck-key .caption,.physical-control .physical-name{font-size:10px}
 @media(max-width:1000px){
   #app{grid-template-columns:minmax(640px,1fr) 320px}
   .inspector{padding:16px max(22px,calc((100% - 596px)/2))}
   .properties{gap:12px}
   .fields>.field,.hotkey-switch-inspector .fields>.field{grid-template-columns:64px minmax(0,404px);gap:8px}
   .sdk-plugin-inspector .sdk-state-icons{padding-left:72px}
-  .work{--key-edge:64px;--key-gap:9px}
+  .work{
+    --key-edge:clamp(52px,calc(100dvh / 10),74px);
+    --key-gap:clamp(7px,1.2dvh,11px);
+    grid-template-rows:minmax(0,min(425px,calc(100dvh - 220px))) minmax(0,1fr);
+  }
   .canvas{justify-content:center;padding-top:8px;padding-bottom:8px}
 }
