@@ -448,3 +448,23 @@
 .shortcut-select-menu button{display:flex;align-items:center;justify-content:space-between;gap:12px;width:100%;min-height:29px;padding:5px 8px;border:0;background:transparent;color:#eee;text-align:left}
 .shortcut-select-menu button:hover,.shortcut-select-menu button:focus-visible{background:#2869be}
 .shortcut-select-menu small{color:#bdc7d7;white-space:nowrap;font-size:11px}
+
+/* SDK plugin inspector: align title + native property editor with OFF/ON
+   cards; each icon remains a fixed 196px card (196 + 12 + 196 = 404). */
+.sdk-plugin-inspector .sdk-title-controls{
+  display:grid;grid-template-columns:minmax(0,238px) 158px;gap:8px;
+  width:404px;max-width:100%;min-width:0;align-items:center
+}
+.sdk-plugin-inspector .sdk-title-controls .title-line{min-width:0;width:100%}
+.sdk-plugin-inspector .sdk-title-controls .sdk-settings-open{
+  width:158px;max-width:158px;min-width:0;height:32px;min-height:32px;
+  padding:5px 7px;white-space:nowrap;text-align:center;font-size:11px;
+  border-radius:5px;overflow:hidden;text-overflow:ellipsis
+}
+.sdk-plugin-inspector .fields{min-width:0}
+.sdk-plugin-inspector .sdk-state-icons{display:flex;flex-wrap:wrap;align-items:flex-start}
+.sdk-plugin-inspector .sdk-state-icon{flex:0 0 196px}
+@media(max-width:740px){
+  .sdk-plugin-inspector .sdk-title-controls{grid-template-columns:minmax(0,1fr) 148px}
+  .sdk-plugin-inspector .sdk-title-controls .sdk-settings-open{width:148px;max-width:148px}
+}
