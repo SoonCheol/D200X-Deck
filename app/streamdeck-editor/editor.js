@@ -2766,6 +2766,27 @@ $("icon-maker-save").addEventListener("click",()=>{
   if(makerTarget)applyIconData(makerTarget,$("icon-maker-canvas").toDataURL("image/png"));
   closeIconMaker();
 });
+// Device options reuse the same update destination as the existing tray menu.
+function bindSettingsMenu(){
+  const trigger=$("settings-trigger"),menu=$("settings-menu"),update=$("check-update");
+  const close=()=>{menu.hidden=true;trigger.setAttribute('aria-expanded','false');};
+  trigger.addEventListener('click',()=>{
+    menu.hidden=!menu.hidden;
+    trigger.setAttribute('aria-expanded',String(!menu.hidden));
+  });
+  update.addEventListener('click',async()=>{
+    close();
+    try{
+      if(!window.deckBridge?.checkForUpdates)throw Error('Windows DeckForge에서만 사용할 수 있습니다.');
+      await window.deckBridge.checkForUpdates();
+    }catch(error){window.d200xActionStatus?.('업데이트 페이지 열기 실패: '+String(error?.message||error));}
+  });
+  document.addEventListener('pointerdown',event=>{
+    if(!menu.contains(event.target)&&!trigger.contains(event.target))close();
+  });
+  document.addEventListener('keydown',event=>{if(event.key==='Escape')close();});
+}
+bindSettingsMenu();
 bindSidebarHeader();
 const tabs=document.querySelectorAll('.library-tabs button');
 tabs[1].disabled=false;tabs[1].removeAttribute('title');
