@@ -46,8 +46,14 @@
         setTimeout(()=>{pressedKeys.delete(keyIndex);schedule(0);},120);
       }
     }
+    if((keyIndex===13||keyIndex===14)&&event?.pressed===true)
+      console.info('[D200X wide display press]',{index:keyIndex,kind:event.kind,state:event.state});
     const result = window.executeD200XKey?.(event);
     if (result) { text('D200X 버튼 #' + event.index + ' · ' + result); return; }
+    if((keyIndex===13||keyIndex===14)&&event?.pressed===true){
+      text('가로 버튼 입력 수신 ('+keyIndex+') · 화면 전환 처리 안 됨');
+      return;
+    }
     const where = Number(event?.kind) === 1 ? '버튼' : '입력 종류 ' + event?.kind;
     const direction = event?.pressed ? '누름' : '뗌';
     if (event?.pressed) text('D200X 입력 수신 · ' + where + ' #' + event.index +
