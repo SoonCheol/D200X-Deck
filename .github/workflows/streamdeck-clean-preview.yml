@@ -52,6 +52,10 @@ jobs:
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           node --test test/streamdeck-sdk-host.test.cjs
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          node --check tools/fusion-mcp/server.cjs
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          node --test test/streamdeck-fusion-mcp.test.cjs
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           node --test test/streamdeck-sdk-visual.test.cjs
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           node --test test/streamdeck-ha.test.cjs
