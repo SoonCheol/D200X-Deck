@@ -13,6 +13,7 @@
 
   let renderSerial = 0;
   let timeout = null;
+  let lastSentImages = null;
   let online = false;
   const pressedKeys=new Set();
   const text = message => { if (notice) notice.textContent = message; };
@@ -284,6 +285,7 @@
             : DeckCore.displaySwitchAction(item),index
       )));
       if (serial !== renderSerial) return;
+      lastSentImages=images;
       bridge.syncPage(images,window.getD200XWideMode?.()||'blank');
     } catch (error) {
       text('D200X 아이콘 생성 오류: ' + String(error?.message || error));
@@ -295,6 +297,27 @@
     timeout = setTimeout(() => { timeout = null; synchronize(); }, delay);
   }
   window.scheduleDeckSync = schedule;
+  // Wide-mode cycling changes only slot 13. Reuse the last complete set
+  // of physical key bitmaps rather than re-rendering all fourteen on every
+  // press. The existing whole-page synchronization remains the fallback
+  // for initial connection, page changes and all other edits.
+  window.scheduleD200XWideSync=()=>{
+    if(!lastSentImages||lastSentImages.length!==14){schedule(0);return;}
+    const serial=++renderSerial;
+    if(timeout!==null){clearTimeout(timeout);timeout=null;}
+    const wide=window.getD200XDisplayItem?.(null,13);
+    if(wide?.type!=='wide-display'){schedule(0);return;}
+    drawSlot(wide,13).then(image=>{
+      if(serial!==renderSerial)return;
+      const images=lastSentImages.slice();
+      images[13]=image;
+      lastSentImages=images;
+      bridge.syncPage(images,window.getD200XWideMode?.()||'blank');
+    }).catch(error=>{
+      text('가로 화면 전환 이미지 오류: '+String(error?.message||error));
+      schedule(0);
+    });
+  };
   bridge.ready();
   schedule();
   // Refresh the date/time image without polling or overwriting unrelated keys.
