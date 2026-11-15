@@ -511,3 +511,15 @@
 - 관련 소스: `app/streamdeck-editor/{deck-core.js,editor.js,device-sync.js,transport.cjs,main.cjs,preload.cjs,style.css}`, `app/lib/{deck.js,page.js,sysstats.js}`, `test/streamdeck-core.test.cjs`, `test/streamdeck-transport.test.cjs`.
 - 저장소 `SoonCheol/D200X-Deck`; **유일한 개발 브랜치 `codex/streamdeck-761-clean-editor`**. `main` 수정/병합 금지. 사용자 지시 없이 외부 프로젝트 이동/기존 프로필 삭제 금지. Windows GitHub Actions EXE 제공과 커밋/성공 여부 정확히 보고. 인수인계 완료 시 이 문서를 갱신.
 
+
+
+### 2026-11-15 — 가로 화면 노브 정보 및 순환 UI 수정 (후속 구현)
+
+- 기준 개발 브랜치: `codex/streamdeck-761-clean-editor`. 기존 프로필·폴더·페이지·14개 화면 키·노브 바인딩 및 24개 원본 기본 액션의 저장 스키마는 변경하지 않음. `main`/PR #5 미수정·미병합.
+- 기존 Windows Preview #43656517835, 입력 검증 #43656517886 실패를 실제 Actions 로그로 확인: `test/streamdeck-core.test.cjs:985`의 모드 순서 기대값이 3개인 채로 `knobs` 4번째 항목이 추가돼 `deepStrictEqual` 실패. 빌드 자체의 패키징 오류가 아니었음.
+- `editor.js`: `knobs:'노브 정보'` 명칭, 속성창의 네 번째 체크박스/순서 변경 연결. 기본 체크는 시계/날짜/사용량 3개이며 노브 정보는 체크 해제. `DeckCore.controlBinding(state,16..18)`로 현재 프로필의 3개 노브에 설정된 액션 제목을 우선하며, 없으면 조절 대상 또는 액션 이름으로 대체. 편집기 가로 버튼 클릭은 현재 모드를 다음 체크 항목으로 순환하고 해당 속성창을 선택. 물리 입력의 기존 index13 누름 순환 코드 보존.
+- `device-sync.js`: 392×196 사용자 지정 PNG에 노브 1~3의 제목과 기능을 3열로 그림. 기존 `clock`, `datetime`, `stats` 분기와 장치 내장 모드 경로 유지. 노브 모드의 기기 내장 표시 모드는 `blank`로 두어 PNG 표시 충돌 방지.
+- 속성창 드래그 UI: `☰` 손잡이에만 `draggable` 및 손 모양 커서. 체크박스/항목명/나머지 행은 일반 커서. 기존 체크 및 순서 저장 동작 보존.
+- `test/streamdeck-core.test.cjs`: 전체 순서 4개, 기본 활성 3개, 네 번째 체크 시 순환, 프로필 분리 및 복원 회귀 검증 수정. 새 CI #43657256117 및 입력 실행 검증 #43657251385는 성공.
+- 구현 커밋: `8ff14c6e` (속성/순환/노브 정보), `e438bacb` (PNG), `db7aa219` (손잡이 커서), `f4d64bbe` (테스트), `12757e83` (새 테스트 포함 최종 Preview 트리거).
+- **중요:** 원본 Ulanzi Studio의 노브 제목 반영은 아직 실물 비교 미완료. 사용자 Windows GUI/물리 버튼의 순환·USB PNG 화면은 새 EXE 실기 검증 전. CI 성공은 실물 검증을 뜻하지 않음. 최신 Windows Preview 작업: https://github.com/SoonCheol/D200X-Deck/actions/runs/43657350031 (결과 및 Artifact는 실행 종료 후 별도 확인).
