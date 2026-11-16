@@ -39,6 +39,14 @@ function createMagnet(deck,manager,display,saveEnabled=()=>{}){
   const area=display.getDisplayMatching(b).workArea;
   if(b.x+b.width+w<=area.x+area.width)return 'right';
   if(b.x-w>=area.x)return 'left';
+  // A centered DeckForge often leaves neither side large enough.
+  // Reposition the two windows as a pair only when both fit on one monitor.
+  if(b.width+w<=area.width){
+   const x=area.x+Math.floor((area.width-b.width-w)/2);
+   const y=Math.max(area.y,Math.min(b.y,area.y+area.height-b.height));
+   deck.setBounds({x,y,width:b.width,height:b.height});
+   return 'right';
+  }
   return null;
  };
  const place=()=>{
