@@ -22,3 +22,11 @@
 - GitHub Actions의 `DeckForge 1.0 Windows build` 성공 여부와 아티팩트의 파일 구성을 확인해야 함.
 - Windows 실기의 폰트 렌더링 및 좁은 영역 글자 잘림은 설치 후 확인 필요.
 - Unicode 전체 글리프를 지원하는 것은 아님. 현재 지원되는 기능 아이콘은 기존 SVG·PNG 기반을 유지.
+
+## 2026-11-16 추가 적용 — D200X 버튼 제목 기본 글꼴
+
+- **구현 대상:** `titleStyle.family='default'`인 버튼 제목은 편집기 미리보기와 D200X로 전송하는 PNG에서 내장 `DeckForge Pretendard`를 사용한다. 선택 목록에 명시적 Pretendard 항목도 추가.
+- **기존 프로필 보호:** 저장 스키마와 `default` 값은 그대로 유지. 이전에 `Malgun Gothic` 또는 `Segoe UI`를 명시적으로 선택한 항목은 원래 글꼴을 계속 사용하며, 별도 사용자 글꼴 기능은 이번 범위에 포함하지 않음.
+- **동기화 경로:** `device-sync.js`의 `drawText` → `drawSlot` → `bridge.syncPage`; 편집기 실제 PNG 미리보기도 같은 렌더러 사용. 렌더 전 `document.fonts.ready` 대기 경로 유지.
+- **글꼴 범위:** 앱이 PNG로 직접 그리는 제목만 이번 변경 범위. 펌웨어 자체 시계·통계 화면은 변경 불가. Windows 실기/D200X 물리 화면 확인은 사용자 측 검증 필요.
+- **빌드 결과:** GitHub Actions Windows 자동 빌드 결과는 별도로 확인.
