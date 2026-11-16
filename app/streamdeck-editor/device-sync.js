@@ -280,7 +280,7 @@
         ctx.beginPath();ctx.moveTo(x-r*.45,y-r*.45);ctx.lineTo(x+r*.45,y+r*.45);
         ctx.moveTo(x+r*.45,y-r*.45);ctx.lineTo(x-r*.45,y+r*.45);ctx.stroke();
       }
-      if(keyPressed(index)&&!item.keyPressAlternate){
+      if((keyPressed(index)||item.previewPressed===true)&&!item.keyPressAlternate){
         const snapshot=document.createElement('canvas');
         snapshot.width=width;snapshot.height=height;
         snapshot.getContext('2d').drawImage(canvas,0,0);
@@ -293,7 +293,7 @@
   }
 
   // Same compositor feeds the inspector preview and the D200X transfer.
-  window.renderDeckKeyImage = async (item,index=0) => (await drawSlot(item, index)).png;
+  window.renderDeckKeyImage = async (item,index=0,previewPressed=false) => (await drawSlot(previewPressed?{...item,previewPressed:true}:item, index)).png;
   renderGrid();
   window.refreshSelectedVisual?.();
 

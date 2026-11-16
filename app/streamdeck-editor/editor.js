@@ -1301,7 +1301,7 @@ async function refreshSelectedVisual(){
   if(!item||!window.renderDeckKeyImage)return;
   const request=++previewRequest;
   try{
-    const data=await window.renderDeckKeyImage(displayKeyPressItem(displayItem(item,state.selected),state.selected),state.selected);
+    const data=await window.renderDeckKeyImage(displayKeyPressItem(displayItem(item,state.selected),state.selected),state.selected,previewPressKeys.has(state.selected));
     if(request!==previewRequest||DeckCore.visibleActions(state)[state.selected]!==item)return;
     const host=$("icon-preview-content");
     if(!host)return;
