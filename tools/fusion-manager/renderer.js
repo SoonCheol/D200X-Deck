@@ -165,9 +165,28 @@ function displayHelpMarkdown(markdown){
   const p=document.createElement('p');p.textContent=line;box.append(p);list=null;
  }
 }
-$('helpOpen').onclick=async()=>{
- try{displayHelpMarkdown(await window.fusionManager.helpMarkdown());$('helpDialog').showModal();}
- catch(e){status('도움말 파일을 읽을 수 없습니다: '+e.message)}
+async function openManagerHelp(section){
+ try{
+  const raw=await window.fusionManager.helpMarkdown();
+  const from=section?'## '+section:-1;
+  const start=section?raw.indexOf(from):-1;
+  const until=start>=0?raw.indexOf('\n## ',start+4):-1;
+  displayHelpMarkdown(start>=0?raw.slice(start,until>=0?until:undefined):raw);
+  $('scriptActions').style.display=section==='Fusion UI JSON 불러오기'?'flex':'none';
+  $('scriptText').hidden=true;
+  $('helpDialog').showModal();
+ }catch(e){status('도움말 파일을 읽을 수 없습니다: '+e.message)}
+}
+$('helpOpen').onclick=()=>openManagerHelp();
+$('captureHelp').onclick=()=>openManagerHelp('Fusion UI JSON 불러오기');
+$('iconsHelp').onclick=()=>openManagerHelp('현재 목록 원본 아이콘 수집');
+$('scriptShow').onclick=async()=>{
+ try{$('scriptText').value=await window.fusionManager.fusionScript();$('scriptText').hidden=false;}
+ catch(e){status('수집기 코드를 읽을 수 없습니다: '+e.message)}
+};
+$('scriptCopy').onclick=async()=>{
+ try{await window.fusionManager.copyFusionScript();status('Fusion UI Python 수집기 코드 복사 완료');}
+ catch(e){status('수집기 코드 복사 실패: '+e.message)}
 };
 $('helpClose').onclick=()=>$('helpDialog').close();
 
