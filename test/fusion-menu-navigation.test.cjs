@@ -69,3 +69,18 @@ test('real Fusion menu tab, panel and nested dropdown ordering is preserved',()=
  assert.deepEqual(Menu.descendants(panels[0].children.get('dropdown:Group').children.get('dropdown:Nested')).map(x=>x.id),['B','C']);
  assert.deepEqual(Menu.descendants(panels[1]).map(x=>x.id),['D']);
 });
+
+test('captured 959 Fusion menu placements retain tab/panel order without alphabetical sorting',()=>{
+ const fs=require('node:fs'),path=require('node:path');
+ const catalog=JSON.parse(fs.readFileSync(path.join(__dirname,'../tools/fusion-mcp/fusion-menu-catalog.json'),'utf8'));
+ assert.equal(catalog.entries.length,959);
+ const all=[...new Set(catalog.entries.map(x=>x.id))].map(id=>({id,name:id}));
+ const areas=Menu.fromMenuCatalog(catalog,all);
+ assert.deepEqual(areas.map(x=>x.name),['스케치','솔리드','곡면','메쉬','판금','플라스틱','매니지','유틸리티','자동화']);
+ for(const area of areas){
+  const expected=catalog.entries.filter(x=>x.tabId===area.key);
+  assert.deepEqual([...area.children.keys()],[...new Set(expected.map(x=>x.panelId||x.panel||'other'))]);
+  const result=[...area.children.values()].flatMap(panel=>Menu.descendants(panel).map(x=>x.id));
+  assert.deepEqual(new Set(result),new Set(expected.map(x=>x.id)));
+ }
+});
