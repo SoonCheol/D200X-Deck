@@ -28,12 +28,6 @@ function category(v){
  if(/file|save|open|export|import|저장|열기|파일/.test(t))return 'file';
  return 'other';
 }
-const importance=v=>{
- const s=(v.id+' '+v.name).toLowerCase();
- const preferred=['line','rectangle','circle','dimension','trim','extrude','fillet','chamfer','hole','revolve','offset','project','move','mirror','pattern','save','undo','redo'];
- const i=preferred.findIndex(w=>s.includes(w));
- return i<0?1000:i;
-};
 function makePagesFromCatalog(type){
  const mode=$('visibility').value;
  const items=Curation.visibleItems(commands,mode,capturedUI)
@@ -115,6 +109,14 @@ function showDetail(v){
  for(const [label,value] of [['명령 ID',v.id],['영문명',v.en||'정보 없음'],['한글명',v.ko||'정보 없음'],['작업 영역',category(v)],['메뉴·툴바 경로',v.path||'정보 없음']]){
   const dt=document.createElement('dt'),dd=document.createElement('dd');
   dt.textContent=label;dd.textContent=value;dl.append(dt,dd);
+ }
+ const nameKey=String(v.ko||v.name||'').trim();
+ const similar=commands.filter(other=>other.id!==v.id&&String(other.ko||other.name||'').trim()===nameKey);
+ if(similar.length){
+  const dt=document.createElement('dt'),dd=document.createElement('dd');
+  dt.textContent='동일 이름 ID';
+  dd.textContent=similar.map(item=>item.id).join(', ')+' (서로 다른 명령 ID, 기능 동일 여부 미확인)';
+  dl.append(dt,dd);
  }
  $('detail').style.display='block';
 }
