@@ -588,7 +588,23 @@ function renderInstalledSdkPlugins(root,query){
     if(!matching.length)continue;
     const section=document.createElement('section');section.className='group';
     const title=document.createElement('div');title.className='group-title';
-    title.textContent=plugin.name+' ('+plugin.version+')';
+    const heading=document.createElement('span');heading.textContent=plugin.name+' ('+plugin.version+')';
+    title.append(heading);
+    const isFusion=plugin.uuid==='com.autodesk.fusionstreamdeck';
+    const isHa=plugin.uuid==='de.perdoctus.streamdeck.homeassistant';
+    if(isFusion||isHa){
+      const info=document.createElement('button');info.type='button';info.textContent='?';
+      info.title=plugin.name+' 사용법';info.setAttribute('aria-label',plugin.name+' 도움말');
+      info.style.cssText='float:right;border:1px solid #777;border-radius:50%;height:22px;width:22px;background:#414141;color:white';
+      info.onclick=event=>{
+        event.stopPropagation();
+        const message=isHa
+          ?'Home Assistant 사용법\\n\\n1. Home Assistant 프로필에서 장기 액세스 토큰을 발급합니다.\\n2. Home Assistant 장치 제어를 D200X 키로 드래그합니다.\\n3. 해당 키의 설정 열기를 눌러 HA 서버 주소와 토큰을 입력합니다.\\n4. 연결되면 서버의 엔티티 목록에서 전등·스위치 등을 선택합니다.\\n5. 토큰은 비밀번호처럼 보관하며 GitHub에 저장하지 않습니다.'
+          :'Fusion 360 사용법\\n\\n1. Fusion 360을 실행합니다.\\n2. Scripts and Add-Ins에서 FusionStreamDeck을 실행하고 Run on Startup을 체크합니다.\\n3. 이 플러그인의 Run Command를 D200X 버튼에 드래그합니다.\\n4. 속성에서 명령을 검색·선택합니다.\\n5. 애드인 연결 후 원본 아이콘이 나타나며 키로 명령을 실행할 수 있습니다.\\n\\nFusion이 설치되지 않았었다면 플러그인 탭의 Fusion 애드인 설치 버튼을 눌러주세요.';
+        alert(message);
+      };
+      title.append(info);
+    }
     const body=document.createElement('div');
     title.addEventListener('click',()=>{body.hidden=!body.hidden;});
     for(const action of matching){
@@ -724,6 +740,22 @@ function bindActionAppearance(){
   fromDir.className='plugin-add-button';fromDir.textContent='＋ 폴더에서 추가';
   fromDir.title='개발자 배포 .sdPlugin 폴더 설치';
   fromDir.addEventListener('click',()=>installSdkPlugin(true));pluginToolbar.append(fromDir);
+  const fusionManager=document.createElement('button');fusionManager.type='button';
+  fusionManager.className='plugin-add-button';fusionManager.textContent='Fusion 명령 관리자 열기';
+  fusionManager.onclick=async()=>{
+    try{await window.deckBridge.openFusionManager()}catch(error){window.d200xActionStatus?.('Fusion Manager 실행 실패: '+error.message)}
+  };
+  pluginToolbar.append(fusionManager);
+  const addin=document.createElement('button');addin.type='button';
+  addin.className='plugin-add-button';addin.textContent='Fusion 애드인 설치';
+  addin.onclick=async()=>{
+    try{
+     const result=await window.deckBridge.installFusionAddin();
+     window.d200xActionStatus?.('Fusion 애드인: '+(result.message||result.status));
+    }catch(error){window.d200xActionStatus?.('Fusion 애드인 설치 실패: '+error.message)}
+  };
+  pluginToolbar.append(addin);
+
   host.after(pluginToolbar);
   updatePluginToolbar();
 }
