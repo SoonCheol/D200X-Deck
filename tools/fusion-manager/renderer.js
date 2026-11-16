@@ -224,7 +224,7 @@ $('dockToggle').onclick=async()=>{
  try{const result=await window.fusionManager.dock('toggle');
   if(!result.available){status('자석 기능은 DeckForge 통합 설치에서 사용 가능합니다.');return}
   $('dockToggle').textContent=result.enabled?'자석 켜짐':'자석 꺼짐';
-  status(result.attached?'두 창이 자석으로 연결됐습니다.':result.enabled?'두 창을 가까이 이동하면 자동 결합합니다.':'자석 연결을 해제했습니다.');
+  // The button itself is the only magnet state indicator.
  }catch(e){status('자석 설정 오류: '+e.message)}
 };
 
@@ -440,7 +440,8 @@ $('collectIcons').onclick=async()=>{
 
 let viewMode='explore';
 async function switchMode(mode){
- if(!['explore','pages'].includes(mode))return;
+ // Page creation remains in source for possible future use, but is disabled in 1.1.
+ if(mode!=='explore')return;
  viewMode=mode;
  document.body.classList.toggle('page-mode',mode==='pages');
  $('explorer').hidden=mode==='pages';$('pageEditor').hidden=mode!=='pages';
@@ -496,4 +497,4 @@ document.addEventListener('click',e=>{if(!$('context').contains(e.target))$('con
 $('save').onclick=async()=>{try{const result=await window.fusionManager.save(project(),'Fusion-Layout.project.json');if(result)status('프로젝트 저장: '+result)}catch(e){status(e.message)}};
 $('open').onclick=async()=>{try{const result=await window.fusionManager.open();if(!result)return;validateProject(result.data);pages=result.data.pages.map(p=>({name:p.name,enabled:p.enabled,reserved:p.reserved,slots:p.slots}));$('profile').value=result.data.profileName;render();status('프로젝트 불러오기 완료')}catch(e){status('불러오기 실패: '+e.message)}};
 $('export').onclick=async()=>{try{const data=exportData();const result=await window.fusionManager.save(data,'D200X-Fusion-Commands.json');if(result)status('DeckForge 등록용 JSON 생성: '+result)}catch(e){status('내보내기 실패: '+e.message)}};
-Promise.all([window.fusionManager.catalog(),window.fusionManager.loadVisibility().catch(()=>({})),window.fusionManager.loadCapture().catch(()=>null),window.fusionManager.menuCatalog()]).then(([data,overrides,lastCapture,menu])=>{menuCatalog=menu;visibilityOverrides=overrides;if(lastCapture){try{capturedUI=Curation.validateCapture(lastCapture);$('captureStatus').textContent='저장된 Fusion UI 수집 '+capturedUI.entries.size+'개 ID';}catch{capturedUI=null}}commands=normalizeCatalogue(data);if(!commands.length)throw Error('명령 카탈로그를 읽었지만 지원되는 명령이 없습니다.');pages=[empty()];render();status('메뉴에서 명령을 찾아 DeckForge 또는 페이지 편집기로 드래그하세요.');}).catch(e=>{pages=[empty()];render();status('카탈로그 오류: '+e.message)});
+Promise.all([window.fusionManager.catalog(),window.fusionManager.loadVisibility().catch(()=>({})),window.fusionManager.loadCapture().catch(()=>null),window.fusionManager.menuCatalog()]).then(([data,overrides,lastCapture,menu])=>{menuCatalog=menu;visibilityOverrides=overrides;if(lastCapture){try{capturedUI=Curation.validateCapture(lastCapture);$('captureStatus').textContent='저장된 Fusion UI 수집 '+capturedUI.entries.size+'개 ID';}catch{capturedUI=null}}commands=normalizeCatalogue(data);if(!commands.length)throw Error('명령 카탈로그를 읽었지만 지원되는 명령이 없습니다.');pages=[empty()];render();status('DeckForge 버튼으로 명령을 드래그하세요.');}).catch(e=>{pages=[empty()];render();status('카탈로그 오류: '+e.message)});
