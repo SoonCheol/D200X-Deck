@@ -6,6 +6,7 @@ on:
       - codex/streamdeck-761-clean-editor
     paths:
       - 'tools/fusion-manager/**'
+      - 'tools/fusion-mcp/fusion-ui-inventory.py'
       - 'app/streamdeck-editor/fusion-batch.js'
       - 'test/fusion-manager-layout.test.cjs'
       - 'test/fusion-command-curation.test.cjs'
@@ -29,6 +30,8 @@ jobs:
       - name: Validate prototype sources and batch layout
         shell: pwsh
         run: |
+          python -m py_compile tools/fusion-mcp/fusion-ui-inventory.py
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           node --check tools/fusion-manager/main.cjs
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           node --check tools/fusion-manager/preload.cjs
