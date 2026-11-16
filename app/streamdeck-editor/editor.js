@@ -2145,7 +2145,7 @@ function renderInspector(){
     const sync=()=>{
       const raw=url.value.trim();
       if(!raw)return;
-      toggle.checked=/^https:\/\//i.test(raw);
+      if(/^https?:\/\//i.test(raw))toggle.checked=/^https:\/\//i.test(raw);
       const normalized=/^https?:\/\//i.test(raw)?raw:(toggle.checked?'https://':'http://')+raw;
       url.value=normalized;item.settings.url=normalized;persistInspectorChange();
     };
