@@ -19,13 +19,14 @@ test('all approved short-parameter actions have correct grouped fields',()=>{
     'edit-history':['operation','step'],
     'timer':['seconds','sound'],
     'audio-play':['fade','fadeDuration'],
-    'text':['enter','mode'],
-    'folder':['autoExitEnabled','autoExitSeconds']
+    'text':['enter','mode']
   };
   for(const [action,fields] of Object.entries(expected)){
     assert.deepEqual(Array.from(groups[action][0]),fields,action);
   }
   assert.match(editor,/groupCompactActionFields\(root,item\.type\)/);
+  assert.equal(groups.folder,undefined,'folder must use aligned standard fields rather than compressed grouped checkboxes');
+  assert.match(editor,/case "folder":return check\("autoExitEnabled","자동 나가기"\)/);
 });
 test('compact groups have a real grid layout with fixed total field width',()=>{
   assert.match(css,/\.fields>\.compact-property-group\s*\{[^}]*width:404px;[^}]*display:grid/s);
