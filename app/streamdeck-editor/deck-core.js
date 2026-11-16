@@ -676,8 +676,8 @@
     if(action.type==='hotkey')return {kind:'windows-hotkey',keys:String(action.settings?.keys||'')};
     if(action.type==='hotkey-switch')return {kind:'windows-hotkey-switch',
       first:String(action.settings?.first||''),second:String(action.settings?.second||'')};
-    if(action.type==='open')return {kind:'open-local-path',path:String(action.settings?.path||''),target:'auto',args:String(action.settings?.args||'')};
-    if(action.type==='open-app')return {kind:'open-local-path',path:String(action.settings?.app||''),args:String(action.settings?.args||''),target:'file',
+    if(action.type==='open')return {kind:'open-local-path',path:String(action.settings?.path||''),target:'auto',...(action.settings?.args?{args:String(action.settings.args)}:{})};
+    if(action.type==='open-app')return {kind:'open-local-path',path:String(action.settings?.app||''),...(action.settings?.args?{args:String(action.settings.args)}:{}),target:'file',
       foreground:action.settings?.foreground===true,hold:action.settings?.hold||'none'};
     if(action.type==='close')return {kind:'close-local-app',path:String(action.settings?.path||''),force:action.settings?.force===true};
     if(action.type==='file-open'||action.type==='folder-shortcut')
