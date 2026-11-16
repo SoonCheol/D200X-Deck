@@ -14,6 +14,7 @@ const { parseIconPack, readPacks, registerPack, removePack } = require('./icon-p
 const { safeStorage } = require('electron');
 const HA = require('./ha-client.cjs');
 const {StreamDeckPluginHost}=require('./sd-plugin-host.cjs');
+const Bundled=require('./bundled-integration.cjs');
 let sdkHost=null;
 function sdk(){
   if(!sdkHost)sdkHost=new StreamDeckPluginHost(app.getPath('userData'),payload=>send('d200x:sdk-event',payload),()=>window);
@@ -67,6 +68,30 @@ ipcMain.handle('d200x:fusion-icon-write',async(event,id,data)=>{
   return true;
 });
 ipcMain.handle('d200x:sdk-list',async event=>{assertEditor(event);return sdk().list();});
+ipcMain.handle('d200x:fusion-addin-install',async event=>{
+ assertEditor(event);return Bundled.installFusionAddin();
+});
+let fusionMagnet=null;
+ipcMain.handle('d200x:open-fusion-manager',async event=>{
+ assertEditor(event);
+ if(!window||window.isDestroyed())return false;
+ try{
+  const integrated=require('../fusion-manager/main.cjs');
+  const manager=await integrated.openEmbeddedManager((operation,argument)=>{
+   if(operation==='open-deckforge'){revealEditor();return true}
+   if(operation==='dock')return fusionMagnet?argument==='toggle'?fusionMagnet.toggle():fusionMagnet.status():{available:false,attached:false};
+   return false;
+  });
+  if(!fusionMagnet||fusionMagnet.window!==manager){
+   fusionMagnet=Bundled.createMagnet(window,manager,screen);
+   fusionMagnet.window=manager;
+   manager.on('closed',()=>{if(fusionMagnet?.window===manager)fusionMagnet=null});
+   fusionMagnet.attach();
+  }
+  return true;
+ }catch(error){console.warn('Fusion Manager 실행 오류:',error.message);throw error;}
+});
+
 ipcMain.handle('d200x:sdk-install',async event=>{
   assertEditor(event);
   const selected=await openRememberedPicker({
@@ -901,6 +926,13 @@ if(singleInstanceLock)app.whenReady().then(async () => {
       webSecurity: true,
     },
   });
+  // Install missing default SDK plugins without touching existing profiles/settings.
+  try{
+    const result=await Bundled.installMissingPlugins(sdk());
+    console.info('기본 SDK 플러그인 확인:',result);
+  }catch(error){console.warn('기본 플러그인 설치를 완료하지 못했습니다:',error.message);}
+  // Copy Fusion add-in only when Fusion already initialized its API/AddIns folder.
+  try{await Bundled.installFusionAddin()}catch(error){console.warn('Fusion 애드인 자동 복사 실패:',error.message);}
   await window.loadFile(path.join(__dirname, 'index.html'));
   window.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
   window.webContents.on('will-navigate', (event, url) => {
