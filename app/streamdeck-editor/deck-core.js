@@ -61,7 +61,7 @@
     st.visible=st.visible!==false;
     st.align=({left:'bottom',center:'middle',right:'top'}[st.align]) ||
       (['bottom','middle','top'].includes(st.align)?st.align:'bottom');
-    st.family=['default','Malgun Gothic','Segoe UI'].includes(st.family)?st.family:'default';
+    st.family=['default','DeckForge Pretendard','Malgun Gothic','Segoe UI'].includes(st.family)?st.family:'default';
     st.size=Math.max(8,Math.min(48,Number(st.size)||12));
     for(const key of ['bold','italic','underline'])st[key]=Boolean(st[key]);
     st.color=/^#[0-9a-fA-F]{6}$/.test(st.color)?st.color:'#ffffff';
