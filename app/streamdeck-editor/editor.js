@@ -120,8 +120,8 @@ const valueOf=(item,field,fallback="")=>item?.settings?.[field]??fallback;
 function keyName(item){return item?.title||ACTIONS.get(item?.type)?.label||"";}
 const sdkVisuals=new Map();
 const FUSION_PLUGIN='com.autodesk.fusionstreamdeck';
-const fusionIconCache=new Map(),fusionCachePending=new Set(),fusionCacheMisses=new Set(),
-  fusionConnected=new Set(),fusionOfflineContexts=new Set(),fusionLiveContexts=new Set();
+const fusionIconCache=new Map(),fusionCachePending=new Set(),fusionCacheMisses=new Map(),
+  fusionConnected=new Set(),fusionOfflineContexts=new Set(),fusionLiveContexts=new Set(),unverifiedFusionContexts=new Set();
 let fusionHealthAvailable=null,fusionHealthBusy=false;
 async function refreshFusionHealth(){
   if(fusionHealthBusy||!window.deckBridge?.fusionHealth)return;
@@ -150,11 +150,11 @@ function isFusionAction(item){return item?.type==='sd-plugin'&&
   item.settings?.pluginUUID===FUSION_PLUGIN&&
   typeof item.settings?.actionUUID==='string'&&item.settings.actionUUID.startsWith(FUSION_PLUGIN+'.');}
 function requestFusionIcon(id){
-  if(!id||fusionIconCache.has(id)||fusionCachePending.has(id)||fusionCacheMisses.has(id)||!window.deckBridge?.fusionIconRead)return;
+  if(!id||fusionIconCache.has(id)||fusionCachePending.has(id)||(fusionCacheMisses.has(id)&&Date.now()-fusionCacheMisses.get(id)<5000)||!window.deckBridge?.fusionIconRead)return;
   fusionCachePending.add(id);
   window.deckBridge.fusionIconRead(id).then(png=>{
     if(typeof png==='string'){fusionIconCache.set(id,png);renderGrid();window.scheduleDeckSync?.();}
-    else fusionCacheMisses.add(id);
+    else fusionCacheMisses.set(id,Date.now());
   }).catch(error=>console.warn('Fusion 아이콘 캐시 읽기 실패',error))
     .finally(()=>fusionCachePending.delete(id));
 }
@@ -166,10 +166,23 @@ async function rememberFusionIcon(id,image){
   }catch(error){console.warn('Fusion 아이콘 캐시 저장 실패',error);}
 }
 
+const fusionActionTokens=new WeakMap();
+let fusionTokenSerial=0;
 function sdkContext(index,gesture='down'){
   const folder=DeckCore.activeFolder(state);
-  return String(state.profileId)+':'+state.page+':'+(state.folderPath||[]).join('-')+
+  const base=String(state.profileId)+':'+state.page+':'+(state.folderPath||[]).join('-')+
     (folder?'-p'+(folder.pageIndex||0):'')+':'+index+':'+gesture;
+  const key=({'hold-left':'holdLeft','hold-right':'holdRight'})[gesture]||gesture;
+  const item=index<14?DeckCore.visibleActions(state)[index]:DeckCore.controlBinding(state,index)?.[key];
+  if(!isFusionAction(item))return base;
+  let token=fusionActionTokens.get(item);
+  if(!token){token='i'+(++fusionTokenSerial);fusionActionTokens.set(item,token);}
+  return base+':'+token;
+}
+function clearOldSdkVisual(index,gesture='down'){
+  const ctx=sdkContext(index,gesture);
+  sdkVisuals.delete(ctx);fusionLiveContexts.delete(ctx);
+  fusionOfflineContexts.delete(ctx);unverifiedFusionContexts.delete(ctx);
 }
 function pluginSlotContext(item){
   if(item?.type!=='sd-plugin')return '';
@@ -181,7 +194,7 @@ function sdkActionInstances(){
   const append=(item,index,gesture)=>{
     if(item?.type!=='sd-plugin')return;
     const settings=item.settings||{};
-    entries.push({context:sdkContext(index,gesture),slot:index,
+    entries.push({context:sdkContext(index,gesture),slot:index,gesture,
       pluginUUID:settings.pluginUUID,actionUUID:settings.actionUUID,
       settings:settings.pluginSettings||{}});
   };
@@ -291,8 +304,9 @@ function setItem(index,item){
     if(binding.mode!=='trigger'&&!(index>=16&&(
       controlGesture==='holdLeft'||controlGesture==='holdRight'||
       (controlGesture==='down'&&binding.mode==='adjust'))))binding.mode='trigger';
+    clearOldSdkVisual(index,({'holdLeft':'hold-left','holdRight':'hold-right'})[controlGesture]||controlGesture);
     binding[controlGesture]=item;
-  }else currentPage()[index]=item;
+  }else {clearOldSdkVisual(index);currentPage()[index]=item;}
   state.selected=index;persist();render();
 }
 function removeSlotAction(index){
@@ -311,6 +325,7 @@ function removeControlAction(index,gesture='down'){
   const binding=DeckCore.controlBinding(state,index);
   if(!binding||!binding[gesture])return false;
   if(!confirm('이 입력에 할당된 액션을 삭제하시겠습니까?'))return false;
+  clearOldSdkVisual(index,({'holdLeft':'hold-left','holdRight':'hold-right'})[gesture]||gesture);
   binding[gesture]=null;
   state.selected=index;controlGesture=gesture;
   persist();render();
@@ -342,6 +357,7 @@ function controlDrop(index,id,gesture='down'){
   if(!isAssignableAction(id))return;
   const binding=DeckCore.controlBinding(state,index);
   if(!binding)return;
+  clearOldSdkVisual(index,({'holdLeft':'hold-left','holdRight':'hold-right'})[gesture]||gesture);
   if(index>=16&&gesture==='down'&&['system-volume','system-scroll','edit-history','window-switch','desktop-switch','device-brightness','system-zoom'].includes(id)){
     // Rotation runs the shared adjustment planner; preserve the press assignment.
     binding.mode='adjust';binding.target=({
@@ -446,6 +462,7 @@ function renderWideInspector(){
   appendInspectorSaveBar(root);
 }
 function importFusionDraggedCommand(event,index){
+  if(inspectorSession?.dirty){window.d200xActionStatus?.('속성 편집을 저장하거나 취소한 후 드래그하세요.');return true;}
  const drag=window.DeckForgeFusionDrag;
  const cmd=drag?.decode(event.dataTransfer?.getData('text/plain')||'');
  if(!cmd)return false;
@@ -465,7 +482,8 @@ function importFusionDraggedCommand(event,index){
  action.settings.actionUUID=drag.ACTION;
  action.settings.actionName='Fusion 명령 실행';
  action.settings.pluginSettings={commandId:cmd.id,name:cmd.name};
- if(cmd.png){action.icon={kind:'file',value:cmd.png};void window.deckBridge?.fusionIconWrite?.(cmd.id,cmd.png).catch(error=>console.warn('Fusion 드래그 아이콘 저장 실패',error));}
+ const art=cmd.png||cmd.svg;
+  if(art){fusionIconCache.set(cmd.id,art);fusionCacheMisses.delete(cmd.id);void rememberFusionIcon(cmd.id,art);}
  setItem(index,action);
  window.d200xActionStatus?.('Fusion 명령 등록: '+cmd.name+' ('+cmd.id+')');
  return true;
@@ -3444,9 +3462,14 @@ if(window.deckBridge?.onSdkEvent){
       const index=sdkActionInstances().find(x=>x.context===ctx);
       if(index){
         const item=index.slot<14?DeckCore.visibleActions(state)[index.slot]:
-          DeckCore.controlBinding(state,index.slot)?.[ctx.split(':').at(-1)];
+          DeckCore.controlBinding(state,index.slot)?.[(({'hold-left':'holdLeft','hold-right':'holdRight'})[index.gesture]||index.gesture)];
         if(item?.type==='sd-plugin'){
+          const priorId=fusionCommandId(item);
           item.settings.pluginSettings=message.settings;
+          if(isFusionAction(item)&&priorId!==fusionCommandId(item)){
+            sdkVisuals.delete(ctx);fusionLiveContexts.delete(ctx);
+            fusionOfflineContexts.delete(ctx);unverifiedFusionContexts.add(ctx);
+          }
           persistInspectorChange();
         }
       }
@@ -3459,17 +3482,19 @@ if(window.deckBridge?.onSdkEvent){
       }}
       renderGrid();window.scheduleDeckSync?.();
     }else if(['setTitle','setImage','setState'].includes(message.kind)){
+      const active=sdkActionInstances().find(x=>x.context===ctx);
+      if(!active)return;
       const old=sdkVisuals.get(ctx)||{};
       if(message.kind==='setTitle'&&typeof message.payload?.title==='string')
         old.title=message.payload.title.slice(0,256);
-      if(message.kind==='setImage'&&typeof message.payload?.image==='string'&&
+      const validImage=message.kind==='setImage'&&typeof message.payload?.image==='string'&&
         /^data:image\/(png|jpeg|webp|svg\+xml);/.test(message.payload.image)&&
-        message.payload.image.length<1024*1024)
-        old.image=message.payload.image;
+        message.payload.image.length<1024*1024;
+      if(validImage)old.image=message.payload.image;
       if(message.kind==='setState')old.state=message.payload?.state;
       sdkVisuals.set(ctx,old);
-      if(message.kind==='setImage'&&old.image){
-        const cfg=sdkActionInstances().find(x=>x.context===ctx);
+      if(validImage){
+        const cfg=active;
         if(cfg?.pluginUUID===FUSION_PLUGIN){
           // Refresh Fusion's actual add-in status when artwork changes, not
           // just on the periodic check; the SDK plugin is a separate process.
@@ -3481,7 +3506,7 @@ if(window.deckBridge?.onSdkEvent){
           }else{
             fusionOfflineContexts.delete(ctx);
             fusionLiveContexts.add(ctx);
-            if(typeof cfg.settings?.commandId==='string')
+            if(typeof cfg.settings?.commandId==='string'&&!unverifiedFusionContexts.has(ctx))
               void rememberFusionIcon(cfg.settings.commandId,old.image);
           }
         }

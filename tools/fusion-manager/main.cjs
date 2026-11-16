@@ -178,4 +178,4 @@ const managerReady=app.whenReady().then(()=>{
  if(require.main===module){createWindow();app.on('activate',()=>{if(!BrowserWindow.getAllWindows().length)createWindow()});}
 });
 module.exports={openEmbeddedManager:async bridge=>{integratedBridge=bridge;await managerReady;if(embeddedWindow&&!embeddedWindow.isDestroyed()){embeddedWindow.show();embeddedWindow.focus();return embeddedWindow}return createWindow()},getEmbeddedWindow:()=>embeddedWindow};
-app.on('window-all-closed',()=>{if(process.platform!=='darwin')app.quit()});
+if(require.main===module)app.on('window-all-closed',()=>{if(process.platform!=='darwin')app.quit()});

@@ -291,7 +291,14 @@ class StreamDeckPluginHost{
         await this.ensure(cfg.pluginUUID);
         this.willAppear(ctx);
       }else{
-        ctx.settings=cfg.settings||{};ctx.slot=cfg.slot;
+        const incoming=cfg.settings||{};
+        const changed=JSON.stringify(ctx.settings)!==JSON.stringify(incoming);
+        ctx.settings=incoming;ctx.slot=cfg.slot;
+        if(changed){
+          ctx.lastState=undefined;
+          this.send(this.instances.get(cfg.pluginUUID)?.ws,{event:'didReceiveSettings',
+            action:ctx.actionUUID,context:ctx.context,device:DEVICE,payload:this.payload(ctx)});
+        }
         // A Node process can exit while its saved key remains assigned.
         // Re-establish it on the next explicit editor sync, not by resetting the profile.
         if(!this.instances.has(cfg.pluginUUID)){

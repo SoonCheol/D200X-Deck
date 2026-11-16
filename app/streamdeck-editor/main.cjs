@@ -52,10 +52,15 @@ function safeFusionCommand(id){return typeof id==='string'&&id!=='.'&&id!=='..'&
   /^[a-zA-Z0-9._-]{1,180}$/.test(id);}
 ipcMain.handle('d200x:fusion-icon-read',async(event,id)=>{
   assertEditor(event);if(!safeFusionCommand(id))return null;
-  try{
-    const bytes=await fs.promises.readFile(path.join(fusionCacheDir(),id+'.png'));
-    return bytes.length<=1024*1024?'data:image/png;base64,'+bytes.toString('base64'):null;
-  }catch(error){if(error.code==='ENOENT')return null;throw error;}
+  const trusted=path.join(app.getPath('userData'),'original-fusion-icons');
+  for(const [dir,ext,mime] of [[trusted,'png','image/png'],[trusted,'svg','image/svg+xml'],[fusionCacheDir(),'png','image/png']]){
+    try{
+      const bytes=await fs.promises.readFile(path.join(dir,id+'.'+ext));
+      if(bytes.length>=8&&bytes.length<=768*1024&&(ext!=='png'||bytes.subarray(0,8).toString('hex')==='89504e470d0a'))
+        return 'data:'+mime+';base64,'+bytes.toString('base64');
+    }catch(error){if(error.code!=='ENOENT')throw error;}
+  }
+  return null;
 });
 ipcMain.handle('d200x:fusion-icon-write',async(event,id,data)=>{
   assertEditor(event);

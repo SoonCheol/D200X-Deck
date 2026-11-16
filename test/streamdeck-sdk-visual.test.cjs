@@ -126,3 +126,9 @@ test('Fusion unavailable add-in adds X even if Stream Deck plugin stays connecte
   assert.equal(result.fusionOffline,true);
   assert.equal(result.icon.value,image);
 });
+
+test('Fusion drag payload retains SVG command artwork',()=>{
+ const drag=require('../app/streamdeck-editor/fusion-drag.cjs');
+ const svg='data:image/svg+xml;base64,'+Buffer.from('<svg/>').toString('base64');
+ assert.equal(drag.decode(drag.encode({id:'ExtrudeCommand',name:'돌출',svg})).svg,svg);
+});

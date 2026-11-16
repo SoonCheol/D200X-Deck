@@ -296,7 +296,9 @@ function renderExplorer(){
    card.onkeydown=e=>{if(e.key==='Enter'){e.preventDefault();showDetail(v)}};
    card.ondragstart=e=>{
      hideTooltip();drag=null;
-     const payload=FusionDrag.encode({id:v.id,name:v.ko||v.name,png:iconCache.get(v.id)||null});
+     const art=iconCache.get(v.id)||null;
+      const payload=FusionDrag.encode({id:v.id,name:v.ko||v.name,
+        png:art?.startsWith('data:image/png;')?art:null,svg:art?.startsWith('data:image/svg+xml;')?art:null});
      e.dataTransfer.setData('text/plain',payload);
      e.dataTransfer.setData('application/x-deckforge-fusion-command',payload);
      e.dataTransfer.effectAllowed='copyMove';
