@@ -415,3 +415,13 @@ editor-ui (Stream Deck식 UI, Electron renderer)
 - [x] 프리셋을 전용 `localStorage`(`deckforge-title-style-presets-v1`)에 보관해 프로필 JSON 및 다른 버튼 설정과 분리. 적용 시 기존 `titleStyle` 경로를 사용하므로 편집기 미리보기·D200X PNG 동기화로 이어짐.
 - [ ] Windows GUI에서 팝업 열림·저장·선택·삭제·프로필 유지 및 실제 D200X 출력 확인. 자동 CI 성공은 실기 확인과 다름.
 - **범위 제한:** 사용자 Windows 글꼴 검색, 원본 Stream Deck 프로필 가져오기, 프리셋의 다른 PC로 내보내기는 이번 기능에 포함하지 않음.
+
+## 2026-11-16 — 글꼴 팝업/제목 표시 레이아웃 조정 및 프리셋 즉시 반영
+
+- [x] 제목 행의 기존 `제목` 라벨을 `제목 표시` 체크박스로 교체하고 제목 입력 및 내부 `T⌄` 글꼴 버튼 유지. 기존 `titleStyle.visible` 저장값 그대로 사용.
+- [x] 글꼴 팝업에 있던 중복 `제목 보기` 체크박스 및 `글꼴 프리셋` 타이틀 제거. 선택기 내부 `프리셋 선택` 옵션은 그대로 유지. 팝업 폭 277px 유지.
+- [x] 프리셋 선택 시 기존 `titleStyle` 객체를 제자리에서 갱신하고 글꼴·크기·굵기·기울임·밑줄·정렬·표시 여부·글자색·외곽선색·두께의 입력 표시를 즉시 동기화. 팝업을 닫거나 재생성하지 않음.
+- [x] 기존 D200X PNG 렌더러 `drawText`의 기본 Pretendard 적용 유지. 제목 표시 체크는 `visible=false`인 경우 PNG 텍스트를 생략하며 제목 문자열은 보존.
+- [x] `test/streamdeck-inspector-layout.test.cjs`에 회귀 테스트 추가. 기존 액션·프로필·HID·플러그인 동작 구조는 변경하지 않음.
+- [ ] CI 결과 및 Windows 설치 EXE 산출물 확인.
+- [ ] Windows GUI 시각 검증 및 물리 D200X 제목 표시·프리셋·Pretendard 실제 반영 확인 (별도 사용자 실기).
