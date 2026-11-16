@@ -3127,6 +3127,20 @@ function bindSidebarHeader(){
         const id=DeckCore.createProfile(state,name,true,profile.id);
         if(id){DeckCore.switchProfile(state,id);persist();render();}
       }));
+      entry(tools,'프로필 JSON 내보내기',run(()=>{
+        const payload=DeckCore.exportSingleProfile(state,profile.id);
+        const blob=new Blob([JSON.stringify(payload,null,2)],{type:'application/json;charset=utf-8'});
+        const url=URL.createObjectURL(blob),link=document.createElement('a');
+        const safeName=profile.name.replace(/[\\/:*?"<>|\\x00-\\x1f]/g,'_').trim().slice(0,64)||'profile';
+        try{
+          link.href=url;
+          link.download='D200X-profile-'+safeName+'.json';
+          document.body.append(link);link.click();
+          window.d200xActionStatus?.('개별 프로필 JSON 내보내기: '+profile.name);
+        }finally{
+          link.remove();setTimeout(()=>URL.revokeObjectURL(url),1000);
+        }
+      }));
       entry(tools,(profile.smartEnabled?'✓ ':'')+'Smart Profile 사용',()=>{
         profile.smartEnabled=!profile.smartEnabled;
         state.smartProfilesEnabled=state.profileNames.some(p=>p.smartEnabled);
