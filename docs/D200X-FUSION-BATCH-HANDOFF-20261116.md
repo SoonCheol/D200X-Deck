@@ -61,3 +61,12 @@
 
 - 이번 작업은 **최신 GitHub 소스 및 문서 검토·인수인계 기록**이며 **Fusion 코드·설정·프로필·장치·Windows EXE를 변경하지 않음**.
 - 새 채팅에서 실제 Fusion 일괄 등록의 개선·수정·빌드는 사용자 요청 범위에 맞춰 수행한다.
+
+## 7. 2026-11-16 신규 독립 Fusion Command Manager 시제품
+
+- 사용자 보고: 기존 DeckForge의 Fusion 360 JSON 자동 등록은 실기 **성공**. 과거 문서의 '실기 미확인'은 그 보고 이전 상태.
+- tools/fusion-manager/ 에 별도 Electron GUI 0.1을 생성. 한 화면 다중 5/5/3 페이지, 드래그 삽입·뒤로 밀기, 임의 슬롯 우클릭 예약, 페이지별 등록 체크박스, 프로젝트 JSON 저장/불러오기, 선택 페이지 등록용 JSON 생성. Fusion 폴더는 이번 범위에서 생성하지 않음.
+- app/streamdeck-editor/fusion-batch.js는 기존 v1 commands-only JSON을 그대로 인식하며, 새 JSON의 선택적 layoutPages 항목을 13슬롯/페이지로 검증하여 빈 예약 위치를 보존.
+- test/fusion-manager-layout.test.cjs 회귀 검사와 .github/workflows/fusion-manager-preview.yml Windows EXE 패키징 워크플로 추가. CI와 실제 Windows EXE/사용자 Fusion 실기는 구분.
+- 카탈로그의 전체 명령 실행 가능성 미검증, 추천 순서는 임시 작업 중요도 우선(인터넷 사용량 실측 아님). 아이콘 UI/웹 근거 기반 점수는 후속 개선.
+- 전용 Windows EXE 아티팩트는 GitHub Actions 결과 조회로만 성공 판정. 이번 작업에서 로컬 사용자 데이터·Fusion 디자인·main·PR 상태 변경 없음.
