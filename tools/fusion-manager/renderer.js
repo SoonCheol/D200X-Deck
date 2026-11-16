@@ -153,6 +153,24 @@ function showDetail(v){
  $('detail').style.display='block';
 }
 $('detailClose').onclick=()=>$('detail').style.display='none';
+function displayHelpMarkdown(markdown){
+ const box=$('helpContent');box.replaceChildren();let list=null;
+ for(const source of String(markdown).split(/\r?\n/)){
+  const line=source.trim();
+  if(!line){list=null;continue}
+  const head=/^(#{1,3})\s+(.+)$/.exec(line);
+  if(head){const h=document.createElement('h'+Math.min(head[1].length+1,3));h.textContent=head[2];box.append(h);list=null;continue}
+  const bullet=/^[-*]\s+(.+)$/.exec(line),numbered=/^\d+\.\s+(.+)$/.exec(line);
+  if(bullet||numbered){const tag=numbered?'ol':'ul';if(!list||list.tagName.toLowerCase()!==tag){list=document.createElement(tag);box.append(list)}const li=document.createElement('li');li.textContent=(bullet||numbered)[1];list.append(li);continue}
+  const p=document.createElement('p');p.textContent=line;box.append(p);list=null;
+ }
+}
+$('helpOpen').onclick=async()=>{
+ try{displayHelpMarkdown(await window.fusionManager.helpMarkdown());$('helpDialog').showModal();}
+ catch(e){status('도움말 파일을 읽을 수 없습니다: '+e.message)}
+};
+$('helpClose').onclick=()=>$('helpDialog').close();
+
 
 function renderExplorer(){
  if(!commands.length)return;
