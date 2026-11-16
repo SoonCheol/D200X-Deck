@@ -9,6 +9,18 @@ function createWindow(){
 }
 app.whenReady().then(()=>{
  ipcMain.handle('catalog',async()=>JSON.parse(await fs.readFile(path.join(__dirname,'fusion-command-catalog-final.json'),'utf8')));
+ // DeckForge's existing Fusion artwork cache is shared read-only.
+ // Never change DeckForge userData, cached icons, or Fusion add-in files.
+ const iconDir=path.join(app.getPath('appData'),'D200X StreamDeck Device Sync','fusion-command-icons');
+ ipcMain.handle('fusion-icon',async(_e,id)=>{
+   if(typeof id!=='string'||!(/^[a-zA-Z0-9._-]{1,180}$/).test(id)||id==='.'||id==='..')return null;
+   try{
+     const bytes=await fs.readFile(path.join(iconDir,id+'.png'));
+     if(bytes.length<8||bytes.length>768*1024||
+        bytes.subarray(0,8).toString('hex')!=='89504e470d0a1a0a')return null;
+     return 'data:image/png;base64,'+bytes.toString('base64');
+   }catch(error){if(error.code==='ENOENT')return null;throw error}
+ });
  ipcMain.handle('save-json',async(_e,{data,defaultName})=>{
    const {canceled,filePath}=await dialog.showSaveDialog({title:'JSON 저장',defaultPath:defaultName||'Fusion-Layout.json',filters:[{name:'JSON',extensions:['json']}]});
    if(canceled||!filePath)return null;
