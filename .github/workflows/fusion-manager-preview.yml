@@ -8,6 +8,8 @@ on:
       - 'tools/fusion-manager/**'
       - 'tools/fusion-mcp/fusion-ui-inventory.py'
       - 'app/streamdeck-editor/fusion-batch.js'
+      - 'app/streamdeck-editor/fusion-drag.cjs'
+      - 'test/fusion-menu-navigation.test.cjs'
       - 'test/fusion-manager-layout.test.cjs'
       - 'test/fusion-command-curation.test.cjs'
       - '.github/workflows/fusion-manager-preview.yml'
@@ -36,9 +38,15 @@ jobs:
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           node --check tools/fusion-manager/preload.cjs
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          node --check app/streamdeck-editor/fusion-drag.cjs
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          node --check tools/fusion-manager/menu-tree.cjs
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           node --check tools/fusion-manager/command-curation.cjs
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           node --check tools/fusion-manager/renderer.js
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          node --test test/fusion-menu-navigation.test.cjs
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           node --test test/fusion-command-curation.test.cjs
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
@@ -52,7 +60,8 @@ jobs:
           $ErrorActionPreference = 'Stop'
           $dst = 'app/fusion-manager-build'
           New-Item -ItemType Directory -Force $dst | Out-Null
-          Copy-Item 'tools/fusion-manager/main.cjs','tools/fusion-manager/preload.cjs','tools/fusion-manager/index.html','tools/fusion-manager/renderer.js','tools/fusion-manager/command-curation.cjs' $dst
+          Copy-Item 'tools/fusion-manager/main.cjs','tools/fusion-manager/preload.cjs','tools/fusion-manager/index.html','tools/fusion-manager/renderer.js','tools/fusion-manager/command-curation.cjs','tools/fusion-manager/menu-tree.cjs' $dst
+          Copy-Item 'app/streamdeck-editor/fusion-drag.cjs' "$dst/fusion-drag.cjs"
           Copy-Item 'tools/fusion-mcp/fusion-command-catalog-final.json' "$dst/fusion-command-catalog-final.json"
           '{"name":"fusion-command-manager","productName":"Fusion Command Manager","version":"0.1.0","private":true,"main":"main.cjs"}' | Set-Content "$dst/package.json" -Encoding utf8
           $catalog=Get-Content -Raw "$dst/fusion-command-catalog-final.json" | ConvertFrom-Json
