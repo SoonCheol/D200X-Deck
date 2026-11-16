@@ -3131,7 +3131,7 @@ function bindSidebarHeader(){
         const payload=DeckCore.exportSingleProfile(state,profile.id);
         const blob=new Blob([JSON.stringify(payload,null,2)],{type:'application/json;charset=utf-8'});
         const url=URL.createObjectURL(blob),link=document.createElement('a');
-        const safeName=profile.name.replace(/[\\/:*?"<>|\\x00-\\x1f]/g,'_').trim().slice(0,64)||'profile';
+        const safeName=profile.name.replace(/[\\/:*?"<>|]/g,'_').replace(/[\u0000-\u001f]/g,'_').trim().slice(0,64)||'profile';
         try{
           link.href=url;
           link.download='D200X-profile-'+safeName+'.json';
