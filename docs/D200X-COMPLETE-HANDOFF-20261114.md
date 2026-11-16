@@ -601,3 +601,9 @@
 - **보류 / 미구현:** Elgato `.streamDeckProfile`을 DeckForge 새 프로필로 안전하게 변환하여 가져오는 기능. 사용자 지시로 **로드맵에 체크리스트만 기록**하며 구현·빌드 금지.
 - 세부 체크 항목과 완료 기준: [로드맵의 '후속 개발 보류 — Elgato Stream Deck 원본 프로필 가져오기'](D200X-STREAMDECK-ROADMAP.md#후속-개발-보류--elgato-stream-deck-원본-프로필-가져오기-2026-11-16).
 - 기존 DeckForge JSON 프로필·설정 보호, 원본 글꼴명 보존/누락 안내, D200X 키·노브 배치 변환, 비호환 액션 고지 등을 추후 검토. 원본 파일 형식의 실측 호환성은 아직 검증하지 않음.
+
+## 2026-11-16 — 내장 Pretendard를 D200X 버튼 제목 기본 글꼴로 연결
+
+- `device-sync.js`의 캔버스 `drawText` 기본 family를 내장 `DeckForge Pretendard`로 바꾼 코드 변경. 편집기 제목 미리보기와 글꼴 선택기에도 동일한 글꼴 연결. `deck-core.js` 선택 글꼴 화이트리스트 확장.
+- `default` 프로필 값은 그대로 보존하고 이전에 명시된 맑은 고딕 / Segoe UI는 유지. 일반 사용자 설치 글꼴 검색 기능은 별도 미래 과제.
+- D200X 실제 화면 글꼴은 설치된 EXE로 사용자 검증 필요. HTML/CSS·JS 정적 수정 확인 또는 Actions 성공을 실기 확인으로 처리하지 말 것.
