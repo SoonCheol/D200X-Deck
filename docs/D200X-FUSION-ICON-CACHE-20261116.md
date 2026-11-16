@@ -38,3 +38,14 @@
 - 회귀 테스트: 정상 아이콘+이벤트 누락, 비접속 SVG+캐시 아이콘을 별도로 검증.
 - 수정 커밋: `04c9a66f84c1f03bb443f77cef649eff64c1236c`; 테스트: `04774b98dda49efe5acb5b2f6f2604661c0b16d2`.
 - Windows 실기 동작은 새 설치 파일에서 사용자 확인 필요.
+
+
+## 2026-11-16 Fusion 종료 후 X 누락 수정
+- 실제 실기: Fusion 360 실행 중 이미지는 나타나지만 종료 후에도 X 오버레이가 나타나지 않음.
+- 근본 원인: Fusion SDK Node 플러그인 WebSocket은 Fusion 응용프로그램과 독립되어 종료 후에도 연결될 수 있고, 정상 이미지가 메모리에 남음.
+- AutodeskFusion360/FusionStreamDeck 원본 파일을 확인해 Windows `%LOCALAPPDATA%\\FusionStreamDeck\\endpoint.json` 의 `status: running` 및 `127.0.0.1:<port>/health` 엔드포인트를 확인함.
+- DeckForge 메인 프로세스에 **실제 Fusion add-in 상태 확인** 기능 추가. 3초 주기 및 Fusion 이미지 업데이트 시 즉시 조회, 편집기와 USB PNG 동시 반영. HTTP 타임아웃 1.2초, 응답 크기 8KiB 제한, 루프백으로만 요청.
+- Fusion add-in 서버 /health 확인에 성공하면 X 제거, 종료 또는 응답 불가 시 X 표시. SDK 연결 상태/아이콘 자체의 수명과 분리.
+- 테스트에 SDK 연결 유지 + Fusion 종료, SDK 연결 이벤트 누락 + Fusion 실행 시나리오 추가.
+- 변경 파일: `app/streamdeck-editor/main.cjs`, `preload.cjs`, `editor.js`, `test/streamdeck-sdk-visual.test.cjs`.
+- 커밋 `7975d699727046aa1c1687dcd9c457fd4857cd9e`; Windows 실기 확인은 아직 필요.
