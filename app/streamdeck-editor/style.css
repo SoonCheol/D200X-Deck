@@ -700,3 +700,9 @@
 .title-preset-row button{flex:none;width:29px;height:30px;border:1px solid #666;border-radius:4px;background:#505050;color:#eee;padding:0;font-size:18px;line-height:1;}
 .title-preset-row button:hover:not(:disabled){background:#606060;}
 .title-preset-row button:disabled{opacity:.35;cursor:default;}
+
+/* Title visibility belongs beside its input, not inside the typography popover. */
+.fields>.field.title-setting-field{grid-template-columns:92px minmax(0,404px);}
+.fields>.field.title-setting-field>.title-visible-label{display:flex;justify-content:flex-end;align-items:center;gap:5px;white-space:nowrap;cursor:pointer;font-size:12px;}
+.fields>.field.title-setting-field>.title-visible-label input[type=checkbox]{width:15px;height:15px;margin:0;flex:none;min-height:0;accent-color:#2676c1;}
+@media(max-width:1000px){.fields>.field.title-setting-field{grid-template-columns:92px minmax(0,404px);}}
