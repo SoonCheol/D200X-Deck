@@ -1,3 +1,9 @@
+## 2026-11-16 — Fusion Command Manager 상단 Markdown 도움말 및 하단 안내문 제거
+
+- `tools/fusion-manager/index.html`의 고정 하단 안내문을 제거하고 상단 오른쪽에 `? 도움말` 버튼과 닫기 가능한 도움말 대화상자를 추가.
+- `tools/fusion-manager/HELP.md`를 로컬 설치 패키지에 포함하고 IPC로 읽어 표시. Fusion 실행/애드인 연결이 필요한 기능과 오프라인 탐색 및 Codex MCP 기능의 전제조건을 구분하여 안내.
+- `.github/workflows/fusion-manager-preview.yml`에 `HELP.md` 패키징 및 테스트 추가. **DeckForge 본체 및 사용자 프로필 미변경.** Windows GUI/실제 연결은 사용자 PC 테스트 필요. CI/Windows 빌드 결과는 실행별 확인 후에만 성공 표기.
+
 ## 2026-11-16 — Fusion Command Manager 실제 메뉴 순서 적용 (최신 코드)
 
 - 사용자 우선순위: Fusion 디자인 메뉴의 **스케치 → 솔리드 → 곡면 → 메쉬 → 판금 → 플라스틱 → 매니지 → 유틸리티 → 자동화** 순서, 각 탭 패널 왼쪽→오른쪽, 접힌 드롭다운 자식 위→아래. 메뉴 외 API 전용 명령 분류 작업은 이번 범위에서 제외.
