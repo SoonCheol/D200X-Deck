@@ -1,3 +1,12 @@
+## 2026-11-16 — DeckForge 1.1 UI 수정 일괄 반영 / Windows 설치 빌드 성공
+
+- **사용자 승인 범위(1~16 중 최신 결정):** 현재 액션·버튼·폰트·간격 유지, 플러그인 공통 버튼의 네 줄 강제 줄바꿈 제거(문자열 기준 최소 너비와 한 줄), `Fusion 명령 관리자 열기`는 Fusion 360 `Run Command` 아래로 이동, `Fusion 애드인 설치`는 Fusion 전용 `?` 도움말 최상단으로 이동하고 설치 결과/절차 설명. HA 도움말은 장기 토큰·자동 엔티티 조회 안내.
+- **Fusion Manager:** 상단 버튼을 `Fusion Command Manager → 명령 드래그 → DeckForge 열기 → 자석 켜짐/꺼짐 → ? 도움말` 순서로 한 줄 유지. 페이지 생성은 UI에서 숨김/진입 차단하되 관련 코드·기존 JSON 형식 보존. 창 모드 전환 시 크기 강제 확장 제거. 자석 전환 상태 안내 메시지 제거. DeckForge 창에는 자석 버튼 추가하지 않음.
+- **자석:** 결합 시 기본 창 테두리 가시 간격 축소(7px 범위 중첩), 가까이 왔을 때만 자동 결합, DeckForge 높이에 따라 Manager 높이 조정. 실제 Windows 창 크롬 및 사용자의 배율에서 거리·간격은 실기 검증 필요.
+- **아이콘:** DeckForge 기본 원자 아이콘을 Windows 트레이에서 20px로 표시. Fusion Manager는 승인된 원자 궤도 + 오렌지 Fusion 심볼의 이미지 기반 압축 리소스를 빌드 시 PNG/ICO로 복원하여 Manager BrowserWindow 및 시작 메뉴 바로가기에 지정. 승인된 원본 고해상도 미리보기와 달리 설치용 이미지는 텍스트 전송 제약으로 80px로 축소된 파일에서 복원하며 확대 시 화질 차이가 날 수 있음.
+- **검증:** [CI #43875909113](https://github.com/SoonCheol/D200X-Deck/actions/runs/43875909113) **success**, [Windows 통합 설치 #43875909100](https://github.com/SoonCheol/D200X-Deck/actions/runs/43875909100) **success**. 설치형 `DeckForge-1.1-Setup-win-x64` artifact ID `14229428866` (131,808,367B), 포터블 `DeckForge-1.1-win-x64` ID `14230467289` (176,974,749B), 당시 expired=false. 포괄적 GUI/실제 Fusion·HA·D200X 실기 검증은 별도로 사용자 PC 필요.
+- **브랜치 정책:** 지정 브랜치에만 커밋. PR #5 유지, 병합하지 않음. 저장된 프로필/HA 토큰 및 플러그인 설치 정보 변경 없음.
+
 ## 2026-11-16 — DeckForge 1.1 통합 설치 빌드 성공 (Windows GUI/실기 대기)
 
 - **사용자 승인:** DeckForge와 Fusion Command Manager 통합 설치/상호 실행, FusionStreamDeck과 Home Assistant 기본 SDK 플러그인 내장, Fusion Python 애드인 자동 복사 및 나중 설치 버튼, 양 플러그인 사용법 도움말, Fusion 원본 아이콘 연결 시 로컬 수집, 두 창 자석 결합(DeckForge 높이 기준) 및 ON/OFF·선호 저장. 기능 구현 후 버전 1.1.0.
