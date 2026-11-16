@@ -74,20 +74,6 @@ function reserve(pi,i){
  }
  render();
 }
-function fallbackIcon(v){
- const t=(v?.id||'')+' '+(v?.name||'');
- if(/circle|원형|원/.test(t))return '◯';
- if(/rectangle|square|사각/.test(t))return '▣';
- if(/line|선/.test(t))return '╱';
- if(/extrud|돌출/.test(t))return '⬡';
- if(/fillet|모깎|모따|chamfer/.test(t))return '◩';
- if(/move|이동/.test(t))return '✥';
- if(/trim|자르/.test(t))return '✂';
- if(/dimension|치수/.test(t))return '↔';
- if(/pattern|패턴/.test(t))return '▦';
- if(/save|저장/.test(t))return '▤';
- return {sketch:'✎',solid:'⬡',surface:'◈',file:'▤',other:'⌘'}[category(v||{})]||'⌘';
-}
 function requestIcon(id,el,v){
  if(!id||iconPending.has(id))return;
  if(iconCache.has(id)){const cached=iconCache.get(id);if(cached)setArt(el,cached);return}
@@ -98,7 +84,7 @@ function requestIcon(id,el,v){
  }).catch(()=>iconCache.set(id,null)).finally(()=>iconPending.delete(id));
 }
 function setArt(el,src){
- const symbol=el.querySelector('.cmd-symbol');
+ const symbol=el.querySelector('.cmd-art-missing');
  if(!symbol||!src)return;
  const img=document.createElement('img');img.className='cmd-art';img.alt='';img.draggable=false;img.src=src;symbol.replaceWith(img);
 }
@@ -147,7 +133,7 @@ function render(){
       const symbol=document.createElement('span');symbol.className='cmd-symbol';symbol.textContent='🔒';el.append(symbol);
       const label=document.createElement('span');label.className='cmd-name';label.textContent='예약';el.append(label);
     }else if(id){
-      const art=document.createElement('span');art.className='cmd-symbol';art.textContent=fallbackIcon(v);el.append(art);
+      const art=document.createElement('span');art.className='cmd-art-missing';art.textContent='원본 아이콘 없음';el.append(art);
       const label=document.createElement('span');label.className='cmd-name';label.textContent=v?.ko||v?.name||id;el.append(label);
       requestIcon(id,el,v);
       el.addEventListener('mouseenter',event=>showTooltip(event,v||{id,name:id},label));
