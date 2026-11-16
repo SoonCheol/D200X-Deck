@@ -425,3 +425,11 @@ editor-ui (Stream Deck식 UI, Electron renderer)
 - [x] `test/streamdeck-inspector-layout.test.cjs`에 회귀 테스트 추가. 기존 액션·프로필·HID·플러그인 동작 구조는 변경하지 않음.
 - [ ] CI 결과 및 Windows 설치 EXE 산출물 확인.
 - [ ] Windows GUI 시각 검증 및 물리 D200X 제목 표시·프리셋·Pretendard 실제 반영 확인 (별도 사용자 실기).
+
+## 2026-11-16 — Fusion 실제 메뉴 전용 명령 일괄 등록 (코드 구현)
+
+- [x] 디자인 작업 영역의 사용자 지정 9개 탭 메뉴 스냅샷에서 배치 959건·고유 ID 326개만 추출하여 `tools/fusion-mcp/fusion-menu-catalog.json` 기록.
+- [x] MCP 명령 조회 및 `fusion_export_batch` 내보내기에 메뉴 ID 화이트리스트와 메뉴 순서 적용. 메뉴에 없는 API 전용 ID 배제.
+- [x] 같은 표시명이라도 서로 다른 ID는 분리, 같은 ID가 여러 메뉴에 반복되어도 한 번만 등록. 기존 프로필 가져오기 방식 유지.
+- [ ] 최신 자동 CI 실행 결과 확인 및 사용자 Windows/Fusion/D200X 실기 검증. 코드와 실제 작업 영역별 실행 가능 여부는 별도로 판정.
+- 주의: 메뉴 구조는 Fusion 2706.1.17 수집 결과이며, 메뉴 배치가 곧 실행 가능을 뜻하지 않는다. 사용자 승인 없이 새 설치 빌드 또는 PR 병합 금지.
