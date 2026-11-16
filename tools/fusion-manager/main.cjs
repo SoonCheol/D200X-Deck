@@ -1,14 +1,27 @@
 'use strict';
-const {app,BrowserWindow,ipcMain,dialog}=require('electron');
+const {app,BrowserWindow,ipcMain,dialog,screen}=require('electron');
 const fs=require('node:fs/promises');
 const path=require('node:path');
 const os=require('node:os');
 function createWindow(){
- const win=new BrowserWindow({width:1380,height:940,minWidth:900,minHeight:600,backgroundColor:'#111820',webPreferences:{preload:path.join(__dirname,'preload.cjs'),contextIsolation:true,nodeIntegration:false,sandbox:false}});
+ const area=screen.getPrimaryDisplay().workArea;
+ const width=Math.min(620,area.width),height=Math.min(880,area.height);
+ const win=new BrowserWindow({width,height,minWidth:Math.min(480,width),minHeight:Math.min(560,height),backgroundColor:'#111820',webPreferences:{preload:path.join(__dirname,'preload.cjs'),contextIsolation:true,nodeIntegration:false,sandbox:false}});
  win.setMenuBarVisibility(false);
  win.loadFile(path.join(__dirname,'index.html'));
 }
 app.whenReady().then(()=>{
+ ipcMain.handle('window-mode',async(event,mode)=>{
+   const win=BrowserWindow.fromWebContents(event.sender);
+   if(!win||!['explore','pages'].includes(mode))return false;
+   const area=screen.getDisplayMatching(win.getBounds()).workArea;
+   const w=Math.min(mode==='pages'?1240:620,area.width);
+   const b=win.getBounds();
+   const x=Math.min(Math.max(area.x,b.x),area.x+area.width-w);
+   const h=Math.min(Math.max(b.height,600),area.height);
+   win.setBounds({x,y:Math.min(Math.max(area.y,b.y),area.y+area.height-h),width:w,height:h});
+   return true;
+ });
  ipcMain.handle('catalog',async()=>JSON.parse(await fs.readFile(path.join(__dirname,'fusion-command-catalog-final.json'),'utf8')));
  // DeckForge's existing Fusion artwork cache is shared read-only.
  // Never change DeckForge userData, cached icons, or Fusion add-in files.
