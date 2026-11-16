@@ -57,7 +57,7 @@ header button{padding:6px 8px;font-size:12px}
 #pageEditor .pages{grid-template-columns:repeat(auto-fill,minmax(490px,1fr))}
 </style></head><body>
 <header><h1>Fusion Command Manager <small style="font-size:12px;color:#92aec7">메뉴 탐색</small></h1>
-<button id="helpOpen" type="button" aria-label="도움말 열기">? 도움말</button><button id="modeExplore" class="primary" type="button">명령 탐색</button><button id="modePages" type="button">페이지 편집</button><button id="save" class="editor-only">프로젝트 저장</button><button id="open" class="editor-only">프로젝트 불러오기</button><button id="export" class="primary editor-only">DeckForge 등록용 JSON 내보내기</button><span id="status"></span></header>
+<button id="deckforgeOpen" type="button" title="DeckForge 창 열기">DeckForge 열기</button><button id="dockToggle" type="button" title="자석 결합 또는 분리">자석 연결</button><button id="helpOpen" type="button" aria-label="도움말 열기">? 도움말</button><button id="modeExplore" class="primary" type="button">명령 탐색</button><button id="modePages" type="button">페이지 편집</button><button id="save" class="editor-only">프로젝트 저장</button><button id="open" class="editor-only">프로젝트 불러오기</button><button id="export" class="primary editor-only">DeckForge 등록용 JSON 내보내기</button><span id="status"></span></header>
 <section id="explorer" aria-label="Fusion 명령 메뉴 탐색" class="explorer">
  <div class="explore-top"><strong>Fusion 명령 탐색</strong><span class="hint">DeckForge 창에 직접 드래그하거나 페이지 편집으로 전환</span></div>
  <div class="nav-title">작업 영역</div><nav id="workspaces" class="menu-tabs" aria-label="Fusion 작업 영역"></nav>
