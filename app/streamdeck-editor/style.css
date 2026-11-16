@@ -692,3 +692,11 @@
 .icon-glyph,.action-icon,.control-gesture-symbol,.icon-zoom,.device-symbol{
   font-family:"DeckForge Noto Symbols","DeckForge Noto Symbols 2","DeckForge Pretendard","Segoe UI Symbol",sans-serif;
 }
+
+/* Saved title typography presets: compact row inside the existing 277px popover. */
+.title-preset-heading{font-size:11px;color:#ccc;margin-bottom:-5px;}
+.title-preset-row{display:flex;gap:5px;align-items:center;min-width:0;}
+.title-style-popover .title-preset-row select{flex:1;min-width:0;width:0;height:30px;}
+.title-preset-row button{flex:none;width:29px;height:30px;border:1px solid #666;border-radius:4px;background:#505050;color:#eee;padding:0;font-size:18px;line-height:1;}
+.title-preset-row button:hover:not(:disabled){background:#606060;}
+.title-preset-row button:disabled{opacity:.35;cursor:default;}
