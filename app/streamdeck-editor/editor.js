@@ -1224,6 +1224,76 @@ function bindTitleStyle(item){
   });
   const family=$("title-family");family.value=style.family;
   family.addEventListener("change",()=>save("family",family.value));
+  // Presets are copies of the complete title style, not references to profile data.
+  // Keep them separate from the profile JSON and avoid silently changing a key.
+  const presetKey="deckforge-title-style-presets-v1";
+  const presetSelect=$("title-preset-select");
+  const presetDelete=$("title-preset-delete");
+  const validPresetStyle=value=>{
+    if(!value||typeof value!=="object"||Array.isArray(value))return null;
+    const cleaned={...DEFAULT_TITLE_STYLE};
+    for(const field of Object.keys(cleaned)){
+      if(Object.prototype.hasOwnProperty.call(value,field))cleaned[field]=value[field];
+    }
+    if(!["default","DeckForge Pretendard","Malgun Gothic","Segoe UI"].includes(cleaned.family))cleaned.family="default";
+    cleaned.size=Math.max(8,Math.min(48,Number(cleaned.size)||12));
+    cleaned.align=["top","middle","bottom"].includes(cleaned.align)?cleaned.align:"bottom";
+    cleaned.visible=cleaned.visible!==false;
+    for(const field of ["bold","italic","underline"])cleaned[field]=cleaned[field]===true;
+    for(const field of ["color","outlineColor"])
+      if(!/^#[0-9a-fA-F]{6}$/.test(cleaned[field]))cleaned[field]=DEFAULT_TITLE_STYLE[field];
+    cleaned.outlineWidth=["none","thin","medium","thick"].includes(cleaned.outlineWidth)?cleaned.outlineWidth:"thin";
+    return cleaned;
+  };
+  const loadPresets=()=>{
+    try{
+      const value=JSON.parse(localStorage.getItem(presetKey));
+      if(!Array.isArray(value))return [];
+      return value.slice(0,20).filter(entry=>typeof entry?.name==="string"&&entry.name.trim()&&entry.name.length<=40&&validPresetStyle(entry.style))
+        .map(entry=>({name:entry.name,style:validPresetStyle(entry.style)}));
+    }catch{return [];}
+  };
+  let presets=loadPresets();
+  const writePresets=next=>{
+    try{localStorage.setItem(presetKey,JSON.stringify(next));presets=next;return true;}
+    catch{alert("글꼴 프리셋을 저장할 수 없습니다. 저장 공간을 확인해 주세요.");return false;}
+  };
+  const renderPresetOptions=(selected="")=>{
+    presetSelect.replaceChildren();
+    const empty=document.createElement("option");empty.value="";empty.textContent="프리셋 선택";presetSelect.append(empty);
+    for(const entry of presets){
+      const option=document.createElement("option");option.value=entry.name;option.textContent=entry.name;presetSelect.append(option);
+    }
+    presetSelect.value=selected;
+    presetDelete.disabled=!selected;
+  };
+  renderPresetOptions();
+  presetSelect.addEventListener("change",()=>{
+    const chosen=presets.find(entry=>entry.name===presetSelect.value);
+    presetDelete.disabled=!chosen;
+    if(!chosen)return;
+    item.titleStyle={...chosen.style};
+    persist();renderGrid();renderInspector();
+  });
+  $("title-preset-save").addEventListener("click",()=>{
+    const input=prompt("프리셋 이름을 입력하세요 (현재 글꼴·크기·색상·외곽선·정렬 저장)",presetSelect.value||"");
+    if(input===null)return;
+    const name=input.trim();
+    if(!name||name.length>40){alert("프리셋 이름은 1~40자로 입력해 주세요.");return;}
+    const index=presets.findIndex(entry=>entry.name===name);
+    if(index>=0&&!confirm('프리셋 "'+name+'"을(를) 현재 스타일로 덮어쓸까요?'))return;
+    if(index<0&&presets.length>=20){alert("프리셋은 최대 20개까지 저장할 수 있습니다.");return;}
+    const entry={name,style:validPresetStyle(item.titleStyle)};
+    const next=[...presets];
+    if(index>=0)next[index]=entry;else next.push(entry);
+    if(writePresets(next))renderPresetOptions(name);
+  });
+  presetDelete.addEventListener("click",()=>{
+    const name=presetSelect.value;
+    if(!name||!presets.some(entry=>entry.name===name))return;
+    if(!confirm('프리셋 "'+name+'"을(를) 삭제할까요? 현재 버튼의 스타일은 유지됩니다.'))return;
+    if(writePresets(presets.filter(entry=>entry.name!==name)))renderPresetOptions();
+  });
   const size=$("title-size");size.value=style.size;
   size.addEventListener("change",()=>{size.value=String(Math.max(8,Math.min(48,Number(size.value)||12)));save("size",Number(size.value));});
   menu.querySelectorAll("[data-style]").forEach(button=>{
@@ -1806,6 +1876,12 @@ function renderInspector(){
           <button type="button" data-align="top" title="위쪽 배치">▥</button>
         </div>
         <select id="title-family" aria-label="글꼴"><option value="default">기본 (Pretendard)</option><option value="DeckForge Pretendard">Pretendard</option><option value="Malgun Gothic">맑은 고딕</option><option value="Segoe UI">Segoe UI</option></select>
+        <div class="title-preset-heading">글꼴 프리셋</div>
+        <div class="title-preset-row">
+          <select id="title-preset-select" aria-label="저장한 제목 스타일 프리셋"></select>
+          <button type="button" id="title-preset-save" title="현재 제목 스타일을 프리셋으로 저장" aria-label="현재 스타일 프리셋 저장">＋</button>
+          <button type="button" id="title-preset-delete" title="선택한 프리셋 삭제" aria-label="선택한 프리셋 삭제">−</button>
+        </div>
         <div class="title-format"><input id="title-size" type="number" min="8" max="48" aria-label="글꼴 크기">
         <button type="button" data-style="bold" aria-label="굵게">B</button><button type="button" data-style="italic" aria-label="기울임">I</button><button type="button" data-style="underline" aria-label="밑줄">U</button>
         <input id="title-color" type="color" aria-label="글꼴 색상">
