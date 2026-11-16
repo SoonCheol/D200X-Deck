@@ -1,3 +1,12 @@
+## 2026-11-17 — PNG 캐시·고정 키 후속 수정 Windows 빌드 성공
+
+- **수정 커밋:** `add0b13249c3b8beaeb20109903a85849bfc6cb5` (`codex/streamdeck-761-clean-editor`).
+- **수정 내용:** `main.cjs`의 PNG 8바이트 매직 시그니처 비교 문자열을 전체 16자리 `89504e470d0a1a0a`로 교정. 고정 키 인스펙터 미리보기의 현재 액션 참조 비교를 `DeckCore.visibleActions(state)`로 변경. 고정 해제 시 구 SDK 시각 정보 제거. 실제 Fusion PNG IPC 캐시 읽기(원본 및 fallback)와 고정 키 미리보기 자동 회귀 테스트 추가.
+- **Windows 통합 빌드:** [GitHub Actions #43896225690](https://github.com/SoonCheol/D200X-Deck/actions/runs/43896225690) `completed/success`.
+- **추가 자동검증:** [D200X input execution verification #43896225566](https://github.com/SoonCheol/D200X-Deck/actions/runs/43896225566) `completed/success`.
+- **다운로드 아티팩트:** 설치형 `DeckForge-1.1-Setup-win-x64` (ID `14239303394`, 131,809,087 bytes); 포터블 `DeckForge-1.1-win-x64` (ID `14239188458`, 176,975,479 bytes). GitHub 조회 시 `expired=false`, 만료 예정 2026-11-30 UTC.
+- **검증 한계:** Windows 빌드 및 해당 자동검증 성공만 확인함. 실제 Fusion 명령 드래그, 연결·해제, 기존 오염 캐시, HA 및 D200X 물리 화면은 실기 미확인. UI·사용자 데이터 삭제 없음. PR #5는 Draft/미병합 유지.
+
 ## 2026-11-17 — PNG 캐시 검사 및 고정 버튼 후속 수정 (빌드 검증 대기)
 
 - **배경:** Fusion SDK 컨텍스트·아이콘 수정 커밋 `2ed3b2e` 설치 빌드 성공 후, Gemini 사후 검토에서 PNG 매직바이트 비교 문자열이 12자리로 잘린 오류 확인. 정상 8바이트 PNG 헤더의 16자리 비교 문자열로 수정.
