@@ -72,8 +72,7 @@ ipcMain.handle('d200x:fusion-addin-install',async event=>{
  assertEditor(event);return Bundled.installFusionAddin();
 });
 let fusionMagnet=null;
-ipcMain.handle('d200x:open-fusion-manager',async event=>{
- assertEditor(event);
+async function openIntegratedManager(){
  if(!window||window.isDestroyed())return false;
  try{
   const integrated=require('../fusion-manager/main.cjs');
@@ -86,10 +85,14 @@ ipcMain.handle('d200x:open-fusion-manager',async event=>{
    fusionMagnet=Bundled.createMagnet(window,manager,screen);
    fusionMagnet.window=manager;
    manager.on('closed',()=>{if(fusionMagnet?.window===manager)fusionMagnet=null});
-   fusionMagnet.attach();
+   // A manager-only launch stays independent until DeckForge becomes visible.
+   if(window.isVisible())fusionMagnet.attach();
   }
   return true;
  }catch(error){console.warn('Fusion Manager 실행 오류:',error.message);throw error;}
+}
+ipcMain.handle('d200x:open-fusion-manager',async event=>{
+ assertEditor(event);return openIntegratedManager();
 });
 
 ipcMain.handle('d200x:sdk-install',async event=>{
@@ -178,7 +181,8 @@ const singleInstanceLock=app.requestSingleInstanceLock();
 if(!singleInstanceLock){
   app.quit();
 }else{
-  app.on('second-instance',()=>{
+  app.on('second-instance',(_event,commandLine)=>{
+    if(commandLine.includes('--fusion-manager')){openIntegratedManager().catch(e=>console.warn(e.message));return;}
     if(!window||window.isDestroyed())return;
     if(window.isMinimized())window.restore();
     window.show();
@@ -916,7 +920,7 @@ if(singleInstanceLock)app.whenReady().then(async () => {
     minWidth:minimumWidth,
     minHeight:minimumHeight,
     backgroundColor: '#292929',
-    show:!process.argv.includes('--hidden'),
+    show:!process.argv.includes('--hidden')&&!process.argv.includes('--fusion-manager'),
     title: 'DeckForge 1.0 — D200X',
     webPreferences: {
       preload: path.join(__dirname, 'preload.cjs'),
@@ -934,6 +938,7 @@ if(singleInstanceLock)app.whenReady().then(async () => {
   // Copy Fusion add-in only when Fusion already initialized its API/AddIns folder.
   try{await Bundled.installFusionAddin()}catch(error){console.warn('Fusion 애드인 자동 복사 실패:',error.message);}
   await window.loadFile(path.join(__dirname, 'index.html'));
+  if(process.argv.includes('--fusion-manager'))openIntegratedManager().catch(error=>console.warn('Fusion Manager 바로가기:',error.message));
   window.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
   window.webContents.on('will-navigate', (event, url) => {
     if (!url.startsWith('file://')) event.preventDefault();
