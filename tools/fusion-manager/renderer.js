@@ -109,11 +109,11 @@ function showTooltip(event,v,nameNode){
  if(!v||!nameNode)return;
  // Only truncated names need a tooltip. Text is always exactly two lines.
  if(nameNode.scrollHeight<=nameNode.clientHeight+1&&nameNode.scrollWidth<=nameNode.clientWidth+1)return;
- const ko=v.ko||(/［[가-힣]｜[가-힣]/.test(v.name)?v.name:'한글 이름 정보 없음');
+ const ko=v.ko||(/[가-힣]/.test(v.name)?v.name:'한글 이름 정보 없음');
  const en=v.en||'영문명 정보 없음';
+ const rect=event.currentTarget.getBoundingClientRect();
  hoverTimer=setTimeout(()=>{
   const tip=$('tooltip');tip.textContent=ko+'\n'+en;tip.style.display='block';
-  const rect=event.currentTarget.getBoundingClientRect();
   tip.style.left=Math.max(8,Math.min(rect.left,innerWidth-tip.offsetWidth-8))+'px';
   tip.style.top=(rect.bottom+tip.offsetHeight+8<innerHeight?rect.bottom+5:Math.max(8,rect.top-tip.offsetHeight-5))+'px';
  },500);
