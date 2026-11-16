@@ -54,6 +54,23 @@ jobs:
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           node --test test/streamdeck-fusion-mcp.test.cjs
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Download pinned Pretendard font for the standalone Manager
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $destination = 'tools/fusion-manager/fonts'
+          New-Item -ItemType Directory -Force $destination | Out-Null
+          $url = 'https://raw.githubusercontent.com/orioncactus/pretendard/7aeb0698819be2b4097dae8ec8fe6a795e5cf3ae/packages/pretendard/dist/web/variable/woff2/PretendardVariable.woff2'
+          $file = Join-Path $destination 'PretendardVariable.woff2'
+          Invoke-WebRequest -Uri $url -OutFile $file -TimeoutSec 180 -ErrorAction Stop
+          if ((Get-Item $file).Length -lt 2000000) { throw 'Pretendard font download incomplete' }
+          $blob = (& git hash-object -- $file).Trim()
+          if ($LASTEXITCODE -ne 0 -or $blob -ne '49c54b5152a184a243e85f7281ed338b6569987e') {
+            throw "Pretendard font hash mismatch: $blob"
+          }
+          if (-not (Test-Path 'app/streamdeck-editor/fonts/Pretendard-LICENSE.txt')) {
+            throw 'Pretendard OFL license missing'
+          }
       - name: Stage isolated prototype and Fusion command catalog
         shell: pwsh
         run: |
@@ -65,6 +82,10 @@ jobs:
           Copy-Item 'tools/fusion-mcp/fusion-command-catalog-final.json' "$dst/fusion-command-catalog-final.json"
           Copy-Item 'tools/fusion-mcp/fusion-menu-catalog.json' "$dst/fusion-menu-catalog.json"
           Copy-Item 'tools/fusion-manager/HELP.md' "$dst/HELP.md"
+          New-Item -ItemType Directory -Force "$dst/fonts" | Out-Null
+          Copy-Item 'tools/fusion-manager/fonts/PretendardVariable.woff2' "$dst/fonts/PretendardVariable.woff2"
+          Copy-Item 'app/streamdeck-editor/fonts/Pretendard-LICENSE.txt' "$dst/fonts/Pretendard-LICENSE.txt"
+          if ((Get-Item "$dst/fonts/PretendardVariable.woff2").Length -lt 2000000) { throw 'Staged Manager font too small' }
           if (-not (Test-Path "$dst/HELP.md")) { throw 'Fusion Manager help file missing' }
           '{"name":"fusion-command-manager","productName":"Fusion Command Manager","version":"0.1.0","private":true,"main":"main.cjs"}' | Set-Content "$dst/package.json" -Encoding utf8
           $catalog=Get-Content -Raw "$dst/fusion-command-catalog-final.json" | ConvertFrom-Json
