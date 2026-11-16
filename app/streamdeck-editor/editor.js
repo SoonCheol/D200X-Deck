@@ -445,6 +445,30 @@ function renderWideInspector(){
   root.append(reset);
   appendInspectorSaveBar(root);
 }
+function importFusionDraggedCommand(event,index){
+ const drag=window.DeckForgeFusionDrag;
+ const cmd=drag?.decode(event.dataTransfer?.getData('text/plain')||'');
+ if(!cmd)return false;
+ if(index===13||reservedWideSlot(index)){
+   window.d200xActionStatus?.('와이드 정보 화면에는 Fusion 명령을 등록할 수 없습니다.');
+   return true;
+ }
+ if(!sdkPlugins.some(plugin=>plugin.uuid===drag.PLUGIN)){
+   window.d200xActionStatus?.('Autodesk FusionStreamDeck 플러그인을 먼저 설치해야 합니다.');
+   return true;
+ }
+ const existing=currentPage()[index];
+ if(existing&&!confirm('버튼 '+(index+1)+'에 등록된 동작을 '+cmd.name+'(으)로 교체할까요?'))return true;
+ const action=DeckCore.createAction('sd-plugin');
+ action.title=cmd.name.slice(0,30);
+ action.settings.pluginUUID=drag.PLUGIN;
+ action.settings.actionUUID=drag.ACTION;
+ action.settings.actionName='Fusion 명령 실행';
+ action.settings.pluginSettings={commandId:cmd.id,name:cmd.name};
+ setItem(index,action);
+ window.d200xActionStatus?.('Fusion 명령 등록: '+cmd.name+' ('+cmd.id+')');
+ return true;
+}
 function renderGrid(){
   const grid=$("key-grid");grid.replaceChildren();
   DeckCore.visibleActions(state).slice(0,KEY_COUNT).forEach((raw,i)=>{
@@ -472,7 +496,7 @@ function renderGrid(){
     b.addEventListener("contextmenu",ev=>{ev.preventDefault();choose(i);showMenu(i,ev.clientX,ev.clientY);});
     b.addEventListener("dragover",ev=>{if(!reservedWideSlot(i)){ev.preventDefault();b.classList.add("drag-over");}});
     b.addEventListener("dragleave",()=>b.classList.remove("drag-over"));
-    b.addEventListener("drop",ev=>{if(reservedWideSlot(i))return;ev.preventDefault();b.classList.remove("drag-over");const id=ev.dataTransfer.getData("application/x-d200x-action");if(isAssignableAction(id))setItem(i,newAction(id));});
+    b.addEventListener("drop",ev=>{if(reservedWideSlot(i))return;ev.preventDefault();b.classList.remove("drag-over");if(importFusionDraggedCommand(ev,i))return;const id=ev.dataTransfer.getData("application/x-d200x-action");if(isAssignableAction(id))setItem(i,newAction(id));});
     grid.append(b);
   });
   renderPhysicalControls();
