@@ -110,6 +110,14 @@ app.whenReady().then(()=>{
    await fs.writeFile(preferencesFile(),JSON.stringify(Object.fromEntries(allowed),null,2)+'\n','utf8');
    return true;
  });
+ const captureFile=()=>path.join(app.getPath('userData'),'last-fusion-ui-capture-v2.json');
+ ipcMain.handle('capture-load',async()=>{
+   try{
+     const stat=await fs.stat(captureFile());
+     if(stat.size>30*1024*1024)return null;
+     return JSON.parse(await fs.readFile(captureFile(),'utf8'));
+   }catch(e){if(e.code==='ENOENT')return null;throw e}
+ });
  ipcMain.handle('open-ui-capture',async()=>{
    const {canceled,filePaths}=await dialog.showOpenDialog({
      title:'Fusion UI 수집 JSON 선택 (명령 실행 없음)',properties:['openFile'],
@@ -118,7 +126,13 @@ app.whenReady().then(()=>{
    if(canceled||!filePaths?.length)return null;
    const stat=await fs.stat(filePaths[0]);
    if(!stat.isFile()||stat.size>30*1024*1024)throw Error('수집 JSON은 30MB 이하만 지원합니다.');
-   return JSON.parse(await fs.readFile(filePaths[0],'utf8'));
+   const raw=await fs.readFile(filePaths[0],'utf8');
+   const data=JSON.parse(raw);
+   if(!['deckforge-fusion-ui-placements-v1','deckforge-fusion-ui-placements-v2'].includes(data?.format)||
+     !Array.isArray(data.placements)||!Array.isArray(data.errors)||data.placements.length>250000||
+     data.errors.length>50000)throw Error('올바른 Fusion UI 수집 JSON이 아닙니다.');
+   await fs.writeFile(captureFile(),raw,'utf8');
+   return data;
  });
  ipcMain.handle('save-json',async(_e,{data,defaultName})=>{
    const {canceled,filePath}=await dialog.showSaveDialog({title:'JSON 저장',defaultPath:defaultName||'Fusion-Layout.json',filters:[{name:'JSON',extensions:['json']}]});
