@@ -84,3 +84,22 @@ test('captured 959 Fusion menu placements retain tab/panel order without alphabe
   assert.deepEqual(new Set(result),new Set(expected.map(x=>x.id)));
  }
 });
+
+test('Fusion Manager help stays available offline in Windows packaging source',()=>{
+ const fs=require('node:fs'),path=require('node:path');
+ const root=path.join(__dirname,'../tools/fusion-manager');
+ const help=fs.readFileSync(path.join(root,'HELP.md'),'utf8');
+ const html=fs.readFileSync(path.join(root,'index.html'),'utf8');
+ const renderer=fs.readFileSync(path.join(root,'renderer.js'),'utf8');
+ const main=fs.readFileSync(path.join(root,'main.cjs'),'utf8');
+ const workflow=fs.readFileSync(path.join(__dirname,'../.github/workflows/fusion-manager-preview.yml'),'utf8');
+ assert.match(help,/FusionStreamDeck/);
+ assert.match(help,/Codex MCP/);
+ assert.match(help,/오프라인/);
+ assert.match(html,/id="helpOpen"/);
+ assert.match(html,/id="helpDialog"/);
+ assert.doesNotMatch(html,/<footer>/);
+ assert.match(renderer,/helpMarkdown\(\)/);
+ assert.match(main,/help-markdown/);
+ assert.match(workflow,/fusion-manager\/HELP\.md/);
+});
