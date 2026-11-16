@@ -1,3 +1,10 @@
+## 2026-11-17 — PNG 캐시 검사 및 고정 버튼 후속 수정 (빌드 검증 대기)
+
+- **배경:** Fusion SDK 컨텍스트·아이콘 수정 커밋 `2ed3b2e` 설치 빌드 성공 후, Gemini 사후 검토에서 PNG 매직바이트 비교 문자열이 12자리로 잘린 오류 확인. 정상 8바이트 PNG 헤더의 16자리 비교 문자열로 수정.
+- **고정 키:** `refreshSelectedVisual()`이 `currentPage()`가 아니라 `DeckCore.visibleActions(state)` 기준으로 선택 액션을 확인하도록 수정. 고정 키 해제(삭제 메뉴 및 우클릭 메뉴) 전에 기존 SDK 시각 상태 정리.
+- **검증:** 기존 `test/streamdeck-sdk-visual.test.cjs`에 Fusion IPC 정상 원본 PNG·fallback PNG 읽기와 고정 키 인스펙터 미리보기 회귀 테스트 추가. 테스트/Windows 설치 빌드 결과는 실제 CI 완료 후 별도 기록.
+- **범위:** UI 디자인, 기존 24개 액션, 프로필·HA 인증·사용자 지정 아이콘 보존. PR #5 병합 금지. 실물 D200X/Fusion 360 동작은 CI로 확인할 수 없음.
+
 ## 2026-11-17 — Fusion SDK 컨텍스트·아이콘 수정 Windows 빌드 성공
 
 - **소스 커밋:** `2ed3b2e40dfe28ba6fe1faf65e49d1cfd4a62788` (`codex/streamdeck-761-clean-editor`).

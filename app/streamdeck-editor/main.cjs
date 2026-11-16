@@ -56,7 +56,7 @@ ipcMain.handle('d200x:fusion-icon-read',async(event,id)=>{
   for(const [dir,ext,mime] of [[trusted,'png','image/png'],[trusted,'svg','image/svg+xml'],[fusionCacheDir(),'png','image/png']]){
     try{
       const bytes=await fs.promises.readFile(path.join(dir,id+'.'+ext));
-      if(bytes.length>=8&&bytes.length<=768*1024&&(ext!=='png'||bytes.subarray(0,8).toString('hex')==='89504e470d0a'))
+      if(bytes.length>=8&&bytes.length<=768*1024&&(ext!=='png'||bytes.subarray(0,8).toString('hex')==='89504e470d0a1a0a'))
         return 'data:'+mime+';base64,'+bytes.toString('base64');
     }catch(error){if(error.code!=='ENOENT')throw error;}
   }

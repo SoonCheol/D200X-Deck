@@ -132,3 +132,46 @@ test('Fusion drag payload retains SVG command artwork',()=>{
  const svg='data:image/svg+xml;base64,'+Buffer.from('<svg/>').toString('base64');
  assert.equal(drag.decode(drag.encode({id:'ExtrudeCommand',name:'돌출',svg})).svg,svg);
 });
+
+test('Fusion icon IPC reads both trusted PNG and fallback cached PNG',async()=>{
+ const os=require('node:os'),tmp=fs.mkdtempSync(path.join(os.tmpdir(),'d200x-fusion-png-'));
+ try{
+  const handlers=new Map();
+  const main=fs.readFileSync(path.join(__dirname,'../app/streamdeck-editor/main.cjs'),'utf8');
+  const start=main.indexOf('const fusionCacheDir=');
+  const end=main.indexOf("ipcMain.handle('d200x:sdk-list'",start);
+  assert.ok(start>=0&&end>start,'Fusion IPC source block');
+  vm.runInNewContext(main.slice(start,end),{
+   fs,path,app:{getPath:()=>tmp},assertEditor:()=>{},
+   ipcMain:{handle:(channel,fn)=>handlers.set(channel,fn)}
+  });
+  const png=Buffer.concat([Buffer.from('89504e470d0a1a0a','hex'),Buffer.from([1,2,3,4])]);
+  const original=path.join(tmp,'original-fusion-icons');
+  const cached=path.join(tmp,'fusion-command-icons');
+  fs.mkdirSync(original,{recursive:true});fs.mkdirSync(cached,{recursive:true});
+  fs.writeFileSync(path.join(original,'FirstCommand.png'),png);
+  fs.writeFileSync(path.join(cached,'SecondCommand.png'),png);
+  const read=handlers.get('d200x:fusion-icon-read');
+  assert.equal(await read({},'FirstCommand'),'data:image/png;base64,'+png.toString('base64'));
+  assert.equal(await read({},'SecondCommand'),'data:image/png;base64,'+png.toString('base64'));
+  assert.equal(await read({},'NotPresent'),null);
+ }finally{fs.rmSync(tmp,{recursive:true,force:true});}
+});
+
+test('Pinned key inspector preview refreshes when page slot is empty',async()=>{
+ const source=fs.readFileSync(path.join(__dirname,'../app/streamdeck-editor/editor.js'),'utf8');
+ const start=source.indexOf('let previewRequest=0;');
+ const end=source.indexOf('window.refreshSelectedVisual=refreshSelectedVisual;',start);
+ assert.ok(start>=0&&end>start,'Inspector preview source block');
+ const pinned={type:'sd-plugin',title:'고정 키'};
+ const area={replaceChildren(...children){this.children=children;}};
+ const state={selected:0,pinned:[pinned]};
+ const window={renderDeckKeyImage:async()=>Buffer.from('preview').toString('base64')};
+ const $=key=>key==='icon-preview-content'?area:key==='icon-preview'?{querySelector:()=>null}:null;
+ await vm.runInNewContext(source.slice(start,end)+';refreshSelectedVisual()',{
+  state,window,DeckCore:{visibleActions:()=>[pinned]},currentPage:()=>[null],
+  displayItem:x=>x,$,document:{createElement:()=>({className:'',src:''})},
+  console
+ });
+ assert.equal(area.children?.[0]?.src,'data:image/png;base64,'+Buffer.from('preview').toString('base64'));
+});

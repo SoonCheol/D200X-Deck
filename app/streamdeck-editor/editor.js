@@ -313,6 +313,7 @@ function removeSlotAction(index){
   if(reservedWideSlot(index))return false;
   if(index<14&&!currentPage()[index]&&state.pinned?.[index]){
     if(!confirm('고정 액션을 모든 페이지에서 해제하시겠습니까?'))return false;
+    clearOldSdkVisual(index);
     if(DeckCore.togglePinned(state,index)){persist();render();return true;}
     return false;
   }
@@ -1281,7 +1282,7 @@ async function refreshSelectedVisual(){
   const request=++previewRequest;
   try{
     const data=await window.renderDeckKeyImage(displayItem(item));
-    if(request!==previewRequest||currentPage()[state.selected]!==item)return;
+    if(request!==previewRequest||DeckCore.visibleActions(state)[state.selected]!==item)return;
     const host=$("icon-preview-content");
     if(!host)return;
     const image=document.createElement("img");
@@ -2178,7 +2179,10 @@ function showMenu(index,x,y){
     add("동작 불러오기…",()=>importSlotAction(index));
   }else{
     const isLocal=Boolean(currentPage()[index]);
-    if(!state.folderPath?.length)add(state.pinned?.[index]?"고정 해제":"고정",()=>{if(DeckCore.togglePinned(state,index)){persist();render();}});
+    if(!state.folderPath?.length)add(state.pinned?.[index]?"고정 해제":"고정",()=>{
+      if(state.pinned?.[index])clearOldSdkVisual(index);
+      if(DeckCore.togglePinned(state,index)){persist();render();}
+    });
     add("복사하기　Ctrl+C",()=>{clipboard=clone(item);});
     add("붙여넣기　Ctrl+V",clipboard?()=>pasteClipboardAction(index):null);
     add("폴더로 이동",isLocal?()=>{
