@@ -1,3 +1,12 @@
+## 2026-11-17 — Fusion SDK 컨텍스트·아이콘 수정 Windows 빌드 성공
+
+- **소스 커밋:** `2ed3b2e40dfe28ba6fe1faf65e49d1cfd4a62788` (`codex/streamdeck-761-clean-editor`).
+- **Windows 통합 설치 빌드:** [GitHub Actions #43894286721](https://github.com/SoonCheol/D200X-Deck/actions/runs/43894286721) **completed/success**.
+- **아티팩트:** 설치형 `DeckForge-1.1-Setup-win-x64` ID `14237753143` (131,809,006 bytes); 포터블 `DeckForge-1.1-win-x64` ID `14238118234` (176,975,436 bytes). 조회 시 두 아티팩트 모두 `expired=false`; 만료 예정 2026-11-30 (UTC).
+- **추가 검증:** Fusion Command Manager Windows [#43894286719](https://github.com/SoonCheol/D200X-Deck/actions/runs/43894286719) **success**, D200X 입력 자동검증 [#43894286742](https://github.com/SoonCheol/D200X-Deck/actions/runs/43894286742) **success**. 설치 빌드 과정에서 패키징된 Electron Node 런타임·원본 Fusion SDK 등록/오프라인 PI 자동검증을 통과함.
+- **검증 한계:** 실제 Windows GUI의 Fusion A→B 드래그, D200X 실기 명령·아이콘 일치, 오염 캐시 정상 복구, 다양한 기존 프로필·HA 상태는 **아직 사용자 PC 실기 미검증**. 통합 빌드 성공을 실기 성공으로 표시하지 않음. 기존 오염 캐시 일괄 삭제나 마이그레이션 수행하지 않음.
+- **정책:** PR #5는 미병합 유지. 코드와 UI는 상기 소스 커밋 기준. 본 기록 추가는 문서만 변경하며 빌드를 다시 시작할 필요 없음.
+
 ## 2026-11-17 — Fusion 드래그 아이콘 경합·오염 최소 수정 (검증 대기)
 
 - 사용자 승인: 코드 수정 및 Windows 빌드. 기존 UI·24개 액션·프로필/HA 토큰 보존, PR #5 미병합.
