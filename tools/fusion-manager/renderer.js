@@ -189,6 +189,15 @@ $('scriptCopy').onclick=async()=>{
  catch(e){status('수집기 코드 복사 실패: '+e.message)}
 };
 $('helpClose').onclick=()=>$('helpDialog').close();
+$('deckforgeOpen').onclick=async()=>{try{if(!await window.fusionManager.openDeckForge())status('설치된 DeckForge를 찾지 못했습니다.')}catch(e){status('DeckForge 실행 실패: '+e.message)}};
+$('dockToggle').onclick=async()=>{
+ try{const result=await window.fusionManager.dock('toggle');
+  if(!result.available){status('자석 기능은 DeckForge 통합 설치에서 사용 가능합니다.');return}
+  $('dockToggle').textContent=result.enabled?'자석 켜짐':'자석 꺼짐';
+  status(result.attached?'두 창이 자석으로 연결됐습니다.':result.enabled?'두 창을 가까이 이동하면 자동 결합합니다.':'자석 연결을 해제했습니다.');
+ }catch(e){status('자석 설정 오류: '+e.message)}
+};
+
 
 
 function renderExplorer(){
