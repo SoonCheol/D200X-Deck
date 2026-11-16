@@ -4,6 +4,8 @@ contextBridge.exposeInMainWorld('fusionManager',{
  catalog:()=>ipcRenderer.invoke('catalog'),
  menuCatalog:()=>ipcRenderer.invoke('menu-catalog'),
  helpMarkdown:()=>ipcRenderer.invoke('help-markdown'),
+ fusionScript:()=>ipcRenderer.invoke('fusion-ui-script'),
+ copyFusionScript:()=>ipcRenderer.invoke('fusion-script-copy'),
  windowMode:mode=>ipcRenderer.invoke('window-mode',mode),
  openCapture:()=>ipcRenderer.invoke('open-ui-capture'),
  loadCapture:()=>ipcRenderer.invoke('capture-load'),
