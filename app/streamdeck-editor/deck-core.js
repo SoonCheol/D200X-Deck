@@ -478,6 +478,21 @@
     if(!record||!String(name||'').trim())return false;
     record.name=String(name).trim().slice(0,80);return true;
   }
+  function exportSingleProfile(state,id){
+    const profile=state?.profileNames?.find(p=>p.id===id);
+    if(!profile)throw Error('내보낼 프로필을 찾지 못했습니다.');
+    const snapshot=id===state.profileId?profileSnapshot(state):
+      state.inactiveProfiles?.find(p=>p.id===id);
+    if(!snapshot||!Array.isArray(snapshot.pages)||!snapshot.pages.length)
+      throw Error('프로필의 페이지 데이터를 찾지 못했습니다.');
+    const data={
+      format:'d200x-single-profile-v1',
+      profile:{id:profile.id,name:profile.name,appPath:profile.appPath||'',
+        smartEnabled:profile.smartEnabled===true},
+      snapshot:profileSnapshot(snapshot)
+    };
+    return data;
+  }
   function setProfileApp(state,id,appPath){
     const profile=state.profileNames?.find(p=>p.id===id);
     if(!profile||typeof appPath!=='string'||appPath.length>1024)return false;
@@ -718,5 +733,5 @@
       url:action.settings?.url||'',mode:action.settings?.open||'default',browserPath:action.settings?.browserPath||''};
     return {kind:'unsupported',message:'이 동작의 실행 기능은 아직 구현되지 않았습니다.'};
   }
-  return {ACTION_IDS,D200X_ACTION_IDS,PLUGIN_ACTION_IDS,DEFAULTS,TITLE,createAction,cleanAction,cleanCompositeEntry,displaySwitchAction,compositeModel,planComposite,runComposite,blankPage,cleanWideDisplay,cycleWideDisplay,isWideDisplayPress,folderContents,folderPageCount,changeFolderPage,addFolderPage,deleteFolderPage,currentActions,visibleActions,togglePinned,activeFolder,enterFolder,exitFolder,migrateState,profileSnapshot,switchProfile,createProfile,renameProfile,setProfileApp,matchForegroundProfile,deleteProfile,previewHardwareEvent,physicalSlot,hardwareGesture,resolveHardwareEvent,resolveKeyPress,planHardwareEvent,deletePage,planAction,emptyBinding,cleanBinding,ensureControls,controlBinding,changeControlScope};
+  return {ACTION_IDS,D200X_ACTION_IDS,PLUGIN_ACTION_IDS,DEFAULTS,TITLE,createAction,cleanAction,cleanCompositeEntry,displaySwitchAction,compositeModel,planComposite,runComposite,blankPage,cleanWideDisplay,cycleWideDisplay,isWideDisplayPress,folderContents,folderPageCount,changeFolderPage,addFolderPage,deleteFolderPage,currentActions,visibleActions,togglePinned,activeFolder,enterFolder,exitFolder,migrateState,profileSnapshot,switchProfile,createProfile,renameProfile,exportSingleProfile,setProfileApp,matchForegroundProfile,deleteProfile,previewHardwareEvent,physicalSlot,hardwareGesture,resolveHardwareEvent,resolveKeyPress,planHardwareEvent,deletePage,planAction,emptyBinding,cleanBinding,ensureControls,controlBinding,changeControlScope};
 });
