@@ -4,6 +4,7 @@ contextBridge.exposeInMainWorld('fusionManager',{
  catalog:()=>ipcRenderer.invoke('catalog'),
  windowMode:mode=>ipcRenderer.invoke('window-mode',mode),
  openCapture:()=>ipcRenderer.invoke('open-ui-capture'),
+ loadCapture:()=>ipcRenderer.invoke('capture-load'),
  loadVisibility:()=>ipcRenderer.invoke('curation-load'),
  saveVisibility:data=>ipcRenderer.invoke('curation-save',data),
  icon:id=>ipcRenderer.invoke('fusion-icon',id),
