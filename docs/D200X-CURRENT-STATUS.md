@@ -1,3 +1,12 @@
+## 2026-11-16 — Fusion Command Manager에서 Fusion 원본 아이콘 직접 수집
+
+- 사용자 요청: DeckForge가 하던 Fusion 원본 명령 아이콘 획득/저장 기능을 독립 Fusion Manager에도 추가. **명령 이름으로 추정한 가짜 아이콘 사용 금지** 유지.
+- 확인 근거: AutodeskFusion360/FusionStreamDeck 공식 버전 bc153b8cddedba91614f932f4210f1ecb451c2a8 의 `fusion_addin/FusionStreamDeck/lib/server.py`에서 GET `/health`, GET `/icon?commandId=...&size=32`가 제공되며 PNG/SVG를 직접 송신함. `icons.py`는 명령의 원본 `resourceFolder`에서 가장 적절한 파일을 선택. 실행은 별도 POST `/command`이고 매니저에서 호출하지 않음.
+- 구현: tools/fusion-manager/main.cjs에서 %LOCALAPPDATA%/FusionStreamDeck/endpoint.json 에서 포트 발견, /health 체크, GET /icon 호출, PNG 헤더 및 SVG 구문과 768KB 제한 후 매니저 userData `original-fusion-icons/<명령ID>.png|svg`로 영속 저장. 기존 DeckForge 원본 PNG 캐시는 읽기 전용으로 보조 사용. Electron preload는 iconHealth/collectIcon IPC를 노출. renderer는 선택 체크된 페이지의 고유 명령 IDs만 사용자가 버튼 눌렀을 때 최대 3개 병렬로 수집하고 신규/기존/없음/실패 상태 표시; 완수 후 실 아이콘 표시.
+- GUI: `선택 페이지 원본 아이콘 수집` 버튼, 상태 텍스트. 기존 프로젝트 JSON/DeckForge 등록용 JSON/폴더 없는 프로필/예약 슬롯/드래그 유지.
+- 검증: JS 구문 확인 통과, GitHub Actions [Windows run #43813062245](https://github.com/SoonCheol/D200X-Deck/actions/runs/43813062245) **completed/success**; 업로드된 artifact `Fusion-Command-Manager-0.1-win-x64` ID `14201735344` 161,628,424 bytes, 조회 당시 미만료. PR CI also success.
+- **실제 Fusion 로컬 add-in 아이콘 API 연결 및 저장 개수는 CI에서 검증할 수 없음. 사용자 실기 테스트 필요.** DeckForge 본체 수정/PR 병합 없음.
+
 ## 2026-11-16 — Fusion Command Manager 0.2 버튼 확대·명령 아이콘·툴팁
 
 - 사용자 요청대로 Fusion Manager 버튼 높이 116px, 아이콘 48×48px, 한글 이름 최대 두 줄 배치. 5/5/3, 페이지 간 드래그 삽입, 우클릭 예약, 체크박스, JSON 내보내기 구조 변경 없음.
