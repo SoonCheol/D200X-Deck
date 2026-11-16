@@ -1,3 +1,11 @@
+## 2026-11-16 — Fusion Manager 요청 레이아웃 일괄 반영 (최신)
+
+- 실행 기본 창 698×873px (모니터 workArea 이내), 페이지 편집 모드는 기존 1240px 확장 유지. 작업 영역 9개 탭을 동일 폭 그리드로, 패널 메뉴는 최소 내용 폭과 균등 확장을 조합해 창 너비에 맞춰 줄바꿈. 기존 여백 유지.
+- 탐색 패널의 `전체/RectangleDropDown/...` 드롭다운 선택 줄을 완전히 삭제하고 모든 하위 메뉴 명령을 기존 Fusion 메뉴 계층 순서대로 펼쳐 표시. 메뉴 카탈로그와 기존 사용자 배치 JSON은 보존.
+- Pretendard Variable WOFF2를 기존 DeckForge 고정된 공식 원본/해시 기준으로 매니저 전용 Windows CI에서 다운로드 검증 후 독립 실행 파일에 내장. OFL 라이선스도 포함. DeckForge 앱 소스는 수정하지 않음.
+- Fusion UI JSON 및 현재 목록 원본 아이콘 수집 버튼 옆에 `?` 설명을 추가. 원본 `fusion-ui-inventory.py`를 매니저에 포함해 코드 표시/복사 가능; 상단 Markdown 도움말은 그대로 보존.
+- CI/Windows 빌드/사용자 Windows GUI 실기 성공은 해당 실행의 확인 결과로만 별도 판정. 기존 프로젝트/프로필 설정 변경 없음.
+
 ## 2026-11-16 — Fusion Command Manager 상단 Markdown 도움말 및 하단 안내문 제거
 
 - `tools/fusion-manager/index.html`의 고정 하단 안내문을 제거하고 상단 오른쪽에 `? 도움말` 버튼과 닫기 가능한 도움말 대화상자를 추가.
