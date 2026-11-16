@@ -51,3 +51,25 @@ test('the first inspector editing card is Key Up, then Key Down',()=>{
  assert.ok(first>=0);
  assert.match(src.slice(first,first+100),/\['down','Key Down'/);
 });
+
+test('inspector has four fixed and ordered regions and puts cards outside action fields',()=>{
+ const header=src.indexOf('action-head inspector-title-region');
+ const properties=src.indexOf('properties inspector-properties-region',header);
+ const zone=src.indexOf('inspector-icon-section',properties);
+ assert.ok(header>=0&&properties>header&&zone>properties,'DOM template must keep title, properties, icons in order');
+ assert.match(src,/footer\.classList\.add\('inspector-footer-region'\)/);
+ assert.match(src,/function bindKeyPressIconControls[\s\S]*?panel\.append\(cards\);/);
+ assert.doesNotMatch(src,/fields\.prepend\(cards\)/);
+});
+test('momentary Fusion cannot also render OFF ON SDK cards',()=>{
+ assert.match(src,/function bindSdkStateIcons\(root,item\)\{\s*if\(item\.type!=='sd-plugin'\|\|isMomentaryIconAction\(item\)\)return;/);
+ assert.match(src,/case "sd-plugin":return "";/);
+ assert.match(src,/bindSdkStateIcons\(root,item\);\s*bindKeyPressIconControls\(root,item\);\s*appendInspectorSaveBar\(root\);/);
+});
+test('icon layout has one nonwrapping 404px line, equal 196px cards and aligned starts',()=>{
+ const css=require('node:fs').readFileSync(path.join(__dirname,'../app/streamdeck-editor/style.css'),'utf8');
+ assert.match(css,/--inspector-values-left:calc\(var\(--inspector-preview-width\)/);
+ assert.match(css,/\.inspector \.inspector-icon-section \.sdk-state-icons\{[\s\S]*?flex-wrap:nowrap;[\s\S]*?min-width:404px/);
+ assert.match(css,/\.inspector \.inspector-icon-section \.sdk-state-icon\{flex:0 0 196px/);
+ assert.match(css,/\.inspector \.inspector-icon-section:empty\{display:none\}/);
+});

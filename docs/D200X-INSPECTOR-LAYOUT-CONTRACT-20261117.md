@@ -31,3 +31,12 @@
 - `app/streamdeck-editor/editor.js`: `renderInspector()`, `bindKeyPressIconControls()`, `bindSdkStateIcons()`, `renderMultiEditor()`, `renderLogicEditor()`.
 - `app/streamdeck-editor/style.css`: `.properties`, `.fields`, `.sdk-state-icons`, `.sdk-state-icon`, `.inspector-save-bar`.
 - `test/deckforge-key-press-icons.test.cjs`: 아이콘 유형 정책·공통 DOM 배치 규칙 회귀 테스트.
+
+## 공통 정렬 앵커 (코드 적용)
+
+- 영역별 클래스: `inspector-title-region`, `inspector-properties-region`, `inspector-icon-section`, `inspector-footer-region`. 일반 키의 네 영역은 DOM 형제이며 이 순서를 유지한다.
+- `--inspector-preview-width:98px`, 미리보기-속성 간격 `12px`, 라벨 너비 `78px`, 라벨-값 간격 `8px`로 제목 입력/일반 속성 값/아이콘 행의 **왼쪽 시작선 196px**을 고정한다.
+- 카드 행 `404px`, 한 카드 `196px`, 간격 `12px`, `flex-wrap:nowrap`. 부족한 너비에서는 카드 행 내부 가로 스크롤을 사용하며 줄바꿈하지 않는다.
+- SDK/Fusion 표시 유형은 `bindSdkStateIcons`와 `bindKeyPressIconControls` 중 하나만 렌더하도록 구분한다. 저장 값은 변경하지 않는다.
+- `multi`, `random`, `logic`, `folder`의 동적 속성은 모두 `inspector-properties-region` 내에서 완성된 후 아이콘 영역을 그린다.
+- **범위 한계:** 노브/물리 측면 버튼과 와이드 화면은 전용 인스펙터 구조를 그대로 유지하며, 이번 일반 키 4영역 적용의 범위가 아니다.

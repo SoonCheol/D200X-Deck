@@ -981,7 +981,7 @@ function actionFields(item){
   active=item;
   switch(item.type){
     case "audio-play":return pathPicker("file","파일")+select("mode","동작",[["play-stop","재생 / 정지"],["overlap","재생 / 오버랩"],["restart","재생 / 재시작"],["loop-stop","반복 / 정지"]])+select("fade","페이드",[["none","페이드 없음"],["in","페이드 인"],["out","페이드 아웃"],["in-out","페이드 인 앤 아웃"]])+select("fadeDuration","페이드 시간",[[1,"1초"],[2,"2초"],[3,"3초"],[4,"4초"],[5,"5초"]])+`<div class="field"><label for="s-volume">음량</label><div class="compound"><input id="s-volume" type="range" min="0" max="100" data-field="volume" value="${valueOf(item,"volume",50)}"><output id="volume-display">${valueOf(item,"volume",50)}</output></div></div>`+select("output","출력",[["default","기본"]])+`<div class="field"><span></span><span class="hint">연결된 출력 장치를 선택할 수 있습니다. 장치 전환은 실행 시 적용됩니다.</span></div>`;
-    case "sd-plugin":return '<div class="sdk-state-icons" data-sdk-state-icons></div>';
+    case "sd-plugin":return "";
     case "ha-toggle":return input("entityId","HA 엔티티 ID","switch.living_room")+
       '<div class="field"><label>엔티티</label><button type="button" data-ha-entities>목록에서 선택</button></div>';
     case "audio-stop": case "previous": case "next": case "indicator":return "";
@@ -1578,7 +1578,7 @@ function appendInspectorSaveBar(root){
   const save=document.createElement('button');save.type='button';
   save.className='inspector-save';save.textContent='저장';save.disabled=!inspectorSession?.dirty;
   save.addEventListener('click',saveInspector);
-  footer.append(cancel,save);root.append(footer);
+  footer.append(cancel,save);footer.classList.add('inspector-footer-region');root.append(footer);
   updateInspectorSaveButtons();
 }
 // Capture outside clicks so a different key, profile, page, or tool cannot
@@ -1778,7 +1778,8 @@ function renderControlInspector(){
   appendInspectorSaveBar(root);
 }
 function bindSdkStateIcons(root,item){
-  const panel=root.querySelector('[data-sdk-state-icons]');
+  if(item.type!=='sd-plugin'||isMomentaryIconAction(item))return;
+  const panel=root.querySelector('[data-inspector-icons]');
   if(!panel)return;
   const draw=()=>{
     panel.replaceChildren();
@@ -1823,7 +1824,8 @@ function bindSdkStateIcons(root,item){
 
 function bindKeyPressIconControls(root,item){
   if(!isMomentaryIconAction(item)||!Number.isInteger(state.selected)||state.selected>=13)return;
-  const fields=root.querySelector('.properties>.fields');if(!fields)return;
+  const panel=root.querySelector('[data-inspector-icons]');
+  if(!panel)return;
   // Use the exact existing OFF/ON card DOM and CSS: no separate layout.
   const cards=document.createElement('div');cards.className='sdk-state-icons key-press-icons';
   const visual=displayItem(item,state.selected);
@@ -1855,11 +1857,10 @@ function bindKeyPressIconControls(root,item){
     });
     buttons.append(library,file,reset);card.append(heading,preview,buttons);cards.append(card);
   }
-  fields.prepend(cards);
+  panel.append(cards);
 }
 function bindExtendedActionFields(root,item){
   if(item.type==='sd-plugin'){
-    bindSdkStateIcons(root,item);
     root.querySelector('[data-sdk-inspector]')?.addEventListener('click',async()=>{
       const context=pluginSlotContext(item);
       if(!context)return;
@@ -2029,8 +2030,8 @@ function renderInspector(){
       sdkActionNames.get(item.settings?.actionUUID)||item.settings?.actionName||item.settings?.actionUUID||'설치된 플러그인')
     :null;
   const inspectorName=sdkName||action?.label;
-  root.innerHTML=`<div class="action-head"><strong>${escapeHtml(inspectorBreadcrumb(item,action,inspectorName))}</strong></div>
-    <div class="properties"><div class="preview"><div class="preview-key" id="icon-preview">
+  root.innerHTML=`<div class="action-head inspector-title-region"><strong>${escapeHtml(inspectorBreadcrumb(item,action,inspectorName))}</strong></div>
+    <div class="properties inspector-properties-region"><div class="preview"><div class="preview-key" id="icon-preview">
       <span id="icon-preview-content"></span>
       <button class="icon-preview-control icon-preview-plus" type="button" id="icon-library-open" aria-label="아이콘 라이브러리 열기" title="아이콘 라이브러리">+</button>
       <button class="icon-preview-control icon-preview-menu" type="button" id="icon-menu-trigger" aria-label="아이콘 변경 메뉴" aria-expanded="false" aria-controls="icon-dropdown" title="아이콘 메뉴">⌄</button>
@@ -2081,7 +2082,7 @@ function renderInspector(){
           <button type="button" id="title-palette-save">현재 색상을 나의 색상에 저장</button>
         </div>
         <button type="button" class="style-reset" id="title-reset" title="기본 스타일 복원">↺</button>
-      </div></div></div>${fields}</div></div>`;
+      </div></div></div>${fields}</div></div><section class="inspector-icon-section" data-inspector-icons aria-label="버튼 아이콘 설정"></section>`;
   const previewButton=document.createElement('button');previewButton.type='button';
   previewButton.textContent='▶ 실행 테스트';previewButton.className='action-preview-test';
   previewButton.title='실제 Windows/D200X 동작을 한 번 실행합니다';
@@ -2113,11 +2114,9 @@ function renderInspector(){
   refreshTitlePreview(item);
   $("key-title").addEventListener("input",ev=>{item.title=ev.target.value;persist();renderGrid();refreshTitlePreview(item);});
   bindExtendedActionFields(root,item);
-  bindKeyPressIconControls(root,item);
   bindShortcutOptionPreviews(root,item);
   groupCompactActionFields(root,item.type);
   bindInspectorShortcut(root,item);
-  appendInspectorSaveBar(root);
   root.querySelectorAll("[data-path-picker]").forEach(button=>{
     button.addEventListener("click",async()=>{
       if(!window.deckBridge?.choosePath){
@@ -2184,6 +2183,10 @@ function renderInspector(){
   if(['multi','multi-switch','random'].includes(item.type))renderMultiEditor(item,root);
   if(item.type==='logic')renderLogicEditor(item,root);
   if(item.type==='folder')renderFolderInspector(item,root);
+  // Stable four-region layout: header -> action properties -> exactly one icon pair -> footer.
+  bindSdkStateIcons(root,item);
+  bindKeyPressIconControls(root,item);
+  appendInspectorSaveBar(root);
 }
 async function importSlotAction(index){
   if(reservedWideSlot(index))return window.d200xActionStatus?.('가로 화면에는 액션을 불러올 수 없습니다.');

@@ -710,6 +710,39 @@
 .fields>.field.title-setting-field>.title-visible-label input[type=checkbox]{width:15px;height:15px;margin:0;flex:none;min-height:0;accent-color:#2676c1;}
 @media(max-width:1000px){.fields>.field.title-setting-field{grid-template-columns:92px minmax(0,404px);}}
 
-/* Momentary Key Up/Down cards reuse OFF/ON SDK card sizes, layout and controls. */
-.fields>.key-press-icons.sdk-state-icons{padding-left:72px}
+/* Both key-press and SDK state icon pairs live exclusively in the fixed inspector icon region. */
 #icon-preview-content{cursor:pointer}
+
+/* Fixed four-zone Inspector Contract: header / properties / icons / footer.
+   All key-action types share the same 404px VALUE column alignment. */
+.inspector{
+  --inspector-preview-width:98px;
+  --inspector-preview-gap:12px;
+  --inspector-label-width:78px;
+  --inspector-label-gap:8px;
+  --inspector-values-width:404px;
+  --inspector-values-left:calc(var(--inspector-preview-width) + var(--inspector-preview-gap) + var(--inspector-label-width) + var(--inspector-label-gap));
+}
+.inspector .inspector-properties-region{grid-template-columns:var(--inspector-preview-width) minmax(0,1fr);gap:var(--inspector-preview-gap)}
+.inspector .inspector-properties-region>.fields>.field,
+.inspector .inspector-properties-region>.fields>.field.title-setting-field{
+  grid-template-columns:var(--inspector-label-width) minmax(0,var(--inspector-values-width));
+  gap:var(--inspector-label-gap);
+}
+.inspector .inspector-properties-region>.fields>.field>label{justify-self:end;text-align:right}
+.inspector .inspector-icon-section{
+  display:block;
+  margin:12px 0 0 var(--inspector-values-left);
+  width:var(--inspector-values-width);
+  max-width:calc(100% - var(--inspector-values-left));
+  min-width:0;
+  overflow-x:auto;
+  overflow-y:hidden;
+}
+.inspector .inspector-icon-section:empty{display:none}
+.inspector .inspector-icon-section .sdk-state-icons{
+  display:flex;flex-wrap:nowrap;align-items:flex-start;
+  width:404px;min-width:404px;max-width:none;gap:12px;padding:0;
+}
+.inspector .inspector-icon-section .sdk-state-icon{flex:0 0 196px;min-width:196px;max-width:196px}
+.inspector .inspector-footer-region{justify-content:flex-end}
