@@ -1,3 +1,11 @@
+## 2026-11-16 — DeckForge 1.1 통합 설치 후보 (Windows 결과 검증 진행)
+
+- **사용자 승인:** DeckForge와 Fusion Command Manager 통합 설치/상호 실행, FusionStreamDeck과 Home Assistant 기본 SDK 플러그인 내장, Fusion Python 애드인 자동 복사 및 나중 설치 버튼, 양 플러그인 사용법 도움말, Fusion 원본 아이콘 연결 시 로컬 수집, 두 창 자석 결합(DeckForge 높이 기준) 및 ON/OFF·선호 저장. 기능 구현 후 버전 1.1.0.
+- **구현:** `app/streamdeck-editor/bundled-integration.cjs`에서 누락된 SDK 플러그인만 설치(기존 플러그인/설정/HA 토큰 보존), Fusion AddIns 폴더 존재 시에만 add-in 복사(기존 대상 무변경). DeckForge `main.cjs`에서 Fusion Manager를 같은 Electron 프로세스의 별도 BrowserWindow로 열어 창 위치/높이 연동. Plugin 탭에 매니저 실행, Fusion 애드인 설치, 플러그인별 `?` 도움말 추가. Fusion Manager의 `DeckForge 열기`/자석 상태 버튼, 원본 아이콘 자동 수집 구현.
+- **패키징:** `.github/workflows/streamdeck-clean-preview.yml`에서 고정 Autodesk FusionStreamDeck 소스/애드인과 MIT 라이선스, HA 3.8.4 릴리스 바이너리 및 MIT 라이선스, Manager 소스/JSON/Pretendard를 독립 staging 및 `resources/bundled`로 구성. HA ZIP 크기/매니페스트 UUID 검사, Fusion 매니페스트 UUID 검사 추가. NSIS `customInstall` 복사 스크립트(기존 add-in 덮어쓰기 금지), 별도 Fusion Manager 시작 메뉴 바로가기 추가. DeckForge 1.1.0으로 패키지·제목·설치 파일 버전 정합.
+- **자동 테스트:** `test/streamdeck-integrated-manager.test.cjs`는 도킹/높이 및 플러그인 중복 설치 방지 등을 검사. 기능 CI [#43866292208](https://github.com/SoonCheol/D200X-Deck/actions/runs/43866292208) 성공. 최종 HEAD/Windows Actions 전체 실행과 실제 Windows/D200X/Fusion/HA 실기는 별도 검증. CI만으로 설치 파일 생성이나 실기 성공을 주장하지 말 것.
+- **브랜치 정책:** `codex/streamdeck-761-clean-editor`만 변경, PR #5 미병합. 기존 DeckForge 사용자 데이터 경로 `%APPDATA%\\D200X StreamDeck Device Sync` 그대로 유지.
+
 ## 2026-11-16 — Fusion Manager 요청 레이아웃 일괄 반영 (최신)
 
 - 실행 기본 창 698×873px (모니터 workArea 이내), 페이지 편집 모드는 기존 1240px 확장 유지. 작업 영역 9개 탭을 동일 폭 그리드로, 패널 메뉴는 최소 내용 폭과 균등 확장을 조합해 창 너비에 맞춰 줄바꿈. 기존 여백 유지.
