@@ -38,7 +38,7 @@
  function pathParts(path){
   const parts=[];
   for(const s of Array.isArray(path)?path:[]){
-   const kind=s.kind||(['workspace','tab','panel','toolbar','dropdown'].find(k=>s[k])||'control');
+   const kind=s.kind||(['workspace','tab','panel','toolbar','dropdown'].find(k=>s[k])||(String(s.controlType||'').includes('DropDownControl')?'dropdown':'control'));
    const value=s[kind],id=s.id||value?.id||s.controlId||'';
    const label=s.name||value?.name||s.controlName||id;
    if(kind==='command')continue;
@@ -68,7 +68,7 @@
     const wsKey=workspaceName(anchor)!==anchor?workspaceName(anchor):workspaceName(wsPart?.id||anchor);
     const ws=get(workspaces,wsKey,wsKey);
     const panName=panelPart?panelName(panelPart.id):'기타 툴바';
-    const pan=get(ws.children,(tab?.id||'')+'|'+(panelPart?.id||''),panName);
+    const pan=get(ws.children,panName,panName);
     // Distinguish nested dropdown groups by original ID and order, not guessed labels.
     let dest=pan;
     for(const sub of parts.filter(x=>x.kind==='dropdown')){
