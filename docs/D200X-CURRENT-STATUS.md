@@ -1,3 +1,9 @@
+## 2026-11-16 — Fusion Command Manager 실제 메뉴 순서 적용 (최신 코드)
+
+- 사용자 우선순위: Fusion 디자인 메뉴의 **스케치 → 솔리드 → 곡면 → 메쉬 → 판금 → 플라스틱 → 매니지 → 유틸리티 → 자동화** 순서, 각 탭 패널 왼쪽→오른쪽, 접힌 드롭다운 자식 위→아래. 메뉴 외 API 전용 명령 분류 작업은 이번 범위에서 제외.
+- `tools/fusion-mcp/fusion-menu-catalog.json`의 959개 실제 메뉴 배치(고유 ID 326개)를 Manager의 탐색 원천으로 연결. 기존 3,266개 전체 원본 카탈로그/프로젝트 JSON은 삭제·재배치하지 않으며, 탐색 시 실제 메뉴 카탈로그 순서로 표시. 반복된 동일 ID는 선택 메뉴 안에서 중복 제거하고 원래 메뉴 위치를 존중. 별도 DeckForge 본체 소스 미변경.
+- 변경: Manager IPC/preload, `menu-tree.cjs`, `renderer.js`, Manager 전용 Windows 워크플로의 카탈로그 패키징, 메뉴 순서 단위/실자료 회귀 테스트. **CI 및 Windows 전용 빌드는 해당 실행의 성공 여부를 확인해야 하며, Windows GUI/Fusion/D200X 실기 검증은 미실시.**
+
 ## 2026-11-16 — Fusion Command Manager 메뉴 탐색형 리디자인 + DeckForge 직접 드롭 (최종 빌드 성공)
 
 - **사용자 요청**: DeckForge와 나란히 배치하는 620px 폭 보조 창. Fusion 대분류→하위 메뉴→원본 아이콘/명령 탐색(100px 내외 × 82px, 원본 32px, 한글 13px), 상단 가로 메뉴. 기존 여러 페이지 5/5/3 편집은 별도 확장 모드로 유지. 메뉴 명령을 Manager 페이지나 DeckForge 일반 키로 드래그해서 자동 등록. 승인 추가 요청 없이 Windows 빌드까지.
