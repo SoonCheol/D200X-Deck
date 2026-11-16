@@ -7,6 +7,7 @@ const path=require('node:path');
 const os=require('node:os');
 const readline=require('node:readline');
 const B=require('../../app/streamdeck-editor/fusion-batch.js');
+const MENU=require('./fusion-menu-catalog.json');
 const PROTOCOL='2025-06-18';
 const MAX_BODY=5*1024*1024;
 function endpointFile(env=process.env,home=os.homedir()){
@@ -37,6 +38,34 @@ async function catalogue(query='',refresh=false,{fetcher=globalThis.fetch,discov
     v.id.length<=256&&typeof v.name==='string'&&v.name.length<=160)
     .map(v=>({id:v.id,name:v.name,tooltip:typeof v.tooltip==='string'?v.tooltip.slice(0,300):''}));
 }
+// The live capture is authoritative for menu membership and ordering. A command
+// appears only once in a batch even when multiple panels expose the same ID.
+function menuCommands(available){
+  const byId=new Map(available.map(item=>[item.id,item]));
+  const seen=new Set();
+  return MENU.entries.flatMap(entry=>{
+    if(seen.has(entry.id)||!byId.has(entry.id))return [];
+    seen.add(entry.id);
+    const live=byId.get(entry.id);
+    return [{id:entry.id,name:entry.name||live.name,tab:entry.tab,
+      panel:entry.panel,dropdowns:entry.dropdowns}];
+  });
+}
+function selectMenuCommands(available,args){
+  const menu=menuCommands(available);
+  const selected=args.all===true?menu:(()=>{
+    if(!Array.isArray(args.command_ids)||!args.command_ids.length)
+      throw Error('all:true 또는 command_ids 배열 중 하나만 지정하세요.');
+    const requested=new Set(args.command_ids);
+    const found=new Set(menu.map(x=>x.id));
+    for(const id of requested)if(!found.has(id))
+      throw Error('선택한 메뉴에 없거나 현재 Fusion에서 조회되지 않은 명령: '+id);
+    return menu.filter(x=>requested.has(x.id));
+  })();
+  if(!selected.length||selected.length>B.MAX)
+    throw Error('등록 가능한 메뉴 명령 개수는 1~'+B.MAX+'개입니다.');
+  return selected.map(({id,name})=>({id,name}));
+}
 function selectCommands(available,args){
   if(!Array.isArray(available))throw Error('Fusion 명령 목록이 없습니다.');
   const all=args.all===true;
@@ -57,7 +86,7 @@ function selectCommands(available,args){
 async function exportBatch(args,{getCommands=catalogue,writeFile=fs.writeFile,
   mkdir=fs.mkdir,env=process.env,home=os.homedir(),now=new Date()}={}){
   const entries=await getCommands('',true);
-  const commands=selectCommands(entries,args);
+  const commands=selectMenuCommands(entries,args);
   const name=typeof args.profile_name==='string'&&args.profile_name.trim()?
     args.profile_name.trim().slice(0,80):'Fusion 360 명령';
   const payload=B.validate({format:B.FORMAT,pluginUUID:B.PLUGIN,
@@ -71,9 +100,9 @@ async function exportBatch(args,{getCommands=catalogue,writeFile=fs.writeFile,
     profile:payload.profileName,warning:'D200X 편집기에서 JSON을 가져와야 실제 버튼에 적용됩니다.'};
 }
 const TOOLS=[
- {name:'fusion_list_commands',description:'Fusion 360 애드인이 제공하는 현재 작업공간 명령을 검색합니다. 읽기 전용.',
+ {name:'fusion_list_commands',description:'Fusion 디자인의 실제 메뉴 9개 탭에서 확인된 명령만 메뉴 순서대로 검색합니다. 읽기 전용.',
   inputSchema:{type:'object',properties:{query:{type:'string'},offset:{type:'integer',minimum:0},limit:{type:'integer',minimum:1,maximum:100},refresh:{type:'boolean'}},additionalProperties:false}},
- {name:'fusion_export_batch',description:'선택한 Fusion 명령을 13개 일반 키/페이지 D200X 새 프로필용 JSON으로 출력합니다. 기존 설정을 건드리지 않으며 D200X 앱에서 명시적 가져오기가 필요합니다.',
+ {name:'fusion_export_batch',description:'실제 Fusion 메뉴 9개 탭의 명령만 정확한 ID로 선택하고 메뉴 순서대로 새 프로필 JSON에 출력합니다. 기존 설정은 유지합니다.',
   inputSchema:{type:'object',properties:{all:{type:'boolean'},command_ids:{type:'array',items:{type:'string'},maxItems:1664},profile_name:{type:'string',maxLength:80}},
     additionalProperties:false}}
 ];
@@ -88,7 +117,7 @@ async function dispatch(msg,{getCommands=catalogue,exporter=exportBatch}={}){
     try{
       const a=msg.params?.arguments||{};
       if(msg.params?.name==='fusion_list_commands'){
-        const found=await getCommands(a.query||'',a.refresh===true);
+        const found=menuCommands(await getCommands(a.query||'',a.refresh===true));
         const start=Number.isInteger(a.offset)&&a.offset>=0?a.offset:0;
         const size=Number.isInteger(a.limit)?Math.max(1,Math.min(100,a.limit)):50;
         return reply(msg.id,content({total:found.length,offset:start,commands:found.slice(start,start+size)}));
@@ -113,4 +142,4 @@ if(require.main===module){
     }
   });
 }
-module.exports={endpointFile,findEndpoint,catalogue,selectCommands,exportBatch,dispatch};
+module.exports={endpointFile,findEndpoint,catalogue,menuCommands,selectMenuCommands,selectCommands,exportBatch,dispatch};
