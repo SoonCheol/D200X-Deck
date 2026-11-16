@@ -1,3 +1,12 @@
+## 2026-11-17 — Key Up/Down 아이콘 카드 레이아웃 원복 (기존 OFF/ON 디자인 그대로 재사용)
+
+- **사용자 실기 화면 비교:** 새 Key Up/Down 카드가 기존 OFF/ON 카드에 비해 지나치게 좁고 버튼이 이미지 아래쪽에 놓이는 문제 제보. 기존 OFF/ON **카드 DOM/CSS 클래스**를 다시 사용하도록 수정. 추가 `키 아이콘` 필드 레이블 삭제, 카드 헤더 설명을 **Key Up / Key Down**으로 단순화, 84×84 아이콘 왼쪽·76px 3개 버튼 오른쪽의 196px 고정 카드 레이아웃 통일. 기존 카드의 `라이브러리/파일/초기화` 버튼과 스타일을 그대로 사용하며 일반 기능·아이콘 저장 로직은 유지.
+- **소스:** `app/streamdeck-editor/editor.js`, `app/streamdeck-editor/style.css`, `test/deckforge-key-press-icons.test.cjs`.
+- **최종 빌드 소스 커밋:** `551fde1cf2c28643f49eaac079bea56083d992ca`; 중간 소스 커밋 `fe6d50f2b169cc638511879ae414d4072039505b` / `c130b07479abf38d44e3488b696b4ec856c2e997`.
+- **검증:** CI [#43916498452](https://github.com/SoonCheol/D200X-Deck/actions/runs/43916498452) 성공; Windows 통합 설치 빌드 [#43916498401](https://github.com/SoonCheol/D200X-Deck/actions/runs/43916498401) 성공.
+- **배포 아티팩트:** 설치형 `DeckForge-1.1-Setup-win-x64` ID `14250401385` (131,809,987 bytes), 포터블 `DeckForge-1.1-win-x64` ID `14249384415` (176,976,836 bytes). 조회 시 만료 전.
+- **검증 한계:** CI 및 패키징 통과만 검증. 실제 Windows 인스펙터 레이아웃과 D200X 물리 표시 확인은 사용자의 최신 설치본 실기 검증 대기. PR #5 Draft/미병합 유지.
+
 ## 2026-11-17 — Key Up → Key Down 공통 아이콘: 코드·Windows 설치 빌드 성공 (실기 대기)
 
 - **승인된 UI 순서:** Key Up(평상시 기본 아이콘) **먼저**, Key Down(버튼 누르는 동안) **다음**. 속성창에서 각 이미지 별도 설정(라이브러리·파일·기본값), 기존 대표 아이콘이 양쪽의 초기 표시이며 동일 이미지면 기존 축소 애니메이션 유지. 대표 아이콘 마우스 누름 미리보기는 실제 명령·SDK·HA 호출 없이 화면 효과만 보여줌.
