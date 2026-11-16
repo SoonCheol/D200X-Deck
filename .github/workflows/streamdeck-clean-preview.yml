@@ -175,7 +175,7 @@ jobs:
           $file = 'app/bundled-plugin-download/de.perdoctus.streamdeck.homeassistant.streamDeckPlugin'
           Invoke-WebRequest -Uri 'https://github.com/cgiesche/streamdeck-homeassistant/releases/download/3.8.4/de.perdoctus.streamdeck.homeassistant.streamDeckPlugin' -OutFile $file -TimeoutSec 180
           $size = (Get-Item $file).Length
-          if ($size -lt 100000 -or $size -gt 41943040) { throw "HA release size incorrect: $size" }
+          if ($size -ne 1497023) { throw "HA 3.8.4 release size differs from inspected artifact: $size" }
           $head = [System.IO.File]::ReadAllBytes((Resolve-Path $file))
           if ($head[0] -ne 80 -or $head[1] -ne 75) { throw 'HA release is not a ZIP' }
           Write-Host "HA 3.8.4 SHA256: $((Get-FileHash $file -Algorithm SHA256).Hash)"
@@ -233,6 +233,11 @@ jobs:
           Push-Location app/preview-device-build
           npm install --omit=dev --no-audit --no-fund
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          Pop-Location
+          # Inspect the real HA release archive and Fusion manifest before packaging.
+          Push-Location 'app/preview-device-build'
+          node -e "const fs=require('fs');const JSZip=require('jszip');(async()=>{const f='bundled/de.perdoctus.streamdeck.homeassistant.streamDeckPlugin';const zip=await JSZip.loadAsync(fs.readFileSync(f),{checkCRC32:true});const name=Object.keys(zip.files).find(x=>x.endsWith('.sdPlugin/manifest.json'));if(!name)throw Error('HA manifest not found');const m=JSON.parse(await zip.file(name).async('string'));if(m.UUID!=='de.perdoctus.streamdeck.homeassistant')throw Error('Unexpected HA plugin UUID: '+m.UUID);const fusion=JSON.parse(fs.readFileSync('bundled/com.autodesk.fusionstreamdeck.sdPlugin/manifest.json','utf8'));if(fusion.UUID!=='com.autodesk.fusionstreamdeck')throw Error('Unexpected Fusion plugin UUID');console.log('Verified bundled HA and Autodesk Fusion plugin manifests');})().catch(e=>{console.error(e);process.exit(1)})"
+          if ($LASTEXITCODE -ne 0) { throw 'Bundled plugin manifest verification failed' }
           Pop-Location
           Write-Host 'Fluent UI bundle source/staging contents:'
           Get-ChildItem 'app/streamdeck-editor' -Filter '*iconpack*' | Select-Object Name,Length | Format-Table
