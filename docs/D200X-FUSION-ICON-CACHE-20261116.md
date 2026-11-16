@@ -29,3 +29,12 @@
 - app/streamdeck-editor/sd-plugin-host.cjs
 - app/streamdeck-editor/editor.js
 - app/streamdeck-editor/device-sync.js
+
+
+## 2026-11-16 연결 복구 시 X 유지 오류 수정
+- 실기 사진: Fusion 360 정상 실행 상태에서 명령 이미지(돌출, 회전, 홀, 필렛, 챔퍼, 쉘)가 로드됐으나 각 버튼 오른쪽 상단에 빨간 X가 남음.
+- 원인: 오프라인 계산에서 SDK WebSocket 연결 이벤트 `!connected`를 강제했고, 초기 이벤트 수신 누락 시 정상 이미지가 있어도 X를 지우지 못함.
+- 수정: 명령별 정상 `setImage` 응답이 오면 해당 context를 `fusionLiveContexts`에 등록해 정상으로 처리. 비접속 SVG 또는 SDK 연결 종료 시 해제.
+- 회귀 테스트: 정상 아이콘+이벤트 누락, 비접속 SVG+캐시 아이콘을 별도로 검증.
+- 수정 커밋: `04c9a66f84c1f03bb443f77cef649eff64c1236c`; 테스트: `04774b98dda49efe5acb5b2f6f2604661c0b16d2`.
+- Windows 실기 동작은 새 설치 파일에서 사용자 확인 필요.
