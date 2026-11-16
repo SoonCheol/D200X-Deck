@@ -72,6 +72,16 @@ ipcMain.handle('d200x:fusion-addin-install',async event=>{
  assertEditor(event);return Bundled.installFusionAddin();
 });
 let fusionMagnet=null;
+const magnetSettingsFile=()=>path.join(app.getPath('userData'),'fusion-manager-magnet-v1.json');
+function savedMagnetSettings(){
+ try{const data=JSON.parse(fs.readFileSync(magnetSettingsFile(),'utf8'));return {enabled:data.enabled!==false}}
+ catch{return {enabled:true}}
+}
+function saveMagnetSettings(enabled){
+ const file=magnetSettingsFile();fs.mkdirSync(path.dirname(file),{recursive:true});
+ const tmp=file+'.tmp';fs.writeFileSync(tmp,JSON.stringify({enabled}),{encoding:'utf8'});
+ fs.renameSync(tmp,file);
+}
 async function openIntegratedManager(){
  if(!window||window.isDestroyed())return false;
  try{
@@ -82,11 +92,12 @@ async function openIntegratedManager(){
    return false;
   });
   if(!fusionMagnet||fusionMagnet.window!==manager){
-   fusionMagnet=Bundled.createMagnet(window,manager,screen);
+   fusionMagnet=Bundled.createMagnet(window,manager,screen,saveMagnetSettings);
+   fusionMagnet.enable(savedMagnetSettings().enabled);
    fusionMagnet.window=manager;
    manager.on('closed',()=>{if(fusionMagnet?.window===manager)fusionMagnet=null});
    // A manager-only launch stays independent until DeckForge becomes visible.
-   if(window.isVisible())fusionMagnet.attach();
+   if(window.isVisible()&&fusionMagnet.status().enabled)fusionMagnet.attach();
   }
   return true;
  }catch(error){console.warn('Fusion Manager 실행 오류:',error.message);throw error;}
@@ -230,6 +241,7 @@ function revealEditor(){
   if(window.isMinimized())window.restore();
   window.show();
   window.focus();
+  if(fusionMagnet&&fusionMagnet.status().enabled&&!fusionMagnet.status().attached)fusionMagnet.attach();
 }
 function quitDeckForge(){
   quitting=true;
