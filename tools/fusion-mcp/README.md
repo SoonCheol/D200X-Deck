@@ -38,7 +38,7 @@ codex mcp add d200x-fusion -- node "E:\Codex\D200X-Deck\tools\fusion-mcp\server.
 
 - "d200x-fusion MCP로 현재 Fusion 360의 명령을 검색해서 목록을 보여줘."
 - "Extrude, SaveCommand 등의 **실제로 조회된 ID**를 이용해 Fusion 기본 명령 프로필 JSON을 만들어줘."
-- "현재 로드된 Fusion 명령 전체를 새 D200X 프로필로 내보내줘."
+- "Fusion 디자인의 실제 메뉴 9개 탭에 표시된 명령만 메뉴 순서대로 새 D200X 프로필로 내보내줘."
 
 MCP 도구: `fusion_list_commands({query,offset,limit,refresh})`, `fusion_export_batch({command_ids,profile_name})` 또는 `fusion_export_batch({all:true,profile_name})`.
 
@@ -49,6 +49,6 @@ MCP 도구: `fusion_list_commands({query,offset,limit,refresh})`, `fusion_export
 ## 한계
 
 - 인터넷 서비스가 아니며 `%LOCALAPPDATA%\FusionStreamDeck\endpoint.json`의 `127.0.0.1` 포트로만 통신.
-- 조회 목록은 **현재 Fusion 작업공간에 로드된 명령**뿐이다. 모든 워크스페이스의 명령을 자동으로 합치는 기능은 미구현.
+- 일괄 등록은 `fusion-menu-catalog.json`의 실제 **디자인 작업 영역 메뉴 9개 탭**만 사용한다. 스케치 → 솔리드 → 곡면 → 메쉬 → 판금 → 플라스틱 → 매니지 → 유틸리티 → 자동화 순서다. 2026-11-16 실측 메뉴 배치 959건에서 중복 ID를 제외한 326개가 대상이며, 현재 Fusion `/commands`에서 응답한 ID만 최종 내보낸다. 메뉴에 없는 내부/API 전용 명령은 제외한다. 이 목록은 실행 가능 여부까지 보증하지 않으며, 작업 영역 전환이 필요한 명령의 실제 실행은 별도 실기 확인이 필요하다.
 - 현재 버전은 버튼에 각각 Run Command 액션과 설정을 자동 구성한다. 아이콘은 명령 실행 중 원본 플러그인이 Fusion에서 가져오므로 MCP가 아이콘을 별도로 저장하지 않는다.
 - GitHub 자동 테스트와 사용자 PC에서의 MCP 실행은 다르므로 실제 Codex 연결·GUI 가져오기 실기 확인이 필요하다.
