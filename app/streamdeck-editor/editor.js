@@ -121,7 +121,7 @@ function keyName(item){return item?.title||ACTIONS.get(item?.type)?.label||"";}
 const sdkVisuals=new Map();
 const FUSION_PLUGIN='com.autodesk.fusionstreamdeck';
 const fusionIconCache=new Map(),fusionCachePending=new Set(),fusionCacheMisses=new Set(),
-  fusionConnected=new Set(),fusionOfflineContexts=new Set();
+  fusionConnected=new Set(),fusionOfflineContexts=new Set(),fusionLiveContexts=new Set();
 function fusionCommandId(item){return isFusionAction(item)?item.settings?.pluginSettings?.commandId:null;}
 function fusionDisabledImage(uri){
   if(typeof uri!=='string'||!uri.startsWith('data:image/svg+xml;base64,'))return false;
@@ -210,7 +210,11 @@ function displayItem(item,index){
       const id=fusionCommandId(item),connected=fusionConnected.has(FUSION_PLUGIN);
       if(id)requestFusionIcon(id);
       const cached=id?fusionIconCache.get(id):null;
-      const offline=!connected||fusionOfflineContexts.has(sdkContext(slot,'down'));
+      // A live icon response proves that this command reached Fusion, even when
+      // the SDK connection event was emitted before the renderer subscribed.
+      const context=sdkContext(slot,'down');
+      const offline=fusionOfflineContexts.has(context)||
+        (!connected&&!fusionLiveContexts.has(context));
       const runtimeImage=!offline&&visual?.image?visual.image:null;
       const icon=stateIcon||item.icon||(runtimeImage?{kind:'file',value:runtimeImage}:null)||
         (cached?{kind:'file',value:cached}:null)||
@@ -3242,7 +3246,7 @@ if(window.deckBridge?.onSdkEvent){
       }
     }else if(message.kind==='pluginConnection'&&message.pluginUUID===FUSION_PLUGIN){
       if(message.connected)fusionConnected.add(FUSION_PLUGIN);
-      else {fusionConnected.delete(FUSION_PLUGIN);for(const [context] of sdkVisuals) {
+      else {fusionConnected.delete(FUSION_PLUGIN);fusionLiveContexts.clear();for(const [context] of sdkVisuals) {
         // Disconnected runtime art must not override the cached image.
         const entry=sdkActionInstances().find(x=>x.context===context);
         if(entry?.pluginUUID===FUSION_PLUGIN)sdkVisuals.delete(context);
@@ -3262,10 +3266,13 @@ if(window.deckBridge?.onSdkEvent){
         const cfg=sdkActionInstances().find(x=>x.context===ctx);
         if(cfg?.pluginUUID===FUSION_PLUGIN){
           const disabled=fusionDisabledImage(old.image);
-          if(disabled)fusionOfflineContexts.add(ctx);
-          else{
+          if(disabled){
+            fusionOfflineContexts.add(ctx);
+            fusionLiveContexts.delete(ctx);
+          }else{
             fusionOfflineContexts.delete(ctx);
-            if(fusionConnected.has(FUSION_PLUGIN)&&typeof cfg.settings?.commandId==='string')
+            fusionLiveContexts.add(ctx);
+            if(typeof cfg.settings?.commandId==='string')
               void rememberFusionIcon(cfg.settings.commandId,old.image);
           }
         }
