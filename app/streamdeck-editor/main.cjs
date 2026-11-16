@@ -20,6 +20,32 @@ function sdk(){
   return sdkHost;
 }
 // Local-only Fusion artwork cache: filenames are stable SDK command IDs.
+// The Fusion add-in publishes its *own* HTTP endpoint. The SDK plugin may
+// remain connected while Fusion itself has exited, so SDK WS is not a health signal.
+const fusionDiscoveryFile=()=>path.join(process.env.LOCALAPPDATA||path.join(app.getPath('home'),'AppData','Local'),'FusionStreamDeck','endpoint.json');
+async function fusionAddinAvailable(){
+  try{
+    const discovery=JSON.parse(await fs.promises.readFile(fusionDiscoveryFile(),'utf8'));
+    if(discovery?.status!=='running'||!Number.isInteger(discovery.port)||
+      discovery.port<1||discovery.port>65535)return false;
+    return await new Promise(resolve=>{
+      const req=http.get({hostname:'127.0.0.1',port:discovery.port,path:'/health',
+        timeout:1200,headers:{accept:'application/json'},agent:false},res=>{
+        if(res.statusCode!==200){res.resume();resolve(false);return;}
+        let body='',total=0;
+        res.on('data',chunk=>{total+=chunk.length;if(total>8192){req.destroy();resolve(false);}else body+=chunk;});
+        res.on('end',()=>{try{resolve(JSON.parse(body)?.ok===true);}catch{resolve(false);}});
+        res.on('error',()=>resolve(false));
+      });
+      req.on('timeout',()=>{req.destroy();resolve(false);});
+      req.on('error',()=>resolve(false));
+    });
+  }catch{return false;}
+}
+ipcMain.handle('d200x:fusion-health',async event=>{
+  assertEditor(event);
+  return fusionAddinAvailable();
+});
 const fusionCacheDir=()=>path.join(app.getPath('userData'),'fusion-command-icons');
 function safeFusionCommand(id){return typeof id==='string'&&id!=='.'&&id!=='..'&&
   /^[a-zA-Z0-9._-]{1,180}$/.test(id);}
