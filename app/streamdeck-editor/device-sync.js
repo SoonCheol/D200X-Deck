@@ -73,7 +73,8 @@
     const baseSize = Math.max(8, Math.min(48, Number(style?.size) || 12));
     const fontSize = baseSize * height / 72;
     const family = style?.family === 'Segoe UI' ? '"Segoe UI"'
-      : '"Malgun Gothic"';
+      : style?.family === 'Malgun Gothic' ? '"Malgun Gothic"'
+      : '"DeckForge Pretendard"';
     ctx.font = (style?.italic ? 'italic ' : '') +
       (style?.bold ? 'bold ' : '') + fontSize + 'px ' + family + ',sans-serif';
     ctx.fillStyle = style?.color || '#ffffff';
