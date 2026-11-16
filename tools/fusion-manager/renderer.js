@@ -5,7 +5,7 @@ const MAXP=128,PER=13;
 const $=id=>document.getElementById(id);
 let commands=[],pages=[],drag=null,context=null,capturedUI=null,visibilityOverrides={};
 const Curation=window.FusionCuration,MenuTree=window.FusionMenuTree,FusionDrag=window.DeckForgeFusionDrag;
-let explorerArea='',explorerPanel='',explorerDropdown='',explorerItems=[],menuTreeCache=null;
+let explorerArea='',explorerPanel='',explorerDropdown='',explorerItems=[],menuTreeCache=null,menuCatalog=null;
 const iconCache=new Map(),iconPending=new Set();
 const byId=()=>new Map(commands.map(v=>[v.id,v]));
 const empty=()=>({name:'새 페이지',enabled:true,reserved:[],slots:Array(PER).fill(null)});
@@ -157,18 +157,21 @@ $('detailClose').onclick=()=>$('detail').style.display='none';
 function renderExplorer(){
  if(!commands.length)return;
  if(!menuTreeCache){
-   const eligible=commands.filter(v=>Curation.captureClassify(v,capturedUI)!=='hidden'||visibilityOverrides[v.id]==='primary'||visibilityOverrides[v.id]==='review');
-   menuTreeCache=MenuTree.structure(eligible,capturedUI);
+   if(menuCatalog)menuTreeCache=MenuTree.fromMenuCatalog(menuCatalog,commands);
+   else{
+    const eligible=commands.filter(v=>Curation.captureClassify(v,capturedUI)!=='hidden'||visibilityOverrides[v.id]==='primary'||visibilityOverrides[v.id]==='review');
+    menuTreeCache=MenuTree.structure(eligible,capturedUI);
+   }
  }
  const groups=menuTreeCache;
  if(!groups.length)return;
- const areas=[...groups].sort((a,b)=>{
+ const areas=menuCatalog?groups:[...groups].sort((a,b)=>{
    const order=['스케치','솔리드','곡면','메쉬','판금'];
    const i=order.indexOf(a.name),j=order.indexOf(b.name);
    return (i<0?999:i)-(j<0?999:j)||a.name.localeCompare(b.name,'ko');
  });
  if(!areas.some(a=>a.key===explorerArea)){
-   explorerArea=(areas.find(a=>a.name==='솔리드')||areas[0]).key;
+   explorerArea=(menuCatalog?areas[0]:(areas.find(a=>a.name==='솔리드')||areas[0])).key;
    explorerPanel='';explorerDropdown='';
  }
  const area=areas.find(a=>a.key===explorerArea);
@@ -181,12 +184,12 @@ function renderExplorer(){
    }
  };
  fillTabs($('workspaces'),areas,explorerArea,key=>{explorerArea=key;explorerPanel='';explorerDropdown='';renderExplorer()});
- const panels=[...area.children.values()].sort((a,b)=>a.rank-b.rank||a.name.localeCompare(b.name,'ko'));
- if(!panels.some(x=>x.key===explorerPanel)){explorerPanel=(panels.find(x=>x.name==='작성')||panels[0])?.key||'';explorerDropdown=''}
+ const panels=menuCatalog?[...area.children.values()]:[...area.children.values()].sort((a,b)=>a.rank-b.rank||a.name.localeCompare(b.name,'ko'));
+ if(!panels.some(x=>x.key===explorerPanel)){explorerPanel=(menuCatalog?panels[0]:(panels.find(x=>x.name==='작성')||panels[0]))?.key||'';explorerDropdown=''}
  fillTabs($('menus'),panels,explorerPanel,key=>{explorerPanel=key;explorerDropdown='';renderExplorer()});
  const panel=area.children.get(explorerPanel);
  if(!panel)return;
- const dropdowns=[{key:'all',name:'전체' },...[...panel.children.values()].sort((a,b)=>a.rank-b.rank||a.name.localeCompare(b.name,'ko'))];
+ const dropdowns=[{key:'all',name:'전체' },...(menuCatalog?[...panel.children.values()]:[...panel.children.values()].sort((a,b)=>a.rank-b.rank||a.name.localeCompare(b.name,'ko')))];
  if(!dropdowns.some(x=>x.key===explorerDropdown))explorerDropdown='all';
  fillTabs($('dropdowns'),dropdowns,explorerDropdown,key=>{explorerDropdown=key;renderExplorer()});
  const node=explorerDropdown==='all'?panel:panel.children.get(explorerDropdown);
@@ -196,7 +199,7 @@ function renderExplorer(){
    ?commands.filter(v=>v.id.toLowerCase().includes(search)||v.name.toLowerCase().includes(search))
    :MenuTree.descendants(node);
  const unique=new Map(list.map(v=>[v.id,v]));
- explorerItems=[...unique.values()].sort((a,b)=>Curation.sortByPlacement(a,b,capturedUI));
+ explorerItems=menuCatalog&&!search?[...unique.values()]:[...unique.values()].sort((a,b)=>Curation.sortByPlacement(a,b,capturedUI));
  $('explorePath').textContent=search?'전체 명령 검색':area.name+' / '+panel.name+(explorerDropdown==='all'?'':' / '+node.name);
  $('exploreCount').textContent=explorerItems.length+'개';
  const target=$('exploreCommands');target.replaceChildren();
@@ -416,4 +419,4 @@ document.addEventListener('click',e=>{if(!$('context').contains(e.target))$('con
 $('save').onclick=async()=>{try{const result=await window.fusionManager.save(project(),'Fusion-Layout.project.json');if(result)status('프로젝트 저장: '+result)}catch(e){status(e.message)}};
 $('open').onclick=async()=>{try{const result=await window.fusionManager.open();if(!result)return;validateProject(result.data);pages=result.data.pages.map(p=>({name:p.name,enabled:p.enabled,reserved:p.reserved,slots:p.slots}));$('profile').value=result.data.profileName;render();status('프로젝트 불러오기 완료')}catch(e){status('불러오기 실패: '+e.message)}};
 $('export').onclick=async()=>{try{const data=exportData();const result=await window.fusionManager.save(data,'D200X-Fusion-Commands.json');if(result)status('DeckForge 등록용 JSON 생성: '+result)}catch(e){status('내보내기 실패: '+e.message)}};
-Promise.all([window.fusionManager.catalog(),window.fusionManager.loadVisibility().catch(()=>({})),window.fusionManager.loadCapture().catch(()=>null)]).then(([data,overrides,lastCapture])=>{visibilityOverrides=overrides;if(lastCapture){try{capturedUI=Curation.validateCapture(lastCapture);$('captureStatus').textContent='저장된 Fusion UI 수집 '+capturedUI.entries.size+'개 ID';}catch{capturedUI=null}}commands=normalizeCatalogue(data);if(!commands.length)throw Error('명령 카탈로그를 읽었지만 지원되는 명령이 없습니다.');pages=[empty()];render();status('메뉴에서 명령을 찾아 DeckForge 또는 페이지 편집기로 드래그하세요.');}).catch(e=>{pages=[empty()];render();status('카탈로그 오류: '+e.message)});
+Promise.all([window.fusionManager.catalog(),window.fusionManager.loadVisibility().catch(()=>({})),window.fusionManager.loadCapture().catch(()=>null),window.fusionManager.menuCatalog()]).then(([data,overrides,lastCapture,menu])=>{menuCatalog=menu;visibilityOverrides=overrides;if(lastCapture){try{capturedUI=Curation.validateCapture(lastCapture);$('captureStatus').textContent='저장된 Fusion UI 수집 '+capturedUI.entries.size+'개 ID';}catch{capturedUI=null}}commands=normalizeCatalogue(data);if(!commands.length)throw Error('명령 카탈로그를 읽었지만 지원되는 명령이 없습니다.');pages=[empty()];render();status('메뉴에서 명령을 찾아 DeckForge 또는 페이지 편집기로 드래그하세요.');}).catch(e=>{pages=[empty()];render();status('카탈로그 오류: '+e.message)});
