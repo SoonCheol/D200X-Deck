@@ -103,3 +103,20 @@ test('Fusion Manager help stays available offline in Windows packaging source',(
  assert.match(main,/help-markdown/);
  assert.match(workflow,/fusion-manager\/HELP\.md/);
 });
+
+test('Manager opens at requested size and expands nested menu without extra dropdown filters',()=>{
+ const fs=require('node:fs'),path=require('node:path');
+ const root=path.join(__dirname,'../tools/fusion-manager');
+ const html=fs.readFileSync(path.join(root,'index.html'),'utf8');
+ const script=fs.readFileSync(path.join(root,'renderer.js'),'utf8');
+ const main=fs.readFileSync(path.join(root,'main.cjs'),'utf8');
+ const workflow=fs.readFileSync(path.join(__dirname,'../.github/workflows/fusion-manager-preview.yml'),'utf8');
+ assert.doesNotMatch(html,/id="dropdowns"/);
+ assert.doesNotMatch(script,/explorerDropdown/);
+ assert.match(script,/const node=panel/);
+ assert.match(html,/grid-template-columns:repeat\(9,minmax\(0,1fr\)\)/);
+ assert.match(html,/#menus\{display:flex;flex-wrap:wrap/);
+ assert.match(main,/Math\.min\(698,area\.width\),height=Math\.min\(873,area\.height\)/);
+ assert.match(html,/fonts\/PretendardVariable\.woff2/);
+ assert.match(workflow,/49c54b5152a184a243e85f7281ed338b6569987e/);
+});
