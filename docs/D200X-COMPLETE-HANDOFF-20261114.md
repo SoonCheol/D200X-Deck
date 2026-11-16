@@ -620,3 +620,6 @@
 - **코드:** `editor.js`에서 기존 `title-visible` DOM을 제목 라벨 위치로 이동, `style.css`에 해당 행만 92px 레이블 배치. 프리셋 `change`에서 `Object.assign(style,chosen.style)` 사용으로 기존 참조 보존; 글꼴, 크기, 정렬, 강조, 색상, 외곽선, 표시 상태를 현재 열린 팝업 컨트롤에 즉시 반영. 이전의 `renderInspector()` 호출은 이 경로에서 제거하여 드롭다운과 팝업이 유지되게 함.
 - **안전:** 프리셋 데이터는 별도 `deckforge-title-style-presets-v1` 저장소, 프로필은 `titleStyle` 스키마 그대로 사용. 명시적 맑은 고딕/Segoe UI 유지, 기본은 내장 Pretendard. D200X로 전송되는 제목 PNG 렌더링 경로는 변경하지 않음.
 - **검증:** 정적 회귀 테스트에 UI 배치·프리셋 필드 동기화 회귀 방지 추가. Actions 결과/빌드 아티팩트·D200X 실기는 반드시 별도 확인. PR #5 병합 금지.
+
+- **확인된 CI:** 변경 코드 및 레이아웃 회귀 테스트 후 최종 문서 커밋 `b9986bb1` 기준 [CI #43799006679](https://github.com/SoonCheol/D200X-Deck/actions/runs/43799006679) `completed/success` 확인. 소스 커밋 `fb01c996`, `4ffe581b`, `af4c1015`의 CI 역시 성공 확인.
+- **Windows 자동 빌드 정책:** `.github/workflows/streamdeck-clean-preview.yml`은 해당 개발 브랜치의 `app/streamdeck-editor/**` 변경에 `push`로 실행하도록 정의됨. 이번 코드 변경으로 트리거 조건을 만족하지만, 연결된 CI 조회는 PR 기반 실행만 반환해 **Windows build run 번호, 완료 상태 및 ZIP/Setup 아티팩트 존재를 확인하지 못했음**. 확인 전 빌드 성공/다운로드 가능이라고 주장하지 말 것.
