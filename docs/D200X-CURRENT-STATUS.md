@@ -1,3 +1,14 @@
+## 2026-11-16 — Fusion UI 명령 수집·신뢰도별 표시 개선 (작업 완료 / 실기 대기)
+
+- **목표**: 의미 없는 키워드 정렬 제거, Fusion의 툴바 직접 명령과 드롭다운 명령을 우선 표시. 메뉴 전용은 검토, 미배치/디버그/정보 부족은 숨김 처리하되 삭제하지 않는다. 동일 한글명/아이콘이라도 다른 ID는 절대로 자동 병합하지 않는다.
+- **수집기** `tools/fusion-mcp/fusion-ui-inventory.py`: 읽기 전용 API 순회, 작업영역→탭→패널→컨트롤/드롭다운/Split Button 경로와 위치, 명령 ID·이름, 컨트롤 표시·활성 상태, 오류 기록. 출력 형식 `deckforge-fusion-ui-placements-v2`; v1 가져오기 유지. 현재 화면에 안 보인다는 이유로 실행 불가나 무용 판정 금지. **Fusion 명령 실행/작업영역 강제 전환 없음.**
+- **분류 모듈** `tools/fusion-manager/command-curation.cjs`: 직접/드롭다운→primary, 메뉴 전용→review, 미배치/정보 부족/디버그→hidden, 전체 목록 복구. 발견된 수집 ID는 primary로 승격; 이번 스캔에 없는 ID는 기존 카탈로그 분류를 유지. 동일 ID만 합치고 동일 이름의 다른 ID는 별도 보존·상세 정보 표시.
+- **매니저 GUI**: 목록 필터 `툴바·드롭다운/검토 대상/숨김 대상/전체`; `Fusion UI 수집 JSON 반영` 버튼으로 수동 JSON import. 기존 페이지는 가져오기만으로 변경하지 않음. 자동 추천 배치 키워드 정렬→수집된 UI/카탈로그 경로순 변경. 명령 상세 정보에서 `자동 분류/기본 표시/검토/숨김`을 수동 선택하고 manager userData `fusion-command-visibility-v1.json`에 저장. 128페이지 한도 초과 시 기존 페이지 보존하고 자동 배치 거절.
+- **원본 보존**: 3,266개 카탈로그 원본 / 기존 프로젝트·DeckForge 프로필·Plugin·아이콘 캐시·JSON 내보내기 포맷을 변경하지 않음. 원본 아이콘 직접 가져오기 기능은 이전 방식 유지. 외부 앱 사이 드래그는 아직 구현하지 않음.
+- **자동 검증**: `test/fusion-command-curation.test.cjs` 5개 케이스(구분·ID 보존·동명 다른 ID·v1/v2 수집·배치 경로순), 기존 Fusion JSON 회귀 및 Python 구문 검사 GitHub Actions 단계 성공.
+- **Windows 빌드** [GitHub Actions #43821325020](https://github.com/SoonCheol/D200X-Deck/actions/runs/43821325020) **completed/success**, artifact `Fusion-Command-Manager-0.1-win-x64` ID `14204302520`, 161,631,294 bytes, 조회 당시 미만료. PR #5는 open/draft/unmerged.
+- **검증 한계**: Fusion 앱 안에서 실수집/499건의 기존 API 조회 오류 재현 및 Windows GUI 메뉴·아이콘 실기 검증은 아직 사용자 PC에서 진행 전. UI 수집 JSON은 현재 사용자 선택 파일이며, 자동 수집/백그라운드 실기 검증 기능은 구현하지 않음. '현재 활성화'와 '실행 가능'은 구별해야 함.
+
 ## 2026-11-16 — Fusion Command Manager에서 Fusion 원본 아이콘 직접 수집
 
 - 사용자 요청: DeckForge가 하던 Fusion 원본 명령 아이콘 획득/저장 기능을 독립 Fusion Manager에도 추가. **명령 이름으로 추정한 가짜 아이콘 사용 금지** 유지.
