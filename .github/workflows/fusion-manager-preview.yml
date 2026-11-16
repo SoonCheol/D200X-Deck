@@ -63,6 +63,7 @@ jobs:
           Copy-Item 'tools/fusion-manager/main.cjs','tools/fusion-manager/preload.cjs','tools/fusion-manager/index.html','tools/fusion-manager/renderer.js','tools/fusion-manager/command-curation.cjs','tools/fusion-manager/menu-tree.cjs' $dst
           Copy-Item 'app/streamdeck-editor/fusion-drag.cjs' "$dst/fusion-drag.cjs"
           Copy-Item 'tools/fusion-mcp/fusion-command-catalog-final.json' "$dst/fusion-command-catalog-final.json"
+          Copy-Item 'tools/fusion-mcp/fusion-menu-catalog.json' "$dst/fusion-menu-catalog.json"
           '{"name":"fusion-command-manager","productName":"Fusion Command Manager","version":"0.1.0","private":true,"main":"main.cjs"}' | Set-Content "$dst/package.json" -Encoding utf8
           $catalog=Get-Content -Raw "$dst/fusion-command-catalog-final.json" | ConvertFrom-Json
           Write-Host "Fusion catalog loaded: $($catalog.GetType().Name)"
