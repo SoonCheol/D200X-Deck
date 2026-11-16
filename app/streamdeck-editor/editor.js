@@ -1808,6 +1808,8 @@ function bindSdkStateIcons(root,item){
   if(!panel)return;
   const draw=()=>{
     panel.replaceChildren();
+    const cards=document.createElement('div');
+    cards.className='sdk-state-icons';
     for(const [key,label] of [['off','OFF'],['on','ON']]){
       const group=document.createElement('div');group.className='sdk-state-icon';
       const heading=document.createElement('strong');heading.textContent=label;
@@ -1841,8 +1843,9 @@ function bindSdkStateIcons(root,item){
       });
       const buttons=document.createElement('div');buttons.className='sdk-state-buttons';
       buttons.append(choose,file,reset);
-      group.append(heading,image,buttons);panel.append(group);
+      group.append(heading,image,buttons);cards.append(group);
     }
+    panel.append(cards);
   };
   draw();
 }
