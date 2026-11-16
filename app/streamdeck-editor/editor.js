@@ -1824,18 +1824,17 @@ function bindSdkStateIcons(root,item){
 function bindKeyPressIconControls(root,item){
   if(!isMomentaryIconAction(item)||!Number.isInteger(state.selected)||state.selected>=13)return;
   const fields=root.querySelector('.properties>.fields');if(!fields)return;
-  const field=document.createElement('div');field.className='field key-press-icon-field';
-  const label=document.createElement('label');label.textContent='키 아이콘';
-  const cards=document.createElement('div');cards.className='key-press-icons';
+  // Use the exact existing OFF/ON card DOM and CSS: no separate layout.
+  const cards=document.createElement('div');cards.className='sdk-state-icons key-press-icons';
   const visual=displayItem(item,state.selected);
   const stored=item.settings?.keyPressIcons||{};
   const up=stored.up||visual.icon;
-  for(const [key,title,icon] of [['up','Key Up · 기본',up],['down','Key Down · 누르는 동안',stored.down||up]]){
-    const card=document.createElement('div');card.className='key-press-icon-card';
+  for(const [key,title,icon] of [['up','Key Up',up],['down','Key Down',stored.down||up]]){
+    const card=document.createElement('div');card.className='sdk-state-icon';
     const heading=document.createElement('strong');heading.textContent=title;
-    const preview=document.createElement('div');preview.className='key-press-icon-preview';
+    const preview=document.createElement('div');preview.className='sdk-state-preview';
     preview.append(iconNode({...visual,...(icon?{icon}:{})},ACTIONS.get(item.type)?.icon||'+'));
-    const buttons=document.createElement('div');buttons.className='key-press-icon-buttons';
+    const buttons=document.createElement('div');buttons.className='sdk-state-buttons';
     const library=document.createElement('button');library.type='button';library.textContent='라이브러리';
     library.addEventListener('click',()=>openIconLibrary(item,'press:'+key));
     const file=document.createElement('button');file.type='button';file.textContent='파일';
@@ -1849,14 +1848,14 @@ function bindKeyPressIconControls(root,item){
         persistInspectorChange();render();
       }catch(error){window.d200xActionStatus?.('Key '+key+' 아이콘 선택 실패: '+String(error?.message||error));}
     });
-    const reset=document.createElement('button');reset.type='button';reset.textContent='기본값';
+    const reset=document.createElement('button');reset.type='button';reset.textContent='초기화';
     reset.addEventListener('click',()=>{
       if(item.settings?.keyPressIcons)delete item.settings.keyPressIcons[key];
       persistInspectorChange();render();
     });
     buttons.append(library,file,reset);card.append(heading,preview,buttons);cards.append(card);
   }
-  field.append(label,cards);fields.prepend(field);
+  fields.prepend(cards);
 }
 function bindExtendedActionFields(root,item){
   if(item.type==='sd-plugin'){
