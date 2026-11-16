@@ -17,6 +17,19 @@ on:
       - 'tools/fusion-mcp/fusion-command-catalog-final.json'
       - 'test/streamdeck-integrated-manager.test.cjs'
       - '.github/workflows/streamdeck-clean-preview.yml'
+  pull_request:
+    branches:
+      - codex/streamdeck-761-gui-evidence
+    paths:
+      - 'app/streamdeck-editor/**'
+      - 'app/lib/**'
+      - 'app/package.json'
+      - 'app/package-lock.json'
+      - 'tools/fusion-manager/**'
+      - 'tools/fusion-mcp/fusion-menu-catalog.json'
+      - 'tools/fusion-mcp/fusion-command-catalog-final.json'
+      - 'test/streamdeck-integrated-manager.test.cjs'
+      - '.github/workflows/streamdeck-clean-preview.yml'
   workflow_dispatch:
 
 permissions:
