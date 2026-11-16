@@ -47,7 +47,7 @@ test('icon settings survive existing DeckCore cleanAction without modifying stat
  assert.equal(clean.settings.keyPressIcons.down.value,icon.value);
 });
 test('the first inspector editing card is Key Up, then Key Down',()=>{
- const first=src.indexOf("['up','Key Up · 기본'");
+ const first=src.indexOf("['up','Key Up'");
  assert.ok(first>=0);
- assert.match(src.slice(first,first+100),/\['down','Key Down · 누르는 동안'/);
+ assert.match(src.slice(first,first+100),/\['down','Key Down'/);
 });
