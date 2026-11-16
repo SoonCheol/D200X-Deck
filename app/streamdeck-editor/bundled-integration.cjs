@@ -55,7 +55,8 @@ function createMagnet(deck,manager,display,saveEnabled=()=>{}){
   try{
    const d=deck.getBounds(),m=manager.getBounds(),area=display.getDisplayMatching(d).workArea;
    const h=Math.min(d.height,area.height);
-   const x=side==='right'?d.x+d.width:d.x-m.width;
+   // Slight native-window-frame overlap removes the visible compositor gap.
+   const x=side==='right'?d.x+d.width-7:d.x-m.width+7;
    if(x<area.x||x+m.width>area.x+area.width){attached=false;return;}
    const next={x,y:d.y,width:m.width,height:h};
    if(m.x!==next.x||m.y!==next.y||m.height!==next.height)manager.setBounds(next);
@@ -72,14 +73,14 @@ function createMagnet(deck,manager,display,saveEnabled=()=>{}){
   if(changing||!isLive())return;
   const d=deck.getBounds(),m=manager.getBounds();
   if(attached){
-   const expected=side==='right'?d.x+d.width:d.x-m.width;
+   const expected=side==='right'?d.x+d.width-7:d.x-m.width+7;
    if(Math.abs(m.x-expected)>50||Math.abs(m.y-d.y)>50)detach();
    else place();
    return;
   }
   if(!enabled)return;
-  if(Math.abs(m.x-(d.x+d.width))<=24&&Math.abs(m.y-d.y)<=80)attach('right');
-  else if(Math.abs(m.x+m.width-d.x)<=24&&Math.abs(m.y-d.y)<=80)attach('left');
+  if(Math.abs(m.x-(d.x+d.width-7))<=14&&Math.abs(m.y-d.y)<=40)attach('right');
+  else if(Math.abs(m.x+m.width-(d.x+7))<=14&&Math.abs(m.y-d.y)<=40)attach('left');
  };
  deck.on('move',place);deck.on('resize',place);
  manager.on('move',onManagerMoved);manager.on('resize',onManagerMoved);
