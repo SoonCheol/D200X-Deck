@@ -20,11 +20,7 @@ const managerReady=app.whenReady().then(()=>{
    const win=BrowserWindow.fromWebContents(event.sender);
    if(!win||!['explore','pages'].includes(mode))return false;
    const area=screen.getDisplayMatching(win.getBounds()).workArea;
-   const w=Math.min(mode==='pages'?1240:698,area.width);
-   const b=win.getBounds();
-   const x=Math.min(Math.max(area.x,b.x),area.x+area.width-w);
-   const h=Math.min(Math.max(b.height,600),area.height);
-   win.setBounds({x,y:Math.min(Math.max(area.y,b.y),area.y+area.height-h),width:w,height:h});
+   // Both modes use the same physical window bounds. Preserve manual resize and docking.
    return true;
  });
  ipcMain.handle('catalog',async()=>JSON.parse(await fs.readFile(path.join(__dirname,'fusion-command-catalog-final.json'),'utf8')));
