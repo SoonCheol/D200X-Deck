@@ -1,6 +1,7 @@
 <!doctype html><html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Fusion Command Manager</title><style>
-:root{font-family:'Segoe UI','Malgun Gothic',sans-serif;color:#e5edf7;background:#101720;font-size:14px}
+@font-face{font-family:'Fusion Pretendard';src:url('./fonts/PretendardVariable.woff2') format('woff2');font-style:normal;font-weight:100 900;font-display:swap}
+:root{font-family:'Fusion Pretendard','Segoe UI','Malgun Gothic',sans-serif;color:#e5edf7;background:#101720;font-size:14px}
 *{box-sizing:border-box}body{margin:0}button,input,select{font:inherit}
 header{position:sticky;top:0;z-index:5;background:#172230;border-bottom:1px solid #3a4757;padding:12px 20px;display:flex;gap:12px;align-items:center;flex-wrap:wrap}
 h1{font-size:19px;margin:0 14px 0 0}button{background:#29384a;color:#fff;border:1px solid #47586b;border-radius:6px;padding:8px 11px;cursor:pointer}button:hover{background:#354a61}button.primary{background:#2366a0}button:disabled{opacity:.5;cursor:not-allowed}
@@ -33,9 +34,12 @@ header button{padding:6px 8px;font-size:12px}
 .explore-top{display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;margin-bottom:10px}
 .nav-title{font-size:12px;color:#9fb6cf;margin:9px 0 5px}
 .menu-tabs{display:flex;gap:5px;overflow-x:auto;padding:0 0 4px;white-space:nowrap;scrollbar-width:thin}
-.menu-tabs button{padding:6px 12px;white-space:nowrap;font-size:13px;flex-shrink:0}
+.menu-tabs button{padding:6px 6px;white-space:nowrap;font-size:13px;min-width:0;flex:1 1 auto;text-align:center}
+#workspaces{display:grid;grid-template-columns:repeat(9,minmax(0,1fr));gap:5px;overflow-x:visible}
+#menus{display:flex;flex-wrap:wrap;gap:5px;overflow-x:visible}
+#menus button{flex:1 1 auto;padding-inline:8px;white-space:nowrap;min-width:max-content}
 .menu-tabs button.active{background:#266b9f;border-color:#80bbeb}
-.submenu-tabs:empty{display:none}
+/* All dropdown commands are shown inline; no extra filter row. */
 .explore-search{display:flex;gap:6px;margin:11px 0}
 .explore-search input{min-width:0;flex:1;padding:8px;background:#192636;color:#fff;border:1px solid #506072;border-radius:6px}
 .explore-result{display:flex;align-items:center;justify-content:space-between;gap:6px;margin:12px 0 8px}
@@ -56,7 +60,6 @@ header button{padding:6px 8px;font-size:12px}
  <div class="explore-top"><strong>Fusion 명령 탐색</strong><span class="hint">DeckForge 창에 직접 드래그하거나 페이지 편집으로 전환</span></div>
  <div class="nav-title">작업 영역</div><nav id="workspaces" class="menu-tabs" aria-label="Fusion 작업 영역"></nav>
  <div class="nav-title">메뉴</div><nav id="menus" class="menu-tabs" aria-label="Fusion 하위 메뉴"></nav>
- <div id="dropdowns" class="menu-tabs submenu-tabs" aria-label="명령 하위 그룹"></div>
  <div class="explore-search"><input id="exploreSearch" placeholder="명령 이름 또는 ID 검색" aria-label="명령 검색"><button id="exploreReset">전체 찾기</button></div>
  <div class="explore-result"><strong id="explorePath">Fusion 메뉴</strong><span class="hint" id="exploreCount"></span></div>
  <div id="exploreCommands" class="command-cards" aria-live="polite"></div>
