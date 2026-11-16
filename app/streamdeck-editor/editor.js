@@ -1272,8 +1272,20 @@ function bindTitleStyle(item){
     const chosen=presets.find(entry=>entry.name===presetSelect.value);
     presetDelete.disabled=!chosen;
     if(!chosen)return;
-    item.titleStyle={...chosen.style};
-    persist();renderGrid();renderInspector();
+    // Mutate the existing style object so all field handlers keep the same reference.
+    // Do not rebuild the inspector: the popover stays open and displays applied values.
+    Object.assign(style,chosen.style);
+    visible.checked=style.visible;
+    menu.querySelectorAll("[data-align]").forEach(button=>
+      button.classList.toggle("active",button.dataset.align===style.align));
+    family.value=style.family;
+    $("title-size").value=String(style.size);
+    menu.querySelectorAll("[data-style]").forEach(button=>
+      button.classList.toggle("active",Boolean(style[button.dataset.style])));
+    $("title-color").value=style.color;
+    $("outline-color").value=style.outlineColor;
+    $("outline-width").value=style.outlineWidth;
+    persist();renderGrid();refreshTitlePreview(item);
   });
   $("title-preset-save").addEventListener("click",()=>{
     const input=prompt("프리셋 이름을 입력하세요 (현재 글꼴·크기·색상·외곽선·정렬 저장)",presetSelect.value||"");
@@ -1865,19 +1877,17 @@ function renderInspector(){
       <button type="button" data-icon-command="new">새로운 아이콘</button>
       <button type="button" data-icon-command="library">Stream Deck 아이콘 라이브러리 열기</button>
     </div></div>
-    <div class="fields"><div class="field"><label for="key-title">제목</label>
+    <div class="fields"><div class="field title-setting-field"><label class="title-visible-label"><input type="checkbox" id="title-visible"> 제목 표시</label>
       <div class="title-line"><input id="key-title" value="${escapeHtml(item.title)}">
       <button type="button" class="title-style-trigger" id="title-style-trigger" aria-label="제목 글꼴 속성" aria-expanded="false" aria-controls="title-style-popover">T⌄</button>
       <div class="title-style-popover" id="title-style-popover" hidden>
-        <label><input type="checkbox" id="title-visible"> 제목 보기</label>
-        <div class="title-align" role="group" aria-label="제목 정렬">
+         <div class="title-align" role="group" aria-label="제목 정렬">
           <button type="button" data-align="bottom" title="아래쪽 배치">▤</button>
           <button type="button" data-align="middle" title="가운데 배치">≡</button>
           <button type="button" data-align="top" title="위쪽 배치">▥</button>
         </div>
         <select id="title-family" aria-label="글꼴"><option value="default">기본 (Pretendard)</option><option value="DeckForge Pretendard">Pretendard</option><option value="Malgun Gothic">맑은 고딕</option><option value="Segoe UI">Segoe UI</option></select>
-        <div class="title-preset-heading">글꼴 프리셋</div>
-        <div class="title-preset-row">
+         <div class="title-preset-row">
           <select id="title-preset-select" aria-label="저장한 제목 스타일 프리셋"></select>
           <button type="button" id="title-preset-save" title="현재 제목 스타일을 프리셋으로 저장" aria-label="현재 스타일 프리셋 저장">＋</button>
           <button type="button" id="title-preset-delete" title="선택한 프리셋 삭제" aria-label="선택한 프리셋 삭제">−</button>
