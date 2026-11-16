@@ -1,0 +1,88 @@
+'use strict';
+// Menu navigation preserves each real command ID and its appearance paths.
+// Labels from live API are preferred; opaque IDs remain visible rather than
+// inventing translations for unknown tabs and panels.
+(function(root,factory){
+ const value=factory();
+ if(typeof module==='object'&&module.exports)module.exports=value;
+ root.FusionMenuTree=value;
+})(typeof globalThis!=='undefined'?globalThis:this,function(){
+ const workspaceName=id=>{
+  const s=String(id||'').toLowerCase();
+  if(/sketch/.test(s))return '스케치';
+  if(/surface|patch/.test(s))return '곡면';
+  if(/mesh/.test(s))return '메쉬';
+  if(/sheet.?metal/.test(s))return '판금';
+  if(/plastic/.test(s))return '플라스틱';
+  if(/solid|model|fusionmodel|design/.test(s))return '솔리드';
+  if(/manufactur|cam/.test(s))return '제조';
+  if(/draw/.test(s))return '도면';
+  if(/render/.test(s))return '렌더링';
+  if(/animation/.test(s))return '애니메이션';
+  if(/simulation|sim/.test(s))return '시뮬레이션';
+  return String(id||'기타');
+ };
+ const panelName=id=>{
+  const s=String(id||'').toLowerCase();
+  if(/creat|draw/.test(s))return '작성';
+  if(/modif|edit/.test(s))return '수정';
+  if(/construct/.test(s))return '구성';
+  if(/inspect|measure/.test(s))return '검사';
+  if(/constraint/.test(s))return '구속조건';
+  if(/insert/.test(s))return '삽입';
+  if(/assemble/.test(s))return '조립';
+  if(/select/.test(s))return '선택';
+  if(/manage/.test(s))return '관리';
+  return String(id||'기타');
+ };
+ function pathParts(path){
+  const parts=[];
+  for(const s of Array.isArray(path)?path:[]){
+   const kind=s.kind||(['workspace','tab','panel','toolbar','dropdown'].find(k=>s[k])||'control');
+   const value=s[kind],id=s.id||value?.id||s.controlId||'';
+   const label=s.name||value?.name||s.controlName||id;
+   if(kind==='command')continue;
+   parts.push({kind,id:String(id),label:String(label),position:Number.isInteger(s.position)?s.position:null});
+  }
+  return parts;
+ }
+ function paths(item,capture){
+  const fromCapture=capture?.entries?.get(item.id)?.placements?.map(v=>({source:'live-ui',path:v.path}))||[];
+  const raw=Array.isArray(item.paths)?item.paths:[];
+  return [...fromCapture,...raw].map(p=>pathParts(p.path)).filter(parts=>parts.length);
+ }
+ function structure(commands,capture,filter=()=>true){
+  const workspaces=new Map();
+  const get=(map,key,name)=>{if(!map.has(key))map.set(key,{key,name,children:new Map(),ids:new Map()});return map.get(key)};
+  for(const item of commands){
+   if(!filter(item))continue;
+   const all=paths(item,capture);
+   if(!all.length){const ws=get(workspaces,'unplaced','미배치·기타');const panel=get(ws.children,'unplaced','미분류');panel.ids.set(item.id,item);continue}
+   for(const parts of all){
+    const wsPart=parts.find(x=>x.kind==='workspace')||parts.find(x=>x.kind==='toolbar')||parts.find(x=>x.kind==='tab')||parts.find(x=>x.kind==='panel');
+    const tab=parts.find(x=>x.kind==='tab');
+    const panelPart=parts.find(x=>x.kind==='panel');
+    const anchor=tab?.id||wsPart?.id||'';
+    // A workspace can contain Solid/Surface/Sketch as tabs: use the most specific
+    // known name, but never discard the actual raw ID.
+    const wsKey=workspaceName(anchor)!==anchor?workspaceName(anchor):workspaceName(wsPart?.id||anchor);
+    const ws=get(workspaces,wsKey,wsKey);
+    const panName=panelPart?panelName(panelPart.id):'기타 툴바';
+    const pan=get(ws.children,(tab?.id||'')+'|'+(panelPart?.id||''),panName);
+    // Distinguish nested dropdown groups by original ID and order, not guessed labels.
+    let dest=pan;
+    for(const sub of parts.filter(x=>x.kind==='dropdown')){
+      dest=get(dest.children,'dropdown:'+sub.id,sub.label||sub.id);
+    }
+    dest.ids.set(item.id,item);
+   }
+  }
+  return [...workspaces.values()];
+ }
+ function descendants(node){
+  const seen=new Map(node.ids);
+  for(const child of node.children.values())for(const item of descendants(child))seen.set(item.id,item);
+  return [...seen.values()];
+ }
+ return Object.freeze({structure,descendants,workspaceName,panelName,pathParts});
+});
