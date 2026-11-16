@@ -7,6 +7,34 @@ let commands=[],pages=[],drag=null,context=null,capturedUI=null,visibilityOverri
 const Curation=window.FusionCuration,MenuTree=window.FusionMenuTree,FusionDrag=window.DeckForgeFusionDrag;
 let explorerArea='',explorerPanel='',explorerItems=[],menuTreeCache=null,menuCatalog=null;
 const iconCache=new Map(),iconPending=new Set();
+const automaticIconAttempts=new Set();
+let automaticIconBusy=false,automaticIconCheck=0,automaticIconConnected=false;
+async function collectVisibleFusionIconsAutomatically(){
+ if(automaticIconBusy||!explorerItems.length)return;
+ const missing=explorerItems.slice(0,240).filter(v=>iconCache.get(v.id)==null&&!automaticIconAttempts.has(v.id));
+ if(!missing.length)return;
+ automaticIconBusy=true;
+ try{
+  if(Date.now()-automaticIconCheck>15000){
+   const health=await window.fusionManager.iconHealth().catch(()=>null);
+   automaticIconConnected=health?.available===true;automaticIconCheck=Date.now();
+  }
+  if(!automaticIconConnected)return;
+  let position=0,changed=false;
+  const worker=async()=>{
+   while(position<missing.length){
+    const id=missing[position++].id;automaticIconAttempts.add(id);
+    try{
+     const result=await window.fusionManager.collectIcon(id);
+     if(result?.data){iconCache.set(id,result.data);changed=true}
+    }catch{/* Fusion connection may change; manual collection remains available. */}
+   }
+  };
+  await Promise.all(Array.from({length:Math.min(2,missing.length)},worker));
+  if(changed)renderExplorer();
+ }finally{automaticIconBusy=false}
+}
+
 const byId=()=>new Map(commands.map(v=>[v.id,v]));
 const empty=()=>({name:'새 페이지',enabled:true,reserved:[],slots:Array(PER).fill(null)});
 const status=s=>$('status').textContent=s;
@@ -274,6 +302,9 @@ function renderExplorer(){
    };
    target.append(card);
  }
+ // An active Fusion add-in can provide licensed original icons on demand.
+ // Cache locally; never embed Autodesk icon artwork in the installer.
+ void collectVisibleFusionIconsAutomatically();
  if(explorerItems.length>240)$('exploreStatus').textContent='명령 '+explorerItems.length+'개 중 처음 240개 표시 · 검색어로 범위를 좁히세요.';
  else $('exploreStatus').textContent='';
 }
