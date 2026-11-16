@@ -317,7 +317,7 @@
 /* Plugin tab replaces the global action-icon strip, keeping the Keys tab unchanged. */
 #action-appearance-toolbar[hidden],#plugin-install-toolbar[hidden]{display:none!important}
 .plugin-install-toolbar{justify-content:stretch;padding:8px 12px;flex-wrap:wrap;gap:5px}
-.plugin-install-toolbar .plugin-add-button{width:calc(50% - 4px);background:#393f49;color:#f3f6fa;border:1px solid #67717c;border-radius:5px;padding:9px 12px;text-align:center;font-size:12px;font-weight:600}
+.plugin-install-toolbar .plugin-add-button{width:auto;min-width:max-content;flex:1 1 auto;white-space:nowrap;background:#393f49;color:#f3f6fa;border:1px solid #67717c;border-radius:5px;padding:9px 12px;text-align:center;font-size:12px;font-weight:600}
 .plugin-install-toolbar .plugin-add-button:hover{background:#495463}
 .fields button.sdk-settings-open{width:100%;color:#f3f6fa;background:#41464e;border:1px solid #727782;border-radius:5px;padding:8px;cursor:pointer}
 .fields button.sdk-settings-open:hover{background:#535d69}
