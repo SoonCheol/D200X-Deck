@@ -15,6 +15,7 @@ on:
       - 'tools/fusion-manager/**'
       - 'tools/fusion-mcp/fusion-menu-catalog.json'
       - 'tools/fusion-mcp/fusion-command-catalog-final.json'
+      - 'test/streamdeck-integrated-manager.test.cjs'
       - '.github/workflows/streamdeck-clean-preview.yml'
   workflow_dispatch:
 
@@ -38,6 +39,10 @@ jobs:
       - name: Check standalone preview scripts
         shell: pwsh
         run: |
+          node --check app/streamdeck-editor/bundled-integration.cjs
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          node --test test/streamdeck-integrated-manager.test.cjs
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           node --check app/streamdeck-editor/main.cjs
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           node --check app/streamdeck-editor/editor.js
