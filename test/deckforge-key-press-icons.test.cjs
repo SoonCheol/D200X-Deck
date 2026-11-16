@@ -86,3 +86,14 @@ test('website has protocol-aware checkbox and blur normalization',()=>{
  assert.match(src,/url\.addEventListener\('blur',sync\)/);
  assert.match(src,/toggle\.addEventListener\('change'/);
 });
+
+test('Windows program drops and file selection update an existing action without replacing chosen artwork',()=>{
+ assert.match(src,/droppedFilePath\(file\)/);
+ assert.match(src,/registerDroppedApplication\(i,filePath\)/);
+ assert.match(src,/previous&&!confirm/);
+ assert.match(src,/item\.settings\?\.autoAppIcon===true/);
+ assert.match(src,/updateApplicationArtwork\(item,selected\)/);
+});
+test('action execution passes argv as third parameter to openLocalPath',()=>{
+ assert.ok(src.includes("bridge.openLocalPath(outcome.path,outcome.target,outcome.args||'')"));
+});

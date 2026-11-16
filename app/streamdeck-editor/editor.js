@@ -536,7 +536,7 @@ function renderGrid(){
     b.addEventListener("contextmenu",ev=>{ev.preventDefault();choose(i);showMenu(i,ev.clientX,ev.clientY);});
     b.addEventListener("dragover",ev=>{if(!reservedWideSlot(i)){ev.preventDefault();b.classList.add("drag-over");}});
     b.addEventListener("dragleave",()=>b.classList.remove("drag-over"));
-    b.addEventListener("drop",ev=>{if(reservedWideSlot(i))return;ev.preventDefault();b.classList.remove("drag-over");if(importFusionDraggedCommand(ev,i))return;const id=ev.dataTransfer.getData("application/x-d200x-action");if(isAssignableAction(id))setItem(i,newAction(id));});
+    b.addEventListener("drop",ev=>{if(reservedWideSlot(i))return;ev.preventDefault();b.classList.remove("drag-over");if(importFusionDraggedCommand(ev,i))return;const file=ev.dataTransfer?.files?.[0];if(file&&/\.(exe|lnk|bat|cmd)$/i.test(file.name||'')){try{const filePath=window.deckBridge?.droppedFilePath(file);if(filePath){void registerDroppedApplication(i,filePath);return;}}catch(error){window.d200xActionStatus?.('드래그한 파일 경로 오류: '+String(error?.message||error));return;}}const id=ev.dataTransfer.getData("application/x-d200x-action");if(isAssignableAction(id))setItem(i,newAction(id));});
     grid.append(b);
   });
   renderPhysicalControls();
@@ -1281,6 +1281,33 @@ function renderLogicEditor(item,root){
     }
   }
   root.querySelector('.fields')?.append(area);
+}
+async function updateApplicationArtwork(item,filePath){
+  if(!window.deckBridge?.inspectAppFile||!item||!/\.(exe|lnk|bat|cmd)$/i.test(filePath))return;
+  const info=await window.deckBridge.inspectAppFile(filePath);
+  if(!DeckCore.visibleActions(state).includes(item)||
+      ![item.settings?.path,item.settings?.app].includes(filePath))return;
+  if(info?.name&&(!item.title||item.title===item.settings?.autoAppTitle)){
+    item.title=info.name;item.settings.autoAppTitle=info.name;
+  }
+  if(info?.icon&&(!item.icon||item.settings?.autoAppIcon===true)){
+    item.icon={kind:'file',value:info.icon};item.settings.autoAppIcon=true;
+  }
+  persistInspectorChange();render();
+}
+async function registerDroppedApplication(index,filePath){
+  try{
+    if(!Number.isInteger(index)||index<0||index>=13||!window.deckBridge?.inspectAppFile)return;
+    const previous=currentPage()[index];
+    if(previous&&!confirm('기존 버튼의 액션을 프로그램 실행으로 교체할까요?'))return;
+    const info=await window.deckBridge.inspectAppFile(filePath);
+    if(!info||currentPage()[index]!==previous)return;
+    const action=newAction('open-app');
+    action.settings.app=info.path;
+    if(info.name){action.title=info.name;action.settings.autoAppTitle=info.name;}
+    if(info.icon){action.icon={kind:'file',value:info.icon};action.settings.autoAppIcon=true;}
+    setItem(index,action);
+  }catch(error){window.d200xActionStatus?.('프로그램 드래그 등록 실패: '+String(error?.message||error));}
 }
 function renderFolderInspector(item,root){
   const host=document.createElement('div');host.className='multi-action-editor folder-editor-actions';
@@ -2146,6 +2173,8 @@ function renderInspector(){
         item.settings[field]=selected;
         if(inputNode)inputNode.value=selected;
         persist();
+        if(['open','open-app'].includes(item.type)&&['path','app'].includes(field))
+          void updateApplicationArtwork(item,selected).catch(error=>window.d200xActionStatus?.('프로그램 아이콘 추출 실패: '+String(error?.message||error)));
       }catch(error){alert("파일 선택 오류: "+String(error?.message||error));}
     });
   });
@@ -2467,9 +2496,9 @@ async function executeMultiStep(action,signal){
     case 'website':
       return bridge.openWebsite(outcome.url,outcome.mode,outcome.browserPath);
     case 'open-local-path':
-      if(action.type==='open-app'&&outcome.foreground&&/\.exe$/i.test(outcome.path)&&
+      if(action.type==='open-app'&&outcome.foreground&&!String(outcome.args||'').trim()&&/\.exe$/i.test(outcome.path)&&
         await bridge.focusLocalApp(outcome.path))return true;
-      return bridge.openLocalPath(outcome.path,outcome.target);
+      return bridge.openLocalPath(outcome.path,outcome.target,outcome.args||'');
     case 'type-text':
       return outcome.mode==='clipboard'?bridge.pasteText(outcome.text,outcome.enter):bridge.typeText(outcome.text,outcome.enter);
     case 'mute':
@@ -2881,9 +2910,9 @@ function executeHardwareAction(event,preview=false,skipKnobGesture=false){
   }
   if(outcome.kind==='open-local-path'){
     if(!window.deckBridge?.openLocalPath)return 'Windows 실행 환경에서만 사용할 수 있습니다.';
-    (resolved.action?.type==='open-app'&&outcome.foreground&&/\.exe$/i.test(outcome.path)
-      ?window.deckBridge.focusLocalApp(outcome.path).then(found=>found?true:window.deckBridge.openLocalPath(outcome.path,outcome.target))
-      :window.deckBridge.openLocalPath(outcome.path,outcome.target)).then(
+    (resolved.action?.type==='open-app'&&outcome.foreground&&!String(outcome.args||'').trim()&&/\.exe$/i.test(outcome.path)
+      ?window.deckBridge.focusLocalApp(outcome.path).then(found=>found?true:window.deckBridge.openLocalPath(outcome.path,outcome.target,outcome.args||''))
+      :window.deckBridge.openLocalPath(outcome.path,outcome.target,outcome.args||'')).then(
       ()=>window.d200xActionStatus?.('경로 열기 완료'),
       error=>window.d200xActionStatus?.('경로 열기 실패: '+String(error?.message||error)));
     return '지정 경로 열기 요청';
@@ -3127,7 +3156,7 @@ function renderIconLibrary(){
             target.settings.sdkStateIcons??={};
             target.settings.sdkStateIcons.off={kind:'file',value:offPng,packId:pack.id};
             target.settings.sdkStateIcons.on={kind:'file',value:onPng,packId:pack.id};
-          }else target.icon={kind:'file',value:png,packId:pack.id};
+          }else {target.icon={kind:'file',value:png,packId:pack.id};if(target.settings)delete target.settings.autoAppIcon;}
           persistInspectorChange();render();closeIconLibrary();
         }catch(error){
           window.d200xActionStatus?.('팩 아이콘 적용 실패: '+String(error?.message||error));
@@ -3170,6 +3199,7 @@ let makerTarget=null;
 function applyIconData(target,uri){
   if(!target||!uri||!state.pages.some(page=>page.includes(target)))return;
   target.icon={kind:"file",value:uri};
+  if(target.settings)delete target.settings.autoAppIcon;
   persistInspectorChange();render();
 }
 function rasterizeIcon(uri){
