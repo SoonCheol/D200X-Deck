@@ -51,6 +51,8 @@ header button{padding:6px 8px;font-size:12px}
 .command-card .cmd-name{font-size:13px;line-height:1.2;max-width:100%;overflow:hidden;display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;overflow-wrap:anywhere;pointer-events:none}
 .command-card .info-button{position:absolute;right:3px;top:3px;padding:0;border:0;border-radius:50%;width:17px;height:17px;font-size:12px;line-height:17px;background:#385673}
 .command-card .info-button:hover{background:#4679a3}
+#captureHelp,#iconsHelp{border-radius:50%;width:24px;height:24px;padding:0;font-weight:700;color:#c9e6ff;background:#263b50}
+#scriptActions{display:none;margin:12px 18px 0;gap:8px;align-items:center;flex-wrap:wrap}#scriptActions textarea{width:100%;min-height:210px;font:12px/1.4 Consolas,monospace;background:#111b27;color:#d9eaff;border:1px solid #516a84;border-radius:6px;padding:8px;resize:vertical}
 #pageEditor{max-width:none}
 #pageEditor .pages{grid-template-columns:repeat(auto-fill,minmax(490px,1fr))}
 </style></head><body>
@@ -64,7 +66,7 @@ header button{padding:6px 8px;font-size:12px}
  <div class="explore-result"><strong id="explorePath">Fusion 메뉴</strong><span class="hint" id="exploreCount"></span></div>
  <div id="exploreCommands" class="command-cards" aria-live="polite"></div>
  <p class="hint">아이콘은 Fusion 원본만 표시합니다. 버튼에 마우스를 올리면 잘린 이름의 한글·영문 전체 이름을 확인할 수 있고 ⓘ에서 ID를 확인할 수 있습니다.</p>
- <div class="bar"><button id="exploreCapture">Fusion UI JSON 불러오기</button><button id="exploreIcons">현재 목록 원본 아이콘 수집</button></div>
+ <div class="bar"><button id="exploreCapture">Fusion UI JSON 불러오기</button><button id="captureHelp" type="button" aria-label="Fusion UI JSON 도움말" title="JSON 파일 수집·불러오기 설명">?</button><button id="exploreIcons">현재 목록 원본 아이콘 수집</button><button id="iconsHelp" type="button" aria-label="원본 아이콘 수집 도움말" title="아이콘 수집 설명">?</button></div>
  <div id="exploreStatus" class="hint"></div>
  </section>
  <main id="pageEditor" hidden><div class="bar"><label>프로필 이름 <input id="profile" value="Fusion 360" size="20" maxlength="80"></label><label>명령 범주 <select id="category"><option value="all">전체</option><option value="sketch">스케치</option><option value="solid">솔리드</option><option value="surface">서피스</option><option value="file">파일</option><option value="other">기타</option></select></label><label>목록 <select id="visibility"><option value="primary">툴바·드롭다운 (기본)</option><option value="review">검토 대상</option><option value="hidden">숨김 대상</option><option value="all">전체 명령</option></select></label><button id="importCapture">Fusion UI 수집 JSON 반영</button><span id="captureStatus" class="hint"></span><button id="addPage">페이지 추가</button><button id="fill">추천 순서 자동 배치</button><button id="collectIcons" class="primary">선택 페이지 원본 아이콘 수집</button><span id="iconStatus" class="hint" role="status"></span></div>
@@ -73,5 +75,5 @@ header button{padding:6px 8px;font-size:12px}
 <h3>추가 가능한 명령 <span id="remaining"></span></h3><div class="bar"><input id="search" placeholder="명령 ID 또는 이름 검색" size="34"><span class="hint">명령을 클릭하면 마지막 비예약 빈 슬롯에 추가합니다.</span></div><div class="queue" id="queue"></div>
 </main><div id="tooltip" role="tooltip"></div><aside id="detail" aria-label="명령 상세 정보"><button id="detailClose" aria-label="닫기">×</button><h2 id="detailTitle"></h2><dl id="detailFields"></dl></aside><div id="context"><button id="toggleReserve">예약 슬롯 설정/해제</button><button id="remove">명령 제거</button></div>
 
-<dialog id="helpDialog" aria-label="Fusion Command Manager 도움말"><div class="helpHead"><h2>Fusion Command Manager 도움말</h2><button id="helpClose" type="button">닫기 ×</button></div><article id="helpContent"></article></dialog>
+<dialog id="helpDialog" aria-label="Fusion Command Manager 도움말"><div class="helpHead"><h2>Fusion Command Manager 도움말</h2><button id="helpClose" type="button">닫기 ×</button></div><article id="helpContent"></article><section id="scriptActions"><button id="scriptShow" type="button">Fusion 수집기 Python 코드 표시</button><button id="scriptCopy" type="button">스크립트 복사</button><textarea id="scriptText" readonly hidden aria-label="Fusion UI 수집 Python 스크립트"></textarea></section></dialog>
 <script src="command-curation.cjs"></script><script src="menu-tree.cjs"></script><script src="fusion-drag.cjs"></script><script src="renderer.js"></script></body></html>
