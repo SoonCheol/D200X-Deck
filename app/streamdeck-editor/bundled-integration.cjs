@@ -87,7 +87,7 @@ function createMagnet(deck,manager,display,saveEnabled=()=>{}){
   attach,detach,
   toggle(){enabled=!enabled;if(!enabled)detach();else attach();saveEnabled(enabled);return this.status()},
   status(){return {available:true,enabled,attached,side}},
-  enable(value){enabled=Boolean(value);if(!enabled)detach();else attach();return this.status()}
+  enable(value){enabled=Boolean(value);if(!enabled)detach();return this.status()}
  };
 }
 module.exports={installMissingPlugins,installFusionAddin,createMagnet};
