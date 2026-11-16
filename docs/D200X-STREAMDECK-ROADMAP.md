@@ -399,3 +399,11 @@ editor-ui (Stream Deck식 UI, Electron renderer)
 - [ ] 변환 전 미리보기·호환 불가 액션 안내 및 최소 변환/복원 검증 후 사용자 실기 확인.
 - **현재 근거:** `editor.js`와 `main.cjs`의 기존 전체 프로필 가져오기는 DeckForge JSON 전용이며 원본 `.streamDeckProfile` 직접 가져오기는 지원하지 않는다.
 - **진행 조건:** 사용자의 별도 구현 지시를 받은 뒤 작은 작업 단위로 시작한다. 지금은 문서에만 보관.
+
+## 2026-11-16 — Pretendard 기본 제목 글꼴 D200X 전송 연결
+
+- [x] 기본 `titleStyle.family='default'`를 내장 Pretendard로 렌더링하는 코드와 제목 글꼴 선택기 연결.
+- [x] 명시적으로 선택한 기존 맑은 고딕 / Segoe UI 및 저장된 프로필 데이터 보존.
+- [ ] Windows GUI에서 기본/선택 글꼴 미리보기와 D200X 실제 버튼 제목 비교 확인 (실기 미확인).
+- [ ] 패키징된 Windows EXE 글꼴 로딩 및 GitHub Actions 빌드 결과 확인 (빌드 상태는 별도 기록).
+- 펌웨어 네이티브 시계·통계 글꼴은 이 변경의 대상이 아님.
