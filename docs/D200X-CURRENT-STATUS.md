@@ -1,3 +1,15 @@
+## 2026-11-17 — Key Up → Key Down 공통 아이콘: 코드·Windows 설치 빌드 성공 (실기 대기)
+
+- **승인된 UI 순서:** Key Up(평상시 기본 아이콘) **먼저**, Key Down(버튼 누르는 동안) **다음**. 속성창에서 각 이미지 별도 설정(라이브러리·파일·기본값), 기존 대표 아이콘이 양쪽의 초기 표시이며 동일 이미지면 기존 축소 애니메이션 유지. 대표 아이콘 마우스 누름 미리보기는 실제 명령·SDK·HA 호출 없이 화면 효과만 보여줌.
+- **액션 정책:** 모든 Autodesk Fusion 360 명령과 일반 순간형 액션에 적용. HA/상태형 플러그인·다중 동작 스위치·타이머·Key Logic·표시 전용/특수 액션은 기존 상태·실행 로직 보존. 세부 예외는 [예외 문서](D200X-KEY-DOWN-UP-ICON-EXCEPTIONS-20261117.md).
+- **기타 UI:** 인스펙터 아이콘 펼치기(∨)를 제목을 가리는 아래쪽에서 위쪽으로 이동. 자석 창 연결/다중 모니터 이동/태스크바 동시 복원/ON 파란 버튼은 독립 창 관리 후속 작업으로 분리(이번 코드 미변경).
+- **계획 문서 커밋:** `9aa7b7c145cbce9c3a7d09b8d98e3d6e774d7efd`, [상세 계획](D200X-KEY-UP-DOWN-IMPLEMENTATION-PLAN-20261117.md).
+- **기능 코드 커밋:** `672a2345ff1ea390ee9a2419c2fa6e99db61a8e4`; 독립 VM 테스트 범위 보정 `558a016c7c9344582279cfdf44ecb8b3bbab0d17`; 대표 아이콘 동일 이미지 마우스 축소 미리보기 보완 `19b0184bf37795e6c579da4593549bc012173f34`; 테스트 fixture 보정 및 **최종 빌드 소스 HEAD** `7f0e3eafbde7e582691322554fd22019dc579948`.
+- **검증:** [CI #43912345893](https://github.com/SoonCheol/D200X-Deck/actions/runs/43912345893) `completed/success`; [DeckForge 1.1 Windows 통합 빌드 #43912345982](https://github.com/SoonCheol/D200X-Deck/actions/runs/43912345982) `completed/success` (빌드 소스 `7f0e3eaf`).
+- **아티팩트:** 설치형 `DeckForge-1.1-Setup-win-x64` ID `14247728002` (131,810,131 bytes), 포터블 `DeckForge-1.1-win-x64` ID `14248267719` (176,976,980 bytes). GitHub 조회 당시 `expired=false`, 2026-11-30 UTC 만료 예정.
+- **실기 미확인:** Windows GUI에서 Up·Down 이미지 각각 선택·재시작 유지, 물리 D200X Key Down/Up 전환 시간, 일반 액션/Fusion/HA 회귀, 고정 키/페이지 전환, 미리보기와 기기 표시 동기화. CI 통과를 실기 통과로 단정하지 않는다.
+- PR #5 **Draft/미병합** 유지. 기존 사용자 데이터·프로필을 삭제하지 않음. 추가 코드 수정·빌드 없이 결과만 기록.
+
 ## 2026-11-17 — PNG 캐시·고정 키 후속 수정 Windows 빌드 성공
 
 - **수정 커밋:** `add0b13249c3b8beaeb20109903a85849bfc6cb5` (`codex/streamdeck-761-clean-editor`).
