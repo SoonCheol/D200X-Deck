@@ -3,7 +3,8 @@ const FORMAT='d200x-fusion-batch-v1',PROJECT='fusion-command-manager-project-v1'
 const PLUGIN='com.autodesk.fusionstreamdeck',ACTION=PLUGIN+'.runcommand';
 const MAXP=128,PER=13;
 const $=id=>document.getElementById(id);
-let commands=[],pages=[],drag=null,context=null;
+let commands=[],pages=[],drag=null,context=null,capturedUI=null;
+const Curation=window.FusionCuration;
 const iconCache=new Map(),iconPending=new Set();
 const byId=()=>new Map(commands.map(v=>[v.id,v]));
 const empty=()=>({name:'새 페이지',enabled:true,reserved:[],slots:Array(PER).fill(null)});
@@ -15,6 +16,7 @@ function normalizeCatalogue(source){
  return arr.map(v=>({id:String(v.id||v.commandId||v.command_id||''),name:String(v.name||v.label||v.title||v.id||''),
   ko:String(v.koName||v.koreanName||v.nameKo||v.name_ko||( /[가-힣]/.test(String(v.name||''))?v.name:'' )||''),
   en:String(v.englishName||v.nameEn||v.name_en||v.enName||(!/[가-힣]/.test(String(v.name||''))?v.name:'')||''),
+  category:String(v.category||''),paths:Array.isArray(v.paths)?v.paths:[],
   path:JSON.stringify(v.paths||v.path||v.category||v.workspace||'')}))
  .filter(v=>v.id&&v.name&&v.id.length<=256&&v.name.length<=160&&!seen.has(v.id)&&seen.add(v.id));
 }
@@ -33,7 +35,10 @@ const importance=v=>{
  return i<0?1000:i;
 };
 function makePagesFromCatalog(type){
- const items=commands.filter(v=>type==='all'||category(v)===type).sort((a,b)=>importance(a)-importance(b)||a.name.localeCompare(b.name,'ko'));
+ const mode=$('visibility').value;
+ const items=Curation.visibleItems(commands,mode,capturedUI)
+  .filter(v=>type==='all'||category(v)===type)
+  .sort((a,b)=>Curation.sortByPlacement(a,b,capturedUI));
  if(!items.length){status('이 범주의 카탈로그 명령이 없습니다.');return;}
  const count=Math.max(1,Math.ceil(items.length/PER));
  const used=Math.min(count+1,MAXP);
@@ -159,7 +164,7 @@ function render(){
   root.append(panel);
  });
  const existing=usedIds();const type=$('category').value;const q=$('search').value.toLowerCase();
- const matches=commands.filter(v=>!existing.has(v.id)&&(type==='all'||category(v)===type)&&(v.name.toLowerCase().includes(q)||v.id.toLowerCase().includes(q))).slice(0,120);
+ const matches=Curation.visibleItems(commands,$('visibility').value,capturedUI).filter(v=>!existing.has(v.id)&&(type==='all'||category(v)===type)&&(v.name.toLowerCase().includes(q)||v.id.toLowerCase().includes(q))).sort((a,b)=>Curation.sortByPlacement(a,b,capturedUI)).slice(0,120);
  $('remaining').textContent='(표시 '+matches.length+'개)';
  const list=$('queue');list.replaceChildren();
  for(const v of matches){const b=document.createElement('button');b.className='chip';b.textContent=v.name;b.title=v.id;b.onclick=()=>{
@@ -231,7 +236,19 @@ $('collectIcons').onclick=async()=>{
 };
 $('addPage').onclick=()=>{if(pages.length>=MAXP)return status('최대 128페이지입니다.');pages.push(empty());render()};
 $('fill').onclick=()=>{if(pages.some(p=>p.slots.some(Boolean))&&!confirm('기존 배치를 추천 순서로 다시 만들까요?'))return;makePagesFromCatalog($('category').value)};
-$('category').onchange=render;$('search').oninput=render;
+$('category').onchange=render;$('search').oninput=render;$('visibility').onchange=render;
+$('importCapture').onclick=async()=>{
+ try{
+  const data=await window.fusionManager.openCapture();
+  if(!data)return;
+  const result=Curation.validateCapture(data);
+  capturedUI=result;
+  $('captureStatus').textContent='UI 수집 '+result.entries.size+'개 고유 ID · 조회 오류 '+result.errors+'건 · Fusion '+result.version;
+  // Do NOT regenerate or overwrite user-arranged pages automatically.
+  render();
+  status('Fusion UI 수집 결과를 분류에 반영했습니다. 현재 페이지 배치는 유지됩니다.');
+ }catch(e){status('Fusion UI JSON 검증 실패: '+e.message)}
+};
 $('toggleReserve').onclick=()=>{if(context)reserve(context.p,context.i);$('context').style.display='none'};
 $('remove').onclick=()=>{if(context){pages[context.p].slots[context.i]=null;render()}$('context').style.display='none'};
 document.addEventListener('click',e=>{if(!$('context').contains(e.target))$('context').style.display='none'});
