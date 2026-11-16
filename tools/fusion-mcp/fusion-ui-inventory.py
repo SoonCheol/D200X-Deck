@@ -39,7 +39,8 @@ def _controls(controls, placement, out, errors, depth=0):
             node = {'controlId': _s(control, 'id'), 'controlName': _s(control, 'name'),
                     'controlType': kind, 'position': i,
                     'isVisible': _bool(control, 'isVisible'),
-                    'isEnabled': _bool(control, 'isEnabled')}
+                    'isEnabled': _bool(control, 'isEnabled'),
+                    'isPromoted': _bool(control, 'isPromoted')}
             p = placement + [node]
             if kind == adsk.core.DropDownControl.classType():
                 _controls(control.controls, p, out, errors, depth + 1)
@@ -79,20 +80,20 @@ def run(context):
         placements = []
         errors = []
         workspaces = []
-        for w in ui.workspaces:
-            ws = {'id': _s(w, 'id'), 'name': _s(w, 'name')}
+        for ws_i, w in enumerate(ui.workspaces):
+            ws = {'id': _s(w, 'id'), 'name': _s(w, 'name'), 'position': ws_i}
             workspaces.append(ws)
             try:
-                for tab in w.toolbarTabs:
-                    tab_info = {'id': _s(tab, 'id'), 'name': _s(tab, 'name')}
-                    for panel in tab.toolbarPanels:
-                        panel_info = {'id': _s(panel, 'id'), 'name': _s(panel, 'name')}
-                        base = [{'workspace': ws}, {'tab': tab_info}, {'panel': panel_info}]
+                for tab_i, tab in enumerate(w.toolbarTabs):
+                    tab_info = {'id': _s(tab, 'id'), 'name': _s(tab, 'name'), 'position': tab_i}
+                    for panel_i, panel in enumerate(tab.toolbarPanels):
+                        panel_info = {'id': _s(panel, 'id'), 'name': _s(panel, 'name'), 'position': panel_i}
+                        base = [{'workspace': ws, 'position': ws_i}, {'tab': tab_info, 'position': tab_i}, {'panel': panel_info, 'position': panel_i}]
                         _controls(panel.controls, base, placements, errors)
             except Exception as exc:
                 errors.append({'workspace': ws, 'error': str(exc)})
-        for toolbar in ui.toolbars:
-            base = [{'toolbar': {'id': _s(toolbar, 'id')}}]
+        for toolbar_i, toolbar in enumerate(ui.toolbars):
+            base = [{'toolbar': {'id': _s(toolbar, 'id'), 'position': toolbar_i}, 'position': toolbar_i}]
             _controls(toolbar.controls, base, placements, errors)
         result = {
             'format': 'deckforge-fusion-ui-placements-v2',
