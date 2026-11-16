@@ -165,12 +165,12 @@ function renderExplorer(){
    }
  };
  fillTabs($('workspaces'),areas,explorerArea,key=>{explorerArea=key;explorerPanel='';explorerDropdown='';renderExplorer()});
- const panels=[...area.children.values()].sort((a,b)=>a.name.localeCompare(b.name,'ko'));
+ const panels=[...area.children.values()].sort((a,b)=>a.rank-b.rank||a.name.localeCompare(b.name,'ko'));
  if(!panels.some(x=>x.key===explorerPanel)){explorerPanel=(panels.find(x=>x.name==='작성')||panels[0])?.key||'';explorerDropdown=''}
  fillTabs($('menus'),panels,explorerPanel,key=>{explorerPanel=key;explorerDropdown='';renderExplorer()});
  const panel=area.children.get(explorerPanel);
  if(!panel)return;
- const dropdowns=[{key:'all',name:'전체' },...panel.children.values()];
+ const dropdowns=[{key:'all',name:'전체' },...[...panel.children.values()].sort((a,b)=>a.rank-b.rank||a.name.localeCompare(b.name,'ko'))];
  if(!dropdowns.some(x=>x.key===explorerDropdown))explorerDropdown='all';
  fillTabs($('dropdowns'),dropdowns,explorerDropdown,key=>{explorerDropdown=key;renderExplorer()});
  const node=explorerDropdown==='all'?panel:panel.children.get(explorerDropdown);
