@@ -73,3 +73,16 @@ test('icon layout has one nonwrapping 404px line, equal 196px cards and aligned 
  assert.match(css,/\.inspector \.inspector-icon-section \.sdk-state-icon\{flex:0 0 196px/);
  assert.match(css,/\.inspector \.inspector-icon-section:empty\{display:none\}/);
 });
+
+test('folder and boolean fields use aligned independent rows',()=>{
+ assert.doesNotMatch(src,/'folder':\[\['autoExitEnabled','autoExitSeconds'\]\]/);
+ assert.match(src,/case "folder":return check\("autoExitEnabled","자동 나가기"\)/);
+ assert.match(src,/class="unit-field"/);
+ assert.match(src,/folder-editor-actions/);
+ assert.match(src,/checkbox-setting-field/);
+});
+test('website has protocol-aware checkbox and blur normalization',()=>{
+ assert.match(src,/id="url-https"/);
+ assert.match(src,/url\.addEventListener\('blur',sync\)/);
+ assert.match(src,/toggle\.addEventListener\('change'/);
+});

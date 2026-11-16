@@ -901,8 +901,7 @@ const COMPACT_FIELD_GROUPS={
   'edit-history':[['operation','step']],
   'timer':[['seconds','sound']],
   'audio-play':[['fade','fadeDuration']],
-  'text':[['enter','mode']],
-  'folder':[['autoExitEnabled','autoExitSeconds']]
+  'text':[['enter','mode']]
 };
 const COMPACT_FIELD_LABELS={
   'autoExitEnabled':'자동 나가기','autoExitSeconds':'대기 시간',
@@ -975,7 +974,7 @@ const pathPicker=(field,label,kind='file')=>
   (field==='path'&&active?.type==='open'
     ? '<button type="button" data-path-picker="'+field+'" data-path-kind="folder" title="폴더 선택">▣</button>' : '')+
   '</div></div>';
-const check=(field,label)=>`<div class="field"><label for="s-${field}">${label}</label><input id="s-${field}" type="checkbox" data-field="${field}" ${valueOf(active,field)?"checked":""}></div>`;
+const check=(field,label)=>`<div class="field checkbox-setting-field"><label for="s-${field}">${label}</label><input id="s-${field}" type="checkbox" data-field="${field}" ${valueOf(active,field)?"checked":""}></div>`;
 let active=null;
 function actionFields(item){
   active=item;
@@ -989,9 +988,9 @@ function actionFields(item){
     case "brightness":return select("mode","동작",[["up","밝게"],["down","어둡게"],["max","최대"],["high","높음"],["medium","중간"],["low","낮음"],["min","최소"]]);
     case "sleep":return `<div class="field"><label>장치 화면</label><span class="hint">D200X 화면 잠자기 · 다음 물리 버튼 누름은 화면 깨우기에 사용 (PC 절전 아님)</span></div>`;
     case "virtual":return `<div class="field"><label>기기</label><span class="hint">구성된 Virtual Stream Decks 없음</span></div>`;
-    case "website":return input("url","URL","https://")+select("open","다음으로 열기",[["default","기본 브라우저"],["get","백그라운드에서 GET 요청"],["choose","브라우저 직접 선택"]])+pathPicker("browserPath","선택 브라우저 (.exe)","app");
-    case "open":return pathPicker("path","앱 / 파일");
-    case "open-app":return pathPicker("app","앱","app")+select("hold","길게 누르기",[["none","아무것도 하지 않음"],["close","응용 프로그램 종료"],["force","응용 프로그램 강제 종료"]])+check("foreground","이미 실행 중이면 맨 앞으로");
+    case "website":return `<div class="field website-url-field"><label for="s-url">URL</label><div class="website-url-control"><label class="https-toggle"><input id="url-https" type="checkbox" ${/^https:\/\//i.test(String(item.settings?.url||''))?'checked':''}>HTTPS</label><input id="s-url" data-field="url" value="${escapeHtml(valueOf(item,'url'))}" placeholder="example.com"></div></div>`+select("open","다음으로 열기",[["default","기본 브라우저"],["get","백그라운드에서 GET 요청"],["choose","브라우저 직접 선택"]])+pathPicker("browserPath","선택 브라우저 (.exe)","app");
+    case "open":return pathPicker("path","앱 / 파일")+input("args","인수");
+    case "open-app":return pathPicker("app","앱","app")+input("args","인수")+select("hold","길게 누르기",[["none","아무것도 하지 않음"],["close","응용 프로그램 종료"],["force","응용 프로그램 강제 종료"]])+check("foreground","앞으로 가져오기");
     case "close":return pathPicker("path","앱 / 파일")+check("force","강제 종료");
     case "hotkey":return select("preset","동작 선택기",HOTKEY_PRESET_LABELS)+input("keys","단축키","클릭하여 할당");
     case "hotkey-switch":return input("first","단축키 1")+input("second","단축키 2");
@@ -1019,9 +1018,8 @@ function actionFields(item){
       select("step","변화량",[[1,"1"],[2,"2"],[5,"5"],[10,"10"]]);
     case "multi":return "";
     case "random":return "";
-    case "folder":return `<div class="field"><label>내용</label><div>폴더 내부 항목 편집은 아래 버튼을 사용하세요.</div></div>`+
-      `<div class="field"><label>액션 실행 후 자동 나가기</label><input type="checkbox" data-field="autoExitEnabled" ${item.settings?.autoExitEnabled?'checked':''}></div>`+
-      `<div class="field"><label>실행 후 대기 (0=즉시 나가기)</label><input type="number" min="0" max="60" data-field="autoExitSeconds" value="${Number(item.settings?.autoExitSeconds)||0}"><span>초</span></div>`;
+    case "folder":return check("autoExitEnabled","자동 나가기")+
+      `<div class="field folder-wait-field"><label for="s-autoExitSeconds">대기 시간</label><div class="unit-field"><input id="s-autoExitSeconds" type="number" min="0" max="60" data-field="autoExitSeconds" value="${Number(item.settings?.autoExitSeconds)||0}"><span aria-hidden="true">초</span></div></div>`;
     case "multi-switch":return "";
     case "logic":return "";
     case "profile":return select("profile","프로필",[
@@ -1285,7 +1283,7 @@ function renderLogicEditor(item,root){
   root.querySelector('.fields')?.append(area);
 }
 function renderFolderInspector(item,root){
-  const host=document.createElement('div');host.className='multi-action-editor';
+  const host=document.createElement('div');host.className='multi-action-editor folder-editor-actions';
   const open=document.createElement('button');open.type='button';open.textContent='폴더 내부 편집 →';
   open.addEventListener('click',()=>{
     const index=state.selected;
@@ -2114,6 +2112,24 @@ function renderInspector(){
   refreshTitlePreview(item);
   $("key-title").addEventListener("input",ev=>{item.title=ev.target.value;persist();renderGrid();refreshTitlePreview(item);});
   bindExtendedActionFields(root,item);
+  if(item.type==='website'){
+    const url=root.querySelector('[data-field="url"]');
+    const toggle=root.querySelector('#url-https');
+    const sync=()=>{
+      const raw=url.value.trim();
+      if(!raw)return;
+      toggle.checked=/^https:\/\//i.test(raw);
+      const normalized=/^https?:\/\//i.test(raw)?raw:(toggle.checked?'https://':'http://')+raw;
+      url.value=normalized;item.settings.url=normalized;persistInspectorChange();
+    };
+    url.addEventListener('blur',sync);
+    toggle.addEventListener('change',()=>{
+      const raw=url.value.trim();
+      if(!raw)return;
+      const next=(toggle.checked?'https://':'http://')+raw.replace(/^https?:\/\//i,'');
+      url.value=next;item.settings.url=next;persistInspectorChange();
+    });
+  }
   bindShortcutOptionPreviews(root,item);
   groupCompactActionFields(root,item.type);
   bindInspectorShortcut(root,item);

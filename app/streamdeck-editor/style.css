@@ -746,3 +746,24 @@
 }
 .inspector .inspector-icon-section .sdk-state-icon{flex:0 0 196px;min-width:196px;max-width:196px}
 .inspector .inspector-footer-region{justify-content:flex-end}
+
+/* Inspector alignment: all boolean fields start at the value-column left edge. */
+.inspector-properties-region>.fields>.field.checkbox-setting-field{align-items:center}
+.inspector-properties-region>.fields>.field.checkbox-setting-field>input[type="checkbox"]{
+  justify-self:start;align-self:center;box-sizing:border-box;width:15px;height:15px;
+  margin:0;min-height:0;accent-color:#2676c1
+}
+.inspector-properties-region>.fields>.field.checkbox-setting-field>label{
+  max-width:var(--inspector-label-width);white-space:normal;overflow-wrap:break-word;line-height:1.25
+}
+.compact-property-group>.field>input[type="checkbox"]{justify-self:start;align-self:start;margin:0;box-sizing:border-box;width:15px;height:15px;accent-color:#2676c1}
+.unit-field{position:relative;width:100%;max-width:404px}
+.inspector-properties-region .unit-field input{padding-right:32px}
+.unit-field>span{position:absolute;right:12px;top:50%;transform:translateY(-50%);color:#bfc8d2;font-size:12px;pointer-events:none}
+.folder-editor-actions{margin:0 0 0 86px!important;padding:0!important;border-top:0!important;width:404px;max-width:calc(100% - 86px)}
+.folder-editor-actions button{border:1px solid #66717f;background:#414a56;color:#f3f5f9;padding:7px 12px;border-radius:4px;min-height:30px}
+.folder-editor-actions button:hover{background:#536075}
+.website-url-control{display:flex;align-items:center;gap:8px;min-width:0;max-width:404px}
+.website-url-control>.https-toggle{display:flex;align-items:center;gap:4px;white-space:nowrap;flex:none;font-size:11px;color:#d1d9e4}
+.website-url-control>.https-toggle input{width:15px;height:15px;min-height:0;margin:0;accent-color:#2676c1}
+.website-url-control>input[data-field="url"]{flex:1;min-width:0}
