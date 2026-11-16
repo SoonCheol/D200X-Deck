@@ -51,3 +51,21 @@ test('actual capture panel and dropdown indices remain available for Fusion-orde
  assert.deepEqual(panels.map(p=>p.name),['작성','수정']);
  assert.equal(panels[1].children.get('dropdown:Inner').rank,3);
 });
+
+test('real Fusion menu tab, panel and nested dropdown ordering is preserved',()=>{
+ const catalog={format:'deckforge-fusion-menu-catalog-v1',tabIds:['SketchTab','SolidTab','SurfaceTab','ParaMeshOuterTab','SheetMetalTab','PlasticTab','ManageTab','ToolsTab','AutomationTab'],entries:[
+  {id:'A',tabId:'SketchTab',panel:'작성',panelId:'P1',dropdowns:[]},
+  {id:'B',tabId:'SketchTab',panel:'작성',panelId:'P1',dropdowns:['Group','Nested']},
+  {id:'C',tabId:'SketchTab',panel:'작성',panelId:'P1',dropdowns:['Group','Nested']},
+  {id:'D',tabId:'SketchTab',panel:'수정',panelId:'P2',dropdowns:[]},
+  {id:'E',tabId:'SolidTab',panel:'작성',panelId:'P3',dropdowns:[]}
+ ]};
+ const commands=['A','B','C','D','E'].map(id=>({id,name:id}));
+ const tabs=Menu.fromMenuCatalog(catalog,commands);
+ assert.deepEqual(tabs.map(x=>x.name),['스케치','솔리드','곡면','메쉬','판금','플라스틱','매니지','유틸리티','자동화']);
+ const panels=[...tabs[0].children.values()];
+ assert.deepEqual(panels.map(x=>x.name),['작성','수정']);
+ assert.deepEqual(Menu.descendants(panels[0]).map(x=>x.id),['A','B','C']);
+ assert.deepEqual(Menu.descendants(panels[0].children.get('dropdown:Group').children.get('dropdown:Nested')).map(x=>x.id),['B','C']);
+ assert.deepEqual(Menu.descendants(panels[1]).map(x=>x.id),['D']);
+});
