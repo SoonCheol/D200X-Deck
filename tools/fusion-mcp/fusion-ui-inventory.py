@@ -14,6 +14,13 @@ def _s(obj, attr, fallback=''):
     except Exception:
         return fallback
 
+def _bool(obj, attr):
+    try:
+        value = getattr(obj, attr)
+        return value if isinstance(value, bool) else None
+    except Exception:
+        return None
+
 def _controls(controls, placement, out, errors, depth=0):
     if depth > 12:
         errors.append({'path': placement, 'error': 'max dropdown depth'})
@@ -30,7 +37,9 @@ def _controls(controls, placement, out, errors, depth=0):
                 continue
             kind = _s(control, 'objectType')
             node = {'controlId': _s(control, 'id'), 'controlName': _s(control, 'name'),
-                    'controlType': kind, 'position': i}
+                    'controlType': kind, 'position': i,
+                    'isVisible': _bool(control, 'isVisible'),
+                    'isEnabled': _bool(control, 'isEnabled')}
             p = placement + [node]
             if kind == adsk.core.DropDownControl.classType():
                 _controls(control.controls, p, out, errors, depth + 1)
@@ -47,12 +56,18 @@ def _controls(controls, placement, out, errors, depth=0):
                 for definition in definitions:
                     if definition and _s(definition, 'id'):
                         out.append({'commandId': _s(definition, 'id'),
-                                    'commandName': _s(definition, 'name'), 'path': p})
+                                    'commandName': _s(definition, 'name'), 'path': p,
+                                    'placementKind': 'split_button',
+                                    'isVisible': _bool(control, 'isVisible'),
+                                    'isEnabled': _bool(control, 'isEnabled')})
             elif kind == adsk.core.CommandControl.classType():
                 definition = control.commandDefinition
                 if definition and _s(definition, 'id'):
                     out.append({'commandId': _s(definition, 'id'),
-                                'commandName': _s(definition, 'name'), 'path': p})
+                                'commandName': _s(definition, 'name'), 'path': p,
+                                'placementKind': 'dropdown' if any(x.get('controlType') == adsk.core.DropDownControl.classType() for x in p[:-1]) else 'direct',
+                                'isVisible': _bool(control, 'isVisible'),
+                                'isEnabled': _bool(control, 'isEnabled')})
         except Exception as exc:
             errors.append({'path': placement, 'position': i, 'error': str(exc)})
 
@@ -80,11 +95,12 @@ def run(context):
             base = [{'toolbar': {'id': _s(toolbar, 'id')}}]
             _controls(toolbar.controls, base, placements, errors)
         result = {
-            'format': 'deckforge-fusion-ui-placements-v1',
+            'format': 'deckforge-fusion-ui-placements-v2',
             'fusionVersion': _s(app, 'version', 'unknown'),
             'collectedAtUTC': datetime.datetime.now(datetime.timezone.utc).isoformat(),
             'activeWorkspaceId': _s(ui.activeWorkspace, 'id'),
             'workspaces': workspaces,
+            'captureScope': 'UI object enumeration; not a proof of command executability',
             'placements': placements,
             'errors': errors
         }
