@@ -55,3 +55,39 @@ test('a missing state-specific image falls back to the normal user icon',()=>{
   assert.equal(render(item,{state:0,image:'runtime'}).icon.value,'common');
   assert.equal(render(item,{state:1,image:'runtime'}).icon.value,'on');
 });
+
+
+test('Fusion live command artwork has no offline overlay even if plugin connection event was missed',()=>{
+  const item={type:'sd-plugin',settings:{pluginUUID:'com.autodesk.fusionstreamdeck',
+    actionUUID:'com.autodesk.fusionstreamdeck.runcommand',pluginSettings:{commandId:'ExtrudeCommand'}}};
+  const image='data:image/png;base64,bGl2ZQ==';
+  const ctx='profile:0::0:down';
+  const result=vm.runInNewContext(fn+';displayItem(item,0)',{
+    item,state:{profileId:'profile',page:0,folderPath:[]},
+    sdkVisuals:new Map([[ctx,{image}]]),
+    sdkContext:()=>ctx,DeckCore:{visibleActions:()=>[item]},
+    timerDeadlines:new Map(),fusionCommandId:()=> 'ExtrudeCommand',
+    fusionConnected:new Set(),FUSION_PLUGIN:'com.autodesk.fusionstreamdeck',
+    fusionOfflineContexts:new Set(),fusionLiveContexts:new Set([ctx]),
+    fusionIconCache:new Map(),requestFusionIcon:()=>{}
+  });
+  assert.equal(result.fusionOffline,false);
+  assert.equal(result.icon.value,image);
+});
+test('Fusion disabled command image retains cached artwork and adds offline overlay',()=>{
+  const item={type:'sd-plugin',settings:{pluginUUID:'com.autodesk.fusionstreamdeck',
+    actionUUID:'com.autodesk.fusionstreamdeck.runcommand',pluginSettings:{commandId:'ExtrudeCommand'}}};
+  const image='data:image/png;base64,Y2FjaGU=';
+  const ctx='profile:0::0:down';
+  const result=vm.runInNewContext(fn+';displayItem(item,0)',{
+    item,state:{profileId:'profile',page:0,folderPath:[]},
+    sdkVisuals:new Map([[ctx,{image:'data:image/svg+xml;base64,b2ZmbGluZQ=='}]]),
+    sdkContext:()=>ctx,DeckCore:{visibleActions:()=>[item]},
+    timerDeadlines:new Map(),fusionCommandId:()=> 'ExtrudeCommand',
+    fusionConnected:new Set(['com.autodesk.fusionstreamdeck']),FUSION_PLUGIN:'com.autodesk.fusionstreamdeck',
+    fusionOfflineContexts:new Set([ctx]),fusionLiveContexts:new Set(),
+    fusionIconCache:new Map([['ExtrudeCommand',image]]),requestFusionIcon:()=>{}
+  });
+  assert.equal(result.fusionOffline,true);
+  assert.equal(result.icon.value,image);
+});
