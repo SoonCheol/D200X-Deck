@@ -3,7 +3,7 @@ const FORMAT='d200x-fusion-batch-v1',PROJECT='fusion-command-manager-project-v1'
 const PLUGIN='com.autodesk.fusionstreamdeck',ACTION=PLUGIN+'.runcommand';
 const MAXP=128,PER=13;
 const $=id=>document.getElementById(id);
-let commands=[],pages=[],drag=null,context=null,capturedUI=null;
+let commands=[],pages=[],drag=null,context=null,capturedUI=null,visibilityOverrides={};
 const Curation=window.FusionCuration;
 const iconCache=new Map(),iconPending=new Set();
 const byId=()=>new Map(commands.map(v=>[v.id,v]));
@@ -30,7 +30,7 @@ function category(v){
 }
 function makePagesFromCatalog(type){
  const mode=$('visibility').value;
- const items=Curation.visibleItems(commands,mode,capturedUI)
+ const items=Curation.visibleItems(commands,mode,capturedUI,visibilityOverrides)
   .filter(v=>type==='all'||category(v)===type)
   .sort((a,b)=>Curation.sortByPlacement(a,b,capturedUI));
  if(!items.length){status('이 범주의 카탈로그 명령이 없습니다.');return;}
@@ -118,6 +118,20 @@ function showDetail(v){
   dd.textContent=similar.map(item=>item.id).join(', ')+' (서로 다른 명령 ID, 기능 동일 여부 미확인)';
   dl.append(dt,dd);
  }
+ const dt=document.createElement('dt'),dd=document.createElement('dd'),select=document.createElement('select');
+ dt.textContent='목록 표시';
+ const opts=[['auto','자동 분류'],['primary','기본 표시'],['review','검토 대상'],['hidden','숨김 대상']];
+ for(const [value,title] of opts){
+  const option=document.createElement('option');option.value=value;option.textContent=title;select.append(option)
+ }
+ select.value=visibilityOverrides[v.id]||'auto';
+ select.onchange=async()=>{
+  const prev={...visibilityOverrides};
+  if(select.value==='auto')delete visibilityOverrides[v.id];else visibilityOverrides[v.id]=select.value;
+  try{await window.fusionManager.saveVisibility(visibilityOverrides);render();}
+  catch(e){visibilityOverrides=prev;select.value=prev[v.id]||'auto';status('분류 저장 실패: '+e.message)}
+ };
+ dd.append(select);dl.append(dt,dd);
  $('detail').style.display='block';
 }
 $('detailClose').onclick=()=>$('detail').style.display='none';
@@ -166,7 +180,7 @@ function render(){
   root.append(panel);
  });
  const existing=usedIds();const type=$('category').value;const q=$('search').value.toLowerCase();
- const matches=Curation.visibleItems(commands,$('visibility').value,capturedUI).filter(v=>!existing.has(v.id)&&(type==='all'||category(v)===type)&&(v.name.toLowerCase().includes(q)||v.id.toLowerCase().includes(q))).sort((a,b)=>Curation.sortByPlacement(a,b,capturedUI)).slice(0,120);
+ const matches=Curation.visibleItems(commands,$('visibility').value,capturedUI,visibilityOverrides).filter(v=>!existing.has(v.id)&&(type==='all'||category(v)===type)&&(v.name.toLowerCase().includes(q)||v.id.toLowerCase().includes(q))).sort((a,b)=>Curation.sortByPlacement(a,b,capturedUI)).slice(0,120);
  $('remaining').textContent='(표시 '+matches.length+'개)';
  const list=$('queue');list.replaceChildren();
  for(const v of matches){const b=document.createElement('button');b.className='chip';b.textContent=v.name;b.title=v.id;b.onclick=()=>{
@@ -257,4 +271,4 @@ document.addEventListener('click',e=>{if(!$('context').contains(e.target))$('con
 $('save').onclick=async()=>{try{const result=await window.fusionManager.save(project(),'Fusion-Layout.project.json');if(result)status('프로젝트 저장: '+result)}catch(e){status(e.message)}};
 $('open').onclick=async()=>{try{const result=await window.fusionManager.open();if(!result)return;validateProject(result.data);pages=result.data.pages.map(p=>({name:p.name,enabled:p.enabled,reserved:p.reserved,slots:p.slots}));$('profile').value=result.data.profileName;render();status('프로젝트 불러오기 완료')}catch(e){status('불러오기 실패: '+e.message)}};
 $('export').onclick=async()=>{try{const data=exportData();const result=await window.fusionManager.save(data,'D200X-Fusion-Commands.json');if(result)status('DeckForge 등록용 JSON 생성: '+result)}catch(e){status('내보내기 실패: '+e.message)}};
-window.fusionManager.catalog().then(data=>{commands=normalizeCatalogue(data);if(!commands.length)throw Error('명령 카탈로그를 읽었지만 지원되는 명령이 없습니다.');pages=[empty()];makePagesFromCatalog('sketch');}).catch(e=>{pages=[empty()];render();status('카탈로그 오류: '+e.message)});
+Promise.all([window.fusionManager.catalog(),window.fusionManager.loadVisibility().catch(()=>({}))]).then(([data,overrides])=>{visibilityOverrides=overrides;commands=normalizeCatalogue(data);if(!commands.length)throw Error('명령 카탈로그를 읽었지만 지원되는 명령이 없습니다.');pages=[empty()];makePagesFromCatalog('sketch');}).catch(e=>{pages=[empty()];render();status('카탈로그 오류: '+e.message)});
