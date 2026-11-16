@@ -5,7 +5,7 @@ const path=require('node:path');
 const os=require('node:os');
 function createWindow(){
  const area=screen.getPrimaryDisplay().workArea;
- const width=Math.min(620,area.width),height=Math.min(880,area.height);
+ const width=Math.min(698,area.width),height=Math.min(873,area.height);
  const win=new BrowserWindow({width,height,minWidth:Math.min(480,width),minHeight:Math.min(560,height),backgroundColor:'#111820',webPreferences:{preload:path.join(__dirname,'preload.cjs'),contextIsolation:true,nodeIntegration:false,sandbox:false}});
  win.setMenuBarVisibility(false);
  win.loadFile(path.join(__dirname,'index.html'));
@@ -15,7 +15,7 @@ app.whenReady().then(()=>{
    const win=BrowserWindow.fromWebContents(event.sender);
    if(!win||!['explore','pages'].includes(mode))return false;
    const area=screen.getDisplayMatching(win.getBounds()).workArea;
-   const w=Math.min(mode==='pages'?1240:620,area.width);
+   const w=Math.min(mode==='pages'?1240:698,area.width);
    const b=win.getBounds();
    const x=Math.min(Math.max(area.x,b.x),area.x+area.width-w);
    const h=Math.min(Math.max(b.height,600),area.height);
