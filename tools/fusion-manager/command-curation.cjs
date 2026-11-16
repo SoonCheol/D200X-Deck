@@ -28,12 +28,13 @@
       if(!p||typeof p.commandId!=='string'||p.commandId.length>256||!p.commandId
         ||!Array.isArray(p.path)||p.path.length>30)continue;
       let entry=entries.get(p.commandId);
-      if(!entry){entry={id:p.commandId,placements:[],visible:false};entries.set(p.commandId,entry)}
+      if(!entry){entry={id:p.commandId,name:String(p.commandName||p.commandId).slice(0,160),placements:[],visible:false};entries.set(p.commandId,entry)}
       if(entry.placements.length<20)entry.placements.push({
         path:p.path,
         kind:p.placementKind||'unknown',
         visible:p.isVisible===true,
-        enabled:p.isEnabled===true
+        enabled:p.isEnabled===true,
+        promoted:p.isPromoted===true
       });
       if(p.isVisible===true)entry.visible=true;
     }
