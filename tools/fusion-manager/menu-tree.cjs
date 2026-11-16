@@ -53,7 +53,7 @@
  }
  function structure(commands,capture,filter=()=>true){
   const workspaces=new Map();
-  const get=(map,key,name)=>{if(!map.has(key))map.set(key,{key,name,children:new Map(),ids:new Map()});return map.get(key)};
+  const get=(map,key,name)=>{if(!map.has(key))map.set(key,{key,name,rank:Number.MAX_SAFE_INTEGER,children:new Map(),ids:new Map()});return map.get(key)};
   for(const item of commands){
    if(!filter(item))continue;
    const all=paths(item,capture);
@@ -67,12 +67,15 @@
     // known name, but never discard the actual raw ID.
     const wsKey=workspaceName(anchor)!==anchor?workspaceName(anchor):workspaceName(wsPart?.id||anchor);
     const ws=get(workspaces,wsKey,wsKey);
+    if(Number.isInteger(tab?.position))ws.rank=Math.min(ws.rank,tab.position);
     const panName=panelPart?(panelPart.label&&panelPart.label!==panelPart.id?panelPart.label:panelName(panelPart.id)):'기타 툴바';
     const pan=get(ws.children,panName,panName);
+    if(Number.isInteger(panelPart?.position))pan.rank=Math.min(pan.rank,panelPart.position);
     // Distinguish nested dropdown groups by original ID and order, not guessed labels.
     let dest=pan;
     for(const sub of parts.filter(x=>x.kind==='dropdown')){
       dest=get(dest.children,'dropdown:'+sub.id,sub.label||sub.id);
+      if(Number.isInteger(sub.position))dest.rank=Math.min(dest.rank,sub.position);
     }
     dest.ids.set(item.id,item);
    }
