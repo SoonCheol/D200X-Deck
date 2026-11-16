@@ -1,3 +1,10 @@
+## 2026-11-16 — Fusion 360 일괄 등록 새 채팅 인수인계 (문서 작업만)
+
+- **다음 채팅 첫 진입점:** [Fusion 360 명령 일괄 등록 인수인계](D200X-FUSION-BATCH-HANDOFF-20261116.md). GitHub 개발 환경/단일 브랜치/Draft PR 보존, 기존 구현, Codex MCP와 GitHub 코드 개발의 역할 분리, 다음 검증 순서 포함.
+- **현재 코드 기준:** `tools/fusion-mcp/server.cjs`의 읽기 전용 명령 검색·배치 JSON 생성과 `app/streamdeck-editor/fusion-batch.js`의 새 Fusion 프로필 가져오기·**13개 일반 키/페이지·와이드 index 13 보호**는 이미 구현됨. 새로 만드는 작업으로 취급하지 말 것.
+- **확인한 사소한 오류(미수정):** `editor.js`의 JSON 가져오기 확인창 안내 페이지만 `Math.ceil(input.commands.length/14)`로 계산. 실제 생성은 `/13`. 다음 관련 코드 수정 시 최소 패치/테스트 대상.
+- **검증 상태:** 사용자 보고 원본 Fusion `extrude` 실행 성공, 과거 Windows CI/MCP 모의 테스트 성공. 로컬 MCP 등록·실제 일괄 JSON GUI 가져오기 및 이번 글꼴 UI 후속 Windows 아티팩트는 별도 확인 필요. **이번 턴은 소스 코드·사용자 환경·프로필·빌드를 전혀 수정하지 않음.**
+
 ## 2026-11-15 플러그인 속성창 누락 수정 — UI 코드 반영 / Windows 실기 미확인
 
 - **사용자 승인 후 반영:** Home Assistant SDK 플러그인 속성창 상단 경로의 일반 이름 'Stream Deck SDK 플러그인' 대신 실제 설치된 액션 이름을 표시한다. 예: `액션 > 플러그인 > Home Assistant 장치 제어`. 다른 SDK 액션은 실제 actionName / 설치된 플러그인 카탈로그명을 사용하며 기존 UUID·SDK 연결 유지.
