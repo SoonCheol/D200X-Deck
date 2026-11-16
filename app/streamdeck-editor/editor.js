@@ -465,6 +465,7 @@ function importFusionDraggedCommand(event,index){
  action.settings.actionUUID=drag.ACTION;
  action.settings.actionName='Fusion 명령 실행';
  action.settings.pluginSettings={commandId:cmd.id,name:cmd.name};
+ if(cmd.png){action.icon={kind:'file',value:cmd.png};void window.deckBridge?.fusionIconWrite?.(cmd.id,cmd.png).catch(error=>console.warn('Fusion 드래그 아이콘 저장 실패',error));}
  setItem(index,action);
  window.d200xActionStatus?.('Fusion 명령 등록: '+cmd.name+' ('+cmd.id+')');
  return true;
