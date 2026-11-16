@@ -120,3 +120,17 @@ test('Manager opens at requested size and expands nested menu without extra drop
  assert.match(html,/fonts\/PretendardVariable\.woff2/);
  assert.match(workflow,/49c54b5152a184a243e85f7281ed338b6569987e/);
 });
+
+test('context help offers original Fusion UI Python collector and icon guidance',()=>{
+ const fs=require('node:fs'),path=require('node:path');
+ const root=path.join(__dirname,'../tools/fusion-manager');
+ const html=fs.readFileSync(path.join(root,'index.html'),'utf8');
+ const renderer=fs.readFileSync(path.join(root,'renderer.js'),'utf8');
+ const main=fs.readFileSync(path.join(root,'main.cjs'),'utf8');
+ const workflow=fs.readFileSync(path.join(__dirname,'../.github/workflows/fusion-manager-preview.yml'),'utf8');
+ for(const id of ['captureHelp','iconsHelp','scriptShow','scriptCopy'])assert.match(html,new RegExp('id="'+id+'"'));
+ assert.match(renderer,/openManagerHelp\('Fusion UI JSON 불러오기'\)/);
+ assert.match(renderer,/openManagerHelp\('현재 목록 원본 아이콘 수집'\)/);
+ assert.match(main,/fusion-ui-script/);
+ assert.match(workflow,/fusion-ui-inventory\.py.*fusion-ui-inventory\.py/);
+});
