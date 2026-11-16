@@ -1195,7 +1195,7 @@ function refreshTitlePreview(item){
   const style={...DEFAULT_TITLE_STYLE,...item.titleStyle};
   label.hidden=style.visible===false;
   label.style.textAlign="center";
-  label.style.fontFamily=style.family==="default"?"Malgun Gothic, sans-serif":style.family;
+  label.style.fontFamily=style.family==="default"||style.family==="DeckForge Pretendard"?"DeckForge Pretendard, sans-serif":style.family;
   label.style.fontSize=(Math.max(8,Math.min(48,Number(style.size)||12))*98/72)+"px";
   label.style.fontWeight=style.bold?"bold":"normal";
   label.style.fontStyle=style.italic?"italic":"normal";
@@ -1805,7 +1805,7 @@ function renderInspector(){
           <button type="button" data-align="middle" title="가운데 배치">≡</button>
           <button type="button" data-align="top" title="위쪽 배치">▥</button>
         </div>
-        <select id="title-family" aria-label="글꼴"><option value="default">기본</option><option value="Malgun Gothic">맑은 고딕</option><option value="Segoe UI">Segoe UI</option></select>
+        <select id="title-family" aria-label="글꼴"><option value="default">기본 (Pretendard)</option><option value="DeckForge Pretendard">Pretendard</option><option value="Malgun Gothic">맑은 고딕</option><option value="Segoe UI">Segoe UI</option></select>
         <div class="title-format"><input id="title-size" type="number" min="8" max="48" aria-label="글꼴 크기">
         <button type="button" data-style="bold" aria-label="굵게">B</button><button type="button" data-style="italic" aria-label="기울임">I</button><button type="button" data-style="underline" aria-label="밑줄">U</button>
         <input id="title-color" type="color" aria-label="글꼴 색상">
