@@ -5,7 +5,7 @@ const MAXP=128,PER=13;
 const $=id=>document.getElementById(id);
 let commands=[],pages=[],drag=null,context=null,capturedUI=null,visibilityOverrides={};
 const Curation=window.FusionCuration,MenuTree=window.FusionMenuTree,FusionDrag=window.DeckForgeFusionDrag;
-let explorerArea='',explorerPanel='',explorerDropdown='',explorerItems=[];
+let explorerArea='',explorerPanel='',explorerDropdown='',explorerItems=[],menuTreeCache=null;
 const iconCache=new Map(),iconPending=new Set();
 const byId=()=>new Map(commands.map(v=>[v.id,v]));
 const empty=()=>({name:'새 페이지',enabled:true,reserved:[],slots:Array(PER).fill(null)});
@@ -130,7 +130,7 @@ function showDetail(v){
  select.onchange=async()=>{
   const prev={...visibilityOverrides};
   if(select.value==='auto')delete visibilityOverrides[v.id];else visibilityOverrides[v.id]=select.value;
-  try{await window.fusionManager.saveVisibility(visibilityOverrides);render();}
+  try{await window.fusionManager.saveVisibility(visibilityOverrides);menuTreeCache=null;render();}
   catch(e){visibilityOverrides=prev;select.value=prev[v.id]||'auto';status('분류 저장 실패: '+e.message)}
  };
  dd.append(select);dl.append(dt,dd);
@@ -140,10 +140,13 @@ $('detailClose').onclick=()=>$('detail').style.display='none';
 
 function renderExplorer(){
  if(!commands.length)return;
- const eligible=commands.filter(v=>Curation.captureClassify(v,capturedUI)!=='hidden'||visibilityOverrides[v.id]==='primary'||visibilityOverrides[v.id]==='review');
- const groups=MenuTree.structure(eligible,capturedUI);
+ if(!menuTreeCache){
+   const eligible=commands.filter(v=>Curation.captureClassify(v,capturedUI)!=='hidden'||visibilityOverrides[v.id]==='primary'||visibilityOverrides[v.id]==='review');
+   menuTreeCache=MenuTree.structure(eligible,capturedUI);
+ }
+ const groups=menuTreeCache;
  if(!groups.length)return;
- const areas=groups.sort((a,b)=>{
+ const areas=[...groups].sort((a,b)=>{
    const order=['스케치','솔리드','곡면','메쉬','판금'];
    const i=order.indexOf(a.name),j=order.indexOf(b.name);
    return (i<0?999:i)-(j<0?999:j)||a.name.localeCompare(b.name,'ko');
@@ -384,7 +387,7 @@ $('importCapture').onclick=async()=>{
   const data=await window.fusionManager.openCapture();
   if(!data)return;
   const result=Curation.validateCapture(data);
-  capturedUI=result;
+  capturedUI=result;menuTreeCache=null;
   $('captureStatus').textContent='UI 수집 '+result.entries.size+'개 고유 ID · 조회 오류 '+result.errors+'건 · Fusion '+result.version;
   // Do NOT regenerate or overwrite user-arranged pages automatically.
   render();
