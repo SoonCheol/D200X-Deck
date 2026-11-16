@@ -3283,6 +3283,9 @@ if(window.deckBridge?.onSdkEvent){
       if(message.kind==='setImage'&&old.image){
         const cfg=sdkActionInstances().find(x=>x.context===ctx);
         if(cfg?.pluginUUID===FUSION_PLUGIN){
+          // Refresh Fusion's actual add-in status when artwork changes, not
+          // just on the periodic check; the SDK plugin is a separate process.
+          void refreshFusionHealth();
           const disabled=fusionDisabledImage(old.image);
           if(disabled){
             fusionOfflineContexts.add(ctx);
