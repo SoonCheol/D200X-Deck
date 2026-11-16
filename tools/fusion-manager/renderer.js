@@ -4,6 +4,8 @@ const PLUGIN='com.autodesk.fusionstreamdeck',ACTION=PLUGIN+'.runcommand';
 const MAXP=128,PER=13;
 const $=id=>document.getElementById(id);
 let commands=[],pages=[],drag=null,context=null;
+const iconCache=new Map(),iconPending=new Set();
+const byId=()=>new Map(commands.map(v=>[v.id,v]));
 const empty=()=>({name:'새 페이지',enabled:true,reserved:[],slots:Array(PER).fill(null)});
 const status=s=>$('status').textContent=s;
 function normalizeCatalogue(source){
@@ -11,6 +13,8 @@ function normalizeCatalogue(source){
  if(!Array.isArray(arr))arr=Object.values(arr).filter(x=>x&&typeof x==='object');
  const seen=new Set();
  return arr.map(v=>({id:String(v.id||v.commandId||v.command_id||''),name:String(v.name||v.label||v.title||v.id||''),
+  ko:String(v.koName||v.koreanName||v.nameKo||v.name_ko||( /[가-힣]/.test(String(v.name||''))?v.name:'' )||''),
+  en:String(v.englishName||v.nameEn||v.name_en||v.enName||(!/[가-힣]/.test(String(v.name||''))?v.name:'')||''),
   path:JSON.stringify(v.paths||v.path||v.category||v.workspace||'')}))
  .filter(v=>v.id&&v.name&&v.id.length<=256&&v.name.length<=160&&!seen.has(v.id)&&seen.add(v.id));
 }
@@ -70,6 +74,60 @@ function reserve(pi,i){
  }
  render();
 }
+function fallbackIcon(v){
+ const t=(v?.id||'')+' '+(v?.name||'');
+ if(/circle|원형|원/.test(t))return '◯';
+ if(/rectangle|square|사각/.test(t))return '▣';
+ if(/line|선/.test(t))return '╱';
+ if(/extrud|돌출/.test(t))return '⬡';
+ if(/fillet|모깎|모따|chamfer/.test(t))return '◩';
+ if(/move|이동/.test(t))return '✥';
+ if(/trim|자르/.test(t))return '✂';
+ if(/dimension|치수/.test(t))return '↔';
+ if(/pattern|패턴/.test(t))return '▦';
+ if(/save|저장/.test(t))return '▤';
+ return {sketch:'✎',solid:'⬡',surface:'◈',file:'▤',other:'⌘'}[category(v||{})]||'⌘';
+}
+function requestIcon(id,el,v){
+ if(!id||iconPending.has(id))return;
+ if(iconCache.has(id)){const cached=iconCache.get(id);if(cached)setArt(el,cached);return}
+ iconPending.add(id);
+ window.fusionManager.icon(id).then(data=>{
+  iconCache.set(id,data||null);
+  if(data&&el.isConnected)setArt(el,data);
+ }).catch(()=>iconCache.set(id,null)).finally(()=>iconPending.delete(id));
+}
+function setArt(el,src){
+ const symbol=el.querySelector('.cmd-symbol');
+ if(!symbol||!src)return;
+ const img=document.createElement('img');img.className='cmd-art';img.alt='';img.draggable=false;img.src=src;symbol.replaceWith(img);
+}
+let hoverTimer=null;
+function hideTooltip(){clearTimeout(hoverTimer);$('tooltip').style.display='none'}
+function showTooltip(event,v,nameNode){
+ hideTooltip();
+ if(!v||!nameNode)return;
+ // Only truncated names need a tooltip. Text is always exactly two lines.
+ if(nameNode.scrollHeight<=nameNode.clientHeight+1&&nameNode.scrollWidth<=nameNode.clientWidth+1)return;
+ const ko=v.ko||(/［[가-힣]｜[가-힣]/.test(v.name)?v.name:'한글 이름 정보 없음');
+ const en=v.en||'영문명 정보 없음';
+ hoverTimer=setTimeout(()=>{
+  const tip=$('tooltip');tip.textContent=ko+'\n'+en;tip.style.display='block';
+  const rect=event.currentTarget.getBoundingClientRect();
+  tip.style.left=Math.max(8,Math.min(rect.left,innerWidth-tip.offsetWidth-8))+'px';
+  tip.style.top=(rect.bottom+tip.offsetHeight+8<innerHeight?rect.bottom+5:Math.max(8,rect.top-tip.offsetHeight-5))+'px';
+ },500);
+}
+function showDetail(v){
+ hideTooltip();const dl=$('detailFields');dl.replaceChildren();
+ $('detailTitle').textContent=v.ko||v.name;
+ for(const [label,value] of [['명령 ID',v.id],['영문명',v.en||'정보 없음'],['한글명',v.ko||'정보 없음'],['작업 영역',category(v)],['메뉴·툴바 경로',v.path||'정보 없음']]){
+  const dt=document.createElement('dt'),dd=document.createElement('dd');
+  dt.textContent=label;dd.textContent=value;dl.append(dt,dd);
+ }
+ $('detail').style.display='block';
+}
+$('detailClose').onclick=()=>$('detail').style.display='none';
 function render(){
  const root=$('pages');root.replaceChildren();
  pages.forEach((p,pi)=>{
@@ -84,8 +142,26 @@ function render(){
    for(let col=0;col<(row===2?3:5);col++){
     const i=row*5+col,el=document.createElement('div'),id=p.slots[i],v=commands.find(x=>x.id===id);
     el.className='slot'+(p.reserved.includes(i)?' reserved':id?'':' empty');
-    el.innerHTML='<small>'+String(i+1)+'</small>';el.append(document.createTextNode(p.reserved.includes(i)?'🔒 예약':(v?.name||id||'＋')));
-    if(id&&!p.reserved.includes(i)){el.draggable=true;el.ondragstart=e=>{drag={p:pi,i};e.dataTransfer.effectAllowed='move';el.classList.add('dragging')};el.ondragend=()=>el.classList.remove('dragging')}
+    const number=document.createElement('small');number.textContent=String(i+1);el.append(number);
+    if(p.reserved.includes(i)){
+      const symbol=document.createElement('span');symbol.className='cmd-symbol';symbol.textContent='🔒';el.append(symbol);
+      const label=document.createElement('span');label.className='cmd-name';label.textContent='예약';el.append(label);
+    }else if(id){
+      const art=document.createElement('span');art.className='cmd-symbol';art.textContent=fallbackIcon(v);el.append(art);
+      const label=document.createElement('span');label.className='cmd-name';label.textContent=v?.ko||v?.name||id;el.append(label);
+      requestIcon(id,el,v);
+      el.addEventListener('mouseenter',event=>showTooltip(event,v||{id,name:id},label));
+      el.addEventListener('mouseleave',hideTooltip);
+      const info=document.createElement('button');info.type='button';info.className='info-button';info.textContent='ⓘ';
+      info.setAttribute('aria-label','명령 상세 정보');info.title='상세 정보';info.draggable=false;
+      info.addEventListener('mousedown',event=>event.stopPropagation());
+      info.addEventListener('click',event=>{event.stopPropagation();showDetail(v||{id,name:id,path:''})});
+      el.append(info);
+    }else{
+      const plus=document.createElement('span');plus.className='cmd-symbol';plus.textContent='＋';el.append(plus);
+      const label=document.createElement('span');label.className='cmd-name';label.textContent='빈 슬롯';el.append(label);
+    }
+    if(id&&!p.reserved.includes(i)){el.draggable=true;el.ondragstart=e=>{if(e.target.closest?.('.info-button')){e.preventDefault();return;}hideTooltip();drag={p:pi,i};e.dataTransfer.effectAllowed='move';el.classList.add('dragging')};el.ondragend=()=>el.classList.remove('dragging')}
     el.ondragover=e=>{if(drag&&!p.reserved.includes(i)){e.preventDefault();el.classList.add('over')}};
     el.ondragleave=()=>el.classList.remove('over');
     el.ondrop=e=>{e.preventDefault();el.classList.remove('over');if(drag)insertAt(drag,{p:pi,i});drag=null};
