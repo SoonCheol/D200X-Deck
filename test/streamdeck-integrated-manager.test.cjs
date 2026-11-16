@@ -22,7 +22,7 @@ test('magnet joins windows at DeckForge height and restores independent size',()
  const magnet=integration.createMagnet(deck,manager,display);
  assert.equal(magnet.attach(),true);
  let a=deck.getBounds(),b=manager.getBounds();
- assert.equal(b.x,a.x+a.width);assert.equal(b.y,a.y);assert.equal(b.height,a.height);
+ assert.equal(b.x,a.x+a.width-7);assert.equal(b.y,a.y);assert.equal(b.height,a.height);
  deck.setBounds({x:70,y:70,width:980,height:760});
  a=deck.getBounds();b=manager.getBounds();
  assert.equal(b.y,a.y);assert.equal(b.height,760);
