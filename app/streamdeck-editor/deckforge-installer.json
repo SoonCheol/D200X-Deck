@@ -21,13 +21,17 @@
     {
       "from": "mcp",
       "to": "mcp"
+    },
+    {
+      "from": "bundled",
+      "to": "bundled"
     }
   ],
   "win": {
     "target": [
       "nsis"
     ],
-    "artifactName": "DeckForge-Setup-1.0.0.exe",
+    "artifactName": "DeckForge-Setup-1.1.0.exe",
     "signAndEditExecutable": false
   },
   "nsis": {
@@ -37,6 +41,8 @@
     "createStartMenuShortcut": true,
     "createDesktopShortcut": true,
     "runAfterFinish": false,
-    "deleteAppDataOnUninstall": false
-  }
+    "deleteAppDataOnUninstall": false,
+    "include": "installer-fusion.nsh"
+  },
+  "version": "1.1.0"
 }
