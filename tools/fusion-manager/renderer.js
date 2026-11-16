@@ -4,7 +4,8 @@ const PLUGIN='com.autodesk.fusionstreamdeck',ACTION=PLUGIN+'.runcommand';
 const MAXP=128,PER=13;
 const $=id=>document.getElementById(id);
 let commands=[],pages=[],drag=null,context=null,capturedUI=null,visibilityOverrides={};
-const Curation=window.FusionCuration;
+const Curation=window.FusionCuration,MenuTree=window.FusionMenuTree,FusionDrag=window.DeckForgeFusionDrag;
+let explorerArea='',explorerPanel='',explorerDropdown='',explorerItems=[];
 const iconCache=new Map(),iconPending=new Set();
 const byId=()=>new Map(commands.map(v=>[v.id,v]));
 const empty=()=>({name:'새 페이지',enabled:true,reserved:[],slots:Array(PER).fill(null)});
@@ -136,7 +137,84 @@ function showDetail(v){
  $('detail').style.display='block';
 }
 $('detailClose').onclick=()=>$('detail').style.display='none';
+
+function renderExplorer(){
+ if(!commands.length)return;
+ const eligible=commands.filter(v=>Curation.captureClassify(v,capturedUI)!=='hidden'||visibilityOverrides[v.id]==='primary'||visibilityOverrides[v.id]==='review');
+ const groups=MenuTree.structure(eligible,capturedUI);
+ if(!groups.length)return;
+ const areas=groups.sort((a,b)=>{
+   const order=['스케치','솔리드','곡면','메쉬','판금'];
+   const i=order.indexOf(a.name),j=order.indexOf(b.name);
+   return (i<0?999:i)-(j<0?999:j)||a.name.localeCompare(b.name,'ko');
+ });
+ if(!areas.some(a=>a.key===explorerArea)){
+   explorerArea=(areas.find(a=>a.name==='솔리드')||areas[0]).key;
+   explorerPanel='';explorerDropdown='';
+ }
+ const area=areas.find(a=>a.key===explorerArea);
+ const fillTabs=(target,items,selected,onSelect)=>{
+   target.replaceChildren();
+   for(const item of items){
+     const btn=document.createElement('button');btn.type='button';
+     btn.textContent=item.name;btn.className=item.key===selected?'active':'';
+     btn.onclick=()=>onSelect(item.key);target.append(btn);
+   }
+ };
+ fillTabs($('workspaces'),areas,explorerArea,key=>{explorerArea=key;explorerPanel='';explorerDropdown='';renderExplorer()});
+ const panels=[...area.children.values()].sort((a,b)=>a.name.localeCompare(b.name,'ko'));
+ if(!panels.some(x=>x.key===explorerPanel)){explorerPanel=(panels.find(x=>x.name==='작성')||panels[0])?.key||'';explorerDropdown=''}
+ fillTabs($('menus'),panels,explorerPanel,key=>{explorerPanel=key;explorerDropdown='';renderExplorer()});
+ const panel=area.children.get(explorerPanel);
+ if(!panel)return;
+ const dropdowns=[{key:'all',name:'전체' },...panel.children.values()];
+ if(!dropdowns.some(x=>x.key===explorerDropdown))explorerDropdown='all';
+ fillTabs($('dropdowns'),dropdowns,explorerDropdown,key=>{explorerDropdown=key;renderExplorer()});
+ const node=explorerDropdown==='all'?panel:panel.children.get(explorerDropdown);
+ const search=$('exploreSearch').value.trim().toLowerCase();
+ // Search across the complete catalog; no longer restricted by the current tab.
+ const list=search
+   ?commands.filter(v=>v.id.toLowerCase().includes(search)||v.name.toLowerCase().includes(search))
+   :MenuTree.descendants(node);
+ const unique=new Map(list.map(v=>[v.id,v]));
+ explorerItems=[...unique.values()].sort((a,b)=>Curation.sortByPlacement(a,b,capturedUI));
+ $('explorePath').textContent=search?'전체 명령 검색':area.name+' / '+panel.name+(explorerDropdown==='all'?'':' / '+node.name);
+ $('exploreCount').textContent=explorerItems.length+'개';
+ const target=$('exploreCommands');target.replaceChildren();
+ // Keep the compact browser responsive with large catalogs.
+ for(const v of explorerItems.slice(0,240)){
+   const card=document.createElement('div');card.className='command-card';
+   card.draggable=true;card.tabIndex=0;card.setAttribute('role','button');
+   card.setAttribute('aria-label',v.name+' 명령, 드래그하여 등록');
+   const art=document.createElement('span');art.className='cmd-art-missing';art.textContent='원본';card.append(art);
+   const name=document.createElement('span');name.className='cmd-name';name.textContent=v.ko||v.name;card.append(name);
+   requestIcon(v.id,card,v);
+   const info=document.createElement('button');info.type='button';info.textContent='ⓘ';
+   info.className='info-button';info.draggable=false;info.title='명령 상세 정보';
+   info.onclick=e=>{e.stopPropagation();showDetail(v)};
+   info.onmousedown=e=>e.stopPropagation();
+   card.append(info);
+   card.addEventListener('mouseenter',e=>showTooltip(e,v,name));
+   card.addEventListener('mouseleave',hideTooltip);
+   card.onclick=()=>{showDetail(v)};
+   card.onkeydown=e=>{if(e.key==='Enter'){e.preventDefault();showDetail(v)}};
+   card.ondragstart=e=>{
+     hideTooltip();drag=null;
+     const payload=FusionDrag.encode({id:v.id,name:v.ko||v.name});
+     e.dataTransfer.setData('text/plain',payload);
+     e.dataTransfer.setData('application/x-deckforge-fusion-command',payload);
+     e.dataTransfer.effectAllowed='copyMove';
+   };
+   target.append(card);
+ }
+ if(explorerItems.length>240)$('exploreStatus').textContent='명령 '+explorerItems.length+'개 중 처음 240개 표시 · 검색어로 범위를 좁히세요.';
+ else $('exploreStatus').textContent='';
+}
 function render(){
+ renderPages();
+ renderExplorer();
+}
+function renderPages(){
  const root=$('pages');root.replaceChildren();
  pages.forEach((p,pi)=>{
   const panel=document.createElement('section');panel.className='page';
@@ -170,9 +248,18 @@ function render(){
       const label=document.createElement('span');label.className='cmd-name';label.textContent='빈 슬롯';el.append(label);
     }
     if(id&&!p.reserved.includes(i)){el.draggable=true;el.ondragstart=e=>{if(e.target.closest?.('.info-button')){e.preventDefault();return;}hideTooltip();drag={p:pi,i};e.dataTransfer.effectAllowed='move';el.classList.add('dragging')};el.ondragend=()=>el.classList.remove('dragging')}
-    el.ondragover=e=>{if(drag&&!p.reserved.includes(i)){e.preventDefault();el.classList.add('over')}};
+    el.ondragover=e=>{if(!p.reserved.includes(i)&&(drag||e.dataTransfer.types.includes('text/plain'))){e.preventDefault();el.classList.add('over')}};
     el.ondragleave=()=>el.classList.remove('over');
-    el.ondrop=e=>{e.preventDefault();el.classList.remove('over');if(drag)insertAt(drag,{p:pi,i});drag=null};
+    el.ondrop=e=>{
+      if(p.reserved.includes(i))return;
+      e.preventDefault();el.classList.remove('over');
+      if(drag){insertAt(drag,{p:pi,i});drag=null;return}
+      const imported=FusionDrag.decode(e.dataTransfer.getData('text/plain'));
+      if(!imported||!commands.some(c=>c.id===imported.id))return;
+      if(usedIds().has(imported.id)){status('이미 페이지에 등록된 명령입니다. 위치 이동은 기존 버튼을 드래그하세요.');return}
+      if(p.slots[i]&&!confirm('이미 등록된 버튼을 '+imported.name+' 명령으로 교체할까요?'))return;
+      p.slots[i]=imported.id;render();status(imported.name+' 명령을 페이지 '+(pi+1)+' 버튼 '+(i+1)+'에 배치했습니다.');
+    };
     el.oncontextmenu=e=>{e.preventDefault();context={p:pi,i};$('context').style.display='block';$('context').style.left=Math.min(e.clientX,innerWidth-210)+'px';$('context').style.top=Math.min(e.clientY,innerHeight-100)+'px';$('toggleReserve').textContent=p.reserved.includes(i)?'예약 해제':'예약 슬롯으로 지정';$('remove').disabled=!id};
     rowNode.append(el);
    }
@@ -250,6 +337,44 @@ $('collectIcons').onclick=async()=>{
   statusNode.textContent='완료 '+processed+'개 · 새로 저장 '+saved+' · 기존 캐시 '+cached+' · 원본 없음 '+missing+' · 오류 '+failed;
  }catch(e){statusNode.textContent='아이콘 수집 실패: '+e.message}
  finally{iconCollecting=false;$('collectIcons').disabled=false}
+};
+
+let viewMode='explore';
+async function switchMode(mode){
+ if(!['explore','pages'].includes(mode))return;
+ viewMode=mode;
+ document.body.classList.toggle('page-mode',mode==='pages');
+ $('explorer').hidden=mode==='pages';$('pageEditor').hidden=mode!=='pages';
+ $('modeExplore').classList.toggle('primary',mode==='explore');
+ $('modePages').classList.toggle('primary',mode==='pages');
+ try{await window.fusionManager.windowMode(mode)}catch(e){status('창 크기 변경 실패: '+e.message)}
+ if(mode==='explore')renderExplorer();else renderPages();
+}
+$('modeExplore').onclick=()=>switchMode('explore');
+$('modePages').onclick=()=>switchMode('pages');
+$('exploreSearch').oninput=renderExplorer;
+$('exploreReset').onclick=()=>{$('exploreSearch').value='';renderExplorer()};
+$('exploreCapture').onclick=()=>$('importCapture').click();
+$('exploreIcons').onclick=async()=>{
+ const ids=explorerItems.slice(0,240).map(v=>v.id);
+ if(!ids.length)return;
+ const state=$('exploreStatus');state.textContent='원본 아이콘 서버 연결 확인…';
+ const health=await window.fusionManager.iconHealth();
+ if(!health?.available){state.textContent=health?.message||'Fusion 애드인 연결 실패';return}
+ let next=0,saved=0,known=0,missing=0,failed=0;
+ const worker=async()=>{
+   while(next<ids.length){
+     const id=ids[next++],r=await window.fusionManager.collectIcon(id);
+     if(r.status==='saved')saved++;else if(r.status==='cached')known++;
+     else if(r.status==='missing')missing++;else failed++;
+     if(r.data)iconCache.set(id,r.data);
+   }
+ };
+ $('exploreIcons').disabled=true;
+ try{await Promise.all(Array.from({length:Math.min(3,ids.length)},worker));
+     renderExplorer();state.textContent='원본 아이콘 수집: 새로 저장 '+saved+' · 기존 '+known+' · 없음 '+missing+' · 실패 '+failed;}
+ catch(e){state.textContent='수집 오류: '+e.message}
+ finally{$('exploreIcons').disabled=false}
 };
 $('addPage').onclick=()=>{if(pages.length>=MAXP)return status('최대 128페이지입니다.');pages.push(empty());render()};
 $('fill').onclick=()=>{if(pages.some(p=>p.slots.some(Boolean))&&!confirm('기존 배치를 추천 순서로 다시 만들까요?'))return;makePagesFromCatalog($('category').value)};
