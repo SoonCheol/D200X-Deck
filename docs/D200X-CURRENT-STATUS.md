@@ -1,3 +1,15 @@
+## 2026-11-16 — Fusion Command Manager 메뉴 탐색형 리디자인 + DeckForge 직접 드롭 (최종 빌드 성공)
+
+- **사용자 요청**: DeckForge와 나란히 배치하는 620px 폭 보조 창. Fusion 대분류→하위 메뉴→원본 아이콘/명령 탐색(100px 내외 × 82px, 원본 32px, 한글 13px), 상단 가로 메뉴. 기존 여러 페이지 5/5/3 편집은 별도 확장 모드로 유지. 메뉴 명령을 Manager 페이지나 DeckForge 일반 키로 드래그해서 자동 등록. 승인 추가 요청 없이 Windows 빌드까지.
+- **Manager** `tools/fusion-manager/index.html`, `renderer.js`, `menu-tree.cjs`, `main.cjs`, `preload.cjs` 수정. 탐색/페이지 편집 전환: 기본 620px(최소 480px), 편집 약 1240px(모니터 범위 내); 작업영역/메뉴/드롭다운 가로탭·명령 검색·원본 이미지 32×32·툴팁(긴 명령만 한글/영문 두 줄)·ⓘ 상세 정보; 처음에는 **빈 페이지**로 시작하여 기존 명령 자동배치 제거(사용자가 누르면 기존 자동배치 가능). 기존 프로젝트 JSON·DeckForge batch v1 JSON·예약 슬롯·페이지 체크·아이콘 수집·사용자 숨김 설정 보존.
+- **명령 분류**: `menu-tree.cjs`에서 보유 중인 실제 placement path와 선택적으로 가져온 Fusion UI v1/v2 capture를 사용해 작업 영역/패널/재귀 드롭다운을 구성. 동일 ID는 선택 메뉴 안에서 1회 표현, 같은 이름의 다른 ID는 별도 유지. API가 제공한 한글 패널명과 실제 panel/dropdown position 우선; 확인할 수 없는 ID는 임의 번역하지 않음. Fusion UI 수집 JSON은 사용자 선택으로 가져오고 매니저 데이터 디렉터리에 보존해 재시작 후에도 복원. `fusion-ui-inventory.py`는 위치·표시 상태·isPromoted 조회 및 Python 구문 검사 포함. Fusion 실기 새 JSON 수집은 사용자 PC에서 필요.
+- **앱 간 드래그**: `app/streamdeck-editor/fusion-drag.cjs` 공통 v1 text/plain payload의 명령 ID, 이름, 선택적으로 실제로 저장된 소형 PNG만 전달(일부 SVG는 전달하지 않고 SDK 원본 아이콘 갱신 사용). DeckForge `editor.js`에서 일반 버튼 13개에 드롭 시 플러그인 설치 확인, 기존 액션 덮어쓰기 확인, title=한글명(최대30자), pluginUUID/actionUUID/pluginSettings.commandId 구성, setItem/persist/render 처리; 작동 중 원본 PNG가 함께 전달되면 기존 icon cache에 보관. 넓은 정보화면 index 13에서는 등록 안 함. 기존 자체 액션 드래그, 전체 Fusion batch import, DeckForge 프로필은 유지.
+- **경계**: 서로 다른 Electron 창 사이 Windows 실제 드래그는 **사용자 PC 실기 미검증**. 코드/CI/EXE 패키징 성공은 실제 OS 간 드래그 성공의 증거가 아님. 올바른 메뉴 계층과 실제 원본 아이콘은 Fusion 내부 수집 JSON 및 애드인/아이콘 캐시 품질에 따름; 별도 UI 조작·명령 실행 자동화 없음. 다른 프로그램/슬롯 드롭에 대한 테스트 추가 필요.
+- **자동 검증**: `test/fusion-menu-navigation.test.cjs`은 메뉴 분류·다른 ID·드롭다운 계층·순서·엄격 드래그/PNG 페이로드 검사. 기존 Fusion curation/JSON 회귀, Python 구문, DeckForge Windows build 검증. 최신 source commit `f0e955886a2f86b9661d5cf4a2f9cfc32bf39303`.
+- **Manager Windows 빌드**: [run 43826638637](https://github.com/SoonCheol/D200X-Deck/actions/runs/43826638637) **completed/success**; artifact `Fusion-Command-Manager-0.1-win-x64` ID `14207026845`, 161,636,874B (Windows 폴더형 포터블 EXE 압축).
+- **DeckForge Windows 빌드**: [run 43826638566](https://github.com/SoonCheol/D200X-Deck/actions/runs/43826638566) **completed/success**; installer artifact `DeckForge-1.0-Setup-win-x64` ID `14206992176`, 126,053,136B; portable artifact `DeckForge-1.0-win-x64` ID `14207056851`, 173,200,102B. **현재 사용 중인 설치본에는 새 외부 드롭 처리가 없으므로 이 빌드로 업데이트해야 함.**
+- **브랜치 보호**: `codex/streamdeck-761-clean-editor`만 변경. `main` 미변경, PR #5 병합하지 않음. 실기 테스트와 후속 수정은 이 상태부터 시작.
+
 ## 2026-11-16 — Fusion UI 명령 수집·신뢰도별 표시 개선 (작업 완료 / 실기 대기)
 
 - **목표**: 의미 없는 키워드 정렬 제거, Fusion의 툴바 직접 명령과 드롭다운 명령을 우선 표시. 메뉴 전용은 검토, 미배치/디버그/정보 부족은 숨김 처리하되 삭제하지 않는다. 동일 한글명/아이콘이라도 다른 ID는 절대로 자동 병합하지 않는다.
