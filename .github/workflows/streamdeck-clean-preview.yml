@@ -2,6 +2,7 @@ name: DeckForge 1.0 Windows build
 
 # Automatically build DeckForge 1.0 Windows app when editor code changes.
 # Keep workflow_dispatch for optional manual builds; documentation-only commits are skipped.
+# Build-only trigger 2026-11-16: validate Fusion menu-only batch on current branch.
 on:
   push:
     branches:
