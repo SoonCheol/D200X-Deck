@@ -5,7 +5,7 @@ const MAXP=128,PER=13;
 const $=id=>document.getElementById(id);
 let commands=[],pages=[],drag=null,context=null,capturedUI=null,visibilityOverrides={};
 const Curation=window.FusionCuration,MenuTree=window.FusionMenuTree,FusionDrag=window.DeckForgeFusionDrag;
-let explorerArea='',explorerPanel='',explorerDropdown='',explorerItems=[],menuTreeCache=null,menuCatalog=null;
+let explorerArea='',explorerPanel='',explorerItems=[],menuTreeCache=null,menuCatalog=null;
 const iconCache=new Map(),iconPending=new Set();
 const byId=()=>new Map(commands.map(v=>[v.id,v]));
 const empty=()=>({name:'새 페이지',enabled:true,reserved:[],slots:Array(PER).fill(null)});
@@ -190,7 +190,7 @@ function renderExplorer(){
  });
  if(!areas.some(a=>a.key===explorerArea)){
    explorerArea=(menuCatalog?areas[0]:(areas.find(a=>a.name==='솔리드')||areas[0])).key;
-   explorerPanel='';explorerDropdown='';
+   explorerPanel='';
  }
  const area=areas.find(a=>a.key===explorerArea);
  const fillTabs=(target,items,selected,onSelect)=>{
@@ -201,16 +201,14 @@ function renderExplorer(){
      btn.onclick=()=>onSelect(item.key);target.append(btn);
    }
  };
- fillTabs($('workspaces'),areas,explorerArea,key=>{explorerArea=key;explorerPanel='';explorerDropdown='';renderExplorer()});
+ fillTabs($('workspaces'),areas,explorerArea,key=>{explorerArea=key;explorerPanel='';renderExplorer()});
  const panels=menuCatalog?[...area.children.values()]:[...area.children.values()].sort((a,b)=>a.rank-b.rank||a.name.localeCompare(b.name,'ko'));
- if(!panels.some(x=>x.key===explorerPanel)){explorerPanel=(menuCatalog?panels[0]:(panels.find(x=>x.name==='작성')||panels[0]))?.key||'';explorerDropdown=''}
- fillTabs($('menus'),panels,explorerPanel,key=>{explorerPanel=key;explorerDropdown='';renderExplorer()});
+ if(!panels.some(x=>x.key===explorerPanel)){explorerPanel=(menuCatalog?panels[0]:(panels.find(x=>x.name==='작성')||panels[0]))?.key||''}
+ fillTabs($('menus'),panels,explorerPanel,key=>{explorerPanel=key;renderExplorer()});
  const panel=area.children.get(explorerPanel);
  if(!panel)return;
- const dropdowns=[{key:'all',name:'전체' },...(menuCatalog?[...panel.children.values()]:[...panel.children.values()].sort((a,b)=>a.rank-b.rank||a.name.localeCompare(b.name,'ko')))];
- if(!dropdowns.some(x=>x.key===explorerDropdown))explorerDropdown='all';
- fillTabs($('dropdowns'),dropdowns,explorerDropdown,key=>{explorerDropdown=key;renderExplorer()});
- const node=explorerDropdown==='all'?panel:panel.children.get(explorerDropdown);
+ // All commands under the selected panel are already expanded in captured Fusion order.
+ const node=panel;
  const search=$('exploreSearch').value.trim().toLowerCase();
  // Search across the complete catalog; no longer restricted by the current tab.
  const list=search
@@ -218,7 +216,7 @@ function renderExplorer(){
    :MenuTree.descendants(node);
  const unique=new Map(list.map(v=>[v.id,v]));
  explorerItems=menuCatalog&&!search?[...unique.values()]:[...unique.values()].sort((a,b)=>Curation.sortByPlacement(a,b,capturedUI));
- $('explorePath').textContent=search?'전체 명령 검색':area.name+' / '+panel.name+(explorerDropdown==='all'?'':' / '+node.name);
+ $('explorePath').textContent=search?'전체 명령 검색':area.name+' / '+panel.name;
  $('exploreCount').textContent=explorerItems.length+'개';
  const target=$('exploreCommands');target.replaceChildren();
  // Keep the compact browser responsive with large catalogs.
