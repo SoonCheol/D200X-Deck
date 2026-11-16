@@ -6,7 +6,8 @@ const { pathToFileURL } = require('node:url');
 const http = require('node:http');
 const https = require('node:https');
 const fs = require('node:fs');
-const { execFile } = require('node:child_process');
+const { execFile, spawn } = require('node:child_process');
+const {parseWindowsArgs}=require('./windows-args.cjs');
 const { promisify } = require('node:util');
 const execFileAsync = promisify(execFile);
 const { D200XTransport } = require('./transport.cjs');
@@ -742,6 +743,47 @@ ${held.slice().reverse().map(v=>`[D200XSafeKey]::keybd_event(${v},0,2,[UIntPtr]:
   return true;
 });
 
+
+function requireLocalWindowsPath(value){
+  if(typeof value!=='string'||value.length>4096||!path.win32.isAbsolute(value)||
+      /[\x00-\x1f\x7f]/.test(value))throw new Error('올바른 Windows 파일 경로를 지정하세요.');
+  return value;
+}
+async function inspectWindowsApplication(filePath){
+  const requested=requireLocalWindowsPath(filePath);
+  const ext=path.win32.extname(requested).toLowerCase();
+  if(!['.exe','.lnk','.bat','.cmd'].includes(ext))throw new Error('실행 파일 또는 바로가기를 선택하세요.');
+  if(!(await fs.promises.stat(requested)).isFile())throw new Error('실행 파일이 아닙니다.');
+  let target=requested,shortcut=null;
+  if(ext==='.lnk'){
+    shortcut=shell.readShortcutLink(requested);
+    if(typeof shortcut?.target==='string'&&path.win32.isAbsolute(shortcut.target))
+      target=shortcut.target;
+  }
+  let name=path.win32.basename(ext==='.lnk'?requested:target,
+    path.win32.extname(ext==='.lnk'?requested:target));
+  if(/\.exe$/i.test(target)){
+    try{
+      const literal=target.replace(/'/g,"''");
+      const cmd="$v=(Get-Item -LiteralPath '"+literal+"').VersionInfo;@($v.FileDescription,$v.ProductName)|Where-Object {$_ -and $_.Trim()}|Select-Object -First 1";
+      const {stdout}=await execFileAsync('powershell.exe',
+        ['-NoProfile','-NonInteractive','-Command',cmd],{windowsHide:true,timeout:5000,maxBuffer:4096});
+      const title=String(stdout||'').trim();
+      if(title&&title.length<=150)name=title;
+    }catch{}
+  }
+  let icon='';
+  try{
+    const image=await app.getFileIcon(ext==='.lnk'?requested:target,{size:'large'});
+    if(image&&!image.isEmpty())icon='data:image/png;base64,'+image.toPNG().toString('base64');
+  }catch{}
+  return {path:requested,name,icon};
+}
+ipcMain.handle('d200x:inspect-app-file',async(event,filePath)=>{
+  if(!window||event.sender!==window.webContents)throw new Error('허용되지 않은 호출입니다.');
+  return inspectWindowsApplication(filePath);
+});
+
 ipcMain.handle('d200x:open-local-path',async(event,args)=>{
   if(!window||event.sender!==window.webContents)throw new Error('허용되지 않은 호출입니다.');
   const filePath=args?.filePath;
@@ -751,8 +793,25 @@ ipcMain.handle('d200x:open-local-path',async(event,args)=>{
   const stat=await fs.promises.stat(filePath);
   if(args.target==='file'&&!stat.isFile()||args.target==='folder'&&!stat.isDirectory())
     throw new Error('선택한 파일/폴더 유형이 일치하지 않습니다.');
-  const error=await shell.openPath(filePath);
-  if(error)throw new Error(error);
+  const extra=String(args?.args||'');
+  if(!extra.trim()){
+    const error=await shell.openPath(filePath);
+    if(error)throw new Error(error);
+    return true;
+  }
+  let executable=filePath,shortcutArgs='';
+  if(/\.lnk$/i.test(filePath)){
+    const link=shell.readShortcutLink(filePath);
+    executable=requireLocalWindowsPath(link.target);
+    shortcutArgs=String(link.args||'');
+  }
+  if(!/\.exe$/i.test(executable))throw new Error('명령줄 인수는 EXE 프로그램에만 지정할 수 있습니다.');
+  const argv=[...parseWindowsArgs(shortcutArgs),...parseWindowsArgs(extra)];
+  const child=spawn(executable,argv,{
+    cwd:path.win32.dirname(executable),detached:true,stdio:'ignore',windowsHide:false,shell:false
+  });
+  await new Promise((resolve,reject)=>{child.once('spawn',resolve);child.once('error',reject);});
+  child.unref();
   return true;
 });
 
