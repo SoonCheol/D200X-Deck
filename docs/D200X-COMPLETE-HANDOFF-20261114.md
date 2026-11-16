@@ -595,3 +595,9 @@
 - 일반 LCD 버튼 역시 속성창 X와 우클릭 삭제가 같은 `removeSlotAction`을 경유하게 하고 확인 창 중복 제거. 고정된 액션은 기존 고정 해제 분기를 보존. 스크립트/화면 경로 일관화.
 - 커밋: `60dc1162`(native stats 입력), `12e6615a`(와이드 할당 차단), `794a2da4`(물리 우클릭 삭제), `749671fd`(와이드 루트/폴더·속성창), `c738f160`(일반 LCD 삭제 일관화). 최종 코드는 `c738f16095996d64b2dd8b215515743fba299390`.
 - 검증: CI [#43683897871](https://github.com/SoonCheol/D200X-Deck/actions/runs/43683897871) 성공, 입력 검증 [#43683894235](https://github.com/SoonCheol/D200X-Deck/actions/runs/43683894235) 성공, Windows Preview [#43683894213](https://github.com/SoonCheol/D200X-Deck/actions/runs/43683894213) 성공. EXE Artifact [D200X-StreamDeck-Device-Sync-win-x64](https://github.com/SoonCheol/D200X-Deck/actions/runs/43683894213/artifacts/14149443199), ID `14149443199`, 170,370,664 bytes, 조회 시 `expired=false`. **최종 해결은 사용자 D200X 실기 미검증**. `main` 또는 PR 무변경.
+
+## 2026-11-16 — 추후 개발 목표 기록: 원본 Stream Deck 프로필 가져오기
+
+- **보류 / 미구현:** Elgato `.streamDeckProfile`을 DeckForge 새 프로필로 안전하게 변환하여 가져오는 기능. 사용자 지시로 **로드맵에 체크리스트만 기록**하며 구현·빌드 금지.
+- 세부 체크 항목과 완료 기준: [로드맵의 '후속 개발 보류 — Elgato Stream Deck 원본 프로필 가져오기'](D200X-STREAMDECK-ROADMAP.md#후속-개발-보류--elgato-stream-deck-원본-프로필-가져오기-2026-11-16).
+- 기존 DeckForge JSON 프로필·설정 보호, 원본 글꼴명 보존/누락 안내, D200X 키·노브 배치 변환, 비호환 액션 고지 등을 추후 검토. 원본 파일 형식의 실측 호환성은 아직 검증하지 않음.
