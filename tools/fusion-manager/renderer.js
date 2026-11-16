@@ -189,6 +189,7 @@ $('scriptCopy').onclick=async()=>{
  catch(e){status('수집기 코드 복사 실패: '+e.message)}
 };
 $('helpClose').onclick=()=>$('helpDialog').close();
+window.fusionManager.dock('status').then(state=>{if(state.available)$('dockToggle').textContent=state.enabled?'자석 켜짐':'자석 꺼짐';else $('dockToggle').hidden=true;}).catch(()=>{$('dockToggle').hidden=true;});
 $('deckforgeOpen').onclick=async()=>{try{if(!await window.fusionManager.openDeckForge())status('설치된 DeckForge를 찾지 못했습니다.')}catch(e){status('DeckForge 실행 실패: '+e.message)}};
 $('dockToggle').onclick=async()=>{
  try{const result=await window.fusionManager.dock('toggle');
