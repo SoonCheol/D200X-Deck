@@ -1,3 +1,12 @@
+## 2026-11-16 — Fusion Command Manager 독립 GUI 시제품 0.1
+
+- 사용자 실기 확인 추가: 기존 Fusion 360 JSON 일괄 등록 메뉴를 통한 실제 자동 등록 **성공**(사용자 2026-11-16 보고). 본 프로젝트의 기존 가져오기 메뉴는 그대로 사용.
+- 신규 독립 앱 코드: tools/fusion-manager/ 아래 Electron main/preload/HTML/renderer/README. 5-5-3 페이지 다중 표시, 명령 삽입 드래그, 우클릭 예약, 페이지별 등록 체크, JSON 프로젝트 저장/불러오기, DeckForge 등록용 JSON 내보내기.
+- 기존 importer는 선택적인 layoutPages 13슬롯 배열을 읽어 예약 빈 슬롯과 페이지 경계를 보존하며, 기존 commands-only d200x-fusion-batch-v1 JSON도 유지.
+- 전용 Windows GitHub Actions workflow: .github/workflows/fusion-manager-preview.yml, 아티팩트 예정 이름 Fusion-Command-Manager-0.1-win-x64. 코드 구문 확인 및 PR CI 테스트 성공 확인; **전용 Windows EXE 성공/아티팩트는 조회 확인 전까지 미검증**.
+- 카탈로그 3,266명령 분석 자료 활용. 시제품 추천 순서는 임시 휴리스틱이며 인터넷 사용 빈도 실측값 아님. 정식 근거 기반 우선순위, 아이콘, 카탈로그 실제 화면, Windows GUI/Fusion 실기는 후속 검증 필요.
+- 폴더 생성 기능 이번 Fusion 배치에서 사용하지 않음. PR #5 Draft/open, main/기존 프로필 변경 금지.
+
 ## 2026-11-16 — Fusion 360 일괄 등록 새 채팅 인수인계 (문서 작업만)
 
 - **다음 채팅 첫 진입점:** [Fusion 360 명령 일괄 등록 인수인계](D200X-FUSION-BATCH-HANDOFF-20261116.md). GitHub 개발 환경/단일 브랜치/Draft PR 보존, 기존 구현, Codex MCP와 GitHub 코드 개발의 역할 분리, 다음 검증 순서 포함.
