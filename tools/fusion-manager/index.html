@@ -22,13 +22,51 @@ main{padding:16px 20px;max-width:1560px;margin:auto}.bar{display:flex;gap:9px;al
 .extra{display:flex;gap:8px;align-items:center;margin-top:8px}.queue{max-height:180px;overflow:auto;border:1px solid #3b4d60;border-radius:8px;padding:10px;background:#192633;display:flex;gap:6px;flex-wrap:wrap}.chip{padding:5px 8px;font-size:12px}.chip:focus{outline:2px solid #79b6fc}
 #context{display:none;position:fixed;z-index:20;padding:4px;background:#203044;border:1px solid #72849b;border-radius:8px;box-shadow:0 9px 25px #0008}#context button{display:block;width:190px;text-align:left;border:0;background:transparent}#context button:hover{background:#37506a}
 footer{padding:15px 20px;color:#9aaebe;font-size:12px}.emptyInfo{padding:12px;border:1px dashed #52647a;color:#aebed1}
+
+body:not(.page-mode) .editor-only{display:none}
+main[hidden],section[hidden]{display:none!important}
+header{padding:9px 12px;gap:6px}
+header h1{font-size:15px;margin-right:auto}
+header button{padding:6px 8px;font-size:12px}
+.explorer{padding:12px;min-width:0}
+.explore-top{display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;margin-bottom:10px}
+.nav-title{font-size:12px;color:#9fb6cf;margin:9px 0 5px}
+.menu-tabs{display:flex;gap:5px;overflow-x:auto;padding:0 0 4px;white-space:nowrap;scrollbar-width:thin}
+.menu-tabs button{padding:6px 12px;white-space:nowrap;font-size:13px;flex-shrink:0}
+.menu-tabs button.active{background:#266b9f;border-color:#80bbeb}
+.submenu-tabs:empty{display:none}
+.explore-search{display:flex;gap:6px;margin:11px 0}
+.explore-search input{min-width:0;flex:1;padding:8px;background:#192636;color:#fff;border:1px solid #506072;border-radius:6px}
+.explore-result{display:flex;align-items:center;justify-content:space-between;gap:6px;margin:12px 0 8px}
+.command-cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(100px,1fr));gap:6px;align-content:start;max-height:calc(100vh - 300px);overflow-y:auto}
+.command-card{height:82px;min-width:0;position:relative;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;padding:5px 17px 5px 5px;border:1px solid #43566b;border-radius:7px;background:#233449;color:#f0f6ff;cursor:grab;text-align:center}
+.command-card:focus-visible,.command-card:hover{outline:1px solid #82c0ff}
+.command-card .cmd-art{width:32px;height:32px;object-fit:contain;pointer-events:none}
+.command-card .cmd-art-missing{width:32px;height:32px;display:flex;align-items:center;justify-content:center;border:1px dashed #61778e;border-radius:5px;color:#9bb1c7;font-size:9px}
+.command-card .cmd-name{font-size:13px;line-height:1.2;max-width:100%;overflow:hidden;display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;overflow-wrap:anywhere;pointer-events:none}
+.command-card .info-button{position:absolute;right:3px;top:3px;padding:0;border:0;border-radius:50%;width:17px;height:17px;font-size:12px;line-height:17px;background:#385673}
+.command-card .info-button:hover{background:#4679a3}
+#pageEditor{max-width:none}
+#pageEditor .pages{grid-template-columns:repeat(auto-fill,minmax(490px,1fr))}
 </style></head><body>
-<header><h1>Fusion Command Manager <small style="font-size:12px;color:#92aec7">시제품 0.2</small></h1>
-<button id="save">프로젝트 저장</button><button id="open">프로젝트 불러오기</button><button id="export" class="primary">DeckForge 등록용 JSON 내보내기</button><span id="status"></span></header>
-<main><div class="bar"><label>프로필 이름 <input id="profile" value="Fusion 360" size="20" maxlength="80"></label><label>명령 범주 <select id="category"><option value="all">전체</option><option value="sketch">스케치</option><option value="solid">솔리드</option><option value="surface">서피스</option><option value="file">파일</option><option value="other">기타</option></select></label><label>목록 <select id="visibility"><option value="primary">툴바·드롭다운 (기본)</option><option value="review">검토 대상</option><option value="hidden">숨김 대상</option><option value="all">전체 명령</option></select></label><button id="importCapture">Fusion UI 수집 JSON 반영</button><span id="captureStatus" class="hint"></span><button id="addPage">페이지 추가</button><button id="fill">추천 순서 자동 배치</button><button id="collectIcons" class="primary">선택 페이지 원본 아이콘 수집</button><span id="iconStatus" class="hint" role="status"></span></div>
+<header><h1>Fusion Command Manager <small style="font-size:12px;color:#92aec7">메뉴 탐색</small></h1>
+<button id="modeExplore" class="primary" type="button">명령 탐색</button><button id="modePages" type="button">페이지 편집</button><button id="save" class="editor-only">프로젝트 저장</button><button id="open" class="editor-only">프로젝트 불러오기</button><button id="export" class="primary editor-only">DeckForge 등록용 JSON 내보내기</button><span id="status"></span></header>
+<section id="explorer" aria-label="Fusion 명령 메뉴 탐색" class="explorer">
+ <div class="explore-top"><strong>Fusion 명령 탐색</strong><span class="hint">DeckForge 창에 직접 드래그하거나 페이지 편집으로 전환</span></div>
+ <div class="nav-title">작업 영역</div><nav id="workspaces" class="menu-tabs" aria-label="Fusion 작업 영역"></nav>
+ <div class="nav-title">메뉴</div><nav id="menus" class="menu-tabs" aria-label="Fusion 하위 메뉴"></nav>
+ <div id="dropdowns" class="menu-tabs submenu-tabs" aria-label="명령 하위 그룹"></div>
+ <div class="explore-search"><input id="exploreSearch" placeholder="명령 이름 또는 ID 검색" aria-label="명령 검색"><button id="exploreReset">전체 찾기</button></div>
+ <div class="explore-result"><strong id="explorePath">Fusion 메뉴</strong><span class="hint" id="exploreCount"></span></div>
+ <div id="exploreCommands" class="command-cards" aria-live="polite"></div>
+ <p class="hint">아이콘은 Fusion 원본만 표시합니다. 버튼에 마우스를 올리면 잘린 이름의 한글·영문 전체 이름을 확인할 수 있고 ⓘ에서 ID를 확인할 수 있습니다.</p>
+ <div class="bar"><button id="exploreCapture">Fusion UI JSON 불러오기</button><button id="exploreIcons">현재 목록 원본 아이콘 수집</button></div>
+ <div id="exploreStatus" class="hint"></div>
+ </section>
+ <main id="pageEditor" hidden><div class="bar"><label>프로필 이름 <input id="profile" value="Fusion 360" size="20" maxlength="80"></label><label>명령 범주 <select id="category"><option value="all">전체</option><option value="sketch">스케치</option><option value="solid">솔리드</option><option value="surface">서피스</option><option value="file">파일</option><option value="other">기타</option></select></label><label>목록 <select id="visibility"><option value="primary">툴바·드롭다운 (기본)</option><option value="review">검토 대상</option><option value="hidden">숨김 대상</option><option value="all">전체 명령</option></select></label><button id="importCapture">Fusion UI 수집 JSON 반영</button><span id="captureStatus" class="hint"></span><button id="addPage">페이지 추가</button><button id="fill">추천 순서 자동 배치</button><button id="collectIcons" class="primary">선택 페이지 원본 아이콘 수집</button><span id="iconStatus" class="hint" role="status"></span></div>
 <p class="hint">원본 아이콘 수집은 Fusion 360 및 FusionStreamDeck 애드인이 실행 중일 때 체크된 페이지의 명령만 가져와 매니저에 저장합니다. 페이지별 체크박스가 켜진 페이지만 등록합니다. 버튼을 다른 버튼 위로 끌면 삽입되고 뒤 명령이 밀립니다. 우클릭으로 예약 슬롯 지정·해제. 예약된 위치는 명령을 배치하지 않습니다.</p>
 <div class="pages" id="pages"></div>
 <h3>추가 가능한 명령 <span id="remaining"></span></h3><div class="bar"><input id="search" placeholder="명령 ID 또는 이름 검색" size="34"><span class="hint">명령을 클릭하면 마지막 비예약 빈 슬롯에 추가합니다.</span></div><div class="queue" id="queue"></div>
 </main><div id="tooltip" role="tooltip"></div><aside id="detail" aria-label="명령 상세 정보"><button id="detailClose" aria-label="닫기">×</button><h2 id="detailTitle"></h2><dl id="detailFields"></dl></aside><div id="context"><button id="toggleReserve">예약 슬롯 설정/해제</button><button id="remove">명령 제거</button></div>
 <footer>Fusion 카탈로그는 수집 자료입니다. 일부 명령은 현재 설치된 Fusion 환경에서 실행되지 않을 수 있습니다. 추천 순서는 사용 통계가 아닌 기본 작업 흐름을 활용한 시제품 정렬입니다.</footer>
-<script src="command-curation.cjs"></script><script src="renderer.js"></script></body></html>
+<script src="command-curation.cjs"></script><script src="menu-tree.cjs"></script><script src="fusion-drag.cjs"></script><script src="renderer.js"></script></body></html>
