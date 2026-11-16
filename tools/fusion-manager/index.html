@@ -27,9 +27,9 @@ main{padding:16px 20px;max-width:1560px;margin:auto}.bar{display:flex;gap:9px;al
 body:not(.page-mode) .editor-only{display:none}
 main[hidden],section[hidden]{display:none!important}
 header{padding:9px 12px;gap:6px}
-header h1{font-size:15px;margin-right:auto}
-header button{padding:6px 8px;font-size:12px}
-#helpOpen{margin-left:auto;white-space:nowrap}#helpDialog{width:min(680px,calc(100vw - 32px));max-height:min(82vh,780px);border:1px solid #526b86;border-radius:10px;background:#172536;color:#e5edf7;padding:0;box-shadow:0 16px 45px #000b}#helpDialog::backdrop{background:#000a}.helpHead{position:sticky;top:0;display:flex;justify-content:space-between;align-items:center;padding:12px 16px;background:#1b2c40;border-bottom:1px solid #435c78}.helpHead h2{font-size:16px;margin:0}#helpContent{padding:12px 18px 22px;max-height:calc(82vh - 57px);overflow:auto;line-height:1.6;overflow-wrap:anywhere}#helpContent h1{font-size:19px;margin:10px 0}#helpContent h2{font-size:15px;margin:16px 0 6px;color:#c7e3ff}#helpContent p{margin:7px 0}#helpContent li{margin:4px 0}#helpContent code{font-family:Consolas,monospace;font-size:12px;background:#263b50;padding:1px 4px;border-radius:3px}
+header h1{font-size:15px;margin-right:auto;white-space:nowrap}
+header button{padding:6px 8px;font-size:12px;flex-shrink:0}
+header{flex-wrap:nowrap}#helpOpen{margin-left:0;white-space:nowrap}#modePages[hidden]{display:none!important}#helpDialog{width:min(680px,calc(100vw - 32px));max-height:min(82vh,780px);border:1px solid #526b86;border-radius:10px;background:#172536;color:#e5edf7;padding:0;box-shadow:0 16px 45px #000b}#helpDialog::backdrop{background:#000a}.helpHead{position:sticky;top:0;display:flex;justify-content:space-between;align-items:center;padding:12px 16px;background:#1b2c40;border-bottom:1px solid #435c78}.helpHead h2{font-size:16px;margin:0}#helpContent{padding:12px 18px 22px;max-height:calc(82vh - 57px);overflow:auto;line-height:1.6;overflow-wrap:anywhere}#helpContent h1{font-size:19px;margin:10px 0}#helpContent h2{font-size:15px;margin:16px 0 6px;color:#c7e3ff}#helpContent p{margin:7px 0}#helpContent li{margin:4px 0}#helpContent code{font-family:Consolas,monospace;font-size:12px;background:#263b50;padding:1px 4px;border-radius:3px}
 .explorer{padding:12px;min-width:0}
 .explore-top{display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;margin-bottom:10px}
 .nav-title{font-size:12px;color:#9fb6cf;margin:9px 0 5px}
@@ -56,10 +56,10 @@ header button{padding:6px 8px;font-size:12px}
 #pageEditor{max-width:none}
 #pageEditor .pages{grid-template-columns:repeat(auto-fill,minmax(490px,1fr))}
 </style></head><body>
-<header><h1>Fusion Command Manager <small style="font-size:12px;color:#92aec7">메뉴 탐색</small></h1>
-<button id="deckforgeOpen" type="button" title="DeckForge 창 열기">DeckForge 열기</button><button id="dockToggle" type="button" title="자석 결합 또는 분리">자석 연결</button><button id="helpOpen" type="button" aria-label="도움말 열기">? 도움말</button><button id="modeExplore" class="primary" type="button">명령 탐색</button><button id="modePages" type="button">페이지 편집</button><button id="save" class="editor-only">프로젝트 저장</button><button id="open" class="editor-only">프로젝트 불러오기</button><button id="export" class="primary editor-only">DeckForge 등록용 JSON 내보내기</button><span id="status"></span></header>
+<header><h1>Fusion Command Manager</h1>
+<button id="modeExplore" class="primary" type="button">명령 드래그</button><button id="modePages" type="button" hidden>페이지 생성</button><button id="deckforgeOpen" type="button" title="DeckForge 창 열기">DeckForge 열기</button><button id="dockToggle" type="button" title="자석 결합 또는 분리">자석 켜짐</button><button id="helpOpen" type="button" aria-label="도움말 열기">? 도움말</button><button id="save" class="editor-only" hidden>프로젝트 저장</button><button id="open" class="editor-only" hidden>프로젝트 불러오기</button><button id="export" class="primary editor-only" hidden>DeckForge 등록용 JSON 내보내기</button></header><span id="status" role="status" hidden></span>
 <section id="explorer" aria-label="Fusion 명령 메뉴 탐색" class="explorer">
- <div class="explore-top"><strong>Fusion 명령 탐색</strong><span class="hint">DeckForge 창에 직접 드래그하거나 페이지 편집으로 전환</span></div>
+ <div class="explore-top"><strong>Fusion 명령 탐색</strong><span class="hint">DeckForge 버튼에 명령을 끌어다 놓기</span></div>
  <div class="nav-title">작업 영역</div><nav id="workspaces" class="menu-tabs" aria-label="Fusion 작업 영역"></nav>
  <div class="nav-title">메뉴</div><nav id="menus" class="menu-tabs" aria-label="Fusion 하위 메뉴"></nav>
  <div class="explore-search"><input id="exploreSearch" placeholder="명령 이름 또는 ID 검색" aria-label="명령 검색"><button id="exploreReset">전체 찾기</button></div>
