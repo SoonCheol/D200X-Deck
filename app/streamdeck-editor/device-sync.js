@@ -15,7 +15,11 @@
   let timeout = null;
   let lastSentImages = null;
   let online = false;
-  const pressedKeys=new Set();
+  const pressedKeys=new Map();
+  const releaseTimers=new Map();
+  const pageStamp=()=>String(state.profileId)+':'+state.page+':'+(state.folderPath||[]).join('-');
+  const keyPressed=index=>pressedKeys.get(index)===pageStamp();
+  window.D200XPhysicalKeyPressed=keyPressed;
   const text = message => { if (notice) notice.textContent = message; };
 
   bridge.onStatus(status => {
@@ -42,11 +46,22 @@
     // Wide key (13/14) has its own mode switch. Do not schedule full-page
     // press/release repaints: those can overwrite the newly chosen mode.
     if(Number(event?.kind)===1&&Number.isInteger(keyIndex)&&keyIndex>=0&&keyIndex<13){
+      const oldTimer=releaseTimers.get(keyIndex);
+      if(oldTimer){clearTimeout(oldTimer);releaseTimers.delete(keyIndex);}
       if(event.pressed){
-        pressedKeys.add(keyIndex);
-        schedule(0);
+        pressedKeys.set(keyIndex,pageStamp());
+        schedule(0);window.refreshKeyPressIcons?.();
       }else{
-        setTimeout(()=>{pressedKeys.delete(keyIndex);schedule(0);},120);
+        const raw=DeckCore.visibleActions(state)[keyIndex];
+        const current=window.getD200XDisplayItem?.(raw,keyIndex);
+        // Different Down artwork returns at the physical Up event.
+        // Identical artwork preserves the existing short shrink animation.
+        const release=()=>{
+          pressedKeys.delete(keyIndex);releaseTimers.delete(keyIndex);
+          schedule(0);window.refreshKeyPressIcons?.();
+        };
+        if(current?.keyPressAlternate)release();
+        else releaseTimers.set(keyIndex,setTimeout(release,120));
       }
     }
     if((keyIndex===13||keyIndex===14)&&event?.pressed===true)
@@ -265,7 +280,7 @@
         ctx.beginPath();ctx.moveTo(x-r*.45,y-r*.45);ctx.lineTo(x+r*.45,y+r*.45);
         ctx.moveTo(x+r*.45,y-r*.45);ctx.lineTo(x-r*.45,y+r*.45);ctx.stroke();
       }
-      if(pressedKeys.has(index)){
+      if(keyPressed(index)&&!item.keyPressAlternate){
         const snapshot=document.createElement('canvas');
         snapshot.width=width;snapshot.height=height;
         snapshot.getContext('2d').drawImage(canvas,0,0);

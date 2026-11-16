@@ -258,8 +258,28 @@ function displayItem(item,index){
   if(!item||item.type!=="indicator")return item;
   return {...item,icon:{kind:"glyph",glyph:String((DeckCore.activeFolder(state)?.pageIndex??state.page)+1)}};
 }
+// Visual press policy is separate from action execution and SDK keyUp delivery.
+const previewPressKeys=new Set();
+function isMomentaryIconAction(item){
+  if(!item)return false;
+  if(item.type==='sd-plugin')return isFusionAction(item);
+  return !['ha-toggle','indicator','multi-switch','hotkey-switch','timer',
+    'logic','sleep','virtual','wide-display','folder-back'].includes(item.type);
+}
+function displayKeyPressItem(item,index){
+  if(!isMomentaryIconAction(item)||!Number.isInteger(index)||index<0||index>=13)return item;
+  const icons=item.settings?.keyPressIcons||{};
+  const valid=icon=>icon?.kind==='file'&&typeof icon.value==='string';
+  const up=valid(icons.up)?icons.up:item.icon;
+  const down=valid(icons.down)?icons.down:up;
+  const same=JSON.stringify(up??null)===JSON.stringify(down??null);
+  const pressed=previewPressKeys.has(index)||window.D200XPhysicalKeyPressed?.(index)===true;
+  const chosen=pressed?down:up;
+  return {...item,...(chosen?{icon:chosen}:{}),keyPressAlternate:!same};
+}
+window.D200XIconMode={eligible:isMomentaryIconAction};
 // Share actual key visuals (including timer countdown) with the USB renderer.
-window.getD200XDisplayItem=(item,index)=>index===13&&wideDisplayAvailable()?wideVisual():displayItem(DeckCore.visibleActions(state)[index]||item,index);
+window.getD200XDisplayItem=(item,index)=>index===13&&wideDisplayAvailable()?wideVisual():displayKeyPressItem(displayItem(DeckCore.visibleActions(state)[index]||item,index),index);
 function iconNode(item,defaultGlyph){
   if(item?.icon?.kind==="file"&&typeof item.icon.value==="string"){
     const image=document.createElement("img");image.className="icon-image";image.src=item.icon.value;image.alt="";return image;
@@ -496,7 +516,7 @@ function renderGrid(){
     const item=folderBack?{type:'folder-back',title:'뒤로',icon:{kind:'glyph',glyph:'↩'}}:(i===13&&wideDisplayAvailable()?wideVisual():raw);
     const b=document.createElement("button");b.type="button";b.className="deck-key"+(i===13?" wide":"")+(state.selected===i?" selected":"");
     b.dataset.index=i;b.setAttribute("aria-label",`키 ${i+1}: ${keyName(item)||"비어 있음"}`);
-    const visual=displayItem(item,i);
+    const visual=displayKeyPressItem(displayItem(item,i),i);
     const glyph=iconNode(visual,ACTIONS.get(item?.type)?.icon||"+");glyph.classList.add("glyph");
     const label=document.createElement("span");label.className="caption";label.textContent=visual?.title||"";updateTitleAppearance(label,visual);
     b.append(glyph,label);
@@ -1281,7 +1301,7 @@ async function refreshSelectedVisual(){
   if(!item||!window.renderDeckKeyImage)return;
   const request=++previewRequest;
   try{
-    const data=await window.renderDeckKeyImage(displayItem(item));
+    const data=await window.renderDeckKeyImage(displayKeyPressItem(displayItem(item,state.selected),state.selected),state.selected);
     if(request!==previewRequest||DeckCore.visibleActions(state)[state.selected]!==item)return;
     const host=$("icon-preview-content");
     if(!host)return;
@@ -1294,6 +1314,7 @@ async function refreshSelectedVisual(){
   }catch(error){console.warn("미리보기 이미지 생성 실패",error);}
 }
 window.refreshSelectedVisual=refreshSelectedVisual;
+window.refreshKeyPressIcons=()=>{renderGrid();void refreshSelectedVisual();};
 function refreshTitlePreview(item){
   const host=$("icon-preview");if(!host)return;
   let label=host.querySelector(".preview-title");
@@ -1799,6 +1820,44 @@ function bindSdkStateIcons(root,item){
   };
   draw();
 }
+
+function bindKeyPressIconControls(root,item){
+  if(!isMomentaryIconAction(item)||!Number.isInteger(state.selected)||state.selected>=13)return;
+  const fields=root.querySelector('.properties>.fields');if(!fields)return;
+  const field=document.createElement('div');field.className='field key-press-icon-field';
+  const label=document.createElement('label');label.textContent='키 아이콘';
+  const cards=document.createElement('div');cards.className='key-press-icons';
+  const visual=displayItem(item,state.selected);
+  const stored=item.settings?.keyPressIcons||{};
+  const up=stored.up||visual.icon;
+  for(const [key,title,icon] of [['up','Key Up · 기본',up],['down','Key Down · 누르는 동안',stored.down||up]]){
+    const card=document.createElement('div');card.className='key-press-icon-card';
+    const heading=document.createElement('strong');heading.textContent=title;
+    const preview=document.createElement('div');preview.className='key-press-icon-preview';
+    preview.append(iconNode({...visual,...(icon?{icon}:{})},ACTIONS.get(item.type)?.icon||'+'));
+    const buttons=document.createElement('div');buttons.className='key-press-icon-buttons';
+    const library=document.createElement('button');library.type='button';library.textContent='라이브러리';
+    library.addEventListener('click',()=>openIconLibrary(item,'press:'+key));
+    const file=document.createElement('button');file.type='button';file.textContent='파일';
+    file.addEventListener('click',async()=>{
+      try{
+        const chosen=await chooseNativeImage('image');if(!chosen?.dataUrl)return;
+        const png=await rasterizeIcon(chosen.dataUrl);
+        if(!DeckCore.visibleActions(state).includes(item))return;
+        item.settings.keyPressIcons??={};
+        item.settings.keyPressIcons[key]={kind:'file',value:png};
+        persistInspectorChange();render();
+      }catch(error){window.d200xActionStatus?.('Key '+key+' 아이콘 선택 실패: '+String(error?.message||error));}
+    });
+    const reset=document.createElement('button');reset.type='button';reset.textContent='기본값';
+    reset.addEventListener('click',()=>{
+      if(item.settings?.keyPressIcons)delete item.settings.keyPressIcons[key];
+      persistInspectorChange();render();
+    });
+    buttons.append(library,file,reset);card.append(heading,preview,buttons);cards.append(card);
+  }
+  field.append(label,cards);fields.prepend(field);
+}
 function bindExtendedActionFields(root,item){
   if(item.type==='sd-plugin'){
     bindSdkStateIcons(root,item);
@@ -2055,6 +2114,7 @@ function renderInspector(){
   refreshTitlePreview(item);
   $("key-title").addEventListener("input",ev=>{item.title=ev.target.value;persist();renderGrid();refreshTitlePreview(item);});
   bindExtendedActionFields(root,item);
+  bindKeyPressIconControls(root,item);
   bindShortcutOptionPreviews(root,item);
   groupCompactActionFields(root,item.type);
   bindInspectorShortcut(root,item);
@@ -2896,7 +2956,7 @@ function executeHardwareAction(event,preview=false,skipKnobGesture=false){
 }
 window.executeD200XKey=executeHardwareAction;
 let refreshProfilesMenu=()=>{};
-function render(){renderGrid();renderInspector();refreshProfilesMenu();scheduleSdkSync();}
+function render(){previewPressKeys.clear();renderGrid();renderInspector();refreshProfilesMenu();scheduleSdkSync();}
 
 // Installed packs are read from the application's packaged library.
 // The prototype glyph groups have been removed; only genuine packs appear.
@@ -3029,11 +3089,14 @@ function renderIconLibrary(){
       tile.append(image);
       tile.addEventListener('click',async()=>{
         const target=libraryTarget;
-        if(!target||!currentPage().includes(target))return;
+        if(!target||!DeckCore.visibleActions(state).includes(target))return;
         try{
           const png=await rasterizeIcon(icon.image);
-          if(!currentPage().includes(target))return;
-          if(libraryStateKey&&target.type==='sd-plugin'){
+          if(!DeckCore.visibleActions(state).includes(target))return;
+          if(libraryStateKey?.startsWith('press:')&&isMomentaryIconAction(target)){
+            target.settings.keyPressIcons??={};
+            target.settings.keyPressIcons[libraryStateKey.slice(6)]={kind:'file',value:png,packId:pack.id};
+          }else if(libraryStateKey&&target.type==='sd-plugin'){
             const companion=findIconCompanion(pack,icon);
             const pair=iconPairType(icon);
             const off=pair?.state==='on'?companion:icon;
@@ -3042,7 +3105,7 @@ function renderIconLibrary(){
             const offIcon=off||fallback,onIcon=on||fallback;
             const offPng=offIcon===icon?png:await rasterizeIcon(offIcon.image);
             const onPng=onIcon===icon?png:await rasterizeIcon(onIcon.image);
-            if(!currentPage().includes(target))return;
+            if(!DeckCore.visibleActions(state).includes(target))return;
             target.settings.sdkStateIcons??={};
             target.settings.sdkStateIcons.off={kind:'file',value:offPng,packId:pack.id};
             target.settings.sdkStateIcons.on={kind:'file',value:onPng,packId:pack.id};
@@ -3153,6 +3216,17 @@ function openIconMaker(target){
 function closeIconMaker(){makerTarget=null;$("icon-maker").hidden=true;}
 function bindIconControls(item){
   const host=$("icon-preview-content");host.replaceChildren(iconNode(item,ACTIONS.get(item.type)?.icon||"+"));
+  if(isMomentaryIconAction(item)&&state.selected<13){
+    const slot=state.selected;
+    const release=()=>{if(previewPressKeys.delete(slot))void refreshSelectedVisual();};
+    host.addEventListener('pointerdown',event=>{
+      if(event.button!==0)return;
+      event.preventDefault();previewPressKeys.add(slot);void refreshSelectedVisual();
+      window.addEventListener('pointerup',release,{once:true,signal:inspectorListener.signal});
+      window.addEventListener('pointercancel',release,{once:true,signal:inspectorListener.signal});
+    });
+    host.addEventListener('pointerleave',release);
+  }
   $("icon-library-open").addEventListener("click",()=>openIconLibrary(item));
   const dropdown=$("icon-dropdown"),toggle=$("icon-menu-trigger");
   toggle.addEventListener("click",()=>{
