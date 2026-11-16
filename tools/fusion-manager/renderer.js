@@ -134,6 +134,22 @@ function showDetail(v){
   catch(e){visibilityOverrides=prev;select.value=prev[v.id]||'auto';status('분류 저장 실패: '+e.message)}
  };
  dd.append(select);dl.append(dt,dd);
+ const checker=document.createElement('button');checker.type='button';
+ checker.textContent='현재 Fusion에서 명령 ID 확인';
+ const output=document.createElement('span');output.className='hint';output.style.display='block';
+ checker.onclick=async()=>{
+   checker.disabled=true;output.textContent='Fusion 명령 정의 조회 중…';
+   try{
+     const result=await window.fusionManager.commandStatus(v.id);
+     output.textContent=result.state==='registered'
+       ?'현재 Fusion에 등록된 ID입니다. 실행 가능 여부는 작업 상태에 따라 다릅니다. ('+(result.name||v.id)+')'
+       :result.state==='missing'
+        ?'현재 Fusion의 명령 정의 목록에 이 ID가 없습니다. 스케치 편집 모드/작업 영역을 전환해 다시 확인하세요.'
+        :'확인 실패: '+(result.message||result.state);
+   }catch(e){output.textContent='확인 실패: '+e.message}
+   finally{checker.disabled=false}
+ };
+ const checkRow=document.createElement('dd');checkRow.style.gridColumn='1 / -1';checkRow.append(checker,output);dl.append(checkRow);
  $('detail').style.display='block';
 }
 $('detailClose').onclick=()=>$('detail').style.display='none';
