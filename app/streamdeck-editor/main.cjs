@@ -921,7 +921,7 @@ if(singleInstanceLock)app.whenReady().then(async () => {
     minHeight:minimumHeight,
     backgroundColor: '#292929',
     show:!process.argv.includes('--hidden')&&!process.argv.includes('--fusion-manager'),
-    title: 'DeckForge 1.0 — D200X',
+    title: 'DeckForge 1.1 — D200X',
     webPreferences: {
       preload: path.join(__dirname, 'preload.cjs'),
       contextIsolation: true,
