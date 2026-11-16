@@ -67,7 +67,7 @@
     // known name, but never discard the actual raw ID.
     const wsKey=workspaceName(anchor)!==anchor?workspaceName(anchor):workspaceName(wsPart?.id||anchor);
     const ws=get(workspaces,wsKey,wsKey);
-    const panName=panelPart?panelName(panelPart.id):'기타 툴바';
+    const panName=panelPart?(panelPart.label&&panelPart.label!==panelPart.id?panelPart.label:panelName(panelPart.id)):'기타 툴바';
     const pan=get(ws.children,panName,panName);
     // Distinguish nested dropdown groups by original ID and order, not guessed labels.
     let dest=pan;
