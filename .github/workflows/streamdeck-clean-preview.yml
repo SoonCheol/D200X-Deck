@@ -1,4 +1,4 @@
-name: DeckForge 1.0 Windows build
+name: DeckForge 1.1 integrated Windows build
 
 # Automatically build DeckForge 1.0 Windows app when editor code changes.
 # Keep workflow_dispatch for optional manual builds; documentation-only commits are skipped.
@@ -12,6 +12,9 @@ on:
       - 'app/lib/**'
       - 'app/package.json'
       - 'app/package-lock.json'
+      - 'tools/fusion-manager/**'
+      - 'tools/fusion-mcp/fusion-menu-catalog.json'
+      - 'tools/fusion-mcp/fusion-command-catalog-final.json'
       - '.github/workflows/streamdeck-clean-preview.yml'
   workflow_dispatch:
 
@@ -145,6 +148,32 @@ jobs:
               -not (Test-Path (Join-Path $destination 'Noto-Symbols-OFL.txt'))) {
             throw 'Required SIL OFL license files are missing'
           }
+      - name: Checkout pinned Autodesk Fusion source for bundled add-in and plugin
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: AutodeskFusion360/FusionStreamDeck
+          ref: bc153b8cddedba91614f932f4210f1ecb451c2a8
+          path: fusion-compat-fixture
+          persist-credentials: false
+      - name: Checkout Home Assistant plugin release source for license
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: cgiesche/streamdeck-homeassistant
+          ref: 3.8.4
+          path: ha-plugin-source
+          persist-credentials: false
+      - name: Download Home Assistant plugin 3.8.4
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          New-Item -ItemType Directory -Force 'app/bundled-plugin-download' | Out-Null
+          $file = 'app/bundled-plugin-download/de.perdoctus.streamdeck.homeassistant.streamDeckPlugin'
+          Invoke-WebRequest -Uri 'https://github.com/cgiesche/streamdeck-homeassistant/releases/download/3.8.4/de.perdoctus.streamdeck.homeassistant.streamDeckPlugin' -OutFile $file -TimeoutSec 180
+          $size = (Get-Item $file).Length
+          if ($size -lt 100000 -or $size -gt 41943040) { throw "HA release size incorrect: $size" }
+          $head = [System.IO.File]::ReadAllBytes((Resolve-Path $file))
+          if ($head[0] -ne 80 -or $head[1] -ne 75) { throw 'HA release is not a ZIP' }
+          Write-Host "HA 3.8.4 SHA256: $((Get-FileHash $file -Algorithm SHA256).Hash)"
       - name: Assemble isolated preview with only D200X HID dependencies
         shell: pwsh
         run: |
@@ -160,11 +189,33 @@ jobs:
           Copy-Item 'tools/fusion-mcp/server.cjs' 'app/preview-device-build/mcp/tools/fusion-mcp/server.cjs' -Force
           Copy-Item 'tools/fusion-mcp/deckforge-mcp.cmd' 'app/preview-device-build/mcp/deckforge-mcp.cmd' -Force
           Copy-Item 'app/streamdeck-editor/fusion-batch.js' 'app/preview-device-build/mcp/app/streamdeck-editor/fusion-batch.js' -Force
+          $manager='app/preview-device-build/fusion-manager'
+          New-Item -ItemType Directory -Force "$manager/fonts" | Out-Null
+          Copy-Item 'tools/fusion-manager/main.cjs','tools/fusion-manager/preload.cjs','tools/fusion-manager/index.html','tools/fusion-manager/renderer.js','tools/fusion-manager/menu-tree.cjs','tools/fusion-manager/command-curation.cjs','tools/fusion-manager/HELP.md' $manager
+          Copy-Item 'app/streamdeck-editor/fusion-drag.cjs' "$manager/fusion-drag.cjs"
+          Copy-Item 'tools/fusion-mcp/fusion-command-catalog-final.json' "$manager/fusion-command-catalog-final.json"
+          Copy-Item 'tools/fusion-mcp/fusion-menu-catalog.json' "$manager/fusion-menu-catalog.json"
+          Copy-Item 'tools/fusion-mcp/fusion-ui-inventory.py' "$manager/fusion-ui-inventory.py"
+          Copy-Item 'app/streamdeck-editor/fonts/PretendardVariable.woff2' "$manager/fonts/PretendardVariable.woff2"
+          Copy-Item 'app/streamdeck-editor/fonts/Pretendard-LICENSE.txt' "$manager/fonts/Pretendard-LICENSE.txt"
+          $bundled='app/preview-device-build/bundled'
+          New-Item -ItemType Directory -Force $bundled | Out-Null
+          Copy-Item 'fusion-compat-fixture/fusion_addin/FusionStreamDeck' "$bundled/FusionStreamDeck" -Recurse -Force
+          Copy-Item 'fusion-compat-fixture/streamdeck_plugin/com.autodesk.fusionstreamdeck.sdPlugin' "$bundled/com.autodesk.fusionstreamdeck.sdPlugin" -Recurse -Force
+          Copy-Item 'fusion-compat-fixture/LICENSE' "$bundled/Fusion-LICENSE.txt"
+          Copy-Item 'ha-plugin-source/LICENSE' "$bundled/HA-LICENSE.txt"
+          Copy-Item 'app/bundled-plugin-download/de.perdoctus.streamdeck.homeassistant.streamDeckPlugin' "$bundled/de.perdoctus.streamdeck.homeassistant.streamDeckPlugin"
+          Copy-Item 'app/streamdeck-editor/install-fusion-addin.ps1' "$bundled/install-fusion-addin.ps1"
+          Copy-Item 'app/streamdeck-editor/installer-fusion.nsh' 'app/preview-device-build/installer-fusion.nsh'
+          foreach ($required in @("$manager/main.cjs","$manager/HELP.md","$bundled/FusionStreamDeck/FusionStreamDeck.py","$bundled/com.autodesk.fusionstreamdeck.sdPlugin/manifest.json","$bundled/de.perdoctus.streamdeck.homeassistant.streamDeckPlugin","$bundled/HA-LICENSE.txt","$bundled/install-fusion-addin.ps1")) {
+            if (-not (Test-Path -LiteralPath $required)) { throw "Missing integrated build file: $required" }
+          }
+
           @'
           {
             "name": "deckforge",
             "productName": "DeckForge",
-            "version": "1.0.0",
+            "version": "1.1.0",
             "private": true,
             "main": "streamdeck-editor/main.cjs",
             "dependencies": {
@@ -244,13 +295,6 @@ jobs:
           } finally {
             Remove-Item Env:D200X_NODE_PATH -ErrorAction SilentlyContinue
           }
-      - name: Fetch pinned Autodesk Fusion open-source plugin reference
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          repository: AutodeskFusion360/FusionStreamDeck
-          ref: bc153b8cddedba91614f932f4210f1ecb451c2a8
-          path: fusion-compat-fixture
-          persist-credentials: false
       - name: Verify unchanged Fusion Node plugin registration and offline Property Inspector protocol
         working-directory: app
         shell: pwsh
@@ -271,22 +315,23 @@ jobs:
           # The installer uses the exact same staged app as the already-tested portable build.
           # Builder only packages; it must not rebuild native HID bindings.
           Copy-Item 'streamdeck-editor/deckforge-installer.json' 'preview-device-build/electron-builder.json' -Force
+          Copy-Item 'preview-device-build/bundled' 'dist/DeckForge-win32-x64/resources/bundled' -Recurse -Force
           npm install --no-save --package-lock=false --ignore-scripts electron-builder@26.0.12
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           npx --no-install electron-builder --projectDir preview-device-build --win nsis --x64 --publish never
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          if (-not (Test-Path 'dist-installer/DeckForge-Setup-1.0.0.exe')) { throw 'DeckForge NSIS setup missing' }
-          if ((Get-Item 'dist-installer/DeckForge-Setup-1.0.0.exe').Length -lt 30MB) { throw 'DeckForge NSIS setup unexpectedly small' }
-          Write-Host "DeckForge installer ready: $((Get-Item 'dist-installer/DeckForge-Setup-1.0.0.exe').Length) bytes"
+          if (-not (Test-Path 'dist-installer/DeckForge-Setup-1.1.0.exe')) { throw 'DeckForge NSIS setup missing' }
+          if ((Get-Item 'dist-installer/DeckForge-Setup-1.1.0.exe').Length -lt 30MB) { throw 'DeckForge NSIS setup unexpectedly small' }
+          Write-Host "DeckForge installer ready: $((Get-Item 'dist-installer/DeckForge-Setup-1.1.0.exe').Length) bytes"
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          name: DeckForge-1.0-Setup-win-x64
-          path: app/dist-installer/DeckForge-Setup-1.0.0.exe
+          name: DeckForge-1.1-Setup-win-x64
+          path: app/dist-installer/DeckForge-Setup-1.1.0.exe
           if-no-files-found: error
           retention-days: 14
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          name: DeckForge-1.0-win-x64
+          name: DeckForge-1.1-win-x64
           path: app/dist/DeckForge-win32-x64/
           if-no-files-found: error
           retention-days: 14
