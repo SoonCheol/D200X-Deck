@@ -24,6 +24,7 @@ app.whenReady().then(()=>{
  });
  ipcMain.handle('catalog',async()=>JSON.parse(await fs.readFile(path.join(__dirname,'fusion-command-catalog-final.json'),'utf8')));
  ipcMain.handle('menu-catalog',async()=>JSON.parse(await fs.readFile(path.join(__dirname,'fusion-menu-catalog.json'),'utf8')));
+ ipcMain.handle('help-markdown',async()=>fs.readFile(path.join(__dirname,'HELP.md'),'utf8'));
  // DeckForge's existing Fusion artwork cache is shared read-only.
  // Never change DeckForge userData, cached icons, or Fusion add-in files.
  const iconDir=path.join(app.getPath('appData'),'D200X StreamDeck Device Sync','fusion-command-icons');
