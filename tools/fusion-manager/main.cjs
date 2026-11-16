@@ -3,14 +3,19 @@ const {app,BrowserWindow,ipcMain,dialog,screen}=require('electron');
 const fs=require('node:fs/promises');
 const path=require('node:path');
 const os=require('node:os');
+let embeddedWindow=null;
+let integratedBridge=null;
 function createWindow(){
  const area=screen.getPrimaryDisplay().workArea;
  const width=Math.min(698,area.width),height=Math.min(873,area.height);
  const win=new BrowserWindow({width,height,minWidth:Math.min(480,width),minHeight:Math.min(560,height),backgroundColor:'#111820',webPreferences:{preload:path.join(__dirname,'preload.cjs'),contextIsolation:true,nodeIntegration:false,sandbox:false}});
  win.setMenuBarVisibility(false);
  win.loadFile(path.join(__dirname,'index.html'));
+ embeddedWindow=win;
+ win.on('closed',()=>{if(embeddedWindow===win)embeddedWindow=null});
+ return win;
 }
-app.whenReady().then(()=>{
+const managerReady=app.whenReady().then(()=>{
  ipcMain.handle('window-mode',async(event,mode)=>{
    const win=BrowserWindow.fromWebContents(event.sender);
    if(!win||!['explore','pages'].includes(mode))return false;
@@ -167,6 +172,14 @@ app.whenReady().then(()=>{
    if(Buffer.byteLength(txt)>5*1024*1024)throw Error('JSON 최대 크기는 5MB입니다.');
    return {name:filePaths[0],data:JSON.parse(txt)};
  });
- createWindow();app.on('activate',()=>{if(!BrowserWindow.getAllWindows().length)createWindow()});
+ ipcMain.handle('manager-open-deckforge',async()=>{
+   if(integratedBridge)return integratedBridge('open-deckforge');
+   const {shell}=require('electron');
+   const candidate=path.join(process.env.LOCALAPPDATA||'', 'Programs','DeckForge','DeckForge.exe');
+   try{await fs.access(candidate);return shell.openPath(candidate).then(error=>!error)}catch{return false}
+ });
+ ipcMain.handle('manager-dock',async(_event,operation)=>integratedBridge?integratedBridge('dock',operation):{available:false,attached:false});
+ if(require.main===module){createWindow();app.on('activate',()=>{if(!BrowserWindow.getAllWindows().length)createWindow()});}
 });
+module.exports={openEmbeddedManager:async bridge=>{integratedBridge=bridge;await managerReady;if(embeddedWindow&&!embeddedWindow.isDestroyed()){embeddedWindow.show();embeddedWindow.focus();return embeddedWindow}return createWindow()},getEmbeddedWindow:()=>embeddedWindow};
 app.on('window-all-closed',()=>{if(process.platform!=='darwin')app.quit()});
