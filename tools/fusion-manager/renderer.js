@@ -200,7 +200,7 @@ function renderExplorer(){
    card.onkeydown=e=>{if(e.key==='Enter'){e.preventDefault();showDetail(v)}};
    card.ondragstart=e=>{
      hideTooltip();drag=null;
-     const payload=FusionDrag.encode({id:v.id,name:v.ko||v.name});
+     const payload=FusionDrag.encode({id:v.id,name:v.ko||v.name,png:iconCache.get(v.id)||null});
      e.dataTransfer.setData('text/plain',payload);
      e.dataTransfer.setData('application/x-deckforge-fusion-command',payload);
      e.dataTransfer.effectAllowed='copyMove';
