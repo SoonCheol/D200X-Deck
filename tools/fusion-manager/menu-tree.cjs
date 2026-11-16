@@ -82,10 +82,48 @@
   }
   return [...workspaces.values()];
  }
+ function fromMenuCatalog(catalog,commands){
+  if(catalog?.format!=='deckforge-fusion-menu-catalog-v1'||!Array.isArray(catalog.entries)||!Array.isArray(catalog.tabIds))throw Error('Fusion 메뉴 순서 자료 오류');
+  const names=new Map([['SketchTab','스케치'],['SolidTab','솔리드'],['SurfaceTab','곡면'],['ParaMeshOuterTab','메쉬'],['SheetMetalTab','판금'],['PlasticTab','플라스틱'],['ManageTab','매니지'],['ToolsTab','유틸리티'],['AutomationTab','자동화']]);
+  const available=new Map(commands.map(v=>[v.id,v]));
+  const tabs=new Map();
+  const node=(key,name)=>({key,name,rank:0,children:new Map(),ids:new Map(),ordered:[]});
+  for(const id of catalog.tabIds)tabs.set(id,node(id,names.get(id)||id));
+  for(const entry of catalog.entries){
+   const item=available.get(entry.id),tab=tabs.get(entry.tabId);
+   if(!item||!tab)continue;
+   const panelId=entry.panelId||entry.panel||'other';
+   if(!tab.children.has(panelId)){
+    const p=node(panelId,entry.panel||panelId);
+    tab.children.set(panelId,p);
+   }
+   let current=tab.children.get(panelId);
+   for(const id of entry.dropdowns||[]){
+    const key='dropdown:'+id;
+    if(!current.children.has(key))current.children.set(key,node(key,id));
+    let child=current.children.get(key);
+    if(!current.ordered.includes(child))current.ordered.push(child);
+    current=child;
+   }
+   if(!current.ids.has(item.id)){
+    current.ids.set(item.id,item);
+    current.ordered.push(item);
+   }
+  }
+  return [...tabs.values()];
+ }
  function descendants(node){
-  const seen=new Map(node.ids);
-  for(const child of node.children.values())for(const item of descendants(child))seen.set(item.id,item);
+  const seen=new Map();
+  if(Array.isArray(node.ordered)){
+   for(const value of node.ordered){
+    if(value&&value.children instanceof Map){for(const item of descendants(value))if(!seen.has(item.id))seen.set(item.id,item)}
+    else if(value?.id&&!seen.has(value.id))seen.set(value.id,value);
+   }
+  }else{
+   for(const [id,item] of node.ids)seen.set(id,item);
+   for(const child of node.children.values())for(const item of descendants(child))seen.set(item.id,item);
+  }
   return [...seen.values()];
  }
- return Object.freeze({structure,descendants,workspaceName,panelName,pathParts});
+ return Object.freeze({structure,fromMenuCatalog,descendants,workspaceName,panelName,pathParts});
 });
