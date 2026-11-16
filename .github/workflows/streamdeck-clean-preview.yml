@@ -201,7 +201,8 @@ jobs:
           Copy-Item 'app/lib/*' 'app/preview-device-build/lib/' -Recurse -Force
           # Keep the original dedicated D200X app and add only the independent
           # resources required for tray mode and bundled Fusion MCP.
-          Copy-Item 'app/build/tray.png' 'app/preview-device-build/streamdeck-editor/tray.png' -Force
+          # Preserve the application atom icon and display it crisply at Windows tray size.
+          Copy-Item 'app/build/icon.png' 'app/preview-device-build/streamdeck-editor/tray.png' -Force
           New-Item -ItemType Directory -Force app/preview-device-build/mcp/tools/fusion-mcp | Out-Null
           New-Item -ItemType Directory -Force app/preview-device-build/mcp/app/streamdeck-editor | Out-Null
           Copy-Item 'tools/fusion-mcp/server.cjs' 'app/preview-device-build/mcp/tools/fusion-mcp/server.cjs' -Force
