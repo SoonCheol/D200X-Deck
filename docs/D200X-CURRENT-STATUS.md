@@ -1,3 +1,10 @@
+## 2026-11-16 — Fusion Command Manager 0.1 실제 Windows 빌드 검증
+
+- 전용 GitHub Actions **#43808195316**: completed/success. GitHub Windows 작업의 JavaScript 소스 검사, layoutPages 구형/신형 회귀 검사, 카탈로그 키·명령 ID·1000개 이상 형식 검증, Electron 독립 EXE 패키징, 아티팩트 업로드가 모두 성공함.
+- 아티팩트: **Fusion-Command-Manager-0.1-win-x64**, ID **14199267057**, 약 161.6MB, 조회 당시 미만료. 링크: https://github.com/SoonCheol/D200X-Deck/actions/runs/43808195316
+- 기존 DeckForge Windows build **#43807695960** success. 수정한 Fusion JSON importer의 Windows 빌드 확인 근거.
+- **실제 Fusion/Windows GUI 사용자 실기 확인은 아직 없음.** 기존 JSON 자동등록 실기 성공은 사용자 확인, 새로운 예약 슬롯 포함 JSON의 실기 성공은 별도 확인 필요.
+
 ## 2026-11-16 — Fusion Command Manager 독립 GUI 시제품 0.1
 
 - 사용자 실기 확인 추가: 기존 Fusion 360 JSON 일괄 등록 메뉴를 통한 실제 자동 등록 **성공**(사용자 2026-11-16 보고). 본 프로젝트의 기존 가져오기 메뉴는 그대로 사용.
