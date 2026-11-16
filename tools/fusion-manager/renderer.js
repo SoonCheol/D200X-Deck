@@ -34,6 +34,7 @@ function makePagesFromCatalog(type){
   .filter(v=>type==='all'||category(v)===type)
   .sort((a,b)=>Curation.sortByPlacement(a,b,capturedUI));
  if(!items.length){status('이 범주의 카탈로그 명령이 없습니다.');return;}
+ if(items.length>MAXP*PER){status('명령 '+items.length+'개는 최대 '+(MAXP*PER)+'개 슬롯을 초과합니다. 목록 범주를 좁혀 자동 배치하세요. 기존 페이지는 유지됩니다.');return;}
  const count=Math.max(1,Math.ceil(items.length/PER));
  const used=Math.min(count+1,MAXP);
  pages=Array.from({length:used},(_,p)=>({name:(type==='all'?'전체':({sketch:'스케치',solid:'솔리드',surface:'서피스',file:'파일',other:'기타'}[type]))+' '+(p+1),
