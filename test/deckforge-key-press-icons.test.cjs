@@ -97,3 +97,15 @@ test('Windows program drops and file selection update an existing action without
 test('action execution passes argv as third parameter to openLocalPath',()=>{
  assert.ok(src.includes("bridge.openLocalPath(outcome.path,outcome.target,outcome.args||'')"));
 });
+
+test('OFF ON and Key Up Down use identical horizontal icon-card wrappers',()=>{
+ const sdk=src.match(/function bindSdkStateIcons\(root,item\)\{([\s\S]*?)\nfunction bindKeyPressIconControls/);
+ const momentary=src.match(/function bindKeyPressIconControls\(root,item\)\{([\s\S]*?)\nfunction bindExtendedActionFields/);
+ assert.ok(sdk&&momentary,'both icon renderer functions present');
+ for(const block of [sdk[1],momentary[1]]){
+   assert.match(block,/className='sdk-state-icons/);
+   assert.match(block,/cards\.append\(/);
+   assert.match(block,/panel\.append\(cards\)/);
+   assert.doesNotMatch(block,/panel\.append\((group|card)\)/);
+ }
+});
