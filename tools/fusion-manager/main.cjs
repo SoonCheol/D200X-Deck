@@ -8,7 +8,7 @@ let integratedBridge=null;
 function createWindow(){
  const area=screen.getPrimaryDisplay().workArea;
  const width=Math.min(698,area.width),height=Math.min(873,area.height);
- const win=new BrowserWindow({width,height,minWidth:Math.min(480,width),minHeight:Math.min(560,height),backgroundColor:'#111820',webPreferences:{preload:path.join(__dirname,'preload.cjs'),contextIsolation:true,nodeIntegration:false,sandbox:false}});
+ const win=new BrowserWindow({width,height,minWidth:Math.min(480,width),minHeight:Math.min(560,height),icon:path.join(__dirname,'fusion-manager-icon.png'),backgroundColor:'#111820',webPreferences:{preload:path.join(__dirname,'preload.cjs'),contextIsolation:true,nodeIntegration:false,sandbox:false}});
  win.setMenuBarVisibility(false);
  win.loadFile(path.join(__dirname,'index.html'));
  embeddedWindow=win;
