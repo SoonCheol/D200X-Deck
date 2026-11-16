@@ -191,6 +191,44 @@ function exportData(){
  if(layoutPages.length>MAXP)throw Error('페이지 수가 128개를 넘었습니다.');
  return {format:FORMAT,pluginUUID:PLUGIN,actionUUID:ACTION,profileName:$('profile').value.trim()||'Fusion 360',commands:list,layoutPages};
 }
+let iconCollecting=false;
+$('collectIcons').onclick=async()=>{
+ if(iconCollecting)return;
+ const ids=[...new Set(pages.filter(p=>p.enabled).flatMap(p=>p.slots.filter(Boolean)))];
+ if(!ids.length){$('iconStatus').textContent='등록 체크된 페이지에 명령이 없습니다.';return}
+ iconCollecting=true;$('collectIcons').disabled=true;
+ const statusNode=$('iconStatus');
+ let saved=0,cached=0,missing=0,failed=0,processed=0;
+ try{
+  statusNode.textContent='Fusion 애드인 연결 확인 중…';
+  const health=await window.fusionManager.iconHealth();
+  if(!health?.available)throw Error(health?.message||'Fusion 360 원본 아이콘 서버에 연결할 수 없습니다.');
+  statusNode.textContent='원본 아이콘 수집 중: 0 / '+ids.length;
+  // Limit concurrent image requests; each remains a read-only GET.
+  let position=0;
+  const worker=async()=>{
+   while(position<ids.length){
+    const id=ids[position++];
+    let item;
+    try{item=await window.fusionManager.collectIcon(id)}
+    catch(e){item={status:'failed',error:e.message}}
+    if(item?.status==='saved')saved++;
+    else if(item?.status==='cached')cached++;
+    else if(item?.status==='missing')missing++;
+    else failed++;
+    if(item?.data)iconCache.set(id,item.data);
+    processed++;
+    if(processed%10===0||processed===ids.length){
+      statusNode.textContent='수집 '+processed+'/'+ids.length+' · 신규 '+saved+' · 기존 '+cached+' · 원본 없음 '+missing+' · 실패 '+failed;
+    }
+   }
+  };
+  await Promise.all(Array.from({length:Math.min(3,ids.length)},()=>worker()));
+  render();
+  statusNode.textContent='완료 '+processed+'개 · 새로 저장 '+saved+' · 기존 캐시 '+cached+' · 원본 없음 '+missing+' · 오류 '+failed;
+ }catch(e){statusNode.textContent='아이콘 수집 실패: '+e.message}
+ finally{iconCollecting=false;$('collectIcons').disabled=false}
+};
 $('addPage').onclick=()=>{if(pages.length>=MAXP)return status('최대 128페이지입니다.');pages.push(empty());render()};
 $('fill').onclick=()=>{if(pages.some(p=>p.slots.some(Boolean))&&!confirm('기존 배치를 추천 순서로 다시 만들까요?'))return;makePagesFromCatalog($('category').value)};
 $('category').onchange=render;$('search').oninput=render;
