@@ -49,6 +49,8 @@ jobs:
           '{"name":"fusion-command-manager","productName":"Fusion Command Manager","version":"0.1.0","private":true,"main":"main.cjs"}' | Set-Content "$dst/package.json" -Encoding utf8
           $catalog=Get-Content -Raw "$dst/fusion-command-catalog-final.json" | ConvertFrom-Json
           Write-Host "Fusion catalog loaded: $($catalog.GetType().Name)"
+          node -e "const fs=require('fs');const v=JSON.parse(fs.readFileSync('app/fusion-manager-build/fusion-command-catalog-final.json','utf8'));const a=Array.isArray(v)?v:(v.commands||v.items||v.catalogue||v.catalog||[]);const xs=Array.isArray(a)?a:Object.values(a).filter(x=>x&&typeof x==='object');console.log('Catalog keys:',Object.keys(v).slice(0,12));console.log('Command entry count:',xs.length,'first entry:',JSON.stringify(xs[0]).slice(0,500));if(xs.length<1000||!xs.some(x=>x&&(x.id||x.commandId||x.command_id)))process.exit(1)"
+          if ($LASTEXITCODE -ne 0) { throw 'Fusion catalog schema not usable by renderer' }
           if ((Get-Item "$dst/fusion-command-catalog-final.json").Length -lt 50000) { throw 'Fusion catalog unexpectedly small' }
       - name: Install Electron packaging tools
         working-directory: app
