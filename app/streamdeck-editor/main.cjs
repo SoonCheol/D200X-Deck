@@ -270,11 +270,12 @@ function updateTrayMenu(){
   ]));
 }
 function initializeTray(){
+  // Use the high-contrast DeckForge application artwork rather than the tiny monochrome glyph.
   const file=path.join(__dirname,'tray.png');
   const icon=nativeImage.createFromPath(file);
   if(icon.isEmpty())throw Error('DeckForge 트레이 아이콘이 없습니다: '+file);
-  tray=new Tray(icon);
-  tray.setToolTip('DeckForge 1.0 · D200X');
+  tray=new Tray(icon.resize({width:20,height:20}));
+  tray.setToolTip('DeckForge 1.1 · D200X');
   tray.on('double-click',revealEditor);
   trayPreferences=readTrayPreferences();
   try{if(isInstalledBuild())setLoginStart(trayPreferences.autoStart);}
