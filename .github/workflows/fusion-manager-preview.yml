@@ -82,6 +82,7 @@ jobs:
           Copy-Item 'tools/fusion-mcp/fusion-command-catalog-final.json' "$dst/fusion-command-catalog-final.json"
           Copy-Item 'tools/fusion-mcp/fusion-menu-catalog.json' "$dst/fusion-menu-catalog.json"
           Copy-Item 'tools/fusion-manager/HELP.md' "$dst/HELP.md"
+          Copy-Item 'tools/fusion-mcp/fusion-ui-inventory.py' "$dst/fusion-ui-inventory.py"
           New-Item -ItemType Directory -Force "$dst/fonts" | Out-Null
           Copy-Item 'tools/fusion-manager/fonts/PretendardVariable.woff2' "$dst/fonts/PretendardVariable.woff2"
           Copy-Item 'app/streamdeck-editor/fonts/Pretendard-LICENSE.txt' "$dst/fonts/Pretendard-LICENSE.txt"
