@@ -62,6 +62,23 @@ app.whenReady().then(()=>{
    if(!health.ok||(await health.json())?.ok!==true)throw Error('Fusion 360 아이콘 서버 연결 실패');
    return base;
  }
+ // Read-only check against command definitions registered in Fusion RIGHT NOW.
+ // A present command ID is not proof it can execute in the active document.
+ ipcMain.handle('fusion-command-status',async(_event,id)=>{
+   if(!safeId(id))return {state:'invalid'};
+   try{
+     const endpoint=await fusionEndpoint();
+     const reply=await fetch(endpoint+'/commands?q='+encodeURIComponent(id)+'&refresh=1',{
+       signal:AbortSignal.timeout(10000)
+     });
+     if(!reply.ok)return {state:'error',message:'Fusion 명령 조회 HTTP '+reply.status};
+     const result=await reply.json();
+     if(!Array.isArray(result.commands))return {state:'error',message:'응답 형식 오류'};
+     const found=result.commands.find(item=>item.id===id);
+     return found?{state:'registered',id,name:found.name||''}:
+       {state:'missing',id};
+   }catch(error){return {state:'error',message:error.message}}
+ });
  ipcMain.handle('fusion-icon-health',async()=>{
    try{return {available:true,endpoint:await fusionEndpoint()}}catch(e){return {available:false,message:e.message}}
  });
