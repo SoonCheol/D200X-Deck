@@ -2,6 +2,7 @@
 const {contextBridge,ipcRenderer}=require('electron');
 contextBridge.exposeInMainWorld('fusionManager',{
  catalog:()=>ipcRenderer.invoke('catalog'),
+ windowMode:mode=>ipcRenderer.invoke('window-mode',mode),
  openCapture:()=>ipcRenderer.invoke('open-ui-capture'),
  loadVisibility:()=>ipcRenderer.invoke('curation-load'),
  saveVisibility:data=>ipcRenderer.invoke('curation-save',data),
