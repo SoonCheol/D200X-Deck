@@ -122,6 +122,21 @@ const sdkVisuals=new Map();
 const FUSION_PLUGIN='com.autodesk.fusionstreamdeck';
 const fusionIconCache=new Map(),fusionCachePending=new Set(),fusionCacheMisses=new Set(),
   fusionConnected=new Set(),fusionOfflineContexts=new Set(),fusionLiveContexts=new Set();
+let fusionHealthAvailable=null,fusionHealthBusy=false;
+async function refreshFusionHealth(){
+  if(fusionHealthBusy||!window.deckBridge?.fusionHealth)return;
+  fusionHealthBusy=true;
+  try{
+    const available=await window.deckBridge.fusionHealth();
+    if(typeof available==='boolean'&&available!==fusionHealthAvailable){
+      fusionHealthAvailable=available;
+      renderGrid();window.scheduleDeckSync?.();
+    }
+  }catch(error){console.warn('Fusion 연결 상태 조회 실패',error);
+    if(fusionHealthAvailable!==false){fusionHealthAvailable=false;renderGrid();window.scheduleDeckSync?.();}
+  }finally{fusionHealthBusy=false;}
+}
+
 function fusionCommandId(item){return isFusionAction(item)?item.settings?.pluginSettings?.commandId:null;}
 function fusionDisabledImage(uri){
   if(typeof uri!=='string'||!uri.startsWith('data:image/svg+xml;base64,'))return false;
@@ -213,8 +228,11 @@ function displayItem(item,index){
       // A live icon response proves that this command reached Fusion, even when
       // the SDK connection event was emitted before the renderer subscribed.
       const context=sdkContext(slot,'down');
-      const offline=fusionOfflineContexts.has(context)||
-        (!connected&&!fusionLiveContexts.has(context));
+      // Fusion's /health endpoint is authoritative. Its Stream Deck plugin
+      // remains online after Fusion quits, and last-known-good art can persist.
+      const offline=fusionHealthAvailable===null
+        ?(fusionOfflineContexts.has(context)||(!connected&&!fusionLiveContexts.has(context)))
+        :!fusionHealthAvailable;
       const runtimeImage=!offline&&visual?.image?visual.image:null;
       const icon=stateIcon||item.icon||(runtimeImage?{kind:'file',value:runtimeImage}:null)||
         (cached?{kind:'file',value:cached}:null)||
@@ -3282,3 +3300,5 @@ if(window.deckBridge?.onSdkEvent){
   });
 }
 bindActionAppearance();renderLibrary();render();refreshSdkPlugins();
+void refreshFusionHealth();
+setInterval(()=>{if(sdkActionInstances().some(x=>x.pluginUUID===FUSION_PLUGIN))void refreshFusionHealth();},3000);
