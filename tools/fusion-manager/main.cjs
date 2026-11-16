@@ -80,6 +80,16 @@ app.whenReady().then(()=>{
      return {status:'saved',id,data:'data:'+mime+';base64,'+data.toString('base64'),source:'manager'};
    }catch(e){return {status:'failed',id,error:e.message}}
  });
+ ipcMain.handle('open-ui-capture',async()=>{
+   const {canceled,filePaths}=await dialog.showOpenDialog({
+     title:'Fusion UI 수집 JSON 선택 (명령 실행 없음)',properties:['openFile'],
+     filters:[{name:'Fusion UI JSON',extensions:['json']}]
+   });
+   if(canceled||!filePaths?.length)return null;
+   const stat=await fs.stat(filePaths[0]);
+   if(!stat.isFile()||stat.size>30*1024*1024)throw Error('수집 JSON은 30MB 이하만 지원합니다.');
+   return JSON.parse(await fs.readFile(filePaths[0],'utf8'));
+ });
  ipcMain.handle('save-json',async(_e,{data,defaultName})=>{
    const {canceled,filePath}=await dialog.showSaveDialog({title:'JSON 저장',defaultPath:defaultName||'Fusion-Layout.json',filters:[{name:'JSON',extensions:['json']}]});
    if(canceled||!filePath)return null;
