@@ -80,6 +80,23 @@ app.whenReady().then(()=>{
      return {status:'saved',id,data:'data:'+mime+';base64,'+data.toString('base64'),source:'manager'};
    }catch(e){return {status:'failed',id,error:e.message}}
  });
+ const preferencesFile=()=>path.join(app.getPath('userData'),'fusion-command-visibility-v1.json');
+ ipcMain.handle('curation-load',async()=>{
+   try{
+     const saved=JSON.parse(await fs.readFile(preferencesFile(),'utf8'));
+     if(!saved||typeof saved!=='object'||Array.isArray(saved))return {};
+     return Object.fromEntries(Object.entries(saved).filter(([id,value])=>
+       /^[a-zA-Z0-9._-]{1,180}$/.test(id)&&['primary','review','hidden'].includes(value)).slice(0,10000));
+   }catch(e){if(e.code==='ENOENT')return {};throw e}
+ });
+ ipcMain.handle('curation-save',async(_e,overrides)=>{
+   if(!overrides||typeof overrides!=='object'||Array.isArray(overrides))throw Error('분류 저장 형식 오류');
+   const allowed=Object.entries(overrides).filter(([id,value])=>
+     /^[a-zA-Z0-9._-]{1,180}$/.test(id)&&['primary','review','hidden'].includes(value));
+   if(allowed.length>10000)throw Error('분류 개수 초과');
+   await fs.writeFile(preferencesFile(),JSON.stringify(Object.fromEntries(allowed),null,2)+'\n','utf8');
+   return true;
+ });
  ipcMain.handle('open-ui-capture',async()=>{
    const {canceled,filePaths}=await dialog.showOpenDialog({
      title:'Fusion UI 수집 JSON 선택 (명령 실행 없음)',properties:['openFile'],
