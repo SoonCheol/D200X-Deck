@@ -581,6 +581,51 @@ const HA_CUSTOM_ACTION='de.perdoctus.streamdeck.homeassistant.dual-state-entity'
 function sdkCatalogueLabel(action){
   return action.uuid===HA_CUSTOM_ACTION?'Home Assistant 장치 제어':action.name;
 }
+function openSdkPluginHelp(plugin,isFusion){
+  let dialog=document.getElementById('sdk-plugin-help-dialog');
+  if(!dialog){
+    dialog=document.createElement('dialog');dialog.id='sdk-plugin-help-dialog';
+    dialog.setAttribute('aria-label','플러그인 사용 설명');
+    dialog.style.cssText='max-width:min(500px,calc(100vw - 28px));width:460px;max-height:80vh;overflow:auto;background:#292d33;color:#f0f0f0;border:1px solid #6b7785;border-radius:8px;padding:18px;box-shadow:0 12px 40px #000a';
+    document.body.append(dialog);
+  }
+  dialog.replaceChildren();
+  const heading=document.createElement('div');heading.style.cssText='display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:12px';
+  const label=document.createElement('strong');label.textContent=isFusion?'Fusion 360 사용 방법':'Home Assistant 사용 방법';
+  const close=document.createElement('button');close.type='button';close.textContent='닫기 ×';
+  close.onclick=()=>dialog.close();
+  heading.append(label,close);dialog.append(heading);
+  if(isFusion){
+    const install=document.createElement('button');install.type='button';
+    install.textContent='FusionStreamDeck 애드인 설치';
+    install.style.cssText='width:100%;padding:9px;border:1px solid #67717c;background:#393f49;color:#fff;border-radius:5px;margin-bottom:8px';
+    const output=document.createElement('p');output.style.cssText='font-size:12px;line-height:1.5;margin:4px 0 12px;white-space:pre-wrap';
+    output.textContent='Fusion 360이 설치되어 있지 않아도 DeckForge를 사용할 수 있습니다. Fusion 설치 후 이 버튼을 눌러 애드인을 설치하세요.';
+    install.onclick=async()=>{
+      install.disabled=true;
+      try{
+        const result=await window.deckBridge.installFusionAddin();
+        output.textContent=({
+          installed:'애드인을 복사했습니다. Fusion 360에서 실행하고 시작 시 자동 실행을 설정하세요.',
+          existing:'FusionStreamDeck 애드인이 이미 설치되어 있습니다.',
+          'fusion-not-ready':'Fusion 360을 설치하고 한 번 실행한 다음 다시 시도하세요.',
+          'existing-incomplete':'기존 애드인 폴더가 있어 자동 덮어쓰지 않았습니다.',
+          'not-bundled':'이 설치본에 Fusion 애드인 파일이 없습니다.'
+        })[result?.status]||result?.message||'설치 상태를 확인하세요.';
+      }catch(error){output.textContent='설치 실패: '+String(error?.message||error)}
+      finally{install.disabled=false}
+    };
+    dialog.append(install,output);
+  }
+  const guide=document.createElement('div');guide.style.cssText='white-space:pre-line;line-height:1.75;font-size:13px';
+  guide.textContent=isFusion
+    ?'1. Fusion 360을 실행합니다.\n2. 스크립트 및 애드인에서 FusionStreamDeck을 실행하고 시작 시 자동 실행을 선택합니다.\n3. DeckForge의 Run Command를 D200X 버튼에 등록합니다.\n4. 버튼 속성에서 원하는 명령을 검색하고 선택합니다.\n5. 연결된 Fusion의 원본 아이콘이 나타나며 버튼으로 명령을 실행할 수 있습니다.'
+    :'1. Home Assistant에서 장기 액세스 토큰을 발급합니다.\n2. Home Assistant 장치 제어를 D200X 버튼에 등록합니다.\n3. 속성의 설정 열기를 눌러 HA 서버 주소와 장기 토큰을 입력합니다.\n4. 인증 성공 후 조회되는 엔티티 목록에서 제어할 장치를 선택합니다.\n5. 토큰은 비밀번호처럼 보관하고 GitHub에 업로드하지 않습니다.';
+  dialog.append(guide);dialog.showModal();
+}
+function launchFusionManager(){
+  window.deckBridge.openFusionManager().catch(error=>window.d200xActionStatus?.('Fusion Manager 실행 실패: '+String(error?.message||error)));
+}
 function renderInstalledSdkPlugins(root,query){
   for(const plugin of sdkPlugins){
     const matching=plugin.actions.filter(a=>a.uuid!==HA_GENERIC_ACTION &&
@@ -596,13 +641,7 @@ function renderInstalledSdkPlugins(root,query){
       const info=document.createElement('button');info.type='button';info.textContent='?';
       info.title=plugin.name+' 사용법';info.setAttribute('aria-label',plugin.name+' 도움말');
       info.style.cssText='float:right;border:1px solid #777;border-radius:50%;height:22px;width:22px;background:#414141;color:white';
-      info.onclick=event=>{
-        event.stopPropagation();
-        const message=isHa
-          ?'Home Assistant 사용법\\n\\n1. Home Assistant 프로필에서 장기 액세스 토큰을 발급합니다.\\n2. Home Assistant 장치 제어를 D200X 키로 드래그합니다.\\n3. 해당 키의 설정 열기를 눌러 HA 서버 주소와 토큰을 입력합니다.\\n4. 연결되면 서버의 엔티티 목록에서 전등·스위치 등을 선택합니다.\\n5. 토큰은 비밀번호처럼 보관하며 GitHub에 저장하지 않습니다.'
-          :'Fusion 360 사용법\\n\\n1. Fusion 360을 실행합니다.\\n2. Scripts and Add-Ins에서 FusionStreamDeck을 실행하고 Run on Startup을 체크합니다.\\n3. 이 플러그인의 Run Command를 D200X 버튼에 드래그합니다.\\n4. 속성에서 명령을 검색·선택합니다.\\n5. 애드인 연결 후 원본 아이콘이 나타나며 키로 명령을 실행할 수 있습니다.\\n\\nFusion이 설치되지 않았었다면 플러그인 탭의 Fusion 애드인 설치 버튼을 눌러주세요.';
-        alert(message);
-      };
+      info.onclick=event=>{event.stopPropagation();openSdkPluginHelp(plugin,isFusion)};
       title.append(info);
     }
     const body=document.createElement('div');
@@ -618,6 +657,14 @@ function renderInstalledSdkPlugins(root,query){
         else setItem(state.selected,newAction(id));
       });
       body.append(tile);
+    }
+    if(isFusion){
+      const manager=document.createElement('button');manager.type='button';
+      manager.className='fusion-manager-launch';
+      manager.textContent='Fusion 명령 관리자 열기';
+      manager.title='Fusion Command Manager 실행';
+      manager.addEventListener('click',event=>{event.stopPropagation();launchFusionManager()});
+      body.append(manager);
     }
     section.append(title,body);root.append(section);
   }
@@ -740,22 +787,6 @@ function bindActionAppearance(){
   fromDir.className='plugin-add-button';fromDir.textContent='＋ 폴더에서 추가';
   fromDir.title='개발자 배포 .sdPlugin 폴더 설치';
   fromDir.addEventListener('click',()=>installSdkPlugin(true));pluginToolbar.append(fromDir);
-  const fusionManager=document.createElement('button');fusionManager.type='button';
-  fusionManager.className='plugin-add-button';fusionManager.textContent='Fusion 명령 관리자 열기';
-  fusionManager.onclick=async()=>{
-    try{await window.deckBridge.openFusionManager()}catch(error){window.d200xActionStatus?.('Fusion Manager 실행 실패: '+error.message)}
-  };
-  pluginToolbar.append(fusionManager);
-  const addin=document.createElement('button');addin.type='button';
-  addin.className='plugin-add-button';addin.textContent='Fusion 애드인 설치';
-  addin.onclick=async()=>{
-    try{
-     const result=await window.deckBridge.installFusionAddin();
-     window.d200xActionStatus?.('Fusion 애드인: '+(result.message||result.status));
-    }catch(error){window.d200xActionStatus?.('Fusion 애드인 설치 실패: '+error.message)}
-  };
-  pluginToolbar.append(addin);
-
   host.after(pluginToolbar);
   updatePluginToolbar();
 }
