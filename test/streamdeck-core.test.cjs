@@ -1102,3 +1102,27 @@ test('individual rotary overrides preserve automatic action on the other directi
   const restored=core.migrateState(JSON.parse(JSON.stringify(state)));
   assert.equal(core.controlBinding(restored,16).autoAssign,true);
 });
+
+test('individual profile JSON export includes only selected active/inactive data without mutation',()=>{
+  const state=core.migrateState(null);
+  const named=core.createProfile(state,'Fusion 360');
+  state.pages[0][0]=core.createAction('hotkey');
+  state.pages.push(core.blankPage());
+  state.controls.global[0].down=core.createAction('media');
+  const before=JSON.stringify(state);
+  const active=core.exportSingleProfile(state,'default');
+  assert.equal(active.format,'d200x-single-profile-v1');
+  assert.equal(active.profile.id,'default');
+  assert.equal(active.snapshot.pages.length,2);
+  assert.equal(active.snapshot.pages[0][0].type,'hotkey');
+  assert.equal(active.snapshot.controls.global[0].down.type,'media');
+  assert.equal(active.profile.name,'기본 프로필');
+  assert.equal(active.profileNames,undefined);
+  const inactive=core.exportSingleProfile(state,named);
+  assert.equal(inactive.profile.id,named);
+  assert.equal(inactive.profile.name,'Fusion 360');
+  assert.equal(inactive.snapshot.pages.length,1);
+  assert.equal(inactive.snapshot.pages[0][0],null);
+  assert.equal(JSON.stringify(state),before);
+  assert.throws(()=>core.exportSingleProfile(state,'missing'),/프로필/);
+});
