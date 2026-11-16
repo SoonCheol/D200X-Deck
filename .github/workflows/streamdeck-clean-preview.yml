@@ -104,6 +104,46 @@ jobs:
           if ($bundled.Count -ne 2 -or $bundled[0].icons.Count -ne 1914 -or $bundled[1].icons.Count -ne 1914) {
             throw 'Fluent UI icon pack counts incorrect'
           }
+      - name: Download and verify pinned UI font binaries for offline installation
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $destination = 'app/streamdeck-editor/fonts'
+          New-Item -ItemType Directory -Force $destination | Out-Null
+          $sources = @(
+            @{
+              Name='PretendardVariable.woff2'
+              Url='https://raw.githubusercontent.com/orioncactus/pretendard/7aeb0698819be2b4097dae8ec8fe6a795e5cf3ae/packages/pretendard/dist/web/variable/woff2/PretendardVariable.woff2'
+              Blob='49c54b5152a184a243e85f7281ed338b6569987e'
+              Min=2000000
+            },
+            @{
+              Name='NotoSansSymbols.ttf'
+              Url='https://raw.githubusercontent.com/google/fonts/cc39c4c2c304bc368c9b7c311ea2bcc6013299fe/ofl/notosanssymbols/NotoSansSymbols%5Bwght%5D.ttf'
+              Blob='a0061bfbcbbec27bf2b280fc8c49ea42cf7cb7ab'
+              Min=300000
+            },
+            @{
+              Name='NotoSansSymbols2-Regular.ttf'
+              Url='https://raw.githubusercontent.com/google/fonts/cc39c4c2c304bc368c9b7c311ea2bcc6013299fe/ofl/notosanssymbols2/NotoSansSymbols2-Regular.ttf'
+              Blob='caf89dd0e60e23ac39ce18da823095959d409437'
+              Min=1200000
+            }
+          )
+          foreach ($font in $sources) {
+            $file = Join-Path $destination $font.Name
+            Invoke-WebRequest -Uri $font.Url -OutFile $file -TimeoutSec 180 -ErrorAction Stop
+            if ((Get-Item $file).Length -lt $font.Min) { throw "Incomplete font: $($font.Name)" }
+            $blob = (& git hash-object -- $file).Trim()
+            if ($LASTEXITCODE -ne 0 -or $blob -ne $font.Blob) {
+              throw "Font blob verification failed for $($font.Name): $blob"
+            }
+            Write-Host "Verified bundled font: $($font.Name) ($(Get-Item $file).Length bytes)"
+          }
+          if (-not (Test-Path (Join-Path $destination 'Pretendard-LICENSE.txt')) -or
+              -not (Test-Path (Join-Path $destination 'Noto-Symbols-OFL.txt'))) {
+            throw 'Required SIL OFL license files are missing'
+          }
       - name: Assemble isolated preview with only D200X HID dependencies
         shell: pwsh
         run: |
@@ -146,6 +186,10 @@ jobs:
           if (-not $staged) { throw 'Staged preview missing Fluent UI icon bundle' }
           if (-not (Test-Path 'app/preview-device-build/streamdeck-editor/main.cjs')) { throw 'Staged main.cjs missing' }
           if (-not (Test-Path 'app/preview-device-build/streamdeck-editor/fluentui-LICENSE.md')) { throw 'Staged Fluent UI license missing' }
+          foreach ($name in @('PretendardVariable.woff2','NotoSansSymbols.ttf','NotoSansSymbols2-Regular.ttf','Pretendard-LICENSE.txt','Noto-Symbols-OFL.txt')) {
+            $fontFile = Join-Path 'app/preview-device-build/streamdeck-editor/fonts' $name
+            if (-not (Test-Path $fontFile)) { throw "Bundled UI font/license is absent: $name" }
+          }
           Write-Host "Staged Fluent UI icon bytes: $($staged.Length)"
       - name: Package DeckForge 1.0 Windows executable
         working-directory: app
