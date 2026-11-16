@@ -1,3 +1,12 @@
+## 2026-11-16 — 개별 프로필 JSON 내보내기 (개발 및 검증 기록)
+
+- 사용자 요청: 프로필 ⚙ 설정에 기존 '전체 프로필·설정 JSON 내보내기'와 별도의 '프로필 JSON 내보내기' 추가.
+- 구현: app/streamdeck-editor/editor.js의 프로필별 메뉴에 내보내기 추가. deck-core.js의 exportSingleProfile(state, id)로 선택 프로필만 이름/ID/연결 EXE/Smart Profile 여부, 페이지·폴더·노브·물리 버튼·고정 키·와이드 설정 스냅샷을 추출. 활성/비활성 프로필 모두 지원하며 상태 변경 없음.
+- 파일 형식: d200x-single-profile-v1 (프로필 메타데이터와 snapshot). **기존 '전체 프로필·설정 JSON 가져오기'는 이 파일을 가져오는 기능이 아님**. 단독 프로필 가져오기는 별도 요청 시 구현해야 하며 호환되지 않는 전체 가져오기로 대체하지 말 것.
+- '연결 프로그램 선택'은 Windows .exe 연계로 Smart Profile의 전경 프로그램 자동 선택에 쓰며 JSON 보기용 아님. 자동 전환은 최소화 상태/Smart Profile 활성 조건을 따름.
+- test/streamdeck-core.test.cjs에 프로필 간 데이터 격리, 활성/비활성 스냅샷, 상태 무변경 검사 추가. 최종 CI/Windows 빌드/사용자 실기 판정은 실제 Actions 결과에 맞춰 후속 갱신.
+- main 및 Draft PR #5 병합·변경 금지, 기존 모든 프로필 데이터 보존.
+
 ## 2026-11-16 — Fusion Command Manager 0.1 실제 Windows 빌드 검증
 
 - 전용 GitHub Actions **#43808195316**: completed/success. GitHub Windows 작업의 JavaScript 소스 검사, layoutPages 구형/신형 회귀 검사, 카탈로그 키·명령 ID·1000개 이상 형식 검증, Electron 독립 EXE 패키징, 아티팩트 업로드가 모두 성공함.
