@@ -9,6 +9,7 @@ contextBridge.exposeInMainWorld('fusionManager',{
  saveVisibility:data=>ipcRenderer.invoke('curation-save',data),
  icon:id=>ipcRenderer.invoke('fusion-icon',id),
  iconHealth:()=>ipcRenderer.invoke('fusion-icon-health'),
+ commandStatus:id=>ipcRenderer.invoke('fusion-command-status',id),
  collectIcon:id=>ipcRenderer.invoke('fusion-icon-collect',id),
  save:(data,defaultName)=>ipcRenderer.invoke('save-json',{data,defaultName}),
  open:()=>ipcRenderer.invoke('open-json')
