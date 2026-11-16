@@ -108,9 +108,10 @@ function requestIcon(id,el,v){
  if(iconCache.has(id)){const cached=iconCache.get(id);if(cached)setArt(el,cached);return}
  iconPending.add(id);
  window.fusionManager.icon(id).then(data=>{
-  iconCache.set(id,data||null);
+  if(data)iconCache.set(id,data);
+  else if(!iconCache.has(id))iconCache.set(id,null);
   if(data&&el.isConnected)setArt(el,data);
- }).catch(()=>iconCache.set(id,null)).finally(()=>iconPending.delete(id));
+ }).catch(()=>{if(!iconCache.has(id))iconCache.set(id,null)}).finally(()=>iconPending.delete(id));
 }
 function setArt(el,src){
  const symbol=el.querySelector('.cmd-art-missing');
@@ -217,7 +218,7 @@ $('scriptCopy').onclick=async()=>{
  catch(e){status('수집기 코드 복사 실패: '+e.message)}
 };
 $('helpClose').onclick=()=>$('helpDialog').close();
-window.fusionManager.dock('status').then(state=>{if(state.available)$('dockToggle').textContent=state.enabled?'자석 켜짐':'자석 꺼짐';else $('dockToggle').hidden=true;}).catch(()=>{$('dockToggle').hidden=true;});
+window.fusionManager.dock('status').then(state=>{if(state.available)$('dockToggle').textContent=state.enabled?'자석 켜짐':'자석 꺼짐';}).catch(()=>{});
 $('deckforgeOpen').onclick=async()=>{try{if(!await window.fusionManager.openDeckForge())status('설치된 DeckForge를 찾지 못했습니다.')}catch(e){status('DeckForge 실행 실패: '+e.message)}};
 $('dockToggle').onclick=async()=>{
  try{const result=await window.fusionManager.dock('toggle');
