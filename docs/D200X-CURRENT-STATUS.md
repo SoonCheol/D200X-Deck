@@ -1,3 +1,12 @@
+## 2026-11-16 — Fusion Command Manager 0.2 버튼 확대·명령 아이콘·툴팁
+
+- 사용자 요청대로 Fusion Manager 버튼 높이 116px, 아이콘 48×48px, 한글 이름 최대 두 줄 배치. 5/5/3, 페이지 간 드래그 삽입, 우클릭 예약, 체크박스, JSON 내보내기 구조 변경 없음.
+- Fusion PNG는 기존 DeckForge 사용자 데이터의 `fusion-command-icons/<명령ID>.png`를 **읽기 전용**으로 조회. 존재하지 않으면 심볼 기호를 표시하므로 원본 아이콘이 전부 제공된다는 뜻은 아님.
+- 말줄임 발생한 이름의 hover 툴팁에 **한글 전체 이름 + 영문 전체 이름** 두 줄만 표시. 명령의 확인된 영문명 필드가 없으면 '영문명 정보 없음'을 명시. ⓘ 상세 정보는 별도 패널.
+- 안전 변경: tools/fusion-manager/main.cjs, preload.cjs, renderer.js, index.html, README.md만 수정. DeckForge 본체·기존 프로필/캐시/플러그인 미변경.
+- 검증: GitHub Actions [Fusion Manager Windows build #43811137327](https://github.com/SoonCheol/D200X-Deck/actions/runs/43811137327) **success**, artifact `Fusion-Command-Manager-0.1-win-x64` ID `14200348334` (약 161.6MB, 조회 당시 미만료). JS 구문 검사 및 카탈로그 검증/EXE 패키징 성공. **원본 캐시 PNG 노출 및 Windows GUI 실기는 사용자 확인 전**. 아티팩트 이름은 워크플로 기존 0.1 표시를 유지.
+- Manager 프로그램 자체의 고유 앱 아이콘은 이번 소스 변경에 포함되지 않음. 추가 디자인 과제.
+
 ## 2026-11-16 — 개별 프로필 JSON 내보내기 (개발 및 검증 기록)
 
 - 사용자 요청: 프로필 ⚙ 설정에 기존 '전체 프로필·설정 JSON 내보내기'와 별도의 '프로필 JSON 내보내기' 추가.
