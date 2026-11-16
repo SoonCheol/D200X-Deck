@@ -56,6 +56,10 @@ jobs:
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           node --test test/streamdeck-integrated-manager.test.cjs
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          node --check tools/fusion-manager/renderer.js
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          node --check tools/fusion-manager/main.cjs
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           node --check app/streamdeck-editor/main.cjs
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           node --check app/streamdeck-editor/editor.js
@@ -215,6 +219,10 @@ jobs:
           Copy-Item 'tools/fusion-mcp/fusion-command-catalog-final.json' "$manager/fusion-command-catalog-final.json"
           Copy-Item 'tools/fusion-mcp/fusion-menu-catalog.json' "$manager/fusion-menu-catalog.json"
           Copy-Item 'tools/fusion-mcp/fusion-ui-inventory.py' "$manager/fusion-ui-inventory.py"
+          # Generate the actual approved Manager icon from a source image, not a generic glyph.
+          & 'app/streamdeck-editor/create-manager-icon.ps1' -Source 'app/streamdeck-editor/assets/fusion-manager-approved-preview.jpg.base64' -OutputDirectory $manager
+          if ($LASTEXITCODE -ne 0) { throw 'Fusion Manager icon generation failed' }
+
           Copy-Item 'app/streamdeck-editor/fonts/PretendardVariable.woff2' "$manager/fonts/PretendardVariable.woff2"
           Copy-Item 'app/streamdeck-editor/fonts/Pretendard-LICENSE.txt' "$manager/fonts/Pretendard-LICENSE.txt"
           $bundled='app/preview-device-build/bundled'
@@ -225,8 +233,9 @@ jobs:
           Copy-Item 'ha-plugin-source/LICENSE' "$bundled/HA-LICENSE.txt"
           Copy-Item 'app/bundled-plugin-download/de.perdoctus.streamdeck.homeassistant.streamDeckPlugin' "$bundled/de.perdoctus.streamdeck.homeassistant.streamDeckPlugin"
           Copy-Item 'app/streamdeck-editor/install-fusion-addin.ps1' "$bundled/install-fusion-addin.ps1"
+          Copy-Item "$manager/fusion-manager-icon.ico" "$bundled/fusion-manager-icon.ico" -Force
           Copy-Item 'app/streamdeck-editor/installer-fusion.nsh' 'app/preview-device-build/installer-fusion.nsh'
-          foreach ($required in @("$manager/main.cjs","$manager/HELP.md","$bundled/FusionStreamDeck/FusionStreamDeck.py","$bundled/com.autodesk.fusionstreamdeck.sdPlugin/manifest.json","$bundled/de.perdoctus.streamdeck.homeassistant.streamDeckPlugin","$bundled/HA-LICENSE.txt","$bundled/install-fusion-addin.ps1")) {
+          foreach ($required in @("$manager/main.cjs","$manager/HELP.md","$manager/fusion-manager-icon.png","$bundled/fusion-manager-icon.ico","$bundled/FusionStreamDeck/FusionStreamDeck.py","$bundled/com.autodesk.fusionstreamdeck.sdPlugin/manifest.json","$bundled/de.perdoctus.streamdeck.homeassistant.streamDeckPlugin","$bundled/HA-LICENSE.txt","$bundled/install-fusion-addin.ps1")) {
             if (-not (Test-Path -LiteralPath $required)) { throw "Missing integrated build file: $required" }
           }
 
