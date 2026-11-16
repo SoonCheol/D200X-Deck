@@ -64,6 +64,8 @@ jobs:
           Copy-Item 'app/streamdeck-editor/fusion-drag.cjs' "$dst/fusion-drag.cjs"
           Copy-Item 'tools/fusion-mcp/fusion-command-catalog-final.json' "$dst/fusion-command-catalog-final.json"
           Copy-Item 'tools/fusion-mcp/fusion-menu-catalog.json' "$dst/fusion-menu-catalog.json"
+          Copy-Item 'tools/fusion-manager/HELP.md' "$dst/HELP.md"
+          if (-not (Test-Path "$dst/HELP.md")) { throw 'Fusion Manager help file missing' }
           '{"name":"fusion-command-manager","productName":"Fusion Command Manager","version":"0.1.0","private":true,"main":"main.cjs"}' | Set-Content "$dst/package.json" -Encoding utf8
           $catalog=Get-Content -Raw "$dst/fusion-command-catalog-final.json" | ConvertFrom-Json
           Write-Host "Fusion catalog loaded: $($catalog.GetType().Name)"
