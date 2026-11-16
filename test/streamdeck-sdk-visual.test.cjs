@@ -69,6 +69,7 @@ test('Fusion live command artwork has no offline overlay even if plugin connecti
     timerDeadlines:new Map(),fusionCommandId:()=> 'ExtrudeCommand',
     fusionConnected:new Set(),FUSION_PLUGIN:'com.autodesk.fusionstreamdeck',
     fusionOfflineContexts:new Set(),fusionLiveContexts:new Set([ctx]),
+    fusionHealthAvailable:true,
     fusionIconCache:new Map(),requestFusionIcon:()=>{}
   });
   assert.equal(result.fusionOffline,false);
@@ -86,6 +87,40 @@ test('Fusion disabled command image retains cached artwork and adds offline over
     timerDeadlines:new Map(),fusionCommandId:()=> 'ExtrudeCommand',
     fusionConnected:new Set(['com.autodesk.fusionstreamdeck']),FUSION_PLUGIN:'com.autodesk.fusionstreamdeck',
     fusionOfflineContexts:new Set([ctx]),fusionLiveContexts:new Set(),
+    fusionHealthAvailable:false,
+    fusionIconCache:new Map([['ExtrudeCommand',image]]),requestFusionIcon:()=>{}
+  });
+  assert.equal(result.fusionOffline,true);
+  assert.equal(result.icon.value,image);
+});
+
+
+test('Fusion healthy add-in removes X even if a stale disabled image was received',()=>{
+  const item={type:'sd-plugin',settings:{pluginUUID:'com.autodesk.fusionstreamdeck',
+    actionUUID:'com.autodesk.fusionstreamdeck.runcommand',pluginSettings:{commandId:'ExtrudeCommand'}}};
+  const ctx='profile:0::0:down',image='data:image/png;base64,bGl2ZQ==';
+  const result=vm.runInNewContext(fn+';displayItem(item,0)',{
+    item,state:{profileId:'profile',page:0,folderPath:[]},
+    sdkVisuals:new Map([[ctx,{image}]]),sdkContext:()=>ctx,DeckCore:{visibleActions:()=>[item]},
+    timerDeadlines:new Map(),fusionCommandId:()=> 'ExtrudeCommand',
+    fusionConnected:new Set(['com.autodesk.fusionstreamdeck']),FUSION_PLUGIN:'com.autodesk.fusionstreamdeck',
+    fusionOfflineContexts:new Set([ctx]),fusionLiveContexts:new Set(),
+    fusionHealthAvailable:true,
+    fusionIconCache:new Map(),requestFusionIcon:()=>{}
+  });
+  assert.equal(result.fusionOffline,false);
+});
+test('Fusion unavailable add-in adds X even if Stream Deck plugin stays connected',()=>{
+  const item={type:'sd-plugin',settings:{pluginUUID:'com.autodesk.fusionstreamdeck',
+    actionUUID:'com.autodesk.fusionstreamdeck.runcommand',pluginSettings:{commandId:'ExtrudeCommand'}}};
+  const ctx='profile:0::0:down',image='data:image/png;base64,Y2FjaGU=';
+  const result=vm.runInNewContext(fn+';displayItem(item,0)',{
+    item,state:{profileId:'profile',page:0,folderPath:[]},
+    sdkVisuals:new Map([[ctx,{image}]]),sdkContext:()=>ctx,DeckCore:{visibleActions:()=>[item]},
+    timerDeadlines:new Map(),fusionCommandId:()=> 'ExtrudeCommand',
+    fusionConnected:new Set(['com.autodesk.fusionstreamdeck']),FUSION_PLUGIN:'com.autodesk.fusionstreamdeck',
+    fusionOfflineContexts:new Set(),fusionLiveContexts:new Set([ctx]),
+    fusionHealthAvailable:false,
     fusionIconCache:new Map([['ExtrudeCommand',image]]),requestFusionIcon:()=>{}
   });
   assert.equal(result.fusionOffline,true);
