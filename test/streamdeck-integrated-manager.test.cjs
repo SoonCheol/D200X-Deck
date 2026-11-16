@@ -54,7 +54,7 @@ test('integrated installer stages both runtime components without editing saved 
  assert.match(source,/fusion-manager\/main\.cjs/);
  assert.match(main,/d200x:open-fusion-manager/);
  assert.match(main,/d200x:fusion-addin-install/);
- assert.match(ui,/Fusion 애드인 설치/);
- assert.match(ui,/Home Assistant 사용법/);
+ assert.match(ui,/FusionStreamDeck 애드인 설치/);
+ assert.match(ui,/Home Assistant 사용 방법/);
  assert.match(manager,/openEmbeddedManager/);
 });
