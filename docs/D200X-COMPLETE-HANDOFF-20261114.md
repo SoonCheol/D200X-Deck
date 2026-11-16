@@ -623,3 +623,11 @@
 
 - **확인된 CI:** 변경 코드 및 레이아웃 회귀 테스트 후 최종 문서 커밋 `b9986bb1` 기준 [CI #43799006679](https://github.com/SoonCheol/D200X-Deck/actions/runs/43799006679) `completed/success` 확인. 소스 커밋 `fb01c996`, `4ffe581b`, `af4c1015`의 CI 역시 성공 확인.
 - **Windows 자동 빌드 정책:** `.github/workflows/streamdeck-clean-preview.yml`은 해당 개발 브랜치의 `app/streamdeck-editor/**` 변경에 `push`로 실행하도록 정의됨. 이번 코드 변경으로 트리거 조건을 만족하지만, 연결된 CI 조회는 PR 기반 실행만 반환해 **Windows build run 번호, 완료 상태 및 ZIP/Setup 아티팩트 존재를 확인하지 못했음**. 확인 전 빌드 성공/다운로드 가능이라고 주장하지 말 것.
+
+## 2026-11-16 — Fusion 실제 메뉴 명령만 일괄 등록하도록 제한
+
+- 소스: `tools/fusion-mcp/captures/fusion-ui-hierarchy-20261116-174725-797858.json`, `fusion-live-commands-20261116-174725.json` (개발 브랜치 커밋 `97f55e92`). GitHub API contents를 통해 원본을 열어 메뉴 계층과 명령 ID를 대조.
+- 디자인 작업 영역 `FusionSolidEnvironment`의 메뉴 탭 9개(스케치, 솔리드, 곡면, 메쉬, 판금, 플라스틱, 매니지, 유틸리티, 자동화)를 지정된 순서로 재배열. 패널은 좌→우, 명령 및 드롭다운 자식은 위→아래, 하위 메뉴는 재귀 순회. 결과 **메뉴 배치 959건 / 고유 명령 ID 326개**, 명령 API에 존재하지 않는 메뉴 ID 0건.
+- `tools/fusion-mcp/fusion-menu-catalog.json`에 ID·이름·탭·패널·드롭다운 경로를 보관. `server.cjs`의 명령 목록과 `fusion_export_batch`는 이 스냅샷에 등록된 ID만 보이거나 내보내며, 현재 Fusion 애드인의 실시간 `/commands` 목록에도 있어야 한다. 중복 배치는 첫 메뉴 순서만 사용하고, 이름이 같아도 ID가 다르면 별도 명령이다.
+- 이전의 3,151개 전체 API 명령 `all:true` 일괄 내보내기는 메뉴 전용으로 변경. 프로필 자동 적용·Fusion 자동 실행·D200X 하드웨어 테스트는 하지 않음. 기존 D200X JSON 가져오기 및 사용자 데이터 보호.
+- 자동 검증: `test/streamdeck-fusion-mcp.test.cjs`에 메뉴 화이트리스트·중복 제거·순서·ID 차이 검사를 추가. GitHub CI 및 Windows/D200X/Fusion 실기 결과는 별도로 기록.
