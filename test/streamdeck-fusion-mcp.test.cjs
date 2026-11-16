@@ -27,22 +27,37 @@ test('MCP searches real Fusion add-in HTTP protocol',async()=>{
 test('Command batch exports a new profile plan without modifying any existing D200X profile',async()=>{
   const tmp=await fs.mkdtemp(path.join(os.tmpdir(),'fusion-batch-'));
   try{
-    const out=await MCP.exportBatch({command_ids:['Extrude','SaveCommand'],profile_name:'Fusion 매크로'},
-      {getCommands:async()=>fixture,env:{D200X_FUSION_BATCH_DIR:tmp},now:new Date('2026-11-15T00:00:00Z')});
+    const menuFixture=[{id:'DrawPolyline',name:'선'}, {id:'SketchMidpointLine',name:'중간점 선'},
+      {id:'InternalOnly',name:'내부 명령'}];
+    const out=await MCP.exportBatch({command_ids:['SketchMidpointLine','DrawPolyline'],profile_name:'Fusion 매크로'},
+      {getCommands:async()=>menuFixture,env:{D200X_FUSION_BATCH_DIR:tmp},now:new Date('2026-11-15T00:00:00Z')});
     const raw=JSON.parse(await fs.readFile(out.path,'utf8'));
-    assert.equal(out.count,2);assert.equal(raw.commands[0].id,'Extrude');
+    assert.equal(out.count,2);assert.deepEqual(raw.commands.map(c=>c.id),['DrawPolyline','SketchMidpointLine']);
     const state=Core.migrateState(null);
     const previous=JSON.stringify(state);
     const result=B.apply(state,raw,Core);
     assert.equal(result.pageCount,1);
-    assert.equal(state.pages[0][0].settings.pluginSettings.commandId,'Extrude');
-    assert.equal(state.pages[0][1].settings.pluginSettings.name,'저장');
+    assert.equal(state.pages[0][0].settings.pluginSettings.commandId,'DrawPolyline');
+    assert.equal(state.pages[0][1].settings.pluginSettings.name,'중간점 선');
     assert.equal(state.profileNames.length,2);
     assert.equal(state.inactiveProfiles.find(p=>p.id==='default').pages[0][0],null);
     assert.notEqual(JSON.stringify(state),previous);
-    await assert.rejects(MCP.exportBatch({command_ids:['Extrude']},
-      {getCommands:async()=>fixture,env:{D200X_FUSION_BATCH_DIR:tmp},now:new Date('2026-11-15T00:00:00Z')}),/EEXIST/);
+    await assert.rejects(MCP.exportBatch({command_ids:['DrawPolyline']},
+      {getCommands:async()=>menuFixture,env:{D200X_FUSION_BATCH_DIR:tmp},now:new Date('2026-11-15T00:00:00Z')}),/EEXIST/);
   }finally{await fs.rm(tmp,{force:true,recursive:true});}
+});
+test('only captured menu IDs are exportable; duplicate placements collapse and names do not drive identity',()=>{
+  const live=[{id:'SurfaceExtrude',name:'돌출'}, {id:'Extrude',name:'돌출'},
+    {id:'DrawPolyline',name:'선'},{id:'InternalOnly',name:'내부 명령'}];
+  const allowed=MCP.menuCommands(live);
+  assert.ok(allowed.some(x=>x.id==='DrawPolyline'));
+  assert.ok(allowed.some(x=>x.id==='Extrude'));
+  assert.ok(allowed.some(x=>x.id==='SurfaceExtrude'));
+  assert.ok(!allowed.some(x=>x.id==='InternalOnly'));
+  assert.equal(new Set(allowed.map(x=>x.id)).size,allowed.length);
+  assert.deepEqual(MCP.selectMenuCommands(live,{all:true}).map(x=>x.id),
+    allowed.map(x=>x.id));
+  assert.throws(()=>MCP.selectMenuCommands(live,{command_ids:['InternalOnly']}),/메뉴에 없거나/);
 });
 test('Batch preserves existing assignments and spreads 15 commands over two pages',()=>{
   const state=Core.migrateState(null);
