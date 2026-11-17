@@ -17,6 +17,9 @@ const HA_PLUGIN='de.perdoctus.streamdeck.homeassistant';
 const HA_DUAL_ACTION=HA_PLUGIN+'.dual-state-entity';
 const HA_SWITCH_ENTITY=/^(switch|light|fan|input_boolean)\.[a-z0-9_]+$/;
 const json=x=>JSON.stringify(x);
+function allowedSdkOpenUrlContext(uuid,ctx,requestedContext){
+  return Boolean(uuid)&&(!requestedContext||ctx?.pluginUUID===uuid);
+}
 function safeSdkExternalUrl(raw){
   if(typeof raw!=='string'||raw.length>2048||/[\x00-\x1f\x7f]/.test(raw))return null;
   try{
@@ -522,7 +525,7 @@ class StreamDeckPluginHost{
       case 'logMessage':break;
       case 'openUrl':{
         // External plugin links require explicit approval and cannot use file: or script: URLs.
-        if(!uuid||(msg.context&&ctx?.pluginUUID!==uuid))return;
+        if(!allowedSdkOpenUrlContext(uuid,ctx,msg.context))return;
         const href=safeSdkExternalUrl(msg.payload?.url);
         if(!href)return;
         const parent=this.getParent();
@@ -552,4 +555,4 @@ class StreamDeckPluginHost{
     this.server=null;
   }
 }
-module.exports={StreamDeckPluginHost,parseArchive,validateManifest,pluginKind,nodeRuntime,safeSdkExternalUrl};
+module.exports={StreamDeckPluginHost,parseArchive,validateManifest,pluginKind,nodeRuntime,safeSdkExternalUrl,allowedSdkOpenUrlContext};
