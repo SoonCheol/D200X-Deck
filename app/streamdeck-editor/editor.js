@@ -1591,6 +1591,40 @@ function beginInspectorSession(){
   if(inspectorSession?.key===key)return;
   inspectorSession=state.selected===null?null:{key,snapshot:JSON.stringify(state),dirty:false};
 }
+// External SDK Property Inspector commits are independent of DeckForge drafts.
+// Resolve snapshot items by physical slot/gesture; Fusion context tokens reference live objects.
+function sdkItemAtLocation(source,slot,gesture){
+  if(slot<14)return DeckCore.visibleActions(source)[slot];
+  const key=({'hold-left':'holdLeft','hold-right':'holdRight'})[gesture]||gesture;
+  return DeckCore.controlBinding(source,slot)?.[key];
+}
+function commitExternalSdkSettings(instance,settings){
+  const live=sdkItemAtLocation(state,instance.slot,instance.gesture);
+  if(live?.type!=='sd-plugin'||live.settings?.pluginUUID!==instance.pluginUUID||
+    live.settings?.actionUUID!==instance.actionUUID)return false;
+  const confirmed=JSON.parse(inspectorSession?.snapshot||JSON.stringify(state));
+  const stored=sdkItemAtLocation(confirmed,instance.slot,instance.gesture);
+  if(stored?.type!=='sd-plugin'||stored.settings?.pluginUUID!==instance.pluginUUID||
+    stored.settings?.actionUUID!==instance.actionUUID)return false;
+  stored.settings.pluginSettings=clone(settings);
+  const next=JSON.stringify(confirmed);
+  try{
+    localStorage.setItem(STORAGE_KEY,next);
+  }catch(error){
+    console.error('외부 SDK 설정 저장 실패',error);
+    window.d200xActionStatus?.('플러그인 속성 저장 실패: 저장 공간/권한을 확인하세요.');
+    return false;
+  }
+  live.settings.pluginSettings=clone(settings);
+  if(inspectorSession){
+    inspectorSession.snapshot=next;
+    inspectorSession.dirty=JSON.stringify(state)!==next;
+    updateInspectorSaveButtons();
+  }
+  renderGrid();
+  window.scheduleDeckSync?.();
+  return true;
+}
 function persistInspectorChange(){
   if(inspectorSession){inspectorSession.dirty=JSON.stringify(state)!==inspectorSession.snapshot;updateInspectorSaveButtons();return true;}
   return persist();
@@ -3721,18 +3755,15 @@ if(window.deckBridge?.onSdkEvent){
   window.deckBridge.onSdkEvent(message=>{
     const ctx=message?.context;
     if(message.kind==='settings'){
-      const index=sdkActionInstances().find(x=>x.context===ctx);
-      if(index){
-        const item=index.slot<14?DeckCore.visibleActions(state)[index.slot]:
-          DeckCore.controlBinding(state,index.slot)?.[(({'hold-left':'holdLeft','hold-right':'holdRight'})[index.gesture]||index.gesture)];
-        if(item?.type==='sd-plugin'){
-          const priorId=fusionCommandId(item);
-          item.settings.pluginSettings=message.settings;
+      const instance=sdkActionInstances().find(x=>x.context===ctx);
+      if(instance&&message.settings&&typeof message.settings==='object'&&!Array.isArray(message.settings)){
+        const item=sdkItemAtLocation(state,instance.slot,instance.gesture);
+        const priorId=fusionCommandId(item);
+        if(commitExternalSdkSettings(instance,message.settings)){
           if(isFusionAction(item)&&priorId!==fusionCommandId(item)){
             sdkVisuals.delete(ctx);fusionLiveContexts.delete(ctx);
             fusionOfflineContexts.delete(ctx);unverifiedFusionContexts.add(ctx);
           }
-          persistInspectorChange();
         }
       }
     }else if(message.kind==='pluginConnection'&&message.pluginUUID===FUSION_PLUGIN){
