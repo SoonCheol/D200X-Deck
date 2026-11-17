@@ -83,14 +83,46 @@ async function parseArchive(data){
 class StreamDeckPluginHost{
   constructor(userData,onUpdate=()=>{},getParent=()=>null){
     this.getParent=getParent;
-    this.root=path.join(userData,'StreamDeck','Plugins');
+    this.root=path.join(userData,'Plugins');
+    this.legacyRoot=path.join(userData,'StreamDeck','Plugins');
+    this.rootReady=null;
     this.onUpdate=onUpdate;this.server=null;this.port=0;
     this.plugins=new Map();this.contexts=new Map();this.global=new Map();
     this.instances=new Map();this.inspectors=new Map();
     this.haPollTimer=null;this.haPollBusy=false;
   }
+
+  async ensureRoot(){
+    if(!this.rootReady)this.rootReady=(async()=>{
+      await fs.promises.mkdir(this.root,{recursive:true});
+      const marker=path.join(this.root,'.legacy-streamdeck-imported-v1');
+      try{await fs.promises.access(marker);return;}catch(e){if(e.code!=='ENOENT')throw e;}
+      let entries;
+      try{entries=await fs.promises.readdir(this.legacyRoot,{withFileTypes:true});}
+      catch(e){if(e.code==='ENOENT')return;throw e;}
+      for(const entry of entries){
+        if(entry.isSymbolicLink())continue;
+        const name=entry.name;
+        const plugin=entry.isDirectory()&&name.endsWith('.sdPlugin')&&UUID.test(name.slice(0,-9));
+        const globals=entry.isFile()&&name.endsWith('.globals')&&UUID.test(name.slice(0,-8));
+        if(!plugin&&!globals)continue;
+        const from=path.join(this.legacyRoot,name),to=path.join(this.root,name);
+        try{await fs.promises.access(to);continue;}catch(e){if(e.code!=='ENOENT')throw e;}
+        const temporary=path.join(this.root,'.migration-'+crypto.randomUUID());
+        try{
+          if(plugin)await fs.promises.cp(from,temporary,{recursive:true,force:false,
+            filter:async source=>!(await fs.promises.lstat(source)).isSymbolicLink()});
+          else await fs.promises.copyFile(from,temporary);
+          await fs.promises.rename(temporary,to);
+        }catch(e){await fs.promises.rm(temporary,{recursive:true,force:true}).catch(()=>{});throw e;}
+      }
+      // A marker prevents removed plugins from being silently re-imported.
+      await fs.promises.writeFile(marker,'Preserved originals in StreamDeck/Plugins.','utf8');
+    })().catch(error=>{this.rootReady=null;throw error;});
+    return this.rootReady;
+  }
   async list(){
-    await fs.promises.mkdir(this.root,{recursive:true});
+    await this.ensureRoot();
     const dirs=await fs.promises.readdir(this.root,{withFileTypes:true});
     const items=[];
     for(const entry of dirs){
@@ -111,7 +143,7 @@ class StreamDeckPluginHost{
   }
   async install(data){
     const pack=await parseArchive(data),{manifest}=pack;
-    await fs.promises.mkdir(this.root,{recursive:true});
+    await this.ensureRoot();
     const destination=path.join(this.root,manifest.UUID+'.sdPlugin');
     try{await fs.promises.access(destination);throw Error('같은 ID의 플러그인이 이미 있습니다. 기존 설정을 보호하기 위해 덮어쓰지 않습니다.');}
     catch(e){if(e.code!=='ENOENT')throw e;}
@@ -155,6 +187,7 @@ class StreamDeckPluginHost{
     return this.install(bytes);
   }
   async start(){
+    await this.ensureRoot();
     if(this.server)return;
     // Explicit IPv4: SDK property inspectors, including Fusion, dial 127.0.0.1.
     this.server=new WebSocketServer({host:'127.0.0.1',port:0,maxPayload:1024*1024});
@@ -202,6 +235,7 @@ class StreamDeckPluginHost{
   send(ws,msg){if(ws&&ws.readyState===1)ws.send(json(msg));}
   settingsFile(uuid){return path.join(this.root,uuid+'.globals');}
   async readGlobal(uuid){
+    await this.ensureRoot();
     if(this.global.has(uuid))return this.global.get(uuid);
     let value={};
     try{
@@ -212,6 +246,7 @@ class StreamDeckPluginHost{
     this.global.set(uuid,value);return value;
   }
   async storeGlobal(uuid,payload){
+    await this.ensureRoot();
     if(!safeStorage.isEncryptionAvailable())throw Error('플러그인 인증 정보 암호화 저장이 불가능합니다.');
     if(!payload||typeof payload!=='object'||Array.isArray(payload))throw Error('설정 형식 오류');
     const temp=this.settingsFile(uuid)+'.tmp';
