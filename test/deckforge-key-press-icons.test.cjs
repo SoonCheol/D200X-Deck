@@ -134,3 +134,46 @@ test('SDK help close control uses its own dark theme style, separate from the ap
   assert.match(css,/#sdk-plugin-help-dialog \.sdk-plugin-help-close\{/);
   assert.match(css,/#sdk-plugin-help-dialog \.sdk-plugin-help-close:hover/);
 });
+
+test('each OFF ON and Key Up Down card has five fixed commands',()=>{
+ const sdk=src.slice(src.indexOf('function bindSdkStateIcons'),src.indexOf('function bindKeyPressIconControls'));
+ const press=src.slice(src.indexOf('function bindKeyPressIconControls'),src.indexOf('function bindExtendedActionFields'));
+ for(const part of [sdk,press]){
+   for(const label of ['라이브러리','파일','클립보드','특수문자','초기화'])
+     assert.ok(part.includes("textContent='"+label+"'"),label);
+   assert.match(part,/buttons\.append\([^;]*paste,symbol,reset\)/);
+ }
+ assert.match(src,/\$\("icon-library-open"\)\.remove\(\)/);
+ assert.match(src,/\$\("icon-menu-trigger"\)\.remove\(\)/);
+ assert.match(src,/applyStateIconData\(item,key,png\)/);
+});
+test('icon companion pairs are restricted to same pack, folder, and name source',()=>{
+ const begin=src.indexOf('function iconPairType(icon){');
+ const end=src.indexOf('function renderIconLibrary(){',begin);
+ assert.ok(begin>=0&&end>begin);
+ const js=src.slice(begin,end);
+ const result=vm.runInNewContext(js+';
+'+String.raw`const pack={icons:[
+  {filename:'a/fan_off.png',name:'fan off'},
+  {filename:'a/fan_on.png',name:'fan on'},
+  {filename:'b/fan_on.png',name:'fan on'},
+  {filename:'a/fan_on@2x.png',name:'fan on high'},
+  {name:'star off'},{name:'star on'}
+]};
+({exact:findIconCompanion(pack,pack.icons[0])===pack.icons[1],
+crossFolder:findIconCompanion({icons:[pack.icons[0],pack.icons[2]]},pack.icons[0])===null,
+nameOnly:findIconCompanion(pack,pack.icons[4])===pack.icons[5],
+variant:iconPairType(pack.icons[3]).state==='on',
+unrelated:findIconCompanion({icons:[pack.icons[0],{filename:'a/fan_disabled.png'}]},pack.icons[0])===null});
+`);
+ for(const [key,value] of Object.entries(result))assert.equal(value,true,key);
+});
+test('host manifest has non-destructive OFF ON artwork fallback',()=>{
+ const host=fs.readFileSync(path.join(__dirname,'../app/streamdeck-editor/sd-plugin-host.cjs'),'utf8');
+ assert.match(host,/async defaultArtwork\(dir,base\)/);
+ assert.match(host,/defaultImages:\{off:await this\.defaultArtwork/);
+ assert.match(src,/const sdkActionDefaults=new Map\(\)/);
+ assert.match(src,/haPreviewStates\.set\(item/);
+ const css=fs.readFileSync(path.join(__dirname,'../app/streamdeck-editor/style.css'),'utf8');
+ assert.match(css,/grid-template-rows:auto auto;align-items:start/);
+});
