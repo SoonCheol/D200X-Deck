@@ -28,6 +28,7 @@ contextBridge.exposeInMainWorld('deckBridge', Object.freeze({
   chooseImportFile: kind => ipcRenderer.invoke('d200x:choose-import-file',kind),
   listIconPacks: () => ipcRenderer.invoke('d200x:list-icon-packs'),
   importIconPack: () => ipcRenderer.invoke('d200x:import-icon-pack'),
+  importIconFolder: () => ipcRenderer.invoke('d200x:import-icon-folder'),
   removeIconPack: id => ipcRenderer.invoke('d200x:remove-icon-pack',id),
   openWebsite: (url,mode,browserPath='') => ipcRenderer.invoke('d200x:open-website', {url,mode,browserPath}),
   adjustWindows: (target,direction,count=1) => ipcRenderer.invoke('d200x:adjust-windows', {target,direction,count}),
