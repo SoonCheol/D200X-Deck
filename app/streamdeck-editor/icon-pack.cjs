@@ -123,7 +123,10 @@ async function parseIconFolder(folder,render){
     }
   }
   await collect(root);
-  return parseIconPack(await zip.generateAsync({type:'nodebuffer',compression:'DEFLATE'}),render,path.basename(root));
+  const pack=await parseIconPack(await zip.generateAsync({type:'nodebuffer',compression:'DEFLATE'}),render,path.basename(root));
+  // The same directory is the same installed pack across repeated imports.
+  pack.id=crypto.createHash('sha256').update('folder:'+root.toLowerCase()).digest('hex').slice(0,20);
+  return pack;
 }
 
 async function readPacks(filename){
