@@ -75,3 +75,14 @@ test('Electron input dialogs replace prompt and are ignored by inspector leave g
  assert.match(source,/\.deckforge-input-dialog'\)\)return;/);
  assert.match(source,/const item=state\.selected===null\?null:state\.selected>=14\?null/);
 });
+
+test('text dialog identifies whitespace-only values and resets validation while typing',()=>{
+ assert.match(source,/input\.setCustomValidity\('값을 입력하세요\.'\);input\.reportValidity\(\)/);
+ assert.match(source,/input\.addEventListener\('input',\(\)=>input\.setCustomValidity\(''\)\)/);
+});
+test('profile read failure is reported during startup and write lock remains',()=>{
+ assert.match(source,/profileStorageError=String\(error\?\.message\|\|error\)/);
+ assert.match(source,/if\(profileStorageFailure\)\{\s*const dialog=document\.createElement\('dialog'\)/);
+ assert.match(source,/dialog\.showModal\(\);\s*window\.d200xActionStatus\?\.\('프로필 파일 읽기 실패: 저장 차단'\)/);
+ assert.match(source,/if\(profileStorageFailure\)throw Error\('프로필 파일 읽기 실패 상태에서는 덮어쓰지 않습니다\.'\)/);
+});
