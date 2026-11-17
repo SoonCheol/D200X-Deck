@@ -212,3 +212,22 @@ test('SDK openUrl accepts only credential-free HTTP(S) and refuses unsafe scheme
    'https://example.com/'.padEnd(2100,'x')])
    assert.equal(safeSdkExternalUrl(value),null,String(value)?.slice(0,45));
 });
+
+test('SDK openUrl handles context-free requests only from authenticated plugin owner',async()=>{
+  const owner='com.example.plugin',opened=[],decisions=[];
+  const host=new StreamDeckPluginHost(require('node:os').tmpdir());
+  host.getParent=()=>null;
+  const {shell,dialog}=require('electron');
+  const priorShow=dialog.showMessageBox,priorOpen=shell.openExternal;
+  try{
+    dialog.showMessageBox=async options=>{decisions.push(options);return {response:1};};
+    shell.openExternal=async url=>{opened.push(url);};
+    await host.message({event:'openUrl',payload:{url:'https://example.org/help'}},{uuid:owner},null,null);
+    assert.deepEqual(opened,['https://example.org/help']);
+    assert.equal(decisions.length,1);
+    await host.message({event:'openUrl',context:'not-registered',payload:{url:'https://example.org/help'}},{uuid:owner},null,null);
+    assert.equal(opened.length,1,'unknown explicit context must be refused');
+    await host.message({event:'openUrl',payload:{url:'file:///etc/passwd'}},{uuid:owner},null,null);
+    assert.equal(opened.length,1,'unsafe URL must be refused');
+  }finally{dialog.showMessageBox=priorShow;shell.openExternal=priorOpen;}
+});
