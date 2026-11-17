@@ -776,3 +776,9 @@
   background:#414a56;color:#f3f5f9;font-size:12px;line-height:1.2;
 }
 #sdk-plugin-help-dialog .sdk-plugin-help-close:hover{background:#536075}
+
+/* Only the icon pair gets five equal rows; approved card widths, artwork and anchors remain unchanged. */
+.inspector .inspector-icon-section .sdk-state-icon{grid-template-rows:auto auto;align-items:start}
+.inspector .inspector-icon-section .sdk-state-icon .sdk-state-buttons button{
+  box-sizing:border-box;width:76px;min-width:76px;max-width:76px;height:25px;min-height:25px;
+}
