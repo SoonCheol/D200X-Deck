@@ -75,3 +75,14 @@ test('outside click treats card style button as toggle and resets accessibility 
  assert.match(editor,/!event\.target\.closest\?\.\('\.state-title-style'\)/);
  assert.match(editor,/root\.querySelectorAll\('\.state-title-style'\)\.forEach\(button=>[\s\S]*?button\.setAttribute\('aria-expanded','false'\)/);
 });
+
+test('state title is composed directly onto both card images using device compositor',()=>{
+ assert.match(editor,/async function refreshStateTitleCards\(item\)/);
+ assert.match(editor,/const titleVisual=resolveStateTitle\(/);
+ assert.match(editor,/window\.renderDeckKeyImage\(titleVisual,slot,false\)/);
+ assert.match(editor,/img\.replaceChildren\(rendered\)/);
+ assert.match(editor,/void refreshStateTitleCards\(item\)/);
+ assert.match(editor,/group\.dataset\.stateTitle=key==='off'\?'first':'second'/);
+ assert.match(editor,/card\.dataset\.stateTitle=key==='up'\?'first':'second'/);
+ assert.match(editor,/root\.dataset\.stateCardVersion!==version/);
+});
