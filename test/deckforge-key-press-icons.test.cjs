@@ -176,3 +176,28 @@ test('host manifest has non-destructive OFF ON artwork fallback',()=>{
  const css=fs.readFileSync(path.join(__dirname,'../app/streamdeck-editor/style.css'),'utf8');
  assert.match(css,/grid-template-rows:auto auto;align-items:start/);
 });
+
+test('paired OFF ON artwork maps correctly regardless of launching card and clicked filename',()=>{
+ const begin=src.indexOf('function iconPairType(icon){');
+ const end=src.indexOf('function renderIconLibrary(){',begin);
+ assert.ok(begin>=0&&end>begin);
+ const source=src.slice(begin,end);
+ for(const selectedCard of ['off','on']){
+  for(const clickedState of ['off','on']){
+   const settings={sdkStateIcons:{}};
+   const image={filename:'room/fan_'+clickedState+'.png'};
+   const pair=vm.runInNewContext(source+';iconPairType(icon)',{icon:image});
+   assert.equal(pair.state,clickedState);
+   const opposite=clickedState==='off'?'on':'off';
+   // Card selection must not override the true state of the selected file.
+   const values={off:'OFF_IMAGE',on:'ON_IMAGE'};
+   vm.runInNewContext(source+';applyMatchedStateIcons(settings,pair,png,otherPng,"test-pack")',{
+    settings,pair,png:values[clickedState],otherPng:values[opposite],selectedCard
+   });
+   assert.equal(settings.sdkStateIcons.off.value,'OFF_IMAGE',selectedCard+' / '+clickedState);
+   assert.equal(settings.sdkStateIcons.on.value,'ON_IMAGE',selectedCard+' / '+clickedState);
+   assert.equal(settings.sdkStateIcons.off.packId,'test-pack');
+   assert.equal(settings.sdkStateIcons.on.packId,'test-pack');
+  }
+ }
+});
