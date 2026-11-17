@@ -293,14 +293,15 @@ function isMomentaryIconAction(item){
 function hasStateTitlePair(item){
   return item?.type==='sd-plugin'||isMomentaryIconAction(item);
 }
+function defaultStateTitlePair(item){
+  return {
+    first:{enabled:item.titleStyle?.visible!==false,title:item.title||'',style:{...DEFAULT_TITLE_STYLE,...item.titleStyle}},
+    second:{enabled:false,title:item.title||'',style:{...DEFAULT_TITLE_STYLE,...item.titleStyle}}
+  };
+}
 function ensureStateTitlePair(item){
   item.settings??={};
-  if(!item.settings.stateTitles){
-    item.settings.stateTitles={
-      first:{enabled:item.titleStyle?.visible!==false,title:item.title||'',style:{...DEFAULT_TITLE_STYLE,...item.titleStyle}},
-      second:{enabled:false,title:item.title||'',style:{...DEFAULT_TITLE_STYLE,...item.titleStyle}}
-    };
-  }
+  if(!item.settings.stateTitles)item.settings.stateTitles=defaultStateTitlePair(item);
   return item.settings.stateTitles;
 }
 function resolveStateTitle(item,second){
@@ -1666,8 +1667,11 @@ function bindTitleStyle(item){
   };
   document.addEventListener("pointerdown",event=>{
     if(!menu.isConnected)return;
-    if(!menu.contains(event.target)&&!toggle.contains(event.target)){
+    if(!menu.contains(event.target)&&!toggle.contains(event.target)&&
+      !event.target.closest?.('.state-title-style')){
       menu.hidden=true;toggle.setAttribute("aria-expanded","false");
+      root.querySelectorAll('.state-title-style').forEach(button=>
+        button.setAttribute('aria-expanded','false'));
     }
   },{signal:inspectorListener.signal});
 }
@@ -1971,7 +1975,8 @@ function renderControlInspector(){
   appendInspectorSaveBar(root);
 }
 function attachStateTitleControls(card,item,which){
-  const config=ensureStateTitlePair(item)[which];
+  // Rendering and selecting an action must never mutate its stored SDK settings.
+  const config=(item.settings?.stateTitles||defaultStateTitlePair(item))[which];
   const row=document.createElement('div');row.className='state-title-control';
   const check=document.createElement('input');check.type='checkbox';check.checked=config.enabled;
   check.className='state-title-visible';check.setAttribute('aria-label',(which==='first'?'제목 1':'제목 2')+' 표시');
@@ -1992,14 +1997,18 @@ function attachStateTitleControls(card,item,which){
     $('inspector')._openStateTitleStyle?.(which,styleButton);
   });
   check.addEventListener('change',()=>{
-    config.enabled=check.checked;
+    const saved=ensureStateTitlePair(item)[which];
+    saved.enabled=check.checked;
     input.disabled=!check.checked;styleButton.disabled=!check.checked;
-    if(!check.checked&&$('inspector').dataset.activeTitle===which)
+    if(!check.checked&&$('inspector').dataset.activeTitle===which){
       $('title-style-popover').hidden=true;
+      styleButton.setAttribute('aria-expanded','false');
+    }
     persistInspectorChange();renderGrid();refreshTitlePreview(item);
   });
   input.addEventListener('input',()=>{
-    config.title=input.value;
+    const saved=ensureStateTitlePair(item)[which];
+    saved.title=input.value;
     // The legacy title is a fallback for imported versions, not the active state title.
     persistInspectorChange();renderGrid();refreshTitlePreview(item);
   });
