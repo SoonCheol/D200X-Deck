@@ -315,6 +315,7 @@ function newAction(id){
 function currentPage(){return DeckCore.currentActions(state);}
 function reservedWideSlot(index){return index===13;}
 function setItem(index,item){
+  if(inspectorSession?.dirty){showInspectorLeaveDialog(()=>setItem(index,item));return;}
   if(reservedWideSlot(index)){
     window.d200xActionStatus?.('가로 화면은 표시 모드 전용입니다. 일반 액션을 등록할 수 없습니다.');
     state.selected=index;render();return;
@@ -370,12 +371,14 @@ function showControlMenu(index,x,y){
   menu.hidden=false;
 }
 function choose(index){
+  if(state.selected===index)return;
   if(inspectorSession?.dirty){showInspectorLeaveDialog(()=>choose(index));return;}
   if(state.selected!==index){controlGesture='down';knobTab='normal';}
   state.selected=index;persist();render();
 }
 function controlDrop(index,id,gesture='down'){
   if(!isAssignableAction(id))return;
+  if(inspectorSession?.dirty){showInspectorLeaveDialog(()=>controlDrop(index,id,gesture));return;}
   const binding=DeckCore.controlBinding(state,index);
   if(!binding)return;
   clearOldSdkVisual(index,({'holdLeft':'hold-left','holdRight':'hold-right'})[gesture]||gesture);
@@ -532,8 +535,21 @@ function renderGrid(){
         b.replaceChildren(preview);
       }).catch(error=>console.warn("버튼 이미지 미리보기 실패",error));
     }
-    b.addEventListener("click",()=>{if(folderBack){DeckCore.exitFolder(state);persist();render();}else if(i===13&&wideDisplayAvailable()){state.selected=i;advanceWideDisplay();}else choose(i);});
-    b.addEventListener("contextmenu",ev=>{ev.preventDefault();choose(i);showMenu(i,ev.clientX,ev.clientY);});
+    b.addEventListener("click",()=>{
+      if(folderBack){
+        if(inspectorSession?.dirty){showInspectorLeaveDialog(()=>{DeckCore.exitFolder(state);persist();render();});return;}
+        DeckCore.exitFolder(state);persist();render();
+      }else if(i===13&&wideDisplayAvailable()){
+        if(inspectorSession?.dirty){showInspectorLeaveDialog(()=>{state.selected=i;advanceWideDisplay();});return;}
+        state.selected=i;advanceWideDisplay();
+      }else choose(i);
+    });
+    b.addEventListener("contextmenu",ev=>{
+      ev.preventDefault();
+      const open=()=>{choose(i);showMenu(i,ev.clientX,ev.clientY);};
+      if(inspectorSession?.dirty&&state.selected!==i)showInspectorLeaveDialog(open);
+      else open();
+    });
     b.addEventListener("dragover",ev=>{if(!reservedWideSlot(i)){ev.preventDefault();b.classList.add("drag-over");}});
     b.addEventListener("dragleave",()=>b.classList.remove("drag-over"));
     b.addEventListener("drop",ev=>{if(reservedWideSlot(i))return;ev.preventDefault();b.classList.remove("drag-over");if(importFusionDraggedCommand(ev,i))return;const file=ev.dataTransfer?.files?.[0];if(file&&/\.(exe|lnk|bat|cmd)$/i.test(file.name||'')){try{const filePath=window.deckBridge?.droppedFilePath(file);if(filePath){void registerDroppedApplication(i,filePath);return;}}catch(error){window.d200xActionStatus?.('드래그한 파일 경로 오류: '+String(error?.message||error));return;}}const id=ev.dataTransfer.getData("application/x-d200x-action");if(isAssignableAction(id))setItem(i,newAction(id));});
@@ -565,14 +581,19 @@ function renderPhysicalControls(){
     button.addEventListener("click",()=>choose(index));
     button.addEventListener("contextmenu",event=>{
       event.preventDefault();
-      state.selected=index;controlGesture='down';
-      renderPhysicalControls();renderControlInspector();
-      showControlMenu(index,event.clientX,event.clientY);
+      const open=()=>{
+        state.selected=index;controlGesture='down';
+        renderPhysicalControls();renderControlInspector();
+        showControlMenu(index,event.clientX,event.clientY);
+      };
+      if(inspectorSession?.dirty&&state.selected!==index)showInspectorLeaveDialog(open);
+      else open();
     });
     button.addEventListener("dragenter",()=>{
       // Reveal the gesture targets below while an action is dragged over
       // the physical button/knob, without replacing the drop target.
       if(state.selected!==index){
+        if(inspectorSession?.dirty)return;
         state.selected=index;controlGesture='down';
         persist();renderControlInspector();
       }
@@ -631,7 +652,7 @@ function openSdkPluginHelp(plugin,isFusion){
   dialog.replaceChildren();
   const heading=document.createElement('div');heading.style.cssText='display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:12px';
   const label=document.createElement('strong');label.textContent=isFusion?'Fusion 360 사용 방법':'Home Assistant 사용 방법';
-  const close=document.createElement('button');close.type='button';close.textContent='닫기 ×';
+  const close=document.createElement('button');close.type='button';close.className='sdk-plugin-help-close';close.textContent='닫기 ×';
   close.onclick=()=>dialog.close();
   heading.append(label,close);dialog.append(heading);
   if(isFusion){
@@ -1617,9 +1638,11 @@ for(const type of ['click','change','input','drop'])document.addEventListener(ty
 },true);
 document.addEventListener('click',event=>{
   if(!inspectorSession?.dirty)return;
-  // The modal is not part of the inspector. Never intercept its own controls:
-  // otherwise Cancel / Discard / Save and move all become unclickable.
-  if(event.target.closest('#inspector-unsaved-dialog, .inspector-help-dialog'))return;
+  // Viewing help, opening a picker, searching, or choosing an icon stays in the
+  // same editing session. Do not mistake these separate overlays for navigation.
+  if(event.target.closest('#inspector-unsaved-dialog, .inspector-help-dialog, #sdk-plugin-help-dialog, #icon-maker'))return;
+  if(event.target.closest('#icon-library')&&!event.target.closest('.icon-pack-remove'))return;
+  if(event.target.closest('#action-search, .library-tabs, #profile-trigger, .profile-row-gear, .profile-global-trigger, .group-title'))return;
   const root=$('inspector');
   if(root?.contains(event.target))return;
   // Key/knob selection already checks for unsaved edits in choose(index).
