@@ -121,6 +121,23 @@ class StreamDeckPluginHost{
     })().catch(error=>{this.rootReady=null;throw error;});
     return this.rootReady;
   }
+  async defaultArtwork(dir,base){
+    if(!filename(base))return null;
+    const clean=base.replace(/\.(png|svg|jpe?g|webp)$/i,'');
+    const candidates=[clean+'@2x.png',clean+'.png',clean+'@2x.webp',clean+'.webp',clean+'.svg',clean+'.jpg',clean+'.jpeg'];
+    for(const name of candidates){
+      if(!filename(name))continue;
+      const full=path.resolve(dir,name);
+      if(!full.startsWith(dir+path.sep))continue;
+      try{
+        const stat=await fs.promises.stat(full);
+        if(!stat.isFile()||stat.size>1024*1024)continue;
+        const mime=name.endsWith('.svg')?'image/svg+xml':name.endsWith('.webp')?'image/webp':name.endsWith('.jpg')||name.endsWith('.jpeg')?'image/jpeg':'image/png';
+        return 'data:'+mime+';base64,'+(await fs.promises.readFile(full)).toString('base64');
+      }catch(error){if(error.code!=='ENOENT')throw error;}
+    }
+    return null;
+  }
   async list(){
     await this.ensureRoot();
     const dirs=await fs.promises.readdir(this.root,{withFileTypes:true});
@@ -135,8 +152,10 @@ class StreamDeckPluginHost{
         if(!target.startsWith(dir+path.sep))continue;
         await fs.promises.access(target);
         items.push({uuid:manifest.UUID,name:String(manifest.Name||manifest.UUID),
-          version:String(manifest.Version||''),actions:manifest.Actions.map(a=>({uuid:a.UUID,name:a.Name,
-            states:Array.isArray(a.States)?a.States.length:1,controllers:Array.isArray(a.Controllers)?a.Controllers:['Keypad'],propertyInspectorPath:a.PropertyInspectorPath||''}))});
+          version:String(manifest.Version||''),actions:await Promise.all(manifest.Actions.map(async a=>({uuid:a.UUID,name:a.Name,
+            states:Array.isArray(a.States)?a.States.length:1,controllers:Array.isArray(a.Controllers)?a.Controllers:['Keypad'],propertyInspectorPath:a.PropertyInspectorPath||'',
+            defaultImages:{off:await this.defaultArtwork(dir,a.States?.[0]?.Image||a.Icon),on:await this.defaultArtwork(dir,a.States?.[1]?.Image||a.States?.[0]?.Image||a.Icon)}
+          })))});
       }catch{}
     }
     return items;
