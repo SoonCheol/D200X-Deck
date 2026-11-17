@@ -1,3 +1,11 @@
+## 2026-11-17 — 1~4차 구조·기능 수정 (사용자 데이터 이관 생략 승인, Windows 실기 검증 대기)
+
+- **1차 Electron 입력:** 지원하지 않는 `prompt()` 호출을 `askDeckForgeText` / 검색 가능한 `chooseDeckForgeEntity`의 앱 내부 `<dialog>`로 교체. `.deckforge-input-dialog`은 미저장 편집 이탈 경고 예외에 포함. SDK 외부 속성창의 `settings` 이벤트는 라이브 `(slot,gesture)`를 확인해 확정 스냅샷 동일 슬롯만 갱신·영속 저장하고, 성공한 뒤에만 라이브 `pluginSettings` 및 `inspectorSession.snapshot`을 동기화. 임시 제목·아이콘은 여전히 미저장, 취소해도 외부 확정 SDK 설정은 유지. HA 미리보기는 노브/측면 버튼으로 넘어가도 초기화.
+- **2차 SDK 진단:** 설치 플러그인 목록 갱신 시 오른쪽 OFF/ON 기본 이미지 썸네일만 직접 갱신하여 편집 중 입력 포커스 보존. Key Up/Down 파일 가져오기 비-EXE 안내 추가. SDK manifest/경로 오류는 숨기지 않고 로그·상태 메시지로 보고.
+- **3차 `openUrl` 보안:** 외부 SDK 플러그인 요청 링크는 사용자 확인 대화상자에서 승인된 경우에 한해 기본 브라우저로 열기. HTTP/HTTPS만 허용, 인증정보·제어 문자·다른 스킴 거부. 원본 HA/Fusion 동작·인증 저장 위치 변경 없음.
+- **4차 파일 기반 프로필:** 사용자 승인에 따라 기존 localStorage 프로필 데이터 **자동 이관을 생략**. Windows Electron 앱은 신규 `%APPDATA%\\DeckForge\\Profiles\\profiles.json`에 프로필/액션 JSON을 원자적 temp+rename으로 저장하고 직전 버전을 `profiles.json.bak`로 보관. PNG/JPEG/WebP/GIF/SVG 데이터 URL 이미지는 `%APPDATA%\\DeckForge\\Resources\\Icons\\`에 SHA-256 해시 파일로 중복 제거 후 저장·복원. 기존 localStorage 데이터는 삭제하지 않지만 새 저장소가 기본이므로 이전 구성은 자동 표시되지 않음. 사용자 작업 데이터가 아직 테스트 단계이므로 정식 마이그레이션은 구현하지 않음. 파일을 읽을 수 없는 경우 빈 상태로 덮어쓰지 않도록 저장을 차단.
+- **검증:** 프로필 아이콘 분리·복구·원자적 백업 및 SDK 설정 확정/임시/실패/고정/폴더/노브 테스트 추가. GitHub CI와 Windows 빌드의 실제 성공 여부, 실물 D200X/Windows GUI 검증 여부를 각각 구분해 기록해야 함. 인스펙터 기존 4영역·5줄 아이콘 카드·폰트 정렬 UI 변경 없음. 고정 브랜치 `codex/streamdeck-761-clean-editor`, Draft PR #5 미병합.
+
 ## 2026-11-17 — 제목 정렬 버튼 SVG 가독성 개선
 
 - **범위:** 글꼴 속성 메뉴 `.title-align`의 기존 3개 버튼(bottom/middle/top) 내부 표시만 유니코드 문자에서 개별 20×20px 인라인 SVG로 교체. 버튼 크기·순서·간격(3px)·패딩(6px)·파란색 선택 강조 및 저장·정렬 동작 유지.
