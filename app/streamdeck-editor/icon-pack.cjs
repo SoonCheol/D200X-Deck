@@ -11,7 +11,7 @@ const MAX_EXPANDED=24*1024*1024;
 const MAX_ICON=512*1024;
 const MAX_ICONS=400;
 const MAX_PACKS=32;
-const MEDIA={png:'image/png',jpg:'image/jpeg',jpeg:'image/jpeg',webp:'image/webp',gif:'image/gif'};
+const MEDIA={png:'image/png',jpg:'image/jpeg',jpeg:'image/jpeg',webp:'image/webp',gif:'image/gif',svg:'image/svg+xml'};
 
 function safePart(value){
   return typeof value==='string'&&value.length>0&&value.length<=250&&
@@ -32,9 +32,11 @@ function validImage(bytes,mime){
   if(mime==='image/jpeg')return bytes.length>4&&bytes[0]===0xff&&bytes[1]===0xd8;
   if(mime==='image/gif')return bytes.subarray(0,6).toString('ascii').match(/^GIF8[79]a$/)!==null;
   if(mime==='image/webp')return bytes.length>=12&&bytes.toString('ascii',0,4)==='RIFF'&&bytes.toString('ascii',8,12)==='WEBP';
+  if(mime==='image/svg+xml')return /^\\s*(?:<\\?xml[^>]*>\\s*)?<svg[\\s>]/i.test(bytes.toString('utf8'))&&
+    !/<!DOCTYPE|<!ENTITY|<script\\b|<foreignObject\\b|\\son[a-z]+\\s*=|(?:href|src)\\s*=\\s*['\"]\\s*(?:https?:|file:|javascript:)/i.test(bytes.toString('utf8'));
   return false;
 }
-async function parseIconPack(input){
+async function parseIconPack(input,render,displayName='가져온 아이콘팩'){
   if(!Buffer.isBuffer(input)||input.length<10||input.length>MAX_ARCHIVE)
     throw new Error('아이콘팩 크기는 20MB 이하여야 합니다.');
   if(input.toString('latin1',0,2)!=='PK')throw new Error('ZIP 기반 Stream Deck 아이콘팩이 아닙니다.');
@@ -50,25 +52,24 @@ async function parseIconPack(input){
     expanded+=length;
     if(expanded>MAX_EXPANDED)throw new Error('압축 해제 용량 제한을 초과했습니다.');
   }
-  const candidates=entries.filter(f=>!f.dir&&/^(?:[^/]+\.sdIconPack\/)?manifest\.json$/i.test(f.name));
-  if(candidates.length!==1)throw new Error('manifest.json이 없거나 여러 개입니다.');
-  const root=candidates[0].name.slice(0,-'manifest.json'.length);
-  if(root&&!safePart(root.replace(/\/$/,'')))throw new Error('아이콘팩 폴더 이름이 올바르지 않습니다.');
-  const named=name=>zip.file(root+name);
-  const manifest=checkedJSON(await candidates[0].async('nodebuffer'),'manifest');
-  const index=named('icons.json');
-  if(!index)throw new Error('icons.json이 없습니다.');
-  const items=checkedJSON(await index.async('nodebuffer'),'icons');
+  const indexes=entries.filter(e=>!e.dir&&/(?:^|\/)icons\.json$/i.test(e.name));
+  const indexed=indexes.length===1;
+  const root=indexed?indexes[0].name.slice(0,-'icons.json'.length):'';
+  const manifestEntry=entries.find(e=>!e.dir&&e.name===root+'manifest.json');
+  const manifest=manifestEntry?checkedJSON(await manifestEntry.async('nodebuffer'),'manifest'):{};
+  const name=String(manifest.Name||manifest.name||displayName).trim().slice(0,120);
+  const version=String(manifest.Version||manifest.version||'1.0.0').trim().slice(0,40);
+  if(!name||!version)throw new Error('아이콘팩 이름 또는 버전이 올바르지 않습니다.');
+  const items=indexed?checkedJSON(await indexes[0].async('nodebuffer'),'icons'):
+    entries.filter(e=>!e.dir&&mimeOf(e.name)&&!/(?:^|\/)(?:icon|categoryicon|preview)\.(?:png|svg|jpe?g)$/i.test(e.name))
+      .map(e=>({path:e.name,name:path.posix.basename(e.name).replace(/\.[^.]+$/,'')}));
   if(!Array.isArray(items)||items.length===0||items.length>MAX_ICONS)
     throw new Error('아이콘은 1~400개만 지원합니다.');
-  const name=typeof manifest.Name==='string'?manifest.Name.trim():'';
-  const version=typeof manifest.Version==='string'?manifest.Version.trim():'';
-  if(!name||name.length>120||!version||version.length>40)
-    throw new Error('아이콘팩 이름 또는 버전이 올바르지 않습니다.');
+  const named=file=>zip.file((indexed?root+'icons/':'')+file);
   let size=0;
   const icons=[];
   for(const [i,item] of items.entries()){
-    if(!item||!safePart(item.path)||!mimeOf(item.path))
+    if(!item||!safeImagePath(item.path)||!mimeOf(item.path))
       throw new Error('아이콘 '+(i+1)+'의 파일 경로 또는 형식이 지원되지 않습니다.');
     const entry=named('icons/'+item.path);
     if(!entry||entry.dir)throw new Error('아이콘 파일이 없습니다: '+item.path);
@@ -78,11 +79,14 @@ async function parseIconPack(input){
       throw new Error('아이콘 이미지가 올바르지 않습니다: '+item.path);
     size+=bytes.length;
     if(size>MAX_EXPANDED)throw new Error('아이콘 전체 용량이 너무 큽니다.');
+    const image=render?await render(bytes,mime,item.path):
+      (mime==='image/svg+xml'?null:'data:'+mime+';base64,'+bytes.toString('base64'));
+    if(!image)throw Error('SVG 이미지 변환기가 필요합니다.');
     icons.push({
       name:typeof item.name==='string'&&item.name.trim()?item.name.slice(0,100):item.path,
       filename:item.path,
       tags:Array.isArray(item.tags)?item.tags.filter(x=>typeof x==='string').slice(0,30).map(x=>x.slice(0,60)):[],
-      image:'data:'+mime+';base64,'+bytes.toString('base64')
+      image
     });
   }
   return {
@@ -92,6 +96,36 @@ async function parseIconPack(input){
     icons
   };
 }
+
+function safeImagePath(value){
+  return typeof value==='string'&&value.length>0&&value.length<500&&
+    !value.includes('\\')&&!value.startsWith('/')&&value.split('/').every(safePart);
+}
+async function parseIconFolder(folder,render){
+  const root=path.resolve(folder),rootStat=await fs.lstat(root);
+  if(!rootStat.isDirectory()||rootStat.isSymbolicLink())throw Error('아이콘팩 폴더를 선택하세요.');
+  const zip=new JSZip();
+  let count=0,total=0;
+  async function collect(current,relative='',depth=0){
+    if(depth>8)throw Error('아이콘팩 폴더 깊이 제한 초과');
+    for(const entry of await fs.readdir(current,{withFileTypes:true})){
+      if(entry.isSymbolicLink())throw Error('심볼릭 링크는 가져올 수 없습니다.');
+      const name=relative?relative+'/'+entry.name:entry.name;
+      if(!safeImagePath(name))throw Error('안전하지 않은 아이콘 경로');
+      const full=path.join(current,entry.name);
+      if(entry.isDirectory()){await collect(full,name,depth+1);continue;}
+      if(!entry.isFile())continue;
+      if(++count>MAX_ICONS+30)throw Error('아이콘팩 항목 개수 제한 초과');
+      const stat=await fs.stat(full);
+      total+=stat.size;
+      if(stat.size>MAX_ICON&&mimeOf(name)||total>MAX_EXPANDED)throw Error('아이콘팩 크기 제한 초과');
+      if(mimeOf(name)||/(?:^|\/)(?:icons|manifest)\.json$/i.test(name))zip.file(name,await fs.readFile(full));
+    }
+  }
+  await collect(root);
+  return parseIconPack(await zip.generateAsync({type:'nodebuffer',compression:'DEFLATE'}),render,path.basename(root));
+}
+
 async function readPacks(filename){
   try{
     const raw=await fs.readFile(filename,'utf8');
@@ -132,4 +166,4 @@ async function removePack(filename,id){
   }catch(error){await fs.rm(temp,{force:true}).catch(()=>{});throw error;}
   return true;
 }
-module.exports={parseIconPack,readPacks,registerPack,removePack};
+module.exports={parseIconPack,parseIconFolder,readPacks,registerPack,removePack};
