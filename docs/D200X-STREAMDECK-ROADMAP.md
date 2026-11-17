@@ -1,4 +1,5 @@
-# D200X × Stream Deck 7.6.1 구현 기준·달성표
+# DeckForge 1.1 · D200X × Stream Deck 7.6.1 전체 개발 로드맵
+> **2026-11-17 문서 통합 안내:** 신규 세션의 필독 문서는 `AGENTS.md`, `docs/D200X-CURRENT-STATUS.md`, **이 로드맵** 3개뿐이다. **현재 구현·승인된 최신 인스펙터/Key Up·Down 예외 및 검증 판정은 통합 상태표가 우선**한다. 아래 날짜별 작업 기록/체크박스는 작성 시점 이력이며, 현 HEAD를 덮어쓰지 못한다. 과거 인수인계·계약 원문은 `docs/archive/`에 보존했고 자동 필독 대상이 아니다.
 
 ## 2026-11-15 개발 시작 기록 — Node.js SDK 호스트 1단계
 
@@ -24,7 +25,7 @@
 - **Windows 패키징/SDK 통합:** [#43688944909](https://github.com/SoonCheol/D200X-Deck/actions/runs/43688944909) **success**. 실제 Windows GitHub Actions 실행 환경에서 완성된 `D200X-StreamDeck-Preview.exe`를 `ELECTRON_RUN_AS_NODE=1`로 실행하여 **Node v24.22.1** 확인. 해당 EXE를 테스트 플러그인의 실제 Node 실행기로 지정하여 **SDK 테스트 12개 통과, 실패 0**(매니페스트/ZIP/폴더 가져오기, HTML/HA 호환용 모의 테스트, Node 프로세스·WebSocket 등록·키 입력 테스트 포함).
 - **Windows ZIP Artifact:** `D200X-StreamDeck-Device-Sync-win-x64`, ID **14151905591**, 170,372,503 bytes, 확인 당시 `expired=false`(일시적 보관).
 - **정확한 검증 한계:** 실제 Autodesk FusionStreamDeck 원본 `bin/plugin.js`를 Windows EXE에서 설치·실행하는 시험은 아직 하지 않았고, Fusion 360 Python 애드인·Property Inspector 검색·물리 D200X 버튼 실기는 미확인. 현재 테스트 Node 플러그인은 **모의 구현**. 모든 상용/네이티브/DRM Stream Deck 플러그인의 호환을 의미하지 않음.
-- **실패 및 재수정 기록:** Actions #43688432536 (YAML step 생성 오류), #43688638822 (루트·app 상대 경로 오류), #43688783937 (첫 테스트 경로 오류)를 수정하여 최종 #43688944909 success 달성. 오류 원인과 커밋별 기록은 [전용 인수인계](D200X-NODE-PLUGIN-HANDOFF-20261115.md)에 남김.
+- **실패 및 재수정 기록:** Actions #43688432536 (YAML step 생성 오류), #43688638822 (루트·app 상대 경로 오류), #43688783937 (첫 테스트 경로 오류)를 수정하여 최종 #43688944909 success 달성. 오류 원인과 커밋별 기록은 [전용 인수인계](archive/D200X-NODE-PLUGIN-HANDOFF-20261115.md)에 남김.
 - **다음 순서:** 원본 Fusion 플러그인 샘플을 통한 WebSocket/PI/아이콘 검증 강화 → 필요 시 SDK 호환 이벤트 추가 → 사용자 PC에서 Fusion 실제 명령·D200X 실기. 기존 사용자 데이터·HTML/HA 설정은 무손실 보존.
 
 ## 2026-11-15 플러그인 호환성 구현 현황
@@ -32,7 +33,7 @@
 - **코드 반영 1:** `0499bf2164a65af10ea5524a1fd01c5434993861` — Node.js 실행 호스트, Fusion manifest 검증, Electron Node 런타임 선택.
 - **코드 반영 2:** `f7207e8fe5a03fbe4704cc30cac8b274dcb18ab2` — `.sdPlugin` 폴더 가져오기, 실제 Node 프로세스 SDK WebSocket 통합 테스트, 플러그인 탭에 '폴더에서 추가'.
 - **검증:** [CI #43688058250](https://github.com/SoonCheol/D200X-Deck/actions/runs/43688058250), [입력 #43688053891](https://github.com/SoonCheol/D200X-Deck/actions/runs/43688053891), [Windows EXE #43688053882](https://github.com/SoonCheol/D200X-Deck/actions/runs/43688053882) 성공. 실제 Fusion/Python 애드인/D200X 실기는 미검증.
-- **다음:** 패키징된 EXE의 Node 24 실행 검사 후, Fusion 원본 명령/PI 실기. [전용 인수인계](D200X-NODE-PLUGIN-HANDOFF-20261115.md) 참조.
+- **다음:** 패키징된 EXE의 Node 24 실행 검사 후, Fusion 원본 명령/PI 실기. [전용 인수인계](archive/D200X-NODE-PLUGIN-HANDOFF-20261115.md) 참조.
 
 ## 2026-11-15 사용자 최종 목표 정의 — Stream Deck 플러그인을 D200X에서 그대로 사용
 
@@ -63,7 +64,7 @@
 
 > **문서 상태 정합성 공지 (2026-11-15):** 현재 코드 구현·미구현·실기 검증의 **유일한 기준은 [최신 기능 상태표](D200X-CURRENT-STATUS.md)**입니다. 이 문서의 아래 날짜별 절, 체크박스, 당시의 '최신'·'미구현'·'EXE 보류' 문구는 **작성 시점 이력**입니다. 2026-11-15 이후 기능 구현 여부를 여기의 과거 문구로 판단하거나 이미 구현한 기능을 재개발하지 마세요. 상세 이력은 삭제하지 않고 보존합니다.
 
-> **2026-11-14 최신 코드 진행:** P0 밝기·확대·초기화, C1 보정, P1 Windows 창·클립보드·캡처·파일/폴더 액션, P2 앱별 브러시·타임라인 단축키의 **코드/자동 검증** 진행. 원래 24개는 보존. P0-B 완전 통합, P1 출력 장치/마이크, P2 다중동작·앱별 매핑, 실기 안정성은 아직 남아 있다. EXE는 사용자 요청에 따라 보류. 세부 목록은 [기본 액션 확장 계획](D200X-BUILTIN-ACTIONS-EXPANSION.md)을 따른다.
+> **2026-11-14 최신 코드 진행:** P0 밝기·확대·초기화, C1 보정, P1 Windows 창·클립보드·캡처·파일/폴더 액션, P2 앱별 브러시·타임라인 단축키의 **코드/자동 검증** 진행. 원래 24개는 보존. P0-B 완전 통합, P1 출력 장치/마이크, P2 다중동작·앱별 매핑, 실기 안정성은 아직 남아 있다. EXE는 사용자 요청에 따라 보류. 세부 목록은 [기본 액션 확장 계획](archive/D200X-BUILTIN-ACTIONS-EXPANSION.md)을 따른다.
 
 > **단일 작업 기준 문서.** 작업을 시작하기 전 이 문서와 `AGENTS.md`를 읽고, 완료 시 체크박스와 근거 링크를 함께 갱신한다.
 >
@@ -121,7 +122,7 @@
 
 ## 최우선 목표 변경 — 오른쪽 기본 액션 24개 완성 (2026-11-14)
 
-사용자 결정: **먼저 오른쪽 패널의 기본 내장 액션을 마무리**하고, 프로필/폴더도 기본 카탈로그 범위에서 완성한다. D200X 확장 카탈로그는 이후 회귀/미완성 보충; **Ulanzi 플러그인 및 변환기는 마지막 별도 승인 단계**. 기존 상세 연구 [7.6.1 다각도 비교](D200X-STREAMDECK-RESEARCH-REVIEW-20261114.md) 유지.
+사용자 결정: **먼저 오른쪽 패널의 기본 내장 액션을 마무리**하고, 프로필/폴더도 기본 카탈로그 범위에서 완성한다. D200X 확장 카탈로그는 이후 회귀/미완성 보충; **Ulanzi 플러그인 및 변환기는 마지막 별도 승인 단계**. 기존 상세 연구 [7.6.1 다각도 비교](archive/D200X-STREAMDECK-RESEARCH-REVIEW-20261114.md) 유지.
 
 - [ ] **0. 복합 액션 공통 계약**: `multi` 순서/Delay, `multi-switch` 별도 두 상태, `random` 후보, `logic` 제스처 슬롯을 분리한 **호환 가능한 데이터 스키마·정규화·실행 계획**. 현재 저장된 `children[]`과 24개 ID를 변경 없이 유지하고 회귀 테스트.
 - [ ] **1~3. 다중 동작 3종**: 원본 속성창에서 하위 동작 추가·편집·재배치·제거, 순차/스위치/랜덤 실행. 실행 실패·재입력·지연 중 취소는 안전한 실행 계약으로 처리. 실행 UI/Windows/기기 검증 전 완료 체크 금지.
@@ -146,7 +147,7 @@
 
 ## 최신 연구로 조정한 개발 순서 — 2026-11-14
 
-**분석 근거·외부 출처·조사 차이·남은 검증:** [Stream Deck 7.6.1 다각도 조사와 계획 비교](D200X-STREAMDECK-RESEARCH-REVIEW-20261114.md). 이전 이력/체크 상태는 유지하고 **향후 순서만 이 절을 우선 적용**한다. 
+**분석 근거·외부 출처·조사 차이·남은 검증:** [Stream Deck 7.6.1 다각도 조사와 계획 비교](archive/D200X-STREAMDECK-RESEARCH-REVIEW-20261114.md). 이전 이력/체크 상태는 유지하고 **향후 순서만 이 절을 우선 적용**한다. 
 
 - [x] **계획/문헌 조사 완료:** 원본 24개 속성 관찰, Elgato 공식 가이드/7.6.1 릴리스, 사용자 후기를 다각도로 비교. **기능 구현/실기 완료 아님**. 문서 커밋은 GitHub 로그 참조.
 - [ ] **0. 복합 액션 명세** — 4개 유형(`multi/multi-switch/random/logic`)의 하위 액션/상태/제스처 스키마와 허용 중첩, 취소, 지연, 복원 방식을 명시하고 기존 자료 손실 없는 마이그레이션 테스트 작성.
@@ -288,7 +289,7 @@ editor-ui (Stream Deck식 UI, Electron renderer)
 
 ## 신규 기본 액션 확장 — 2026-11-14 합의/개발 시작
 
-**세부 단일 계획:** [D200X-BUILTIN-ACTIONS-EXPANSION.md](D200X-BUILTIN-ACTIONS-EXPANSION.md). Codex는 아래 진행표와 세부 계획을 함께 읽는다.
+**세부 단일 계획:** [D200X-BUILTIN-ACTIONS-EXPANSION.md](archive/D200X-BUILTIN-ACTIONS-EXPANSION.md). Codex는 아래 진행표와 세부 계획을 함께 읽는다.
 
 - [x] GitHub에 신규 24개 후보(기존 액션 재사용 포함), 8개 P0 핵심, 버튼·노브 공통화, 단계별 검증 기준 기록. 문서 커밋 `0e319814`.
 - [x] **코드 변경만:** 기존 노브 페이지/음량/확대축소에 단계량(1/2/5/10)과 회전 반전 옵션을 추가하고 구형 저장값 기본값 유지. `deck-core.js`, `editor.js`, `main.cjs`, `preload.cjs`, `test/streamdeck-core.test.cjs` 수정. **Node CI 및 Windows 프리뷰 빌드 성공 기록 존재, D200X 실기 미검증**, 기능 완료 아님.
@@ -305,11 +306,11 @@ editor-ui (Stream Deck식 UI, Electron renderer)
 
 ### 문서 상태 혼동 방지 — 2026-11-14
 
-과거 단계의 '미연결/미지원/실기 전' 문장은 작성 당시 기록이다. 최신 사실은 [완전 인수인계](D200X-COMPLETE-HANDOFF-20261114.md), 실제 현재 브랜치 소스와 CI/Actions 로그에서 확인한다. 페이지 이동은 **코드 수정 완료, 실물 해결 검증 대기**이며 '수정 작업을 아직 시작하지 않음'으로 되돌리면 안 된다. 기본 액션 확장은 [확장 계획](D200X-BUILTIN-ACTIONS-EXPANSION.md)을 기준으로 한다. 신규 빌드 파일은 해당 커밋의 GitHub Actions 성공 실행 페이지에서 `D200X-StreamDeck-Device-Sync-win-x64` ZIP을 제공한다.
+과거 단계의 '미연결/미지원/실기 전' 문장은 작성 당시 기록이다. 최신 사실은 [완전 인수인계](archive/D200X-COMPLETE-HANDOFF-20261114.md), 실제 현재 브랜치 소스와 CI/Actions 로그에서 확인한다. 페이지 이동은 **코드 수정 완료, 실물 해결 검증 대기**이며 '수정 작업을 아직 시작하지 않음'으로 되돌리면 안 된다. 기본 액션 확장은 [확장 계획](archive/D200X-BUILTIN-ACTIONS-EXPANSION.md)을 기준으로 한다. 신규 빌드 파일은 해당 커밋의 GitHub Actions 성공 실행 페이지에서 `D200X-StreamDeck-Device-Sync-win-x64` ZIP을 제공한다.
 
 ### Codex 독립 검증에서 발견된 추가 항목 — 2026-11-14
 
-원문 근거 및 코드 링크: [Codex 독립 소스 검증 보고서](D200X-CODEX-INDEPENDENT-REVIEW-20261114.md).
+원문 근거 및 코드 링크: [Codex 독립 소스 검증 보고서](archive/D200X-CODEX-INDEPENDENT-REVIEW-20261114.md).
 
 - [x] 대상 SHA `5d55f008`에 대한 Codex 검증 보고서 수령 및 GitHub 코드 근거 대조·기록. **실기 테스트 아님.**
 - [x] **C1 코드·회귀 테스트 해결:** 구형 페이지별 서로 다른 할당이 있으면 `page` 범위를 유지하고, 한 페이지만 할당된 기존 노브는 `global` 동작을 유지. GitHub 입력 자동 테스트 성공(실기/GUI 검증과 별개).
@@ -322,7 +323,7 @@ editor-ui (Stream Deck식 UI, Electron renderer)
 
 ### GitHub Windows 실행 검증 결과 — 2026-11-14
 
-자세한 실행 명령·검증 대상 SHA·로그·미검증 범위: [D200X-CLI-TEST-REPORT.md](D200X-CLI-TEST-REPORT.md).
+자세한 실행 명령·검증 대상 SHA·로그·미검증 범위: [D200X-CLI-TEST-REPORT.md](archive/D200X-CLI-TEST-REPORT.md).
 
 - [x] GitHub Windows 실행기에서 물리 버튼·노브 모의 이벤트를 통한 **실제 Node.js 테스트 실행**. [Actions #43577138990](https://github.com/SoonCheol/D200X-Deck/actions/runs/43577138990): **25개 중 24개 통과, 1개 실패**.
 - [x] 구형 페이지별 물리 버튼 할당 C1 문제 **모의 실행으로 실패 재현** (기대 페이지 0, 실제 1). **버그 수정은 아직 안 됨**.

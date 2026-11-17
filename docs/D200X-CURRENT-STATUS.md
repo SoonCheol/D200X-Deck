@@ -1,578 +1,98 @@
-## 2026-11-17 — 상태별 제목 미리보기 및 세 가지 회귀 수정
-
-- **수정:** `test/deckforge-dual-state-titles.test.cjs`의 글꼴 속성 선택 함수 선택자 검사를 실제 코드에 일치시켜 실패하던 검사를 복구. 카드 T⌄를 연속 클릭할 때 닫히도록 pointerdown 예외 처리, 바깥 클릭·체크 해제 시 `aria-expanded` 초기화.
-- **선택/렌더 시 데이터 비변경:** `attachStateTitleControls`는 `defaultStateTitlePair` 읽기 전용 기본값을 표시하고, 변경 이벤트가 실제로 발생한 경우에만 `ensureStateTitlePair`로 상태별 제목 저장값을 만든다. 선택만 해도 스냅샷이 변경되거나 기존 SDK 실시간 `setTitle`을 덮는 문제 방지.
-- **신규 상태 아이콘 자체 제목 렌더:** `refreshStateTitleCards`가 카드별 사용자 이미지와 제목·정렬·글꼴·윤곽선 옵션을 실제 D200X 이미지 합성기 `renderDeckKeyImage`로 병합해 각각 미리보기 이미지로 표시. 제목·글꼴·체크 변경 시 두 카드를 다시 계산, 느린 비동기 요청의 구 버전 응답은 폐기. 기존 이미지 저장값은 변경하지 않는다.
-- **검증 범위:** Node 회귀·GitHub CI·Windows 패키징과 실제 GUI/D200X 동작은 별도로 구분. 레이아웃 계약의 2026-11-17 예외 절을 우선한다. 단일 브랜치 `codex/streamdeck-761-clean-editor`; Draft PR #5는 유지.
-
-## 2026-11-17 — 상태별 아이콘·제목 통합 배치 (Windows 화면 실측 검증 대기)
-
-- **사용자 최종 배치:** 미리보기 98px + OFF/Key Up 카드 + ON/Key Down 카드를 같은 가로줄에 배치. 카드 두 개 위에 **왼쪽 OFF 카드 시작선에 ‘⚙ 플러그인 속성 열기’**, **오른쪽 ON 카드 끝선에 ‘취소’·‘저장’** 배치. 상단 헤더 **‘▶ 실행 테스트’는 기존 자리에 유지**. 제목 입력란은 카드의 상태명 바로 아래 배치하고 별도 ‘제목’ 레이블 없이 input placeholder로 표시.
-- **제목 분리:** `settings.stateTitles.first/second`에 각 제목 문자열·활성화 체크·제목별 독립 스타일 저장. 둘 다 체크하면 상태별 각각 사용, 하나만 체크하면 두 상태 모두 그 제목·스타일 사용, 둘 다 해제하면 출력 안 함. 체크 해제 시 문자열과 스타일은 보존. 기존 `title`/`titleStyle`는 이전 액션·내보내기와의 호환을 위해 그대로 유지. 별도 설정이 없는 과거 액션은 기존 제목 표시. `DeckCore.cleanAction` 설정 스키마를 수정하지 않고 `settings`에 보관.
-- **스타일 프리셋:** 기존 단일 `deckforge-title-style-presets-v1` 라이브러리 그대로 공유. 각 카드의 글꼴 버튼은 동일한 팝오버를 자신에게 열되 해당 제목의 스타일 오브젝트만 변경. 기존 Pretendard·글꼴 크기·색·윤곽선·정렬 옵션 유지.
-- **스크롤 최소화:** 기존 404px 고정 아이콘 스트립 대신 미리보기 98px/간격 12px/가변 두 카드(간격 12px)를 단일 그리드에 배치. 이미지 영역은 정사각형 `aspect-ratio:1/1`이고 카드에 들어갈 경우 최대 약 141px, 화면 너비가 부족하면 카드 내에서 이미지가 자동 축소. 5개 버튼 76×25px·사이 간격 4px 유지. 일반 창의 가로 넘침은 제거하고 상태별 속성창에 더 많은 세로 공간 배정. 창 크기 및 다른 긴 액션 설정에 따라 세로 넘침이 남을 가능성은 실제 GUI로 별도 확인해야 하며 숨겨진 필드 삭제·임의 잘라내기는 금지.
-- **검증:** 상태별 제목 우선순위·독립 글꼴·단일 제목 공유·둘 다 숨김·기존 제목 fallback과 새 레이아웃 CSS 정적 회귀 검사 추가. CI/Windows 패키징 결과와 실제 화면·D200X 실기 검증 구분. 유일 브랜치 `codex/streamdeck-761-clean-editor`; Draft PR #5 유지, 병합 금지.
-
-## 2026-11-17 — OFF/ON 아이콘 카드 불필요한 가로 스크롤 완화
-
-- **사용자 화면:** OFF/ON 196px 카드 두 장 아래에 가로 스크롤바가 나타나고 첫 카드의 제목 일부가 잘린 상태 보고.
-- **원인:** `.inspector-icon-section`에서 404px 고정 아이콘 페어를 `max-width:calc(100% - var(--inspector-values-left))`로 제한하여 우측에 남아 있는 인스펙터 여백을 활용하지 못함.
-- **수정:** 오른쪽의 여유 여백 16px을 활용하도록 `max-width`에 16px을 추가하고 `margin-right:-16px` 적용. 아이콘 시작 위치 196px, 카드 196px×2/간격 12px, 이미지 84px, 메뉴 버튼 76×25px, OFF/ON 및 Key Up/Down 저장/동작 불변.
-- **제약:** 아이콘 페어 자체의 404px을 담지 못할 만큼 창이 실제로 좁아지면 원래 `overflow-x:auto`를 유지하여 카드 축소·줄바꿈·잘림을 방지. 이 경우의 스크롤은 의도된 좁은 창 대응.
-- **검증:** 스타일 계약 회귀 테스트 추가. Windows 화면에서 스크롤바가 실제로 사라지는지는 사용자 설치본 확인 필요; GitHub CI/Windows 빌드 성공은 별도 확인. 단일 개발 브랜치 및 Draft PR #5 유지.
-
-## 2026-11-17 — 외부 SDK 링크와 입력·프로필 오류 안내 보완
-
-- **SDK `openUrl`:** 인증된 플러그인/Property Inspector 연결에서 전달된 context 없는 `openUrl`도 HTTPS/HTTP 검증과 매번 사용자 승인 후 열 수 있게 허용. context가 명시됐으나 해당 플러그인에 귀속되지 않았거나 없는 경우 차단. 위험 스킴·URL 인증정보·제어문자·2048자 초과 제한 유지.
-- **텍스트 입력:** DeckForge 내부 텍스트 모달에서 공백만 입력하면 `setCustomValidity('값을 입력하세요.')`와 브라우저 기본 유효성 안내를 표시하고, 재입력 시 오류 상태 제거.
-- **프로필 손상 알림:** 읽기 실패 직후 사용자에게 모달 및 상태 메시지 표시. 데이터 손상 발생 시 새 빈 프로필을 기존 `profiles.json`에 덮어쓰지 못하도록 하는 `profileStorageFailure` 차단은 유지.
-- **회귀 테스트:** context 없는 인증된 플러그인 링크, 명시된 미등록 context 차단, 유해 URL 차단, 공백 입력 안내, 시작 시 프로필 오류 안내와 저장 차단 검사. Windows GUI·실물 D200X의 실제 검증은 별개. 화면 크기·레이아웃·기존 프로필 스키마 변경 없음. 브랜치 `codex/streamdeck-761-clean-editor`, Draft PR #5 미병합.
-
-## 2026-11-17 — 1~4차 구조·기능 수정 (사용자 데이터 이관 생략 승인, Windows 실기 검증 대기)
-
-- **1차 Electron 입력:** 지원하지 않는 `prompt()` 호출을 `askDeckForgeText` / 검색 가능한 `chooseDeckForgeEntity`의 앱 내부 `<dialog>`로 교체. `.deckforge-input-dialog`은 미저장 편집 이탈 경고 예외에 포함. SDK 외부 속성창의 `settings` 이벤트는 라이브 `(slot,gesture)`를 확인해 확정 스냅샷 동일 슬롯만 갱신·영속 저장하고, 성공한 뒤에만 라이브 `pluginSettings` 및 `inspectorSession.snapshot`을 동기화. 임시 제목·아이콘은 여전히 미저장, 취소해도 외부 확정 SDK 설정은 유지. HA 미리보기는 노브/측면 버튼으로 넘어가도 초기화.
-- **2차 SDK 진단:** 설치 플러그인 목록 갱신 시 오른쪽 OFF/ON 기본 이미지 썸네일만 직접 갱신하여 편집 중 입력 포커스 보존. Key Up/Down 파일 가져오기 비-EXE 안내 추가. SDK manifest/경로 오류는 숨기지 않고 로그·상태 메시지로 보고.
-- **3차 `openUrl` 보안:** 외부 SDK 플러그인 요청 링크는 사용자 확인 대화상자에서 승인된 경우에 한해 기본 브라우저로 열기. HTTP/HTTPS만 허용, 인증정보·제어 문자·다른 스킴 거부. 원본 HA/Fusion 동작·인증 저장 위치 변경 없음.
-- **4차 파일 기반 프로필:** 사용자 승인에 따라 기존 localStorage 프로필 데이터 **자동 이관을 생략**. Windows Electron 앱은 신규 `%APPDATA%\\DeckForge\\Profiles\\profiles.json`에 프로필/액션 JSON을 원자적 temp+rename으로 저장하고 직전 버전을 `profiles.json.bak`로 보관. PNG/JPEG/WebP/GIF/SVG 데이터 URL 이미지는 `%APPDATA%\\DeckForge\\Resources\\Icons\\`에 SHA-256 해시 파일로 중복 제거 후 저장·복원. 기존 localStorage 데이터는 삭제하지 않지만 새 저장소가 기본이므로 이전 구성은 자동 표시되지 않음. 사용자 작업 데이터가 아직 테스트 단계이므로 정식 마이그레이션은 구현하지 않음. 파일을 읽을 수 없는 경우 빈 상태로 덮어쓰지 않도록 저장을 차단.
-- **검증:** 프로필 아이콘 분리·복구·원자적 백업 및 SDK 설정 확정/임시/실패/고정/폴더/노브 테스트 추가. GitHub CI와 Windows 빌드의 실제 성공 여부, 실물 D200X/Windows GUI 검증 여부를 각각 구분해 기록해야 함. 인스펙터 기존 4영역·5줄 아이콘 카드·폰트 정렬 UI 변경 없음. 고정 브랜치 `codex/streamdeck-761-clean-editor`, Draft PR #5 미병합.
-
-## 2026-11-17 — 제목 정렬 버튼 SVG 가독성 개선
-
-- **범위:** 글꼴 속성 메뉴 `.title-align`의 기존 3개 버튼(bottom/middle/top) 내부 표시만 유니코드 문자에서 개별 20×20px 인라인 SVG로 교체. 버튼 크기·순서·간격(3px)·패딩(6px)·파란색 선택 강조 및 저장·정렬 동작 유지.
-- **접근성:** SVG는 장식용(`aria-hidden`), 각 버튼에는 기존 `title`과 동일한 `aria-label` 지정. 상하 위치 차이를 윤곽선 내부 3개 가로선 위치로 표현.
-- **검증:** 기존 인스펙터 레이아웃 테스트에 SVG 크기/개수/버튼 스타일 유지 검사 추가. GitHub Actions 자동 CI·Windows 빌드는 해당 소스 커밋 결과 확인 후 기록; 실제 Windows GUI 시인성은 사용자 검증 대기. 다른 UI·기능·프로필 데이터 미변경, PR #5 미병합.
-
-## 2026-11-17 — 전용 아이콘팩 교차 대입 회귀 수정
-
-- **핵심 수정:** 아이콘팩의 상태별 짝이 검출된 경우, 선택한 카드(OFF/ON)가 아니라 실제 클릭된 파일명의 상태 `pair.state`에 해당 이미지를 저장하고 짝 파일을 반대 상태에 저장한다. OFF 카드+OFF 파일, OFF 카드+ON 파일, ON 카드+OFF 파일, ON 카드+ON 파일 네 조합을 테스트에 추가.
-- **부수 수정:** HA 미리보기의 이전 선택 키 상태를 전환 시 해제, SDK 상태 파일 선택의 중복 저장 호출 삭제, `stateArtwork()`에서도 `@2x` 우선 아트워크 로딩 공통화. 기존 승인 UI와 HA 실제 제어·인증·저장 구조는 변경하지 않음.
-- **검증:** 자동 CI 및 Windows 빌드 결과는 해당 코드 커밋 기준으로 확인해야 하며, Windows GUI·D200X 실기 검증은 별개.
-
-## 2026-11-17 — 상태별 아이콘 5개 메뉴 및 메인 미리보기 (Windows 실기 검증 대기)
-
-- **승인 UI 보존:** 기존 인스펙터 네 영역, OFF/ON 또는 Key Up/Key Down 두 카드 196px×2·12px 간격, 이미지 84×84px, 카드의 가로 정렬, 제목/속성, 저장/취소는 유지. 두 아이콘 카드의 오른쪽 메뉴를 동일 폭/높이의 5개 세로 버튼으로 확대: **라이브러리, 파일, 클립보드, 특수문자, 초기화**. 카드 높이만 내용에 맞춰 늘어남.
-- **메인 미리보기:** 상태별 카드가 있는 일반 키의 메인 아이콘 `+`/화살표 및 중복 메뉴 제거. 일반 순간형은 누름/뗌 미리보기 유지, HA 등 상태형 SDK는 미리보기 클릭으로 OFF↔ON 이미지만 교대; 실제 HA 제어 이벤트 발송 없음. 기존 `item.icon`은 보존.
-- **독립 적용:** SDK 파일·클립보드·특수문자·초기화는 해당 OFF/ON만 변경. Key Up/Down도 동일. `persistInspectorChange`를 통해 저장/취소 흐름에 참여하며 고정 버튼도 `visibleActions` 검사로 지원.
-- **자동 짝 찾기:** 같은 팩과 같은 원래 폴더, 같은 filename/name 분류만 매칭. `_off`, `-off`, ` off` / `on` 및 파일명의 `@2x`/`@3x` 지원. 짝이 실제로 있을 때만 양쪽을 설정하고 없으면 선택 카드만 변경. 기존 HA 동작·인증 데이터 변경 없음.
-- **기본 아트:** SDK 호스트가 설치된 플러그인 manifest `States[0/1].Image` 또는 `Icon`을 안전한 내부 파일 경로에서 읽어 `@2x` 우선 data URL로 읽기 전용 제공. 별도의 `sdkActionDefaults` 맵으로 UI의 보조 이미지에만 사용, `sdkVisuals` 실시간 이벤트는 그대로 유지, 초기 가짜 OFF 이벤트 없음.
-- **검증 현황:** GitHub 소스 수정 및 관련 회귀 테스트 추가. Actions CI/Windows 설치 빌드의 최종 결과 및 Windows GUI·D200X 실물 검증은 별도 확인 필요. 유일한 브랜치 `codex/streamdeck-761-clean-editor`, Draft PR #5 미병합.
-
-## 2026-11-17 — 통합 저장 폴더 및 아이콘팩 가져오기 확장
-
-- **공통 저장소:** 아이콘팩 `%APPDATA%\\DeckForge\\Resources\\IconPacks\\icon-packs-v1.json`, SDK 플러그인 `%APPDATA%\\DeckForge\\Plugins`로 변경. 기종별 IconPacks/Plugins 하위 구분 없음. `StreamDeck\\IconPacks`의 기존 JSON과 `StreamDeck\\Plugins`의 기존 SDK 플러그인 및 `.globals` 암호화 설정은 최초 사용 시 **복사만 하고 원본 보존**. 신경로 기존 동일 ID는 덮어쓰지 않고, 마이그레이션 마커로 삭제된 플러그인 재등장 차단.
-- **아이콘팩 입력:** 원본 `.streamDeckIconPack`, ZIP 및 폴더 가져오기를 라이브러리에 별도 버튼으로 연결. 원본 `icons.json`·`manifest.json`이 있으면 이름·태그 정보 이용, 일반 PNG/JPG/WebP/GIF/SVG 이미지 묶음이면 파일명 기반 인식. Ulanzi Studio 실제 패키지의 독자적인 모든 구조에 대한 검증은 원본 샘플로 별도 필요.
-- **이미지:** 144px 이하 지원 형식은 원본 MIME·바이트 유지(PNG/GIF 빠른 경로). 144px 초과 정적 PNG/JPG/WebP는 Chromium에서 비율 보존 축소 후 같은 인코딩 사용. SVG는 유해한 요소를 차단해 PNG 변환. **144px 초과 애니메이션 GIF/WebP는 프레임 보존 축소가 아직 없어 명시적 오류**(원본을 임의 정지 이미지로 바꾸지 않음). 미지원 포맷 자동 변환은 현재 SVG에 적용.
-- **용량:** 개당 2500개 아이콘 및 ZIP 60MB·압축 해제 100MB·개별 이미지 6MB로 제한, 원래 400개 제한을 완화. 849개 PNG 원본 아이콘팩 fixture, SVG와 유해 SVG 거부, 일반 ZIP, 원본 폴더, 중복 동일 폴더, SDK 플러그인 복사·암호화 설정 보존 단위 테스트 보강.
-- **비변경:** 기존 아이콘팩 원본·구 경로를 삭제하지 않음. OFF/ON 자동 짝 찾기, 승인 UI·속성창 카드, D200X 통신, HA/Fusion SDK 실행, 테마 저장 구조 보존. 테마팩 가져오기 미구현·후순위.
-- **검증:** 코드 SHA `fcb8d6ed0676b163f7194acd54a33dc6f66b4f3c` 기준 CI [#44052860269](https://github.com/SoonCheol/D200X-Deck/actions/runs/44052860269) 성공. Windows 설치 패키지 [#44052858206](https://github.com/SoonCheol/D200X-Deck/actions/runs/44052858206) **성공**, 설치형 아티팩트 `DeckForge-1.1-Setup-win-x64` ID `14314821215`, 포터블 `DeckForge-1.1-win-x64` ID `14313724570` 확인. 실제 Ulanzi Studio/Stream Deck 설치팩 샘플·Windows GUI·D200X 화면 실기 검증은 아직 완료하지 않음.
-- **브랜치:** `codex/streamdeck-761-clean-editor`만 사용, PR #5 Draft 유지·병합 금지.
-
-
-## 2026-11-17 — 미저장 경고 조건·SDK 도움말 버튼·제거 데이터 선택 (Windows 실기 검증 대기)
-
-- **미저장 편집 보호:** `app/streamdeck-editor/editor.js`에서 아이콘 라이브러리·아이콘 제작·SDK/속성 도움말·액션 검색·목록 탭·프로필 메뉴 열기/확장 등 편집 대상 이동이 아닌 클릭을 전역 이탈 경고 대상에서 제외. 반면 다른 키 선택, 실제 드래그 등록, 물리 컨트롤 선택과 우클릭, 폴더/와이드 진입은 미저장 보호 유지. 원래 `showInspectorLeaveDialog()`, 저장·취소 기능, SDK OFF/ON 아이콘 짝 찾기는 변경하지 않음.
-- **설명창 흰색 막대:** HA/Fusion 공통 `openSdkPluginHelp()`의 닫기 버튼에 `sdk-plugin-help-close` 클래스를 추가하고 해당 버튼에만 다크 CSS 적용. 기타 승인 레이아웃·카드 폭·순서는 수정하지 않음.
-- **NSIS 제거 선택:** `installer-fusion.nsh` `customUnInstall`에 Yes/No 질문. 기본 선택 No(데이터 보존), Yes일 때만 `$APPDATA\\DeckForge` 제거. 무인/자동 제거 시 데이터 보호. 기존 `deleteAppDataOnUninstall: false` 및 원클릭 설치 유지, 다른 앱·구 이름 폴더 삭제하지 않음.
-- **자동 테스트 추가:** `test/deckforge-key-press-icons.test.cjs`, `test/deckforge-install.test.cjs`에서 경고 분기, 버튼 클래스, 기본 데이터 보호를 정적 회귀 검사. Windows 실제 GUI에서 모든 클릭 동작 및 제거 확인창 표시·데이터 삭제/보존은 새 설치본 검증 필요.
-- **자동 검증:** 소스 커밋 `906044447fe3d9e274be81c64a25732a1bceb934` 기준 CI [#44044167611](https://github.com/SoonCheol/D200X-Deck/actions/runs/44044167611) 성공, Windows 통합 설치 빌드 [#44044167612](https://github.com/SoonCheol/D200X-Deck/actions/runs/44044167612) 성공. 설치형 아티팩트 `DeckForge-1.1-Setup-win-x64` ID `14309849345`, 포터블 `DeckForge-1.1-win-x64` ID `14310921490`. 기존 정적 테스트 문구 때문에 실패했던 중간 빌드는 테스트 계약 갱신 후 정상 통과.
-- **실기 남은 검증:** 실제 Windows 도움말 닫기 버튼 표시, 사용 중 미저장 경고 정확한 발생 조건, 제거창의 Yes/No 선택과 데이터 보존/삭제 여부는 사용자가 설치 후 확인 예정. 자동 검증과 실기 완료를 혼동하지 않음. Draft PR #5 유지.
-
-## 2026-11-17 — 플랫폼 우선 혼합형 데이터 폴더 적용
-
-- **적용:** `%APPDATA%\\DeckForge\\StreamDeck\\Plugins\\<UUID>.sdPlugin` (호스트 설치/탐색/실행/SDK global 설정); `%APPDATA%\\DeckForge\\StreamDeck\\IconPacks\\streamdeck-icon-packs-v1.json` (가져온 이미지 팩 JSON).
-- **Fusion 공통 캐시:** `%APPDATA%\\DeckForge\\Cache\\Fusion\\generated` (메인 앱 저장/조회 및 매니저 읽기 전용), `%APPDATA%\\DeckForge\\Cache\\Fusion\\original` (Fusion Manager 원본 PNG/SVG 수집 및 메인 앱·매니저 공통 조회). Autodesk Fusion 공식 애드인 `%LOCALAPPDATA%\\FusionStreamDeck` 등 외부 앱 경로는 변경하지 않음.
-- **테마:** 현재 라인형/컬러형/버튼형 액션 패널 테마 및 개별 이미지 재정의는 Electron `localStorage`에 저장. 독립된 테마팩 파일 로더/등록기는 아직 없음. 따라서 `StreamDeck\\Themes`, `Ulanzi\\Themes`, `Resources\\Themes`는 형식 지원 도입 시 만들고, 현재 localStorage를 억지로 이사시키지 않음. 마찬가지로 Ulanzi 호스트 미구현이므로 `Ulanzi\\Plugins`는 아직 생성하지 않음. 공통 `Resources\\IconPacks`는 미래의 공통 포맷만 저장.
-- **비변경:** 기존 설치의 데이터 자동 복사·이전·삭제 없음. 프로필(localStorage), HA 보안 설정, 사용자 지정 아이콘/모양, 통합 플러그인 포함 및 설치 규칙 보존. 앱 설치 위치/제품명 유지. NSIS 제거시 사용자 데이터 삭제 선택 옵션은 **별도 후속 요구**로 아직 미구현.
-- **검증:** SDK 호스트 테스트의 실제 설치 폴더, 설치형 경로 계약과 Fusion Manager 공유 캐시 테스트 갱신. 사용자가 새 설치본에서 HA·Fusion 연동 실기 확인 예정. CI/Windows 패키징 성공 여부는 별도 기록.
-
-## 2026-11-17 — DeckForge 데이터 경로 통일
-
-- 새 Windows 사용자 데이터 루트: `%APPDATA%\\DeckForge`. SDK 플러그인: `%APPDATA%\\DeckForge\\streamdeck-sdk-plugins\\<UUID>.sdPlugin`; Fusion 아이콘 캐시: `%APPDATA%\\DeckForge\\fusion-command-icons`.
-- `app/streamdeck-editor/main.cjs`의 `app.setPath('userData',...)`와 `tools/fusion-manager/main.cjs` 공유 캐시 위치를 동일한 DeckForge 루트로 수정. 나머지 메인 앱 캐시·설정은 이미 `app.getPath('userData')` 기반.
-- 사용자 지시대로 구 폴더 데이터의 자동 이전·복사·삭제를 수행하지 않는다. 이전 빌드의 프로필/플러그인은 별도 경로에 남고 자동 승계되지 않는다.
-- `FusionStreamDeck` 공식 Autodesk Fusion 애드인명, GitHub 저장소 `D200X-Deck` 및 과거 빌드/진행 문서의 역사적 식별자는 변경하지 않는다. NSIS 설치 제품명 및 설치 위치 `DeckForge`는 유지.
-- `test/deckforge-install.test.cjs`에 메인 앱/Fusion Manager의 동일 데이터 루트 검증 추가. PC에 설치된 프로그램이나 로컬 사용자 데이터는 조작하지 않음.
-
-## 2026-11-17 — 속성창 일괄 정렬·Windows 프로그램 등록/아이콘/실행 인수 작업 완료 (실기 대기)
-
-- **레이아웃 기준:** [속성창 고정 4영역 계약](D200X-INSPECTOR-LAYOUT-CONTRACT-20261117.md) 보존. 일반 키의 제목→속성→아이콘 카드(한 줄 가로)→취소/저장 순서 유지. SDK 상태형 OFF/ON, Fusion Key Up/Down 별도 선택, 기존 아이콘/설정 보존.
-- **이번 추가 수정:** 공통 `check()` 생성 체크박스(닫기 강제 종료, 응용 프로그램 앞으로 가져오기 등) 좌측 값 기준 정렬. 폴더 생성의 자동 나가기/대기 시간 압축그룹 해제, `초`를 숫자 입력 내부 오른쪽에 표기. 폴더 내부 편집 버튼 독립 위치/불필요한 구분선 스타일 정리.
-- **웹사이트:** 기존 URL 접두사에 따라 HTTPS 체크 동기화. 접두사 없는 주소는 기본 `http://`, HTTPS 체크면 `https://` 붙이기(포커스 이탈). 중복 접두사 방지.
-- **프로그램 열기:** `열기`/`응용 프로그램 열기`에 별도 인수 필드. 인수가 비어 있으면 기존 `shell.openPath` 그대로; 인수가 있을 때 EXE 대상으로 쉘 없는 `spawn` 인수 배열 사용. LNK 인수/대상 경로는 Electron `shell.readShortcutLink` 사용. 기존 설정 구조는 유지하고 비어 있는 인수는 실행계획의 기존 출력도 보존.
-- **자동 이름/아이콘 및 외부 파일 드래그:** 파일 선택 시 Windows EXE 버전 정보 이름 또는 파일명과 Electron `app.getFileIcon` 아이콘 자동 적용(수동 제목/아이콘 및 Key Up/Down 개별 설정 보존). 탐색기/바탕화면에서 EXE/LNK/BAT/CMD를 키로 드래그하면 `응용 프로그램 열기` 등록, 기존 등록 키를 교체할 땐 확인.
-- **검증:** 기존 테스트의 새 폴더 레이아웃 정합성 및 실행계획 호환성 오류 발견 후 보정. 최종 소스 커밋 `2d16ddff89e0eed217b5aa47d0ffbb33c1526e55`; [CI #43931989619](https://github.com/SoonCheol/D200X-Deck/actions/runs/43931989619) 성공, [Windows 빌드 #43931989607](https://github.com/SoonCheol/D200X-Deck/actions/runs/43931989607) 성공. 설치형 아티팩트 `DeckForge-1.1-Setup-win-x64` ID `14259846064`; 포터블 `DeckForge-1.1-win-x64` ID `14260070731`.
-- **검증 한계:** 자동 테스트/패키징 성공만 확인. 실제 Windows 아이콘 품질·EXE/LNK 외부 드래그(특히 권한 차이)·실행 인수/프로그램별 반응·실제 D200X 화면 정렬은 새 설치본의 실기 확인 전이며 성공이라고 주장하지 않는다.
-- **브랜치/PR:** `codex/streamdeck-761-clean-editor` 고정, PR #5 Draft 미병합 유지.
-
-## 2026-11-17 — Key Up/Down 아이콘 카드 레이아웃 원복 (기존 OFF/ON 디자인 그대로 재사용)
-
-- **사용자 실기 화면 비교:** 새 Key Up/Down 카드가 기존 OFF/ON 카드에 비해 지나치게 좁고 버튼이 이미지 아래쪽에 놓이는 문제 제보. 기존 OFF/ON **카드 DOM/CSS 클래스**를 다시 사용하도록 수정. 추가 `키 아이콘` 필드 레이블 삭제, 카드 헤더 설명을 **Key Up / Key Down**으로 단순화, 84×84 아이콘 왼쪽·76px 3개 버튼 오른쪽의 196px 고정 카드 레이아웃 통일. 기존 카드의 `라이브러리/파일/초기화` 버튼과 스타일을 그대로 사용하며 일반 기능·아이콘 저장 로직은 유지.
-- **소스:** `app/streamdeck-editor/editor.js`, `app/streamdeck-editor/style.css`, `test/deckforge-key-press-icons.test.cjs`.
-- **최종 빌드 소스 커밋:** `551fde1cf2c28643f49eaac079bea56083d992ca`; 중간 소스 커밋 `fe6d50f2b169cc638511879ae414d4072039505b` / `c130b07479abf38d44e3488b696b4ec856c2e997`.
-- **검증:** CI [#43916498452](https://github.com/SoonCheol/D200X-Deck/actions/runs/43916498452) 성공; Windows 통합 설치 빌드 [#43916498401](https://github.com/SoonCheol/D200X-Deck/actions/runs/43916498401) 성공.
-- **배포 아티팩트:** 설치형 `DeckForge-1.1-Setup-win-x64` ID `14250401385` (131,809,987 bytes), 포터블 `DeckForge-1.1-win-x64` ID `14249384415` (176,976,836 bytes). 조회 시 만료 전.
-- **검증 한계:** CI 및 패키징 통과만 검증. 실제 Windows 인스펙터 레이아웃과 D200X 물리 표시 확인은 사용자의 최신 설치본 실기 검증 대기. PR #5 Draft/미병합 유지.
-
-## 2026-11-17 — Key Up → Key Down 공통 아이콘: 코드·Windows 설치 빌드 성공 (실기 대기)
-
-- **승인된 UI 순서:** Key Up(평상시 기본 아이콘) **먼저**, Key Down(버튼 누르는 동안) **다음**. 속성창에서 각 이미지 별도 설정(라이브러리·파일·기본값), 기존 대표 아이콘이 양쪽의 초기 표시이며 동일 이미지면 기존 축소 애니메이션 유지. 대표 아이콘 마우스 누름 미리보기는 실제 명령·SDK·HA 호출 없이 화면 효과만 보여줌.
-- **액션 정책:** 모든 Autodesk Fusion 360 명령과 일반 순간형 액션에 적용. HA/상태형 플러그인·다중 동작 스위치·타이머·Key Logic·표시 전용/특수 액션은 기존 상태·실행 로직 보존. 세부 예외는 [예외 문서](D200X-KEY-DOWN-UP-ICON-EXCEPTIONS-20261117.md).
-- **기타 UI:** 인스펙터 아이콘 펼치기(∨)를 제목을 가리는 아래쪽에서 위쪽으로 이동. 자석 창 연결/다중 모니터 이동/태스크바 동시 복원/ON 파란 버튼은 독립 창 관리 후속 작업으로 분리(이번 코드 미변경).
-- **계획 문서 커밋:** `9aa7b7c145cbce9c3a7d09b8d98e3d6e774d7efd`, [상세 계획](D200X-KEY-UP-DOWN-IMPLEMENTATION-PLAN-20261117.md).
-- **기능 코드 커밋:** `672a2345ff1ea390ee9a2419c2fa6e99db61a8e4`; 독립 VM 테스트 범위 보정 `558a016c7c9344582279cfdf44ecb8b3bbab0d17`; 대표 아이콘 동일 이미지 마우스 축소 미리보기 보완 `19b0184bf37795e6c579da4593549bc012173f34`; 테스트 fixture 보정 및 **최종 빌드 소스 HEAD** `7f0e3eafbde7e582691322554fd22019dc579948`.
-- **검증:** [CI #43912345893](https://github.com/SoonCheol/D200X-Deck/actions/runs/43912345893) `completed/success`; [DeckForge 1.1 Windows 통합 빌드 #43912345982](https://github.com/SoonCheol/D200X-Deck/actions/runs/43912345982) `completed/success` (빌드 소스 `7f0e3eaf`).
-- **아티팩트:** 설치형 `DeckForge-1.1-Setup-win-x64` ID `14247728002` (131,810,131 bytes), 포터블 `DeckForge-1.1-win-x64` ID `14248267719` (176,976,980 bytes). GitHub 조회 당시 `expired=false`, 2026-11-30 UTC 만료 예정.
-- **실기 미확인:** Windows GUI에서 Up·Down 이미지 각각 선택·재시작 유지, 물리 D200X Key Down/Up 전환 시간, 일반 액션/Fusion/HA 회귀, 고정 키/페이지 전환, 미리보기와 기기 표시 동기화. CI 통과를 실기 통과로 단정하지 않는다.
-- PR #5 **Draft/미병합** 유지. 기존 사용자 데이터·프로필을 삭제하지 않음. 추가 코드 수정·빌드 없이 결과만 기록.
-
-## 2026-11-17 — PNG 캐시·고정 키 후속 수정 Windows 빌드 성공
-
-- **수정 커밋:** `add0b13249c3b8beaeb20109903a85849bfc6cb5` (`codex/streamdeck-761-clean-editor`).
-- **수정 내용:** `main.cjs`의 PNG 8바이트 매직 시그니처 비교 문자열을 전체 16자리 `89504e470d0a1a0a`로 교정. 고정 키 인스펙터 미리보기의 현재 액션 참조 비교를 `DeckCore.visibleActions(state)`로 변경. 고정 해제 시 구 SDK 시각 정보 제거. 실제 Fusion PNG IPC 캐시 읽기(원본 및 fallback)와 고정 키 미리보기 자동 회귀 테스트 추가.
-- **Windows 통합 빌드:** [GitHub Actions #43896225690](https://github.com/SoonCheol/D200X-Deck/actions/runs/43896225690) `completed/success`.
-- **추가 자동검증:** [D200X input execution verification #43896225566](https://github.com/SoonCheol/D200X-Deck/actions/runs/43896225566) `completed/success`.
-- **다운로드 아티팩트:** 설치형 `DeckForge-1.1-Setup-win-x64` (ID `14239303394`, 131,809,087 bytes); 포터블 `DeckForge-1.1-win-x64` (ID `14239188458`, 176,975,479 bytes). GitHub 조회 시 `expired=false`, 만료 예정 2026-11-30 UTC.
-- **검증 한계:** Windows 빌드 및 해당 자동검증 성공만 확인함. 실제 Fusion 명령 드래그, 연결·해제, 기존 오염 캐시, HA 및 D200X 물리 화면은 실기 미확인. UI·사용자 데이터 삭제 없음. PR #5는 Draft/미병합 유지.
-
-## 2026-11-17 — PNG 캐시 검사 및 고정 버튼 후속 수정 (빌드 검증 대기)
-
-- **배경:** Fusion SDK 컨텍스트·아이콘 수정 커밋 `2ed3b2e` 설치 빌드 성공 후, Gemini 사후 검토에서 PNG 매직바이트 비교 문자열이 12자리로 잘린 오류 확인. 정상 8바이트 PNG 헤더의 16자리 비교 문자열로 수정.
-- **고정 키:** `refreshSelectedVisual()`이 `currentPage()`가 아니라 `DeckCore.visibleActions(state)` 기준으로 선택 액션을 확인하도록 수정. 고정 키 해제(삭제 메뉴 및 우클릭 메뉴) 전에 기존 SDK 시각 상태 정리.
-- **검증:** 기존 `test/streamdeck-sdk-visual.test.cjs`에 Fusion IPC 정상 원본 PNG·fallback PNG 읽기와 고정 키 인스펙터 미리보기 회귀 테스트 추가. 테스트/Windows 설치 빌드 결과는 실제 CI 완료 후 별도 기록.
-- **범위:** UI 디자인, 기존 24개 액션, 프로필·HA 인증·사용자 지정 아이콘 보존. PR #5 병합 금지. 실물 D200X/Fusion 360 동작은 CI로 확인할 수 없음.
-
-## 2026-11-17 — Fusion SDK 컨텍스트·아이콘 수정 Windows 빌드 성공
-
-- **소스 커밋:** `2ed3b2e40dfe28ba6fe1faf65e49d1cfd4a62788` (`codex/streamdeck-761-clean-editor`).
-- **Windows 통합 설치 빌드:** [GitHub Actions #43894286721](https://github.com/SoonCheol/D200X-Deck/actions/runs/43894286721) **completed/success**.
-- **아티팩트:** 설치형 `DeckForge-1.1-Setup-win-x64` ID `14237753143` (131,809,006 bytes); 포터블 `DeckForge-1.1-win-x64` ID `14238118234` (176,975,436 bytes). 조회 시 두 아티팩트 모두 `expired=false`; 만료 예정 2026-11-30 (UTC).
-- **추가 검증:** Fusion Command Manager Windows [#43894286719](https://github.com/SoonCheol/D200X-Deck/actions/runs/43894286719) **success**, D200X 입력 자동검증 [#43894286742](https://github.com/SoonCheol/D200X-Deck/actions/runs/43894286742) **success**. 설치 빌드 과정에서 패키징된 Electron Node 런타임·원본 Fusion SDK 등록/오프라인 PI 자동검증을 통과함.
-- **검증 한계:** 실제 Windows GUI의 Fusion A→B 드래그, D200X 실기 명령·아이콘 일치, 오염 캐시 정상 복구, 다양한 기존 프로필·HA 상태는 **아직 사용자 PC 실기 미검증**. 통합 빌드 성공을 실기 성공으로 표시하지 않음. 기존 오염 캐시 일괄 삭제나 마이그레이션 수행하지 않음.
-- **정책:** PR #5는 미병합 유지. 코드와 UI는 상기 소스 커밋 기준. 본 기록 추가는 문서만 변경하며 빌드를 다시 시작할 필요 없음.
-
-## 2026-11-17 — Fusion 드래그 아이콘 경합·오염 최소 수정 (검증 대기)
-
-- 사용자 승인: 코드 수정 및 Windows 빌드. 기존 UI·24개 액션·프로필/HA 토큰 보존, PR #5 미병합.
-- Fusion SDK 액션 인스턴스별 context 구분, 설정 변경 통지, 교체/삭제 이전 화면 상태 삭제, 유효한 setImage만 수용하며 PI 명령 변경 후 불확실한 캐시 쓰기 차단.
-- 자동 수집 이미지는 action.icon과 분리해 기존 사용자 지정 아이콘 보존. SVG 드래그 허용, 원본 캐시 우선 조회, cache miss 재시도. 인스펙터 미저장 외부 드롭 보호 및 Manager 트레이 생명주기 보호.
-- 실제 Windows/Fusion/D200X 시험 및 빌드 결과는 별도 확인 전. 이전에 오염된 캐시는 무조건 삭제하지 않음.
-
-## 2026-11-16 — DeckForge 1.1 UI 수정 일괄 반영 / Windows 설치 빌드 성공
-
-- **사용자 승인 범위(1~16 중 최신 결정):** 현재 액션·버튼·폰트·간격 유지, 플러그인 공통 버튼의 네 줄 강제 줄바꿈 제거(문자열 기준 최소 너비와 한 줄), `Fusion 명령 관리자 열기`는 Fusion 360 `Run Command` 아래로 이동, `Fusion 애드인 설치`는 Fusion 전용 `?` 도움말 최상단으로 이동하고 설치 결과/절차 설명. HA 도움말은 장기 토큰·자동 엔티티 조회 안내.
-- **Fusion Manager:** 상단 버튼을 `Fusion Command Manager → 명령 드래그 → DeckForge 열기 → 자석 켜짐/꺼짐 → ? 도움말` 순서로 한 줄 유지. 페이지 생성은 UI에서 숨김/진입 차단하되 관련 코드·기존 JSON 형식 보존. 창 모드 전환 시 크기 강제 확장 제거. 자석 전환 상태 안내 메시지 제거. DeckForge 창에는 자석 버튼 추가하지 않음.
-- **자석:** 결합 시 기본 창 테두리 가시 간격 축소(7px 범위 중첩), 가까이 왔을 때만 자동 결합, DeckForge 높이에 따라 Manager 높이 조정. 실제 Windows 창 크롬 및 사용자의 배율에서 거리·간격은 실기 검증 필요.
-- **아이콘:** DeckForge 기본 원자 아이콘을 Windows 트레이에서 20px로 표시. Fusion Manager는 승인된 원자 궤도 + 오렌지 Fusion 심볼의 이미지 기반 압축 리소스를 빌드 시 PNG/ICO로 복원하여 Manager BrowserWindow 및 시작 메뉴 바로가기에 지정. 승인된 원본 고해상도 미리보기와 달리 설치용 이미지는 텍스트 전송 제약으로 80px로 축소된 파일에서 복원하며 확대 시 화질 차이가 날 수 있음.
-- **검증:** [CI #43875909113](https://github.com/SoonCheol/D200X-Deck/actions/runs/43875909113) **success**, [Windows 통합 설치 #43875909100](https://github.com/SoonCheol/D200X-Deck/actions/runs/43875909100) **success**. 설치형 `DeckForge-1.1-Setup-win-x64` artifact ID `14229428866` (131,808,367B), 포터블 `DeckForge-1.1-win-x64` ID `14230467289` (176,974,749B), 당시 expired=false. 포괄적 GUI/실제 Fusion·HA·D200X 실기 검증은 별도로 사용자 PC 필요.
-- **브랜치 정책:** 지정 브랜치에만 커밋. PR #5 유지, 병합하지 않음. 저장된 프로필/HA 토큰 및 플러그인 설치 정보 변경 없음.
-
-## 2026-11-16 — DeckForge 1.1 통합 설치 빌드 성공 (Windows GUI/실기 대기)
-
-- **사용자 승인:** DeckForge와 Fusion Command Manager 통합 설치/상호 실행, FusionStreamDeck과 Home Assistant 기본 SDK 플러그인 내장, Fusion Python 애드인 자동 복사 및 나중 설치 버튼, 양 플러그인 사용법 도움말, Fusion 원본 아이콘 연결 시 로컬 수집, 두 창 자석 결합(DeckForge 높이 기준) 및 ON/OFF·선호 저장. 기능 구현 후 버전 1.1.0.
-- **구현:** `app/streamdeck-editor/bundled-integration.cjs`에서 누락된 SDK 플러그인만 설치(기존 플러그인/설정/HA 토큰 보존), Fusion AddIns 폴더 존재 시에만 add-in 복사(기존 대상 무변경). DeckForge `main.cjs`에서 Fusion Manager를 같은 Electron 프로세스의 별도 BrowserWindow로 열어 창 위치/높이 연동. Plugin 탭에 매니저 실행, Fusion 애드인 설치, 플러그인별 `?` 도움말 추가. Fusion Manager의 `DeckForge 열기`/자석 상태 버튼, 원본 아이콘 자동 수집 구현.
-- **패키징:** `.github/workflows/streamdeck-clean-preview.yml`에서 고정 Autodesk FusionStreamDeck 소스/애드인과 MIT 라이선스, HA 3.8.4 릴리스 바이너리 및 MIT 라이선스, Manager 소스/JSON/Pretendard를 독립 staging 및 `resources/bundled`로 구성. HA ZIP 크기/매니페스트 UUID 검사, Fusion 매니페스트 UUID 검사 추가. NSIS `customInstall` 복사 스크립트(기존 add-in 덮어쓰기 금지), 별도 Fusion Manager 시작 메뉴 바로가기 추가. DeckForge 1.1.0으로 패키지·제목·설치 파일 버전 정합.
-- **자동 테스트:** `test/streamdeck-integrated-manager.test.cjs`는 도킹/높이 및 플러그인 중복 설치 방지 등을 검사. 코드 SHA `26328ab2137d7ccda89a434bc1d236d384d515b2` 기준 [CI #43866963511](https://github.com/SoonCheol/D200X-Deck/actions/runs/43866963511) **completed/success**. [Windows 통합 설치 #43866963527](https://github.com/SoonCheol/D200X-Deck/actions/runs/43866963527) **completed/success**: 관리자 포함 Electron EXE, Node 24, 원본 Fusion 플러그인 WebSocket/PI 자동검증, HA 실제 ZIP 길이/manifest, NSIS 생성 모두 성공. 아티팩트 설치형 `DeckForge-1.1-Setup-win-x64` ID `14226751418` (131,328,646B), 포터블 `DeckForge-1.1-win-x64` ID `14225722449` (176,498,828B), 확인 시 expired=false. **실제 Windows GUI 자석 동작, Fusion 애드인 활성화, HA 인증·엔티티 목록 및 D200X 실기는 아직 사용자 검증 필요.**
-- **브랜치 정책:** `codex/streamdeck-761-clean-editor`만 변경, PR #5 미병합. 기존 DeckForge 사용자 데이터 경로 `%APPDATA%\\D200X StreamDeck Device Sync` 그대로 유지.
-
-## 2026-11-16 — Fusion Manager 요청 레이아웃 일괄 반영 (최신)
-
-- 실행 기본 창 698×873px (모니터 workArea 이내), 페이지 편집 모드는 기존 1240px 확장 유지. 작업 영역 9개 탭을 동일 폭 그리드로, 패널 메뉴는 최소 내용 폭과 균등 확장을 조합해 창 너비에 맞춰 줄바꿈. 기존 여백 유지.
-- 탐색 패널의 `전체/RectangleDropDown/...` 드롭다운 선택 줄을 완전히 삭제하고 모든 하위 메뉴 명령을 기존 Fusion 메뉴 계층 순서대로 펼쳐 표시. 메뉴 카탈로그와 기존 사용자 배치 JSON은 보존.
-- Pretendard Variable WOFF2를 기존 DeckForge 고정된 공식 원본/해시 기준으로 매니저 전용 Windows CI에서 다운로드 검증 후 독립 실행 파일에 내장. OFL 라이선스도 포함. DeckForge 앱 소스는 수정하지 않음.
-- Fusion UI JSON 및 현재 목록 원본 아이콘 수집 버튼 옆에 `?` 설명을 추가. 원본 `fusion-ui-inventory.py`를 매니저에 포함해 코드 표시/복사 가능; 상단 Markdown 도움말은 그대로 보존.
-- CI/Windows 빌드/사용자 Windows GUI 실기 성공은 해당 실행의 확인 결과로만 별도 판정. 기존 프로젝트/프로필 설정 변경 없음.
-
-## 2026-11-16 — Fusion Command Manager 상단 Markdown 도움말 및 하단 안내문 제거
-
-- `tools/fusion-manager/index.html`의 고정 하단 안내문을 제거하고 상단 오른쪽에 `? 도움말` 버튼과 닫기 가능한 도움말 대화상자를 추가.
-- `tools/fusion-manager/HELP.md`를 로컬 설치 패키지에 포함하고 IPC로 읽어 표시. Fusion 실행/애드인 연결이 필요한 기능과 오프라인 탐색 및 Codex MCP 기능의 전제조건을 구분하여 안내.
-- `.github/workflows/fusion-manager-preview.yml`에 `HELP.md` 패키징 및 테스트 추가. **DeckForge 본체 및 사용자 프로필 미변경.** Windows GUI/실제 연결은 사용자 PC 테스트 필요. CI/Windows 빌드 결과는 실행별 확인 후에만 성공 표기.
-
-## 2026-11-16 — Fusion Command Manager 실제 메뉴 순서 적용 (최신 코드)
-
-- 사용자 우선순위: Fusion 디자인 메뉴의 **스케치 → 솔리드 → 곡면 → 메쉬 → 판금 → 플라스틱 → 매니지 → 유틸리티 → 자동화** 순서, 각 탭 패널 왼쪽→오른쪽, 접힌 드롭다운 자식 위→아래. 메뉴 외 API 전용 명령 분류 작업은 이번 범위에서 제외.
-- `tools/fusion-mcp/fusion-menu-catalog.json`의 959개 실제 메뉴 배치(고유 ID 326개)를 Manager의 탐색 원천으로 연결. 기존 3,266개 전체 원본 카탈로그/프로젝트 JSON은 삭제·재배치하지 않으며, 탐색 시 실제 메뉴 카탈로그 순서로 표시. 반복된 동일 ID는 선택 메뉴 안에서 중복 제거하고 원래 메뉴 위치를 존중. 별도 DeckForge 본체 소스 미변경.
-- 변경: Manager IPC/preload, `menu-tree.cjs`, `renderer.js`, Manager 전용 Windows 워크플로의 카탈로그 패키징, 메뉴 순서 단위/실자료 회귀 테스트. **CI 및 Windows 전용 빌드는 해당 실행의 성공 여부를 확인해야 하며, Windows GUI/Fusion/D200X 실기 검증은 미실시.**
-
-## 2026-11-16 — Fusion Command Manager 메뉴 탐색형 리디자인 + DeckForge 직접 드롭 (최종 빌드 성공)
-
-- **사용자 요청**: DeckForge와 나란히 배치하는 620px 폭 보조 창. Fusion 대분류→하위 메뉴→원본 아이콘/명령 탐색(100px 내외 × 82px, 원본 32px, 한글 13px), 상단 가로 메뉴. 기존 여러 페이지 5/5/3 편집은 별도 확장 모드로 유지. 메뉴 명령을 Manager 페이지나 DeckForge 일반 키로 드래그해서 자동 등록. 승인 추가 요청 없이 Windows 빌드까지.
-- **Manager** `tools/fusion-manager/index.html`, `renderer.js`, `menu-tree.cjs`, `main.cjs`, `preload.cjs` 수정. 탐색/페이지 편집 전환: 기본 620px(최소 480px), 편집 약 1240px(모니터 범위 내); 작업영역/메뉴/드롭다운 가로탭·명령 검색·원본 이미지 32×32·툴팁(긴 명령만 한글/영문 두 줄)·ⓘ 상세 정보; 처음에는 **빈 페이지**로 시작하여 기존 명령 자동배치 제거(사용자가 누르면 기존 자동배치 가능). 기존 프로젝트 JSON·DeckForge batch v1 JSON·예약 슬롯·페이지 체크·아이콘 수집·사용자 숨김 설정 보존.
-- **명령 분류**: `menu-tree.cjs`에서 보유 중인 실제 placement path와 선택적으로 가져온 Fusion UI v1/v2 capture를 사용해 작업 영역/패널/재귀 드롭다운을 구성. 동일 ID는 선택 메뉴 안에서 1회 표현, 같은 이름의 다른 ID는 별도 유지. API가 제공한 한글 패널명과 실제 panel/dropdown position 우선; 확인할 수 없는 ID는 임의 번역하지 않음. Fusion UI 수집 JSON은 사용자 선택으로 가져오고 매니저 데이터 디렉터리에 보존해 재시작 후에도 복원. `fusion-ui-inventory.py`는 위치·표시 상태·isPromoted 조회 및 Python 구문 검사 포함. Fusion 실기 새 JSON 수집은 사용자 PC에서 필요.
-- **앱 간 드래그**: `app/streamdeck-editor/fusion-drag.cjs` 공통 v1 text/plain payload의 명령 ID, 이름, 선택적으로 실제로 저장된 소형 PNG만 전달(일부 SVG는 전달하지 않고 SDK 원본 아이콘 갱신 사용). DeckForge `editor.js`에서 일반 버튼 13개에 드롭 시 플러그인 설치 확인, 기존 액션 덮어쓰기 확인, title=한글명(최대30자), pluginUUID/actionUUID/pluginSettings.commandId 구성, setItem/persist/render 처리; 작동 중 원본 PNG가 함께 전달되면 기존 icon cache에 보관. 넓은 정보화면 index 13에서는 등록 안 함. 기존 자체 액션 드래그, 전체 Fusion batch import, DeckForge 프로필은 유지.
-- **경계**: 서로 다른 Electron 창 사이 Windows 실제 드래그는 **사용자 PC 실기 미검증**. 코드/CI/EXE 패키징 성공은 실제 OS 간 드래그 성공의 증거가 아님. 올바른 메뉴 계층과 실제 원본 아이콘은 Fusion 내부 수집 JSON 및 애드인/아이콘 캐시 품질에 따름; 별도 UI 조작·명령 실행 자동화 없음. 다른 프로그램/슬롯 드롭에 대한 테스트 추가 필요.
-- **자동 검증**: `test/fusion-menu-navigation.test.cjs`은 메뉴 분류·다른 ID·드롭다운 계층·순서·엄격 드래그/PNG 페이로드 검사. 기존 Fusion curation/JSON 회귀, Python 구문, DeckForge Windows build 검증. 최신 source commit `f0e955886a2f86b9661d5cf4a2f9cfc32bf39303`.
-- **Manager Windows 빌드**: [run 43826638637](https://github.com/SoonCheol/D200X-Deck/actions/runs/43826638637) **completed/success**; artifact `Fusion-Command-Manager-0.1-win-x64` ID `14207026845`, 161,636,874B (Windows 폴더형 포터블 EXE 압축).
-- **DeckForge Windows 빌드**: [run 43826638566](https://github.com/SoonCheol/D200X-Deck/actions/runs/43826638566) **completed/success**; installer artifact `DeckForge-1.0-Setup-win-x64` ID `14206992176`, 126,053,136B; portable artifact `DeckForge-1.0-win-x64` ID `14207056851`, 173,200,102B. **현재 사용 중인 설치본에는 새 외부 드롭 처리가 없으므로 이 빌드로 업데이트해야 함.**
-- **브랜치 보호**: `codex/streamdeck-761-clean-editor`만 변경. `main` 미변경, PR #5 병합하지 않음. 실기 테스트와 후속 수정은 이 상태부터 시작.
-
-## 2026-11-16 — Fusion UI 명령 수집·신뢰도별 표시 개선 (작업 완료 / 실기 대기)
-
-- **목표**: 의미 없는 키워드 정렬 제거, Fusion의 툴바 직접 명령과 드롭다운 명령을 우선 표시. 메뉴 전용은 검토, 미배치/디버그/정보 부족은 숨김 처리하되 삭제하지 않는다. 동일 한글명/아이콘이라도 다른 ID는 절대로 자동 병합하지 않는다.
-- **수집기** `tools/fusion-mcp/fusion-ui-inventory.py`: 읽기 전용 API 순회, 작업영역→탭→패널→컨트롤/드롭다운/Split Button 경로와 위치, 명령 ID·이름, 컨트롤 표시·활성 상태, 오류 기록. 출력 형식 `deckforge-fusion-ui-placements-v2`; v1 가져오기 유지. 현재 화면에 안 보인다는 이유로 실행 불가나 무용 판정 금지. **Fusion 명령 실행/작업영역 강제 전환 없음.**
-- **분류 모듈** `tools/fusion-manager/command-curation.cjs`: 직접/드롭다운→primary, 메뉴 전용→review, 미배치/정보 부족/디버그→hidden, 전체 목록 복구. 발견된 수집 ID는 primary로 승격; 이번 스캔에 없는 ID는 기존 카탈로그 분류를 유지. 동일 ID만 합치고 동일 이름의 다른 ID는 별도 보존·상세 정보 표시.
-- **매니저 GUI**: 목록 필터 `툴바·드롭다운/검토 대상/숨김 대상/전체`; `Fusion UI 수집 JSON 반영` 버튼으로 수동 JSON import. 기존 페이지는 가져오기만으로 변경하지 않음. 자동 추천 배치 키워드 정렬→수집된 UI/카탈로그 경로순 변경. 명령 상세 정보에서 `자동 분류/기본 표시/검토/숨김`을 수동 선택하고 manager userData `fusion-command-visibility-v1.json`에 저장. 128페이지 한도 초과 시 기존 페이지 보존하고 자동 배치 거절.
-- **원본 보존**: 3,266개 카탈로그 원본 / 기존 프로젝트·DeckForge 프로필·Plugin·아이콘 캐시·JSON 내보내기 포맷을 변경하지 않음. 원본 아이콘 직접 가져오기 기능은 이전 방식 유지. 외부 앱 사이 드래그는 아직 구현하지 않음.
-- **자동 검증**: `test/fusion-command-curation.test.cjs` 5개 케이스(구분·ID 보존·동명 다른 ID·v1/v2 수집·배치 경로순), 기존 Fusion JSON 회귀 및 Python 구문 검사 GitHub Actions 단계 성공.
-- **Windows 빌드** [GitHub Actions #43821325020](https://github.com/SoonCheol/D200X-Deck/actions/runs/43821325020) **completed/success**, artifact `Fusion-Command-Manager-0.1-win-x64` ID `14204302520`, 161,631,294 bytes, 조회 당시 미만료. PR #5는 open/draft/unmerged.
-- **검증 한계**: Fusion 앱 안에서 실수집/499건의 기존 API 조회 오류 재현 및 Windows GUI 메뉴·아이콘 실기 검증은 아직 사용자 PC에서 진행 전. UI 수집 JSON은 현재 사용자 선택 파일이며, 자동 수집/백그라운드 실기 검증 기능은 구현하지 않음. '현재 활성화'와 '실행 가능'은 구별해야 함.
-
-## 2026-11-16 — Fusion Command Manager에서 Fusion 원본 아이콘 직접 수집
-
-- 사용자 요청: DeckForge가 하던 Fusion 원본 명령 아이콘 획득/저장 기능을 독립 Fusion Manager에도 추가. **명령 이름으로 추정한 가짜 아이콘 사용 금지** 유지.
-- 확인 근거: AutodeskFusion360/FusionStreamDeck 공식 버전 bc153b8cddedba91614f932f4210f1ecb451c2a8 의 `fusion_addin/FusionStreamDeck/lib/server.py`에서 GET `/health`, GET `/icon?commandId=...&size=32`가 제공되며 PNG/SVG를 직접 송신함. `icons.py`는 명령의 원본 `resourceFolder`에서 가장 적절한 파일을 선택. 실행은 별도 POST `/command`이고 매니저에서 호출하지 않음.
-- 구현: tools/fusion-manager/main.cjs에서 %LOCALAPPDATA%/FusionStreamDeck/endpoint.json 에서 포트 발견, /health 체크, GET /icon 호출, PNG 헤더 및 SVG 구문과 768KB 제한 후 매니저 userData `original-fusion-icons/<명령ID>.png|svg`로 영속 저장. 기존 DeckForge 원본 PNG 캐시는 읽기 전용으로 보조 사용. Electron preload는 iconHealth/collectIcon IPC를 노출. renderer는 선택 체크된 페이지의 고유 명령 IDs만 사용자가 버튼 눌렀을 때 최대 3개 병렬로 수집하고 신규/기존/없음/실패 상태 표시; 완수 후 실 아이콘 표시.
-- GUI: `선택 페이지 원본 아이콘 수집` 버튼, 상태 텍스트. 기존 프로젝트 JSON/DeckForge 등록용 JSON/폴더 없는 프로필/예약 슬롯/드래그 유지.
-- 검증: JS 구문 확인 통과, GitHub Actions [Windows run #43813062245](https://github.com/SoonCheol/D200X-Deck/actions/runs/43813062245) **completed/success**; 업로드된 artifact `Fusion-Command-Manager-0.1-win-x64` ID `14201735344` 161,628,424 bytes, 조회 당시 미만료. PR CI also success.
-- **실제 Fusion 로컬 add-in 아이콘 API 연결 및 저장 개수는 CI에서 검증할 수 없음. 사용자 실기 테스트 필요.** DeckForge 본체 수정/PR 병합 없음.
-
-## 2026-11-16 — Fusion Command Manager 0.2 버튼 확대·명령 아이콘·툴팁
-
-- 사용자 요청대로 Fusion Manager 버튼 높이 116px, 아이콘 48×48px, 한글 이름 최대 두 줄 배치. 5/5/3, 페이지 간 드래그 삽입, 우클릭 예약, 체크박스, JSON 내보내기 구조 변경 없음.
-- Fusion PNG는 기존 DeckForge 사용자 데이터의 `fusion-command-icons/<명령ID>.png`를 **읽기 전용**으로 조회. 존재하지 않으면 심볼 기호를 표시하므로 원본 아이콘이 전부 제공된다는 뜻은 아님.
-- 말줄임 발생한 이름의 hover 툴팁에 **한글 전체 이름 + 영문 전체 이름** 두 줄만 표시. 명령의 확인된 영문명 필드가 없으면 '영문명 정보 없음'을 명시. ⓘ 상세 정보는 별도 패널.
-- 안전 변경: tools/fusion-manager/main.cjs, preload.cjs, renderer.js, index.html, README.md만 수정. DeckForge 본체·기존 프로필/캐시/플러그인 미변경.
-- 검증: GitHub Actions [Fusion Manager Windows build #43811137327](https://github.com/SoonCheol/D200X-Deck/actions/runs/43811137327) **success**, artifact `Fusion-Command-Manager-0.1-win-x64` ID `14200348334` (약 161.6MB, 조회 당시 미만료). JS 구문 검사 및 카탈로그 검증/EXE 패키징 성공. **원본 캐시 PNG 노출 및 Windows GUI 실기는 사용자 확인 전**. 아티팩트 이름은 워크플로 기존 0.1 표시를 유지.
-- Manager 프로그램 자체의 고유 앱 아이콘은 이번 소스 변경에 포함되지 않음. 추가 디자인 과제.
-
-## 2026-11-16 — 개별 프로필 JSON 내보내기 (개발 및 검증 기록)
-
-- 사용자 요청: 프로필 ⚙ 설정에 기존 '전체 프로필·설정 JSON 내보내기'와 별도의 '프로필 JSON 내보내기' 추가.
-- 구현: app/streamdeck-editor/editor.js의 프로필별 메뉴에 내보내기 추가. deck-core.js의 exportSingleProfile(state, id)로 선택 프로필만 이름/ID/연결 EXE/Smart Profile 여부, 페이지·폴더·노브·물리 버튼·고정 키·와이드 설정 스냅샷을 추출. 활성/비활성 프로필 모두 지원하며 상태 변경 없음.
-- 파일 형식: d200x-single-profile-v1 (프로필 메타데이터와 snapshot). **기존 '전체 프로필·설정 JSON 가져오기'는 이 파일을 가져오는 기능이 아님**. 단독 프로필 가져오기는 별도 요청 시 구현해야 하며 호환되지 않는 전체 가져오기로 대체하지 말 것.
-- '연결 프로그램 선택'은 Windows .exe 연계로 Smart Profile의 전경 프로그램 자동 선택에 쓰며 JSON 보기용 아님. 자동 전환은 최소화 상태/Smart Profile 활성 조건을 따름.
-- test/streamdeck-core.test.cjs에 프로필 간 데이터 격리, 활성/비활성 스냅샷, 상태 무변경 검사 추가. 최종 CI/Windows 빌드/사용자 실기 판정은 실제 Actions 결과에 맞춰 후속 갱신.
-- main 및 Draft PR #5 병합·변경 금지, 기존 모든 프로필 데이터 보존.
-
-## 2026-11-16 — Fusion Command Manager 0.1 실제 Windows 빌드 검증
-
-- 전용 GitHub Actions **#43808195316**: completed/success. GitHub Windows 작업의 JavaScript 소스 검사, layoutPages 구형/신형 회귀 검사, 카탈로그 키·명령 ID·1000개 이상 형식 검증, Electron 독립 EXE 패키징, 아티팩트 업로드가 모두 성공함.
-- 아티팩트: **Fusion-Command-Manager-0.1-win-x64**, ID **14199267057**, 약 161.6MB, 조회 당시 미만료. 링크: https://github.com/SoonCheol/D200X-Deck/actions/runs/43808195316
-- 기존 DeckForge Windows build **#43807695960** success. 수정한 Fusion JSON importer의 Windows 빌드 확인 근거.
-- **실제 Fusion/Windows GUI 사용자 실기 확인은 아직 없음.** 기존 JSON 자동등록 실기 성공은 사용자 확인, 새로운 예약 슬롯 포함 JSON의 실기 성공은 별도 확인 필요.
-
-## 2026-11-16 — Fusion Command Manager 독립 GUI 시제품 0.1
-
-- 사용자 실기 확인 추가: 기존 Fusion 360 JSON 일괄 등록 메뉴를 통한 실제 자동 등록 **성공**(사용자 2026-11-16 보고). 본 프로젝트의 기존 가져오기 메뉴는 그대로 사용.
-- 신규 독립 앱 코드: tools/fusion-manager/ 아래 Electron main/preload/HTML/renderer/README. 5-5-3 페이지 다중 표시, 명령 삽입 드래그, 우클릭 예약, 페이지별 등록 체크, JSON 프로젝트 저장/불러오기, DeckForge 등록용 JSON 내보내기.
-- 기존 importer는 선택적인 layoutPages 13슬롯 배열을 읽어 예약 빈 슬롯과 페이지 경계를 보존하며, 기존 commands-only d200x-fusion-batch-v1 JSON도 유지.
-- 전용 Windows GitHub Actions workflow: .github/workflows/fusion-manager-preview.yml, 아티팩트 예정 이름 Fusion-Command-Manager-0.1-win-x64. 코드 구문 확인 및 PR CI 테스트 성공 확인; **전용 Windows EXE 성공/아티팩트는 조회 확인 전까지 미검증**.
-- 카탈로그 3,266명령 분석 자료 활용. 시제품 추천 순서는 임시 휴리스틱이며 인터넷 사용 빈도 실측값 아님. 정식 근거 기반 우선순위, 아이콘, 카탈로그 실제 화면, Windows GUI/Fusion 실기는 후속 검증 필요.
-- 폴더 생성 기능 이번 Fusion 배치에서 사용하지 않음. PR #5 Draft/open, main/기존 프로필 변경 금지.
-
-## 2026-11-16 — Fusion 360 일괄 등록 새 채팅 인수인계 (문서 작업만)
-
-- **다음 채팅 첫 진입점:** [Fusion 360 명령 일괄 등록 인수인계](D200X-FUSION-BATCH-HANDOFF-20261116.md). GitHub 개발 환경/단일 브랜치/Draft PR 보존, 기존 구현, Codex MCP와 GitHub 코드 개발의 역할 분리, 다음 검증 순서 포함.
-- **현재 코드 기준:** `tools/fusion-mcp/server.cjs`의 읽기 전용 명령 검색·배치 JSON 생성과 `app/streamdeck-editor/fusion-batch.js`의 새 Fusion 프로필 가져오기·**13개 일반 키/페이지·와이드 index 13 보호**는 이미 구현됨. 새로 만드는 작업으로 취급하지 말 것.
-- **확인한 사소한 오류(미수정):** `editor.js`의 JSON 가져오기 확인창 안내 페이지만 `Math.ceil(input.commands.length/14)`로 계산. 실제 생성은 `/13`. 다음 관련 코드 수정 시 최소 패치/테스트 대상.
-- **검증 상태:** 사용자 보고 원본 Fusion `extrude` 실행 성공, 과거 Windows CI/MCP 모의 테스트 성공. 로컬 MCP 등록·실제 일괄 JSON GUI 가져오기 및 이번 글꼴 UI 후속 Windows 아티팩트는 별도 확인 필요. **이번 턴은 소스 코드·사용자 환경·프로필·빌드를 전혀 수정하지 않음.**
-
-## 2026-11-15 플러그인 속성창 누락 수정 — UI 코드 반영 / Windows 실기 미확인
-
-- **사용자 승인 후 반영:** Home Assistant SDK 플러그인 속성창 상단 경로의 일반 이름 'Stream Deck SDK 플러그인' 대신 실제 설치된 액션 이름을 표시한다. 예: `액션 > 플러그인 > Home Assistant 장치 제어`. 다른 SDK 액션은 실제 actionName / 설치된 플러그인 카탈로그명을 사용하며 기존 UUID·SDK 연결 유지.
-- **불필요한 행 제거:** `설치된 플러그인`, `원본 속성 편집기 / 설정 열기`, `상태별 아이콘 ...` 설명을 제거한다. 기존 플러그인 속성 기능은 `플러그인 속성 열기` 버튼으로 유지.
-- **제목 한 줄:** `제목` 라벨은 기존 왼쪽에 유지. 제목 입력 필드 **238px**와 `플러그인 속성 열기` 버튼 **158px**를 나란히 배치(8px 간격 = 404px); 제목 글꼴 `T⌄`는 입력 필드 오른쪽 안쪽 유지.
-- **OFF/ON 아이콘:** 각 카드 196px 고정, 카드 사이 12px 간격. 아이콘 84px와 오른쪽 라이브러리/파일/초기화 버튼 76×25px 세로 3개를 유지. 카드에 불필요한 삭제 × 추가하지 않음. 사용자가 보유한 기존 아이콘 설정이나 SDK 플러그인 데이터를 수정하지 않음.
-- **검증:** `editor.js` JS 구문 파싱 및 제거 요청 문구 잔존 검사 통과. 마지막 변경 커밋의 GitHub CI 문법/Lint/타입/단위 테스트 성공. **Windows 설치 EXE 생성 및 실제 사용자 PC 렌더링은 아직 확인되지 않음.**
-- **후속 개발은 지시 있을 때만:** 단축키 전환의 단축키1/2 별도 상태 아이콘 등 보류 항목을 이번에 구현하지 않음. 설명·레이아웃 의견만 요청받으면 코드·GitHub·빌드를 수정하지 않음.
-
-## 2026-11-15 단축키 전환 속성창 정렬 / 상태별 아이콘은 후속 작업
-
-- **이번 반영:** '단축키 전환' 속성창의 제목·단축키 1·단축키 2 필드 오른쪽 끝을 OFF/ON 고정 아이콘 박스 두 개의 합계 폭(약 404px)에 맞춤. 왼쪽 라벨 위치는 유지. 값 없는 '단축키 안내: 사용자 지정' 행 제거.
-- **공통 제목 UI:** 글꼴 설정 T⌄ 버튼을 제목 입력 필드 내부 오른쪽에 표시하되 기존 글꼴 팝업 기능은 유지.
-- **사용자 지정 후속 작업(이번에 구현하지 않음):** 단축키 전환 동작의 **단축키 1 실행 상태**와 **단축키 2 실행 상태**에 서로 다른 아이콘 등록·표시를 지원한다. 기존 전환 실행과 아이콘 설정을 보존하며, 향후 별도 구현 지시 후 작업.
-- **검증 범위:** 자동 CI/Windows 빌드는 별도 확인. 사용자 PC 렌더링 테스트는 수행하지 않음.
-
-## 2026-11-15 노브 누른 채 회전 액션 — 코드 반영 / 실기 미검증
-
-- **구현:** 기존 노브별 동작 등록 화면에 '누른 채 왼쪽 회전'과 '누른 채 오른쪽 회전' 슬롯을 추가. 기존 일반 회전/누르기 및 트리거·조절·스택 모드 유지; 전역/페이지별 바인딩의 JSON 저장·마이그레이션에 `holdLeft`/`holdRight` 추가.
-- **입력:** D200X HID 누름(1) → 회전(2/3) → 해제(0) 순서에서 누른 상태의 회전을 보조 액션으로 구분. 명시적인 state 4/5도 전달. 보조 액션이 설정된 노브에서 누름만 할 경우 해제 시 눌림 액션 실행, 누른 채 회전 시 눌림 액션과 일반 회전 중복 실행 방지. 기존 보조 액션 미설정 노브는 이전 입력 경로 유지.
-- **프로필 이동:** 기존 '프로필 전환' 액션의 선택지에 '이전 프로필'을 추가해 누른 채 좌/우 회전에 이전/다음 프로필 각각 할당 가능. 프로필 전환 중에도 노브 누름 추적을 유지.
-- **검사:** `deck-core.js`의 기본/보조 회전, 누름 이벤트, JSON 복원에 대해 현재 코드 직접 실행 확인; `test/streamdeck-core.test.cjs`에 회귀 테스트 추가. 편집기 JS 파싱 검사 완료. GitHub Actions 전체 빌드/테스트의 결과와 Windows/D200X 실물 입력은 별도로 확인해야 함.
-- **주의:** Ulanzi SDK의 held-rotate 이벤트 명칭은 확인했지만, 현재 사용하는 직접 HID 전송에서 눌린 상태로 실제로 어떤 이벤트·flags가 도착하는지는 사용자 PC 실기에서 확인해야 한다. 기존 설치 및 프로필 변경 금지.
-
-## 2026-11-15 DeckForge 1.0 설치 EXE 자동 빌드 통과
-
-- 구현 커밋 `ee3401cd3048606ca112930b22a189c35fe5bcb5`.
-- [DeckForge 1.0 Windows build #43699754327](https://github.com/SoonCheol/D200X-Deck/actions/runs/43699754327) **success**; CI `Check DeckForge installed-mode behavior` 통과, 기존 포터블 EXE/SDK/Fusion 호환 검사 통과, `electron-builder@26.0.12` NSIS 패키징 성공(로그: `oneClick=true perMachine=false`).
-- **설치 파일** 아티팩트: `DeckForge-1.0-Setup-win-x64`, ID `14155877709` (아티팩트 ZIP 약 123,384,519바이트). 내부 `DeckForge-Setup-1.0.0.exe` 생성 확인(123,391,849바이트).
-- 기존 포터블 EXE도 별도 아티팩트 `DeckForge-1.0-win-x64`로 보존. 설치형 이용 시 **Setup** 아티팩트를 선택한다.
-- **실기 미확인:** Windows 설치 프로그램 실제 실행, 설치 위치·시작 메뉴·자동 로그인·트레이 유지·설치한 MCP 동작은 사용자의 Windows PC에서 확인이 필요하다. 자동 테스트 통과를 실기 검증으로 취급하지 말 것.
-
-## 2026-11-15 DeckForge 설치형·트레이·내장 MCP 개발
-
-- **설치형:** GitHub Actions에서 기존 포터블 실행 파일과 별도로 per-user Windows NSIS `DeckForge-Setup-1.0.0.exe` 생성. 관리자 권한을 요구하지 않는 기본 설치 경로 `%LOCALAPPDATA%\\Programs\\DeckForge\\DeckForge.exe`를 고정 (oneClick/perMachine=false). 업데이트할 때 같은 설치 프로그램을 재실행. **설치 위치를 사용자 정의하는 옵션 없음.**
-- **트레이:** 로그인 후 자동 시작(설치형 앱에 한해 기본 ON), 창 닫기는 숨기기, D200X HID/플러그인 유지, 트레이 더블클릭으로 편집기 열기, 트레이에서 자동 시작 토글·새 빌드 확인·명시적 종료 지원. 진짜 Windows 서비스(LocalSystem)가 아니며 사용자 로그인 세션의 앱.
-- **내장 MCP:** 별도 개발 체크아웃이나 Node 설치 없이 설치 디렉터리의 Electron(Node 24) 런타임으로 `resources\\mcp\\deckforge-mcp.cmd`를 실행. 패키지 내부 `resources\\mcp\\tools\\fusion-mcp\\server.cjs`와 `resources\\mcp\\app\\streamdeck-editor\\fusion-batch.js`를 함께 제공. 향후 업데이트에서도 MCP 실행 명령·경로 동일.
-- **데이터 보존:** 이전 `%APPDATA%\\D200X StreamDeck Device Sync` userData를 계속 사용. 설치·덮어쓰기 과정에서 프로필·HA 토큰·SDK 플러그인 저장소 변경·삭제하지 않음. 제거해도 사용자 데이터 삭제 옵션 비활성.
-- **업데이트:** 트레이 'GitHub에서 새 빌드 확인'에서 사용자가 최신 Actions 설치 EXE를 직접 받아 재설치하는 **명시적 승인 방식**. 자동 다운로드·무인 업데이트·새 버전 자동 감지는 구현하지 않았음. 설치 전에 현재 앱을 'DeckForge 종료'로 명시 종료하도록 안내.
-- **검증 구분:** 단위검사와 GitHub 빌드는 Windows 설치·업데이트/사용자 PC 실기 검증을 대체하지 않음. NSIS 설치 실행과 로그인 자동 시작 및 Codex MCP 연결은 사용자 실기 확인 필요.
-
-## 2026-11-15 DeckForge 1.0 브랜드 변경 및 Windows EXE 검증 성공
-
-- **브랜드 변경 커밋:** `a750512a1405d9fadc1a5b3c703940d3d0cc7601`. 앱 표시명 **DeckForge 1.0**, 패키지 버전 **1.0.0**, 실행 파일 **`DeckForge.exe`**.
-- **Windows 빌드:** [DeckForge 1.0 Windows build #43698785366](https://github.com/SoonCheol/D200X-Deck/actions/runs/43698785366) **success**; 로그에 `dist/DeckForge-win32-x64` 생성, `DeckForge.exe` 확인, 패키지 버전 확인, 내장 Node v24.22.1 확인. 기존 Autodesk Fusion 원본 플러그인 프로토콜 검증 단계도 통과.
-- **추가 CI:** [CI #43698790843](https://github.com/SoonCheol/D200X-Deck/actions/runs/43698790843) **success**, [입력 검증 #43698785371](https://github.com/SoonCheol/D200X-Deck/actions/runs/43698785371) **success**.
-- **다운로드:** Workflow run의 Artifacts → `DeckForge-1.0-win-x64` (ID `14154689045`, 170,373,903 bytes, 당시 미만료). ZIP 전체 압축 해제 후 `DeckForge.exe` 실행.
-- **기존 데이터 보호:** 구 Windows 제품명 `D200X StreamDeck Device Sync`에 대응하는 기존 `userData` 경로를 재사용하도록 명시. 실제 사용자 PC에서 구 프로필·기존 플러그인 재인식 및 창 제목은 다음 사용자 실행에서 확인 필요. 구 EXE는 삭제하지 않으며 저장소 이름 및 `main` 브랜치 변경 없음.
-
-## 2026-11-15 제품명·공식 버전 확정 — DeckForge 1.0
-
-- **사용자 확정:** 제품명 **DeckForge**, 사용자 표시 버전 **1.0**, 앱·빌드 메타데이터 버전 **1.0.0** (SemVer).
-- **적용 지점:** `app/streamdeck-editor/index.html` 창 제목, `main.cjs` Electron 창 제목, `app/streamdeck-editor/package.json`, Windows GitHub Actions 패키지 메타데이터, 실행 파일 **`DeckForge.exe`**, Artifact **`DeckForge-1.0-win-x64`**.
-- **데이터 보존:** 이름이 바뀌어도 구버전의 Electron 사용자 데이터 디렉터리 `%APPDATA%\\D200X StreamDeck Device Sync`를 그대로 사용하도록 `app.setPath('userData', ...)`를 단일 인스턴스 잠금 이전에 명시. 기존 프로필(localStorage), 플러그인 폴더, HA 인증 및 불러오기 위치 정보 유지. 데이터 이동·복사·삭제 없음.
-- **범위:** 새 D200X 전용 편집기와 전용 Windows 빌드만 변경. GitHub 저장소 `SoonCheol/D200X-Deck`, 개발 브랜치 `codex/streamdeck-761-clean-editor`, 기존 Ulanzi Deck Open 메인 앱/릴리스 빌드, 이미 생성된 자료의 역사적 이름은 유지.
-- **검증:** 빌드 결과가 성공일 때만 완료로 기록하며 새 이름으로 사용자 GUI를 직접 실행한 실기는 별도.
-
-## 2026-11-15 Fusion MCP 일괄 등록 1차 구현·Windows 빌드 검증 완료
-
-- **기능 커밋:** `c3035724c8b8165dbb26ce0c3513339638d8cf3b`. **와이드 슬롯 보호 수정:** `de8e7fb1113de684bd7b3a7f76ad4c045a6b59bc` (13개 일반 버튼/페이지, wide index 13에 액션 등록 없음).
-- **검증:** [Windows Actions #43697835588](https://github.com/SoonCheol/D200X-Deck/actions/runs/43697835588) **success**. 추가된 Fusion MCP 테스트 6개 통과(명령 목록 조회 모의 통신·독립 프로필 만들기·기존 할당 보존·페이지 분할·잘못된 JSON 거부·MCP 도구 발견). 기존 SDK/Fusion 원본 호환 자동 검증 유지.
-- **Windows EXE:** `D200X-StreamDeck-Device-Sync-win-x64` Artifact ID `14155193200`, 170,373,818 bytes (조회 당시).
-- **MCP 사용:** `tools/fusion-mcp/server.cjs` 로컬 stdio 서버; `fusion_list_commands` 및 `fusion_export_batch`. 생성 JSON은 D200X 편집기에서 **전체 프로필 관리 → Fusion 360 명령 일괄 등록 JSON 가져오기**로 가져오며 기존 프로필은 그대로 유지한다.
-- **자동화 수준:** Codex가 실제 Fusion 애드인이 보고한 명령을 선택 또는 전체 내보내어 새 프로필을 생성하는 JSON 파일까지 자동 작성. 가져오기는 사용자 명시 클릭 1회. **사용자 PC에서 Codex MCP 등록과 Fusion 라이브 조회, 앱 GUI 실제 가져오기 테스트는 아직 하지 않음.**
-- **다음:** PC에서 신규 Windows EXE 실행 → 프로젝트 최신 코드 확보 → MCP 등록 → Fusion 명령 조회 → JSON 생성 → GUI에서 새 프로필 가져오기·버튼/아이콘 검증. 원본 FusionStreamDeck 플러그인과 기존 HA 설정은 수정하지 않는다.
-
-## 2026-11-15 배치 배치 위치 정정 — 와이드 화면 보호
-
-- D200X의 물리 키 배치는 페이지당 **일반 버튼 13개 + 와이드 정보 화면 1개**이며, 사용자가 와이드에는 액션이 등록되지 않도록 명시적으로 요청했다.
-- MCP 생성 JSON의 버튼 배치를 **13개 일반 키/페이지**로 정정. slot 13은 항상 비움. 기존 프로필 및 와이드 설정은 어떤 경우에도 변경하지 않는다.
-- 128페이지 기준 최대 1,664개 명령. 관련 테스트에 와이드 slot 13이 null인지 검증 추가.
-
-## 2026-11-15 Fusion MCP 1차 자동 검증 및 Windows 빌드 성공
-
-- **구현 커밋:** `c3035724c8b8165dbb26ce0c3513339638d8cf3b`: Fusion 애드인 실제 명령 ID 조회·MCP stdio 도구 2개·선택 또는 전체 명령의 일괄 JSON 생성·D200X 편집기에 기존 프로필을 유지하며 **새 Fusion 전용 프로필로 가져오기** 구현.
-- **테스트 편입:** `28276f0373828e1cb783fd489f0abc386fc290fc`: Windows workflow에 `test/streamdeck-fusion-mcp.test.cjs` 6개 테스트 및 MCP 문법 검사 추가.
-- **검증 증거:** [GitHub Actions #43697585224](https://github.com/SoonCheol/D200X-Deck/actions/runs/43697585224) **success**. 해당 작업 로그에서 **Fusion MCP 테스트 6개 통과, 실패 0**, 기존 Windows 패키징·원본 Fusion 플러그인 SDK 통신 단계도 성공.
-- **Windows 빌드 Artifact:** `D200X-StreamDeck-Device-Sync-win-x64`, ID `14154958192`, 170,373,787 bytes, 확인 당시 미만료.
-- **적용 방법:** Codex MCP 등록은 `tools/fusion-mcp/README.md`; Codex로 생성된 JSON을 앱의 **프로필 메뉴 → 전체 프로필 관리 → Fusion 360 명령 일괄 등록 JSON 가져오기**에서 선택. 기존 설정을 자동 수정하거나 덮어쓰지 않음.
-- **미검증:** 사용자 컴퓨터의 Codex CLI에 실제 MCP 등록, 실시간 `GET /commands` 수신, 생성 JSON 앱 UI 가져오기, 여러 페이지에서 원본 아이콘 자동 갱신은 아직 실기 전. 실제 Fusion 명령 한 건의 D200X 실행 성공은 사용자 보고로 이미 확인됨.
-- **기능 제약:** 현재 Fusion에서 로드된 작업 공간 명령만 가져오며, 명령별 기능을 수동 선택하지 않고 모두 등록할 수 있지만 최대 1,664개(13개 일반 버튼/페이지 × 128페이지) 제한. 사용자 기존 프로필 무손실 보존 우선.
-
-## 2026-11-15 Fusion 명령 일괄 등록 MCP 1단계 코드 반영
-
-- **목표:** Codex MCP로 실행 중인 Fusion 애드인의 `GET /commands`를 읽어 실제 명령 ID를 일괄 확인하고, D200X의 기존 프로필을 보존하면서 새 Fusion 전용 프로필에 14개/페이지로 버튼을 배치할 JSON 생성.
-- **추가:** `tools/fusion-mcp/server.cjs`(stdio JSON-RPC MCP 도구 2종), `app/streamdeck-editor/fusion-batch.js`(파일 검증·새 프로필만 추가), `test/streamdeck-fusion-mcp.test.cjs`, `tools/fusion-mcp/README.md`.
-- **앱:** 프로필 메뉴 > 전체 프로필 관리 > Fusion 360 명령 일괄 등록 JSON 가져오기. 기존 전체 프로필 JSON 교체와 달리 사용자 확인 후 새 프로필 생성; 기존 프로필·키·HA 플러그인 보존.
-- **실기 분리:** 이 커밋에서는 로컬 Codex MCP 설치·Fusion 실제 명령 목록·GUI 일괄 등록 성공을 주장하지 않는다. Windows Actions 테스트 결과를 별도로 확인해야 한다.
-- **개발 브랜치:** `codex/streamdeck-761-clean-editor`만 사용. `main` 변경 금지.
-
-# D200X-Deck 최신 기능 현황 — 단일 상태 기준
-
-> **기준:** 2026-11-15 · 저장소 `SoonCheol/D200X-Deck` · 개발 브랜치 `codex/streamdeck-761-clean-editor` · 코드 커밋 `c738f16095996d64b2dd8b215515743fba299390` · 직전 HEAD(문서) `6c663193e6e81201c27e9ebbe282f47b58392da1`.
-> **이 문서가 최신 구현·검증 상태의 단일 기준이다.** 이전 로드맵·인수인계서의 날짜별 진행 문단과 체크박스는 **당시 기록**으로만 읽는다. 기능별 판정은 최신 코드·GitHub 검증·사용자의 실제 장치 보고를 구분한다.
-> 이번 정리는 **문서만 수정**하며 코드를 실행하거나 실물 Windows/D200X를 새로 테스트하지 않았다. 기존 자동 CI/EXE 성공을 실기 성공으로 간주하지 않는다.
-
-## 상태 정의
-
-- **명시적 미구현:** UI에서 비활성화되었거나 실행 경로가 아직 없는 기능.
-- **부분 구현:** 일부 동작·옵션은 구현되었지만 알려진 세부 요구나 원본 호환 범위가 남은 기능.
-- **코드 구현·실기 미검증:** 코드 및 기존 기록상 실행 경로가 있으며 실제 Windows GUI/USB/앱별 결과는 확인하지 못한 기능.
-- **사용자 실기 확인:** 사용자가 특정 조건·버전에서 작동을 확인한 경우에만 기록. 모든 모드의 통과를 뜻하지 않음.
-
-## 2026-11-15 즉시 정정: 플러그인 탭의 실행 시 활성화 확인
-
-- 이전 현황표에서 **플러그인 탭을 미구현으로 분류한 것은 오류**였다. `index.html`의 초기 disabled만 보고 결론을 내린 것이 원인.
-- 실제 `app/streamdeck-editor/editor.js` 초기화는 `tabs[1].disabled=false`로 버튼을 켜며, `libraryTab='plugins'`, `installSdkPlugin()`, `renderInstalledSdkPlugins()`, `data-sdk-inspector`와 `main.cjs`의 SDK IPC가 로컬 플러그인 사용 흐름을 제공한다.
-- **사용자는 플러그인 탭을 실제로 사용 중이라고 확인**했다. 따라서 탭 자체와 로컬 설치를 '미구현' 목록에 다시 넣지 않는다.
-- 한계는 **Node.js 실행형 플러그인, 네이티브 실행형 플러그인, 온라인 마켓플레이스의 별도 지원 여부**다. HTML 실행형 호스트가 있다는 사실과 모든 SDK 플러그인과의 호환성을 혼동하지 않는다.
-- **재발 방지:** 정적 HTML의 disabled, placeholder, 오래된 주석만으로 실행 상태를 판정하지 않고 렌더러 초기화, 이벤트 핸들러, IPC, 실행 호스트, 최신 실사용 피드백을 함께 확인한다. 2026-11-15 전체 코드 경로 재감사 결과는 아래 '코드 경로 재검증' 절을 따른다.
-
-**사용자 결정 (2026-11-15): `Virtual Stream Deck`은 미구현 작업 대상이 아니라 **개발 보류** 항목으로 관리한다. 현재 비활성 표시를 유지하며, 사용자가 명시적으로 개발 재개를 지시하기 전에는 구현하거나 미완성 우선 개발 목록에 넣지 않는다.**
-
-## 최신 UI 메뉴·프로필·장치 현황
-
-| 메뉴·기능 | 현재 상태 | 남은 작업 또는 검증 |
-|---|---|---|
-| 오른쪽 상단 설정 ⚙ | **명시적 미구현** | `index.html`에서 disabled. 설정 화면/항목 설계 및 구현 |
-| 오른쪽 플러그인 탭 | **코드 구현·사용자 실사용 확인** | `index.html`의 초기 disabled를 `editor.js` 초기화에서 `tabs[1].disabled=false`로 해제. 플러그인 탭·로컬 설치·목록·액션 등록 기능 존재. 사용자 실제 사용 보고 |
-| 액션 검색·카테고리·드래그 등록 | **코드 구현·실기 미검증** | 카탈로그 `action-panel-icons.js`, `editor.js`의 실제 GUI 확인 |
-| 프로필 생성·복제·이름 변경·삭제·전환 | **코드 구현·실기 미검증** | `editor.js`, `deck-core.js`의 장치·저장 복원 회귀 |
-| 전체 프로필 JSON 내보내기/가져오기 | **코드 구현·실기 미검증** | 최근 `editor.js`의 가져오기/사전 백업 경로 실기 확인. 과거 문서의 '가져오기 미구현'은 오래된 설명 |
-| 원자적 디스크 저장·스키마 버전 관리 | **명시적 미구현** | 기존 localStorage 기반 모델과 기존 프로필 무손실 이관 전제 |
-| Smart Profile | **부분 구현** | 코드상 자동 전환·기본 복귀 경로 존재. 전경 앱 조회/권한·최소화 조건 실기 확인; 과거 '기본 복귀 미구현' 문구 재검토 필요 |
-| 폴더·고정 키·페이지 | **부분 구현** | 최대 8단계 폴더, 10페이지 신규 제한, 고정 상속 지원. 원본/상속본 실시간 공유 및 액션별 Auto Exit 예외 미완성 |
-| LCD 버튼 우클릭·복사·붙여넣기·불러오기·내보내기·삭제 | **코드 구현·실기 미검증** | `editor.js`에 조건부 메뉴 존재. 원본 모든 상태별 메뉴 일치 여부/최신 삭제 공통 경로 확인 |
-| 아이콘 라이브러리 | **부분 구현** | Fluent UI Regular/Filled 내장, 외부 팩 가져오기·삭제, 간이 아이콘 제작. 대용량/포맷 제한과 원본 고급 에디터 미완성 |
-| 물리 버튼 2개·노브 누름 우클릭 삭제 | **코드 구현·실기 미검증** | `c738f160`까지 반영. 물리 버튼 2개·노브 3개 및 속성창 삭제 일관성 최신 EXE 재검증 |
-| 와이드 버튼 화면 순환·4개 정보 모드 | **부분 구현 + 사용자 실기 일부 확인** | CPU/RAM/GPU 겹침은 해결 확인. 통계 네이티브 화면에서 1회 입력으로 다음 모드 이동하는 최신 수정은 재검증 필요 |
-| 와이드 버튼 일반 액션 등록 차단 | **코드 구현·실기 미검증** | 최신 코드의 드래그·붙여넣기·루트/폴더 경로 실기 검증 |
-| Windows/D200X 연결·빠른 노브 회전·USB 재연결 | **부분 구현** | 사용 중 연결 안정 사례는 있으나 급회전·장시간 유휴·실제 복원은 별도 실측 필요 |
-| 화면/제목/글꼴·색상·PNG 반영 | **코드 구현·실기 미검증** | 원본 7.6.1 GUI 일치·디스플레이 배율 검증 필요 |
-
-## 오른쪽 액션 카탈로그 현재 상태
-
-카탈로그 그룹 정의는 `app/streamdeck-editor/action-panel-icons.js`가 제어한다. 정의된 ID **43개 = Stream Deck 기본 24개 + D200X 확장 18개 + 레거시 HA 1개**다. 단, 실제 **액션 탭 렌더링에서 레거시 HA 카테고리를 건너뛰므로 42개가 표시되며**, 그중 `virtual` 1개는 비활성화된다. 설치된 SDK 플러그인은 **별도의 작동 중인 플러그인 탭**에서 동적으로 표시하고, 저장 모델에서는 `sd-plugin` 유형을 사용한다. 따라서 '43개 모두 액션 탭에 표시'라고 해석하지 말 것.
-
-| 분류 | ID | 표시 기능 | 현재 상태 | 잔여 확인/제약 |
-|---|---|---|---|---|
-| Soundboard | `audio-play` | 오디오 재생 | 코드 구현·실기 미검증 | 페이드 1~5초, 출력 장치 선택 코드 있음; 실제 청감/출력 장치 확인 필요 |
-| Soundboard | `audio-stop` | 오디오 정지 | 코드 구현·실기 미검증 | 중복 재생·동시 오디오 시나리오 확인 필요 |
-| Stream Deck | `timer` | 타이머 | 코드 구현·실기 미검증 | 완료 음·잔여 시간 표시 구현; 실제 기기 갱신 간격 확인 필요 |
-| Stream Deck | `brightness` | 밝기 | 코드 구현·실기 미검증 | 장치 밝기 단계 및 경계 실측 필요 |
-| Stream Deck | `sleep` | 잠자기 | 코드 구현·실기 미검증 | D200X 화면 잠자기/깨우기 실측 필요 |
-| Stream Deck | `virtual` | Virtual Stream Deck 토글 | **사용자 지시로 개발 보류** | 현재 목록 표시만, 클릭·드래그 등록 비활성. 사용자 별도 재개 지시 전 구현 대상·우선순위에서 제외 |
-| 다중 동작 | `multi` | 다중 동작 | 부분 구현 | 하위 동작·지연·중단 지원; 모든 조합과 원본 일치 미확인 |
-| 다중 동작 | `multi-switch` | 다중 동작 스위치 | 부분 구현 | 상태별 동작·제목·아이콘 지원; 복원·실물 전환 검증 필요 |
-| 다중 동작 | `random` | 무작위 동작 | 부분 구현 | 후보 편집 및 무작위 실행; 지원 하위 액션 범위 제한 |
-| 다중 동작 | `logic` | Key Logic | 부분 구현 | single/double/hold 분기 코드; 물리 입력 타이밍·조합 미확정 |
-| 시스템 | `website` | 웹사이트 | 부분 구현 | 기본/GET/지정 브라우저 HTTP(S) 지원; 커스텀 URI 미지원 |
-| 시스템 | `hotkey-switch` | 단축키 전환 | 코드 구현·실기 미검증 | 대상 앱·포커스·상태 전환 실측 필요 |
-| 시스템 | `hotkey` | 단축키 | 부분 구현 | 직접 지정과 Windows 프리셋 지원; 원본 전체 프리셋·동적 검색 없음 |
-| 시스템 | `open` | 열기 | 코드 구현·실기 미검증 | Windows 파일·폴더/앱 처리 실측 필요 |
-| 시스템 | `open-app` | 응용 프로그램 열기 | 부분 구현 | 약 650ms 길게 누르기 종료·전경 전환 코드; 원본 타이밍/Windows 포커스 미확정 |
-| 시스템 | `close` | 닫기 | 코드 구현·실기 미검증 | 경로 일치 프로세스 종료·권한 조건 확인 필요 |
-| 시스템 | `text` | 텍스트 | 코드 구현·실기 미검증 | 유니코드 직접 입력·클립보드 Ctrl+V 지원; 대상별 확인 필요 |
-| 시스템 | `media` | 멀티미디어 | 코드 구현·실기 미검증 | 플레이어·미디어 키 동작 확인 필요 |
-| 탐색 | `folder` | 폴더 생성 | 부분 구현 | 다단계 폴더·자동 종료 지원; 액션별 자동 종료 예외 미구현 |
-| 탐색 | `profile` | 프로필 전환 | 코드 구현·실기 미검증 | 프로필별 상태 보존·실물 전환 확인 필요 |
-| 탐색 | `previous` | 이전 페이지 | 코드 구현·실기 미검증 | 이전 보정 코드 있음; 최신 EXE 회귀 검증 필요 |
-| 탐색 | `next` | 다음 페이지 | 코드 구현·실기 미검증 | 반복 누름·페이지 경계 확인 필요 |
-| 탐색 | `goto` | 페이지로 이동 | 코드 구현·실기 미검증 | 대상 페이지 설정·복원 확인 필요 |
-| 탐색 | `indicator` | 페이지 표시기 | 코드 구현·실기 미검증 | 화면 표시 전용이며 실행 액션 아님 |
-| D200X 추가 | `system-volume` | Windows 음량 조절 | 코드 구현·실기 미검증 | 단계량·노브 회전 Windows 실제 확인 필요 |
-| D200X 추가 | `system-mute` | Windows 음소거 | 코드 구현·실기 미검증 | 음소거 상태 전환 확인 필요 |
-| D200X 추가 | `system-scroll` | Windows 스크롤 | 코드 구현·실기 미검증 | 가로·세로/단계량 실측 필요 |
-| D200X 추가 | `edit-history` | 실행 취소·다시 실행 | 코드 구현·실기 미검증 | Ctrl+Z/Y 대상 앱 포커스 확인 필요 |
-| D200X 추가 | `window-switch` | 창 전환 | 코드 구현·실기 미검증 | Alt+Tab 동작 확인 필요 |
-| D200X 추가 | `desktop-switch` | 가상 데스크톱 전환 | 코드 구현·실기 미검증 | Windows 가상 데스크톱 확인 필요 |
-| D200X 추가 | `device-brightness` | D200X 화면 밝기 | 코드 구현·실기 미검증 | 20~100% 보호·노브 조절 실측 필요 |
-| D200X 추가 | `system-zoom` | 화면 확대·축소 | 부분 구현 | 고정 키 조합 기반, 앱별 차이 |
-| D200X 추가 | `screenshot` | 화면 캡처 | 코드 구현·실기 미검증 | Windows 캡처 결과 확인 필요 |
-| D200X 추가 | `clipboard-edit` | 클립보드 편집 | 코드 구현·실기 미검증 | 복사·붙여넣기·잘라내기 대상별 확인 필요 |
-| D200X 추가 | `window-state` | 창 상태 | 코드 구현·실기 미검증 | 최대화·최소화·복원 확인 필요 |
-| D200X 추가 | `window-monitor` | 다른 모니터로 이동 | 코드 구현·실기 미검증 | 다중 모니터 환경 확인 필요 |
-| D200X 추가 | `explorer-open` | 파일 탐색기 열기 | 코드 구현·실기 미검증 | Windows 동작 확인 필요 |
-| D200X 추가 | `brush-size` | 브러시 크기 | 부분 구현 | 고정 단축키 기반, 앱별 키맵 미완성 |
-| D200X 추가 | `timeline-step` | 타임라인 이동 | 부분 구현 | 화살표 단축키 기반, 앱별 키맵 미완성 |
-| D200X 추가 | `timeline-zoom` | 타임라인 확대 | 부분 구현 | Ctrl +/− 기반, 앱별 키맵 미완성 |
-| D200X 추가 | `file-open` | 지정 파일 열기 | 코드 구현·실기 미검증 | 대상 파일·연결 앱별 확인 필요 |
-| D200X 추가 | `folder-shortcut` | 지정 폴더 열기 | 코드 구현·실기 미검증 | 탐색기 및 경로 실측 필요 |
-| 플러그인(레거시, 액션 탭 숨김) | `ha-toggle` | HA 장치 켜기/끄기 | 기존 저장 설정용 코드 보존 | `editor.js`의 `renderLibrary`가 레거시 HA 카테고리를 숨긴다. 기존 프로필 실행 경로는 남겨둠. 현재 사용자 플러그인 탭의 SDK HA 액션과 구별 |
-| 플러그인 | `sd-plugin` | Stream Deck SDK 플러그인 | **HTML 실사용 확인 + Node.js 실행 코드 구현·실기 미검증** | HTML SDK/HA 기존 기능 유지, `.js/.cjs/.mjs` 플러그인 프로세스·통신, 개발자 `.sdPlugin` 폴더 설치 및 원본 PI 지원 코드. Fusion 실제 설치·명령 실행 및 다른 플러그인은 별도 검증 |
-
-## 2026-11-15 원본 Autodesk FusionStreamDeck 플러그인 자동 호환성 검증 성공
-
-- **코드 커밋:** `1cfc6a43f6c50cdb779662409f1a2ea6ba6ab73b` — 외부 원본 플러그인의 **수정 없는** SDK 통신 검증을 GitHub Actions Windows 패키징에 추가. 상위 리포지터리 [AutodeskFusion360/FusionStreamDeck](https://github.com/AutodeskFusion360/FusionStreamDeck)의 커밋 `bc153b8cddedba91614f932f4210f1ecb451c2a8`을 고정 사용(소스 저장소에 복제하지 않고 CI에서 별도 체크아웃).
-- **자동 검사:** [Windows Preview #43689297460](https://github.com/SoonCheol/D200X-Deck/actions/runs/43689297460) **success**. 해당 run 로그의 'Unmodified Autodesk FusionStreamDeck Node24 plugin speaks D200X SDK WebSocket' **1개 테스트 통과, 실패 0**. 기존 패키징된 Electron Node24 SDK 통합 테스트도 통과. [CI #43689301936](https://github.com/SoonCheol/D200X-Deck/actions/runs/43689301936) **success**.
-- **실제 확인된 내용:** Fusion 원본 `.sdPlugin` 폴더 설치 및 manifest 액션 인식 → 원본 `bin/plugin.js`를 **패키징된 Electron Node 24 실행기**로 시작 → SDK WebSocket 등록 → D200X 호스트의 `keyDown` 수신 → Fusion 애드인 부재 상황에서 원본의 `showAlert` 응답 → `sendToPlugin` 검색 요청에 대해 원본이 `sendToPropertyInspector/searchError`를 보내고 D200X 호스트가 속성 편집기 소켓으로 전달하는 경로.
-- **빌드:** Artifact `D200X-StreamDeck-Device-Sync-win-x64` ID `14151338602`, 170,372,503 bytes, 확인 당시 `expired=false`.
-- **검증되지 않은 것:** 실제 Fusion 360 설치/애드인 HTTP 서버 연결, `extrude` 실제 명령 실행, Fusion 정상 연결에서 명령 목록·아이콘 표시, 실제 PI GUI, 물리 D200X 버튼/노브. 따라서 **'Fusion 플러그인 완전 호환'으로 표시하지 않는다**.
-- **다음 단계:** Windows 실제 Fusion 360/애드인과 D200X에서 기능 실기. 다른 무료 공개 Stream Deck 플러그인도 SDK 이벤트/manifest 차이 검토 후 지원 범위 확대. 기존 HTML·HA 플러그인 및 프로필 보존.
-
-## 2026-11-15 Node.js 플러그인 호스트 자동 검증 완료 — 실기와 구분
-
-- **현재 기능 커밋:** `c38b50d8742325d8b79df7b06e94c95d148ce8cc` (Node.js 호스트·폴더 설치·SDK 통신·Windows 검증 워크플로; 기존 HTML/HA 보존).
-- **CI:** [#43688950761](https://github.com/SoonCheol/D200X-Deck/actions/runs/43688950761) **success**.
-- **Windows 패키징/SDK 통합:** [#43688944909](https://github.com/SoonCheol/D200X-Deck/actions/runs/43688944909) **success**. 실제 Windows GitHub Actions 실행 환경에서 완성된 `D200X-StreamDeck-Preview.exe`를 `ELECTRON_RUN_AS_NODE=1`로 실행하여 **Node v24.22.1** 확인. 해당 EXE를 테스트 플러그인의 실제 Node 실행기로 지정하여 **SDK 테스트 12개 통과, 실패 0**(매니페스트/ZIP/폴더 가져오기, HTML/HA 호환용 모의 테스트, Node 프로세스·WebSocket 등록·키 입력 테스트 포함).
-- **Windows ZIP Artifact:** `D200X-StreamDeck-Device-Sync-win-x64`, ID **14151905591**, 170,372,503 bytes, 확인 당시 `expired=false`(일시적 보관).
-- **정확한 검증 한계:** 실제 Autodesk FusionStreamDeck 원본 `bin/plugin.js`를 Windows EXE에서 설치·실행하는 시험은 아직 하지 않았고, Fusion 360 Python 애드인·Property Inspector 검색·물리 D200X 버튼 실기는 미확인. 현재 테스트 Node 플러그인은 **모의 구현**. 모든 상용/네이티브/DRM Stream Deck 플러그인의 호환을 의미하지 않음.
-- **실패 및 재수정 기록:** Actions #43688432536 (YAML step 생성 오류), #43688638822 (루트·app 상대 경로 오류), #43688783937 (첫 테스트 경로 오류)를 수정하여 최종 #43688944909 success 달성. 오류 원인과 커밋별 기록은 [전용 인수인계](D200X-NODE-PLUGIN-HANDOFF-20261115.md)에 남김.
-- **다음 순서:** 원본 Fusion 플러그인 샘플을 통한 WebSocket/PI/아이콘 검증 강화 → 필요 시 SDK 호환 이벤트 추가 → 사용자 PC에서 Fusion 실제 명령·D200X 실기. 기존 사용자 데이터·HTML/HA 설정은 무손실 보존.
-
-## 2026-11-15 Node.js 호스트 단계별 실행 기록
-
-- **1차 코드 커밋:** `0499bf2164a65af10ea5524a1fd01c5434993861`. HTML 전용 매니페스트 검증을 HTML·Node.js로 확장, Node 런타임 버전 체크, Electron 포함 Node 실행환경에 원본 SDK 인수로 독립 프로세스 시작, WebSocket 연결, 프로세스 종료 처리 및 Fusion manifest 단위 테스트 추가.
-- **CI:** [#43687825178](https://github.com/SoonCheol/D200X-Deck/actions/runs/43687825178) 성공. **Windows 패키징:** [#43687820764](https://github.com/SoonCheol/D200X-Deck/actions/runs/43687820764) 성공. 성공은 앱 실행/실물 호환성의 증거가 아닌 자동 빌드 결과.
-- **2차 코드 커밋:** `f7207e8fe5a03fbe4704cc30cac8b274dcb18ab2`. `.sdPlugin` 개발자 폴더 안전 설치, `127.0.0.1` SDK 서버, 실제 Node 하위 프로세스 + WebSocket 등록 + 물리 키 입력 모의 통합 테스트. 기존 HTML manifest 테스트 유지.
-- **2차 CI:** [#43688058250](https://github.com/SoonCheol/D200X-Deck/actions/runs/43688058250) 성공, [D200X 입력 검증 #43688053891](https://github.com/SoonCheol/D200X-Deck/actions/runs/43688053891) 성공, [Windows EXE #43688053882](https://github.com/SoonCheol/D200X-Deck/actions/runs/43688053882) 성공. Windows Artifact `14151515746`, 170,372,386 bytes, 당시 미만료. **이 테스트는 모의 Node 플러그인으로 진행됐으며 Autodesk Fusion 실제 명령 실행을 입증하지 않는다.**
-- **3차 진행:** Windows 패키지에서 Electron의 Node 24 실행 자체를 검증하는 Actions 단계 추가; 저장된 Node 플러그인 프로세스 종료 후 다음 동기화에서 재시작하도록 보완.
-- **단독 인수인계:** [D200X-NODE-PLUGIN-HANDOFF-20261115.md](D200X-NODE-PLUGIN-HANDOFF-20261115.md)
-
-## 2026-11-15 개발 시작 기록 — Node.js SDK 호스트 1단계
-
-- **목표:** Elgato 공식 SDK 규약으로 기존 Stream Deck Node.js 플러그인 실행. 첫 호환성 시험 대상은 Autodesk FusionStreamDeck. 특정 제조사 전용 코드는 넣지 않는다.
-- **변경 예정 코드:** `sd-plugin-host.cjs`에 HTML 이외의 `.js/.cjs/.mjs` CodePath, Node 런타임 버전 검증, Electron 내장 Node 기반 독립 플러그인 프로세스, 기존 SDK WebSocket 등록 공유, 종료 정리 추가. `test/streamdeck-sdk-host.test.cjs`에 Fusion manifest/ZIP/버전 검증 추가.
-- **지켜야 할 범위:** 기존 HTML/HA 경로와 사용자 설정은 유지; native/DRM/Marketplace 호환은 별개. 설치 시 실행되지 않고 버튼에 등록되어 `ensure`할 때만 실행한다.
-- **주의:** 첫 커밋은 **코드 경로 구현**이며 Windows EXE에서 Node 24 실행, Fusion 실제 명령, 원본 Property Inspector 실기는 아직 확인 전이다. `ELECTRON_RUN_AS_NODE` 기본 fuse에 의존하므로 빌드 후 런타임 확인 필요.
-- **진행 기록 규칙:** 이후 커밋별 CI 결과·실패/수정·소스 SHA를 이 절 아래 덧붙인다. 사용자 PC 전원을 요구하지 않으며 사용자 실기 요청 전까지 원격에서 가능한 범위만 처리한다.
-
-## 2026-11-15 사용자 최종 목표 정의 — Stream Deck 플러그인을 D200X에서 그대로 사용
-
-> **최우선 제품 목표:** Stream Deck용 기존 플러그인을 D200X 편집기의 플러그인 탭에 원본 형태로 등록하고, D200X 물리 버튼·노브로 실행·설정·상태·이미지까지 동작하도록 하는 범용 호환 호스트 구축. Autodesk FusionStreamDeck은 첫 호환성 시험 대상이며 Fusion 전용 개발이 목표가 아니다.
-
-- **공식 참조 기준:** [Elgato Stream Deck SDK 공개 소스](https://github.com/elgatosf/streamdeck), [Manifest](https://docs.elgato.com/streamdeck/sdk/references/manifest/), [WebSocket 플러그인 등록](https://docs.elgato.com/streamdeck/sdk/references/websocket/plugin/), [플러그인 환경/생명주기](https://docs.elgato.com/streamdeck/sdk/introduction/plugin-environment/). 비공개 Stream Deck 데스크톱 앱 내부 구현이 공개됐다고 전제하지 않는다.
-- **호환 구현 범위:** 원본 Stream Deck 플러그인의 manifest, CodePath, Nodejs.Version, Action UUID, WebSocket 이벤트, Property Inspector, 설정/상태 저장, 동적 이미지/제목, 키·노브 입력, 실행·종료·복구 계약을 D200X에 연결한다. Fusion 전용 하드코딩 및 원본 플러그인 수정은 기본 전략에서 제외한다.
-- **기존 기능 보존:** 현재 사용 중인 플러그인 탭, HTML CodePath 호스트, Home Assistant 플러그인, 버튼·노브·프로필·아이콘을 유지하며 필요한 경우 HTML/Node 실행기를 분기한다.
-- **첫 검증 대상:** [AutodeskFusion360/FusionStreamDeck](https://github.com/AutodeskFusion360/FusionStreamDeck). 매니페스트 CodePath=bin/plugin.js, Nodejs.Version=24, SDKVersion=2, PropertyInspectorPath=ui/run-command.html. 실제 Fusion 명령 실행에는 별도의 Fusion Python 애드인이 필요하다.
-- **구현 단계:** (1) 공식 SDK/예제와 기존 호스트 차이 분석, (2) 매니페스트·패키지 설치·Node 프로세스, (3) WebSocket/Property Inspector/설정/이미지, (4) D200X 버튼·노브 연동, (5) 원본 Fusion 플러그인 등록과 실제 Fusion 명령 검증, (6) HTML·HA·프로필 회귀 검사.
-- **완료 판정:** 코드/CI, Windows EXE, 실제 D200X와 Fusion 실행을 분리한다. 한 플러그인 성공을 모든 Stream Deck 플러그인 호환성 확보로 과장하지 않는다. 네이티브 플러그인과 미지원 컨트롤러는 후속 확장으로 구분한다.
-- **현 상태:** 목표/기준 확정. Node.js 지원 코드는 아직 미구현. 개발 실행·빌드는 별도 요청 시 진행.
-
-## 2026-11-15 사용자 지정 Node.js 플러그인 호환성 목표 — Autodesk FusionStreamDeck
-
-> **상태: 목표 확정 / 구현 미착수.** 사용자가 직접 지정한 첫 Node.js 플러그인 호환성 검증 대상은 [AutodeskFusion360/FusionStreamDeck](https://github.com/AutodeskFusion360/FusionStreamDeck)이다. 이 항목은 기존 24개 기본 액션이나 현재 사용 중인 HTML 기반 SDK 플러그인 기능을 대체하는 작업이 아니다. 사용자 별도 구현 지시가 있을 때만 코드를 수정한다.
-
-- **정확한 대상:** `com.autodesk.fusionstreamdeck.sdPlugin` (`manifest.json`의 `UUID: com.autodesk.fusionstreamdeck`, `CodePath: bin/plugin.js`, `Nodejs.Version: "24"`, `SDKVersion: 2`, `PropertyInspectorPath: ui/run-command.html`).
-- **목표 원칙:** Fusion 전용 하드코딩이 아니라 **범용 Stream Deck Node.js 실행 호스트를 추가**하고 Autodesk Fusion의 `Run Command` 액션을 첫 실사용 호환성 목표로 검증한다.
-- **기존 기능 보존:** 현재 플러그인 탭의 HTML CodePath 설치·실행, HA 플러그인, 등록 액션/프로필/아이콘, 노브·물리 버튼·와이드 화면 기능을 변경 없이 보존한다.
-- **개발 시 확인할 요소:** Node 24 런타임 실행/패키징, 독립 플러그인 프로세스와 생명주기, 기존 WebSocket SDK 등록 및 `keyDown` 이벤트, HTML Property Inspector의 설정 검색·선택, `setImage` 등 상태 업데이트, 장애·종료 처리, 설치/압축 검증, 이전 HTML 호환성.
-- **실사용 완료 기준:** (1) Autodesk 플러그인 등록 및 `Fusion 360 / Run Command` 표시, (2) 액션을 D200X 버튼에 배치·저장·복원, (3) 원본 Property Inspector에서 Fusion 명령 검색·선택, (4) 실제 Fusion 명령 실행, (5) 해당 명령 아이콘 및 오프라인 표시/복귀 확인, (6) 기존 HTML/HA 플러그인 회귀 없음. 테스트/CI 성공과 실제 Windows/Fusion/D200X 실기는 구분해서 기록한다.
-- **별도 전제:** 이 저장소 README에 따르면 플러그인뿐 아니라 **Fusion 360 내부에서 동작하는 `FusionStreamDeck` Python 애드인도 설치·실행**해야 한다. 애드인 없이 플러그인 호스트만 추가해서 실제 명령이 실행된다고 주장하지 않는다.
-- **패키징 확인:** 프로젝트 README는 개발자용 `.sdPlugin` 폴더 복사 절차를 안내한다. D200X 기존 설치 UI가 `.streamDeckPlugin`/ZIP을 받는 방식과 차이가 있으므로 **정확한 설치 파일 준비 또는 지원 확장 필요 여부를 먼저 검증**한다.
-- **범위 한계:** 이 단계의 목표는 Node.js 플러그인 호환성이지 모든 SDK 플러그인/네이티브 플러그인 지원을 약속하는 것이 아니다. 현재 다중 동작 안의 SDK 플러그인 실행 제한도 별도 개선 과제이며, Fusion 매니페스트의 `SupportedInMultiActions` 선언만으로 D200X의 다중 동작 지원이 완료되지는 않는다.
-- **기록 규칙:** 실제 구현 전 `미착수`, 기능 코드 반영 후 `코드 구현·실기 미검증`, 사용자 실기 증거 확보 후에만 해당 범위 `실기 확인`으로 변경한다.
-
-## 카탈로그 외 명시적 미완성 / 추가 후보
-
-| 기능 | 현재 상태 | 구분 |
-|---|---|---|
-| Windows 마이크 음소거 | **미구현** | 오른쪽 18개 D200X 추가 액션과 별도 후속 후보. 기존 액션에 있다고 쓰지 말 것 |
-| Windows 기본 출력 장치 전환 | **미구현** | Soundboard 재생 대상 출력 선택과 다름 |
-| Node.js Stream Deck 플러그인 실행 | **원본 Fusion Node 플러그인 자동 SDK 검증 통과·실제 Fusion 실기 미검증** | `sd-plugin-host.cjs`에서 Node 20+ 및 manifest 선언 버전 검증, Electron 내장 Node 실행, SDK WebSocket, key event, 폴더 설치 코드. Fusion의 Node 24는 Windows 패키지 Node 24.22.1 실행 및 SDK 통합 테스트 12개 성공; 실제 Fusion 실기 미검증. 무제한 플러그인 호환 의미 아님 |
-| 네이티브 Stream Deck 플러그인 실행 | **미구현** | 별도 프로세스/SDK 호환 체계 필요 |
-| 온라인 플러그인 마켓플레이스 | **미구현** | 플러그인 탭과 로컬 설치는 이미 구현·사용 중. 웹 기반 플러그인 검색·다운로드 마켓만 별도 미구현 |
-| 원본 전체 아이콘 편집기/앱별 프리셋 검색 | **미완성** | 간이 아이콘 제작·고정 단축키 프리셋은 존재 |
-| 프로필 저장 원자성·파일 버전 관리 | **미구현** | 무손실 이관·백업 전략 선행 |
-
-## 2026-11-15 코드 경로 재검증 — 정적 UI만으로 판정하지 않음
-
-**대상 코드:** `c738f16095996d64b2dd8b215515743fba299390` (이후 문서 커밋만 적용). `index.html`, `editor.js`, `action-panel-icons.js`, `deck-core.js`, `preload.cjs`, `main.cjs`, `sd-plugin-host.cjs` 및 관련 테스트 3종을 GitHub에서 읽어 비교했다. **이 확인은 소스 수준 감사이며 EXE 실행이나 물리 D200X 전체 실기 검증은 아니다.**
-
-| 대상 | 증거 코드 연결 | 판정 |
-|---|---|---|
-| 플러그인 탭 | `index.html` 초기 disabled → `editor.js:2691` 해제 → 탭 클릭 시 `libraryTab='plugins'` 및 `renderLibrary()` → `renderInstalledSdkPlugins()` | **구현 및 사용자 실사용 확인**. 이전 '미구현' 판정 철회 |
-| 플러그인 추가 | `editor.js:458` 설치 요청 → `preload.cjs` `sdkInstall` → `main.cjs:23` 파일 선택/설치 → `sd-plugin-host.cjs` `parseArchive/install` | **구현**. 실제 설치 가능한 것은 검증에 통과한 HTML 기반 `.sdPlugin`; Node.js 지원을 뜻하지 않음 |
-| 플러그인 액션 등록·실행 | `renderInstalledSdkPlugins()`에서 드래그/클릭 → `newAction('sd::...')` → `scheduleSdkSync()` / `sdkActionInstances()` → IPC `sdk-sync`, `sdk-key` → SDK 호스트 | **코드 연결 + 사용자 플러그인 사용 보고**. 임의 플러그인 전체 호환은 보장하지 않음 |
-| 플러그인 속성창·상태 | `actionFields('sd-plugin')`에서 원본 설정창 버튼 → `sdkInspector`; SDK 이벤트 `setTitle/setImage/setState/settings` 처리 | **코드 연결**. 각 플러그인별 실제 속성·이미지 갱신은 별도 실기 |
-| Node.js/네이티브 호스트 | `sd-plugin-host.cjs:validateManifest`에서 `.html` 및 `.js/.cjs/.mjs` 허용, native `.exe` 거부. Node 프로세스와 SDK WebSocket 연결 코드 존재 | **Node.js 코드 구현·Windows/Fusion 실기 미검증, 네이티브 별도 미구현** |
-| 설정 ⚙ | `index.html`의 설정 버튼 disabled 및 `editor.js`의 'main settings remains disabled' 주석, 활성화 경로 없음 | **상단 설정 화면 미구현**. 프로필·플러그인별 설정 기능은 별도로 존재 |
-| Virtual Stream Deck | `renderLibrary()`에서 `virtual` 항목 draggable=false·disabled 표시, `isAssignableAction()`에서도 제외 | **사용자 지시로 개발 보류** (코드상 비활성은 유지) |
-| 프로필 JSON 가져오기/내보내기 | `editor.js:2593` 이후 전체 JSON 다운로드·가져오기/검증·기존 상태 백업·복원 처리 | **코드 구현**, 원자적 디스크 저장과 다른 기능 |
-| Smart Profile 기본 복귀 | `editor.js:2701` 4초 폴링의 `matched || fallback`, `main.cjs:705` 최소화·Windows 전경 앱 IPC 제한 | **코드 구현**, 실제 앱 전환·예외 조건은 실기 미확인. 과거 '기본 복귀 미구현'을 현행 상태로 인용 금지 |
-| Multi/Random/Switch/Logic | `deck-core.js:planComposite/runComposite` 및 `editor.js:1725` 이후 하위 실행 엔진·`executeHardwareAction`의 복합 분기 | **부분 구현**. SDK 플러그인의 Multi 하위 실행은 `executeMultiStep`에서 명시적으로 거부 |
-| 전체 카탈로그 | `action-panel-icons.js`의 43개 그룹 ID ↔ `deck-core.js` 24+18+2 모델 ID ↔ `editor.js` 속성 분기 ↔ 이 상태표 ID | **모든 43개 ID가 상태표에 존재함을 대조**. UI에서 보이는 항목은 42개(레거시 HA 제외), 그중 Virtual은 비활성 |
-| 아이콘 라이브러리 하단 확대 표시 | `index.html`의 `span.icon-zoom`은 표시용 마크업. `editor.js`에 해당 요소의 이벤트 핸들러 없음 | **이 표시 자체는 조작 가능한 확대/축소 버튼으로 확인되지 않음**. 실제 목록 표시 방식 버튼 `icon-library-layout`과 구분 |
-
-### 자동 검사와 실기의 범위
-
-- `test/streamdeck-core.test.cjs`에서 액션 플래닝·프로필·와이드/노브, `test/streamdeck-sdk-host.test.cjs`에서 HTML 매니페스트·호스트, `test/streamdeck-transport.test.cjs`에서 전송·절전·재연결 등의 테스트 정의를 확인했다. **이번 감사에서 테스트를 새로 실행하지 않았다.**
-- 기능 소스 `c738f160` 기준 GitHub Actions [CI #43683897871](https://github.com/SoonCheol/D200X-Deck/actions/runs/43683897871), [입력 검증 #43683894235](https://github.com/SoonCheol/D200X-Deck/actions/runs/43683894235), [Windows Preview #43683894213](https://github.com/SoonCheol/D200X-Deck/actions/runs/43683894213)은 각각 `success`로 재조회됐다.
-- **실물/Windows 미확인:** 모든 액션에 대한 앱별 효과, 여러 종류의 Stream Deck 플러그인 호환성, 최근 와이드 통계 화면 1회 입력, 물리 버튼·노브 삭제 UI 등.
-- 이후 상태 변경은 HTML 초기 속성·주석만으로 결정하지 않고 반드시 **렌더러 실행 경로 → preload/IPC → 실행기 → 자동 검사/실기 보고**로 판단한다.
-
-## 최종 사용자 실기 / 자동 검증을 혼동하지 말 것
-
-- 사용자 실기 확인: **CPU/RAM/GPU 화면 겹침 제거**, 일반 와이드 정보 화면의 한 번 누름 순환.
-- **아직 사용자 최신 EXE 재검증:** 통계 화면에서 여러 번 눌러야 넘어가던 문제, 와이드 액션 등록 차단, 물리 버튼·노브 우클릭 삭제 및 속성창 동작 일치.
-- 최신 기능 코드: `c738f16095996d64b2dd8b215515743fba299390`.
-- 코드 기준 자동 검사 기록: [CI #43683897871](https://github.com/SoonCheol/D200X-Deck/actions/runs/43683897871), [물리 입력 모의 #43683894235](https://github.com/SoonCheol/D200X-Deck/actions/runs/43683894235).
-- 코드 기준 Windows EXE 패키징: [#43683894213](https://github.com/SoonCheol/D200X-Deck/actions/runs/43683894213), artifact `14149443199`, 성공/업로드 확인 당시 미만료.
-- 본 문서만 변경한 커밋에는 EXE 빌드를 실행하지 않는다. `main` 및 PR 병합 금지.
-
-## 문서 운영 규칙 — 향후 혼재 방지
-
-1. **이 파일만 현재 기능 상태표로 유지한다.** 최신 소스가 기존 표의 판정을 바꾸면 해당 행의 상태·근거·검증 범위를 먼저 수정한다.
-2. `docs/D200X-COMPLETE-HANDOFF-20261114.md`는 **시간순 작업 이력 및 세부 인수인계**, `docs/D200X-STREAMDECK-ROADMAP.md`는 **목표·설계·오래된 체크 이력**, `docs/D200X-BUILTIN-ACTIONS-EXPANSION.md`는 **확장 설계/기록**으로 읽는다. 해당 문서의 '최신' 표시는 작성 날짜에 한정한다.
-3. 단순 코드 작성, 단위 테스트 성공, Windows EXE 패키징, 사용자 실기는 서로 다른 증거. **실기 미확인 항목에 '완료' 표시 금지**.
-4. 수정 시: **관련 코드 → 이 표의 해당 상태/근거 → 상세 이력** 순서로 함께 갱신. 기존 개발 이력은 삭제하거나 과거 사실을 조용히 덮어쓰지 않는다.
-5. 다른 문서에서 구식 상태표가 발견되면 이 파일로 연결하고, 그 문장을 현행 판정으로 인용하지 않는다.
-6. 사용자 승인 없이 `main` 변경, PR 병합, 프로필/사용자 데이터 삭제, 신규 플러그인 구현 금지.
-
-## 2026-11-16 — Fusion 실제 메뉴 전용 명령 일괄 등록 (코드 구현)
-
-- [x] 디자인 작업 영역의 사용자 지정 9개 탭 메뉴 스냅샷에서 배치 959건·고유 ID 326개만 추출하여 `tools/fusion-mcp/fusion-menu-catalog.json` 기록.
-- [x] MCP 명령 조회 및 `fusion_export_batch` 내보내기에 메뉴 ID 화이트리스트와 메뉴 순서 적용. 메뉴에 없는 API 전용 ID 배제.
-- [x] 같은 표시명이라도 서로 다른 ID는 분리, 같은 ID가 여러 메뉴에 반복되어도 한 번만 등록. 기존 프로필 가져오기 방식 유지.
-- [ ] 최신 자동 CI 실행 결과 확인 및 사용자 Windows/Fusion/D200X 실기 검증. 코드와 실제 작업 영역별 실행 가능 여부는 별도로 판정.
-- 주의: 메뉴 구조는 Fusion 2706.1.17 수집 결과이며, 메뉴 배치가 곧 실행 가능을 뜻하지 않는다. 사용자 승인 없이 새 설치 빌드 또는 PR 병합 금지.
+# DeckForge 1.1 · D200X 편집기 — 최신 통합 상태·계약
+
+> **최신 통합 기준: 2026-11-17** · 저장소 `SoonCheol/D200X-Deck` · **유일 개발 브랜치** `codex/streamdeck-761-clean-editor` · 검증 기준 HEAD `d360aa83d7851f69b6e0f3afdf74432570d82721`.
+> 현재 상태는 **최신 GitHub 소스 > 최신 CI/Windows 빌드 증거 > 검증 범위가 명시된 사용자 실기 보고 > 과거 문서** 순으로 판단한다. 이 문서의 상태는 해당 커밋 당시 스냅샷이며 다음 세션에서 HEAD를 다시 확인한다.
+> **새 채팅 필독은 딱 3개**: 루트 `AGENTS.md`, 이 문서, `docs/D200X-STREAMDECK-ROADMAP.md`. 과거 날짜별 자료는 `docs/archive/`에 증거로 보존한다. 신규 세션에서 전체 보관 문서를 재독하지 않는다.
+
+## 1. 작업·검증 계약
+
+- 사용자 지시 없는 코드 수정·커밋·빌드·PR 병합 금지. 본 문서 정리 작업은 **문서만** 변경한다. 유일 브랜치 유지, 다른 브랜치 생성/전환 금지, **Draft PR #5 미병합**.
+- 사용자 승인 UI, USB/HID·5초 유지통신·페이지/노브/측면 버튼 입력, 기존 24개 액션·플러그인, 설정/아이콘/프로필, 로컬 사용자 파일을 손상시키지 않는다. 필요 부분만 최소 수정하고 무관한 리팩터링 금지.
+- 판정 명칭은 **계획/정적 코드 반영/자동 테스트 통과/Windows 빌드 성공/Windows GUI 실측/D200X 물리 실기 확인**으로 분리한다. 자동 테스트 또는 설치 패키징 통과를 실기 성공으로 표기하지 않는다.
+- 기존 Stream Deck 7.6.1 (23033) 한국어 Windows UI를 기준으로 하되 D200X의 실제 키·노브·와이드 화면에 맞춘다. Ulanzi 기존 소스는 하드웨어 통신 중심으로만 재사용한다.
+- 개발 전 원본 GUI 증거 → Elgato 공식 자료 → 사용자/Reddit·GitHub 사례 → D200X 실제 프로토콜을 비교한다. 이미 `research/streamdeck/7.6.1/desktop/`에 확보된 GUI/REA 자료를 반복 분석하지 않는다. 미관찰된 수치·메뉴·이벤트를 창작하지 않는다.
+- 변경 시 최소 테스트·관련 기능 회귀·원격 CI/Windows 빌드 상태·Artifact 확인 결과를 구분하여 기록한다. 최신 소스 커밋의 Actions 다운로드 페이지를 제공한다.
+- 날짜별 과거 문서의 “미구현”, “최신”, “빌드 보류” 등은 **당시 기록**이다. 이 문서·실제 HEAD와 충돌하면 과거 자료로만 취급한다.
+
+## 2. 최근 확정 배포 상태 (2026-11-17)
+
+| 구분 | 근거/상태 |
+|---|---|
+| 개발 HEAD | `d360aa83d7851f69b6e0f3afdf74432570d82721` |
+| 최신 Windows 통합 빌드 | [Actions #44092348283](https://github.com/SoonCheol/D200X-Deck/actions/runs/44092348283) **success** |
+| 설치형 | Artifact `DeckForge-1.1-Setup-win-x64`, ID `14331019961` |
+| 포터블 | Artifact `DeckForge-1.1-win-x64`, ID `14331903227` |
+| 이전 빌드 오류 | `jszip`을 워크플로 루트에서 찾지 못했던 실패를 `./app/node_modules/jszip` 경로로 수정, 이번 빌드 성공 |
+| GitHub CI | 선행 변경 커밋 `ed3e291`에서 성공; `d360aa83` 커밋은 Windows 워크플로 성공과 별도로 CI 여부 확인 필요 |
+| 실제 사용자 Windows GUI·D200X 전체 실기 | **신규 설치본 최종 확인 대기** |
+| 브랜치/PR | `codex/streamdeck-761-clean-editor` / PR #5 Open·Draft·미병합 |
+
+- 사용자 제공 `app/streamdeck-editor/bundled/DeckForge_IoT_Icons.streamDeckIconPack` (106 아이콘, **DeckForge IoT Icons**, 제작자 **Airburst**)이 저장소에 있으며, Windows 워크플로가 이를 검사·포함한다. 내장 아이콘은 사용자 등록 팩과 별도로 `source='bundled'`로 표시되고 제거할 수 없게 한다. 기존 Fluent UI Filled/Regular 기본 팩 보존. Windows 실기 라이브러리 표시와 실제 사용은 확인 대기.
+- 오른쪽 패널 탭은 **기본 액션**, `D200X 장치·화면` 그룹은 가장 위. 액션 ID·데이터 구조·다른 카테고리는 보존한다.
+- 최근 상태별 아이콘 카드: 세 가지 회귀(잘못된 테스트 선택자, `T⌄` 재클릭 토글, 선택 시 `stateTitles` 자동 저장) 수정; `renderDeckKeyImage`로 개별 제목·글꼴·색상·정렬·윤곽선을 카드 이미지 위 합성. 비동기 미리보기 결과는 버전 체크로 구형 응답 폐기. 설정 편집 전 SDK 실시간 `setTitle`을 덮어쓰지 않음. 자동 검사와 실제 화면 결과는 구분.
+
+## 3. 사용자 승인 UI: 기본 골격·상태별 카드 (최신 예외 우선)
+
+**기본 UI 고정**: 왼쪽 D200X 일반 키 13개·와이드 1개, 측면 버튼 2개, 노브 3개와 페이지 제어; 아래 인스펙터; 오른쪽 프로필·장치·설정·검색·기본 액션/플러그인 영역. 외부 앱 인스펙터/UI로 대체하거나 임의 재배치·폰트/버튼 높이 재설계 금지. 변경은 사용자 요청된 국소 범위만.
+
+**기존 일반 키 인스펙터의 4영역 기본 원칙**(상태 카드가 없는 액션 등에 적용):
+1. `.action-head`: 액션 경로·이름·도움말, 오른쪽 **▶ 실행 테스트**.
+2. `.properties`: 대표 미리보기, 제목 및 전체 액션별 설정(복합 액션 포함). 동적 속성 완성 후 아이콘 영역 생성.
+3. 아이콘 한 쌍: 일반/Fusion `Key Up → Key Down`, 실제 상태형 SDK `OFF → ON` 중 한 종류만; 저장한 반대 스키마의 값은 삭제 금지.
+4. `.inspector-save-bar`: 기본은 하단 **취소 / 저장**. 대표 아이콘·제목·필드 값을 같은 시작선에 맞추고 숨겨진 필드 삭제·잘라내기 금지.
+
+**2026-11-17 최종 승인 예외 — 상태별 독립 제목 카드가 실제 표시되는 일반 키**: 위 고정 196px 카드/4영역 규칙보다 **아래 사항 우선**.
+- `.state-title-layout`은 **98px 대표 미리보기 + OFF/ON 또는 Key Up/Down 가변 카드 2장**을 한 가로줄에 배치, 간격 **12px**, 이미지는 정사각형 `aspect-ratio:1/1`, 공간에 맞게 자동 축소하되 비율 왜곡 금지. 창 크기에 따른 양방향 스크롤/클리핑 여부는 GUI 실측 대기.
+- 각 카드 **상태명 바로 아래**에 제목 체크박스·입력 placeholder `제목`·`T⌄` 글꼴 속성 버튼. 별도 ‘제목’ 라벨 없음.
+- 제목 1/2는 각각 텍스트·활성화·글꼴·크기·색·외곽선·정렬 독립. **둘 다 켜면 각각 해당 상태**, **하나만 켜면 두 상태가 그 제목과 스타일 공유**, **둘 다 끄면 출력 없음**. 해제해도 기존 내용/스타일 유지. 설정 없는 과거 항목은 기존 제목 fallback. `settings.stateTitles.first/second`는 사용자가 실제 편집할 때만 생성하며 선택/렌더만으로 저장값·dirty 상태를 만들지 않는다.
+- 스타일 프리셋은 양쪽 모두 기존 단일 전역 `deckforge-title-style-presets-v1` 공유. 같은 `T⌄` 재클릭 닫기, 다른 카드/바깥 클릭 시 `aria-expanded=false`. 각 상태 카드의 이미지 미리보기 역시 실제 D200X 합성기와 같은 제목·스타일 사용.
+- 각 카드의 기존 **라이브러리/파일/클립보드/특수문자/초기화** 버튼 **76×25px**, 간격 **4px** 고정; Pretendard 기본 크기 보존.
+- 상단 **▶ 실행 테스트** 위치 유지. **플러그인 속성 열기**는 상태 카드 위 왼쪽, **취소/저장**은 같은 툴바 오른쪽. **이 경우 하단 저장 바 위치 규칙 적용하지 않음.**
+- 이전 고정 계약은 카드 한 쌍 196px×2+12px=404px, 이미지 84px, 값 시작선 196px 및 `--inspector-preview-width:98px`를 정의했지만 **최신 가변 상태 카드 예외에 우선하지 않는다**. 예외 외 일반 액션/노브/측면 버튼/와이드는 기존 구조 유지.
+- 공통 체크박스 15×15px 및 값 열 정렬, 폴더 자동 종료 시간의 별도 필드/숫자 내부 ‘초’, 웹사이트 프로토콜(기본 `http://`, 체크 시 `https://`), 프로그램 실행 인수 독립 전달, Windows EXE/LNK/BAT/CMD 드롭 시 응용 프로그램 등록·아이콘/제목 자동 추출은 기존 동작 보존.
+
+## 4. Key Up/Down·상태형 아이콘의 예외 정책
+
+- **일반 순간형과 모든 Autodesk Fusion 명령**: `Key Up` 기본, 물리 `Key Down` 누름 이미지. 놓으면 복귀. 이미지가 같으면 기존 축소 효과만 적용하며 이중 효과 금지. 속성창 미리보기 마우스 클릭은 **시각 시뮬레이션 전용**; HA 토글·명령·SDK `keyDown` 전송 금지.
+- **실제 상태형**(HA ON/OFF, SDK `setState/setImage`, `multi-switch`): 상태 우선, Key Up에 OFF/기본 강제 복귀 금지. Fusion 전체 명령은 사용자 지정 무상태 예외. 일반 SDK 전체를 무조건 상태형 취급하지 않는다.
+- **표시 전용** `indicator`, **와이드 특수 화면**은 일반 키 두 상태 이미지 정책 제외. `timer`는 카운트다운/문구, `logic`은 실제 Down/Up 판정, `open-app`의 hold(close/force)는 누름 시간을 보존. `hotkey-switch`의 내부 교대 상태 표시 정책은 후속 설계.
+- **페이지·프로필·폴더 변경**(`previous/next/goto/profile/folder`)은 전환 뒤 새 화면 슬롯의 정상 이미지가 우선, 이전 눌림 상태 잔류 금지. `sleep`은 잠자기/깨우기 동작 우선.
+- `multi`/`random` 등 일반 액션은 순간형 가능. `system-mute`나 `media`가 토글 명령이라는 이유만으로 실제 장치 상태를 추적한다고 가정하지 않는다. 노브 회전에 키 Up/Down 이미지를 임의 적용하지 않는다.
+- **정책과 구현/실기 증거를 구분**. 예외 문서의 과거 “구현 전” 체크박스는 당시 스냅샷이다. 최근 Key Up/Down 카드 기능 코드·Windows 빌드 성공 기록은 본 문서에서 판단하되 물리 동작은 별도 확인한다.
+
+## 5. 설정·자료 보존·플러그인 경로
+
+- 현재 Windows Electron 사용자 데이터 루트는 **`%APPDATA%\DeckForge`**. 프로필은 `Profiles/profiles.json`, 직전 백업 `profiles.json.bak`; 이미지 데이터 URL은 `Resources/Icons/`에 SHA-256 중복 제거 파일로 분리 저장한다. 기존 localStorage 구성은 **사용자 승인에 따라 자동 이관하지 않으며** 삭제도 하지 않는다. 프로필 읽기 오류 시 빈 파일로 덮지 못하도록 저장 차단·사용자 알림 유지.
+- 외부 아이콘팩 공통 라이브러리 `Resources/IconPacks/icon-packs-v1.json`, SDK 플러그인 공통 `Plugins/`. 구 `StreamDeck/IconPacks`·`StreamDeck/Plugins` 및 암호화 설정은 최초 안전 복사 후 **원본 보존**, 덮어쓰기/재등장 방지 로직 보호. 내장 팩은 앱 배포 리소스이며 사용자 JSON과 분리.
+- 아이콘팩 가져오기 `.streamDeckIconPack`/ZIP/일반 이미지 폴더/`.sdIconPack` 폴더, 기존 원본 바이트 보존; 정적 144px 초과는 비율 축소, SVG는 안전 검사 후 PNG 변환. 대형 애니메이션 GIF/WebP를 임의 정지 이미지로 대체 금지. 압축 및 개별 이미지 용량·개수 검사 유지.
+- Fusion 명령 캐시는 사용자가 지정한 이미지 우선, 정상 수신 이미지 우선, 연결 끊김 오버레이는 런타임 합성으로 **원본 이미지 불변**. 명령 식별은 단순 actionUUID 공통값이 아닌 `settings.pluginSettings.commandId` 기반, PC별 원본 Fusion 이미지/개인 데이터는 공개 GitHub에 올리지 않는다. Fusion add-in 건강 확인은 루프백 기반 `endpoint.json` + `/health`, WebSocket 연결과 실제 Fusion 실행 상태를 혼동하지 않는다.
+- 파일/앱 드롭, HA 인증·기기 상태, Stream Deck HTML/Node SDK 플러그인·원본 Property Inspector·Fusion SDK의 기존 호환 경로는 보존. Node.js 호스트의 WebSocket 자동 프로토콜 검증 성공은 Fusion 실제 명령 실행/Windows UI/물리 키 성공이 아니다.
+- 설치형(NSIS) 제거 시 **기본은 사용자 데이터 보존**, 명시적인 선택을 했을 때만 `%APPDATA%\DeckForge` 정리; 비대화형 제거는 보존. 다른 앱이나 구 폴더를 건드리지 않는다.
+- 기본 UI 글꼴 **PretendardVariable.woff2** 13px, 보조 **NotoSansSymbols / NotoSansSymbols2**, 라이선스 동봉. 패키징 시 공식 바이너리 SHA 검증. 키 제목 `titleStyle.family='default'`은 내장 Pretendard, 사용자가 명시한 다른 글꼴은 보존. 네이티브 펌웨어 시계·정보 화면은 이 PNG 글꼴 변경 대상 아님.
+
+## 6. 주요 기능·우선순위 및 보류
+
+- Stream Deck 기본 **24개 액션 보존**, D200X 추가 18개와 HA 레거시/SDK 플러그인 경로 구별. 오른쪽 패널은 액션 그룹 + 별도 **작동하는 플러그인 탭**; 초기 HTML의 disabled만으로 미구현으로 판단 금지. `Virtual Stream Deck`은 **사용자 지시에 따른 개발 보류**.
+- 기본 액션: Multi, Multi Action Switch, Random, Key Logic, 시스템/미디어/탐색/프로필/폴더. 일부 하위 조합·실제 앱/물리 입력 검증은 미완료. 물리 double/hold 시간 범위는 실기 근거 없이는 확정하지 않는다.
+- 기본 액션 확장 24개 **후보**(기존 엔진 재사용 포함); 우선 8개: Windows 음량/음소거, 확대·축소, 스크롤, 실행 취소·다시 실행, 창 전환, 가상 데스크톱, D200X 밝기. 조절형 버튼·노브는 동일 `action.type/settings` 모델, 노브 단계 1/2/5/10 및 반전. 코드/모의 검증과 실제 Windows·D200X 반응은 구분한다.
+- 폴더 최대 8단계, 신규 페이지 10개 제한(기존 10개 초과 데이터 삭제 금지), 고정 키는 다른 페이지 **빈 슬롯만** 상속·프로필별 격리. Auto Folder Exit은 **폴더 안에서 액션 실행 후** 0~60초, 0초 즉시 복귀. Smart Profile은 **기본 비활성, 편집기 최소화 중에만** 동작. 고정 상속 실시간 변경 공유·액션별 폴더 나가기 예외·전경 앱 실측 보완은 남아 있다.
+- 물리 버튼/노브 페이지 이동 1회 뒤 무반응은 과거에 이미 디바운스/설정/상태 초기화 코드 보정함. **미착수 문제로 되돌리지 말 것**; 최신 설치본에서 재현될 때만 로그와 함께 국소 수정.
+- 와이드 화면은 네이티브 시계/날짜·통계·노브 정보 모드 및 순환, CPU/RAM/GPU 겹침 등 사용자 보고와 후속 수정 기록이 있다. 모든 상태/버튼 1회 입력이 완전 해결됐다고 일반화 금지. 와이드 정보 슬롯에 일반 액션 드롭 금지, 노브/측면 버튼 우클릭 삭제 기능 유지.
+- Fusion Command Manager는 Fusion 360의 실제 **메뉴 계층** 기준(스케치 → 솔리드 → 곡면 → 메쉬 → 판금 → 플라스틱 → 관리 → 유틸리티 → 자동화), 좌→우/위→아래 순서, 툴바가 아닌 메뉴 기준. 명령 아이콘 경합 및 드래그 동작의 국소 수정 기록이 있다. 실행 명령 성공 여부는 실제 Fusion 설치/애드인/버튼에서 별도 검증.
+- 우선순위는 `docs/D200X-STREAMDECK-ROADMAP.md`의 계획과 최신 사용자 요청을 함께 따르되, 오래된 로드맵 체크박스가 최신 구현을 되돌리지 않는다.
+
+## 7. Windows 설치본 검증 대기 목록
+
+1. 속성창의 가로·세로 스크롤, 98px 대표 이미지 + 2개의 가변 정사각형 카드 한 줄 정렬, 창 최소 너비 클리핑.
+2. OFF/ON 또는 Key Up/Down 별도 제목·스타일·체크 조합·이미지 실제 합성 및 기존 제목 fallback.
+3. `T⌄` 팝오버 재클릭/바깥 클릭·프리셋 공유, 저장/취소, 플러그인 속성 열기/실행 테스트 위치.
+4. SDK 실시간 제목 및 HA 실제 상태, Fusion 캐시·명령, 기본 액션/폴더/고정 키/노브/측면/와이드 입력 회귀.
+5. **DeckForge IoT Icons** 106개 기본 라이브러리 노출, 기존 Fluent UI/사용자 아이콘팩 동시 유지.
+6. 기본 액션 탭 이름 및 `D200X 장치·화면` 상단 순서, Windows 설치/제거 시 사용자 데이터 보존 동작.
+
+## 8. 기술 참고 및 보관 정책
+
+- 새 세션 **필독 3개만**: `AGENTS.md`, `docs/D200X-CURRENT-STATUS.md`, `docs/D200X-STREAMDECK-ROADMAP.md`.
+- 과거 인수인계/레이아웃·Key Up/Down 계약/폰트/Fusion 캐시·분석/Node 호스트/기본 액션 확장 계획 및 기존 장문의 상태표는 **`docs/archive/`**에 원본 SHA 그대로 보존. **자동 필독 대상이 아님**. 역사적 상세 근거가 필요할 때에만 해당 문서를 읽는다.
+- `docs/PROTOCOL.md`, `docs/PLUGINS.md`, `docs/RELEASE.md`, `research/`, `docs/reviews/` 같은 분야별 참고 자료는 보존하지만 새 채팅 필독 목록이 아니다.
+- 매 작업 끝에 이 문서 최상단 기준 SHA와 실제 CI/빌드·실기 검증 상태를 갱신한다. 사용자가 수정·커밋·빌드를 지시하지 않은 세션에서는 조회 및 계획만.
