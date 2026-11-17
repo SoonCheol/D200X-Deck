@@ -741,9 +741,9 @@ async function configureHomeAssistant(){
   if(!window.deckBridge?.haSave)return window.d200xActionStatus?.('HA 플러그인은 Windows EXE에서 사용 가능합니다.');
   try{
     const current=await window.deckBridge.haStatus();
-    const url=prompt('Home Assistant 서버 주소',current.url||'http://192.168.0.100:8123');
+    const url=await askDeckForgeText('Home Assistant 서버 주소',current.url||'http://192.168.0.100:8123',2048);
     if(url===null)return;
-    const token=prompt('Home Assistant 장기 액세스 토큰 (기존 토큰은 표시되지 않음)');
+    const token=await askDeckForgeText('Home Assistant 장기 액세스 토큰 (기존 토큰은 표시되지 않음)','',4096);
     if(token===null)return;
     await window.deckBridge.haSave(url,token);
     window.d200xActionStatus?.('Home Assistant 연결 확인 및 설정 저장 완료');
@@ -1480,8 +1480,8 @@ function bindTitleStyle(item){
     $("outline-width").value=style.outlineWidth;
     persist();renderGrid();refreshTitlePreview(item);
   });
-  $("title-preset-save").addEventListener("click",()=>{
-    const input=prompt("프리셋 이름을 입력하세요 (현재 글꼴·크기·색상·외곽선·정렬 저장)",presetSelect.value||"");
+  $("title-preset-save").addEventListener("click",async()=>{
+    const input=await askDeckForgeText("프리셋 이름을 입력하세요 (현재 글꼴·크기·색상·외곽선·정렬 저장)",presetSelect.value||"",40);
     if(input===null)return;
     const name=input.trim();
     if(!name||name.length>40){alert("프리셋 이름은 1~40자로 입력해 주세요.");return;}
@@ -1659,7 +1659,7 @@ document.addEventListener('click',event=>{
   if(!inspectorSession?.dirty)return;
   // Viewing help, opening a picker, searching, or choosing an icon stays in the
   // same editing session. Do not mistake these separate overlays for navigation.
-  if(event.target.closest('#inspector-unsaved-dialog, .inspector-help-dialog, #sdk-plugin-help-dialog, #icon-maker'))return;
+  if(event.target.closest('#inspector-unsaved-dialog, .inspector-help-dialog, #sdk-plugin-help-dialog, #icon-maker, .deckforge-input-dialog'))return;
   if(event.target.closest('#icon-library')&&!event.target.closest('.icon-pack-remove'))return;
   if(event.target.closest('#action-search, .library-tabs, #profile-trigger, .profile-row-gear, .profile-global-trigger, .settings-trigger, .group-title'))return;
   const root=$('inspector');
@@ -1953,15 +1953,8 @@ function bindExtendedActionFields(root,item){
         const entities=await window.deckBridge.haEntities();
         if(!entities.length)throw new Error('제어 가능한 엔티티가 없습니다.');
         const current=item.settings?.entityId||'';
-        const names=entities.map((e,i)=>(i+1)+'. '+e.name+' ['+e.entity_id+'] ('+e.state+')').join('\n');
-        // Native prompt may truncate enormous lists; offer a searchable ID first.
-        const filter=prompt('엔티티 이름/ID 검색어 (빈칸은 처음 30개)',current);
-        if(filter===null)return;
-        const found=entities.filter(e=>(e.name+' '+e.entity_id).toLowerCase().includes(filter.trim().toLowerCase())).slice(0,30);
-        if(!found.length)throw new Error('검색 결과가 없습니다.');
-        const chosen=prompt(found.map((e,i)=>(i+1)+'. '+e.name+' ['+e.entity_id+']').join('\n')+'\n\n번호 또는 엔티티 ID 입력','1');
-        if(chosen===null)return;
-        const selected=/^\d+$/.test(chosen.trim())?found[Number(chosen.trim())-1]?.entity_id:chosen.trim();
+        const selected=await chooseDeckForgeEntity(entities,current);
+        if(selected===null)return;
         if(!entities.some(e=>e.entity_id===selected))throw new Error('유효한 엔티티를 선택하세요.');
         item.settings.entityId=selected;
         const input=root.querySelector('[data-field="entityId"]');if(input)input.value=selected;
@@ -2093,15 +2086,16 @@ let lastInspectorPreviewItem=null;
 function renderInspector(){
   beginInspectorSession();
   inspectorListener.abort();inspectorListener=new AbortController();
-  if(state.selected!==null&&state.selected>=14){
-    renderControlInspector();
-    return;
-  }
-  const root=$("inspector");root.replaceChildren();const item=state.selected===null?null:DeckCore.visibleActions(state)[state.selected];
+  const item=state.selected===null?null:state.selected>=14?null:DeckCore.visibleActions(state)[state.selected];
   if(item!==lastInspectorPreviewItem){
     if(lastInspectorPreviewItem)haPreviewStates.delete(lastInspectorPreviewItem);
     lastInspectorPreviewItem=item;
   }
+  if(state.selected!==null&&state.selected>=14){
+    renderControlInspector();
+    return;
+  }
+  const root=$("inspector");root.replaceChildren();
   if(state.selected===13&&wideDisplayAvailable()){renderWideInspector();return;}
   if(!item){root.className="inspector empty";root.textContent=state.selected===null?"버튼을 선택하세요":"액션을 끌어 이 키에 놓으세요";
     if(inspectorSession?.dirty)appendInspectorSaveBar(root);return;}
@@ -3394,6 +3388,57 @@ function bindIconControls(item){
       dropdown.hidden=true;toggle.setAttribute("aria-expanded","false");
     }
   },{signal:inspectorListener.signal});
+}
+// Standalone native dialogs must stay inside the editing-session navigation guard.
+function askDeckForgeText(title,initialValue='',maxLength=80){
+  return new Promise(resolve=>{
+    const dialog=document.createElement('dialog');dialog.className='profile-name-dialog deckforge-input-dialog';
+    const form=document.createElement('form');form.method='dialog';
+    const heading=document.createElement('strong');heading.textContent=title;
+    const input=document.createElement('input');input.type='text';input.maxLength=maxLength;
+    input.value=initialValue;input.required=true;input.setAttribute('aria-label',title);
+    const actions=document.createElement('div');actions.className='profile-name-actions';
+    const cancel=document.createElement('button');cancel.type='button';cancel.textContent='취소';
+    const ok=document.createElement('button');ok.type='submit';ok.textContent='확인';ok.className='primary';
+    cancel.addEventListener('click',()=>dialog.close('cancel'));
+    form.addEventListener('submit',event=>{event.preventDefault();if(!input.value.trim()){input.reportValidity();return;}dialog.close('save');});
+    actions.append(cancel,ok);form.append(heading,input,actions);dialog.append(form);
+    dialog.addEventListener('close',()=>{const result=dialog.returnValue==='save'?input.value:null;dialog.remove();resolve(result);},{once:true});
+    document.body.append(dialog);dialog.showModal();input.focus();input.select();
+  });
+}
+function chooseDeckForgeEntity(entities,current=''){
+  return new Promise(resolve=>{
+    const dialog=document.createElement('dialog');dialog.className='profile-name-dialog deckforge-input-dialog';
+    dialog.style.width='min(440px,calc(100vw - 32px))';
+    const heading=document.createElement('strong');heading.textContent='Home Assistant 엔티티 선택';
+    const search=document.createElement('input');search.type='search';search.placeholder='엔티티 이름 또는 ID 검색';
+    search.setAttribute('aria-label','HA 엔티티 검색');
+    const options=document.createElement('select');options.size=9;
+    options.style.cssText='width:100%;min-height:196px;background:#353942;color:white;border:1px solid #777;border-radius:5px';
+    options.setAttribute('aria-label','HA 엔티티 검색 결과');
+    const actions=document.createElement('div');actions.className='profile-name-actions';
+    const cancel=document.createElement('button');cancel.type='button';cancel.textContent='취소';
+    const ok=document.createElement('button');ok.type='button';ok.textContent='선택';ok.className='primary';
+    const fill=()=>{
+      options.replaceChildren();
+      const query=search.value.trim().toLowerCase();
+      const found=entities.filter(entry=>(entry.name+' '+entry.entity_id).toLowerCase().includes(query)).slice(0,100);
+      for(const entry of found){
+        const option=document.createElement('option');option.value=entry.entity_id;
+        option.textContent=entry.name+' ['+entry.entity_id+'] ('+entry.state+')';options.append(option);
+      }
+      if(found.length)options.value=found.some(entry=>entry.entity_id===current)?current:found[0].entity_id;
+      ok.disabled=!found.length;
+    };
+    search.addEventListener('input',fill);
+    const done=()=>dialog.close(options.value?'selected':'cancel');
+    ok.addEventListener('click',done);options.addEventListener('dblclick',done);
+    cancel.addEventListener('click',()=>dialog.close('cancel'));
+    actions.append(cancel,ok);dialog.append(heading,search,options,actions);
+    dialog.addEventListener('close',()=>{const result=dialog.returnValue==='selected'?options.value:null;dialog.remove();resolve(result);},{once:true});
+    fill();document.body.append(dialog);dialog.showModal();search.focus();
+  });
 }
 // Electron does not implement window.prompt; use an in-app modal.
 function askProfileName(title,initialValue){
