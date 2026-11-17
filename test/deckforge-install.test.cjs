@@ -48,6 +48,7 @@ test('uninstaller preserves DeckForge app data unless deletion is explicitly con
   assert.match(nsis,/!macro customUnInstall/);
   assert.match(nsis,/MessageBox MB_YESNO\|MB_ICONQUESTION\|MB_DEFBUTTON2/);
   assert.match(nsis,/IDNO keepDeckForgeData/);
+  assert.match(nsis,/IfSilent keepDeckForgeData/);
   assert.match(nsis,/RMDir \/r "\$APPDATA\\DeckForge"/);
   assert.match(nsis,/keepDeckForgeData:/);
   assert.doesNotMatch(nsis,/RMDir \/r.*(FusionStreamDeck|D200X StreamDeck Device Sync)/);
