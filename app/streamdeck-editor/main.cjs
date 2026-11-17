@@ -877,6 +877,11 @@ async function ensureIconPacksMigrated(){
 // renderer. No user-facing conversion step. Native-sized raster bytes are preserved.
 async function normalizeImportedIcon(bytes,mime,filename){
   const original='data:'+mime+';base64,'+bytes.toString('base64');
+  // Fast path for already-small PNG/GIF packs: no per-icon renderer round trip.
+  if(mime==='image/png'&&bytes.length>=24&&
+     bytes.readUInt32BE(16)<=144&&bytes.readUInt32BE(20)<=144)return original;
+  if(mime==='image/gif'&&bytes.length>=10&&
+     bytes.readUInt16LE(6)<=144&&bytes.readUInt16LE(8)<=144)return original;
   const animatedWebp=mime==='image/webp'&&bytes.length>21&&
     bytes.toString('ascii',12,16)==='VP8X'&&(bytes[20]&0x02)!==0;
   if(!window||window.isDestroyed())throw Error('아이콘 변환 창을 사용할 수 없습니다.');
