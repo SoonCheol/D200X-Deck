@@ -289,8 +289,37 @@ function isMomentaryIconAction(item){
   return !['ha-toggle','indicator','multi-switch','hotkey-switch','timer',
     'logic','sleep','virtual','wide-display','folder-back'].includes(item.type);
 }
+// A pair of state titles shares the preset library, not the individual style.
+function hasStateTitlePair(item){
+  return item?.type==='sd-plugin'||isMomentaryIconAction(item);
+}
+function ensureStateTitlePair(item){
+  item.settings??={};
+  if(!item.settings.stateTitles){
+    item.settings.stateTitles={
+      first:{enabled:item.titleStyle?.visible!==false,title:item.title||'',style:{...DEFAULT_TITLE_STYLE,...item.titleStyle}},
+      second:{enabled:false,title:item.title||'',style:{...DEFAULT_TITLE_STYLE,...item.titleStyle}}
+    };
+  }
+  return item.settings.stateTitles;
+}
+function resolveStateTitle(item,second){
+  const pair=item?.settings?.stateTitles;
+  if(!pair)return item;
+  const one=pair.first,two=pair.second;
+  const selected=one?.enabled&&two?.enabled?(second?two:one):one?.enabled?one:two?.enabled?two:null;
+  return {...item,title:selected?.title||'',titleStyle:{...DEFAULT_TITLE_STYLE,...(selected?.style||{}),visible:!!selected}};
+}
 function displayKeyPressItem(item,index){
-  if(!isMomentaryIconAction(item)||!Number.isInteger(index)||index<0||index>=13)return item;
+  if(!isMomentaryIconAction(item)||!Number.isInteger(index)||index<0||index>=13){
+    if(item?.type==='sd-plugin'){
+      const raw=DeckCore.visibleActions(state)[index];
+      const selected=raw&&haPreviewStates.get(raw);
+      const runtime=index>=0?sdkVisuals.get(sdkContext(index,'down')):null;
+      return resolveStateTitle(item,selected?selected==='on':runtime?.state===1);
+    }
+    return item;
+  }
   const icons=item.settings?.keyPressIcons||{};
   const valid=icon=>icon?.kind==='file'&&typeof icon.value==='string';
   const up=valid(icons.up)?icons.up:item.icon;
@@ -298,7 +327,7 @@ function displayKeyPressItem(item,index){
   const same=JSON.stringify(up??null)===JSON.stringify(down??null);
   const pressed=previewPressKeys.has(index)||window.D200XPhysicalKeyPressed?.(index)===true;
   const chosen=pressed?down:up;
-  return {...item,...(chosen?{icon:chosen}:{}),keyPressAlternate:!same};
+  return resolveStateTitle({...item,...(chosen?{icon:chosen}:{}),keyPressAlternate:!same},pressed);
 }
 window.D200XIconMode={eligible:isMomentaryIconAction};
 // Share actual key visuals (including timer countdown) with the USB renderer.
@@ -1415,8 +1444,9 @@ function refreshTitlePreview(item){
   const host=$("icon-preview");if(!host)return;
   let label=host.querySelector(".preview-title");
   if(!label){label=document.createElement("span");label.className="preview-title";host.append(label);}
-  label.textContent=item.title||"";
-  const style={...DEFAULT_TITLE_STYLE,...item.titleStyle};
+  const current=displayKeyPressItem(displayItem(item,state.selected),state.selected);
+  label.textContent=current?.title||"";
+  const style={...DEFAULT_TITLE_STYLE,...current?.titleStyle};
   label.hidden=style.visible===false;
   label.style.textAlign="center";
   label.style.fontFamily=style.family==="default"||style.family==="DeckForge Pretendard"?"DeckForge Pretendard, sans-serif":style.family;
@@ -1431,7 +1461,7 @@ function refreshTitlePreview(item){
   refreshSelectedVisual();
 }
 function bindTitleStyle(item){
-  const style=item.titleStyle={...DEFAULT_TITLE_STYLE,...item.titleStyle};
+  let style=item.titleStyle={...DEFAULT_TITLE_STYLE,...item.titleStyle};
   const menu=$("title-style-popover"),toggle=$("title-style-trigger");
   toggle.addEventListener("click",()=>{
     menu.hidden=!menu.hidden;toggle.setAttribute("aria-expanded",String(!menu.hidden));
@@ -1519,7 +1549,7 @@ function bindTitleStyle(item){
     const index=presets.findIndex(entry=>entry.name===name);
     if(index>=0&&!confirm('프리셋 "'+name+'"을(를) 현재 스타일로 덮어쓸까요?'))return;
     if(index<0&&presets.length>=20){alert("프리셋은 최대 20개까지 저장할 수 있습니다.");return;}
-    const entry={name,style:validPresetStyle(item.titleStyle)};
+    const entry={name,style:validPresetStyle(style)};
     const next=[...presets];
     if(index>=0)next[index]=entry;else next.push(entry);
     if(writePresets(next))renderPresetOptions(name);
@@ -1606,7 +1636,34 @@ function bindTitleStyle(item){
   updatePalette();
   const outlineWidth=$("outline-width");outlineWidth.value=style.outlineWidth;
   outlineWidth.addEventListener("change",()=>save("outlineWidth",outlineWidth.value));
-  $("title-reset").addEventListener("click",()=>{item.titleStyle={...DEFAULT_TITLE_STYLE};persist();renderGrid();renderInspector();});
+  $("title-reset").addEventListener("click",()=>{
+    if(hasStateTitlePair(item)){
+      const mode=$("inspector").dataset.activeTitle||'first';
+      ensureStateTitlePair(item)[mode].style={...DEFAULT_TITLE_STYLE};
+    }else item.titleStyle={...DEFAULT_TITLE_STYLE};
+    persistInspectorChange();renderGrid();renderInspector();
+  });
+  // The existing popover is reused: each card switches its own style object.
+  const root=$("inspector");
+  root._openStateTitleStyle=(which,trigger)=>{
+    const entry=ensureStateTitlePair(item)[which];
+    style=entry.style??={...DEFAULT_TITLE_STYLE};
+    root.dataset.activeTitle=which;
+    menu.hidden=false;
+    menu.querySelectorAll("[data-align]").forEach(b=>b.classList.toggle("active",b.dataset.align===style.align));
+    family.value=style.family;
+    visible.checked=entry.enabled;
+    size.value=style.size;
+    menu.querySelectorAll("[data-style]").forEach(b=>b.classList.toggle("active",!!style[b.dataset.style]));
+    $("title-color").value=style.color;
+    $("outline-color").value=style.outlineColor;
+    outlineWidth.value=style.outlineWidth;
+    const host=trigger.closest('.state-title-control');
+    if(host)host.append(menu);
+    root.querySelectorAll('.state-title-style').forEach(b=>b.setAttribute('aria-expanded',String(b===trigger)));
+    trigger.setAttribute('aria-expanded','true');
+    if(palette)palette.hidden=true;
+  };
   document.addEventListener("pointerdown",event=>{
     if(!menu.isConnected)return;
     if(!menu.contains(event.target)&&!toggle.contains(event.target)){
