@@ -152,8 +152,7 @@ test('icon companion pairs are restricted to same pack, folder, and name source'
  const end=src.indexOf('function renderIconLibrary(){',begin);
  assert.ok(begin>=0&&end>begin);
  const js=src.slice(begin,end);
- const result=vm.runInNewContext(js+';
-'+String.raw`const pack={icons:[
+ const result=vm.runInNewContext(js+';\n'+String.raw`const pack={icons:[
   {filename:'a/fan_off.png',name:'fan off'},
   {filename:'a/fan_on.png',name:'fan on'},
   {filename:'b/fan_on.png',name:'fan on'},
