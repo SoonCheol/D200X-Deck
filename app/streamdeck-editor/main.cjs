@@ -941,6 +941,19 @@ async function listIconPacks(){
     if(!Array.isArray(parsed)||parsed.length!==2||
       !parsed.every(pack=>pack.source==='bundled'&&pack.icons.length>1500))
       throw new Error('내장 Fluent UI 아이콘팩 데이터가 올바르지 않습니다.');
+    // DeckForge IoT is distributed with the application, not copied to user data.
+    // Missing archive is tolerated by older/development builds; packaged builds verify it.
+    const iotFile=path.join(__dirname,'bundled','DeckForge_IoT_Icons.streamDeckIconPack');
+    try{
+      const iot=await parseIconPack(await fs.promises.readFile(iotFile));
+      if(iot.name!=='DeckForge IoT Icons'||iot.author!=='Airburst'||iot.icons.length!==106)
+        throw new Error('DeckForge IoT Icons 내장 파일 정보가 일치하지 않습니다.');
+      iot.id='builtin-deckforge-iot';
+      iot.source='bundled';
+      parsed.push(iot);
+    }catch(error){
+      if(error.code!=='ENOENT')throw error;
+    }
     builtinPacksCache=parsed;
   }
   const installed=await readPacks(iconPacksFile());
