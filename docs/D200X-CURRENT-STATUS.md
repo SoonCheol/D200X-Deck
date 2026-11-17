@@ -1,3 +1,11 @@
+## 2026-11-17 — DeckForge 데이터 경로 통일
+
+- 새 Windows 사용자 데이터 루트: `%APPDATA%\\DeckForge`. SDK 플러그인: `%APPDATA%\\DeckForge\\streamdeck-sdk-plugins\\<UUID>.sdPlugin`; Fusion 아이콘 캐시: `%APPDATA%\\DeckForge\\fusion-command-icons`.
+- `app/streamdeck-editor/main.cjs`의 `app.setPath('userData',...)`와 `tools/fusion-manager/main.cjs` 공유 캐시 위치를 동일한 DeckForge 루트로 수정. 나머지 메인 앱 캐시·설정은 이미 `app.getPath('userData')` 기반.
+- 사용자 지시대로 구 폴더 데이터의 자동 이전·복사·삭제를 수행하지 않는다. 이전 빌드의 프로필/플러그인은 별도 경로에 남고 자동 승계되지 않는다.
+- `FusionStreamDeck` 공식 Autodesk Fusion 애드인명, GitHub 저장소 `D200X-Deck` 및 과거 빌드/진행 문서의 역사적 식별자는 변경하지 않는다. NSIS 설치 제품명 및 설치 위치 `DeckForge`는 유지.
+- `test/deckforge-install.test.cjs`에 메인 앱/Fusion Manager의 동일 데이터 루트 검증 추가. PC에 설치된 프로그램이나 로컬 사용자 데이터는 조작하지 않음.
+
 ## 2026-11-17 — 속성창 일괄 정렬·Windows 프로그램 등록/아이콘/실행 인수 작업 완료 (실기 대기)
 
 - **레이아웃 기준:** [속성창 고정 4영역 계약](D200X-INSPECTOR-LAYOUT-CONTRACT-20261117.md) 보존. 일반 키의 제목→속성→아이콘 카드(한 줄 가로)→취소/저장 순서 유지. SDK 상태형 OFF/ON, Fusion Key Up/Down 별도 선택, 기존 아이콘/설정 보존.

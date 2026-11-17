@@ -188,10 +188,9 @@ ipcMain.handle('d200x:ha-toggle',async(event,entityId)=>{
 });
 
 
-// Keep the exact legacy Windows userData folder when the executable is renamed.
-// This preserves user profiles, installed SDK plugins, HA credentials, and picker
-// history without copying or modifying any existing data.
-app.setPath('userData',path.join(app.getPath('appData'),'D200X StreamDeck Device Sync'));
+// DeckForge owns a dedicated Windows roaming AppData directory.
+// Do not migrate, copy, delete, or reuse legacy product data here.
+app.setPath('userData',path.join(app.getPath('appData'),'DeckForge'));
 
 // One editor process per user-data directory. A second launch focuses the first window.
 const singleInstanceLock=app.requestSingleInstanceLock();

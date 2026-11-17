@@ -7,8 +7,10 @@ const root=path.join(__dirname,'..');
 const main=fs.readFileSync(path.join(root,'app/streamdeck-editor/main.cjs'),'utf8');
 const cmd=fs.readFileSync(path.join(root,'tools/fusion-mcp/deckforge-mcp.cmd'),'utf8');
 const cfg=JSON.parse(fs.readFileSync(path.join(root,'app/streamdeck-editor/deckforge-installer.json'),'utf8'));
-test('existing DeckForge userData is unchanged by the rename/installer',()=>{
-  assert.match(main,/app\.setPath\('userData',path\.join\(app\.getPath\('appData'\),'D200X StreamDeck Device Sync'\)\)/);
+const manager=fs.readFileSync(path.join(root,'tools/fusion-manager/main.cjs'),'utf8');
+test('DeckForge uses its own data directory, without legacy migration',()=>{
+  assert.match(main,/app\.setPath\('userData',path\.join\(app\.getPath\('appData'\),'DeckForge'\)\)/);
+  assert.doesNotMatch(main,/D200X StreamDeck Device Sync/);
   assert.match(main,/const folder=path\.join\(process\.env\.LOCALAPPDATA\|\|'', 'Programs','DeckForge'\)/);
 });
 test('closing the editor hides to tray and explicit Quit remains available',()=>{
@@ -32,4 +34,9 @@ test('installer config uses per-user fixed location and retains app data',()=>{
   assert.equal(cfg.nsis.perMachine,false);
   assert.equal(cfg.nsis.deleteAppDataOnUninstall,false);
   assert.equal(cfg.npmRebuild,false);
+});
+
+test('Fusion Manager shares only the new DeckForge icon cache',()=>{
+  assert.match(manager,/path\.join\(app\.getPath\('appData'\),'DeckForge','fusion-command-icons'\)/);
+  assert.doesNotMatch(manager,/D200X StreamDeck Device Sync/);
 });

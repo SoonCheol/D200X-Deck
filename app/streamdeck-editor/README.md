@@ -105,3 +105,10 @@
 - 웹사이트 등 회전 기능이 아직 정의되지 않은 액션은 회전만으로 실행되지 않으며, 노브를 눌렀을 때만 이미 구현된 액션이 작동한다.
 - 물리 버튼 2개(인덱스 15/16)와 화면 버튼 14개는 기존 눌림/뗌 처리와 중복 실행 방지를 그대로 유지한다. 장치 연결 유지·화면 복원 코드, 승인된 레이아웃은 변경하지 않았다.
 - **아직 미검증:** 사용자 D200X에서 세 노브 각각 왼쪽/오른쪽 회전과 누름, 물리 버튼 2개 및 페이지 이동 시 안정성 확인.
+
+## DeckForge Windows 데이터 경로
+
+- 사용자 데이터: `%APPDATA%\\DeckForge`
+- SDK 플러그인: `%APPDATA%\\DeckForge\\streamdeck-sdk-plugins`
+- Fusion 아이콘 캐시: `%APPDATA%\\DeckForge\\fusion-command-icons`
+- 예전 다른 이름의 사용자 데이터는 자동 이전/복사/삭제하지 않습니다. Autodesk 공식 `FusionStreamDeck` 애드인 경로는 별개입니다.
