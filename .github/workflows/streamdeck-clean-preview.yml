@@ -291,7 +291,7 @@ jobs:
           if ($metadata.name -ne 'deckforge' -or $metadata.productName -ne 'DeckForge' -or $metadata.version -ne '1.1.0') {
             throw 'DeckForge 1.1 packaged metadata mismatch'
           }
-          Write-Host 'DeckForge 1.1.exe verified; legacy userData preserved in main.cjs'
+          Write-Host 'DeckForge 1.1.exe verified; userData resides in %APPDATA%\DeckForge'
           $resources = 'dist/DeckForge-win32-x64/resources'
           Write-Host 'Windows packaged resources:'
           Get-ChildItem $resources -Force | Select-Object Name, Length | Format-Table
