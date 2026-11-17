@@ -32,8 +32,8 @@ function validImage(bytes,mime){
   if(mime==='image/jpeg')return bytes.length>4&&bytes[0]===0xff&&bytes[1]===0xd8;
   if(mime==='image/gif')return bytes.subarray(0,6).toString('ascii').match(/^GIF8[79]a$/)!==null;
   if(mime==='image/webp')return bytes.length>=12&&bytes.toString('ascii',0,4)==='RIFF'&&bytes.toString('ascii',8,12)==='WEBP';
-  if(mime==='image/svg+xml')return /^\\s*(?:<\\?xml[^>]*>\\s*)?<svg[\\s>]/i.test(bytes.toString('utf8'))&&
-    !/<!DOCTYPE|<!ENTITY|<script\\b|<foreignObject\\b|\\son[a-z]+\\s*=|(?:href|src)\\s*=\\s*['\"]\\s*(?:https?:|file:|javascript:)/i.test(bytes.toString('utf8'));
+  if(mime==='image/svg+xml')return /^\s*(?:<\?xml[^>]*>\s*)?<svg[\s>]/i.test(bytes.toString('utf8'))&&
+    !/<!DOCTYPE|<!ENTITY|<script\b|<foreignObject\b|\son[a-z]+\s*=|(?:href|src)\s*=\s*['"]\s*(?:https?:|file:|javascript:)/i.test(bytes.toString('utf8'));
   return false;
 }
 async function parseIconPack(input,render,displayName='가져온 아이콘팩'){
@@ -71,7 +71,7 @@ async function parseIconPack(input,render,displayName='가져온 아이콘팩'){
   for(const [i,item] of items.entries()){
     if(!item||!safeImagePath(item.path)||!mimeOf(item.path))
       throw new Error('아이콘 '+(i+1)+'의 파일 경로 또는 형식이 지원되지 않습니다.');
-    const entry=named('icons/'+item.path);
+    const entry=named(item.path);
     if(!entry||entry.dir)throw new Error('아이콘 파일이 없습니다: '+item.path);
     const mime=mimeOf(item.path);
     const bytes=await entry.async('nodebuffer');
@@ -118,7 +118,7 @@ async function parseIconFolder(folder,render){
       if(++count>MAX_ICONS+30)throw Error('아이콘팩 항목 개수 제한 초과');
       const stat=await fs.stat(full);
       total+=stat.size;
-      if(stat.size>MAX_ICON&&mimeOf(name)||total>MAX_EXPANDED)throw Error('아이콘팩 크기 제한 초과');
+      if((stat.size>MAX_ICON&&mimeOf(name))||total>MAX_EXPANDED)throw Error('아이콘팩 크기 제한 초과');
       if(mimeOf(name)||/(?:^|\/)(?:icons|manifest)\.json$/i.test(name))zip.file(name,await fs.readFile(full));
     }
   }
