@@ -630,6 +630,18 @@ async function refreshSdkPlugins(){
       if(action.defaultImages)sdkActionDefaults.set(action.uuid,action.defaultImages);
     }
     renderGrid();void refreshSelectedVisual();
+    // Update default-card thumbnails in place: do not disturb an open inspector's focus.
+    const selectedItem=state.selected!==null&&state.selected<14?DeckCore.visibleActions(state)[state.selected]:null;
+    if(selectedItem?.type==='sd-plugin'&&!isMomentaryIconAction(selectedItem)){
+      const art=sdkActionDefaults.get(selectedItem.settings?.actionUUID)||{};
+      const images=document.querySelectorAll('#inspector .sdk-state-icons .sdk-state-preview');
+      for(const [index,key] of ['off','on'].entries()){
+        const host=images[index];if(!host||selectedItem.settings?.sdkStateIcons?.[key])continue;
+        if(art[key]){
+          const img=document.createElement('img');img.src=art[key];img.alt=key+' 기본 아이콘';host.replaceChildren(img);
+        }
+      }
+    }
     if(libraryTab==='plugins')renderLibrary();
   }catch(error){window.d200xActionStatus?.('SDK 플러그인 목록 오류: '+String(error?.message||error));}
 }
@@ -1949,6 +1961,7 @@ function bindKeyPressIconControls(root,item){
     const file=document.createElement('button');file.type='button';file.textContent='파일';
     file.addEventListener('click',async()=>{
       try{
+        if(!window.deckBridge?.chooseImportFile)throw Error('Windows EXE에서 사용할 수 있습니다.');
         const chosen=await chooseNativeImage('image');if(!chosen?.dataUrl)return;
         const png=await rasterizeIcon(chosen.dataUrl);
         if(!DeckCore.visibleActions(state).includes(item))return;
