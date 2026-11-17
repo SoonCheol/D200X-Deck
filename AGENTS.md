@@ -11,6 +11,14 @@
 - **기존 Ulanzi Deck 코드의 재사용 범위:** D200X 연결, 송수신, 키 입력 이벤트, 이미지 전송 등 **하드웨어 통신**에만 한정한다. 기존 Ulanzi UI·인스펙터·액션 편집 구조를 복제 기준이나 우회 구현으로 사용하지 않는다.
 - **플러그인 구현:** 사용자가 2026-11-15 Stream Deck 원본 플러그인 호환 호스트 개발을 명시적으로 승인함. 기존 HTML/HA 플러그인 보존, Node.js 실행 호스트 단계별 개발, Autodesk FusionStreamDeck 첫 검증. 매 단계 실제 상태를 최신 현황표와 GitHub 인수인계 기록에 남긴다. 이전 보류 문구보다 이 지시 우선.
 
+## 아이콘팩·플러그인 저장 구조 통합 (2026-11-17)
+
+- 외부 아이콘팩은 Stream Deck 또는 Ulanzi Studio 출처와 관계없이 `%APPDATA%\\DeckForge\\Resources\\IconPacks\\icon-packs-v1.json` 공통 라이브러리에 등록한다. 기존 `StreamDeck\\IconPacks\\streamdeck-icon-packs-v1.json`은 안전한 최초 복사 후에도 보존한다.
+- SDK 플러그인은 `%APPDATA%\\DeckForge\\Plugins` 공통 루트에 저장한다. 기존 `StreamDeck\\Plugins`의 플러그인과 암호화 설정은 덮어쓰기 없이 복사하고 원본 폴더를 삭제하지 않는다. SDK 실행기는 원래대로 유지하며 Ulanzi 플러그인의 동작 보장은 별도 검증이 필요하다.
+- 원본 Stream Deck `.streamDeckIconPack` 아카이브, ZIP 아이콘 이미지 묶음, Stream Deck의 `.sdIconPack` 폴더 및 Ulanzi의 일반 이미지 폴더를 가져올 수 있도록 한다. 원본 데이터는 직접 수정하지 않는다.
+- PNG/JPEG/GIF/WebP 지원 이미지는 가로·세로 144px 이하일 때 형식을 그대로 유지하고, 초과하는 정적 이미지는 비율 유지 축소. SVG는 PNG로 변환. 애니메이션 형식의 대형 아이콘은 프레임 보존 변환 구현 전까지 무단으로 정지 이미지로 바꾸지 않는다.
+- 사용자 지정 OFF/ON 및 Key Up/Down, 카드 크기·속성창 순서 등 승인 UI 고정. 테마팩 로더는 이번 작업에서 만들지 않으며 추후 별도 구현한다.
+
 ## 개발 전 필수 다각도 조사 (2026-11-14 보강)
 
 - **신규 기준 문서:** [Stream Deck 7.6.1 문헌·사용후기·Ulanzi 대조 조사 및 수정된 작업순서](docs/D200X-STREAMDECK-RESEARCH-REVIEW-20261114.md). 다음 기능 개발 시 해당 기능의 **원본 7.6.1 한국어 GUI 관찰 → Elgato 공식 도움말/릴리스노트 → Reddit·GitHub 실사용/버그 제보 → Ulanzi D200X SDK/통신 자료** 순으로 확인한다. 이미 근거가 있으면 반복 조사하지 않는다.
