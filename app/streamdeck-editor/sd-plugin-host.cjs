@@ -522,7 +522,7 @@ class StreamDeckPluginHost{
       case 'logMessage':break;
       case 'openUrl':{
         // External plugin links require explicit approval and cannot use file: or script: URLs.
-        if(!ctx||ctx.pluginUUID!==uuid)return;
+        if(!uuid||(msg.context&&ctx?.pluginUUID!==uuid))return;
         const href=safeSdkExternalUrl(msg.payload?.url);
         if(!href)return;
         const parent=this.getParent();
