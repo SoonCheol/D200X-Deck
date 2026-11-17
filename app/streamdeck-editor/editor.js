@@ -1460,6 +1460,7 @@ function refreshTitlePreview(item){
   label.style.bottom=style.align==="bottom"?"5px":"auto";
   label.style.transform=style.align==="middle"?"translateY(-50%)":"none";
   refreshSelectedVisual();
+  void refreshStateTitleCards(item);
 }
 function bindTitleStyle(item){
   let style=item.titleStyle={...DEFAULT_TITLE_STYLE,...item.titleStyle};
@@ -1974,6 +1975,46 @@ function renderControlInspector(){
   if(knob)root.append(testBar);
   appendInspectorSaveBar(root);
 }
+// Preview state title artwork through the same compositor as the physical key.
+async function refreshStateTitleCards(item){
+  const root=$('inspector');
+  if(!root?.classList.contains('state-title-inspector')||!window.renderDeckKeyImage)return;
+  if(DeckCore.visibleActions(state)[state.selected]!==item)return;
+  const pair=root.querySelectorAll('.sdk-state-icon[data-state-title]');
+  if(!pair.length)return;
+  const slot=state.selected;
+  const visual=displayItem(item,slot);
+  const momentary=isMomentaryIconAction(item);
+  const runtime=item.type==='sd-plugin'?sdkVisuals.get(sdkContext(slot,'down')):null;
+  const version=String((Number(root.dataset.stateCardVersion)||0)+1);
+  root.dataset.stateCardVersion=version;
+  for(const card of pair){
+    const second=card.dataset.stateTitle==='second';
+    const key=momentary?(second?'down':'up'):(second?'on':'off');
+    const assigned=momentary?item.settings?.keyPressIcons?.[key]:item.settings?.sdkStateIcons?.[key];
+    const fallback=momentary
+      ?(item.settings?.keyPressIcons?.up||visual.icon)
+      :sdkActionDefaults.get(item.settings?.actionUUID)?.[key];
+    const icon=assigned?.kind==='file'?assigned
+      :momentary?fallback
+      :(item.icon||((runtime?.state===(second?1:0)&&runtime?.image)
+        ?{kind:'file',value:runtime.image}:null)||
+        (fallback?{kind:'file',value:fallback}:null));
+    const titleVisual=resolveStateTitle({...visual,...(icon?{icon}:{})},second);
+    // State previews are snapshots, not a physical key-down effect.
+    const img=card.querySelector('.sdk-state-preview');
+    if(!img)continue;
+    try{
+      const png=await window.renderDeckKeyImage(titleVisual,slot,false);
+      if(root.dataset.stateCardVersion!==version||!img.isConnected||
+        DeckCore.visibleActions(state)[slot]!==item)return;
+      const rendered=document.createElement('img');
+      rendered.src='data:image/png;base64,'+png;
+      rendered.alt=(second?'두 번째':'첫 번째')+' 상태 제목과 아이콘 미리보기';
+      img.replaceChildren(rendered);
+    }catch(error){console.warn('상태별 제목 이미지 미리보기 실패',error);}
+  }
+}
 function attachStateTitleControls(card,item,which){
   // Rendering and selecting an action must never mutate its stored SDK settings.
   const config=(item.settings?.stateTitles||defaultStateTitlePair(item))[which];
@@ -2060,9 +2101,11 @@ function bindSdkStateIcons(root,item){
       });
       const buttons=document.createElement('div');buttons.className='sdk-state-buttons';
       buttons.append(choose,file,paste,symbol,reset);
+      group.dataset.stateTitle=key==='off'?'first':'second';
       group.append(heading);attachStateTitleControls(group,item,key==='off'?'first':'second');group.append(image,buttons);cards.append(group);
     }
     panel.append(cards);
+    void refreshStateTitleCards(item);
   };
   draw();
 }
@@ -2105,9 +2148,12 @@ function bindKeyPressIconControls(root,item){
     paste.addEventListener('click',()=>pasteIcon(item,'press:'+key));
     const symbol=document.createElement('button');symbol.type='button';symbol.textContent='특수문자';
     symbol.addEventListener('click',()=>openIconMaker(item,'press:'+key));
-    buttons.append(library,file,paste,symbol,reset);card.append(heading);attachStateTitleControls(card,item,key==='up'?'first':'second');card.append(preview,buttons);cards.append(card);
+    buttons.append(library,file,paste,symbol,reset);
+    card.dataset.stateTitle=key==='up'?'first':'second';
+    card.append(heading);attachStateTitleControls(card,item,key==='up'?'first':'second');card.append(preview,buttons);cards.append(card);
   }
   panel.append(cards);
+  void refreshStateTitleCards(item);
 }
 function bindExtendedActionFields(root,item){
   if(item.type==='sd-plugin'){
