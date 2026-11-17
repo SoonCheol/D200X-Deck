@@ -30,7 +30,7 @@ const managerReady=app.whenReady().then(()=>{
  ipcMain.handle('fusion-script-copy',async()=>{const {clipboard}=require('electron');const source=await fs.readFile(path.join(__dirname,'fusion-ui-inventory.py'),'utf8');clipboard.writeText(source);return true;});
  // DeckForge's existing Fusion artwork cache is shared read-only.
  // Never change DeckForge userData, cached icons, or Fusion add-in files.
- const iconDir=path.join(app.getPath('appData'),'DeckForge','fusion-command-icons');
+ const iconDir=path.join(app.getPath('appData'),'DeckForge','Cache','Fusion','generated');
  ipcMain.handle('fusion-icon',async(_e,id)=>{
    if(typeof id!=='string'||!(/^[a-zA-Z0-9._-]{1,180}$/).test(id)||id==='.'||id==='..')return null;
    return (await readSaved(id))?.data||null;
@@ -38,7 +38,7 @@ const managerReady=app.whenReady().then(()=>{
 
  // Autodesk's original FusionStreamDeck add-in serves the genuine command icon
  // at GET /icon?commandId=...&size=32. Never POST /command.
- const ownIconDir=()=>path.join(app.getPath('userData'),'original-fusion-icons');
+ const ownIconDir=()=>path.join(app.getPath('appData'),'DeckForge','Cache','Fusion','original');
  const discoveryFile=()=>path.join(process.env.LOCALAPPDATA||path.join(os.homedir(),'AppData','Local'),'FusionStreamDeck','endpoint.json');
  const safeId=id=>typeof id==='string'&&/^[a-zA-Z0-9._-]{1,180}$/.test(id)&&id!=='.'&&id!=='..';
  const extensions=[['png','image/png'],['svg','image/svg+xml']];

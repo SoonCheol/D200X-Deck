@@ -1,3 +1,11 @@
+## 2026-11-17 — 플랫폼 우선 혼합형 데이터 폴더 적용
+
+- **적용:** `%APPDATA%\\DeckForge\\StreamDeck\\Plugins\\<UUID>.sdPlugin` (호스트 설치/탐색/실행/SDK global 설정); `%APPDATA%\\DeckForge\\StreamDeck\\IconPacks\\streamdeck-icon-packs-v1.json` (가져온 이미지 팩 JSON).
+- **Fusion 공통 캐시:** `%APPDATA%\\DeckForge\\Cache\\Fusion\\generated` (메인 앱 저장/조회 및 매니저 읽기 전용), `%APPDATA%\\DeckForge\\Cache\\Fusion\\original` (Fusion Manager 원본 PNG/SVG 수집 및 메인 앱·매니저 공통 조회). Autodesk Fusion 공식 애드인 `%LOCALAPPDATA%\\FusionStreamDeck` 등 외부 앱 경로는 변경하지 않음.
+- **테마:** 현재 라인형/컬러형/버튼형 액션 패널 테마 및 개별 이미지 재정의는 Electron `localStorage`에 저장. 독립된 테마팩 파일 로더/등록기는 아직 없음. 따라서 `StreamDeck\\Themes`, `Ulanzi\\Themes`, `Resources\\Themes`는 형식 지원 도입 시 만들고, 현재 localStorage를 억지로 이사시키지 않음. 마찬가지로 Ulanzi 호스트 미구현이므로 `Ulanzi\\Plugins`는 아직 생성하지 않음. 공통 `Resources\\IconPacks`는 미래의 공통 포맷만 저장.
+- **비변경:** 기존 설치의 데이터 자동 복사·이전·삭제 없음. 프로필(localStorage), HA 보안 설정, 사용자 지정 아이콘/모양, 통합 플러그인 포함 및 설치 규칙 보존. 앱 설치 위치/제품명 유지. NSIS 제거시 사용자 데이터 삭제 선택 옵션은 **별도 후속 요구**로 아직 미구현.
+- **검증:** SDK 호스트 테스트의 실제 설치 폴더, 설치형 경로 계약과 Fusion Manager 공유 캐시 테스트 갱신. 사용자가 새 설치본에서 HA·Fusion 연동 실기 확인 예정. CI/Windows 패키징 성공 여부는 별도 기록.
+
 ## 2026-11-17 — DeckForge 데이터 경로 통일
 
 - 새 Windows 사용자 데이터 루트: `%APPDATA%\\DeckForge`. SDK 플러그인: `%APPDATA%\\DeckForge\\streamdeck-sdk-plugins\\<UUID>.sdPlugin`; Fusion 아이콘 캐시: `%APPDATA%\\DeckForge\\fusion-command-icons`.

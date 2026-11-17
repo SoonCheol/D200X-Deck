@@ -37,7 +37,7 @@ test('SDK plugin importer blocks unsafe paths and missing manifest',async()=>{
 test('SDK manifest dual-state icon can be read without modifying the profile',async()=>{
   const tmp=await fs.mkdtemp(path.join(os.tmpdir(),'d200x-sdk-'));
   try{
-    const uuid=M.UUID,dir=path.join(tmp,'streamdeck-sdk-plugins',uuid+'.sdPlugin');
+    const uuid=M.UUID,dir=path.join(tmp,'StreamDeck','Plugins',uuid+'.sdPlugin');
     await fs.mkdir(path.join(dir,'images'),{recursive:true});
     await fs.writeFile(path.join(dir,'images','off.png'),Buffer.from([137,80,78,71]));
     const host=new StreamDeckPluginHost(tmp);
@@ -129,7 +129,7 @@ test('Node.js runtime enforces requested major version',async()=>{
 test('Node SDK plugin runs a real WebSocket handshake and key event with original registration arguments',async()=>{
   const dir=await fs.mkdtemp(path.join(os.tmpdir(),'d200x-node-plugin-'));
   const uuid='com.d200x.nodeintegration',actions=[{UUID:uuid+'.button',Name:'Test Button'}];
-  const installed=path.join(dir,'streamdeck-sdk-plugins',uuid+'.sdPlugin');
+  const installed=path.join(dir,'StreamDeck','Plugins',uuid+'.sdPlugin');
   const events=[];
   const host=new StreamDeckPluginHost(dir,message=>events.push(message));
   try{

@@ -48,12 +48,12 @@ ipcMain.handle('d200x:fusion-health',async event=>{
   assertEditor(event);
   return fusionAddinAvailable();
 });
-const fusionCacheDir=()=>path.join(app.getPath('userData'),'fusion-command-icons');
+const fusionCacheDir=()=>path.join(app.getPath('userData'),'Cache','Fusion','generated');
 function safeFusionCommand(id){return typeof id==='string'&&id!=='.'&&id!=='..'&&
   /^[a-zA-Z0-9._-]{1,180}$/.test(id);}
 ipcMain.handle('d200x:fusion-icon-read',async(event,id)=>{
   assertEditor(event);if(!safeFusionCommand(id))return null;
-  const trusted=path.join(app.getPath('userData'),'original-fusion-icons');
+  const trusted=path.join(app.getPath('userData'),'Cache','Fusion','original');
   for(const [dir,ext,mime] of [[trusted,'png','image/png'],[trusted,'svg','image/svg+xml'],[fusionCacheDir(),'png','image/png']]){
     try{
       const bytes=await fs.promises.readFile(path.join(dir,id+'.'+ext));
@@ -855,8 +855,8 @@ async function openRememberedPicker(options,kind='file'){
   await savePickerLocation(selected,kind);
   return selected;
 }
-// Installed icon packs live in Electron userData, separately from profiles.
-function iconPacksFile(){return path.join(app.getPath('userData'),'streamdeck-icon-packs-v1.json');}
+// Imported Stream Deck icon-pack data is stored separately from profile/theme localStorage.
+function iconPacksFile(){return path.join(app.getPath('userData'),'StreamDeck','IconPacks','streamdeck-icon-packs-v1.json');}
 let builtinPacksCache=null;
 async function listIconPacks(){
   if(!builtinPacksCache){

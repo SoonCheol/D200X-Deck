@@ -112,3 +112,11 @@
 - SDK 플러그인: `%APPDATA%\\DeckForge\\streamdeck-sdk-plugins`
 - Fusion 아이콘 캐시: `%APPDATA%\\DeckForge\\fusion-command-icons`
 - 예전 다른 이름의 사용자 데이터는 자동 이전/복사/삭제하지 않습니다. Autodesk 공식 `FusionStreamDeck` 애드인 경로는 별개입니다.
+
+## 2026-11-17 데이터 폴더 — 플랫폼 우선 혼합형
+
+- SDK 플러그인: `%APPDATA%\\DeckForge\\StreamDeck\\Plugins`
+- Stream Deck 아이콘팩: `%APPDATA%\\DeckForge\\StreamDeck\\IconPacks\\streamdeck-icon-packs-v1.json`
+- Fusion 캐시: `%APPDATA%\\DeckForge\\Cache\\Fusion\\generated` 및 `original`
+- 지원되지 않은 Ulanzi/외부 테마팩 폴더는 현재 생성하지 않음. 현재 액션 목록 테마와 프로필은 `localStorage`에 남겨둠.
+- 이전 저장 위치의 플러그인·아이콘팩·캐시는 자동으로 복사/삭제/가져오지 않음.

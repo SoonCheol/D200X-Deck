@@ -37,6 +37,7 @@ test('installer config uses per-user fixed location and retains app data',()=>{
 });
 
 test('Fusion Manager shares only the new DeckForge icon cache',()=>{
-  assert.match(manager,/path\.join\(app\.getPath\('appData'\),'DeckForge','fusion-command-icons'\)/);
+  assert.match(manager,/path\.join\(app\.getPath\('appData'\),'DeckForge','Cache','Fusion','generated'\)/);
+  assert.match(manager,/path\.join\(app\.getPath\('appData'\),'DeckForge','Cache','Fusion','original'\)/);
   assert.doesNotMatch(manager,/D200X StreamDeck Device Sync/);
 });

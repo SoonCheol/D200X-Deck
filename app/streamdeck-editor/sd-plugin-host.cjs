@@ -83,7 +83,7 @@ async function parseArchive(data){
 class StreamDeckPluginHost{
   constructor(userData,onUpdate=()=>{},getParent=()=>null){
     this.getParent=getParent;
-    this.root=path.join(userData,'streamdeck-sdk-plugins');
+    this.root=path.join(userData,'StreamDeck','Plugins');
     this.onUpdate=onUpdate;this.server=null;this.port=0;
     this.plugins=new Map();this.contexts=new Map();this.global=new Map();
     this.instances=new Map();this.inspectors=new Map();
