@@ -43,11 +43,35 @@ test('state row retains preview, paired cards and edit/save button alignment',()
  assert.match(editor,/toolbar\.append\(saveBar\)/);
  assert.match(editor,/attachStateTitleControls\(group,item,key==='off'/);
  assert.match(editor,/attachStateTitleControls\(card,item,key==='up'/);
- assert.match(editor,/root\._openStateTitleStyle\?\.\(which,styleButton\)/);
+ assert.match(editor,/\$\('inspector'\)\._openStateTitleStyle\?\.\(which,styleButton\)/);
  assert.match(editor,/const entry=\{name,style:validPresetStyle\(style\)\}/);
  assert.match(css,/\.state-title-inspector \.state-title-layout\{[\s\S]*?grid-template-columns:98px minmax\(0,1fr\)/);
  assert.match(css,/\.state-title-inspector \.state-title-layout \.sdk-state-icons\{[\s\S]*?grid-template-columns:repeat\(2,minmax\(0,1fr\)\)/);
  assert.match(css,/\.state-title-inspector \.state-title-layout \.sdk-state-preview\{[\s\S]*?aspect-ratio:1\/1/);
  assert.match(css,/\.state-title-inspector \.state-title-layout \.sdk-state-buttons button\{[\s\S]*?height:25px/);
  assert.match(css,/\.state-title-inspector\{overflow-x:hidden\}/);
+});
+
+test('opening inspector controls does not initialize state titles until the user edits',()=>{
+ const fnStart=editor.indexOf('function attachStateTitleControls(card,item,which){');
+ const fnEnd=editor.indexOf('function bindSdkStateIcons(root,item){',fnStart);
+ const controls=editor.slice(fnStart,fnEnd);
+ assert.ok(fnStart>=0&&fnEnd>fnStart);
+ assert.match(controls,/const config=\(item\.settings\?\.stateTitles\|\|defaultStateTitlePair\(item\)\)\[which\]/);
+ assert.doesNotMatch(controls.split("check.addEventListener('change'")[0],/ensureStateTitlePair\(item\)/);
+ assert.match(controls,/check\.addEventListener\('change',[\s\S]*?ensureStateTitlePair\(item\)/);
+ assert.match(controls,/input\.addEventListener\('input',[\s\S]*?ensureStateTitlePair\(item\)/);
+});
+test('SDK live title survives selection without an explicit title override',()=>{
+ const item={type:'sd-plugin',title:'SDK 동적 제목',titleStyle:style,settings:{}};
+ const before=JSON.stringify(item);
+ const result=vm.runInNewContext(editor.slice(start,end)+';resolveStateTitle(item,false)',{
+   item,DEFAULT_TITLE_STYLE:style,isMomentaryIconAction:()=>false
+ });
+ assert.equal(result.title,'SDK 동적 제목');
+ assert.equal(JSON.stringify(item),before);
+});
+test('outside click treats card style button as toggle and resets accessibility state',()=>{
+ assert.match(editor,/!event\.target\.closest\?\.\('\.state-title-style'\)/);
+ assert.match(editor,/root\.querySelectorAll\('\.state-title-style'\)\.forEach\(button=>[\s\S]*?button\.setAttribute\('aria-expanded','false'\)/);
 });
