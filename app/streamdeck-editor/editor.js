@@ -1859,7 +1859,11 @@ function bindSdkStateIcons(root,item){
       const selected=item.settings?.sdkStateIcons?.[key];
       if(selected?.kind==='file'){
         const img=document.createElement('img');img.src=selected.value;img.alt=label+' 상태 아이콘';image.append(img);
-      }else image.textContent='기본';
+      }else{
+        const fallback=sdkActionDefaults.get(item.settings?.actionUUID)?.[key];
+        if(fallback){const img=document.createElement('img');img.src=fallback;img.alt=label+' 기본 아이콘';image.append(img);}
+        else image.textContent='기본';
+      }
       const choose=document.createElement('button');choose.type='button';choose.textContent='라이브러리';
       choose.addEventListener('click',()=>openIconLibrary(item,key));
       const file=document.createElement('button');file.type='button';file.textContent='파일';
@@ -3718,7 +3722,9 @@ if(window.deckBridge?.onSdkEvent){
           }
         }
       }
-      renderGrid();window.scheduleDeckSync?.();
+      renderGrid();
+      if(!haPreviewStates.has(DeckCore.visibleActions(state)[state.selected]))void refreshSelectedVisual();
+      window.scheduleDeckSync?.();
     }else if(message.kind==='error')window.d200xActionStatus?.(message.message);
   });
 }
