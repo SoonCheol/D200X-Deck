@@ -1875,7 +1875,6 @@ function bindSdkStateIcons(root,item){
           const png=await rasterizeIcon(chosen.dataUrl);
           if(!DeckCore.visibleActions(state).includes(item))return;
           applyStateIconData(item,key,png);
-          persistInspectorChange();render();
         }catch(error){window.d200xActionStatus?.('상태 아이콘 선택 실패: '+String(error?.message||error));}
       });
       const paste=document.createElement('button');paste.type='button';paste.textContent='클립보드';
@@ -2090,6 +2089,7 @@ function appendInspectorHelp(head,item){
   const test=head.querySelector('.action-preview-test');
   if(test)head.insertBefore(trigger,test);else head.append(trigger);
 }
+let lastInspectorPreviewItem=null;
 function renderInspector(){
   beginInspectorSession();
   inspectorListener.abort();inspectorListener=new AbortController();
@@ -2098,6 +2098,10 @@ function renderInspector(){
     return;
   }
   const root=$("inspector");root.replaceChildren();const item=state.selected===null?null:DeckCore.visibleActions(state)[state.selected];
+  if(item!==lastInspectorPreviewItem){
+    if(lastInspectorPreviewItem)haPreviewStates.delete(lastInspectorPreviewItem);
+    lastInspectorPreviewItem=item;
+  }
   if(state.selected===13&&wideDisplayAvailable()){renderWideInspector();return;}
   if(!item){root.className="inspector empty";root.textContent=state.selected===null?"버튼을 선택하세요":"액션을 끌어 이 키에 놓으세요";
     if(inspectorSession?.dirty)appendInspectorSaveBar(root);return;}
@@ -3155,6 +3159,12 @@ function findIconCompanion(pack,icon){
       test.directory===pair.directory&&test.source===pair.source;
   })||null;
 }
+function applyMatchedStateIcons(settings,pair,clickedPng,companionPng,packId){
+  settings.sdkStateIcons??={};
+  const opposite=pair.state==='on'?'off':'on';
+  settings.sdkStateIcons[pair.state]={kind:'file',value:clickedPng,packId};
+  settings.sdkStateIcons[opposite]={kind:'file',value:companionPng,packId};
+}
 function renderIconLibrary(){
   const root=$("icon-library-groups");root.replaceChildren();
   const search=$("icon-library-search").value.trim().toLocaleLowerCase();
@@ -3212,13 +3222,9 @@ function renderIconLibrary(){
             target.settings.sdkStateIcons??={};
             target.settings.sdkStateIcons[libraryStateKey]={kind:'file',value:png,packId:pack.id};
             if(companion&&pair){
-              const opposite=pair.state==='on'?'off':'on';
               const oppositePng=await rasterizeIcon(companion.image);
               if(!DeckCore.visibleActions(state).includes(target))return;
-              const selectedIcon=pair.state===libraryStateKey?png:oppositePng;
-              const otherIcon=pair.state===libraryStateKey?oppositePng:png;
-              target.settings.sdkStateIcons[libraryStateKey]={kind:'file',value:selectedIcon,packId:pack.id};
-              target.settings.sdkStateIcons[opposite]={kind:'file',value:otherIcon,packId:pack.id};
+              applyMatchedStateIcons(target.settings,pair,png,oppositePng,pack.id);
             }
           }else {target.icon={kind:'file',value:png,packId:pack.id};if(target.settings)delete target.settings.autoAppIcon;}
           persistInspectorChange();render();closeIconLibrary();
