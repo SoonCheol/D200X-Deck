@@ -1,3 +1,10 @@
+## 2026-11-17 — 외부 SDK 링크와 입력·프로필 오류 안내 보완
+
+- **SDK `openUrl`:** 인증된 플러그인/Property Inspector 연결에서 전달된 context 없는 `openUrl`도 HTTPS/HTTP 검증과 매번 사용자 승인 후 열 수 있게 허용. context가 명시됐으나 해당 플러그인에 귀속되지 않았거나 없는 경우 차단. 위험 스킴·URL 인증정보·제어문자·2048자 초과 제한 유지.
+- **텍스트 입력:** DeckForge 내부 텍스트 모달에서 공백만 입력하면 `setCustomValidity('값을 입력하세요.')`와 브라우저 기본 유효성 안내를 표시하고, 재입력 시 오류 상태 제거.
+- **프로필 손상 알림:** 읽기 실패 직후 사용자에게 모달 및 상태 메시지 표시. 데이터 손상 발생 시 새 빈 프로필을 기존 `profiles.json`에 덮어쓰지 못하도록 하는 `profileStorageFailure` 차단은 유지.
+- **회귀 테스트:** context 없는 인증된 플러그인 링크, 명시된 미등록 context 차단, 유해 URL 차단, 공백 입력 안내, 시작 시 프로필 오류 안내와 저장 차단 검사. Windows GUI·실물 D200X의 실제 검증은 별개. 화면 크기·레이아웃·기존 프로필 스키마 변경 없음. 브랜치 `codex/streamdeck-761-clean-editor`, Draft PR #5 미병합.
+
 ## 2026-11-17 — 1~4차 구조·기능 수정 (사용자 데이터 이관 생략 승인, Windows 실기 검증 대기)
 
 - **1차 Electron 입력:** 지원하지 않는 `prompt()` 호출을 `askDeckForgeText` / 검색 가능한 `chooseDeckForgeEntity`의 앱 내부 `<dialog>`로 교체. `.deckforge-input-dialog`은 미저장 편집 이탈 경고 예외에 포함. SDK 외부 속성창의 `settings` 이벤트는 라이브 `(slot,gesture)`를 확인해 확정 스냅샷 동일 슬롯만 갱신·영속 저장하고, 성공한 뒤에만 라이브 `pluginSettings` 및 `inspectorSession.snapshot`을 동기화. 임시 제목·아이콘은 여전히 미저장, 취소해도 외부 확정 SDK 설정은 유지. HA 미리보기는 노브/측면 버튼으로 넘어가도 초기화.
