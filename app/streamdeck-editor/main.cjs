@@ -16,6 +16,7 @@ const { safeStorage } = require('electron');
 const HA = require('./ha-client.cjs');
 const {StreamDeckPluginHost}=require('./sd-plugin-host.cjs');
 const Bundled=require('./bundled-integration.cjs');
+const {ProfileStore}=require('./profile-store.cjs');
 let sdkHost=null;
 function sdk(){
   if(!sdkHost)sdkHost=new StreamDeckPluginHost(app.getPath('userData'),payload=>send('d200x:sdk-event',payload),()=>window);
@@ -191,6 +192,27 @@ ipcMain.handle('d200x:ha-toggle',async(event,entityId)=>{
 // DeckForge owns a dedicated Windows roaming AppData directory.
 // Do not migrate, copy, delete, or reuse legacy product data here.
 app.setPath('userData',path.join(app.getPath('appData'),'DeckForge'));
+
+// File-backed profiles are the default on Windows. Synchronous IPC preserves
+// the existing inspector save/cancel contract while moving images off localStorage.
+const profileStore=new ProfileStore(app.getPath('userData'));
+ipcMain.on('d200x:profile-read',(event)=>{
+  try{
+    assertEditor(event);
+    event.returnValue={ok:true,state:profileStore.read()};
+  }catch(error){
+    event.returnValue={ok:false,error:String(error?.message||error)};
+  }
+});
+ipcMain.on('d200x:profile-write',(event,state)=>{
+  try{
+    assertEditor(event);
+    profileStore.write(state);
+    event.returnValue={ok:true};
+  }catch(error){
+    event.returnValue={ok:false,error:String(error?.message||error)};
+  }
+});
 
 // One editor process per user-data directory. A second launch focuses the first window.
 const singleInstanceLock=app.requestSingleInstanceLock();
