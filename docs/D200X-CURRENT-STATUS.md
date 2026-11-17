@@ -1,3 +1,10 @@
+## 2026-11-17 — 상태별 제목 미리보기 및 세 가지 회귀 수정
+
+- **수정:** `test/deckforge-dual-state-titles.test.cjs`의 글꼴 속성 선택 함수 선택자 검사를 실제 코드에 일치시켜 실패하던 검사를 복구. 카드 T⌄를 연속 클릭할 때 닫히도록 pointerdown 예외 처리, 바깥 클릭·체크 해제 시 `aria-expanded` 초기화.
+- **선택/렌더 시 데이터 비변경:** `attachStateTitleControls`는 `defaultStateTitlePair` 읽기 전용 기본값을 표시하고, 변경 이벤트가 실제로 발생한 경우에만 `ensureStateTitlePair`로 상태별 제목 저장값을 만든다. 선택만 해도 스냅샷이 변경되거나 기존 SDK 실시간 `setTitle`을 덮는 문제 방지.
+- **신규 상태 아이콘 자체 제목 렌더:** `refreshStateTitleCards`가 카드별 사용자 이미지와 제목·정렬·글꼴·윤곽선 옵션을 실제 D200X 이미지 합성기 `renderDeckKeyImage`로 병합해 각각 미리보기 이미지로 표시. 제목·글꼴·체크 변경 시 두 카드를 다시 계산, 느린 비동기 요청의 구 버전 응답은 폐기. 기존 이미지 저장값은 변경하지 않는다.
+- **검증 범위:** Node 회귀·GitHub CI·Windows 패키징과 실제 GUI/D200X 동작은 별도로 구분. 레이아웃 계약의 2026-11-17 예외 절을 우선한다. 단일 브랜치 `codex/streamdeck-761-clean-editor`; Draft PR #5는 유지.
+
 ## 2026-11-17 — 상태별 아이콘·제목 통합 배치 (Windows 화면 실측 검증 대기)
 
 - **사용자 최종 배치:** 미리보기 98px + OFF/Key Up 카드 + ON/Key Down 카드를 같은 가로줄에 배치. 카드 두 개 위에 **왼쪽 OFF 카드 시작선에 ‘⚙ 플러그인 속성 열기’**, **오른쪽 ON 카드 끝선에 ‘취소’·‘저장’** 배치. 상단 헤더 **‘▶ 실행 테스트’는 기존 자리에 유지**. 제목 입력란은 카드의 상태명 바로 아래 배치하고 별도 ‘제목’ 레이블 없이 input placeholder로 표시.
