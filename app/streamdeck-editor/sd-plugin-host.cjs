@@ -517,7 +517,7 @@ class StreamDeckPluginHost{
         // Stream Deck plugins are untrusted. Only explicit, user-approved web links.
         if(!ctx||ctx.pluginUUID!==uuid)return;
         const raw=msg.payload?.url;
-        if(typeof raw!=='string'||raw.length>2048||/[\\x00-\\x1f\\x7f]/.test(raw))return;
+        if(typeof raw!=='string'||raw.length>2048||/[\x00-\x1f\x7f]/.test(raw))return;
         let url;
         try{url=new URL(raw);}catch{return;}
         if(!['http:','https:'].includes(url.protocol)||!url.hostname||url.username||url.password)return;
@@ -526,7 +526,7 @@ class StreamDeckPluginHost{
           type:'question',buttons:['취소','브라우저에서 열기'],defaultId:0,cancelId:0,
           noLink:true,title:'SDK 플러그인 외부 링크',
           message:'플러그인이 외부 웹사이트를 열려고 합니다.',
-          detail:url.href+'\\n요청 플러그인: '+uuid
+          detail:url.href+'\n요청 플러그인: '+uuid
         });
         if(choice.response===1)await shell.openExternal(url.href);
         break;
