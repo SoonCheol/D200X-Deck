@@ -180,3 +180,26 @@ test('Developer .sdPlugin folder installs through the same validated archive pat
     await assert.rejects(host.installDirectory(folder),/이미 있습니다/);
   }finally{await fs.rm(tmp,{recursive:true,force:true,maxRetries:6,retryDelay:150});}
 });
+
+
+test('new unified Plugins path non-destructively imports old SDK plugin and encrypted globals',async()=>{
+  const tmp=await fs.mkdtemp(path.join(os.tmpdir(),'deckforge-plugin-migration-'));
+  const uuid=M.UUID,old=path.join(tmp,'StreamDeck','Plugins');
+  try{
+    await fs.mkdir(path.join(old,uuid+'.sdPlugin'),{recursive:true});
+    await fs.writeFile(path.join(old,uuid+'.sdPlugin','manifest.json'),JSON.stringify(M));
+    await fs.writeFile(path.join(old,uuid+'.sdPlugin','plugin.html'),'<html></html>');
+    await fs.writeFile(path.join(old,uuid+'.globals'),Buffer.from('preserved-secret'));
+    const host=new StreamDeckPluginHost(tmp);
+    const items=await host.list();
+    assert.equal(items.length,1);
+    assert.equal(items[0].uuid,uuid);
+    const next=path.join(tmp,'Plugins');
+    assert.equal((await fs.readFile(path.join(next,uuid+'.globals'))).toString(),'preserved-secret');
+    assert.equal((await fs.readFile(path.join(old,uuid+'.globals'))).toString(),'preserved-secret');
+    assert.ok((await fs.stat(path.join(old,uuid+'.sdPlugin','manifest.json'))).isFile());
+    await fs.rm(path.join(next,uuid+'.sdPlugin'),{recursive:true});
+    await host.list();
+    assert.equal((await host.list()).length,0,'removed plugin must not reappear');
+  }finally{await fs.rm(tmp,{recursive:true,force:true});}
+});
