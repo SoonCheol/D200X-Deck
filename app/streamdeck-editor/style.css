@@ -785,3 +785,109 @@
 .inspector .inspector-icon-section .sdk-state-icon .sdk-state-buttons button{
   box-sizing:border-box;width:76px;min-width:76px;max-width:76px;height:25px;min-height:25px;
 }
+
+
+/* State-specific titles: preview + two cards use one flexible row, never a
+   hard-coded 404px strip. The 141px art size naturally shrinks with the cards. */
+.state-title-inspector{overflow-x:hidden}
+.state-title-inspector .state-title-toolbar{
+  display:flex;align-items:center;justify-content:space-between;gap:8px;
+  margin:9px 0 7px 110px;min-width:0;min-height:33px
+}
+.state-title-inspector .state-title-toolbar .sdk-settings-open{
+  width:auto;max-width:185px;flex:0 1 auto;height:32px;min-height:32px;
+  padding:5px 8px;background:#414a56;color:#f3f5f9;border:1px solid #626e7c;
+  border-radius:5px;font-size:11px;white-space:nowrap
+}
+.state-title-inspector .state-title-toolbar .inspector-save-bar{
+  position:static;bottom:auto;flex:0 0 auto;margin:0;padding:0;border:0;
+  background:transparent;gap:8px
+}
+.state-title-inspector .state-title-layout{
+  display:grid;grid-template-columns:98px minmax(0,1fr);
+  column-gap:12px;min-width:0;align-items:start
+}
+.state-title-inspector .state-title-layout>.preview{width:98px;min-width:0}
+.state-title-inspector .state-title-layout>.inspector-icon-section{
+  display:block;margin:0;width:100%;min-width:0;max-width:100%;
+  overflow:visible
+}
+.state-title-inspector .state-title-layout .sdk-state-icons{
+  display:grid;grid-template-columns:repeat(2,minmax(0,1fr));
+  width:100%;min-width:0;max-width:100%;gap:12px;
+  padding:0
+}
+.state-title-inspector .state-title-layout .sdk-state-icon{
+  box-sizing:border-box;width:100%;min-width:0;max-width:none;
+  flex:initial;padding:7px;display:grid;
+  grid-template-columns:minmax(0,1fr) 76px;grid-template-rows:auto 31px auto;
+  column-gap:7px;row-gap:5px;align-items:start;min-width:0
+}
+.state-title-inspector .state-title-layout .sdk-state-icon>strong{
+  grid-column:1/-1;grid-row:1;font-size:13px;line-height:16px
+}
+.state-title-inspector .state-title-layout .state-title-control{
+  grid-column:1/-1;grid-row:2;position:relative;
+  display:flex;align-items:center;gap:4px;min-width:0
+}
+.state-title-inspector .state-title-visible{
+  width:15px;height:15px;margin:0;flex:0 0 15px;accent-color:#2676c1
+}
+.state-title-inspector .state-title-input{
+  box-sizing:border-box;flex:1;min-width:0;width:0;height:29px;min-height:29px;
+  border:1px solid #666;border-radius:4px;background:#363636;color:#eee;
+  padding:3px 6px;font-size:12px
+}
+.state-title-inspector .state-title-input:disabled{opacity:.45}
+.state-title-inspector .state-title-style{
+  flex:0 0 29px;box-sizing:border-box;width:29px;height:29px;min-height:29px;
+  border:1px solid #626e7c;border-radius:4px;background:#434d5b;
+  padding:0;font-size:12px
+}
+.state-title-inspector .state-title-style:disabled{opacity:.4}
+.state-title-inspector .state-title-control>.title-style-popover{
+  position:absolute;top:100%;right:0;left:auto;z-index:45
+}
+.state-title-inspector .state-title-layout .sdk-state-preview{
+  grid-column:1;grid-row:3;box-sizing:border-box;
+  display:flex;align-items:center;justify-content:center;
+  width:100%;height:auto;aspect-ratio:1/1;min-width:0;
+  border-radius:5px;overflow:hidden
+}
+.state-title-inspector .state-title-layout .sdk-state-preview img{
+  width:100%;height:100%;object-fit:contain
+}
+.state-title-inspector .state-title-layout .sdk-state-buttons{
+  grid-column:2;grid-row:3;display:flex;flex-direction:column;
+  width:76px;gap:4px
+}
+.state-title-inspector .state-title-layout .sdk-state-buttons button{
+  box-sizing:border-box;width:76px;height:25px;min-height:25px;
+  font-size:11px;line-height:1.1;padding:2px 3px
+}
+.state-title-inspector .state-title-extra-properties{
+  display:block;padding:0;margin:0;min-width:0
+}
+.state-title-inspector .state-title-extra-properties>.fields{
+  max-width:100%;padding-left:110px;margin-top:8px;box-sizing:border-box
+}
+.state-title-inspector .state-title-extra-properties .title-setting-field{display:none}
+.state-title-inspector .state-title-extra-properties .sdk-title-controls{display:none}
+.state-title-inspector .state-title-extra-properties .field{
+  grid-template-columns:78px minmax(0,1fr);gap:8px
+}
+.state-title-inspector .state-title-extra-properties .fields>.field:not(.title-setting-field){
+  margin:2px 0
+}
+/* Give the inspector most of the available height when the one-row state
+   editor is visible; keep the physical key array above it accessible. */
+.work:has(.state-title-inspector){
+  grid-template-rows:minmax(295px,40%) minmax(0,1fr)
+}
+@media(max-width:950px){
+  .state-title-inspector{padding-left:12px;padding-right:12px}
+  .state-title-inspector .state-title-toolbar{margin-left:100px}
+  .state-title-inspector .state-title-layout{grid-template-columns:88px minmax(0,1fr);gap:12px}
+  .state-title-inspector .state-title-layout>.preview{transform:scale(.89);transform-origin:top left}
+  .state-title-inspector .state-title-extra-properties>.fields{padding-left:100px}
+}
