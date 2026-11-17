@@ -252,7 +252,9 @@ function displayItem(item,index){
         (visual?.image?{kind:'file',value:visual.image}:null);
       return {...item,title:visual?.title??item.title,...(icon?{icon}:{}),fusionOffline:offline};
     }
-    const icon=stateIcon||item.icon||(visual?.image?{kind:'file',value:visual.image}:null);
+    const defaultImage=sdkActionDefaults.get(item.settings?.actionUUID)?.[stateName];
+    const icon=stateIcon||item.icon||(visual?.image?{kind:'file',value:visual.image}:null)||
+      (defaultImage?{kind:'file',value:defaultImage}:null);
     if(icon||visual)return {...item,title:visual?.title??item.title,...(icon?{icon}:{})};
   }
   if(!item||item.type!=="indicator")return item;
@@ -260,6 +262,8 @@ function displayItem(item,index){
 }
 // Visual press policy is separate from action execution and SDK keyUp delivery.
 const previewPressKeys=new Set();
+// Inspector-only HA preview; never sends a key event or changes a saved entity.
+const haPreviewStates=new WeakMap();
 function isMomentaryIconAction(item){
   if(!item)return false;
   if(item.type==='sd-plugin')return isFusionAction(item);
@@ -615,13 +619,17 @@ async function chooseNativeImage(kind='image'){
 let libraryTab='keys';
 let sdkPlugins=[];
 const sdkActionNames=new Map();
+const sdkActionDefaults=new Map();
 async function refreshSdkPlugins(){
   if(!window.deckBridge?.sdkList)return;
   try{
     sdkPlugins=await window.deckBridge.sdkList();
-    sdkActionNames.clear();
-    for(const plugin of sdkPlugins)for(const action of plugin.actions)
+    sdkActionNames.clear();sdkActionDefaults.clear();
+    for(const plugin of sdkPlugins)for(const action of plugin.actions){
       sdkActionNames.set(action.uuid,sdkCatalogueLabel(action));
+      if(action.defaultImages)sdkActionDefaults.set(action.uuid,action.defaultImages);
+    }
+    renderGrid();void refreshSelectedVisual();
     if(libraryTab==='plugins')renderLibrary();
   }catch(error){window.d200xActionStatus?.('SDK 플러그인 목록 오류: '+String(error?.message||error));}
 }
@@ -1347,7 +1355,18 @@ async function refreshSelectedVisual(){
   if(!item||!window.renderDeckKeyImage)return;
   const request=++previewRequest;
   try{
-    const data=await window.renderDeckKeyImage(displayKeyPressItem(displayItem(item,state.selected),state.selected),state.selected,previewPressKeys.has(state.selected));
+    let visible=displayItem(item,state.selected);
+    if(item.type==='sd-plugin'&&!isMomentaryIconAction(item)&&haPreviewStates.has(item)){
+      const key=haPreviewStates.get(item);
+      const custom=item.settings?.sdkStateIcons?.[key];
+      const runtime=sdkVisuals.get(sdkContext(state.selected,'down'));
+      const fallback=sdkActionDefaults.get(item.settings?.actionUUID)?.[key];
+      const image=custom?.kind==='file'?custom:item.icon||
+        (runtime?.state===(key==='on'?1:0)&&runtime?.image?{kind:'file',value:runtime.image}:null)||
+        (fallback?{kind:'file',value:fallback}:null);
+      visible={...visible,...(image?{icon:image}:{icon:undefined})};
+    }
+    const data=await window.renderDeckKeyImage(displayKeyPressItem(visible,state.selected),state.selected,previewPressKeys.has(state.selected));
     if(request!==previewRequest||DeckCore.visibleActions(state)[state.selected]!==item)return;
     const host=$("icon-preview-content");
     if(!host)return;
@@ -1850,22 +1869,22 @@ function bindSdkStateIcons(root,item){
           const chosen=await chooseNativeImage('image');
           if(!chosen?.dataUrl)return;
           const png=await rasterizeIcon(chosen.dataUrl);
-          if(!currentPage().includes(item))return;
-          item.settings.sdkStateIcons??={};
-          // File picker provides one file only: prefill both slots with that image.
-          // Pack selections can resolve a matching _on/_off companion.
-          item.settings.sdkStateIcons.off={kind:'file',value:png};
-          item.settings.sdkStateIcons.on={kind:'file',value:png};
+          if(!DeckCore.visibleActions(state).includes(item))return;
+          applyStateIconData(item,key,png);
           persistInspectorChange();render();
         }catch(error){window.d200xActionStatus?.('상태 아이콘 선택 실패: '+String(error?.message||error));}
       });
+      const paste=document.createElement('button');paste.type='button';paste.textContent='클립보드';
+      paste.addEventListener('click',()=>pasteIcon(item,key));
+      const symbol=document.createElement('button');symbol.type='button';symbol.textContent='특수문자';
+      symbol.addEventListener('click',()=>openIconMaker(item,key));
       const reset=document.createElement('button');reset.type='button';reset.textContent='초기화';
       reset.addEventListener('click',()=>{
         if(item.settings?.sdkStateIcons)delete item.settings.sdkStateIcons[key];
-        persist();render();
+        persistInspectorChange();render();
       });
       const buttons=document.createElement('div');buttons.className='sdk-state-buttons';
-      buttons.append(choose,file,reset);
+      buttons.append(choose,file,paste,symbol,reset);
       group.append(heading,image,buttons);cards.append(group);
     }
     panel.append(cards);
@@ -1906,7 +1925,11 @@ function bindKeyPressIconControls(root,item){
       if(item.settings?.keyPressIcons)delete item.settings.keyPressIcons[key];
       persistInspectorChange();render();
     });
-    buttons.append(library,file,reset);card.append(heading,preview,buttons);cards.append(card);
+    const paste=document.createElement('button');paste.type='button';paste.textContent='클립보드';
+    paste.addEventListener('click',()=>pasteIcon(item,'press:'+key));
+    const symbol=document.createElement('button');symbol.type='button';symbol.textContent='특수문자';
+    symbol.addEventListener('click',()=>openIconMaker(item,'press:'+key));
+    buttons.append(library,file,paste,symbol,reset);card.append(heading,preview,buttons);cards.append(card);
   }
   panel.append(cards);
 }
@@ -3107,17 +3130,26 @@ async function removeIconPackFromLibrary(pack){
 }
 // Pair icon files only while selecting artwork; never change HA execution logic.
 function iconPairType(icon){
-  const name=String(icon.filename||icon.name||'').split(/[\\/]/).pop().replace(/\.[^.]+$/,'');
-  const match=/^(.*)_(off|on)$/i.exec(name);
-  return match?{base:match[1].toLowerCase(),state:match[2].toLowerCase()}:null;
+  // Do not mix basename variants or folder-local states across icon families.
+  const filenameValue=String(icon.filename||'');
+  const basename=filenameValue.split(/[\\/]/).pop();
+  const directory=filenameValue.slice(0,filenameValue.length-basename.length);
+  const withoutExt=basename.replace(/\.[^.]+$/,'').replace(/@(?:2|3)x$/i,'');
+  const parsedFile=/^(.+?)[_\-\s]+(off|on)$/i.exec(withoutExt);
+  if(parsedFile)return {base:parsedFile[1].toLowerCase(),state:parsedFile[2].toLowerCase(),directory,source:'filename'};
+  const parsedName=/^(.+?)[_\-\s]+(off|on)$/i.exec(String(icon.name||''));
+  if(parsedName)return {base:parsedName[1].toLowerCase(),state:parsedName[2].toLowerCase(),directory,source:'name'};
+  return null;
 }
 function findIconCompanion(pack,icon){
   const pair=iconPairType(icon);
   if(!pair)return null;
-  return pack.icons.find(other=>other!==icon&&(()=>{
+  return pack.icons.find(other=>{
+    if(other===icon)return false;
     const test=iconPairType(other);
-    return test?.base===pair.base&&test.state!==(pair.state);
-  })())||null;
+    return test?.base===pair.base&&test.state!==pair.state&&
+      test.directory===pair.directory&&test.source===pair.source;
+  })||null;
 }
 function renderIconLibrary(){
   const root=$("icon-library-groups");root.replaceChildren();
@@ -3169,19 +3201,21 @@ function renderIconLibrary(){
           if(libraryStateKey?.startsWith('press:')&&isMomentaryIconAction(target)){
             target.settings.keyPressIcons??={};
             target.settings.keyPressIcons[libraryStateKey.slice(6)]={kind:'file',value:png,packId:pack.id};
-          }else if(libraryStateKey&&target.type==='sd-plugin'){
+          }else if(['off','on'].includes(libraryStateKey)&&target.type==='sd-plugin'){
+            // Only an actual, same-directory OFF/ON pair may update both states.
             const companion=findIconCompanion(pack,icon);
             const pair=iconPairType(icon);
-            const off=pair?.state==='on'?companion:icon;
-            const on=pair?.state==='off'?companion:icon;
-            const fallback=icon;
-            const offIcon=off||fallback,onIcon=on||fallback;
-            const offPng=offIcon===icon?png:await rasterizeIcon(offIcon.image);
-            const onPng=onIcon===icon?png:await rasterizeIcon(onIcon.image);
-            if(!DeckCore.visibleActions(state).includes(target))return;
             target.settings.sdkStateIcons??={};
-            target.settings.sdkStateIcons.off={kind:'file',value:offPng,packId:pack.id};
-            target.settings.sdkStateIcons.on={kind:'file',value:onPng,packId:pack.id};
+            target.settings.sdkStateIcons[libraryStateKey]={kind:'file',value:png,packId:pack.id};
+            if(companion&&pair){
+              const opposite=pair.state==='on'?'off':'on';
+              const oppositePng=await rasterizeIcon(companion.image);
+              if(!DeckCore.visibleActions(state).includes(target))return;
+              const selectedIcon=pair.state===libraryStateKey?png:oppositePng;
+              const otherIcon=pair.state===libraryStateKey?oppositePng:png;
+              target.settings.sdkStateIcons[libraryStateKey]={kind:'file',value:selectedIcon,packId:pack.id};
+              target.settings.sdkStateIcons[opposite]={kind:'file',value:otherIcon,packId:pack.id};
+            }
           }else {target.icon={kind:'file',value:png,packId:pack.id};if(target.settings)delete target.settings.autoAppIcon;}
           persistInspectorChange();render();closeIconLibrary();
         }catch(error){
@@ -3221,13 +3255,18 @@ function closeIconLibrary(){
 }
 let fileIconTarget=null;
 let makerTarget=null;
-
-function applyIconData(target,uri){
-  if(!target||!uri||!state.pages.some(page=>page.includes(target)))return;
-  target.icon={kind:"file",value:uri};
-  if(target.settings)delete target.settings.autoAppIcon;
+let makerStateKey=null;
+function applyStateIconData(target,key,uri){
+  if(!target||!uri||!DeckCore.visibleActions(state).includes(target))return;
+  target.settings??={};
+  if(key?.startsWith('press:')){
+    target.settings.keyPressIcons??={};target.settings.keyPressIcons[key.slice(6)]={kind:'file',value:uri};
+  }else if(key==='off'||key==='on'){
+    target.settings.sdkStateIcons??={};target.settings.sdkStateIcons[key]={kind:'file',value:uri};
+  }else{target.icon={kind:'file',value:uri};delete target.settings.autoAppIcon;}
   persistInspectorChange();render();
 }
+function applyIconData(target,uri){applyStateIconData(target,null,uri);}
 function rasterizeIcon(uri){
   return new Promise((resolve,reject)=>{
     const image=new Image();
@@ -3243,7 +3282,7 @@ function rasterizeIcon(uri){
     image.src=uri;
   });
 }
-async function setIconFile(file,target=fileIconTarget){
+async function setIconFile(file,target=fileIconTarget,key=null){
   if(!file||!target)return;
   if(!["image/png","image/jpeg","image/webp","image/gif"].includes(file.type)||file.size>5*1024*1024){
     alert("5MB 이하 PNG/JPEG/WebP/GIF 이미지 파일을 선택해 주세요.");return;
@@ -3255,20 +3294,20 @@ async function setIconFile(file,target=fileIconTarget){
       reader.onload=()=>resolve(reader.result);
       reader.readAsDataURL(file);
     });
-    applyIconData(target,await rasterizeIcon(uri));
+    applyStateIconData(target,key,await rasterizeIcon(uri));
   }catch(error){alert("아이콘 적용 실패: "+String(error?.message||error));}
 }
-async function pasteIcon(target){
+async function pasteIcon(target,key=null){
   try{
     if(window.deckBridge?.readClipboardImage){
       const image=await window.deckBridge.readClipboardImage();
       if(!image){alert("클립보드에 이미지가 없습니다.");return;}
-      applyIconData(target,await rasterizeIcon(image));return;
+      applyStateIconData(target,key,await rasterizeIcon(image));return;
     }
     if(!navigator.clipboard?.read)throw new Error("이미지 클립보드를 사용할 수 없습니다.");
     for(const entry of await navigator.clipboard.read()){
       const format=entry.types.find(type=>["image/png","image/jpeg","image/webp"].includes(type));
-      if(format){await setIconFile(await entry.getType(format),target);return;}
+      if(format){await setIconFile(await entry.getType(format),target,key);return;}
     }
     alert("클립보드에 이미지가 없습니다.");
   }catch(error){alert("클립보드 이미지 접근 실패: "+String(error?.message||error));}
@@ -3282,12 +3321,12 @@ function renderIconMaker(){
   ctx.font=(Array.from(glyph).length>1?65:115)+'px "Segoe UI Symbol","Malgun Gothic",sans-serif';
   ctx.fillText(glyph,98,98,178);
 }
-function openIconMaker(target){
-  makerTarget=target;
+function openIconMaker(target,key=null){
+  makerTarget=target;makerStateKey=key;
   $("icon-maker").hidden=false;
   renderIconMaker();
 }
-function closeIconMaker(){makerTarget=null;$("icon-maker").hidden=true;}
+function closeIconMaker(){makerTarget=null;makerStateKey=null;$("icon-maker").hidden=true;}
 function bindIconControls(item){
   const host=$("icon-preview-content");host.replaceChildren(iconNode(item,ACTIONS.get(item.type)?.icon||"+"));
   if(isMomentaryIconAction(item)&&state.selected<13){
@@ -3300,6 +3339,21 @@ function bindIconControls(item){
       window.addEventListener('pointercancel',release,{once:true,signal:inspectorListener.signal});
     });
     host.addEventListener('pointerleave',release);
+  }
+  const hasStateCards=isMomentaryIconAction(item)||(item.type==='sd-plugin'&&!isMomentaryIconAction(item));
+  if(hasStateCards){
+    $("icon-library-open").remove();$("icon-menu-trigger").remove();$("icon-dropdown").remove();
+    if(item.type==='sd-plugin'&&!isMomentaryIconAction(item)){
+      $("icon-preview").title='클릭하면 OFF/ON 이미지를 미리 봅니다 (실제 장치 동작 없음)';
+      $("icon-preview").style.cursor='pointer';
+      $("icon-preview").addEventListener('click',()=>{
+        const current=haPreviewStates.get(item);
+        const runtime=sdkVisuals.get(sdkContext(state.selected,'down'));
+        haPreviewStates.set(item,current===undefined?(runtime?.state===1?'off':'on'):(current==='on'?'off':'on'));
+        void refreshSelectedVisual();
+      });
+    }
+    return;
   }
   $("icon-library-open").addEventListener("click",()=>openIconLibrary(item));
   const dropdown=$("icon-dropdown"),toggle=$("icon-menu-trigger");
@@ -3551,7 +3605,7 @@ $("icon-maker-close").addEventListener("click",closeIconMaker);
 $("icon-maker-cancel").addEventListener("click",closeIconMaker);
 $("icon-maker").addEventListener("click",event=>{if(event.target===$("icon-maker"))closeIconMaker();});
 $("icon-maker-save").addEventListener("click",()=>{
-  if(makerTarget)applyIconData(makerTarget,$("icon-maker-canvas").toDataURL("image/png"));
+  if(makerTarget)applyStateIconData(makerTarget,makerStateKey,$("icon-maker-canvas").toDataURL("image/png"));
   closeIconMaker();
 });
 // Device options reuse the same update destination as the existing tray menu.
