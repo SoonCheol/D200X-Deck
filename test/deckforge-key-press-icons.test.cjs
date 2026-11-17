@@ -8,7 +8,10 @@ function apply(item,pressed=false){
  const window={D200XPhysicalKeyPressed:()=>pressed};
  const state={selected:0};
  return vm.runInNewContext(funcs+';displayKeyPressItem(item,0)',{
-  item,window,previewPressKeys:new Set(),isFusionAction:action=>action?.type==='sd-plugin'&&action.settings?.pluginUUID==='com.autodesk.fusionstreamdeck',
+  item,window,previewPressKeys:new Set(),state,DeckCore:{visibleActions:()=>[item]},
+  haPreviewStates:new WeakMap(),sdkVisuals:new Map(),sdkContext:()=>'',
+  DEFAULT_TITLE_STYLE:{visible:true,size:12},
+  isFusionAction:action=>action?.type==='sd-plugin'&&action.settings?.pluginUUID==='com.autodesk.fusionstreamdeck',
   JSON
  });
 }
