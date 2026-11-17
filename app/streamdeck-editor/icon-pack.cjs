@@ -6,10 +6,10 @@ const fs=require('node:fs/promises');
 const path=require('node:path');
 const crypto=require('node:crypto');
 
-const MAX_ARCHIVE=20*1024*1024;
-const MAX_EXPANDED=24*1024*1024;
-const MAX_ICON=512*1024;
-const MAX_ICONS=400;
+const MAX_ARCHIVE=60*1024*1024;
+const MAX_EXPANDED=100*1024*1024;
+const MAX_ICON=6*1024*1024;
+const MAX_ICONS=2500;
 const MAX_PACKS=32;
 const MEDIA={png:'image/png',jpg:'image/jpeg',jpeg:'image/jpeg',webp:'image/webp',gif:'image/gif',svg:'image/svg+xml'};
 
@@ -64,7 +64,7 @@ async function parseIconPack(input,render,displayName='가져온 아이콘팩'){
     entries.filter(e=>!e.dir&&mimeOf(e.name)&&!/(?:^|\/)(?:icon|categoryicon|preview)\.(?:png|svg|jpe?g)$/i.test(e.name))
       .map(e=>({path:e.name,name:path.posix.basename(e.name).replace(/\.[^.]+$/,'')}));
   if(!Array.isArray(items)||items.length===0||items.length>MAX_ICONS)
-    throw new Error('아이콘은 1~400개만 지원합니다.');
+    throw new Error('아이콘은 1~2500개만 지원합니다.');
   const named=file=>zip.file((indexed?root+'icons/':'')+file);
   let size=0;
   const icons=[];
