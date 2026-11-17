@@ -100,3 +100,22 @@ test('imports original icon folder without requiring user ZIP conversion',async(
     assert.match(pack.icons[0].image,/^data:image\/png;base64,/);
   }finally{await fs.rm(dir,{recursive:true,force:true});}
 });
+
+
+test('imports 849 original-size icons, beyond the former 400-icon cap',async()=>{
+  const zip=new JSZip(),prefix='com.elgato.defaulticonsblack.sdIconPack/';
+  zip.file(prefix+'manifest.json',JSON.stringify({Name:'849 Icons',Version:'1.0.0'}));
+  const items=Array.from({length:849},(_,i)=>({path:'icon_'+i+'.png',name:'Icon '+i}));
+  zip.file(prefix+'icons.json',JSON.stringify(items));
+  for(const item of items)zip.file(prefix+'icons/'+item.path,png);
+  const pack=await parseIconPack(await zip.generateAsync({type:'nodebuffer'}));
+  assert.equal(pack.icons.length,849);
+});
+test('reimporting an unchanged folder retains the same pack identity',async()=>{
+  const dir=await fs.mkdtemp(path.join(os.tmpdir(),'deckforge-icon-repeat-'));
+  try{
+    await fs.writeFile(path.join(dir,'light_off.png'),png);
+    const a=await parseIconFolder(dir),b=await parseIconFolder(dir);
+    assert.equal(a.id,b.id);
+  }finally{await fs.rm(dir,{recursive:true,force:true});}
+});
