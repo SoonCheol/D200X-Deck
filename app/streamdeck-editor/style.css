@@ -735,7 +735,9 @@
   display:block;
   margin:12px 0 0 var(--inspector-values-left);
   width:var(--inspector-values-width);
-  max-width:calc(100% - var(--inspector-values-left));
+  /* Reclaim the unused right inset before treating a 404px pair as overflow. */
+  max-width:calc(100% - var(--inspector-values-left) + 16px);
+  margin-right:-16px;
   min-width:0;
   overflow-x:auto;
   overflow-y:hidden;
