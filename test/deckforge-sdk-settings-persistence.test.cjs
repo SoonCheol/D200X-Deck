@@ -13,10 +13,14 @@ function plugin(){
  item.settings.pluginSettings={value:'before'};return item;
 }
 function run(mode='key',fail=false){
- const state=DeckCore.migrateState(null),slot=mode==='knob'?16:mode==='pinned'?1:0;
+ const state=DeckCore.migrateState(null),slot=mode==='knob'?16:mode==='pinned'?1:mode==='folder'?2:0;
  const old=plugin();
  if(mode==='knob')DeckCore.controlBinding(state,slot).holdLeft=old;
  else if(mode==='pinned')state.pinned[slot]=old;
+ else if(mode==='folder'){
+  const folder=DeckCore.createAction('folder');folder.children[slot]=old;
+  state.pages[0][0]=folder;state.folderPath=[0];
+ }
  else state.pages[0][slot]=old;
  state.selected=0;
  const snapshot=JSON.stringify(state);
@@ -38,7 +42,7 @@ function run(mode='key',fail=false){
  const ok=vm.runInNewContext(script+';commitExternalSdkSettings(instance,{value:"confirmed"})',{...context,instance});
  return {ok,inspectorSession,item,writes,slot,mode};
 }
-for(const mode of ['key','pinned','knob']){
+for(const mode of ['key','pinned','folder','knob']){
  test('SDK Property Inspector commits only settings for '+mode,()=>{
   const result=run(mode);
   assert.equal(result.ok,true);
