@@ -203,3 +203,12 @@ test('new unified Plugins path non-destructively imports old SDK plugin and encr
     assert.equal((await host.list()).length,0,'removed plugin must not reappear');
   }finally{await fs.rm(tmp,{recursive:true,force:true});}
 });
+
+test('SDK openUrl accepts only credential-free HTTP(S) and refuses unsafe schemes',()=>{
+ const {safeSdkExternalUrl}=require('../app/streamdeck-editor/sd-plugin-host.cjs');
+ assert.equal(safeSdkExternalUrl('https://example.com/oauth?redirect=1'),'https://example.com/oauth?redirect=1');
+ for(const value of ['file:///C:/Users/a','javascript:alert(1)','data:text/html,bad',
+   'https://name:password@example.com/','https://example.com/\nmalicious',null,
+   'https://example.com/'.padEnd(2100,'x')])
+   assert.equal(safeSdkExternalUrl(value),null,String(value)?.slice(0,45));
+});
