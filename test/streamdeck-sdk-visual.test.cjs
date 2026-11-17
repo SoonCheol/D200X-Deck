@@ -17,7 +17,7 @@ function render(item,visual,slot=0,clone=false){
   return vm.runInNewContext(fn+';displayItem(item,index)',{
     item:actual,index:slot,
     state:{profileId:'profile',page:0,folderPath:[],selected:2},
-    sdkVisuals:map,sdkContext:(i,g)=>'profile:0::'+i+':'+g,
+    sdkVisuals:map,sdkActionDefaults:new Map(),sdkContext:(i,g)=>'profile:0::'+i+':'+g,
     DeckCore:{visibleActions:()=>[original]},timerDeadlines:new Map()
   });
 }
@@ -170,8 +170,23 @@ test('Pinned key inspector preview refreshes when page slot is empty',async()=>{
  const $=key=>key==='icon-preview-content'?area:key==='icon-preview'?{querySelector:()=>null}:null;
  await vm.runInNewContext(source.slice(start,end)+';refreshSelectedVisual()',{
   state,window,DeckCore:{visibleActions:()=>[pinned]},currentPage:()=>[null],
-  displayItem:x=>x,displayKeyPressItem:x=>x,previewPressKeys:new Set(),$,document:{createElement:()=>({className:'',src:''})},
+  displayItem:x=>x,displayKeyPressItem:x=>x,previewPressKeys:new Set(),
+  isMomentaryIconAction:()=>false,haPreviewStates:new WeakMap(),sdkVisuals:new Map(),
+  sdkContext:()=>'',sdkActionDefaults:new Map(),$,document:{createElement:()=>({className:'',src:''})},
   console
  });
  assert.equal(area.children?.[0]?.src,'data:image/png;base64,'+Buffer.from('preview').toString('base64'));
+});
+
+test('read-only SDK manifest artwork appears when no runtime image exists',()=>{
+ const item={type:'sd-plugin',settings:{actionUUID:'example.action'}};
+ const key='profile:0::0:down';
+ const common={state:1},defaults=new Map([['example.action',{off:'data:image/png;base64,T0ZG',on:'data:image/png;base64,T04='}]]);
+ const result=vm.runInNewContext(fn+';displayItem(item,0)',{
+   item,state:{profileId:'profile',page:0,folderPath:[]},
+   sdkVisuals:new Map([[key,common]]),sdkActionDefaults:defaults,
+   sdkContext:()=>key,DeckCore:{visibleActions:()=>[item]},timerDeadlines:new Map()
+ });
+ assert.equal(result.icon.value,'data:image/png;base64,T04=');
+ assert.equal(common.image,undefined,'must not fabricate live setImage event');
 });
