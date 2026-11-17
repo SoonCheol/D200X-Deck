@@ -41,3 +41,14 @@ test('Fusion Manager shares only the new DeckForge icon cache',()=>{
   assert.match(manager,/path\.join\(app\.getPath\('appData'\),'DeckForge','Cache','Fusion','original'\)/);
   assert.doesNotMatch(manager,/D200X StreamDeck Device Sync/);
 });
+
+
+test('uninstaller preserves DeckForge app data unless deletion is explicitly confirmed',()=>{
+  const nsis=fs.readFileSync(path.join(root,'app/streamdeck-editor/installer-fusion.nsh'),'utf8');
+  assert.match(nsis,/!macro customUnInstall/);
+  assert.match(nsis,/MessageBox MB_YESNO\|MB_ICONQUESTION\|MB_DEFBUTTON2/);
+  assert.match(nsis,/IDNO keepDeckForgeData/);
+  assert.match(nsis,/RMDir \/r "\$APPDATA\\DeckForge"/);
+  assert.match(nsis,/keepDeckForgeData:/);
+  assert.doesNotMatch(nsis,/RMDir \/r.*(FusionStreamDeck|D200X StreamDeck Device Sync)/);
+});
