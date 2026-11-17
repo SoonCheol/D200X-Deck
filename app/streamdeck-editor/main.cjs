@@ -11,7 +11,7 @@ const {parseWindowsArgs}=require('./windows-args.cjs');
 const { promisify } = require('node:util');
 const execFileAsync = promisify(execFile);
 const { D200XTransport } = require('./transport.cjs');
-const { parseIconPack, readPacks, registerPack, removePack } = require('./icon-pack.cjs');
+const { parseIconPack, parseIconFolder, readPacks, registerPack, removePack } = require('./icon-pack.cjs');
 const { safeStorage } = require('electron');
 const HA = require('./ha-client.cjs');
 const {StreamDeckPluginHost}=require('./sd-plugin-host.cjs');
@@ -855,10 +855,55 @@ async function openRememberedPicker(options,kind='file'){
   await savePickerLocation(selected,kind);
   return selected;
 }
-// Imported Stream Deck icon-pack data is stored separately from profile/theme localStorage.
-function iconPacksFile(){return path.join(app.getPath('userData'),'StreamDeck','IconPacks','streamdeck-icon-packs-v1.json');}
+// All imported icon packs share one device-neutral store; old user data stays intact.
+function iconPacksFile(){return path.join(app.getPath('userData'),'Resources','IconPacks','icon-packs-v1.json');}
+function legacyIconPacksFile(){return path.join(app.getPath('userData'),'StreamDeck','IconPacks','streamdeck-icon-packs-v1.json');}
+let iconMigrationPromise=null;
+async function ensureIconPacksMigrated(){
+  if(!iconMigrationPromise)iconMigrationPromise=(async()=>{
+    try{await fs.promises.access(iconPacksFile());return;}catch(e){if(e.code!=='ENOENT')throw e;}
+    const legacy=await readPacks(legacyIconPacksFile());
+    // No files are deleted. The new index is written atomically.
+    await fs.promises.mkdir(path.dirname(iconPacksFile()),{recursive:true});
+    const tmp=iconPacksFile()+'.'+process.pid+'.tmp';
+    try{
+      await fs.promises.writeFile(tmp,JSON.stringify(legacy),'utf8');
+      await fs.promises.rename(tmp,iconPacksFile());
+    }catch(e){await fs.promises.rm(tmp,{force:true}).catch(()=>{});throw e;}
+  })().catch(e=>{iconMigrationPromise=null;throw e;});
+  return iconMigrationPromise;
+}
+// Convert unsupported SVG, or oversized supported images, with Chromium's image
+// renderer. No user-facing conversion step. Native-sized raster bytes are preserved.
+async function normalizeImportedIcon(bytes,mime,filename){
+  const original='data:'+mime+';base64,'+bytes.toString('base64');
+  if(!window||window.isDestroyed())throw Error('아이콘 변환 창을 사용할 수 없습니다.');
+  const script='(async()=>{'+
+    'const src='+JSON.stringify(original)+';'+
+    'const mime='+JSON.stringify(mime)+';'+
+    'const name='+JSON.stringify(filename)+';'+
+    'const img=new Image();'+
+    'await new Promise((ok,bad)=>{img.onload=ok;img.onerror=()=>bad(Error("이미지 디코딩 실패: "+name));img.src=src;});'+
+    'if(img.naturalWidth<=0||img.naturalHeight<=0)throw Error("아이콘 크기를 확인할 수 없습니다.");'+
+    'if(img.naturalWidth<=144&&img.naturalHeight<=144&&mime!=="image/svg+xml")return src;'+
+    'if((mime==="image/gif"||mime==="image/webp")&&(img.naturalWidth>144||img.naturalHeight>144))'+
+    'throw Error("대형 애니메이션 아이콘은 프레임 보존 변환이 필요합니다: "+name);'+
+    'const scale=Math.min(1,144/img.naturalWidth,144/img.naturalHeight);'+
+    'const w=mime==="image/svg+xml"?Math.min(144,Math.max(1,Math.round(img.naturalWidth*scale))):Math.max(1,Math.round(img.naturalWidth*scale));'+
+    'const h=Math.max(1,Math.round(img.naturalHeight*scale));'+
+    'const canvas=document.createElement("canvas");canvas.width=w;canvas.height=h;'+
+    'canvas.getContext("2d").drawImage(img,0,0,w,h);'+
+    'const format=mime==="image/jpeg"?"image/jpeg":mime==="image/webp"?"image/webp":"image/png";'+
+    'return canvas.toDataURL(format);'+
+    '})()';
+  const result=await window.webContents.executeJavaScript(script,true);
+  if(typeof result!=='string'||!/^data:image\/(?:png|jpeg|webp|gif);base64,/.test(result))
+    throw Error('아이콘 변환 결과가 올바르지 않습니다.');
+  return result;
+}
 let builtinPacksCache=null;
 async function listIconPacks(){
+  await ensureIconPacksMigrated();
   if(!builtinPacksCache){
     const file=path.join(__dirname,'builtin-iconpacks.json');
     const contents=await fs.promises.readFile(file,'utf8');
@@ -877,21 +922,34 @@ ipcMain.handle('d200x:list-icon-packs',async event=>{
 });
 ipcMain.handle('d200x:remove-icon-pack',async(event,id)=>{
   if(!window||event.sender!==window.webContents)throw new Error('허용되지 않은 호출입니다.');
+  await ensureIconPacksMigrated();
   return removePack(iconPacksFile(),id);
 });
 ipcMain.handle('d200x:import-icon-pack',async event=>{
   if(!window||event.sender!==window.webContents)throw new Error('허용되지 않은 호출입니다.');
   const file=await openRememberedPicker({
-    title:'Stream Deck 아이콘팩 가져오기',
+    title:'아이콘팩 파일 가져오기',
     properties:['openFile'],
-    filters:[{name:'Stream Deck 아이콘팩',extensions:['streamDeckIconPack']},
+    filters:[{name:'Stream Deck 아이콘팩',extensions:['streamDeckIconPack','sdIconPack']},
       {name:'ZIP 아이콘팩',extensions:['zip']}]
   });
   if(!file)return null;
   const stat=await fs.promises.stat(file);
   if(!stat.isFile()||stat.size>20*1024*1024)
     throw new Error('20MB 이하의 아이콘팩을 선택하세요.');
-  const pack=await parseIconPack(await fs.promises.readFile(file));
+  const pack=await parseIconPack(await fs.promises.readFile(file),normalizeImportedIcon,path.parse(file).name);
+  await ensureIconPacksMigrated();
+  await registerPack(iconPacksFile(),pack);
+  return pack;
+});
+ipcMain.handle('d200x:import-icon-folder',async event=>{
+  if(!window||event.sender!==window.webContents)throw new Error('허용되지 않은 호출입니다.');
+  const folder=await openRememberedPicker({
+    title:'아이콘팩 폴더 가져오기',properties:['openDirectory']
+  },'directory');
+  if(!folder)return null;
+  const pack=await parseIconFolder(folder,normalizeImportedIcon);
+  await ensureIconPacksMigrated();
   await registerPack(iconPacksFile(),pack);
   return pack;
 });
