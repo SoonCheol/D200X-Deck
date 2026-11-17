@@ -99,3 +99,15 @@ test('title visibility is by the input and presets update all controls in place'
   assert.match(editor,/persist\(\);renderGrid\(\);refreshTitlePreview\(item\)/);
   assert.match(css,/\.fields>\.field\.title-setting-field\{grid-template-columns:92px minmax\(0,404px\);\}/);
 });
+
+test('title alignment keeps original three buttons but uses legible 20px SVG icons',()=>{
+ const fragment=editor.slice(editor.indexOf('<div class="title-align"'),editor.indexOf('</div>',editor.indexOf('<div class="title-align"')));
+ for(const key of ['bottom','middle','top']){
+   assert.match(fragment,new RegExp('data-align="'+key+'"[^>]*aria-label="[^"]+"'));
+ }
+ assert.equal((fragment.match(/<svg width="20" height="20" viewBox="0 0 24 24"/g)||[]).length,3);
+ assert.doesNotMatch(fragment,/[▤▥≡]/);
+ assert.match(css,/\.title-align button\{flex:1;border:1px solid #666;border-radius:3px;background:#515151;padding:6px\}/);
+ assert.match(css,/\.title-align button svg\{display:block;width:20px;height:20px;margin:auto;pointer-events:none\}/);
+ assert.match(css,/\.title-align button.active\{background:#217ce5;border-color:#217ce5\}/);
+});
