@@ -146,8 +146,8 @@ test('Fusion icon IPC reads both trusted PNG and fallback cached PNG',async()=>{
    ipcMain:{handle:(channel,fn)=>handlers.set(channel,fn)}
   });
   const png=Buffer.concat([Buffer.from('89504e470d0a1a0a','hex'),Buffer.from([1,2,3,4])]);
-  const original=path.join(tmp,'original-fusion-icons');
-  const cached=path.join(tmp,'fusion-command-icons');
+  const original=path.join(tmp,'Cache','Fusion','original');
+  const cached=path.join(tmp,'Cache','Fusion','generated');
   fs.mkdirSync(original,{recursive:true});fs.mkdirSync(cached,{recursive:true});
   fs.writeFileSync(path.join(original,'FirstCommand.png'),png);
   fs.writeFileSync(path.join(cached,'SecondCommand.png'),png);
