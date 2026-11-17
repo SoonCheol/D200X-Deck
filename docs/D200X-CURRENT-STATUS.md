@@ -4,7 +4,8 @@
 - **설명창 흰색 막대:** HA/Fusion 공통 `openSdkPluginHelp()`의 닫기 버튼에 `sdk-plugin-help-close` 클래스를 추가하고 해당 버튼에만 다크 CSS 적용. 기타 승인 레이아웃·카드 폭·순서는 수정하지 않음.
 - **NSIS 제거 선택:** `installer-fusion.nsh` `customUnInstall`에 Yes/No 질문. 기본 선택 No(데이터 보존), Yes일 때만 `$APPDATA\\DeckForge` 제거. 무인/자동 제거 시 데이터 보호. 기존 `deleteAppDataOnUninstall: false` 및 원클릭 설치 유지, 다른 앱·구 이름 폴더 삭제하지 않음.
 - **자동 테스트 추가:** `test/deckforge-key-press-icons.test.cjs`, `test/deckforge-install.test.cjs`에서 경고 분기, 버튼 클래스, 기본 데이터 보호를 정적 회귀 검사. Windows 실제 GUI에서 모든 클릭 동작 및 제거 확인창 표시·데이터 삭제/보존은 새 설치본 검증 필요.
-- **상태:** 원격 소스 커밋 완료. CI와 Windows 빌드 결과는 Actions에서 별도 확인하고 실기 완료로 표기하지 말 것. Draft PR #5 유지.
+- **자동 검증:** 소스 커밋 `906044447fe3d9e274be81c64a25732a1bceb934` 기준 CI [#44044167611](https://github.com/SoonCheol/D200X-Deck/actions/runs/44044167611) 성공, Windows 통합 설치 빌드 [#44044167612](https://github.com/SoonCheol/D200X-Deck/actions/runs/44044167612) 성공. 설치형 아티팩트 `DeckForge-1.1-Setup-win-x64` ID `14309849345`, 포터블 `DeckForge-1.1-win-x64` ID `14310921490`. 기존 정적 테스트 문구 때문에 실패했던 중간 빌드는 테스트 계약 갱신 후 정상 통과.
+- **실기 남은 검증:** 실제 Windows 도움말 닫기 버튼 표시, 사용 중 미저장 경고 정확한 발생 조건, 제거창의 Yes/No 선택과 데이터 보존/삭제 여부는 사용자가 설치 후 확인 예정. 자동 검증과 실기 완료를 혼동하지 않음. Draft PR #5 유지.
 
 ## 2026-11-17 — 플랫폼 우선 혼합형 데이터 폴더 적용
 
