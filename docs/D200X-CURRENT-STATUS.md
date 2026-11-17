@@ -1,3 +1,12 @@
+## 2026-11-17 — 상태별 아이콘 5개 메뉴 및 메인 미리보기 (Windows 실기 검증 대기)
+
+- **승인 UI 보존:** 기존 인스펙터 네 영역, OFF/ON 또는 Key Up/Key Down 두 카드 196px×2·12px 간격, 이미지 84×84px, 카드의 가로 정렬, 제목/속성, 저장/취소는 유지. 두 아이콘 카드의 오른쪽 메뉴를 동일 폭/높이의 5개 세로 버튼으로 확대: **라이브러리, 파일, 클립보드, 특수문자, 초기화**. 카드 높이만 내용에 맞춰 늘어남.
+- **메인 미리보기:** 상태별 카드가 있는 일반 키의 메인 아이콘 `+`/화살표 및 중복 메뉴 제거. 일반 순간형은 누름/뗌 미리보기 유지, HA 등 상태형 SDK는 미리보기 클릭으로 OFF↔ON 이미지만 교대; 실제 HA 제어 이벤트 발송 없음. 기존 `item.icon`은 보존.
+- **독립 적용:** SDK 파일·클립보드·특수문자·초기화는 해당 OFF/ON만 변경. Key Up/Down도 동일. `persistInspectorChange`를 통해 저장/취소 흐름에 참여하며 고정 버튼도 `visibleActions` 검사로 지원.
+- **자동 짝 찾기:** 같은 팩과 같은 원래 폴더, 같은 filename/name 분류만 매칭. `_off`, `-off`, ` off` / `on` 및 파일명의 `@2x`/`@3x` 지원. 짝이 실제로 있을 때만 양쪽을 설정하고 없으면 선택 카드만 변경. 기존 HA 동작·인증 데이터 변경 없음.
+- **기본 아트:** SDK 호스트가 설치된 플러그인 manifest `States[0/1].Image` 또는 `Icon`을 안전한 내부 파일 경로에서 읽어 `@2x` 우선 data URL로 읽기 전용 제공. 별도의 `sdkActionDefaults` 맵으로 UI의 보조 이미지에만 사용, `sdkVisuals` 실시간 이벤트는 그대로 유지, 초기 가짜 OFF 이벤트 없음.
+- **검증 현황:** GitHub 소스 수정 및 관련 회귀 테스트 추가. Actions CI/Windows 설치 빌드의 최종 결과 및 Windows GUI·D200X 실물 검증은 별도 확인 필요. 유일한 브랜치 `codex/streamdeck-761-clean-editor`, Draft PR #5 미병합.
+
 ## 2026-11-17 — 통합 저장 폴더 및 아이콘팩 가져오기 확장
 
 - **공통 저장소:** 아이콘팩 `%APPDATA%\\DeckForge\\Resources\\IconPacks\\icon-packs-v1.json`, SDK 플러그인 `%APPDATA%\\DeckForge\\Plugins`로 변경. 기종별 IconPacks/Plugins 하위 구분 없음. `StreamDeck\\IconPacks`의 기존 JSON과 `StreamDeck\\Plugins`의 기존 SDK 플러그인 및 `.globals` 암호화 설정은 최초 사용 시 **복사만 하고 원본 보존**. 신경로 기존 동일 ID는 덮어쓰지 않고, 마이그레이션 마커로 삭제된 플러그인 재등장 차단.
