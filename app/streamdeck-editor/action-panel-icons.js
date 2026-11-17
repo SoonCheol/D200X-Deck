@@ -3,11 +3,11 @@
 window.D200XPanelIcons=(()=>{
   const KEY="d200x-action-panel-appearance-v1";
   const groups=[
+    ["D200X 장치·화면",["brightness","sleep","virtual","device-brightness","folder","profile","previous","next","goto","indicator"]],
     ["Windows 시스템",["system-volume","system-mute","window-switch","window-state","window-monitor","desktop-switch","screenshot","explorer-open"]],
     ["키보드·마우스",["hotkey","hotkey-switch","system-scroll","clipboard-edit","edit-history","system-zoom","text"]],
     ["프로그램별 작업",["brush-size","timeline-step","timeline-zoom"]],
     ["파일·프로그램 실행",["website","open","open-app","close","file-open","folder-shortcut"]],
-    ["D200X 장치·화면",["brightness","sleep","virtual","device-brightness","folder","profile","previous","next","goto","indicator"]],
     ["자동화·다중 동작",["multi","multi-switch","random","logic","timer"]],
     ["미디어·사운드",["audio-play","audio-stop","media"]],
     ["플러그인 · Home Assistant",["ha-toggle"]]
