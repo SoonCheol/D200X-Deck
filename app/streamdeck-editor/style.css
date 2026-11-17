@@ -767,3 +767,12 @@
 .website-url-control>.https-toggle{display:flex;align-items:center;gap:4px;white-space:nowrap;flex:none;font-size:11px;color:#d1d9e4}
 .website-url-control>.https-toggle input{width:15px;height:15px;min-height:0;margin:0;accent-color:#2676c1}
 .website-url-control>input[data-field="url"]{flex:1;min-width:0}
+
+/* SDK help is a native dialog: style its close control explicitly instead of
+   allowing the Windows default white button to appear on the dark surface. */
+#sdk-plugin-help-dialog .sdk-plugin-help-close{
+  flex:0 0 auto;min-width:76px;min-height:29px;
+  padding:5px 10px;border:1px solid #717e8e;border-radius:5px;
+  background:#414a56;color:#f3f5f9;font-size:12px;line-height:1.2;
+}
+#sdk-plugin-help-dialog .sdk-plugin-help-close:hover{background:#536075}
