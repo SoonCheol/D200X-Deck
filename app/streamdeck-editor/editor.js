@@ -3049,15 +3049,15 @@ async function refreshImportedIconPacks(){
     window.d200xActionStatus?.('아이콘팩 목록 읽기 실패: '+String(error?.message||error));
   }
 }
-async function importIconPackIntoLibrary(){
+async function importIconPackIntoLibrary(fromFolder=false){
   if(!window.deckBridge?.importIconPack){
     window.d200xActionStatus?.('아이콘팩 등록은 Windows EXE에서 사용할 수 있습니다.');
     return;
   }
-  const button=$("icon-pack-import");
+  const button=$(fromFolder?"icon-pack-folder-import":"icon-pack-import");
   button.disabled=true;
   try{
-    const pack=await window.deckBridge.importIconPack();
+    const pack=await (fromFolder?window.deckBridge.importIconFolder():window.deckBridge.importIconPack());
     if(!pack)return;
     await refreshImportedIconPacks();
     window.d200xActionStatus?.('아이콘팩 등록 완료: '+pack.name+' · '+pack.icons.length+'개');
@@ -3528,7 +3528,8 @@ function bindSidebarHeader(){
   });
   // The main settings screen remains explicitly disabled.
 }
-$("icon-pack-import").addEventListener("click",importIconPackIntoLibrary);
+$("icon-pack-import").addEventListener("click",()=>importIconPackIntoLibrary(false));
+$("icon-pack-folder-import").addEventListener("click",()=>importIconPackIntoLibrary(true));
 $("close-icon-library").addEventListener("click",closeIconLibrary);
 $("icon-library").addEventListener("click",event=>{if(event.target===$("icon-library"))closeIconLibrary();});
 $("icon-library-search").addEventListener("input",renderIconLibrary);
