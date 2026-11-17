@@ -1970,6 +1970,43 @@ function renderControlInspector(){
   if(knob)root.append(testBar);
   appendInspectorSaveBar(root);
 }
+function attachStateTitleControls(card,item,which){
+  const config=ensureStateTitlePair(item)[which];
+  const row=document.createElement('div');row.className='state-title-control';
+  const check=document.createElement('input');check.type='checkbox';check.checked=config.enabled;
+  check.className='state-title-visible';check.setAttribute('aria-label',(which==='first'?'제목 1':'제목 2')+' 표시');
+  const input=document.createElement('input');input.type='text';input.className='state-title-input';
+  input.placeholder='제목';input.setAttribute('aria-label',which==='first'?'제목 1':'제목 2');
+  input.maxLength=256;input.value=config.title;input.disabled=!config.enabled;
+  const styleButton=document.createElement('button');styleButton.type='button';
+  styleButton.className='state-title-style';styleButton.textContent='T⌄';
+  styleButton.title=(which==='first'?'제목 1':'제목 2')+' 글꼴 속성';
+  styleButton.setAttribute('aria-label',styleButton.title);
+  styleButton.setAttribute('aria-expanded','false');
+  styleButton.addEventListener('click',()=>{
+    if(input.disabled)return;
+    const menu=$('title-style-popover');
+    if(menu.parentElement===row&&!menu.hidden){
+      menu.hidden=true;styleButton.setAttribute('aria-expanded','false');return;
+    }
+    $('inspector')._openStateTitleStyle?.(which,styleButton);
+  });
+  check.addEventListener('change',()=>{
+    config.enabled=check.checked;
+    input.disabled=!check.checked;styleButton.disabled=!check.checked;
+    if(!check.checked&&$('inspector').dataset.activeTitle===which)
+      $('title-style-popover').hidden=true;
+    persistInspectorChange();renderGrid();refreshTitlePreview(item);
+  });
+  input.addEventListener('input',()=>{
+    config.title=input.value;
+    // The legacy title is a fallback for imported versions, not the active state title.
+    persistInspectorChange();renderGrid();refreshTitlePreview(item);
+  });
+  styleButton.disabled=!config.enabled;
+  row.append(check,input,styleButton);
+  card.append(row);
+}
 function bindSdkStateIcons(root,item){
   if(item.type!=='sd-plugin'||isMomentaryIconAction(item))return;
   const panel=root.querySelector('[data-inspector-icons]');
@@ -2014,7 +2051,7 @@ function bindSdkStateIcons(root,item){
       });
       const buttons=document.createElement('div');buttons.className='sdk-state-buttons';
       buttons.append(choose,file,paste,symbol,reset);
-      group.append(heading,image,buttons);cards.append(group);
+      group.append(heading);attachStateTitleControls(group,item,key==='off'?'first':'second');group.append(image,buttons);cards.append(group);
     }
     panel.append(cards);
   };
@@ -2059,7 +2096,7 @@ function bindKeyPressIconControls(root,item){
     paste.addEventListener('click',()=>pasteIcon(item,'press:'+key));
     const symbol=document.createElement('button');symbol.type='button';symbol.textContent='특수문자';
     symbol.addEventListener('click',()=>openIconMaker(item,'press:'+key));
-    buttons.append(library,file,paste,symbol,reset);card.append(heading,preview,buttons);cards.append(card);
+    buttons.append(library,file,paste,symbol,reset);card.append(heading);attachStateTitleControls(card,item,key==='up'?'first':'second');card.append(preview,buttons);cards.append(card);
   }
   panel.append(cards);
 }
@@ -2226,7 +2263,7 @@ function renderInspector(){
   if(state.selected===13&&wideDisplayAvailable()){renderWideInspector();return;}
   if(!item){root.className="inspector empty";root.textContent=state.selected===null?"버튼을 선택하세요":"액션을 끌어 이 키에 놓으세요";
     if(inspectorSession?.dirty)appendInspectorSaveBar(root);return;}
-  root.className="inspector"+(item.type==='hotkey-switch'?' hotkey-switch-inspector':'')+(item.type==='sd-plugin'?' sdk-plugin-inspector':'');
+  root.className="inspector"+(item.type==='hotkey-switch'?' hotkey-switch-inspector':'')+(item.type==='sd-plugin'?' sdk-plugin-inspector':'')+(hasStateTitlePair(item)?' state-title-inspector':'');
   const action=ACTIONS.get(item.type),fields=actionFields(item);
   const sdkName=item.type==='sd-plugin'
     ?(item.settings?.actionUUID===HA_CUSTOM_ACTION?'Home Assistant 장치 제어':
@@ -2410,6 +2447,22 @@ function renderInspector(){
   bindSdkStateIcons(root,item);
   bindKeyPressIconControls(root,item);
   appendInspectorSaveBar(root);
+  if(hasStateTitlePair(item)){
+    const toolbar=document.createElement('div');toolbar.className='state-title-toolbar';
+    const pluginButton=root.querySelector('.sdk-settings-open');
+    if(pluginButton)toolbar.append(pluginButton);
+    const saveBar=root.querySelector('.inspector-footer-region');
+    if(saveBar)toolbar.append(saveBar);
+    const layout=document.createElement('div');layout.className='state-title-layout';
+    const preview=root.querySelector('.inspector-properties-region>.preview');
+    const iconRegion=root.querySelector('.inspector-icon-section');
+    if(preview&&iconRegion){
+      layout.append(preview,iconRegion);
+      const properties=root.querySelector('.inspector-properties-region');
+      properties.before(toolbar,layout);
+      properties.classList.add('state-title-extra-properties');
+    }
+  }
 }
 async function importSlotAction(index){
   if(reservedWideSlot(index))return window.d200xActionStatus?.('가로 화면에는 액션을 불러올 수 없습니다.');
