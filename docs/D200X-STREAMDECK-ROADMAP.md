@@ -289,7 +289,7 @@ editor-ui (Stream Deck식 UI, Electron renderer)
 
 ## 신규 기본 액션 확장 — 2026-11-14 합의/개발 시작
 
-**세부 단일 계획:** [D200X-BUILTIN-ACTIONS-EXPANSION.md](archive/D200X-BUILTIN-ACTIONS-EXPANSION.md). Codex는 아래 진행표와 세부 계획을 함께 읽는다.
+**세부 단일 계획:** [D200X-BUILTIN-ACTIONS-EXPANSION.md](archive/D200X-BUILTIN-ACTIONS-EXPANSION.md). 신규 세션은 이 로드맵과 통합 상태표를 우선 읽고, 과거 세부 계획은 필요한 경우에만 조회한다.
 
 - [x] GitHub에 신규 24개 후보(기존 액션 재사용 포함), 8개 P0 핵심, 버튼·노브 공통화, 단계별 검증 기준 기록. 문서 커밋 `0e319814`.
 - [x] **코드 변경만:** 기존 노브 페이지/음량/확대축소에 단계량(1/2/5/10)과 회전 반전 옵션을 추가하고 구형 저장값 기본값 유지. `deck-core.js`, `editor.js`, `main.cjs`, `preload.cjs`, `test/streamdeck-core.test.cjs` 수정. **Node CI 및 Windows 프리뷰 빌드 성공 기록 존재, D200X 실기 미검증**, 기능 완료 아님.
@@ -306,7 +306,7 @@ editor-ui (Stream Deck식 UI, Electron renderer)
 
 ### 문서 상태 혼동 방지 — 2026-11-14
 
-과거 단계의 '미연결/미지원/실기 전' 문장은 작성 당시 기록이다. 최신 사실은 [완전 인수인계](archive/D200X-COMPLETE-HANDOFF-20261114.md), 실제 현재 브랜치 소스와 CI/Actions 로그에서 확인한다. 페이지 이동은 **코드 수정 완료, 실물 해결 검증 대기**이며 '수정 작업을 아직 시작하지 않음'으로 되돌리면 안 된다. 기본 액션 확장은 [확장 계획](archive/D200X-BUILTIN-ACTIONS-EXPANSION.md)을 기준으로 한다. 신규 빌드 파일은 해당 커밋의 GitHub Actions 성공 실행 페이지에서 `D200X-StreamDeck-Device-Sync-win-x64` ZIP을 제공한다.
+과거 단계의 '미연결/미지원/실기 전' 문장은 작성 당시 기록이다. 최신 사실은 [통합 상태표](D200X-CURRENT-STATUS.md), 실제 현재 브랜치 소스와 CI/Actions 로그에서 확인한다. [과거 완전 인수인계](archive/D200X-COMPLETE-HANDOFF-20261114.md)는 역사적 참고 자료다. 페이지 이동은 **코드 수정 완료, 실물 해결 검증 대기**이며 '수정 작업을 아직 시작하지 않음'으로 되돌리면 안 된다. 기본 액션 확장은 통합 상태표와 본 로드맵을 기준으로 하며, [구 확장 계획](archive/D200X-BUILTIN-ACTIONS-EXPANSION.md)은 필요할 때만 참고한다. 신규 빌드는 해당 커밋의 성공한 GitHub Actions 실행에서 **실제 생성된 Artifact 이름**을 확인하고 링크를 제공한다.
 
 ### Codex 독립 검증에서 발견된 추가 항목 — 2026-11-14
 
