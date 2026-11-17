@@ -467,19 +467,7 @@ class StreamDeckPluginHost{
     if(!Number.isInteger(state)||state<0||state>=Math.min(16,manifestAction?.States?.length||0))return null;
     const base=manifestAction.States[state]?.Image;
     if(!filename(base))return null;
-    for(const extension of ['', '.png', '.svg', '.jpg', '.jpeg', '.webp']){
-      const name=base+extension,mime=name.endsWith('.svg')?'image/svg+xml':
-        name.endsWith('.jpg')||name.endsWith('.jpeg')?'image/jpeg':
-        name.endsWith('.webp')?'image/webp':'image/png';
-      const absolute=path.resolve(inst.dir,name);
-      if(!absolute.startsWith(inst.dir+path.sep))continue;
-      try{
-        const stat=await fs.promises.stat(absolute);
-        if(!stat.isFile()||stat.size>1024*1024)continue;
-        return 'data:'+mime+';base64,'+(await fs.promises.readFile(absolute)).toString('base64');
-      }catch(e){if(e.code!=='ENOENT')throw e;}
-    }
-    return null;
+    return this.defaultArtwork(inst.dir,base);
   }
   async message(msg,inst,pi,ws){
     const uuid=inst?.uuid||pi?.pluginUUID;
