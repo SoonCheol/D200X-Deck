@@ -877,16 +877,19 @@ async function ensureIconPacksMigrated(){
 // renderer. No user-facing conversion step. Native-sized raster bytes are preserved.
 async function normalizeImportedIcon(bytes,mime,filename){
   const original='data:'+mime+';base64,'+bytes.toString('base64');
+  const animatedWebp=mime==='image/webp'&&bytes.length>21&&
+    bytes.toString('ascii',12,16)==='VP8X'&&(bytes[20]&0x02)!==0;
   if(!window||window.isDestroyed())throw Error('아이콘 변환 창을 사용할 수 없습니다.');
   const script='(async()=>{'+
     'const src='+JSON.stringify(original)+';'+
     'const mime='+JSON.stringify(mime)+';'+
+    'const animatedWebp='+JSON.stringify(animatedWebp)+';'+
     'const name='+JSON.stringify(filename)+';'+
     'const img=new Image();'+
     'await new Promise((ok,bad)=>{img.onload=ok;img.onerror=()=>bad(Error("이미지 디코딩 실패: "+name));img.src=src;});'+
     'if(img.naturalWidth<=0||img.naturalHeight<=0)throw Error("아이콘 크기를 확인할 수 없습니다.");'+
     'if(img.naturalWidth<=144&&img.naturalHeight<=144&&mime!=="image/svg+xml")return src;'+
-    'if((mime==="image/gif"||mime==="image/webp")&&(img.naturalWidth>144||img.naturalHeight>144))'+
+    'if((mime==="image/gif"||animatedWebp)&&(img.naturalWidth>144||img.naturalHeight>144))'+
     'throw Error("대형 애니메이션 아이콘은 프레임 보존 변환이 필요합니다: "+name);'+
     'const scale=Math.min(1,144/img.naturalWidth,144/img.naturalHeight);'+
     'const w=mime==="image/svg+xml"?Math.min(144,Math.max(1,Math.round(img.naturalWidth*scale))):Math.max(1,Math.round(img.naturalWidth*scale));'+
