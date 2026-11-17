@@ -938,8 +938,8 @@ ipcMain.handle('d200x:import-icon-pack',async event=>{
   });
   if(!file)return null;
   const stat=await fs.promises.stat(file);
-  if(!stat.isFile()||stat.size>20*1024*1024)
-    throw new Error('20MB 이하의 아이콘팩을 선택하세요.');
+  if(!stat.isFile()||stat.size>60*1024*1024)
+    throw new Error('60MB 이하의 아이콘팩을 선택하세요.');
   const pack=await parseIconPack(await fs.promises.readFile(file),normalizeImportedIcon,path.parse(file).name);
   await ensureIconPacksMigrated();
   await registerPack(iconPacksFile(),pack);
