@@ -201,3 +201,14 @@ test('paired OFF ON artwork maps correctly regardless of launching card and clic
   }
  }
 });
+
+test('icon pair uses right-side padding before enabling horizontal scrolling',()=>{
+ const css=fs.readFileSync(path.join(__dirname,'../app/streamdeck-editor/style.css'),'utf8');
+ const segment=css.slice(css.indexOf('.inspector .inspector-icon-section{'),css.indexOf('.inspector .inspector-icon-section:empty'));
+ assert.match(segment,/width:var\(--inspector-values-width\)/);
+ assert.match(segment,/max-width:calc\(100% - var\(--inspector-values-left\) \+ 16px\)/);
+ assert.match(segment,/margin-right:-16px/);
+ assert.match(segment,/overflow-x:auto/,'overflow fallback remains for genuinely narrow windows');
+ assert.match(css,/\.inspector \.inspector-icon-section \.sdk-state-icons\{[^}]*width:404px;min-width:404px;max-width:none;gap:12px/s);
+ assert.match(css,/\.inspector \.inspector-icon-section \.sdk-state-icon\{flex:0 0 196px;min-width:196px;max-width:196px\}/);
+});
