@@ -954,7 +954,7 @@ ipcMain.handle('d200x:import-icon-folder',async event=>{
   if(!window||event.sender!==window.webContents)throw new Error('허용되지 않은 호출입니다.');
   const folder=await openRememberedPicker({
     title:'아이콘팩 폴더 가져오기',properties:['openDirectory']
-  },'directory');
+  },'folder');
   if(!folder)return null;
   const pack=await parseIconFolder(folder,normalizeImportedIcon);
   await ensureIconPacksMigrated();
