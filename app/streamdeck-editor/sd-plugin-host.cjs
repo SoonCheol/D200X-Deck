@@ -9,7 +9,7 @@ const {promisify}=require('node:util');
 const execFileAsync=promisify(execFile);
 const {WebSocketServer}=require('ws');
 const JSZip=require('jszip');
-const {BrowserWindow,safeStorage,screen}=require('electron');
+const {BrowserWindow,safeStorage,screen,dialog,shell}=require('electron');
 const UUID=/^[a-zA-Z0-9][a-zA-Z0-9._-]{2,180}$/;
 const MAX_ARCHIVE=40*1024*1024,MAX_FILES=2500,MAX_EXPANDED=100*1024*1024;
 const DEVICE='d200x-device';
@@ -156,7 +156,11 @@ class StreamDeckPluginHost{
             states:Array.isArray(a.States)?a.States.length:1,controllers:Array.isArray(a.Controllers)?a.Controllers:['Keypad'],propertyInspectorPath:a.PropertyInspectorPath||'',
             defaultImages:{off:await this.defaultArtwork(dir,a.States?.[0]?.Image||a.Icon),on:await this.defaultArtwork(dir,a.States?.[1]?.Image||a.States?.[0]?.Image||a.Icon)}
           })))});
-      }catch{}
+      }catch(error){
+        const message='SDK 플러그인 로드 실패 ('+entry.name+'): '+String(error?.message||error);
+        console.warn(message);
+        this.onUpdate({kind:'error',message});
+      }
     }
     return items;
   }
@@ -509,9 +513,24 @@ class StreamDeckPluginHost{
       case 'showAlert':case 'showOk':
         this.onUpdate({kind:msg.event,context:msg.context});break;
       case 'logMessage':break;
-      case 'openUrl':
-        // URLs from plugins are not opened automatically.
+      case 'openUrl':{
+        // Stream Deck plugins are untrusted. Only explicit, user-approved web links.
+        if(!ctx||ctx.pluginUUID!==uuid)return;
+        const raw=msg.payload?.url;
+        if(typeof raw!=='string'||raw.length>2048||/[\\x00-\\x1f\\x7f]/.test(raw))return;
+        let url;
+        try{url=new URL(raw);}catch{return;}
+        if(!['http:','https:'].includes(url.protocol)||!url.hostname||url.username||url.password)return;
+        const parent=this.getParent();
+        const choice=await dialog.showMessageBox(parent&&!parent.isDestroyed()?parent:undefined,{
+          type:'question',buttons:['취소','브라우저에서 열기'],defaultId:0,cancelId:0,
+          noLink:true,title:'SDK 플러그인 외부 링크',
+          message:'플러그인이 외부 웹사이트를 열려고 합니다.',
+          detail:url.href+'\\n요청 플러그인: '+uuid
+        });
+        if(choice.response===1)await shell.openExternal(url.href);
         break;
+      }
       case 'setFeedback':case 'setFeedbackLayout':break;
     }
   }
