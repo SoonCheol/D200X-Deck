@@ -1642,7 +1642,7 @@ document.addEventListener('click',event=>{
   // same editing session. Do not mistake these separate overlays for navigation.
   if(event.target.closest('#inspector-unsaved-dialog, .inspector-help-dialog, #sdk-plugin-help-dialog, #icon-maker'))return;
   if(event.target.closest('#icon-library')&&!event.target.closest('.icon-pack-remove'))return;
-  if(event.target.closest('#action-search, .library-tabs, #profile-trigger, .profile-row-gear, .profile-global-trigger, .group-title'))return;
+  if(event.target.closest('#action-search, .library-tabs, #profile-trigger, .profile-row-gear, .profile-global-trigger, .settings-trigger, .group-title'))return;
   const root=$('inspector');
   if(root?.contains(event.target))return;
   // Key/knob selection already checks for unsaved edits in choose(index).
