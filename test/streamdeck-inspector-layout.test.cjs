@@ -44,7 +44,9 @@ test('shortcut hint line removed; actual current shortcut appears inside title',
   assert.match(css,/\.title-shortcut-display\s*\{[^}]*position:absolute/s);
 });
 test('unsaved dialog remains interactive and original navigation is protected',()=>{
-  assert.match(editor,/event\.target\.closest\('#inspector-unsaved-dialog, \.inspector-help-dialog'\)\)return;/);
+  assert.match(editor,/event\.target\.closest\('#inspector-unsaved-dialog, \.inspector-help-dialog, #sdk-plugin-help-dialog, #icon-maker'\)\)return;/);
+  assert.match(editor,/#icon-library/);
+  assert.match(editor,/#action-search/);
   assert.match(editor,/add\('저장 안 함',/);
   assert.match(editor,/add\('저장 후 이동',/);
   assert.match(editor,/if\(inspectorSession\?\.dirty\|\|smartProfileBusy/);
