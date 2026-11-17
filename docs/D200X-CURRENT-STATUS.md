@@ -1,3 +1,11 @@
+## 2026-11-17 — 미저장 경고 조건·SDK 도움말 버튼·제거 데이터 선택 (Windows 실기 검증 대기)
+
+- **미저장 편집 보호:** `app/streamdeck-editor/editor.js`에서 아이콘 라이브러리·아이콘 제작·SDK/속성 도움말·액션 검색·목록 탭·프로필 메뉴 열기/확장 등 편집 대상 이동이 아닌 클릭을 전역 이탈 경고 대상에서 제외. 반면 다른 키 선택, 실제 드래그 등록, 물리 컨트롤 선택과 우클릭, 폴더/와이드 진입은 미저장 보호 유지. 원래 `showInspectorLeaveDialog()`, 저장·취소 기능, SDK OFF/ON 아이콘 짝 찾기는 변경하지 않음.
+- **설명창 흰색 막대:** HA/Fusion 공통 `openSdkPluginHelp()`의 닫기 버튼에 `sdk-plugin-help-close` 클래스를 추가하고 해당 버튼에만 다크 CSS 적용. 기타 승인 레이아웃·카드 폭·순서는 수정하지 않음.
+- **NSIS 제거 선택:** `installer-fusion.nsh` `customUnInstall`에 Yes/No 질문. 기본 선택 No(데이터 보존), Yes일 때만 `$APPDATA\\DeckForge` 제거. 무인/자동 제거 시 데이터 보호. 기존 `deleteAppDataOnUninstall: false` 및 원클릭 설치 유지, 다른 앱·구 이름 폴더 삭제하지 않음.
+- **자동 테스트 추가:** `test/deckforge-key-press-icons.test.cjs`, `test/deckforge-install.test.cjs`에서 경고 분기, 버튼 클래스, 기본 데이터 보호를 정적 회귀 검사. Windows 실제 GUI에서 모든 클릭 동작 및 제거 확인창 표시·데이터 삭제/보존은 새 설치본 검증 필요.
+- **상태:** 원격 소스 커밋 완료. CI와 Windows 빌드 결과는 Actions에서 별도 확인하고 실기 완료로 표기하지 말 것. Draft PR #5 유지.
+
 ## 2026-11-17 — 플랫폼 우선 혼합형 데이터 폴더 적용
 
 - **적용:** `%APPDATA%\\DeckForge\\StreamDeck\\Plugins\\<UUID>.sdPlugin` (호스트 설치/탐색/실행/SDK global 설정); `%APPDATA%\\DeckForge\\StreamDeck\\IconPacks\\streamdeck-icon-packs-v1.json` (가져온 이미지 팩 JSON).
