@@ -1,3 +1,14 @@
+## 2026-11-17 — 통합 저장 폴더 및 아이콘팩 가져오기 확장
+
+- **공통 저장소:** 아이콘팩 `%APPDATA%\\DeckForge\\Resources\\IconPacks\\icon-packs-v1.json`, SDK 플러그인 `%APPDATA%\\DeckForge\\Plugins`로 변경. 기종별 IconPacks/Plugins 하위 구분 없음. `StreamDeck\\IconPacks`의 기존 JSON과 `StreamDeck\\Plugins`의 기존 SDK 플러그인 및 `.globals` 암호화 설정은 최초 사용 시 **복사만 하고 원본 보존**. 신경로 기존 동일 ID는 덮어쓰지 않고, 마이그레이션 마커로 삭제된 플러그인 재등장 차단.
+- **아이콘팩 입력:** 원본 `.streamDeckIconPack`, ZIP 및 폴더 가져오기를 라이브러리에 별도 버튼으로 연결. 원본 `icons.json`·`manifest.json`이 있으면 이름·태그 정보 이용, 일반 PNG/JPG/WebP/GIF/SVG 이미지 묶음이면 파일명 기반 인식. Ulanzi Studio 실제 패키지의 독자적인 모든 구조에 대한 검증은 원본 샘플로 별도 필요.
+- **이미지:** 144px 이하 지원 형식은 원본 MIME·바이트 유지(PNG/GIF 빠른 경로). 144px 초과 정적 PNG/JPG/WebP는 Chromium에서 비율 보존 축소 후 같은 인코딩 사용. SVG는 유해한 요소를 차단해 PNG 변환. **144px 초과 애니메이션 GIF/WebP는 프레임 보존 축소가 아직 없어 명시적 오류**(원본을 임의 정지 이미지로 바꾸지 않음). 미지원 포맷 자동 변환은 현재 SVG에 적용.
+- **용량:** 개당 2500개 아이콘 및 ZIP 60MB·압축 해제 100MB·개별 이미지 6MB로 제한, 원래 400개 제한을 완화. 849개 PNG 원본 아이콘팩 fixture, SVG와 유해 SVG 거부, 일반 ZIP, 원본 폴더, 중복 동일 폴더, SDK 플러그인 복사·암호화 설정 보존 단위 테스트 보강.
+- **비변경:** 기존 아이콘팩 원본·구 경로를 삭제하지 않음. OFF/ON 자동 짝 찾기, 승인 UI·속성창 카드, D200X 통신, HA/Fusion SDK 실행, 테마 저장 구조 보존. 테마팩 가져오기 미구현·후순위.
+- **검증:** 코드 SHA `fcb8d6ed0676b163f7194acd54a33dc6f66b4f3c` 기준 CI [#44052860269](https://github.com/SoonCheol/D200X-Deck/actions/runs/44052860269) 성공. Windows 설치 패키지 [#44052858206](https://github.com/SoonCheol/D200X-Deck/actions/runs/44052858206) 결과는 확인 후 별도 판단. 실제 Ulanzi Studio/Stream Deck 설치팩 샘플·Windows GUI·D200X 화면 실기 검증은 아직 완료하지 않음.
+- **브랜치:** `codex/streamdeck-761-clean-editor`만 사용, PR #5 Draft 유지·병합 금지.
+
+
 ## 2026-11-17 — 미저장 경고 조건·SDK 도움말 버튼·제거 데이터 선택 (Windows 실기 검증 대기)
 
 - **미저장 편집 보호:** `app/streamdeck-editor/editor.js`에서 아이콘 라이브러리·아이콘 제작·SDK/속성 도움말·액션 검색·목록 탭·프로필 메뉴 열기/확장 등 편집 대상 이동이 아닌 클릭을 전역 이탈 경고 대상에서 제외. 반면 다른 키 선택, 실제 드래그 등록, 물리 컨트롤 선택과 우클릭, 폴더/와이드 진입은 미저장 보호 유지. 원래 `showInspectorLeaveDialog()`, 저장·취소 기능, SDK OFF/ON 아이콘 짝 찾기는 변경하지 않음.
