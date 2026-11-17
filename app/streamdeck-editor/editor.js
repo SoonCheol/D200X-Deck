@@ -83,13 +83,24 @@ function scheduleFolderExitAfterAction(){
     if(DeckCore.exitFolder(state)){persist();render();}
   },seconds*1000);
 }
+let profileStorageFailure=false;
 try {
-  const raw=localStorage.getItem(STORAGE_KEY);
-  if(raw){
-    state=DeckCore.migrateState(JSON.parse(raw));
-    backupPending=!localStorage.getItem(STORAGE_KEY+'-pre-profiles-backup');
+  if(window.deckBridge?.readProfile){
+    const saved=window.deckBridge.readProfile();
+    if(!saved?.ok)throw Error(saved?.error||'프로필 파일을 읽지 못했습니다.');
+    if(saved.state)state=DeckCore.migrateState(saved.state);
+  }else{
+    const raw=localStorage.getItem(STORAGE_KEY);
+    if(raw){
+      state=DeckCore.migrateState(JSON.parse(raw));
+      backupPending=!localStorage.getItem(STORAGE_KEY+'-pre-profiles-backup');
+    }
   }
-} catch {state=DeckCore.migrateState(null);}
+}catch(error){
+  console.error('프로필 불러오기 실패',error);
+  profileStorageFailure=true; // Never overwrite an unreadable profile with blank state.
+  state=DeckCore.migrateState(null);
+}
 let inspectorSession=null;
 let inspectorEditing=false;
 const persist=(scheduleSync=true)=>{
@@ -98,13 +109,19 @@ const persist=(scheduleSync=true)=>{
     updateInspectorSaveButtons();return true;
   }
   try {
-    if(backupPending){
-      const old=localStorage.getItem(STORAGE_KEY);
-      if(old&&!localStorage.getItem(STORAGE_KEY+'-pre-profiles-backup'))
-        localStorage.setItem(STORAGE_KEY+'-pre-profiles-backup',old);
-      backupPending=false;
+    if(profileStorageFailure)throw Error('프로필 파일 읽기 실패 상태에서는 덮어쓰지 않습니다.');
+    if(window.deckBridge?.writeProfile){
+      const saved=window.deckBridge.writeProfile(state);
+      if(!saved?.ok)throw Error(saved?.error||'프로필 파일 저장 실패');
+    }else{
+      if(backupPending){
+        const old=localStorage.getItem(STORAGE_KEY);
+        if(old&&!localStorage.getItem(STORAGE_KEY+'-pre-profiles-backup'))
+          localStorage.setItem(STORAGE_KEY+'-pre-profiles-backup',old);
+        backupPending=false;
+      }
+      localStorage.setItem(STORAGE_KEY,JSON.stringify(state));
     }
-    localStorage.setItem(STORAGE_KEY,JSON.stringify(state));
   } catch(error) {
     console.error('D200X 설정 저장 실패',error);
     window.d200xActionStatus?.('설정 저장 실패: 저장 공간/권한을 확인하세요.');
@@ -1621,7 +1638,11 @@ function commitExternalSdkSettings(instance,settings){
   stored.settings.pluginSettings=clone(settings);
   const next=JSON.stringify(confirmed);
   try{
-    localStorage.setItem(STORAGE_KEY,next);
+    if(profileStorageFailure)throw Error('프로필 파일 읽기 실패 상태');
+    if(window.deckBridge?.writeProfile){
+      const saved=window.deckBridge.writeProfile(confirmed);
+      if(!saved?.ok)throw Error(saved?.error||'SDK 프로필 파일 저장 실패');
+    }else localStorage.setItem(STORAGE_KEY,next);
   }catch(error){
     console.error('외부 SDK 설정 저장 실패',error);
     window.d200xActionStatus?.('플러그인 속성 저장 실패: 저장 공간/권한을 확인하세요.');
