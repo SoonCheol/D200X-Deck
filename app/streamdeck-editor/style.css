@@ -26,6 +26,7 @@
 .title-align{display:flex;gap:3px}
 .title-align button{flex:1;border:1px solid #666;border-radius:3px;background:#515151;padding:6px}
 .title-align button.active{background:#217ce5;border-color:#217ce5}
+.title-align button svg{display:block;width:20px;height:20px;margin:auto;pointer-events:none}
 .title-style-popover select{width:100%}
 .title-format{display:flex;gap:6px;align-items:center}
 .title-format input[type=number]{width:65px;flex:none}
