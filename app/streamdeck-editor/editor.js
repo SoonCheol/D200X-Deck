@@ -84,6 +84,7 @@ function scheduleFolderExitAfterAction(){
   },seconds*1000);
 }
 let profileStorageFailure=false;
+let profileStorageError='';
 try {
   if(window.deckBridge?.readProfile){
     const saved=window.deckBridge.readProfile();
@@ -99,6 +100,7 @@ try {
 }catch(error){
   console.error('프로필 불러오기 실패',error);
   profileStorageFailure=true; // Never overwrite an unreadable profile with blank state.
+  profileStorageError=String(error?.message||error);
   state=DeckCore.migrateState(null);
 }
 let inspectorSession=null;
@@ -3469,7 +3471,8 @@ function askDeckForgeText(title,initialValue='',maxLength=80){
     const cancel=document.createElement('button');cancel.type='button';cancel.textContent='취소';
     const ok=document.createElement('button');ok.type='submit';ok.textContent='확인';ok.className='primary';
     cancel.addEventListener('click',()=>dialog.close('cancel'));
-    form.addEventListener('submit',event=>{event.preventDefault();if(!input.value.trim()){input.reportValidity();return;}dialog.close('save');});
+    form.addEventListener('submit',event=>{event.preventDefault();if(!input.value.trim()){input.setCustomValidity('값을 입력하세요.');input.reportValidity();return;}dialog.close('save');});
+    input.addEventListener('input',()=>input.setCustomValidity(''));
     actions.append(cancel,ok);form.append(heading,input,actions);dialog.append(form);
     dialog.addEventListener('close',()=>{const result=dialog.returnValue==='save'?input.value:null;dialog.remove();resolve(result);},{once:true});
     document.body.append(dialog);dialog.showModal();input.focus();input.select();
@@ -3845,5 +3848,15 @@ if(window.deckBridge?.onSdkEvent){
   });
 }
 bindActionAppearance();renderLibrary();render();refreshSdkPlugins();
+if(profileStorageFailure){
+  const dialog=document.createElement('dialog');dialog.className='profile-name-dialog deckforge-input-dialog';
+  const heading=document.createElement('strong');heading.textContent='프로필 파일을 읽지 못했습니다';
+  const detail=document.createElement('p');detail.textContent='기존 프로필을 보호하기 위해 저장 기능이 차단되었습니다. 프로필 파일을 확인해 주세요.\n'+profileStorageError;
+  const close=document.createElement('button');close.type='button';close.textContent='확인';close.className='primary';
+  close.addEventListener('click',()=>dialog.close());
+  dialog.addEventListener('close',()=>dialog.remove(),{once:true});
+  dialog.append(heading,detail,close);document.body.append(dialog);dialog.showModal();
+  window.d200xActionStatus?.('프로필 파일 읽기 실패: 저장 차단');
+}
 void refreshFusionHealth();
 setInterval(()=>{if(sdkActionInstances().some(x=>x.pluginUUID===FUSION_PLUGIN))void refreshFusionHealth();},3000);
