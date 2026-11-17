@@ -9,14 +9,18 @@ const host=fs.readFileSync(path.join(base,'app/streamdeck-editor/sd-plugin-host.
 const manager=fs.readFileSync(path.join(base,'tools/fusion-manager/main.cjs'),'utf8');
 const appearance=fs.readFileSync(path.join(base,'app/streamdeck-editor/action-panel-icons.js'),'utf8');
 test('SDK plugins install, enumerate and run under Plugins with legacy migration',()=>{
-  assert.match(host,/this\.root=path\.join\(userData,'StreamDeck','Plugins'\)/);
+  assert.match(host,/this\.root=path\.join\(userData,'Plugins'\)/);
+  assert.match(host,/this\.legacyRoot=path\.join\(userData,'StreamDeck','Plugins'\)/);
+  assert.match(host,/await this\.ensureRoot\(\)/);
   assert.match(host,/const destination=path\.join\(this\.root,manifest\.UUID\+'\.sdPlugin'\)/);
   assert.match(host,/const dir=path\.join\(this\.root,uuid\+'\.sdPlugin'\)/);
   assert.match(host,/settingsFile\(uuid\)\{return path\.join\(this\.root,uuid\+'\.globals'\)/);
   assert.doesNotMatch(host,/streamdeck-sdk-plugins/);
 });
 test('imported icon packs move to Resources/IconPacks without deleting prior JSON',()=>{
-  assert.match(main,/function iconPacksFile\(\)\{return path\.join\(app\.getPath\('userData'\),'StreamDeck','IconPacks','streamdeck-icon-packs-v1\.json'\)/);
+  assert.match(main,/function iconPacksFile\(\)\{return path\.join\(app\.getPath\('userData'\),'Resources','IconPacks','icon-packs-v1\.json'\)/);
+  assert.match(main,/function legacyIconPacksFile\(\)\{return path\.join\(app\.getPath\('userData'\),'StreamDeck','IconPacks','streamdeck-icon-packs-v1\.json'\)/);
+  assert.match(main,/await ensureIconPacksMigrated\(\)/);
   assert.match(main,/readPacks\(iconPacksFile\(\)\)/);
   assert.match(main,/registerPack\(iconPacksFile\(\),pack\)/);
   assert.match(main,/removePack\(iconPacksFile\(\),id\)/);
