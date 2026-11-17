@@ -5,7 +5,7 @@
 - **이미지:** 144px 이하 지원 형식은 원본 MIME·바이트 유지(PNG/GIF 빠른 경로). 144px 초과 정적 PNG/JPG/WebP는 Chromium에서 비율 보존 축소 후 같은 인코딩 사용. SVG는 유해한 요소를 차단해 PNG 변환. **144px 초과 애니메이션 GIF/WebP는 프레임 보존 축소가 아직 없어 명시적 오류**(원본을 임의 정지 이미지로 바꾸지 않음). 미지원 포맷 자동 변환은 현재 SVG에 적용.
 - **용량:** 개당 2500개 아이콘 및 ZIP 60MB·압축 해제 100MB·개별 이미지 6MB로 제한, 원래 400개 제한을 완화. 849개 PNG 원본 아이콘팩 fixture, SVG와 유해 SVG 거부, 일반 ZIP, 원본 폴더, 중복 동일 폴더, SDK 플러그인 복사·암호화 설정 보존 단위 테스트 보강.
 - **비변경:** 기존 아이콘팩 원본·구 경로를 삭제하지 않음. OFF/ON 자동 짝 찾기, 승인 UI·속성창 카드, D200X 통신, HA/Fusion SDK 실행, 테마 저장 구조 보존. 테마팩 가져오기 미구현·후순위.
-- **검증:** 코드 SHA `fcb8d6ed0676b163f7194acd54a33dc6f66b4f3c` 기준 CI [#44052860269](https://github.com/SoonCheol/D200X-Deck/actions/runs/44052860269) 성공. Windows 설치 패키지 [#44052858206](https://github.com/SoonCheol/D200X-Deck/actions/runs/44052858206) 결과는 확인 후 별도 판단. 실제 Ulanzi Studio/Stream Deck 설치팩 샘플·Windows GUI·D200X 화면 실기 검증은 아직 완료하지 않음.
+- **검증:** 코드 SHA `fcb8d6ed0676b163f7194acd54a33dc6f66b4f3c` 기준 CI [#44052860269](https://github.com/SoonCheol/D200X-Deck/actions/runs/44052860269) 성공. Windows 설치 패키지 [#44052858206](https://github.com/SoonCheol/D200X-Deck/actions/runs/44052858206) **성공**, 설치형 아티팩트 `DeckForge-1.1-Setup-win-x64` ID `14314821215`, 포터블 `DeckForge-1.1-win-x64` ID `14313724570` 확인. 실제 Ulanzi Studio/Stream Deck 설치팩 샘플·Windows GUI·D200X 화면 실기 검증은 아직 완료하지 않음.
 - **브랜치:** `codex/streamdeck-761-clean-editor`만 사용, PR #5 Draft 유지·병합 금지.
 
 
