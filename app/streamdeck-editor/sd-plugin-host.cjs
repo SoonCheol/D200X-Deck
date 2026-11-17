@@ -17,6 +17,13 @@ const HA_PLUGIN='de.perdoctus.streamdeck.homeassistant';
 const HA_DUAL_ACTION=HA_PLUGIN+'.dual-state-entity';
 const HA_SWITCH_ENTITY=/^(switch|light|fan|input_boolean)\.[a-z0-9_]+$/;
 const json=x=>JSON.stringify(x);
+function safeSdkExternalUrl(raw){
+  if(typeof raw!=='string'||raw.length>2048||/[\x00-\x1f\x7f]/.test(raw))return null;
+  try{
+    const url=new URL(raw);
+    return ['http:','https:'].includes(url.protocol)&&url.hostname&&!url.username&&!url.password?url.href:null;
+  }catch{return null;}
+}
 const filename=x=>typeof x==='string'&&x.length>0&&x.length<1024&&!x.startsWith('/')&&!x.includes('\\')&&!/[\x00-\x1f\x7f]/.test(x)&&x.split('/').every(segment=>segment.length>0&&segment!=='.'&&segment!=='..'&&!segment.includes(':'));
 // Only HTML or Node.js entries are accepted; never execute a native binary.
 function pluginKind(codePath){
@@ -514,21 +521,20 @@ class StreamDeckPluginHost{
         this.onUpdate({kind:msg.event,context:msg.context});break;
       case 'logMessage':break;
       case 'openUrl':{
-        // Stream Deck plugins are untrusted. Only explicit, user-approved web links.
+        // External plugin links require explicit approval and cannot use file: or script: URLs.
         if(!ctx||ctx.pluginUUID!==uuid)return;
-        const raw=msg.payload?.url;
-        if(typeof raw!=='string'||raw.length>2048||/[\x00-\x1f\x7f]/.test(raw))return;
-        let url;
-        try{url=new URL(raw);}catch{return;}
-        if(!['http:','https:'].includes(url.protocol)||!url.hostname||url.username||url.password)return;
+        const href=safeSdkExternalUrl(msg.payload?.url);
+        if(!href)return;
         const parent=this.getParent();
-        const choice=await dialog.showMessageBox(parent&&!parent.isDestroyed()?parent:undefined,{
+        const options={
           type:'question',buttons:['취소','브라우저에서 열기'],defaultId:0,cancelId:0,
           noLink:true,title:'SDK 플러그인 외부 링크',
           message:'플러그인이 외부 웹사이트를 열려고 합니다.',
-          detail:url.href+'\n요청 플러그인: '+uuid
-        });
-        if(choice.response===1)await shell.openExternal(url.href);
+          detail:href+'\n요청 플러그인: '+uuid
+        };
+        const choice=parent&&!parent.isDestroyed()
+          ?await dialog.showMessageBox(parent,options):await dialog.showMessageBox(options);
+        if(choice.response===1)await shell.openExternal(href);
         break;
       }
       case 'setFeedback':case 'setFeedbackLayout':break;
@@ -546,4 +552,4 @@ class StreamDeckPluginHost{
     this.server=null;
   }
 }
-module.exports={StreamDeckPluginHost,parseArchive,validateManifest,pluginKind,nodeRuntime};
+module.exports={StreamDeckPluginHost,parseArchive,validateManifest,pluginKind,nodeRuntime,safeSdkExternalUrl};
