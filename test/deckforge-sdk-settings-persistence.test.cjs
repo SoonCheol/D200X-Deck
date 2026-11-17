@@ -1,0 +1,73 @@
+'use strict';
+const test=require('node:test'),assert=require('node:assert/strict');
+const fs=require('node:fs'),path=require('node:path'),vm=require('node:vm');
+const DeckCore=require('../app/streamdeck-editor/deck-core.js');
+const source=fs.readFileSync(path.join(__dirname,'../app/streamdeck-editor/editor.js'),'utf8');
+const start=source.indexOf('function sdkItemAtLocation(source,slot,gesture){');
+const end=source.indexOf('function persistInspectorChange(){',start);
+assert.ok(start>=0&&end>start,'SDK committed snapshot functions found');
+const script=source.slice(start,end);
+function plugin(){
+ const item=DeckCore.createAction('sd-plugin');
+ item.settings.pluginUUID='example.plugin';item.settings.actionUUID='example.action';
+ item.settings.pluginSettings={value:'before'};return item;
+}
+function run(mode='key',fail=false){
+ const state=DeckCore.migrateState(null),slot=mode==='knob'?16:mode==='pinned'?1:0;
+ const old=plugin();
+ if(mode==='knob')DeckCore.controlBinding(state,slot).holdLeft=old;
+ else if(mode==='pinned')state.pinned[slot]=old;
+ else state.pages[0][slot]=old;
+ state.selected=0;
+ const snapshot=JSON.stringify(state);
+ const item=mode==='knob'?DeckCore.controlBinding(state,slot).holdLeft:
+   DeckCore.visibleActions(state)[slot];
+ item.title='UNSAVED TITLE';
+ const writes=[];
+ const inspectorSession={snapshot,dirty:true};
+ const instance={slot,gesture:mode==='knob'?'hold-left':'down',pluginUUID:'example.plugin',actionUUID:'example.action'};
+ const window={deckBridge:{writeProfile:confirmed=>{
+   if(fail)return {ok:false,error:'full'};
+   writes.push(JSON.parse(JSON.stringify(confirmed)));
+   return {ok:true};
+ }},scheduleDeckSync:()=>{}};
+ const context={state,DeckCore,inspectorSession,window,profileStorageFailure:false,
+   clone:value=>JSON.parse(JSON.stringify(value)),JSON,localStorage:{setItem:()=>assert.fail('must not use localStorage')},
+   STORAGE_KEY:'test',renderGrid:()=>{},updateInspectorSaveButtons:()=>{},
+   console:{error:()=>{}}};
+ const ok=vm.runInNewContext(script+';commitExternalSdkSettings(instance,{value:"confirmed"})',{...context,instance});
+ return {ok,inspectorSession,item,writes,slot,mode};
+}
+for(const mode of ['key','pinned','knob']){
+ test('SDK Property Inspector commits only settings for '+mode,()=>{
+  const result=run(mode);
+  assert.equal(result.ok,true);
+  assert.equal(result.writes.length,1);
+  const saved=result.writes[0];
+  const persisted=result.mode==='knob'?DeckCore.controlBinding(saved,result.slot).holdLeft:
+    DeckCore.visibleActions(saved)[result.slot];
+  assert.equal(persisted.settings.pluginSettings.value,'confirmed');
+  assert.notEqual(persisted.title,'UNSAVED TITLE');
+  assert.equal(result.item.title,'UNSAVED TITLE');
+  assert.equal(result.item.settings.pluginSettings.value,'confirmed');
+  assert.equal(result.inspectorSession.dirty,true);
+  const snapshot=JSON.parse(result.inspectorSession.snapshot);
+  const stored=result.mode==='knob'?DeckCore.controlBinding(snapshot,result.slot).holdLeft:
+    DeckCore.visibleActions(snapshot)[result.slot];
+  assert.equal(stored.settings.pluginSettings.value,'confirmed','cancel must preserve externally committed settings');
+ });
+}
+test('SDK save failure preserves snapshot and does not corrupt live settings',()=>{
+ const r=run('key',true);
+ assert.equal(r.ok,false);
+ assert.equal(r.writes.length,0);
+ assert.equal(r.item.settings.pluginSettings.value,'before');
+ assert.equal(JSON.parse(r.inspectorSession.snapshot).pages[0][0].settings.pluginSettings.value,'before');
+});
+test('Electron input dialogs replace prompt and are ignored by inspector leave guard',()=>{
+ assert.doesNotMatch(source,/(^|[^A-Za-z.])prompt\(/m);
+ assert.match(source,/function askDeckForgeText\(/);
+ assert.match(source,/function chooseDeckForgeEntity\(/);
+ assert.match(source,/\.deckforge-input-dialog'\)\)return;/);
+ assert.match(source,/const item=state\.selected===null\?null:state\.selected>=14\?null/);
+});
