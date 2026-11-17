@@ -2,6 +2,8 @@
 const { contextBridge, ipcRenderer, webUtils } = require('electron');
 
 contextBridge.exposeInMainWorld('deckBridge', Object.freeze({
+  readProfile: () => ipcRenderer.sendSync('d200x:profile-read'),
+  writeProfile: state => ipcRenderer.sendSync('d200x:profile-write',state),
   foregroundApp: () => ipcRenderer.invoke('d200x:foreground-app'),
   checkForUpdates: () => ipcRenderer.invoke('d200x:check-updates'),
   haStatus: () => ipcRenderer.invoke('d200x:ha-status'),
