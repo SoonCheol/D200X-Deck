@@ -2130,9 +2130,9 @@ function renderInspector(){
       <button type="button" class="title-style-trigger" id="title-style-trigger" aria-label="제목 글꼴 속성" aria-expanded="false" aria-controls="title-style-popover">T⌄</button>
       <div class="title-style-popover" id="title-style-popover" hidden>
          <div class="title-align" role="group" aria-label="제목 정렬">
-          <button type="button" data-align="bottom" title="아래쪽 배치">▤</button>
-          <button type="button" data-align="middle" title="가운데 배치">≡</button>
-          <button type="button" data-align="top" title="위쪽 배치">▥</button>
+          <button type="button" data-align="bottom" title="아래쪽 배치" aria-label="아래쪽 배치"><svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true" focusable="false" xmlns="http://www.w3.org/2000/svg"><rect x="3.5" y="3.5" width="17" height="17" rx="1" fill="none" stroke="currentColor" stroke-width="1.25" opacity=".7"/><path d="M7 11h10 M7 14h10 M7 17h10" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg></button>
+          <button type="button" data-align="middle" title="가운데 배치" aria-label="가운데 배치"><svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true" focusable="false" xmlns="http://www.w3.org/2000/svg"><rect x="3.5" y="3.5" width="17" height="17" rx="1" fill="none" stroke="currentColor" stroke-width="1.25" opacity=".7"/><path d="M7 9h10 M7 12h10 M7 15h10" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg></button>
+          <button type="button" data-align="top" title="위쪽 배치" aria-label="위쪽 배치"><svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true" focusable="false" xmlns="http://www.w3.org/2000/svg"><rect x="3.5" y="3.5" width="17" height="17" rx="1" fill="none" stroke="currentColor" stroke-width="1.25" opacity=".7"/><path d="M7 7h10 M7 10h10 M7 13h10" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg></button>
         </div>
         <select id="title-family" aria-label="글꼴"><option value="default">기본 (Pretendard)</option><option value="DeckForge Pretendard">Pretendard</option><option value="Malgun Gothic">맑은 고딕</option><option value="Segoe UI">Segoe UI</option></select>
          <div class="title-preset-row">
