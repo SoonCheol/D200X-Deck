@@ -6,7 +6,8 @@
   },
   "asar": true,
   "asarUnpack": [
-    "**/*.node"
+    "**/*.node",
+    "streamdeck-editor/folder-control-helper.exe"
   ],
   "npmRebuild": false,
   "electronVersion": "45.2.1",

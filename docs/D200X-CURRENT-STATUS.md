@@ -2,7 +2,16 @@
 
 > **상태 기록 기준: 2026-11-19**. 실제 최신 HEAD는 Git에서 확인하며, 코드·자동 검사·Windows 빌드·사용자 Windows/D200X 실기 결과를 구분한다. 시작 시 `AGENTS.md`와 이 문서만 읽고 로드맵은 필요한 경우에만 참고한다.
 
-## 1. 최신 작업 인계 — 1.1.16 탐색기 폴더 활성화 보완 (2026-11-19)
+## 1. 최신 작업 인계 — 1.1.17 지정 폴더 전용 C# 헬퍼 (2026-11-19)
+
+- 1.1.16 Windows 빌드 44385084276 및 D200X 모의 입력 검증 44385084264 성공. 사용자 실기에서 항상 새 창 옵션과 다른 신규 폴더 열기 모두 실패. 진단 로그 미수집으로 실제 원인은 확정하지 않음.
+- 사용자 승인 B안: 폴더 제어만 사전 컴파일 C# EXE로 전환. 기존 PowerShell의 실행 인수/CI 불일치 및 EncodedCommand 크기 위험 제거, 실제 실행/검증 공통 launcher. 앱 실행·종료 PowerShell, HID, UI 및 프로필/액션 ID 변경 없음. 폴더 버튼 재등록 불필요.
+- New 모드는 독립 Probe에서 성공한 explorer.exe /n 1회 직접 요청, EnumWindows 기반 기존 프레임 대비 실제 폴더 일치 신규 HWND 확인. 승인 요청을 자동 중복 실행하지 않음. Focus는 실제 경로·탭 식별, 최소화 복원 및 전경 확인 유지. Windows의 전경 정책 및 비공개 탭 명령 한계 유지. 새 창 생성 확인과 전경 성공 여부는 로그에서 구분.
+- 지정 폴더 경로 선택기만 현재 편집 세션과 실제 표시 슬롯으로 검증하여 중첩 폴더 및 상속 고정 키 지원. 다른 액션의 기존 편집 경로는 변경하지 않음.
+- Windows CI에서 .NET Framework C# 컴파일, 소스 및 포터블/설치형 staging에서 공통 launcher로 Validate 모드 실행. Windows 자동 빌드/사용자 실기는 결과 확인 전 미확인. 기존 folder-control.ps1은 비교 기준으로 남겨 두되 런타임 미사용.
+- 기존 진단 로그 위치 유지. 문제 발생하면 version, mode, helper-result 및 error를 확인. 개인 경로 공개 저장소 업로드 금지.
+
+### 1.1.16 탐색기 폴더 활성화 보완 기록 (2026-11-19)
 
 - 1.1.15 사용자 실기: 항상 새 창 옵션 체크해도 창 하나, 해제 시 앞으로 가져오기 실패, 간헐적으로만 활성화. 설치판 전체 기능 성공으로 간주하지 않음. 별도 PowerShell 5.1 Probe 사용자 결과 Windows 11 26H2 (26300.9974): ShellExecute opennewwindow 2/2, explorer.exe /n 2/2 신규 HWND 확인, Navigate2 0/2. 직접 SetForegroundWindow, AttachThreadInput 대체, 최소화 복원, 비활성 탭 선택 각각 1회 성공. 실제 DeckForge 실패 원인 확정 아님.
 - 1.1.16: Probe와 동일한 Explorer CabinetWClass/실제 폴더 비교, LocationURL 파일 경로는 Folder.Self.Path로 유효한 파일시스템 경로를 얻지 못한 경우만 대체. 탭 HWND 기반 확인 유지. ShellExecute를 먼저 요청하고 명시적 거부 시만 /n 대체. 기존 전체 프레임 핸들 스냅샷 대비 목표 폴더의 신규 HWND를 제한 시간 내 확인해야 새 창 성공; 요청 수락 뒤 확인 실패 시 자동 중복 요청 금지. 전경 실패 시 Probe의 PeekMessage/AttachThreadInput/BringWindowToTop/SetForegroundWindow/finally detach 방식 적용 후 실제 HWND 및 경로 확인. 최소화 복원·탭 전환 유지. 기존 폴더 옵션/액션 ID/버튼 재등록 불필요. Files Dev 제외, Navigate2 새 창 방식 미사용. 동일 경로 별칭·비공개 탭 명령 한계 유지.

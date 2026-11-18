@@ -45,6 +45,11 @@ jobs:
       - name: Install Electron packaging tools
         working-directory: app
         run: npm ci
+      - name: Compile dedicated folder helper
+        shell: pwsh
+        run: |
+          node app/streamdeck-editor/build-folder-helper.cjs
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - name: Check standalone preview scripts
         shell: pwsh
         run: |
@@ -313,6 +318,16 @@ jobs:
           } else {
             throw 'Packaged EXE missing Fluent UI icon bundle'
           }
+      - name: Validate portable folder helper using production launcher
+        shell: pwsh
+        run: |
+          $env:DECKFORGE_TEST_HELPER_DIR = (Resolve-Path 'app/dist/DeckForge-win32-x64/resources/app/streamdeck-editor').Path
+          try {
+            node --test test/deckforge-folder-control.test.cjs
+            if ($LASTEXITCODE -ne 0) { throw 'Portable folder helper validation failed' }
+          } finally {
+            Remove-Item Env:DECKFORGE_TEST_HELPER_DIR -ErrorAction SilentlyContinue
+          }
       - name: Verify packaged Electron includes a usable Node.js 24 runtime for plugins
         working-directory: app
         shell: pwsh
@@ -365,6 +380,14 @@ jobs:
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           if (-not (Test-Path 'dist-installer/DeckForge-${{ steps.version.outputs.version }}-Setup-win-x64.exe')) { throw 'DeckForge NSIS setup missing' }
           if ((Get-Item 'dist-installer/DeckForge-${{ steps.version.outputs.version }}-Setup-win-x64.exe').Length -lt 30MB) { throw 'DeckForge NSIS setup unexpectedly small' }
+          $asar = (Resolve-Path 'dist-installer/win-unpacked/resources/app.asar').Path
+          $env:DECKFORGE_TEST_HELPER_DIR = Join-Path $asar 'streamdeck-editor'
+          try {
+            node --test ../test/deckforge-folder-control.test.cjs
+            if ($LASTEXITCODE -ne 0) { throw 'Installer folder helper validation failed' }
+          } finally {
+            Remove-Item Env:DECKFORGE_TEST_HELPER_DIR -ErrorAction SilentlyContinue
+          }
           Write-Host "DeckForge installer ready: $((Get-Item 'dist-installer/DeckForge-${{ steps.version.outputs.version }}-Setup-win-x64.exe').Length) bytes"
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:

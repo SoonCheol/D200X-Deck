@@ -2572,12 +2572,17 @@ function renderInspector(){
       }
       const field=button.dataset.pathPicker;
       try{
+        const folderPicker=item.type==='folder-shortcut'&&field==='path';
+        const session=inspectorSession;
         const selected=await window.deckBridge.choosePath(button.dataset.pathKind);
-        if(!selected||!state.pages.some(page=>page.includes(item)))return;
+        if(!selected)return;
+        if(folderPicker){
+          if(inspectorSession!==session||DeckCore.visibleActions(state)[state.selected]!==item)return;
+        }else if(!state.pages.some(page=>page.includes(item)))return;
         const inputNode=root.querySelector('[data-field="'+field+'"]');
         item.settings[field]=selected;
         if(inputNode)inputNode.value=selected;
-        persist();
+        if(folderPicker)persistInspectorChange();else persist();
         if(['open','open-app'].includes(item.type)&&['path','app'].includes(field))
           void updateApplicationArtwork(item,selected).catch(error=>window.d200xActionStatus?.('프로그램 아이콘 추출 실패: '+String(error?.message||error)));
       }catch(error){alert("파일 선택 오류: "+String(error?.message||error));}

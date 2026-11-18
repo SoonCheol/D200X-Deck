@@ -9,6 +9,7 @@ const fs = require('node:fs');
 const {randomUUID}=require('node:crypto');
 const { execFile, spawn } = require('node:child_process');
 const {parseWindowsArgs}=require('./windows-args.cjs');
+const {runFolderHelper}=require('./folder-helper.cjs');
 const { promisify } = require('node:util');
 const execFileAsync = promisify(execFile);
 const { D200XTransport } = require('./transport.cjs');
@@ -963,13 +964,7 @@ async function runFolderControl(filePath,alwaysNewWindow){
     mode:alwaysNewWindow?'New':'Focus'};
   await writeFolderControlLog({...record,stage:'request'});
   try{
-    const script=await fs.promises.readFile(path.join(__dirname,'folder-control.ps1'),'utf8');
-    const {stdout,stderr}=await execFileAsync('powershell.exe',
-      ['-NoProfile','-NonInteractive','-STA','-WindowStyle','Hidden','-EncodedCommand',Buffer.from(script,'utf16le').toString('base64')],{
-        windowsHide:true,timeout:30000,maxBuffer:1024*1024,
-        env:{...process.env,DECKFORGE_FOLDER_TARGET:Buffer.from(filePath,'utf16le').toString('base64'),
-          DECKFORGE_FOLDER_MODE:record.mode}
-      });
+    const {stdout,stderr}=await runFolderHelper(__dirname,filePath,record.mode);
     const result=JSON.parse(String(stdout));
     await writeFolderControlLog({...record,stage:'helper-result',result,...(stderr?{stderr:String(stderr).slice(0,4000)}:{})});
     if(result.status==='focused'||result.status==='opened')return true;
