@@ -101,8 +101,8 @@ test('Windows program drops and file selection update an existing action without
  assert.match(src,/item\.settings\?\.autoAppIcon===true/);
  assert.match(src,/updateApplicationArtwork\(item,selected\)/);
 });
-test('action execution passes argv as third parameter to openLocalPath',()=>{
- assert.ok(src.includes("bridge.openLocalPath(outcome.path,outcome.target,outcome.args||'')"));
+test('action execution preserves argv as third parameter and forwards the folder option',()=>{
+ assert.ok(src.includes("bridge.openLocalPath(outcome.path,outcome.target,outcome.args||'',outcome.alwaysNewWindow===true)"));
 });
 
 test('OFF ON and Key Up Down use identical horizontal icon-card wrappers',()=>{
