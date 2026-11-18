@@ -4,6 +4,7 @@ const src=fs.readFileSync(path.join(__dirname,'../app/streamdeck-editor/editor.j
 const start=src.indexOf('function isMomentaryIconAction(item){'),end=src.indexOf('// Share actual key visuals',start);
 assert.ok(start>=0&&end>start,'Press icon source functions');
 const funcs=src.slice(start,end);
+const independentTitles=()=>({first:{enabled:true,title:'',style:{}},second:{enabled:true,title:'',style:{}}});
 function apply(item,pressed=false){
  const window={D200XPhysicalKeyPressed:()=>pressed};
  const state={selected:0};
@@ -16,7 +17,7 @@ function apply(item,pressed=false){
  });
 }
 test('Key Up is default and Key Down switches artwork only while physically pressed',()=>{
- const item={type:'hotkey',icon:{kind:'file',value:'old'},settings:{keyPressIcons:{up:{kind:'file',value:'UP'},down:{kind:'file',value:'DOWN'}}}};
+ const item={type:'hotkey',icon:{kind:'file',value:'old'},settings:{stateTitles:independentTitles(),keyPressIcons:{up:{kind:'file',value:'UP'},down:{kind:'file',value:'DOWN'}}}};
  assert.equal(apply(item,false).icon.value,'UP');
  assert.equal(apply(item,true).icon.value,'DOWN');
  assert.equal(apply(item,true).keyPressAlternate,true);
@@ -27,7 +28,7 @@ test('missing press icons preserve base icon and old shrink animation',()=>{
  assert.equal(apply(item,true).keyPressAlternate,false);
 });
 test('all Fusion commands use momentary icons, non-Fusion SDK and HA remain stateful',()=>{
- const fusion={type:'sd-plugin',settings:{pluginUUID:'com.autodesk.fusionstreamdeck',keyPressIcons:{down:{kind:'file',value:'active'}}},icon:{kind:'file',value:'cached'}};
+ const fusion={type:'sd-plugin',settings:{pluginUUID:'com.autodesk.fusionstreamdeck',stateTitles:independentTitles(),keyPressIcons:{down:{kind:'file',value:'active'}}},icon:{kind:'file',value:'cached'}};
  assert.equal(apply(fusion,true).icon.value,'active');
  assert.equal(apply(fusion,false).icon.value,'cached');
  const other={...fusion,settings:{...fusion.settings,pluginUUID:'some.other.plugin'}};

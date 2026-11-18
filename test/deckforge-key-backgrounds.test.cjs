@@ -40,11 +40,12 @@ test('automatic wrapping and blank explicit line retain bounded geometry',()=>{
  const rect=ops.find(x=>x[0]==='rect');assert.ok(rect[1]>=0&&rect[3]<=144&&rect[2]+rect[4]<=144);
  assert.deepEqual(draw('A<br><br>B').filter(x=>x[0]==='text').map(x=>x[1]),['A','','B']);
 });
-test('state card background changes independently of linked title and legacy settings',()=>{
+test('state card background follows the selected display properties without overwriting stored values',()=>{
  const start=editor.indexOf('function hasStateTitlePair(item){'),end=editor.indexOf('function displayKeyPressItem(item,index){',start);
  const item={type:'sd-plugin',title:'Title',titleStyle:core.TITLE,settings:{keyBackgrounds:{first:{enabled:true,color:'#111111'},second:{enabled:false,color:'#222222'}},stateTitles:{first:{enabled:true,title:'Shared',style:core.TITLE},second:{enabled:false,title:'Hidden',style:core.TITLE}}}};
  const resolve=second=>vm.runInNewContext(editor.slice(start,end)+';resolveStateTitle(item,second)',{item,second,DEFAULT_TITLE_STYLE:core.TITLE,isMomentaryIconAction:()=>false});
- assert.equal(resolve(false).keyBackground.color,'#111111');assert.equal(resolve(true).keyBackground.color,'#222222');
+ assert.equal(resolve(false).keyBackground.color,'#111111');assert.equal(resolve(true).keyBackground.color,'#111111');
+ assert.equal(item.settings.keyBackgrounds.second.color,'#222222');
  assert.equal(resolve(false).title,'Shared');assert.equal(resolve(true).title,'Shared');
 });
 test('one shared 60-color palette preserves storage and fixed ordering',()=>{
@@ -81,4 +82,40 @@ test('saved-color tile has a text-only context menu, basic palette has no delete
  assert.match(block,/remove\.textContent='삭제'/);
  assert.match(block,/store\(load\(\)\.filter\(c=>c!==color\)\)/);
  assert.doesNotMatch(block,/title-color-remove|parent\.append\(remove\)|trash/);
+});
+
+test('all four checkbox combinations share title, background and ordinary icon without changing saved values',()=>{
+ const start=editor.indexOf('function hasStateTitlePair(item){'),end=editor.indexOf('function displayKeyPressItem(item,index){',start);
+ const first={kind:'file',value:'A'},second={kind:'file',value:'B'};
+ const item=core.createAction('hotkey');
+ item.settings.keyBackgrounds={first:{enabled:true,color:'#123456'},second:{enabled:true,color:'#abcdef'}};
+ item.settings.stateTitles={first:{enabled:true,title:'A<br>1',style:{...core.TITLE,size:17,backgroundEnabled:true,backgroundColor:'#111111',backgroundOpacity:20}},second:{enabled:true,title:'B',style:{...core.TITLE,size:24,backgroundEnabled:false,backgroundColor:'#222222',backgroundOpacity:90}}};
+ const resolve=(item,secondState,paired=false)=>vm.runInNewContext(editor.slice(start,end)+';resolveStateTitle(item,secondState,artwork)',{item,secondState,artwork:{first,second,paired},DEFAULT_TITLE_STYLE:core.TITLE});
+ for(const [a,b,expected] of [[true,true,['A','B']],[true,false,['A','A']],[false,true,['B','B']],[false,false,['A','B']]]){
+  item.settings.stateTitles.first.enabled=a;item.settings.stateTitles.second.enabled=b;
+  const restored=core.cleanAction(JSON.parse(JSON.stringify(item))),before=JSON.stringify(restored);
+  for(const [i,secondState] of [false,true].entries()){
+   const result=resolve(restored,secondState);
+   assert.equal(result.icon.value,expected[i]);
+   assert.equal(result.titleStyle.visible,a||b);
+   if(!a&&!b){assert.equal(result.keyBackground.enabled,false);assert.equal(result.title,'');continue;}
+   const key=expected[i]==='A'?'first':'second';
+   assert.equal(result.title,restored.settings.stateTitles[key].title);
+   assert.equal(result.titleStyle.size,restored.settings.stateTitles[key].style.size);
+   assert.equal(result.titleStyle.backgroundOpacity,restored.settings.stateTitles[key].style.backgroundOpacity);
+   assert.equal(result.titleStyle.backgroundEnabled,restored.settings.stateTitles[key].style.backgroundEnabled);
+   assert.equal(result.keyBackground.color,restored.settings.keyBackgrounds[key].color);
+   assert.equal(resolve(restored,secondState,true).icon.value,secondState?'B':'A');
+  }
+  assert.equal(JSON.stringify(restored),before);
+ }
+});
+test('named-pair markers are explicit and changing one image ends the exception',()=>{
+ const start=editor.indexOf('function hasStateTitlePair(item){'),end=editor.indexOf('function displayKeyPressItem(item,index){',start);
+ const icons={off:{kind:'file',value:'A',packId:'pack',statePair:'id'},on:{kind:'file',value:'B',packId:'pack',statePair:'id'}};
+ const check=()=>vm.runInNewContext(editor.slice(start,end)+';isNamedStateIconPair(icons)',{icons});
+ assert.equal(check(),true);
+ icons.on={kind:'file',value:'C',packId:'pack'};assert.equal(check(),false);
+ icons.off={kind:'file',value:'A',packId:'pack'};assert.equal(check(),false);
+ assert.match(editor,/await raster\(candidate\)!==off.value\|\|await raster\(companion\)!==on.value/);
 });

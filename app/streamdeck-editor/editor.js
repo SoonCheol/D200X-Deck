@@ -304,35 +304,73 @@ function ensureStateTitlePair(item){
   if(!item.settings.stateTitles)item.settings.stateTitles=defaultStateTitlePair(item);
   return item.settings.stateTitles;
 }
-function resolveStateTitle(item,second){
-  const background=item?.settings?.keyBackgrounds?.[second?'second':'first'];
-  if(background)item={...item,keyBackground:background};
+// Resolve every display property without changing the saved independent states.
+const legacyStatePairCache=new WeakMap();
+function isNamedStateIconPair(icons){
+  const off=icons?.off,on=icons?.on;
+  if(!off||!on||off.kind!=='file'||on.kind!=='file'||!off.packId||off.packId!==on.packId)return false;
+  if(typeof off.statePair==='string'&&off.statePair&&off.statePair===on.statePair)return true;
+  if(off.statePair||on.statePair)return false;
+  const previous=legacyStatePairCache.get(icons);
+  if(previous?.off===off&&previous?.on===on)return previous.matched===true;
+  if(typeof requestLegacyStatePair==='function')requestLegacyStatePair(icons,off,on);
+  return false;
+}
+function resolveStateTitle(item,second,artwork=null){
   const pair=item?.settings?.stateTitles;
-  if(!pair)return item;
-  const one=pair.first,two=pair.second;
-  const selected=one?.enabled&&two?.enabled?(second?two:one):one?.enabled?one:two?.enabled?two:null;
-  return {...item,title:selected?.title||'',titleStyle:{...DEFAULT_TITLE_STYLE,...(selected?.style||{}),visible:!!selected}};
+  const choices=pair||defaultStateTitlePair(item);
+  const one=choices.first,two=choices.second;
+  const source=one?.enabled&&two?.enabled?(second?'second':'first'):one?.enabled?'first':two?.enabled?'second':null;
+  const selected=source?choices[source]:null;
+  const background=source?item?.settings?.keyBackgrounds?.[source]:null;
+  const result={...item,keyBackground:background||{enabled:false,color:'#08090c'}};
+  if(artwork){
+    const actual=second?'second':'first';
+    // Named ON/OFF pairs and uncustomized live SDK art keep their real states.
+    const key=source&&!artwork.paired&&!artwork.runtimeOnly?source:actual;
+    result.icon=artwork[key];
+  }
+  if(!pair)return result; // Preserve legacy dynamic SDK titles until explicitly edited.
+  return {...result,title:selected?.title||'',titleStyle:{...DEFAULT_TITLE_STYLE,...(selected?.style||{}),visible:!!selected}};
+}
+function stateDisplayArtwork(item,index,momentary){
+  const raw=DeckCore.visibleActions(state)[index]||item;
+  const valid=icon=>icon?.kind==='file'&&typeof icon.value==='string';
+  if(momentary){
+    const icons=item.settings?.keyPressIcons||{};
+    const up=valid(icons.up)?icons.up:item.icon;
+    return {first:up,second:valid(icons.down)?icons.down:up};
+  }
+  const icons=raw.settings?.sdkStateIcons||{};
+  const runtime=index>=0?sdkVisuals.get(sdkContext(index,'down')):null;
+  const defaults=typeof sdkActionDefaults!=='undefined'?sdkActionDefaults.get(raw.settings?.actionUUID):null;
+  const fallback=(key,second)=>raw.icon||
+    (runtime?.image&&(runtime.state===undefined?!second:runtime.state===(second?1:0))?{kind:'file',value:runtime.image}:null)||
+    (defaults?.[key]?{kind:'file',value:defaults[key]}:null);
+  return {first:valid(icons.off)?icons.off:fallback('off',false),
+    second:valid(icons.on)?icons.on:fallback('on',true),
+    paired:isNamedStateIconPair(icons),
+    runtimeOnly:!valid(icons.off)&&!valid(icons.on)&&!raw.icon};
 }
 function displayKeyPressItem(item,index){
+  const inspectorPreview=arguments[2]===true;
   if(!isMomentaryIconAction(item)||!Number.isInteger(index)||index<0||index>=13){
     if(item?.type==='sd-plugin'){
       const raw=DeckCore.visibleActions(state)[index];
-      const selected=raw&&haPreviewStates.get(raw);
+      const selected=inspectorPreview&&raw&&haPreviewStates.get(raw);
       const runtime=index>=0?sdkVisuals.get(sdkContext(index,'down')):null;
-      return resolveStateTitle(item,selected?selected==='on':runtime?.state===1);
+      const second=selected?selected==='on':runtime?.state===1;
+      return resolveStateTitle(item,second,stateDisplayArtwork(item,index,false));
     }
     return item;
   }
-  const icons=item.settings?.keyPressIcons||{};
-  const valid=icon=>icon?.kind==='file'&&typeof icon.value==='string';
-  const up=valid(icons.up)?icons.up:item.icon;
-  const down=valid(icons.down)?icons.down:up;
-  const backgrounds=item.settings?.keyBackgrounds||{};
+  const artwork=stateDisplayArtwork(item,index,true);
+  const up=resolveStateTitle(item,false,artwork),down=resolveStateTitle(item,true,artwork);
   const bg=entry=>entry?.enabled===true&&/^#[0-9a-fA-F]{6}$/.test(entry.color)?entry.color.toLowerCase():'#08090c';
-  const same=JSON.stringify(up??null)===JSON.stringify(down??null)&&bg(backgrounds.first)===bg(backgrounds.second);
+  const signature=visual=>JSON.stringify([visual.icon?.kind,visual.icon?.value,visual.icon?.glyph,bg(visual.keyBackground),visual.title,visual.titleStyle]);
+  const same=signature(up)===signature(down);
   const pressed=previewPressKeys.has(index)||window.D200XPhysicalKeyPressed?.(index)===true;
-  const chosen=pressed?down:up;
-  return resolveStateTitle({...item,...(chosen?{icon:chosen}:{}),keyPressAlternate:!same},pressed);
+  return {...(pressed?down:up),keyPressAlternate:!same};
 }
 window.D200XIconMode={eligible:isMomentaryIconAction};
 // Share actual key visuals (including timer countdown) with the USB renderer.
@@ -685,16 +723,7 @@ async function refreshSdkPlugins(){
     renderGrid();void refreshSelectedVisual();
     // Update default-card thumbnails in place: do not disturb an open inspector's focus.
     const selectedItem=state.selected!==null&&state.selected<14?DeckCore.visibleActions(state)[state.selected]:null;
-    if(selectedItem?.type==='sd-plugin'&&!isMomentaryIconAction(selectedItem)){
-      const art=sdkActionDefaults.get(selectedItem.settings?.actionUUID)||{};
-      const images=document.querySelectorAll('#inspector .sdk-state-icons .sdk-state-preview');
-      for(const [index,key] of ['off','on'].entries()){
-        const host=images[index];if(!host||selectedItem.settings?.sdkStateIcons?.[key])continue;
-        if(art[key]){
-          const img=document.createElement('img');img.src=art[key];img.alt=key+' 기본 아이콘';host.replaceChildren(img);
-        }
-      }
-    }
+    if(selectedItem)void refreshStateTitleCards(selectedItem);
     if(libraryTab==='plugins')renderLibrary();
   }catch(error){window.d200xActionStatus?.('SDK 플러그인 목록 오류: '+String(error?.message||error));}
 }
@@ -1423,18 +1452,8 @@ async function refreshSelectedVisual(){
   if(!item||!window.renderDeckKeyImage)return;
   const request=++previewRequest;
   try{
-    let visible=displayItem(item,state.selected);
-    if(item.type==='sd-plugin'&&!isMomentaryIconAction(item)&&haPreviewStates.has(item)){
-      const key=haPreviewStates.get(item);
-      const custom=item.settings?.sdkStateIcons?.[key];
-      const runtime=sdkVisuals.get(sdkContext(state.selected,'down'));
-      const fallback=sdkActionDefaults.get(item.settings?.actionUUID)?.[key];
-      const image=custom?.kind==='file'?custom:item.icon||
-        (runtime?.state===(key==='on'?1:0)&&runtime?.image?{kind:'file',value:runtime.image}:null)||
-        (fallback?{kind:'file',value:fallback}:null);
-      visible={...visible,...(image?{icon:image}:{icon:undefined})};
-    }
-    const data=await window.renderDeckKeyImage(displayKeyPressItem(visible,state.selected),state.selected,previewPressKeys.has(state.selected));
+    const visible=displayItem(item,state.selected);
+    const data=await window.renderDeckKeyImage(displayKeyPressItem(visible,state.selected,true),state.selected,previewPressKeys.has(state.selected));
     if(request!==previewRequest||DeckCore.visibleActions(state)[state.selected]!==item)return;
     const host=$("icon-preview-content");
     if(!host)return;
@@ -1452,7 +1471,7 @@ function refreshTitlePreview(item){
   const host=$("icon-preview");if(!host)return;
   let label=host.querySelector(".preview-title");
   if(!label){label=document.createElement("span");label.className="preview-title";host.append(label);}
-  const current=displayKeyPressItem(displayItem(item,state.selected),state.selected);
+  const current=displayKeyPressItem(displayItem(item,state.selected),state.selected,true);
   label.textContent=String(current?.title||"").replace(/<br\s*\/?>/gi,"\n");
   const style={...DEFAULT_TITLE_STYLE,...current?.titleStyle};
   label.hidden=style.visible===false;
@@ -2082,22 +2101,12 @@ async function refreshStateTitleCards(item){
   const slot=state.selected;
   const visual=displayItem(item,slot);
   const momentary=isMomentaryIconAction(item);
-  const runtime=item.type==='sd-plugin'?sdkVisuals.get(sdkContext(slot,'down')):null;
+  const artwork=stateDisplayArtwork(visual,slot,momentary);
   const version=String((Number(root.dataset.stateCardVersion)||0)+1);
   root.dataset.stateCardVersion=version;
   for(const card of pair){
     const second=card.dataset.stateTitle==='second';
-    const key=momentary?(second?'down':'up'):(second?'on':'off');
-    const assigned=momentary?item.settings?.keyPressIcons?.[key]:item.settings?.sdkStateIcons?.[key];
-    const fallback=momentary
-      ?(item.settings?.keyPressIcons?.up||visual.icon)
-      :sdkActionDefaults.get(item.settings?.actionUUID)?.[key];
-    const icon=assigned?.kind==='file'?assigned
-      :momentary?fallback
-      :(item.icon||((runtime?.state===(second?1:0)&&runtime?.image)
-        ?{kind:'file',value:runtime.image}:null)||
-        (fallback?{kind:'file',value:fallback}:null));
-    const titleVisual=resolveStateTitle({...visual,...(icon?{icon}:{})},second);
+    const titleVisual=resolveStateTitle(visual,second,artwork);
     // State previews are snapshots, not a physical key-down effect.
     const img=card.querySelector('.sdk-state-preview');
     if(!img)continue;
@@ -2119,7 +2128,8 @@ function attachStateTitleControls(card,item,which){
   const config=(item.settings?.stateTitles||defaultStateTitlePair(item))[which];
   const row=document.createElement('div');row.className='state-title-control';
   const check=document.createElement('input');check.type='checkbox';check.checked=config.enabled;
-  check.className='state-title-visible';check.setAttribute('aria-label',(which==='first'?'제목 1':'제목 2')+' 표시');
+  check.className='state-title-visible';check.title='표시 속성 선택';
+  check.setAttribute('aria-label',(which==='first'?'첫 번째':'두 번째')+' 표시 속성 선택');
   const input=document.createElement('input');input.type='text';input.className='state-title-input';
   input.placeholder='제목';input.title='<br>로 강제 줄바꿈';input.setAttribute('aria-label',which==='first'?'제목 1':'제목 2');
   input.maxLength=256;input.value=config.title;input.disabled=!config.enabled;
@@ -3510,8 +3520,42 @@ function findIconCompanion(pack,icon){
 function applyMatchedStateIcons(settings,pair,clickedPng,companionPng,packId){
   settings.sdkStateIcons??={};
   const opposite=pair.state==='on'?'off':'on';
-  settings.sdkStateIcons[pair.state]={kind:'file',value:clickedPng,packId};
-  settings.sdkStateIcons[opposite]={kind:'file',value:companionPng,packId};
+  const statePair=JSON.stringify([packId,pair.directory,pair.base,pair.source]);
+  settings.sdkStateIcons[pair.state]={kind:'file',value:clickedPng,packId,statePair};
+  settings.sdkStateIcons[opposite]={kind:'file',value:companionPng,packId,statePair};
+}
+// 1.1.4 profiles retained only packId and PNG bytes. Recover a pair only
+// after matching both actual images against a verified same-folder name pair.
+let legacyPackRequest=null;
+const legacyPackRasterCache=new WeakMap();
+function requestLegacyStatePair(icons,off,on){
+  if(!window.deckBridge?.listIconPacks)return;
+  const record={off,on,matched:false};
+  legacyStatePairCache.set(icons,record);
+  const packs=()=>importedIconPacks.length?Promise.resolve(importedIconPacks):
+    (legacyPackRequest??=window.deckBridge.listIconPacks().catch(error=>{legacyPackRequest=null;throw error;}));
+  const raster=icon=>{
+    if(!legacyPackRasterCache.has(icon))legacyPackRasterCache.set(icon,rasterizeIcon(icon.image).catch(()=>null));
+    return legacyPackRasterCache.get(icon);
+  };
+  void (async()=>{
+    try{
+      const pack=(await packs()).find(entry=>entry.id===off.packId);
+      if(!pack)return;
+      for(const candidate of pack.icons){
+        if(iconPairType(candidate)?.state!=='off')continue;
+        const companion=findIconCompanion(pack,candidate);
+        if(!companion||await raster(candidate)!==off.value||await raster(companion)!==on.value)continue;
+        if(icons.off!==off||icons.on!==on||legacyStatePairCache.get(icons)!==record)return;
+        record.matched=true;
+        renderGrid();
+        const selected=DeckCore.visibleActions(state)[state.selected];
+        if(selected)refreshTitlePreview(selected);
+        window.scheduleDeckSync?.();
+        return;
+      }
+    }catch(error){console.warn('기존 ON/OFF 아이콘 페어 확인 실패',error);}
+  })();
 }
 function renderIconLibrary(){
   const root=$("icon-library-groups");root.replaceChildren();
@@ -4132,7 +4176,9 @@ if(window.deckBridge?.onSdkEvent){
         }
       }
       renderGrid();
-      if(!haPreviewStates.has(DeckCore.visibleActions(state)[state.selected]))void refreshSelectedVisual();
+      const selectedItem=DeckCore.visibleActions(state)[state.selected];
+      if(!haPreviewStates.has(selectedItem))void refreshSelectedVisual();
+      if(selectedItem)void refreshStateTitleCards(selectedItem);
       window.scheduleDeckSync?.();
     }else if(message.kind==='error')window.d200xActionStatus?.(message.message);
   });
