@@ -1,0 +1,48 @@
+name: Standalone Start menu drop probe
+on:
+  push:
+    branches: [codex/streamdeck-761-clean-editor]
+    paths: ['.github/workflows/startmenu-drop-probe.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  build:
+    runs-on: windows-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1
+        with:
+          node-version: '22'
+      - name: Package separate probe
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $src = 'tools/startmenu-drop-probe'
+          foreach ($f in @('main.cjs','preload.cjs','renderer.js')) {
+            node --check "$src/$f"
+            if ($LASTEXITCODE) { throw "Invalid JS: $f" }
+          }
+          # Compile native code without opening its GUI.
+          $native = Get-Content "$src/native.ps1" -Raw
+          $native = $native -replace '\[DropProbe\]::Run\(\)\s*$',''
+          $native | Set-Content "$env:RUNNER_TEMP/check-native.ps1"
+          powershell.exe -NoProfile -STA -ExecutionPolicy Bypass -File "$env:RUNNER_TEMP/check-native.ps1"
+          if ($LASTEXITCODE) { throw 'Native compilation failed' }
+          npm ci --prefix app --ignore-scripts
+          if ($LASTEXITCODE) { throw 'npm ci failed' }
+          New-Item -ItemType Directory -Force probe-stage | Out-Null
+          Copy-Item "$src/main.cjs","$src/preload.cjs","$src/index.html","$src/renderer.js" probe-stage
+          '{"name":"deckforge-drop-probe","version":"0.1.0","main":"main.cjs"}' | Set-Content probe-stage/package.json
+          & app/node_modules/.bin/electron-packager.cmd probe-stage DeckForge-Drop-Probe --platform=win32 --arch=x64 --electron-version=45.2.1 --out=probe-dist --overwrite
+          if ($LASTEXITCODE) { throw 'Packaging failed' }
+          $dest = 'probe-dist/DeckForge-Drop-Probe-win32-x64'
+          Copy-Item "$src/native.ps1","$src/run-native.cmd","$src/README.md" $dest
+          if (!(Test-Path "$dest/DeckForge-Drop-Probe.exe")) { throw 'Missing EXE' }
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        with:
+          name: DeckForge-StartMenu-Drop-Probe-win-x64
+          path: probe-dist/DeckForge-Drop-Probe-win32-x64/
+          if-no-files-found: error
+          retention-days: 14
