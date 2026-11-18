@@ -4,7 +4,9 @@
 
 ## 1. 최신 작업 인계 — DeckForge 1.1.9 (2026-11-18)
 
-- 사용자 1.1.8 실기: 신규 IoT 아이콘팩 내장 정상 보고. 사용자 추가 요청으로 `DeckForge_Logo_Icons_White_Color.streamDeckIconPack` (Git blob `4350a627dfe8f08414ba3db8747de96df5116adc`)을 원본 그대로 세 번째 내장 팩으로 등록. ID `builtin-deckforge-logo-white-color`. 표시 순서 COLOR → LINE → Logo White Color → Fluent UI Filled → Fluent UI Regular → 사용자 등록순. 실제 표시 이름 및 아이콘 개수는 원본 manifest/목록을 사용하며 ZIP CRC/파서 검증은 Windows 빌드에서 수행한다(원격 바이너리 내부 미확인). 기존 팩, 사용자 버튼 이미지, UI, 기타 기능 및 단일 자동 빌드 정책 유지. 1.1.9 Windows 빌드 및 실기 확인 대기.
+- 사용자 1.1.8 실기: 신규 IoT 아이콘팩 내장 정상 보고. 사용자 추가 요청으로 `DeckForge_Logo_Icons_White_Color.streamDeckIconPack` (Git blob `4350a627dfe8f08414ba3db8747de96df5116adc`)을 원본 그대로 세 번째 내장 팩으로 등록. ID `builtin-deckforge-logo-white-color`. 표시 순서 COLOR → LINE → Logo White Color → Fluent UI Filled → Fluent UI Regular → 사용자 등록순. 실제 표시 이름 및 아이콘 개수는 원본 manifest/목록을 사용하며 ZIP CRC/파서 검증은 Windows 빌드에서 수행한다(원격 바이너리 내부 미확인). 기존 팩, 사용자 버튼 이미지, UI, 기타 기능 및 단일 자동 빌드 정책 유지. **1.1.9 사용자 실기 정상 확인(2026-11-18): 신규 로고 팩 내장 작업 완료.**
+- 코드 기준 `7b36cf8242f487c6274333eeca720f2eaa9a7a15`: Windows 통합 빌드 [#44311808005](https://github.com/SoonCheol/D200X-Deck/actions/runs/44311808005), CI [#44311821913](https://github.com/SoonCheol/D200X-Deck/actions/runs/44311821913), D200X 입력 실행 검사 [#44311808018](https://github.com/SoonCheol/D200X-Deck/actions/runs/44311808018) 모두 success. Windows 패키징 push 1회 확인. 사용자 보고 범위 외 전체 실기 재검증은 하지 않음.
+- 다음 개발 대상: Windows 11 시작 메뉴 고정/일반 앱 바로가기 직접 드래그 등록. 기존 탐색기 EXE/LNK 등록 유지. 실제 드롭 데이터 형식 및 공개 소스 근거를 확인한 후 필요한 최소 범위만 수정. 현재 미착수이며 사용자 명시 지시 전 코드 변경 금지.
 
 ### 1.1.8 두 신규 IoT 팩 및 빌드 설정
 
