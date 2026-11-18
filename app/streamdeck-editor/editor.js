@@ -2646,6 +2646,16 @@ function renderInspector(){
     const toolbar=document.createElement('div');toolbar.className='state-title-toolbar';
     const pluginButton=root.querySelector('.sdk-settings-open');
     if(pluginButton)toolbar.append(pluginButton);
+    if(item.type==='folder-shortcut'){
+      const checkbox=root.querySelector('.inspector-properties-region>.fields [data-field="alwaysNewWindow"]');
+      const field=checkbox?.closest('.checkbox-setting-field');
+      if(field){
+        field.className='folder-new-window-option';
+        field.prepend(checkbox);
+        toolbar.classList.add('folder-shortcut-toolbar');
+        toolbar.append(field);
+      }
+    }
     const saveBar=root.querySelector('.inspector-footer-region');
     if(saveBar)toolbar.append(saveBar);
     const layout=document.createElement('div');layout.className='state-title-layout';

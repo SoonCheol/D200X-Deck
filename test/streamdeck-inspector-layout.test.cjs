@@ -111,3 +111,16 @@ test('title alignment keeps original three buttons but uses legible 20px SVG ico
  assert.match(css,/\.title-align button svg\{display:block;width:20px;height:20px;margin:auto;pointer-events:none\}/);
  assert.match(css,/\.title-align button.active\{background:#217ce5;border-color:#217ce5\}/);
 });
+
+test('folder shortcut moves the existing checkbox before its label into the save toolbar only',()=>{
+  const move=editor.slice(editor.indexOf("    if(item.type==='folder-shortcut'){\n      const checkbox="),editor.indexOf("    const saveBar=root.querySelector('.inspector-footer-region');"));
+  assert.match(move,/if\(item\.type==='folder-shortcut'\)/);
+  assert.match(move,/\[data-field="alwaysNewWindow"\]/);
+  assert.match(move,/field\.prepend\(checkbox\)/);
+  assert.match(move,/toolbar\.append\(field\)/);
+  assert.match(editor,/if\(saveBar\)toolbar\.append\(saveBar\)/);
+  assert.match(editor,/check\('alwaysNewWindow','항상 새 창으로 열기'\)/);
+  assert.match(css,/\.state-title-inspector \.state-title-toolbar\.folder-shortcut-toolbar\{margin-left:0\}/);
+  assert.match(css,/\.folder-shortcut-toolbar>\.folder-new-window-option\s*\{[^}]*display:flex;align-items:center;[^}]*white-space:nowrap/s);
+  assert.match(css,/\.folder-new-window-option>input\[type="checkbox"\]\s*\{[^}]*width:15px;height:15px/s);
+});
