@@ -2650,6 +2650,7 @@ function renderInspector(){
       const checkbox=root.querySelector('.inspector-properties-region>.fields [data-field="alwaysNewWindow"]');
       const field=checkbox?.closest('.checkbox-setting-field');
       if(field){
+        // Move the bound input rather than creating another setting control.
         field.className='folder-new-window-option';
         field.prepend(checkbox);
         toolbar.classList.add('folder-shortcut-toolbar');
