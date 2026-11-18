@@ -216,3 +216,19 @@ test('new shortcut presets map to the same Windows keys as the legacy actions',(
   }
 });
 
+
+test('DeckForge branding changes only own display text, not compatibility identifiers',()=>{
+  const main=fs.readFileSync(path.join(base,'main.cjs'),'utf8');
+  const html=fs.readFileSync(path.join(base,'index.html'),'utf8');
+  assert.match(editor,/DeckForge 아이콘 라이브러리 열기/);
+  assert.doesNotMatch(editor,/Stream Deck 아이콘 라이브러리 열기/);
+  assert.match(editor,/DeckForge 플러그인 \(Stream Deck SDK\)/);
+  assert.match(main,/title:'DeckForge 플러그인 설치'/);
+  assert.match(html,/DeckForge 아이콘팩 가져오기 \(Stream Deck·Ulanzi 호환 ZIP\)/);
+  assert.match(editor,/const STORAGE_KEY="d200x-streamdeck-editor-prototype-v1"/);
+  assert.match(editor,/com\.autodesk\.fusionstreamdeck/);
+  assert.match(main,/extensions:\['streamDeckPlugin','zip'\]/);
+  assert.match(main,/extensions:\['streamDeckIconPack','sdIconPack'\]/);
+  assert.match(main,/actions\/workflows\/streamdeck-clean-preview\.yml/);
+});
+

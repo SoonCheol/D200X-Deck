@@ -4,7 +4,7 @@
  * Packaging rebuild marker: no runtime behavior changes. */
 const ORIGINAL_CATALOG = [
   ["Soundboard", [["audio-play","효과음 재생","♫"],["audio-stop","효과음 정지","◼"]]],
-  ["Stream Deck", [["timer","타이머","◴"],["brightness","D200X 밝기 설정","☼"],["sleep","D200X 화면 끄기","☾"],["virtual","Virtual DeckForge 토글","▣"]]],
+  ["DeckForge", [["timer","타이머","◴"],["brightness","D200X 밝기 설정","☼"],["sleep","D200X 화면 끄기","☾"],["virtual","Virtual DeckForge 토글","▣"]]],
   ["다중 동작", [["multi","다중 동작","▤"],["multi-switch","다중 동작 스위치","⇄"],["random","무작위 동작","⚄"],["logic","Key Logic","⇧"]]],
   ["시스템", [["website","웹페이지","◎"],["hotkey-switch","단축키 전환","⇄"],["hotkey","단축키","⌨"],["open","열기 (통합)","▢"],["open-app","프로그램 열기","▣"],["close","응용 프로그램 종료","×"],["text","텍스트 입력","¶"],["media","재생 제어","♫"]]],
   ["탐색", [["folder","덱폴더","▣"],["profile","프로필 전환","⇆"],["previous","이전 페이지","←"],["next","다음 페이지","→"],["goto","선택 페이지로 이동","↗"],["indicator","페이지 표시","①"]]],
@@ -79,7 +79,7 @@ const PANEL_SHORTCUTS={
   "text":"유니코드 텍스트 입력"
 };
 const ACTIONS = new Map(CATALOG.flatMap(([category, entries]) => entries.map(([id,label,icon]) => [id,{category,id,label,icon}])));
-ACTIONS.set('sd-plugin',{category:'플러그인',id:'sd-plugin',label:'Stream Deck SDK 플러그인',icon:'▣'});
+ACTIONS.set('sd-plugin',{category:'플러그인',id:'sd-plugin',label:'DeckForge 플러그인 (Stream Deck SDK)',icon:'▣'});
 const STORAGE_KEY="d200x-streamdeck-editor-prototype-v1";
 const $ = id => document.getElementById(id);
 const clone = value => JSON.parse(JSON.stringify(value));
@@ -778,7 +778,7 @@ async function installSdkPlugin(fromFolder=false){
     const plugin=fromFolder?await window.deckBridge.sdkInstallFolder():await window.deckBridge.sdkInstall();
     if(!plugin)return;
     await refreshSdkPlugins();
-    window.d200xActionStatus?.('Stream Deck 플러그인 설치: '+plugin.name+' '+plugin.version);
+    window.d200xActionStatus?.('DeckForge 플러그인 설치: '+plugin.name+' '+plugin.version);
   }catch(error){window.d200xActionStatus?.('플러그인 설치 실패: '+String(error?.message||error));}
 }
 // Only change what the user can add from the catalogue. Existing action IDs,
@@ -2475,7 +2475,7 @@ const INSPECTOR_HELP={
     cautions:['단축키 지원 범위는 실행 중인 Windows 앱에 따라 달라집니다.']
   },
   'sd-plugin':{
-    title:'플러그인 설정',description:'설치된 Stream Deck SDK 플러그인의 동작과 표시 상태를 설정합니다.',
+    title:'플러그인 설정',description:'DeckForge에 설치된 Stream Deck SDK 호환 플러그인의 동작과 표시 상태를 설정합니다.',
     steps:['플러그인 속성 열기로 해당 플러그인의 설정을 확인하세요.','OFF/ON 이미지는 필요할 때 각 상태에 지정하세요.'],
     cautions:['지원되는 설정은 설치된 플러그인의 구현에 따라 다릅니다.']
   },
@@ -2568,7 +2568,7 @@ function renderInspector(){
       <button type="button" data-icon-command="file">파일에서 설정</button>
       <button type="button" data-icon-command="paste">클립보드에서 붙여넣기</button>
       <button type="button" data-icon-command="new">새로운 아이콘</button>
-      <button type="button" data-icon-command="library">Stream Deck 아이콘 라이브러리 열기</button>
+      <button type="button" data-icon-command="library">DeckForge 아이콘 라이브러리 열기</button>
     </div></div>
     <div class="fields"><div class="field title-setting-field"><label class="title-visible-label"><input type="checkbox" id="title-visible"> 제목 표시</label>
       <div class="title-line"><input id="key-title" title="&lt;br&gt;로 강제 줄바꿈" value="${escapeHtml(item.title)}">
@@ -3317,7 +3317,7 @@ function executeHardwareAction(event,preview=false,skipKnobGesture=false){
       if(!ok)window.d200xActionStatus?.('SDK 플러그인이 활성화되지 않았습니다.');
     }).catch(error=>window.d200xActionStatus?.('SDK 플러그인 실행 실패: '+String(error?.message||error)));
     if(preview&&resolved.gesture==='down')setTimeout(()=>window.deckBridge.sdkKey(ctx,'up').catch(()=>{}),100);
-    return 'Stream Deck 플러그인 이벤트: '+resolved.gesture;
+    return 'DeckForge 플러그인 이벤트: '+resolved.gesture;
   }
   if(resolved.gesture==='up'){lastHardwareDown.delete(index);return null;}
   if(resolved.gesture==='down'&&!preview){

@@ -118,7 +118,7 @@ ipcMain.handle('d200x:open-fusion-manager',async event=>{
 ipcMain.handle('d200x:sdk-install',async event=>{
   assertEditor(event);
   const selected=await openRememberedPicker({
-    title:'Stream Deck 플러그인 설치',
+    title:'DeckForge 플러그인 설치',
     properties:['openFile'],
     filters:[{name:'Stream Deck 플러그인',extensions:['streamDeckPlugin','zip']}]
   });
@@ -130,7 +130,7 @@ ipcMain.handle('d200x:sdk-install',async event=>{
 ipcMain.handle('d200x:sdk-install-folder',async event=>{
   assertEditor(event);
   const selected=await openRememberedPicker({
-    title:'Stream Deck 플러그인 폴더 선택',
+    title:'DeckForge 플러그인 폴더 선택',
     properties:['openDirectory']
   },'sdk-plugin-folder');
   if(!selected)return null;

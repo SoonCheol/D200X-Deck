@@ -2,7 +2,15 @@
 
 > **상태 기록 기준: 2026-11-19**. 실제 최신 HEAD는 Git에서 확인하며, 코드·자동 검사·Windows 빌드·사용자 Windows/D200X 실기 결과를 구분한다. 시작 시 `AGENTS.md`와 이 문서만 읽고 로드맵은 필요한 경우에만 참고한다.
 
-## 1. 최신 작업 인계 — 1.1.23 기본 액션 간소화 (2026-11-19)
+## 1. 최신 작업 인계 — 1.1.24 DeckForge 표시 명칭 정리 (2026-11-19)
+
+- 사용자 요청: 앱 자체 명칭을 DeckForge로 통일. 아이콘 라이브러리 메뉴, 플러그인 설치/선택 창과 상태 메시지, SDK 호환 플러그인 안내, 아이콘팩 가져오기 툴팁 및 앱 README의 현재 사용 안내를 정리함. D200X는 장치명으로 유지하고 Elgato Stream Deck SDK, Autodesk FusionStreamDeck, Ulanzi, 실제 파일 형식과 외부 제품명은 정확한 호환성 표기를 유지. 기존 SDK 식별자·프로토콜·저장 위치·파일 확장자·워크플로우 경로·기능 로직 미변경. 과거 개발 이력은 현재 안내와 구분해서 보존.
+- GitHub 알림의 과거 이름 원인: 기본 브랜치 main의 .github/workflows/streamdeck-clean-preview.yml에는 아직 'D200X StreamDeck device-sync preview'가 남아 있음. 유일한 개발 브랜치에는 이미 'DeckForge integrated Windows build'로 설정됨. main 직접 수정/병합은 기존 브랜치 제한상 하지 않음. 워크플로우 파일 이름이나 업데이트 링크는 변경하지 않음.
+- 버전 1.1.24. 자동 빌드 및 Windows 실제 표시 확인은 별도. 복합 동작 활용 예제 추가는 아직 사용자 보류 상태로 변경하지 않음.
+
+### 1.1.23 기본 액션 간소화 (2026-11-19)
+
+- [Windows 빌드 #732](https://github.com/SoonCheol/D200X-Deck/actions/runs/44415486996), [입력 검증 #375](https://github.com/SoonCheol/D200X-Deck/actions/runs/44415486924), [CI #984](https://github.com/SoonCheol/D200X-Deck/actions/runs/44415498152) 성공.
 
 - 사용자 승인: 기본 목록에서 파일 탐색기(1.1.22), 화면 캡처, 클립보드 편집, 창 전환/상태/모니터 이동/가상 데스크톱, 브러시 크기, 타임라인 단계/확대축소를 숨김. 기본 액션 32개(미지원 Virtual 포함), 7개 분류. 내부 42개 ID, 실행 및 기존 버튼·복합 설정·노브 조절 및 아이콘 유지. 복합 액션 내부 선택 목록은 기존 호환성을 위해 유지.
 - 단축키 프리셋 13개 추가(이전 창 전환, 창 최대화/복원·최소화, 모니터 좌우 이동, 가상 데스크톱 이전/다음, 브러시 축소/확대, 타임라인 이전/다음 단계 및 확대/축소). 기존 단축키 파서에 BracketLeft/BracketRight/Plus/Minus의 가상 키 매핑만 추가. 기존 단축키 문자열의 의미와 실행 경로 보존. 실제 Windows 앱 반응은 별도 확인 필요.
