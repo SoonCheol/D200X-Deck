@@ -133,6 +133,7 @@ public static class DFControl113 {
       Record 'selected' $id $entry.Reason $c.ExecutablePath
     } catch {Record 'excluded' $id $_.Exception.GetType().Name 'revalidation'}
   }
+  $forceRequested = @()
   foreach ($entry in $selected) {
     $id=[int]$entry.C.ProcessId
     try {
@@ -141,7 +142,7 @@ public static class DFControl113 {
       $fresh=Get-CimInstance Win32_Process -Filter "ProcessId=$id" -ErrorAction Stop
       if (!$fresh -or $fresh.CreationDate -ne $entry.C.CreationDate) {Record 'skipped' $id 'creation-time-changed' '';continue}
       if ($mode -eq 'Force') {
-        try {Stop-Process -InputObject $p -Force -ErrorAction Stop;Record 'api' $id 'Stop-Process -Force' 'requested';[void]$p.WaitForExit(2000)}
+        try {Stop-Process -InputObject $p -Force -ErrorAction Stop;Record 'api' $id 'Stop-Process -Force' 'requested';$forceRequested += $p}
         catch {if (!$p.HasExited) {throw};Record 'api' $id 'Stop-Process -Force' 'already-exited'}
       } else {
         $hwnd=$p.MainWindowHandle
@@ -160,6 +161,14 @@ public static class DFControl113 {
     } catch {Record 'api-error' $id $_.Exception.GetType().Name $_.Exception.Message}
   }
   if ($mode -eq 'Force') {
+    # Request all validated targets first; share a single bounded wait budget.
+    $waitClock=[Diagnostics.Stopwatch]::StartNew()
+    foreach ($requested in $forceRequested) {
+      $budget=[int][Math]::Max(0,2000-$waitClock.ElapsedMilliseconds)
+      if ($budget -le 0) {break}
+      try {[void]$requested.WaitForExit($budget)}
+      catch {Record 'verify-error' $requested.Id $_.Exception.GetType().Name 'wait-for-exit'}
+    }
     foreach ($entry in $selected) {
       $id=[int]$entry.C.ProcessId
       try {

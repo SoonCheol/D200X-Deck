@@ -3045,11 +3045,18 @@ function makeAppControlTrace(stage,index,action){
   return {id:Date.now().toString(36)+'-'+Math.random().toString(36).slice(2,10),stage,
     profile:state.profileId,page:state.page,folderPath:[...(state.folderPath||[])],
     folderPage:DeckCore.activeFolder(state)?.pageIndex||0,slot:index,
-    pinned:Number.isInteger(index)&&Boolean(state.pinned?.[index]),dirty:Boolean(inspectorSession?.dirty),
+    pinned:Number.isInteger(index)&&index>=0&&index<14&&!(state.folderPath||[]).length&&
+      !state.pages?.[state.page]?.[index]&&Boolean(action)&&state.pinned?.[index]===action,dirty:Boolean(inspectorSession?.dirty),
     hold:action?.settings?.hold,requestedAt:Date.now()};
 }
 const openAppHoldScope=()=>JSON.stringify([state.profileId,state.page,state.folderPath||[],DeckCore.activeFolder(state)?.pageIndex||0]);
 let lastOpenAppHoldScope=openAppHoldScope();
+const openAppHoldConfig=action=>JSON.stringify([action?.settings?.app,action?.settings?.hold,
+  action?.settings?.args,action?.settings?.foreground]);
+function openAppHoldStillCurrent(token,action){
+  return token.action===action&&token.scope===openAppHoldScope()&&
+    token.config===openAppHoldConfig(action);
+}
 function logOpenAppHold(record){window.deckBridge?.logAppControl?.(record).catch(()=>{});}
 function clearOpenAppHoldTimers(reason){
   for(const [index,token] of openAppHoldTimers){
@@ -3064,14 +3071,15 @@ function handleOpenAppHold(action,index,event,gesture){
     if(openAppHoldTimers.has(index))return '프로그램 버튼 입력 유지 중';
     const downAt=Date.now();
     const trace={...makeAppControlTrace('down',index,action),downAt};
-    const token={action,page:state.page,profile:state.profileId,scope:openAppHoldScope(),fired:false,timer:null,trace};
+    const token={action,scope:openAppHoldScope(),config:openAppHoldConfig(action),fired:false,cancelled:false,timer:null,trace};
     logOpenAppHold({...trace,stage:'down',at:downAt});
     token.timer=setTimeout(()=>{
       if(openAppHoldTimers.get(index)!==token)return;
       const current=index<14?DeckCore.visibleActions(state)[index]:DeckCore.controlBinding(state,index)?.down;
-      if(openAppHoldScope()!==token.scope||current!==action){
-        logOpenAppHold({...trace,stage:'cancel',reason:'scope-or-action-changed',at:Date.now()});
-        openAppHoldTimers.delete(index);return;
+      if(!openAppHoldStillCurrent(token,current)){
+        token.cancelled=true;
+        logOpenAppHold({...trace,stage:'cancel',reason:'scope-action-or-settings-changed',at:Date.now()});
+        return; // Consume the physical release; do not rearm from duplicate down packets.
       }
       token.fired=true;
       const holdAt=Date.now();
@@ -3092,9 +3100,13 @@ function handleOpenAppHold(action,index,event,gesture){
   if(!token)return null;
   clearTimeout(token.timer);openAppHoldTimers.delete(index);
   const upAt=Date.now();
-  logOpenAppHold({...token.trace,stage:'up',upAt,heldMs:upAt-token.trace.downAt,actualHold:action.settings?.hold});
+  logOpenAppHold({...token.trace,stage:'up',upAt,heldMs:upAt-token.trace.downAt,actualHold:action?.settings?.hold});
   if(token.fired)return '길게 누르기 동작 완료';
-  if(token.action!==action||token.scope!==openAppHoldScope())return null;
+  if(token.cancelled)return null;
+  if(!openAppHoldStillCurrent(token,action)){
+    logOpenAppHold({...token.trace,stage:'cancel',reason:'scope-action-or-settings-changed',at:upAt});
+    return null;
+  }
   const pressed={...event,state:1,pressed:true};
   return executeHardwareAction(pressed,true);
 }
@@ -3166,9 +3178,9 @@ function executeHardwareAction(event,preview=false,skipKnobGesture=false){
   const resolved=DeckCore.resolveHardwareEvent(state,event);
   if(!resolved)return null;
   const index=resolved.index,offset=index-14;
-  if(!preview&&resolved.action?.type==='open-app'&&
-    ['close','force'].includes(resolved.action.settings?.hold)&&
-    ['down','up'].includes(resolved.gesture))
+  if(!preview&&['down','up'].includes(resolved.gesture)&&
+    (openAppHoldTimers.has(index)||(resolved.action?.type==='open-app'&&
+      ['close','force'].includes(resolved.action.settings?.hold))))
     return handleOpenAppHold(resolved.action,index,event,resolved.gesture);
   if(resolved.action?.type==='logic'&&['down','up'].includes(resolved.gesture))
     return handleLogicGesture(resolved.action,index,resolved.gesture,preview);
