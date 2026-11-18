@@ -993,8 +993,14 @@ async function listIconPacks(){
     const iotFile=path.join(__dirname,'bundled','DeckForge_IoT_Icons.streamDeckIconPack');
     try{
       const iot=await parseIconPack(await fs.promises.readFile(iotFile));
-      if(iot.name!=='DeckForge IoT Icons'||iot.author!=='Airburst'||iot.icons.length!==106)
+      // The transparent source archive retains its original author/name. Only
+      // this bundled pack is normalized; its stable ID and public label stay unchanged.
+      const knownSource=iot.name==='D200X_IoT_Icons'&&iot.author==='Personal';
+      const canonical=iot.name==='DeckForge IoT Icons'&&iot.author==='Airburst';
+      if((!canonical&&!knownSource)||iot.icons.length!==106)
         throw new Error('DeckForge IoT Icons 내장 파일 정보가 일치하지 않습니다.');
+      iot.name='DeckForge IoT Icons';
+      iot.author='Airburst';
       iot.id='builtin-deckforge-iot';
       iot.source='bundled';
       parsed.push(iot);
