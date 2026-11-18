@@ -2,7 +2,14 @@
 
 > **상태 기록 기준: 2026-11-19**. 실제 최신 HEAD는 Git에서 확인하며, 코드·자동 검사·Windows 빌드·사용자 Windows/D200X 실기 결과를 구분한다. 시작 시 `AGENTS.md`와 이 문서만 읽고 로드맵은 필요한 경우에만 참고한다.
 
-## 1. 최신 작업 인계 — 1.1.15 지정 폴더 활성화 (2026-11-19)
+## 1. 최신 작업 인계 — 1.1.16 탐색기 폴더 활성화 보완 (2026-11-19)
+
+- 1.1.15 사용자 실기: 항상 새 창 옵션 체크해도 창 하나, 해제 시 앞으로 가져오기 실패, 간헐적으로만 활성화. 설치판 전체 기능 성공으로 간주하지 않음. 별도 PowerShell 5.1 Probe 사용자 결과 Windows 11 26H2 (26300.9974): ShellExecute opennewwindow 2/2, explorer.exe /n 2/2 신규 HWND 확인, Navigate2 0/2. 직접 SetForegroundWindow, AttachThreadInput 대체, 최소화 복원, 비활성 탭 선택 각각 1회 성공. 실제 DeckForge 실패 원인 확정 아님.
+- 1.1.16: Probe와 동일한 Explorer CabinetWClass/실제 폴더 비교, LocationURL 파일 경로는 Folder.Self.Path로 유효한 파일시스템 경로를 얻지 못한 경우만 대체. 탭 HWND 기반 확인 유지. ShellExecute를 먼저 요청하고 명시적 거부 시만 /n 대체. 기존 전체 프레임 핸들 스냅샷 대비 목표 폴더의 신규 HWND를 제한 시간 내 확인해야 새 창 성공; 요청 수락 뒤 확인 실패 시 자동 중복 요청 금지. 전경 실패 시 Probe의 PeekMessage/AttachThreadInput/BringWindowToTop/SetForegroundWindow/finally detach 방식 적용 후 실제 HWND 및 경로 확인. 최소화 복원·탭 전환 유지. 기존 폴더 옵션/액션 ID/버튼 재등록 불필요. Files Dev 제외, Navigate2 새 창 방식 미사용. 동일 경로 별칭·비공개 탭 명령 한계 유지.
+- 로컬 `%APPDATA%\DeckForge\diagnostics\folder-control-YYYY-MM-DD.jsonl`에 요청별 UUID, 실제 앱 버전, PID, IPC 옵션, 목표 경로, 모드, 창·탭 매칭, API 및 결과 기록. 개인 경로 포함 가능하므로 공개 저장소 업로드 금지. 해당 로그를 통해 1.1.16 재현 여부와 설정 전달을 확인. 새로운 빌드 및 DeckForge 실기는 별도 확인 필요.
+- 테스트: 전용 Windows PS 5.1 컴파일/경로 비교와 JS 코드 계약 검사 유지 및 보강. 기존 UI, 기타 실행/종료 및 플러그인 기능 변경 금지. 다른 브랜치 및 PR 병합 없음.
+
+### 1.1.15 지정 폴더 활성화 기록 (2026-11-19)
 
 - DeckForge 1.1.15: 사용자 승인 후 Windows 기본 탐색기만 대상으로 개발. Files Dev는 사용 중단에 따라 범위 제외. 기존 폴더 경로와 액션 ID 유지; 재등록 불필요. `alwaysNewWindow` 기본 false, 속성창 '항상 새 창으로 열기' 단일 체크박스. 드래그/직접 등록/다중 동작 공통 실행 전달.
 - `folder-control.ps1`: 기존 Windows PowerShell 5.1 STA 실행 방식, 입력 경로는 환경 변수 Base64 데이터. Shell.Windows의 Explorer CabinetWClass 및 실제 Folder.Self.Path 비교(전체 경로, 뒤 구분자 제거, 대소문자 무시). IShellBrowser.GetWindow로 탭 HWND 확인, 이미 활성 탭 우선. 비활성 탭은 ExplorerTabUtility 공개 구현에서 확인한 비공개 WM_COMMAND 0xA221 명령을 최대 32개 인덱스로 시도하고 실제 활성 탭 핸들과 경로를 다시 확인한다. 최소화된 대상만 복원하고 실제 전경 HWND 확인. 경로가 일치하나 활성화 실패하면 중복 열기 금지 및 오류 안내. 미일치/식별 불가 시 기존 shell.openPath로 정상 열기. 별도 상주 프로세스 없음. 새 창 옵션은 ShellExecute opennewwindow 요청, 실제 새 창 생성은 Windows 실기 확인 필요. 폴더 요청 직렬화 및 새 경로 등록 500ms 대기; 느린 네트워크·시작 환경에서는 중복 방지가 완전 보장되지 않는다.

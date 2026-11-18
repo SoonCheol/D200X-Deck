@@ -1,8 +1,10 @@
 # Windows PowerShell 5.1 / STA. Input is data only, never an interpolated command.
 $ErrorActionPreference='Stop'
 [Console]::OutputEncoding=[Text.Encoding]::UTF8
+$details=New-Object 'System.Collections.Generic.List[string]'
+function Note([string]$message) {if($details.Count -lt 160){$details.Add($message)}}
 function Result([string]$status,[string]$reason='') {
-  [Console]::Write((@{status=$status;reason=$reason}|ConvertTo-Json -Compress))
+  [Console]::Write((@{status=$status;reason=$reason;mode=$env:DECKFORGE_FOLDER_MODE;details=$details.ToArray()}|ConvertTo-Json -Depth 5 -Compress))
 }
 function Normalize-Folder([string]$value) {
   if ([string]::IsNullOrWhiteSpace($value) -or $value -notmatch '^(?:[A-Za-z]:[\\/]|\\\\[^\\]+\\[^\\]+)') {return $null}
@@ -33,7 +35,22 @@ public static class DFFolderNative {
   [DllImport("user32.dll")] public static extern bool ShowWindowAsync(IntPtr hwnd,int command);
   [DllImport("user32.dll")] public static extern bool SetForegroundWindow(IntPtr hwnd);
   [DllImport("user32.dll")] public static extern IntPtr GetForegroundWindow();
-  [DllImport("user32.dll")] public static extern IntPtr GetParent(IntPtr hwnd);
+  [DllImport("user32.dll")] public static extern bool BringWindowToTop(IntPtr hwnd);
+  [DllImport("user32.dll")] public static extern uint GetWindowThreadProcessId(IntPtr hwnd,out uint pid);
+  [DllImport("kernel32.dll")] public static extern uint GetCurrentThreadId();
+  [DllImport("user32.dll",SetLastError=true)] public static extern bool AttachThreadInput(uint a,uint b,bool attach);
+  [DllImport("user32.dll")] static extern bool PeekMessage(out MSG msg,IntPtr hwnd,uint min,uint max,uint remove);
+  [StructLayout(LayoutKind.Sequential)] struct MSG {public IntPtr hwnd;public uint msg;public UIntPtr w;public IntPtr l;public uint time;public int x,y;public uint priv;}
+  public static string[] AttachedFocus(IntPtr target) {
+    MSG msg;PeekMessage(out msg,IntPtr.Zero,0,0,0);
+    uint pid;uint current=GetCurrentThreadId();uint other=GetWindowThreadProcessId(GetForegroundWindow(),out pid);
+    bool attached=false,top=false,focus=false,detached=true;int error=0;
+    try {
+      if(other!=0&&other!=current){attached=AttachThreadInput(current,other,true);if(!attached)error=Marshal.GetLastWin32Error();}
+      if(IsWindow(target)){top=BringWindowToTop(target);focus=SetForegroundWindow(target);}
+    } finally {if(attached)detached=AttachThreadInput(current,other,false);}
+    return new[]{"attached="+attached,"attachError="+error,"bringToTop="+top,"setForeground="+focus,"detached="+detached};
+  }
   [DllImport("user32.dll",CharSet=CharSet.Unicode)] public static extern IntPtr FindWindowEx(IntPtr parent, IntPtr after,string cls,string name);
   [DllImport("user32.dll",CharSet=CharSet.Unicode)] static extern int GetClassName(IntPtr hwnd,StringBuilder name,int length);
   [DllImport("user32.dll",SetLastError=true)] static extern IntPtr SendMessageTimeout(IntPtr hwnd,uint message,IntPtr w,IntPtr l,uint flags,uint timeout,out IntPtr result);
@@ -66,6 +83,35 @@ public static class DFFolderNative {
   }
 }
 '@
+  function Browser-Match($browser,[string]$target){
+    $folder='';$urlPath=''
+    try{$folder=[string]$browser.Document.Folder.Self.Path}catch{Note ('path-error='+$_.Exception.GetType().Name)}
+    try{$uri=[Uri]([string]$browser.LocationURL);if($uri.IsFile){$urlPath=$uri.LocalPath}}catch{}
+    # Do not accept a stale URL when an actual filesystem path disagrees.
+    if($null -ne (Normalize-Folder $folder)){return (Same-Folder $folder $target)}
+    return (Same-Folder $urlPath $target)
+  }
+  function Get-ExplorerRows([string]$target){
+    $shell=New-Object -ComObject Shell.Application
+    $windows=$shell.Windows()
+    for($i=0;$i -lt $windows.Count;$i++){
+      try{
+        $browser=$windows.Item($i)
+        if($null -eq $browser){continue}
+        $frame=[IntPtr]([long]$browser.HWND)
+        if([DFFolderNative]::ClassName($frame) -ne 'CabinetWClass'){continue}
+        $match=Browser-Match $browser $target
+        $tab=[IntPtr]::Zero
+        try{$tab=[DFFolderNative]::TabHandle($browser)}catch{Note ('tab-error='+$_.Exception.GetType().Name)}
+        $active=[DFFolderNative]::ActiveTab($frame)
+        [PSCustomObject]@{Browser=$browser;Frame=$frame;Tab=$tab;Match=$match;Active=($active -eq [IntPtr]::Zero -or ($tab -ne [IntPtr]::Zero -and $active -eq $tab));Foreground=([DFFolderNative]::GetForegroundWindow() -eq $frame)}
+      }catch{Note ('enumeration-error='+$_.Exception.GetType().Name)}
+    }
+  }
+  function Wait-Foreground([IntPtr]$frame){
+    for($wait=0;$wait -lt 10 -and [DFFolderNative]::GetForegroundWindow() -ne $frame;$wait++){Start-Sleep -Milliseconds 30}
+    return ([DFFolderNative]::GetForegroundWindow() -eq $frame)
+  }
   $mode=$env:DECKFORGE_FOLDER_MODE
   if($mode -eq 'Validate'){
     if(!(Same-Folder 'C:\' 'c:/') -or !(Same-Folder '\\server\share\folder\' '\\SERVER\SHARE\folder') -or (Same-Folder 'C:\a' 'C:\ab') -or (Same-Folder 'C:\a' 'a')) {throw 'Folder path comparison test failed'}
@@ -73,64 +119,71 @@ public static class DFFolderNative {
   }
   $target=[Text.Encoding]::Unicode.GetString([Convert]::FromBase64String($env:DECKFORGE_FOLDER_TARGET))
   if($null -eq (Normalize-Folder $target)){throw 'Invalid absolute folder path'}
+  if($mode -notin @('New','Focus')){throw 'Invalid folder mode'}
+  $rows=@(Get-ExplorerRows $target)
+  Note ("beforeForeground="+[DFFolderNative]::GetForegroundWindow().ToInt64())
+  foreach($row in $rows){Note ("before frame="+$row.Frame.ToInt64()+" tab="+$row.Tab.ToInt64()+" match="+$row.Match+" active="+$row.Active+" foreground="+$row.Foreground)}
   if($mode -eq 'New'){
+    # Compare against every frame, not only matches: switching an old window is not new.
+    $before=@($rows|ForEach-Object {$_.Frame.ToInt64()}|Select-Object -Unique)
     $result=[DFFolderNative]::ShellExecute([IntPtr]::Zero,'opennewwindow',$target,$null,$null,1)
-    if($result.ToInt64() -le 32){throw ('opennewwindow failed: '+$result.ToInt64())}
-    Result 'opened';return
+    Note ("ShellExecute="+$result.ToInt64())
+    if($result.ToInt64() -le 32){
+      # Fallback only on explicit rejection; avoid double-opening after an accepted request.
+      $explorer=Join-Path $env:SystemRoot 'explorer.exe'
+      $argument=$target
+      if($argument -match '[\s,]'){
+        # Preserve a trailing separator inside a quoted Windows argument.
+        $argument='"'+($argument -replace '(\\+)$','$1$1')+'"'
+      }
+      Start-Process -FilePath $explorer -ArgumentList ('/n,'+$argument)
+      Note 'explorer.exe /n requested'
+    }
+    for($attempt=0;$attempt -lt 16;$attempt++){
+      Start-Sleep -Milliseconds 250
+      $fresh=@(Get-ExplorerRows $target|Where-Object {$_.Match -and $_.Frame.ToInt64() -notin $before})
+      if($fresh.Count -gt 0){foreach($row in $fresh){Note ("newMatchingFrame="+$row.Frame.ToInt64()+" foreground="+$row.Foreground)};Result 'opened';return}
+    }
+    Result 'new-not-confirmed' 'No new matching Explorer frame observed after request';return
   }
-  if($mode -ne 'Focus'){throw 'Invalid folder mode'}
-  $shell=New-Object -ComObject Shell.Application
-  $windows=$shell.Windows()
-  $matches=@()
-  $unknown=$false
-  for($i=0;$i -lt $windows.Count;$i++){
-    try{
-      $browser=$windows.Item($i)
-      if($null -eq $browser){continue}
-      $frame=[IntPtr]([long]$browser.HWND)
-      if([DFFolderNative]::ClassName($frame) -ne 'CabinetWClass'){continue}
-      if([IO.Path]::GetFileName([string]$browser.FullName) -ine 'explorer.exe'){continue}
-      $folder=[string]$browser.Document.Folder.Self.Path
-      if(!(Same-Folder $folder $target)){continue}
-      $tab=[IntPtr]::Zero
-      try{$tab=[DFFolderNative]::TabHandle($browser)}catch{}
-      $active=[DFFolderNative]::ActiveTab($frame)
-      $matches+= [PSCustomObject]@{Browser=$browser;Frame=$frame;Tab=$tab;Active=($active -eq [IntPtr]::Zero -or ($tab -ne [IntPtr]::Zero -and $active -eq $tab));Foreground=([DFFolderNative]::GetForegroundWindow() -eq $frame)}
-    }catch{$unknown=$true}
-  }
-  if($matches.Count -eq 0){
-    # No proven match: preserve previous normal path opening behavior.
-    Result 'missing';return
-  }
-  foreach($match in ($matches|Sort-Object -Property @{Expression={$_.Active -and $_.Foreground};Descending=$true},@{Expression={$_.Active};Descending=$true})){
+  $matching=@($rows|Where-Object {$_.Match})
+  if($matching.Count -eq 0){Note 'no matching Explorer folder';Result 'missing';return}
+  foreach($match in ($matching|Sort-Object -Property @{Expression={$_.Active -and $_.Foreground};Descending=$true},@{Expression={$_.Active};Descending=$true})){
     try{
       $frame=$match.Frame
-      if(![DFFolderNative]::IsWindow($frame) -or !(Same-Folder ([string]$match.Browser.Document.Folder.Self.Path) $target)){continue}
+      if(![DFFolderNative]::IsWindow($frame) -or !(Browser-Match $match.Browser $target)){Note 'candidate vanished or changed';continue}
       $active=[DFFolderNative]::ActiveTab($frame)
-      if($active -ne [IntPtr]::Zero){
-        if($match.Tab -eq [IntPtr]::Zero -or [DFFolderNative]::GetParent($match.Tab) -ne $frame -or [DFFolderNative]::ClassName($match.Tab) -ne 'ShellTabWindowClass'){continue}
-      }
+      Note ("selectedFrame="+$frame.ToInt64()+" selectedTab="+$match.Tab.ToInt64()+" activeTab="+$active.ToInt64())
+      if($active -ne [IntPtr]::Zero -and ($match.Tab -eq [IntPtr]::Zero -or [DFFolderNative]::ClassName($match.Tab) -ne 'ShellTabWindowClass')){Note 'tab identity unavailable';continue}
       if([DFFolderNative]::IsIconic($frame)){
-        [void][DFFolderNative]::ShowWindowAsync($frame,9)
+        Note ("restore="+[DFFolderNative]::ShowWindowAsync($frame,9))
         for($wait=0;$wait -lt 15 -and [DFFolderNative]::IsIconic($frame);$wait++){Start-Sleep -Milliseconds 40}
-        if([DFFolderNative]::IsIconic($frame)){continue}
+        if([DFFolderNative]::IsIconic($frame)){Note 'restore not confirmed';continue}
       }
       if($active -ne [IntPtr]::Zero -and [DFFolderNative]::ActiveTab($frame) -ne $match.Tab){
         $count=[Math]::Min(32,[DFFolderNative]::TabCount($frame))
         for($index=1;$index -le $count;$index++){
-          if(![DFFolderNative]::SelectIndex($frame,$index)){break}
-          for($wait=0;$wait -lt 5 -and [DFFolderNative]::ActiveTab($frame) -ne $match.Tab;$wait++){Start-Sleep -Milliseconds 40}
+          if(!(Browser-Match $match.Browser $target)){break}
+          $selected=[DFFolderNative]::SelectIndex($frame,$index)
+          Note ("tabIndex"+$index+"="+$selected)
+          if(!$selected){break}
+          for($wait=0;$wait -lt 5 -and [DFFolderNative]::ActiveTab($frame) -ne $match.Tab;$wait++){Start-Sleep -Milliseconds 50}
           if([DFFolderNative]::ActiveTab($frame) -eq $match.Tab){break}
         }
-        if([DFFolderNative]::ActiveTab($frame) -ne $match.Tab){continue}
+        if([DFFolderNative]::ActiveTab($frame) -ne $match.Tab){Note 'tab selection not confirmed';continue}
       }
-      if(!(Same-Folder ([string]$match.Browser.Document.Folder.Self.Path) $target)){continue}
-      if([DFFolderNative]::GetForegroundWindow() -ne $frame){[void][DFFolderNative]::SetForegroundWindow($frame)}
-      for($wait=0;$wait -lt 10 -and [DFFolderNative]::GetForegroundWindow() -ne $frame;$wait++){Start-Sleep -Milliseconds 30}
-      if([DFFolderNative]::GetForegroundWindow() -eq $frame -and (Same-Folder ([string]$match.Browser.Document.Folder.Self.Path) $target) -and ($active -eq [IntPtr]::Zero -or [DFFolderNative]::ActiveTab($frame) -eq $match.Tab)){
+      if(!(Browser-Match $match.Browser $target)){continue}
+      if([DFFolderNative]::GetForegroundWindow() -ne $frame){Note ("setForeground="+[DFFolderNative]::SetForegroundWindow($frame))}
+      if(!(Wait-Foreground $frame)){
+        if(!(Browser-Match $match.Browser $target) -or ($active -ne [IntPtr]::Zero -and [DFFolderNative]::ActiveTab($frame) -ne $match.Tab)){continue}
+        foreach($detail in [DFFolderNative]::AttachedFocus($frame)){Note $detail}
+        [void](Wait-Foreground $frame)
+      }
+      Note ("afterForeground="+[DFFolderNative]::GetForegroundWindow().ToInt64())
+      if([DFFolderNative]::GetForegroundWindow() -eq $frame -and ![DFFolderNative]::IsIconic($frame) -and (Browser-Match $match.Browser $target) -and ($active -eq [IntPtr]::Zero -or [DFFolderNative]::ActiveTab($frame) -eq $match.Tab)){
         Result 'focused';return
       }
-    }catch{}
+    }catch{Note ('candidate-error='+$_.Exception.Message)}
   }
   Result 'matched-not-focused'
 }catch{Result 'error' $_.Exception.Message}

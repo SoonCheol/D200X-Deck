@@ -949,25 +949,44 @@ ipcMain.handle('d200x:inspect-dropped-target',async(event,args)=>{
 
 // Dedicated folder control; do not reuse process-based app focus (multiple Explorer windows share a PID).
 let folderControlTail=Promise.resolve();
+async function writeFolderControlLog(record){
+  try{
+    const dir=path.join(app.getPath('userData'),'diagnostics');
+    await fs.promises.mkdir(dir,{recursive:true});
+    await fs.promises.appendFile(path.join(dir,'folder-control-'+new Date().toISOString().slice(0,10)+'.jsonl'),
+      JSON.stringify({at:new Date().toISOString(),...record})+'\n','utf8');
+  }catch(error){console.warn('DeckForge folder control diagnostic:',error.message);}
+}
 async function runFolderControl(filePath,alwaysNewWindow){
-  const script=await fs.promises.readFile(path.join(__dirname,'folder-control.ps1'),'utf8');
-  const {stdout}=await execFileAsync('powershell.exe',
-    ['-NoProfile','-NonInteractive','-STA','-WindowStyle','Hidden','-EncodedCommand',Buffer.from(script,'utf16le').toString('base64')],{
-      windowsHide:true,timeout:20000,maxBuffer:65536,
-      env:{...process.env,DECKFORGE_FOLDER_TARGET:Buffer.from(filePath,'utf16le').toString('base64'),
-        DECKFORGE_FOLDER_MODE:alwaysNewWindow?'New':'Focus'}
-    });
-  const result=JSON.parse(String(stdout));
-  if(result.status==='focused'||result.status==='opened')return true;
-  if(result.status==='missing'&&!alwaysNewWindow){
-    const error=await shell.openPath(filePath);
-    if(error)throw new Error(error);
-    // Allow the newly opened folder to register in Shell.Windows before the next queued press.
-    await new Promise(resolve=>setTimeout(resolve,500));
-    return true;
+  const traceId=randomUUID();
+  const record={traceId,version:app.getVersion(),mainPid:process.pid,path:filePath,alwaysNewWindow,
+    mode:alwaysNewWindow?'New':'Focus'};
+  await writeFolderControlLog({...record,stage:'request'});
+  try{
+    const script=await fs.promises.readFile(path.join(__dirname,'folder-control.ps1'),'utf8');
+    const {stdout,stderr}=await execFileAsync('powershell.exe',
+      ['-NoProfile','-NonInteractive','-STA','-WindowStyle','Hidden','-EncodedCommand',Buffer.from(script,'utf16le').toString('base64')],{
+        windowsHide:true,timeout:30000,maxBuffer:1024*1024,
+        env:{...process.env,DECKFORGE_FOLDER_TARGET:Buffer.from(filePath,'utf16le').toString('base64'),
+          DECKFORGE_FOLDER_MODE:record.mode}
+      });
+    const result=JSON.parse(String(stdout));
+    await writeFolderControlLog({...record,stage:'helper-result',result,...(stderr?{stderr:String(stderr).slice(0,4000)}:{})});
+    if(result.status==='focused'||result.status==='opened')return true;
+    if(result.status==='missing'&&!alwaysNewWindow){
+      const error=await shell.openPath(filePath);
+      await writeFolderControlLog({...record,stage:'open-missing',error: error||null});
+      if(error)throw new Error(error);
+      await new Promise(resolve=>setTimeout(resolve,500));
+      return true;
+    }
+    if(result.status==='matched-not-focused')throw new Error('동일 폴더를 찾았지만 창 또는 탭을 활성화하지 못했습니다. 새 창은 열지 않았습니다.');
+    if(result.status==='new-not-confirmed')throw new Error('새 창 생성이 확인되지 않았습니다. 중복 실행을 방지하기 위해 다시 열지 않았습니다.');
+    throw new Error('탐색기 폴더 제어 실패: '+String(result.reason||result.status));
+  }catch(error){
+    await writeFolderControlLog({...record,stage:'error',error:String(error.message||error)});
+    throw error;
   }
-  if(result.status==='matched-not-focused')throw new Error('동일 폴더를 찾았지만 창 또는 탭을 활성화하지 못했습니다. 새 창은 열지 않았습니다.');
-  throw new Error('탐색기 폴더 제어 실패: '+String(result.reason||result.status));
 }
 function queueFolderControl(filePath,alwaysNewWindow){
   const task=folderControlTail.then(()=>runFolderControl(filePath,alwaysNewWindow));

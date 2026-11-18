@@ -17,3 +17,22 @@ test('Windows PowerShell 5.1 compiles folder helper and checks path equality wit
   });
   assert.equal(JSON.parse(output).status,'validated',output);
 });
+
+test('new-window success requires a new matching frame; fallback only on rejected verb',()=>{
+  const ps=source('folder-control.ps1'),main=source('main.cjs');
+  assert.match(ps,/\$result\.ToInt64\(\) -le 32/);
+  assert.match(ps,/\$before=@\(\$rows\|ForEach-Object/);
+  assert.match(ps,/\$_\.Match -and \$_\.Frame\.ToInt64\(\) -notin \$before/);
+  assert.match(ps,/\$fresh\.Count -gt 0/);
+  assert.match(ps,/Result 'new-not-confirmed'/);
+  assert.match(main,/result\.status==='new-not-confirmed'/);
+});
+test('focus uses exact match and verified foreground, attached input released in finally',()=>{
+  const ps=source('folder-control.ps1'),main=source('main.cjs');
+  assert.match(ps,/if\(!\(Wait-Foreground \$frame\)\)/);
+  assert.match(ps,/finally \{if\(attached\)detached=AttachThreadInput\(current,other,false\);\}/);
+  assert.match(ps,/\[DFFolderNative\]::GetForegroundWindow\(\) -eq \$frame -and !\[DFFolderNative\]::IsIconic/);
+  assert.match(main,/stage:'helper-result'/);
+  assert.match(main,/folder-control-'\+new Date/);
+  assert.match(main,/alwaysNewWindow,\s*\n\s*mode:/);
+});
