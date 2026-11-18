@@ -916,6 +916,11 @@ function showPanelActionHelp(id,label){
   dialog.append(heading,body,close);document.body.append(dialog);
   dialog.addEventListener('close',()=>dialog.remove(),{once:true});dialog.showModal();
 }
+function dismissPanelActionOptions(event){
+  if(event.target.closest?.('.action-customize, .action-override-controls'))return;
+  document.querySelectorAll('#library-list .action-override-controls').forEach(menu=>menu.remove());
+}
+document.addEventListener('click',dismissPanelActionOptions,true);
 function renderLibrary(){
   const root=$("library-list");root.replaceChildren();
   const query=$("action-search").value.trim().toLocaleLowerCase();
@@ -946,8 +951,10 @@ function renderLibrary(){
       customise.textContent="⋯";customise.title=label+" 설명 및 아이콘 설정";customise.setAttribute("aria-label",label+" 설명 및 아이콘 설정");
       customise.addEventListener("click",event=>{
         event.stopPropagation();
-        const old=body.querySelector(".action-override-controls");
-        if(old){const same=old.parentElement===entry;old.remove();if(same)return;}
+        const old=root.querySelector(".action-override-controls");
+        const same=old?.parentElement===entry;
+        root.querySelectorAll(".action-override-controls").forEach(menu=>menu.remove());
+        if(same)return;
         const tools=document.createElement("div");tools.className="action-override-controls";
         const description=document.createElement("button");description.type="button";description.textContent="액션 설명";
         description.addEventListener("click",ev=>{ev.stopPropagation();tools.remove();showPanelActionHelp(id,label);});

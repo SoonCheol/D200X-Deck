@@ -159,3 +159,25 @@ test('basic panel reclassification keeps every action ID and legacy accent',()=>
   assert.match(editor,/\["folder","덱폴더"/);
 });
 
+
+test('action option menu dismisses only on outside click and opens one menu across groups',()=>{
+  const code=editor.match(/function dismissPanelActionOptions\(event\)\{[\s\S]*?\n\}/)?.[0];
+  assert.ok(code);
+  let removed=0;
+  const scope={document:{querySelectorAll:selector=>{
+    assert.equal(selector,'#library-list .action-override-controls');
+    return [{remove:()=>removed++},{remove:()=>removed++}];
+  }}};
+  vm.runInNewContext(code,scope);
+  for(const inside of ['menu','trigger']){
+    scope.dismissPanelActionOptions({target:{closest:()=>inside}});
+    assert.equal(removed,0);
+  }
+  scope.dismissPanelActionOptions({target:{closest:()=>null}});
+  assert.equal(removed,2);
+  assert.match(editor,/document\.addEventListener\('click',dismissPanelActionOptions,true\)/);
+  assert.match(editor,/const old=root\.querySelector\("\.action-override-controls"\)/);
+  assert.match(editor,/const same=old\?\.parentElement===entry/);
+  assert.match(editor,/root\.querySelectorAll\("\.action-override-controls"\)\.forEach\(menu=>menu\.remove\(\)\)/);
+});
+
