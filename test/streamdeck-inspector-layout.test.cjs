@@ -113,7 +113,7 @@ test('title alignment keeps original three buttons but uses legible 20px SVG ico
 });
 
 test('folder shortcut moves the existing checkbox before its label into the save toolbar only',()=>{
-  const move=editor.slice(editor.indexOf("    if(item.type==='folder-shortcut'){\n      const checkbox="),editor.indexOf("    const saveBar=root.querySelector('.inspector-footer-region');"));
+  const move=editor.match(/if\(item\.type==='folder-shortcut'\)\{\s*const checkbox=[\s\S]*?(?=const saveBar=root\.querySelector\('\.inspector-footer-region'\))/)?.[0]||'';
   assert.match(move,/if\(item\.type==='folder-shortcut'\)/);
   assert.match(move,/\[data-field="alwaysNewWindow"\]/);
   assert.match(move,/field\.prepend\(checkbox\)/);
