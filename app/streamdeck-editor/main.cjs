@@ -771,6 +771,48 @@ function requireLocalWindowsPath(value){
       /[\x00-\x1f\x7f]/.test(value))throw new Error('올바른 Windows 파일 경로를 지정하세요.');
   return value;
 }
+// Prefer the requested 256px Windows icon resource; retain Electron's
+// shell icon as a fallback for files without a suitable resource.
+async function extractLargeApplicationIcon(filePath,index=0){
+  if(process.platform!=='win32'||!path.win32.isAbsolute(filePath))return null;
+  const code=`$ErrorActionPreference='Stop'
+Add-Type -AssemblyName System.Drawing
+Add-Type -TypeDefinition @'
+using System;
+using System.Runtime.InteropServices;
+public static class DeckForgeAppIcon {
+  [DllImport("shell32.dll", CharSet=CharSet.Unicode, ExactSpelling=true)]
+  public static extern int SHDefExtractIconW(string path, int index, uint flags, out IntPtr large, IntPtr small, uint size);
+  [DllImport("user32.dll")] public static extern bool DestroyIcon(IntPtr icon);
+}
+'@
+$handle=[IntPtr]::Zero
+try {
+  $result=[DeckForgeAppIcon]::SHDefExtractIconW($env:DECKFORGE_ICON_FILE,[int]$env:DECKFORGE_ICON_INDEX,0,[ref]$handle,[IntPtr]::Zero,256)
+  if($result -ne 0 -or $handle -eq [IntPtr]::Zero){return}
+  $icon=[System.Drawing.Icon]::FromHandle($handle)
+  try {
+    $bitmap=$icon.ToBitmap()
+    try {
+      $stream=New-Object System.IO.MemoryStream
+      try {
+        $bitmap.Save($stream,[System.Drawing.Imaging.ImageFormat]::Png)
+        [Console]::Write([Convert]::ToBase64String($stream.ToArray()))
+      } finally {$stream.Dispose()}
+    } finally {$bitmap.Dispose()}
+  } finally {$icon.Dispose()}
+} finally {
+  if($handle -ne [IntPtr]::Zero){[void][DeckForgeAppIcon]::DestroyIcon($handle)}
+}`;
+  try{
+    const {stdout}=await execFileAsync('powershell.exe',['-NoProfile','-NonInteractive','-Command',code],{
+      windowsHide:true,timeout:8000,maxBuffer:1024*1024,
+      env:{...process.env,DECKFORGE_ICON_FILE:filePath,DECKFORGE_ICON_INDEX:String(index)}
+    });
+    const image=nativeImage.createFromBuffer(Buffer.from(String(stdout).trim(),'base64'));
+    return image.isEmpty()?null:image;
+  }catch{return null;}
+}
 async function inspectWindowsApplication(filePath){
   const requested=requireLocalWindowsPath(filePath);
   const ext=path.win32.extname(requested).toLowerCase();
@@ -796,7 +838,11 @@ async function inspectWindowsApplication(filePath){
   }
   let icon='';
   try{
-    const image=await app.getFileIcon(ext==='.lnk'?requested:target,{size:'large'});
+    const custom=typeof shortcut?.icon==='string'&&shortcut.icon.trim()?shortcut.icon:null;
+    const iconPath=custom||target;
+    const iconIndex=custom&&Number.isInteger(shortcut.iconIndex)?shortcut.iconIndex:0;
+    const image=await extractLargeApplicationIcon(iconPath,iconIndex)||
+      await app.getFileIcon(ext==='.lnk'?requested:target,{size:'large'});
     if(image&&!image.isEmpty())icon='data:image/png;base64,'+image.toPNG().toString('base64');
   }catch{}
   return {path:requested,name,icon};

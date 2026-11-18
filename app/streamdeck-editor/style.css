@@ -800,7 +800,7 @@
   border-radius:5px;font-size:11px;white-space:nowrap
 }
 .state-title-inspector .state-title-toolbar .inspector-save-bar{
-  position:static;bottom:auto;flex:0 0 auto;margin:0;padding:0;border:0;
+  position:static;bottom:auto;flex:0 0 auto;margin:0 0 0 auto;padding:0;border:0;
   background:transparent;gap:8px
 }
 .state-title-inspector .state-title-layout{

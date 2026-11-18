@@ -1375,13 +1375,14 @@ function renderLogicEditor(item,root){
 async function updateApplicationArtwork(item,filePath){
   if(!window.deckBridge?.inspectAppFile||!item||!/\.(exe|lnk|bat|cmd)$/i.test(filePath))return;
   const info=await window.deckBridge.inspectAppFile(filePath);
+  const artwork=info?.icon?await rasterizeIcon(info.icon,144,100):null;
   if(!DeckCore.visibleActions(state).includes(item)||
       ![item.settings?.path,item.settings?.app].includes(filePath))return;
   if(info?.name&&(!item.title||item.title===item.settings?.autoAppTitle)){
     item.title=info.name;item.settings.autoAppTitle=info.name;
   }
-  if(info?.icon&&(!item.icon||item.settings?.autoAppIcon===true)){
-    item.icon={kind:'file',value:info.icon};item.settings.autoAppIcon=true;
+  if(artwork&&(!item.icon||item.settings?.autoAppIcon===true)){
+    item.icon={kind:'file',value:artwork};item.settings.autoAppIcon=true;
   }
   persistInspectorChange();render();
 }
@@ -1390,12 +1391,14 @@ async function registerDroppedApplication(index,filePath){
     if(!Number.isInteger(index)||index<0||index>=13||!window.deckBridge?.inspectAppFile)return;
     const previous=currentPage()[index];
     if(previous&&!confirm('기존 버튼의 액션을 프로그램 실행으로 교체할까요?'))return;
+    const page=currentPage();
     const info=await window.deckBridge.inspectAppFile(filePath);
-    if(!info||currentPage()[index]!==previous)return;
+    const artwork=info?.icon?await rasterizeIcon(info.icon,144,100):null;
+    if(!info||currentPage()!==page||page[index]!==previous)return;
     const action=newAction('open-app');
     action.settings.app=info.path;
     if(info.name){action.title=info.name;action.settings.autoAppTitle=info.name;}
-    if(info.icon){action.icon={kind:'file',value:info.icon};action.settings.autoAppIcon=true;}
+    if(artwork){action.icon={kind:'file',value:artwork};action.settings.autoAppIcon=true;}
     setItem(index,action);
   }catch(error){window.d200xActionStatus?.('프로그램 드래그 등록 실패: '+String(error?.message||error));}
 }
@@ -2543,6 +2546,22 @@ function exportSlotAction(action){
     setTimeout(()=>URL.revokeObjectURL(url),1000);
   }catch(error){window.d200xActionStatus?.('동작 내보내기 실패: '+String(error?.message||error));}
 }
+function canCutSlot(index){
+  return Number.isInteger(index)&&index>=0&&index<13&&Boolean(currentPage()?.[index])&&
+    (Boolean(state.folderPath?.length)||!state.pinned?.[index]);
+}
+function cutClipboardAction(index){
+  if(!canCutSlot(index))return false;
+  if(inspectorSession?.dirty){showInspectorLeaveDialog(()=>cutClipboardAction(index));return false;}
+  const page=currentPage(),item=page[index],previousClipboard=clipboard,previousSelected=state.selected;
+  clipboard=clone(item);
+  page[index]=null;state.selected=index;
+  if(!persist()){
+    page[index]=item;state.selected=previousSelected;clipboard=previousClipboard;
+    render();return false;
+  }
+  clearOldSdkVisual(index);render();return true;
+}
 function pasteClipboardAction(index){
   if(!clipboard||!Number.isInteger(index)||index<0||index>=14||reservedWideSlot(index))return false;
   const existing=DeckCore.visibleActions(state)[index];
@@ -2576,6 +2595,7 @@ function showMenu(index,x,y){
       if(state.pinned?.[index])clearOldSdkVisual(index);
       if(DeckCore.togglePinned(state,index)){persist();render();}
     });
+    add("잘라내기　Ctrl+X",canCutSlot(index)?()=>cutClipboardAction(index):null);
     add("복사하기　Ctrl+C",()=>{clipboard=clone(item);});
     add("붙여넣기　Ctrl+V",clipboard?()=>pasteClipboardAction(index):null);
     add("폴더로 이동",isLocal?()=>{
@@ -2594,17 +2614,19 @@ function showMenu(index,x,y){
     add("삭제",()=>removeSlotAction(index));
   }
   menu.style.left=Math.max(0,Math.min(x,window.innerWidth-230))+"px";
-  menu.style.top=Math.max(0,Math.min(y,window.innerHeight-380))+"px";
+  menu.style.top=Math.max(0,Math.min(y,window.innerHeight-415))+"px";
   menu.hidden=false;
 }
 let clipboard=null;
 window.addEventListener("click",ev=>{if(!ev.target.closest("#key-menu"))$("key-menu").hidden=true;});
 window.addEventListener("keydown",ev=>{
   if(ev.key==="Escape")$("key-menu").hidden=true;
-  if(!ev.ctrlKey||ev.altKey||ev.metaKey||["INPUT","TEXTAREA"].includes(document.activeElement.tagName))return;
+  if(!ev.ctrlKey||ev.altKey||ev.metaKey||(["INPUT","TEXTAREA","SELECT"].includes(document.activeElement?.tagName)||document.activeElement?.isContentEditable))return;
   const key=ev.key.toLowerCase(),index=state.selected;
   if(index===null||index<0||index>=14||reservedWideSlot(index))return;
-  if(key==="c"){
+  if(key==="x"&&canCutSlot(index)){
+    ev.preventDefault();cutClipboardAction(index);
+  }else if(key==="c"){
     const item=DeckCore.visibleActions(state)[index];
     if(item){ev.preventDefault();clipboard=clone(item);}
   }else if(key==="v"&&clipboard){
@@ -3506,15 +3528,16 @@ function applyStateIconData(target,key,uri){
   persistInspectorChange();render();
 }
 function applyIconData(target,uri){applyStateIconData(target,null,uri);}
-function rasterizeIcon(uri){
+function rasterizeIcon(uri,size=196,contentSize=size){
   return new Promise((resolve,reject)=>{
     const image=new Image();
     image.onload=()=>{
-      const canvas=document.createElement("canvas");canvas.width=196;canvas.height=196;
+      const canvas=document.createElement("canvas");canvas.width=size;canvas.height=size;
       const ctx=canvas.getContext("2d");
-      const scale=Math.min(196/image.width,196/image.height);
+      ctx.imageSmoothingQuality="high";
+      const scale=Math.min(contentSize/image.width,contentSize/image.height);
       const w=image.width*scale,h=image.height*scale;
-      ctx.drawImage(image,(196-w)/2,(196-h)/2,w,h);
+      ctx.drawImage(image,(size-w)/2,(size-h)/2,w,h);
       resolve(canvas.toDataURL("image/png"));
     };
     image.onerror=()=>reject(new Error("이미지를 열 수 없습니다."));
