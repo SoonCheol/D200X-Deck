@@ -1,0 +1,5 @@
+const zone=document.querySelector('#zone'),log=document.querySelector('#log'),records=[];
+document.querySelector('#version').textContent=JSON.stringify(probe.versions);
+function add(x){records.push({time:new Date().toISOString(),label:document.querySelector('#label').value,...x});log.value=JSON.stringify({versions:probe.versions,records},null,2);}
+for(const event of ['dragenter','dragover','drop'])window.addEventListener(event,e=>{e.preventDefault();if(event==='dragover'){e.dataTransfer.dropEffect='copy';return;}const d=e.dataTransfer;if(!d)return;const files=Array.from(d.files,f=>{let path,error;try{path=probe.pathForFile(f)}catch(e){error=String(e)}return {name:f.name,size:f.size,type:f.type,path,error}});const strings={};if(event==='drop')for(const t of d.types)if(t!=='Files'){try{strings[t]=d.getData(t).slice(0,4096)}catch(e){strings[t]=String(e)}}add({event,types:Array.from(d.types),items:Array.from(d.items,i=>({kind:i.kind,type:i.type})),files,strings,effectAllowed:d.effectAllowed,dropEffect:d.dropEffect});});
+document.querySelector('#save').onclick=()=>probe.save(log.value);document.querySelector('#clear').onclick=()=>{records.length=0;log.value='';};
