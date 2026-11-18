@@ -321,7 +321,16 @@ jobs:
       - name: Validate portable folder helper using production launcher
         shell: pwsh
         run: |
-          $env:DECKFORGE_TEST_HELPER_DIR = (Resolve-Path 'app/dist/DeckForge-win32-x64/resources/app/streamdeck-editor').Path
+          $resources = (Resolve-Path 'app/dist/DeckForge-win32-x64/resources').Path
+          if (Test-Path (Join-Path $resources 'app.asar') -PathType Leaf) {
+            # External child processes require a real filesystem path, not an ASAR entry.
+            $physical = Join-Path $resources 'app.asar.unpacked/streamdeck-editor'
+            New-Item -ItemType Directory -Force $physical | Out-Null
+            Copy-Item -LiteralPath 'app/preview-device-build/streamdeck-editor/folder-control-helper.exe' -Destination $physical -Force
+            $env:DECKFORGE_TEST_HELPER_DIR = Join-Path $resources 'app.asar/streamdeck-editor'
+          } else {
+            $env:DECKFORGE_TEST_HELPER_DIR = (Resolve-Path (Join-Path $resources 'app/streamdeck-editor')).Path
+          }
           try {
             node --test test/deckforge-folder-control.test.cjs
             if ($LASTEXITCODE -ne 0) { throw 'Portable folder helper validation failed' }
