@@ -6,7 +6,7 @@ window.D200XPanelIcons=(()=>{
     ["D200X 장치·화면",["brightness","device-brightness","sleep","virtual"]],
     ["D200X 탐색",["folder","profile","previous","next","goto","indicator"]],
     ["앱·파일·웹 실행",["open-app","close","file-open","folder-shortcut","explorer-open","website","open"]],
-    ["오디오·미디어",["system-volume","system-mute","media","audio-play","audio-stop"]],
+    ["멀티미디어",["system-volume","system-mute","media","audio-play","audio-stop"]],
     ["윈도우 창 관리",["window-switch","window-state","window-monitor","desktop-switch"]],
     ["키보드·마우스",["hotkey","hotkey-switch","text","system-scroll","edit-history","system-zoom"]],
     ["자동화·다중 동작",["multi","multi-switch","random","logic"]],

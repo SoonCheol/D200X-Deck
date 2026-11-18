@@ -7,7 +7,7 @@ DeckForge는 Ulanzi D200X의 화면 버튼, 측면 버튼, 노브와 프로필�
 - 설치: [DeckForge integrated Windows build](https://github.com/SoonCheol/D200X-Deck/actions/workflows/streamdeck-clean-preview.yml)의 성공한 실행에서 `DeckForge-<버전>-Setup-win-x64` 설치형 또는 `DeckForge-<버전>-win-x64` 포터블 아티팩트를 다운로드합니다. 설치형을 설치하거나 포터블 압축을 풀어 DeckForge를 실행합니다.
 - 연결: D200X USB를 다른 프로그램이 점유 중이면 해당 프로그램을 종료합니다. DeckForge의 D200X 연결 상태를 확인합니다.
 - 액션 등록: 오른쪽 액션 목록에서 원하는 항목을 키나 지원하는 물리 입력에 드래그하거나 선택된 키에 클릭으로 등록합니다. 각 액션의 ⋯ → 액션 설명에서 사용 방법과 제한을 확인합니다. 속성을 편집한 후 저장합니다.
-- 기본 액션: D200X 장치·화면, D200X 탐색, 앱·파일·웹 실행, 오디오·미디어, 키보드·마우스, 자동화·다중 동작, 유틸리티. 중복 키 명령은 단축키의 동작 선택기에서 선택합니다. Virtual DeckForge 토글은 현재 지원 예정입니다.
+- 기본 액션: D200X 장치·화면, D200X 탐색, 앱·파일·웹 실행, 멀티미디어, 키보드·마우스, 자동화·다중 동작, 유틸리티. 중복 키 명령은 단축키의 동작 선택기에서 선택합니다. Virtual DeckForge 토글은 현재 지원 예정입니다.
 - 아이콘: DeckForge 아이콘 라이브러리에서 기본·가져온 아이콘팩을 이용할 수 있으며, 기존 사용자 지정 아이콘과 프로필은 유지됩니다. Stream Deck 및 Ulanzi 호환 팩은 지원 형식 이름을 그대로 표기합니다.
 - 플러그인: DeckForge에 설치한 Stream Deck SDK 호환 플러그인은 플러그인 탭에서 관리합니다. FusionStreamDeck은 Autodesk의 실제 애드인 명칭이므로 변경하지 않습니다. Fusion Command Manager의 자체 도움말을 참고합니다.
 

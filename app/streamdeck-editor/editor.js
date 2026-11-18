@@ -6,8 +6,8 @@ const ORIGINAL_CATALOG = [
   ["Soundboard", [["audio-play","효과음 재생","♫"],["audio-stop","효과음 정지","◼"]]],
   ["DeckForge", [["timer","타이머","◴"],["brightness","D200X 밝기 설정","☼"],["sleep","D200X 화면 끄기","☾"],["virtual","Virtual DeckForge 토글","▣"]]],
   ["다중 동작", [["multi","다중 동작","▤"],["multi-switch","다중 동작 스위치","⇄"],["random","무작위 동작","⚄"],["logic","Key Logic","⇧"]]],
-  ["시스템", [["website","웹페이지","◎"],["hotkey-switch","단축키 전환","⇄"],["hotkey","단축키","⌨"],["open","열기 (통합)","▢"],["open-app","프로그램 열기","▣"],["close","응용 프로그램 종료","×"],["text","텍스트 입력","¶"],["media","재생 제어","♫"]]],
-  ["탐색", [["folder","덱폴더","▣"],["profile","프로필 전환","⇆"],["previous","이전 페이지","←"],["next","다음 페이지","→"],["goto","선택 페이지로 이동","↗"],["indicator","페이지 표시","①"]]],
+  ["시스템", [["website","웹페이지","◎"],["hotkey-switch","단축키 전환","⇄"],["hotkey","단축키","⌨"],["open","열기 (통합)","▢"],["open-app","프로그램 열기","▣"],["close","프로그램 종료","×"],["text","텍스트 입력","¶"],["media","재생 제어","♫"]]],
+  ["탐색", [["folder","덱폴더","▣"],["profile","프로필 전환","⇆"],["previous","이전 페이지","←"],["next","다음 페이지","→"],["goto","선택 페이지","↗"],["indicator","페이지 표시","①"]]],
   ["플러그인 · Home Assistant", [["ha-toggle","HA 장치 켜기/끄기","⌂"]]],
   ["D200X 추가 액션", [["system-volume","윈도우 음량 조절","🔊"],["system-mute","윈도우 음소거","🔇"],["system-scroll","윈도우 스크롤","↕"],["edit-history","실행 취소·다시 실행","↶"],["window-switch","창 전환","▣"],["desktop-switch","가상 데스크톱 전환","⇄"],["device-brightness","D200X 밝기 조절","☀"],["system-zoom","앱 확대·축소","⊕"],["screenshot","화면 캡처","▣"],["clipboard-edit","클립보드 편집","▤"],["window-state","창 상태","□"],["window-monitor","다른 모니터로 이동","⇆"],["explorer-open","파일 탐색기 열기","▢"],["brush-size","브러시 크기","◉"],["timeline-step","타임라인 한 단계","▶"],["timeline-zoom","타임라인 확대·축소 (앱별)","⊕"],["file-open","파일 열기","▣"],["folder-shortcut","폴더 열기","▢"]]]
 ];
@@ -1228,8 +1228,8 @@ function actionFields(item){
     case "website":return `<div class="field website-url-field"><label for="s-url">URL</label><div class="website-url-control"><label class="https-toggle"><input id="url-https" type="checkbox" ${/^https:\/\//i.test(String(item.settings?.url||''))?'checked':''}>HTTPS</label><input id="s-url" data-field="url" value="${escapeHtml(valueOf(item,'url'))}" placeholder="example.com"></div></div>`+select("open","다음으로 열기",[["default","기본 브라우저"],["get","백그라운드에서 GET 요청"],["choose","브라우저 직접 선택"]])+pathPicker("browserPath","선택 브라우저 (.exe)","app");
     case "open":return pathPicker("path","앱 / 파일")+input("args","인수");
     case "open-app":if(String(item.settings?.app||'').startsWith('shell:AppsFolder\\'))
-      return '<div class="field"><label>앱</label><input readonly value="'+escapeHtml(item.settings.app)+'"></div>'+select("hold","길게 누르기",[["none","아무것도 하지 않음"],["close","응용 프로그램 종료"],["force","응용 프로그램 강제 종료"]])+check("foreground","앞으로 가져오기");
-      return pathPicker("app","앱","app")+input("args","인수")+select("hold","길게 누르기",[["none","아무것도 하지 않음"],["close","응용 프로그램 종료"],["force","응용 프로그램 강제 종료"]])+check("foreground","앞으로 가져오기");
+      return '<div class="field"><label>앱</label><input readonly value="'+escapeHtml(item.settings.app)+'"></div>'+select("hold","길게 누르기",[["none","아무것도 하지 않음"],["close","프로그램 종료"],["force","프로그램 강제 종료"]])+check("foreground","앞으로 가져오기");
+      return pathPicker("app","앱","app")+input("args","인수")+select("hold","길게 누르기",[["none","아무것도 하지 않음"],["close","프로그램 종료"],["force","프로그램 강제 종료"]])+check("foreground","앞으로 가져오기");
     case "close":return pathPicker("path","앱 / 파일")+check("force","강제 종료");
     case "hotkey":return select("preset","동작 선택기",HOTKEY_PRESET_LABELS)+input("keys","단축키","클릭하여 할당");
     case "hotkey-switch":return input("first","단축키 1")+input("second","단축키 2");

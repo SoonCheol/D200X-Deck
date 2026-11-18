@@ -2,7 +2,13 @@
 
 > **상태 기록 기준: 2026-11-19**. 실제 최신 HEAD는 Git에서 확인하며, 코드·자동 검사·Windows 빌드·사용자 Windows/D200X 실기 결과를 구분한다. 시작 시 `AGENTS.md`와 이 문서만 읽고 로드맵은 필요한 경우에만 참고한다.
 
-## 1. 최신 작업 인계 — 1.1.24 DeckForge 표시 명칭 정리 (2026-11-19)
+## 1. 최신 작업 인계 — 1.1.25 액션 명칭 간결화 (2026-11-19)
+
+- 사용자 승인 명칭 3건: 선택 페이지로 이동 → 선택 페이지, 응용 프로그램 종료 → 프로그램 종료, 오디오·미디어 → 멀티미디어. 프로그램 열기의 길게 누르기 종료/강제 종료 옵션도 같은 용어로 통일하고 현재 README 및 검증 테스트를 갱신. 액션 ID·실행 로직·색상·저장 데이터 변경 없음. 복합 동작 예제 추가는 별도 보류. 버전 1.1.25. Windows 빌드 및 실제 GUI 확인은 별도.
+
+### 1.1.24 DeckForge 표시 명칭 정리 (2026-11-19)
+
+- [Windows 빌드 #733](https://github.com/SoonCheol/D200X-Deck/actions/runs/44418113326), [입력 검증 #376](https://github.com/SoonCheol/D200X-Deck/actions/runs/44418113458), [CI #985](https://github.com/SoonCheol/D200X-Deck/actions/runs/44418123305) 성공.
 
 - 사용자 요청: 앱 자체 명칭을 DeckForge로 통일. 아이콘 라이브러리 메뉴, 플러그인 설치/선택 창과 상태 메시지, SDK 호환 플러그인 안내, 아이콘팩 가져오기 툴팁 및 앱 README의 현재 사용 안내를 정리함. D200X는 장치명으로 유지하고 Elgato Stream Deck SDK, Autodesk FusionStreamDeck, Ulanzi, 실제 파일 형식과 외부 제품명은 정확한 호환성 표기를 유지. 기존 SDK 식별자·프로토콜·저장 위치·파일 확장자·워크플로우 경로·기능 로직 미변경. 과거 개발 이력은 현재 안내와 구분해서 보존.
 - GitHub 알림의 과거 이름 원인: 기본 브랜치 main의 .github/workflows/streamdeck-clean-preview.yml에는 아직 'D200X StreamDeck device-sync preview'가 남아 있음. 유일한 개발 브랜치에는 이미 'DeckForge integrated Windows build'로 설정됨. main 직접 수정/병합은 기존 브랜치 제한상 하지 않음. 워크플로우 파일 이름이나 업데이트 링크는 변경하지 않음.

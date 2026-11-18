@@ -139,7 +139,7 @@ test('basic panel reclassification keeps every action ID and legacy accent',()=>
   vm.runInNewContext(originalPanel,sandbox);
   const panel=sandbox.window.D200XPanelIcons;
   const visible=Array.from(panel.groups).filter(([name])=>name!=='플러그인 · Home Assistant');
-  assert.deepEqual(visible.map(([name])=>name),["D200X 장치·화면","D200X 탐색","앱·파일·웹 실행","오디오·미디어","윈도우 창 관리","키보드·마우스","자동화·다중 동작","유틸리티","편집 작업 도구"]);
+  assert.deepEqual(visible.map(([name])=>name),["D200X 장치·화면","D200X 탐색","앱·파일·웹 실행","멀티미디어","윈도우 창 관리","키보드·마우스","자동화·다중 동작","유틸리티","편집 작업 도구"]);
   const ids=visible.flatMap(([,ids])=>Array.from(ids));
   const core=require(path.join(base,'deck-core.js'));
   assert.equal(ids.length,42);
@@ -230,5 +230,13 @@ test('DeckForge branding changes only own display text, not compatibility identi
   assert.match(main,/extensions:\['streamDeckPlugin','zip'\]/);
   assert.match(main,/extensions:\['streamDeckIconPack','sdIconPack'\]/);
   assert.match(main,/actions\/workflows\/streamdeck-clean-preview\.yml/);
+});
+
+
+test('updated action display names preserve stable ids and hold options',()=>{
+  assert.match(editor,/\["goto","선택 페이지"/);
+  assert.match(editor,/\["close","프로그램 종료"/);
+  assert.match(editor,/\["force","프로그램 강제 종료"\]/);
+  assert.doesNotMatch(editor,/"선택 페이지로 이동"|"응용 프로그램 종료"/);
 });
 
