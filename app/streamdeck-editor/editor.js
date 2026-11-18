@@ -3,13 +3,13 @@
  * D200X physical key dispatch: page navigation and default-browser URL only.
  * Packaging rebuild marker: no runtime behavior changes. */
 const ORIGINAL_CATALOG = [
-  ["Soundboard", [["audio-play","오디오 재생","♫"],["audio-stop","오디오 정지","◼"]]],
-  ["Stream Deck", [["timer","타이머","◴"],["brightness","밝기","☼"],["sleep","잠자기","☾"],["virtual","Virtual Stream Deck 토글","▣"]]],
+  ["Soundboard", [["audio-play","오디오 파일 재생","♫"],["audio-stop","오디오 파일 정지","◼"]]],
+  ["Stream Deck", [["timer","타이머","◴"],["brightness","D200X 밝기 설정","☼"],["sleep","화면 끄기","☾"],["virtual","Virtual Stream Deck 토글","▣"]]],
   ["다중 동작", [["multi","다중 동작","▤"],["multi-switch","다중 동작 스위치","⇄"],["random","무작위 동작","⚄"],["logic","Key Logic","⇧"]]],
-  ["시스템", [["website","웹사이트","◎"],["hotkey-switch","단축키 전환","⇄"],["hotkey","단축키","⌨"],["open","열기","▢"],["open-app","응용 프로그램 열기","▣"],["close","닫기","×"],["text","텍스트","¶"],["media","멀티미디어","♫"]]],
-  ["탐색", [["folder","폴더 생성","▣"],["profile","프로필 전환","⇆"],["previous","이전 페이지","←"],["next","다음 페이지","→"],["goto","페이지로 이동","↗"],["indicator","페이지 표시기","①"]]],
+  ["시스템", [["website","웹사이트","◎"],["hotkey-switch","단축키 전환","⇄"],["hotkey","단축키","⌨"],["open","열기 (통합)","▢"],["open-app","응용 프로그램 열기","▣"],["close","응용 프로그램 종료","×"],["text","텍스트 입력","¶"],["media","미디어 제어","♫"]]],
+  ["탐색", [["folder","덱폴더","▣"],["profile","프로필 전환","⇆"],["previous","이전 페이지","←"],["next","다음 페이지","→"],["goto","페이지로 이동","↗"],["indicator","페이지 표시기","①"]]],
   ["플러그인 · Home Assistant", [["ha-toggle","HA 장치 켜기/끄기","⌂"]]],
-  ["D200X 추가 액션", [["system-volume","Windows 음량 조절","🔊"],["system-mute","Windows 음소거","🔇"],["system-scroll","Windows 스크롤","↕"],["edit-history","실행 취소·다시 실행","↶"],["window-switch","창 전환","▣"],["desktop-switch","가상 데스크톱 전환","⇄"],["device-brightness","D200X 화면 밝기","☀"],["system-zoom","화면 확대·축소","⊕"],["screenshot","화면 캡처","▣"],["clipboard-edit","클립보드 편집","▤"],["window-state","창 상태","□"],["window-monitor","다른 모니터로 이동","⇆"],["explorer-open","파일 탐색기 열기","▢"],["brush-size","브러시 크기","◉"],["timeline-step","타임라인 한 단계","▶"],["timeline-zoom","타임라인 확대 단축키 (앱별)","⊕"],["file-open","지정 파일 열기","▣"],["folder-shortcut","지정 폴더 열기","▢"]]]
+  ["D200X 추가 액션", [["system-volume","Windows 음량 조절","🔊"],["system-mute","Windows 음소거","🔇"],["system-scroll","Windows 스크롤","↕"],["edit-history","실행 취소·다시 실행","↶"],["window-switch","창 전환","▣"],["desktop-switch","가상 데스크톱 전환","⇄"],["device-brightness","D200X 밝기 조절","☀"],["system-zoom","앱 확대·축소","⊕"],["screenshot","화면 캡처","▣"],["clipboard-edit","클립보드 편집","▤"],["window-state","창 상태","□"],["window-monitor","다른 모니터로 이동","⇆"],["explorer-open","파일 탐색기 열기","▢"],["brush-size","브러시 크기","◉"],["timeline-step","타임라인 한 단계","▶"],["timeline-zoom","타임라인 확대·축소 (앱별)","⊕"],["file-open","지정 파일 열기","▣"],["folder-shortcut","지정 폴더 열기","▢"]]]
 ];
 // The catalogue changes presentation only: stable IDs, settings and executable actions remain unchanged.
 const CATALOG = window.D200XPanelIcons.groups.map(([category,ids])=>[
@@ -862,6 +862,60 @@ async function configureHomeAssistant(){
     window.d200xActionStatus?.('Home Assistant 연결 확인 및 설정 저장 완료');
   }catch(error){window.d200xActionStatus?.('Home Assistant 연결 실패: '+String(error?.message||error));}
 }
+const PANEL_ACTION_HELP={
+  "brightness":"D200X 화면의 밝기를 설정합니다. 최대·높음·중간·낮음·최소 단계(100/75/50/30/20%) 또는 밝게·어둡게 동작을 선택합니다. PC 모니터 밝기는 변경하지 않습니다.",
+  "device-brightness":"D200X 화면 밝기를 지정한 방향으로 조절합니다. 변화량 1·2·5·10을 선택할 수 있으며 노브 밝기 조절과 같은 장치 제어를 사용합니다. PC 모니터 밝기와 별개입니다.",
+  "sleep":"D200X 화면을 끕니다. 이후 처음 누르는 물리 버튼은 화면을 깨우는 데 사용됩니다. Windows 절전이나 PC 종료가 아닙니다.",
+  "virtual":"가상 Stream Deck 표시를 전환하기 위한 예약 액션입니다. 현재 DeckForge에서 지원하지 않으며 등록 및 실행할 수 없습니다.",
+  "folder":"덱 안에 하위 버튼 공간을 만들어 같은 프로필에서 폴더로 진입합니다. 폴더 안 페이지와 자동 나가기(동작 실행 후 0~60초)를 설정할 수 있습니다. Windows 파일 탐색기의 폴더를 만드는 기능은 아닙니다.",
+  "profile":"다음·이전 프로필 또는 지정한 프로필로 전환합니다. 프로필마다 버튼과 페이지 구성을 관리할 때 사용합니다.",
+  "previous":"현재 덱 또는 덱폴더의 이전 페이지로 이동합니다. 첫 페이지에서는 더 이전으로 이동하지 않습니다.",
+  "next":"현재 덱 또는 덱폴더의 다음 페이지로 이동합니다. 마지막 페이지에서는 더 다음으로 이동하지 않습니다.",
+  "goto":"속성에서 선택한 페이지로 바로 이동합니다. 대상 페이지가 실제 존재해야 합니다.",
+  "indicator":"현재 페이지 번호를 표시하는 전용 액션입니다. 눌러도 페이지를 이동하거나 다른 명령을 실행하지 않습니다.",
+  "open-app":"지정한 실행 파일이나 등록된 시작 메뉴 앱을 실행합니다. 앞으로 가져오기를 켜면 지원되는 기존 앱 창 활성화를 먼저 시도합니다. 길게 누르기는 일반 종료·강제 종료·아무것도 하지 않음 중 선택합니다. 시작 메뉴 AppID는 별도 명령줄 인수를 지원하지 않습니다.",
+  "close":"지원되는 응용 프로그램을 종료합니다. 일반 종료는 앱에 종료 요청을 전달하고 저장 확인 창이 나타날 수 있습니다. 강제 종료는 저장하지 않은 작업을 잃을 수 있습니다. 대상 식별이 불확실하면 종료하지 않습니다.",
+  "file-open":"지정한 파일을 Windows 기본 연결 프로그램으로 엽니다. 파일을 선택하거나 경로를 입력하고 저장합니다. 앱의 전경 활성화나 길게 누르기 종료 옵션은 없습니다.",
+  "folder-shortcut":"지정한 파일시스템 폴더를 엽니다. 항상 새 창으로 열기를 선택하면 새 탐색기 창을 요청하고, 해제하면 동일 폴더 창 또는 탭을 찾아 전경으로 가져오며 없으면 엽니다. Windows 기본 파일 탐색기 기준이며 전경 전환에는 Windows 정책의 제한이 있습니다.",
+  "explorer-open":"Win+E 단축키로 Windows 파일 탐색기를 엽니다. 특정 경로를 지정하려면 지정 폴더 열기를 사용하세요.",
+  "website":"URL을 기본 브라우저 또는 지정한 브라우저에서 엽니다. 백그라운드 GET 요청 방식도 선택할 수 있습니다. HTTPS 체크와 URL을 확인하세요.",
+  "open":"앱·파일·폴더를 범용 방식으로 엽니다. 명령줄 인수는 EXE 실행에 사용할 수 있습니다. 지정 폴더 열기의 중복 창 방지 또는 응용 프로그램 열기의 전경 활성화·길게 누르기 종료는 제공하지 않습니다.",
+  "system-volume":"Windows 음량을 높이거나 낮춥니다. 변화량 1·2·5·10은 음량 키 입력 횟수입니다. 노브 조절 모드에서도 사용할 수 있습니다.",
+  "system-mute":"Windows 음소거 키를 보내 현재 음소거 상태를 전환합니다. DeckForge 자체 오디오만 정지하는 기능과 다릅니다.",
+  "media":"Windows 미디어 키로 재생/일시정지, 이전·다음 트랙, 정지, 음소거 및 음량 증감을 요청합니다. 실제 반응은 미디어 앱 지원 여부에 따라 달라집니다.",
+  "audio-play":"지정한 로컬 오디오 파일을 DeckForge에서 재생합니다. 재생/정지, 겹쳐 재생, 재시작, 반복/정지, 페이드 시간, 음량과 출력 장치를 설정할 수 있습니다. 출력 장치 변경은 지원되는 환경에서만 동작합니다.",
+  "audio-stop":"DeckForge의 오디오 재생 액션에서 현재 재생 중인 오디오를 모두 정지합니다. 다른 음악 플레이어나 Windows 전체 음소거는 제어하지 않습니다.",
+  "window-switch":"Alt+Tab 계열 입력을 보내 현재 Windows 창을 전환합니다. 다음·이전 방향을 선택할 수 있으며 노브 조절에도 사용할 수 있습니다.",
+  "window-state":"현재 활성 창에 Win+↑ 또는 Win+↓를 보내 최대화 또는 복원/최소화를 요청합니다. 결과는 현재 창 상태와 Windows 동작에 따라 달라집니다.",
+  "window-monitor":"Win+Shift+←/→를 보내 현재 활성 창을 왼쪽 또는 오른쪽 모니터로 이동합니다. 여러 모니터가 연결된 환경에서 사용합니다.",
+  "desktop-switch":"Win+Ctrl+←/→를 보내 이전 또는 다음 Windows 가상 데스크톱으로 이동합니다. 가상 데스크톱을 미리 만들어 두어야 합니다.",
+  "hotkey":"사용자가 정한 키 조합을 한 번 실행합니다. 직접 지정하거나 복사·저장·창 전환 등의 프리셋을 선택하세요. 대상 앱이 해당 단축키를 지원해야 합니다.",
+  "hotkey-switch":"두 개의 단축키를 등록하고 누를 때마다 번갈아 실행합니다. 실제 앱 상태를 자동으로 판별하는 기능은 아닙니다.",
+  "text":"등록한 텍스트를 클립보드 붙여넣기 또는 타이핑 시뮬레이션으로 입력합니다. 메시지 뒤 Enter 옵션을 설정할 수 있습니다. 현재 입력 대상에 실행됩니다.",
+  "system-scroll":"세로 또는 가로 스크롤 방향과 변화량을 지정합니다. 노브의 좌우 회전에도 적합합니다. 실제 스크롤은 활성 앱의 입력 처리에 따릅니다.",
+  "edit-history":"Ctrl+Z 또는 Ctrl+Y를 보내 실행 취소·다시 실행을 요청합니다. 횟수 1·2·5·10을 선택할 수 있으며 실제 동작은 앱의 단축키 지원에 따릅니다.",
+  "system-zoom":"Ctrl+Plus, Ctrl+Minus 또는 Ctrl+0을 보내 현재 앱의 확대·축소·원래 크기를 요청합니다. 반복 횟수를 정할 수 있습니다. Windows 디스플레이 배율을 변경하지 않습니다.",
+  "multi":"동작 목록을 위에서 아래 순서대로 실행합니다. 단계 사이에 지연을 넣고 순서를 변경할 수 있습니다. 다른 복합 동작의 중첩은 지원하지 않으며 실행 중인 단계가 즉시 중단되지 않을 수 있습니다.",
+  "multi-switch":"두 상태에 각각 실행할 동작 목록을 등록합니다. 현재 상태의 순서가 성공하면 다음 상태로 전환됩니다. 상태별 제목과 아이콘을 지정할 수 있으며 복합 동작 중첩은 지원하지 않습니다.",
+  "random":"등록한 후보 중 하나를 무작위로 실행합니다. 후보가 없으면 실행할 동작이 없습니다. 복합 동작 중첩과 지연 단계는 지원하지 않습니다.",
+  "logic":"한 번·두 번·길게 누르기에 다른 동작을 배정합니다. 물리 버튼의 입력 유형으로 구분하며 다른 복합 동작을 중첩할 수 없습니다.",
+  "timer":"설정한 초 단위 시간으로 카운트다운을 실행하고 종료 사운드를 선택합니다. 복합 동작의 단계 사이 대기와는 별개입니다.",
+  "screenshot":"Win+Shift+S를 보내 Windows 영역 캡처 도구를 엽니다. 캡처 영역은 사용자가 선택합니다.",
+  "clipboard-edit":"복사·붙여넣기·잘라내기 중 하나를 지정합니다. Ctrl+C/V/X를 현재 앱에 전달합니다. 클립보드 내역을 편집하는 별도 관리 기능은 아닙니다.",
+  "brush-size":"대괄호 [ 또는 ] 키로 브러시 크기 감소·증가를 요청합니다. 이 단축키를 지원하는 드로잉 앱에서 사용하며 노브 회전 방향에 각각 등록할 수 있습니다.",
+  "timeline-step":"좌우 화살표 키로 타임라인 이전·다음 단계 이동을 요청합니다. 편집 앱의 단축키 설정에 따라 실제 동작이 달라집니다.",
+  "timeline-zoom":"Ctrl+Plus 또는 Ctrl+Minus를 보내 타임라인 확대·축소를 요청합니다. 해당 단축키를 지원하는 편집 앱에서만 원하는 결과를 얻을 수 있습니다."
+};
+function showPanelActionHelp(id,label){
+  const description=PANEL_ACTION_HELP[id];if(!description)return;
+  const dialog=document.createElement('dialog');dialog.className='inspector-help-dialog';
+  const heading=document.createElement('strong');heading.textContent=label+' 설명';
+  const body=document.createElement('p');body.textContent=description;
+  const close=document.createElement('button');close.type='button';close.className='inspector-help-close';close.textContent='닫기';
+  close.addEventListener('click',()=>dialog.close());
+  dialog.append(heading,body,close);document.body.append(dialog);
+  dialog.addEventListener('close',()=>dialog.remove(),{once:true});dialog.showModal();
+}
 function renderLibrary(){
   const root=$("library-list");root.replaceChildren();
   const query=$("action-search").value.trim().toLocaleLowerCase();
@@ -889,13 +943,15 @@ function renderLibrary(){
       const name=document.createElement("span");name.textContent=label;caption.append(name);
       if(disabled){const note=document.createElement("small");note.className="action-unavailable";note.textContent="지원 예정 · 비활성화";caption.append(note);}
       const customise=document.createElement("button");customise.type="button";customise.className="action-customize";
-      customise.textContent="⋯";customise.title=label+" 아이콘 개별 설정";customise.setAttribute("aria-label",label+" 아이콘 개별 설정");
-      if(disabled)customise.disabled=true;
+      customise.textContent="⋯";customise.title=label+" 설명 및 아이콘 설정";customise.setAttribute("aria-label",label+" 설명 및 아이콘 설정");
       customise.addEventListener("click",event=>{
         event.stopPropagation();
         const old=body.querySelector(".action-override-controls");
         if(old){const same=old.parentElement===entry;old.remove();if(same)return;}
         const tools=document.createElement("div");tools.className="action-override-controls";
+        const description=document.createElement("button");description.type="button";description.textContent="액션 설명";
+        description.addEventListener("click",ev=>{ev.stopPropagation();tools.remove();showPanelActionHelp(id,label);});
+        tools.append(description);
         const upload=document.createElement("button");upload.type="button";upload.textContent="이미지 선택";
         const file=document.createElement("input");file.type="file";file.hidden=true;
         file.accept="image/png,image/jpeg,image/webp,image/gif";
@@ -924,7 +980,11 @@ function renderLibrary(){
         const reset=document.createElement("button");reset.type="button";reset.textContent="기본 아이콘";
         reset.addEventListener("click",ev=>{ev.stopPropagation();window.D200XPanelIcons.clearOverride(id);renderLibrary();renderGrid();renderInspector();window.scheduleDeckSync?.();});
         tools.addEventListener("click",ev=>ev.stopPropagation());
-        tools.append(upload,file,reset);entry.append(tools);
+        if(!disabled)tools.append(upload,file,reset);
+        entry.append(tools);
+        if(tools.getBoundingClientRect().bottom>root.getBoundingClientRect().bottom){
+          tools.style.top='auto';tools.style.bottom='100%';
+        }
       });
       entry.append(symbol,caption,customise);
       if(!disabled)entry.addEventListener("dragstart",ev=>ev.dataTransfer.setData("application/x-d200x-action",id));
@@ -1933,6 +1993,7 @@ document.addEventListener('click',event=>{
   // same editing session. Do not mistake these separate overlays for navigation.
   if(event.target.closest('#inspector-unsaved-dialog, .inspector-help-dialog, #sdk-plugin-help-dialog, #icon-maker, .deckforge-input-dialog'))return;
   if(event.target.closest('#icon-library')&&!event.target.closest('.icon-pack-remove'))return;
+  if(event.target.closest('.action-customize, .action-override-controls'))return;
   if(event.target.closest('#action-search, .library-tabs, #profile-trigger, .profile-row-gear, .profile-global-trigger, .settings-trigger, .group-title'))return;
   const root=$('inspector');
   if(root?.contains(event.target))return;

@@ -310,7 +310,7 @@
 .library .action-item.action-disabled{opacity:.48;cursor:not-allowed}
 .library .action-item.action-disabled:hover{background:transparent}
 .library .action-item.action-disabled .action-unavailable{font-size:10px;color:#b9b9b9}
-.library .action-item.action-disabled .action-customize{visibility:hidden}
+.library .action-item.action-disabled .action-customize{visibility:visible}
 
 /* Single-key artwork retains the existing pressed/released visual feedback. */
 .deck-key:active .rendered-key-image,.deck-key:active .glyph{transform:scale(.94)}

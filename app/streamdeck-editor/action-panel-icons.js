@@ -3,13 +3,15 @@
 window.D200XPanelIcons=(()=>{
   const KEY="d200x-action-panel-appearance-v1";
   const groups=[
-    ["D200X 장치·화면",["brightness","sleep","virtual","device-brightness","folder","profile","previous","next","goto","indicator"]],
-    ["Windows 시스템",["system-volume","system-mute","window-switch","window-state","window-monitor","desktop-switch","screenshot","explorer-open"]],
-    ["키보드·마우스",["hotkey","hotkey-switch","system-scroll","clipboard-edit","edit-history","system-zoom","text"]],
-    ["프로그램별 작업",["brush-size","timeline-step","timeline-zoom"]],
-    ["파일·프로그램 실행",["website","open","open-app","close","file-open","folder-shortcut"]],
-    ["자동화·다중 동작",["multi","multi-switch","random","logic","timer"]],
-    ["미디어·사운드",["audio-play","audio-stop","media"]],
+    ["D200X 장치·화면",["brightness","device-brightness","sleep","virtual"]],
+    ["덱 탐색·구조",["folder","profile","previous","next","goto","indicator"]],
+    ["앱·파일·웹 실행",["open-app","close","file-open","folder-shortcut","explorer-open","website","open"]],
+    ["오디오·미디어",["system-volume","system-mute","media","audio-play","audio-stop"]],
+    ["Windows 창 관리",["window-switch","window-state","window-monitor","desktop-switch"]],
+    ["키보드·마우스",["hotkey","hotkey-switch","text","system-scroll","edit-history","system-zoom"]],
+    ["자동화·다중 동작",["multi","multi-switch","random","logic"]],
+    ["유틸리티",["timer","screenshot","clipboard-edit"]],
+    ["편집 작업 도구",["brush-size","timeline-step","timeline-zoom"]],
     ["플러그인 · Home Assistant",["ha-toggle"]]
   ];
   // Compact, self-contained 24px stroke SVGs (no remote assets or emoji fonts).
@@ -60,6 +62,18 @@ window.D200XPanelIcons=(()=>{
   };
   const themeNames={line:"라인형",color:"컬러형",button:"버튼형"};
   const accents=["#60a5fa","#c4b5fd","#fbbf24","#34d399","#22d3ee","#fb7185","#f472b6"];
+  // Preserve the pre-reclassification accent of every existing action.
+  const accentGroups=[
+    ["brightness","sleep","virtual","device-brightness","folder","profile","previous","next","goto","indicator"],
+    ["system-volume","system-mute","window-switch","window-state","window-monitor","desktop-switch","screenshot","explorer-open"],
+    ["hotkey","hotkey-switch","system-scroll","clipboard-edit","edit-history","system-zoom","text"],
+    ["brush-size","timeline-step","timeline-zoom"],
+    ["website","open","open-app","close","file-open","folder-shortcut"],
+    ["multi","multi-switch","random","logic","timer"],
+    ["audio-play","audio-stop","media"],
+    ["ha-toggle"]
+  ];
+  const accentFor=id=>accents[Math.max(0,accentGroups.findIndex(ids=>ids.includes(id)))];
   function read(){
     try{
       const data=JSON.parse(localStorage.getItem(KEY)||"{}");
@@ -74,7 +88,7 @@ window.D200XPanelIcons=(()=>{
   function create(id){
     const override=config.overrides[id];
     const img=document.createElement("span");img.className="panel-action-svg theme-"+config.theme;
-    img.style.setProperty("--icon-accent",accents[Math.max(0,groups.findIndex(([,ids])=>ids.includes(id)))]);
+    img.style.setProperty("--icon-accent",accentFor(id));
     if(typeof override==="string"&&override.startsWith("data:image/")&&override.length<200000){
       const image=document.createElement("img");image.src=override;image.alt="";img.append(image);
     }else{
@@ -94,7 +108,7 @@ window.D200XPanelIcons=(()=>{
     if(!Object.prototype.hasOwnProperty.call(paths,id))return null;
     const override=config.overrides[id];
     if(typeof override==="string"&&/^data:image\/(png|jpeg|webp|gif);base64,/.test(override))return override;
-    const accent=accents[Math.max(0,groups.findIndex(([,ids])=>ids.includes(id)))];
+    const accent=accentFor(id);
     const background=config.theme==='color'
       ?'<rect width="96" height="96" rx="24" fill="'+accent+'" fill-opacity=".19"/>'
       :config.theme==='button'

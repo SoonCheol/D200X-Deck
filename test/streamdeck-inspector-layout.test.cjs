@@ -132,3 +132,30 @@ test('main folder shortcut aligns the existing option with the path; toolbar and
   assert.match(css,/\.folder-new-window-option>input\[type="checkbox"\]\s*\{[^}]*width:15px;height:15px/s);
 });
 
+
+test('basic panel reclassification keeps every action ID and legacy accent',()=>{
+  const originalPanel=fs.readFileSync(path.join(base,'action-panel-icons.js'),'utf8');
+  const sandbox={window:{},localStorage:{getItem:()=>null,setItem:()=>{}}};
+  vm.runInNewContext(originalPanel,sandbox);
+  const panel=sandbox.window.D200XPanelIcons;
+  const visible=Array.from(panel.groups).filter(([name])=>name!=='플러그인 · Home Assistant');
+  assert.deepEqual(visible.map(([name])=>name),["D200X 장치·화면","덱 탐색·구조","앱·파일·웹 실행","오디오·미디어","Windows 창 관리","키보드·마우스","자동화·다중 동작","유틸리티","편집 작업 도구"]);
+  const ids=visible.flatMap(([,ids])=>Array.from(ids));
+  const core=require(path.join(base,'deck-core.js'));
+  assert.equal(ids.length,42);
+  assert.deepEqual([...ids].sort(),[...core.ACTION_IDS,...core.D200X_ACTION_IDS].sort());
+  const colors=[["brightness","#60a5fa"],["sleep","#60a5fa"],["virtual","#60a5fa"],["device-brightness","#60a5fa"],["folder","#60a5fa"],["profile","#60a5fa"],["previous","#60a5fa"],["next","#60a5fa"],["goto","#60a5fa"],["indicator","#60a5fa"],["system-volume","#c4b5fd"],["system-mute","#c4b5fd"],["window-switch","#c4b5fd"],["window-state","#c4b5fd"],["window-monitor","#c4b5fd"],["desktop-switch","#c4b5fd"],["screenshot","#c4b5fd"],["explorer-open","#c4b5fd"],["hotkey","#fbbf24"],["hotkey-switch","#fbbf24"],["system-scroll","#fbbf24"],["clipboard-edit","#fbbf24"],["edit-history","#fbbf24"],["system-zoom","#fbbf24"],["text","#fbbf24"],["brush-size","#34d399"],["timeline-step","#34d399"],["timeline-zoom","#34d399"],["website","#22d3ee"],["open","#22d3ee"],["open-app","#22d3ee"],["close","#22d3ee"],["file-open","#22d3ee"],["folder-shortcut","#22d3ee"],["multi","#fb7185"],["multi-switch","#fb7185"],["random","#fb7185"],["logic","#fb7185"],["timer","#fb7185"],["audio-play","#f472b6"],["audio-stop","#f472b6"],["media","#f472b6"]];
+  panel.setTheme('color');
+  for(const [id,color] of colors)assert.ok(decodeURIComponent(panel.artwork(id)).includes(color),id);
+  const help=editor.match(/const PANEL_ACTION_HELP=(\{[\s\S]*?\n\});/);
+  assert.ok(help);
+  const descriptions=vm.runInNewContext('('+help[1]+')');
+  assert.deepEqual(Object.keys(descriptions).sort(),[...ids].sort());
+  for(const id of ids)assert.ok(descriptions[id].length>=25,id);
+  assert.match(editor,/showPanelActionHelp\(id,label\)/);
+  assert.match(editor,/if\(!disabled\)tools\.append\(upload,file,reset\)/);
+  assert.match(editor,/const disabled=id==='virtual'/);
+  assert.match(editor,/\["sleep","화면 끄기"/);
+  assert.match(editor,/\["folder","덱폴더"/);
+});
+
