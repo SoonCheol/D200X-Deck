@@ -933,7 +933,8 @@ function renderLibrary(){
     // The legacy built-in HA action stays executable for saved profiles, but is no longer offered.
     if(category==='플러그인 · Home Assistant')continue;
     if(libraryTab==='plugins')continue;
-    const visible=entries.filter(([id,label])=>(category+" "+label+" "+(PANEL_SHORTCUTS[id]||"")).toLocaleLowerCase().includes(query));
+    // Win+E is already available in the hotkey presets; retain the legacy action for saved profiles.
+    const visible=entries.filter(([id,label])=>id!=='explorer-open'&&(category+" "+label+" "+(PANEL_SHORTCUTS[id]||"")).toLocaleLowerCase().includes(query));
     if(!visible.length)continue;
     const section=document.createElement("section");section.className="group";
     const title=document.createElement("div");title.className="group-title";title.textContent=category;

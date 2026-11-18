@@ -181,3 +181,15 @@ test('action option menu dismisses only on outside click and opens one menu acro
   assert.match(editor,/root\.querySelectorAll\("\.action-override-controls"\)\.forEach\(menu=>menu\.remove\(\)\)/);
 });
 
+
+test('duplicate explorer action is hidden only in the basic panel',()=>{
+  const render=editor.slice(editor.indexOf('function renderLibrary(){'),editor.indexOf('function renderLibrary(){')+2000);
+  assert.match(render,/entries\.filter\(\(\[id,label\]\)=>id!=='explorer-open'&&/);
+  assert.match(editor,/\["explorer-open","파일 탐색기 열기"/);
+  assert.match(editor,/explorer:'Win\+E'/);
+  assert.match(editor,/\['explorer','파일 탐색기'\]/);
+  const core=require(path.join(base,'deck-core.js'));
+  assert.ok(core.D200X_ACTION_IDS.includes('explorer-open'));
+  assert.match(editor,/case "screenshot":case "explorer-open":return ''/);
+});
+
