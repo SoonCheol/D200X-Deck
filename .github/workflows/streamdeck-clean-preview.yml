@@ -17,6 +17,7 @@ on:
       - 'tools/fusion-mcp/fusion-command-catalog-final.json'
       - 'test/streamdeck-integrated-manager.test.cjs'
       - 'test/deckforge-platform-data-layout.test.cjs'
+      - 'test/deckforge-key-press-icons.test.cjs'
       - '.github/workflows/streamdeck-clean-preview.yml'
   workflow_dispatch:
 
