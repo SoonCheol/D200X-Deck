@@ -139,7 +139,7 @@ test('basic panel reclassification keeps every action ID and legacy accent',()=>
   vm.runInNewContext(originalPanel,sandbox);
   const panel=sandbox.window.D200XPanelIcons;
   const visible=Array.from(panel.groups).filter(([name])=>name!=='플러그인 · Home Assistant');
-  assert.deepEqual(visible.map(([name])=>name),["D200X 장치·화면","덱 탐색·구조","앱·파일·웹 실행","오디오·미디어","Windows 창 관리","키보드·마우스","자동화·다중 동작","유틸리티","편집 작업 도구"]);
+  assert.deepEqual(visible.map(([name])=>name),["D200X 장치·화면","D200X 탐색","앱·파일·웹 실행","오디오·미디어","윈도우 창 관리","키보드·마우스","자동화·다중 동작","유틸리티","편집 작업 도구"]);
   const ids=visible.flatMap(([,ids])=>Array.from(ids));
   const core=require(path.join(base,'deck-core.js'));
   assert.equal(ids.length,42);
@@ -155,7 +155,7 @@ test('basic panel reclassification keeps every action ID and legacy accent',()=>
   assert.match(editor,/showPanelActionHelp\(id,label\)/);
   assert.match(editor,/if\(!disabled\)tools\.append\(upload,file,reset\)/);
   assert.match(editor,/const disabled=id==='virtual'/);
-  assert.match(editor,/\["sleep","화면 끄기"/);
+  assert.match(editor,/\["sleep","D200X 화면 끄기"/);
   assert.match(editor,/\["folder","덱폴더"/);
 });
 
@@ -182,14 +182,37 @@ test('action option menu dismisses only on outside click and opens one menu acro
 });
 
 
-test('duplicate explorer action is hidden only in the basic panel',()=>{
+test('duplicate shortcut actions are hidden only in the basic panel',()=>{
   const render=editor.slice(editor.indexOf('function renderLibrary(){'),editor.indexOf('function renderLibrary(){')+2000);
-  assert.match(render,/entries\.filter\(\(\[id,label\]\)=>id!=='explorer-open'&&/);
+  assert.match(render,/entries\.filter\(\(\[id,label\]\)=>!HIDDEN_BASIC_ACTION_IDS\.has\(id\)&&/);
+  const hidden=JSON.parse(editor.match(/const HIDDEN_BASIC_ACTION_IDS=new Set\((\[[^\]]+\])\)/)[1]);
+  assert.deepEqual(hidden,["explorer-open","screenshot","clipboard-edit","window-switch","window-state","window-monitor","desktop-switch","brush-size","timeline-step","timeline-zoom"]);
+  const sandbox={window:{},localStorage:{getItem:()=>null}};
+  vm.runInNewContext(fs.readFileSync(path.join(base,'action-panel-icons.js'),'utf8'),sandbox);
+  const shown=Array.from(sandbox.window.D200XPanelIcons.groups,([name,ids])=>[name,Array.from(ids).filter(id=>!hidden.includes(id))]).filter(([name,ids])=>name!=='플러그인 · Home Assistant'&&ids.length);
+  assert.equal(shown.length,7);
+  assert.equal(shown.reduce((n,[,ids])=>n+ids.length,0),32);
+  for(const id of hidden)assert.ok(require(path.join(base,'deck-core.js')).D200X_ACTION_IDS.includes(id),id);
   assert.match(editor,/\["explorer-open","파일 탐색기 열기"/);
   assert.match(editor,/explorer:'Win\+E'/);
   assert.match(editor,/\['explorer','파일 탐색기'\]/);
   const core=require(path.join(base,'deck-core.js'));
   assert.ok(core.D200X_ACTION_IDS.includes('explorer-open'));
   assert.match(editor,/case "screenshot":case "explorer-open":return ''/);
+});
+
+
+test('new shortcut presets map to the same Windows keys as the legacy actions',()=>{
+  const presets=vm.runInNewContext('('+editor.match(/const HOTKEY_PRESETS=(\{[\s\S]*?\n\});/)[1]+')');
+  const labels=vm.runInNewContext('('+editor.match(/const HOTKEY_PRESET_LABELS=(\[[\s\S]*?\n\]);/)[1]+')');
+  const main=fs.readFileSync(path.join(base,'main.cjs'),'utf8');
+  const code=main.slice(main.indexOf('const HOTKEY_SPECIAL='),main.indexOf("ipcMain.handle('d200x:send-hotkey'"));
+  const context={};
+  vm.runInNewContext(code,context);
+  const expected={"switchWindowPrevious":{"held":[18,16],"key":9},"windowMaximize":{"held":[91],"key":38},"windowRestore":{"held":[91],"key":40},"monitorLeft":{"held":[91,16],"key":37},"monitorRight":{"held":[91,16],"key":39},"desktopPrevious":{"held":[91,17],"key":37},"desktopNext":{"held":[91,17],"key":39},"brushDecrease":{"held":[],"key":219},"brushIncrease":{"held":[],"key":221},"timelinePrevious":{"held":[],"key":37},"timelineNext":{"held":[],"key":39},"timelineZoomIn":{"held":[17],"key":187},"timelineZoomOut":{"held":[17],"key":189}};
+  for(const [id,keys] of Object.entries(expected)){
+    assert.ok(labels.some(([key])=>key===id),id);
+    assert.deepEqual(JSON.parse(JSON.stringify(context.parseWindowsHotkey(presets[id]))),keys,id);
+  }
 });
 

@@ -750,7 +750,7 @@ ipcMain.handle('d200x:media-control',async(event,args)=>{
 });
 const HOTKEY_SPECIAL=Object.freeze({Enter:0x0D,Space:0x20,Tab:0x09,Escape:0x1B,Backspace:0x08,Delete:0x2E,
   Left:0x25,Up:0x26,Right:0x27,Down:0x28,Home:0x24,End:0x23,PageUp:0x21,PageDown:0x22,
-  Insert:0x2D});
+  Insert:0x2D,BracketLeft:0xDB,BracketRight:0xDD,Plus:0xBB,Minus:0xBD});
 function parseWindowsHotkey(value){
   if(typeof value!=='string'||value.length>60)return null;
   const parts=value.split('+').map(x=>x.trim()).filter(Boolean);
