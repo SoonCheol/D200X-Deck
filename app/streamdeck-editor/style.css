@@ -879,11 +879,7 @@
 .state-title-inspector .state-title-extra-properties .fields>.field:not(.title-setting-field){
   margin:2px 0
 }
-/* Give the inspector most of the available height when the one-row state
-   editor is visible; keep the physical key array above it accessible. */
-.work:has(.state-title-inspector){
-  grid-template-rows:minmax(295px,40%) minmax(0,1fr)
-}
+/* Keep the device canvas height independent of the selected inspector. */
 @media(max-width:950px){
   .state-title-inspector{padding-left:12px;padding-right:12px}
   .state-title-inspector .state-title-toolbar{margin-left:100px}
