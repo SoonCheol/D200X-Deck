@@ -1,17 +1,19 @@
 # DeckForge 1.1 · D200X 최신 통합 상태·활성 계약
 
-> **상태 기록 기준: 2026-11-17**. 실제 최신 HEAD는 Git에서 확인하며, 코드·자동 검사·Windows 빌드·사용자 Windows/D200X 실기 결과를 구분한다. 시작 시 `AGENTS.md`와 이 문서만 읽고 로드맵은 필요한 경우에만 참고한다.
+> **상태 기록 기준: 2026-11-18**. 실제 최신 HEAD는 Git에서 확인하며, 코드·자동 검사·Windows 빌드·사용자 Windows/D200X 실기 결과를 구분한다. 시작 시 `AGENTS.md`와 이 문서만 읽고 로드맵은 필요한 경우에만 참고한다.
 
-## 1. 최신 작업 인계 — 다음 수정에 포함, 아직 미수정
+## 1. 최신 작업 인계 — DeckForge 1.1.1 (2026-11-18)
 
-- **사용자 실기 제보:** 페이지 이동 화살표를 누르면서 버튼 배열의 위·아래 여백 및 위치가 달라짐. 첨부된 화면에서 속성창이 빈 상태와 Home Assistant OFF/ON 상태별 아이콘 속성창 표시 상태가 비교됨. 페이지 이동 이벤트 그 자체의 레이아웃 변경인지, 액션 선택/속성창 표시 상태 변경인지 구분해서 재현해야 함.
-- **확인한 최신 소스:** `app/streamdeck-editor/style.css` 후반의 `.work:has(.state-title-inspector) { grid-template-rows:minmax(295px,40%) minmax(0,1fr) }`가 상태별 인스펙터 표시 시 `.work`의 상단/하단 행 비율을 변경함. 앞쪽 기본 `.work` 및 `@media(max-width:1000px)`에서는 상단 높이가 `min(425px,calc(100dvh - 220px))`로 달라질 수 있어, 선택 상태에 따른 높이 점프의 직접적인 CSS 원인 후보임.
-- **다음 작업 지시가 있을 때 함께 수정:** 상태별 OFF/ON 및 Key Up/Down 인스펙터 표시 여부와 무관하게 상단 키 그리드·물리 버튼·노브·페이지 컨트롤 영역의 **위치와 높이를 일관되게 고정**. 하단 속성창은 남은 공간에서 자체 스크롤을 사용. 기존 키 크기/간격/상태별 가변 카드/승인 레이아웃·사용자 설정 유지. 창 높이 및 너비에 따른 반응형 CSS와 실제 Windows GUI 재현을 확인해 국소 수정할 것. 원인을 페이지 이동 로직 자체로 단정하지 말 것.
-- **현재 상태:** 화면 비교 및 해당 CSS 소스 확인만 수행, **코드 수정·테스트·Windows 빌드 미실행**. 사용자가 "오늘은 여기까지, 다음 수정 때 포함"이라고 명시했으므로 다음 세션에서 별도 지시를 받아 수정.
+- **절전 복귀 후 HA 명령 불능:** 사용자 실기에서 페이지 이동·HA 상태 아이콘 갱신은 정상, 물리 버튼과 실행 테스트 실패, 앱 완전 종료 후 재실행으로 복구. 상태 REST 폴링(6초)과 SDK 명령 WS 분리. 직접 장애 위치는 미확정.
+- **코드 반영:** main.cjs powerMonitor suspend/resume; sd-plugin-host.cjs 활성 HA만 복귀 2.5초 후 재시작, 기타 활성 SDK는 로컬 WS 단절시 선별 복구, 명령 재전송 금지, 중복 실행 방지 및 HTML 렌더러 보호. systemDidWakeUp/ping-pong/상류 상태 검사 미구현. 실기 재발 여부 확인 대기.
+- **레이아웃:** 6c6edf4에서 상태 인스펙터에 따른 상단 grid 높이 변경 CSS 제거. 실기 확인 대기.
+- **버전:** 1.1.1부터 package.json 기준 앱/업데이트 메뉴/다운로드 파일명 통일. 수정 배포마다 patch 증가. 제품명 DeckForge, 기기 Ulanzi D200X, 호환 규격 Stream Deck SDK.
+- **검증:** 코드 기준 51965d4170e3332ba04100dc18afd43ffd84c456, [CI #937](https://github.com/SoonCheol/D200X-Deck/actions/runs/44265788222) success, [Windows #690](https://github.com/SoonCheol/D200X-Deck/actions/runs/44265788195) success. 실기 확인과 구별.
+- **상세 인계:** [절전 복귀 장애·Google AI Studio 분석 요약·실제 패치·재발 진단](archive/D200X-HA-SLEEP-RECOVERY-20261118.md). 재발 문의 시 이 문서를 먼저 읽고 최신 소스와 비교한다. 이미 반영된 수정 반복 금지.
 
-**브랜치:** `codex/streamdeck-761-clean-editor` · **Draft PR #5 미병합**. 사용자의 다음 수정 지시가 있을 때만 위 CSS 문제를 패치한다.
+**브랜치:** `codex/streamdeck-761-clean-editor` · Draft PR #5 병합 금지. 사용자 지시 전 수정/빌드 금지.
 
-## 2. 최근 확정 배포 상태 (2026-11-17)
+## 2. 이전 확정 배포 상태 (2026-11-17, 1.1.1 이전)
 
 | 구분 | 근거/상태 |
 |---|---|
