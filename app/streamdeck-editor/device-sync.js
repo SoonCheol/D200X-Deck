@@ -24,6 +24,12 @@
 
   bridge.onStatus(status => {
     online = Boolean(status?.connected);
+    if(!online){
+      window.clearD200XOpenAppHolds?.('hid-disconnect');
+      pressedKeys.clear();
+      for(const timer of releaseTimers.values())clearTimeout(timer);
+      releaseTimers.clear();
+    }
     if (statusNode) {
       statusNode.classList.toggle('online', online);
       statusNode.title = online

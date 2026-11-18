@@ -2,7 +2,15 @@
 
 > **상태 기록 기준: 2026-11-19**. 실제 최신 HEAD는 Git에서 확인하며, 코드·자동 검사·Windows 빌드·사용자 Windows/D200X 실기 결과를 구분한다. 시작 시 `AGENTS.md`와 이 문서만 읽고 로드맵은 필요한 경우에만 참고한다.
 
-## 1. 최신 작업 인계 — 1.1.13 개발 계획 확정 (2026-11-19, 소스 미착수)
+## 1. 최신 작업 인계 — 1.1.13 코드 반영 (2026-11-19)
+
+- 앱 버전 1.1.13. 종료 요청에 추적 ID를 부여하고 실제 `app.getVersion()`·메인 PID·프로필/페이지/폴더/슬롯·고정 키·인스펙터 dirty·hold 설정·물리 down/up/유지시간·IPC force·Close/Force 모드를 연결한다. 로컬 진단 로그는 `%APPDATA%\DeckForge\diagnostics\app-control-YYYY-MM-DD.jsonl`에 UTF-8 JSON Lines로 기록한다. 이 파일의 사용자 경로와 앱 정보는 공개 저장소에 올리지 않는다.
+- AppID/EXE 제어는 Windows PowerShell 5.1 호환 스크립트에서 진단 JSON과 `found` 성공 판정을 분리한다. PS 버전, 시작 메뉴 일치 LNK, EXE/프로세스/창 AppID 및 자식 매칭 이유, 선정·제외 PID, 호출 API와 결과·예외·잔여 PID를 기록한다. 생성 시각 재검증, 제어 프로세스 조상 제외, 직접 일치 또는 창 있는 자식만 강제 종료하는 안전 경계는 유지한다.
+- 일반 종료는 최소화된 창만 복원하고 SetForegroundWindow 실패 시 AppActivate를 시도한 다음 CloseMainWindow를 요청한다. 전경 활성화 실패가 종료 요청을 막지 않는다. 창 없는 EXE 보조 프로세스는 제외하며, 일반 종료 성공은 창 있는 대상 중 하나 이상의 종료 요청 성공으로 판정한다. 강제 종료는 Stop-Process -Force만 사용하고 잔여 PID를 검사한다. 일반/강제 상태 문구를 구분한다.
+- 페이지·프로필·폴더 전환과 HID 연결 해제 시 대기 중인 앱 hold 타이머를 취소한다. 같은 슬롯의 중복 down 방지는 유지한다. 실제 up 이벤트가 누락된 채 같은 화면이 유지되는 경우의 자동 재무장은 이번 버전에 포함하지 않는다.
+- 코드 문법 검사 및 Windows PowerShell 5.1의 무대상 EXE/AppID 진단 실행은 별도로 검증한다. Windows 자동 빌드와 사용자 Windows/D200X에서 Fusion, 메모장, Bitwarden, Files Dev의 실제 종료 결과는 각각 Actions 및 실기 로그로 확인해야 한다. 실제 실패 원인은 실기 진단 전까지 확정하지 않는다.
+
+### 1.1.13 확정 개발 계획 기록 (2026-11-19, 착수 전)
 
 - 현재 코드 버전 1.1.12, 코드 기준 `a60808177ce8340f1819a7bc7531237f8f728fa0`. Windows 통합 빌드 [44335908723](https://github.com/SoonCheol/D200X-Deck/actions/runs/44335908723), CI [44335923306](https://github.com/SoonCheol/D200X-Deck/actions/runs/44335923306), 입력 검증 [44335908766](https://github.com/SoonCheol/D200X-Deck/actions/runs/44335908766) 모두 success 확인.
 - 사용자 실기: 세 앱 모두 강제 종료 옵션 설정 상태라고 명확히 확인. Fusion과 메모장에서 미저장 작업 저장 경고창 발생(Fusion은 다른 창 뒤에 표시되기도 함), Bitwarden 전경/후경 모두 종료 실패, Files Dev 종료 성공. 정확한 실기 설치 버전/PID는 미확인. 1.1.12에서 모든 문제가 해결되었다고 간주하지 않는다. 반복 설정 확인 요구 금지.

@@ -6,6 +6,7 @@ const { pathToFileURL } = require('node:url');
 const http = require('node:http');
 const https = require('node:https');
 const fs = require('node:fs');
+const {randomUUID}=require('node:crypto');
 const { execFile, spawn } = require('node:child_process');
 const {parseWindowsArgs}=require('./windows-args.cjs');
 const { promisify } = require('node:util');
@@ -546,32 +547,71 @@ ipcMain.handle('d200x:device-brightness',(event,args)=>{
   return transport.adjustBrightness(args.direction,args.count);
 });
 
-// Only close processes whose resolved executable path equals the user-selected path.
+// Diagnostic records stay in this Windows user's DeckForge data, never in the source tree.
+async function writeAppControlLog(record){
+  try{
+    const dir=path.join(app.getPath('userData'),'diagnostics');
+    await fs.promises.mkdir(dir,{recursive:true});
+    const file=path.join(dir,'app-control-'+new Date().toISOString().slice(0,10)+'.jsonl');
+    await fs.promises.appendFile(file,JSON.stringify({at:new Date().toISOString(),...record})+'\n','utf8');
+  }catch(error){console.warn('DeckForge app control diagnostic:',error.message);}
+}
+ipcMain.handle('d200x:app-control-event',async(event,record)=>{
+  if(!window||event.sender!==window.webContents)throw new Error('허용되지 않은 호출입니다.');
+  if(!record||typeof record.id!=='string'||!/^[a-zA-Z0-9-]{1,80}$/.test(record.id)||
+      JSON.stringify(record).length>4096)throw new Error('잘못된 진단 이벤트입니다.');
+  await writeAppControlLog({traceId:record.id,stage:'renderer-event',version:app.getVersion(),mainPid:process.pid,record});
+  return true;
+});
+async function runCloseControl(filePath,force,traceId){
+  const kind=filePath.startsWith(APP_ID_PREFIX)?'AppID':'EXE';
+  const target=kind==='AppID'?requireStartAppId(filePath.slice(APP_ID_PREFIX.length)):filePath;
+  const mode=force?'Force':'Close';
+  const encoded=Buffer.from(target,'utf16le').toString('base64');
+  let result;
+  try{
+    const script=await fs.promises.readFile(path.join(__dirname,'app-control.ps1'),'utf8');
+    const command=Buffer.from(script,'utf16le').toString('base64');
+    const {stdout,stderr}=await execFileAsync('powershell.exe',
+      ['-NoProfile','-NonInteractive','-STA','-WindowStyle','Hidden','-EncodedCommand',command],{
+        windowsHide:true,timeout:30000,maxBuffer:1024*1024,
+        env:{...process.env,DECKFORGE_CONTROL_KIND:kind,DECKFORGE_CONTROL_MODE:mode,
+          DECKFORGE_CONTROL_TARGET:encoded,DECKFORGE_CONTROL_TRACE:traceId}
+      });
+    result=JSON.parse(String(stdout));
+    if(stderr)result.stderr=String(stderr).slice(0,4000);
+  }catch(error){
+    await writeAppControlLog({traceId,stage:'powershell-error',mode,kind,error:String(error.message||error)});
+    throw error;
+  }
+  await writeAppControlLog({traceId,stage:'powershell-result',result});
+  if(!result.found)throw new Error(mode==='Force'?'강제 종료할 안전한 대상이 없거나 종료에 실패했습니다.':'일반 종료할 창이 없거나 종료 요청에 실패했습니다.');
+  return true;
+}
+// Only control validated AppIDs or user-selected executable paths.
 ipcMain.handle('d200x:close-local-app',async(event,args)=>{
   if(!window||event.sender!==window.webContents)throw new Error('허용되지 않은 호출입니다.');
   const filePath=args?.filePath;
-  if(typeof filePath==='string'&&filePath.startsWith(APP_ID_PREFIX)){
-    if(typeof args.force!=='boolean')throw new Error('잘못된 종료 요청입니다.');
-    if(!await controlStartApplication(filePath,args.force?'Force':'Close'))throw new Error('안전하게 종료할 실행 중인 앱을 찾지 못했습니다.');
-    return true;
+  const traceId=typeof args?.trace?.id==='string'&&/^[a-zA-Z0-9-]{1,80}$/.test(args.trace.id)?args.trace.id:randomUUID();
+  const mode=args?.force===true?'Force':'Close';
+  await writeAppControlLog({traceId,stage:'ipc-request',version:app.getVersion(),mainPid:process.pid,
+    force:args?.force,mode,filePath,trace:args?.trace||null});
+  try{
+    if(typeof filePath!=='string'||typeof args.force!=='boolean')throw new Error('잘못된 종료 요청입니다.');
+    if(filePath.startsWith(APP_ID_PREFIX))requireStartAppId(filePath.slice(APP_ID_PREFIX.length));
+    else{
+      if(filePath.length>4096||!path.win32.isAbsolute(filePath)||!/\.exe$/i.test(filePath)||/[\x00-\x1f\x7f]/.test(filePath))
+        throw new Error('닫을 Windows 실행 파일(.exe)을 지정하세요.');
+      if(!(await fs.promises.stat(filePath)).isFile())throw new Error('대상 실행 파일이 존재하지 않습니다.');
+    }
+    if(process.platform!=='win32')throw new Error('Windows에서만 지원합니다.');
+    const ok=await runCloseControl(filePath,args.force,traceId);
+    await writeAppControlLog({traceId,stage:'ipc-result',mode,ok});
+    return ok;
+  }catch(error){
+    await writeAppControlLog({traceId,stage:'ipc-result',mode,ok:false,error:String(error.message||error)});
+    throw error;
   }
-  if(typeof filePath!=='string'||filePath.length>4096||!path.win32.isAbsolute(filePath)||
-      !/\.exe$/i.test(filePath)||/[\x00-\x1f\x7f]/.test(filePath)||typeof args.force!=='boolean')
-    throw new Error('닫을 Windows 실행 파일(.exe)을 지정하세요.');
-  const stats=await fs.promises.stat(filePath);
-  if(!stats.isFile())throw new Error('대상 실행 파일이 존재하지 않습니다.');
-  if(process.platform!=='win32')throw new Error('Windows에서만 지원합니다.');
-  const encoded=Buffer.from(filePath,'utf16le').toString('base64');
-  const ps=`$target=[Text.Encoding]::Unicode.GetString([Convert]::FromBase64String('${encoded}'));
-$matches=@(Get-Process | Where-Object { try {[string]::Equals($_.Path,$target,[StringComparison]::OrdinalIgnoreCase)}catch{$false} });
-if($matches.Count -eq 0){throw '해당 실행 파일의 실행 중인 창을 찾지 못했습니다.'};
-foreach($p in $matches){
-  if(${args.force?'$true':'$false'}){Stop-Process -Id $p.Id -Force -ErrorAction Stop}
-  elseif(-not $p.CloseMainWindow()){throw '일반 종료 가능한 창이 없습니다.'}
-}`;
-  await execFileAsync('powershell.exe',['-NoProfile','-NonInteractive','-WindowStyle','Hidden','-Command',ps],
-    {windowsHide:true,timeout:12000,maxBuffer:32768});
-  return true;
 });
 
 // Validate a user-selected audio file before handing its file:// URL to the

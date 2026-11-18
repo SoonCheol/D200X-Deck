@@ -2927,7 +2927,7 @@ async function executeMultiStep(action,signal){
     case 'media-control':
       return bridge.mediaControl(outcome.operation);
     case 'close-local-app':
-      return bridge.closeLocalApp(outcome.path,outcome.force);
+      return bridge.closeLocalApp(outcome.path,outcome.force,makeAppControlTrace('multi',null,action));
 
     case 'audio-play':
       return playAudioAction(outcome,'multi-'+action.type);
@@ -3041,22 +3041,49 @@ function playTimerChime(kind){
   });
 }
 const openAppHoldTimers=new Map();
+function makeAppControlTrace(stage,index,action){
+  return {id:Date.now().toString(36)+'-'+Math.random().toString(36).slice(2,10),stage,
+    profile:state.profileId,page:state.page,folderPath:[...(state.folderPath||[])],
+    folderPage:DeckCore.activeFolder(state)?.pageIndex||0,slot:index,
+    pinned:Number.isInteger(index)&&Boolean(state.pinned?.[index]),dirty:Boolean(inspectorSession?.dirty),
+    hold:action?.settings?.hold,requestedAt:Date.now()};
+}
+const openAppHoldScope=()=>JSON.stringify([state.profileId,state.page,state.folderPath||[],DeckCore.activeFolder(state)?.pageIndex||0]);
+let lastOpenAppHoldScope=openAppHoldScope();
+function logOpenAppHold(record){window.deckBridge?.logAppControl?.(record).catch(()=>{});}
+function clearOpenAppHoldTimers(reason){
+  for(const [index,token] of openAppHoldTimers){
+    clearTimeout(token.timer);
+    logOpenAppHold({...token.trace,stage:'cancel',slot:index,reason,at:Date.now()});
+  }
+  openAppHoldTimers.clear();
+}
+window.clearD200XOpenAppHolds=clearOpenAppHoldTimers;
 function handleOpenAppHold(action,index,event,gesture){
   if(gesture==='down'){
     if(openAppHoldTimers.has(index))return '프로그램 버튼 입력 유지 중';
-    const token={action,page:state.page,profile:state.profileId,fired:false,timer:null};
+    const downAt=Date.now();
+    const trace={...makeAppControlTrace('down',index,action),downAt};
+    const token={action,page:state.page,profile:state.profileId,scope:openAppHoldScope(),fired:false,timer:null,trace};
+    logOpenAppHold({...trace,stage:'down',at:downAt});
     token.timer=setTimeout(()=>{
       if(openAppHoldTimers.get(index)!==token)return;
       const current=index<14?DeckCore.visibleActions(state)[index]:DeckCore.controlBinding(state,index)?.down;
-      if(state.page!==token.page||state.profileId!==token.profile||current!==action){
+      if(openAppHoldScope()!==token.scope||current!==action){
+        logOpenAppHold({...trace,stage:'cancel',reason:'scope-or-action-changed',at:Date.now()});
         openAppHoldTimers.delete(index);return;
       }
       token.fired=true;
+      const holdAt=Date.now();
+      const requestTrace={...trace,stage:'hold',holdAt,heldMs:holdAt-downAt,
+        actualHold:action.settings?.hold,dirtyAtHold:Boolean(inspectorSession?.dirty)};
+      logOpenAppHold(requestTrace);
       const path=action.settings?.app;
       if(!path)return window.d200xActionStatus?.('종료할 프로그램을 먼저 선택하세요.');
-      window.deckBridge?.closeLocalApp?.(path,action.settings?.hold==='force').then(
-        ()=>window.d200xActionStatus?.('길게 누르기: 프로그램 종료 요청 완료'),
-        error=>window.d200xActionStatus?.('길게 누르기 종료 실패: '+String(error?.message||error)));
+      const force=action.settings?.hold==='force';
+      window.deckBridge?.closeLocalApp?.(path,force,requestTrace).then(
+        ()=>window.d200xActionStatus?.('길게 누르기: 프로그램 '+(force?'강제 종료':'일반 종료')+' 요청 완료'),
+        error=>window.d200xActionStatus?.('길게 누르기 '+(force?'강제 종료':'일반 종료')+' 실패: '+String(error?.message||error)));
     },650);
     openAppHoldTimers.set(index,token);
     return '프로그램 버튼 누름 대기';
@@ -3064,8 +3091,10 @@ function handleOpenAppHold(action,index,event,gesture){
   const token=openAppHoldTimers.get(index);
   if(!token)return null;
   clearTimeout(token.timer);openAppHoldTimers.delete(index);
+  const upAt=Date.now();
+  logOpenAppHold({...token.trace,stage:'up',upAt,heldMs:upAt-token.trace.downAt,actualHold:action.settings?.hold});
   if(token.fired)return '길게 누르기 동작 완료';
-  if(token.action!==action||token.page!==state.page||token.profile!==state.profileId)return null;
+  if(token.action!==action||token.scope!==openAppHoldScope())return null;
   const pressed={...event,state:1,pressed:true};
   return executeHardwareAction(pressed,true);
 }
@@ -3269,9 +3298,9 @@ function executeHardwareAction(event,preview=false,skipKnobGesture=false){
   }
   if(outcome.kind==='close-local-app'){
     if(!window.deckBridge?.closeLocalApp)return 'Windows 실행 환경에서만 사용할 수 있습니다.';
-    window.deckBridge.closeLocalApp(outcome.path,outcome.force).then(
-      ()=>window.d200xActionStatus?.('선택한 프로그램 닫기 요청 완료'),
-      error=>window.d200xActionStatus?.('프로그램 닫기 실패: '+String(error?.message||error)));
+    window.deckBridge.closeLocalApp(outcome.path,outcome.force,makeAppControlTrace('action',index,resolved.action)).then(
+      ()=>window.d200xActionStatus?.('선택한 프로그램 '+(outcome.force?'강제 종료':'일반 종료')+' 요청 완료'),
+      error=>window.d200xActionStatus?.('프로그램 '+(outcome.force?'강제 종료':'일반 종료')+' 실패: '+String(error?.message||error)));
     return '선택한 프로그램 '+(outcome.force?'강제 종료':'닫기')+' 요청';
   }
   if(outcome.kind==='audio-stop'){
@@ -3443,7 +3472,11 @@ function executeHardwareAction(event,preview=false,skipKnobGesture=false){
 }
 window.executeD200XKey=executeHardwareAction;
 let refreshProfilesMenu=()=>{};
-function render(){previewPressKeys.clear();renderGrid();renderInspector();refreshProfilesMenu();scheduleSdkSync();}
+function render(){
+  const scope=openAppHoldScope();
+  if(scope!==lastOpenAppHoldScope){clearOpenAppHoldTimers('navigation');lastOpenAppHoldScope=scope;}
+  previewPressKeys.clear();renderGrid();renderInspector();refreshProfilesMenu();scheduleSdkSync();
+}
 
 // Installed packs are read from the application's packaged library.
 // The prototype glyph groups have been removed; only genuine packs appear.
