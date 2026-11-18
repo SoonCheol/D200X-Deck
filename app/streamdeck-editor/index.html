@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>DeckForge 1.1 — D200X 편집기</title>
+  <title>DeckForge — D200X 편집기</title>
   <link rel="stylesheet" href="./style.css" />
   <script src="./deck-core.js" defer></script>
   <script src="./fusion-batch.js" defer></script>
@@ -29,7 +29,7 @@
           </button>
           <div id="profile-menu" class="profile-menu" hidden></div>
         </div>
-        <div class="sidebar-device"><span id="deck-status" class="deck-status" role="status" title="USB 장치 확인 중"></span><span class="device-name">D200X</span><button type="button" id="settings-trigger" class="settings-trigger" aria-label="옵션" aria-expanded="false" aria-controls="settings-menu" title="옵션">⚙</button><div id="settings-menu" class="settings-menu" role="menu" hidden><button type="button" id="check-update" role="menuitem">업데이트 확인</button></div></div>
+        <div class="sidebar-device"><span id="deck-status" class="deck-status" role="status" title="USB 장치 확인 중"></span><span class="device-name">D200X</span><button type="button" id="settings-trigger" class="settings-trigger" aria-label="옵션" aria-expanded="false" aria-controls="settings-menu" title="옵션">⚙</button><div id="settings-menu" class="settings-menu" role="menu" hidden><div id="current-version" style="padding:8px 12px;color:#bbb">현재 버전 확인 중</div><button type="button" id="check-update" role="menuitem">업데이트 확인</button></div></div>
       </header>
       <div class="search"><input id="action-search" placeholder="검색" aria-label="액션 검색"></div>
       <div class="library-tabs"><button class="active" type="button">기본 액션</button><button type="button" disabled title="이번 구현 범위에서 제외">플러그인</button></div>

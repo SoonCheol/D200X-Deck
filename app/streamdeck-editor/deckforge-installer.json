@@ -31,7 +31,7 @@
     "target": [
       "nsis"
     ],
-    "artifactName": "DeckForge-Setup-1.1.0.exe",
+    "artifactName": "DeckForge-${version}-Setup-win-x64.exe",
     "signAndEditExecutable": false
   },
   "nsis": {

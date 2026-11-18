@@ -1,6 +1,6 @@
 'use strict';
 
-const { app, BrowserWindow, Menu, Tray, nativeImage, ipcMain, clipboard, dialog, shell, screen } = require('electron');
+const { app, BrowserWindow, Menu, Tray, nativeImage, ipcMain, clipboard, dialog, shell, screen, powerMonitor } = require('electron');
 const path = require('node:path');
 const { pathToFileURL } = require('node:url');
 const http = require('node:http');
@@ -233,6 +233,7 @@ let tray = null;
 let quitting = false;
 let trayPreferences = null;
 const BUILDS_PAGE = 'https://github.com/SoonCheol/D200X-Deck/actions/workflows/streamdeck-clean-preview.yml';
+ipcMain.handle('d200x:app-version',event=>{assertEditor(event);return app.getVersion();});
 ipcMain.handle('d200x:check-updates',async event=>{
   assertEditor(event);
   await shell.openExternal(BUILDS_PAGE);
@@ -302,7 +303,7 @@ function initializeTray(){
   const icon=nativeImage.createFromPath(file);
   if(icon.isEmpty())throw Error('DeckForge 트레이 아이콘이 없습니다: '+file);
   tray=new Tray(icon.resize({width:20,height:20}));
-  tray.setToolTip('DeckForge 1.1 · D200X');
+  tray.setToolTip('DeckForge '+app.getVersion()+' · D200X');
   tray.on('double-click',revealEditor);
   trayPreferences=readTrayPreferences();
   try{if(isInstalledBuild())setLoginStart(trayPreferences.autoStart);}
@@ -1077,6 +1078,8 @@ if($targetPid -gt 0){try{(Get-Process -Id $targetPid -ErrorAction Stop).Path}cat
 
 if(singleInstanceLock)app.whenReady().then(async () => {
   diagnosticPath = path.join(app.getPath('userData'), 'd200x-connection.log');
+  powerMonitor.on('suspend',()=>sdkHost?.onSystemSuspend());
+  powerMonitor.on('resume',()=>sdkHost?.onSystemResume());
   Menu.setApplicationMenu(null);
   initializeTray();
   // Initial size fits the current monitor's usable work area (taskbar excluded).
@@ -1098,7 +1101,7 @@ if(singleInstanceLock)app.whenReady().then(async () => {
     minHeight:minimumHeight,
     backgroundColor: '#292929',
     show:!process.argv.includes('--hidden')&&!process.argv.includes('--fusion-manager'),
-    title: 'DeckForge 1.1 — D200X',
+    title: 'DeckForge '+app.getVersion()+' — D200X',
     webPreferences: {
       preload: path.join(__dirname, 'preload.cjs'),
       contextIsolation: true,

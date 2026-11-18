@@ -2999,7 +2999,7 @@ function executeHardwareAction(event,preview=false,skipKnobGesture=false){
     window.deckBridge.sdkKey(ctx,resolved.gesture).then(ok=>{
       if(!ok)window.d200xActionStatus?.('SDK 플러그인이 활성화되지 않았습니다.');
     }).catch(error=>window.d200xActionStatus?.('SDK 플러그인 실행 실패: '+String(error?.message||error)));
-    if(preview&&resolved.gesture==='down')setTimeout(()=>window.deckBridge.sdkKey(ctx,'up'),100);
+    if(preview&&resolved.gesture==='down')setTimeout(()=>window.deckBridge.sdkKey(ctx,'up').catch(()=>{}),100);
     return 'Stream Deck 플러그인 이벤트: '+resolved.gesture;
   }
   if(resolved.gesture==='up'){lastHardwareDown.delete(index);return null;}
@@ -3701,6 +3701,10 @@ function askProfileName(title,initialValue){
 }
 function bindSidebarHeader(){
   const trigger=$("profile-trigger"),menu=$("profile-menu");
+  window.deckBridge?.appVersion?.().then(version=>{
+    $('current-version').textContent='현재 버전 '+version;
+    document.title='DeckForge '+version+' — D200X 편집기';
+  }).catch(()=>{});
   const close=()=>{menu.hidden=true;trigger.setAttribute('aria-expanded','false');};
   const run=(fn)=>async()=>{close();try{await fn();}catch(error){window.d200xActionStatus?.('프로필 작업 실패: '+String(error?.message||error));}};
   const renderProfiles=()=>{
