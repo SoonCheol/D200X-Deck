@@ -1126,3 +1126,12 @@ test('individual profile JSON export includes only selected active/inactive data
   assert.equal(JSON.stringify(state),before);
   assert.throws(()=>core.exportSingleProfile(state,'missing'),/프로필/);
 });
+
+test('Start menu app plan keeps foreground and hold options without command arguments',()=>{
+  const app=core.createAction('open-app');
+  app.settings.app='shell:AppsFolder\\Example.App';
+  app.settings.args='ignored';
+  app.settings.foreground=true;
+  app.settings.hold='force';
+  assert.deepEqual(core.planAction(app,0,1),{kind:'open-local-path',path:app.settings.app,target:'appid',foreground:true,hold:'force'});
+});

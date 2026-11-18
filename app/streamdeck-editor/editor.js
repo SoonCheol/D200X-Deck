@@ -1133,7 +1133,7 @@ function actionFields(item){
     case "website":return `<div class="field website-url-field"><label for="s-url">URL</label><div class="website-url-control"><label class="https-toggle"><input id="url-https" type="checkbox" ${/^https:\/\//i.test(String(item.settings?.url||''))?'checked':''}>HTTPS</label><input id="s-url" data-field="url" value="${escapeHtml(valueOf(item,'url'))}" placeholder="example.com"></div></div>`+select("open","다음으로 열기",[["default","기본 브라우저"],["get","백그라운드에서 GET 요청"],["choose","브라우저 직접 선택"]])+pathPicker("browserPath","선택 브라우저 (.exe)","app");
     case "open":return pathPicker("path","앱 / 파일")+input("args","인수");
     case "open-app":if(String(item.settings?.app||'').startsWith('shell:AppsFolder\\'))
-      return '<div class="field"><label>앱</label><input readonly value="'+escapeHtml(item.settings.app)+'"></div><div class="field"><span></span><span class="hint">시작 메뉴 앱 · 실행만 지원 (인수, 앞으로 가져오기, 길게 누르기 종료 제외)</span></div>';
+      return '<div class="field"><label>앱</label><input readonly value="'+escapeHtml(item.settings.app)+'"></div>'+select("hold","길게 누르기",[["none","아무것도 하지 않음"],["close","응용 프로그램 종료"],["force","응용 프로그램 강제 종료"]])+check("foreground","앞으로 가져오기");
       return pathPicker("app","앱","app")+input("args","인수")+select("hold","길게 누르기",[["none","아무것도 하지 않음"],["close","응용 프로그램 종료"],["force","응용 프로그램 강제 종료"]])+check("foreground","앞으로 가져오기");
     case "close":return pathPicker("path","앱 / 파일")+check("force","강제 종료");
     case "hotkey":return select("preset","동작 선택기",HOTKEY_PRESET_LABELS)+input("keys","단축키","클릭하여 할당");
@@ -1454,7 +1454,6 @@ async function registerDroppedApplication(index,filePath,allowAppId=false){
     if(info.kind==='folder')action.settings.path=info.path;
     else {
       action.settings.app=info.path;
-      if(info.kind==='appid'){action.settings.hold='none';action.settings.foreground=false;}
     }
     if(info.name){action.title=info.name;action.settings.autoAppTitle=info.name;}
     if(artwork){action.icon={kind:'file',value:artwork};action.settings.autoAppIcon=true;}
@@ -2937,7 +2936,7 @@ async function executeMultiStep(action,signal){
     case 'website':
       return bridge.openWebsite(outcome.url,outcome.mode,outcome.browserPath);
     case 'open-local-path':
-      if(action.type==='open-app'&&outcome.foreground&&!String(outcome.args||'').trim()&&/\.exe$/i.test(outcome.path)&&
+      if(action.type==='open-app'&&outcome.foreground&&!String(outcome.args||'').trim()&&(outcome.target==='appid'||/\.exe$/i.test(outcome.path))&&
         await bridge.focusLocalApp(outcome.path))return true;
       return bridge.openLocalPath(outcome.path,outcome.target,outcome.args||'');
     case 'type-text':
@@ -3138,7 +3137,7 @@ function executeHardwareAction(event,preview=false,skipKnobGesture=false){
   const resolved=DeckCore.resolveHardwareEvent(state,event);
   if(!resolved)return null;
   const index=resolved.index,offset=index-14;
-  if(!preview&&resolved.action?.type==='open-app'&&!String(resolved.action.settings?.app||'').startsWith('shell:AppsFolder\\')&&
+  if(!preview&&resolved.action?.type==='open-app'&&
     ['close','force'].includes(resolved.action.settings?.hold)&&
     ['down','up'].includes(resolved.gesture))
     return handleOpenAppHold(resolved.action,index,event,resolved.gesture);
@@ -3351,7 +3350,7 @@ function executeHardwareAction(event,preview=false,skipKnobGesture=false){
   }
   if(outcome.kind==='open-local-path'){
     if(!window.deckBridge?.openLocalPath)return 'Windows 실행 환경에서만 사용할 수 있습니다.';
-    (resolved.action?.type==='open-app'&&outcome.foreground&&!String(outcome.args||'').trim()&&/\.exe$/i.test(outcome.path)
+    (resolved.action?.type==='open-app'&&outcome.foreground&&!String(outcome.args||'').trim()&&(outcome.target==='appid'||/\.exe$/i.test(outcome.path))
       ?window.deckBridge.focusLocalApp(outcome.path).then(found=>found?true:window.deckBridge.openLocalPath(outcome.path,outcome.target,outcome.args||''))
       :window.deckBridge.openLocalPath(outcome.path,outcome.target,outcome.args||'')).then(
       ()=>window.d200xActionStatus?.('경로 열기 완료'),
