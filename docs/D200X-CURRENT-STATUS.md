@@ -1,8 +1,17 @@
 # DeckForge 1.1 · D200X 최신 통합 상태·활성 계약
 
-> **상태 기록 기준: 2026-11-18**. 실제 최신 HEAD는 Git에서 확인하며, 코드·자동 검사·Windows 빌드·사용자 Windows/D200X 실기 결과를 구분한다. 시작 시 `AGENTS.md`와 이 문서만 읽고 로드맵은 필요한 경우에만 참고한다.
+> **상태 기록 기준: 2026-11-19**. 실제 최신 HEAD는 Git에서 확인하며, 코드·자동 검사·Windows 빌드·사용자 Windows/D200X 실기 결과를 구분한다. 시작 시 `AGENTS.md`와 이 문서만 읽고 로드맵은 필요한 경우에만 참고한다.
 
-## 1. 최신 작업 인계 — DeckForge 1.1.12 (2026-11-19)
+## 1. 최신 작업 인계 — 1.1.13 개발 계획 확정 (2026-11-19, 소스 미착수)
+
+- 현재 코드 버전 1.1.12, 코드 기준 `a60808177ce8340f1819a7bc7531237f8f728fa0`. Windows 통합 빌드 [44335908723](https://github.com/SoonCheol/D200X-Deck/actions/runs/44335908723), CI [44335923306](https://github.com/SoonCheol/D200X-Deck/actions/runs/44335923306), 입력 검증 [44335908766](https://github.com/SoonCheol/D200X-Deck/actions/runs/44335908766) 모두 success 확인.
+- 사용자 실기: 세 앱 모두 강제 종료 옵션 설정 상태라고 명확히 확인. Fusion과 메모장에서 미저장 작업 저장 경고창 발생(Fusion은 다른 창 뒤에 표시되기도 함), Bitwarden 전경/후경 모두 종료 실패, Files Dev 종료 성공. 정확한 실기 설치 버전/PID는 미확인. 1.1.12에서 모든 문제가 해결되었다고 간주하지 않는다. 반복 설정 확인 요구 금지.
+- ChatGPT 및 Gemini 교차 분석: `editor.js`의 hold='force' → boolean → `preload.cjs` → `main.cjs`의 Force 분기 → Stop-Process -Force 경로 확인. Force→Close 자동 폴백 없음. 기본 hold='close', foreground=true. 실제 실행 모드/구버전 트레이 상주/고정 키 사본/미저장 상태/대상 PID 누락 등은 원인 후보이지 확정 아님. Bitwarden은 직접 EXE 경로 일치 시 창 핸들 0이어도 Force 대상이므로 트레이만으로 실패 설명 불가.
+- **다음 개발: 1.1.13**. 진단 및 확인된 오류만 수정, 사용자 명시 진행 지시 후 시작. 1) 실제 실행 app.getVersion(), 메인 PID, 프로필/페이지/슬롯, 고정 키 여부, inspectorSession.dirty, 실제 hold 값, 누름/뗌 및 유지시간, IPC force 및 최종 모드를 요청별 추적 ID로 연결. 2) PS 버전, 시작 메뉴 LNK 경로, 매칭 방식과 PID, 선정/제외 사유, 실제 종료 API 및 PID별 결과/예외/잔여 대상 기록. AppID와 기존 EXE 양쪽에 적용. UTF-8 출력, 진단과 FOUND/NOT_FOUND 성공 판정 분리(단일 구조화 JSON 또는 별도 채널). 진단 정보는 로컬에 필요한 동작 시만 기록, 개인 경로가 공개 저장소에 들어가지 않도록 한다. 3) 일반 종료 전 IsIconic일 때만 복원, SetForegroundWindow 실패 시 AppActivate 시도, 이후 CloseMainWindow. 전경 활성화가 Windows 정책상 실패할 수 있어도 일반 종료 요청은 유지. 기존 EXE의 창 없는 보조 프로세스 조기 throw 수정(창 있는 대상에 요청하고 아무 성공도 없을 때만 실패). Force에서는 전경 활성화 및 WM_CLOSE/정상 종료 폴백 금지. 4) 일반/강제 종료 상태 메시지 구분. 5) 페이지/프로필/폴더 전환 및 HID 연결 해제에서 오래된 홀드 타이머 정리, 중복 종료 방지 유지. 단순 1.5초 경과 재무장이나 무조건 window blur 초기화 금지(백그라운드 D200X 사용 보존). 실제 up 누락 복구 한계는 명시. 6) 현재 프로세스 생성 시각 재확인 및 안전 대상/조상 제외 유지.
+- **보류**: TerminateProcess 직접 호출, EnumWindows 식별 확대, 전체 자식 프로세스 종료, 식별 범위 확대, WMI 안전 검증 변경, 설치기 변경, 고정 키 구조 변경. 진단 결과 필요한 경우만 1.1.14에서 진행. 직접 일치 또는 창 있는 자식 유지; 전체 자식 강제 종료 금지. 기존 일반 LNK 실행 지원과 LNK 종료/전경 활성화 지원은 구분(후자는 기존 경로에서 미지원). 특정 앱 예외/경로 하드코딩, PowerShell 7 의존, UI/프로필 구조 변경 금지.
+- 1.1.13 Windows 자동 빌드 1회 후 Fusion/메모장/Bitwarden/Files 실기 및 로그 확인. 해결되면 1.1.14 불필요. 이 문서 갱신은 교차 분석 결과 인계만이며 소스 수정/빌드 미실행. 다른 브랜치/PR 병합 금지.
+
+### 1.1.12 기록 (2026-11-19)
 
 - 1.1.11 사용자 D200X 실기: 동일 강제 종료 설정에서 Fusion/Files 성공, Bitwarden 실패(전경/후경 모두). 단독 PS 성공과 차이 확인, 실제 실패 지점은 미확정.
 - 1.1.12: AppID 식별에서 LNK EXE 직접 비교 우선, 프로세스/창 AppID 조회 예외 분리. CIM 생성 일시와 .NET StartTime 정밀도 혼용 대신 각각 동일 API 스냅샷 재확인. 기존 안전 대상/조상 제외 유지. 강제 종료 후 대상 프로세스 종료 여부 확인, 식별 실패 시 경로/일치/선정 개수 및 예외 유형 진단. Bitwarden 전용 예외 없음. UI/기존 파일 경로 동작 유지. Windows 빌드/실기 미확인.
