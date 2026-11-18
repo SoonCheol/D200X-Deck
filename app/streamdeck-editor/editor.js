@@ -1144,7 +1144,7 @@ function actionFields(item){
     case "system-mute":return '<div class="field"><span></span><span class="hint">누를 때마다 음소거 전환</span></div>';
     case "screenshot":case "explorer-open":return '';
     case "file-open":return pathPicker('path','열 파일');
-    case "folder-shortcut":return pathPicker('path','열 폴더','folder');
+    case "folder-shortcut":return pathPicker('path','열 폴더','folder')+check('alwaysNewWindow','항상 새 창으로 열기');
     case "clipboard-edit":return select("operation","동작",[["copy","복사"],["paste","붙여넣기"],["cut","잘라내기"]]);
     case "window-state":return select("operation","동작",[["maximize","최대화"],["minimize","복원/최소화"]]);
     case "window-monitor":return select("direction","방향",[["left","왼쪽 모니터"],["right","오른쪽 모니터"]]);
@@ -2938,7 +2938,7 @@ async function executeMultiStep(action,signal){
     case 'open-local-path':
       if(action.type==='open-app'&&outcome.foreground&&!String(outcome.args||'').trim()&&(outcome.target==='appid'||/\.exe$/i.test(outcome.path))&&
         await bridge.focusLocalApp(outcome.path))return true;
-      return bridge.openLocalPath(outcome.path,outcome.target,outcome.args||'');
+      return bridge.openLocalPath(outcome.path,outcome.target,outcome.args||'',outcome.alwaysNewWindow===true);
     case 'type-text':
       return outcome.mode==='clipboard'?bridge.pasteText(outcome.text,outcome.enter):bridge.typeText(outcome.text,outcome.enter);
     case 'mute':
@@ -3392,8 +3392,8 @@ function executeHardwareAction(event,preview=false,skipKnobGesture=false){
   if(outcome.kind==='open-local-path'){
     if(!window.deckBridge?.openLocalPath)return 'Windows 실행 환경에서만 사용할 수 있습니다.';
     (resolved.action?.type==='open-app'&&outcome.foreground&&!String(outcome.args||'').trim()&&(outcome.target==='appid'||/\.exe$/i.test(outcome.path))
-      ?window.deckBridge.focusLocalApp(outcome.path).then(found=>found?true:window.deckBridge.openLocalPath(outcome.path,outcome.target,outcome.args||''))
-      :window.deckBridge.openLocalPath(outcome.path,outcome.target,outcome.args||'')).then(
+      ?window.deckBridge.focusLocalApp(outcome.path).then(found=>found?true:window.deckBridge.openLocalPath(outcome.path,outcome.target,outcome.args||'',outcome.alwaysNewWindow===true))
+      :window.deckBridge.openLocalPath(outcome.path,outcome.target,outcome.args||'',outcome.alwaysNewWindow===true)).then(
       ()=>window.d200xActionStatus?.('경로 열기 완료'),
       error=>window.d200xActionStatus?.('경로 열기 실패: '+String(error?.message||error)));
     return '지정 경로 열기 요청';

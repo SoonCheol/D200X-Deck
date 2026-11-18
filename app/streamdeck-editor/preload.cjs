@@ -43,7 +43,7 @@ contextBridge.exposeInMainWorld('deckBridge', Object.freeze({
   adjustBrightness: (direction,count=1) => ipcRenderer.invoke('d200x:device-brightness', {direction,count}),
   setBrightness: value => ipcRenderer.invoke('d200x:set-safe-brightness', {value}),
   systemShortcut: (target,operation) => ipcRenderer.invoke('d200x:system-shortcut', {target,operation}),
-  openLocalPath: (filePath,target,args='') => ipcRenderer.invoke('d200x:open-local-path', {filePath,target,args}),
+  openLocalPath: (filePath,target,args='',alwaysNewWindow=false) => ipcRenderer.invoke('d200x:open-local-path', {filePath,target,args,alwaysNewWindow}),
   mediaControl: operation => ipcRenderer.invoke('d200x:media-control', {operation}),
   sendHotkey: keys => ipcRenderer.invoke('d200x:send-hotkey', {keys}),
   typeText: (text,enter=false) => ipcRenderer.invoke('d200x:type-text', {text,enter}),

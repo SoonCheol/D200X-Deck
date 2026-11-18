@@ -947,6 +947,33 @@ ipcMain.handle('d200x:inspect-dropped-target',async(event,args)=>{
   throw new Error('실행 파일, 바로가기 또는 폴더를 드래그하세요.');
 });
 
+// Dedicated folder control; do not reuse process-based app focus (multiple Explorer windows share a PID).
+let folderControlTail=Promise.resolve();
+async function runFolderControl(filePath,alwaysNewWindow){
+  const script=await fs.promises.readFile(path.join(__dirname,'folder-control.ps1'),'utf8');
+  const {stdout}=await execFileAsync('powershell.exe',
+    ['-NoProfile','-NonInteractive','-STA','-WindowStyle','Hidden','-EncodedCommand',Buffer.from(script,'utf16le').toString('base64')],{
+      windowsHide:true,timeout:20000,maxBuffer:65536,
+      env:{...process.env,DECKFORGE_FOLDER_TARGET:Buffer.from(filePath,'utf16le').toString('base64'),
+        DECKFORGE_FOLDER_MODE:alwaysNewWindow?'New':'Focus'}
+    });
+  const result=JSON.parse(String(stdout));
+  if(result.status==='focused'||result.status==='opened')return true;
+  if(result.status==='missing'&&!alwaysNewWindow){
+    const error=await shell.openPath(filePath);
+    if(error)throw new Error(error);
+    // Allow the newly opened folder to register in Shell.Windows before the next queued press.
+    await new Promise(resolve=>setTimeout(resolve,500));
+    return true;
+  }
+  if(result.status==='matched-not-focused')throw new Error('동일 폴더를 찾았지만 창 또는 탭을 활성화하지 못했습니다. 새 창은 열지 않았습니다.');
+  throw new Error('탐색기 폴더 제어 실패: '+String(result.reason||result.status));
+}
+function queueFolderControl(filePath,alwaysNewWindow){
+  const task=folderControlTail.then(()=>runFolderControl(filePath,alwaysNewWindow));
+  folderControlTail=task.catch(()=>{});
+  return task;
+}
 ipcMain.handle('d200x:open-local-path',async(event,args)=>{
   if(!window||event.sender!==window.webContents)throw new Error('허용되지 않은 호출입니다.');
   const filePath=args?.filePath;
@@ -966,6 +993,8 @@ ipcMain.handle('d200x:open-local-path',async(event,args)=>{
   if(args.target==='file'&&!stat.isFile()||args.target==='folder'&&!stat.isDirectory())
     throw new Error('선택한 파일/폴더 유형이 일치하지 않습니다.');
   const extra=String(args?.args||'');
+  if(process.platform==='win32'&&args.target==='folder'&&!extra.trim())
+    return queueFolderControl(filePath,args.alwaysNewWindow===true);
   if(!extra.trim()){
     const error=await shell.openPath(filePath);
     if(error)throw new Error(error);

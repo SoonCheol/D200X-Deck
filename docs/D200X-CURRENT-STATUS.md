@@ -2,7 +2,14 @@
 
 > **상태 기록 기준: 2026-11-19**. 실제 최신 HEAD는 Git에서 확인하며, 코드·자동 검사·Windows 빌드·사용자 Windows/D200X 실기 결과를 구분한다. 시작 시 `AGENTS.md`와 이 문서만 읽고 로드맵은 필요한 경우에만 참고한다.
 
-## 1. 최신 작업 인계 — 1.1.14 완료 및 다음 개발 (2026-11-19)
+## 1. 최신 작업 인계 — 1.1.15 지정 폴더 활성화 (2026-11-19)
+
+- DeckForge 1.1.15: 사용자 승인 후 Windows 기본 탐색기만 대상으로 개발. Files Dev는 사용 중단에 따라 범위 제외. 기존 폴더 경로와 액션 ID 유지; 재등록 불필요. `alwaysNewWindow` 기본 false, 속성창 '항상 새 창으로 열기' 단일 체크박스. 드래그/직접 등록/다중 동작 공통 실행 전달.
+- `folder-control.ps1`: 기존 Windows PowerShell 5.1 STA 실행 방식, 입력 경로는 환경 변수 Base64 데이터. Shell.Windows의 Explorer CabinetWClass 및 실제 Folder.Self.Path 비교(전체 경로, 뒤 구분자 제거, 대소문자 무시). IShellBrowser.GetWindow로 탭 HWND 확인, 이미 활성 탭 우선. 비활성 탭은 ExplorerTabUtility 공개 구현에서 확인한 비공개 WM_COMMAND 0xA221 명령을 최대 32개 인덱스로 시도하고 실제 활성 탭 핸들과 경로를 다시 확인한다. 최소화된 대상만 복원하고 실제 전경 HWND 확인. 경로가 일치하나 활성화 실패하면 중복 열기 금지 및 오류 안내. 미일치/식별 불가 시 기존 shell.openPath로 정상 열기. 별도 상주 프로세스 없음. 새 창 옵션은 ShellExecute opennewwindow 요청, 실제 새 창 생성은 Windows 실기 확인 필요. 폴더 요청 직렬화 및 새 경로 등록 500ms 대기; 느린 네트워크·시작 환경에서는 중복 방지가 완전 보장되지 않는다.
+- 동일 경로 표현 비교만 지원(드라이브 매핑/UNC 별칭, 심볼릭 링크 실제 동일성 등은 판정하지 않음). 비공개 탭 명령 및 Windows 전경 제한, 32개 이상 탭은 제한. 기존 앱 열기/종료, 파일 열기, 사용자 데이터/UI 보존.
+- 집중 테스트: 코어 기본값/구형 설정/옵션 전달, Windows PowerShell 5.1 C# 컴파일 및 경로 비교. 기존 Windows 워크플로에 추가. 코드 반영 이후 Actions/실제 Windows 및 D200X 실기는 각각 확인 필요. 별도 새 브랜치/PR 병합 없음.
+
+### 1.1.14 완료 및 이전 인계 (2026-11-19)
 
 - 최신 완료 버전 **DeckForge 1.1.14** (코드 커밋 `eba0a62255ff9d3bea1c396f52f13c4aa974e187`). Windows 통합 빌드 [44362773397](https://github.com/SoonCheol/D200X-Deck/actions/runs/44362773397), CI [44362783265](https://github.com/SoonCheol/D200X-Deck/actions/runs/44362783265), D200X 입력 검증 [44362773067](https://github.com/SoonCheol/D200X-Deck/actions/runs/44362773067) 모두 success. 설치형 [Artifact](https://github.com/SoonCheol/D200X-Deck/actions/runs/44362773397/artifacts/14456476702), 포터블 [Artifact](https://github.com/SoonCheol/D200X-Deck/actions/runs/44362773397/artifacts/14454742246) 생성 및 미만료 확인. 사용자 1.1.14 정상 실행 보고. 전체 예외 상황 D200X 재실기는 미수행; 별도 반복 테스트는 요구하지 않는다. 종료 기능 작업은 마무리, Bitwarden 완전 종료 및 동일 화면의 실제 up 누락 복구는 보류.
 - **다음 개발: 지정 폴더 열기의 중복 창 방지와 앞으로 가져오기**. 사용자 요청: 특정 폴더 버튼을 다시 누를 때 매번 새 창을 여는 옵션이 설정되어 있지 않으면 해당 폴더 창을 앞으로 가져오기. 이미 열린 폴더가 없으면 정상 열기, 뒤에 있으면 전경으로, 최소화면 복원 후 전경으로, 이미 전경이면 그대로 유지. 같은 앱이라는 이유만으로 다른 폴더 창을 활성화하지 않는다.

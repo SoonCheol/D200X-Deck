@@ -564,6 +564,14 @@ test('local path action planning preserves user selected path safely',()=>{
   const state=core.migrateState(null);state.pages[0][1]=a;
   const restored=core.migrateState(JSON.parse(JSON.stringify(state)));
   assert.equal(restored.pages[0][1].settings.path,a.settings.path);
+  assert.equal(restored.pages[0][1].settings.alwaysNewWindow,false);
+  delete a.settings.alwaysNewWindow;
+  assert.equal(core.cleanAction(a).settings.alwaysNewWindow,false);
+  a.settings.alwaysNewWindow=true;
+  assert.deepEqual(core.planAction(a,0,1),{kind:'open-local-path',path:a.settings.path,target:'folder',alwaysNewWindow:true});
+  assert.equal(core.cleanAction(a).settings.alwaysNewWindow,true);
+  a.settings.alwaysNewWindow='true';
+  assert.equal(core.planAction(a,0,1).alwaysNewWindow,undefined);
 });
 
 test('conflicting legacy page bindings and global single knob both survive migration',()=>{

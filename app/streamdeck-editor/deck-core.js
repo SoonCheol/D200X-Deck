@@ -37,7 +37,7 @@
     screenshot:{},'clipboard-edit':{operation:'copy'},
     'window-state':{operation:'maximize'},'window-monitor':{direction:'right'},
     'explorer-open':{},'brush-size':{direction:'increase'},
-    'timeline-step':{direction:'next'},'timeline-zoom':{operation:'in'},'file-open':{path:''},'folder-shortcut':{path:''}
+    'timeline-step':{direction:'next'},'timeline-zoom':{operation:'in'},'file-open':{path:''},'folder-shortcut':{path:'',alwaysNewWindow:false}
   };
   const TITLE={visible:true,align:'bottom',family:'default',size:12,
     bold:false,italic:false,underline:false,color:'#ffffff',
@@ -696,7 +696,8 @@
     if(action.type==='close')return {kind:'close-local-app',path:String(action.settings?.path||''),force:action.settings?.force===true};
     if(action.type==='file-open'||action.type==='folder-shortcut')
       return {kind:'open-local-path',path:typeof action.settings?.path==='string'?action.settings.path:'',
-        target:action.type==='file-open'?'file':'folder'};
+        target:action.type==='file-open'?'file':'folder',
+        ...(action.type==='folder-shortcut'&&action.settings?.alwaysNewWindow===true?{alwaysNewWindow:true}:{})};
     const shortcutOptions={
       screenshot:['capture'],
       'clipboard-edit':['copy','paste','cut'],
