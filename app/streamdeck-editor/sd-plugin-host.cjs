@@ -100,6 +100,7 @@ class StreamDeckPluginHost{
     this.plugins=new Map();this.contexts=new Map();this.global=new Map();
     this.instances=new Map();this.inspectors=new Map();
     this.haPollTimer=null;this.haPollBusy=false;
+    this.recoveries=new Map();this.starting=new Map();this.pressed=new Map();this.closing=false;this.suspended=false;this.resumeTimer=null;
   }
 
   async ensureRoot(){
@@ -251,21 +252,65 @@ class StreamDeckPluginHost{
             }});
             return;
           }
-          if(owner||inspector)Promise.resolve(this.message(msg,owner,inspector,ws))
+          if((owner&&this.instances.get(owner.uuid)===owner&&owner.ws===ws)||inspector)Promise.resolve(this.message(msg,owner,inspector,ws))
             .catch(error=>this.onUpdate({kind:'error',message:'SDK 설정 요청 실패: '+error.message}));
         }catch(error){this.onUpdate({kind:'error',message:'플러그인 메시지 처리 오류: '+error.message});}
       });
       ws.on('close',()=>{
-        if(owner&&owner.ws===ws){
+        if(owner&&this.instances.get(owner.uuid)===owner&&owner.ws===ws){
           owner.ws=null;
           this.onUpdate({kind:'pluginConnection',pluginUUID:owner.uuid,connected:false});
-          for(const ctx of this.contexts.values())if(ctx.pluginUUID===owner.uuid)ctx.appeared=false;
+          for(const ctx of this.contexts.values())if(ctx.pluginUUID===owner.uuid){ctx.appeared=false;this.pressed.delete(ctx.context);}
         }
         if(inspector&&inspector.ws===ws)inspector.ws=null;
       });
     });
   }
-  send(ws,msg){if(ws&&ws.readyState===1)ws.send(json(msg));}
+  send(ws,msg){if(!ws||ws.readyState!==1)return false;try{ws.send(json(msg));return true;}catch{return false;}}
+  diagnostic(uuid,event){console.info('[DeckForge SDK]',uuid,event);}
+  disconnect(inst){
+    if(this.instances.get(inst.uuid)!==inst)return;
+    this.instances.delete(inst.uuid);
+    for(const ctx of this.contexts.values())if(ctx.pluginUUID===inst.uuid){ctx.appeared=false;this.pressed.delete(ctx.context);}
+    this.onUpdate({kind:'pluginConnection',pluginUUID:inst.uuid,connected:false});
+    try{inst.ws?.terminate?.();}catch{}
+    try{if(inst.window&&!inst.window.isDestroyed())inst.window.destroy();}catch{}
+    try{if(inst.process&&!inst.process.killed&&inst.process.exitCode===null)inst.process.kill();}catch{}
+  }
+  recover(uuid,force=false){
+    if(this.closing||this.suspended)return Promise.resolve(false);
+    if(this.recoveries.has(uuid))return this.recoveries.get(uuid);
+    const task=(async()=>{
+      await this.starting.get(uuid);
+      if(this.closing||this.suspended||![...this.contexts.values()].some(c=>c.pluginUUID===uuid))return false;
+      const old=this.instances.get(uuid);
+      if(!force&&old?.ws?.readyState===1)return true;
+      this.diagnostic(uuid,'recover');
+      if(old)this.disconnect(old);
+      const inst=await this.ensure(uuid);
+      const deadline=Date.now()+5000;
+      while(!this.closing&&!this.suspended&&this.instances.get(uuid)===inst&&inst.ws?.readyState!==1&&Date.now()<deadline)await new Promise(r=>setTimeout(r,100));
+      const ok=inst.ws?.readyState===1;
+      this.diagnostic(uuid,ok?'registered':'registration-timeout');
+      return ok;
+    })().catch(()=>{this.diagnostic(uuid,'recovery-failed');return false;}).finally(()=>this.recoveries.delete(uuid));
+    this.recoveries.set(uuid,task);return task;
+  }
+  onSystemSuspend(){this.suspended=true;this.pressed.clear();clearTimeout(this.resumeTimer);this.resumeTimer=null;}
+  onSystemResume(){
+    this.suspended=false;this.pressed.clear();clearTimeout(this.resumeTimer);
+    // HA's upstream connection cannot be inspected through the local SDK socket.
+    // Restart only the active HA runtime after wake; never replay user commands.
+    this.resumeTimer=setTimeout(()=>{
+      this.resumeTimer=null;
+      if(this.closing||this.suspended)return;
+      for(const uuid of new Set([...this.contexts.values()].map(c=>c.pluginUUID))){
+        const inst=this.instances.get(uuid);
+        if(uuid===HA_PLUGIN||inst?.ws?.readyState!==1)this.recover(uuid,uuid===HA_PLUGIN);
+      }
+      this.refreshHaDualStates().catch(()=>{});
+    },2500);
+  }
   settingsFile(uuid){return path.join(this.root,uuid+'.globals');}
   async readGlobal(uuid){
     await this.ensureRoot();
@@ -288,7 +333,13 @@ class StreamDeckPluginHost{
     this.global.set(uuid,payload);
   }
   async ensure(uuid){
+    if(this.starting.has(uuid))return this.starting.get(uuid);
     if(this.instances.has(uuid))return this.instances.get(uuid);
+    if(this.closing)throw Error('SDK host closing');
+    const task=this.createInstance(uuid).finally(()=>this.starting.delete(uuid));
+    this.starting.set(uuid,task);return task;
+  }
+  async createInstance(uuid){
     await this.start();
     const plugins=await this.list();
     if(!plugins.some(x=>x.uuid===uuid))throw Error('설치되지 않은 플러그인입니다.');
@@ -312,7 +363,8 @@ class StreamDeckPluginHost{
       };
       child.once('error',fail);
       child.once('exit',(code,signal)=>{
-        if(this.instances.get(uuid)===instance)this.instances.delete(uuid);
+        if(this.instances.get(uuid)!==instance)return;
+        this.instances.delete(uuid);
         this.onUpdate({kind:'pluginConnection',pluginUUID:uuid,connected:false});
         instance.ws?.close();
         for(const ctx of this.contexts.values())if(ctx.pluginUUID===uuid)ctx.appeared=false;
@@ -324,11 +376,12 @@ class StreamDeckPluginHost{
       child.stderr?.on('data',()=>{});
       return instance;
     }
-    const win=new BrowserWindow({show:false,webPreferences:{nodeIntegration:false,contextIsolation:false,sandbox:true,webSecurity:true}});
+    const win=new BrowserWindow({show:false,webPreferences:{nodeIntegration:false,contextIsolation:false,sandbox:true,webSecurity:true,backgroundThrottling:false}});
     win.webContents.setWindowOpenHandler(()=>({action:'deny'}));
     win.webContents.on('will-navigate',(event,url)=>{if(!url.startsWith('file://'))event.preventDefault();});
     instance.window=win;this.instances.set(uuid,instance);
-    win.on('closed',()=>{if(this.instances.get(uuid)===instance)this.instances.delete(uuid);});
+    win.on('closed',()=>{if(this.instances.get(uuid)===instance)this.disconnect(instance);});
+    win.webContents.on('render-process-gone',()=>{if(this.instances.get(uuid)===instance)this.disconnect(instance);});
     await win.loadFile(path.join(dir,manifest.CodePath));
     const info=json({application:{font:'Arial',language:'ko',platform:'windows',platformVersion:'10',version:'7.6.1'},devices:[{id:DEVICE,name:'D200X',size:{columns:4,rows:4},type:0}],plugin:{version:manifest.Version||'1.0.0'},devicePixelRatio:1});
     await win.webContents.executeJavaScript('typeof connectElgatoStreamDeckSocket==="function" && connectElgatoStreamDeckSocket('+[this.port,uuid,'registerPlugin',info,'{}'].map(json).join(',')+')');
@@ -382,6 +435,7 @@ class StreamDeckPluginHost{
     await this.refreshHaDualStates();
   }
   disappear(ctx){
+    this.pressed.delete(ctx.context);
     this.send(this.instances.get(ctx.pluginUUID)?.ws,{event:'willDisappear',action:ctx.actionUUID,context:ctx.context,device:DEVICE,payload:this.payload(ctx)});
   }
   async refreshHaDualStates(fetcher=globalThis.fetch){
@@ -429,8 +483,13 @@ class StreamDeckPluginHost{
     const event=gesture==='left'||gesture==='right'?'dialRotate':
       ctx.slot>=16?(gesture==='up'?'dialUp':'dialDown'):(gesture==='up'?'keyUp':'keyDown');
     const payload={...this.payload(ctx),...(event==='dialRotate'?{ticks:gesture==='left'?-Math.max(1,ticks):Math.max(1,ticks),pressed:false}: {})};
-    this.send(this.instances.get(ctx.pluginUUID)?.ws,{event,action:ctx.actionUUID,context,device:DEVICE,payload});
-    return true;
+    const inst=this.instances.get(ctx.pluginUUID);
+    if(this.closing||this.suspended||this.recoveries.has(ctx.pluginUUID)||(ctx.pluginUUID===HA_PLUGIN&&this.resumeTimer)){return false;}
+    if(inst?.ws?.readyState!==1){this.pressed.delete(context);this.recover(ctx.pluginUUID);return false;}
+    if(event==='keyUp'||event==='dialUp'){if(this.pressed.get(context)!==inst.ws)return false;this.pressed.delete(context);}
+    const ok=this.send(inst.ws,{event,action:ctx.actionUUID,context,device:DEVICE,payload});
+    if(ok&&(event==='keyDown'||event==='dialDown'))this.pressed.set(context,inst.ws);
+    return ok;
   }
   async inspector(context){
     const ctx=this.contexts.get(context);
@@ -544,6 +603,7 @@ class StreamDeckPluginHost{
     }
   }
   async close(){
+    this.closing=true;clearTimeout(this.resumeTimer);this.resumeTimer=null;this.pressed.clear();
     if(this.haPollTimer){clearInterval(this.haPollTimer);this.haPollTimer=null;}
     for(const pi of this.inspectors.values())if(!pi.window.isDestroyed())pi.window.close();
     for(const inst of this.instances.values()){
