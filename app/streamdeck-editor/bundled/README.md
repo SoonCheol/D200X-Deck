@@ -1,5 +1,8 @@
 # Bundled icon packs
 
-Place the unmodified `DeckForge_IoT_Icons.streamDeckIconPack` archive in this directory. It is packaged with DeckForge Windows builds and loaded at runtime as the read-only `DeckForge IoT Icons` library by Airburst (106 icons). The source archive must retain `manifest.json`, `icons.json`, and `icons/` entries. User-installed packs under `%APPDATA%\DeckForge\Resources\IconPacks` remain separate and are never overwritten.
+The two user-provided archives in this directory are bundled without artwork or manifest changes:
 
-This README is not a substitute for the binary archive. A build without the archive does **not** include the IoT pack.
+- `DeckForge_IoT_COLOR_ON_OFF.streamDeckIconPack`
+- `DeckForge_IoT_LINE_ON_OFF.streamDeckIconPack`
+
+They appear first in the library in the order above, then the two Fluent UI packs and user-installed packs. Windows packaging requires both archives and verifies ZIP CRC plus the existing icon-pack parser. Manifest names, authors, icon counts and filenames come from the archives. User-installed packs under `%APPDATA%\DeckForge\Resources\IconPacks` and saved button images remain unchanged.

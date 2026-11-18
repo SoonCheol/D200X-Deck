@@ -988,28 +988,23 @@ async function listIconPacks(){
     if(!Array.isArray(parsed)||parsed.length!==2||
       !parsed.every(pack=>pack.source==='bundled'&&pack.icons.length>1500))
       throw new Error('내장 Fluent UI 아이콘팩 데이터가 올바르지 않습니다.');
-    // Both IoT variants are bundled, never written to user data. Keep the
-    // original stable ID and give transparent artwork its own library group.
+    // User-approved IoT packs appear first, followed by Fluent UI.
     const variants=[
-      {file:'DeckForge_IoT_Icons.streamDeckIconPack',id:'builtin-deckforge-iot',name:'DeckForge IoT Icons',transparent:false},
-      {file:'DeckForge_IoT_Icons_Transparent.streamDeckIconPack',id:'builtin-deckforge-iot-transparent',name:'DeckForge IoT Icons (투명)',transparent:true}
+      {file:'DeckForge_IoT_COLOR_ON_OFF.streamDeckIconPack',id:'builtin-deckforge-iot-color',name:'DeckForge IoT COLOR ON/OFF'},
+      {file:'DeckForge_IoT_LINE_ON_OFF.streamDeckIconPack',id:'builtin-deckforge-iot-line',name:'DeckForge IoT LINE ON/OFF'}
     ];
+    const iotPacks=[];
     for(const variant of variants){
       try{
-        const iot=await parseIconPack(await fs.promises.readFile(path.join(__dirname,'bundled',variant.file)));
-        const canonical=(iot.name===variant.name||variant.transparent&&iot.name==='DeckForge IoT Icons')&&iot.author==='Airburst';
-        const source=variant.transparent&&iot.name==='D200X_IoT_Icons'&&iot.author==='Personal';
-        if((!canonical&&!source)||iot.icons.length!==106)
-          throw new Error(variant.name+' 내장 파일 정보가 일치하지 않습니다.');
-        iot.name=variant.name;
-        iot.author='Airburst';
+        const iot=await parseIconPack(await fs.promises.readFile(path.join(__dirname,'bundled',variant.file)),undefined,variant.name);
         iot.id=variant.id;
         iot.source='bundled';
-        parsed.push(iot);
+        iotPacks.push(iot);
       }catch(error){
         if(error.code!=='ENOENT')throw error;
       }
     }
+    parsed.unshift(...iotPacks);
     builtinPacksCache=parsed;
   }
   const installed=await readPacks(iconPacksFile());
