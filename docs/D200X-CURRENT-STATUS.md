@@ -4,11 +4,17 @@
 
 ## 1. 최신 작업 인계 — 1.1.17 지정 폴더 전용 C# 헬퍼 (2026-11-19)
 
+- **1.1.17 지정 폴더 열기 완료 (2026-11-19 사용자 실기 확인)**. 항상 새 창 체크 시 반복 실행마다 새 창 생성, 체크 해제 시 중복 창 없음 및 기존 동일 폴더 창 전경 활성화, 사용자가 탐색기에서 직접 이동한 imsi 폴더도 인식. 기존 창이 없는 폴더 신규 열기, 최소화 복원, 비활성 탭 전환 모두 성공. D200X 버튼 및 탐색기 수동 이동 후 테스트 결과 일치. 사용자가 창 표시 속도가 빠르다고 보고함(정량 측정 없음). 지정 폴더 기능 추가 수정 불필요. 중첩 폴더/상속 고정 키 경로 선택과 다른 기능 전체 실기는 별도 미확인.
+- 구현 커밋 [7e0d61d](https://github.com/SoonCheol/D200X-Deck/commit/7e0d61d90c72a90848d7f9744b2979924f77f2d6), 포터블 ASAR 실제 경로 및 헬퍼 배치 수정 [d707567](https://github.com/SoonCheol/D200X-Deck/commit/d70756797ec8a8be419bb505ffa2a6ce7ac3d2e1). 최초 Windows 빌드 #724 실패는 헬퍼 컴파일이 아닌 포터블 검증 경로 오류였음. 수정 후 Windows 빌드 [#725](https://github.com/SoonCheol/D200X-Deck/actions/runs/44396267533), CI [#975](https://github.com/SoonCheol/D200X-Deck/actions/runs/44396280089) 성공. 구현 커밋 D200X 입력 모의 검증 [#368](https://github.com/SoonCheol/D200X-Deck/actions/runs/44395555117) 성공. [설치형](https://github.com/SoonCheol/D200X-Deck/actions/runs/44396267533/artifacts/14472085701), [포터블](https://github.com/SoonCheol/D200X-Deck/actions/runs/44396267533/artifacts/14470631623) 생성 및 미만료 확인.
+- Gemini 교차 분석·ADR의 핵심 근거: 기존 실제 실행에는 CI와 달리 -WindowStyle Hidden이 추가되어 있었고 CRLF 패키징 시 EncodedCommand가 Windows 명령줄 제한을 넘을 가능성이 지적됨. 관련 코드의 인수 차이 및 루트 페이지 한정 경로 검사 확인. 1.1.16 실패 당시 실제 진단 로그 및 패키징 줄바꿈 미확인으로 원인 확정 아님. C# 전환의 성능 개선은 사용자 체감으로 확인되었으나 Gemini 예상 수치(PS 500~1200ms, C# 20~60ms)는 실측값 아님. Windows 전경 정책 제한 자체가 제거된 것은 아님.
+- **후속 검토만, 개발 미승인**: 응용 프로그램 활성화·일반/강제 종료·시작 메뉴 앱 제어·Smart Profile 전경 앱 감지의 PowerShell 의존성을 사전 컴파일 C# 방식으로 기능별 전환할 수 있음. 일반 지정 파일 열기는 이미 Electron shell.openPath, 신규 앱 실행은 spawn/shell.openPath이므로 일괄 C# 전환 필요성 낮음. 기존 정상 기능을 보존하고 사용자가 별도 개발을 지시할 때만 해당 코드 변경. 실제 소스 main.cjs 확인에 따른 방향이며 구현·성능 검증 전.
+
+
 - 1.1.16 Windows 빌드 44385084276 및 D200X 모의 입력 검증 44385084264 성공. 사용자 실기에서 항상 새 창 옵션과 다른 신규 폴더 열기 모두 실패. 진단 로그 미수집으로 실제 원인은 확정하지 않음.
 - 사용자 승인 B안: 폴더 제어만 사전 컴파일 C# EXE로 전환. 기존 PowerShell의 실행 인수/CI 불일치 및 EncodedCommand 크기 위험 제거, 실제 실행/검증 공통 launcher. 앱 실행·종료 PowerShell, HID, UI 및 프로필/액션 ID 변경 없음. 폴더 버튼 재등록 불필요.
 - New 모드는 독립 Probe에서 성공한 explorer.exe /n 1회 직접 요청, EnumWindows 기반 기존 프레임 대비 실제 폴더 일치 신규 HWND 확인. 승인 요청을 자동 중복 실행하지 않음. Focus는 실제 경로·탭 식별, 최소화 복원 및 전경 확인 유지. Windows의 전경 정책 및 비공개 탭 명령 한계 유지. 새 창 생성 확인과 전경 성공 여부는 로그에서 구분.
 - 지정 폴더 경로 선택기만 현재 편집 세션과 실제 표시 슬롯으로 검증하여 중첩 폴더 및 상속 고정 키 지원. 다른 액션의 기존 편집 경로는 변경하지 않음.
-- Windows CI에서 .NET Framework C# 컴파일, 소스 및 포터블/설치형 staging에서 공통 launcher로 Validate 모드 실행. Windows 자동 빌드/사용자 실기는 결과 확인 전 미확인. 기존 folder-control.ps1은 비교 기준으로 남겨 두되 런타임 미사용.
+- Windows CI에서 .NET Framework C# 컴파일, 소스 및 포터블/설치형 staging에서 공통 launcher로 Validate 모드 실행. Windows 자동 빌드 및 사용자 지정 폴더 실기 성공은 위 완료 기록 참조. 기존 folder-control.ps1은 비교 기준으로 남겨 두되 런타임 미사용.
 - 기존 진단 로그 위치 유지. 문제 발생하면 version, mode, helper-result 및 error를 확인. 개인 경로 공개 저장소 업로드 금지.
 
 ### 1.1.16 탐색기 폴더 활성화 보완 기록 (2026-11-19)
