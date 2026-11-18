@@ -2,7 +2,12 @@
 
 > **상태 기록 기준: 2026-11-18**. 실제 최신 HEAD는 Git에서 확인하며, 코드·자동 검사·Windows 빌드·사용자 Windows/D200X 실기 결과를 구분한다. 시작 시 `AGENTS.md`와 이 문서만 읽고 로드맵은 필요한 경우에만 참고한다.
 
-## 1. 최신 작업 인계 — DeckForge 1.1.11 (2026-11-19)
+## 1. 최신 작업 인계 — DeckForge 1.1.12 (2026-11-19)
+
+- 1.1.11 사용자 D200X 실기: 동일 강제 종료 설정에서 Fusion/Files 성공, Bitwarden 실패(전경/후경 모두). 단독 PS 성공과 차이 확인, 실제 실패 지점은 미확정.
+- 1.1.12: AppID 식별에서 LNK EXE 직접 비교 우선, 프로세스/창 AppID 조회 예외 분리. CIM 생성 일시와 .NET StartTime 정밀도 혼용 대신 각각 동일 API 스냅샷 재확인. 기존 안전 대상/조상 제외 유지. 강제 종료 후 대상 프로세스 종료 여부 확인, 식별 실패 시 경로/일치/선정 개수 및 예외 유형 진단. Bitwarden 전용 예외 없음. UI/기존 파일 경로 동작 유지. Windows 빌드/실기 미확인.
+
+### 1.1.11 기록 (2026-11-19)
 
 - 1.1.10 사용자 실기: 시작 메뉴 앱 및 탐색기 폴더 드래그 등록 정상 보고.
 - 사용자 PowerShell 검증: Files Dev는 프로세스 AppID, Bitwarden은 시작 메뉴 LNK AppID/EXE 경로, Fusion은 LNK 런처와 자식 프로세스로 자동 식별. 세 앱 정상 닫기 및 강제 종료 성공(정상 닫기 시 Bitwarden 트레이 유지). 창 활성화 Fusion/Files는 SetForegroundWindow, Bitwarden은 AppActivate 성공. CIM 생성 시각과 Get-Process 시각 차이 1~9 ticks 확인, 10 ticks 미만 허용. 강제 종료 대상은 직접 일치 또는 창 있는 자식만; 보조 프로세스 전체 종료 금지. 별도 네이티브 앱 없음.
