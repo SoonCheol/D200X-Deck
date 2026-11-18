@@ -7,6 +7,8 @@
 - 사용자 업로드 신규 IoT COLOR ON/OFF 및 LINE ON/OFF 팩 2개로 내장 IoT 라이브러리 교체. 기존 불투명/자동 투명화 팩 2개는 현재 트리에서 제거(이전 Git 커밋 보존). 표시 순서: COLOR → LINE → Fluent UI Filled → Fluent UI Regular → 사용자 등록순. 새 팩 ID는 `builtin-deckforge-iot-color`, `builtin-deckforge-iot-line`; 두 팩의 manifest 표시 이름·제작자·아이콘 목록·파일명·이미지 원본 바이트는 유지. 정확한 내부 이름/개수 및 ZIP 무결성은 바이너리 읽기 제한으로 CI에서 기존 파서로 검증한다.
 - 신규 팩 Git blob `75fbb56b6869321d135b7a1cebfbe69d477b2a28`, `9108b9bae5ab30c7ec43d381eba6ee6a2ed5e66c`. 기존 저장 버튼 이미지 및 사용자 데이터 자동 변경 없음. 코드 및 빌드 검증/실기 구분. Windows 빌드 대기.
 
+- CI 운영 변경: Windows 통합 설치본 워크플로 `streamdeck-clean-preview.yml`은 개발 브랜치 push(기존 경로 필터)와 수동 `workflow_dispatch`만 실행한다. PR #5 synchronize 중복 Windows 패키징 제거. 다른 CI/PR 설정과 빌드 단계는 유지. 앱 버전 1.1.8 유지(빌드 설정만 변경).
+
 ### 1.1.7 두 IoT 팩 기록 (2026-11-18)
 
 - 사용자 요청: 자동 투명화 외관이 어색하므로 기존 불투명 원본과 투명화 팩을 둘 다 내장 라이브러리에 제공. 원본 106개를 기존 경로/ID `builtin-deckforge-iot` 및 이름 `DeckForge IoT Icons`로 복원하고, 투명화 106개를 별도 경로 `DeckForge_IoT_Icons_Transparent.streamDeckIconPack`, ID `builtin-deckforge-iot-transparent`, 이름 `DeckForge IoT Icons (투명)`으로 등록. 제작자 Airburst, 기존 Fluent UI 및 사용자 팩 유지.
