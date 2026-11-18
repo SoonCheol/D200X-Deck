@@ -266,15 +266,15 @@ jobs:
           Get-ChildItem 'app/preview-device-build/streamdeck-editor' | Select-Object -First 12 Name,Length | Format-Table
           Copy-Item -LiteralPath 'app/streamdeck-editor/builtin-iconpacks.json' -Destination 'app/preview-device-build/streamdeck-editor/builtin-iconpacks.json' -Force
           Copy-Item -LiteralPath 'app/streamdeck-editor/fluentui-LICENSE.md' -Destination 'app/preview-device-build/streamdeck-editor/fluentui-LICENSE.md' -Force
-          # Package both user-supplied IoT archives without modifying their manifests or artwork.
+          # Package all three user-supplied archives without modifying their manifests or artwork.
           $iotDestination = 'app/preview-device-build/streamdeck-editor/bundled'
           New-Item -ItemType Directory -Force $iotDestination | Out-Null
-          foreach ($iotName in @('DeckForge_IoT_COLOR_ON_OFF.streamDeckIconPack','DeckForge_IoT_LINE_ON_OFF.streamDeckIconPack')) {
+          foreach ($iotName in @('DeckForge_IoT_COLOR_ON_OFF.streamDeckIconPack','DeckForge_IoT_LINE_ON_OFF.streamDeckIconPack','DeckForge_Logo_Icons_White_Color.streamDeckIconPack')) {
             $iotSource = Join-Path 'app/streamdeck-editor/bundled' $iotName
-            if (-not (Test-Path $iotSource)) { throw "Missing bundled IoT pack: $iotName" }
+            if (-not (Test-Path $iotSource)) { throw "Missing bundled icon pack: $iotName" }
             Copy-Item -LiteralPath $iotSource -Destination $iotDestination -Force
             node -e "const fs=require('fs');const JSZip=require('./app/node_modules/jszip');const {parseIconPack}=require('./app/streamdeck-editor/icon-pack.cjs');(async()=>{const bytes=fs.readFileSync(process.argv[1]);await JSZip.loadAsync(bytes,{checkCRC32:true});const pack=await parseIconPack(bytes);console.log('Verified packaged '+pack.name+': '+pack.icons.length+' icons; author '+pack.author)})().catch(e=>{console.error(e);process.exit(1)})" "$iotDestination/$iotName"
-            if ($LASTEXITCODE -ne 0) { throw "IoT pack verification failed: $iotName" }
+            if ($LASTEXITCODE -ne 0) { throw "Bundled icon pack verification failed: $iotName" }
           }
           $staged = Get-Item 'app/preview-device-build/streamdeck-editor/builtin-iconpacks.json' -ErrorAction SilentlyContinue
           if (-not $staged) { throw 'Staged preview missing Fluent UI icon bundle' }

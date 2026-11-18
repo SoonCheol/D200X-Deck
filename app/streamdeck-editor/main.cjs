@@ -988,10 +988,11 @@ async function listIconPacks(){
     if(!Array.isArray(parsed)||parsed.length!==2||
       !parsed.every(pack=>pack.source==='bundled'&&pack.icons.length>1500))
       throw new Error('내장 Fluent UI 아이콘팩 데이터가 올바르지 않습니다.');
-    // User-approved IoT packs appear first, followed by Fluent UI.
+    // User-approved IoT and logo packs appear first, followed by Fluent UI.
     const variants=[
       {file:'DeckForge_IoT_COLOR_ON_OFF.streamDeckIconPack',id:'builtin-deckforge-iot-color',name:'DeckForge IoT COLOR ON/OFF'},
-      {file:'DeckForge_IoT_LINE_ON_OFF.streamDeckIconPack',id:'builtin-deckforge-iot-line',name:'DeckForge IoT LINE ON/OFF'}
+      {file:'DeckForge_IoT_LINE_ON_OFF.streamDeckIconPack',id:'builtin-deckforge-iot-line',name:'DeckForge IoT LINE ON/OFF'},
+      {file:'DeckForge_Logo_Icons_White_Color.streamDeckIconPack',id:'builtin-deckforge-logo-white-color',name:'DeckForge Logo Icons White Color'}
     ];
     const iotPacks=[];
     for(const variant of variants){

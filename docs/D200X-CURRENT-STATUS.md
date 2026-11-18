@@ -2,7 +2,11 @@
 
 > **상태 기록 기준: 2026-11-18**. 실제 최신 HEAD는 Git에서 확인하며, 코드·자동 검사·Windows 빌드·사용자 Windows/D200X 실기 결과를 구분한다. 시작 시 `AGENTS.md`와 이 문서만 읽고 로드맵은 필요한 경우에만 참고한다.
 
-## 1. 최신 작업 인계 — DeckForge 1.1.8 (2026-11-18)
+## 1. 최신 작업 인계 — DeckForge 1.1.9 (2026-11-18)
+
+- 사용자 1.1.8 실기: 신규 IoT 아이콘팩 내장 정상 보고. 사용자 추가 요청으로 `DeckForge_Logo_Icons_White_Color.streamDeckIconPack` (Git blob `4350a627dfe8f08414ba3db8747de96df5116adc`)을 원본 그대로 세 번째 내장 팩으로 등록. ID `builtin-deckforge-logo-white-color`. 표시 순서 COLOR → LINE → Logo White Color → Fluent UI Filled → Fluent UI Regular → 사용자 등록순. 실제 표시 이름 및 아이콘 개수는 원본 manifest/목록을 사용하며 ZIP CRC/파서 검증은 Windows 빌드에서 수행한다(원격 바이너리 내부 미확인). 기존 팩, 사용자 버튼 이미지, UI, 기타 기능 및 단일 자동 빌드 정책 유지. 1.1.9 Windows 빌드 및 실기 확인 대기.
+
+### 1.1.8 두 신규 IoT 팩 및 빌드 설정
 
 - 사용자 업로드 신규 IoT COLOR ON/OFF 및 LINE ON/OFF 팩 2개로 내장 IoT 라이브러리 교체. 기존 불투명/자동 투명화 팩 2개는 현재 트리에서 제거(이전 Git 커밋 보존). 표시 순서: COLOR → LINE → Fluent UI Filled → Fluent UI Regular → 사용자 등록순. 새 팩 ID는 `builtin-deckforge-iot-color`, `builtin-deckforge-iot-line`; 두 팩의 manifest 표시 이름·제작자·아이콘 목록·파일명·이미지 원본 바이트는 유지. 정확한 내부 이름/개수 및 ZIP 무결성은 바이너리 읽기 제한으로 CI에서 기존 파서로 검증한다.
 - 신규 팩 Git blob `75fbb56b6869321d135b7a1cebfbe69d477b2a28`, `9108b9bae5ab30c7ec43d381eba6ee6a2ed5e66c`. 기존 저장 버튼 이미지 및 사용자 데이터 자동 변경 없음. 코드 및 빌드 검증/실기 구분. Windows 빌드 대기.
