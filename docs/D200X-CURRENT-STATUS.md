@@ -2,7 +2,12 @@
 
 > **상태 기록 기준: 2026-11-18**. 실제 최신 HEAD는 Git에서 확인하며, 코드·자동 검사·Windows 빌드·사용자 Windows/D200X 실기 결과를 구분한다. 시작 시 `AGENTS.md`와 이 문서만 읽고 로드맵은 필요한 경우에만 참고한다.
 
-## 1. 최신 작업 인계 — DeckForge 1.1.6 (2026-11-18)
+## 1. 최신 작업 인계 — DeckForge 1.1.7 (2026-11-18)
+
+- 사용자 요청: 자동 투명화 외관이 어색하므로 기존 불투명 원본과 투명화 팩을 둘 다 내장 라이브러리에 제공. 원본 106개를 기존 경로/ID `builtin-deckforge-iot` 및 이름 `DeckForge IoT Icons`로 복원하고, 투명화 106개를 별도 경로 `DeckForge_IoT_Icons_Transparent.streamDeckIconPack`, ID `builtin-deckforge-iot-transparent`, 이름 `DeckForge IoT Icons (투명)`으로 등록. 제작자 Airburst, 기존 Fluent UI 및 사용자 팩 유지.
+- 원본 Git blob `b441688607f729f06b89b6b57d1138bcf9d5f38e`와 투명화 blob `f14214ca86b8935a59af91665cbc5db96af759cb` 재사용: 이미지 재변환 없음. Windows 패키징에서 두 파일의 ZIP CRC/메타데이터/106개 목록 검사 및 투명팩 표시 이름 정규화. 기존 저장된 버튼 이미지는 변경하지 않음. 1.1.6에서 등록한 투명 이미지의 기존 packId는 자동 이관하지 않음. 필요시 투명팩에서 재선택. UI/표시 속성 기능 변경 없음. Windows 빌드 및 실기 확인 대기.
+
+### 1.1.6 투명팩 교체 기록 (2026-11-18)
 
 - 사용자 1.1.5 실기: 현재까지 전반 동작 정상 보고. IoT 아이콘팩의 불투명한 어두운 배경 때문에 단추 배경색이 가려지는 현상은 일반 Key Up/Down에서도 재현. 사용자 승인에 따라 투명화한 106개 PNG 팩으로 교체. 자동 마스킹 특성상 일부 외곽선·어두운 영역이 어색할 수 있으며 추후 별도 개선 가능.
 - 사용자 업로드 원본의 Git blob `f14214ca86b8935a59af91665cbc5db96af759cb`은 작업 환경에서 생성한 투명화 ZIP과 일치하며 압축 검사를 통과. 기존 내장 경로로 이동, 별도 업로드 파일의 중복 제거. 원래 이름/제작자 메타데이터만 로컬 실행 및 Windows 패키징 시 기존 DeckForge IoT Icons/Airburst로 정규화. 고정 ID `builtin-deckforge-iot`, 이미지 파일명/아이콘 목록 유지.

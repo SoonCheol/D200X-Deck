@@ -280,14 +280,15 @@ jobs:
           Get-ChildItem 'app/preview-device-build/streamdeck-editor' | Select-Object -First 12 Name,Length | Format-Table
           Copy-Item -LiteralPath 'app/streamdeck-editor/builtin-iconpacks.json' -Destination 'app/preview-device-build/streamdeck-editor/builtin-iconpacks.json' -Force
           Copy-Item -LiteralPath 'app/streamdeck-editor/fluentui-LICENSE.md' -Destination 'app/preview-device-build/streamdeck-editor/fluentui-LICENSE.md' -Force
-          # Optional in source until the user-supplied archive is committed to the tracked branch.
-          $iotSource = 'app/streamdeck-editor/bundled/DeckForge_IoT_Icons.streamDeckIconPack'
-          if (Test-Path $iotSource) {
-            $iotDestination = 'app/preview-device-build/streamdeck-editor/bundled'
-            New-Item -ItemType Directory -Force $iotDestination | Out-Null
+          # Package and validate both IoT variants independently.
+          $iotDestination = 'app/preview-device-build/streamdeck-editor/bundled'
+          New-Item -ItemType Directory -Force $iotDestination | Out-Null
+          foreach ($iotName in @('DeckForge_IoT_Icons.streamDeckIconPack','DeckForge_IoT_Icons_Transparent.streamDeckIconPack')) {
+            $iotSource = Join-Path 'app/streamdeck-editor/bundled' $iotName
+            if (-not (Test-Path $iotSource)) { throw "Missing bundled IoT pack: $iotName" }
             Copy-Item -LiteralPath $iotSource -Destination $iotDestination -Force
-            node -e "const fs=require('fs');const JSZip=require('./app/node_modules/jszip');(async()=>{const z=await JSZip.loadAsync(fs.readFileSync(process.argv[1]),{checkCRC32:true});const m=JSON.parse(await z.file('manifest.json').async('string'));const icons=JSON.parse(await z.file('icons.json').async('string'));const canonical=m.Name==='DeckForge IoT Icons'&&m.Author==='Airburst';const source=m.Name==='D200X_IoT_Icons'&&m.Author==='Personal';if((!canonical&&!source)||icons.length!==106)process.exit(1);if(source){m.Name='DeckForge IoT Icons';m.Author='Airburst';m.Description='DeckForge IoT Icons Icon Pack';z.file('manifest.json',JSON.stringify(m,null,2));fs.writeFileSync(process.argv[1],await z.generateAsync({type:'nodebuffer',compression:'DEFLATE'}));}console.log('Verified packaged DeckForge IoT Icons: '+icons.length)})().catch(e=>{console.error(e);process.exit(1)})" "$iotDestination/DeckForge_IoT_Icons.streamDeckIconPack"
-            if ($LASTEXITCODE -ne 0) { throw 'DeckForge IoT Icons verification failed' }
+            node -e "const fs=require('fs');const JSZip=require('./app/node_modules/jszip');(async()=>{const file=process.argv[1];const transparent=file.endsWith('_Transparent.streamDeckIconPack');const expected=transparent?'DeckForge IoT Icons (투명)':'DeckForge IoT Icons';const z=await JSZip.loadAsync(fs.readFileSync(file),{checkCRC32:true});const m=JSON.parse(await z.file('manifest.json').async('string'));const icons=JSON.parse(await z.file('icons.json').async('string'));const canonical=(m.Name===expected||(transparent&&m.Name==='DeckForge IoT Icons'))&&m.Author==='Airburst';const source=transparent&&m.Name==='D200X_IoT_Icons'&&m.Author==='Personal';if((!canonical&&!source)||icons.length!==106)process.exit(1);if(m.Name!==expected||m.Author!=='Airburst'){m.Name=expected;m.Author='Airburst';m.Description=expected+' Icon Pack';z.file('manifest.json',JSON.stringify(m,null,2));fs.writeFileSync(file,await z.generateAsync({type:'nodebuffer',compression:'DEFLATE'}));}console.log('Verified packaged '+expected+': '+icons.length)})().catch(e=>{console.error(e);process.exit(1)})" "$iotDestination/$iotName"
+            if ($LASTEXITCODE -ne 0) { throw "IoT pack verification failed: $iotName" }
           }
           $staged = Get-Item 'app/preview-device-build/streamdeck-editor/builtin-iconpacks.json' -ErrorAction SilentlyContinue
           if (-not $staged) { throw 'Staged preview missing Fluent UI icon bundle' }

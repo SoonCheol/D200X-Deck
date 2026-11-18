@@ -988,24 +988,27 @@ async function listIconPacks(){
     if(!Array.isArray(parsed)||parsed.length!==2||
       !parsed.every(pack=>pack.source==='bundled'&&pack.icons.length>1500))
       throw new Error('내장 Fluent UI 아이콘팩 데이터가 올바르지 않습니다.');
-    // DeckForge IoT is distributed with the application, not copied to user data.
-    // Missing archive is tolerated by older/development builds; packaged builds verify it.
-    const iotFile=path.join(__dirname,'bundled','DeckForge_IoT_Icons.streamDeckIconPack');
-    try{
-      const iot=await parseIconPack(await fs.promises.readFile(iotFile));
-      // The transparent source archive retains its original author/name. Only
-      // this bundled pack is normalized; its stable ID and public label stay unchanged.
-      const knownSource=iot.name==='D200X_IoT_Icons'&&iot.author==='Personal';
-      const canonical=iot.name==='DeckForge IoT Icons'&&iot.author==='Airburst';
-      if((!canonical&&!knownSource)||iot.icons.length!==106)
-        throw new Error('DeckForge IoT Icons 내장 파일 정보가 일치하지 않습니다.');
-      iot.name='DeckForge IoT Icons';
-      iot.author='Airburst';
-      iot.id='builtin-deckforge-iot';
-      iot.source='bundled';
-      parsed.push(iot);
-    }catch(error){
-      if(error.code!=='ENOENT')throw error;
+    // Both IoT variants are bundled, never written to user data. Keep the
+    // original stable ID and give transparent artwork its own library group.
+    const variants=[
+      {file:'DeckForge_IoT_Icons.streamDeckIconPack',id:'builtin-deckforge-iot',name:'DeckForge IoT Icons',transparent:false},
+      {file:'DeckForge_IoT_Icons_Transparent.streamDeckIconPack',id:'builtin-deckforge-iot-transparent',name:'DeckForge IoT Icons (투명)',transparent:true}
+    ];
+    for(const variant of variants){
+      try{
+        const iot=await parseIconPack(await fs.promises.readFile(path.join(__dirname,'bundled',variant.file)));
+        const canonical=(iot.name===variant.name||variant.transparent&&iot.name==='DeckForge IoT Icons')&&iot.author==='Airburst';
+        const source=variant.transparent&&iot.name==='D200X_IoT_Icons'&&iot.author==='Personal';
+        if((!canonical&&!source)||iot.icons.length!==106)
+          throw new Error(variant.name+' 내장 파일 정보가 일치하지 않습니다.');
+        iot.name=variant.name;
+        iot.author='Airburst';
+        iot.id=variant.id;
+        iot.source='bundled';
+        parsed.push(iot);
+      }catch(error){
+        if(error.code!=='ENOENT')throw error;
+      }
     }
     builtinPacksCache=parsed;
   }
