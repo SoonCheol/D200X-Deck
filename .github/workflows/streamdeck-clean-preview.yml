@@ -120,7 +120,7 @@ jobs:
         run: |
           node --check app/streamdeck-editor/deck-core.js
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          node --test test/streamdeck-core.test.cjs
+          node --test test/streamdeck-core.test.cjs test/deckforge-key-backgrounds.test.cjs test/deckforge-dual-state-titles.test.cjs
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - name: Bundle pinned MIT Fluent UI Filled and Regular icon packs
         shell: pwsh

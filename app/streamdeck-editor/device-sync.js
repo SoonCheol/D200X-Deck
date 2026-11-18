@@ -99,7 +99,7 @@
     // Stream Deck text is overlaid on the icon, never used to reposition it.
     const maxWidth = width - 16;
     const lines = [];
-    for (const paragraph of String(title).split(/\r?\n/)) {
+    for (const paragraph of String(title).split(/\r?\n|<br\s*\/?>/gi)) {
       let line = '';
       for (const ch of Array.from(paragraph)) {
         if (ctx.measureText(line + ch).width > maxWidth && line) {
@@ -108,7 +108,7 @@
         }
         line += ch;
       }
-      if (line) lines.push(line);
+      if (line || paragraph === '') lines.push(line);
     }
     const lineHeight = fontSize * 1.13;
     const visibleLines = lines.slice(0, Math.max(1, Math.min(3, Math.floor((height - 12) / lineHeight))));
@@ -116,6 +116,19 @@
     const top = alignment === 'top' ? 6
       : alignment === 'middle' ? (height - blockHeight)/2
       : height - blockHeight - 6;
+    // Subtitle background is one rounded block, sized to the longest rendered line.
+    if(style?.backgroundEnabled===true&&visibleLines.some(value=>value.trim())){
+      const scale=height/144,padX=6*scale,padY=3*scale;
+      const longest=Math.max(...visibleLines.map(value=>Math.min(maxWidth,ctx.measureText(value).width)));
+      const w=Math.min(width,longest+padX*2),y=Math.max(0,top-padY);
+      const h=Math.min(height-y,blockHeight+padY*2);
+      const opacity=Number.isFinite(style.backgroundOpacity)?Math.max(0,Math.min(100,style.backgroundOpacity)):65;
+      ctx.save();
+      ctx.globalAlpha=opacity/100;
+      ctx.fillStyle=/^#[0-9a-fA-F]{6}$/.test(style.backgroundColor)?style.backgroundColor:'#000000';
+      ctx.beginPath();ctx.roundRect((width-w)/2,y,w,h,Math.min(8*scale,w/2,h/2));ctx.fill();
+      ctx.restore();
+    }
     visibleLines.forEach((value,index)=>{
       const y = top + (index + 0.5) * lineHeight;
       // A subtle black outline is readable over bright icons without
@@ -215,7 +228,9 @@
     canvas.width = width;
     canvas.height = height;
     const ctx = canvas.getContext('2d');
-    ctx.fillStyle = '#08090c';
+    const background=item?.keyBackground||item?.settings?.keyBackgrounds?.default;
+    const baseColor=!wide&&background?.enabled===true&&/^#[0-9a-fA-F]{6}$/.test(background.color)?background.color:'#08090c';
+    ctx.fillStyle = baseColor;
     ctx.fillRect(0, 0, width, height);
     if(item?.type==='wide-display'){
       // The custom knobs screen is rendered as PNG; the device-native mode must stay blank.
@@ -284,7 +299,7 @@
         const snapshot=document.createElement('canvas');
         snapshot.width=width;snapshot.height=height;
         snapshot.getContext('2d').drawImage(canvas,0,0);
-        ctx.fillStyle='#08090c';ctx.fillRect(0,0,width,height);
+        ctx.fillStyle=baseColor;ctx.fillRect(0,0,width,height);
         const inset=Math.round(Math.min(width,height)*0.05);
         ctx.drawImage(snapshot,inset,inset,width-inset*2,height-inset*2);
       }

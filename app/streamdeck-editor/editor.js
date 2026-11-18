@@ -305,6 +305,8 @@ function ensureStateTitlePair(item){
   return item.settings.stateTitles;
 }
 function resolveStateTitle(item,second){
+  const background=item?.settings?.keyBackgrounds?.[second?'second':'first'];
+  if(background)item={...item,keyBackground:background};
   const pair=item?.settings?.stateTitles;
   if(!pair)return item;
   const one=pair.first,two=pair.second;
@@ -325,7 +327,9 @@ function displayKeyPressItem(item,index){
   const valid=icon=>icon?.kind==='file'&&typeof icon.value==='string';
   const up=valid(icons.up)?icons.up:item.icon;
   const down=valid(icons.down)?icons.down:up;
-  const same=JSON.stringify(up??null)===JSON.stringify(down??null);
+  const backgrounds=item.settings?.keyBackgrounds||{};
+  const bg=entry=>entry?.enabled===true&&/^#[0-9a-fA-F]{6}$/.test(entry.color)?entry.color.toLowerCase():'#08090c';
+  const same=JSON.stringify(up??null)===JSON.stringify(down??null)&&bg(backgrounds.first)===bg(backgrounds.second);
   const pressed=previewPressKeys.has(index)||window.D200XPhysicalKeyPressed?.(index)===true;
   const chosen=pressed?down:up;
   return resolveStateTitle({...item,...(chosen?{icon:chosen}:{}),keyPressAlternate:!same},pressed);
@@ -574,7 +578,7 @@ function renderGrid(){
     b.dataset.index=i;b.setAttribute("aria-label",`키 ${i+1}: ${keyName(item)||"비어 있음"}`);
     const visual=displayKeyPressItem(displayItem(item,i),i);
     const glyph=iconNode(visual,ACTIONS.get(item?.type)?.icon||"+");glyph.classList.add("glyph");
-    const label=document.createElement("span");label.className="caption";label.textContent=visual?.title||"";updateTitleAppearance(label,visual);
+    const label=document.createElement("span");label.className="caption";label.textContent=String(visual?.title||"").replace(/<br\s*\/?>/gi,"\n");updateTitleAppearance(label,visual);
     b.append(glyph,label);
     // Render the actual D200X PNG as the editor key surface. Icon and title
     // must stay in fixed coordinates, independent of the title font size.
@@ -1449,7 +1453,7 @@ function refreshTitlePreview(item){
   let label=host.querySelector(".preview-title");
   if(!label){label=document.createElement("span");label.className="preview-title";host.append(label);}
   const current=displayKeyPressItem(displayItem(item,state.selected),state.selected);
-  label.textContent=current?.title||"";
+  label.textContent=String(current?.title||"").replace(/<br\s*\/?>/gi,"\n");
   const style={...DEFAULT_TITLE_STYLE,...current?.titleStyle};
   label.hidden=style.visible===false;
   label.style.textAlign="center";
@@ -1465,6 +1469,94 @@ function refreshTitlePreview(item){
   refreshSelectedVisual();
   void refreshStateTitleCards(item);
 }
+
+const SHARED_COLOR_PALETTE=["#ffffff","#000000","#ff0000","#ff8800","#ffff00","#00cc66","#00ffff","#0088ff","#0000ff","#a855f7","#ff66cc","#808080","#ffb3ba","#ffd4b8","#fff0b3","#b9e8c4","#b5e3fa","#d9c2f0","#d98f95","#d9aa85","#d9c987","#8cb99a","#8cb5d2","#b39acb","#d64545","#d98236","#c3a42e","#3c9659","#377dbd","#8653b8","#702626","#754622","#756328","#285c3b","#244f78","#51346f","#f4c3e4","#b5e8df","#bfcbfa","#e4f4b5","#cf9ab8","#85b9b5","#1c1c1c","#333333","#505050","#707070","#909090","#b0b0b0","#d0d0d0","#eeeeee","#319a91","#5359b8","#bd548e","#86a63d","#245b58","#34386f","#753758","#505e2b","#919fcb","#b6c58b"];
+const SHARED_COLOR_STORAGE='d200x-streamdeck-custom-title-colors-v1';
+const PALETTE_ICON='<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3a9 9 0 1 0 0 18h1.5a2 2 0 0 0 1.3-3.5 1.2 1.2 0 0 1 1-2H18a3 3 0 0 0 3-3C21 7 17 3 12 3Z"/><circle cx="7.5" cy="10" r="1"/><circle cx="11" cy="6.5" r="1"/><circle cx="16" cy="8" r="1"/></svg>';
+function validPaletteColor(value){return typeof value==='string'&&/^#[0-9a-fA-F]{6}$/.test(value);}
+function sharedPaletteMarkup(prefix,heading){
+  return '<div class="title-palette-header"><strong id="'+prefix+'-heading">'+heading+'</strong><button type="button" id="'+prefix+'-close" title="팔레트 닫기">×</button></div>'+
+    '<div class="title-palette-label">나의 색상</div><div id="'+prefix+'-mine" class="title-palette-grid my-colors"></div>'+
+    '<span id="'+prefix+'-empty" class="hint">저장된 색상이 없습니다.</span>'+
+    '<div class="title-palette-label">기본 색상</div><div id="'+prefix+'-presets" class="title-palette-grid palette-default-colors"></div>'+
+    '<button type="button" id="'+prefix+'-save" class="shared-palette-save">현재 색상을 나의 색상에 저장</button>';
+}
+function bindSharedColorPalette(palette,prefix,getColor,applyColor,close){
+  const node=suffix=>palette.querySelector('#'+prefix+'-'+suffix);
+  const load=()=>{
+    try{const list=JSON.parse(localStorage.getItem(SHARED_COLOR_STORAGE));
+      return Array.isArray(list)?[...new Set(list.filter(validPaletteColor).map(v=>v.toLowerCase()))].slice(0,24):[];
+    }catch{return [];}
+  };
+  const store=colors=>{
+    try{localStorage.setItem(SHARED_COLOR_STORAGE,JSON.stringify(colors));return true;}
+    catch{alert('나의 색상을 저장할 수 없습니다. 저장소 공간을 확인해 주세요.');return false;}
+  };
+  const render=()=>{
+    const grid=node('presets'),mine=node('mine'),colors=load(),scroll=grid.scrollTop;
+    grid.replaceChildren();mine.replaceChildren();
+    const add=(parent,color,saved)=>{
+      const tile=document.createElement('button');tile.type='button';tile.className='title-color-swatch';
+      tile.style.backgroundColor=color;tile.title=color+(saved?' · 나의 색상':'');
+      tile.setAttribute('aria-label',color+' 색상 적용');
+      tile.addEventListener('click',()=>applyColor(color));
+      parent.append(tile);
+      if(saved){
+        const remove=document.createElement('button');remove.type='button';remove.className='title-color-remove';
+        remove.textContent='×';remove.title=color+' 저장 색상 삭제';
+        remove.addEventListener('click',()=>{if(store(load().filter(c=>c!==color)))render();});
+        parent.append(remove);
+      }
+    };
+    colors.forEach(color=>add(mine,color,true));
+    SHARED_COLOR_PALETTE.forEach(color=>add(grid,color,false));
+    grid.scrollTop=scroll;node('empty').hidden=colors.length>0;
+  };
+  node('save').addEventListener('click',()=>{
+    const color=String(getColor()||'').toLowerCase();
+    if(validPaletteColor(color)&&store([...load().filter(c=>c!==color),color].slice(-24)))render();
+  });
+  node('close').addEventListener('click',close);
+  render();return render;
+}
+function bindKeyBackgroundControl(preview,item,key){
+  if(!preview||state.selected>=13)return;
+  const root=$('inspector'),trigger=document.createElement('button');
+  trigger.type='button';trigger.className='key-background-trigger';trigger.innerHTML=PALETTE_ICON;
+  trigger.title='단추 배경색';trigger.setAttribute('aria-label','단추 배경색');
+  trigger.setAttribute('aria-expanded','false');preview.append(trigger);
+  let popup=null;
+  const get=()=>item.settings?.keyBackgrounds?.[key]||{enabled:false,color:'#08090c'};
+  const save=(field,value)=>{
+    item.settings??={};item.settings.keyBackgrounds??={};
+    const previous=get();
+    item.settings.keyBackgrounds[key]={...previous,[field]:value};
+    persistInspectorChange();renderGrid();refreshTitlePreview(item);
+  };
+  const close=()=>{popup?.remove();popup=null;trigger.setAttribute('aria-expanded','false');};
+  trigger.addEventListener('click',event=>{
+    event.stopPropagation();
+    if(popup?.isConnected){close();return;}
+    root.querySelector('.key-background-popover')?._close?.();
+    popup=document.createElement('div');popup.className='title-palette key-background-popover';
+    popup._close=close;
+    popup.innerHTML='<div class="key-background-settings"><label><input type="checkbox" class="key-background-enabled"> 단추 배경색</label><input aria-label="단추 배경색" type="color" class="key-background-color"></div>'+sharedPaletteMarkup('key-palette','단추 배경색');
+    const enabled=popup.querySelector('.key-background-enabled'),color=popup.querySelector('.key-background-color');
+    enabled.checked=get().enabled===true;color.value=validPaletteColor(get().color)?get().color:'#08090c';
+    enabled.addEventListener('change',()=>save('enabled',enabled.checked));
+    color.addEventListener('input',()=>save('color',color.value));
+    bindSharedColorPalette(popup,'key-palette',()=>get().color,value=>{color.value=value;save('color',value);},close);
+    root.append(popup);trigger.setAttribute('aria-expanded','true');
+    const rect=trigger.getBoundingClientRect(),bounds=popup.getBoundingClientRect();
+    popup.style.left=Math.max(8,Math.min(rect.right-bounds.width,window.innerWidth-bounds.width-8))+'px';
+    popup.style.top=Math.max(8,Math.min(rect.bottom+5,window.innerHeight-bounds.height-8))+'px';
+  });
+  document.addEventListener('pointerdown',event=>{
+    if(popup?.isConnected&&!popup.contains(event.target)&&!trigger.contains(event.target))close();
+  },{signal:inspectorListener.signal});
+  window.addEventListener('resize',close,{signal:inspectorListener.signal});
+}
+
 function bindTitleStyle(item){
   let style=item.titleStyle={...DEFAULT_TITLE_STYLE,...item.titleStyle};
   const menu=$("title-style-popover"),toggle=$("title-style-trigger");
@@ -1498,8 +1590,9 @@ function bindTitleStyle(item){
     cleaned.size=Math.max(8,Math.min(48,Number(cleaned.size)||12));
     cleaned.align=["top","middle","bottom"].includes(cleaned.align)?cleaned.align:"bottom";
     cleaned.visible=cleaned.visible!==false;
-    for(const field of ["bold","italic","underline"])cleaned[field]=cleaned[field]===true;
-    for(const field of ["color","outlineColor"])
+    for(const field of ["bold","italic","underline","backgroundEnabled"])cleaned[field]=cleaned[field]===true;
+    cleaned.backgroundOpacity=Number.isFinite(cleaned.backgroundOpacity)?Math.max(0,Math.min(100,cleaned.backgroundOpacity)):65;
+    for(const field of ["color","outlineColor","backgroundColor"])
       if(!/^#[0-9a-fA-F]{6}$/.test(cleaned[field]))cleaned[field]=DEFAULT_TITLE_STYLE[field];
     cleaned.outlineWidth=["none","thin","medium","thick"].includes(cleaned.outlineWidth)?cleaned.outlineWidth:"thin";
     return cleaned;
@@ -1544,6 +1637,7 @@ function bindTitleStyle(item){
     $("title-color").value=style.color;
     $("outline-color").value=style.outlineColor;
     $("outline-width").value=style.outlineWidth;
+    syncTitleBackgroundFields();
     persist();renderGrid();refreshTitlePreview(item);
   });
   $("title-preset-save").addEventListener("click",async()=>{
@@ -1571,74 +1665,37 @@ function bindTitleStyle(item){
     const field=button.dataset.style;button.classList.toggle("active",Boolean(style[field]));
     button.addEventListener("click",()=>{save(field,!style[field]);button.classList.toggle("active",style[field]);});
   });
-  // Shared palette is persistent across all actions; saving a color is explicit.
-  const paletteKey="d200x-streamdeck-custom-title-colors-v1";
-  const swatches=["#ffffff","#000000","#ff0000","#ff8800","#ffff00","#00cc66",
-    "#00ffff","#0088ff","#0000ff","#a855f7","#ff66cc","#808080"];
-  const validHex=value=>/^#[0-9a-fA-F]{6}$/.test(value);
-  const loadCustom=()=>{
-    try{
-      const list=JSON.parse(localStorage.getItem(paletteKey));
-      return Array.isArray(list)?[...new Set(list.filter(validHex).map(v=>v.toLowerCase()))].slice(0,24):[];
-    }catch{return [];}
-  };
-  let customColors=loadCustom();
-  const colorFields=[["title-color","color"],["outline-color","outlineColor"]];
+  // The same palette and saved colors are used for all four appearance colors.
+  const colorFields=[["title-color","color"],["outline-color","outlineColor"],["title-background-color","backgroundColor"]];
+  const fieldIds=Object.fromEntries(colorFields.map(([id,field])=>[field,id]));
+  const headings={color:"글자 색상",outlineColor:"외곽선 색상",backgroundColor:"제목 배경색"};
   let selectedColorField="color";
   const palette=$("title-palette");
-  function updatePalette(){
-    const grid=$("title-palette-presets");grid.replaceChildren();
-    const mine=$("title-palette-mine");mine.replaceChildren();
-    const add=(parent,color,saved)=>{
-      const tile=document.createElement("button");tile.type="button";
-      tile.className="title-color-swatch";
-      tile.style.backgroundColor=color;
-      tile.title=color+(saved?" · 나의 색상":"");
-      tile.setAttribute("aria-label",color+" 색상 적용");
-      tile.addEventListener("click",()=>{
-        save(selectedColorField,color);
-        const fieldId=selectedColorField==="color"?"title-color":"outline-color";
-        $(fieldId).value=color;
-      });
-      parent.append(tile);
-      if(saved){
-        const remove=document.createElement("button");remove.type="button";
-        remove.className="title-color-remove";remove.textContent="×";
-        remove.title=color+" 저장 색상 삭제";
-        remove.addEventListener("click",()=>{
-          customColors=customColors.filter(c=>c!==color);
-          try{localStorage.setItem(paletteKey,JSON.stringify(customColors));}catch{}
-          updatePalette();
-        });
-        parent.append(remove);
-      }
-    };
-    swatches.forEach(color=>add(grid,color,false));
-    customColors.forEach(color=>add(mine,color,true));
-    $("title-palette-empty").hidden=customColors.length>0;
-  }
+  const updatePalette=bindSharedColorPalette(palette,'title-palette',()=>style[selectedColorField]??DEFAULT_TITLE_STYLE[selectedColorField],color=>{
+    save(selectedColorField,color);$(fieldIds[selectedColorField]).value=color;
+  },()=>{palette.hidden=true;});
   function openPalette(field){
-    selectedColorField=field;
-    palette.hidden=false;
-    $("title-palette-heading").textContent=field==="color"?"글자 색상":"외곽선 색상";
-    updatePalette();
+    selectedColorField=field;palette.hidden=false;
+    $("title-palette-heading").textContent=headings[field];updatePalette();
   }
   colorFields.forEach(([id,field])=>{
-    const color=$(id);color.value=style[field];
+    const color=$(id);color.value=style[field]??DEFAULT_TITLE_STYLE[field];
     color.addEventListener("input",()=>save(field,color.value));
     $(id+"-palette").addEventListener("click",()=>openPalette(field));
   });
-  $("title-palette-save").addEventListener("click",()=>{
-    const color=String(style[selectedColorField]||"").toLowerCase();
-    if(!validHex(color))return;
-    customColors=[...customColors.filter(value=>value!==color),color].slice(-24);
-    try{localStorage.setItem(paletteKey,JSON.stringify(customColors));}catch{
-      alert("나의 색상을 저장할 수 없습니다. 저장소 공간을 확인해 주세요.");
-    }
-    updatePalette();
+  function syncTitleBackgroundFields(){
+    $("title-background-enabled").checked=style.backgroundEnabled===true;
+    $("title-background-color").value=validPaletteColor(style.backgroundColor)?style.backgroundColor:'#000000';
+    const opacity=Number.isFinite(style.backgroundOpacity)?Math.max(0,Math.min(100,style.backgroundOpacity)):65;
+    $("title-background-opacity").value=String(opacity);
+    $("title-background-opacity-value").textContent=opacity+'%';
+  }
+  syncTitleBackgroundFields();
+  $("title-background-enabled").addEventListener("change",()=>save("backgroundEnabled",$("title-background-enabled").checked));
+  $("title-background-opacity").addEventListener("input",()=>{
+    const opacity=Number($("title-background-opacity").value);
+    $("title-background-opacity-value").textContent=opacity+'%';save("backgroundOpacity",opacity);
   });
-  $("title-palette-close").addEventListener("click",()=>{palette.hidden=true;});
-  updatePalette();
   const outlineWidth=$("outline-width");outlineWidth.value=style.outlineWidth;
   outlineWidth.addEventListener("change",()=>save("outlineWidth",outlineWidth.value));
   $("title-reset").addEventListener("click",()=>{
@@ -1663,6 +1720,7 @@ function bindTitleStyle(item){
     $("title-color").value=style.color;
     $("outline-color").value=style.outlineColor;
     outlineWidth.value=style.outlineWidth;
+    syncTitleBackgroundFields();
     const host=trigger.closest('.state-title-control');
     if(host)host.append(menu);
     root.querySelectorAll('.state-title-style').forEach(b=>b.setAttribute('aria-expanded',String(b===trigger)));
@@ -2014,7 +2072,9 @@ async function refreshStateTitleCards(item){
       const rendered=document.createElement('img');
       rendered.src='data:image/png;base64,'+png;
       rendered.alt=(second?'두 번째':'첫 번째')+' 상태 제목과 아이콘 미리보기';
+      const paletteTrigger=img.querySelector('.key-background-trigger');
       img.replaceChildren(rendered);
+      if(paletteTrigger)img.append(paletteTrigger);
     }catch(error){console.warn('상태별 제목 이미지 미리보기 실패',error);}
   }
 }
@@ -2025,7 +2085,7 @@ function attachStateTitleControls(card,item,which){
   const check=document.createElement('input');check.type='checkbox';check.checked=config.enabled;
   check.className='state-title-visible';check.setAttribute('aria-label',(which==='first'?'제목 1':'제목 2')+' 표시');
   const input=document.createElement('input');input.type='text';input.className='state-title-input';
-  input.placeholder='제목';input.setAttribute('aria-label',which==='first'?'제목 1':'제목 2');
+  input.placeholder='제목';input.title='<br>로 강제 줄바꿈';input.setAttribute('aria-label',which==='first'?'제목 1':'제목 2');
   input.maxLength=256;input.value=config.title;input.disabled=!config.enabled;
   const styleButton=document.createElement('button');styleButton.type='button';
   styleButton.className='state-title-style';styleButton.textContent='T⌄';
@@ -2104,6 +2164,7 @@ function bindSdkStateIcons(root,item){
       });
       const buttons=document.createElement('div');buttons.className='sdk-state-buttons';
       buttons.append(choose,file,paste,symbol,reset);
+      bindKeyBackgroundControl(image,item,key==='off'?'first':'second');
       group.dataset.stateTitle=key==='off'?'first':'second';
       group.append(heading);attachStateTitleControls(group,item,key==='off'?'first':'second');group.append(image,buttons);cards.append(group);
     }
@@ -2152,6 +2213,7 @@ function bindKeyPressIconControls(root,item){
     const symbol=document.createElement('button');symbol.type='button';symbol.textContent='특수문자';
     symbol.addEventListener('click',()=>openIconMaker(item,'press:'+key));
     buttons.append(library,file,paste,symbol,reset);
+    bindKeyBackgroundControl(preview,item,key==='up'?'first':'second');
     card.dataset.stateTitle=key==='up'?'first':'second';
     card.append(heading);attachStateTitleControls(card,item,key==='up'?'first':'second');card.append(preview,buttons);cards.append(card);
   }
@@ -2342,7 +2404,7 @@ function renderInspector(){
       <button type="button" data-icon-command="library">Stream Deck 아이콘 라이브러리 열기</button>
     </div></div>
     <div class="fields"><div class="field title-setting-field"><label class="title-visible-label"><input type="checkbox" id="title-visible"> 제목 표시</label>
-      <div class="title-line"><input id="key-title" value="${escapeHtml(item.title)}">
+      <div class="title-line"><input id="key-title" title="&lt;br&gt;로 강제 줄바꿈" value="${escapeHtml(item.title)}">
       <button type="button" class="title-style-trigger" id="title-style-trigger" aria-label="제목 글꼴 속성" aria-expanded="false" aria-controls="title-style-popover">T⌄</button>
       <div class="title-style-popover" id="title-style-popover" hidden>
          <div class="title-align" role="group" aria-label="제목 정렬">
@@ -2359,7 +2421,7 @@ function renderInspector(){
         <div class="title-format"><input id="title-size" type="number" min="8" max="48" aria-label="글꼴 크기">
         <button type="button" data-style="bold" aria-label="굵게">B</button><button type="button" data-style="italic" aria-label="기울임">I</button><button type="button" data-style="underline" aria-label="밑줄">U</button>
         <input id="title-color" type="color" aria-label="글꼴 색상">
-        <button type="button" id="title-color-palette" class="title-palette-open" title="색상 팔레트">▦</button></div>
+        <button type="button" id="title-color-palette" class="title-palette-open" title="색상 팔레트">${PALETTE_ICON}</button></div>
         <div class="outline-settings">
           <span>외곽선</span>
           <select id="outline-width" aria-label="외곽선 두께">
@@ -2367,18 +2429,17 @@ function renderInspector(){
             <option value="medium">보통</option><option value="thick">두껍게</option>
           </select>
           <input id="outline-color" type="color" aria-label="외곽선 색상">
-          <button type="button" id="outline-color-palette" class="title-palette-open" title="외곽선 색상 팔레트">▦</button>
+          <button type="button" id="outline-color-palette" class="title-palette-open" title="외곽선 색상 팔레트">${PALETTE_ICON}</button>
         </div>
-        <div id="title-palette" class="title-palette" hidden>
-          <div class="title-palette-header"><strong id="title-palette-heading">글자 색상</strong>
-            <button type="button" id="title-palette-close" title="팔레트 닫기">×</button></div>
-          <div class="title-palette-label">기본 색상</div>
-          <div id="title-palette-presets" class="title-palette-grid"></div>
-          <div class="title-palette-label">나의 색상</div>
-          <div id="title-palette-mine" class="title-palette-grid my-colors"></div>
-          <span id="title-palette-empty" class="hint">저장된 색상이 없습니다.</span>
-          <button type="button" id="title-palette-save">현재 색상을 나의 색상에 저장</button>
+        <div class="title-background-settings">
+          <div class="outline-settings">
+            <label><input type="checkbox" id="title-background-enabled"> 제목 배경</label>
+            <input id="title-background-color" type="color" aria-label="제목 배경색">
+            <button type="button" id="title-background-color-palette" class="title-palette-open" title="제목 배경색 팔레트">${PALETTE_ICON}</button>
+          </div>
+          <div class="title-background-opacity"><span>불투명도</span><input id="title-background-opacity" type="range" min="0" max="100" step="1" aria-label="제목 배경 불투명도"><output id="title-background-opacity-value">65%</output></div>
         </div>
+        <div id="title-palette" class="title-palette" hidden>${sharedPaletteMarkup('title-palette','글자 색상')}</div>
         <button type="button" class="style-reset" id="title-reset" title="기본 스타일 복원">↺</button>
       </div></div></div>${fields}</div></div><section class="inspector-icon-section" data-inspector-icons aria-label="버튼 아이콘 설정"></section>`;
   const previewButton=document.createElement('button');previewButton.type='button';
@@ -3617,6 +3678,7 @@ function bindIconControls(item){
     }
     return;
   }
+  bindKeyBackgroundControl($("icon-preview"),item,"default");
   $("icon-library-open").addEventListener("click",()=>openIconLibrary(item));
   const dropdown=$("icon-dropdown"),toggle=$("icon-menu-trigger");
   toggle.addEventListener("click",()=>{

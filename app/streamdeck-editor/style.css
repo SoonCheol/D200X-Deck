@@ -887,3 +887,23 @@
   .state-title-inspector .state-title-layout>.preview{transform:scale(.89);transform-origin:top left}
   .state-title-inspector .state-title-extra-properties>.fields{padding-left:100px}
 }
+
+/* Optional appearance controls; existing inspector grid and command sizes stay unchanged. */
+.title-background-settings{display:flex;flex-direction:column;gap:7px}
+.title-background-settings .outline-settings label{flex:1;white-space:nowrap}
+.title-background-settings input[type=checkbox],.key-background-settings input[type=checkbox]{width:15px;height:15px;min-height:0;margin:0;accent-color:#2676c1}
+.title-background-opacity{display:flex;align-items:center;gap:7px;color:#ddd}
+.title-background-opacity input[type=range]{flex:1;min-width:0;width:0;margin:0;min-height:20px;padding:0;accent-color:#2676c1}
+.title-background-opacity output{width:38px;text-align:right;font-variant-numeric:tabular-nums}
+.title-palette-open svg,.key-background-trigger svg{display:block;margin:auto}
+.title-palette-grid.palette-default-colors{grid-auto-rows:33px;max-height:111px;overflow-y:auto;overflow-x:hidden;scrollbar-width:thin;align-content:start}
+.palette-default-colors .title-color-swatch{height:33px}
+.shared-palette-save{padding:7px!important;background:#3f566f!important;border:1px solid #718399!important;border-radius:4px!important}
+.sdk-state-preview{position:relative}
+.sdk-state-preview .key-background-trigger,#icon-preview .key-background-trigger{position:absolute;top:1px;right:1px;z-index:3;width:23px;height:23px;min-width:0;min-height:0;margin:0!important;padding:0!important;border:0!important;border-radius:4px;background:#292d34;color:#eee;display:flex;align-items:center;justify-content:center}
+.key-background-trigger[aria-expanded=true]{background:#46566c!important}
+#icon-preview:has(.key-background-trigger) .icon-preview-menu{right:26px}
+.key-background-popover{position:fixed;z-index:110;width:251px;max-width:calc(100vw - 16px);max-height:calc(100dvh - 16px);overflow-y:auto;box-shadow:0 10px 23px #0009}
+.key-background-settings{display:flex;gap:8px;align-items:center}
+.key-background-settings label{display:flex;align-items:center;gap:6px;flex:1;white-space:nowrap}
+.key-background-settings input[type=color]{width:35px;height:30px;padding:2px;border:1px solid #666;border-radius:3px;background:#414141}

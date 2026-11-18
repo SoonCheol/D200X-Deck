@@ -41,7 +41,8 @@
   };
   const TITLE={visible:true,align:'bottom',family:'default',size:12,
     bold:false,italic:false,underline:false,color:'#ffffff',
-    outlineColor:'#000000',outlineWidth:'thin'};
+    outlineColor:'#000000',outlineWidth:'thin',
+    backgroundEnabled:false,backgroundColor:'#000000',backgroundOpacity:65};
   const copy=x=>JSON.parse(JSON.stringify(x));
   const validId=id=>ACTION_IDS.includes(id)||D200X_ACTION_IDS.includes(id)||PLUGIN_ACTION_IDS.includes(id);
   function createAction(id){
@@ -67,6 +68,17 @@
     st.color=/^#[0-9a-fA-F]{6}$/.test(st.color)?st.color:'#ffffff';
     st.outlineColor=/^#[0-9a-fA-F]{6}$/.test(st.outlineColor)?st.outlineColor:'#000000';
     st.outlineWidth=['none','thin','medium','thick'].includes(st.outlineWidth)?st.outlineWidth:'thin';
+    st.backgroundEnabled=st.backgroundEnabled===true;
+    st.backgroundColor=/^#[0-9a-fA-F]{6}$/.test(st.backgroundColor)?st.backgroundColor:'#000000';
+    st.backgroundOpacity=Number.isFinite(st.backgroundOpacity)?Math.max(0,Math.min(100,st.backgroundOpacity)):65;
+    if(base.settings.keyBackgrounds!==undefined){
+      const raw=base.settings.keyBackgrounds, cleaned={};
+      for(const key of ['default','first','second']){
+        const entry=raw?.[key];
+        if(entry&&typeof entry==='object'&&!Array.isArray(entry))cleaned[key]={enabled:entry.enabled===true,color:/^#[0-9a-fA-F]{6}$/.test(entry.color)?entry.color:'#08090c'};
+      }
+      base.settings.keyBackgrounds=cleaned;
+    }
     if(value.icon&&value.icon.kind==='glyph'&&typeof value.icon.glyph==='string')
       base.icon={kind:'glyph',glyph:value.icon.glyph.slice(0,8)};
     if(value.icon&&value.icon.kind==='file'&&typeof value.icon.value==='string'&&
