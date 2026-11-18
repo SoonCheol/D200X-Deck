@@ -2,7 +2,12 @@
 
 > **상태 기록 기준: 2026-11-18**. 실제 최신 HEAD는 Git에서 확인하며, 코드·자동 검사·Windows 빌드·사용자 Windows/D200X 실기 결과를 구분한다. 시작 시 `AGENTS.md`와 이 문서만 읽고 로드맵은 필요한 경우에만 참고한다.
 
-## 1. 최신 작업 인계 — DeckForge 1.1.9 (2026-11-18)
+## 1. 최신 작업 인계 — DeckForge 1.1.10 (2026-11-18)
+
+- 시작 메뉴 드래그 진단(독립 Probe 0.2.0, 기준 f50179b): 사용자 Windows 실기에서 Fusion/Bitwarden/Files Dev의 link 드롭, 0바이트 File/AppID, Get-StartApps 이름 및 explorer AppsFolder 실행 성공 보고. 사용자 제공 256px PNG 3종으로 아이콘 추출 외관 확인.
+- 1.1.10: 기존 일반 키 드롭에 link 허용 및 AppID 분기, 실제 탐색기 폴더는 지정 폴더 열기 액션으로 자동 등록. 이름/아이콘 자동 등록, 기존 144px 캔버스/최대 100px 래스터화 재사용. AppID는 시작 메뉴 이름 조회로 확인 후 고정 AppsFolder 경로로 저장/실행; 인수·전경 활성화·길게 눌러 종료는 제외. 폴더 아이콘 추출 실패 시 기존 기본 액션 아이콘 유지. 기존 파일 등록·실행/프로필 구조 유지. 새 통합 설치본 및 폴더 아이콘 실기 검증 대기.
+
+### 1.1.9 이전 완료 기록 (2026-11-18)
 
 - 사용자 1.1.8 실기: 신규 IoT 아이콘팩 내장 정상 보고. 사용자 추가 요청으로 `DeckForge_Logo_Icons_White_Color.streamDeckIconPack` (Git blob `4350a627dfe8f08414ba3db8747de96df5116adc`)을 원본 그대로 세 번째 내장 팩으로 등록. ID `builtin-deckforge-logo-white-color`. 표시 순서 COLOR → LINE → Logo White Color → Fluent UI Filled → Fluent UI Regular → 사용자 등록순. 실제 표시 이름 및 아이콘 개수는 원본 manifest/목록을 사용하며 ZIP CRC/파서 검증은 Windows 빌드에서 수행한다(원격 바이너리 내부 미확인). 기존 팩, 사용자 버튼 이미지, UI, 기타 기능 및 단일 자동 빌드 정책 유지. **1.1.9 사용자 실기 정상 확인(2026-11-18): 신규 로고 팩 내장 작업 완료.**
 - 코드 기준 `7b36cf8242f487c6274333eeca720f2eaa9a7a15`: Windows 통합 빌드 [#44311808005](https://github.com/SoonCheol/D200X-Deck/actions/runs/44311808005), CI [#44311821913](https://github.com/SoonCheol/D200X-Deck/actions/runs/44311821913), D200X 입력 실행 검사 [#44311808018](https://github.com/SoonCheol/D200X-Deck/actions/runs/44311808018) 모두 success. Windows 패키징 push 1회 확인. 사용자 보고 범위 외 전체 실기 재검증은 하지 않음.

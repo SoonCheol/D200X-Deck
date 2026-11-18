@@ -645,9 +645,28 @@ function renderGrid(){
       if(inspectorSession?.dirty&&state.selected!==i)showInspectorLeaveDialog(open);
       else open();
     });
-    b.addEventListener("dragover",ev=>{if(!reservedWideSlot(i)){ev.preventDefault();b.classList.add("drag-over");}});
+    const allowGridDrop=ev=>{
+      if(reservedWideSlot(i))return;
+      ev.preventDefault();b.classList.add("drag-over");
+      const d=ev.dataTransfer;
+      if(d&&Array.from(d.types).includes('Files')&&['link','linkMove'].includes(d.effectAllowed))d.dropEffect='link';
+    };
+    b.addEventListener("dragenter",allowGridDrop);
+    b.addEventListener("dragover",allowGridDrop);
     b.addEventListener("dragleave",()=>b.classList.remove("drag-over"));
-    b.addEventListener("drop",ev=>{if(reservedWideSlot(i))return;ev.preventDefault();b.classList.remove("drag-over");if(importFusionDraggedCommand(ev,i))return;const file=ev.dataTransfer?.files?.[0];if(file&&/\.(exe|lnk|bat|cmd)$/i.test(file.name||'')){try{const filePath=window.deckBridge?.droppedFilePath(file);if(filePath){void registerDroppedApplication(i,filePath);return;}}catch(error){window.d200xActionStatus?.('드래그한 파일 경로 오류: '+String(error?.message||error));return;}}const id=ev.dataTransfer.getData("application/x-d200x-action");if(isAssignableAction(id))setItem(i,newAction(id));});
+    b.addEventListener("drop",ev=>{
+      if(reservedWideSlot(i))return;
+      ev.preventDefault();b.classList.remove("drag-over");
+      if(importFusionDraggedCommand(ev,i))return;
+      const file=ev.dataTransfer?.files?.[0];
+      if(file){
+        try{
+          const filePath=window.deckBridge?.droppedFilePath(file);
+          if(filePath){void registerDroppedApplication(i,filePath,file.size===0&&ev.dataTransfer.effectAllowed==='link');return;}
+        }catch(error){window.d200xActionStatus?.('드래그한 파일 경로 오류: '+String(error?.message||error));return;}
+      }
+      const id=ev.dataTransfer.getData("application/x-d200x-action");if(isAssignableAction(id))setItem(i,newAction(id));
+    });
     grid.append(b);
   });
   renderPhysicalControls();
@@ -1113,7 +1132,9 @@ function actionFields(item){
     case "virtual":return `<div class="field"><label>기기</label><span class="hint">구성된 Virtual Stream Decks 없음</span></div>`;
     case "website":return `<div class="field website-url-field"><label for="s-url">URL</label><div class="website-url-control"><label class="https-toggle"><input id="url-https" type="checkbox" ${/^https:\/\//i.test(String(item.settings?.url||''))?'checked':''}>HTTPS</label><input id="s-url" data-field="url" value="${escapeHtml(valueOf(item,'url'))}" placeholder="example.com"></div></div>`+select("open","다음으로 열기",[["default","기본 브라우저"],["get","백그라운드에서 GET 요청"],["choose","브라우저 직접 선택"]])+pathPicker("browserPath","선택 브라우저 (.exe)","app");
     case "open":return pathPicker("path","앱 / 파일")+input("args","인수");
-    case "open-app":return pathPicker("app","앱","app")+input("args","인수")+select("hold","길게 누르기",[["none","아무것도 하지 않음"],["close","응용 프로그램 종료"],["force","응용 프로그램 강제 종료"]])+check("foreground","앞으로 가져오기");
+    case "open-app":if(String(item.settings?.app||'').startsWith('shell:AppsFolder\\'))
+      return '<div class="field"><label>앱</label><input readonly value="'+escapeHtml(item.settings.app)+'"></div><div class="field"><span></span><span class="hint">시작 메뉴 앱 · 실행만 지원 (인수, 앞으로 가져오기, 길게 누르기 종료 제외)</span></div>';
+      return pathPicker("app","앱","app")+input("args","인수")+select("hold","길게 누르기",[["none","아무것도 하지 않음"],["close","응용 프로그램 종료"],["force","응용 프로그램 강제 종료"]])+check("foreground","앞으로 가져오기");
     case "close":return pathPicker("path","앱 / 파일")+check("force","강제 종료");
     case "hotkey":return select("preset","동작 선택기",HOTKEY_PRESET_LABELS)+input("keys","단축키","클릭하여 할당");
     case "hotkey-switch":return input("first","단축키 1")+input("second","단축키 2");
@@ -1419,17 +1440,22 @@ async function updateApplicationArtwork(item,filePath){
   }
   persistInspectorChange();render();
 }
-async function registerDroppedApplication(index,filePath){
+async function registerDroppedApplication(index,filePath,allowAppId=false){
   try{
-    if(!Number.isInteger(index)||index<0||index>=13||!window.deckBridge?.inspectAppFile)return;
+    if(!Number.isInteger(index)||index<0||index>=13||!window.deckBridge?.inspectDroppedTarget)return;
     const previous=currentPage()[index];
-    if(previous&&!confirm('기존 버튼의 액션을 프로그램 실행으로 교체할까요?'))return;
+    const visible=DeckCore.visibleActions(state)[index];
+    if(visible&&!confirm('기존 버튼의 액션을 드래그한 대상으로 교체할까요?'))return;
     const page=currentPage();
-    const info=await window.deckBridge.inspectAppFile(filePath);
+    const info=await window.deckBridge.inspectDroppedTarget(filePath,allowAppId);
     const artwork=info?.icon?await rasterizeIcon(info.icon,144,100):null;
     if(!info||currentPage()!==page||page[index]!==previous)return;
-    const action=newAction('open-app');
-    action.settings.app=info.path;
+    const action=newAction(info.kind==='folder'?'folder-shortcut':'open-app');
+    if(info.kind==='folder')action.settings.path=info.path;
+    else {
+      action.settings.app=info.path;
+      if(info.kind==='appid'){action.settings.hold='none';action.settings.foreground=false;}
+    }
     if(info.name){action.title=info.name;action.settings.autoAppTitle=info.name;}
     if(artwork){action.icon={kind:'file',value:artwork};action.settings.autoAppIcon=true;}
     setItem(index,action);
@@ -3112,7 +3138,7 @@ function executeHardwareAction(event,preview=false,skipKnobGesture=false){
   const resolved=DeckCore.resolveHardwareEvent(state,event);
   if(!resolved)return null;
   const index=resolved.index,offset=index-14;
-  if(!preview&&resolved.action?.type==='open-app'&&
+  if(!preview&&resolved.action?.type==='open-app'&&!String(resolved.action.settings?.app||'').startsWith('shell:AppsFolder\\')&&
     ['close','force'].includes(resolved.action.settings?.hold)&&
     ['down','up'].includes(resolved.gesture))
     return handleOpenAppHold(resolved.action,index,event,resolved.gesture);

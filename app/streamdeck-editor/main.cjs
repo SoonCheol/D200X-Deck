@@ -852,9 +852,56 @@ ipcMain.handle('d200x:inspect-app-file',async(event,filePath)=>{
   return inspectWindowsApplication(filePath);
 });
 
+
+const APP_ID_PREFIX='shell:AppsFolder\\';
+function requireStartAppId(id){
+  if(typeof id!=='string'||!id.trim()||id.length>512||/[\x00-\x1f\x7f\\/:"]/.test(id)||id==='.'||id==='..')
+    throw new Error('올바른 시작 메뉴 AppID가 아닙니다.');
+  return id;
+}
+async function inspectStartApplication(id){
+  if(process.platform!=='win32')throw new Error('Windows에서만 지원합니다.');
+  requireStartAppId(id);
+  const code="$ErrorActionPreference='Stop'\n[Console]::OutputEncoding=[Text.Encoding]::UTF8\n$id=$env:DECKFORGE_APP_ID\n$entry=Get-StartApps | Where-Object {[string]::Equals($_.AppID,$id,[StringComparison]::OrdinalIgnoreCase)} | Select-Object -First 1\nif(-not $entry){throw 'Start menu application not found'}\n$png=''\ntry {\n Add-Type -AssemblyName PresentationCore\n Add-Type -AssemblyName WindowsBase\n Add-Type -TypeDefinition @'\nusing System;\nusing System.Runtime.InteropServices;\n[StructLayout(LayoutKind.Sequential)]\npublic struct DFSize { public int cx; public int cy; }\n[ComImport, Guid(\"bcc18b79-ba16-442f-80c4-8a59c30c463b\"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]\npublic interface DFImageFactory {\n [PreserveSig] int GetImage(DFSize size,uint flags,out IntPtr bitmap);\n}\npublic static class DFAppImage {\n [DllImport(\"shell32.dll\",CharSet=CharSet.Unicode)]\n private static extern int SHCreateItemFromParsingName(string path,IntPtr ctx,ref Guid iid,[MarshalAs(UnmanagedType.Interface)] out DFImageFactory factory);\n [DllImport(\"gdi32.dll\")] public static extern bool DeleteObject(IntPtr handle);\n public static IntPtr Get(string id) {\n  Guid iid=typeof(DFImageFactory).GUID; DFImageFactory factory;\n  Marshal.ThrowExceptionForHR(SHCreateItemFromParsingName(\"shell:AppsFolder\\\\\"+id,IntPtr.Zero,ref iid,out factory));\n  try {\n   IntPtr bitmap;\n   Marshal.ThrowExceptionForHR(factory.GetImage(new DFSize{cx=256,cy=256},4,out bitmap));\n   return bitmap;\n  } finally { Marshal.ReleaseComObject(factory); }\n }\n}\n'@\n $handle=[DFAppImage]::Get($entry.AppID)\n try {\n  $bitmap=[System.Windows.Interop.Imaging]::CreateBitmapSourceFromHBitmap($handle,[IntPtr]::Zero,[System.Windows.Int32Rect]::Empty,[System.Windows.Media.Imaging.BitmapSizeOptions]::FromEmptyOptions())\n  $encoder=New-Object System.Windows.Media.Imaging.PngBitmapEncoder\n  $encoder.Frames.Add([System.Windows.Media.Imaging.BitmapFrame]::Create($bitmap))\n  $stream=New-Object System.IO.MemoryStream\n  try {$encoder.Save($stream);$png=[Convert]::ToBase64String($stream.ToArray())} finally {$stream.Dispose()}\n } finally {if($handle -ne [IntPtr]::Zero){[void][DFAppImage]::DeleteObject($handle)}}\n} catch {}\n[Console]::Write([Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes((@{name=[string]$entry.Name;icon=$png}|ConvertTo-Json -Compress))))";
+  const {stdout}=await execFileAsync('powershell.exe',['-NoProfile','-NonInteractive','-STA','-Command',code],{
+    windowsHide:true,timeout:20000,maxBuffer:4*1024*1024,env:{...process.env,DECKFORGE_APP_ID:id}
+  });
+  const info=JSON.parse(Buffer.from(String(stdout).trim(),'base64').toString('utf8'));
+  if(typeof info.name!=='string'||!info.name.trim())throw new Error('시작 메뉴 앱을 찾지 못했습니다.');
+  return {kind:'appid',path:APP_ID_PREFIX+id,name:info.name.slice(0,256),icon:info.icon?'data:image/png;base64,'+info.icon:''};
+}
+ipcMain.handle('d200x:inspect-dropped-target',async(event,args)=>{
+  if(!window||event.sender!==window.webContents)throw new Error('허용되지 않은 호출입니다.');
+  const filePath=args?.filePath;
+  if(typeof filePath==='string'&&path.win32.isAbsolute(filePath)){
+    const requested=requireLocalWindowsPath(filePath);
+    const stat=await fs.promises.stat(requested);
+    if(stat.isDirectory()){
+      let icon='';
+      try{
+        const image=await app.getFileIcon(requested,{size:'large'});
+        if(image&&!image.isEmpty())icon='data:image/png;base64,'+image.toPNG().toString('base64');
+      }catch{}
+      return {kind:'folder',path:requested,name:path.win32.basename(requested)||requested,icon};
+    }
+    return {...await inspectWindowsApplication(requested),kind:'file'};
+  }
+  if(args?.allowAppId===true)return inspectStartApplication(filePath);
+  throw new Error('실행 파일, 바로가기 또는 폴더를 드래그하세요.');
+});
+
 ipcMain.handle('d200x:open-local-path',async(event,args)=>{
   if(!window||event.sender!==window.webContents)throw new Error('허용되지 않은 호출입니다.');
   const filePath=args?.filePath;
+  if(args?.target==='appid'){
+    if(process.platform!=='win32'||typeof filePath!=='string'||!filePath.startsWith(APP_ID_PREFIX)||String(args?.args||'').trim())
+      throw new Error('올바른 시작 메뉴 앱 실행 요청이 아닙니다.');
+    const id=requireStartAppId(filePath.slice(APP_ID_PREFIX.length));
+    const explorer=path.win32.join(process.env.SystemRoot||'C:\\Windows','explorer.exe');
+    const child=spawn(explorer,[APP_ID_PREFIX+id],{detached:true,stdio:'ignore',shell:false});
+    await new Promise((resolve,reject)=>{child.once('spawn',resolve);child.once('error',reject);});
+    child.unref();return true;
+  }
   if(!['file','folder','auto'].includes(args?.target)||typeof filePath!=='string'||
       !path.win32.isAbsolute(filePath)||filePath.length>4096||/[\x00-\x1f\x7f]/.test(filePath))
     throw new Error('올바른 Windows 파일/폴더 경로를 선택하세요.');

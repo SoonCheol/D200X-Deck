@@ -27,6 +27,7 @@ contextBridge.exposeInMainWorld('deckBridge', Object.freeze({
   readClipboardImage: () => ipcRenderer.invoke('d200x:clipboard-image'),
   choosePath: kind => ipcRenderer.invoke('d200x:choose-path', kind),
   inspectAppFile: filePath => ipcRenderer.invoke('d200x:inspect-app-file',filePath),
+  inspectDroppedTarget: (filePath,allowAppId=false) => ipcRenderer.invoke('d200x:inspect-dropped-target',{filePath,allowAppId}),
   droppedFilePath: file => webUtils.getPathForFile(file),
   chooseImportFile: kind => ipcRenderer.invoke('d200x:choose-import-file',kind),
   listIconPacks: () => ipcRenderer.invoke('d200x:list-icon-packs'),
