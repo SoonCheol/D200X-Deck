@@ -1492,7 +1492,38 @@ function bindSharedColorPalette(palette,prefix,getColor,applyColor,close){
     try{localStorage.setItem(SHARED_COLOR_STORAGE,JSON.stringify(colors));return true;}
     catch{alert('나의 색상을 저장할 수 없습니다. 저장소 공간을 확인해 주세요.');return false;}
   };
+  let contextMenu=null,contextController=null;
+  const dismissContext=()=>{
+    contextController?.abort();contextController=null;
+    contextMenu?.remove();contextMenu=null;
+  };
+  function openColorContext(event,color){
+    event.preventDefault();event.stopPropagation();dismissContext();
+    const menu=document.createElement('div');
+    menu.className='key-menu palette-color-context';menu.setAttribute('role','menu');
+    const remove=document.createElement('button');remove.type='button';
+    remove.textContent='삭제';remove.setAttribute('role','menuitem');
+    remove.addEventListener('click',event=>{
+      event.stopPropagation();dismissContext();
+      if(store(load().filter(c=>c!==color)))render();
+    });
+    menu.append(remove);palette.append(menu);contextMenu=menu;
+    const bounds=menu.getBoundingClientRect();
+    menu.style.left=Math.max(4,Math.min(event.clientX,window.innerWidth-bounds.width-4))+'px';
+    menu.style.top=Math.max(4,Math.min(event.clientY,window.innerHeight-bounds.height-4))+'px';
+    contextController=new AbortController();
+    const options={signal:contextController.signal};
+    document.addEventListener('pointerdown',event=>{
+      if(!menu.contains(event.target))dismissContext();
+    },options);
+    document.addEventListener('keydown',event=>{
+      if(event.key==='Escape'){event.preventDefault();dismissContext();}
+    },options);
+    window.addEventListener('resize',dismissContext,options);
+    inspectorListener.signal.addEventListener('abort',dismissContext,{once:true,signal:contextController.signal});
+  }
   const render=()=>{
+    dismissContext();
     const grid=node('presets'),mine=node('mine'),colors=load(),scroll=grid.scrollTop;
     grid.replaceChildren();mine.replaceChildren();
     const add=(parent,color,saved)=>{
@@ -1502,10 +1533,8 @@ function bindSharedColorPalette(palette,prefix,getColor,applyColor,close){
       tile.addEventListener('click',()=>applyColor(color));
       parent.append(tile);
       if(saved){
-        const remove=document.createElement('button');remove.type='button';remove.className='title-color-remove';
-        remove.textContent='×';remove.title=color+' 저장 색상 삭제';
-        remove.addEventListener('click',()=>{if(store(load().filter(c=>c!==color)))render();});
-        parent.append(remove);
+        tile.title+=' · 우클릭: 삭제';
+        tile.addEventListener('contextmenu',event=>openColorContext(event,color));
       }
     };
     colors.forEach(color=>add(mine,color,true));
@@ -1516,7 +1545,7 @@ function bindSharedColorPalette(palette,prefix,getColor,applyColor,close){
     const color=String(getColor()||'').toLowerCase();
     if(validPaletteColor(color)&&store([...load().filter(c=>c!==color),color].slice(-24)))render();
   });
-  node('close').addEventListener('click',close);
+  node('close').addEventListener('click',()=>{dismissContext();close();});
   render();return render;
 }
 function bindKeyBackgroundControl(preview,item,key){
@@ -1558,12 +1587,18 @@ function bindKeyBackgroundControl(preview,item,key){
 }
 
 function bindTitleStyle(item){
-  let style=item.titleStyle={...DEFAULT_TITLE_STYLE,...item.titleStyle};
+  let style={...DEFAULT_TITLE_STYLE,...item.titleStyle};
+  let activeStateTitle=null;
+  const commitStyle=()=>{
+    if(activeStateTitle)ensureStateTitlePair(item)[activeStateTitle].style={...style};
+    else item.titleStyle={...style};
+    persistInspectorChange();renderGrid();refreshTitlePreview(item);
+  };
   const menu=$("title-style-popover"),toggle=$("title-style-trigger");
   toggle.addEventListener("click",()=>{
     menu.hidden=!menu.hidden;toggle.setAttribute("aria-expanded",String(!menu.hidden));
   });
-  const save=(field,value)=>{style[field]=value;persist();renderGrid();refreshTitlePreview(item);};
+  const save=(field,value)=>{style[field]=value;commitStyle();};
   const visible=$("title-visible");visible.checked=style.visible;
   visible.addEventListener("change",()=>save("visible",visible.checked));
   menu.querySelectorAll("[data-align]").forEach(button=>{
@@ -1638,7 +1673,7 @@ function bindTitleStyle(item){
     $("outline-color").value=style.outlineColor;
     $("outline-width").value=style.outlineWidth;
     syncTitleBackgroundFields();
-    persist();renderGrid();refreshTitlePreview(item);
+    commitStyle();
   });
   $("title-preset-save").addEventListener("click",async()=>{
     const input=await askDeckForgeText("프리셋 이름을 입력하세요 (현재 글꼴·크기·색상·외곽선·정렬 저장)",presetSelect.value||"",40);
@@ -1708,8 +1743,9 @@ function bindTitleStyle(item){
   // The existing popover is reused: each card switches its own style object.
   const root=$("inspector");
   root._openStateTitleStyle=(which,trigger)=>{
-    const entry=ensureStateTitlePair(item)[which];
-    style=entry.style??={...DEFAULT_TITLE_STYLE};
+    const entry=(item.settings?.stateTitles||defaultStateTitlePair(item))[which];
+    activeStateTitle=which;
+    style={...DEFAULT_TITLE_STYLE,...entry.style};
     root.dataset.activeTitle=which;
     menu.hidden=false;
     menu.querySelectorAll("[data-align]").forEach(b=>b.classList.toggle("active",b.dataset.align===style.align));

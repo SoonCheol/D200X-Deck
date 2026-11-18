@@ -237,7 +237,9 @@
 .title-palette-grid{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:6px;}
 .title-palette-grid.my-colors{grid-template-columns:repeat(6,minmax(0,1fr));}
 .title-color-swatch{width:100%;aspect-ratio:1;border:1px solid #999!important;border-radius:4px!important;padding:0!important;min-width:0!important;}
-.title-color-remove{font-size:12px!important;border:1px solid #666!important;background:#333!important;border-radius:4px!important;padding:0!important;}
+/* Saved colors use a text-only context menu instead of a separate delete tile. */
+.title-palette .palette-color-context{z-index:125;min-width:76px;width:auto;padding:4px;}
+.title-palette .palette-color-context button{margin:0!important;min-width:0;padding:6px 12px!important;}
 #title-palette-save{padding:7px!important;background:#3f566f!important;border:1px solid #718399!important;border-radius:4px!important;}
 
 

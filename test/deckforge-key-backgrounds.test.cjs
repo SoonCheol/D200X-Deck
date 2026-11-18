@@ -58,3 +58,27 @@ test('one shared 60-color palette preserves storage and fixed ordering',()=>{
  const css=fs.readFileSync(path.join(dir,'style.css'),'utf8');
  assert.match(css,/palette-default-colors\{[^}]*grid-auto-rows:33px;max-height:111px;overflow-y:auto/);
 });
+
+test('startup compositor explicitly repaints the selected state cards',()=>{
+ const start=source.indexOf('  // Same compositor feeds'),end=source.indexOf('  async function synchronize()',start);
+ const calls=[],item={type:'sd-plugin'};
+ const window={refreshSelectedVisual:()=>calls.push('representative')};
+ vm.runInNewContext(source.slice(start,end),{window,renderGrid:()=>calls.push('grid'),state:{selected:0},DeckCore:{visibleActions:()=>[item]},refreshStateTitleCards:actual=>{assert.equal(actual,item);assert.equal(typeof window.renderDeckKeyImage,'function');calls.push('cards');}});
+ assert.deepEqual(calls,['grid','representative','cards']);
+});
+test('opening state title style does not create profile data; real edits commit drafts',()=>{
+ const start=editor.indexOf('function bindTitleStyle(item){'),end=editor.indexOf('// Inspector writes remain drafts',start);
+ const block=editor.slice(start,end),open=block.slice(block.indexOf('root._openStateTitleStyle='),block.indexOf('document.addEventListener("pointerdown"'));
+ assert.doesNotMatch(open,/ensureStateTitlePair\(/);
+ assert.match(open,/style=\{\.\.\.DEFAULT_TITLE_STYLE,\.\.\.entry.style\}/);
+ assert.match(block,/if\(activeStateTitle\)ensureStateTitlePair\(item\)\[activeStateTitle\]\.style=\{\.\.\.style\}/);
+ assert.match(block,/persistInspectorChange\(\);renderGrid\(\);refreshTitlePreview\(item\)/);
+});
+test('saved-color tile has a text-only context menu, basic palette has no delete tile',()=>{
+ const start=editor.indexOf('function bindSharedColorPalette('),end=editor.indexOf('function bindKeyBackgroundControl(',start);
+ const block=editor.slice(start,end);
+ assert.match(block,/if\(saved\)\{[\s\S]*?tile\.addEventListener\('contextmenu'/);
+ assert.match(block,/remove\.textContent='삭제'/);
+ assert.match(block,/store\(load\(\)\.filter\(c=>c!==color\)\)/);
+ assert.doesNotMatch(block,/title-color-remove|parent\.append\(remove\)|trash/);
+});

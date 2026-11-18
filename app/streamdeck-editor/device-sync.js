@@ -311,6 +311,10 @@
   window.renderDeckKeyImage = async (item,index=0,previewPressed=false) => (await drawSlot(previewPressed?{...item,previewPressed:true}:item, index)).png;
   renderGrid();
   window.refreshSelectedVisual?.();
+  // The initial inspector was constructed before this deferred compositor existed.
+  // Repaint its two state cards now, without requiring selection or checkbox changes.
+  const initialItem=state.selected===null?null:DeckCore.visibleActions(state)[state.selected];
+  if(initialItem)void refreshStateTitleCards(initialItem);
 
   async function synchronize() {
     const serial = ++renderSerial;
