@@ -2581,7 +2581,10 @@ function renderInspector(){
         }else if(!state.pages.some(page=>page.includes(item)))return;
         const inputNode=root.querySelector('[data-field="'+field+'"]');
         item.settings[field]=selected;
-        if(inputNode)inputNode.value=selected;
+        if(inputNode){
+          inputNode.value=selected;
+          if(folderPicker)inputNode.title=inputNode.value;
+        }
         if(folderPicker)persistInspectorChange();else persist();
         if(['open','open-app'].includes(item.type)&&['path','app'].includes(field))
           void updateApplicationArtwork(item,selected).catch(error=>window.d200xActionStatus?.('프로그램 아이콘 추출 실패: '+String(error?.message||error)));
@@ -2648,13 +2651,20 @@ function renderInspector(){
     if(pluginButton)toolbar.append(pluginButton);
     if(item.type==='folder-shortcut'){
       const checkbox=root.querySelector('.inspector-properties-region>.fields [data-field="alwaysNewWindow"]');
-      const field=checkbox?.closest('.checkbox-setting-field');
-      if(field){
-        // Move the bound input rather than creating another setting control.
-        field.className='folder-new-window-option';
-        field.prepend(checkbox);
-        toolbar.classList.add('folder-shortcut-toolbar');
-        toolbar.append(field);
+      const option=checkbox?.closest('.checkbox-setting-field');
+      const pathInput=root.querySelector('.inspector-properties-region>.fields [data-field="path"]');
+      const pathRow=pathInput?.closest('.field');
+      if(option&&pathRow){
+        // Reuse the bound controls; only the main folder inspector is rearranged.
+        option.className='folder-new-window-option';
+        option.prepend(checkbox);
+        pathRow.querySelector(':scope > label')?.remove();
+        pathRow.classList.add('folder-shortcut-path-row');
+        pathRow.prepend(option);
+        pathInput.placeholder='폴더 선택';
+        pathInput.setAttribute('aria-label','폴더 선택');
+        pathInput.title=pathInput.value;
+        pathInput.addEventListener('input',()=>{pathInput.title=pathInput.value;});
       }
     }
     const saveBar=root.querySelector('.inspector-footer-region');

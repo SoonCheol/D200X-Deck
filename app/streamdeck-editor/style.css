@@ -796,12 +796,15 @@
   display:flex;align-items:center;justify-content:space-between;gap:8px;
   margin:9px 0 7px 110px;min-width:0;min-height:33px
 }
-.state-title-inspector .state-title-toolbar.folder-shortcut-toolbar{margin-left:0}
-.folder-shortcut-toolbar>.folder-new-window-option{
+.inspector.state-title-inspector .inspector-properties-region>.fields>.field.folder-shortcut-path-row{
+  grid-template-columns:max-content minmax(0,1fr);gap:8px
+}
+.inspector.state-title-inspector .folder-shortcut-path-row>.compound{min-width:0;max-width:none;width:100%}
+.folder-shortcut-path-row>.folder-new-window-option{
   display:flex;align-items:center;gap:6px;white-space:nowrap;min-width:0;color:#cacaca
 }
-.folder-new-window-option>input[type="checkbox"]{
-  flex:none;width:15px;height:15px;min-height:0;margin:0;accent-color:#2676c1
+.folder-shortcut-path-row .folder-new-window-option>input[type="checkbox"]{
+  flex:none;width:15px;height:15px;min-height:0;margin:0;padding:0;accent-color:#2676c1
 }
 .state-title-inspector .state-title-toolbar .sdk-settings-open{
   width:auto;max-width:185px;flex:0 1 auto;height:32px;min-height:32px;

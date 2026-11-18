@@ -112,15 +112,23 @@ test('title alignment keeps original three buttons but uses legible 20px SVG ico
  assert.match(css,/\.title-align button.active\{background:#217ce5;border-color:#217ce5\}/);
 });
 
-test('folder shortcut moves the existing checkbox before its label into the save toolbar only',()=>{
+test('main folder shortcut aligns the existing option with the path; toolbar and other actions are unchanged',()=>{
   const move=editor.match(/if\(item\.type==='folder-shortcut'\)\{\s*const checkbox=[\s\S]*?(?=const saveBar=root\.querySelector\('\.inspector-footer-region'\))/)?.[0]||'';
-  assert.match(move,/if\(item\.type==='folder-shortcut'\)/);
   assert.match(move,/\[data-field="alwaysNewWindow"\]/);
-  assert.match(move,/field\.prepend\(checkbox\)/);
-  assert.match(move,/toolbar\.append\(field\)/);
+  assert.match(move,/option\.prepend\(checkbox\)/);
+  assert.match(move,/pathRow\.querySelector\(':scope > label'\)\?\.remove\(\)/);
+  assert.match(move,/pathRow\.prepend\(option\)/);
+  assert.match(move,/pathInput\.placeholder='폴더 선택'/);
+  assert.match(move,/pathInput\.title=pathInput\.value/);
+  assert.match(move,/pathInput\.addEventListener\('input',\(\)=>\{pathInput\.title=pathInput\.value;\}\)/);
+  assert.match(editor,/if\(folderPicker\)inputNode\.title=inputNode\.value/);
   assert.match(editor,/if\(saveBar\)toolbar\.append\(saveBar\)/);
   assert.match(editor,/check\('alwaysNewWindow','항상 새 창으로 열기'\)/);
-  assert.match(css,/\.state-title-inspector \.state-title-toolbar\.folder-shortcut-toolbar\{margin-left:0\}/);
-  assert.match(css,/\.folder-shortcut-toolbar>\.folder-new-window-option\s*\{[^}]*display:flex;align-items:center;[^}]*white-space:nowrap/s);
+  assert.doesNotMatch(editor,/toolbar\.append\(option\)/);
+  assert.doesNotMatch(css,/folder-shortcut-toolbar/);
+  assert.match(css,/\.field\.folder-shortcut-path-row\s*\{[^}]*grid-template-columns:max-content minmax\(0,1fr\);gap:8px/s);
+  assert.match(css,/\.folder-shortcut-path-row>\.compound\{min-width:0;max-width:none;width:100%\}/);
+  assert.match(css,/\.folder-shortcut-path-row>\.folder-new-window-option\s*\{[^}]*display:flex;align-items:center;[^}]*white-space:nowrap/s);
   assert.match(css,/\.folder-new-window-option>input\[type="checkbox"\]\s*\{[^}]*width:15px;height:15px/s);
 });
+
