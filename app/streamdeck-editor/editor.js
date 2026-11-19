@@ -3894,6 +3894,86 @@ function executeHardwareAction(event,preview=false,skipKnobGesture=false){
   return outcome.message;
 }
 window.executeD200XKey=executeHardwareAction;
+
+ // AI edit transactions are generated locally, never from model-written JS.
+ // The original state and plugin object identities remain intact until user approval.
+ let aiEditCapture=null,aiEditUndo=null;
+ function aiEditReady(){
+   if(profileStorageFailure||!window.deckBridge?.writeProfile)throw Error('프로필 저장 기능을 확인하세요.');
+   if(inspectorEditing||inspectorSession?.dirty||document.querySelector('dialog[open]')||nativeGridBusy||nativeGridDrag||openAppHoldTimers.size)throw Error('미저장 편집 또는 진행 중인 동작을 먼저 마치세요.');
+   if(state.folderPath?.length)throw Error('일반 페이지로 이동한 후 AI 편집을 이용하세요.');
+ }
+ function aiEditCurrent(id){
+   aiEditReady();
+   if(!aiEditCapture||aiEditCapture.id!==id||aiEditCapture.base!==JSON.stringify(state))throw Error('편집 상태가 달라졌습니다. 새 변경안을 요청하세요.');
+   return aiEditCapture;
+ }
+ function aiEditStore(next){
+   // No dirty inspector shortcut: exactly one synchronous existing atomic profile write.
+   const saved=window.deckBridge.writeProfile(next);
+   if(!saved?.ok)throw Error('프로필 저장 실패. 기존 편집 상태를 보존했습니다.');
+   state=next;inspectorSession=null;
+   let refreshError=false;
+   try{render();}catch(e){refreshError=true;console.warn('AI 편집 화면 갱신 실패',e);}
+   try{window.scheduleDeckSync?.();}catch(e){refreshError=true;console.warn('AI 편집 동기화 예약 실패',e);}
+   return {saved:true,refreshError};
+ }
+ window.DeckForgeAiEdit=Object.freeze({
+   capture(id){
+     aiEditReady();aiEditCapture={id,base:JSON.stringify(state),before:state,plan:null};
+     return {profile:state.profileNames?.find(p=>p.id===state.profileId)?.name||'기본 프로필',page:state.page+1,pageCount:state.pages.length};
+   },
+   types({id,input}){aiEditCurrent(id);return window.DeckForgeAiPlan.targetTypes(state,input);},
+   async prepare({id,input,targets}){
+     const snapshot=aiEditCurrent(id),operations=window.DeckForgeAiPlan.validate(input).operations;
+     const resources=[];let packs;
+     for(const [i,o] of operations.entries()){
+       const target=targets[i]?{...targets[i]}:null,res={target};
+       if(target?.artwork){
+         const artwork=target.artwork;delete target.artwork;
+         try{target.icon={kind:'file',value:await rasterizeIcon(artwork,144,100)};}catch{}
+       }
+       if(o.iconName!==null){
+         packs??=await window.deckBridge.listIconPacks();
+         const wanted=o.iconName.trim().toLowerCase();
+         const matches=[];
+         for(const pack of packs){
+           if(o.iconPack!==null&&String(pack.name).toLowerCase()!==o.iconPack.trim().toLowerCase())continue;
+           for(const icon of pack.icons||[])if(String(icon.name).toLowerCase()===wanted)matches.push({pack,icon});
+         }
+         if(matches.length!==1)throw Error('아이콘 이름이 없거나 중복됩니다. 아이콘팩과 정확한 이름을 지정하세요.');
+         const {pack,icon}=matches[0];
+         res.icon={name:o.iconName,pack:pack.name,data:{kind:'file',value:await rasterizeIcon(icon.image),packId:pack.id}};
+       }
+       resources.push(res);
+     }
+     if(aiEditCurrent(id)!==snapshot)throw Error('변경안이 취소되었습니다.');
+     const plan=window.DeckForgeAiPlan.makePlan(state,input,resources);
+     snapshot.plan=plan;
+     // Render local button previews for the user only (never sent to the model).
+     const rows=plan.rows.map(x=>({...x}));
+     for(const row of rows){
+       if(!row.slot)continue;
+       const next=plan.next.pages[row.page-1]?.[row.slot-1];
+       if(next?.icon?.kind==='file'&&/^data:image\/png;base64,[A-Za-z0-9+/=]+$/.test(next.icon.value||'')&&next.icon.value.length<1024*1024)row.previewImage=next.icon.value;
+     }
+     return {id,profile:plan.profile,rows};
+   },
+   apply(id){
+     const snapshot=aiEditCurrent(id);
+     if(!snapshot.plan)throw Error('적용할 변경안이 없습니다.');
+     const result=aiEditStore(snapshot.plan.next);
+     aiEditUndo={id,before:snapshot.before,after:JSON.stringify(state)};
+     aiEditCapture=null;return result;
+   },
+   discard(id){if(aiEditCapture?.id===id)aiEditCapture=null;return true;},
+   undo(id){
+     aiEditReady();
+     if(!aiEditUndo||aiEditUndo.id!==id||aiEditUndo.after!==JSON.stringify(state))throw Error('적용 이후 설정이 달라졌습니다. 안전하게 되돌릴 수 없습니다.');
+     const result=aiEditStore(aiEditUndo.before);aiEditUndo=null;aiEditCapture=null;return result;
+   }
+ });
+
 let refreshProfilesMenu=()=>{};
 function render(){
   const scope=openAppHoldScope();

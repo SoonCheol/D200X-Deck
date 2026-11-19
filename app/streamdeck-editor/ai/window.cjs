@@ -6,8 +6,9 @@ const {BrowserWindow,ipcMain,safeStorage,shell,app,screen,Menu}=require('electro
 const {ChatAuth}=require('./auth.cjs');
 const {listModels,chat}=require('./responses.cjs');
 
-function registerAiWindow(assertEditor,newReadSession){
-  let panel=null,auth=null,active=null,catalog=[],history=null,historyBusy=false;
+function registerAiWindow(assertEditor,newReadSession,editorEdits){
+  let panel=null,auth=null,active=null,catalog=[],history=null,historyBusy=false,pending=null,undoId=null;
+  const discardPending=async()=>{const old=pending;pending=null;if(old)await editorEdits.discard(old.id).catch(()=>{});};
   const dir=()=>path.join(app.getPath('userData'),'AI');
   const connection=()=>auth??=new ChatAuth({directory:dir(),safeStorage,openExternal:url=>shell.openExternal(url)});
   const send=payload=>{if(panel&&!panel.isDestroyed()&&!panel.webContents.isDestroyed())panel.webContents.send('deckforge-ai:event',payload);};
@@ -47,7 +48,7 @@ function registerAiWindow(assertEditor,newReadSession){
     }
   }
   const handlers={
-    status:async()=>({ ...await connection().status(),busy:active?.kind||null }),
+    status:async()=>({ ...await connection().status(),busy:active?.kind||null,canUndo:!!undoId }),
     login:async()=>{
       const job=begin('login');
       try{const state=await connection().signIn(job.controller.signal);catalog=[];return state;}finally{finish(job);}
@@ -66,7 +67,7 @@ function registerAiWindow(assertEditor,newReadSession){
       idle();historyBusy=true;try{const all=await loadHistory();await saveHistory(all.filter(x=>x.id!==id));return history;}finally{historyBusy=false;}
     },
     send:async(args)=>{
-      const job=begin('chat');
+      const job=begin('chat');let captureId=null,preview=null,keepPreview=false,previewFailure='';
       try{
         if(!args||typeof args.id!=='string'||!catalog.some(m=>m.id===args.model)||typeof args.text!=='string'||!args.text.trim()||args.text.length>12000)throw Error('모델 또는 메시지 입력을 확인하세요.');
         if(!/^[a-f0-9-]{36}$/.test(args.id))throw Error('대화 식별자 오류');
@@ -75,21 +76,53 @@ function registerAiWindow(assertEditor,newReadSession){
         const message={role:'user',content:args.text.trim()},messages=[...(old?.messages||[]),message];
         if(messages.length>200)throw Error('이 대화의 메시지 한도에 도달했습니다. 새 대화를 시작하세요.');
         const signal=AbortSignal.any([job.controller.signal,AbortSignal.timeout(240000)]);
-        const readOnly=args.readOnly===true;
-        const result=await chat({token:await connection().access(signal),model:args.model,messages,toolTest:!readOnly&&args.toolTest===true,readOnly,inspect:readOnly?newReadSession():undefined,version:app.getVersion(),signal,emit:send});
+        await discardPending();
+        const editMode=args.editMode===true,readOnly=editMode||args.readOnly===true;
+        if(editMode){captureId=randomUUID();await editorEdits.capture(captureId);}
+        const result=await chat({token:await connection().access(signal),model:args.model,messages,toolTest:!readOnly&&args.toolTest===true,readOnly,editMode,inspect:readOnly?newReadSession():undefined,
+          propose:editMode?async(input,toolSignal)=>{
+            try{
+              preview=await editorEdits.prepare(captureId,input,message.content,toolSignal);
+              toolSignal?.throwIfAborted();
+              return {ok:true,previewReady:true,changeCount:preview.rows.length,applied:false};
+            }catch(error){
+              toolSignal?.throwIfAborted();
+              // Only return controlled status. Raw system errors and local paths stay local.
+              previewFailure=String(error?.message||'변경안 준비 실패').slice(0,200);
+              return {ok:false,error:'local_preview_rejected',applied:false};
+            }
+          }:undefined,version:app.getVersion(),signal,emit:send});
         signal.throwIfAborted();
         if(!result.text.trim())throw Error('완료된 텍스트 응답이 없습니다.');
         const updated={id:args.id,title:old?.title||message.content.slice(0,48),messages:[...messages,{role:'assistant',content:result.text}],updated:Date.now()};
         await saveHistory([updated,...all.filter(x=>x.id!==args.id)]);
-        return {conversation:updated,called:result.called,usage:result.usage,requests:result.requests,toolCalls:result.toolCalls};
+        signal.throwIfAborted();
+        if(preview&&captureId){pending={id:captureId,conversationId:args.id};keepPreview=true;}
+        return {conversation:updated,called:result.called,usage:result.usage,requests:result.requests,toolCalls:result.toolCalls,preview:keepPreview?preview:null,previewFailure,canUndo:!!undoId};
       }catch(e){if(e.code==='signed-out'){catalog=[];await connection().clearSession();}throw e;}
-      finally{finish(job);}
+      finally{if(captureId&&!keepPreview)await editorEdits.discard(captureId).catch(()=>{});finish(job);}
+    },
+    applyEdit:async id=>{
+      const job=begin('apply');try{
+        if(typeof id!=='string'||!pending||pending.id!==id)throw Error('승인할 변경안이 없습니다.');
+        const result=await editorEdits.apply(id);
+        if(!result?.saved)throw Error('저장 결과를 확인하지 못했습니다.');
+        undoId=id;pending=null;return {...result,canUndo:true};
+      }finally{await discardPending();finish(job);}
+    },
+    discardEdit:async id=>{idle();if(pending?.id===id)await discardPending();return true;},
+    undoEdit:async()=>{
+      const job=begin('undo');try{
+        if(pending||!undoId)throw Error('되돌릴 변경 사항이 없습니다.');
+        const result=await editorEdits.undo(undoId);if(!result?.saved)throw Error('복구 결과를 확인하지 못했습니다.');
+        undoId=null;return {...result,canUndo:false};
+      }finally{finish(job);}
     },
     cancel:async()=>{if(active?.kind!=='logout')active?.controller.abort();return true;},
     usage:async()=>shell.openExternal('https://chatgpt.com/settings/usage')
   };
   for(const [name,fn] of Object.entries(handlers))ipcMain.handle('deckforge-ai:'+name,(event,arg)=>handle(name,fn,event,arg));
-  const close=()=>{if(active?.kind!=='logout')active?.controller.abort();if(panel&&!panel.isDestroyed())panel.close();};
+  const close=()=>{void discardPending();if(active?.kind!=='logout')active?.controller.abort();if(panel&&!panel.isDestroyed())panel.close();};
   ipcMain.handle('d200x:open-ai',async event=>{
     assertEditor(event);
     if(panel&&!panel.isDestroyed()){panel.show();panel.focus();return;}
@@ -105,7 +138,7 @@ function registerAiWindow(assertEditor,newReadSession){
     current.webContents.on('will-navigate',event=>event.preventDefault());
     current.webContents.on('will-attach-webview',event=>event.preventDefault());
     const onHide=()=>close();editor.once('hide',onHide);
-    current.on('closed',()=>{editor.removeListener('hide',onHide);if(panel===current){panel=null;if(active?.kind!=='logout')active?.controller.abort();}});
+    current.on('closed',()=>{editor.removeListener('hide',onHide);if(panel===current){panel=null;void discardPending();if(active?.kind!=='logout')active?.controller.abort();}});
     try{await current.loadFile(path.join(__dirname,'panel.html'));if(!current.isDestroyed())current.show();}
     catch{if(!current.isDestroyed())current.destroy();throw Error('AI 도우미 창을 열지 못했습니다.');}
   });

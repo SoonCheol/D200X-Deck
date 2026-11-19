@@ -209,7 +209,47 @@ function newAiReadSession(){
     fusion:fusionAddinAvailable
   })();
 }
-require('./ai/window.cjs').registerAiWindow(assertEditor,newAiReadSession);
+// Only fixed editor entry points. All arguments are JSON data; no model-authored scripts.
+async function aiEditorCall(method,arg){
+  if(!['capture','types','prepare','apply','discard','undo'].includes(method)||!rendererReady||!window||window.isDestroyed())throw Error('DeckForge 편집 화면을 열어 주세요.');
+  const literal=JSON.stringify(JSON.stringify(arg)).replace(/\u2028/g,'\\u2028').replace(/\u2029/g,'\\u2029');
+  const result=await window.webContents.executeJavaScript('(async()=>{try{return {ok:true,value:await window.DeckForgeAiEdit.'+method+'(JSON.parse('+literal+'))};}catch(e){return {ok:false,error:String(e?.message||e).slice(0,200)};}})()');
+  if(!result?.ok)throw Error(result?.error||'편집 화면 응답 오류');return result.value;
+}
+const {validate:validateAiEdit}=require('./ai/edit-plan.js');
+async function prepareAiEdit(id,input,userText,signal){
+  const valid=validateAiEdit(input),types=await aiEditorCall('types',{id,input:valid});
+  const targets=[];
+  for(const [i,o] of valid.operations.entries()){
+    signal?.throwIfAborted();
+    const type=types[i],value=o.value;
+    if(!['put','update'].includes(o.op)||!['open-app','file-open','folder-shortcut'].includes(type)||value===null){targets.push(null);continue;}
+    let info;
+    const appId=value.startsWith('shell:AppsFolder\\')?value.slice('shell:AppsFolder\\'.length):value;
+    if(type==='open-app'&&!/^[A-Za-z]:[\\/]/.test(value)){
+      if(!/^[A-Za-z0-9_.!{}-]{1,180}$/.test(appId))throw Error('확인된 시작 메뉴 AppID가 필요합니다.');
+      info=await inspectStartApplication(appId);
+    }else{
+      // Explicit user-provided absolute drive path only. No UNC, environment expansion,
+      // command lines, alternate streams, device names, traversal or script targets.
+      if(!/^[A-Za-z]:\\[^<>:"|?*\x00-\x1f]+$/.test(value)||value.slice(3).split('\\').some(x=>!x||x==='.'||x==='..'||/[. ]$/.test(x)||/^(?:CON|PRN|AUX|NUL|COM[1-9]|LPT[1-9])(?:\.|$)/i.test(x))||!userText.toLowerCase().includes(value.toLowerCase()))throw Error('파일 폴더 경로를 질문에 직접 입력해 주세요.');
+      const ext=path.win32.extname(value).toLowerCase();
+      if(type==='open-app'&&ext!=='.exe')throw Error('프로그램 실행 파일은 EXE만 지원합니다.');
+      if(type==='file-open'&&['.exe','.com','.bat','.cmd','.ps1','.vbs','.js','.jse','.wsf','.wsh','.msi','.lnk','.url','.scr','.hta','.reg','.cpl','.pif'].includes(ext))throw Error('실행 파일은 프로그램 열기로 등록하세요.');
+      const stat=await fs.promises.stat(value);
+      if(type==='folder-shortcut'?!stat.isDirectory():!stat.isFile())throw Error('파일 또는 폴더 유형이 맞지 않습니다.');
+      if(type==='open-app')info=await inspectWindowsApplication(value);
+      else{
+        let icon='';
+        try{const image=await app.getFileIcon(value,{size:'large'});if(image&&!image.isEmpty())icon='data:image/png;base64,'+image.toPNG().toString('base64');}catch{}
+        info={path:value,name:path.win32.basename(value)||value,icon};
+      }
+    }
+    targets.push({type,requested:value,path:info.path,name:info.name,artwork:info.icon||''});
+  }
+  signal?.throwIfAborted();return aiEditorCall('prepare',{id,input:valid,targets});
+}
+require('./ai/window.cjs').registerAiWindow(assertEditor,newAiReadSession,{capture:id=>aiEditorCall('capture',id),prepare:prepareAiEdit,apply:id=>aiEditorCall('apply',id),discard:id=>aiEditorCall('discard',id),undo:id=>aiEditorCall('undo',id)});
 ipcMain.handle('d200x:ha-status',event=>{
   assertEditor(event);
   const config=readHaConfig();

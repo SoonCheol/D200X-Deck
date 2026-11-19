@@ -83,9 +83,9 @@ jobs:
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           node --check app/streamdeck-editor/editor.js
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          node --test test/deckforge-ai-phase1.test.cjs test/deckforge-ai-phase2.test.cjs test/deckforge-text-context-menu.test.cjs
+          node --test test/deckforge-ai-phase1.test.cjs test/deckforge-ai-phase2.test.cjs test/deckforge-ai-phase3.test.cjs test/deckforge-text-context-menu.test.cjs
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          foreach ($aiScript in @('ai-launch.js','ai/auth.cjs','ai/responses.cjs','ai/read-tools.cjs','ai/window.cjs','ai/preload.cjs','ai/panel.js')) {
+          foreach ($aiScript in @('ai-launch.js','ai/auth.cjs','ai/responses.cjs','ai/read-tools.cjs','ai/edit-plan.js','ai/window.cjs','ai/preload.cjs','ai/panel.js')) {
             node --check "app/streamdeck-editor/$aiScript"
             if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           }
