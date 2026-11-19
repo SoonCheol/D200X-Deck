@@ -50,7 +50,23 @@ static class DFAppFocus {
    }catch{return null;}
    finally{PropVariantClear(ref value);Release(store);}
  }
- sealed class Identity {public string Path,Id;}
+ [DllImport("advapi32.dll",SetLastError=true)]static extern bool OpenProcessToken(IntPtr process,uint access,out IntPtr token);
+ [DllImport("advapi32.dll",SetLastError=true)]static extern bool GetTokenInformation(IntPtr token,int infoClass,out int elevation,int length,out int size);
+ static bool? Elevated(IntPtr process){
+   IntPtr token;
+   if(!OpenProcessToken(process,8,out token))return null;
+   try{int elevation,size;return GetTokenInformation(token,20,out elevation,4,out size)?(bool?)(elevation!=0):null;}
+   finally{CloseHandle(token);}
+ }
+ static bool TerminalId(string id){
+   return Same(id,"Microsoft.WindowsTerminal_8wekyb3d8bbwe!App")||Same(id,"Microsoft.WindowsTerminalPreview_8wekyb3d8bbwe!App");
+ }
+ static bool TerminalIdentity(Identity identity,string windowId){
+   return TerminalId(identity.Id)||TerminalId(windowId)||
+     (!String.IsNullOrEmpty(identity.Path)&&Same(Path.GetFileName(identity.Path),"WindowsTerminal.exe"));
+ }
+ static bool unknownTerminal;
+ sealed class Identity {public string Path,Id;public bool? IsElevated;}
  static Identity ProcessIdentity(uint pid,Dictionary<uint,Identity> cache){
    Identity result;if(cache.TryGetValue(pid,out result))return result;
    result=new Identity();cache[pid]=result;
@@ -58,7 +74,8 @@ static class DFAppFocus {
    try{
      uint len=32768;var text=new StringBuilder((int)len);
      if(QueryFullProcessImageName(process,0,text,ref len))result.Path=text.ToString();
-     if(kind=="AppID"){
+     if(kind=="Terminal")result.IsElevated=Elevated(process);
+     if(kind=="AppID"||kind=="Terminal"){
        len=0;if(GetApplicationUserModelId(process,ref len,null)==122&&len>0&&len<=32768){
          text=new StringBuilder((int)len);
          if(GetApplicationUserModelId(process,ref len,text)==0)result.Id=text.ToString();
@@ -71,6 +88,11 @@ static class DFAppFocus {
    if(kind=="AppID"&&Same(WindowId(hwnd),target))return "window-appid";
    uint pid;DFFolderNative.GetWindowThreadProcessId(hwnd,out pid);if(pid==0)return null;
    var identity=ProcessIdentity(pid,cache);
+   if(kind=="Terminal"){
+     if(!TerminalIdentity(identity,WindowId(hwnd)))return null;
+     if(!identity.IsElevated.HasValue){unknownTerminal=true;Note("terminal-token-unavailable="+pid);return null;}
+     return identity.IsElevated.Value==(target=="admin")?"terminal-"+target:null;
+   }
    if(kind=="AppID"&&Same(identity.Id,target))return "process-appid";
    if(identity.Path!=null&&paths.Contains(identity.Path))return "exe-path";
    return null;
@@ -94,6 +116,7 @@ static class DFAppFocus {
  }
  sealed class Candidate {public IntPtr Hwnd;public string Reason;}
  static List<Candidate> Windows(){
+   unknownTerminal=false;
    var rows=new List<Candidate>();var cache=new Dictionary<uint,Identity>();
    if(!EnumWindows((hwnd,unused)=>{
      try{
@@ -103,6 +126,7 @@ static class DFAppFocus {
      }catch(Exception e){Note("enumeration: "+e.GetType().Name);}
      return true;
    },IntPtr.Zero))throw new Exception("EnumWindows failed");
+   if(kind=="Terminal"&&rows.Count==0&&unknownTerminal)throw new Exception("터미널 권한을 확인할 수 없습니다. 중복 실행하지 않았습니다.");
    IntPtr foreground=DFFolderNative.GetForegroundWindow();
    rows.Sort((a,b)=>(b.Hwnd==foreground?2:Cloaked(b.Hwnd)?0:1).CompareTo(a.Hwnd==foreground?2:Cloaked(a.Hwnd)?0:1));
    return rows;
@@ -172,6 +196,7 @@ static class DFAppFocus {
  // A console client can be hosted by another process. Detect exact running
  // executable/AppID without guessing which terminal window owns that client.
  static bool Running(){
+   if(kind=="Terminal")return false; // terminal background processes are not open windows
    var cache=new Dictionary<uint,Identity>();
    int session;using(var self=Process.GetCurrentProcess())session=self.SessionId;
    foreach(var process in Process.GetProcesses()){
@@ -206,6 +231,18 @@ static class DFAppFocus {
    foreach(var candidate in Windows())handles.Add(candidate.Hwnd.ToInt64().ToString(System.Globalization.CultureInfo.InvariantCulture));
    Console.WriteLine(new JavaScriptSerializer().Serialize(new {status="snapshot",handles=handles,details=notes}));
  }
+ static void LaunchTerminal(){
+   string alias=Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),"Microsoft","WindowsApps","wt.exe");
+   // The only elevated command is the fixed Windows Terminal execution alias.
+   // Do not pass a user command or bypass UAC.
+   using(var self=Process.GetCurrentProcess()){
+     if(target=="normal"&&Elevated(self.Handle)!=false)
+       throw new Exception("일반 터미널을 열려면 DeckForge를 일반 권한으로 실행하세요.");
+   }
+   var info=new ProcessStartInfo(alias,"-w new"){UseShellExecute=true,Verb=target=="admin"?"runas":"open"};
+   using(var child=Process.Start(info)){}
+   Result("launched");
+ }
  [STAThread]public static void Main(){
    Console.OutputEncoding=new UTF8Encoding(false);
    try{
@@ -215,17 +252,25 @@ static class DFAppFocus {
          throw new Exception("App focus validation failed");
        kind="EXE";target=@"Z:\DeckForge-Nonexistent-"+Guid.NewGuid().ToString()+".exe";paths.Add(target);
        if(LocateAndFocus(0)!="missing")throw new Exception("Unexpected window match");
+       if(!TerminalId("Microsoft.WindowsTerminal_8wekyb3d8bbwe!App")||TerminalId("Microsoft.WindowsCalculator_8wekyb3d8bbwe!App"))throw new Exception("Terminal identity validation failed");
+       using(var self=Process.GetCurrentProcess())if(!Elevated(self.Handle).HasValue)throw new Exception("Token elevation validation failed");
        Result("validated");return;
      }
      kind=Environment.GetEnvironmentVariable("DECKFORGE_APP_FOCUS_KIND");
      target=Encoding.Unicode.GetString(Convert.FromBase64String(Environment.GetEnvironmentVariable("DECKFORGE_APP_FOCUS_TARGET")));
-     if((mode!="Focus"&&mode!="Wait"&&mode!="Probe"&&mode!="WaitPresent"&&mode!="Snapshot"&&mode!="WaitNew")||String.IsNullOrWhiteSpace(target)||target.Length>4096)throw new Exception("Invalid focus request");
+     if((mode!="Focus"&&mode!="Wait"&&mode!="Probe"&&mode!="WaitPresent"&&mode!="Snapshot"&&mode!="WaitNew"&&mode!="Launch")||String.IsNullOrWhiteSpace(target)||target.Length>4096)throw new Exception("Invalid focus request");
      if(kind=="EXE"){
        if(!Path.IsPathRooted(target)||!target.EndsWith(".exe",StringComparison.OrdinalIgnoreCase))throw new Exception("Invalid executable");
        paths.Add(target);
      }else if(kind=="AppID"){
        if(target.Length>512||target.IndexOfAny(new[]{'\\','/',':','"'})>=0)throw new Exception("Invalid AppID");
+     }else if(kind=="Terminal"){
+       if(target!="normal"&&target!="admin")throw new Exception("Invalid terminal kind");
      }else throw new Exception("Invalid focus kind");
+     if(mode=="Launch"){
+       if(kind!="Terminal")throw new Exception("Invalid launch kind");
+       LaunchTerminal();return;
+     }
      bool activate=mode!="Probe"&&mode!="WaitPresent";
      bool newOnly=mode=="WaitNew";
      if(newOnly){

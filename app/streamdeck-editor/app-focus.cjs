@@ -14,7 +14,7 @@ async function runAppFocus(directory,spec,mode,executor=run,exclude=[]){
       DECKFORGE_APP_FOCUS_TARGET:Buffer.from(spec.target,'utf16le').toString('base64'),DECKFORGE_APP_FOCUS_EXCLUDE:exclude.join(',')}
   });
   const result=JSON.parse(String(stdout));
-  if(!['focused','matched-not-focused','missing','present','snapshot','error'].includes(result.status))throw Error('잘못된 창 활성화 응답');
+  if(!['focused','matched-not-focused','missing','present','snapshot','launched','error'].includes(result.status))throw Error('잘못된 창 활성화 응답');
   return result;
 }
 async function focusOrLaunch({focus,launch,record=async()=>{},foreground=true,preventDuplicate=true}){

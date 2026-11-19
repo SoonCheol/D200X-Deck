@@ -20,7 +20,7 @@ test('all 24 observed Stream Deck actions have independent defaults',()=>{
 test('separate D200X volume/mute actions preserve the original 24',()=>{
   assert.equal(core.ACTION_IDS.length,24);
   assert.deepEqual(core.D200X_ACTION_IDS,['system-volume','system-mute','system-scroll','edit-history','window-switch','desktop-switch','device-brightness','system-zoom',
-    'screenshot','clipboard-edit','window-state','window-monitor','explorer-open','brush-size','timeline-step','timeline-zoom','file-open','folder-shortcut']);
+    'screenshot','clipboard-edit','window-state','window-monitor','explorer-open','brush-size','timeline-step','timeline-zoom','file-open','folder-shortcut','terminal','terminal-admin']);
   const volume=core.createAction('system-volume');
   assert.deepEqual(core.planAction(volume,0,1),{kind:'adjust',target:'volume',direction:1,count:1});
   volume.settings.direction='down';volume.settings.step=5;
@@ -910,7 +910,7 @@ test('Multi Action retains bounded delays and rejects unsupported nested composi
 test('HA plugin action is separate and survives profile migration and hardware planning',()=>{
   assert.deepEqual(core.PLUGIN_ACTION_IDS,['ha-toggle','sd-plugin']);
   assert.equal(core.ACTION_IDS.length,24);
-  assert.equal(core.D200X_ACTION_IDS.length,18);
+  assert.equal(core.D200X_ACTION_IDS.length,20);
   const state=core.migrateState(null);
   const action=core.createAction('ha-toggle');
   action.settings.entityId='switch.kitchen';
@@ -1155,4 +1155,13 @@ test('new launch policies default to prevention and preserve prior repeat-launch
   assert.equal(core.planAction(app,0,1).preventDuplicate,true);
   const folder=core.createAction('folder-shortcut');folder.settings.foreground=false;
   assert.equal(core.planAction(folder,0,1).foreground,false);
+});
+
+test('terminal actions keep separate elevation identity, both options, and survive migration',()=>{
+  for(const [type,admin] of [['terminal',false],['terminal-admin',true]]){
+    const action=core.createAction(type);
+    assert.deepEqual(core.planAction(action,0,1),{kind:'open-terminal',admin,foreground:true,preventDuplicate:true});
+    action.settings.foreground=false;action.settings.preventDuplicate=false;
+    assert.deepEqual(core.planAction(core.cleanAction(action),0,1),{kind:'open-terminal',admin,foreground:false,preventDuplicate:false});
+  }
 });

@@ -39,7 +39,7 @@ test('legacy title remains intact if no separate state titles exist',()=>{
 });
 test('state row retains preview, paired cards and edit/save button alignment',()=>{
  assert.match(editor,/layout\.append\(preview,iconRegion\)/);
- assert.match(editor,/toolbar\.append\(pluginButton\)/);
+ assert.match(editor,/options\.append\(pluginButton\)/);
  assert.match(editor,/toolbar\.append\(saveBar\)/);
  assert.match(editor,/attachStateTitleControls\(group,item,key==='off'/);
  assert.match(editor,/attachStateTitleControls\(card,item,key==='up'/);

@@ -15,7 +15,7 @@
   // New D200X actions stay separate from the original 24.
   const D200X_ACTION_IDS=['system-volume','system-mute','system-scroll','edit-history','window-switch','desktop-switch','device-brightness','system-zoom',
     'screenshot','clipboard-edit','window-state','window-monitor','explorer-open',
-    'brush-size','timeline-step','timeline-zoom','file-open','folder-shortcut'];
+    'brush-size','timeline-step','timeline-zoom','file-open','folder-shortcut','terminal','terminal-admin'];
   const PLUGIN_ACTION_IDS=['ha-toggle','sd-plugin'];
   const DEFAULTS={
     'audio-play':{file:'',mode:'play-stop',fade:'none',fadeDuration:2,volume:50,output:'default'},
@@ -37,7 +37,8 @@
     screenshot:{},'clipboard-edit':{operation:'copy'},
     'window-state':{operation:'maximize'},'window-monitor':{direction:'right'},
     'explorer-open':{},'brush-size':{direction:'increase'},
-    'timeline-step':{direction:'next'},'timeline-zoom':{operation:'in'},'file-open':{path:''},'folder-shortcut':{path:'',alwaysNewWindow:false,foreground:true}
+    'timeline-step':{direction:'next'},'timeline-zoom':{operation:'in'},'file-open':{path:''},'folder-shortcut':{path:'',alwaysNewWindow:false,foreground:true},
+    terminal:{foreground:true,preventDuplicate:true},'terminal-admin':{foreground:true,preventDuplicate:true}
   };
   const TITLE={visible:true,align:'bottom',family:'default',size:12,
     bold:false,italic:false,underline:false,color:'#ffffff',
@@ -691,6 +692,7 @@
     if(action.type==='hotkey')return {kind:'windows-hotkey',keys:String(action.settings?.keys||'')};
     if(action.type==='hotkey-switch')return {kind:'windows-hotkey-switch',
       first:String(action.settings?.first||''),second:String(action.settings?.second||'')};
+    if(action.type==='terminal'||action.type==='terminal-admin')return {kind:'open-terminal',admin:action.type==='terminal-admin',foreground:action.settings?.foreground!==false,preventDuplicate:action.settings?.preventDuplicate!==false};
     if(action.type==='open')return {kind:'open-local-path',path:String(action.settings?.path||''),target:'auto',...(action.settings?.args?{args:String(action.settings.args)}:{})};
     if(action.type==='open-app'&&String(action.settings?.app||'').startsWith('shell:AppsFolder\\'))
       return {kind:'open-local-path',path:String(action.settings.app),target:'appid',foreground:action.settings?.foreground===true,preventDuplicate:action.settings?.preventDuplicate===true,hold:action.settings?.hold||'none'};

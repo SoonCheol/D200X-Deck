@@ -141,7 +141,7 @@ test('basic panel reclassification keeps every action ID and legacy accent',()=>
   assert.deepEqual(visible.map(([name])=>name),["D200X 장치·화면","D200X 탐색","앱·파일·웹 실행","멀티미디어","윈도우 창 관리","키보드·마우스","자동화·다중 동작","유틸리티","편집 작업 도구"]);
   const ids=visible.flatMap(([,ids])=>Array.from(ids));
   const core=require(path.join(base,'deck-core.js'));
-  assert.equal(ids.length,42);
+  assert.equal(ids.length,44);
   assert.deepEqual([...ids].sort(),[...core.ACTION_IDS,...core.D200X_ACTION_IDS].sort());
   const colors=[["brightness","#60a5fa"],["sleep","#60a5fa"],["virtual","#60a5fa"],["device-brightness","#60a5fa"],["folder","#60a5fa"],["profile","#60a5fa"],["previous","#60a5fa"],["next","#60a5fa"],["goto","#60a5fa"],["indicator","#60a5fa"],["system-volume","#c4b5fd"],["system-mute","#c4b5fd"],["window-switch","#c4b5fd"],["window-state","#c4b5fd"],["window-monitor","#c4b5fd"],["desktop-switch","#c4b5fd"],["screenshot","#c4b5fd"],["explorer-open","#c4b5fd"],["hotkey","#fbbf24"],["hotkey-switch","#fbbf24"],["system-scroll","#fbbf24"],["clipboard-edit","#fbbf24"],["edit-history","#fbbf24"],["system-zoom","#fbbf24"],["text","#fbbf24"],["brush-size","#34d399"],["timeline-step","#34d399"],["timeline-zoom","#34d399"],["website","#22d3ee"],["open","#22d3ee"],["open-app","#22d3ee"],["close","#22d3ee"],["file-open","#22d3ee"],["folder-shortcut","#22d3ee"],["multi","#fb7185"],["multi-switch","#fb7185"],["random","#fb7185"],["logic","#fb7185"],["timer","#fb7185"],["audio-play","#f472b6"],["audio-stop","#f472b6"],["media","#f472b6"]];
   panel.setTheme('color');
@@ -190,7 +190,7 @@ test('duplicate shortcut actions are hidden only in the basic panel',()=>{
   vm.runInNewContext(fs.readFileSync(path.join(base,'action-panel-icons.js'),'utf8'),sandbox);
   const shown=Array.from(sandbox.window.D200XPanelIcons.groups,([name,ids])=>[name,Array.from(ids).filter(id=>!hidden.includes(id))]).filter(([name,ids])=>name!=='플러그인 · Home Assistant'&&ids.length);
   assert.equal(shown.length,7);
-  assert.equal(shown.reduce((n,[,ids])=>n+ids.length,0),32);
+  assert.equal(shown.reduce((n,[,ids])=>n+ids.length,0),34);
   for(const id of hidden)assert.ok(require(path.join(base,'deck-core.js')).D200X_ACTION_IDS.includes(id),id);
   assert.match(editor,/\["explorer-open","파일 탐색기 열기"/);
   assert.match(editor,/explorer:'Win\+E'/);
@@ -239,3 +239,14 @@ test('updated action display names preserve stable ids and hold options',()=>{
   assert.doesNotMatch(editor,/"선택 페이지로 이동"|"응용 프로그램 종료"/);
 });
 
+
+test('both Terminal catalogue actions have distinct titles and icon artwork',()=>{
+  const sandbox={window:{},localStorage:{getItem:()=>null,setItem:()=>{}}};
+  vm.runInNewContext(fs.readFileSync(path.join(base,'action-panel-icons.js'),'utf8'),sandbox);
+  const panel=sandbox.window.D200XPanelIcons;
+  const group=panel.groups.find(([name])=>name==='앱·파일·웹 실행')[1];
+  assert.ok(group.includes('terminal')&&group.includes('terminal-admin'));
+  assert.notEqual(panel.artwork('terminal'),panel.artwork('terminal-admin'));
+  assert.match(editor,/\["terminal","터미널","▣"\]/);
+  assert.match(editor,/\["terminal-admin","터미널\(관리자\)","▣"\]/);
+});

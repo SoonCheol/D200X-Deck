@@ -5,7 +5,7 @@ window.D200XPanelIcons=(()=>{
   const groups=[
     ["D200X 장치·화면",["brightness","device-brightness","sleep","virtual"]],
     ["D200X 탐색",["folder","profile","previous","next","goto","indicator"]],
-    ["앱·파일·웹 실행",["open-app","close","file-open","folder-shortcut","explorer-open","website","open"]],
+    ["앱·파일·웹 실행",["open-app","close","file-open","folder-shortcut","explorer-open","website","terminal","terminal-admin","open"]],
     ["멀티미디어",["system-volume","system-mute","media","audio-play","audio-stop"]],
     ["윈도우 창 관리",["window-switch","window-state","window-monitor","desktop-switch"]],
     ["키보드·마우스",["hotkey","hotkey-switch","text","system-scroll","edit-history","system-zoom"]],
@@ -38,6 +38,8 @@ window.D200XPanelIcons=(()=>{
     "website":'<circle cx="12" cy="12" r="9"/><path d="M3 12h18m-9-9a17 17 0 0 1 0 18m0-18a17 17 0 0 0 0 18"/>',
     "open":'<path d="M4 5h9l3 3v12H4Z"/><path d="M13 5v4h4m-8 6h9m-3-3 3 3-3 3"/>',
     "open-app":'<rect x="3" y="3" width="18" height="18" rx="3"/><path d="M3 9h18M9 9v12m4-7 3 2-3 2z"/>',
+    "terminal":'<rect x="2" y="4" width="20" height="16" rx="2"/><path d="m6 9 4 3-4 3m7 0h5"/>',
+    "terminal-admin":'<rect x="2" y="3" width="20" height="15" rx="2"/><path d="m5 8 4 3-4 3m7-1h3"/><path d="m17 12 5 2v4c0 3-5 5-5 5s-5-2-5-5v-4Z" fill="#3777bc" stroke="currentColor"/><path d="M17 13v9m-4-5h8"/>',
     "close":'<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 9h18m-6 4 4 4m0-4-4 4"/>',
     "file-open":'<path d="M6 2h8l5 5v15H6Z"/><path d="M14 2v6h5m-9 7h8m-3-3 3 3-3 3"/>',
     "folder-shortcut":'<path d="M3 7h7l2 2h9v10H3Z"/><path d="m12 13 4 0m-2-2 2 2-2 2"/>',
@@ -68,7 +70,7 @@ window.D200XPanelIcons=(()=>{
     ["system-volume","system-mute","window-switch","window-state","window-monitor","desktop-switch","screenshot","explorer-open"],
     ["hotkey","hotkey-switch","system-scroll","clipboard-edit","edit-history","system-zoom","text"],
     ["brush-size","timeline-step","timeline-zoom"],
-    ["website","open","open-app","close","file-open","folder-shortcut"],
+    ["website","open","open-app","close","file-open","folder-shortcut","terminal","terminal-admin"],
     ["multi","multi-switch","random","logic","timer"],
     ["audio-play","audio-stop","media"],
     ["ha-toggle"]

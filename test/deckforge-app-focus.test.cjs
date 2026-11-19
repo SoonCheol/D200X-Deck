@@ -76,3 +76,17 @@ test('packaged helper executes native validation',{skip:process.platform!=='win3
   }));
   assert.equal(result.status,'validated');
 });
+
+test('terminal launch reuses native policy with separate privilege and fixed UAC launch',()=>{
+  const editor=fs.readFileSync(path.join(root,'editor.js'),'utf8');
+  const main=fs.readFileSync(path.join(root,'main.cjs'),'utf8');
+  const cs=fs.readFileSync(path.join(root,'app-focus-helper.cs'),'utf8');
+  assert.match(main,/kind:'Terminal',target:args.admin\?'admin':'normal'/);
+  assert.match(main,/queueAppLaunch\('Terminal:'\+spec.target,launch\)/);
+  assert.match(main,/inspectAppFocus\(spec,'Launch',traceId\)/);
+  assert.match(cs,/GetTokenInformation\(token,20,out elevation,4,out size\)/);
+  assert.match(cs,/identity.IsElevated.Value==\(target=="admin"\)/);
+  assert.match(cs,/new ProcessStartInfo\(alias,"-w new"\)\{UseShellExecute=true,Verb=target=="admin"\?"runas":"open"\}/);
+  assert.match(editor,/bridge.openTerminal\(outcome.admin,outcome.foreground,outcome.preventDuplicate\)/);
+  assert.match(editor,/window.deckBridge.openTerminal\(outcome.admin,outcome.foreground,outcome.preventDuplicate\)/);
+});

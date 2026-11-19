@@ -9,7 +9,7 @@ const ORIGINAL_CATALOG = [
   ["시스템", [["website","웹페이지","◎"],["hotkey-switch","단축키 전환","⇄"],["hotkey","단축키","⌨"],["open","열기 (통합)","▢"],["open-app","프로그램 열기","▣"],["close","프로그램 종료","×"],["text","텍스트 입력","¶"],["media","재생 제어","♫"]]],
   ["탐색", [["folder","덱폴더","▣"],["profile","프로필 전환","⇆"],["previous","이전 페이지","←"],["next","다음 페이지","→"],["goto","선택 페이지","↗"],["indicator","페이지 표시","①"]]],
   ["플러그인 · Home Assistant", [["ha-toggle","HA 장치 켜기/끄기","⌂"]]],
-  ["D200X 추가 액션", [["system-volume","윈도우 음량 조절","🔊"],["system-mute","윈도우 음소거","🔇"],["system-scroll","윈도우 스크롤","↕"],["edit-history","실행 취소·다시 실행","↶"],["window-switch","창 전환","▣"],["desktop-switch","가상 데스크톱 전환","⇄"],["device-brightness","D200X 밝기 조절","☀"],["system-zoom","앱 확대·축소","⊕"],["screenshot","화면 캡처","▣"],["clipboard-edit","클립보드 편집","▤"],["window-state","창 상태","□"],["window-monitor","다른 모니터로 이동","⇆"],["explorer-open","파일 탐색기 열기","▢"],["brush-size","브러시 크기","◉"],["timeline-step","타임라인 한 단계","▶"],["timeline-zoom","타임라인 확대·축소 (앱별)","⊕"],["file-open","파일 열기","▣"],["folder-shortcut","폴더 열기","▢"]]]
+  ["D200X 추가 액션", [["system-volume","윈도우 음량 조절","🔊"],["system-mute","윈도우 음소거","🔇"],["system-scroll","윈도우 스크롤","↕"],["edit-history","실행 취소·다시 실행","↶"],["window-switch","창 전환","▣"],["desktop-switch","가상 데스크톱 전환","⇄"],["device-brightness","D200X 밝기 조절","☀"],["system-zoom","앱 확대·축소","⊕"],["screenshot","화면 캡처","▣"],["clipboard-edit","클립보드 편집","▤"],["window-state","창 상태","□"],["window-monitor","다른 모니터로 이동","⇆"],["explorer-open","파일 탐색기 열기","▢"],["brush-size","브러시 크기","◉"],["timeline-step","타임라인 한 단계","▶"],["timeline-zoom","타임라인 확대·축소 (앱별)","⊕"],["file-open","파일 열기","▣"],["folder-shortcut","폴더 열기","▢"],["terminal","터미널","▣"],["terminal-admin","터미널(관리자)","▣"]]]
 ];
 // The catalogue changes presentation only: stable IDs, settings and executable actions remain unchanged.
 const CATALOG = window.D200XPanelIcons.groups.map(([category,ids])=>[
@@ -959,6 +959,8 @@ const PANEL_ACTION_HELP={
   "next":"현재 덱 또는 덱폴더의 다음 페이지로 이동합니다. 마지막 페이지에서는 더 다음으로 이동하지 않습니다.",
   "goto":"속성에서 선택한 페이지로 바로 이동합니다. 대상 페이지가 실제 존재해야 합니다.",
   "indicator":"현재 페이지 번호를 표시하는 전용 액션입니다. 눌러도 페이지를 이동하거나 다른 명령을 실행하지 않습니다.",
+  "terminal":"Windows Terminal의 기본 프로필을 실행합니다. 기존 일반 권한 창 활성화와 중복 실행 방지를 설정할 수 있습니다.",
+  "terminal-admin":"Windows Terminal을 관리자 권한으로 실행합니다. 일반 권한 창과 구분하며 새로 실행할 때 Windows의 관리자 승인 창이 나타날 수 있습니다.",
   "open-app":"지정한 실행 파일이나 등록된 시작 메뉴 앱을 실행합니다. 앞으로 가져오기를 켜면 지원되는 기존 앱 창 활성화를 먼저 시도합니다. 길게 누르기는 일반 종료·강제 종료·아무것도 하지 않음 중 선택합니다. 시작 메뉴 AppID는 별도 명령줄 인수를 지원하지 않습니다.",
   "close":"지원되는 응용 프로그램을 종료합니다. 일반 종료는 앱에 종료 요청을 전달하고 저장 확인 창이 나타날 수 있습니다. 강제 종료는 저장하지 않은 작업을 잃을 수 있습니다. 대상 식별이 불확실하면 종료하지 않습니다.",
   "file-open":"지정한 파일을 윈도우 기본 연결 프로그램으로 엽니다. 파일을 선택하거나 경로를 입력하고 저장합니다. 앱의 전경 활성화나 길게 누르기 종료 옵션은 없습니다.",
@@ -1288,6 +1290,7 @@ function actionFields(item){
     case "virtual":return `<div class="field"><label>기기</label><span class="hint">구성된 Virtual DeckForge 없음</span></div>`;
     case "website":return `<div class="field website-url-field"><label for="s-url">URL</label><div class="website-url-control"><label class="https-toggle"><input id="url-https" type="checkbox" ${/^https:\/\//i.test(String(item.settings?.url||''))?'checked':''}>HTTPS</label><input id="s-url" data-field="url" value="${escapeHtml(valueOf(item,'url'))}" placeholder="example.com"></div></div>`+select("open","열기 방식",[["default","기본 브라우저"],["get","백그라운드에서 GET 요청"],["choose","브라우저 직접 선택"]])+pathPicker("browserPath","브라우저","app");
     case "open":return pathPicker("path","대상 경로")+input("args","실행 인수");
+    case "terminal":case "terminal-admin":return check("foreground","맨 앞으로 가져오기")+check("preventDuplicate","중복 실행 방지");
     case "open-app":if(String(item.settings?.app||'').startsWith('shell:AppsFolder\\'))
       return '<div class="field"><label>프로그램</label><input readonly value="'+escapeHtml(item.settings.app)+'"></div>'+select("hold","길게 누르기",[["none","아무것도 하지 않음"],["close","프로그램 종료"],["force","프로그램 강제 종료"]])+check("foreground","맨 앞으로 가져오기")+check("preventDuplicate","중복 실행 방지");
       return pathPicker("app","프로그램","app")+input("args","실행 인수")+select("hold","길게 누르기",[["none","아무것도 하지 않음"],["close","프로그램 종료"],["force","프로그램 강제 종료"]])+check("foreground","맨 앞으로 가져오기")+check("preventDuplicate","중복 실행 방지");
@@ -1337,7 +1340,7 @@ const MULTI_ALLOWED=['hotkey','hotkey-switch','media','website','open','open-app
   'system-scroll','edit-history','window-switch','desktop-switch',
   'system-zoom','device-brightness','screenshot','clipboard-edit',
   'window-state','window-monitor','explorer-open','brush-size',
-  'timeline-step','timeline-zoom','file-open','folder-shortcut'];
+  'timeline-step','timeline-zoom','file-open','folder-shortcut','terminal','terminal-admin'];
 const multiSwitchEditorTabs=new WeakMap();
 function renderMultiEditor(item,root){
   const area=document.createElement('section');area.className='multi-action-editor';
@@ -3154,6 +3157,8 @@ async function executeMultiStep(action,signal){
       stopAllAudio();return true;
     case 'website':
       return bridge.openWebsite(outcome.url,outcome.mode,outcome.browserPath);
+    case 'open-terminal':
+      return bridge.openTerminal(outcome.admin,outcome.foreground,outcome.preventDuplicate);
     case 'open-local-path':
       if(action.type==='open-app'&&bridge.openApplication)
         return bridge.openApplication(outcome.path,outcome.target,outcome.args||'',outcome.foreground,outcome.preventDuplicate);
@@ -3607,6 +3612,12 @@ function executeHardwareAction(event,preview=false,skipKnobGesture=false){
       ()=>window.d200xActionStatus?.('단축키 전송 완료'),
       error=>window.d200xActionStatus?.('단축키 실행 실패: '+String(error?.message||error)));
     return '단축키 실행 요청';
+  }
+  if(outcome.kind==='open-terminal'){
+    if(!window.deckBridge?.openTerminal)return 'Windows 실행 환경에서만 사용할 수 있습니다.';
+    window.deckBridge.openTerminal(outcome.admin,outcome.foreground,outcome.preventDuplicate).then(
+      ()=>window.d200xActionStatus?.('터미널 열기 완료'),error=>window.d200xActionStatus?.('터미널 열기 실패: '+String(error?.message||error)));
+    return '터미널 열기 요청';
   }
   if(outcome.kind==='open-local-path'){
     if(!window.deckBridge?.openLocalPath)return 'Windows 실행 환경에서만 사용할 수 있습니다.';

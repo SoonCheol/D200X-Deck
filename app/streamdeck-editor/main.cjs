@@ -699,6 +699,24 @@ ipcMain.handle('d200x:focus-local-app',async(event,args)=>{
   throw new Error(result.error||'실행 중인 창을 앞으로 가져오지 못했습니다.');
 });
 const queueAppLaunch=createAppLaunchQueue();
+ipcMain.handle('d200x:open-terminal',async(event,args)=>{
+  if(!window||event.sender!==window.webContents)throw Error('허용되지 않은 호출입니다.');
+  if(process.platform!=='win32'||typeof args?.admin!=='boolean')throw Error('올바른 터미널 실행 요청이 아닙니다.');
+  const foreground=args.foreground!==false,preventDuplicate=args.preventDuplicate!==false;
+  const spec={kind:'Terminal',target:args.admin?'admin':'normal'};
+  const traceId=randomUUID();
+  const launch=()=>focusOrLaunch({
+    foreground,preventDuplicate,
+    focus:(mode,exclude)=>inspectAppFocus(spec,mode,traceId,exclude),
+    launch:async()=>{
+      const result=await inspectAppFocus(spec,'Launch',traceId);
+      if(result.status!=='launched')throw Error(result.error||'터미널 실행 실패');
+      return true;
+    },
+    record:(stage,result)=>stage==='launch-unconfirmed'?writeAppControlLog({traceId,stage,spec,result}):undefined
+  });
+  return preventDuplicate?queueAppLaunch('Terminal:'+spec.target,launch):launch();
+});
 
 // Unicode typing uses SendInput/KEYEVENTF_UNICODE: no PowerShell source interpolation
 // from user text (only a fixed, Base64-encoded UTF-16LE literal).
