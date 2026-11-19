@@ -20,6 +20,7 @@ on:
       - 'test/deckforge-key-press-icons.test.cjs'
       - 'test/deckforge-native-drop.test.cjs'
       - 'test/deckforge-app-focus.test.cjs'
+      - 'test/deckforge-wide-warning.test.cjs'
       - 'tools/native-drop-probe/NativeDropProbe.cs'
       - '.github/workflows/streamdeck-clean-preview.yml'
   workflow_dispatch:
