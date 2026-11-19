@@ -2,10 +2,11 @@
 const test=require('node:test'),assert=require('node:assert/strict'),path=require('node:path'),fs=require('node:fs');
 const root=path.join(__dirname,'../app/streamdeck-editor');
 const {appFocusPath,runAppFocus,focusOrLaunch,createAppLaunchQueue}=require(path.join(root,'app-focus.cjs'));
-function policy(states){
+function policy(states,options={}){
   const calls=[];
   const run=()=>focusOrLaunch({
-    focus:async mode=>{calls.push(mode);return {status:states.shift()};},
+    ...options,
+    focus:async(mode,exclude)=>{calls.push(mode);const state=states.shift();if(mode==='WaitNew')assert.deepEqual(exclude,['10']);return typeof state==='string'?{status:state}:state;},
     launch:async()=>{calls.push('launch');return true;},
     record:async(mode)=>{if(mode==='launch-unconfirmed')calls.push(mode);}
   });
@@ -21,6 +22,13 @@ test('missing windows launch once then attempt foreground, including slow/backgr
   }
   const blocked=policy(['missing','matched-not-focused']);await assert.rejects(blocked.run(),/실행했지만/);assert.deepEqual(blocked.calls,['Focus','launch','Wait']);
   const error=policy(['error']);await assert.rejects(error.run());assert.deepEqual(error.calls,['Focus']);
+});
+test('foreground and duplicate prevention are independent',async()=>{
+  const passive=policy(['present'],{foreground:false});assert.equal(await passive.run(),true);assert.deepEqual(passive.calls,['Probe']);
+  const missing=policy(['missing','present'],{foreground:false});await missing.run();assert.deepEqual(missing.calls,['Probe','launch','WaitPresent']);
+  const newWindow=policy([{status:'snapshot',handles:['10']},'focused'],{preventDuplicate:false});await newWindow.run();assert.deepEqual(newWindow.calls,['Snapshot','launch','WaitNew']);
+  const unrestricted=policy([],{foreground:false,preventDuplicate:false});await unrestricted.run();assert.deepEqual(unrestricted.calls,['launch']);
+  const hosted=policy(['present']);await assert.rejects(hosted.run(),/새 창은 열지 않았습니다/);assert.deepEqual(hosted.calls,['Focus']);
 });
 test('rapid presses coalesce per target but not across different apps',async()=>{
   const queue=createAppLaunchQueue();let n=0,release;
@@ -48,10 +56,11 @@ test('only program foreground actions use new path; regular file/folder and clos
   const editor=fs.readFileSync(path.join(root,'editor.js'),'utf8');
   const main=fs.readFileSync(path.join(root,'main.cjs'),'utf8');
   const cs=fs.readFileSync(path.join(root,'app-focus-helper.cs'),'utf8');
-  assert.match(editor,/action.type==='open-app'&&outcome.foreground&&!String\(outcome.args\|\|''\).trim\(\)&&bridge.openApplication/);
-  assert.match(editor,/resolved.action\?\.type==='open-app'&&outcome.foreground/);
+  assert.match(editor,/action.type==='open-app'&&bridge.openApplication/);
+  assert.match(editor,/resolved.action\?\.type==='open-app'&&window.deckBridge.openApplication/);
+  assert.match(editor,/openApplication\(outcome.path,outcome.target,outcome.args\|\|'',outcome.foreground,outcome.preventDuplicate\)/);
   assert.match(main,/launch:\(\)=>openLocalPath\(args\)/);
-  assert.match(main,/queueFolderControl\(filePath,args.alwaysNewWindow===true\)/);
+  assert.match(main,/queueFolderControl\(filePath,args.alwaysNewWindow===true,args.foreground!==false\)/);
   assert.match(main,/async function runCloseControl/);
   assert.match(cs,/EnumChildWindows\(hwnd,/);
   assert.match(cs,/GetApplicationUserModelId/);

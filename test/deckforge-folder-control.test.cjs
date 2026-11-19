@@ -5,9 +5,9 @@ const source=name=>fs.readFileSync(path.join(root,name),'utf8');
 const {runFolderHelper,helperPath}=require(path.join(root,'folder-helper.cjs'));
 const {buildFolderHelper}=require(path.join(root,'build-folder-helper.cjs'));
 test('folder option reaches direct and composite routes, not application control',()=>{
-  assert.ok(source('editor.js').includes("check('alwaysNewWindow','항상 새 창으로 열기')"));
-  assert.equal((source('editor.js').match(/openLocalPath\(outcome\.path,outcome\.target,outcome\.args\|\|'',outcome\.alwaysNewWindow===true\)/g)||[]).length,2);
-  assert.ok(source('preload.cjs').includes('{filePath,target,args,alwaysNewWindow}'));
+  assert.ok(source('editor.js').includes("check('alwaysNewWindow','중복 열기 방지',true)"));
+  assert.equal((source('editor.js').match(/openLocalPath\(outcome\.path,outcome\.target,outcome\.args\|\|'',outcome\.alwaysNewWindow===true,outcome\.foreground!==false\)/g)||[]).length,2);
+  assert.ok(source('preload.cjs').includes('{filePath,target,args,alwaysNewWindow,foreground}'));
   const main=source('main.cjs');
   assert.ok(main.includes("args.target==='folder'&&!extra.trim()"));
   assert.ok(main.includes("result.status==='missing'&&!alwaysNewWindow"));

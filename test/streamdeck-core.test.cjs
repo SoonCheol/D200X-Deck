@@ -883,7 +883,7 @@ test('unfinished built-in action plans carry their configured executable options
   opened.settings.foreground=true;opened.settings.hold='close';
   assert.deepEqual(core.planAction(opened,0,3),{
     kind:'open-local-path',path:'C:\\Programs\\app.exe',
-    target:'file',foreground:true,hold:'close'});
+    target:'file',foreground:true,preventDuplicate:true,hold:'close'});
   const text=core.createAction('text');text.settings.mode='clipboard';
   assert.equal(core.planAction(text,0,3).mode,'clipboard');
   assert.equal(core.planAction(core.createAction('virtual'),0,3).kind,'unsupported');
@@ -1141,5 +1141,18 @@ test('Start menu app plan keeps foreground and hold options without command argu
   app.settings.args='ignored';
   app.settings.foreground=true;
   app.settings.hold='force';
-  assert.deepEqual(core.planAction(app,0,1),{kind:'open-local-path',path:app.settings.app,target:'appid',foreground:true,hold:'force'});
+  assert.deepEqual(core.planAction(app,0,1),{kind:'open-local-path',path:app.settings.app,target:'appid',foreground:true,preventDuplicate:true,hold:'force'});
+});
+
+test('new launch policies default to prevention and preserve prior repeat-launch settings',()=>{
+  const app=core.createAction('open-app');
+  assert.equal(app.settings.preventDuplicate,true);
+  delete app.settings.preventDuplicate;app.settings.foreground=false;
+  assert.equal(core.cleanAction(app).settings.preventDuplicate,false);
+  app.settings.foreground=true;app.settings.args='-NoProfile';
+  assert.equal(core.cleanAction(app).settings.preventDuplicate,false);
+  app.settings.preventDuplicate=true;
+  assert.equal(core.planAction(app,0,1).preventDuplicate,true);
+  const folder=core.createAction('folder-shortcut');folder.settings.foreground=false;
+  assert.equal(core.planAction(folder,0,1).foreground,false);
 });

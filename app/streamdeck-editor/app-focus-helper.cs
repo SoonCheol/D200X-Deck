@@ -32,6 +32,7 @@ static class DFAppFocus {
  static readonly List<string> notes=new List<string>();
  static readonly HashSet<string> paths=new HashSet<string>(StringComparer.OrdinalIgnoreCase);
  static string kind,target;
+ static readonly HashSet<IntPtr> excluded=new HashSet<IntPtr>();
  static void Note(string s){if(notes.Count<100)notes.Add(s);}
  static void Result(string status,string error=null) {
    Console.WriteLine(new JavaScriptSerializer().Serialize(new {status=status,error=error,details=notes}));
@@ -96,7 +97,7 @@ static class DFAppFocus {
    var rows=new List<Candidate>();var cache=new Dictionary<uint,Identity>();
    if(!EnumWindows((hwnd,unused)=>{
      try{
-       if(!Eligible(hwnd))return true;
+       if(!Eligible(hwnd)||excluded.Contains(hwnd))return true;
        string match=Match(hwnd,cache);
        if(match!=null)rows.Add(new Candidate{Hwnd=hwnd,Reason=match});
      }catch(Exception e){Note("enumeration: "+e.GetType().Name);}
@@ -168,20 +169,42 @@ static class DFAppFocus {
    }catch(Exception e){Note("shortcut lookup: "+e.GetType().Name);}
    finally{Release(wsh);Release(shell);}
  }
- static string LocateAndFocus(int wait){
-   var watch=Stopwatch.StartNew();bool matched=false;
+ // A console client can be hosted by another process. Detect exact running
+ // executable/AppID without guessing which terminal window owns that client.
+ static bool Running(){
+   var cache=new Dictionary<uint,Identity>();
+   int session;using(var self=Process.GetCurrentProcess())session=self.SessionId;
+   foreach(var process in Process.GetProcesses()){
+     using(process)try{
+       if(process.SessionId!=session)continue;
+       if(kind=="EXE"&&!Same(process.ProcessName,Path.GetFileNameWithoutExtension(target)))continue;
+       var identity=ProcessIdentity((uint)process.Id,cache);
+       if((kind=="AppID"&&Same(identity.Id,target))||(identity.Path!=null&&paths.Contains(identity.Path))){
+         Note("running-pid="+process.Id);return true;
+       }
+     }catch{}
+   }
+   return false;
+ }
+ static string LocateAndFocus(int wait,bool activate=true,bool newOnly=false,bool checkRunning=true){
+   var watch=Stopwatch.StartNew();
    do{
      var candidates=Windows();
      if(candidates.Count>0){
-       matched=true;
+       if(!activate)return "present";
        foreach(var candidate in candidates){try{if(Activate(candidate))return "focused";}catch(Exception e){Note("activation: "+e.Message);}}
-       // An existing window is not a reason to start another process.
        return "matched-not-focused";
      }
+     if(!activate&&checkRunning&&Running())return "present";
      if(watch.ElapsedMilliseconds>=wait)break;
      Thread.Sleep(150);
    }while(true);
-   return matched?"matched-not-focused":"missing";
+   return !newOnly&&checkRunning&&Running()?"present":"missing";
+ }
+ static void Snapshot(){
+   var handles=new List<string>();
+   foreach(var candidate in Windows())handles.Add(candidate.Hwnd.ToInt64().ToString(System.Globalization.CultureInfo.InvariantCulture));
+   Console.WriteLine(new JavaScriptSerializer().Serialize(new {status="snapshot",handles=handles,details=notes}));
  }
  [STAThread]public static void Main(){
    Console.OutputEncoding=new UTF8Encoding(false);
@@ -196,19 +219,33 @@ static class DFAppFocus {
      }
      kind=Environment.GetEnvironmentVariable("DECKFORGE_APP_FOCUS_KIND");
      target=Encoding.Unicode.GetString(Convert.FromBase64String(Environment.GetEnvironmentVariable("DECKFORGE_APP_FOCUS_TARGET")));
-     if((mode!="Focus"&&mode!="Wait")||String.IsNullOrWhiteSpace(target)||target.Length>4096)throw new Exception("Invalid focus request");
+     if((mode!="Focus"&&mode!="Wait"&&mode!="Probe"&&mode!="WaitPresent"&&mode!="Snapshot"&&mode!="WaitNew")||String.IsNullOrWhiteSpace(target)||target.Length>4096)throw new Exception("Invalid focus request");
      if(kind=="EXE"){
        if(!Path.IsPathRooted(target)||!target.EndsWith(".exe",StringComparison.OrdinalIgnoreCase))throw new Exception("Invalid executable");
        paths.Add(target);
      }else if(kind=="AppID"){
        if(target.Length>512||target.IndexOfAny(new[]{'\\','/',':','"'})>=0)throw new Exception("Invalid AppID");
      }else throw new Exception("Invalid focus kind");
-     // Check exact window/process AppID first. Resolve classic shortcut targets only if necessary.
-     string status=LocateAndFocus(0);
-     if(status=="missing"&&kind=="AppID"&&target.IndexOf('!')<0){
-       ResolveShortcutPaths();if(paths.Count>0)status=LocateAndFocus(0);
+     bool activate=mode!="Probe"&&mode!="WaitPresent";
+     bool newOnly=mode=="WaitNew";
+     if(newOnly){
+       foreach(string raw in (Environment.GetEnvironmentVariable("DECKFORGE_APP_FOCUS_EXCLUDE")??"").Split(',')){
+         long value;if(Int64.TryParse(raw,out value))excluded.Add(new IntPtr(value));
+       }
      }
-     if(status=="missing"&&mode=="Wait")status=LocateAndFocus(5500);
+     if(mode=="Snapshot"){
+       if(kind=="AppID"&&target.IndexOf('!')<0)ResolveShortcutPaths();
+       Snapshot();return;
+     }
+     // Check existing windows before considering a process without a visible window.
+     string status=LocateAndFocus(0,activate,newOnly,false);
+     if(status=="missing"&&kind=="AppID"&&target.IndexOf('!')<0){
+       ResolveShortcutPaths();if(paths.Count>0)status=LocateAndFocus(0,activate,newOnly,false);
+     }
+     if(status=="missing"){
+       int wait=(mode=="Wait"||mode=="WaitPresent"||newOnly)?5500:0;
+       status=LocateAndFocus(wait,activate,newOnly,!newOnly);
+     }
      Result(status);
    }catch(Exception e){Result("error",e.Message);}
  }

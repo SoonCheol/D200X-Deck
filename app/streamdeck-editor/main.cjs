@@ -672,15 +672,15 @@ function appFocusSpec(filePath,target){
   if(/\.lnk$/i.test(requested)){
     try{
       const link=shell.readShortcutLink(requested);
-      if(typeof link.target==='string'&&/\.exe$/i.test(link.target)&&!String(link.args||'').trim())
+      if(typeof link.target==='string'&&/\.exe$/i.test(link.target))
         return {kind:'EXE',target:requireLocalWindowsPath(link.target)};
     }catch{}
   }
   return null;
 }
-async function inspectAppFocus(spec,mode,traceId){
+async function inspectAppFocus(spec,mode,traceId,exclude=[]){
   try{
-    const result=await runAppFocus(__dirname,spec,mode);
+    const result=await runAppFocus(__dirname,spec,mode,undefined,exclude);
     await writeAppControlLog({traceId,stage:'focus-result',version:app.getVersion(),mode,spec,result});
     return result;
   }catch(error){
@@ -1008,16 +1008,16 @@ async function writeFolderControlLog(record){
       JSON.stringify({at:new Date().toISOString(),...record})+'\n','utf8');
   }catch(error){console.warn('DeckForge folder control diagnostic:',error.message);}
 }
-async function runFolderControl(filePath,alwaysNewWindow){
+async function runFolderControl(filePath,alwaysNewWindow,foreground=true){
   const traceId=randomUUID();
   const record={traceId,version:app.getVersion(),mainPid:process.pid,path:filePath,alwaysNewWindow,
-    mode:alwaysNewWindow?'New':'Focus'};
+    foreground,mode:alwaysNewWindow?(foreground?'New':'NewPassive'):(foreground?'Focus':'Probe')};
   await writeFolderControlLog({...record,stage:'request'});
   try{
     const {stdout,stderr}=await runFolderHelper(__dirname,filePath,record.mode);
     const result=JSON.parse(String(stdout));
     await writeFolderControlLog({...record,stage:'helper-result',result,...(stderr?{stderr:String(stderr).slice(0,4000)}:{})});
-    if(result.status==='focused'||result.status==='opened')return true;
+    if(result.status==='focused'||result.status==='opened'||result.status==='present')return true;
     if(result.status==='missing'&&!alwaysNewWindow){
       const error=await shell.openPath(filePath);
       await writeFolderControlLog({...record,stage:'open-missing',error: error||null});
@@ -1033,8 +1033,8 @@ async function runFolderControl(filePath,alwaysNewWindow){
     throw error;
   }
 }
-function queueFolderControl(filePath,alwaysNewWindow){
-  const task=folderControlTail.then(()=>runFolderControl(filePath,alwaysNewWindow));
+function queueFolderControl(filePath,alwaysNewWindow,foreground=true){
+  const task=folderControlTail.then(()=>runFolderControl(filePath,alwaysNewWindow,foreground));
   folderControlTail=task.catch(()=>{});
   return task;
 }
@@ -1057,7 +1057,7 @@ async function openLocalPath(args){
     throw new Error('선택한 파일/폴더 유형이 일치하지 않습니다.');
   const extra=String(args?.args||'');
   if(process.platform==='win32'&&args.target==='folder'&&!extra.trim())
-    return queueFolderControl(filePath,args.alwaysNewWindow===true);
+    return queueFolderControl(filePath,args.alwaysNewWindow===true,args.foreground!==false);
   if(!extra.trim()){
     const error=await shell.openPath(filePath);
     if(error)throw new Error(error);
@@ -1084,17 +1084,24 @@ ipcMain.handle('d200x:open-local-path',async(event,args)=>{
 });
 ipcMain.handle('d200x:open-application',async(event,args)=>{
   if(!window||event.sender!==window.webContents)throw new Error('허용되지 않은 호출입니다.');
-  if(process.platform!=='win32'||!['file','appid'].includes(args?.target)||String(args?.args||'').trim())
+  if(process.platform!=='win32'||!['file','appid'].includes(args?.target)||typeof args?.filePath!=='string')
     throw new Error('올바른 프로그램 창 활성화 요청이 아닙니다.');
+  const foreground=args.foreground!==false,preventDuplicate=args.preventDuplicate!==false;
+  if(!foreground&&!preventDuplicate)return openLocalPath(args);
   const spec=appFocusSpec(args.filePath,args.target);
-  // Scripts and shortcuts with their own arguments retain their launch semantics.
-  if(!spec)return openLocalPath(args);
+  if(!spec){
+    // No reliable running-program identity for arbitrary scripts/documents.
+    if(preventDuplicate)throw Error('중복 실행 방지는 EXE 또는 등록된 프로그램에서만 지원합니다. 옵션을 해제하고 실행하세요.');
+    return openLocalPath(args);
+  }
   const traceId=randomUUID();
-  return queueAppLaunch(spec.kind+':'+spec.target.toLowerCase(),()=>focusOrLaunch({
-    focus:mode=>inspectAppFocus(spec,mode,traceId),
+  const launch=()=>focusOrLaunch({
+    foreground,preventDuplicate,
+    focus:(mode,exclude)=>inspectAppFocus(spec,mode,traceId,exclude),
     launch:()=>openLocalPath(args),
     record:(stage,result)=>stage==='launch-unconfirmed'?writeAppControlLog({traceId,stage,spec,result}):undefined
-  }));
+  });
+  return preventDuplicate?queueAppLaunch(spec.kind+':'+spec.target.toLowerCase(),launch):launch();
 });
 
 // One shared last-used directory for every native import/file/folder chooser.

@@ -112,26 +112,25 @@ test('title alignment keeps original three buttons but uses legible 20px SVG ico
  assert.match(css,/\.title-align button.active\{background:#217ce5;border-color:#217ce5\}/);
 });
 
-test('main folder shortcut aligns the existing option with the path; toolbar and other actions are unchanged',()=>{
-  const move=editor.match(/if\(item\.type==='folder-shortcut'\)\{\s*const checkbox=[\s\S]*?(?=const saveBar=root\.querySelector\('\.inspector-footer-region'\))/)?.[0]||'';
-  assert.match(move,/\[data-field="alwaysNewWindow"\]/);
+test('common key inspector moves bound options left, save right, and preview test outside the card',()=>{
+  const move=editor.slice(editor.indexOf('// Move already-bound DOM nodes'),editor.indexOf('async function importSlotAction'));
   assert.match(move,/option\.prepend\(checkbox\)/);
-  assert.match(move,/pathRow\.querySelector\(':scope > label'\)\?\.remove\(\)/);
-  assert.match(move,/pathRow\.prepend\(option\)/);
+  assert.match(move,/options\.append\(option\)/);
+  assert.match(move,/if\(saveBar\)toolbar\.append\(saveBar\)/);
+  assert.match(move,/title\.textContent='미리보기'/);
+  assert.match(move,/preview\.append\(card,previewButton\)/);
+  assert.match(move,/layout\.append\(preview,iconRegion\)/);
+  assert.match(move,/properties\.before\(toolbar,layout\)/);
   assert.match(move,/pathInput\.placeholder='폴더 선택'/);
   assert.match(move,/pathInput\.title=pathInput\.value/);
-  assert.match(move,/pathInput\.addEventListener\('input',\(\)=>\{pathInput\.title=pathInput\.value;\}\)/);
   assert.match(editor,/if\(folderPicker\)inputNode\.title=inputNode\.value/);
-  assert.match(editor,/if\(saveBar\)toolbar\.append\(saveBar\)/);
-  assert.match(editor,/check\('alwaysNewWindow','항상 새 창으로 열기'\)/);
-  assert.doesNotMatch(editor,/toolbar\.append\(option\)/);
-  assert.doesNotMatch(css,/folder-shortcut-toolbar/);
-  assert.match(css,/\.field\.folder-shortcut-path-row\s*\{[^}]*grid-template-columns:max-content minmax\(0,1fr\);gap:8px/s);
-  assert.match(css,/\.folder-shortcut-path-row>\.compound\{min-width:0;max-width:none;width:100%\}/);
-  assert.match(css,/\.folder-shortcut-path-row>\.folder-new-window-option\s*\{[^}]*display:flex;align-items:center;[^}]*white-space:nowrap/s);
-  assert.match(css,/\.folder-new-window-option>input\[type="checkbox"\]\s*\{[^}]*width:15px;height:15px/s);
+  assert.match(editor,/check\('alwaysNewWindow','중복 열기 방지',true\)/);
+  assert.match(editor,/node\.dataset\.inverted==="true"\?!node\.checked:node\.checked/);
+  assert.match(editor,/pathPicker\("app","프로그램","app"\)\+input\("args","실행 인수"\)/);
+  assert.match(css,/\.action-layout-inspector>\.action-layout-toolbar\{[^}]*margin:9px 0 7px/s);
+  assert.match(css,/\.action-layout-inspector \.action-layout-option>label\{[^}]*white-space:nowrap/s);
+  assert.match(css,/\.action-layout-inspector \.preview>\.action-preview-test\{[^}]*width:98px/s);
 });
-
 
 test('basic panel reclassification keeps every action ID and legacy accent',()=>{
   const originalPanel=fs.readFileSync(path.join(base,'action-panel-icons.js'),'utf8');

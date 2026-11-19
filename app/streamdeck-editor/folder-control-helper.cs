@@ -143,7 +143,7 @@ public static class FolderHelper {
     if(!EnumWindows((h,d)=>{if(DFFolderNative.ClassName(h)=="CabinetWClass")set.Add(h);return true;},IntPtr.Zero))throw new Exception("EnumWindows failed");
     return set;
   }
-  static void OpenNew(string target){
+  static void OpenNew(string target,bool activate){
     var before=Frames();
     string arg=System.IO.Path.GetFullPath(target);
     if(arg.Length!=3||arg[1]!=':')arg=arg.TrimEnd('\\','/');
@@ -158,7 +158,7 @@ public static class FolderHelper {
       Sleep(250);var rows=Rows(target);
       try{foreach(var row in rows)if(row.Match&&!before.Contains(row.Frame)){
         Note("newMatchingFrame="+row.Frame.ToInt64());
-        bool focused=false;try{focused=Focus(row,target);}catch(Exception e){Note("new-focus-error="+e.Message);}
+        bool focused=false;try{if(activate)focused=Focus(row,target);}catch(Exception e){Note("new-focus-error="+e.Message);}
         Note("newForeground="+focused);Result("opened");return;
       }}finally{Clear(rows);}
     }
@@ -174,14 +174,15 @@ public static class FolderHelper {
       }
       string target=Encoding.Unicode.GetString(Convert.FromBase64String(Environment.GetEnvironmentVariable("DECKFORGE_FOLDER_TARGET")));
       if(Norm(target)==null)throw new Exception("Invalid absolute folder path");
-      if(mode=="New"){OpenNew(target);return;}
-      if(mode!="Focus")throw new Exception("Invalid folder mode");
+      if(mode=="New"||mode=="NewPassive"){OpenNew(target,mode=="New");return;}
+      if(mode!="Focus"&&mode!="Probe")throw new Exception("Invalid folder mode");
       var rows=Rows(target);
       try{
         Note("beforeForeground="+DFFolderNative.GetForegroundWindow().ToInt64());
         foreach(var row in rows)Note("before frame="+row.Frame.ToInt64()+" tab="+row.Tab.ToInt64()+" match="+row.Match+" active="+row.Active+" foreground="+row.Foreground);
         var matching=rows.FindAll(r=>r.Match);
         if(matching.Count==0){Result("missing");return;}
+        if(mode=="Probe"){Result("present");return;}
         matching.Sort((a,b)=>((b.Active?1:0)+(b.Active&&b.Foreground?2:0)).CompareTo((a.Active?1:0)+(a.Active&&a.Foreground?2:0)));
         foreach(var row in matching){try{if(Focus(row,target)){Result("focused");return;}}catch(Exception e){Note("candidate-error="+e.Message);}}
         Result("matched-not-focused");

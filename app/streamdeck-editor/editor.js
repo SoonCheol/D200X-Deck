@@ -1271,40 +1271,41 @@ const pathPicker=(field,label,kind='file')=>
   (field==='path'&&active?.type==='open'
     ? '<button type="button" data-path-picker="'+field+'" data-path-kind="folder" title="폴더 선택">▣</button>' : '')+
   '</div></div>';
-const check=(field,label)=>`<div class="field checkbox-setting-field"><label for="s-${field}">${label}</label><input id="s-${field}" type="checkbox" data-field="${field}" ${valueOf(active,field)?"checked":""}></div>`;
+const check=(field,label,invert=false)=>`<div class="field checkbox-setting-field"><label for="s-${field}">${label}</label><input id="s-${field}" type="checkbox" data-field="${field}" ${invert?'data-inverted="true"':''} ${invert?!valueOf(active,field)?"checked":"":valueOf(active,field)?"checked":""}></div>`;
+const fieldChecked=node=>node.dataset.inverted==="true"?!node.checked:node.checked;
 let active=null;
 function actionFields(item){
   active=item;
   switch(item.type){
     case "audio-play":return pathPicker("file","파일")+select("mode","동작",[["play-stop","재생 / 정지"],["overlap","재생 / 오버랩"],["restart","재생 / 재시작"],["loop-stop","반복 / 정지"]])+select("fade","페이드",[["none","페이드 없음"],["in","페이드 인"],["out","페이드 아웃"],["in-out","페이드 인 앤 아웃"]])+select("fadeDuration","페이드 시간",[[1,"1초"],[2,"2초"],[3,"3초"],[4,"4초"],[5,"5초"]])+`<div class="field"><label for="s-volume">음량</label><div class="compound"><input id="s-volume" type="range" min="0" max="100" data-field="volume" value="${valueOf(item,"volume",50)}"><output id="volume-display">${valueOf(item,"volume",50)}</output></div></div>`+select("output","출력",[["default","기본"]])+`<div class="field"><span></span><span class="hint">연결된 출력 장치를 선택할 수 있습니다. 장치 전환은 실행 시 적용됩니다.</span></div>`;
     case "sd-plugin":return "";
-    case "ha-toggle":return input("entityId","HA 엔티티 ID","switch.living_room")+
+    case "ha-toggle":return input("entityId","엔티티 ID","switch.living_room")+
       '<div class="field"><label>엔티티</label><button type="button" data-ha-entities>목록에서 선택</button></div>';
     case "audio-stop": case "previous": case "next": case "indicator":return "";
     case "timer":return `<div class="field"><label for="s-seconds">지속</label><div class="compound"><input type="number" min="1" id="s-seconds" data-field="seconds" value="${valueOf(item,"seconds",30)}"><span>초</span></div></div>`+select("sound","사운드",[["none","없음"],["connect","접속"],["disconnect","접속 끊김"],["release","접속 해제"],["find","찾기"],["other","기타"]]);
     case "brightness":return select("mode","동작",[["up","밝게"],["down","어둡게"],["max","최대"],["high","높음"],["medium","중간"],["low","낮음"],["min","최소"]]);
     case "sleep":return `<div class="field"><label>장치 화면</label><span class="hint">D200X 화면 잠자기 · 다음 물리 버튼 누름은 화면 깨우기에 사용 (PC 절전 아님)</span></div>`;
     case "virtual":return `<div class="field"><label>기기</label><span class="hint">구성된 Virtual DeckForge 없음</span></div>`;
-    case "website":return `<div class="field website-url-field"><label for="s-url">URL</label><div class="website-url-control"><label class="https-toggle"><input id="url-https" type="checkbox" ${/^https:\/\//i.test(String(item.settings?.url||''))?'checked':''}>HTTPS</label><input id="s-url" data-field="url" value="${escapeHtml(valueOf(item,'url'))}" placeholder="example.com"></div></div>`+select("open","다음으로 열기",[["default","기본 브라우저"],["get","백그라운드에서 GET 요청"],["choose","브라우저 직접 선택"]])+pathPicker("browserPath","선택 브라우저 (.exe)","app");
-    case "open":return pathPicker("path","앱 / 파일")+input("args","인수");
+    case "website":return `<div class="field website-url-field"><label for="s-url">URL</label><div class="website-url-control"><label class="https-toggle"><input id="url-https" type="checkbox" ${/^https:\/\//i.test(String(item.settings?.url||''))?'checked':''}>HTTPS</label><input id="s-url" data-field="url" value="${escapeHtml(valueOf(item,'url'))}" placeholder="example.com"></div></div>`+select("open","열기 방식",[["default","기본 브라우저"],["get","백그라운드에서 GET 요청"],["choose","브라우저 직접 선택"]])+pathPicker("browserPath","브라우저","app");
+    case "open":return pathPicker("path","대상 경로")+input("args","실행 인수");
     case "open-app":if(String(item.settings?.app||'').startsWith('shell:AppsFolder\\'))
-      return '<div class="field"><label>앱</label><input readonly value="'+escapeHtml(item.settings.app)+'"></div>'+select("hold","길게 누르기",[["none","아무것도 하지 않음"],["close","프로그램 종료"],["force","프로그램 강제 종료"]])+check("foreground","앞으로 가져오기");
-      return pathPicker("app","앱","app")+input("args","인수")+select("hold","길게 누르기",[["none","아무것도 하지 않음"],["close","프로그램 종료"],["force","프로그램 강제 종료"]])+check("foreground","앞으로 가져오기");
-    case "close":return pathPicker("path","앱 / 파일")+check("force","강제 종료");
-    case "hotkey":return select("preset","동작 선택기",HOTKEY_PRESET_LABELS)+input("keys","단축키","클릭하여 할당");
+      return '<div class="field"><label>프로그램</label><input readonly value="'+escapeHtml(item.settings.app)+'"></div>'+select("hold","길게 누르기",[["none","아무것도 하지 않음"],["close","프로그램 종료"],["force","프로그램 강제 종료"]])+check("foreground","맨 앞으로 가져오기")+check("preventDuplicate","중복 실행 방지");
+      return pathPicker("app","프로그램","app")+input("args","실행 인수")+select("hold","길게 누르기",[["none","아무것도 하지 않음"],["close","프로그램 종료"],["force","프로그램 강제 종료"]])+check("foreground","맨 앞으로 가져오기")+check("preventDuplicate","중복 실행 방지");
+    case "close":return pathPicker("path","대상 경로")+check("force","강제 종료");
+    case "hotkey":return select("preset","동작 선택",HOTKEY_PRESET_LABELS)+input("keys","단축키","클릭하여 할당");
     case "hotkey-switch":return input("first","단축키 1")+input("second","단축키 2");
-    case "text":return `<div class="field"><label for="s-body">텍스트</label><div><textarea id="s-body" data-field="body">${escapeHtml(valueOf(item,"body"))}</textarea><div class="hint" id="text-count">${String(valueOf(item,"body")).length} / -</div></div></div>`+check("enter","메시지 뒤 Enter")+select("mode","텍스트 모드",[["clipboard","클립보드에서 붙여넣기"],["typing","타이핑 시뮬레이션"]]);
+    case "text":return `<div class="field"><label for="s-body">텍스트</label><div><textarea id="s-body" data-field="body">${escapeHtml(valueOf(item,"body"))}</textarea><div class="hint" id="text-count">${String(valueOf(item,"body")).length} / -</div></div></div>`+check("enter","Enter 추가")+select("mode","텍스트 모드",[["clipboard","클립보드에서 붙여넣기"],["typing","타이핑 시뮬레이션"]]);
     case "media":return select("op","동작",[["previous","이전 트랙"],["playpause","재생 / 일시정지"],["next","다음 트랙"],["stop","정지"],["mute","음소거"],["up","음량 키우기"],["down","음량 줄이기"]]);
     case "system-volume":return select("direction","동작",[["up","음량 키우기"],["down","음량 줄이기"]])+select("step","변화량",[[1,"1"],[2,"2"],[5,"5"],[10,"10"]]);
     case "system-mute":return '<div class="field"><span></span><span class="hint">누를 때마다 음소거 전환</span></div>';
     case "screenshot":case "explorer-open":return '';
-    case "file-open":return pathPicker('path','열 파일');
-    case "folder-shortcut":return pathPicker('path','열 폴더','folder')+check('alwaysNewWindow','항상 새 창으로 열기');
+    case "file-open":return pathPicker('path','파일 경로');
+    case "folder-shortcut":return pathPicker('path','폴더 경로','folder')+check('foreground','맨 앞으로 가져오기')+check('alwaysNewWindow','중복 열기 방지',true);
     case "clipboard-edit":return select("operation","동작",[["copy","복사"],["paste","붙여넣기"],["cut","잘라내기"]]);
     case "window-state":return select("operation","동작",[["maximize","최대화"],["minimize","복원/최소화"]]);
     case "window-monitor":return select("direction","방향",[["left","왼쪽 모니터"],["right","오른쪽 모니터"]]);
     case "brush-size":return select("direction","동작",[["increase","브러시 확대 ([/] 지원 앱)"],["decrease","브러시 축소"]]);
-    case "timeline-zoom":return select('operation','앱별 Ctrl +/- 단축키',[["in","확대 (Ctrl++)"],["out","축소 (Ctrl+-)"]]);
+    case "timeline-zoom":return select('operation','단축키',[["in","확대 (Ctrl++)"],["out","축소 (Ctrl+-)"]]);
     case "timeline-step":return select("direction","이동 방향",[["previous","이전 단계 (←)"],["next","다음 단계 (→)"]]);
     case "device-brightness":return select("direction","밝기",[["up","밝게"],["down","어둡게"]])+select("step","변화량",[[1,"1"],[2,"2"],[5,"5"],[10,"10"]]);
     case "system-zoom":return select("operation","동작",[["in","확대"],["out","축소"],["reset","원래 크기 (Ctrl+0)"]])+select("step","횟수",[[1,"1"],[2,"2"],[5,"5"],[10,"10"]]);
@@ -1496,7 +1497,7 @@ function renderMultiEditor(item,root){
       const fields=document.createElement('div');fields.className='fields multi-step-fields';
       fields.innerHTML=actionFields(step);bindExtendedActionFields(fields,step);
       fields.querySelectorAll('[data-field]').forEach(node=>node.addEventListener('change',()=>{
-        step.settings[node.dataset.field]=node.type==='checkbox'?node.checked:
+        step.settings[node.dataset.field]=node.type==='checkbox'?fieldChecked(node):
           node.type==='number'||node.type==='range'?Number(node.value):node.value;
         persist();
       }));
@@ -1563,7 +1564,7 @@ function renderLogicEditor(item,root){
       fields.innerHTML=actionFields(action);bindExtendedActionFields(fields,action);
       fields.querySelectorAll('[data-field]').forEach(node=>node.addEventListener(
         node.type==='range'||node.tagName==='TEXTAREA'?'input':'change',()=>{
-          action.settings[node.dataset.field]=node.type==='checkbox'?node.checked:
+          action.settings[node.dataset.field]=node.type==='checkbox'?fieldChecked(node):
             node.type==='number'||node.type==='range'?Number(node.value):node.value;
           persist();
         }));
@@ -2263,7 +2264,7 @@ function renderControlInspector(){
     const fields=document.createElement('div');fields.className='fields';
     fields.innerHTML=actionFields(current);bindExtendedActionFields(fields,current);
     fields.querySelectorAll('[data-field]').forEach(node=>node.addEventListener(node.tagName==='TEXTAREA'?'input':'change',()=>{
-      current.settings[node.dataset.field]=node.type==='checkbox'?node.checked:node.type==='number'?Number(node.value):node.value;
+      current.settings[node.dataset.field]=node.type==='checkbox'?fieldChecked(node):node.type==='number'?Number(node.value):node.value;
       persist();
     }));
     editor.append(fields);root.append(editor);
@@ -2623,7 +2624,7 @@ function renderInspector(){
   if(state.selected===13&&wideDisplayAvailable()){renderWideInspector();return;}
   if(!item){root.className="inspector empty";root.textContent=state.selected===null?"버튼을 선택하세요":"액션을 끌어 이 키에 놓으세요";
     if(inspectorSession?.dirty)appendInspectorSaveBar(root);return;}
-  root.className="inspector"+(item.type==='hotkey-switch'?' hotkey-switch-inspector':'')+(item.type==='sd-plugin'?' sdk-plugin-inspector':'')+(hasStateTitlePair(item)?' state-title-inspector':'');
+  root.className="inspector action-layout-inspector"+(item.type==='hotkey-switch'?' hotkey-switch-inspector':'')+(item.type==='sd-plugin'?' sdk-plugin-inspector':'')+(hasStateTitlePair(item)?' state-title-inspector':'');
   const action=ACTIONS.get(item.type),fields=actionFields(item);
   const sdkName=item.type==='sd-plugin'
     ?(item.settings?.actionUUID===HA_CUSTOM_ACTION?'Home Assistant 장치 제어':
@@ -2797,7 +2798,7 @@ function renderInspector(){
   }
   root.querySelectorAll("[data-field]").forEach(node=>{
     node.addEventListener(node.type==="range"||node.tagName==="TEXTAREA"?"input":"change",()=>{
-      let value=node.type==="checkbox"?node.checked:node.type==="number"||node.type==="range"?Number(node.value):node.value;
+      let value=node.type==="checkbox"?fieldChecked(node):node.type==="number"||node.type==="range"?Number(node.value):node.value;
       item.settings[node.dataset.field]=value;
       if(item.type==='system-scroll'&&node.dataset.field==='axis')
         item.settings.direction=value==='horizontal'?'right':'down';
@@ -2817,38 +2818,58 @@ function renderInspector(){
   bindSdkStateIcons(root,item);
   bindKeyPressIconControls(root,item);
   appendInspectorSaveBar(root);
-  if(hasStateTitlePair(item)){
-    const toolbar=document.createElement('div');toolbar.className='state-title-toolbar';
-    const pluginButton=root.querySelector('.sdk-settings-open');
-    if(pluginButton)toolbar.append(pluginButton);
-    if(item.type==='folder-shortcut'){
-      const checkbox=root.querySelector('.inspector-properties-region>.fields [data-field="alwaysNewWindow"]');
-      const option=checkbox?.closest('.checkbox-setting-field');
-      const pathInput=root.querySelector('.inspector-properties-region>.fields [data-field="path"]');
-      const pathRow=pathInput?.closest('.field');
-      if(option&&pathRow){
-        // Reuse the bound controls; only the main folder inspector is rearranged.
-        option.className='folder-new-window-option';
-        option.prepend(checkbox);
-        pathRow.querySelector(':scope > label')?.remove();
-        pathRow.classList.add('folder-shortcut-path-row');
-        pathRow.prepend(option);
-        pathInput.placeholder='폴더 선택';
-        pathInput.setAttribute('aria-label','폴더 선택');
-        pathInput.title=pathInput.value;
-        pathInput.addEventListener('input',()=>{pathInput.title=pathInput.value;});
-      }
+  // Move already-bound DOM nodes, preserving settings, event handlers and both cards.
+  const properties=root.querySelector('.inspector-properties-region');
+  const fieldsHost=properties.querySelector('.fields');
+  const toolbar=document.createElement('div');toolbar.className='state-title-toolbar action-layout-toolbar';
+  const options=document.createElement('div');options.className='action-layout-options';
+  for(const option of Array.from(fieldsHost.querySelectorAll('.checkbox-setting-field'))){
+    if(option.closest('.multi-action-editor,.logic-editor'))continue;
+    const parent=option.parentElement;
+    if(parent!==fieldsHost&&!parent.classList.contains('compact-property-group'))continue;
+    const checkbox=option.querySelector('input[type="checkbox"]');
+    if(!checkbox)continue;
+    option.classList.add('action-layout-option');
+    option.prepend(checkbox);
+    options.append(option);
+    if(parent.classList.contains('compact-property-group')&&parent.children.length<=1){
+      parent.before(...Array.from(parent.children));parent.remove();
     }
-    const saveBar=root.querySelector('.inspector-footer-region');
-    if(saveBar)toolbar.append(saveBar);
-    const layout=document.createElement('div');layout.className='state-title-layout';
-    const preview=root.querySelector('.inspector-properties-region>.preview');
-    const iconRegion=root.querySelector('.inspector-icon-section');
-    if(preview&&iconRegion){
+  }
+  const pluginButton=root.querySelector('.sdk-settings-open');
+  if(pluginButton)options.append(pluginButton);
+  const saveBar=root.querySelector('.inspector-footer-region');
+  toolbar.append(options);
+  if(saveBar)toolbar.append(saveBar);
+  const preview=properties.querySelector(':scope > .preview');
+  const iconRegion=root.querySelector('.inspector-icon-section');
+  if(preview){
+    const card=document.createElement('div');card.className='action-preview-card';
+    const title=document.createElement('strong');title.textContent='미리보기';
+    card.append(title,...Array.from(preview.children));
+    preview.append(card,previewButton);
+    if(hasStateTitlePair(item)&&iconRegion){
+      const layout=document.createElement('div');layout.className='state-title-layout';
       layout.append(preview,iconRegion);
-      const properties=root.querySelector('.inspector-properties-region');
       properties.before(toolbar,layout);
       properties.classList.add('state-title-extra-properties');
+    }else{
+      // Single-image actions retain their own title editor and no extra icon cards.
+      const layout=document.createElement('div');layout.className='properties inspector-properties-region action-single-visual';
+      const titleFields=document.createElement('div');titleFields.className='fields';
+      const titleSetting=fieldsHost.querySelector(':scope > .title-setting-field');
+      if(titleSetting)titleFields.append(titleSetting);
+      layout.append(preview,titleFields);
+      properties.before(toolbar,layout);
+      properties.classList.add('action-single-extra');
+    }
+  }
+  if(item.type==='folder-shortcut'){
+    const pathInput=properties.querySelector('[data-field="path"]');
+    if(pathInput){
+      pathInput.placeholder='폴더 선택';
+      pathInput.title=pathInput.value;
+      pathInput.addEventListener('input',()=>{pathInput.title=pathInput.value;});
     }
   }
 }
@@ -3134,9 +3155,9 @@ async function executeMultiStep(action,signal){
     case 'website':
       return bridge.openWebsite(outcome.url,outcome.mode,outcome.browserPath);
     case 'open-local-path':
-      if(action.type==='open-app'&&outcome.foreground&&!String(outcome.args||'').trim()&&bridge.openApplication)
-        return bridge.openApplication(outcome.path,outcome.target);
-      return bridge.openLocalPath(outcome.path,outcome.target,outcome.args||'',outcome.alwaysNewWindow===true);
+      if(action.type==='open-app'&&bridge.openApplication)
+        return bridge.openApplication(outcome.path,outcome.target,outcome.args||'',outcome.foreground,outcome.preventDuplicate);
+      return bridge.openLocalPath(outcome.path,outcome.target,outcome.args||'',outcome.alwaysNewWindow===true,outcome.foreground!==false);
     case 'type-text':
       return outcome.mode==='clipboard'?bridge.pasteText(outcome.text,outcome.enter):bridge.typeText(outcome.text,outcome.enter);
     case 'mute':
@@ -3589,9 +3610,9 @@ function executeHardwareAction(event,preview=false,skipKnobGesture=false){
   }
   if(outcome.kind==='open-local-path'){
     if(!window.deckBridge?.openLocalPath)return 'Windows 실행 환경에서만 사용할 수 있습니다.';
-    (resolved.action?.type==='open-app'&&outcome.foreground&&!String(outcome.args||'').trim()&&window.deckBridge.openApplication
-      ?window.deckBridge.openApplication(outcome.path,outcome.target)
-      :window.deckBridge.openLocalPath(outcome.path,outcome.target,outcome.args||'',outcome.alwaysNewWindow===true)).then(
+    (resolved.action?.type==='open-app'&&window.deckBridge.openApplication
+      ?window.deckBridge.openApplication(outcome.path,outcome.target,outcome.args||'',outcome.foreground,outcome.preventDuplicate)
+      :window.deckBridge.openLocalPath(outcome.path,outcome.target,outcome.args||'',outcome.alwaysNewWindow===true,outcome.foreground!==false)).then(
       ()=>window.d200xActionStatus?.('경로 열기 완료'),
       error=>window.d200xActionStatus?.('경로 열기 실패: '+String(error?.message||error)));
     return '지정 경로 열기 요청';

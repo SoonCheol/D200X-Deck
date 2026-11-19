@@ -24,7 +24,7 @@
     multi:{},'multi-switch':{activeState:0},random:{},logic:{},
     website:{url:'',open:'default',browserPath:''},'hotkey-switch':{first:'',second:''},
     hotkey:{keys:'',source:'preset'},open:{path:'',args:''},
-    'open-app':{app:'',args:'',hold:'close',foreground:true},close:{path:'',force:false},
+    'open-app':{app:'',args:'',hold:'close',foreground:true,preventDuplicate:true},close:{path:'',force:false},
     text:{body:'',enter:false,mode:'clipboard'},media:{op:'playpause'},
     folder:{autoExitEnabled:false,autoExitSeconds:0},profile:{profile:'next'},previous:{},next:{},
     goto:{page:0},indicator:{},
@@ -37,7 +37,7 @@
     screenshot:{},'clipboard-edit':{operation:'copy'},
     'window-state':{operation:'maximize'},'window-monitor':{direction:'right'},
     'explorer-open':{},'brush-size':{direction:'increase'},
-    'timeline-step':{direction:'next'},'timeline-zoom':{operation:'in'},'file-open':{path:''},'folder-shortcut':{path:'',alwaysNewWindow:false}
+    'timeline-step':{direction:'next'},'timeline-zoom':{operation:'in'},'file-open':{path:''},'folder-shortcut':{path:'',alwaysNewWindow:false,foreground:true}
   };
   const TITLE={visible:true,align:'bottom',family:'default',size:12,
     bold:false,italic:false,underline:false,color:'#ffffff',
@@ -56,6 +56,9 @@
     base.title=typeof value.title==='string'?value.title.slice(0,256):base.title;
     if(value.settings&&typeof value.settings==='object'&&!Array.isArray(value.settings))
       base.settings={...base.settings,...value.settings};
+    // Keep existing repeat-launch buttons repeatable; new actions default to both options.
+    if(value.type==='open-app'&&typeof value.settings?.preventDuplicate!=='boolean')
+      base.settings.preventDuplicate=base.settings.foreground===true&&!String(base.settings.args||'').trim()&&(!base.settings.app||String(base.settings.app).startsWith('shell:AppsFolder\\')||/\.(exe|lnk)$/i.test(String(base.settings.app)));
     if(value.titleStyle&&typeof value.titleStyle==='object'&&!Array.isArray(value.titleStyle))
       base.titleStyle={...base.titleStyle,...value.titleStyle};
     const st=base.titleStyle;
@@ -690,14 +693,14 @@
       first:String(action.settings?.first||''),second:String(action.settings?.second||'')};
     if(action.type==='open')return {kind:'open-local-path',path:String(action.settings?.path||''),target:'auto',...(action.settings?.args?{args:String(action.settings.args)}:{})};
     if(action.type==='open-app'&&String(action.settings?.app||'').startsWith('shell:AppsFolder\\'))
-      return {kind:'open-local-path',path:String(action.settings.app),target:'appid',foreground:action.settings?.foreground===true,hold:action.settings?.hold||'none'};
+      return {kind:'open-local-path',path:String(action.settings.app),target:'appid',foreground:action.settings?.foreground===true,preventDuplicate:action.settings?.preventDuplicate===true,hold:action.settings?.hold||'none'};
     if(action.type==='open-app')return {kind:'open-local-path',path:String(action.settings?.app||''),...(action.settings?.args?{args:String(action.settings.args)}:{}),target:'file',
-      foreground:action.settings?.foreground===true,hold:action.settings?.hold||'none'};
+      foreground:action.settings?.foreground===true,preventDuplicate:action.settings?.preventDuplicate===true,hold:action.settings?.hold||'none'};
     if(action.type==='close')return {kind:'close-local-app',path:String(action.settings?.path||''),force:action.settings?.force===true};
     if(action.type==='file-open'||action.type==='folder-shortcut')
       return {kind:'open-local-path',path:typeof action.settings?.path==='string'?action.settings.path:'',
         target:action.type==='file-open'?'file':'folder',
-        ...(action.type==='folder-shortcut'&&action.settings?.alwaysNewWindow===true?{alwaysNewWindow:true}:{})};
+        ...(action.type==='folder-shortcut'?{...(action.settings?.alwaysNewWindow===true?{alwaysNewWindow:true}:{}),...(action.settings?.foreground===false?{foreground:false}:{})}:{})};
     const shortcutOptions={
       screenshot:['capture'],
       'clipboard-edit':['copy','paste','cut'],
