@@ -6,6 +6,10 @@ const editor=fs.readFileSync(path.join(__dirname,'../app/streamdeck-editor/edito
 const ps=fs.readFileSync(path.join(__dirname,'../app/streamdeck-editor/app-control.ps1'),'utf8');
 const holdStart=editor.indexOf('const openAppHoldTimers=new Map();');
 const holdEnd=editor.indexOf('const hotkeySwitchPositions=',holdStart);
+const warningStart=editor.indexOf('const wideWarningPresses=');
+const warningEnd=editor.indexOf('function advanceWideDisplay()',warningStart);
+assert.ok(warningStart>=0&&warningEnd>warningStart);
+const warningSource=editor.slice(warningStart,warningEnd);
 const dispatchStart=editor.indexOf('function executeHardwareAction(event,preview=false,skipKnobGesture=false){');
 const dispatchEnd=editor.indexOf("  if(resolved.action?.type==='logic'",dispatchStart);
 assert.ok(holdStart>=0&&holdEnd>holdStart&&dispatchStart>=0&&dispatchEnd>dispatchStart);
@@ -27,7 +31,7 @@ function setup(mode='close'){
     heldKnobEvent:event=>({event,consume:false,replay:false}),
     setTimeout:(fn,delay)=>{assert.equal(delay,650);const id=++next;timers.set(id,fn);return id;},
     clearTimeout:id=>timers.delete(id)});
-  vm.runInContext(holdSource+dispatchSource,ctx);
+  vm.runInContext(warningSource+holdSource+dispatchSource,ctx);
   const event=pressed=>({kind:1,index:0,state:pressed?1:0,pressed});
   return {action,state,calls,records,opened,timers,
     down:()=>ctx.executeHardwareAction(event(true)),up:()=>ctx.executeHardwareAction(event(false)),
