@@ -2,7 +2,14 @@
 
 > **상태 기록 기준: 2026-11-19**. 실제 최신 HEAD는 Git에서 확인하며, 코드·자동 검사·Windows 빌드·사용자 Windows/D200X 실기 결과를 구분한다. 시작 시 `AGENTS.md`와 이 문서만 읽고 로드맵은 필요한 경우에만 참고한다.
 
-## 1. 최신 작업 인계 — 1.1.32 터미널 기본 액션 (2026-11-19)
+## 1. 최신 작업 인계 — 1.1.33 터미널 창 활성화 보완 및 미리보기 여백 (2026-11-19)
+
+- 사용자 1.1.32 실기: 관리자 터미널 실행 및 중복 실행 방지 정상. 창 HWND 136114(추가 463704) 식별은 성공했지만 다른 창이 전경인 경우 SetForegroundWindow/BringWindowToTop 실패, AttachThreadInput 성공, matched-not-focused 반복. DeckForge 관리자 실행으로도 전경 활성화 실패 보고. 일반 터미널의 독립 로그는 미확인.
+- 공식 Microsoft Terminal main의 IslandWindow.cpp SummonWindow, WindowEmperor.cpp 및 Win32 SetForegroundWindow/SetActiveWindow/AttachThreadInput 참고. 자체 명령줄 호출은 기존 탭 변경/새 창 생성 위험, globalSummon은 사용자 설정과 권한별 전역 단축키 충돌 가능성이 있어 사용하지 않음. 터미널 전용 C# 추가 시도: WM_NULL 응답 확인, 기존 전경 및 대상 입력 큐 연결, HWND_TOP/위치·크기 유지, SetActiveWindow 및 SetForegroundWindow, finally에서 연결 해제 후 실제 전경 HWND 검증. 기존 검색/권한 분리/중복 정책/일반 프로그램과 폴더 제어 유지. Windows 권한/전경 정책상 성공 보장 불가, 실기 필요. 설정 파일·UAC·전역 단축키 변경, 새 창이나 탭 재실행 없음.
+- 사용자 승인 미리보기 카드 98px 유지, 내부 미리보기 키 86px 정사각형으로 좌우 6px 여백. Key Up/Down, OFF/ON 카드 레이아웃 및 실제 기기 이미지 미변경. 해당 GUI 실기 확인 필요.
+- 폴더 및 터미널 길게 눌러 종료는 사용자 요청으로 보류. 버전 1.1.33, C# 빌드 및 실제 Windows/D200X 검증 별도.
+
+### 1.1.32 터미널 기본 액션 (2026-11-19)
 
 - #741 실패 원인: Windows C# 폴더/프로그램 헬퍼 컴파일 및 실행 정책 검사, 편집기 레이아웃 검사 성공 후 shared action core/migration 단계에서 이전 toolbar.append(pluginButton) 문자열 검사 1건 실패. 실제 1.1.31 코드는 options.append(pluginButton)으로 이동했으므로 검사를 최신 UI에 맞춤. 패키징 미실행.
 - 사용자 승인 신규 기본 액션 2개: `terminal` **터미널**, `terminal-admin` **터미널(관리자)**. 앱·파일·웹 실행 그룹, 기존 24개 원본 ID 유지하고 D200X 확장 20개. 기본 프로필 사용, 경로/인수 입력 없음. 기존 액션 아이콘 테마 및 Key Up/Down 카드 편집 유지. 두 옵션 기본 체크, 물리 입력·실행 테스트·다중 동작 경로 적용.

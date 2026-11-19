@@ -136,6 +136,56 @@ static class DFAppFocus {
    for(int i=0;i<10&&DFFolderNative.GetForegroundWindow()!=hwnd;i++)Thread.Sleep(30);
    return DFFolderNative.GetForegroundWindow()==hwnd&&!DFFolderNative.IsIconic(hwnd)&&Fresh(hwnd);
  }
+ // Terminal-specific fallback: adapt the official IslandWindow summon sequence
+ // to an external HWND, additionally joining the target's input queue.
+ // Never send commands to the shell or create another Terminal/tab.
+ [DllImport("user32.dll",SetLastError=true)]static extern IntPtr SetActiveWindow(IntPtr hwnd);
+ [DllImport("user32.dll",SetLastError=true)]static extern bool SetWindowPos(IntPtr hwnd,IntPtr insertAfter,int x,int y,int cx,int cy,uint flags);
+ [DllImport("user32.dll",SetLastError=true)]static extern IntPtr SendMessageTimeoutW(IntPtr hwnd,uint msg,UIntPtr w,IntPtr l,uint flags,uint timeout,out UIntPtr result);
+ static bool Responsive(IntPtr hwnd){
+   UIntPtr result;
+   return hwnd!=IntPtr.Zero&&SendMessageTimeoutW(hwnd,0,UIntPtr.Zero,IntPtr.Zero,0x23,300,out result)!=IntPtr.Zero;
+ }
+ static bool TerminalAttachedFocus(IntPtr hwnd){
+   if(!Fresh(hwnd)||Cloaked(hwnd))return false;
+   IntPtr foreground=DFFolderNative.GetForegroundWindow();
+   if(foreground==hwnd)return WaitForeground(hwnd);
+   if(!Responsive(foreground)||!Responsive(hwnd)){Note("terminal-fallback-unresponsive");return false;}
+   uint pid,foregroundPid;
+   uint current=DFFolderNative.GetCurrentThreadId();
+   uint foregroundThread=DFFolderNative.GetWindowThreadProcessId(foreground,out foregroundPid);
+   uint targetThread=DFFolderNative.GetWindowThreadProcessId(hwnd,out pid);
+   if(foregroundThread==0||targetThread==0||!Fresh(hwnd)||DFFolderNative.GetForegroundWindow()!=foreground)return false;
+   bool joinedForeground=false,joinedTarget=false;
+   try{
+     if(foregroundThread!=current){
+       joinedForeground=DFFolderNative.AttachThreadInput(current,foregroundThread,true);
+       Note("terminal-attach-foreground="+joinedForeground+" error="+(joinedForeground?0:Marshal.GetLastWin32Error()));
+       if(!joinedForeground)return false;
+     }
+     if(targetThread!=current&&targetThread!=foregroundThread){
+       joinedTarget=DFFolderNative.AttachThreadInput(current,targetThread,true);
+       Note("terminal-attach-target="+joinedTarget+" error="+(joinedTarget?0:Marshal.GetLastWin32Error()));
+       if(!joinedTarget)return false;
+     }
+     if(!Fresh(hwnd))return false;
+     IntPtr activeBefore=DFFolderNative.GetForegroundWindow();
+     if(activeBefore!=foreground&&activeBefore!=hwnd)return false;
+     // Non-topmost Z-order only; preserve size, position, maximization and tabs.
+     bool positioned=SetWindowPos(hwnd,IntPtr.Zero,0,0,0,0,0x0203);
+     Note("terminal-position="+positioned+" error="+(positioned?0:Marshal.GetLastWin32Error()));
+     IntPtr previous=SetActiveWindow(hwnd);
+     Note("terminal-active-previous="+previous.ToInt64()+" error="+(previous!=IntPtr.Zero?0:Marshal.GetLastWin32Error()));
+     bool focused=DFFolderNative.SetForegroundWindow(hwnd);
+     Note("terminal-set-foreground="+focused);
+   }finally{
+     if(joinedTarget)Note("terminal-detach-target="+DFFolderNative.AttachThreadInput(current,targetThread,false));
+     if(joinedForeground)Note("terminal-detach-foreground="+DFFolderNative.AttachThreadInput(current,foregroundThread,false));
+   }
+   bool ok=WaitForeground(hwnd);
+   Note("terminal-fallback-after="+DFFolderNative.GetForegroundWindow().ToInt64()+" focused="+ok);
+   return ok;
+ }
  static bool Activate(Candidate candidate){
    IntPtr hwnd=candidate.Hwnd;
    Note("window="+hwnd.ToInt64()+" "+candidate.Reason+" before="+DFFolderNative.GetForegroundWindow().ToInt64());
@@ -152,6 +202,7 @@ static class DFAppFocus {
    foreach(string item in DFFolderNative.AttachedFocus(hwnd))Note(item);
    bool ok=WaitForeground(hwnd);
    Note("after="+DFFolderNative.GetForegroundWindow().ToInt64()+" focused="+ok);
+   if(!ok&&kind=="Terminal")return TerminalAttachedFocus(hwnd);
    return ok;
  }
  static bool SafeShortcutExe(string path){

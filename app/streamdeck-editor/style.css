@@ -949,7 +949,7 @@
 .action-layout-inspector .action-preview-card>strong{
   display:block;padding:0 7px 5px;font-size:13px;line-height:16px;white-space:nowrap
 }
-.action-layout-inspector .action-preview-card .preview-key{margin:0}
+.action-layout-inspector .action-preview-card .preview-key{width:86px;height:86px;margin:0 auto}
 .action-layout-inspector .preview>.action-preview-test{
   display:block;width:98px;height:29px;margin:7px 0 0;padding:4px 0;
   white-space:nowrap;font-size:12px;background:#345579;color:#fff;

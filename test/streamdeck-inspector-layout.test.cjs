@@ -250,3 +250,8 @@ test('both Terminal catalogue actions have distinct titles and icon artwork',()=
   assert.match(editor,/\["terminal","터미널","▣"\]/);
   assert.match(editor,/\["terminal-admin","터미널\(관리자\)","▣"\]/);
 });
+
+test('preview has 6px side inset without resizing the state cards',()=>{
+  assert.match(css,/\.action-layout-inspector \.action-preview-card\{[^}]*width:98px/s);
+  assert.match(css,/\.action-layout-inspector \.action-preview-card \.preview-key\{width:86px;height:86px;margin:0 auto\}/);
+});

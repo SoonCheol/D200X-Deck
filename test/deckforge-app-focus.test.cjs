@@ -90,3 +90,21 @@ test('terminal launch reuses native policy with separate privilege and fixed UAC
   assert.match(editor,/bridge.openTerminal\(outcome.admin,outcome.foreground,outcome.preventDuplicate\)/);
   assert.match(editor,/window.deckBridge.openTerminal\(outcome.admin,outcome.foreground,outcome.preventDuplicate\)/);
 });
+
+test('terminal-only fallback preserves existing launch policy and never opens tabs',()=>{
+  const cs=fs.readFileSync(path.join(root,'app-focus-helper.cs'),'utf8');
+  const start=cs.indexOf('static bool TerminalAttachedFocus(');
+  const end=cs.indexOf('static bool Activate(',start);
+  assert.ok(start>=0&&end>start);
+  const block=cs.slice(start,end);
+  assert.match(block,/if\(!Fresh\(hwnd\)\|\|Cloaked\(hwnd\)\)return false/);
+  assert.match(block,/AttachThreadInput\(current,targetThread,true\)/);
+  assert.match(block,/SetActiveWindow\(hwnd\)/);
+  assert.match(block,/SetWindowPos\(hwnd,IntPtr.Zero,0,0,0,0,0x0203\)/);
+  assert.match(block,/finally\{/);
+  assert.match(block,/AttachThreadInput\(current,targetThread,false\)/);
+  assert.match(block,/AttachThreadInput\(current,foregroundThread,false\)/);
+  assert.match(block,/bool ok=WaitForeground\(hwnd\)/);
+  assert.doesNotMatch(block,/LaunchTerminal|Process.Start|SendInput/);
+  assert.match(cs,/if\(!ok&&kind=="Terminal"\)return TerminalAttachedFocus\(hwnd\)/);
+});
