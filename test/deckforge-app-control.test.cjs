@@ -109,3 +109,41 @@ test('zero-byte link and linkMove drops allow AppID inspection without changing 
     assert.deepEqual(calls.pop(),[1,'example',expected]);
   }
 });
+
+const main=fs.readFileSync(path.join(__dirname,'../app/streamdeck-editor/main.cjs'),'utf8');
+const knownFolderStart=main.indexOf('function splitKnownFolderDrop(value){');
+const knownFolderEnd=main.indexOf("ipcMain.handle('d200x:inspect-dropped-target'",knownFolderStart);
+assert.ok(knownFolderStart>=0&&knownFolderEnd>knownFolderStart);
+function knownFolderHarness(execFileAsync){
+ const requireLocalWindowsPath=value=>{
+   assert.equal(typeof value,'string');assert.ok(path.win32.isAbsolute(value));return value;
+ };
+ const ctx=vm.createContext({path,Buffer,process:{platform:'win32',env:process.env},execFileAsync,requireLocalWindowsPath});
+ vm.runInContext(main.slice(knownFolderStart,knownFolderEnd),ctx);
+ return ctx;
+}
+test('known folder drops resolve GUID paths before the AppID fallback',async()=>{
+ const calls=[];
+ const ctx=knownFolderHarness(async(exe,args,options)=>{
+   calls.push({exe,args,options});return {stdout:Buffer.from('D:\\Program Files').toString('base64')};
+ });
+ const id='{6D809377-6AF0-444B-8957-A3773F02200E}';
+ assert.equal(await ctx.resolveKnownFolderDrop(id+'\\Lively Wallpaper\\Lively.exe'),'D:\\Program Files\\Lively Wallpaper\\Lively.exe');
+ assert.equal(calls[0].options.env.DECKFORGE_KNOWN_FOLDER_ID,id);
+ assert.equal(await ctx.resolveKnownFolderDrop('net.cozic.joplin-desktop'),null);
+ assert.equal(await ctx.resolveKnownFolderDrop('C:\\Tools\\app.exe'),null);
+ assert.equal(calls.length,1);
+ for(const invalid of ['..\\app.exe','C:\\app.exe','A\\\\app.exe','A.\\app.exe','A/app.exe']){
+   await assert.rejects(ctx.resolveKnownFolderDrop(id+'\\'+invalid));
+ }
+ assert.equal(calls.length,1);
+ assert.match(main,/const knownFolderPath=args\?\.allowAppId===true\?await resolveKnownFolderDrop\(filePath\):null/);
+ assert.match(main,/requireLocalWindowsPath\(knownFolderPath\|\|filePath\)/);
+ assert.match(main,/if\(args\?\.allowAppId===true\)return inspectStartApplication\(filePath\)/);
+});
+test('Windows Known Folder API resolves the actual 64-bit Program Files path', {skip:process.platform!=='win32'||process.arch!=='x64'},async()=>{
+ const ctx=knownFolderHarness(require('node:util').promisify(require('node:child_process').execFile));
+ const id='{6D809377-6AF0-444B-8957-A3773F02200E}';
+ const actual=await ctx.resolveKnownFolderDrop(id+'\\DeckForge-probe.exe');
+ assert.equal(actual.toLowerCase(),path.win32.join(process.env.ProgramW6432||process.env.ProgramFiles,'DeckForge-probe.exe').toLowerCase());
+});

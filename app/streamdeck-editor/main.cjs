@@ -928,11 +928,54 @@ async function inspectStartApplication(id){
   if(typeof info.name!=='string'||!info.name.trim())throw new Error('시작 메뉴 앱을 찾지 못했습니다.');
   return {kind:'appid',path:APP_ID_PREFIX+id,name:info.name.slice(0,256),icon:info.icon?'data:image/png;base64,'+info.icon:''};
 }
+// Start-menu virtual file paths may begin with a Windows KNOWNFOLDERID.
+function splitKnownFolderDrop(value){
+  if(typeof value!=='string'||!value.startsWith('{'))return null;
+  const match=/^(\{[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\})\\(.+)$/i.exec(value);
+  if(!match)return null;
+  const relative=match[2],parts=relative.split('\\');
+  if(value.length>4096||parts.some(part=>!part||part==='.'||part==='..'||/[\x00-\x1f\x7f/:*?"<>|]/.test(part)||/[. ]$/.test(part)))
+    throw new Error('올바른 시작 메뉴 폴더 경로가 아닙니다.');
+  return {id:match[1],relative};
+}
+async function resolveKnownFolderDrop(value){
+  const parsed=splitKnownFolderDrop(value);
+  if(!parsed)return null;
+  if(process.platform!=='win32')throw new Error('Windows에서만 지원합니다.');
+  const code=`$ErrorActionPreference='Stop'
+Add-Type -TypeDefinition @'
+using System;
+using System.Runtime.InteropServices;
+public static class DeckForgeKnownFolder {
+  [DllImport("shell32.dll", ExactSpelling=true)]
+  private static extern int SHGetKnownFolderPath(ref Guid id, uint flags, IntPtr token, out IntPtr path);
+  public static string Resolve(string text) {
+    Guid id=new Guid(text);
+    IntPtr ptr=IntPtr.Zero;
+    try {
+      Marshal.ThrowExceptionForHR(SHGetKnownFolderPath(ref id,0,IntPtr.Zero,out ptr));
+      return Marshal.PtrToStringUni(ptr);
+    } finally {
+      if(ptr!=IntPtr.Zero)Marshal.FreeCoTaskMem(ptr);
+    }
+  }
+}
+'@
+$root=[DeckForgeKnownFolder]::Resolve($env:DECKFORGE_KNOWN_FOLDER_ID)
+[Console]::Write([Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes($root)))`;
+  const {stdout}=await execFileAsync('powershell.exe',['-NoProfile','-NonInteractive','-Command',code],{
+    windowsHide:true,timeout:8000,maxBuffer:32768,
+    env:{...process.env,DECKFORGE_KNOWN_FOLDER_ID:parsed.id}
+  });
+  const root=requireLocalWindowsPath(Buffer.from(String(stdout).trim(),'base64').toString('utf8'));
+  return requireLocalWindowsPath(path.win32.join(root,parsed.relative));
+}
 ipcMain.handle('d200x:inspect-dropped-target',async(event,args)=>{
   if(!window||event.sender!==window.webContents)throw new Error('허용되지 않은 호출입니다.');
   const filePath=args?.filePath;
-  if(typeof filePath==='string'&&path.win32.isAbsolute(filePath)){
-    const requested=requireLocalWindowsPath(filePath);
+  const knownFolderPath=args?.allowAppId===true?await resolveKnownFolderDrop(filePath):null;
+  if(knownFolderPath||(typeof filePath==='string'&&path.win32.isAbsolute(filePath))){
+    const requested=requireLocalWindowsPath(knownFolderPath||filePath);
     const stat=await fs.promises.stat(requested);
     if(stat.isDirectory()){
       let icon='';

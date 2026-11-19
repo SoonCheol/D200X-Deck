@@ -2,7 +2,13 @@
 
 > **상태 기록 기준: 2026-11-19**. 실제 최신 HEAD는 Git에서 확인하며, 코드·자동 검사·Windows 빌드·사용자 Windows/D200X 실기 결과를 구분한다. 시작 시 `AGENTS.md`와 이 문서만 읽고 로드맵은 필요한 경우에만 참고한다.
 
-## 1. 최신 작업 인계 — 1.1.27 시작 메뉴 드래그 호환성 (2026-11-19)
+## 1. 최신 작업 인계 — 1.1.28 Known Folder 경로 드래그 (2026-11-19)
+
+- 사용자 제공 Lively Wallpaper 드롭 로그: 0바이트 link, `{6D809377-6AF0-444B-8957-A3773F02200E}\\Lively Wallpaper\\Lively.exe`. GUID+상대 경로를 Windows SHGetKnownFolderPath API로 실제 폴더 경로에 결합하여 기존 파일 검사로 전달. 고정 드라이브 및 앱별 예외 없음. 0바이트 link/linkMove 대상만 변환, 일반 AppID 및 절대 경로 보존, 경로 역참조 및 잘못된 구성요소 거부, 원래 실행/종료·C# 폴더 헬퍼·UI와 데이터 미변경. 단위 검사 및 Windows 실제 API 검사 추가. 버전 1.1.28. 설치 빌드와 사용자 실기는 별도.
+
+### 1.1.27 시작 메뉴 드래그 호환성 (2026-11-19)
+
+- 사용자 실기: Joplin 등록 및 실행 정상. #736은 기존 문자열 검사의 이전 link 조건 때문에 실패하여 2e3fbd8에서 해당 테스트만 수정하고 #737 재빌드.
 
 - 사용자 제공 Joplin 드롭 진단에서 0바이트 AppID `net.cozic.joplin-desktop`, effectAllowed=`linkMove`, dropEffect=`link` 확인. 기존 dragover는 linkMove를 허용하지만 등록 단계는 link만 허용해 AppID 검사에 전달하지 못함. 0바이트 link/linkMove 모두 기존 AppID 검사 대상으로 허용하는 공통 수정(앱별 예외 없음). Get-StartApps 검증, 절대 경로 EXE/LNK/폴더 처리, 실행/종료, C# 헬퍼, UI 및 데이터 보존. 집중 검사 추가. 버전 1.1.27. Windows 빌드 및 실제 시작 메뉴 드래그 등록은 별도 확인.
 
