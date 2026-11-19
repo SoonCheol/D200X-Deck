@@ -973,9 +973,9 @@
 }
 
 /* Knob inspector only: one stable grid, reserve inactive rows, no title wrapping. */
-.inspector.knob-inspector{padding:12px 20px;overflow:auto;--knob-min-width:680px}
+.inspector.knob-inspector{padding:12px 20px;overflow:auto;min-width:0;max-width:100%;container-type:inline-size;container-name:knob-properties;scrollbar-gutter:stable}
 .knob-inspector>.control-head,.knob-inspector>.knob-enable-row,.knob-inspector>.knob-settings,
-.knob-inspector>.knob-stack,.knob-inspector>.control-gesture-strip,.knob-inspector>.control-action-editor{width:100%;min-width:var(--knob-min-width);box-sizing:border-box}
+.knob-inspector>.knob-stack,.knob-inspector>.control-gesture-strip,.knob-inspector>.control-action-editor{width:100%;min-width:0;max-width:100%;box-sizing:border-box}
 .knob-inspector>.control-head{display:flex;gap:10px;min-height:34px;justify-content:flex-start;padding-bottom:6px}
 .knob-inspector>.control-head>strong{flex:none;white-space:nowrap}
 .knob-inspector .control-mode-tabs{margin-left:0;flex:none}
@@ -986,14 +986,14 @@
 .knob-inspector .knob-enable-row label{white-space:nowrap;font-weight:600}
 .knob-inspector .knob-enable-row input,.knob-inspector .control-reverse input,.knob-inspector .knob-stack input{width:15px;height:15px;margin:0;flex:none;accent-color:#2676c1}
 .knob-inspector .knob-settings{border:1px solid #555;border-radius:5px;background:#303030;padding:8px 10px}
-.knob-inspector .knob-settings>.control-config{display:grid;grid-template-columns:102px minmax(0,1fr) 102px minmax(0,1fr);gap:8px;margin:0;align-items:center}
+.knob-inspector .knob-settings>.control-config{display:grid;grid-template-columns:84px minmax(0,1fr) 84px minmax(0,1fr);gap:8px;margin:0;align-items:center}
 .knob-inspector .knob-settings>.control-config+.control-config{margin-top:6px}
 .knob-inspector .knob-settings>.control-config>label{min-width:0;white-space:nowrap;text-align:right;justify-self:end}
 .knob-inspector .knob-settings>.control-config>select,.knob-inspector .knob-step-group>select{width:100%;min-width:0;height:28px;padding:4px 7px;border:1px solid #656565;border-radius:4px;background:#373737;color:#eee;white-space:nowrap}
-.knob-inspector .knob-step-group{display:flex;align-items:center;gap:12px;min-width:0}
+.knob-inspector .knob-step-group{display:flex;align-items:center;gap:8px;min-width:0}
 .knob-inspector .knob-step-group>select{width:62px;flex:none}
 .knob-inspector .control-reverse{display:flex;align-items:center;gap:5px;white-space:nowrap;min-width:0}
-.knob-inspector .knob-stack{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:6px;margin:8px 0 0;padding:6px 10px 9px;border:1px solid #555;border-radius:5px;background:#303030}
+.knob-inspector .knob-stack{display:grid;grid-template-columns:repeat(5,minmax(max-content,1fr));gap:6px;margin:8px 0 0;padding:6px 10px 9px;border:1px solid #555;border-radius:5px;background:#303030}
 .knob-inspector .knob-stack legend{padding:0 5px;color:#bfc4cf;font-size:12px;white-space:nowrap}
 .knob-inspector .knob-stack label{min-width:0;white-space:nowrap;font-size:12px;gap:4px}
 .knob-inspector .knob-reserved-row{visibility:hidden}
@@ -1009,3 +1009,21 @@
 .knob-inspector .knob-card-test{position:absolute;z-index:3;right:31px;top:12px;width:28px;height:26px;min-width:0;margin:0;padding:0;border-radius:4px;background:#345579;color:#fff;border:1px solid #7397ba;font-size:12px}
 .knob-inspector .control-tile-remove{right:6px;top:14px;width:21px;height:21px}
 .knob-inspector .control-action-editor{margin-top:10px}
+/* Respond to the inspector's content width, not the whole window.
+   Both modes retain the same reserved stack rows at a given width. */
+@container knob-properties (max-width:550px){
+  .knob-inspector .knob-stack{grid-template-columns:repeat(3,minmax(max-content,1fr))}
+  .knob-inspector .knob-settings>.control-config{grid-template-columns:78px minmax(0,1fr) 78px minmax(0,1fr);gap:6px}
+  .knob-inspector .knob-step-group{gap:6px}
+  .knob-inspector .knob-step-group>select{width:50px}
+  .knob-inspector>.control-gesture-strip{gap:6px}
+  .knob-inspector .control-gesture-tile{grid-template-columns:20px minmax(0,1fr);gap:4px;padding-left:6px;padding-right:62px}
+}
+@container knob-properties (max-width:480px){
+  .knob-inspector .knob-settings>.control-config{grid-template-columns:84px minmax(0,1fr)}
+  .knob-inspector>.control-head{flex-wrap:wrap}
+  .knob-inspector>.control-gesture-strip{display:grid;grid-template-columns:minmax(0,1fr);grid-auto-rows:50px}
+}
+@container knob-properties (max-width:380px){
+  .knob-inspector .knob-stack{grid-template-columns:repeat(2,minmax(max-content,1fr))}
+}
