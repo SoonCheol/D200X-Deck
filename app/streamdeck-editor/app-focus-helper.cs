@@ -244,24 +244,61 @@ static class DFAppFocus {
    }catch(Exception e){Note("shortcut lookup: "+e.GetType().Name);}
    finally{Release(wsh);Release(shell);}
  }
- // A console client can be hosted by another process. Detect exact running
- // executable/AppID without guessing which terminal window owns that client.
- static bool Running(){
-   if(kind=="Terminal")return false; // terminal background processes are not open windows
-   var cache=new Dictionary<uint,Identity>();
-   int session;using(var self=Process.GetCurrentProcess())session=self.SessionId;
-   foreach(var process in Process.GetProcesses()){
-     using(process)try{
-       if(process.SessionId!=session)continue;
-       if(kind=="EXE"&&!Same(process.ProcessName,Path.GetFileNameWithoutExtension(target)))continue;
-       var identity=ProcessIdentity((uint)process.Id,cache);
-       if((kind=="AppID"&&Same(identity.Id,target))||(identity.Path!=null&&paths.Contains(identity.Path))){
-         Note("running-pid="+process.Id);return true;
-       }
-     }catch{}
-   }
-   return false;
- }
+  // Read the PE optional-header Subsystem (2=GUI, 3=CUI).
+  // https://learn.microsoft.com/windows/win32/debug/pe-format
+  static int ReadSubsystem(Stream stream){
+    try{
+      using(var reader=new BinaryReader(stream,Encoding.UTF8,true)){
+        if(stream.Length<64||reader.ReadUInt16()!=0x5a4d)return 0;
+        stream.Position=0x3c;
+        int pe=reader.ReadInt32();
+        if(pe<64||(long)pe+24+70>stream.Length)return 0;
+        stream.Position=pe;
+        if(reader.ReadUInt32()!=0x00004550)return 0;
+        stream.Position=(long)pe+20;
+        int optionalSize=reader.ReadUInt16();
+        if(optionalSize<70||(long)pe+24+optionalSize>stream.Length)return 0;
+        stream.Position=(long)pe+24;
+        int magic=reader.ReadUInt16();
+        if(magic!=0x10b&&magic!=0x20b)return 0;
+        stream.Position=(long)pe+24+68;
+        return reader.ReadUInt16();
+      }
+    }catch{return 0;}
+  }
+  static int ExecutableSubsystem(string path){
+    if(!SafeShortcutExe(path))return 0;
+    try{
+      using(var stream=new FileStream(path,FileMode.Open,FileAccess.Read,FileShare.ReadWrite|FileShare.Delete))
+        return ReadSubsystem(stream);
+    }catch{return 0;}
+  }
+  // All exact same-session matches must be GUI images to allow a reopen.
+  // Console, shared hosts, unreadable images and mixed matches stay protected.
+  static string RunningStatus(){
+    if(kind=="Terminal")return "missing";
+    var cache=new Dictionary<uint,Identity>();
+    var subsystems=new Dictionary<string,int>(StringComparer.OrdinalIgnoreCase);
+    bool found=false,protectedProcess=false;
+    int session;using(var self=Process.GetCurrentProcess())session=self.SessionId;
+    foreach(var process in Process.GetProcesses()){
+      using(process)try{
+        if(process.SessionId!=session)continue;
+        if(kind=="EXE"&&!Same(process.ProcessName,Path.GetFileNameWithoutExtension(target)))continue;
+        var identity=ProcessIdentity((uint)process.Id,cache);
+        if((kind=="AppID"&&Same(identity.Id,target))||(identity.Path!=null&&paths.Contains(identity.Path))){
+          found=true;
+          int subsystem=0;
+          if(!String.IsNullOrEmpty(identity.Path)&&!subsystems.TryGetValue(identity.Path,out subsystem)){
+            subsystem=ExecutableSubsystem(identity.Path);subsystems[identity.Path]=subsystem;
+          }
+          if(subsystem!=2)protectedProcess=true;
+          Note("running-pid="+process.Id+" subsystem="+subsystem+" no-eligible-window");
+        }
+      }catch{}
+    }
+    return !found?"missing":protectedProcess?"running-protected":"running-gui";
+  }
  static string LocateAndFocus(int wait,bool activate=true,bool newOnly=false,bool checkRunning=true){
    var watch=Stopwatch.StartNew();
    do{
@@ -271,11 +308,14 @@ static class DFAppFocus {
        foreach(var candidate in candidates){try{if(Activate(candidate))return "focused";}catch(Exception e){Note("activation: "+e.Message);}}
        return "matched-not-focused";
      }
-     if(!activate&&checkRunning&&Running())return "present";
+     if(!activate&&checkRunning){
+        string running=RunningStatus();
+        if(running!="missing")return running;
+      }
      if(watch.ElapsedMilliseconds>=wait)break;
      Thread.Sleep(150);
    }while(true);
-   return !newOnly&&checkRunning&&Running()?"present":"missing";
+   return !newOnly&&checkRunning?RunningStatus():"missing";
  }
  static void Snapshot(){
    var handles=new List<string>();
@@ -301,7 +341,23 @@ static class DFAppFocus {
      if(mode=="Validate"){
        if(!Same("a","A")||SafeShortcutExe(@"C:\Windows\explorer.exe")||!SafeShortcutExe(@"C:\Tools\app.exe")||Marshal.SizeOf(typeof(DFAppVariant))!=24)
          throw new Exception("App focus validation failed");
-       kind="EXE";target=@"Z:\DeckForge-Nonexistent-"+Guid.NewGuid().ToString()+".exe";paths.Add(target);
+       // Exercise PE32/PE32+ GUI and console headers without launching apps.
+        foreach(int magic in new[]{0x10b,0x20b}){
+          foreach(int subsystem in new[]{2,3}){
+            using(var image=new MemoryStream(new byte[256])){
+              using(var writer=new BinaryWriter(image,Encoding.UTF8,true)){
+                writer.Write((ushort)0x5a4d);image.Position=0x3c;writer.Write(64);
+                image.Position=64;writer.Write(0x00004550);image.Position=84;writer.Write((ushort)96);
+                image.Position=88;writer.Write((ushort)magic);image.Position=156;writer.Write((ushort)subsystem);
+              }
+              image.Position=0;
+              if(ReadSubsystem(image)!=subsystem)throw new Exception("PE subsystem validation failed");
+            }
+          }
+        }
+        using(var invalid=new MemoryStream(new byte[64]))if(ReadSubsystem(invalid)!=0)throw new Exception("Invalid PE validation failed");
+        using(var self=Process.GetCurrentProcess())if(ExecutableSubsystem(self.MainModule.FileName)!=3)throw new Exception("Console subsystem validation failed");
+        kind="EXE";target=@"Z:\DeckForge-Nonexistent-"+Guid.NewGuid().ToString()+".exe";paths.Add(target);
        if(LocateAndFocus(0)!="missing")throw new Exception("Unexpected window match");
        if(!TerminalId("Microsoft.WindowsTerminal_8wekyb3d8bbwe!App")||TerminalId("Microsoft.WindowsCalculator_8wekyb3d8bbwe!App"))throw new Exception("Terminal identity validation failed");
        using(var self=Process.GetCurrentProcess())if(!Elevated(self.Handle).HasValue)throw new Exception("Token elevation validation failed");

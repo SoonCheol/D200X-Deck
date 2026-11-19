@@ -14,7 +14,7 @@ async function runAppFocus(directory,spec,mode,executor=run,exclude=[]){
       DECKFORGE_APP_FOCUS_TARGET:Buffer.from(spec.target,'utf16le').toString('base64'),DECKFORGE_APP_FOCUS_EXCLUDE:exclude.join(',')}
   });
   const result=JSON.parse(String(stdout));
-  if(!['focused','matched-not-focused','missing','present','snapshot','launched','error'].includes(result.status))throw Error('잘못된 창 활성화 응답');
+  if(!['focused','matched-not-focused','missing','present','running-gui','running-protected','snapshot','launched','error'].includes(result.status))throw Error('잘못된 창 활성화 응답');
   return result;
 }
 async function focusOrLaunch({focus,launch,record=async()=>{},foreground=true,preventDuplicate=true}){
@@ -33,12 +33,14 @@ async function focusOrLaunch({focus,launch,record=async()=>{},foreground=true,pr
     return true;
   }
   const existing=(await inspect(foreground?'Focus':'Probe')).status;
-  if(existing==='focused'||(!foreground&&existing==='present'))return true;
-  if(existing==='matched-not-focused'||existing==='present')throw Error('실행 중인 프로그램을 찾았지만 앞으로 가져오지 못했습니다. 새 창은 열지 않았습니다.');
-  if(existing!=='missing')throw Error('프로그램 창 상태 확인 실패');
+  if(existing==='focused'||(!foreground&&(existing==='present'||existing==='running-protected')))return true;
+  if(existing==='matched-not-focused'||existing==='present'||existing==='running-protected')throw Error('실행 중인 프로그램을 찾았지만 앞으로 가져오지 못했습니다. 새 창은 열지 않았습니다.');
+  // A verified GUI image may be resident without a usable window.
+  // Allow the user's original launch request once, not an automatic retry.
+  if(existing!=='missing'&&existing!=='running-gui')throw Error('프로그램 창 상태 확인 실패');
   await launch();
   const after=(await inspect(foreground?'Wait':'WaitPresent')).status;
-  if(after==='focused'||(!foreground&&after==='present'))return true;
+  if(after==='focused'||(!foreground&&['present','running-gui','running-protected'].includes(after)))return true;
   if(after==='matched-not-focused')throw Error('프로그램은 실행했지만 창을 앞으로 가져오지 못했습니다.');
   await record('launch-unconfirmed',{status:after});
   return true;
