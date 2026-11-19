@@ -647,7 +647,58 @@ function importFusionDraggedCommand(event,index){
  window.d200xActionStatus?.('Fusion 명령 등록: '+cmd.name+' ('+cmd.id+')');
  return true;
 }
+let nativeGridDrag=null,nativeGridSequence=0,nativeGridBusy=false;
+function externalGridDrop(ev){
+  const types=Array.from(ev.dataTransfer?.types||[]);
+  return types.includes('Files')&&!types.includes('application/x-d200x-action');
+}
+function captureNativeGrid(){
+  const page=currentPage();
+  return {state,page,previous:page.slice(),visible:DeckCore.visibleActions(state).slice()};
+}
+function nativeSlotUnchanged(snapshot,index){
+  return state===snapshot.state&&currentPage()===snapshot.page&&
+    snapshot.page[index]===snapshot.previous[index]&&DeckCore.visibleActions(state)[index]===snapshot.visible[index];
+}
+function clearNativeGridDrag(session,cancel=false){
+  if(nativeGridDrag!==session)return;
+  nativeGridDrag=null;
+  if(cancel)window.deckBridge?.nativeDropCancel?.(session.id);
+  document.querySelectorAll('#key-grid .drag-over').forEach(node=>node.classList.remove('drag-over'));
+}
+function armNativeGrid(ev){
+  if(!externalGridDrop(ev)||nativeGridDrag||nativeGridBusy||inspectorSession?.dirty||!window.deckBridge?.nativeDropStart)return;
+  if(document.querySelector('dialog[open]')||!$('icon-library').hidden||!$('icon-maker').hidden)return;
+  const rects=Array.from($('key-grid').querySelectorAll('.deck-key')).filter(node=>Number(node.dataset.index)<13).map(node=>{
+    const r=node.getBoundingClientRect();return {index:Number(node.dataset.index),x:r.x,y:r.y,width:r.width,height:r.height};
+  });
+  const session={id:Date.now().toString(36)+'-'+(++nativeGridSequence),snapshot:captureNativeGrid(),armed:false};
+  nativeGridDrag=session;
+  void window.deckBridge.nativeDropStart(session.id,rects).then(armed=>{
+    if(nativeGridDrag!==session){if(armed)window.deckBridge.nativeDropCancel(session.id);return;}
+    session.armed=armed;
+  }).catch(()=>{session.armed=false;});
+}
+function finishExternalGridDrop(index){
+  const session=nativeGridDrag;
+  const snapshot=session?.snapshot||captureNativeGrid();
+  if(session)clearNativeGridDrag(session,true);
+  if(inspectorSession?.dirty){window.d200xActionStatus?.('속성 편집을 저장하거나 취소한 후 드래그하세요.');return;}
+  void registerDroppedApplication(index,null,false,snapshot);
+}
+window.deckBridge?.onNativeDrop?.(message=>{
+  const session=nativeGridDrag;
+  if(!session||message.id!==session.id)return;
+  if(message.type==='entered'){session.armed=true;return;}
+  clearNativeGridDrag(session);
+  if(message.type!=='result')return;
+  const result=message.result;
+  const candidate=result?.candidate;
+  if(!Number.isInteger(result?.index)||result.index<0||result.index>=13)return;
+  void registerDroppedApplication(result.index,candidate?.value||null,candidate?.kind==='appid',session.snapshot);
+});
 function renderGrid(){
+  if(nativeGridDrag&&(state!==nativeGridDrag.snapshot.state||currentPage()!==nativeGridDrag.snapshot.page))clearNativeGridDrag(nativeGridDrag,true);
   const grid=$("key-grid");grid.replaceChildren();
   DeckCore.visibleActions(state).slice(0,KEY_COUNT).forEach((raw,i)=>{
     const folderBack=state.folderPath?.length>0&&i===13&&!raw;
@@ -690,6 +741,7 @@ function renderGrid(){
       ev.preventDefault();b.classList.add("drag-over");
       const d=ev.dataTransfer;
       if(d&&Array.from(d.types).includes('Files')&&['link','linkMove'].includes(d.effectAllowed))d.dropEffect='link';
+      armNativeGrid(ev);
     };
     b.addEventListener("dragenter",allowGridDrop);
     b.addEventListener("dragover",allowGridDrop);
@@ -698,13 +750,7 @@ function renderGrid(){
       if(reservedWideSlot(i))return;
       ev.preventDefault();b.classList.remove("drag-over");
       if(importFusionDraggedCommand(ev,i))return;
-      const file=ev.dataTransfer?.files?.[0];
-      if(file){
-        try{
-          const filePath=window.deckBridge?.droppedFilePath(file);
-          if(filePath){void registerDroppedApplication(i,filePath,file.size===0&&['link','linkMove'].includes(ev.dataTransfer.effectAllowed));return;}
-        }catch(error){window.d200xActionStatus?.('드래그한 파일 경로 오류: '+String(error?.message||error));return;}
-      }
+      if(Array.from(ev.dataTransfer?.types||[]).includes('Files')||ev.dataTransfer?.files?.length){finishExternalGridDrop(i);return;}
       const id=ev.dataTransfer.getData("application/x-d200x-action");if(isAssignableAction(id))setItem(i,newAction(id));
     });
     grid.append(b);
@@ -1549,16 +1595,28 @@ async function updateApplicationArtwork(item,filePath){
   }
   persistInspectorChange();render();
 }
-async function registerDroppedApplication(index,filePath,allowAppId=false){
+async function registerDroppedApplication(index,filePath,allowAppId=false,snapshot=captureNativeGrid()){
+  if(nativeGridBusy||!Number.isInteger(index)||index<0||index>=13||!window.deckBridge?.inspectDroppedTarget||!nativeSlotUnchanged(snapshot,index)||inspectorSession?.dirty)return;
+  nativeGridBusy=true;
   try{
-    if(!Number.isInteger(index)||index<0||index>=13||!window.deckBridge?.inspectDroppedTarget)return;
-    const previous=currentPage()[index];
-    const visible=DeckCore.visibleActions(state)[index];
+    let info=null;
+    if(filePath){
+      try{info=await window.deckBridge.inspectDroppedTarget(filePath,allowAppId);}
+      catch(error){window.d200xActionStatus?.('네이티브 드래그 등록 실패: '+String(error?.message||error));}
+    }
+    if(!nativeSlotUnchanged(snapshot,index)||inspectorSession?.dirty)return;
+    if(!info){
+      if(!await window.deckBridge.nativeDropWarning?.())return;
+      if(!nativeSlotUnchanged(snapshot,index)||inspectorSession?.dirty)return;
+      const selected=await window.deckBridge.choosePath('app');
+      if(!selected||!nativeSlotUnchanged(snapshot,index)||inspectorSession?.dirty)return;
+      info=await window.deckBridge.inspectDroppedTarget(selected,false);
+    }
+    if(!info||!nativeSlotUnchanged(snapshot,index)||inspectorSession?.dirty)return;
+    const visible=snapshot.visible[index];
     if(visible&&!confirm('기존 버튼의 액션을 드래그한 대상으로 교체할까요?'))return;
-    const page=currentPage();
-    const info=await window.deckBridge.inspectDroppedTarget(filePath,allowAppId);
     const artwork=info?.icon?await rasterizeIcon(info.icon,144,100):null;
-    if(!info||currentPage()!==page||page[index]!==previous)return;
+    if(!nativeSlotUnchanged(snapshot,index)||inspectorSession?.dirty)return;
     const action=newAction(info.kind==='folder'?'folder-shortcut':'open-app');
     if(info.kind==='folder')action.settings.path=info.path;
     else {
@@ -1568,6 +1626,7 @@ async function registerDroppedApplication(index,filePath,allowAppId=false){
     if(artwork){action.icon={kind:'file',value:artwork};action.settings.autoAppIcon=true;}
     setItem(index,action);
   }catch(error){window.d200xActionStatus?.('프로그램 드래그 등록 실패: '+String(error?.message||error));}
+  finally{nativeGridBusy=false;}
 }
 function renderFolderInspector(item,root){
   const host=document.createElement('div');host.className='multi-action-editor folder-editor-actions';
@@ -4392,6 +4451,13 @@ if(window.deckBridge?.onSdkEvent){
     }else if(message.kind==='error')window.d200xActionStatus?.(message.message);
   });
 }
+$('key-grid').addEventListener('dragleave',event=>{
+  const session=nativeGridDrag;
+  if(session&&!session.armed&&!$('key-grid').contains(event.relatedTarget)){
+    // A short handoff can produce dragleave before native DragEnter.
+    setTimeout(()=>{if(nativeGridDrag===session&&!session.armed)clearNativeGridDrag(session,true);},1300);
+  }
+});
 bindActionAppearance();renderLibrary();render();refreshSdkPlugins();
 if(profileStorageFailure){
   const dialog=document.createElement('dialog');dialog.className='profile-name-dialog deckforge-input-dialog';

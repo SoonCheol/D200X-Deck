@@ -2,7 +2,13 @@
 
 > **상태 기록 기준: 2026-11-19**. 실제 최신 HEAD는 Git에서 확인하며, 코드·자동 검사·Windows 빌드·사용자 Windows/D200X 실기 결과를 구분한다. 시작 시 `AGENTS.md`와 이 문서만 읽고 로드맵은 필요한 경우에만 참고한다.
 
-## 1. 최신 작업 인계 — C# 네이티브 드롭 진단 착수 (2026-11-19)
+## 1. 최신 작업 인계 — 1.1.29 네이티브 드롭 통합 (2026-11-19)
+
+- 사용자 실제 C# 진단: 34회/33개 프로그램 모두 Shell Item Array 성공; 일반 AppID 14, Known Folder GUID 10, 패키지 AppID 9, 절대 경로 1. 실제 등록·실행은 별도. 외부 Windows 드래그의 원본 수신을 C#으로 통합하고, 미지원/수신 실패 시 기존 프로그램 파일 선택으로 등록하는 경고창(취소/프로그램 열기) 구현. 취소·페이지/버튼 변경·미저장 상태 시 기존 데이터 보존.
+- 구현: 별도 비활성화 가능한 투명도 낮은 HWND를 외부 Files dragenter/dragover 때만 키 영역 위로 표시. Chromium OLE 등록을 강제 교체하지 않음. C# Shell/CF_HDROP 및 Known Folder 정규화, 기존 AppID·파일 검사·아이콘 처리 재사용. 동일 드롭 ID 한 번 소비, 숨김/종료/이동/크기 변경 시 취소, 진입 실패 1.2초 제한, 상시 폴링 없음. Fusion text/plain, 내부 액션 및 아이콘 드래그 보존. 실제 OLE 핸드오프·DPI·다중 모니터/취소·빠른 드롭·프로필 보존은 사용자 실기 확인 필요. Chromium이 최초 Files dragenter를 전달하지 않는 경우 원본 수신 영역 활성화도 실패할 수 있음; 파일 드롭 이벤트 수신 시 수동 등록 안내.
+- 버전 1.1.29, Windows 전용 헬퍼 사전 컴파일 및 portable/installer 실제 실행 smoke test 추가. Windows 빌드와 실제 UI/등록/실행은 별도. 이전 외부 경로 검사 루틴은 보존하되 Electron File 데이터로 직접 등록하는 경로는 사용하지 않음.
+
+### C# 네이티브 드롭 진단 착수 (2026-11-19)
 
 - 사용자 승인: 외부 드래그 C# 중심, 미지원 프로그램은 경고창의 '프로그램 열기'에서 기존 파일 선택창으로 직접 등록. Electron 내부 액션·Fusion·아이콘 드래그 보존. 기존 프로그램 열기 등록값의 완전 호환성보다 새 설치 기준 설계 우선; 실제 데이터 삭제는 하지 않음.
 - 1단계 독립 진단: `tools/native-drop-probe/NativeDropProbe.cs` + 전용 Windows 빌드/Artifact. 원본 COM IDataObject를 Drop 콜백 내에서 읽고 Shell Item Array, 경로, AppID, 포맷 및 CF_HDROP 결과 기록. 실제 앱 실행·등록·프로필 변경 없음. 본체 1.1.28 유지. 빌드 smoke 및 사용자 Windows 드래그 실기는 별도 확인. Electron 동일 버튼 영역 연동 및 경고창은 실기 확인 후 구현.

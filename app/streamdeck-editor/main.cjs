@@ -10,6 +10,7 @@ const {randomUUID}=require('node:crypto');
 const { execFile, spawn } = require('node:child_process');
 const {parseWindowsArgs}=require('./windows-args.cjs');
 const {runFolderHelper}=require('./folder-helper.cjs');
+const {NativeDropHost,physicalSlots}=require('./native-drop-host.cjs');
 const { promisify } = require('node:util');
 const execFileAsync = promisify(execFile);
 const { D200XTransport } = require('./transport.cjs');
@@ -312,6 +313,23 @@ function initializeTray(){
   catch(error){console.warn('DeckForge login startup setup failed:',error.message);}
   updateTrayMenu();
 }
+const nativeDropHost=new NativeDropHost(__dirname,message=>send('d200x:native-drop-event',message));
+ipcMain.handle('d200x:native-drop-start',(event,args)=>{
+  if(!window||event.sender!==window.webContents||!window.isVisible()||window.isMinimized()||process.platform!=='win32')return false;
+  const rects=physicalSlots(args?.rects,window.getContentBounds(),window.webContents.getZoomFactor(),point=>screen.dipToScreenPoint(point));
+  if(!rects.length)return false;
+  nativeDropHost.warm();
+  const owner=window.getNativeWindowHandle().readBigUInt64LE(0).toString();
+  return nativeDropHost.start(args?.id,owner,rects);
+});
+ipcMain.on('d200x:native-drop-cancel',(event,id)=>{
+  if(window&&event.sender===window.webContents&&typeof id==='string')nativeDropHost.cancel(id);
+});
+ipcMain.handle('d200x:native-drop-warning',async event=>{
+  if(!window||event.sender!==window.webContents||!window.isVisible())return false;
+  const result=await dialog.showMessageBox(window,{type:'warning',title:'DeckForge',message:'드래그 등록 불가',detail:'이 프로그램은 드래그로 등록할 수 없습니다. 프로그램을 직접 선택하여 등록하시겠습니까?',buttons:['취소','프로그램 열기'],cancelId:0,defaultId:1,noLink:true});
+  return result.response===1;
+});
 const transport = new D200XTransport();
 function send(channel, payload) {
   if (rendererReady && window && !window.isDestroyed()) {
@@ -1358,6 +1376,13 @@ if(singleInstanceLock)app.whenReady().then(async () => {
   }catch(error){console.warn('기본 플러그인 설치를 완료하지 못했습니다:',error.message);}
   // Copy Fusion add-in only when Fusion already initialized its API/AddIns folder.
   try{await Bundled.installFusionAddin()}catch(error){console.warn('Fusion 애드인 자동 복사 실패:',error.message);}
+  window.on('show',()=>nativeDropHost.warm());
+  window.on('hide',()=>nativeDropHost.stop());
+  window.on('minimize',()=>nativeDropHost.cancel());
+  window.on('move',()=>nativeDropHost.cancel());
+  window.on('resize',()=>nativeDropHost.cancel());
+  window.webContents.on('render-process-gone',()=>nativeDropHost.stop());
+  if(window.isVisible())nativeDropHost.warm();
   await window.loadFile(path.join(__dirname, 'index.html'));
   if(process.argv.includes('--fusion-manager'))openIntegratedManager().catch(error=>console.warn('Fusion Manager 바로가기:',error.message));
   window.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
@@ -1370,12 +1395,13 @@ if(singleInstanceLock)app.whenReady().then(async () => {
       window.hide(); // Renderer, plugin host, and HID input remain alive in the tray.
     }
   });
-  window.on('closed', () => {rendererReady=false;window=null;});
+  window.on('closed', () => {nativeDropHost.stop();rendererReady=false;window=null;});
   transport.start().catch(err => send('d200x:error', String(err)));
 });
 app.on('activate',revealEditor);
 app.on('before-quit', () => {
   quitting=true;
+  nativeDropHost.stop();
   transport.stop();
   sdkHost?.close().catch(error=>console.warn('SDK host shutdown:',error.message));
 });

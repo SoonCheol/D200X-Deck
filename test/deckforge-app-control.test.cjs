@@ -98,16 +98,11 @@ test('Windows PowerShell 5.1 Force with a unique nonexistent EXE returns no matc
   assert.ok(!result.steps.some(s=>s.stage==='fatal'||s.stage==='api'));
 });
 
-test('zero-byte link and linkMove drops allow AppID inspection without changing real file drops',()=>{
-  const line=editor.split(/\r?\n/).find(s=>s.includes('void registerDroppedApplication(i,filePath,'));
-  assert.ok(line);
-  const source='(function(i,filePath,file,ev){'+line+'})';
-  const calls=[];
-  const fn=vm.runInNewContext(source,{registerDroppedApplication:(...args)=>calls.push(args)});
-  for(const [size,effectAllowed,expected] of [[0,'link',true],[0,'linkMove',true],[0,'move',false],[0,'copy',false],[0,'all',false],[256,'link',false],[256,'linkMove',false]]){
-    fn(1,'example',{size},{dataTransfer:{effectAllowed}});
-    assert.deepEqual(calls.pop(),[1,'example',expected]);
-  }
+test('external program grid drops arm native receiver and do not parse Electron file paths',()=>{
+  assert.match(editor,/function externalGridDrop\(ev\)/);
+  assert.match(editor,/armNativeGrid\(ev\);/);
+  assert.match(editor,/finishExternalGridDrop\(i\);return;/);
+  assert.ok(!editor.includes('void registerDroppedApplication(i,filePath,'));
 });
 
 const main=fs.readFileSync(path.join(__dirname,'../app/streamdeck-editor/main.cjs'),'utf8');
