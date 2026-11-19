@@ -77,7 +77,7 @@ test('API edit mode exposes only proposal, never apply; proposal once and only o
   await assert.rejects(chat({...args,readOnly:true,propose,fetcher:async()=>events(completed([call('1','propose_edit',input)]))}),/허용되지 않은/);
   assert.equal(count,0);
   const result=await chat({...args,readOnly:true,editMode:true,propose,fetcher:async(_u,o)=>{
-    const data=JSON.parse(o.body);assert.deepEqual(data.tools[0].tools.map(t=>t.name),['get_version','inspect','propose_edit']);
+    const data=JSON.parse(o.body);assert.deepEqual(data.tools[0].tools.map(t=>t.name),['get_version','inspect','propose_edit','propose_advanced']);
     if(++requests===1)return events(completed([call('1','propose_edit',input)]));
     return events({type:'response.output_text.delta',delta:'preview'},completed([]));
   }});

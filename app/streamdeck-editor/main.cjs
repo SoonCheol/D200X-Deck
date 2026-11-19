@@ -211,19 +211,14 @@ function newAiReadSession(){
 }
 // Only fixed editor entry points. All arguments are JSON data; no model-authored scripts.
 async function aiEditorCall(method,arg){
-  if(!['capture','types','prepare','apply','discard','undo'].includes(method)||!rendererReady||!window||window.isDestroyed())throw Error('DeckForge 편집 화면을 열어 주세요.');
+  if(!['capture','types','prepare','prepareAdvanced','advancedTypes','apply','discard','undo'].includes(method)||!rendererReady||!window||window.isDestroyed())throw Error('DeckForge 편집 화면을 열어 주세요.');
   const literal=JSON.stringify(JSON.stringify(arg)).replace(/\u2028/g,'\\u2028').replace(/\u2029/g,'\\u2029');
   const result=await window.webContents.executeJavaScript('(async()=>{try{return {ok:true,value:await window.DeckForgeAiEdit.'+method+'(JSON.parse('+literal+'))};}catch(e){return {ok:false,error:String(e?.message||e).slice(0,200)};}})()');
   if(!result?.ok)throw Error(result?.error||'편집 화면 응답 오류');return result.value;
 }
 const {validate:validateAiEdit}=require('./ai/edit-plan.js');
-async function prepareAiEdit(id,input,userText,signal){
-  const valid=validateAiEdit(input),types=await aiEditorCall('types',{id,input:valid});
-  const targets=[];
-  for(const [i,o] of valid.operations.entries()){
-    signal?.throwIfAborted();
-    const type=types[i],value=o.value;
-    if(!['put','update'].includes(o.op)||!['open-app','file-open','folder-shortcut'].includes(type)||value===null){targets.push(null);continue;}
+const {validate:validateAdvancedEdit}=require('./ai/advanced-plan.js');
+async function resolveAiTarget(type,value,userText){
     let info;
     const appId=value.startsWith('shell:AppsFolder\\')?value.slice('shell:AppsFolder\\'.length):value;
     if(type==='open-app'&&!/^[A-Za-z]:[\\/]/.test(value)){
@@ -245,7 +240,37 @@ async function prepareAiEdit(id,input,userText,signal){
         info={path:value,name:path.win32.basename(value)||value,icon};
       }
     }
-    targets.push({type,requested:value,path:info.path,name:info.name,artwork:info.icon||''});
+    return {type,requested:value,path:info.path,name:info.name,artwork:info.icon||''};
+}
+async function prepareAiEdit(id,input,userText,signal){
+  if(input?.advanced){
+    const advanced=validateAdvancedEdit(input.advanced),c=JSON.parse(advanced.configJson),resources={};
+    signal?.throwIfAborted();
+    if(advanced.kind==='folder_keys'){
+      const types=await aiEditorCall('advancedTypes',{id,input:advanced});resources.targets=[];
+      for(const [i,x] of c.keys.entries()){
+        signal?.throwIfAborted();
+        const type=types[i];resources.targets.push(['open-app','file-open','folder-shortcut'].includes(type)&&typeof x.value==='string'?await resolveAiTarget(type,x.value,userText):null);
+      }
+    }
+    if(advanced.kind==='plugin'&&c.kind==='ha'){
+      const config=readHaConfig();
+      if(!config)throw Error('내장 HA 연결 설정이 필요합니다.');
+      const entities=await HA.listEntities(config,(url,options)=>fetch(url,{...options,redirect:'error'}));
+      const found=entities.find(x=>x.entity_id===c.id);
+      if(!found)throw Error('HA 엔티티를 확인하지 못했습니다.');
+      resources.ha={id:found.entity_id,name:found.name};
+    }
+    signal?.throwIfAborted();
+    return aiEditorCall('prepareAdvanced',{id,input:advanced,resources});
+  }
+  const valid=validateAiEdit(input),types=await aiEditorCall('types',{id,input:valid});
+  const targets=[];
+  for(const [i,o] of valid.operations.entries()){
+    signal?.throwIfAborted();
+    const type=types[i],value=o.value;
+    if(!['put','update'].includes(o.op)||!['open-app','file-open','folder-shortcut'].includes(type)||value===null){targets.push(null);continue;}
+    targets.push(await resolveAiTarget(type,value,userText));
   }
   signal?.throwIfAborted();return aiEditorCall('prepare',{id,input:valid,targets});
 }

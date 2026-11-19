@@ -161,8 +161,9 @@ async function pluginMetadata(userData){
   }
   return items;
 }
-const SECTIONS=['profiles','page','actions','icon_packs','icons','start_apps','running_windows','device','recent_inputs','plugins','plugin_actions','ha','fusion','app_log','folder_log','usb_log','guide'];
-const TOOL={type:'function',name:'inspect',description:'Read only. sections: profiles; page (profile/page are 1-based, folder "current" or "2:1/3:2" = slot:folder-page, null=root); actions; icon_packs; icons; start_apps; running_windows; device; recent_inputs; plugins; plugin_actions; ha; fusion; app_log; folder_log; usb_log; guide. query filters locally, offset paginates. Null for unused arguments. No raw paths, commands or logs.',parameters:{type:'object',properties:{section:{type:'string',enum:SECTIONS},profile:{type:['integer','null']},page:{type:['integer','null']},folder:{type:['string','null']},query:{type:['string','null']},offset:{type:['integer','null']}},required:['section','profile','page','folder','query','offset'],additionalProperties:false},strict:true};
+const {walkTemplates}=require('./advanced-plan.js');
+const SECTIONS=['plugin_templates','profiles','page','actions','icon_packs','icons','start_apps','running_windows','device','recent_inputs','plugins','plugin_actions','ha','fusion','app_log','folder_log','usb_log','guide'];
+const TOOL={type:'function',name:'inspect',description:'Read only. sections: profiles; page (profile/page are 1-based, folder "current" or "2:1/3:2" = slot:folder-page, null=root); actions; icon_packs; icons; start_apps; running_windows; device; recent_inputs; plugins; plugin_actions; plugin_templates (configured Fusion command IDs / SDK HA entity IDs only); ha; fusion; app_log; folder_log; usb_log; guide. query filters locally, offset paginates. Null for unused arguments. No raw paths, commands or logs.',parameters:{type:'object',properties:{section:{type:'string',enum:SECTIONS},profile:{type:['integer','null']},page:{type:['integer','null']},folder:{type:['string','null']},query:{type:['string','null']},offset:{type:['integer','null']}},required:['section','profile','page','folder','query','offset'],additionalProperties:false},strict:true};
 function validate(a){
   if(!a||Array.isArray(a)||typeof a!=='object'||Object.keys(a).length!==6||!SECTIONS.includes(a.section)||!['profile','page','folder','query','offset'].every(k=>Object.hasOwn(a,k)))throw Error('invalid-query');
   if(a.profile!==null&&!integer(a.profile,1,50)||a.page!==null&&!integer(a.page,1,128)||a.offset!==null&&!integer(a.offset,0,10000)||a.query!==null&&(typeof a.query!=='string'||a.query.length>100)||a.folder!==null&&(typeof a.folder!=='string'||a.folder!=='current'&& !/^(?:[1-9]|1[0-4]):(?:[1-9]|10)(?:\/(?:[1-9]|1[0-4]):(?:[1-9]|10)){0,7}$/.test(a.folder)))throw Error('invalid-query');
@@ -179,6 +180,11 @@ function createReader({root,userData,view,device,inputs,ha,fusion,apps=windowsAp
       try{
         let result;
         if(a.section==='guide')result=GUIDE;
+        else if(a.section==='plugin_templates'){
+          state??=await readState();
+          const rows=walkTemplates(state).map(x=>({kind:x.kind,id:label(x.id,256),name:label(x.name,120)}));
+          result={...slice(filtered(rows,q),o),source:'saved configured plugin commands and entities only; plugin installation verified separately before proposal'};
+        }
         else if(a.section==='profiles'||a.section==='page'){
           state??=await readState();
           const v=await view().catch(()=>null);

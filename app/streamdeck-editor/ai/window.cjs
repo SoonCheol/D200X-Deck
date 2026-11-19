@@ -47,7 +47,26 @@ function registerAiWindow(assertEditor,newReadSession,editorEdits){
       return {ok:false,error:!(error instanceof SyntaxError)&&/^[가-힣A-Za-z0-9 .·()\/,:?]+$/.test(message)&&/[가-힣]/.test(message)?message.slice(0,220):'AI 요청을 완료하지 못했습니다. 연결 상태를 확인하세요.'};
     }
   }
+  let preferences=null;
+  async function readPreferences(){
+    if(preferences)return preferences;
+    const defaults={read:false,edit:false};
+    try{
+      const raw=JSON.parse(await fs.readFile(path.join(dir(),'preferences.json'),'utf8'));
+      return preferences={read:raw.read===true||raw.edit===true,edit:raw.edit===true};
+    }catch{return preferences=defaults;}
+  }
+  async function savePreferences(value){
+    if(!value||typeof value.read!=='boolean'||typeof value.edit!=='boolean'||Object.keys(value).length!==2)throw Error('조회 설정 형식 오류');
+    const next={read:value.read||value.edit,edit:value.edit},file=path.join(dir(),'preferences.json'),temp=file+'.'+randomUUID()+'.tmp';
+    await fs.mkdir(dir(),{recursive:true});
+    try{await fs.writeFile(temp,JSON.stringify(next),{flag:'wx',mode:0o600});await fs.rename(temp,file);preferences=next;return next;}
+    finally{await fs.rm(temp,{force:true}).catch(()=>{});}
+  }
+  let preferenceTail=Promise.resolve();
   const handlers={
+    preferences:async()=>{await preferenceTail.catch(()=>{});return readPreferences();},
+    setPreferences:async value=>{const task=preferenceTail.catch(()=>{}).then(()=>savePreferences(value));preferenceTail=task;return task;},
     status:async()=>({ ...await connection().status(),busy:active?.kind||null,canUndo:!!undoId }),
     login:async()=>{
       const job=begin('login');

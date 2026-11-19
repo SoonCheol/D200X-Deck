@@ -3901,7 +3901,7 @@ window.executeD200XKey=executeHardwareAction;
  function aiEditReady(){
    if(profileStorageFailure||!window.deckBridge?.writeProfile)throw Error('프로필 저장 기능을 확인하세요.');
    if(inspectorEditing||inspectorSession?.dirty||document.querySelector('dialog[open]')||nativeGridBusy||nativeGridDrag||openAppHoldTimers.size)throw Error('미저장 편집 또는 진행 중인 동작을 먼저 마치세요.');
-   if(state.folderPath?.length)throw Error('일반 페이지로 이동한 후 AI 편집을 이용하세요.');
+   // Folder navigation is allowed; advanced edits require an explicit folder route.
  }
  function aiEditCurrent(id){
    aiEditReady();
@@ -3958,6 +3958,48 @@ window.executeD200XKey=executeHardwareAction;
        if(next?.icon?.kind==='file'&&/^data:image\/png;base64,[A-Za-z0-9+/=]+$/.test(next.icon.value||'')&&next.icon.value.length<1024*1024)row.previewImage=next.icon.value;
      }
      return {id,profile:plan.profile,rows};
+   },
+   advancedTypes({id,input}){aiEditCurrent(id);return window.DeckForgeAiAdvanced.folderTargetTypes(state,input);},
+   async prepareAdvanced({id,input,resources}){
+     const snapshot=aiEditCurrent(id),a=window.DeckForgeAiAdvanced.validate(input),c=JSON.parse(a.configJson);
+     const local={...resources,icons:{},targets:[]};
+     for(const target of resources.targets||[]){
+       if(!target){local.targets.push(null);continue;}
+       const out={...target};delete out.artwork;
+       if(target.artwork)try{out.icon={kind:'file',value:await rasterizeIcon(target.artwork,144,100)};}catch{}
+       local.targets.push(out);
+     }
+     if(a.kind==='plugin'&&c.kind!=='ha'){
+       const found=window.DeckForgeAiAdvanced.walkTemplates(state).find(x=>x.kind===c.kind&&x.id===c.id);
+       if(!found)throw Error('등록된 플러그인 명령 또는 장치를 찾지 못했습니다.');
+       const plugin=sdkPlugins.find(p=>p.uuid===found.action.settings.pluginUUID);
+       if(!plugin?.actions?.some(x=>x.uuid===found.action.settings.actionUUID))throw Error('해당 플러그인을 먼저 설치하세요.');
+       local.template={kind:c.kind,id:c.id};
+     }
+     if(a.kind==='state_design'){
+       let packs;const matched={};
+       for(const k of ['first','second']){
+         const v=c[k];if(!v?.iconName)continue;
+         packs??=await window.deckBridge.listIconPacks();
+         const matches=[];
+         for(const pack of packs){
+           if(v.iconPack&&String(pack.name).toLowerCase()!==v.iconPack.trim().toLowerCase())continue;
+           for(const icon of pack.icons||[])if(String(icon.name).toLowerCase()===v.iconName.trim().toLowerCase())matches.push({pack,icon});
+         }
+         if(matches.length!==1)throw Error('상태 아이콘 이름이 없거나 중복됩니다. 팩과 정확한 이름을 지정하세요.');
+         const {pack,icon}=matches[0];
+         local.icons[k]={name:v.iconName,pack:pack.name,data:{kind:'file',value:await rasterizeIcon(icon.image),packId:pack.id}};
+         matched[k]={pack,icon,pair:iconPairType(icon)};
+       }
+       const one=matched.first,two=matched.second;
+       if(one&&two&&one.pack.id===two.pack.id&&one.pair?.state==='off'&&two.pair?.state==='on'&&findIconCompanion(one.pack,one.icon)===two.icon){
+         const pair=JSON.stringify([one.pack.id,one.pair.directory,one.pair.base,one.pair.source]);
+         local.icons.first.data.statePair=pair;local.icons.second.data.statePair=pair;
+       }
+     }
+     if(aiEditCurrent(id)!==snapshot)throw Error('변경안이 취소되었습니다.');
+     const plan=window.DeckForgeAiAdvanced.makePlan(state,a,local);snapshot.plan=plan;
+     return {id,profile:plan.profile,rows:plan.rows};
    },
    apply(id){
      const snapshot=aiEditCurrent(id);

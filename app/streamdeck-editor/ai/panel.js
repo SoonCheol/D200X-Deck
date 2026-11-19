@@ -4,6 +4,19 @@ const $=id=>document.getElementById(id),api=window.aiBridge;
 let connected=false,busy='',models=[],history=[],current=null,stream=null,preview=null,canUndo=false;
 const notice=t=>{$('notice').textContent=t||'';};
 const check=r=>{if(!r?.ok)throw Error(r?.error||'AI 연결 오류');return r.value;};
+
+let preferenceSave=Promise.resolve();
+function setChecks(settings){
+  $('edit-mode').checked=settings?.edit===true;
+  $('tool').checked=settings?.read===true||$('edit-mode').checked;
+}
+function rememberChecks(){
+  const settings={read:$('tool').checked,edit:$('edit-mode').checked};
+  preferenceSave=preferenceSave.catch(()=>{}).then(()=>api.setPreferences(settings)).then(check).catch(e=>notice('조회 설정 저장 실패: '+e.message));
+}
+$('tool').onchange=()=>{if(!$('tool').checked)$('edit-mode').checked=false;rememberChecks();};
+$('edit-mode').onchange=()=>{if($('edit-mode').checked)$('tool').checked=true;rememberChecks();};
+
 function controls(){
   $('status').textContent=busy?({login:'로그인 중',models:'모델 조회 중',chat:'응답 중',logout:'연결 해제 중',history:'기록 처리 중',apply:'변경 저장 중',undo:'복구 중'}[busy]||'처리 중'):connected?'연결됨':'연결 안 됨';
   $('login').hidden=connected;$('login').disabled=!!busy;$('logout').hidden=!connected;$('logout').disabled=!!busy;
@@ -17,12 +30,12 @@ function controls(){
 }
 function addMessage(role,text){
   const div=document.createElement('div');div.className='message '+role;const label=document.createElement('b');label.textContent=role==='user'?'사용자':'ChatGPT';
-  const content=document.createElement('span');content.textContent=text;div.append(label,content);$('messages').append(div);$('messages').scrollTop=$('messages').scrollHeight;return content;
+  const content=document.createElement('div');content.className='message-content'+(role==='assistant'&&!text?' is-streaming':'');if(role==='assistant'&&text)window.DeckForgeMarkdown.render(content,text);else content.textContent=text;div.append(label,content);$('messages').append(div);$('messages').scrollTop=$('messages').scrollHeight;return content;
 }
 function draw(){
   $('messages').replaceChildren();const c=history.find(x=>x.id===current);
   if(c)c.messages.forEach(m=>addMessage(m.role,m.content));
-  else{const p=document.createElement('p');p.className='empty';p.textContent='새 대화 · 조회 허용 시 로컬 상태를 질문할 수 있습니다. 변경안을 만들려면 변경안 만들기를 선택하세요. 실제 동작 실행은 지원하지 않습니다.';$('messages').append(p);}
+  else{const p=document.createElement('p');p.className='empty';p.textContent='새 대화 · 조회 또는 변경안 만들기를 선택하세요. 변경안은 승인 전 저장되지 않습니다.';$('messages').append(p);}
   $('history').replaceChildren(new Option('새 대화',''),...history.map(c=>new Option(c.title,c.id)));$('history').value=c?.id||'';controls();
 }
 async function status(){
@@ -52,11 +65,10 @@ $('stop').onclick=()=>{api.cancel();notice('중지 요청 중');};
 api.onEvent(event=>{
   if(busy!=='chat'||!stream)return;
   if(event.type==='delta'&&typeof event.text==='string'){stream.textContent+=event.text;$('messages').scrollTop=$('messages').scrollHeight;}
-  if(event.type==='tool'){notice(event.name==='propose_edit'?'변경안 준비 중':event.name==='get_version'?'로컬 버전 조회 결과: '+event.version:'로컬 조회: '+(event.section||'')+(event.ok===false?' · 제한 또는 실패':''));}
+  if(event.type==='tool'){notice(['propose_edit','propose_advanced'].includes(event.name)?'변경안 준비 중':event.name==='get_version'?'로컬 버전 조회 결과: '+event.version:'로컬 조회: '+(event.section||'')+(event.ok===false?' · 제한 또는 실패':''));}
 });
 $('send').onclick=()=>run('chat',async()=>{
   const text=$('input').value.trim(),id=current||crypto.randomUUID(),model=$('model').value,editMode=$('edit-mode').checked,readOnly=$('tool').checked||editMode;
-  $('tool').checked=false;$('edit-mode').checked=false;
   notice('응답 요청 중');$('messages').querySelector('.empty')?.remove();addMessage('user',text);stream=addMessage('assistant','');
   try{const r=check(await api.send({id,model,text,readOnly,editMode}));history=[r.conversation,...history.filter(c=>c.id!==id)];current=id;$('input').value='';canUndo=!!r.canUndo;draw();showPreview(r.preview||null);if(r.previewFailure){notice('변경안 준비 실패: '+r.previewFailure);return;}notice((readOnly?(r.called?'조회 및 응답 완료 · '+r.toolCalls+'회 조회':'응답 완료 · 로컬 조회 없음'):'응답 완료')+' · 요청 '+r.requests+'회'+(r.usage?' · 입력 '+r.usage.input_tokens.toLocaleString()+' / 출력 '+r.usage.output_tokens.toLocaleString()+' 토큰':''));}
   catch(e){stream.textContent+=(stream.textContent?'\n\n':'')+'[미완료 · 저장하지 않음]';throw e;}
@@ -71,14 +83,14 @@ function showPreview(value){
   preview=value;$('edit-preview').hidden=!value;$('edit-rows').replaceChildren();
   if(value){
     $('edit-profile').textContent=value.profile;
-    const names={put:'등록',update:'수정',delete:'삭제',copy:'복사',move:'이동',move_source:'이동 원본',add_page:'페이지 추가'};
+    const names={put:'등록',update:'수정',delete:'삭제',copy:'복사',move:'이동',move_source:'이동 원본',add_page:'페이지 추가',folder_page:'덱폴더 페이지 추가',folder_settings:'덱폴더 설정',control:'물리 컨트롤',wide:'와이드 화면',composite:'복합 동작',state_design:'상태별 디자인',plugin:'플러그인 등록'};
     for(const row of value.rows){
       const box=document.createElement('div');box.className='edit-row';
       if(typeof row.previewImage==='string'&&/^data:image\/png;base64,[A-Za-z0-9+/=]+$/.test(row.previewImage)){
         const img=document.createElement('img');img.alt='변경 후 아이콘';img.src=row.previewImage;box.append(img);
       }
       const body=document.createElement('div'),title=document.createElement('strong'),data=document.createElement('pre');
-      title.textContent=(names[row.op]||row.op)+' · 페이지 '+row.page+(row.slot?' / 버튼 '+row.slot:'');
+      title.textContent=(names[row.op]||row.op)+' · 페이지 '+row.page+(row.folder?' / 폴더 '+row.folder:'')+(row.slot?' / 버튼 '+row.slot:'')+(row.control?' / '+row.control:'')+(row.state?' / '+row.state:'');
       data.textContent='전: '+describeEdit(row.before)+'\n후: '+describeEdit(row.after)+(row.icon?'\n아이콘: '+row.icon:'');
       body.append(title,data);box.append(body);$('edit-rows').append(box);
     }
@@ -95,5 +107,5 @@ $('edit-cancel').onclick=()=>run('apply',async()=>{if(!preview)return;check(awai
 $('edit-undo').onclick=()=>run('undo',async()=>{if(!canUndo||!confirm('최근 AI 변경을 되돌리시겠습니까?'))return;
   const r=check(await api.undoEdit());canUndo=!!r.canUndo;notice(r.refreshError?'복구 저장 완료 · 화면 확인 필요':'최근 AI 변경 되돌리기 완료');});
 
-run('history',async()=>{await status();history=check(await api.history());current=history[0]?.id||null;draw();if(connected){busy='models';controls();await modelList();}});
+run('history',async()=>{setChecks(check(await api.preferences()));await status();history=check(await api.history());current=history[0]?.id||null;draw();if(connected){busy='models';controls();await modelList();}});
 })();
