@@ -9,6 +9,7 @@ const fs = require('node:fs');
 const {randomUUID}=require('node:crypto');
 const { execFile, spawn } = require('node:child_process');
 const {parseWindowsArgs}=require('./windows-args.cjs');
+const DeckHotkeys=require('./hotkey-keys.js');
 const {runFolderHelper}=require('./folder-helper.cjs');
 const {runAppFocus,focusOrLaunch,createAppLaunchQueue}=require('./app-focus.cjs');
 const {NativeDropHost,physicalSlots}=require('./native-drop-host.cjs');
@@ -762,7 +763,9 @@ $text=[Text.Encoding]::Unicode.GetString([Convert]::FromBase64String('${encoded}
 
 // Original Stream Deck media keys. Never execute user-supplied code.
 const MEDIA_CODES=Object.freeze({previous:0xB1,playpause:0xB3,next:0xB0,stop:0xB2,mute:0xAD,up:0xAF,down:0xAE});
-function emitWindowsKeys(held,key){
+function emitWindowsKeys(held,key,options=null){
+  const flags=options?.extended?1:0,scan=options?.scan||0;
+  const modifierFlags=v=>options&&v===0x5B?1:0;
   const code=`Add-Type -TypeDefinition @'
 using System;
 using System.Runtime.InteropServices;
@@ -770,10 +773,10 @@ public class D200XPreviewKeys {
   [DllImport("user32.dll")] public static extern void keybd_event(byte vk, byte scan, uint flags, UIntPtr extra);
 }
 '@;
-${held.map(v=>`[D200XPreviewKeys]::keybd_event(${v},0,0,[UIntPtr]::Zero);`).join('\n')}
-[D200XPreviewKeys]::keybd_event(${key},0,0,[UIntPtr]::Zero);
-[D200XPreviewKeys]::keybd_event(${key},0,2,[UIntPtr]::Zero);
-${held.slice().reverse().map(v=>`[D200XPreviewKeys]::keybd_event(${v},0,2,[UIntPtr]::Zero);`).join('\n')}`;
+${held.map(v=>`[D200XPreviewKeys]::keybd_event(${v},0,${modifierFlags(v)},[UIntPtr]::Zero);`).join('\n')}
+[D200XPreviewKeys]::keybd_event(${key},${scan},${flags},[UIntPtr]::Zero);
+[D200XPreviewKeys]::keybd_event(${key},${scan},${flags|2},[UIntPtr]::Zero);
+${held.slice().reverse().map(v=>`[D200XPreviewKeys]::keybd_event(${v},0,${modifierFlags(v)|2},[UIntPtr]::Zero);`).join('\n')}`;
   return execFileAsync('powershell.exe',['-NoProfile','-NonInteractive','-WindowStyle','Hidden','-Command',code],
     {windowsHide:true,timeout:6000,maxBuffer:32768});
 }
@@ -783,33 +786,13 @@ ipcMain.handle('d200x:media-control',async(event,args)=>{
   if(process.platform!=='win32')throw new Error('Windows에서만 지원합니다.');
   await emitWindowsKeys([],MEDIA_CODES[args.operation]);return true;
 });
-const HOTKEY_SPECIAL=Object.freeze({Enter:0x0D,Space:0x20,Tab:0x09,Escape:0x1B,Backspace:0x08,Delete:0x2E,
-  Left:0x25,Up:0x26,Right:0x27,Down:0x28,Home:0x24,End:0x23,PageUp:0x21,PageDown:0x22,
-  Insert:0x2D,BracketLeft:0xDB,BracketRight:0xDD,Plus:0xBB,Minus:0xBD});
-function parseWindowsHotkey(value){
-  if(typeof value!=='string'||value.length>60)return null;
-  const parts=value.split('+').map(x=>x.trim()).filter(Boolean);
-  if(parts.length<1||parts.length>5)return null;
-  const held=[],seen=new Set();let key=null;
-  for(const part of parts){
-    const mods={Ctrl:0x11,Control:0x11,Alt:0x12,Shift:0x10,Win:0x5B,Meta:0x5B};
-    const mod=Object.hasOwn(mods,part)?mods[part]:null;
-    if(mod){if(seen.has(mod))return null;seen.add(mod);held.push(mod);continue;}
-    if(key!==null)return null;
-    if(/^[A-Z]$/i.test(part))key=part.toUpperCase().charCodeAt(0);
-    else if(/^[0-9]$/.test(part))key=part.charCodeAt(0);
-    else if(/^F(?:[1-9]|1[0-2])$/i.test(part))key=0x6F+Number(part.slice(1));
-    else key=Object.hasOwn(HOTKEY_SPECIAL,part)?HOTKEY_SPECIAL[part]:null;
-    if(key===null)return null;
-  }
-  return key===null?null:{held,key};
-}
+function parseWindowsHotkey(value){return DeckHotkeys.resolve(value);}
 ipcMain.handle('d200x:send-hotkey',async(event,args)=>{
   if(!window||event.sender!==window.webContents)throw new Error('허용되지 않은 호출입니다.');
   const parsed=parseWindowsHotkey(args?.keys);
   if(!parsed)throw new Error('지원하지 않는 단축키 형식입니다.');
   if(process.platform!=='win32')throw new Error('Windows에서만 지원합니다.');
-  await emitWindowsKeys(parsed.held,parsed.key);return true;
+  await emitWindowsKeys(parsed.held,parsed.key,parsed);return true;
 });
 
 // Fixed Win32 shortcuts; choices are validated against this closed allowlist.

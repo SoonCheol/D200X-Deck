@@ -2507,17 +2507,165 @@ function bindExtendedActionFields(root,item){
     });
   }
   if(item.type==='audio-play')populateAudioOutputs(root.querySelector('[data-field="output"]'),item);
-  if(item.type!=='hotkey')return;
-  const preset=root.querySelector('[data-field="preset"]');
-  preset?.addEventListener('change',()=>{
-    item.settings.preset=preset.value;
-    if(preset.value&&HOTKEY_PRESETS[preset.value]){
-      item.settings.keys=HOTKEY_PRESETS[preset.value];
-      const keys=root.querySelector('[data-field="keys"]');
-      if(keys)keys.value=item.settings.keys;
+  if(item.type==='hotkey'||item.type==='hotkey-switch')bindHotkeyFields(root,item);
+}
+let hotkeyInputSerial=0;
+function bindHotkeyFields(root,item){
+  const api=window.DeckHotkeys;
+  const names=item.type==='hotkey'?['keys']:['first','second'];
+  const inputs=names.map(field=>root.querySelector('[data-field="'+field+'"]')).filter(Boolean);
+  if(!inputs.length)return;
+  const preset=item.type==='hotkey'?root.querySelector('[data-field="preset"]'):null;
+  let mode=item.settings.hotkeyInputMode==='select'?'select':'keyboard';
+  const controls=[];
+  const modeRow=document.createElement('div');modeRow.className='field hotkey-mode-row';
+  const modeLabel=document.createElement('label');modeLabel.textContent='입력 방식';
+  const modeBox=document.createElement('div');modeBox.className='hotkey-input-modes';modeBox.setAttribute('role','group');modeBox.setAttribute('aria-label','입력 방식');
+  const radioName='hotkey-mode-'+(++hotkeyInputSerial);
+  for(const [value,label] of [['keyboard','키보드 입력'],['select','선택 입력']]){
+    const wrap=document.createElement('label'),radio=document.createElement('input');
+    radio.type='radio';radio.name=radioName;radio.value=value;radio.checked=mode===value;
+    wrap.append(radio,document.createTextNode(label));modeBox.append(wrap);
+    radio.addEventListener('change',()=>{
+      if(!radio.checked)return;
+      mode=value;item.settings.hotkeyInputMode=value;
+      for(const control of controls)control.sync();
+      persistInspectorChange();
+    });
+  }
+  modeRow.append(modeLabel,modeBox);inputs[0].closest('.field').before(modeRow);
+  function applyPresetTitle(id){
+    if(!id||item.type!=='hotkey')return;
+    const label=HOTKEY_PRESET_LABELS.find(([key])=>key===id)?.[1];
+    if(!label)return;
+    // Preserve manually named titles and independent visibility/style settings.
+    const eligible=value=>!value||value==='단축키'||HOTKEY_PRESET_LABELS.some(([key,name])=>key&&name===value);
+    const titleFields=root.querySelectorAll('.state-title-input');
+    if(eligible(item.title))item.title=label;
+    if(root.id==='inspector'&&hasStateTitlePair(item)){
+      const pair=ensureStateTitlePair(item);
+      for(const [i,which] of ['first','second'].entries()){
+        const entry=pair[which];
+        if(entry.enabled&&eligible(entry.title)){
+          entry.title=label;
+          if(titleFields[i])titleFields[i].value=label;
+        }
+      }
+      const hiddenTitle=root.querySelector('#key-title');if(hiddenTitle)hiddenTitle.value=item.title;
     }
-    persist();
+  }
+  function commit(node,value){
+    const field=node.dataset.field;
+    item.settings[field]=value;node.value=value;
+    if(field==='keys'){
+      const id=api.matchPreset(value,HOTKEY_PRESETS);
+      item.settings.preset=id;
+      if(preset)preset.value=id;
+      applyPresetTitle(id);
+    }
+    persistInspectorChange();
+    node.dispatchEvent(new Event('input',{bubbles:true}));
+    renderGrid();
+    if(root.id==='inspector')refreshTitlePreview(item);
+  }
+  inputs.forEach(node=>{
+    const field=node.dataset.field;
+    let parsed=api.parse(String(item.settings[field]||''));
+    let selected=parsed?parsed.mods.slice():[],key=parsed?.key.id||'';
+    let legacy=parsed?'':String(item.settings[field]||'');
+    node.readOnly=true;node.classList.add('hotkey-capture');
+    const row=node.closest('.field');
+    const choiceRow=document.createElement('div');choiceRow.className='field hotkey-choice-row';
+    const spacer=document.createElement('span');
+    const choices=document.createElement('div');choices.className='hotkey-choices';choices.setAttribute('role','group');choices.setAttribute('aria-label',field==='keys'?'단축키 선택':field==='first'?'단축키 1 선택':'단축키 2 선택');
+    const buttons=[],menus=[];
+    const choose=()=>{
+      legacy='';
+      commit(node,key?api.format(selected,key):'');
+      sync();
+    };
+    for(const mod of api.order){
+      const button=document.createElement('button');button.type='button';button.textContent=mod;
+      button.className='hotkey-modifier';button.title=mod+' 선택';
+      button.addEventListener('click',()=>{
+        if(mode!=='select')return;
+        selected=selected.includes(mod)?selected.filter(value=>value!==mod):[...selected,mod];choose();
+      });
+      buttons.push([mod,button]);choices.append(button);
+    }
+    for(const group of api.groups){
+      const menu=document.createElement('select');menu.title=group.label;menu.setAttribute('aria-label',group.label);
+      menu.append(new Option(group.label,''));
+      let category='',target=menu;
+      for(const entry of group.keys){
+        if(entry.category!==category){
+          category=entry.category;
+          if(category){target=document.createElement('optgroup');target.label=category;menu.append(target);}
+          else target=menu;
+        }
+        target.append(new Option(entry.label,entry.id));
+      }
+      menu.addEventListener('change',()=>{
+        if(mode!=='select')return;
+        key=menu.value;choose();
+      });
+      menus.push([group,menu]);choices.append(menu);
+    }
+    choiceRow.append(spacer,choices);row.after(choiceRow);
+    const noticeRow=document.createElement('div');noticeRow.className='field hotkey-notice-row';noticeRow.hidden=true;
+    const notice=document.createElement('span');notice.className='hotkey-notice';notice.setAttribute('role','status');
+    noticeRow.append(document.createElement('span'),notice);choiceRow.after(noticeRow);
+    function sync(){
+      const raw=legacy||api.format(selected,key);
+      node.value=key||legacy?api.display(raw):raw.split('+').join(' + ');
+      node.title=mode==='keyboard'?'클릭한 뒤 단축키를 누르세요 · Esc 취소 · Backspace 삭제':'선택한 단축키';
+      node.placeholder=mode==='keyboard'?'클릭하여 할당':'아래에서 키 선택';
+      node.disabled=mode!=='keyboard';
+      for(const [mod,button] of buttons){
+        button.disabled=mode!=='select';button.classList.toggle('active',selected.includes(mod));
+        button.setAttribute('aria-pressed',String(selected.includes(mod)));
+      }
+      for(const [group,menu] of menus){
+        menu.disabled=mode!=='select';menu.value=group.keys.some(entry=>entry.id===key)?key:'';
+      }
+      const message=key?api.advisory(raw,HOTKEY_PRESETS):'';
+      notice.textContent=message;noticeRow.hidden=!message;
+    }
+    let armed=false;
+    node.addEventListener('focus',()=>{armed=mode==='keyboard';if(armed)node.placeholder='단축키를 누르세요 (Esc 취소)';});
+    node.addEventListener('blur',()=>{armed=false;sync();});
+    function accept(event){
+      if(!armed||mode!=='keyboard')return;
+      event.preventDefault();event.stopPropagation();
+      if(event.key==='Escape'&&!event.ctrlKey&&!event.altKey&&!event.shiftKey&&!event.metaKey){node.blur();return;}
+      if(event.key==='Backspace'&&!event.ctrlKey&&!event.altKey&&!event.shiftKey&&!event.metaKey){
+        selected=[];key='';legacy='';commit(node,'');node.blur();return;
+      }
+      const combination=api.capture(event),found=api.parse(combination);
+      if(!found)return;
+      selected=found.mods.slice();key=found.key.id;legacy='';
+      commit(node,combination);node.blur();
+    }
+    node.addEventListener('keydown',accept);
+    // PrintScreen can arrive only on key-up on Windows; catch it if still armed.
+    node.addEventListener('keyup',event=>{if(event.code==='PrintScreen'||event.key==='PrintScreen')accept(event);});
+    controls.push({sync,set(value){
+      parsed=api.parse(value);selected=parsed?.mods.slice()||[];
+      key=parsed?.key.id||'';legacy=parsed?'':value;commit(node,value);sync();
+    }});
+    // Keep the visible input read-only; generic change handlers must not save
+    // display strings such as PrtSc or arrows instead of the stored key token.
+    node.addEventListener('change',event=>event.stopImmediatePropagation());
+    sync();
   });
+  if(preset){
+    const matched=api.matchPreset(String(item.settings.keys||''),HOTKEY_PRESETS);
+    preset.value=matched;
+    preset.addEventListener('change',()=>{
+      if(preset.value&&HOTKEY_PRESETS[preset.value])controls[0].set(api.canonical(HOTKEY_PRESETS[preset.value]));
+      else{item.settings.preset='';persistInspectorChange();}
+    });
+  }
 }
 async function populateAudioOutputs(select,item){
   if(!select||!navigator.mediaDevices?.enumerateDevices)return;
@@ -2780,41 +2928,6 @@ function renderInspector(){
       }catch(error){alert("파일 선택 오류: "+String(error?.message||error));}
     });
   });
-  // Capture combinations for supported native fields without actually sending
-  // the shortcut to Windows. Escape cancels; Backspace clears an assignment.
-  if(["hotkey","hotkey-switch"].includes(item.type)){
-    for(const field of ["keys","first","second"]){
-      const node=root.querySelector('[data-field="'+field+'"]');
-      if(!node)continue;
-      node.readOnly=true;node.title="클릭한 뒤 원하는 단축키를 누르세요 · Esc 취소 · Backspace 삭제";
-      let armed=false;
-      node.addEventListener("focus",()=>{armed=true;node.placeholder="단축키를 누르세요 (Esc 취소)";});
-      node.addEventListener("blur",()=>{armed=false;node.placeholder="클릭하여 할당";});
-      node.addEventListener("keydown",event=>{
-        if(!armed)return;
-        event.preventDefault();event.stopPropagation();
-        if(event.key==="Escape"){node.blur();return;}
-        if(event.key==="Backspace"&&!event.ctrlKey&&!event.altKey&&!event.shiftKey&&!event.metaKey){
-          node.value="";item.settings[field]="";persist();
-          node.dispatchEvent(new Event('input',{bubbles:true}));node.blur();return;
-        }
-        if(["Control","Shift","Alt","Meta"].includes(event.key))return;
-        const key=event.code?.startsWith("Key")?event.code.slice(3)
-          :event.code?.startsWith("Digit")?event.code.slice(5)
-          :event.key===" "?"Space":event.key;
-        if(!key||key==="Unidentified")return;
-        const combo=[event.ctrlKey?"Ctrl":null,event.altKey?"Alt":null,
-          event.shiftKey?"Shift":null,event.metaKey?"Win":null,key].filter(Boolean).join("+");
-        node.value=combo;item.settings[field]=combo;
-        if(item.type==='hotkey'){
-          item.settings.preset='';
-          const preset=root.querySelector('[data-field="preset"]');
-          if(preset)preset.value='';
-        }
-        persist();node.dispatchEvent(new Event('input',{bubbles:true}));node.blur();
-      });
-    }
-  }
   root.querySelectorAll("[data-field]").forEach(node=>{
     node.addEventListener(node.type==="range"||node.tagName==="TEXTAREA"?"input":"change",()=>{
       let value=node.type==="checkbox"?fieldChecked(node):node.type==="number"||node.type==="range"?Number(node.value):node.value;

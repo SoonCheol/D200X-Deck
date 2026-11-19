@@ -205,13 +205,13 @@ test('new shortcut presets map to the same Windows keys as the legacy actions',(
   const presets=vm.runInNewContext('('+editor.match(/const HOTKEY_PRESETS=(\{[\s\S]*?\n\});/)[1]+')');
   const labels=vm.runInNewContext('('+editor.match(/const HOTKEY_PRESET_LABELS=(\[[\s\S]*?\n\]);/)[1]+')');
   const main=fs.readFileSync(path.join(base,'main.cjs'),'utf8');
-  const code=main.slice(main.indexOf('const HOTKEY_SPECIAL='),main.indexOf("ipcMain.handle('d200x:send-hotkey'"));
-  const context={};
-  vm.runInNewContext(code,context);
+  const context={parseWindowsHotkey:require(path.join(base,'hotkey-keys.js')).resolve};
+  assert.match(main,/function parseWindowsHotkey\(value\)\{return DeckHotkeys\.resolve\(value\);\}/);
   const expected={"switchWindowPrevious":{"held":[18,16],"key":9},"windowMaximize":{"held":[91],"key":38},"windowRestore":{"held":[91],"key":40},"monitorLeft":{"held":[91,16],"key":37},"monitorRight":{"held":[91,16],"key":39},"desktopPrevious":{"held":[91,17],"key":37},"desktopNext":{"held":[91,17],"key":39},"brushDecrease":{"held":[],"key":219},"brushIncrease":{"held":[],"key":221},"timelinePrevious":{"held":[],"key":37},"timelineNext":{"held":[],"key":39},"timelineZoomIn":{"held":[17],"key":187},"timelineZoomOut":{"held":[17],"key":189}};
   for(const [id,keys] of Object.entries(expected)){
     assert.ok(labels.some(([key])=>key===id),id);
-    assert.deepEqual(JSON.parse(JSON.stringify(context.parseWindowsHotkey(presets[id]))),keys,id);
+    const parsed=context.parseWindowsHotkey(presets[id]);
+    assert.deepEqual({held:parsed.held,key:parsed.key},keys,id);
   }
 });
 
@@ -293,4 +293,55 @@ test('knob inspector fits available panel width without forcing 680px or hiding 
   assert.match(knobCss,/\.knob-inspector \.knob-stack label\{[^}]*white-space:nowrap/);
   assert.match(knobCss,/\.knob-inspector \.control-head>\.inspector-save-bar\{[^}]*margin:0 0 0 auto/);
   assert.match(knobCss,/\.knob-inspector \.knob-card-test\{position:absolute/);
+});
+
+test('all three hotkey dropdowns share the actual Windows key catalog',()=>{
+  const api=require(path.join(base,'hotkey-keys.js'));
+  assert.deepEqual(api.groups.map(group=>group.keys.length),[37,24,47]);
+  for(const group of api.groups)for(const entry of group.keys){
+    assert.equal(api.resolve(entry.id).key,entry.vk,entry.id);
+    assert.equal(api.resolve('Ctrl+Alt+Shift+Win+'+entry.id).key,entry.vk,entry.id);
+  }
+  assert.deepEqual(api.resolve('Shift+PrtSc'),{held:[16],key:44,extended:true,scan:69});
+  assert.equal(api.resolve('Alt+F24').key,0x87);
+  assert.equal(api.resolve('NumpadEnter').extended,true);
+  assert.equal(api.resolve('Enter').extended,false);
+  assert.notEqual(api.resolve('Numpad1').key,api.resolve('1').key);
+  assert.equal(api.resolve('Ctrl+NumpadAdd').key,0x6B);
+  assert.equal(api.resolve('Ctrl+Plus').key,0xBB);
+  assert.equal(api.capture({code:'PrintScreen',key:'PrintScreen',shiftKey:true}),'Shift+PrintScreen');
+  assert.equal(api.capture({code:'NumpadEnter',key:'Enter',ctrlKey:true}),'Ctrl+NumpadEnter');
+  assert.equal(api.capture({code:'Equal',key:'+',shiftKey:true}),'Shift+Plus');
+  assert.equal(api.capture({code:'ArrowLeft',key:'ArrowLeft'}),'Left');
+  assert.equal(api.resolve('A+B'),null);
+  assert.equal(api.resolve('Ctrl+Ctrl+A'),null);
+});
+test('preset matching ignores modifier order and only unmatched Windows shortcuts get an advisory',()=>{
+  const api=require(path.join(base,'hotkey-keys.js'));
+  const presets={screenshot:'Win+Shift+S',copy:'Ctrl+C',lock:'Win+L'};
+  assert.equal(api.matchPreset('Shift+Win+s',presets),'screenshot');
+  assert.equal(api.advisory('Shift+Win+S',presets),'');
+  assert.equal(api.advisory('Win+L',presets),'');
+  assert.match(api.advisory('Win+R',presets),/실행 창/);
+  assert.match(api.advisory('Ctrl+Alt+Delete',presets),/보안 화면/);
+  assert.ok(api.resolve('Ctrl+Alt+Delete'),'advisory must not block registration');
+  assert.equal(api.advisory('Ctrl+V',presets),'');
+  assert.equal(api.advisory('Shift+PrintScreen',presets),'');
+});
+test('hotkey inputs reuse existing field rows, preset list and action preview',()=>{
+  assert.match(editor,/case "hotkey":return select\("preset","동작 선택",HOTKEY_PRESET_LABELS\)/);
+  assert.match(editor,/if\(item.type==='hotkey'\|\|item.type==='hotkey-switch'\)bindHotkeyFields\(root,item\)/);
+  assert.match(editor,/button.disabled=mode!=='select'/);
+  assert.match(editor,/menu.disabled=mode!=='select'/);
+  assert.match(editor,/node.disabled=mode!=='keyboard'/);
+  assert.match(editor,/api.matchPreset\(value,HOTKEY_PRESETS\)/);
+  assert.match(editor,/applyPresetTitle\(id\)/);
+  assert.match(editor,/node.addEventListener\('keyup'/);
+  assert.match(editor,/previewButton.addEventListener\('click',\(\)=>runActionPreview\('down'\)\)/);
+  assert.match(css,/\.hotkey-choices>\.hotkey-modifier,\.hotkey-choices>select\{height:31px;min-height:31px/);
+  assert.match(css,/\.hotkey-notice-row\[hidden\]\{display:none!important\}/);
+  const main=fs.readFileSync(path.join(base,'main.cjs'),'utf8');
+  const html=fs.readFileSync(path.join(base,'index.html'),'utf8');
+  assert.ok(html.indexOf('./hotkey-keys.js')>=0&&html.indexOf('./hotkey-keys.js')<html.indexOf('./editor.js'));
+  assert.match(main,/emitWindowsKeys\(parsed.held,parsed.key,parsed\)/);
 });
