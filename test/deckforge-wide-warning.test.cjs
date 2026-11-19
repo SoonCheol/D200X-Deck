@@ -70,7 +70,7 @@ test('alert lifecycle and authenticated focus bridge are wired before normal act
   assert.match(preload,/revealUnsavedEditor: \(\) => ipcRenderer\.invoke\('d200x:reveal-unsaved-editor'\)/);
   assert.match(main,/ipcMain\.handle\('d200x:reveal-unsaved-editor',event=>\{\s*assertEditor\(event\);/);
   assert.match(main,/if\(editor\.isMinimized\(\)\)editor\.restore\(\);\s*editor\.show\(\);\s*editor\.focus\(\);/);
-  assert.match(main,/const spec=\{kind:'EditorHwnd',target:process\.pid\+':'+hwnd\};/);
+  assert.ok(main.includes("const spec={kind:'EditorHwnd',target:process.pid+':'+hwnd};"));
   assert.match(main,/inspectAppFocus\(spec,'Focus',traceId\)/);
   assert.match(main,/if\(result\.status==='focused'\)return true;/);
   assert.match(main,/if\(!editor\.isDestroyed\(\)\)editor\.flashFrame\(true\);/);
