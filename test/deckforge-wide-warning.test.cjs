@@ -69,6 +69,38 @@ test('alert lifecycle and authenticated focus bridge are wired before normal act
   assert.match(editor,/wideUnsavedWarningActive\(\)\?wideUnsavedVisual\(\)/);
   assert.match(preload,/revealUnsavedEditor: \(\) => ipcRenderer\.invoke\('d200x:reveal-unsaved-editor'\)/);
   assert.match(main,/ipcMain\.handle\('d200x:reveal-unsaved-editor',event=>\{\s*assertEditor\(event\);/);
-  assert.match(main,/if\(window\.isMinimized\(\)\)window\.restore\(\);\s*window\.show\(\);\s*window\.focus\(\);\s*if\(!window\.isFocused\(\)\)window\.flashFrame\(true\);/);
+  assert.match(main,/if\(editor\.isMinimized\(\)\)editor\.restore\(\);\s*editor\.show\(\);\s*editor\.focus\(\);/);
+  assert.match(main,/const spec=\{kind:'EditorHwnd',target:process\.pid\+':'+hwnd\};/);
+  assert.match(main,/inspectAppFocus\(spec,'Focus',traceId\)/);
+  assert.match(main,/if\(result\.status==='focused'\)return true;/);
+  assert.match(main,/if\(!editor\.isDestroyed\(\)\)editor\.flashFrame\(true\);/);
+  assert.match(main,/if\(!unsavedRevealPending\)/);
   assert.match(sync,/window\.clearD200XWarningPresses\?\.\(\)/);
+});
+
+test('editor reveal uses only its exact native handle and owner PID, verifies helper status and flashes on failure',async()=>{
+  const first=main.indexOf('let unsavedRevealPending=null;');
+  const end=main.indexOf('function quitDeckForge()',first);
+  assert.ok(first>=0&&end>first);
+  for(const status of ['focused','matched-not-focused','error']){
+    const calls=[],logs=[];
+    const ctx={process:{platform:'win32',pid:1234},Buffer,randomUUID:()=> 'warning-test',
+      writeAppControlLog:async value=>logs.push(value),
+      inspectAppFocus:async (spec,mode,traceId)=>{
+        calls.push(['native',spec.kind,spec.target,mode,traceId]);
+        if(status==='error')throw Error('native error');
+        return {status};
+      },
+      ipcMain:{handle:()=>{}},assertEditor:()=>{}};
+    vm.runInNewContext(main.slice(first,end)+';globalThis.reveal=revealUnsavedEditor;',ctx);
+    const native=Buffer.alloc(8);native.writeBigUInt64LE(4294967552n);
+    const editor={isMinimized:()=>true,restore:()=>calls.push('restore'),show:()=>calls.push('show'),
+      focus:()=>calls.push('focus'),getNativeWindowHandle:()=>native,isDestroyed:()=>false,
+      flashFrame:value=>calls.push(['flash',value])};
+    assert.equal(await ctx.reveal(editor),status==='focused');
+    assert.deepEqual(calls.slice(0,4),['restore','show','focus',['native','EditorHwnd','1234:4294967552','Focus','warning-test']]);
+    assert.equal(calls.length,status==='focused'?4:5);
+    assert.equal(logs[0].stage,'wide-warning-focus-request');
+    if(status==='error')assert.equal(logs[1].stage,'wide-warning-focus-error');
+  }
 });

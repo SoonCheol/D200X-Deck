@@ -276,15 +276,34 @@ function revealEditor(){
   window.focus();
   if(fusionMagnet&&fusionMagnet.status().enabled&&!fusionMagnet.status().attached)fusionMagnet.attach();
 }
-// The physical wide warning button may reveal the existing modal, never
-// resolve it or modify the foreground/topmost policy of other windows.
+// Only the trusted editor renderer may reveal its own existing modal.
+let unsavedRevealPending=null;
+async function revealUnsavedEditor(editor){
+  const traceId=randomUUID();
+  if(editor.isMinimized())editor.restore();
+  editor.show();
+  editor.focus();
+  if(process.platform==='win32'){
+    try{
+      const native=editor.getNativeWindowHandle();
+      const hwnd=native.length===8?native.readBigUInt64LE(0).toString():String(native.readUInt32LE(0));
+      const spec={kind:'EditorHwnd',target:process.pid+':'+hwnd};
+      await writeAppControlLog({traceId,stage:'wide-warning-focus-request',spec});
+      const result=await inspectAppFocus(spec,'Focus',traceId);
+      if(result.status==='focused')return true;
+    }catch(error){
+      await writeAppControlLog({traceId,stage:'wide-warning-focus-error',error:String(error?.message||error)});
+    }
+  }else if(editor.isFocused())return true;
+  if(!editor.isDestroyed())editor.flashFrame(true);
+  return false;
+}
 ipcMain.handle('d200x:reveal-unsaved-editor',event=>{
   assertEditor(event);
-  if(window.isMinimized())window.restore();
-  window.show();
-  window.focus();
-  if(!window.isFocused())window.flashFrame(true);
-  return window.isFocused();
+  if(!unsavedRevealPending){
+    unsavedRevealPending=revealUnsavedEditor(window).finally(()=>{unsavedRevealPending=null;});
+  }
+  return unsavedRevealPending;
 });
 function quitDeckForge(){
   quitting=true;

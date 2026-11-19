@@ -131,12 +131,25 @@ static class DFAppFocus {
    rows.Sort((a,b)=>(b.Hwnd==foreground?2:Cloaked(b.Hwnd)?0:1).CompareTo(a.Hwnd==foreground?2:Cloaked(a.Hwnd)?0:1));
    return rows;
  }
- static bool Fresh(IntPtr hwnd){return Eligible(hwnd)&&Match(hwnd,new Dictionary<uint,Identity>())!=null;}
+ // The editor HWND is provided by the trusted main process, never by a
+ // profile/action or a title/EXE search. Recheck both handle and owner PID
+ // before every activation step to avoid activating a recycled handle.
+ static IntPtr editorHwnd=IntPtr.Zero;
+ static uint editorPid=0;
+ static bool EditorWindowMatches(IntPtr hwnd){
+   if(hwnd==IntPtr.Zero||hwnd!=editorHwnd||editorPid==0||!Eligible(hwnd))return false;
+   uint pid;
+   return DFFolderNative.GetWindowThreadProcessId(hwnd,out pid)!=0&&pid==editorPid;
+ }
+ static bool Fresh(IntPtr hwnd){
+   if(kind=="EditorHwnd")return EditorWindowMatches(hwnd);
+   return Eligible(hwnd)&&Match(hwnd,new Dictionary<uint,Identity>())!=null;
+ }
  static bool WaitForeground(IntPtr hwnd){
    for(int i=0;i<10&&DFFolderNative.GetForegroundWindow()!=hwnd;i++)Thread.Sleep(30);
    return DFFolderNative.GetForegroundWindow()==hwnd&&!DFFolderNative.IsIconic(hwnd)&&Fresh(hwnd);
  }
- // Terminal-specific fallback: adapt the official IslandWindow summon sequence
+ // Terminal and exact editor HWND fallback: adapt the official IslandWindow summon sequence
  // to an external HWND, additionally joining the target's input queue.
  // Never send commands to the shell or create another Terminal/tab.
  [DllImport("user32.dll",SetLastError=true)]static extern IntPtr SetActiveWindow(IntPtr hwnd);
@@ -204,6 +217,23 @@ static class DFAppFocus {
    Note("after="+DFFolderNative.GetForegroundWindow().ToInt64()+" focused="+ok);
    if(!ok&&kind=="Terminal")return TerminalAttachedFocus(hwnd);
    return ok;
+ }
+ // Exact editor activation only; no process enumeration or launch fallback.
+ static string FocusEditorWindow(string request){
+   string[] parts=request.Split(':');
+   long handle;
+   uint pid;
+   if(parts.Length!=2||!UInt32.TryParse(parts[0],out pid)||pid==0||
+      !Int64.TryParse(parts[1],out handle)||handle<=0)throw new Exception("Invalid editor HWND");
+   editorHwnd=new IntPtr(handle);editorPid=pid;
+   if(!EditorWindowMatches(editorHwnd)){Note("editor-hwnd-not-matched");return "missing";}
+   bool ok=Activate(new Candidate{Hwnd=editorHwnd,Reason="exact-editor-hwnd"});
+   if(!ok&&EditorWindowMatches(editorHwnd)){
+     Note("editor-attached-fallback");
+     ok=TerminalAttachedFocus(editorHwnd);
+   }
+   Note("editor-foreground-verified="+ok);
+   return ok?"focused":"matched-not-focused";
  }
  static bool SafeShortcutExe(string path){
    if(String.IsNullOrEmpty(path)||!Path.IsPathRooted(path)||!path.EndsWith(".exe",StringComparison.OrdinalIgnoreCase))return false;
@@ -365,6 +395,10 @@ static class DFAppFocus {
      }
      kind=Environment.GetEnvironmentVariable("DECKFORGE_APP_FOCUS_KIND");
      target=Encoding.Unicode.GetString(Convert.FromBase64String(Environment.GetEnvironmentVariable("DECKFORGE_APP_FOCUS_TARGET")));
+     if(kind=="EditorHwnd"){
+       if(mode!="Focus")throw new Exception("Invalid editor focus mode");
+       Result(FocusEditorWindow(target));return;
+     }
      if((mode!="Focus"&&mode!="Wait"&&mode!="Probe"&&mode!="WaitPresent"&&mode!="Snapshot"&&mode!="WaitNew"&&mode!="Launch")||String.IsNullOrWhiteSpace(target)||target.Length>4096)throw new Exception("Invalid focus request");
      if(kind=="EXE"){
        if(!Path.IsPathRooted(target)||!target.EndsWith(".exe",StringComparison.OrdinalIgnoreCase))throw new Exception("Invalid executable");

@@ -121,3 +121,26 @@ test('terminal-only fallback preserves existing launch policy and never opens ta
   assert.doesNotMatch(block,/LaunchTerminal|Process.Start|SendInput/);
   assert.match(cs,/if\(!ok&&kind=="Terminal"\)return TerminalAttachedFocus\(hwnd\)/);
 });
+
+test('editor HWND mode matches exact handle and PID and never launches another process',()=>{
+  const cs=fs.readFileSync(path.join(root,'app-focus-helper.cs'),'utf8');
+  const start=cs.indexOf('static string FocusEditorWindow(');
+  const end=cs.indexOf('static bool SafeShortcutExe(',start);
+  assert.ok(start>=0&&end>start);
+  const body=cs.slice(start,end);
+  assert.match(cs,/hwnd!=editorHwnd\|\|editorPid==0\|\|!Eligible\(hwnd\)/);
+  assert.match(cs,/GetWindowThreadProcessId\(hwnd,out pid\)!=0&&pid==editorPid/);
+  assert.match(body,/if\(!EditorWindowMatches\(editorHwnd\)\)/);
+  assert.match(body,/Activate\(new Candidate\{Hwnd=editorHwnd,Reason="exact-editor-hwnd"\}\)/);
+  assert.match(body,/if\(!ok&&EditorWindowMatches\(editorHwnd\)\)/);
+  assert.match(body,/TerminalAttachedFocus\(editorHwnd\)/);
+  assert.doesNotMatch(body,/Process\.Start|LocateAndFocus|Windows\(\)/);
+  assert.match(cs,/if\(kind=="EditorHwnd"\)\{\s*if\(mode!="Focus"\)throw new Exception/);
+});
+test('native helper rejects missing editor handle without activating another window',{skip:process.platform!=='win32'||!process.env.DECKFORGE_TEST_HELPER_DIR},async()=>{
+  const result=await runAppFocus(process.env.DECKFORGE_TEST_HELPER_DIR,{kind:'EditorHwnd',target:process.pid+':1'},'Focus');
+  assert.equal(result.status,'missing');
+  assert.ok(result.details.includes('editor-hwnd-not-matched'));
+  const invalid=await runAppFocus(process.env.DECKFORGE_TEST_HELPER_DIR,{kind:'EditorHwnd',target:'0:0'},'Focus');
+  assert.equal(invalid.status,'error');
+});
