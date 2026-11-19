@@ -2,7 +2,7 @@
 const path=require('node:path');
 const fs=require('node:fs/promises');
 const {randomUUID}=require('node:crypto');
-const {BrowserWindow,ipcMain,safeStorage,shell,app,screen}=require('electron');
+const {BrowserWindow,ipcMain,safeStorage,shell,app,screen,Menu}=require('electron');
 const {ChatAuth}=require('./auth.cjs');
 const {listModels,chat}=require('./responses.cjs');
 
@@ -99,6 +99,7 @@ function registerAiWindow(assertEditor){
     const current=new BrowserWindow({title:'DeckForge AI 도우미',x,y:Math.max(area.y,Math.min(bounds.y,area.y+area.height-height)),width,height,minWidth:Math.min(320,width),minHeight:Math.min(420,height),backgroundColor:'#292929',show:false,autoHideMenuBar:true,
       webPreferences:{preload:path.join(__dirname,'preload.cjs'),contextIsolation:true,sandbox:true,nodeIntegration:false,webSecurity:true}});
     panel=current;
+    require('../text-context-menu.cjs').attachTextContextMenu(current,Menu,true);
     current.webContents.setWindowOpenHandler(()=>({action:'deny'}));
     current.webContents.on('will-navigate',event=>event.preventDefault());
     current.webContents.on('will-attach-webview',event=>event.preventDefault());

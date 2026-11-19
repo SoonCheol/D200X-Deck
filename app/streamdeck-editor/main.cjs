@@ -1429,6 +1429,7 @@ if(singleInstanceLock)app.whenReady().then(async () => {
   window.on('resize',()=>nativeDropHost.cancel());
   window.webContents.on('render-process-gone',()=>nativeDropHost.stop());
   if(window.isVisible())nativeDropHost.warm();
+  require('./text-context-menu.cjs').attachTextContextMenu(window,Menu);
   await window.loadFile(path.join(__dirname, 'index.html'));
   if(process.argv.includes('--fusion-manager'))openIntegratedManager().catch(error=>console.warn('Fusion Manager 바로가기:',error.message));
   window.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
