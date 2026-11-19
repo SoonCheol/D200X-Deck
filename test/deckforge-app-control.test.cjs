@@ -97,3 +97,15 @@ test('Windows PowerShell 5.1 Force with a unique nonexistent EXE returns no matc
   assert.deepEqual(result.selected,[]);assert.deepEqual(result.remaining,[]);
   assert.ok(!result.steps.some(s=>s.stage==='fatal'||s.stage==='api'));
 });
+
+test('zero-byte link and linkMove drops allow AppID inspection without changing real file drops',()=>{
+  const line=editor.split(/\r?\n/).find(s=>s.includes('void registerDroppedApplication(i,filePath,'));
+  assert.ok(line);
+  const source='(function(i,filePath,file,ev){'+line+'})';
+  const calls=[];
+  const fn=vm.runInNewContext(source,{registerDroppedApplication:(...args)=>calls.push(args)});
+  for(const [size,effectAllowed,expected] of [[0,'link',true],[0,'linkMove',true],[0,'move',false],[0,'copy',false],[0,'all',false],[256,'link',false],[256,'linkMove',false]]){
+    fn(1,'example',{size},{dataTransfer:{effectAllowed}});
+    assert.deepEqual(calls.pop(),[1,'example',expected]);
+  }
+});

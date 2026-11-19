@@ -702,7 +702,7 @@ function renderGrid(){
       if(file){
         try{
           const filePath=window.deckBridge?.droppedFilePath(file);
-          if(filePath){void registerDroppedApplication(i,filePath,file.size===0&&ev.dataTransfer.effectAllowed==='link');return;}
+          if(filePath){void registerDroppedApplication(i,filePath,file.size===0&&['link','linkMove'].includes(ev.dataTransfer.effectAllowed));return;}
         }catch(error){window.d200xActionStatus?.('드래그한 파일 경로 오류: '+String(error?.message||error));return;}
       }
       const id=ev.dataTransfer.getData("application/x-d200x-action");if(isAssignableAction(id))setItem(i,newAction(id));
