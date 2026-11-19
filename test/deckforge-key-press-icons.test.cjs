@@ -93,7 +93,7 @@ test('website has protocol-aware checkbox and blur normalization',()=>{
 
 test('Windows program drops and file selection update an existing action without replacing chosen artwork',()=>{
  assert.match(src,/droppedFilePath\(file\)/);
- assert.match(src,/registerDroppedApplication\(i,filePath,file\.size===0&&ev\.dataTransfer\.effectAllowed==='link'\)/);
+ assert.match(src,/registerDroppedApplication\(i,filePath,file\.size===0&&\['link','linkMove'\]\.includes\(ev\.dataTransfer\.effectAllowed\)\)/);
  assert.match(src,/visible&&!confirm/);
  assert.match(src,/inspectDroppedTarget\(filePath,allowAppId\)/);
  assert.match(src,/info\.kind==='folder'\?'folder-shortcut':'open-app'/);
