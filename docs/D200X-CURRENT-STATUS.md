@@ -2,7 +2,12 @@
 
 > **상태 기록 기준: 2026-11-19**. 실제 최신 HEAD는 Git에서 확인하며, 코드·자동 검사·Windows 빌드·사용자 Windows/D200X 실기 결과를 구분한다. 시작 시 `AGENTS.md`와 이 문서만 읽고 로드맵은 필요한 경우에만 참고한다.
 
-## 1. 최신 작업 인계 — 1.1.28 Known Folder 경로 드래그 (2026-11-19)
+## 1. 최신 작업 인계 — C# 네이티브 드롭 진단 착수 (2026-11-19)
+
+- 사용자 승인: 외부 드래그 C# 중심, 미지원 프로그램은 경고창의 '프로그램 열기'에서 기존 파일 선택창으로 직접 등록. Electron 내부 액션·Fusion·아이콘 드래그 보존. 기존 프로그램 열기 등록값의 완전 호환성보다 새 설치 기준 설계 우선; 실제 데이터 삭제는 하지 않음.
+- 1단계 독립 진단: `tools/native-drop-probe/NativeDropProbe.cs` + 전용 Windows 빌드/Artifact. 원본 COM IDataObject를 Drop 콜백 내에서 읽고 Shell Item Array, 경로, AppID, 포맷 및 CF_HDROP 결과 기록. 실제 앱 실행·등록·프로필 변경 없음. 본체 1.1.28 유지. 빌드 smoke 및 사용자 Windows 드래그 실기는 별도 확인. Electron 동일 버튼 영역 연동 및 경고창은 실기 확인 후 구현.
+
+### 1.1.28 Known Folder 경로 드래그 (2026-11-19)
 
 - 사용자 제공 Lively Wallpaper 드롭 로그: 0바이트 link, `{6D809377-6AF0-444B-8957-A3773F02200E}\\Lively Wallpaper\\Lively.exe`. GUID+상대 경로를 Windows SHGetKnownFolderPath API로 실제 폴더 경로에 결합하여 기존 파일 검사로 전달. 고정 드라이브 및 앱별 예외 없음. 0바이트 link/linkMove 대상만 변환, 일반 AppID 및 절대 경로 보존, 경로 역참조 및 잘못된 구성요소 거부, 원래 실행/종료·C# 폴더 헬퍼·UI와 데이터 미변경. 단위 검사 및 Windows 실제 API 검사 추가. 버전 1.1.28. 설치 빌드와 사용자 실기는 별도.
 
