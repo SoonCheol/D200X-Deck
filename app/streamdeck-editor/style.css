@@ -389,6 +389,7 @@
 .control-mode-tabs button.active{background:#373737;color:white}
 .control-held-enable{display:flex;align-items:center;gap:7px;white-space:nowrap}
 .control-adjust-config>select{min-width:145px}
+.control-adjust-config>select:disabled{opacity:.45;cursor:default}
 .control-adjust-config>select.control-step{min-width:64px;width:68px}
 .control-adjust-config>label{min-width:auto}
 .control-adjust-config>.control-reverse{display:flex;align-items:center;gap:6px}

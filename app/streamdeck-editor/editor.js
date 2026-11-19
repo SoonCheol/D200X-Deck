@@ -2202,7 +2202,8 @@ function renderControlInspector(){
     for(const [value,title] of targets)target.add(new Option(title,value));
     const targetKey=held?'heldTarget':'target',stepKey=held?'heldStep':'step',reverseKey=held?'heldReverseDirection':'reverseDirection',stackKey=held?'heldStack':'stack';
     target.value=binding[targetKey];
-    target.addEventListener('change',()=>{binding[targetKey]=target.value;persist();renderControlInspector();});
+    target.disabled=currentMode==='stack';
+    target.addEventListener('change',()=>{if(target.disabled)return;binding[targetKey]=target.value;persist();renderControlInspector();});
     config.append(label,target);
     const stepLabel=document.createElement('label');stepLabel.textContent='회전 변화량';
     const stepSelect=document.createElement('select');stepSelect.className='control-step';

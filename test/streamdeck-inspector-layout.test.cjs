@@ -255,3 +255,10 @@ test('preview has 6px side inset without resizing the state cards',()=>{
   assert.match(css,/\.action-layout-inspector \.action-preview-card\{[^}]*width:98px/s);
   assert.match(css,/\.action-layout-inspector \.action-preview-card \.preview-key\{width:86px;height:86px;margin:0 auto\}/);
 });
+
+test('dial stack keeps the unused single target visible but disabled',()=>{
+  assert.match(editor,/target\.value=binding\[targetKey\];\s*target\.disabled=currentMode==='stack';/);
+  assert.match(editor,/target\.addEventListener\('change',\(\)=>\{if\(target\.disabled\)return;binding\[targetKey\]=target\.value/);
+  assert.match(editor,/config\.append\(label,target\)/);
+  assert.match(css,/\.control-adjust-config>select:disabled\{opacity:\.45;cursor:default\}/);
+});
