@@ -170,8 +170,46 @@ function saveHaConfig(url,token){
 function assertEditor(event){
   if(!window||event.sender!==window.webContents)throw new Error('허용되지 않은 호출입니다.');
 }
-// Independent, lazy AI window. No existing device/profile action is exposed to it.
-require('./ai/window.cjs').registerAiWindow(assertEditor);
+// Independent AI window; only a closed read-only query factory is provided.
+const {createReader:createAiReader}=require('./ai/read-tools.cjs');
+function newAiReadSession(){
+  return createAiReader({
+    root:__dirname,userData:app.getPath('userData'),
+    view:async()=>{
+      if(!rendererReady||!window||window.isDestroyed())return null;
+      // Constant expression only. No model-provided JavaScript or raw state transfer.
+      return window.webContents.executeJavaScript(`(()=>{
+        if(typeof state==='undefined')return null;
+        let items=state.pages?.[state.page],folder=null;
+        for(const [depth,slot] of (state.folderPath||[]).entries()){
+          folder=items?.[slot]||(depth===0?state.pinned?.[slot]:null);
+          if(folder?.type!=='folder'){folder=null;break;}
+          const p=Number.isInteger(folder.pageIndex)?folder.pageIndex:0;
+          items=p===0?folder.children:folder.pages?.[p-1];
+        }
+        return {profileNumber:(state.profileNames||[]).findIndex(p=>p.id===state.profileId)+1,
+          page:state.page+1,folderSlots:(state.folderPath||[]).map(i=>i+1).slice(0,8),
+          folderPage:(folder?.pageIndex||0)+1,
+          selected:Number.isInteger(state.selected)?state.selected+1:null,
+          dirty:Boolean(inspectorSession?.dirty),storageFailure:Boolean(profileStorageFailure)};
+      })()`);
+    },
+    device:async()=>({connected:!!transport.deck.connected,session:transport.session,sleeping:transport.sleeping,
+      brightness:transport.brightness,wideRequested:transport.wideMode,wideApplied:transport.appliedWideMode,
+      transferPending:Boolean(transport.pending||transport.inFlight),
+      lastWriteAt:transport.lastWriteAt?new Date(transport.lastWriteAt).toISOString():null,
+      source:'HID transport state, not proof of physical screen or action success'}),
+    inputs:()=>aiRecentInputs,
+    ha:async()=>{
+      const config=readHaConfig();
+      if(!config)return {configured:false,entities:[]};
+      try{return {configured:true,entities:await HA.listEntities(config,(url,options)=>fetch(url,{...options,redirect:'error'}))};}
+      catch{return {configured:true,entities:[],error:'ha_read_unavailable'};}
+    },
+    fusion:fusionAddinAvailable
+  })();
+}
+require('./ai/window.cjs').registerAiWindow(assertEditor,newAiReadSession);
 ipcMain.handle('d200x:ha-status',event=>{
   assertEditor(event);
   const config=readHaConfig();
@@ -371,6 +409,14 @@ function send(channel, payload) {
 }
 transport.on('status', status => send('d200x:status', status));
 transport.on('key', event => send('d200x:key', event));
+// Fixed-size in-memory evidence only; never change the existing key dispatch.
+const aiRecentInputs=[];
+transport.on('key',event=>{
+  aiRecentInputs.push({at:new Date().toISOString(),index:Number(event.index),kind:Number(event.kind),
+    state:Number(event.state),pressed:event.pressed===true,knob:event.knob===true,
+    ...(event.knob===true?{gesture:event.gesture}: {})});
+  if(aiRecentInputs.length>64)aiRecentInputs.shift();
+});
 transport.on('synced', details => send('d200x:synced', details));
 transport.on('error-message', message => send('d200x:error', message));
 let diagnosticPath = null;

@@ -6,7 +6,7 @@ const {BrowserWindow,ipcMain,safeStorage,shell,app,screen,Menu}=require('electro
 const {ChatAuth}=require('./auth.cjs');
 const {listModels,chat}=require('./responses.cjs');
 
-function registerAiWindow(assertEditor){
+function registerAiWindow(assertEditor,newReadSession){
   let panel=null,auth=null,active=null,catalog=[],history=null,historyBusy=false;
   const dir=()=>path.join(app.getPath('userData'),'AI');
   const connection=()=>auth??=new ChatAuth({directory:dir(),safeStorage,openExternal:url=>shell.openExternal(url)});
@@ -75,12 +75,13 @@ function registerAiWindow(assertEditor){
         const message={role:'user',content:args.text.trim()},messages=[...(old?.messages||[]),message];
         if(messages.length>200)throw Error('이 대화의 메시지 한도에 도달했습니다. 새 대화를 시작하세요.');
         const signal=AbortSignal.any([job.controller.signal,AbortSignal.timeout(240000)]);
-        const result=await chat({token:await connection().access(signal),model:args.model,messages,toolTest:args.toolTest===true,version:app.getVersion(),signal,emit:send});
+        const readOnly=args.readOnly===true;
+        const result=await chat({token:await connection().access(signal),model:args.model,messages,toolTest:!readOnly&&args.toolTest===true,readOnly,inspect:readOnly?newReadSession():undefined,version:app.getVersion(),signal,emit:send});
         signal.throwIfAborted();
         if(!result.text.trim())throw Error('완료된 텍스트 응답이 없습니다.');
         const updated={id:args.id,title:old?.title||message.content.slice(0,48),messages:[...messages,{role:'assistant',content:result.text}],updated:Date.now()};
         await saveHistory([updated,...all.filter(x=>x.id!==args.id)]);
-        return {conversation:updated,called:result.called,usage:result.usage};
+        return {conversation:updated,called:result.called,usage:result.usage,requests:result.requests,toolCalls:result.toolCalls};
       }catch(e){if(e.code==='signed-out'){catalog=[];await connection().clearSession();}throw e;}
       finally{finish(job);}
     },

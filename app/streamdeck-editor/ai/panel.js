@@ -20,7 +20,7 @@ function addMessage(role,text){
 function draw(){
   $('messages').replaceChildren();const c=history.find(x=>x.id===current);
   if(c)c.messages.forEach(m=>addMessage(m.role,m.content));
-  else{const p=document.createElement('p');p.className='empty';p.textContent='새 대화 · 1단계에서는 일반 대화와 버전 조회 테스트만 지원합니다.';$('messages').append(p);}
+  else{const p=document.createElement('p');p.className='empty';p.textContent='새 대화 · 로컬 정보 조회를 허용하면 저장된 버튼 구성과 장치 상태를 질문할 수 있습니다. 변경 및 실행은 지원하지 않습니다.';$('messages').append(p);}
   $('history').replaceChildren(new Option('새 대화',''),...history.map(c=>new Option(c.title,c.id)));$('history').value=c?.id||'';controls();
 }
 async function status(){
@@ -50,12 +50,13 @@ $('stop').onclick=()=>{api.cancel();notice('중지 요청 중');};
 api.onEvent(event=>{
   if(busy!=='chat'||!stream)return;
   if(event.type==='delta'&&typeof event.text==='string'){stream.textContent+=event.text;$('messages').scrollTop=$('messages').scrollHeight;}
-  if(event.type==='tool'){notice('로컬 버전 조회 결과: '+event.version);}
+  if(event.type==='tool'){notice(event.name==='get_version'?'로컬 버전 조회 결과: '+event.version:'로컬 조회: '+(event.section||'')+(event.ok===false?' · 제한 또는 실패':''));}
 });
 $('send').onclick=()=>run('chat',async()=>{
-  const text=$('input').value.trim(),id=current||crypto.randomUUID(),model=$('model').value,toolTest=$('tool').checked;
+  const text=$('input').value.trim(),id=current||crypto.randomUUID(),model=$('model').value,readOnly=$('tool').checked;
+  $('tool').checked=false;
   notice('응답 요청 중');$('messages').querySelector('.empty')?.remove();addMessage('user',text);stream=addMessage('assistant','');
-  try{const r=check(await api.send({id,model,text,toolTest}));history=[r.conversation,...history.filter(c=>c.id!==id)];current=id;$('input').value='';draw();notice(toolTest?(r.called?'함수 호출 및 응답 완료':'응답 완료 · 모델이 조회 함수를 호출하지 않았습니다.'):'응답 완료');}
+  try{const r=check(await api.send({id,model,text,readOnly}));history=[r.conversation,...history.filter(c=>c.id!==id)];current=id;$('input').value='';draw();notice((readOnly?(r.called?'조회 및 응답 완료 · '+r.toolCalls+'회 조회':'응답 완료 · 로컬 조회 없음'):'응답 완료')+' · 요청 '+r.requests+'회'+(r.usage?' · 입력 '+r.usage.input_tokens.toLocaleString()+' / 출력 '+r.usage.output_tokens.toLocaleString()+' 토큰':''));}
   catch(e){stream.textContent+=(stream.textContent?'\n\n':'')+'[미완료 · 저장하지 않음]';throw e;}
   finally{stream=null;}
 });
