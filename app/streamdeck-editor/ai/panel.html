@@ -1,0 +1,13 @@
+<!doctype html>
+<html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; font-src 'self'; connect-src 'none'; base-uri 'none'; form-action 'none'">
+<title>DeckForge AI 도우미</title><link rel="stylesheet" href="panel.css"><script src="panel.js" defer></script></head>
+<body>
+<header><strong>AI 도우미</strong><span id="status" role="status">연결 확인 중</span></header>
+<section class="account"><div id="account"></div><div class="row"><button id="login">ChatGPT로 계속</button><button id="logout" hidden>연결 해제</button><button id="usage">사용량 관리</button><button id="cancelLogin" hidden>취소</button></div><p>ChatGPT 구독 사용 · 유료 API 자동 전환 없음<br>크레딧 사용 여부는 ChatGPT 사용량 관리에서 확인하세요.</p></section>
+<section class="row models"><label for="model">모델</label><select id="model" disabled></select><button id="refresh" disabled>새로 고침</button></section>
+<section class="row history"><select id="history" aria-label="대화 기록"><option value="">새 대화</option></select><button id="new">새 대화</button><button id="delete" disabled>삭제</button></section>
+<main id="messages" aria-live="polite"><p class="empty">ChatGPT에 연결한 후 질문할 수 있습니다. 1단계에서는 PC 제어 및 버튼 편집을 지원하지 않습니다.</p></main>
+<div id="notice" role="status"></div>
+<footer><label class="check"><input type="checkbox" id="tool">버전 조회 함수 테스트 허용</label><textarea id="input" rows="3" maxlength="12000" placeholder="무엇을 도와드릴까요?" aria-label="메시지"></textarea><div class="row"><small>입력한 대화와 허용한 버전 정보만 OpenAI에 전송합니다.</small><button id="stop" disabled>중지</button><button id="send" disabled>전송</button></div></footer>
+</body></html>

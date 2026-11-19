@@ -170,6 +170,8 @@ function saveHaConfig(url,token){
 function assertEditor(event){
   if(!window||event.sender!==window.webContents)throw new Error('허용되지 않은 호출입니다.');
 }
+// Independent, lazy AI window. No existing device/profile action is exposed to it.
+require('./ai/window.cjs').registerAiWindow(assertEditor);
 ipcMain.handle('d200x:ha-status',event=>{
   assertEditor(event);
   const config=readHaConfig();

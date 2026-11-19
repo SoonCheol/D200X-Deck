@@ -1050,3 +1050,6 @@
 .hotkey-choices>select{flex:1 1 65px;min-width:0;width:0;max-width:none;padding-right:2px}
 .hotkey-choices>select:last-child{flex-grow:1.35}
 .hotkey-choices>.hotkey-modifier:disabled,.hotkey-choices>select:disabled{opacity:.45;cursor:default}
+
+/* Independent AI launcher only; existing editor grid and inspector unchanged. */
+.ai-launch-row{padding:0 14px 8px}.ai-launch-row button{width:100%;background:#353535;border:1px solid #515151;border-radius:5px;padding:7px 10px;font:inherit;color:#e6e6e6}.ai-launch-row button:hover{background:#444}
