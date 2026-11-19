@@ -1059,7 +1059,8 @@ test('held dial rotations preserve normal action bindings, adjusted mode and sav
     {kind:'page',page:1});
   assert.equal(core.planHardwareEvent(state,{kind:2,index:17,state:1}).outcome.kind,'media-control');
   const restored=core.migrateState(JSON.parse(JSON.stringify(state)));
-  assert.equal(core.controlBinding(restored,16).mode,'adjust');
+  assert.equal(core.controlBinding(restored,16).mode,'trigger');
+  assert.equal(core.controlBinding(restored,16).autoAssign,true);
   assert.equal(core.controlBinding(restored,16).holdLeft.settings.profile,'previous');
   assert.equal(core.controlBinding(restored,16).holdRight.settings.profile,'next');
   const other=core.controlBinding(restored,17);
@@ -1093,7 +1094,8 @@ test('separate normal and pressed rotary modes persist, profile direction works 
   assert.equal(core.controlBinding(restored,16).heldTarget,'profile');
   assert.equal(core.controlBinding(restored,16).heldEnabled,true);
   assert.equal(core.controlBinding(restored,16).heldReverseDirection,true);
-  assert.equal(core.controlBinding(restored,16).mode,'adjust');
+  assert.equal(core.controlBinding(restored,16).mode,'trigger');
+  assert.equal(core.controlBinding(restored,16).autoAssign,true);
   assert.equal(core.controlBinding(restored,16).target,'page');
 });
 
@@ -1164,4 +1166,21 @@ test('terminal actions keep separate elevation identity, both options, and survi
     action.settings.foreground=false;action.settings.preventDuplicate=false;
     assert.deepEqual(core.planAction(core.cleanAction(action),0,1),{kind:'open-terminal',admin,foreground:false,preventDuplicate:false});
   }
+});
+
+test('legacy adjustment migration preserves dormant rotations and never activates them implicitly',()=>{
+  let state=core.migrateState(null),knob=core.controlBinding(state,16);
+  knob.mode='adjust';knob.target='volume';knob.left=core.createAction('media');
+  knob.down=core.createAction('media');knob.heldEnabled=true;
+  knob.heldMode='adjust';knob.heldTarget='profile';knob.holdLeft=core.createAction('media');
+  state=core.migrateState(JSON.parse(JSON.stringify(state)));knob=core.controlBinding(state,16);
+  assert.equal(knob.mode,'trigger');assert.equal(knob.heldMode,'trigger');
+  assert.ok(knob.left&&knob.holdLeft&&knob.down);
+  assert.equal(core.controlAction(knob,'left'),null);
+  assert.equal(core.controlAction(knob,'holdLeft'),null);
+  assert.equal(core.planHardwareEvent(state,{kind:2,index:17,state:2}).outcome.target,'volume');
+  assert.equal(core.planHardwareEvent(state,{kind:2,index:17,state:4}).outcome.kind,'profile');
+  core.assignControlAction(knob,'left',core.createAction('media'));
+  assert.equal(core.planHardwareEvent(state,{kind:2,index:17,state:2}).outcome.kind,'media-control');
+  assert.equal(core.planHardwareEvent(state,{kind:2,index:17,state:3}).outcome.target,'volume');
 });

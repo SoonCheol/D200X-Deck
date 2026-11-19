@@ -257,8 +257,26 @@ test('preview has 6px side inset without resizing the state cards',()=>{
 });
 
 test('dial stack keeps the unused single target visible but disabled',()=>{
-  assert.match(editor,/target\.value=binding\[targetKey\];\s*target\.disabled=currentMode==='stack';/);
+  assert.match(editor,/target\.value=binding\[targetKey\];\s*target\.disabled=heldDisabled\|\|currentMode==='stack';/);
   assert.match(editor,/target\.addEventListener\('change',\(\)=>\{if\(target\.disabled\)return;binding\[targetKey\]=target\.value/);
   assert.match(editor,/config\.append\(label,target\)/);
   assert.match(css,/\.control-adjust-config>select:disabled\{opacity:\.45;cursor:default\}/);
+});
+
+test('knob modes use fixed common layout and pressed-rotation gate',()=>{
+  const start=editor.indexOf('function renderControlInspector(){');
+  const end=editor.indexOf('// Preview state title artwork',start);
+  assert.ok(start>=0&&end>start);
+  const block=editor.slice(start,end);
+  assert.doesNotMatch(block,/조절형 액션/);
+  assert.ok(block.indexOf('root.append(useRow)')<block.indexOf('const scopeRow='));
+  assert.match(block,/scope\.disabled=heldDisabled/);
+  assert.match(block,/mode\.disabled=heldDisabled/);
+  assert.match(block,/stepSelect\.disabled=heldDisabled/);
+  assert.match(block,/reverse\.disabled=heldDisabled/);
+  assert.match(block,/area\.disabled=heldDisabled\|\|currentMode!=='stack'/);
+  assert.match(block,/test\.dataset\.blocked=String\(heldDisabled/);
+  assert.match(block,/knob-reserved-row/);
+  assert.match(css,/\.knob-inspector \.control-gesture-tile\{height:50px;min-height:50px/);
+  assert.match(css,/\.knob-inspector \.knob-reserved-row\{visibility:hidden\}/);
 });

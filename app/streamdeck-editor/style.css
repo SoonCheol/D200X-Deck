@@ -971,3 +971,41 @@
   .action-layout-inspector>.action-layout-toolbar{margin-left:0}
   .action-layout-inspector .action-single-extra>.fields{padding-left:110px}
 }
+
+/* Knob inspector only: one stable grid, reserve inactive rows, no title wrapping. */
+.inspector.knob-inspector{padding:12px 20px;overflow:auto;--knob-min-width:680px}
+.knob-inspector>.control-head,.knob-inspector>.knob-enable-row,.knob-inspector>.knob-settings,
+.knob-inspector>.knob-stack,.knob-inspector>.control-gesture-strip,.knob-inspector>.control-action-editor{width:100%;min-width:var(--knob-min-width);box-sizing:border-box}
+.knob-inspector>.control-head{display:flex;gap:10px;min-height:34px;justify-content:flex-start;padding-bottom:6px}
+.knob-inspector>.control-head>strong{flex:none;white-space:nowrap}
+.knob-inspector .control-mode-tabs{margin-left:0;flex:none}
+.knob-inspector .control-mode-tabs button{white-space:nowrap}
+.knob-inspector .control-head>.inspector-save-bar{position:static;flex:none;margin:0 0 0 auto;padding:0;border:0;background:transparent;gap:8px}
+.knob-inspector .control-head>.inspector-save-bar button{width:66px;height:29px;padding:4px 0;white-space:nowrap}
+.knob-inspector .knob-enable-row{display:flex;align-items:center;height:26px;margin:4px 0}
+.knob-inspector .knob-enable-row label{white-space:nowrap;font-weight:600}
+.knob-inspector .knob-enable-row input,.knob-inspector .control-reverse input,.knob-inspector .knob-stack input{width:15px;height:15px;margin:0;flex:none;accent-color:#2676c1}
+.knob-inspector .knob-settings{border:1px solid #555;border-radius:5px;background:#303030;padding:8px 10px}
+.knob-inspector .knob-settings>.control-config{display:grid;grid-template-columns:102px minmax(0,1fr) 102px minmax(0,1fr);gap:8px;margin:0;align-items:center}
+.knob-inspector .knob-settings>.control-config+.control-config{margin-top:6px}
+.knob-inspector .knob-settings>.control-config>label{min-width:0;white-space:nowrap;text-align:right;justify-self:end}
+.knob-inspector .knob-settings>.control-config>select,.knob-inspector .knob-step-group>select{width:100%;min-width:0;height:28px;padding:4px 7px;border:1px solid #656565;border-radius:4px;background:#373737;color:#eee;white-space:nowrap}
+.knob-inspector .knob-step-group{display:flex;align-items:center;gap:12px;min-width:0}
+.knob-inspector .knob-step-group>select{width:62px;flex:none}
+.knob-inspector .control-reverse{display:flex;align-items:center;gap:5px;white-space:nowrap;min-width:0}
+.knob-inspector .knob-stack{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:6px;margin:8px 0 0;padding:6px 10px 9px;border:1px solid #555;border-radius:5px;background:#303030}
+.knob-inspector .knob-stack legend{padding:0 5px;color:#bfc4cf;font-size:12px;white-space:nowrap}
+.knob-inspector .knob-stack label{min-width:0;white-space:nowrap;font-size:12px;gap:4px}
+.knob-inspector .knob-reserved-row{visibility:hidden}
+.knob-inspector .knob-disabled-region{opacity:.45}
+.knob-inspector>.control-gesture-strip{display:flex;flex-wrap:nowrap;gap:10px;margin:10px 0 0}
+.knob-inspector .control-tile-holder{flex:1 1 0;max-width:none;min-width:0}
+.knob-inspector .control-gesture-tile{height:50px;min-height:50px;display:grid;grid-template-columns:25px minmax(0,1fr);align-items:center;gap:6px;padding:5px 66px 5px 9px;border-radius:5px;text-align:left}
+.knob-inspector .control-gesture-tile.active{border:1px solid #4d9ee9;box-shadow:inset 0 0 0 1px #4d9ee9}
+.knob-inspector .control-gesture-symbol{font-size:22px;text-align:center;white-space:nowrap}
+.knob-inspector .knob-gesture-copy{display:flex;flex-direction:column;min-width:0;gap:3px}
+.knob-inspector .knob-gesture-copy strong,.knob-inspector .knob-gesture-copy .control-gesture-value{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;text-align:left;min-width:0}
+.knob-inspector .knob-gesture-copy strong{font-size:12px}
+.knob-inspector .knob-card-test{position:absolute;z-index:3;right:31px;top:12px;width:28px;height:26px;min-width:0;margin:0;padding:0;border-radius:4px;background:#345579;color:#fff;border:1px solid #7397ba;font-size:12px}
+.knob-inspector .control-tile-remove{right:6px;top:14px;width:21px;height:21px}
+.knob-inspector .control-action-editor{margin-top:10px}

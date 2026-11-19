@@ -211,10 +211,22 @@
     if(signal?.aborted)throw new Error('복합 동작이 취소되었습니다.');
     return plan.steps.length;
   }
-  const CONTROL_MODES=['trigger','adjust','stack'];
+  const CONTROL_MODES=['trigger','stack'];
+  const ROTATION_KEYS=['left','right','holdLeft','holdRight'];
+  function controlAction(binding,key){return binding&&!(binding.inactiveRotations||[]).includes(key)?binding[key]:null;}
+  function assignControlAction(binding,key,action){
+    binding[key]=action;
+    binding.inactiveRotations=(binding.inactiveRotations||[]).filter(x=>x!==key);
+  }
+  function automaticControl(binding,held=false){
+    const keys=held?['holdLeft','holdRight']:['left','right'];
+    binding.inactiveRotations=[...new Set([...(binding.inactiveRotations||[]),...keys.filter(key=>binding[key])])];
+    if(held){binding.heldMode='trigger';binding.heldAutoAssign=true;}
+    else{binding.mode='trigger';binding.autoAssign=true;}
+  }
   const ADJUST_TARGETS=['page','profile','volume','zoom','scroll','scroll-x','history','window','desktop','brightness'];
   function emptyBinding(){
-    return {mode:'trigger',down:null,left:null,right:null,holdLeft:null,holdRight:null,target:'page',heldEnabled:false,heldMode:'adjust',heldTarget:'profile',heldStep:1,heldReverseDirection:false,heldStack:['page','volume'],autoAssign:false,heldAutoAssign:false,
+    return {mode:'trigger',down:null,left:null,right:null,holdLeft:null,holdRight:null,target:'page',heldEnabled:false,heldMode:'trigger',heldTarget:'profile',heldStep:1,heldReverseDirection:false,heldStack:['page','volume'],autoAssign:false,heldAutoAssign:true,inactiveRotations:[],
       stack:['page','volume'],stackIndex:0,step:1,reverseDirection:false};
   }
   function cleanBinding(value){
@@ -226,7 +238,14 @@
     out.autoAssign=value.autoAssign===true;
     out.heldAutoAssign=value.heldAutoAssign===true;
     out.heldEnabled=value.heldEnabled===true;
-    out.heldMode=CONTROL_MODES.includes(value.heldMode)?value.heldMode:'adjust';
+    out.heldMode=CONTROL_MODES.includes(value.heldMode)?value.heldMode:'trigger';
+    out.inactiveRotations=Array.isArray(value.inactiveRotations)?[...new Set(value.inactiveRotations.filter(key=>ROTATION_KEYS.includes(key)))]:[];
+    if(value.mode==='adjust')automaticControl(out);
+    // Previous held-adjust mode ignored saved overrides only while enabled.
+    if(value.heldMode==='adjust'||!CONTROL_MODES.includes(value.heldMode)){
+      if(out.heldEnabled)automaticControl(out,true);
+      else out.heldAutoAssign=true;
+    }
     out.heldTarget=ADJUST_TARGETS.includes(value.heldTarget)?value.heldTarget:'profile';
     out.heldStep=[1,2,5,10].includes(value.heldStep)?value.heldStep:1;
     out.heldReverseDirection=value.heldReverseDirection===true;
@@ -598,7 +617,7 @@
         if(binding.heldEnabled===true){
           const key=gesture==='hold-left'?'holdLeft':'holdRight';
           if(binding.heldMode==='trigger'){
-            const action=binding[key];
+            const action=controlAction(binding,key);
             if(action)return {index,gesture,outcome:planAction(action,page,pageCount)};
             if(!binding.heldAutoAssign)return null;
             const direction=(gesture==='hold-left'?-1:1)*(binding.heldReverseDirection?-1:1);
@@ -609,7 +628,7 @@
           const direction=(gesture==='hold-left'?-1:1)*(binding.heldReverseDirection?-1:1);
           return {index,gesture,outcome:planAdjustment(target,direction,binding.heldStep,page,pageCount)};
         }
-        const action=binding[gesture==='hold-left'?'holdLeft':'holdRight'];
+        const action=controlAction(binding,gesture==='hold-left'?'holdLeft':'holdRight');
         return action?{index,gesture,outcome:planAction(action,page,pageCount)}:null;
       }
       if(binding.heldEnabled===true&&gesture==='down')return null;
@@ -628,7 +647,7 @@
         return {index,gesture,outcome:planAdjustment(target,direction,step,page,pageCount)};
       }
       if(gesture==='left'||gesture==='right'){
-        const action=binding[gesture];
+        const action=controlAction(binding,gesture);
         if(action)return {index,gesture,outcome:planAction(action,page,pageCount)};
         if(binding.mode==='trigger'&&binding.autoAssign){
           const direction=(gesture==='left'?-1:1)*(binding.reverseDirection?-1:1);
@@ -753,5 +772,5 @@
       url:action.settings?.url||'',mode:action.settings?.open||'default',browserPath:action.settings?.browserPath||''};
     return {kind:'unsupported',message:'이 동작의 실행 기능은 아직 구현되지 않았습니다.'};
   }
-  return {ACTION_IDS,D200X_ACTION_IDS,PLUGIN_ACTION_IDS,DEFAULTS,TITLE,createAction,cleanAction,cleanCompositeEntry,displaySwitchAction,compositeModel,planComposite,runComposite,blankPage,cleanWideDisplay,cycleWideDisplay,isWideDisplayPress,folderContents,folderPageCount,changeFolderPage,addFolderPage,deleteFolderPage,currentActions,visibleActions,togglePinned,activeFolder,enterFolder,exitFolder,migrateState,profileSnapshot,switchProfile,createProfile,renameProfile,exportSingleProfile,setProfileApp,matchForegroundProfile,deleteProfile,previewHardwareEvent,physicalSlot,hardwareGesture,resolveHardwareEvent,resolveKeyPress,planHardwareEvent,deletePage,planAction,emptyBinding,cleanBinding,ensureControls,controlBinding,changeControlScope};
+  return {ACTION_IDS,D200X_ACTION_IDS,PLUGIN_ACTION_IDS,DEFAULTS,TITLE,createAction,cleanAction,cleanCompositeEntry,displaySwitchAction,compositeModel,planComposite,runComposite,blankPage,cleanWideDisplay,cycleWideDisplay,isWideDisplayPress,folderContents,folderPageCount,changeFolderPage,addFolderPage,deleteFolderPage,currentActions,visibleActions,togglePinned,activeFolder,enterFolder,exitFolder,migrateState,profileSnapshot,switchProfile,createProfile,renameProfile,exportSingleProfile,setProfileApp,matchForegroundProfile,deleteProfile,previewHardwareEvent,physicalSlot,hardwareGesture,resolveHardwareEvent,resolveKeyPress,planHardwareEvent,deletePage,planAction,emptyBinding,cleanBinding,controlAction,assignControlAction,automaticControl,ensureControls,controlBinding,changeControlScope};
 });
