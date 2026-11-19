@@ -266,6 +266,8 @@ function scheduleSdkSync(){
   }).catch(error=>window.d200xActionStatus?.('SDK 플러그인 등록 오류: '+String(error?.message||error)));
 }
 function displayItem(item,index){
+  if(item?.type==='text'&&!item.settings?.stateTitles&&item.titleStyle?.visible!==false)
+    return {...item,title:textActionDisplayTitle(item,item.title)};
   if(item?.type==='multi-switch')return DeckCore.displaySwitchAction(item);
   if(item?.type==='timer'&&timerDeadlines.has(item)){
     const remaining=Math.max(0,Math.ceil((timerDeadlines.get(item)-Date.now())/1000));
@@ -319,6 +321,13 @@ function isMomentaryIconAction(item){
 function hasStateTitlePair(item){
   return item?.type==='sd-plugin'||isMomentaryIconAction(item);
 }
+// Text action labels are render-only; never copy the body into a stored title.
+function textActionDisplayTitle(item,title){
+  if(item?.type!=='text'||title)return title||'';
+  const body=typeof item.settings?.body==='string'?item.settings.body.trim():'';
+  // Bound the preview work for large pasted strings, preserving Unicode characters.
+  return Array.from(body.slice(0,512)).slice(0,256).join('');
+}
 function defaultStateTitlePair(item){
   return {
     first:{enabled:item.titleStyle?.visible!==false,title:item.title||'',style:{...DEFAULT_TITLE_STYLE,...item.titleStyle}},
@@ -356,8 +365,13 @@ function resolveStateTitle(item,second,artwork=null){
     const key=source&&!artwork.paired&&!artwork.runtimeOnly?source:actual;
     result.icon=artwork[key];
   }
-  if(!pair)return result; // Preserve legacy dynamic SDK titles until explicitly edited.
-  return {...result,title:selected?.title||'',titleStyle:{...DEFAULT_TITLE_STYLE,...(selected?.style||{}),visible:!!selected}};
+  if(!pair){
+    // Preserve legacy dynamic SDK titles until explicitly edited.
+    if(item?.type==='text'&&item.titleStyle?.visible!==false)
+      return {...result,title:textActionDisplayTitle(item,result.title)};
+    return result;
+  }
+  return {...result,title:selected?textActionDisplayTitle(item,selected.title):'',titleStyle:{...DEFAULT_TITLE_STYLE,...(selected?.style||{}),visible:!!selected}};
 }
 function stateDisplayArtwork(item,index,momentary){
   const raw=DeckCore.visibleActions(state)[index]||item;
@@ -2252,7 +2266,7 @@ function attachStateTitleControls(card,item,which){
   check.className='state-title-visible';check.title='표시 속성 선택';
   check.setAttribute('aria-label',(which==='first'?'첫 번째':'두 번째')+' 표시 속성 선택');
   const input=document.createElement('input');input.type='text';input.className='state-title-input';
-  input.placeholder='제목';input.title='<br>로 강제 줄바꿈';input.setAttribute('aria-label',which==='first'?'제목 1':'제목 2');
+  input.placeholder=item.type==='text'?'자동 제목':'제목';input.title=item.type==='text'?'제목을 비우면 입력 텍스트가 자동 표시됩니다. <br>로 강제 줄바꿈':'<br>로 강제 줄바꿈';input.setAttribute('aria-label',which==='first'?'제목 1':'제목 2');
   input.maxLength=256;input.value=config.title;input.disabled=!config.enabled;
   const styleButton=document.createElement('button');styleButton.type='button';
   styleButton.className='state-title-style';styleButton.textContent='T⌄';
@@ -2731,7 +2745,10 @@ function renderInspector(){
       persist();
       if(item.type==='system-scroll'&&node.dataset.field==='axis')renderInspector();
       if(node.dataset.field==="volume") $("volume-display").textContent=String(value);
-      if(node.dataset.field==="body"&&$("text-count")) $("text-count").textContent=String(value.length)+" / -";
+      if(node.dataset.field==="body"){
+        if($("text-count")) $("text-count").textContent=String(value.length)+" / -";
+        if(item.type==='text'){renderGrid();refreshTitlePreview(item);}
+      }
     });
   });
   if(['multi','multi-switch','random'].includes(item.type))renderMultiEditor(item,root);

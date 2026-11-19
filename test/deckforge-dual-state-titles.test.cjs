@@ -86,3 +86,49 @@ test('state title is composed directly onto both card images using device compos
  assert.match(editor,/card\.dataset\.stateTitle=key==='up'\?'first':'second'/);
  assert.match(editor,/root\.dataset\.stateCardVersion!==version/);
 });
+
+test('text action automatically displays body without mutating stored data',()=>{
+ const item={type:'text',title:'',titleStyle:style,settings:{body:'DeckForge'}};
+ const before=JSON.stringify(item);
+ const display=(second)=>vm.runInNewContext(editor.slice(start,end)+';resolveStateTitle(item,second)',{
+   item,second,DEFAULT_TITLE_STYLE:style,isMomentaryIconAction:()=>true
+ });
+ assert.equal(display(false).title,'DeckForge');
+ assert.equal(display(true).title,'DeckForge');
+ assert.equal(JSON.stringify(item),before);
+ item.title='사용자 제목';
+ assert.equal(display(false).title,'사용자 제목');
+ item.title='';item.settings.body='새 텍스트';
+ assert.equal(display(false).title,'새 텍스트');
+ item.titleStyle={...style,visible:false};
+ assert.equal(display(false).title,'');
+ assert.equal(display(false).titleStyle.visible,false);
+});
+test('text action automatic labels honor independent and shared state titles',()=>{
+ const first={enabled:true,title:'',style:{...style}};
+ const second={enabled:true,title:'직접 제목',style:{...style}};
+ const item={type:'text',title:'',titleStyle:style,settings:{body:'입력할 텍스트',stateTitles:{first,second}}};
+ const display=(second)=>vm.runInNewContext(editor.slice(start,end)+';resolveStateTitle(item,second)',{
+   item,second,DEFAULT_TITLE_STYLE:style,isMomentaryIconAction:()=>true
+ });
+ const before=JSON.stringify(item);
+ assert.equal(display(false).title,'입력할 텍스트');
+ assert.equal(display(true).title,'직접 제목');
+ assert.equal(JSON.stringify(item),before);
+ second.enabled=false;
+ assert.equal(display(true).title,'입력할 텍스트');
+ first.enabled=false;
+ assert.equal(display(false).title,'');
+ assert.equal(display(true).titleStyle.visible,false);
+ assert.equal(second.title,'직접 제목');
+});
+test('text action preview is bounded without truncating the actual body',()=>{
+ const body='😀'.repeat(300)+'\n끝';
+ const item={type:'text',title:'',titleStyle:style,settings:{body}};
+ const visible=vm.runInNewContext(editor.slice(start,end)+';resolveStateTitle(item,false)',{
+   item,DEFAULT_TITLE_STYLE:style,isMomentaryIconAction:()=>true
+ });
+ assert.equal(visible.title,'😀'.repeat(256));
+ assert.equal(item.settings.body,body);
+ assert.match(editor,/if\(item\.type==='text'\)\{renderGrid\(\);refreshTitlePreview\(item\);\}/);
+});
