@@ -10,6 +10,7 @@ const {randomUUID}=require('node:crypto');
 const { execFile, spawn } = require('node:child_process');
 const {parseWindowsArgs}=require('./windows-args.cjs');
 const {runFolderHelper}=require('./folder-helper.cjs');
+const {runAppFocus,focusOrLaunch,createAppLaunchQueue}=require('./app-focus.cjs');
 const {NativeDropHost,physicalSlots}=require('./native-drop-host.cjs');
 const { promisify } = require('node:util');
 const execFileAsync = promisify(execFile);
@@ -658,48 +659,46 @@ ipcMain.handle('d200x:paste-text',async(event,args)=>{
   return true;
 });
 
-// Focus a window whose process path matches the selected exe; no arbitrary commands.
+// Exact EXE / AppID window lookup, independent of the close/force control path.
+function appFocusSpec(filePath,target){
+  if(typeof filePath!=='string')return null;
+  if(filePath.startsWith(APP_ID_PREFIX)){
+    if(target&&target!=='appid')throw new Error('잘못된 프로그램 유형입니다.');
+    return {kind:'AppID',target:requireStartAppId(filePath.slice(APP_ID_PREFIX.length))};
+  }
+  const requested=requireLocalWindowsPath(filePath);
+  if(target&&target!=='file')return null;
+  if(/\.exe$/i.test(requested))return {kind:'EXE',target:requested};
+  if(/\.lnk$/i.test(requested)){
+    try{
+      const link=shell.readShortcutLink(requested);
+      if(typeof link.target==='string'&&/\.exe$/i.test(link.target)&&!String(link.args||'').trim())
+        return {kind:'EXE',target:requireLocalWindowsPath(link.target)};
+    }catch{}
+  }
+  return null;
+}
+async function inspectAppFocus(spec,mode,traceId){
+  try{
+    const result=await runAppFocus(__dirname,spec,mode);
+    await writeAppControlLog({traceId,stage:'focus-result',version:app.getVersion(),mode,spec,result});
+    return result;
+  }catch(error){
+    await writeAppControlLog({traceId,stage:'focus-error',mode,spec,error:String(error.message||error)});
+    throw error;
+  }
+}
 ipcMain.handle('d200x:focus-local-app',async(event,args)=>{
   if(!window||event.sender!==window.webContents)throw new Error('허용되지 않은 호출입니다.');
-  const filePath=args?.filePath;
-  if(typeof filePath==='string'&&filePath.startsWith(APP_ID_PREFIX))return controlStartApplication(filePath,'Focus');
-  if(typeof filePath!=='string'||filePath.length>4096||!path.win32.isAbsolute(filePath)||
-      !/\.exe$/i.test(filePath)||/[\x00-\x1f\x7f]/.test(filePath))
-    throw new Error('Windows 프로그램(.exe)을 지정하세요.');
   if(process.platform!=='win32')throw new Error('Windows에서만 지원합니다.');
-  const encoded=Buffer.from(filePath,'utf16le').toString('base64');
-  const ps=`Add-Type -TypeDefinition @'
-using System;
-using System.Runtime.InteropServices;
-public static class D200XForeground {
- [DllImport("user32.dll")] public static extern bool EnumWindows(EnumWindowsProc callback,IntPtr data);
- public delegate bool EnumWindowsProc(IntPtr hwnd,IntPtr data);
- [DllImport("user32.dll")] public static extern uint GetWindowThreadProcessId(IntPtr hwnd,out uint pid);
- [DllImport("user32.dll")] public static extern bool IsWindowVisible(IntPtr hwnd);
- [DllImport("user32.dll")] public static extern bool SetForegroundWindow(IntPtr hwnd);
- [DllImport("user32.dll")] public static extern bool ShowWindow(IntPtr hwnd,int command);
- public static bool Activate(uint pid) {
-   bool found=false;
-   EnumWindows((hwnd,data)=>{
-     uint current;GetWindowThreadProcessId(hwnd,out current);
-     if(current==pid && IsWindowVisible(hwnd)) {
-       ShowWindow(hwnd,9);found=SetForegroundWindow(hwnd);return false;
-     }
-     return true;
-   },IntPtr.Zero);return found;
- }
-}
-'@ -ErrorAction Stop
-$target=[Text.Encoding]::Unicode.GetString([Convert]::FromBase64String('${encoded}'));
-$matches=@(Get-Process | Where-Object {try{[string]::Equals($_.Path,$target,[StringComparison]::OrdinalIgnoreCase)}catch{$false}});
-$found=$false;
-foreach($p in $matches){if([D200XForeground]::Activate([uint32]$p.Id)){$found=$true;break}};
-if($found){'FOUND'}else{'NOT_FOUND'}`;
-  const {stdout}=await execFileAsync('powershell.exe',
-    ['-NoProfile','-NonInteractive','-WindowStyle','Hidden','-Command',ps],
-    {windowsHide:true,timeout:10000,maxBuffer:32768});
-  return String(stdout).trim()==='FOUND';
+  const spec=appFocusSpec(args?.filePath);
+  if(!spec)return false;
+  const result=await inspectAppFocus(spec,'Focus',randomUUID());
+  if(result.status==='focused')return true;
+  if(result.status==='missing')return false;
+  throw new Error(result.error||'실행 중인 창을 앞으로 가져오지 못했습니다.');
 });
+const queueAppLaunch=createAppLaunchQueue();
 
 // Unicode typing uses SendInput/KEYEVENTF_UNICODE: no PowerShell source interpolation
 // from user text (only a fixed, Base64-encoded UTF-16LE literal).
@@ -925,16 +924,6 @@ function requireStartAppId(id){
   return id;
 }
 
-async function controlStartApplication(filePath,mode){
-  if(process.platform!=='win32'||!['Focus','Close','Force'].includes(mode))throw new Error('잘못된 시작 메뉴 앱 제어 요청입니다.');
-  const id=requireStartAppId(filePath.slice(APP_ID_PREFIX.length));
-  const code="$ErrorActionPreference='Stop'\n$id=$env:DECKFORGE_CONTROL_ID\n$mode=$env:DECKFORGE_CONTROL_MODE\nAdd-Type -TypeDefinition @'\nusing System;\nusing System.Text;\nusing System.Runtime.InteropServices;\n[StructLayout(LayoutKind.Sequential)]\npublic struct DFKey {public Guid fmtid; public uint pid;}\n[StructLayout(LayoutKind.Explicit,Size=24)]\npublic struct DFVariant {[FieldOffset(0)]public ushort vt; [FieldOffset(8)]public IntPtr ptr;}\n[ComImport,Guid(\"886D8EEB-8CF2-4446-8D02-CDBA1DBDCF99\"),InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]\npublic interface DFStore {\n [PreserveSig]int GetCount(out uint count);\n [PreserveSig]int GetAt(uint index,out DFKey key);\n [PreserveSig]int GetValue(ref DFKey key,out DFVariant value);\n}\npublic static class DFControl {\n [DllImport(\"kernel32.dll\")]static extern IntPtr OpenProcess(uint access,bool inherit,int pid);\n [DllImport(\"kernel32.dll\")]static extern bool CloseHandle(IntPtr handle);\n [DllImport(\"kernel32.dll\",CharSet=CharSet.Unicode)]static extern int GetApplicationUserModelId(IntPtr process,ref uint length,StringBuilder id);\n [DllImport(\"shell32.dll\")]static extern int SHGetPropertyStoreForWindow(IntPtr hwnd,ref Guid iid,out DFStore store);\n [DllImport(\"ole32.dll\")]static extern int PropVariantClear(ref DFVariant value);\n [DllImport(\"user32.dll\")]public static extern bool ShowWindowAsync(IntPtr hwnd,int command);\n [DllImport(\"user32.dll\")]public static extern bool SetForegroundWindow(IntPtr hwnd);\n public static string ProcessId(int pid){\n  IntPtr h=OpenProcess(0x1000,false,pid);if(h==IntPtr.Zero)return \"\";\n  try{uint n=0;if(GetApplicationUserModelId(h,ref n,null)!=122||n==0)return \"\";\n   StringBuilder b=new StringBuilder((int)n);return GetApplicationUserModelId(h,ref n,b)==0?b.ToString():\"\";\n  }finally{CloseHandle(h);}\n }\n public static string WindowId(IntPtr hwnd){\n  if(hwnd==IntPtr.Zero)return \"\";\n  Guid iid=typeof(DFStore).GUID;DFStore store;\n  if(SHGetPropertyStoreForWindow(hwnd,ref iid,out store)!=0)return \"\";\n  try{DFKey key=new DFKey{fmtid=new Guid(\"9F4C2855-9F79-4B39-A8D0-E1D42DE1D5F3\"),pid=5};DFVariant v;\n   if(store.GetValue(ref key,out v)!=0)return \"\";\n   try{return v.vt==31?Marshal.PtrToStringUni(v.ptr):\"\";}finally{PropVariantClear(ref v);}\n  }finally{Marshal.ReleaseComObject(store);}\n }\n}\n'@\n$roots=@(\"$env:APPDATA\\Microsoft\\Windows\\Start Menu\\Programs\",\"$env:ProgramData\\Microsoft\\Windows\\Start Menu\\Programs\")\n$shell=New-Object -ComObject Shell.Application\n$wsh=New-Object -ComObject WScript.Shell\n$paths=@()\n$diagnostics=New-Object 'System.Collections.Generic.List[string]'\nforeach($lnk in Get-ChildItem $roots -Recurse -Filter '*.lnk' -ErrorAction SilentlyContinue){\n try{\n  $folder=$shell.NameSpace($lnk.DirectoryName)\n  $item=$folder.ParseName($lnk.Name)\n  if($item.ExtendedProperty('System.AppUserModel.ID') -eq $id){\n   $target=$wsh.CreateShortcut($lnk.FullName).TargetPath\n   if($target -match '\\.exe$'){$paths+= $target}\n  }\n }catch{$diagnostics.Add('Shortcut lookup: '+$_.Exception.GetType().Name)}\n}\n$session=(Get-Process -Id $PID).SessionId\n$all=@(Get-CimInstance Win32_Process -Filter \"SessionId=$session\")\n$matched=@{}\nforeach($c in $all){\n try{\n  $p=Get-Process -Id $c.ProcessId -ErrorAction Stop\n  $start=$p.StartTime.ToUniversalTime().Ticks\n  $direct=$false\n  if($c.ExecutablePath -and $c.ExecutablePath -in $paths){$direct=$true}\n  try{if([DFControl]::ProcessId($p.Id) -eq $id){$direct=$true}}catch{$diagnostics.Add('Process AppID: '+$_.Exception.GetType().Name)}\n  if(!$direct){\n   try{if([DFControl]::WindowId($p.MainWindowHandle) -eq $id){$direct=$true}}catch{$diagnostics.Add('Window AppID: '+$_.Exception.GetType().Name)}\n  }\n  if($direct){$matched[[int]$c.ProcessId]=[PSCustomObject]@{C=$c;Direct=$true;Start=$start}}\n }catch{$diagnostics.Add('Process snapshot: '+$_.Exception.GetType().Name)}\n}\ndo{\n $changed=$false\n foreach($c in $all){\n  $key=[int]$c.ProcessId;$parent=[int]$c.ParentProcessId\n  if(!$matched.ContainsKey($key) -and $matched.ContainsKey($parent) -and $c.CreationDate -ge $matched[$parent].C.CreationDate){\n   try{\n    $child=Get-Process -Id $key -ErrorAction Stop\n    $matched[$key]=[PSCustomObject]@{C=$c;Direct=$false;Start=$child.StartTime.ToUniversalTime().Ticks};$changed=$true\n   }catch{}\n  }\n }\n}while($changed)\n# Never target the editor itself or the helper's ancestry.\n$excluded=@{}\n$cursor=[int]$PID\nwhile($cursor -gt 0 -and !$excluded.ContainsKey($cursor)){\n $excluded[$cursor]=$true\n $ancestor=$all|Where-Object {$_.ProcessId -eq $cursor}|Select-Object -First 1\n if(!$ancestor){break};$cursor=[int]$ancestor.ParentProcessId\n}\n$selected=@(foreach($entry in $matched.Values){\n $c=$entry.C\n if($excluded.ContainsKey([int]$c.ProcessId)){continue}\n $p=Get-Process -Id $c.ProcessId -ErrorAction SilentlyContinue\n if(!$p){continue}\n try{\n  if($p.StartTime.ToUniversalTime().Ticks -ne $entry.Start){continue}\n  $fresh=Get-CimInstance Win32_Process -Filter ('ProcessId='+[int]$c.ProcessId) -ErrorAction Stop\n  if(!$fresh -or $fresh.CreationDate -ne $c.CreationDate){continue}\n  if($mode -eq 'Force'){\n   if($entry.Direct -or $p.MainWindowHandle -ne 0){$entry}\n  }elseif($p.MainWindowHandle -ne 0){$entry}\n }catch{}\n})\n$success=$false\n$failed=$false\n$stopped=@()\nforeach($entry in $selected){\n $c=$entry.C\n $p=Get-Process -Id $c.ProcessId -ErrorAction SilentlyContinue\n if(!$p){continue}\n try{\n  if($p.StartTime.ToUniversalTime().Ticks -ne $entry.Start){continue}\n  $fresh=Get-CimInstance Win32_Process -Filter ('ProcessId='+[int]$c.ProcessId) -ErrorAction Stop\n  if(!$fresh -or $fresh.CreationDate -ne $c.CreationDate){continue}\n  switch($mode){\n   'Focus'{\n    if($p.MainWindowHandle -eq 0){continue}\n    [void][DFControl]::ShowWindowAsync($p.MainWindowHandle,9)\n    if([DFControl]::SetForegroundWindow($p.MainWindowHandle) -or $wsh.AppActivate($p.Id)){$success=$true}\n   }\n   'Close'{if($p.MainWindowHandle -ne 0 -and $p.CloseMainWindow()){$success=$true}}\n   'Force'{\n    try{Stop-Process -InputObject $p -Force -ErrorAction Stop}\n    catch{if(!$p.HasExited){throw}}\n    $stopped+= $p\n    $success=$true\n   }\n  }\n }catch{$failed=$true}\n if($mode -eq 'Focus' -and $success){break}\n}\nif($mode -eq 'Force'){\n $remaining=0\n foreach($p in $stopped){\n  try{if(!$p.WaitForExit(2000)){$remaining++}}catch{$remaining++}\n }\n foreach($entry in $selected){\n  try{\n   $live=Get-Process -Id $entry.C.ProcessId -ErrorAction SilentlyContinue\n   if($live -and $live.StartTime.ToUniversalTime().Ticks -eq $entry.Start){$remaining++}\n  }catch{$failed=$true}\n }\n if($remaining -gt 0 -or ($failed -and !$success)){throw ('Selected processes not fully stopped; remaining='+$remaining)}\n}\nif($success){'FOUND'}elseif($mode -eq 'Focus'){'NOT_FOUND'}else{\n throw ('No controllable app process; shortcut paths='+$paths.Count+'; matched='+$matched.Count+'; selected='+$selected.Count+'; diagnostics='+ (($diagnostics|Select-Object -Unique -First 5) -join ', '))\n}";
-  const {stdout}=await execFileAsync('powershell.exe',['-NoProfile','-NonInteractive','-STA','-WindowStyle','Hidden','-Command',code],{
-    windowsHide:true,timeout:30000,maxBuffer:32768,
-    env:{...process.env,DECKFORGE_CONTROL_ID:id,DECKFORGE_CONTROL_MODE:mode}
-  });
-  return String(stdout).trim()==='FOUND';
-}
 async function inspectStartApplication(id){
   if(process.platform!=='win32')throw new Error('Windows에서만 지원합니다.');
   requireStartAppId(id);
@@ -1049,8 +1038,7 @@ function queueFolderControl(filePath,alwaysNewWindow){
   folderControlTail=task.catch(()=>{});
   return task;
 }
-ipcMain.handle('d200x:open-local-path',async(event,args)=>{
-  if(!window||event.sender!==window.webContents)throw new Error('허용되지 않은 호출입니다.');
+async function openLocalPath(args){
   const filePath=args?.filePath;
   if(args?.target==='appid'){
     if(process.platform!=='win32'||typeof filePath!=='string'||!filePath.startsWith(APP_ID_PREFIX)||String(args?.args||'').trim())
@@ -1089,6 +1077,24 @@ ipcMain.handle('d200x:open-local-path',async(event,args)=>{
   await new Promise((resolve,reject)=>{child.once('spawn',resolve);child.once('error',reject);});
   child.unref();
   return true;
+}
+ipcMain.handle('d200x:open-local-path',async(event,args)=>{
+  if(!window||event.sender!==window.webContents)throw new Error('허용되지 않은 호출입니다.');
+  return openLocalPath(args);
+});
+ipcMain.handle('d200x:open-application',async(event,args)=>{
+  if(!window||event.sender!==window.webContents)throw new Error('허용되지 않은 호출입니다.');
+  if(process.platform!=='win32'||!['file','appid'].includes(args?.target)||String(args?.args||'').trim())
+    throw new Error('올바른 프로그램 창 활성화 요청이 아닙니다.');
+  const spec=appFocusSpec(args.filePath,args.target);
+  // Scripts and shortcuts with their own arguments retain their launch semantics.
+  if(!spec)return openLocalPath(args);
+  const traceId=randomUUID();
+  return queueAppLaunch(spec.kind+':'+spec.target.toLowerCase(),()=>focusOrLaunch({
+    focus:mode=>inspectAppFocus(spec,mode,traceId),
+    launch:()=>openLocalPath(args),
+    record:(stage,result)=>stage==='launch-unconfirmed'?writeAppControlLog({traceId,stage,spec,result}):undefined
+  }));
 });
 
 // One shared last-used directory for every native import/file/folder chooser.

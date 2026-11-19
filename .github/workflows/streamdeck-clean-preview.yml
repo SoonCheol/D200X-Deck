@@ -19,6 +19,7 @@ on:
       - 'test/deckforge-platform-data-layout.test.cjs'
       - 'test/deckforge-key-press-icons.test.cjs'
       - 'test/deckforge-native-drop.test.cjs'
+      - 'test/deckforge-app-focus.test.cjs'
       - 'tools/native-drop-probe/NativeDropProbe.cs'
       - '.github/workflows/streamdeck-clean-preview.yml'
   workflow_dispatch:
@@ -58,6 +59,13 @@ jobs:
           node app/streamdeck-editor/build-native-drop-helper.cjs
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           node --test test/deckforge-native-drop.test.cjs
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Compile dedicated app focus helper and verify launch policy
+        shell: pwsh
+        run: |
+          node app/streamdeck-editor/build-app-focus-helper.cjs
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          node --test test/deckforge-app-focus.test.cjs
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - name: Check standalone preview scripts
         shell: pwsh
@@ -337,12 +345,13 @@ jobs:
             New-Item -ItemType Directory -Force $physical | Out-Null
             Copy-Item -LiteralPath 'app/preview-device-build/streamdeck-editor/folder-control-helper.exe' -Destination $physical -Force
             Copy-Item -LiteralPath 'app/preview-device-build/streamdeck-editor/native-drop-helper.exe' -Destination $physical -Force
+            Copy-Item -LiteralPath 'app/preview-device-build/streamdeck-editor/app-focus-helper.exe' -Destination $physical -Force
             $env:DECKFORGE_TEST_HELPER_DIR = Join-Path $resources 'app.asar/streamdeck-editor'
           } else {
             $env:DECKFORGE_TEST_HELPER_DIR = (Resolve-Path (Join-Path $resources 'app/streamdeck-editor')).Path
           }
           try {
-            node --test test/deckforge-folder-control.test.cjs test/deckforge-native-drop.test.cjs
+            node --test test/deckforge-folder-control.test.cjs test/deckforge-native-drop.test.cjs test/deckforge-app-focus.test.cjs
             if ($LASTEXITCODE -ne 0) { throw 'Portable native helper validation failed' }
           } finally {
             Remove-Item Env:DECKFORGE_TEST_HELPER_DIR -ErrorAction SilentlyContinue
@@ -402,7 +411,7 @@ jobs:
           $asar = (Resolve-Path 'dist-installer/win-unpacked/resources/app.asar').Path
           $env:DECKFORGE_TEST_HELPER_DIR = Join-Path $asar 'streamdeck-editor'
           try {
-            node --test ../test/deckforge-folder-control.test.cjs ../test/deckforge-native-drop.test.cjs
+            node --test ../test/deckforge-folder-control.test.cjs ../test/deckforge-native-drop.test.cjs ../test/deckforge-app-focus.test.cjs
             if ($LASTEXITCODE -ne 0) { throw 'Installer native helper validation failed' }
           } finally {
             Remove-Item Env:DECKFORGE_TEST_HELPER_DIR -ErrorAction SilentlyContinue

@@ -8,7 +8,8 @@
   "asarUnpack": [
     "**/*.node",
     "streamdeck-editor/folder-control-helper.exe",
-    "streamdeck-editor/native-drop-helper.exe"
+    "streamdeck-editor/native-drop-helper.exe",
+    "streamdeck-editor/app-focus-helper.exe"
   ],
   "npmRebuild": false,
   "electronVersion": "45.2.1",

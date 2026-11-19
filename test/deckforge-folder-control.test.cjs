@@ -6,7 +6,7 @@ const {runFolderHelper,helperPath}=require(path.join(root,'folder-helper.cjs'));
 const {buildFolderHelper}=require(path.join(root,'build-folder-helper.cjs'));
 test('folder option reaches direct and composite routes, not application control',()=>{
   assert.ok(source('editor.js').includes("check('alwaysNewWindow','항상 새 창으로 열기')"));
-  assert.equal((source('editor.js').match(/openLocalPath\(outcome\.path,outcome\.target,outcome\.args\|\|'',outcome\.alwaysNewWindow===true\)/g)||[]).length,3);
+  assert.equal((source('editor.js').match(/openLocalPath\(outcome\.path,outcome\.target,outcome\.args\|\|'',outcome\.alwaysNewWindow===true\)/g)||[]).length,2);
   assert.ok(source('preload.cjs').includes('{filePath,target,args,alwaysNewWindow}'));
   const main=source('main.cjs');
   assert.ok(main.includes("args.target==='folder'&&!extra.trim()"));

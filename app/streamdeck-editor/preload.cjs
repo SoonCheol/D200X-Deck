@@ -53,6 +53,7 @@ contextBridge.exposeInMainWorld('deckBridge', Object.freeze({
   typeText: (text,enter=false) => ipcRenderer.invoke('d200x:type-text', {text,enter}),
   pasteText: (text,enter=false) => ipcRenderer.invoke('d200x:paste-text', {text,enter}),
   focusLocalApp: filePath => ipcRenderer.invoke('d200x:focus-local-app',{filePath}),
+  openApplication: (filePath,target) => ipcRenderer.invoke('d200x:open-application',{filePath,target}),
   audioFileUrl: filePath => ipcRenderer.invoke('d200x:audio-file-url', {filePath}),
   closeLocalApp: (filePath,force=false,trace=null) => ipcRenderer.invoke('d200x:close-local-app', {filePath,force,trace}),
   logAppControl: record => ipcRenderer.invoke('d200x:app-control-event',record),

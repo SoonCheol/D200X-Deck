@@ -3134,8 +3134,8 @@ async function executeMultiStep(action,signal){
     case 'website':
       return bridge.openWebsite(outcome.url,outcome.mode,outcome.browserPath);
     case 'open-local-path':
-      if(action.type==='open-app'&&outcome.foreground&&!String(outcome.args||'').trim()&&(outcome.target==='appid'||/\.exe$/i.test(outcome.path))&&
-        await bridge.focusLocalApp(outcome.path))return true;
+      if(action.type==='open-app'&&outcome.foreground&&!String(outcome.args||'').trim()&&bridge.openApplication)
+        return bridge.openApplication(outcome.path,outcome.target);
       return bridge.openLocalPath(outcome.path,outcome.target,outcome.args||'',outcome.alwaysNewWindow===true);
     case 'type-text':
       return outcome.mode==='clipboard'?bridge.pasteText(outcome.text,outcome.enter):bridge.typeText(outcome.text,outcome.enter);
@@ -3589,8 +3589,8 @@ function executeHardwareAction(event,preview=false,skipKnobGesture=false){
   }
   if(outcome.kind==='open-local-path'){
     if(!window.deckBridge?.openLocalPath)return 'Windows 실행 환경에서만 사용할 수 있습니다.';
-    (resolved.action?.type==='open-app'&&outcome.foreground&&!String(outcome.args||'').trim()&&(outcome.target==='appid'||/\.exe$/i.test(outcome.path))
-      ?window.deckBridge.focusLocalApp(outcome.path).then(found=>found?true:window.deckBridge.openLocalPath(outcome.path,outcome.target,outcome.args||'',outcome.alwaysNewWindow===true))
+    (resolved.action?.type==='open-app'&&outcome.foreground&&!String(outcome.args||'').trim()&&window.deckBridge.openApplication
+      ?window.deckBridge.openApplication(outcome.path,outcome.target)
       :window.deckBridge.openLocalPath(outcome.path,outcome.target,outcome.args||'',outcome.alwaysNewWindow===true)).then(
       ()=>window.d200xActionStatus?.('경로 열기 완료'),
       error=>window.d200xActionStatus?.('경로 열기 실패: '+String(error?.message||error)));
