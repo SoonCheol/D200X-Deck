@@ -14,6 +14,7 @@
   let renderSerial = 0;
   let timeout = null;
   let lastSentImages = null;
+  let lastSentWideMode='blank',lastSentPageStamp=null;
   let online = false;
   const pressedKeys=new Map();
   const releaseTimers=new Map();
@@ -26,6 +27,7 @@
     online = Boolean(status?.connected);
     if(!online){
       window.clearD200XOpenAppHolds?.('hid-disconnect');
+      window.clearD200XWarningPresses?.();
       pressedKeys.clear();
       for(const timer of releaseTimers.values())clearTimeout(timer);
       releaseTimers.clear();
@@ -172,7 +174,16 @@
     };
     ctx.fillStyle='#111823';ctx.fillRect(0,0,width,height);
     const w=width,h=height;
-    if(mode==='clock'){
+    if(mode==='unsaved'){
+      ctx.fillStyle='#301c18';ctx.fillRect(0,0,w,h);
+      ctx.strokeStyle='#dc9944';ctx.lineWidth=4;ctx.strokeRect(4,4,w-8,h-8);
+      ctx.fillStyle='#ffbd59';ctx.beginPath();
+      ctx.moveTo(w/2,18);ctx.lineTo(w/2-29,69);ctx.lineTo(w/2+29,69);ctx.closePath();ctx.fill();
+      text('!',w/2,55,'bold 33px "Segoe UI",sans-serif','center','#301c18');
+      text('저장하지 않은 변경 사항',w/2,105,'bold 28px "Malgun Gothic",sans-serif','center','#ffbd59');
+      text('이 버튼을 눌러 확인',w/2,145,'23px "Malgun Gothic",sans-serif');
+      text('DeckForge',w/2,174,'17px "Segoe UI",sans-serif','center','#d5bca9');
+    }else if(mode==='clock'){
       const radius=69,cx=88,cy=h/2;
       ctx.strokeStyle='#7e93ab';ctx.lineWidth=3;ctx.beginPath();ctx.arc(cx,cy,radius,0,Math.PI*2);ctx.stroke();
       for(let i=0;i<12;i++){
@@ -240,7 +251,7 @@
     ctx.fillRect(0, 0, width, height);
     if(item?.type==='wide-display'){
       // The custom knobs screen is rendered as PNG; the device-native mode must stay blank.
-      drawWidePanel(ctx,width,height,window.D200XWideModeName?.()||'clock');
+      drawWidePanel(ctx,width,height,item.wideNotice?'unsaved':window.D200XWideModeName?.()||'clock');
       return {index,png:canvas.toDataURL('image/png').split(',')[1]};
     }
     if (item) {
@@ -322,8 +333,32 @@
   const initialItem=state.selected===null?null:DeckCore.visibleActions(state)[state.selected];
   if(initialItem)void refreshStateTitleCards(initialItem);
 
+  // Keep normal bitmaps/mode cached. Apply the alert only to the outgoing
+  // page, including native clock/stats and legacy populated folder slots.
+  const warningPageStamp=()=>JSON.stringify([state.profileId,state.page,state.folderPath||[],DeckCore.activeFolder(state)?.pageIndex||0]);
+  function sendImages(images,mode){
+    if(window.D200XUnsavedWarning?.()){
+      const canvas=document.createElement('canvas');canvas.width=392;canvas.height=196;
+      drawWidePanel(canvas.getContext('2d'),392,196,'unsaved');
+      const overlay=images.slice();
+      overlay[13]={index:13,png:canvas.toDataURL('image/png').split(',')[1]};
+      bridge.syncPage(overlay,'blank');
+    }else bridge.syncPage(images,mode);
+  }
+  function cacheAndSendImages(images,mode,stamp){
+    lastSentImages=images;lastSentWideMode=mode;lastSentPageStamp=stamp;
+    sendImages(images,mode);
+  }
+  window.scheduleD200XWarningSync=()=>{
+    // Do not cancel an outstanding normal page synchronization. It will
+    // also apply the current alert state at the point of transmission.
+    if(lastSentImages?.length===14&&lastSentPageStamp===warningPageStamp())
+      sendImages(lastSentImages,lastSentWideMode);
+    else schedule(0);
+  };
   async function synchronize() {
     const serial = ++renderSerial;
+    const stamp=warningPageStamp();
     const page = DeckCore.visibleActions(state).slice(0, 14).map((item,index) =>
       item?JSON.parse(JSON.stringify(item)):
         state.folderPath?.length&&index===13
@@ -338,8 +373,7 @@
             : DeckCore.displaySwitchAction(item),index
       )));
       if (serial !== renderSerial) return;
-      lastSentImages=images;
-      bridge.syncPage(images,window.getD200XWideMode?.()||'blank');
+      cacheAndSendImages(images,window.getD200XWideMode?.()||'blank',stamp);
     } catch (error) {
       text('D200X 아이콘 생성 오류: ' + String(error?.message || error));
     }
@@ -355,7 +389,7 @@
   // press. The existing whole-page synchronization remains the fallback
   // for initial connection, page changes and all other edits.
   window.scheduleD200XWideSync=()=>{
-    if(!lastSentImages||lastSentImages.length!==14){schedule(0);return;}
+    if(!lastSentImages||lastSentImages.length!==14||lastSentPageStamp!==warningPageStamp()){schedule(0);return;}
     const serial=++renderSerial;
     if(timeout!==null){clearTimeout(timeout);timeout=null;}
     const wide=window.getD200XDisplayItem?.(null,13);
@@ -364,8 +398,7 @@
       if(serial!==renderSerial)return;
       const images=lastSentImages.slice();
       images[13]=image;
-      lastSentImages=images;
-      bridge.syncPage(images,window.getD200XWideMode?.()||'blank');
+      cacheAndSendImages(images,window.getD200XWideMode?.()||'blank',warningPageStamp());
     }).catch(error=>{
       text('가로 화면 전환 이미지 오류: '+String(error?.message||error));
       schedule(0);

@@ -553,6 +553,19 @@ function wideDisplayAvailable(){
 function wideVisual(){
   return {type:'wide-display',title:WIDE_LABELS[state.wideDisplay?.current]||WIDE_LABELS.clock};
 }
+// Runtime-only alert. Never write it into a profile, wide mode, or slot.
+function wideUnsavedWarningActive(){return document.querySelector('#inspector-unsaved-dialog')?.open===true;}
+function wideUnsavedVisual(){return {type:'wide-display',title:'저장하지 않은 변경 사항',wideNotice:true};}
+window.D200XUnsavedWarning=wideUnsavedWarningActive;
+function refreshWideUnsavedWarning(){
+  renderGrid();
+  window.scheduleD200XWarningSync?.();
+}
+function revealWideUnsavedWarning(){
+  window.deckBridge?.revealUnsavedEditor?.().then(focused=>{
+    if(!focused)window.d200xActionStatus?.('DeckForge 확인창을 작업 표시줄에서 확인하세요.');
+  }).catch(error=>window.d200xActionStatus?.('확인창 표시 실패: '+String(error?.message||error)));
+}
 window.D200XWideModeName=()=>wideDisplayAvailable()?state.wideDisplay?.current:null;
 const KNOB_TARGET_LABELS={page:'페이지 이동',profile:'프로필 전환',volume:'Windows 음량',zoom:'확대/축소',scroll:'세로 스크롤','scroll-x':'가로 스크롤',history:'실행 취소·다시 실행',window:'창 전환',desktop:'가상 데스크톱',brightness:'기기 밝기'};
 window.D200XKnobInfo=()=>[16,17,18].map((index,i)=>{
@@ -704,7 +717,7 @@ function renderGrid(){
   const grid=$("key-grid");grid.replaceChildren();
   DeckCore.visibleActions(state).slice(0,KEY_COUNT).forEach((raw,i)=>{
     const folderBack=state.folderPath?.length>0&&i===13&&!raw;
-    const item=folderBack?{type:'folder-back',title:'뒤로',icon:{kind:'glyph',glyph:'↩'}}:(i===13&&wideDisplayAvailable()?wideVisual():raw);
+    const item=i===13&&wideUnsavedWarningActive()?wideUnsavedVisual():folderBack?{type:'folder-back',title:'뒤로',icon:{kind:'glyph',glyph:'↩'}}:(i===13&&wideDisplayAvailable()?wideVisual():raw);
     const b=document.createElement("button");b.type="button";b.className="deck-key"+(i===13?" wide":"")+(state.selected===i?" selected":"");
     b.dataset.index=i;b.setAttribute("aria-label",`키 ${i+1}: ${keyName(item)||"비어 있음"}`);
     const visual=displayKeyPressItem(displayItem(item,i),i);
@@ -2078,8 +2091,11 @@ function showInspectorLeaveDialog(onProceed){
   add('저장 안 함',()=>{discardInspector();onProceed();});
   add('저장 후 이동',()=>{saveInspector();if(!inspectorSession?.dirty)onProceed();},true);
   dialog.append(title,message,actions);document.body.append(dialog);
-  dialog.addEventListener('close',()=>dialog.remove(),{once:true});
+  dialog.addEventListener('close',()=>{
+    dialog.remove();refreshWideUnsavedWarning();
+  },{once:true});
   dialog.showModal();
+  refreshWideUnsavedWarning();
 }
 function appendInspectorSaveBar(root){
   const footer=document.createElement('div');footer.className='inspector-save-bar';
@@ -3485,6 +3501,29 @@ function runActionPreview(gesture='down'){
   window.d200xActionStatus?.(result||'등록된 동작이 없어 실행하지 않았습니다.');
 }
 let lastWideHardwarePress=0;
+// Own only presses started on the warning. A pre-existing SDK/hold press
+// must still receive its release, even if the dialog opened in between.
+const wideWarningPresses=new Set();
+let lastWarningPressAt=-Infinity;
+window.clearD200XWarningPresses=()=>{wideWarningPresses.clear();lastWarningPressAt=-Infinity;};
+function handleWideWarningInput(event,preview){
+  if(preview||event?.knob===true)return null;
+  const index=Number(event?.index);
+  if(index!==13&&index!==14)return null;
+  if(event?.pressed===false||Number(event?.state)===0){
+    if(wideWarningPresses.delete(index))return {message:null};
+    return null;
+  }
+  if(!DeckCore.isWideDisplayPress(event))return null;
+  const now=Date.now(),active=wideUnsavedWarningActive();
+  if(!active&&!wideWarningPresses.has(index)&&now-lastWarningPressAt>=240)return null;
+  wideWarningPresses.add(index);
+  if(active&&now-lastWarningPressAt>=240){
+    lastWarningPressAt=now;
+    revealWideUnsavedWarning();
+  }
+  return {message:'DeckForge 확인창 표시'};
+}
 function advanceWideDisplay(){
   if(!wideDisplayAvailable())return null;
   const mode=DeckCore.cycleWideDisplay(state);
@@ -3517,6 +3556,8 @@ function heldKnobEvent(event,preview){
   return {event,consume:false,replay:false};
 }
 function executeHardwareAction(event,preview=false,skipKnobGesture=false){
+  const warning=handleWideWarningInput(event,preview);
+  if(warning)return warning.message;
   if(!skipKnobGesture){
     const held=heldKnobEvent(event,preview);
     if(held.replay){

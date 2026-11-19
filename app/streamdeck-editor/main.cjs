@@ -276,6 +276,16 @@ function revealEditor(){
   window.focus();
   if(fusionMagnet&&fusionMagnet.status().enabled&&!fusionMagnet.status().attached)fusionMagnet.attach();
 }
+// The physical wide warning button may reveal the existing modal, never
+// resolve it or modify the foreground/topmost policy of other windows.
+ipcMain.handle('d200x:reveal-unsaved-editor',event=>{
+  assertEditor(event);
+  if(window.isMinimized())window.restore();
+  window.show();
+  window.focus();
+  if(!window.isFocused())window.flashFrame(true);
+  return window.isFocused();
+});
 function quitDeckForge(){
   quitting=true;
   app.quit();

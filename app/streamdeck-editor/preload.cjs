@@ -6,6 +6,7 @@ contextBridge.exposeInMainWorld('deckBridge', Object.freeze({
   writeProfile: state => ipcRenderer.sendSync('d200x:profile-write',state),
   foregroundApp: () => ipcRenderer.invoke('d200x:foreground-app'),
   appVersion: () => ipcRenderer.invoke('d200x:app-version'),
+  revealUnsavedEditor: () => ipcRenderer.invoke('d200x:reveal-unsaved-editor'),
   checkForUpdates: () => ipcRenderer.invoke('d200x:check-updates'),
   haStatus: () => ipcRenderer.invoke('d200x:ha-status'),
   sdkList: () => ipcRenderer.invoke('d200x:sdk-list'),
