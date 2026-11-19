@@ -2533,7 +2533,15 @@ function bindHotkeyFields(root,item){
       persistInspectorChange();
     });
   }
-  modeRow.append(modeLabel,modeBox);inputs[0].closest('.field').before(modeRow);
+  if(preset){
+    // Retain the original field label and combine its value with the input-mode controls.
+    const presetRow=preset.closest('.field');
+    const combined=document.createElement('div');combined.className='hotkey-preset-mode';
+    preset.before(combined);
+    combined.append(preset,modeLabel,modeBox);
+  }else{
+    modeRow.append(modeLabel,modeBox);inputs[0].closest('.field').before(modeRow);
+  }
   function applyPresetTitle(id){
     if(!id||item.type!=='hotkey')return;
     const label=HOTKEY_PRESET_LABELS.find(([key])=>key===id)?.[1];
@@ -2546,7 +2554,7 @@ function bindHotkeyFields(root,item){
       const pair=ensureStateTitlePair(item);
       for(const [i,which] of ['first','second'].entries()){
         const entry=pair[which];
-        if(entry.enabled&&eligible(entry.title)){
+        if(eligible(entry.title)){
           entry.title=label;
           if(titleFields[i])titleFields[i].value=label;
         }
@@ -2575,6 +2583,9 @@ function bindHotkeyFields(root,item){
     let legacy=parsed?'':String(item.settings[field]||'');
     node.readOnly=true;node.classList.add('hotkey-capture');
     const row=node.closest('.field');
+    const captureWrap=document.createElement('div');captureWrap.className='hotkey-capture-wrap';
+    const notice=document.createElement('span');notice.className='hotkey-function-name';notice.setAttribute('role','status');
+    node.before(captureWrap);captureWrap.append(node,notice);
     const choiceRow=document.createElement('div');choiceRow.className='field hotkey-choice-row';
     const spacer=document.createElement('span');
     const choices=document.createElement('div');choices.className='hotkey-choices';choices.setAttribute('role','group');choices.setAttribute('aria-label',field==='keys'?'단축키 선택':field==='first'?'단축키 1 선택':'단축키 2 선택');
@@ -2612,9 +2623,6 @@ function bindHotkeyFields(root,item){
       menus.push([group,menu]);choices.append(menu);
     }
     choiceRow.append(spacer,choices);row.after(choiceRow);
-    const noticeRow=document.createElement('div');noticeRow.className='field hotkey-notice-row';noticeRow.hidden=true;
-    const notice=document.createElement('span');notice.className='hotkey-notice';notice.setAttribute('role','status');
-    noticeRow.append(document.createElement('span'),notice);choiceRow.after(noticeRow);
     function sync(){
       const raw=legacy||api.format(selected,key);
       node.value=key||legacy?api.display(raw):raw.split('+').join(' + ');
@@ -2628,8 +2636,11 @@ function bindHotkeyFields(root,item){
       for(const [group,menu] of menus){
         menu.disabled=mode!=='select';menu.value=group.keys.some(entry=>entry.id===key)?key:'';
       }
-      const message=key?api.advisory(raw,HOTKEY_PRESETS):'';
-      notice.textContent=message;noticeRow.hidden=!message;
+      const matched=key?api.matchPreset(raw,HOTKEY_PRESETS):'';
+      const label=matched?HOTKEY_PRESET_LABELS.find(([id])=>id===matched)?.[1]||'':'';
+      const advisory=key?api.advisory(raw,HOTKEY_PRESETS):'';
+      const message=label||advisory.replace(/^Windows 전역 단축키 · /,'Windows · ');
+      notice.textContent=message;notice.title=label||advisory;notice.hidden=!message;
     }
     let armed=false;
     node.addEventListener('focus',()=>{armed=mode==='keyboard';if(armed)node.placeholder='단축키를 누르세요 (Esc 취소)';});

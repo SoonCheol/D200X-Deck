@@ -1362,7 +1362,8 @@ if(singleInstanceLock)app.whenReady().then(async () => {
   const usableWidth=Math.max(1,workArea.width-windowMargin*2);
   const usableHeight=Math.max(1,workArea.height-windowMargin*2);
   const initialWidth=Math.min(980,usableWidth);
-  const initialHeight=usableHeight;
+  // Leave 20px more free space above and below without changing the minimum.
+  const initialHeight=Math.max(Math.min(630,usableHeight),usableHeight-40);
   const minimumWidth=Math.min(960,initialWidth);
   const minimumHeight=Math.min(630,initialHeight);
   window = new BrowserWindow({

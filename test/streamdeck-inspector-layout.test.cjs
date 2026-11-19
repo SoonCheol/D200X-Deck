@@ -339,9 +339,57 @@ test('hotkey inputs reuse existing field rows, preset list and action preview',(
   assert.match(editor,/node.addEventListener\('keyup'/);
   assert.match(editor,/previewButton.addEventListener\('click',\(\)=>runActionPreview\('down'\)\)/);
   assert.match(css,/\.hotkey-choices>\.hotkey-modifier,\.hotkey-choices>select\{height:31px;min-height:31px/);
-  assert.match(css,/\.hotkey-notice-row\[hidden\]\{display:none!important\}/);
+  assert.match(css,/\.hotkey-function-name\[hidden\]\{display:none!important\}/);
   const main=fs.readFileSync(path.join(base,'main.cjs'),'utf8');
   const html=fs.readFileSync(path.join(base,'index.html'),'utf8');
   assert.ok(html.indexOf('./hotkey-keys.js')>=0&&html.indexOf('./hotkey-keys.js')<html.indexOf('./editor.js'));
   assert.match(main,/emitWindowsKeys\(parsed.held,parsed.key,parsed\)/);
+});
+
+test('hotkey preset and input mode share a row; the function name sits inside the input',()=>{
+  assert.match(editor,/combined\.append\(preset,modeLabel,modeBox\)/);
+  assert.match(editor,/captureWrap\.append\(node,notice\)/);
+  assert.match(editor,/const message=label\|\|advisory\.replace/);
+  assert.match(css,/\.hotkey-preset-mode\{display:flex;align-items:center/);
+  assert.match(css,/\.hotkey-capture-wrap\{[^}]*height:31px/);
+  assert.match(css,/\.hotkey-function-name\{[^}]*text-align:right/);
+  assert.doesNotMatch(editor,/hotkey-notice-row/);
+});
+test('hotkey automatic titles populate both state cards without changing selection flags',()=>{
+  const start=editor.indexOf('  function applyPresetTitle(id){');
+  const end=editor.indexOf('  function commit(node,value){',start);
+  const source=editor.slice(start,end);
+  assert.ok(start>=0&&end>start);
+  function scenario(titles){
+    const pair={first:{enabled:true,title:titles[0]},second:{enabled:false,title:titles[1]}};
+    const item={type:'hotkey',title:titles[0],settings:{stateTitles:pair}};
+    const titleFields=[{value:titles[0]},{value:titles[1]}],hiddenTitle={value:item.title};
+    const root={id:'inspector',querySelectorAll:()=>titleFields,querySelector:()=>hiddenTitle};
+    vm.runInNewContext(source+";applyPresetTitle('find')",{
+      item,root,HOTKEY_PRESET_LABELS:[['copy','복사'],['find','찾기']],
+      hasStateTitlePair:()=>true,ensureStateTitlePair:()=>pair
+    });
+    return {pair,titleFields,item};
+  }
+  const initial=scenario(['','']);
+  assert.equal(initial.pair.first.title,'찾기');
+  assert.equal(initial.pair.second.title,'찾기');
+  assert.equal(initial.titleFields[1].value,'찾기');
+  assert.equal(initial.pair.first.enabled,true);
+  assert.equal(initial.pair.second.enabled,false);
+  const custom=scenario(['복사','사용자 제목']);
+  assert.equal(custom.pair.first.title,'찾기');
+  assert.equal(custom.pair.second.title,'사용자 제목');
+});
+test('initial editor window is 40px shorter but keeps the minimum and centering',()=>{
+  const main=fs.readFileSync(path.join(base,'main.cjs'),'utf8');
+  const block=main.slice(main.indexOf('  const windowMargin=18;'),main.indexOf('  window = new BrowserWindow({'));
+  assert.match(main,/y:workArea.y\+Math.max\(0,Math.floor\(\(workArea.height-initialHeight\)\/2\)\)/);
+  for(const [height,expected] of [[1080,1004],[900,824],[700,630],[640,604]]){
+    const result=vm.runInNewContext(block+';({initialHeight,minimumHeight,initialWidth,minimumWidth})',{workArea:{width:1920,height}});
+    assert.equal(result.initialHeight,expected);
+    assert.equal(result.minimumHeight,Math.min(630,expected));
+    assert.equal(result.initialWidth,980);
+    assert.equal(result.minimumWidth,960);
+  }
 });

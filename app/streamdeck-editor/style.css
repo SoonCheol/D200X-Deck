@@ -1032,7 +1032,17 @@
 .hotkey-input-modes{display:flex;align-items:center;gap:16px;height:31px;min-width:0}
 .hotkey-input-modes>label{display:flex;align-items:center;gap:5px;white-space:nowrap;cursor:pointer;text-align:left;color:#ddd}
 .hotkey-input-modes>label>input[type="radio"]{width:14px;height:14px;min-height:0;padding:0;margin:0;accent-color:#2678ca}
-.field>.hotkey-capture:disabled{opacity:1;color:#ddd;cursor:default}
+.hotkey-preset-mode{display:flex;align-items:center;gap:8px;flex-wrap:wrap;min-width:0;width:100%}
+.hotkey-preset-mode>select{flex:1 1 100px;min-width:0;width:0;height:31px;padding:4px 7px}
+.hotkey-preset-mode>label{flex:none;white-space:nowrap}
+.hotkey-preset-mode>.hotkey-input-modes{flex:none;gap:8px}
+.hotkey-preset-mode .hotkey-input-modes>label{font-size:12px}
+.hotkey-capture-wrap{display:flex;align-items:center;min-width:0;width:100%;height:31px;border:1px solid #555;border-radius:4px;background:#363636;overflow:hidden}
+.hotkey-capture-wrap:focus-within{border-color:#529eea}
+.field .hotkey-capture-wrap>.hotkey-capture{flex:1 1 0;min-width:0;width:0;height:29px;min-height:0;border:0;outline:none;background:transparent;padding:5px 9px}
+.field .hotkey-capture-wrap>.hotkey-capture:disabled{opacity:1;color:#ddd;cursor:default}
+.hotkey-function-name{flex:0 1 auto;min-width:0;max-width:48%;padding-right:9px;color:#aaa;font-size:12px;text-align:right;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:default}
+.hotkey-function-name[hidden]{display:none!important}
 .hotkey-choices{display:flex;align-items:center;gap:4px;min-width:0;width:100%;flex-wrap:wrap}
 .hotkey-choices>.hotkey-modifier,.hotkey-choices>select{height:31px;min-height:31px;box-sizing:border-box;margin:0;padding:0 4px;border:1px solid #666;border-radius:4px;background:#363636;color:#ddd;font-size:12px}
 .hotkey-choices>.hotkey-modifier{flex:0 0 auto;min-width:30px;white-space:nowrap}
@@ -1040,5 +1050,3 @@
 .hotkey-choices>select{flex:1 1 65px;min-width:0;width:0;max-width:none;padding-right:2px}
 .hotkey-choices>select:last-child{flex-grow:1.35}
 .hotkey-choices>.hotkey-modifier:disabled,.hotkey-choices>select:disabled{opacity:.45;cursor:default}
-.hotkey-notice-row[hidden]{display:none!important}
-.hotkey-notice{font-size:11px;line-height:1.35;color:#b8cde2;overflow-wrap:anywhere}
