@@ -3168,7 +3168,7 @@ function inspectorBreadcrumb(item,action,inspectorName){
 }
 function inspectorOverview(item){
   switch(item.type){
-    case 'multi':return (item.children?.length||0)+'개의 단계';
+    case 'multi':return '';
     case 'multi-switch':return '상태 1 · '+(item.sequences?.[0]?.length||0)+'개 / 상태 2 · '+(item.sequences?.[1]?.length||0)+'개';
     case 'random':return (item.children?.length||0)+'개의 후보';
     case 'timer':return '지속 시간 및 사운드 설정';

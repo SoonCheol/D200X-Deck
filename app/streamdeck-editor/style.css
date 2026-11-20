@@ -1078,7 +1078,7 @@
 
 /* Ordered Multi only; no change to switch/random/logic property layout. */
 .ordered-multi .multi-action-toolbar{margin:0 0 8px;flex-wrap:nowrap}
-.ordered-multi .multi-action-toolbar select{flex:1;min-width:0}
+
 .ordered-multi-list{display:flex;flex-direction:column;gap:4px;min-width:0}
 .ordered-multi-row{display:grid;grid-template-columns:20px 92px minmax(0,1fr) 28px 28px;gap:4px;align-items:center;min-width:0}
 .ordered-multi-row>span{white-space:nowrap;text-align:center}
@@ -1111,7 +1111,7 @@
 /* Keep the new full-width row list below the three preview cards. */
 .state-title-inspector .state-title-extra-properties>.fields:has(>.ordered-multi){padding-left:0}
 .properties>.fields>.ordered-multi{width:100%;max-width:none;margin:0;border-top:0;padding-top:0}
-.ordered-multi .multi-action-toolbar select{max-width:none}
+
 .ordered-multi-mini svg,.timer-sound-row>button svg{display:block;margin:auto}
 .action-layout-inspector .preview>.ordered-multi-stop{display:block;width:98px;height:29px;margin:4px 0 0;padding:4px 0}
 .ordered-multi-row .ordered-multi-value{white-space:nowrap;max-width:100%}
