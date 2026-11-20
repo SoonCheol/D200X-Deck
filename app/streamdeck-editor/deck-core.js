@@ -1055,6 +1055,7 @@
     });
     state.profileSeq=Math.max(state.profileNames.length,Number.isInteger(value?.profileSeq)?value.profileSeq:1);
     state.smartProfilesEnabled=value?.smartProfilesEnabled===true;
+    initProfileTemplates(state,value);
   }
   function switchProfile(state,id){
     if(!state.profileNames?.some(p=>p.id===id))return false;
@@ -1100,6 +1101,85 @@
       snapshot:profileSnapshot(snapshot)
     };
     return data;
+  }
+  // Independent, local whole-profile snapshots. Reuse never activates a profile.
+  const TEMPLATE_LIMIT=50;
+  function templateName(value){
+    if(typeof value!=='string'||!value.trim()||value.trim().length>80||/[\x00-\x1f\x7f]/.test(value))throw Error('이름은 1~80자로 입력하세요.');
+    return value.trim();
+  }
+  function sameName(a,b){return a.trim().toLowerCase()===b.trim().toLowerCase();}
+  function templateSnapshot(value){
+    if(!value||!Array.isArray(value.pages)||value.pages.length<1||value.pages.length>128||
+      value.pages.some(row=>!Array.isArray(row)||row.length>19)||!value.controls||!Array.isArray(value.pinned))
+      throw Error('템플릿 프로필 데이터가 올바르지 않습니다.');
+    const snapshot=profileSnapshot(value);
+    snapshot.page=0;snapshot.folderPath=[];
+    return snapshot;
+  }
+  function initProfileTemplates(state,value){
+    const list=value?.profileTemplates;
+    if(list===undefined){state.profileTemplates=[];state.profileTemplateSeq=0;return;}
+    if(!Array.isArray(list)||list.length>TEMPLATE_LIMIT)throw Error('템플릿 목록을 읽을 수 없습니다.');
+    const ids=new Set(),names=new Set();
+    state.profileTemplates=list.map(t=>{
+      if(!t||typeof t.id!=='string'||!/^template-[1-9]\d{0,14}$/.test(t.id)||ids.has(t.id))throw Error('템플릿 식별자가 올바르지 않습니다.');
+      const name=templateName(t.name),key=name.toLowerCase();
+      if(names.has(key))throw Error('중복된 템플릿 이름입니다.');
+      ids.add(t.id);names.add(key);
+      return {id:t.id,name,snapshot:templateSnapshot(t.snapshot)};
+    });
+    const maximum=Math.max(0,...state.profileTemplates.map(t=>Number(t.id.slice(9))));
+    state.profileTemplateSeq=Math.max(maximum,Number.isSafeInteger(value.profileTemplateSeq)&&value.profileTemplateSeq>=0?value.profileTemplateSeq:0);
+  }
+  function templateFork(state){
+    return {...state,profileNames:state.profileNames.slice(),inactiveProfiles:state.inactiveProfiles.slice(),profileTemplates:(state.profileTemplates||[]).slice()};
+  }
+  function getTemplate(state,id){
+    const t=state.profileTemplates?.find(x=>x.id===id);
+    if(!t)throw Error('템플릿을 찾지 못했습니다.');
+    return t;
+  }
+  function findProfileTemplate(state,name){
+    const label=templateName(name),t=state.profileTemplates?.find(x=>sameName(x.name,label));
+    if(!t)throw Error('해당 템플릿이 없습니다.');
+    return t;
+  }
+  function saveProfileTemplate(state,sourceId,name){
+    const label=templateName(name),list=state.profileTemplates||[];
+    if(list.length>=TEMPLATE_LIMIT)throw Error('템플릿은 최대 50개입니다.');
+    if(list.some(t=>sameName(t.name,label)))throw Error('같은 이름의 템플릿이 이미 있습니다.');
+    const snapshot=templateSnapshot(exportSingleProfile(state,sourceId).snapshot),next=templateFork(state);
+    const seq=(Number.isSafeInteger(state.profileTemplateSeq)?state.profileTemplateSeq:0)+1;
+    if(!Number.isSafeInteger(seq)||seq>999999999999999)throw Error('템플릿 식별자 한도에 도달했습니다.');
+    const id='template-'+seq;
+    if(list.some(t=>t.id===id))throw Error('템플릿 식별자가 중복되었습니다.');
+    const template={id,name:label,snapshot};
+    next.profileTemplateSeq=seq;next.profileTemplates.push(template);
+    return {next,template};
+  }
+  function renameProfileTemplate(state,id,name){
+    const old=getTemplate(state,id),label=templateName(name);
+    if(state.profileTemplates.some(t=>t.id!==id&&sameName(t.name,label)))throw Error('같은 이름의 템플릿이 이미 있습니다.');
+    const next=templateFork(state);
+    next.profileTemplates=next.profileTemplates.map(t=>t.id===id?{...old,name:label}:t);
+    return next;
+  }
+  function deleteProfileTemplate(state,id){
+    getTemplate(state,id);
+    const next=templateFork(state);
+    next.profileTemplates=next.profileTemplates.filter(t=>t.id!==id);
+    return next;
+  }
+  function applyProfileTemplate(state,id,name){
+    const template=getTemplate(state,id),label=templateName(name);
+    if(state.profileNames.some(p=>sameName(p.name,label)))throw Error('같은 이름의 프로필이 이미 있습니다.');
+    const clean=profileSnapshot(migrateState(templateSnapshot(template.snapshot)));
+    // Preserve explicit linked profile IDs as ordinary duplication does.
+    const next=templateFork(state),createdProfileId=createProfile(next,label);
+    if(!createdProfileId)throw Error('프로필은 최대 50개입니다.');
+    next.inactiveProfiles[next.inactiveProfiles.findIndex(p=>p.id===createdProfileId)]={id:createdProfileId,...clean,page:0,folderPath:[]};
+    return {next,createdProfileId,template};
   }
   function setProfileApp(state,id,appPath){
     const profile=state.profileNames?.find(p=>p.id===id);
@@ -1363,5 +1443,5 @@
       url:action.settings?.url||'',mode:action.settings?.open||'default',browserPath:action.settings?.browserPath||''};
     return {kind:'unsupported',message:'이 동작의 실행 기능은 아직 구현되지 않았습니다.'};
   }
-  return {ACTION_IDS,D200X_ACTION_IDS,PLUGIN_ACTION_IDS,DEFAULTS,TITLE,INDICATOR_NUMBER_STYLE,INDICATOR_NAV_LABELS,indicatorConfig,indicatorCommon,sharedIndicatorConfig,updateIndicatorCommon,manageIndicators,indicatorNumberDisplayStyle,planIndicatorNavigation,indicatorPinState,setIndicatorPinned,SIDE_NAV_LABELS,SIDE_HOLD_MS,sideConfig,makeSideAction,sideActionConfig,sideFolderTargets,planSideNavigation,applySideNavigation,createPageVisitTracker,createSidePressTracker,createAction,cleanAction,cleanCompositeEntry,timerSeconds,formatTimerTime,displaySwitchAction,compositeModel,planComposite,runComposite,createMultiPauseGate,multiRows,setMultiRows,blankPage,cleanWideDisplay,cycleWideDisplay,isWideDisplayPress,folderContents,folderPageCount,changeFolderPage,addFolderPage,deleteFolderPage,editPageStructure,currentActions,visibleActions,togglePinned,activeFolder,enterFolder,exitFolder,migrateState,profileSnapshot,switchProfile,createProfile,renameProfile,exportSingleProfile,setProfileApp,matchForegroundProfile,deleteProfile,previewHardwareEvent,physicalSlot,hardwareGesture,resolveHardwareEvent,runtimeActionKey,folderWideBackEvent,resolveKeyPress,planHardwareEvent,deletePage,planAction,emptyBinding,cleanBinding,controlAction,activeControlAction,assignControlAction,automaticControl,ensureControls,controlBinding,changeControlScope};
+  return {ACTION_IDS,D200X_ACTION_IDS,PLUGIN_ACTION_IDS,DEFAULTS,TITLE,INDICATOR_NUMBER_STYLE,INDICATOR_NAV_LABELS,indicatorConfig,indicatorCommon,sharedIndicatorConfig,updateIndicatorCommon,manageIndicators,indicatorNumberDisplayStyle,planIndicatorNavigation,indicatorPinState,setIndicatorPinned,SIDE_NAV_LABELS,SIDE_HOLD_MS,sideConfig,makeSideAction,sideActionConfig,sideFolderTargets,planSideNavigation,applySideNavigation,createPageVisitTracker,createSidePressTracker,createAction,cleanAction,cleanCompositeEntry,timerSeconds,formatTimerTime,displaySwitchAction,compositeModel,planComposite,runComposite,createMultiPauseGate,multiRows,setMultiRows,blankPage,cleanWideDisplay,cycleWideDisplay,isWideDisplayPress,folderContents,folderPageCount,changeFolderPage,addFolderPage,deleteFolderPage,editPageStructure,currentActions,visibleActions,togglePinned,activeFolder,enterFolder,exitFolder,migrateState,profileSnapshot,switchProfile,createProfile,renameProfile,exportSingleProfile,findProfileTemplate,saveProfileTemplate,renameProfileTemplate,deleteProfileTemplate,applyProfileTemplate,setProfileApp,matchForegroundProfile,deleteProfile,previewHardwareEvent,physicalSlot,hardwareGesture,resolveHardwareEvent,runtimeActionKey,folderWideBackEvent,resolveKeyPress,planHardwareEvent,deletePage,planAction,emptyBinding,cleanBinding,controlAction,activeControlAction,assignControlAction,automaticControl,ensureControls,controlBinding,changeControlScope};
 });

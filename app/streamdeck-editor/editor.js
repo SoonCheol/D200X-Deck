@@ -4827,6 +4827,7 @@ window.executeD200XKey=tracedPhysicalDispatch;
  function aiSavedRows(plan){
    return plan.rows.map(row=>{
      const base={op:row.op,page:row.page,slot:row.slot,folder:row.folder,control:row.control,state:row.state};
+     if(['template_save','template_apply'].includes(row.op))return {...base,action:row.op==='template_save'?'템플릿 저장':'템플릿으로 새 프로필 생성',title:String(row.after?.title||'').slice(0,160)};
      if(plan.createdProfileId&&['control','wide'].includes(row.op))return {...base,action:row.op==='control'?'물리 컨트롤':'와이드 화면',title:String(row.after?.title||'').slice(0,160)};
      if(!Number.isInteger(row.slot)||['folder_page','folder_settings','control','wide','add_page','delete','move_source'].includes(row.op))return base;
      let items=(plan.createdProfileId?plan.next.inactiveProfiles.find(p=>p.id===plan.createdProfileId)?.pages:plan.next.pages)?.[row.page-1];
@@ -5438,6 +5439,15 @@ function bindSidebarHeader(){
         const id=DeckCore.createProfile(state,name,true,profile.id);
         if(id){DeckCore.switchProfile(state,id);persist();render();}
       }));
+      entry(tools,'템플릿으로 저장',run(async()=>{
+        aiEditReady();
+        const name=await askProfileName('템플릿 이름',profile.name);
+        if(name===null)return;
+        aiEditReady();
+        const {next,template}=DeckCore.saveProfileTemplate(state,profile.id,name);
+        aiEditStore(next);
+        window.d200xActionStatus?.('템플릿 저장 완료: '+template.name);
+      }));
       entry(tools,'프로필 JSON 내보내기',run(()=>{
         const payload=DeckCore.exportSingleProfile(state,profile.id);
         const blob=new Blob([JSON.stringify(payload,null,2)],{type:'application/json;charset=utf-8'});
@@ -5481,6 +5491,39 @@ function bindSidebarHeader(){
       const id=DeckCore.createProfile(state,name);
       if(id){DeckCore.switchProfile(state,id);persist();render();}
     }));
+    const templatePanel=document.createElement('div');templatePanel.className='profile-global-panel';templatePanel.hidden=true;
+    entry(menu,'사용자 템플릿 관리 ▸',()=>{templatePanel.hidden=!templatePanel.hidden;},'profile-global-trigger');
+    const templates=(state.profileTemplates||[]).slice().sort((a,b)=>a.name.localeCompare(b.name,'ko'));
+    if(!templates.length){const empty=entry(templatePanel,'저장된 템플릿 없음',()=>{});empty.disabled=true;}
+    for(const template of templates){
+      const row=document.createElement('div');row.className='profile-list-row';
+      entry(row,template.name+' · '+template.snapshot.pages.length+'페이지',run(async()=>{
+        aiEditReady();
+        const name=await askProfileName('템플릿으로 새 프로필 생성',template.name+' 복사본');
+        if(name===null)return;
+        aiEditReady();
+        const result=DeckCore.applyProfileTemplate(state,template.id,name);
+        if(!confirm('템플릿 "'+result.template.name+'"에서 새 프로필 "'+name+'"을 생성합니다. 기존 프로필은 변경하지 않습니다. 계속하시겠습니까?'))return;
+        aiEditStore(result.next);
+        window.d200xActionStatus?.('새 프로필 생성 완료: '+name+' · 프로필 목록에서 선택하세요.');
+      }),'profile-list-select');
+      const gear=entry(row,'⚙',()=>{const open=tools.hidden;menu.querySelectorAll('.profile-row-tools').forEach(el=>el.hidden=true);tools.hidden=!open;},'profile-row-gear');
+      gear.setAttribute('aria-label',template.name+' 템플릿 설정');
+      const tools=document.createElement('div');tools.className='profile-row-tools';tools.hidden=true;
+      entry(tools,'이름 변경',run(async()=>{
+        aiEditReady();
+        const name=await askProfileName('템플릿 이름 변경',template.name);
+        if(name===null)return;
+        aiEditReady();aiEditStore(DeckCore.renameProfileTemplate(state,template.id,name));
+      }));
+      entry(tools,'템플릿 삭제',run(()=>{
+        aiEditReady();
+        if(!confirm('템플릿 "'+template.name+'"만 삭제하시겠습니까? 기존 프로필에는 영향이 없습니다.'))return;
+        aiEditStore(DeckCore.deleteProfileTemplate(state,template.id));
+      }));
+      row.append(tools);templatePanel.append(row);
+    }
+    menu.append(templatePanel);
     const overall=entry(menu,'전체 프로필 관리 ▸',()=>{globalPanel.hidden=!globalPanel.hidden;},'profile-global-trigger');
     const globalPanel=document.createElement('div');globalPanel.className='profile-global-panel';globalPanel.hidden=true;
     const globalAction=(label,fn)=>entry(globalPanel,label,run(fn));
@@ -5508,9 +5551,11 @@ function bindSidebarHeader(){
             parsed.profileNames.length>50||typeof parsed.profileId!=='string')
             throw new Error('올바른 D200X 전체 프로필 백업 파일이 아닙니다.');
           const restored=DeckCore.migrateState(parsed);
+          // An older backup has no template library; keep the existing local one.
+          if(!Object.hasOwn(parsed,'profileTemplates')){restored.profileTemplates=state.profileTemplates;restored.profileTemplateSeq=state.profileTemplateSeq;}
           if(!restored.profileNames?.length)throw new Error('프로필 정보가 올바르지 않습니다.');
           const snapshot=JSON.stringify(state);
-          if(!confirm('현재 모든 프로필과 버튼 설정을 백업 파일로 교체합니다. 계속하시겠습니까?'))return;
+          if(!confirm('현재 모든 프로필과 버튼 설정을 백업 파일로 교체합니다.'+(Object.hasOwn(parsed,'profileTemplates')?' 사용자 템플릿도 백업 내용으로 교체합니다.':' 현재 사용자 템플릿은 보존합니다.')+' 계속하시겠습니까?'))return;
           const safetyKey=STORAGE_KEY+'-before-import-backup';
           localStorage.setItem(safetyKey,snapshot);
           const prior=state;

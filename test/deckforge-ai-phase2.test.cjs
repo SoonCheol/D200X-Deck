@@ -157,3 +157,13 @@ test('empty inventory keeps current nested folder slots distinct from root slots
  assert.equal(result.currentFolder.folder,'2:1');assert.equal(result.currentFolder.slots.includes(3),false);
  assert.equal(result.currentFolder.slots.includes(4),true);
 });
+
+test('user template inventory exposes names and page counts only, never action settings or icon bytes',async()=>{
+ const s=fixture();
+ s.pages[0][0]=Core.createAction('text');s.pages[0][0].settings.body='DO_NOT_SEND_TEMPLATE_TEXT';
+ const saved=Core.saveProfileTemplate(s,s.profileId,'My template').next;
+ const inspect=createReader(opts(saved))();
+ const result=await inspect(query('user_templates',{query:'My template'}));
+ assert.equal(result.ok,true);assert.equal(result.total,1);assert.deepEqual(result.items,[{name:'My template',pageCount:s.pages.length}]);
+ assert.equal(JSON.stringify(result).includes('DO_NOT_SEND_TEMPLATE_TEXT'),false);
+});

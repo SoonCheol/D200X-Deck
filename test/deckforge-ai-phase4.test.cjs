@@ -249,3 +249,30 @@ test('new profile supports nested folders, verified nested targets, and profile-
  const only=A.makePlan(s,req('profile_build',{name:'시계',pageCount:1,keys:[],wide:{enabled:['clock']}}));
  assert.equal(only.next.inactiveProfiles.find(p=>p.id===only.createdProfileId).wideDisplay.current,'clock');
 });
+
+test('user templates copy whole profiles independently, persist, rename/delete and never activate new profiles',()=>{
+ const s=fixture();Core.createProfile(s,'Other');s.pages[0][1].pages=[Array(14).fill(null)];s.pages[0][1].pages[0][0]=Core.createAction('system-mute');
+ s.pages[0][0]=Core.createAction('hotkey');s.pages[0][0].settings.keys='Ctrl+C';s.pages[0][0].icon={kind:'file',value:'data:image/png;base64,YQ=='};
+ s.controls.global[2].target='volume';s.controls.global[2].autoAssign=true;s.wideDisplay=Core.cleanWideDisplay({enabled:['knobs'],current:'knobs'});
+ s.profileNames[0].appPath='C:\\Private\\Original.exe';s.profileNames[0].smartEnabled=true;
+ const before=JSON.stringify(s),saved=A.makePlan(s,req('template_save',{name:'편집 구성'})),t=saved.next.profileTemplates[0];
+ assert.equal(JSON.stringify(s),before);assert.equal(saved.next.pages,s.pages);assert.equal(saved.next.inactiveProfiles[0],s.inactiveProfiles[0]);
+ assert.equal(t.snapshot.pages[0][0].icon.value,'data:image/png;base64,YQ==');assert.equal(t.snapshot.pages[0][4].settings.pluginSettings.commandId,'VerifiedCommand');
+ assert.equal(t.snapshot.controls.global[2].target,'volume');assert.equal(t.snapshot.wideDisplay.current,'knobs');
+ s.pages[0][0].settings.keys='Ctrl+V';assert.equal(t.snapshot.pages[0][0].settings.keys,'Ctrl+C');
+ const reloaded=Core.migrateState(JSON.parse(JSON.stringify(saved.next))),base=JSON.stringify(reloaded);
+ const reused=A.makePlan(reloaded,req('template_apply',{template:'편집 구성',name:'새 작업'}));
+ assert.equal(JSON.stringify(reloaded),base);assert.equal(reused.next.profileId,reloaded.profileId);assert.equal(reused.next.pages,reloaded.pages);
+ const fresh=reused.next.inactiveProfiles.find(p=>p.id===reused.createdProfileId);
+ assert.equal(fresh.pages[0][0].settings.keys,'Ctrl+C');assert.equal(fresh.pages[0][1].pages[0][0].type,'system-mute');
+ assert.equal(fresh.pages[0][4].settings.pluginSettings.commandId,'VerifiedCommand');assert.equal(fresh.wideDisplay.current,'knobs');
+ assert.equal(reused.next.profileNames.find(p=>p.id===fresh.id).smartEnabled,false);
+ assert.equal(reused.next.profileNames.find(p=>p.id===fresh.id).appPath,'');
+ fresh.pages[0][0].title='새 이름';assert.equal(reused.next.profileTemplates[0].snapshot.pages[0][0].title,t.snapshot.pages[0][0].title);
+ const renamed=Core.renameProfileTemplate(reused.next,t.id,'새 템플릿');assert.equal(renamed.profileTemplates[0].name,'새 템플릿');assert.equal(reused.next.profileTemplates[0].name,'편집 구성');
+ const deleted=Core.deleteProfileTemplate(renamed,t.id);assert.equal(deleted.profileTemplates.length,0);assert.equal(deleted.inactiveProfiles.length,reused.next.inactiveProfiles.length);
+ const resaved=Core.saveProfileTemplate(deleted,deleted.profileId,'새 템플릿');assert.notEqual(resaved.template.id,t.id);
+ for(const q of [req('template_save',{name:'편집 구성'}),req('template_save',{name:'x',sourceProfile:'Missing'}),req('template_apply',{name:'Other',template:'편집 구성'}),req('template_apply',{name:'x',template:'Missing'}),req('template_apply',{name:'x',template:'편집 구성',settings:{}})])assert.throws(()=>A.makePlan(reloaded,q));
+ assert.throws(()=>Core.migrateState({...reloaded,profileTemplates:[t,t]}));assert.equal(JSON.stringify(reloaded),base);
+ const legacy=JSON.parse(base);delete legacy.profileTemplates;delete legacy.profileTemplateSeq;assert.equal(Core.migrateState(legacy).profileTemplates.length,0);
+});

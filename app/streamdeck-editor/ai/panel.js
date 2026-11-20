@@ -88,7 +88,7 @@ function showPreview(value){
   preview=value;$('edit-preview').hidden=!value;$('edit-rows').replaceChildren();
   if(value){
     $('edit-profile').textContent=value.profile;
-    const names={put:'등록',update:'수정',delete:'삭제',copy:'복사',move:'이동',move_source:'이동 원본',add_page:'페이지 추가',folder_page:'덱폴더 페이지 추가',folder_settings:'덱폴더 설정',control:'물리 컨트롤',wide:'와이드 화면',composite:'복합 동작',state_design:'상태별 디자인',plugin:'플러그인 등록',page_structure:'페이지 구조 변경',profile_build:'새 프로필 생성'};
+    const names={put:'등록',update:'수정',delete:'삭제',copy:'복사',move:'이동',move_source:'이동 원본',add_page:'페이지 추가',folder_page:'덱폴더 페이지 추가',folder_settings:'덱폴더 설정',control:'물리 컨트롤',wide:'와이드 화면',composite:'복합 동작',state_design:'상태별 디자인',plugin:'플러그인 등록',page_structure:'페이지 구조 변경',profile_build:'새 프로필 생성',template_save:'템플릿 저장',template_apply:'템플릿으로 새 프로필 생성'};
     for(const row of value.rows){
       const box=document.createElement('div');box.className='edit-row';
       if(typeof row.previewImage==='string'&&/^data:image\/png;base64,[A-Za-z0-9+/=]+$/.test(row.previewImage)){
