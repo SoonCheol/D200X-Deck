@@ -388,7 +388,7 @@ function currentBackup(appearance){
   return Backup.snapshot({store:profileStore,packsFile:iconPacksFile(),
     appearance,version:require('./package.json').version});
 }
-ipcMain.handle('d200x:backup-create',async(event,{password,appearance}={})=>{
+ipcMain.handle('d200x:backup-create',async(event,{password,appearance,format='encrypted'}={})=>{
   backupEditor(event);if(backupBusy)throw Error('백업 작업이 진행 중입니다.');
   backupBusy=true;
   try{
@@ -397,14 +397,14 @@ ipcMain.handle('d200x:backup-create',async(event,{password,appearance}={})=>{
     const folder=await openRememberedPicker({title:'로컬 백업 폴더 선택',properties:['openDirectory','createDirectory']},'folder');
     if(!folder)return null;
     await ensureIconPacksMigrated();
-    return Backup.writeArchive(folder,currentBackup(appearance),password);
+    return Backup.writeArchive(folder,currentBackup(appearance),password,{format});
   }finally{backupBusy=false;}
 });
 function stageBackup(incoming,filename,password,appearance){
   const current=currentBackup(appearance),id=randomUUID();
   backupPending={id,password,incoming,current,base:Backup.fingerprint(current)};
   backupTimer=setTimeout(clearBackupPending,5*60*1000);backupTimer.unref?.();
-  return {id,filename,...Backup.summary(incoming),appearance:incoming.appearance};
+  return {id,filename,...Backup.summary(incoming),legacy:incoming.legacy===true,appearance:incoming.appearance};
 }
 async function driveOperation(event,fn){
   backupEditor(event);if(backupBusy)throw Error('백업 또는 Google 연결 작업이 진행 중입니다.');
@@ -426,35 +426,36 @@ ipcMain.handle('d200x:drive-list',event=>driveOperation(event,async()=>{
   const account=await googleDrive.status();if(!account.connected)throw Error('Google Drive를 먼저 연결하세요.');
   return {...await googleDrive.list(),email:account.email};
 }));
-ipcMain.handle('d200x:drive-create',(event,{password,appearance,expectedEmail}={})=>driveOperation(event,async()=>{
+ipcMain.handle('d200x:drive-create',(event,{password,appearance,expectedEmail,format='encrypted'}={})=>driveOperation(event,async()=>{
   clearBackupPending();Backup.validateAppearance(appearance);
   const account=await googleDrive.status();
   if(!account.connected||account.email!==expectedEmail)throw Error('Google 계정이 변경되었거나 연결되지 않았습니다.');
   await ensureIconPacksMigrated();
   const current=currentBackup(appearance);
-  const filename='DeckForge-'+current.createdAt.replace(/[:.]/g,'-')+'-'+randomUUID()+'.dfbackup';
-  return {...await googleDrive.upload(filename,Backup.encrypt(current,password)),email:account.email};
+  const filename='DeckForge-'+current.createdAt.replace(/[:.]/g,'-')+'-'+randomUUID()+'.'+Backup.extension(format);
+  return {...await googleDrive.upload(filename,Backup.encode(current,password,format)),email:account.email};
 }));
 ipcMain.handle('d200x:drive-preview',(event,{id,password,appearance,expectedEmail}={})=>driveOperation(event,async()=>{
   clearBackupPending();Backup.validateAppearance(appearance);
   const account=await googleDrive.status();
   if(!account.connected||account.email!==expectedEmail)throw Error('Google 계정이 변경되었거나 연결되지 않았습니다.');
-  const file=await googleDrive.download(id),incoming=Backup.decrypt(file.bytes,password);
+  const file=await googleDrive.download(id),incoming=Backup.decode(file.bytes,password,file.meta.name.endsWith('.json')?'plain':'encrypted');
   await ensureIconPacksMigrated();
   return stageBackup(incoming,file.meta.name,password,appearance);
 }));
-ipcMain.handle('d200x:backup-preview',async(event,{password,appearance}={})=>{
+ipcMain.handle('d200x:backup-preview',async(event,{password,appearance,format='encrypted'}={})=>{
   backupEditor(event);if(backupBusy)throw Error('백업 작업이 진행 중입니다.');
   backupBusy=true;
   try{
     clearBackupPending();
     Backup.validateAppearance(appearance);
+    const ext=Backup.extension(format);
     const file=await openRememberedPicker({title:'DeckForge 백업 파일 복원',properties:['openFile'],
-      filters:[{name:'DeckForge 암호화 백업',extensions:['dfbackup']}]});
+      filters:[{name:format==='plain'?'일반 백업 (JSON)':'암호화 백업',extensions:[ext]}]});
     if(!file)return null;
-    if(path.extname(file).toLowerCase()!=='.dfbackup')throw Error('DeckForge 백업 파일을 선택하세요.');
-    const incoming=Backup.readArchive(file,password);
+    if(path.extname(file).toLowerCase()!=='.'+ext)throw Error('선택한 형식의 DeckForge 백업 파일을 선택하세요.');
     await ensureIconPacksMigrated();
+    const incoming=Backup.readArchive(file,password,format,format==='plain'?currentBackup(appearance):null);
     return stageBackup(incoming,path.basename(file),password,appearance);
   }finally{backupBusy=false;}
 });

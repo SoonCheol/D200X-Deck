@@ -114,10 +114,41 @@ function readOptional(file){
     return bytes;
   }catch(e){if(e.code==='ENOENT')return null;throw e;}
 }
-function readArchive(file,password){
+function extension(format='encrypted'){
+  if(format==='encrypted')return 'dfbackup';
+  if(format==='plain')return 'json';
+  throw Error('지원하지 않는 백업 형식입니다.');
+}
+function encode(data,password,format='encrypted'){
+  if(extension(format)==='dfbackup')return encrypt(data,password);
+  validateSnapshot(data);
+  const bytes=Buffer.from(JSON.stringify(data),'utf8');
+  if(bytes.length>LIMIT)throw Error('백업 데이터 용량 제한(256MB)을 초과했습니다.');
+  return bytes;
+}
+function decode(bytes,password,format='encrypted',current=null){
+  if(extension(format)==='dfbackup')return decrypt(bytes,password);
+  if(!Buffer.isBuffer(bytes)||!bytes.length||bytes.length>LIMIT)throw Error('일반 백업 파일 용량이 올바르지 않습니다.');
+  let data;
+  try{data=JSON.parse(bytes.toString('utf8').replace(/^\uFEFF/,''));}catch{throw Error('올바른 JSON 백업 파일이 아닙니다.');}
+  if(data?.format==='deckforge-backup-v1'){validateSnapshot(data);return data;}
+  if(!current||!obj(data)||Object.hasOwn(data,'format'))throw Error('지원하지 않는 일반 백업 파일입니다.');
+  validateSnapshot(current);
+  const legacy={...data};
+  if(!Object.hasOwn(legacy,'inactiveProfiles')&&legacy.profileNames?.length===1)legacy.inactiveProfiles=[];
+  if(!Object.hasOwn(legacy,'profileTemplates')){
+    legacy.profileTemplates=current.profiles.profileTemplates;
+    legacy.profileTemplateSeq=current.profiles.profileTemplateSeq;
+  }
+  const profiles=validateProfiles(legacy);
+  const migrated={format:'deckforge-backup-v1',createdAt:current.createdAt,version:current.version,legacy:true,
+    profiles,packs:current.packs,appearance:data.actionPanelAppearance??current.appearance};
+  validateSnapshot(migrated);return migrated;
+}
+function readArchive(file,password,format='encrypted',current=null){
   const bytes=readOptional(file);
   if(!bytes)throw Error('백업 파일을 찾을 수 없습니다.');
-  return decrypt(bytes,password);
+  return decode(bytes,password,format,current);
 }
 function writeAtomic(file,bytes){
   fs.mkdirSync(path.dirname(file),{recursive:true});
@@ -127,13 +158,14 @@ function writeAtomic(file,bytes){
     fs.renameSync(temp,file);
   }finally{if(fs.existsSync(temp))fs.rmSync(temp,{force:true});}
 }
-function writeArchive(directory,data,password,{safety=false}={}){
+function writeArchive(directory,data,password,{safety=false,format='encrypted'}={}){
+  if(safety&&format!=='encrypted')throw Error('복원 전 안전 백업은 암호화해야 합니다.');
   if(!fs.statSync(directory).isDirectory())throw Error('백업 폴더를 확인하세요.');
   const stamp=data.createdAt.replace(/[:.]/g,'-');
-  const filename='DeckForge-'+(safety?'Before-Restore-':'')+stamp+'-'+crypto.randomUUID()+'.dfbackup';
+  const filename='DeckForge-'+(safety?'Before-Restore-':'')+stamp+'-'+crypto.randomUUID()+'.'+extension(format);
   const file=path.join(directory,filename);
   if(fs.existsSync(file))throw Error('동일 백업 파일이 이미 있습니다.');
-  writeAtomic(file,encrypt(data,password));
+  writeAtomic(file,encode(data,password,format));
   return {file,filename,...summary(data)};
 }
 function fingerprint(data){
@@ -164,4 +196,4 @@ function restore({store,packsFile,safetyDirectory,current,incoming,password}){
   }
   return {state,safetyFile:safety.file};
 }
-module.exports={validateAppearance,validateSnapshot,snapshot,summary,encrypt,decrypt,readArchive,writeArchive,fingerprint,restore};
+module.exports={validateAppearance,validateSnapshot,snapshot,summary,encrypt,decrypt,encode,decode,extension,readArchive,writeArchive,fingerprint,restore};

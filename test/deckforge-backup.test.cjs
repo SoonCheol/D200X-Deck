@@ -67,3 +67,20 @@ test('restore failure rolls back icon packs and retains existing profiles and sa
   assert.throws(()=>Backup.restore({store,packsFile,safetyDirectory,current,incoming:{...incoming,appearance:{theme:'invalid',overrides:{}}},password}));
   assert.equal(fs.readdirSync(safetyDirectory).length,1);
 });
+
+test('plain JSON has identical scope and accepts legacy full profile exports',t=>{
+  const {root,make}=setup(t),data=make();
+  const plain=Backup.encode(data,'','plain');
+  assert.deepEqual(Backup.decode(plain,'','plain'),data);
+  assert.equal(plain.includes(Buffer.from('private-action-data')),true);
+  const file=Backup.writeArchive(root,data,'',{format:'plain'});
+  assert.match(file.filename,/\.json$/);
+  assert.deepEqual(Backup.readArchive(file.file,'','plain'),data);
+  const old={...data.profiles,actionPanelAppearance:appearance};delete old.profileTemplates;delete old.profileTemplateSeq;
+  const restored=Backup.decode(Buffer.from(JSON.stringify(old)),'','plain',data);
+  assert.deepEqual(restored.packs,data.packs);
+  assert.deepEqual(restored.profiles.profileTemplates,data.profiles.profileTemplates);
+  assert.equal(restored.legacy,true);
+  assert.throws(()=>Backup.decode(Buffer.from('{}'),'','plain',data));
+  assert.throws(()=>Backup.writeArchive(root,data,'',{format:'plain',safety:true}));
+});

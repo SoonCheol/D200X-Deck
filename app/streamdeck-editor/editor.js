@@ -5404,12 +5404,12 @@ function askProfileName(title,initialValue){
     document.body.append(dialog);dialog.showModal();input.focus();input.select();
   });
 }
-function askBackupPassword(creating){
+function askBackupPassword(creating,safety=false){
   return new Promise(resolve=>{
     const dialog=document.createElement('dialog');dialog.className='profile-name-dialog';
     const form=document.createElement('form');form.method='dialog';
-    const heading=document.createElement('strong');heading.textContent=creating?'백업 비밀번호 설정':'백업 비밀번호 입력';
-    const note=document.createElement('div');note.textContent=creating?'8자 이상. 다른 PC에서도 같은 비밀번호가 필요합니다. 비밀번호는 저장하지 않으며 잊어버리면 복원할 수 없습니다. 인증 정보가 포함될 수 있는 설정은 암호화됩니다.':'백업 생성 시 사용한 비밀번호를 입력하세요.';
+    const heading=document.createElement('strong');heading.textContent=safety?'복원 전 안전 백업 비밀번호 설정':creating?'백업 비밀번호 설정':'백업 비밀번호 입력';
+    const note=document.createElement('div');note.textContent=safety?'일반 파일 자체에는 비밀번호가 없습니다. 기존 데이터를 암호화하여 안전하게 보존할 비밀번호를 8자 이상으로 설정하세요.':creating?'8자 이상. 다른 PC에서도 같은 비밀번호가 필요합니다. 비밀번호는 저장하지 않으며 잊어버리면 복원할 수 없습니다. 인증 정보가 포함될 수 있는 설정은 암호화됩니다.':'백업 생성 시 사용한 비밀번호를 입력하세요.';
     const input=document.createElement('input');input.type='password';input.required=true;input.minLength=8;input.maxLength=256;input.autocomplete='off';input.placeholder='비밀번호';input.setAttribute('aria-label','백업 비밀번호');
     const repeat=document.createElement('input');repeat.type='password';repeat.required=creating;repeat.minLength=8;repeat.maxLength=256;repeat.autocomplete='off';repeat.placeholder='비밀번호 확인';repeat.setAttribute('aria-label','백업 비밀번호 확인');
     const actions=document.createElement('div');actions.className='profile-name-actions';
@@ -5432,17 +5432,58 @@ function backupReady(){
     throw Error('진행 중인 동작을 먼저 중단하세요.');
 }
 let backupUiBusy=false;
-async function createLocalBackup(){
+function chooseBackupOptions(){
+  return new Promise(resolve=>{
+    const dialog=document.createElement('dialog');dialog.className='profile-name-dialog';dialog.style.width='min(420px, calc(100vw - 32px))';
+    const form=document.createElement('form');form.method='dialog';
+    const title=document.createElement('strong');title.textContent='백업 및 복원';
+    const field=(name,choices)=>{
+      const label=document.createElement('label');label.style.display='grid';label.style.gap='5px';label.textContent=name;
+      const select=document.createElement('select');select.setAttribute('aria-label',name);select.style.cssText='width:100%;background:#414141;color:#eee;border:1px solid #777;border-radius:5px;padding:8px';
+      for(const [value,text] of choices){const option=document.createElement('option');option.value=value;option.textContent=text;select.append(option);}
+      label.append(select);form.append(label);return {label,select};
+    };
+    form.append(title);
+    const operation=field('작업',[['backup','백업'],['restore','복원']]);
+    const location=field('저장 위치',[['local','내 PC'],['drive','Google Drive']]);
+    const format=field('파일 형식',[['encrypted','암호화 백업 (.dfbackup)'],['plain','일반 백업 (.json)']]);
+    const note=document.createElement('div');note.style.fontSize='12px';
+    const actions=document.createElement('div');actions.className='profile-name-actions';
+    const cancel=document.createElement('button');cancel.type='button';cancel.textContent='취소';cancel.onclick=()=>dialog.close('cancel');
+    const submit=document.createElement('button');submit.type='submit';submit.className='primary';
+    function refresh(){
+      const restoring=operation.select.value==='restore',cloud=location.select.value==='drive';
+      format.label.style.display=restoring&&cloud?'none':'grid';
+      submit.textContent=restoring?'복원 파일 선택':'백업 시작';
+      note.textContent=restoring?'복원 전 기존 데이터의 암호화 안전 백업을 저장합니다.':'전체 프로필·템플릿·사용자 아이콘팩·액션 목록 디자인을 저장합니다.'+(format.select.value==='plain'?' 일반 JSON은 암호화되지 않아 민감한 설정이 노출될 수 있습니다.':'');
+    }
+    for(const input of [operation.select,location.select,format.select])input.onchange=refresh;
+    actions.append(cancel,submit);form.append(note,actions);dialog.append(form);
+    form.onsubmit=event=>{event.preventDefault();dialog.close('save');};
+    dialog.addEventListener('close',()=>{const result=dialog.returnValue==='save'?{operation:operation.select.value,location:location.select.value,format:format.select.value}:null;dialog.remove();resolve(result);},{once:true});
+    refresh();document.body.append(dialog);dialog.showModal();
+  });
+}
+async function openBackupManager(){
+  if(backupUiBusy)throw Error('백업 작업이 진행 중입니다.');
+  const choice=await chooseBackupOptions();if(!choice)return;
+  if(choice.operation==='backup'){
+    if(choice.location==='drive')await createGoogleBackup(choice.format);
+    else await createLocalBackup(choice.format);
+  }else if(choice.location==='drive')await restoreGoogleBackup();
+  else await restoreBackup(null,choice.format);
+}
+async function createLocalBackup(format='encrypted'){
   if(backupUiBusy)throw Error('백업 작업이 진행 중입니다.');
   backupUiBusy=true;
   try{
     backupReady();
     if(!window.deckBridge?.createBackup)throw Error('Windows EXE에서 사용할 수 있습니다.');
-    if(!confirm('선택한 로컬 폴더에 암호화된 백업 파일을 저장합니다. 전체 프로필·템플릿·사용자 아이콘팩·액션 목록 디자인을 포함합니다. 계정 로그인 정보, HA 연결 토큰 파일, 플러그인 프로그램 및 전역 설정은 백업하지 않습니다. 계속하시겠습니까?'))return;
-    const password=await askBackupPassword(true);if(password===null)return;
+    if(!confirm('선택한 로컬 폴더에 '+(format==='plain'?'암호화하지 않은 일반 JSON (민감한 설정 노출 가능)':'암호화된')+' 백업 파일을 저장합니다. 전체 프로필·템플릿·사용자 아이콘팩·액션 목록 디자인을 포함합니다. 계정 로그인 정보, HA 연결 토큰 파일, 플러그인 프로그램 및 전역 설정은 백업하지 않습니다. 계속하시겠습니까?'))return;
+    const password=format==='plain'?'':await askBackupPassword(true);if(password===null)return;
     backupReady();if(!persist(false))throw Error('프로필 저장 실패');
     const appearance=window.D200XPanelIcons.exportConfig();
-    const result=await window.deckBridge.createBackup(password,appearance);
+    const result=await window.deckBridge.createBackup(password,appearance,format);
     if(result){
       window.d200xActionStatus?.('로컬 백업 파일 저장 완료 · '+result.filename);
       alert('로컬 백업 파일 저장 완료\n'+result.file);
@@ -5470,18 +5511,18 @@ async function googleDisconnect(){
   if(!confirm('이 PC의 Google Drive 연결 정보만 삭제합니다. Drive에 저장된 백업 파일은 유지됩니다. 연결을 해제하시겠습니까?'))return;
   await window.deckBridge.driveDisconnect();window.d200xActionStatus?.('Google Drive 연결 해제 완료');
 }
-async function createGoogleBackup(){
+async function createGoogleBackup(format='encrypted'){
   if(backupUiBusy)throw Error('백업 작업이 진행 중입니다.');
   backupUiBusy=true;
   try{
     backupReady();if(!window.deckBridge?.driveCreate)throw Error('Windows EXE에서 사용할 수 있습니다.');
     const account=await window.deckBridge.driveStatus();
     if(!account.connected)throw Error('Google Drive 계정을 먼저 연결하세요.');
-    if(!confirm(account.email+' 계정의 Google Drive / DeckForge Backups 폴더에 암호화 백업을 직접 업로드합니다. 전체 프로필·템플릿·사용자 아이콘팩·액션 목록 디자인을 포함하며 별도 로그인 정보·플러그인 프로그램·전역 설정은 제외합니다. 계속하시겠습니까?'))return;
-    const password=await askBackupPassword(true);if(password===null)return;
+    if(!confirm(account.email+' 계정의 Google Drive / DeckForge Backups 폴더에 '+(format==='plain'?'암호화되지 않은 일반 JSON (민감한 설정 노출 가능)':'암호화')+' 백업을 직접 업로드합니다. 전체 프로필·템플릿·사용자 아이콘팩·액션 목록 디자인을 포함하며 별도 로그인 정보·플러그인 프로그램·전역 설정은 제외합니다. 계속하시겠습니까?'))return;
+    const password=format==='plain'?'':await askBackupPassword(true);if(password===null)return;
     backupReady();if(!persist(false))throw Error('프로필 저장 실패');
     window.d200xActionStatus?.('Google Drive 백업 업로드 중…');
-    const result=await window.deckBridge.driveCreate(password,window.D200XPanelIcons.exportConfig(),account.email);
+    const result=await window.deckBridge.driveCreate(password,window.D200XPanelIcons.exportConfig(),account.email,format);
     window.d200xActionStatus?.('Google Drive 백업 업로드 완료 · '+result.name);
     alert('Google Drive 백업 업로드 및 파일 검증 완료\n'+result.email+'\nDeckForge Backups / '+result.name);
   }finally{backupUiBusy=false;}
@@ -5517,23 +5558,23 @@ async function restoreGoogleBackup(){
     if(!list.items.length){alert('Google Drive에 DeckForge 백업 파일이 없습니다.');return;}
     selected=await chooseGoogleBackup(list);
   }finally{backupUiBusy=false;}
-  if(selected)await restoreBackup({id:selected,email:list.email});
+  if(selected)await restoreBackup({id:selected,email:list.email},list.items.find(item=>item.id===selected)?.name.endsWith('.json')?'plain':'encrypted');
 }
-async function restoreBackup(cloud=null){
+async function restoreBackup(cloud=null,format='encrypted'){
   if(backupUiBusy)throw Error('백업 작업이 진행 중입니다.');
   backupUiBusy=true;let info=null;
   try{
     backupReady();
     if(!window.deckBridge?.previewBackup||cloud&&!window.deckBridge?.drivePreview)throw Error('Windows EXE에서 사용할 수 있습니다.');
-    const password=await askBackupPassword(false);if(password===null)return;
+    const password=format==='plain'?await askBackupPassword(true,true):await askBackupPassword(false);if(password===null)return;
     backupReady();if(!persist(false))throw Error('프로필 저장 실패');
     const before=JSON.stringify(state),appearance=window.D200XPanelIcons.exportConfig();
     if(cloud)window.d200xActionStatus?.('Google Drive 백업 다운로드 및 검증 중…');
-    info=cloud?await window.deckBridge.drivePreview(cloud.id,password,appearance,cloud.email):await window.deckBridge.previewBackup(password,appearance);if(!info)return;
+    info=cloud?await window.deckBridge.drivePreview(cloud.id,password,appearance,cloud.email):await window.deckBridge.previewBackup(password,appearance,format);if(!info)return;
     backupReady();
     if(before!==JSON.stringify(state)||JSON.stringify(appearance)!==JSON.stringify(window.D200XPanelIcons.exportConfig()))
       throw Error('미리보기 중 편집 내용이 변경되었습니다. 다시 복원하세요.');
-    if(!confirm('백업: '+info.filename+'\n생성: '+info.createdAt+' / 버전 '+info.version+
+    if(!confirm('백업: '+info.filename+(info.legacy?'\n이전 형식 JSON · 생성일/버전 정보 없음 · 현재 아이콘팩 유지':'\n생성: '+info.createdAt+' / 버전 '+info.version)+
       '\n프로필 '+info.profiles+'개 · 템플릿 '+info.templates+'개 · 사용자 아이콘팩 '+info.packs+
       '개\n\n현재 프로필·템플릿·사용자 아이콘팩·액션 목록 디자인을 교체합니다. 복원 전 백업은 로컬에 별도 저장합니다. 계속하시겠습니까?'))return;
     backupReady();
@@ -5682,70 +5723,7 @@ function bindSidebarHeader(){
       row.append(tools);templatePanel.append(row);
     }
     menu.append(templatePanel);
-    const overall=entry(menu,'전체 프로필 관리 ▸',()=>{globalPanel.hidden=!globalPanel.hidden;},'profile-global-trigger');
-    const globalPanel=document.createElement('div');globalPanel.className='profile-global-panel';globalPanel.hidden=true;
-    const globalAction=(label,fn)=>entry(globalPanel,label,run(fn));
-    globalAction('전체 프로필·설정 JSON 내보내기',()=>{
-      try{
-        const payload={...state,actionPanelAppearance:window.D200XPanelIcons.exportConfig()};
-        const blob=new Blob([JSON.stringify(payload,null,2)],{type:'application/json;charset=utf-8'});
-        const url=URL.createObjectURL(blob),link=document.createElement('a');
-        link.href=url;link.download='D200X-profiles-backup.json';
-        document.body.append(link);link.click();link.remove();
-        setTimeout(()=>URL.revokeObjectURL(url),1000);
-      }catch(error){window.d200xActionStatus?.('설정 내보내기 실패: '+String(error?.message||error));}
-    });
-    globalAction('전체 프로필·설정 JSON 가져오기',()=>{
-      const picker=document.createElement('input');
-      picker.type='file';picker.accept='.json,application/json';
-      const restoreBackup=async file=>{
-        if(!file)return;
-        try{
-          if(file.size>20*1024*1024)throw new Error('백업 파일이 20MB를 초과합니다.');
-          const parsed=JSON.parse(await file.text());
-          if(!parsed||typeof parsed!=='object'||!Array.isArray(parsed.pages)||
-            parsed.pages.length<1||parsed.pages.length>128||
-            !Array.isArray(parsed.profileNames)||parsed.profileNames.length<1||
-            parsed.profileNames.length>50||typeof parsed.profileId!=='string')
-            throw new Error('올바른 D200X 전체 프로필 백업 파일이 아닙니다.');
-          const restored=DeckCore.migrateState(parsed);
-          // An older backup has no template library; keep the existing local one.
-          if(!Object.hasOwn(parsed,'profileTemplates')){restored.profileTemplates=state.profileTemplates;restored.profileTemplateSeq=state.profileTemplateSeq;}
-          if(!restored.profileNames?.length)throw new Error('프로필 정보가 올바르지 않습니다.');
-          const snapshot=JSON.stringify(state);
-          if(!confirm('현재 모든 프로필과 버튼 설정을 백업 파일로 교체합니다.'+(Object.hasOwn(parsed,'profileTemplates')?' 사용자 템플릿도 백업 내용으로 교체합니다.':' 현재 사용자 템플릿은 보존합니다.')+' 계속하시겠습니까?'))return;
-          const safetyKey=STORAGE_KEY+'-before-import-backup';
-          localStorage.setItem(safetyKey,snapshot);
-          const prior=state;
-          state=restored;
-          if(!persist()){
-            state=prior;
-            localStorage.setItem(STORAGE_KEY,snapshot);
-            throw new Error('설정을 저장할 수 없습니다. 기존 설정으로 복구했습니다.');
-          }
-          // Older exports contain profiles only; keep current catalogue theme.
-          if(parsed.actionPanelAppearance){
-            if(!window.D200XPanelIcons.restoreConfig(parsed.actionPanelAppearance))
-              window.d200xActionStatus?.('프로필은 복원했지만 액션 목록 테마 복원은 실패했습니다.');
-          }
-          controlGesture='down';render();renderLibrary();window.scheduleDeckSync?.();
-          window.d200xActionStatus?.('전체 프로필 가져오기 완료 (이전 설정 안전 백업 보관)');
-        }catch(error){alert('프로필 가져오기 실패: '+String(error?.message||error));}
-      };
-      if(window.deckBridge?.chooseImportFile){
-        window.deckBridge.chooseImportFile('profile').then(chosen=>{
-          if(chosen)restoreBackup({
-            name:chosen.name,size:new Blob([chosen.text]).size,
-            text:async()=>chosen.text
-          });
-        }).catch(error=>window.d200xActionStatus?.('프로필 파일 선택 실패: '+String(error?.message||error)));
-      }else{
-        picker.addEventListener('change',()=>restoreBackup(picker.files?.[0]),{once:true});
-        picker.click();
-      }
-    });
-
-    globalAction('Fusion 360 명령 일괄 등록 JSON 가져오기',async()=>{
+        entry(menu,'Fusion 360 명령 일괄 등록',run(async()=>{
       if(!window.deckBridge?.chooseImportFile)throw Error('Windows EXE에서만 이용할 수 있습니다.');
       const chosen=await window.deckBridge.chooseImportFile('fusion-batch');
       if(!chosen)return;
@@ -5772,9 +5750,7 @@ function bindSidebarHeader(){
         persist();render();
         throw error;
       }
-    });
-
-    menu.append(globalPanel);
+    }));
   };
   refreshProfilesMenu=renderProfiles;
   renderProfiles();
@@ -5817,32 +5793,18 @@ function bindSettingsMenu(){
     const button=document.createElement('button');button.type='button';button.textContent=label;
     button.setAttribute('role','menuitem');button.addEventListener('click',fn);parent.append(button);return button;
   };
-  const backupPanel=document.createElement('div');backupPanel.className='profile-global-panel';backupPanel.hidden=true;
-  backupPanel.id='settings-backup-panel';backupPanel.setAttribute('role','group');
-  const backupToggle=makeEntry(menu,'백업 및 복원 ▸',()=>{
-    backupPanel.hidden=!backupPanel.hidden;
-    backupToggle.textContent=backupPanel.hidden?'백업 및 복원 ▸':'백업 및 복원 ▾';
-    backupToggle.setAttribute('aria-expanded',String(!backupPanel.hidden));
+  const accountPanel=document.createElement('div');accountPanel.className='profile-global-panel';accountPanel.hidden=true;
+  accountPanel.id='settings-drive-panel';accountPanel.setAttribute('role','group');
+  const close=()=>{menu.hidden=true;trigger.setAttribute('aria-expanded','false');accountPanel.hidden=true;accountToggle.textContent='Google 계정 관리 ▸';accountToggle.setAttribute('aria-expanded','false');};
+  const run=(fn)=>async()=>{close();try{await fn();}catch(error){alert('백업 작업 실패: '+String(error?.message||error));}};
+  makeEntry(menu,'백업 및 복원',run(openBackupManager));
+  const accountToggle=makeEntry(menu,'Google 계정 관리 ▸',()=>{
+    accountPanel.hidden=!accountPanel.hidden;accountToggle.textContent=accountPanel.hidden?'Google 계정 관리 ▸':'Google 계정 관리 ▾';
+    accountToggle.setAttribute('aria-expanded',String(!accountPanel.hidden));
   });
-  backupToggle.setAttribute('aria-controls',backupPanel.id);backupToggle.setAttribute('aria-expanded','false');
-  const drivePanel=document.createElement('div');drivePanel.className='profile-global-panel';drivePanel.hidden=true;
-  drivePanel.id='settings-drive-panel';drivePanel.setAttribute('role','group');
-  const resetGroups=()=>{
-    backupPanel.hidden=true;backupToggle.textContent='백업 및 복원 ▸';backupToggle.setAttribute('aria-expanded','false');
-    drivePanel.hidden=true;driveToggle.textContent='Google Drive 백업 ▸';driveToggle.setAttribute('aria-expanded','false');
-  };
-  const close=()=>{menu.hidden=true;trigger.setAttribute('aria-expanded','false');resetGroups();};
-  const run=(fn)=>async()=>{close();try{await fn();}catch(error){window.d200xActionStatus?.('백업 작업 실패: '+String(error?.message||error));}};
-  makeEntry(backupPanel,'로컬 백업',run(createLocalBackup));
-  makeEntry(backupPanel,'로컬 백업 복원',run(()=>restoreBackup()));
-  const driveToggle=makeEntry(backupPanel,'Google Drive 백업 ▸',()=>{
-    drivePanel.hidden=!drivePanel.hidden;
-    driveToggle.textContent=drivePanel.hidden?'Google Drive 백업 ▸':'Google Drive 백업 ▾';
-    driveToggle.setAttribute('aria-expanded',String(!drivePanel.hidden));
-  });
-  driveToggle.setAttribute('aria-controls',drivePanel.id);driveToggle.setAttribute('aria-expanded','false');
-  for(const [name,fn] of [['Google 계정 연결',googleConnect],['연결 상태 확인',googleStatus],['Google Drive에 백업',createGoogleBackup],['Google Drive 백업 복원',restoreGoogleBackup],['연결 해제',googleDisconnect]])makeEntry(drivePanel,name,run(fn));
-  backupPanel.append(drivePanel);menu.append(backupPanel);
+  accountToggle.setAttribute('aria-controls',accountPanel.id);accountToggle.setAttribute('aria-expanded','false');
+  for(const [name,fn] of [['Google 계정 연결',googleConnect],['연결 상태 확인',googleStatus],['연결 해제',googleDisconnect]])makeEntry(accountPanel,name,run(fn));
+  menu.append(accountPanel);
   trigger.addEventListener('click',()=>{
     if(!menu.hidden){close();return;}
     menu.hidden=false;trigger.setAttribute('aria-expanded','true');
