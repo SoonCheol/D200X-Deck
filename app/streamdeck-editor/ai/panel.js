@@ -29,13 +29,13 @@ function controls(){
   if(preview){for(const id of ['send','new','history','delete','logout','refresh','model'])$(id).disabled=true;}
   $('edit-apply').disabled=!!busy||!preview;$('edit-cancel').disabled=!!busy||!preview;$('edit-undo').disabled=!!busy||!!preview||!canUndo;
 }
-function addMessage(role,text,local=false){
-  const div=document.createElement('div');div.className='message '+role;const label=document.createElement('b');label.textContent=role==='user'?'사용자':local?'DeckForge 로컬 연결':'ChatGPT';
-  const content=document.createElement('div');content.className='message-content'+(role==='assistant'&&!text?' is-streaming':'');if(role==='assistant'&&text)window.DeckForgeMarkdown.render(content,text);else content.textContent=text;div.append(label,content);$('messages').append(div);$('messages').scrollTop=$('messages').scrollHeight;return content;
+function addMessage(role,text,local=false,receipt=false){
+  const div=document.createElement('div');div.className='message '+role;const label=document.createElement('b');label.textContent=role==='user'?'사용자':receipt?'DeckForge 저장 결과':local?'DeckForge 로컬 연결':'ChatGPT';
+  const content=document.createElement('div');content.className='message-content'+(role==='assistant'&&!text?' is-streaming':'');if(receipt){content.textContent=text;content.style.whiteSpace='pre-wrap';}else if(role==='assistant'&&text)window.DeckForgeMarkdown.render(content,text);else content.textContent=text;div.append(label,content);$('messages').append(div);$('messages').scrollTop=$('messages').scrollHeight;return content;
 }
 function draw(){
   $('messages').replaceChildren();const c=history.find(x=>x.id===current);
-  if(c)c.messages.forEach(m=>addMessage(m.role,m.content,m.local===true));
+  if(c)c.messages.forEach(m=>addMessage(m.role,m.content,m.local===true,m.receipt===true));
   else{const p=document.createElement('p');p.className='empty';p.textContent='새 대화 · 조회 또는 변경안 만들기를 선택하세요. 변경안은 승인 전 저장되지 않습니다.';$('messages').append(p);}
   $('history').replaceChildren(new Option('새 대화',''),...history.map(c=>new Option(c.title,c.id)));$('history').value=c?.id||'';controls();
 }
@@ -105,7 +105,13 @@ function showPreview(value){
 $('edit-apply').onclick=()=>run('apply',async()=>{
   if(!preview||!confirm('미리보기의 변경 사항을 적용하고 저장하시겠습니까?'))return;
   const id=preview.id;
-  try{const r=check(await api.applyEdit(id));canUndo=!!r.canUndo;notice(r.refreshError?'설정 저장 완료 · 화면 또는 동기화 확인 필요':'설정 저장 완료 · D200X 동기화 요청');}
+  try{
+    const r=check(await api.applyEdit(id));canUndo=!!r.canUndo;
+    if(r.conversation){history=[r.conversation,...history.filter(c=>c.id!==r.conversation.id)];draw();}
+    else if(r.receipt)addMessage('assistant',r.receipt.content,true,true);
+    const status=r.saved?(r.refreshError?'설정 저장 완료 · 화면 또는 동기화 확인 필요':'설정 저장 완료 · D200X 동기화 요청'):'변경안 저장 실패: '+r.error;
+    notice(status+(r.historySaved===false?' · 대화 기록 저장 실패':''));
+  }
   finally{showPreview(null);}
 });
 $('edit-cancel').onclick=()=>run('apply',async()=>{if(!preview)return;check(await api.discardEdit(preview.id));showPreview(null);notice('변경안 취소 · 저장하지 않음');});

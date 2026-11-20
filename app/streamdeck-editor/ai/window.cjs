@@ -7,6 +7,16 @@ const {ChatAuth}=require('./auth.cjs');
 const {listModels,chat}=require('./responses.cjs');
 
 const FusionSetup=require('./fusion-setup.js');
+function formatSaveReceipt(result){
+  if(!result?.saved)return '변경안 저장 실패 · 저장 성공을 확인하지 못했습니다.';
+  const names={put:'등록',update:'수정',delete:'삭제',copy:'복사',move:'이동',move_source:'이동 원본',add_page:'페이지 추가',folder_page:'덱폴더 페이지 추가',folder_settings:'덱폴더 설정',control:'물리 컨트롤',wide:'와이드 화면',composite:'복합 동작',state_design:'상태별 디자인',plugin:'플러그인 등록'};
+  const clean=v=>String(v??'').replace(/[\r\n\t]/g,' ').slice(0,160);
+  const lines=(result.rows||[]).map(row=>{
+    const location=['페이지 '+row.page,row.folder?'폴더 '+clean(row.folder):'',row.slot?'버튼 '+row.slot:'',clean(row.control),clean(row.state)].filter(Boolean).join(' / ');
+    return location+' · '+(names[row.op]||'변경')+(row.action?' · 액션: '+clean(row.action)+' · 제목: '+(clean(row.title)||'없음'):'');
+  });
+  return ['등록 및 저장 완료 · '+lines.length+'개 변경 사항',...lines,result.refreshError?'화면 또는 D200X 동기화 확인 필요':'D200X 동기화 요청 완료 · 실제 실행 여부는 별도 확인'].join('\n');
+}
 function registerAiWindow(assertEditor,newReadSession,editorEdits,runFusionSetup){
   let panel=null,auth=null,active=null,catalog=[],history=null,historyBusy=false,pending=null,undoId=null;
   const discardPending=async()=>{const old=pending;pending=null;if(old)await editorEdits.discard(old.id).catch(()=>{});};
@@ -47,6 +57,19 @@ function registerAiWindow(assertEditor,newReadSession,editorEdits,runFusionSetup
       const message=error?.name==='AbortError'?'작업을 중지했습니다.':error?.name==='TimeoutError'?'연결 시간이 초과되었습니다.':String(error?.message||'오류');
       return {ok:false,error:!(error instanceof SyntaxError)&&/^[가-힣A-Za-z0-9 .·()\/,:?]+$/.test(message)&&/[가-힣]/.test(message)?message.slice(0,220):'AI 요청을 완료하지 못했습니다. 연결 상태를 확인하세요.'};
     }
+  }
+  // Receipts are local facts. History write failure must never turn a successful
+  // profile save into an apparent failed apply or let the user apply twice.
+  async function appendSaveReceipt(conversationId,result){
+    const receipt={role:'assistant',local:true,receipt:true,content:formatSaveReceipt(result)};
+    let conversation=null;
+    try{
+      const all=await loadHistory(),old=all.find(c=>c.id===conversationId);
+      if(!old)return {receipt,historySaved:false};
+      conversation={...old,messages:[...old.messages,receipt],updated:Date.now()};
+      await saveHistory([conversation,...all.filter(c=>c.id!==conversationId)]);
+      return {receipt,conversation,historySaved:true};
+    }catch{return {receipt,conversation,historySaved:false};}
   }
   let preferences=null;
   async function readPreferences(){
@@ -134,9 +157,17 @@ function registerAiWindow(assertEditor,newReadSession,editorEdits,runFusionSetup
     applyEdit:async id=>{
       const job=begin('apply');try{
         if(typeof id!=='string'||!pending||pending.id!==id)throw Error('승인할 변경안이 없습니다.');
-        const result=await editorEdits.apply(id);
-        if(!result?.saved)throw Error('저장 결과를 확인하지 못했습니다.');
-        undoId=id;pending=null;return {...result,canUndo:true};
+        const conversationId=pending.conversationId;
+        let result;
+        try{result=await editorEdits.apply(id);}catch(error){
+          const message=String(error?.message||'').slice(0,180);
+          result={saved:false,error:/^[가-힣A-Za-z0-9 .·()\/,:?]+$/.test(message)&&/[가-힣]/.test(message)?message:'저장 성공을 확인하지 못했습니다.'};
+        }
+        if(!result?.saved){
+          return {saved:false,error:result?.error||'저장 결과를 확인하지 못했습니다.',canUndo:!!undoId,...await appendSaveReceipt(conversationId,{saved:false})};
+        }
+        undoId=id;pending=null;
+        return {...result,canUndo:true,...await appendSaveReceipt(conversationId,result)};
       }finally{await discardPending();finish(job);}
     },
     discardEdit:async id=>{idle();if(pending?.id===id)await discardPending();return true;},

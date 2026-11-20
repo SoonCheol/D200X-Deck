@@ -729,6 +729,27 @@
     return {index,gesture,knob,binding,
       action:action&&validId(action.type)?action:null};
   }
+  // Runtime state belongs to a configured action location, not merely a slot.
+  // Profile-global controls and pinned root keys deliberately share across pages.
+  function runtimeActionKey(state,index,gesture='down'){
+    const profile=state.profileId;
+    if(index>=14){
+      const scope=state.controls?.scopes?.[index-14]==='global'?'global':state.page;
+      return JSON.stringify([profile,'control',scope,index,gesture]);
+    }
+    const path=state.folderPath||[];
+    if(!path.length&&!state.pages?.[state.page]?.[index]&&state.pinned?.[index])
+      return JSON.stringify([profile,'pinned',index,gesture]);
+    let row=state.pages?.[state.page],route=[],root=state.page;
+    for(const [depth,slot] of path.entries()){
+      const local=row?.[slot],folder=local||(depth===0?state.pinned?.[slot]:null);
+      if(folder?.type!=='folder')break;
+      if(depth===0&&!local)root='pinned';
+      const fp=folder.pageIndex||0;route.push([slot,fp]);
+      row=fp===0?folder.children:folder.pages?.[fp-1];
+    }
+    return JSON.stringify([profile,'key',root,route,index,gesture]);
+  }
   function resolveKeyPress(state,event){
     const resolved=resolveHardwareEvent(state,event);
     return resolved?.gesture==='down'&&resolved.action?{index:resolved.index,action:resolved.action}:null;
@@ -912,5 +933,5 @@
       url:action.settings?.url||'',mode:action.settings?.open||'default',browserPath:action.settings?.browserPath||''};
     return {kind:'unsupported',message:'이 동작의 실행 기능은 아직 구현되지 않았습니다.'};
   }
-  return {ACTION_IDS,D200X_ACTION_IDS,PLUGIN_ACTION_IDS,DEFAULTS,TITLE,SIDE_NAV_LABELS,SIDE_HOLD_MS,sideConfig,makeSideAction,sideActionConfig,sideFolderTargets,planSideNavigation,applySideNavigation,createSidePressTracker,createAction,cleanAction,cleanCompositeEntry,displaySwitchAction,compositeModel,planComposite,runComposite,blankPage,cleanWideDisplay,cycleWideDisplay,isWideDisplayPress,folderContents,folderPageCount,changeFolderPage,addFolderPage,deleteFolderPage,currentActions,visibleActions,togglePinned,activeFolder,enterFolder,exitFolder,migrateState,profileSnapshot,switchProfile,createProfile,renameProfile,exportSingleProfile,setProfileApp,matchForegroundProfile,deleteProfile,previewHardwareEvent,physicalSlot,hardwareGesture,resolveHardwareEvent,resolveKeyPress,planHardwareEvent,deletePage,planAction,emptyBinding,cleanBinding,controlAction,activeControlAction,assignControlAction,automaticControl,ensureControls,controlBinding,changeControlScope};
+  return {ACTION_IDS,D200X_ACTION_IDS,PLUGIN_ACTION_IDS,DEFAULTS,TITLE,SIDE_NAV_LABELS,SIDE_HOLD_MS,sideConfig,makeSideAction,sideActionConfig,sideFolderTargets,planSideNavigation,applySideNavigation,createSidePressTracker,createAction,cleanAction,cleanCompositeEntry,displaySwitchAction,compositeModel,planComposite,runComposite,blankPage,cleanWideDisplay,cycleWideDisplay,isWideDisplayPress,folderContents,folderPageCount,changeFolderPage,addFolderPage,deleteFolderPage,currentActions,visibleActions,togglePinned,activeFolder,enterFolder,exitFolder,migrateState,profileSnapshot,switchProfile,createProfile,renameProfile,exportSingleProfile,setProfileApp,matchForegroundProfile,deleteProfile,previewHardwareEvent,physicalSlot,hardwareGesture,resolveHardwareEvent,runtimeActionKey,resolveKeyPress,planHardwareEvent,deletePage,planAction,emptyBinding,cleanBinding,controlAction,activeControlAction,assignControlAction,automaticControl,ensureControls,controlBinding,changeControlScope};
 });

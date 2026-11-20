@@ -38,7 +38,7 @@ function validImage(bytes,mime){
 }
 async function parseIconPack(input,render,displayName='가져온 아이콘팩'){
   if(!Buffer.isBuffer(input)||input.length<10||input.length>MAX_ARCHIVE)
-    throw new Error('아이콘팩 크기는 20MB 이하여야 합니다.');
+    throw new Error('아이콘팩 크기는 60MB 이하여야 합니다.');
   if(input.toString('latin1',0,2)!=='PK')throw new Error('ZIP 기반 Stream Deck 아이콘팩이 아닙니다.');
   const zip=await JSZip.loadAsync(input,{checkCRC32:false,createFolders:false});
   const entries=Object.values(zip.files);

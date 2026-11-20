@@ -2567,7 +2567,10 @@ function renderControlInspector(){
       const session=inspectorSession;
       const selected=await window.deckBridge.choosePath(button.dataset.pathKind);
       if(!selected||!inspectorTargetCurrent(session,current))return;
-      current.settings[button.dataset.pathPicker]=selected;persistInspectorChange();renderControlInspector();
+      const field=button.dataset.pathPicker;
+      current.settings[field]=selected;persistInspectorChange();renderControlInspector();
+      if(['open','open-app','file-open'].includes(current.type)&&['path','app'].includes(field))
+        void updateApplicationArtwork(current,selected,session).catch(error=>window.d200xActionStatus?.('프로그램 아이콘 추출 실패: '+String(error?.message||error)));
     }));
   }
   if(!knob)appendInspectorSaveBar(root);
@@ -3203,7 +3206,7 @@ function renderInspector(){
           if(folderPicker)inputNode.title=inputNode.value;
         }
         persistInspectorChange();
-        if(['open','open-app'].includes(item.type)&&['path','app'].includes(field))
+        if(['open','open-app','file-open'].includes(item.type)&&['path','app'].includes(field))
           void updateApplicationArtwork(item,selected,session).catch(error=>window.d200xActionStatus?.('프로그램 아이콘 추출 실패: '+String(error?.message||error)));
       }catch(error){alert("파일 선택 오류: "+String(error?.message||error));}
     });
@@ -3467,10 +3470,9 @@ function stopAudio(audio){
   for(const [key,value] of activeAudioPlayers)if(value===audio)activeAudioPlayers.delete(key);
 }
 function stopAllAudio(){for(const audio of [...allPlayingAudio])stopAudio(audio);}
-async function playAudioAction(outcome,index){
+async function playAudioAction(outcome,key){
   if(!window.deckBridge?.audioFileUrl)throw new Error('Windows 실행 환경에서만 사용할 수 있습니다.');
   if(!outcome.file)throw new Error('재생할 오디오 파일을 먼저 선택하세요.');
-  const key=String(state.page)+':'+index;
   const old=activeAudioPlayers.get(key);
   if(old&&['play-stop','loop-stop'].includes(outcome.mode)&&!old.paused){
     stopAudio(old);return '오디오 정지';
@@ -3530,7 +3532,7 @@ const waitMultiDelay=(ms,signal)=>new Promise((resolve,reject)=>{
 });
 // Await the Windows bridge rather than firing each step concurrently.
 // Unknown and UI-only actions stop the sequence with an explicit error.
-async function executeMultiStep(action,signal){
+async function executeMultiStep(action,signal,runtimeKey){
   const outcome=DeckCore.planAction(action,state.page,state.pages.length);
   const bridge=window.deckBridge;
   if(!bridge)throw new Error('다중 동작은 Windows EXE에서만 실행할 수 있습니다.');
@@ -3542,7 +3544,7 @@ async function executeMultiStep(action,signal){
     case 'windows-hotkey':
       return bridge.sendHotkey(outcome.keys);
     case 'windows-hotkey-switch':{
-      const signature='multi-hotkey:'+outcome.first+'|'+outcome.second;
+      const signature=JSON.stringify([runtimeKey,'hotkey',outcome.first,outcome.second]);
       const current=compositeHotkeyPositions.get(signature)||0;
       const keys=current===0?outcome.first:outcome.second;
       if(!keys)throw new Error('다중 동작의 단축키 전환 설정이 비어 있습니다.');
@@ -3561,7 +3563,7 @@ async function executeMultiStep(action,signal){
       return bridge.closeLocalApp(outcome.path,outcome.force,makeAppControlTrace('multi',null,action));
 
     case 'audio-play':
-      return playAudioAction(outcome,'multi-'+action.type);
+      return playAudioAction(outcome,runtimeKey);
     case 'audio-stop':
       stopAllAudio();return true;
     case 'website':
@@ -3599,46 +3601,56 @@ async function executeMultiStep(action,signal){
 
 const compositeHotkeyPositions=new Map();
 const logicPresses=new Map();
+// runComposite validates and clones steps. Bind a stable parent+branch+step
+// key before the async sequence starts, instead of reading the current page.
+function compositeExecutor(parentKey,branch){
+  let step=0;
+  return (action,signal)=>executeMultiStep(action,signal,JSON.stringify([parentKey,branch,step++]));
+}
 function triggerLogicSlot(action,slot,index){
   const check=DeckCore.planComposite(action,{gesture:slot});
   if(check.kind!=='composite')return window.d200xActionStatus?.(check.message);
   if(check.steps.length===0)return;
   if(check.steps.some(step=>!MULTI_ALLOWED.includes(step.type)))
     return window.d200xActionStatus?.('Key Logic에 지원하지 않는 하위 액션이 있습니다.');
-  const key='logic:'+index;
+  const key=DeckCore.runtimeActionKey(state,index,'down');
   if(runningMultiActions.has(key))return window.d200xActionStatus?.('Key Logic 실행 중입니다.');
   runningMultiActions.add(key);
-  DeckCore.runComposite(action,{gesture:slot,execute:executeMultiStep,wait:waitMultiDelay})
+  DeckCore.runComposite(action,{gesture:slot,execute:compositeExecutor(key,'logic:'+slot),wait:waitMultiDelay})
     .then(()=>{scheduleFolderExitAfterAction();window.d200xActionStatus?.('Key Logic '+slot+' 실행 완료');},
       error=>window.d200xActionStatus?.('Key Logic 실행 실패: '+String(error?.message||error)))
     .finally(()=>runningMultiActions.delete(key));
 }
 // Single is delayed until the double-press window closes; hold fires once.
 function handleLogicGesture(action,index,gesture,preview){
-  const prior=logicPresses.get(index);
+  const key=DeckCore.runtimeActionKey(state,index,'down');
+  let prior=logicPresses.get(key);
+  if(prior&&prior.action!==action){
+    clearTimeout(prior.holdTimer);clearTimeout(prior.singleTimer);logicPresses.delete(key);prior=null;
+  }
   if(preview){triggerLogicSlot(action,'single',index);return 'Key Logic 한 번 누르기 테스트';}
   if(gesture==='down'){
     if(prior?.held)return null;
     if(prior?.singleTimer){
       clearTimeout(prior.singleTimer);clearTimeout(prior.holdTimer);
-      logicPresses.delete(index);triggerLogicSlot(action,'double',index);
+      logicPresses.delete(key);triggerLogicSlot(action,'double',index);
       return 'Key Logic 두 번 누르기';
     }
     if(prior)return null;
     const record={action,held:true,holdFired:false,holdTimer:null,singleTimer:null};
     record.holdTimer=setTimeout(()=>{
-      if(logicPresses.get(index)!==record||!record.held)return;
+      if(logicPresses.get(key)!==record||!record.held)return;
       record.holdFired=true;
       triggerLogicSlot(action,'hold',index);
     },600);
-    logicPresses.set(index,record);return 'Key Logic 누름 감지';
+    logicPresses.set(key,record);return 'Key Logic 누름 감지';
   }
   if(gesture==='up'&&prior?.action===action){
     prior.held=false;clearTimeout(prior.holdTimer);
-    if(prior.holdFired){logicPresses.delete(index);return 'Key Logic 길게 누르기 완료';}
+    if(prior.holdFired){logicPresses.delete(key);return 'Key Logic 길게 누르기 완료';}
     prior.singleTimer=setTimeout(()=>{
-      if(logicPresses.get(index)!==prior)return;
-      logicPresses.delete(index);triggerLogicSlot(action,'single',index);
+      if(logicPresses.get(key)!==prior)return;
+      logicPresses.delete(key);triggerLogicSlot(action,'single',index);
     },300);
     return 'Key Logic 입력 확인 중';
   }
@@ -3992,8 +4004,7 @@ function executeHardwareAction(event,preview=false,skipKnobGesture=false){
   if(outcome.kind==='composite' && ['multi','multi-switch','random'].includes(outcome.type)){
     const action=resolved.action;
     if(!action||action.type!==outcome.type)return '복합 동작 설정이 없습니다.';
-    const scope=index>=14&&state.controls.scopes[index-14]==='global'?'global':String(state.page);
-    const key=scope+':'+index+':'+resolved.gesture;
+    const key=DeckCore.runtimeActionKey(state,index,resolved.gesture);
     if(runningMultiActions.has(key))return '복합 동작이 이미 실행 중입니다.';
     const position=outcome.type==='multi-switch'?(action.settings?.activeState===1?1:0):0;
     const random=outcome.type==='random'?Math.random():undefined;
@@ -4007,7 +4018,7 @@ function executeHardwareAction(event,preview=false,skipKnobGesture=false){
     const controller=new AbortController();
     runningMultiControllers.set(action,controller);
     observe(DeckCore.runComposite(action,{
-      execute:executeMultiStep,wait:waitMultiDelay,
+      execute:compositeExecutor(key,outcome.type==='random'?'random:'+Math.floor(random*DeckCore.compositeModel(action).choices.length):'state:'+position),wait:waitMultiDelay,
       state:position,random,signal:controller.signal,
       nextActionMs:Math.max(2,Math.min(200,Number(action.settings?.nextActionMs)||100))
     }),'composite').then(
@@ -4062,7 +4073,7 @@ function executeHardwareAction(event,preview=false,skipKnobGesture=false){
     stopAllAudio();return '오디오 재생 정지';
   }
   if(outcome.kind==='audio-play'){
-    observe(playAudioAction(outcome,index),outcome.kind).then(
+    observe(playAudioAction(outcome,DeckCore.runtimeActionKey(state,index,resolved.gesture)),outcome.kind).then(
       result=>window.d200xActionStatus?.(result),
       error=>window.d200xActionStatus?.('오디오 재생 실패: '+String(error?.message||error)));
     return '오디오 재생 요청';
@@ -4077,8 +4088,7 @@ function executeHardwareAction(event,preview=false,skipKnobGesture=false){
     return useClipboard?'Windows 클립보드 붙여넣기 요청':'유니코드 직접 입력 요청';
   }
   if(outcome.kind==='timer'){
-    const scope=index>=14&&state.controls.scopes[index-14]==='global'?'global':String(state.page);
-    const key=state.profileId+':'+scope+':'+index;
+    const key=DeckCore.runtimeActionKey(state,index,resolved.gesture);
     const active=activeActionTimers.get(key);
     if(active){
       clearTimeout(active.handle);clearInterval(active.interval);
@@ -4115,8 +4125,7 @@ function executeHardwareAction(event,preview=false,skipKnobGesture=false){
   }
   if(outcome.kind==='windows-hotkey-switch'){
     if(!window.deckBridge?.sendHotkey)return 'Windows 실행 환경에서만 사용할 수 있습니다.';
-    const scope=index>=14&&state.controls.scopes[index-14]==='global'?'global':String(state.page);
-    const key=scope+':'+index;
+    const key=DeckCore.runtimeActionKey(state,index,resolved.gesture);
     const position=hotkeySwitchPositions.get(key)||0;
     const keys=position===0?outcome.first:outcome.second;
     if(!keys)return '전환할 단축키가 설정되지 않았습니다.';
@@ -4256,6 +4265,21 @@ window.executeD200XKey=tracedPhysicalDispatch;
    try{window.scheduleDeckSync?.();}catch(e){refreshError=true;console.warn('AI 편집 동기화 예약 실패',e);}
    return {saved:true,refreshError};
  }
+ function aiSavedRows(plan){
+   return plan.rows.map(row=>{
+     const base={op:row.op,page:row.page,slot:row.slot,folder:row.folder,control:row.control,state:row.state};
+     if(!Number.isInteger(row.slot)||['folder_page','folder_settings','control','wide','add_page','delete','move_source'].includes(row.op))return base;
+     let items=state.pages[row.page-1];
+     for(const [slot,fp] of (row.folder||'').split('/').filter(Boolean).map(x=>x.split(':').map(Number))){
+       const folder=items?.[slot-1];items=fp===1?folder?.children:folder?.pages?.[fp-2];
+     }
+     const item=items?.[row.slot-1];if(!item)return base;
+     const settings=item.settings||{},p=settings.pluginSettings||{};
+     const action=item.type==='sd-plugin'?(p.name||settings.actionName||sdkActionNames.get(settings.actionUUID)||settings.actionUUID||'플러그인'):
+       ACTIONS.get(item.type)?.label||item.type;
+     return {...base,action:String(action).slice(0,160),title:String(item.title||'').slice(0,160)};
+   });
+ }
  window.DeckForgeAiEdit=Object.freeze({
    capture(id){
      aiEditReady();aiEditCapture={id,base:JSON.stringify(state),before:state,plan:null};
@@ -4344,7 +4368,8 @@ window.executeD200XKey=tracedPhysicalDispatch;
      if(!snapshot.plan)throw Error('적용할 변경안이 없습니다.');
      const result=aiEditStore(snapshot.plan.next);
      aiEditUndo={id,before:snapshot.before,after:JSON.stringify(state)};
-     aiEditCapture=null;return result;
+     const rows=aiSavedRows(snapshot.plan);
+     aiEditCapture=null;return {...result,rows};
    },
    discard(id){if(aiEditCapture?.id===id)aiEditCapture=null;return true;},
    undo(id){
@@ -4357,7 +4382,11 @@ window.executeD200XKey=tracedPhysicalDispatch;
 let refreshProfilesMenu=()=>{};
 function render(){
   const scope=openAppHoldScope();
-  if(scope!==lastOpenAppHoldScope){clearOpenAppHoldTimers('navigation');invalidateSidePresses();lastOpenAppHoldScope=scope;}
+  if(scope!==lastOpenAppHoldScope){
+    clearOpenAppHoldTimers('navigation');invalidateSidePresses();
+    for(const press of logicPresses.values()){clearTimeout(press.holdTimer);clearTimeout(press.singleTimer);}
+    logicPresses.clear();lastOpenAppHoldScope=scope;
+  }
   previewPressKeys.clear();renderGrid();renderInspector();refreshProfilesMenu();scheduleSdkSync();
 }
 
@@ -4952,7 +4981,7 @@ function bindSidebarHeader(){
       if(!sdkPlugins.some(plugin=>plugin.uuid===input.pluginUUID))
         throw Error('Fusion 360 플러그인을 먼저 설치해야 합니다.');
       if(state.profileNames.length>=50)throw Error('프로필 최대 50개 제한에 도달했습니다.');
-      const pages=Math.ceil(input.commands.length/14);
+      const pages=input.layoutPages?.length||Math.ceil(input.commands.length/window.D200XFusionBatch.KEYS_PER_PAGE);
       if(!confirm('Fusion 360 명령 '+input.commands.length+'개를 새 프로필 "'+
         input.profileName+'" ('+pages+'페이지)에 등록하시겠습니까?\\n'+
         '기존 프로필과 버튼은 보존됩니다.'))return;

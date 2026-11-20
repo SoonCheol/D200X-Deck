@@ -51,7 +51,7 @@ class D200XTransport extends EventEmitter {
         this.session++;
         this.lastWriteAt = this.now();
         this.log('connected', 'HID connection opened; restoring saved page');
-        if (this.currentImages) this.schedule(this.currentImages);
+        if (this.currentImages) this.schedule(this.currentImages, this.wideMode);
       }
       // Device info may cause repeated connected status events. Do not resend
       // the entire page for each such event.
@@ -163,7 +163,7 @@ class D200XTransport extends EventEmitter {
     this.deck.setSleepTime(0);
     this.sleeping=false;
     this.lastWriteAt=this.now();
-    if(this.currentImages)this.schedule(this.currentImages);
+    if(this.currentImages)this.schedule(this.currentImages,this.wideMode);
     this.log('display-wake','Display sleep disabled; page restore requested');
     return true;
   }
