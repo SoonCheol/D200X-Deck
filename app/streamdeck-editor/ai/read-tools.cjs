@@ -112,7 +112,7 @@ const iso=v=>typeof v==='string'&&/^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d(?:\.\d{1,3})?
 // Only exact, bounded native diagnostic formats are projected; arbitrary details
 // (including shortcut paths, exception messages and command lines) are never copied.
 function appDetails(details){
-  const running=[],packages=[],cloaked=[],windowReasons=[];
+  const running=[],packages=[],policy=[],cloaked=[],windowReasons=[];
   for(const item of arr(details).slice(0,100)){
     if(typeof item!=='string'||item.length>120)continue;
     let m=/^running-pid=(\d{1,10}) subsystem=(\d{1,5}) no-eligible-window$/.exec(item);
@@ -125,11 +125,17 @@ function appDetails(details){
       if(packages.length<8)packages.push({pid:+m[1],verified:m[2]==='true'});
       continue;
     }
+    m=/^policy-pid=(\d{1,10}) path=(available|missing) decision=(allow|block) reason=(shared-host|console|gui|verified-package|unknown-or-nongui)$/.exec(item);
+    if(m&&integer(+m[1],1,4294967295)){
+      if(policy.length<8)policy.push({pid:+m[1],pathAvailable:m[2]==='available',decision:m[3],reason:m[4]});
+      continue;
+    }
+    // Older logs retain their original cloak diagnostics.
     m=/^cloaked=(-1|[0-7])$/.exec(item);
     if(m&&!cloaked.includes(+m[1]))cloaked.push(+m[1]);
     if(item==='window-reason=app-cloaked-packaged'&&!windowReasons.length)windowReasons.push('app-cloaked-packaged');
   }
-  return {...(running.length?{running}:{}),...(packages.length?{packages}:{}),...(cloaked.length?{cloaked}:{}),...(windowReasons.length?{windowReasons}:{})};
+  return {...(running.length?{running}:{}),...(packages.length?{packages}:{}),...(policy.length?{policy}:{}),...(cloaked.length?{cloaked}:{}),...(windowReasons.length?{windowReasons}:{})};
 }
 function logRecord(r){
   const x=r.result||{},rec=r.record||{},trace=r.trace||{},spec=r.spec||{};
@@ -201,7 +207,7 @@ const KNOWLEDGE=[
   {topic:'wide',facts:'Wide modes clock/datetime/stats/knobs. Root wide key cycles enabled modes. An unsaved warning temporarily overrides wide display; pressing it requests editor focus. A USB transfer or focus request is not visual confirmation.'},
   {topic:'editing',facts:'propose_edit stages basic root edits; propose_advanced stages folder/control/wide/composite/state-design/plugin edits. Active profile, bounded operations, fixed validation, user Apply and Save confirmation, existing atomic profile write, then display sync request. Dirty or changed snapshot blocks apply; last change undo only within session and unchanged state. No model direct write or execution.'},
   {topic:'plugins',facts:'Native HA REST supported entities light/switch/fan/input_boolean require configured server and real entity verification. SDK HA/Fusion registration reuses existing configured templates and verifies installed actions. Empty template list does not prove absence of installed commands or devices. SDK key acknowledgement is dispatch evidence, not remote action success.'},
-  {topic:'diagnostics',facts:'input_trace uses explicit packet IDs and actual dispatch observations; last 128 post-sleep-filter inputs only, volatile, no historical reconstruction. Distinguish reception, renderer, resolved slot, plan, filter/deferred gesture, request, returned/failed and native helper stage. Use app_log with the exact helper trace to see safe AppID/EXE name, PID, PE subsystem, package identity, cloak and launch error reason. launch-requested is only shell request acceptance, not evidence of a window. No result is not proof of failure. SDK/SendInput/REST or shell request acceptance is not proof of effect. Delayed logic, timer/chime, unsaved-dialog resume, separate release/hold and composite substeps may have incomplete evidence. A filtered up event normally does not execute.'},
+  {topic:'diagnostics',facts:'input_trace uses explicit packet IDs and actual dispatch observations; last 128 post-sleep-filter inputs only, volatile, no historical reconstruction. Distinguish reception, renderer, resolved slot, plan, filter/deferred gesture, request, returned/failed and native helper stage. Use app_log with the exact helper trace to see safe AppID/EXE name, PID, PE subsystem, package identity, per-PID allow/block reason and path availability (older logs may include cloak), and launch error reason. launch-requested is only shell request acceptance, not evidence of a window. No result is not proof of failure. SDK/SendInput/REST or shell request acceptance is not proof of effect. Delayed logic, timer/chime, unsaved-dialog resume, separate release/hold and composite substeps may have incomplete evidence. A filtered up event normally does not execute.'},
   {topic:'optimization',facts:'layout_review checks saved page holes, exactly repeated basic action settings, incomplete configured fields and inactive rotations. These are review candidates, not proof of defects; duplicate keys can be intentional. No automatic changes. Use page and liveView before making an approved proposal.'},
   {topic:'usage',facts:'ChatGPT direct connection only. At most 3 API requests, 4 tool calls and one edit proposal per question; last 8 messages / 16000 characters. Approve/cancel/undo locally. Reported token usage is API usage, not exact subscription deduction.'}
 ];

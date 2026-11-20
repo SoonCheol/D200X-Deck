@@ -94,12 +94,15 @@ test('app log safely projects exact package diagnostics and never raw details',(
   const row=logRecord({traceId:'trace-1',version:'1.1.48',stage:'focus-result',mode:'Focus',
     spec:{kind:'AppID',target:'Microsoft.WindowsNotepad_8wekyb3d8bbwe!App'},result:{status:'running-gui',details:[
       'running-pid=34264 subsystem=0 no-eligible-window','package-pid=34264 verified=true','cloaked=2',
+      'policy-pid=34264 path=missing decision=allow reason=verified-package',
+      'policy-pid=7 path=available decision=block reason=shared-host','policy-pid=8 path=missing decision=allow reason=DO_NOT_SEND',
       'window-reason=app-cloaked-packaged','shortcut=C:\\Private\\DO_NOT_SEND.exe','activation: DO_NOT_SEND',
       'running-pid=7 subsystem=0 no-eligible-window DO_NOT_SEND','package-pid=4294967296 verified=true']}});
   assert.equal(row.target,'Microsoft.WindowsNotepad_8wekyb3d8bbwe!App');
   assert.equal(row.trace,'trace-1');assert.equal(row.specKind,'AppID');
   assert.deepEqual(row.running,[{pid:34264,subsystem:0,noEligibleWindow:true}]);
   assert.deepEqual(row.packages,[{pid:34264,verified:true}]);
+  assert.deepEqual(row.policy,[{pid:34264,pathAvailable:false,decision:'allow',reason:'verified-package'},{pid:7,pathAvailable:true,decision:'block',reason:'shared-host'}]);
   assert.deepEqual(row.cloaked,[2]);assert.deepEqual(row.windowReasons,['app-cloaked-packaged']);
   assert.equal(logRecord({spec:{kind:'EXE',target:'C:\\Private\\Editor.exe'}}).target,'Editor.exe');
   assert.ok(!JSON.stringify(row).includes('DO_NOT_SEND'));assert.ok(!JSON.stringify(row).includes('Private'));

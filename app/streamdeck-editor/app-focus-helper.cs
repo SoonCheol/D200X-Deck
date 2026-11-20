@@ -68,7 +68,7 @@ static class DFAppFocus {
  }
  static bool unknownTerminal;
  sealed class Identity {public string Path,Id,PackageFamily;public bool? IsElevated;}
- static Identity ProcessIdentity(uint pid,Dictionary<uint,Identity> cache){
+ static Identity ProcessIdentity(uint pid,Dictionary<uint,Identity> cache,bool verifyPackage=false){
    Identity result;if(cache.TryGetValue(pid,out result))return result;
    result=new Identity();cache[pid]=result;
    IntPtr process=OpenProcess(0x1000,false,pid);if(process==IntPtr.Zero)return result;
@@ -80,7 +80,7 @@ static class DFAppFocus {
        len=0;if(GetApplicationUserModelId(process,ref len,null)==122&&len>0&&len<=32768){
          text=new StringBuilder((int)len);
          if(GetApplicationUserModelId(process,ref len,text)==0)result.Id=text.ToString();
-         if(kind=="AppID"&&Same(result.Id,target)){
+         if(verifyPackage&&kind=="AppID"&&Same(result.Id,target)){
            len=0;
            if(GetPackageFamilyName(process,ref len,null)==122&&len>0&&len<=1024){
              text=new StringBuilder((int)len);
@@ -115,17 +115,11 @@ static class DFAppFocus {
    },IntPtr.Zero);
    return match==null?null:"child-"+match;
  }
- // DWMWA_CLOAKED: application=1, shell=2, inherited=4. Unknown is not a reason to reopen.
- static int CloakReason(IntPtr hwnd){int v;return DwmGetWindowAttribute(hwnd,14,out v,4)==0?v:-1;}
- static bool Cloaked(IntPtr hwnd){return CloakReason(hwnd)>0;}
+ static bool Cloaked(IntPtr hwnd){int v;return DwmGetWindowAttribute(hwnd,14,out v,4)==0&&v!=0;}
  static bool PackagedMatch(Identity identity){
    return kind=="AppID"&&Same(identity.Id,target)&&!String.IsNullOrEmpty(identity.PackageFamily)&&
      identity.Id.StartsWith(identity.PackageFamily+"!",StringComparison.OrdinalIgnoreCase)&&
      identity.Id.Length>identity.PackageFamily.Length+1;
- }
- static bool PackagedWindow(IntPtr hwnd){
-   uint pid;DFFolderNative.GetWindowThreadProcessId(hwnd,out pid);
-   return pid!=0&&PackagedMatch(ProcessIdentity(pid,new Dictionary<uint,Identity>()));
  }
  static bool Eligible(IntPtr hwnd){
    if(!DFFolderNative.IsWindow(hwnd)||!IsWindowVisible(hwnd))return false;
@@ -254,11 +248,12 @@ static class DFAppFocus {
    Note("editor-foreground-verified="+ok);
    return ok?"focused":"matched-not-focused";
  }
+ static readonly string[] sharedHosts={"explorer.exe","cmd.exe","powershell.exe","pwsh.exe","rundll32.exe","dllhost.exe","wscript.exe","cscript.exe","mshta.exe","applicationframehost.exe","svchost.exe","conhost.exe","wt.exe"};
+ static bool SharedHostExe(string name){
+   return !String.IsNullOrEmpty(name)&&Array.IndexOf(sharedHosts,name.ToLowerInvariant())>=0;
+ }
  static bool SafeShortcutExe(string path){
-   if(String.IsNullOrEmpty(path)||!Path.IsPathRooted(path)||!path.EndsWith(".exe",StringComparison.OrdinalIgnoreCase))return false;
-   // Never infer a classic app from a shared interpreter or host executable.
-   string n=Path.GetFileName(path).ToLowerInvariant();
-   return Array.IndexOf(new[]{"explorer.exe","cmd.exe","powershell.exe","pwsh.exe","rundll32.exe","dllhost.exe","wscript.exe","cscript.exe","mshta.exe","applicationframehost.exe","svchost.exe","conhost.exe","wt.exe"},n)<0;
+   return !String.IsNullOrEmpty(path)&&Path.IsPathRooted(path)&&path.EndsWith(".exe",StringComparison.OrdinalIgnoreCase)&&!SharedHostExe(Path.GetFileName(path));
  }
  static IEnumerable<string> Shortcuts(string root){
    var queue=new Queue<string>();if(Directory.Exists(root))queue.Enqueue(root);
@@ -322,22 +317,23 @@ static class DFAppFocus {
         return ReadSubsystem(stream);
     }catch{return 0;}
   }
-  // Exact OS-reported package + application identity permits unknown PE only
-  // for a safe executable. Known console/shared hosts and classic unknowns stay protected.
-  static bool Reopenable(int subsystem,bool packaged,bool safeExe){
-    return subsystem==2||(subsystem==0&&packaged&&safeExe);
+  // Exact OS-verified package identity allows one activation request when
+  // no eligible window exists and PE is unavailable. Known hosts/console
+  // and unidentified classic images remain protected.
+  static bool Reopenable(int subsystem,bool packaged,bool sharedHost){
+    return !sharedHost&&(subsystem==2||(subsystem==0&&packaged));
   }
-  static string RunningStatus(bool activate){
+  static string RunningStatus(){
     if(kind=="Terminal")return "missing";
     var cache=new Dictionary<uint,Identity>();
     var subsystems=new Dictionary<string,int>(StringComparer.OrdinalIgnoreCase);
-    bool found=false,protectedProcess=false,packagedProcess=false;
+    bool found=false,protectedProcess=false;
     int session;using(var self=Process.GetCurrentProcess())session=self.SessionId;
     foreach(var process in Process.GetProcesses()){
       using(process)try{
         if(process.SessionId!=session)continue;
         if(kind=="EXE"&&!Same(process.ProcessName,Path.GetFileNameWithoutExtension(target)))continue;
-        var identity=ProcessIdentity((uint)process.Id,cache);
+        var identity=ProcessIdentity((uint)process.Id,cache,true);
         if((kind=="AppID"&&Same(identity.Id,target))||(identity.Path!=null&&paths.Contains(identity.Path))){
           found=true;
           int subsystem=0;
@@ -345,43 +341,38 @@ static class DFAppFocus {
             subsystem=ExecutableSubsystem(identity.Path);subsystems[identity.Path]=subsystem;
           }
           bool packaged=PackagedMatch(identity);
-          if(packaged)packagedProcess=true;
-          if(!Reopenable(subsystem,packaged,SafeShortcutExe(identity.Path)))protectedProcess=true;
+          bool sharedHost=SharedHostExe(Path.GetFileName(identity.Path));
+          if(packaged&&subsystem==0&&!sharedHost){
+            try{sharedHost=SharedHostExe(process.ProcessName+".exe");}catch{}
+          }
+          bool reopen=Reopenable(subsystem,packaged,sharedHost);
+          if(!reopen)protectedProcess=true;
           Note("running-pid="+process.Id+" subsystem="+subsystem+" no-eligible-window");
           Note("package-pid="+process.Id+" verified="+(packaged?"true":"false"));
+          string reason=sharedHost?"shared-host":subsystem==3?"console":subsystem==2?"gui":subsystem==0&&packaged?"verified-package":"unknown-or-nongui";
+          Note("policy-pid="+process.Id+" path="+(!String.IsNullOrEmpty(identity.Path)?"available":"missing")+" decision="+(reopen?"allow":"block")+" reason="+reason);
         }
       }catch{}
     }
-    return !found?"missing":protectedProcess?"running-protected":!activate&&packagedProcess?"present":"running-gui";
+    return !found?"missing":protectedProcess?"running-protected":"running-gui";
   }
  static string LocateAndFocus(int wait,bool activate=true,bool newOnly=false,bool checkRunning=true){
    var watch=Stopwatch.StartNew();
    do{
      var candidates=Windows();
-     // Only exact packaged process windows hidden by their own app may be
-     // skipped on Focus/Wait; shell/inherited cloaking and Probe stay protected.
-     if(kind=="AppID"){
-       candidates.RemoveAll(candidate=>{
-         int cloak=CloakReason(candidate.Hwnd);
-         if(cloak!=0)Note("cloaked="+cloak);
-         bool skip=activate&&!newOnly&&cloak==1&&PackagedWindow(candidate.Hwnd);
-         if(skip)Note("window-reason=app-cloaked-packaged");
-         return skip;
-       });
-     }
      if(candidates.Count>0){
        if(!activate)return "present";
        foreach(var candidate in candidates){try{if(Activate(candidate))return "focused";}catch(Exception e){Note("activation: "+e.Message);}}
        return "matched-not-focused";
      }
-     if(!activate&&checkRunning){
-        string running=RunningStatus(activate);
-        if(running!="missing")return running;
-      }
      if(watch.ElapsedMilliseconds>=wait)break;
+     if(!activate&&checkRunning){
+       string running=RunningStatus();
+       if(running!="missing")return running;
+     }
      Thread.Sleep(150);
    }while(true);
-   return !newOnly&&checkRunning?RunningStatus(activate):"missing";
+   return !newOnly&&checkRunning?RunningStatus():"missing";
  }
  static void Snapshot(){
    var handles=new List<string>();
@@ -424,8 +415,12 @@ static class DFAppFocus {
         using(var invalid=new MemoryStream(new byte[64]))if(ReadSubsystem(invalid)!=0)throw new Exception("Invalid PE validation failed");
         using(var self=Process.GetCurrentProcess())if(ExecutableSubsystem(self.MainModule.FileName)!=3)throw new Exception("Console subsystem validation failed");
         // Pure policy checks; no installed app or interactive session required.
-        if(!Reopenable(0,true,true)||Reopenable(0,false,true)||Reopenable(0,true,false)||Reopenable(3,true,true)||!Reopenable(2,false,true))
+        if(!Reopenable(0,true,false)||Reopenable(0,false,false)||Reopenable(0,true,true)||
+           Reopenable(3,true,false)||Reopenable(3,false,false)||Reopenable(2,true,true)||
+           !Reopenable(2,false,false)||Reopenable(7,true,false))
           throw new Exception("Packaged reopen policy validation failed");
+        if(!SharedHostExe("cmd.exe")||!SharedHostExe("APPLICATIONFRAMEHOST.EXE")||SharedHostExe("app.exe")||SharedHostExe(null))
+          throw new Exception("Shared host policy validation failed");
         kind="AppID";target="Example_family!App";
         if(!PackagedMatch(new Identity{Id=target,PackageFamily="Example_family"})||
            PackagedMatch(new Identity{Id=target,PackageFamily="Other_family"})||
@@ -468,10 +463,11 @@ static class DFAppFocus {
        if(kind=="AppID"&&target.IndexOf('!')<0)ResolveShortcutPaths();
        Snapshot();return;
      }
-     // Check existing windows before considering a process without a visible window.
-     string status=LocateAndFocus(0,activate,newOnly,false);
-     if(status=="missing"&&kind=="AppID"&&target.IndexOf('!')<0){
-       ResolveShortcutPaths();if(paths.Count>0)status=LocateAndFocus(0,activate,newOnly,false);
+     // Only desktop AppIDs need a preliminary scan before shortcut resolution.
+     string status="missing";
+     if(kind=="AppID"&&target.IndexOf('!')<0){
+       status=LocateAndFocus(0,activate,newOnly,false);
+       if(status=="missing")ResolveShortcutPaths();
      }
      if(status=="missing"){
        int wait=(mode=="Wait"||mode=="WaitPresent"||newOnly)?5500:0;

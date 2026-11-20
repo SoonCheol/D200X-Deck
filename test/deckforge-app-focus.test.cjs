@@ -39,6 +39,17 @@ test('resident GUI without eligible window reopens once, while console and unkno
   const passiveWindow=policy(['present'],{foreground:false});await passiveWindow.run();assert.deepEqual(passiveWindow.calls,['Probe']);
   const blocked=policy(['matched-not-focused']);await assert.rejects(blocked.run(),/새 창은 열지 않았습니다/);assert.deepEqual(blocked.calls,['Focus']);
 });
+test('windowless verified package uses the existing shell exactly once with both foreground options',async()=>{
+  const focus=policy(['running-gui','focused']);await focus.run();
+  assert.deepEqual(focus.calls,['Focus','launch','Wait']);
+  const probe=policy(['running-gui','present'],{foreground:false});await probe.run();
+  assert.deepEqual(probe.calls,['Probe','launch','WaitPresent']);
+  const visible=policy(['focused']);await visible.run();assert.deepEqual(visible.calls,['Focus']);
+  const blocked=policy(['running-protected']);await assert.rejects(blocked.run(),/새 창은 열지 않았습니다/);
+  assert.deepEqual(blocked.calls,['Focus']);
+  const stillNoWindow=policy(['running-gui','running-gui']);await stillNoWindow.run();
+  assert.deepEqual(stillNoWindow.calls,['Focus','launch','Wait','launch-unconfirmed']);
+});
 test('rapid presses coalesce per target but not across different apps',async()=>{
   const queue=createAppLaunchQueue();let n=0,release;
   const first=queue('AppID:calculator',()=>{n++;return new Promise(r=>{release=r;});});
@@ -77,12 +88,16 @@ test('only program foreground actions use new path; regular file/folder and clos
   assert.match(cs,/GetApplicationUserModelId/);
   assert.match(cs,/static int ReadSubsystem\(Stream stream\)/);
   assert.match(cs,/if\(!SafeShortcutExe\(path\)\)return 0/);
-  assert.match(cs,/if\(!Reopenable\(subsystem,packaged,SafeShortcutExe\(identity.Path\)\)\)protectedProcess=true/);
+  assert.match(cs,/bool reopen=Reopenable\(subsystem,packaged,sharedHost\)/);
+  assert.match(cs,/if\(!reopen\)protectedProcess=true/);
   assert.match(cs,/GetPackageFamilyName\(process,ref len,text\)==0/);
   assert.match(cs,/Same\(identity.Id,target\)/);
-  assert.match(cs,/cloak==1&&PackagedWindow\(candidate.Hwnd\)/);
-  assert.match(cs,/subsystem==0&&packaged&&safeExe/);
-  assert.match(cs,/protectedProcess\?"running-protected":!activate&&packagedProcess\?"present":"running-gui"/);
+  assert.doesNotMatch(cs,/PackagedWindow|CloakReason|candidates\.RemoveAll/);
+  assert.match(cs,/return !sharedHost&&\(subsystem==2\|\|\(subsystem==0&&packaged\)\)/);
+  assert.match(cs,/if\(verifyPackage&&kind=="AppID"&&Same\(result.Id,target\)\)/);
+  assert.match(cs,/ProcessIdentity\(\(uint\)process.Id,cache,true\)/);
+  assert.match(cs,/SharedHostExe\(process.ProcessName\+"\.exe"\)/);
+  assert.match(cs,/protectedProcess\?"running-protected":"running-gui"/);
   assert.match(cs,/DFFolderNative\.AttachedFocus\(hwnd\)/);
   assert.match(cs,/if\(DFFolderNative.IsIconic\(hwnd\)\)/);
   assert.ok(JSON.parse(fs.readFileSync(path.join(root,'deckforge-installer.json'),'utf8')).asarUnpack.includes('streamdeck-editor/app-focus-helper.exe'));

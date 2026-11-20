@@ -35,7 +35,7 @@ async function focusOrLaunch({focus,launch,record=async()=>{},foreground=true,pr
   const existing=(await inspect(foreground?'Focus':'Probe')).status;
   if(existing==='focused'||(!foreground&&(existing==='present'||existing==='running-protected')))return true;
   if(existing==='matched-not-focused'||existing==='present'||existing==='running-protected')throw Error('실행 중인 프로그램을 찾았지만 앞으로 가져오지 못했습니다. 새 창은 열지 않았습니다.');
-  // A verified GUI image may be resident without a usable window.
+  // A verified GUI image or exact package AppID may be resident without a usable window.
   // Allow the user's original launch request once, not an automatic retry.
   if(existing!=='missing'&&existing!=='running-gui')throw Error('프로그램 창 상태 확인 실패');
   await launch();
