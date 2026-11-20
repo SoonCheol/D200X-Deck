@@ -22,6 +22,7 @@ const multiStart=editor.indexOf('const runningMultiProgress=new Map();');
 const multiEnd=editor.indexOf('// The original switch begins',multiStart);
 assert.ok(multiStart>=0&&multiEnd>multiStart);
 const multiSource=editor.slice(multiStart,multiEnd);
+const sidePressTracker=require('../app/streamdeck-editor/deck-core.js').createSidePressTracker;
 const dispatchSource=editor.slice(dispatchStart,dispatchEnd)+"  if(preview) opened.push(event);return null;\n}";
 function setup(mode='close'){
   const action={type:'open-app',settings:{app:'C:\\Tools\\Example.exe',hold:mode,args:'',foreground:true}};
@@ -33,7 +34,7 @@ function setup(mode='close'){
     closeLocalApp:(...args)=>{calls.push(args);return Promise.resolve(true);},
     logAppControl:record=>{records.push(record);return Promise.resolve(true);}
   }};
-  const ctx=vm.createContext({state,window,opened,inspectorSession:null,Date:{now:()=>now},
+  const ctx=vm.createContext({state,window,opened,inspectorSession:null,sidePressTracker:sidePressTracker(),Date:{now:()=>now},
     DeckCore:{activeFolder:()=>null,visibleActions:visible,controlBinding:()=>null,runtimeActionKey:(s,index,gesture)=>JSON.stringify([s.profileId,s.page,s.folderPath,index,gesture]),
       isWideDisplayPress:()=>false,resolveHardwareEvent:(_,event)=>({index:0,gesture:event.pressed?'down':'up',action:visible()[0]})},
     heldKnobEvent:event=>({event,consume:false,replay:false}),

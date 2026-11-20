@@ -297,7 +297,8 @@ function displayItem(item,index){
     if(icon||visual)return {...item,title:visual?.title??item.title,...(icon?{icon}:{})};
   }
   if(!item||item.type!=="indicator")return item;
-  return {...item,icon:{kind:"glyph",glyph:String((DeckCore.activeFolder(state)?.pageIndex??state.page)+1)}};
+  return {...item,indicatorNumber:String((DeckCore.activeFolder(state)?.pageIndex??state.page)+1),
+    indicatorNumberStyle:{...DeckCore.INDICATOR_NUMBER_STYLE,...item.settings?.indicatorNumberStyle}};
 }
 // Visual press policy is separate from action execution and SDK keyUp delivery.
 const previewPressKeys=new Set();
@@ -441,6 +442,9 @@ window.getD200XDisplayItem=(item,index)=>index===13&&wideDisplayAvailable()?wide
 function iconNode(item,defaultGlyph){
   if(item?.icon?.kind==="file"&&typeof item.icon.value==="string"){
     const image=document.createElement("img");image.className="icon-image";image.src=item.icon.value;image.alt="";return image;
+  }
+  if(item?.type==='indicator'&&item.indicatorNumber!==undefined&&!item.icon){
+    const number=document.createElement('span');number.className='icon-glyph';number.textContent=item.indicatorNumber;return number;
   }
   if(!item?.icon?.glyph && window.D200XPanelIcons?.keyArtwork?.(item?.type)){
     const image=document.createElement("img");image.className="icon-image";
@@ -1184,7 +1188,7 @@ const PANEL_ACTION_HELP={
   "previous":"현재 덱 또는 덱폴더의 이전 페이지로 이동합니다. 첫 페이지에서는 더 이전으로 이동하지 않습니다.",
   "next":"현재 덱 또는 덱폴더의 다음 페이지로 이동합니다. 마지막 페이지에서는 더 다음으로 이동하지 않습니다.",
   "goto":"속성에서 선택한 페이지로 바로 이동합니다. 대상 페이지가 실제 존재해야 합니다.",
-  "indicator":"현재 페이지 번호를 표시하는 전용 액션입니다. 눌러도 페이지를 이동하거나 다른 명령을 실행하지 않습니다.",
+  "indicator":"현재 페이지 번호를 표시합니다. 짧게·길게 누르기에 탐색 또는 DeckForge 열기를 지정할 수 있습니다.",
   "terminal":"Windows Terminal의 기본 프로필을 실행합니다. 기존 일반 권한 창 활성화와 중복 실행 방지를 설정할 수 있습니다.",
   "terminal-admin":"Windows Terminal을 관리자 권한으로 실행합니다. 일반 권한 창과 구분하며 새로 실행할 때 Windows의 관리자 승인 창이 나타날 수 있습니다.",
   "open-app":"지정한 실행 파일이나 등록된 시작 메뉴 앱을 실행합니다. 앞으로 가져오기를 켜면 지원되는 기존 앱 창 활성화를 먼저 시도합니다. 길게 누르기는 일반 종료·강제 종료·아무것도 하지 않음 중 선택합니다. 시작 메뉴 AppID는 별도 명령줄 인수를 지원하지 않습니다.",
@@ -2019,6 +2023,8 @@ async function refreshSelectedVisual(){
     image.className="icon-image rendered-key-image";
     image.src="data:image/png;base64,"+data;
     host.replaceChildren(image);
+    const indicatorCard=$('indicator-icon-card-preview');
+    if(indicatorCard)indicatorCard.replaceChildren(image.cloneNode());
     const fallback=$("icon-preview")?.querySelector(".preview-title");
     if(fallback)fallback.hidden=true;
   }catch(error){console.warn("미리보기 이미지 생성 실패",error);}
@@ -2030,8 +2036,8 @@ function refreshTitlePreview(item){
   let label=host.querySelector(".preview-title");
   if(!label){label=document.createElement("span");label.className="preview-title";host.append(label);}
   const current=displayKeyPressItem(displayItem(item,state.selected),state.selected,true);
-  label.textContent=String(current?.title||"").replace(/<br\s*\/?>/gi,"\n");
-  const style={...DEFAULT_TITLE_STYLE,...current?.titleStyle};
+  label.textContent=String(item.type==='indicator'?(current?.indicatorNumber||""):current?.title||"").replace(/<br\s*\/?>/gi,"\n");
+  const style=item.type==='indicator'?{...DeckCore.INDICATOR_NUMBER_STYLE,...current?.indicatorNumberStyle}:{...DEFAULT_TITLE_STYLE,...current?.titleStyle};
   label.hidden=style.visible===false;
   label.style.textAlign="center";
   label.style.fontFamily=style.family==="default"||style.family==="DeckForge Pretendard"?"DeckForge Pretendard, sans-serif":style.family;
@@ -2164,10 +2170,12 @@ function bindKeyBackgroundControl(preview,item,key){
 }
 
 function bindTitleStyle(item){
-  let style={...DEFAULT_TITLE_STYLE,...item.titleStyle};
+  const numberTitle=item.type==='indicator';
+  let style=numberTitle?{...DeckCore.INDICATOR_NUMBER_STYLE,...item.settings?.indicatorNumberStyle}:{...DEFAULT_TITLE_STYLE,...item.titleStyle};
   let activeStateTitle=null;
   const commitStyle=()=>{
     if(activeStateTitle)ensureStateTitlePair(item)[activeStateTitle].style={...style};
+    else if(numberTitle){item.settings.indicatorNumberStyle={...style};}
     else item.titleStyle={...style};
     persistInspectorChange();renderGrid();refreshTitlePreview(item);
   };
@@ -2314,7 +2322,8 @@ function bindTitleStyle(item){
     if(hasStateTitlePair(item)){
       const mode=$("inspector").dataset.activeTitle||'first';
       ensureStateTitlePair(item)[mode].style={...DEFAULT_TITLE_STYLE};
-    }else item.titleStyle={...DEFAULT_TITLE_STYLE};
+    }else if(numberTitle)item.settings.indicatorNumberStyle={...DeckCore.INDICATOR_NUMBER_STYLE};
+    else item.titleStyle={...DEFAULT_TITLE_STYLE};
     persistInspectorChange();renderGrid();renderInspector();
   });
   // The existing popover is reused: each card switches its own style object.
@@ -2357,6 +2366,7 @@ function beginInspectorSession(){
   const key=state.profileId+':'+state.page+':'+JSON.stringify(state.folderPath||[])+':'+state.selected;
   if(inspectorSession?.key===key)return;
   inspectorSession=state.selected===null?null:{key,snapshot:JSON.stringify(state),dirty:false};
+  if(inspectorSession&&DeckCore.visibleActions(state)[state.selected]?.type==='indicator'&&DeckCore.indicatorPinState(state,state.selected).checked)inspectorSession.indicatorShared=true;
 }
 // External SDK Property Inspector commits are independent of DeckForge drafts.
 // Resolve snapshot items by physical slot/gesture; Fusion context tokens reference live objects.
@@ -2406,6 +2416,11 @@ function inspectorTargetCurrent(session,item){
     current.sequences?.some(steps=>steps.includes(item))||Object.values(current.slots||{}).includes(item));
 }
 function persistInspectorChange(){
+  // Retain shared behavior for a legacy indicator pin that still has a local copy.
+  if(inspectorSession?.indicatorShared&&!state.folderPath?.length){
+    const local=state.pages[state.page]?.[state.selected],pin=state.pinned?.[state.selected];
+    if(local?.type==='indicator'&&pin?.type==='indicator')state.pinned[state.selected]=clone(local);
+  }
   if(inspectorSession){inspectorSession.dirty=JSON.stringify(state)!==inspectorSession.snapshot;updateInspectorSaveButtons();return true;}
   return persist();
 }
@@ -2503,15 +2518,21 @@ document.addEventListener('click',event=>{
 let inspectorListener=new AbortController();
 // Physical controls use a dedicated compact inspector instead of pretending
 // each knob has a single key. Drag to an individual gesture or click it to edit.
-function renderSideBindings(root,index,binding){
+function renderSideBindings(root,index,binding,indicator=null){
+  const configFor=gesture=>indicator?DeckCore.indicatorConfig(indicator,gesture):DeckCore.sideActionConfig(binding,index,gesture);
+  const assign=(gesture,next)=>{
+    if(!indicator)return assignSideControl(index,gesture,next,true);
+    indicator.settings[gesture==='hold'?'indicatorHold':'indicatorDown']=next;
+    persistInspectorChange();renderGrid();renderInspector();
+  };
   const pair=document.createElement('div');pair.className='side-binding-pair';
   for(const [gesture,title] of [['down','짧게 누르기'],['hold','길게 누르기']]){
-    const config=DeckCore.sideActionConfig(binding,index,gesture);
+    const config=configFor(gesture);
     const column=document.createElement('div');column.className='side-binding-column';pair.append(column);
     const row=document.createElement('div');row.className='control-config side-binding-choice';
     const label=document.createElement('label');label.textContent=title;
     const choice=document.createElement('select');choice.setAttribute('aria-label',title);
-    for(const [value,name] of Object.entries(DeckCore.SIDE_NAV_LABELS))choice.add(new Option(name,value));
+    for(const [value,name] of Object.entries(indicator?DeckCore.INDICATOR_NAV_LABELS:DeckCore.SIDE_NAV_LABELS))choice.add(new Option(name,value));
     choice.value=config.navigation;
     const chooseConfig=navigation=>{
       const next={navigation};
@@ -2523,11 +2544,11 @@ function renderSideBindings(root,index,binding){
       }
       return next;
     };
-    choice.addEventListener('change',()=>assignSideControl(index,gesture,chooseConfig(choice.value),true));
+    choice.addEventListener('change',()=>assign(gesture,chooseConfig(choice.value)));
     const test=document.createElement('button');test.type='button';test.className='action-preview-test';test.textContent='▶';
     test.setAttribute('aria-label',title+' 실행 테스트');test.dataset.blocked=String(config.navigation==='none');
     test.addEventListener('click',()=>runActionPreview(gesture));row.append(label,choice,test);column.append(row);
-    const raw=gesture==='down'?binding.down:binding.sideHold;
+    const raw=indicator?null:gesture==='down'?binding.down:binding.sideHold;
     if(raw&&config.navigation==='none'&&raw.type!=='side-nav'){
       const note=document.createElement('div');note.className='hint';note.textContent='기존 비탐색 액션은 보존되어 있으나 측면 단추에서 실행하지 않습니다.';column.append(note);
     }
@@ -2553,7 +2574,7 @@ function renderSideBindings(root,index,binding){
       if(config.navigation==='goto')next.page=Number(targetChoice.value);
       else if(config.navigation==='profile-select')next.profile=targetChoice.value;
       else [next.rootPage,next.route]=JSON.parse(targetChoice.value);
-      assignSideControl(index,gesture,next,true);
+      assign(gesture,next);
     });
     targetRow.append(targetLabel,targetChoice);column.append(targetRow);
   }
@@ -2918,6 +2939,46 @@ function bindKeyPressIconControls(root,item){
   }
   panel.append(cards);
   void refreshStateTitleCards(item);
+}
+function bindIndicatorInspector(root,item){
+  const index=state.selected,fields=root.querySelector('.properties>.fields');
+  if(!fields)return;
+  const pin=DeckCore.indicatorPinState(state,index);
+  const row=document.createElement('div');row.className='field checkbox-setting-field';
+  const box=document.createElement('input');box.type='checkbox';box.id='indicator-pin';box.checked=pin.checked;box.disabled=pin.blocked;
+  const label=document.createElement('label');label.htmlFor=box.id;label.textContent='모든 페이지에 고정';
+  label.title=pin.blocked?'덱폴더 내부 또는 이미 다른 고정 버튼이 있는 위치에서는 사용할 수 없습니다.':'다른 페이지의 빈 동일 위치에 표시합니다.';
+  row.append(label,box);fields.prepend(row);
+  box.addEventListener('change',()=>{
+    if(!DeckCore.setIndicatorPinned(state,index,box.checked)){box.checked=pin.checked;return;}
+    if(inspectorSession)inspectorSession.indicatorShared=box.checked;
+    persistInspectorChange();render();
+  });
+  $('key-title').readOnly=true;$('key-title').value=String((DeckCore.activeFolder(state)?.pageIndex??state.page)+1);
+  $('key-title').title='현재 페이지 번호 자동 표시';
+  const visible=root.querySelector('.title-visible-label');
+  if(visible?.lastChild)visible.lastChild.textContent=' 번호 표시';
+  if(item.title){
+    const legacy=document.createElement('div');legacy.className='field';
+    const title=document.createElement('label');title.textContent='기존 제목';
+    const input=document.createElement('input');input.value=item.title;input.maxLength=256;
+    input.addEventListener('input',()=>{item.title=input.value;persistInspectorChange();renderGrid();void refreshSelectedVisual();});
+    legacy.append(title,input);fields.append(legacy);
+  }
+  renderSideBindings(fields,index,null,item);
+  const panel=root.querySelector('[data-inspector-icons]');
+  const cards=document.createElement('div');cards.className='sdk-state-icons indicator-icon-cards';
+  const card=document.createElement('div');card.className='sdk-state-icon';
+  const heading=document.createElement('strong');heading.textContent='아이콘 설정';
+  const image=document.createElement('div');image.className='sdk-state-preview';image.id='indicator-icon-card-preview';image.append(iconNode(displayItem(item,index),'1'));
+  const buttons=document.createElement('div');buttons.className='sdk-state-buttons';
+  const add=(title,fn)=>{const b=document.createElement('button');b.type='button';b.textContent=title;b.addEventListener('click',fn);buttons.append(b);};
+  add('라이브러리',()=>openIconLibrary(item));
+  add('파일',async()=>{try{const chosen=await chooseNativeImage('image');if(chosen?.dataUrl)applyIconData(item,await rasterizeIcon(chosen.dataUrl));}catch(error){window.d200xActionStatus?.('아이콘 선택 실패: '+String(error?.message||error));}});
+  add('클립보드',()=>pasteIcon(item));
+  add('특수문자',()=>openIconMaker(item));
+  add('초기화',()=>{delete item.icon;persistInspectorChange();render();});
+  card.append(heading,image,buttons);cards.append(card);panel.append(cards);
 }
 function bindExtendedActionFields(root,item){
   if(item.type==='sd-plugin'){
@@ -3404,8 +3465,9 @@ function renderInspector(){
   }
   bindTitleStyle(item);
   bindIconControls(item);
+  if(item.type==='indicator')bindIndicatorInspector(root,item);
   refreshTitlePreview(item);
-  $("key-title").addEventListener("input",ev=>{item.title=ev.target.value;persist();renderGrid();refreshTitlePreview(item);});
+  $("key-title").addEventListener("input",ev=>{if(item.type==='indicator')return;item.title=ev.target.value;persist();renderGrid();refreshTitlePreview(item);});
   bindExtendedActionFields(root,item);
   if(item.type==='website'){
     const url=root.querySelector('[data-field="url"]');
@@ -3521,6 +3583,7 @@ function renderInspector(){
       const titleFields=document.createElement('div');titleFields.className='fields';
       const titleSetting=fieldsHost.querySelector(':scope > .title-setting-field');
       if(titleSetting)titleFields.append(titleSetting);
+      if(item.type==='indicator'&&iconRegion)titleFields.append(iconRegion);
       layout.append(preview,titleFields);
       properties.before(toolbar,layout);
       properties.classList.add('action-single-extra');
@@ -3685,7 +3748,7 @@ function applyPageStructure(op,index,to){
 }
 $("add-page").addEventListener("click",()=>applyPageStructure('append'));
 $("delete-page").addEventListener("click",()=>applyPageStructure('delete',pageStructureInfo().index));
-$("page-label").title='우클릭: 페이지 삽입 · 순서 이동 · 복제';
+$("page-label").title='우클릭하여 페이지 관리';
 $("page-label").addEventListener('contextmenu',event=>{
   event.preventDefault();
   const {index,count}=pageStructureInfo(),menu=$('key-menu');menu.replaceChildren();
@@ -4082,7 +4145,7 @@ const lastHardwareDown=new Map();
 function runActionPreview(gesture='down'){
   const index=state.selected;
   if(!Number.isInteger(index)||index<0||index>18)return;
-  if(index===14||index===15){
+  if(index===14||index===15||index<13&&DeckCore.visibleActions(state)[index]?.type==='indicator'){
     const result=executeSideNavigation(index,gesture==='hold'?'hold':'down',null);
     window.d200xActionStatus?.(result||'등록된 동작이 없어 실행하지 않았습니다.');return;
   }
@@ -4178,29 +4241,35 @@ function invalidateSidePresses(){
   sidePressTimers.clear();sidePressTracker.invalidate();
 }
 function sidePressContext(index){
+  if(index<13){const item=DeckCore.visibleActions(state)[index];return JSON.stringify([openAppHoldScope(),item?.type,DeckCore.indicatorConfig(item),DeckCore.indicatorConfig(item,'hold')]);}
   const b=DeckCore.controlBinding(state,index);
   return JSON.stringify([openAppHoldScope(),DeckCore.sideActionConfig(b,index),DeckCore.sideActionConfig(b,index,'hold')]);
 }
 function executeSideNavigation(index,gesture,event){
-  const outcome=DeckCore.planSideNavigation(state,index,gesture);
+  const indicator=index<13;
+  const outcome=indicator?DeckCore.planIndicatorNavigation(state,index,gesture):DeckCore.planSideNavigation(state,index,gesture);
   if(!outcome)return null;
   reportInputEvidence(event,'planned',{outcome:outcome.kind});
   if(outcome.kind==='invalid')return outcome.message;
+  if(outcome.kind==='editor-open'&&indicator){
+    if(!window.deckBridge?.revealUnsavedEditor)return 'Windows EXE에서 사용할 수 있습니다.';
+    revealWideUnsavedWarning();return 'DeckForge 열기';
+  }
   if(inspectorSession?.dirty){
     reportInputEvidence(event,'unsaved-block');
     showInspectorLeaveDialog(()=>executeSideNavigation(index,gesture,event));
     return '저장하지 않은 변경 사항 확인';
   }
   cancelFolderAutoExit();
-  const config=DeckCore.sideActionConfig(DeckCore.controlBinding(state,index),index,gesture);
+  const config=indicator?DeckCore.indicatorConfig(DeckCore.visibleActions(state)[index],gesture):DeckCore.sideActionConfig(DeckCore.controlBinding(state,index),index,gesture);
   if(!DeckCore.applySideNavigation(state,outcome))return '이동할 대상이 없습니다.';
   lastHardwareDown.clear();persist();render();
-  return DeckCore.SIDE_NAV_LABELS[config.navigation];
+  return (indicator?DeckCore.INDICATOR_NAV_LABELS:DeckCore.SIDE_NAV_LABELS)[config.navigation];
 }
 function handleSideNavigationInput(index,gesture,event,preview){
   if(preview)return gesture==='down'?executeSideNavigation(index,'down',event):null;
-  const binding=DeckCore.controlBinding(state,index);
-  const hasHold=DeckCore.sideActionConfig(binding,index,'hold').navigation!=='none';
+  const indicator=index<13,binding=indicator?null:DeckCore.controlBinding(state,index);
+  const hasHold=(indicator?DeckCore.indicatorConfig(DeckCore.visibleActions(state)[index],'hold'):DeckCore.sideActionConfig(binding,index,'hold')).navigation!=='none';
   const context=sidePressContext(index);
   const decision=sidePressTracker.input(index,gesture,hasHold,context,Date.now());
   if(gesture==='up'){
@@ -4218,7 +4287,7 @@ function handleSideNavigationInput(index,gesture,event,preview){
       }
     },DeckCore.SIDE_HOLD_MS);
     sidePressTimers.set(index,timer);
-    return '측면 단추 누름 대기';
+    return indicator?'페이지 표시 키 누름 대기':'측면 단추 누름 대기';
   }
   if(decision)return executeSideNavigation(index,decision,event);
   return null;
@@ -4257,6 +4326,10 @@ function executeHardwareAction(event,preview=false,skipKnobGesture=false){
   const bindingAction=resolved.action;
   report('resolved',{slot:index,gesture:resolved.gesture,action:bindingAction?.type});
   if(index===14||index===15)return handleSideNavigationInput(index,resolved.gesture,event,preview);
+  if(index<13&&(resolved.action?.type==='indicator'||sidePressTracker.has(index))){
+    if(resolved.gesture==='up')lastHardwareDown.delete(index);
+    return handleSideNavigationInput(index,resolved.gesture,event,preview);
+  }
   const multiPress=handleMultiPhysicalPress(resolved,preview);
   if(multiPress){if(resolved.gesture==='up')lastHardwareDown.delete(index);report('multi-control');return multiPress.message;}
   if(!preview&&['down','up'].includes(resolved.gesture)&&

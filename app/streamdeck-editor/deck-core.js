@@ -27,7 +27,7 @@
     'open-app':{app:'',args:'',hold:'close',foreground:true,preventDuplicate:true},close:{path:'',force:false},
     text:{body:'',enter:false,mode:'clipboard'},media:{op:'playpause'},
     folder:{autoExitEnabled:false,autoExitSeconds:0},profile:{profile:'next'},previous:{},next:{},
-    goto:{page:0},indicator:{},'side-nav':{navigation:'none'},
+    goto:{page:0},indicator:{indicatorDown:{navigation:'none'},indicatorHold:{navigation:'none'}},'side-nav':{navigation:'none'},
     'system-volume':{direction:'up',step:1},'system-mute':{},
     'system-scroll':{axis:'vertical',direction:'down',step:1},
     'edit-history':{operation:'undo',step:1},
@@ -44,6 +44,7 @@
     bold:false,italic:false,underline:false,color:'#ffffff',
     outlineColor:'#000000',outlineWidth:'thin',
     backgroundEnabled:false,backgroundColor:'#000000',backgroundOpacity:65};
+  const INDICATOR_NUMBER_STYLE={...TITLE,align:'middle',size:48,outlineWidth:'none'};
   const copy=x=>JSON.parse(JSON.stringify(x));
   const validId=id=>ACTION_IDS.includes(id)||D200X_ACTION_IDS.includes(id)||PLUGIN_ACTION_IDS.includes(id)||id==='side-nav';
   function createAction(id){
@@ -51,18 +52,8 @@
     return {type:id,title:id==='folder'?'폴더':'',
       settings:copy(DEFAULTS[id]),titleStyle:copy(TITLE),children:[]};
   }
-  function cleanAction(value){
-    if(!value||!validId(value.type))return null;
-    const base=createAction(value.type);
-    base.title=typeof value.title==='string'?value.title.slice(0,256):base.title;
-    if(value.settings&&typeof value.settings==='object'&&!Array.isArray(value.settings))
-      base.settings={...base.settings,...value.settings};
-    // Keep existing repeat-launch buttons repeatable; new actions default to both options.
-    if(value.type==='open-app'&&typeof value.settings?.preventDuplicate!=='boolean')
-      base.settings.preventDuplicate=base.settings.foreground===true&&!String(base.settings.args||'').trim()&&(!base.settings.app||String(base.settings.app).startsWith('shell:AppsFolder\\')||/\.(exe|lnk)$/i.test(String(base.settings.app)));
-    if(value.titleStyle&&typeof value.titleStyle==='object'&&!Array.isArray(value.titleStyle))
-      base.titleStyle={...base.titleStyle,...value.titleStyle};
-    const st=base.titleStyle;
+  function cleanTitleStyle(value,defaults){
+    const st={...defaults,...(value&&typeof value==='object'&&!Array.isArray(value)?value:{})};
     st.visible=st.visible!==false;
     st.align=({left:'bottom',center:'middle',right:'top'}[st.align]) ||
       (['bottom','middle','top'].includes(st.align)?st.align:'bottom');
@@ -75,6 +66,23 @@
     st.backgroundEnabled=st.backgroundEnabled===true;
     st.backgroundColor=/^#[0-9a-fA-F]{6}$/.test(st.backgroundColor)?st.backgroundColor:'#000000';
     st.backgroundOpacity=Number.isFinite(st.backgroundOpacity)?Math.max(0,Math.min(100,st.backgroundOpacity)):65;
+    return st;
+  }
+  function cleanAction(value){
+    if(!value||!validId(value.type))return null;
+    const base=createAction(value.type);
+    base.title=typeof value.title==='string'?value.title.slice(0,256):base.title;
+    if(value.settings&&typeof value.settings==='object'&&!Array.isArray(value.settings))
+      base.settings={...base.settings,...value.settings};
+    // Keep existing repeat-launch buttons repeatable; new actions default to both options.
+    if(value.type==='open-app'&&typeof value.settings?.preventDuplicate!=='boolean')
+      base.settings.preventDuplicate=base.settings.foreground===true&&!String(base.settings.args||'').trim()&&(!base.settings.app||String(base.settings.app).startsWith('shell:AppsFolder\\')||/\.(exe|lnk)$/i.test(String(base.settings.app)));
+    base.titleStyle=cleanTitleStyle(value.titleStyle,TITLE);
+    if(value.type==='indicator'){
+      base.settings.indicatorDown=indicatorConfig(base,'down');
+      base.settings.indicatorHold=indicatorConfig(base,'hold');
+      base.settings.indicatorNumberStyle=cleanTitleStyle(value.settings?.indicatorNumberStyle,INDICATOR_NUMBER_STYLE);
+    }
     if(base.settings.keyBackgrounds!==undefined){
       const raw=base.settings.keyBackgrounds, cleaned={};
       for(const key of ['default','first','second']){
@@ -389,6 +397,14 @@
     'folder-target':'지정 폴더로 이동','folder-back':'상위 폴더로 이동','folder-root':'모든 폴더 나가기',
     home:'홈',none:'동작 없음'
   });
+  const INDICATOR_NAV_LABELS=Object.freeze(Object.fromEntries(
+    ['none','first','previous','next','last','goto','profile-previous','profile-next','profile-select','folder-back','home','editor-open']
+      .map(key=>[key,key==='editor-open'?'DeckForge 열기':SIDE_NAV_LABELS[key]])));
+  function indicatorConfig(action,gesture='down'){
+    const raw=action?.settings?.[gesture==='hold'?'indicatorHold':'indicatorDown'];
+    if(action?.type!=='indicator'||!raw||!Object.hasOwn(INDICATOR_NAV_LABELS,raw.navigation))return {navigation:'none'};
+    return raw.navigation==='editor-open'?{navigation:'editor-open'}:sideConfig({type:'side-nav',settings:raw});
+  }
   const SIDE_HOLD_MS=650;
   function sideConfig(action){
     if(!action)return {navigation:'none'};
@@ -448,7 +464,14 @@
   }
   function planSideNavigation(state,index,gesture='down'){
     if(index!==14&&index!==15)return null;
-    const config=sideActionConfig(controlBinding(state,index),index,gesture),nav=config.navigation;
+    return planNavigation(state,sideActionConfig(controlBinding(state,index),index,gesture));
+  }
+  function planIndicatorNavigation(state,index,gesture='down'){
+    if(!Number.isInteger(index)||index<0||index>=13)return null;
+    return planNavigation(state,indicatorConfig(visibleActions(state)[index],gesture));
+  }
+  function planNavigation(state,config){
+    const nav=config.navigation;
     const folder=activeFolder(state),page=folder?(folder.pageIndex||0):state.page,count=folder?folderPageCount(state):state.pages.length;
     if(nav==='none')return null;
     if(nav==='first'||nav==='previous'||nav==='next'||nav==='last'||nav==='goto'){
@@ -506,6 +529,7 @@
         if(gesture==='up')return now-entry.at>=SIDE_HOLD_MS?'hold':'down';
         return null;
       },
+      has(index){return pressed.has(index);},
       invalidate(){for(const entry of pressed.values())entry.fired=true;},
       clear(){pressed.clear();}
     };
@@ -629,6 +653,15 @@
       if(relative&&(action.type==='goto'||action.type==='side-nav'&&settings.navigation==='goto'))
         settings=update(settings,'page',remap(settings.page));
       if(action.type==='side-nav'&&settings.navigation==='folder-target')settings=absoluteRoute(settings);
+      if(action.type==='indicator'&&relative){
+        for(const [gesture,key] of [['down','indicatorDown'],['hold','indicatorHold']]){
+          const config=indicatorConfig(action,gesture);
+          if(config.navigation==='goto'){
+            const mapped=remap(config.page);
+            if(mapped!==config.page)settings={...settings,[key]:{...config,page:mapped}};
+          }
+        }
+      }
       let next=settings!==action.settings&&action.settings?{...action,settings}:action;
       if(action.type==='folder')return next;
       const child=x=>rewrite(x,relative);
@@ -700,9 +733,31 @@
     if((state.folderPath||[]).length)return actions;
     return actions.map((item,i)=>item||state.pinned?.[i]||null);
   }
+  function indicatorPinState(state,index){
+    if(state.folderPath?.length||!Number.isInteger(index)||index<0||index>=13)return {checked:false,blocked:true};
+    const local=state.pages?.[state.page]?.[index],pinned=state.pinned?.[index];
+    const shared=pinned?.type==='indicator'&&(!local||local.type==='indicator'&&JSON.stringify(local)===JSON.stringify(pinned));
+    return {checked:!!shared,blocked:!!pinned&&!shared};
+  }
+  function setIndicatorPinned(state,index,enabled){
+    const info=indicatorPinState(state,index),row=state.pages?.[state.page];
+    if(info.blocked||!row)return false;
+    const item=row[index]||state.pinned?.[index];
+    if(item?.type!=='indicator')return false;
+    if(!Array.isArray(state.pinned))state.pinned=Array(14).fill(null);
+    if(enabled){
+      // Canonical shared indicator, never overwrite another occupied page slot.
+      state.pinned[index]=copy(item);row[index]=null;
+    }else if(info.checked){
+      if(!row[index])row[index]=copy(item);
+      state.pinned[index]=null;
+    }
+    return true;
+  }
   function togglePinned(state,index){
     if((state.folderPath||[]).length||!Number.isInteger(index)||index<0||index>=14)return false;
     if(!Array.isArray(state.pinned))state.pinned=Array.from({length:14},()=>null);
+    if(visibleActions(state)[index]?.type==='indicator'&&!indicatorPinState(state,index).blocked)return setIndicatorPinned(state,index,!indicatorPinState(state,index).checked);
     if(state.pinned[index]){state.pinned[index]=null;return true;}
     const item=state.pages?.[state.page]?.[index];
     if(!item)return false;
@@ -1128,5 +1183,5 @@
       url:action.settings?.url||'',mode:action.settings?.open||'default',browserPath:action.settings?.browserPath||''};
     return {kind:'unsupported',message:'이 동작의 실행 기능은 아직 구현되지 않았습니다.'};
   }
-  return {ACTION_IDS,D200X_ACTION_IDS,PLUGIN_ACTION_IDS,DEFAULTS,TITLE,SIDE_NAV_LABELS,SIDE_HOLD_MS,sideConfig,makeSideAction,sideActionConfig,sideFolderTargets,planSideNavigation,applySideNavigation,createSidePressTracker,createAction,cleanAction,cleanCompositeEntry,timerSeconds,formatTimerTime,displaySwitchAction,compositeModel,planComposite,runComposite,createMultiPauseGate,multiRows,setMultiRows,blankPage,cleanWideDisplay,cycleWideDisplay,isWideDisplayPress,folderContents,folderPageCount,changeFolderPage,addFolderPage,deleteFolderPage,editPageStructure,currentActions,visibleActions,togglePinned,activeFolder,enterFolder,exitFolder,migrateState,profileSnapshot,switchProfile,createProfile,renameProfile,exportSingleProfile,setProfileApp,matchForegroundProfile,deleteProfile,previewHardwareEvent,physicalSlot,hardwareGesture,resolveHardwareEvent,runtimeActionKey,folderWideBackEvent,resolveKeyPress,planHardwareEvent,deletePage,planAction,emptyBinding,cleanBinding,controlAction,activeControlAction,assignControlAction,automaticControl,ensureControls,controlBinding,changeControlScope};
+  return {ACTION_IDS,D200X_ACTION_IDS,PLUGIN_ACTION_IDS,DEFAULTS,TITLE,INDICATOR_NUMBER_STYLE,INDICATOR_NAV_LABELS,indicatorConfig,planIndicatorNavigation,indicatorPinState,setIndicatorPinned,SIDE_NAV_LABELS,SIDE_HOLD_MS,sideConfig,makeSideAction,sideActionConfig,sideFolderTargets,planSideNavigation,applySideNavigation,createSidePressTracker,createAction,cleanAction,cleanCompositeEntry,timerSeconds,formatTimerTime,displaySwitchAction,compositeModel,planComposite,runComposite,createMultiPauseGate,multiRows,setMultiRows,blankPage,cleanWideDisplay,cycleWideDisplay,isWideDisplayPress,folderContents,folderPageCount,changeFolderPage,addFolderPage,deleteFolderPage,editPageStructure,currentActions,visibleActions,togglePinned,activeFolder,enterFolder,exitFolder,migrateState,profileSnapshot,switchProfile,createProfile,renameProfile,exportSingleProfile,setProfileApp,matchForegroundProfile,deleteProfile,previewHardwareEvent,physicalSlot,hardwareGesture,resolveHardwareEvent,runtimeActionKey,folderWideBackEvent,resolveKeyPress,planHardwareEvent,deletePage,planAction,emptyBinding,cleanBinding,controlAction,activeControlAction,assignControlAction,automaticControl,ensureControls,controlBinding,changeControlScope};
 });

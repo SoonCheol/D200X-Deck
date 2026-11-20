@@ -1302,3 +1302,59 @@ test('new page cap preserves legacy large profiles and append does not select du
   small.selected=0;assert.equal(core.editPageStructure(small,{op:'append',folder:null,select:false}),true);
   assert.equal(small.page,0);assert.equal(small.selected,0);assert.equal(small.pages[0][0],a);
 });
+
+test('page indicator has an independent short/hold navigation whitelist and defaults to no action',()=>{
+  const s=core.migrateState({pages:[[],[],[]]});
+  const indicator=s.pages[0][0]=core.createAction('indicator');
+  assert.equal(core.planIndicatorNavigation(s,0),null);
+  indicator.settings.indicatorDown={navigation:'goto',page:2};
+  indicator.settings.indicatorHold={navigation:'home'};
+  assert.deepEqual(core.planIndicatorNavigation(s,0),{kind:'page',page:2});
+  assert.deepEqual(core.planIndicatorNavigation(s,0,'hold'),{kind:'home'});
+  indicator.settings.indicatorHold={navigation:'editor-open'};
+  assert.deepEqual(core.planIndicatorNavigation(s,0,'hold'),{kind:'editor-open'});
+  indicator.settings.indicatorHold={navigation:'open-app',app:'bad'};
+  assert.equal(core.planIndicatorNavigation(s,0,'hold'),null);
+  assert.equal(core.cleanAction(indicator).settings.indicatorHold.navigation,'none');
+  assert.equal(core.planAction(indicator,0,3).kind,'display-only');
+});
+test('page indicator pin is shared and unpin retains the selected page; occupied pages not overwritten',()=>{
+  const s=core.migrateState({pages:[[],[],[]]});
+  const indicator=s.pages[0][0]=core.createAction('indicator');
+  indicator.settings.indicatorDown={navigation:'next'};
+  const preserved=s.pages[1][0]=core.createAction('hotkey');
+  assert.equal(core.setIndicatorPinned(s,0,true),true);
+  assert.equal(s.pages[0][0],null);
+  assert.equal(core.indicatorPinState(s,0).checked,true);
+  s.page=1;assert.equal(core.visibleActions(s)[0],preserved);
+  s.page=2;assert.equal(core.visibleActions(s)[0],s.pinned[0]);
+  assert.equal(core.setIndicatorPinned(s,0,false),true);
+  assert.equal(s.pinned[0],null);assert.equal(s.pages[2][0].settings.indicatorDown.navigation,'next');
+});
+test('both page indicator goto targets follow page changes and deleted target stays invalid',()=>{
+  const s=core.migrateState({pages:[[],[],[]]});
+  const item=s.pages[0][0]=core.createAction('indicator');
+  item.settings.indicatorDown={navigation:'goto',page:2};
+  item.settings.indicatorHold={navigation:'goto',page:1};
+  assert.equal(core.setIndicatorPinned(s,0,true),true);
+  assert.equal(core.editPageStructure(s,{op:'insert',index:1,folder:null}),true);
+  assert.equal(s.pinned[0].settings.indicatorDown.page,3);
+  assert.equal(s.pinned[0].settings.indicatorHold.page,2);
+  assert.equal(core.editPageStructure(s,{op:'delete',index:2,folder:null}),true);
+  assert.equal(s.pinned[0].settings.indicatorDown.page,2);
+  assert.equal(s.pinned[0].settings.indicatorHold.page,-1);
+  assert.equal(core.planIndicatorNavigation(s,0,'hold').kind,'invalid');
+  const restored=core.migrateState(JSON.parse(JSON.stringify(s)));
+  assert.equal(restored.pinned[0].settings.indicatorHold.page,-1);
+});
+test('indicator and side use same one-shot short and hold tracker',()=>{
+  const tracker=core.createSidePressTracker();
+  assert.equal(tracker.input(0,'down',true,'p',0),'wait');
+  assert.equal(tracker.input(0,'down',true,'p',10),null);
+  assert.equal(tracker.input(0,'up',true,'p',300),'down');
+  assert.equal(tracker.input(0,'down',true,'p',1000),'wait');
+  assert.equal(tracker.input(0,'timeout',true,'p',1650),'hold');
+  assert.equal(tracker.has(0),true);
+  assert.equal(tracker.input(0,'up',true,'next',1700),null);
+  assert.equal(tracker.has(0),false);
+});

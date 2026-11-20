@@ -1115,3 +1115,14 @@
 .ordered-multi-mini svg,.timer-sound-row>button svg{display:block;margin:auto}
 .action-layout-inspector .preview>.ordered-multi-stop{display:block;width:98px;height:29px;margin:4px 0 0;padding:4px 0}
 .ordered-multi-row .ordered-multi-value{white-space:nowrap;max-width:100%}
+
+/* Page label remains in the existing geometry and advertises its context menu. */
+#page-label{cursor:pointer;border-radius:4px;outline:3px solid transparent}
+#page-label:hover,#page-label:focus-visible{background:#3d3d3d;outline-color:#3d3d3d;color:#fff}
+.action-layout-inspector .indicator-icon-cards{width:auto;min-width:0}
+.action-layout-inspector .action-single-visual .inspector-icon-section:has(.indicator-icon-cards){width:100%;min-width:0;margin:4px 0 0;overflow:visible}
+.action-layout-inspector .side-binding-pair{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;margin:9px 0;align-items:start}
+.action-layout-inspector .side-binding-choice{display:grid;grid-template-columns:minmax(0,1fr) 34px;gap:5px 6px;align-items:center}
+.action-layout-inspector .side-binding-choice>label{grid-column:1/-1}
+.action-layout-inspector .side-binding-choice>select,.action-layout-inspector .side-binding-target>select{width:100%;min-width:0;height:31px}
+.action-layout-inspector .side-binding-target{display:grid;gap:5px;margin-top:7px}

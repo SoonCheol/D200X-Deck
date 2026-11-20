@@ -265,6 +265,8 @@
           const w = image.width * scale, h = image.height * scale;
           ctx.drawImage(image, (width - w)/2, (height - h)/2, w, h);
         }
+      } else if (item.type==='indicator'&&item.indicatorNumber!==undefined&&!item.icon?.glyph) {
+        // Number is drawn independently of the optional background artwork.
       } else if (!item.icon?.glyph && window.D200XPanelIcons?.keyArtwork?.(item.type)) {
         const image = await imageLoaded(window.D200XPanelIcons.keyArtwork(item.type));
         if (image) {
@@ -302,6 +304,7 @@
         ctx.textBaseline = 'middle';
         ctx.fillText(item.icon?.glyph || fallback, width/2, height/2, Math.min(172,width-12));
       }
+      if(item.type==='indicator'&&item.indicatorNumber!==undefined)drawText(ctx,item.indicatorNumber,width,height,item.indicatorNumberStyle);
       drawText(ctx, item.title || '', width, height, item.titleStyle);
       // Offline indicator is an overlay; never alter the original cached PNG.
       if(item.fusionOffline){
