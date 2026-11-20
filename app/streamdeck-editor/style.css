@@ -1075,3 +1075,25 @@
 .deckforge-tooltip[hidden]{display:none}
 .deckforge-tooltip-title{padding:5px 9px;background:#36393e;color:#e2e5e9;font-weight:500;overflow-wrap:anywhere}
 .deckforge-tooltip-body{display:grid;gap:4px;padding:6px 9px;overflow-wrap:anywhere}
+
+/* Ordered Multi only; no change to switch/random/logic property layout. */
+.ordered-multi .multi-action-toolbar{margin:0 0 8px;flex-wrap:nowrap}
+.ordered-multi .multi-action-toolbar select{flex:1;min-width:0}
+.ordered-multi-list{display:flex;flex-direction:column;gap:4px;min-width:0}
+.ordered-multi-row{display:grid;grid-template-columns:20px 92px minmax(0,1fr) 28px 28px;gap:4px;align-items:center;min-width:0}
+.ordered-multi-row>span{white-space:nowrap;text-align:center}
+.ordered-multi-row>input,.ordered-multi-value,.ordered-multi-mini{height:30px;min-width:0;box-sizing:border-box;background:#303030;color:inherit;border:1px solid #555;border-radius:4px;padding:3px 6px;font:inherit}
+.ordered-multi-row>input{text-align:right;width:100%}
+.ordered-multi-value{display:flex;align-items:center;gap:6px;text-align:left;white-space:nowrap;overflow:hidden}
+.ordered-multi-value>span{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis}
+.ordered-multi-value>small{color:#909090;overflow:hidden;text-overflow:ellipsis;max-width:45%;white-space:nowrap}
+.ordered-multi-mini{padding:0;width:28px}
+.ordered-multi-header{font-size:12px;color:#aaa}
+.ordered-multi-header>span:nth-child(3){text-align:left}
+.ordered-multi-stop{width:100%;white-space:nowrap;background:#383838;color:inherit;border:1px solid #666;border-radius:4px;padding:5px;font:inherit;font-size:12px}
+.ordered-multi-stop:disabled{opacity:.42}
+.ordered-multi-dialog{width:min(520px,90vw);max-width:90vw;}
+.ordered-multi-dialog .fields{display:flex;flex-direction:column;gap:8px;margin:10px 0}
+.ordered-multi-dialog .hotkey-choices{display:flex;flex-wrap:wrap;gap:4px}
+.ordered-hotkey-value{display:flex;justify-content:space-between;gap:8px;padding:6px;border:1px solid #555;border-radius:4px;white-space:nowrap}
+.ordered-hotkey-value small{color:#999}

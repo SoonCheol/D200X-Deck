@@ -404,6 +404,11 @@ function displayKeyPressItem(item,index){
   const bg=entry=>entry?.enabled===true&&/^#[0-9a-fA-F]{6}$/.test(entry.color)?entry.color.toLowerCase():'#08090c';
   const signature=visual=>JSON.stringify([visual.icon?.kind,visual.icon?.value,visual.icon?.glyph,bg(visual.keyBackground),visual.title,visual.titleStyle]);
   const same=signature(up)===signature(down);
+  if(item.type==='multi'){
+    const progress=runningMultiProgress.get(DeckCore.runtimeActionKey(state,index,'down'));
+    const visual=progress?down:up;
+    return {...visual,...(progress&&visual.titleStyle?.visible!==false?{title:progress.step+'/'+progress.total}:{}),keyPressAlternate:true};
+  }
   const pressed=previewPressKeys.has(index)||window.D200XPhysicalKeyPressed?.(index)===true;
   return {...(pressed?down:up),keyPressAlternate:!same};
 }
@@ -1539,8 +1544,118 @@ const MULTI_ALLOWED=['hotkey','hotkey-switch','media','website','open','open-app
   'system-zoom','device-brightness','screenshot','clipboard-edit',
   'window-state','window-monitor','explorer-open','brush-size',
   'timeline-step','timeline-zoom','file-open','folder-shortcut','terminal','terminal-admin'];
+
+function orderedMultiDialog(step,apply){
+  const draft=DeckCore.cleanAction(step),dialog=document.createElement('dialog');
+  dialog.className='deckforge-input-dialog ordered-multi-dialog';
+  const title=document.createElement('strong');title.textContent=ACTIONS.get(step.type)?.label||step.type;
+  const fields=document.createElement('div');fields.className='fields';
+  if(step.type==='hotkey'||step.type==='hotkey-switch'){
+    const api=window.DeckHotkeys;
+    for(const field of step.type==='hotkey'?['keys']:['first','second']){
+      let parsed=api.parse(String(draft.settings[field]||'')),mods=parsed?.mods.slice()||[],key=parsed?.key.id||'';
+      const label=document.createElement('label');label.textContent=field==='keys'?'단축키':field==='first'?'단축키 1':'단축키 2';
+      const value=document.createElement('div');value.className='ordered-hotkey-value';
+      const output=document.createElement('span'),hint=document.createElement('small');value.append(output,hint);
+      const presets=document.createElement('select');
+      presets.append(new Option('직접 지정',''));
+      for(const [id,name] of HOTKEY_PRESET_LABELS.filter(x=>x[0]).sort((a,b)=>a[1].localeCompare(b[1],'ko')))presets.append(new Option(name,id));
+      const choices=document.createElement('div');choices.className='hotkey-choices';
+      const modifiers=[],menus=[];
+      const sync=()=>{
+        const raw=String(draft.settings[field]||'');
+        output.textContent=raw?api.display(raw):'단축키 선택';
+        const matched=api.matchPreset(raw,HOTKEY_PRESETS);
+        hint.textContent=HOTKEY_PRESET_LABELS.find(x=>x[0]===matched)?.[1]||'';
+        if(!matched)hint.textContent='';
+        presets.value=matched||'';
+        for(const [mod,button] of modifiers){button.classList.toggle('active',mods.includes(mod));button.setAttribute('aria-pressed',String(mods.includes(mod)));}
+        for(const [group,menu] of menus)menu.value=group.keys.some(entry=>entry.id===key)?key:'';
+      };
+      const update=()=>{draft.settings[field]=key?api.format(mods,key):'';if(field==='keys'){draft.settings.preset=api.matchPreset(draft.settings[field],HOTKEY_PRESETS);draft.settings.source='custom';}sync();};
+      presets.addEventListener('change',()=>{if(!presets.value)return;parsed=api.parse(api.canonical(HOTKEY_PRESETS[presets.value]));mods=parsed?.mods.slice()||[];key=parsed?.key.id||'';update();});
+      for(const mod of api.order){const button=document.createElement('button');button.type='button';button.className='hotkey-modifier';button.textContent=mod;button.addEventListener('click',()=>{mods=mods.includes(mod)?mods.filter(x=>x!==mod):[...mods,mod];update();});modifiers.push([mod,button]);choices.append(button);}
+      for(const group of api.groups){const menu=document.createElement('select');menu.title=group.label;menu.append(new Option(group.label,''));let category='',target=menu;for(const entry of group.keys){if(category!==entry.category){category=entry.category;target=menu;if(category){target=document.createElement('optgroup');target.label=category;menu.append(target);}}target.append(new Option(entry.label,entry.id));}menu.addEventListener('change',()=>{if(menu.value){key=menu.value;update();}});menus.push([group,menu]);choices.append(menu);}
+      fields.append(label,presets,value,choices);sync();
+    }
+  }else{
+    const prior=active;fields.innerHTML=actionFields(draft);active=prior;
+    for(const node of fields.querySelectorAll('[data-field]'))node.addEventListener('change',()=>{draft.settings[node.dataset.field]=node.type==='checkbox'?fieldChecked(node):node.type==='number'||node.type==='range'?Number(node.value):node.value;});
+    for(const button of fields.querySelectorAll('[data-path-picker]'))button.addEventListener('click',async()=>{try{const path=await window.deckBridge?.choosePath(button.dataset.pathKind);if(!path||!dialog.open)return;draft.settings[button.dataset.pathPicker]=path;const input=fields.querySelector('[data-field="'+button.dataset.pathPicker+'"]');if(input)input.value=path;}catch(e){window.d200xActionStatus?.(String(e?.message||e));}});
+  }
+  const footer=document.createElement('div');footer.className='inspector-save-bar';
+  const button=(name,fn)=>{const b=document.createElement('button');b.type='button';b.textContent=name;b.addEventListener('click',fn);footer.append(b);return b;};
+  button('취소',()=>dialog.close());
+  button('확인',()=>{if(['hotkey','hotkey-switch'].includes(draft.type)){const keys=draft.type==='hotkey'?[draft.settings.keys]:[draft.settings.first,draft.settings.second];if(keys.some(x=>!window.DeckHotkeys.canonical(x))){window.d200xActionStatus?.('단축키를 선택하세요.');return;}}apply(draft);dialog.close();});
+  dialog.append(title,fields,footer);document.body.append(dialog);
+  dialog.addEventListener('close',()=>dialog.remove(),{once:true});dialog.showModal();
+}
+const ORDERED_PATH_TYPES={ 'open-app':['app','app'],open:['path','file'],close:['path','app'],'file-open':['path','file'],'folder-shortcut':['path','folder'],'audio-play':['file','file'] };
+function orderedMultiSummary(step){
+  const s=step.settings||{},label=ACTIONS.get(step.type)?.label||step.type;
+  if(step.type==='hotkey'){const key=s.keys||'',id=window.DeckHotkeys.matchPreset(key,HOTKEY_PRESETS);return {value:key?window.DeckHotkeys.display(key):'단축키 지정',hint:HOTKEY_PRESET_LABELS.find(x=>x[0]&&x[0]===id)?.[1]||'',full:key};}
+  if(step.type==='hotkey-switch')return {value:[s.first,s.second].filter(Boolean).join(' / ')||label,hint:label};
+  if(ORDERED_PATH_TYPES[step.type]){const path=s[ORDERED_PATH_TYPES[step.type][0]]||'';return {value:path.split(/[\\/]/).pop()||'경로 선택',hint:label,full:path};}
+  return {value:step.type==='website'?s.url||label:step.type==='text'?s.body||label:label,hint:''};
+}
+function refreshMultiRunControls(){
+  const selected=state.selected;
+  for(const stop of document.querySelectorAll('.ordered-multi-stop')){
+    const record=runningMultiProgress.get(DeckCore.runtimeActionKey(state,selected,stop.dataset.gesture||'down'));
+    stop.disabled=!record||record.controller.signal.aborted;
+  }
+}
+function renderOrderedMulti(item,root){
+  const area=document.createElement('section');area.className='multi-action-editor ordered-multi';
+  const model=DeckCore.multiRows(item),rows=model.rows,session=inspectorSession;
+  const current=()=>inspectorTargetCurrent(session,item);
+  const rerender=()=>{if(state.selected>=14)renderControlInspector();else renderInspector();};
+  const save=()=>{if(!current())return;DeckCore.setMultiRows(item,rows,model.tail);persistInspectorChange();rerender();};
+  const select=document.createElement('select'),toolbar=document.createElement('div');toolbar.className='multi-action-toolbar';
+  const primary=['hotkey','open-app','file-open','folder-shortcut'];
+  for(const id of primary)select.append(new Option(ACTIONS.get(id)?.label||id,id));
+  const group=document.createElement('optgroup');group.label='예약 동작';
+  for(const id of MULTI_ALLOWED.filter(x=>!primary.includes(x)).sort((a,b)=>(ACTIONS.get(a)?.label||a).localeCompare(ACTIONS.get(b)?.label||b,'ko')))group.append(new Option(ACTIONS.get(id)?.label||id,id));
+  select.append(group);
+  const add=id=>{if(!current()||!MULTI_ALLOWED.includes(id)||rows.length>=100)return;rows.push({step:newAction(id),ms:rows.length?100:0});save();};
+  const addButton=document.createElement('button');addButton.type='button';addButton.textContent='동작 추가';addButton.addEventListener('click',()=>add(select.value));toolbar.append(select,addButton);area.append(toolbar);
+  const list=document.createElement('div');list.className='ordered-multi-list';
+  const header=document.createElement('div');header.className='ordered-multi-row ordered-multi-header';
+  for(const title of ['','지연 시간(ms)','동작','','']){const span=document.createElement('span');span.textContent=title;header.append(span);}list.append(header);
+  let drag=-1;
+  list.addEventListener('dragover',e=>e.preventDefault());
+  list.addEventListener('drop',e=>{e.preventDefault();if(drag<0){const id=e.dataTransfer.getData('application/x-d200x-action');if(MULTI_ALLOWED.includes(id))add(id);}});
+  rows.forEach((row,i)=>{
+    const line=document.createElement('div');line.className='ordered-multi-row';line.draggable=true;
+    line.addEventListener('dragstart',e=>{drag=i;e.dataTransfer.effectAllowed='move';e.dataTransfer.setData('text/plain',String(i+1));});
+    line.addEventListener('dragend',()=>{drag=-1;});
+    line.addEventListener('dragover',e=>{if(drag>=0)e.preventDefault();});
+    line.addEventListener('drop',e=>{if(drag<0)return;e.preventDefault();e.stopPropagation();if(drag===i)return;const [moved]=rows.splice(drag,1);rows.splice(i,0,moved);drag=-1;save();});
+    const num=document.createElement('span');num.textContent=String(i+1);num.title='드래그하여 순서 변경';
+    const wait=document.createElement('input');wait.type='number';wait.min='0';wait.max=String(Math.max(600000,row.ms));wait.step='1';wait.value=String(row.ms);wait.title='해당 동작 실행 전 대기 (ms)';
+    wait.addEventListener('change',()=>{row.ms=Math.max(0,Math.min(Number(wait.max),Math.round(Number(wait.value)||0)));save();});
+    const {value,hint,full}=orderedMultiSummary(row.step);
+    const summary=document.createElement('button');summary.type='button';summary.className='ordered-multi-value';summary.title=full||value;
+    const v=document.createElement('span');v.textContent=value;const suffix=document.createElement('small');suffix.textContent=hint;summary.append(v,suffix);
+    const edit=()=>orderedMultiDialog(row.step,draft=>{if(current()){row.step=draft;save();}});
+    summary.addEventListener('click',edit);
+    const config=document.createElement('button');config.type='button';config.className='ordered-multi-mini';config.setAttribute('aria-label','동작 설정');
+    const pathInfo=ORDERED_PATH_TYPES[row.step.type];
+    config.textContent=pathInfo?'▱':['hotkey','hotkey-switch'].includes(row.step.type)?'⌨':'⚙';
+    config.title=pathInfo?'경로 선택':['hotkey','hotkey-switch'].includes(row.step.type)?'단축키 선택':'동작 설정';
+    if(pathInfo)config.addEventListener('click',async()=>{try{const path=await window.deckBridge?.choosePath(pathInfo[1]);if(path&&current()){row.step.settings[pathInfo[0]]=path;save();}}catch(e){window.d200xActionStatus?.(String(e?.message||e));}});
+    else config.addEventListener('click',edit);
+    if(!pathInfo&&!['hotkey','hotkey-switch'].includes(row.step.type)){const prior=active,markup=actionFields(row.step);active=prior;if(!markup||!markup.includes('data-field')){config.disabled=true;config.style.visibility='hidden';summary.disabled=true;}}
+    const remove=document.createElement('button');remove.type='button';remove.className='ordered-multi-mini';remove.textContent='−';remove.title='동작 삭제';remove.addEventListener('click',()=>{rows.splice(i,1);save();});
+    line.append(num,wait,summary,config,remove);list.append(line);
+  });
+  if(model.tail){const note=document.createElement('p');note.className='hint';note.textContent='기존 마지막 대기 '+model.tail+'ms 유지';area.append(list,note);}else area.append(list);
+  root.querySelector('.fields')?.append(area);
+}
+
 const multiSwitchEditorTabs=new WeakMap();
 function renderMultiEditor(item,root){
+  if(item.type==='multi'){renderOrderedMulti(item,root);return;}
   const area=document.createElement('section');area.className='multi-action-editor';
   const switching=item.type==='multi-switch';
   const randomAction=item.type==='random';
@@ -2253,6 +2368,7 @@ function updateInspectorSaveButtons(){
   const dirty=inspectorSession?.dirty===true;
   document.querySelectorAll('.inspector-save,.inspector-cancel').forEach(button=>{button.disabled=!dirty;});
   document.querySelectorAll('.action-preview-test,.control-test-row button').forEach(button=>{button.disabled=dirty||button.dataset.blocked==='true';button.title=dirty?'먼저 변경 사항을 저장하세요.':'저장된 동작 실행 테스트';});
+  refreshMultiRunControls();
 }
 function saveInspector(){
   if(!inspectorSession?.dirty)return;
@@ -2715,7 +2831,7 @@ function bindKeyPressIconControls(root,item){
   const visual=displayItem(item,state.selected);
   const stored=item.settings?.keyPressIcons||{};
   const up=stored.up||visual.icon;
-  for(const [key,title,icon] of [['up','Key Up',up],['down','Key Down',stored.down||up]]){
+  for(const [key,title,icon] of [['up',item.type==='multi'?'대기 상태':'Key Up',up],['down',item.type==='multi'?'실행 상태':'Key Down',stored.down||up]]){
     const card=document.createElement('div');card.className='sdk-state-icon';
     const heading=document.createElement('strong');heading.textContent=title;
     const preview=document.createElement('div');preview.className='sdk-state-preview';
@@ -3263,6 +3379,11 @@ function renderInspector(){
     const title=document.createElement('strong');title.textContent='미리보기';
     card.append(title,...Array.from(preview.children));
     preview.append(card,previewButton);
+    if(item.type==='multi'){
+      const stop=document.createElement('button');stop.type='button';stop.className='ordered-multi-stop';stop.textContent='■ 실행 중단';
+      stop.addEventListener('click',()=>runningMultiProgress.get(DeckCore.runtimeActionKey(state,state.selected,'down'))?.controller.abort());
+      preview.append(stop);refreshMultiRunControls();
+    }
     if(hasStateTitlePair(item)&&iconRegion){
       const layout=document.createElement('div');layout.className='state-title-layout';
       layout.append(preview,iconRegion);
@@ -3514,6 +3635,7 @@ const activeActionTimers=new Map();
 const timerDeadlines=new WeakMap();
 const runningMultiActions=new Set();
 const runningMultiControllers=new WeakMap();
+const runningMultiProgress=new Map();
 // The original switch begins in state 1. Runtime state is distinct from the
 // editor tab and advances only after its selected sequence succeeds.
 // Runtime position is persisted only after the selected sequence succeeds.
@@ -4017,7 +4139,11 @@ function executeHardwareAction(event,preview=false,skipKnobGesture=false){
     runningMultiActions.add(key);
     const controller=new AbortController();
     runningMultiControllers.set(action,controller);
+    const progress=outcome.type==='multi'?{controller,step:1,total:check.steps.filter(x=>x.kind!=='delay').length}:null;
+    const updateProgress=()=>{if(progress){renderGrid();void refreshSelectedVisual();refreshMultiRunControls();window.scheduleDeckSync?.(0);}};
+    if(progress){runningMultiProgress.set(key,progress);updateProgress();}
     observe(DeckCore.runComposite(action,{
+      onStep:(step,total)=>{if(progress){progress.step=step;progress.total=total;updateProgress();}},
       execute:compositeExecutor(key,outcome.type==='random'?'random:'+Math.floor(random*DeckCore.compositeModel(action).choices.length):'state:'+position),wait:waitMultiDelay,
       state:position,random,signal:controller.signal,
       nextActionMs:Math.max(2,Math.min(200,Number(action.settings?.nextActionMs)||100))
@@ -4035,6 +4161,7 @@ function executeHardwareAction(event,preview=false,skipKnobGesture=false){
     ).finally(()=>{
       runningMultiActions.delete(key);
       if(runningMultiControllers.get(action)===controller)runningMultiControllers.delete(action);
+      if(progress&&runningMultiProgress.get(key)===progress){runningMultiProgress.delete(key);updateProgress();}
     });
     return outcome.type==='multi-switch'
       ?'다중 동작 스위치 상태 '+(position+1)+' 실행 요청':outcome.type==='random'?'무작위 동작 실행 요청':'다중 동작 실행 요청';
@@ -4277,7 +4404,8 @@ window.executeD200XKey=tracedPhysicalDispatch;
      const settings=item.settings||{},p=settings.pluginSettings||{};
      const action=item.type==='sd-plugin'?(p.name||settings.actionName||sdkActionNames.get(settings.actionUUID)||settings.actionUUID||'플러그인'):
        ACTIONS.get(item.type)?.label||item.type;
-     return {...base,action:String(action).slice(0,160),title:String(item.title||'').slice(0,160)};
+     const value=item.type==='hotkey'?settings.keys:item.type==='hotkey-switch'?[settings.first,settings.second].filter(Boolean).join(' / '):settings.pluginUUID==='com.autodesk.fusionstreamdeck'?p.commandId:undefined;
+     return {...base,action:String(action).slice(0,160),title:String(item.title||'').slice(0,160),...(value?{value:String(value).slice(0,160)}:{})};
    });
  }
  window.DeckForgeAiEdit=Object.freeze({

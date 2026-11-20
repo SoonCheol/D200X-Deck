@@ -154,6 +154,38 @@
       ?Math.max(0,Math.min(600000,Math.round(value.ms))):0};
     return cleanAction(value);
   }
+  // Read legacy pauses without rewriting a profile merely by opening its editor.
+  // Each row carries its own pre-delay; a legacy terminal pause stays intact.
+  const multiMs=value=>Number.isFinite(value)?Math.max(0,Math.min(60000000,Math.round(value))):0;
+  function multiRows(action){
+    const rows=[],steps=Array.isArray(action?.children)?action.children:[];
+    if(action?.settings?.rowDelays===true){
+      for(const step of steps)if(step?.type)rows.push({step,ms:multiMs(step.settings?.multiBeforeMs)});
+      return {rows,tail:multiMs(action.settings.multiTrailingMs)};
+    }
+    const gap=Math.max(2,Math.min(200,Number(action?.settings?.nextActionMs)||100));
+    let before=0,previous=null;
+    for(const step of steps){
+      if(step?.kind==='delay')before+=multiMs(step.ms);
+      else if(step?.type){
+        if(previous&&previous.kind!=='delay')before+=gap;
+        rows.push({step,ms:multiMs(before)});before=0;
+      }
+      previous=step;
+    }
+    return {rows,tail:multiMs(before)};
+  }
+  function setMultiRows(action,rows,tail=0){
+    if(action?.type!=='multi'||!Array.isArray(rows)||rows.length>100)throw Error('Invalid multi rows');
+    action.children=rows.map(({step,ms})=>{
+      const entry=cleanAction(step);
+      if(!entry)throw Error('Invalid multi step');
+      entry.settings.multiBeforeMs=multiMs(ms);
+      return entry;
+    });
+    action.settings={...action.settings,rowDelays:true,multiTrailingMs:multiMs(tail)};
+    delete action.settings.nextActionMs;
+  }
   const COMPOSITE_TYPES=['multi','multi-switch','random','logic'];
   function compositeModel(action){
     if(!action||!COMPOSITE_TYPES.includes(action.type))return null;
@@ -192,10 +224,28 @@
       return {kind:'invalid',message:'복합 액션 중첩 지원 여부가 확인되지 않았습니다.'};
     return {kind:'composite',type:model.type,steps:copy(steps)};
   }
-  async function runComposite(action,{execute,wait,signal,state=0,random,gesture,nextActionMs=0}={}){
+  async function runComposite(action,{execute,wait,signal,state=0,random,gesture,nextActionMs=0,onStep}={}){
     if(typeof execute!=='function'||typeof wait!=='function')throw new TypeError('execute and wait callbacks are required');
     const plan=planComposite(action,{state,random,gesture});
     if(plan.kind!=='composite')throw new Error(plan.message||'복합 동작 실행 불가');
+    if(plan.type==='multi'&&action.settings?.rowDelays===true){
+      for(let i=0;i<plan.steps.length;i++){
+        const step=plan.steps[i];
+        if(signal?.aborted)throw Error('복합 동작이 취소되었습니다.');
+        if(step.kind==='delay')throw Error('잘못된 다중 동작 단계입니다.');
+        onStep?.(i+1,plan.steps.length);
+        const ms=multiMs(step.settings?.multiBeforeMs);
+        if(ms)await wait(ms,signal);
+        if(signal?.aborted)throw Error('복합 동작이 취소되었습니다.');
+        await execute(step,signal);
+      }
+      const tail=multiMs(action.settings.multiTrailingMs);
+      if(tail){if(signal?.aborted)throw Error('복합 동작이 취소되었습니다.');await wait(tail,signal);}
+      if(signal?.aborted)throw Error('복합 동작이 취소되었습니다.');
+      return plan.steps.length;
+    }
+    let progress=0;
+    const total=plan.steps.filter(step=>step.kind!=='delay').length;
     const gap=Number.isInteger(nextActionMs)&&nextActionMs>=0&&nextActionMs<=1000?nextActionMs:0;
     for(let i=0;i<plan.steps.length;i++){
       const step=plan.steps[i],previous=plan.steps[i-1];
@@ -206,7 +256,7 @@
         await wait(gap,signal);
       if(signal?.aborted)throw new Error('복합 동작이 취소되었습니다.');
       if(step.kind==='delay')await wait(step.ms,signal);
-      else await execute(step,signal);
+      else {onStep?.(++progress,total);await execute(step,signal);}
     }
     if(signal?.aborted)throw new Error('복합 동작이 취소되었습니다.');
     return plan.steps.length;
@@ -933,5 +983,5 @@
       url:action.settings?.url||'',mode:action.settings?.open||'default',browserPath:action.settings?.browserPath||''};
     return {kind:'unsupported',message:'이 동작의 실행 기능은 아직 구현되지 않았습니다.'};
   }
-  return {ACTION_IDS,D200X_ACTION_IDS,PLUGIN_ACTION_IDS,DEFAULTS,TITLE,SIDE_NAV_LABELS,SIDE_HOLD_MS,sideConfig,makeSideAction,sideActionConfig,sideFolderTargets,planSideNavigation,applySideNavigation,createSidePressTracker,createAction,cleanAction,cleanCompositeEntry,displaySwitchAction,compositeModel,planComposite,runComposite,blankPage,cleanWideDisplay,cycleWideDisplay,isWideDisplayPress,folderContents,folderPageCount,changeFolderPage,addFolderPage,deleteFolderPage,currentActions,visibleActions,togglePinned,activeFolder,enterFolder,exitFolder,migrateState,profileSnapshot,switchProfile,createProfile,renameProfile,exportSingleProfile,setProfileApp,matchForegroundProfile,deleteProfile,previewHardwareEvent,physicalSlot,hardwareGesture,resolveHardwareEvent,runtimeActionKey,resolveKeyPress,planHardwareEvent,deletePage,planAction,emptyBinding,cleanBinding,controlAction,activeControlAction,assignControlAction,automaticControl,ensureControls,controlBinding,changeControlScope};
+  return {ACTION_IDS,D200X_ACTION_IDS,PLUGIN_ACTION_IDS,DEFAULTS,TITLE,SIDE_NAV_LABELS,SIDE_HOLD_MS,sideConfig,makeSideAction,sideActionConfig,sideFolderTargets,planSideNavigation,applySideNavigation,createSidePressTracker,createAction,cleanAction,cleanCompositeEntry,displaySwitchAction,compositeModel,planComposite,runComposite,multiRows,setMultiRows,blankPage,cleanWideDisplay,cycleWideDisplay,isWideDisplayPress,folderContents,folderPageCount,changeFolderPage,addFolderPage,deleteFolderPage,currentActions,visibleActions,togglePinned,activeFolder,enterFolder,exitFolder,migrateState,profileSnapshot,switchProfile,createProfile,renameProfile,exportSingleProfile,setProfileApp,matchForegroundProfile,deleteProfile,previewHardwareEvent,physicalSlot,hardwareGesture,resolveHardwareEvent,runtimeActionKey,resolveKeyPress,planHardwareEvent,deletePage,planAction,emptyBinding,cleanBinding,controlAction,activeControlAction,assignControlAction,automaticControl,ensureControls,controlBinding,changeControlScope};
 });

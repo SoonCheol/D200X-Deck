@@ -30,7 +30,7 @@ test('local save receipt uses committed action and title and distinguishes failu
  const segment=windowSource.slice(windowSource.indexOf('function formatSaveReceipt('),windowSource.indexOf('function registerAiWindow('));
  const format=new Function(segment+';return formatSaveReceipt;')();
  const saved=format({saved:true,rows:[{op:'plugin',page:4,slot:5,action:'중심 지름 원',title:'원'}]});
- assert.match(saved,/페이지 4 \/ 버튼 5 · 플러그인 등록 · 액션: 중심 지름 원 · 제목: 원/);
+ assert.match(saved,/페이지 4 \/ 버튼 5 · 플러그인 등록\n  액션: 중심 지름 원\n  제목: 원/);
  assert.match(saved,/실제 실행 여부는 별도 확인/);
  assert.match(format({saved:false}),/저장 실패/);
  assert.match(format({saved:true,refreshError:true,rows:[]}),/동기화 확인 필요/);

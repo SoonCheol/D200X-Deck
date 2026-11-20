@@ -13,9 +13,9 @@ function formatSaveReceipt(result){
   const clean=v=>String(v??'').replace(/[\r\n\t]/g,' ').slice(0,160);
   const lines=(result.rows||[]).map(row=>{
     const location=['페이지 '+row.page,row.folder?'폴더 '+clean(row.folder):'',row.slot?'버튼 '+row.slot:'',clean(row.control),clean(row.state)].filter(Boolean).join(' / ');
-    return location+' · '+(names[row.op]||'변경')+(row.action?' · 액션: '+clean(row.action)+' · 제목: '+(clean(row.title)||'없음'):'');
+    return location+' · '+(names[row.op]||'변경')+(row.action?'\n  액션: '+clean(row.action)+'\n  제목: '+(clean(row.title)||'없음')+(row.value?'\n  등록 내용: '+clean(row.value):''):'');
   });
-  return ['등록 및 저장 완료 · '+lines.length+'개 변경 사항',...lines,result.refreshError?'화면 또는 D200X 동기화 확인 필요':'D200X 동기화 요청 완료 · 실제 실행 여부는 별도 확인'].join('\n');
+  return ['등록 및 저장 완료 · '+lines.length+'개 변경 사항','',lines.join('\n\n'),'',result.refreshError?'화면 또는 D200X 동기화 확인 필요':'D200X 동기화 요청 완료 · 실제 실행 여부는 별도 확인'].join('\n');
 }
 function registerAiWindow(assertEditor,newReadSession,editorEdits,runFusionSetup){
   let panel=null,auth=null,active=null,catalog=[],history=null,historyBusy=false,pending=null,undoId=null;
