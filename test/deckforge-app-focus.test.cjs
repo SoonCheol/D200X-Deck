@@ -93,10 +93,13 @@ test('only program foreground actions use new path; regular file/folder and clos
   assert.match(cs,/GetPackageFamilyName\(process,ref len,text\)==0/);
   assert.match(cs,/Same\(identity.Id,target\)/);
   assert.doesNotMatch(cs,/PackagedWindow|CloakReason|candidates\.RemoveAll/);
-  assert.match(cs,/return !sharedHost&&\(subsystem==2\|\|\(subsystem==0&&packaged\)\)/);
+  assert.match(cs,/return packaged\|\|\(!sharedHost&&subsystem==2\)/);
   assert.match(cs,/if\(verifyPackage&&kind=="AppID"&&Same\(result.Id,target\)\)/);
   assert.match(cs,/ProcessIdentity\(\(uint\)process.Id,cache,true\)/);
-  assert.match(cs,/SharedHostExe\(process.ProcessName\+"\.exe"\)/);
+  assert.match(cs,/if\(!packaged\)\{\s*sharedHost=SharedHostExe\(Path.GetFileName\(identity.Path\)\);[\s\S]*?subsystem=ExecutableSubsystem\(identity.Path\)/);
+  assert.match(cs,/string reason=packaged\?"verified-package":sharedHost\?"shared-host"/);
+  assert.doesNotMatch(cs,/SharedHostExe\(process.ProcessName\+"\.exe"\)/);
+  assert.match(cs,/!Reopenable\(0,true,true\)/);
   assert.match(cs,/protectedProcess\?"running-protected":"running-gui"/);
   assert.match(cs,/DFFolderNative\.AttachedFocus\(hwnd\)/);
   assert.match(cs,/if\(DFFolderNative.IsIconic\(hwnd\)\)/);

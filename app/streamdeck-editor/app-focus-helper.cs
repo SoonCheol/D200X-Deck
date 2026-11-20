@@ -317,11 +317,10 @@ static class DFAppFocus {
         return ReadSubsystem(stream);
     }catch{return 0;}
   }
-  // Exact OS-verified package identity allows one activation request when
-  // no eligible window exists and PE is unavailable. Known hosts/console
-  // and unidentified classic images remain protected.
+  // A verified package is activated by its exact AppID, not its host EXE.
+  // Only classic executable identity requires a safe GUI image.
   static bool Reopenable(int subsystem,bool packaged,bool sharedHost){
-    return !sharedHost&&(subsystem==2||(subsystem==0&&packaged));
+    return packaged||(!sharedHost&&subsystem==2);
   }
   static string RunningStatus(){
     if(kind=="Terminal")return "missing";
@@ -336,20 +335,22 @@ static class DFAppFocus {
         var identity=ProcessIdentity((uint)process.Id,cache,true);
         if((kind=="AppID"&&Same(identity.Id,target))||(identity.Path!=null&&paths.Contains(identity.Path))){
           found=true;
-          int subsystem=0;
-          if(!String.IsNullOrEmpty(identity.Path)&&!subsystems.TryGetValue(identity.Path,out subsystem)){
-            subsystem=ExecutableSubsystem(identity.Path);subsystems[identity.Path]=subsystem;
-          }
           bool packaged=PackagedMatch(identity);
-          bool sharedHost=SharedHostExe(Path.GetFileName(identity.Path));
-          if(packaged&&subsystem==0&&!sharedHost){
-            try{sharedHost=SharedHostExe(process.ProcessName+".exe");}catch{}
+          int subsystem=0;
+          bool sharedHost=false;
+          // A verified AppID must not be rejected because of its host image.
+          // For verified packages subsystem=0 means PE was not inspected.
+          if(!packaged){
+            sharedHost=SharedHostExe(Path.GetFileName(identity.Path));
+            if(!String.IsNullOrEmpty(identity.Path)&&!subsystems.TryGetValue(identity.Path,out subsystem)){
+              subsystem=ExecutableSubsystem(identity.Path);subsystems[identity.Path]=subsystem;
+            }
           }
           bool reopen=Reopenable(subsystem,packaged,sharedHost);
           if(!reopen)protectedProcess=true;
           Note("running-pid="+process.Id+" subsystem="+subsystem+" no-eligible-window");
           Note("package-pid="+process.Id+" verified="+(packaged?"true":"false"));
-          string reason=sharedHost?"shared-host":subsystem==3?"console":subsystem==2?"gui":subsystem==0&&packaged?"verified-package":"unknown-or-nongui";
+          string reason=packaged?"verified-package":sharedHost?"shared-host":subsystem==3?"console":subsystem==2?"gui":"unknown-or-nongui";
           Note("policy-pid="+process.Id+" path="+(!String.IsNullOrEmpty(identity.Path)?"available":"missing")+" decision="+(reopen?"allow":"block")+" reason="+reason);
         }
       }catch{}
@@ -415,9 +416,12 @@ static class DFAppFocus {
         using(var invalid=new MemoryStream(new byte[64]))if(ReadSubsystem(invalid)!=0)throw new Exception("Invalid PE validation failed");
         using(var self=Process.GetCurrentProcess())if(ExecutableSubsystem(self.MainModule.FileName)!=3)throw new Exception("Console subsystem validation failed");
         // Pure policy checks; no installed app or interactive session required.
-        if(!Reopenable(0,true,false)||Reopenable(0,false,false)||Reopenable(0,true,true)||
-           Reopenable(3,true,false)||Reopenable(3,false,false)||Reopenable(2,true,true)||
-           !Reopenable(2,false,false)||Reopenable(7,true,false))
+        // Regression: an exact package identity must prevail over a host classification.
+        if(!Reopenable(0,true,false)||!Reopenable(0,true,true)||
+           Reopenable(0,false,false)||Reopenable(0,false,true)||
+           !Reopenable(2,false,false)||Reopenable(2,false,true)||
+           Reopenable(3,false,false)||Reopenable(7,false,false)||
+           !Reopenable(3,true,true)||!Reopenable(2,true,true))
           throw new Exception("Packaged reopen policy validation failed");
         if(!SharedHostExe("cmd.exe")||!SharedHostExe("APPLICATIONFRAMEHOST.EXE")||SharedHostExe("app.exe")||SharedHostExe(null))
           throw new Exception("Shared host policy validation failed");
