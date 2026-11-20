@@ -6,8 +6,10 @@ const {runFolderHelper,helperPath}=require(path.join(root,'folder-helper.cjs'));
 const {buildFolderHelper}=require(path.join(root,'build-folder-helper.cjs'));
 test('folder option reaches direct and composite routes, not application control',()=>{
   assert.ok(source('editor.js').includes("check('alwaysNewWindow','중복 열기 방지',true)"));
-  assert.equal((source('editor.js').match(/openLocalPath\(outcome\.path,outcome\.target,outcome\.args\|\|'',outcome\.alwaysNewWindow===true,outcome\.foreground!==false\)/g)||[]).length,2);
-  assert.ok(source('preload.cjs').includes('{filePath,target,args,alwaysNewWindow,foreground}'));
+  // Preserve both routes and explicitly verify the physical packet ID forwarding.
+  assert.match(source('editor.js'),/bridge\.openLocalPath\(outcome\.path,outcome\.target,outcome\.args\|\|'',outcome\.alwaysNewWindow===true,outcome\.foreground!==false\)/);
+  assert.match(source('editor.js'),/window\.deckBridge\.openLocalPath\(outcome\.path,outcome\.target,outcome\.args\|\|'',outcome\.alwaysNewWindow===true,outcome\.foreground!==false,event\.inputId\)/);
+  assert.ok(source('preload.cjs').includes('{filePath,target,args,alwaysNewWindow,foreground,inputId}'));
   const main=source('main.cjs');
   assert.ok(main.includes("args.target==='folder'&&!extra.trim()"));
   assert.ok(main.includes("result.status==='missing'&&!alwaysNewWindow"));

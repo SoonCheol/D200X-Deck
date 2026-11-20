@@ -65,7 +65,7 @@ test('warning temporarily replaces only outgoing slot 13; restores legacy slot a
 test('alert lifecycle and authenticated focus bridge are wired before normal action routing',()=>{
   assert.match(editor,/dialog\.showModal\(\);\s*refreshWideUnsavedWarning\(\);/);
   assert.match(editor,/dialog\.remove\(\);refreshWideUnsavedWarning\(\);/);
-  assert.match(editor,/const warning=handleWideWarningInput\(event,preview\);\s*if\(warning\)return warning\.message;/);
+  assert.match(editor,/const warning=handleWideWarningInput\(event,preview\);\s*if\(warning\)\{report\('warning'\);return warning\.message;\}/);
   assert.match(editor,/wideUnsavedWarningActive\(\)\?wideUnsavedVisual\(\)/);
   assert.match(preload,/revealUnsavedEditor: \(\) => ipcRenderer\.invoke\('d200x:reveal-unsaved-editor'\)/);
   assert.match(main,/ipcMain\.handle\('d200x:reveal-unsaved-editor',event=>\{\s*assertEditor\(event\);/);

@@ -67,9 +67,9 @@ test('only program foreground actions use new path; regular file/folder and clos
   const cs=fs.readFileSync(path.join(root,'app-focus-helper.cs'),'utf8');
   assert.match(editor,/action.type==='open-app'&&bridge.openApplication/);
   assert.match(editor,/resolved.action\?\.type==='open-app'&&window.deckBridge.openApplication/);
-  assert.match(editor,/openApplication\(outcome.path,outcome.target,outcome.args\|\|'',outcome.foreground,outcome.preventDuplicate\)/);
+  assert.match(editor,/openApplication\(outcome.path,outcome.target,outcome.args\|\|'',outcome.foreground,outcome.preventDuplicate,event.inputId\)/);
   assert.match(main,/launch:\(\)=>openLocalPath\(args\)/);
-  assert.match(main,/queueFolderControl\(filePath,args.alwaysNewWindow===true,args.foreground!==false\)/);
+  assert.match(main,/queueFolderControl\(filePath,args.alwaysNewWindow===true,args.foreground!==false,args.inputId\)/);
   assert.match(main,/async function runCloseControl/);
   assert.match(cs,/EnumChildWindows\(hwnd,/);
   assert.match(cs,/GetApplicationUserModelId/);
@@ -101,7 +101,7 @@ test('terminal launch reuses native policy with separate privilege and fixed UAC
   assert.match(cs,/identity.IsElevated.Value==\(target=="admin"\)/);
   assert.match(cs,/new ProcessStartInfo\(alias,"-w new"\)\{UseShellExecute=true,Verb=target=="admin"\?"runas":"open"\}/);
   assert.match(editor,/bridge.openTerminal\(outcome.admin,outcome.foreground,outcome.preventDuplicate\)/);
-  assert.match(editor,/window.deckBridge.openTerminal\(outcome.admin,outcome.foreground,outcome.preventDuplicate\)/);
+  assert.match(editor,/window.deckBridge.openTerminal\(outcome.admin,outcome.foreground,outcome.preventDuplicate,event.inputId\)/);
 });
 
 test('terminal-only fallback preserves existing launch policy and never opens tabs',()=>{
