@@ -152,7 +152,7 @@ function registerAiWindow(assertEditor,newReadSession,editorEdits){
     const current=new BrowserWindow({title:'DeckForge AI 도우미',x,y:Math.max(area.y,Math.min(bounds.y,area.y+area.height-height)),width,height,minWidth:Math.min(320,width),minHeight:Math.min(420,height),backgroundColor:'#292929',show:false,autoHideMenuBar:true,
       webPreferences:{preload:path.join(__dirname,'preload.cjs'),contextIsolation:true,sandbox:true,nodeIntegration:false,webSecurity:true}});
     panel=current;
-    require('../text-context-menu.cjs').attachTextContextMenu(current,Menu,true);
+    require('../text-context-menu.cjs').attachTextContextMenu(current,Menu,true,true);
     current.webContents.setWindowOpenHandler(()=>({action:'deny'}));
     current.webContents.on('will-navigate',event=>event.preventDefault());
     current.webContents.on('will-attach-webview',event=>event.preventDefault());

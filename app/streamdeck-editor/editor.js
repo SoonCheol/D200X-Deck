@@ -3450,7 +3450,7 @@ function handleOpenAppHold(action,index,event,gesture){
   if(gesture==='down'){
     if(openAppHoldTimers.has(index))return '프로그램 버튼 입력 유지 중';
     const downAt=Date.now();
-    const trace={...makeAppControlTrace('down',index,action),downAt};
+    const trace={...makeAppControlTrace('down',index,action),downAt,inputId:event.inputId};
     const token={action,scope:openAppHoldScope(),config:openAppHoldConfig(action),fired:false,cancelled:false,timer:null,trace};
     logOpenAppHold({...trace,stage:'down',at:downAt});
     token.timer=setTimeout(()=>{
@@ -3469,7 +3469,7 @@ function handleOpenAppHold(action,index,event,gesture){
       const path=action.settings?.app;
       if(!path)return window.d200xActionStatus?.('종료할 프로그램을 먼저 선택하세요.');
       const force=action.settings?.hold==='force';
-      window.deckBridge?.closeLocalApp?.(path,force,requestTrace).then(
+      observeInputEvidence(event,window.deckBridge?.closeLocalApp?.(path,force,requestTrace),'hold-close')?.then(
         ()=>window.d200xActionStatus?.('길게 누르기: 프로그램 '+(force?'강제 종료':'일반 종료')+' 요청 완료'),
         error=>window.d200xActionStatus?.('길게 누르기 '+(force?'강제 종료':'일반 종료')+' 실패: '+String(error?.message||error)));
     },650);
@@ -3555,12 +3555,34 @@ function heldKnobEvent(event,preview){
   }
   return {event,consume:false,replay:false};
 }
+// One physical packet ID is carried through the actual dispatch, never inferred from time.
+function reportInputEvidence(event,stage,fields={}){
+  if(typeof event?.inputId!=='string')return;
+  try{window.deckBridge?.inputEvidence?.({inputId:event.inputId,stage,...fields});}catch{}
+}
+function observeInputEvidence(event,promise,kind){
+  if(typeof event?.inputId!=='string'||!promise||typeof promise.then!=='function')return promise;
+  const start=Date.now();
+  reportInputEvidence(event,'request',{outcome:kind});
+  promise.then(value=>{
+    reportInputEvidence(event,value===false?'request-false':'request-resolved',{outcome:kind,ms:Date.now()-start,...(Number.isInteger(value)&&value>=0&&value<=10000?{count:value}:{})});
+  },()=>reportInputEvidence(event,'request-rejected',{outcome:kind,ms:Date.now()-start}));
+  return promise;
+}
+function tracedPhysicalDispatch(event){
+  reportInputEvidence(event,'renderer',{page:state.page+1,profile:Math.max(1,(state.profileNames||[]).findIndex(p=>p.id===state.profileId)+1),folder:!!state.folderPath?.length,dirty:!!inspectorSession?.dirty});
+  try{const result=executeHardwareAction(event);reportInputEvidence(event,'dispatch-return',{handled:!!result});return result;}
+  catch(error){reportInputEvidence(event,'dispatch-throw');throw error;}
+}
 function executeHardwareAction(event,preview=false,skipKnobGesture=false){
+  const report=(stage,fields={})=>reportInputEvidence(event,stage,fields);
+  const observe=(promise,kind)=>observeInputEvidence(event,promise,kind);
   const warning=handleWideWarningInput(event,preview);
-  if(warning)return warning.message;
+  if(warning){report('warning');return warning.message;}
   if(!skipKnobGesture){
     const held=heldKnobEvent(event,preview);
     if(held.replay){
+      report('held-replay');
       const index=Number(event.index);
       const result=executeHardwareAction({...event,state:1},false,true);
       // The physical release is still forwarded for SDK actions.
@@ -3568,27 +3590,30 @@ function executeHardwareAction(event,preview=false,skipKnobGesture=false){
         executeHardwareAction({...event,state:0},false,true);
       return result;
     }
-    if(held.consume)return null;
+    if(held.consume){report('held-consumed');return null;}
     event=held.event;
   }
   if(DeckCore.isWideDisplayPress(event)&&wideDisplayAvailable()){
     // The merged key can report both halves of one physical press.
     // Ignore duplicate press packets, but do not affect other controls.
     const now=Date.now();
-    if(!preview&&now-lastWideHardwarePress<240)return null;
+    if(!preview&&now-lastWideHardwarePress<240){report('wide-debounce');return null;}
     if(!preview)lastWideHardwarePress=now;
-    const mode=advanceWideDisplay();
+    const mode=advanceWideDisplay();report('wide-switch',{status:mode});
     return '가로 화면 전환: '+WIDE_LABELS[mode];
   }
   const resolved=DeckCore.resolveHardwareEvent(state,event);
-  if(!resolved)return null;
+  if(!resolved){report('unresolved');return null;}
   const index=resolved.index,offset=index-14;
+  const gestureKey=({'hold-left':'holdLeft','hold-right':'holdRight'})[resolved.gesture]||resolved.gesture;
+  const bindingAction=index>=16&&['left','right','holdLeft','holdRight'].includes(gestureKey)?DeckCore.controlAction(resolved.binding,gestureKey):resolved.action;
+  report('resolved',{slot:index,gesture:resolved.gesture,action:bindingAction?.type});
   if(!preview&&['down','up'].includes(resolved.gesture)&&
     (openAppHoldTimers.has(index)||(resolved.action?.type==='open-app'&&
       ['close','force'].includes(resolved.action.settings?.hold))))
-    return handleOpenAppHold(resolved.action,index,event,resolved.gesture);
+    {report('hold');return handleOpenAppHold(resolved.action,index,event,resolved.gesture);}
   if(resolved.action?.type==='logic'&&['down','up'].includes(resolved.gesture))
-    return handleLogicGesture(resolved.action,index,resolved.gesture,preview);
+    {report('logic');return handleLogicGesture(resolved.action,index,resolved.gesture,preview);}
   const sdkAction=index>=16&&['left','right','hold-left','hold-right'].includes(resolved.gesture)
     ?resolved.binding?.[({'hold-left':'holdLeft','hold-right':'holdRight'})[resolved.gesture]||resolved.gesture]:resolved.action;
   if(sdkAction?.type==='sd-plugin'){
@@ -3596,25 +3621,26 @@ function executeHardwareAction(event,preview=false,skipKnobGesture=false){
       resolved.gesture==='up'?'down':resolved.gesture);
     if(!window.deckBridge?.sdkKey)return 'SDK 플러그인은 Windows EXE에서만 실행됩니다.';
     if(resolved.gesture==='up')lastHardwareDown.delete(index);
-    window.deckBridge.sdkKey(ctx,resolved.gesture).then(ok=>{
+    report('sdk-dispatch');observe(window.deckBridge.sdkKey(ctx,resolved.gesture),'sdk').then(ok=>{
       if(!ok)window.d200xActionStatus?.('SDK 플러그인이 활성화되지 않았습니다.');
     }).catch(error=>window.d200xActionStatus?.('SDK 플러그인 실행 실패: '+String(error?.message||error)));
     if(preview&&resolved.gesture==='down')setTimeout(()=>window.deckBridge.sdkKey(ctx,'up').catch(()=>{}),100);
     return 'DeckForge 플러그인 이벤트: '+resolved.gesture;
   }
-  if(resolved.gesture==='up'){lastHardwareDown.delete(index);return null;}
+  if(resolved.gesture==='up'){report('release');lastHardwareDown.delete(index);return null;}
   if(resolved.gesture==='down'&&!preview){
     const now=Date.now();
-    if(now-(lastHardwareDown.get(index)||0)<250)return null;
+    if(now-(lastHardwareDown.get(index)||0)<250){report('duplicate');return null;}
     lastHardwareDown.set(index,now);
   }
   const planned=DeckCore.planHardwareEvent(state,event,
     offset>=2?stackPositions[offset-2]:0);
-  if(!planned)return null;
-  const outcome=planned.outcome;
+  if(!planned){report('no-plan');return null;}
+  const outcome=planned.outcome;report('planned',{outcome:outcome.kind});
   // Hardware-driven navigation cannot silently abandon an unsaved inspector.
   if(!preview&&inspectorSession?.dirty&&
     ['page','profile','folder-back','folder-enter'].includes(outcome.kind)){
+    report('unsaved-block');
     showInspectorLeaveDialog(()=>{
       lastHardwareDown.delete(index);
       executeHardwareAction(event,false,true);
@@ -3668,11 +3694,11 @@ function executeHardwareAction(event,preview=false,skipKnobGesture=false){
     runningMultiActions.add(key);
     const controller=new AbortController();
     runningMultiControllers.set(action,controller);
-    DeckCore.runComposite(action,{
+    observe(DeckCore.runComposite(action,{
       execute:executeMultiStep,wait:waitMultiDelay,
       state:position,random,signal:controller.signal,
       nextActionMs:Math.max(2,Math.min(200,Number(action.settings?.nextActionMs)||100))
-    }).then(
+    }),'composite').then(
       count=>{
         scheduleFolderExitAfterAction();
         if(outcome.type==='multi-switch'){
@@ -3692,7 +3718,7 @@ function executeHardwareAction(event,preview=false,skipKnobGesture=false){
   }
   if(outcome.kind==='ha-toggle'){
     if(!window.deckBridge?.haToggle)return 'Home Assistant는 Windows EXE에서만 실행됩니다.';
-    window.deckBridge.haToggle(outcome.entityId).then(
+    observe(window.deckBridge.haToggle(outcome.entityId),outcome.kind).then(
       ()=>window.d200xActionStatus?.('HA 장치 토글 요청 완료: '+outcome.entityId),
       error=>window.d200xActionStatus?.('HA 동작 실패: '+String(error?.message||error)));
     return 'HA 장치 토글 요청: '+outcome.entityId;
@@ -3700,14 +3726,14 @@ function executeHardwareAction(event,preview=false,skipKnobGesture=false){
   if(outcome.kind==='display-only')return '페이지 표시는 현재 페이지를 표시하는 전용 액션입니다.';
   if(outcome.kind==='device-sleep'){
     if(!window.deckBridge?.sleepDisplay)return 'D200X 화면 절전은 Windows EXE에서만 실행됩니다.';
-    window.deckBridge.sleepDisplay().then(
+    observe(window.deckBridge.sleepDisplay(),outcome.kind).then(
       ()=>window.d200xActionStatus?.('D200X 화면 잠자기 요청 완료 · 다음 버튼으로 깨우기'),
       error=>window.d200xActionStatus?.('D200X 잠자기 실패: '+String(error?.message||error)));
     return 'D200X 화면 잠자기 요청';
   }
   if(outcome.kind==='mute'){
     if(!window.deckBridge?.adjustWindows)return 'Windows 실행 환경에서만 사용할 수 있습니다.';
-    window.deckBridge.adjustWindows('mute',0,1).then(
+    observe(window.deckBridge.adjustWindows('mute',0,1),outcome.kind).then(
       ()=>window.d200xActionStatus?.('음소거 전환 완료'),
       error=>window.d200xActionStatus?.('음소거 전환 실패: '+String(error?.message||error))
     );
@@ -3715,7 +3741,7 @@ function executeHardwareAction(event,preview=false,skipKnobGesture=false){
   }
   if(outcome.kind==='close-local-app'){
     if(!window.deckBridge?.closeLocalApp)return 'Windows 실행 환경에서만 사용할 수 있습니다.';
-    window.deckBridge.closeLocalApp(outcome.path,outcome.force,makeAppControlTrace('action',index,resolved.action)).then(
+    observe(window.deckBridge.closeLocalApp(outcome.path,outcome.force,{...makeAppControlTrace('action',index,resolved.action),inputId:event.inputId}),outcome.kind).then(
       ()=>window.d200xActionStatus?.('선택한 프로그램 '+(outcome.force?'강제 종료':'일반 종료')+' 요청 완료'),
       error=>window.d200xActionStatus?.('프로그램 '+(outcome.force?'강제 종료':'일반 종료')+' 실패: '+String(error?.message||error)));
     return '선택한 프로그램 '+(outcome.force?'강제 종료':'닫기')+' 요청';
@@ -3724,7 +3750,7 @@ function executeHardwareAction(event,preview=false,skipKnobGesture=false){
     stopAllAudio();return '오디오 재생 정지';
   }
   if(outcome.kind==='audio-play'){
-    playAudioAction(outcome,index).then(
+    observe(playAudioAction(outcome,index),outcome.kind).then(
       result=>window.d200xActionStatus?.(result),
       error=>window.d200xActionStatus?.('오디오 재생 실패: '+String(error?.message||error)));
     return '오디오 재생 요청';
@@ -3733,7 +3759,7 @@ function executeHardwareAction(event,preview=false,skipKnobGesture=false){
     const useClipboard=outcome.mode==='clipboard';
     const command=useClipboard?window.deckBridge?.pasteText:window.deckBridge?.typeText;
     if(!command)return 'Windows 실행 환경에서만 사용할 수 있습니다.';
-    command(outcome.text,outcome.enter).then(
+    observe(command(outcome.text,outcome.enter),outcome.kind).then(
       ()=>window.d200xActionStatus?.(useClipboard?'클립보드에 기록하고 붙여넣기 완료':'유니코드 직접 입력 완료'),
       error=>window.d200xActionStatus?.('텍스트 입력 실패: '+String(error?.message||error)));
     return useClipboard?'Windows 클립보드 붙여넣기 요청':'유니코드 직접 입력 요청';
@@ -3770,7 +3796,7 @@ function executeHardwareAction(event,preview=false,skipKnobGesture=false){
   }
   if(outcome.kind==='media-control'){
     if(!window.deckBridge?.mediaControl)return 'Windows 실행 환경에서만 사용할 수 있습니다.';
-    window.deckBridge.mediaControl(outcome.operation).then(
+    observe(window.deckBridge.mediaControl(outcome.operation),outcome.kind).then(
       ()=>window.d200xActionStatus?.('미디어 키 전송 완료'),
       error=>window.d200xActionStatus?.('미디어 실행 실패: '+String(error?.message||error)));
     return '미디어 제어 요청';
@@ -3782,64 +3808,64 @@ function executeHardwareAction(event,preview=false,skipKnobGesture=false){
     const position=hotkeySwitchPositions.get(key)||0;
     const keys=position===0?outcome.first:outcome.second;
     if(!keys)return '전환할 단축키가 설정되지 않았습니다.';
-    window.deckBridge.sendHotkey(keys).then(
+    observe(window.deckBridge.sendHotkey(keys),outcome.kind).then(
       ()=>{hotkeySwitchPositions.set(key,1-position);window.d200xActionStatus?.('단축키 전환 '+(position+1)+' 실행');},
       error=>window.d200xActionStatus?.('단축키 전환 실패: '+String(error?.message||error)));
     return '단축키 전환 '+(position+1)+' 요청';
   }
   if(outcome.kind==='windows-hotkey'){
     if(!window.deckBridge?.sendHotkey)return 'Windows 실행 환경에서만 사용할 수 있습니다.';
-    window.deckBridge.sendHotkey(outcome.keys).then(
+    observe(window.deckBridge.sendHotkey(outcome.keys),outcome.kind).then(
       ()=>window.d200xActionStatus?.('단축키 전송 완료'),
       error=>window.d200xActionStatus?.('단축키 실행 실패: '+String(error?.message||error)));
     return '단축키 실행 요청';
   }
   if(outcome.kind==='open-terminal'){
     if(!window.deckBridge?.openTerminal)return 'Windows 실행 환경에서만 사용할 수 있습니다.';
-    window.deckBridge.openTerminal(outcome.admin,outcome.foreground,outcome.preventDuplicate).then(
+    observe(window.deckBridge.openTerminal(outcome.admin,outcome.foreground,outcome.preventDuplicate,event.inputId),outcome.kind).then(
       ()=>window.d200xActionStatus?.('터미널 열기 완료'),error=>window.d200xActionStatus?.('터미널 열기 실패: '+String(error?.message||error)));
     return '터미널 열기 요청';
   }
   if(outcome.kind==='open-local-path'){
     if(!window.deckBridge?.openLocalPath)return 'Windows 실행 환경에서만 사용할 수 있습니다.';
-    (resolved.action?.type==='open-app'&&window.deckBridge.openApplication
-      ?window.deckBridge.openApplication(outcome.path,outcome.target,outcome.args||'',outcome.foreground,outcome.preventDuplicate)
-      :window.deckBridge.openLocalPath(outcome.path,outcome.target,outcome.args||'',outcome.alwaysNewWindow===true,outcome.foreground!==false)).then(
+    observe((resolved.action?.type==='open-app'&&window.deckBridge.openApplication
+      ?window.deckBridge.openApplication(outcome.path,outcome.target,outcome.args||'',outcome.foreground,outcome.preventDuplicate,event.inputId)
+      :window.deckBridge.openLocalPath(outcome.path,outcome.target,outcome.args||'',outcome.alwaysNewWindow===true,outcome.foreground!==false,event.inputId)),'open-local-path').then(
       ()=>window.d200xActionStatus?.('경로 열기 완료'),
       error=>window.d200xActionStatus?.('경로 열기 실패: '+String(error?.message||error)));
     return '지정 경로 열기 요청';
   }
   if(outcome.kind==='system-shortcut'){
     if(!window.deckBridge?.systemShortcut)return 'Windows 실행 환경에서만 사용할 수 있습니다.';
-    window.deckBridge.systemShortcut(outcome.target,outcome.operation).then(
+    observe(window.deckBridge.systemShortcut(outcome.target,outcome.operation),outcome.kind).then(
       ()=>window.d200xActionStatus?.('단축키 전송 완료'),
       error=>window.d200xActionStatus?.('단축키 실패: '+String(error?.message||error)));
     return 'Windows 단축키 요청: '+outcome.target;
   }
   if(outcome.kind==='device-brightness-set'){
     if(!window.deckBridge?.setBrightness)return 'Windows 실행 환경에서만 사용할 수 있습니다.';
-    window.deckBridge.setBrightness(outcome.value).then(
+    observe(window.deckBridge.setBrightness(outcome.value),outcome.kind).then(
       value=>window.d200xActionStatus?.('D200X 밝기: '+value+'%'),
       error=>window.d200xActionStatus?.('밝기 설정 실패: '+String(error?.message||error)));
     return 'D200X 밝기 '+outcome.value+'% 설정 요청';
   }
   if(outcome.kind==='device-brightness'){
     if(!window.deckBridge?.adjustBrightness)return 'Windows 실행 환경에서만 사용할 수 있습니다.';
-    window.deckBridge.adjustBrightness(outcome.direction,outcome.count||1).then(
+    observe(window.deckBridge.adjustBrightness(outcome.direction,outcome.count||1),outcome.kind).then(
       value=>window.d200xActionStatus?.('D200X 밝기: '+value),
       error=>window.d200xActionStatus?.('밝기 조절 실패: '+String(error?.message||error)));
     return 'D200X 밝기 조절 요청';
   }
   if(outcome.kind==='zoom-reset'){
     if(!window.deckBridge?.adjustWindows)return 'Windows 실행 환경에서만 사용할 수 있습니다.';
-    window.deckBridge.adjustWindows('zoom-reset',0,1).then(
+    observe(window.deckBridge.adjustWindows('zoom-reset',0,1),outcome.kind).then(
       ()=>window.d200xActionStatus?.('확대·축소 초기화 키 전송'),
       error=>window.d200xActionStatus?.('초기화 실패: '+String(error?.message||error)));
     return '활성 앱 원래 크기 요청';
   }
   if(outcome.kind==='windows-switch'){
     if(!window.deckBridge?.switchWindows)return 'Windows 실행 환경에서만 사용할 수 있습니다.';
-    window.deckBridge.switchWindows(outcome.target,outcome.direction,outcome.count||1).then(
+    observe(window.deckBridge.switchWindows(outcome.target,outcome.direction,outcome.count||1),outcome.kind).then(
       ()=>window.d200xActionStatus?.('전환 키 입력 완료'),
       error=>window.d200xActionStatus?.('전환 실패: '+String(error?.message||error))
     );
@@ -3847,7 +3873,7 @@ function executeHardwareAction(event,preview=false,skipKnobGesture=false){
   }
   if(outcome.kind==='edit-history'){
     if(!window.deckBridge?.editHistory)return 'Windows 실행 환경에서만 사용할 수 있습니다.';
-    window.deckBridge.editHistory(outcome.operation,outcome.count||1).then(
+    observe(window.deckBridge.editHistory(outcome.operation,outcome.count||1),outcome.kind).then(
       ()=>window.d200xActionStatus?.('편집 동작 전송 완료'),
       error=>window.d200xActionStatus?.('편집 동작 실패: '+String(error?.message||error))
     );
@@ -3855,7 +3881,7 @@ function executeHardwareAction(event,preview=false,skipKnobGesture=false){
   }
   if(outcome.kind==='scroll'){
     if(!window.deckBridge?.scrollWindows)return 'Windows 실행 환경에서만 사용할 수 있습니다.';
-    window.deckBridge.scrollWindows(outcome.axis,outcome.direction,outcome.count||1).then(
+    observe(window.deckBridge.scrollWindows(outcome.axis,outcome.direction,outcome.count||1),outcome.kind).then(
       ()=>window.d200xActionStatus?.('스크롤 완료'),
       error=>window.d200xActionStatus?.('스크롤 실패: '+String(error?.message||error))
     );
@@ -3863,7 +3889,7 @@ function executeHardwareAction(event,preview=false,skipKnobGesture=false){
   }
   if(outcome.kind==='adjust'){
     if(!window.deckBridge?.adjustWindows)return 'Windows 실행 환경에서만 사용할 수 있습니다.';
-    window.deckBridge.adjustWindows(outcome.target,outcome.direction,outcome.count||1).then(
+    observe(window.deckBridge.adjustWindows(outcome.target,outcome.direction,outcome.count||1),outcome.kind).then(
       ()=>window.d200xActionStatus?.('조절 완료: '+outcome.target),
       error=>window.d200xActionStatus?.('조절 실패: '+String(error?.message||error))
     );
@@ -3885,7 +3911,7 @@ function executeHardwareAction(event,preview=false,skipKnobGesture=false){
   }
   if(outcome.kind==='website'){
     if(!window.deckBridge?.openWebsite)return '웹사이트 열기는 Windows EXE에서만 실행됩니다.';
-    window.deckBridge.openWebsite(outcome.url,outcome.mode,outcome.browserPath).then(
+    observe(window.deckBridge.openWebsite(outcome.url,outcome.mode,outcome.browserPath),outcome.kind).then(
       ()=>window.d200xActionStatus?.('웹사이트 열기 완료'),
       error=>window.d200xActionStatus?.('웹사이트 열기 실패: '+String(error?.message||error))
     );
@@ -3893,7 +3919,7 @@ function executeHardwareAction(event,preview=false,skipKnobGesture=false){
   }
   return outcome.message;
 }
-window.executeD200XKey=executeHardwareAction;
+window.executeD200XKey=tracedPhysicalDispatch;
 
  // AI edit transactions are generated locally, never from model-written JS.
  // The original state and plugin object identities remain intact until user approval.

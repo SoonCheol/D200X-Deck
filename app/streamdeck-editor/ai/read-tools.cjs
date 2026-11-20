@@ -162,15 +162,54 @@ async function pluginMetadata(userData){
   return items;
 }
 const {walkTemplates}=require('./advanced-plan.js');
-const SECTIONS=['plugin_templates','profiles','page','actions','icon_packs','icons','start_apps','running_windows','device','recent_inputs','plugins','plugin_actions','ha','fusion','app_log','folder_log','usb_log','guide'];
-const TOOL={type:'function',name:'inspect',description:'Read only. sections: profiles; page (profile/page are 1-based, folder "current" or "2:1/3:2" = slot:folder-page, null=root); actions; icon_packs; icons; start_apps; running_windows; device; recent_inputs; plugins; plugin_actions; plugin_templates (configured Fusion command IDs / SDK HA entity IDs only); ha; fusion; app_log; folder_log; usb_log; guide. query filters locally, offset paginates. Null for unused arguments. No raw paths, commands or logs.',parameters:{type:'object',properties:{section:{type:'string',enum:SECTIONS},profile:{type:['integer','null']},page:{type:['integer','null']},folder:{type:['string','null']},query:{type:['string','null']},offset:{type:['integer','null']}},required:['section','profile','page','folder','query','offset'],additionalProperties:false},strict:true};
+
+const {assess}=require('./evidence.cjs');
+const KNOWLEDGE=[
+  {topic:'layout',facts:'13 ordinary root keys (1–13), reserved wide slot 14, side controls 1–2, knobs 1–3. Physical packets: raw key 0–12, wide 13/14, sides 15/16, knobs 17–19. Root pinned keys provide fallback only for empty positions. Folder page 1=children, later pages=pages[], return key in empty slot 14; legacy contents may differ.'},
+  {topic:'controls',facts:'Knob trigger mode can use explicit left/right actions or automatic target; stack mode cycles selected targets on press. Held rotation can disable ordinary press. Scope global applies across the active profile; page scope uses the per-page binding. Steps 1/2/5/10. Check configured and inactive rotations, not only target label.'},
+  {topic:'wide',facts:'Wide modes clock/datetime/stats/knobs. Root wide key cycles enabled modes. An unsaved warning temporarily overrides wide display; pressing it requests editor focus. A USB transfer or focus request is not visual confirmation.'},
+  {topic:'editing',facts:'propose_edit stages basic root edits; propose_advanced stages folder/control/wide/composite/state-design/plugin edits. Active profile, bounded operations, fixed validation, user Apply and Save confirmation, existing atomic profile write, then display sync request. Dirty or changed snapshot blocks apply; last change undo only within session and unchanged state. No model direct write or execution.'},
+  {topic:'plugins',facts:'Native HA REST supported entities light/switch/fan/input_boolean require configured server and real entity verification. SDK HA/Fusion registration reuses existing configured templates and verifies installed actions. Empty template list does not prove absence of installed commands or devices. SDK key acknowledgement is dispatch evidence, not remote action success.'},
+  {topic:'diagnostics',facts:'input_trace uses explicit packet IDs and actual dispatch observations; last 128 post-sleep-filter inputs only, volatile, no historical reconstruction. Distinguish reception, renderer, resolved slot, plan, filter/deferred gesture, request, returned/failed and native helper stage. No result is not proof of failure. SDK/SendInput/REST or shell request acceptance is not proof of effect. Delayed logic, timer/chime, unsaved-dialog resume, separate release/hold and composite substeps may have incomplete evidence. A filtered up event normally does not execute.'},
+  {topic:'optimization',facts:'layout_review checks saved page holes, exactly repeated basic action settings, incomplete configured fields and inactive rotations. These are review candidates, not proof of defects; duplicate keys can be intentional. No automatic changes. Use page and liveView before making an approved proposal.'},
+  {topic:'usage',facts:'ChatGPT direct connection only. At most 3 API requests, 4 tool calls and one edit proposal per question; last 8 messages / 16000 characters. Approve/cancel/undo locally. Reported token usage is API usage, not exact subscription deduction.'}
+];
+function layoutReview(s,a){
+  const page=resolvePage(s,a);if(page.error)return page;
+  const names=arr(s.profileNames),meta=a.profile==null?names.find(p=>p.id===s.profileId):names[a.profile-1];
+  const profile=meta&&meta.id!==s.profileId?arr(s.inactiveProfiles).find(x=>x.id===meta.id):s;
+  let row=profile?.pages?.[page.page-1];
+  if(page.folder)for(const [depth,pair] of page.folder.split('/').entries()){
+    const [slot,fp]=pair.split(':').map(Number),f=row?.[slot-1]||(depth===0?profile.pinned?.[slot-1]:null);
+    row=fp===1?f?.children:f?.pages?.[fp-2];
+  }
+  const findings=[],groups=new Map(),empty=[];
+  for(let i=0;i<13;i++){
+    const a=row?.[i]||(!page.folder?profile.pinned?.[i]:null);
+    if(!a){empty.push(i+1);continue;}
+    const st=a.settings||{},type=a.type;
+    const missing=type==='hotkey'&&!String(st.keys||'').trim()||type==='open-app'&&!String(st.app||'').trim()||['file-open','folder-shortcut'].includes(type)&&!String(st.path||'').trim()||type==='ha-toggle'&&!String(st.entityId||'').trim()||type==='website'&&!String(st.url||'').trim();
+    if(missing)findings.push({kind:'incomplete_configuration',slot:i+1,type});
+    // Compare locally, do not disclose paths, bodies or arbitrary private settings.
+    if(['hotkey','open-app','file-open','folder-shortcut','media','clipboard-edit','goto'].includes(type)&&!missing){
+      const key=JSON.stringify([type,st]);
+      const group=groups.get(key)||{type,slots:[]};group.slots.push(i+1);groups.set(key,group);
+    }
+  }
+  for(const group of groups.values())if(group.slots.length>1)findings.push({kind:'same_saved_action_settings',...group});
+  for(const c of page.controls)if(c.inactiveRotations?.length)findings.push({kind:'inactive_rotation_overrides',control:c.control,gestures:c.inactiveRotations});
+  return {source:'saved page, local checks only',profile:page.profile,page:page.page,folder:page.folder,emptySlots:empty,occupied:13-empty.length,findings,note:'Candidates only; do not infer intent or automatically remove duplicates. Compare liveView/dirty before editing.'};
+}
+
+const SECTIONS=['input_trace','layout_review','knowledge','plugin_templates','profiles','page','actions','icon_packs','icons','start_apps','running_windows','device','recent_inputs','plugins','plugin_actions','ha','fusion','app_log','folder_log','usb_log','guide'];
+const TOOL={type:'function',name:'inspect',description:'Read only. sections: profiles; page (profile/page are 1-based, folder "current" or "2:1/3:2" = slot:folder-page, null=root); actions; icon_packs; icons; start_apps; running_windows; device; recent_inputs; input_trace (correlated physical input/dispatch/request/helper evidence, query by packet id or failure); layout_review (local saved-page review); knowledge (filter topic); plugins; plugin_actions; plugin_templates (configured Fusion command IDs / SDK HA entity IDs only); ha; fusion; app_log; folder_log; usb_log; guide. query filters locally, offset paginates. Null for unused arguments. No raw paths, commands or logs.',parameters:{type:'object',properties:{section:{type:'string',enum:SECTIONS},profile:{type:['integer','null']},page:{type:['integer','null']},folder:{type:['string','null']},query:{type:['string','null']},offset:{type:['integer','null']}},required:['section','profile','page','folder','query','offset'],additionalProperties:false},strict:true};
 function validate(a){
   if(!a||Array.isArray(a)||typeof a!=='object'||Object.keys(a).length!==6||!SECTIONS.includes(a.section)||!['profile','page','folder','query','offset'].every(k=>Object.hasOwn(a,k)))throw Error('invalid-query');
   if(a.profile!==null&&!integer(a.profile,1,50)||a.page!==null&&!integer(a.page,1,128)||a.offset!==null&&!integer(a.offset,0,10000)||a.query!==null&&(typeof a.query!=='string'||a.query.length>100)||a.folder!==null&&(typeof a.folder!=='string'||a.folder!=='current'&& !/^(?:[1-9]|1[0-4]):(?:[1-9]|10)(?:\/(?:[1-9]|1[0-4]):(?:[1-9]|10)){0,7}$/.test(a.folder)))throw Error('invalid-query');
   return {...a,offset:a.offset??0,query:a.query||''};
 }
 const GUIDE={product:'DeckForge is a Windows editor for Ulanzi D200X; 13 ordinary LCD keys plus wide display, two side controls and three knobs. Root key positions shown one-based; hardware log indices are raw, zero-based (13/14 wide halves, 15/16 side, 17–19 knob). Profile/page/folder queries return saved data; current view may be different while editing. Pinned keys fill empty root slots. Folder paths use slot:page. A USB transfer or input receipt does not prove display rendering or action success. App/folder traces report specific stages; only verified native window focus is evidence of foreground. SDK plugin connection is not proof a HA entity or Fusion action executed. Inspect is read-only. In edit mode the separate propose_edit tool may stage a preview; only a human-approved local UI action saves settings. AI cannot run programs or send device inputs. For latest behavior query instead of guessing.'};
-function createReader({root,userData,view,device,inputs,ha,fusion,apps=windowsApps,icons=iconMetadata,plugins=pluginMetadata,readState=()=>jsonFile(path.join(userData,'Profiles','profiles.json'),128*1024*1024)}){
+function createReader({root,userData,view,device,inputs,evidence=()=>[],version='unknown',ha,fusion,apps=windowsApps,icons=iconMetadata,plugins=pluginMetadata,readState=()=>jsonFile(path.join(userData,'Profiles','profiles.json'),128*1024*1024)}){
   return function session(){
     let state,iconCache,pluginCache;
     const localCache=new Map();
@@ -179,7 +218,16 @@ function createReader({root,userData,view,device,inputs,ha,fusion,apps=windowsAp
       signal?.throwIfAborted();
       try{
         let result;
-        if(a.section==='guide')result=GUIDE;
+        if(a.section==='guide')result={...GUIDE,version,sections:['input_trace','layout_review','knowledge'],note:'Use knowledge by topic for current implementation. No automatic repair.'};
+        else if(a.section==='knowledge')result={version,...slice(filtered(KNOWLEDGE,q),o,8)};
+        else if(a.section==='input_trace'){
+          const snapshot=evidence();
+          const rows=snapshot.slice().reverse().map(assess);
+          const selected=filtered(rows,q),exact=q?snapshot.find(x=>x.id===q):null;
+          result={...slice(selected,o,12),...(exact?{detail:exact}:{}),source:'bounded session post-filter packet IDs; delivered means sending attempted, renderer stage confirms receipt; only explicitly linked stages, not proof of external effects'};
+        }else if(a.section==='layout_review'){
+          state??=await readState();result={...layoutReview(state,a),liveView:await view().catch(()=>null)};
+        }
         else if(a.section==='plugin_templates'){
           state??=await readState();
           const rows=walkTemplates(state).map(x=>({kind:x.kind,id:label(x.id,256),name:label(x.name,120)}));
@@ -222,4 +270,4 @@ function createReader({root,userData,view,device,inputs,ha,fusion,apps=windowsAp
     };
   };
 }
-module.exports={TOOL,SECTIONS,validate,createReader,action,resolvePage,profileList,logRecord,label,tail};
+module.exports={TOOL,SECTIONS,validate,createReader,action,resolvePage,profileList,logRecord,label,tail,layoutReview};

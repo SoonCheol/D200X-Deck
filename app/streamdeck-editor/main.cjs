@@ -199,7 +199,9 @@ function newAiReadSession(){
       transferPending:Boolean(transport.pending||transport.inFlight),
       lastWriteAt:transport.lastWriteAt?new Date(transport.lastWriteAt).toISOString():null,
       source:'HID transport state, not proof of physical screen or action success'}),
-    inputs:()=>aiRecentInputs,
+    inputs:()=>aiEvidence.list().slice(-64).map(({events,...input})=>input),
+    evidence:()=>aiEvidence.list(),
+    version:app.getVersion(),
     ha:async()=>{
       const config=readHaConfig();
       if(!config)return {configured:false,entities:[]};
@@ -473,15 +475,19 @@ function send(channel, payload) {
   }
 }
 transport.on('status', status => send('d200x:status', status));
-transport.on('key', event => send('d200x:key', event));
-// Fixed-size in-memory evidence only; never change the existing key dispatch.
-const aiRecentInputs=[];
+// Runtime evidence is bounded in memory, independent of HID and disk logging.
+const aiEvidence=require('./ai/evidence.cjs').createEvidence({id:randomUUID});
 transport.on('key',event=>{
-  aiRecentInputs.push({at:new Date().toISOString(),index:Number(event.index),kind:Number(event.kind),
-    state:Number(event.state),pressed:event.pressed===true,knob:event.knob===true,
-    ...(event.knob===true?{gesture:event.gesture}: {})});
-  if(aiRecentInputs.length>64)aiRecentInputs.shift();
+  const delivered=Boolean(rendererReady&&window&&!window.isDestroyed());
+  const inputId=aiEvidence.receive(event,delivered);
+  send('d200x:key',{...event,inputId});
 });
+ipcMain.on('d200x:input-evidence',(event,record)=>{
+  if(!window||event.sender!==window.webContents||event.senderFrame!==window.webContents.mainFrame)return;
+  if(!record||!aiEvidence.has(record.inputId))return;
+  aiEvidence.append(record.inputId,record);
+});
+const linkInput=(traceId,inputId)=>{if(aiEvidence.has(inputId))aiEvidence.link(traceId,inputId);return traceId;};
 transport.on('synced', details => send('d200x:synced', details));
 transport.on('error-message', message => send('d200x:error', message));
 let diagnosticPath = null;
@@ -712,6 +718,7 @@ ipcMain.handle('d200x:device-brightness',(event,args)=>{
 
 // Diagnostic records stay in this Windows user's DeckForge data, never in the source tree.
 async function writeAppControlLog(record){
+  aiEvidence.helper(record);
   try{
     const dir=path.join(app.getPath('userData'),'diagnostics');
     await fs.promises.mkdir(dir,{recursive:true});
@@ -756,6 +763,7 @@ ipcMain.handle('d200x:close-local-app',async(event,args)=>{
   if(!window||event.sender!==window.webContents)throw new Error('허용되지 않은 호출입니다.');
   const filePath=args?.filePath;
   const traceId=typeof args?.trace?.id==='string'&&/^[a-zA-Z0-9-]{1,80}$/.test(args.trace.id)?args.trace.id:randomUUID();
+  linkInput(traceId,args?.trace?.inputId);
   const mode=args?.force===true?'Force':'Close';
   await writeAppControlLog({traceId,stage:'ipc-request',version:app.getVersion(),mainPid:process.pid,
     force:args?.force,mode,filePath,trace:args?.trace||null});
@@ -847,7 +855,7 @@ ipcMain.handle('d200x:open-terminal',async(event,args)=>{
   if(process.platform!=='win32'||typeof args?.admin!=='boolean')throw Error('올바른 터미널 실행 요청이 아닙니다.');
   const foreground=args.foreground!==false,preventDuplicate=args.preventDuplicate!==false;
   const spec={kind:'Terminal',target:args.admin?'admin':'normal'};
-  const traceId=randomUUID();
+  const traceId=linkInput(randomUUID(),args?.inputId);
   const launch=()=>focusOrLaunch({
     foreground,preventDuplicate,
     focus:(mode,exclude)=>inspectAppFocus(spec,mode,traceId,exclude),
@@ -1144,6 +1152,7 @@ ipcMain.handle('d200x:inspect-dropped-target',async(event,args)=>{
 // Dedicated folder control; do not reuse process-based app focus (multiple Explorer windows share a PID).
 let folderControlTail=Promise.resolve();
 async function writeFolderControlLog(record){
+  aiEvidence.helper(record);
   try{
     const dir=path.join(app.getPath('userData'),'diagnostics');
     await fs.promises.mkdir(dir,{recursive:true});
@@ -1151,8 +1160,8 @@ async function writeFolderControlLog(record){
       JSON.stringify({at:new Date().toISOString(),...record})+'\n','utf8');
   }catch(error){console.warn('DeckForge folder control diagnostic:',error.message);}
 }
-async function runFolderControl(filePath,alwaysNewWindow,foreground=true){
-  const traceId=randomUUID();
+async function runFolderControl(filePath,alwaysNewWindow,foreground=true,inputId){
+  const traceId=linkInput(randomUUID(),inputId);
   const record={traceId,version:app.getVersion(),mainPid:process.pid,path:filePath,alwaysNewWindow,
     foreground,mode:alwaysNewWindow?(foreground?'New':'NewPassive'):(foreground?'Focus':'Probe')};
   await writeFolderControlLog({...record,stage:'request'});
@@ -1176,8 +1185,8 @@ async function runFolderControl(filePath,alwaysNewWindow,foreground=true){
     throw error;
   }
 }
-function queueFolderControl(filePath,alwaysNewWindow,foreground=true){
-  const task=folderControlTail.then(()=>runFolderControl(filePath,alwaysNewWindow,foreground));
+function queueFolderControl(filePath,alwaysNewWindow,foreground=true,inputId){
+  const task=folderControlTail.then(()=>runFolderControl(filePath,alwaysNewWindow,foreground,inputId));
   folderControlTail=task.catch(()=>{});
   return task;
 }
@@ -1200,7 +1209,7 @@ async function openLocalPath(args){
     throw new Error('선택한 파일/폴더 유형이 일치하지 않습니다.');
   const extra=String(args?.args||'');
   if(process.platform==='win32'&&args.target==='folder'&&!extra.trim())
-    return queueFolderControl(filePath,args.alwaysNewWindow===true,args.foreground!==false);
+    return queueFolderControl(filePath,args.alwaysNewWindow===true,args.foreground!==false,args.inputId);
   if(!extra.trim()){
     const error=await shell.openPath(filePath);
     if(error)throw new Error(error);
@@ -1237,7 +1246,7 @@ ipcMain.handle('d200x:open-application',async(event,args)=>{
     if(preventDuplicate)throw Error('중복 실행 방지는 EXE 또는 등록된 프로그램에서만 지원합니다. 옵션을 해제하고 실행하세요.');
     return openLocalPath(args);
   }
-  const traceId=randomUUID();
+  const traceId=linkInput(randomUUID(),args?.inputId);
   const launch=()=>focusOrLaunch({
     foreground,preventDuplicate,
     focus:(mode,exclude)=>inspectAppFocus(spec,mode,traceId,exclude),
