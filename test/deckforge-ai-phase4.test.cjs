@@ -142,3 +142,28 @@ test('new live Fusion command registration requires local exact data and preserv
  assert.throws(()=>A.makePlan(s,{...q,slot:5},resource));assert.throws(()=>A.makePlan(s,{...q,slot:9},resource));
  assert.throws(()=>A.validate(req('plugin',{kind:'fusion-live',id:'../invalid'},{slot:3})));
 });
+
+test('Fusion batch spans existing pages atomically and protects all existing slots',()=>{
+ const s=fixture();s.pages.push(Array(14).fill(null),Array(14).fill(null));
+ const before=JSON.stringify(s),one={page:1,slot:3,id:'SketchLine',title:'선'},two={page:2,slot:4,id:'CircleCenterRadius',title:'원'};
+ const q=keys=>req('fusion_batch',{keys});
+ const resources={fusionBatch:[{id:one.id,name:'Line'},{id:two.id,name:'Circle'}]};
+ const p=A.makePlan(s,q([one,two]),resources);
+ assert.equal(p.rows.length,2);assert.equal(p.rows[1].page,2);assert.equal(p.rows[1].slot,4);
+ assert.equal(p.next.pages[0][2].title,'선');assert.equal(p.next.pages[1][3].settings.pluginSettings.commandId,two.id);
+ assert.equal(p.next.pages[0][4],s.pages[0][4]);assert.equal(p.next.pages[2],s.pages[2]);assert.equal(p.next.controls,s.controls);
+ for(const bad of [{...two,page:1,slot:5},{...two,slot:9},{...two,page:4},{...two,id:'Unknown'},{...two,page:1,slot:3},{...two,slot:14}]){
+   assert.throws(()=>A.makePlan(s,q([one,bad]),resources));assert.equal(JSON.stringify(s),before);
+ }
+ assert.throws(()=>A.makePlan(s,q([one,two]),{fusionBatch:[resources.fusionBatch[0]]}));
+ assert.throws(()=>A.validate({...q([one,two]),folder:'2:1'}));
+ assert.throws(()=>A.validate(q(Array.from({length:14},(_,i)=>({...one,page:i+1})))));
+ assert.equal(JSON.stringify(s),before);
+});
+test('Fusion multi-query search returns bounded distinct matches fairly',()=>{
+ const rows=[{id:'Line',name:'Line',ko:'선',en:'Line',category:'Sketch',tooltip:''},{id:'Line2',name:'Line tool',ko:'선 도구',en:'Line tool',category:'Sketch',tooltip:''},{id:'Circle',name:'Circle',ko:'원',en:'Circle',category:'Sketch',tooltip:''}];
+ const result=FusionLive.search(rows,'선|원',0,2);
+ assert.deepEqual(result.items.map(r=>r.id),['Line','Circle']);assert.equal(result.total,3);assert.equal(result.nextOffset,2);
+ assert.deepEqual(FusionLive.search(rows,'선|원',2,2).items.map(r=>r.id),['Line2']);
+ assert.throws(()=>FusionLive.search(rows,'선||원'));
+});

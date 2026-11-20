@@ -33,6 +33,15 @@ function projectCommands(raw,names=new Map()){
 }
 function search(rows,query,offset=0,limit=20){
  const q=String(query||'').trim().toLowerCase(),terms=q.split(/\s+/).filter(Boolean);
+ if(q.includes('|')){
+  const queries=[...new Set(q.split('|').map(x=>x.trim()))];
+  if(queries.length>13||queries.some(x=>!x))throw Error('invalid-fusion-batch-query');
+  const groups=queries.map(term=>search(rows,term,0,rows.length)),merged=[],seen=new Set();
+  for(let i=0;i<Math.max(...groups.map(g=>g.items.length));i++){
+   for(const g of groups){const row=g.items[i];if(row&&!seen.has(row.id)){seen.add(row.id);merged.push(row);}}
+  }
+  return {total:merged.length,offset,items:merged.slice(offset,offset+limit),nextOffset:offset+limit<merged.length?offset+limit:null,queries:queries.map((query,i)=>({query,total:groups[i].total}))};
+ }
  const found=rows.filter(r=>{const hay=[r.id,r.name,r.ko,r.en,r.category,r.tooltip].join(' ').toLowerCase();return terms.every(t=>hay.includes(t));});
  if(q)found.sort((a,b)=>{
   const score=r=>r.id.toLowerCase()===q?0:[r.name,r.ko,r.en].some(x=>x.toLowerCase()===q)?1:2;

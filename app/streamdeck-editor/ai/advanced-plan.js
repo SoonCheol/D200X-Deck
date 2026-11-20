@@ -4,11 +4,12 @@
   if(typeof module==='object'&&module.exports)module.exports=factory(require('../deck-core.js'),require('../hotkey-keys.js'),require('./edit-plan.js'));
   else root.DeckForgeAiAdvanced=factory(root.DeckCore,root.DeckHotkeys,root.DeckForgeAiPlan);
 })(globalThis,(Core,Hotkeys,Basic)=>{
-  const KINDS=['folder_keys','folder_page','folder_settings','control','wide','composite','state_design','plugin'];
-  const TOOL={type:'function',name:'propose_advanced',strict:true,description:'Stage ONE advanced preview, never save. Active profile, page 1-based (null=current), folder route "2:1/3:2" means slot:folder-page (null=root; folder kinds require route); slot 1–13 except control 1–5 (side first/back, knobs 1–3). configJson is JSON object string: folder_keys {keys:[{slot,op:"put"|"update"|"delete",type?,value?,title?}]} max8; folder_page {}; folder_settings {title?,autoExitEnabled?,autoExitSeconds?}; control {scope?:"global"|"page",mode?:"trigger"|"stack",target?,step?:1|2|5|10,reverse?,stack?:[targets],heldEnabled?,heldMode?,heldTarget?,heldStep?,heldReverse?,heldStack?,gesture?:"down"|"left"|"right"|"holdLeft"|"holdRight"|"sideHold",action?:{type,value,title}|null}; targets page/profile/volume/zoom/scroll/scroll-x/history/window/desktop/brightness. Side slots 1–2 accept only scope and down/sideHold with previous,next,goto or null; use editor for other navigation. wide {enabled:[clock|datetime|stats|knobs],order?:[all four],current?}. composite {type:"multi"|"multi-switch"|"random"|"logic",title?,steps?:[{type,value,title}],second?:[steps],single?:step,double?:step,hold?:step}; delay type value milliseconds string. state_design {first?:{title?,enabled?,size?,color?,bold?,background?,iconName?,iconPack?},second?:same}. plugin {kind:"ha"|"sdk-ha"|"fusion"|"fusion-live",id,title?}; ha verify REST entity; sdk-ha/fusion reuse verified registered template from inspect plugin_templates; fusion-live creates new button using exact ID from inspect fusion_commands, revalidated locally against current Fusion and installed SDK. For simple steps use hotkey,previous,next,indicator,goto,clipboard-edit,media,system-mute,explorer-open; folder_keys also folder/open-app/file-open/folder-shortcut (verified Start Apps AppID or user-supplied local path). No paths or arbitrary settings. Existing protected actions cannot be deleted/replaced. One operation kind per proposal; user applies locally.',parameters:{type:'object',properties:{kind:{type:'string',enum:KINDS},page:{type:['integer','null']},folder:{type:['string','null']},slot:{type:['integer','null']},configJson:{type:'string'}},required:['kind','page','folder','slot','configJson'],additionalProperties:false}};
+  const KINDS=['folder_keys','folder_page','folder_settings','control','wide','composite','state_design','plugin','fusion_batch'];
+  const TOOL={type:'function',name:'propose_advanced',strict:true,description:'Stage ONE advanced preview, never save. Active profile, page 1-based (null=current), folder route "2:1/3:2" means slot:folder-page (null=root; folder kinds require route); slot 1–13 except control 1–5 (side first/back, knobs 1–3). configJson is JSON object string: folder_keys {keys:[{slot,op:"put"|"update"|"delete",type?,value?,title?}]} max8; folder_page {}; folder_settings {title?,autoExitEnabled?,autoExitSeconds?}; control {scope?:"global"|"page",mode?:"trigger"|"stack",target?,step?:1|2|5|10,reverse?,stack?:[targets],heldEnabled?,heldMode?,heldTarget?,heldStep?,heldReverse?,heldStack?,gesture?:"down"|"left"|"right"|"holdLeft"|"holdRight"|"sideHold",action?:{type,value,title}|null}; targets page/profile/volume/zoom/scroll/scroll-x/history/window/desktop/brightness. Side slots 1–2 accept only scope and down/sideHold with previous,next,goto or null; use editor for other navigation. wide {enabled:[clock|datetime|stats|knobs],order?:[all four],current?}. composite {type:"multi"|"multi-switch"|"random"|"logic",title?,steps?:[{type,value,title}],second?:[steps],single?:step,double?:step,hold?:step}; delay type value milliseconds string. state_design {first?:{title?,enabled?,size?,color?,bold?,background?,iconName?,iconPack?},second?:same}. plugin {kind:"ha"|"sdk-ha"|"fusion"|"fusion-live",id,title?}; ha verify REST entity; sdk-ha/fusion reuse verified registered template from inspect plugin_templates; fusion-live creates new button using exact ID from inspect fusion_commands, revalidated locally against current Fusion and installed SDK. fusion_batch {keys:[{page,slot,id,title?}]} 1–13 new Fusion buttons in existing active-profile root pages, page/slot required per key; outer page,folder,slot must all be null. All slots must be distinct, empty and not pinned; all IDs verified in one fresh local list; no page creation. For simple steps use hotkey,previous,next,indicator,goto,clipboard-edit,media,system-mute,explorer-open; folder_keys also folder/open-app/file-open/folder-shortcut (verified Start Apps AppID or user-supplied local path). No paths or arbitrary settings. Existing protected actions cannot be deleted/replaced. One operation kind per proposal; user applies locally.',parameters:{type:'object',properties:{kind:{type:'string',enum:KINDS},page:{type:['integer','null']},folder:{type:['string','null']},slot:{type:['integer','null']},configJson:{type:'string'}},required:['kind','page','folder','slot','configJson'],additionalProperties:false}};
   const fail=m=>{throw Error(m);}, clone=x=>JSON.parse(JSON.stringify(x)), has=(x,k)=>Object.hasOwn(x,k);
   const obj=x=>!!x&&typeof x==='object'&&!Array.isArray(x), int=(v,a,b)=>Number.isInteger(v)&&v>=a&&v<=b;
   const str=(v,n=120)=>typeof v==='string'&&v.length<=n&&!/[\x00-\x1f\x7f]/.test(v);
+  const fusionId=id=>typeof id==='string'&&/^[A-Za-z0-9._-]{1,180}$/.test(id)&&id!=='.'&&id!=='..';
   const color=v=>typeof v==='string'&&/^#[a-f0-9]{6}$/i.test(v);
   const bool=v=>typeof v==='boolean';
   const TARGETS=['page','profile','volume','zoom','scroll','scroll-x','history','window','desktop','brightness'];
@@ -68,9 +69,14 @@
         exact(c,['first','second']);for(const k of ['first','second'])if(has(c,k)){
           const v=c[k];exact(v,['title','enabled','size','color','bold','background','iconName','iconPack']);optional(v,'title',x=>str(x,80));optional(v,'enabled',bool);optional(v,'size',x=>int(x,8,48));optional(v,'color',color);optional(v,'bold',bool);optional(v,'background',x=>x===null||color(x));optional(v,'iconName',x=>str(x)&&x.trim().length>0);optional(v,'iconPack',x=>str(x)&&x.trim().length>0);if(has(v,'iconPack')&&!v.iconName)fail('아이콘 이름이 필요합니다.');
         }break;
+      case 'fusion_batch':
+        if(raw.page!==null||raw.folder!==null||raw.slot!==null)fail('일괄 등록은 각 버튼의 페이지와 슬롯을 지정하세요.');
+        exact(c,['keys']);if(!Array.isArray(c.keys)||!int(c.keys.length,1,13))fail('Fusion 일괄 등록은 1~13개입니다.');
+        {const seen=new Set();for(const x of c.keys){exact(x,['page','slot','id','title']);if(!int(x.page,1,128)||!int(x.slot,1,13)||seen.has(x.page+':'+x.slot))fail('일괄 등록 페이지 또는 버튼 번호 오류');seen.add(x.page+':'+x.slot);if(!fusionId(x.id))fail('정확한 Fusion 명령 ID를 지정하세요.');optional(x,'title',v=>str(v,80));}}
+        break;
       case 'plugin':
         exact(c,['kind','id','title']);if(!['ha','sdk-ha','fusion','fusion-live'].includes(c.kind)||!str(c.id,256)||!c.id.trim())fail('플러그인 식별자를 지정하세요.');
-        if(c.kind==='fusion-live'&&(!/^[A-Za-z0-9._-]{1,180}$/.test(c.id)||c.id==='.'||c.id==='..'))fail('정확한 Fusion 명령 ID를 지정하세요.');
+        if(c.kind==='fusion-live'&&!fusionId(c.id))fail('정확한 Fusion 명령 ID를 지정하세요.');
         if(['ha','sdk-ha'].includes(c.kind)&&!/^(light|switch|fan|input_boolean)\.[a-z0-9_]+$/.test(c.id))fail('지원하지 않는 HA 엔티티입니다.');
         optional(c,'title',v=>str(v,80));break;
     }
@@ -112,9 +118,35 @@
     return a;
   }
   function protectedBasic(a){return a&&(![...SIMPLE,...PATH_TYPES].includes(a.type)||a.settings?.stateTitles||a.settings?.keyPressIcons||a.settings?.sdkStateIcons||a.settings?.keyBackgrounds);}
+  function fusionButton(c,live){
+    if(live?.id!==c.id||!str(live.name,120)||!live.name.trim())fail('현재 Fusion 명령을 확인하지 못했습니다.');
+    const item=Core.createAction('sd-plugin');
+    item.title=has(c,'title')?c.title:live.name.slice(0,30);
+    item.settings.pluginUUID='com.autodesk.fusionstreamdeck';
+    item.settings.actionUUID='com.autodesk.fusionstreamdeck.runcommand';
+    item.settings.actionName='Fusion 명령 실행';
+    item.settings.pluginSettings={commandId:c.id,name:live.name};
+    return item;
+  }
+  function makeFusionBatch(state,c,resources){
+    const next={...state,pages:state.pages.slice()},rows=[],copied=new Set();
+    const live=new Map((Array.isArray(resources.fusionBatch)?resources.fusionBatch:[]).map(x=>[x?.id,x]));
+    for(const x of c.keys){
+      const pi=x.page-1,i=x.slot-1,old=state.pages[pi];
+      if(!Array.isArray(old))fail('대상 페이지가 없습니다.');
+      if(state.pinned?.[i])fail('고정 또는 예약 버튼은 변경할 수 없습니다.');
+      if(old[i])fail('대상 버튼이 비어 있지 않습니다.');
+      const item=fusionButton(x,live.get(x.id));
+      if(!copied.has(pi)){next.pages[pi]=old.slice();copied.add(pi);}
+      next.pages[pi][i]=item;
+      rows.push({op:'plugin',page:x.page,slot:x.slot,folder:null,before:{title:'비어 있음'},after:{title:summary(item)+' · fusion-live · '+x.id+' · 실시간 확인한 명령 신규 등록'}});
+    }
+    return {next,rows,profile:state.profileNames?.find(p=>p.id===state.profileId)?.name||'기본 프로필'};
+  }
   function makePlan(state,raw,resources={}){
     const a=validate(raw),c=JSON.parse(a.configJson);
     if(!Array.isArray(state?.pages)||!state.pages.length)fail('프로필이 없습니다.');
+    if(a.kind==='fusion_batch')return makeFusionBatch(state,c,resources);
     const pi=(a.page??state.page+1)-1;
     if(!state.pages[pi])fail('대상 페이지가 없습니다.');
     const next={...state,pages:state.pages.slice()},rows=[];
@@ -201,14 +233,7 @@
           if(resources.ha?.id!==c.id)fail('HA 엔티티를 확인하지 못했습니다.');
           item=Core.createAction('ha-toggle');item.settings.entityId=c.id;item.title=c.title||resources.ha.name||c.id;
         }else if(c.kind==='fusion-live'){
-          const live=resources.fusionLive;
-          if(live?.id!==c.id||!str(live.name,120)||!live.name.trim())fail('현재 Fusion 명령을 확인하지 못했습니다.');
-          item=Core.createAction('sd-plugin');
-          item.title=has(c,'title')?c.title:live.name.slice(0,30);
-          item.settings.pluginUUID='com.autodesk.fusionstreamdeck';
-          item.settings.actionUUID='com.autodesk.fusionstreamdeck.runcommand';
-          item.settings.actionName='Fusion 명령 실행';
-          item.settings.pluginSettings={commandId:c.id,name:live.name};
+          item=fusionButton(c,resources.fusionLive);
         }else{
           const found=walkTemplates(state).find(x=>x.kind===c.kind&&x.id===c.id);
           if(!found||resources.template?.kind!==c.kind||resources.template?.id!==c.id)fail('설치된 플러그인과 등록된 명령 또는 장치 설정을 확인하세요.');
