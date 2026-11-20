@@ -127,6 +127,8 @@ try {
   profileStorageError=String(error?.message||error);
   state=DeckCore.migrateState(null);
 }
+const pageVisitTracker=DeckCore.createPageVisitTracker();
+pageVisitTracker.observe(state);
 let inspectorSession=null;
 let inspectorEditing=false;
 const persist=(scheduleSync=true)=>{
@@ -4380,7 +4382,9 @@ function executeSideNavigation(index,gesture,event){
   }
   cancelFolderAutoExit();
   const config=indicator?DeckCore.sharedIndicatorConfig(state,DeckCore.visibleActions(state)[index],gesture):DeckCore.sideActionConfig(DeckCore.controlBinding(state,index),index,gesture);
-  if(!DeckCore.applySideNavigation(state,outcome))return '이동할 대상이 없습니다.';
+  if(indicator&&['history-back','profile-history','folder-history'].includes(outcome.kind)){
+    if(!pageVisitTracker.returnPrevious(state,outcome.kind))return '돌아갈 '+({'history-back':'직전 페이지','profile-history':'직전 프로필','folder-history':'직전 덱폴더'}[outcome.kind])+'가 없습니다.';
+  }else if(!DeckCore.applySideNavigation(state,outcome))return '이동할 대상이 없습니다.';
   lastHardwareDown.clear();persist();render();
   return (indicator?DeckCore.INDICATOR_NAV_LABELS:DeckCore.SIDE_NAV_LABELS)[config.navigation];
 }
@@ -4912,6 +4916,7 @@ window.executeD200XKey=tracedPhysicalDispatch;
 
 let refreshProfilesMenu=()=>{};
 function render(){
+  pageVisitTracker.observe(state);
   const scope=openAppHoldScope();
   if(scope!==lastOpenAppHoldScope){
     clearOpenAppHoldTimers('navigation');invalidateSidePresses();clearMultiPhysicalPresses();

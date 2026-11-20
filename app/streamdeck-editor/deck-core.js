@@ -403,12 +403,12 @@
     home:'홈',none:'동작 없음'
   });
   const INDICATOR_NAV_LABELS=Object.freeze(Object.fromEntries(
-    ['none','first','previous','next','last','goto','profile-previous','profile-next','profile-select','folder-back','home','editor-open']
-      .map(key=>[key,key==='editor-open'?'DeckForge 열기':SIDE_NAV_LABELS[key]])));
+    ['none','first','previous','history-back','next','last','goto','profile-previous','profile-history','profile-next','profile-select','folder-back','folder-history','home','editor-open']
+      .map(key=>[key,({'editor-open':'DeckForge 열기','history-back':'직전 페이지','profile-history':'직전 프로필','folder-history':'직전 덱폴더'})[key]||SIDE_NAV_LABELS[key]])));
   function indicatorConfig(action,gesture='down'){
     const raw=action?.settings?.[gesture==='hold'?'indicatorHold':'indicatorDown'];
     if(action?.type!=='indicator'||!raw||!Object.hasOwn(INDICATOR_NAV_LABELS,raw.navigation))return {navigation:'none'};
-    return raw.navigation==='editor-open'?{navigation:'editor-open'}:sideConfig({type:'side-nav',settings:raw});
+    return ['editor-open','history-back','profile-history','folder-history'].includes(raw.navigation)?{navigation:raw.navigation}:sideConfig({type:'side-nav',settings:raw});
   }
   const SIDE_HOLD_MS=650;
   function sideConfig(action){
@@ -514,6 +514,71 @@
       state.folderPath=nodes.map(n=>n.slot);state.selected=null;return true;
     }
     return false;
+  }
+  // Runtime-only navigation history. Identity checks prevent returning to
+  // unrelated pages or folders after deletion or replacement.
+  function createPageVisitTracker(){
+    let owner=null,profile=null,previousProfile=null,current=null,previous=null,lastFolder=null,previousFolder=null;
+    function capture(state){
+      const root=state.pages?.[state.page];
+      if(!Array.isArray(root))return null;
+      let row=root;const route=[],nodes=[];
+      for(const [depth,slot] of (state.folderPath||[]).entries()){
+        const folder=row[slot]||(depth===0?state.pinned?.[slot]:null);
+        if(folder?.type!=='folder')return null;
+        const page=folder.pageIndex||0;
+        row=folderContents(folder);if(!Array.isArray(row))return null;
+        route.push([slot,page]);nodes.push(folder);
+      }
+      return {rootPage:state.page,root,route,nodes,row};
+    }
+    const same=(a,b)=>!!a&&!!b&&a.rootPage===b.rootPage&&a.root===b.root&&a.row===b.row&&
+      JSON.stringify(a.route)===JSON.stringify(b.route)&&a.nodes.length===b.nodes.length&&a.nodes.every((node,i)=>node===b.nodes[i]);
+    const sameFolder=(a,b)=>!!a&&!!b&&a.root===b.root&&a.nodes.length===b.nodes.length&&a.nodes.every((node,i)=>node===b.nodes[i]);
+    function observe(state){
+      const next=capture(state);
+      if(owner!==state||profile!==state.profileId){
+        previousProfile=owner===state?profile:null;
+        owner=state;profile=state.profileId;current=next;previous=null;
+        lastFolder=next?.route.length?next:null;previousFolder=null;return;
+      }
+      if(!next){current=null;previous=null;lastFolder=null;previousFolder=null;return;}
+      if(!same(current,next)){previous=current;current=next;}
+      if(next.route.length){
+        if(lastFolder&&!sameFolder(lastFolder,next))previousFolder=lastFolder;
+        lastFolder=next;
+      }
+    }
+    function restore(state,dest){
+      if(!dest||state.pages?.[dest.rootPage]!==dest.root)return false;
+      const nodes=dest.route.length?sideFolderNodes(state,{rootPage:dest.rootPage,route:dest.route}):[];
+      if(!nodes||nodes.some((node,i)=>node.folder!==dest.nodes[i]))return false;
+      const leaf=nodes[nodes.length-1];
+      const row=leaf?(leaf.page===0?leaf.folder.children:leaf.folder.pages?.[leaf.page-1]):dest.root;
+      if(row!==dest.row)return false;
+      state.page=dest.rootPage;
+      for(const node of nodes)node.folder.pageIndex=node.page;
+      state.folderPath=dest.route.map(pair=>pair[0]);state.selected=null;
+      observe(state);return true;
+    }
+    function returnPrevious(state,kind='history-back'){
+      observe(state);
+      if(kind==='profile-history'){
+        if(!previousProfile||previousProfile===state.profileId||!switchProfile(state,previousProfile))return false;
+        observe(state);return true;
+      }
+      if(kind==='folder-history'){
+        const inside=!!current?.route.length,dest=inside?previousFolder:lastFolder;
+        if(!dest||sameFolder(current,dest))return false;
+        if(restore(state,dest))return true;
+        if(inside)previousFolder=null;else lastFolder=null;
+        return false;
+      }
+      if(!previous||!current||same(previous,current))return false;
+      if(restore(state,previous))return true;
+      previous=null;return false;
+    }
+    return {observe,returnPrevious};
   }
   function createSidePressTracker(){
     const pressed=new Map();
@@ -1260,5 +1325,5 @@
       url:action.settings?.url||'',mode:action.settings?.open||'default',browserPath:action.settings?.browserPath||''};
     return {kind:'unsupported',message:'이 동작의 실행 기능은 아직 구현되지 않았습니다.'};
   }
-  return {ACTION_IDS,D200X_ACTION_IDS,PLUGIN_ACTION_IDS,DEFAULTS,TITLE,INDICATOR_NUMBER_STYLE,INDICATOR_NAV_LABELS,indicatorConfig,indicatorCommon,sharedIndicatorConfig,updateIndicatorCommon,manageIndicators,planIndicatorNavigation,indicatorPinState,setIndicatorPinned,SIDE_NAV_LABELS,SIDE_HOLD_MS,sideConfig,makeSideAction,sideActionConfig,sideFolderTargets,planSideNavigation,applySideNavigation,createSidePressTracker,createAction,cleanAction,cleanCompositeEntry,timerSeconds,formatTimerTime,displaySwitchAction,compositeModel,planComposite,runComposite,createMultiPauseGate,multiRows,setMultiRows,blankPage,cleanWideDisplay,cycleWideDisplay,isWideDisplayPress,folderContents,folderPageCount,changeFolderPage,addFolderPage,deleteFolderPage,editPageStructure,currentActions,visibleActions,togglePinned,activeFolder,enterFolder,exitFolder,migrateState,profileSnapshot,switchProfile,createProfile,renameProfile,exportSingleProfile,setProfileApp,matchForegroundProfile,deleteProfile,previewHardwareEvent,physicalSlot,hardwareGesture,resolveHardwareEvent,runtimeActionKey,folderWideBackEvent,resolveKeyPress,planHardwareEvent,deletePage,planAction,emptyBinding,cleanBinding,controlAction,activeControlAction,assignControlAction,automaticControl,ensureControls,controlBinding,changeControlScope};
+  return {ACTION_IDS,D200X_ACTION_IDS,PLUGIN_ACTION_IDS,DEFAULTS,TITLE,INDICATOR_NUMBER_STYLE,INDICATOR_NAV_LABELS,indicatorConfig,indicatorCommon,sharedIndicatorConfig,updateIndicatorCommon,manageIndicators,planIndicatorNavigation,indicatorPinState,setIndicatorPinned,SIDE_NAV_LABELS,SIDE_HOLD_MS,sideConfig,makeSideAction,sideActionConfig,sideFolderTargets,planSideNavigation,applySideNavigation,createPageVisitTracker,createSidePressTracker,createAction,cleanAction,cleanCompositeEntry,timerSeconds,formatTimerTime,displaySwitchAction,compositeModel,planComposite,runComposite,createMultiPauseGate,multiRows,setMultiRows,blankPage,cleanWideDisplay,cycleWideDisplay,isWideDisplayPress,folderContents,folderPageCount,changeFolderPage,addFolderPage,deleteFolderPage,editPageStructure,currentActions,visibleActions,togglePinned,activeFolder,enterFolder,exitFolder,migrateState,profileSnapshot,switchProfile,createProfile,renameProfile,exportSingleProfile,setProfileApp,matchForegroundProfile,deleteProfile,previewHardwareEvent,physicalSlot,hardwareGesture,resolveHardwareEvent,runtimeActionKey,folderWideBackEvent,resolveKeyPress,planHardwareEvent,deletePage,planAction,emptyBinding,cleanBinding,controlAction,activeControlAction,assignControlAction,automaticControl,ensureControls,controlBinding,changeControlScope};
 });

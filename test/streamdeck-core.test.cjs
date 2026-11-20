@@ -1389,3 +1389,59 @@ test('independent indicator Down title stays local and Down number style persist
  assert.equal(core.indicatorCommon(restored).indicatorNumberStyle.visible,true);
  assert.equal(core.indicatorCommon(restored).indicatorDownNumberStyle.size,20);
 });
+
+test('indicator history options remain distinct from numeric previous, persist and plan',()=>{
+  const s=core.migrateState({pages:[[],[],[],[],[]]});
+  const item=s.pages[4][0]=core.createAction('indicator');s.page=4;
+  core.updateIndicatorCommon(s,item,{indicatorDown:{navigation:'previous'}});
+  assert.deepEqual(core.planIndicatorNavigation(s,0),{kind:'page',page:3});
+  for(const navigation of ['history-back','profile-history','folder-history']){
+    core.updateIndicatorCommon(s,item,{indicatorHold:{navigation}});
+    assert.deepEqual(core.planIndicatorNavigation(s,0,'hold'),{kind:navigation});
+    assert.equal(core.indicatorCommon(core.migrateState(JSON.parse(JSON.stringify(s)))).indicatorHold.navigation,navigation);
+  }
+});
+test('last visited page toggles, ignores same-page renders, resets on snapshot replacement',()=>{
+  const s=core.migrateState({pages:[[],[],[],[],[]]});
+  const tracker=core.createPageVisitTracker();
+  s.page=4;tracker.observe(s);
+  assert.equal(tracker.returnPrevious(s),false);
+  s.page=0;tracker.observe(s);tracker.observe(s);
+  assert.equal(tracker.returnPrevious(s),true);assert.equal(s.page,4);
+  assert.equal(tracker.returnPrevious(s),true);assert.equal(s.page,0);
+  s.pages[4]=core.blankPage();
+  assert.equal(tracker.returnPrevious(s),false);
+  const fresh=core.migrateState(JSON.parse(JSON.stringify(s)));
+  tracker.observe(fresh);assert.equal(tracker.returnPrevious(fresh),false);
+});
+test('last visited folder restores nested pages and alternates distinct folders',()=>{
+  const s=core.migrateState({pages:[[],[],[]]});
+  const folder=s.pages[2][0]=core.createAction('folder');
+  folder.children=Array(14).fill(null);folder.pages=[Array(14).fill(null)];folder.pageIndex=1;
+  const nested=folder.pages[0][1]=core.createAction('folder');
+  nested.children=Array(14).fill(null);nested.pages=[Array(14).fill(null)];nested.pageIndex=1;
+  const tracker=core.createPageVisitTracker();
+  s.page=2;s.folderPath=[0];tracker.observe(s);
+  s.folderPath=[0,1];tracker.observe(s);
+  s.page=0;s.folderPath=[];tracker.observe(s);
+  folder.pageIndex=0;nested.pageIndex=0;
+  assert.equal(tracker.returnPrevious(s,'folder-history'),true);
+  assert.equal(s.page,2);assert.deepEqual(s.folderPath,[0,1]);
+  assert.equal(folder.pageIndex,1);assert.equal(nested.pageIndex,1);
+  assert.equal(tracker.returnPrevious(s,'folder-history'),true);assert.deepEqual(s.folderPath,[0]);
+  assert.equal(tracker.returnPrevious(s,'folder-history'),true);assert.deepEqual(s.folderPath,[0,1]);
+  assert.equal(tracker.returnPrevious(s,'history-back'),true);assert.deepEqual(s.folderPath,[0]);
+  folder.pages[0][1]=core.createAction('folder');
+  assert.equal(tracker.returnPrevious(s,'folder-history'),false);
+});
+test('history profile switches back and forth without changing saved profile contents',()=>{
+  const s=core.migrateState(null),original=s.profileId;
+  const other=core.createProfile(s,'Other');
+  const tracker=core.createPageVisitTracker();tracker.observe(s);
+  assert.equal(tracker.returnPrevious(s,'profile-history'),false);
+  core.switchProfile(s,other);tracker.observe(s);
+  assert.equal(tracker.returnPrevious(s,'profile-history'),true);assert.equal(s.profileId,original);
+  assert.equal(tracker.returnPrevious(s,'profile-history'),true);assert.equal(s.profileId,other);
+  core.deleteProfile(s,original);
+  assert.equal(tracker.returnPrevious(s,'profile-history'),false);assert.equal(s.profileId,other);
+});
