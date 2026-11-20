@@ -1107,3 +1107,11 @@
 .timer-volume-popup{position:absolute;right:0;top:100%;z-index:12;background:#333;border:1px solid #666;border-radius:4px;padding:8px;display:flex;gap:6px;align-items:center}
 .timer-volume-popup[hidden]{display:none}
 .timer-volume-popup input{width:100px}
+
+/* Keep the new full-width row list below the three preview cards. */
+.state-title-inspector .state-title-extra-properties>.fields:has(>.ordered-multi){padding-left:0}
+.properties>.fields>.ordered-multi{width:100%;max-width:none;margin:0;border-top:0;padding-top:0}
+.ordered-multi .multi-action-toolbar select{max-width:none}
+.ordered-multi-mini svg,.timer-sound-row>button svg{display:block;margin:auto}
+.action-layout-inspector .preview>.ordered-multi-stop{display:block;width:98px;height:29px;margin:4px 0 0;padding:4px 0}
+.ordered-multi-row .ordered-multi-value{white-space:nowrap;max-width:100%}

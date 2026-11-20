@@ -389,17 +389,17 @@ function stateDisplayArtwork(item,index,momentary){
     paired:isNamedStateIconPair(icons),
     runtimeOnly:!valid(icons.off)&&!valid(icons.on)&&!raw.icon};
 }
-function resolveTimerVisual(item,second,remaining,artwork){
+function resolveTimerVisual(item,second,remaining,artwork,configured=item.settings?.seconds){
   const pair=item.settings?.stateTitles||defaultStateTitlePair(item);
   const prepared={...item,settings:{...item.settings,stateTitles:pair}};
   const visual=resolveStateTitle(prepared,second,artwork);
-  return {...visual,title:second&&visual.titleStyle?.visible!==false?DeckCore.formatTimerTime(remaining,item.settings?.seconds):'',keyPressAlternate:true};
+  return {...visual,title:second&&visual.titleStyle?.visible!==false?DeckCore.formatTimerTime(remaining,configured):'',keyPressAlternate:true};
 }
 function displayKeyPressItem(item,index){
   const inspectorPreview=arguments[2]===true;
   if(item?.type==='timer'&&Number.isInteger(index)&&index>=0&&index<13){
     const runtime=activeActionTimers.get(DeckCore.runtimeActionKey(state,index,'down'));
-    return resolveTimerVisual(item,!!runtime,runtime?Math.max(0,Math.ceil((runtime.deadline-Date.now())/1000)):DeckCore.timerSeconds(item.settings?.seconds),stateDisplayArtwork(item,index,false));
+    return resolveTimerVisual(item,!!runtime,runtime?Math.max(0,Math.ceil((runtime.deadline-Date.now())/1000)):DeckCore.timerSeconds(item.settings?.seconds),stateDisplayArtwork(item,index,false),runtime?.seconds??item.settings?.seconds);
   }
   if(!isMomentaryIconAction(item)||!Number.isInteger(index)||index<0||index>=13){
     if(item?.type==='sd-plugin'){
@@ -1617,6 +1617,15 @@ function refreshMultiRunControls(){
     stop.disabled=!record||record.controller.signal.aborted;
   }
 }
+function setSmallActionIcon(button,name){
+  const paths={
+    folder:'<path d="M3 19h15l3-9H9l-3 9M3 19V5h6l2 3h8v2" stroke-linejoin="round"/>',
+    keyboard:'<rect x="2" y="5" width="20" height="14" rx="2"/><path d="M6 9h1m4 0h1m4 0h1M6 12h1m4 0h1m4 0h1M7 16h10"/>',
+    settings:'<circle cx="12" cy="12" r="3"/><path d="M12 3v3m0 12v3M3 12h3m12 0h3M5.6 5.6l2 2m8.8 8.8 2 2m0-12.8-2 2m-8.8 8.8-2 2"/>',
+    volume:'<path d="M3 9v6h4l5 4V5L7 9H3m12 0c2 2 2 4 0 6m3-9c4 4 4 8 0 12"/>'
+  };
+  button.innerHTML='<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true">'+paths[name]+'</svg>';
+}
 function renderOrderedMulti(item,root){
   const area=document.createElement('section');area.className='multi-action-editor ordered-multi';
   const model=DeckCore.multiRows(item),rows=model.rows,session=inspectorSession;
@@ -1631,6 +1640,12 @@ function renderOrderedMulti(item,root){
   select.append(group);
   const add=id=>{if(!current()||!MULTI_ALLOWED.includes(id)||rows.length>=100)return;rows.push({step:newAction(id),ms:rows.length?100:0});save();};
   const addButton=document.createElement('button');addButton.type='button';addButton.textContent='동작 추가';addButton.addEventListener('click',()=>add(select.value));toolbar.append(select,addButton);area.append(toolbar);
+  if(state.selected>=14){
+    const stop=document.createElement('button');stop.type='button';stop.className='ordered-multi-stop';stop.textContent='■ 실행 중단';
+    stop.dataset.gesture=({'holdLeft':'hold-left','holdRight':'hold-right'})[controlGesture]||controlGesture;
+    stop.addEventListener('click',()=>{runningMultiProgress.get(DeckCore.runtimeActionKey(state,state.selected,stop.dataset.gesture))?.controller.abort();refreshMultiRunControls();});
+    area.prepend(stop);
+  }
   const list=document.createElement('div');list.className='ordered-multi-list';
   const header=document.createElement('div');header.className='ordered-multi-row ordered-multi-header';
   for(const title of ['','지연 시간(ms)','동작','','']){const span=document.createElement('span');span.textContent=title;header.append(span);}list.append(header);
@@ -1650,10 +1665,11 @@ function renderOrderedMulti(item,root){
     const summary=document.createElement('button');summary.type='button';summary.className='ordered-multi-value';summary.title=full||value;
     const v=document.createElement('span');v.textContent=value;const suffix=document.createElement('small');suffix.textContent=hint;summary.append(v,suffix);
     const edit=()=>orderedMultiDialog(row.step,draft=>{if(current()){row.step=draft;save();}});
-    summary.addEventListener('click',edit);
+    if(!['hotkey','hotkey-switch'].includes(row.step.type))summary.addEventListener('click',edit);
+    else summary.tabIndex=-1;
     const config=document.createElement('button');config.type='button';config.className='ordered-multi-mini';config.setAttribute('aria-label','동작 설정');
     const pathInfo=ORDERED_PATH_TYPES[row.step.type];
-    config.textContent=pathInfo?'▱':['hotkey','hotkey-switch'].includes(row.step.type)?'⌨':'⚙';
+    setSmallActionIcon(config,pathInfo?'folder':['hotkey','hotkey-switch'].includes(row.step.type)?'keyboard':'settings');
     config.title=pathInfo?'경로 선택':['hotkey','hotkey-switch'].includes(row.step.type)?'단축키 선택':'동작 설정';
     if(pathInfo)config.addEventListener('click',async()=>{try{const path=await window.deckBridge?.choosePath(pathInfo[1]);if(path&&current()){row.step.settings[pathInfo[0]]=path;save();}}catch(e){window.d200xActionStatus?.(String(e?.message||e));}});
     else config.addEventListener('click',edit);
@@ -1662,7 +1678,7 @@ function renderOrderedMulti(item,root){
     line.append(num,wait,summary,config,remove);list.append(line);
   });
   if(model.tail){const note=document.createElement('p');note.className='hint';note.textContent='기존 마지막 대기 '+model.tail+'ms 유지';area.append(list,note);}else area.append(list);
-  root.querySelector('.fields')?.append(area);
+  root.querySelector('.fields')?.append(area);refreshMultiRunControls();
 }
 
 const multiSwitchEditorTabs=new WeakMap();
@@ -3102,7 +3118,7 @@ async function populateAudioOutputs(select,item){
 const INSPECTOR_HELP={
   multi:{
     title:'다중 동작',description:'등록한 단계를 위에서 아래 순서대로 실행합니다.',
-    steps:['오른쪽 액션 목록을 아래 단계 목록에 끌어놓거나 동작 추가를 사용하세요.','단계는 위/아래 버튼으로 순서를 바꾸고, 필요한 위치에 지연을 넣을 수 있습니다.'],
+    steps:['오른쪽 액션 목록을 아래 단계 목록에 끌어놓거나 동작 추가를 사용하세요.','각 행의 지연은 동작 실행 전 대기 시간입니다. 행을 드래그하면 지연과 동작이 함께 이동합니다.'],
     cautions:['복합 동작 중첩은 지원하지 않습니다.','실행 중단은 진행 중인 단계를 즉시 취소하지 않을 수 있습니다.']
   },
   'multi-switch':{
@@ -3223,6 +3239,7 @@ function renderTimerSettings(item,root){
   });
   const listen=btn('미리듣기','▶',()=>playTimerAlert({...item.settings}));
   const volume=btn('음량','♪',()=>{volumePanel.hidden=!volumePanel.hidden;if(!volumePanel.hidden)slider.focus();});
+  setSmallActionIcon(choose,'folder');setSmallActionIcon(volume,'volume');
   const volumePanel=document.createElement('div');volumePanel.className='timer-volume-popup';volumePanel.hidden=true;
   const slider=document.createElement('input');slider.type='range';slider.min='0';slider.max='100';slider.value=String(timerVolume(item.settings));slider.setAttribute('aria-label','알림음 음량');
   const amount=document.createElement('output');
@@ -3439,7 +3456,7 @@ function renderInspector(){
     preview.append(card,previewButton);
     if(item.type==='multi'){
       const stop=document.createElement('button');stop.type='button';stop.className='ordered-multi-stop';stop.textContent='■ 실행 중단';
-      stop.addEventListener('click',()=>runningMultiProgress.get(DeckCore.runtimeActionKey(state,state.selected,'down'))?.controller.abort());
+      stop.addEventListener('click',()=>{runningMultiProgress.get(DeckCore.runtimeActionKey(state,state.selected,'down'))?.controller.abort();refreshMultiRunControls();});
       preview.append(stop);refreshMultiRunControls();
     }
     if(hasStateTitlePair(item)&&iconRegion){
@@ -4112,7 +4129,7 @@ function executeHardwareAction(event,preview=false,skipKnobGesture=false){
     // The merged key can report both halves of one physical press.
     // Ignore duplicate press packets, but do not affect other controls.
     const now=Date.now();
-    if(!preview&&now-lastWideHardwarePress<240){report('wide-debounce');return null;}
+    if(!preview&&!skipKnobGesture&&now-lastWideHardwarePress<240){report('wide-debounce');return null;}
     if(!preview)lastWideHardwarePress=now;
     if(folderBackWide){event=DeckCore.folderWideBackEvent(state,event);report('wide-folder-back');}
     else {const mode=advanceWideDisplay();report('wide-switch',{status:mode});return '가로 화면 전환: '+WIDE_LABELS[mode];}
@@ -4297,7 +4314,7 @@ function executeHardwareAction(event,preview=false,skipKnobGesture=false){
     timerDeadlines.set(action,deadline);
     const interval=setInterval(()=>{
       if(!activeActionTimers.has(key)){clearInterval(interval);return;}
-      if(DeckCore.visibleActions(state).includes(action)){
+      if(DeckCore.visibleActions(state).some((item,i)=>item?.type==='timer'&&DeckCore.runtimeActionKey(state,i,'down')===key)){
         renderGrid();
         void refreshSelectedVisual();window.scheduleDeckSync?.(0);
       }
@@ -4308,7 +4325,7 @@ function executeHardwareAction(event,preview=false,skipKnobGesture=false){
       void refreshSelectedVisual();void playTimerAlert(soundSettings);
       window.d200xActionStatus?.('타이머 '+seconds+'초 완료');
     },seconds*1000);
-    activeActionTimers.set(key,{handle,interval,action,deadline});renderGrid();void refreshSelectedVisual();window.scheduleDeckSync?.();
+    activeActionTimers.set(key,{handle,interval,action,deadline,seconds});renderGrid();void refreshSelectedVisual();window.scheduleDeckSync?.();
     return '타이머 '+seconds+'초 시작 · 다시 누르면 취소';
   }
   if(outcome.kind==='media-control'){

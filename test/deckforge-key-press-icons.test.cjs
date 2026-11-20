@@ -5,11 +5,13 @@ const start=src.indexOf('function isMomentaryIconAction(item){'),end=src.indexOf
 assert.ok(start>=0&&end>start,'Press icon source functions');
 const funcs=src.slice(start,end);
 const independentTitles=()=>({first:{enabled:true,title:'',style:{}},second:{enabled:true,title:'',style:{}}});
-function apply(item,pressed=false){
+function apply(item,pressed=false,runtime=null){
  const window={D200XPhysicalKeyPressed:()=>pressed};
  const state={selected:0};
+ const Core=require('../app/streamdeck-editor/deck-core.js');
  return vm.runInNewContext(funcs+';displayKeyPressItem(item,0)',{
-  item,window,previewPressKeys:new Set(),state,DeckCore:{visibleActions:()=>[item]},
+  item,window,previewPressKeys:new Set(),state,DeckCore:{...Core,visibleActions:()=>[item],runtimeActionKey:()=>"test"},
+  activeActionTimers:new Map(runtime&&item.type==='timer'?[['test',runtime]]:[]),runningMultiProgress:new Map(runtime&&item.type==='multi'?[['test',runtime]]:[]),
   haPreviewStates:new WeakMap(),sdkVisuals:new Map(),sdkContext:()=>'',
   DEFAULT_TITLE_STYLE:{visible:true,size:12},
   isFusionAction:action=>action?.type==='sd-plugin'&&action.settings?.pluginUUID==='com.autodesk.fusionstreamdeck',
@@ -51,9 +53,9 @@ test('icon settings survive existing DeckCore cleanAction without modifying stat
  assert.equal(clean.settings.keyPressIcons.down.value,icon.value);
 });
 test('the first inspector editing card is Key Up, then Key Down',()=>{
- const first=src.indexOf("['up','Key Up'");
+ const first=src.indexOf("['up',item.type==='multi'?'대기 상태':'Key Up'");
  assert.ok(first>=0);
- assert.match(src.slice(first,first+100),/\['down','Key Down'/);
+ assert.match(src.slice(first,first+150),/\['down',item.type==='multi'\?'실행 상태':'Key Down'/);
 });
 
 test('inspector has four fixed and ordered regions and puts cards outside action fields',()=>{
@@ -66,7 +68,7 @@ test('inspector has four fixed and ordered regions and puts cards outside action
  assert.doesNotMatch(src,/fields\.prepend\(cards\)/);
 });
 test('momentary Fusion cannot also render OFF ON SDK cards',()=>{
- assert.match(src,/function bindSdkStateIcons\(root,item\)\{\s*if\(item\.type!=='sd-plugin'\|\|isMomentaryIconAction\(item\)\)return;/);
+ assert.match(src,/function bindSdkStateIcons\(root,item\)\{\s*if\(item\.type!=='timer'&&\(item\.type!=='sd-plugin'\|\|isMomentaryIconAction\(item\)\)\)return;/);
  assert.match(src,/case "sd-plugin":return "";/);
  assert.match(src,/bindSdkStateIcons\(root,item\);\s*bindKeyPressIconControls\(root,item\);\s*appendInspectorSaveBar\(root\);/);
 });
@@ -220,4 +222,15 @@ test('icon pair uses right-side padding before enabling horizontal scrolling',()
  assert.match(segment,/overflow-x:auto/,'overflow fallback remains for genuinely narrow windows');
  assert.match(css,/\.inspector \.inspector-icon-section \.sdk-state-icons\{[^}]*width:404px;min-width:404px;max-width:none;gap:12px/s);
  assert.match(css,/\.inspector \.inspector-icon-section \.sdk-state-icon\{flex:0 0 196px;min-width:196px;max-width:196px\}/);
+});
+
+test('timer state titles and multi runtime artwork do not follow the physical release',()=>{
+ const stateTitles=independentTitles();
+ const timer={type:'timer',settings:{seconds:60,stateTitles,sdkStateIcons:{off:{kind:'file',value:'OFF'},on:{kind:'file',value:'ON'}}}};
+ assert.equal(apply(timer,true).title,'');assert.equal(apply(timer,true).icon.value,'OFF');
+ const runtime={deadline:Date.now()+18000,seconds:60};
+ const running=apply(timer,false,runtime);assert.equal(running.icon.value,'ON');assert.match(running.title,/^00:00:1[78]$/);
+ const multi={type:'multi',settings:{stateTitles,keyPressIcons:{up:{kind:'file',value:'UP'},down:{kind:'file',value:'DOWN'}}}};
+ assert.equal(apply(multi,true).icon.value,'UP');
+ const step=apply(multi,false,{step:2,total:5});assert.equal(step.icon.value,'DOWN');assert.equal(step.title,'2/5');
 });
