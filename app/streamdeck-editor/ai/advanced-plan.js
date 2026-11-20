@@ -5,7 +5,7 @@
   else root.DeckForgeAiAdvanced=factory(root.DeckCore,root.DeckHotkeys,root.DeckForgeAiPlan);
 })(globalThis,(Core,Hotkeys,Basic)=>{
   const KINDS=['folder_keys','folder_page','folder_settings','control','wide','composite','state_design','plugin'];
-  const TOOL={type:'function',name:'propose_advanced',strict:true,description:'Stage ONE advanced preview, never save. Active profile, page 1-based (null=current), folder route "2:1/3:2" means slot:folder-page (null=root; folder kinds require route); slot 1–13 except control 1–5 (side first/back, knobs 1–3). configJson is JSON object string: folder_keys {keys:[{slot,op:"put"|"update"|"delete",type?,value?,title?}]} max8; folder_page {}; folder_settings {title?,autoExitEnabled?,autoExitSeconds?}; control {scope?:"global"|"page",mode?:"trigger"|"stack",target?,step?:1|2|5|10,reverse?,stack?:[targets],heldEnabled?,heldMode?,heldTarget?,heldStep?,heldReverse?,heldStack?,gesture?:"down"|"left"|"right"|"holdLeft"|"holdRight"|"sideHold",action?:{type,value,title}|null}; targets page/profile/volume/zoom/scroll/scroll-x/history/window/desktop/brightness. Side slots 1–2 accept only scope and down/sideHold with previous,next,goto or null; use editor for other navigation. wide {enabled:[clock|datetime|stats|knobs],order?:[all four],current?}. composite {type:"multi"|"multi-switch"|"random"|"logic",title?,steps?:[{type,value,title}],second?:[steps],single?:step,double?:step,hold?:step}; delay type value milliseconds string. state_design {first?:{title?,enabled?,size?,color?,bold?,background?,iconName?,iconPack?},second?:same}. plugin {kind:"ha"|"sdk-ha"|"fusion",id,title?}; ha verify REST entity; sdk-ha/fusion reuse verified registered template from inspect plugin_templates. For simple steps use hotkey,previous,next,indicator,goto,clipboard-edit,media,system-mute,explorer-open; folder_keys also folder/open-app/file-open/folder-shortcut (verified Start Apps AppID or user-supplied local path). No paths or arbitrary settings. Existing protected actions cannot be deleted/replaced. One operation kind per proposal; user applies locally.',parameters:{type:'object',properties:{kind:{type:'string',enum:KINDS},page:{type:['integer','null']},folder:{type:['string','null']},slot:{type:['integer','null']},configJson:{type:'string'}},required:['kind','page','folder','slot','configJson'],additionalProperties:false}};
+  const TOOL={type:'function',name:'propose_advanced',strict:true,description:'Stage ONE advanced preview, never save. Active profile, page 1-based (null=current), folder route "2:1/3:2" means slot:folder-page (null=root; folder kinds require route); slot 1–13 except control 1–5 (side first/back, knobs 1–3). configJson is JSON object string: folder_keys {keys:[{slot,op:"put"|"update"|"delete",type?,value?,title?}]} max8; folder_page {}; folder_settings {title?,autoExitEnabled?,autoExitSeconds?}; control {scope?:"global"|"page",mode?:"trigger"|"stack",target?,step?:1|2|5|10,reverse?,stack?:[targets],heldEnabled?,heldMode?,heldTarget?,heldStep?,heldReverse?,heldStack?,gesture?:"down"|"left"|"right"|"holdLeft"|"holdRight"|"sideHold",action?:{type,value,title}|null}; targets page/profile/volume/zoom/scroll/scroll-x/history/window/desktop/brightness. Side slots 1–2 accept only scope and down/sideHold with previous,next,goto or null; use editor for other navigation. wide {enabled:[clock|datetime|stats|knobs],order?:[all four],current?}. composite {type:"multi"|"multi-switch"|"random"|"logic",title?,steps?:[{type,value,title}],second?:[steps],single?:step,double?:step,hold?:step}; delay type value milliseconds string. state_design {first?:{title?,enabled?,size?,color?,bold?,background?,iconName?,iconPack?},second?:same}. plugin {kind:"ha"|"sdk-ha"|"fusion"|"fusion-live",id,title?}; ha verify REST entity; sdk-ha/fusion reuse verified registered template from inspect plugin_templates; fusion-live creates new button using exact ID from inspect fusion_commands, revalidated locally against current Fusion and installed SDK. For simple steps use hotkey,previous,next,indicator,goto,clipboard-edit,media,system-mute,explorer-open; folder_keys also folder/open-app/file-open/folder-shortcut (verified Start Apps AppID or user-supplied local path). No paths or arbitrary settings. Existing protected actions cannot be deleted/replaced. One operation kind per proposal; user applies locally.',parameters:{type:'object',properties:{kind:{type:'string',enum:KINDS},page:{type:['integer','null']},folder:{type:['string','null']},slot:{type:['integer','null']},configJson:{type:'string'}},required:['kind','page','folder','slot','configJson'],additionalProperties:false}};
   const fail=m=>{throw Error(m);}, clone=x=>JSON.parse(JSON.stringify(x)), has=(x,k)=>Object.hasOwn(x,k);
   const obj=x=>!!x&&typeof x==='object'&&!Array.isArray(x), int=(v,a,b)=>Number.isInteger(v)&&v>=a&&v<=b;
   const str=(v,n=120)=>typeof v==='string'&&v.length<=n&&!/[\x00-\x1f\x7f]/.test(v);
@@ -69,8 +69,9 @@
           const v=c[k];exact(v,['title','enabled','size','color','bold','background','iconName','iconPack']);optional(v,'title',x=>str(x,80));optional(v,'enabled',bool);optional(v,'size',x=>int(x,8,48));optional(v,'color',color);optional(v,'bold',bool);optional(v,'background',x=>x===null||color(x));optional(v,'iconName',x=>str(x)&&x.trim().length>0);optional(v,'iconPack',x=>str(x)&&x.trim().length>0);if(has(v,'iconPack')&&!v.iconName)fail('아이콘 이름이 필요합니다.');
         }break;
       case 'plugin':
-        exact(c,['kind','id','title']);if(!['ha','sdk-ha','fusion'].includes(c.kind)||!str(c.id,256)||!c.id.trim())fail('플러그인 식별자를 지정하세요.');
-        if(c.kind!=='fusion'&&!/^(light|switch|fan|input_boolean)\.[a-z0-9_]+$/.test(c.id))fail('지원하지 않는 HA 엔티티입니다.');
+        exact(c,['kind','id','title']);if(!['ha','sdk-ha','fusion','fusion-live'].includes(c.kind)||!str(c.id,256)||!c.id.trim())fail('플러그인 식별자를 지정하세요.');
+        if(c.kind==='fusion-live'&&(!/^[A-Za-z0-9._-]{1,180}$/.test(c.id)||c.id==='.'||c.id==='..'))fail('정확한 Fusion 명령 ID를 지정하세요.');
+        if(['ha','sdk-ha'].includes(c.kind)&&!/^(light|switch|fan|input_boolean)\.[a-z0-9_]+$/.test(c.id))fail('지원하지 않는 HA 엔티티입니다.');
         optional(c,'title',v=>str(v,80));break;
     }
     if(raw.kind!=='folder_page'&&!Object.keys(c).length)fail('변경 값이 필요합니다.');
@@ -199,6 +200,15 @@
         if(c.kind==='ha'){
           if(resources.ha?.id!==c.id)fail('HA 엔티티를 확인하지 못했습니다.');
           item=Core.createAction('ha-toggle');item.settings.entityId=c.id;item.title=c.title||resources.ha.name||c.id;
+        }else if(c.kind==='fusion-live'){
+          const live=resources.fusionLive;
+          if(live?.id!==c.id||!str(live.name,120)||!live.name.trim())fail('현재 Fusion 명령을 확인하지 못했습니다.');
+          item=Core.createAction('sd-plugin');
+          item.title=has(c,'title')?c.title:live.name.slice(0,30);
+          item.settings.pluginUUID='com.autodesk.fusionstreamdeck';
+          item.settings.actionUUID='com.autodesk.fusionstreamdeck.runcommand';
+          item.settings.actionName='Fusion 명령 실행';
+          item.settings.pluginSettings={commandId:c.id,name:live.name};
         }else{
           const found=walkTemplates(state).find(x=>x.kind===c.kind&&x.id===c.id);
           if(!found||resources.template?.kind!==c.kind||resources.template?.id!==c.id)fail('설치된 플러그인과 등록된 명령 또는 장치 설정을 확인하세요.');
@@ -206,7 +216,7 @@
           // Explicit state titles may otherwise hide the new label.
           if(has(c,'title')&&item.settings.stateTitles?.first)item.settings.stateTitles.first.title=c.title;
         }
-        row[i]=item;add('plugin',summary(old),summary(item)+' · '+c.kind+' · '+c.id+(c.kind!=='ha'?' · 기존 검증된 등록 설정 복제':''));
+        row[i]=item;add('plugin',summary(old),summary(item)+' · '+c.kind+' · '+c.id+(c.kind==='fusion-live'?' · 실시간 확인한 명령 신규 등록':c.kind!=='ha'?' · 기존 검증된 등록 설정 복제':''));
       }else{
         if(!old||old.type!=='sd-plugin'&&['ha-toggle','indicator','multi-switch','hotkey-switch','timer','logic','sleep','virtual','wide-display','folder-back'].includes(old.type))fail('이 동작은 상태별 제목 아이콘을 지원하지 않습니다.');
         const item={...old,settings:{...old.settings}},s=item.settings;

@@ -104,3 +104,41 @@ test('AI side control proposals cannot assign non-navigation actions',()=>{
   assert.equal(change.controls.global[0].sideHold.type,'previous');
   assert.throws(()=>A.makePlan(s,req('control',{gesture:'sideHold',action:{type:'previous',value:null}},{slot:3})));
 });
+
+
+const FusionLive=require('../app/streamdeck-editor/ai/fusion-commands.cjs');
+test('live Fusion command catalog joins Korean names only by verified ID and searches bounded results',()=>{
+ const names=FusionLive.normaliseCatalog([{id:'SketchLine',koName:'선',englishName:'Line'},{id:'Missing',koName:'없는 명령'}]);
+ const rows=FusionLive.projectCommands({ok:true,commands:[{id:'SketchLine',name:'Line',tooltip:'Sketch line'},{id:'Other',name:'Other'},{id:'../bad',name:'Invalid'},{id:'SketchLine',name:'Duplicate'}]},names);
+ assert.equal(rows.length,2);assert.equal(FusionLive.search(rows,'선').items[0].id,'SketchLine');
+ assert.equal(FusionLive.search(rows,'Sketch line').total,1);assert.equal(FusionLive.search(rows,'없는 명령').total,0);
+ assert.equal(FusionLive.search(rows,'',0,1).nextOffset,1);
+ assert.throws(()=>FusionLive.projectCommands({ok:false,commands:[]}));
+});
+test('live Fusion client uses only loopback GET, rejects redirects, and verifies exact ID',async()=>{
+ const calls=[],disk={endpoint:{status:'running',port:59237},catalog:[{id:'Line',koName:'선'}]};
+ const io={stat:async()=>({isFile:()=>true,size:100}),readFile:async f=>JSON.stringify(disk[f])};
+ const client=FusionLive.createClient({discoveryFile:'endpoint',catalogFile:'catalog',io,fetcher:async(url,opts)=>{
+  calls.push({url,method:opts.method,redirect:opts.redirect});
+  return new Response(JSON.stringify({ok:true,commands:[{id:'Line',name:'Line'},{id:'LineOther',name:'Other'}]}));
+ }});
+ assert.equal((await client.list())[0].ko,'선');
+ assert.equal((await client.exact('Line')).id,'Line');
+ assert.equal(await client.exact('Missing'),null);
+ await assert.rejects(client.exact('../evil'));
+ assert.equal(calls.length,3);
+ assert.ok(calls.every(x=>x.url.startsWith('http://127.0.0.1:59237/commands?refresh=1')&&x.method==='GET'&&x.redirect==='error'));
+ disk.endpoint={status:'stopped',port:59237};await assert.rejects(client.list());assert.equal(calls.length,3);
+});
+test('new live Fusion command registration requires local exact data and preserves occupied and pinned buttons',()=>{
+ const s=fixture(),before=JSON.stringify(s),q=req('plugin',{kind:'fusion-live',id:'SketchLine',title:'선'},{slot:3});
+ assert.throws(()=>A.makePlan(s,q));assert.throws(()=>A.makePlan(s,q,{fusionLive:{id:'Other',name:'Other'}}));
+ const resource={fusionLive:{id:'SketchLine',name:'Line'}};
+ const p=A.makePlan(s,q,resource),item=p.next.pages[0][2];
+ assert.equal(item.type,'sd-plugin');assert.equal(item.title,'선');
+ assert.equal(item.settings.pluginUUID,FusionLive.PLUGIN);assert.equal(item.settings.actionUUID,FusionLive.ACTION);
+ assert.deepEqual(item.settings.pluginSettings,{commandId:'SketchLine',name:'Line'});
+ assert.equal(JSON.stringify(s),before);assert.equal(p.next.pages[0][4],s.pages[0][4]);
+ assert.throws(()=>A.makePlan(s,{...q,slot:5},resource));assert.throws(()=>A.makePlan(s,{...q,slot:9},resource));
+ assert.throws(()=>A.validate(req('plugin',{kind:'fusion-live',id:'../invalid'},{slot:3})));
+});

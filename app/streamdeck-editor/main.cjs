@@ -173,6 +173,11 @@ function assertEditor(event){
 // Independent AI window; only a closed read-only query factory is provided.
 const {createReader:createAiReader,windowsApps}=require('./ai/read-tools.cjs');
 const FusionSetup=require('./ai/fusion-setup.js');
+const LiveFusion=require('./ai/fusion-commands.cjs');
+const fusionCommands=LiveFusion.createClient({
+  discoveryFile:fusionDiscoveryFile(),
+  catalogFile:path.join(__dirname,'../fusion-manager/fusion-command-catalog-final.json')
+});
 async function runLocalFusionSetup(signal){
   if(process.platform!=='win32')throw Error('Windows에서만 지원합니다.');
   return FusionSetup.run({
@@ -221,7 +226,8 @@ function newAiReadSession(){
       try{return {configured:true,entities:await HA.listEntities(config,(url,options)=>fetch(url,{...options,redirect:'error'}))};}
       catch{return {configured:true,entities:[],error:'ha_read_unavailable'};}
     },
-    fusion:fusionAddinAvailable
+    fusion:fusionAddinAvailable,
+    fusionCommands:signal=>fusionCommands.list(signal)
   })();
 }
 // Only fixed editor entry points. All arguments are JSON data; no model-authored scripts.
@@ -267,6 +273,13 @@ async function prepareAiEdit(id,input,userText,signal){
         signal?.throwIfAborted();
         const type=types[i];resources.targets.push(['open-app','file-open','folder-shortcut'].includes(type)&&typeof x.value==='string'?await resolveAiTarget(type,x.value,userText):null);
       }
+    }
+    if(advanced.kind==='plugin'&&c.kind==='fusion-live'){
+      const plugin=(await sdk().list()).find(p=>p.uuid===LiveFusion.PLUGIN);
+      if(!plugin?.actions?.some(x=>x.uuid===LiveFusion.ACTION))throw Error('Fusion SDK 플러그인을 먼저 설치하세요.');
+      let found;try{found=await fusionCommands.exact(c.id,signal);}catch{signal?.throwIfAborted();throw Error('Fusion 연결 또는 명령 조회에 실패했습니다. Fusion 연결을 확인하세요.');}
+      if(!found)throw Error('현재 Fusion에서 해당 명령 ID를 확인하지 못했습니다.');
+      resources.fusionLive={id:found.id,name:found.ko||found.name};
     }
     if(advanced.kind==='plugin'&&c.kind==='ha'){
       const config=readHaConfig();

@@ -4296,7 +4296,7 @@ window.executeD200XKey=tracedPhysicalDispatch;
        if(target.artwork)try{out.icon={kind:'file',value:await rasterizeIcon(target.artwork,144,100)};}catch{}
        local.targets.push(out);
      }
-     if(a.kind==='plugin'&&c.kind!=='ha'){
+     if(a.kind==='plugin'&&['sdk-ha','fusion'].includes(c.kind)){
        const found=window.DeckForgeAiAdvanced.walkTemplates(state).find(x=>x.kind===c.kind&&x.id===c.id);
        if(!found)throw Error('등록된 플러그인 명령 또는 장치를 찾지 못했습니다.');
        const plugin=sdkPlugins.find(p=>p.uuid===found.action.settings.pluginUUID);
