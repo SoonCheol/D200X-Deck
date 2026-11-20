@@ -3021,24 +3021,29 @@ function bindIndicatorInspector(root,item){
   font.addEventListener('click',()=>root._openIndicatorNumberStyle(font));check.addEventListener('change',()=>root._setIndicatorNumberVisible(check.checked));
   line.append(text,font);num.append(label,line);fields.querySelector('.title-setting-field').after(num);
   const options=document.createElement('div');options.className='indicator-management';
-  const addButton=document.createElement('button');addButton.type='button';addButton.textContent='모든 페이지에 추가';
-  const remove=document.createElement('button');remove.type='button';remove.textContent='모든 페이지에서 제거';
+  const addButton=document.createElement('button');addButton.type='button';addButton.textContent='모든 페이지에 버튼 추가';
+  const designButton=document.createElement('button');designButton.type='button';designButton.textContent='모든 페이지에 디자인 적용';
+  const remove=document.createElement('button');remove.type='button';remove.textContent='모든 페이지에서 버튼 제거';
   function bulk(op){
-    if(inspectorSession?.dirty){showInspectorLeaveDialog(()=>bulk(op));return;}
+    if(op==='remove'&&inspectorSession?.dirty){showInspectorLeaveDialog(()=>bulk(op));return;}
     if(runningMultiActions.size||activeActionTimers.size||allPlayingAudio.size||openAppHoldTimers.size||logicPresses.size||sidePressTimers.size){window.d200xActionStatus?.('진행 중인 동작을 먼저 중단하세요.');return;}
     const current=DeckCore.visibleActions(state)[index];if(current?.type!=='indicator')return;
     if(op==='remove'&&!confirm('현재 덱의 모든 페이지에서 페이지 표시 버튼만 제거할까요?'))return;
-    const before=clone(state);const result=DeckCore.manageIndicators(state,op,current);
+    if(op==='design'&&!confirm('현재 디자인을 모든 기존 페이지 표시 버튼에 적용할까요? 버튼 위치와 다른 액션은 유지됩니다.'))return;
+    if((op==='add'||op==='design')&&inspectorSession?.dirty&&!confirm('현재 편집한 디자인을 저장하고 일괄 작업을 진행할까요?'))return;
+    // Addition/design commit the visible draft and bulk result together.
+    // Never discard the very artwork being used as the template.
+    const before=clone(state),session=inspectorSession;const result=DeckCore.manageIndicators(state,op,current);
     if(op==='remove')state.selected=null;
     inspectorSession=null;
-    if(!persist()){state=before;render();return;}
+    if(!persist()){state=before;inspectorSession=session;render();return;}
     render();
-    window.d200xActionStatus?.(op==='add'?'페이지 표시 추가 '+result.added+' · 기존 '+result.existing+' · 빈자리 없음 '+result.full:'페이지 표시 '+result.removed+'개 제거');
+    window.d200xActionStatus?.(op==='add'?'페이지 표시 추가 '+result.added+' · 기존 '+result.existing+' · 빈자리 없음 '+result.full:op==='design'?'페이지 표시 '+result.updated+'개 디자인 적용':'페이지 표시 '+result.removed+'개 제거');
   }
-  addButton.addEventListener('click',()=>bulk('add'));remove.addEventListener('click',()=>bulk('remove'));
+  addButton.addEventListener('click',()=>bulk('add'));designButton.addEventListener('click',()=>bulk('design'));remove.addEventListener('click',()=>bulk('remove'));
   const auto=document.createElement('label');const enabled=document.createElement('input');enabled.type='checkbox';enabled.checked=common.autoAdd;auto.append(enabled,document.createTextNode(' 새 페이지 생성 시 자동 추가'));
   enabled.addEventListener('change',()=>{DeckCore.updateIndicatorCommon(state,item,{autoAdd:enabled.checked});persistInspectorChange();});
-  options.append(addButton,remove,auto);fields.append(options);
+  options.append(addButton,designButton,remove,auto);fields.append(options);
   renderSideBindings(fields,index,null,item);
   const panel=root.querySelector('[data-inspector-icons]');
   const cards=document.createElement('div');cards.className='sdk-state-icons indicator-icon-cards';

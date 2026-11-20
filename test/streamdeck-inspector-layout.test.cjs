@@ -427,3 +427,13 @@ test('title and key background palettes use the right side of the entire inspect
   }
   assert.match(editor,/openPalette\(field,event\.currentTarget\)/);
 });
+
+test('indicator management labels and template draft are preserved before one bulk save',()=>{
+ const body=editor.slice(editor.indexOf('function bindIndicatorInspector('),editor.indexOf('function bindExtendedActionFields('));
+ assert.match(body,/모든 페이지에 버튼 추가/);
+ assert.match(body,/모든 페이지에 디자인 적용/);
+ assert.match(body,/모든 페이지에서 버튼 제거/);
+ assert.match(body,/if\(op==='remove'&&inspectorSession\?\.dirty\)/);
+ assert.match(body,/if\(\(op==='add'\|\|op==='design'\)&&inspectorSession\?\.dirty&&!confirm/);
+ assert.match(body,/if\(!persist\(\)\)\{state=before;inspectorSession=session;render\(\);return;\}/);
+});

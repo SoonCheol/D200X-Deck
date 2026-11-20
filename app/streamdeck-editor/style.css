@@ -1163,3 +1163,7 @@
 
 /* Keep font colors reachable even when the title controls are near the window bottom. */
 .title-style-popover #title-palette{position:fixed;z-index:110;width:251px;max-width:calc(100vw - 16px);max-height:calc(100dvh - 16px);overflow-y:auto;box-shadow:0 10px 23px #0009}
+
+.indicator-inspector .indicator-management{gap:5px 6px}
+.indicator-inspector .indicator-management button{font-size:12px;padding:5px 6px;white-space:nowrap}
+.indicator-inspector .indicator-management label{flex:0 0 100%;margin-top:1px}

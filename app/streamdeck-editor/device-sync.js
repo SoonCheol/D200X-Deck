@@ -257,6 +257,7 @@
     }
     if (item) {
       const fallback = ACTIONS.get(item.type)?.icon || '•';
+      let indicatorArtwork=false;
       if (item.icon?.kind === 'file' && typeof item.icon.value === 'string') {
         const image = await imageLoaded(item.icon.value);
         if (image) {
@@ -264,6 +265,7 @@
           const scale = Math.min(limitWidth / image.width, limitHeight / image.height);
           const w = image.width * scale, h = image.height * scale;
           ctx.drawImage(image, (width - w)/2, (height - h)/2, w, h);
+          indicatorArtwork=true;
         }
       } else if (item.type==='indicator'&&item.indicatorNumber!==undefined&&!item.icon?.glyph) {
         // Number is drawn independently of the optional background artwork.
@@ -303,8 +305,9 @@
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
         ctx.fillText(item.icon?.glyph || fallback, width/2, height/2, Math.min(172,width-12));
+        indicatorArtwork=!!item.icon?.glyph;
       }
-      if(item.type==='indicator'&&item.indicatorNumber!==undefined)drawText(ctx,item.indicatorNumber,width,height,item.indicatorNumberStyle);
+      if(item.type==='indicator'&&item.indicatorNumber!==undefined)drawText(ctx,item.indicatorNumber,width,height,DeckCore.indicatorNumberDisplayStyle(item.indicatorNumberStyle,baseColor,indicatorArtwork));
       drawText(ctx, item.title || '', width, height, item.titleStyle);
       // Offline indicator is an overlay; never alter the original cached PNG.
       if(item.fusionOffline){

@@ -1445,3 +1445,47 @@ test('history profile switches back and forth without changing saved profile con
   core.deleteProfile(s,original);
   assert.equal(tracker.returnPrevious(s,'profile-history'),false);assert.equal(s.profileId,other);
 });
+
+test('indicator add and design are distinct, keep locations and artwork on reload, do not touch ordinary keys',()=>{
+ const s=core.migrateState({pages:[[],[],[]]});
+ const source=s.pages[1][4]=core.createAction('indicator');
+ const existing=s.pages[0][3]=core.createAction('indicator');
+ const other=s.pages[0][0]=core.createAction('hotkey');
+ source.title='Source';source.settings.indicatorDownTitle='Pressed';
+ source.icon={kind:'file',value:'data:image/png;base64,dGVzdA=='};
+ source.settings.keyPressIcons={down:{kind:'file',value:'data:image/png;base64,dGVzdDI='}};
+ source.settings.keyBackgrounds={default:{enabled:true,color:'#123456'}};
+ source.settings.indicatorDownTitleStyle={...core.TITLE,color:'#abcdef'};
+ existing.title='Existing';existing.settings.customFlag='keep';
+ core.updateIndicatorCommon(s,source,{indicatorDown:{navigation:'home'},indicatorNumberStyle:{...core.INDICATOR_NUMBER_STYLE,color:'#200000'}});
+ assert.equal(core.manageIndicators(s,'add',source,null).added,1);
+ assert.equal(s.pages[0][3].title,'Existing');assert.equal(s.pages[0][3].icon,undefined);
+ assert.equal(s.pages[2][0].icon.value,source.icon.value);
+ assert.equal(core.manageIndicators(s,'design',source,null).updated,3);
+ assert.equal(s.pages[0][3],existing);assert.equal(s.pages[0][0],other);
+ assert.equal(existing.title,'Source');assert.equal(existing.settings.customFlag,'keep');
+ assert.equal(existing.settings.keyPressIcons.down.value,source.settings.keyPressIcons.down.value);
+ assert.notEqual(existing.settings.keyPressIcons,source.settings.keyPressIcons);
+ assert.equal(existing.settings.keyBackgrounds.default.color,'#123456');
+ assert.equal(existing.settings.indicatorDownTitle,'Pressed');
+ assert.equal(core.indicatorCommon(s).indicatorDown.navigation,'home');
+ const restored=core.migrateState(JSON.parse(JSON.stringify(s)));
+ assert.equal(restored.pages[0][3].icon.value,source.icon.value);
+ assert.equal(restored.pages[2][0].settings.keyPressIcons.down.value,source.settings.keyPressIcons.down.value);
+ assert.equal(core.indicatorCommon(restored).indicatorNumberStyle.color,'#200000');
+ assert.equal(core.manageIndicators(restored,'remove',source,null).removed,3);
+ assert.equal(restored.pages[0][0].type,'hotkey');
+});
+test('bare indicator number gets a visible outline only if foreground and background have low contrast',()=>{
+ const dark={...core.INDICATOR_NUMBER_STYLE,color:'#200000',outlineWidth:'none'};
+ const saved=JSON.stringify(dark);
+ const corrected=core.indicatorNumberDisplayStyle(dark,'#08090c');
+ assert.equal(corrected.color,dark.color);assert.equal(corrected.outlineColor,'#ffffff');
+ assert.equal(corrected.outlineWidth,'medium');assert.equal(JSON.stringify(dark),saved);
+ const light={...dark,color:'#ffffff'};
+ assert.equal(core.indicatorNumberDisplayStyle(light,'#08090c'),light);
+ assert.equal(core.indicatorNumberDisplayStyle(dark,'#08090c',true),dark);
+ const hidden={...dark,visible:false};
+ assert.equal(core.indicatorNumberDisplayStyle(hidden,'#08090c'),hidden);
+ assert.equal(core.indicatorNumberDisplayStyle(light,'#eeeeee').outlineColor,'#000000');
+});

@@ -849,12 +849,50 @@
     }
     return 'full';
   }
+  function copyIndicatorDesign(target,source){
+    // Retain the destination action/location and all non-appearance settings.
+    target.title=source.title;
+    target.titleStyle=copy(source.titleStyle||TITLE);
+    if(source.icon)target.icon=copy(source.icon);else delete target.icon;
+    target.settings??={};
+    for(const key of ['keyPressIcons','keyBackgrounds','indicatorDownTitle','indicatorDownTitleStyle']){
+      if(source.settings?.[key]!==undefined)target.settings[key]=copy(source.settings[key]);else delete target.settings[key];
+    }
+  }
+  // A bare page-number key must remain readable even with a dark chosen
+  // foreground. Preserve saved colors, explicit visibility and artwork.
+  function indicatorNumberDisplayStyle(style,background,hasArtwork=false){
+    if(style?.visible===false||hasArtwork)return style;
+    const rgb=value=>/^#[0-9a-fA-F]{6}$/.test(value||'')?[1,3,5].map(i=>parseInt(value.slice(i,i+2),16)):null;
+    const luminance=values=>values.map(v=>v/255).map(v=>v<=0.04045?v/12.92:((v+0.055)/1.055)**2.4)
+      .reduce((sum,v,i)=>sum+v*[0.2126,0.7152,0.0722][i],0);
+    const contrast=(a,b)=>(Math.max(a,b)+0.05)/(Math.min(a,b)+0.05);
+    let base=rgb(background)||[8,9,12];
+    if(style?.backgroundEnabled===true){
+      const overlay=rgb(style.backgroundColor)||[0,0,0],alpha=Math.max(0,Math.min(100,style.backgroundOpacity??65))/100;
+      base=base.map((v,i)=>v*(1-alpha)+overlay[i]*alpha);
+    }
+    const bg=luminance(base),foreground=luminance(rgb(style?.color)||[255,255,255]);
+    if(contrast(bg,foreground)>=3)return style;
+    const outline=style?.outlineWidth&&style.outlineWidth!=='none'&&rgb(style.outlineColor);
+    if(outline&&contrast(bg,luminance(outline))>=3)return style;
+    const outlineColor=contrast(bg,1)>=contrast(bg,0)?'#ffffff':'#000000';
+    return {...(style||INDICATOR_NUMBER_STYLE),outlineColor,outlineWidth:'medium'};
+  }
   function manageIndicators(state,op,item=null,folder=activeFolder(state)){
     const rows=indicatorRows(state,folder),pins=folder?null:state.pinned;
     const result={added:0,existing:0,full:0,removed:0};
     if(op==='add'){
       updateIndicatorCommon(state,item,{autoAdd:true});
       for(const row of rows)result[placeIndicator(row,pins,item)]++;
+    }else if(op==='design'){
+      result.updated=0;
+      if(item?.type!=='indicator')return result;
+      const design=copy(item);
+      for(const row of rows)for(let i=0;i<13;i++)if(row[i]?.type==='indicator'){
+        if(row[i]!==item)copyIndicatorDesign(row[i],design);
+        result.updated++;
+      }
     }else if(op==='remove'){
       updateIndicatorCommon(state,item,{autoAdd:false});
       for(const row of rows)for(let i=0;i<13;i++)if(row[i]?.type==='indicator'){row[i]=null;result.removed++;}
@@ -1325,5 +1363,5 @@
       url:action.settings?.url||'',mode:action.settings?.open||'default',browserPath:action.settings?.browserPath||''};
     return {kind:'unsupported',message:'이 동작의 실행 기능은 아직 구현되지 않았습니다.'};
   }
-  return {ACTION_IDS,D200X_ACTION_IDS,PLUGIN_ACTION_IDS,DEFAULTS,TITLE,INDICATOR_NUMBER_STYLE,INDICATOR_NAV_LABELS,indicatorConfig,indicatorCommon,sharedIndicatorConfig,updateIndicatorCommon,manageIndicators,planIndicatorNavigation,indicatorPinState,setIndicatorPinned,SIDE_NAV_LABELS,SIDE_HOLD_MS,sideConfig,makeSideAction,sideActionConfig,sideFolderTargets,planSideNavigation,applySideNavigation,createPageVisitTracker,createSidePressTracker,createAction,cleanAction,cleanCompositeEntry,timerSeconds,formatTimerTime,displaySwitchAction,compositeModel,planComposite,runComposite,createMultiPauseGate,multiRows,setMultiRows,blankPage,cleanWideDisplay,cycleWideDisplay,isWideDisplayPress,folderContents,folderPageCount,changeFolderPage,addFolderPage,deleteFolderPage,editPageStructure,currentActions,visibleActions,togglePinned,activeFolder,enterFolder,exitFolder,migrateState,profileSnapshot,switchProfile,createProfile,renameProfile,exportSingleProfile,setProfileApp,matchForegroundProfile,deleteProfile,previewHardwareEvent,physicalSlot,hardwareGesture,resolveHardwareEvent,runtimeActionKey,folderWideBackEvent,resolveKeyPress,planHardwareEvent,deletePage,planAction,emptyBinding,cleanBinding,controlAction,activeControlAction,assignControlAction,automaticControl,ensureControls,controlBinding,changeControlScope};
+  return {ACTION_IDS,D200X_ACTION_IDS,PLUGIN_ACTION_IDS,DEFAULTS,TITLE,INDICATOR_NUMBER_STYLE,INDICATOR_NAV_LABELS,indicatorConfig,indicatorCommon,sharedIndicatorConfig,updateIndicatorCommon,manageIndicators,indicatorNumberDisplayStyle,planIndicatorNavigation,indicatorPinState,setIndicatorPinned,SIDE_NAV_LABELS,SIDE_HOLD_MS,sideConfig,makeSideAction,sideActionConfig,sideFolderTargets,planSideNavigation,applySideNavigation,createPageVisitTracker,createSidePressTracker,createAction,cleanAction,cleanCompositeEntry,timerSeconds,formatTimerTime,displaySwitchAction,compositeModel,planComposite,runComposite,createMultiPauseGate,multiRows,setMultiRows,blankPage,cleanWideDisplay,cycleWideDisplay,isWideDisplayPress,folderContents,folderPageCount,changeFolderPage,addFolderPage,deleteFolderPage,editPageStructure,currentActions,visibleActions,togglePinned,activeFolder,enterFolder,exitFolder,migrateState,profileSnapshot,switchProfile,createProfile,renameProfile,exportSingleProfile,setProfileApp,matchForegroundProfile,deleteProfile,previewHardwareEvent,physicalSlot,hardwareGesture,resolveHardwareEvent,runtimeActionKey,folderWideBackEvent,resolveKeyPress,planHardwareEvent,deletePage,planAction,emptyBinding,cleanBinding,controlAction,activeControlAction,assignControlAction,automaticControl,ensureControls,controlBinding,changeControlScope};
 });
