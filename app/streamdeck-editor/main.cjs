@@ -1239,19 +1239,35 @@ ipcMain.handle('d200x:open-application',async(event,args)=>{
   if(process.platform!=='win32'||!['file','appid'].includes(args?.target)||typeof args?.filePath!=='string')
     throw new Error('올바른 프로그램 창 활성화 요청이 아닙니다.');
   const foreground=args.foreground!==false,preventDuplicate=args.preventDuplicate!==false;
-  if(!foreground&&!preventDuplicate)return openLocalPath(args);
-  const spec=appFocusSpec(args.filePath,args.target);
+  const traceId=linkInput(randomUUID(),args?.inputId);
+  let spec=null;
+  const log=(stage,result)=>writeAppControlLog({traceId,stage,version:app.getVersion(),spec,foreground,result});
+  const launchRequest=async()=>{
+    try{
+      const result=await openLocalPath(args);
+      await log('launch-request-result',{status:result===false?'launch-returned-false':'launch-requested',ok:result!==false});
+      return result;
+    }catch(error){
+      await log('launch-error',{status:'error',reason:'shell-request-failed'});
+      throw error;
+    }
+  };
+  if(!foreground&&!preventDuplicate)return launchRequest();
+  try{spec=appFocusSpec(args.filePath,args.target);}
+  catch(error){await log('launch-error',{status:'error',reason:'invalid-focus-spec'});throw error;}
   if(!spec){
     // No reliable running-program identity for arbitrary scripts/documents.
-    if(preventDuplicate)throw Error('중복 실행 방지는 EXE 또는 등록된 프로그램에서만 지원합니다. 옵션을 해제하고 실행하세요.');
-    return openLocalPath(args);
+    if(preventDuplicate){
+      await log('launch-error',{status:'error',reason:'unsupported-focus-spec'});
+      throw Error('중복 실행 방지는 EXE 또는 등록된 프로그램에서만 지원합니다. 옵션을 해제하고 실행하세요.');
+    }
+    return launchRequest();
   }
-  const traceId=linkInput(randomUUID(),args?.inputId);
   const launch=()=>focusOrLaunch({
     foreground,preventDuplicate,
     focus:(mode,exclude)=>inspectAppFocus(spec,mode,traceId,exclude),
-    launch:()=>openLocalPath(args),
-    record:(stage,result)=>stage==='launch-unconfirmed'?writeAppControlLog({traceId,stage,spec,result}):undefined
+    launch:launchRequest,
+    record:(stage,result)=>stage==='launch-unconfirmed'?log(stage,result):undefined
   });
   return preventDuplicate?queueAppLaunch(spec.kind+':'+spec.target.toLowerCase(),launch):launch();
 });

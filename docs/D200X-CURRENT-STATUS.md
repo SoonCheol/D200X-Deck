@@ -2,7 +2,14 @@
 
 > **상태 기록 기준: 2026-11-20**. 실제 최신 HEAD는 Git에서 확인하며, 코드·자동 검사·Windows 빌드·사용자 Windows/D200X 실기 결과를 구분한다. 시작 시 `AGENTS.md`와 이 문서만 읽고 로드맵은 필요한 경우에만 참고한다.
 
-## 1. 최신 작업 인계 — 1.1.48 프로그램 실행 정책 개선 대기 (2026-11-20)
+## 1. 최신 작업 인계 — 1.1.48 패키지 앱 실행 차단·AI 진단 개선 (2026-11-20)
+
+- 사용자 진행 승인 후 Gemini와 ChatGPT 최종 교차 검토 방향으로 코드 변경: 기존 Shell 실행 경로 유지, COM 활성화 교체 보류. 실행 중인 프로세스에서 Windows가 반환하는 정확한 AUMID와 GetPackageFamilyName의 일치 검증에 성공한 AppID만 PE subsystem=0 예외 적용. 명시 콘솔/CUI·공유 호스트 및 일반 EXE 보호 유지. 패키지 상주 Probe는 present로 처리하며 창을 새로 열지 않음.
+- DWMWA_CLOAKED 실제 상수 APP=1, SHELL=2, INHERITED=4. 정확한 패키지 프로세스의 APP-only 클로킹 창만 Focus/Wait 후보에서 제외. 다른 가상 데스크톱 및 불명확한 클로킹은 기존 보호 유지. 기존 창 활성화, 실행 큐 및 단일 Shell 요청 유지. 앱별 하드코딩 없음. 실제 다중 인스턴스 방지는 OS/앱에도 의존하며 실제 창 활성화는 별도 검증.
+- AI app_log는 정확한 trace, 버전, AppID/파일명, 제한된 PID/subsystem/package/cloak 진단만 노출. 경로와 임의 원문 details 제외. 실행 요청 반환/예외와 spec 거부 기록 보강. launch-requested는 실제 창 성공 아님. 기존 단일 입력 trace 연계 유지; 다중 액션 하위 단계의 input ID 누락은 별도 보완 대상. COM HRESULT는 이번 방식에서 발생하지 않으므로 추가하지 않음.
+- 1.1.48 버전 및 관련 회귀 검사 코드 갱신. Windows 컴파일/Actions 및 실제 메모장/ChatGPT/D200X 동작 검증 필요. ChatGPT 실패 원인은 아직 미확정. 메모장 창 없는 상주/완전 종료/최소화/전경 전환, Probe 및 기존 정상 대표 항목 확인. 기존 UI/HID/데이터/일반 EXE·터미널·폴더 코드 보존.
+
+### 1.1.48 착수 직전 진단 기록 (2026-11-20)
 
 - 현재 배포 1.1.47, Windows 통합 빌드 [#761](https://github.com/SoonCheol/D200X-Deck/actions/runs/44679427444) 성공 확인. 사용자 실기: AI 대화 영역만 전체 선택 성공, 중복 복사 키 7·8 및 미설정 6번 탐지/배치 개선 제안/버전 지식 응답 성공. 물리 입력 45건 기록, 이전 페이지 이동 및 노브 1 음량 조절 정상. ChatGPT 데스크톱/메모장 실행 실패, UGREEN NAS/Fusion 360/Bambu Studio/관리자 터미널/탐색기 정상. 노브 페이지 이동 실패는 사용자 착각으로 철회. 1.1.48 구현은 아직 미착수, 사용자 명시 진행 지시 전 소스 수정 금지.
 - 메모장 원본 로그 사용자 제공 6건(2026-11-20 05:24:46.199Z~05:44:42.277Z): 모두 version=1.1.47, stage=focus-result, mode=Focus, spec.kind=AppID, spec.target=Microsoft.WindowsNotepad_8wekyb3d8bbwe!App, result.status=running-protected, error=null, details=["running-pid=34264 subsystem=0 no-eligible-window"]. 예시 마지막 traceId=75bee78a-8bff-4b20-b422-2db5b7fbb880. 기존 실행 정책에서 GUI 판별 불가(0)로 실행 차단된 사실 확인; 정확한 PE 판독 오류/ACL/보조 프로세스 여부는 미확정. ChatGPT 로그는 사용자가 제출한 6건에 없으며 등록 형태 및 실패 분기 미확인.

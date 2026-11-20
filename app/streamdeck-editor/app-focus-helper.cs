@@ -27,6 +27,7 @@ static class DFAppFocus {
  [DllImport("kernel32.dll")]static extern bool CloseHandle(IntPtr handle);
  [DllImport("kernel32.dll",CharSet=CharSet.Unicode)]static extern bool QueryFullProcessImageName(IntPtr process,uint flags,StringBuilder text,ref uint size);
  [DllImport("kernel32.dll",CharSet=CharSet.Unicode)]static extern int GetApplicationUserModelId(IntPtr process,ref uint size,StringBuilder text);
+ [DllImport("kernel32.dll",CharSet=CharSet.Unicode,ExactSpelling=true)]static extern int GetPackageFamilyName(IntPtr process,ref uint size,StringBuilder text);
  [DllImport("shell32.dll")]static extern int SHGetPropertyStoreForWindow(IntPtr hwnd,ref Guid iid,out DFAppStore store);
  [DllImport("ole32.dll")]static extern int PropVariantClear(ref DFAppVariant value);
  static readonly List<string> notes=new List<string>();
@@ -66,7 +67,7 @@ static class DFAppFocus {
      (!String.IsNullOrEmpty(identity.Path)&&Same(Path.GetFileName(identity.Path),"WindowsTerminal.exe"));
  }
  static bool unknownTerminal;
- sealed class Identity {public string Path,Id;public bool? IsElevated;}
+ sealed class Identity {public string Path,Id,PackageFamily;public bool? IsElevated;}
  static Identity ProcessIdentity(uint pid,Dictionary<uint,Identity> cache){
    Identity result;if(cache.TryGetValue(pid,out result))return result;
    result=new Identity();cache[pid]=result;
@@ -79,6 +80,13 @@ static class DFAppFocus {
        len=0;if(GetApplicationUserModelId(process,ref len,null)==122&&len>0&&len<=32768){
          text=new StringBuilder((int)len);
          if(GetApplicationUserModelId(process,ref len,text)==0)result.Id=text.ToString();
+         if(kind=="AppID"&&Same(result.Id,target)){
+           len=0;
+           if(GetPackageFamilyName(process,ref len,null)==122&&len>0&&len<=1024){
+             text=new StringBuilder((int)len);
+             if(GetPackageFamilyName(process,ref len,text)==0)result.PackageFamily=text.ToString();
+           }
+         }
        }
      }
    }finally{CloseHandle(process);}
@@ -107,7 +115,18 @@ static class DFAppFocus {
    },IntPtr.Zero);
    return match==null?null:"child-"+match;
  }
- static bool Cloaked(IntPtr hwnd){int v;return DwmGetWindowAttribute(hwnd,14,out v,4)==0&&v!=0;}
+ // DWMWA_CLOAKED: application=1, shell=2, inherited=4. Unknown is not a reason to reopen.
+ static int CloakReason(IntPtr hwnd){int v;return DwmGetWindowAttribute(hwnd,14,out v,4)==0?v:-1;}
+ static bool Cloaked(IntPtr hwnd){return CloakReason(hwnd)>0;}
+ static bool PackagedMatch(Identity identity){
+   return kind=="AppID"&&Same(identity.Id,target)&&!String.IsNullOrEmpty(identity.PackageFamily)&&
+     identity.Id.StartsWith(identity.PackageFamily+"!",StringComparison.OrdinalIgnoreCase)&&
+     identity.Id.Length>identity.PackageFamily.Length+1;
+ }
+ static bool PackagedWindow(IntPtr hwnd){
+   uint pid;DFFolderNative.GetWindowThreadProcessId(hwnd,out pid);
+   return pid!=0&&PackagedMatch(ProcessIdentity(pid,new Dictionary<uint,Identity>()));
+ }
  static bool Eligible(IntPtr hwnd){
    if(!DFFolderNative.IsWindow(hwnd)||!IsWindowVisible(hwnd))return false;
    long flags=GetWindowLongPtr(hwnd,-20).ToInt64();
@@ -303,13 +322,16 @@ static class DFAppFocus {
         return ReadSubsystem(stream);
     }catch{return 0;}
   }
-  // All exact same-session matches must be GUI images to allow a reopen.
-  // Console, shared hosts, unreadable images and mixed matches stay protected.
-  static string RunningStatus(){
+  // Exact OS-reported package + application identity permits unknown PE only
+  // for a safe executable. Known console/shared hosts and classic unknowns stay protected.
+  static bool Reopenable(int subsystem,bool packaged,bool safeExe){
+    return subsystem==2||(subsystem==0&&packaged&&safeExe);
+  }
+  static string RunningStatus(bool activate){
     if(kind=="Terminal")return "missing";
     var cache=new Dictionary<uint,Identity>();
     var subsystems=new Dictionary<string,int>(StringComparer.OrdinalIgnoreCase);
-    bool found=false,protectedProcess=false;
+    bool found=false,protectedProcess=false,packagedProcess=false;
     int session;using(var self=Process.GetCurrentProcess())session=self.SessionId;
     foreach(var process in Process.GetProcesses()){
       using(process)try{
@@ -322,30 +344,44 @@ static class DFAppFocus {
           if(!String.IsNullOrEmpty(identity.Path)&&!subsystems.TryGetValue(identity.Path,out subsystem)){
             subsystem=ExecutableSubsystem(identity.Path);subsystems[identity.Path]=subsystem;
           }
-          if(subsystem!=2)protectedProcess=true;
+          bool packaged=PackagedMatch(identity);
+          if(packaged)packagedProcess=true;
+          if(!Reopenable(subsystem,packaged,SafeShortcutExe(identity.Path)))protectedProcess=true;
           Note("running-pid="+process.Id+" subsystem="+subsystem+" no-eligible-window");
+          Note("package-pid="+process.Id+" verified="+(packaged?"true":"false"));
         }
       }catch{}
     }
-    return !found?"missing":protectedProcess?"running-protected":"running-gui";
+    return !found?"missing":protectedProcess?"running-protected":!activate&&packagedProcess?"present":"running-gui";
   }
  static string LocateAndFocus(int wait,bool activate=true,bool newOnly=false,bool checkRunning=true){
    var watch=Stopwatch.StartNew();
    do{
      var candidates=Windows();
+     // Only exact packaged process windows hidden by their own app may be
+     // skipped on Focus/Wait; shell/inherited cloaking and Probe stay protected.
+     if(kind=="AppID"){
+       candidates.RemoveAll(candidate=>{
+         int cloak=CloakReason(candidate.Hwnd);
+         if(cloak!=0)Note("cloaked="+cloak);
+         bool skip=activate&&!newOnly&&cloak==1&&PackagedWindow(candidate.Hwnd);
+         if(skip)Note("window-reason=app-cloaked-packaged");
+         return skip;
+       });
+     }
      if(candidates.Count>0){
        if(!activate)return "present";
        foreach(var candidate in candidates){try{if(Activate(candidate))return "focused";}catch(Exception e){Note("activation: "+e.Message);}}
        return "matched-not-focused";
      }
      if(!activate&&checkRunning){
-        string running=RunningStatus();
+        string running=RunningStatus(activate);
         if(running!="missing")return running;
       }
      if(watch.ElapsedMilliseconds>=wait)break;
      Thread.Sleep(150);
    }while(true);
-   return !newOnly&&checkRunning?RunningStatus():"missing";
+   return !newOnly&&checkRunning?RunningStatus(activate):"missing";
  }
  static void Snapshot(){
    var handles=new List<string>();
@@ -387,6 +423,15 @@ static class DFAppFocus {
         }
         using(var invalid=new MemoryStream(new byte[64]))if(ReadSubsystem(invalid)!=0)throw new Exception("Invalid PE validation failed");
         using(var self=Process.GetCurrentProcess())if(ExecutableSubsystem(self.MainModule.FileName)!=3)throw new Exception("Console subsystem validation failed");
+        // Pure policy checks; no installed app or interactive session required.
+        if(!Reopenable(0,true,true)||Reopenable(0,false,true)||Reopenable(0,true,false)||Reopenable(3,true,true)||!Reopenable(2,false,true))
+          throw new Exception("Packaged reopen policy validation failed");
+        kind="AppID";target="Example_family!App";
+        if(!PackagedMatch(new Identity{Id=target,PackageFamily="Example_family"})||
+           PackagedMatch(new Identity{Id=target,PackageFamily="Other_family"})||
+           PackagedMatch(new Identity{Id="Example_family!Other",PackageFamily="Example_family"})||
+           PackagedMatch(new Identity{Id=target}))
+          throw new Exception("Exact package identity validation failed");
         kind="EXE";target=@"Z:\DeckForge-Nonexistent-"+Guid.NewGuid().ToString()+".exe";paths.Add(target);
        if(LocateAndFocus(0)!="missing")throw new Exception("Unexpected window match");
        if(!TerminalId("Microsoft.WindowsTerminal_8wekyb3d8bbwe!App")||TerminalId("Microsoft.WindowsCalculator_8wekyb3d8bbwe!App"))throw new Exception("Terminal identity validation failed");

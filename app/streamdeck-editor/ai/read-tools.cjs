@@ -102,9 +102,33 @@ async function tail(file,max=65536){
   try{const h=await fs.open(file,'r');try{const st=await h.stat();if(!st.isFile())return [];const size=Math.min(st.size,max),b=Buffer.alloc(size);const {bytesRead}=await h.read(b,0,size,st.size-size);const lines=b.subarray(0,bytesRead).toString('utf8').split('\n');if(st.size>size)lines.shift();return lines.flatMap(l=>{try{return [JSON.parse(l)];}catch{return [];}});}finally{await h.close();}}catch(e){if(e.code==='ENOENT')return [];throw e;}
 }
 const iso=v=>typeof v==='string'&&/^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d(?:\.\d{1,3})?Z$/.test(v)?v:undefined;
+// Only exact, bounded native diagnostic formats are projected; arbitrary details
+// (including shortcut paths, exception messages and command lines) are never copied.
+function appDetails(details){
+  const running=[],packages=[],cloaked=[],windowReasons=[];
+  for(const item of arr(details).slice(0,100)){
+    if(typeof item!=='string'||item.length>120)continue;
+    let m=/^running-pid=(\d{1,10}) subsystem=(\d{1,5}) no-eligible-window$/.exec(item);
+    if(m&&integer(+m[1],1,4294967295)&&integer(+m[2],0,65535)){
+      if(running.length<8)running.push({pid:+m[1],subsystem:+m[2],noEligibleWindow:true});
+      continue;
+    }
+    m=/^package-pid=(\d{1,10}) verified=(true|false)$/.exec(item);
+    if(m&&integer(+m[1],1,4294967295)){
+      if(packages.length<8)packages.push({pid:+m[1],verified:m[2]==='true'});
+      continue;
+    }
+    m=/^cloaked=(-1|[0-7])$/.exec(item);
+    if(m&&!cloaked.includes(+m[1]))cloaked.push(+m[1]);
+    if(item==='window-reason=app-cloaked-packaged'&&!windowReasons.length)windowReasons.push('app-cloaked-packaged');
+  }
+  return {...(running.length?{running}:{}),...(packages.length?{packages}:{}),...(cloaked.length?{cloaked}:{}),...(windowReasons.length?{windowReasons}:{})};
+}
 function logRecord(r){
-  const x=r.result||{},rec=r.record||{},trace=r.trace||{};
-  return {at:iso(r.at),trace:code(r.traceId),stage:code(r.stage||r.type),mode:code(r.mode),status:code(x.status),reason:code(x.reason),found:bool(x.found),ok:bool(r.ok),error:!!r.error||!!x.error,errorFieldPresent:Object.hasOwn(r,'error'),rendererStage:code(rec.stage),slot:num(rec.slot??trace.slot),page:Number.isInteger(rec.page??trace.page)?(rec.page??trace.page)+1:undefined,dirty:bool(rec.dirty??trace.dirty),force:bool(r.force),foreground:bool(r.foreground),steps:arr(x.steps).slice(-8).map(y=>({stage:code(y.stage),pid:num(y.pid),reason:code(y.reason),result:bool(y.detail)})),remaining:Array.isArray(x.remaining)?x.remaining.length:num(x.remaining)};
+  const x=r.result||{},rec=r.record||{},trace=r.trace||{},spec=r.spec||{};
+  const specKind=['AppID','EXE','Terminal','EditorHwnd'].includes(spec.kind)?spec.kind:undefined;
+  const target=specKind==='AppID'?appId(spec.target):specKind==='EXE'?targetName(spec.target):specKind==='Terminal'&&['admin','normal'].includes(spec.target)?spec.target:undefined;
+  return {at:iso(r.at),trace:code(r.traceId),version:code(r.version),specKind,target,...appDetails(x.details),stage:code(r.stage||r.type),mode:code(r.mode),status:code(x.status),reason:code(x.reason),found:bool(x.found),ok:bool(r.ok),error:!!r.error||!!x.error,errorFieldPresent:Object.hasOwn(r,'error'),rendererStage:code(rec.stage),slot:num(rec.slot??trace.slot),page:Number.isInteger(rec.page??trace.page)?(rec.page??trace.page)+1:undefined,dirty:bool(rec.dirty??trace.dirty),force:bool(r.force),foreground:bool(r.foreground),steps:arr(x.steps).slice(-8).map(y=>({stage:code(y.stage),pid:num(y.pid),reason:code(y.reason),result:bool(y.detail)})),remaining:Array.isArray(x.remaining)?x.remaining.length:num(x.remaining)};
 }
 const START_SCRIPT="$ErrorActionPreference='Stop';[Console]::OutputEncoding=[System.Text.Encoding]::UTF8; @(Get-StartApps | Select-Object Name,AppID) | ConvertTo-Json -Compress";
 const WINDOW_SCRIPT=String.raw`$ErrorActionPreference='Stop';[Console]::OutputEncoding=[System.Text.Encoding]::UTF8
@@ -170,7 +194,7 @@ const KNOWLEDGE=[
   {topic:'wide',facts:'Wide modes clock/datetime/stats/knobs. Root wide key cycles enabled modes. An unsaved warning temporarily overrides wide display; pressing it requests editor focus. A USB transfer or focus request is not visual confirmation.'},
   {topic:'editing',facts:'propose_edit stages basic root edits; propose_advanced stages folder/control/wide/composite/state-design/plugin edits. Active profile, bounded operations, fixed validation, user Apply and Save confirmation, existing atomic profile write, then display sync request. Dirty or changed snapshot blocks apply; last change undo only within session and unchanged state. No model direct write or execution.'},
   {topic:'plugins',facts:'Native HA REST supported entities light/switch/fan/input_boolean require configured server and real entity verification. SDK HA/Fusion registration reuses existing configured templates and verifies installed actions. Empty template list does not prove absence of installed commands or devices. SDK key acknowledgement is dispatch evidence, not remote action success.'},
-  {topic:'diagnostics',facts:'input_trace uses explicit packet IDs and actual dispatch observations; last 128 post-sleep-filter inputs only, volatile, no historical reconstruction. Distinguish reception, renderer, resolved slot, plan, filter/deferred gesture, request, returned/failed and native helper stage. No result is not proof of failure. SDK/SendInput/REST or shell request acceptance is not proof of effect. Delayed logic, timer/chime, unsaved-dialog resume, separate release/hold and composite substeps may have incomplete evidence. A filtered up event normally does not execute.'},
+  {topic:'diagnostics',facts:'input_trace uses explicit packet IDs and actual dispatch observations; last 128 post-sleep-filter inputs only, volatile, no historical reconstruction. Distinguish reception, renderer, resolved slot, plan, filter/deferred gesture, request, returned/failed and native helper stage. Use app_log with the exact helper trace to see safe AppID/EXE name, PID, PE subsystem, package identity, cloak and launch error reason. launch-requested is only shell request acceptance, not evidence of a window. No result is not proof of failure. SDK/SendInput/REST or shell request acceptance is not proof of effect. Delayed logic, timer/chime, unsaved-dialog resume, separate release/hold and composite substeps may have incomplete evidence. A filtered up event normally does not execute.'},
   {topic:'optimization',facts:'layout_review checks saved page holes, exactly repeated basic action settings, incomplete configured fields and inactive rotations. These are review candidates, not proof of defects; duplicate keys can be intentional. No automatic changes. Use page and liveView before making an approved proposal.'},
   {topic:'usage',facts:'ChatGPT direct connection only. At most 3 API requests, 4 tool calls and one edit proposal per question; last 8 messages / 16000 characters. Approve/cancel/undo locally. Reported token usage is API usage, not exact subscription deduction.'}
 ];
