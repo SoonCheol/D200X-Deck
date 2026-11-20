@@ -2315,15 +2315,21 @@ function bindTitleStyle(item){
   const updatePalette=bindSharedColorPalette(palette,'title-palette',()=>style[selectedColorField]??DEFAULT_TITLE_STYLE[selectedColorField],color=>{
     save(selectedColorField,color);$(fieldIds[selectedColorField]).value=color;
   },()=>{palette.hidden=true;});
-  function openPalette(field){
+  function openPalette(field,trigger){
+    if(!palette.hidden&&selectedColorField===field){palette.hidden=true;return;}
     selectedColorField=field;palette.hidden=false;
     $("title-palette-heading").textContent=headings[field];updatePalette();
+    const rect=trigger.getBoundingClientRect(),bounds=palette.getBoundingClientRect();
+    const left=rect.right+6+bounds.width<=window.innerWidth-8?rect.right+6:rect.left-bounds.width-6;
+    palette.style.left=Math.max(8,Math.min(left,window.innerWidth-bounds.width-8))+'px';
+    palette.style.top=Math.max(8,Math.min(rect.top,window.innerHeight-bounds.height-8))+'px';
   }
   colorFields.forEach(([id,field])=>{
     const color=$(id);color.value=style[field]??DEFAULT_TITLE_STYLE[field];
     color.addEventListener("input",()=>save(field,color.value));
-    $(id+"-palette").addEventListener("click",()=>openPalette(field));
+    $(id+"-palette").addEventListener("click",event=>{event.stopPropagation();openPalette(field,event.currentTarget);});
   });
+  window.addEventListener('resize',()=>{palette.hidden=true;},{signal:inspectorListener.signal});
   function syncTitleBackgroundFields(){
     $("title-background-enabled").checked=style.backgroundEnabled===true;
     $("title-background-color").value=validPaletteColor(style.backgroundColor)?style.backgroundColor:'#000000';
@@ -2412,7 +2418,7 @@ function bindTitleStyle(item){
     if(!menu.isConnected)return;
     if(!menu.contains(event.target)&&!toggle.contains(event.target)&&
       !event.target.closest?.('.state-title-style')){
-      menu.hidden=true;toggle.setAttribute("aria-expanded","false");
+      palette.hidden=true;menu.hidden=true;toggle.setAttribute("aria-expanded","false");
       root.querySelectorAll('.state-title-style').forEach(button=>
         button.setAttribute('aria-expanded','false'));
     }

@@ -411,3 +411,11 @@ test('page indicator uses standard paired cards with independent title and numbe
   assert.match(css,/\.indicator-inspector \.state-title-layout \.indicator-icon-cards>\.sdk-state-icon\{grid-template-rows:auto 31px 31px auto\}/);
   assert.match(css,/\.indicator-inspector \.state-title-layout \.indicator-icon-cards \.sdk-state-preview,.*\{grid-row:4\}/);
 });
+
+test('title palette opens beside its trigger and is clamped to the viewport',()=>{
+  assert.match(css,/\.title-style-popover #title-palette\{position:fixed;[^}]*max-height:calc\(100dvh - 16px\)/);
+  assert.match(editor,/function openPalette\(field,trigger\)/);
+  assert.match(editor,/palette\.style\.left=Math\.max\(8,Math\.min\(left,window\.innerWidth-bounds\.width-8\)\)/);
+  assert.match(editor,/palette\.style\.top=Math\.max\(8,Math\.min\(rect\.top,window\.innerHeight-bounds\.height-8\)\)/);
+  assert.match(editor,/openPalette\(field,event\.currentTarget\)/);
+});

@@ -1160,3 +1160,6 @@
 .indicator-inspector .side-binding-target{grid-template-columns:auto minmax(0,1fr);align-items:center;gap:5px;margin:4px 35px 0 0}
 .indicator-inspector .side-binding-target>label{min-width:0;font-size:12px}
 .indicator-inspector .side-binding-target>select{min-width:0;font-size:12px;padding:4px 5px}
+
+/* Keep font colors reachable even when the title controls are near the window bottom. */
+.title-style-popover #title-palette{position:fixed;z-index:110;width:251px;max-width:calc(100vw - 16px);max-height:calc(100dvh - 16px);overflow-y:auto;box-shadow:0 10px 23px #0009}
