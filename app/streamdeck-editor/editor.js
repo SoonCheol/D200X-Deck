@@ -5685,12 +5685,6 @@ function bindSidebarHeader(){
     const overall=entry(menu,'전체 프로필 관리 ▸',()=>{globalPanel.hidden=!globalPanel.hidden;},'profile-global-trigger');
     const globalPanel=document.createElement('div');globalPanel.className='profile-global-panel';globalPanel.hidden=true;
     const globalAction=(label,fn)=>entry(globalPanel,label,run(fn));
-    globalAction('로컬 백업',createLocalBackup);
-    globalAction('로컬 백업 복원',()=>restoreBackup());
-    const drivePanel=document.createElement('div');drivePanel.className='profile-global-panel';drivePanel.hidden=true;
-    entry(globalPanel,'Google Drive 백업 ▸',()=>{drivePanel.hidden=!drivePanel.hidden;});
-    for(const [name,fn] of [['Google 계정 연결',googleConnect],['연결 상태 확인',googleStatus],['Google Drive에 백업',createGoogleBackup],['Google Drive 백업 복원',restoreGoogleBackup],['연결 해제',googleDisconnect]])entry(drivePanel,name,run(fn));
-    globalPanel.append(drivePanel);
     globalAction('전체 프로필·설정 JSON 내보내기',()=>{
       try{
         const payload={...state,actionPanelAppearance:window.D200XPanelIcons.exportConfig()};
@@ -5816,13 +5810,42 @@ $("icon-maker-save").addEventListener("click",()=>{
   if(makerTarget)applyStateIconData(makerTarget,makerStateKey,$("icon-maker-canvas").toDataURL("image/png"));
   closeIconMaker();
 });
-// Device options reuse the same update destination as the existing tray menu.
+// General options: backup/restore is independent of the profile picker.
 function bindSettingsMenu(){
   const trigger=$("settings-trigger"),menu=$("settings-menu"),update=$("check-update");
-  const close=()=>{menu.hidden=true;trigger.setAttribute('aria-expanded','false');};
+  const makeEntry=(parent,label,fn)=>{
+    const button=document.createElement('button');button.type='button';button.textContent=label;
+    button.setAttribute('role','menuitem');button.addEventListener('click',fn);parent.append(button);return button;
+  };
+  const backupPanel=document.createElement('div');backupPanel.className='profile-global-panel';backupPanel.hidden=true;
+  backupPanel.id='settings-backup-panel';backupPanel.setAttribute('role','group');
+  const backupToggle=makeEntry(menu,'백업 및 복원 ▸',()=>{
+    backupPanel.hidden=!backupPanel.hidden;
+    backupToggle.textContent=backupPanel.hidden?'백업 및 복원 ▸':'백업 및 복원 ▾';
+    backupToggle.setAttribute('aria-expanded',String(!backupPanel.hidden));
+  });
+  backupToggle.setAttribute('aria-controls',backupPanel.id);backupToggle.setAttribute('aria-expanded','false');
+  const drivePanel=document.createElement('div');drivePanel.className='profile-global-panel';drivePanel.hidden=true;
+  drivePanel.id='settings-drive-panel';drivePanel.setAttribute('role','group');
+  const resetGroups=()=>{
+    backupPanel.hidden=true;backupToggle.textContent='백업 및 복원 ▸';backupToggle.setAttribute('aria-expanded','false');
+    drivePanel.hidden=true;driveToggle.textContent='Google Drive 백업 ▸';driveToggle.setAttribute('aria-expanded','false');
+  };
+  const close=()=>{menu.hidden=true;trigger.setAttribute('aria-expanded','false');resetGroups();};
+  const run=(fn)=>async()=>{close();try{await fn();}catch(error){window.d200xActionStatus?.('백업 작업 실패: '+String(error?.message||error));}};
+  makeEntry(backupPanel,'로컬 백업',run(createLocalBackup));
+  makeEntry(backupPanel,'로컬 백업 복원',run(()=>restoreBackup()));
+  const driveToggle=makeEntry(backupPanel,'Google Drive 백업 ▸',()=>{
+    drivePanel.hidden=!drivePanel.hidden;
+    driveToggle.textContent=drivePanel.hidden?'Google Drive 백업 ▸':'Google Drive 백업 ▾';
+    driveToggle.setAttribute('aria-expanded',String(!drivePanel.hidden));
+  });
+  driveToggle.setAttribute('aria-controls',drivePanel.id);driveToggle.setAttribute('aria-expanded','false');
+  for(const [name,fn] of [['Google 계정 연결',googleConnect],['연결 상태 확인',googleStatus],['Google Drive에 백업',createGoogleBackup],['Google Drive 백업 복원',restoreGoogleBackup],['연결 해제',googleDisconnect]])makeEntry(drivePanel,name,run(fn));
+  backupPanel.append(drivePanel);menu.append(backupPanel);
   trigger.addEventListener('click',()=>{
-    menu.hidden=!menu.hidden;
-    trigger.setAttribute('aria-expanded',String(!menu.hidden));
+    if(!menu.hidden){close();return;}
+    menu.hidden=false;trigger.setAttribute('aria-expanded','true');
   });
   update.addEventListener('click',async()=>{
     close();
