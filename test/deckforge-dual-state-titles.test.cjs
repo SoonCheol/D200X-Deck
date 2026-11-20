@@ -78,8 +78,9 @@ test('outside click treats card style button as toggle and resets accessibility 
 
 test('state title is composed directly onto both card images using device compositor',()=>{
  assert.match(editor,/async function refreshStateTitleCards\(item\)/);
- assert.match(editor,/const titleVisual=item\.type==='timer'\?resolveTimerVisual\(visual,second,DeckCore\.timerSeconds\(item\.settings\?\.seconds\),artwork\):item\.type==='multi'\?resolveMultiVisual\(visual,second,artwork,progress\):resolveStateTitle\(visual,second,artwork\);/);
- assert.match(editor,/window\.renderDeckKeyImage\(titleVisual,slot,false\)/);
+ assert.match(editor,/const titleVisual=item\.type==='indicator'\?indicatorPressVisual\(visual,second\):item\.type==='timer'\?resolveTimerVisual\(visual,second,DeckCore\.timerSeconds\(item\.settings\?\.seconds\),artwork\):item\.type==='multi'\?resolveMultiVisual\(visual,second,artwork,progress\):resolveStateTitle\(visual,second,artwork\);/);
+ assert.match(editor,/window\.renderDeckKeyImage\(item\.type==='indicator'\?\{\.\.\.titleVisual,keyPressAlternate:true\}:titleVisual,slot,false\)/);
+ assert.match(editor,/card\.dataset\.stateTitle=pressed\?'second':'first'/);
  assert.match(editor,/img\.replaceChildren\(rendered\)/);
  assert.match(editor,/void refreshStateTitleCards\(item\)/);
  assert.match(editor,/group\.dataset\.stateTitle=key==='off'\?'first':'second'/);
