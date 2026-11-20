@@ -44,7 +44,7 @@ function editorFixture(){
   const start=source.indexOf(' let aiEditCapture=null,aiEditUndo=null;');
   const end=source.indexOf('\nlet refreshProfilesMenu=',start);
   assert.ok(start>=0&&end>start);
-  const context={state:fixture(),profileStorageFailure:false,inspectorEditing:false,inspectorSession:null,nativeGridBusy:false,nativeGridDrag:null,openAppHoldTimers:new Map(),document:{querySelector:()=>null},writes:0,syncs:0,failSave:false,render:()=>{},console};
+  const context={ACTIONS:new Map([['hotkey',{label:'단축키'}]]),sdkActionNames:new Map(),state:fixture(),profileStorageFailure:false,inspectorEditing:false,inspectorSession:null,nativeGridBusy:false,nativeGridDrag:null,openAppHoldTimers:new Map(),document:{querySelector:()=>null},writes:0,syncs:0,failSave:false,render:()=>{},console};
   context.window={DeckForgeAiPlan:Plan,deckBridge:{writeProfile:()=>{context.writes++;return {ok:!context.failSave};}},scheduleDeckSync:()=>{context.syncs++;}};
   vm.runInNewContext(source.slice(start,end),context);
   return {c:context,api:context.window.DeckForgeAiEdit};
@@ -55,7 +55,8 @@ test('renderer preview/cancel and stale refusal do not save; apply and undo each
   api.discard('a');assert.throws(()=>api.apply('a'));assert.equal(c.writes,0);
   api.capture('b');await api.prepare({id:'b',input,targets:[]});c.state.selected=3;
   assert.throws(()=>api.apply('b'),/달라졌/);assert.equal(c.writes,0);
-  api.capture('c');await api.prepare({id:'c',input,targets:[]});api.apply('c');
+  api.capture('c');await api.prepare({id:'c',input,targets:[]});const receipt=api.apply('c');
+  assert.equal(receipt.saved,true);assert.equal(receipt.rows.length,1);assert.equal(receipt.rows[0].action,'단축키');assert.equal(receipt.rows[0].title,'Ctrl+C');assert.equal(receipt.rows[0].page,1);assert.equal(receipt.rows[0].slot,2);
   assert.equal(c.writes,1);assert.equal(c.syncs,1);assert.equal(c.state.pages[0][1].settings.keys,'Ctrl+C');
   api.undo('c');assert.equal(c.writes,2);assert.equal(c.syncs,2);assert.equal(c.state.pages[0][1],null);
   assert.throws(()=>api.undo('c'));

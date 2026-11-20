@@ -4269,7 +4269,7 @@ window.executeD200XKey=tracedPhysicalDispatch;
    return plan.rows.map(row=>{
      const base={op:row.op,page:row.page,slot:row.slot,folder:row.folder,control:row.control,state:row.state};
      if(!Number.isInteger(row.slot)||['folder_page','folder_settings','control','wide','add_page','delete','move_source'].includes(row.op))return base;
-     let items=state.pages[row.page-1];
+     let items=plan.next.pages[row.page-1];
      for(const [slot,fp] of (row.folder||'').split('/').filter(Boolean).map(x=>x.split(':').map(Number))){
        const folder=items?.[slot-1];items=fp===1?folder?.children:folder?.pages?.[fp-2];
      }
@@ -4366,9 +4366,9 @@ window.executeD200XKey=tracedPhysicalDispatch;
    apply(id){
      const snapshot=aiEditCurrent(id);
      if(!snapshot.plan)throw Error('적용할 변경안이 없습니다.');
+     const rows=aiSavedRows(snapshot.plan);
      const result=aiEditStore(snapshot.plan.next);
      aiEditUndo={id,before:snapshot.before,after:JSON.stringify(state)};
-     const rows=aiSavedRows(snapshot.plan);
      aiEditCapture=null;return {...result,rows};
    },
    discard(id){if(aiEditCapture?.id===id)aiEditCapture=null;return true;},
