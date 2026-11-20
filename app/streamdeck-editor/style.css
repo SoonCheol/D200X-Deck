@@ -1126,3 +1126,11 @@
 .action-layout-inspector .side-binding-choice>label{grid-column:1/-1}
 .action-layout-inspector .side-binding-choice>select,.action-layout-inspector .side-binding-target>select{width:100%;min-width:0;height:31px}
 .action-layout-inspector .side-binding-target{display:grid;gap:5px;margin-top:7px}
+
+.deck-key.pin-shared,.deck-key.pin-shadowed{position:relative}
+.deck-key.pin-shared::after,.deck-key.pin-shadowed::after{content:'📌';position:absolute;right:3px;top:3px;font-size:11px;line-height:1;filter:grayscale(1);pointer-events:none;z-index:2}
+.deck-key.pin-shadowed::after{opacity:.45}
+.indicator-management{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:5px 0}
+.indicator-management button{border:1px solid #62666d;background:#3b4149;border-radius:4px;padding:5px 9px}
+.indicator-management label{display:flex;align-items:center;gap:3px;font-size:12px;white-space:nowrap}
+.indicator-number-field .title-line{position:relative}

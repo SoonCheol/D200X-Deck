@@ -1318,34 +1318,50 @@ test('page indicator has an independent short/hold navigation whitelist and defa
   assert.equal(core.cleanAction(indicator).settings.indicatorHold.navigation,'none');
   assert.equal(core.planAction(indicator,0,3).kind,'display-only');
 });
-test('page indicator pin is shared and unpin retains the selected page; occupied pages not overwritten',()=>{
+test('legacy indicator pins migrate to independent visible slots without overwriting',()=>{
   const s=core.migrateState({pages:[[],[],[]]});
-  const indicator=s.pages[0][0]=core.createAction('indicator');
-  indicator.settings.indicatorDown={navigation:'next'};
-  const preserved=s.pages[1][0]=core.createAction('hotkey');
-  assert.equal(core.setIndicatorPinned(s,0,true),true);
-  assert.equal(s.pages[0][0],null);
-  assert.equal(core.indicatorPinState(s,0).checked,true);
-  s.page=1;assert.equal(core.visibleActions(s)[0],preserved);
-  s.page=2;assert.equal(core.visibleActions(s)[0],s.pinned[0]);
-  assert.equal(core.setIndicatorPinned(s,0,false),true);
-  assert.equal(s.pinned[0],null);assert.equal(s.pages[2][0].settings.indicatorDown.navigation,'next');
+  const item=core.createAction('indicator');item.settings.indicatorDown={navigation:'next'};
+  s.pinned[0]=item;s.pages[1][0]=core.createAction('hotkey');
+  const restored=core.migrateState(JSON.parse(JSON.stringify(s)));
+  assert.equal(restored.pinned[0],null);
+  assert.equal(restored.pages[0][0].type,'indicator');
+  assert.equal(restored.pages[1][0].type,'hotkey');
+  assert.equal(restored.pages[2][0].type,'indicator');
+  assert.equal(core.sharedIndicatorConfig(restored,restored.pages[2][0]).navigation,'next');
+  assert.equal(core.togglePinned(restored,0),false);
 });
-test('both page indicator goto targets follow page changes and deleted target stays invalid',()=>{
+test('indicator bulk skips existing and full pages, shares navigation, keeps separate design and auto adds',()=>{
+  const s=core.migrateState({pages:[[],[],[],[]]});
+  const item=s.pages[0][0]=core.createAction('indicator');item.title='One';
+  const existing=s.pages[1][3]=core.createAction('indicator');existing.title='Two';
+  for(let i=0;i<13;i++)s.pages[2][i]=core.createAction('hotkey');
+  s.pinned[0]=core.createAction('hotkey');
+  core.updateIndicatorCommon(s,item,{indicatorDown:{navigation:'next'}});
+  assert.deepEqual(core.manageIndicators(s,'add',item,null),{added:1,existing:2,full:1,removed:0});
+  assert.equal(s.pages[3][0],null);assert.equal(s.pages[3][1].title,'One');
+  assert.equal(existing.title,'Two');assert.equal(core.sharedIndicatorConfig(s,existing).navigation,'next');
+  assert.equal(core.editPageStructure(s,{op:'append',folder:null}),true);
+  assert.equal(s.pages[4][1].type,'indicator');
+  const restored=core.migrateState(JSON.parse(JSON.stringify(s)));
+  assert.equal(restored.indicatorCommon.indicatorDown.navigation,'next');
+  assert.equal(core.manageIndicators(restored,'remove',item,null).removed,4);
+  assert.equal(restored.pages[2][0].type,'hotkey');
+  assert.equal(restored.indicatorCommon.autoAdd,false);
+  assert.equal(core.editPageStructure(restored,{op:'append',folder:null}),true);
+  assert.equal(restored.pages[5].some(x=>x?.type==='indicator'),false);
+});
+test('common indicator targets follow root page changes and survive reload',()=>{
   const s=core.migrateState({pages:[[],[],[]]});
   const item=s.pages[0][0]=core.createAction('indicator');
-  item.settings.indicatorDown={navigation:'goto',page:2};
-  item.settings.indicatorHold={navigation:'goto',page:1};
-  assert.equal(core.setIndicatorPinned(s,0,true),true);
+  core.updateIndicatorCommon(s,item,{indicatorDown:{navigation:'goto',page:2},indicatorHold:{navigation:'goto',page:1}});
   assert.equal(core.editPageStructure(s,{op:'insert',index:1,folder:null}),true);
-  assert.equal(s.pinned[0].settings.indicatorDown.page,3);
-  assert.equal(s.pinned[0].settings.indicatorHold.page,2);
+  assert.equal(s.indicatorCommon.indicatorDown.page,3);
+  assert.equal(s.indicatorCommon.indicatorHold.page,2);
   assert.equal(core.editPageStructure(s,{op:'delete',index:2,folder:null}),true);
-  assert.equal(s.pinned[0].settings.indicatorDown.page,2);
-  assert.equal(s.pinned[0].settings.indicatorHold.page,-1);
-  assert.equal(core.planIndicatorNavigation(s,0,'hold').kind,'invalid');
+  assert.equal(s.indicatorCommon.indicatorDown.page,2);
+  assert.equal(s.indicatorCommon.indicatorHold.page,-1);
   const restored=core.migrateState(JSON.parse(JSON.stringify(s)));
-  assert.equal(restored.pinned[0].settings.indicatorHold.page,-1);
+  assert.equal(restored.indicatorCommon.indicatorHold.page,-1);
 });
 test('indicator and side use same one-shot short and hold tracker',()=>{
   const tracker=core.createSidePressTracker();

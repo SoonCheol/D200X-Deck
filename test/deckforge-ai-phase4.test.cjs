@@ -167,3 +167,22 @@ test('Fusion multi-query search returns bounded distinct matches fairly',()=>{
  assert.deepEqual(FusionLive.search(rows,'선|원',2,2).items.map(r=>r.id),['Line2']);
  assert.throws(()=>FusionLive.search(rows,'선||원'));
 });
+
+test('page structure preview inserts and moves pages without mutating original or overwriting destination',()=>{
+ const p=Core.migrateState({pages:[[],[],[],[],[]]});
+ const marker=p.pages[4][0]=Core.createAction('hotkey');marker.title='fifth';
+ p.pages[0][0]=Core.createAction('goto');p.pages[0][0].settings.page=4;
+ const request=(config)=>({kind:'page_structure',page:null,folder:null,slot:null,configJson:JSON.stringify(config)});
+ const before=JSON.stringify(p);
+ const inserted=A.makePlan(p,request({op:'insert',index:5})).next;
+ assert.equal(JSON.stringify(p),before);
+ assert.equal(inserted.pages.length,6);assert.equal(inserted.pages[5][0].title,'fifth');
+ assert.equal(inserted.pages[0][0].settings.page,5);
+ const moved=A.makePlan(inserted,request({op:'move',index:6,to:2})).next;
+ assert.equal(moved.pages[1][0].title,'fifth');assert.equal(moved.pages[0][0].settings.page,1);
+ const duplicated=A.makePlan(moved,request({op:'duplicate',index:2})).next;
+ assert.equal(duplicated.pages[2][0].title,'fifth');
+ const deleted=A.makePlan(duplicated,request({op:'delete',index:2})).next;
+ assert.equal(deleted.pages[0][0].settings.page,-1);
+ assert.throws(()=>A.makePlan(p,request({op:'insert',index:9})));
+});

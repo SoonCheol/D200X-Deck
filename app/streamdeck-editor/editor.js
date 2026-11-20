@@ -298,7 +298,7 @@ function displayItem(item,index){
   }
   if(!item||item.type!=="indicator")return item;
   return {...item,indicatorNumber:String((DeckCore.activeFolder(state)?.pageIndex??state.page)+1),
-    indicatorNumberStyle:{...DeckCore.INDICATOR_NUMBER_STYLE,...item.settings?.indicatorNumberStyle}};
+    indicatorNumberStyle:DeckCore.indicatorCommon(state,item).indicatorNumberStyle};
 }
 // Visual press policy is separate from action execution and SDK keyUp delivery.
 const previewPressKeys=new Set();
@@ -511,7 +511,7 @@ function setItem(index,item){
       (controlGesture==='down'&&binding.mode==='adjust'))))binding.mode='trigger';
     clearOldSdkVisual(index,({'holdLeft':'hold-left','holdRight':'hold-right'})[controlGesture]||controlGesture);
     DeckCore.assignControlAction(binding,controlGesture,item);
-  }else {clearOldSdkVisual(index);currentPage()[index]=item;}
+  }else {clearOldSdkVisual(index);if(item?.type==='indicator'&&!state.indicatorCommon)DeckCore.updateIndicatorCommon(state,item,{});currentPage()[index]=item;}
   state.selected=index;persist();render();
 }
 function removeSlotAction(index){
@@ -782,7 +782,9 @@ function renderGrid(){
     const item=i===13&&wideUnsavedWarningActive()?wideUnsavedVisual():folderBack?{type:'folder-back',title:'뒤로',icon:{kind:'glyph',glyph:'↩'}}:(i===13&&wideDisplayAvailable()?wideVisual():raw);
     const b=document.createElement("button");b.type="button";b.className="deck-key"+(i===13?" wide":"")+(state.selected===i?" selected":"");
     b.dataset.index=i;b.setAttribute("aria-label",`키 ${i+1}: ${keyName(item)||"비어 있음"}`);
-    if(item)setDeckForgeTooltip(b,()=>({title:keyName(item)||item.type,lines:[shortActionDescription(item)]}));
+    const pin=!state.folderPath?.length&&i<13?state.pinned?.[i]:null;
+    if(pin)b.classList.add(currentPage()[i]?'pin-shadowed':'pin-shared');
+    if(item)setDeckForgeTooltip(b,()=>({title:keyName(item)||item.type,lines:[shortActionDescription(item),...(pin?[currentPage()[i]?'페이지별 액션 우선 적용 · 고정 액션: '+keyName(pin):'모든 페이지의 고정 액션']:[])]}));
     const visual=displayKeyPressItem(displayItem(item,i),i);
     const glyph=iconNode(visual,ACTIONS.get(item?.type)?.icon||"+");glyph.classList.add("glyph");
     const label=document.createElement("span");label.className="caption";label.textContent=String(visual?.title||"").replace(/<br\s*\/?>/gi,"\n");updateTitleAppearance(label,visual);
@@ -2024,7 +2026,7 @@ async function refreshSelectedVisual(){
     image.src="data:image/png;base64,"+data;
     host.replaceChildren(image);
     const indicatorCard=$('indicator-icon-card-preview');
-    if(indicatorCard)indicatorCard.replaceChildren(image.cloneNode());
+    if(indicatorCard){const trigger=indicatorCard.querySelector('.key-background-trigger');indicatorCard.replaceChildren(image.cloneNode());if(trigger)indicatorCard.append(trigger);}
     const fallback=$("icon-preview")?.querySelector(".preview-title");
     if(fallback)fallback.hidden=true;
   }catch(error){console.warn("미리보기 이미지 생성 실패",error);}
@@ -2036,8 +2038,8 @@ function refreshTitlePreview(item){
   let label=host.querySelector(".preview-title");
   if(!label){label=document.createElement("span");label.className="preview-title";host.append(label);}
   const current=displayKeyPressItem(displayItem(item,state.selected),state.selected,true);
-  label.textContent=String(item.type==='indicator'?(current?.indicatorNumber||""):current?.title||"").replace(/<br\s*\/?>/gi,"\n");
-  const style=item.type==='indicator'?{...DeckCore.INDICATOR_NUMBER_STYLE,...current?.indicatorNumberStyle}:{...DEFAULT_TITLE_STYLE,...current?.titleStyle};
+  label.textContent=String(current?.title||"").replace(/<br\s*\/?>/gi,"\n");
+  const style={...DEFAULT_TITLE_STYLE,...current?.titleStyle};
   label.hidden=style.visible===false;
   label.style.textAlign="center";
   label.style.fontFamily=style.family==="default"||style.family==="DeckForge Pretendard"?"DeckForge Pretendard, sans-serif":style.family;
@@ -2170,22 +2172,25 @@ function bindKeyBackgroundControl(preview,item,key){
 }
 
 function bindTitleStyle(item){
-  const numberTitle=item.type==='indicator';
-  let style=numberTitle?{...DeckCore.INDICATOR_NUMBER_STYLE,...item.settings?.indicatorNumberStyle}:{...DEFAULT_TITLE_STYLE,...item.titleStyle};
+  let numberTitle=false;
+  let style={...DEFAULT_TITLE_STYLE,...item.titleStyle};
   let activeStateTitle=null;
   const commitStyle=()=>{
     if(activeStateTitle)ensureStateTitlePair(item)[activeStateTitle].style={...style};
-    else if(numberTitle){item.settings.indicatorNumberStyle={...style};}
+    else if(numberTitle){DeckCore.updateIndicatorCommon(state,item,{indicatorNumberStyle:{...style}});}
     else item.titleStyle={...style};
     persistInspectorChange();renderGrid();refreshTitlePreview(item);
   };
   const menu=$("title-style-popover"),toggle=$("title-style-trigger");
+  const titleHost=menu.parentElement;
   toggle.addEventListener("click",()=>{
-    menu.hidden=!menu.hidden;toggle.setAttribute("aria-expanded",String(!menu.hidden));
+    if(item.type==='indicator'&&numberTitle){numberTitle=false;style={...DEFAULT_TITLE_STYLE,...item.titleStyle};syncIndicatorStyle();titleHost.append(menu);menu.hidden=false;}
+    else menu.hidden=!menu.hidden;
+    toggle.setAttribute("aria-expanded",String(!menu.hidden));
   });
   const save=(field,value)=>{style[field]=value;commitStyle();};
   const visible=$("title-visible");visible.checked=style.visible;
-  visible.addEventListener("change",()=>save("visible",visible.checked));
+  visible.addEventListener("change",()=>{if(item.type==='indicator'&&numberTitle){item.titleStyle={...DEFAULT_TITLE_STYLE,...item.titleStyle,visible:visible.checked};persistInspectorChange();renderGrid();refreshTitlePreview(item);}else save("visible",visible.checked);});
   menu.querySelectorAll("[data-align]").forEach(button=>{
     button.classList.toggle("active",button.dataset.align===style.align);
     button.addEventListener("click",()=>{
@@ -2247,7 +2252,7 @@ function bindTitleStyle(item){
     // Mutate the existing style object so all field handlers keep the same reference.
     // Do not rebuild the inspector: the popover stays open and displays applied values.
     Object.assign(style,chosen.style);
-    visible.checked=style.visible;
+    if(numberTitle){const n=$('indicator-number-visible');if(n)n.checked=style.visible;}else visible.checked=style.visible;
     menu.querySelectorAll("[data-align]").forEach(button=>
       button.classList.toggle("active",button.dataset.align===style.align));
     family.value=style.family;
@@ -2322,12 +2327,31 @@ function bindTitleStyle(item){
     if(hasStateTitlePair(item)){
       const mode=$("inspector").dataset.activeTitle||'first';
       ensureStateTitlePair(item)[mode].style={...DEFAULT_TITLE_STYLE};
-    }else if(numberTitle)item.settings.indicatorNumberStyle={...DeckCore.INDICATOR_NUMBER_STYLE};
+    }else if(numberTitle)DeckCore.updateIndicatorCommon(state,item,{indicatorNumberStyle:{...DeckCore.INDICATOR_NUMBER_STYLE}});
     else item.titleStyle={...DEFAULT_TITLE_STYLE};
     persistInspectorChange();renderGrid();renderInspector();
   });
   // The existing popover is reused: each card switches its own style object.
   const root=$("inspector");
+  function syncIndicatorStyle(){
+    menu.querySelectorAll("[data-align]").forEach(b=>b.classList.toggle("active",b.dataset.align===style.align));
+    family.value=style.family;size.value=style.size;
+    menu.querySelectorAll("[data-style]").forEach(b=>b.classList.toggle("active",!!style[b.dataset.style]));
+    $("title-color").value=style.color;$("outline-color").value=style.outlineColor;outlineWidth.value=style.outlineWidth;
+    syncTitleBackgroundFields();renderPresetOptions();palette.hidden=true;
+  }
+  root._openIndicatorNumberStyle=(trigger)=>{
+    const already=numberTitle&&!menu.hidden;
+    numberTitle=true;style={...DeckCore.indicatorCommon(state,item).indicatorNumberStyle};syncIndicatorStyle();
+    trigger.parentElement.append(menu);menu.hidden=already;
+    trigger.setAttribute('aria-expanded',String(!menu.hidden));toggle.setAttribute('aria-expanded','false');
+  };
+  root._setIndicatorNumberVisible=checked=>{
+    const next={...DeckCore.indicatorCommon(state,item).indicatorNumberStyle,visible:checked};
+    if(numberTitle)style={...next};
+    DeckCore.updateIndicatorCommon(state,item,{indicatorNumberStyle:next});
+    persistInspectorChange();renderGrid();refreshTitlePreview(item);
+  };
   root._openStateTitleStyle=(which,trigger)=>{
     const entry=(item.settings?.stateTitles||defaultStateTitlePair(item))[which];
     activeStateTitle=which;
@@ -2366,7 +2390,6 @@ function beginInspectorSession(){
   const key=state.profileId+':'+state.page+':'+JSON.stringify(state.folderPath||[])+':'+state.selected;
   if(inspectorSession?.key===key)return;
   inspectorSession=state.selected===null?null:{key,snapshot:JSON.stringify(state),dirty:false};
-  if(inspectorSession&&DeckCore.visibleActions(state)[state.selected]?.type==='indicator'&&DeckCore.indicatorPinState(state,state.selected).checked)inspectorSession.indicatorShared=true;
 }
 // External SDK Property Inspector commits are independent of DeckForge drafts.
 // Resolve snapshot items by physical slot/gesture; Fusion context tokens reference live objects.
@@ -2416,11 +2439,6 @@ function inspectorTargetCurrent(session,item){
     current.sequences?.some(steps=>steps.includes(item))||Object.values(current.slots||{}).includes(item));
 }
 function persistInspectorChange(){
-  // Retain shared behavior for a legacy indicator pin that still has a local copy.
-  if(inspectorSession?.indicatorShared&&!state.folderPath?.length){
-    const local=state.pages[state.page]?.[state.selected],pin=state.pinned?.[state.selected];
-    if(local?.type==='indicator'&&pin?.type==='indicator')state.pinned[state.selected]=clone(local);
-  }
   if(inspectorSession){inspectorSession.dirty=JSON.stringify(state)!==inspectorSession.snapshot;updateInspectorSaveButtons();return true;}
   return persist();
 }
@@ -2519,10 +2537,10 @@ let inspectorListener=new AbortController();
 // Physical controls use a dedicated compact inspector instead of pretending
 // each knob has a single key. Drag to an individual gesture or click it to edit.
 function renderSideBindings(root,index,binding,indicator=null){
-  const configFor=gesture=>indicator?DeckCore.indicatorConfig(indicator,gesture):DeckCore.sideActionConfig(binding,index,gesture);
+  const configFor=gesture=>indicator?DeckCore.sharedIndicatorConfig(state,indicator,gesture):DeckCore.sideActionConfig(binding,index,gesture);
   const assign=(gesture,next)=>{
     if(!indicator)return assignSideControl(index,gesture,next,true);
-    indicator.settings[gesture==='hold'?'indicatorHold':'indicatorDown']=next;
+    DeckCore.updateIndicatorCommon(state,indicator,{[gesture==='hold'?'indicatorHold':'indicatorDown']:next});
     persistInspectorChange();renderGrid();renderInspector();
   };
   const pair=document.createElement('div');pair.className='side-binding-pair';
@@ -2943,28 +2961,35 @@ function bindKeyPressIconControls(root,item){
 function bindIndicatorInspector(root,item){
   const index=state.selected,fields=root.querySelector('.properties>.fields');
   if(!fields)return;
-  const pin=DeckCore.indicatorPinState(state,index);
-  const row=document.createElement('div');row.className='field checkbox-setting-field';
-  const box=document.createElement('input');box.type='checkbox';box.id='indicator-pin';box.checked=pin.checked;box.disabled=pin.blocked;
-  const label=document.createElement('label');label.htmlFor=box.id;label.textContent='모든 페이지에 고정';
-  label.title=pin.blocked?'덱폴더 내부 또는 이미 다른 고정 버튼이 있는 위치에서는 사용할 수 없습니다.':'다른 페이지의 빈 동일 위치에 표시합니다.';
-  row.append(label,box);fields.prepend(row);
-  box.addEventListener('change',()=>{
-    if(!DeckCore.setIndicatorPinned(state,index,box.checked)){box.checked=pin.checked;return;}
-    if(inspectorSession)inspectorSession.indicatorShared=box.checked;
-    persistInspectorChange();render();
-  });
-  $('key-title').readOnly=true;$('key-title').value=String((DeckCore.activeFolder(state)?.pageIndex??state.page)+1);
-  $('key-title').title='현재 페이지 번호 자동 표시';
-  const visible=root.querySelector('.title-visible-label');
-  if(visible?.lastChild)visible.lastChild.textContent=' 번호 표시';
-  if(item.title){
-    const legacy=document.createElement('div');legacy.className='field';
-    const title=document.createElement('label');title.textContent='기존 제목';
-    const input=document.createElement('input');input.value=item.title;input.maxLength=256;
-    input.addEventListener('input',()=>{item.title=input.value;persistInspectorChange();renderGrid();void refreshSelectedVisual();});
-    legacy.append(title,input);fields.append(legacy);
+  const common=DeckCore.indicatorCommon(state,item);
+  const num=document.createElement('div');num.className='field title-setting-field indicator-number-field';
+  const label=document.createElement('label');label.className='title-visible-label';
+  const check=document.createElement('input');check.type='checkbox';check.id='indicator-number-visible';check.checked=common.indicatorNumberStyle.visible;
+  label.append(check,document.createTextNode(' 번호 표시'));
+  const line=document.createElement('div');line.className='title-line';
+  const text=document.createElement('input');text.readOnly=true;text.value=String((DeckCore.activeFolder(state)?.pageIndex??state.page)+1);
+  const font=document.createElement('button');font.type='button';font.className='title-style-trigger state-title-style';font.textContent='T⌄';font.title='공통 번호 스타일';font.setAttribute('aria-expanded','false');
+  font.addEventListener('click',()=>root._openIndicatorNumberStyle(font));check.addEventListener('change',()=>root._setIndicatorNumberVisible(check.checked));
+  line.append(text,font);num.append(label,line);fields.querySelector('.title-setting-field').after(num);
+  const options=document.createElement('div');options.className='indicator-management';
+  const addButton=document.createElement('button');addButton.type='button';addButton.textContent='모든 페이지에 추가';
+  const remove=document.createElement('button');remove.type='button';remove.textContent='모든 페이지에서 제거';
+  function bulk(op){
+    if(inspectorSession?.dirty){showInspectorLeaveDialog(()=>bulk(op));return;}
+    if(runningMultiActions.size||activeActionTimers.size||allPlayingAudio.size||openAppHoldTimers.size||logicPresses.size||sidePressTimers.size){window.d200xActionStatus?.('진행 중인 동작을 먼저 중단하세요.');return;}
+    const current=DeckCore.visibleActions(state)[index];if(current?.type!=='indicator')return;
+    if(op==='remove'&&!confirm('현재 덱의 모든 페이지에서 페이지 표시 버튼만 제거할까요?'))return;
+    const before=clone(state);const result=DeckCore.manageIndicators(state,op,current);
+    if(op==='remove')state.selected=null;
+    inspectorSession=null;
+    if(!persist()){state=before;render();return;}
+    render();
+    window.d200xActionStatus?.(op==='add'?'페이지 표시 추가 '+result.added+' · 기존 '+result.existing+' · 빈자리 없음 '+result.full:'페이지 표시 '+result.removed+'개 제거');
   }
+  addButton.addEventListener('click',()=>bulk('add'));remove.addEventListener('click',()=>bulk('remove'));
+  const auto=document.createElement('label');const enabled=document.createElement('input');enabled.type='checkbox';enabled.checked=common.autoAdd;auto.append(enabled,document.createTextNode(' 새 페이지 생성 시 자동 추가'));
+  enabled.addEventListener('change',()=>{DeckCore.updateIndicatorCommon(state,item,{autoAdd:enabled.checked});persistInspectorChange();});
+  options.append(addButton,remove,auto);fields.append(options);
   renderSideBindings(fields,index,null,item);
   const panel=root.querySelector('[data-inspector-icons]');
   const cards=document.createElement('div');cards.className='sdk-state-icons indicator-icon-cards';
@@ -2978,6 +3003,7 @@ function bindIndicatorInspector(root,item){
   add('클립보드',()=>pasteIcon(item));
   add('특수문자',()=>openIconMaker(item));
   add('초기화',()=>{delete item.icon;persistInspectorChange();render();});
+  bindKeyBackgroundControl(image,item,'default');
   card.append(heading,image,buttons);cards.append(card);panel.append(cards);
 }
 function bindExtendedActionFields(root,item){
@@ -3467,7 +3493,7 @@ function renderInspector(){
   bindIconControls(item);
   if(item.type==='indicator')bindIndicatorInspector(root,item);
   refreshTitlePreview(item);
-  $("key-title").addEventListener("input",ev=>{if(item.type==='indicator')return;item.title=ev.target.value;persist();renderGrid();refreshTitlePreview(item);});
+  $("key-title").addEventListener("input",ev=>{item.title=ev.target.value;persist();renderGrid();refreshTitlePreview(item);});
   bindExtendedActionFields(root,item);
   if(item.type==='website'){
     const url=root.querySelector('[data-field="url"]');
@@ -3583,6 +3609,7 @@ function renderInspector(){
       const titleFields=document.createElement('div');titleFields.className='fields';
       const titleSetting=fieldsHost.querySelector(':scope > .title-setting-field');
       if(titleSetting)titleFields.append(titleSetting);
+      const numberSetting=fieldsHost.querySelector('.indicator-number-field');if(numberSetting)titleFields.append(numberSetting);
       if(item.type==='indicator'&&iconRegion)titleFields.append(iconRegion);
       layout.append(preview,titleFields);
       properties.before(toolbar,layout);
@@ -3667,7 +3694,7 @@ function showMenu(index,x,y){
     add("동작 불러오기…",()=>importSlotAction(index));
   }else{
     const isLocal=Boolean(currentPage()[index]);
-    if(!state.folderPath?.length)add(state.pinned?.[index]?"고정 해제":"고정",()=>{
+    if(!state.folderPath?.length&&item.type!=='indicator')add(state.pinned?.[index]?"고정 해제":"고정",()=>{
       if(state.pinned?.[index])clearOldSdkVisual(index);
       if(DeckCore.togglePinned(state,index)){persist();render();}
     });
@@ -3687,6 +3714,15 @@ function showMenu(index,x,y){
     add("동작 불러오기…",()=>importSlotAction(index));
     add("동작 내보내기…",()=>exportSlotAction(item));
     divider();
+    add("버튼 초기화",isLocal?()=>removeSlotAction(index):null);
+    if(!state.folderPath?.length&&state.pinned?.[index])add("고정 버튼 초기화",()=>{
+      const reset=()=>{
+        if(!confirm('이 위치의 모든 페이지 고정 설정만 초기화할까요? 페이지별 설정은 유지됩니다.'))return;
+        const before=clone(state);clearOldSdkVisual(index);state.pinned[index]=null;inspectorSession=null;
+        if(!persist())state=before;render();
+      };
+      if(inspectorSession?.dirty)showInspectorLeaveDialog(reset);else reset();
+    });
     add("삭제",()=>removeSlotAction(index));
   }
   menu.style.left=Math.max(0,Math.min(x,window.innerWidth-230))+"px";
@@ -4241,7 +4277,7 @@ function invalidateSidePresses(){
   sidePressTimers.clear();sidePressTracker.invalidate();
 }
 function sidePressContext(index){
-  if(index<13){const item=DeckCore.visibleActions(state)[index];return JSON.stringify([openAppHoldScope(),item?.type,DeckCore.indicatorConfig(item),DeckCore.indicatorConfig(item,'hold')]);}
+  if(index<13){const item=DeckCore.visibleActions(state)[index];return JSON.stringify([openAppHoldScope(),item?.type,DeckCore.sharedIndicatorConfig(state,item),DeckCore.sharedIndicatorConfig(state,item,'hold')]);}
   const b=DeckCore.controlBinding(state,index);
   return JSON.stringify([openAppHoldScope(),DeckCore.sideActionConfig(b,index),DeckCore.sideActionConfig(b,index,'hold')]);
 }
@@ -4261,7 +4297,7 @@ function executeSideNavigation(index,gesture,event){
     return '저장하지 않은 변경 사항 확인';
   }
   cancelFolderAutoExit();
-  const config=indicator?DeckCore.indicatorConfig(DeckCore.visibleActions(state)[index],gesture):DeckCore.sideActionConfig(DeckCore.controlBinding(state,index),index,gesture);
+  const config=indicator?DeckCore.sharedIndicatorConfig(state,DeckCore.visibleActions(state)[index],gesture):DeckCore.sideActionConfig(DeckCore.controlBinding(state,index),index,gesture);
   if(!DeckCore.applySideNavigation(state,outcome))return '이동할 대상이 없습니다.';
   lastHardwareDown.clear();persist();render();
   return (indicator?DeckCore.INDICATOR_NAV_LABELS:DeckCore.SIDE_NAV_LABELS)[config.navigation];
@@ -4269,7 +4305,7 @@ function executeSideNavigation(index,gesture,event){
 function handleSideNavigationInput(index,gesture,event,preview){
   if(preview)return gesture==='down'?executeSideNavigation(index,'down',event):null;
   const indicator=index<13,binding=indicator?null:DeckCore.controlBinding(state,index);
-  const hasHold=(indicator?DeckCore.indicatorConfig(DeckCore.visibleActions(state)[index],'hold'):DeckCore.sideActionConfig(binding,index,'hold')).navigation!=='none';
+  const hasHold=(indicator?DeckCore.sharedIndicatorConfig(state,DeckCore.visibleActions(state)[index],'hold'):DeckCore.sideActionConfig(binding,index,'hold')).navigation!=='none';
   const context=sidePressContext(index);
   const decision=sidePressTracker.input(index,gesture,hasHold,context,Date.now());
   if(gesture==='up'){
@@ -4772,16 +4808,23 @@ window.executeD200XKey=tracedPhysicalDispatch;
    apply(id){
      const snapshot=aiEditCurrent(id);
      if(!snapshot.plan)throw Error('적용할 변경안이 없습니다.');
+     const structural=snapshot.plan.rows.some(row=>row.op==='page_structure');
+     if(structural&&(runningMultiActions.size||activeActionTimers.size||allPlayingAudio.size||knobPresses.size||logicPresses.size||multiPhysicalPresses.size||sidePressTimers.size))throw Error('진행 중인 동작을 먼저 중단하세요.');
      const rows=aiSavedRows(snapshot.plan);
      const result=aiEditStore(snapshot.plan.next);
-     aiEditUndo={id,before:snapshot.before,after:JSON.stringify(state)};
+     if(structural){pageStructureEpoch++;hotkeySwitchPositions.clear();lastHardwareDown.clear();invalidateSidePresses();clearMultiPhysicalPresses();cancelFolderAutoExit();render();}
+     aiEditUndo={id,before:snapshot.before,after:JSON.stringify(state),structural};
      aiEditCapture=null;return {...result,rows};
    },
    discard(id){if(aiEditCapture?.id===id)aiEditCapture=null;return true;},
    undo(id){
      aiEditReady();
      if(!aiEditUndo||aiEditUndo.id!==id||aiEditUndo.after!==JSON.stringify(state))throw Error('적용 이후 설정이 달라졌습니다. 안전하게 되돌릴 수 없습니다.');
-     const result=aiEditStore(aiEditUndo.before);aiEditUndo=null;aiEditCapture=null;return result;
+     const structural=aiEditUndo.structural;
+     if(structural&&(runningMultiActions.size||activeActionTimers.size||allPlayingAudio.size||knobPresses.size||logicPresses.size||multiPhysicalPresses.size||sidePressTimers.size))throw Error('진행 중인 동작을 먼저 중단하세요.');
+     const result=aiEditStore(aiEditUndo.before);
+     if(structural){pageStructureEpoch++;hotkeySwitchPositions.clear();lastHardwareDown.clear();invalidateSidePresses();clearMultiPhysicalPresses();cancelFolderAutoExit();render();}
+     aiEditUndo=null;aiEditCapture=null;return result;
    }
  });
 

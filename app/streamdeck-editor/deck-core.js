@@ -468,7 +468,7 @@
   }
   function planIndicatorNavigation(state,index,gesture='down'){
     if(!Number.isInteger(index)||index<0||index>=13)return null;
-    return planNavigation(state,indicatorConfig(visibleActions(state)[index],gesture));
+    return planNavigation(state,sharedIndicatorConfig(state,visibleActions(state)[index],gesture));
   }
   function planNavigation(state,config){
     const nav=config.navigation;
@@ -589,6 +589,7 @@
     if(!state||!Array.isArray(state.pages)||folder&&folder.type!=='folder')return false;
     const original=folder?[folder.children||[],...(folder.pages||[])]:state.pages;
     const count=original.length,current=folder?(folder.pageIndex||0):state.page;
+    const indicatorTemplate=findIndicator(state),common=(state.indicatorCommon||indicatorTemplate)?indicatorCommon(state):null;
     if(!count)return false;
     const valid=i=>Number.isInteger(i)&&i>=0&&i<count;
     const order=Array.from({length:count},(_,i)=>({from:i}));
@@ -678,10 +679,11 @@
       return next;
     };
     const rows=order.map(entry=>{
-      if(entry.from===null)return folder?Array(14).fill(null):blankPage();
+      if(entry.from===null){const row=folder?Array(14).fill(null):blankPage();if(common?.autoAdd)placeIndicator(row,folder?null:state.pinned,indicatorTemplate);return row;}
       const row=mapArray(original[entry.from],action=>rewrite(action,true));
       // Duplicate action data, including nested folders; inherited pins stay shared.
-      return entry.duplicate?copy(row):row;
+      if(!entry.duplicate)return row;
+      const duplicate=copy(row);if(common?.autoAdd)placeIndicator(duplicate,folder?null:state.pinned,indicatorTemplate);return duplicate;
     });
     const controls=state.controls;
     const rewriteBinding=binding=>{
@@ -718,6 +720,10 @@
       state.pinned=pinned;
     }
     if(nextControls)state.controls=nextControls;
+    if(common){
+      if(!folder)for(const key of ['indicatorDown','indicatorHold'])if(common[key].navigation==='goto')common[key]={...common[key],page:remap(common[key].page)};
+      state.indicatorCommon=common;
+    }
     if(select)state.selected=null;
     return true;
   }
@@ -732,6 +738,69 @@
     if(!actions)return [];
     if((state.folderPath||[]).length)return actions;
     return actions.map((item,i)=>item||state.pinned?.[i]||null);
+  }
+  function indicatorRows(state,folder=activeFolder(state)){
+    return folder?[folder.children||[],...(folder.pages||[])]:state.pages||[];
+  }
+  function findIndicator(state){
+    const visit=rows=>{
+      for(const row of rows)for(const item of (row||[]).slice(0,13)){
+        if(item?.type==='indicator')return item;
+        if(item?.type==='folder'){const found=visit([item.children,...(item.pages||[])]);if(found)return found;}
+      }
+      return null;
+    };
+    return state.pinned?.find(x=>x?.type==='indicator')||visit(state.pages||[]);
+  }
+  function indicatorCommon(state,item=null){
+    const previous=state.indicatorCommon,source=item||findIndicator(state);
+    const settings=previous||source?.settings||{};
+    const pseudo={type:'indicator',settings};
+    return {
+      indicatorDown:indicatorConfig(pseudo,'down'),
+      indicatorHold:indicatorConfig(pseudo,'hold'),
+      indicatorNumberStyle:cleanTitleStyle(settings.indicatorNumberStyle,INDICATOR_NUMBER_STYLE),
+      autoAdd:previous?previous.autoAdd===true:!!source
+    };
+  }
+  function sharedIndicatorConfig(state,item,gesture='down'){
+    if(item?.type!=='indicator')return {navigation:'none'};
+    return indicatorConfig({type:'indicator',settings:indicatorCommon(state)},gesture);
+  }
+  function updateIndicatorCommon(state,item,patch){
+    state.indicatorCommon=indicatorCommon({...state,indicatorCommon:{...indicatorCommon(state,item),...patch}});
+    return state.indicatorCommon;
+  }
+  function placeIndicator(row,pins,template){
+    if(row.slice(0,13).some(x=>x?.type==='indicator'))return 'existing';
+    for(let i=0;i<13;i++)if(!row[i]&&!pins?.[i]){
+      row[i]=copy(template||createAction('indicator'));return 'added';
+    }
+    return 'full';
+  }
+  function manageIndicators(state,op,item=null,folder=activeFolder(state)){
+    const rows=indicatorRows(state,folder),pins=folder?null:state.pinned;
+    const result={added:0,existing:0,full:0,removed:0};
+    if(op==='add'){
+      updateIndicatorCommon(state,item,{autoAdd:true});
+      for(const row of rows)result[placeIndicator(row,pins,item)]++;
+    }else if(op==='remove'){
+      updateIndicatorCommon(state,item,{autoAdd:false});
+      for(const row of rows)for(let i=0;i<13;i++)if(row[i]?.type==='indicator'){row[i]=null;result.removed++;}
+    }
+    return result;
+  }
+  function migrateIndicators(state,value){
+    const first=findIndicator(state);
+    if(value?.indicatorCommon||first)state.indicatorCommon=indicatorCommon({...state,indicatorCommon:value?.indicatorCommon||null},first);
+    // Legacy pins are materialized in the exact slots where they used to show.
+    // Never overwrite a page-local item; don't manufacture additional indicators.
+    for(let i=0;i<13;i++){
+      const pin=state.pinned?.[i];
+      if(pin?.type!=='indicator')continue;
+      for(const row of state.pages)if(!row[i])row[i]=copy(pin);
+      state.pinned[i]=null;
+    }
   }
   function indicatorPinState(state,index){
     if(state.folderPath?.length||!Number.isInteger(index)||index<0||index>=13)return {checked:false,blocked:true};
@@ -757,7 +826,7 @@
   function togglePinned(state,index){
     if((state.folderPath||[]).length||!Number.isInteger(index)||index<0||index>=14)return false;
     if(!Array.isArray(state.pinned))state.pinned=Array.from({length:14},()=>null);
-    if(visibleActions(state)[index]?.type==='indicator'&&!indicatorPinState(state,index).blocked)return setIndicatorPinned(state,index,!indicatorPinState(state,index).checked);
+    if(visibleActions(state)[index]?.type==='indicator')return false;
     if(state.pinned[index]){state.pinned[index]=null;return true;}
     const item=state.pages?.[state.page]?.[index];
     if(!item)return false;
@@ -842,6 +911,7 @@
       }
     }
     state.pinned=Array.from({length:14},(_,i)=>cleanAction(value.pinned?.[i]));
+    migrateIndicators(state,value);
     state.folderPath=[];
     if(Array.isArray(value.folderPath)){
       for(const entry of value.folderPath.slice(0,8)){
@@ -856,7 +926,7 @@
   // existing top-level pages/page/controls fields, avoiding doubled icon data.
   function profileSnapshot(state){
     return {pages:copy(state.pages),page:state.page,controls:copy(state.controls),
-      folderPath:copy(state.folderPath||[]),pinned:copy(state.pinned||Array(14).fill(null)),wideDisplay:cleanWideDisplay(state.wideDisplay)};
+      folderPath:copy(state.folderPath||[]),pinned:copy(state.pinned||Array(14).fill(null)),wideDisplay:cleanWideDisplay(state.wideDisplay),...(state.indicatorCommon?{indicatorCommon:copy(state.indicatorCommon)}:{})};
   }
   function initProfiles(state,value){
     const source=Array.isArray(value?.profileNames)?value.profileNames:null;
@@ -887,6 +957,7 @@
     state.inactiveProfiles.push(old);
     const clean=migrateState(next);
     state.pages=clean.pages;state.page=clean.page;state.controls=clean.controls;
+    if(clean.indicatorCommon)state.indicatorCommon=clean.indicatorCommon;else delete state.indicatorCommon;
     state.folderPath=clean.folderPath;state.pinned=clean.pinned;state.wideDisplay=cleanWideDisplay(next.wideDisplay);state.selected=null;state.profileId=id;
     return true;
   }
@@ -1183,5 +1254,5 @@
       url:action.settings?.url||'',mode:action.settings?.open||'default',browserPath:action.settings?.browserPath||''};
     return {kind:'unsupported',message:'이 동작의 실행 기능은 아직 구현되지 않았습니다.'};
   }
-  return {ACTION_IDS,D200X_ACTION_IDS,PLUGIN_ACTION_IDS,DEFAULTS,TITLE,INDICATOR_NUMBER_STYLE,INDICATOR_NAV_LABELS,indicatorConfig,planIndicatorNavigation,indicatorPinState,setIndicatorPinned,SIDE_NAV_LABELS,SIDE_HOLD_MS,sideConfig,makeSideAction,sideActionConfig,sideFolderTargets,planSideNavigation,applySideNavigation,createSidePressTracker,createAction,cleanAction,cleanCompositeEntry,timerSeconds,formatTimerTime,displaySwitchAction,compositeModel,planComposite,runComposite,createMultiPauseGate,multiRows,setMultiRows,blankPage,cleanWideDisplay,cycleWideDisplay,isWideDisplayPress,folderContents,folderPageCount,changeFolderPage,addFolderPage,deleteFolderPage,editPageStructure,currentActions,visibleActions,togglePinned,activeFolder,enterFolder,exitFolder,migrateState,profileSnapshot,switchProfile,createProfile,renameProfile,exportSingleProfile,setProfileApp,matchForegroundProfile,deleteProfile,previewHardwareEvent,physicalSlot,hardwareGesture,resolveHardwareEvent,runtimeActionKey,folderWideBackEvent,resolveKeyPress,planHardwareEvent,deletePage,planAction,emptyBinding,cleanBinding,controlAction,activeControlAction,assignControlAction,automaticControl,ensureControls,controlBinding,changeControlScope};
+  return {ACTION_IDS,D200X_ACTION_IDS,PLUGIN_ACTION_IDS,DEFAULTS,TITLE,INDICATOR_NUMBER_STYLE,INDICATOR_NAV_LABELS,indicatorConfig,indicatorCommon,sharedIndicatorConfig,updateIndicatorCommon,manageIndicators,planIndicatorNavigation,indicatorPinState,setIndicatorPinned,SIDE_NAV_LABELS,SIDE_HOLD_MS,sideConfig,makeSideAction,sideActionConfig,sideFolderTargets,planSideNavigation,applySideNavigation,createSidePressTracker,createAction,cleanAction,cleanCompositeEntry,timerSeconds,formatTimerTime,displaySwitchAction,compositeModel,planComposite,runComposite,createMultiPauseGate,multiRows,setMultiRows,blankPage,cleanWideDisplay,cycleWideDisplay,isWideDisplayPress,folderContents,folderPageCount,changeFolderPage,addFolderPage,deleteFolderPage,editPageStructure,currentActions,visibleActions,togglePinned,activeFolder,enterFolder,exitFolder,migrateState,profileSnapshot,switchProfile,createProfile,renameProfile,exportSingleProfile,setProfileApp,matchForegroundProfile,deleteProfile,previewHardwareEvent,physicalSlot,hardwareGesture,resolveHardwareEvent,runtimeActionKey,folderWideBackEvent,resolveKeyPress,planHardwareEvent,deletePage,planAction,emptyBinding,cleanBinding,controlAction,activeControlAction,assignControlAction,automaticControl,ensureControls,controlBinding,changeControlScope};
 });
