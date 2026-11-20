@@ -648,18 +648,32 @@ function revealWideUnsavedWarning(){
 }
 window.D200XWideModeName=()=>wideDisplayAvailable()?state.wideDisplay?.current:null;
 const KNOB_TARGET_LABELS={page:'페이지 이동',profile:'프로필 전환',volume:'Windows 음량',zoom:'확대/축소',scroll:'세로 스크롤','scroll-x':'가로 스크롤',history:'실행 취소·다시 실행',window:'창 전환',desktop:'가상 데스크톱',brightness:'기기 밝기'};
-window.D200XKnobInfo=()=>[16,17,18].map((index,i)=>{
-  const binding=DeckCore.controlBinding(state,index);
+function wideKnobLabels(binding,position){
   const active=binding?.mode==='stack'
-    ?binding.stack?.[stackPositions[i]%binding.stack.length]
+    ?binding.stack?.[position%binding.stack.length]
     :binding?.target;
-  const assigned=['down','left','right','holdLeft','holdRight'].map(key=>DeckCore.controlAction(binding,key)).filter(Boolean);
-  const named=assigned.find(action=>typeof action.title==='string'&&action.title.trim());
-  const functionName=binding?.mode==='adjust'||binding?.mode==='stack'||binding?.autoAssign
+  const describe=action=>action.title?.trim()||ACTIONS.get(action.type)?.label||action.type;
+  const unique=labels=>[...new Set(labels.filter(Boolean))].join(' / ');
+  const normal=['left','right','down'].map(key=>DeckCore.activeControlAction(binding,key)).filter(Boolean);
+  const title=binding?.mode==='adjust'||binding?.mode==='stack'||binding?.autoAssign
     ?KNOB_TARGET_LABELS[active]||'조절'
-    :assigned.map(action=>ACTIONS.get(action.type)?.label||action.type).filter(Boolean).join(' / ')||'미설정';
-  return {name:'노브 '+(i+1),title:named?.title?.trim()||functionName,detail:functionName};
-});
+    :unique(normal.map(describe))||'미설정';
+  let held=[];
+  if(binding?.heldEnabled&&binding.heldMode==='stack'){
+    const stack=binding.heldStack||[];
+    if(stack.length)held.push(KNOB_TARGET_LABELS[stack[position%stack.length]]);
+  }else{
+    for(const gesture of ['holdLeft','holdRight']){
+      const action=DeckCore.activeControlAction(binding,gesture);
+      if(action)held.push(describe(action));
+      else if(binding?.heldEnabled&&binding.heldAutoAssign)held.push(KNOB_TARGET_LABELS[binding.heldTarget]);
+    }
+  }
+  return {title,detail:unique(held)};
+}
+window.D200XKnobInfo=()=>[16,17,18].map((index,i)=>({
+  name:'노브 '+(i+1),...wideKnobLabels(DeckCore.controlBinding(state,index),stackPositions[i])
+}));
 window.renderGridWideClock=()=>{if(wideDisplayAvailable())renderGrid();};
 window.getD200XWideMode=()=>wideDisplayAvailable()
   ?(state.wideDisplay?.current==='clock'?'clock':state.wideDisplay?.current==='stats'?'stats':'blank'):'blank';

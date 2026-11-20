@@ -227,9 +227,8 @@
           ctx.fillText(String(value),x,y,112);
         };
         draw(knob.name||'노브 '+(i+1),38,18,'#aebbd0');
-        draw(knob.title||'미설정',99,19);
-        if(knob.detail&&knob.detail!==knob.title)
-          draw(knob.detail,150,14,'#aebbd0');
+        draw(knob.title||'미설정',83,19);
+        if(knob.detail)draw(knob.detail,132,18,'#aebbd0');
       });
     }else{
       text('CPU',76,55,'bold 25px "Segoe UI",sans-serif');

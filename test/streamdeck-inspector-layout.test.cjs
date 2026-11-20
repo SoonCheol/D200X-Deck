@@ -437,3 +437,16 @@ test('indicator management labels and template draft are preserved before one bu
  assert.match(body,/if\(\(op==='add'\|\|op==='design'\)&&inspectorSession\?\.dirty&&!confirm/);
  assert.match(body,/if\(!persist\(\)\)\{state=before;inspectorSession=session;render\(\);return;\}/);
 });
+
+test('wide knob labels separate normal and held actions and retain the second line even when identical',()=>{
+  const begin=editor.indexOf('const KNOB_TARGET_LABELS='),end=editor.indexOf('window.D200XKnobInfo=',begin);
+  const label=new Function('DeckCore','ACTIONS',editor.slice(begin,end)+';return wideKnobLabels;')({
+    activeControlAction:(binding,key)=>binding?.[key]||null
+  },new Map([['hotkey',{label:'단축키'}]]));
+  const binding={mode:'adjust',target:'page',heldEnabled:true,heldMode:'trigger',heldTarget:'volume',heldAutoAssign:true};
+  assert.deepEqual(label(binding,0),{title:'페이지 이동',detail:'Windows 음량'});
+  assert.deepEqual(label({...binding,heldEnabled:false},0),{title:'페이지 이동',detail:''});
+  assert.deepEqual(label({...binding,heldTarget:'page'},0),{title:'페이지 이동',detail:'페이지 이동'});
+  assert.deepEqual(label({...binding,heldMode:'stack',heldStack:['page','volume']},1),{title:'페이지 이동',detail:'Windows 음량'});
+  assert.deepEqual(label({...binding,heldAutoAssign:false,holdLeft:{type:'hotkey',title:'복사'},holdRight:{type:'hotkey',title:'붙여넣기'}},0),{title:'페이지 이동',detail:'복사 / 붙여넣기'});
+});
