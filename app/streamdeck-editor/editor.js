@@ -3004,7 +3004,25 @@ function bindIndicatorInspector(root,item){
   add('특수문자',()=>openIconMaker(item));
   add('초기화',()=>{delete item.icon;persistInspectorChange();render();});
   bindKeyBackgroundControl(image,item,'default');
-  card.append(heading,image,buttons);cards.append(card);panel.append(cards);
+  // Move the already bound title controls into the same standard card as the artwork.
+  // Keep the original title-line element (the shared style popover's home).
+  const titleField=fields.querySelector(':scope > .title-setting-field:not(.indicator-number-field)');
+  const titleLine=titleField.querySelector('.title-line');
+  const titleCheck=titleField.querySelector('#title-visible');
+  const titleInput=titleLine.querySelector('#key-title');
+  const titleStyle=titleLine.querySelector('#title-style-trigger');
+  titleLine.className='state-title-control indicator-title-row';
+  titleCheck.className='state-title-visible';titleCheck.setAttribute('aria-label','제목 표시');titleCheck.title='제목 표시';
+  titleInput.className='state-title-input';titleInput.placeholder='제목';
+  titleStyle.classList.add('state-title-style');
+  titleLine.prepend(titleCheck);
+  titleField.remove();
+  line.className='state-title-control indicator-number-row';
+  check.className='state-title-visible';check.setAttribute('aria-label','번호 표시');check.title='번호 표시';
+  text.className='state-title-input';text.setAttribute('aria-label','현재 페이지 번호');text.title='현재 페이지 번호 자동 표시';
+  const name=document.createElement('span');name.className='indicator-number-label';name.textContent='번호';
+  line.prepend(check,name);num.remove();
+  card.append(heading,titleLine,line,image,buttons);cards.append(card);panel.append(cards);
 }
 function bindExtendedActionFields(root,item){
   if(item.type==='sd-plugin'){
@@ -3404,7 +3422,7 @@ function renderInspector(){
   if(state.selected===13&&wideDisplayAvailable()){renderWideInspector();return;}
   if(!item){root.className="inspector empty";root.textContent=state.selected===null?"버튼을 선택하세요":"액션을 끌어 이 키에 놓으세요";
     if(inspectorSession?.dirty)appendInspectorSaveBar(root);return;}
-  root.className="inspector action-layout-inspector"+(item.type==='hotkey-switch'?' hotkey-switch-inspector':'')+(item.type==='sd-plugin'?' sdk-plugin-inspector':'')+(hasStateTitlePair(item)?' state-title-inspector':'');
+  root.className="inspector action-layout-inspector"+(item.type==='hotkey-switch'?' hotkey-switch-inspector':'')+(item.type==='sd-plugin'?' sdk-plugin-inspector':'')+(hasStateTitlePair(item)||item.type==='indicator'?' state-title-inspector':'')+(item.type==='indicator'?' indicator-inspector':'');
   const action=ACTIONS.get(item.type),fields=item.type==='timer'?'':actionFields(item);
   const sdkName=item.type==='sd-plugin'
     ?(item.settings?.actionUUID===HA_CUSTOM_ACTION?'Home Assistant 장치 제어':
@@ -3598,7 +3616,7 @@ function renderInspector(){
       stop.addEventListener('click',()=>{runningMultiProgress.get(DeckCore.runtimeActionKey(state,state.selected,'down'))?.controller.abort();refreshMultiRunControls();});
       preview.append(stop);refreshMultiRunControls();
     }
-    if(hasStateTitlePair(item)&&iconRegion){
+    if((hasStateTitlePair(item)||item.type==='indicator')&&iconRegion){
       const layout=document.createElement('div');layout.className='state-title-layout';
       layout.append(preview,iconRegion);
       properties.before(toolbar,layout);
@@ -3609,8 +3627,6 @@ function renderInspector(){
       const titleFields=document.createElement('div');titleFields.className='fields';
       const titleSetting=fieldsHost.querySelector(':scope > .title-setting-field');
       if(titleSetting)titleFields.append(titleSetting);
-      const numberSetting=fieldsHost.querySelector('.indicator-number-field');if(numberSetting)titleFields.append(numberSetting);
-      if(item.type==='indicator'&&iconRegion)titleFields.append(iconRegion);
       layout.append(preview,titleFields);
       properties.before(toolbar,layout);
       properties.classList.add('action-single-extra');
@@ -5162,7 +5178,7 @@ function bindIconControls(item){
     });
     host.addEventListener('pointerleave',release);
   }
-  const hasStateCards=hasStateTitlePair(item);
+  const hasStateCards=hasStateTitlePair(item)||item.type==='indicator';
   if(hasStateCards){
     $("icon-library-open").remove();$("icon-menu-trigger").remove();$("icon-dropdown").remove();
     if(item.type==='sd-plugin'&&!isMomentaryIconAction(item)){

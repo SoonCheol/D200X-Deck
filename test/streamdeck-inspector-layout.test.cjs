@@ -397,3 +397,13 @@ test('initial editor window is 40px shorter but keeps the minimum and centering'
     assert.equal(result.minimumWidth,960);
   }
 });
+
+test('page indicator uses one normal-sized icon card with separate title and number fields inside',()=>{
+  assert.match(editor,/card\.append\(heading,titleLine,line,image,buttons\)/);
+  assert.match(editor,/titleLine\.prepend\(titleCheck\)/);
+  assert.match(editor,/line\.prepend\(check,name\)/);
+  assert.match(editor,/if\(\(hasStateTitlePair\(item\)\|\|item\.type==='indicator'\)&&iconRegion\)/);
+  assert.match(editor,/const hasStateCards=hasStateTitlePair\(item\)\|\|item\.type==='indicator';/);
+  assert.match(css,/\.indicator-inspector \.state-title-layout \.indicator-icon-cards>\.sdk-state-icon\{grid-template-rows:auto 31px 31px auto\}/);
+  assert.match(css,/\.indicator-inspector \.state-title-layout \.indicator-icon-cards \.sdk-state-preview,.*\{grid-row:4\}/);
+});

@@ -1134,3 +1134,10 @@
 .indicator-management button{border:1px solid #62666d;background:#3b4149;border-radius:4px;padding:5px 9px}
 .indicator-management label{display:flex;align-items:center;gap:3px;font-size:12px;white-space:nowrap}
 .indicator-number-field .title-line{position:relative}
+
+/* Page indication uses exactly one standard state-style card; the second grid cell is empty. */
+.indicator-inspector .state-title-layout .indicator-icon-cards>.sdk-state-icon{grid-template-rows:auto 31px 31px auto}
+.indicator-inspector .state-title-layout .indicator-title-row{grid-row:2}
+.indicator-inspector .state-title-layout .indicator-number-row{grid-row:3}
+.indicator-inspector .state-title-layout .indicator-icon-cards .sdk-state-preview,.indicator-inspector .state-title-layout .indicator-icon-cards .sdk-state-buttons{grid-row:4}
+.indicator-inspector .state-title-layout .indicator-number-label{font-size:12px;color:#bcbcbc;white-space:nowrap}
