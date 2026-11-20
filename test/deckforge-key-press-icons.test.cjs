@@ -99,7 +99,9 @@ test('Windows program drops and file selection update an existing action without
  assert.match(src,/info\.kind==='folder'\?'folder-shortcut':'open-app'/);
  assert.match(src,/d\.dropEffect='link'/);
  assert.match(src,/item\.settings\?\.autoAppIcon===true/);
- assert.match(src,/updateApplicationArtwork\(item,selected\)/);
+ assert.match(src,/updateApplicationArtwork\(item,selected,session\)/);
+ assert.match(src,/async function updateApplicationArtwork\(item,filePath,session=inspectorSession\)/);
+ assert.match(src,/if\(!inspectorTargetCurrent\(session,item\)\|\|\s*!\[item.settings\?\.path,item.settings\?\.app\]\.includes\(filePath\)\)return/);
 });
 test('action execution preserves argv as third parameter and forwards the folder option',()=>{
  assert.ok(src.includes("bridge.openLocalPath(outcome.path,outcome.target,outcome.args||'',outcome.alwaysNewWindow===true,outcome.foreground!==false)"));
