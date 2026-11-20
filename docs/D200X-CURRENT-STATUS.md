@@ -2,7 +2,17 @@
 
 > **상태 기록 기준: 2026-11-20**. 실제 최신 HEAD는 Git에서 확인하며, 코드·자동 검사·Windows 빌드·사용자 Windows/D200X 실기 결과를 구분한다. 시작 시 `AGENTS.md`와 이 문서만 읽고 로드맵은 필요한 경우에만 참고한다.
 
-## 1. 최신 작업 인계 — 1.1.47 AI 도우미 5단계 진단·구성 검토 (2026-11-20)
+## 1. 최신 작업 인계 — 1.1.48 프로그램 실행 정책 개선 대기 (2026-11-20)
+
+- 현재 배포 1.1.47, Windows 통합 빌드 [#761](https://github.com/SoonCheol/D200X-Deck/actions/runs/44679427444) 성공 확인. 사용자 실기: AI 대화 영역만 전체 선택 성공, 중복 복사 키 7·8 및 미설정 6번 탐지/배치 개선 제안/버전 지식 응답 성공. 물리 입력 45건 기록, 이전 페이지 이동 및 노브 1 음량 조절 정상. ChatGPT 데스크톱/메모장 실행 실패, UGREEN NAS/Fusion 360/Bambu Studio/관리자 터미널/탐색기 정상. 노브 페이지 이동 실패는 사용자 착각으로 철회. 1.1.48 구현은 아직 미착수, 사용자 명시 진행 지시 전 소스 수정 금지.
+- 메모장 원본 로그 사용자 제공 6건(2026-11-20 05:24:46.199Z~05:44:42.277Z): 모두 version=1.1.47, stage=focus-result, mode=Focus, spec.kind=AppID, spec.target=Microsoft.WindowsNotepad_8wekyb3d8bbwe!App, result.status=running-protected, error=null, details=["running-pid=34264 subsystem=0 no-eligible-window"]. 예시 마지막 traceId=75bee78a-8bff-4b20-b422-2db5b7fbb880. 기존 실행 정책에서 GUI 판별 불가(0)로 실행 차단된 사실 확인; 정확한 PE 판독 오류/ACL/보조 프로세스 여부는 미확정. ChatGPT 로그는 사용자가 제출한 6건에 없으며 등록 형태 및 실패 분기 미확인.
+- Gemini 독립 분석 보고서(사용자 제공 266행, 이전 대화) 및 ChatGPT 교차 검토: 1.1.36(8b7884b)과 1.1.47(1252d84)의 app-focus.cjs 및 deck-core.js 동일, C# RunningStatus()/ReadSubsystem() 동일 확인. 1.1.35의 창 없는 프로세스 present 차단을 1.1.36에서 running-gui/PE Subsystem으로 보완했으나 판별 불가=running-protected 정책의 구조적 한계 재발. WindowsApps 직접 디스크 접근 실패, 보조 프로세스 혼재, cloaked HWND는 유력한 가능성일 뿐 실제 원인으로 단정하지 않음.
+- 합의된 구현 방향: 일반 EXE와 Windows 패키지 AppID의 실행 정책 분리. 패키지 앱은 정확한 앱 ID와 기존 활성화 가능한 창을 먼저 찾고, 창이 없거나 앱에 의해 숨겨진 경우 PE 파일 판독에 의한 일괄 차단 대신 Windows 공식 IApplicationActivationManager::ActivateApplication 등 OS 활성화 경로 활용 검토/구현. Microsoft 공식 API의 적용 범위와 CLSCTX_LOCAL_SERVER, CoAllowSetForegroundWindow, HRESULT/PID 반환 및 실제 창 활성화의 구분 확인 필요. 앱별 하드코딩 금지, '!' 포함 여부만으로 모든 AppID의 계약을 단정하지 않으며 패키지 앱 다중 인스턴스/가상 데스크톱 cloaking/foreground=false 조건 고려. 실패 시 무조건 재실행/폴백 금지. 명확히 실행되지 않은 경우만 제한된 폴백 검토. 실제 중복 방지 보장 여부와 실행 결과 검증 분리.
+- 일반 EXE/비패키지 AppID, 콘솔/공유 호스트 보호 및 기존 대상별 실행 큐 유지. 정상 관리자/일반 터미널, 폴더/탐색기, EditorHwnd 와이드 경고, HID, UI, 사용자 데이터 변경 금지. 필요한 app-focus-helper.cs/app-focus.cjs/main.cjs 및 테스트 등 최소 범위만 수정. 실제 Windows 메모장/ChatGPT 재검증과 기존 정상 대상 대표 확인.
+- 추가 사용자 요청: 버튼 누른 뒤 AI에게 로그를 읽고 원인을 판단하게 하여 PowerShell 수동 조회를 피하고 싶음. 1.1.48에 상세 진단 조회 포함: 현재 read-tools.cjs logRecord()는 result.details를 제외하고 spec.kind/target도 충분히 전달하지 않음. 안전한 정형화/허용 필드로 AppID 또는 파일명, traceId, PID, subsystem, no-eligible-window, cloaking/창 검사/activation HRESULT 등 관련 진단만 제공. 임의 원본 로그/경로/토큰/오류 문자열 전체 전송 금지. input_trace와 app_log의 정확한 trace ID 연결 유지, 누락/유실·실제 실행 미확인 구분. 사용자가 버튼을 누른 후 AI 조회로 원인 확인 가능하도록 구현할 것. 현재 AI의 기존 요약 로그만으로는 본문 details까지 확인할 수 없음.
+- 새 대화 시작 시 AGENTS.md 및 본 문서만 확인하고 확정 분석을 반복하지 않는다. 다음 작업은 사용자 진행 지시 후 1.1.48 구현, 푸시 및 자동 빌드. Gemini 원문 전체가 아니라 관련 결론/직접 확인한 근거/불확실성을 위에 보존했음.
+
+### 1.1.47 AI 도우미 5단계 진단·구성 검토 (2026-11-20)
 
 - 빌드 #760 실패 원인: `deckforge-app-focus.test.cjs` 기존 호출 인자 정규식 검사 2건 실패. 입력 ID 추가 이후 프로그램/터미널/폴더 호출 및 경고 분기 정적 검증과 hold VM 하네스가 갱신되지 않았음. 해당 테스트 4파일만 새 호출 계약에 맞추고 기존 실행 정책 검증을 보존. 실제 소스 정규식 검사 57건 및 hold 관련 모의 검사 7건 통과. 별도 D200X 입력 검증 #396 성공. 1.1.47 버전 유지, 자동 재빌드 대기. 앱 실행 소스/사용자 데이터 무변경.
 
