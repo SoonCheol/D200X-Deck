@@ -6,7 +6,8 @@ const {BrowserWindow,ipcMain,safeStorage,shell,app,screen,Menu}=require('electro
 const {ChatAuth}=require('./auth.cjs');
 const {listModels,chat}=require('./responses.cjs');
 
-function registerAiWindow(assertEditor,newReadSession,editorEdits){
+const FusionSetup=require('./fusion-setup.js');
+function registerAiWindow(assertEditor,newReadSession,editorEdits,runFusionSetup){
   let panel=null,auth=null,active=null,catalog=[],history=null,historyBusy=false,pending=null,undoId=null;
   const discardPending=async()=>{const old=pending;pending=null;if(old)await editorEdits.discard(old.id).catch(()=>{});};
   const dir=()=>path.join(app.getPath('userData'),'AI');
@@ -88,13 +89,22 @@ function registerAiWindow(assertEditor,newReadSession,editorEdits){
     send:async(args)=>{
       const job=begin('chat');let captureId=null,preview=null,keepPreview=false,previewFailure='';
       try{
-        if(!args||typeof args.id!=='string'||!catalog.some(m=>m.id===args.model)||typeof args.text!=='string'||!args.text.trim()||args.text.length>12000)throw Error('모델 또는 메시지 입력을 확인하세요.');
+        if(!args||typeof args.id!=='string'||typeof args.text!=='string'||!args.text.trim()||args.text.length>12000)throw Error('모델 또는 메시지 입력을 확인하세요.');
+        const local=FusionSetup.matches(args.text);
+        if(local){if(args.localApproved!==true||typeof runFusionSetup!=='function'||pending)throw Error('로컬 연결 작업을 승인하고 기존 변경안을 먼저 처리하세요.');}
+        else if(!catalog.some(m=>m.id===args.model))throw Error('모델 또는 메시지 입력을 확인하세요.');
         if(!/^[a-f0-9-]{36}$/.test(args.id))throw Error('대화 식별자 오류');
         const all=await loadHistory(),old=all.find(x=>x.id===args.id);
         if(!old&&all.length>=100)throw Error('대화 기록은 최대 100개입니다. 이전 대화를 삭제하세요.');
         const message={role:'user',content:args.text.trim()},messages=[...(old?.messages||[]),message];
         if(messages.length>200)throw Error('이 대화의 메시지 한도에 도달했습니다. 새 대화를 시작하세요.');
         const signal=AbortSignal.any([job.controller.signal,AbortSignal.timeout(240000)]);
+        if(local){
+          const result=await runFusionSetup(signal);signal.throwIfAborted();
+          const updated={id:args.id,title:old?.title||message.content.slice(0,48),messages:[...messages,{role:'assistant',local:true,content:FusionSetup.format(result)}],updated:Date.now()};
+          await saveHistory([updated,...all.filter(x=>x.id!==args.id)]);
+          return {conversation:updated,local:true,called:false,usage:{input_tokens:0,output_tokens:0,total_tokens:0},requests:0,toolCalls:0,preview:null,canUndo:!!undoId};
+        }
         await discardPending();
         const editMode=args.editMode===true,readOnly=editMode||args.readOnly===true;
         if(editMode){captureId=randomUUID();await editorEdits.capture(captureId);}

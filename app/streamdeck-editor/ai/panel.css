@@ -9,3 +9,5 @@
 
 /* Keep conversation selection out of fixed application controls. */
 header,.account,.models,.history,footer,#notice{user-select:none}#messages,#edit-preview,#input{user-select:text}
+
+.template-row{justify-content:flex-start}.template-row button{font-size:11px}#template-list{display:grid;gap:5px;max-height:110px;overflow:auto;padding:7px;border:1px solid #505050;border-radius:4px;background:#313131}#template-list small{font-size:11px}#template-list button{text-align:left}

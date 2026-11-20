@@ -58,3 +58,59 @@ test('integrated installer stages both runtime components without editing saved 
  assert.match(ui,/Home Assistant 사용 방법/);
  assert.match(manager,/openEmbeddedManager/);
 });
+
+const FusionSetup=require('../app/streamdeck-editor/ai/fusion-setup.js');
+test('local Fusion template matches explicit requests only',()=>{
+ for(const text of ['Fusion 초기 연결','퓨젼 초기 연결해 주','Fusion 초기 연결해 줘','퓨전 연결해주세요'])assert.equal(FusionSetup.matches(text),true,text);
+ for(const text of ['Fusion 연결 실패 원인 분석','메모장 실행','Fusion 명령 등록'])assert.equal(FusionSetup.matches(text),false,text);
+ assert.equal(FusionSetup.choose([{name:'Autodesk Fusion',appId:'a'},{name:'Fusion 360',appId:'b'}]).status,'ambiguous');
+});
+test('Fusion template requests at most one launch then verifies health',async()=>{
+ const calls=[];let health=0;
+ const result=await FusionSetup.run({
+ apps:async()=>[{name:'Autodesk Fusion',appId:'AutodeskInc.Fusion360'}],
+ plugin:async()=>{calls.push('plugin');return 'installed'},
+ addin:async()=>{calls.push('addin');return {status:'installed',startup:'enabled'}},
+ health:async()=>++health>1,probe:async()=>{calls.push('probe');return 'missing'},
+ launch:async()=>calls.push('launch'),sleep:async()=>{}
+ });
+ assert.equal(result.ready,true);assert.deepEqual(calls,['plugin','addin','probe','launch']);
+ assert.match(FusionSetup.format(result),/health 응답 정상/);
+});
+test('Fusion template never launches existing or uncertain process and does not claim offline success',async()=>{
+ for(const state of ['running-protected','running-gui','present','unavailable']){
+  let launches=0;
+  const result=await FusionSetup.run({apps:async()=>[{name:'Fusion 360',appId:'a'}],plugin:async()=>'existing',
+   addin:async()=>({status:'existing',startup:'already-enabled'}),health:async()=>false,probe:async()=>state,
+   launch:async()=>launches++,sleep:async()=>{}});
+  assert.equal(launches,0);assert.equal(result.ready,false);assert.match(FusionSetup.format(result),/아직 연결 완료가 아닙니다/);
+ }
+});
+test('Fusion template handles uninitialized AddIns folder and does not launch twice',async()=>{
+ let copies=0,launches=0,health=0;
+ const result=await FusionSetup.run({apps:async()=>[{name:'Fusion 360',appId:'a'}],plugin:async()=>'existing',
+  addin:async()=>++copies===1?{status:'fusion-not-ready'}:{status:'installed',startup:'enabled'},
+  health:async()=>++health===3,probe:async()=>'missing',launch:async()=>launches++,sleep:async()=>{}});
+ assert.equal(result.ready,true);assert.equal(launches,1);assert.equal(copies,2);
+});
+test('Fusion add-in supports both documented roots and preserves existing manifest except explicit startup',async()=>{
+ const root=await fs.mkdtemp(path.join(os.tmpdir(),'deckforge-fusion-setup-'));
+ try{
+  const appData=path.join(root,'appdata'),source=path.join(root,'FusionStreamDeck');
+  const base=path.join(appData,'Autodesk','Autodesk Fusion','API','AddIns');
+  await fs.mkdir(source);await fs.mkdir(base,{recursive:true});
+  await fs.writeFile(path.join(source,'FusionStreamDeck.py'),'original');
+  const manifest={autodeskProduct:'Fusion360',type:'addin',runOnStartup:false,author:'original'};
+  await fs.writeFile(path.join(source,'FusionStreamDeck.manifest'),JSON.stringify(manifest));
+  let result=await integration.installFusionAddin(root,{appData});
+  assert.equal(result.status,'installed');assert.equal(result.startup,'unchanged');
+  const file=path.join(base,'FusionStreamDeck','FusionStreamDeck.manifest');
+  assert.deepEqual(JSON.parse(await fs.readFile(file,'utf8')),manifest);
+  result=await integration.installFusionAddin(root,{appData,configureStartup:true});
+  assert.equal(result.startup,'enabled');
+  assert.deepEqual(JSON.parse(await fs.readFile(file,'utf8')),{...manifest,runOnStartup:true});
+  assert.equal(await fs.readFile(path.join(base,'FusionStreamDeck','FusionStreamDeck.py'),'utf8'),'original');
+  await fs.mkdir(path.join(appData,'Autodesk','Autodesk Fusion 360','API','AddIns','FusionStreamDeck'),{recursive:true});
+  assert.equal((await integration.installFusionAddin(root,{appData,configureStartup:true})).status,'ambiguous');
+ }finally{await fs.rm(root,{recursive:true,force:true});}
+});

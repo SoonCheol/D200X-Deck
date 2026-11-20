@@ -6,13 +6,16 @@ const FUSION='com.autodesk.fusionstreamdeck';
 const HA='de.perdoctus.streamdeck.homeassistant';
 function bundledRoot(){return path.join(process.resourcesPath,'bundled');}
 async function exists(file){try{await fs.access(file);return true}catch{return false}}
+async function installFusionPlugin(host,root=bundledRoot()){
+ const installed=new Set((await host.list()).map(item=>item.uuid));
+ if(installed.has(FUSION))return 'existing';
+ const fusion=path.join(root,'com.autodesk.fusionstreamdeck.sdPlugin');
+ if(!await exists(path.join(fusion,'manifest.json')))return 'not-bundled';
+ await host.installDirectory(fusion);return 'installed';
+}
 async function installMissingPlugins(host,root=bundledRoot()){
  const installed=new Set((await host.list()).map(item=>item.uuid)),results={};
- const fusion=path.join(root,'com.autodesk.fusionstreamdeck.sdPlugin');
- if(installed.has(FUSION))results.fusion='existing';
- else if(await exists(path.join(fusion,'manifest.json'))){
-  await host.installDirectory(fusion);results.fusion='installed';
- }else results.fusion='not-bundled';
+ results.fusion=installed.has(FUSION)?'existing':await installFusionPlugin(host,root);
  const home=path.join(root,'de.perdoctus.streamdeck.homeassistant.streamDeckPlugin');
  if(installed.has(HA))results.ha='existing';
  else if(await exists(home)){await host.install(await fs.readFile(home));results.ha='installed'}
@@ -20,16 +23,46 @@ async function installMissingPlugins(host,root=bundledRoot()){
  return results;
 }
 async function installFusionAddin(root=bundledRoot(),options={}){
- const base=path.join(process.env.APPDATA||path.join(os.homedir(),'AppData','Roaming'),
-  'Autodesk','Autodesk Fusion 360','API','AddIns');
+ const appData=options.appData||process.env.APPDATA||path.join(os.homedir(),'AppData','Roaming');
+ const bases=['Autodesk Fusion 360','Autodesk Fusion'].map(name=>path.join(appData,'Autodesk',name,'API','AddIns'));
+ const targets=bases.map(base=>path.join(base,'FusionStreamDeck'));
+ const present=[];
+ for(const target of targets)if(await exists(target))present.push(target);
+ if(present.length>1)return {status:'ambiguous',message:'Fusion 애드인 폴더가 두 곳에 있습니다. 중복 설치는 변경하지 않았습니다.'};
+ let target=present[0],status='existing';
  const source=path.join(root,'FusionStreamDeck');
- const target=path.join(base,'FusionStreamDeck');
- if(await exists(path.join(target,'FusionStreamDeck.py')))return {status:'existing'};
- if(await exists(target))return {status:'existing-incomplete',message:'기존 FusionStreamDeck 폴더가 있어 덮어쓰지 않았습니다.'};
- if(!await exists(path.join(source,'FusionStreamDeck.py')))return {status:'not-bundled',message:'설치 파일에 Fusion 애드인이 없습니다.'};
- if(!await exists(base))return {status:'fusion-not-ready',message:'Fusion 360을 설치하고 한 번 실행한 뒤 애드인 설치를 다시 누르세요.'};
- await fs.cp(source,target,{recursive:true,errorOnExist:true,force:false});
- return {status:'installed',message:'FusionStreamDeck 애드인을 복사했습니다. Fusion 360에서 Run 및 Run on Startup을 활성화하세요.'};
+ if(target&&(!await exists(path.join(target,'FusionStreamDeck.py'))||!await exists(path.join(target,'FusionStreamDeck.manifest'))))
+   return {status:'existing-incomplete',message:'기존 FusionStreamDeck 폴더에 필요한 파일이 없습니다. 덮어쓰지 않았습니다.'};
+ if(!target){
+   const ready=[];
+   for(let i=0;i<bases.length;i++)if(await exists(bases[i]))ready.push(targets[i]);
+   if(ready.length>1)return {status:'ambiguous',message:'Fusion 애드인 설치 후보가 두 곳입니다. 임의로 선택하지 않았습니다.'};
+   if(!ready.length)return {status:'fusion-not-ready',message:'Fusion 360을 설치하고 한 번 실행한 뒤 애드인 설치를 다시 누르세요.'};
+   if(!await exists(path.join(source,'FusionStreamDeck.py'))||!await exists(path.join(source,'FusionStreamDeck.manifest')))
+     return {status:'not-bundled',message:'설치 파일에 Fusion 애드인이 없습니다.'};
+   target=ready[0];await fs.cp(source,target,{recursive:true,errorOnExist:true,force:false});status='installed';
+ }
+ let startup='unchanged';
+ if(options.configureStartup===true){
+   const file=path.join(target,'FusionStreamDeck.manifest');
+   try{
+     const stat=await fs.lstat(file);
+     if(!stat.isFile()||stat.size>65536)throw Error('invalid');
+     const raw=await fs.readFile(file,'utf8'),manifest=JSON.parse(raw.replace(/^\uFEFF/,''));
+     if(manifest?.type!=='addin'||manifest.autodeskProduct!=='Fusion360'||typeof manifest.runOnStartup!=='boolean')throw Error('invalid');
+     if(manifest.runOnStartup===true)startup='already-enabled';
+     else{
+       const tmp=file+'.'+require('node:crypto').randomUUID()+'.tmp';
+       try{
+         await fs.writeFile(tmp,JSON.stringify({...manifest,runOnStartup:true},null,4)+'\n',{flag:'wx'});
+         // Do not overwrite a manifest modified by Fusion or the user during the operation.
+         if(await fs.readFile(file,'utf8')!==raw)throw Error('changed');
+         await fs.rename(tmp,file);startup='enabled';
+       }finally{await fs.rm(tmp,{force:true}).catch(()=>{});}
+     }
+   }catch{startup='unverified';}
+ }
+ return {status,startup,message:status==='installed'?'FusionStreamDeck 애드인을 복사했습니다. Fusion에서 실행 상태를 확인하세요.':'기존 FusionStreamDeck 애드인을 확인했습니다.'};
 }
 function createMagnet(deck,manager,display,saveEnabled=()=>{}){
  let enabled=true,attached=false,side='right',changing=false,normal=manager.getBounds();
@@ -91,4 +124,4 @@ function createMagnet(deck,manager,display,saveEnabled=()=>{}){
   enable(value){enabled=Boolean(value);if(!enabled)detach();return this.status()}
  };
 }
-module.exports={installMissingPlugins,installFusionAddin,createMagnet};
+module.exports={installMissingPlugins,installFusionPlugin,installFusionAddin,createMagnet};

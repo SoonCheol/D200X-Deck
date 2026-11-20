@@ -1,6 +1,6 @@
 'use strict';
 (()=>{
-const $=id=>document.getElementById(id),api=window.aiBridge;
+const $=id=>document.getElementById(id),api=window.aiBridge,localSetup=window.DeckForgeFusionSetup.matches;
 let connected=false,busy='',models=[],history=[],current=null,stream=null,preview=null,canUndo=false;
 const notice=t=>{$('notice').textContent=t||'';};
 const check=r=>{if(!r?.ok)throw Error(r?.error||'AI 연결 오류');return r.value;};
@@ -22,19 +22,20 @@ function controls(){
   $('login').hidden=connected;$('login').disabled=!!busy;$('logout').hidden=!connected;$('logout').disabled=!!busy;
   $('cancelLogin').hidden=busy!=='login';$('stop').disabled=busy!=='chat';
   $('model').disabled=!!busy||!connected||!models.length;$('refresh').disabled=!!busy||!connected;
-  $('send').disabled=!!busy||!connected||!$('model').value||!$('input').value.trim();
+  $('send').disabled=!!busy||!$('input').value.trim()||(!localSetup($('input').value)&&(!connected||!$('model').value));
+  $('templates').disabled=!!busy||!!preview;$('fusion-setup').disabled=!!busy||!!preview;
   $('new').disabled=!!busy;$('history').disabled=!!busy;$('delete').disabled=!!busy||!history.some(c=>c.id===current);
   $('tool').disabled=!!busy||!!preview;$('edit-mode').disabled=!!busy||!!preview;$('input').disabled=!!busy||!!preview;
   if(preview){for(const id of ['send','new','history','delete','logout','refresh','model'])$(id).disabled=true;}
   $('edit-apply').disabled=!!busy||!preview;$('edit-cancel').disabled=!!busy||!preview;$('edit-undo').disabled=!!busy||!!preview||!canUndo;
 }
-function addMessage(role,text){
-  const div=document.createElement('div');div.className='message '+role;const label=document.createElement('b');label.textContent=role==='user'?'사용자':'ChatGPT';
+function addMessage(role,text,local=false){
+  const div=document.createElement('div');div.className='message '+role;const label=document.createElement('b');label.textContent=role==='user'?'사용자':local?'DeckForge 로컬 연결':'ChatGPT';
   const content=document.createElement('div');content.className='message-content'+(role==='assistant'&&!text?' is-streaming':'');if(role==='assistant'&&text)window.DeckForgeMarkdown.render(content,text);else content.textContent=text;div.append(label,content);$('messages').append(div);$('messages').scrollTop=$('messages').scrollHeight;return content;
 }
 function draw(){
   $('messages').replaceChildren();const c=history.find(x=>x.id===current);
-  if(c)c.messages.forEach(m=>addMessage(m.role,m.content));
+  if(c)c.messages.forEach(m=>addMessage(m.role,m.content,m.local===true));
   else{const p=document.createElement('p');p.className='empty';p.textContent='새 대화 · 조회 또는 변경안 만들기를 선택하세요. 변경안은 승인 전 저장되지 않습니다.';$('messages').append(p);}
   $('history').replaceChildren(new Option('새 대화',''),...history.map(c=>new Option(c.title,c.id)));$('history').value=c?.id||'';controls();
 }
@@ -59,6 +60,8 @@ $('usage').onclick=async()=>{try{check(await api.usage());}catch(e){notice(e.mes
 $('new').onclick=()=>{current=null;$('input').value='';notice('');draw();};
 $('history').onchange=()=>{current=$('history').value||null;$('input').value='';notice('');draw();};
 $('delete').onclick=()=>{if(current&&confirm('이 대화 기록을 삭제하시겠습니까?'))run('history',async()=>{history=check(await api.delete(current));current=null;draw();});};
+$('templates').onclick=()=>{const menu=$('template-list');menu.hidden=!menu.hidden;$('templates').setAttribute('aria-expanded',String(!menu.hidden));};
+$('fusion-setup').onclick=()=>{$('input').value='Fusion 초기 연결해 줘';$('template-list').hidden=true;$('templates').setAttribute('aria-expanded','false');$('input').focus();controls();};
 $('input').oninput=controls;
 $('input').onkeydown=e=>{if(e.key==='Enter'&&!e.shiftKey&&!e.isComposing){e.preventDefault();if(!$('send').disabled)$('send').click();}};
 $('stop').onclick=()=>{api.cancel();notice('중지 요청 중');};
@@ -69,9 +72,11 @@ api.onEvent(event=>{
 });
 $('send').onclick=()=>run('chat',async()=>{
   const text=$('input').value.trim(),id=current||crypto.randomUUID(),model=$('model').value,editMode=$('edit-mode').checked,readOnly=$('tool').checked||editMode;
-  notice('응답 요청 중');$('messages').querySelector('.empty')?.remove();addMessage('user',text);stream=addMessage('assistant','');
-  try{const r=check(await api.send({id,model,text,readOnly,editMode}));history=[r.conversation,...history.filter(c=>c.id!==id)];current=id;$('input').value='';canUndo=!!r.canUndo;draw();showPreview(r.preview||null);if(r.previewFailure){notice('변경안 준비 실패: '+r.previewFailure);return;}notice((readOnly?(r.called?'조회 및 응답 완료 · '+r.toolCalls+'회 조회':'응답 완료 · 로컬 조회 없음'):'응답 완료')+' · 요청 '+r.requests+'회'+(r.usage?' · 입력 '+r.usage.input_tokens.toLocaleString()+' / 출력 '+r.usage.output_tokens.toLocaleString()+' 토큰':''));}
-  catch(e){stream.textContent+=(stream.textContent?'\n\n':'')+'[미완료 · 저장하지 않음]';throw e;}
+  const local=localSetup(text);
+  if(local&&!confirm('Fusion 초기 연결을 진행할까요? 누락된 Fusion 플러그인 및 애드인을 설치하고 자동 시작 manifest 설정을 활성화합니다. 필요한 경우 Fusion을 한 번 실행합니다. 기존 폴더와 프로필은 덮어쓰지 않고 실행 중인 Fusion은 종료하거나 재시작하지 않습니다.'))return;
+  notice(local?'Fusion 로컬 초기 연결 중 · AI 요청 없음':'응답 요청 중');$('messages').querySelector('.empty')?.remove();addMessage('user',text);stream=addMessage('assistant','',local);
+  try{const r=check(await api.send({id,model,text,readOnly,editMode,localApproved:local}));history=[r.conversation,...history.filter(c=>c.id!==id)];current=id;$('input').value='';canUndo=!!r.canUndo;draw();showPreview(r.preview||null);if(r.previewFailure){notice('변경안 준비 실패: '+r.previewFailure);return;}if(r.local){notice('로컬 작업 종료 · AI 요청 0회 · 토큰 0');return;}notice((readOnly?(r.called?'조회 및 응답 완료 · '+r.toolCalls+'회 조회':'응답 완료 · 로컬 조회 없음'):'응답 완료')+' · 요청 '+r.requests+'회'+(r.usage?' · 입력 '+r.usage.input_tokens.toLocaleString()+' / 출력 '+r.usage.output_tokens.toLocaleString()+' 토큰':''));}
+  catch(e){stream.textContent+=(stream.textContent?'\n\n':'')+(local?'[미완료 · 일부 로컬 설치 또는 설정은 이미 적용되었을 수 있습니다.]':'[미완료 · 저장하지 않음]');throw e;}
   finally{stream=null;}
 });
 

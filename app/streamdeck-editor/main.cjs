@@ -171,7 +171,20 @@ function assertEditor(event){
   if(!window||event.sender!==window.webContents)throw new Error('허용되지 않은 호출입니다.');
 }
 // Independent AI window; only a closed read-only query factory is provided.
-const {createReader:createAiReader}=require('./ai/read-tools.cjs');
+const {createReader:createAiReader,windowsApps}=require('./ai/read-tools.cjs');
+const FusionSetup=require('./ai/fusion-setup.js');
+async function runLocalFusionSetup(signal){
+  if(process.platform!=='win32')throw Error('Windows에서만 지원합니다.');
+  return FusionSetup.run({
+    apps:s=>windowsApps('start_apps',s),
+    plugin:()=>Bundled.installFusionPlugin(sdk()),
+    addin:()=>Bundled.installFusionAddin(undefined,{configureStartup:true}),
+    health:fusionAddinAvailable,
+    probe:async id=>(await runAppFocus(__dirname,{kind:'AppID',target:requireStartAppId(id)},'Probe')).status,
+    launch:id=>openLocalPath({target:'appid',filePath:APP_ID_PREFIX+requireStartAppId(id)}),
+    sleep:(ms,s)=>require('node:timers/promises').setTimeout(ms,undefined,{signal:s})
+  },signal);
+}
 function newAiReadSession(){
   return createAiReader({
     root:__dirname,userData:app.getPath('userData'),
@@ -276,7 +289,7 @@ async function prepareAiEdit(id,input,userText,signal){
   }
   signal?.throwIfAborted();return aiEditorCall('prepare',{id,input:valid,targets});
 }
-require('./ai/window.cjs').registerAiWindow(assertEditor,newAiReadSession,{capture:id=>aiEditorCall('capture',id),prepare:prepareAiEdit,apply:id=>aiEditorCall('apply',id),discard:id=>aiEditorCall('discard',id),undo:id=>aiEditorCall('undo',id)});
+require('./ai/window.cjs').registerAiWindow(assertEditor,newAiReadSession,{capture:id=>aiEditorCall('capture',id),prepare:prepareAiEdit,apply:id=>aiEditorCall('apply',id),discard:id=>aiEditorCall('discard',id),undo:id=>aiEditorCall('undo',id)},runLocalFusionSetup);
 ipcMain.handle('d200x:ha-status',event=>{
   assertEditor(event);
   const config=readHaConfig();

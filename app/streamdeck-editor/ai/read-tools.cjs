@@ -307,4 +307,4 @@ function createReader({root,userData,view,device,inputs,evidence=()=>[],version=
     };
   };
 }
-module.exports={TOOL,SECTIONS,validate,createReader,action,resolvePage,profileList,logRecord,label,tail,layoutReview};
+module.exports={TOOL,SECTIONS,validate,createReader,action,resolvePage,profileList,logRecord,label,tail,layoutReview,windowsApps};
