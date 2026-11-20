@@ -1,7 +1,5 @@
 "use strict";
-/* Independent Stream Deck 7.6.1-oriented UI. No legacy Ulanzi inspector imports.
- * D200X physical key dispatch: page navigation and default-browser URL only.
- * Packaging rebuild marker: no runtime behavior changes. */
+/* DeckForge editor for D200X. */
 const ORIGINAL_CATALOG = [
   ["Soundboard", [["audio-play","효과음 재생","♫"],["audio-stop","효과음 정지","◼"]]],
   ["DeckForge", [["timer","타이머","◴"],["brightness","D200X 밝기 설정","☼"],["sleep","D200X 화면 끄기","☾"],["virtual","Virtual DeckForge 토글","▣"]]],
@@ -749,12 +747,13 @@ window.deckBridge?.onNativeDrop?.(message=>{
 });
 function renderGrid(){
   if(nativeGridDrag&&(state!==nativeGridDrag.snapshot.state||currentPage()!==nativeGridDrag.snapshot.page))clearNativeGridDrag(nativeGridDrag,true);
-  const grid=$("key-grid");grid.replaceChildren();
+  const grid=$("key-grid");hideReplacedTooltip(grid);grid.replaceChildren();
   DeckCore.visibleActions(state).slice(0,KEY_COUNT).forEach((raw,i)=>{
     const folderBack=state.folderPath?.length>0&&i===13&&!raw;
     const item=i===13&&wideUnsavedWarningActive()?wideUnsavedVisual():folderBack?{type:'folder-back',title:'뒤로',icon:{kind:'glyph',glyph:'↩'}}:(i===13&&wideDisplayAvailable()?wideVisual():raw);
     const b=document.createElement("button");b.type="button";b.className="deck-key"+(i===13?" wide":"")+(state.selected===i?" selected":"");
     b.dataset.index=i;b.setAttribute("aria-label",`키 ${i+1}: ${keyName(item)||"비어 있음"}`);
+    if(item)setDeckForgeTooltip(b,()=>({title:keyName(item)||item.type,lines:[shortActionDescription(item)]}));
     const visual=displayKeyPressItem(displayItem(item,i),i);
     const glyph=iconNode(visual,ACTIONS.get(item?.type)?.icon||"+");glyph.classList.add("glyph");
     const label=document.createElement("span");label.className="caption";label.textContent=String(visual?.title||"").replace(/<br\s*\/?>/gi,"\n");updateTitleAppearance(label,visual);
@@ -812,16 +811,146 @@ function renderGrid(){
     :`페이지 ${state.page+1} / ${state.pages.length}`;
   $("delete-page").disabled=folder?DeckCore.folderPageCount(state)<=1:state.pages.length<=1;
 }
+// One compact, text-only tooltip for the canvas and action catalogue.
+const deckForgeTooltipData=new WeakMap();
+let deckForgeTooltipNode=null,deckForgeTooltipAnchor=null,deckForgeTooltipTimer=null;
+function setDeckForgeTooltip(element,getContent){
+  element.removeAttribute('title');
+  element.dataset.deckforgeTooltip='';
+  deckForgeTooltipData.set(element,getContent);
+}
+function hideDeckForgeTooltip(){
+  clearTimeout(deckForgeTooltipTimer);deckForgeTooltipTimer=null;
+  deckForgeTooltipAnchor=null;
+  if(deckForgeTooltipNode)deckForgeTooltipNode.hidden=true;
+}
+function showDeckForgeTooltip(anchor){
+  if(deckForgeTooltipAnchor!==anchor||!anchor.isConnected)return;
+  const content=deckForgeTooltipData.get(anchor)?.();
+  if(!content?.title||!content.lines?.length)return;
+  if(!deckForgeTooltipNode){
+    deckForgeTooltipNode=document.createElement('div');
+    deckForgeTooltipNode.className='deckforge-tooltip';deckForgeTooltipNode.setAttribute('role','tooltip');
+    document.body.append(deckForgeTooltipNode);
+  }
+  const heading=document.createElement('div');heading.className='deckforge-tooltip-title';heading.textContent=content.title;
+  const body=document.createElement('div');body.className='deckforge-tooltip-body';
+  for(const line of content.lines){
+    const row=document.createElement('div');row.textContent=line;body.append(row);
+  }
+  const tip=deckForgeTooltipNode;
+  tip.replaceChildren(heading,body);tip.hidden=false;
+  const rect=anchor.getBoundingClientRect(),w=tip.offsetWidth,h=tip.offsetHeight;
+  const left=Math.max(8,Math.min(rect.left+(rect.width-w)/2,window.innerWidth-w-8));
+  const top=rect.bottom+h+14<=window.innerHeight?rect.bottom+6:rect.top-h-6;
+  tip.style.left=left+'px';tip.style.top=Math.max(8,Math.min(top,window.innerHeight-h-8))+'px';
+}
+document.addEventListener('pointerover',event=>{
+  const target=event.target;
+  const anchor=target.closest?.('[data-deckforge-tooltip]');
+  const native=target.closest?.('[title]');
+  if(!anchor||(native&&anchor.contains(native)&&native!==anchor)){
+    if(deckForgeTooltipAnchor)hideDeckForgeTooltip();
+    return;
+  }
+  if(anchor===deckForgeTooltipAnchor)return;
+  hideDeckForgeTooltip();deckForgeTooltipAnchor=anchor;
+  deckForgeTooltipTimer=setTimeout(()=>showDeckForgeTooltip(anchor),550);
+});
+document.addEventListener('pointerout',event=>{
+  if(deckForgeTooltipAnchor&&!deckForgeTooltipAnchor.contains(event.relatedTarget instanceof Node?event.relatedTarget:null))hideDeckForgeTooltip();
+});
+for(const type of ['pointerdown','dragstart','scroll','contextmenu'])document.addEventListener(type,hideDeckForgeTooltip,true);
+document.addEventListener('keydown',event=>{if(event.key==='Escape')hideDeckForgeTooltip();},true);
+window.addEventListener('blur',hideDeckForgeTooltip);
+window.addEventListener('resize',hideDeckForgeTooltip);
+function hideReplacedTooltip(root){
+  if(deckForgeTooltipAnchor&&root.contains(deckForgeTooltipAnchor))hideDeckForgeTooltip();
+}
+function shortSideDescription(config){
+  const nav=config.navigation;
+  switch(nav){
+    case 'first':return '현재 덱의 첫 페이지로 이동';
+    case 'previous':return '현재 덱의 이전 페이지로 이동';
+    case 'next':return '현재 덱의 다음 페이지로 이동';
+    case 'last':return '현재 덱의 마지막 페이지로 이동';
+    case 'goto':return Number.isInteger(config.page)&&config.page>=0?'지정한 '+(config.page+1)+'번 페이지로 이동':'지정한 페이지로 이동';
+    case 'profile-previous':return '이전 프로필로 전환';
+    case 'profile-next':return '다음 프로필로 전환';
+    case 'profile-select':return '선택한 프로필로 전환';
+    case 'folder-target':return '지정한 덱폴더로 이동';
+    case 'folder-back':return '한 단계 위의 폴더로 이동';
+    case 'folder-root':return '모든 폴더를 나와 현재 루트 페이지로 이동';
+    case 'home':return '현재 프로필의 최상위 첫 페이지로 복귀';
+    default:return '동작 없음';
+  }
+}
+function shortActionDescription(action){
+  if(!action)return '동작 없음';
+  if(!action.settings&&PANEL_ACTION_HELP[action.type])return PANEL_ACTION_HELP[action.type].split('. ')[0].replace(/\.$/,'');
+  const s=action.settings||{};
+  switch(action.type){
+    case 'side-nav':return shortSideDescription(DeckCore.sideConfig(action));
+    case 'open-app':return '지정한 프로그램 열기'+(s.foreground!==false?' 또는 기존 창 활성화':'');
+    case 'close':return s.force?'지정한 프로그램 강제 종료':'지정한 프로그램 일반 종료';
+    case 'previous':return '현재 덱의 이전 페이지로 이동';
+    case 'next':return '현재 덱의 다음 페이지로 이동';
+    case 'goto':return '지정한 페이지로 이동';
+    case 'folder-back':return '한 단계 위의 폴더로 이동';
+    case 'folder':return '덱폴더 안으로 이동';
+    case 'profile':return s.profile==='next'?'다음 프로필로 전환':s.profile==='previous'?'이전 프로필로 전환':'지정한 프로필로 전환';
+    case 'hotkey':return s.keys?'단축키 '+String(s.keys).slice(0,36)+' 입력':'설정한 단축키 입력';
+    case 'system-volume':return s.direction==='down'?'윈도우 음량 낮추기':'윈도우 음량 높이기';
+    case 'system-scroll':return (s.axis==='horizontal'?'가로':'세로')+' 스크롤 이동';
+    case 'system-mute':return '윈도우 음소거 상태 전환';
+    case 'edit-history':return s.operation==='redo'?'현재 앱의 다시 실행 요청':'현재 앱의 실행 취소 요청';
+    case 'wide-display':return action.wideNotice?'미저장 변경 사항 확인창 표시':'가로 화면 표시 모드 전환';
+    case 'sd-plugin':return isFusionAction(action)?'지정한 Fusion 명령 실행':'설정한 플러그인 동작 실행';
+    case 'ha-toggle':return '지정한 Home Assistant 장치 상태 전환';
+    default:return PANEL_ACTION_HELP[action.type]?.split('. ')[0].replace(/\.$/,'')||'설정한 액션 실행';
+  }
+}
+function knobRotationDescription(binding,offset,held){
+  if(!binding)return '동작 없음';
+  const mode=held?binding.heldMode:binding.mode;
+  const enabled=!held||binding.heldEnabled;
+  const stack=held?binding.heldStack:binding.stack;
+  const stackTarget=stack?.length?stack[stackPositions[offset-2]%stack.length]:undefined;
+  const target=mode==='stack'?stackTarget:held?binding.heldTarget:binding.target;
+  const automatic=enabled&&(mode==='stack'||(!held&&mode==='adjust')||(held?binding.heldAutoAssign:binding.autoAssign));
+  const prefix=held?'누른 채 ':'';
+  const targetText=KNOB_TARGET_LABELS[target]||'지정 대상 조절';
+  const descriptions=(held?['holdLeft','holdRight']:['left','right']).map(key=>{
+    const action=enabled&&(mode==='stack'||(!held&&mode==='adjust'))?null:DeckCore.controlAction(binding,key);
+    return action?{text:shortActionDescription(action),auto:false}:automatic?{text:targetText,auto:true}:null;
+  });
+  let summary='';
+  if(descriptions.every(x=>x?.auto)){
+    summary=prefix+'좌우 회전으로 '+targetText;
+    if((held?binding.heldReverseDirection:binding.reverseDirection)===true)summary+=' (방향 반대)';
+  }else if(descriptions.some(Boolean)){
+    summary=prefix+descriptions.map((x,i)=>x?(i?'오른쪽: ':'왼쪽: ')+x.text:'').filter(Boolean).join(' / ');
+  }
+  if(!held&&!binding.heldEnabled){
+    const press=binding.mode==='stack'?'조절 대상 변경':binding.down?shortActionDescription(binding.down):'';
+    if(press)summary+=(summary?' · ':'')+'누르기: '+press;
+  }
+  return summary||'동작 없음';
+}
+function physicalTooltipContent(index,name,kind){
+  const binding=DeckCore.controlBinding(state,index);
+  if(kind==='side')return {title:'물리 단추 '+(index-KEY_COUNT+1),lines:['S: '+shortSideDescription(DeckCore.sideActionConfig(binding,index)),'L: '+shortSideDescription(DeckCore.sideActionConfig(binding,index,'hold'))]};
+  return {title:name,lines:['S: '+knobRotationDescription(binding,index-KEY_COUNT,false),'L: '+knobRotationDescription(binding,index-KEY_COUNT,true)]};
+}
 function renderPhysicalControls(){
   const root=$("physical-controls");
-  root.replaceChildren();
+  hideReplacedTooltip(root);root.replaceChildren();
   CONTROLS.forEach(({name,kind},offset)=>{
     const index=KEY_COUNT+offset, binding=DeckCore.controlBinding(state,index);
     const item=binding?.down;
     const button=document.createElement("button");button.type="button";
     button.className="physical-control "+kind+(state.selected===index?" selected":"");
     button.setAttribute("aria-label",name+" — "+(keyName(item)||"비어 있음"));
-    button.title=name+" — 클릭하거나 액션을 끌어 설정";
     const symbol=document.createElement("span");symbol.className="physical-symbol";
     const label=document.createElement("span");label.className="physical-name";
     label.textContent=(binding?.mode==='adjust'||(binding?.mode==='trigger'&&binding?.autoAssign))?'조절: '+({page:'페이지',profile:'프로필',volume:'음량',zoom:'확대/축소',scroll:'세로 스크롤','scroll-x':'가로 스크롤',history:'실행 취소·다시 실행',window:'창 전환',desktop:'가상 데스크톱',brightness:'기기 밝기'}[binding.target])
@@ -846,7 +975,7 @@ function renderPhysicalControls(){
       }
       heldLabel.textContent=[...new Set(labels.filter(Boolean))].join(' / ');
     }
-    if(heldLabel.textContent)button.title+='\n'+heldLabel.textContent;
+    setDeckForgeTooltip(button,()=>physicalTooltipContent(index,name,kind));
     button.setAttribute('aria-label',[name,label.textContent,heldLabel.textContent].filter(Boolean).join(' — '));
     button.append(symbol,label,heldLabel);
     button.addEventListener("click",()=>choose(index));
@@ -987,7 +1116,8 @@ function renderInstalledSdkPlugins(root,query){
     for(const action of matching){
       const id='sd::'+plugin.uuid+'::'+action.uuid;
       const tile=document.createElement('div');tile.className='action-item';tile.draggable=true;
-      tile.title='드래그하여 버튼에 놓기';tile.textContent='▣  '+sdkCatalogueLabel(action);
+      tile.textContent='▣  '+sdkCatalogueLabel(action);
+      setDeckForgeTooltip(tile,()=>({title:sdkCatalogueLabel(action),lines:[isFusion?'등록한 Fusion 명령 실행':isHa?'지정한 Home Assistant 장치 제어':'설정한 플러그인 동작 실행']}));
       tile.addEventListener('dragstart',ev=>ev.dataTransfer.setData('application/x-d200x-action',id));
       tile.addEventListener('click',()=>{
         if(state.selected===null)return;
@@ -1083,7 +1213,7 @@ document.addEventListener('click',dismissPanelActionOptions,true);
 // Hide duplicates only from the basic catalogue; keep persisted action IDs and bindings.
 const HIDDEN_BASIC_ACTION_IDS=new Set(["explorer-open","screenshot","clipboard-edit","window-switch","window-state","window-monitor","desktop-switch","brush-size","timeline-step","timeline-zoom"]);
 function renderLibrary(){
-  const root=$("library-list");root.replaceChildren();
+  const root=$("library-list");hideReplacedTooltip(root);root.replaceChildren();
   const query=$("action-search").value.trim().toLocaleLowerCase();
   if(libraryTab==='plugins'){
     // SDK plugins own their connection settings via the original Property Inspector.
@@ -1102,8 +1232,8 @@ function renderLibrary(){
     for(const [id,label] of visible){
       const disabled=id==='virtual';
       const entry=document.createElement("div");entry.className="action-item"+(disabled?" action-disabled":"");entry.draggable=!disabled;
-      if(disabled){entry.setAttribute("aria-disabled","true");entry.setAttribute("title","추후 지원 예정 · 현재 등록 불가");}
-      if(!disabled)entry.title="드래그하여 빈 버튼에 놓기";
+      if(disabled)entry.setAttribute("aria-disabled","true");
+      setDeckForgeTooltip(entry,()=>({title:label,lines:[disabled?'추후 지원 예정 · 현재 등록 불가':shortActionDescription({type:id})]}));
       const symbol=document.createElement("span");symbol.className="action-icon";symbol.append(window.D200XPanelIcons.create(id));
       const caption=document.createElement("span");caption.className="action-caption";
       const name=document.createElement("span");name.textContent=label;caption.append(name);
@@ -2204,9 +2334,11 @@ let inspectorListener=new AbortController();
 // Physical controls use a dedicated compact inspector instead of pretending
 // each knob has a single key. Drag to an individual gesture or click it to edit.
 function renderSideBindings(root,index,binding){
+  const pair=document.createElement('div');pair.className='side-binding-pair';
   for(const [gesture,title] of [['down','짧게 누르기'],['hold','길게 누르기']]){
     const config=DeckCore.sideActionConfig(binding,index,gesture);
-    const row=document.createElement('div');row.className='control-config';
+    const column=document.createElement('div');column.className='side-binding-column';pair.append(column);
+    const row=document.createElement('div');row.className='control-config side-binding-choice';
     const label=document.createElement('label');label.textContent=title;
     const choice=document.createElement('select');choice.setAttribute('aria-label',title);
     for(const [value,name] of Object.entries(DeckCore.SIDE_NAV_LABELS))choice.add(new Option(name,value));
@@ -2224,13 +2356,13 @@ function renderSideBindings(root,index,binding){
     choice.addEventListener('change',()=>assignSideControl(index,gesture,chooseConfig(choice.value),true));
     const test=document.createElement('button');test.type='button';test.className='action-preview-test';test.textContent='▶';
     test.setAttribute('aria-label',title+' 실행 테스트');test.dataset.blocked=String(config.navigation==='none');
-    test.addEventListener('click',()=>runActionPreview(gesture));row.append(label,choice,test);root.append(row);
+    test.addEventListener('click',()=>runActionPreview(gesture));row.append(label,choice,test);column.append(row);
     const raw=gesture==='down'?binding.down:binding.sideHold;
     if(raw&&config.navigation==='none'&&raw.type!=='side-nav'){
-      const note=document.createElement('div');note.className='hint';note.textContent='기존 비탐색 액션은 보존되어 있으나 측면 단추에서 실행하지 않습니다.';root.append(note);
+      const note=document.createElement('div');note.className='hint';note.textContent='기존 비탐색 액션은 보존되어 있으나 측면 단추에서 실행하지 않습니다.';column.append(note);
     }
     if(!['goto','profile-select','folder-target'].includes(config.navigation))continue;
-    const targetRow=document.createElement('div');targetRow.className='control-config';
+    const targetRow=document.createElement('div');targetRow.className='control-config side-binding-target';
     const targetLabel=document.createElement('label');targetLabel.textContent='대상';
     const targetChoice=document.createElement('select');targetChoice.setAttribute('aria-label',title+' 대상');
     let options,selected;
@@ -2253,8 +2385,9 @@ function renderSideBindings(root,index,binding){
       else [next.rootPage,next.route]=JSON.parse(targetChoice.value);
       assignSideControl(index,gesture,next,true);
     });
-    targetRow.append(targetLabel,targetChoice);root.append(targetRow);
+    targetRow.append(targetLabel,targetChoice);column.append(targetRow);
   }
+  root.append(pair);
 }
 function renderControlInspector(){
   beginInspectorSession();
@@ -2262,7 +2395,7 @@ function renderControlInspector(){
   const info=CONTROLS[offset],binding=DeckCore.controlBinding(state,index);
   root.replaceChildren();
   const knob=info.kind==='knob',held=knob&&knobTab==='held';
-  root.className='inspector control-inspector'+(knob?' knob-inspector':'');
+  root.className='inspector control-inspector'+(knob?' knob-inspector':' side-inspector');
   const heldDisabled=held&&binding.heldEnabled!==true;
   const currentMode=knob?(held?binding.heldMode:binding.mode):'trigger';
   const head=document.createElement('div');head.className='action-head control-head';
@@ -2278,10 +2411,6 @@ function renderControlInspector(){
     }
     head.append(tabs);
   }
-  const headTest=document.createElement('button');headTest.type='button';
-  headTest.className='action-preview-test';headTest.textContent='▶ 실행 테스트';
-  headTest.addEventListener('click',()=>runActionPreview(held?'hold-left':'down'));
-  if(!knob)head.append(headTest);
   root.append(head);
   if(knob){
     appendInspectorSaveBar(root);
