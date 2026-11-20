@@ -82,6 +82,11 @@
       base.settings.indicatorDown=indicatorConfig(base,'down');
       base.settings.indicatorHold=indicatorConfig(base,'hold');
       base.settings.indicatorNumberStyle=cleanTitleStyle(value.settings?.indicatorNumberStyle,INDICATOR_NUMBER_STYLE);
+      if(typeof value.settings?.indicatorDownTitle==='string')base.settings.indicatorDownTitle=value.settings.indicatorDownTitle.slice(0,256);
+      else delete base.settings.indicatorDownTitle;
+      if(value.settings?.indicatorDownTitleStyle&&typeof value.settings.indicatorDownTitleStyle==='object'&&!Array.isArray(value.settings.indicatorDownTitleStyle))
+        base.settings.indicatorDownTitleStyle=cleanTitleStyle(value.settings.indicatorDownTitleStyle,base.titleStyle);
+      else delete base.settings.indicatorDownTitleStyle;
     }
     if(base.settings.keyBackgrounds!==undefined){
       const raw=base.settings.keyBackgrounds, cleaned={};
@@ -760,6 +765,7 @@
       indicatorDown:indicatorConfig(pseudo,'down'),
       indicatorHold:indicatorConfig(pseudo,'hold'),
       indicatorNumberStyle:cleanTitleStyle(settings.indicatorNumberStyle,INDICATOR_NUMBER_STYLE),
+      ...(settings.indicatorDownNumberStyle&&typeof settings.indicatorDownNumberStyle==='object'&&!Array.isArray(settings.indicatorDownNumberStyle)?{indicatorDownNumberStyle:cleanTitleStyle(settings.indicatorDownNumberStyle,cleanTitleStyle(settings.indicatorNumberStyle,INDICATOR_NUMBER_STYLE))}:{}),
       autoAdd:previous?previous.autoAdd===true:!!source
     };
   }

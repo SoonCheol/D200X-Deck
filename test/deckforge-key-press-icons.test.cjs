@@ -249,3 +249,15 @@ test('page indicator retains number and title while using separate held artwork 
  assert.equal(apply(fallback,true).icon.value,'UP');
  assert.equal(apply(fallback,true).keyPressAlternate,false);
 });
+
+test('indicator Down title and number styles are independently resolved, omitted styles inherit Up',()=>{
+ const item={type:'indicator',title:'Normal',titleStyle:{visible:true,color:'#ffffff'},indicatorNumber:'4',indicatorNumberStyle:{visible:true,size:48},indicatorDownNumberStyle:{visible:false,size:20},settings:{indicatorDownTitle:'Pressed',indicatorDownTitleStyle:{visible:false,color:'#ff0000'}}};
+ const before=JSON.stringify(item),up=apply(item,false),down=apply(item,true);
+ assert.equal(up.title,'Normal');assert.equal(up.titleStyle.visible,true);
+ assert.equal(up.indicatorNumberStyle.visible,true);
+ assert.equal(down.title,'Pressed');assert.equal(down.titleStyle.visible,false);assert.equal(down.titleStyle.color,'#ff0000');
+ assert.equal(down.indicatorNumber,'4');assert.equal(down.indicatorNumberStyle.visible,false);assert.equal(down.indicatorNumberStyle.size,20);
+ assert.equal(down.keyPressAlternate,true);assert.equal(JSON.stringify(item),before);
+ const legacy={...item,settings:{},indicatorDownNumberStyle:undefined};
+ assert.equal(apply(legacy,true).title,'Normal');assert.equal(apply(legacy,true).indicatorNumberStyle.size,48);assert.equal(apply(legacy,true).keyPressAlternate,false);
+});

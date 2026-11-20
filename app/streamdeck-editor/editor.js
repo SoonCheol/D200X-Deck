@@ -297,8 +297,9 @@ function displayItem(item,index){
     if(icon||visual)return {...item,title:visual?.title??item.title,...(icon?{icon}:{})};
   }
   if(!item||item.type!=="indicator")return item;
+  const common=DeckCore.indicatorCommon(state,item);
   return {...item,indicatorNumber:String((DeckCore.activeFolder(state)?.pageIndex??state.page)+1),
-    indicatorNumberStyle:DeckCore.indicatorCommon(state,item).indicatorNumberStyle};
+    indicatorNumberStyle:common.indicatorNumberStyle,indicatorDownNumberStyle:common.indicatorDownNumberStyle||common.indicatorNumberStyle};
 }
 // Visual press policy is separate from action execution and SDK keyUp delivery.
 const previewPressKeys=new Set();
@@ -413,8 +414,14 @@ function indicatorPressVisual(item,pressed){
   const up=icons.up||item.icon,down=icons.down||up;
   const first=backgrounds.default||{enabled:false,color:'#08090c'},second=backgrounds.second||first;
   const background=entry=>entry?.enabled===true?entry.color:'#08090c';
-  const distinct=JSON.stringify(up||null)!==JSON.stringify(down||null)||background(first)!==background(second);
-  return {...item,icon:pressed?down:up,keyBackground:pressed?second:first,keyPressAlternate:distinct};
+  const downTitle=item.settings?.indicatorDownTitle??item.title;
+  const downTitleStyle=item.settings?.indicatorDownTitleStyle||item.titleStyle;
+  const downNumberStyle=item.indicatorDownNumberStyle||item.indicatorNumberStyle;
+  const distinct=JSON.stringify([up||null,background(first),item.title,item.titleStyle,item.indicatorNumberStyle])!==
+    JSON.stringify([down||null,background(second),downTitle,downTitleStyle,downNumberStyle]);
+  return {...item,title:pressed?downTitle:item.title,titleStyle:pressed?downTitleStyle:item.titleStyle,
+    indicatorNumberStyle:pressed?downNumberStyle:item.indicatorNumberStyle,
+    icon:pressed?down:up,keyBackground:pressed?second:first,keyPressAlternate:distinct};
 }
 function displayKeyPressItem(item,index){
   const inspectorPreview=arguments[2]===true;
@@ -2179,25 +2186,25 @@ function bindKeyBackgroundControl(preview,item,key){
 }
 
 function bindTitleStyle(item){
-  let numberTitle=false;
+  let indicatorField='title';
   let style={...DEFAULT_TITLE_STYLE,...item.titleStyle};
   let activeStateTitle=null;
   const commitStyle=()=>{
     if(activeStateTitle)ensureStateTitlePair(item)[activeStateTitle].style={...style};
-    else if(numberTitle){DeckCore.updateIndicatorCommon(state,item,{indicatorNumberStyle:{...style}});}
+    else if(item.type==='indicator')saveIndicatorStyle(indicatorField,style);
     else item.titleStyle={...style};
     persistInspectorChange();renderGrid();refreshTitlePreview(item);
   };
   const menu=$("title-style-popover"),toggle=$("title-style-trigger");
   const titleHost=menu.parentElement;
   toggle.addEventListener("click",()=>{
-    if(item.type==='indicator'&&numberTitle){numberTitle=false;style={...DEFAULT_TITLE_STYLE,...item.titleStyle};syncIndicatorStyle();titleHost.append(menu);menu.hidden=false;}
+    if(item.type==='indicator'){root._openIndicatorStyle(toggle,'title');return;}
     else menu.hidden=!menu.hidden;
     toggle.setAttribute("aria-expanded",String(!menu.hidden));
   });
   const save=(field,value)=>{style[field]=value;commitStyle();};
   const visible=$("title-visible");visible.checked=style.visible;
-  visible.addEventListener("change",()=>{if(item.type==='indicator'&&numberTitle){item.titleStyle={...DEFAULT_TITLE_STYLE,...item.titleStyle,visible:visible.checked};persistInspectorChange();renderGrid();refreshTitlePreview(item);}else save("visible",visible.checked);});
+  visible.addEventListener("change",()=>{if(item.type==='indicator')root._setIndicatorVisible('title',visible.checked);else save("visible",visible.checked);});
   menu.querySelectorAll("[data-align]").forEach(button=>{
     button.classList.toggle("active",button.dataset.align===style.align);
     button.addEventListener("click",()=>{
@@ -2259,7 +2266,7 @@ function bindTitleStyle(item){
     // Mutate the existing style object so all field handlers keep the same reference.
     // Do not rebuild the inspector: the popover stays open and displays applied values.
     Object.assign(style,chosen.style);
-    if(numberTitle){const n=$('indicator-number-visible');if(n)n.checked=style.visible;}else visible.checked=style.visible;
+    if(item.type==='indicator'){const n=indicatorCheckbox(indicatorField);if(n)n.checked=style.visible!==false;}else visible.checked=style.visible;
     menu.querySelectorAll("[data-align]").forEach(button=>
       button.classList.toggle("active",button.dataset.align===style.align));
     family.value=style.family;
@@ -2334,7 +2341,7 @@ function bindTitleStyle(item){
     if(hasStateTitlePair(item)){
       const mode=$("inspector").dataset.activeTitle||'first';
       ensureStateTitlePair(item)[mode].style={...DEFAULT_TITLE_STYLE};
-    }else if(numberTitle)DeckCore.updateIndicatorCommon(state,item,{indicatorNumberStyle:{...DeckCore.INDICATOR_NUMBER_STYLE}});
+    }else if(item.type==='indicator')saveIndicatorStyle(indicatorField,indicatorField==='number'||indicatorField==='downNumber'?DeckCore.INDICATOR_NUMBER_STYLE:DEFAULT_TITLE_STYLE);
     else item.titleStyle={...DEFAULT_TITLE_STYLE};
     persistInspectorChange();renderGrid();renderInspector();
   });
@@ -2347,18 +2354,37 @@ function bindTitleStyle(item){
     $("title-color").value=style.color;$("outline-color").value=style.outlineColor;outlineWidth.value=style.outlineWidth;
     syncTitleBackgroundFields();renderPresetOptions();palette.hidden=true;
   }
-  root._openIndicatorNumberStyle=(trigger)=>{
-    const already=numberTitle&&!menu.hidden;
-    numberTitle=true;style={...DeckCore.indicatorCommon(state,item).indicatorNumberStyle};syncIndicatorStyle();
-    trigger.parentElement.append(menu);menu.hidden=already;
-    trigger.setAttribute('aria-expanded',String(!menu.hidden));toggle.setAttribute('aria-expanded','false');
+  function indicatorCheckbox(field){
+    return $(field==='title'?'title-visible':field==='number'?'indicator-number-visible':field==='downTitle'?'indicator-down-title-visible':'indicator-down-number-visible');
+  }
+  function getIndicatorStyle(field){
+    const common=DeckCore.indicatorCommon(state,item);
+    if(field==='number')return {...common.indicatorNumberStyle};
+    if(field==='downNumber')return {...(common.indicatorDownNumberStyle||common.indicatorNumberStyle)};
+    if(field==='downTitle')return {...DEFAULT_TITLE_STYLE,...(item.settings?.indicatorDownTitleStyle||item.titleStyle)};
+    return {...DEFAULT_TITLE_STYLE,...item.titleStyle};
+  }
+  function saveIndicatorStyle(field,next){
+    if(field==='number'||field==='downNumber')DeckCore.updateIndicatorCommon(state,item,{[field==='number'?'indicatorNumberStyle':'indicatorDownNumberStyle']:{...next}});
+    else if(field==='downTitle'){item.settings??={};item.settings.indicatorDownTitleStyle={...next};}
+    else item.titleStyle={...next};
+    for(const name of ['title','number','downTitle','downNumber']){
+      const check=indicatorCheckbox(name);if(check)check.checked=getIndicatorStyle(name).visible!==false;
+    }
+  }
+  root._openIndicatorStyle=(trigger,field)=>{
+    const already=indicatorField===field&&!menu.hidden&&menu.parentElement===trigger.parentElement;
+    indicatorField=field;style=getIndicatorStyle(field);syncIndicatorStyle();
+    (field==='title'?titleHost:trigger.parentElement).append(menu);menu.hidden=already;
+    root.querySelectorAll('.state-title-style').forEach(button=>button.setAttribute('aria-expanded',String(button===trigger&&!menu.hidden)));
   };
-  root._setIndicatorNumberVisible=checked=>{
-    const next={...DeckCore.indicatorCommon(state,item).indicatorNumberStyle,visible:checked};
-    if(numberTitle)style={...next};
-    DeckCore.updateIndicatorCommon(state,item,{indicatorNumberStyle:next});
+  root._openIndicatorNumberStyle=trigger=>root._openIndicatorStyle(trigger,'number');
+  root._setIndicatorVisible=(field,checked)=>{
+    saveIndicatorStyle(field,{...getIndicatorStyle(field),visible:checked});
+    style=getIndicatorStyle(indicatorField);
     persistInspectorChange();renderGrid();refreshTitlePreview(item);
   };
+  root._setIndicatorNumberVisible=checked=>root._setIndicatorVisible('number',checked);
   root._openStateTitleStyle=(which,trigger)=>{
     const entry=(item.settings?.stateTitles||defaultStateTitlePair(item))[which];
     activeStateTitle=which;
@@ -2802,7 +2828,7 @@ async function refreshStateTitleCards(item){
     const progress=item.type==='multi'?runningMultiProgress.get(DeckCore.runtimeActionKey(state,slot,'down')):null;
     const titleVisual=item.type==='indicator'?indicatorPressVisual(visual,second):item.type==='timer'?resolveTimerVisual(visual,second,DeckCore.timerSeconds(item.settings?.seconds),artwork):item.type==='multi'?resolveMultiVisual(visual,second,artwork,progress):resolveStateTitle(visual,second,artwork);
     if(item.type==='multi'&&second){const input=card.querySelector('.state-title-input');if(input)input.value=multiProgressTitle(item,progress);}
-    if(item.type==='indicator'&&second){const sharedTitle=card.querySelector('.indicator-shared-title');if(sharedTitle)sharedTitle.value=item.title||'';}
+    if(item.type==='indicator'&&second){const downTitle=card.querySelector('.indicator-down-title');if(downTitle&&document.activeElement!==downTitle)downTitle.value=item.settings?.indicatorDownTitle??item.title??'';}
     // State previews are snapshots, not a physical key-down effect.
     const img=card.querySelector('.sdk-state-preview');
     if(!img)continue;
@@ -3044,12 +3070,24 @@ function bindIndicatorInspector(root,item){
   line.prepend(check,name);num.remove();
   card.append(heading,titleLine,line,image,buttons);cards.append(card);
   const down=buildCard(true);
-  const sharedTitle=document.createElement('div');sharedTitle.className='state-title-control indicator-title-row';
-  const titleMirror=document.createElement('input');titleMirror.className='state-title-input indicator-shared-title';titleMirror.readOnly=true;titleMirror.value=item.title||'';titleMirror.placeholder='제목 (Key Up 공통)';titleMirror.title='Key Up 제목과 공유';sharedTitle.append(titleMirror);
-  const sharedNumber=document.createElement('div');sharedNumber.className='state-title-control indicator-number-row';
-  const indicatorLabel=document.createElement('span');indicatorLabel.className='indicator-number-label';indicatorLabel.textContent='번호';
-  const numberMirror=document.createElement('input');numberMirror.className='state-title-input';numberMirror.readOnly=true;numberMirror.value=text.value;numberMirror.title='공통 번호 표시';sharedNumber.append(indicatorLabel,numberMirror);
-  down.card.append(down.heading,sharedTitle,sharedNumber,down.image,down.buttons);cards.append(down.card);panel.append(cards);
+  const downField=(field,value,visible,number)=>{
+    const row=document.createElement('div');row.className='state-title-control '+(number?'indicator-number-row':'indicator-title-row');
+    const check=document.createElement('input');check.type='checkbox';check.className='state-title-visible';
+    check.id=number?'indicator-down-number-visible':'indicator-down-title-visible';check.checked=visible;
+    check.title=number?'번호 표시':'제목 표시';check.setAttribute('aria-label','Key Down '+check.title);
+    check.addEventListener('change',()=>root._setIndicatorVisible(field,check.checked));row.append(check);
+    if(number){const name=document.createElement('span');name.className='indicator-number-label';name.textContent='번호';row.append(name);}
+    const input=document.createElement('input');input.className='state-title-input'+(number?'':' indicator-down-title');
+    input.value=value;input.readOnly=number;input.maxLength=256;input.placeholder=number?'번호':'제목';
+    input.title=number?'현재 페이지 번호 자동 표시':'Key Down 제목';input.setAttribute('aria-label',input.title);
+    if(!number)input.addEventListener('input',()=>{item.settings.indicatorDownTitle=input.value;persistInspectorChange();renderGrid();refreshTitlePreview(item);});
+    const font=document.createElement('button');font.type='button';font.className='state-title-style';font.textContent='T⌄';
+    font.title=input.title+' 글꼴 속성';font.setAttribute('aria-label',font.title);font.setAttribute('aria-expanded','false');
+    font.addEventListener('click',()=>root._openIndicatorStyle(font,field));row.append(input,font);return row;
+  };
+  const downTitle=downField('downTitle',item.settings?.indicatorDownTitle??item.title??'',(item.settings?.indicatorDownTitleStyle||item.titleStyle)?.visible!==false,false);
+  const downNumber=downField('downNumber',text.value,(common.indicatorDownNumberStyle||common.indicatorNumberStyle).visible!==false,true);
+  down.card.append(down.heading,downTitle,downNumber,down.image,down.buttons);cards.append(down.card);panel.append(cards);
   void refreshStateTitleCards(item);
 }
 function bindExtendedActionFields(root,item){

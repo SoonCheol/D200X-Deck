@@ -1141,3 +1141,9 @@
 .indicator-inspector .state-title-layout .indicator-number-row{grid-row:3}
 .indicator-inspector .state-title-layout .indicator-icon-cards .sdk-state-preview,.indicator-inspector .state-title-layout .indicator-icon-cards .sdk-state-buttons{grid-row:4}
 .indicator-inspector .state-title-layout .indicator-number-label{font-size:12px;color:#bcbcbc;white-space:nowrap}
+
+/* Reclaim lower canvas breathing room only when the full-height track fits. */
+@media(min-height:740px){
+  .work{grid-template-rows:minmax(0,min(405px,calc(100dvh - 220px))) minmax(0,1fr)}
+  .canvas{padding-top:23px;padding-bottom:3px}
+}

@@ -1374,3 +1374,18 @@ test('indicator and side use same one-shot short and hold tracker',()=>{
   assert.equal(tracker.input(0,'up',true,'next',1700),null);
   assert.equal(tracker.has(0),false);
 });
+
+test('independent indicator Down title stays local and Down number style persists profile-wide',()=>{
+ const s=core.migrateState({pages:[[],[]]});
+ const first=s.pages[0][0]=core.createAction('indicator'),second=s.pages[1][0]=core.createAction('indicator');
+ first.title='One';second.title='Two';
+ first.settings.indicatorDownTitle='Pressed';first.settings.indicatorDownTitleStyle={...core.TITLE,visible:false,color:'#ff0000'};
+ core.updateIndicatorCommon(s,first,{indicatorDownNumberStyle:{...core.INDICATOR_NUMBER_STYLE,visible:false,size:20}});
+ const restored=core.migrateState(JSON.parse(JSON.stringify(s)));
+ assert.equal(restored.pages[0][0].settings.indicatorDownTitle,'Pressed');
+ assert.equal(restored.pages[0][0].settings.indicatorDownTitleStyle.visible,false);
+ assert.equal(restored.pages[1][0].settings.indicatorDownTitle,undefined);
+ assert.equal(core.indicatorCommon(restored,restored.pages[1][0]).indicatorDownNumberStyle.visible,false);
+ assert.equal(core.indicatorCommon(restored).indicatorNumberStyle.visible,true);
+ assert.equal(core.indicatorCommon(restored).indicatorDownNumberStyle.size,20);
+});

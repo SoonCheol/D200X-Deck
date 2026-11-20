@@ -398,10 +398,12 @@ test('initial editor window is 40px shorter but keeps the minimum and centering'
   }
 });
 
-test('page indicator uses standard paired cards with shared title and number and independent artwork',()=>{
+test('page indicator uses standard paired cards with independent title and number style controls',()=>{
   assert.match(editor,/card\.append\(heading,titleLine,line,image,buttons\)/);
   assert.match(editor,/const down=buildCard\(true\)/);
-  assert.match(editor,/down\.card\.append\(down\.heading,sharedTitle,sharedNumber,down\.image,down\.buttons\)/);
+  assert.match(editor,/down\.card\.append\(down\.heading,downTitle,downNumber,down\.image,down\.buttons\)/);
+  assert.match(editor,/check\.id=number\?'indicator-down-number-visible':'indicator-down-title-visible'/);
+  assert.match(editor,/root\._openIndicatorStyle\(font,field\)/);
   assert.match(editor,/titleLine\.prepend\(titleCheck\)/);
   assert.match(editor,/line\.prepend\(check,name\)/);
   assert.match(editor,/if\(\(hasStateTitlePair\(item\)\|\|item\.type==='indicator'\)&&iconRegion\)/);
