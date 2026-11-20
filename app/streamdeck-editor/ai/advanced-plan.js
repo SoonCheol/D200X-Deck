@@ -5,7 +5,7 @@
   else root.DeckForgeAiAdvanced=factory(root.DeckCore,root.DeckHotkeys,root.DeckForgeAiPlan);
 })(globalThis,(Core,Hotkeys,Basic)=>{
   const KINDS=['page_structure','folder_keys','folder_page','folder_settings','control','wide','composite','state_design','plugin','fusion_batch','profile_build'];
-  const TOOL={type:'function',name:'propose_advanced',strict:true,description:'Stage ONE advanced preview, never save. Except profile_build, active profile, page 1-based (null=current), folder route "2:1/3:2" means slot:folder-page (null=root; folder kinds require route); slot 1–13 except control 1–5 (side first/back, knobs 1–3). configJson is JSON object string: folder_keys {keys:[{slot,op:"put"|"update"|"delete",type?,value?,title?}]} max8; folder_page {}; page_structure {op:"append"|"insert"|"move"|"duplicate"|"delete",index?:one-based page number,to?:one-based destination}; page=null and folder=null for root, for folder supply root page and exact existing folder route; insert index means BEFORE that page (count+1 allowed), move to is final position, delete removes that page and its contents after explicit user apply. slot=null. folder_settings {title?,autoExitEnabled?,autoExitSeconds?}; control {scope?:"global"|"page",mode?:"trigger"|"stack",target?,step?:1|2|5|10,reverse?,stack?:[targets],heldEnabled?,heldMode?,heldTarget?,heldStep?,heldReverse?,heldStack?,gesture?:"down"|"left"|"right"|"holdLeft"|"holdRight"|"sideHold",action?:{type,value,title}|null}; targets page/profile/volume/zoom/scroll/scroll-x/history/window/desktop/brightness. Side slots 1–2 accept only scope and down/sideHold with previous,next,goto or null; use editor for other navigation. wide {enabled:[clock|datetime|stats|knobs],order?:[all four],current?}. composite {type:"multi"|"multi-switch"|"random"|"logic",title?,steps?:[{type,value,title}],second?:[steps],single?:step,double?:step,hold?:step}; delay type value milliseconds string. state_design {first?:{title?,enabled?,size?,color?,bold?,background?,iconName?,iconPack?},second?:same}. plugin {kind:"ha"|"sdk-ha"|"fusion"|"fusion-live",id,title?}; ha verify REST entity; sdk-ha/fusion reuse verified registered template from inspect plugin_templates; fusion-live creates new button using exact ID from inspect fusion_commands, revalidated locally against current Fusion and installed SDK. fusion_batch {keys:[{page,slot,id,title?}]} 1–13 new Fusion buttons in existing active-profile root pages, page/slot required per key; outer page,folder,slot must all be null. All slots must be distinct, empty and not pinned; all IDs verified in one fresh local list; no page creation. profile_build creates ONE NEW inactive profile, never overwrites current profiles. Outer page,folder,slot all null; configJson {name,pageCount,keys:[{page,slot,type,value?,title?}]} pageCount 1–10, 1–40 distinct ordinary slots. type fusion-live requires value exact verified command ID; other types same basic actions as folder_keys, excluding folder. Local paths/AppIDs verified as usual. Preview all pages and keys in one transaction. Do not query existing empty slots for a new profile. For simple steps use hotkey,previous,next,indicator,goto,clipboard-edit,media,system-mute,explorer-open; folder_keys also folder/open-app/file-open/folder-shortcut (verified Start Apps AppID or user-supplied local path). No paths or arbitrary settings. Existing protected actions cannot be deleted/replaced. One operation kind per proposal; user applies locally.',parameters:{type:'object',properties:{kind:{type:'string',enum:KINDS},page:{type:['integer','null']},folder:{type:['string','null']},slot:{type:['integer','null']},configJson:{type:'string'}},required:['kind','page','folder','slot','configJson'],additionalProperties:false}};
+  const TOOL={type:'function',name:'propose_advanced',strict:true,description:'Stage ONE advanced preview, never save. Except profile_build, active profile, page 1-based (null=current), folder route "2:1/3:2" means slot:folder-page (null=root; folder kinds require route); slot 1–13 except control 1–5 (side first/back, knobs 1–3). configJson is JSON object string: folder_keys {keys:[{slot,op:"put"|"update"|"delete",type?,value?,title?}]} max8; folder_page {}; page_structure {op:"append"|"insert"|"move"|"duplicate"|"delete",index?:one-based page number,to?:one-based destination}; page=null and folder=null for root, for folder supply root page and exact existing folder route; insert index means BEFORE that page (count+1 allowed), move to is final position, delete removes that page and its contents after explicit user apply. slot=null. folder_settings {title?,autoExitEnabled?,autoExitSeconds?}; control {scope?:"global"|"page",mode?:"trigger"|"stack",target?,step?:1|2|5|10,reverse?,stack?:[targets],heldEnabled?,heldMode?,heldTarget?,heldStep?,heldReverse?,heldStack?,gesture?:"down"|"left"|"right"|"holdLeft"|"holdRight"|"sideHold",action?:{type,value,title}|null}; targets page/profile/volume/zoom/scroll/scroll-x/history/window/desktop/brightness. Side slots 1–2 accept only scope and down/sideHold with previous,next,goto or null; use editor for other navigation. wide {enabled:[clock|datetime|stats|knobs],order?:[all four],current?}. composite {type:"multi"|"multi-switch"|"random"|"logic",title?,steps?:[{type,value,title}],second?:[steps],single?:step,double?:step,hold?:step}; delay type value milliseconds string. state_design {first?:{title?,enabled?,size?,color?,bold?,background?,iconName?,iconPack?},second?:same}. plugin {kind:"ha"|"sdk-ha"|"fusion"|"fusion-live",id,title?}; ha verify REST entity; sdk-ha/fusion reuse verified registered template from inspect plugin_templates; fusion-live creates new button using exact ID from inspect fusion_commands, revalidated locally against current Fusion and installed SDK. fusion_batch {keys:[{page,slot,id,title?}]} 1–13 new Fusion buttons in existing active-profile root pages, page/slot required per key; outer page,folder,slot must all be null. All slots must be distinct, empty and not pinned; all IDs verified in one fresh local list; no page creation. profile_build creates ONE NEW inactive profile, never overwrites current profiles. Outer page,folder,slot all null; configJson {name,pageCount,keys:[{page,slot,type,value?,title?,folder?,pageCount?}],controls?:[{slot,page?,config?,actions?:[{gesture,action}]}],wide?:{enabled,order?,current?}}. Root pageCount 1–10; up to 40 ordinary keys total; at least one key, control or wide setting. Each key page is root page; folder null/root or route "2:1/3:2" (parent slot:folder page); type folder creates folder with pageCount 1–10 (default 1), maximum depth 8. Parent folder must be declared in keys; child goto is relative to its folder. Fusion-live and verified paths work at every level. Controls slot 1–2=side first/back (down/sideHold previous,next,goto only), 3–5=knobs. Omit page or null for global; integer for page scope (one scope per slot, one entry per slot/page). config uses control fields except scope/gesture/action; actions lists explicit gestures with basic action or null. target/heldTarget for auto rotation, mode/heldMode stack for stack; heldEnabled true disables down, do not combine automatic and explicit rotation of same mode. Wide is per profile, uses existing wide settings. fusion-live requires exact verified command ID; other types same basic actions as folder_keys. Local paths/AppIDs verified as usual. Preview all pages and keys in one transaction. Do not query existing empty slots for a new profile. For simple steps use hotkey,previous,next,indicator,goto,clipboard-edit,media,system-mute,explorer-open; folder_keys also folder/open-app/file-open/folder-shortcut (verified Start Apps AppID or user-supplied local path). No paths or arbitrary settings. Existing protected actions cannot be deleted/replaced. One operation kind per proposal; user applies locally.',parameters:{type:'object',properties:{kind:{type:'string',enum:KINDS},page:{type:['integer','null']},folder:{type:['string','null']},slot:{type:['integer','null']},configJson:{type:'string'}},required:['kind','page','folder','slot','configJson'],additionalProperties:false}};
   const fail=m=>{throw Error(m);}, clone=x=>JSON.parse(JSON.stringify(x)), has=(x,k)=>Object.hasOwn(x,k);
   const obj=x=>!!x&&typeof x==='object'&&!Array.isArray(x), int=(v,a,b)=>Number.isInteger(v)&&v>=a&&v<=b;
   const str=(v,n=120)=>typeof v==='string'&&v.length<=n&&!/[\x00-\x1f\x7f]/.test(v);
@@ -25,6 +25,31 @@
     optional(x,'value',v=>v===null||str(v,folder?1024:80));optional(x,'title',v=>str(v,80));
     if(x.type==='delay'){if(!/^\d{1,6}$/.test(x.value||'')||!int(Number(x.value),0,600000))fail('지연은 0~600000ms입니다.');}
     return x;
+  }
+  function profileControl(c,pageCount){
+    exact(c,['slot','page','config','actions']);
+    if(!int(c.slot,1,5)||c.page!=null&&!int(c.page,1,pageCount))fail('새 프로필 물리 컨트롤 위치 오류');
+    const cfg=has(c,'config')?c.config:{}, actions=has(c,'actions')?c.actions:[];
+    exact(cfg,['mode','target','step','reverse','stack','heldEnabled','heldMode','heldTarget','heldStep','heldReverse','heldStack']);
+    if(!Array.isArray(actions)||actions.length>5||!Object.keys(cfg).length&&!actions.length)fail('물리 컨트롤 설정 또는 동작이 필요합니다.');
+    const scope=c.page==null?'global':'page';
+    const check=values=>validate({kind:'control',page:c.page??1,folder:null,slot:c.slot,configJson:JSON.stringify({scope,...values})});
+    check(cfg);
+    const seen=new Set();
+    for(const entry of actions){
+      exact(entry,['gesture','action']);
+      if(!has(entry,'action')||!has(entry,'gesture')||seen.has(entry.gesture))fail('물리 컨트롤 입력 중복 또는 형식 오류');
+      seen.add(entry.gesture);check(entry);
+    }
+    if(c.slot>=3){
+      const held=cfg.heldEnabled===true;
+      if(!held&&(Object.keys(cfg).some(k=>k.startsWith('held')&&k!=='heldEnabled')||seen.has('holdLeft')||seen.has('holdRight')))fail('누른 채 회전은 먼저 활성화하세요.');
+      if(held&&seen.has('down'))fail('누른 채 회전과 단독 누르기는 동시에 사용할 수 없습니다.');
+      if(cfg.mode==='stack'&&(has(cfg,'target')||['down','left','right'].some(k=>seen.has(k)))||cfg.heldMode==='stack'&&(has(cfg,'heldTarget')||['holdLeft','holdRight'].some(k=>seen.has(k))))fail('스택 모드와 개별 입력을 동시에 지정할 수 없습니다.');
+      if(has(cfg,'stack')&&cfg.mode!=='stack'||has(cfg,'heldStack')&&cfg.heldMode!=='stack')fail('스택 모드를 함께 지정하세요.');
+      if(has(cfg,'target')&&(seen.has('left')||seen.has('right'))||has(cfg,'heldTarget')&&(seen.has('holdLeft')||seen.has('holdRight')))fail('자동 회전과 개별 회전 동작을 동시에 지정할 수 없습니다.');
+    }
+    return {scope,cfg,actions};
   }
   function validate(raw){
     exact(raw,['kind','page','folder','slot','configJson']);
@@ -77,15 +102,33 @@
         }break;
       case 'profile_build':
         if(raw.page!==null||raw.folder!==null||raw.slot!==null)fail('새 프로필 구성은 page·folder·slot을 null로 지정하세요.');
-        exact(c,['name','pageCount','keys']);
-        if(!str(c.name,80)||!c.name.trim()||!int(c.pageCount,1,10)||!Array.isArray(c.keys)||!int(c.keys.length,1,40))fail('새 프로필 이름, 1~10페이지, 1~40개 버튼을 지정하세요.');
+        exact(c,['name','pageCount','keys','controls','wide']);
+        if(!str(c.name,80)||!c.name.trim()||!int(c.pageCount,1,10)||!Array.isArray(c.keys)||!int(c.keys.length,0,40))fail('새 프로필 이름, 1~10페이지, 최대 40개 버튼을 지정하세요.');
         {const seen=new Set();for(const x of c.keys){
-          exact(x,['page','slot','type','value','title']);
-          if(!int(x.page,1,c.pageCount)||!int(x.slot,1,13)||seen.has(x.page+':'+x.slot))fail('새 프로필의 페이지 또는 버튼 번호 오류');
-          seen.add(x.page+':'+x.slot);
+          exact(x,['page','slot','type','value','title','folder','pageCount']);
+          const route=x.folder??null;
+          if(route!==null&&(typeof route!=='string'||!/^(?:[1-9]|1[0-3]):(?:[1-9]|10)(?:\/(?:[1-9]|1[0-3]):(?:[1-9]|10)){0,7}$/.test(route)))fail('새 프로필 덱폴더 경로 오류');
+          const key=x.page+':'+(route||'')+':'+x.slot;
+          if(!int(x.page,1,c.pageCount)||!int(x.slot,1,13)||seen.has(key))fail('새 프로필의 페이지 또는 버튼 번호 오류');
+          seen.add(key);
+          if(x.type==='folder'){
+            if(route&&route.split('/').length>=8)fail('덱폴더는 최대 8단계입니다.');
+            optional(x,'pageCount',v=>int(v,1,10));
+          }else if(has(x,'pageCount'))fail('덱폴더에만 내부 페이지 수를 지정할 수 있습니다.');
           if(x.type==='fusion-live'){if(!fusionId(x.value))fail('정확한 Fusion 명령 ID를 지정하세요.');optional(x,'title',v=>str(v,80));}
-          else {if(x.type==='folder')fail('새 프로필의 중첩 덱폴더는 아직 지원하지 않습니다.');stepSpec(Object.fromEntries(Object.entries(x).filter(([k])=>!['page','slot'].includes(k))),false,true);}
+          else stepSpec(Object.fromEntries(Object.entries(x).filter(([k])=>!['page','slot','folder','pageCount'].includes(k))),false,true);
         }}
+        if(has(c,'controls')){
+          if(!Array.isArray(c.controls)||!int(c.controls.length,0,50))fail('물리 컨트롤 설정은 최대 50개입니다.');
+          const scopes=new Map(),seen=new Set();
+          for(const entry of c.controls){
+            const {scope}=profileControl(entry,c.pageCount),key=entry.slot+':'+(entry.page??'global');
+            if(seen.has(key)||scopes.has(entry.slot)&&scopes.get(entry.slot)!==scope)fail('물리 컨트롤 위치 중복 또는 전체/페이지 범위 충돌');
+            seen.add(key);scopes.set(entry.slot,scope);
+          }
+        }
+        if(has(c,'wide'))validate({kind:'wide',page:null,folder:null,slot:null,configJson:JSON.stringify(c.wide)});
+        if(!c.keys.length&&!c.controls?.length&&!c.wide)fail('버튼 또는 물리 컨트롤 설정이 필요합니다.');
         break;
       case 'fusion_batch':
         if(raw.page!==null||raw.folder!==null||raw.slot!==null)fail('일괄 등록은 각 버튼의 페이지와 슬롯을 지정하세요.');
@@ -161,6 +204,19 @@
     }
     return {next,rows,profile:state.profileNames?.find(p=>p.id===state.profileId)?.name||'기본 프로필'};
   }
+  function profileControlText(binding,scope,index){
+    const labels={page:'페이지',profile:'프로필',volume:'음량',zoom:'확대/축소',scroll:'스크롤','scroll-x':'가로 스크롤',history:'실행 취소/다시 실행',window:'창 전환',desktop:'가상 데스크톱',brightness:'밝기'};
+    const target=t=>labels[t]||t;
+    const rotation=(held=false)=>{
+      const mode=held?binding.heldMode:binding.mode,auto=held?binding.heldAutoAssign:binding.autoAssign;
+      if(mode==='stack')return '스택 '+(held?binding.heldStack:binding.stack).map(target).join('/');
+      if(auto)return target(held?binding.heldTarget:binding.target)+' · 단계 '+(held?binding.heldStep:binding.step)+((held?binding.heldReverseDirection:binding.reverseDirection)?' · 방향 반전':'');
+      return '왼쪽 '+summary(binding[held?'holdLeft':'left'])+' / 오른쪽 '+summary(binding[held?'holdRight':'right']);
+    };
+    const prefix=scope==='global'?'전체 페이지':'페이지별';
+    if(index<2)return prefix+' · 짧게 '+Core.SIDE_NAV_LABELS[Core.sideActionConfig(binding,index+14).navigation]+' · 길게 '+Core.SIDE_NAV_LABELS[Core.sideActionConfig(binding,index+14,'hold').navigation]+['down','sideHold'].filter(k=>binding[k]?.type==='goto').map(k=>' · '+(k==='down'?'짧게':'길게')+' '+summary(binding[k])).join('');
+    return prefix+' · 회전 '+rotation()+(binding.heldEnabled?' · 누른 채 회전 '+rotation(true):binding.mode==='stack'?' · 누르기 스택 전환':' · 누르기 '+summary(binding.down));
+  }
   function makeProfileBuild(state,c,resources){
     const name=c.name.trim();
     if(state.profileNames?.some(p=>p.name.trim().toLowerCase()===name.toLowerCase()))fail('같은 이름의 프로필이 이미 있습니다. 새로운 이름을 지정하세요.');
@@ -169,11 +225,50 @@
     if(!id)fail('프로필은 최대 50개입니다.');
     const created=Core.migrateState({pages:Array.from({length:c.pageCount},()=>Core.blankPage())});
     const live=new Map((resources.fusionBatch||[]).map(x=>[x.id,x]));
-    const rows=[{op:'profile_build',page:null,slot:null,folder:null,before:{title:'기존 프로필 유지'},after:{title:name+' · '+c.pageCount+'페이지 · 버튼 '+c.keys.length+'개 · 신규 프로필 생성 (현재 프로필 유지)'}}];
-    for(const [i,x] of c.keys.entries()){
-      const item=x.type==='fusion-live'?fusionButton({id:x.value,...(has(x,'title')?{title:x.title}:{})},live.get(x.value)):simple(x,c.pageCount,resources.targets?.[i]);
-      created.pages[x.page-1][x.slot-1]=item;
-      rows.push({op:x.type==='fusion-live'?'plugin':'put',page:x.page,slot:x.slot,folder:null,before:{title:'비어 있음'},after:{title:summary(item)+(x.type==='fusion-live'?' · '+x.value:'')}});
+    const rows=[{op:'profile_build',page:null,slot:null,folder:null,before:{title:'기존 프로필 유지'},after:{title:name+' · '+c.pageCount+'페이지 · 버튼 '+c.keys.length+'개 · 물리 컨트롤 '+(c.controls?.length||0)+'개 · 신규 프로필 생성 (현재 프로필 유지)'}}];
+    // Parent folders are created before their descendants; resource indices
+    // stay aligned with the original request, including verified local paths.
+    const ordered=c.keys.map((x,i)=>({x,i,depth:x.folder?x.folder.split('/').length:0})).sort((a,b)=>a.depth-b.depth||a.i-b.i);
+    for(const {x,i} of ordered){
+      let row=created.pages[x.page-1],count=c.pageCount;
+      for(const pair of (x.folder||'').split('/').filter(Boolean)){
+        const [slot,fp]=pair.split(':').map(Number),folder=row?.[slot-1];
+        if(folder?.type!=='folder')fail('새 프로필에 지정한 상위 덱폴더가 없습니다.');
+        count=1+folder.pages.length;
+        row=fp===1?folder.children:folder.pages[fp-2];
+        if(!Array.isArray(row))fail('새 프로필의 덱폴더 페이지가 없습니다.');
+      }
+      const item=x.type==='fusion-live'?fusionButton({id:x.value,...(has(x,'title')?{title:x.title}:{})},live.get(x.value)):simple(x,count,resources.targets?.[i]);
+      if(x.type==='folder')item.pages=Array.from({length:(x.pageCount??1)-1},()=>Array(14).fill(null));
+      if(row[x.slot-1])fail('새 프로필의 버튼 위치가 중복되었습니다.');
+      row[x.slot-1]=item;
+      rows.push({op:x.type==='fusion-live'?'plugin':'put',page:x.page,slot:x.slot,folder:x.folder??null,before:{title:'비어 있음'},after:{title:summary(item)+(x.type==='fusion-live'?' · '+x.value:x.type==='folder'?' · '+(1+item.pages.length)+'페이지':'')}});
+    }
+    for(const entry of c.controls||[]){
+      const {scope,cfg,actions}=profileControl(entry,c.pageCount),index=entry.slot-1;
+      const binding=(scope==='global'?created.controls.global:created.controls.pages[entry.page-1])[index];
+      created.controls.scopes[index]=scope;
+      for(const [k,v] of Object.entries(cfg)){
+        const key=({reverse:'reverseDirection',heldReverse:'heldReverseDirection'})[k]||k;
+        binding[key]=v;
+        if(['mode','target'].includes(k)&&binding.mode==='trigger')binding.autoAssign=true;
+        if(['heldMode','heldTarget'].includes(k)&&binding.heldMode==='trigger')binding.heldAutoAssign=true;
+      }
+      if(has(cfg,'target')&&binding.mode==='trigger')Core.automaticControl(binding);
+      if(has(cfg,'heldTarget')&&binding.heldMode==='trigger')Core.automaticControl(binding,true);
+      if(actions.some(x=>['left','right'].includes(x.gesture)))binding.autoAssign=false;
+      if(actions.some(x=>['holdLeft','holdRight'].includes(x.gesture)))binding.heldAutoAssign=false;
+      for(const {gesture,action} of actions){
+        const item=action===null?null:simple(action,c.pageCount);
+        if(index<2)binding[gesture]=item??(gesture==='down'?Core.makeSideAction({navigation:'none'}):null);
+        else Core.assignControlAction(binding,gesture,item);
+      }
+      rows.push({op:'control',page:entry.page??null,slot:null,folder:null,control:['측면 첫 페이지','측면 뒤로','노브 1','노브 2','노브 3'][index],before:{title:'기본 설정'},after:{title:profileControlText(binding,scope,index)}});
+    }
+    if(c.wide){
+      created.wideDisplay=Core.cleanWideDisplay({order:c.wide.order||created.wideDisplay.order,enabled:c.wide.enabled,current:c.wide.current||created.wideDisplay.current});
+      const labels={clock:'시계',datetime:'날짜/시간',stats:'시스템 정보',knobs:'노브 정보'},w=created.wideDisplay;
+      rows.push({op:'wide',page:null,slot:null,folder:null,before:{title:'기본 설정'},after:{title:'표시 '+w.enabled.map(k=>labels[k]).join(', ')+' · 순서 '+w.order.filter(k=>w.enabled.includes(k)).map(k=>labels[k]).join(' → ')+' · 현재 '+labels[w.current]}});
     }
     // No changes to active pages, pinned keys, control bindings or other profile data.
     next.inactiveProfiles[next.inactiveProfiles.findIndex(x=>x.id===id)]={id,...Core.profileSnapshot(created)};

@@ -205,3 +205,47 @@ test('new profile preview builds multiple pages without modifying active or othe
  const app=A.makePlan(s,req('profile_build',withApp),{targets:[{type:'open-app',requested:'Verified.App',path:'shell:AppsFolder\\Verified.App',name:'Verified'}]});
  assert.equal(app.next.inactiveProfiles.find(x=>x.id===app.createdProfileId).pages[0][0].settings.app,'shell:AppsFolder\\Verified.App');
 });
+
+test('new profile supports nested folders, verified nested targets, and profile-only physical settings',()=>{
+ const s=fixture();Core.createProfile(s,'Other');const before=JSON.stringify(s);
+ const c={name:'전체 구성',pageCount:3,keys:[
+  {page:1,folder:'2:2/3:1',slot:1,type:'fusion-live',value:'SketchLine',title:'선'},
+  {page:1,folder:'2:2',slot:3,type:'folder',title:'하위 폴더',pageCount:2},
+  {page:1,slot:2,type:'folder',title:'작업',pageCount:2},
+  {page:1,folder:'2:2',slot:2,type:'goto',value:'1'},
+  {page:1,folder:'2:2/3:2',slot:2,type:'open-app',value:'Verified.App'},
+  {page:3,slot:1,type:'hotkey',value:'Ctrl+C'}
+ ],controls:[
+  {slot:1,actions:[{gesture:'down',action:{type:'previous'}}]},
+  {slot:2,page:2,actions:[{gesture:'sideHold',action:{type:'goto',value:'3'}}]},
+  {slot:3,config:{target:'volume',step:5},actions:[{gesture:'down',action:{type:'system-mute'}}]},
+  {slot:4,config:{target:'zoom',heldEnabled:true,heldTarget:'scroll'}},
+  {slot:5,config:{heldEnabled:true},actions:[{gesture:'left',action:{type:'hotkey',value:'Ctrl+Z'}},{gesture:'right',action:{type:'hotkey',value:'Ctrl+Y'}},{gesture:'holdLeft',action:{type:'previous'}},{gesture:'holdRight',action:{type:'next'}}]}
+ ],wide:{enabled:['clock','knobs'],current:'knobs'}};
+ const resources={fusionBatch:[{id:'SketchLine',name:'Line'}],targets:[null,null,null,null,{type:'open-app',requested:'Verified.App',path:'shell:AppsFolder\\Verified.App',name:'Verified'}]};
+ const plan=A.makePlan(s,req('profile_build',c),resources),fresh=plan.next.inactiveProfiles.find(p=>p.id===plan.createdProfileId);
+ assert.equal(JSON.stringify(s),before);assert.equal(plan.next.pages,s.pages);assert.equal(plan.next.controls,s.controls);assert.equal(plan.next.inactiveProfiles[0],s.inactiveProfiles[0]);
+ assert.equal(fresh.pages[0][1].pages[0][2].children[0].settings.pluginSettings.commandId,'SketchLine');
+ assert.equal(fresh.pages[0][1].pages[0][2].pages[0][1].settings.app,'shell:AppsFolder\\Verified.App');
+ assert.equal(fresh.pages[0][1].pages[0][1].settings.page,0);
+ assert.equal(fresh.controls.global[0].down.type,'previous');assert.equal(fresh.controls.scopes[1],'page');assert.equal(fresh.controls.pages[1][1].sideHold.settings.page,2);
+ assert.equal(fresh.controls.global[2].target,'volume');assert.equal(fresh.controls.global[2].down.type,'system-mute');
+ assert.equal(fresh.controls.global[3].heldTarget,'scroll');assert.equal(fresh.controls.global[4].autoAssign,false);assert.equal(fresh.controls.global[4].heldAutoAssign,false);assert.equal(fresh.controls.global[4].holdRight.type,'next');
+ assert.equal(fresh.wideDisplay.current,'knobs');assert.equal(plan.rows.length,13);assert.ok(plan.rows.some(r=>r.folder==='2:2/3:1'&&r.slot===1));
+ const reloaded=Core.migrateState(JSON.parse(JSON.stringify(plan.next)));assert.ok(Core.switchProfile(reloaded,plan.createdProfileId));
+ assert.equal(reloaded.pages[0][1].pages[0][2].children[0].title,'선');assert.equal(reloaded.controls.global[4].holdRight.type,'next');assert.equal(reloaded.wideDisplay.current,'knobs');
+ for(const bad of [
+  {...c,keys:c.keys.filter(k=>k.title!=='작업')},
+  {...c,keys:[...c.keys,{...c.keys[0]}]},
+  {...c,keys:c.keys.map(k=>k.title==='작업'?{...k,pageCount:1}:k)},
+  {...c,keys:c.keys.map(k=>k.type==='goto'?{...k,value:'3'}:k)},
+  {...c,controls:[...c.controls,{slot:1,page:2,actions:[{gesture:'down',action:{type:'next'}}]}]},
+  {...c,controls:[{slot:3,config:{heldEnabled:true},actions:[{gesture:'down',action:{type:'system-mute'}}]}]},
+  {...c,controls:[{slot:3,config:{target:'volume'},actions:[{gesture:'left',action:{type:'previous'}}]}]},
+  {...c,controls:[{slot:1,actions:[{gesture:'down',action:{type:'hotkey',value:'Ctrl+C'}}]}]},
+  {...c,wide:{enabled:['unknown']}}
+ ]){assert.throws(()=>A.makePlan(s,req('profile_build',bad),resources));assert.equal(JSON.stringify(s),before);}
+ assert.throws(()=>A.makePlan(s,req('profile_build',c),{fusionBatch:resources.fusionBatch}));
+ const only=A.makePlan(s,req('profile_build',{name:'시계',pageCount:1,keys:[],wide:{enabled:['clock']}}));
+ assert.equal(only.next.inactiveProfiles.find(p=>p.id===only.createdProfileId).wideDisplay.current,'clock');
+});

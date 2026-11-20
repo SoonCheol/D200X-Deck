@@ -4827,6 +4827,7 @@ window.executeD200XKey=tracedPhysicalDispatch;
  function aiSavedRows(plan){
    return plan.rows.map(row=>{
      const base={op:row.op,page:row.page,slot:row.slot,folder:row.folder,control:row.control,state:row.state};
+     if(plan.createdProfileId&&['control','wide'].includes(row.op))return {...base,action:row.op==='control'?'물리 컨트롤':'와이드 화면',title:String(row.after?.title||'').slice(0,160)};
      if(!Number.isInteger(row.slot)||['folder_page','folder_settings','control','wide','add_page','delete','move_source'].includes(row.op))return base;
      let items=(plan.createdProfileId?plan.next.inactiveProfiles.find(p=>p.id===plan.createdProfileId)?.pages:plan.next.pages)?.[row.page-1];
      for(const [slot,fp] of (row.folder||'').split('/').filter(Boolean).map(x=>x.split(':').map(Number))){
@@ -4836,7 +4837,7 @@ window.executeD200XKey=tracedPhysicalDispatch;
      const settings=item.settings||{},p=settings.pluginSettings||{};
      const action=item.type==='sd-plugin'?(p.name||settings.actionName||sdkActionNames.get(settings.actionUUID)||settings.actionUUID||'플러그인'):
        ACTIONS.get(item.type)?.label||item.type;
-     const value=item.type==='hotkey'?settings.keys:item.type==='hotkey-switch'?[settings.first,settings.second].filter(Boolean).join(' / '):settings.pluginUUID==='com.autodesk.fusionstreamdeck'?p.commandId:undefined;
+     const value=item.type==='hotkey'?settings.keys:item.type==='hotkey-switch'?[settings.first,settings.second].filter(Boolean).join(' / '):settings.pluginUUID==='com.autodesk.fusionstreamdeck'?p.commandId:item.type==='folder'&&plan.createdProfileId?(1+(item.pages?.length||0))+'페이지':undefined;
      return {...base,action:String(action).slice(0,160),title:String(item.title||'').slice(0,160),...(value?{value:String(value).slice(0,160)}:{})};
    });
  }
