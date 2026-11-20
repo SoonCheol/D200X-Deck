@@ -18,6 +18,10 @@ const dispatchStart=editor.indexOf('function executeHardwareAction(event,preview
 const dispatchEnd=editor.indexOf("  if(resolved.action?.type==='logic'",dispatchStart);
 assert.ok(holdStart>=0&&holdEnd>holdStart&&dispatchStart>=0&&dispatchEnd>dispatchStart);
 const holdSource=editor.slice(holdStart,holdEnd);
+const multiStart=editor.indexOf('const runningMultiProgress=new Map();');
+const multiEnd=editor.indexOf('// The original switch begins',multiStart);
+assert.ok(multiStart>=0&&multiEnd>multiStart);
+const multiSource=editor.slice(multiStart,multiEnd);
 const dispatchSource=editor.slice(dispatchStart,dispatchEnd)+"  if(preview) opened.push(event);return null;\n}";
 function setup(mode='close'){
   const action={type:'open-app',settings:{app:'C:\\Tools\\Example.exe',hold:mode,args:'',foreground:true}};
@@ -30,12 +34,12 @@ function setup(mode='close'){
     logAppControl:record=>{records.push(record);return Promise.resolve(true);}
   }};
   const ctx=vm.createContext({state,window,opened,inspectorSession:null,Date:{now:()=>now},
-    DeckCore:{activeFolder:()=>null,visibleActions:visible,controlBinding:()=>null,
+    DeckCore:{activeFolder:()=>null,visibleActions:visible,controlBinding:()=>null,runtimeActionKey:(s,index,gesture)=>JSON.stringify([s.profileId,s.page,s.folderPath,index,gesture]),
       isWideDisplayPress:()=>false,resolveHardwareEvent:(_,event)=>({index:0,gesture:event.pressed?'down':'up',action:visible()[0]})},
     heldKnobEvent:event=>({event,consume:false,replay:false}),
     setTimeout:(fn,delay)=>{assert.equal(delay,650);const id=++next;timers.set(id,fn);return id;},
     clearTimeout:id=>timers.delete(id)});
-  vm.runInContext(warningSource+holdSource+evidenceSource+dispatchSource,ctx);
+  vm.runInContext(warningSource+multiSource+holdSource+evidenceSource+dispatchSource,ctx);
   const event=pressed=>({kind:1,index:0,state:pressed?1:0,pressed});
   return {action,state,calls,records,opened,timers,
     down:()=>ctx.executeHardwareAction(event(true)),up:()=>ctx.executeHardwareAction(event(false)),
