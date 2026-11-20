@@ -37,8 +37,8 @@ test('all Fusion commands use momentary icons, non-Fusion SDK and HA remain stat
  assert.equal(apply(other,true).icon.value,'cached');
  assert.equal(apply({type:'ha-toggle',icon:{kind:'file',value:'OFF'},settings:{keyPressIcons:{down:{kind:'file',value:'bad'}}}},true).icon.value,'OFF');
 });
-test('page indicator and active timer do not gain momentary artwork',()=>{
- for(const type of ['indicator','timer','multi-switch','logic','sleep']){
+test('active timer and nonmomentary actions do not gain momentary artwork',()=>{
+ for(const type of ['timer','multi-switch','logic','sleep']){
   const item={type,icon:{kind:'file',value:'state'},settings:{keyPressIcons:{down:{kind:'file',value:'wrong'}}}};
   assert.equal(apply(item,true).icon.value,'state',type);
  }
@@ -234,4 +234,18 @@ test('timer state titles and multi runtime artwork do not follow the physical re
  assert.equal(apply(multi,true).icon.value,'UP');
  const step=apply(multi,false,{step:2,total:5});assert.equal(step.icon.value,'DOWN');assert.equal(step.title,'2/5');
  assert.equal(apply(multi,false,{step:2,total:5,gate:{paused:true}}).title,'Ⅱ 2/5');
+});
+
+test('page indicator retains number and title while using separate held artwork and background',()=>{
+ const item={type:'indicator',title:'Page',indicatorNumber:'6',indicatorNumberStyle:{size:48},icon:{kind:'file',value:'UP'},settings:{keyPressIcons:{down:{kind:'file',value:'DOWN'}},keyBackgrounds:{default:{enabled:true,color:'#112233'},second:{enabled:true,color:'#445566'}}}};
+ const before=JSON.stringify(item);
+ const up=apply(item,false),down=apply(item,true);
+ assert.equal(up.icon.value,'UP');assert.equal(down.icon.value,'DOWN');
+ assert.equal(up.keyBackground.color,'#112233');assert.equal(down.keyBackground.color,'#445566');
+ assert.equal(up.indicatorNumber,'6');assert.equal(down.indicatorNumber,'6');
+ assert.equal(down.title,'Page');assert.equal(down.indicatorNumberStyle.size,48);
+ assert.equal(down.keyPressAlternate,true);assert.equal(JSON.stringify(item),before);
+ const fallback={...item,settings:{}};
+ assert.equal(apply(fallback,true).icon.value,'UP');
+ assert.equal(apply(fallback,true).keyPressAlternate,false);
 });

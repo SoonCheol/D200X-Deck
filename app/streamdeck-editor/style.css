@@ -1135,7 +1135,7 @@
 .indicator-management label{display:flex;align-items:center;gap:3px;font-size:12px;white-space:nowrap}
 .indicator-number-field .title-line{position:relative}
 
-/* Page indication uses exactly one standard state-style card; the second grid cell is empty. */
+/* Page indication uses the same paired card geometry as ordinary Key Up/Down. */
 .indicator-inspector .state-title-layout .indicator-icon-cards>.sdk-state-icon{grid-template-rows:auto 31px 31px auto}
 .indicator-inspector .state-title-layout .indicator-title-row{grid-row:2}
 .indicator-inspector .state-title-layout .indicator-number-row{grid-row:3}

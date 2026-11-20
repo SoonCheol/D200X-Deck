@@ -18,7 +18,7 @@
   let online = false;
   const pressedKeys=new Map();
   const releaseTimers=new Map();
-  const pageStamp=()=>String(state.profileId)+':'+state.page+':'+(state.folderPath||[]).join('-');
+  const pageStamp=()=>String(state.profileId)+':'+state.page+':'+(state.folderPath||[]).join('-')+':'+(DeckCore.activeFolder(state)?.pageIndex||0);
   const keyPressed=index=>pressedKeys.get(index)===pageStamp();
   window.D200XPhysicalKeyPressed=keyPressed;
   const text = message => { if (notice) notice.textContent = message; };

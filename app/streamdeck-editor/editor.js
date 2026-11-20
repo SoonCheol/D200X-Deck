@@ -408,8 +408,17 @@ function resolveMultiVisual(item,second,artwork,progress){
   const title=second?multiProgressTitle(item,progress):pair.first?.enabled?pair.first.title:'';
   return {...visual,title:visual.titleStyle?.visible!==false?title:'',keyPressAlternate:true};
 }
+function indicatorPressVisual(item,pressed){
+  const icons=item.settings?.keyPressIcons||{},backgrounds=item.settings?.keyBackgrounds||{};
+  const up=icons.up||item.icon,down=icons.down||up;
+  const first=backgrounds.default||{enabled:false,color:'#08090c'},second=backgrounds.second||first;
+  const background=entry=>entry?.enabled===true?entry.color:'#08090c';
+  const distinct=JSON.stringify(up||null)!==JSON.stringify(down||null)||background(first)!==background(second);
+  return {...item,icon:pressed?down:up,keyBackground:pressed?second:first,keyPressAlternate:distinct};
+}
 function displayKeyPressItem(item,index){
   const inspectorPreview=arguments[2]===true;
+  if(item?.type==='indicator'&&Number.isInteger(index)&&index>=0&&index<13)return indicatorPressVisual(item,previewPressKeys.has(index)||window.D200XPhysicalKeyPressed?.(index)===true);
   if(item?.type==='timer'&&Number.isInteger(index)&&index>=0&&index<13){
     const runtime=activeActionTimers.get(DeckCore.runtimeActionKey(state,index,'down'));
     return resolveTimerVisual(item,!!runtime,runtime?Math.max(0,Math.ceil((runtime.deadline-Date.now())/1000)):DeckCore.timerSeconds(item.settings?.seconds),stateDisplayArtwork(item,index,false),runtime?.seconds??item.settings?.seconds);
@@ -2025,8 +2034,6 @@ async function refreshSelectedVisual(){
     image.className="icon-image rendered-key-image";
     image.src="data:image/png;base64,"+data;
     host.replaceChildren(image);
-    const indicatorCard=$('indicator-icon-card-preview');
-    if(indicatorCard){const trigger=indicatorCard.querySelector('.key-background-trigger');indicatorCard.replaceChildren(image.cloneNode());if(trigger)indicatorCard.append(trigger);}
     const fallback=$("icon-preview")?.querySelector(".preview-title");
     if(fallback)fallback.hidden=true;
   }catch(error){console.warn("미리보기 이미지 생성 실패",error);}
@@ -2787,19 +2794,20 @@ async function refreshStateTitleCards(item){
   const slot=state.selected;
   const visual=displayItem(item,slot);
   const momentary=isMomentaryIconAction(item);
-  const artwork=stateDisplayArtwork(visual,slot,momentary);
+  const artwork=item.type==='indicator'?null:stateDisplayArtwork(visual,slot,momentary);
   const version=String((Number(root.dataset.stateCardVersion)||0)+1);
   root.dataset.stateCardVersion=version;
   for(const card of pair){
     const second=card.dataset.stateTitle==='second';
     const progress=item.type==='multi'?runningMultiProgress.get(DeckCore.runtimeActionKey(state,slot,'down')):null;
-    const titleVisual=item.type==='timer'?resolveTimerVisual(visual,second,DeckCore.timerSeconds(item.settings?.seconds),artwork):item.type==='multi'?resolveMultiVisual(visual,second,artwork,progress):resolveStateTitle(visual,second,artwork);
+    const titleVisual=item.type==='indicator'?indicatorPressVisual(visual,second):item.type==='timer'?resolveTimerVisual(visual,second,DeckCore.timerSeconds(item.settings?.seconds),artwork):item.type==='multi'?resolveMultiVisual(visual,second,artwork,progress):resolveStateTitle(visual,second,artwork);
     if(item.type==='multi'&&second){const input=card.querySelector('.state-title-input');if(input)input.value=multiProgressTitle(item,progress);}
+    if(item.type==='indicator'&&second){const sharedTitle=card.querySelector('.indicator-shared-title');if(sharedTitle)sharedTitle.value=item.title||'';}
     // State previews are snapshots, not a physical key-down effect.
     const img=card.querySelector('.sdk-state-preview');
     if(!img)continue;
     try{
-      const png=await window.renderDeckKeyImage(titleVisual,slot,false);
+      const png=await window.renderDeckKeyImage(item.type==='indicator'?{...titleVisual,keyPressAlternate:true}:titleVisual,slot,false);
       if(root.dataset.stateCardVersion!==version||!img.isConnected||
         DeckCore.visibleActions(state)[slot]!==item)return;
       const rendered=document.createElement('img');
@@ -2993,17 +3001,29 @@ function bindIndicatorInspector(root,item){
   renderSideBindings(fields,index,null,item);
   const panel=root.querySelector('[data-inspector-icons]');
   const cards=document.createElement('div');cards.className='sdk-state-icons indicator-icon-cards';
-  const card=document.createElement('div');card.className='sdk-state-icon';
-  const heading=document.createElement('strong');heading.textContent='아이콘 설정';
-  const image=document.createElement('div');image.className='sdk-state-preview';image.id='indicator-icon-card-preview';image.append(iconNode(displayItem(item,index),'1'));
-  const buttons=document.createElement('div');buttons.className='sdk-state-buttons';
-  const add=(title,fn)=>{const b=document.createElement('button');b.type='button';b.textContent=title;b.addEventListener('click',fn);buttons.append(b);};
-  add('라이브러리',()=>openIconLibrary(item));
-  add('파일',async()=>{try{const chosen=await chooseNativeImage('image');if(chosen?.dataUrl)applyIconData(item,await rasterizeIcon(chosen.dataUrl));}catch(error){window.d200xActionStatus?.('아이콘 선택 실패: '+String(error?.message||error));}});
-  add('클립보드',()=>pasteIcon(item));
-  add('특수문자',()=>openIconMaker(item));
-  add('초기화',()=>{delete item.icon;persistInspectorChange();render();});
-  bindKeyBackgroundControl(image,item,'default');
+  const buildCard=(pressed)=>{
+    const card=document.createElement('div');card.className='sdk-state-icon';
+    card.dataset.stateTitle=pressed?'second':'first';
+    const heading=document.createElement('strong');heading.textContent=pressed?'Key Down':'Key Up';
+    const image=document.createElement('div');image.className='sdk-state-preview';
+    image.append(iconNode(indicatorPressVisual(displayItem(item,index),pressed),'1'));
+    const buttons=document.createElement('div');buttons.className='sdk-state-buttons';
+    const key=pressed?'press:down':null;
+    const add=(title,fn)=>{const b=document.createElement('button');b.type='button';b.textContent=title;b.addEventListener('click',fn);buttons.append(b);};
+    add('라이브러리',()=>openIconLibrary(item,key));
+    add('파일',async()=>{try{const chosen=await chooseNativeImage('image');if(chosen?.dataUrl)applyStateIconData(item,key,await rasterizeIcon(chosen.dataUrl));}catch(error){window.d200xActionStatus?.('아이콘 선택 실패: '+String(error?.message||error));}});
+    add('클립보드',()=>pasteIcon(item,key));
+    add('특수문자',()=>openIconMaker(item,key));
+    add('초기화',()=>{
+      if(pressed){if(item.settings.keyPressIcons)delete item.settings.keyPressIcons.down;}
+      else {delete item.icon;if(item.settings.keyPressIcons)delete item.settings.keyPressIcons.up;}
+      persistInspectorChange();render();
+    });
+    bindKeyBackgroundControl(image,item,pressed?'second':'default');
+    card.append(heading,image,buttons);
+    return {card,heading,image,buttons};
+  };
+  const {card,heading,image,buttons}=buildCard(false);
   // Move the already bound title controls into the same standard card as the artwork.
   // Keep the original title-line element (the shared style popover's home).
   const titleField=fields.querySelector(':scope > .title-setting-field:not(.indicator-number-field)');
@@ -3022,7 +3042,15 @@ function bindIndicatorInspector(root,item){
   text.className='state-title-input';text.setAttribute('aria-label','현재 페이지 번호');text.title='현재 페이지 번호 자동 표시';
   const name=document.createElement('span');name.className='indicator-number-label';name.textContent='번호';
   line.prepend(check,name);num.remove();
-  card.append(heading,titleLine,line,image,buttons);cards.append(card);panel.append(cards);
+  card.append(heading,titleLine,line,image,buttons);cards.append(card);
+  const down=buildCard(true);
+  const sharedTitle=document.createElement('div');sharedTitle.className='state-title-control indicator-title-row';
+  const titleMirror=document.createElement('input');titleMirror.className='state-title-input indicator-shared-title';titleMirror.readOnly=true;titleMirror.value=item.title||'';titleMirror.placeholder='제목 (Key Up 공통)';titleMirror.title='Key Up 제목과 공유';sharedTitle.append(titleMirror);
+  const sharedNumber=document.createElement('div');sharedNumber.className='state-title-control indicator-number-row';
+  const indicatorLabel=document.createElement('span');indicatorLabel.className='indicator-number-label';indicatorLabel.textContent='번호';
+  const numberMirror=document.createElement('input');numberMirror.className='state-title-input';numberMirror.readOnly=true;numberMirror.value=text.value;numberMirror.title='공통 번호 표시';sharedNumber.append(indicatorLabel,numberMirror);
+  down.card.append(down.heading,sharedTitle,sharedNumber,down.image,down.buttons);cards.append(down.card);panel.append(cards);
+  void refreshStateTitleCards(item);
 }
 function bindExtendedActionFields(root,item){
   if(item.type==='sd-plugin'){
@@ -5039,7 +5067,7 @@ function renderIconLibrary(){
         try{
           const png=await rasterizeIcon(icon.image);
           if(!DeckCore.visibleActions(state).includes(target))return;
-          if(libraryStateKey?.startsWith('press:')&&isMomentaryIconAction(target)){
+          if(libraryStateKey?.startsWith('press:')&&(isMomentaryIconAction(target)||target.type==='indicator')){
             target.settings.keyPressIcons??={};
             target.settings.keyPressIcons[libraryStateKey.slice(6)]={kind:'file',value:png,packId:pack.id};
           }else if(['off','on'].includes(libraryStateKey)&&['sd-plugin','timer'].includes(target.type)){
@@ -5167,7 +5195,7 @@ function openIconMaker(target,key=null){
 function closeIconMaker(){makerTarget=null;makerStateKey=null;$("icon-maker").hidden=true;}
 function bindIconControls(item){
   const host=$("icon-preview-content");host.replaceChildren(iconNode(item,ACTIONS.get(item.type)?.icon||"+"));
-  if(isMomentaryIconAction(item)&&state.selected<13){
+  if((isMomentaryIconAction(item)||item.type==='indicator')&&state.selected<13){
     const slot=state.selected;
     const release=()=>{if(previewPressKeys.delete(slot))void refreshSelectedVisual();};
     host.addEventListener('pointerdown',event=>{
