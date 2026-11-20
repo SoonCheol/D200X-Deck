@@ -2149,6 +2149,18 @@ function bindSharedColorPalette(palette,prefix,getColor,applyColor,close){
   node('close').addEventListener('click',()=>{dismissContext();close();});
   render();return render;
 }
+// Prefer the actions-panel side of the inspector, never the adjacent icon card.
+function appearancePalettePosition(inspector,trigger,bounds,width,height){
+  const margin=8;
+  const right=inspector.right+margin;
+  const x=right+bounds.width<=width-margin?right:Math.max(margin,width-bounds.width-margin);
+  const y=Math.max(margin,Math.min(trigger.top,height-bounds.height-margin));
+  return {x,y};
+}
+function positionAppearancePalette(popup,trigger){
+  const {x,y}=appearancePalettePosition($('inspector').getBoundingClientRect(),trigger.getBoundingClientRect(),popup.getBoundingClientRect(),window.innerWidth,window.innerHeight);
+  popup.style.left=x+'px';popup.style.top=y+'px';
+}
 function bindKeyBackgroundControl(preview,item,key){
   if(!preview||state.selected>=13)return;
   const root=$('inspector'),trigger=document.createElement('button');
@@ -2177,9 +2189,7 @@ function bindKeyBackgroundControl(preview,item,key){
     color.addEventListener('input',()=>save('color',color.value));
     bindSharedColorPalette(popup,'key-palette',()=>get().color,value=>{color.value=value;save('color',value);},close);
     root.append(popup);trigger.setAttribute('aria-expanded','true');
-    const rect=trigger.getBoundingClientRect(),bounds=popup.getBoundingClientRect();
-    popup.style.left=Math.max(8,Math.min(rect.right-bounds.width,window.innerWidth-bounds.width-8))+'px';
-    popup.style.top=Math.max(8,Math.min(rect.bottom+5,window.innerHeight-bounds.height-8))+'px';
+    positionAppearancePalette(popup,trigger);
   });
   document.addEventListener('pointerdown',event=>{
     if(popup?.isConnected&&!popup.contains(event.target)&&!trigger.contains(event.target))close();
@@ -2319,10 +2329,7 @@ function bindTitleStyle(item){
     if(!palette.hidden&&selectedColorField===field){palette.hidden=true;return;}
     selectedColorField=field;palette.hidden=false;
     $("title-palette-heading").textContent=headings[field];updatePalette();
-    const rect=trigger.getBoundingClientRect(),bounds=palette.getBoundingClientRect();
-    const left=rect.right+6+bounds.width<=window.innerWidth-8?rect.right+6:rect.left-bounds.width-6;
-    palette.style.left=Math.max(8,Math.min(left,window.innerWidth-bounds.width-8))+'px';
-    palette.style.top=Math.max(8,Math.min(rect.top,window.innerHeight-bounds.height-8))+'px';
+    positionAppearancePalette(palette,trigger);
   }
   colorFields.forEach(([id,field])=>{
     const color=$(id);color.value=style[field]??DEFAULT_TITLE_STYLE[field];
