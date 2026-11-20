@@ -9,10 +9,10 @@ const {listModels,chat}=require('./responses.cjs');
 const FusionSetup=require('./fusion-setup.js');
 function formatSaveReceipt(result){
   if(!result?.saved)return '변경안 저장 실패 · 저장 성공을 확인하지 못했습니다.';
-  const names={put:'등록',update:'수정',delete:'삭제',copy:'복사',move:'이동',move_source:'이동 원본',add_page:'페이지 추가',folder_page:'덱폴더 페이지 추가',folder_settings:'덱폴더 설정',control:'물리 컨트롤',wide:'와이드 화면',composite:'복합 동작',state_design:'상태별 디자인',plugin:'플러그인 등록'};
+  const names={put:'등록',update:'수정',delete:'삭제',copy:'복사',move:'이동',move_source:'이동 원본',add_page:'페이지 추가',folder_page:'덱폴더 페이지 추가',folder_settings:'덱폴더 설정',control:'물리 컨트롤',wide:'와이드 화면',composite:'복합 동작',state_design:'상태별 디자인',plugin:'플러그인 등록',page_structure:'페이지 구조 변경',profile_build:'새 프로필 생성'};
   const clean=v=>String(v??'').replace(/[\r\n\t]/g,' ').slice(0,160);
   const lines=(result.rows||[]).map(row=>{
-    const location=['페이지 '+row.page,row.folder?'폴더 '+clean(row.folder):'',row.slot?'버튼 '+row.slot:'',clean(row.control),clean(row.state)].filter(Boolean).join(' / ');
+    const location=[row.page==null?'새 프로필':'페이지 '+row.page,row.folder?'폴더 '+clean(row.folder):'',row.slot?'버튼 '+row.slot:'',clean(row.control),clean(row.state)].filter(Boolean).join(' / ');
     return location+' · '+(names[row.op]||'변경')+(row.action?'\n  액션: '+clean(row.action)+'\n  제목: '+(clean(row.title)||'없음')+(row.value?'\n  등록 내용: '+clean(row.value):''):'');
   });
   return ['등록 및 저장 완료 · '+lines.length+'개 변경 사항','',lines.join('\n\n'),'',result.refreshError?'화면 또는 D200X 동기화 확인 필요':'D200X 동기화 요청 완료 · 실제 실행 여부는 별도 확인'].join('\n');

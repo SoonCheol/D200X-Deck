@@ -88,14 +88,14 @@ function showPreview(value){
   preview=value;$('edit-preview').hidden=!value;$('edit-rows').replaceChildren();
   if(value){
     $('edit-profile').textContent=value.profile;
-    const names={put:'등록',update:'수정',delete:'삭제',copy:'복사',move:'이동',move_source:'이동 원본',add_page:'페이지 추가',folder_page:'덱폴더 페이지 추가',folder_settings:'덱폴더 설정',control:'물리 컨트롤',wide:'와이드 화면',composite:'복합 동작',state_design:'상태별 디자인',plugin:'플러그인 등록'};
+    const names={put:'등록',update:'수정',delete:'삭제',copy:'복사',move:'이동',move_source:'이동 원본',add_page:'페이지 추가',folder_page:'덱폴더 페이지 추가',folder_settings:'덱폴더 설정',control:'물리 컨트롤',wide:'와이드 화면',composite:'복합 동작',state_design:'상태별 디자인',plugin:'플러그인 등록',page_structure:'페이지 구조 변경',profile_build:'새 프로필 생성'};
     for(const row of value.rows){
       const box=document.createElement('div');box.className='edit-row';
       if(typeof row.previewImage==='string'&&/^data:image\/png;base64,[A-Za-z0-9+/=]+$/.test(row.previewImage)){
         const img=document.createElement('img');img.alt='변경 후 아이콘';img.src=row.previewImage;box.append(img);
       }
       const body=document.createElement('div'),title=document.createElement('strong'),data=document.createElement('pre');
-      title.textContent=(names[row.op]||row.op)+' · 페이지 '+row.page+(row.folder?' / 폴더 '+row.folder:'')+(row.slot?' / 버튼 '+row.slot:'')+(row.control?' / '+row.control:'')+(row.state?' / '+row.state:'');
+      title.textContent=(names[row.op]||row.op)+(row.page==null?'':' · 페이지 '+row.page)+(row.folder?' / 폴더 '+row.folder:'')+(row.slot?' / 버튼 '+row.slot:'')+(row.control?' / '+row.control:'')+(row.state?' / '+row.state:'');
       data.textContent='전: '+describeEdit(row.before)+'\n후: '+describeEdit(row.after)+(row.icon?'\n아이콘: '+row.icon:'');
       body.append(title,data);box.append(body);$('edit-rows').append(box);
     }

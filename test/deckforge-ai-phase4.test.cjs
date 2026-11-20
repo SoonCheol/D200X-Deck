@@ -186,3 +186,22 @@ test('page structure preview inserts and moves pages without mutating original o
  assert.equal(deleted.pages[0][0].settings.page,-1);
  assert.throws(()=>A.makePlan(p,request({op:'insert',index:9})));
 });
+
+test('new profile preview builds multiple pages without modifying active or other profiles',()=>{
+ const s=fixture();Core.createProfile(s,'Other');const saved=JSON.stringify(s);
+ const c={name:'Fusion 제작',pageCount:3,keys:[{page:1,slot:1,type:'hotkey',value:'Ctrl+C',title:'복사'},{page:2,slot:12,type:'fusion-live',value:'SketchLine',title:'선'},{page:3,slot:2,type:'goto',value:'1',title:'홈'}]};
+ const resources={fusionBatch:[{id:'SketchLine',name:'Line'}]};
+ const plan=A.makePlan(s,req('profile_build',c),resources);
+ assert.equal(JSON.stringify(s),saved);assert.equal(plan.next.pages,s.pages);assert.equal(plan.next.profileId,s.profileId);
+ assert.equal(plan.next.inactiveProfiles[0],s.inactiveProfiles[0]);assert.equal(plan.rows.length,4);
+ const fresh=plan.next.inactiveProfiles.find(x=>x.id===plan.createdProfileId);
+ assert.equal(fresh.pages.length,3);assert.equal(fresh.pages[0][0].settings.keys,'Ctrl+C');assert.equal(fresh.pages[1][11].settings.pluginSettings.commandId,'SketchLine');assert.equal(fresh.pages[2][1].settings.page,0);assert.equal(fresh.pages[0][13],null);
+ const reloaded=Core.migrateState(JSON.parse(JSON.stringify(plan.next)));
+ assert.ok(Core.switchProfile(reloaded,plan.createdProfileId));assert.equal(reloaded.pages[1][11].title,'선');
+ for(const bad of [{...c,name:'Other'},{...c,pageCount:11},{...c,keys:[c.keys[0],c.keys[0]]},{...c,keys:[{...c.keys[0],slot:14}]},{...c,keys:[{...c.keys[1],value:'Unknown'}]},{...c,keys:[{...c.keys[0],type:'open-app',value:'Unverified.App'}]}]){
+   assert.throws(()=>A.makePlan(s,req('profile_build',bad),resources));assert.equal(JSON.stringify(s),saved);
+ }
+ const withApp={...c,keys:[{page:1,slot:1,type:'open-app',value:'Verified.App'}]};
+ const app=A.makePlan(s,req('profile_build',withApp),{targets:[{type:'open-app',requested:'Verified.App',path:'shell:AppsFolder\\Verified.App',name:'Verified'}]});
+ assert.equal(app.next.inactiveProfiles.find(x=>x.id===app.createdProfileId).pages[0][0].settings.app,'shell:AppsFolder\\Verified.App');
+});

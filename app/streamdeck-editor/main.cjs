@@ -274,12 +274,20 @@ async function prepareAiEdit(id,input,userText,signal){
         const type=types[i];resources.targets.push(['open-app','file-open','folder-shortcut'].includes(type)&&typeof x.value==='string'?await resolveAiTarget(type,x.value,userText):null);
       }
     }
-    if(advanced.kind==='fusion_batch'){
+    if(advanced.kind==='profile_build'){
+      resources.targets=[];
+      for(const x of c.keys){
+        signal?.throwIfAborted();
+        resources.targets.push(['open-app','file-open','folder-shortcut'].includes(x.type)&&typeof x.value==='string'?await resolveAiTarget(x.type,x.value,userText):null);
+      }
+    }
+    const fusionIds=advanced.kind==='fusion_batch'?c.keys.map(x=>x.id):advanced.kind==='profile_build'?c.keys.filter(x=>x.type==='fusion-live').map(x=>x.value):[];
+    if(fusionIds.length){
       const plugin=(await sdk().list()).find(p=>p.uuid===LiveFusion.PLUGIN);
       if(!plugin?.actions?.some(x=>x.uuid===LiveFusion.ACTION))throw Error('Fusion SDK 플러그인을 먼저 설치하세요.');
       let available;try{available=await fusionCommands.list(signal);}catch{signal?.throwIfAborted();throw Error('Fusion 연결 또는 명령 조회에 실패했습니다. Fusion 연결을 확인하세요.');}
       const byId=new Map(available.map(x=>[x.id,x]));
-      resources.fusionBatch=[...new Set(c.keys.map(x=>x.id))].map(id=>{
+      resources.fusionBatch=[...new Set(fusionIds)].map(id=>{
         const found=byId.get(id);
         if(!found)throw Error('현재 Fusion에서 일괄 등록할 명령 ID를 확인하지 못했습니다.');
         return {id:found.id,name:found.ko||found.name};

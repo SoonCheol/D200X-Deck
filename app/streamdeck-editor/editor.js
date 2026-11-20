@@ -4828,7 +4828,7 @@ window.executeD200XKey=tracedPhysicalDispatch;
    return plan.rows.map(row=>{
      const base={op:row.op,page:row.page,slot:row.slot,folder:row.folder,control:row.control,state:row.state};
      if(!Number.isInteger(row.slot)||['folder_page','folder_settings','control','wide','add_page','delete','move_source'].includes(row.op))return base;
-     let items=plan.next.pages[row.page-1];
+     let items=(plan.createdProfileId?plan.next.inactiveProfiles.find(p=>p.id===plan.createdProfileId)?.pages:plan.next.pages)?.[row.page-1];
      for(const [slot,fp] of (row.folder||'').split('/').filter(Boolean).map(x=>x.split(':').map(Number))){
        const folder=items?.[slot-1];items=fp===1?folder?.children:folder?.pages?.[fp-2];
      }
