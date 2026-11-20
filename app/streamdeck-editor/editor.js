@@ -5432,33 +5432,104 @@ function backupReady(){
     throw Error('진행 중인 동작을 먼저 중단하세요.');
 }
 let backupUiBusy=false;
-async function createDriveBackup(){
+async function createLocalBackup(){
   if(backupUiBusy)throw Error('백업 작업이 진행 중입니다.');
   backupUiBusy=true;
   try{
     backupReady();
     if(!window.deckBridge?.createBackup)throw Error('Windows EXE에서 사용할 수 있습니다.');
-    if(!confirm('Google Drive 데스크톱 앱의 동기화 폴더 또는 로컬 폴더에 암호화된 백업 파일을 저장합니다. 전체 프로필·템플릿·사용자 아이콘팩·액션 목록 디자인을 포함합니다. 계정 로그인 정보, HA 연결 토큰 파일, 플러그인 프로그램 및 전역 설정은 백업하지 않습니다. 계속하시겠습니까?'))return;
+    if(!confirm('선택한 로컬 폴더에 암호화된 백업 파일을 저장합니다. 전체 프로필·템플릿·사용자 아이콘팩·액션 목록 디자인을 포함합니다. 계정 로그인 정보, HA 연결 토큰 파일, 플러그인 프로그램 및 전역 설정은 백업하지 않습니다. 계속하시겠습니까?'))return;
     const password=await askBackupPassword(true);if(password===null)return;
     backupReady();if(!persist(false))throw Error('프로필 저장 실패');
     const appearance=window.D200XPanelIcons.exportConfig();
     const result=await window.deckBridge.createBackup(password,appearance);
     if(result){
-      window.d200xActionStatus?.('백업 파일 저장 완료 · '+result.filename+' · Drive 동기화 여부 별도 확인');
-      alert('백업 파일 저장 완료\n'+result.file+'\n\nGoogle Drive 폴더를 선택했다면 Google Drive 데스크톱 앱에서 업로드 완료 여부를 확인하세요.');
+      window.d200xActionStatus?.('로컬 백업 파일 저장 완료 · '+result.filename);
+      alert('로컬 백업 파일 저장 완료\n'+result.file);
     }
   }finally{backupUiBusy=false;}
 }
-async function restoreDriveBackup(){
+async function googleConnect(){
+  if(!window.deckBridge?.driveConnect)throw Error('Windows EXE에서 사용할 수 있습니다.');
+  if(backupUiBusy)throw Error('백업 작업이 진행 중입니다.');
+  backupUiBusy=true;
+  try{
+    if(!confirm('Google Cloud에서 Drive API를 활성화하고 Desktop app OAuth 클라이언트 JSON을 발급받아 선택하세요. 이후 기본 브라우저에서 Google 계정에 로그인합니다. 계정 정보는 Windows 보안 저장소에 보관하며 DeckForge가 만든 파일만 접근합니다. 계속하시겠습니까?'))return;
+    const result=await window.deckBridge.driveConnect();
+    if(result?.connected){window.d200xActionStatus?.('Google Drive 연결 완료: '+result.email);alert('Google Drive 연결 완료\n'+result.email);}
+  }finally{backupUiBusy=false;}
+}
+async function googleStatus(){
+  if(!window.deckBridge?.driveStatus)throw Error('Windows EXE에서 사용할 수 있습니다.');
+  const result=await window.deckBridge.driveStatus();
+  alert(result.connected?'Google Drive 연결됨\n'+result.email:'Google Drive 연결되지 않음\n먼저 Google 계정 연결을 선택하세요.');
+}
+async function googleDisconnect(){
+  if(!window.deckBridge?.driveDisconnect)throw Error('Windows EXE에서 사용할 수 있습니다.');
+  if(backupUiBusy)throw Error('백업 작업이 진행 중입니다.');
+  if(!confirm('이 PC의 Google Drive 연결 정보만 삭제합니다. Drive에 저장된 백업 파일은 유지됩니다. 연결을 해제하시겠습니까?'))return;
+  await window.deckBridge.driveDisconnect();window.d200xActionStatus?.('Google Drive 연결 해제 완료');
+}
+async function createGoogleBackup(){
+  if(backupUiBusy)throw Error('백업 작업이 진행 중입니다.');
+  backupUiBusy=true;
+  try{
+    backupReady();if(!window.deckBridge?.driveCreate)throw Error('Windows EXE에서 사용할 수 있습니다.');
+    const account=await window.deckBridge.driveStatus();
+    if(!account.connected)throw Error('Google Drive 계정을 먼저 연결하세요.');
+    if(!confirm(account.email+' 계정의 Google Drive / DeckForge Backups 폴더에 암호화 백업을 직접 업로드합니다. 전체 프로필·템플릿·사용자 아이콘팩·액션 목록 디자인을 포함하며 별도 로그인 정보·플러그인 프로그램·전역 설정은 제외합니다. 계속하시겠습니까?'))return;
+    const password=await askBackupPassword(true);if(password===null)return;
+    backupReady();if(!persist(false))throw Error('프로필 저장 실패');
+    window.d200xActionStatus?.('Google Drive 백업 업로드 중…');
+    const result=await window.deckBridge.driveCreate(password,window.D200XPanelIcons.exportConfig(),account.email);
+    window.d200xActionStatus?.('Google Drive 백업 업로드 완료 · '+result.name);
+    alert('Google Drive 백업 업로드 및 파일 검증 완료\n'+result.email+'\nDeckForge Backups / '+result.name);
+  }finally{backupUiBusy=false;}
+}
+function chooseGoogleBackup(list){
+  return new Promise(resolve=>{
+    const dialog=document.createElement('dialog');dialog.className='profile-name-dialog';
+    dialog.style.width='min(600px, calc(100vw - 32px))';
+    const form=document.createElement('form');form.method='dialog';
+    const heading=document.createElement('strong');heading.textContent='Google Drive 백업 선택';
+    const note=document.createElement('div');note.textContent=list.email+' · '+list.items.length+'개'+(list.more?' (최근 목록만 표시)':'');
+    const select=document.createElement('select');select.setAttribute('aria-label','복원할 Google Drive 백업');select.required=true;select.style.maxWidth='100%';
+    for(const item of list.items){
+      const option=document.createElement('option');option.value=item.id;
+      option.textContent=new Date(item.createdTime).toLocaleString()+' · '+(item.size/1024/1024).toFixed(1)+' MB · '+item.name;
+      select.append(option);
+    }
+    const actions=document.createElement('div');actions.className='profile-name-actions';
+    const cancel=document.createElement('button');cancel.type='button';cancel.textContent='취소';cancel.onclick=()=>dialog.close('cancel');
+    const submit=document.createElement('button');submit.type='submit';submit.className='primary';submit.textContent='선택';
+    form.onsubmit=event=>{event.preventDefault();if(select.value)dialog.close('save');};
+    actions.append(cancel,submit);form.append(heading,note,select,actions);dialog.append(form);
+    dialog.addEventListener('close',()=>{const id=dialog.returnValue==='save'?select.value:null;dialog.remove();resolve(id);},{once:true});
+    document.body.append(dialog);dialog.showModal();
+  });
+}
+async function restoreGoogleBackup(){
+  if(backupUiBusy)throw Error('백업 작업이 진행 중입니다.');
+  backupUiBusy=true;let selected=null,list;
+  try{
+    backupReady();if(!window.deckBridge?.driveList)throw Error('Windows EXE에서 사용할 수 있습니다.');
+    list=await window.deckBridge.driveList();
+    if(!list.items.length){alert('Google Drive에 DeckForge 백업 파일이 없습니다.');return;}
+    selected=await chooseGoogleBackup(list);
+  }finally{backupUiBusy=false;}
+  if(selected)await restoreBackup({id:selected,email:list.email});
+}
+async function restoreBackup(cloud=null){
   if(backupUiBusy)throw Error('백업 작업이 진행 중입니다.');
   backupUiBusy=true;let info=null;
   try{
     backupReady();
-    if(!window.deckBridge?.previewBackup)throw Error('Windows EXE에서 사용할 수 있습니다.');
+    if(!window.deckBridge?.previewBackup||cloud&&!window.deckBridge?.drivePreview)throw Error('Windows EXE에서 사용할 수 있습니다.');
     const password=await askBackupPassword(false);if(password===null)return;
     backupReady();if(!persist(false))throw Error('프로필 저장 실패');
     const before=JSON.stringify(state),appearance=window.D200XPanelIcons.exportConfig();
-    info=await window.deckBridge.previewBackup(password,appearance);if(!info)return;
+    if(cloud)window.d200xActionStatus?.('Google Drive 백업 다운로드 및 검증 중…');
+    info=cloud?await window.deckBridge.drivePreview(cloud.id,password,appearance,cloud.email):await window.deckBridge.previewBackup(password,appearance);if(!info)return;
     backupReady();
     if(before!==JSON.stringify(state)||JSON.stringify(appearance)!==JSON.stringify(window.D200XPanelIcons.exportConfig()))
       throw Error('미리보기 중 편집 내용이 변경되었습니다. 다시 복원하세요.');
@@ -5614,8 +5685,12 @@ function bindSidebarHeader(){
     const overall=entry(menu,'전체 프로필 관리 ▸',()=>{globalPanel.hidden=!globalPanel.hidden;},'profile-global-trigger');
     const globalPanel=document.createElement('div');globalPanel.className='profile-global-panel';globalPanel.hidden=true;
     const globalAction=(label,fn)=>entry(globalPanel,label,run(fn));
-    globalAction('Google Drive / 로컬 백업',createDriveBackup);
-    globalAction('백업 파일 복원',restoreDriveBackup);
+    globalAction('로컬 백업',createLocalBackup);
+    globalAction('로컬 백업 복원',()=>restoreBackup());
+    const drivePanel=document.createElement('div');drivePanel.className='profile-global-panel';drivePanel.hidden=true;
+    entry(globalPanel,'Google Drive 백업 ▸',()=>{drivePanel.hidden=!drivePanel.hidden;});
+    for(const [name,fn] of [['Google 계정 연결',googleConnect],['연결 상태 확인',googleStatus],['Google Drive에 백업',createGoogleBackup],['Google Drive 백업 복원',restoreGoogleBackup],['연결 해제',googleDisconnect]])entry(drivePanel,name,run(fn));
+    globalPanel.append(drivePanel);
     globalAction('전체 프로필·설정 JSON 내보내기',()=>{
       try{
         const payload={...state,actionPanelAppearance:window.D200XPanelIcons.exportConfig()};

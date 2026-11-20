@@ -6,6 +6,13 @@
 
 - 페이지 표시 버튼의 길게 누르기 → 직전 페이지 이동 정상 작동(사용자 보고). 직전 프로필/덱폴더 및 다른 입력 조합의 실기는 별도.
 
+## 1.1.77 실제 Google Drive API 백업/복원 (2026-11-21)
+
+- 사용자 지적: 1.1.76은 실제 클라우드 연동이 아닌 로컬 파일 백업. '로컬 백업'/'로컬 백업 복원'으로 분리. 사용자 개발 승인에 따라 별도 'Google Drive 백업' 메뉴에 계정 연결/상태/직접 업로드/목록 선택·복원/연결 해제 추가. 1.1.76 Windows #799, CI #1062, 입력 #425 성공. 로컬 GUI 실기 별도. 사용자 템플릿 범위 변경 없음.
+- Google Desktop OAuth 클라이언트 JSON은 사용자 PC에서만 선택, Drive API 활성화 및 OAuth 동의 설정 필요. 기본 브라우저, IPv4 loopback 무작위 포트, state 및 PKCE S256, OAuth URL 고정, drive.file 최소 권한. refresh token 및 클라이언트 정보는 %APPDATA%/DeckForge/GoogleDrive/connection.enc에 Electron safeStorage 암호화 저장. access token 메모리만, 계정 상태 about.get 확인; 연결 해제는 로컬 정보만 제거(클라우드 파일 유지, Google 승인 철회 별도). 실제 Google Cloud 클라이언트/계정 연결 테스트 미실시.
+- My Drive에 앱 생성 'DeckForge Backups' 폴더, appProperties 식별, 기존 파일 덮어쓰기/삭제 없음. 고유 이름 암호화 .dfbackup 직접 resumable 업로드 요청 및 최종 ID·크기·MD5 확인, 최신 최대 200개 목록, 다운로드 전 메타데이터 검증 및 크기/MD5 비교 후 AES-GCM 복호화. 기존 복원 미리보기/사용자 확인/안전 로컬 백업/원복 계약 재사용. 실패한 업로드 자동 이어받기·자동 백업·삭제 기능 없음. 기존 백업 범위 유지.
+- 공식 근거 https://developers.google.com/identity/protocols/oauth2/native-app ; https://developers.google.com/workspace/drive/api/guides/api-specific-auth ; https://developers.google.com/workspace/drive/api/guides/manage-uploads ; https://developers.google.com/workspace/drive/api/guides/search-files . 집중 모의 API 검증 테스트를 기존 Windows 빌드에 추가. 실제 Google 로그인·업로드/복원 미확인.
+
 ## 1.1.76 Google Drive/로컬 암호화 백업과 복원 1단계 (2026-11-21)
 
 - 1.1.75 Windows #798/CI #1061/입력 #424 성공. 사용자 '통합 테스트'를 '공통 작업 템플릿'으로 저장하고 '템플릿 테스트' 3페이지 신규 비활성 프로필 생성 완료 보고. 재시작·전체 데이터 동일·수동 이름 변경/삭제 실기는 별도.

@@ -23,6 +23,7 @@ const {StreamDeckPluginHost}=require('./sd-plugin-host.cjs');
 const Bundled=require('./bundled-integration.cjs');
 const {ProfileStore}=require('./profile-store.cjs');
 const Backup=require('./backup.cjs');
+const {GoogleDrive}=require('./google-drive.cjs');
 let sdkHost=null;
 function sdk(){
   if(!sdkHost)sdkHost=new StreamDeckPluginHost(app.getPath('userData'),payload=>send('d200x:sdk-event',payload),()=>window);
@@ -372,9 +373,8 @@ ipcMain.on('d200x:profile-write',(event,state)=>{
   }
 });
 
-// Explicit local/Drive-for-desktop backup operations. No automatic account
-// access. Native pickers choose the exact directory or file; only the main
-// process sees the encrypted archive and recovery location.
+// Local and Google Drive backups share the protected restore path.
+const googleDrive=new GoogleDrive({directory:path.join(app.getPath('userData'),'GoogleDrive'),safeStorage,openExternal:url=>shell.openExternal(url)});
 let backupBusy=false,backupPending=null,backupTimer=null;
 function clearBackupPending(){
   if(backupTimer)clearTimeout(backupTimer);
@@ -394,12 +394,55 @@ ipcMain.handle('d200x:backup-create',async(event,{password,appearance}={})=>{
   try{
     clearBackupPending();
     Backup.validateAppearance(appearance);
-    const folder=await openRememberedPicker({title:'Google Drive 또는 로컬 백업 폴더 선택',properties:['openDirectory','createDirectory']},'folder');
+    const folder=await openRememberedPicker({title:'로컬 백업 폴더 선택',properties:['openDirectory','createDirectory']},'folder');
     if(!folder)return null;
     await ensureIconPacksMigrated();
     return Backup.writeArchive(folder,currentBackup(appearance),password);
   }finally{backupBusy=false;}
 });
+function stageBackup(incoming,filename,password,appearance){
+  const current=currentBackup(appearance),id=randomUUID();
+  backupPending={id,password,incoming,current,base:Backup.fingerprint(current)};
+  backupTimer=setTimeout(clearBackupPending,5*60*1000);backupTimer.unref?.();
+  return {id,filename,...Backup.summary(incoming),appearance:incoming.appearance};
+}
+async function driveOperation(event,fn){
+  backupEditor(event);if(backupBusy)throw Error('백업 또는 Google 연결 작업이 진행 중입니다.');
+  backupBusy=true;try{return await fn();}finally{backupBusy=false;}
+}
+ipcMain.handle('d200x:drive-connect',event=>driveOperation(event,async()=>{
+  clearBackupPending();
+  const filename=await openRememberedPicker({title:'Google Cloud Desktop OAuth 클라이언트 JSON 선택',properties:['openFile'],filters:[{name:'OAuth JSON',extensions:['json']}]});
+  if(!filename)return null;
+  const stat=await fs.promises.stat(filename);
+  if(!stat.isFile()||stat.size>65536||path.extname(filename).toLowerCase()!=='.json')throw Error('OAuth JSON 파일을 확인하세요.');
+  const raw=await fs.promises.readFile(filename,'utf8');
+  if(Buffer.byteLength(raw)>65536)throw Error('OAuth JSON 파일이 너무 큽니다.');
+  return googleDrive.connect(JSON.parse(raw.replace(/^\uFEFF/,'')));
+}));
+ipcMain.handle('d200x:drive-status',event=>driveOperation(event,()=>googleDrive.status()));
+ipcMain.handle('d200x:drive-disconnect',event=>driveOperation(event,()=>{clearBackupPending();return googleDrive.disconnect();}));
+ipcMain.handle('d200x:drive-list',event=>driveOperation(event,async()=>{
+  const account=await googleDrive.status();if(!account.connected)throw Error('Google Drive를 먼저 연결하세요.');
+  return {...await googleDrive.list(),email:account.email};
+}));
+ipcMain.handle('d200x:drive-create',(event,{password,appearance,expectedEmail}={})=>driveOperation(event,async()=>{
+  clearBackupPending();Backup.validateAppearance(appearance);
+  const account=await googleDrive.status();
+  if(!account.connected||account.email!==expectedEmail)throw Error('Google 계정이 변경되었거나 연결되지 않았습니다.');
+  await ensureIconPacksMigrated();
+  const current=currentBackup(appearance);
+  const filename='DeckForge-'+current.createdAt.replace(/[:.]/g,'-')+'-'+randomUUID()+'.dfbackup';
+  return {...await googleDrive.upload(filename,Backup.encrypt(current,password)),email:account.email};
+}));
+ipcMain.handle('d200x:drive-preview',(event,{id,password,appearance,expectedEmail}={})=>driveOperation(event,async()=>{
+  clearBackupPending();Backup.validateAppearance(appearance);
+  const account=await googleDrive.status();
+  if(!account.connected||account.email!==expectedEmail)throw Error('Google 계정이 변경되었거나 연결되지 않았습니다.');
+  const file=await googleDrive.download(id),incoming=Backup.decrypt(file.bytes,password);
+  await ensureIconPacksMigrated();
+  return stageBackup(incoming,file.meta.name,password,appearance);
+}));
 ipcMain.handle('d200x:backup-preview',async(event,{password,appearance}={})=>{
   backupEditor(event);if(backupBusy)throw Error('백업 작업이 진행 중입니다.');
   backupBusy=true;
@@ -412,11 +455,7 @@ ipcMain.handle('d200x:backup-preview',async(event,{password,appearance}={})=>{
     if(path.extname(file).toLowerCase()!=='.dfbackup')throw Error('DeckForge 백업 파일을 선택하세요.');
     const incoming=Backup.readArchive(file,password);
     await ensureIconPacksMigrated();
-    const current=currentBackup(appearance),id=randomUUID();
-    backupPending={id,password,incoming,current,base:Backup.fingerprint(current)};
-    backupTimer=setTimeout(clearBackupPending,5*60*1000);
-    backupTimer.unref?.();
-    return {id,filename:path.basename(file),...Backup.summary(incoming),appearance:incoming.appearance};
+    return stageBackup(incoming,path.basename(file),password,appearance);
   }finally{backupBusy=false;}
 });
 ipcMain.on('d200x:backup-commit',(event,id)=>{
