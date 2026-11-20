@@ -242,15 +242,12 @@ function sdkActionInstances(){
       settings:settings.pluginSettings||{}});
   };
   DeckCore.visibleActions(state).slice(0,14).forEach((item,index)=>append(item,index,'down'));
-  for(let index=14;index<=18;index++){
+  // Side controls are navigation-only. Register only actions the knob
+  // dispatcher can actually execute, including supported legacy held bindings.
+  for(let index=16;index<=18;index++){
     const binding=DeckCore.controlBinding(state,index);
-    if(binding?.mode==='trigger')for(const gesture of (index>=16?['down','left','right']:['down']))
-      append(DeckCore.controlAction(binding,gesture),index,gesture);
-    else if(binding?.mode==='adjust')append(binding?.down,index,'down');
-    if(index>=16){
-      append(DeckCore.controlAction(binding,'holdLeft'),index,'hold-left');
-      append(DeckCore.controlAction(binding,'holdRight'),index,'hold-right');
-    }
+    for(const gesture of ['down','left','right','hold-left','hold-right'])
+      append(DeckCore.activeControlAction(binding,gesture),index,gesture);
   }
   return entries;
 }
@@ -954,7 +951,7 @@ function renderPhysicalControls(){
     const symbol=document.createElement("span");symbol.className="physical-symbol";
     const label=document.createElement("span");label.className="physical-name";
     label.textContent=(binding?.mode==='adjust'||(binding?.mode==='trigger'&&binding?.autoAssign))?'조절: '+({page:'페이지',profile:'프로필',volume:'음량',zoom:'확대/축소',scroll:'세로 스크롤','scroll-x':'가로 스크롤',history:'실행 취소·다시 실행',window:'창 전환',desktop:'가상 데스크톱',brightness:'기기 밝기'}[binding.target])
-      :binding?.mode==='stack'?'스택: '+({page:'페이지',volume:'음량',zoom:'확대/축소',scroll:'세로 스크롤','scroll-x':'가로 스크롤',history:'실행 취소·다시 실행',window:'창 전환',desktop:'가상 데스크톱',brightness:'기기 밝기'}[binding.stack[stackPositions[offset-2]%binding.stack.length]])
+      :binding?.mode==='stack'?'스택: '+({page:'페이지',profile:'프로필',volume:'음량',zoom:'확대/축소',scroll:'세로 스크롤','scroll-x':'가로 스크롤',history:'실행 취소·다시 실행',window:'창 전환',desktop:'가상 데스크톱',brightness:'기기 밝기'}[binding.stack[stackPositions[offset-2]%binding.stack.length]])
       :(item?keyName(item):name);
     const heldLabel=document.createElement("span");heldLabel.className="physical-held-name";
     if(kind==='side'){
@@ -1708,9 +1705,11 @@ function renderMultiEditor(item,root){
       fields.querySelectorAll('[data-path-picker]').forEach(button=>button.addEventListener('click',async()=>{
         if(!window.deckBridge?.choosePath)return window.d200xActionStatus?.('Windows EXE에서만 파일 선택이 가능합니다.');
         try{
+          const session=inspectorSession;
           const path=await window.deckBridge.choosePath(button.dataset.pathKind);
-          if(!path)return;
-          step.settings[button.dataset.pathPicker]=path;persist();renderInspector();
+          if(!path||!inspectorTargetCurrent(session,step)||!steps.includes(step))return;
+          step.settings[button.dataset.pathPicker]=path;persistInspectorChange();
+          if(state.selected>=14)renderControlInspector();else renderInspector();
         }catch(error){window.d200xActionStatus?.('경로 선택 실패: '+String(error?.message||error));}
       }));
       list.append(fields);
@@ -1775,9 +1774,10 @@ function renderLogicEditor(item,root){
       fields.querySelectorAll('[data-path-picker]').forEach(button=>button.addEventListener('click',async()=>{
         if(!window.deckBridge?.choosePath)return;
         try{
+          const session=inspectorSession;
           const path=await window.deckBridge.choosePath(button.dataset.pathKind);
-          if(!path)return;
-          action.settings[button.dataset.pathPicker]=path;persist();
+          if(!path||!inspectorTargetCurrent(session,action)||item.slots[slot]!==action)return;
+          action.settings[button.dataset.pathPicker]=path;persistInspectorChange();
           if(state.selected>=14)renderControlInspector();else renderInspector();
         }catch(error){window.d200xActionStatus?.('파일 선택 실패: '+String(error?.message||error));}
       }));
@@ -1786,11 +1786,11 @@ function renderLogicEditor(item,root){
   }
   root.querySelector('.fields')?.append(area);
 }
-async function updateApplicationArtwork(item,filePath){
+async function updateApplicationArtwork(item,filePath,session=inspectorSession){
   if(!window.deckBridge?.inspectAppFile||!item||!/\.(exe|lnk|bat|cmd)$/i.test(filePath))return;
   const info=await window.deckBridge.inspectAppFile(filePath);
   const artwork=info?.icon?await rasterizeIcon(info.icon,144,100):null;
-  if(!DeckCore.visibleActions(state).includes(item)||
+  if(!inspectorTargetCurrent(session,item)||
       ![item.settings?.path,item.settings?.app].includes(filePath))return;
   if(info?.name&&(!item.title||item.title===item.settings?.autoAppTitle)){
     item.title=info.name;item.settings.autoAppTitle=info.name;
@@ -2236,6 +2236,15 @@ function commitExternalSdkSettings(instance,settings){
   window.scheduleDeckSync?.();
   return true;
 }
+// Asynchronous pickers may outlive the selected slot, gesture or inspector.
+function inspectorTargetCurrent(session,item){
+  if(!session||session!==inspectorSession||!item)return false;
+  const selected=state.selected;
+  const current=selected>=14?DeckCore.activeControlAction(DeckCore.controlBinding(state,selected),controlGesture):
+    Number.isInteger(selected)?DeckCore.visibleActions(state)[selected]:null;
+  return !!current&&(current===item||current.children?.includes(item)||
+    current.sequences?.some(steps=>steps.includes(item))||Object.values(current.slots||{}).includes(item));
+}
 function persistInspectorChange(){
   if(inspectorSession){inspectorSession.dirty=JSON.stringify(state)!==inspectorSession.snapshot;updateInspectorSaveButtons();return true;}
   return persist();
@@ -2445,8 +2454,9 @@ function renderControlInspector(){
     mode.value=currentMode==='stack'?'stack':'trigger';
     mode.disabled=heldDisabled;
     mode.addEventListener('change',()=>{
-      if(held){binding.heldMode=mode.value;if(mode.value==='trigger')binding.heldAutoAssign=true;}
-      else{binding.mode=mode.value;if(mode.value==='trigger')binding.autoAssign=true;}
+      if(mode.value==='trigger')DeckCore.automaticControl(binding,held);
+      else if(held)binding.heldMode=mode.value;
+      else binding.mode=mode.value;
       persist();renderControlInspector();
     });
     scopeRow.append(modeLabel,mode);
@@ -2466,7 +2476,7 @@ function renderControlInspector(){
     const targetKey=held?'heldTarget':'target',stepKey=held?'heldStep':'step',reverseKey=held?'heldReverseDirection':'reverseDirection',stackKey=held?'heldStack':'stack';
     target.value=binding[targetKey];
     target.disabled=heldDisabled||currentMode==='stack';
-    target.addEventListener('change',()=>{if(target.disabled)return;binding[targetKey]=target.value;if(held)binding.heldAutoAssign=true;else binding.autoAssign=true;persist();renderControlInspector();});
+    target.addEventListener('change',()=>{if(target.disabled)return;binding[targetKey]=target.value;DeckCore.automaticControl(binding,held);persist();renderControlInspector();});
     config.append(label,target);
     const stepLabel=document.createElement('label');stepLabel.textContent='회전 변화량';
     const stepSelect=document.createElement('select');stepSelect.className='control-step';
@@ -2523,7 +2533,7 @@ function renderControlInspector(){
     tile.addEventListener('click',()=>{controlGesture=gesture;renderControlInspector();});
     tile.addEventListener('dragover',e=>{if(allowed){e.preventDefault();tile.classList.add('drag-over');}});
     tile.addEventListener('dragleave',()=>tile.classList.remove('drag-over'));
-    tile.addEventListener('drop',e=>{if(!allowed)return;e.preventDefault();const id=e.dataTransfer.getData('application/x-d200x-action');if(ACTIONS.has(id))controlDrop(index,id,gesture,false);});
+    tile.addEventListener('drop',e=>{if(!allowed)return;e.preventDefault();const id=e.dataTransfer.getData('application/x-d200x-action');if(isAssignableAction(id))controlDrop(index,id,gesture,false);});
     const remove=document.createElement('button');remove.type='button';remove.className='control-tile-remove';
     remove.textContent='×';remove.title='등록된 동작 삭제';
     remove.disabled=!assigned||!allowed;
@@ -2554,8 +2564,10 @@ function renderControlInspector(){
     if(current.type==='logic')renderLogicEditor(current,editor);
     fields.querySelectorAll('[data-path-picker]').forEach(button=>button.addEventListener('click',async()=>{
       if(!window.deckBridge?.choosePath)return;
-      const selected=await window.deckBridge.choosePath(button.dataset.pathKind);if(!selected)return;
-      current.settings[button.dataset.pathPicker]=selected;persist();renderControlInspector();
+      const session=inspectorSession;
+      const selected=await window.deckBridge.choosePath(button.dataset.pathKind);
+      if(!selected||!inspectorTargetCurrent(session,current))return;
+      current.settings[button.dataset.pathPicker]=selected;persistInspectorChange();renderControlInspector();
     }));
   }
   if(!knob)appendInspectorSaveBar(root);
@@ -2751,15 +2763,17 @@ function bindExtendedActionFields(root,item){
   if(item.type==='ha-toggle'){
     root.querySelector('[data-ha-entities]')?.addEventListener('click',async()=>{
       try{
+        const session=inspectorSession;
         const entities=await window.deckBridge.haEntities();
+        if(!inspectorTargetCurrent(session,item))return;
         if(!entities.length)throw new Error('제어 가능한 엔티티가 없습니다.');
         const current=item.settings?.entityId||'';
         const selected=await chooseDeckForgeEntity(entities,current);
-        if(selected===null)return;
+        if(selected===null||!inspectorTargetCurrent(session,item))return;
         if(!entities.some(e=>e.entity_id===selected))throw new Error('유효한 엔티티를 선택하세요.');
         item.settings.entityId=selected;
         const input=root.querySelector('[data-field="entityId"]');if(input)input.value=selected;
-        persist();
+        persistInspectorChange();
       }catch(error){window.d200xActionStatus?.('HA 엔티티 조회 실패: '+String(error?.message||error));}
     });
   }
@@ -3181,18 +3195,16 @@ function renderInspector(){
         const session=inspectorSession;
         const selected=await window.deckBridge.choosePath(button.dataset.pathKind);
         if(!selected)return;
-        if(folderPicker){
-          if(inspectorSession!==session||DeckCore.visibleActions(state)[state.selected]!==item)return;
-        }else if(!state.pages.some(page=>page.includes(item)))return;
+        if(inspectorSession!==session||DeckCore.visibleActions(state)[state.selected]!==item)return;
         const inputNode=root.querySelector('[data-field="'+field+'"]');
         item.settings[field]=selected;
         if(inputNode){
           inputNode.value=selected;
           if(folderPicker)inputNode.title=inputNode.value;
         }
-        if(folderPicker)persistInspectorChange();else persist();
+        persistInspectorChange();
         if(['open','open-app'].includes(item.type)&&['path','app'].includes(field))
-          void updateApplicationArtwork(item,selected).catch(error=>window.d200xActionStatus?.('프로그램 아이콘 추출 실패: '+String(error?.message||error)));
+          void updateApplicationArtwork(item,selected,session).catch(error=>window.d200xActionStatus?.('프로그램 아이콘 추출 실패: '+String(error?.message||error)));
       }catch(error){alert("파일 선택 오류: "+String(error?.message||error));}
     });
   });
@@ -3696,7 +3708,7 @@ function handleOpenAppHold(action,index,event,gesture){
     logOpenAppHold({...trace,stage:'down',at:downAt});
     token.timer=setTimeout(()=>{
       if(openAppHoldTimers.get(index)!==token)return;
-      const current=index<14?DeckCore.visibleActions(state)[index]:DeckCore.controlBinding(state,index)?.down;
+      const current=index<14?DeckCore.visibleActions(state)[index]:DeckCore.activeControlAction(DeckCore.controlBinding(state,index),'down');
       if(!openAppHoldStillCurrent(token,current)){
         token.cancelled=true;
         logOpenAppHold({...trace,stage:'cancel',reason:'scope-action-or-settings-changed',at:Date.now()});
@@ -3788,12 +3800,15 @@ function heldKnobEvent(event,preview){
   const rawIndex=Number(event?.index),stateByte=Number(event?.state);
   if(rawIndex<17||rawIndex>19||!Number.isInteger(rawIndex))return {event,consume:false,replay:false};
   const binding=DeckCore.controlBinding(state,rawIndex-1);
-  const hasHeld=Boolean(binding?.heldEnabled||DeckCore.controlAction(binding,'holdLeft')||DeckCore.controlAction(binding,'holdRight'));
-  if(stateByte===1){knobPresses.set(rawIndex,{rotated:false,defer:hasHeld});
+  const hasHeld=Boolean(binding?.heldEnabled||DeckCore.activeControlAction(binding,'holdLeft')||DeckCore.activeControlAction(binding,'holdRight'));
+  if(stateByte===1){
+    const prior=knobPresses.get(rawIndex);
+    if(prior?.defer)return {event,consume:true,replay:false};
+    knobPresses.set(rawIndex,{rotated:false,defer:hasHeld,scope:openAppHoldScope(),binding,action:DeckCore.activeControlAction(binding,'down')});
     return {event,consume:hasHeld,replay:false};}
   const pressed=knobPresses.get(rawIndex);
   if(stateByte===0){knobPresses.delete(rawIndex);
-    return {event,consume:Boolean(pressed?.defer),replay:Boolean(pressed?.defer&&!pressed.rotated&&!binding?.heldEnabled)};}
+    return {event,consume:Boolean(pressed?.defer),replay:Boolean(pressed?.defer&&!pressed.rotated&&!binding?.heldEnabled&&pressed.scope===openAppHoldScope()&&pressed.binding===binding&&pressed.action===DeckCore.activeControlAction(binding,'down'))};}
   if(stateByte===2||stateByte===3){
     if(pressed){pressed.rotated=true;
       if(pressed.defer)return {event:{...event,state:stateByte===2?4:5},consume:false,replay:false};}
@@ -3883,12 +3898,11 @@ function executeHardwareAction(event,preview=false,skipKnobGesture=false){
     const held=heldKnobEvent(event,preview);
     if(held.replay){
       report('held-replay');
-      const index=Number(event.index);
-      const result=executeHardwareAction({...event,state:1},false,true);
-      // The physical release is still forwarded for SDK actions.
-      if(DeckCore.controlBinding(state,index-1)?.down?.type==='sd-plugin')
-        executeHardwareAction({...event,state:0},false,true);
-      return result;
+      // Release-time replay represents a completed tap, not a new hold.
+      // Pair down/up for every action, including Key Logic and app hold.
+      const result=executeHardwareAction({...event,state:1,pressed:true},false,true);
+      const released=executeHardwareAction({...event,state:0,pressed:false},false,true);
+      return released||result;
     }
     if(held.consume){report('held-consumed');return null;}
     event=held.event;
@@ -3905,8 +3919,7 @@ function executeHardwareAction(event,preview=false,skipKnobGesture=false){
   const resolved=DeckCore.resolveHardwareEvent(state,event);
   if(!resolved){report('unresolved');return null;}
   const index=resolved.index,offset=index-14;
-  const gestureKey=({'hold-left':'holdLeft','hold-right':'holdRight'})[resolved.gesture]||resolved.gesture;
-  const bindingAction=index>=16&&['left','right','holdLeft','holdRight'].includes(gestureKey)?DeckCore.controlAction(resolved.binding,gestureKey):resolved.action;
+  const bindingAction=resolved.action;
   report('resolved',{slot:index,gesture:resolved.gesture,action:bindingAction?.type});
   if(index===14||index===15)return handleSideNavigationInput(index,resolved.gesture,event,preview);
   if(!preview&&['down','up'].includes(resolved.gesture)&&
@@ -3915,8 +3928,7 @@ function executeHardwareAction(event,preview=false,skipKnobGesture=false){
     {report('hold');return handleOpenAppHold(resolved.action,index,event,resolved.gesture);}
   if(resolved.action?.type==='logic'&&['down','up'].includes(resolved.gesture))
     {report('logic');return handleLogicGesture(resolved.action,index,resolved.gesture,preview);}
-  const sdkAction=index>=16&&['left','right','hold-left','hold-right'].includes(resolved.gesture)
-    ?resolved.binding?.[({'hold-left':'holdLeft','hold-right':'holdRight'})[resolved.gesture]||resolved.gesture]:resolved.action;
+  const sdkAction=resolved.action;
   if(sdkAction?.type==='sd-plugin'){
     const ctx=sdkContext(index,
       resolved.gesture==='up'?'down':resolved.gesture);
@@ -3956,7 +3968,7 @@ function executeHardwareAction(event,preview=false,skipKnobGesture=false){
     renderPhysicalControls();
     window.scheduleD200XWideSync?.();
     const target=DeckCore.controlBinding(state,index).stack[stackPositions[idx]];
-    return '노브 '+(idx+1)+' 조절 대상: '+({page:'페이지',volume:'음량',zoom:'확대/축소',scroll:'세로 스크롤','scroll-x':'가로 스크롤',history:'실행 취소·다시 실행',window:'창 전환',desktop:'가상 데스크톱',brightness:'기기 밝기'}[target]);
+    return '노브 '+(idx+1)+' 조절 대상: '+({page:'페이지',profile:'프로필',volume:'음량',zoom:'확대/축소',scroll:'세로 스크롤','scroll-x':'가로 스크롤',history:'실행 취소·다시 실행',window:'창 전환',desktop:'가상 데스크톱',brightness:'기기 밝기'}[target]);
   }
   if(outcome.kind==='profile'){
     cancelFolderAutoExit();
@@ -3978,8 +3990,7 @@ function executeHardwareAction(event,preview=false,skipKnobGesture=false){
     lastHardwareDown.clear();persist();render();return '폴더 열기';
   }
   if(outcome.kind==='composite' && ['multi','multi-switch','random'].includes(outcome.type)){
-    const action=index<14?state.pages[state.page][index]:
-      DeckCore.controlBinding(state,index)?.[resolved.gesture];
+    const action=resolved.action;
     if(!action||action.type!==outcome.type)return '복합 동작 설정이 없습니다.';
     const scope=index>=14&&state.controls.scopes[index-14]==='global'?'global':String(state.page);
     const key=scope+':'+index+':'+resolved.gesture;

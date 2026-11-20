@@ -214,6 +214,16 @@
   const CONTROL_MODES=['trigger','stack'];
   const ROTATION_KEYS=['left','right','holdLeft','holdRight'];
   function controlAction(binding,key){return binding&&!(binding.inactiveRotations||[]).includes(key)?binding[key]:null;}
+  // Execution/SDK registration share the same explicit-action eligibility.
+  // Legacy held assignments remain usable when heldEnabled was never enabled.
+  function activeControlAction(binding,gesture){
+    if(!binding)return null;
+    const key=({'hold-left':'holdLeft','hold-right':'holdRight',up:'down'})[gesture]||gesture;
+    if(key==='down')return binding.heldEnabled===true||binding.mode==='stack'?null:controlAction(binding,key);
+    if(key==='left'||key==='right')return binding.mode==='stack'||binding.mode==='adjust'?null:controlAction(binding,key);
+    if(key==='holdLeft'||key==='holdRight')return binding.heldEnabled===true&&binding.heldMode!=='trigger'?null:controlAction(binding,key);
+    return null;
+  }
   function assignControlAction(binding,key,action){
     binding[key]=action;
     binding.inactiveRotations=(binding.inactiveRotations||[]).filter(x=>x!==key);
@@ -715,7 +725,7 @@
     if(index===null||!gesture)return null;
     const knob=index>=16;
     const binding=index>=14?controlBinding(state,index):null;
-    const action=index<14?visibleActions(state)?.[index]:(binding?.down||null);
+    const action=index<14?visibleActions(state)?.[index]:knob?activeControlAction(binding,gesture):(binding?.down||null);
     return {index,gesture,knob,binding,
       action:action&&validId(action.type)?action:null};
   }
@@ -748,9 +758,8 @@
     if(binding && knob){
       if(gesture==='hold-left'||gesture==='hold-right'){
         if(binding.heldEnabled===true){
-          const key=gesture==='hold-left'?'holdLeft':'holdRight';
           if(binding.heldMode==='trigger'){
-            const action=controlAction(binding,key);
+            const action=resolved.action;
             if(action)return {index,gesture,outcome:planAction(action,page,pageCount)};
             if(!binding.heldAutoAssign)return null;
             const direction=(gesture==='hold-left'?-1:1)*(binding.heldReverseDirection?-1:1);
@@ -761,14 +770,14 @@
           const direction=(gesture==='hold-left'?-1:1)*(binding.heldReverseDirection?-1:1);
           return {index,gesture,outcome:planAdjustment(target,direction,binding.heldStep,page,pageCount)};
         }
-        const action=controlAction(binding,gesture==='hold-left'?'holdLeft':'holdRight');
+        const action=resolved.action;
         return action?{index,gesture,outcome:planAction(action,page,pageCount)}:null;
       }
       if(binding.heldEnabled===true&&gesture==='down')return null;
       if(binding.mode==='adjust'||binding.mode==='stack'){
         if(gesture==='down'){
           if(binding.mode==='stack')return {index,gesture,outcome:{kind:'stack-next',size:binding.stack.length}};
-          if(binding.down)return {index,gesture,outcome:planAction(binding.down,page,pageCount)};
+          if(resolved.action)return {index,gesture,outcome:planAction(resolved.action,page,pageCount)};
           return null;
         }
         if(gesture!=='left'&&gesture!=='right')return null;
@@ -780,7 +789,7 @@
         return {index,gesture,outcome:planAdjustment(target,direction,step,page,pageCount)};
       }
       if(gesture==='left'||gesture==='right'){
-        const action=controlAction(binding,gesture);
+        const action=resolved.action;
         if(action)return {index,gesture,outcome:planAction(action,page,pageCount)};
         if(binding.mode==='trigger'&&binding.autoAssign){
           const direction=(gesture==='left'?-1:1)*(binding.reverseDirection?-1:1);
@@ -903,5 +912,5 @@
       url:action.settings?.url||'',mode:action.settings?.open||'default',browserPath:action.settings?.browserPath||''};
     return {kind:'unsupported',message:'이 동작의 실행 기능은 아직 구현되지 않았습니다.'};
   }
-  return {ACTION_IDS,D200X_ACTION_IDS,PLUGIN_ACTION_IDS,DEFAULTS,TITLE,SIDE_NAV_LABELS,SIDE_HOLD_MS,sideConfig,makeSideAction,sideActionConfig,sideFolderTargets,planSideNavigation,applySideNavigation,createSidePressTracker,createAction,cleanAction,cleanCompositeEntry,displaySwitchAction,compositeModel,planComposite,runComposite,blankPage,cleanWideDisplay,cycleWideDisplay,isWideDisplayPress,folderContents,folderPageCount,changeFolderPage,addFolderPage,deleteFolderPage,currentActions,visibleActions,togglePinned,activeFolder,enterFolder,exitFolder,migrateState,profileSnapshot,switchProfile,createProfile,renameProfile,exportSingleProfile,setProfileApp,matchForegroundProfile,deleteProfile,previewHardwareEvent,physicalSlot,hardwareGesture,resolveHardwareEvent,resolveKeyPress,planHardwareEvent,deletePage,planAction,emptyBinding,cleanBinding,controlAction,assignControlAction,automaticControl,ensureControls,controlBinding,changeControlScope};
+  return {ACTION_IDS,D200X_ACTION_IDS,PLUGIN_ACTION_IDS,DEFAULTS,TITLE,SIDE_NAV_LABELS,SIDE_HOLD_MS,sideConfig,makeSideAction,sideActionConfig,sideFolderTargets,planSideNavigation,applySideNavigation,createSidePressTracker,createAction,cleanAction,cleanCompositeEntry,displaySwitchAction,compositeModel,planComposite,runComposite,blankPage,cleanWideDisplay,cycleWideDisplay,isWideDisplayPress,folderContents,folderPageCount,changeFolderPage,addFolderPage,deleteFolderPage,currentActions,visibleActions,togglePinned,activeFolder,enterFolder,exitFolder,migrateState,profileSnapshot,switchProfile,createProfile,renameProfile,exportSingleProfile,setProfileApp,matchForegroundProfile,deleteProfile,previewHardwareEvent,physicalSlot,hardwareGesture,resolveHardwareEvent,resolveKeyPress,planHardwareEvent,deletePage,planAction,emptyBinding,cleanBinding,controlAction,activeControlAction,assignControlAction,automaticControl,ensureControls,controlBinding,changeControlScope};
 });
