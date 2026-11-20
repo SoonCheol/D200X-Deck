@@ -264,10 +264,7 @@ function displayItem(item,index){
   if(item?.type==='text'&&!item.settings?.stateTitles&&item.titleStyle?.visible!==false)
     return {...item,title:textActionDisplayTitle(item,item.title)};
   if(item?.type==='multi-switch')return DeckCore.displaySwitchAction(item);
-  if(item?.type==='timer'&&timerDeadlines.has(item)){
-    const remaining=Math.max(0,Math.ceil((timerDeadlines.get(item)-Date.now())/1000));
-    return {...item,title:(item.title?item.title+'\n':'')+remaining+'초'};
-  }
+
   if(item?.type==='sd-plugin'){
     // Resolve by physical slot, not object identity: the hardware renderer clones actions.
     const slot=Number.isInteger(index)?index:DeckCore.visibleActions(state).findIndex(x=>x===item);
@@ -314,7 +311,7 @@ function isMomentaryIconAction(item){
 }
 // A pair of state titles shares the preset library, not the individual style.
 function hasStateTitlePair(item){
-  return item?.type==='sd-plugin'||isMomentaryIconAction(item);
+  return item?.type==='sd-plugin'||item?.type==='timer'||isMomentaryIconAction(item);
 }
 // Text action labels are render-only; never copy the body into a stored title.
 function textActionDisplayTitle(item,title){
@@ -324,6 +321,7 @@ function textActionDisplayTitle(item,title){
   return Array.from(body.slice(0,512)).slice(0,256).join('');
 }
 function defaultStateTitlePair(item){
+  if(item?.type==='timer')return {first:{enabled:true,title:'',style:{...DEFAULT_TITLE_STYLE,...item.titleStyle}},second:{enabled:true,title:DeckCore.formatTimerTime(DeckCore.timerSeconds(item.settings?.seconds),item.settings?.seconds),style:{...DEFAULT_TITLE_STYLE,...item.titleStyle}}};
   return {
     first:{enabled:item.titleStyle?.visible!==false,title:item.title||'',style:{...DEFAULT_TITLE_STYLE,...item.titleStyle}},
     second:{enabled:false,title:item.title||'',style:{...DEFAULT_TITLE_STYLE,...item.titleStyle}}
@@ -371,6 +369,10 @@ function resolveStateTitle(item,second,artwork=null){
 function stateDisplayArtwork(item,index,momentary){
   const raw=DeckCore.visibleActions(state)[index]||item;
   const valid=icon=>icon?.kind==='file'&&typeof icon.value==='string';
+  if(raw?.type==='timer'){
+    const icons=raw.settings?.sdkStateIcons||{};
+    return {first:valid(icons.off)?icons.off:raw.icon,second:valid(icons.on)?icons.on:raw.icon,paired:isNamedStateIconPair(icons)};
+  }
   if(momentary){
     const icons=item.settings?.keyPressIcons||{};
     const up=valid(icons.up)?icons.up:item.icon;
@@ -387,8 +389,18 @@ function stateDisplayArtwork(item,index,momentary){
     paired:isNamedStateIconPair(icons),
     runtimeOnly:!valid(icons.off)&&!valid(icons.on)&&!raw.icon};
 }
+function resolveTimerVisual(item,second,remaining,artwork){
+  const pair=item.settings?.stateTitles||defaultStateTitlePair(item);
+  const prepared={...item,settings:{...item.settings,stateTitles:pair}};
+  const visual=resolveStateTitle(prepared,second,artwork);
+  return {...visual,title:second&&visual.titleStyle?.visible!==false?DeckCore.formatTimerTime(remaining,item.settings?.seconds):'',keyPressAlternate:true};
+}
 function displayKeyPressItem(item,index){
   const inspectorPreview=arguments[2]===true;
+  if(item?.type==='timer'&&Number.isInteger(index)&&index>=0&&index<13){
+    const runtime=activeActionTimers.get(DeckCore.runtimeActionKey(state,index,'down'));
+    return resolveTimerVisual(item,!!runtime,runtime?Math.max(0,Math.ceil((runtime.deadline-Date.now())/1000)):DeckCore.timerSeconds(item.settings?.seconds),stateDisplayArtwork(item,index,false));
+  }
   if(!isMomentaryIconAction(item)||!Number.isInteger(index)||index<0||index>=13){
     if(item?.type==='sd-plugin'){
       const raw=DeckCore.visibleActions(state)[index];
@@ -2708,7 +2720,7 @@ async function refreshStateTitleCards(item){
   root.dataset.stateCardVersion=version;
   for(const card of pair){
     const second=card.dataset.stateTitle==='second';
-    const titleVisual=resolveStateTitle(visual,second,artwork);
+    const titleVisual=item.type==='timer'?resolveTimerVisual(visual,second,DeckCore.timerSeconds(item.settings?.seconds),artwork):resolveStateTitle(visual,second,artwork);
     // State previews are snapshots, not a physical key-down effect.
     const img=card.querySelector('.sdk-state-preview');
     if(!img)continue;
@@ -2734,7 +2746,8 @@ function attachStateTitleControls(card,item,which){
   check.setAttribute('aria-label',(which==='first'?'첫 번째':'두 번째')+' 표시 속성 선택');
   const input=document.createElement('input');input.type='text';input.className='state-title-input';
   input.placeholder=item.type==='text'?'자동 제목':'제목';input.title=item.type==='text'?'제목을 비우면 입력 텍스트가 자동 표시됩니다. <br>로 강제 줄바꿈':'<br>로 강제 줄바꿈';input.setAttribute('aria-label',which==='first'?'제목 1':'제목 2');
-  input.maxLength=256;input.value=config.title;input.disabled=!config.enabled;
+  const timer=item.type==='timer',timerIdle=timer&&which==='first';
+  input.maxLength=256;input.value=timer?(timerIdle?'':DeckCore.formatTimerTime(DeckCore.timerSeconds(item.settings?.seconds),item.settings?.seconds)):config.title;input.readOnly=timer;input.disabled=timerIdle||!config.enabled;
   const styleButton=document.createElement('button');styleButton.type='button';
   styleButton.className='state-title-style';styleButton.textContent='T⌄';
   styleButton.title=(which==='first'?'제목 1':'제목 2')+' 글꼴 속성';
@@ -2751,7 +2764,7 @@ function attachStateTitleControls(card,item,which){
   check.addEventListener('change',()=>{
     const saved=ensureStateTitlePair(item)[which];
     saved.enabled=check.checked;
-    input.disabled=!check.checked;styleButton.disabled=!check.checked;
+    input.disabled=timerIdle||!check.checked;styleButton.disabled=timerIdle||!check.checked;
     if(!check.checked&&$('inspector').dataset.activeTitle===which){
       $('title-style-popover').hidden=true;
       styleButton.setAttribute('aria-expanded','false');
@@ -2759,24 +2772,25 @@ function attachStateTitleControls(card,item,which){
     persistInspectorChange();renderGrid();refreshTitlePreview(item);
   });
   input.addEventListener('input',()=>{
+    if(timer)return;
     const saved=ensureStateTitlePair(item)[which];
     saved.title=input.value;
     // The legacy title is a fallback for imported versions, not the active state title.
     persistInspectorChange();renderGrid();refreshTitlePreview(item);
   });
-  styleButton.disabled=!config.enabled;
+  styleButton.disabled=timerIdle||!config.enabled;
   row.append(check,input,styleButton);
   card.append(row);
 }
 function bindSdkStateIcons(root,item){
-  if(item.type!=='sd-plugin'||isMomentaryIconAction(item))return;
+  if(item.type!=='timer'&&(item.type!=='sd-plugin'||isMomentaryIconAction(item)))return;
   const panel=root.querySelector('[data-inspector-icons]');
   if(!panel)return;
   const draw=()=>{
     panel.replaceChildren();
     const cards=document.createElement('div');
     cards.className='sdk-state-icons';
-    for(const [key,label] of [['off','OFF'],['on','ON']]){
+    for(const [key,label] of (item.type==='timer'?[['off','대기 상태'],['on','실행 상태']]:[['off','OFF'],['on','ON']])){
       const group=document.createElement('div');group.className='sdk-state-icon';
       const heading=document.createElement('strong');heading.textContent=label;
       const image=document.createElement('div');image.className='sdk-state-preview';
@@ -3108,7 +3122,7 @@ const INSPECTOR_HELP={
   },
   timer:{
     title:'타이머',description:'정해진 지속 시간에 맞춰 타이머를 사용하고 소리를 설정합니다.',
-    steps:['지속 시간을 초 단위로 입력하고 사운드를 선택하세요.'],
+    steps:['시·분·초를 선택하고 알림음과 음량을 설정하세요.','아이콘 카드는 대기/실행 상태를 설정합니다. 실행 중에만 남은 시간이 표시됩니다.'],
     cautions:[]
   },
   'hotkey-switch':{
@@ -3176,6 +3190,49 @@ function appendInspectorHelp(head,item){
   if(test)head.insertBefore(trigger,test);else head.append(trigger);
 }
 let lastInspectorPreviewItem=null;
+
+function renderTimerSettings(item,root){
+  const area=document.createElement('div');area.className='timer-settings';
+  const durationRow=document.createElement('div');durationRow.className='timer-duration-row';
+  const label=document.createElement('label');label.textContent='지속 시간';durationRow.append(label);
+  const parts=[];
+  for(const [unit,max] of [['시',24],['분',59],['초',59]]){
+    const select=document.createElement('select');select.setAttribute('aria-label',unit);
+    for(let i=0;i<=max;i++)select.add(new Option(String(i).padStart(2,'0'),String(i)));
+    const suffix=document.createElement('span');suffix.textContent=unit;durationRow.append(select,suffix);parts.push(select);
+  }
+  const updateTitle=()=>{
+    const seconds=DeckCore.timerSeconds(item.settings.seconds),title=DeckCore.formatTimerTime(seconds,seconds);
+    const card=root.querySelector('.sdk-state-icon[data-state-title="second"] .state-title-input');if(card)card.value=title;
+    if(item.settings.stateTitles)item.settings.stateTitles.second.title=title;
+    persistInspectorChange();renderGrid();refreshTitlePreview(item);
+  };
+  const sync=()=>{const n=DeckCore.timerSeconds(item.settings.seconds);parts[0].value=String(Math.floor(n/3600));parts[1].value=String(Math.floor(n/60)%60);parts[2].value=String(n%60);for(const select of parts.slice(1))select.disabled=n===86400;};
+  for(const select of parts)select.addEventListener('change',()=>{const [h,m,s]=parts.map(x=>Number(x.value));item.settings.seconds=Math.max(1,Math.min(86400,h*3600+m*60+s));sync();updateTitle();});
+  sync();area.append(durationRow);
+  const soundRow=document.createElement('div');soundRow.className='timer-sound-row';
+  const soundLabel=document.createElement('label');soundLabel.textContent='알림음';
+  const sound=document.createElement('select');sound.title='내장 또는 사용자 지정 알림음';
+  for(const [id,name] of [['none','없음'],['connect','접속'],['disconnect','접속 끊김'],['release','접속 해제'],['find','찾기'],['other','기타'],['custom','사용자 지정']])sound.add(new Option(name,id));
+  sound.value=item.settings.sound||'connect';
+  if(!sound.value)sound.value='connect';
+  const btn=(name,glyph,fn)=>{const b=document.createElement('button');b.type='button';b.title=name;b.setAttribute('aria-label',name);b.textContent=glyph;b.addEventListener('click',fn);return b;};
+  const choose=btn('MP3/WAV 파일 선택','▱',async()=>{
+    try{const session=inspectorSession,path=await window.deckBridge?.choosePath('audio');if(!path||!inspectorTargetCurrent(session,item))return;if(!/\.(mp3|wav)$/i.test(path))throw Error('MP3 또는 WAV 파일을 선택하세요.');item.settings.soundFile=path;item.settings.sound='custom';sound.value='custom';persistInspectorChange();syncSound();}
+    catch(e){window.d200xActionStatus?.(String(e?.message||e));}
+  });
+  const listen=btn('미리듣기','▶',()=>playTimerAlert({...item.settings}));
+  const volume=btn('음량','♪',()=>{volumePanel.hidden=!volumePanel.hidden;if(!volumePanel.hidden)slider.focus();});
+  const volumePanel=document.createElement('div');volumePanel.className='timer-volume-popup';volumePanel.hidden=true;
+  const slider=document.createElement('input');slider.type='range';slider.min='0';slider.max='100';slider.value=String(timerVolume(item.settings));slider.setAttribute('aria-label','알림음 음량');
+  const amount=document.createElement('output');
+  const syncSound=()=>{choose.title=item.settings.soundFile||'MP3/WAV 파일 선택';sound.title=sound.value==='custom'?choose.title:'내장 알림음';listen.disabled=sound.value==='none'||sound.value==='custom'&&!item.settings.soundFile;volume.title='음량 '+timerVolume(item.settings)+'%';amount.textContent=timerVolume(item.settings)+'%';};
+  sound.addEventListener('change',()=>{item.settings.sound=sound.value;persistInspectorChange();syncSound();});
+  slider.addEventListener('input',()=>{item.settings.soundVolume=Number(slider.value);syncSound();persistInspectorChange();});
+  volumePanel.append(slider,amount);soundRow.append(soundLabel,sound,choose,listen,volume,volumePanel);area.append(soundRow);syncSound();
+  root.querySelector('.fields')?.append(area);
+}
+
 function renderInspector(){
   beginInspectorSession();
   inspectorListener.abort();inspectorListener=new AbortController();
@@ -3193,7 +3250,7 @@ function renderInspector(){
   if(!item){root.className="inspector empty";root.textContent=state.selected===null?"버튼을 선택하세요":"액션을 끌어 이 키에 놓으세요";
     if(inspectorSession?.dirty)appendInspectorSaveBar(root);return;}
   root.className="inspector action-layout-inspector"+(item.type==='hotkey-switch'?' hotkey-switch-inspector':'')+(item.type==='sd-plugin'?' sdk-plugin-inspector':'')+(hasStateTitlePair(item)?' state-title-inspector':'');
-  const action=ACTIONS.get(item.type),fields=actionFields(item);
+  const action=ACTIONS.get(item.type),fields=item.type==='timer'?'':actionFields(item);
   const sdkName=item.type==='sd-plugin'
     ?(item.settings?.actionUUID===HA_CUSTOM_ACTION?'Home Assistant 장치 제어':
       sdkActionNames.get(item.settings?.actionUUID)||item.settings?.actionName||item.settings?.actionUUID||'설치된 플러그인')
@@ -3342,6 +3399,7 @@ function renderInspector(){
       }
     });
   });
+  if(item.type==='timer')renderTimerSettings(item,root);
   if(['multi','multi-switch','random'].includes(item.type))renderMultiEditor(item,root);
   if(item.type==='logic')renderLogicEditor(item,root);
   if(item.type==='folder')renderFolderInspector(item,root);
@@ -3675,7 +3733,7 @@ async function executeMultiStep(action,signal,runtimeKey){
     }
     case 'timer':{
       if(signal?.aborted)throw new Error('복합 동작이 취소되었습니다.');
-      const timer=setTimeout(()=>playTimerChime(action.settings?.sound||'connect'),outcome.seconds*1000);
+      const timer=setTimeout(()=>void playTimerAlert(action.settings||{}),outcome.seconds*1000);
       signal?.addEventListener('abort',()=>clearTimeout(timer),{once:true});
       return true;
     }
@@ -3779,8 +3837,16 @@ function handleLogicGesture(action,index,gesture,preview){
   return null;
 }
 // Generated local tones: no external sound files, commands or dependencies.
-function playTimerChime(kind){
-  if(kind==='none')return;
+function timerVolume(settings){const raw=settings?.soundVolume;return Number.isFinite(raw)?Math.max(0,Math.min(100,raw)):100;}
+async function playTimerAlert(settings){
+  const volume=timerVolume(settings);if(!volume||settings.sound==='none')return;
+  try{if(settings.sound==='custom'){
+    if(!settings.soundFile)throw Error('사용자 알림음 파일을 선택하세요.');
+    const url=await window.deckBridge.audioFileUrl(settings.soundFile);const audio=new Audio(url);audio.volume=volume/100;await audio.play();
+  }else playTimerChime(settings.sound||'connect',volume);}catch(e){window.d200xActionStatus?.('타이머 알림음 실패: '+String(e?.message||e));}
+}
+function playTimerChime(kind,volume=100){
+  if(kind==='none'||volume<=0)return;
   const AudioContextClass=window.AudioContext||window.webkitAudioContext;
   if(!AudioContextClass)return;
   const context=new AudioContextClass();
@@ -3796,7 +3862,7 @@ function playTimerChime(kind){
       const start=context.currentTime+i*0.16;
       oscillator.type='sine';oscillator.frequency.value=freq;
       gain.gain.setValueAtTime(0.0001,start);
-      gain.gain.exponentialRampToValueAtTime(0.09,start+0.015);
+      gain.gain.exponentialRampToValueAtTime(Math.max(0.0001,0.09*volume/100),start+0.015);
       gain.gain.exponentialRampToValueAtTime(0.0001,start+0.14);
       oscillator.connect(gain);gain.connect(context.destination);
       oscillator.start(start);oscillator.stop(start+0.145);
@@ -4041,14 +4107,15 @@ function executeHardwareAction(event,preview=false,skipKnobGesture=false){
     if(held.consume){report('held-consumed');return null;}
     event=held.event;
   }
-  if(DeckCore.isWideDisplayPress(event)&&wideDisplayAvailable()){
+  const folderBackWide=state.folderPath?.length>0&&!DeckCore.currentActions(state)?.[13];
+  if(DeckCore.isWideDisplayPress(event)&&(wideDisplayAvailable()||folderBackWide)){
     // The merged key can report both halves of one physical press.
     // Ignore duplicate press packets, but do not affect other controls.
     const now=Date.now();
     if(!preview&&now-lastWideHardwarePress<240){report('wide-debounce');return null;}
     if(!preview)lastWideHardwarePress=now;
-    const mode=advanceWideDisplay();report('wide-switch',{status:mode});
-    return '가로 화면 전환: '+WIDE_LABELS[mode];
+    if(folderBackWide){event=DeckCore.folderWideBackEvent(state,event);report('wide-folder-back');}
+    else {const mode=advanceWideDisplay();report('wide-switch',{status:mode});return '가로 화면 전환: '+WIDE_LABELS[mode];}
   }
   const resolved=DeckCore.resolveHardwareEvent(state,event);
   if(!resolved){report('unresolved');return null;}
@@ -4220,27 +4287,28 @@ function executeHardwareAction(event,preview=false,skipKnobGesture=false){
     if(active){
       clearTimeout(active.handle);clearInterval(active.interval);
       activeActionTimers.delete(key);timerDeadlines.delete(active.action);
-      renderGrid();window.scheduleDeckSync?.();
+      renderGrid();void refreshSelectedVisual();window.scheduleDeckSync?.();
       return '타이머 중지';
     }
     const seconds=outcome.seconds;
     const action=resolved.action;
     const deadline=Date.now()+seconds*1000;
+    const soundSettings={...action.settings};
     timerDeadlines.set(action,deadline);
     const interval=setInterval(()=>{
       if(!activeActionTimers.has(key)){clearInterval(interval);return;}
       if(DeckCore.visibleActions(state).includes(action)){
         renderGrid();
-        if(Math.ceil((deadline-Date.now())/1000)%5===0)window.scheduleDeckSync?.();
+        void refreshSelectedVisual();window.scheduleDeckSync?.(0);
       }
     },1000);
     const handle=setTimeout(()=>{
       clearInterval(interval);activeActionTimers.delete(key);timerDeadlines.delete(action);
       renderGrid();window.scheduleDeckSync?.();
-      playTimerChime(action.settings?.sound||'connect');
+      void refreshSelectedVisual();void playTimerAlert(soundSettings);
       window.d200xActionStatus?.('타이머 '+seconds+'초 완료');
     },seconds*1000);
-    activeActionTimers.set(key,{handle,interval,action});renderGrid();window.scheduleDeckSync?.();
+    activeActionTimers.set(key,{handle,interval,action,deadline});renderGrid();void refreshSelectedVisual();window.scheduleDeckSync?.();
     return '타이머 '+seconds+'초 시작 · 다시 누르면 취소';
   }
   if(outcome.kind==='media-control'){
@@ -4705,7 +4773,7 @@ function renderIconLibrary(){
           if(libraryStateKey?.startsWith('press:')&&isMomentaryIconAction(target)){
             target.settings.keyPressIcons??={};
             target.settings.keyPressIcons[libraryStateKey.slice(6)]={kind:'file',value:png,packId:pack.id};
-          }else if(['off','on'].includes(libraryStateKey)&&target.type==='sd-plugin'){
+          }else if(['off','on'].includes(libraryStateKey)&&['sd-plugin','timer'].includes(target.type)){
             // Only an actual, same-directory OFF/ON pair may update both states.
             const companion=findIconCompanion(pack,icon);
             const pair=iconPairType(icon);
@@ -4841,7 +4909,7 @@ function bindIconControls(item){
     });
     host.addEventListener('pointerleave',release);
   }
-  const hasStateCards=isMomentaryIconAction(item)||(item.type==='sd-plugin'&&!isMomentaryIconAction(item));
+  const hasStateCards=hasStateTitlePair(item);
   if(hasStateCards){
     $("icon-library-open").remove();$("icon-menu-trigger").remove();$("icon-dropdown").remove();
     if(item.type==='sd-plugin'&&!isMomentaryIconAction(item)){

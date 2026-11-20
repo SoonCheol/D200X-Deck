@@ -198,16 +198,16 @@ function newAiReadSession(){
       // Constant expression only. No model-provided JavaScript or raw state transfer.
       return window.webContents.executeJavaScript(`(()=>{
         if(typeof state==='undefined')return null;
-        let items=state.pages?.[state.page],folder=null;
+        let items=state.pages?.[state.page],folder=null,route=[];
         for(const [depth,slot] of (state.folderPath||[]).entries()){
           folder=items?.[slot]||(depth===0?state.pinned?.[slot]:null);
           if(folder?.type!=='folder'){folder=null;break;}
           const p=Number.isInteger(folder.pageIndex)?folder.pageIndex:0;
-          items=p===0?folder.children:folder.pages?.[p-1];
+          route.push((slot+1)+':'+(p+1));items=p===0?folder.children:folder.pages?.[p-1];
         }
         return {profileNumber:(state.profileNames||[]).findIndex(p=>p.id===state.profileId)+1,
           page:state.page+1,folderSlots:(state.folderPath||[]).map(i=>i+1).slice(0,8),
-          folderPage:(folder?.pageIndex||0)+1,
+          folderPage:(folder?.pageIndex||0)+1,folderRoute:route.join('/')||null,
           selected:Number.isInteger(state.selected)?state.selected+1:null,
           dirty:Boolean(inspectorSession?.dirty),storageFailure:Boolean(profileStorageFailure)};
       })()`);
@@ -1488,12 +1488,12 @@ ipcMain.handle('d200x:clipboard-image', async event => {
 // Explicit user gesture only. Return a selected path; never open or execute it.
 ipcMain.handle('d200x:choose-path', async (event, kind) => {
   if (!window || event.sender !== window.webContents) return null;
-  if (!['file','folder','app'].includes(kind)) throw new Error('지원하지 않는 선택 유형');
+  if (!['file','folder','app','audio'].includes(kind)) throw new Error('지원하지 않는 선택 유형');
   const properties = kind === 'folder' ? ['openDirectory'] : ['openFile'];
   return openRememberedPicker({
-    title: kind === 'folder' ? '폴더 선택' : kind === 'app' ? '프로그램 선택' : '파일 선택',
+    title: kind === 'folder' ? '폴더 선택' : kind === 'app' ? '프로그램 선택' : kind === 'audio' ? '알림음 선택' : '파일 선택',
     properties,
-    ...(kind === 'app' ? {filters:[{name:'응용 프로그램',extensions:['exe','lnk','bat','cmd']},{name:'모든 파일',extensions:['*']}]} : {}),
+    ...(kind === 'app' ? {filters:[{name:'응용 프로그램',extensions:['exe','lnk','bat','cmd']},{name:'모든 파일',extensions:['*']}]} : kind==='audio'?{filters:[{name:'오디오 파일',extensions:['mp3','wav']}]}:{}),
   },kind);
 });
 

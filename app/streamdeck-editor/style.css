@@ -1097,3 +1097,13 @@
 .ordered-multi-dialog .hotkey-choices{display:flex;flex-wrap:wrap;gap:4px}
 .ordered-hotkey-value{display:flex;justify-content:space-between;gap:8px;padding:6px;border:1px solid #555;border-radius:4px;white-space:nowrap}
 .ordered-hotkey-value small{color:#999}
+
+.timer-settings{display:flex;flex-direction:column;gap:6px;min-width:0}
+.timer-duration-row,.timer-sound-row{display:flex;align-items:center;gap:4px;white-space:nowrap;position:relative;min-width:0}
+.timer-duration-row>label,.timer-sound-row>label{flex:0 0 58px;min-width:0;white-space:nowrap}
+.timer-duration-row>select{width:48px;min-width:48px;flex:0 0 48px;background:#353535;color:inherit;border:1px solid #555;border-radius:4px;padding:4px}
+.timer-sound-row>select{min-width:0;flex:1;background:#353535;color:inherit;border:1px solid #555;border-radius:4px;padding:4px}
+.timer-sound-row>button{width:28px;min-width:28px;height:28px;background:#353535;color:inherit;border:1px solid #555;border-radius:4px}
+.timer-volume-popup{position:absolute;right:0;top:100%;z-index:12;background:#333;border:1px solid #666;border-radius:4px;padding:8px;display:flex;gap:6px;align-items:center}
+.timer-volume-popup[hidden]{display:none}
+.timer-volume-popup input{width:100px}

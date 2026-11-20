@@ -279,7 +279,8 @@ function createReader({root,userData,view,device,inputs,evidence=()=>[],version=
         }
         else if(a.section==='empty_slots'){
           state??=await readState();
-          result={...emptySlots(state),liveView:await view().catch(()=>null)};
+          const inventory=emptySlots(state),liveView=await view().catch(()=>null);
+           result={...inventory,liveView,scopeMatches:liveView?liveView.page===inventory.currentPage&&(liveView.folderRoute||null)===(inventory.currentFolder?.folder||null)&&!liveView.dirty&&!liveView.storageFailure:null};
         }
         else if(a.section==='plugin_templates'){
           state??=await readState();

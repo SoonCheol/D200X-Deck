@@ -13,3 +13,13 @@ test('abort during row pre-delay prevents action execution',async()=>{
  const m=Core.createAction('multi'),controller=new AbortController();Core.setMultiRows(m,[{step:Core.createAction('hotkey'),ms:100}],0);
  let executed=false;await assert.rejects(Core.runComposite(m,{signal:controller.signal,wait:async()=>controller.abort(),execute:async()=>{executed=true;}}));assert.equal(executed,false);
 });
+
+test('timer time formatting keeps configured display family through final second',()=>{
+ assert.equal(Core.formatTimerTime(30,30),'30초');assert.equal(Core.formatTimerTime(1,30),'1초');
+ assert.equal(Core.formatTimerTime(60,60),'00:01:00');assert.equal(Core.formatTimerTime(1,60),'00:00:01');assert.equal(Core.formatTimerTime(86400,86400),'24:00:00');
+});
+test('both wide halves alias only the reserved empty folder back slot',()=>{
+ const s=Core.migrateState({pages:[Array(14).fill(null)]});s.pages[0][0]=Core.createAction('folder');Core.enterFolder(s,0);
+ for(const index of [13,14])assert.equal(Core.planHardwareEvent(s,{kind:1,index,state:1,pressed:true}).outcome.kind,'folder-back');
+ Core.currentActions(s)[13]=Core.createAction('hotkey');assert.equal(Core.resolveHardwareEvent(s,{kind:1,index:14,state:1,pressed:true}),null);
+});

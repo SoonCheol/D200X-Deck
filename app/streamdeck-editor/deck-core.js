@@ -19,7 +19,7 @@
   const PLUGIN_ACTION_IDS=['ha-toggle','sd-plugin'];
   const DEFAULTS={
     'audio-play':{file:'',mode:'play-stop',fade:'none',fadeDuration:2,volume:50,output:'default'},
-    'audio-stop':{},timer:{seconds:30,sound:'connect'},
+    'audio-stop':{},timer:{seconds:30,sound:'connect',soundFile:'',soundVolume:100},
     brightness:{mode:'up'},sleep:{},virtual:{},
     multi:{},'multi-switch':{activeState:0},random:{},logic:{},
     website:{url:'',open:'default',browserPath:''},'hotkey-switch':{first:'',second:''},
@@ -135,6 +135,12 @@
     }
     return base;
   }
+  function timerSeconds(value){return Math.max(1,Math.min(86400,Math.round(Number(value)||30)));}
+  function formatTimerTime(remaining,configured){
+    const seconds=Math.max(0,Math.min(86400,Math.ceil(Number(remaining)||0)));
+    if(timerSeconds(configured)<60)return seconds+'초';
+    return [Math.floor(seconds/3600),Math.floor(seconds/60)%60,seconds%60].map(n=>String(n).padStart(2,'0')).join(':');
+  }
   function displaySwitchAction(action){
     if(!action||action.type!=='multi-switch')return action;
     const state=action.settings?.activeState===1?1:0;
@@ -163,7 +169,8 @@
       for(const step of steps)if(step?.type)rows.push({step,ms:multiMs(step.settings?.multiBeforeMs)});
       return {rows,tail:multiMs(action.settings.multiTrailingMs)};
     }
-    const gap=Math.max(2,Math.min(200,Number(action?.settings?.nextActionMs)||100));
+    const configuredGap=Math.max(2,Math.min(200,Number(action?.settings?.nextActionMs)||100));
+    const gap=Number.isInteger(configuredGap)?configuredGap:0;
     let before=0,previous=null;
     for(const step of steps){
       if(step?.kind==='delay')before+=multiMs(step.ms);
@@ -769,8 +776,14 @@
     if(Number(event.kind)!==1)return null;
     return event.pressed===true?'down':event.pressed===false?'up':null;
   }
+  // Alias both wide halves ONLY for the unoccupied reserved folder-back key.
+  function folderWideBackEvent(state,event){
+    if(!(state?.folderPath||[]).length||currentActions(state)?.[13]||!isWideDisplayPress(event))return event;
+    return {...event,index:13,kind:1,state:1,pressed:true};
+  }
   function resolveHardwareEvent(state,event){
     if(!state||!Array.isArray(state.pages)||!Number.isInteger(state.page))return null;
+    event=folderWideBackEvent(state,event);
     const index=physicalSlot(event),gesture=hardwareGesture(event);
     if(index===null||!gesture)return null;
     const knob=index>=16;
@@ -909,7 +922,7 @@
       return {kind:'device-brightness',direction:mode==='down'?-1:1,count:5};
     }
     if(action.type==='media')return {kind:'media-control',operation:action.settings?.op||'playpause'};
-    if(action.type==='timer')return {kind:'timer',seconds:Math.max(1,Math.min(86400,Number(action.settings?.seconds)||30))};
+    if(action.type==='timer')return {kind:'timer',seconds:timerSeconds(action.settings?.seconds)};
     if(action.type==='audio-play')return {kind:'audio-play',
       file:String(action.settings?.file||''),mode:action.settings?.mode||'play-stop',
       volume:Math.max(0,Math.min(100,Number(action.settings?.volume)||0)),
@@ -983,5 +996,5 @@
       url:action.settings?.url||'',mode:action.settings?.open||'default',browserPath:action.settings?.browserPath||''};
     return {kind:'unsupported',message:'이 동작의 실행 기능은 아직 구현되지 않았습니다.'};
   }
-  return {ACTION_IDS,D200X_ACTION_IDS,PLUGIN_ACTION_IDS,DEFAULTS,TITLE,SIDE_NAV_LABELS,SIDE_HOLD_MS,sideConfig,makeSideAction,sideActionConfig,sideFolderTargets,planSideNavigation,applySideNavigation,createSidePressTracker,createAction,cleanAction,cleanCompositeEntry,displaySwitchAction,compositeModel,planComposite,runComposite,multiRows,setMultiRows,blankPage,cleanWideDisplay,cycleWideDisplay,isWideDisplayPress,folderContents,folderPageCount,changeFolderPage,addFolderPage,deleteFolderPage,currentActions,visibleActions,togglePinned,activeFolder,enterFolder,exitFolder,migrateState,profileSnapshot,switchProfile,createProfile,renameProfile,exportSingleProfile,setProfileApp,matchForegroundProfile,deleteProfile,previewHardwareEvent,physicalSlot,hardwareGesture,resolveHardwareEvent,runtimeActionKey,resolveKeyPress,planHardwareEvent,deletePage,planAction,emptyBinding,cleanBinding,controlAction,activeControlAction,assignControlAction,automaticControl,ensureControls,controlBinding,changeControlScope};
+  return {ACTION_IDS,D200X_ACTION_IDS,PLUGIN_ACTION_IDS,DEFAULTS,TITLE,SIDE_NAV_LABELS,SIDE_HOLD_MS,sideConfig,makeSideAction,sideActionConfig,sideFolderTargets,planSideNavigation,applySideNavigation,createSidePressTracker,createAction,cleanAction,cleanCompositeEntry,timerSeconds,formatTimerTime,displaySwitchAction,compositeModel,planComposite,runComposite,multiRows,setMultiRows,blankPage,cleanWideDisplay,cycleWideDisplay,isWideDisplayPress,folderContents,folderPageCount,changeFolderPage,addFolderPage,deleteFolderPage,currentActions,visibleActions,togglePinned,activeFolder,enterFolder,exitFolder,migrateState,profileSnapshot,switchProfile,createProfile,renameProfile,exportSingleProfile,setProfileApp,matchForegroundProfile,deleteProfile,previewHardwareEvent,physicalSlot,hardwareGesture,resolveHardwareEvent,runtimeActionKey,folderWideBackEvent,resolveKeyPress,planHardwareEvent,deletePage,planAction,emptyBinding,cleanBinding,controlAction,activeControlAction,assignControlAction,automaticControl,ensureControls,controlBinding,changeControlScope};
 });

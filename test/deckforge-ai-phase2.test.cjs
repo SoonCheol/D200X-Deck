@@ -148,3 +148,12 @@ test('known Fusion ID on another page uses one inventory call, one proposal, thr
     }});
   assert.equal(result.requests,3);assert.equal(result.toolCalls,2);assert.equal(proposals,1);
 });
+
+test('empty inventory keeps current nested folder slots distinct from root slots',()=>{
+ const s=fixture();s.pages=[empty()];s.page=0;
+ const folder={type:'folder',children:empty(),pages:[],pageIndex:0};folder.children[2]={type:'hotkey'};
+ s.pages[0][1]=folder;s.folderPath=[1];
+ const result=emptySlots(s);
+ assert.equal(result.currentFolder.folder,'2:1');assert.equal(result.currentFolder.slots.includes(3),false);
+ assert.equal(result.currentFolder.slots.includes(4),true);
+});
