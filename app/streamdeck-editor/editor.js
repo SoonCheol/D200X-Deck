@@ -449,11 +449,32 @@ function newAction(id){
 }
 function currentPage(){return DeckCore.currentActions(state);}
 function reservedWideSlot(index){return index===13;}
+function sideDropConfig(id,item=null){
+  if(id==='folder')return {navigation:'folder-target',rootPage:-1,route:[]};
+  if(!['previous','next','goto','profile','side-nav'].includes(id))return null;
+  return DeckCore.sideConfig(item||newAction(id));
+}
+function assignSideControl(index,gesture,config,draft=false){
+  const binding=DeckCore.controlBinding(state,index);
+  if(!binding||!['down','hold'].includes(gesture))return false;
+  if(gesture==='down'){
+    clearOldSdkVisual(index);
+    binding.down=DeckCore.makeSideAction(config);
+  }else binding.sideHold=config.navigation==='none'?null:DeckCore.makeSideAction(config);
+  if(draft){persistInspectorChange();renderPhysicalControls();renderControlInspector();}
+  else {state.selected=index;controlGesture='down';persist();render();}
+  return true;
+}
 function setItem(index,item){
   if(inspectorSession?.dirty){showInspectorLeaveDialog(()=>setItem(index,item));return;}
   if(reservedWideSlot(index)){
     window.d200xActionStatus?.('가로 화면은 표시 모드 전용입니다. 일반 액션을 등록할 수 없습니다.');
     state.selected=index;render();return;
+  }
+  if(index===14||index===15){
+    const config=item?sideDropConfig(item.type,item):{navigation:'none'};
+    if(!config){window.d200xActionStatus?.('측면 단추에는 페이지·프로필·덱폴더 이동만 등록할 수 있습니다.');return;}
+    assignSideControl(index,'down',config);return;
   }
   if(index>=14){
     const binding=DeckCore.controlBinding(state,index);
@@ -480,6 +501,10 @@ function removeSlotAction(index){
   return true;
 }
 function removeControlAction(index,gesture='down'){
+  if(index===14||index===15){
+    if(!confirm('이 입력에 할당된 액션을 삭제하시겠습니까?'))return false;
+    return assignSideControl(index,gesture,{navigation:'none'});
+  }
   const binding=DeckCore.controlBinding(state,index);
   if(!binding||!binding[gesture])return false;
   if(!confirm('이 입력에 할당된 액션을 삭제하시겠습니까?'))return false;
@@ -496,12 +521,17 @@ function showControlMenu(index,x,y){
   const option=document.createElement('button');
   option.type='button';option.role='menuitem';
   option.textContent='누르기 액션 삭제';
-  option.disabled=!item;
+  option.disabled=index<16?DeckCore.sideActionConfig(binding,index).navigation==='none':!item;
   option.addEventListener('click',()=>{
     menu.hidden=true;
     removeControlAction(index,'down');
   });
   menu.append(option);
+  if(index<16){
+    const held=document.createElement('button');held.type='button';held.role='menuitem';
+    held.textContent='길게 누르기 액션 삭제';held.disabled=DeckCore.sideActionConfig(binding,index,'hold').navigation==='none';
+    held.addEventListener('click',()=>{menu.hidden=true;removeControlAction(index,'hold');});menu.append(held);
+  }
   menu.style.left=Math.max(0,Math.min(x,window.innerWidth-230))+'px';
   menu.style.top=Math.max(0,Math.min(y,window.innerHeight-150))+'px';
   menu.hidden=false;
@@ -517,6 +547,11 @@ function controlDrop(index,id,gesture='down',direct=true){
   if(inspectorSession?.dirty){showInspectorLeaveDialog(()=>controlDrop(index,id,gesture,direct));return;}
   const binding=DeckCore.controlBinding(state,index);
   if(!binding)return;
+  if(index===14||index===15){
+    const config=sideDropConfig(id);
+    if(!config){window.d200xActionStatus?.('측면 단추에는 페이지·프로필·덱폴더 이동만 등록할 수 있습니다.');return;}
+    assignSideControl(index,gesture==='hold'?'hold':'down',config);return;
+  }
   if(index>=16&&!direct&&((knobTab==='held'&&!binding.heldEnabled)||(gesture==='down'&&binding.heldEnabled)||((knobTab==='held'?binding.heldMode:binding.mode)==='stack')))return;
   clearOldSdkVisual(index,({'holdLeft':'hold-left','holdRight':'hold-right'})[gesture]||gesture);
   if(index>=16&&direct&&gesture==='down'&&['system-volume','system-scroll','edit-history','window-switch','desktop-switch','device-brightness','system-zoom'].includes(id)){
@@ -792,7 +827,28 @@ function renderPhysicalControls(){
     label.textContent=(binding?.mode==='adjust'||(binding?.mode==='trigger'&&binding?.autoAssign))?'조절: '+({page:'페이지',profile:'프로필',volume:'음량',zoom:'확대/축소',scroll:'세로 스크롤','scroll-x':'가로 스크롤',history:'실행 취소·다시 실행',window:'창 전환',desktop:'가상 데스크톱',brightness:'기기 밝기'}[binding.target])
       :binding?.mode==='stack'?'스택: '+({page:'페이지',volume:'음량',zoom:'확대/축소',scroll:'세로 스크롤','scroll-x':'가로 스크롤',history:'실행 취소·다시 실행',window:'창 전환',desktop:'가상 데스크톱',brightness:'기기 밝기'}[binding.stack[stackPositions[offset-2]%binding.stack.length]])
       :(item?keyName(item):name);
-    button.append(symbol,label);
+    const heldLabel=document.createElement("span");heldLabel.className="physical-held-name";
+    if(kind==='side'){
+      const normal=DeckCore.sideActionConfig(binding,index),held=DeckCore.sideActionConfig(binding,index,'hold');
+      label.textContent=normal.navigation==='none'?'':DeckCore.SIDE_NAV_LABELS[normal.navigation];
+      heldLabel.textContent=held.navigation==='none'?'':DeckCore.SIDE_NAV_LABELS[held.navigation];
+    }else{
+      const labels=[];
+      if(binding?.heldEnabled&&binding.heldMode==='stack'){
+        const stack=binding.heldStack||[];
+        if(stack.length)labels.push(KNOB_TARGET_LABELS[stack[stackPositions[offset-2]%stack.length]]);
+      }else{
+        for(const gesture of ['holdLeft','holdRight']){
+          const a=DeckCore.controlAction(binding,gesture);
+          if(a)labels.push(ACTIONS.get(a.type)?.label||keyName(a));
+          else if(binding?.heldEnabled&&binding.heldAutoAssign)labels.push(KNOB_TARGET_LABELS[binding.heldTarget]);
+        }
+      }
+      heldLabel.textContent=[...new Set(labels.filter(Boolean))].join(' / ');
+    }
+    if(heldLabel.textContent)button.title+='\n'+heldLabel.textContent;
+    button.setAttribute('aria-label',[name,label.textContent,heldLabel.textContent].filter(Boolean).join(' — '));
+    button.append(symbol,label,heldLabel);
     button.addEventListener("click",()=>choose(index));
     button.addEventListener("contextmenu",event=>{
       event.preventDefault();
@@ -2147,6 +2203,59 @@ document.addEventListener('click',event=>{
 let inspectorListener=new AbortController();
 // Physical controls use a dedicated compact inspector instead of pretending
 // each knob has a single key. Drag to an individual gesture or click it to edit.
+function renderSideBindings(root,index,binding){
+  for(const [gesture,title] of [['down','짧게 누르기'],['hold','길게 누르기']]){
+    const config=DeckCore.sideActionConfig(binding,index,gesture);
+    const row=document.createElement('div');row.className='control-config';
+    const label=document.createElement('label');label.textContent=title;
+    const choice=document.createElement('select');choice.setAttribute('aria-label',title);
+    for(const [value,name] of Object.entries(DeckCore.SIDE_NAV_LABELS))choice.add(new Option(name,value));
+    choice.value=config.navigation;
+    const chooseConfig=navigation=>{
+      const next={navigation};
+      if(navigation==='goto')next.page=config.navigation==='goto'?config.page:(DeckCore.activeFolder(state)?.pageIndex??state.page);
+      if(navigation==='profile-select')next.profile=config.navigation==='profile-select'?config.profile:state.profileId;
+      if(navigation==='folder-target'){
+        next.rootPage=config.navigation==='folder-target'?config.rootPage:-1;
+        next.route=config.navigation==='folder-target'?config.route:[];
+      }
+      return next;
+    };
+    choice.addEventListener('change',()=>assignSideControl(index,gesture,chooseConfig(choice.value),true));
+    const test=document.createElement('button');test.type='button';test.className='action-preview-test';test.textContent='▶';
+    test.setAttribute('aria-label',title+' 실행 테스트');test.dataset.blocked=String(config.navigation==='none');
+    test.addEventListener('click',()=>runActionPreview(gesture));row.append(label,choice,test);root.append(row);
+    const raw=gesture==='down'?binding.down:binding.sideHold;
+    if(raw&&config.navigation==='none'&&raw.type!=='side-nav'){
+      const note=document.createElement('div');note.className='hint';note.textContent='기존 비탐색 액션은 보존되어 있으나 측면 단추에서 실행하지 않습니다.';root.append(note);
+    }
+    if(!['goto','profile-select','folder-target'].includes(config.navigation))continue;
+    const targetRow=document.createElement('div');targetRow.className='control-config';
+    const targetLabel=document.createElement('label');targetLabel.textContent='대상';
+    const targetChoice=document.createElement('select');targetChoice.setAttribute('aria-label',title+' 대상');
+    let options,selected;
+    if(config.navigation==='goto'){
+      const count=DeckCore.activeFolder(state)?DeckCore.folderPageCount(state):state.pages.length;
+      options=Array.from({length:count},(_,i)=>[String(i),String(i+1)+' 페이지']);selected=String(config.page);
+    }else if(config.navigation==='profile-select'){
+      options=state.profileNames.map(x=>[x.id,x.name]);selected=config.profile;
+    }else{
+      options=DeckCore.sideFolderTargets(state).map(x=>[JSON.stringify([x.rootPage,x.route]),x.label]);
+      selected=JSON.stringify([config.rootPage,config.route]);
+    }
+    if(!options.some(x=>x[0]===selected))targetChoice.add(new Option('대상 없음 또는 삭제됨',selected));
+    for(const [value,name] of options)targetChoice.add(new Option(name,value));
+    targetChoice.value=selected;
+    targetChoice.addEventListener('change',()=>{
+      const next={...config};
+      if(config.navigation==='goto')next.page=Number(targetChoice.value);
+      else if(config.navigation==='profile-select')next.profile=targetChoice.value;
+      else [next.rootPage,next.route]=JSON.parse(targetChoice.value);
+      assignSideControl(index,gesture,next,true);
+    });
+    targetRow.append(targetLabel,targetChoice);root.append(targetRow);
+  }
+}
 function renderControlInspector(){
   beginInspectorSession();
   const root=$("inspector"),index=state.selected,offset=index-14;
@@ -2213,7 +2322,10 @@ function renderControlInspector(){
     });
     scopeRow.append(modeLabel,mode);
   }
-  if(!knob)root.append(scopeRow);
+  if(!knob){
+    root.append(scopeRow);renderSideBindings(root,index,binding);
+    appendInspectorSaveBar(root);updateInspectorSaveButtons();return;
+  }
   if(knob){
     const settings=document.createElement('div');settings.className='knob-settings';
     scopeRow.classList.add('knob-settings-row');settings.append(scopeRow);
@@ -3495,6 +3607,10 @@ const lastHardwareDown=new Map();
 function runActionPreview(gesture='down'){
   const index=state.selected;
   if(!Number.isInteger(index)||index<0||index>18)return;
+  if(index===14||index===15){
+    const result=executeSideNavigation(index,gesture==='hold'?'hold':'down',null);
+    window.d200xActionStatus?.(result||'등록된 동작이 없어 실행하지 않았습니다.');return;
+  }
   const event=DeckCore.previewHardwareEvent(index,gesture);
   if(!event)return;
   const result=executeHardwareAction(event,true);
@@ -3574,6 +3690,61 @@ function tracedPhysicalDispatch(event){
   try{const result=executeHardwareAction(event);reportInputEvidence(event,'dispatch-return',{handled:!!result});return result;}
   catch(error){reportInputEvidence(event,'dispatch-throw');throw error;}
 }
+const sidePressTracker=DeckCore.createSidePressTracker(),sidePressTimers=new Map();
+window.clearD200XSidePresses=()=>{
+  for(const timer of sidePressTimers.values())clearTimeout(timer);
+  sidePressTimers.clear();sidePressTracker.clear();
+};
+function invalidateSidePresses(){
+  for(const timer of sidePressTimers.values())clearTimeout(timer);
+  sidePressTimers.clear();sidePressTracker.invalidate();
+}
+function sidePressContext(index){
+  const b=DeckCore.controlBinding(state,index);
+  return JSON.stringify([openAppHoldScope(),DeckCore.sideActionConfig(b,index),DeckCore.sideActionConfig(b,index,'hold')]);
+}
+function executeSideNavigation(index,gesture,event){
+  const outcome=DeckCore.planSideNavigation(state,index,gesture);
+  if(!outcome)return null;
+  reportInputEvidence(event,'planned',{outcome:outcome.kind});
+  if(outcome.kind==='invalid')return outcome.message;
+  if(inspectorSession?.dirty){
+    reportInputEvidence(event,'unsaved-block');
+    showInspectorLeaveDialog(()=>executeSideNavigation(index,gesture,event));
+    return '저장하지 않은 변경 사항 확인';
+  }
+  cancelFolderAutoExit();
+  const config=DeckCore.sideActionConfig(DeckCore.controlBinding(state,index),index,gesture);
+  if(!DeckCore.applySideNavigation(state,outcome))return '이동할 대상이 없습니다.';
+  lastHardwareDown.clear();persist();render();
+  return DeckCore.SIDE_NAV_LABELS[config.navigation];
+}
+function handleSideNavigationInput(index,gesture,event,preview){
+  if(preview)return gesture==='down'?executeSideNavigation(index,'down',event):null;
+  const binding=DeckCore.controlBinding(state,index);
+  const hasHold=DeckCore.sideActionConfig(binding,index,'hold').navigation!=='none';
+  const context=sidePressContext(index);
+  const decision=sidePressTracker.input(index,gesture,hasHold,context,Date.now());
+  if(gesture==='up'){
+    clearTimeout(sidePressTimers.get(index));sidePressTimers.delete(index);
+    if(!decision)reportInputEvidence(event,'release');
+  }
+  if(decision==='wait'){
+    reportInputEvidence(event,'hold');
+    const timer=setTimeout(()=>{
+      sidePressTimers.delete(index);
+      const action=sidePressTracker.input(index,'timeout',true,sidePressContext(index),Date.now());
+      if(action==='hold'){
+        const result=executeSideNavigation(index,'hold',event);
+        if(result)window.d200xActionStatus?.(result);
+      }
+    },DeckCore.SIDE_HOLD_MS);
+    sidePressTimers.set(index,timer);
+    return '측면 단추 누름 대기';
+  }
+  if(decision)return executeSideNavigation(index,decision,event);
+  return null;
+}
 function executeHardwareAction(event,preview=false,skipKnobGesture=false){
   const report=(stage,fields={})=>reportInputEvidence(event,stage,fields);
   const observe=(promise,kind)=>observeInputEvidence(event,promise,kind);
@@ -3608,6 +3779,7 @@ function executeHardwareAction(event,preview=false,skipKnobGesture=false){
   const gestureKey=({'hold-left':'holdLeft','hold-right':'holdRight'})[resolved.gesture]||resolved.gesture;
   const bindingAction=index>=16&&['left','right','holdLeft','holdRight'].includes(gestureKey)?DeckCore.controlAction(resolved.binding,gestureKey):resolved.action;
   report('resolved',{slot:index,gesture:resolved.gesture,action:bindingAction?.type});
+  if(index===14||index===15)return handleSideNavigationInput(index,resolved.gesture,event,preview);
   if(!preview&&['down','up'].includes(resolved.gesture)&&
     (openAppHoldTimers.has(index)||(resolved.action?.type==='open-app'&&
       ['close','force'].includes(resolved.action.settings?.hold))))
@@ -4045,7 +4217,7 @@ window.executeD200XKey=tracedPhysicalDispatch;
 let refreshProfilesMenu=()=>{};
 function render(){
   const scope=openAppHoldScope();
-  if(scope!==lastOpenAppHoldScope){clearOpenAppHoldTimers('navigation');lastOpenAppHoldScope=scope;}
+  if(scope!==lastOpenAppHoldScope){clearOpenAppHoldTimers('navigation');invalidateSidePresses();lastOpenAppHoldScope=scope;}
   previewPressKeys.clear();renderGrid();renderInspector();refreshProfilesMenu();scheduleSdkSync();
 }
 

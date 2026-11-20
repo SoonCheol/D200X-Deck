@@ -1053,3 +1053,11 @@
 
 /* Independent AI launcher only; existing editor grid and inspector unchanged. */
 .ai-launch-row{padding:0 14px 8px}.ai-launch-row button{width:100%;background:#353535;border:1px solid #515151;border-radius:5px;padding:7px 10px;font:inherit;color:#e6e6e6}.ai-launch-row button:hover{background:#444}
+
+/* Two labels fit inside the original physical-control height. The original
+   knob diameter + 3px gap + 4px vertical padding + one 10px text line
+   defines the unchanged outer geometry at every viewport height. */
+.physical-control{font-size:10px;line-height:normal;height:calc(clamp(26px,4.3dvh,35px) + 7px + 1lh);padding:0;gap:0}
+.physical-control .physical-symbol{flex-shrink:0}
+.physical-control .physical-name{line-height:10px;flex-shrink:0}
+.physical-control .physical-held-name{display:block;max-width:100%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:9px;line-height:9px;color:#89909b;flex-shrink:0;height:9px}

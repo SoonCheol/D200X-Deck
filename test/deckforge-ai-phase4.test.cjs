@@ -96,3 +96,11 @@ test('read/edit preferences default off, persist, and keep edit dependent on rea
  const send=panel.slice(panel.indexOf("$('send').onclick="),panel.indexOf('function describeEdit'));
  assert.ok(!send.includes("checked=false"));
 });
+
+test('AI side control proposals cannot assign non-navigation actions',()=>{
+  const s=fixture();
+  assert.throws(()=>A.makePlan(s,req('control',{gesture:'down',action:{type:'hotkey',value:'Ctrl+C'}},{slot:1})));
+  const change=A.makePlan(s,req('control',{gesture:'sideHold',action:{type:'previous',value:null}},{slot:1})).next;
+  assert.equal(change.controls.global[0].sideHold.type,'previous');
+  assert.throws(()=>A.makePlan(s,req('control',{gesture:'sideHold',action:{type:'previous',value:null}},{slot:3})));
+});

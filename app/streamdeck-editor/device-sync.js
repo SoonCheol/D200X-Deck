@@ -27,6 +27,7 @@
     online = Boolean(status?.connected);
     if(!online){
       window.clearD200XOpenAppHolds?.('hid-disconnect');
+      window.clearD200XSidePresses?.();
       window.clearD200XWarningPresses?.();
       pressedKeys.clear();
       for(const timer of releaseTimers.values())clearTimeout(timer);

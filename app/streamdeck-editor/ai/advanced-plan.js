@@ -5,7 +5,7 @@
   else root.DeckForgeAiAdvanced=factory(root.DeckCore,root.DeckHotkeys,root.DeckForgeAiPlan);
 })(globalThis,(Core,Hotkeys,Basic)=>{
   const KINDS=['folder_keys','folder_page','folder_settings','control','wide','composite','state_design','plugin'];
-  const TOOL={type:'function',name:'propose_advanced',strict:true,description:'Stage ONE advanced preview, never save. Active profile, page 1-based (null=current), folder route "2:1/3:2" means slot:folder-page (null=root; folder kinds require route); slot 1–13 except control 1–5 (side first/back, knobs 1–3). configJson is JSON object string: folder_keys {keys:[{slot,op:"put"|"update"|"delete",type?,value?,title?}]} max8; folder_page {}; folder_settings {title?,autoExitEnabled?,autoExitSeconds?}; control {scope?:"global"|"page",mode?:"trigger"|"stack",target?,step?:1|2|5|10,reverse?,stack?:[targets],heldEnabled?,heldMode?,heldTarget?,heldStep?,heldReverse?,heldStack?,gesture?:"down"|"left"|"right"|"holdLeft"|"holdRight",action?:{type,value,title}|null}; targets page/profile/volume/zoom/scroll/scroll-x/history/window/desktop/brightness. wide {enabled:[clock|datetime|stats|knobs],order?:[all four],current?}. composite {type:"multi"|"multi-switch"|"random"|"logic",title?,steps?:[{type,value,title}],second?:[steps],single?:step,double?:step,hold?:step}; delay type value milliseconds string. state_design {first?:{title?,enabled?,size?,color?,bold?,background?,iconName?,iconPack?},second?:same}. plugin {kind:"ha"|"sdk-ha"|"fusion",id,title?}; ha verify REST entity; sdk-ha/fusion reuse verified registered template from inspect plugin_templates. For simple steps use hotkey,previous,next,indicator,goto,clipboard-edit,media,system-mute,explorer-open; folder_keys also folder/open-app/file-open/folder-shortcut (verified Start Apps AppID or user-supplied local path). No paths or arbitrary settings. Existing protected actions cannot be deleted/replaced. One operation kind per proposal; user applies locally.',parameters:{type:'object',properties:{kind:{type:'string',enum:KINDS},page:{type:['integer','null']},folder:{type:['string','null']},slot:{type:['integer','null']},configJson:{type:'string'}},required:['kind','page','folder','slot','configJson'],additionalProperties:false}};
+  const TOOL={type:'function',name:'propose_advanced',strict:true,description:'Stage ONE advanced preview, never save. Active profile, page 1-based (null=current), folder route "2:1/3:2" means slot:folder-page (null=root; folder kinds require route); slot 1–13 except control 1–5 (side first/back, knobs 1–3). configJson is JSON object string: folder_keys {keys:[{slot,op:"put"|"update"|"delete",type?,value?,title?}]} max8; folder_page {}; folder_settings {title?,autoExitEnabled?,autoExitSeconds?}; control {scope?:"global"|"page",mode?:"trigger"|"stack",target?,step?:1|2|5|10,reverse?,stack?:[targets],heldEnabled?,heldMode?,heldTarget?,heldStep?,heldReverse?,heldStack?,gesture?:"down"|"left"|"right"|"holdLeft"|"holdRight"|"sideHold",action?:{type,value,title}|null}; targets page/profile/volume/zoom/scroll/scroll-x/history/window/desktop/brightness. Side slots 1–2 accept only scope and down/sideHold with previous,next,goto or null; use editor for other navigation. wide {enabled:[clock|datetime|stats|knobs],order?:[all four],current?}. composite {type:"multi"|"multi-switch"|"random"|"logic",title?,steps?:[{type,value,title}],second?:[steps],single?:step,double?:step,hold?:step}; delay type value milliseconds string. state_design {first?:{title?,enabled?,size?,color?,bold?,background?,iconName?,iconPack?},second?:same}. plugin {kind:"ha"|"sdk-ha"|"fusion",id,title?}; ha verify REST entity; sdk-ha/fusion reuse verified registered template from inspect plugin_templates. For simple steps use hotkey,previous,next,indicator,goto,clipboard-edit,media,system-mute,explorer-open; folder_keys also folder/open-app/file-open/folder-shortcut (verified Start Apps AppID or user-supplied local path). No paths or arbitrary settings. Existing protected actions cannot be deleted/replaced. One operation kind per proposal; user applies locally.',parameters:{type:'object',properties:{kind:{type:'string',enum:KINDS},page:{type:['integer','null']},folder:{type:['string','null']},slot:{type:['integer','null']},configJson:{type:'string'}},required:['kind','page','folder','slot','configJson'],additionalProperties:false}};
   const fail=m=>{throw Error(m);}, clone=x=>JSON.parse(JSON.stringify(x)), has=(x,k)=>Object.hasOwn(x,k);
   const obj=x=>!!x&&typeof x==='object'&&!Array.isArray(x), int=(v,a,b)=>Number.isInteger(v)&&v>=a&&v<=b;
   const str=(v,n=120)=>typeof v==='string'&&v.length<=n&&!/[\x00-\x1f\x7f]/.test(v);
@@ -49,10 +49,11 @@
         for(const k of ['step','heldStep'])optional(c,k,v=>[1,2,5,10].includes(v));
         for(const k of ['reverse','heldReverse','heldEnabled'])optional(c,k,bool);
         for(const k of ['stack','heldStack'])optional(c,k,v=>uniqueList(v,TARGETS,1,3));
-        optional(c,'gesture',v=>['down','left','right','holdLeft','holdRight'].includes(v));
+        optional(c,'gesture',v=>['down','left','right','holdLeft','holdRight','sideHold'].includes(v));
         if(has(c,'action')!==has(c,'gesture'))fail('동작과 입력 종류를 함께 지정하세요.');
         if(c.action!=null)stepSpec(c.action);
-        if(raw.slot<3&&Object.keys(c).some(k=>!['scope','gesture','action'].includes(k))||raw.slot<3&&has(c,'gesture')&&c.gesture!=='down')fail('측면 버튼은 누르기만 지원합니다.');
+        if(raw.slot<3&&(Object.keys(c).some(k=>!['scope','gesture','action'].includes(k))||has(c,'gesture')&&!['down','sideHold'].includes(c.gesture)||c.action&&!['previous','next','goto'].includes(c.action.type)))fail('측면 단추 AI 변경안은 짧게/길게 누르기의 페이지 이동만 지원합니다.');
+        if(raw.slot>=3&&c.gesture==='sideHold')fail('노브는 기존 회전 입력을 사용합니다.');
         break;
       case 'wide':
         exact(c,['enabled','order','current']);if(!uniqueList(c.enabled,WIDE,1,4))fail('와이드 표시 모드 1~4개를 지정하세요.');
@@ -91,7 +92,7 @@
       for(const row of [p.controls?.global,...(p.controls?.pages||[])])for(const b of row||[])for(const k of ['down','left','right','holdLeft','holdRight'])visit(b?.[k],0);}
     return result;
   }
-  const summary=a=>!a?'비어 있음':a.kind==='delay'?'지연 '+a.ms+'ms':[a.title||a.type,a.type,a.type==='hotkey'?a.settings?.keys:a.type==='goto'?'페이지 '+(a.settings?.page+1):a.type==='open-app'?a.settings?.app:PATH_TYPES.includes(a.type)?a.settings?.path:undefined,a.settings?.operation,a.settings?.op].filter(Boolean).join(' · ');
+  const summary=a=>!a?'비어 있음':a.type==='side-nav'?Core.SIDE_NAV_LABELS[Core.sideConfig(a).navigation]:a.kind==='delay'?'지연 '+a.ms+'ms':[a.title||a.type,a.type,a.type==='hotkey'?a.settings?.keys:a.type==='goto'?'페이지 '+(a.settings?.page+1):a.type==='open-app'?a.settings?.app:PATH_TYPES.includes(a.type)?a.settings?.path:undefined,a.settings?.operation,a.settings?.op].filter(Boolean).join(' · ');
   function simple(spec,pageCount,target=null){
     if(spec.type==='delay')return {kind:'delay',ms:Number(spec.value)};
     const a=Core.createAction(spec.type),v=spec.value??null,s=a.settings;
@@ -160,7 +161,7 @@
       const beforeScope=orig.scopes[index],scope=c.scope||beforeScope;
       const old=(beforeScope==='global'?orig.global:orig.pages[pi])[index];
       let b=(scope==='global'?orig.global:orig.pages[pi])[index];
-      if(scope!==beforeScope&&(scope==='global'||(!b.down&&!b.left&&!b.right&&!b.holdLeft&&!b.holdRight&&b.mode==='trigger')))b=old;
+      if(scope!==beforeScope&&(scope==='global'||(!b.down&&!b.sideHold&&!b.left&&!b.right&&!b.holdLeft&&!b.holdRight&&b.mode==='trigger')))b=old;
       b={...b,inactiveRotations:(b.inactiveRotations||[]).slice(),stack:(b.stack||[]).slice(),heldStack:(b.heldStack||[]).slice()};
       controls.scopes[index]=scope;(scope==='global'?controls.global:controls.pages[pi])[index]=b;
       for(const [k,v] of Object.entries(c)){
@@ -174,11 +175,12 @@
       if(has(c,'heldTarget')&&b.heldMode==='trigger')Core.automaticControl(b,true);
       if(has(c,'gesture')){
         const g=c.gesture,held=g.startsWith('hold'),mode=held?b.heldMode:b.mode;
-        if(mode==='stack'||held&&!b.heldEnabled||g==='down'&&b.heldEnabled)fail('현재 컨트롤 설정에서 이 입력은 비활성입니다.');
-        if(protectedBasic(b[g]))fail('기존 플러그인 복합 또는 상태별 동작을 보호합니다.');
-        Core.assignControlAction(b,g,c.action===null?null:simple(c.action,next.pages.length));
+        if(index>=2&&(mode==='stack'||held&&!b.heldEnabled||g==='down'&&b.heldEnabled))fail('현재 컨트롤 설정에서 이 입력은 비활성입니다.');
+        if(b[g]?.type!=='side-nav'&&protectedBasic(b[g]))fail('기존 플러그인 복합 또는 상태별 동작을 보호합니다.');
+        if(index<2)b[g]=c.action===null?(g==='down'?Core.makeSideAction({navigation:'none'}):null):simple(c.action,next.pages.length);
+        else Core.assignControlAction(b,g,c.action===null?null:simple(c.action,next.pages.length));
       }
-      const fmt=(x,sc)=>JSON.stringify({scope:sc,mode:x.mode,target:x.target,step:x.step,reverse:x.reverseDirection,autoAssign:x.autoAssign,stack:x.stack,heldEnabled:x.heldEnabled,heldMode:x.heldMode,heldTarget:x.heldTarget,heldStep:x.heldStep,heldReverse:x.heldReverseDirection,heldStack:x.heldStack,inactiveRotations:x.inactiveRotations,actions:Object.fromEntries(['down','left','right','holdLeft','holdRight'].map(k=>[k,summary(x[k])]))});
+      const fmt=(x,sc)=>JSON.stringify({scope:sc,mode:x.mode,target:x.target,step:x.step,reverse:x.reverseDirection,autoAssign:x.autoAssign,stack:x.stack,heldEnabled:x.heldEnabled,heldMode:x.heldMode,heldTarget:x.heldTarget,heldStep:x.heldStep,heldReverse:x.heldReverseDirection,heldStack:x.heldStack,inactiveRotations:x.inactiveRotations,actions:Object.fromEntries(['down','sideHold','left','right','holdLeft','holdRight'].map(k=>[k,summary(x[k])]))});
       add('control',fmt(old,beforeScope),fmt(b,scope),null,{control:['측면 첫 페이지','측면 뒤로','노브 1','노브 2','노브 3'][index]});
     }else{
       const i=checkSlot(a.slot),old=row[i]||null;

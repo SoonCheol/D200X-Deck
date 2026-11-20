@@ -1184,3 +1184,55 @@ test('legacy adjustment migration preserves dormant rotations and never activate
   assert.equal(core.planHardwareEvent(state,{kind:2,index:17,state:2}).outcome.kind,'media-control');
   assert.equal(core.planHardwareEvent(state,{kind:2,index:17,state:3}).outcome.target,'volume');
 });
+
+test('side buttons restrict navigation, preserve old data, and persist independent hold settings',()=>{
+  const s=core.migrateState({pages:[[],[],[]],page:1});
+  const a=core.controlBinding(s,14),b=core.controlBinding(s,15);
+  assert.equal(core.planSideNavigation(s,14).page,0);
+  a.down=core.makeSideAction({navigation:'last'});
+  a.sideHold=core.makeSideAction({navigation:'home'});
+  b.down=core.createAction('hotkey');b.down.settings.keys='Ctrl+C';
+  assert.equal(core.planSideNavigation(s,15),null);
+  assert.equal(core.planSideNavigation(s,14).page,2);
+  assert.equal(core.planSideNavigation(s,14,'hold').kind,'home');
+  const loaded=core.migrateState(JSON.parse(JSON.stringify(s)));
+  assert.equal(core.controlBinding(loaded,15).down.settings.keys,'Ctrl+C');
+  assert.equal(core.sideActionConfig(core.controlBinding(loaded,14),14,'hold').navigation,'home');
+  core.controlBinding(loaded,14).down=core.makeSideAction({navigation:'none'});
+  assert.equal(core.planSideNavigation(loaded,14),null);
+  assert.equal(Object.keys(core.SIDE_NAV_LABELS).length,13);
+  assert.equal(core.ACTION_IDS.length,24);
+});
+test('side folder navigation validates nested routes before changing page and distinguishes home from root',()=>{
+  const s=core.migrateState({pages:[[],[{type:'folder',title:'A',children:[{type:'folder',title:'B',children:[]}]}]]});
+  const targets=core.sideFolderTargets(s),t=targets.find(x=>x.route.length===2);
+  assert.ok(t);
+  core.controlBinding(s,14).down=core.makeSideAction({navigation:'folder-target',rootPage:t.rootPage,route:t.route});
+  assert.equal(core.applySideNavigation(s,core.planSideNavigation(s,14)),true);
+  assert.equal(s.page,1);assert.deepEqual(s.folderPath,[0,0]);
+  assert.equal(core.applySideNavigation(s,{kind:'folder-root'}),true);
+  assert.equal(s.page,1);assert.deepEqual(s.folderPath,[]);
+  const snapshot=JSON.stringify(s);
+  assert.equal(core.applySideNavigation(s,{kind:'folder-target',config:{rootPage:1,route:[[0,0],[8,0]]}}),false);
+  assert.equal(JSON.stringify(s),snapshot);
+  assert.equal(core.applySideNavigation(s,{kind:'home'}),true);assert.equal(s.page,0);
+});
+test('side short/hold state machine consumes duplicate downs and releases once, cancels changed context',()=>{
+  const x=core.createSidePressTracker(),ctx='profile-page';
+  assert.equal(x.input(14,'down',true,ctx,0),'wait');
+  assert.equal(x.input(14,'down',true,ctx,50),null);
+  assert.equal(x.input(14,'up',true,ctx,100),'down');
+  assert.equal(x.input(14,'down',true,ctx,1000),'wait');
+  assert.equal(x.input(14,'timeout',true,ctx,1650),'hold');
+  assert.equal(x.input(14,'down',true,ctx,1660),null);
+  assert.equal(x.input(14,'up',true,ctx,2000),null);
+  assert.equal(x.input(14,'down',true,ctx,3000),'wait');
+  assert.equal(x.input(14,'up',true,'other-page',3700),null);
+  assert.equal(x.input(15,'down',false,ctx,4000),'down');
+  assert.equal(x.input(15,'up',false,ctx,4100),null);
+  x.input(15,'down',true,ctx,5000);x.clear();
+  assert.equal(x.input(15,'up',true,ctx,5700),null);
+  x.input(15,'down',true,ctx,6000);x.invalidate();
+  assert.equal(x.input(15,'down',true,ctx,6700),null);
+  assert.equal(x.input(15,'up',true,ctx,6800),null);
+});

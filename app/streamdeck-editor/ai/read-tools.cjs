@@ -48,6 +48,13 @@ function control(profile,page,i){
   const binding=(scope==='page'?c.pages?.[page]?.[i]:c.global?.[i]);
   const out={control:['side-first','side-back','knob-1','knob-2','knob-3'][i],scope};
   if(!binding)return {...out,down:action(profile.pages?.[page]?.[i+14]),legacy:true};
+  if(i<2){
+    for(const [field,gesture] of [['shortNavigation','down'],['longNavigation','hold']]){
+      const config=Core.sideActionConfig(binding,i+14,gesture);
+      out[field]={action:code(config.navigation),name:Core.SIDE_NAV_LABELS[config.navigation],page:integer(config.page,0,127)?config.page+1:undefined,profile:code(config.profile),rootPage:integer(config.rootPage,0,127)?config.rootPage+1:undefined,folderRoute:config.route?.map(x=>[x[0]+1,x[1]+1])};
+    }
+    return out;
+  }
   for(const k of ['mode','target','heldMode','heldTarget'])out[k]=code(binding[k]);
   for(const k of ['autoAssign','heldEnabled','heldAutoAssign','reverseDirection','heldReverseDirection'])out[k]=bool(binding[k]);
   for(const k of ['step','heldStep'])out[k]=num(binding[k]);

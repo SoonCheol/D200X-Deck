@@ -27,7 +27,7 @@
     'open-app':{app:'',args:'',hold:'close',foreground:true,preventDuplicate:true},close:{path:'',force:false},
     text:{body:'',enter:false,mode:'clipboard'},media:{op:'playpause'},
     folder:{autoExitEnabled:false,autoExitSeconds:0},profile:{profile:'next'},previous:{},next:{},
-    goto:{page:0},indicator:{},
+    goto:{page:0},indicator:{},'side-nav':{navigation:'none'},
     'system-volume':{direction:'up',step:1},'system-mute':{},
     'system-scroll':{axis:'vertical',direction:'down',step:1},
     'edit-history':{operation:'undo',step:1},
@@ -45,7 +45,7 @@
     outlineColor:'#000000',outlineWidth:'thin',
     backgroundEnabled:false,backgroundColor:'#000000',backgroundOpacity:65};
   const copy=x=>JSON.parse(JSON.stringify(x));
-  const validId=id=>ACTION_IDS.includes(id)||D200X_ACTION_IDS.includes(id)||PLUGIN_ACTION_IDS.includes(id);
+  const validId=id=>ACTION_IDS.includes(id)||D200X_ACTION_IDS.includes(id)||PLUGIN_ACTION_IDS.includes(id)||id==='side-nav';
   function createAction(id){
     if(!validId(id))throw new Error('Unsupported built-in action: '+String(id));
     return {type:id,title:id==='folder'?'폴더':'',
@@ -226,14 +226,14 @@
   }
   const ADJUST_TARGETS=['page','profile','volume','zoom','scroll','scroll-x','history','window','desktop','brightness'];
   function emptyBinding(){
-    return {mode:'trigger',down:null,left:null,right:null,holdLeft:null,holdRight:null,target:'page',heldEnabled:false,heldMode:'trigger',heldTarget:'profile',heldStep:1,heldReverseDirection:false,heldStack:['page','volume'],autoAssign:false,heldAutoAssign:true,inactiveRotations:[],
+    return {mode:'trigger',down:null,sideHold:null,left:null,right:null,holdLeft:null,holdRight:null,target:'page',heldEnabled:false,heldMode:'trigger',heldTarget:'profile',heldStep:1,heldReverseDirection:false,heldStack:['page','volume'],autoAssign:false,heldAutoAssign:true,inactiveRotations:[],
       stack:['page','volume'],stackIndex:0,step:1,reverseDirection:false};
   }
   function cleanBinding(value){
     const out=emptyBinding();
     if(!value||typeof value!=='object'||Array.isArray(value))return out;
     out.mode=CONTROL_MODES.includes(value.mode)?value.mode:'trigger';
-    for(const key of ['down','left','right','holdLeft','holdRight'])out[key]=cleanAction(value[key]);
+    for(const key of ['down','sideHold','left','right','holdLeft','holdRight'])out[key]=cleanAction(value[key]);
     out.target=ADJUST_TARGETS.includes(value.target)?value.target:'page';
     out.autoAssign=value.autoAssign===true;
     out.heldAutoAssign=value.heldAutoAssign===true;
@@ -282,13 +282,142 @@
       // Current page starts with the global binding; other pages retain
       // their own imported/previously edited entries.
       const local=controls.pages[state.page][index];
-      if(!local?.down&&!local?.left&&!local?.right&&!local?.holdLeft&&!local?.holdRight&&local?.mode==='trigger')
+      if(!local?.down&&!local?.sideHold&&!local?.left&&!local?.right&&!local?.holdLeft&&!local?.holdRight&&local?.mode==='trigger')
         controls.pages[state.page][index]=cleanBinding(controls.global[index]);
     }else{
       controls.global[index]=cleanBinding(controls.pages[state.page][index]);
     }
     controls.scopes[index]=scope;
     return true;
+  }
+  // Side buttons have a closed navigation-only contract. Legacy assignments
+  // remain stored but unsupported actions cannot be executed from these slots.
+  const SIDE_NAV_LABELS=Object.freeze({
+    first:'첫 페이지',previous:'이전 페이지',next:'다음 페이지',last:'마지막 페이지',goto:'선택 페이지',
+    'profile-previous':'이전 프로필','profile-next':'다음 프로필','profile-select':'선택 프로필',
+    'folder-target':'지정 폴더로 이동','folder-back':'상위 폴더로 이동','folder-root':'모든 폴더 나가기',
+    home:'홈',none:'동작 없음'
+  });
+  const SIDE_HOLD_MS=650;
+  function sideConfig(action){
+    if(!action)return {navigation:'none'};
+    const s=action.settings||{};
+    if(['previous','next'].includes(action.type))return {navigation:action.type};
+    if(action.type==='goto')return {navigation:'goto',page:Number(s.page)};
+    if(action.type==='profile')return s.profile==='previous'||s.profile==='next'
+      ?{navigation:'profile-'+s.profile}:{navigation:'profile-select',profile:typeof s.profile==='string'?s.profile:''};
+    if(action.type!=='side-nav'||!Object.hasOwn(SIDE_NAV_LABELS,s.navigation))return {navigation:'none'};
+    const navigation=s.navigation;
+    if(navigation==='goto')return {navigation,page:Number.isInteger(s.page)?s.page:-1};
+    if(navigation==='profile-select')return {navigation,profile:typeof s.profile==='string'?s.profile:''};
+    if(navigation==='folder-target'){
+      const route=Array.isArray(s.route)&&s.route.length>=1&&s.route.length<=8&&s.route.every(x=>Array.isArray(x)&&x.length===2&&Number.isInteger(x[0])&&x[0]>=0&&x[0]<14&&Number.isInteger(x[1])&&x[1]>=0&&x[1]<10)?s.route.map(x=>x.slice()):[];
+      return {navigation,rootPage:Number.isInteger(s.rootPage)?s.rootPage:-1,route};
+    }
+    return {navigation};
+  }
+  function makeSideAction(config){
+    const action=createAction('side-nav');
+    action.settings=sideConfig({type:'side-nav',settings:config});
+    return action;
+  }
+  function sideActionConfig(binding,index,gesture='down'){
+    if(gesture==='hold')return sideConfig(binding?.sideHold);
+    if(!binding?.down)return {navigation:index===14?'first':'folder-back'};
+    return sideConfig(binding.down);
+  }
+  function sideFolderTargets(state){
+    const targets=[];
+    function walk(row,rootPage,route,names){
+      if(route.length>=8||targets.length>=1000)return;
+      for(let slot=0;slot<14&&targets.length<1000;slot++){
+        const folder=row?.[slot]||(!route.length?state.pinned?.[slot]:null);
+        if(folder?.type!=='folder')continue;
+        const name=(folder.title||'폴더')+' ('+(slot+1)+'번)';
+        targets.push({rootPage,route:[...route,[slot,0]],label:['페이지 '+(rootPage+1),...names,name].join(' / ')});
+        const pages=[folder.children,...(folder.pages||[])];
+        pages.forEach((child,page)=>walk(child,rootPage,[...route,[slot,page]],[...names,name+' · '+(page+1)+'페이지']));
+      }
+    }
+    state.pages.forEach((row,page)=>walk(row,page,[],[]));
+    return targets;
+  }
+  function sideFolderNodes(state,config){
+    const {rootPage,route}=config;
+    if(!state.pages[rootPage]||!route?.length||route.length>8)return null;
+    let row=state.pages[rootPage];const nodes=[];
+    for(const [depth,[slot,page]] of route.entries()){
+      const folder=row?.[slot]||(depth===0?state.pinned?.[slot]:null);
+      if(folder?.type!=='folder'||page<0||page>(folder.pages?.length||0))return null;
+      row=page===0?folder.children:folder.pages[page-1];
+      if(!Array.isArray(row))return null;
+      nodes.push({folder,slot,page});
+    }
+    return nodes;
+  }
+  function planSideNavigation(state,index,gesture='down'){
+    if(index!==14&&index!==15)return null;
+    const config=sideActionConfig(controlBinding(state,index),index,gesture),nav=config.navigation;
+    const folder=activeFolder(state),page=folder?(folder.pageIndex||0):state.page,count=folder?folderPageCount(state):state.pages.length;
+    if(nav==='none')return null;
+    if(nav==='first'||nav==='previous'||nav==='next'||nav==='last'||nav==='goto'){
+      const dest=nav==='first'?0:nav==='last'?count-1:nav==='previous'?Math.max(0,page-1):nav==='next'?Math.min(count-1,page+1):config.page;
+      return Number.isInteger(dest)&&dest>=0&&dest<count?{kind:'page',page:dest}:{kind:'invalid',message:'대상 페이지가 존재하지 않습니다.'};
+    }
+    if(nav==='profile-previous'||nav==='profile-next')return {kind:'profile',profile:nav.slice(8)};
+    if(nav==='profile-select')return state.profileNames?.some(x=>x.id===config.profile)?{kind:'profile',profile:config.profile}:{kind:'invalid',message:'대상 프로필이 존재하지 않습니다.'};
+    if(nav==='folder-target')return sideFolderNodes(state,config)?{kind:nav,config}:{kind:'invalid',message:'대상 폴더가 존재하지 않습니다.'};
+    return {kind:nav};
+  }
+  function applySideNavigation(state,outcome){
+    if(!outcome||outcome.kind==='invalid')return false;
+    if(outcome.kind==='page'){
+      if(activeFolder(state))return changeFolderPage(state,outcome.page);
+      if(!state.pages[outcome.page])return false;
+      state.page=outcome.page;state.selected=null;return true;
+    }
+    if(outcome.kind==='profile'){
+      const names=state.profileNames||[],pos=names.findIndex(x=>x.id===state.profileId);
+      if(!names.length||pos<0)return false;
+      const id=outcome.profile==='next'?names[(pos+1)%names.length].id:
+        outcome.profile==='previous'?names[(pos-1+names.length)%names.length].id:outcome.profile;
+      return switchProfile(state,id);
+    }
+    if(outcome.kind==='folder-back')return exitFolder(state);
+    if(outcome.kind==='folder-root'||outcome.kind==='home'){
+      state.folderPath=[];if(outcome.kind==='home')state.page=0;state.selected=null;return true;
+    }
+    if(outcome.kind==='folder-target'){
+      // Validate every hop before mutating the active page or any folder.
+      const nodes=sideFolderNodes(state,outcome.config);if(!nodes)return false;
+      state.page=outcome.config.rootPage;
+      for(const n of nodes)n.folder.pageIndex=n.page;
+      state.folderPath=nodes.map(n=>n.slot);state.selected=null;return true;
+    }
+    return false;
+  }
+  function createSidePressTracker(){
+    const pressed=new Map();
+    return {
+      input(index,gesture,hasHold,context,now){
+        if(gesture==='down'){
+          if(pressed.has(index))return null;
+          pressed.set(index,{hasHold,context,at:now,fired:false});
+          return hasHold?'wait':'down';
+        }
+        const entry=pressed.get(index);if(!entry)return null;
+        if(gesture==='up')pressed.delete(index);
+        if(!entry.hasHold||entry.fired||entry.context!==context)return null;
+        if(gesture==='timeout'){
+          if(now-entry.at<SIDE_HOLD_MS)return null;
+          entry.fired=true;return 'hold';
+        }
+        if(gesture==='up')return now-entry.at>=SIDE_HOLD_MS?'hold':'down';
+        return null;
+      },
+      invalidate(){for(const entry of pressed.values())entry.fired=true;},
+      clear(){pressed.clear();}
+    };
   }
   const WIDE_CHOICES=['clock','datetime','stats','knobs'];
   const DEFAULT_WIDE=['clock','datetime','stats'];
@@ -612,6 +741,10 @@
     const folder=activeFolder(state);
     const page=folder?(folder.pageIndex||0):state.page;
     const pageCount=folder?folderPageCount(state):state.pages.length;
+    if(index===14||index===15){
+      const outcome=gesture==='down'?planSideNavigation(state,index):null;
+      return outcome?{index,gesture,outcome}:null;
+    }
     if(binding && knob){
       if(gesture==='hold-left'||gesture==='hold-right'){
         if(binding.heldEnabled===true){
@@ -660,8 +793,6 @@
     // Reserve a back key in the last free folder slot. Legacy populated
     // slots never get overwritten. A physical side-key fallback follows.
     if((state.folderPath||[]).length && index===13 && !currentActions(state)?.[13])
-      return {index,gesture,outcome:{kind:'folder-back'}};
-    if((state.folderPath||[]).length && index===15 && !binding?.down)
       return {index,gesture,outcome:{kind:'folder-back'}};
     if(binding && !binding.down)return null;
     if(!resolved.action)return null;
@@ -772,5 +903,5 @@
       url:action.settings?.url||'',mode:action.settings?.open||'default',browserPath:action.settings?.browserPath||''};
     return {kind:'unsupported',message:'이 동작의 실행 기능은 아직 구현되지 않았습니다.'};
   }
-  return {ACTION_IDS,D200X_ACTION_IDS,PLUGIN_ACTION_IDS,DEFAULTS,TITLE,createAction,cleanAction,cleanCompositeEntry,displaySwitchAction,compositeModel,planComposite,runComposite,blankPage,cleanWideDisplay,cycleWideDisplay,isWideDisplayPress,folderContents,folderPageCount,changeFolderPage,addFolderPage,deleteFolderPage,currentActions,visibleActions,togglePinned,activeFolder,enterFolder,exitFolder,migrateState,profileSnapshot,switchProfile,createProfile,renameProfile,exportSingleProfile,setProfileApp,matchForegroundProfile,deleteProfile,previewHardwareEvent,physicalSlot,hardwareGesture,resolveHardwareEvent,resolveKeyPress,planHardwareEvent,deletePage,planAction,emptyBinding,cleanBinding,controlAction,assignControlAction,automaticControl,ensureControls,controlBinding,changeControlScope};
+  return {ACTION_IDS,D200X_ACTION_IDS,PLUGIN_ACTION_IDS,DEFAULTS,TITLE,SIDE_NAV_LABELS,SIDE_HOLD_MS,sideConfig,makeSideAction,sideActionConfig,sideFolderTargets,planSideNavigation,applySideNavigation,createSidePressTracker,createAction,cleanAction,cleanCompositeEntry,displaySwitchAction,compositeModel,planComposite,runComposite,blankPage,cleanWideDisplay,cycleWideDisplay,isWideDisplayPress,folderContents,folderPageCount,changeFolderPage,addFolderPage,deleteFolderPage,currentActions,visibleActions,togglePinned,activeFolder,enterFolder,exitFolder,migrateState,profileSnapshot,switchProfile,createProfile,renameProfile,exportSingleProfile,setProfileApp,matchForegroundProfile,deleteProfile,previewHardwareEvent,physicalSlot,hardwareGesture,resolveHardwareEvent,resolveKeyPress,planHardwareEvent,deletePage,planAction,emptyBinding,cleanBinding,controlAction,assignControlAction,automaticControl,ensureControls,controlBinding,changeControlScope};
 });
