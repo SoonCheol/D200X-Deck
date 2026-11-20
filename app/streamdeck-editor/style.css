@@ -1147,3 +1147,16 @@
   .work{grid-template-rows:minmax(0,min(405px,calc(100dvh - 220px))) minmax(0,1fr)}
   .canvas{padding-top:23px;padding-bottom:3px}
 }
+
+/* Compact page indicator navigation only: label, choice and test on one line. */
+.indicator-inspector .state-title-extra-properties>.fields{margin-top:3px}
+.indicator-inspector .indicator-management{margin:3px 0 0}
+.indicator-inspector .side-binding-pair{margin:6px 0 0;gap:10px}
+.indicator-inspector .side-binding-column{min-width:0}
+.indicator-inspector .side-binding-choice{grid-template-columns:auto minmax(0,1fr) 30px;gap:5px;margin:0}
+.indicator-inspector .side-binding-choice>label{grid-column:auto;min-width:0;white-space:nowrap;font-size:12px}
+.indicator-inspector .side-binding-choice>select{min-width:0;font-size:12px;padding:4px 5px}
+.indicator-inspector .side-binding-choice>button{width:30px;min-width:0;height:30px;padding:0}
+.indicator-inspector .side-binding-target{grid-template-columns:auto minmax(0,1fr);align-items:center;gap:5px;margin:4px 35px 0 0}
+.indicator-inspector .side-binding-target>label{min-width:0;font-size:12px}
+.indicator-inspector .side-binding-target>select{min-width:0;font-size:12px;padding:4px 5px}
