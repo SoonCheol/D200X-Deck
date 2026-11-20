@@ -352,8 +352,8 @@
 /* Profile selector: a short list with per-profile gear controls. */
 .profile-menu{min-width:260px;max-width:315px;max-height:min(80vh,650px);overflow-y:auto}
 .profile-list-row{display:grid;grid-template-columns:minmax(0,1fr) 32px;align-items:center}
-.profile-list-select{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.profile-list-row .profile-row-gear{width:30px;text-align:center;font-size:16px;padding:7px 4px}
+.profile-menu .profile-list-select{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;height:30px;padding:5px 11px;line-height:20px}
+.profile-list-row .profile-row-gear{width:30px;height:30px;text-align:center;font-size:16px;padding:0 4px;line-height:30px}
 .profile-row-tools{grid-column:1 / -1;background:#282828;border-left:2px solid #4b91d4;margin:2px 4px 8px 10px;padding:4px}
 .profile-row-tools[hidden],.profile-global-panel[hidden]{display:none}
 .profile-row-tools button,.profile-global-panel button{font-size:12px}
