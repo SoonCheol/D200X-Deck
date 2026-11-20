@@ -559,22 +559,140 @@
     folder.pageIndex=Math.max(0,Math.min(count-1,index));
     state.selected=null;return true;
   }
+  // One index mapping for root/folder append, insert, move, duplicate and delete.
+  // References denote the original destination, never the replacement at its old index.
+  function editPageStructure(state,{op,index,to,folder=activeFolder(state),select=true}={}){
+    if(!state||!Array.isArray(state.pages)||folder&&folder.type!=='folder')return false;
+    const original=folder?[folder.children||[],...(folder.pages||[])]:state.pages;
+    const count=original.length,current=folder?(folder.pageIndex||0):state.page;
+    if(!count)return false;
+    const valid=i=>Number.isInteger(i)&&i>=0&&i<count;
+    const order=Array.from({length:count},(_,i)=>({from:i}));
+    let destination;
+    if(op==='append'||op==='insert'||op==='duplicate'){
+      if(count>=10)return false;
+      if(op==='append'){destination=count;order.push({from:null});}
+      else if(op==='insert'){
+        if(!Number.isInteger(index)||index<0||index>count)return false;
+        destination=index;order.splice(index,0,{from:null});
+      }else{
+        if(!valid(index))return false;
+        destination=index+1;order.splice(destination,0,{from:index,duplicate:true});
+      }
+    }else if(op==='move'){
+      if(!valid(index)||!valid(to)||index===to)return false;
+      order.splice(to,0,order.splice(index,1)[0]);destination=to;
+    }else if(op==='delete'){
+      if(count<=1||!valid(index))return false;
+      order.splice(index,1);destination=Math.min(index,count-2);
+    }else return false;
+    const destinations=new Map();
+    order.forEach((entry,i)=>{if(entry.from!==null&&!entry.duplicate)destinations.set(entry.from,i);});
+    const remap=value=>{
+      const old=typeof value==='string'&&/^-?\d+$/.test(value)?Number(value):value;
+      return valid(old)&&destinations.has(old)?destinations.get(old):-1;
+    };
+    const sameIndex=(value,mapped)=>Number.isInteger(value)?value===mapped:typeof value==='string'&&/^-?\d+$/.test(value)&&Number(value)===mapped;
+    const update=(settings,key,mapped)=>sameIndex(settings[key],mapped)?settings:{...settings,[key]:mapped};
+    // Absolute side-button routes must be repaired even when the edited folder
+    // belongs to a different page (or is inherited from a pinned root slot).
+    const absoluteRoute=settings=>{
+      if(!folder)return update(settings,'rootPage',remap(settings.rootPage));
+      if(!Number.isInteger(settings.rootPage)||!Array.isArray(settings.route))return settings;
+      let row=state.pages[settings.rootPage];
+      if(!row)return settings;
+      for(const [depth,hop] of settings.route.entries()){
+        if(!Array.isArray(hop)||hop.length!==2)break;
+        const [slot,page]=hop,entry=row?.[slot]||(depth===0?state.pinned?.[slot]:null);
+        if(entry?.type!=='folder')break;
+        if(entry===folder){
+          const mapped=remap(page);
+          if(mapped<0)return update(settings,'rootPage',-1);
+          if(mapped===page)return settings;
+          const route=settings.route.map(x=>x.slice());route[depth][1]=mapped;
+          return {...settings,route};
+        }
+        row=page===0?entry.children:entry.pages?.[page-1];
+        if(!row)break;
+      }
+      return settings;
+    };
+    const mapArray=(list,fn)=>{
+      if(!Array.isArray(list))return list;
+      const result=list.map(fn);return result.some((x,i)=>x!==list[i])?result:list;
+    };
+    // Composite sub-actions share their containing deck's page namespace.
+    // Do not traverse a nested folder for relative targets: it owns another list.
+    const rewrite=(action,relative)=>{
+      if(!action||typeof action!=='object'||action.kind==='delay')return action;
+      let settings=action.settings||{};
+      if(relative&&(action.type==='goto'||action.type==='side-nav'&&settings.navigation==='goto'))
+        settings=update(settings,'page',remap(settings.page));
+      if(action.type==='side-nav'&&settings.navigation==='folder-target')settings=absoluteRoute(settings);
+      let next=settings!==action.settings&&action.settings?{...action,settings}:action;
+      if(action.type==='folder')return next;
+      const child=x=>rewrite(x,relative);
+      const children=mapArray(action.children,child),sequences=mapArray(action.sequences,list=>mapArray(list,child));
+      if(children!==action.children)next={...next,children};
+      if(sequences!==action.sequences)next={...next,sequences};
+      if(action.slots&&typeof action.slots==='object'){
+        const slots={...action.slots};let changed=false;
+        for(const key of ['single','double','hold'])if(Object.hasOwn(slots,key)){
+          const value=child(slots[key]);if(value!==slots[key]){slots[key]=value;changed=true;}
+        }
+        if(changed)next={...next,slots};
+      }
+      return next;
+    };
+    const rows=order.map(entry=>{
+      if(entry.from===null)return folder?Array(14).fill(null):blankPage();
+      const row=mapArray(original[entry.from],action=>rewrite(action,true));
+      // Duplicate action data, including nested folders; inherited pins stay shared.
+      return entry.duplicate?copy(row):row;
+    });
+    const controls=state.controls;
+    const rewriteBinding=binding=>{
+      if(!binding)return binding;
+      let next=binding;
+      for(const key of ['down','sideHold','left','right','holdLeft','holdRight']){
+        // Physical relative goto is context-dependent. Root edits preserve root
+        // destinations; folder edits leave this shared numeric policy unchanged.
+        const value=rewrite(binding[key],!folder);
+        if(value!==binding[key])next={...next,[key]:value};
+      }
+      return next;
+    };
+    const emptyControlRow=()=>Array.from({length:5},emptyBinding);
+    let nextControls=controls;
+    if(controls||!folder){
+      const source=controls||emptyControls(count);
+      const global=mapArray(source.global,rewriteBinding);
+      const pages=folder?mapArray(source.pages,row=>mapArray(row,rewriteBinding)):order.map(entry=>{
+        if(entry.from===null)return emptyControlRow();
+        const row=mapArray(source.pages?.[entry.from]||emptyControlRow(),rewriteBinding);
+        return entry.duplicate?copy(row):row;
+      });
+      if(global!==source.global||pages!==source.pages||!controls)nextControls={...source,global,pages};
+    }
+    const pinned=folder?state.pinned:mapArray(state.pinned,action=>rewrite(action,true));
+    if(folder){
+      folder.children=rows[0];folder.pages=rows.slice(1);
+      folder.pageIndex=select?destination:Math.max(0,remap(current));
+    }else{
+      state.pages=rows;
+      state.page=select?destination:Math.max(0,remap(current));
+      if(select)state.folderPath=[];
+      state.pinned=pinned;
+    }
+    if(nextControls)state.controls=nextControls;
+    if(select)state.selected=null;
+    return true;
+  }
   function addFolderPage(state){
-    const folder=activeFolder(state);if(!folder)return false;
-    folder.pages??=[];
-    if(folder.pages.length>=9)return false;
-    folder.pages.push(Array.from({length:14},()=>null));
-    folder.pageIndex=folder.pages.length;state.selected=null;return true;
+    const folder=activeFolder(state);return !!folder&&editPageStructure(state,{op:'append',folder});
   }
   function deleteFolderPage(state){
-    const folder=activeFolder(state);
-    if(!folder||folderPageCount(state)<=1)return false;
-    const current=folder.pageIndex||0;
-    if(current===0){
-      folder.children=folder.pages.shift();
-    }else folder.pages.splice(current-1,1);
-    folder.pageIndex=Math.max(0,Math.min(current,folder.pages.length));
-    state.selected=null;return true;
+    const folder=activeFolder(state);return !!folder&&editPageStructure(state,{op:'delete',index:folder.pageIndex||0,folder});
   }
   function visibleActions(state){
     const actions=currentActions(state);
@@ -915,17 +1033,7 @@
     if(!resolved.action)return null;
     return {index,gesture,outcome:planAction(resolved.action,page,pageCount)};
   }
-  function deletePage(state){
-    if(!state||!Array.isArray(state.pages)||state.pages.length<=1)return false;
-    const removed=state.page;
-    state.pages.splice(removed,1);
-    if(state.controls?.pages)state.controls.pages.splice(removed,1);
-    state.page=Math.max(0,Math.min(removed,state.pages.length-1));
-    state.selected=null;
-    // Preserve other pages. A target beyond the new range remains invalid
-    // until explicitly edited, rather than silently redirecting it.
-    return true;
-  }
+  function deletePage(state){return editPageStructure(state,{op:'delete',index:state?.page,folder:null});}
   function planAction(action,page,count){
     if(action?.type==='folder')return {kind:'folder-enter'};
     if(!action||!validId(action.type))return {kind:'unsupported',message:'알 수 없는 동작'};
@@ -1020,5 +1128,5 @@
       url:action.settings?.url||'',mode:action.settings?.open||'default',browserPath:action.settings?.browserPath||''};
     return {kind:'unsupported',message:'이 동작의 실행 기능은 아직 구현되지 않았습니다.'};
   }
-  return {ACTION_IDS,D200X_ACTION_IDS,PLUGIN_ACTION_IDS,DEFAULTS,TITLE,SIDE_NAV_LABELS,SIDE_HOLD_MS,sideConfig,makeSideAction,sideActionConfig,sideFolderTargets,planSideNavigation,applySideNavigation,createSidePressTracker,createAction,cleanAction,cleanCompositeEntry,timerSeconds,formatTimerTime,displaySwitchAction,compositeModel,planComposite,runComposite,createMultiPauseGate,multiRows,setMultiRows,blankPage,cleanWideDisplay,cycleWideDisplay,isWideDisplayPress,folderContents,folderPageCount,changeFolderPage,addFolderPage,deleteFolderPage,currentActions,visibleActions,togglePinned,activeFolder,enterFolder,exitFolder,migrateState,profileSnapshot,switchProfile,createProfile,renameProfile,exportSingleProfile,setProfileApp,matchForegroundProfile,deleteProfile,previewHardwareEvent,physicalSlot,hardwareGesture,resolveHardwareEvent,runtimeActionKey,folderWideBackEvent,resolveKeyPress,planHardwareEvent,deletePage,planAction,emptyBinding,cleanBinding,controlAction,activeControlAction,assignControlAction,automaticControl,ensureControls,controlBinding,changeControlScope};
+  return {ACTION_IDS,D200X_ACTION_IDS,PLUGIN_ACTION_IDS,DEFAULTS,TITLE,SIDE_NAV_LABELS,SIDE_HOLD_MS,sideConfig,makeSideAction,sideActionConfig,sideFolderTargets,planSideNavigation,applySideNavigation,createSidePressTracker,createAction,cleanAction,cleanCompositeEntry,timerSeconds,formatTimerTime,displaySwitchAction,compositeModel,planComposite,runComposite,createMultiPauseGate,multiRows,setMultiRows,blankPage,cleanWideDisplay,cycleWideDisplay,isWideDisplayPress,folderContents,folderPageCount,changeFolderPage,addFolderPage,deleteFolderPage,editPageStructure,currentActions,visibleActions,togglePinned,activeFolder,enterFolder,exitFolder,migrateState,profileSnapshot,switchProfile,createProfile,renameProfile,exportSingleProfile,setProfileApp,matchForegroundProfile,deleteProfile,previewHardwareEvent,physicalSlot,hardwareGesture,resolveHardwareEvent,runtimeActionKey,folderWideBackEvent,resolveKeyPress,planHardwareEvent,deletePage,planAction,emptyBinding,cleanBinding,controlAction,activeControlAction,assignControlAction,automaticControl,ensureControls,controlBinding,changeControlScope};
 });

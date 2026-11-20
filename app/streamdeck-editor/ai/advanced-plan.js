@@ -175,7 +175,8 @@
       }
     }else if(a.kind==='folder_page'){
       if(folder.pages.length>=9)fail('덱폴더는 최대 10페이지입니다.');
-      folder.pages.push(Array(14).fill(null));add('folder_page','폴더 '+folder.pages.length+'페이지','폴더 '+(folder.pages.length+1)+'페이지');
+      if(!Core.editPageStructure(next,{op:'append',folder,select:false}))fail('덱폴더 페이지를 추가할 수 없습니다.');
+      add('folder_page','폴더 '+folder.pages.length+'페이지','폴더 '+(folder.pages.length+1)+'페이지');
     }else if(a.kind==='folder_settings'){
       const before={title:folder.title,autoExitEnabled:!!folder.settings.autoExitEnabled,autoExitSeconds:folder.settings.autoExitSeconds||0};
       if(has(c,'title'))folder.title=c.title;

@@ -210,11 +210,11 @@ async function rememberFusionIcon(id,image){
 }
 
 const fusionActionTokens=new WeakMap();
-let fusionTokenSerial=0;
+let fusionTokenSerial=0,pageStructureEpoch=0;
 function sdkContext(index,gesture='down'){
   const folder=DeckCore.activeFolder(state);
   const base=String(state.profileId)+':'+state.page+':'+(state.folderPath||[]).join('-')+
-    (folder?'-p'+(folder.pageIndex||0):'')+':'+index+':'+gesture;
+    (folder?'-p'+(folder.pageIndex||0):'')+':'+index+':'+gesture+(pageStructureEpoch?':layout'+pageStructureEpoch:'');
   const key=({'hold-left':'holdLeft','hold-right':'holdRight'})[gesture]||gesture;
   const item=index<14?DeckCore.visibleActions(state)[index]:DeckCore.controlBinding(state,index)?.[key];
   if(!isFusionAction(item))return base;
@@ -1491,7 +1491,7 @@ function bindInspectorShortcut(root,item){
   update();
 }
 const input=(field,label,placeholder="")=>`<div class="field"><label for="s-${field}">${label}</label><input id="s-${field}" data-field="${field}" value="${escapeHtml(valueOf(active,field))}" placeholder="${placeholder}"></div>`;
-const select=(field,label,opts)=>`<div class="field"><label for="s-${field}">${label}</label><select id="s-${field}" data-field="${field}">${opts.map(([v,n])=>`<option value="${escapeHtml(v)}" ${valueOf(active,field)===v?"selected":""}>${escapeHtml(n)}</option>`).join("")}</select></div>`;
+const select=(field,label,opts)=>`<div class="field"><label for="s-${field}">${label}</label><select id="s-${field}" data-field="${field}">${opts.map(([v,n])=>`<option value="${escapeHtml(v)}" ${(field==="page"?String(valueOf(active,field))===String(v):valueOf(active,field)===v)?"selected":""}>${escapeHtml(n)}</option>`).join("")}</select></div>`;
 const pathPicker=(field,label,kind='file')=>
   '<div class="field"><label for="s-'+field+'">'+label+'</label><div class="compound">'+
   '<input id="s-'+field+'" data-field="'+field+'" value="'+escapeHtml(valueOf(active,field))+'">'+
@@ -1554,7 +1554,13 @@ function actionFields(item){
     case "profile":return select("profile","프로필",[
       ["next","다음 프로필"],["previous","이전 프로필"],...state.profileNames.map(p=>[p.id,p.name])
     ]);
-    case "goto":return select("page","대상",state.pages.map((_,i)=>[String(i),String(i+1)]));
+    case "goto":{
+      const count=DeckCore.activeFolder(state)?DeckCore.folderPageCount(state):state.pages.length;
+      const options=Array.from({length:count},(_,i)=>[String(i),String(i+1)]);
+      const selected=String(item.settings?.page??-1);
+      if(!options.some(([value])=>value===selected))options.unshift([selected,'대상 없음 또는 삭제됨']);
+      return select("page","대상",options);
+    }
     default:return "";
   }
 }
@@ -3641,31 +3647,60 @@ window.addEventListener("keydown",ev=>{
   }
 });
 $("action-search").addEventListener("input",renderLibrary);
-$("add-page").addEventListener("click",()=>{
-  if(state.folderPath?.length){
-    if(!DeckCore.addFolderPage(state))window.d200xActionStatus?.('폴더별 페이지는 최대 10개입니다.');
-    else {persist();render();}
-    return;
+function pageStructureInfo(){
+  const folder=DeckCore.activeFolder(state);
+  return {folder,index:folder?(folder.pageIndex||0):state.page,count:folder?DeckCore.folderPageCount(state):state.pages.length};
+}
+function applyPageStructure(op,index,to){
+  // The existing unsaved dialog owns the draft. No page changes while a
+  // location-keyed execution is active, so no other button inherits its state.
+  if(inspectorSession?.dirty){showInspectorLeaveDialog(()=>applyPageStructure(op,index,to));return;}
+  if(inspectorEditing||profileStorageFailure||nativeGridBusy||nativeGridDrag||openAppHoldTimers.size||
+    runningMultiActions.size||activeActionTimers.size||allPlayingAudio.size||knobPresses.size||logicPresses.size||
+    multiPhysicalPresses.size||sidePressTimers.size){
+    window.d200xActionStatus?.('진행 중인 동작이나 저장 문제를 먼저 해결하세요.');return;
   }
-  if(state.pages.length>=10){
-    window.d200xActionStatus?.('원본 기준 새 페이지는 프로필당 최대 10개입니다. 기존 페이지는 보존됩니다.');
-    return;
+  const info=pageStructureInfo();
+  if(['append','insert','duplicate'].includes(op)&&info.count>=10){
+    window.d200xActionStatus?.('새 페이지는 최대 10개입니다. 기존 페이지는 보존됩니다.');return;
   }
-  state.pages.push(blankPage());DeckCore.ensureControls(state).pages.push(Array.from({length:5},DeckCore.emptyBinding));
-  state.page=state.pages.length-1;state.folderPath=[];state.selected=null;persist();render();
-});
-$("delete-page").addEventListener("click",()=>{
-  if(state.folderPath?.length){
-    if(DeckCore.folderPageCount(state)<=1)return;
-    const folder=DeckCore.activeFolder(state);
-    if(confirm('폴더 페이지 '+((folder?.pageIndex||0)+1)+'을 삭제하시겠습니까?')){
-      if(DeckCore.deleteFolderPage(state)){persist();render();}
-    }
-    return;
+  if(op==='delete'){
+    if(info.count<=1)return;
+    if(!confirm('현재 '+(info.folder?'폴더 ':'')+'페이지 '+(info.index+1)+'을(를) 삭제하시겠습니까? 해당 페이지의 액션은 삭제되고, 삭제된 이동 대상은 대상 없음으로 표시됩니다.'))return;
   }
-  if(state.pages.length<=1)return;
-  if(!confirm("현재 페이지 "+(state.page+1)+"을(를) 삭제하시겠습니까? 이 페이지의 모든 액션이 삭제됩니다."))return;
-  if(DeckCore.deletePage(state)){persist();render();}
+  // Work on a detached snapshot. On storage failure do not change live data or UI.
+  const before=state,session=inspectorSession,next=clone(state);
+  if(!DeckCore.editPageStructure(next,{op,index,to,folder:DeckCore.activeFolder(next)}))return;
+  state=next;inspectorSession=null;
+  if(!persist(false)){state=before;inspectorSession=session;return;}
+  cancelFolderAutoExit();lastHardwareDown.clear();
+  hotkeySwitchPositions.clear();clearMultiPhysicalPresses();
+  clearOpenAppHoldTimers('page-structure');invalidateSidePresses();
+  // Force fresh SDK registration so an old context cannot write settings into
+  // a different action now occupying the same numbered page/slot.
+  pageStructureEpoch++;
+  sdkVisuals.clear();fusionLiveContexts.clear();fusionOfflineContexts.clear();unverifiedFusionContexts.clear();
+  render();window.scheduleDeckSync?.(0);
+  window.d200xActionStatus?.('페이지 구성 저장 완료');
+}
+$("add-page").addEventListener("click",()=>applyPageStructure('append'));
+$("delete-page").addEventListener("click",()=>applyPageStructure('delete',pageStructureInfo().index));
+$("page-label").title='우클릭: 페이지 삽입 · 순서 이동 · 복제';
+$("page-label").addEventListener('contextmenu',event=>{
+  event.preventDefault();
+  const {index,count}=pageStructureInfo(),menu=$('key-menu');menu.replaceChildren();
+  const add=(label,enabled,fn)=>{
+    const button=document.createElement('button');button.type='button';button.role='menuitem';button.textContent=label;button.disabled=!enabled;
+    button.addEventListener('click',()=>{menu.hidden=true;fn();});menu.append(button);
+  };
+  add('앞에 빈 페이지 삽입',count<10,()=>applyPageStructure('insert',index));
+  add('뒤에 빈 페이지 삽입',count<10,()=>applyPageStructure('insert',index+1));
+  add('이전 위치로 이동',index>0,()=>applyPageStructure('move',index,index-1));
+  add('다음 위치로 이동',index<count-1,()=>applyPageStructure('move',index,index+1));
+  add('현재 페이지 복제',count<10,()=>applyPageStructure('duplicate',index));
+  menu.style.left=Math.max(0,Math.min(event.clientX,window.innerWidth-230))+'px';
+  menu.style.top=Math.max(0,Math.min(event.clientY,window.innerHeight-220))+'px';
+  menu.hidden=false;
 });
 $("back-page").addEventListener("click",()=>{
   const folder=DeckCore.activeFolder(state);

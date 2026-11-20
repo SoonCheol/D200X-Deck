@@ -72,8 +72,7 @@
       const res=resources[n]||{};
       if(o.op==='add_page'){
         if(next.pages.length>=10||!next.controls||!Array.isArray(next.controls.pages))fail('새 페이지 추가 한도 또는 컨트롤 설정을 확인하세요.');
-        if(next.controls===state.controls)next.controls={...state.controls,pages:state.controls.pages.slice()};
-        next.pages.push(Core.blankPage());next.controls.pages.push(Array.from({length:5},Core.emptyBinding));
+        if(!Core.editPageStructure(next,{op:'append',folder:null,select:false}))fail('새 페이지를 추가할 수 없습니다.');
         rows.push({op:'add_page',page:next.pages.length,before:{title:'없음'},after:{title:'새 페이지 추가 (기존 고정 키 유지)'}});continue;
       }
       const t=at(o.page,o.slot);
