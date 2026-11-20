@@ -70,6 +70,13 @@ function profileList(s,offset){
   if(!profiles.length&&arr(s.pages).length)profiles.push({number:1,name:'기본 프로필',active:true,pageCount:s.pages.length});
   return {...slice(profiles,offset),source:'saved',activePage:integer(s.page,0,127)?s.page+1:null};
 }
+// Compact root-page inventory: same empty/pinned guard as the advanced planner.
+function emptySlots(s){
+  if(!Array.isArray(s?.pages)||!s.pages.length||s.pages.length>128||s.pages.some(p=>!Array.isArray(p)||p.length<13))return {error:'invalid_saved_pages'};
+  const pages=s.pages.map((row,i)=>({page:i+1,slots:Array.from({length:13},(_,j)=>j+1).filter(n=>!row[n-1]&&!s.pinned?.[n-1])}));
+  const currentPage=integer(s.page,0,s.pages.length-1)?s.page+1:null;
+  return {source:'saved active profile root pages only',currentPage,pageCount:pages.length,emptyCount:pages.reduce((n,p)=>n+p.slots.length,0),pages:pages.filter(p=>p.slots.length),note:'All root pages scanned; omitted pages have no editable empty key. Pinned keys and wide/physical controls excluded. Preview revalidates live editor state.'};
+}
 function resolvePage(s,args){
   const names=arr(s.profileNames),pmeta=args.profile==null?names.find(p=>p.id===s.profileId):names[args.profile-1];
   if(args.profile!=null&&!pmeta&&!(args.profile===1&&!names.length))return {error:'profile_not_found'};
@@ -239,11 +246,13 @@ function layoutReview(s,a){
   return {source:'saved page, local checks only',profile:page.profile,page:page.page,folder:page.folder,emptySlots:empty,occupied:13-empty.length,findings,note:'Candidates only; do not infer intent or automatically remove duplicates. Compare liveView/dirty before editing.'};
 }
 
-const SECTIONS=['input_trace','layout_review','knowledge','plugin_templates','profiles','page','actions','icon_packs','icons','start_apps','running_windows','device','recent_inputs','plugins','plugin_actions','ha','fusion','fusion_commands','app_log','folder_log','usb_log','guide'];
-const TOOL={type:'function',name:'inspect',description:'Read only. sections: profiles; page (profile/page are 1-based, folder "current" or "2:1/3:2" = slot:folder-page, null=root); actions; icon_packs; icons; start_apps; running_windows; device; recent_inputs; input_trace (correlated physical input/dispatch/request/helper evidence, query by packet id or failure); layout_review (local saved-page review); knowledge (filter topic); plugins; plugin_actions; plugin_templates (configured Fusion command IDs / SDK HA entity IDs only); ha; fusion; fusion_commands (live Fusion IDs, localized names when available, query Korean or English, pagination; not proof of execute eligibility); app_log; folder_log; usb_log; guide. query filters locally, offset paginates. Null for unused arguments. No raw paths, commands or logs.',parameters:{type:'object',properties:{section:{type:'string',enum:SECTIONS},profile:{type:['integer','null']},page:{type:['integer','null']},folder:{type:['string','null']},query:{type:['string','null']},offset:{type:['integer','null']}},required:['section','profile','page','folder','query','offset'],additionalProperties:false},strict:true};
+const SECTIONS=['input_trace','layout_review','knowledge','plugin_templates','profiles','page','empty_slots','actions','icon_packs','icons','start_apps','running_windows','device','recent_inputs','plugins','plugin_actions','ha','fusion','fusion_commands','app_log','folder_log','usb_log','guide'];
+const TOOL={type:'function',name:'inspect',description:'Read only. sections: profiles; page (profile/page are 1-based, folder "current" or "2:1/3:2" = slot:folder-page, null=root); empty_slots (all saved root pages in active profile in ONE call, editable empty ordinary slots only, no pinned keys; all other arguments null); actions; icon_packs; icons; start_apps; running_windows; device; recent_inputs; input_trace (correlated physical input/dispatch/request/helper evidence, query by packet id or failure); layout_review (local saved-page review); knowledge (filter topic); plugins; plugin_actions; plugin_templates (configured Fusion command IDs / SDK HA entity IDs only); ha; fusion; fusion_commands (live Fusion IDs, localized names when available, query Korean or English, pagination; not proof of execute eligibility); app_log; folder_log; usb_log; guide. query filters locally, offset paginates. Null for unused arguments. No raw paths, commands or logs.',parameters:{type:'object',properties:{section:{type:'string',enum:SECTIONS},profile:{type:['integer','null']},page:{type:['integer','null']},folder:{type:['string','null']},query:{type:['string','null']},offset:{type:['integer','null']}},required:['section','profile','page','folder','query','offset'],additionalProperties:false},strict:true};
 function validate(a){
   if(!a||Array.isArray(a)||typeof a!=='object'||Object.keys(a).length!==6||!SECTIONS.includes(a.section)||!['profile','page','folder','query','offset'].every(k=>Object.hasOwn(a,k)))throw Error('invalid-query');
   if(a.profile!==null&&!integer(a.profile,1,50)||a.page!==null&&!integer(a.page,1,128)||a.offset!==null&&!integer(a.offset,0,10000)||a.query!==null&&(typeof a.query!=='string'||a.query.length>100)||a.folder!==null&&(typeof a.folder!=='string'||a.folder!=='current'&& !/^(?:[1-9]|1[0-4]):(?:[1-9]|10)(?:\/(?:[1-9]|1[0-4]):(?:[1-9]|10)){0,7}$/.test(a.folder)))throw Error('invalid-query');
+  // validate() is used by both the dispatcher and reader; accept normalized defaults too.
+  if(a.section==='empty_slots'&&(['profile','page','folder'].some(k=>a[k]!==null)||(a.query!==null&&a.query!=='')||(a.offset!==null&&a.offset!==0)))throw Error('invalid-empty-slots-query');
   return {...a,offset:a.offset??0,query:a.query||''};
 }
 const GUIDE={product:'DeckForge is a Windows editor for Ulanzi D200X; 13 ordinary LCD keys plus wide display, two side controls and three knobs. Root key positions shown one-based; hardware log indices are raw, zero-based (13/14 wide halves, 15/16 side, 17–19 knob). Profile/page/folder queries return saved data; current view may be different while editing. Pinned keys fill empty root slots. Folder paths use slot:page. A USB transfer or input receipt does not prove display rendering or action success. App/folder traces report specific stages; only verified native window focus is evidence of foreground. SDK plugin connection is not proof a HA entity or Fusion action executed. Inspect is read-only. In edit mode the separate propose_edit tool may stage a preview; only a human-approved local UI action saves settings. AI cannot run programs or send device inputs. For latest behavior query instead of guessing.'};
@@ -265,6 +274,10 @@ function createReader({root,userData,view,device,inputs,evidence=()=>[],version=
           result={...slice(selected,o,12),...(exact?{detail:exact}:{}),source:'bounded session post-filter packet IDs; delivered means sending attempted, renderer stage confirms receipt; only explicitly linked stages, not proof of external effects'};
         }else if(a.section==='layout_review'){
           state??=await readState();result={...layoutReview(state,a),liveView:await view().catch(()=>null)};
+        }
+        else if(a.section==='empty_slots'){
+          state??=await readState();
+          result=emptySlots(state);
         }
         else if(a.section==='plugin_templates'){
           state??=await readState();
@@ -312,4 +325,4 @@ function createReader({root,userData,view,device,inputs,evidence=()=>[],version=
     };
   };
 }
-module.exports={TOOL,SECTIONS,validate,createReader,action,resolvePage,profileList,logRecord,label,tail,layoutReview,windowsApps};
+module.exports={TOOL,SECTIONS,validate,createReader,action,resolvePage,profileList,emptySlots,logRecord,label,tail,layoutReview,windowsApps};

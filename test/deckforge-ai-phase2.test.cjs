@@ -1,7 +1,7 @@
 'use strict';
 const {test}=require('node:test');
 const assert=require('node:assert/strict');
-const {createReader,resolvePage,action,logRecord,validate}=require('../app/streamdeck-editor/ai/read-tools.cjs');
+const {createReader,resolvePage,emptySlots,action,logRecord,validate}=require('../app/streamdeck-editor/ai/read-tools.cjs');
 const {chat,cleanHistory}=require('../app/streamdeck-editor/ai/responses.cjs');
 const Core=require('../app/streamdeck-editor/deck-core.js');
 const empty=()=>Array(19).fill(null);
@@ -107,4 +107,44 @@ test('app log safely projects exact package diagnostics and never raw details',(
   assert.equal(logRecord({spec:{kind:'EXE',target:'C:\\Private\\Editor.exe'}}).target,'Editor.exe');
   assert.ok(!JSON.stringify(row).includes('DO_NOT_SEND'));assert.ok(!JSON.stringify(row).includes('Private'));
   assert.equal(logRecord({spec:{kind:'EditorHwnd',target:'123:456'}}).target,undefined);
+});
+
+test('all root empty slots in one bounded query, pinned and physical keys excluded',async()=>{
+  const s=fixture();
+  s.pages=[Array(19).fill({type:'hotkey'}),empty(),empty()];
+  s.page=0;s.pages[1][0]={type:'text',settings:{body:'DO_NOT_SEND_BODY'}};
+  s.pages[2][12]={type:'hotkey'};
+  const before=JSON.stringify(s),r=await createReader(opts(s))()(query('empty_slots'));
+  assert.equal(r.ok,true);assert.equal(r.currentPage,1);assert.equal(r.pageCount,3);
+  assert.deepEqual(r.pages[0],{page:2,slots:[2,4,5,6,7,8,9,10,11,12,13]});
+  assert.deepEqual(r.pages[1],{page:3,slots:[1,2,4,5,6,7,8,9,10,11,12]});
+  assert.equal(r.emptyCount,22);assert.equal(JSON.stringify(s),before);
+  assert.equal(JSON.stringify(r).includes('DO_NOT_SEND'),false);
+  assert.throws(()=>validate(query('empty_slots',{profile:2})));
+  assert.throws(()=>validate(query('empty_slots',{folder:'current'})));
+  assert.deepEqual(validate(validate(query('empty_slots'))),validate(query('empty_slots')));
+  s.pages=Array.from({length:128},empty);
+  assert.ok(JSON.stringify(emptySlots(s)).length<12000);
+  assert.equal(emptySlots(s).pageCount,128);
+  s.pages=[Array(19).fill({type:'hotkey'})];assert.equal(emptySlots(s).emptyCount,0);
+});
+test('known Fusion ID on another page uses one inventory call, one proposal, three requests',async()=>{
+  const s=fixture();s.pages=[empty(),Array(19).fill({type:'hotkey'}),empty()];s.page=1;
+  const inspect=createReader(opts(s))();
+  let n=0,proposals=0;
+  const result=await chat({...base,readOnly:true,editMode:true,inspect,
+    propose:async raw=>{proposals++;assert.equal(raw.advanced.page,1);
+      assert.equal(raw.advanced.slot,1);assert.equal(JSON.parse(raw.advanced.configJson).id,'CircleCenterRadius');
+      return {ok:true,previewReady:true,applied:false};},
+    fetcher:async(_url,o)=>{
+      const body=JSON.parse(o.body);n++;
+      assert.match(body.instructions,/empty_slots/);
+      if(n===1)return events(complete([call('slots','inspect',query('empty_slots'))]));
+      if(n===2){const r=JSON.parse(body.input.find(x=>x.call_id==='slots'&&x.type==='function_call_output').output);
+        assert.equal(r.currentPage,2);assert.equal(r.pages[0].page,1);assert.equal(r.pages[0].slots[0],1);
+        return events(complete([call('proposal','propose_advanced',{kind:'plugin',page:1,folder:null,slot:1,configJson:JSON.stringify({kind:'fusion-live',id:'CircleCenterRadius',title:'원'})})]));}
+      assert.match(body.instructions,/FINAL RESPONSE ROUND/);
+      return events({type:'response.output_text.delta',delta:'미리보기 준비'},complete([]));
+    }});
+  assert.equal(result.requests,3);assert.equal(result.toolCalls,2);assert.equal(proposals,1);
 });
