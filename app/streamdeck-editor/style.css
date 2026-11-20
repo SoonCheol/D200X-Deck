@@ -1077,7 +1077,7 @@
 .deckforge-tooltip-body{display:grid;gap:4px;padding:6px 9px;overflow-wrap:anywhere}
 
 /* Ordered Multi only; no change to switch/random/logic property layout. */
-.ordered-multi .multi-action-toolbar{margin:0 0 8px;flex-wrap:nowrap}
+.ordered-multi .multi-action-toolbar{margin:0 0 8px 24px;flex-wrap:nowrap}
 
 .ordered-multi-list{display:flex;flex-direction:column;gap:4px;min-width:0}
 .ordered-multi-row{display:grid;grid-template-columns:20px 92px minmax(0,1fr) 28px 28px;gap:4px;align-items:center;min-width:0}
