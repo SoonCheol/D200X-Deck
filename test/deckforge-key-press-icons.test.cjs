@@ -233,4 +233,5 @@ test('timer state titles and multi runtime artwork do not follow the physical re
  const multi={type:'multi',settings:{stateTitles,keyPressIcons:{up:{kind:'file',value:'UP'},down:{kind:'file',value:'DOWN'}}}};
  assert.equal(apply(multi,true).icon.value,'UP');
  const step=apply(multi,false,{step:2,total:5});assert.equal(step.icon.value,'DOWN');assert.equal(step.title,'2/5');
+ assert.equal(apply(multi,false,{step:2,total:5,gate:{paused:true}}).title,'Ⅱ 2/5');
 });

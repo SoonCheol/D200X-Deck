@@ -231,6 +231,30 @@
       return {kind:'invalid',message:'복합 액션 중첩 지원 여부가 확인되지 않았습니다.'};
     return {kind:'composite',type:model.type,steps:copy(steps)};
   }
+  function createMultiPauseGate(signal,{now=()=>Date.now(),setTimer=(fn,ms)=>setTimeout(fn,ms),clearTimer=id=>clearTimeout(id)}={}){
+    let paused=false;
+    const listeners=new Set();
+    const notify=()=>{for(const fn of [...listeners])fn();};
+    const check=()=>{if(signal?.aborted)throw Error('복합 동작이 취소되었습니다.');};
+    const changed=ms=>new Promise(resolve=>{
+      let timer,done=false;
+      const finish=()=>{if(done)return;done=true;listeners.delete(finish);signal?.removeEventListener('abort',finish);if(timer!==undefined)clearTimer(timer);resolve();};
+      listeners.add(finish);signal?.addEventListener('abort',finish,{once:true});
+      if(ms!==undefined)timer=setTimer(finish,ms);
+      if(signal?.aborted)finish();
+    });
+    const ready=async()=>{check();while(paused){await changed();check();}};
+    const wait=async ms=>{
+      let remaining=ms;
+      while(remaining>0){
+        await ready();check();if(paused)continue;
+        const started=now();await changed(remaining);
+        remaining=Math.max(0,remaining-Math.max(0,now()-started));check();
+      }
+      await ready();
+    };
+    return {get paused(){return paused;},pause(){if(!paused&&!signal?.aborted){paused=true;notify();}},resume(){if(paused&&!signal?.aborted){paused=false;notify();}},ready,wait};
+  }
   async function runComposite(action,{execute,wait,signal,state=0,random,gesture,nextActionMs=0,onStep}={}){
     if(typeof execute!=='function'||typeof wait!=='function')throw new TypeError('execute and wait callbacks are required');
     const plan=planComposite(action,{state,random,gesture});
@@ -996,5 +1020,5 @@
       url:action.settings?.url||'',mode:action.settings?.open||'default',browserPath:action.settings?.browserPath||''};
     return {kind:'unsupported',message:'이 동작의 실행 기능은 아직 구현되지 않았습니다.'};
   }
-  return {ACTION_IDS,D200X_ACTION_IDS,PLUGIN_ACTION_IDS,DEFAULTS,TITLE,SIDE_NAV_LABELS,SIDE_HOLD_MS,sideConfig,makeSideAction,sideActionConfig,sideFolderTargets,planSideNavigation,applySideNavigation,createSidePressTracker,createAction,cleanAction,cleanCompositeEntry,timerSeconds,formatTimerTime,displaySwitchAction,compositeModel,planComposite,runComposite,multiRows,setMultiRows,blankPage,cleanWideDisplay,cycleWideDisplay,isWideDisplayPress,folderContents,folderPageCount,changeFolderPage,addFolderPage,deleteFolderPage,currentActions,visibleActions,togglePinned,activeFolder,enterFolder,exitFolder,migrateState,profileSnapshot,switchProfile,createProfile,renameProfile,exportSingleProfile,setProfileApp,matchForegroundProfile,deleteProfile,previewHardwareEvent,physicalSlot,hardwareGesture,resolveHardwareEvent,runtimeActionKey,folderWideBackEvent,resolveKeyPress,planHardwareEvent,deletePage,planAction,emptyBinding,cleanBinding,controlAction,activeControlAction,assignControlAction,automaticControl,ensureControls,controlBinding,changeControlScope};
+  return {ACTION_IDS,D200X_ACTION_IDS,PLUGIN_ACTION_IDS,DEFAULTS,TITLE,SIDE_NAV_LABELS,SIDE_HOLD_MS,sideConfig,makeSideAction,sideActionConfig,sideFolderTargets,planSideNavigation,applySideNavigation,createSidePressTracker,createAction,cleanAction,cleanCompositeEntry,timerSeconds,formatTimerTime,displaySwitchAction,compositeModel,planComposite,runComposite,createMultiPauseGate,multiRows,setMultiRows,blankPage,cleanWideDisplay,cycleWideDisplay,isWideDisplayPress,folderContents,folderPageCount,changeFolderPage,addFolderPage,deleteFolderPage,currentActions,visibleActions,togglePinned,activeFolder,enterFolder,exitFolder,migrateState,profileSnapshot,switchProfile,createProfile,renameProfile,exportSingleProfile,setProfileApp,matchForegroundProfile,deleteProfile,previewHardwareEvent,physicalSlot,hardwareGesture,resolveHardwareEvent,runtimeActionKey,folderWideBackEvent,resolveKeyPress,planHardwareEvent,deletePage,planAction,emptyBinding,cleanBinding,controlAction,activeControlAction,assignControlAction,automaticControl,ensureControls,controlBinding,changeControlScope};
 });

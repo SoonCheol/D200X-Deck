@@ -265,8 +265,8 @@
           const w = image.width * scale, h = image.height * scale;
           ctx.drawImage(image, (width - w)/2, (height - h)/2, w, h);
         }
-      } else if (!item.icon?.glyph && window.D200XPanelIcons?.artwork?.(item.type)) {
-        const image = await imageLoaded(window.D200XPanelIcons.artwork(item.type));
+      } else if (!item.icon?.glyph && window.D200XPanelIcons?.keyArtwork?.(item.type)) {
+        const image = await imageLoaded(window.D200XPanelIcons.keyArtwork(item.type));
         if (image) {
           const side = Math.min(width, height) * 0.79;
           ctx.drawImage(image, (width-side)/2, (height-side)/2, side, side);

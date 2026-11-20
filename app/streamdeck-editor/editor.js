@@ -322,6 +322,7 @@ function textActionDisplayTitle(item,title){
 }
 function defaultStateTitlePair(item){
   if(item?.type==='timer')return {first:{enabled:true,title:'',style:{...DEFAULT_TITLE_STYLE,...item.titleStyle}},second:{enabled:true,title:DeckCore.formatTimerTime(DeckCore.timerSeconds(item.settings?.seconds),item.settings?.seconds),style:{...DEFAULT_TITLE_STYLE,...item.titleStyle}}};
+  if(item?.type==='multi')return {first:{enabled:item.titleStyle?.visible!==false,title:item.title||'',style:{...DEFAULT_TITLE_STYLE,...item.titleStyle}},second:{enabled:item.titleStyle?.visible!==false,title:'',style:{...DEFAULT_TITLE_STYLE,...item.titleStyle}}};
   return {
     first:{enabled:item.titleStyle?.visible!==false,title:item.title||'',style:{...DEFAULT_TITLE_STYLE,...item.titleStyle}},
     second:{enabled:false,title:item.title||'',style:{...DEFAULT_TITLE_STYLE,...item.titleStyle}}
@@ -395,6 +396,17 @@ function resolveTimerVisual(item,second,remaining,artwork,configured=item.settin
   const visual=resolveStateTitle(prepared,second,artwork);
   return {...visual,title:second&&visual.titleStyle?.visible!==false?DeckCore.formatTimerTime(remaining,configured):'',keyPressAlternate:true};
 }
+function multiProgressTitle(item,progress){
+  const total=progress?.total??DeckCore.multiRows(item).rows.length;
+  return (progress?.gate?.paused?'Ⅱ ':'')+(progress?.step??(total?1:0))+'/'+total;
+}
+function resolveMultiVisual(item,second,artwork,progress){
+  const pair=item.settings?.stateTitles||defaultStateTitlePair(item);
+  const prepared={...item,settings:{...item.settings,stateTitles:pair}};
+  const visual=resolveStateTitle(prepared,second,artwork);
+  const title=second?multiProgressTitle(item,progress):pair.first?.enabled?pair.first.title:'';
+  return {...visual,title:visual.titleStyle?.visible!==false?title:'',keyPressAlternate:true};
+}
 function displayKeyPressItem(item,index){
   const inspectorPreview=arguments[2]===true;
   if(item?.type==='timer'&&Number.isInteger(index)&&index>=0&&index<13){
@@ -418,8 +430,7 @@ function displayKeyPressItem(item,index){
   const same=signature(up)===signature(down);
   if(item.type==='multi'){
     const progress=runningMultiProgress.get(DeckCore.runtimeActionKey(state,index,'down'));
-    const visual=progress?down:up;
-    return {...visual,...(progress&&visual.titleStyle?.visible!==false?{title:progress.step+'/'+progress.total}:{}),keyPressAlternate:true};
+    return resolveMultiVisual(item,!!progress,artwork,progress);
   }
   const pressed=previewPressKeys.has(index)||window.D200XPhysicalKeyPressed?.(index)===true;
   return {...(pressed?down:up),keyPressAlternate:!same};
@@ -431,9 +442,9 @@ function iconNode(item,defaultGlyph){
   if(item?.icon?.kind==="file"&&typeof item.icon.value==="string"){
     const image=document.createElement("img");image.className="icon-image";image.src=item.icon.value;image.alt="";return image;
   }
-  if(!item?.icon?.glyph && window.D200XPanelIcons?.artwork?.(item?.type)){
+  if(!item?.icon?.glyph && window.D200XPanelIcons?.keyArtwork?.(item?.type)){
     const image=document.createElement("img");image.className="icon-image";
-    image.src=window.D200XPanelIcons.artwork(item.type);image.alt="";return image;
+    image.src=window.D200XPanelIcons.keyArtwork(item.type);image.alt="";return image;
   }
   const symbol=document.createElement("span");symbol.className="icon-glyph";
   symbol.textContent=item?.icon?.glyph||defaultGlyph;return symbol;
@@ -2736,7 +2747,9 @@ async function refreshStateTitleCards(item){
   root.dataset.stateCardVersion=version;
   for(const card of pair){
     const second=card.dataset.stateTitle==='second';
-    const titleVisual=item.type==='timer'?resolveTimerVisual(visual,second,DeckCore.timerSeconds(item.settings?.seconds),artwork):resolveStateTitle(visual,second,artwork);
+    const progress=item.type==='multi'?runningMultiProgress.get(DeckCore.runtimeActionKey(state,slot,'down')):null;
+    const titleVisual=item.type==='timer'?resolveTimerVisual(visual,second,DeckCore.timerSeconds(item.settings?.seconds),artwork):item.type==='multi'?resolveMultiVisual(visual,second,artwork,progress):resolveStateTitle(visual,second,artwork);
+    if(item.type==='multi'&&second){const input=card.querySelector('.state-title-input');if(input)input.value=multiProgressTitle(item,progress);}
     // State previews are snapshots, not a physical key-down effect.
     const img=card.querySelector('.sdk-state-preview');
     if(!img)continue;
@@ -2763,7 +2776,9 @@ function attachStateTitleControls(card,item,which){
   const input=document.createElement('input');input.type='text';input.className='state-title-input';
   input.placeholder=item.type==='text'?'자동 제목':'제목';input.title=item.type==='text'?'제목을 비우면 입력 텍스트가 자동 표시됩니다. <br>로 강제 줄바꿈':'<br>로 강제 줄바꿈';input.setAttribute('aria-label',which==='first'?'제목 1':'제목 2');
   const timer=item.type==='timer',timerIdle=timer&&which==='first';
-  input.maxLength=256;input.value=timer?(timerIdle?'':DeckCore.formatTimerTime(DeckCore.timerSeconds(item.settings?.seconds),item.settings?.seconds)):config.title;input.readOnly=timer;input.disabled=timerIdle||!config.enabled;
+  const multiAuto=item.type==='multi'&&which==='second';
+  input.maxLength=256;input.value=timer?(timerIdle?'':DeckCore.formatTimerTime(DeckCore.timerSeconds(item.settings?.seconds),item.settings?.seconds)):multiAuto?multiProgressTitle(item,runningMultiProgress.get(DeckCore.runtimeActionKey(state,state.selected,'down'))):config.title;input.readOnly=timer||multiAuto;input.disabled=timerIdle||!config.enabled;
+  if(multiAuto)input.title='실행 단계 자동 표시';
   const styleButton=document.createElement('button');styleButton.type='button';
   styleButton.className='state-title-style';styleButton.textContent='T⌄';
   styleButton.title=(which==='first'?'제목 1':'제목 2')+' 글꼴 속성';
@@ -2788,7 +2803,7 @@ function attachStateTitleControls(card,item,which){
     persistInspectorChange();renderGrid();refreshTitlePreview(item);
   });
   input.addEventListener('input',()=>{
-    if(timer)return;
+    if(timer||multiAuto)return;
     const saved=ensureStateTitlePair(item)[which];
     saved.title=input.value;
     // The legacy title is a fallback for imported versions, not the active state title.
@@ -3118,8 +3133,8 @@ async function populateAudioOutputs(select,item){
 const INSPECTOR_HELP={
   multi:{
     title:'다중 동작',description:'등록한 단계를 위에서 아래 순서대로 실행합니다.',
-    steps:['오른쪽 액션 목록을 아래 단계 목록에 끌어놓거나 동작 추가를 사용하세요.','각 행의 지연은 동작 실행 전 대기 시간입니다. 행을 드래그하면 지연과 동작이 함께 이동합니다.'],
-    cautions:['복합 동작 중첩은 지원하지 않습니다.','실행 중단은 진행 중인 단계를 즉시 취소하지 않을 수 있습니다.']
+    steps:['오른쪽 액션 목록을 아래 단계 목록에 끌어놓거나 동작 추가를 사용하세요.','각 행의 지연은 동작 실행 전 대기 시간입니다. 행을 드래그하면 지연과 동작이 함께 이동합니다.','일반 실기 버튼: 처음 누르면 실행, 실행 중 짧게 누르면 일시정지, 일시정지 중 짧게 누르면 재개합니다.','실행 또는 일시정지 중 1초 이상 길게 누르면 남은 동작을 취소합니다.'],
+    cautions:['복합 동작 중첩은 지원하지 않습니다.','일시정지는 남은 지연 시간을 유지합니다. 이미 실행된 동작은 되돌리지 않으며, 진행 중인 Windows 요청은 완료될 수 있습니다.']
   },
   'multi-switch':{
     title:'다중 동작 스위치',description:'상태 1과 상태 2에 서로 다른 동작 목록을 등록하고 상태에 따라 실행합니다.',
@@ -3159,12 +3174,12 @@ const INSPECTOR_HELP={
 };
 function inspectorBreadcrumb(item,action,inspectorName){
   const plugin=item.type==='sd-plugin';
-  const root=libraryTab==='plugins'?'플러그인':'액션';
+  const root=plugin?'플러그인':'기본 액션';
   const category=plugin
     ?sdkPlugins.find(p=>p.uuid===item.settings?.pluginUUID)?.name||
       (item.settings?.actionUUID===HA_CUSTOM_ACTION?'Home Assistant':'설치된 플러그인')
     :action?.category||'기타';
-  return [root,category,inspectorName].filter(Boolean).join(' › ');
+  return [root,category,inspectorName||action?.label||item.type].filter(Boolean).join(' › ');
 }
 function inspectorOverview(item){
   switch(item.type){
@@ -3206,6 +3221,36 @@ function appendInspectorHelp(head,item){
   if(test)head.insertBefore(trigger,test);else head.append(trigger);
 }
 let lastInspectorPreviewItem=null;
+let timerSoundPreview=null;
+function stopTimerSoundPreview(record=timerSoundPreview){
+  if(!record||timerSoundPreview!==record)return;
+  timerSoundPreview=null;
+  record.signal?.removeEventListener('abort',record.cancel);
+  record.button.textContent='▶';record.button.title='미리듣기';record.button.setAttribute('aria-label','미리듣기');
+  try{record.stop?.();}catch{}
+}
+async function toggleTimerSoundPreview(settings,button,signal){
+  if(timerSoundPreview){const same=timerSoundPreview.button===button;stopTimerSoundPreview();if(same)return;}
+  if(signal?.aborted||!timerVolume(settings)||settings.sound==='none')return;
+  const record={button,signal,cancel:null,stop:null};timerSoundPreview=record;
+  record.cancel=()=>stopTimerSoundPreview(record);signal?.addEventListener('abort',record.cancel,{once:true});
+  button.textContent='■';button.title='미리듣기 정지';button.setAttribute('aria-label','미리듣기 정지');
+  try{
+    if(settings.sound==='custom'){
+      if(!settings.soundFile)throw Error('사용자 알림음 파일을 선택하세요.');
+      const url=await window.deckBridge.audioFileUrl(settings.soundFile);
+      if(timerSoundPreview!==record)return;
+      const audio=new Audio(url);audio.volume=timerVolume(settings)/100;
+      record.stop=()=>{audio.pause();audio.removeAttribute('src');audio.load();};
+      audio.addEventListener('ended',record.cancel,{once:true});
+      audio.addEventListener('error',record.cancel,{once:true});
+      await audio.play();
+    }else{
+      await playTimerChime(settings.sound||'connect',timerVolume(settings),record);
+      stopTimerSoundPreview(record);
+    }
+  }catch(error){if(timerSoundPreview===record){stopTimerSoundPreview(record);window.d200xActionStatus?.('타이머 미리듣기 실패: '+String(error?.message||error));}}
+}
 
 function renderTimerSettings(item,root){
   const area=document.createElement('div');area.className='timer-settings';
@@ -3234,17 +3279,17 @@ function renderTimerSettings(item,root){
   if(!sound.value)sound.value='connect';
   const btn=(name,glyph,fn)=>{const b=document.createElement('button');b.type='button';b.title=name;b.setAttribute('aria-label',name);b.textContent=glyph;b.addEventListener('click',fn);return b;};
   const choose=btn('MP3/WAV 파일 선택','▱',async()=>{
-    try{const session=inspectorSession,path=await window.deckBridge?.choosePath('audio');if(!path||!inspectorTargetCurrent(session,item))return;if(!/\.(mp3|wav)$/i.test(path))throw Error('MP3 또는 WAV 파일을 선택하세요.');item.settings.soundFile=path;item.settings.sound='custom';sound.value='custom';persistInspectorChange();syncSound();}
+    try{const session=inspectorSession,path=await window.deckBridge?.choosePath('audio');if(!path||!inspectorTargetCurrent(session,item))return;if(!/\.(mp3|wav)$/i.test(path))throw Error('MP3 또는 WAV 파일을 선택하세요.');stopTimerSoundPreview();item.settings.soundFile=path;item.settings.sound='custom';sound.value='custom';persistInspectorChange();syncSound();}
     catch(e){window.d200xActionStatus?.(String(e?.message||e));}
   });
-  const listen=btn('미리듣기','▶',()=>playTimerAlert({...item.settings}));
+  const listen=btn('미리듣기','▶',()=>void toggleTimerSoundPreview({...item.settings},listen,inspectorListener.signal));
   const volume=btn('음량','♪',()=>{volumePanel.hidden=!volumePanel.hidden;if(!volumePanel.hidden)slider.focus();});
   setSmallActionIcon(choose,'folder');setSmallActionIcon(volume,'volume');
   const volumePanel=document.createElement('div');volumePanel.className='timer-volume-popup';volumePanel.hidden=true;
   const slider=document.createElement('input');slider.type='range';slider.min='0';slider.max='100';slider.value=String(timerVolume(item.settings));slider.setAttribute('aria-label','알림음 음량');
   const amount=document.createElement('output');
   const syncSound=()=>{choose.title=item.settings.soundFile||'MP3/WAV 파일 선택';sound.title=sound.value==='custom'?choose.title:'내장 알림음';listen.disabled=sound.value==='none'||sound.value==='custom'&&!item.settings.soundFile;volume.title='음량 '+timerVolume(item.settings)+'%';amount.textContent=timerVolume(item.settings)+'%';};
-  sound.addEventListener('change',()=>{item.settings.sound=sound.value;persistInspectorChange();syncSound();});
+  sound.addEventListener('change',()=>{stopTimerSoundPreview();item.settings.sound=sound.value;persistInspectorChange();syncSound();});
   slider.addEventListener('input',()=>{item.settings.soundVolume=Number(slider.value);syncSound();persistInspectorChange();});
   volumePanel.append(slider,amount);soundRow.append(soundLabel,sound,choose,listen,volume,volumePanel);area.append(soundRow);syncSound();
   root.querySelector('.fields')?.append(area);
@@ -3711,6 +3756,40 @@ const timerDeadlines=new WeakMap();
 const runningMultiActions=new Set();
 const runningMultiControllers=new WeakMap();
 const runningMultiProgress=new Map();
+const multiPhysicalPresses=new Map();
+function clearMultiPhysicalPresses(){
+  for(const token of multiPhysicalPresses.values())clearTimeout(token.timer);
+  multiPhysicalPresses.clear();
+}
+function handleMultiPhysicalPress(resolved,preview){
+  if(preview||resolved.index<0||resolved.index>=13||!['down','up'].includes(resolved.gesture))return null;
+  const index=resolved.index,key=DeckCore.runtimeActionKey(state,index,'down');
+  const previous=multiPhysicalPresses.get(index);
+  if(resolved.gesture==='up'){
+    if(!previous)return null;
+    clearTimeout(previous.timer);multiPhysicalPresses.delete(index);
+    if(previous.record&&previous.key===key&&runningMultiProgress.get(key)===previous.record&&!previous.record.controller.signal.aborted){
+      if(Date.now()-previous.at>=1000){previous.record.controller.abort();previous.record.update();}
+      else if(previous.resume){previous.record.gate.resume();previous.record.update();}
+    }
+    return {message:null};
+  }
+  if(previous)return {message:null};
+  if(resolved.action?.type!=='multi')return null;
+  const record=runningMultiProgress.get(key);
+  const token={key,record,at:Date.now(),resume:record?.gate.paused===true,timer:null};
+  multiPhysicalPresses.set(index,token);
+  if(!record)return null;
+  if(!record.controller.signal.aborted){
+    if(!token.resume){record.gate.pause();record.update();}
+    token.timer=setTimeout(()=>{
+      if(multiPhysicalPresses.get(index)===token&&runningMultiProgress.get(key)===record&&DeckCore.runtimeActionKey(state,index,'down')===key){
+        record.controller.abort();record.update();
+      }
+    },1000);
+  }
+  return {message:token.resume?'다중 동작 재개 대기':'다중 동작 일시정지'};
+}
 // The original switch begins in state 1. Runtime state is distinct from the
 // editor tab and advances only after its selected sequence succeeds.
 // Runtime position is persisted only after the selected sequence succeeds.
@@ -3862,17 +3941,20 @@ async function playTimerAlert(settings){
     const url=await window.deckBridge.audioFileUrl(settings.soundFile);const audio=new Audio(url);audio.volume=volume/100;await audio.play();
   }else playTimerChime(settings.sound||'connect',volume);}catch(e){window.d200xActionStatus?.('타이머 알림음 실패: '+String(e?.message||e));}
 }
-function playTimerChime(kind,volume=100){
+function playTimerChime(kind,volume=100,preview=null){
   if(kind==='none'||volume<=0)return;
   const AudioContextClass=window.AudioContext||window.webkitAudioContext;
   if(!AudioContextClass)return;
   const context=new AudioContextClass();
+  const close=()=>{if(context.state!=='closed')return context.close().catch(()=>{});};
+  if(preview)preview.stop=close;
   const patterns={
     connect:[660,880],disconnect:[880,550],release:[880,660,440],
     find:[740,880,740],other:[523,659,784]
   };
   const tones=patterns[kind]||patterns.connect;
-  Promise.resolve(context.resume()).then(()=>{
+  return Promise.resolve(context.resume()).then(()=>{
+    if(preview&&timerSoundPreview!==preview)return;
     tones.forEach((freq,i)=>{
       const oscillator=context.createOscillator();
       const gain=context.createGain();
@@ -3885,9 +3967,9 @@ function playTimerChime(kind,volume=100){
       oscillator.start(start);oscillator.stop(start+0.145);
     });
     return new Promise(resolve=>setTimeout(resolve,tones.length*160+100));
-  }).then(()=>context.close()).catch(error=>{
-    console.warn('타이머 알림음 재생 실패',String(error?.message||error));
-    context.close().catch(()=>{});
+  }).then(close).catch(error=>{
+    if(!preview||timerSoundPreview===preview)console.warn('타이머 알림음 재생 실패',String(error?.message||error));
+    return close();
   });
 }
 const openAppHoldTimers=new Map();
@@ -4140,6 +4222,8 @@ function executeHardwareAction(event,preview=false,skipKnobGesture=false){
   const bindingAction=resolved.action;
   report('resolved',{slot:index,gesture:resolved.gesture,action:bindingAction?.type});
   if(index===14||index===15)return handleSideNavigationInput(index,resolved.gesture,event,preview);
+  const multiPress=handleMultiPhysicalPress(resolved,preview);
+  if(multiPress){if(resolved.gesture==='up')lastHardwareDown.delete(index);report('multi-control');return multiPress.message;}
   if(!preview&&['down','up'].includes(resolved.gesture)&&
     (openAppHoldTimers.has(index)||(resolved.action?.type==='open-app'&&
       ['close','force'].includes(resolved.action.settings?.hold))))
@@ -4223,12 +4307,13 @@ function executeHardwareAction(event,preview=false,skipKnobGesture=false){
     runningMultiActions.add(key);
     const controller=new AbortController();
     runningMultiControllers.set(action,controller);
-    const progress=outcome.type==='multi'?{controller,step:1,total:check.steps.filter(x=>x.kind!=='delay').length}:null;
-    const updateProgress=()=>{if(progress){renderGrid();void refreshSelectedVisual();refreshMultiRunControls();window.scheduleDeckSync?.(0);}};
-    if(progress){runningMultiProgress.set(key,progress);updateProgress();}
+    const progress=outcome.type==='multi'?{controller,gate:DeckCore.createMultiPauseGate(controller.signal),step:1,total:check.steps.filter(x=>x.kind!=='delay').length}:null;
+    const updateProgress=()=>{if(progress){renderGrid();void refreshSelectedVisual();refreshMultiRunControls();const selected=DeckCore.visibleActions(state)[state.selected];if(selected?.type==='multi')void refreshStateTitleCards(selected);window.scheduleDeckSync?.(0);}};
+    if(progress){progress.update=updateProgress;runningMultiProgress.set(key,progress);updateProgress();}
+    const executeStep=compositeExecutor(key,outcome.type==='random'?'random:'+Math.floor(random*DeckCore.compositeModel(action).choices.length):'state:'+position);
     observe(DeckCore.runComposite(action,{
       onStep:(step,total)=>{if(progress){progress.step=step;progress.total=total;updateProgress();}},
-      execute:compositeExecutor(key,outcome.type==='random'?'random:'+Math.floor(random*DeckCore.compositeModel(action).choices.length):'state:'+position),wait:waitMultiDelay,
+      execute:progress?async(step,signal)=>{await progress.gate.ready();if(signal?.aborted)throw Error('복합 동작이 취소되었습니다.');return executeStep(step,signal);}:executeStep,wait:progress?ms=>progress.gate.wait(ms):waitMultiDelay,
       state:position,random,signal:controller.signal,
       nextActionMs:Math.max(2,Math.min(200,Number(action.settings?.nextActionMs)||100))
     }),'composite').then(
@@ -4596,7 +4681,7 @@ let refreshProfilesMenu=()=>{};
 function render(){
   const scope=openAppHoldScope();
   if(scope!==lastOpenAppHoldScope){
-    clearOpenAppHoldTimers('navigation');invalidateSidePresses();
+    clearOpenAppHoldTimers('navigation');invalidateSidePresses();clearMultiPhysicalPresses();
     for(const press of logicPresses.values()){clearTimeout(press.holdTimer);clearTimeout(press.singleTimer);}
     logicPresses.clear();lastOpenAppHoldScope=scope;
   }

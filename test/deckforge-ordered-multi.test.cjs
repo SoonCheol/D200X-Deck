@@ -23,3 +23,14 @@ test('both wide halves alias only the reserved empty folder back slot',()=>{
  for(const index of [13,14])assert.equal(Core.planHardwareEvent(s,{kind:1,index,state:1,pressed:true}).outcome.kind,'folder-back');
  Core.currentActions(s)[13]=Core.createAction('hotkey');assert.equal(Core.resolveHardwareEvent(s,{kind:1,index:14,state:1,pressed:true}),null);
 });
+
+test('pause gate preserves remaining delay and abort releases a paused waiter',async()=>{
+ const controller=new AbortController(),timers=new Map();let now=0,id=0;
+ const flush=async()=>{for(let i=0;i<8;i++)await Promise.resolve();};
+ const gate=Core.createMultiPauseGate(controller.signal,{now:()=>now,setTimer:(fn,ms)=>{timers.set(++id,{fn,at:now+ms});return id;},clearTimer:i=>timers.delete(i)});
+ const advance=ms=>{now+=ms;for(const [i,value] of [...timers])if(value.at<=now){timers.delete(i);value.fn();}};
+ let done=false;const waiting=gate.wait(10000).then(()=>{done=true;});
+ await flush();advance(4000);gate.pause();await flush();advance(60000);await flush();assert.equal(done,false);
+ gate.resume();await flush();advance(5999);await flush();assert.equal(done,false);advance(1);await waiting;assert.equal(done,true);
+ gate.pause();const pending=gate.ready();controller.abort();await assert.rejects(pending);assert.equal(timers.size,0);
+});

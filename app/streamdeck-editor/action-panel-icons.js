@@ -104,8 +104,7 @@ window.D200XPanelIcons=(()=>{
     }
     return img;
   }
-  // Shared catalogue artwork for the editor preview and the physical D200X PNG.
-  // User-assigned key icons always take priority over this default.
+  // Catalogue artwork keeps the selected theme and overrides; keyArtwork is independent.
   function artwork(id){
     if(!Object.prototype.hasOwnProperty.call(paths,id))return null;
     const override=config.overrides[id];
@@ -119,6 +118,11 @@ window.D200XPanelIcons=(()=>{
     const ink=config.theme==='color'?accent:config.theme==='button'?'#ffffff':'#d6e0ed';
     const shape='<g transform="translate(8 8) scale(3.333333)" fill="none" stroke="'+ink+'" stroke-width="'+(config.theme==='button'?2:1.8)+'" stroke-linecap="round" stroke-linejoin="round">'+paths[id]+'</g>';
     return 'data:image/svg+xml;charset=utf-8,'+encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 96">'+background+shape+'</svg>');
+  }
+  function keyArtwork(id){
+    if(!Object.prototype.hasOwnProperty.call(paths,id))return null;
+    const shape='<g transform="translate(8 8) scale(3.333333)" fill="none" stroke="#ffffff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">'+paths[id].replace('fill="#3777bc"','fill="none"')+'</g>';
+    return 'data:image/svg+xml;charset=utf-8,'+encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 96">'+shape+'</svg>');
   }
   function setTheme(value){if(!themeNames[value])return;config.theme=value;save();}
   function setOverride(id,data){if(!paths[id]||typeof data!=="string"||!/^data:image\/(png|jpeg|webp|gif);base64,/.test(data)||data.length>200000)return false;config.overrides[id]=data;return save();}
@@ -140,5 +144,5 @@ window.D200XPanelIcons=(()=>{
     if(save())return true;
     config=old;return false;
   }
-  return {groups,themeNames,create,artwork,setTheme,exportConfig,restoreConfig,setOverride,clearOverride,clearAll,get theme(){return config.theme;},hasOverride:id=>!!config.overrides[id],ids:Object.keys(paths)};
+  return {groups,themeNames,create,artwork,keyArtwork,setTheme,exportConfig,restoreConfig,setOverride,clearOverride,clearAll,get theme(){return config.theme;},hasOverride:id=>!!config.overrides[id],ids:Object.keys(paths)};
 })();

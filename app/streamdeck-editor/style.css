@@ -620,7 +620,7 @@
 /* One inspector design language: single breadcrumb row, optional contextual
    help, consistent summary line and compact natural-width command buttons. */
 .action-head{gap:8px;min-width:0}
-.action-head>strong{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.action-head>strong{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .action-head .action-preview-test{margin-left:auto;margin-right:0}
 .action-head .inspector-help-trigger{
   order:0;flex:0 0 22px;min-width:22px;width:22px;height:22px;
