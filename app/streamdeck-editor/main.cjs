@@ -404,7 +404,7 @@ function stageBackup(incoming,filename,password,appearance){
   const current=currentBackup(appearance),id=randomUUID();
   backupPending={id,password,incoming,current,base:Backup.fingerprint(current)};
   backupTimer=setTimeout(clearBackupPending,5*60*1000);backupTimer.unref?.();
-  return {id,filename,...Backup.summary(incoming),legacy:incoming.legacy===true,appearance:incoming.appearance};
+  return {id,filename,...Backup.summary(incoming),legacy:incoming.legacy===true,items:Backup.restoreItems(current,incoming)};
 }
 async function driveOperation(event,fn){
   backupEditor(event);if(backupBusy)throw Error('백업 또는 Google 연결 작업이 진행 중입니다.');
@@ -459,16 +459,27 @@ ipcMain.handle('d200x:backup-preview',async(event,{password,appearance,format='e
     return stageBackup(incoming,path.basename(file),password,appearance);
   }finally{backupBusy=false;}
 });
-ipcMain.on('d200x:backup-commit',(event,id)=>{
+ipcMain.handle('d200x:backup-plan',async(event,{id,options}={})=>{
+  backupEditor(event);
+  if(backupBusy||!backupPending||backupPending.id!==id)throw Error('복원 미리보기 만료 또는 취소. 다시 선택하세요.');
+  const preview=backupPending;preview.plan=null;
+  if(Backup.fingerprint(currentBackup(preview.current.appearance))!==preview.base)throw Error('미리보기 이후 설정이 변경되었습니다. 다시 복원하세요.');
+  const {data,report}=Backup.planRestore(preview.current,preview.incoming,options);
+  const token=randomUUID();preview.plan={data,token};
+  if(backupTimer)clearTimeout(backupTimer);
+  backupTimer=setTimeout(clearBackupPending,5*60*1000);backupTimer.unref?.();
+  return {token,report,appearance:data.appearance,...Backup.summary(data)};
+});
+ipcMain.on('d200x:backup-commit',(event,{id,token}={})=>{
   try{
     backupEditor(event);
-    if(backupBusy||!backupPending||backupPending.id!==id)throw Error('복원 미리보기 만료 또는 취소. 다시 선택하세요.');
+    if(backupBusy||!backupPending||backupPending.id!==id||!backupPending.plan||backupPending.plan.token!==token)throw Error('최종 복원 미리보기 만료 또는 취소. 다시 선택하세요.');
     const preview=backupPending;clearBackupPending();
     const current=currentBackup(preview.current.appearance);
     if(Backup.fingerprint(current)!==preview.base)throw Error('미리보기 이후 설정이 변경되었습니다. 다시 복원하세요.');
     const restored=Backup.restore({store:profileStore,packsFile:iconPacksFile(),
       safetyDirectory:path.join(app.getPath('userData'),'Backups'),
-      current,incoming:preview.incoming,password:preview.password});
+      current,incoming:preview.plan.data,password:preview.password});
     event.returnValue={ok:true,...restored};
   }catch(error){event.returnValue={ok:false,error:String(error?.message||error)};}
 });

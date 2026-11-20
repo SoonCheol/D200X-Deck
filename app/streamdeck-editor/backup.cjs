@@ -142,7 +142,8 @@ function decode(bytes,password,format='encrypted',current=null){
   }
   const profiles=validateProfiles(legacy);
   const migrated={format:'deckforge-backup-v1',createdAt:current.createdAt,version:current.version,legacy:true,
-    profiles,packs:current.packs,appearance:data.actionPanelAppearance??current.appearance};
+    profiles,packs:current.packs,appearance:data.actionPanelAppearance??current.appearance,
+    legacyTemplates:!Object.hasOwn(data,'profileTemplates'),legacyAppearance:!Object.hasOwn(data,'actionPanelAppearance')};
   validateSnapshot(migrated);return migrated;
 }
 function readArchive(file,password,format='encrypted',current=null){
@@ -167,6 +168,151 @@ function writeArchive(directory,data,password,{safety=false,format='encrypted'}=
   if(fs.existsSync(file))throw Error('동일 백업 파일이 이미 있습니다.');
   writeAtomic(file,encode(data,password,format));
   return {file,filename,...summary(data)};
+}
+// Describe only metadata to the renderer. The archive and final import plan
+// remain in the main process until the explicit commit.
+function restoreItems(current,incoming){
+  const items=(source,target)=>source.map(item=>({id:item.id,name:item.name,
+    matches:target.filter(t=>t.name.trim().toLowerCase()===item.name.trim().toLowerCase()).length}));
+  return {profiles:items(incoming.profiles.profileNames,current.profiles.profileNames),
+    templates:incoming.legacyTemplates?[]:items(incoming.profiles.profileTemplates||[],current.profiles.profileTemplates||[]),
+    packs:incoming.legacy?[]:items(incoming.packs,current.packs),
+    appearance:!incoming.legacyAppearance};
+}
+function planRestore(current,incoming,options){
+  const prior=validateSnapshot(current),source=validateSnapshot(incoming);
+  if(!obj(options)||!['all','merge','select'].includes(options.mode))throw Error('복원 방식을 선택하세요.');
+  if(options.mode==='all'){
+    const data={...incoming,profiles:source};
+    return {data,report:{mode:'all',added:0,replaced:0,kept:0,renamed:0,missingLinks:0,details:[],appearance:true}};
+  }
+  if(!['keep','overwrite','rename'].includes(options.conflict)||typeof options.appearance!=='boolean')throw Error('복원 옵션이 올바르지 않습니다.');
+  const report={mode:options.mode,added:0,replaced:0,kept:0,renamed:0,missingLinks:0,details:[],appearance:options.appearance&&!incoming.legacyAppearance};
+  const clone=value=>JSON.parse(JSON.stringify(value)),key=name=>name.trim().toLowerCase();
+  const profiles=prior.profileNames.map(p=>({...p,snapshot:Core.exportSingleProfile(prior,p.id).snapshot}));
+  const otherProfiles=source.profileNames.map(p=>({...p,snapshot:Core.exportSingleProfile(source,p.id).snapshot}));
+  const templates=clone(prior.profileTemplates||[]),packs=clone(current.packs);
+  const profileMap=new Map(),packMap=new Map(),imports=[];
+  let profileSeq=prior.profileSeq,templateSeq=prior.profileTemplateSeq;
+  const selection=(kind,list)=>{
+    if(options.mode==='merge')return new Set(list.map(x=>x.id));
+    const chosen=options[kind];
+    if(!Array.isArray(chosen)||chosen.length>list.length||new Set(chosen).size!==chosen.length||chosen.some(id=>!list.some(item=>item.id===id)))throw Error('복원 선택 항목이 올바르지 않습니다.');
+    return new Set(chosen);
+  };
+  const uniqueName=(name,records,max)=>{
+    for(let n=1;n<=1000;n++){
+      const suffix=n===1?' (복원)':' (복원 '+n+')',candidate=name.slice(0,max-suffix.length)+suffix;
+      if(!records.some(r=>key(r.name)===key(candidate)))return candidate;
+    }
+    throw Error('새 복원 이름을 만들 수 없습니다.');
+  };
+  const alloc=(kind,records)=>{
+    if(kind==='packs'){
+      for(let n=1;n<=1000;n++){const id='restored-pack-'+n;if(!records.some(r=>r.id===id))return id;}
+    }else{
+      let n=kind==='profiles'?profileSeq:templateSeq;
+      const prefix=kind==='profiles'?'profile-':'template-';
+      do{if(!Number.isSafeInteger(++n)||n>999999999999999)throw Error('복원 식별자 한도 초과');}while(records.some(r=>r.id===prefix+n));
+      if(kind==='profiles')profileSeq=n;else templateSeq=n;
+      return prefix+n;
+    }
+    throw Error('복원 식별자를 만들 수 없습니다.');
+  };
+  function apply(kind,records,list,limit,max,map){
+    const selected=selection(kind,list),touched=new Set();
+    for(const item of list){
+      const matches=records.filter(r=>key(r.name)===key(item.name));
+      if(!selected.has(item.id)){
+        if(map&&matches.length===1)map.set(item.id,matches[0].id);
+        continue;
+      }
+      if(matches.length&&options.conflict==='keep'){
+        if(map&&matches.length===1)map.set(item.id,matches[0].id);
+        report.kept++;report.details.push({kind,name:item.name,action:'keep'});continue;
+      }
+      const replacing=matches.length>0&&options.conflict==='overwrite';
+      if(replacing&&(matches.length!==1||touched.has(matches[0].id)))throw Error('동일 이름이 여러 개여서 안전하게 덮어쓸 수 없습니다: '+item.name+' · 기존 유지 또는 새 이름으로 복원하세요.');
+      const next=clone(item);
+      if(replacing){
+        next.id=matches[0].id;records[records.indexOf(matches[0])]=next;
+        report.replaced++;
+      }else{
+        if(records.length>=limit)throw Error('복원 항목 최대 개수를 초과했습니다: '+kind+' '+limit+'개');
+        next.id=alloc(kind,records);
+        if(matches.length){next.name=uniqueName(item.name,records,max);report.renamed++;}
+        else report.added++;
+        records.push(next);
+      }
+      touched.add(next.id);
+      if(map)map.set(item.id,next.id);
+      if(kind!=='packs')imports.push(next.snapshot);
+      report.details.push({kind,name:item.name,resultName:next.name,action:replacing?'overwrite':matches.length?'rename':'add'});
+    }
+  }
+  apply('profiles',profiles,otherProfiles,50,80,profileMap);
+  apply('templates',templates,incoming.legacyTemplates?[]:source.profileTemplates||[],50,80,null);
+  apply('packs',packs,incoming.legacy?[]:incoming.packs,32,250,packMap);
+  // Unselected source profiles can still resolve to an unambiguous name match,
+  // but never silently bind a foreign profile ID to an unrelated local one.
+  for(const item of otherProfiles){
+    if(profileMap.has(item.id))continue;
+    const matches=profiles.filter(p=>key(p.name)===key(item.name));
+    if(matches.length===1&&!report.details.some(d=>d.kind==='profiles'&&d.name===item.name&&d.action==='keep'&&otherProfiles.filter(x=>key(x.name)===key(item.name)).length>1))profileMap.set(item.id,matches[0].id);
+  }
+  if(incoming.legacy)for(const pack of packs)packMap.set(pack.id,pack.id);
+  for(const pack of incoming.packs){
+    if(packMap.has(pack.id))continue;
+    const matches=packs.filter(p=>key(p.name)===key(pack.name));
+    if(matches.length===1)packMap.set(pack.id,matches[0].id);
+  }
+  let missingSeq=0;
+  const missing=new Map(),missingIds=new Set(profiles.map(p=>p.id));
+  function profileLink(id){
+    if(typeof id!=='string'||!id||id==='next'||id==='previous')return id;
+    if(profileMap.has(id))return profileMap.get(id);
+    if(!missing.has(id)){
+      let dest;do{dest='missing-restore-'+(++missingSeq);}while(missingIds.has(dest));
+      missing.set(id,dest);missingIds.add(dest);
+    }
+    report.missingLinks++;
+    return missing.get(id);
+  }
+  function visit(value){
+    if(!value||typeof value!=='object')return;
+    if(value.type==='profile'&&obj(value.settings))value.settings.profile=profileLink(value.settings.profile);
+    if(value.navigation==='profile-select')value.profile=profileLink(value.profile);
+    if(value.kind==='file'&&typeof value.packId==='string'){
+      const old=value.packId;
+      if(packMap.has(old)){
+        value.packId=packMap.get(old);
+        if(typeof value.statePair==='string')try{
+          const pair=JSON.parse(value.statePair);
+          if(Array.isArray(pair)&&pair[0]===old){pair[0]=value.packId;value.statePair=JSON.stringify(pair);}
+        }catch{}
+      }else if(!old.startsWith('builtin-')){
+        // Applied PNG stays intact even when the source library is omitted.
+        // Keep a detached identity for paired state art without linking to
+        // an unrelated installed pack.
+        value.packId='detached-'+crypto.createHash('sha256').update(old).digest('hex').slice(0,32);
+      }
+    }
+    for(const [field,child] of Object.entries(value))if(field!=='pluginSettings'&&child&&typeof child==='object')visit(child);
+  }
+  for(const imported of imports)visit(imported);
+  const active=profiles.find(p=>p.id===prior.profileId);
+  const metadata=({snapshot,...p})=>p;
+  const state={...Core.profileSnapshot(active.snapshot),selected:prior.selected,profileId:active.id,
+    profileNames:profiles.map(metadata),
+    inactiveProfiles:profiles.filter(p=>p.id!==active.id).map(p=>({id:p.id,...p.snapshot})),
+    profileSeq,profileTemplates:templates,profileTemplateSeq:templateSeq,
+    smartProfilesEnabled:profiles.some(p=>p.smartEnabled)};
+  const data={format:'deckforge-backup-v1',createdAt:incoming.createdAt,version:incoming.version,
+    profiles:state,packs,appearance:report.appearance?incoming.appearance:current.appearance};
+  data.profiles=validateSnapshot(data);
+  if(Buffer.byteLength(JSON.stringify(data),'utf8')>LIMIT)throw Error('복원 후 데이터 용량 제한(256MB)을 초과합니다.');
+  if(!report.added&&!report.replaced&&!report.renamed&&!report.appearance)throw Error('복원할 새 항목이 없습니다. 다른 항목이나 충돌 처리 방식을 선택하세요.');
+  return {data,report};
 }
 function fingerprint(data){
   // Ignore collection time only; cover all restored content.
@@ -196,4 +342,4 @@ function restore({store,packsFile,safetyDirectory,current,incoming,password}){
   }
   return {state,safetyFile:safety.file};
 }
-module.exports={validateAppearance,validateSnapshot,snapshot,summary,encrypt,decrypt,encode,decode,extension,readArchive,writeArchive,fingerprint,restore};
+module.exports={validateAppearance,validateSnapshot,snapshot,summary,encrypt,decrypt,encode,decode,extension,readArchive,writeArchive,restoreItems,planRestore,fingerprint,restore};

@@ -12,6 +12,8 @@ test('Desktop OAuth, fixed endpoints and scoped backup metadata',()=>{
   assert.throws(()=>uploadSession('https://evil.example/upload/drive/v3/files?upload_id=x'));
   assert.throws(()=>uploadSession('http://www.googleapis.com/upload/drive/v3/files?upload_id=x'));
   assert.equal(uploadSession('https://www.googleapis.com/upload/drive/v3/files?upload_id=x'),'https://www.googleapis.com/upload/drive/v3/files?upload_id=x');
+  assert.equal(backupMeta({...meta,name:'DeckForge-general.json'}).name,'DeckForge-general.json');
+  assert.equal(backupMeta({...meta,name:'other.json'}),null);
   assert.equal(backupMeta({...meta,appProperties:{}}),null);assert.equal(backupMeta({...meta,trashed:true}),null);
 });
 test('connect, local protected credentials, token refresh, scoped upload/list/download',async t=>{

@@ -5560,6 +5560,62 @@ async function restoreGoogleBackup(){
   }finally{backupUiBusy=false;}
   if(selected)await restoreBackup({id:selected,email:list.email},list.items.find(item=>item.id===selected)?.name.endsWith('.json')?'plain':'encrypted');
 }
+function chooseRestorePlan(info){
+  return new Promise(resolve=>{
+    const dialog=document.createElement('dialog');dialog.className='profile-name-dialog';
+    dialog.style.cssText='width:min(550px, calc(100vw - 32px));max-height:85vh;overflow:auto';
+    const form=document.createElement('form');form.method='dialog';
+    const heading=document.createElement('strong');heading.textContent='복원 방식 및 대상';
+    const note=document.createElement('div');note.textContent=info.filename+(info.legacy?' · 이전 JSON 형식':' · '+new Date(info.createdAt).toLocaleString());
+    note.style.cssText='overflow-wrap:anywhere;font-size:12px;color:#bbb';
+    function selectField(name,choices){
+      const label=document.createElement('label');label.style.cssText='display:grid;gap:5px';label.textContent=name;
+      const select=document.createElement('select');select.style.cssText='width:100%;background:#414141;color:#eee;border:1px solid #777;border-radius:5px;padding:8px';select.setAttribute('aria-label',name);
+      for(const [value,text] of choices){const option=document.createElement('option');option.value=value;option.textContent=text;select.append(option);}
+      label.append(select);return {label,select};
+    }
+    const mode=selectField('복원 방식',[['merge','병합 복원 — 기존 데이터 유지'],['select','선택 복원 — 원하는 항목 선택'],['all','전체 복원 — 백업 당시 상태로 교체']]);
+    const conflict=selectField('같은 이름의 항목',[['keep','기존 유지 (건너뛰기)'],['overwrite','덮어쓰기'],['rename','새 이름으로 복원']]);
+    const list=document.createElement('div');list.style.cssText='max-height:260px;overflow:auto;border:1px solid #555;border-radius:4px;padding:8px';
+    const groups={},rows=[];
+    for(const [kind,label] of [['profiles','프로필'],['templates','사용자 템플릿'],['packs','사용자 아이콘팩']]){
+      const section=document.createElement('div');section.style.marginBottom='8px';
+      const title=document.createElement('strong');title.textContent=label+' ('+info.items[kind].length+')';section.append(title);
+      groups[kind]=[];
+      for(const item of info.items[kind]){
+        const line=document.createElement('label');line.style.cssText='display:flex;gap:7px;align-items:center;padding:4px 0;overflow-wrap:anywhere';
+        const check=document.createElement('input');check.type='checkbox';check.checked=true;check.style.width='auto';
+        const name=document.createElement('span');name.textContent=item.name+(item.matches?' · 같은 이름 '+item.matches+'개':'');
+        line.append(check,name);section.append(line);groups[kind].push({id:item.id,check});rows.push(check);
+      }
+      list.append(section);
+    }
+    const appearanceLabel=document.createElement('label');appearanceLabel.style.cssText='display:flex;gap:7px;align-items:center';
+    const appearance=document.createElement('input');appearance.type='checkbox';appearance.style.width='auto';appearance.checked=false;
+    appearanceLabel.append(appearance,document.createTextNode('액션 목록 디자인도 복원'));
+    const warning=document.createElement('div');warning.style.fontSize='12px';
+    const actions=document.createElement('div');actions.className='profile-name-actions';
+    const cancel=document.createElement('button');cancel.type='button';cancel.textContent='취소';cancel.onclick=()=>dialog.close('cancel');
+    const submit=document.createElement('button');submit.type='submit';submit.className='primary';submit.textContent='복원 미리보기';
+    function refresh(){
+      const all=mode.select.value==='all',selection=mode.select.value==='select';
+      conflict.label.style.display=all?'none':'grid';
+      appearanceLabel.style.display=all||!info.items.appearance?'none':'flex';
+      for(const check of rows)check.disabled=!selection;
+      warning.textContent=all?'주의: 백업에 없는 기존 프로필·템플릿·아이콘팩이 사라집니다.':'기존 항목은 기본적으로 유지합니다. 복원 전 안전 백업을 자동 저장합니다.';
+      warning.style.color=all?'#ffb777':'#bbb';
+    }
+    mode.select.onchange=refresh;refresh();
+    form.onsubmit=event=>{event.preventDefault();dialog.close('save');};
+    actions.append(cancel,submit);form.append(heading,note,mode.label,conflict.label,list,appearanceLabel,warning,actions);dialog.append(form);
+    dialog.addEventListener('close',()=>{
+      const result=dialog.returnValue==='save'?{mode:mode.select.value,conflict:conflict.select.value,appearance:appearance.checked,
+        ...Object.fromEntries(Object.entries(groups).map(([k,v])=>[k,v.filter(x=>x.check.checked).map(x=>x.id)]))}:null;
+      dialog.remove();resolve(result);
+    },{once:true});
+    document.body.append(dialog);dialog.showModal();
+  });
+}
 async function restoreBackup(cloud=null,format='encrypted'){
   if(backupUiBusy)throw Error('백업 작업이 진행 중입니다.');
   backupUiBusy=true;let info=null;
@@ -5574,18 +5630,28 @@ async function restoreBackup(cloud=null,format='encrypted'){
     backupReady();
     if(before!==JSON.stringify(state)||JSON.stringify(appearance)!==JSON.stringify(window.D200XPanelIcons.exportConfig()))
       throw Error('미리보기 중 편집 내용이 변경되었습니다. 다시 복원하세요.');
-    if(!confirm('백업: '+info.filename+(info.legacy?'\n이전 형식 JSON · 생성일/버전 정보 없음 · 현재 아이콘팩 유지':'\n생성: '+info.createdAt+' / 버전 '+info.version)+
-      '\n프로필 '+info.profiles+'개 · 템플릿 '+info.templates+'개 · 사용자 아이콘팩 '+info.packs+
-      '개\n\n현재 프로필·템플릿·사용자 아이콘팩·액션 목록 디자인을 교체합니다. 복원 전 백업은 로컬에 별도 저장합니다. 계속하시겠습니까?'))return;
+    if(!window.deckBridge.planBackup)throw Error('최신 DeckForge 버전이 필요합니다.');
+    let plan=null;
+    for(;;){
+      const options=await chooseRestorePlan(info);if(!options)return;
+      backupReady();
+      if(before!==JSON.stringify(state)||JSON.stringify(appearance)!==JSON.stringify(window.D200XPanelIcons.exportConfig()))throw Error('설정이 변경되었습니다. 다시 복원하세요.');
+      try{plan=await window.deckBridge.planBackup(info.id,options);}
+      catch(error){alert('복원 계획을 만들 수 없습니다.\n'+String(error?.message||error));return;}
+      const r=plan.report,labels={profiles:'프로필',templates:'템플릿',packs:'아이콘팩'},verbs={add:'추가',overwrite:'덮어쓰기',rename:'새 이름',keep:'유지'};
+      const details=r.details.filter(d=>d.action!=='keep').slice(0,18).map(d=>labels[d.kind]+' · '+d.name+(d.resultName&&d.resultName!==d.name?' → '+d.resultName:'')+' : '+verbs[d.action]).join('\n');
+      const message=r.mode==='all'?'전체 복원: 백업 당시 상태로 교체합니다. 백업에 없는 기존 항목은 삭제됩니다.':'병합/선택 복원: 추가 '+r.added+'개 · 덮어쓰기 '+r.replaced+'개 · 새 이름 '+r.renamed+'개 · 기존 유지 '+r.kept+'개\n'+details+(r.details.filter(d=>d.action!=='keep').length>18?'\n… 나머지 항목 포함':'')+(r.missingLinks?'\n주의: 연결할 대상 프로필을 찾지 못한 이동 버튼 '+r.missingLinks+'개는 잘못된 대상을 실행하지 않도록 연결 해제합니다.':'');
+      if(confirm(message+'\n\n복원 후 프로필 '+plan.profiles+'개 · 템플릿 '+plan.templates+'개 · 아이콘팩 '+plan.packs+'개\n복원 전 안전 백업을 저장합니다. 진행하시겠습니까?'))break;
+      return;
+    }
     backupReady();
-    if(before!==JSON.stringify(state)||JSON.stringify(appearance)!==JSON.stringify(window.D200XPanelIcons.exportConfig()))
-      throw Error('설정이 변경되었습니다. 다시 복원하세요.');
+    if(before!==JSON.stringify(state)||JSON.stringify(appearance)!==JSON.stringify(window.D200XPanelIcons.exportConfig()))throw Error('설정이 변경되었습니다. 다시 복원하세요.');
     // Apply the existing appearance validator/storage first. If the protected
     // main transaction fails, roll this small localStorage change back.
-    if(!window.D200XPanelIcons.restoreConfig(info.appearance))throw Error('액션 목록 디자인을 복원할 수 없습니다.');
+    if(!window.D200XPanelIcons.restoreConfig(plan.appearance))throw Error('액션 목록 디자인을 복원할 수 없습니다.');
     let result;
     try{
-      result=window.deckBridge.commitBackup(info.id);
+      result=window.deckBridge.commitBackup(info.id,plan.token);
       if(!result?.ok)throw Error(result?.error||'백업 복원 실패');
     }catch(error){
       if(!window.D200XPanelIcons.restoreConfig(appearance))throw Error('복원 실패 및 액션 목록 디자인 원복 실패: '+String(error?.message||error));
