@@ -22,6 +22,7 @@ const HA = require('./ha-client.cjs');
 const {StreamDeckPluginHost}=require('./sd-plugin-host.cjs');
 const Bundled=require('./bundled-integration.cjs');
 const {ProfileStore}=require('./profile-store.cjs');
+const Backup=require('./backup.cjs');
 let sdkHost=null;
 function sdk(){
   if(!sdkHost)sdkHost=new StreamDeckPluginHost(app.getPath('userData'),payload=>send('d200x:sdk-event',payload),()=>window);
@@ -369,6 +370,71 @@ ipcMain.on('d200x:profile-write',(event,state)=>{
   }catch(error){
     event.returnValue={ok:false,error:String(error?.message||error)};
   }
+});
+
+// Explicit local/Drive-for-desktop backup operations. No automatic account
+// access. Native pickers choose the exact directory or file; only the main
+// process sees the encrypted archive and recovery location.
+let backupBusy=false,backupPending=null,backupTimer=null;
+function clearBackupPending(){
+  if(backupTimer)clearTimeout(backupTimer);
+  backupTimer=null;backupPending=null;
+}
+function backupEditor(event){
+  assertEditor(event);
+  if(event.senderFrame!==window.webContents.mainFrame)throw Error('허용되지 않은 백업 호출입니다.');
+}
+function currentBackup(appearance){
+  return Backup.snapshot({store:profileStore,packsFile:iconPacksFile(),
+    appearance,version:require('./package.json').version});
+}
+ipcMain.handle('d200x:backup-create',async(event,{password,appearance}={})=>{
+  backupEditor(event);if(backupBusy)throw Error('백업 작업이 진행 중입니다.');
+  backupBusy=true;
+  try{
+    clearBackupPending();
+    Backup.validateAppearance(appearance);
+    const folder=await openRememberedPicker({title:'Google Drive 또는 로컬 백업 폴더 선택',properties:['openDirectory','createDirectory']},'folder');
+    if(!folder)return null;
+    await ensureIconPacksMigrated();
+    return Backup.writeArchive(folder,currentBackup(appearance),password);
+  }finally{backupBusy=false;}
+});
+ipcMain.handle('d200x:backup-preview',async(event,{password,appearance}={})=>{
+  backupEditor(event);if(backupBusy)throw Error('백업 작업이 진행 중입니다.');
+  backupBusy=true;
+  try{
+    clearBackupPending();
+    Backup.validateAppearance(appearance);
+    const file=await openRememberedPicker({title:'DeckForge 백업 파일 복원',properties:['openFile'],
+      filters:[{name:'DeckForge 암호화 백업',extensions:['dfbackup']}]});
+    if(!file)return null;
+    if(path.extname(file).toLowerCase()!=='.dfbackup')throw Error('DeckForge 백업 파일을 선택하세요.');
+    const incoming=Backup.readArchive(file,password);
+    await ensureIconPacksMigrated();
+    const current=currentBackup(appearance),id=randomUUID();
+    backupPending={id,password,incoming,current,base:Backup.fingerprint(current)};
+    backupTimer=setTimeout(clearBackupPending,5*60*1000);
+    backupTimer.unref?.();
+    return {id,filename:path.basename(file),...Backup.summary(incoming),appearance:incoming.appearance};
+  }finally{backupBusy=false;}
+});
+ipcMain.on('d200x:backup-commit',(event,id)=>{
+  try{
+    backupEditor(event);
+    if(backupBusy||!backupPending||backupPending.id!==id)throw Error('복원 미리보기 만료 또는 취소. 다시 선택하세요.');
+    const preview=backupPending;clearBackupPending();
+    const current=currentBackup(preview.current.appearance);
+    if(Backup.fingerprint(current)!==preview.base)throw Error('미리보기 이후 설정이 변경되었습니다. 다시 복원하세요.');
+    const restored=Backup.restore({store:profileStore,packsFile:iconPacksFile(),
+      safetyDirectory:path.join(app.getPath('userData'),'Backups'),
+      current,incoming:preview.incoming,password:preview.password});
+    event.returnValue={ok:true,...restored};
+  }catch(error){event.returnValue={ok:false,error:String(error?.message||error)};}
+});
+ipcMain.on('d200x:backup-cancel',(event,id)=>{
+  try{backupEditor(event);if(backupPending?.id===id)clearBackupPending();event.returnValue=true;}
+  catch{event.returnValue=false;}
 });
 
 // One editor process per user-data directory. A second launch focuses the first window.

@@ -17,6 +17,7 @@ on:
       - 'tools/fusion-mcp/fusion-command-catalog-final.json'
       - 'test/streamdeck-integrated-manager.test.cjs'
       - 'test/deckforge-platform-data-layout.test.cjs'
+      - 'test/deckforge-backup.test.cjs'
       - 'test/deckforge-key-press-icons.test.cjs'
       - 'test/deckforge-dual-state-titles.test.cjs'
       - 'test/deckforge-native-drop.test.cjs'
@@ -121,7 +122,8 @@ jobs:
       - name: Check DeckForge installed-mode behavior
         shell: pwsh
         run: |
-          node --test test/deckforge-install.test.cjs test/deckforge-platform-data-layout.test.cjs
+          node --check app/streamdeck-editor/backup.cjs
+          node --test test/deckforge-install.test.cjs test/deckforge-platform-data-layout.test.cjs test/deckforge-backup.test.cjs
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - name: Check hardware bridge and renderer scripts
         shell: pwsh
