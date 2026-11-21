@@ -316,7 +316,7 @@ function isMomentaryIconAction(item){
 }
 // A pair of state titles shares the preset library, not the individual style.
 function hasStateTitlePair(item){
-  return item?.type==='sd-plugin'||item?.type==='timer'||isMomentaryIconAction(item);
+  return item?.type==='sd-plugin'||item?.type==='timer'||item?.type==='hotkey-switch'||isMomentaryIconAction(item);
 }
 // Text action labels are render-only; never copy the body into a stored title.
 function textActionDisplayTitle(item,title){
@@ -326,6 +326,7 @@ function textActionDisplayTitle(item,title){
   return Array.from(body.slice(0,512)).slice(0,256).join('');
 }
 function defaultStateTitlePair(item){
+  if(item?.type==='hotkey-switch')return {first:{enabled:true,title:item.title||'',style:{...DEFAULT_TITLE_STYLE,...item.titleStyle}},second:{enabled:true,title:item.title||'',style:{...DEFAULT_TITLE_STYLE,...item.titleStyle}}};
   if(item?.type==='timer')return {first:{enabled:true,title:'',style:{...DEFAULT_TITLE_STYLE,...item.titleStyle}},second:{enabled:true,title:DeckCore.formatTimerTime(DeckCore.timerSeconds(item.settings?.seconds),item.settings?.seconds),style:{...DEFAULT_TITLE_STYLE,...item.titleStyle}}};
   if(item?.type==='multi')return {first:{enabled:item.titleStyle?.visible!==false,title:item.title||'',style:{...DEFAULT_TITLE_STYLE,...item.titleStyle}},second:{enabled:item.titleStyle?.visible!==false,title:'',style:{...DEFAULT_TITLE_STYLE,...item.titleStyle}}};
   return {
@@ -435,6 +436,10 @@ function displayKeyPressItem(item,index){
   if(item?.type==='timer'&&Number.isInteger(index)&&index>=0&&index<13){
     const runtime=activeActionTimers.get(DeckCore.runtimeActionKey(state,index,'down'));
     return resolveTimerVisual(item,!!runtime,runtime?Math.max(0,Math.ceil((runtime.deadline-Date.now())/1000)):DeckCore.timerSeconds(item.settings?.seconds),stateDisplayArtwork(item,index,false),runtime?.seconds??item.settings?.seconds);
+  }
+  if(item?.type==='hotkey-switch'&&Number.isInteger(index)&&index>=0&&index<13){
+    const second=(hotkeySwitchPositions.get(hotkeySwitchRuntimeKey(index,item))||0)===1;
+    return resolveStateTitle(item,second,stateDisplayArtwork(item,index,false));
   }
   if(!isMomentaryIconAction(item)||!Number.isInteger(index)||index<0||index>=13){
     if(item?.type==='sd-plugin'){
@@ -2287,17 +2292,20 @@ function renderPressTabs(root,inspector){
   attachPressPreviewBadges(root,inspector);
   const chosen=pressSlotAction(root,activePressTab);
   const controls=document.createElement('div');controls.className='press-tabs-controls';
-  const label=document.createElement('strong');label.textContent=PRESS_TABS.find(x=>x[0]===activePressTab)[1]+' · '+(chosen?(ACTIONS.get(chosen.type)?.label||chosen.type):'동작 미등록');
   const del=document.createElement('button');del.type='button';del.className='press-tab-delete';
   del.textContent='동작 삭제';del.disabled=!chosen;
   del.addEventListener('click',()=>{
     if(!confirm(PRESS_TABS.find(x=>x[0]===activePressTab)[1]+' 동작과 속성을 삭제하시겠습니까?'))return;
     setPressSlot(state.selected,activePressTab,null);
   });
-  controls.append(label,del);host.append(controls);
-  const visual=inspector.querySelector('.state-title-layout,.action-single-visual');
-  if(visual)visual.after(host);
-  else inspector.querySelector('.action-head')?.after(host);
+  controls.append(del);
+  // Move the gesture tabs, not the existing artwork and preview components.
+  const toolbar=inspector.querySelector(':scope > .action-layout-toolbar');
+  if(toolbar)toolbar.prepend(host);
+  else inspector.prepend(host);
+  const properties=inspector.querySelector('.inspector-properties-region');
+  if(properties)properties.append(controls);
+  else inspector.append(controls);
 }
 async function updateApplicationArtwork(item,filePath,session=inspectorSession){
   if(!window.deckBridge?.inspectAppFile||!item||!/\.(exe|lnk|bat|cmd)$/i.test(filePath))return;
@@ -3239,14 +3247,14 @@ function attachStateTitleControls(card,item,which){
   card.append(row);
 }
 function bindSdkStateIcons(root,item){
-  if(item.type!=='timer'&&(item.type!=='sd-plugin'||isMomentaryIconAction(item)))return;
+  if(item.type!=='timer'&&item.type!=='hotkey-switch'&&(item.type!=='sd-plugin'||isMomentaryIconAction(item)))return;
   const panel=root.querySelector('[data-inspector-icons]');
   if(!panel)return;
   const draw=()=>{
     panel.replaceChildren();
     const cards=document.createElement('div');
     cards.className='sdk-state-icons';
-    for(const [key,label] of (item.type==='timer'?[['off','대기 상태'],['on','실행 상태']]:[['off','OFF'],['on','ON']])){
+    for(const [key,label] of (item.type==='timer'?[['off','대기 상태'],['on','실행 상태']]:item.type==='hotkey-switch'?[['off','상태 1'],['on','상태 2']]:[['off','OFF'],['on','ON']])){
       const group=document.createElement('div');group.className='sdk-state-icon';
       const heading=document.createElement('strong');heading.textContent=label;
       const image=document.createElement('div');image.className='sdk-state-preview';
@@ -3833,8 +3841,12 @@ function renderInspector(){
   if(!item){
     if(pressIsOrdinary(rootItem)&&state.selected<13){
       root.className='inspector action-layout-inspector press-empty-inspector';
-      root.innerHTML='<div class="action-head inspector-title-region"><strong>동작 미등록</strong></div><div class="press-empty-message">오른쪽 목록의 액션을 선택한 탭으로 드래그하여 등록하세요.</div>';
-      renderPressTabs(rootItem,root);appendInspectorSaveBar(root);return;
+      root.innerHTML='<div class="press-empty-message">오른쪽 목록의 액션을 선택한 탭으로 드래그하여 등록하세요.</div>';
+      appendInspectorSaveBar(root);
+      const toolbar=document.createElement('div');toolbar.className='state-title-toolbar action-layout-toolbar';
+      const saveBar=root.querySelector('.inspector-footer-region');
+      if(saveBar)toolbar.append(saveBar);
+      root.prepend(toolbar);renderPressTabs(rootItem,root);return;
     }
     root.className="inspector empty";root.textContent=state.selected===null?"버튼을 선택하세요":"액션을 끌어 이 키에 놓으세요";
     if(inspectorSession?.dirty)appendInspectorSaveBar(root);return;
@@ -3999,8 +4011,7 @@ function renderInspector(){
   if(item.type==='logic')renderLogicEditor(item,root);
   if(item.type==='gesture-test')renderGestureTestEditor(item,root);
   if(item.type==='folder')renderFolderInspector(item,root);
-  // Independent press tabs are inserted after the preserved icon/title layout.
-  // Stable four-region layout: header -> action properties -> exactly one icon pair -> footer.
+  // Preserve the original bound icon cards/preview; adjust only their surrounding toolbar.
   bindSdkStateIcons(root,item);
   bindKeyPressIconControls(root,item);
   appendInspectorSaveBar(root);
@@ -4025,7 +4036,11 @@ function renderInspector(){
   const pluginButton=root.querySelector('.sdk-settings-open');
   if(pluginButton)options.append(pluginButton);
   const saveBar=root.querySelector('.inspector-footer-region');
-  toolbar.append(options);
+  const ordinaryPress=pressIsOrdinary(rootItem)&&state.selected<13;
+  // Move existing option controls below the image row to reserve this toolbar
+  // for three gesture tabs on the left and Cancel/Save on the right.
+  if(ordinaryPress){if(options.childElementCount)properties.prepend(options);}
+  else toolbar.append(options);
   if(saveBar)toolbar.append(saveBar);
   const preview=properties.querySelector(':scope > .preview');
   const iconRegion=root.querySelector('.inspector-icon-section');
@@ -4058,7 +4073,7 @@ function renderInspector(){
       properties.classList.add('action-single-extra');
     }
   }
-  if(pressIsOrdinary(rootItem)&&state.selected<13)renderPressTabs(rootItem,root);
+  if(ordinaryPress)renderPressTabs(rootItem,root);
   const actionHeader=root.querySelector('.action-head');
   if(actionHeader&&!actionHeader.childElementCount)actionHeader.remove();
   if(item.type==='folder-shortcut'){
@@ -4779,6 +4794,13 @@ function handleOpenAppHold(action,index,event,gesture){
   return executeHardwareAction(pressed,true);
 }
 const hotkeySwitchPositions=new Map();
+function hotkeySwitchRuntimeKey(index,action,gesture='down'){
+  // Independent LCD press gestures must have independent toggle positions.
+  if(index>=13)return DeckCore.runtimeActionKey(state,index,gesture);
+  const root=DeckCore.visibleActions(state)[index];
+  const slot=pressIsOrdinary(root)?PRESS_TABS.find(([name])=>pressSlotAction(root,name)===action)?.[0]||'single':'single';
+  return DeckCore.runtimeActionKey(state,index,'down')+':'+slot;
+}
 const lastHardwareDown=new Map();
 function runActionPreview(gesture='down'){
   const index=state.selected;
@@ -5191,12 +5213,12 @@ function executeHardwareAction(event,preview=false,skipKnobGesture=false,pressOv
   }
   if(outcome.kind==='windows-hotkey-switch'){
     if(!window.deckBridge?.sendHotkey)return 'Windows 실행 환경에서만 사용할 수 있습니다.';
-    const key=DeckCore.runtimeActionKey(state,index,resolved.gesture);
+    const key=hotkeySwitchRuntimeKey(index,resolved.action,resolved.gesture);
     const position=hotkeySwitchPositions.get(key)||0;
     const keys=position===0?outcome.first:outcome.second;
     if(!keys)return '전환할 단축키가 설정되지 않았습니다.';
     observe(window.deckBridge.sendHotkey(keys),outcome.kind).then(
-      ()=>{hotkeySwitchPositions.set(key,1-position);window.d200xActionStatus?.('단축키 전환 '+(position+1)+' 실행');},
+      ()=>{hotkeySwitchPositions.set(key,1-position);renderGrid();void refreshSelectedVisual();window.scheduleDeckSync?.();window.d200xActionStatus?.('단축키 전환 '+(position+1)+' 실행');},
       error=>window.d200xActionStatus?.('단축키 전환 실패: '+String(error?.message||error)));
     return '단축키 전환 '+(position+1)+' 요청';
   }

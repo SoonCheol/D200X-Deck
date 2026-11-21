@@ -68,7 +68,7 @@ test('inspector has four fixed and ordered regions and puts cards outside action
  assert.doesNotMatch(src,/fields\.prepend\(cards\)/);
 });
 test('momentary Fusion cannot also render OFF ON SDK cards',()=>{
- assert.match(src,/function bindSdkStateIcons\(root,item\)\{\s*if\(item\.type!=='timer'&&\(item\.type!=='sd-plugin'\|\|isMomentaryIconAction\(item\)\)\)return;/);
+ assert.match(src,/function bindSdkStateIcons\(root,item\)\{\s*if\(item\.type!=='timer'&&item\.type!=='hotkey-switch'&&\(item\.type!=='sd-plugin'\|\|isMomentaryIconAction\(item\)\)\)return;/);
  assert.match(src,/case "sd-plugin":return "";/);
  assert.match(src,/bindSdkStateIcons\(root,item\);\s*bindKeyPressIconControls\(root,item\);\s*appendInspectorSaveBar\(root\);/);
 });
@@ -261,4 +261,12 @@ test('indicator Down title and number styles are independently resolved, omitted
  assert.equal(down.keyPressAlternate,true);assert.equal(JSON.stringify(item),before);
  const legacy={...item,settings:{},indicatorDownNumberStyle:undefined};
  assert.equal(apply(legacy,true).title,'Normal');assert.equal(apply(legacy,true).indicatorNumberStyle.size,48);assert.equal(apply(legacy,true).keyPressAlternate,false);
+});
+
+test('hotkey switch has separate 1/2 icon cards and live state switching',()=>{
+ assert.match(src,/item\?\.type==='hotkey-switch'\|\|isMomentaryIconAction\(item\)/);
+ assert.match(src,/item\.type==='hotkey-switch'\?\[\['off','상태 1'\],\['on','상태 2'\]\]/);
+ assert.match(src,/hotkeySwitchPositions\.get\(hotkeySwitchRuntimeKey\(index,item\)\)/);
+ assert.match(src,/const key=hotkeySwitchRuntimeKey\(index,resolved\.action,resolved\.gesture\)/);
+ assert.match(src,/hotkeySwitchPositions\.set\(key,1-position\);renderGrid\(\);void refreshSelectedVisual\(\)/);
 });

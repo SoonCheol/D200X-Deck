@@ -471,3 +471,13 @@ test('legacy renderer text also uses the sequential-action terminology',()=>{
     assert.doesNotMatch(fs.readFileSync(path.join(legacy,file),'utf8'),/다중 동작/,file);
   }
 });
+
+test('gesture tabs are above the original artwork and share the Cancel/Save toolbar',()=>{
+ const t=editor.slice(editor.indexOf('function renderPressTabs('),editor.indexOf('async function updateApplicationArtwork('));
+ assert.match(t,/if\(toolbar\)toolbar\.prepend\(host\)/);
+ assert.doesNotMatch(t,/visual\.after\(host\)/);
+ assert.match(editor,/layout\.append\(iconRegion,preview\)/);
+ assert.match(editor,/if\(ordinaryPress\)renderPressTabs\(rootItem,root\)/);
+ assert.match(editor,/root\.prepend\(toolbar\);renderPressTabs\(rootItem,root\);return;/);
+ assert.match(css,/\.action-layout-inspector>\.action-layout-toolbar>\.press-tabs-section\{flex:1;min-width:0;margin:0\}/);
+});

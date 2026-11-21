@@ -1465,3 +1465,11 @@ dialog.deckforge-message-dialog::backdrop{background:#000a}
   background:#205384;color:#fff;text-align:center;border-radius:2px;font-size:9px}
 @media(max-width:740px){.press-tabs-grid{gap:4px}.press-tab-tile{padding:6px 4px}
   .press-tab-tile.selected{padding:5px 3px}.press-tab-select{font-size:10px}}
+
+/* 1.1.96: upper gesture tabs + existing Cancel/Save, no icon/preview resizing. */
+.action-layout-inspector>.action-layout-toolbar>.press-tabs-section{flex:1;min-width:0;margin:0}
+.action-layout-inspector>.action-layout-toolbar>.press-tabs-section .press-tabs-grid{gap:6px}
+.action-layout-inspector>.action-layout-toolbar>.press-tabs-section .press-tab-tile{padding:6px 4px}
+.action-layout-inspector>.action-layout-toolbar>.press-tabs-section .press-tab-tile.selected{padding:5px 3px}
+.action-layout-inspector .press-tabs-controls{justify-content:flex-end;margin:9px 0 0}
+.action-layout-inspector .inspector-properties-region>.action-layout-options{margin:8px 0 0;flex:none;max-width:100%}
