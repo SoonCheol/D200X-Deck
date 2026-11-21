@@ -3,7 +3,7 @@
 const ORIGINAL_CATALOG = [
   ["Soundboard", [["audio-play","효과음 재생","♫"],["audio-stop","효과음 정지","◼"]]],
   ["DeckForge", [["timer","타이머","◴"],["brightness","D200X 밝기 설정","☼"],["sleep","D200X 화면 끄기","☾"],["virtual","Virtual DeckForge 토글","▣"]]],
-  ["순차 동작", [["multi","순차 동작","▤"],["multi-switch","순차 동작 스위치","⇄"],["random","무작위 동작","⚄"],["logic","Key Logic","⇧"]]],
+  ["순차 동작", [["multi","순차 동작","▤"],["multi-switch","순차 동작 스위치","⇄"],["random","무작위 동작","⚄"],["logic","Key Logic","⇧"],["gesture-test","터치 입력 검증","◎"]]],
   ["시스템", [["website","웹페이지","◎"],["hotkey-switch","단축키 전환","⇄"],["hotkey","단축키","⌨"],["open","열기 (통합)","▢"],["open-app","프로그램 열기","▣"],["close","프로그램 종료","×"],["text","텍스트 입력","¶"],["media","재생 제어","♫"]]],
   ["탐색", [["folder","덱폴더","▣"],["profile","프로필 전환","⇆"],["previous","이전 페이지","←"],["next","다음 페이지","→"],["goto","선택 페이지","↗"],["indicator","페이지 표시","①"]]],
   ["플러그인 · Home Assistant", [["ha-toggle","HA 장치 켜기/끄기","⌂"]]],
@@ -1589,6 +1589,7 @@ function actionFields(item){
       `<div class="field folder-wait-field"><label for="s-autoExitSeconds">대기 시간</label><div class="unit-field"><input id="s-autoExitSeconds" type="number" min="0" max="60" data-field="autoExitSeconds" value="${Number(item.settings?.autoExitSeconds)||0}"><span aria-hidden="true">초</span></div></div>`;
     case "multi-switch":return "";
     case "logic":return "";
+    case "gesture-test":return "";
     case "profile":return select("profile","프로필",[
       ["next","다음 프로필"],["previous","이전 프로필"],...state.profileNames.map(p=>[p.id,p.name])
     ]);
@@ -1937,6 +1938,38 @@ function renderMultiEditor(item,root){
   });
   toolbar.append(select,addButton,delay,cancel);
   area.append(list,toolbar);
+  root.querySelector('.fields')?.append(area);
+}
+const TEST_TOUCH_CHOICES=[
+  ['none','기록만 (동작 없음)'],
+  ['hotkey','단축키'],['open-app','프로그램 열기'],
+  ['file-open','파일 열기'],['folder-shortcut','폴더 열기'],
+  ['text','텍스트 입력'],['ha-toggle','HA 장치 제어'],
+  ['goto','페이지 이동'],['media','멀티미디어 제어']
+];
+function renderGestureTestEditor(item,root){
+  const area=document.createElement('section');area.className='multi-action-editor gesture-test-editor';
+  const hint=document.createElement('p');hint.className='hint';
+  hint.textContent='D200X 실기 입력 판정만 검증합니다. 선택한 액션 종류는 이름만 기록하며 프로그램, 단축키, Home Assistant 등은 실제 실행하지 않습니다.';
+  area.append(hint);
+  for(const [slot,title] of [['single','싱글 터치'],['double','더블 터치'],['hold','롱 터치']]){
+    const row=document.createElement('div');row.className='control-config';
+    const label=document.createElement('label');label.textContent=title;
+    const select=document.createElement('select');select.setAttribute('aria-label',title+' 테스트 종류');
+    for(const [id,name] of TEST_TOUCH_CHOICES)select.add(new Option(name,id));
+    select.value=item.settings?.[slot]||'none';
+    select.addEventListener('change',()=>{item.settings[slot]=select.value;persist();});
+    row.append(label,select);area.append(row);
+  }
+  const row=document.createElement('div');row.className='field checkbox-setting-field';
+  const label=document.createElement('label');
+  const checkbox=document.createElement('input');checkbox.type='checkbox';checkbox.checked=item.settings?.logEnabled!==false;
+  label.append(checkbox,document.createTextNode(' AI 검증 로그 기록'));
+  checkbox.addEventListener('change',()=>{item.settings.logEnabled=checkbox.checked;persist();});
+  row.append(label);area.append(row);
+  const note=document.createElement('p');note.className='hint';
+  note.textContent='체크 시 입력별 판정 결과가 AI 도우미의 input_trace에 기록됩니다. 공통 장치 입력 추적은 그대로 유지됩니다. 싱글 300ms 판정 대기, 롱 터치 600ms.';
+  area.append(note);
   root.querySelector('.fields')?.append(area);
 }
 // Key Logic: three independent single-step assignments, no nested composites.
@@ -3399,6 +3432,7 @@ function inspectorOverview(item){
     case 'random':return (item.children?.length||0)+'개의 후보';
     case 'timer':return '지속 시간 및 사운드 설정';
     case 'logic':return '한 번 · 두 번 · 길게 누르기';
+    case 'gesture-test':return '싱글 · 더블 · 롱 터치 · 실제 명령 실행 없음';
     default:return '';
   }
 }
@@ -3585,6 +3619,10 @@ function renderInspector(){
   previewButton.textContent='▶ 실행 테스트';previewButton.className='action-preview-test';
   previewButton.title='실제 Windows/D200X 동작을 한 번 실행합니다';
   previewButton.addEventListener('click',()=>runActionPreview('down'));
+  if(item.type==='gesture-test'){
+    previewButton.disabled=true;previewButton.textContent='D200X 실기로 검증';
+    previewButton.title='테스트 결과는 D200X 화면에서 직접 터치해야 기록됩니다';
+  }
   root.querySelector('.action-head').append(previewButton);
   appendInspectorHelp(root.querySelector('.action-head'),item);
   const overview=inspectorOverview(item);
@@ -3676,6 +3714,7 @@ function renderInspector(){
   if(item.type==='timer')renderTimerSettings(item,root);
   if(['multi','multi-switch','random'].includes(item.type))renderMultiEditor(item,root);
   if(item.type==='logic')renderLogicEditor(item,root);
+  if(item.type==='gesture-test')renderGestureTestEditor(item,root);
   if(item.type==='folder')renderFolderInspector(item,root);
   // Stable four-region layout: header -> action properties -> exactly one icon pair -> footer.
   bindSdkStateIcons(root,item);
@@ -4185,6 +4224,61 @@ function handleLogicGesture(action,index,gesture,preview){
   }
   return null;
 }
+// Read-only D200X gesture probe. Never execute the selected action kinds.
+const gestureTestPresses=new Map();
+const GESTURE_TEST_DOUBLE_MS=300,GESTURE_TEST_HOLD_MS=600;
+function emitGestureTestResult(action,index,slot,event,startedAt){
+  const target=action.settings?.[slot]||'none';
+  const name=TEST_TOUCH_CHOICES.find(([id])=>id===target)?.[1]||'기록만';
+  const ms=Math.max(0,Date.now()-startedAt);
+  if(action.settings?.logEnabled!==false)
+    reportInputEvidence(event,'gesture-test-result',{
+      outcome:slot,target,status:'dry-run',ms,count:slot==='double'?2:1
+    });
+  window.d200xActionStatus?.('터치 입력 검증 · '+({single:'싱글',double:'더블',hold:'롱'}[slot])+
+    ' → '+name+' · 실제 실행 없음');
+}
+function handleGestureTest(action,index,gesture,event,preview){
+  if(preview)return '터치 입력 검증은 D200X 실기 터치에서만 기록됩니다.';
+  const key=DeckCore.runtimeActionKey(state,index,'down');
+  let prior=gestureTestPresses.get(key);
+  if(prior&&prior.action!==action){
+    clearTimeout(prior.holdTimer);clearTimeout(prior.singleTimer);
+    gestureTestPresses.delete(key);prior=null;
+  }
+  if(action.settings?.logEnabled!==false)
+    reportInputEvidence(event,'gesture-test-input',{outcome:gesture});
+  if(gesture==='down'){
+    if(prior?.held)return null;
+    if(prior?.singleTimer){
+      clearTimeout(prior.singleTimer);clearTimeout(prior.holdTimer);
+      gestureTestPresses.delete(key);
+      emitGestureTestResult(action,index,'double',event,prior.startedAt);
+      return '더블 터치 감지 · 실제 실행 없음';
+    }
+    if(prior)return null;
+    const record={action,held:true,holdFired:false,startedAt:Date.now(),downEvent:event,
+      upEvent:null,holdTimer:null,singleTimer:null};
+    record.holdTimer=setTimeout(()=>{
+      if(gestureTestPresses.get(key)!==record||!record.held)return;
+      record.holdFired=true;
+      emitGestureTestResult(action,index,'hold',record.downEvent,record.startedAt);
+    },GESTURE_TEST_HOLD_MS);
+    gestureTestPresses.set(key,record);return '터치 입력 검증 · 누름 감지';
+  }
+  if(gesture==='up'&&prior?.action===action){
+    prior.held=false;clearTimeout(prior.holdTimer);
+    if(prior.holdFired){gestureTestPresses.delete(key);return '롱 터치 검증 완료';}
+    prior.upEvent=event;
+    prior.singleTimer=setTimeout(()=>{
+      if(gestureTestPresses.get(key)!==prior)return;
+      gestureTestPresses.delete(key);
+      emitGestureTestResult(action,index,'single',prior.upEvent,prior.startedAt);
+    },GESTURE_TEST_DOUBLE_MS);
+    return '싱글·더블 터치 판정 대기';
+  }
+  return null;
+}
 // Generated local tones: no external sound files, commands or dependencies.
 function timerVolume(settings){const raw=settings?.soundVolume;return Number.isFinite(raw)?Math.max(0,Math.min(100,raw)):100;}
 async function playTimerAlert(settings){
@@ -4493,6 +4587,8 @@ function executeHardwareAction(event,preview=false,skipKnobGesture=false){
     (openAppHoldTimers.has(index)||(resolved.action?.type==='open-app'&&
       ['close','force'].includes(resolved.action.settings?.hold))))
     {report('hold');return handleOpenAppHold(resolved.action,index,event,resolved.gesture);}
+  if(resolved.action?.type==='gesture-test'&&['down','up'].includes(resolved.gesture))
+    return handleGestureTest(resolved.action,index,resolved.gesture,event,preview);
   if(resolved.action?.type==='logic'&&['down','up'].includes(resolved.gesture))
     {report('logic');return handleLogicGesture(resolved.action,index,resolved.gesture,preview);}
   const sdkAction=resolved.action;

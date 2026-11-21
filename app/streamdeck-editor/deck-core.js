@@ -15,13 +15,14 @@
   // New D200X actions stay separate from the original 24.
   const D200X_ACTION_IDS=['system-volume','system-mute','system-scroll','edit-history','window-switch','desktop-switch','device-brightness','system-zoom',
     'screenshot','clipboard-edit','window-state','window-monitor','explorer-open',
-    'brush-size','timeline-step','timeline-zoom','file-open','folder-shortcut','terminal','terminal-admin'];
+    'brush-size','timeline-step','timeline-zoom','file-open','folder-shortcut','terminal','terminal-admin','gesture-test'];
   const PLUGIN_ACTION_IDS=['ha-toggle','sd-plugin'];
   const DEFAULTS={
     'audio-play':{file:'',mode:'play-stop',fade:'none',fadeDuration:2,volume:50,output:'default'},
     'audio-stop':{},timer:{seconds:30,sound:'connect',soundFile:'',soundVolume:100},
     brightness:{mode:'up'},sleep:{},virtual:{},
     multi:{},'multi-switch':{activeState:0},random:{},logic:{},
+    'gesture-test':{single:'hotkey',double:'open-app',hold:'folder-shortcut',logEnabled:true},
     website:{url:'',open:'default',browserPath:''},'hotkey-switch':{first:'',second:''},
     hotkey:{keys:'',source:'preset'},open:{path:'',args:''},
     'open-app':{app:'',args:'',hold:'close',foreground:true,preventDuplicate:true},close:{path:'',force:false},
@@ -40,6 +41,7 @@
     'timeline-step':{direction:'next'},'timeline-zoom':{operation:'in'},'file-open':{path:''},'folder-shortcut':{path:'',alwaysNewWindow:false,foreground:true},
     terminal:{foreground:true,preventDuplicate:true},'terminal-admin':{foreground:true,preventDuplicate:true}
   };
+  const GESTURE_TEST_KINDS=['none','hotkey','open-app','file-open','folder-shortcut','text','ha-toggle','goto','media'];
   const TITLE={visible:true,align:'bottom',family:'default',size:12,
     bold:false,italic:false,underline:false,color:'#ffffff',
     outlineColor:'#000000',outlineWidth:'thin',
@@ -74,6 +76,13 @@
     base.title=typeof value.title==='string'?value.title.slice(0,256):base.title;
     if(value.settings&&typeof value.settings==='object'&&!Array.isArray(value.settings))
       base.settings={...base.settings,...value.settings};
+    if(value.type==='gesture-test'){
+      for(const slot of ['single','double','hold']){
+        if(!GESTURE_TEST_KINDS.includes(base.settings[slot]))
+          base.settings[slot]=DEFAULTS['gesture-test'][slot];
+      }
+      base.settings.logEnabled=base.settings.logEnabled!==false;
+    }
     // Preserve old text actions whose mode field was absent when clipboard was the default.
     if(value.type==='text'&&value.settings?.mode===undefined)base.settings.mode='clipboard';
     // Keep existing repeat-launch buttons repeatable; new actions default to both options.
@@ -1360,6 +1369,7 @@
     if(action.type==='sleep')return {kind:'device-sleep'};
     if(action.type==='indicator')return {kind:'display-only'};
     if(action.type==='profile')return {kind:'profile',profile:action.settings?.profile||'next'};
+    if(action.type==='gesture-test')return {kind:'gesture-test'};
     if(action.type==='multi')return {kind:'composite',type:'multi'};
     if(action.type==='multi-switch')return {kind:'composite',type:'multi-switch'};
     if(action.type==='random')return {kind:'composite',type:'random'};

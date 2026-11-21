@@ -212,6 +212,7 @@ const {walkTemplates}=require('./advanced-plan.js');
 
 const {assess}=require('./evidence.cjs');
 const KNOWLEDGE=[
+  {topic:'gesture-test',facts:'터치 입력 검증 액션 하나에 싱글/더블/롱 터치별 테스트 종류를 선택한다. 실제 프로그램·단축키·HA 요청을 전송하지 않는다. AI 검증 로그 기록 체크 시 input_trace에 gesture-test-input과 gesture-test-result, target, elapsedMs, simulated=true를 남긴다. single은 두 번째 터치 대기 300ms 후, double은 두 번째 down에서, hold는 600ms 누름에서 판정한다. 공통 입력 진단은 체크 해제와 관계없이 기존대로 유지. 결과는 입력 판정 근거이며 실제 외부 동작 성공의 증거는 아니다.'},
   {topic:'layout',facts:'13 ordinary root keys (1–13), reserved wide slot 14, side controls 1–2, knobs 1–3. Physical packets: raw key 0–12, wide 13/14, sides 15/16, knobs 17–19. Root pinned keys provide fallback only for empty positions. Folder page 1=children, later pages=pages[], return key in empty slot 14; legacy contents may differ.'},
   {topic:'controls',facts:'Knob trigger mode can use explicit left/right actions or automatic target; stack mode cycles selected targets on press. Held rotation can disable ordinary press. Scope global applies across the active profile; page scope uses the per-page binding. Steps 1/2/5/10. Check configured and inactive rotations, not only target label.'},
   {topic:'wide',facts:'Wide modes clock/datetime/stats/knobs. Root wide key cycles enabled modes. An unsaved warning temporarily overrides wide display; pressing it requests editor focus. A USB transfer or focus request is not visual confirmation.'},

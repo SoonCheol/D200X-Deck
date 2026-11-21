@@ -20,7 +20,7 @@ test('all 24 observed Stream Deck actions have independent defaults',()=>{
 test('separate D200X volume/mute actions preserve the original 24',()=>{
   assert.equal(core.ACTION_IDS.length,24);
   assert.deepEqual(core.D200X_ACTION_IDS,['system-volume','system-mute','system-scroll','edit-history','window-switch','desktop-switch','device-brightness','system-zoom',
-    'screenshot','clipboard-edit','window-state','window-monitor','explorer-open','brush-size','timeline-step','timeline-zoom','file-open','folder-shortcut','terminal','terminal-admin']);
+    'screenshot','clipboard-edit','window-state','window-monitor','explorer-open','brush-size','timeline-step','timeline-zoom','file-open','folder-shortcut','terminal','terminal-admin','gesture-test']);
   const volume=core.createAction('system-volume');
   assert.deepEqual(core.planAction(volume,0,1),{kind:'adjust',target:'volume',direction:1,count:1});
   volume.settings.direction='down';volume.settings.step=5;
@@ -1495,4 +1495,21 @@ test('bare indicator number gets a visible outline only if foreground and backgr
  const hidden={...dark,visible:false};
  assert.equal(core.indicatorNumberDisplayStyle(hidden,'#08090c'),hidden);
  assert.equal(core.indicatorNumberDisplayStyle(light,'#eeeeee').outlineColor,'#000000');
+});
+
+test('D200X gesture probe keeps three selections without an executable action plan',()=>{
+  const defaults=core.createAction('gesture-test');
+  assert.deepEqual(defaults.settings,{single:'hotkey',double:'open-app',hold:'folder-shortcut',logEnabled:true});
+  assert.deepEqual(core.planAction(defaults,0,1),{kind:'gesture-test'});
+  defaults.settings.single='ha-toggle';
+  defaults.settings.double='media';
+  defaults.settings.hold='text';
+  defaults.settings.logEnabled=false;
+  const restored=core.cleanAction(JSON.parse(JSON.stringify(defaults)));
+  assert.deepEqual(restored.settings,{single:'ha-toggle',double:'media',hold:'text',logEnabled:false});
+  const invalid=core.cleanAction({type:'gesture-test',settings:{single:'multi',double:'bad',hold:null}});
+  assert.deepEqual([invalid.settings.single,invalid.settings.double,invalid.settings.hold],
+    ['hotkey','open-app','folder-shortcut']);
+  const state=core.migrateState(null);state.pages[0][0]=defaults;
+  assert.deepEqual(core.planHardwareEvent(state,{kind:1,index:0,pressed:true}).outcome,{kind:'gesture-test'});
 });

@@ -10,7 +10,7 @@ window.D200XPanelIcons=(()=>{
     ["윈도우 창 관리",["window-switch","window-state","window-monitor","desktop-switch"]],
     ["키보드·마우스",["hotkey","hotkey-switch","text","system-scroll","edit-history","system-zoom"]],
     ["자동화·순차 동작",["multi","multi-switch","random","logic"]],
-    ["유틸리티",["timer","screenshot","clipboard-edit"]],
+    ["유틸리티",["timer","screenshot","clipboard-edit","gesture-test"]],
     ["편집 작업 도구",["brush-size","timeline-step","timeline-zoom"]],
     ["플러그인 · Home Assistant",["ha-toggle"]]
   ];
@@ -56,6 +56,7 @@ window.D200XPanelIcons=(()=>{
     "multi":'<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M7 9h10m-10 4h10m-10 4h6M5 9h1"/>',
     "multi-switch":'<path d="M3 7h16m-4-4 4 4-4 4M21 17H5m4-4-4 4 4 4"/>',
     "random":'<path d="M3 5h4l10 14h4m-4-4 4 4-4 3M3 19h4L17 5h4m-4-3 4 3-4 3"/>',
+    "gesture-test":'<circle cx="12" cy="12" r="9"/><path d="M12 6v7m0 4v1M6 12h3m6 0h3"/><circle cx="12" cy="12" r="2"/>',
     "logic":'<path d="M4 4h16v6H4Zm4 10h8v6H8Z"/><path d="M12 10v4M6 7h3m6 0h3"/>',
     "timer":'<circle cx="12" cy="13" r="8"/><path d="M12 13V8m0 5 4 2M9 2h6M12 2v3"/>',
     "audio-play":'<circle cx="12" cy="12" r="9"/><path d="m9 7 8 5-8 5Z"/>',
@@ -71,7 +72,7 @@ window.D200XPanelIcons=(()=>{
     ["hotkey","hotkey-switch","system-scroll","clipboard-edit","edit-history","system-zoom","text"],
     ["brush-size","timeline-step","timeline-zoom"],
     ["website","open","open-app","close","file-open","folder-shortcut","terminal","terminal-admin"],
-    ["multi","multi-switch","random","logic","timer"],
+    ["multi","multi-switch","random","logic","gesture-test","timer"],
     ["audio-play","audio-stop","media"],
     ["ha-toggle"]
   ];

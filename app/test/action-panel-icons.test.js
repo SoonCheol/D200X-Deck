@@ -22,15 +22,15 @@ function load(){
   },console});
   return {panel:window.D200XPanelIcons,storage};
 }
-test("44 action icons and one separate HA plugin icon are preserved",()=>{
+test("45 action icons and one separate HA plugin icon are preserved",()=>{
   const {panel}=load();
   const ids=panel.groups.flatMap(group=>group[1]);
-  assert.equal(ids.length,45);
+  assert.equal(ids.length,46);
   assert.equal(new Set(ids).size,45);
-  assert.equal(panel.ids.length,45);
+  assert.equal(panel.ids.length,46);
   assert.deepEqual([...ids].sort(),Array.from(panel.ids).sort());
   assert.deepEqual(Array.from(panel.groups.at(-1)[1]),['ha-toggle']);
-  assert.equal(panel.groups.slice(0,-1).flatMap(group=>group[1]).length,44);
+  assert.equal(panel.groups.slice(0,-1).flatMap(group=>group[1]).length,45);
   for(const id of ids){
     assert.ok(panel.ids.includes(id),id);
     const icon=panel.create(id);

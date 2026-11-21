@@ -76,3 +76,64 @@ test('AI read-only context menu offers scoped select even without existing selec
  const editable=textMenuTemplate({mediaType:'none',isEditable:true,editFlags:{canSelectAll:true}},wc);
  assert.equal(editable.find(x=>x.label==='전체 선택').enabled,true);
 });
+
+test('simulated gesture input trace includes selected action category but no secrets',async()=>{
+ const e=createEvidence(),id=e.receive({index:0,kind:1,state:1,pressed:true},true);
+ e.append(id,{stage:'renderer',page:1});
+ e.append(id,{stage:'resolved',slot:0,gesture:'down',action:'gesture-test'});
+ e.append(id,{stage:'gesture-test-input',outcome:'down'});
+ e.append(id,{stage:'gesture-test-result',outcome:'double',target:'open-app',ms:180,status:'dry-run',privatePath:'secret'});
+ const found=assess(e.list()[0]);
+ assert.equal(found.finding,'gesture_test_double');
+ assert.deepEqual(found.gestureTest,{gesture:'double',target:'open-app',elapsedMs:180,simulated:true});
+ const inspect=createReader({root:'unused',userData:'unused',view:async()=>null,device:async()=>({}),
+   inputs:()=>[],evidence:()=>e.list(),version:'1.1.93'})();
+ const result=await inspect(req('input_trace',{query:id}));
+ assert.equal(result.items[0].gestureTest.target,'open-app');
+ assert.ok(!JSON.stringify(result).includes('secret'));
+});
+test('D200X dry-run detector distinguishes single double and hold without dispatching actions',()=>{
+ const editor=fs.readFileSync(path.join(__dirname,'../app/streamdeck-editor/editor.js'),'utf8');
+ const start=editor.indexOf('const gestureTestPresses='),end=editor.indexOf('// Generated local tones:',start);
+ assert.ok(start>0&&end>start);
+ const code=editor.slice(start,end);
+ assert.doesNotMatch(code,/executeMultiStep|runComposite|runActionPreview|deckBridge\./);
+ assert.match(editor,/resolved\.action\?\.type==='gesture-test'/);
+ const timers=new Map(),observed=[],statuses=[];
+ let now=0,id=0;
+ const setFakeTimeout=(f,ms)=>{const key=++id;timers.set(key,{at:now+ms,fn:f});return key;};
+ const advance=ms=>{
+   const until=now+ms;
+   while(true){
+     const due=[...timers.entries()].filter(([,v])=>v.at<=until).sort((a,b)=>a[1].at-b[1].at)[0];
+     if(!due)break;
+     now=due[1].at;timers.delete(due[0]);due[1].fn();
+   }
+   now=until;
+ };
+ const handle=new Function('DeckCore','state','window','Date','setTimeout','clearTimeout','reportInputEvidence','TEST_TOUCH_CHOICES',
+   code+';return handleGestureTest;')(
+   {runtimeActionKey:()=> 'p1-k1'}, {},
+   {d200xActionStatus:s=>statuses.push(s)}, {now:()=>now},
+   setFakeTimeout,id=>timers.delete(id),(event,stage,detail)=>observed.push({inputId:event.inputId,stage,...detail}),
+   [['hotkey','단축키'],['open-app','프로그램 열기'],['folder-shortcut','폴더 열기']]
+ );
+ const action={settings:{single:'hotkey',double:'open-app',hold:'folder-shortcut',logEnabled:true}};
+ handle(action,0,'down',{inputId:'s-down'},false);advance(40);
+ handle(action,0,'up',{inputId:'s-up'},false);advance(300);
+ handle(action,0,'down',{inputId:'d1-down'},false);advance(30);
+ handle(action,0,'up',{inputId:'d1-up'},false);advance(120);
+ handle(action,0,'down',{inputId:'d2-down'},false);advance(10);
+ handle(action,0,'up',{inputId:'d2-up'},false);
+ handle(action,0,'down',{inputId:'h-down'},false);advance(620);
+ handle(action,0,'up',{inputId:'h-up'},false);
+ const results=observed.filter(x=>x.stage==='gesture-test-result');
+ assert.deepEqual(results.map(x=>[x.outcome,x.target,x.status,x.inputId]),[
+   ['single','hotkey','dry-run','s-up'],['double','open-app','dry-run','d2-down'],
+   ['hold','folder-shortcut','dry-run','h-down']]);
+ assert.ok(statuses.every(x=>x.includes('실제 실행 없음')));
+ action.settings.logEnabled=false;const count=observed.length;
+ handle(action,0,'down',{inputId:'off-down'},false);advance(30);
+ handle(action,0,'up',{inputId:'off-up'},false);advance(310);
+ assert.equal(observed.length,count);
+});
