@@ -38,14 +38,14 @@ test('legacy title remains intact if no separate state titles exist',()=>{
  assert.equal(render(undefined,false).title,'기본 제목');
 });
 test('state row retains preview, paired cards and edit/save button alignment',()=>{
- assert.match(editor,/layout\.append\(preview,iconRegion\)/);
+ assert.match(editor,/layout\.append\(iconRegion,preview\)/);
  assert.match(editor,/options\.append\(pluginButton\)/);
  assert.match(editor,/toolbar\.append\(saveBar\)/);
  assert.match(editor,/attachStateTitleControls\(group,item,key==='off'/);
  assert.match(editor,/attachStateTitleControls\(card,item,key==='up'/);
  assert.match(editor,/\$\('inspector'\)\._openStateTitleStyle\?\.\(which,styleButton\)/);
  assert.match(editor,/const entry=\{name,style:validPresetStyle\(style\)\}/);
- assert.match(css,/\.state-title-inspector \.state-title-layout\{[\s\S]*?grid-template-columns:98px minmax\(0,1fr\)/);
+ assert.match(css,/\.state-title-inspector \.state-title-layout\{\s*grid-template-columns:minmax\(0,1fr\) 98px/);
  assert.match(css,/\.state-title-inspector \.state-title-layout \.sdk-state-icons\{[\s\S]*?grid-template-columns:repeat\(2,minmax\(0,1fr\)\)/);
  assert.match(css,/\.state-title-inspector \.state-title-layout \.sdk-state-preview\{[\s\S]*?aspect-ratio:1\/1/);
  assert.match(css,/\.state-title-inspector \.state-title-layout \.sdk-state-buttons button\{[\s\S]*?height:25px/);

@@ -62,7 +62,7 @@ $('refresh').onclick=()=>run('models',async()=>{notice('');await modelList();});
 $('usage').onclick=async()=>{try{check(await api.usage());}catch(e){notice(e.message);}};
 $('new').onclick=()=>{current=null;$('input').value='';clearAttachments();notice('');draw();};
 $('history').onchange=()=>{current=$('history').value||null;$('input').value='';clearAttachments();notice('');draw();};
-$('delete').onclick=()=>{if(current&&confirm('이 대화 기록을 삭제하시겠습니까?'))run('history',async()=>{history=check(await api.delete(current));current=null;draw();});};
+$('delete').onclick=()=>{if(current&&confirm('이 대화 기록을 삭제하시겠습니까?'))run('history',async()=>{history=check(await api.delete(current));current=null;clearAttachments();draw();});};
 $('templates').onclick=()=>{const menu=$('template-list');menu.hidden=!menu.hidden;$('templates').setAttribute('aria-expanded',String(!menu.hidden));};
 $('fusion-setup').onclick=()=>{$('input').value='Fusion 초기 연결해 줘';$('template-list').hidden=true;$('templates').setAttribute('aria-expanded','false');$('input').focus();controls();};
 
