@@ -5359,14 +5359,14 @@ function executeHardwareAction(event,preview=false,skipKnobGesture=false,pressOv
     const position=hotkeySwitchPositions.get(key)||0;
     const keys=position===0?outcome.first:outcome.second;
     if(!keys)return '전환할 단축키가 설정되지 않았습니다.';
-    observe(window.deckBridge.sendHotkey(keys),outcome.kind).then(
+    observe(window.deckBridge.sendHotkey(keys,event.inputId),outcome.kind).then(
       ()=>{hotkeySwitchPositions.set(key,1-position);renderGrid();void refreshSelectedVisual();window.scheduleDeckSync?.();window.d200xActionStatus?.('단축키 전환 '+(position+1)+' 실행');},
       error=>window.d200xActionStatus?.('단축키 전환 실패: '+String(error?.message||error)));
     return '단축키 전환 '+(position+1)+' 요청';
   }
   if(outcome.kind==='windows-hotkey'){
     if(!window.deckBridge?.sendHotkey)return 'Windows 실행 환경에서만 사용할 수 있습니다.';
-    observe(window.deckBridge.sendHotkey(outcome.keys),outcome.kind).then(
+    observe(window.deckBridge.sendHotkey(outcome.keys,event.inputId),outcome.kind).then(
       ()=>window.d200xActionStatus?.('단축키 전송 완료'),
       error=>window.d200xActionStatus?.('단축키 실행 실패: '+String(error?.message||error)));
     return '단축키 실행 요청';

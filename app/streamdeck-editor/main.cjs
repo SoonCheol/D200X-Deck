@@ -1125,13 +1125,60 @@ ipcMain.handle('d200x:media-control',async(event,args)=>{
   if(process.platform!=='win32')throw new Error('Windows에서만 지원합니다.');
   await emitWindowsKeys([],MEDIA_CODES[args.operation]);return true;
 });
+// SendInput reports Windows input-stream insertion, not foreground-app action success.
+async function emitVerifiedWindowsHotkey(parsed){
+  const keyFlags=parsed.extended?1:0;
+  const inputs=[...parsed.held.map(v=>[v,0,0]),[parsed.key,parsed.scan||0,keyFlags],[parsed.key,parsed.scan||0,keyFlags|2],...parsed.held.slice().reverse().map(v=>[v,0,2])];
+  const ps=`Add-Type -TypeDefinition @'
+using System;
+using System.Runtime.InteropServices;
+public static class D200XVerifiedHotkey {
+  [StructLayout(LayoutKind.Sequential)] public struct KEYBDINPUT {
+    public ushort wVk,wScan;
+    public uint dwFlags,time;
+    public UIntPtr dwExtraInfo;
+  }
+  [StructLayout(LayoutKind.Explicit,Size=40)] public struct INPUT {
+    [FieldOffset(0)] public uint type;
+    [FieldOffset(8)] public KEYBDINPUT ki;
+  }
+  [DllImport("user32.dll",SetLastError=true)] static extern uint SendInput(uint count,INPUT[] input,int size);
+  public static uint Write(int[] values){
+    var inputs=new INPUT[values.Length/3];
+    for(int i=0;i<inputs.Length;i++){
+      inputs[i].type=1;
+      inputs[i].ki.wVk=(ushort)values[i*3];
+      inputs[i].ki.wScan=(ushort)values[i*3+1];
+      inputs[i].ki.dwFlags=(uint)values[i*3+2];
+    }
+    return SendInput((uint)inputs.Length,inputs,Marshal.SizeOf(typeof(INPUT)));
+  }
+}
+'@;
+[Console]::Write([D200XVerifiedHotkey]::Write(@(${inputs.flat().join(',')})))`;
+  const {stdout}=await execFileAsync('powershell.exe',['-NoProfile','-NonInteractive','-WindowStyle','Hidden','-Command',ps],
+    {windowsHide:true,timeout:6000,maxBuffer:32768});
+  return {inserted:Number(String(stdout).trim()),expected:inputs.length};
+}
 function parseWindowsHotkey(value){return DeckHotkeys.resolve(value);}
 ipcMain.handle('d200x:send-hotkey',async(event,args)=>{
   if(!window||event.sender!==window.webContents)throw new Error('허용되지 않은 호출입니다.');
   const parsed=parseWindowsHotkey(args?.keys);
   if(!parsed)throw new Error('지원하지 않는 단축키 형식입니다.');
   if(process.platform!=='win32')throw new Error('Windows에서만 지원합니다.');
-  await emitWindowsKeys(parsed.held,parsed.key,parsed);return true;
+  const inputId=typeof args?.inputId==='string'&&aiEvidence.has(args.inputId)?args.inputId:null;
+  const keys=DeckHotkeys.canonical(args.keys);
+  try{
+    const {inserted,expected}=await emitVerifiedWindowsHotkey(parsed);
+    const confirmed=inserted===expected;
+    if(inputId)aiEvidence.append(inputId,{stage:'windows-input',keys,status:confirmed?'inserted':'failed',count:inserted,expected});
+    if(!confirmed)throw new Error('Windows 입력 삽입 개수가 일치하지 않습니다.');
+    return true;
+  }catch(error){
+    if(inputId&&!aiEvidence.list().some(row=>row.id===inputId&&row.events.some(e=>e.stage==='windows-input')))
+      aiEvidence.append(inputId,{stage:'windows-input',keys,status:'failed'});
+    throw error;
+  }
 });
 
 // Fixed Win32 shortcuts; choices are validated against this closed allowlist.

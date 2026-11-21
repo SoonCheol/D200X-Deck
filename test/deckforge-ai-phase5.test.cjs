@@ -147,3 +147,65 @@ test('assigned ordinary key gesture evidence distinguishes a selected command fr
  assert.deepEqual(found.pressGesture,{gesture:'double',elapsedMs:337,action:'hotkey'});
  assert.equal(found.requests,0);assert.equal(found.settled,0);
 });
+
+
+test('AI one-call action check verifies Windows hotkey insertion counts and actually sent keys',async()=>{
+ const e=createEvidence(),s=Core.migrateState(null),item=s.pages[0][9]=Core.createAction('hotkey');item.settings.keys='Shift+PrintScreen';
+ const id=e.receive({index:9,kind:1,state:1,pressed:true},true);
+ e.append(id,{stage:'renderer',page:1,profile:1,folder:false});
+ e.append(id,{stage:'resolved',slot:9,gesture:'down',action:'hotkey'});
+ e.append(id,{stage:'planned',outcome:'windows-hotkey'});
+ e.append(id,{stage:'request',outcome:'windows-hotkey'});
+ e.append(id,{stage:'windows-input',keys:'Shift+PrintScreen',status:'inserted',count:4,expected:4});
+ e.append(id,{stage:'request-resolved',outcome:'windows-hotkey'});
+ const read=createReader({root:'unused',userData:'unused',readState:async()=>s,view:async()=>null,device:async()=>({}),inputs:()=>[],evidence:()=>e.list()})();
+ const r=await read(req('action_check'));
+ assert.equal(r.found,true);assert.equal(r.slot,10);assert.equal(r.outcome,'windows-hotkey');
+ assert.deepEqual(r.windowsInput,{keys:'Shift+PrintScreen',status:'inserted',inserted:4,expected:4,result:'confirmed_inserted'});
+ assert.equal(r.window.result,'unverified');assert.equal(r.request.state,'returned_without_error');
+ const f=e.receive({index:9,kind:1,state:1,pressed:true},true);
+ e.append(f,{stage:'renderer',page:1,profile:1,folder:false});
+ e.append(f,{stage:'resolved',slot:9,gesture:'down',action:'hotkey'});
+ e.append(f,{stage:'planned',outcome:'windows-hotkey'});
+ e.append(f,{stage:'request',outcome:'windows-hotkey'});
+ e.append(f,{stage:'request-resolved',outcome:'windows-hotkey'});
+ const missing=await read(req('action_check'));
+ assert.equal(missing.windowsInput.result,'unverified_no_sendinput_receipt');
+ assert.equal(missing.request.state,'returned_without_error');
+});
+test('AI one-call action check distinguishes app and folder request from native window confirmation',async()=>{
+ const e=createEvidence(),s=Core.migrateState(null),item=s.pages[0][2]=Core.createAction('open-app');item.settings.app='C:/Apps/Fusion.exe';
+ const add=(index,kind)=>{
+   const id=e.receive({index,kind:1,state:1,pressed:true},true);
+   e.append(id,{stage:'renderer',page:1,profile:1,folder:false});
+   e.append(id,{stage:'resolved',slot:index,gesture:'down',action:kind});
+   e.append(id,{stage:'planned',outcome:'open-local-path'});
+   e.append(id,{stage:'request',outcome:'open-local-path'});
+   e.append(id,{stage:'request-resolved',outcome:'open-local-path'});
+   return id;
+ };
+ const appId=add(2,'open-app');e.link('app-helper',appId);
+ e.helper({traceId:'app-helper',stage:'launch-request-result',result:{status:'launch-requested'},spec:{target:'SECRET_FULL_PATH'}});
+ const reader=createReader({root:'unused',userData:'unused',readState:async()=>s,view:async()=>null,device:async()=>({}),inputs:()=>[],evidence:()=>e.list()})();
+ let r=await reader(req('action_check'));assert.equal(r.request.state,'returned_without_error');assert.equal(r.window.result,'unverified');assert.equal(r.savedAction.target,'Fusion.exe');
+ assert.ok(!JSON.stringify(r).includes('SECRET_FULL_PATH'));
+ e.helper({traceId:'app-helper',stage:'focus-result',result:{status:'focused'}});
+ r=await reader(req('action_check'));assert.equal(r.window.result,'confirmed_existing_or_opened');
+ const folderId=add(3,'folder-shortcut');e.link('folder-helper',folderId);
+ e.helper({traceId:'folder-helper',stage:'open-missing',error:null,result:{status:'missing'}});
+ r=await reader(req('action_check'));assert.equal(r.window.result,'unverified');assert.equal(r.request.state,'returned_without_error');
+ e.append(folderId,{stage:'request-rejected',outcome:'open-local-path'});
+ r=await reader(req('action_check'));assert.equal(r.request.state,'failed');
+});
+test('verified hotkey path uses SendInput rather than keybd_event and carries physical packet ID',()=>{
+ const main=fs.readFileSync(path.join(__dirname,'../app/streamdeck-editor/main.cjs'),'utf8');
+ const preload=fs.readFileSync(path.join(__dirname,'../app/streamdeck-editor/preload.cjs'),'utf8');
+ const editor=fs.readFileSync(path.join(__dirname,'../app/streamdeck-editor/editor.js'),'utf8');
+ const start=main.indexOf('async function emitVerifiedWindowsHotkey('),end=main.indexOf('function parseWindowsHotkey(',start);
+ assert.ok(start>=0&&end>start);
+ assert.match(main.slice(start,end),/SendInput\(/);
+ assert.doesNotMatch(main.slice(start,end),/keybd_event/);
+ assert.match(main,/inputId\)aiEvidence\.append\(inputId,\{stage:'windows-input'/);
+ assert.match(preload,/sendHotkey: \(keys,inputId\)/);
+ assert.match(editor,/sendHotkey\(outcome\.keys,event\.inputId\)/);
+});

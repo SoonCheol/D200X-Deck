@@ -65,7 +65,7 @@ contextBridge.exposeInMainWorld('deckBridge', Object.freeze({
   systemShortcut: (target,operation) => ipcRenderer.invoke('d200x:system-shortcut', {target,operation}),
   openLocalPath: (filePath,target,args='',alwaysNewWindow=false,foreground=true,inputId) => ipcRenderer.invoke('d200x:open-local-path', {filePath,target,args,alwaysNewWindow,foreground,inputId}),
   mediaControl: operation => ipcRenderer.invoke('d200x:media-control', {operation}),
-  sendHotkey: keys => ipcRenderer.invoke('d200x:send-hotkey', {keys}),
+  sendHotkey: (keys,inputId) => ipcRenderer.invoke('d200x:send-hotkey', {keys,inputId}),
   typeText: (text,enter=false) => ipcRenderer.invoke('d200x:type-text', {text,enter}),
   pasteText: (text,enter=false) => ipcRenderer.invoke('d200x:paste-text', {text,enter}),
   focusLocalApp: filePath => ipcRenderer.invoke('d200x:focus-local-app',{filePath}),

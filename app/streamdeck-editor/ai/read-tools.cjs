@@ -219,7 +219,7 @@ const KNOWLEDGE=[
   {topic:'wide',facts:'Wide modes clock/datetime/stats/knobs. Root wide key cycles enabled modes. An unsaved warning temporarily overrides wide display; pressing it requests editor focus. A USB transfer or focus request is not visual confirmation.'},
   {topic:'editing',facts:'propose_edit stages basic root edits; propose_advanced stages folder/control/wide/composite/state-design/plugin edits. Active profile, bounded operations, fixed validation, user Apply and Save confirmation, existing atomic profile write, then display sync request. Dirty or changed snapshot blocks apply; last change undo only within session and unchanged state. No model direct write or execution.'},
   {topic:'plugins',facts:'Native HA REST supported entities light/switch/fan/input_boolean require configured server and real entity verification. SDK HA and existing Fusion templates reuse saved settings. For new Fusion commands use fusion_commands and kind fusion-live, or fusion_batch for up to 13 empty root buttons across existing pages; exact live ID and installed SDK runcommand action must be verified. Empty template list does not prove absence of installed commands or devices. SDK key acknowledgement is dispatch evidence, not remote action success.'},
-  {topic:'diagnostics',facts:'input_trace uses explicit packet IDs and actual dispatch observations; last 128 post-sleep-filter inputs only, volatile, no historical reconstruction. Distinguish reception, renderer, resolved slot, plan, filter/deferred gesture, request, returned/failed and native helper stage. Use app_log with the exact helper trace to see safe AppID/EXE name, PID, PE subsystem, package identity, per-PID allow/block reason and path availability (older logs may include cloak), and launch error reason. Since 1.1.52 verified-package means exact OS package AppID; subsystem=0 in that case is not inspected, not an invalid image. launch-requested is only shell request acceptance, not evidence of a window. No result is not proof of failure. SDK/SendInput/REST or shell request acceptance is not proof of effect. Delayed logic, timer/chime, unsaved-dialog resume, separate release/hold and composite substeps may have incomplete evidence. A filtered up event normally does not execute.'},
+  {topic:'diagnostics',facts:'Use action_check for the latest pressed button to distinguish Windows SendInput insertion from editor delivery and to report verified native window status. For explicit packet investigation use input_trace. input_trace uses explicit packet IDs and actual dispatch observations; last 128 post-sleep-filter inputs only, volatile, no historical reconstruction. Distinguish reception, renderer, resolved slot, plan, filter/deferred gesture, request, returned/failed and native helper stage. Use app_log with the exact helper trace to see safe AppID/EXE name, PID, PE subsystem, package identity, per-PID allow/block reason and path availability (older logs may include cloak), and launch error reason. Since 1.1.52 verified-package means exact OS package AppID; subsystem=0 in that case is not inspected, not an invalid image. launch-requested is only shell request acceptance, not evidence of a window. No result is not proof of failure. SDK/SendInput/REST or shell request acceptance is not proof of effect. Delayed logic, timer/chime, unsaved-dialog resume, separate release/hold and composite substeps may have incomplete evidence. A filtered up event normally does not execute.'},
   {topic:'optimization',facts:'layout_review checks saved page holes, exactly repeated basic action settings, incomplete configured fields and inactive rotations. These are review candidates, not proof of defects; duplicate keys can be intentional. No automatic changes. Use page and liveView before making an approved proposal.'},
   {topic:'usage',facts:'ChatGPT direct connection only. At most 3 API requests, 4 tool calls and one edit proposal per question; last 8 messages / 16000 characters. Approve/cancel/undo locally. Reported token usage is API usage, not exact subscription deduction.'}
 ];
@@ -250,8 +250,8 @@ function layoutReview(s,a){
   return {source:'saved page, local checks only',profile:page.profile,page:page.page,folder:page.folder,emptySlots:empty,occupied:13-empty.length,findings,note:'Candidates only; do not infer intent or automatically remove duplicates. Compare liveView/dirty before editing.'};
 }
 
-const SECTIONS=['input_trace','layout_review','knowledge','user_templates','plugin_templates','profiles','page','empty_slots','actions','icon_packs','icons','start_apps','running_windows','device','recent_inputs','plugins','plugin_actions','ha','fusion','fusion_commands','app_log','folder_log','usb_log','guide'];
-const TOOL={type:'function',name:'inspect',description:'Read only. sections: profiles; page (profile/page are 1-based, folder "current" or "2:1/3:2" = slot:folder-page, null=root); empty_slots (all saved root pages and separate current folder in active profile in ONE call, editable empty ordinary slots only; all other arguments null); actions; icon_packs; icons; start_apps; running_windows; device; recent_inputs; input_trace (correlated physical input/dispatch/request/helper evidence, query by packet id or failure); layout_review (local saved-page review); knowledge (filter topic); plugins; plugin_actions; user_templates (local user profile template names and page counts only); plugin_templates (configured Fusion command IDs / SDK HA entity IDs only); ha; fusion; fusion_commands (live Fusion IDs, localized names when available, query Korean or English; separate up to 13 distinct search phrases with | for fair merged results, max 20 rows per call; pagination; not proof of execute eligibility); app_log; folder_log; usb_log; guide. query filters locally, offset paginates. Null for unused arguments. No raw paths, commands or logs.',parameters:{type:'object',properties:{section:{type:'string',enum:SECTIONS},profile:{type:['integer','null']},page:{type:['integer','null']},folder:{type:['string','null']},query:{type:['string','null']},offset:{type:['integer','null']}},required:['section','profile','page','folder','query','offset'],additionalProperties:false},strict:true};
+const SECTIONS=['action_check','input_trace','layout_review','knowledge','user_templates','plugin_templates','profiles','page','empty_slots','actions','icon_packs','icons','start_apps','running_windows','device','recent_inputs','plugins','plugin_actions','ha','fusion','fusion_commands','app_log','folder_log','usb_log','guide'];
+const TOOL={type:'function',name:'inspect',description:'Read only. sections: profiles; page (profile/page are 1-based, folder "current" or "2:1/3:2" = slot:folder-page, null=root); empty_slots (all saved root pages and separate current folder in active profile in ONE call, editable empty ordinary slots only; all other arguments null); actions; icon_packs; icons; start_apps; running_windows; device; recent_inputs; action_check (latest dispatched physical button: hotkey Windows SendInput counts, request result, native app/folder window; one lookup; profile/page filter or query packet ID / slot=N); input_trace (correlated physical input/dispatch/request/helper evidence, query by packet id or failure); layout_review (local saved-page review); knowledge (filter topic); plugins; plugin_actions; user_templates (local user profile template names and page counts only); plugin_templates (configured Fusion command IDs / SDK HA entity IDs only); ha; fusion; fusion_commands (live Fusion IDs, localized names when available, query Korean or English; separate up to 13 distinct search phrases with | for fair merged results, max 20 rows per call; pagination; not proof of execute eligibility); app_log; folder_log; usb_log; guide. query filters locally, offset paginates. Null for unused arguments. No raw paths, commands or logs.',parameters:{type:'object',properties:{section:{type:'string',enum:SECTIONS},profile:{type:['integer','null']},page:{type:['integer','null']},folder:{type:['string','null']},query:{type:['string','null']},offset:{type:['integer','null']}},required:['section','profile','page','folder','query','offset'],additionalProperties:false},strict:true};
 function validate(a){
   if(!a||Array.isArray(a)||typeof a!=='object'||Object.keys(a).length!==6||!SECTIONS.includes(a.section)||!['profile','page','folder','query','offset'].every(k=>Object.hasOwn(a,k)))throw Error('invalid-query');
   if(a.profile!==null&&!integer(a.profile,1,50)||a.page!==null&&!integer(a.page,1,128)||a.offset!==null&&!integer(a.offset,0,10000)||a.query!==null&&(typeof a.query!=='string'||a.query.length>100)||a.folder!==null&&(typeof a.folder!=='string'||a.folder!=='current'&& !/^(?:[1-9]|1[0-4]):(?:[1-9]|10)(?:\/(?:[1-9]|1[0-4]):(?:[1-9]|10)){0,7}$/.test(a.folder)))throw Error('invalid-query');
@@ -271,7 +271,41 @@ function createReader({root,userData,view,device,inputs,evidence=()=>[],version=
         let result;
         if(a.section==='guide')result={...GUIDE,version,sections:['input_trace','layout_review','knowledge'],note:'Use knowledge by topic for current implementation. No automatic repair.'};
         else if(a.section==='knowledge')result={version,...slice(filtered(KNOWLEDGE,q),o,8)};
-        else if(a.section==='input_trace'){
+        else if(a.section==='action_check'){
+           const snapshot=evidence(),rows=snapshot.slice().reverse().map(assess);
+           const selected=rows.find(x=>x.outcome&&(!a.profile||x.profile===a.profile)&&(!a.page||x.page===a.page)&&
+             (!q||x.id===q||q==='slot='+x.slot));
+           if(!selected)result={found:false,reason:'no_recent_execution_evidence',source:'current session only; no historical reconstruction'};
+           else{
+             const raw=snapshot.find(x=>x.id===selected.id);
+             const helpers=(raw?.events||[]).filter(e=>e.stage==='helper');
+             const confirmedWindow=helpers.findLast(e=>['focused','opened','present'].includes(e.status)&&e.error!==true);
+             const lastHelper=helpers.at(-1);
+             const requestState=selected.failures?'failed':selected.requests===0?'not_requested':
+               selected.settled<selected.requests?'pending_or_missing':'returned_without_error';
+             let savedAction=null;
+             if(!selected.folder&&selected.slot>=1&&selected.slot<=13&&selected.profile&&selected.page){
+               try{
+                 state??=await readState();
+                 const saved=resolvePage(state,{profile:selected.profile,page:selected.page,folder:null});
+                 const entry=saved.keys?.[selected.slot-1]?.action;
+                 if(entry?.type===selected.action)savedAction={label:entry.label,title:entry.title,target:entry.target,source:'current saved configuration, not execution-time evidence'};
+               }catch{}
+             }
+             const input=selected.windowsInput;
+             const hotkey=selected.outcome==='windows-hotkey'||selected.outcome==='windows-hotkey-switch';
+             result={found:true,id:selected.id,at:selected.at,profile:selected.profile,page:selected.page,slot:selected.slot,
+               actionType:selected.action,outcome:selected.outcome,gesture:selected.gesture,savedAction,
+               deviceInput:selected.delivered?'renderer_delivery_attempted':'editor_unavailable',
+               request:{sent:selected.requests,settled:selected.settled,failures:selected.failures,state:requestState},
+               ...(hotkey?{windowsInput:input?{keys:input.keys,status:input.status,inserted:input.inserted,expected:input.expected,
+                 result:input.status==='inserted'&&input.inserted===input.expected?'confirmed_inserted':input.status==='failed'?'failed':'unverified'}:{result:'unverified_no_sendinput_receipt'}}:{}),
+               window:{result:confirmedWindow?'confirmed_existing_or_opened':'unverified',helperStatus:confirmedWindow?.status||lastHelper?.status,
+                 note:'Shell launch request is not proof of window; focused/present/opened is a native helper observation'},
+               source:'one correlated physical packet, bounded volatile evidence; savedAction may have changed since execution'};
+           }
+         }
+         else if(a.section==='input_trace'){
           const snapshot=evidence();
           const rows=snapshot.slice().reverse().map(assess);
           const selected=filtered(rows,q),exact=q?snapshot.find(x=>x.id===q):null;
