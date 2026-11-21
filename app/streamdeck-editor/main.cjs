@@ -385,20 +385,30 @@ function backupEditor(event){
   assertEditor(event);
   if(event.senderFrame!==window.webContents.mainFrame)throw Error('허용되지 않은 백업 호출입니다.');
 }
-function currentBackup(appearance){
-  return Backup.snapshot({store:profileStore,packsFile:iconPacksFile(),
+function currentBackup(appearance,selection=null){
+  const data=Backup.snapshot({store:profileStore,packsFile:iconPacksFile(),
     appearance,version:require('./package.json').version});
+  return selection?Backup.selectSnapshot(data,selection):data;
 }
-ipcMain.handle('d200x:backup-scan',async(event,{appearance}={})=>{
+ipcMain.handle('d200x:backup-items',async(event,{appearance}={})=>{
   backupEditor(event);if(backupBusy)throw Error('백업 작업이 진행 중입니다.');
   backupBusy=true;
   try{
     Backup.validateAppearance(appearance);
     await ensureIconPacksMigrated();
-    return BackupPrivacy.scan(currentBackup(appearance));
+    return Backup.backupChoices(currentBackup(appearance));
   }finally{backupBusy=false;}
 });
-ipcMain.handle('d200x:backup-create',async(event,{password,appearance,format='encrypted'}={})=>{
+ipcMain.handle('d200x:backup-scan',async(event,{appearance,selection}={})=>{
+  backupEditor(event);if(backupBusy)throw Error('백업 작업이 진행 중입니다.');
+  backupBusy=true;
+  try{
+    Backup.validateAppearance(appearance);
+    await ensureIconPacksMigrated();
+    return BackupPrivacy.scan(currentBackup(appearance,selection));
+  }finally{backupBusy=false;}
+});
+ipcMain.handle('d200x:backup-create',async(event,{password,appearance,format='encrypted',selection}={})=>{
   backupEditor(event);if(backupBusy)throw Error('백업 작업이 진행 중입니다.');
   backupBusy=true;
   try{
@@ -407,7 +417,7 @@ ipcMain.handle('d200x:backup-create',async(event,{password,appearance,format='en
     const folder=await openRememberedPicker({title:'로컬 백업 폴더 선택',properties:['openDirectory','createDirectory']},'folder');
     if(!folder)return null;
     await ensureIconPacksMigrated();
-    return Backup.writeArchive(folder,currentBackup(appearance),password,{format});
+    return Backup.writeArchive(folder,currentBackup(appearance,selection),password,{format});
   }finally{backupBusy=false;}
 });
 function stageBackup(incoming,filename,password,appearance){
@@ -436,12 +446,12 @@ ipcMain.handle('d200x:drive-list',event=>driveOperation(event,async()=>{
   const account=await googleDrive.status();if(!account.connected)throw Error('Google Drive를 먼저 연결하세요.');
   return {...await googleDrive.list(),email:account.email};
 }));
-ipcMain.handle('d200x:drive-create',(event,{password,appearance,expectedEmail,format='encrypted'}={})=>driveOperation(event,async()=>{
+ipcMain.handle('d200x:drive-create',(event,{password,appearance,expectedEmail,format='encrypted',selection}={})=>driveOperation(event,async()=>{
   clearBackupPending();Backup.validateAppearance(appearance);
   const account=await googleDrive.status();
   if(!account.connected||account.email!==expectedEmail)throw Error('Google 계정이 변경되었거나 연결되지 않았습니다.');
   await ensureIconPacksMigrated();
-  const current=currentBackup(appearance);
+  const current=currentBackup(appearance,selection);
   const filename='DeckForge-'+current.createdAt.replace(/[:.]/g,'-')+'-'+randomUUID()+'.'+Backup.extension(format);
   return {...await googleDrive.upload(filename,Backup.encode(current,password,format)),email:account.email};
 }));

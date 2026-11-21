@@ -9,10 +9,10 @@
     if(text!==undefined&&text!==null)node.textContent=String(text);
     return node;
   }
-  function show({title,kind='info',intro='',fields=[],included=[],excluded=[],detailLabel='',detail='',warning='',ask=false,actionLabel='확인',cancelLabel='취소',alternateLabel=''}={}){
+  function show({title,kind='info',intro='',fields=[],included=[],excluded=[],content=null,onAccept=null,detailLabel='',detail='',warning='',ask=false,actionLabel='확인',cancelLabel='취소',alternateLabel=''}={}){
     if(typeof title!=='string'||!title.trim()||!Object.hasOwn(icons,kind))throw Error('대화상자 제목 또는 상태가 올바르지 않습니다.');
     return new Promise(resolve=>{
-      const dialog=element('dialog','deckforge-message-dialog');
+      const dialog=element('dialog','deckforge-message-dialog'+(content?' deckforge-message-dialog-selection':''));
       dialog.setAttribute('aria-labelledby','deckforge-message-title-'+(++serial));
       const header=element('header','deckforge-message-header');
       const product=element('strong','deckforge-message-product','DeckForge');
@@ -44,6 +44,7 @@
         section.append(list);main.append(section);
       }
       items('백업에 포함되는 항목',included,'deckforge-message-included');
+      if(content){if(typeof content!=='object'||typeof content.append!=='function')throw Error('대화상자 내용이 올바르지 않습니다.');main.append(content);}
       items('백업에서 제외되는 항목',excluded,'deckforge-message-excluded');
       if(detail){
         const details=element('section','deckforge-message-detail');
@@ -68,7 +69,7 @@
         footer.append(alternate);
       }
       const accept=element('button','deckforge-message-button deckforge-message-primary',actionLabel);
-      accept.type='button';accept.addEventListener('click',()=>dialog.close('accept'));
+      accept.type='button';accept.addEventListener('click',()=>{if(onAccept&&onAccept()===false)return;dialog.close('accept');});
       footer.append(accept);
       dialog.append(header,main,footer);
       dialog.addEventListener('close',()=>{const choice=dialog.returnValue==='accept'?true:dialog.returnValue==='alternate'?'alternate':false;dialog.remove();resolve(choice);},{once:true});

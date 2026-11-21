@@ -1274,3 +1274,65 @@ dialog.deckforge-message-dialog::backdrop{background:#000a}
 .state-title-inspector.text-inspector .state-title-extra-properties #text-count{
   display:block;text-align:right;margin-top:3px;
 }
+
+
+/* One accordion design for backup and selected restore. Each group preserves
+   its checkbox and duplicate-name policy state while collapsed. */
+.deckforge-message-dialog-selection{width:min(650px,calc(100vw - 32px))}
+.deckforge-backup-selection{display:flex;flex-direction:column;gap:8px;min-width:0}
+.deckforge-backup-selection-tools{display:flex;align-items:center;gap:10px;flex-wrap:wrap;min-width:0}
+.deckforge-backup-selection-tools>strong{font-size:13px;color:#eee}
+.deckforge-backup-selection-count{margin-left:auto;color:#aaa;font-size:12px;white-space:nowrap}
+.deckforge-backup-selection-buttons{display:flex;gap:6px}
+.deckforge-backup-selection-buttons>button{
+  border:1px solid #686868;border-radius:4px;padding:5px 9px;
+  color:#eee;background:#414141;font-size:12px;cursor:pointer
+}
+.deckforge-backup-selection-buttons>button:hover{background:#505050}
+.deckforge-backup-group-list{
+  border:1px solid #545454;border-radius:5px;overflow:auto;max-height:320px;
+  min-width:0;background:#292929
+}
+.deckforge-backup-restore-list{max-height:350px}
+.deckforge-backup-group+.deckforge-backup-group{border-top:1px solid #505050}
+.deckforge-backup-group-header{
+  display:flex;align-items:center;gap:9px;width:100%;min-height:37px;
+  padding:8px 12px;text-align:left;border:0;background:#363636;
+  color:#eee;cursor:pointer
+}
+.deckforge-backup-group-header:hover{background:#404040}
+.deckforge-backup-group-header>strong{font-size:13px;font-weight:600}
+.deckforge-backup-group-arrow{flex:none;width:12px;color:#ccc;font-size:12px}
+.deckforge-backup-group-count{margin-left:auto;white-space:nowrap;color:#aaa;font-size:12px}
+.deckforge-backup-group-content{padding:3px 12px 6px}
+.deckforge-backup-group-content[hidden],.deckforge-backup-group-list[hidden],
+.deckforge-backup-selection-tools[hidden]{display:none!important}
+.deckforge-backup-group-row{
+  display:grid;grid-template-columns:minmax(0,1fr) minmax(0,210px);gap:8px;
+  align-items:center;padding:7px 0;
+  border-bottom:1px solid #404040;min-width:0
+}
+.deckforge-backup-group-row:last-child{border-bottom:0}
+.deckforge-backup-selection .deckforge-backup-group-row{grid-template-columns:1fr}
+.deckforge-backup-row-left{min-width:0}
+.deckforge-backup-group-item{display:flex;align-items:center;gap:9px;min-width:0;cursor:pointer;overflow-wrap:anywhere}
+.deckforge-backup-group-item>span{min-width:0}
+.deckforge-backup-group-item>input[type=checkbox],
+.profile-name-dialog .deckforge-backup-group-item>input[type=checkbox]{
+  appearance:auto;width:16px;height:16px;min-height:16px;margin:0;padding:0;
+  flex:0 0 16px;accent-color:#287cca;background:transparent;border:0
+}
+.deckforge-backup-row-status{margin:4px 0 0 25px;font-size:11px;overflow-wrap:anywhere}
+.deckforge-backup-conflict-select{
+  width:100%;min-width:0;background:#414141;color:#eee;
+  border:1px solid #777;border-radius:5px;padding:6px;font-size:12px
+}
+.deckforge-backup-selection-notice{font-size:11px;color:#bbb}
+.deckforge-backup-selection-notice.is-warning{color:#ffb777}
+.deckforge-restore-dialog .deckforge-backup-group-row{grid-template-columns:minmax(0,1fr) minmax(0,210px)}
+.deckforge-restore-dialog .deckforge-backup-group-row:has(.deckforge-backup-group-item):not(:has(.deckforge-backup-conflict-select)){grid-template-columns:1fr}
+.deckforge-restore-dialog .deckforge-backup-group-content[hidden]{display:none!important}
+@media(max-width:520px){
+  .deckforge-backup-selection-count{margin-left:0}
+  .deckforge-restore-dialog .deckforge-backup-group-row{grid-template-columns:minmax(0,1fr)}
+}

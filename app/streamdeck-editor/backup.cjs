@@ -59,6 +59,8 @@ function validateSnapshot(data){
     !Number.isFinite(Date.parse(data.createdAt))||typeof data.version!=='string'||!/^\d+\.\d+\.\d+$/.test(data.version))
     throw Error('지원하는 DeckForge 백업 파일이 아닙니다.');
   validatePacks(data.packs);validateAppearance(data.appearance);
+  if(data.sections!==undefined&&(!obj(data.sections)||typeof data.sections.appearance!=='boolean'))
+    throw Error('백업 항목 메타데이터가 올바르지 않습니다.');
   return validateProfiles(data.profiles);
 }
 function snapshot({store,packsFile,appearance,version}){
@@ -70,6 +72,47 @@ function snapshot({store,packsFile,appearance,version}){
   validateSnapshot(data);
   return data;
 }
+
+/* A selected archive is still a valid, self-contained DeckForge snapshot.
+   Do not mutate the live ProfileStore state or expose its fields to the UI. */
+function backupChoices(data){
+  validateSnapshot(data);
+  const named=list=>list.map(item=>({id:item.id,name:item.name}));
+  return {profiles:named(data.profiles.profileNames),
+    templates:named(data.profiles.profileTemplates||[]),
+    packs:named(data.packs),appearance:true};
+}
+function selectSnapshot(data,selection){
+  validateSnapshot(data);
+  if(selection===undefined||selection===null)return data;
+  if(!obj(selection)||typeof selection.appearance!=='boolean')throw Error('백업 항목 선택 정보가 올바르지 않습니다.');
+  const available=backupChoices(data);
+  const setFor=kind=>{
+    const ids=selection[kind],found=new Set(available[kind].map(item=>item.id));
+    if(!Array.isArray(ids)||new Set(ids).size!==ids.length||ids.some(id=>typeof id!=='string'||!found.has(id)))
+      throw Error('백업 '+kind+' 선택 정보가 올바르지 않습니다.');
+    return new Set(ids);
+  };
+  const profiles=setFor('profiles'),templates=setFor('templates'),packs=setFor('packs');
+  if(!profiles.size)throw Error('백업할 프로필을 최소 하나 선택하세요.');
+  const source=data.profiles;
+  const keptProfiles=source.profileNames.filter(item=>profiles.has(item.id));
+  const activeId=profiles.has(source.profileId)?source.profileId:keptProfiles[0].id;
+  const main=Core.exportSingleProfile(source,activeId).snapshot;
+  const next={...source,...main,selected:null,profileId:activeId,
+    profileNames:keptProfiles,
+    inactiveProfiles:keptProfiles.filter(item=>item.id!==activeId).map(item=>({
+      id:item.id,...Core.exportSingleProfile(source,item.id).snapshot
+    })),
+    profileTemplates:(source.profileTemplates||[]).filter(item=>templates.has(item.id))};
+  if(!Object.hasOwn(main,'indicatorCommon'))delete next.indicatorCommon;
+  const archive={...data,profiles:next,packs:data.packs.filter(item=>packs.has(item.id)),
+    appearance:selection.appearance?data.appearance:{theme:'line',overrides:{}},
+    sections:{appearance:selection.appearance}};
+  validateSnapshot(archive);
+  return archive;
+}
+
 function summary(data){
   return {createdAt:data.createdAt,version:data.version,profiles:data.profiles.profileNames.length,
     templates:data.profiles.profileTemplates?.length||0,packs:data.packs.length};
@@ -164,19 +207,20 @@ function restoreItems(current,incoming){
   return {profiles:items(incoming.profiles.profileNames,current.profiles.profileNames),
     templates:incoming.legacyTemplates?[]:items(incoming.profiles.profileTemplates||[],current.profiles.profileTemplates||[]),
     packs:incoming.legacy?[]:items(incoming.packs,current.packs),
-    appearance:!incoming.legacyAppearance};
+    appearance:!incoming.legacyAppearance&&incoming.sections?.appearance!==false};
 }
 function planRestore(current,incoming,options){
   const prior=validateSnapshot(current),source=validateSnapshot(incoming);
   if(!obj(options)||!['all','merge','select'].includes(options.mode))throw Error('복원 방식을 선택하세요.');
   if(options.mode==='all'){
-    const data={...incoming,profiles:source};
-    return {data,report:{mode:'all',added:0,replaced:0,kept:0,renamed:0,missingLinks:0,details:[],appearance:true}};
+    const hasAppearance=incoming.sections?.appearance!==false;
+    const data={...incoming,profiles:source,appearance:hasAppearance?incoming.appearance:current.appearance};
+    return {data,report:{mode:'all',added:0,replaced:0,kept:0,renamed:0,missingLinks:0,details:[],appearance:hasAppearance}};
   }
   if(!['keep','overwrite','rename'].includes(options.conflict)||typeof options.appearance!=='boolean')throw Error('복원 옵션이 올바르지 않습니다.');
   const overrides=options.conflicts??{},kinds=['profiles','templates','packs'];
   if(!obj(overrides)||Object.keys(overrides).some(kind=>!kinds.includes(kind)))throw Error('복원 충돌 처리 옵션이 올바르지 않습니다.');
-  const report={mode:options.mode,added:0,replaced:0,kept:0,renamed:0,missingLinks:0,details:[],appearance:options.appearance&&!incoming.legacyAppearance};
+  const report={mode:options.mode,added:0,replaced:0,kept:0,renamed:0,missingLinks:0,details:[],appearance:options.appearance&&!incoming.legacyAppearance&&incoming.sections?.appearance!==false};
   const clone=value=>JSON.parse(JSON.stringify(value)),key=name=>name.trim().toLowerCase();
   const profiles=prior.profileNames.map(p=>({...p,snapshot:Core.exportSingleProfile(prior,p.id).snapshot}));
   const otherProfiles=source.profileNames.map(p=>({...p,snapshot:Core.exportSingleProfile(source,p.id).snapshot}));
@@ -347,4 +391,4 @@ function restore({store,packsFile,safetyDirectory,current,incoming,password}){
   }
   return {state,safetyFile:safety.file};
 }
-module.exports={validateAppearance,validateSnapshot,snapshot,summary,encrypt,decrypt,encode,decode,extension,readArchive,writeArchive,restoreItems,planRestore,fingerprint,restore};
+module.exports={validateAppearance,validateSnapshot,snapshot,backupChoices,selectSnapshot,summary,encrypt,decrypt,encode,decode,extension,readArchive,writeArchive,restoreItems,planRestore,fingerprint,restore};

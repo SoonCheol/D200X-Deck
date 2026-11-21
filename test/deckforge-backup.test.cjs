@@ -160,3 +160,41 @@ test('merge/selection keep existing data, resolve conflicts, remap imported prof
   assert.throws(()=>Backup.planRestore(current,incoming,{mode:'select',conflict:'keep',appearance:false,profiles:['unknown'],templates:[],packs:[]}));
   assert.equal(Backup.planRestore(current,incoming,{mode:'all'}).data.profiles.profileNames.some(p=>p.name==='Only local'),false);
 });
+
+
+test('selected archives include only checked profiles, templates, icon packs and appearance',t=>{
+  const {store,make}=setup(t);
+  const state=store.read();
+  const id=Core.createProfile(state,'Second profile');
+  assert.ok(id);
+  const added=state.inactiveProfiles.find(p=>p.id===id);
+  added.pages[0][0]=Core.createAction('text');added.pages[0][0].settings.body='second secret';
+  store.write(state);
+  const data=make(),choices=Backup.backupChoices(data);
+  assert.equal(choices.profiles.length,2);
+  assert.equal(choices.templates.length,1);
+  assert.equal(choices.packs.length,1);
+  const options={profiles:[id],templates:[],packs:[],appearance:false};
+  const selected=Backup.selectSnapshot(data,options);
+  assert.equal(selected.profiles.profileId,id);
+  assert.deepEqual(selected.profiles.profileNames.map(p=>p.id),[id]);
+  assert.equal(selected.profiles.inactiveProfiles.length,0);
+  assert.equal(selected.profiles.profileTemplates.length,0);
+  assert.equal(selected.packs.length,0);
+  assert.equal(selected.sections.appearance,false);
+  assert.deepEqual(selected.appearance,{theme:'line',overrides:{}});
+  assert.equal(JSON.stringify(selected).includes('private-action-data'),false);
+  assert.equal(selected.profiles.pages[0][0].settings.body,'second secret');
+  assert.deepEqual(Backup.decode(Backup.encode(selected,'','plain'),'','plain'),selected);
+  const listed=Backup.restoreItems(data,selected);
+  assert.equal(listed.appearance,false);
+  assert.equal(listed.profiles.length,1);
+  const full=Backup.planRestore(data,selected,{mode:'all'});
+  assert.deepEqual(full.data.appearance,data.appearance);
+  assert.equal(full.report.appearance,false);
+  assert.equal(Backup.selectSnapshot(data,null),data);
+  assert.throws(()=>Backup.selectSnapshot(data,{...options,profiles:[]}),/프로필/);
+  assert.throws(()=>Backup.selectSnapshot(data,{...options,packs:['unknown']}),/선택 정보/);
+  assert.throws(()=>Backup.selectSnapshot(data,{...options,profiles:[id,id]}),/선택 정보/);
+  assert.throws(()=>Backup.selectSnapshot(data,{...options,appearance:'no'}),/올바르지/);
+});

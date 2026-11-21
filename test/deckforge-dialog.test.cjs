@@ -84,3 +84,23 @@ test('alternate dialog action is distinct from confirm and cancel',async()=>{
   descendants(modal).find(x=>x.textContent==='암호화 백업').events.click[0]();
   assert.equal(await second,true);
 });
+
+
+test('backup confirmation supports a reusable checklist without saving on invalid selection',async()=>{
+  const {document,window}=load();
+  const custom=document.createElement('section');
+  let allowed=false;
+  const pending=window.DeckForgeDialogs.show({
+    title:'백업 확인',ask:true,content:custom,
+    onAccept:()=>allowed,actionLabel:'백업 시작'
+  });
+  const dialog=document.body.children.at(-1),nodes=descendants(dialog);
+  assert.ok(nodes.includes(custom));
+  assert.ok(dialog.className.includes('deckforge-message-dialog-selection'));
+  const accept=nodes.find(node=>node.className.includes('deckforge-message-primary'));
+  accept.events.click[0]();
+  assert.equal(dialog.removed,false);
+  allowed=true;accept.events.click[0]();
+  assert.equal(await pending,true);
+  assert.equal(dialog.removed,true);
+});
