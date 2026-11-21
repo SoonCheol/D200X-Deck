@@ -1513,3 +1513,100 @@ test('D200X gesture probe keeps three selections without an executable action pl
   const state=core.migrateState(null);state.pages[0][0]=defaults;
   assert.deepEqual(core.planHardwareEvent(state,{kind:1,index:0,pressed:true}).outcome,{kind:'gesture-test'});
 });
+
+test('1.1.94 ordinary key press slots keep the legacy action and discard unsafe nested types',()=>{
+  const main=core.createAction('hotkey');main.settings.keys='Ctrl+S';
+  const second=core.createAction('open-app');second.settings.app='C:\\Windows\\notepad.exe';
+  const hold=core.createAction('goto');hold.settings.page=2;
+  main.pressActions={double:second,hold};
+  const original=JSON.stringify(main);
+  const restored=core.cleanAction(JSON.parse(original));
+  assert.equal(restored.settings.keys,'Ctrl+S');
+  assert.equal(restored.pressActions.double.settings.app,'C:\\Windows\\notepad.exe');
+  assert.equal(restored.pressActions.hold.settings.page,2);
+  assert.equal(JSON.stringify(main),original);
+  const state=core.migrateState(null);state.pages[0][0]=main;
+  const migrated=core.migrateState(JSON.parse(JSON.stringify(state)));
+  assert.equal(migrated.pages[0][0].pressActions.double.type,'open-app');
+  assert.equal(migrated.pages[0][0].pressActions.hold.type,'goto');
+  assert.equal(core.cleanAction(core.createAction('hotkey')).pressActions,undefined);
+  const forbidden=core.cleanAction({type:'hotkey',pressActions:{double:{type:'multi'},hold:{type:'sd-plugin'}}});
+  assert.equal(forbidden.pressActions,undefined);
+  const child=core.createAction('hotkey');child.pressActions={double:core.createAction('open-app')};
+  const safe=core.cleanAction({type:'hotkey',pressActions:{hold:child}});
+  assert.equal(safe.pressActions.hold.pressActions,undefined);
+  assert.ok(core.PRESS_ACTION_TYPES.includes('ha-toggle'));
+  assert.ok(core.PRESS_ACTION_TYPES.includes('profile'));
+  for(const id of ['multi','multi-switch','random','logic','gesture-test','sd-plugin','folder','indicator'])
+    assert.equal(core.PRESS_ACTION_TYPES.includes(id),false,id);
+});
+test('1.1.94 ordinary hardware dispatcher recognizes each gesture once without duplicate single',()=>{
+  const source=require('node:fs').readFileSync(require('node:path').join(__dirname,'../app/streamdeck-editor/editor.js'),'utf8');
+  const start=source.indexOf('const assignedKeyPresses=new Map();');
+  const end=source.indexOf('// Generated local tones:',start);
+  assert.ok(start>0&&end>start);
+  const code=source.slice(start,end);
+  const clock={value:0};let serial=0;
+  const timers=new Map(),runs=[],logs=[];
+  const schedule=(fn,delay)=>{const id=++serial;timers.set(id,{at:clock.value+delay,fn});return id;};
+  const advance=ms=>{
+    const end=clock.value+ms;
+    while(true){
+      const next=[...timers.entries()].filter(([,timer])=>timer.at<=end)
+        .sort((a,b)=>a[1].at-b[1].at)[0];
+      if(!next)break;
+      clock.value=next[1].at;timers.delete(next[0]);next[1].fn();
+    }
+    clock.value=end;
+  };
+  const main=core.createAction('hotkey');
+  main.pressActions={double:core.createAction('open-app'),hold:core.createAction('goto')};
+  const fakeCore={runtimeActionKey:()=> 'key-0',visibleActions:()=>[main]};
+  const handle=new Function('DeckCore','state','Date','setTimeout','clearTimeout','window',
+    'executeHardwareAction','executeSideNavigation','reportInputEvidence',
+    'observeInputEvidence','makeAppControlTrace',
+    code+';return handleAssignedKeyPress;')(
+    fakeCore,{}, {now:()=>clock.value},schedule,id=>timers.delete(id),
+    {d200xActionStatus(){}},
+    (event,preview,skip,selected,bypass)=>{
+      assert.equal(preview,false);assert.equal(bypass,true);
+      runs.push({gesture:selected===main?'single':selected===main.pressActions.double?'double':'hold',id:event.inputId});
+      return '실행 요청';
+    },()=>null,(event,stage,record)=>logs.push({id:event.inputId,stage,...record}),
+    ()=>({then(){}}),()=>({})
+  );
+  handle(main,0,'down',{inputId:'s1'});advance(40);
+  handle(main,0,'up',{inputId:'s2'});advance(300);
+  handle(main,0,'down',{inputId:'d1'});advance(25);
+  handle(main,0,'up',{inputId:'d2'});advance(100);
+  handle(main,0,'down',{inputId:'d3'});advance(20);
+  handle(main,0,'up',{inputId:'d4'});advance(310);
+  handle(main,0,'down',{inputId:'h1'});advance(610);
+  handle(main,0,'up',{inputId:'h2'});
+  assert.deepEqual(runs,[
+    {gesture:'single',id:'s2'},{gesture:'double',id:'d3'},{gesture:'hold',id:'h1'}
+  ]);
+  assert.deepEqual(logs.filter(x=>x.stage==='press-gesture').map(x=>x.outcome),
+    ['single','double','hold']);
+  assert.match(source,/!preview&&!bypassPressBindings&&index<13&&pressActionAssigned\(resolved\.action\)/);
+  assert.match(source,/if\(resolved\.gesture==='down'&&!preview&&!bypassPressBindings\)/);
+});
+test('1.1.94 only lower inspector and search clear are added; Key Up Down layout stays identical',()=>{
+  const fs=require('node:fs'),path=require('node:path');
+  const base=path.join(__dirname,'../app/streamdeck-editor');
+  const editor=fs.readFileSync(path.join(base,'editor.js'),'utf8');
+  const html=fs.readFileSync(path.join(base,'index.html'),'utf8');
+  const css=fs.readFileSync(path.join(base,'style.css'),'utf8');
+  assert.match(editor,/renderPressAssignments\(item,root\);/);
+  assert.match(editor,/root\.querySelector\('\.properties>\.fields'\)\?\.append\(area\)/);
+  assert.match(editor,/grid\.children\[0\]\.append\(columns\[0\]\)/);
+  assert.match(editor,/grid\.children\[2\]\.append\(columns\[1\]\)/);
+  assert.match(editor,/for\(const \[slot,title\] of \[\['single','한 번 누르기'\],\['double','두 번 누르기'\],\['hold','길게 누르기'\]\]\)/);
+  assert.match(editor,/orderedMultiDialog\(selected,draft=>/);
+  assert.match(html,/id="action-search-clear"/);
+  assert.match(editor,/actionSearchClear\.hidden=!actionSearch\.value/);
+  assert.match(editor,/actionSearch\.value='';updateActionSearch\(\);actionSearch\.focus\(\)/);
+  assert.match(css,/\.library \.search #action-search-clear\[hidden\]\{display:none\}/);
+  assert.match(editor,/layout\.append\(iconRegion,preview\)/);
+  assert.match(css,/\.state-title-inspector \.state-title-layout\{/);
+});

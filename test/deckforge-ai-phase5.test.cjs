@@ -137,3 +137,13 @@ test('D200X dry-run detector distinguishes single double and hold without dispat
  handle(action,0,'up',{inputId:'off-up'},false);advance(310);
  assert.equal(observed.length,count);
 });
+
+test('assigned ordinary key gesture evidence distinguishes a selected command from its execution result',()=>{
+ const e=createEvidence(),id=e.receive({index:1,kind:1,state:1,pressed:true},true);
+ e.append(id,{stage:'resolved',slot:1,gesture:'down',action:'hotkey'});
+ assert.equal(e.append(id,{stage:'press-gesture',outcome:'double',action:'hotkey',ms:337}),true);
+ const found=assess(e.list()[0]);
+ assert.equal(found.finding,'press_binding_selected_double');
+ assert.deepEqual(found.pressGesture,{gesture:'double',elapsedMs:337,action:'hotkey'});
+ assert.equal(found.requests,0);assert.equal(found.settled,0);
+});

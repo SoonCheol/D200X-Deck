@@ -1358,3 +1358,52 @@ dialog.deckforge-message-dialog::backdrop{background:#000a}
   .state-title-inspector .state-title-extra-properties>.fields{padding-left:0}
   .action-layout-inspector .action-single-extra>.fields{padding-left:0}
 }
+
+/* 1.1.94: compact clear control inside the original action search input. */
+.library .search{position:relative}
+.library .search #action-search{padding-right:33px}
+.library .search #action-search-clear{
+  position:absolute;right:18px;top:50%;transform:translateY(-50%);
+  width:23px;height:23px;padding:0;border:0;border-radius:50%;
+  background:transparent;color:#b5bdc7;font-size:19px;line-height:23px
+}
+.library .search #action-search-clear:hover{background:#515761;color:#fff}
+.library .search #action-search-clear[hidden]{display:none}
+
+/* Ordinary LCD key gesture assignment properties. Icon cards remain unchanged. */
+.action-layout-inspector .press-assignment-section{
+  box-sizing:border-box;width:100%;max-width:600px;margin:14px 0 5px;
+  padding-top:12px;border-top:1px solid #555;min-width:0
+}
+.press-assignment-section>strong{display:block;font-size:12px;margin-bottom:5px}
+.press-assignment-section>.hint{display:block;margin:0 0 10px;line-height:1.4}
+.press-assignment-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+.press-assignment-card{min-width:0;padding:9px 8px;border:1px solid #525965;
+  border-radius:6px;background:#30343c;display:flex;flex-direction:column;gap:7px}
+.press-assignment-card>label{font-size:11px;font-weight:600;color:#d9e4f1;white-space:nowrap}
+.press-single-action{height:31px;display:flex;align-items:center;padding:0 8px;
+  border:1px solid #565e69;border-radius:4px;background:#3b4049;
+  color:#e4eaf1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:11px}
+.press-assignment-row{display:flex;align-items:center;gap:5px;min-width:0}
+.press-assignment-row>select{min-width:0;flex:1;height:31px;padding:4px 6px;
+  border:1px solid #606a78;border-radius:4px;background:#3b414a;color:#fff;font-size:11px}
+.press-assignment-settings{height:31px;padding:0 7px;flex:none;white-space:nowrap;
+  border:1px solid #687889;background:#424f5d;border-radius:4px;font-size:11px}
+.press-assignment-settings:disabled{opacity:.35;cursor:default}
+.press-assignment-summary{color:#afbfcd;font-size:10px;line-height:1.35;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+@media(max-width:740px){
+  .press-assignment-grid{grid-template-columns:1fr}
+  .press-assignment-card{padding:7px}
+}
+
+/* Page indicator reuses its original native navigation controls inside the
+   common three-gesture row; original Key Up/Down cards are untouched. */
+.press-assignment-card .side-binding-column{min-width:0;width:100%}
+.press-assignment-card .side-binding-choice{display:grid;grid-template-columns:minmax(0,1fr) 31px;gap:5px;min-width:0}
+.press-assignment-card .side-binding-choice>label{display:none}
+.press-assignment-card .side-binding-choice>select{min-width:0;max-width:100%;height:31px}
+.press-assignment-card .side-binding-choice>button{margin:0;padding:0;min-width:31px;height:31px;font-size:11px}
+.press-assignment-card .side-binding-target{display:flex;align-items:center;gap:5px;min-width:0}
+.press-assignment-card .side-binding-target>label{font-size:10px}
+.press-assignment-card .side-binding-target>select{min-width:0;flex:1}

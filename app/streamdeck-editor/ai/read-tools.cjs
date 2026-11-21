@@ -212,6 +212,7 @@ const {walkTemplates}=require('./advanced-plan.js');
 
 const {assess}=require('./evidence.cjs');
 const KNOWLEDGE=[
+  {topic:'press-bindings',facts:'일반 D200X 버튼의 한 번 누르기는 저장된 기존 액션을 유지한다. 두 번 누르기(첫 뗌 뒤 300ms 이내 재누름) 및 길게 누르기(600ms, 기존 프로그램 종료는 650ms)는 선택적으로 별도 단일 액션을 연결한다. 기존 추가 배정이 없는 버튼은 기존 즉시 실행 및 길게 누르기 동작을 유지한다. Key Logic, 순차 동작, 플러그인 등 자체 입력 구조는 일반 버튼 공통 재할당 대상에서 제외된다. input_trace의 pressGesture는 선택된 제스처와 시점만 뜻하며 외부 실행 성공을 증명하지 않는다.'},
   {topic:'gesture-test',facts:'터치 입력 검증 액션 하나에 싱글/더블/롱 터치별 테스트 종류를 선택한다. 실제 프로그램·단축키·HA 요청을 전송하지 않는다. AI 검증 로그 기록 체크 시 input_trace에 gesture-test-input과 gesture-test-result, target, elapsedMs, simulated=true를 남긴다. single은 두 번째 터치 대기 300ms 후, double은 두 번째 down에서, hold는 600ms 누름에서 판정한다. 공통 입력 진단은 체크 해제와 관계없이 기존대로 유지. 결과는 입력 판정 근거이며 실제 외부 동작 성공의 증거는 아니다.'},
   {topic:'layout',facts:'13 ordinary root keys (1–13), reserved wide slot 14, side controls 1–2, knobs 1–3. Physical packets: raw key 0–12, wide 13/14, sides 15/16, knobs 17–19. Root pinned keys provide fallback only for empty positions. Folder page 1=children, later pages=pages[], return key in empty slot 14; legacy contents may differ.'},
   {topic:'controls',facts:'Knob trigger mode can use explicit left/right actions or automatic target; stack mode cycles selected targets on press. Held rotation can disable ordinary press. Scope global applies across the active profile; page scope uses the per-page binding. Steps 1/2/5/10. Check configured and inactive rotations, not only target label.'},

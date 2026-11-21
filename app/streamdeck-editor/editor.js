@@ -1557,8 +1557,8 @@ function actionFields(item){
     case "open":return pathPicker("path","대상 경로")+input("args","실행 인수");
     case "terminal":case "terminal-admin":return check("foreground","맨 앞으로 가져오기")+check("preventDuplicate","중복 실행 방지");
     case "open-app":if(String(item.settings?.app||'').startsWith('shell:AppsFolder\\'))
-      return '<div class="field"><label>프로그램</label><input readonly value="'+escapeHtml(item.settings.app)+'"></div>'+select("hold","길게 누르기",[["none","아무것도 하지 않음"],["close","프로그램 종료"],["force","프로그램 강제 종료"]])+check("foreground","맨 앞으로 가져오기")+check("preventDuplicate","중복 실행 방지");
-      return pathPicker("app","프로그램","app")+input("args","실행 인수")+select("hold","길게 누르기",[["none","아무것도 하지 않음"],["close","프로그램 종료"],["force","프로그램 강제 종료"]])+check("foreground","맨 앞으로 가져오기")+check("preventDuplicate","중복 실행 방지");
+      return '<div class="field"><label>프로그램</label><input readonly value="'+escapeHtml(item.settings.app)+'"></div>'+select("hold","기존 길게 누르기",[["none","아무것도 하지 않음"],["close","프로그램 종료"],["force","프로그램 강제 종료"]])+check("foreground","맨 앞으로 가져오기")+check("preventDuplicate","중복 실행 방지");
+      return pathPicker("app","프로그램","app")+input("args","실행 인수")+select("hold","기존 길게 누르기",[["none","아무것도 하지 않음"],["close","프로그램 종료"],["force","프로그램 강제 종료"]])+check("foreground","맨 앞으로 가져오기")+check("preventDuplicate","중복 실행 방지");
     case "close":return pathPicker("path","대상 경로")+check("force","강제 종료");
     case "hotkey":return select("preset","동작 선택",HOTKEY_PRESET_LABELS)+input("keys","단축키","클릭하여 할당");
     case "hotkey-switch":return input("first","단축키 1")+input("second","단축키 2");
@@ -1651,6 +1651,22 @@ function orderedMultiDialog(step,apply){
     const prior=active;fields.innerHTML=actionFields(draft);active=prior;
     for(const node of fields.querySelectorAll('[data-field]'))node.addEventListener('change',()=>{draft.settings[node.dataset.field]=node.type==='checkbox'?fieldChecked(node):node.type==='number'||node.type==='range'?Number(node.value):node.value;});
     for(const button of fields.querySelectorAll('[data-path-picker]'))button.addEventListener('click',async()=>{try{const path=await window.deckBridge?.choosePath(button.dataset.pathKind);if(!path||!dialog.open)return;draft.settings[button.dataset.pathPicker]=path;const input=fields.querySelector('[data-field="'+button.dataset.pathPicker+'"]');if(input)input.value=path;}catch(e){window.d200xActionStatus?.(String(e?.message||e));}});
+    if(draft.type==='ha-toggle')fields.querySelector('[data-ha-entities]')?.addEventListener('click',async()=>{
+      try{
+        const entities=await window.deckBridge?.haEntities?.();
+        if(!dialog.open||!entities?.length)return;
+        const selected=await chooseDeckForgeEntity(entities,draft.settings?.entityId||'');
+        if(!dialog.open||selected===null||!entities.some(x=>x.entity_id===selected))return;
+        draft.settings.entityId=selected;
+        const input=fields.querySelector('[data-field="entityId"]');if(input)input.value=selected;
+      }catch(error){window.d200xActionStatus?.('엔티티 선택 실패: '+String(error?.message||error));}
+    });
+    if(draft.type==='open-app')fields.querySelector('[data-field="hold"]')?.closest('.field')?.remove();
+    if(draft.type==='website')fields.querySelector('#url-https')?.addEventListener('change',event=>{
+      const input=fields.querySelector('[data-field="url"]');if(!input?.value.trim())return;
+      input.value=(event.target.checked?'https://':'http://')+input.value.replace(/^https?:\/\//i,'');
+      draft.settings.url=input.value;
+    });
   }
   const footer=document.createElement('div');footer.className='inspector-save-bar';
   const button=(name,fn)=>{const b=document.createElement('button');b.type='button';b.textContent=name;b.addEventListener('click',fn);footer.append(b);return b;};
@@ -1953,7 +1969,7 @@ function renderGestureTestEditor(item,root){
   const hint=document.createElement('p');hint.className='hint';
   hint.textContent='D200X 실기 입력 판정만 검증합니다. 선택한 액션 종류는 이름만 기록하며 프로그램, 단축키, Home Assistant 등은 실제 실행하지 않습니다.';
   area.append(hint);
-  for(const [slot,title] of [['single','싱글 터치'],['double','더블 터치'],['hold','롱 터치']]){
+  for(const [slot,title] of [['single','한 번 누르기'],['double','두 번 누르기'],['hold','길게 누르기']]){
     const row=document.createElement('div');row.className='control-config';
     const label=document.createElement('label');label.textContent=title;
     const select=document.createElement('select');select.setAttribute('aria-label',title+' 테스트 종류');
@@ -2017,6 +2033,82 @@ function renderLogicEditor(item,root){
     }
   }
   root.querySelector('.fields')?.append(area);
+}
+// Common lower inspector for ordinary screen buttons. Key Up/Down artwork and
+// the existing icon/title/preview regions are intentionally never relocated.
+const PRESS_MAIN_EXCLUDED=new Set(['virtual','gesture-test','multi','multi-switch','random','logic','sd-plugin']);
+function pressActionAssigned(item){
+  return !!(item?.pressActions?.double||item?.pressActions?.hold);
+}
+function renderPressAssignments(item,root){
+  if(state.selected<0||state.selected>=13||PRESS_MAIN_EXCLUDED.has(item.type))return;
+  const area=document.createElement('section');area.className='press-assignment-section';
+  const heading=document.createElement('strong');heading.textContent='버튼 누르기 동작';
+  const hint=document.createElement('p');hint.className='hint';
+  hint.textContent='한 번 누르기는 현재 액션과 설정을 유지합니다. 두 번·길게 누르기는 동작을 지정할 때만 추가됩니다.';
+  const grid=document.createElement('div');grid.className='press-assignment-grid';
+  area.append(heading,hint,grid);
+  const session=inspectorSession;
+  const current=()=>inspectorTargetCurrent(session,item)&&state.selected<13;
+  for(const [slot,title] of [['single','한 번 누르기'],['double','두 번 누르기'],['hold','길게 누르기']]){
+    const card=document.createElement('div');card.className='press-assignment-card';
+    const label=document.createElement('label');label.textContent=title;
+    card.append(label);
+    if(slot==='single'){
+      const summary=document.createElement('div');summary.className='press-single-action';
+      summary.textContent=ACTIONS.get(item.type)?.label||item.type;
+      summary.title='기존 등록 액션과 모든 설정을 그대로 사용합니다';
+      card.append(summary);
+    }else{
+      const row=document.createElement('div');row.className='press-assignment-row';
+      const select=document.createElement('select');select.setAttribute('aria-label',title+' 동작 선택');
+      select.add(new Option(slot==='hold'&&['indicator','open-app'].includes(item.type)?'기존 길게 누르기 유지':'동작 없음',''));
+      for(const id of DeckCore.PRESS_ACTION_TYPES)
+        select.add(new Option(ACTIONS.get(id)?.label||id,id));
+      const active=item.pressActions?.[slot]||null;
+      select.value=active?.type||'';
+      select.addEventListener('change',()=>{
+        if(!current())return;
+        const prior=item.pressActions?.[slot];
+        item.pressActions??={double:null,hold:null};
+        item.pressActions[slot]=select.value?(prior?.type===select.value?prior:newAction(select.value)):null;
+        if(!item.pressActions.double&&!item.pressActions.hold)delete item.pressActions;
+        persistInspectorChange();renderInspector();
+      });
+      const config=document.createElement('button');config.type='button';config.className='press-assignment-settings';
+      config.textContent='설정';config.title=title+' 액션 속성';config.disabled=!active;
+      config.addEventListener('click',()=>{
+        const selected=item.pressActions?.[slot];
+        if(!current()||!selected)return;
+        orderedMultiDialog(selected,draft=>{
+          if(!current()||item.pressActions?.[slot]!==selected)return;
+          item.pressActions[slot]=draft;persistInspectorChange();renderInspector();
+        });
+      });
+      row.append(select,config);card.append(row);
+      if(active){
+        const summary=document.createElement('small');summary.className='press-assignment-summary';
+        summary.textContent=orderedMultiSummary(active).value;card.append(summary);
+      }else if(slot==='hold'&&['indicator','open-app'].includes(item.type)){
+        const legacy=document.createElement('small');legacy.className='press-assignment-summary';
+        legacy.textContent='미지정 시 기존 길게 누르기 설정 유지';card.append(legacy);
+      }
+    }
+    grid.append(card);
+  }
+  // The page-indicator legacy navigation dropdowns are rehomed under the
+  // three common gesture cards; no duplicate two-column row remains.
+  if(item.type==='indicator'){
+    const pair=root.querySelector('.side-binding-pair');
+    const columns=pair?.querySelectorAll(':scope > .side-binding-column');
+    if(columns?.length===2){
+      grid.children[0].querySelector('.press-single-action')?.remove();
+      grid.children[0].append(columns[0]);
+      if(!item.pressActions?.hold)grid.children[2].append(columns[1]);
+      pair.remove();
+    }
+  }
+  root.querySelector('.properties>.fields')?.append(area);
 }
 async function updateApplicationArtwork(item,filePath,session=inspectorSession){
   if(!window.deckBridge?.inspectAppFile||!item||!/\.(exe|lnk|bat|cmd)$/i.test(filePath))return;
@@ -2609,7 +2701,7 @@ document.addEventListener('click',event=>{
   if(event.target.closest('#inspector-unsaved-dialog, .inspector-help-dialog, #sdk-plugin-help-dialog, #icon-maker, .deckforge-input-dialog'))return;
   if(event.target.closest('#icon-library')&&!event.target.closest('.icon-pack-remove'))return;
   if(event.target.closest('.action-customize, .action-override-controls'))return;
-  if(event.target.closest('#action-search, .library-tabs, #profile-trigger, .profile-row-gear, .profile-global-trigger, .settings-trigger, .group-title'))return;
+  if(event.target.closest('#action-search, #action-search-clear, .library-tabs, #profile-trigger, .profile-row-gear, .profile-global-trigger, .settings-trigger, .group-title'))return;
   const root=$('inspector');
   if(root?.contains(event.target))return;
   // Key/knob selection already checks for unsaved edits in choose(index).
@@ -2640,7 +2732,7 @@ function renderSideBindings(root,index,binding,indicator=null){
     persistInspectorChange();renderGrid();renderInspector();
   };
   const pair=document.createElement('div');pair.className='side-binding-pair';
-  for(const [gesture,title] of [['down','짧게 누르기'],['hold','길게 누르기']]){
+  for(const [gesture,title] of [['down','한 번 누르기'],['hold','길게 누르기']]){
     const config=configFor(gesture);
     const column=document.createElement('div');column.className='side-binding-column';pair.append(column);
     const row=document.createElement('div');row.className='control-config side-binding-choice';
@@ -3717,6 +3809,7 @@ function renderInspector(){
   if(item.type==='logic')renderLogicEditor(item,root);
   if(item.type==='gesture-test')renderGestureTestEditor(item,root);
   if(item.type==='folder')renderFolderInspector(item,root);
+  renderPressAssignments(item,root);
   // Stable four-region layout: header -> action properties -> exactly one icon pair -> footer.
   bindSdkStateIcons(root,item);
   bindKeyPressIconControls(root,item);
@@ -3904,7 +3997,15 @@ window.addEventListener("keydown",ev=>{
     ev.preventDefault();pasteClipboardAction(index);
   }
 });
-$("action-search").addEventListener("input",renderLibrary);
+const actionSearch=$("action-search"),actionSearchClear=$("action-search-clear");
+function updateActionSearch(){
+  actionSearchClear.hidden=!actionSearch.value;
+  renderLibrary();
+}
+actionSearch.addEventListener("input",updateActionSearch);
+actionSearchClear.addEventListener("click",()=>{
+  actionSearch.value='';updateActionSearch();actionSearch.focus();
+});
 function pageStructureInfo(){
   const folder=DeckCore.activeFolder(state);
   return {folder,index:folder?(folder.pageIndex||0):state.page,count:folder?DeckCore.folderPageCount(state):state.pages.length};
@@ -4281,6 +4382,88 @@ function handleGestureTest(action,index,gesture,event,preview){
   }
   return null;
 }
+// Generic ordinary-key gesture routing. A saved action stays the single-press
+// action; only explicitly assigned double / hold actions enable the new router.
+const assignedKeyPresses=new Map();
+function assignedPressStillCurrent(record){
+  return DeckCore.runtimeActionKey(state,record.index,'down')===record.key&&
+    DeckCore.visibleActions(state)?.[record.index]===record.action;
+}
+function runAssignedPress(action,index,slot,event){
+  let result=null;
+  if(slot==='single'&&action.type==='indicator'){
+    result=executeSideNavigation(index,'down',event);
+  }else if(slot==='hold'&&!action.pressActions?.hold){
+    if(action.type==='indicator')result=executeSideNavigation(index,'hold',event);
+    else if(action.type==='open-app'&&['close','force'].includes(action.settings?.hold)){
+      const target=action.settings?.app;
+      if(!target)result='종료할 프로그램을 먼저 선택하세요.';
+      else if(!window.deckBridge?.closeLocalApp)result='Windows 실행 환경에서만 사용할 수 있습니다.';
+      else{
+        const force=action.settings.hold==='force';
+        observeInputEvidence(event,window.deckBridge.closeLocalApp(
+          target,force,{...makeAppControlTrace('hold',index,action),inputId:event.inputId}), 'hold-close')
+          ?.then(()=>window.d200xActionStatus?.('길게 누르기: 프로그램 종료 요청 완료'),
+            error=>window.d200xActionStatus?.('길게 누르기 종료 실패: '+String(error?.message||error)));
+        result='길게 누르기: 기존 프로그램 종료 요청';
+      }
+    }
+  }else{
+    const target=slot==='single'?action:action.pressActions?.[slot];
+    if(!target)return null;
+    result=executeHardwareAction({...event,state:1,pressed:true},false,true,target,true);
+  }
+  if(result)window.d200xActionStatus?.(result);
+  return result;
+}
+function handleAssignedKeyPress(action,index,gesture,event){
+  const key=DeckCore.runtimeActionKey(state,index,'down'),now=Date.now();
+  let prior=assignedKeyPresses.get(key);
+  if(prior&&(!assignedPressStillCurrent(prior)||prior.action!==action)){
+    clearTimeout(prior.holdTimer);clearTimeout(prior.singleTimer);
+    assignedKeyPresses.delete(key);prior=null;
+  }
+  if(gesture==='down'){
+    if(prior?.pressed)return null;
+    if(prior?.singleTimer){
+      clearTimeout(prior.singleTimer);clearTimeout(prior.holdTimer);
+      prior.singleTimer=null;prior.doubleFired=true;prior.pressed=true;
+      reportInputEvidence(event,'press-gesture',{outcome:'double',action:action.type});
+      return runAssignedPress(action,index,'double',event)||'두 번 누르기 감지';
+    }
+    if(prior)return null;
+    const record={key,index,action,pressed:true,holdFired:false,doubleFired:false,
+      downAt:now,holdTimer:null,singleTimer:null};
+    const legacyHold=action.type==='open-app'&&['close','force'].includes(action.settings?.hold)||
+      action.type==='indicator'&&DeckCore.sharedIndicatorConfig(state,action,'hold').navigation!=='none';
+    if(action.pressActions?.hold||legacyHold){
+      record.holdTimer=setTimeout(()=>{
+        if(assignedKeyPresses.get(key)!==record||!record.pressed||!assignedPressStillCurrent(record))return;
+        record.holdFired=true;
+        reportInputEvidence(event,'press-gesture',{outcome:'hold',action:action.type,ms:Date.now()-record.downAt});
+        runAssignedPress(action,index,'hold',event);
+      },action.type==='open-app'&&!action.pressActions?.hold?650:600);
+    }
+    assignedKeyPresses.set(key,record);
+    return '버튼 누르기 판정 중';
+  }
+  if(gesture!=='up'||!prior)return null;
+  prior.pressed=false;
+  clearTimeout(prior.holdTimer);
+  if(prior.doubleFired){assignedKeyPresses.delete(key);return '두 번 누르기 완료';}
+  if(prior.holdFired){assignedKeyPresses.delete(key);return '길게 누르기 완료';}
+  const dispatchSingle=()=>{
+    if(assignedKeyPresses.get(key)!==prior||!assignedPressStillCurrent(prior))return;
+    assignedKeyPresses.delete(key);
+    reportInputEvidence(event,'press-gesture',{outcome:'single',action:action.type,ms:Date.now()-prior.downAt});
+    runAssignedPress(action,index,'single',event);
+  };
+  if(action.pressActions?.double){
+    prior.singleTimer=setTimeout(dispatchSingle,300);
+    return '한 번·두 번 누르기 판정 중';
+  }
+  dispatchSingle();return '한 번 누르기 완료';
+}
 // Generated local tones: no external sound files, commands or dependencies.
 function timerVolume(settings){const raw=settings?.soundVolume;return Number.isFinite(raw)?Math.max(0,Math.min(100,raw)):100;}
 async function playTimerAlert(settings){
@@ -4545,7 +4728,7 @@ function handleSideNavigationInput(index,gesture,event,preview){
   if(decision)return executeSideNavigation(index,decision,event);
   return null;
 }
-function executeHardwareAction(event,preview=false,skipKnobGesture=false){
+function executeHardwareAction(event,preview=false,skipKnobGesture=false,pressOverride=null,bypassPressBindings=false){
   const report=(stage,fields={})=>reportInputEvidence(event,stage,fields);
   const observe=(promise,kind)=>observeInputEvidence(event,promise,kind);
   const warning=handleWideWarningInput(event,preview);
@@ -4575,17 +4758,21 @@ function executeHardwareAction(event,preview=false,skipKnobGesture=false){
   }
   const resolved=DeckCore.resolveHardwareEvent(state,event);
   if(!resolved){report('unresolved');return null;}
+  if(pressOverride)resolved.action=pressOverride;
   const index=resolved.index,offset=index-14;
   const bindingAction=resolved.action;
   report('resolved',{slot:index,gesture:resolved.gesture,action:bindingAction?.type});
   if(index===14||index===15)return handleSideNavigationInput(index,resolved.gesture,event,preview);
+  if(!preview&&!bypassPressBindings&&index<13&&pressActionAssigned(resolved.action)&&
+    ['down','up'].includes(resolved.gesture))
+    return handleAssignedKeyPress(resolved.action,index,resolved.gesture,event);
   if(index<13&&(resolved.action?.type==='indicator'||sidePressTracker.has(index))){
     if(resolved.gesture==='up')lastHardwareDown.delete(index);
     return handleSideNavigationInput(index,resolved.gesture,event,preview);
   }
   const multiPress=handleMultiPhysicalPress(resolved,preview);
   if(multiPress){if(resolved.gesture==='up')lastHardwareDown.delete(index);report('multi-control');return multiPress.message;}
-  if(!preview&&['down','up'].includes(resolved.gesture)&&
+  if(!bypassPressBindings&&!preview&&['down','up'].includes(resolved.gesture)&&
     (openAppHoldTimers.has(index)||(resolved.action?.type==='open-app'&&
       ['close','force'].includes(resolved.action.settings?.hold))))
     {report('hold');return handleOpenAppHold(resolved.action,index,event,resolved.gesture);}
@@ -4606,13 +4793,17 @@ function executeHardwareAction(event,preview=false,skipKnobGesture=false){
     return 'DeckForge 플러그인 이벤트: '+resolved.gesture;
   }
   if(resolved.gesture==='up'){report('release');lastHardwareDown.delete(index);return null;}
-  if(resolved.gesture==='down'&&!preview){
+  if(resolved.gesture==='down'&&!preview&&!bypassPressBindings){
     const now=Date.now();
     if(now-(lastHardwareDown.get(index)||0)<250){report('duplicate');return null;}
     lastHardwareDown.set(index,now);
   }
-  const planned=DeckCore.planHardwareEvent(state,event,
-    offset>=2?stackPositions[offset-2]:0);
+  const currentFolder=DeckCore.activeFolder(state);
+  const planned=pressOverride?{index,gesture:resolved.gesture,
+    outcome:DeckCore.planAction(pressOverride,
+      currentFolder?(currentFolder.pageIndex||0):state.page,
+      currentFolder?DeckCore.folderPageCount(state):state.pages.length)}:
+    DeckCore.planHardwareEvent(state,event,offset>=2?stackPositions[offset-2]:0);
   if(!planned){report('no-plan');return null;}
   const outcome=planned.outcome;report('planned',{outcome:outcome.kind});
   // Hardware-driven navigation cannot silently abandon an unsaved inspector.
