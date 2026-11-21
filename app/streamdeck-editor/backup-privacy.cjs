@@ -10,7 +10,6 @@ const ADDRESS=/(?:[가-힣\d]{2,}(?:로|길)\s*\d{1,4}(?:-\d{1,4})?|[가-힣]{2,
 const INLINE_SECRET=/(?:Bearer\s+[A-Za-z0-9._-]{12,}|(?:api[_-]?key|access[_-]?token|password|passwd|secret|token|비밀번호|토큰|인증키)\s*[:=]\s*["']?[^\s"'&]{4,})/i;
 const ACCOUNT_CONTEXT=/(?:계좌(?:번호)?|은행|입금|송금|예금주|bank\s*account|account\s*(?:no|number))/i;
 const ACCOUNT_NUMBER=/(?<!\d)\d{2,6}(?:[- ]\d{2,6}){1,3}(?!\d)/;
-const USER_PATH=/(?:[A-Za-z]:\\|\/)Users[\\/][^\\/\s]+/i;
 function luhn(digits){
   let sum=0,double=false;
   for(let i=digits.length-1;i>=0;i--){
@@ -49,7 +48,6 @@ function classify(value,key=''){
   if(EMAIL.test(value))found.push('이메일 주소');
   if(ADDRESS.test(value))found.push('주소 의심');
   if(ACCOUNT_CONTEXT.test(value)&&ACCOUNT_NUMBER.test(value))found.push('계좌번호 의심');
-  if(USER_PATH.test(value))found.push('사용자 폴더 경로');
   return [...new Set(found)];
 }
 function scan(data){

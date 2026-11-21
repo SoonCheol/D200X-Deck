@@ -19,7 +19,7 @@ test('detects likely personal and financial data without returning values',()=>{
     action('open',{path:'C:\\Users\\private-person\\Documents\\secret.txt'})
   ]);
   const report=scan(data),kinds=new Set(report.findings.map(f=>f.type));
-  for(const kind of ['카드번호 의심','휴대전화번호','이메일 주소','주소 의심','계좌번호 의심','인증 정보','사용자 폴더 경로'])
+  for(const kind of ['카드번호 의심','휴대전화번호','이메일 주소','주소 의심','계좌번호 의심','인증 정보'])
     assert.equal(kinds.has(kind),true,kind);
   assert.equal(report.incomplete,false);
   const encoded=JSON.stringify(report);
@@ -46,4 +46,23 @@ test('reports incomplete scanning when a text field exceeds the local limit',()=
   const report=scan(data);
   assert.equal(report.incomplete,true);
   assert.equal(report.total,0);
+});
+
+test('normal Windows user folder paths do not trigger privacy warnings',()=>{
+  const data=fixture([
+    action('folder',{path:'C:\\Users\\demo-user\\Documents'}),
+    action('open',{path:'D:\\Users\\demo-user\\Music\\Demo'}),
+    action('website',{url:'https://example.test',browserPath:'C:\\Users\\demo-user\\AppData\\Local\\Programs\\Browser.exe'})
+  ]);
+  assert.deepEqual(scan(data),{findings:[],total:0,incomplete:false});
+});
+
+test('address and other sensitive content inside folder settings is still detected',()=>{
+  const data=fixture([
+    action('folder',{path:'C:\\Users\\demo-user\\Documents',description:'새봄로 27'}),
+    action('folder',{path:'C:\\Users\\demo-user\\Documents',note:'example@example.test'})
+  ]);
+  const report=scan(data);
+  assert.deepEqual([...new Set(report.findings.map(f=>f.type))].sort(),['이메일 주소','주소 의심']);
+  assert.equal(report.total,2);
 });
