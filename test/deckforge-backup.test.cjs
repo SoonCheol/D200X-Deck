@@ -85,6 +85,36 @@ test('plain JSON has identical scope and accepts legacy full profile exports',t=
   assert.throws(()=>Backup.writeArchive(root,data,'',{format:'plain',safety:true}));
 });
 
+
+test('selected name conflicts have independent policies for profiles, templates and icon packs',t=>{
+  const {make}=setup(t),current=make(),incoming=JSON.parse(JSON.stringify(current));
+  current.profiles.pages[0][0].settings.body='local profile data';
+  current.packs[0].icons[0].name='Local icon';
+  incoming.profiles.pages[0][0].settings.body='backed-up profile data';
+  incoming.packs[0].icons[0].name='Backup icon';
+  const importedId=Core.createProfile(incoming.profiles,'New backup profile');
+  incoming.packs.push({id:'new-backup-pack',name:'New backup pack',icons:[{name:'New',image:icon}]});
+  const templateId=incoming.profiles.profileTemplates[0].id,packId=incoming.packs[0].id;
+  const opts={mode:'select',conflict:'keep',appearance:false,
+    profiles:[incoming.profiles.profileId,importedId],templates:[templateId],packs:[packId,'new-backup-pack'],
+    conflicts:{profiles:{[incoming.profiles.profileId]:'overwrite'},templates:{[templateId]:'rename'},packs:{[packId]:'keep'}}};
+  const result=Backup.planRestore(current,incoming,opts);
+  assert.equal(result.data.profiles.pages[0][0].settings.body,'backed-up profile data');
+  assert.ok(result.data.profiles.profileNames.some(p=>p.name==='New backup profile'));
+  assert.equal(result.data.profiles.profileTemplates.length,2);
+  assert.ok(result.data.profiles.profileTemplates.some(p=>p.name==='Template (복원)'));
+  assert.equal(result.data.packs.find(p=>p.name==='User pack').icons[0].name,'Local icon');
+  assert.ok(result.data.packs.some(p=>p.name==='New backup pack'));
+  assert.equal(result.report.added,2);
+  assert.equal(result.report.replaced,1);
+  assert.equal(result.report.kept,1);
+  assert.equal(result.report.renamed,1);
+  assert.throws(()=>Backup.planRestore(current,incoming,{...opts,conflicts:{profiles:{unknown:'overwrite'}}}),/중복 처리 옵션/);
+  assert.throws(()=>Backup.planRestore(current,incoming,{...opts,conflicts:{profiles:{[importedId]:'overwrite'}}}),/중복 처리 옵션/);
+  assert.throws(()=>Backup.planRestore(current,incoming,{...opts,profiles:[importedId]}),/중복 처리 옵션/);
+  assert.throws(()=>Backup.planRestore(current,incoming,{...opts,conflicts:{packs:{[packId]:'erase'}}}),/중복 처리 옵션/);
+});
+
 test('merge/selection keep existing data, resolve conflicts, remap imported profile links and pack IDs',t=>{
   const {make}=setup(t),current=make(),incoming=JSON.parse(JSON.stringify(current));
   current.profiles.pages[0][0].settings.body='local';

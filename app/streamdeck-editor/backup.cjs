@@ -187,6 +187,8 @@ function planRestore(current,incoming,options){
     return {data,report:{mode:'all',added:0,replaced:0,kept:0,renamed:0,missingLinks:0,details:[],appearance:true}};
   }
   if(!['keep','overwrite','rename'].includes(options.conflict)||typeof options.appearance!=='boolean')throw Error('복원 옵션이 올바르지 않습니다.');
+  const overrides=options.conflicts??{},kinds=['profiles','templates','packs'];
+  if(!obj(overrides)||Object.keys(overrides).some(kind=>!kinds.includes(kind)))throw Error('복원 충돌 처리 옵션이 올바르지 않습니다.');
   const report={mode:options.mode,added:0,replaced:0,kept:0,renamed:0,missingLinks:0,details:[],appearance:options.appearance&&!incoming.legacyAppearance};
   const clone=value=>JSON.parse(JSON.stringify(value)),key=name=>name.trim().toLowerCase();
   const profiles=prior.profileNames.map(p=>({...p,snapshot:Core.exportSingleProfile(prior,p.id).snapshot}));
@@ -200,6 +202,21 @@ function planRestore(current,incoming,options){
     if(!Array.isArray(chosen)||chosen.length>list.length||new Set(chosen).size!==chosen.length||chosen.some(id=>!list.some(item=>item.id===id)))throw Error('복원 선택 항목이 올바르지 않습니다.');
     return new Set(chosen);
   };
+  // Each selected item may resolve its own name collision. Keep the legacy
+  // global policy for existing callers; the new UI supplies item overrides.
+  const lists={profiles:otherProfiles,templates:incoming.legacyTemplates?[]:source.profileTemplates||[],packs:incoming.legacy?[]:incoming.packs};
+  const targets={profiles:prior.profileNames,templates:prior.profileTemplates||[],packs:current.packs};
+  for(const kind of kinds){
+    const rules=overrides[kind]??{};
+    if(!obj(rules))throw Error('복원 충돌 처리 옵션이 올바르지 않습니다.');
+    const selected=selection(kind,lists[kind]);
+    for(const [id,action] of Object.entries(rules)){
+      const item=lists[kind].find(value=>value.id===id);
+      if(!selected.has(id)||!item||!['keep','overwrite','rename'].includes(action)||
+        !targets[kind].some(value=>value.name.trim().toLowerCase()===item.name.trim().toLowerCase()))
+        throw Error('선택한 항목의 이름 중복 처리 옵션이 올바르지 않습니다.');
+    }
+  }
   const uniqueName=(name,records,max)=>{
     for(let n=1;n<=1000;n++){
       const suffix=n===1?' (복원)':' (복원 '+n+')',candidate=name.slice(0,max-suffix.length)+suffix;
@@ -227,11 +244,12 @@ function planRestore(current,incoming,options){
         if(map&&matches.length===1)map.set(item.id,matches[0].id);
         continue;
       }
-      if(matches.length&&options.conflict==='keep'){
+      const policy=overrides[kind]?.[item.id]??options.conflict;
+      if(matches.length&&policy==='keep'){
         if(map&&matches.length===1)map.set(item.id,matches[0].id);
         report.kept++;report.details.push({kind,name:item.name,action:'keep'});continue;
       }
-      const replacing=matches.length>0&&options.conflict==='overwrite';
+      const replacing=matches.length>0&&policy==='overwrite';
       if(replacing&&(matches.length!==1||touched.has(matches[0].id)))throw Error('동일 이름이 여러 개여서 안전하게 덮어쓸 수 없습니다: '+item.name+' · 기존 유지 또는 새 이름으로 복원하세요.');
       const next=clone(item);
       if(replacing){

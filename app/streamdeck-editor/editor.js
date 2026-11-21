@@ -5563,7 +5563,7 @@ async function restoreGoogleBackup(){
 function chooseRestorePlan(info){
   return new Promise(resolve=>{
     const dialog=document.createElement('dialog');dialog.className='profile-name-dialog';
-    dialog.style.cssText='width:min(550px, calc(100vw - 32px));max-height:85vh;overflow:auto';
+    dialog.style.cssText='width:min(620px, calc(100vw - 32px));max-height:85vh;overflow:auto';
     const form=document.createElement('form');form.method='dialog';
     const heading=document.createElement('strong');heading.textContent='복원 방식 및 대상';
     const note=document.createElement('div');note.textContent=info.filename+(info.legacy?' · 이전 JSON 형식':' · '+new Date(info.createdAt).toLocaleString());
@@ -5575,25 +5575,59 @@ function chooseRestorePlan(info){
       label.append(select);return {label,select};
     }
     const mode=selectField('복원 방식',[
-      ['select','선택 복원 — 체크한 프로필·템플릿·아이콘팩만 복원'],
-      ['merge','병합 복원 — 백업의 모든 항목을 합침 (이름 중복 처리 선택)'],
-      ['all','전체 복원 — 현재 설정을 백업으로 교체 (기존 항목 삭제 가능)']
+      ['select','선택 복원 — 복원할 프로필 선택'],
+      ['all','전체 복원 — 모든 프로필을 백업 당시 상태로 교체']
     ]);
-    const conflict=selectField('같은 이름의 항목',[['keep','기존 유지 (건너뛰기)'],['overwrite','덮어쓰기'],['rename','새 이름으로 복원']]);
-    const list=document.createElement('div');list.style.cssText='max-height:260px;overflow:auto;border:1px solid #555;border-radius:4px;padding:8px';
-    const groups={},rows=[];
-    for(const [kind,label] of [['profiles','프로필'],['templates','사용자 템플릿'],['packs','사용자 아이콘팩']]){
-      const section=document.createElement('div');section.style.marginBottom='8px';
+    const modeNote=document.createElement('div');modeNote.style.cssText='font-size:12px;color:#bbb';
+    const groups={},rows=[],types={profiles:'프로필',templates:'템플릿',packs:'아이콘팩'};
+    const listTools=document.createElement('div');listTools.style.cssText='display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;margin-top:8px';
+    const listTitle=document.createElement('strong');listTitle.textContent='복원할 항목';listTools.append(listTitle);
+    const tools=document.createElement('div');tools.style.cssText='display:flex;gap:6px';
+    const selectAll=document.createElement('button');selectAll.type='button';selectAll.textContent='모두 선택';
+    const clearAll=document.createElement('button');clearAll.type='button';clearAll.textContent='모두 해제';
+    for(const button of [selectAll,clearAll])button.style.cssText='padding:5px 9px;border:1px solid #666;border-radius:4px;background:#414141;color:#eee';
+    tools.append(selectAll,clearAll);listTools.append(tools);
+    const list=document.createElement('div');list.style.cssText='max-height:350px;overflow:auto;border:1px solid #555;border-radius:4px;padding:8px';
+    const actionChoices=kind=>[['keep','기존 유지'],['overwrite','백업본으로 교체'],['rename','새 '+types[kind]+' 이름으로 추가']];
+    for(const [kind,label] of [['profiles','프로필'],['templates','템플릿'],['packs','아이콘팩']]){
+      const section=document.createElement('div');section.style.cssText='margin-bottom:10px';
       const title=document.createElement('strong');title.textContent=label+' ('+info.items[kind].length+')';section.append(title);
       groups[kind]=[];
       for(const item of info.items[kind]){
-        const line=document.createElement('label');line.style.cssText='display:flex;gap:7px;align-items:center;padding:4px 0;overflow-wrap:anywhere';
+        const line=document.createElement('div');line.style.cssText='display:grid;grid-template-columns:minmax(0,1fr) 210px;gap:8px;align-items:center;padding:5px 0';
+        const left=document.createElement('div');left.style.minWidth='0';
+        const nameLabel=document.createElement('label');nameLabel.style.cssText='display:flex;align-items:center;gap:7px;overflow-wrap:anywhere';
         const check=document.createElement('input');check.type='checkbox';check.checked=false;check.style.width='auto';
-        const name=document.createElement('span');name.textContent=item.name+(item.matches?' · 같은 이름 '+item.matches+'개':'');
-        line.append(check,name);section.append(line);groups[kind].push({id:item.id,check});rows.push(check);
+        const name=document.createElement('span');name.textContent=item.name;
+        nameLabel.append(check,name);left.append(nameLabel);
+        const status=document.createElement('div');status.style.cssText='font-size:11px;margin-left:20px;color:'+(item.matches?'#ffb777':'#9ccdb0');
+        status.textContent=item.matches?'같은 이름 있음':'새 '+label+' 추가';
+        left.append(status);line.append(left);
+        let policy=null;
+        if(item.matches){
+          policy=document.createElement('select');policy.style.cssText='width:100%;min-width:0;background:#414141;color:#eee;border:1px solid #777;border-radius:5px;padding:6px';
+          policy.setAttribute('aria-label',label+' '+item.name+' 이름 중복 처리');
+          for(const [value,text] of actionChoices(kind)){const option=document.createElement('option');option.value=value;option.textContent=text;policy.append(option);}
+          policy.value='keep';policy.disabled=true;line.append(policy);
+        }else{
+          const outcome=document.createElement('span');outcome.style.cssText='font-size:12px;text-align:center;color:#9ccdb0';
+          outcome.textContent='복원 제외';line.append(outcome);
+        }
+        const row={id:item.id,kind,check,policy,status,matches:item.matches};
+        groups[kind].push(row);rows.push(row);section.append(line);
       }
       list.append(section);
     }
+    const bulk=document.createElement('div');bulk.style.cssText='display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap';
+    const bulkTitle=document.createElement('label');bulkTitle.textContent='같은 이름의 항목 일괄 설정';
+    const bulkSelect=document.createElement('select');bulkSelect.style.cssText='width:210px;max-width:100%;background:#414141;color:#eee;border:1px solid #777;border-radius:5px;padding:6px';
+    bulkSelect.setAttribute('aria-label','같은 이름의 항목 일괄 설정');
+    for(const [value,text] of [['','일괄 처리 선택'],['keep','기존 유지'],['overwrite','백업본으로 교체'],['rename','새 이름으로 추가']]){
+      const option=document.createElement('option');option.value=value;option.textContent=text;bulkSelect.append(option);
+    }
+    bulk.append(bulkTitle,bulkSelect);
+    const explanation=document.createElement('div');explanation.style.cssText='font-size:11px;color:#bbb';
+    explanation.textContent='기존 유지: 현재 항목 변경 없음 · 백업본으로 교체: 해당 항목 전체 덮어쓰기 · 새 이름으로 추가: 기존 항목 유지하고 (복원) 이름으로 추가';
     const appearanceLabel=document.createElement('label');appearanceLabel.style.cssText='display:flex;gap:7px;align-items:center';
     const appearance=document.createElement('input');appearance.type='checkbox';appearance.style.width='auto';appearance.checked=false;
     appearanceLabel.append(appearance,document.createTextNode('액션 목록 디자인도 복원'));
@@ -5602,25 +5636,37 @@ function chooseRestorePlan(info){
     const cancel=document.createElement('button');cancel.type='button';cancel.textContent='취소';cancel.onclick=()=>dialog.close('cancel');
     const submit=document.createElement('button');submit.type='submit';submit.className='primary';submit.textContent='복원 미리보기';
     function refresh(){
-      const all=mode.select.value==='all',selection=mode.select.value==='select';
-      conflict.label.style.display=all?'none':'grid';
+      const all=mode.select.value==='all',selected=rows.filter(row=>row.check.checked);
+      modeNote.textContent=all?'현재 프로필뿐 아니라 템플릿·아이콘팩·액션 목록 디자인까지 백업 당시 상태로 교체합니다.':'프로필·템플릿·아이콘팩 중 원하는 항목을 선택하세요. 이름 중복이 없는 항목은 새로 추가됩니다.';
+      listTools.style.display=all?'none':'flex';list.style.display=all?'none':'block';
+      const conflicting=selected.filter(row=>row.policy);
+      bulk.style.display=all||!conflicting.length?'none':'flex';explanation.style.display=all||!conflicting.length?'none':'block';
       appearanceLabel.style.display=all||!info.items.appearance?'none':'flex';
-      for(const check of rows)check.disabled=!selection;
-      warning.textContent=all?'주의: 현재 설정을 백업 당시로 교체하며 백업에 없는 항목은 삭제됩니다.'
-        :selection?'체크한 항목만 복원합니다. 같은 이름은 아래 선택에 따르며 복원 전 안전 백업을 저장합니다.'
-        :'백업에 포함된 모든 항목을 기존 설정에 합칩니다. 같은 이름은 아래 선택에 따라 처리합니다.';
+      for(const row of rows){
+        row.check.disabled=all;
+        if(row.policy)row.policy.disabled=all||!row.check.checked;
+        else row.status.textContent=row.check.checked?'새 '+types[row.kind]+' 추가':'새 '+types[row.kind]+' (선택 시 추가)';
+      }
+      warning.textContent=all?'주의: 백업에 없는 현재 프로필·템플릿·아이콘팩은 삭제됩니다. 복원 전 안전 백업을 저장합니다.'
+        :'같은 이름의 항목은 해당 행에서 처리 방법을 선택하세요. 복원 전 기존 설정의 안전 백업을 저장합니다.';
       warning.style.color=all?'#ffb777':'#bbb';
-      submit.disabled=selection&&!rows.some(check=>check.checked)&&!(info.items.appearance&&appearance.checked);
+      submit.disabled=!all&&!selected.some(row=>!row.policy||row.policy.value!=='keep')&&!(info.items.appearance&&appearance.checked);
     }
-    mode.select.onchange=refresh;
-    appearance.onchange=refresh;
-    for(const check of rows)check.onchange=refresh;
-    refresh();
+    selectAll.onclick=()=>{for(const row of rows)row.check.checked=true;refresh();};
+    clearAll.onclick=()=>{for(const row of rows)row.check.checked=false;refresh();};
+    bulkSelect.onchange=()=>{if(!bulkSelect.value)return;for(const row of rows)if(row.check.checked&&row.policy)row.policy.value=bulkSelect.value;bulkSelect.value='';refresh();};
+    mode.select.onchange=refresh;appearance.onchange=refresh;
+    for(const row of rows){row.check.onchange=refresh;if(row.policy)row.policy.onchange=refresh;}
     form.onsubmit=event=>{event.preventDefault();dialog.close('save');};
-    actions.append(cancel,submit);form.append(heading,note,mode.label,conflict.label,list,appearanceLabel,warning,actions);dialog.append(form);
+    actions.append(cancel,submit);
+    form.append(heading,note,mode.label,modeNote,listTools,list,bulk,explanation,appearanceLabel,warning,actions);
+    dialog.append(form);refresh();
     dialog.addEventListener('close',()=>{
-      const result=dialog.returnValue==='save'?{mode:mode.select.value,conflict:conflict.select.value,appearance:appearance.checked,
-        ...Object.fromEntries(Object.entries(groups).map(([k,v])=>[k,v.filter(x=>x.check.checked).map(x=>x.id)]))}:null;
+      const result=dialog.returnValue==='save'?{
+        mode:mode.select.value,conflict:'keep',appearance:appearance.checked,
+        ...Object.fromEntries(Object.entries(groups).map(([k,v])=>[k,v.filter(row=>row.check.checked).map(row=>row.id)])),
+        conflicts:Object.fromEntries(Object.entries(groups).map(([k,v])=>[k,Object.fromEntries(v.filter(row=>row.check.checked&&row.policy).map(row=>[row.id,row.policy.value]))]))
+      }:null;
       dialog.remove();resolve(result);
     },{once:true});
     document.body.append(dialog);dialog.showModal();
@@ -5648,9 +5694,10 @@ async function restoreBackup(cloud=null,format='encrypted'){
       if(before!==JSON.stringify(state)||JSON.stringify(appearance)!==JSON.stringify(window.D200XPanelIcons.exportConfig()))throw Error('설정이 변경되었습니다. 다시 복원하세요.');
       try{plan=await window.deckBridge.planBackup(info.id,options);}
       catch(error){alert('복원 계획을 만들 수 없습니다.\n'+String(error?.message||error));return;}
-      const r=plan.report,labels={profiles:'프로필',templates:'템플릿',packs:'아이콘팩'},verbs={add:'추가',overwrite:'덮어쓰기',rename:'새 이름',keep:'유지'};
-      const details=r.details.filter(d=>d.action!=='keep').slice(0,18).map(d=>labels[d.kind]+' · '+d.name+(d.resultName&&d.resultName!==d.name?' → '+d.resultName:'')+' : '+verbs[d.action]).join('\n');
-      const message=r.mode==='all'?'전체 복원: 백업 당시 상태로 교체합니다. 백업에 없는 기존 항목은 삭제됩니다.':'병합/선택 복원: 추가 '+r.added+'개 · 덮어쓰기 '+r.replaced+'개 · 새 이름 '+r.renamed+'개 · 기존 유지 '+r.kept+'개\n'+details+(r.details.filter(d=>d.action!=='keep').length>18?'\n… 나머지 항목 포함':'')+(r.missingLinks?'\n주의: 연결할 대상 프로필을 찾지 못한 이동 버튼 '+r.missingLinks+'개는 잘못된 대상을 실행하지 않도록 연결 해제합니다.':'');
+      const r=plan.report,labels={profiles:'프로필',templates:'템플릿',packs:'아이콘팩'};
+      const actionName=d=>d.action==='keep'?'기존 유지':d.action==='overwrite'?'백업본으로 교체':d.action==='rename'?'새 '+labels[d.kind]+' 이름으로 추가':'새 '+labels[d.kind]+' 추가';
+      const details=r.details.slice(0,18).map(d=>labels[d.kind]+' · '+d.name+(d.resultName&&d.resultName!==d.name?' → '+d.resultName:'')+' : '+actionName(d)).join('\n');
+      const message=r.mode==='all'?'전체 복원: 백업 당시 상태로 교체합니다. 백업에 없는 기존 항목은 삭제됩니다.':'선택 복원: 새 항목 '+r.added+'개 · 백업본으로 교체 '+r.replaced+'개 · 새 이름으로 추가 '+r.renamed+'개 · 기존 유지 '+r.kept+'개\n'+details+(r.details.length>18?'\n… 나머지 항목 포함':'')+(r.missingLinks?'\n주의: 연결할 대상 프로필을 찾지 못한 이동 버튼 '+r.missingLinks+'개는 잘못된 대상을 실행하지 않도록 연결 해제합니다.':'');
       if(confirm(message+'\n\n복원 후 프로필 '+plan.profiles+'개 · 템플릿 '+plan.templates+'개 · 아이콘팩 '+plan.packs+'개\n복원 전 안전 백업을 저장합니다. 진행하시겠습니까?'))break;
       return;
     }
