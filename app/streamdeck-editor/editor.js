@@ -4387,7 +4387,8 @@ function handleGestureTest(action,index,gesture,event,preview){
 const assignedKeyPresses=new Map();
 function assignedPressStillCurrent(record){
   return DeckCore.runtimeActionKey(state,record.index,'down')===record.key&&
-    DeckCore.visibleActions(state)?.[record.index]===record.action;
+    DeckCore.visibleActions(state)?.[record.index]===record.action&&
+    JSON.stringify(record.action.pressActions||{})===record.bindings;
 }
 function runAssignedPress(action,index,slot,event){
   let result=null;
@@ -4417,6 +4418,12 @@ function runAssignedPress(action,index,slot,event){
   return result;
 }
 function handleAssignedKeyPress(action,index,gesture,event){
+  // Old profile/page or edited-gesture timer records must never fire.
+  if(gesture==='down')for(const [stale,record] of assignedKeyPresses){
+    if(assignedPressStillCurrent(record))continue;
+    clearTimeout(record.holdTimer);clearTimeout(record.singleTimer);
+    assignedKeyPresses.delete(stale);
+  }
   const key=DeckCore.runtimeActionKey(state,index,'down'),now=Date.now();
   let prior=assignedKeyPresses.get(key);
   if(prior&&(!assignedPressStillCurrent(prior)||prior.action!==action)){
@@ -4433,6 +4440,7 @@ function handleAssignedKeyPress(action,index,gesture,event){
     }
     if(prior)return null;
     const record={key,index,action,pressed:true,holdFired:false,doubleFired:false,
+      bindings:JSON.stringify(action.pressActions||{}),
       downAt:now,holdTimer:null,singleTimer:null};
     const legacyHold=action.type==='open-app'&&['close','force'].includes(action.settings?.hold)||
       action.type==='indicator'&&DeckCore.sharedIndicatorConfig(state,action,'hold').navigation!=='none';
