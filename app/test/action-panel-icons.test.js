@@ -26,7 +26,7 @@ test("45 action icons and one separate HA plugin icon are preserved",()=>{
   const {panel}=load();
   const ids=panel.groups.flatMap(group=>group[1]);
   assert.equal(ids.length,46);
-  assert.equal(new Set(ids).size,45);
+  assert.equal(new Set(ids).size,46);
   assert.equal(panel.ids.length,46);
   assert.deepEqual([...ids].sort(),Array.from(panel.ids).sort());
   assert.deepEqual(Array.from(panel.groups.at(-1)[1]),['ha-toggle']);

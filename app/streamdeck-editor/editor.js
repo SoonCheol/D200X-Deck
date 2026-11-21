@@ -4225,6 +4225,7 @@ function handleLogicGesture(action,index,gesture,preview){
   return null;
 }
 // Read-only D200X gesture probe. Never execute the selected action kinds.
+// Base HID input evidence stays enabled; logEnabled controls only the extra probe records.
 const gestureTestPresses=new Map();
 const GESTURE_TEST_DOUBLE_MS=300,GESTURE_TEST_HOLD_MS=600;
 function emitGestureTestResult(action,index,slot,event,startedAt){

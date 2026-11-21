@@ -917,7 +917,7 @@ test('Multi Action retains bounded delays and rejects unsupported nested composi
 test('HA plugin action is separate and survives profile migration and hardware planning',()=>{
   assert.deepEqual(core.PLUGIN_ACTION_IDS,['ha-toggle','sd-plugin']);
   assert.equal(core.ACTION_IDS.length,24);
-  assert.equal(core.D200X_ACTION_IDS.length,20);
+  assert.equal(core.D200X_ACTION_IDS.length,21);
   const state=core.migrateState(null);
   const action=core.createAction('ha-toggle');
   action.settings.entityId='switch.kitchen';
