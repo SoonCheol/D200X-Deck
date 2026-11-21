@@ -170,6 +170,7 @@ test('Pinned key inspector preview refreshes when page slot is empty',async()=>{
  const $=key=>key==='icon-preview-content'?area:key==='icon-preview'?{querySelector:()=>null}:null;
  await vm.runInNewContext(source.slice(start,end)+';refreshSelectedVisual()',{
   state,window,DeckCore:{visibleActions:()=>[pinned]},currentPage:()=>[null],
+  pressIsOrdinary:()=>false,pressSlotAction:()=>null,isCurrentInspectorAction:item=>item===pinned,
   displayItem:x=>x,displayKeyPressItem:x=>x,previewPressKeys:new Set(),
   isMomentaryIconAction:()=>false,haPreviewStates:new WeakMap(),sdkVisuals:new Map(),
   sdkContext:()=>'',sdkActionDefaults:new Map(),$,document:{createElement:()=>({className:'',src:''})},
