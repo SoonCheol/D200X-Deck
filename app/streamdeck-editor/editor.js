@@ -1528,7 +1528,7 @@ const COMPACT_FIELD_GROUPS={
   'system-zoom':[['operation','step']],
   'edit-history':[['operation','step']],
   'timer':[['seconds','sound']],
-  'audio-play':[['fade','fadeDuration']],
+  'audio-play':[['mode','fade','fadeDuration'],['output','volume']],
   'text':[['enter','mode']]
 };
 const COMPACT_FIELD_LABELS={
@@ -1546,7 +1546,7 @@ function groupCompactActionFields(root,actionType){
     const position=Array.from(fields.children).indexOf(nodes[0]);
     if(position<0||nodes.some((node,i)=>Array.from(fields.children).indexOf(node)!==position+i))continue;
     const group=document.createElement('div');
-    group.className='compact-property-group compact-count-'+nodes.length;
+    group.className='compact-property-group compact-count-'+nodes.length+(actionType==='audio-play'?' audio-play-property-group':'');
     group.setAttribute('role','group');
     fields.insertBefore(group,nodes[0]);
     for(const [i,node] of nodes.entries()){
@@ -1619,7 +1619,7 @@ function openAppLegacyHold(item){
 function actionFields(item){
   active=item;
   switch(item.type){
-    case "audio-play":return pathPicker("file","파일")+select("mode","동작",[["play-stop","재생 / 정지"],["overlap","재생 / 오버랩"],["restart","재생 / 재시작"],["loop-stop","반복 / 정지"]])+select("fade","페이드",[["none","페이드 없음"],["in","페이드 인"],["out","페이드 아웃"],["in-out","페이드 인 앤 아웃"]])+select("fadeDuration","페이드 시간",[[1,"1초"],[2,"2초"],[3,"3초"],[4,"4초"],[5,"5초"]])+`<div class="field"><label for="s-volume">음량</label><div class="compound"><input id="s-volume" type="range" min="0" max="100" data-field="volume" value="${valueOf(item,"volume",50)}"><output id="volume-display">${valueOf(item,"volume",50)}</output></div></div>`+select("output","출력",[["default","기본"]])+`<div class="field"><span></span><span class="hint">연결된 출력 장치를 선택할 수 있습니다. 장치 전환은 실행 시 적용됩니다.</span></div>`;
+    case "audio-play":return pathPicker("file","파일")+select("mode","동작",[["play-stop","재생 / 정지"],["overlap","재생 / 오버랩"],["restart","재생 / 재시작"],["loop-stop","반복 / 정지"]])+select("fade","페이드",[["none","페이드 없음"],["in","페이드 인"],["out","페이드 아웃"],["in-out","페이드 인 앤 아웃"]])+select("fadeDuration","페이드 시간",[[1,"1초"],[2,"2초"],[3,"3초"],[4,"4초"],[5,"5초"]])+select("output","출력",[["default","기본"]])+`<div class="field"><label for="s-volume">음량</label><div class="compound"><input id="s-volume" type="range" min="0" max="100" data-field="volume" value="${valueOf(item,"volume",50)}"><output id="volume-display">${valueOf(item,"volume",50)}</output></div></div>`+`<div class="field"><span></span><span class="hint">연결된 출력 장치를 선택할 수 있습니다. 장치 전환은 실행 시 적용됩니다.</span></div>`;
     case "sd-plugin":return "";
     case "ha-toggle":return input("entityId","엔티티 ID","switch.living_room")+
       '<div class="field"><label>엔티티</label><button type="button" data-ha-entities>목록에서 선택</button></div>';
@@ -2825,11 +2825,13 @@ function saveInspector(){
   const previous=inspectorSession;
   inspectorSession=null;
   if(!persist()){inspectorSession=previous;return;}
+  commitPendingAudioVolumes();
   beginInspectorSession();
   updateInspectorSaveButtons();
 }
 function discardInspector(){
   if(!inspectorSession?.dirty)return;
+  revertPendingAudioVolumes();
   const snapshot=JSON.parse(inspectorSession.snapshot);
   inspectorSession=null;state=DeckCore.migrateState(snapshot);
   render();beginInspectorSession();
@@ -4003,9 +4005,12 @@ function renderInspector(){
       item.settings[node.dataset.field]=value;
       if(item.type==='system-scroll'&&node.dataset.field==='axis')
         item.settings.direction=value==='horizontal'?'right':'down';
-      persist();
+      if(item.type==='audio-play')persistInspectorChange();else persist();
       if(item.type==='system-scroll'&&node.dataset.field==='axis')renderInspector();
-      if(node.dataset.field==="volume") $("volume-display").textContent=String(value);
+      if(item.type==='audio-play'&&node.dataset.field==='volume'){
+        $("volume-display").textContent=String(value);
+        updateActiveAudioVolume(item.settings,value);
+      }
       if(node.dataset.field==="body"){
         if($("text-count")) $("text-count").textContent=String(value.length)+" / -";
         if(item.type==='text'){renderGrid();refreshTitlePreview(item);}
@@ -4325,10 +4330,36 @@ const activeAudioPlayers=new Map();
 const allPlayingAudio=new Set();
 const AUDIO_FADE_MS=800;
 const audioFadeTimers=new WeakMap();
+const audioActionSettings=new WeakMap();
+const audioActionLevels=new WeakMap();
+const pendingAudioVolumes=new WeakMap();
 function cancelAudioFade(audio){
   const previous=audioFadeTimers.get(audio);
   if(previous)clearInterval(previous);
   audioFadeTimers.delete(audio);
+}
+function updateActiveAudioVolume(settings,percentage){
+  const level=Math.max(0,Math.min(100,Number(percentage)||0))/100;
+  for(const audio of allPlayingAudio){
+    if(audioActionSettings.get(audio)!==settings)continue;
+    const target=audioActionLevels.get(audio);
+    if(!pendingAudioVolumes.has(audio))pendingAudioVolumes.set(audio,target?.level??audio.volume);
+    if(target)target.level=level;
+    audio.volume=level;
+  }
+}
+function commitPendingAudioVolumes(){
+  for(const audio of allPlayingAudio)pendingAudioVolumes.delete(audio);
+}
+function revertPendingAudioVolumes(){
+  for(const audio of allPlayingAudio){
+    if(!pendingAudioVolumes.has(audio))continue;
+    const level=pendingAudioVolumes.get(audio);
+    const target=audioActionLevels.get(audio);
+    if(target)target.level=level;
+    audio.volume=level;
+    pendingAudioVolumes.delete(audio);
+  }
 }
 function fadeAudio(audio,target,duration=AUDIO_FADE_MS){
   cancelAudioFade(audio);
@@ -4338,7 +4369,7 @@ function fadeAudio(audio,target,duration=AUDIO_FADE_MS){
     const interval=setInterval(()=>{
       if(audio.paused){cancelAudioFade(audio);resolve();return;}
       const t=Math.min(1,(performance.now()-start)/duration);
-      audio.volume=Math.max(0,Math.min(1,initial+(target-initial)*t));
+      audio.volume=Math.max(0,Math.min(1,initial+((typeof target==='number'?target:target.level)-initial)*t));
       if(t===1){cancelAudioFade(audio);resolve();}
     },35);
     audioFadeTimers.set(audio,interval);
@@ -4351,7 +4382,7 @@ function stopAudio(audio){
   for(const [key,value] of activeAudioPlayers)if(value===audio)activeAudioPlayers.delete(key);
 }
 function stopAllAudio(){for(const audio of [...allPlayingAudio])stopAudio(audio);}
-async function playAudioAction(outcome,key){
+async function playAudioAction(outcome,key,settings){
   if(!window.deckBridge?.audioFileUrl)throw new Error('Windows 실행 환경에서만 사용할 수 있습니다.');
   if(!outcome.file)throw new Error('재생할 오디오 파일을 먼저 선택하세요.');
   const old=activeAudioPlayers.get(key);
@@ -4361,11 +4392,13 @@ async function playAudioAction(outcome,key){
   if(old&&outcome.mode!=='overlap')stopAudio(old);
   const url=await window.deckBridge.audioFileUrl(outcome.file);
   const audio=new Audio(url);
-  const level=outcome.volume/100;
+  const targetVolume={level:outcome.volume/100};
+  audioActionSettings.set(audio,settings);
+  audioActionLevels.set(audio,targetVolume);
   const fadeDuration=outcome.fadeDuration*1000;
   const fadeIn=['in','in-out'].includes(outcome.fade);
   const fadeOut=['out','in-out'].includes(outcome.fade);
-  audio.volume=fadeIn?0:level;
+  audio.volume=fadeIn?0:targetVolume.level;
   audio.loop=outcome.mode==='loop-stop';
   if(outcome.output&&outcome.output!=='default'){
     if(typeof audio.setSinkId!=='function')throw new Error('현재 오디오 출력 장치 선택을 지원하지 않습니다.');
@@ -4381,13 +4414,13 @@ async function playAudioAction(outcome,key){
       const remaining=(audio.duration-audio.currentTime)*1000;
       if(remaining<=fadeDuration&&remaining>=0){
         cancelAudioFade(audio);
-        audio.volume=level*Math.max(0,remaining/fadeDuration);
+        audio.volume=targetVolume.level*Math.max(0,remaining/fadeDuration);
       }
     });
   }
   try{
     await audio.play();
-    if(fadeIn)fadeAudio(audio,level,fadeDuration).catch(error=>console.warn('페이드 인 오류',error));
+    if(fadeIn)fadeAudio(audio,targetVolume,fadeDuration).catch(error=>console.warn('페이드 인 오류',error));
   }catch(error){cleanup();throw error;}
   return '오디오 재생 시작';
 }
@@ -5269,7 +5302,7 @@ function executeHardwareAction(event,preview=false,skipKnobGesture=false,pressOv
     stopAllAudio();return '오디오 재생 정지';
   }
   if(outcome.kind==='audio-play'){
-    observe(playAudioAction(outcome,DeckCore.runtimeActionKey(state,index,resolved.gesture)),outcome.kind).then(
+    observe(playAudioAction(outcome,DeckCore.runtimeActionKey(state,index,resolved.gesture),resolved.action?.settings),outcome.kind).then(
       result=>window.d200xActionStatus?.(result),
       error=>window.d200xActionStatus?.('오디오 재생 실패: '+String(error?.message||error)));
     return '오디오 재생 요청';

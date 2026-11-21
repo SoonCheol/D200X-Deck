@@ -18,16 +18,57 @@ test('all approved short-parameter actions have correct grouped fields',()=>{
     'system-zoom':['operation','step'],
     'edit-history':['operation','step'],
     'timer':['seconds','sound'],
-    'audio-play':['fade','fadeDuration'],
+    'audio-play':['mode','fade','fadeDuration'],
     'text':['enter','mode']
   };
   for(const [action,fields] of Object.entries(expected)){
     assert.deepEqual(Array.from(groups[action][0]),fields,action);
   }
   assert.match(editor,/groupCompactActionFields\(root,item\.type\)/);
+  assert.deepEqual(Array.from(groups['audio-play'][1]),['output','volume']);
   assert.equal(groups.folder,undefined,'folder must use aligned standard fields rather than compressed grouped checkboxes');
   assert.match(editor,/case "folder":return check\("autoExitEnabled","자동 나가기"\)/);
 });
+
+test('effect playback has the two requested rows and independent live volume with cancel/save',()=>{
+  const markup=editor.split('case "audio-play":return')[1]?.split('\n')[0]||'';
+  const order=['select("mode"','select("fade"','select("fadeDuration"','select("output"','data-field="volume"'];
+  let at=-1;
+  for(const part of order){
+    const next=markup.indexOf(part);
+    assert.ok(next>at,'audio field order: '+part);
+    at=next;
+  }
+  assert.ok(css.includes('.compact-property-group.audio-play-property-group:has([data-field="mode"])'));
+  assert.ok(css.includes('.compact-property-group.audio-play-property-group:has([data-field="volume"])'));
+  assert.ok(editor.includes('node.type==="range"||node.tagName==="TEXTAREA"?"input":"change"'));
+  assert.ok(editor.includes('updateActiveAudioVolume(item.settings,value)'));
+  assert.ok(editor.includes("if(item.type==='audio-play')persistInspectorChange()"));
+  const from=editor.indexOf('function updateActiveAudioVolume(settings,percentage){');
+  const to=editor.indexOf('function fadeAudio(',from);
+  assert.ok(from>=0&&to>from);
+  const settingsA={},settingsB={};
+  const a={volume:.5},b={volume:.3},levelA={level:.5},levelB={level:.3};
+  const context={
+    allPlayingAudio:new Set([a,b]),
+    audioActionSettings:new WeakMap([[a,settingsA],[b,settingsB]]),
+    audioActionLevels:new WeakMap([[a,levelA],[b,levelB]]),
+    pendingAudioVolumes:new WeakMap()
+  };
+  const controls=vm.runInNewContext(editor.slice(from,to)+';({updateActiveAudioVolume,commitPendingAudioVolumes,revertPendingAudioVolumes})',context);
+  controls.updateActiveAudioVolume(settingsA,20);
+  assert.equal(a.volume,.2);assert.equal(levelA.level,.2);
+  assert.equal(b.volume,.3);assert.equal(levelB.level,.3,'another action remains unchanged');
+  controls.revertPendingAudioVolumes();
+  assert.equal(a.volume,.5);assert.equal(levelA.level,.5);
+  controls.updateActiveAudioVolume(settingsA,80);
+  controls.commitPendingAudioVolumes();
+  controls.revertPendingAudioVolumes();
+  assert.equal(a.volume,.8);assert.equal(levelA.level,.8,'saved level remains applied');
+  assert.ok(editor.includes('audioActionSettings.set(audio,settings)'));
+  assert.ok(editor.includes('audioActionLevels.set(audio,targetVolume)'));
+});
+
 test('compact groups have a real grid layout with fixed total field width',()=>{
   assert.match(css,/\.fields>\.compact-property-group\s*\{[^}]*width:404px;[^}]*display:grid/s);
   assert.match(css,/\.compact-property-group\.compact-count-3\s*\{\s*grid-template-columns:/);

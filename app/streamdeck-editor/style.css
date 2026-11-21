@@ -579,6 +579,18 @@
 .compact-property-group:has([data-field="seconds"]){grid-template-columns:114px minmax(0,1fr)}
 .compact-property-group:has([data-field="fadeDuration"]){grid-template-columns:minmax(0,1fr) 134px}
 .compact-property-group:has([data-field="enter"]){grid-template-columns:120px minmax(0,1fr)}
+/* Effect playback only: two compact rows; other action layouts stay unchanged. */
+.compact-property-group.audio-play-property-group:has([data-field="mode"]){
+  grid-template-columns:minmax(0,1.18fr) minmax(0,1fr) 100px
+}
+.compact-property-group.audio-play-property-group:has([data-field="volume"]){
+  grid-template-columns:minmax(0,1fr) minmax(0,1.35fr)
+}
+.compact-property-group.audio-play-property-group [data-field="volume"]{cursor:pointer}
+.compact-property-group.audio-play-property-group .compound>output{
+  min-width:27px;text-align:right;font-variant-numeric:tabular-nums
+}
+
 .compact-property-group:has([data-field="autoExitSeconds"]){grid-template-columns:minmax(0,1fr) 150px}
 .compact-property-group>.field{
   display:flex;flex-direction:column;align-items:stretch;gap:6px;
