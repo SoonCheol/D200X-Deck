@@ -1,0 +1,40 @@
+name: DeckForge native drop diagnostic
+on:
+  push:
+    branches: [codex/streamdeck-761-clean-editor]
+    paths:
+      - 'tools/native-drop-probe/**'
+      - '.github/workflows/deckforge-native-drop-probe.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  probe:
+    runs-on: windows-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Compile x64 C# diagnostic
+        shell: pwsh
+        run: |
+          $csc = Join-Path $env:SystemRoot 'Microsoft.NET/Framework64/v4.0.30319/csc.exe'
+          New-Item -ItemType Directory -Force dist-native-drop | Out-Null
+          $source = (Resolve-Path -LiteralPath 'tools/native-drop-probe/NativeDropProbe.cs').ProviderPath
+          $output = Join-Path (Resolve-Path -LiteralPath 'dist-native-drop').ProviderPath 'DeckForge-NativeDrop-Test.exe'
+          & $csc /nologo /target:winexe /platform:x64 /optimize+ /reference:System.Windows.Forms.dll /reference:System.Drawing.dll /reference:System.Web.Extensions.dll ("/out:" + $output) $source
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Verify native shell extraction and CF_HDROP
+        shell: pwsh
+        run: |
+          $p = Start-Process -FilePath (Resolve-Path dist-native-drop/DeckForge-NativeDrop-Test.exe) -ArgumentList '--self-test' -Wait -PassThru
+          if ($p.ExitCode -ne 0) {
+            $log = Join-Path $env:TEMP 'DeckForge-NativeDrop-Test-error.txt'
+            if (Test-Path $log) { Get-Content $log }
+            throw "Native extraction smoke test failed: $($p.ExitCode)"
+          }
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: DeckForge-NativeDrop-Test
+          path: dist-native-drop/DeckForge-NativeDrop-Test.exe
+          if-no-files-found: error
+          retention-days: 14

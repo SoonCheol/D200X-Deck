@@ -1,0 +1,50 @@
+{
+  "appId": "net.homedisk.deckforge",
+  "productName": "DeckForge",
+  "directories": {
+    "output": "../dist-installer"
+  },
+  "asar": true,
+  "asarUnpack": [
+    "**/*.node",
+    "streamdeck-editor/folder-control-helper.exe",
+    "streamdeck-editor/native-drop-helper.exe",
+    "streamdeck-editor/app-focus-helper.exe"
+  ],
+  "npmRebuild": false,
+  "electronVersion": "45.2.1",
+  "files": [
+    "**/*"
+  ],
+  "extraResources": [
+    {
+      "from": "../../app/build/tray.png",
+      "to": "deckforge-tray.png"
+    },
+    {
+      "from": "mcp",
+      "to": "mcp"
+    },
+    {
+      "from": "bundled",
+      "to": "bundled"
+    }
+  ],
+  "win": {
+    "target": [
+      "nsis"
+    ],
+    "artifactName": "DeckForge-${version}-Setup-win-x64.exe",
+    "signAndEditExecutable": false
+  },
+  "nsis": {
+    "oneClick": true,
+    "perMachine": false,
+    "allowToChangeInstallationDirectory": false,
+    "createStartMenuShortcut": true,
+    "createDesktopShortcut": true,
+    "runAfterFinish": false,
+    "deleteAppDataOnUninstall": false,
+    "include": "installer-fusion.nsh"
+  }
+}

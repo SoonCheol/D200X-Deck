@@ -1,0 +1,10 @@
+'use strict';
+const test=require('node:test');
+const assert=require('node:assert/strict');
+const B=require('../app/streamdeck-editor/fusion-batch.js');
+const Core=require('../app/streamdeck-editor/deck-core.js');
+const mk=id=>({id,name:id});
+const base=()=>({format:B.FORMAT,pluginUUID:B.PLUGIN,actionUUID:B.ACTION,profileName:'Fusion',commands:[mk('Line'),mk('Circle'),mk('Extrude')]});
+test('legacy Fusion JSON remains compatible',()=>{const state=Core.migrateState(null);const result=B.apply(state,base(),Core);assert.equal(result.pageCount,1);assert.equal(state.pages[0][0].settings.pluginSettings.commandId,'Line');assert.equal(state.pages[0][1].settings.pluginSettings.commandId,'Circle');});
+test('sparse pages preserve reservation gaps, profile and wide screen',()=>{const state=Core.migrateState(null);state.pages[0][0]=Core.createAction('hotkey');const layoutPages=[{name:'Sketch',slots:[mk('Line'),null,mk('Circle'),...Array(10).fill(null)]},{name:'Solid',slots:[null,null,mk('Extrude'),...Array(10).fill(null)]}];const result=B.apply(state,{...base(),layoutPages},Core);assert.equal(result.pageCount,2);assert.equal(state.pages[0][1],null);assert.equal(state.pages[1][2].settings.pluginSettings.commandId,'Extrude');assert.equal(state.pages[0][13],null);assert.equal(state.inactiveProfiles.find(p=>p.id==='default').pages[0][0].type,'hotkey');});
+test('bad explicit layout is refused',()=>{assert.throws(()=>B.validate({...base(),layoutPages:[{slots:[mk('Circle'),mk('Line'),mk('Extrude'),...Array(10).fill(null)]}]}),/순서/);assert.throws(()=>B.validate({...base(),layoutPages:[{slots:Array(12).fill(null)}]}),/슬롯/);});

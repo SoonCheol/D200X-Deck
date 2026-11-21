@@ -24,6 +24,8 @@ jobs:
       - name: Syntax check
         run: |
           for f in main.js preload.js lib/*.js renderer/*.js; do node --check "$f"; done
+          node --check streamdeck-editor/action-panel-icons.js
+          node --check streamdeck-editor/editor.js
       - name: Lint
         run: npm run lint
       - name: Type check

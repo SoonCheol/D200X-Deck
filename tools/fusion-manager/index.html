@@ -1,0 +1,79 @@
+<!doctype html><html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Fusion Command Manager</title><style>
+@font-face{font-family:'Fusion Pretendard';src:url('./fonts/PretendardVariable.woff2') format('woff2');font-style:normal;font-weight:100 900;font-display:swap}
+:root{font-family:'Fusion Pretendard','Segoe UI','Malgun Gothic',sans-serif;color:#e5edf7;background:#101720;font-size:14px}
+*{box-sizing:border-box}body{margin:0}button,input,select{font:inherit}
+header{position:sticky;top:0;z-index:5;background:#172230;border-bottom:1px solid #3a4757;padding:12px 20px;display:flex;gap:12px;align-items:center;flex-wrap:wrap}
+h1{font-size:19px;margin:0 14px 0 0}button{background:#29384a;color:#fff;border:1px solid #47586b;border-radius:6px;padding:8px 11px;cursor:pointer}button:hover{background:#354a61}button.primary{background:#2366a0}button:disabled{opacity:.5;cursor:not-allowed}
+main{padding:16px 20px;max-width:1560px;margin:auto}.bar{display:flex;gap:9px;align-items:center;flex-wrap:wrap;margin-bottom:13px}.bar input{padding:8px;color:#fff;background:#192636;border:1px solid #506072;border-radius:6px}.bar select{padding:8px;color:#fff;background:#192636;border:1px solid #506072;border-radius:6px}
+.hint{color:#9daec0;font-size:12px}#status{color:#a2d7ff}.pages{display:grid;grid-template-columns:repeat(auto-fill,minmax(510px,1fr));gap:16px;align-items:start}
+.page{border:1px solid #3d4e60;border-radius:11px;background:#1a2735;padding:12px}.pageHead{display:flex;align-items:center;justify-content:space-between;gap:7px;margin-bottom:11px}.pageHead input[type=text]{min-width:0;width:150px;background:#26384b;color:white;border:1px solid #536479;border-radius:5px;padding:6px}
+.buttonRow{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:6px;margin-bottom:6px}
+.slot{height:116px;border:1px solid #455a70;border-radius:7px;background:#253649;color:#edf4fa;padding:8px;display:flex;flex-direction:column;gap:6px;align-items:center;justify-content:center;text-align:center;font-size:12px;overflow:hidden;user-select:none;position:relative}
+.slot .cmd-art{width:48px;height:48px;object-fit:contain;flex-shrink:0;pointer-events:none}
+.slot .cmd-art-missing{width:64px;min-height:48px;display:flex;align-items:center;justify-content:center;text-align:center;color:#90a6ba;font-size:10px;line-height:1.35;pointer-events:none}
+.slot .cmd-symbol{width:48px;height:48px;border-radius:10px;display:grid;place-items:center;background:#344a60;color:#badaf6;font-size:28px;flex-shrink:0;pointer-events:none}
+.slot .cmd-name{width:100%;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;line-height:1.32;overflow:hidden;overflow-wrap:anywhere;pointer-events:none}
+.slot .info-button{position:absolute;right:4px;top:4px;width:22px;height:22px;border:0;padding:0;border-radius:50%;background:#344e67;color:#dcefff;font-size:14px;line-height:22px;cursor:pointer;z-index:2}
+.slot .info-button:hover,.slot .info-button:focus-visible{background:#4c80b1;outline:1px solid #c9e6ff}
+#tooltip{position:fixed;display:none;pointer-events:none;z-index:30;background:#0a1220;color:#fff;border:1px solid #6b829d;border-radius:6px;padding:8px 11px;box-shadow:0 8px 20px #0009;white-space:pre-line;max-width:380px;line-height:1.55}
+#detail{display:none;position:fixed;z-index:25;right:20px;top:90px;width:min(400px,calc(100vw - 40px));max-height:calc(100vh - 110px);overflow:auto;background:#1a2a3d;border:1px solid #6487ab;border-radius:10px;box-shadow:0 12px 35px #000a;padding:16px;overflow-wrap:anywhere}
+#detail h2{font-size:17px;margin:4px 36px 12px 0}#detail dl{display:grid;grid-template-columns:84px 1fr;gap:9px;margin:0}#detail dt{color:#9fb4ca}#detail dd{margin:0}#detailClose{position:absolute;top:10px;right:10px}
+.slot.dragging{opacity:.35}.slot.over{outline:2px solid #74b7fb}.slot.reserved{border:1px dashed #dfae63;background:#38332a;color:#f2d8a2}.slot.empty{color:#6d859e}.slot small{position:absolute;top:3px;left:5px;color:#93a5b6;font-size:10px}
+.extra{display:flex;gap:8px;align-items:center;margin-top:8px}.queue{max-height:180px;overflow:auto;border:1px solid #3b4d60;border-radius:8px;padding:10px;background:#192633;display:flex;gap:6px;flex-wrap:wrap}.chip{padding:5px 8px;font-size:12px}.chip:focus{outline:2px solid #79b6fc}
+#context{display:none;position:fixed;z-index:20;padding:4px;background:#203044;border:1px solid #72849b;border-radius:8px;box-shadow:0 9px 25px #0008}#context button{display:block;width:190px;text-align:left;border:0;background:transparent}#context button:hover{background:#37506a}
+.emptyInfo{padding:12px;border:1px dashed #52647a;color:#aebed1}
+
+body:not(.page-mode) .editor-only{display:none}
+main[hidden],section[hidden]{display:none!important}
+header{padding:9px 12px;gap:6px}
+header h1{font-size:15px;margin-right:auto;white-space:nowrap}
+header button{padding:6px 8px;font-size:12px;flex-shrink:0}
+header{flex-wrap:nowrap}#helpOpen{margin-left:0;white-space:nowrap}#modePages[hidden]{display:none!important}#helpDialog{width:min(680px,calc(100vw - 32px));max-height:min(82vh,780px);border:1px solid #526b86;border-radius:10px;background:#172536;color:#e5edf7;padding:0;box-shadow:0 16px 45px #000b}#helpDialog::backdrop{background:#000a}.helpHead{position:sticky;top:0;display:flex;justify-content:space-between;align-items:center;padding:12px 16px;background:#1b2c40;border-bottom:1px solid #435c78}.helpHead h2{font-size:16px;margin:0}#helpContent{padding:12px 18px 22px;max-height:calc(82vh - 57px);overflow:auto;line-height:1.6;overflow-wrap:anywhere}#helpContent h1{font-size:19px;margin:10px 0}#helpContent h2{font-size:15px;margin:16px 0 6px;color:#c7e3ff}#helpContent p{margin:7px 0}#helpContent li{margin:4px 0}#helpContent code{font-family:Consolas,monospace;font-size:12px;background:#263b50;padding:1px 4px;border-radius:3px}
+.explorer{padding:12px;min-width:0}
+.explore-top{display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;margin-bottom:10px}
+.nav-title{font-size:12px;color:#9fb6cf;margin:9px 0 5px}
+.menu-tabs{display:flex;gap:5px;overflow-x:auto;padding:0 0 4px;white-space:nowrap;scrollbar-width:thin}
+.menu-tabs button{padding:6px 6px;white-space:nowrap;font-size:13px;min-width:0;flex:1 1 auto;text-align:center}
+#workspaces{display:grid;grid-template-columns:repeat(9,minmax(0,1fr));gap:5px;overflow-x:visible}
+#menus{display:flex;flex-wrap:wrap;gap:5px;overflow-x:visible}
+#menus button{flex:1 1 auto;padding-inline:8px;white-space:nowrap;min-width:max-content}
+.menu-tabs button.active{background:#266b9f;border-color:#80bbeb}
+/* All dropdown commands are shown inline; no extra filter row. */
+.explore-search{display:flex;gap:6px;margin:11px 0}
+.explore-search input{min-width:0;flex:1;padding:8px;background:#192636;color:#fff;border:1px solid #506072;border-radius:6px}
+.explore-result{display:flex;align-items:center;justify-content:space-between;gap:6px;margin:12px 0 8px}
+.command-cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(100px,1fr));gap:6px;align-content:start;max-height:calc(100vh - 300px);overflow-y:auto}
+.command-card{height:76px;min-width:0;position:relative;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;padding:5px 17px 5px 5px;border:1px solid #43566b;border-radius:7px;background:#233449;color:#f0f6ff;cursor:grab;text-align:center}
+.command-card:focus-visible,.command-card:hover{outline:1px solid #82c0ff}
+.command-card .cmd-art{width:24px;height:24px;object-fit:contain;pointer-events:none}
+.command-card .cmd-art-missing{width:24px;height:24px;display:flex;align-items:center;justify-content:center;border:1px dashed #61778e;border-radius:5px;color:#9bb1c7;font-size:9px}
+.command-card .cmd-name{font-size:13px;line-height:1.2;max-width:100%;overflow:hidden;display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;overflow-wrap:anywhere;pointer-events:none}
+.command-card .info-button{position:absolute;right:3px;top:3px;padding:0;border:0;border-radius:50%;width:17px;height:17px;font-size:12px;line-height:17px;background:#385673}
+.command-card .info-button:hover{background:#4679a3}
+#captureHelp,#iconsHelp{border-radius:50%;width:24px;height:24px;padding:0;font-weight:700;color:#c9e6ff;background:#263b50}
+#scriptActions{display:none;margin:12px 18px 0;gap:8px;align-items:center;flex-wrap:wrap}#scriptActions textarea{width:100%;min-height:210px;font:12px/1.4 Consolas,monospace;background:#111b27;color:#d9eaff;border:1px solid #516a84;border-radius:6px;padding:8px;resize:vertical}
+#pageEditor{max-width:none}
+#pageEditor .pages{grid-template-columns:repeat(auto-fill,minmax(490px,1fr))}
+</style></head><body>
+<header><h1>Fusion Command Manager</h1>
+<button id="modeExplore" class="primary" type="button">명령 드래그</button><button id="modePages" type="button" hidden>페이지 생성</button><button id="deckforgeOpen" type="button" title="DeckForge 창 열기">DeckForge 열기</button><button id="dockToggle" type="button" title="자석 결합 또는 분리">자석 켜짐</button><button id="helpOpen" type="button" aria-label="도움말 열기">? 도움말</button><button id="save" class="editor-only" hidden>프로젝트 저장</button><button id="open" class="editor-only" hidden>프로젝트 불러오기</button><button id="export" class="primary editor-only" hidden>DeckForge 등록용 JSON 내보내기</button></header><span id="status" role="status" hidden></span>
+<section id="explorer" aria-label="Fusion 명령 메뉴 탐색" class="explorer">
+ <div class="explore-top"><strong>Fusion 명령 탐색</strong><span class="hint">DeckForge 버튼에 명령을 끌어다 놓기</span></div>
+ <div class="nav-title">작업 영역</div><nav id="workspaces" class="menu-tabs" aria-label="Fusion 작업 영역"></nav>
+ <div class="nav-title">메뉴</div><nav id="menus" class="menu-tabs" aria-label="Fusion 하위 메뉴"></nav>
+ <div class="explore-search"><input id="exploreSearch" placeholder="명령 이름 또는 ID 검색" aria-label="명령 검색"><button id="exploreReset">전체 찾기</button></div>
+ <div class="explore-result"><strong id="explorePath">Fusion 메뉴</strong><span class="hint" id="exploreCount"></span></div>
+ <div id="exploreCommands" class="command-cards" aria-live="polite"></div>
+ <p class="hint">아이콘은 Fusion 원본만 표시합니다. 버튼에 마우스를 올리면 잘린 이름의 한글·영문 전체 이름을 확인할 수 있고 ⓘ에서 ID를 확인할 수 있습니다.</p>
+ <div class="bar"><button id="exploreCapture">Fusion UI JSON 불러오기</button><button id="captureHelp" type="button" aria-label="Fusion UI JSON 도움말" title="JSON 파일 수집·불러오기 설명">?</button><button id="exploreIcons">현재 목록 원본 아이콘 수집</button><button id="iconsHelp" type="button" aria-label="원본 아이콘 수집 도움말" title="아이콘 수집 설명">?</button></div>
+ <div id="exploreStatus" class="hint"></div>
+ </section>
+ <main id="pageEditor" hidden><div class="bar"><label>프로필 이름 <input id="profile" value="Fusion 360" size="20" maxlength="80"></label><label>명령 범주 <select id="category"><option value="all">전체</option><option value="sketch">스케치</option><option value="solid">솔리드</option><option value="surface">서피스</option><option value="file">파일</option><option value="other">기타</option></select></label><label>목록 <select id="visibility"><option value="primary">툴바·드롭다운 (기본)</option><option value="review">검토 대상</option><option value="hidden">숨김 대상</option><option value="all">전체 명령</option></select></label><button id="importCapture">Fusion UI 수집 JSON 반영</button><span id="captureStatus" class="hint"></span><button id="addPage">페이지 추가</button><button id="fill">추천 순서 자동 배치</button><button id="collectIcons" class="primary">선택 페이지 원본 아이콘 수집</button><span id="iconStatus" class="hint" role="status"></span></div>
+<p class="hint">원본 아이콘 수집은 Fusion 360 및 FusionStreamDeck 애드인이 실행 중일 때 체크된 페이지의 명령만 가져와 매니저에 저장합니다. 페이지별 체크박스가 켜진 페이지만 등록합니다. 버튼을 다른 버튼 위로 끌면 삽입되고 뒤 명령이 밀립니다. 우클릭으로 예약 슬롯 지정·해제. 예약된 위치는 명령을 배치하지 않습니다.</p>
+<div class="pages" id="pages"></div>
+<h3>추가 가능한 명령 <span id="remaining"></span></h3><div class="bar"><input id="search" placeholder="명령 ID 또는 이름 검색" size="34"><span class="hint">명령을 클릭하면 마지막 비예약 빈 슬롯에 추가합니다.</span></div><div class="queue" id="queue"></div>
+</main><div id="tooltip" role="tooltip"></div><aside id="detail" aria-label="명령 상세 정보"><button id="detailClose" aria-label="닫기">×</button><h2 id="detailTitle"></h2><dl id="detailFields"></dl></aside><div id="context"><button id="toggleReserve">예약 슬롯 설정/해제</button><button id="remove">명령 제거</button></div>
+
+<dialog id="helpDialog" aria-label="Fusion Command Manager 도움말"><div class="helpHead"><h2>Fusion Command Manager 도움말</h2><button id="helpClose" type="button">닫기 ×</button></div><article id="helpContent"></article><section id="scriptActions"><button id="scriptShow" type="button">Fusion 수집기 Python 코드 표시</button><button id="scriptCopy" type="button">스크립트 복사</button><textarea id="scriptText" readonly hidden aria-label="Fusion UI 수집 Python 스크립트"></textarea></section></dialog>
+<script src="command-curation.cjs"></script><script src="menu-tree.cjs"></script><script src="fusion-drag.cjs"></script><script src="renderer.js"></script></body></html>

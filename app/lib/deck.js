@@ -199,7 +199,7 @@ class Deck extends EventEmitter {
       const stats = sysstats.latest();
       return Buffer.from(`0|${stats.cpu}|${stats.mem}|${hhmmss}|${stats.gpu}|24H|`, 'utf8');
     }
-    if (this._wideMode === 'blank') return Buffer.from('2|||||24H|', 'utf8');
+    if (this._wideMode === 'blank') return Buffer.from('2|0|0|00:00:00|0', 'ascii');
     return P.clockPayload();
   }
 
@@ -248,7 +248,7 @@ class Deck extends EventEmitter {
     const frame = P.decodeReport(data[0] === 0 ? data.subarray(1) : data) || P.decodeReport(data);
     if (!frame) return;
 
-    if (frame.cmd === P.CMD.KEY_EVENT && frame.proto === 0x01) {
+    if (frame.cmd === P.CMD.KEY_EVENT && (frame.proto === 0x01 || frame.proto === 0x02)) {
       this._onKeyEvent(frame.payload);
       return;
     }
@@ -276,8 +276,10 @@ class Deck extends EventEmitter {
   }
 
   /**
-   * Key event payload: [kind, index, flags, state]
-   * kind 1 = key, state 1 = press / 0 = release
+   * D200X input body: [kind, index, flags, state].
+   * Indices 0..13: LCD keys; 15/16: physical buttons;
+   * 17..19: rotary knobs (0 release, 1 down, 2 left, 3 right).
+   * Preserve raw fields for diagnostics, but expose named knob operations.
    */
   _onKeyEvent(payload) {
     if (payload.length < 4) return;
@@ -285,7 +287,17 @@ class Deck extends EventEmitter {
     const index = payload[1];
     const flags = payload[2];
     const state = payload[3];
-    this.emit('key', { kind, index, flags, state, pressed: state === 1 });
+    // The device may vary kind on wide-key presses in native stats mode.
+    // Classify rotary controls by their dedicated hardware indices only.
+    const knob = index >= 17 && index <= 19;
+    const gesture = knob ? ({0:'up',1:'down',2:'left',3:'right',4:'hold-left',5:'hold-right'}[state] || null)
+      : (state === 1 ? 'down' : state === 0 ? 'up' : null);
+    if (!gesture) return;
+    const event = { kind, index, flags, state, pressed: state === 1 };
+    // Leave ordinary key events byte-for-byte shape-compatible with
+    // existing consumers. Expose extra gesture fields only for knobs.
+    if (knob) { event.gesture = gesture; event.knob = true; }
+    this.emit('key', event);
   }
 }
 
