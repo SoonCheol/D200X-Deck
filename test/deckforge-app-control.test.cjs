@@ -22,6 +22,10 @@ const multiStart=editor.indexOf('const runningMultiProgress=new Map();');
 const multiEnd=editor.indexOf('// The original switch begins',multiStart);
 assert.ok(multiStart>=0&&multiEnd>multiStart);
 const multiSource=editor.slice(multiStart,multiEnd);
+const legacyHoldStart=editor.indexOf('function legacyOpenAppHoldAvailable(');
+const legacyHoldEnd=editor.indexOf('function assignedPressStillCurrent(',legacyHoldStart);
+assert.ok(legacyHoldStart>=0&&legacyHoldEnd>legacyHoldStart);
+const legacyHoldSource=editor.slice(legacyHoldStart,legacyHoldEnd);
 const sidePressTracker=require('../app/streamdeck-editor/deck-core.js').createSidePressTracker;
 const dispatchSource=editor.slice(dispatchStart,dispatchEnd)+"  if(preview) opened.push(event);return null;\n}";
 function setup(mode='close'){
@@ -43,7 +47,7 @@ function setup(mode='close'){
     heldKnobEvent:event=>({event,consume:false,replay:false}),pressActionAssigned:()=>false,
     setTimeout:(fn,delay)=>{assert.equal(delay,650);const id=++next;timers.set(id,fn);return id;},
     clearTimeout:id=>timers.delete(id)});
-  vm.runInContext(warningSource+multiSource+holdSource+evidenceSource+dispatchSource,ctx);
+  vm.runInContext(warningSource+multiSource+holdSource+legacyHoldSource+evidenceSource+dispatchSource,ctx);
   const event=pressed=>({kind:1,index:0,state:pressed?1:0,pressed});
   return {action,state,calls,records,opened,timers,
     down:()=>ctx.executeHardwareAction(event(true)),up:()=>ctx.executeHardwareAction(event(false)),
