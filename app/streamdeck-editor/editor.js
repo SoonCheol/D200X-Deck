@@ -262,8 +262,10 @@ function scheduleSdkSync(){
     await window.deckBridge.sdkSync(sdkActionInstances());
   }).catch(error=>window.d200xActionStatus?.('SDK 플러그인 등록 오류: '+String(error?.message||error)));
 }
-function displayItem(item,index){
-  if(item?.pressMeta)item=pressDisplayAction(item);
+function displayItem(item,index,preserveGesture=false){
+  // The physical key uses the representative gesture. Inspector previews use
+  // the exact action selected in the tab, even if the representative differs.
+  if(item?.pressMeta&&!preserveGesture)item=pressDisplayAction(item);
   if(item?.type==='text'&&!item.settings?.stateTitles&&item.titleStyle?.visible!==false)
     return {...item,title:textActionDisplayTitle(item,item.title)};
   if(item?.type==='multi-switch')return DeckCore.displaySwitchAction(item);
@@ -303,6 +305,9 @@ function displayItem(item,index){
   const common=DeckCore.indicatorCommon(state,item);
   return {...item,indicatorNumber:String((DeckCore.activeFolder(state)?.pageIndex??state.page)+1),
     indicatorNumberStyle:common.indicatorNumberStyle,indicatorDownNumberStyle:common.indicatorDownNumberStyle||common.indicatorNumberStyle};
+}
+function inspectorDisplayItem(item,index){
+  return displayItem(item,index,true);
 }
 // Visual press policy is separate from action execution and SDK keyUp delivery.
 const previewPressKeys=new Set();
@@ -2125,7 +2130,7 @@ function pressDisplayAction(root){
 }
 function pressTabArtwork(action,index){
   if(!action)return null;
-  const visual=displayItem(action,index);
+  const visual=inspectorDisplayItem(action,index);
   const icon=action.settings?.keyPressIcons?.up||action.settings?.sdkStateIcons?.off||null;
   return icon?{...visual,icon}:visual;
 }
@@ -2353,7 +2358,7 @@ async function refreshSelectedVisual(){
   if(!item||!window.renderDeckKeyImage)return;
   const request=++previewRequest;
   try{
-    const visible=displayItem(item,state.selected);
+    const visible=inspectorDisplayItem(item,state.selected);
     const data=await window.renderDeckKeyImage(displayKeyPressItem(visible,state.selected,true),state.selected,previewPressKeys.has(state.selected));
     if(request!==previewRequest||!isCurrentInspectorAction(item))return;
     const host=$("icon-preview-content");
@@ -2372,7 +2377,7 @@ function refreshTitlePreview(item){
   const host=$("icon-preview");if(!host)return;
   let label=host.querySelector(".preview-title");
   if(!label){label=document.createElement("span");label.className="preview-title";host.append(label);}
-  const current=displayKeyPressItem(displayItem(item,state.selected),state.selected,true);
+  const current=displayKeyPressItem(inspectorDisplayItem(item,state.selected),state.selected,true);
   label.textContent=String(current?.title||"").replace(/<br\s*\/?>/gi,"\n");
   const style={...DEFAULT_TITLE_STYLE,...current?.titleStyle};
   label.hidden=style.visible===false;
@@ -3170,7 +3175,7 @@ async function refreshStateTitleCards(item){
   const pair=root.querySelectorAll('.sdk-state-icon[data-state-title]');
   if(!pair.length)return;
   const slot=state.selected;
-  const visual=displayItem(item,slot);
+  const visual=inspectorDisplayItem(item,slot);
   const momentary=isMomentaryIconAction(item);
   const artwork=item.type==='indicator'?null:stateDisplayArtwork(visual,slot,momentary);
   const version=String((Number(root.dataset.stateCardVersion)||0)+1);
@@ -3305,7 +3310,7 @@ function bindKeyPressIconControls(root,item){
   if(!panel)return;
   // Use the exact existing OFF/ON card DOM and CSS: no separate layout.
   const cards=document.createElement('div');cards.className='sdk-state-icons key-press-icons';
-  const visual=displayItem(item,state.selected);
+  const visual=inspectorDisplayItem(item,state.selected);
   const stored=item.settings?.keyPressIcons||{};
   const up=stored.up||visual.icon;
   for(const [key,title,icon] of [['up',item.type==='multi'?'대기 상태':'Key Up',up],['down',item.type==='multi'?'실행 상태':'Key Down',stored.down||up]]){
@@ -5780,7 +5785,7 @@ function renderIconLibrary(){
           if(libraryStateKey?.startsWith('press:')&&(isMomentaryIconAction(target)||target.type==='indicator')){
             target.settings.keyPressIcons??={};
             target.settings.keyPressIcons[libraryStateKey.slice(6)]={kind:'file',value:png,packId:pack.id};
-          }else if(['off','on'].includes(libraryStateKey)&&['sd-plugin','timer'].includes(target.type)){
+          }else if(['off','on'].includes(libraryStateKey)&&['sd-plugin','timer','hotkey-switch'].includes(target.type)){
             // Only an actual, same-directory OFF/ON pair may update both states.
             const companion=findIconCompanion(pack,icon);
             const pair=iconPairType(icon);

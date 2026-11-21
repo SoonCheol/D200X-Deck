@@ -283,3 +283,53 @@ test('ordinary LCD visual region reserves the same footprint for paired, single 
  assert.match(src,/root\.querySelector\('\.press-empty-message'\)\.before\(visual\)/);
  assert.match(style,/\.action-layout-inspector\.press-gesture-inspector>\.state-title-layout\{[^}]*grid-template-columns:minmax\(0,1fr\) 98px/s);
 });
+
+test('each gesture tab displays its own independent Key Up and Key Down artwork, regardless of representative',()=>{
+ const Core=require('../app/streamdeck-editor/deck-core.js');
+ const displayStart=src.indexOf('function displayItem(item,index');
+ const displayEnd=src.indexOf('// Visual press policy',displayStart);
+ const pressStart=src.indexOf('function pressSlotAction(root,slot){');
+ const pressEnd=src.indexOf('function pressTabArtwork(',pressStart);
+ assert.ok(displayStart>=0&&displayEnd>displayStart&&pressStart>displayEnd&&pressEnd>pressStart);
+ const each=(kind,up,down)=>({
+  type:kind,icon:{kind:'file',value:up},
+  title:kind,settings:{keyPressIcons:{up:{kind:'file',value:up},down:{kind:'file',value:down}},
+   stateTitles:{first:{enabled:true,title:kind+' UP',style:{}},second:{enabled:true,title:kind+' DOWN',style:{}}}}
+ });
+ const root=each('open-app','single-up','single-down');
+ root.pressActions={double:each('website','double-up','double-down'),hold:each('hotkey','hold-up','hold-down')};
+ root.pressMeta={representative:'hold',enabled:{single:true,double:true,hold:true}};
+ const context={
+  root,window:{D200XPhysicalKeyPressed:()=>false},previewPressKeys:new Set(),state:{selected:0},
+  DeckCore:{...Core,visibleActions:()=>[root],runtimeActionKey:()=>'test'},
+  DEFAULT_TITLE_STYLE:{visible:true,size:12},haPreviewStates:new WeakMap(),sdkVisuals:new Map(),
+  sdkContext:()=>'',sdkActionDefaults:new Map(),activeActionTimers:new Map(),runningMultiProgress:new Map(),
+  isFusionAction:()=>false,JSON
+ };
+ const allSource=src.slice(displayStart,displayEnd)+'\n'+src.slice(pressStart,pressEnd)+'\n'+funcs;
+ const get=vm.runInNewContext(allSource+
+  ';Object.fromEntries(["single","double","hold"].map(slot=>{const action=pressSlotAction(root,slot);'+
+  'const visual=inspectorDisplayItem(action,0);const up=displayKeyPressItem(visual,0);'+
+  'previewPressKeys.add(0);const down=displayKeyPressItem(visual,0);previewPressKeys.delete(0);'+
+  'return [slot,{up:up.icon.value,down:down.icon.value,upTitle:up.title,downTitle:down.title}];}));',context);
+ assert.equal(get.single.up,'single-up');assert.equal(get.single.down,'single-down');
+ assert.equal(get.double.up,'double-up');assert.equal(get.double.down,'double-down');
+ assert.equal(get.hold.up,'hold-up');assert.equal(get.hold.down,'hold-down');
+ assert.equal(get.single.upTitle,'open-app UP');assert.equal(get.hold.downTitle,'hotkey DOWN');
+ const physical=vm.runInNewContext(allSource+';displayItem(root,0).type',context);
+ assert.equal(physical,'hotkey','physical representative remains selected hold action');
+ assert.equal(root.settings.keyPressIcons.down.value,'single-down');
+ assert.equal(root.pressActions.double.settings.keyPressIcons.up.value,'double-up');
+ assert.equal(root.pressActions.hold.settings.keyPressIcons.up.value,'hold-up');
+});
+
+test('inspector icon and title previews bypass representative selection while physical keys do not',()=>{
+ assert.match(src,/function displayItem\(item,index,preserveGesture=false\)/);
+ assert.match(src,/function inspectorDisplayItem\(item,index\)\{\s*return displayItem\(item,index,true\)/);
+ assert.match(src,/const visible=inspectorDisplayItem\(item,state\.selected\)/);
+ assert.match(src,/const visual=inspectorDisplayItem\(item,slot\)/);
+ assert.match(src,/const visual=inspectorDisplayItem\(item,state\.selected\)/);
+ assert.match(src,/const current=displayKeyPressItem\(inspectorDisplayItem\(item,state\.selected\)/);
+ assert.match(src,/const visual=displayKeyPressItem\(displayItem\(item,i\),i\)/);
+ assert.match(src,/\['sd-plugin','timer','hotkey-switch'\]\.includes\(target\.type\)/);
+});
