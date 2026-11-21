@@ -1473,3 +1473,54 @@ dialog.deckforge-message-dialog::backdrop{background:#000a}
 .action-layout-inspector>.action-layout-toolbar>.press-tabs-section .press-tab-tile.selected{padding:5px 3px}
 .action-layout-inspector .press-tabs-controls{justify-content:flex-end;margin:9px 0 0}
 .action-layout-inspector .inspector-properties-region>.action-layout-options{margin:8px 0 0;flex:none;max-width:100%}
+
+/* 1.1.97: independent B/C/D regions for ordinary LCD-button inspectors only.
+   B: fixed equal-width tabs and stable Cancel/Save; C: constant visual
+   footprint; D: independent options + detailed settings; F unchanged. */
+.inspector.action-layout-inspector.press-gesture-inspector{
+  padding-left:max(20px,calc((100% - 600px)/2));
+  padding-right:max(20px,calc((100% - 600px)/2));
+  scrollbar-gutter:stable;
+  overflow-x:hidden
+}
+.action-layout-inspector.press-gesture-inspector>.action-layout-toolbar{
+  display:grid;grid-template-columns:minmax(0,1fr) max-content;
+  width:100%;max-width:600px;gap:8px
+}
+.action-layout-inspector.press-gesture-inspector>.action-layout-toolbar>.press-tabs-section{
+  box-sizing:border-box;width:100%;min-width:0;max-width:100%;flex:none;margin:0
+}
+.action-layout-inspector.press-gesture-inspector>.action-layout-toolbar .press-tabs-grid{
+  display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px
+}
+.action-layout-inspector.press-gesture-inspector>.action-layout-toolbar .press-tab-tile{
+  box-sizing:border-box;min-width:0;min-height:46px;height:46px;max-height:46px;
+  padding:4px 3px;gap:2px
+}
+.action-layout-inspector.press-gesture-inspector>.action-layout-toolbar .press-tab-tile.selected{
+  padding:3px 2px
+}
+.action-layout-inspector.press-gesture-inspector .press-tab-select{
+  min-width:0;max-width:100%;padding:1px 0;line-height:16px;overflow:hidden;text-overflow:ellipsis
+}
+.action-layout-inspector.press-gesture-inspector .press-tab-name{
+  box-sizing:border-box;width:100%;max-width:100%;height:14px;min-height:14px;
+  line-height:14px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap
+}
+.action-layout-inspector.press-gesture-inspector>.state-title-layout,
+.action-layout-inspector.press-gesture-inspector>.action-single-visual,
+.action-layout-inspector.press-gesture-inspector>.inspector-visual-placeholder{
+  box-sizing:border-box;width:100%;max-width:600px;min-width:0;min-height:225px
+}
+.action-layout-inspector.press-gesture-inspector>.state-title-layout{
+  grid-template-columns:minmax(0,1fr) 98px;column-gap:12px
+}
+.action-layout-inspector.press-gesture-inspector>.state-title-layout>.preview{
+  width:98px;transform:none
+}
+.action-layout-inspector.press-gesture-inspector>.inspector-properties-region{
+  box-sizing:border-box;width:100%;max-width:600px;min-width:0
+}
+.action-layout-inspector.inspector-action-drop-over{
+  box-shadow:inset 0 0 0 2px #5a9acb
+}

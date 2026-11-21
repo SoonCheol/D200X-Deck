@@ -52,7 +52,7 @@ test('unsaved dialog remains interactive and original navigation is protected',(
   assert.match(editor,/if\(inspectorSession\?\.dirty\|\|smartProfileBusy/);
 });
 
-test('redundant catalogue path is removed, while optional modal help remains',()=>{
+test('redundant catalogue path and upper-left inspector help are removed',()=>{
   assert.doesNotMatch(editor,/function inspectorBreadcrumb\(item,action,inspectorName\)/);
   assert.match(editor,/class="action-head inspector-title-region"><\/div>/);
   assert.match(editor,/if\(actionHeader&&!actionHeader\.childElementCount\)actionHeader\.remove\(\)/);
@@ -62,7 +62,8 @@ test('redundant catalogue path is removed, while optional modal help remains',()
   for(const key of ['multi','multi-switch','random','logic','timer']){
     assert.match(editor,new RegExp("(?:'"+key+"'|"+key+")\\s*:\\s*\\{"));
   }
-  assert.match(editor,/appendInspectorHelp\(root\.querySelector\('\.action-head'\),item\)/);
+  assert.doesNotMatch(editor,/appendInspectorHelp\(root\.querySelector\('\.action-head'\),item\)/);
+  assert.match(editor,/trigger\.textContent='\?'/); // Legacy optional help helper kept, not attached to inspector.
 });
 test('preview keeps icon controls but no longer deletes assigned action',()=>{
   assert.doesNotMatch(editor,/id="delete-action"/);
@@ -480,4 +481,41 @@ test('gesture tabs are above the original artwork and share the Cancel/Save tool
  assert.match(editor,/if\(ordinaryPress\)renderPressTabs\(rootItem,root\)/);
  assert.match(editor,/root\.prepend\(toolbar\);renderPressTabs\(rootItem,root\);return;/);
  assert.match(css,/\.action-layout-inspector>\.action-layout-toolbar>\.press-tabs-section\{flex:1;min-width:0;margin:0\}/);
+});
+
+test('basic and SDK catalogue tiles never register an action on click',()=>{
+  const basic=editor.slice(editor.indexOf('function renderLibrary(){'),editor.indexOf('function bindActionAppearance(){'));
+  const sdk=editor.slice(editor.indexOf('function renderInstalledSdkPlugins('),editor.indexOf('async function configureHomeAssistant()'));
+  assert.match(basic,/entry\.addEventListener\("dragstart"/);
+  assert.match(sdk,/tile\.addEventListener\('dragstart'/);
+  assert.doesNotMatch(basic,/entry\.addEventListener\("click"/);
+  assert.doesNotMatch(sdk,/tile\.addEventListener\('click'/);
+  assert.match(basic,/customise\.addEventListener\("click"/);
+});
+
+test('inspector accepts action drops on active gesture and keeps explicit tab drops',()=>{
+  const start=editor.indexOf('function bindInspectorActionDrop(){');
+  const end=editor.indexOf('async function importSlotAction(',start);
+  assert.ok(start>=0&&end>start);
+  const drop=editor.slice(start,end);
+  assert.match(drop,/inspector\.addEventListener\('dragover'/);
+  assert.match(drop,/inspector\.addEventListener\('drop'/);
+  assert.match(drop,/event\.target\.closest\?\.\('\.press-tab-tile'\)/);
+  assert.match(drop,/setPressSlot\(state\.selected,activePressTab,newAction\(id\),true\)/);
+  assert.match(drop,/return !current\|\|pressIsOrdinary\(current\)/);
+  assert.match(editor,/bindInspectorActionDrop\(\);bindActionAppearance\(\)/);
+  assert.match(editor,/setPressSlot\(state\.selected,slot,newAction\(id\),true\)/);
+});
+
+test('three tabs are shorter and equal width without resizing the separate icon region',()=>{
+  assert.match(editor,/press-empty-inspector press-gesture-inspector/);
+  assert.match(editor,/className='inspector-visual-placeholder'/);
+  assert.match(css,/\.action-layout-inspector\.press-gesture-inspector>\.action-layout-toolbar\{[^}]*grid-template-columns:minmax\(0,1fr\) max-content/s);
+  assert.match(css,/\.action-layout-inspector\.press-gesture-inspector>\.action-layout-toolbar \.press-tabs-grid\{[^}]*grid-template-columns:repeat\(3,minmax\(0,1fr\)\)/s);
+  assert.match(css,/\.action-layout-inspector\.press-gesture-inspector>\.action-layout-toolbar \.press-tab-tile\{[^}]*height:46px/s);
+  assert.match(css,/\.action-layout-inspector\.press-gesture-inspector>\.state-title-layout,[\s\S]*?\.inspector-visual-placeholder\{[^}]*min-height:225px/s);
+  assert.match(css,/\.action-layout-inspector\.press-gesture-inspector>\.state-title-layout\{[^}]*grid-template-columns:minmax\(0,1fr\) 98px/s);
+  assert.match(css,/scrollbar-gutter:stable/);
+  assert.match(css,/\.action-layout-inspector\.press-gesture-inspector>\.inspector-properties-region/);
+  assert.match(editor,/layout\.append\(iconRegion,preview\)/);
 });

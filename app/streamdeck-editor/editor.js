@@ -1253,11 +1253,6 @@ function renderInstalledSdkPlugins(root,query){
       tile.textContent='▣  '+sdkCatalogueLabel(action);
       setDeckForgeTooltip(tile,()=>({title:sdkCatalogueLabel(action),lines:[isFusion?'등록한 Fusion 명령 실행':isHa?'지정한 Home Assistant 장치 제어':'설정한 플러그인 동작 실행']}));
       tile.addEventListener('dragstart',ev=>ev.dataTransfer.setData('application/x-d200x-action',id));
-      tile.addEventListener('click',()=>{
-        if(state.selected===null)return;
-        if(state.selected>=14)controlDrop(state.selected,id,controlGesture,false);
-        else setItem(state.selected,newAction(id));
-      });
       body.append(tile);
     }
     if(isFusion){
@@ -1421,15 +1416,6 @@ function renderLibrary(){
       });
       entry.append(symbol,caption,customise);
       if(!disabled)entry.addEventListener("dragstart",ev=>ev.dataTransfer.setData("application/x-d200x-action",id));
-      entry.addEventListener("click",()=>{
-        if(disabled)return;
-        if(state.selected!==null){
-          if(state.selected>=14)controlDrop(state.selected,id,controlGesture,false);
-          else if(pressIsOrdinary(DeckCore.visibleActions(state)[state.selected])||DeckCore.PRESS_ACTION_TYPES.includes(id))
-            setPressSlot(state.selected,activePressTab,newAction(id),true);
-          else setItem(state.selected,newAction(id));
-        }
-      });
       body.append(entry);
     }
     section.append(title,body);root.append(section);
@@ -3840,8 +3826,10 @@ function renderInspector(){
   if(state.selected===13&&wideDisplayAvailable()){renderWideInspector();return;}
   if(!item){
     if(pressIsOrdinary(rootItem)&&state.selected<13){
-      root.className='inspector action-layout-inspector press-empty-inspector';
-      root.innerHTML='<div class="press-empty-message">오른쪽 목록의 액션을 선택한 탭으로 드래그하여 등록하세요.</div>';
+      root.className='inspector action-layout-inspector press-empty-inspector press-gesture-inspector';
+      root.innerHTML='<div class="press-empty-message">오른쪽 목록의 액션을 이 속성창 또는 위의 누르기 탭으로 끌어놓으세요.</div>';
+      const visual=document.createElement('div');visual.className='inspector-visual-placeholder';visual.setAttribute('aria-hidden','true');
+      root.querySelector('.press-empty-message').before(visual);
       appendInspectorSaveBar(root);
       const toolbar=document.createElement('div');toolbar.className='state-title-toolbar action-layout-toolbar';
       const saveBar=root.querySelector('.inspector-footer-region');
@@ -3851,7 +3839,7 @@ function renderInspector(){
     root.className="inspector empty";root.textContent=state.selected===null?"버튼을 선택하세요":"액션을 끌어 이 키에 놓으세요";
     if(inspectorSession?.dirty)appendInspectorSaveBar(root);return;
   }
-  root.className="inspector action-layout-inspector"+(item.type==='text'?' text-inspector':'')+(item.type==='hotkey-switch'?' hotkey-switch-inspector':'')+(item.type==='sd-plugin'?' sdk-plugin-inspector':'')+(hasStateTitlePair(item)||item.type==='indicator'?' state-title-inspector':'')+(item.type==='indicator'?' indicator-inspector':'');
+  root.className="inspector action-layout-inspector"+(pressIsOrdinary(rootItem)&&state.selected<13?' press-gesture-inspector':'')+(item.type==='text'?' text-inspector':'')+(item.type==='hotkey-switch'?' hotkey-switch-inspector':'')+(item.type==='sd-plugin'?' sdk-plugin-inspector':'')+(hasStateTitlePair(item)||item.type==='indicator'?' state-title-inspector':'')+(item.type==='indicator'?' indicator-inspector':'');
   const action=ACTIONS.get(item.type),fields=item.type==='timer'?'':actionFields(item);
   const sdkName=item.type==='sd-plugin'
     ?(item.settings?.actionUUID===HA_CUSTOM_ACTION?'Home Assistant 장치 제어':
@@ -3919,7 +3907,7 @@ function renderInspector(){
     previewButton.title='테스트 결과는 D200X 화면에서 직접 터치해야 기록됩니다';
   }
   root.querySelector('.action-head').append(previewButton);
-  appendInspectorHelp(root.querySelector('.action-head'),item);
+  // The unused upper-left '?' inspector help button is intentionally omitted.
   const overview=inspectorOverview(item);
   if(overview){
     const mainFields=root.querySelector('.properties>.fields');
@@ -4084,6 +4072,38 @@ function renderInspector(){
       pathInput.addEventListener('input',()=>{pathInput.title=pathInput.value;});
     }
   }
+}
+function bindInspectorActionDrop(){
+  const inspector=$('inspector');
+  const isActionDrag=event=>Array.from(event.dataTransfer?.types||[]).includes('application/x-d200x-action');
+  const acceptsAction=()=>{
+    const index=state.selected;
+    if(!Number.isInteger(index)||index<0||index>=13)return false;
+    const current=DeckCore.visibleActions(state)[index];
+    // Keep folders, SDK, Key Logic and other specialist editors unchanged.
+    return !current||pressIsOrdinary(current);
+  };
+  inspector.addEventListener('dragover',event=>{
+    if(!isActionDrag(event)||!acceptsAction())return;
+    event.preventDefault();
+    if(event.dataTransfer)event.dataTransfer.dropEffect='copy';
+    inspector.classList.add('inspector-action-drop-over');
+  });
+  inspector.addEventListener('dragleave',event=>{
+    if(!inspector.contains(event.relatedTarget))
+      inspector.classList.remove('inspector-action-drop-over');
+  });
+  inspector.addEventListener('drop',event=>{
+    inspector.classList.remove('inspector-action-drop-over');
+    if(!isActionDrag(event)||!acceptsAction())return;
+    // Gesture tabs already target their own slots and stop propagation.
+    if(event.target.closest?.('.press-tab-tile'))return;
+    const id=event.dataTransfer?.getData('application/x-d200x-action');
+    if(!isAssignableAction(id))return;
+    event.preventDefault();event.stopPropagation();
+    setPressSlot(state.selected,activePressTab,newAction(id),true);
+  });
+  document.addEventListener('dragend',()=>inspector.classList.remove('inspector-action-drop-over'),true);
 }
 async function importSlotAction(index){
   if(reservedWideSlot(index))return window.d200xActionStatus?.('가로 화면에는 액션을 불러올 수 없습니다.');
@@ -6723,7 +6743,7 @@ $('key-grid').addEventListener('dragleave',event=>{
     setTimeout(()=>{if(nativeGridDrag===session&&!session.armed)clearNativeGridDrag(session,true);},1300);
   }
 });
-bindActionAppearance();renderLibrary();render();refreshSdkPlugins();
+bindInspectorActionDrop();bindActionAppearance();renderLibrary();render();refreshSdkPlugins();
 if(profileStorageFailure){
   const dialog=document.createElement('dialog');dialog.className='profile-name-dialog deckforge-input-dialog';
   const heading=document.createElement('strong');heading.textContent='프로필 파일을 읽지 못했습니다';
