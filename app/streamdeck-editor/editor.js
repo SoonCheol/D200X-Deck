@@ -2128,7 +2128,9 @@ function isCurrentInspectorAction(item){
   if(!Number.isInteger(slot)||slot<0)return false;
   const root=slot>=14?DeckCore.activeControlAction(DeckCore.controlBinding(state,slot),controlGesture):
     DeckCore.visibleActions(state)[slot];
-  return !!root&&(root===item||Object.values(root.pressActions||{}).includes(item));
+  // Ignore an asynchronous icon/path picker once its gesture tab changed.
+  return !!root&&(root===item||
+    (pressIsOrdinary(root)&&pressSlotAction(root,activePressTab)===item));
 }
 function pressEnsureMeta(root){
   if(!root)return;
