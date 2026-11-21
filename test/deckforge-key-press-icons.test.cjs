@@ -307,16 +307,20 @@ test('each gesture tab displays its own independent Key Up and Key Down artwork,
   isFusionAction:()=>false,JSON
  };
  const allSource=src.slice(displayStart,displayEnd)+'\n'+src.slice(pressStart,pressEnd)+'\n'+funcs;
- const get=vm.runInNewContext(allSource+
-  ';Object.fromEntries(["single","double","hold"].map(slot=>{const action=pressSlotAction(root,slot);'+
-  'const visual=inspectorDisplayItem(action,0);const up=displayKeyPressItem(visual,0);'+
-  'previewPressKeys.add(0);const down=displayKeyPressItem(visual,0);previewPressKeys.delete(0);'+
-  'return [slot,{up:up.icon.value,down:down.icon.value,upTitle:up.title,downTitle:down.title}];}));',context);
+ // Run the extracted renderer once: its lexical state (WeakMap/const)
+ // cannot be declared twice inside the same VM context.
+ const output=vm.runInNewContext(allSource+
+  ';({physical:displayItem(root,0).type,slots:Object.fromEntries(["single","double","hold"].map(slot=>{'+
+  'const action=pressSlotAction(root,slot);const visual=inspectorDisplayItem(action,0);'+
+  'const up=displayKeyPressItem(visual,0);previewPressKeys.add(0);'+
+  'const down=displayKeyPressItem(visual,0);previewPressKeys.delete(0);'+
+  'return [slot,{up:up.icon.value,down:down.icon.value,upTitle:up.title,downTitle:down.title}];}))});',context);
+ const get=output.slots;
  assert.equal(get.single.up,'single-up');assert.equal(get.single.down,'single-down');
  assert.equal(get.double.up,'double-up');assert.equal(get.double.down,'double-down');
  assert.equal(get.hold.up,'hold-up');assert.equal(get.hold.down,'hold-down');
  assert.equal(get.single.upTitle,'open-app UP');assert.equal(get.hold.downTitle,'hotkey DOWN');
- const physical=vm.runInNewContext(allSource+';displayItem(root,0).type',context);
+ const physical=output.physical;
  assert.equal(physical,'hotkey','physical representative remains selected hold action');
  assert.equal(root.settings.keyPressIcons.down.value,'single-down');
  assert.equal(root.pressActions.double.settings.keyPressIcons.up.value,'double-up');
