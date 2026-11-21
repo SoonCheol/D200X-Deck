@@ -3,6 +3,7 @@ const {test}=require('node:test');
 const assert=require('node:assert/strict');
 const fs=require('node:fs');
 const path=require('node:path');
+const vm=require('node:vm');
 const {prepareAttachments}=require('../app/streamdeck-editor/ai/attachments.cjs');
 const {chat,cleanHistory}=require('../app/streamdeck-editor/ai/responses.cjs');
 
@@ -75,4 +76,68 @@ test('inspector preserves original cards and uses Key Up, Key Down, then preview
   assert.match(style,/\.action-layout-inspector \.action-single-visual\{\s*grid-template-columns:minmax\(0,1fr\) 98px/);
   assert.match(style,/\.action-layout-inspector \.action-preview-card \.preview-key\{width:86px;height:86px/);
   assert.match(style,/\.state-title-inspector \.state-title-layout \.sdk-state-buttons button\{[\s\S]*?width:76px;height:25px/);
+});
+
+test('pasted screenshot is queued, not sent; normal text Ctrl+V is untouched',async()=>{
+  const panel=fs.readFileSync(path.join(__dirname,'../app/streamdeck-editor/ai/panel.js'),'utf8');
+  const first=panel.indexOf('async function queueAttachments(files){');
+  const last=panel.indexOf("\n$('input').oninput=controls;",first);
+  assert.ok(first>=0&&last>first);
+  const input={},otherInput={},listeners={},queued=[],notices=[];
+  class ClipboardFile{
+    constructor(parts,name,options){this.name=name;this.type=options.type;this.size=parts.reduce((n,part)=>n+part.size,0);}
+  }
+  const ctx={
+    File:ClipboardFile,Date:{now:()=>123456789},
+    document:{addEventListener:(event,fn)=>{listeners[event]=fn;}},
+    $:id=>id==='input'?input:null,
+    attachments:[],busy:'',preview:null,readingAttachment:false,connected:true,
+    MAX_ATTACH:3,MAX_FILE_BYTES:6*1024*1024,MAX_TOTAL_BYTES:12*1024*1024,
+    ALLOWED_EXT:new Set(['png','jpg','jpeg','webp']),
+    controls:()=>{},renderAttachments:()=>{},
+    readAttachment:async()=>('data:image/png;base64,iVBORw0KGgo='),
+    notice:text=>notices.push(text),
+    queueCalls:queued
+  };
+  // Bind the same clipboard listener and shared queue implementation, but no app or network.
+  const extract=panel.slice(first,last)
+    .replace("$('attach').onclick=()=>$('attach-files').click();","")
+    .replace(/\$\('attach-files'\)\.addEventListener\('change',[\s\S]*?\n\}\);\n\/\/ Clipboard screenshots/,"// Clipboard screenshots");
+  assert.doesNotMatch(extract,/attach-files/);
+  vm.runInNewContext(extract+'\nthis.enqueue=queueAttachments;',ctx);
+  assert.equal(typeof listeners.paste,'function');
+  const textPaste={target:input,clipboardData:{items:[{kind:'string',type:'text/plain'}]},preventDefault(){this.blocked=true;}};
+  listeners.paste(textPaste);
+  assert.equal(textPaste.blocked,undefined);
+  assert.equal(ctx.attachments.length,0);
+
+  const item={kind:'file',type:'image/png',getAsFile:()=>({size:1024,type:'image/png'})};
+  const otherPaste={target:otherInput,clipboardData:{items:[item]},preventDefault(){this.blocked=true;}};
+  otherInput.matches=()=>true;
+  listeners.paste(otherPaste);
+  assert.equal(otherPaste.blocked,undefined);
+
+  const screenshot={target:input,clipboardData:{items:[item]},preventDefault(){this.blocked=true;}};
+  listeners.paste(screenshot);
+  assert.equal(screenshot.blocked,true);
+  await new Promise(resolve=>setImmediate(resolve));
+  assert.equal(ctx.attachments.length,1);
+  assert.equal(ctx.attachments[0].name,'clipboard-123456789-1.png');
+  assert.equal(ctx.attachments[0].size,1024);
+  assert.equal(ctx.attachments[0].dataUrl,'data:image/png;base64,iVBORw0KGgo=');
+  // No automatic send call exists inside the clipboard handler/queue.
+  assert.doesNotMatch(extract,/api\.send\(/);
+
+  ctx.attachments.push(ctx.attachments[0],ctx.attachments[0]);
+  const overflow={target:input,clipboardData:{items:[item]},preventDefault(){this.blocked=true;}};
+  listeners.paste(overflow);
+  assert.equal(overflow.blocked,true);
+  await new Promise(resolve=>setImmediate(resolve));
+  assert.equal(ctx.attachments.length,3);
+  assert.ok(notices.some(msg=>msg.includes('최대 3개')));
+  ctx.busy='chat';
+  const blocked={target:input,clipboardData:{items:[item]},preventDefault(){this.blocked=true;}};
+  listeners.paste(blocked);
+  assert.equal(blocked.blocked,true);
+  assert.equal(ctx.attachments.length,3);
 });

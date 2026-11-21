@@ -89,11 +89,9 @@ function readAttachment(file){
     reader.readAsDataURL(file);
   });
 }
-$('attach').onclick=()=>$('attach-files').click();
-$('attach-files').addEventListener('change',async()=>{
-  const files=Array.from($('attach-files').files||[]);
-  $('attach-files').value='';
+async function queueAttachments(files){
   if(!files.length)return;
+  if(busy||preview||readingAttachment||!connected){notice('AI 연결 및 현재 작업 상태를 확인하세요.');return;}
   if(attachments.length+files.length>MAX_ATTACH){notice('첨부 파일은 최대 3개까지 선택할 수 있습니다.');return;}
   let total=attachments.reduce((sum,file)=>sum+file.size,0);
   for(const file of files){
@@ -113,6 +111,33 @@ $('attach-files').addEventListener('change',async()=>{
     attachments.push(...added);renderAttachments();notice('첨부 준비 완료 · 전송 버튼을 누르면 AI에 전달됩니다.');
   }catch(e){notice(e.message);}
   finally{readingAttachment=false;renderAttachments();controls();}
+}
+$('attach').onclick=()=>$('attach-files').click();
+$('attach-files').addEventListener('change',()=>{
+  const files=Array.from($('attach-files').files||[]);
+  $('attach-files').value='';
+  void queueAttachments(files);
+});
+// Clipboard screenshots are normally supplied as image/png via paste.
+// Plain-text Ctrl+V is intentionally left to the native textarea.
+function clipboardImageFiles(data){
+  const imageItems=Array.from(data?.items||[]).filter(item=>item.kind==='file'&&/^image\/(?:png|jpeg|webp)$/i.test(item.type));
+  return imageItems.map((item,index)=>{
+    const file=item.getAsFile();
+    if(!file)return null;
+    const mime=item.type.toLowerCase(),ext=mime==='image/jpeg'?'jpg':mime.split('/')[1];
+    return new File([file],'clipboard-'+Date.now()+'-'+(index+1)+'.'+ext,{type:mime});
+  }).filter(Boolean);
+}
+document.addEventListener('paste',event=>{
+  const files=clipboardImageFiles(event.clipboardData);
+  if(!files.length)return;
+  const target=event.target;
+  // Do not override paste into other editable controls.
+  if(target!==$('input')&&(target?.isContentEditable||target?.matches?.('input,textarea,[contenteditable="true"]')))return;
+  event.preventDefault();
+  if(busy||preview||readingAttachment||!connected){notice('첨부하려면 AI 연결 및 현재 작업 상태를 확인하세요.');return;}
+  void queueAttachments(files);
 });
 
 $('input').oninput=controls;
