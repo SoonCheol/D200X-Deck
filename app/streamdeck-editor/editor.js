@@ -5574,7 +5574,11 @@ function chooseRestorePlan(info){
       for(const [value,text] of choices){const option=document.createElement('option');option.value=value;option.textContent=text;select.append(option);}
       label.append(select);return {label,select};
     }
-    const mode=selectField('복원 방식',[['merge','병합 복원 — 기존 데이터 유지'],['select','선택 복원 — 원하는 항목 선택'],['all','전체 복원 — 백업 당시 상태로 교체']]);
+    const mode=selectField('복원 방식',[
+      ['select','선택 복원 — 체크한 프로필·템플릿·아이콘팩만 복원'],
+      ['merge','병합 복원 — 백업의 모든 항목을 합침 (이름 중복 처리 선택)'],
+      ['all','전체 복원 — 현재 설정을 백업으로 교체 (기존 항목 삭제 가능)']
+    ]);
     const conflict=selectField('같은 이름의 항목',[['keep','기존 유지 (건너뛰기)'],['overwrite','덮어쓰기'],['rename','새 이름으로 복원']]);
     const list=document.createElement('div');list.style.cssText='max-height:260px;overflow:auto;border:1px solid #555;border-radius:4px;padding:8px';
     const groups={},rows=[];
@@ -5584,7 +5588,7 @@ function chooseRestorePlan(info){
       groups[kind]=[];
       for(const item of info.items[kind]){
         const line=document.createElement('label');line.style.cssText='display:flex;gap:7px;align-items:center;padding:4px 0;overflow-wrap:anywhere';
-        const check=document.createElement('input');check.type='checkbox';check.checked=true;check.style.width='auto';
+        const check=document.createElement('input');check.type='checkbox';check.checked=false;check.style.width='auto';
         const name=document.createElement('span');name.textContent=item.name+(item.matches?' · 같은 이름 '+item.matches+'개':'');
         line.append(check,name);section.append(line);groups[kind].push({id:item.id,check});rows.push(check);
       }
@@ -5602,10 +5606,16 @@ function chooseRestorePlan(info){
       conflict.label.style.display=all?'none':'grid';
       appearanceLabel.style.display=all||!info.items.appearance?'none':'flex';
       for(const check of rows)check.disabled=!selection;
-      warning.textContent=all?'주의: 백업에 없는 기존 프로필·템플릿·아이콘팩이 사라집니다.':'기존 항목은 기본적으로 유지합니다. 복원 전 안전 백업을 자동 저장합니다.';
+      warning.textContent=all?'주의: 현재 설정을 백업 당시로 교체하며 백업에 없는 항목은 삭제됩니다.'
+        :selection?'체크한 항목만 복원합니다. 같은 이름은 아래 선택에 따르며 복원 전 안전 백업을 저장합니다.'
+        :'백업에 포함된 모든 항목을 기존 설정에 합칩니다. 같은 이름은 아래 선택에 따라 처리합니다.';
       warning.style.color=all?'#ffb777':'#bbb';
+      submit.disabled=selection&&!rows.some(check=>check.checked)&&!(info.items.appearance&&appearance.checked);
     }
-    mode.select.onchange=refresh;refresh();
+    mode.select.onchange=refresh;
+    appearance.onchange=refresh;
+    for(const check of rows)check.onchange=refresh;
+    refresh();
     form.onsubmit=event=>{event.preventDefault();dialog.close('save');};
     actions.append(cancel,submit);form.append(heading,note,mode.label,conflict.label,list,appearanceLabel,warning,actions);dialog.append(form);
     dialog.addEventListener('close',()=>{
