@@ -9,7 +9,7 @@
     if(text!==undefined&&text!==null)node.textContent=String(text);
     return node;
   }
-  function show({title,kind='info',intro='',fields=[],included=[],excluded=[],detailLabel='',detail='',warning='',ask=false,actionLabel='확인',cancelLabel='취소'}={}){
+  function show({title,kind='info',intro='',fields=[],included=[],excluded=[],detailLabel='',detail='',warning='',ask=false,actionLabel='확인',cancelLabel='취소',alternateLabel=''}={}){
     if(typeof title!=='string'||!title.trim()||!Object.hasOwn(icons,kind))throw Error('대화상자 제목 또는 상태가 올바르지 않습니다.');
     return new Promise(resolve=>{
       const dialog=element('dialog','deckforge-message-dialog');
@@ -62,11 +62,16 @@
         cancel.type='button';cancel.addEventListener('click',()=>dialog.close('cancel'));
         footer.append(cancel);
       }
+      if(alternateLabel){
+        const alternate=element('button','deckforge-message-button',alternateLabel);
+        alternate.type='button';alternate.addEventListener('click',()=>dialog.close('alternate'));
+        footer.append(alternate);
+      }
       const accept=element('button','deckforge-message-button deckforge-message-primary',actionLabel);
       accept.type='button';accept.addEventListener('click',()=>dialog.close('accept'));
       footer.append(accept);
       dialog.append(header,main,footer);
-      dialog.addEventListener('close',()=>{const accepted=dialog.returnValue==='accept';dialog.remove();resolve(accepted);},{once:true});
+      dialog.addEventListener('close',()=>{const choice=dialog.returnValue==='accept'?true:dialog.returnValue==='alternate'?'alternate':false;dialog.remove();resolve(choice);},{once:true});
       document.body.append(dialog);dialog.showModal();accept.focus();
     });
   }

@@ -4,7 +4,7 @@ const fs=require('node:fs'),os=require('node:os'),path=require('node:path'),cryp
 const {GoogleDrive,clientConfig,authorizationUrl,uploadSession,backupMeta,SCOPE}=require('../app/streamdeck-editor/google-drive.cjs');
 const config={installed:{client_id:'123-test.apps.googleusercontent.com',client_secret:'local-test-secret',auth_uri:'https://untrusted.invalid'}};
 const bytes=Buffer.from('encrypted backup fixture'),filename='DeckForge-2026-11-21-test.dfbackup';
-const plainBytes=Buffer.from('{"format":"deckforge-backup-v1"}'),plainName='DeckForge-2026-11-21-plain.json';
+const plainBytes=Buffer.from('{"format":"deckforge-backup-v1"}'),plainName='DeckForge-2026-11-21-plain.dfjson';
 const plainMeta={id:'file_json',name:plainName,createdTime:'2026-11-21T01:00:00Z',size:String(plainBytes.length),mimeType:'application/json',trashed:false,appProperties:{deckforge:'backup-v1'},md5Checksum:crypto.createHash('md5').update(plainBytes).digest('hex')};
 const meta={id:'file_1',name:filename,createdTime:'2026-11-21T01:00:00Z',size:String(bytes.length),mimeType:'application/octet-stream',trashed:false,appProperties:{deckforge:'backup-v1'},md5Checksum:crypto.createHash('md5').update(bytes).digest('hex')};
 const json=data=>new Response(JSON.stringify(data),{headers:{'Content-Type':'application/json'}});
@@ -14,11 +14,12 @@ test('Desktop OAuth, fixed endpoints and scoped backup metadata',()=>{
   assert.throws(()=>uploadSession('https://evil.example/upload/drive/v3/files?upload_id=x'));
   assert.throws(()=>uploadSession('http://www.googleapis.com/upload/drive/v3/files?upload_id=x'));
   assert.equal(uploadSession('https://www.googleapis.com/upload/drive/v3/files?upload_id=x'),'https://www.googleapis.com/upload/drive/v3/files?upload_id=x');
-  assert.equal(backupMeta({...meta,name:'DeckForge-general.json',mimeType:'application/json'}).name,'DeckForge-general.json');
-  assert.equal(backupMeta({...meta,name:'DeckForge-general.json'}).name,'DeckForge-general.json');
+  assert.equal(backupMeta({...meta,name:'DeckForge-general.dfjson',mimeType:'application/json'}).name,'DeckForge-general.dfjson');
+  assert.equal(backupMeta({...meta,name:'DeckForge-general.dfjson'}).name,'DeckForge-general.dfjson');
   assert.equal(backupMeta({...meta,mimeType:'application/json'}),null);
-  assert.equal(backupMeta({...meta,name:'DeckForge-general.json',mimeType:'text/plain'}),null);
-  assert.equal(backupMeta({...meta,name:'other.json'}),null);
+  assert.equal(backupMeta({...meta,name:'DeckForge-general.dfjson',mimeType:'text/plain'}),null);
+  assert.equal(backupMeta({...meta,name:'other.dfjson'}),null);
+  assert.equal(backupMeta({...meta,name:'DeckForge-general.json',mimeType:'application/json'}),null);
   assert.equal(backupMeta({...meta,appProperties:{}}),null);assert.equal(backupMeta({...meta,trashed:true}),null);
 });
 test('connect, local protected credentials, token refresh, scoped upload/list/download',async t=>{
@@ -39,12 +40,12 @@ test('connect, local protected credentials, token refresh, scoped upload/list/do
     if(u.pathname==='/upload/drive/v3/files'&&options.method==='POST'){
       const body=JSON.parse(options.body);assert.deepEqual(body.parents,['folder_1']);assert.equal(body.appProperties.deckforge,'backup-v1');
       uploadName=body.name;
-      const mime=uploadName.endsWith('.json')?'application/json':'application/octet-stream';
+      const mime=uploadName.endsWith('.dfjson')?'application/json':'application/octet-stream';
       assert.equal(body.mimeType,mime);assert.equal(options.headers['X-Upload-Content-Type'],mime);
       return new Response(null,{status:200,headers:{Location:'https://www.googleapis.com/upload/drive/v3/files?upload_id=abc'}});
     }
     if(u.pathname==='/upload/drive/v3/files'&&options.method==='PUT'){
-      const isPlain=uploadName.endsWith('.json');assert.deepEqual(options.body,isPlain?plainBytes:bytes);
+      const isPlain=uploadName.endsWith('.dfjson');assert.deepEqual(options.body,isPlain?plainBytes:bytes);
       assert.equal(options.headers['Content-Type'],isPlain?'application/json':'application/octet-stream');
       // A Drive resumable response may omit fields while a subsequent
       // files.get returns the complete, authoritative metadata.

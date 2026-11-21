@@ -1255,3 +1255,22 @@ dialog.deckforge-message-dialog::backdrop{background:#000a}
   .deckforge-message-fields{grid-template-columns:86px minmax(0,1fr);gap:8px}
   .deckforge-message-list{grid-template-columns:1fr}
 }
+
+/* Text input layout: label + textarea align at Key Up card's left edge.
+   Keep the common preview, both icon cards, buttons and toolbar untouched. */
+.state-title-inspector.text-inspector .state-title-extra-properties>.fields>.field:has(textarea[data-field="body"]){
+  display:block;width:100%;min-width:0;margin:2px 0;
+}
+.state-title-inspector.text-inspector .state-title-extra-properties>.fields>.field:has(textarea[data-field="body"])>label{
+  display:block;text-align:left;justify-self:start;margin:0 0 7px;
+  font-weight:600;color:#dedede;
+}
+.state-title-inspector.text-inspector .state-title-extra-properties>.fields>.field:has(textarea[data-field="body"])>div{
+  width:100%;min-width:0;
+}
+.state-title-inspector.text-inspector .state-title-extra-properties textarea[data-field="body"]{
+  display:block;box-sizing:border-box;width:100%;
+}
+.state-title-inspector.text-inspector .state-title-extra-properties #text-count{
+  display:block;text-align:right;margin-top:3px;
+}

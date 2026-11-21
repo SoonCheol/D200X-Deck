@@ -70,3 +70,17 @@ test('common dialog is loaded before editor and backup messages avoid native con
   const helper=fs.readFileSync(path.join(base,'deckforge-dialog.js'),'utf8');
   assert.doesNotMatch(helper,/.innerHTML\s*=/);
 });
+
+test('alternate dialog action is distinct from confirm and cancel',async()=>{
+  const {document,window}=load();
+  const first=window.DeckForgeDialogs.show({title:'민감정보 검사',kind:'warning',ask:true,alternateLabel:'일반 백업 유지',actionLabel:'암호화 백업'});
+  let modal=document.body.children.at(-1);
+  const options=descendants(modal);
+  assert.equal(options.filter(x=>x.tagName==='BUTTON').length,4);
+  options.find(x=>x.textContent==='일반 백업 유지').events.click[0]();
+  assert.equal(await first,'alternate');
+  const second=window.DeckForgeDialogs.show({title:'민감정보 검사',kind:'warning',ask:true,alternateLabel:'일반 백업 유지',actionLabel:'암호화 백업'});
+  modal=document.body.children.at(-1);
+  descendants(modal).find(x=>x.textContent==='암호화 백업').events.click[0]();
+  assert.equal(await second,true);
+});

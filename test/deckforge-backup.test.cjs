@@ -25,6 +25,20 @@ function setup(t){
   const make=()=>Backup.snapshot({store,packsFile,appearance,version:'1.1.76'});
   return {root,store,packsFile,make};
 }
+test('passwords support four or more characters for encryption and safety backups',t=>{
+  const {root,make}=setup(t),data=make();
+  for(const password of ['1234','test-only-passphrase']){
+    const encrypted=Backup.encrypt(data,password);
+    assert.deepEqual(Backup.decrypt(encrypted,password),data);
+    const written=Backup.writeArchive(root,data,password,{safety:true});
+    assert.deepEqual(Backup.readArchive(written.file,password),data);
+  }
+  for(const password of ['123','','abc']){
+    assert.throws(()=>Backup.encrypt(data,password),/4~256자/);
+    assert.throws(()=>Backup.decrypt(Backup.encrypt(data,'1234'),password),/4~256자/);
+  }
+});
+
 test('portable authenticated backups preserve settings and never include separate credential files',t=>{
   const {root,make}=setup(t),data=make(),bytes=Backup.encrypt(data,password);
   assert.equal(bytes.includes(Buffer.from('private-action-data')),false);
@@ -68,19 +82,15 @@ test('restore failure rolls back icon packs and retains existing profiles and sa
   assert.equal(fs.readdirSync(safetyDirectory).length,1);
 });
 
-test('plain JSON has identical scope and accepts legacy full profile exports',t=>{
+test('plain DFJSON preserves scope and rejects legacy raw-profile payloads',t=>{
   const {root,make}=setup(t),data=make();
   const plain=Backup.encode(data,'','plain');
   assert.deepEqual(Backup.decode(plain,'','plain'),data);
   assert.equal(plain.includes(Buffer.from('private-action-data')),true);
   const file=Backup.writeArchive(root,data,'',{format:'plain'});
-  assert.match(file.filename,/\.json$/);
+  assert.match(file.filename,/\.dfjson$/);
   assert.deepEqual(Backup.readArchive(file.file,'','plain'),data);
-  const old={...data.profiles,actionPanelAppearance:appearance};delete old.profileTemplates;delete old.profileTemplateSeq;
-  const restored=Backup.decode(Buffer.from(JSON.stringify(old)),'','plain',data);
-  assert.deepEqual(restored.packs,data.packs);
-  assert.deepEqual(restored.profiles.profileTemplates,data.profiles.profileTemplates);
-  assert.equal(restored.legacy,true);
+  assert.throws(()=>Backup.decode(Buffer.from(JSON.stringify(data.profiles)),'','plain',data),/지원하는 DeckForge 백업 파일/);
   assert.throws(()=>Backup.decode(Buffer.from('{}'),'','plain',data));
   assert.throws(()=>Backup.writeArchive(root,data,'',{format:'plain',safety:true}));
 });

@@ -530,9 +530,16 @@ test('original Soundboard actions expose playback and stop planning',()=>{
   assert.deepEqual(core.planAction(core.createAction('audio-stop'),0,1),{kind:'audio-stop'});
 });
 
-test('original text action plans either clipboard or Unicode typing with chosen mode',()=>{
+test('text action defaults to typing and preserves existing clipboard settings',()=>{
   const a=core.createAction('text');a.settings.body='한글과 English';a.settings.enter=true;
-  assert.deepEqual(core.planAction(a,0,1),{kind:'type-text',text:'한글과 English',enter:true,mode:'clipboard'});
+  assert.deepEqual(core.planAction(a,0,1),{kind:'type-text',text:'한글과 English',enter:true,mode:'typing'});
+  a.settings.mode='clipboard';
+  assert.equal(core.planAction(a,0,1).mode,'clipboard');
+  a.settings.mode='typing';
+  assert.equal(core.planAction(a,0,1).mode,'typing');
+  const old=core.cleanAction({type:'text',settings:{body:'기존 텍스트'}});
+  assert.equal(old.settings.mode,'clipboard');
+  assert.equal(core.planAction(old,0,1).mode,'clipboard');
 });
 
 test('original timer planning validates bounds',()=>{

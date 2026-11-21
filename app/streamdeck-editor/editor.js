@@ -1243,7 +1243,7 @@ const PANEL_ACTION_HELP={
   "desktop-switch":"Win+Ctrl+←/→를 보내 이전 또는 다음 윈도우 가상 데스크톱으로 이동합니다. 가상 데스크톱을 미리 만들어 두어야 합니다.",
   "hotkey":"사용자가 정한 키 조합을 한 번 실행합니다. 직접 지정하거나 복사·저장·창 전환 등의 프리셋을 선택하세요. 대상 앱이 해당 단축키를 지원해야 합니다.",
   "hotkey-switch":"두 개의 단축키를 등록하고 누를 때마다 번갈아 실행합니다. 실제 앱 상태를 자동으로 판별하는 기능은 아닙니다.",
-  "text":"등록한 텍스트를 클립보드 붙여넣기 또는 타이핑 시뮬레이션으로 입력합니다. 메시지 뒤 Enter 옵션을 설정할 수 있습니다. 현재 입력 대상에 실행됩니다.",
+  "text":"등록한 텍스트를 현재 입력 위치에 입력합니다. 기본은 타이핑 시뮬레이션이며, '클립보드에 추가'를 체크하면 클립보드에 저장하고 Ctrl+V로 붙여넣습니다. Enter 추가 옵션을 선택할 수 있습니다.",
   "system-scroll":"세로 또는 가로 스크롤 방향과 변화량을 지정합니다. 노브의 좌우 회전에도 적합합니다. 실제 스크롤은 활성 앱의 입력 처리에 따릅니다.",
   "edit-history":"Ctrl+Z 또는 Ctrl+Y를 보내 실행 취소·다시 실행을 요청합니다. 횟수 1·2·5·10을 선택할 수 있으며 실제 동작은 앱의 단축키 지원에 따릅니다.",
   "system-zoom":"Ctrl+Plus, Ctrl+Minus 또는 Ctrl+0을 보내 현재 앱의 확대·축소·원래 크기를 요청합니다. 반복 횟수를 정할 수 있습니다. 윈도우 디스플레이 배율을 변경하지 않습니다.",
@@ -1538,7 +1538,7 @@ const pathPicker=(field,label,kind='file')=>
     ? '<button type="button" data-path-picker="'+field+'" data-path-kind="folder" title="폴더 선택">▣</button>' : '')+
   '</div></div>';
 const check=(field,label,invert=false)=>`<div class="field checkbox-setting-field"><label for="s-${field}">${label}</label><input id="s-${field}" type="checkbox" data-field="${field}" ${invert?'data-inverted="true"':''} ${invert?!valueOf(active,field)?"checked":"":valueOf(active,field)?"checked":""}></div>`;
-const fieldChecked=node=>node.dataset.inverted==="true"?!node.checked:node.checked;
+const fieldChecked=node=>node.dataset.textClipboard==='true'?(node.checked?'clipboard':'typing'):node.dataset.inverted==="true"?!node.checked:node.checked;
 let active=null;
 function actionFields(item){
   active=item;
@@ -1561,7 +1561,7 @@ function actionFields(item){
     case "close":return pathPicker("path","대상 경로")+check("force","강제 종료");
     case "hotkey":return select("preset","동작 선택",HOTKEY_PRESET_LABELS)+input("keys","단축키","클릭하여 할당");
     case "hotkey-switch":return input("first","단축키 1")+input("second","단축키 2");
-    case "text":return `<div class="field"><label for="s-body">텍스트</label><div><textarea id="s-body" data-field="body">${escapeHtml(valueOf(item,"body"))}</textarea><div class="hint" id="text-count">${String(valueOf(item,"body")).length} / -</div></div></div>`+check("enter","Enter 추가")+select("mode","텍스트 모드",[["clipboard","클립보드에서 붙여넣기"],["typing","타이핑 시뮬레이션"]]);
+    case "text":return `<div class="field"><label for="s-body">텍스트</label><div><textarea id="s-body" data-field="body">${escapeHtml(valueOf(item,"body"))}</textarea><div class="hint" id="text-count">${String(valueOf(item,"body")).length} / -</div></div></div>`+check("enter","Enter 추가")+`<div class="field checkbox-setting-field"><label for="s-mode">클립보드에 추가</label><input id="s-mode" type="checkbox" data-field="mode" data-text-clipboard="true" ${item.settings?.mode==='typing'?'':'checked'}></div>`;
     case "media":return select("op","동작",[["previous","이전 트랙"],["playpause","재생 / 일시정지"],["next","다음 트랙"],["stop","정지"],["mute","음소거"],["up","음량 키우기"],["down","음량 줄이기"]]);
     case "system-volume":return select("direction","동작",[["up","음량 키우기"],["down","음량 줄이기"]])+select("step","변화량",[[1,"1"],[2,"2"],[5,"5"],[10,"10"]]);
     case "system-mute":return '<div class="field"><span></span><span class="hint">누를 때마다 음소거 전환</span></div>';
@@ -3522,7 +3522,7 @@ function renderInspector(){
   if(state.selected===13&&wideDisplayAvailable()){renderWideInspector();return;}
   if(!item){root.className="inspector empty";root.textContent=state.selected===null?"버튼을 선택하세요":"액션을 끌어 이 키에 놓으세요";
     if(inspectorSession?.dirty)appendInspectorSaveBar(root);return;}
-  root.className="inspector action-layout-inspector"+(item.type==='hotkey-switch'?' hotkey-switch-inspector':'')+(item.type==='sd-plugin'?' sdk-plugin-inspector':'')+(hasStateTitlePair(item)||item.type==='indicator'?' state-title-inspector':'')+(item.type==='indicator'?' indicator-inspector':'');
+  root.className="inspector action-layout-inspector"+(item.type==='text'?' text-inspector':'')+(item.type==='hotkey-switch'?' hotkey-switch-inspector':'')+(item.type==='sd-plugin'?' sdk-plugin-inspector':'')+(hasStateTitlePair(item)||item.type==='indicator'?' state-title-inspector':'')+(item.type==='indicator'?' indicator-inspector':'');
   const action=ACTIONS.get(item.type),fields=item.type==='timer'?'':actionFields(item);
   const sdkName=item.type==='sd-plugin'
     ?(item.settings?.actionUUID===HA_CUSTOM_ACTION?'Home Assistant 장치 제어':
@@ -5409,9 +5409,9 @@ function askBackupPassword(creating,safety=false){
     const dialog=document.createElement('dialog');dialog.className='profile-name-dialog';
     const form=document.createElement('form');form.method='dialog';
     const heading=document.createElement('strong');heading.textContent=safety?'복원 전 안전 백업 비밀번호 설정':creating?'백업 비밀번호 설정':'백업 비밀번호 입력';
-    const note=document.createElement('div');note.textContent=safety?'일반 파일 자체에는 비밀번호가 없습니다. 기존 데이터를 암호화하여 안전하게 보존할 비밀번호를 8자 이상으로 설정하세요.':creating?'8자 이상. 다른 PC에서도 같은 비밀번호가 필요합니다. 비밀번호는 저장하지 않으며 잊어버리면 복원할 수 없습니다. 인증 정보가 포함될 수 있는 설정은 암호화됩니다.':'백업 생성 시 사용한 비밀번호를 입력하세요.';
-    const input=document.createElement('input');input.type='password';input.required=true;input.minLength=8;input.maxLength=256;input.autocomplete='off';input.placeholder='비밀번호';input.setAttribute('aria-label','백업 비밀번호');
-    const repeat=document.createElement('input');repeat.type='password';repeat.required=creating;repeat.minLength=8;repeat.maxLength=256;repeat.autocomplete='off';repeat.placeholder='비밀번호 확인';repeat.setAttribute('aria-label','백업 비밀번호 확인');
+    const note=document.createElement('div');note.textContent=safety?'일반 파일 자체에는 비밀번호가 없습니다. 기존 데이터를 암호화하여 안전하게 보존할 비밀번호를 4자 이상으로 설정하세요.':creating?'4자 이상. 다른 PC에서도 같은 비밀번호가 필요합니다. 비밀번호는 저장하지 않으며 잊어버리면 복원할 수 없습니다. 인증 정보가 포함될 수 있는 설정은 암호화됩니다.':'백업 생성 시 사용한 비밀번호를 입력하세요.';
+    const input=document.createElement('input');input.type='password';input.required=true;input.minLength=4;input.maxLength=256;input.autocomplete='off';input.placeholder='비밀번호';input.setAttribute('aria-label','백업 비밀번호');
+    const repeat=document.createElement('input');repeat.type='password';repeat.required=creating;repeat.minLength=4;repeat.maxLength=256;repeat.autocomplete='off';repeat.placeholder='비밀번호 확인';repeat.setAttribute('aria-label','백업 비밀번호 확인');
     const actions=document.createElement('div');actions.className='profile-name-actions';
     const cancel=document.createElement('button');cancel.type='button';cancel.textContent='취소';cancel.addEventListener('click',()=>dialog.close('cancel'));
     const submit=document.createElement('button');submit.type='submit';submit.textContent='확인';submit.className='primary';
@@ -5432,6 +5432,28 @@ function backupReady(){
     throw Error('진행 중인 동작을 먼저 중단하세요.');
 }
 let backupUiBusy=false;
+async function inspectPlainBackupFormat(format){
+  if(format!=='plain')return format;
+  backupReady();
+  if(!window.deckBridge?.scanBackup)throw Error('민감정보 검사 기능을 사용할 수 없습니다.');
+  if(!persist(false))throw Error('프로필 저장 실패');
+  const result=await window.deckBridge.scanBackup(window.D200XPanelIcons.exportConfig());
+  if(!result||!Array.isArray(result.findings)||!Number.isInteger(result.total))throw Error('백업 민감정보 검사 결과가 올바르지 않습니다.');
+  if(!result.total&&!result.incomplete)return format;
+  const shown=result.findings.slice(0,24);
+  const extra=Math.max(0,result.total-shown.length);
+  const detail=shown.map(item=>item.type+' · '+item.location).join('\n')
+    +(extra?'\n외 '+extra+'건':'')+(result.incomplete?'\n일부 데이터의 검사 범위를 초과했습니다.':'');
+  const decision=await window.DeckForgeDialogs.show({
+    title:'백업 민감정보 검사 결과',kind:'warning',
+    intro:result.total?'개인정보 또는 인증정보로 추정되는 항목 '+result.total+'건이 발견되었습니다.':'모든 항목을 검사하지 못했습니다.',
+    detailLabel:'추정 항목과 저장 위치',detail:detail||'검사하지 못한 항목이 있습니다.',
+    warning:'실제 값은 표시하지 않습니다. 검사는 일부 정보를 놓치거나 잘못 탐지할 수 있습니다. 일반 백업은 암호화되지 않습니다.',
+    ask:true,cancelLabel:'취소',alternateLabel:'일반 백업 유지',actionLabel:'암호화 백업'
+  });
+  if(decision===false)return null;
+  return decision===true?'encrypted':'plain';
+}
 async function showBackupConfirmation(location,format,account=''){
   const drive=location==='drive';
   const plain=format==='plain';
@@ -5442,11 +5464,11 @@ async function showBackupConfirmation(location,format,account=''){
     fields:[
       ...(drive?[{label:'Google 계정',value:account}]:[]),
       {label:'저장 위치',value:drive?'내 드라이브 / DeckForge Backups':'내 PC / 다음 단계에서 폴더 선택'},
-      {label:'백업 형식',value:plain?'일반 JSON (암호화 없음)':'암호화 백업 (.dfbackup)'}
+      {label:'백업 형식',value:plain?'일반 DFJSON (암호화 없음)':'암호화 백업 (.dfbackup)'}
     ],
     included:['전체 프로필','사용자 템플릿','사용자 아이콘팩','액션 목록 디자인'],
     excluded:['별도 로그인 정보 및 HA 연결 토큰 파일','플러그인 프로그램 및 전역 설정'],
-    warning:plain?'일반 JSON은 암호화되지 않아 프로필에 포함된 민감한 설정이 노출될 수 있습니다.':'',
+    warning:plain?'일반 DFJSON은 암호화되지 않아 프로필에 포함된 민감한 설정이 노출될 수 있습니다.':'',
     ask:true,actionLabel:'백업 시작'
   });
 }
@@ -5464,7 +5486,7 @@ function chooseBackupOptions(){
     form.append(title);
     const operation=field('작업',[['backup','백업'],['restore','복원']]);
     const location=field('저장 위치',[['local','내 PC'],['drive','Google Drive']]);
-    const format=field('파일 형식',[['encrypted','암호화 백업 (.dfbackup)'],['plain','일반 백업 (.json)']]);
+    const format=field('파일 형식',[['encrypted','암호화 백업 (.dfbackup)'],['plain','일반 백업 (.dfjson)']]);
     const note=document.createElement('div');note.style.fontSize='12px';
     const actions=document.createElement('div');actions.className='profile-name-actions';
     const cancel=document.createElement('button');cancel.type='button';cancel.textContent='취소';cancel.onclick=()=>dialog.close('cancel');
@@ -5473,7 +5495,7 @@ function chooseBackupOptions(){
       const restoring=operation.select.value==='restore',cloud=location.select.value==='drive';
       format.label.style.display=restoring&&cloud?'none':'grid';
       submit.textContent=restoring?'복원 파일 선택':'백업 시작';
-      note.textContent=restoring?'복원 전 기존 데이터의 암호화 안전 백업을 저장합니다.':'전체 프로필·템플릿·사용자 아이콘팩·액션 목록 디자인을 저장합니다.'+(format.select.value==='plain'?' 일반 JSON은 암호화되지 않아 민감한 설정이 노출될 수 있습니다.':'');
+      note.textContent=restoring?'복원 전 기존 데이터의 암호화 안전 백업을 저장합니다.':'전체 프로필·템플릿·사용자 아이콘팩·액션 목록 디자인을 저장합니다.'+(format.select.value==='plain'?' 일반 DFJSON은 암호화되지 않아 민감한 설정이 노출될 수 있습니다.':'');
     }
     for(const input of [operation.select,location.select,format.select])input.onchange=refresh;
     actions.append(cancel,submit);form.append(note,actions);dialog.append(form);
@@ -5497,14 +5519,15 @@ async function createLocalBackup(format='encrypted'){
   try{
     backupReady();
     if(!window.deckBridge?.createBackup)throw Error('Windows EXE에서 사용할 수 있습니다.');
-    if(!await showBackupConfirmation('local',format))return;
-    const password=format==='plain'?'':await askBackupPassword(true);if(password===null)return;
+    const backupFormat=await inspectPlainBackupFormat(format);if(!backupFormat)return;
+    if(!await showBackupConfirmation('local',backupFormat))return;
+    const password=backupFormat==='plain'?'':await askBackupPassword(true);if(password===null)return;
     backupReady();if(!persist(false))throw Error('프로필 저장 실패');
     const appearance=window.D200XPanelIcons.exportConfig();
-    const result=await window.deckBridge.createBackup(password,appearance,format);
+    const result=await window.deckBridge.createBackup(password,appearance,backupFormat);
     if(result){
       window.d200xActionStatus?.('로컬 백업 파일 저장 완료 · '+result.filename);
-      await window.DeckForgeDialogs.show({title:'로컬 백업 완료',kind:'success',intro:'백업 파일이 정상적으로 저장되었습니다.',fields:[{label:'저장 위치',value:'내 PC'},{label:'백업 형식',value:format==='plain'?'일반 JSON (암호화 없음)':'암호화 백업 (.dfbackup)'}],detailLabel:'저장된 파일',detail:result.file});
+      await window.DeckForgeDialogs.show({title:'로컬 백업 완료',kind:'success',intro:'백업 파일이 정상적으로 저장되었습니다.',fields:[{label:'저장 위치',value:'내 PC'},{label:'백업 형식',value:backupFormat==='plain'?'일반 DFJSON (암호화 없음)':'암호화 백업 (.dfbackup)'}],detailLabel:'저장된 파일',detail:result.file});
     }
   }finally{backupUiBusy=false;}
 }
@@ -5536,13 +5559,14 @@ async function createGoogleBackup(format='encrypted'){
     backupReady();if(!window.deckBridge?.driveCreate)throw Error('Windows EXE에서 사용할 수 있습니다.');
     const account=await window.deckBridge.driveStatus();
     if(!account.connected)throw Error('Google Drive 계정을 먼저 연결하세요.');
-    if(!await showBackupConfirmation('drive',format,account.email))return;
-    const password=format==='plain'?'':await askBackupPassword(true);if(password===null)return;
+    const backupFormat=await inspectPlainBackupFormat(format);if(!backupFormat)return;
+    if(!await showBackupConfirmation('drive',backupFormat,account.email))return;
+    const password=backupFormat==='plain'?'':await askBackupPassword(true);if(password===null)return;
     backupReady();if(!persist(false))throw Error('프로필 저장 실패');
     window.d200xActionStatus?.('Google Drive 백업 업로드 중…');
-    const result=await window.deckBridge.driveCreate(password,window.D200XPanelIcons.exportConfig(),account.email,format);
+    const result=await window.deckBridge.driveCreate(password,window.D200XPanelIcons.exportConfig(),account.email,backupFormat);
     window.d200xActionStatus?.('Google Drive 백업 업로드 완료 · '+result.name);
-    await window.DeckForgeDialogs.show({title:'Google Drive 백업 완료',kind:'success',intro:'백업 파일 업로드 및 파일 검증이 완료되었습니다.',fields:[{label:'Google 계정',value:result.email},{label:'저장 위치',value:'내 드라이브 / DeckForge Backups'},{label:'백업 형식',value:format==='plain'?'일반 JSON (암호화 없음)':'암호화 백업 (.dfbackup)'}],detailLabel:'저장된 파일명',detail:result.name});
+    await window.DeckForgeDialogs.show({title:'Google Drive 백업 완료',kind:'success',intro:'백업 파일 업로드 및 파일 검증이 완료되었습니다.',fields:[{label:'Google 계정',value:result.email},{label:'저장 위치',value:'내 드라이브 / DeckForge Backups'},{label:'백업 형식',value:backupFormat==='plain'?'일반 DFJSON (암호화 없음)':'암호화 백업 (.dfbackup)'}],detailLabel:'저장된 파일명',detail:result.name});
   }finally{backupUiBusy=false;}
 }
 function chooseGoogleBackup(list){
@@ -5576,7 +5600,7 @@ async function restoreGoogleBackup(){
     if(!list.items.length){await window.DeckForgeDialogs.show({title:'백업 파일 없음',kind:'info',intro:'Google Drive의 DeckForge Backups 폴더에 복원할 백업 파일이 없습니다.'});return;}
     selected=await chooseGoogleBackup(list);
   }finally{backupUiBusy=false;}
-  if(selected)await restoreBackup({id:selected,email:list.email},list.items.find(item=>item.id===selected)?.name.endsWith('.json')?'plain':'encrypted');
+  if(selected)await restoreBackup({id:selected,email:list.email},list.items.find(item=>item.id===selected)?.name.endsWith('.dfjson')?'plain':'encrypted');
 }
 function chooseRestorePlan(info){
   return new Promise(resolve=>{

@@ -8,9 +8,9 @@ const MAX_BYTES=256*1024*1024+128;
 const fields='id,name,createdTime,size,mimeType,trashed,appProperties,md5Checksum';
 const random=()=>crypto.randomBytes(32).toString('base64url');
 const idOK=x=>typeof x==='string'&&/^[A-Za-z0-9_-]{1,200}$/.test(x);
-const filenameOK=x=>typeof x==='string'&&/^DeckForge-[A-Za-z0-9-]{1,180}\.(?:dfbackup|json)$/.test(x);
-const mimeForName=name=>name.endsWith('.json')?JSON_MIME:MIME;
-const backupMimeOK=(name,mime)=>mime===MIME||(name.endsWith('.json')&&mime===JSON_MIME);
+const filenameOK=x=>typeof x==='string'&&/^DeckForge-[A-Za-z0-9-]{1,180}\.(?:dfbackup|dfjson)$/.test(x);
+const mimeForName=name=>name.endsWith('.dfjson')?JSON_MIME:MIME;
+const backupMimeOK=(name,mime)=>mime===MIME||(name.endsWith('.dfjson')&&mime===JSON_MIME);
 function clientConfig(json){
   const c=json?.installed;
   if(!c||typeof c.client_id!=='string'||!/^[A-Za-z0-9._-]{1,250}\.apps\.googleusercontent\.com$/.test(c.client_id)||

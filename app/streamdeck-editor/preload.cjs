@@ -5,6 +5,7 @@ contextBridge.exposeInMainWorld('deckBridge', Object.freeze({
   readProfile: () => ipcRenderer.sendSync('d200x:profile-read'),
   writeProfile: state => ipcRenderer.sendSync('d200x:profile-write',state),
   createBackup: (password,appearance,format) => ipcRenderer.invoke('d200x:backup-create',{password,appearance,format}),
+  scanBackup: appearance => ipcRenderer.invoke('d200x:backup-scan',{appearance}),
   previewBackup: (password,appearance,format) => ipcRenderer.invoke('d200x:backup-preview',{password,appearance,format}),
   planBackup: (id,options) => ipcRenderer.invoke('d200x:backup-plan',{id,options}),
   commitBackup: (id,token) => ipcRenderer.sendSync('d200x:backup-commit',{id,token}),

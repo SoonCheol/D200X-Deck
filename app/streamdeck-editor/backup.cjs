@@ -12,7 +12,7 @@ const HEADER=MAGIC.length+16+12+16;
 const obj=x=>!!x&&typeof x==='object'&&!Array.isArray(x);
 const int=(x,a,b)=>Number.isInteger(x)&&x>=a&&x<=b;
 function checkPassword(password){
-  if(typeof password!=='string'||password.length<8||password.length>256)throw Error('백업 비밀번호는 8~256자로 입력하세요.');
+  if(typeof password!=='string'||password.length<4||password.length>256)throw Error('백업 비밀번호는 4~256자로 입력하세요.');
 }
 function image(value,limit){
   return typeof value==='string'&&value.length<=limit&&/^data:image\/(?:png|jpeg|webp|gif);base64,[A-Za-z0-9+/]+={0,2}$/.test(value);
@@ -116,7 +116,7 @@ function readOptional(file){
 }
 function extension(format='encrypted'){
   if(format==='encrypted')return 'dfbackup';
-  if(format==='plain')return 'json';
+  if(format==='plain')return 'dfjson';
   throw Error('지원하지 않는 백업 형식입니다.');
 }
 function encode(data,password,format='encrypted'){
@@ -131,20 +131,7 @@ function decode(bytes,password,format='encrypted',current=null){
   if(!Buffer.isBuffer(bytes)||!bytes.length||bytes.length>LIMIT)throw Error('일반 백업 파일 용량이 올바르지 않습니다.');
   let data;
   try{data=JSON.parse(bytes.toString('utf8').replace(/^\uFEFF/,''));}catch{throw Error('올바른 JSON 백업 파일이 아닙니다.');}
-  if(data?.format==='deckforge-backup-v1'){validateSnapshot(data);return data;}
-  if(!current||!obj(data)||Object.hasOwn(data,'format'))throw Error('지원하지 않는 일반 백업 파일입니다.');
-  validateSnapshot(current);
-  const legacy={...data};
-  if(!Object.hasOwn(legacy,'inactiveProfiles')&&legacy.profileNames?.length===1)legacy.inactiveProfiles=[];
-  if(!Object.hasOwn(legacy,'profileTemplates')){
-    legacy.profileTemplates=current.profiles.profileTemplates;
-    legacy.profileTemplateSeq=current.profiles.profileTemplateSeq;
-  }
-  const profiles=validateProfiles(legacy);
-  const migrated={format:'deckforge-backup-v1',createdAt:current.createdAt,version:current.version,legacy:true,
-    profiles,packs:current.packs,appearance:data.actionPanelAppearance??current.appearance,
-    legacyTemplates:!Object.hasOwn(data,'profileTemplates'),legacyAppearance:!Object.hasOwn(data,'actionPanelAppearance')};
-  validateSnapshot(migrated);return migrated;
+  validateSnapshot(data);return data;
 }
 function readArchive(file,password,format='encrypted',current=null){
   const bytes=readOptional(file);

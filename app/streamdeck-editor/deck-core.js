@@ -25,7 +25,7 @@
     website:{url:'',open:'default',browserPath:''},'hotkey-switch':{first:'',second:''},
     hotkey:{keys:'',source:'preset'},open:{path:'',args:''},
     'open-app':{app:'',args:'',hold:'close',foreground:true,preventDuplicate:true},close:{path:'',force:false},
-    text:{body:'',enter:false,mode:'clipboard'},media:{op:'playpause'},
+    text:{body:'',enter:false,mode:'typing'},media:{op:'playpause'},
     folder:{autoExitEnabled:false,autoExitSeconds:0},profile:{profile:'next'},previous:{},next:{},
     goto:{page:0},indicator:{indicatorDown:{navigation:'none'},indicatorHold:{navigation:'none'}},'side-nav':{navigation:'none'},
     'system-volume':{direction:'up',step:1},'system-mute':{},
@@ -74,6 +74,8 @@
     base.title=typeof value.title==='string'?value.title.slice(0,256):base.title;
     if(value.settings&&typeof value.settings==='object'&&!Array.isArray(value.settings))
       base.settings={...base.settings,...value.settings};
+    // Preserve old text actions whose mode field was absent when clipboard was the default.
+    if(value.type==='text'&&value.settings?.mode===undefined)base.settings.mode='clipboard';
     // Keep existing repeat-launch buttons repeatable; new actions default to both options.
     if(value.type==='open-app'&&typeof value.settings?.preventDuplicate!=='boolean')
       base.settings.preventDuplicate=base.settings.foreground===true&&!String(base.settings.args||'').trim()&&(!base.settings.app||String(base.settings.app).startsWith('shell:AppsFolder\\')||/\.(exe|lnk)$/i.test(String(base.settings.app)));

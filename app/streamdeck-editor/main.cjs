@@ -23,6 +23,7 @@ const {StreamDeckPluginHost}=require('./sd-plugin-host.cjs');
 const Bundled=require('./bundled-integration.cjs');
 const {ProfileStore}=require('./profile-store.cjs');
 const Backup=require('./backup.cjs');
+const BackupPrivacy=require('./backup-privacy.cjs');
 const {GoogleDrive}=require('./google-drive.cjs');
 let sdkHost=null;
 function sdk(){
@@ -388,6 +389,15 @@ function currentBackup(appearance){
   return Backup.snapshot({store:profileStore,packsFile:iconPacksFile(),
     appearance,version:require('./package.json').version});
 }
+ipcMain.handle('d200x:backup-scan',async(event,{appearance}={})=>{
+  backupEditor(event);if(backupBusy)throw Error('백업 작업이 진행 중입니다.');
+  backupBusy=true;
+  try{
+    Backup.validateAppearance(appearance);
+    await ensureIconPacksMigrated();
+    return BackupPrivacy.scan(currentBackup(appearance));
+  }finally{backupBusy=false;}
+});
 ipcMain.handle('d200x:backup-create',async(event,{password,appearance,format='encrypted'}={})=>{
   backupEditor(event);if(backupBusy)throw Error('백업 작업이 진행 중입니다.');
   backupBusy=true;
@@ -439,7 +449,7 @@ ipcMain.handle('d200x:drive-preview',(event,{id,password,appearance,expectedEmai
   clearBackupPending();Backup.validateAppearance(appearance);
   const account=await googleDrive.status();
   if(!account.connected||account.email!==expectedEmail)throw Error('Google 계정이 변경되었거나 연결되지 않았습니다.');
-  const file=await googleDrive.download(id),incoming=Backup.decode(file.bytes,password,file.meta.name.endsWith('.json')?'plain':'encrypted');
+  const file=await googleDrive.download(id),incoming=Backup.decode(file.bytes,password,file.meta.name.endsWith('.dfjson')?'plain':'encrypted');
   await ensureIconPacksMigrated();
   return stageBackup(incoming,file.meta.name,password,appearance);
 }));
@@ -451,7 +461,7 @@ ipcMain.handle('d200x:backup-preview',async(event,{password,appearance,format='e
     Backup.validateAppearance(appearance);
     const ext=Backup.extension(format);
     const file=await openRememberedPicker({title:'DeckForge 백업 파일 복원',properties:['openFile'],
-      filters:[{name:format==='plain'?'일반 백업 (JSON)':'암호화 백업',extensions:[ext]}]});
+      filters:[{name:format==='plain'?'일반 백업 (DeckForge DFJSON)':'암호화 백업',extensions:[ext]}]});
     if(!file)return null;
     if(path.extname(file).toLowerCase()!=='.'+ext)throw Error('선택한 형식의 DeckForge 백업 파일을 선택하세요.');
     await ensureIconPacksMigrated();
