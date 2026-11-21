@@ -3,12 +3,14 @@
 const fs=require('node:fs'),path=require('node:path'),http=require('node:http'),crypto=require('node:crypto');
 const AUTH='https://accounts.google.com/o/oauth2/v2/auth',TOKEN='https://oauth2.googleapis.com/token';
 const API='https://www.googleapis.com/drive/v3',UPLOAD='https://www.googleapis.com/upload/drive/v3/files';
-const SCOPE='https://www.googleapis.com/auth/drive.file',FOLDER='application/vnd.google-apps.folder',MIME='application/octet-stream';
+const SCOPE='https://www.googleapis.com/auth/drive.file',FOLDER='application/vnd.google-apps.folder',MIME='application/octet-stream',JSON_MIME='application/json';
 const MAX_BYTES=256*1024*1024+128;
 const fields='id,name,createdTime,size,mimeType,trashed,appProperties,md5Checksum';
 const random=()=>crypto.randomBytes(32).toString('base64url');
 const idOK=x=>typeof x==='string'&&/^[A-Za-z0-9_-]{1,200}$/.test(x);
 const filenameOK=x=>typeof x==='string'&&/^DeckForge-[A-Za-z0-9-]{1,180}\.(?:dfbackup|json)$/.test(x);
+const mimeForName=name=>name.endsWith('.json')?JSON_MIME:MIME;
+const backupMimeOK=(name,mime)=>mime===MIME||(name.endsWith('.json')&&mime===JSON_MIME);
 function clientConfig(json){
   const c=json?.installed;
   if(!c||typeof c.client_id!=='string'||!/^[A-Za-z0-9._-]{1,250}\.apps\.googleusercontent\.com$/.test(c.client_id)||
@@ -54,7 +56,7 @@ function readToken(data,refresh){
   return {access:data.access_token,expires:Date.now()+data.expires_in*1000,refreshToken};
 }
 function backupMeta(x){
-  if(!x||!idOK(x.id)||!filenameOK(x.name)||x.trashed===true||x.mimeType!==MIME||x.appProperties?.deckforge!=='backup-v1'||
+  if(!x||!idOK(x.id)||!filenameOK(x.name)||x.trashed===true||!backupMimeOK(x.name,x.mimeType)||x.appProperties?.deckforge!=='backup-v1'||
     !Number.isSafeInteger(Number(x.size))||Number(x.size)<=0||Number(x.size)>MAX_BYTES||
     typeof x.createdTime!=='string'||!Number.isFinite(Date.parse(x.createdTime)))return null;
   return {id:x.id,name:x.name,size:Number(x.size),createdTime:x.createdTime,
@@ -169,14 +171,21 @@ class GoogleDrive{
   }
   async upload(name,bytes){
     if(!filenameOK(name)||!Buffer.isBuffer(bytes)||!bytes.length||bytes.length>MAX_BYTES)throw Error('백업 파일 이름 또는 용량 오류');
-    const parent=await this.folder();
+    const mime=mimeForName(name),parent=await this.folder();
     const start=await this.request(endpoint(UPLOAD,{uploadType:'resumable',fields}),{method:'POST',headers:await this.headers({'Content-Type':'application/json; charset=UTF-8',
-      'X-Upload-Content-Type':MIME,'X-Upload-Content-Length':String(bytes.length)}),
-      body:JSON.stringify({name,mimeType:MIME,parents:[parent],appProperties:{deckforge:'backup-v1'}})});
+      'X-Upload-Content-Type':mime,'X-Upload-Content-Length':String(bytes.length)}),
+      body:JSON.stringify({name,mimeType:mime,parents:[parent],appProperties:{deckforge:'backup-v1'}})});
     const location=uploadSession(start.headers.get('location'));await start.body?.cancel();
-    const result=await this.request(location,{method:'PUT',headers:await this.headers({'Content-Type':MIME,'Content-Length':String(bytes.length)}),body:bytes},300000);
-    const meta=backupMeta(JSON.parse((await boundedBody(result,2*1024*1024)).toString('utf8')));
-    if(!meta||meta.name!==name||meta.size!==bytes.length||meta.md5Checksum!==crypto.createHash('md5').update(bytes).digest('hex'))
+    const result=await this.request(location,{method:'PUT',headers:await this.headers({'Content-Type':mime,'Content-Length':String(bytes.length)}),body:bytes},300000);
+    let uploaded;
+    try{uploaded=JSON.parse((await boundedBody(result,2*1024*1024)).toString('utf8'));}
+    catch{throw Error('Google 업로드 결과 응답을 읽을 수 없습니다. 백업 목록에서 확인하세요.');}
+    if(!idOK(uploaded?.id))throw Error('Google 업로드 파일 ID를 확인하지 못했습니다. 백업 목록에서 확인하세요.');
+    // Drive may omit fields from the resumable final response. Read the
+    // authoritative file metadata before treating the upload as verified.
+    const details=await this.json(endpoint(API+'/files/'+encodeURIComponent(uploaded.id),{fields}),{headers:await this.headers()});
+    const meta=backupMeta(details),digest=crypto.createHash('md5').update(bytes).digest('hex');
+    if(!meta||meta.id!==uploaded.id||meta.name!==name||meta.size!==bytes.length||meta.md5Checksum!==digest)
       throw Error('Google 업로드 결과 검증 실패. 백업 목록에서 확인하세요.');
     return meta;
   }
