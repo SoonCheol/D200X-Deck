@@ -5432,6 +5432,24 @@ function backupReady(){
     throw Error('진행 중인 동작을 먼저 중단하세요.');
 }
 let backupUiBusy=false;
+async function showBackupConfirmation(location,format,account=''){
+  const drive=location==='drive';
+  const plain=format==='plain';
+  return window.DeckForgeDialogs.show({
+    title:drive?'Google Drive 백업 확인':'로컬 백업 확인',
+    kind:plain?'warning':'info',
+    intro:drive?'다음 설정으로 Google Drive에 백업 파일을 업로드합니다.':'다음 설정으로 내 PC에 백업 파일을 저장합니다.',
+    fields:[
+      ...(drive?[{label:'Google 계정',value:account}]:[]),
+      {label:'저장 위치',value:drive?'내 드라이브 / DeckForge Backups':'내 PC / 다음 단계에서 폴더 선택'},
+      {label:'백업 형식',value:plain?'일반 JSON (암호화 없음)':'암호화 백업 (.dfbackup)'}
+    ],
+    included:['전체 프로필','사용자 템플릿','사용자 아이콘팩','액션 목록 디자인'],
+    excluded:['별도 로그인 정보 및 HA 연결 토큰 파일','플러그인 프로그램 및 전역 설정'],
+    warning:plain?'일반 JSON은 암호화되지 않아 프로필에 포함된 민감한 설정이 노출될 수 있습니다.':'',
+    ask:true,actionLabel:'백업 시작'
+  });
+}
 function chooseBackupOptions(){
   return new Promise(resolve=>{
     const dialog=document.createElement('dialog');dialog.className='profile-name-dialog';dialog.style.width='min(420px, calc(100vw - 32px))';
@@ -5479,14 +5497,14 @@ async function createLocalBackup(format='encrypted'){
   try{
     backupReady();
     if(!window.deckBridge?.createBackup)throw Error('Windows EXE에서 사용할 수 있습니다.');
-    if(!confirm('선택한 로컬 폴더에 '+(format==='plain'?'암호화하지 않은 일반 JSON (민감한 설정 노출 가능)':'암호화된')+' 백업 파일을 저장합니다. 전체 프로필·템플릿·사용자 아이콘팩·액션 목록 디자인을 포함합니다. 계정 로그인 정보, HA 연결 토큰 파일, 플러그인 프로그램 및 전역 설정은 백업하지 않습니다. 계속하시겠습니까?'))return;
+    if(!await showBackupConfirmation('local',format))return;
     const password=format==='plain'?'':await askBackupPassword(true);if(password===null)return;
     backupReady();if(!persist(false))throw Error('프로필 저장 실패');
     const appearance=window.D200XPanelIcons.exportConfig();
     const result=await window.deckBridge.createBackup(password,appearance,format);
     if(result){
       window.d200xActionStatus?.('로컬 백업 파일 저장 완료 · '+result.filename);
-      alert('로컬 백업 파일 저장 완료\n'+result.file);
+      await window.DeckForgeDialogs.show({title:'로컬 백업 완료',kind:'success',intro:'백업 파일이 정상적으로 저장되었습니다.',fields:[{label:'저장 위치',value:'내 PC'},{label:'백업 형식',value:format==='plain'?'일반 JSON (암호화 없음)':'암호화 백업 (.dfbackup)'}],detailLabel:'저장된 파일',detail:result.file});
     }
   }finally{backupUiBusy=false;}
 }
@@ -5495,20 +5513,20 @@ async function googleConnect(){
   if(backupUiBusy)throw Error('백업 작업이 진행 중입니다.');
   backupUiBusy=true;
   try{
-    if(!confirm('Google Cloud에서 Drive API를 활성화하고 Desktop app OAuth 클라이언트 JSON을 발급받아 선택하세요. 이후 기본 브라우저에서 Google 계정에 로그인합니다. 계정 정보는 Windows 보안 저장소에 보관하며 DeckForge가 만든 파일만 접근합니다. 계속하시겠습니까?'))return;
+    if(!await window.DeckForgeDialogs.show({title:'Google Drive 계정 연결',kind:'info',intro:'Google Cloud에서 Drive API를 활성화하고 발급받은 Desktop app OAuth 클라이언트 JSON을 선택합니다.',fields:[{label:'인증 방법',value:'기본 브라우저에서 Google 계정 로그인'},{label:'연결 정보',value:'Windows 보안 저장소에 보관'},{label:'접근 범위',value:'DeckForge가 만든 Drive 파일'}],ask:true,actionLabel:'계정 연결'}))return;
     const result=await window.deckBridge.driveConnect();
-    if(result?.connected){window.d200xActionStatus?.('Google Drive 연결 완료: '+result.email);alert('Google Drive 연결 완료\n'+result.email);}
+    if(result?.connected){window.d200xActionStatus?.('Google Drive 연결 완료: '+result.email);await window.DeckForgeDialogs.show({title:'Google Drive 연결 완료',kind:'success',intro:'Google 계정 연결이 완료되었습니다.',fields:[{label:'Google 계정',value:result.email}]});}
   }finally{backupUiBusy=false;}
 }
 async function googleStatus(){
   if(!window.deckBridge?.driveStatus)throw Error('Windows EXE에서 사용할 수 있습니다.');
   const result=await window.deckBridge.driveStatus();
-  alert(result.connected?'Google Drive 연결됨\n'+result.email:'Google Drive 연결되지 않음\n먼저 Google 계정 연결을 선택하세요.');
+  await window.DeckForgeDialogs.show({title:result.connected?'Google Drive 연결됨':'Google Drive 연결 필요',kind:result.connected?'success':'warning',intro:result.connected?'Google Drive 계정이 연결되어 있습니다.':'먼저 Google 계정 연결을 선택하세요.',fields:result.connected?[{label:'Google 계정',value:result.email}]:[]});
 }
 async function googleDisconnect(){
   if(!window.deckBridge?.driveDisconnect)throw Error('Windows EXE에서 사용할 수 있습니다.');
   if(backupUiBusy)throw Error('백업 작업이 진행 중입니다.');
-  if(!confirm('이 PC의 Google Drive 연결 정보만 삭제합니다. Drive에 저장된 백업 파일은 유지됩니다. 연결을 해제하시겠습니까?'))return;
+  if(!await window.DeckForgeDialogs.show({title:'Google Drive 연결 해제',kind:'warning',intro:'이 PC의 Google Drive 연결 정보만 삭제합니다. Drive에 저장된 백업 파일은 유지됩니다.',ask:true,actionLabel:'연결 해제'}))return;
   await window.deckBridge.driveDisconnect();window.d200xActionStatus?.('Google Drive 연결 해제 완료');
 }
 async function createGoogleBackup(format='encrypted'){
@@ -5518,13 +5536,13 @@ async function createGoogleBackup(format='encrypted'){
     backupReady();if(!window.deckBridge?.driveCreate)throw Error('Windows EXE에서 사용할 수 있습니다.');
     const account=await window.deckBridge.driveStatus();
     if(!account.connected)throw Error('Google Drive 계정을 먼저 연결하세요.');
-    if(!confirm(account.email+' 계정의 Google Drive / DeckForge Backups 폴더에 '+(format==='plain'?'암호화되지 않은 일반 JSON (민감한 설정 노출 가능)':'암호화')+' 백업을 직접 업로드합니다. 전체 프로필·템플릿·사용자 아이콘팩·액션 목록 디자인을 포함하며 별도 로그인 정보·플러그인 프로그램·전역 설정은 제외합니다. 계속하시겠습니까?'))return;
+    if(!await showBackupConfirmation('drive',format,account.email))return;
     const password=format==='plain'?'':await askBackupPassword(true);if(password===null)return;
     backupReady();if(!persist(false))throw Error('프로필 저장 실패');
     window.d200xActionStatus?.('Google Drive 백업 업로드 중…');
     const result=await window.deckBridge.driveCreate(password,window.D200XPanelIcons.exportConfig(),account.email,format);
     window.d200xActionStatus?.('Google Drive 백업 업로드 완료 · '+result.name);
-    alert('Google Drive 백업 업로드 및 파일 검증 완료\n'+result.email+'\nDeckForge Backups / '+result.name);
+    await window.DeckForgeDialogs.show({title:'Google Drive 백업 완료',kind:'success',intro:'백업 파일 업로드 및 파일 검증이 완료되었습니다.',fields:[{label:'Google 계정',value:result.email},{label:'저장 위치',value:'내 드라이브 / DeckForge Backups'},{label:'백업 형식',value:format==='plain'?'일반 JSON (암호화 없음)':'암호화 백업 (.dfbackup)'}],detailLabel:'저장된 파일명',detail:result.name});
   }finally{backupUiBusy=false;}
 }
 function chooseGoogleBackup(list){
@@ -5555,7 +5573,7 @@ async function restoreGoogleBackup(){
   try{
     backupReady();if(!window.deckBridge?.driveList)throw Error('Windows EXE에서 사용할 수 있습니다.');
     list=await window.deckBridge.driveList();
-    if(!list.items.length){alert('Google Drive에 DeckForge 백업 파일이 없습니다.');return;}
+    if(!list.items.length){await window.DeckForgeDialogs.show({title:'백업 파일 없음',kind:'info',intro:'Google Drive의 DeckForge Backups 폴더에 복원할 백업 파일이 없습니다.'});return;}
     selected=await chooseGoogleBackup(list);
   }finally{backupUiBusy=false;}
   if(selected)await restoreBackup({id:selected,email:list.email},list.items.find(item=>item.id===selected)?.name.endsWith('.json')?'plain':'encrypted');
@@ -5693,12 +5711,20 @@ async function restoreBackup(cloud=null,format='encrypted'){
       backupReady();
       if(before!==JSON.stringify(state)||JSON.stringify(appearance)!==JSON.stringify(window.D200XPanelIcons.exportConfig()))throw Error('설정이 변경되었습니다. 다시 복원하세요.');
       try{plan=await window.deckBridge.planBackup(info.id,options);}
-      catch(error){alert('복원 계획을 만들 수 없습니다.\n'+String(error?.message||error));return;}
+      catch(error){await window.DeckForgeDialogs.show({title:'복원 계획 오류',kind:'error',intro:'복원 계획을 만들 수 없습니다.',detailLabel:'오류 내용',detail:String(error?.message||error)});return;}
       const r=plan.report,labels={profiles:'프로필',templates:'템플릿',packs:'아이콘팩'};
       const actionName=d=>d.action==='keep'?'기존 유지':d.action==='overwrite'?'백업본으로 교체':d.action==='rename'?'새 '+labels[d.kind]+' 이름으로 추가':'새 '+labels[d.kind]+' 추가';
       const details=r.details.slice(0,18).map(d=>labels[d.kind]+' · '+d.name+(d.resultName&&d.resultName!==d.name?' → '+d.resultName:'')+' : '+actionName(d)).join('\n');
       const message=r.mode==='all'?'전체 복원: 백업 당시 상태로 교체합니다. 백업에 없는 기존 항목은 삭제됩니다.':'선택 복원: 새 항목 '+r.added+'개 · 백업본으로 교체 '+r.replaced+'개 · 새 이름으로 추가 '+r.renamed+'개 · 기존 유지 '+r.kept+'개\n'+details+(r.details.length>18?'\n… 나머지 항목 포함':'')+(r.missingLinks?'\n주의: 연결할 대상 프로필을 찾지 못한 이동 버튼 '+r.missingLinks+'개는 잘못된 대상을 실행하지 않도록 연결 해제합니다.':'');
-      if(confirm(message+'\n\n복원 후 프로필 '+plan.profiles+'개 · 템플릿 '+plan.templates+'개 · 아이콘팩 '+plan.packs+'개\n복원 전 안전 백업을 저장합니다. 진행하시겠습니까?'))break;
+      if(await window.DeckForgeDialogs.show({
+        title:r.mode==='all'?'전체 복원 최종 확인':'선택 복원 최종 확인',
+        kind:r.mode==='all'?'warning':'info',
+        intro:r.mode==='all'?'백업 당시 상태로 교체합니다. 백업에 없는 현재 항목은 삭제됩니다.':'선택한 항목을 다음 내용으로 복원합니다.',
+        fields:[{label:'복원 후 프로필',value:plan.profiles+'개'},{label:'복원 후 템플릿',value:plan.templates+'개'},{label:'복원 후 아이콘팩',value:plan.packs+'개'}],
+        detailLabel:'복원 적용 내역',detail:message,
+        warning:'복원 전에 현재 설정의 암호화 안전 백업을 별도로 저장합니다.',
+        ask:true,actionLabel:'복원 실행'
+      }))break;
       return;
     }
     backupReady();
@@ -5720,7 +5746,7 @@ async function restoreBackup(cloud=null,format='encrypted'){
     legacyPackRequest=null;await refreshImportedIconPacks();
     render();renderLibrary();window.scheduleDeckSync?.();
     window.d200xActionStatus?.('백업 복원 완료 · 이전 데이터 별도 보관');
-    alert('백업 복원 완료\n복원 전 데이터: '+result.safetyFile);
+    await window.DeckForgeDialogs.show({title:'백업 복원 완료',kind:'success',intro:'선택한 백업의 복원이 완료되었습니다. 복원 전 데이터는 안전 백업으로 보관했습니다.',detailLabel:'복원 전 안전 백업 파일',detail:result.safetyFile});
   }finally{
     if(info)try{window.deckBridge.cancelBackup(info.id);}catch{}
     backupUiBusy=false;

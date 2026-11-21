@@ -18,6 +18,7 @@ on:
       - 'test/streamdeck-integrated-manager.test.cjs'
       - 'test/deckforge-platform-data-layout.test.cjs'
       - 'test/deckforge-backup.test.cjs'
+      - 'test/deckforge-dialog.test.cjs'
       - 'test/deckforge-google-drive.test.cjs'
       - 'test/deckforge-key-press-icons.test.cjs'
       - 'test/deckforge-dual-state-titles.test.cjs'
@@ -85,6 +86,8 @@ jobs:
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           node --check app/streamdeck-editor/main.cjs
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          node --check app/streamdeck-editor/deckforge-dialog.js
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           node --check app/streamdeck-editor/editor.js
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           node --test test/deckforge-ai-phase1.test.cjs test/deckforge-ai-phase2.test.cjs test/deckforge-ai-phase3.test.cjs test/deckforge-ai-phase4.test.cjs test/deckforge-ai-phase5.test.cjs test/deckforge-text-context-menu.test.cjs
@@ -125,7 +128,7 @@ jobs:
         run: |
           node --check app/streamdeck-editor/backup.cjs
           node --check app/streamdeck-editor/google-drive.cjs
-          node --test test/deckforge-install.test.cjs test/deckforge-platform-data-layout.test.cjs test/deckforge-backup.test.cjs test/deckforge-google-drive.test.cjs
+          node --test test/deckforge-install.test.cjs test/deckforge-platform-data-layout.test.cjs test/deckforge-backup.test.cjs test/deckforge-dialog.test.cjs test/deckforge-google-drive.test.cjs
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - name: Check hardware bridge and renderer scripts
         shell: pwsh
