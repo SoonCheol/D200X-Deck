@@ -24,7 +24,7 @@ test('composite child runtime keys capture location, branch and step',()=>{
  const a=make('folder-a','state:0'),b=make('folder-b','state:0'),c=make('folder-a','state:1');
  a();a();b();c();assert.equal(new Set(keys).size,4);
  const repeat=make('folder-a','state:0');repeat();assert.equal(keys[0],keys[4]);
- assert.match(editor,/playAudioAction\(outcome,DeckCore.runtimeActionKey\(state,index,resolved.gesture\)\)/);
+ assert.ok(editor.includes('playAudioAction(outcome,DeckCore.runtimeActionKey(state,index,resolved.gesture),resolved.action?.settings)'));
 });
 test('local save receipt uses committed action and title and distinguishes failure',()=>{
  const segment=windowSource.slice(windowSource.indexOf('function formatSaveReceipt('),windowSource.indexOf('function registerAiWindow('));
