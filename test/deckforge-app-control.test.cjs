@@ -34,7 +34,10 @@ function setup(mode='close'){
     closeLocalApp:(...args)=>{calls.push(args);return Promise.resolve(true);},
     logAppControl:record=>{records.push(record);return Promise.resolve(true);}
   }};
-  const ctx=vm.createContext({state,window,opened,inspectorSession:null,sidePressTracker:sidePressTracker(),Date:{now:()=>now},
+  // The hardware dispatcher also checks the independent page-number press
+  // registry; keep it empty for legacy Program Open regression scenarios.
+  const ctx=vm.createContext({state,window,opened,inspectorSession:null,sidePressTracker:sidePressTracker(),
+    fixedIndicatorPresses:new Map(),Date:{now:()=>now},
     DeckCore:{activeFolder:()=>null,visibleActions:visible,controlBinding:()=>null,runtimeActionKey:(s,index,gesture)=>JSON.stringify([s.profileId,s.page,s.folderPath,index,gesture]),
       isWideDisplayPress:()=>false,resolveHardwareEvent:(_,event)=>({index:0,gesture:event.pressed?'down':'up',action:visible()[0]})},
     heldKnobEvent:event=>({event,consume:false,replay:false}),pressActionAssigned:()=>false,
