@@ -14,7 +14,7 @@ const evidenceStart=editor.indexOf('function reportInputEvidence(');
 const evidenceEnd=editor.indexOf('function tracedPhysicalDispatch(',evidenceStart);
 assert.ok(evidenceStart>=0&&evidenceEnd>evidenceStart);
 const evidenceSource=editor.slice(evidenceStart,evidenceEnd);
-const dispatchStart=editor.indexOf('function executeHardwareAction(event,preview=false,skipKnobGesture=false){');
+const dispatchStart=editor.indexOf('function executeHardwareAction(');
 const dispatchEnd=editor.indexOf("  if(resolved.action?.type==='logic'",dispatchStart);
 assert.ok(holdStart>=0&&holdEnd>holdStart&&dispatchStart>=0&&dispatchEnd>dispatchStart);
 const holdSource=editor.slice(holdStart,holdEnd);
@@ -37,7 +37,7 @@ function setup(mode='close'){
   const ctx=vm.createContext({state,window,opened,inspectorSession:null,sidePressTracker:sidePressTracker(),Date:{now:()=>now},
     DeckCore:{activeFolder:()=>null,visibleActions:visible,controlBinding:()=>null,runtimeActionKey:(s,index,gesture)=>JSON.stringify([s.profileId,s.page,s.folderPath,index,gesture]),
       isWideDisplayPress:()=>false,resolveHardwareEvent:(_,event)=>({index:0,gesture:event.pressed?'down':'up',action:visible()[0]})},
-    heldKnobEvent:event=>({event,consume:false,replay:false}),
+    heldKnobEvent:event=>({event,consume:false,replay:false}),pressActionAssigned:()=>false,
     setTimeout:(fn,delay)=>{assert.equal(delay,650);const id=++next;timers.set(id,fn);return id;},
     clearTimeout:id=>timers.delete(id)});
   vm.runInContext(warningSource+multiSource+holdSource+evidenceSource+dispatchSource,ctx);

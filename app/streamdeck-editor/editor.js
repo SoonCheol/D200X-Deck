@@ -4385,6 +4385,7 @@ function handleGestureTest(action,index,gesture,event,preview){
 // Generic ordinary-key gesture routing. A saved action stays the single-press
 // action; only explicitly assigned double / hold actions enable the new router.
 const assignedKeyPresses=new Map();
+const ASSIGNED_DOUBLE_MS=300,ASSIGNED_HOLD_MS=600;
 function assignedPressStillCurrent(record){
   return DeckCore.runtimeActionKey(state,record.index,'down')===record.key&&
     DeckCore.visibleActions(state)?.[record.index]===record.action&&
@@ -4450,7 +4451,7 @@ function handleAssignedKeyPress(action,index,gesture,event){
         record.holdFired=true;
         reportInputEvidence(event,'press-gesture',{outcome:'hold',action:action.type,ms:Date.now()-record.downAt});
         runAssignedPress(action,index,'hold',event);
-      },action.type==='open-app'&&!action.pressActions?.hold?650:600);
+      },action.type==='open-app'&&!action.pressActions?.hold?650:ASSIGNED_HOLD_MS);
     }
     assignedKeyPresses.set(key,record);
     return '버튼 누르기 판정 중';
@@ -4467,7 +4468,7 @@ function handleAssignedKeyPress(action,index,gesture,event){
     runAssignedPress(action,index,'single',event);
   };
   if(action.pressActions?.double){
-    prior.singleTimer=setTimeout(dispatchSingle,300);
+    prior.singleTimer=setTimeout(dispatchSingle,ASSIGNED_DOUBLE_MS);
     return '한 번·두 번 누르기 판정 중';
   }
   dispatchSingle();return '한 번 누르기 완료';
