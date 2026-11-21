@@ -1646,3 +1646,81 @@ test('1.1.95 slots retain disabled assignments and auto-selected representative 
   const untrusted=core.cleanAction({type:'hotkey',pressMeta:{enabled:{single:false,double:false,hold:false},representative:'invalid'}});
   assert.equal(untrusted.pressMeta.representative,'single');
 });
+
+test('Program Open legacy long-press option stays saved but is disabled when hold tab has an action',()=>{
+  const fs=require('node:fs'),path=require('node:path');
+  const source=fs.readFileSync(path.join(__dirname,'../app/streamdeck-editor/editor.js'),'utf8');
+  const start=source.indexOf('function openAppLegacyHold(item){'),end=source.indexOf('function actionFields(item){',start);
+  assert.ok(start>0&&end>start);
+  const snippet=source.slice(start,end);
+  const app=core.createAction('open-app');
+  app.settings.hold='force';
+  let selected=app;
+  const select=(key,label)=>'<div><label>'+label+'</label><select data-field="'+key+'"></select></div>';
+  const render=new Function('state','DeckCore','select',snippet+';return openAppLegacyHold;')(
+    {selected:0},{visibleActions:()=>[selected]},select);
+  const enabled=render(app);
+  assert.match(enabled,/길게 누르기/);
+  assert.doesNotMatch(enabled,/disabled/);
+  app.pressActions={double:null,hold:core.createAction('hotkey')};
+  const blocked=render(app);
+  assert.match(blocked,/data-field="hold" disabled/);
+  assert.match(blocked,/등록된 동작이 우선/);
+  assert.equal(app.settings.hold,'force','disable does not alter saved force setting');
+  app.pressActions.hold=null;
+  assert.doesNotMatch(render(app),/disabled/,'removing explicit action re-enables legacy setting');
+});
+
+test('ordinary-key legacy Program Open hold and explicit hold action never run together',()=>{
+  const fs=require('node:fs'),path=require('node:path');
+  const source=fs.readFileSync(path.join(__dirname,'../app/streamdeck-editor/editor.js'),'utf8');
+  const start=source.indexOf('const assignedKeyPresses=new Map();');
+  const end=source.indexOf('// Generated local tones:',start);
+  assert.ok(start>=0&&end>start);
+  const body=source.slice(start,end);
+  const app=core.createAction('open-app');
+  app.settings.app='C:\\Apps\\demo.exe';
+  app.settings.hold='force';
+  app.pressMeta={enabled:{single:true,double:true,hold:true},representative:'single'};
+  const close=[],executed=[];
+  const make=new Function('DeckCore','state','Date','setTimeout','clearTimeout','window',
+    'pressEnabled','pressSlotAction','executeHardwareAction','executeSideNavigation','reportInputEvidence',
+    'observeInputEvidence','makeAppControlTrace',
+    body+';return {runAssignedPress,legacyOpenAppHoldAvailable};')(
+    {runtimeActionKey:()=> 'key-0',visibleActions:()=>[app]}, {},Date,()=>0,()=>{},
+    {deckBridge:{closeLocalApp:(path,force)=>{close.push({path,force});return Promise.resolve();}},d200xActionStatus(){}},
+    (action,slot)=>action?.pressMeta?.enabled?.[slot]!==false,
+    (action,slot)=>slot==='single'?action:action.pressActions?.[slot]||null,
+    (event,preview,skip,selected)=>{executed.push(selected.type);return '실행 요청';},
+    ()=>null,()=>{},(event,promise)=>promise,()=>({}));
+  assert.equal(make.legacyOpenAppHoldAvailable(app),true);
+  make.runAssignedPress(app,0,'hold',{inputId:'legacy'});
+  assert.deepEqual(close,[{path:app.settings.app,force:true}]);
+  app.pressActions={double:null,hold:core.createAction('hotkey')};
+  assert.equal(make.legacyOpenAppHoldAvailable(app),false);
+  make.runAssignedPress(app,0,'hold',{inputId:'explicit'});
+  assert.equal(close.length,1,'explicit action suppresses the legacy close');
+  assert.deepEqual(executed,['hotkey']);
+  app.pressMeta.enabled.hold=false;
+  assert.equal(make.runAssignedPress(app,0,'hold',{inputId:'disabled'}),null);
+  assert.equal(close.length,1);
+  app.pressActions.hold=null;
+  make.runAssignedPress(app,0,'hold',{inputId:'fallback'});
+  assert.equal(close.length,2,'legacy force close resumes after hold action removal');
+  app.settings.hold='none';
+  assert.equal(make.runAssignedPress(app,0,'hold',{inputId:'none'}),null);
+  assert.equal(close.length,2);
+  assert.equal(executed.length,1);
+});
+
+test('Program Open hold settings are not silently converted when switching tabs',()=>{
+  const fs=require('node:fs'),path=require('node:path');
+  const source=fs.readFileSync(path.join(__dirname,'../app/streamdeck-editor/editor.js'),'utf8');
+  const begin=source.indexOf('function pressEnsureMeta(root){');
+  const end=source.indexOf('function attachPressPreviewBadges(',begin);
+  const section=source.slice(begin,end);
+  assert.doesNotMatch(section,/root\.settings\.hold='none'/);
+  assert.doesNotMatch(section,/const closing=DeckCore\.createAction\('close'\)/);
+  assert.match(section,/if\(slot!=='single'&&next\?\.type==='open-app'\)next\.settings\.hold='none'/);
+  assert.match(source,/if\(holdAssigned\?pressEnabled\(action,'hold'\):legacyHold\)/);
+});

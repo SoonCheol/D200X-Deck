@@ -1603,8 +1603,13 @@ let active=null;
 function openAppLegacyHold(item){
   const root=Number.isInteger(state.selected)&&state.selected<13
     ?DeckCore.visibleActions(state)[state.selected]:null;
-  if(pressIsOrdinary(root)&&(root.pressMeta||item!==root))return '';
-  return select("hold","기존 길게 누르기",[["none","아무것도 하지 않음"],["close","프로그램 종료"],["force","프로그램 강제 종료"]]);
+  // This option belongs only to the primary Program Open action. The explicit
+  // hold slot takes precedence, but must never delete the saved legacy choice.
+  if(!root||item!==root)return '';
+  const field=select("hold","길게 누르기",[["none","아무것도 하지 않음"],["close","프로그램 종료"],["force","프로그램 강제 종료"]]);
+  return root.pressActions?.hold
+    ?field.replace('data-field="hold"','data-field="hold" disabled title="길게 누르기 탭에 등록된 동작이 우선 적용됩니다."')
+    :field;
 }
 function actionFields(item){
   active=item;
@@ -2140,17 +2145,8 @@ function pressEnsureMeta(root){
   if(!root)return;
   root.pressMeta??={enabled:{single:true,double:true,hold:true},representative:'single'};
   root.pressMeta.enabled??={single:true,double:true,hold:true};
-  // Convert the legacy implicit app-close hold into a real independent action.
-  if(root.type==='open-app'&&['close','force'].includes(root.settings?.hold)){
-    root.pressActions??={double:null,hold:null};
-    if(!root.pressActions.hold){
-      const closing=DeckCore.createAction('close');
-      closing.settings.path=root.settings.app||'';
-      closing.settings.force=root.settings.hold==='force';
-      root.pressActions.hold=closing;
-    }
-    root.settings.hold='none';
-  }
+  // Never turn the Program Open legacy hold into a separate action. An
+  // explicitly registered hold action only shadows the legacy setting.
 }
 function setPressSlot(index,slot,next,immediate=false){
   if(index<0||index>=13||!PRESS_TABS.some(x=>x[0]===slot))return false;
@@ -2171,7 +2167,6 @@ function setPressSlot(index,slot,next,immediate=false){
   }
   let root=current;
   if(!root){
-    if(slot==='single'&&next?.type==='open-app')next.settings.hold='none';
     root=slot==='single'&&next?next:DeckCore.createAction('press-empty');
     currentPage()[index]=root;
   }
@@ -2191,7 +2186,7 @@ function setPressSlot(index,slot,next,immediate=false){
     root.pressActions??={double:null,hold:null};
     root.pressActions[slot]=next||null;
   }
-  if(next?.type==='open-app')next.settings.hold='none';
+  if(slot!=='single'&&next?.type==='open-app')next.settings.hold='none';
   if(next){root.pressMeta.enabled[slot]=true;}
   state.selected=index;activePressTab=slot;
   if(immediate){
@@ -4614,20 +4609,29 @@ function handleGestureTest(action,index,gesture,event,preview){
 // action; only explicitly assigned double / hold actions enable the new router.
 const assignedKeyPresses=new Map();
 const ASSIGNED_DOUBLE_MS=300,ASSIGNED_HOLD_MS=600;
+function legacyOpenAppHoldAvailable(action){
+  return action?.type==='open-app'&&!action.pressActions?.hold&&
+    ['close','force'].includes(action.settings?.hold);
+}
 function assignedPressStillCurrent(record){
   return DeckCore.runtimeActionKey(state,record.index,'down')===record.key&&
     DeckCore.visibleActions(state)?.[record.index]===record.action&&
     JSON.stringify([record.action.pressActions||{},record.action.pressMeta||{}])===record.bindings;
 }
 function runAssignedPress(action,index,slot,event){
-  if(!pressEnabled(action,slot))return null;
-  if(!pressSlotAction(action,slot)&&!(slot==='hold'&&!action.pressMeta))return null;
+  const assigned=pressSlotAction(action,slot);
+  const legacyHold=slot==='hold'&&!assigned&&
+    (legacyOpenAppHoldAvailable(action)||action.type==='indicator'&&!action.pressMeta);
+  if(!assigned&&!legacyHold)return null;
+  // The disabled checkbox applies to an assigned hold action; an unregistered
+  // slot must not suppress the Program Open legacy option.
+  if(assigned&&!pressEnabled(action,slot))return null;
   let result=null;
   if(slot==='single'&&action.type==='indicator'){
     result=executeSideNavigation(index,'down',event);
-  }else if(slot==='hold'&&!action.pressActions?.hold&&!action.pressMeta){
+  }else if(slot==='hold'&&legacyHold){
     if(action.type==='indicator')result=executeSideNavigation(index,'hold',event);
-    else if(action.type==='open-app'&&['close','force'].includes(action.settings?.hold)){
+    else if(legacyOpenAppHoldAvailable(action)){
       const target=action.settings?.app;
       if(!target)result='종료할 프로그램을 먼저 선택하세요.';
       else if(!window.deckBridge?.closeLocalApp)result='Windows 실행 환경에서만 사용할 수 있습니다.';
@@ -4673,9 +4677,10 @@ function handleAssignedKeyPress(action,index,gesture,event){
     const record={key,index,action,pressed:true,holdFired:false,doubleFired:false,
       bindings:JSON.stringify([action.pressActions||{},action.pressMeta||{}]),
       downAt:now,holdTimer:null,singleTimer:null};
-    const legacyHold=action.type==='open-app'&&['close','force'].includes(action.settings?.hold)||
+    const legacyHold=legacyOpenAppHoldAvailable(action)||
       action.type==='indicator'&&DeckCore.sharedIndicatorConfig(state,action,'hold').navigation!=='none';
-    if(action.pressMeta||pressEnabled(action,'hold')&&(action.pressActions?.hold||legacyHold)){
+    const holdAssigned=!!action.pressActions?.hold;
+    if(holdAssigned?pressEnabled(action,'hold'):legacyHold){
       record.holdTimer=setTimeout(()=>{
         if(assignedKeyPresses.get(key)!==record||!record.pressed||!assignedPressStillCurrent(record))return;
         record.holdFired=true;
@@ -5030,8 +5035,7 @@ function executeHardwareAction(event,preview=false,skipKnobGesture=false,pressOv
   const multiPress=handleMultiPhysicalPress(resolved,preview);
   if(multiPress){if(resolved.gesture==='up')lastHardwareDown.delete(index);report('multi-control');return multiPress.message;}
   if(!bypassPressBindings&&!preview&&['down','up'].includes(resolved.gesture)&&
-    (openAppHoldTimers.has(index)||(resolved.action?.type==='open-app'&&
-      ['close','force'].includes(resolved.action.settings?.hold))))
+    (openAppHoldTimers.has(index)||legacyOpenAppHoldAvailable(resolved.action)))
     {report('hold');return handleOpenAppHold(resolved.action,index,event,resolved.gesture);}
   if(resolved.action?.type==='gesture-test'&&['down','up'].includes(resolved.gesture))
     return handleGestureTest(resolved.action,index,resolved.gesture,event,preview);
