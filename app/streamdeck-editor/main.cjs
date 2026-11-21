@@ -399,6 +399,13 @@ ipcMain.handle('d200x:backup-items',async(event,{appearance}={})=>{
     return Backup.backupChoices(currentBackup(appearance));
   }finally{backupBusy=false;}
 });
+// Copy only the user-visible dialog text. Never read or log matched secrets.
+ipcMain.handle('d200x:dialog-copy-text',(event,text)=>{
+  backupEditor(event);
+  if(typeof text!=='string'||!text.length||text.length>32768)throw Error('복사할 텍스트가 올바르지 않습니다.');
+  clipboard.writeText(text);
+  return true;
+});
 ipcMain.handle('d200x:backup-scan',async(event,{appearance,selection}={})=>{
   backupEditor(event);if(backupBusy)throw Error('백업 작업이 진행 중입니다.');
   backupBusy=true;

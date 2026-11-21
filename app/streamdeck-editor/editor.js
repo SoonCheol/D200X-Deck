@@ -5447,7 +5447,7 @@ async function inspectPlainBackupFormat(format,selection){
   const decision=await window.DeckForgeDialogs.show({
     title:'백업 민감정보 검사 결과',kind:'warning',
     intro:result.total?'개인정보 또는 인증정보로 추정되는 항목 '+result.total+'건이 발견되었습니다.':'모든 항목을 검사하지 못했습니다.',
-    detailLabel:'추정 항목과 저장 위치',detail:detail||'검사하지 못한 항목이 있습니다.',
+    detailLabel:'추정 항목과 저장 위치',detail:detail||'검사하지 못한 항목이 있습니다.',copyDetail:true,
     warning:'실제 값은 표시하지 않습니다. 검사는 일부 정보를 놓치거나 잘못 탐지할 수 있습니다. 일반 백업은 암호화되지 않습니다.',
     ask:true,cancelLabel:'취소',alternateLabel:'일반 백업 유지',actionLabel:'암호화 백업'
   });

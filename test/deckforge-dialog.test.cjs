@@ -104,3 +104,24 @@ test('backup confirmation supports a reusable checklist without saving on invali
   assert.equal(await pending,true);
   assert.equal(dialog.removed,true);
 });
+
+test('privacy details are read-only text and can be copied with explicit click',async()=>{
+  const {document,window}=load();
+  const writes=[];
+  window.deckBridge={copyDialogText:async value=>{writes.push(value);return true;}};
+  const sample='사용자 폴더 경로 · 프로필 1 · 2페이지 · 8번 버튼\n주소 의심 · 프로필 2 · 1페이지 · 13번 버튼';
+  const pending=window.DeckForgeDialogs.show({
+    title:'백업 민감정보 검사 결과',kind:'warning',ask:true,alternateLabel:'일반 백업 유지',
+    detailLabel:'추정 항목과 저장 위치',detail:sample,copyDetail:true,actionLabel:'암호화 백업'
+  });
+  const dialog=document.body.children.at(-1),nodes=descendants(dialog);
+  const field=nodes.find(n=>n.tagName==='TEXTAREA');
+  assert.ok(field);assert.equal(field.value,sample);assert.equal(field.readOnly,true);
+  assert.equal(writes.length,0);
+  const copy=nodes.find(n=>n.textContent==='내용 복사');
+  assert.ok(copy);await copy.events.click[0]();
+  assert.deepEqual(writes,[sample]);assert.equal(copy.textContent,'복사됨');
+  assert.equal(dialog.removed,false);
+  nodes.find(n=>n.textContent==='취소').events.click[0]();
+  assert.equal(await pending,false);
+});

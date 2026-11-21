@@ -7,6 +7,7 @@ contextBridge.exposeInMainWorld('deckBridge', Object.freeze({
   createBackup: (password,appearance,format,selection) => ipcRenderer.invoke('d200x:backup-create',{password,appearance,format,selection}),
   getBackupItems: appearance => ipcRenderer.invoke('d200x:backup-items',{appearance}),
   scanBackup: (appearance,selection) => ipcRenderer.invoke('d200x:backup-scan',{appearance,selection}),
+  copyDialogText: text => ipcRenderer.invoke('d200x:dialog-copy-text',text),
   previewBackup: (password,appearance,format) => ipcRenderer.invoke('d200x:backup-preview',{password,appearance,format}),
   planBackup: (id,options) => ipcRenderer.invoke('d200x:backup-plan',{id,options}),
   commitBackup: (id,token) => ipcRenderer.sendSync('d200x:backup-commit',{id,token}),

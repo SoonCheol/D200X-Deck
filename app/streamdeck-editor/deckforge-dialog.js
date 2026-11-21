@@ -9,7 +9,7 @@
     if(text!==undefined&&text!==null)node.textContent=String(text);
     return node;
   }
-  function show({title,kind='info',intro='',fields=[],included=[],excluded=[],content=null,onAccept=null,detailLabel='',detail='',warning='',ask=false,actionLabel='확인',cancelLabel='취소',alternateLabel=''}={}){
+  function show({title,kind='info',intro='',fields=[],included=[],excluded=[],content=null,onAccept=null,detailLabel='',detail='',copyDetail=false,warning='',ask=false,actionLabel='확인',cancelLabel='취소',alternateLabel=''}={}){
     if(typeof title!=='string'||!title.trim()||!Object.hasOwn(icons,kind))throw Error('대화상자 제목 또는 상태가 올바르지 않습니다.');
     return new Promise(resolve=>{
       const dialog=element('dialog','deckforge-message-dialog'+(content?' deckforge-message-dialog-selection':''));
@@ -48,8 +48,28 @@
       items('백업에서 제외되는 항목',excluded,'deckforge-message-excluded');
       if(detail){
         const details=element('section','deckforge-message-detail');
-        if(detailLabel)details.append(element('strong','deckforge-message-detail-label',detailLabel));
-        details.append(element('div','deckforge-message-detail-value',detail));
+        if(copyDetail){
+          const toolbar=element('div','deckforge-message-detail-toolbar');
+          if(detailLabel)toolbar.append(element('strong','deckforge-message-detail-label',detailLabel));
+          const copy=element('button','deckforge-message-detail-copy','내용 복사');
+          copy.type='button';
+          const value=element('textarea','deckforge-message-detail-text');
+          value.value=String(detail);value.readOnly=true;value.spellcheck=false;
+          value.rows=Math.max(3,Math.min(13,value.value.split('\n').length));
+          value.setAttribute('aria-label',detailLabel||'내용');
+          copy.addEventListener('click',async()=>{
+            try{
+              if(window.deckBridge?.copyDialogText)await window.deckBridge.copyDialogText(value.value);
+              else if(navigator.clipboard?.writeText)await navigator.clipboard.writeText(value.value);
+              else throw Error('Clipboard unavailable');
+              copy.textContent='복사됨';
+            }catch{copy.textContent='복사 실패';}
+          });
+          toolbar.append(copy);details.append(toolbar,value);
+        }else{
+          if(detailLabel)details.append(element('strong','deckforge-message-detail-label',detailLabel));
+          details.append(element('div','deckforge-message-detail-value',detail));
+        }
         main.append(details);
       }
       if(warning){
