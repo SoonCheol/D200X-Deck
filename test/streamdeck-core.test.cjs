@@ -1609,7 +1609,7 @@ test('1.1.95 three separate action tabs preserve the existing icon regions and s
   assert.match(editor,/deck-key-press-number/);
   assert.doesNotMatch(editor,/className='press-tab-symbol'/);
   assert.doesNotMatch(editor,/className='press-tab-number'/);
-  assert.match(editor,/pressMeta\.representative=slot/);
+  assert.match(editor,/pressMeta\.representative=activePressTab/);
   assert.match(editor,/pressMeta\.enabled\[slot\]=check\.checked/);
   assert.match(editor,/const item=pressIsOrdinary\(rootItem\)/);
   assert.match(editor,/layout\.append\(iconRegion,preview\)/);
