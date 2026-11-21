@@ -119,7 +119,7 @@ test('common key inspector moves bound options left, save right, and preview tes
   assert.match(move,/if\(saveBar\)toolbar\.append\(saveBar\)/);
   assert.match(move,/title\.textContent='미리보기'/);
   assert.match(move,/preview\.append\(card,previewButton\)/);
-  assert.match(move,/layout\.append\(preview,iconRegion\)/);
+  assert.match(move,/layout\.append\(iconRegion,preview\)/);
   assert.match(move,/properties\.before\(toolbar,layout\)/);
   assert.match(move,/pathInput\.placeholder='폴더 선택'/);
   assert.match(move,/pathInput\.title=pathInput\.value/);
