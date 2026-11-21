@@ -3,7 +3,7 @@
 const ORIGINAL_CATALOG = [
   ["Soundboard", [["audio-play","효과음 재생","♫"],["audio-stop","효과음 정지","◼"]]],
   ["DeckForge", [["timer","타이머","◴"],["brightness","D200X 밝기 설정","☼"],["sleep","D200X 화면 끄기","☾"],["virtual","Virtual DeckForge 토글","▣"]]],
-  ["다중 동작", [["multi","다중 동작","▤"],["multi-switch","다중 동작 스위치","⇄"],["random","무작위 동작","⚄"],["logic","Key Logic","⇧"]]],
+  ["순차 동작", [["multi","순차 동작","▤"],["multi-switch","순차 동작 스위치","⇄"],["random","무작위 동작","⚄"],["logic","Key Logic","⇧"]]],
   ["시스템", [["website","웹페이지","◎"],["hotkey-switch","단축키 전환","⇄"],["hotkey","단축키","⌨"],["open","열기 (통합)","▢"],["open-app","프로그램 열기","▣"],["close","프로그램 종료","×"],["text","텍스트 입력","¶"],["media","재생 제어","♫"]]],
   ["탐색", [["folder","덱폴더","▣"],["profile","프로필 전환","⇆"],["previous","이전 페이지","←"],["next","다음 페이지","→"],["goto","선택 페이지","↗"],["indicator","페이지 표시","①"]]],
   ["플러그인 · Home Assistant", [["ha-toggle","HA 장치 켜기/끄기","⌂"]]],
@@ -1849,7 +1849,7 @@ function renderMultiEditor(item,root){
     spacing.append(label,input);area.append(spacing);
   }
   const heading=document.createElement('strong');
-  heading.textContent=randomAction?'무작위 동작 · 후보 중 하나 실행':switching?'다중 동작 스위치 · 상태별 실행':'다중 동작 · 순서대로 실행';
+  heading.textContent=randomAction?'무작위 동작 · 후보 중 하나 실행':switching?'순차 동작 스위치 · 상태별 실행':'순차 동작 · 순서대로 실행';
   const note=document.createElement('p');note.className='hint';
   note.textContent=randomAction?'오른쪽 목록에서 후보를 추가하면 실행할 때 한 개를 무작위 선택합니다. 중첩 및 지연은 지원하지 않습니다.':
     '오른쪽 액션 목록에서 아래로 끌어놓기 · 지연은 별도 단계 · 중첩은 지원하지 않음';
@@ -3343,12 +3343,12 @@ async function populateAudioOutputs(select,item){
 // Help is shown only for actions needing usage/limitation explanations.
 const INSPECTOR_HELP={
   multi:{
-    title:'다중 동작',description:'등록한 단계를 위에서 아래 순서대로 실행합니다.',
+    title:'순차 동작',description:'등록한 단계를 위에서 아래 순서대로 실행합니다.',
     steps:['오른쪽 액션 목록을 아래 단계 목록에 끌어놓거나 동작 추가를 사용하세요.','각 행의 지연은 동작 실행 전 대기 시간입니다. 행을 드래그하면 지연과 동작이 함께 이동합니다.','일반 실기 버튼: 처음 누르면 실행, 실행 중 짧게 누르면 일시정지, 일시정지 중 짧게 누르면 재개합니다.','실행 또는 일시정지 중 1초 이상 길게 누르면 남은 동작을 취소합니다.'],
     cautions:['복합 동작 중첩은 지원하지 않습니다.','일시정지는 남은 지연 시간을 유지합니다. 이미 실행된 동작은 되돌리지 않으며, 진행 중인 Windows 요청은 완료될 수 있습니다.']
   },
   'multi-switch':{
-    title:'다중 동작 스위치',description:'상태 1과 상태 2에 서로 다른 동작 목록을 등록하고 상태에 따라 실행합니다.',
+    title:'순차 동작 스위치',description:'상태 1과 상태 2에 서로 다른 동작 목록을 등록하고 상태에 따라 실행합니다.',
     steps:['상태 탭을 선택해 각 상태의 실행 단계를 편집하세요.','제목 연결 옵션과 상태별 아이콘·이미지를 원하는 대로 지정하세요.'],
     cautions:['단계 안에 다른 복합 동작을 중첩할 수 없습니다.','상태별 설정은 선택된 상태에만 적용됩니다.']
   },
@@ -3806,7 +3806,7 @@ function showMenu(index,x,y){
   const divider=()=>menu.append(document.createElement("hr"));
   if(!item){
     add("폴더 생성",()=>setItem(index,newAction("folder")));
-    add("다중 동작 생성",()=>setItem(index,newAction("multi")));
+    add("순차 동작 생성",()=>setItem(index,newAction("multi")));
     add("Key Logic 동작 생성",()=>setItem(index,newAction("logic")));
     divider();
     add("붙여넣기　Ctrl+V",clipboard?()=>pasteClipboardAction(index):null);
@@ -4041,7 +4041,7 @@ function handleMultiPhysicalPress(resolved,preview){
       }
     },1000);
   }
-  return {message:token.resume?'다중 동작 재개 대기':'다중 동작 일시정지'};
+  return {message:token.resume?'순차 동작 재개 대기':'순차 동작 일시정지'};
 }
 // The original switch begins in state 1. Runtime state is distinct from the
 // editor tab and advances only after its selected sequence succeeds.
@@ -4064,7 +4064,7 @@ const waitMultiDelay=(ms,signal)=>new Promise((resolve,reject)=>{
 async function executeMultiStep(action,signal,runtimeKey){
   const outcome=DeckCore.planAction(action,state.page,state.pages.length);
   const bridge=window.deckBridge;
-  if(!bridge)throw new Error('다중 동작은 Windows EXE에서만 실행할 수 있습니다.');
+  if(!bridge)throw new Error('순차 동작은 Windows EXE에서만 실행할 수 있습니다.');
   switch(outcome.kind){
     case 'sd-plugin':
       throw new Error('복합 동작의 SDK 플러그인은 아직 지원하지 않습니다.');
@@ -4076,7 +4076,7 @@ async function executeMultiStep(action,signal,runtimeKey){
       const signature=JSON.stringify([runtimeKey,'hotkey',outcome.first,outcome.second]);
       const current=compositeHotkeyPositions.get(signature)||0;
       const keys=current===0?outcome.first:outcome.second;
-      if(!keys)throw new Error('다중 동작의 단축키 전환 설정이 비어 있습니다.');
+      if(!keys)throw new Error('순차 동작의 단축키 전환 설정이 비어 있습니다.');
       await bridge.sendHotkey(keys);compositeHotkeyPositions.set(signature,1-current);
       return true;
     }
@@ -4124,7 +4124,7 @@ async function executeMultiStep(action,signal,runtimeKey){
     case 'system-shortcut':
       return bridge.systemShortcut(outcome.target,outcome.operation);
     default:
-      throw new Error('아직 다중 동작에서 실행할 수 없는 액션: '+action.type);
+      throw new Error('아직 순차 동작에서 실행할 수 없는 액션: '+action.type);
   }
 }
 
@@ -4587,9 +4587,9 @@ function executeHardwareAction(event,preview=false,skipKnobGesture=false){
         if(outcome.type==='multi-switch'){
           action.settings.activeState=1-position;
           persist();renderGrid();
-          window.d200xActionStatus?.('다중 동작 스위치 상태 '+(position+1)+' · '+count+'단계 완료');
+          window.d200xActionStatus?.('순차 동작 스위치 상태 '+(position+1)+' · '+count+'단계 완료');
         }else if(outcome.type==='random')window.d200xActionStatus?.('무작위 동작 '+count+'개 실행 완료');
-        else window.d200xActionStatus?.('다중 동작 '+count+'단계 완료');
+        else window.d200xActionStatus?.('순차 동작 '+count+'단계 완료');
       },
       error=>window.d200xActionStatus?.('복합 동작 중단: '+String(error?.message||error))
     ).finally(()=>{
@@ -4598,7 +4598,7 @@ function executeHardwareAction(event,preview=false,skipKnobGesture=false){
       if(progress&&runningMultiProgress.get(key)===progress){runningMultiProgress.delete(key);updateProgress();}
     });
     return outcome.type==='multi-switch'
-      ?'다중 동작 스위치 상태 '+(position+1)+' 실행 요청':outcome.type==='random'?'무작위 동작 실행 요청':'다중 동작 실행 요청';
+      ?'순차 동작 스위치 상태 '+(position+1)+' 실행 요청':outcome.type==='random'?'무작위 동작 실행 요청':'순차 동작 실행 요청';
   }
   if(outcome.kind==='ha-toggle'){
     if(!window.deckBridge?.haToggle)return 'Home Assistant는 Windows EXE에서만 실행됩니다.';

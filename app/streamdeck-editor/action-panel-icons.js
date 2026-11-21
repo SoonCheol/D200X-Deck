@@ -9,7 +9,7 @@ window.D200XPanelIcons=(()=>{
     ["멀티미디어",["system-volume","system-mute","media","audio-play","audio-stop"]],
     ["윈도우 창 관리",["window-switch","window-state","window-monitor","desktop-switch"]],
     ["키보드·마우스",["hotkey","hotkey-switch","text","system-scroll","edit-history","system-zoom"]],
-    ["자동화·다중 동작",["multi","multi-switch","random","logic"]],
+    ["자동화·순차 동작",["multi","multi-switch","random","logic"]],
     ["유틸리티",["timer","screenshot","clipboard-edit"]],
     ["편집 작업 도구",["brush-size","timeline-step","timeline-zoom"]],
     ["플러그인 · Home Assistant",["ha-toggle"]]

@@ -138,7 +138,7 @@ test('basic panel reclassification keeps every action ID and legacy accent',()=>
   vm.runInNewContext(originalPanel,sandbox);
   const panel=sandbox.window.D200XPanelIcons;
   const visible=Array.from(panel.groups).filter(([name])=>name!=='플러그인 · Home Assistant');
-  assert.deepEqual(visible.map(([name])=>name),["D200X 장치·화면","D200X 탐색","앱·파일·웹 실행","멀티미디어","윈도우 창 관리","키보드·마우스","자동화·다중 동작","유틸리티","편집 작업 도구"]);
+  assert.deepEqual(visible.map(([name])=>name),["D200X 장치·화면","D200X 탐색","앱·파일·웹 실행","멀티미디어","윈도우 창 관리","키보드·마우스","자동화·순차 동작","유틸리티","편집 작업 도구"]);
   const ids=visible.flatMap(([,ids])=>Array.from(ids));
   const core=require(path.join(base,'deck-core.js'));
   assert.equal(ids.length,44);
@@ -449,4 +449,17 @@ test('wide knob labels separate normal and held actions and retain the second li
   assert.deepEqual(label({...binding,heldTarget:'page'},0),{title:'페이지 이동',detail:'페이지 이동'});
   assert.deepEqual(label({...binding,heldMode:'stack',heldStack:['page','volume']},1),{title:'페이지 이동',detail:'Windows 음량'});
   assert.deepEqual(label({...binding,heldAutoAssign:false,holdLeft:{type:'hotkey',title:'복사'},holdRight:{type:'hotkey',title:'붙여넣기'}},0),{title:'페이지 이동',detail:'복사 / 붙여넣기'});
+});
+
+// Display-only rename must not change action IDs or user profile schemas.
+test('sequential-action Korean terminology is consistent across renderer, core, AI and catalogue',()=>{
+  const files=['editor.js','deck-core.js','action-panel-icons.js','ai/read-tools.cjs'];
+  for(const file of files){
+    const source=fs.readFileSync(path.join(base,file),'utf8');
+    assert.doesNotMatch(source,/다중 동작/,file);
+  }
+  assert.match(editor,/\["multi","순차 동작"/);
+  assert.match(editor,/\["multi-switch","순차 동작 스위치"/);
+  assert.match(fs.readFileSync(path.join(base,'action-panel-icons.js'),'utf8'),/자동화·순차 동작/);
+  assert.match(fs.readFileSync(path.join(base,'ai/read-tools.cjs'),'utf8'),/"multi":"순차 동작"/);
 });

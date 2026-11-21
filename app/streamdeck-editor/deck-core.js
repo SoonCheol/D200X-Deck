@@ -278,7 +278,7 @@
       for(let i=0;i<plan.steps.length;i++){
         const step=plan.steps[i];
         if(signal?.aborted)throw Error('복합 동작이 취소되었습니다.');
-        if(step.kind==='delay')throw Error('잘못된 다중 동작 단계입니다.');
+        if(step.kind==='delay')throw Error('잘못된 순차 동작 단계입니다.');
         onStep?.(i+1,plan.steps.length);
         const ms=multiMs(step.settings?.multiBeforeMs);
         if(ms)await wait(ms,signal);
