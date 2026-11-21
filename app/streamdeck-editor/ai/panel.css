@@ -11,3 +11,13 @@
 header,.account,.models,.history,footer,#notice{user-select:none}#messages,#edit-preview,#input{user-select:text}
 
 .template-row{justify-content:flex-start}.template-row button{font-size:11px}#template-list{display:grid;gap:5px;max-height:110px;overflow:auto;padding:7px;border:1px solid #505050;border-radius:4px;background:#313131}#template-list small{font-size:11px}#template-list button{text-align:left}
+
+/* Explicit per-message attachments: selected files are never silently sent. */
+.ai-attach-toolbar{justify-content:flex-start}
+.ai-attach-toolbar #attach{font-size:12px;padding:5px 9px;background:#424850}
+.ai-attach-toolbar small{font-size:11px;color:#adb6bf}
+.ai-attachment-list{display:flex;flex-wrap:wrap;gap:5px;max-height:88px;overflow:auto}
+.ai-attachment-chip{display:flex;align-items:center;gap:5px;max-width:100%;padding:3px 5px 3px 8px;border:1px solid #586574;border-radius:5px;background:#323c47;color:#e3ebf5}
+.ai-attachment-chip span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:270px;font-size:11px;min-width:0}
+.ai-attachment-chip button{border:0;background:transparent;color:#cbd6df;padding:0 3px;font-size:16px;line-height:1}
+.ai-attachment-chip button:hover:not(:disabled){background:#526275}

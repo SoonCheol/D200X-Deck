@@ -2,6 +2,7 @@
 (()=>{
 const $=id=>document.getElementById(id),api=window.aiBridge,localSetup=window.DeckForgeFusionSetup.matches;
 let connected=false,busy='',models=[],history=[],current=null,stream=null,preview=null,canUndo=false;
+let attachments=[],readingAttachment=false;
 const notice=t=>{$('notice').textContent=t||'';};
 const check=r=>{if(!r?.ok)throw Error(r?.error||'AI 연결 오류');return r.value;};
 
@@ -22,9 +23,11 @@ function controls(){
   $('login').hidden=connected;$('login').disabled=!!busy;$('logout').hidden=!connected;$('logout').disabled=!!busy;
   $('cancelLogin').hidden=busy!=='login';$('stop').disabled=busy!=='chat';
   $('model').disabled=!!busy||!connected||!models.length;$('refresh').disabled=!!busy||!connected;
-  $('send').disabled=!!busy||!$('input').value.trim()||(!localSetup($('input').value)&&(!connected||!$('model').value));
+  $('send').disabled=!!busy||readingAttachment||(!attachments.length&&!$('input').value.trim())||(!(!attachments.length&&localSetup($('input').value))&&(!connected||!$('model').value));
+  $('attach').disabled=!!busy||!!preview||readingAttachment||!connected;
+  $('attach-files').disabled=!!busy||!!preview||readingAttachment;
   $('templates').disabled=!!busy||!!preview;$('fusion-setup').disabled=!!busy||!!preview;
-  $('new').disabled=!!busy;$('history').disabled=!!busy;$('delete').disabled=!!busy||!history.some(c=>c.id===current);
+  $('new').disabled=!!busy||readingAttachment;$('history').disabled=!!busy||readingAttachment;$('delete').disabled=!!busy||!history.some(c=>c.id===current);
   $('tool').disabled=!!busy||!!preview;$('edit-mode').disabled=!!busy||!!preview;$('input').disabled=!!busy||!!preview;
   if(preview){for(const id of ['send','new','history','delete','logout','refresh','model'])$(id).disabled=true;}
   $('edit-apply').disabled=!!busy||!preview;$('edit-cancel').disabled=!!busy||!preview;$('edit-undo').disabled=!!busy||!!preview||!canUndo;
@@ -57,11 +60,61 @@ $('cancelLogin').onclick=()=>api.cancel();
 $('logout').onclick=()=>{if(confirm('DeckForge의 ChatGPT 연결을 해제하시겠습니까?'))run('logout',async()=>{const r=check(await api.logout());await status();notice(r.revoked?'연결 해제 완료':'로컬 연결 해제 완료. 원격 폐기 미확인: ChatGPT 설정에서 연결을 확인하세요.');});};
 $('refresh').onclick=()=>run('models',async()=>{notice('');await modelList();});
 $('usage').onclick=async()=>{try{check(await api.usage());}catch(e){notice(e.message);}};
-$('new').onclick=()=>{current=null;$('input').value='';notice('');draw();};
-$('history').onchange=()=>{current=$('history').value||null;$('input').value='';notice('');draw();};
+$('new').onclick=()=>{current=null;$('input').value='';clearAttachments();notice('');draw();};
+$('history').onchange=()=>{current=$('history').value||null;$('input').value='';clearAttachments();notice('');draw();};
 $('delete').onclick=()=>{if(current&&confirm('이 대화 기록을 삭제하시겠습니까?'))run('history',async()=>{history=check(await api.delete(current));current=null;draw();});};
 $('templates').onclick=()=>{const menu=$('template-list');menu.hidden=!menu.hidden;$('templates').setAttribute('aria-expanded',String(!menu.hidden));};
 $('fusion-setup').onclick=()=>{$('input').value='Fusion 초기 연결해 줘';$('template-list').hidden=true;$('templates').setAttribute('aria-expanded','false');$('input').focus();controls();};
+
+const MAX_ATTACH=3,MAX_FILE_BYTES=6*1024*1024,MAX_TOTAL_BYTES=12*1024*1024;
+const ALLOWED_EXT=new Set(['png','jpg','jpeg','webp','pdf','txt','log','md','json','csv','xml','js','py','docx','xlsx']);
+function renderAttachments(){
+  const root=$('attachment-list');root.replaceChildren();root.hidden=!attachments.length;
+  for(const [index,file] of attachments.entries()){
+    const chip=document.createElement('div');chip.className='ai-attachment-chip';
+    const name=document.createElement('span');name.title=file.name;name.textContent=file.name+' ('+Math.ceil(file.size/1024)+'KB)';
+    const remove=document.createElement('button');remove.type='button';remove.textContent='×';
+    remove.setAttribute('aria-label',file.name+' 첨부 제거');
+    remove.disabled=!!busy||readingAttachment;
+    remove.addEventListener('click',()=>{attachments.splice(index,1);renderAttachments();controls();});
+    chip.append(name,remove);root.append(chip);
+  }
+}
+function clearAttachments(){attachments=[];$('attach-files').value='';renderAttachments();controls();}
+function readAttachment(file){
+  return new Promise((resolve,reject)=>{
+    const reader=new FileReader();
+    reader.onload=()=>typeof reader.result==='string'?resolve(reader.result):reject(Error('파일을 읽을 수 없습니다.'));
+    reader.onerror=()=>reject(Error('파일을 읽을 수 없습니다.'));
+    reader.readAsDataURL(file);
+  });
+}
+$('attach').onclick=()=>$('attach-files').click();
+$('attach-files').addEventListener('change',async()=>{
+  const files=Array.from($('attach-files').files||[]);
+  $('attach-files').value='';
+  if(!files.length)return;
+  if(attachments.length+files.length>MAX_ATTACH){notice('첨부 파일은 최대 3개까지 선택할 수 있습니다.');return;}
+  let total=attachments.reduce((sum,file)=>sum+file.size,0);
+  for(const file of files){
+    const ext=file.name.split('.').at(-1).toLowerCase();
+    if(!ALLOWED_EXT.has(ext)||!file.name.includes('.')||file.name.length>120){
+      notice('지원하지 않는 첨부 형식입니다: '+file.name.slice(0,80));return;
+    }
+    total+=file.size;
+    if(!file.size||file.size>MAX_FILE_BYTES||total>MAX_TOTAL_BYTES){
+      notice('첨부는 파일당 6MB, 전체 12MB 이하만 허용합니다.');return;
+    }
+  }
+  readingAttachment=true;controls();notice('파일을 로컬에서 읽는 중…');
+  try{
+    const added=[];
+    for(const file of files)added.push({name:file.name,size:file.size,dataUrl:await readAttachment(file)});
+    attachments.push(...added);renderAttachments();notice('첨부 준비 완료 · 전송 버튼을 누르면 AI에 전달됩니다.');
+  }catch(e){notice(e.message);}
+  finally{readingAttachment=false;renderAttachments();controls();}
+});
+
 $('input').oninput=controls;
 $('input').onkeydown=e=>{if(e.key==='Enter'&&!e.shiftKey&&!e.isComposing){e.preventDefault();if(!$('send').disabled)$('send').click();}};
 $('stop').onclick=()=>{api.cancel();notice('중지 요청 중');};
@@ -72,10 +125,12 @@ api.onEvent(event=>{
 });
 $('send').onclick=()=>run('chat',async()=>{
   const text=$('input').value.trim(),id=current||crypto.randomUUID(),model=$('model').value,editMode=$('edit-mode').checked,readOnly=$('tool').checked||editMode;
-  const local=localSetup(text);
+  const files=attachments.map(({name,dataUrl})=>({name,dataUrl}));
+  const displayText=(text||'첨부한 파일을 분석해 주세요.')+(files.length?'\n\n[첨부: '+files.map(f=>f.name).join(', ')+']':'');
+  const local=!files.length&&localSetup(text);
   if(local&&!confirm('Fusion 초기 연결을 진행할까요? 누락된 Fusion 플러그인 및 애드인을 설치하고 자동 시작 manifest 설정을 활성화합니다. 필요한 경우 Fusion을 한 번 실행합니다. 기존 폴더와 프로필은 덮어쓰지 않고 실행 중인 Fusion은 종료하거나 재시작하지 않습니다.'))return;
-  notice(local?'Fusion 로컬 초기 연결 중 · AI 요청 없음':'응답 요청 중');$('messages').querySelector('.empty')?.remove();addMessage('user',text);stream=addMessage('assistant','',local);
-  try{const r=check(await api.send({id,model,text,readOnly,editMode,localApproved:local}));history=[r.conversation,...history.filter(c=>c.id!==id)];current=id;$('input').value='';canUndo=!!r.canUndo;draw();showPreview(r.preview||null);if(r.previewFailure){notice('변경안 준비 실패: '+r.previewFailure);return;}if(r.local){notice('로컬 작업 종료 · AI 요청 0회 · 토큰 0');return;}notice((readOnly?(r.called?'조회 및 응답 완료 · '+r.toolCalls+'회 조회':'응답 완료 · 로컬 조회 없음'):'응답 완료')+' · 요청 '+r.requests+'회'+(r.usage?' · 입력 '+r.usage.input_tokens.toLocaleString()+' / 출력 '+r.usage.output_tokens.toLocaleString()+' 토큰':''));}
+  notice(local?'Fusion 로컬 초기 연결 중 · AI 요청 없음':'응답 요청 중');$('messages').querySelector('.empty')?.remove();addMessage('user',displayText);stream=addMessage('assistant','',local);
+  try{const r=check(await api.send({id,model,text,attachments:files,readOnly,editMode,localApproved:local}));history=[r.conversation,...history.filter(c=>c.id!==id)];current=id;$('input').value='';clearAttachments();canUndo=!!r.canUndo;draw();showPreview(r.preview||null);if(r.previewFailure){notice('변경안 준비 실패: '+r.previewFailure);return;}if(r.local){notice('로컬 작업 종료 · AI 요청 0회 · 토큰 0');return;}notice((readOnly?(r.called?'조회 및 응답 완료 · '+r.toolCalls+'회 조회':'응답 완료 · 로컬 조회 없음'):'응답 완료')+' · 요청 '+r.requests+'회'+(r.usage?' · 입력 '+r.usage.input_tokens.toLocaleString()+' / 출력 '+r.usage.output_tokens.toLocaleString()+' 토큰':''));}
   catch(e){stream.textContent+=(stream.textContent?'\n\n':'')+(local?'[미완료 · 일부 로컬 설치 또는 설정은 이미 적용되었을 수 있습니다.]':'[미완료 · 저장하지 않음]');throw e;}
   finally{stream=null;}
 });

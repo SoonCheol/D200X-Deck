@@ -71,8 +71,15 @@ function mergeUsage(total,usage){
   if(total===null)return null;
   return {input_tokens:total.input_tokens+usage.input_tokens,output_tokens:total.output_tokens+usage.output_tokens,total_tokens:total.total_tokens+(Number.isInteger(usage.total_tokens)?usage.total_tokens:usage.input_tokens+usage.output_tokens)};
 }
-async function chat({token,model,messages,toolTest=false,readOnly=false,editMode=false,inspect,propose,version,signal,emit,fetcher=fetch}){
+async function chat({token,model,messages,attachments=[],toolTest=false,readOnly=false,editMode=false,inspect,propose,version,signal,emit,fetcher=fetch}){
   let input=cleanHistory(messages),proposed=false,called=false,text='',usage={input_tokens:0,output_tokens:0,total_tokens:0},count=0,outputSize=0;
+  if(!Array.isArray(attachments)||attachments.length>3)throw Error('첨부 입력이 올바르지 않습니다.');
+  if(attachments.length){
+    // The attachment bytes exist only in this request; history stays text-only.
+    input[input.length-1]={role:'user',content:[
+      {type:'input_text',text:input.at(-1).content},...attachments
+    ]};
+  }
   const seen=new Set(),ids=new Set(),maxRequests=readOnly?3:toolTest?2:1,maxCalls=readOnly?4:toolTest?1:0;
   for(let i=0;i<maxRequests;i++){
     const result=await turn({token,model,input,toolTest,readOnly,editMode,finalRound:i===maxRequests-1,remainingCalls:maxCalls-count,signal,emit,fetcher});text+=result.text;usage=mergeUsage(usage,result.usage);

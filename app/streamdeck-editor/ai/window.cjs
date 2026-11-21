@@ -5,6 +5,7 @@ const {randomUUID}=require('node:crypto');
 const {BrowserWindow,ipcMain,safeStorage,shell,app,screen,Menu}=require('electron');
 const {ChatAuth}=require('./auth.cjs');
 const {listModels,chat}=require('./responses.cjs');
+const {prepareAttachments}=require('./attachments.cjs');
 
 const FusionSetup=require('./fusion-setup.js');
 function formatSaveReceipt(result){
@@ -112,14 +113,19 @@ function registerAiWindow(assertEditor,newReadSession,editorEdits,runFusionSetup
     send:async(args)=>{
       const job=begin('chat');let captureId=null,preview=null,keepPreview=false,previewFailure='';
       try{
-        if(!args||typeof args.id!=='string'||typeof args.text!=='string'||!args.text.trim()||args.text.length>12000)throw Error('모델 또는 메시지 입력을 확인하세요.');
-        const local=FusionSetup.matches(args.text);
+        if(!args||typeof args.id!=='string'||typeof args.text!=='string'||args.text.length>12000)throw Error('모델 또는 메시지 입력을 확인하세요.');
+        // Bytes are never written to encrypted history; only filenames are retained.
+        const attachments=prepareAttachments(args.attachments);
+        if(!args.text.trim()&&!attachments.parts.length)throw Error('메시지 또는 첨부 파일을 입력하세요.');
+        const prompt=args.text.trim()||'첨부한 파일을 분석해 주세요.';
+        const local=!attachments.parts.length&&FusionSetup.matches(prompt);
         if(local){if(args.localApproved!==true||typeof runFusionSetup!=='function'||pending)throw Error('로컬 연결 작업을 승인하고 기존 변경안을 먼저 처리하세요.');}
         else if(!catalog.some(m=>m.id===args.model))throw Error('모델 또는 메시지 입력을 확인하세요.');
         if(!/^[a-f0-9-]{36}$/.test(args.id))throw Error('대화 식별자 오류');
         const all=await loadHistory(),old=all.find(x=>x.id===args.id);
         if(!old&&all.length>=100)throw Error('대화 기록은 최대 100개입니다. 이전 대화를 삭제하세요.');
-        const message={role:'user',content:args.text.trim()},messages=[...(old?.messages||[]),message];
+        const fileNote=attachments.names.length?'\n\n[첨부 파일: '+attachments.names.join(', ')+' · 원본은 대화 기록에 저장하지 않음]':'';
+        const message={role:'user',content:prompt+fileNote},messages=[...(old?.messages||[]),message];
         if(messages.length>200)throw Error('이 대화의 메시지 한도에 도달했습니다. 새 대화를 시작하세요.');
         const signal=AbortSignal.any([job.controller.signal,AbortSignal.timeout(240000)]);
         if(local){
@@ -131,7 +137,7 @@ function registerAiWindow(assertEditor,newReadSession,editorEdits,runFusionSetup
         await discardPending();
         const editMode=args.editMode===true,readOnly=editMode||args.readOnly===true;
         if(editMode){captureId=randomUUID();await editorEdits.capture(captureId);}
-        const result=await chat({token:await connection().access(signal),model:args.model,messages,toolTest:!readOnly&&args.toolTest===true,readOnly,editMode,inspect:readOnly?newReadSession():undefined,
+        const result=await chat({token:await connection().access(signal),model:args.model,messages,attachments:attachments.parts,toolTest:!readOnly&&args.toolTest===true,readOnly,editMode,inspect:readOnly?newReadSession():undefined,
           propose:editMode?async(input,toolSignal)=>{
             try{
               preview=await editorEdits.prepare(captureId,input,message.content,toolSignal);
