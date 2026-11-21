@@ -56,6 +56,6 @@ test('focus verifies path and active tab; attached input released in finally',()
 test('all root action path pickers use current visible action and inspector draft',()=>{
   const editor=source('editor.js');
   assert.match(editor,/const folderPicker=item.type==='folder-shortcut'&&field==='path'/);
-  assert.match(editor,/inspectorSession!==session\|\|DeckCore\.visibleActions\(state\)\[state\.selected\]!==item/);
+  assert.match(editor,/inspectorSession!==session\|\|!isCurrentInspectorAction\(item\)/);
   assert.match(editor,/if\(folderPicker\)inputNode\.title=inputNode\.value;\s*\}\s*persistInspectorChange\(\);/);
 });

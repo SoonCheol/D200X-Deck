@@ -2152,6 +2152,9 @@ function setPressSlot(index,slot,next,immediate=false){
     showInspectorLeaveDialog(()=>setPressSlot(index,slot,next,immediate));return false;
   }
   const current=DeckCore.visibleActions(state)[index]||null;
+  const occupied=pressIsOrdinary(current)?pressSlotAction(current,slot):null;
+  if(next&&occupied&&!confirm(PRESS_TABS.find(x=>x[0]===slot)[1]+'에 등록된 동작을 교체하시겠습니까?'))
+    return false;
   if(current&&!pressIsOrdinary(current)){
     if(slot==='single'&&immediate){setItem(index,next);return true;}
     window.d200xActionStatus?.('특수 액션은 기존 전용 편집기에서 관리합니다.');return false;

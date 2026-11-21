@@ -134,7 +134,8 @@ test('editing overlays and non-navigating search do not trigger unsaved leave pr
   assert.match(segment,/showInspectorLeaveDialog/);
 });
 test('other-key selection, external drops, right-click, and physical controls keep unsaved protection',()=>{
-  assert.match(src,/function choose\(index\)\{\s*if\(state\.selected===index\)return;/);
+  assert.match(src,/function choose\(index\)\{\s*if\(state\.selected===index\)\{/);
+  assert.match(src,/activePressTab='single';state\.selected=index;persist\(\);render\(\);/);
   assert.match(src,/function setItem\(index,item\)\{\s*if\(inspectorSession\?\.dirty\)/);
   assert.match(src,/function controlDrop\(index,id,gesture='down',direct=true\)\{\s*if\(!isAssignableAction\(id\)\)return;\s*if\(inspectorSession\?\.dirty\)\{showInspectorLeaveDialog\(\(\)=>controlDrop\(index,id,gesture,direct\)\);return;\}/);
   assert.match(src,/addEventListener\("contextmenu",ev=>\{[\s\S]*?showInspectorLeaveDialog\(open\)/);
