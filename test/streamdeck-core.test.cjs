@@ -1563,11 +1563,13 @@ test('1.1.94 ordinary hardware dispatcher recognizes each gesture once without d
   main.pressActions={double:core.createAction('open-app'),hold:core.createAction('goto')};
   const fakeCore={runtimeActionKey:()=> 'key-0',visibleActions:()=>[main]};
   const handle=new Function('DeckCore','state','Date','setTimeout','clearTimeout','window',
-    'executeHardwareAction','executeSideNavigation','reportInputEvidence',
+    'pressEnabled','pressSlotAction','executeHardwareAction','executeSideNavigation','reportInputEvidence',
     'observeInputEvidence','makeAppControlTrace',
     code+';return handleAssignedKeyPress;')(
     fakeCore,{}, {now:()=>clock.value},schedule,id=>timers.delete(id),
     {d200xActionStatus(){}},
+    (action,slot)=>action?.pressMeta?.enabled?.[slot]!==false,
+    (action,slot)=>slot==='single'?(action.type==='press-empty'?null:action):action.pressActions?.[slot]||null,
     (event,preview,skip,selected,bypass)=>{
       assert.equal(preview,false);assert.equal(bypass,true);
       runs.push({gesture:selected===main?'single':selected===main.pressActions.double?'double':'hold',id:event.inputId});
@@ -1591,22 +1593,52 @@ test('1.1.94 ordinary hardware dispatcher recognizes each gesture once without d
   assert.match(source,/!preview&&!bypassPressBindings&&index<13&&pressActionAssigned\(resolved\.action\)/);
   assert.match(source,/if\(resolved\.gesture==='down'&&!preview&&!bypassPressBindings\)/);
 });
-test('1.1.94 only lower inspector and search clear are added; Key Up Down layout stays identical',()=>{
+test('1.1.95 three separate action tabs preserve the existing icon regions and search clear',()=>{
   const fs=require('node:fs'),path=require('node:path');
   const base=path.join(__dirname,'../app/streamdeck-editor');
   const editor=fs.readFileSync(path.join(base,'editor.js'),'utf8');
   const html=fs.readFileSync(path.join(base,'index.html'),'utf8');
   const css=fs.readFileSync(path.join(base,'style.css'),'utf8');
-  assert.match(editor,/renderPressAssignments\(item,root\);/);
-  assert.match(editor,/root\.querySelector\('\.properties>\.fields'\)\?\.append\(area\)/);
-  assert.match(editor,/grid\.children\[0\]\.append\(columns\[0\]\)/);
-  assert.match(editor,/grid\.children\[2\]\.append\(columns\[1\]\)/);
-  assert.match(editor,/for\(const \[slot,title\] of \[\['single','한 번 누르기'\],\['double','두 번 누르기'\],\['hold','길게 누르기'\]\]\)/);
-  assert.match(editor,/orderedMultiDialog\(selected,draft=>/);
+  assert.match(editor,/const PRESS_TABS=/);
+  assert.match(editor,/function renderPressTabs\(root,inspector\)/);
+  assert.match(editor,/function setPressSlot\(index,slot,next,immediate=false\)/);
+  assert.match(editor,/renderPressTabs\(rootItem,root\)/);
+  assert.match(editor,/function showPressDropOverlay\(index,key\)/);
+  assert.match(editor,/press-tab-representative/);
+  assert.match(editor,/pressMeta\.representative=slot/);
+  assert.match(editor,/pressMeta\.enabled\[slot\]=check\.checked/);
+  assert.match(editor,/const item=pressIsOrdinary\(rootItem\)/);
+  assert.match(editor,/layout\.append\(iconRegion,preview\)/);
+  assert.match(css,/\.state-title-inspector \.state-title-layout\{/);
+  assert.match(css,/\.press-tabs-grid/);
+  assert.match(css,/\.press-drop-picker/);
   assert.match(html,/id="action-search-clear"/);
   assert.match(editor,/actionSearchClear\.hidden=!actionSearch\.value/);
   assert.match(editor,/actionSearch\.value='';updateActionSearch\(\);actionSearch\.focus\(\)/);
   assert.match(css,/\.library \.search #action-search-clear\[hidden\]\{display:none\}/);
-  assert.match(editor,/layout\.append\(iconRegion,preview\)/);
-  assert.match(css,/\.state-title-inspector \.state-title-layout\{/);
+});
+test('1.1.95 slots retain disabled assignments and auto-selected representative after migration',()=>{
+  const primary=core.createAction('hotkey');
+  primary.settings.keys='Ctrl+S';
+  primary.pressActions={double:core.createAction('open-app'),hold:core.createAction('goto')};
+  primary.pressMeta={enabled:{single:false,double:false,hold:true},representative:'single'};
+  const restored=core.cleanAction(JSON.parse(JSON.stringify(primary)));
+  assert.equal(restored.pressMeta.enabled.single,false);
+  assert.equal(restored.pressMeta.enabled.double,false);
+  assert.equal(restored.pressMeta.enabled.hold,true);
+  assert.equal(restored.pressMeta.representative,'single');
+  assert.equal(restored.pressActions.double.type,'open-app');
+  assert.equal(restored.pressActions.hold.type,'goto');
+  const blank=core.createAction('press-empty');
+  blank.pressMeta={enabled:{single:false,double:true,hold:false},representative:'single'};
+  blank.pressActions={double:core.createAction('hotkey'),hold:null};
+  const state=core.migrateState(null);
+  state.pages[0][0]=blank;
+  const migrated=core.migrateState(JSON.parse(JSON.stringify(state)));
+  assert.equal(migrated.pages[0][0].type,'press-empty');
+  assert.equal(migrated.pages[0][0].pressActions.double.type,'hotkey');
+  assert.equal(migrated.pages[0][0].pressMeta.enabled.single,false);
+  assert.equal(core.planAction(blank,0,1).kind,'display-only');
+  const untrusted=core.cleanAction({type:'hotkey',pressMeta:{enabled:{single:false,double:false,hold:false},representative:'invalid'}});
+  assert.equal(untrusted.pressMeta.representative,'single');
 });

@@ -162,7 +162,7 @@ const persist=(scheduleSync=true)=>{
 // Migration: preserve the existing 14 key assignments and extend with 5 physical controls.
 state.pages.forEach(page=>{while(page.length<KEY_COUNT+CONTROLS.length)page.push(null);});
 const valueOf=(item,field,fallback="")=>item?.settings?.[field]??fallback;
-function keyName(item){return item?.title||ACTIONS.get(item?.type)?.label||"";}
+function keyName(item){const visual=item?.pressMeta?pressDisplayAction(item):item;return visual?.title||ACTIONS.get(visual?.type)?.label||"";}
 const sdkVisuals=new Map();
 const FUSION_PLUGIN='com.autodesk.fusionstreamdeck';
 const fusionIconCache=new Map(),fusionCachePending=new Set(),fusionCacheMisses=new Map(),
@@ -263,6 +263,7 @@ function scheduleSdkSync(){
   }).catch(error=>window.d200xActionStatus?.('SDK 플러그인 등록 오류: '+String(error?.message||error)));
 }
 function displayItem(item,index){
+  if(item?.pressMeta)item=pressDisplayAction(item);
   if(item?.type==='text'&&!item.settings?.stateTitles&&item.titleStyle?.visible!==false)
     return {...item,title:textActionDisplayTitle(item,item.title)};
   if(item?.type==='multi-switch')return DeckCore.displaySwitchAction(item);
@@ -372,7 +373,10 @@ function resolveStateTitle(item,second,artwork=null){
   return {...result,title:selected?textActionDisplayTitle(item,selected.title):'',titleStyle:{...DEFAULT_TITLE_STYLE,...(selected?.style||{}),visible:!!selected}};
 }
 function stateDisplayArtwork(item,index,momentary){
-  const raw=DeckCore.visibleActions(state)[index]||item;
+  const keyRoot=DeckCore.visibleActions(state)[index];
+  // The displayed and actively edited gesture can differ from the stored root.
+  const raw=keyRoot?.pressMeta||Object.values(keyRoot?.pressActions||{}).includes(item)
+    ?item:(keyRoot||item);
   const valid=icon=>icon?.kind==='file'&&typeof icon.value==='string';
   if(raw?.type==='timer'){
     const icons=raw.settings?.sdkStateIcons||{};
@@ -582,10 +586,15 @@ function showControlMenu(index,x,y){
   menu.hidden=false;
 }
 function choose(index){
-  if(state.selected===index)return;
+  if(state.selected===index){
+    if(index<13&&pressIsOrdinary(DeckCore.visibleActions(state)[index])&&activePressTab!=='single'){
+      activePressTab='single';renderInspector();
+    }
+    return;
+  }
   if(inspectorSession?.dirty){showInspectorLeaveDialog(()=>choose(index));return;}
   if(state.selected!==index){controlGesture='down';knobTab='normal';}
-  state.selected=index;persist();render();
+  activePressTab='single';state.selected=index;persist();render();
 }
 function controlDrop(index,id,gesture='down',direct=true){
   if(!isAssignableAction(id))return;
@@ -806,6 +815,47 @@ window.deckBridge?.onNativeDrop?.(message=>{
   if(!Number.isInteger(result?.index)||result.index<0||result.index>=13)return;
   void registerDroppedApplication(result.index,candidate?.value||null,candidate?.kind==='appid',session.snapshot);
 });
+let pressDropOverlay=null;
+function hidePressDropOverlay(){
+  pressDropOverlay?.node.remove();pressDropOverlay=null;
+}
+function showPressDropOverlay(index,key){
+  if(pressDropOverlay?.index===index&&pressDropOverlay.node.isConnected)return;
+  hidePressDropOverlay();
+  const root=DeckCore.visibleActions(state)[index];
+  if(root&&!pressIsOrdinary(root))return;
+  const card=document.createElement('div');card.className='press-drop-picker';
+  card.setAttribute('aria-label','누르기 동작 배치');
+  for(const [slot,label,number] of PRESS_TABS){
+    const target=pressSlotAction(root,slot);
+    const zone=document.createElement('div');zone.className='press-drop-choice';
+    const art=document.createElement('div');art.className='press-drop-art';
+    art.append(iconNode(pressTabArtwork(target,index),ACTIONS.get(target?.type)?.icon||'+'));
+    const numberTag=document.createElement('span');numberTag.className='press-drop-number';
+    numberTag.textContent=number;art.append(numberTag);
+    const title=document.createElement('strong');title.textContent=label;
+    const action=document.createElement('span');action.textContent=target?(ACTIONS.get(target.type)?.label||target.type):'미등록';
+    zone.append(art,title,action);
+    if(target&&!pressEnabled(root,slot))zone.classList.add('disabled-action');
+    zone.addEventListener('dragover',ev=>{ev.preventDefault();zone.classList.add('drag-over');});
+    zone.addEventListener('dragleave',()=>zone.classList.remove('drag-over'));
+    zone.addEventListener('drop',ev=>{
+      ev.preventDefault();ev.stopPropagation();
+      const id=ev.dataTransfer?.getData('application/x-d200x-action');
+      hidePressDropOverlay();
+      if(isAssignableAction(id))setPressSlot(index,slot,newAction(id),true);
+    });
+    card.append(zone);
+  }
+  document.body.append(card);
+  const rect=key.getBoundingClientRect();
+  const width=card.offsetWidth,height=card.offsetHeight;
+  card.style.left=Math.max(8,Math.min(window.innerWidth-width-8,rect.left+rect.width/2-width/2))+'px';
+  card.style.top=Math.max(8,Math.min(window.innerHeight-height-8,rect.bottom+6))+'px';
+  pressDropOverlay={index,node:card};
+}
+document.addEventListener('dragend',hidePressDropOverlay,true);
+document.addEventListener('drop',()=>setTimeout(hidePressDropOverlay,0),true);
 function renderGrid(){
   if(nativeGridDrag&&(state!==nativeGridDrag.snapshot.state||currentPage()!==nativeGridDrag.snapshot.page))clearNativeGridDrag(nativeGridDrag,true);
   const grid=$("key-grid");hideReplacedTooltip(grid);grid.replaceChildren();
@@ -851,6 +901,7 @@ function renderGrid(){
     const allowGridDrop=ev=>{
       if(reservedWideSlot(i))return;
       ev.preventDefault();b.classList.add("drag-over");
+      if(Array.from(ev.dataTransfer?.types||[]).includes('application/x-d200x-action'))showPressDropOverlay(i,b);
       const d=ev.dataTransfer;
       if(d&&Array.from(d.types).includes('Files')&&['link','linkMove'].includes(d.effectAllowed))d.dropEffect='link';
       armNativeGrid(ev);
@@ -863,7 +914,9 @@ function renderGrid(){
       ev.preventDefault();b.classList.remove("drag-over");
       if(importFusionDraggedCommand(ev,i))return;
       if(Array.from(ev.dataTransfer?.types||[]).includes('Files')||ev.dataTransfer?.files?.length){finishExternalGridDrop(i);return;}
-      const id=ev.dataTransfer.getData("application/x-d200x-action");if(isAssignableAction(id))setItem(i,newAction(id));
+      const id=ev.dataTransfer.getData("application/x-d200x-action");
+      if(isAssignableAction(id))setPressSlot(i,'single',newAction(id),true);
+      hidePressDropOverlay();
     });
     grid.append(b);
   });
@@ -1354,6 +1407,8 @@ function renderLibrary(){
         if(disabled)return;
         if(state.selected!==null){
           if(state.selected>=14)controlDrop(state.selected,id,controlGesture,false);
+          else if(pressIsOrdinary(DeckCore.visibleActions(state)[state.selected])||DeckCore.PRESS_ACTION_TYPES.includes(id))
+            setPressSlot(state.selected,activePressTab,newAction(id),true);
           else setItem(state.selected,newAction(id));
         }
       });
@@ -1541,6 +1596,12 @@ const pathPicker=(field,label,kind='file')=>
 const check=(field,label,invert=false)=>`<div class="field checkbox-setting-field"><label for="s-${field}">${label}</label><input id="s-${field}" type="checkbox" data-field="${field}" ${invert?'data-inverted="true"':''} ${invert?!valueOf(active,field)?"checked":"":valueOf(active,field)?"checked":""}></div>`;
 const fieldChecked=node=>node.dataset.textClipboard==='true'?(node.checked?'clipboard':'typing'):node.dataset.inverted==="true"?!node.checked:node.checked;
 let active=null;
+function openAppLegacyHold(item){
+  const root=Number.isInteger(state.selected)&&state.selected<13
+    ?DeckCore.visibleActions(state)[state.selected]:null;
+  if(pressIsOrdinary(root)&&(root.pressMeta||item!==root))return '';
+  return select("hold","기존 길게 누르기",[["none","아무것도 하지 않음"],["close","프로그램 종료"],["force","프로그램 강제 종료"]]);
+}
 function actionFields(item){
   active=item;
   switch(item.type){
@@ -1557,8 +1618,8 @@ function actionFields(item){
     case "open":return pathPicker("path","대상 경로")+input("args","실행 인수");
     case "terminal":case "terminal-admin":return check("foreground","맨 앞으로 가져오기")+check("preventDuplicate","중복 실행 방지");
     case "open-app":if(String(item.settings?.app||'').startsWith('shell:AppsFolder\\'))
-      return '<div class="field"><label>프로그램</label><input readonly value="'+escapeHtml(item.settings.app)+'"></div>'+select("hold","기존 길게 누르기",[["none","아무것도 하지 않음"],["close","프로그램 종료"],["force","프로그램 강제 종료"]])+check("foreground","맨 앞으로 가져오기")+check("preventDuplicate","중복 실행 방지");
-      return pathPicker("app","프로그램","app")+input("args","실행 인수")+select("hold","기존 길게 누르기",[["none","아무것도 하지 않음"],["close","프로그램 종료"],["force","프로그램 강제 종료"]])+check("foreground","맨 앞으로 가져오기")+check("preventDuplicate","중복 실행 방지");
+      return '<div class="field"><label>프로그램</label><input readonly value="'+escapeHtml(item.settings.app)+'"></div>'+openAppLegacyHold(item)+check("foreground","맨 앞으로 가져오기")+check("preventDuplicate","중복 실행 방지");
+      return pathPicker("app","프로그램","app")+input("args","실행 인수")+openAppLegacyHold(item)+check("foreground","맨 앞으로 가져오기")+check("preventDuplicate","중복 실행 방지");
     case "close":return pathPicker("path","대상 경로")+check("force","강제 종료");
     case "hotkey":return select("preset","동작 선택",HOTKEY_PRESET_LABELS)+input("keys","단축키","클릭하여 할당");
     case "hotkey-switch":return input("first","단축키 1")+input("second","단축키 2");
@@ -2036,79 +2097,175 @@ function renderLogicEditor(item,root){
 }
 // Common lower inspector for ordinary screen buttons. Key Up/Down artwork and
 // the existing icon/title/preview regions are intentionally never relocated.
-const PRESS_MAIN_EXCLUDED=new Set(['virtual','gesture-test','multi','multi-switch','random','logic','sd-plugin']);
-function pressActionAssigned(item){
-  return !!(item?.pressActions?.double||item?.pressActions?.hold);
+// One ordinary key, three independent action slots. Specialist inputs retain their own editor.
+const PRESS_MAIN_EXCLUDED=new Set(['virtual','gesture-test','multi','multi-switch','random','logic','sd-plugin','indicator','folder']);
+const PRESS_TABS=[['single','한 번 누르기','1'],['double','두 번 누르기','2'],['hold','길게 누르기','3']];
+let activePressTab='single';
+function pressIsOrdinary(action){return !!action&&!PRESS_MAIN_EXCLUDED.has(action.type);}
+function pressSlotAction(root,slot){
+  if(!root)return null;
+  return slot==='single'?(root.type==='press-empty'?null:root):(root.pressActions?.[slot]||null);
 }
-function renderPressAssignments(item,root){
-  if(state.selected<0||state.selected>=13||PRESS_MAIN_EXCLUDED.has(item.type))return;
-  const area=document.createElement('section');area.className='press-assignment-section';
-  const heading=document.createElement('strong');heading.textContent='버튼 누르기 동작';
-  const hint=document.createElement('p');hint.className='hint';
-  hint.textContent='한 번 누르기는 현재 액션과 설정을 유지합니다. 두 번·길게 누르기는 동작을 지정할 때만 추가됩니다.';
-  const grid=document.createElement('div');grid.className='press-assignment-grid';
-  area.append(heading,hint,grid);
-  const session=inspectorSession;
-  const current=()=>inspectorTargetCurrent(session,item)&&state.selected<13;
-  for(const [slot,title] of [['single','한 번 누르기'],['double','두 번 누르기'],['hold','길게 누르기']]){
-    const card=document.createElement('div');card.className='press-assignment-card';
-    const label=document.createElement('label');label.textContent=title;
-    card.append(label);
-    if(slot==='single'){
-      const summary=document.createElement('div');summary.className='press-single-action';
-      summary.textContent=ACTIONS.get(item.type)?.label||item.type;
-      summary.title='기존 등록 액션과 모든 설정을 그대로 사용합니다';
-      card.append(summary);
-    }else{
-      const row=document.createElement('div');row.className='press-assignment-row';
-      const select=document.createElement('select');select.setAttribute('aria-label',title+' 동작 선택');
-      select.add(new Option(slot==='hold'&&['indicator','open-app'].includes(item.type)?'기존 길게 누르기 유지':'동작 없음',''));
-      for(const id of DeckCore.PRESS_ACTION_TYPES)
-        select.add(new Option(ACTIONS.get(id)?.label||id,id));
-      const active=item.pressActions?.[slot]||null;
-      select.value=active?.type||'';
-      select.addEventListener('change',()=>{
-        if(!current())return;
-        const prior=item.pressActions?.[slot];
-        item.pressActions??={double:null,hold:null};
-        item.pressActions[slot]=select.value?(prior?.type===select.value?prior:newAction(select.value)):null;
-        if(!item.pressActions.double&&!item.pressActions.hold)delete item.pressActions;
-        persistInspectorChange();renderInspector();
-      });
-      const config=document.createElement('button');config.type='button';config.className='press-assignment-settings';
-      config.textContent='설정';config.title=title+' 액션 속성';config.disabled=!active;
-      config.addEventListener('click',()=>{
-        const selected=item.pressActions?.[slot];
-        if(!current()||!selected)return;
-        orderedMultiDialog(selected,draft=>{
-          if(!current()||item.pressActions?.[slot]!==selected)return;
-          item.pressActions[slot]=draft;persistInspectorChange();renderInspector();
-        });
-      });
-      row.append(select,config);card.append(row);
-      if(active){
-        const summary=document.createElement('small');summary.className='press-assignment-summary';
-        summary.textContent=orderedMultiSummary(active).value;card.append(summary);
-      }else if(slot==='hold'&&['indicator','open-app'].includes(item.type)){
-        const legacy=document.createElement('small');legacy.className='press-assignment-summary';
-        legacy.textContent='미지정 시 기존 길게 누르기 설정 유지';card.append(legacy);
+function pressEnabled(root,slot){return root?.pressMeta?.enabled?.[slot]!==false;}
+function pressDisplayAction(root){
+  if(!root||!root.pressMeta)return root;
+  const preferred=root.pressMeta.representative||'single';
+  const available=slot=>pressEnabled(root,slot)&&pressSlotAction(root,slot);
+  const selected=available(preferred)||['single','double','hold'].map(available).find(Boolean);
+  return selected||{type:'press-empty',title:'',icon:{kind:'glyph',glyph:' '},settings:{}};
+}
+function pressTabArtwork(action,index){
+  if(!action)return null;
+  const visual=displayItem(action,index);
+  const icon=action.settings?.keyPressIcons?.up||action.settings?.sdkStateIcons?.off||null;
+  return icon?{...visual,icon}:visual;
+}
+function pressActionAssigned(item){
+  return !!(item?.pressMeta||item?.pressActions?.double||item?.pressActions?.hold);
+}
+function isCurrentInspectorAction(item){
+  const slot=state.selected;
+  if(!Number.isInteger(slot)||slot<0)return false;
+  const root=slot>=14?DeckCore.activeControlAction(DeckCore.controlBinding(state,slot),controlGesture):
+    DeckCore.visibleActions(state)[slot];
+  return !!root&&(root===item||Object.values(root.pressActions||{}).includes(item));
+}
+function pressEnsureMeta(root){
+  if(!root)return;
+  root.pressMeta??={enabled:{single:true,double:true,hold:true},representative:'single'};
+  root.pressMeta.enabled??={single:true,double:true,hold:true};
+  // Convert the legacy implicit app-close hold into a real independent action.
+  if(root.type==='open-app'&&['close','force'].includes(root.settings?.hold)){
+    root.pressActions??={double:null,hold:null};
+    if(!root.pressActions.hold){
+      const closing=DeckCore.createAction('close');
+      closing.settings.path=root.settings.app||'';
+      closing.settings.force=root.settings.hold==='force';
+      root.pressActions.hold=closing;
+    }
+    root.settings.hold='none';
+  }
+}
+function setPressSlot(index,slot,next,immediate=false){
+  if(index<0||index>=13||!PRESS_TABS.some(x=>x[0]===slot))return false;
+  if(immediate&&inspectorSession?.dirty){
+    showInspectorLeaveDialog(()=>setPressSlot(index,slot,next,immediate));return false;
+  }
+  const current=DeckCore.visibleActions(state)[index]||null;
+  if(current&&!pressIsOrdinary(current)){
+    if(slot==='single'&&immediate){setItem(index,next);return true;}
+    window.d200xActionStatus?.('특수 액션은 기존 전용 편집기에서 관리합니다.');return false;
+  }
+  if(next&&!DeckCore.PRESS_ACTION_TYPES.includes(next.type)){
+    if(slot==='single'&&!current&&immediate){setItem(index,next);return true;}
+    window.d200xActionStatus?.('이 액션은 전용 편집기로 등록해야 합니다.');return false;
+  }
+  let root=current;
+  if(!root){
+    if(slot==='single'&&next?.type==='open-app')next.settings.hold='none';
+    root=slot==='single'&&next?next:DeckCore.createAction('press-empty');
+    currentPage()[index]=root;
+  }
+  // A pinned button must not be modified across every page by an ordinary local drop.
+  else if(!currentPage()[index]&&state.pinned?.[index]===root){
+    root=DeckCore.cleanAction(root);currentPage()[index]=root;
+  }
+  pressEnsureMeta(root);
+  if(slot==='single'){
+    if(root!==next){
+      const preserved={pressActions:root.pressActions,pressMeta:root.pressMeta};
+      for(const key of Object.keys(root))delete root[key];
+      Object.assign(root,next||DeckCore.createAction('press-empty'));
+      Object.assign(root,preserved);
+    }
+  }else{
+    root.pressActions??={double:null,hold:null};
+    root.pressActions[slot]=next||null;
+  }
+  if(next?.type==='open-app')next.settings.hold='none';
+  if(next){root.pressMeta.enabled[slot]=true;}
+  state.selected=index;activePressTab=slot;
+  if(immediate){
+    inspectorSession=null;
+    persist();render();
+  }else{
+    persistInspectorChange();renderGrid();renderInspector();
+  }
+  return true;
+}
+function renderPressTabs(root,inspector){
+  if(!pressIsOrdinary(root)||state.selected>=13)return;
+  const host=document.createElement('section');
+  host.className='press-tabs-section';host.setAttribute('aria-label','버튼 누르기 동작');
+  const grid=document.createElement('div');grid.className='press-tabs-grid';
+  for(const [slot,label,number] of PRESS_TABS){
+    const action=pressSlotAction(root,slot);
+    const enabled=!!action&&pressEnabled(root,slot);
+    const tile=document.createElement('div');tile.className='press-tab-tile';
+    if(activePressTab===slot)tile.classList.add('selected');
+    if(!enabled)tile.classList.add('inactive');
+    const heading=document.createElement('div');heading.className='press-tab-heading';
+    const check=document.createElement('input');check.type='checkbox';
+    check.checked=enabled;check.disabled=!action;check.title=label+' 동작 사용';
+    check.setAttribute('aria-label',label+' 동작 사용');
+    check.addEventListener('change',()=>{
+      pressEnsureMeta(root);root.pressMeta.enabled[slot]=check.checked;
+      persistInspectorChange();renderGrid();renderInspector();
+    });
+    const choose=document.createElement('button');choose.type='button';
+    choose.className='press-tab-select';choose.textContent=label;
+    choose.addEventListener('click',()=>{activePressTab=slot;renderInspector();});
+    heading.append(check,choose);
+    const symbol=document.createElement('div');symbol.className='press-tab-symbol';
+    const art=pressTabArtwork(action,state.selected);
+    symbol.append(iconNode(art,ACTIONS.get(action?.type)?.icon||'+'));
+    const numberTag=document.createElement('span');numberTag.className='press-tab-number';
+    numberTag.textContent=number;symbol.append(numberTag);
+    const rep=document.createElement('button');rep.type='button';rep.className='press-tab-representative';
+    const preferred=(root.pressMeta?.representative||'single')===slot;
+    const displayed=!!action&&pressDisplayAction(root)===action;
+    rep.textContent=displayed?'✓':preferred?'◎':'○';
+    rep.title=displayed?'현재 D200X에 표시되는 대표 아이콘':
+      preferred?'선택한 대표 아이콘 · 현재 비활성으로 자동 대체됨':'대표 아이콘으로 선택';
+    rep.setAttribute('aria-label',label+' 대표 아이콘 선택');
+    rep.disabled=!action;
+    if(displayed)rep.classList.add('chosen');
+    rep.addEventListener('click',()=>{
+      pressEnsureMeta(root);root.pressMeta.representative=slot;
+      persistInspectorChange();renderGrid();renderInspector();
+    });
+    symbol.append(rep);
+    const actionName=document.createElement('div');actionName.className='press-tab-name';
+    actionName.textContent=action?(ACTIONS.get(action.type)?.label||action.type):'미등록';
+    actionName.title=actionName.textContent;
+    tile.append(heading,symbol,actionName);
+    tile.addEventListener('dragover',ev=>{
+      if(Array.from(ev.dataTransfer?.types||[]).includes('application/x-d200x-action')){
+        ev.preventDefault();tile.classList.add('drag-over');
       }
-    }
-    grid.append(card);
+    });
+    tile.addEventListener('dragleave',()=>tile.classList.remove('drag-over'));
+    tile.addEventListener('drop',ev=>{
+      ev.preventDefault();ev.stopPropagation();tile.classList.remove('drag-over');
+      const id=ev.dataTransfer?.getData('application/x-d200x-action');
+      if(isAssignableAction(id))setPressSlot(state.selected,slot,newAction(id),true);
+    });
+    grid.append(tile);
   }
-  // The page-indicator legacy navigation dropdowns are rehomed under the
-  // three common gesture cards; no duplicate two-column row remains.
-  if(item.type==='indicator'){
-    const pair=root.querySelector('.side-binding-pair');
-    const columns=pair?.querySelectorAll(':scope > .side-binding-column');
-    if(columns?.length===2){
-      grid.children[0].querySelector('.press-single-action')?.remove();
-      grid.children[0].append(columns[0]);
-      if(!item.pressActions?.hold)grid.children[2].append(columns[1]);
-      pair.remove();
-    }
-  }
-  root.querySelector('.properties>.fields')?.append(area);
+  host.append(grid);
+  const chosen=pressSlotAction(root,activePressTab);
+  const controls=document.createElement('div');controls.className='press-tabs-controls';
+  const label=document.createElement('strong');label.textContent=PRESS_TABS.find(x=>x[0]===activePressTab)[1]+' · '+(chosen?(ACTIONS.get(chosen.type)?.label||chosen.type):'동작 미등록');
+  const del=document.createElement('button');del.type='button';del.className='press-tab-delete';
+  del.textContent='동작 삭제';del.disabled=!chosen;
+  del.addEventListener('click',()=>{
+    if(!confirm(PRESS_TABS.find(x=>x[0]===activePressTab)[1]+' 동작과 속성을 삭제하시겠습니까?'))return;
+    setPressSlot(state.selected,activePressTab,null);
+  });
+  controls.append(label,del);host.append(controls);
+  const visual=inspector.querySelector('.state-title-layout,.action-single-visual');
+  if(visual)visual.after(host);
+  else inspector.querySelector('.action-head')?.after(host);
 }
 async function updateApplicationArtwork(item,filePath,session=inspectorSession){
   if(!window.deckBridge?.inspectAppFile||!item||!/\.(exe|lnk|bat|cmd)$/i.test(filePath))return;
@@ -2170,13 +2327,14 @@ function renderFolderInspector(item,root){
 const DEFAULT_TITLE_STYLE = DeckCore.TITLE;
 let previewRequest=0;
 async function refreshSelectedVisual(){
-  const item=state.selected===null?null:DeckCore.visibleActions(state)[state.selected];
+  const root=state.selected===null?null:DeckCore.visibleActions(state)[state.selected];
+  const item=pressIsOrdinary(root)?pressSlotAction(root,activePressTab):root;
   if(!item||!window.renderDeckKeyImage)return;
   const request=++previewRequest;
   try{
     const visible=displayItem(item,state.selected);
     const data=await window.renderDeckKeyImage(displayKeyPressItem(visible,state.selected,true),state.selected,previewPressKeys.has(state.selected));
-    if(request!==previewRequest||DeckCore.visibleActions(state)[state.selected]!==item)return;
+    if(request!==previewRequest||!isCurrentInspectorAction(item))return;
     const host=$("icon-preview-content");
     if(!host)return;
     const image=document.createElement("img");
@@ -2623,7 +2781,7 @@ function inspectorTargetCurrent(session,item){
   const selected=state.selected;
   const current=selected>=14?DeckCore.activeControlAction(DeckCore.controlBinding(state,selected),controlGesture):
     Number.isInteger(selected)?DeckCore.visibleActions(state)[selected]:null;
-  return !!current&&(current===item||current.children?.includes(item)||
+  return !!current&&(current===item||Object.values(current.pressActions||{}).includes(item)||current.children?.includes(item)||
     current.sequences?.some(steps=>steps.includes(item))||Object.values(current.slots||{}).includes(item));
 }
 function persistInspectorChange(){
@@ -2969,7 +3127,7 @@ function renderControlInspector(){
 async function refreshStateTitleCards(item){
   const root=$('inspector');
   if(!root?.classList.contains('state-title-inspector')||!window.renderDeckKeyImage)return;
-  if(DeckCore.visibleActions(state)[state.selected]!==item)return;
+  if(!isCurrentInspectorAction(item))return;
   const pair=root.querySelectorAll('.sdk-state-icon[data-state-title]');
   if(!pair.length)return;
   const slot=state.selected;
@@ -3076,7 +3234,7 @@ function bindSdkStateIcons(root,item){
           const chosen=await chooseNativeImage('image');
           if(!chosen?.dataUrl)return;
           const png=await rasterizeIcon(chosen.dataUrl);
-          if(!DeckCore.visibleActions(state).includes(item))return;
+          if(!isCurrentInspectorAction(item))return;
           applyStateIconData(item,key,png);
         }catch(error){window.d200xActionStatus?.('상태 아이콘 선택 실패: '+String(error?.message||error));}
       });
@@ -3124,7 +3282,7 @@ function bindKeyPressIconControls(root,item){
         if(!window.deckBridge?.chooseImportFile)throw Error('Windows EXE에서 사용할 수 있습니다.');
         const chosen=await chooseNativeImage('image');if(!chosen?.dataUrl)return;
         const png=await rasterizeIcon(chosen.dataUrl);
-        if(!DeckCore.visibleActions(state).includes(item))return;
+        if(!isCurrentInspectorAction(item))return;
         item.settings.keyPressIcons??={};
         item.settings.keyPressIcons[key]={kind:'file',value:png};
         persistInspectorChange();render();
@@ -3636,7 +3794,9 @@ function renderTimerSettings(item,root){
 function renderInspector(){
   beginInspectorSession();
   inspectorListener.abort();inspectorListener=new AbortController();
-  const item=state.selected===null?null:state.selected>=14?null:DeckCore.visibleActions(state)[state.selected];
+  const rootItem=state.selected===null?null:state.selected>=14?null:DeckCore.visibleActions(state)[state.selected];
+  const item=pressIsOrdinary(rootItem)&&state.selected<13?
+    pressSlotAction(rootItem,activePressTab):rootItem;
   if(item!==lastInspectorPreviewItem){
     if(lastInspectorPreviewItem)haPreviewStates.delete(lastInspectorPreviewItem);
     lastInspectorPreviewItem=item;
@@ -3647,8 +3807,15 @@ function renderInspector(){
   }
   const root=$("inspector");root.replaceChildren();
   if(state.selected===13&&wideDisplayAvailable()){renderWideInspector();return;}
-  if(!item){root.className="inspector empty";root.textContent=state.selected===null?"버튼을 선택하세요":"액션을 끌어 이 키에 놓으세요";
-    if(inspectorSession?.dirty)appendInspectorSaveBar(root);return;}
+  if(!item){
+    if(pressIsOrdinary(rootItem)&&state.selected<13){
+      root.className='inspector action-layout-inspector press-empty-inspector';
+      root.innerHTML='<div class="action-head inspector-title-region"><strong>동작 미등록</strong></div><div class="press-empty-message">오른쪽 목록의 액션을 선택한 탭으로 드래그하여 등록하세요.</div>';
+      renderPressTabs(rootItem,root);appendInspectorSaveBar(root);return;
+    }
+    root.className="inspector empty";root.textContent=state.selected===null?"버튼을 선택하세요":"액션을 끌어 이 키에 놓으세요";
+    if(inspectorSession?.dirty)appendInspectorSaveBar(root);return;
+  }
   root.className="inspector action-layout-inspector"+(item.type==='text'?' text-inspector':'')+(item.type==='hotkey-switch'?' hotkey-switch-inspector':'')+(item.type==='sd-plugin'?' sdk-plugin-inspector':'')+(hasStateTitlePair(item)||item.type==='indicator'?' state-title-inspector':'')+(item.type==='indicator'?' indicator-inspector':'');
   const action=ACTIONS.get(item.type),fields=item.type==='timer'?'':actionFields(item);
   const sdkName=item.type==='sd-plugin'
@@ -3776,7 +3943,7 @@ function renderInspector(){
         const session=inspectorSession;
         const selected=await window.deckBridge.choosePath(button.dataset.pathKind);
         if(!selected)return;
-        if(inspectorSession!==session||DeckCore.visibleActions(state)[state.selected]!==item)return;
+        if(inspectorSession!==session||!isCurrentInspectorAction(item))return;
         const inputNode=root.querySelector('[data-field="'+field+'"]');
         item.settings[field]=selected;
         if(inputNode){
@@ -3809,7 +3976,7 @@ function renderInspector(){
   if(item.type==='logic')renderLogicEditor(item,root);
   if(item.type==='gesture-test')renderGestureTestEditor(item,root);
   if(item.type==='folder')renderFolderInspector(item,root);
-  renderPressAssignments(item,root);
+  // Independent press tabs are inserted after the preserved icon/title layout.
   // Stable four-region layout: header -> action properties -> exactly one icon pair -> footer.
   bindSdkStateIcons(root,item);
   bindKeyPressIconControls(root,item);
@@ -3868,6 +4035,7 @@ function renderInspector(){
       properties.classList.add('action-single-extra');
     }
   }
+  if(pressIsOrdinary(rootItem)&&state.selected<13)renderPressTabs(rootItem,root);
   if(item.type==='folder-shortcut'){
     const pathInput=properties.querySelector('[data-field="path"]');
     if(pathInput){
@@ -4389,13 +4557,15 @@ const ASSIGNED_DOUBLE_MS=300,ASSIGNED_HOLD_MS=600;
 function assignedPressStillCurrent(record){
   return DeckCore.runtimeActionKey(state,record.index,'down')===record.key&&
     DeckCore.visibleActions(state)?.[record.index]===record.action&&
-    JSON.stringify(record.action.pressActions||{})===record.bindings;
+    JSON.stringify([record.action.pressActions||{},record.action.pressMeta||{}])===record.bindings;
 }
 function runAssignedPress(action,index,slot,event){
+  if(!pressEnabled(action,slot))return null;
+  if(!pressSlotAction(action,slot)&&!(slot==='hold'&&!action.pressMeta))return null;
   let result=null;
   if(slot==='single'&&action.type==='indicator'){
     result=executeSideNavigation(index,'down',event);
-  }else if(slot==='hold'&&!action.pressActions?.hold){
+  }else if(slot==='hold'&&!action.pressActions?.hold&&!action.pressMeta){
     if(action.type==='indicator')result=executeSideNavigation(index,'hold',event);
     else if(action.type==='open-app'&&['close','force'].includes(action.settings?.hold)){
       const target=action.settings?.app;
@@ -4412,7 +4582,7 @@ function runAssignedPress(action,index,slot,event){
     }
   }else{
     const target=slot==='single'?action:action.pressActions?.[slot];
-    if(!target)return null;
+    if(!target||target.type==='press-empty')return null;
     result=executeHardwareAction({...event,state:1,pressed:true},false,true,target,true);
   }
   if(result)window.d200xActionStatus?.(result);
@@ -4441,11 +4611,11 @@ function handleAssignedKeyPress(action,index,gesture,event){
     }
     if(prior)return null;
     const record={key,index,action,pressed:true,holdFired:false,doubleFired:false,
-      bindings:JSON.stringify(action.pressActions||{}),
+      bindings:JSON.stringify([action.pressActions||{},action.pressMeta||{}]),
       downAt:now,holdTimer:null,singleTimer:null};
     const legacyHold=action.type==='open-app'&&['close','force'].includes(action.settings?.hold)||
       action.type==='indicator'&&DeckCore.sharedIndicatorConfig(state,action,'hold').navigation!=='none';
-    if(action.pressActions?.hold||legacyHold){
+    if(action.pressMeta||pressEnabled(action,'hold')&&(action.pressActions?.hold||legacyHold)){
       record.holdTimer=setTimeout(()=>{
         if(assignedKeyPresses.get(key)!==record||!record.pressed||!assignedPressStillCurrent(record))return;
         record.holdFired=true;
@@ -4467,7 +4637,7 @@ function handleAssignedKeyPress(action,index,gesture,event){
     reportInputEvidence(event,'press-gesture',{outcome:'single',action:action.type,ms:Date.now()-prior.downAt});
     runAssignedPress(action,index,'single',event);
   };
-  if(action.pressActions?.double){
+  if(pressEnabled(action,'double')&&action.pressActions?.double){
     prior.singleTimer=setTimeout(dispatchSingle,ASSIGNED_DOUBLE_MS);
     return '한 번·두 번 누르기 판정 중';
   }
@@ -4588,6 +4758,17 @@ const lastHardwareDown=new Map();
 function runActionPreview(gesture='down'){
   const index=state.selected;
   if(!Number.isInteger(index)||index<0||index>18)return;
+  const root=index<13?DeckCore.visibleActions(state)[index]:null;
+  if(pressIsOrdinary(root)&&(root.pressMeta||activePressTab!=='single')){
+    const target=pressSlotAction(root,activePressTab);
+    if(!target||!pressEnabled(root,activePressTab)){
+      window.d200xActionStatus?.('사용 중인 동작이 없어 실행하지 않았습니다.');return;
+    }
+    const event=DeckCore.previewHardwareEvent(index,'down');
+    if(!event)return;
+    const result=executeHardwareAction(event,true,true,target,true);
+    window.d200xActionStatus?.(result||'등록된 동작이 없어 실행하지 않았습니다.');return;
+  }
   if(index===14||index===15||index<13&&DeckCore.visibleActions(state)[index]?.type==='indicator'){
     const result=executeSideNavigation(index,gesture==='hold'?'hold':'down',null);
     window.d200xActionStatus?.(result||'등록된 동작이 없어 실행하지 않았습니다.');return;
@@ -5441,10 +5622,10 @@ function renderIconLibrary(){
       tile.append(image);
       tile.addEventListener('click',async()=>{
         const target=libraryTarget;
-        if(!target||!DeckCore.visibleActions(state).includes(target))return;
+        if(!target||!isCurrentInspectorAction(target))return;
         try{
           const png=await rasterizeIcon(icon.image);
-          if(!DeckCore.visibleActions(state).includes(target))return;
+          if(!isCurrentInspectorAction(target))return;
           if(libraryStateKey?.startsWith('press:')&&(isMomentaryIconAction(target)||target.type==='indicator')){
             target.settings.keyPressIcons??={};
             target.settings.keyPressIcons[libraryStateKey.slice(6)]={kind:'file',value:png,packId:pack.id};
@@ -5456,7 +5637,7 @@ function renderIconLibrary(){
             target.settings.sdkStateIcons[libraryStateKey]={kind:'file',value:png,packId:pack.id};
             if(companion&&pair){
               const oppositePng=await rasterizeIcon(companion.image);
-              if(!DeckCore.visibleActions(state).includes(target))return;
+              if(!isCurrentInspectorAction(target))return;
               applyMatchedStateIcons(target.settings,pair,png,oppositePng,pack.id);
             }
           }else {target.icon={kind:'file',value:png,packId:pack.id};if(target.settings)delete target.settings.autoAppIcon;}
@@ -5500,7 +5681,7 @@ let fileIconTarget=null;
 let makerTarget=null;
 let makerStateKey=null;
 function applyStateIconData(target,key,uri){
-  if(!target||!uri||!DeckCore.visibleActions(state).includes(target))return;
+  if(!target||!uri||!isCurrentInspectorAction(target))return;
   target.settings??={};
   if(key?.startsWith('press:')){
     target.settings.keyPressIcons??={};target.settings.keyPressIcons[key.slice(6)]={kind:'file',value:uri};

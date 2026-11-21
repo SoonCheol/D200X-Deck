@@ -23,6 +23,7 @@
     brightness:{mode:'up'},sleep:{},virtual:{},
     multi:{},'multi-switch':{activeState:0},random:{},logic:{},
     'gesture-test':{single:'hotkey',double:'open-app',hold:'folder-shortcut',logEnabled:true},
+    'press-empty':{},
     website:{url:'',open:'default',browserPath:''},'hotkey-switch':{first:'',second:''},
     hotkey:{keys:'',source:'preset'},open:{path:'',args:''},
     'open-app':{app:'',args:'',hold:'close',foreground:true,preventDuplicate:true},close:{path:'',force:false},
@@ -55,7 +56,7 @@
     backgroundEnabled:false,backgroundColor:'#000000',backgroundOpacity:65};
   const INDICATOR_NUMBER_STYLE={...TITLE,align:'middle',size:48,outlineWidth:'none'};
   const copy=x=>JSON.parse(JSON.stringify(x));
-  const validId=id=>ACTION_IDS.includes(id)||D200X_ACTION_IDS.includes(id)||PLUGIN_ACTION_IDS.includes(id)||id==='side-nav';
+  const validId=id=>ACTION_IDS.includes(id)||D200X_ACTION_IDS.includes(id)||PLUGIN_ACTION_IDS.includes(id)||id==='side-nav'||id==='press-empty';
   function createAction(id){
     if(!validId(id))throw new Error('Unsupported built-in action: '+String(id));
     return {type:id,title:id==='folder'?'폴더':'',
@@ -103,6 +104,17 @@
         }
       }
       if(bindings.double||bindings.hold)base.pressActions=bindings;
+    }
+    // Ordinary keys can keep three independent, switchable press slots.
+    // Old profiles without pressMeta preserve their exact legacy behavior.
+    if(value.pressMeta&&typeof value.pressMeta==='object'&&!Array.isArray(value.pressMeta)&&
+      !['virtual','gesture-test','multi','multi-switch','random','logic','sd-plugin','indicator','folder'].includes(value.type)){
+      const enabled=value.pressMeta.enabled||{};
+      base.pressMeta={
+        enabled:{single:enabled.single!==false,double:enabled.double!==false,hold:enabled.hold!==false},
+        representative:['single','double','hold'].includes(value.pressMeta.representative)
+          ?value.pressMeta.representative:'single'
+      };
     }
     // Preserve old text actions whose mode field was absent when clipboard was the default.
     if(value.type==='text'&&value.settings?.mode===undefined)base.settings.mode='clipboard';
@@ -1388,7 +1400,7 @@
     if(action.type==='ha-toggle')return {kind:'ha-toggle',entityId:String(action.settings?.entityId||'')};
     if(action.type==='system-mute')return {kind:'mute'};
     if(action.type==='sleep')return {kind:'device-sleep'};
-    if(action.type==='indicator')return {kind:'display-only'};
+    if(action.type==='indicator'||action.type==='press-empty')return {kind:'display-only'};
     if(action.type==='profile')return {kind:'profile',profile:action.settings?.profile||'next'};
     if(action.type==='gesture-test')return {kind:'gesture-test'};
     if(action.type==='multi')return {kind:'composite',type:'multi'};
