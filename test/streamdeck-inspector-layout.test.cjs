@@ -290,7 +290,9 @@ test('knob modes use fixed common layout and pressed-rotation gate',()=>{
 test('knob inspector fits available panel width without forcing 680px or hiding overflow',()=>{
   const knobCss=css.slice(css.indexOf('/* Knob inspector only:'));
   assert.ok(knobCss.startsWith('/* Knob inspector only:'));
-  assert.doesNotMatch(knobCss,/--knob-min-width|min-width:680px|overflow-x:hidden/);
+  assert.doesNotMatch(knobCss,/--knob-min-width|min-width:680px/);
+  // Inspect only knob selectors: the ordinary LCD-button inspector may clip overflow.
+  assert.doesNotMatch(knobCss,/\.knob-inspector[^{}]*\{[^}]*overflow-x:hidden/);
   assert.match(knobCss,/\.inspector\.knob-inspector\{[^}]*min-width:0;max-width:100%;container-type:inline-size;container-name:knob-properties;scrollbar-gutter:stable/);
   assert.match(knobCss,/\.knob-inspector>\.control-action-editor\{width:100%;min-width:0;max-width:100%/);
   assert.match(knobCss,/grid-template-columns:84px minmax\(0,1fr\) 84px minmax\(0,1fr\)/);
