@@ -6,7 +6,7 @@ const vm=require('node:vm');
 const path=require('node:path');
 // Run the actual renderer function in a narrow VM with fake state; no Electron or hardware needed.
 const source=fs.readFileSync(path.join(__dirname,'../app/streamdeck-editor/editor.js'),'utf8');
-const beginning=source.indexOf('function displayItem(item,index){');
+const beginning=source.indexOf('function displayItem(item,index,preserveGesture=false){');
 const ending=source.indexOf('const previewPressKeys=new Set();',beginning);
 if(beginning<0||ending<0)throw Error('SDK renderer not found');
 const fn=source.slice(beginning,ending);
