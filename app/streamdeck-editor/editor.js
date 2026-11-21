@@ -2901,6 +2901,24 @@ document.addEventListener('click',event=>{
 },true);
 
 let inspectorListener=new AbortController();
+// The page-number indicator is a navigation-only key: show its three fixed
+// gestures without exposing the existing profile's legacy navigation settings.
+function renderFixedIndicatorBindings(root){
+  const box=document.createElement('div');box.className='indicator-fixed-bindings';
+  for(const [gesture,title] of [['single','한 번 누르기'],['double','두 번 누르기'],['hold','길게 누르기']]){
+    const row=document.createElement('div');row.className='field indicator-fixed-binding';
+    const label=document.createElement('label');label.textContent=title;
+    const value=document.createElement('input');value.type='text';value.readOnly=true;
+    value.value=DeckCore.INDICATOR_NAV_LABELS[DeckCore.fixedIndicatorNavigation(gesture).navigation];
+    value.setAttribute('aria-label',title+' 고정 동작');value.title='페이지 번호 버튼의 고정 동작 · 수정 불가';
+    const preview=document.createElement('button');preview.type='button';preview.className='action-preview-test';
+    preview.textContent='▶';preview.title=title+' 실행 테스트';preview.setAttribute('aria-label',title+' 실행 테스트');
+    preview.addEventListener('click',()=>runActionPreview(gesture));
+    const controls=document.createElement('div');controls.className='compound';controls.append(value,preview);
+    row.append(label,controls);box.append(row);
+  }
+  root.append(box);
+}
 // Physical controls use a dedicated compact inspector instead of pretending
 // each knob has a single key. Drag to an individual gesture or click it to edit.
 function renderSideBindings(root,index,binding,indicator=null){
@@ -3364,7 +3382,7 @@ function bindIndicatorInspector(root,item){
   const auto=document.createElement('label');const enabled=document.createElement('input');enabled.type='checkbox';enabled.checked=common.autoAdd;auto.append(enabled,document.createTextNode(' 새 페이지 생성 시 자동 추가'));
   enabled.addEventListener('change',()=>{DeckCore.updateIndicatorCommon(state,item,{autoAdd:enabled.checked});persistInspectorChange();});
   options.append(addButton,designButton,remove,auto);fields.append(options);
-  renderSideBindings(fields,index,null,item);
+  renderFixedIndicatorBindings(fields);
   const panel=root.querySelector('[data-inspector-icons]');
   const cards=document.createElement('div');cards.className='sdk-state-icons indicator-icon-cards';
   const buildCard=(pressed)=>{
@@ -4842,7 +4860,8 @@ function runActionPreview(gesture='down'){
     window.d200xActionStatus?.(result||'등록된 동작이 없어 실행하지 않았습니다.');return;
   }
   if(index===14||index===15||index<13&&DeckCore.visibleActions(state)[index]?.type==='indicator'){
-    const result=executeSideNavigation(index,gesture==='hold'?'hold':'down',null);
+    const selectedGesture=index<13?(gesture==='hold'?'hold':gesture==='double'?'double':'single'):(gesture==='hold'?'hold':'down');
+    const result=executeSideNavigation(index,selectedGesture,null);
     window.d200xActionStatus?.(result||'등록된 동작이 없어 실행하지 않았습니다.');return;
   }
   const event=DeckCore.previewHardwareEvent(index,gesture);
@@ -4943,7 +4962,7 @@ function sidePressContext(index){
 }
 function executeSideNavigation(index,gesture,event){
   const indicator=index<13;
-  const outcome=indicator?DeckCore.planIndicatorNavigation(state,index,gesture):DeckCore.planSideNavigation(state,index,gesture);
+  const outcome=indicator?DeckCore.planFixedIndicatorNavigation(state,index,gesture):DeckCore.planSideNavigation(state,index,gesture);
   if(!outcome)return null;
   reportInputEvidence(event,'planned',{outcome:outcome.kind});
   if(outcome.kind==='invalid')return outcome.message;
@@ -4957,12 +4976,69 @@ function executeSideNavigation(index,gesture,event){
     return '저장하지 않은 변경 사항 확인';
   }
   cancelFolderAutoExit();
-  const config=indicator?DeckCore.sharedIndicatorConfig(state,DeckCore.visibleActions(state)[index],gesture):DeckCore.sideActionConfig(DeckCore.controlBinding(state,index),index,gesture);
+  const config=indicator?DeckCore.fixedIndicatorNavigation(gesture):DeckCore.sideActionConfig(DeckCore.controlBinding(state,index),index,gesture);
   if(indicator&&['history-back','profile-history','folder-history'].includes(outcome.kind)){
     if(!pageVisitTracker.returnPrevious(state,outcome.kind))return '돌아갈 '+({'history-back':'직전 페이지','profile-history':'직전 프로필','folder-history':'직전 덱폴더'}[outcome.kind])+'가 없습니다.';
   }else if(!DeckCore.applySideNavigation(state,outcome))return '이동할 대상이 없습니다.';
   lastHardwareDown.clear();persist();render();
   return (indicator?DeckCore.INDICATOR_NAV_LABELS:DeckCore.SIDE_NAV_LABELS)[config.navigation];
+}
+// Page-number keys use their own single/double/hold recognizer. Side buttons,
+// Key Logic, ordinary gesture tabs and the wide display keep their original paths.
+const fixedIndicatorPresses=new Map();
+const FIXED_INDICATOR_DOUBLE_MS=300;
+function handleFixedIndicatorInput(index,gesture,event,preview){
+  if(preview)return gesture==='down'?executeSideNavigation(index,'single',event):null;
+  if(gesture!=='down'&&gesture!=='up')return null;
+  const currentAction=DeckCore.visibleActions(state)[index];
+  const context=entry=>DeckCore.visibleActions(state)[index]===entry.action&&
+    state.profileId===entry.profile&&state.page===entry.page&&
+    JSON.stringify(state.folderPath||[])===entry.folder;
+  const dispatch=(entry,press)=>{
+    if(!context(entry))return null;
+    const result=executeSideNavigation(index,press,entry.event);
+    if(result)window.d200xActionStatus?.(result);
+    return result;
+  };
+  const entry=fixedIndicatorPresses.get(index);
+  if(gesture==='down'){
+    if(entry?.down)return null;
+    if(entry?.pending&&!context(entry)){
+      clearTimeout(entry.singleTimer);fixedIndicatorPresses.delete(index);
+    }
+    const previous=fixedIndicatorPresses.get(index);
+    if(previous?.pending){
+      clearTimeout(previous.singleTimer);previous.pending=false;previous.down=true;
+      previous.second=true;previous.event=event;
+      previous.holdTimer=setTimeout(()=>{
+        if(fixedIndicatorPresses.get(index)!==previous||!previous.down)return;
+        previous.fired=true;dispatch(previous,'hold');
+      },DeckCore.SIDE_HOLD_MS);
+      return '페이지 표시 두 번째 누름 대기';
+    }
+    const next={action:currentAction,profile:state.profileId,page:state.page,
+      folder:JSON.stringify(state.folderPath||[]),event,down:true,second:false,
+      pending:false,fired:false,singleTimer:null,holdTimer:null};
+    fixedIndicatorPresses.set(index,next);
+    next.holdTimer=setTimeout(()=>{
+      if(fixedIndicatorPresses.get(index)!==next||!next.down)return;
+      next.fired=true;dispatch(next,'hold');
+    },DeckCore.SIDE_HOLD_MS);
+    return '페이지 표시 키 누름 대기';
+  }
+  if(!entry?.down)return null;
+  entry.down=false;clearTimeout(entry.holdTimer);
+  if(entry.fired){fixedIndicatorPresses.delete(index);return null;}
+  if(entry.second){
+    fixedIndicatorPresses.delete(index);
+    return dispatch(entry,'double');
+  }
+  entry.pending=true;entry.event=event;
+  entry.singleTimer=setTimeout(()=>{
+    if(fixedIndicatorPresses.get(index)!==entry||!entry.pending)return;
+    fixedIndicatorPresses.delete(index);dispatch(entry,'single');
+  },FIXED_INDICATOR_DOUBLE_MS);
+  return '페이지 표시 한 번 누르기 판정 대기';
 }
 function handleSideNavigationInput(index,gesture,event,preview){
   if(preview)return gesture==='down'?executeSideNavigation(index,'down',event):null;
@@ -5025,10 +5101,14 @@ function executeHardwareAction(event,preview=false,skipKnobGesture=false,pressOv
   const bindingAction=resolved.action;
   report('resolved',{slot:index,gesture:resolved.gesture,action:bindingAction?.type});
   if(index===14||index===15)return handleSideNavigationInput(index,resolved.gesture,event,preview);
+  if(index<13&&(resolved.action?.type==='indicator'||fixedIndicatorPresses.has(index))){
+    if(resolved.gesture==='up')lastHardwareDown.delete(index);
+    return handleFixedIndicatorInput(index,resolved.gesture,event,preview);
+  }
   if(!preview&&!bypassPressBindings&&index<13&&pressActionAssigned(resolved.action)&&
     ['down','up'].includes(resolved.gesture))
     return handleAssignedKeyPress(resolved.action,index,resolved.gesture,event);
-  if(index<13&&(resolved.action?.type==='indicator'||sidePressTracker.has(index))){
+  if(index<13&&sidePressTracker.has(index)){
     if(resolved.gesture==='up')lastHardwareDown.delete(index);
     return handleSideNavigationInput(index,resolved.gesture,event,preview);
   }

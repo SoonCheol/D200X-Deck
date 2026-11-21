@@ -1724,3 +1724,78 @@ test('Program Open hold settings are not silently converted when switching tabs'
   assert.match(section,/if\(slot!=='single'&&next\?\.type==='open-app'\)next\.settings\.hold='none'/);
   assert.match(source,/if\(holdAssigned\?pressEnabled\(action,'hold'\):legacyHold\)/);
 });
+
+test('page-number fixed gesture plan ignores legacy choices without destroying stored settings',()=>{
+  const state=core.migrateState({pages:[[],[],[]]});
+  const indicator=state.pages[1][0]=core.createAction('indicator');
+  state.page=1;
+  indicator.settings.indicatorDown={navigation:'next'};
+  indicator.settings.indicatorHold={navigation:'editor-open'};
+  assert.deepEqual(core.fixedIndicatorNavigation('single'),{navigation:'home'});
+  assert.deepEqual(core.fixedIndicatorNavigation('double'),{navigation:'history-back'});
+  assert.deepEqual(core.fixedIndicatorNavigation('hold'),{navigation:'profile-history'});
+  assert.deepEqual(core.planFixedIndicatorNavigation(state,0,'single'),{kind:'home'});
+  assert.deepEqual(core.planFixedIndicatorNavigation(state,0,'double'),{kind:'history-back'});
+  assert.deepEqual(core.planFixedIndicatorNavigation(state,0,'hold'),{kind:'profile-history'});
+  assert.equal(core.planFixedIndicatorNavigation(state,1,'single'),null);
+  assert.deepEqual(core.planIndicatorNavigation(state,0),{kind:'page',page:2},'old profile choice retained in data');
+  const restored=core.migrateState(JSON.parse(JSON.stringify(state)));
+  assert.equal(restored.pages[1][0].settings.indicatorHold.navigation,'editor-open');
+  assert.deepEqual(core.planFixedIndicatorNavigation(restored,0,'hold'),{kind:'profile-history'});
+});
+
+test('fixed page-number UI shows three read-only actions and leaves other controls unmodified',()=>{
+ const fs=require('node:fs'),path=require('node:path');
+ const source=fs.readFileSync(path.join(__dirname,'../app/streamdeck-editor/editor.js'),'utf8');
+ const start=source.indexOf('function renderFixedIndicatorBindings(root){');
+ const end=source.indexOf('function renderSideBindings(',start);
+ assert.ok(start>0&&end>start);
+ const ui=source.slice(start,end);
+ assert.match(ui,/\['single','한 번 누르기'\]/);
+ assert.match(ui,/\['double','두 번 누르기'\]/);
+ assert.match(ui,/\['hold','길게 누르기'\]/);
+ assert.match(ui,/value\.readOnly=true/);
+ assert.doesNotMatch(ui,/\.addEventListener\('change'/);
+ assert.match(source,/renderFixedIndicatorBindings\(fields\);/);
+ assert.match(source,/renderSideBindings\(root,index,binding/);
+ assert.match(source,/DeckCore\.planFixedIndicatorNavigation\(state,index,gesture\)/);
+ assert.match(source,/index<13&&\(resolved\.action\?\.type==='indicator'\|\|fixedIndicatorPresses\.has\(index\)\)/);
+});
+
+test('fixed page-number recognizer distinguishes single, double and hold without touching side gestures',()=>{
+ const fs=require('node:fs'),path=require('node:path');
+ const source=fs.readFileSync(path.join(__dirname,'../app/streamdeck-editor/editor.js'),'utf8');
+ const start=source.indexOf('const fixedIndicatorPresses=new Map();');
+ const end=source.indexOf('function handleSideNavigationInput(',start);
+ assert.ok(start>0&&end>start);
+ const clock={time:0};const timers=new Map();let seq=0;
+ const delay=(fn,ms)=>{const id=++seq;timers.set(id,{when:clock.time+ms,fn});return id;};
+ const cancel=id=>timers.delete(id);
+ const advance=ms=>{
+   const until=clock.time+ms;
+   while(true){
+     const next=[...timers.entries()].filter(([,x])=>x.when<=until).sort((a,b)=>a[1].when-b[1].when)[0];
+     if(!next)break;
+     clock.time=next[1].when;timers.delete(next[0]);next[1].fn();
+   }
+   clock.time=until;
+ };
+ const indicator=core.createAction('indicator');
+ const state={profileId:'A',page:0,folderPath:[]};const calls=[];
+ const handle=new Function('DeckCore','state','setTimeout','clearTimeout','Date','executeSideNavigation','window',
+   source.slice(start,end)+';return handleFixedIndicatorInput;')(
+   {visibleActions:()=>[indicator],SIDE_HOLD_MS:650},
+   state,delay,cancel,{now:()=>clock.time},
+   (index,gesture)=>{calls.push(gesture);return gesture;},{d200xActionStatus(){}});
+ handle(0,'down',{inputId:'a'},false);advance(40);handle(0,'up',{inputId:'a'},false);
+ advance(299);assert.deepEqual(calls,[]);
+ advance(1);assert.deepEqual(calls,['single']);
+ handle(0,'down',{inputId:'b'},false);advance(40);handle(0,'up',{inputId:'b'},false);
+ advance(120);handle(0,'down',{inputId:'c'},false);advance(40);handle(0,'up',{inputId:'c'},false);
+ assert.deepEqual(calls,['single','double']);advance(400);assert.equal(calls.length,2);
+ handle(0,'down',{inputId:'d'},false);advance(650);assert.deepEqual(calls,['single','double','hold']);
+ handle(0,'up',{inputId:'d'},false);advance(350);assert.equal(calls.length,3);
+ // A pending short press is discarded when the active profile changes.
+ handle(0,'down',{inputId:'e'},false);advance(30);handle(0,'up',{inputId:'e'},false);
+ state.profileId='B';advance(310);assert.equal(calls.length,3);
+});
