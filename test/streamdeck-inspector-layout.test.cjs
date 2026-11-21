@@ -463,3 +463,10 @@ test('sequential-action Korean terminology is consistent across renderer, core, 
   assert.match(fs.readFileSync(path.join(base,'action-panel-icons.js'),'utf8'),/자동화·순차 동작/);
   assert.match(fs.readFileSync(path.join(base,'ai/read-tools.cjs'),'utf8'),/"multi":"순차 동작"/);
 });
+
+test('legacy renderer text also uses the sequential-action terminology',()=>{
+  const legacy=path.join(base,'../renderer');
+  for(const file of ['action-catalog.js','key-context-menu.js','ko.js']){
+    assert.doesNotMatch(fs.readFileSync(path.join(legacy,file),'utf8'),/다중 동작/,file);
+  }
+});
