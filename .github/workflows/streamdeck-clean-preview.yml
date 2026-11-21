@@ -23,6 +23,7 @@ on:
       - 'test/deckforge-google-drive.test.cjs'
       - 'test/deckforge-key-press-icons.test.cjs'
       - 'test/deckforge-runtime-receipt.test.cjs'
+      - 'test/streamdeck-inspector-layout.test.cjs'
       - 'test/streamdeck-sdk-visual.test.cjs'
       - 'test/deckforge-dual-state-titles.test.cjs'
       - 'test/deckforge-native-drop.test.cjs'
