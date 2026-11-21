@@ -1604,7 +1604,11 @@ test('1.1.95 three separate action tabs preserve the existing icon regions and s
   assert.match(editor,/function setPressSlot\(index,slot,next,immediate=false\)/);
   assert.match(editor,/renderPressTabs\(rootItem,root\)/);
   assert.match(editor,/function showPressDropOverlay\(index,key\)/);
-  assert.match(editor,/press-tab-representative/);
+  assert.match(editor,/function attachPressPreviewBadges\(root,inspector\)/);
+  assert.match(editor,/press-image-representative/);
+  assert.match(editor,/deck-key-press-number/);
+  assert.doesNotMatch(editor,/className='press-tab-symbol'/);
+  assert.doesNotMatch(editor,/className='press-tab-number'/);
   assert.match(editor,/pressMeta\.representative=slot/);
   assert.match(editor,/pressMeta\.enabled\[slot\]=check\.checked/);
   assert.match(editor,/const item=pressIsOrdinary\(rootItem\)/);

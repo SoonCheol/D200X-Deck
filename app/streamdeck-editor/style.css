@@ -1408,28 +1408,18 @@ dialog.deckforge-message-dialog::backdrop{background:#000a}
 .press-assignment-card .side-binding-target>label{font-size:10px}
 .press-assignment-card .side-binding-target>select{min-width:0;flex:1}
 
-/* Three independent gesture slots share the original full action inspector. */
-.press-tabs-section{margin:12px 0 14px;width:100%;min-width:0}
+/* Compact gesture tabs: edit a full action in the panel below, not an icon in the tab. */
+.press-tabs-section{margin:10px 0 14px;width:100%;min-width:0}
 .press-tabs-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:9px}
-.press-tab-tile{box-sizing:border-box;min-width:0;padding:8px;border:1px solid #616b76;
-  background:#333942;border-radius:7px;display:flex;flex-direction:column;align-items:center;gap:6px}
-.press-tab-tile.selected{border:2px solid #61aff9;padding:7px;background:#354356}
-.press-tab-heading{width:100%;display:grid;grid-template-columns:18px minmax(0,1fr) 18px;align-items:center;gap:3px}
+.press-tab-tile{box-sizing:border-box;min-width:0;padding:9px 8px;border:1px solid #616b76;
+  background:#333942;border-radius:7px;display:flex;flex-direction:column;align-items:center;gap:4px}
+.press-tab-tile.selected{border:2px solid #61aff9;padding:8px 7px;background:#354356}
+.press-tab-heading{width:100%;display:grid;grid-template-columns:18px minmax(0,1fr) 18px;
+  align-items:center;gap:3px}
 .press-tab-heading input{grid-column:1;width:16px;height:16px;margin:0;accent-color:#3990dc}
 .press-tab-select{grid-column:2;text-align:center;border:0;background:transparent;color:#f5f7fa;
-  padding:4px 0;font-weight:600;font-size:12px;cursor:pointer;white-space:nowrap}
+  padding:3px 0;font-weight:600;font-size:12px;cursor:pointer;white-space:nowrap}
 .press-tab-tile.inactive .press-tab-select{color:#c1c8d0}
-.press-tab-symbol{position:relative;width:66px;height:66px;display:flex;justify-content:center;
-  align-items:center;border:1px solid #596675;border-radius:6px;background:#242a33;overflow:hidden}
-.press-tab-symbol .icon-image,.press-tab-symbol .icon-glyph{max-width:100%;max-height:100%;object-fit:contain;font-size:36px}
-.press-tab-tile.inactive .press-tab-symbol .icon-image,
-.press-tab-tile.inactive .press-tab-symbol .icon-glyph{opacity:.4}
-.press-tab-number{position:absolute;left:3px;top:3px;background:#142b46;border:1px solid #6389a9;
-  border-radius:3px;color:#fff;font-size:10px;font-weight:700;line-height:16px;min-width:16px;text-align:center}
-.press-tab-representative{position:absolute;right:3px;top:3px;width:18px;height:18px;border-radius:50%;
-  padding:0;border:1px solid #82919f;background:#27313c;color:#b6c3cc;font-size:12px;cursor:pointer}
-.press-tab-representative.chosen{background:#266caa;color:#fff;border-color:#7ac0ff;font-weight:700}
-.press-tab-representative:disabled{opacity:.4;cursor:default}
 .press-tab-name{font-size:11px;font-weight:500;text-align:center;min-height:16px;max-width:100%;
   white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:#e6edf4}
 .press-tab-tile.inactive .press-tab-name{color:#a7b0bb}
@@ -1441,6 +1431,23 @@ dialog.deckforge-message-dialog::backdrop{background:#000a}
   padding:6px 9px;border-radius:5px;cursor:pointer;font-size:11px}
 .press-tab-delete:disabled{opacity:.4;cursor:default}
 .press-empty-message{padding:18px 4px;color:#bbc9d8;font-size:12px;line-height:1.6}
+/* Number and representative selection sit on the existing upper icon preview.
+   These are editor overlays and do not become part of the D200X image. */
+.press-image-number,.deck-key-press-number{position:absolute;top:3px;left:3px;z-index:5;
+  display:flex;justify-content:center;align-items:center;min-width:17px;height:17px;
+  box-sizing:border-box;padding:0 3px;border:1px solid #83c2f5;border-radius:3px;
+  background:#152f4e;color:#fff;font-size:11px;font-weight:700;pointer-events:none}
+.deck-key-press-number{top:2px;left:2px;min-width:15px;height:15px;font-size:10px}
+.press-image-representative{position:absolute;right:2px;top:2px;z-index:5;
+  width:21px;height:21px;padding:0;border:1px solid #92a4b7;border-radius:50%;
+  background:#2b3540;color:#d8e3f0;font-size:14px;line-height:1;cursor:pointer}
+.press-image-representative.chosen{background:#2474b0;border-color:#b4dcff;color:white;font-weight:bold}
+.press-image-representative:disabled{opacity:.4;cursor:default}
+/* Do not cover the existing library picker, action menu, or key-background controls. */
+#icon-preview:has(.icon-preview-plus) .press-image-number{top:26px}
+#icon-preview:has(.icon-preview-menu) .press-image-representative,
+#icon-preview:has(.key-background-trigger) .press-image-representative,
+.sdk-state-preview:has(.key-background-trigger) .press-image-representative{top:27px}
 .press-drop-picker{position:fixed;z-index:1200;display:grid;grid-template-columns:repeat(3,94px);
   gap:5px;padding:6px;background:#222833;border:1px solid #76a2ca;border-radius:7px;
   box-shadow:0 12px 28px #000b;box-sizing:border-box}
@@ -1456,5 +1463,5 @@ dialog.deckforge-message-dialog::backdrop{background:#000a}
 .press-drop-art .icon-image,.press-drop-art .icon-glyph{max-width:100%;max-height:100%;object-fit:contain;font-size:25px}
 .press-drop-number{position:absolute;top:1px;left:1px;min-width:12px;line-height:12px;
   background:#205384;color:#fff;text-align:center;border-radius:2px;font-size:9px}
-@media(max-width:740px){.press-tabs-grid{gap:4px}.press-tab-tile{padding:5px}.press-tab-tile.selected{padding:4px}
-  .press-tab-select{font-size:10px}.press-tab-symbol{width:49px;height:49px}}
+@media(max-width:740px){.press-tabs-grid{gap:4px}.press-tab-tile{padding:6px 4px}
+  .press-tab-tile.selected{padding:5px 3px}.press-tab-select{font-size:10px}}

@@ -856,6 +856,19 @@ function showPressDropOverlay(index,key){
 }
 document.addEventListener('dragend',hidePressDropOverlay,true);
 document.addEventListener('drop',()=>setTimeout(hidePressDropOverlay,0),true);
+function appendKeyPressNumber(button,root){
+  // Editor-only badge for the action whose image is displayed on this key.
+  // The actual device PNG remains pixel-for-pixel unchanged.
+  if(!pressIsOrdinary(root))return;
+  const displayed=pressDisplayAction(root);
+  if(!displayed||displayed.type==='press-empty')return;
+  const match=PRESS_TABS.find(([slot])=>pressSlotAction(root,slot)===displayed);
+  const number=match?.[2]||'1';
+  const badge=document.createElement('span');
+  badge.className='deck-key-press-number';badge.textContent=number;
+  badge.title=number+'번 누르기의 대표 이미지';badge.setAttribute('aria-hidden','true');
+  button.append(badge);
+}
 function renderGrid(){
   if(nativeGridDrag&&(state!==nativeGridDrag.snapshot.state||currentPage()!==nativeGridDrag.snapshot.page))clearNativeGridDrag(nativeGridDrag,true);
   const grid=$("key-grid");hideReplacedTooltip(grid);grid.replaceChildren();
@@ -870,7 +883,7 @@ function renderGrid(){
     const visual=displayKeyPressItem(displayItem(item,i),i);
     const glyph=iconNode(visual,ACTIONS.get(item?.type)?.icon||"+");glyph.classList.add("glyph");
     const label=document.createElement("span");label.className="caption";label.textContent=String(visual?.title||"").replace(/<br\s*\/?>/gi,"\n");updateTitleAppearance(label,visual);
-    b.append(glyph,label);
+    b.append(glyph,label);appendKeyPressNumber(b,item);
     // Render the actual D200X PNG as the editor key surface. Icon and title
     // must stay in fixed coordinates, independent of the title font size.
     if(item&&window.renderDeckKeyImage){
@@ -880,7 +893,7 @@ function renderGrid(){
         preview.className="rendered-key-image";
         preview.alt="";
         preview.src="data:image/png;base64,"+png;
-        b.replaceChildren(preview);
+        b.replaceChildren(preview);appendKeyPressNumber(b,item);
       }).catch(error=>console.warn("버튼 이미지 미리보기 실패",error));
     }
     b.addEventListener("click",()=>{
@@ -2198,6 +2211,38 @@ function setPressSlot(index,slot,next,immediate=false){
   }
   return true;
 }
+function attachPressPreviewBadges(root,inspector){
+  // The gesture number and representative choice belong on the upper key preview,
+  // never in the tab or in the PNG uploaded to the physical D200X.
+  const stateIcons=Array.from(inspector.querySelectorAll('.sdk-state-icon[data-state-title] .sdk-state-preview'));
+  const image=inspector.querySelector('#icon-preview');
+  const images=stateIcons.length?stateIcons:(image?[image]:[]);
+  if(!images.length)return;
+  const action=pressSlotAction(root,activePressTab);
+  const [,,number]=PRESS_TABS.find(([slot])=>slot===activePressTab);
+  for(const [pos,host] of images.entries()){
+    const badge=document.createElement('span');badge.className='press-image-number';
+    badge.textContent=number;badge.title='현재 편집 중인 누르기: '+number+'번';
+    host.append(badge);
+    // One representative selector per action, regardless of Key Up/Down.
+    if(pos!==0)continue;
+    const button=document.createElement('button');button.type='button';
+  button.className='press-image-representative';
+  const preferred=(root.pressMeta?.representative||'single')===activePressTab;
+  const displayed=!!action&&pressDisplayAction(root)===action;
+  button.textContent=displayed?'✓':preferred?'◎':'○';
+  button.title=displayed?'현재 표시되는 대표 아이콘':preferred
+    ?'저장된 대표 선택 · 현재 비활성으로 다른 액션이 표시 중':'이 액션을 대표 아이콘으로 선택';
+  button.setAttribute('aria-label','현재 탭의 액션을 대표 아이콘으로 선택');
+  button.disabled=!action;
+  if(displayed)button.classList.add('chosen');
+  button.addEventListener('click',()=>{
+    pressEnsureMeta(root);root.pressMeta.representative=activePressTab;
+    persistInspectorChange();renderGrid();renderInspector();
+  });
+    host.append(button);
+  }
+}
 function renderPressTabs(root,inspector){
   if(!pressIsOrdinary(root)||state.selected>=13)return;
   const host=document.createElement('section');
@@ -2221,29 +2266,10 @@ function renderPressTabs(root,inspector){
     choose.className='press-tab-select';choose.textContent=label;
     choose.addEventListener('click',()=>{activePressTab=slot;renderInspector();});
     heading.append(check,choose);
-    const symbol=document.createElement('div');symbol.className='press-tab-symbol';
-    const art=pressTabArtwork(action,state.selected);
-    symbol.append(iconNode(art,ACTIONS.get(action?.type)?.icon||'+'));
-    const numberTag=document.createElement('span');numberTag.className='press-tab-number';
-    numberTag.textContent=number;symbol.append(numberTag);
-    const rep=document.createElement('button');rep.type='button';rep.className='press-tab-representative';
-    const preferred=(root.pressMeta?.representative||'single')===slot;
-    const displayed=!!action&&pressDisplayAction(root)===action;
-    rep.textContent=displayed?'✓':preferred?'◎':'○';
-    rep.title=displayed?'현재 D200X에 표시되는 대표 아이콘':
-      preferred?'선택한 대표 아이콘 · 현재 비활성으로 자동 대체됨':'대표 아이콘으로 선택';
-    rep.setAttribute('aria-label',label+' 대표 아이콘 선택');
-    rep.disabled=!action;
-    if(displayed)rep.classList.add('chosen');
-    rep.addEventListener('click',()=>{
-      pressEnsureMeta(root);root.pressMeta.representative=slot;
-      persistInspectorChange();renderGrid();renderInspector();
-    });
-    symbol.append(rep);
     const actionName=document.createElement('div');actionName.className='press-tab-name';
     actionName.textContent=action?(ACTIONS.get(action.type)?.label||action.type):'미등록';
     actionName.title=actionName.textContent;
-    tile.append(heading,symbol,actionName);
+    tile.append(heading,actionName);
     tile.addEventListener('dragover',ev=>{
       if(Array.from(ev.dataTransfer?.types||[]).includes('application/x-d200x-action')){
         ev.preventDefault();tile.classList.add('drag-over');
@@ -2258,6 +2284,7 @@ function renderPressTabs(root,inspector){
     grid.append(tile);
   }
   host.append(grid);
+  attachPressPreviewBadges(root,inspector);
   const chosen=pressSlotAction(root,activePressTab);
   const controls=document.createElement('div');controls.className='press-tabs-controls';
   const label=document.createElement('strong');label.textContent=PRESS_TABS.find(x=>x[0]===activePressTab)[1]+' · '+(chosen?(ACTIONS.get(chosen.type)?.label||chosen.type):'동작 미등록');
@@ -3153,12 +3180,13 @@ async function refreshStateTitleCards(item){
     try{
       const png=await window.renderDeckKeyImage(item.type==='indicator'?{...titleVisual,keyPressAlternate:true}:titleVisual,slot,false);
       if(root.dataset.stateCardVersion!==version||!img.isConnected||
-        DeckCore.visibleActions(state)[slot]!==item)return;
+        !isCurrentInspectorAction(item))return;
       const rendered=document.createElement('img');
       rendered.src='data:image/png;base64,'+png;
       rendered.alt=(second?'두 번째':'첫 번째')+' 상태 제목과 아이콘 미리보기';
       const paletteTrigger=img.querySelector('.key-background-trigger');
-      img.replaceChildren(rendered);
+      const overlays=Array.from(img.querySelectorAll(':scope > .press-image-number,:scope > .press-image-representative'));
+      img.replaceChildren(rendered,...overlays);
       if(paletteTrigger)img.append(paletteTrigger);
     }catch(error){console.warn('상태별 제목 이미지 미리보기 실패',error);}
   }
@@ -3628,8 +3656,7 @@ async function populateAudioOutputs(select,item){
     select.value=item.settings?.output||'default';
   }catch(error){console.warn('출력 장치 목록 조회 실패',String(error?.message||error));}
 }
-// The root breadcrumb reflects the catalogue that owns the assignment.
-// Help is shown only for actions needing usage/limitation explanations.
+// Show help only for actions needing usage/limitation explanations.
 const INSPECTOR_HELP={
   multi:{
     title:'순차 동작',description:'등록한 단계를 위에서 아래 순서대로 실행합니다.',
@@ -3672,15 +3699,6 @@ const INSPECTOR_HELP={
     cautions:['Home Assistant 서버에 연결되어 있어야 동작합니다.']
   }
 };
-function inspectorBreadcrumb(item,action,inspectorName){
-  const plugin=item.type==='sd-plugin';
-  const root=plugin?'플러그인':'기본 액션';
-  const category=plugin
-    ?sdkPlugins.find(p=>p.uuid===item.settings?.pluginUUID)?.name||
-      (item.settings?.actionUUID===HA_CUSTOM_ACTION?'Home Assistant':'설치된 플러그인')
-    :action?.category||'기타';
-  return [root,category,inspectorName||action?.label||item.type].filter(Boolean).join(' › ');
-}
 function inspectorOverview(item){
   switch(item.type){
     case 'multi':return '';
@@ -3828,7 +3846,7 @@ function renderInspector(){
       sdkActionNames.get(item.settings?.actionUUID)||item.settings?.actionName||item.settings?.actionUUID||'설치된 플러그인')
     :null;
   const inspectorName=sdkName||action?.label;
-  root.innerHTML=`<div class="action-head inspector-title-region"><strong>${escapeHtml(inspectorBreadcrumb(item,action,inspectorName))}</strong></div>
+  root.innerHTML=`<div class="action-head inspector-title-region"></div>
     <div class="properties inspector-properties-region"><div class="preview"><div class="preview-key" id="icon-preview">
       <span id="icon-preview-content"></span>
       <button class="icon-preview-control icon-preview-plus" type="button" id="icon-library-open" aria-label="아이콘 라이브러리 열기" title="아이콘 라이브러리">+</button>
@@ -4041,6 +4059,8 @@ function renderInspector(){
     }
   }
   if(pressIsOrdinary(rootItem)&&state.selected<13)renderPressTabs(rootItem,root);
+  const actionHeader=root.querySelector('.action-head');
+  if(actionHeader&&!actionHeader.childElementCount)actionHeader.remove();
   if(item.type==='folder-shortcut'){
     const pathInput=properties.querySelector('[data-field="path"]');
     if(pathInput){

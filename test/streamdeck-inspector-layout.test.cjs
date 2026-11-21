@@ -52,9 +52,10 @@ test('unsaved dialog remains interactive and original navigation is protected',(
   assert.match(editor,/if\(inspectorSession\?\.dirty\|\|smartProfileBusy/);
 });
 
-test('breadcrumb starts with owning category and gives optional modal help',()=>{
-  assert.match(editor,/function inspectorBreadcrumb\(item,action,inspectorName\)/);
-  assert.match(editor,/const root=plugin\?'플러그인':'기본 액션'/);
+test('redundant catalogue path is removed, while optional modal help remains',()=>{
+  assert.doesNotMatch(editor,/function inspectorBreadcrumb\(item,action,inspectorName\)/);
+  assert.match(editor,/class="action-head inspector-title-region"><\/div>/);
+  assert.match(editor,/if\(actionHeader&&!actionHeader\.childElementCount\)actionHeader\.remove\(\)/);
   assert.match(editor,/updatePluginToolbar\(\);\s*renderLibrary\(\);\s*renderInspector\(\)/);
   assert.match(editor,/function appendInspectorHelp\(head,item\)/);
   assert.match(editor,/dialog\.showModal\(\)/);
