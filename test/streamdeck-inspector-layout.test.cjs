@@ -392,7 +392,7 @@ test('hotkey inputs reuse existing field rows, preset list and action preview',(
   const main=fs.readFileSync(path.join(base,'main.cjs'),'utf8');
   const html=fs.readFileSync(path.join(base,'index.html'),'utf8');
   assert.ok(html.indexOf('./hotkey-keys.js')>=0&&html.indexOf('./hotkey-keys.js')<html.indexOf('./editor.js'));
-  assert.match(main,/emitWindowsKeys\(parsed.held,parsed.key,parsed\)/);
+  assert.match(main,/emitVerifiedWindowsHotkey\(parsed\)/);
 });
 
 test('hotkey preset and input mode share a row; the function name sits inside the input',()=>{
