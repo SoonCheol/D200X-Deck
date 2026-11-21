@@ -270,3 +270,16 @@ test('hotkey switch has separate 1/2 icon cards and live state switching',()=>{
  assert.match(src,/const key=hotkeySwitchRuntimeKey\(index,resolved\.action,resolved\.gesture\)/);
  assert.match(src,/hotkeySwitchPositions\.set\(key,1-position\);renderGrid\(\);void refreshSelectedVisual\(\)/);
 });
+
+test('ordinary LCD visual region reserves the same footprint for paired, single and empty gestures',()=>{
+ const style=fs.readFileSync(path.join(__dirname,'../app/streamdeck-editor/style.css'),'utf8');
+ const expectedSelectors=[
+  '.action-layout-inspector.press-gesture-inspector>.state-title-layout,',
+  '.action-layout-inspector.press-gesture-inspector>.action-single-visual,',
+  '.action-layout-inspector.press-gesture-inspector>.inspector-visual-placeholder{'
+ ];
+ for(const selector of expectedSelectors)assert.ok(style.includes(selector),selector);
+ assert.match(style,/\.action-layout-inspector\.press-gesture-inspector>\.inspector-visual-placeholder\{[^}]*min-height:225px/s);
+ assert.match(src,/root\.querySelector\('\.press-empty-message'\)\.before\(visual\)/);
+ assert.match(style,/\.action-layout-inspector\.press-gesture-inspector>\.state-title-layout\{[^}]*grid-template-columns:minmax\(0,1fr\) 98px/s);
+});
