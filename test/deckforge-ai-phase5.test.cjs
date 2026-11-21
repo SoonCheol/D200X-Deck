@@ -94,7 +94,7 @@ test('simulated gesture input trace includes selected action category but no sec
 });
 test('D200X dry-run detector distinguishes single double and hold without dispatching actions',()=>{
  const editor=fs.readFileSync(path.join(__dirname,'../app/streamdeck-editor/editor.js'),'utf8');
- const start=editor.indexOf('const gestureTestPresses='),end=editor.indexOf('// Generated local tones:',start);
+ const start=editor.indexOf('const gestureTestPresses='),end=editor.indexOf('// Generic ordinary-key gesture routing.',start);
  assert.ok(start>0&&end>start);
  const code=editor.slice(start,end);
  assert.doesNotMatch(code,/executeMultiStep|runComposite|runActionPreview|deckBridge\./);
