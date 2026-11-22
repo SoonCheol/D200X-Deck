@@ -25,6 +25,7 @@ const {ProfileStore}=require('./profile-store.cjs');
 const Backup=require('./backup.cjs');
 const BackupPrivacy=require('./backup-privacy.cjs');
 const {GoogleDrive}=require('./google-drive.cjs');
+const UpdateCheck=require('./update-check.cjs');
 let sdkHost=null;
 function sdk(){
   if(!sdkHost)sdkHost=new StreamDeckPluginHost(app.getPath('userData'),payload=>send('d200x:sdk-event',payload),()=>window);
@@ -533,11 +534,24 @@ let rendererReady = false;
 let tray = null;
 let quitting = false;
 let trayPreferences = null;
-const BUILDS_PAGE = 'https://github.com/SoonCheol/D200X-Deck/actions/workflows/streamdeck-clean-preview.yml';
+let cachedUpdate=null,cachedUpdateAt=0,pendingUpdate=null;
+async function installedUpdateStatus(){
+  if(cachedUpdate&&Date.now()-cachedUpdateAt<60000)return cachedUpdate;
+  if(pendingUpdate)return pendingUpdate;
+  pendingUpdate=UpdateCheck.checkUpdateStatus(app.getVersion())
+    .then(info=>{cachedUpdate=info;cachedUpdateAt=Date.now();return info;})
+    .finally(()=>{pendingUpdate=null;});
+  return pendingUpdate;
+}
 ipcMain.handle('d200x:app-version',event=>{assertEditor(event);return app.getVersion();});
+ipcMain.handle('d200x:update-status',async event=>{
+  assertEditor(event);return installedUpdateStatus();
+});
 ipcMain.handle('d200x:check-updates',async event=>{
   assertEditor(event);
-  await shell.openExternal(BUILDS_PAGE);
+  const info=await installedUpdateStatus();
+  if(info?.state!=='available'||!Number.isSafeInteger(info.runId))return false;
+  await shell.openExternal('https://github.com/SoonCheol/D200X-Deck/actions/runs/'+info.runId);
   return true;
 });
 function trayPreferencePath(){return path.join(app.getPath('userData'),'deckforge-tray-preferences-v1.json');}

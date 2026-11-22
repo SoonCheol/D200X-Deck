@@ -1609,8 +1609,8 @@ function openAppLegacyHold(item){
   // hold slot takes precedence, but must never delete the saved legacy choice.
   if(!root||item!==root)return '';
   const field=select("hold","길게 누르기",[["none","아무것도 하지 않음"],["close","프로그램 종료"],["force","프로그램 강제 종료"]]);
-  return root.pressActions?.hold
-    ?field.replace('data-field="hold"','data-field="hold" disabled title="길게 누르기 탭에 등록된 동작이 우선 적용됩니다."')
+  return root.pressActions?.hold&&pressEnabled(root,'hold')
+    ?field.replace('data-field="hold"','data-field="hold" disabled title="활성화된 길게 누르기 탭 동작이 우선 적용됩니다."')
     :field;
 }
 function actionFields(item){
@@ -4683,7 +4683,7 @@ function handleGestureTest(action,index,gesture,event,preview){
 const assignedKeyPresses=new Map();
 const ASSIGNED_DOUBLE_MS=300,ASSIGNED_HOLD_MS=600;
 function legacyOpenAppHoldAvailable(action){
-  return action?.type==='open-app'&&!action.pressActions?.hold&&
+  return action?.type==='open-app'&&(!action.pressActions?.hold||!pressEnabled(action,'hold'))&&
     ['close','force'].includes(action.settings?.hold);
 }
 function assignedPressStillCurrent(record){
@@ -4693,12 +4693,12 @@ function assignedPressStillCurrent(record){
 }
 function runAssignedPress(action,index,slot,event){
   const assigned=pressSlotAction(action,slot);
-  const legacyHold=slot==='hold'&&!assigned&&
+  const legacyHold=slot==='hold'&&(!assigned||!pressEnabled(action,'hold'))&&
     (legacyOpenAppHoldAvailable(action)||action.type==='indicator'&&!action.pressMeta);
   if(!assigned&&!legacyHold)return null;
-  // The disabled checkbox applies to an assigned hold action; an unregistered
-  // slot must not suppress the Program Open legacy option.
-  if(assigned&&!pressEnabled(action,slot))return null;
+  // Disabled hold restores the primary Program Open suboption. A saved 'none'
+  // consumes the long press without starting the single-press application.
+  if(assigned&&!pressEnabled(action,slot)&&!legacyHold)return null;
   let result=null;
   if(slot==='single'&&action.type==='indicator'){
     result=executeSideNavigation(index,'down',event);
@@ -4750,16 +4750,18 @@ function handleAssignedKeyPress(action,index,gesture,event){
     const record={key,index,action,pressed:true,holdFired:false,doubleFired:false,
       bindings:JSON.stringify([action.pressActions||{},action.pressMeta||{}]),
       downAt:now,holdTimer:null,singleTimer:null};
-    const legacyHold=legacyOpenAppHoldAvailable(action)||
-      action.type==='indicator'&&DeckCore.sharedIndicatorConfig(state,action,'hold').navigation!=='none';
     const holdAssigned=!!action.pressActions?.hold;
-    if(holdAssigned?pressEnabled(action,'hold'):legacyHold){
+    const legacyHold=(action.type==='open-app'&&(!holdAssigned||!pressEnabled(action,'hold')))||
+      (action.type==='indicator'&&DeckCore.sharedIndicatorConfig(state,action,'hold').navigation!=='none');
+    // Even a disabled hold or Program Open 'none' consumes a completed hold.
+    // Otherwise the release incorrectly executes the single-press program.
+    if(holdAssigned||legacyHold){
       record.holdTimer=setTimeout(()=>{
         if(assignedKeyPresses.get(key)!==record||!record.pressed||!assignedPressStillCurrent(record))return;
         record.holdFired=true;
         reportInputEvidence(event,'press-gesture',{outcome:'hold',action:action.type,ms:Date.now()-record.downAt});
         runAssignedPress(action,index,'hold',event);
-      },action.type==='open-app'&&!action.pressActions?.hold?650:ASSIGNED_HOLD_MS);
+      },action.type==='open-app'&&(!holdAssigned||!pressEnabled(action,'hold'))?650:ASSIGNED_HOLD_MS);
     }
     assignedKeyPresses.set(key,record);
     return '버튼 누르기 판정 중';
@@ -6570,7 +6572,7 @@ async function restoreBackup(cloud=null,format='encrypted'){
 function bindSidebarHeader(){
   const trigger=$("profile-trigger"),menu=$("profile-menu");
   window.deckBridge?.appVersion?.().then(version=>{
-    $('current-version').textContent='현재 버전 '+version;
+    $('current-version').textContent=version;
     document.title='DeckForge '+version+' — D200X 편집기';
   }).catch(()=>{});
   const close=()=>{menu.hidden=true;trigger.setAttribute('aria-expanded','false');};
@@ -6754,13 +6756,33 @@ $("icon-maker-save").addEventListener("click",()=>{
 // General options: backup/restore is independent of the profile picker.
 function bindSettingsMenu(){
   const trigger=$("settings-trigger"),menu=$("settings-menu"),update=$("check-update");
+  const current=$("current-version"),latest=$("latest-version"),status=$("update-status");
+  let requestNumber=0;
+  const loadStatus=async()=>{
+    const request=++requestNumber;
+    update.disabled=true;latest.textContent='확인 중';status.textContent='설치 가능한 빌드 확인 중…';
+    try{
+      if(!window.deckBridge?.updateStatus)throw Error('Windows DeckForge에서만 사용할 수 있습니다.');
+      const result=await window.deckBridge.updateStatus();
+      if(request!==requestNumber||menu.hidden)return;
+      if(result?.currentVersion)current.textContent=result.currentVersion;
+      latest.textContent=result?.latestVersion||'확인 불가';
+      update.disabled=result?.state!=='available';
+      status.textContent=result?.state==='available'?'새 버전이 있습니다. 설치 파일 페이지를 엽니다.':
+        result?.state==='current'?'최신 버전입니다.':'최신 빌드를 확인하지 못했습니다.';
+    }catch{
+      if(request!==requestNumber||menu.hidden)return;
+      latest.textContent='확인 불가';status.textContent='네트워크 또는 GitHub 상태를 확인하세요.';
+      update.disabled=true;
+    }
+  };
   const makeEntry=(parent,label,fn)=>{
     const button=document.createElement('button');button.type='button';button.textContent=label;
     button.setAttribute('role','menuitem');button.addEventListener('click',fn);parent.append(button);return button;
   };
   const accountPanel=document.createElement('div');accountPanel.className='profile-global-panel';accountPanel.hidden=true;
   accountPanel.id='settings-drive-panel';accountPanel.setAttribute('role','group');
-  const close=()=>{menu.hidden=true;trigger.setAttribute('aria-expanded','false');accountPanel.hidden=true;accountToggle.textContent='Google 계정 관리 ▸';accountToggle.setAttribute('aria-expanded','false');};
+  const close=()=>{++requestNumber;menu.hidden=true;trigger.setAttribute('aria-expanded','false');accountPanel.hidden=true;accountToggle.textContent='Google 계정 관리 ▸';accountToggle.setAttribute('aria-expanded','false');};
   const run=(fn)=>async()=>{close();try{await fn();}catch(error){alert('백업 작업 실패: '+String(error?.message||error));}};
   makeEntry(menu,'백업 및 복원',run(openBackupManager));
   const accountToggle=makeEntry(menu,'Google 계정 관리 ▸',()=>{
@@ -6773,12 +6795,15 @@ function bindSettingsMenu(){
   trigger.addEventListener('click',()=>{
     if(!menu.hidden){close();return;}
     menu.hidden=false;trigger.setAttribute('aria-expanded','true');
+    void loadStatus();
   });
   update.addEventListener('click',async()=>{
+    if(update.disabled)return;
     close();
     try{
       if(!window.deckBridge?.checkForUpdates)throw Error('Windows DeckForge에서만 사용할 수 있습니다.');
-      await window.deckBridge.checkForUpdates();
+      const opened=await window.deckBridge.checkForUpdates();
+      if(!opened)window.d200xActionStatus?.('설치 가능한 새 버전을 확인하지 못했습니다.');
     }catch(error){window.d200xActionStatus?.('업데이트 페이지 열기 실패: '+String(error?.message||error));}
   });
   document.addEventListener('pointerdown',event=>{

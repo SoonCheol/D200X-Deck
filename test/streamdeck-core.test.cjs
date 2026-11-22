@@ -1657,16 +1657,18 @@ test('Program Open legacy long-press option stays saved but is disabled when hol
   app.settings.hold='force';
   let selected=app;
   const select=(key,label)=>'<div><label>'+label+'</label><select data-field="'+key+'"></select></div>';
-  const render=new Function('state','DeckCore','select',snippet+';return openAppLegacyHold;')(
-    {selected:0},{visibleActions:()=>[selected]},select);
+  const render=new Function('state','DeckCore','select','pressEnabled',snippet+';return openAppLegacyHold;')(
+    {selected:0},{visibleActions:()=>[selected]},select,(root,slot)=>root?.pressMeta?.enabled?.[slot]!==false);
   const enabled=render(app);
   assert.match(enabled,/길게 누르기/);
   assert.doesNotMatch(enabled,/disabled/);
   app.pressActions={double:null,hold:core.createAction('hotkey')};
   const blocked=render(app);
   assert.match(blocked,/data-field="hold" disabled/);
-  assert.match(blocked,/등록된 동작이 우선/);
+  assert.match(blocked,/활성화된 길게 누르기 탭 동작이 우선/);
   assert.equal(app.settings.hold,'force','disable does not alter saved force setting');
+  app.pressMeta={enabled:{single:true,double:true,hold:false},representative:'single'};
+  assert.doesNotMatch(render(app),/disabled/,'unchecking hold restores primary Program Open option');
   app.pressActions.hold=null;
   assert.doesNotMatch(render(app),/disabled/,'removing explicit action re-enables legacy setting');
 });
@@ -1702,14 +1704,16 @@ test('ordinary-key legacy Program Open hold and explicit hold action never run t
   assert.equal(close.length,1,'explicit action suppresses the legacy close');
   assert.deepEqual(executed,['hotkey']);
   app.pressMeta.enabled.hold=false;
-  assert.equal(make.runAssignedPress(app,0,'hold',{inputId:'disabled'}),null);
-  assert.equal(close.length,1);
+  assert.equal(make.legacyOpenAppHoldAvailable(app),true);
+  make.runAssignedPress(app,0,'hold',{inputId:'disabled'});
+  assert.equal(close.length,2,'unchecked hold restores saved force close');
+  assert.deepEqual(executed,['hotkey'],'disabled terminal must not execute');
   app.pressActions.hold=null;
   make.runAssignedPress(app,0,'hold',{inputId:'fallback'});
-  assert.equal(close.length,2,'legacy force close resumes after hold action removal');
+  assert.equal(close.length,3,'legacy force close resumes after hold action removal');
   app.settings.hold='none';
   assert.equal(make.runAssignedPress(app,0,'hold',{inputId:'none'}),null);
-  assert.equal(close.length,2);
+  assert.equal(close.length,3);
   assert.equal(executed.length,1);
 });
 
@@ -1722,7 +1726,7 @@ test('Program Open hold settings are not silently converted when switching tabs'
   assert.doesNotMatch(section,/root\.settings\.hold='none'/);
   assert.doesNotMatch(section,/const closing=DeckCore\.createAction\('close'\)/);
   assert.match(section,/if\(slot!=='single'&&next\?\.type==='open-app'\)next\.settings\.hold='none'/);
-  assert.match(source,/if\(holdAssigned\?pressEnabled\(action,'hold'\):legacyHold\)/);
+  assert.match(source,/if\(holdAssigned\|\|legacyHold\)/);
 });
 
 test('page-number fixed gesture plan ignores legacy choices without destroying stored settings',()=>{
@@ -1798,4 +1802,45 @@ test('fixed page-number recognizer distinguishes single, double and hold without
  // A pending short press is discarded when the active profile changes.
  handle(0,'down',{inputId:'e'},false);advance(30);handle(0,'up',{inputId:'e'},false);
  state.profileId='B';advance(310);assert.equal(calls.length,3);
+});
+
+test('unchecked Program Open hold consumes release and invokes legacy close/force/none',()=>{
+ const fs=require('node:fs'),path=require('node:path');
+ const source=fs.readFileSync(path.join(__dirname,'../app/streamdeck-editor/editor.js'),'utf8');
+ const body=source.slice(source.indexOf('const assignedKeyPresses=new Map();'),source.indexOf('// Generated local tones:'));
+ const app=core.createAction('open-app');
+ app.settings.app='C:\\Apps\\BatchRenamer.exe';
+ app.pressActions={double:core.createAction('open-app'),hold:core.createAction('terminal')};
+ app.pressMeta={enabled:{single:true,double:true,hold:false},representative:'single'};
+ const timers=new Map(),close=[],executed=[];
+ let clock=0,serial=0;
+ const make=new Function('DeckCore','state','Date','setTimeout','clearTimeout','window',
+   'pressEnabled','pressSlotAction','executeHardwareAction','executeSideNavigation','reportInputEvidence',
+   'observeInputEvidence','makeAppControlTrace',
+   body+';return {handleAssignedKeyPress,runAssignedPress};');
+ const router=make({runtimeActionKey:()=> 'slot-0',visibleActions:()=>[app]}, {},{now:()=>clock},
+   (fn,ms)=>{const id=++serial;timers.set(id,{fn,ms});return id;},id=>timers.delete(id),
+   {deckBridge:{closeLocalApp:(target,force)=>{close.push({target,force});return Promise.resolve();}},d200xActionStatus(){}},
+   (item,slot)=>item?.pressMeta?.enabled?.[slot]!==false,
+   (item,slot)=>slot==='single'?item:item.pressActions?.[slot]||null,
+   (_event,_preview,_skip,action)=>{executed.push(action.type);return 'dispatched';},
+   ()=>null,()=>{},(event,promise)=>promise,()=>({}));
+ for(const [mode] of [['close'],['force'],['none']]){
+   app.settings.hold=mode;
+   router.handleAssignedKeyPress(app,0,'down',{inputId:mode});
+   assert.equal(timers.size,1);
+   const pending=[...timers.values()][0];
+   assert.equal(pending.ms,650);
+   clock+=650;pending.fn();
+   router.handleAssignedKeyPress(app,0,'up',{inputId:mode});
+ }
+ assert.deepEqual(close,[{target:app.settings.app,force:false},{target:app.settings.app,force:true}]);
+ assert.deepEqual(executed,[],'long press cannot fall through to the single-press app or terminal');
+ app.pressMeta.enabled.hold=true;app.settings.hold='force';
+ router.handleAssignedKeyPress(app,0,'down',{inputId:'explicit'});
+ const active=[...timers.values()][0];
+ assert.equal(active.ms,600);
+ active.fn();router.handleAssignedKeyPress(app,0,'up',{inputId:'explicit'});
+ assert.deepEqual(executed,['terminal'],'re-enabled hold resumes the saved terminal');
+ assert.equal(close.length,2,'re-enabled hold suppresses legacy close');
 });

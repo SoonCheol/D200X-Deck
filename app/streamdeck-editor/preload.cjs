@@ -22,6 +22,7 @@ contextBridge.exposeInMainWorld('deckBridge', Object.freeze({
   appVersion: () => ipcRenderer.invoke('d200x:app-version'),
   openAiAssistant: () => ipcRenderer.invoke('d200x:open-ai'),
   revealUnsavedEditor: () => ipcRenderer.invoke('d200x:reveal-unsaved-editor'),
+  updateStatus: () => ipcRenderer.invoke('d200x:update-status'),
   checkForUpdates: () => ipcRenderer.invoke('d200x:check-updates'),
   haStatus: () => ipcRenderer.invoke('d200x:ha-status'),
   sdkList: () => ipcRenderer.invoke('d200x:sdk-list'),
