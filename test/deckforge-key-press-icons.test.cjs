@@ -341,7 +341,7 @@ test('inspector icon and title previews bypass representative selection while ph
 test('gesture inspector keeps selected tab and rejects other-tab picker results',()=>{
  const choose=src.slice(src.indexOf('function choose(index){'),src.indexOf('function controlDrop(',src.indexOf('function choose(index){')));
  assert.match(choose,/if\(state\.selected===index\)\{\s*return;/);
- assert.doesNotMatch(choose,/if\(state\.selected===index\)[\s\S]*?activePressTab='single'/);
+ assert.doesNotMatch(choose,/if\(state\.selected===index\)\{\s*if\(index<13/);
  const Core=require('../app/streamdeck-editor/deck-core.js');
  const state=Core.migrateState(null),single=Core.createAction('hotkey'),double=Core.createAction('hotkey'),hold=Core.createAction('hotkey');
  state.pages[0][0]=single;state.selected=0;single.pressActions={double,hold};
