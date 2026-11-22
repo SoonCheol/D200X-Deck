@@ -337,3 +337,37 @@ test('inspector icon and title previews bypass representative selection while ph
  assert.match(src,/const visual=displayKeyPressItem\(displayItem\(item,i\),i\)/);
  assert.match(src,/\['sd-plugin','timer','hotkey-switch'\]\.includes\(target\.type\)/);
 });
+
+test('gesture inspector keeps selected tab and rejects other-tab picker results',()=>{
+ const choose=src.slice(src.indexOf('function choose(index){'),src.indexOf('function controlDrop(',src.indexOf('function choose(index){')));
+ assert.match(choose,/if\(state\.selected===index\)\{\s*return;/);
+ assert.doesNotMatch(choose,/if\(state\.selected===index\)[\s\S]*?activePressTab='single'/);
+ const Core=require('../app/streamdeck-editor/deck-core.js');
+ const state=Core.migrateState(null),single=Core.createAction('hotkey'),double=Core.createAction('hotkey'),hold=Core.createAction('hotkey');
+ state.pages[0][0]=single;state.selected=0;single.pressActions={double,hold};
+ const start=src.indexOf('function isCurrentInspectorAction(item){');
+ const end=src.indexOf('function pressEnsureMeta(root){',start);
+ const make=tab=>new Function('state','DeckCore','pressIsOrdinary','pressSlotAction','activePressTab','inspectorSession',
+   src.slice(start,end)+';return {isCurrentInspectorAction,inspectorPickerCurrent};')(
+   state,Core,action=>!!action&&!new Set(['multi','logic','folder','indicator']).has(action.type),
+   (root,slot)=>slot==='single'?root.type==='press-empty'?null:root:root.pressActions?.[slot]||null,tab,{});
+ const a=make('single'),b=make('double'),c=make('hold');
+ assert.equal(a.isCurrentInspectorAction(single),true);
+ assert.equal(b.isCurrentInspectorAction(single),false);
+ assert.equal(b.isCurrentInspectorAction(double),true);
+ assert.equal(c.isCurrentInspectorAction(hold),true);
+ assert.equal(c.isCurrentInspectorAction(double),false);
+ assert.match(src,/function inspectorPickerCurrent\(session,item\)/);
+ assert.match(src,/session===inspectorSession&&isCurrentInspectorAction\(item\)/);
+});
+test('gesture icon selection and async composite images respect editor drafts',()=>{
+ assert.match(src,/librarySession=inspectorSession/);
+ assert.match(src,/makerSession=inspectorSession/);
+ assert.match(src,/function applyStateIconData\(target,key,uri,session=inspectorSession\)/);
+ assert.match(src,/if\(!inspectorPickerCurrent\(session,item\)\)return;\s*visual\.icon/);
+ assert.match(src,/visual\.icon=\{kind:'file',value:image\};\s*persistInspectorChange\(\);renderGrid\(\)/);
+ assert.match(src,/if\(isCurrentInspectorAction\(item\)\)render\(\);\s*else renderGrid\(\)/);
+ const swap=src.slice(src.indexOf('function setPressSlot('),src.indexOf('function attachPressPreviewBadges('));
+ assert.match(swap,/currentPage\(\)\[index\]=replacement;\s*root=replacement/);
+ assert.doesNotMatch(swap,/Object\.assign\(root,next/);
+});

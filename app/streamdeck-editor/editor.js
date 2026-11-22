@@ -597,10 +597,7 @@ function showControlMenu(index,x,y){
 }
 function choose(index){
   if(state.selected===index){
-    if(index<13&&pressIsOrdinary(DeckCore.visibleActions(state)[index])&&activePressTab!=='single'){
-      activePressTab='single';renderInspector();
-    }
-    return;
+    return; // Re-selecting the same key must not switch the gesture being edited.
   }
   if(inspectorSession?.dirty){showInspectorLeaveDialog(()=>choose(index));return;}
   if(state.selected!==index){controlGesture='down';knobTab='normal';}
@@ -1892,12 +1889,14 @@ function renderMultiEditor(item,root){
     chooseImage.addEventListener('click',async()=>{
       if(!window.deckBridge?.chooseImportFile){imageInput.click();return;}
       try{
+        const session=inspectorSession;
         const chosen=await chooseNativeImage('image');
         if(!chosen)return;
         const image=await rasterizeIcon(chosen.dataUrl);
         if(image.length>=1024*1024)throw new Error('변환된 PNG가 1MB를 넘습니다.');
+        if(!inspectorPickerCurrent(session,item))return;
         visual.icon={kind:'file',value:image};
-        persist();renderGrid();refreshSelectedVisual();
+        persistInspectorChange();renderGrid();refreshSelectedVisual();
       }catch(error){window.d200xActionStatus?.('상태 이미지 선택 실패: '+String(error?.message||error));}
     });
     imageInput.addEventListener('change',async()=>{
@@ -1907,6 +1906,7 @@ function renderMultiEditor(item,root){
         window.d200xActionStatus?.('5MB 이하의 PNG/JPEG/WebP/GIF 이미지만 선택할 수 있습니다.');return;
       }
       try{
+        const session=inspectorSession;
         const raw=await new Promise((resolve,reject)=>{
           const reader=new FileReader();
           reader.onerror=()=>reject(new Error('파일 읽기 실패'));
@@ -1915,8 +1915,9 @@ function renderMultiEditor(item,root){
         });
         const image=await rasterizeIcon(raw);
         if(image.length>=1024*1024)throw new Error('변환된 PNG가 1MB를 넘습니다.');
+        if(!inspectorPickerCurrent(session,item))return;
         visual.icon={kind:'file',value:image};
-        persist();renderGrid();
+        persistInspectorChange();renderGrid();
       }catch(error){window.d200xActionStatus?.('상태별 이미지 적용 실패: '+String(error?.message||error));}
     });
     const resetIcon=document.createElement('button');resetIcon.type='button';
@@ -2143,8 +2144,13 @@ function isCurrentInspectorAction(item){
   const root=slot>=14?DeckCore.activeControlAction(DeckCore.controlBinding(state,slot),controlGesture):
     DeckCore.visibleActions(state)[slot];
   // Ignore an asynchronous icon/path picker once its gesture tab changed.
-  return !!root&&(root===item||
-    (pressIsOrdinary(root)&&pressSlotAction(root,activePressTab)===item));
+  if(!root)return false;
+  if(slot<13&&pressIsOrdinary(root))return pressSlotAction(root,activePressTab)===item;
+  return root===item;
+}
+// Pre-confirmation picker results belong to the exact unsaved inspector session.
+function inspectorPickerCurrent(session,item){
+  return !!session&&session===inspectorSession&&isCurrentInspectorAction(item);
 }
 function pressEnsureMeta(root){
   if(!root)return;
@@ -2182,10 +2188,11 @@ function setPressSlot(index,slot,next,immediate=false){
   pressEnsureMeta(root);
   if(slot==='single'){
     if(root!==next){
-      const preserved={pressActions:root.pressActions,pressMeta:root.pressMeta};
-      for(const key of Object.keys(root))delete root[key];
-      Object.assign(root,next||DeckCore.createAction('press-empty'));
-      Object.assign(root,preserved);
+      const replacement=next||DeckCore.createAction('press-empty');
+      replacement.pressActions=root.pressActions;
+      replacement.pressMeta=root.pressMeta;
+      currentPage()[index]=replacement;
+      root=replacement;
     }
   }else{
     root.pressActions??={double:null,hold:null};
@@ -2255,7 +2262,13 @@ function renderPressTabs(root,inspector){
     });
     const choose=document.createElement('button');choose.type='button';
     choose.className='press-tab-select';choose.textContent=label;
-    choose.addEventListener('click',()=>{activePressTab=slot;renderInspector();});
+    choose.addEventListener('click',()=>{
+      if(activePressTab!==slot){
+        closeIconLibrary();closeIconMaker();fileIconTarget=null;fileIconSession=null;
+        activePressTab=slot;
+      }
+      renderInspector();
+    });
     heading.append(check,choose);
     const actionName=document.createElement('div');actionName.className='press-tab-name';
     actionName.textContent=action?(ACTIONS.get(action.type)?.label||action.type):'미등록';
@@ -2305,7 +2318,9 @@ async function updateApplicationArtwork(item,filePath,session=inspectorSession){
   if(artwork&&(!item.icon||item.settings?.autoAppIcon===true)){
     item.icon={kind:'file',value:artwork};item.settings.autoAppIcon=true;
   }
-  persistInspectorChange();render();
+  persistInspectorChange();
+  if(isCurrentInspectorAction(item))render();
+  else renderGrid(); // A confirmed previous-tab choice must not steal current-tab focus.
 }
 async function registerDroppedApplication(index,filePath,allowAppId=false,snapshot=captureNativeGrid()){
   if(nativeGridBusy||!Number.isInteger(index)||index<0||index>=13||!window.deckBridge?.inspectDroppedTarget||!nativeSlotUnchanged(snapshot,index)||inspectorSession?.dirty)return;
@@ -3278,11 +3293,12 @@ function bindSdkStateIcons(root,item){
       file.addEventListener('click',async()=>{
         try{
           if(!window.deckBridge?.chooseImportFile)throw Error('Windows EXE에서 사용할 수 있습니다.');
+          const session=inspectorSession;
           const chosen=await chooseNativeImage('image');
           if(!chosen?.dataUrl)return;
           const png=await rasterizeIcon(chosen.dataUrl);
-          if(!isCurrentInspectorAction(item))return;
-          applyStateIconData(item,key,png);
+          if(!inspectorPickerCurrent(session,item))return;
+          applyStateIconData(item,key,png,session);
         }catch(error){window.d200xActionStatus?.('상태 아이콘 선택 실패: '+String(error?.message||error));}
       });
       const paste=document.createElement('button');paste.type='button';paste.textContent='클립보드';
@@ -3327,9 +3343,10 @@ function bindKeyPressIconControls(root,item){
     file.addEventListener('click',async()=>{
       try{
         if(!window.deckBridge?.chooseImportFile)throw Error('Windows EXE에서 사용할 수 있습니다.');
+        const session=inspectorSession;
         const chosen=await chooseNativeImage('image');if(!chosen?.dataUrl)return;
         const png=await rasterizeIcon(chosen.dataUrl);
-        if(!isCurrentInspectorAction(item))return;
+        if(!inspectorPickerCurrent(session,item))return;
         item.settings.keyPressIcons??={};
         item.settings.keyPressIcons[key]={kind:'file',value:png};
         persistInspectorChange();render();
@@ -3471,11 +3488,11 @@ function bindExtendedActionFields(root,item){
       try{
         const session=inspectorSession;
         const entities=await window.deckBridge.haEntities();
-        if(!inspectorTargetCurrent(session,item))return;
+        if(!inspectorPickerCurrent(session,item))return;
         if(!entities.length)throw new Error('제어 가능한 엔티티가 없습니다.');
         const current=item.settings?.entityId||'';
         const selected=await chooseDeckForgeEntity(entities,current);
-        if(selected===null||!inspectorTargetCurrent(session,item))return;
+        if(selected===null||!inspectorPickerCurrent(session,item))return;
         if(!entities.some(e=>e.entity_id===selected))throw new Error('유효한 엔티티를 선택하세요.');
         item.settings.entityId=selected;
         const input=root.querySelector('[data-field="entityId"]');if(input)input.value=selected;
@@ -3812,7 +3829,7 @@ function renderTimerSettings(item,root){
   if(!sound.value)sound.value='connect';
   const btn=(name,glyph,fn)=>{const b=document.createElement('button');b.type='button';b.title=name;b.setAttribute('aria-label',name);b.textContent=glyph;b.addEventListener('click',fn);return b;};
   const choose=btn('MP3/WAV 파일 선택','▱',async()=>{
-    try{const session=inspectorSession,path=await window.deckBridge?.choosePath('audio');if(!path||!inspectorTargetCurrent(session,item))return;if(!/\.(mp3|wav)$/i.test(path))throw Error('MP3 또는 WAV 파일을 선택하세요.');stopTimerSoundPreview();item.settings.soundFile=path;item.settings.sound='custom';sound.value='custom';persistInspectorChange();syncSound();}
+    try{const session=inspectorSession,path=await window.deckBridge?.choosePath('audio');if(!path||!inspectorPickerCurrent(session,item))return;if(!/\.(mp3|wav)$/i.test(path))throw Error('MP3 또는 WAV 파일을 선택하세요.');stopTimerSoundPreview();item.settings.soundFile=path;item.settings.sound='custom';sound.value='custom';persistInspectorChange();syncSound();}
     catch(e){window.d200xActionStatus?.(String(e?.message||e));}
   });
   const listen=btn('미리듣기','▶',()=>void toggleTimerSoundPreview({...item.settings},listen,inspectorListener.signal));
@@ -5810,11 +5827,11 @@ function renderIconLibrary(){
       const image=document.createElement('img');image.src=icon.image;image.alt=icon.name;
       tile.append(image);
       tile.addEventListener('click',async()=>{
-        const target=libraryTarget;
-        if(!target||!isCurrentInspectorAction(target))return;
+        const target=libraryTarget,session=librarySession;
+        if(!target||!inspectorPickerCurrent(session,target))return;
         try{
           const png=await rasterizeIcon(icon.image);
-          if(!isCurrentInspectorAction(target))return;
+          if(!inspectorPickerCurrent(session,target))return;
           if(libraryStateKey?.startsWith('press:')&&(isMomentaryIconAction(target)||target.type==='indicator')){
             target.settings.keyPressIcons??={};
             target.settings.keyPressIcons[libraryStateKey.slice(6)]={kind:'file',value:png,packId:pack.id};
@@ -5826,7 +5843,7 @@ function renderIconLibrary(){
             target.settings.sdkStateIcons[libraryStateKey]={kind:'file',value:png,packId:pack.id};
             if(companion&&pair){
               const oppositePng=await rasterizeIcon(companion.image);
-              if(!isCurrentInspectorAction(target))return;
+              if(!inspectorPickerCurrent(session,target))return;
               applyMatchedStateIcons(target.settings,pair,png,oppositePng,pack.id);
             }
           }else {target.icon={kind:'file',value:png,packId:pack.id};if(target.settings)delete target.settings.autoAppIcon;}
@@ -5852,8 +5869,10 @@ function renderIconLibrary(){
   }
   $("icon-library-count").textContent='아이콘 '+count+'개 · 등록된 팩 '+importedIconPacks.length+'개';
 }
+let librarySession=null;
 function openIconLibrary(item,stateKey=null){
   libraryTarget=item;
+  librarySession=inspectorSession;
   libraryStateKey=stateKey;
   $("icon-library-search").value="";
   iconVisibleCounts.clear();
@@ -5864,13 +5883,15 @@ function openIconLibrary(item,stateKey=null){
   $("icon-library-search").focus();
 }
 function closeIconLibrary(){
-  $("icon-library").hidden=true;libraryTarget=null;libraryStateKey=null;
+  $("icon-library").hidden=true;libraryTarget=null;libraryStateKey=null;librarySession=null;
 }
 let fileIconTarget=null;
+let fileIconSession=null;
 let makerTarget=null;
 let makerStateKey=null;
-function applyStateIconData(target,key,uri){
-  if(!target||!uri||!isCurrentInspectorAction(target))return;
+let makerSession=null;
+function applyStateIconData(target,key,uri,session=inspectorSession){
+  if(!target||!uri||!inspectorPickerCurrent(session,target))return;
   target.settings??={};
   if(key?.startsWith('press:')){
     target.settings.keyPressIcons??={};target.settings.keyPressIcons[key.slice(6)]={kind:'file',value:uri};
@@ -5879,7 +5900,7 @@ function applyStateIconData(target,key,uri){
   }else{target.icon={kind:'file',value:uri};delete target.settings.autoAppIcon;}
   persistInspectorChange();render();
 }
-function applyIconData(target,uri){applyStateIconData(target,null,uri);}
+function applyIconData(target,uri,session=inspectorSession){applyStateIconData(target,null,uri,session);}
 function rasterizeIcon(uri,size=196,contentSize=size){
   return new Promise((resolve,reject)=>{
     const image=new Image();
@@ -5896,7 +5917,7 @@ function rasterizeIcon(uri,size=196,contentSize=size){
     image.src=uri;
   });
 }
-async function setIconFile(file,target=fileIconTarget,key=null){
+async function setIconFile(file,target=fileIconTarget,key=null,session=inspectorSession){
   if(!file||!target)return;
   if(!["image/png","image/jpeg","image/webp","image/gif"].includes(file.type)||file.size>5*1024*1024){
     alert("5MB 이하 PNG/JPEG/WebP/GIF 이미지 파일을 선택해 주세요.");return;
@@ -5908,20 +5929,20 @@ async function setIconFile(file,target=fileIconTarget,key=null){
       reader.onload=()=>resolve(reader.result);
       reader.readAsDataURL(file);
     });
-    applyStateIconData(target,key,await rasterizeIcon(uri));
+    applyStateIconData(target,key,await rasterizeIcon(uri),session);
   }catch(error){alert("아이콘 적용 실패: "+String(error?.message||error));}
 }
-async function pasteIcon(target,key=null){
+async function pasteIcon(target,key=null,session=inspectorSession){
   try{
     if(window.deckBridge?.readClipboardImage){
       const image=await window.deckBridge.readClipboardImage();
       if(!image){alert("클립보드에 이미지가 없습니다.");return;}
-      applyStateIconData(target,key,await rasterizeIcon(image));return;
+      applyStateIconData(target,key,await rasterizeIcon(image),session);return;
     }
     if(!navigator.clipboard?.read)throw new Error("이미지 클립보드를 사용할 수 없습니다.");
     for(const entry of await navigator.clipboard.read()){
       const format=entry.types.find(type=>["image/png","image/jpeg","image/webp"].includes(type));
-      if(format){await setIconFile(await entry.getType(format),target,key);return;}
+      if(format){await setIconFile(await entry.getType(format),target,key,session);return;}
     }
     alert("클립보드에 이미지가 없습니다.");
   }catch(error){alert("클립보드 이미지 접근 실패: "+String(error?.message||error));}
@@ -5936,11 +5957,11 @@ function renderIconMaker(){
   ctx.fillText(glyph,98,98,178);
 }
 function openIconMaker(target,key=null){
-  makerTarget=target;makerStateKey=key;
+  makerTarget=target;makerStateKey=key;makerSession=inspectorSession;
   $("icon-maker").hidden=false;
   renderIconMaker();
 }
-function closeIconMaker(){makerTarget=null;makerStateKey=null;$("icon-maker").hidden=true;}
+function closeIconMaker(){makerTarget=null;makerStateKey=null;makerSession=null;$("icon-maker").hidden=true;}
 function bindIconControls(item){
   const host=$("icon-preview-content");host.replaceChildren(iconNode(item,ACTIONS.get(item.type)?.icon||"+"));
   if((isMomentaryIconAction(item)||item.type==='indicator')&&state.selected<13){
@@ -5983,11 +6004,12 @@ function bindIconControls(item){
       if(cmd==="library")openIconLibrary(item);
       else if(cmd==="file"){
         if(window.deckBridge?.chooseImportFile){
+          const session=inspectorSession;
           chooseNativeImage('image').then(async chosen=>{
             if(!chosen)return;
-            applyIconData(item,await rasterizeIcon(chosen.dataUrl));
+            applyIconData(item,await rasterizeIcon(chosen.dataUrl),session);
           }).catch(error=>window.d200xActionStatus?.('아이콘 선택 실패: '+String(error?.message||error)));
-        }else{fileIconTarget=item;$("custom-icon-file").click();}
+        }else{fileIconTarget=item;fileIconSession=inspectorSession;$("custom-icon-file").click();}
       }
       else if(cmd==="paste")pasteIcon(item);
       else if(cmd==="new")openIconMaker(item);
@@ -6712,8 +6734,9 @@ $("icon-library-layout").addEventListener("click",()=>{
   $("icon-library-layout").setAttribute("aria-pressed",String(groups.classList.contains("compact")));
 });
 $("custom-icon-file").addEventListener("change",event=>{
-  const target=fileIconTarget;fileIconTarget=null;
-  setIconFile(event.target.files?.[0],target);event.target.value="";
+  const target=fileIconTarget,session=fileIconSession;
+  fileIconTarget=null;fileIconSession=null;
+  setIconFile(event.target.files?.[0],target,null,session);event.target.value="";
 });
 window.addEventListener("keydown",event=>{
   if(event.key==="Escape"&&!$("icon-library").hidden)closeIconLibrary();
@@ -6725,7 +6748,7 @@ $("icon-maker-close").addEventListener("click",closeIconMaker);
 $("icon-maker-cancel").addEventListener("click",closeIconMaker);
 $("icon-maker").addEventListener("click",event=>{if(event.target===$("icon-maker"))closeIconMaker();});
 $("icon-maker-save").addEventListener("click",()=>{
-  if(makerTarget)applyStateIconData(makerTarget,makerStateKey,$("icon-maker-canvas").toDataURL("image/png"));
+  if(makerTarget)applyStateIconData(makerTarget,makerStateKey,$("icon-maker-canvas").toDataURL("image/png"),makerSession);
   closeIconMaker();
 });
 // General options: backup/restore is independent of the profile picker.
