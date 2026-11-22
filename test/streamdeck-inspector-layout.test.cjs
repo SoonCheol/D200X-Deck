@@ -275,7 +275,8 @@ test('DeckForge branding changes only own display text, not compatibility identi
   assert.match(editor,/com\.autodesk\.fusionstreamdeck/);
   assert.match(main,/extensions:\['streamDeckPlugin','zip'\]/);
   assert.match(main,/extensions:\['streamDeckIconPack','sdIconPack'\]/);
-  assert.match(main,/actions\/workflows\/streamdeck-clean-preview\.yml/);
+  assert.match(main,/ipcMain\.handle\('d200x:update-status'/);
+  assert.match(main,/actions\/runs\/['"]\+info\.runId/,'updates open the verified build page');
 });
 
 
