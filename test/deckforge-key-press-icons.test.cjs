@@ -157,7 +157,7 @@ test('each OFF ON and Key Up Down card has five fixed commands',()=>{
  }
  assert.match(src,/\$\("icon-library-open"\)\.remove\(\)/);
  assert.match(src,/\$\("icon-menu-trigger"\)\.remove\(\)/);
- assert.match(src,/applyStateIconData\(item,key,png\)/);
+ assert.match(src,/applyStateIconData\(item,key,png,session\)/);
 });
 test('icon companion pairs are restricted to same pack, folder, and name source',()=>{
  const begin=src.indexOf('function iconPairType(icon){');
