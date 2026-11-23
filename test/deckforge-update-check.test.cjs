@@ -46,6 +46,9 @@ test('menu requires successful comparison before enabling update button',()=>{
  const main=fs.readFileSync(path.join(__dirname,'../app/streamdeck-editor/main.cjs'),'utf8');
  assert.match(html,/id="latest-version"/);
  assert.match(html,/id="check-update"[^>]*disabled/);
+ assert.match(html,/id="view-release-notes"/);
+ assert.match(editor,/viewReleaseNotes\(\)/);
+ assert.match(main,/d200x:release-notes/);
  assert.match(editor,/update\.disabled=result\?\.state!=='available'/);
  assert.match(main,/if\(info\?\.state!=='available'/);
 });

@@ -6809,6 +6809,13 @@ function bindSettingsMenu(){
     menu.hidden=false;trigger.setAttribute('aria-expanded','true');
     void loadStatus();
   });
+  $('view-release-notes').addEventListener('click',async()=>{
+    close();
+    try{
+      if(!window.deckBridge?.viewReleaseNotes)throw Error('Windows DeckForge에서만 사용할 수 있습니다.');
+      await window.deckBridge.viewReleaseNotes();
+    }catch(error){window.d200xActionStatus?.('변경사항 페이지 열기 실패: '+String(error?.message||error));}
+  });
   update.addEventListener('click',async()=>{
     if(update.disabled)return;
     close();

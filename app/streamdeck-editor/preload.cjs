@@ -24,6 +24,7 @@ contextBridge.exposeInMainWorld('deckBridge', Object.freeze({
   revealUnsavedEditor: () => ipcRenderer.invoke('d200x:reveal-unsaved-editor'),
   updateStatus: () => ipcRenderer.invoke('d200x:update-status'),
   checkForUpdates: () => ipcRenderer.invoke('d200x:check-updates'),
+  viewReleaseNotes: () => ipcRenderer.invoke('d200x:release-notes'),
   haStatus: () => ipcRenderer.invoke('d200x:ha-status'),
   sdkList: () => ipcRenderer.invoke('d200x:sdk-list'),
   fusionHealth: () => ipcRenderer.invoke('d200x:fusion-health'),

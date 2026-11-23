@@ -579,6 +579,11 @@ async function installedUpdateStatus(){
   return pendingUpdate;
 }
 ipcMain.handle('d200x:app-version',event=>{assertEditor(event);return app.getVersion();});
+ ipcMain.handle('d200x:release-notes',async event=>{
+   assertEditor(event);
+   await shell.openExternal('https://github.com/SoonCheol/D200X-Deck/blob/codex/streamdeck-761-clean-editor/docs/DECKFORGE-CHANGELOG.md');
+   return true;
+ });
 ipcMain.handle('d200x:update-status',async event=>{
   assertEditor(event);return installedUpdateStatus();
 });
