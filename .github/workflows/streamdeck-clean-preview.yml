@@ -41,6 +41,8 @@ permissions:
 
 jobs:
   preview:
+    permissions:
+      contents: write
     runs-on: windows-latest
     timeout-minutes: 25
     steps:
@@ -460,6 +462,7 @@ jobs:
         with:
           name: DeckForge-${{ steps.version.outputs.version }}-Setup-win-x64
           path: app/dist-installer/DeckForge-${{ steps.version.outputs.version }}-Setup-win-x64.exe
+          archive: false
           if-no-files-found: error
           retention-days: 14
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
@@ -468,3 +471,31 @@ jobs:
           path: app/dist/DeckForge-win32-x64/
           if-no-files-found: error
           retention-days: 14
+      - name: Publish standalone installer to GitHub Releases
+        if: github.ref == 'refs/heads/codex/streamdeck-761-clean-editor'
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          DECKFORGE_VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          $version = $env:DECKFORGE_VERSION
+          $tag = "deckforge-v$version"
+          $asset = "DeckForge-$version-Setup-win-x64.exe"
+          $installer = "app/dist-installer/$asset"
+          $existing = gh release list --limit 100 --json tagName | ConvertFrom-Json
+          if ($LASTEXITCODE -ne 0) { throw 'Could not query existing releases' }
+          if ($existing.tagName -contains $tag) {
+            $release = gh release view $tag --json tagName,targetCommitish,assets,isDraft,isPrerelease | ConvertFrom-Json
+            if ($LASTEXITCODE -ne 0) { throw 'Could not verify existing release' }
+            if ($release.targetCommitish -ne $env:GITHUB_SHA -or $release.isDraft -or -not $release.isPrerelease -or $release.assets.name -notcontains $asset) {
+              throw "Existing release $tag does not match this build; refusing to overwrite it"
+            }
+            Write-Host "Release $tag already published; leaving it unchanged"
+          } else {
+            $notes = "Development build from $env:GITHUB_SHA. Download the Windows Setup EXE directly. Portable ZIP remains in Actions."
+            gh release create $tag $installer --target $env:GITHUB_SHA --title "DeckForge $version" --notes $notes --prerelease --latest=false
+            if ($LASTEXITCODE -ne 0) { throw 'Installer release publication failed' }
+          }
+          gh release view $tag --json url,assets
+          if ($LASTEXITCODE -ne 0) { throw 'Could not verify published release' }

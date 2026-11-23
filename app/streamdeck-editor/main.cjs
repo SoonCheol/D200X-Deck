@@ -607,7 +607,11 @@ ipcMain.handle('d200x:update-status',async event=>{
 ipcMain.handle('d200x:check-updates',async event=>{
   assertEditor(event);
   const info=await installedUpdateStatus();
-  if(info?.state!=='available'||!Number.isSafeInteger(info.runId))return false;
+  if(info?.state!=='available')return false;
+  if(info.downloadUrl&&info.downloadUrl===UpdateCheck.releaseDownloadUrl(info.latestVersion)){
+    await shell.openExternal(info.downloadUrl);return true;
+  }
+  if(!Number.isSafeInteger(info.runId)||info.runId<1)return false;
   await shell.openExternal('https://github.com/SoonCheol/D200X-Deck/actions/runs/'+info.runId);
   return true;
 });

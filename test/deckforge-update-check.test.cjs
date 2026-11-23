@@ -52,3 +52,21 @@ test('menu requires successful comparison before enabling update button',()=>{
  assert.match(editor,/update\.disabled=result\?\.state!=='available'/);
  assert.match(main,/if\(info\?\.state!=='available'/);
 });
+
+test('published EXE release is preferred and permits direct download',async()=>{
+ const release=version=>({tag_name:'deckforge-v'+version,draft:false,prerelease:true,assets:[{name:'DeckForge-'+version+'-Setup-win-x64.exe',state:'uploaded',size:120000000,browser_download_url:'https://github.com/SoonCheol/D200X-Deck/releases/download/deckforge-v'+version+'/DeckForge-'+version+'-Setup-win-x64.exe'}]});
+ const broken=release('1.1.112');broken.assets[0].browser_download_url='https://example.com/installer.exe';
+ const fetch=async url=>{assert.match(url,/\/releases\?/);return [release('1.1.109'),broken,release('1.1.110'),{...release('1.1.111'),draft:true}];};
+ assert.deepEqual(await checkUpdateStatus('1.1.108',fetch),{state:'available',currentVersion:'1.1.108',latestVersion:'1.1.110',runId:null,downloadUrl:'https://github.com/SoonCheol/D200X-Deck/releases/download/deckforge-v1.1.110/DeckForge-1.1.110-Setup-win-x64.exe'});
+ assert.equal((await checkUpdateStatus('1.1.110',fetch)).state,'current');
+});
+test('unarchived EXE artifact is recognized when no release exists',async()=>{
+ const result=await checkUpdateStatus('1.1.108',async url=>url.includes('/releases')?[]:url.includes('/artifacts')?{artifacts:[{...artifact('1.1.109'),name:'DeckForge-1.1.109-Setup-win-x64.exe'}]}:runs);
+ assert.equal(result.state,'available');assert.equal(result.runId,107);
+});
+test('installer uploads without archive while portable retains artifact archive and release publication',()=>{
+ const yml=fs.readFileSync(path.join(__dirname,'../.github/workflows/streamdeck-clean-preview.yml'),'utf8');
+ assert.match(yml,/path: app\/dist-installer\/[^\n]+\.exe\n\s+archive: false/);
+ assert.match(yml,/path: app\/dist\/DeckForge-win32-x64\/\n\s+if-no-files-found: error/);
+ assert.match(yml,/gh release create \$tag \$installer --target \$env:GITHUB_SHA/);
+});

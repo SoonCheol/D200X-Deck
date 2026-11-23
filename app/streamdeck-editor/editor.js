@@ -6823,7 +6823,7 @@ function bindSettingsMenu(){
       if(result?.currentVersion)current.textContent=result.currentVersion;
       latest.textContent=result?.latestVersion||'확인 불가';
       update.disabled=result?.state!=='available';
-      status.textContent=result?.state==='available'?'새 버전이 있습니다. 설치 파일 페이지를 엽니다.':
+      status.textContent=result?.state==='available'?(result.downloadUrl?'새 버전이 있습니다. 설치 파일(EXE)을 바로 다운로드합니다.':'새 버전이 있습니다. 설치 파일 페이지를 엽니다.'):
         result?.state==='current'?'최신 버전입니다.':'최신 빌드를 확인하지 못했습니다.';
     }catch{
       if(request!==requestNumber||menu.hidden)return;
