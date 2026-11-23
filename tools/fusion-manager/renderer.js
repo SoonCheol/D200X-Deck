@@ -77,27 +77,25 @@ function selectDisplayLanguage(lang){
  render();
  void window.fusionManager.saveDisplayLanguage(lang).catch(e=>status('표시 언어 저장 실패: '+e.message));
 }
-let workspaceFitPending=false;
-function fitWorkspaceWidth(){
- if(workspaceFitPending)return;
- workspaceFitPending=true;
- requestAnimationFrame(async()=>{
-  try{
-   const navs=[$('workspaces'),$('menus')].filter(nav=>nav?.clientWidth);
-   if(!navs.length)return;
-   for(const nav of navs)nav.classList.remove('wrap-limited');
-   const overflow=nav=>Math.max(0,nav.scrollWidth-nav.clientWidth);
-   const extra=Math.max(...navs.map(overflow));
-   if(extra>1){
-    const fits=await window.fusionManager.fitWorkspaceWidth(innerWidth+extra+2);
-    if(!fits)for(const nav of navs)if(overflow(nav)>1)nav.classList.add('wrap-limited');
-   }
-  }catch(error){status('탭 너비 조정 실패: '+error.message)}
-  finally{workspaceFitPending=false}
- });
+// Keep the original compact window; only long labels receive a smaller font.
+function fitMenuLabels(){
+ const context=document.createElement('canvas').getContext('2d');
+ if(!context)return;
+ for(const label of document.querySelectorAll('.menu-tabs .menu-tab-label')){
+  const button=label.parentElement,style=getComputedStyle(button);
+  const available=button.clientWidth-parseFloat(style.paddingLeft)-parseFloat(style.paddingRight);
+  if(available<=0)continue;
+  const measure=(size,value)=>{
+   context.font=style.fontWeight+' '+size+'px '+style.fontFamily;
+   return context.measureText(value).width;
+  };
+  const name=label.textContent;
+  const compact=measure(13,name)>available;
+  label.classList.toggle('compact',compact);
+  label.classList.toggle('compact-word',compact&&name.split(/\s+/).some(word=>measure(11,word)>available));
+ }
 }
-window.addEventListener('resize',fitWorkspaceWidth);
-document.fonts?.ready.then(fitWorkspaceWidth);
+document.fonts?.ready.then(fitMenuLabels);
 function category(v){
  const t=(v.name+' '+v.id+' '+v.path).toLowerCase();
  if(/sketch|스케치/.test(t))return 'sketch';
@@ -327,7 +325,7 @@ function renderExplorer(){
  const panels=menuCatalog?[...area.children.values()]:[...area.children.values()].sort((a,b)=>a.rank-b.rank||a.name.localeCompare(b.name,'ko'));
  if(!panels.some(x=>x.key===explorerPanel)){explorerPanel=(menuCatalog?panels[0]:(panels.find(x=>x.name==='작성')||panels[0]))?.key||''}
  fillTabs($('menus'),panels,explorerPanel,key=>{explorerPanel=key;renderExplorer()});
- fitWorkspaceWidth();
+ fitMenuLabels();
  const panel=area.children.get(explorerPanel);
  if(!panel)return;
  // All commands under the selected panel are already expanded in captured Fusion order.

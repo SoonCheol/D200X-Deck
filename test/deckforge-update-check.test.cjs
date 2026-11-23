@@ -65,7 +65,7 @@ test('unarchived EXE artifact is recognized when no release exists',async()=>{
  assert.equal(result.state,'available');assert.equal(result.runId,107);
 });
 test('installer uploads without archive while portable retains artifact archive and release publication',()=>{
- const yml=fs.readFileSync(path.join(__dirname,'../.github/workflows/streamdeck-clean-preview.yml'),'utf8');
+ const yml=fs.readFileSync(path.join(__dirname,'../.github/workflows/streamdeck-clean-preview.yml'),'utf8').replace(/\r\n/g,'\n');
  assert.match(yml,/path: app\/dist-installer\/[^\n]+\.exe\n\s+archive: false/);
  assert.match(yml,/path: app\/dist\/DeckForge-win32-x64\/\n\s+if-no-files-found: error/);
  assert.match(yml,/gh release create \$tag \$installer --target \$env:GITHUB_SHA/);

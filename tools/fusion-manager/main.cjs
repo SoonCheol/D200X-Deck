@@ -24,16 +24,6 @@ const managerReady=app.whenReady().then(()=>{
    // Both modes use the same physical window bounds. Preserve manual resize and docking.
    return true;
  });
- ipcMain.handle('fusion-fit-workspace-width',async(event,required)=>{
-   const win=BrowserWindow.fromWebContents(event.sender);
-   if(!win||win!==embeddedWindow||!Number.isFinite(required))return false;
-   const area=screen.getDisplayMatching(win.getBounds()).workArea;
-   const bounds=win.getBounds(),content=win.getContentBounds();
-   const requested=Math.ceil(required+Math.max(0,bounds.width-content.width));
-   const width=Math.min(area.width,Math.max(bounds.width,requested));
-   if(width>bounds.width)win.setBounds({...bounds,x:Math.max(area.x,Math.min(bounds.x,area.x+area.width-width)),width});
-   return requested<=area.width;
- });
  ipcMain.handle('catalog',async()=>JSON.parse(await fs.readFile(path.join(__dirname,'fusion-command-catalog-final.json'),'utf8')));
  ipcMain.handle('menu-catalog',async()=>JSON.parse(await fs.readFile(path.join(__dirname,'fusion-menu-catalog.json'),'utf8')));
  ipcMain.handle('help-markdown',async()=>fs.readFile(path.join(__dirname,'HELP.md'),'utf8'));
