@@ -1,7 +1,7 @@
 # DeckForge · 활성 프로그램 인식형 POP 명령 팝업 — 구현 목표와 기술 사전 분석
 
 > 기록일: 2026-11-24 · 상태: **후속 구현 목표 등록 / 구현 미착수**  
-> 저장소: \`SoonCheol/D200X-Deck\` · 브랜치: \`codex/streamdeck-761-clean-editor\`  
+> 저장소: `SoonCheol/D200X-Deck` · 브랜치: `codex/streamdeck-761-clean-editor`  
 > 이 문서는 후속 개발 착수용 분석·설계 초안이다. 기능 구현 승인, 기존 설정 초기화, 소스 수정, Windows 빌드, D200X 실기 검증을 뜻하지 않는다.
 
 ## 1. 목표와 사용 시나리오
@@ -21,8 +21,8 @@
 |---|---|---|
 | Ulanzi 공식 POP 설명서 | Studio 3.4.4 이상, D200X 포함 지원. 한 키에 8개 액션, 커서 위치 원형 메뉴, 노브 회전 선택/누름 실행 | **행동 기준 참고**. Ulanzi Studio 플러그인 코드를 가져오는 것이 아님 |
 | Ulanzi POP FAQ | POP 동안 노브의 원래 음량 등 동작은 일시 중단, 종료 시 복귀; 빈 슬롯 선택은 실행 없이 닫힘; 한 번에 POP 메뉴 하나 | **입력 점유·복구와 단일 팝업 정책** 필요 |
-| Ulanzi SDK README/manifest | D200X 노브는 \`onDialDown/Up\`, 좌·우 및 누른 채 회전 이벤트가 있음. 노브 디스플레이 별도 레이아웃 지원 | 하드웨어 입력 관련 선행 사례. **DeckForge 내부 HID 경로와 동일함을 보증하지 않음** |
-| Electron BrowserWindow 공식 API | \`showInactive()\`, \`setFocusable()\`, \`setAlwaysOnTop()\` 및 \`screen\` API 제공 | 비활성 팝업 및 화면 배치는 **구현 가능성이 있음**. Windows 포커스 유지·클릭 처리는 실기 확인 필요 |
+| Ulanzi SDK README/manifest | D200X 노브는 `onDialDown/Up`, 좌·우 및 누른 채 회전 이벤트가 있음. 노브 디스플레이 별도 레이아웃 지원 | 하드웨어 입력 관련 선행 사례. **DeckForge 내부 HID 경로와 동일함을 보증하지 않음** |
+| Electron BrowserWindow 공식 API | `showInactive()`, `setFocusable()`, `setAlwaysOnTop()` 및 `screen` API 제공 | 비활성 팝업 및 화면 배치는 **구현 가능성이 있음**. Windows 포커스 유지·클릭 처리는 실기 확인 필요 |
 
 공식 POP가 활성 프로그램에 맞춰 버튼 내부 메뉴를 자동 교체하는지는 문서에서 확인하지 못했다. **프로그램 인식형 POP는 DeckForge 고유 확장 목표**로 기록한다.
 
@@ -30,13 +30,13 @@
 
 | 항목 | 현재 근거 | 재사용/변경 필요 |
 |---|---|---|
-| Electron 메인 창과 트레이 상주 | \`app/streamdeck-editor/main.cjs\`의 \`BrowserWindow\`, 종료 시 \`window.hide()\` | 같은 메인 프로세스가 **별도 일시적 팝업 창**을 생성·회수하는 구조 검토 |
-| 활성 프로그램 식별 | \`main.cjs\` IPC \`d200x:foreground-app\`의 \`GetForegroundWindow\`, PID→EXE 경로 | **현행은 편집기 최소화 중에만 조회 가능하고 PowerShell을 호출**하므로 POP 호출 시 즉시 인식하는 용도로 그대로 쓰지 않음 |
-| Smart Profile | \`editor.js\`의 4,000ms 폴링과 \`DeckCore.matchForegroundProfile()\` | 전경 EXE **일치 규칙만 참고**. 전역 프로필 변경 로직이나 4초 폴링을 POP 메뉴 선택에 직접 연결하지 않음 |
-| 노브 입력·충돌 제어 | \`editor.js\`의 \`renderControlInspector()\`, \`deck-core.js\`의 노브/제스처 매핑 | POP 활성 중 우선 분기와 원래 경로 복원 필요. 현재 노브 스택·누른 채 회전·눌림 이벤트 보존 |
+| Electron 메인 창과 트레이 상주 | `app/streamdeck-editor/main.cjs`의 `BrowserWindow`, 종료 시 `window.hide()` | 같은 메인 프로세스가 **별도 일시적 팝업 창**을 생성·회수하는 구조 검토 |
+| 활성 프로그램 식별 | `main.cjs` IPC `d200x:foreground-app`의 `GetForegroundWindow`, PID→EXE 경로 | **현행은 편집기 최소화 중에만 조회 가능하고 PowerShell을 호출**하므로 POP 호출 시 즉시 인식하는 용도로 그대로 쓰지 않음 |
+| Smart Profile | `editor.js`의 4,000ms 폴링과 `DeckCore.matchForegroundProfile()` | 전경 EXE **일치 규칙만 참고**. 전역 프로필 변경 로직이나 4초 폴링을 POP 메뉴 선택에 직접 연결하지 않음 |
+| 노브 입력·충돌 제어 | `editor.js`의 `renderControlInspector()`, `deck-core.js`의 노브/제스처 매핑 | POP 활성 중 우선 분기와 원래 경로 복원 필요. 현재 노브 스택·누른 채 회전·눌림 이벤트 보존 |
 | Fusion 명령 | 기존 Fusion Command Manager·SDK 플러그인·명령 ID 연결 | 검증된 명령 ID를 기존 실행 경로로 전달. 새 EXE 대량 생성/별도 Fusion 설치 불필요 |
 | 일반 액션 | 기존 단축키·프로그램/파일 열기·프로필/페이지 액션 실행 경로 | 지원 가능한 기본 액션부터 **실행 디스패처 재사용**, 등록 시 허용 목록 검증 |
-| 데이터 보존 | \`Profiles/profiles.json\`, 백업/복원, 아이콘 리소스 | POP 설정은 **새 선택적 스키마**, 구형 프로필은 그대로 읽고 실행; 임의 마이그레이션·기존 버튼 덮어쓰기 금지 |
+| 데이터 보존 | `Profiles/profiles.json`, 백업/복원, 아이콘 리소스 | POP 설정은 **새 선택적 스키마**, 구형 프로필은 그대로 읽고 실행; 임의 마이그레이션·기존 버튼 덮어쓰기 금지 |
 
 **구분:** 파일 및 함수의 존재는 소스 확인 사실. 그 재사용을 통한 POP 성공은 아직 검증되지 않은 구현 가설이다.
 
@@ -55,8 +55,8 @@
 ### 4.2 팝업 창과 포커스
 
 1. D200X 버튼 입력을 수신한 **메인 프로세스**에서 우선 전경 대상과 마우스 좌표를 캡처한다.
-2. Electron 별도 \`BrowserWindow\`를 가볍게 표시: 테두리 없는 투명/컴팩트 UI, 필요 범위에서 \`showInactive()\`, \`setFocusable(false)\`, \`setAlwaysOnTop()\` 검토. **'항상 위'와 '활성 창'은 다른 개념**이다.
-3. \`screen.getCursorScreenPoint()\`와 가장 가까운 디스플레이의 작업 영역을 사용해 화면 밖으로 잘리지 않게 위치 조정. 멀티모니터·배율 100/125/150% 테스트.
+2. Electron 별도 `BrowserWindow`를 가볍게 표시: 테두리 없는 투명/컴팩트 UI, 필요 범위에서 `showInactive()`, `setFocusable(false)`, `setAlwaysOnTop()` 검토. **'항상 위'와 '활성 창'은 다른 개념**이다.
+3. `screen.getCursorScreenPoint()`와 가장 가까운 디스플레이의 작업 영역을 사용해 화면 밖으로 잘리지 않게 위치 조정. 멀티모니터·배율 100/125/150% 테스트.
 4. 최초 실험은 **노브로만 메뉴 선택/확정하는 비활성 창**을 권장. 마우스 클릭 지원은 클릭 시 포커스 이동/원래 앱 복귀/클릭 전달 여부를 검증한 후 확정한다.
 5. 선택한 실행 대상이 단축키를 받으려면 전경 Windows 앱 상태를 보존해야 한다. 관리자 권한/UAC/보안 데스크톱 등으로 전경 판정이 불확실할 때 **임의 포커스 강탈이나 키 전송 금지**.
 6. 팝업의 닫기·소멸 시 원래 일반 LCD/와이드 이미지 및 Windows 포커스를 불필요하게 변경하지 않는다.
@@ -72,9 +72,9 @@
 
 ### 4.4 초기 실행 항목·데이터 구조
 
-- 초기 지원 후보: \`hotkey\`, \`open-app\`, \`open-file\`, \`fusion-command\`. 실행 가능 여부가 확인된 기존 디스패처만 연결한다.
-- Fusion 항목은 사람에게 보여줄 한글 이름·아이콘과 실제 \`commandId\`를 **별도 저장**한다. 명령 ID 확인 없이 화면 문자열만으로 실행하지 않는다.
-- 제안 저장 형태(최종 스키마 **아님**): \`popConfig.version\`, \`mode=fixed|foreground\`, \`fallbackMenuId\`, \`menuBindings[]\`(정확한 EXE 경로→menuId), \`menus[]\`(최대 8개 action 참조와 제목/아이콘).
+- 초기 지원 후보: `hotkey`, `open-app`, `open-file`, `fusion-command`. 실행 가능 여부가 확인된 기존 디스패처만 연결한다.
+- Fusion 항목은 사람에게 보여줄 한글 이름·아이콘과 실제 `commandId`를 **별도 저장**한다. 명령 ID 확인 없이 화면 문자열만으로 실행하지 않는다.
+- 제안 저장 형태(최종 스키마 **아님**): `popConfig.version`, `mode=fixed|foreground`, `fallbackMenuId`, `menuBindings[]`(정확한 EXE 경로→menuId), `menus[]`(최대 8개 action 참조와 제목/아이콘).
 - 기존 프로필 포맷이 이 필드를 몰라도 정상 동작해야 하고, 미확인 POP 항목은 안전하게 비활성 표시. 외부 명령/스크립트를 문자열로 직접 실행하는 범용 통로를 만들지 않는다.
 - 프로필 내 공유 메뉴를 **참조**할지 버튼별 **복제**할지는 초기 사용성을 테스트한 뒤 결정. 저장·취소·백업·복원 시 참조 무결성/아이콘 누락 방어 필수.
 
@@ -82,7 +82,7 @@
 
 | 위험 | 증상 | 권장 검증·방어 |
 |---|---|---|
-| POP가 전경 포커스를 빼앗음 | Fusion용 키가 POP 또는 다른 창으로 전달 | 표시 전 스냅샷, \`showInactive\` 실기, 실행 직전 프로세스/창 확인; 실패 시 실행 차단 |
+| POP가 전경 포커스를 빼앗음 | Fusion용 키가 POP 또는 다른 창으로 전달 | 표시 전 스냅샷, `showInactive` 실기, 실행 직전 프로세스/창 확인; 실패 시 실행 차단 |
 | 현행 4초 Smart Profile 폴링 재사용 | 메뉴가 느리거나 엉뚱한 앱으로 판정 | **POP 호출 시 별도 즉시 판정** 구현; 기존 Smart Profile 수정 최소화 |
 | 노브 입력 이중 실행 | 메뉴 이동하면서 음량·스크롤도 변경 | 상태별 단일 입력 라우터, 이벤트 소비, 종료 시 해제 |
 | 팝업과 일반 액션 중복 실행 | 빠른 버튼 연타/반복 KeyDown | 팝업 단일 인스턴스, 재진입 정책, 입력 디바운스 및 Down/Up 추적 |
@@ -116,22 +116,22 @@
 - [ ] POP가 열린 동안 노브 회전은 메뉴만 움직이며 원래 음량/스크롤/스택 액션 실행 없음.
 - [ ] 노브 누름은 선택 액션 **정확히 1회**, 빈 항목은 아무 것도 실행하지 않음.
 - [ ] 팝업 닫기/연타/다른 POP 호출/USB 분리/페이지 이동/프로필 변경 때 노브와 입력 상태 정상 복구.
-- [ ] Fusion \`CircleCenterRadius\` 등 **실제 검증된 명령**을 실행하며 사용자 지정 제목/아이콘과 명령 ID가 섞이지 않음.
+- [ ] Fusion `CircleCenterRadius` 등 **실제 검증된 명령**을 실행하며 사용자 지정 제목/아이콘과 명령 ID가 섞이지 않음.
 - [ ] 100·125·150% 및 멀티모니터에서 메뉴가 화면 내에 표시되고 비활성 앱 단축키/포커스 문제 없음.
 - [ ] POP 미사용 기존 버튼·노브·물리 버튼·와이드 정보·Smart Profile·SDK 플러그인 동작 회귀 없음.
-- [ ] 기존 \`%APPDATA%\DeckForge\` 프로필·아이콘·백업 자료 보존. CI/Windows 빌드와 실제 D200X 실기는 별도로 기록.
+- [ ] 기존 `%APPDATA%\DeckForge` 프로필·아이콘·백업 자료 보존. CI/Windows 빌드와 실제 D200X 실기는 별도로 기록.
 
 ## 8. 착수할 때 확인할 문서·소스
 
-- \`AGENTS.md\`, \`docs/D200X-CURRENT-STATUS.md\`, \`docs/D200X-STREAMDECK-ROADMAP.md\`, UI 변경 시 \`docs/DECKFORGE-UI-CONTRACT.md\`.
-- \`app/streamdeck-editor/main.cjs\`: Electron 창·트레이·전경 앱 IPC·D200X 입력 수신.
-- \`app/streamdeck-editor/editor.js\`: 버튼/노브 입력 디스패치, \`renderControlInspector()\`, Smart Profile 4,000ms 폴링.
-- \`app/streamdeck-editor/deck-core.js\`: 프로필 앱 매칭, 액션 타입/설정 모델·입력 매핑.
-- \`app/streamdeck-editor/preload.cjs\`: 신뢰된 IPC 브리지 계약(구현 시 추가 확인).
+- `AGENTS.md`, `docs/D200X-CURRENT-STATUS.md`, `docs/D200X-STREAMDECK-ROADMAP.md`, UI 변경 시 `docs/DECKFORGE-UI-CONTRACT.md`.
+- `app/streamdeck-editor/main.cjs`: Electron 창·트레이·전경 앱 IPC·D200X 입력 수신.
+- `app/streamdeck-editor/editor.js`: 버튼/노브 입력 디스패치, `renderControlInspector()`, Smart Profile 4,000ms 폴링.
+- `app/streamdeck-editor/deck-core.js`: 프로필 앱 매칭, 액션 타입/설정 모델·입력 매핑.
+- `app/streamdeck-editor/preload.cjs`: 신뢰된 IPC 브리지 계약(구현 시 추가 확인).
 - Ulanzi POP 공식: https://docs.ulanzistudio.com/dialmini/en/software/pop-plugin.html
 - Ulanzi 공식 SDK: https://github.com/UlanziTechnology/UlanziDeckPlugin-SDK/blob/main/README.md
 - Ulanzi D200X 디스플레이: https://github.com/UlanziTechnology/UlanziDeckPlugin-SDK/blob/main/manifest.md
-- Electron \`BrowserWindow\`: https://www.electronjs.org/docs/latest/api/browser-window
+- Electron `BrowserWindow`: https://www.electronjs.org/docs/latest/api/browser-window
 - Ulanzi Studio 3.4.4 릴리스: https://docs.ulanzistudio.com/ko/UlanziStudio-3-4-4.html
 
 ## 9. 개발 경계 / 다음 의사결정
