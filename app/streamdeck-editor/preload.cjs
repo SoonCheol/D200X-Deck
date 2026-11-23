@@ -32,6 +32,7 @@ contextBridge.exposeInMainWorld('deckBridge', Object.freeze({
   fusionIconRead: id => ipcRenderer.invoke('d200x:fusion-icon-read',id),
   fusionIconWrite: (id,png) => ipcRenderer.invoke('d200x:fusion-icon-write',id,png),
   sdkInstall: () => ipcRenderer.invoke('d200x:sdk-install'),
+  deckforgeExportPlugin: () => ipcRenderer.invoke('d200x:deckforge-export-plugin'),
   sdkInstallFolder: () => ipcRenderer.invoke('d200x:sdk-install-folder'),
   sdkSync: contexts => ipcRenderer.invoke('d200x:sdk-sync',contexts),
   sdkKey: (context,gesture,ticks=1) => ipcRenderer.invoke('d200x:sdk-key',context,gesture,ticks),
