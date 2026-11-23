@@ -134,3 +134,23 @@ test('context help offers original Fusion UI Python collector and icon guidance'
  assert.match(main,/fusion-ui-script/);
  assert.match(workflow,/fusion-ui-inventory\.py.*fusion-ui-inventory\.py/);
 });
+
+// The English display layer must not reorder/rename native Korean catalogue nodes.
+test('localized manager labels change by stable IDs while preserving menu order and missing-label fallback',()=>{
+ const menu={format:'deckforge-fusion-menu-catalog-v1',tabIds:['SketchTab','SolidTab'],entries:[
+  {id:'DrawPolyline',tabId:'SketchTab',panel:'작성',panelId:'SketchCreatePanel',dropdowns:[]},
+  {id:'Extrude',tabId:'SolidTab',panel:'작성',panelId:'SolidCreatePanel',dropdowns:[]}
+ ]};
+ const commands=[{id:'DrawPolyline',name:'선',ko:'선',en:'Line'},{id:'Extrude',name:'돌출',ko:'돌출',en:'Extrude'}];
+ const groups=Menu.fromMenuCatalog(menu,commands);
+ const localized={menus:{tab:{SketchTab:'Sketch'},panel:{SketchCreatePanel:'Create'}}};
+ assert.deepEqual(groups.map(x=>x.key),['SketchTab','SolidTab']);
+ assert.equal(Menu.localizedLabel(groups[0],'tab','en',localized),'Sketch');
+ assert.equal(Menu.localizedLabel(groups[1],'tab','en',localized),'솔리드');
+ assert.equal(Menu.localizedLabel(groups[0],'tab','ko',localized),'스케치');
+ assert.equal(Menu.localizedLabel([...groups[0].children.values()][0],'panel','en',localized),'Create');
+ assert.equal(Menu.localizedCommand(commands[0],'en'),'Line');
+ assert.equal(Menu.localizedCommand(commands[0],'ko'),'선');
+ assert.equal(groups[0].name,'스케치');
+ assert.deepEqual(Menu.descendants([...groups[0].children.values()][0]).map(x=>x.id),['DrawPolyline']);
+});

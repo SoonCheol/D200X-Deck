@@ -112,6 +112,17 @@
   }
   return [...tabs.values()];
  }
+ // Localized display uses IDs only; it does not mutate the captured Korean tree.
+ function localizedLabel(item,kind,language,overlay){
+  const fallback=String(item?.name||'');
+  if(language!=='en')return fallback;
+  const id=String(item?.key||'').replace(/^dropdown:/,'');
+  const translated=overlay?.menus?.[kind]?.[id];
+  return typeof translated==='string'&&translated.trim()?translated:fallback;
+ }
+ function localizedCommand(command,language){
+  return language==='en'&&command?.en?command.en:command?.ko||command?.name||'';
+ }
  function descendants(node){
   const seen=new Map();
   if(Array.isArray(node.ordered)){
@@ -125,5 +136,5 @@
   }
   return [...seen.values()];
  }
- return Object.freeze({structure,fromMenuCatalog,descendants,workspaceName,panelName,pathParts});
+ return Object.freeze({structure,fromMenuCatalog,descendants,localizedLabel,localizedCommand,workspaceName,panelName,pathParts});
 });

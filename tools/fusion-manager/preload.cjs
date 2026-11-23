@@ -13,6 +13,8 @@ contextBridge.exposeInMainWorld('fusionManager',{
  prepareEnglish:()=>ipcRenderer.invoke('fusion-english-prepare'),
  importEnglish:()=>ipcRenderer.invoke('fusion-english-import'),
  loadEnglish:()=>ipcRenderer.invoke('fusion-english-load'),
+ loadDisplayLanguage:()=>ipcRenderer.invoke('fusion-display-language-load'),
+ saveDisplayLanguage:language=>ipcRenderer.invoke('fusion-display-language-save',language),
  loadCapture:()=>ipcRenderer.invoke('capture-load'),
  loadVisibility:()=>ipcRenderer.invoke('curation-load'),
  saveVisibility:data=>ipcRenderer.invoke('curation-save',data),

@@ -5,7 +5,7 @@ const MAXP=128,PER=13;
 const $=id=>document.getElementById(id);
 let commands=[],pages=[],drag=null,context=null,capturedUI=null,visibilityOverrides={},englishOverlay=null;
 const Curation=window.FusionCuration,MenuTree=window.FusionMenuTree,FusionDrag=window.DeckForgeFusionDrag;
-let explorerArea='',explorerPanel='',explorerItems=[],menuTreeCache=null,menuCatalog=null;
+let explorerArea='',explorerPanel='',explorerItems=[],menuTreeCache=null,menuCatalog=null,displayLanguage='ko';
 const iconCache=new Map(),iconPending=new Set();
 const automaticIconAttempts=new Set();
 let automaticIconBusy=false,automaticIconCheck=0,automaticIconConnected=false;
@@ -56,6 +56,26 @@ function applyEnglishNames(){
  $('englishStatus').textContent=englishOverlay
   ?'영문 명령 '+Object.keys(names).length+'개 저장 · 카탈로그 일치 '+covered+'개 · 메뉴명 '+(englishOverlay.stats?.menuLabels??0)+'개'
   :'영문명 미수집';
+}
+function displayCommand(v){return MenuTree.localizedCommand(v,displayLanguage)}
+function displayMenu(item,kind){return MenuTree.localizedLabel(item,kind,displayLanguage,englishOverlay)}
+function updateDisplayLanguageControls(){
+ if(displayLanguage==='en'&&!englishOverlay)displayLanguage='ko';
+ for(const [id,lang] of [['exploreKorean','ko'],['exploreEnglish','en']]){
+  const button=$(id),selected=displayLanguage===lang;
+  button.classList.toggle('active',selected);
+  button.setAttribute('aria-pressed',String(selected));
+ }
+ $('exploreEnglish').disabled=!englishOverlay;
+ $('exploreEnglish').title=englishOverlay?'영문 메뉴·명령 이름 표시':'영문명 JSON을 먼저 불러오세요';
+}
+function selectDisplayLanguage(lang){
+ if(lang==='en'&&!englishOverlay)return;
+ if(!['ko','en'].includes(lang)||displayLanguage===lang)return;
+ displayLanguage=lang;
+ updateDisplayLanguageControls();
+ render();
+ void window.fusionManager.saveDisplayLanguage(lang).catch(e=>status('표시 언어 저장 실패: '+e.message));
 }
 function category(v){
  const t=(v.name+' '+v.id+' '+v.path).toLowerCase();
@@ -144,7 +164,7 @@ function showTooltip(event,v,nameNode){
 }
 function showDetail(v){
  hideTooltip();const dl=$('detailFields');dl.replaceChildren();
- $('detailTitle').textContent=v.ko||v.name;
+ $('detailTitle').textContent=displayCommand(v);
  for(const [label,value] of [['명령 ID',v.id],['영문명',v.en||'정보 없음'],['한글명',v.ko||'정보 없음'],['작업 영역',category(v)],['메뉴·툴바 경로',v.path||'정보 없음']]){
   const dt=document.createElement('dt'),dd=document.createElement('dd');
   dt.textContent=label;dd.textContent=value;dl.append(dt,dd);
@@ -263,7 +283,7 @@ function renderExplorer(){
    target.replaceChildren();
    for(const item of items){
      const btn=document.createElement('button');btn.type='button';
-     btn.textContent=item.name;btn.className=item.key===selected?'active':'';
+     btn.textContent=displayMenu(item,target.id==='workspaces'?(menuCatalog?'tab':'workspace'):'panel');btn.className=item.key===selected?'active':'';
      btn.onclick=()=>onSelect(item.key);target.append(btn);
    }
  };
@@ -282,16 +302,16 @@ function renderExplorer(){
    :MenuTree.descendants(node);
  const unique=new Map(list.map(v=>[v.id,v]));
  explorerItems=menuCatalog&&!search?[...unique.values()]:[...unique.values()].sort((a,b)=>Curation.sortByPlacement(a,b,capturedUI));
- $('explorePath').textContent=search?'전체 명령 검색':area.name+' / '+panel.name;
+ $('explorePath').textContent=search?'전체 명령 검색':displayMenu(area,menuCatalog?'tab':'workspace')+' / '+displayMenu(panel,'panel');
  $('exploreCount').textContent=explorerItems.length+'개';
  const target=$('exploreCommands');target.replaceChildren();
  // Keep the compact browser responsive with large catalogs.
  for(const v of explorerItems.slice(0,240)){
    const card=document.createElement('div');card.className='command-card';
    card.draggable=true;card.tabIndex=0;card.setAttribute('role','button');
-   card.setAttribute('aria-label',v.name+' 명령, 드래그하여 등록');
+   card.setAttribute('aria-label',displayCommand(v)+' 명령, 드래그하여 등록');
    const art=document.createElement('span');art.className='cmd-art-missing';art.textContent='원본';card.append(art);
-   const name=document.createElement('span');name.className='cmd-name';name.textContent=v.ko||v.name;card.append(name);
+   const name=document.createElement('span');name.className='cmd-name';name.textContent=displayCommand(v);card.append(name);
    requestIcon(v.id,card,v);
    const info=document.createElement('button');info.type='button';info.textContent='ⓘ';
    info.className='info-button';info.draggable=false;info.title='명령 상세 정보';
@@ -343,7 +363,7 @@ function renderPages(){
       const label=document.createElement('span');label.className='cmd-name';label.textContent='예약';el.append(label);
     }else if(id){
       const art=document.createElement('span');art.className='cmd-art-missing';art.textContent='원본 아이콘 없음';el.append(art);
-      const label=document.createElement('span');label.className='cmd-name';label.textContent=v?.ko||v?.name||id;el.append(label);
+      const label=document.createElement('span');label.className='cmd-name';label.textContent=v?displayCommand(v):id;el.append(label);
       requestIcon(id,el,v);
       el.addEventListener('mouseenter',event=>showTooltip(event,v||{id,name:id},label));
       el.addEventListener('mouseleave',hideTooltip);
@@ -377,10 +397,10 @@ function renderPages(){
   root.append(panel);
  });
  const existing=usedIds();const type=$('category').value;const q=$('search').value.toLowerCase();
- const matches=Curation.visibleItems(commands,$('visibility').value,capturedUI,visibilityOverrides).filter(v=>!existing.has(v.id)&&(type==='all'||category(v)===type)&&(v.name.toLowerCase().includes(q)||v.id.toLowerCase().includes(q))).sort((a,b)=>Curation.sortByPlacement(a,b,capturedUI)).slice(0,120);
+ const matches=Curation.visibleItems(commands,$('visibility').value,capturedUI,visibilityOverrides).filter(v=>!existing.has(v.id)&&(type==='all'||category(v)===type)&&(v.name.toLowerCase().includes(q)||v.id.toLowerCase().includes(q)||(v.en||'').toLowerCase().includes(q))).sort((a,b)=>Curation.sortByPlacement(a,b,capturedUI)).slice(0,120);
  $('remaining').textContent='(표시 '+matches.length+'개)';
  const list=$('queue');list.replaceChildren();
- for(const v of matches){const b=document.createElement('button');b.className='chip';b.textContent=v.name;b.title=v.id;b.onclick=()=>{
+ for(const v of matches){const b=document.createElement('button');b.className='chip';b.textContent=displayCommand(v);b.title=v.id;b.onclick=()=>{
  let position=slots().find(x=>!x.reserved&&!x.id);
  if(!position&&pages.length<MAXP){pages.push(empty());position=slots().find(x=>!x.reserved&&!x.id)}
  if(!position){status('추가 가능한 슬롯이 없습니다.');return}
@@ -462,6 +482,8 @@ async function switchMode(mode){
 }
 $('modeExplore').onclick=()=>switchMode('explore');
 $('modePages').onclick=()=>switchMode('pages');
+$('exploreKorean').onclick=()=>selectDisplayLanguage('ko');
+$('exploreEnglish').onclick=()=>selectDisplayLanguage('en');
 $('exploreSearch').oninput=renderExplorer;
 $('exploreReset').onclick=()=>{$('exploreSearch').value='';renderExplorer()};
 $('exploreCapture').onclick=()=>$('importCapture').click();
@@ -500,7 +522,7 @@ $('importEnglish').onclick=async()=>{
  try{
   const result=await window.fusionManager.importEnglish();
   if(!result)return;
-  englishOverlay=result;applyEnglishNames();render();
+  englishOverlay=result;applyEnglishNames();updateDisplayLanguageControls();render();
   status('영문 명칭은 별도로 저장했습니다. 기존 한글 메뉴 순서·등록 버튼은 유지됩니다.');
  }catch(e){$('englishStatus').textContent='영문 결과 불러오기 실패: '+e.message}
 };
@@ -522,4 +544,4 @@ document.addEventListener('click',e=>{if(!$('context').contains(e.target))$('con
 $('save').onclick=async()=>{try{const result=await window.fusionManager.save(project(),'Fusion-Layout.project.json');if(result)status('프로젝트 저장: '+result)}catch(e){status(e.message)}};
 $('open').onclick=async()=>{try{const result=await window.fusionManager.open();if(!result)return;validateProject(result.data);pages=result.data.pages.map(p=>({name:p.name,enabled:p.enabled,reserved:p.reserved,slots:p.slots}));$('profile').value=result.data.profileName;render();status('프로젝트 불러오기 완료')}catch(e){status('불러오기 실패: '+e.message)}};
 $('export').onclick=async()=>{try{const data=exportData();const result=await window.fusionManager.save(data,'D200X-Fusion-Commands.json');if(result)status('DeckForge 등록용 JSON 생성: '+result)}catch(e){status('내보내기 실패: '+e.message)}};
-Promise.all([window.fusionManager.catalog(),window.fusionManager.loadVisibility().catch(()=>({})),window.fusionManager.loadCapture().catch(()=>null),window.fusionManager.menuCatalog(),window.fusionManager.loadEnglish().catch(()=>null)]).then(([data,overrides,lastCapture,menu,storedEnglish])=>{menuCatalog=menu;visibilityOverrides=overrides;if(lastCapture){try{capturedUI=Curation.validateCapture(lastCapture);$('captureStatus').textContent='저장된 Fusion UI 수집 '+capturedUI.entries.size+'개 ID';}catch{capturedUI=null}}commands=normalizeCatalogue(data);if(!commands.length)throw Error('명령 카탈로그를 읽었지만 지원되는 명령이 없습니다.');englishOverlay=storedEnglish;applyEnglishNames();pages=[empty()];render();status('DeckForge 버튼으로 명령을 드래그하세요.');}).catch(e=>{pages=[empty()];render();status('카탈로그 오류: '+e.message)});
+Promise.all([window.fusionManager.catalog(),window.fusionManager.loadVisibility().catch(()=>({})),window.fusionManager.loadCapture().catch(()=>null),window.fusionManager.menuCatalog(),window.fusionManager.loadEnglish().catch(()=>null),window.fusionManager.loadDisplayLanguage().catch(()=>'ko')]).then(([data,overrides,lastCapture,menu,storedEnglish,storedLanguage])=>{menuCatalog=menu;visibilityOverrides=overrides;if(lastCapture){try{capturedUI=Curation.validateCapture(lastCapture);$('captureStatus').textContent='저장된 Fusion UI 수집 '+capturedUI.entries.size+'개 ID';}catch{capturedUI=null}}commands=normalizeCatalogue(data);if(!commands.length)throw Error('명령 카탈로그를 읽었지만 지원되는 명령이 없습니다.');englishOverlay=storedEnglish;displayLanguage=storedLanguage;applyEnglishNames();updateDisplayLanguageControls();pages=[empty()];render();status('DeckForge 버튼으로 명령을 드래그하세요.');}).catch(e=>{pages=[empty()];render();status('카탈로그 오류: '+e.message)});

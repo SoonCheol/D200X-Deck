@@ -40,7 +40,15 @@ header{flex-wrap:nowrap}#helpOpen{margin-left:0;white-space:nowrap}#modePages[hi
 #menus button{flex:1 1 auto;padding-inline:8px;white-space:nowrap;min-width:max-content}
 .menu-tabs button.active{background:#266b9f;border-color:#80bbeb}
 /* All dropdown commands are shown inline; no extra filter row. */
-.explore-search{display:flex;gap:6px;margin:11px 0}
+.explore-toolbar{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:10px 0 13px;min-width:0}
+.explore-search{display:flex;gap:6px;margin:0;min-width:0;flex:0 1 380px}
+.explore-language{display:inline-flex;align-items:center;white-space:nowrap;flex-shrink:0;margin-left:auto}
+.explore-language button{padding:7px 12px;border-radius:0}
+.explore-language button:first-child{border-radius:6px 0 0 6px}
+.explore-language button:last-child{border-radius:0 6px 6px 0;margin-left:-1px}
+.explore-language button.active{background:#266b9f;border-color:#80bbeb;position:relative;z-index:1}
+.explore-language button:disabled{opacity:.48;cursor:not-allowed}
+@media(max-width:590px){.explore-toolbar{flex-wrap:wrap}.explore-search{flex:1 1 100%}.explore-language{margin-left:0}}
 .explore-search input{min-width:0;flex:1;padding:8px;background:#192636;color:#fff;border:1px solid #506072;border-radius:6px}
 .explore-result{display:flex;align-items:center;justify-content:space-between;gap:6px;margin:12px 0 8px}
 .command-cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(100px,1fr));gap:6px;align-content:start;max-height:calc(100vh - 300px);overflow-y:auto}
@@ -60,9 +68,9 @@ header{flex-wrap:nowrap}#helpOpen{margin-left:0;white-space:nowrap}#modePages[hi
 <button id="modeExplore" class="primary" type="button">명령 드래그</button><button id="modePages" type="button" hidden>페이지 생성</button><button id="deckforgeOpen" type="button" title="DeckForge 창 열기">DeckForge 열기</button><button id="dockToggle" type="button" title="자석 결합 또는 분리">자석 켜짐</button><button id="helpOpen" type="button" aria-label="도움말 열기">? 도움말</button><button id="save" class="editor-only" hidden>프로젝트 저장</button><button id="open" class="editor-only" hidden>프로젝트 불러오기</button><button id="export" class="primary editor-only" hidden>DeckForge 등록용 JSON 내보내기</button></header><span id="status" role="status" hidden></span>
 <section id="explorer" aria-label="Fusion 명령 메뉴 탐색" class="explorer">
  <div class="explore-top"><strong>Fusion 명령 탐색</strong><span class="hint">DeckForge 버튼에 명령을 끌어다 놓기</span></div>
+ <div class="explore-toolbar"><div class="explore-search"><input id="exploreSearch" placeholder="명령 이름 또는 ID 검색" aria-label="명령 검색"><button id="exploreReset" type="button">전체 찾기</button></div><div class="explore-language" role="group" aria-label="Fusion 명령 관리자 표시 언어"><button id="exploreKorean" type="button" class="active" aria-pressed="true">한국어</button><button id="exploreEnglish" type="button" aria-pressed="false" disabled title="영문 이름을 먼저 수집하세요">English</button></div></div>
  <div class="nav-title">작업 영역</div><nav id="workspaces" class="menu-tabs" aria-label="Fusion 작업 영역"></nav>
  <div class="nav-title">메뉴</div><nav id="menus" class="menu-tabs" aria-label="Fusion 하위 메뉴"></nav>
- <div class="explore-search"><input id="exploreSearch" placeholder="명령 이름 또는 ID 검색" aria-label="명령 검색"><button id="exploreReset">전체 찾기</button></div>
  <div class="explore-result"><strong id="explorePath">Fusion 메뉴</strong><span class="hint" id="exploreCount"></span></div>
  <div id="exploreCommands" class="command-cards" aria-live="polite"></div>
  <p class="hint">아이콘은 Fusion 원본만 표시합니다. 버튼에 마우스를 올리면 잘린 이름의 한글·영문 전체 이름을 확인할 수 있고 ⓘ에서 ID를 확인할 수 있습니다.</p>

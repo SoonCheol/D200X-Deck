@@ -155,6 +155,22 @@ const managerReady=app.whenReady().then(()=>{
    }finally{await fs.rm(temp,{force:true}).catch(()=>{})}
    return overlay;
  });
+ const languageFile=()=>path.join(app.getPath('userData'),'fusion-manager-display-language-v1.json');
+ ipcMain.handle('fusion-display-language-load',async()=>{
+   try{
+     const saved=JSON.parse(await fs.readFile(languageFile(),'utf8'));
+     return saved?.language==='en'?'en':'ko';
+   }catch{return 'ko'}
+ });
+ ipcMain.handle('fusion-display-language-save',async(_event,language)=>{
+   if(!['ko','en'].includes(language))throw Error('표시 언어가 올바르지 않습니다.');
+   const file=languageFile(),temp=file+'.tmp';
+   try{
+     await fs.writeFile(temp,JSON.stringify({language})+'\n','utf8');
+     await fs.rename(temp,file);
+   }finally{await fs.rm(temp,{force:true}).catch(()=>{})}
+   return language;
+ });
  const preferencesFile=()=>path.join(app.getPath('userData'),'fusion-command-visibility-v1.json');
  ipcMain.handle('curation-load',async()=>{
    try{
