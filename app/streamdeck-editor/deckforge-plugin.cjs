@@ -51,7 +51,8 @@ async function parseDeckForgePackage(data){
   const converted=new JSZip();
   let fileCount=0,total=0;
   for(const entry of entries){
-    if(!safePart(entry.name)||(entry.unixPermissions&0xf000)===0xa000)
+    const entryPath=entry.dir&&entry.name.endsWith('/')?entry.name.slice(0,-1):entry.name;
+    if(!safePart(entryPath)||(entry.unixPermissions&0xf000)===0xa000)
       throw Error('DeckForge 패키지에 허용되지 않는 경로/심볼릭 링크가 있습니다.');
     if(entry.dir)continue;
     if(entry.name==='deckforge-plugin.json')continue;
