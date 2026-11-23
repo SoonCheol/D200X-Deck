@@ -114,17 +114,17 @@ test('Manager opens at requested size and expands nested menu without extra drop
  assert.doesNotMatch(html,/id="dropdowns"/);
  assert.doesNotMatch(script,/explorerDropdown/);
  assert.match(script,/const node=panel/);
- assert.match(html,/\.menu-tabs\{--menu-button-width:68px;--menu-button-height:30px;display:flex;flex-wrap:wrap/);
- assert.match(html,/\.menu-tabs button\{flex:0 0 var\(--menu-button-width\);width:var\(--menu-button-width\);min-width:var\(--menu-button-width\);max-width:var\(--menu-button-width\);height:var\(--menu-button-height\)/);
+ assert.match(html,/\.menu-tabs\{--menu-columns:9;display:grid;grid-template-columns:repeat\(var\(--menu-columns\),minmax\(0,1fr\)\)/);
+ assert.match(html,/\.menu-tabs button\{width:100%;min-width:0;height:30px/);
  assert.match(html,/\.menu-tabs button \.menu-tab-label\{display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2/);
- assert.match(html,/\.menu-tab-label\.compact\{font-size:11px\}/);
- assert.match(html,/\.menu-tab-label\.compact-word\{font-size:10px\}/);
+ assert.match(script,/target\.style\.setProperty\('--menu-columns',String\(Math\.max\(9,items\.length\)\)\)/);
  assert.match(script,/label\.className='menu-tab-label';label\.textContent=name/);
  assert.match(script,/btn\.title=name/);
- assert.match(script,/function fitMenuLabels\(/);
- assert.match(script,/measure\(13,name\)>available/);
+ assert.match(script,/function menuLabelSize\(/);
+ assert.match(script,/measure\(13,name\)<=available/);
+ assert.match(script,/window\.addEventListener\('resize',fitMenuLabels\)/);
  assert.doesNotMatch(script,/fitWorkspaceWidth\(/);
- assert.doesNotMatch(html,/#(?:menus|workspaces)[^{]*button\s*\{[^}]*flex:1/);
+ assert.doesNotMatch(html,/--menu-button-width/);
  assert.match(main,/Math\.min\(698,area\.width\),height=Math\.min\(873,area\.height\)/);
  assert.match(html,/fonts\/PretendardVariable\.woff2/);
  assert.match(workflow,/49c54b5152a184a243e85f7281ed338b6569987e/);
@@ -170,4 +170,19 @@ test('menu path renders Korean and English in collection order and removes dupli
  const command={id:'DrawPolyline',ko:'선',en:'Line',paths:[{path},{path}]};
  const overlay={menus:{workspace:{FusionSolidEnvironment:'Design'},tab:{SketchTab:'SKETCH'},panel:{SketchCreatePanel:'CREATE'}}};
  assert.deepEqual(Menu.bilingualPaths(command,null,overlay),[{ko:'디자인 › 스케치 › 작성 › 선',en:'Design › SKETCH › CREATE › Line'}]);
+});
+
+// The compact font helper must preserve short text and avoid splitting a long word when possible.
+test('Fusion navigation labels fit the original one-row layout',()=>{
+ const vm=require('node:vm');
+ const fs=require('node:fs'),path=require('node:path');
+ const source=fs.readFileSync(path.join(__dirname,'../tools/fusion-manager/renderer.js'),'utf8');
+ const a=source.indexOf('function menuLabelSize('),b=source.indexOf('function fitMenuLabels(',a);
+ assert.ok(a>=0&&b>a);
+ const choose=vm.runInNewContext(source.slice(a,b)+';menuLabelSize');
+ const measure=(size,value)=>value.length*size*0.6;
+ assert.equal(choose('SOLID',55,measure),13);
+ assert.equal(choose('SHEET METAL',55,measure),11);
+ assert.equal(choose('AUTOMATION',55,measure),9);
+ assert.equal(choose('CONSTRAINTS',48,measure),8);
 });

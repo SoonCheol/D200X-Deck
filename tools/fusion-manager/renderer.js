@@ -77,7 +77,19 @@ function selectDisplayLanguage(lang){
  render();
  void window.fusionManager.saveDisplayLanguage(lang).catch(e=>status('표시 언어 저장 실패: '+e.message));
 }
-// Keep the original compact window; only long labels receive a smaller font.
+// Keep all buttons in one row inside the existing window. Only fit the label text.
+function menuLabelSize(name,available,measure){
+ if(measure(13,name)<=available)return 13;
+ const words=name.trim().split(/\s+/);
+ for(const size of [11,10,9,8]){
+  if(measure(size,name)<=available)return size;
+  for(let i=1;i<words.length;i++){
+   if(measure(size,words.slice(0,i).join(' '))<=available&&
+      measure(size,words.slice(i).join(' '))<=available)return size;
+  }
+ }
+ return 8;
+}
 function fitMenuLabels(){
  const context=document.createElement('canvas').getContext('2d');
  if(!context)return;
@@ -89,13 +101,11 @@ function fitMenuLabels(){
    context.font=style.fontWeight+' '+size+'px '+style.fontFamily;
    return context.measureText(value).width;
   };
-  const name=label.textContent;
-  const compact=measure(13,name)>available;
-  label.classList.toggle('compact',compact);
-  label.classList.toggle('compact-word',compact&&name.split(/\s+/).some(word=>measure(11,word)>available));
+  label.style.fontSize=menuLabelSize(label.textContent,available,measure)+'px';
  }
 }
 document.fonts?.ready.then(fitMenuLabels);
+window.addEventListener('resize',fitMenuLabels);
 function category(v){
  const t=(v.name+' '+v.id+' '+v.path).toLowerCase();
  if(/sketch|스케치/.test(t))return 'sketch';
@@ -312,6 +322,9 @@ function renderExplorer(){
  }
  const area=areas.find(a=>a.key===explorerArea);
  const fillTabs=(target,items,selected,onSelect)=>{
+   // Nine columns restore the original workspace layout. Empty columns remain
+   // empty for small menus; menus with more than nine items share the same row.
+   target.style.setProperty('--menu-columns',String(Math.max(9,items.length)));
    target.replaceChildren();
    for(const item of items){
      const btn=document.createElement('button');btn.type='button';
