@@ -16,6 +16,7 @@ on:
       - 'tools/fusion-mcp/fusion-menu-catalog.json'
       - 'tools/fusion-mcp/fusion-command-catalog-final.json'
       - 'test/streamdeck-integrated-manager.test.cjs'
+      - 'test/fusion-english-catalog.test.cjs'
       - 'test/deckforge-platform-data-layout.test.cjs'
       - 'test/deckforge-backup.test.cjs'
       - 'test/deckforge-backup-privacy.test.cjs'
@@ -88,6 +89,8 @@ jobs:
           node --check tools/fusion-manager/renderer.js
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           node --check tools/fusion-manager/main.cjs
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          node --test test/fusion-english-catalog.test.cjs
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           node --check app/streamdeck-editor/main.cjs
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
@@ -267,7 +270,7 @@ jobs:
           Copy-Item 'app/streamdeck-editor/fusion-batch.js' 'app/preview-device-build/mcp/app/streamdeck-editor/fusion-batch.js' -Force
           $manager='app/preview-device-build/fusion-manager'
           New-Item -ItemType Directory -Force "$manager/fonts" | Out-Null
-          Copy-Item 'tools/fusion-manager/main.cjs','tools/fusion-manager/preload.cjs','tools/fusion-manager/index.html','tools/fusion-manager/renderer.js','tools/fusion-manager/menu-tree.cjs','tools/fusion-manager/command-curation.cjs','tools/fusion-manager/HELP.md' $manager
+          Copy-Item 'tools/fusion-manager/main.cjs','tools/fusion-manager/preload.cjs','tools/fusion-manager/index.html','tools/fusion-manager/renderer.js','tools/fusion-manager/menu-tree.cjs','tools/fusion-manager/command-curation.cjs','tools/fusion-manager/fusion-language-catalog.cjs','tools/fusion-manager/HELP.md' $manager
           Copy-Item 'app/streamdeck-editor/fusion-drag.cjs' "$manager/fusion-drag.cjs"
           Copy-Item 'tools/fusion-mcp/fusion-command-catalog-final.json' "$manager/fusion-command-catalog-final.json"
           Copy-Item 'tools/fusion-mcp/fusion-menu-catalog.json' "$manager/fusion-menu-catalog.json"

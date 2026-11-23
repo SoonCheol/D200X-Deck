@@ -3,6 +3,7 @@ const {app,BrowserWindow,ipcMain,dialog,screen}=require('electron');
 const fs=require('node:fs/promises');
 const path=require('node:path');
 const os=require('node:os');
+const FusionLanguage=require('./fusion-language-catalog.cjs');
 let embeddedWindow=null;
 let integratedBridge=null;
 function createWindow(){
@@ -114,6 +115,45 @@ const managerReady=app.whenReady().then(()=>{
      await fs.writeFile(temp,data);await fs.rename(temp,final);
      return {status:'saved',id,data:'data:'+mime+';base64,'+data.toString('base64'),source:'manager'};
    }catch(e){return {status:'failed',id,error:e.message}}
+ });
+ // Prepare a read-only Fusion script package without modifying the Fusion installation.
+ ipcMain.handle('fusion-english-prepare',async()=>{
+   const name='DeckForgeFusionEnglishCapture',folder=path.join(app.getPath('downloads'),name);
+   const py=await fs.readFile(path.join(__dirname,'fusion-ui-inventory.py'),'utf8');
+   const manifest=JSON.stringify({"autodeskProduct":"Fusion","type":"script","id":"9e6eb7de-97bb-4c1d-9af7-1658f0eefeba","author":"DeckForge","description":{"":"Read-only Fusion UI and English command name capture"},"version":"1.0.0","runOnStartup":false,"supportedOS":"windows"},null,2)+'\n';
+   const pyPath=path.join(folder,name+'.py'),manifestPath=path.join(folder,name+'.manifest');
+   let created=false;
+   try{await fs.mkdir(folder);created=true}catch(error){if(error.code!=='EEXIST')throw error}
+   if(!created){
+     const [oldPy,oldManifest]=await Promise.all([fs.readFile(pyPath,'utf8'),fs.readFile(manifestPath,'utf8')]);
+     if(oldPy!==py||oldManifest!==manifest)throw Error('기존 수집기 폴더를 덮어쓰지 않았습니다: '+folder);
+     return {path:folder,status:'existing'};
+   }
+   await fs.writeFile(pyPath,py,{flag:'wx'});
+   await fs.writeFile(manifestPath,manifest,{flag:'wx'});
+   return {path:folder,status:'created'};
+ });
+ const englishFile=()=>path.join(app.getPath('userData'),'fusion-command-english-names-v1.json');
+ ipcMain.handle('fusion-english-load',async()=>{
+   try{
+     const st=await fs.stat(englishFile());
+     if(st.size>10*1024*1024)throw Error('영문명 데이터 크기 초과');
+     return FusionLanguage.validateSaved(JSON.parse(await fs.readFile(englishFile(),'utf8')));
+   }catch(error){if(error.code==='ENOENT')return null;throw error}
+ });
+ ipcMain.handle('fusion-english-import',async()=>{
+   const {canceled,filePaths}=await dialog.showOpenDialog({title:'영문 Fusion UI 결과 선택 (한글 메뉴 보존)',
+     properties:['openFile'],filters:[{name:'Fusion UI JSON',extensions:['json']}]});
+   if(canceled||!filePaths?.length)return null;
+   const st=await fs.stat(filePaths[0]);
+   if(!st.isFile()||st.size>30*1024*1024)throw Error('수집 결과는 30MB 이하만 지원합니다.');
+   const overlay=FusionLanguage.fromCapture(JSON.parse(await fs.readFile(filePaths[0],'utf8')));
+   const dest=englishFile(),temp=dest+'.tmp-'+process.pid;
+   try{
+     await fs.writeFile(temp,JSON.stringify(overlay,null,2)+'\n',{flag:'wx'});
+     await fs.rename(temp,dest);
+   }finally{await fs.rm(temp,{force:true}).catch(()=>{})}
+   return overlay;
  });
  const preferencesFile=()=>path.join(app.getPath('userData'),'fusion-command-visibility-v1.json');
  ipcMain.handle('curation-load',async()=>{
