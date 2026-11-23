@@ -83,12 +83,14 @@ function fitWorkspaceWidth(){
  workspaceFitPending=true;
  requestAnimationFrame(async()=>{
   try{
-   const nav=$('workspaces');if(!nav?.clientWidth)return;
-   nav.classList.remove('wrap-limited');
-   const extra=nav.scrollWidth-nav.clientWidth;
+   const navs=[$('workspaces'),$('menus')].filter(nav=>nav?.clientWidth);
+   if(!navs.length)return;
+   for(const nav of navs)nav.classList.remove('wrap-limited');
+   const overflow=nav=>Math.max(0,nav.scrollWidth-nav.clientWidth);
+   const extra=Math.max(...navs.map(overflow));
    if(extra>1){
     const fits=await window.fusionManager.fitWorkspaceWidth(innerWidth+extra+2);
-    if(!fits)nav.classList.add('wrap-limited');
+    if(!fits)for(const nav of navs)if(overflow(nav)>1)nav.classList.add('wrap-limited');
    }
   }catch(error){status('탭 너비 조정 실패: '+error.message)}
   finally{workspaceFitPending=false}
@@ -320,10 +322,10 @@ function renderExplorer(){
    }
  };
  fillTabs($('workspaces'),areas,explorerArea,key=>{explorerArea=key;explorerPanel='';renderExplorer()});
- fitWorkspaceWidth();
  const panels=menuCatalog?[...area.children.values()]:[...area.children.values()].sort((a,b)=>a.rank-b.rank||a.name.localeCompare(b.name,'ko'));
  if(!panels.some(x=>x.key===explorerPanel)){explorerPanel=(menuCatalog?panels[0]:(panels.find(x=>x.name==='작성')||panels[0]))?.key||''}
  fillTabs($('menus'),panels,explorerPanel,key=>{explorerPanel=key;renderExplorer()});
+ fitWorkspaceWidth();
  const panel=area.children.get(explorerPanel);
  if(!panel)return;
  // All commands under the selected panel are already expanded in captured Fusion order.

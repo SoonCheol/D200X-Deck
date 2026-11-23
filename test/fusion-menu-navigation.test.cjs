@@ -118,7 +118,11 @@ test('Manager opens at requested size and expands nested menu without extra drop
  assert.match(html,/#workspaces button\{flex:1 1 0;min-width:max-content/);
  assert.match(script,/fitWorkspaceWidth/);
  assert.match(main,/fusion-fit-workspace-width/);
- assert.match(html,/#menus\{display:flex;flex-wrap:wrap/);
+ assert.match(html,/#menus\{display:flex;flex-wrap:nowrap/);
+ assert.match(html,/#menus button\{flex:1 1 0;padding-inline:4px;white-space:nowrap;min-width:max-content/);
+ assert.match(html,/#menus\.wrap-limited button,#workspaces\.wrap-limited button\{flex:0 0 auto/);
+ assert.match(script,/const navs=\[\$\('workspaces'\),\$\('menus'\)\]/);
+ assert.match(script,/const extra=Math\.max\(\.\.\.navs\.map\(overflow\)\)/);
  assert.match(main,/Math\.min\(698,area\.width\),height=Math\.min\(873,area\.height\)/);
  assert.match(html,/fonts\/PretendardVariable\.woff2/);
  assert.match(workflow,/49c54b5152a184a243e85f7281ed338b6569987e/);

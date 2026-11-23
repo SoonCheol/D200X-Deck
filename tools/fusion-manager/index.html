@@ -41,8 +41,11 @@ header{flex-wrap:nowrap}#helpOpen{margin-left:0;white-space:nowrap}#modePages[hi
 #detail .detail-path{padding:0 0 8px;line-height:1.5}
 #detail .detail-path+.detail-path{border-top:1px solid #435c78;padding-top:8px}
 #detail .detail-path small{display:block;color:#9fb4ca}
-#menus{display:flex;flex-wrap:wrap;gap:5px;overflow-x:visible}
-#menus button{flex:1 1 auto;padding-inline:8px;white-space:nowrap;min-width:max-content}
+#menus{display:flex;flex-wrap:nowrap;gap:5px;overflow:visible}
+#menus button{flex:1 1 0;padding-inline:4px;white-space:nowrap;min-width:max-content}
+#menus.wrap-limited{flex-wrap:wrap}
+/* A monitor-limited fallback keeps the final row from stretching a lone menu. */
+#menus.wrap-limited button,#workspaces.wrap-limited button{flex:0 0 auto;max-width:100%;min-width:0;white-space:normal;overflow-wrap:anywhere}
 .menu-tabs button.active{background:#266b9f;border-color:#80bbeb}
 /* All dropdown commands are shown inline; no extra filter row. */
 .explore-toolbar{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:10px 0 13px;min-width:0}
