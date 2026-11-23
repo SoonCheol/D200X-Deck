@@ -30,6 +30,7 @@ on:
       - 'test/deckforge-app-focus.test.cjs'
       - 'test/deckforge-app-control.test.cjs'
       - 'test/deckforge-wide-warning.test.cjs'
+      - 'test/deckforge-plugin.test.cjs'
       - 'tools/native-drop-probe/NativeDropProbe.cs'
       - '.github/workflows/streamdeck-clean-preview.yml'
   workflow_dispatch:
@@ -122,6 +123,10 @@ jobs:
           node --check app/streamdeck-editor/sd-plugin-host.cjs
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           node --test test/streamdeck-sdk-host.test.cjs
+          node --check app/streamdeck-editor/deckforge-plugin.cjs
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          node --test test/deckforge-plugin.test.cjs
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           node --check tools/fusion-mcp/server.cjs
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
