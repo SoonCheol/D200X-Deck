@@ -1177,6 +1177,14 @@ async function installSdkPlugin(fromFolder=false){
     window.d200xActionStatus?.('DeckForge 플러그인 설치: '+plugin.name+' '+plugin.version);
   }catch(error){window.d200xActionStatus?.('플러그인 설치 실패: '+String(error?.message||error));}
 }
+async function exportDeckForgePlugin(){
+  if(!window.deckBridge?.deckforgeExportPlugin)
+    return window.d200xActionStatus?.('Windows EXE에서만 패키징 가능합니다.');
+  try{
+    const result=await window.deckBridge.deckforgeExportPlugin();
+    if(result)window.d200xActionStatus?.('DeckForge 전용 설치 파일 저장 완료: '+result.name+' '+result.version);
+  }catch(error){window.d200xActionStatus?.('패키지 저장 실패: '+String(error?.message||error));}
+}
 // Only change what the user can add from the catalogue. Existing action IDs,
 // saved profiles and the original SDK plugin remain intact.
 const HA_GENERIC_ACTION='de.perdoctus.streamdeck.homeassistant.entity';
@@ -1449,8 +1457,12 @@ function bindActionAppearance(){
   add.addEventListener('click',()=>installSdkPlugin());pluginToolbar.append(add);
   const fromDir=document.createElement('button');fromDir.type='button';
   fromDir.className='plugin-add-button';fromDir.textContent='＋ 폴더에서 추가';
-  fromDir.title='개발자 배포 .sdPlugin 폴더 설치';
+  fromDir.title='기존 Stream Deck 호환 .sdPlugin 폴더 설치';
   fromDir.addEventListener('click',()=>installSdkPlugin(true));pluginToolbar.append(fromDir);
+  const exportButton=document.createElement('button');exportButton.type='button';
+  exportButton.className='plugin-add-button';exportButton.textContent='패키지 저장';
+  exportButton.title='선택한 .sdPlugin 폴더를 단일 .deckforgePlugin 설치 파일로 저장합니다. 원본은 변경하지 않습니다.';
+  exportButton.addEventListener('click',exportDeckForgePlugin);pluginToolbar.append(exportButton);
   host.after(pluginToolbar);
   updatePluginToolbar();
 }
