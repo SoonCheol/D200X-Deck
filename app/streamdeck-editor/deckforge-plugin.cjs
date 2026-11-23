@@ -52,6 +52,8 @@ async function parseDeckForgePackage(data){
   let fileCount=0,total=0;
   for(const entry of entries){
     const entryPath=entry.dir&&entry.name.endsWith('/')?entry.name.slice(0,-1):entry.name;
+    if(entry.unsafeOriginalName&&entry.unsafeOriginalName!==entry.name)
+      throw Error('DeckForge 패키지에서 경로 정규화가 필요한 파일을 거부했습니다.');
     if(!safePart(entryPath)||(entry.unixPermissions&0xf000)===0xa000)
       throw Error('DeckForge 패키지에 허용되지 않는 경로/심볼릭 링크가 있습니다.');
     if(entry.dir)continue;
