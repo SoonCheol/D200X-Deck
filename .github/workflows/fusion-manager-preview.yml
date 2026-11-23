@@ -12,6 +12,7 @@ on:
       - 'test/fusion-menu-navigation.test.cjs'
       - 'test/fusion-manager-layout.test.cjs'
       - 'test/fusion-command-curation.test.cjs'
+      - 'test/fusion-english-catalog.test.cjs'
       - '.github/workflows/fusion-manager-preview.yml'
   workflow_dispatch:
 
@@ -35,6 +36,8 @@ jobs:
           python -m py_compile tools/fusion-mcp/fusion-ui-inventory.py
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           node --check tools/fusion-manager/main.cjs
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          node --test test/fusion-english-catalog.test.cjs
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           node --check tools/fusion-manager/preload.cjs
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
@@ -77,7 +80,7 @@ jobs:
           $ErrorActionPreference = 'Stop'
           $dst = 'app/fusion-manager-build'
           New-Item -ItemType Directory -Force $dst | Out-Null
-          Copy-Item 'tools/fusion-manager/main.cjs','tools/fusion-manager/preload.cjs','tools/fusion-manager/index.html','tools/fusion-manager/renderer.js','tools/fusion-manager/command-curation.cjs','tools/fusion-manager/menu-tree.cjs' $dst
+          Copy-Item 'tools/fusion-manager/main.cjs','tools/fusion-manager/preload.cjs','tools/fusion-manager/index.html','tools/fusion-manager/renderer.js','tools/fusion-manager/command-curation.cjs','tools/fusion-manager/menu-tree.cjs','tools/fusion-manager/fusion-language-catalog.cjs' $dst
           Copy-Item 'app/streamdeck-editor/fusion-drag.cjs' "$dst/fusion-drag.cjs"
           Copy-Item 'tools/fusion-mcp/fusion-command-catalog-final.json' "$dst/fusion-command-catalog-final.json"
           Copy-Item 'tools/fusion-mcp/fusion-menu-catalog.json' "$dst/fusion-menu-catalog.json"
