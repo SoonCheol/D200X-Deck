@@ -317,7 +317,9 @@ function renderExplorer(){
    target.replaceChildren();
    for(const item of items){
      const btn=document.createElement('button');btn.type='button';
-     btn.textContent=displayMenu(item,target.id==='workspaces'?(menuCatalog?'tab':'workspace'):'panel');btn.className=item.key===selected?'active':'';
+     const name=displayMenu(item,target.id==='workspaces'?(menuCatalog?'tab':'workspace'):'panel');
+     const label=document.createElement('span');label.className='menu-tab-label';label.textContent=name;
+     btn.append(label);btn.title=name;btn.setAttribute('aria-label',name);btn.className=item.key===selected?'active':'';
      btn.onclick=()=>onSelect(item.key);target.append(btn);
    }
  };
