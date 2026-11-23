@@ -88,6 +88,22 @@ ipcMain.handle('d200x:sdk-list',async event=>{assertEditor(event);return sdk().l
 ipcMain.handle('d200x:fusion-addin-install',async event=>{
  assertEditor(event);return Bundled.installFusionAddin();
 });
+// Editor and integrated manager use the same shipped/user catalog and preference.
+const fusionManagerDir=()=>{const staged=path.join(__dirname,'../fusion-manager');return fs.existsSync(path.join(staged,'fusion-language-catalog.cjs'))?staged:path.join(__dirname,'../../tools/fusion-manager')};
+let fusionKoreanNamesPromise=null;
+async function fusionButtonLanguageData(){
+ const dir=fusionManagerDir(),Language=require(path.join(dir,'fusion-language-catalog.cjs'));
+ if(!fusionKoreanNamesPromise)fusionKoreanNamesPromise=(async()=>{
+  const staged=path.join(dir,'fusion-command-catalog-final.json');
+  const file=fs.existsSync(staged)?staged:path.join(dir,'../fusion-mcp/fusion-command-catalog-final.json');
+  const raw=JSON.parse(await fs.promises.readFile(file,'utf8'));
+  const names=require('./ai/fusion-commands.cjs').normaliseCatalog(raw);
+  return Object.fromEntries([...names].filter(([,v])=>v.ko).map(([id,v])=>[id,v.ko]));
+ })().catch(error=>{console.warn('Fusion 한글 카탈로그 읽기 실패:',error.message);return {}});
+ const [ko,english,language]=await Promise.all([fusionKoreanNamesPromise,Language.loadEnglish(dir,app.getPath('userData')),Language.loadDisplayLanguage(app.getPath('userData'))]);
+ return {ko,en:english.commands,language};
+}
+ipcMain.handle('d200x:fusion-button-language',async event=>{assertEditor(event);return fusionButtonLanguageData()});
 let fusionMagnet=null;
 const magnetSettingsFile=()=>path.join(app.getPath('userData'),'fusion-manager-magnet-v1.json');
 function savedMagnetSettings(){
@@ -105,6 +121,7 @@ async function openIntegratedManager(){
   const integrated=require('../fusion-manager/main.cjs');
   const manager=await integrated.openEmbeddedManager((operation,argument)=>{
    if(operation==='open-deckforge'){revealEditor();return true}
+   if(operation==='language-changed'){send('d200x:fusion-language-changed',null);return true}
    if(operation==='dock')return fusionMagnet?argument==='toggle'?fusionMagnet.toggle():fusionMagnet.status():{available:false,attached:false};
    return false;
   });

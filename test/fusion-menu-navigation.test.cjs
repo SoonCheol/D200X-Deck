@@ -114,7 +114,10 @@ test('Manager opens at requested size and expands nested menu without extra drop
  assert.doesNotMatch(html,/id="dropdowns"/);
  assert.doesNotMatch(script,/explorerDropdown/);
  assert.match(script,/const node=panel/);
- assert.match(html,/grid-template-columns:repeat\(9,minmax\(0,1fr\)\)/);
+ assert.match(html,/#workspaces\{display:flex;flex-wrap:nowrap/);
+ assert.match(html,/#workspaces button\{flex:1 1 0;min-width:max-content/);
+ assert.match(script,/fitWorkspaceWidth/);
+ assert.match(main,/fusion-fit-workspace-width/);
  assert.match(html,/#menus\{display:flex;flex-wrap:wrap/);
  assert.match(main,/Math\.min\(698,area\.width\),height=Math\.min\(873,area\.height\)/);
  assert.match(html,/fonts\/PretendardVariable\.woff2/);
@@ -153,4 +156,12 @@ test('localized manager labels change by stable IDs while preserving menu order 
  assert.equal(Menu.localizedCommand(commands[0],'ko'),'선');
  assert.equal(groups[0].name,'스케치');
  assert.deepEqual(Menu.descendants([...groups[0].children.values()][0]).map(x=>x.id),['DrawPolyline']);
+});
+
+
+test('menu path renders Korean and English in collection order and removes duplicate placements',()=>{
+ const path=[{kind:'workspace',id:'FusionSolidEnvironment',name:'디자인'},{kind:'tab',id:'SketchTab',name:'스케치'},{kind:'panel',id:'SketchCreatePanel',name:'작성'},{kind:'command',id:'DrawPolyline'}];
+ const command={id:'DrawPolyline',ko:'선',en:'Line',paths:[{path},{path}]};
+ const overlay={menus:{workspace:{FusionSolidEnvironment:'Design'},tab:{SketchTab:'SKETCH'},panel:{SketchCreatePanel:'CREATE'}}};
+ assert.deepEqual(Menu.bilingualPaths(command,null,overlay),[{ko:'디자인 › 스케치 › 작성 › 선',en:'Design › SKETCH › CREATE › Line'}]);
 });

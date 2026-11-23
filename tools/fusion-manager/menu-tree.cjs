@@ -123,6 +123,27 @@
  function localizedCommand(command,language){
   return language==='en'&&command?.en?command.en:command?.ko||command?.name||'';
  }
+ // Both language paths use the original collected hierarchy, not guessed translations.
+ function bilingualPaths(command,capture,overlay){
+  const seen=new Set(),result=[];
+  for(const parts of paths(command,capture)){
+   const nodes=parts.filter(p=>['workspace','tab','panel','toolbar','dropdown'].includes(p.kind)&&p.id);
+   if(!nodes.length)continue;
+   const identity=nodes.map(p=>p.kind+':'+p.id).join('|');
+   if(seen.has(identity))continue;seen.add(identity);
+   const label=(p,lang)=>{
+    if(lang==='en'){
+     const translated=overlay?.menus?.[p.kind]?.[p.id];
+     if(typeof translated==='string'&&translated.trim())return translated;
+     return /[가-힣]/.test(p.label)?p.label+' (영문명 미수집)':p.label;
+    }
+    return p.label||p.id;
+   };
+   result.push({ko:[...nodes.map(p=>label(p,'ko')),command.ko||command.name||command.id].join(' › '),
+    en:[...nodes.map(p=>label(p,'en')),command.en||((command.ko||command.name||command.id)+' (영문명 미수집)')].join(' › ')});
+  }
+  return result;
+ }
  function descendants(node){
   const seen=new Map();
   if(Array.isArray(node.ordered)){
@@ -136,5 +157,5 @@
   }
   return [...seen.values()];
  }
- return Object.freeze({structure,fromMenuCatalog,descendants,localizedLabel,localizedCommand,workspaceName,panelName,pathParts});
+ return Object.freeze({structure,fromMenuCatalog,descendants,localizedLabel,localizedCommand,bilingualPaths,workspaceName,panelName,pathParts});
 });

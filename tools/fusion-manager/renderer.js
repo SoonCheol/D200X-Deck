@@ -54,7 +54,7 @@ function applyEnglishNames(){
  for(const v of commands)v.en=names[v.id]||v.en||'';
  const covered=commands.filter(v=>names[v.id]).length;
  $('englishStatus').textContent=englishOverlay
-  ?'영문 명령 '+Object.keys(names).length+'개 저장 · 카탈로그 일치 '+covered+'개 · 메뉴명 '+(englishOverlay.stats?.menuLabels??0)+'개'
+  ?'영문 명령 '+Object.keys(names).length+'개 내장/저장 · 카탈로그 일치 '+covered+'개 · 메뉴명 '+(englishOverlay.stats?.menuLabels??0)+'개'
   :'영문명 미수집';
 }
 function displayCommand(v){return MenuTree.localizedCommand(v,displayLanguage)}
@@ -77,6 +77,25 @@ function selectDisplayLanguage(lang){
  render();
  void window.fusionManager.saveDisplayLanguage(lang).catch(e=>status('표시 언어 저장 실패: '+e.message));
 }
+let workspaceFitPending=false;
+function fitWorkspaceWidth(){
+ if(workspaceFitPending)return;
+ workspaceFitPending=true;
+ requestAnimationFrame(async()=>{
+  try{
+   const nav=$('workspaces');if(!nav?.clientWidth)return;
+   nav.classList.remove('wrap-limited');
+   const extra=nav.scrollWidth-nav.clientWidth;
+   if(extra>1){
+    const fits=await window.fusionManager.fitWorkspaceWidth(innerWidth+extra+2);
+    if(!fits)nav.classList.add('wrap-limited');
+   }
+  }catch(error){status('탭 너비 조정 실패: '+error.message)}
+  finally{workspaceFitPending=false}
+ });
+}
+window.addEventListener('resize',fitWorkspaceWidth);
+document.fonts?.ready.then(fitWorkspaceWidth);
 function category(v){
  const t=(v.name+' '+v.id+' '+v.path).toLowerCase();
  if(/sketch|스케치/.test(t))return 'sketch';
@@ -165,10 +184,23 @@ function showTooltip(event,v,nameNode){
 function showDetail(v){
  hideTooltip();const dl=$('detailFields');dl.replaceChildren();
  $('detailTitle').textContent=displayCommand(v);
- for(const [label,value] of [['명령 ID',v.id],['영문명',v.en||'정보 없음'],['한글명',v.ko||'정보 없음'],['작업 영역',category(v)],['메뉴·툴바 경로',v.path||'정보 없음']]){
+ for(const [label,value] of [['명령 ID',v.id],['영문명',v.en||'정보 없음'],['한글명',v.ko||'정보 없음'],['작업 영역',category(v)]]){
   const dt=document.createElement('dt'),dd=document.createElement('dd');
   dt.textContent=label;dd.textContent=value;dl.append(dt,dd);
  }
+ const pathLabel=document.createElement('dt'),pathValue=document.createElement('dd');
+ pathLabel.textContent='메뉴·툴바 경로';
+ const paths=MenuTree.bilingualPaths(v,capturedUI,englishOverlay);
+ if(!paths.length)pathValue.textContent='정보 없음';
+ for(const entry of paths){
+  const group=document.createElement('div');group.className='detail-path';
+  for(const [language,value] of [['한국어',entry.ko],['English',entry.en]]){
+   const label=document.createElement('small'),line=document.createElement('div');
+   label.textContent=language;line.textContent=value;group.append(label,line);
+  }
+  pathValue.append(group);
+ }
+ dl.append(pathLabel,pathValue);
  const nameKey=String(v.ko||v.name||'').trim();
  const similar=commands.filter(other=>other.id!==v.id&&String(other.ko||other.name||'').trim()===nameKey);
  if(similar.length){
@@ -288,6 +320,7 @@ function renderExplorer(){
    }
  };
  fillTabs($('workspaces'),areas,explorerArea,key=>{explorerArea=key;explorerPanel='';renderExplorer()});
+ fitWorkspaceWidth();
  const panels=menuCatalog?[...area.children.values()]:[...area.children.values()].sort((a,b)=>a.rank-b.rank||a.name.localeCompare(b.name,'ko'));
  if(!panels.some(x=>x.key===explorerPanel)){explorerPanel=(menuCatalog?panels[0]:(panels.find(x=>x.name==='작성')||panels[0]))?.key||''}
  fillTabs($('menus'),panels,explorerPanel,key=>{explorerPanel=key;renderExplorer()});
@@ -523,7 +556,7 @@ $('importEnglish').onclick=async()=>{
   const result=await window.fusionManager.importEnglish();
   if(!result)return;
   englishOverlay=result;applyEnglishNames();updateDisplayLanguageControls();render();
-  status('영문 명칭은 별도로 저장했습니다. 기존 한글 메뉴 순서·등록 버튼은 유지됩니다.');
+  status('영문 명칭을 갱신했습니다. 기존 한글 메뉴 순서와 버튼 저장값은 유지됩니다.');
  }catch(e){$('englishStatus').textContent='영문 결과 불러오기 실패: '+e.message}
 };
 $('importCapture').onclick=async()=>{

@@ -165,6 +165,34 @@ const valueOf=(item,field,fallback="")=>item?.settings?.[field]??fallback;
 function keyName(item){const visual=item?.pressMeta?pressDisplayAction(item):item;return visual?.title||ACTIONS.get(visual?.type)?.label||"";}
 const sdkVisuals=new Map();
 const FUSION_PLUGIN='com.autodesk.fusionstreamdeck';
+let fusionButtonNames={ko:{},en:{},language:'ko'},fusionLanguageRequest=0;
+function fusionLocalizedVisual(item,title){
+  const id=fusionCommandId(item),mode=item.settings?.fusionTitleLanguage;
+  const language=mode==='en'||mode==='ko'?mode:fusionButtonNames.language;
+  const localize=original=>{
+    if(typeof original!=='string'||!original)return original||'';
+    if(language==='ko'&&/[가-힣]/.test(original))return original;
+    const names=fusionButtonNames[language]||{};
+    return Object.prototype.hasOwnProperty.call(names,id)?names[id]:original;
+  };
+  const pair=item.settings?.stateTitles;
+  const settings=pair?{...item.settings,stateTitles:Object.fromEntries(Object.entries(pair).map(([key,value])=>[key,value&&typeof value==='object'?{...value,title:localize(value.title)}:value]))}:item.settings;
+  return {...item,settings,title:localize(title)};
+}
+async function refreshFusionButtonLanguage(){
+  if(!window.deckBridge?.fusionButtonLanguage)return;
+  const request=++fusionLanguageRequest;
+  try{
+    const data=await window.deckBridge.fusionButtonLanguage();
+    if(request!==fusionLanguageRequest||!data)return;
+    fusionButtonNames=data;
+    renderGrid();void refreshSelectedVisual();
+    const selected=DeckCore.visibleActions(state)[state.selected];
+    const item=pressIsOrdinary(selected)?pressSlotAction(selected,activePressTab):selected;
+    if(item)void refreshStateTitleCards(item);
+    window.scheduleDeckSync?.();
+  }catch(error){console.warn('Fusion 표시 언어 읽기 실패:',error.message);}
+}
 const fusionIconCache=new Map(),fusionCachePending=new Set(),fusionCacheMisses=new Map(),
   fusionConnected=new Set(),fusionOfflineContexts=new Set(),fusionLiveContexts=new Set(),unverifiedFusionContexts=new Set();
 let fusionHealthAvailable=null,fusionHealthBusy=false;
@@ -294,7 +322,8 @@ function displayItem(item,index,preserveGesture=false){
       const icon=stateIcon||item.icon||(runtimeImage?{kind:'file',value:runtimeImage}:null)||
         (cached?{kind:'file',value:cached}:null)||
         (visual?.image?{kind:'file',value:visual.image}:null);
-      return {...item,title:visual?.title??item.title,...(icon?{icon}:{}),fusionOffline:offline};
+      const fusionVisual=typeof fusionLocalizedVisual==='function'?fusionLocalizedVisual(item,item.title||visual?.title||''):{...item,title:visual?.title??item.title};
+      return {...fusionVisual,...(icon?{icon}:{}),fusionOffline:offline};
     }
     const defaultImage=sdkActionDefaults.get(item.settings?.actionUUID)?.[stateName];
     const icon=stateIcon||item.icon||(visual?.image?{kind:'file',value:visual.image}:null)||
@@ -3976,6 +4005,20 @@ function renderInspector(){
     settingsButton.className='sdk-settings-open';settingsButton.dataset.sdkInspector='';
     settingsButton.textContent='⚙ 플러그인 속성 열기';
     controls.append(settingsButton);
+    if(isFusionAction(item)){
+      const row=document.createElement('div');row.className='field fusion-title-language';
+      const label=document.createElement('label');label.textContent='표시 언어';label.htmlFor='fusion-title-language';
+      const select=document.createElement('select');select.id='fusion-title-language';
+      for(const [value,name] of [['follow','관리자 언어 따라가기'],['ko','한국어 고정'],['en','English 고정']]){
+        const option=document.createElement('option');option.value=value;option.textContent=name;select.append(option);
+      }
+      select.value=['ko','en'].includes(item.settings.fusionTitleLanguage)?item.settings.fusionTitleLanguage:'follow';
+      select.addEventListener('change',()=>{
+        item.settings.fusionTitleLanguage=select.value;
+        persistInspectorChange();renderGrid();refreshTitlePreview(item);void refreshStateTitleCards(item);
+      });
+      row.append(label,select);root.querySelector('.properties>.fields').append(row);
+    }
   }
   bindTitleStyle(item);
   bindIconControls(item);
@@ -6943,5 +6986,7 @@ if(profileStorageFailure){
   dialog.append(heading,detail,close);document.body.append(dialog);dialog.showModal();
   window.d200xActionStatus?.('프로필 파일 읽기 실패: 저장 차단');
 }
+window.deckBridge?.onFusionLanguageChanged?.(()=>{void refreshFusionButtonLanguage();});
+void refreshFusionButtonLanguage();
 void refreshFusionHealth();
 setInterval(()=>{if(sdkActionInstances().some(x=>x.pluginUUID===FUSION_PLUGIN))void refreshFusionHealth();},3000);

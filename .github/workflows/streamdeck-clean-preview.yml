@@ -274,6 +274,9 @@ jobs:
           Copy-Item 'app/streamdeck-editor/fusion-drag.cjs' "$manager/fusion-drag.cjs"
           Copy-Item 'tools/fusion-mcp/fusion-command-catalog-final.json' "$manager/fusion-command-catalog-final.json"
           Copy-Item 'tools/fusion-mcp/fusion-menu-catalog.json' "$manager/fusion-menu-catalog.json"
+          Copy-Item 'tools/fusion-manager/fusion-command-english-names-v1.json' "$manager/fusion-command-english-names-v1.json"
+          node -e "const fs=require('fs');const data=JSON.parse(fs.readFileSync('$manager/fusion-command-english-names-v1.json','utf8'));if(data.language!=='en'||Object.keys(data.commands).length<1209)process.exit(1)"
+          if ($LASTEXITCODE -ne 0) { throw 'Bundled Fusion English catalog missing or invalid' }
           Copy-Item 'tools/fusion-mcp/fusion-ui-inventory.py' "$manager/fusion-ui-inventory.py"
           # Generate the actual approved Manager icon from a source image, not a generic glyph.
           & 'app/streamdeck-editor/create-manager-icon.ps1' -Source 'app/streamdeck-editor/assets/fusion-manager-approved-preview.jpg.base64' -OutputDirectory $manager

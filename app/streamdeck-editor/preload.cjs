@@ -28,6 +28,8 @@ contextBridge.exposeInMainWorld('deckBridge', Object.freeze({
   haStatus: () => ipcRenderer.invoke('d200x:ha-status'),
   sdkList: () => ipcRenderer.invoke('d200x:sdk-list'),
   fusionHealth: () => ipcRenderer.invoke('d200x:fusion-health'),
+  fusionButtonLanguage:()=>ipcRenderer.invoke('d200x:fusion-button-language'),
+  onFusionLanguageChanged:fn=>ipcRenderer.on('d200x:fusion-language-changed',()=>fn()),
   openFusionManager: () => ipcRenderer.invoke('d200x:open-fusion-manager'),
   installFusionAddin: () => ipcRenderer.invoke('d200x:fusion-addin-install'),
   fusionIconRead: id => ipcRenderer.invoke('d200x:fusion-icon-read',id),

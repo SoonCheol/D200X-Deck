@@ -9,6 +9,7 @@ contextBridge.exposeInMainWorld('fusionManager',{
  fusionScript:()=>ipcRenderer.invoke('fusion-ui-script'),
  copyFusionScript:()=>ipcRenderer.invoke('fusion-script-copy'),
  windowMode:mode=>ipcRenderer.invoke('window-mode',mode),
+ fitWorkspaceWidth:width=>ipcRenderer.invoke('fusion-fit-workspace-width',width),
  openCapture:()=>ipcRenderer.invoke('open-ui-capture'),
  prepareEnglish:()=>ipcRenderer.invoke('fusion-english-prepare'),
  importEnglish:()=>ipcRenderer.invoke('fusion-english-import'),

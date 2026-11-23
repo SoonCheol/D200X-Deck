@@ -84,6 +84,9 @@ jobs:
           Copy-Item 'app/streamdeck-editor/fusion-drag.cjs' "$dst/fusion-drag.cjs"
           Copy-Item 'tools/fusion-mcp/fusion-command-catalog-final.json' "$dst/fusion-command-catalog-final.json"
           Copy-Item 'tools/fusion-mcp/fusion-menu-catalog.json' "$dst/fusion-menu-catalog.json"
+          Copy-Item 'tools/fusion-manager/fusion-command-english-names-v1.json' "$dst/fusion-command-english-names-v1.json"
+          node -e "const fs=require('fs');const data=JSON.parse(fs.readFileSync('$dst/fusion-command-english-names-v1.json','utf8'));if(data.language!=='en'||Object.keys(data.commands).length<1209)process.exit(1)"
+          if ($LASTEXITCODE -ne 0) { throw 'Bundled Fusion English catalog missing or invalid' }
           Copy-Item 'tools/fusion-manager/HELP.md' "$dst/HELP.md"
           Copy-Item 'tools/fusion-mcp/fusion-ui-inventory.py' "$dst/fusion-ui-inventory.py"
           New-Item -ItemType Directory -Force "$dst/fonts" | Out-Null

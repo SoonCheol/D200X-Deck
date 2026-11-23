@@ -62,4 +62,20 @@ function validateSaved(data){
  }
  return {...data,commands,menus};
 }
-module.exports={FORMAT,fromCapture,validateSaved};
+// Shipped capture plus optional later local capture, without losing shipped entries.
+async function loadEnglish(bundleDir,userDir){
+ const fs=require('node:fs/promises'),path=require('node:path'),name='fusion-command-english-names-v1.json';
+ const read=async file=>{const st=await fs.stat(file);if(!st.isFile()||st.size>10*1024*1024)throw Error('영문명 데이터 크기 초과');return validateSaved(JSON.parse(await fs.readFile(file,'utf8')))};
+ const bundled=await read(path.join(bundleDir,name));
+ let local=null;
+ try{local=await read(path.join(userDir,name))}catch(error){if(error.code!=='ENOENT')console.warn('Fusion 영문 사용자 카탈로그 무시:',error.message)}
+ if(!local)return bundled;
+ const commands={...bundled.commands,...local.commands};
+ const menus=Object.fromEntries(KINDS.map(k=>[k,{...bundled.menus[k],...local.menus[k]}]));
+ return {...local,commands,menus,stats:{...local.stats,commands:Object.keys(commands).length,menuLabels:KINDS.reduce((n,k)=>n+Object.keys(menus[k]).length,0)}};
+}
+async function loadDisplayLanguage(userDir){
+ const fs=require('node:fs/promises'),path=require('node:path');
+ try{return JSON.parse(await fs.readFile(path.join(userDir,'fusion-manager-display-language-v1.json'),'utf8'))?.language==='en'?'en':'ko'}catch{return 'ko'}
+}
+module.exports={FORMAT,fromCapture,validateSaved,loadEnglish,loadDisplayLanguage};

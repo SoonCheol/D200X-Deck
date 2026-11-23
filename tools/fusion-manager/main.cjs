@@ -24,6 +24,16 @@ const managerReady=app.whenReady().then(()=>{
    // Both modes use the same physical window bounds. Preserve manual resize and docking.
    return true;
  });
+ ipcMain.handle('fusion-fit-workspace-width',async(event,required)=>{
+   const win=BrowserWindow.fromWebContents(event.sender);
+   if(!win||win!==embeddedWindow||!Number.isFinite(required))return false;
+   const area=screen.getDisplayMatching(win.getBounds()).workArea;
+   const bounds=win.getBounds(),content=win.getContentBounds();
+   const requested=Math.ceil(required+Math.max(0,bounds.width-content.width));
+   const width=Math.min(area.width,Math.max(bounds.width,requested));
+   if(width>bounds.width)win.setBounds({...bounds,x:Math.max(area.x,Math.min(bounds.x,area.x+area.width-width)),width});
+   return requested<=area.width;
+ });
  ipcMain.handle('catalog',async()=>JSON.parse(await fs.readFile(path.join(__dirname,'fusion-command-catalog-final.json'),'utf8')));
  ipcMain.handle('menu-catalog',async()=>JSON.parse(await fs.readFile(path.join(__dirname,'fusion-menu-catalog.json'),'utf8')));
  ipcMain.handle('help-markdown',async()=>fs.readFile(path.join(__dirname,'HELP.md'),'utf8'));
@@ -134,13 +144,7 @@ const managerReady=app.whenReady().then(()=>{
    return {path:folder,status:'created'};
  });
  const englishFile=()=>path.join(app.getPath('userData'),'fusion-command-english-names-v1.json');
- ipcMain.handle('fusion-english-load',async()=>{
-   try{
-     const st=await fs.stat(englishFile());
-     if(st.size>10*1024*1024)throw Error('영문명 데이터 크기 초과');
-     return FusionLanguage.validateSaved(JSON.parse(await fs.readFile(englishFile(),'utf8')));
-   }catch(error){if(error.code==='ENOENT')return null;throw error}
- });
+ ipcMain.handle('fusion-english-load',async()=>FusionLanguage.loadEnglish(__dirname,app.getPath('userData')));
  ipcMain.handle('fusion-english-import',async()=>{
    const {canceled,filePaths}=await dialog.showOpenDialog({title:'영문 Fusion UI 결과 선택 (한글 메뉴 보존)',
      properties:['openFile'],filters:[{name:'Fusion UI JSON',extensions:['json']}]});
@@ -153,15 +157,11 @@ const managerReady=app.whenReady().then(()=>{
      await fs.writeFile(temp,JSON.stringify(overlay,null,2)+'\n',{flag:'wx'});
      await fs.rename(temp,dest);
    }finally{await fs.rm(temp,{force:true}).catch(()=>{})}
-   return overlay;
+   if(integratedBridge)integratedBridge('language-changed');
+   return FusionLanguage.loadEnglish(__dirname,app.getPath('userData'));
  });
  const languageFile=()=>path.join(app.getPath('userData'),'fusion-manager-display-language-v1.json');
- ipcMain.handle('fusion-display-language-load',async()=>{
-   try{
-     const saved=JSON.parse(await fs.readFile(languageFile(),'utf8'));
-     return saved?.language==='en'?'en':'ko';
-   }catch{return 'ko'}
- });
+ ipcMain.handle('fusion-display-language-load',async()=>FusionLanguage.loadDisplayLanguage(app.getPath('userData')));
  ipcMain.handle('fusion-display-language-save',async(_event,language)=>{
    if(!['ko','en'].includes(language))throw Error('표시 언어가 올바르지 않습니다.');
    const file=languageFile(),temp=file+'.tmp';
@@ -169,6 +169,7 @@ const managerReady=app.whenReady().then(()=>{
      await fs.writeFile(temp,JSON.stringify({language})+'\n','utf8');
      await fs.rename(temp,file);
    }finally{await fs.rm(temp,{force:true}).catch(()=>{})}
+   if(integratedBridge)integratedBridge('language-changed');
    return language;
  });
  const preferencesFile=()=>path.join(app.getPath('userData'),'fusion-command-visibility-v1.json');
