@@ -20,6 +20,7 @@ const { parseIconPack, parseIconFolder, readPacks, registerPack, removePack } = 
 const { safeStorage } = require('electron');
 const HA = require('./ha-client.cjs');
 const {StreamDeckPluginHost}=require('./sd-plugin-host.cjs');
+const DeckForgePlugins=require('./deckforge-plugin.cjs');
 const Bundled=require('./bundled-integration.cjs');
 const {ProfileStore}=require('./profile-store.cjs');
 const Backup=require('./backup.cjs');
@@ -127,12 +128,46 @@ ipcMain.handle('d200x:sdk-install',async event=>{
   const selected=await openRememberedPicker({
     title:'DeckForge 플러그인 설치',
     properties:['openFile'],
-    filters:[{name:'Stream Deck 플러그인',extensions:['streamDeckPlugin','zip']}]
+    filters:[
+      {name:'DeckForge 플러그인',extensions:['deckforgePlugin']},
+      {name:'Stream Deck 플러그인',extensions:['streamDeckPlugin','zip']}
+    ]
   });
   if(!selected)return null;
   const stat=await fs.promises.stat(selected);
   if(!stat.isFile()||stat.size>40*1024*1024)throw Error('40MB 이하의 플러그인만 가져올 수 있습니다.');
-  return sdk().install(await fs.promises.readFile(selected));
+  const bytes=await fs.promises.readFile(selected);
+  if(path.extname(selected).toLowerCase()==='.deckforgeplugin'){
+    const packageData=await DeckForgePlugins.parseDeckForgePackage(bytes);
+    // Preserve the SDK compatibility runtime; independent DeckForge package
+    // metadata and payload have already passed validation.
+    return sdk().install(packageData.archive);
+  }
+  return sdk().install(bytes);
+});
+ipcMain.handle('d200x:deckforge-export-plugin',async event=>{
+  assertEditor(event);
+  const selected=await openRememberedPicker({
+    title:'DeckForge 플러그인 패키지 만들기 · .sdPlugin 폴더 선택',
+    properties:['openDirectory']
+  },'deckforge-plugin-export');
+  if(!selected)return null;
+  const pack=await DeckForgePlugins.packageSdPluginDirectory(selected);
+  const result=await dialog.showSaveDialog(window,{
+    title:'DeckForge 전용 설치 파일 저장',
+    defaultPath:path.join(path.dirname(selected),pack.filename),
+    filters:[{name:'DeckForge 플러그인',extensions:['deckforgePlugin']}]
+  });
+  if(result.canceled||!result.filePath)return null;
+  if(path.extname(result.filePath).toLowerCase()!=='.deckforgeplugin')
+    throw Error('DeckForge 플러그인 설치 파일은 .deckforgePlugin 확장자여야 합니다.');
+  try{
+    await fs.promises.writeFile(result.filePath,pack.archive,{flag:'wx'});
+  }catch(error){
+    if(error.code==='EEXIST')throw Error('같은 이름의 파일이 이미 존재합니다. 원본 파일을 보존하기 위해 덮어쓰지 않았습니다.');
+    throw error;
+  }
+  return {name:pack.meta.plugin.name,version:pack.meta.plugin.version,filePath:result.filePath};
 });
 ipcMain.handle('d200x:sdk-install-folder',async event=>{
   assertEditor(event);
