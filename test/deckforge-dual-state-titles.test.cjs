@@ -151,3 +151,22 @@ test('state card artwork refresh retains the actual palette and number nodes in 
  const newer=node('.newer');replace(host,newer);
  assert.deepEqual(host.childNodes,[newer,palette,number]);
 });
+
+test('native state titles preserve explicit empty state and dynamic sibling after style-only initialization',()=>{
+ const core=require('../app/streamdeck-editor/deck-core.js');
+ const pluginUUID='com.deckforge.native.example.settings',actionUUID=pluginUUID+'.key';
+ const item={type:'sd-plugin',title:'Live value',titleStyle:style,settings:{pluginUUID,actionUUID}};
+ const ctx={item,DEFAULT_TITLE_STYLE:style,DeckCore:core,isMomentaryIconAction:()=>false,sdkPlugins:[{uuid:pluginUUID,runtime:'deckforge-sdk',actions:[{uuid:actionUUID,titlePolicy:{defaultTitle:'Default'}}]}]};
+ vm.runInNewContext(editor.slice(start,end)+';ensureStateTitlePair(item);',ctx);
+ assert.equal(item.settings.nativeTitleAutoStates.first,true);
+ assert.equal(item.settings.nativeTitleAutoStates.second,true);
+ item.settings.stateTitles.first.title='';
+ item.settings.nativeTitleAutoStates.first=false;
+ item.settings.stateTitles.second.enabled=true;
+ const render=second=>vm.runInNewContext(editor.slice(start,end)+';resolveStateTitle(item,'+second+')',ctx);
+ assert.equal(render(false).title,'');
+ assert.equal(render(true).title,'Live value');
+ item.title='Updated';
+ assert.equal(render(true).title,'Updated');
+ assert.equal(render(false).title,'');
+});

@@ -9,14 +9,17 @@ const source=fs.readFileSync(path.join(__dirname,'../app/streamdeck-editor/edito
 const beginning=source.indexOf('function displayItem(item,index,preserveGesture=false){');
 const ending=source.indexOf('const previewPressKeys=new Set();',beginning);
 if(beginning<0||ending<0)throw Error('SDK renderer not found');
-const fn=source.slice(beginning,ending);
+// Include the actual catalogue lookup used by displayItem, not a permissive stub.
+const policyStart=source.indexOf('function nativeTitlePolicyFor(item){'),policyEnd=source.indexOf('function nativeInspectorTitle(item){',policyStart);
+assert.ok(policyStart>=0&&policyEnd>policyStart);
+const fn=source.slice(beginning,ending)+'\n'+source.slice(policyStart,policyEnd);
 const core=require('../app/streamdeck-editor/deck-core.js');
-function render(item,visual,slot=0,clone=false){
+function render(item,visual,slot=0,clone=false,sdkPlugins=[]){
   const actual=clone?JSON.parse(JSON.stringify(item)):item;
   const original=item;
   const map=new Map([['profile:0::'+slot+':down',visual]]);
   return vm.runInNewContext(fn+';displayItem(item,index)',{
-    item:actual,index:slot,
+    item:actual,index:slot,sdkPlugins,
     state:{profileId:'profile',page:0,folderPath:[],selected:2},
     sdkVisuals:map,sdkActionDefaults:new Map(),sdkContext:(i,g)=>'profile:0::'+i+':'+g,
     DeckCore:{...core,visibleActions:()=>[original]},timerDeadlines:new Map()
@@ -444,4 +447,23 @@ test('single HA sensor uses one dedicated edit card with the five standard comma
  assert.equal(background[0][2],'default');
  bind(root,{type:'sd-plugin',settings:{actionUUID:'com.deckforge.native.home-assistant.control'}});
  assert.equal(panel.children.length,1);
+});
+
+test('renderer title policy preserves manual empty title and keeps user artwork on cloned slots',()=>{
+ const pluginUUID='com.deckforge.native.example.settings',actionUUID=pluginUUID+'.key';
+ const plugins=[{uuid:pluginUUID,runtime:'deckforge-sdk',actions:[{uuid:actionUUID,titlePolicy:{defaultTitle:'Default',selectionLabel:'device'}}]}];
+ const item={type:'sd-plugin',title:'',icon:{kind:'file',value:'custom'},settings:{pluginUUID,actionUUID,pluginSettings:{device:'a'}}};
+ const show=(visual)=>render(item,visual,0,true,plugins);
+ assert.equal(show(undefined).title,'Default');
+ assert.equal(show({title:'Live',image:'runtime'}).title,'Live');
+ item.settings.nativeTitleSelection={key:'device',value:'a',label:'Device A'};
+ assert.equal(show({title:'Live'}).title,'Device A');
+ item.settings.pluginSettings.device='b';
+ assert.equal(show({title:'Live'}).title,'Live');
+ item.settings.nativeTitleExplicit=true;
+ const result=show({title:'Live',image:'runtime'});
+ assert.equal(result.title,'');
+ assert.equal(result.icon.value,'custom');
+ assert.equal(item.title,'');
+ assert.equal(render(item,{title:'Legacy'},0,true,[]).title,'Legacy');
 });
