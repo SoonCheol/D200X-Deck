@@ -1216,3 +1216,39 @@ test('native renderer scheduling prevents one plugin from blocking an unrelated 
   assert.equal(calls.some(x=>x[1]==='a3'),false);
  }finally{release.forEach(fn=>fn());host.close();}
 });
+
+test('SDK network quotas reserve capacity for another plugin and return bounded failure',async()=>{
+ const calls=[],requests=[];
+ const endpoint={id:'status',url:'https://example.com/status',method:'GET'};
+ const manifest={...scriptManifest,permissions:['display','network.request'],networkEndpoints:[endpoint]};
+ const otherId=nativeId+'-net',other={...manifest,id:otherId,actions:[{...manifest.actions[0],id:otherId+'.toggle'}]};
+ const host=new NativePluginHost('/unused',()=>{},()=>({async run(_source,input){
+   if(input.event.type==='press')return {ops:[{op:'networkRequest',endpoint:'status',body:null}],memory:{}};
+   if(input.event.type==='networkResult')calls.push([input.settings.label,input.event.response]);
+   return {ops:[],memory:{}};
+ },close(){}}),{networkRequest:(e,b,signal)=>new Promise(resolve=>requests.push({resolve,signal}))});
+ const cfg=(context,id)=>({context,slot:0,pluginUUID:id,actionUUID:id+'.toggle',settings:{label:context}});
+ const flush=()=>new Promise(resolve=>setImmediate(resolve));
+ try{
+   const entries=[cfg('a1',nativeId),cfg('a2',nativeId),cfg('a3',nativeId),cfg('b1',otherId)];
+   host.sync(entries,[manifest,other]);
+   await Promise.all([...host.contexts.values()].map(c=>c.queue));
+   for(const entry of entries){host.key(entry.context,'down');await host.contexts.get(entry.context).queue;await flush();}
+   await host.contexts.get('a3').queue;
+   assert.equal(requests.length,3);assert.equal(host.networkPending.size,3);
+   assert.deepEqual(calls,[['a3',{endpoint:'status',ok:false,status:0,body:'',error:'capacity'}]]);
+   requests[2].resolve({endpoint:'status',ok:true,status:200,body:'ok',error:null});
+   await flush();await host.contexts.get('b1').queue;
+   assert.equal(calls.at(-1)[0],'b1');assert.equal(calls.at(-1)[1].body,'ok');
+   host.sync([], [manifest,other]);assert.ok(requests.slice(0,2).every(r=>r.signal.aborted));
+ }finally{requests.forEach(r=>r.resolve({endpoint:'status',ok:false,status:0,body:'',error:'cancelled'}));host.close();}
+});
+test('SDK transport result boundary rejects malformed, unbounded and credential-bearing responses',()=>{
+ const {normalizeNetworkResult}=require('../app/streamdeck-editor/deckforge-native-network.cjs');
+ const endpoint={id:'status'},valid={endpoint:'status',ok:true,status:200,body:'ready',error:null};
+ assert.deepEqual(normalizeNetworkResult(endpoint,valid),valid);
+ for(const result of [null,{...valid,extra:'secret'},{...valid,body:'x'.repeat(9000)},{...valid,endpoint:'other'},{...valid,status:302}])
+   assert.equal(normalizeNetworkResult(endpoint,result).error,'invalid-response');
+ assert.equal(normalizeNetworkResult(endpoint,{...valid,body:'Bearer sample'},'sample').error,'credential-in-response');
+ assert.deepEqual(normalizeNetworkResult(endpoint,{...valid,ok:false,error:'private details',body:'hidden'}),{endpoint:'status',ok:false,status:200,body:'',error:'connection-error'});
+});

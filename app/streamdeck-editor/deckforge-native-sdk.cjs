@@ -9,14 +9,14 @@ const {NativeVersionStore,assertAppRequirement}=require('./deckforge-native-vers
 const {validateDependencies,resolveDependencies,assertDependencyChange}=require('./deckforge-native-dependencies.cjs');
 const {validateWideOverlay}=require('./deckforge-native-wide.cjs');
 const {validateNativeSettingsSchema,nativeEffectiveSettings}=require('./deck-core.js');
-const {validateNetworkEndpoints,validateNetworkRequest,requestEndpoint,networkFailure,credentialBinding,validBearer}=require('./deckforge-native-network.cjs');
+const {validateNetworkEndpoints,validateNetworkRequest,requestEndpoint,networkFailure,normalizeNetworkResult,credentialBinding,validBearer}=require('./deckforge-native-network.cjs');
 const APP_VERSION=require('./package.json').version;
 const SUFFIX='.deckforge-native.json', LIMIT=1024*1024;
 const ID=/^com\.deckforge\.native\.[a-z0-9][a-z0-9.-]{0,110}$/;
 const EVENTS=new Set(['appear','disappear','settings','press','release','rotateLeft','rotateRight','heldRotateLeft','heldRotateRight']);
 const OPS=new Set(['title','titleFromSetting','state','toggleState','image']);
 const EXTRA_PERMISSIONS=['settings.write','navigation','wide.mode','global.settings','wide.overlay','network.request','timer.tick','network.poll'];
-const MAX_PENDING_EVENTS=64,INPUT_RESERVE=4;
+const MAX_PENDING_EVENTS=64,INPUT_RESERVE=4,MAX_NETWORK_GLOBAL=8,MAX_NETWORK_PLUGIN=2;
 const INPUT_EVENTS=new Set(['press','release','rotateLeft','rotateRight','heldRotateLeft','heldRotateRight']);
 const obj=x=>x!==null&&typeof x==='object'&&!Array.isArray(x);
 const validText=(x,n)=>typeof x==='string'&&x.length>0&&x.length<=n;
@@ -284,11 +284,18 @@ class NativePluginHost{
   }
   startNetwork(ctx,operation,active){
     const endpoint=validateNetworkRequest(operation,ctx.networkEndpoints);
-    if(ctx.networkToken||this.networkPending.size>=8){
+    if(ctx.networkToken){
+      // An existing context request retains its single result contract.
       this.report(ctx.pluginUUID,Error('network request busy'));return;
     }
+    const pluginPending=[...this.networkPending].filter(t=>t.plugin===ctx.pluginUUID).length;
+    if(this.networkPending.size>=MAX_NETWORK_GLOBAL||pluginPending>=MAX_NETWORK_PLUGIN){
+      this.report(ctx.pluginUUID,Error('network request capacity'));
+      if(active())this.runScript(ctx,'networkResult',networkFailure(endpoint.id,'capacity'),JSON.stringify(ctx.settings));
+      return;
+    }
     const binding=endpoint.auth==='bearer'?credentialBinding(ctx.pluginUUID,endpoint):null;
-    const controller=new AbortController(),token={controller,binding};
+    const controller=new AbortController(),token={controller,binding,plugin:ctx.pluginUUID};
     const settings=JSON.stringify(ctx.settings);
     ctx.networkToken=token;this.networkPending.add(token);
     Promise.resolve().then(async()=>{
@@ -301,7 +308,7 @@ class NativePluginHost{
         if(!validBearer(bearer))return networkFailure(endpoint.id,'credential-required');
         if(this.credentialChanges.has(binding)||!active()||controller.signal.aborted)return networkFailure(endpoint.id,'cancelled');
       }
-      return this.networkRequest(endpoint,operation.body,controller.signal,{bearer});
+      return normalizeNetworkResult(endpoint,await this.networkRequest(endpoint,operation.body,controller.signal,{bearer}),bearer);
     }).catch(()=>networkFailure(endpoint.id,'connection-error')).then(result=>{
       if(!active()||ctx.networkToken!==token||controller.signal.aborted)return;
       ctx.networkToken=null;

@@ -38,6 +38,19 @@ function credentialBinding(pluginId,endpoint){
 }
 function validBearer(token){return typeof token==='string'&&token.length>=1&&token.length<=4096&&/^[A-Za-z0-9._~+/-]+=*$/.test(token);}
 function networkFailure(endpoint,error,status=0){return {endpoint,ok:false,status,body:'',error};}
+// Do not forward arbitrary fields or transport/adapter error messages to
+// plugin code. Keep a single bounded response contract at the host boundary.
+const RESULT_ERRORS=new Set(['cancelled','timeout','credential-required','credential-not-approved','credential-in-response','redirect-denied','http-error','unsupported-response','response-limit','response-error','connection-error','credential-update-busy','credential-unavailable','capacity','invalid-response']);
+function normalizeNetworkResult(endpoint,result,bearer=null){
+  if(!exact(result,['endpoint','ok','status','body','error'])||result.endpoint!==endpoint.id||
+     typeof result.ok!=='boolean'||!Number.isInteger(result.status)||result.status<0||result.status>599||
+     typeof result.body!=='string'||Buffer.byteLength(JSON.stringify(result.body))>MAX_RESPONSE)
+    return networkFailure(endpoint.id,'invalid-response');
+  if(!result.ok)return networkFailure(endpoint.id,RESULT_ERRORS.has(result.error)?result.error:'connection-error',result.status);
+  if(result.status<200||result.status>=300||result.error!==null)return networkFailure(endpoint.id,'invalid-response');
+  if(bearer!==null&&result.body.includes(bearer))return networkFailure(endpoint.id,'credential-in-response',result.status);
+  return {endpoint:endpoint.id,ok:true,status:result.status,body:result.body,error:null};
+}
 function requestEndpoint(endpoint,body,signal,{request=https.request,deadline=DEADLINE,bearer=null}={}){
   return new Promise(resolve=>{
     let req,timer,done=false;
@@ -88,4 +101,4 @@ function requestEndpoint(endpoint,body,signal,{request=https.request,deadline=DE
     }catch{fail('connection-error');req?.destroy();}
   });
 }
-module.exports={validateNetworkEndpoints,validateNetworkRequest,requestEndpoint,networkFailure,credentialBinding,validBearer};
+module.exports={validateNetworkEndpoints,validateNetworkRequest,requestEndpoint,networkFailure,normalizeNetworkResult,credentialBinding,validBearer};
