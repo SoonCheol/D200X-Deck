@@ -199,3 +199,52 @@ test('SDK privileged operations require explicit permission and physical input; 
   assert.doesNotThrow(()=>validateNativeManifest({...scriptManifest,permissions:ctx.permissions}));
   assert.throws(()=>validateNativeManifest({...nativeManifest,permissions:ctx.permissions}),/permissions/);
 });
+
+
+test('native global settings vault rejects stale revisions and unreadable data; isolates plugin identity',async()=>{
+  const {NativeSettingsVault}=require('../app/streamdeck-editor/deckforge-native-settings.cjs');
+  const temp=await fs.mkdtemp(path.join(os.tmpdir(),'deckforge-vault-'));
+  // Test adapter only, not a cryptography implementation.
+  const store={isAsyncEncryptionAvailable:async()=>true,
+    encryptStringAsync:async value=>Buffer.from('mock:'+Buffer.from(value).toString('base64')),
+    decryptStringAsync:async bytes=>({result:Buffer.from(bytes.toString().slice(5),'base64').toString()})};
+  try{
+    const vault=new NativeSettingsVault(temp,store),other=nativeId+'-other';
+    assert.deepEqual(await vault.read(nativeId),{value:{},revision:null});
+    assert.equal(await vault.write(nativeId,{token:'demo'},null),true);
+    assert.equal(await vault.write(nativeId,{token:'stale'},null),false);
+    const current=await vault.read(nativeId);
+    assert.deepEqual(current.value,{token:'demo'});
+    assert.equal(await vault.write(nativeId,{token:'no'},current.revision,()=>false),false);
+    assert.equal(await vault.write(nativeId,{token:'new'},current.revision),true);
+    assert.deepEqual((await vault.read(other)).value,{});
+    await fs.copyFile(vault.file(nativeId),vault.file(other));
+    await assert.rejects(vault.read(other),/read failed/);
+    await assert.rejects(vault.write(other,{},null),/read failed/);
+    await assert.rejects(vault.write(nativeId,JSON.parse('{"__proto__":1}'),null),/invalid global settings/);
+  }finally{await fs.rm(temp,{recursive:true,force:true});}
+});
+test('native runtime recovery is bounded and never replays failed user input',async()=>{
+  const calls=[];let failures=0;
+  const host=new NativePluginHost('/unused',()=>{},()=>({
+    async run(_source,input){
+      calls.push(input.event.type);
+      if(input.event.type==='press'||(input.event.type==='appear'&&failures>0)){
+        failures++;const error=Error('renderer unavailable');error.code='SDK_RUNTIME_UNAVAILABLE';throw error;
+      }
+      return {ops:[],memory:{}};
+    },close(){}
+  }),{recoveryDelay:[5,5]});
+  try{
+    host.sync([{context:'a',slot:0,pluginUUID:nativeId,actionUUID:nativeId+'.toggle'}],[scriptManifest]);
+    const ctx=host.contexts.get('a');await ctx.queue;
+    host.key('a','down');await ctx.queue;
+    const until=Date.now()+1500;
+    while(ctx.recoveryAttempts<2||ctx.recoveryTimer||ctx.pending) {
+      if(Date.now()>until)throw Error('recovery did not settle');
+      await new Promise(r=>setTimeout(r,10));
+    }
+    assert.deepEqual(calls,['appear','press','appear','appear']);
+    assert.equal(ctx.failed,true);assert.equal(host.key('a','down'),false);
+  }finally{host.close();}
+});

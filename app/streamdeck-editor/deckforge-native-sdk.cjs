@@ -3,11 +3,12 @@
 const fs=require('node:fs/promises');
 const path=require('node:path');
 const {randomUUID}=require('node:crypto');
+const {NativeSettingsVault,validateValue}=require('./deckforge-native-settings.cjs');
 const SUFFIX='.deckforge-native.json', LIMIT=1024*1024;
 const ID=/^com\.deckforge\.native\.[a-z0-9][a-z0-9.-]{0,110}$/;
 const EVENTS=new Set(['appear','disappear','settings','press','release','rotateLeft','rotateRight','heldRotateLeft','heldRotateRight']);
 const OPS=new Set(['title','titleFromSetting','state','toggleState','image']);
-const EXTRA_PERMISSIONS=['settings.write','navigation','wide.mode'];
+const EXTRA_PERMISSIONS=['settings.write','navigation','wide.mode','global.settings'];
 const INPUT_EVENTS=new Set(['press','release','rotateLeft','rotateRight','heldRotateLeft','heldRotateRight']);
 const obj=x=>x!==null&&typeof x==='object'&&!Array.isArray(x);
 const validText=(x,n)=>typeof x==='string'&&x.length>0&&x.length<=n;
@@ -64,9 +65,15 @@ function catalog(m){return {uuid:m.id,name:m.name,version:m.version,runtime:'dec
   actions:m.actions.map(a=>({uuid:a.id,name:a.name,states:a.states,controllers:a.controllers,
     propertyInspectorPath:'',defaultImages:{off:null,on:null}}))};}
 class NativePluginHost{
-  constructor(userData,onUpdate=()=>{},runnerFactory=id=>require('./deckforge-js-runtime.cjs').createScriptRunner(id)){
+  constructor(userData,onUpdate=()=>{},runnerFactory=id=>require('./deckforge-js-runtime.cjs').createScriptRunner(id),options={}){
     this.root=path.join(userData,'Plugins');this.onUpdate=onUpdate;
     this.contexts=new Map();this.suspended=false;this.closed=false;this.runnerFactory=runnerFactory;this.retired=new Set();
+    this.vault=options.vault||new NativeSettingsVault(userData,options.storage||{
+      isAsyncEncryptionAvailable:()=>require('electron').safeStorage.isAsyncEncryptionAvailable(),
+      encryptStringAsync:value=>require('electron').safeStorage.encryptStringAsync(value),
+      decryptStringAsync:value=>require('electron').safeStorage.decryptStringAsync(value)
+    });
+    this.recoveryDelay=options.recoveryDelay||[1000,3000];
   }
   async manifests(){
     await fs.mkdir(this.root,{recursive:true});const items=[];
@@ -111,6 +118,9 @@ class NativePluginHost{
           return v===null||['string','boolean','number'].includes(typeof v);
         };
         check(valid(op.value),'unsafe settings keys');
+      }else if(op?.op==='globalSettings'){
+        check(ctx.permissions.includes('global.settings')&&exact(op,['op','value']),'unauthorized global settings');
+        validateValue(op.value);
       }else if(op?.op==='navigate'){
         check(ctx.permissions.includes('navigation')&&exact(op,['op','target','value']),'unauthorized navigation');
         const {target,value}=op;
@@ -143,12 +153,28 @@ class NativePluginHost{
       }
   }
   resetScript(ctx){
+    clearTimeout(ctx.recoveryTimer);ctx.recoveryTimer=null;
     ctx.epoch=(ctx.epoch||0)+1;
     try{ctx.runner?.close();}catch{}
     ctx.runner=null;ctx.pending=0;ctx.queue=Promise.resolve();
   }
   fail(ctx,error){
-    ctx.failed=true;ctx.pressed=false;this.resetScript(ctx);this.report(ctx.pluginUUID,error);
+    ctx.failed=true;ctx.pressed=false;this.resetScript(ctx);
+    // Plugin exceptions may contain credentials; do not forward their text.
+    const recoverable=ctx.apiVersion===2&&error?.code==='SDK_RUNTIME_UNAVAILABLE';
+    this.report(ctx.pluginUUID,Error(recoverable?'runtime unavailable':'action stopped (execution or validation failure)'));
+    const attempt=ctx.recoveryAttempts||0;
+    if(!recoverable||this.closed||this.suspended||attempt>=this.recoveryDelay.length)return;
+    ctx.recoveryAttempts=attempt+1;
+    const epoch=ctx.epoch;
+    ctx.recoveryTimer=setTimeout(()=>{
+      ctx.recoveryTimer=null;
+      if(this.closed||this.suspended||ctx.epoch!==epoch||this.contexts.get(ctx.context)!==ctx)return;
+      ctx.failed=false;ctx.pressed=false;ctx.memory={};
+      // Only initialize a new instance: never replay a press or write.
+      this.run(ctx,'appear');
+    },this.recoveryDelay[attempt]);
+    ctx.recoveryTimer.unref?.();
   }
   runScript(ctx,event){
     if(ctx.pending>=16){this.fail(ctx,Error('JavaScript SDK event queue limit'));return false;}
@@ -158,20 +184,35 @@ class NativePluginHost{
     ctx.queue=ctx.queue.then(async()=>{
       if(!active())return;
       try{
+        const global=ctx.permissions.includes('global.settings')?
+          await this.vault.read(ctx.pluginUUID):{value:{},revision:null};
+        if(!active())return;
+        const settingsSnapshot=ctx.settings;
         if(!ctx.runner)ctx.runner=this.runnerFactory(ctx.pluginUUID);
         const result=await ctx.runner.run(ctx.action.script,{
           event:{type:event,slot:ctx.slot,gesture:ctx.gesture||'down'},
-          settings:ctx.settings,state:ctx.state,memory:ctx.memory
+          settings:settingsSnapshot,state:ctx.state,memory:ctx.memory,globalSettings:global.value
         });
         if(!active())return;
         check(exact(result,['ops','memory'])&&obj(result.memory)&&
           Buffer.byteLength(JSON.stringify(result.memory))<=8192,'invalid JavaScript memory');
         const {normal,effects}=this.validateScriptOps(ctx,event,result.ops);
+        for(const operation of effects){
+          if(operation.op==='globalSettings'){
+            const saved=await this.vault.write(ctx.pluginUUID,operation.value,global.revision,active);
+            if(!active())return;
+            if(!saved){this.report(ctx.pluginUUID,Error('global settings conflict; write rejected'));return;}
+            // Other active actions of the same plugin will read the new value.
+            for(const other of this.contexts.values())if(other.pluginUUID===ctx.pluginUUID&&other.permissions.includes('global.settings'))
+              this.run(other,'settings');
+          }
+        }
+        if(!active())return;
         ctx.memory=result.memory;
         this.applyOps(ctx,normal);
-        for(const operation of effects)this.onUpdate({kind:'nativeEffect',context:ctx.context,
+        for(const operation of effects)if(operation.op!=='globalSettings')this.onUpdate({kind:'nativeEffect',context:ctx.context,
           pluginUUID:ctx.pluginUUID,actionUUID:ctx.action.id,operation,
-          expectedSettings:operation.op==='settings'?ctx.settings:undefined});
+          expectedSettings:operation.op==='settings'?settingsSnapshot:undefined});
       }catch(error){if(active())this.fail(ctx,error);}
     }).finally(()=>{if(ctx.epoch===epoch)ctx.pending--;});
     return true; // accepted for dispatch; not a claim of completed execution
@@ -211,7 +252,7 @@ class NativePluginHost{
       if(!ctx||ctx.pluginUUID!==cfg.pluginUUID||ctx.action.id!==a.id||ctx.signature!==signature||ctx.slot!==cfg.slot||ctx.gesture!==cfg.gesture){
         if(ctx)this.retire(ctx);
         ctx={...cfg,action:a,apiVersion:plugin.apiVersion,permissions:[...plugin.permissions],signature,settings:incoming,state:0,pressed:false,failed:false,
-          epoch:0,pending:0,queue:Promise.resolve(),runner:null,memory:{}};
+          epoch:0,pending:0,queue:Promise.resolve(),runner:null,memory:{},recoveryAttempts:0,recoveryTimer:null};
         this.contexts.set(cfg.context,ctx);this.run(ctx,'appear');
       }else{
         const changed=JSON.stringify(ctx.settings)!==JSON.stringify(incoming);
@@ -233,7 +274,7 @@ class NativePluginHost{
   }
   closeRetired(){for(const runner of this.retired)runner.close();this.retired.clear();}
   suspend(){this.suspended=true;this.closeRetired();for(const ctx of this.contexts.values()){ctx.pressed=false;this.resetScript(ctx);}}
-  resume(){if(this.closed)return;this.suspended=false;for(const ctx of this.contexts.values()){ctx.failed=false;this.run(ctx,'appear');}}
+  resume(){if(this.closed)return;this.suspended=false;for(const ctx of this.contexts.values()){ctx.failed=false;ctx.recoveryAttempts=0;this.run(ctx,'appear');}}
   close(){this.closed=true;this.closeRetired();for(const ctx of this.contexts.values())this.resetScript(ctx);this.contexts.clear();}
 }
 // Compatibility host stays unchanged; only validated native IDs are routed here.

@@ -3,6 +3,12 @@
 > 기록일: 2026-11-24 · 상태: **패키지 v1 유지 / 독자 SDK API 1·2 및 패키지 v2 / Ulanzi 변환기 미구현**
 > 저장소·브랜치: `SoonCheol/D200X-Deck` / `codex/streamdeck-761-clean-editor`
 
+## 0.3 암호화 전역 설정 및 제한 복구 (1.1.115)
+
+- `global.settings` 선택 권한: `api.getGlobalSettings()`, `api.setGlobalSettings(object)`. 현재 플러그인 범위의 8KiB JSON 객체만 허용. 암호화는 [Electron safeStorage 비동기 API](https://www.electronjs.org/docs/latest/api/safe-storage) 사용. 별도 NativeSettings 폴더, ID 결합, 원자적 교체, 이전 revision 확인, 읽기 실패 시 기존 데이터 보존. 평문 대체 저장 금지. 설정은 프로필 백업에 포함하지 않는다. 같은 플러그인의 활성 컨텍스트에 settings 이벤트를 보낸다. 플러그인 스크립트는 자신의 전역 설정을 읽을 수 있으므로 신뢰한 플러그인만 설치; 비밀 전용 입력 UI 및 네트워크 요청 API는 후속.
+- 렌더러 초기화 실패/종료/실행 시간 초과는 1초, 3초 간격 최대 2회 재생성. appear만 실행, 실패한 press/쓰기 재실행 금지. 코드/권한 검증 실패는 즉시 해당 컨텍스트 중단. 페이지 이동/종료/절전 시 예약 취소. 예외 상세에 인증정보가 있을 수 있어 실행 오류 상세를 편집기 로그에 전달하지 않는다.
+- 현재 SDK 동작은 자동 테스트와 Windows 실제 Electron 실행 확인을 분리한다. 기존 Stream Deck 저장 파일/플러그인은 변경하지 않는다.
+
 ## 0.2 API 2 권한 확장 (1.1.114)
 
 - 공식 참고: [Ulanzi JS SDK 3.1.0](https://github.com/UlanziTechnology/plugin-common-node) (설정 및 held rotation), [Ulanzi D200X SDK](https://github.com/UlanziTechnology/UlanziDeckPlugin-SDK) (encoder layout), [Elgato settings](https://docs.elgato.com/streamdeck/sdk/guides/settings/), [profiles](https://docs.elgato.com/streamdeck/sdk/guides/profiles/), [OpenDeck](https://github.com/nekename/OpenDeck) (이중 SDK 지원 사례; GPL 코드 복사 없음).

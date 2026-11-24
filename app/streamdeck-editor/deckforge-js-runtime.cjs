@@ -7,10 +7,11 @@ const HTML='<!doctype html><meta charset="utf-8"><meta http-equiv="Content-Secur
 const PAGE='data:text/html;charset=utf-8,'+encodeURIComponent(HTML);
 const configured=new WeakSet();
 const MAX_OUTPUT=512*1024, MAX_INPUT=64*1024;
+function unavailable(message){const error=Error(message);error.code='SDK_RUNTIME_UNAVAILABLE';return error;}
 function deadline(work,ms,onTimeout){
   let timer;
   return Promise.race([Promise.resolve().then(work),new Promise((_,reject)=>{
-    timer=setTimeout(()=>{try{onTimeout();}finally{reject(Error('JavaScript SDK execution timeout'));}},ms);
+    timer=setTimeout(()=>{try{onTimeout();}finally{reject(unavailable('JavaScript SDK execution timeout'));}},ms);
   })]).finally(()=>clearTimeout(timer));
 }
 // This function is serialized into the isolated renderer. It cannot close over Node.
@@ -24,6 +25,8 @@ function runProgram(source,input){
     toggleState:()=>append({op:'toggleState'}),
     setImage:value=>append({op:'image',value}),
     setSettings:value=>append({op:'settings',value}),
+    getGlobalSettings:()=>input.globalSettings||{},
+    setGlobalSettings:value=>append({op:'globalSettings',value}),
     goToPage:value=>append({op:'navigate',target:'page',value}),
     switchProfile:value=>append({op:'navigate',target:'profile',value}),
     enterFolder:value=>append({op:'navigate',target:'folder',value}),
@@ -69,19 +72,21 @@ function createScriptRunner(pluginId){
   let closed=false;
   const close=()=>{closed=true;if(!win.isDestroyed())win.destroy();};
   wc.on('render-process-gone',close);
-  const ready=deadline(()=>win.loadURL(PAGE),10000,close);
+  const ready=deadline(()=>win.loadURL(PAGE),10000,close).catch(()=>{close();throw unavailable('JavaScript SDK initialization failed');});
   // Handle rejected initialization even if the owner disappears before run().
   ready.catch(()=>{});
   return {
     async run(source,input){
-      if(closed)throw Error('JavaScript SDK renderer closed');
+      if(closed)throw unavailable('JavaScript SDK renderer closed');
       const data=JSON.stringify(input);
       if(Buffer.byteLength(data)>MAX_INPUT)throw Error('JavaScript SDK input limit');
       await ready;
-      if(closed)throw Error('JavaScript SDK renderer closed');
+      if(closed)throw unavailable('JavaScript SDK renderer closed');
       // Source and input are JSON string literals; no interpolation as executable source.
       const expression='('+runProgram.toString()+')('+JSON.stringify(source)+',JSON.parse('+JSON.stringify(data)+'))';
-      const out=await deadline(()=>wc.executeJavaScript(expression,false),1500,close);
+      let out;
+      try{out=await deadline(()=>wc.executeJavaScript(expression,false),1500,close);}
+      catch(error){if(closed)throw unavailable(error?.code==='SDK_RUNTIME_UNAVAILABLE'?'JavaScript SDK execution timeout':'JavaScript SDK renderer unavailable');throw error;}
       if(typeof out!=='string'||Buffer.byteLength(out)>MAX_OUTPUT)throw Error('JavaScript SDK output limit');
       return JSON.parse(out);
     },

@@ -164,7 +164,7 @@ ipcMain.handle('d200x:sdk-install',async event=>{
     // metadata and payload have already passed validation.
     if(packageData.native){
       const native=packageData.native;
-      const labels={'settings.write':'현재 버튼 설정 저장','navigation':'프로필·페이지·덱폴더 이동','wide.mode':'와이드 화면 모드 전환'};
+      const labels={'settings.write':'현재 버튼 설정 저장','navigation':'프로필·페이지·덱폴더 이동','wide.mode':'와이드 화면 모드 전환','global.settings':'플러그인 전역 암호화 설정 읽기·쓰기'};
       const extra=native.permissions.filter(p=>p!=='display');
       if(extra.length){
         const result=await dialog.showMessageBox(window,{
