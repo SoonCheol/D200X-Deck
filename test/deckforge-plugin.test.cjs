@@ -702,6 +702,99 @@ test('native WSS heartbeat timeout closes transport without unbounded retries',a
  }finally{host.close();}
 });
 
+test('native HTTPS and HA WSS use real loopback TLS, reject untrusted certificates and keep tokens in host',{timeout:15000},async()=>{
+ const https=require('node:https');
+ const {once}=require('node:events');
+ const {WebSocket,WebSocketServer}=require('../app/node_modules/ws');
+ const {validateNetworkEndpoints,validateNetworkRequest,resolveNetworkEndpoint,requestEndpoint,createSocket}=require('../app/streamdeck-editor/deckforge-native-network.cjs');
+ // TEST-ONLY public fixture identity. Never use this private key or trust
+ // anchor outside this single loopback test; it is intentionally public.
+ const key=`-----BEGIN PRIVATE KEY-----
+MIGHAgEAMBMGByqGSM49AgEGCCqGSM49AwEHBG0wawIBAQQgGOTTXaaPu1kpTwgj
+284iiR1Cu8Gg+oGaIfG6NFEpEvKhRANCAASNneqmjFYG4wXVgG3VY9qKho0Rdc9t
+XTj1CfiTnHgSGMDHXlxbWj8z333pMB2BNH+20QCfcBAJg8lAzD4DDcf9
+-----END PRIVATE KEY-----`;
+ const cert=`-----BEGIN CERTIFICATE-----
+MIIBbTCCAROgAwIBAgIUVhcFqjqyv/hFNu4+oAHFAphMCq4wCgYIKoZIzj0EAwIw
+HjEcMBoGA1UEAwwTRGVja0ZvcmdlIHRlc3Qgb25seTAeFw0yMDAxMDEwMDAwMDBa
+Fw00MDAxMDEwMDAwMDBaMB4xHDAaBgNVBAMME0RlY2tGb3JnZSB0ZXN0IG9ubHkw
+WTATBgcqhkjOPQIBBggqhkjOPQMBBwNCAASNneqmjFYG4wXVgG3VY9qKho0Rdc9t
+XTj1CfiTnHgSGMDHXlxbWj8z333pMB2BNH+20QCfcBAJg8lAzD4DDcf9oy8wLTAa
+BgNVHREEEzARhwR/AAABgglsb2NhbGhvc3QwDwYDVR0TAQH/BAUwAwEB/zAKBggq
+hkjOPQQDAgNIADBFAiEAjn2Li/1ZDV7CAQ3OsI6UewIGLZMQHBSKE8vhqUjhQGoC
+ICK4rG79B7PmPEgFai/KKbWsiufMAf+LK9jg5K/yxkZH
+-----END CERTIFICATE-----`;
+ const secret='loopback.fixture-token',requests=[],frames=[],inputs=[],updates=[];
+ const server=https.createServer({key,cert},(req,res)=>{
+   let body='';req.setEncoding('utf8');req.on('data',s=>body+=s);req.on('end',()=>{
+     requests.push({method:req.method,url:req.url,headers:req.headers,body});
+     if(req.url==='/redirect'){res.writeHead(302,{location:'/unapproved'});res.end();return;}
+     res.writeHead(200,{'content-type':'application/json'});res.end('{"ok":true}');
+   });
+ });
+ const wss=new WebSocketServer({server,path:'/api/websocket'});
+ wss.on('connection',(socket,req)=>{
+   socket.on('error',()=>{});
+   frames.push({upgradeAuth:req.headers.authorization||null});
+   socket.send('{"type":"auth_required"}');
+   socket.on('message',bytes=>{
+     let frame;try{frame=JSON.parse(bytes.toString());}catch{socket.close();return;}
+     frames.push(frame);
+     if(frame.type==='auth'){
+       socket.send(JSON.stringify({type:frame.access_token===secret?'auth_ok':'auth_invalid'}));return;
+     }
+     if(frame.type==='subscribe_events')socket.send(JSON.stringify({type:'event',id:frame.id,event:{state:'on'}}));
+   });
+ });
+ let host;
+ try{
+   server.listen(0,'127.0.0.1');await once(server,'listening');
+   const address='127.0.0.1:'+server.address().port;
+   const http={id:'entity',method:'PATCH',url:'https://'+address+'/states/',auth:'bearer',pathKeys:['id'],queryKeys:['view'],headerKeys:['if-match']};
+   const ws={id:'live',method:'WSS',url:'wss://'+address+'/api/websocket',auth:'home-assistant'};
+   const permissions=['display','network.request','network.websocket'];
+   validateNetworkEndpoints([http,ws],permissions);
+   const op={op:'networkRequest',endpoint:'entity',body:{state:'on'},query:{view:'full'},options:{path:{id:'light.kitchen'},headers:{'if-match':'revision'}}};
+   validateNetworkRequest(op,[http]);
+   const resolved=resolveNetworkEndpoint(http,op.query,op.options);
+   assert.equal((await requestEndpoint(resolved,op.body,undefined,{bearer:secret})).ok,false);
+   assert.equal(requests.length,0);
+   const request=(url,opts,cb)=>https.request(url,{...opts,ca:cert},cb);
+   const result=await requestEndpoint(resolved,op.body,undefined,{bearer:secret,request});
+   assert.deepEqual(result,{endpoint:'entity',ok:true,status:200,body:'{"ok":true}',error:null});
+   assert.equal(requests[0].method,'PATCH');assert.equal(requests[0].url,'/states/light.kitchen?view=full');
+   assert.equal(requests[0].headers.authorization,'Bearer '+secret);assert.equal(requests[0].headers['if-match'],'revision');
+   assert.equal(requests[0].body,JSON.stringify(op.body));
+   const redirect={id:'redirect',method:'GET',url:'https://'+address+'/redirect'};
+   assert.equal((await requestEndpoint(redirect,null,undefined,{request})).error,'redirect-denied');
+   assert.equal(requests.some(r=>r.url==='/unapproved'),false);
+   const rejected=createSocket(ws,{bearer:secret});
+   await once(rejected,'error');assert.equal(frames.length,0);
+   class TrustedTestSocket extends WebSocket{constructor(url,opts){super(url,{...opts,ca:cert});}}
+   const m={...scriptManifest,permissions,networkEndpoints:[http,ws]};
+   host=new NativePluginHost('/unused',e=>updates.push(e),()=>({async run(_src,input){
+     inputs.push(input);
+     if(input.event.type==='appear')return {ops:[{op:'socketConnect',endpoint:'live'}],memory:{}};
+     if(input.event.response?.event==='open')return {ops:[{op:'socketSend',value:{id:1,type:'subscribe_events'}}],memory:{}};
+     if(input.event.response?.event==='message')return {ops:[{op:'title',value:JSON.parse(input.event.response.body).event.state}],memory:{}};
+     return {ops:[],memory:{}};
+   },close(){}}),{credentials:{async read(){return {value:{token:secret},revision:null};}},socketFactory:(e,opts)=>createSocket(e,{...opts,WebSocket:TrustedTestSocket})});
+   const cfg={context:'real-tls',slot:0,pluginUUID:nativeId,actionUUID:nativeId+'.toggle',settings:{}};
+   host.sync([cfg],[m]);
+   const until=Date.now()+4000;
+   while(!updates.some(e=>e.payload?.title==='on')&&Date.now()<until)await new Promise(r=>setTimeout(r,10));
+   assert.ok(updates.some(e=>e.payload?.title==='on'),'authenticated WSS event did not reach the native action');
+   assert.deepEqual(frames,[{upgradeAuth:null},{type:'auth',access_token:secret},{id:1,type:'subscribe_events'}]);
+   assert.equal(JSON.stringify(inputs).includes(secret),false);assert.equal(JSON.stringify(updates).includes(secret),false);
+   host.sync([],[m]);assert.equal(host.socketPending.size,0);
+ }finally{
+   host?.close();
+   for(const socket of wss.clients)socket.terminate();
+   await new Promise(resolve=>wss.close(resolve));
+   await new Promise(resolve=>server.close(resolve));
+ }
+});
+
 test('native HTTPS broker bounds response, denies redirects, times out and uses verified TLS',async()=>{
  const {EventEmitter}=require('node:events');
  const {requestEndpoint}=require('../app/streamdeck-editor/deckforge-native-network.cjs');
