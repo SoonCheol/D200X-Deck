@@ -4,7 +4,7 @@
 const { EventEmitter } = require('node:events');
 const { createHash } = require('node:crypto');
 const { Deck } = require('../lib/deck');
-const { buildPage } = require('../lib/page');
+const { buildPage, buildKeyUpdate, COLUMNS, WIDE_INDEX } = require('../lib/page');
 const { PROTO } = require('../lib/protocol');
 
 const KEEPALIVE_MS = 5000;
@@ -18,6 +18,7 @@ const IMAGE_MODE_PAYLOAD = Buffer.from('2|0|0|00:00:00|0', 'ascii');
 // Only a complete page is eligible for the bounded ZIP cache. It is a
 // compression cache, not an acknowledgement or proof of device display.
 const MAX_PAGE_CACHE_BYTES=8*1024*1024;
+const MAX_INCREMENTAL_WRITES=16;
 function fullPageSignature(images,mode){
   if(!Array.isArray(images)||images.length!==14)return null;
   const seen=new Set(),slots=[];
@@ -28,11 +29,26 @@ function fullPageSignature(images,mode){
   }
   return JSON.stringify([mode,slots]);
 }
+// Never infer eligibility from bitmap equality alone: only a caller-confirmed
+// live update on an established PAGE can be considered. The production
+// caller does not opt in until the firmware behavior is verified.
+function singleChangedKey(previous,next){
+  if(!previous||!next)return null;
+  const [oldMode,oldSlots]=JSON.parse(previous),[newMode,newSlots]=JSON.parse(next);
+  if(oldMode!=='blank'||newMode!==oldMode||oldSlots[WIDE_INDEX]!==newSlots[WIDE_INDEX])return null;
+  const changed=newSlots.map((v,i)=>v!==oldSlots[i]?i:-1).filter(i=>i>=0);
+  return changed.length===1&&changed[0]<WIDE_INDEX?changed[0]:null;
+}
 class D200XTransport extends EventEmitter {
   constructor(options = {}) {
     super();
     this.deck = options.deck || new Deck();
     this.buildPage = options.buildPage || buildPage;
+    this.buildKeyUpdate=options.buildKeyUpdate||buildKeyUpdate;
+    this.incrementalKeys=options.incrementalKeys===true;
+    this.incrementalFault=false;
+    this.incrementalBase=null;
+    this.incrementalCount=0;
     this.now = options.now || (() => Date.now());
     this.timer = null;
     this.connecting = null;
@@ -56,6 +72,7 @@ class D200XTransport extends EventEmitter {
         if (this.wasConnected) this.log('disconnect', status.message || 'Disconnected');
         this.wasConnected = false;
         this.appliedWideMode = null;
+        this.incrementalBase=null;this.incrementalCount=0;
         // A failed large page transfer must not discard the saved page.
         if (this.currentImages) this.pending = this.currentImages;
         return;
@@ -167,6 +184,7 @@ class D200XTransport extends EventEmitter {
     // Native Ulanzi D200X SLEEP protocol; a one-second idle timer.
     this.deck.setSleepTime(1);
     this.sleeping=true;
+    this.incrementalBase=null;this.incrementalCount=0;
     this.lastWriteAt=this.now();
     this.log('display-sleep','Native device sleep requested');
     return true;
@@ -183,9 +201,12 @@ class D200XTransport extends EventEmitter {
     return true;
   }
 
-  schedule(images,wideMode='blank') {
+  schedule(images,wideMode='blank',liveOnly=false) {
     if(!['blank','clock','stats'].includes(wideMode))return;
     if (this.closed) return;
+    // A full request invalidates eligibility immediately, even if a newer
+    // live request supersedes it before compression or transmission.
+    if(liveOnly!==true||wideMode!==this.wideMode){this.incrementalBase=null;this.incrementalCount=0;}
     this.wideMode=wideMode;
     this.currentImages = images;
     this.pending = images;
@@ -204,6 +225,34 @@ class D200XTransport extends EventEmitter {
         let zip;
         try {
           const signature=fullPageSignature(images,mode);
+          const base=this.incrementalBase;
+          const index=this.incrementalKeys&&!this.incrementalFault&&!this.sleeping&&this.incrementalCount<MAX_INCREMENTAL_WRITES&&this.appliedWideMode===mode
+            ?singleChangedKey(base,signature):null;
+          if(index!==null){
+            try{
+              const image=images.find(item=>item.index===index);
+              const keyZip=await this.buildKeyUpdate(index%COLUMNS+'_'+Math.floor(index/COLUMNS),image.png);
+              if(this.pending||this.closed||!this.deck.connected||generation!==this.session)continue;
+              if(this.incrementalBase===base&&!this.sleeping){
+                if(!Buffer.isBuffer(keyZip)||keyZip.length>MAX_PAGE_CACHE_BYTES)throw Error('invalid KEY archive');
+                this.deck.pushKey(keyZip);
+                this.incrementalBase=signature;this.incrementalCount++;
+                this.lastWriteAt=this.now();
+                this.log('key-sent','slot '+(index+1)+' · '+keyZip.length+' ZIP bytes');
+                this.emit('synced',{slots:1,kind:'key'});
+                continue;
+              }
+            }catch(error){
+              // Never repeat an uncertain KEY write. Disable the candidate
+              // for this process and restore the newest complete PAGE.
+              this.incrementalFault=true;this.incrementalBase=null;this.incrementalCount=0;
+              this.log('key-fallback','KEY failed; complete PAGE required');
+              if(this.pending||this.closed||!this.deck.connected||generation!==this.session){
+                if(!this.closed&&!this.pending)this.pending=this.currentImages;
+                continue;
+              }
+            }
+          }
           const cached=signature&&this.pageZipCache?.signature===signature?this.pageZipCache:null;
           zip=cached?cached.zip:await this.buildPage(images,mode);
           if (this.pending || this.closed || !this.deck.connected || generation !== this.session) continue;
@@ -224,6 +273,7 @@ class D200XTransport extends EventEmitter {
           if(signature&&Buffer.isBuffer(zip)&&zip.length<=MAX_PAGE_CACHE_BYTES)
             this.pageZipCache={signature,zip};
           else this.pageZipCache=null;
+          this.incrementalBase=this.sleeping?null:signature;this.incrementalCount=0;
           this.appliedWideMode=this.wideMode;
           this.lastWriteAt = this.now();
           this.log('page-sent', String(images.length)+' slots · '+zip.length+' ZIP bytes'+(cached?' · cached ZIP':''));
@@ -231,6 +281,7 @@ class D200XTransport extends EventEmitter {
         } catch (error) {
           failed = true;
           this.pageZipCache=null;
+          this.incrementalBase=null;this.incrementalCount=0;
           // Keep the page in currentImages for the next reconnect or edit.
           // If still connected, leave the queue idle rather than retrying
           // an invalid ZIP forever or blocking keep-alives.
@@ -255,7 +306,7 @@ class D200XTransport extends EventEmitter {
     if (this.timer) clearInterval(this.timer);
     this.timer = null;
     this.pending = null;
-    this.pageZipCache=null;
+    this.pageZipCache=null;this.incrementalBase=null;
     this.deck.disconnect('Editor closed');
   }
 }

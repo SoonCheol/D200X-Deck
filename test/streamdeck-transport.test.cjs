@@ -24,6 +24,7 @@ class FakeDeck extends EventEmitter {
   status() { return { connected: this.connected, message: this.connected ? 'Connected' : 'Lost' }; }
   setWideMode(mode) { this.calls.push(['wide',mode]); }
   pushPage(bytes) { this.calls.push(['page',bytes.toString()]); }
+  pushKey(bytes) { this.calls.push(['key',bytes.toString()]); }
   setBrightness(value) { this.calls.push(['brightness',value]); }
   setSleepTime(value) { this.calls.push(['sleep',value]); }
   sendFrame(cmd,proto,body) { this.calls.push(['frame',cmd,proto,body.toString()]); }
@@ -234,5 +235,64 @@ test('complete-page ZIP cache reuses compression but never skips full PAGE write
   const changed=images();changed[4].png=Buffer.from('changed');
   t.schedule(changed,'clock');await idle();assert.equal(builds,3);
   assert.equal(deck.calls.filter(x=>x[0]==='page').length,5);
+ }finally{t.stop();}
+});
+
+const completeImages=(changes={})=>Array.from({length:14},(_,index)=>({index,png:Buffer.from(changes[index]??'slot-'+index)}));
+const pageWrites=deck=>deck.calls.filter(x=>x[0]==='page'||x[0]==='key');
+test('KEY is disabled by default even for caller-confirmed live update',async()=>{
+ const deck=new FakeDeck(),t=new D200XTransport({deck,buildPage:async()=>Buffer.from('page'),buildKeyUpdate:async()=>{throw Error('must not build KEY');}});
+ try{await t.start();t.schedule(completeImages());await idle();t.schedule(completeImages({0:'new'}),'blank',true);await idle();assert.deepEqual(pageWrites(deck),[['page','page'],['page','page']]);}finally{t.stop();}
+});
+test('experimental KEY only sends a single changed ordinary slot on established blank PAGE',async()=>{
+ const deck=new FakeDeck(),t=new D200XTransport({deck,incrementalKeys:true,buildPage:async()=>Buffer.from('page'),buildKeyUpdate:async(slot,png)=>Buffer.from(slot+':'+png)});
+ try{
+  await t.start();t.schedule(completeImages());await idle();
+  t.schedule(completeImages({6:'new'}),'blank',true);await idle();
+  assert.deepEqual(pageWrites(deck),[['page','page'],['key','1_1:new']]);
+  t.schedule(completeImages({6:'new',13:'wide'}),'blank',true);await idle();
+  t.schedule(completeImages({6:'new',13:'wide',0:'a',1:'b'}),'blank',true);await idle();
+  t.schedule(completeImages({0:'a'}),'clock',true);await idle();
+  t.schedule(completeImages({0:'b'}),'clock',true);await idle();
+  t.schedule(completeImages({0:'b'}),'blank');await idle();
+  t.schedule(completeImages({0:'c'}),'blank');await idle();
+  assert.deepEqual(pageWrites(deck).slice(2).map(x=>x[0]),Array(6).fill('page'));
+  deck.disconnect();await t.connect();await idle();
+  assert.equal(pageWrites(deck).at(-1)[0],'page');
+  t.schedule(completeImages({0:'d'}),'blank',true);await idle();
+  assert.equal(pageWrites(deck).at(-1)[0],'key');
+  t.sleepDisplay();t.wakeDisplay();await idle();assert.equal(pageWrites(deck).at(-1)[0],'page');
+ }finally{t.stop();}
+});
+test('KEY failure forces full PAGE and disables KEY until next process',async()=>{
+ const deck=new FakeDeck(),logs=[];let attempts=0;
+ deck.pushKey=()=>{attempts++;throw Error('fake partial write');};
+ const t=new D200XTransport({deck,incrementalKeys:true,buildPage:async()=>Buffer.from('page'),buildKeyUpdate:async()=>Buffer.from('key')});
+ t.on('diagnostic',x=>logs.push(x));
+ try{
+  await t.start();t.schedule(completeImages());await idle();
+  t.schedule(completeImages({0:'a'}),'blank',true);await idle();
+  t.schedule(completeImages({0:'b'}),'blank',true);await idle();
+  assert.equal(attempts,1);assert.equal(pageWrites(deck).length,3);
+  assert.ok(logs.some(x=>x.type==='key-fallback'));
+ }finally{t.stop();}
+});
+test('new full request invalidates pending experimental KEY even if superseded by live update',async()=>{
+ const deck=new FakeDeck();let release;const gate=new Promise(r=>release=r);
+ const t=new D200XTransport({deck,incrementalKeys:true,buildPage:async()=>Buffer.from('page'),buildKeyUpdate:async()=>{await gate;return Buffer.from('key');}});
+ try{
+  await t.start();t.schedule(completeImages());await idle();
+  t.schedule(completeImages({0:'a'}),'blank',true);
+  t.schedule(completeImages({1:'b'}),'blank');
+  t.schedule(completeImages({1:'c'}),'blank',true);
+  release();await idle();await idle();
+  assert.deepEqual(pageWrites(deck),[['page','page'],['page','page']]);
+ }finally{t.stop();}
+});
+test('experimental KEY burst periodically restores full PAGE',async()=>{
+ const deck=new FakeDeck(),t=new D200XTransport({deck,incrementalKeys:true,buildPage:async()=>Buffer.from('page'),buildKeyUpdate:async()=>Buffer.from('key')});
+ try{await t.start();t.schedule(completeImages());await idle();
+  for(let i=0;i<17;i++){t.schedule(completeImages({0:'value-'+i}),'blank',true);await idle();}
+  assert.deepEqual(pageWrites(deck).map(x=>x[0]),['page',...Array(16).fill('key'),'page']);
  }finally{t.stop();}
 });
