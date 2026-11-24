@@ -90,7 +90,9 @@ test('unsaved dialog remains interactive and original navigation is protected',(
   assert.match(editor,/#action-search/);
   assert.match(editor,/add\('저장 안 함',/);
   assert.match(editor,/add\('저장 후 이동',/);
-  assert.match(editor,/if\(inspectorSession\?\.dirty\|\|smartProfileBusy/);
+  assert.match(editor,/const smartProfileBlocked=\(\)=>profileStorageFailure\|\|inspectorSession\?\.dirty/);
+  assert.match(editor,/if\(smartProfileBusy\|\|smartProfileBlocked\(\)/);
+  assert.match(editor,/if\(startProfile!==state\.profileId\|\|smartProfileBlocked\(\)\)return;/);
 });
 
 test('redundant catalogue path and upper-left inspector help are removed',()=>{

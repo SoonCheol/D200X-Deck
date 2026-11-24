@@ -31,7 +31,9 @@ function runProgram(source,input){
     switchProfile:value=>append({op:'navigate',target:'profile',value}),
     enterFolder:value=>append({op:'navigate',target:'folder',value}),
     exitFolder:()=>append({op:'navigate',target:'back',value:null}),
-    setWideMode:value=>append({op:'wideMode',value})
+    setWideMode:value=>append({op:'wideMode',value}),
+    setWideOverlay:(value,durationMs=5000)=>append({op:'wideOverlay',value,durationMs}),
+    clearWideOverlay:()=>append({op:'wideOverlay',value:null,durationMs:0})
   });
   // Reduce access to network-capable APIs beyond CSP/session controls.
   for(const key of ['RTCPeerConnection','webkitRTCPeerConnection','WebTransport','Worker','SharedWorker','setTimeout','setInterval','requestAnimationFrame','requestIdleCallback','queueMicrotask']){

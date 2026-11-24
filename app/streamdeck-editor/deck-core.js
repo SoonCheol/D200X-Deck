@@ -686,6 +686,25 @@
       event?.knob!==true &&
       (event?.pressed===true||Number(event?.state)===1);
   }
+  // Runtime-only lease. The editor owns the clock, page scope and owner validation.
+  function createWideOverlayTracker(){
+    let entry=null,serial=0;
+    return {
+      read(scope,ownerValid,now=Date.now()){
+        return entry&&entry.scope===scope&&now<entry.expiresAt&&ownerValid(entry.owner)?entry:null;
+      },
+      offer(owner,scope,frame,durationMs,now=Date.now()){
+        if(typeof owner!=='string'||!owner||typeof scope!=='string'||!frame||
+          !Number.isInteger(durationMs)||durationMs<1000||durationMs>30000)return null;
+        if(entry&&entry.scope===scope&&now<entry.expiresAt&&entry.owner!==owner)return null;
+        entry={owner,scope,frame,expiresAt:now+durationMs,revision:++serial};return entry;
+      },
+      clear(owner){
+        if(!entry||(owner!==undefined&&entry.owner!==owner))return false;
+        entry=null;return true;
+      }
+    };
+  }
   function cycleWideDisplay(state){
     const config=state.wideDisplay=cleanWideDisplay(state.wideDisplay);
     const modes=config.order.filter(id=>config.enabled.includes(id));
@@ -1550,5 +1569,5 @@
       url:action.settings?.url||'',mode:action.settings?.open||'default',browserPath:action.settings?.browserPath||''};
     return {kind:'unsupported',message:'이 동작의 실행 기능은 아직 구현되지 않았습니다.'};
   }
-  return {ACTION_IDS,D200X_ACTION_IDS,PLUGIN_ACTION_IDS,PRESS_ACTION_TYPES,DEFAULTS,TITLE,INDICATOR_NUMBER_STYLE,INDICATOR_NAV_LABELS,indicatorConfig,indicatorCommon,sharedIndicatorConfig,updateIndicatorCommon,manageIndicators,indicatorNumberDisplayStyle,planIndicatorNavigation,fixedIndicatorNavigation,planFixedIndicatorNavigation,indicatorPinState,setIndicatorPinned,SIDE_NAV_LABELS,SIDE_HOLD_MS,sideConfig,makeSideAction,sideActionConfig,sideFolderTargets,planSideNavigation,applySideNavigation,createPageVisitTracker,createSidePressTracker,createAction,cleanAction,cleanCompositeEntry,timerSeconds,formatTimerTime,displaySwitchAction,compositeModel,planComposite,runComposite,createMultiPauseGate,multiRows,setMultiRows,blankPage,cleanWideDisplay,cycleWideDisplay,isWideDisplayPress,folderContents,folderPageCount,changeFolderPage,addFolderPage,deleteFolderPage,editPageStructure,currentActions,visibleActions,togglePinned,activeFolder,enterFolder,exitFolder,migrateState,profileSnapshot,switchProfile,createProfile,renameProfile,exportSingleProfile,findProfileTemplate,saveProfileTemplate,renameProfileTemplate,deleteProfileTemplate,applyProfileTemplate,setProfileApp,setProfileFusionScope,matchFusionProfile,createSmartProfileTracker,matchForegroundProfile,deleteProfile,previewHardwareEvent,physicalSlot,hardwareGesture,resolveHardwareEvent,runtimeActionKey,folderWideBackEvent,resolveKeyPress,planHardwareEvent,deletePage,planAction,emptyBinding,cleanBinding,controlAction,activeControlAction,assignControlAction,automaticControl,ensureControls,controlBinding,changeControlScope};
+  return {ACTION_IDS,D200X_ACTION_IDS,PLUGIN_ACTION_IDS,PRESS_ACTION_TYPES,DEFAULTS,TITLE,INDICATOR_NUMBER_STYLE,INDICATOR_NAV_LABELS,indicatorConfig,indicatorCommon,sharedIndicatorConfig,updateIndicatorCommon,manageIndicators,indicatorNumberDisplayStyle,planIndicatorNavigation,fixedIndicatorNavigation,planFixedIndicatorNavigation,indicatorPinState,setIndicatorPinned,SIDE_NAV_LABELS,SIDE_HOLD_MS,sideConfig,makeSideAction,sideActionConfig,sideFolderTargets,planSideNavigation,applySideNavigation,createPageVisitTracker,createSidePressTracker,createAction,cleanAction,cleanCompositeEntry,timerSeconds,formatTimerTime,displaySwitchAction,compositeModel,planComposite,runComposite,createMultiPauseGate,multiRows,setMultiRows,blankPage,cleanWideDisplay,createWideOverlayTracker,cycleWideDisplay,isWideDisplayPress,folderContents,folderPageCount,changeFolderPage,addFolderPage,deleteFolderPage,editPageStructure,currentActions,visibleActions,togglePinned,activeFolder,enterFolder,exitFolder,migrateState,profileSnapshot,switchProfile,createProfile,renameProfile,exportSingleProfile,findProfileTemplate,saveProfileTemplate,renameProfileTemplate,deleteProfileTemplate,applyProfileTemplate,setProfileApp,setProfileFusionScope,matchFusionProfile,createSmartProfileTracker,matchForegroundProfile,deleteProfile,previewHardwareEvent,physicalSlot,hardwareGesture,resolveHardwareEvent,runtimeActionKey,folderWideBackEvent,resolveKeyPress,planHardwareEvent,deletePage,planAction,emptyBinding,cleanBinding,controlAction,activeControlAction,assignControlAction,automaticControl,ensureControls,controlBinding,changeControlScope};
 });

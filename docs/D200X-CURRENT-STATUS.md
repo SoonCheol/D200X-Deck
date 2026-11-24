@@ -2,6 +2,11 @@
 
 > **상태 기록 기준: 2026-11-24**. 실제 최신 HEAD는 Git에서 확인하며, 코드·자동 검사·Windows 빌드·사용자 Windows/D200X 실기 결과를 구분한다. 시작 시 `AGENTS.md`와 이 문서만 읽고 로드맵은 필요한 경우에만 참고한다.
 
+## 1.1.121 — 독자 SDK 와이드 임시 레이아웃·이미지 (2026-11-24)
+
+- 1.1.120 CI·입력 검사 성공, Windows 실패는 기존 inspector 정규식 테스트가 변경 전 Smart Profile guard를 요구한 것. 변경 후 미저장 보호 및 await 후 재검사 검증으로 갱신.
+- API 2 wide.overlay 선택 권한, 392×196 PNG 또는 선언형 텍스트/사각형/진행률, 임시 소유권·만료·취소, 원래 표시 복구, 경고 우선 및 캐시 격리. 기존 저장 프로필·화면 모드 및 장치 통신 유지. 집중 테스트 추가; CI/Windows/실기 별도.
+
 ## 1.1.120 — Fusion 상태 연동 및 Smart Profile (2026-11-24)
 
 - Autodesk 고정 원본의 main-thread dispatch/health 재사용, workspace/tab/active command ID 추가, localhost/PID/응답 제한. 기존 애드인 자동 덮어쓰기 없음; 명시 설치 메뉴에서 원본 바이트 일치 시에만 원본 백업 후 확장, Fusion 재시작 필요. 신규 설치는 확장 포함. 원본 SDK 및 명령 실행 경로 유지.

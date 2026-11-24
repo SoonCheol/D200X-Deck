@@ -26,6 +26,7 @@
   bridge.onStatus(status => {
     online = Boolean(status?.connected);
     if(!online){
+      window.clearD200XNativeWide?.();
       window.clearD200XOpenAppHolds?.('hid-disconnect');
       window.clearD200XSidePresses?.();
       window.clearD200XWarningPresses?.();
@@ -237,6 +238,30 @@
       text('장치에서 실시간 표시',w/2,125,'21px "Malgun Gothic",sans-serif','center','#aebbd0');
     }
   }
+  async function drawNativeWide(ctx,frame){
+    if(frame.kind==='png'){
+      const image=await imageLoaded(frame.data);
+      if(!image||image.width!==392||image.height!==196)return false;
+      ctx.drawImage(image,0,0,392,196);return true;
+    }
+    ctx.fillStyle=frame.background;ctx.fillRect(0,0,392,196);
+    for(const e of frame.elements){
+      ctx.save();ctx.beginPath();ctx.rect(e.x,e.y,e.w,e.h);ctx.clip();
+      ctx.fillStyle=e.color;
+      if(e.type==='text'){
+        ctx.font=e.size+'px "Malgun Gothic","Segoe UI",sans-serif';
+        ctx.textAlign=e.align;ctx.textBaseline='middle';
+        const x=e.align==='left'?e.x:e.align==='right'?e.x+e.w:e.x+e.w/2;
+        ctx.fillText(e.text,x,e.y+e.h/2,e.w);
+      }else if(e.type==='rect')ctx.fillRect(e.x,e.y,e.w,e.h);
+      else if(e.type==='bar'){
+        ctx.fillStyle=e.track;ctx.fillRect(e.x,e.y,e.w,e.h);
+        ctx.fillStyle=e.color;ctx.fillRect(e.x,e.y,e.w*e.value,e.h);
+      }
+      ctx.restore();
+    }
+    return true;
+  }
   async function drawSlot(item, index) {
     const wide = index === 13;
     const width = wide ? 392 : 196;
@@ -251,7 +276,8 @@
     ctx.fillRect(0, 0, width, height);
     if(item?.type==='wide-display'){
       // The custom knobs screen is rendered as PNG; the device-native mode must stay blank.
-      drawWidePanel(ctx,width,height,item.wideNotice?'unsaved':window.D200XWideModeName?.()||'clock');
+      if(item.wideNotice||!item.wideOverlay||!await drawNativeWide(ctx,item.wideOverlay))
+        drawWidePanel(ctx,width,height,item.wideNotice?'unsaved':window.D200XWideModeName?.()||'clock');
       return {index,png:canvas.toDataURL('image/png').split(',')[1]};
     }
     if (item) {
@@ -341,7 +367,7 @@
 
   // Keep normal bitmaps/mode cached. Apply the alert only to the outgoing
   // page, including native clock/stats and legacy populated folder slots.
-  const warningPageStamp=()=>JSON.stringify([state.profileId,state.page,state.folderPath||[],DeckCore.activeFolder(state)?.pageIndex||0]);
+  const warningPageStamp=()=>JSON.stringify([state.profileId,state.page,state.folderPath||[],DeckCore.activeFolder(state)?.pageIndex||0,window.D200XWideOverlayStamp?.()||0]);
   function sendImages(images,mode){
     if(window.D200XUnsavedWarning?.()){
       const canvas=document.createElement('canvas');canvas.width=392;canvas.height=196;
@@ -379,6 +405,7 @@
             : DeckCore.displaySwitchAction(item),index
       )));
       if (serial !== renderSerial) return;
+      if(stamp!==warningPageStamp()){schedule(0);return;}
       cacheAndSendImages(images,window.getD200XWideMode?.()||'blank',stamp);
     } catch (error) {
       text('D200X 아이콘 생성 오류: ' + String(error?.message || error));

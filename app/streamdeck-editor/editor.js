@@ -675,8 +675,25 @@ function wideDisplayAvailable(){
   // actions remain in saved profile data but are not displayed or executed.
   return !state.folderPath?.length;
 }
+const nativeWideTracker=DeckCore.createWideOverlayTracker();
+let nativeWideTimer=null;
+const nativeWideScope=()=>JSON.stringify([state.profileId,state.page,pageStructureEpoch]);
+function activeNativeWide(){
+  if(!wideDisplayAvailable())return null;
+  return nativeWideTracker.read(nativeWideScope(),owner=>sdkActionInstances().some(x=>x.context===owner&&x.slot!==13));
+}
+function clearNativeWide(owner,refresh=true){
+  if(!nativeWideTracker.clear(owner))return false;
+  clearTimeout(nativeWideTimer);nativeWideTimer=null;
+  if(refresh){renderGrid();window.scheduleDeckSync?.(0);}
+  return true;
+}
+window.clearD200XNativeWide=()=>clearNativeWide();
+window.D200XWideOverlayStamp=()=>activeNativeWide()?.revision||0;
 function wideVisual(){
-  return {type:'wide-display',title:WIDE_LABELS[state.wideDisplay?.current]||WIDE_LABELS.clock};
+  const overlay=activeNativeWide();
+  return {type:'wide-display',title:overlay?'플러그인 화면':WIDE_LABELS[state.wideDisplay?.current]||WIDE_LABELS.clock,
+    ...(overlay?{wideOverlay:overlay.frame}:{})};
 }
 // Runtime-only alert. Never write it into a profile, wide mode, or slot.
 function wideUnsavedWarningActive(){return document.querySelector('#inspector-unsaved-dialog')?.open===true;}
@@ -720,7 +737,7 @@ window.D200XKnobInfo=()=>[16,17,18].map((index,i)=>({
   name:'노브 '+(i+1),...wideKnobLabels(DeckCore.controlBinding(state,index),stackPositions[i])
 }));
 window.renderGridWideClock=()=>{if(wideDisplayAvailable())renderGrid();};
-window.getD200XWideMode=()=>wideDisplayAvailable()
+window.getD200XWideMode=()=>wideDisplayAvailable()&&!activeNativeWide()
   ?(state.wideDisplay?.current==='clock'?'clock':state.wideDisplay?.current==='stats'?'stats':'blank'):'blank';
 function renderWideInspector(){
   const root=$('inspector');
@@ -5011,6 +5028,9 @@ function handleWideWarningInput(event,preview){
 }
 function advanceWideDisplay(){
   if(!wideDisplayAvailable())return null;
+  if(activeNativeWide()){
+    clearNativeWide();return state.wideDisplay.current;
+  }
   const mode=DeckCore.cycleWideDisplay(state);
   persist(false);render();
   // A wide-only switch must not race with 14 full-key repaints.
@@ -5699,6 +5719,7 @@ window.executeD200XKey=tracedPhysicalDispatch;
 
 let refreshProfilesMenu=()=>{};
 function render(){
+  if(!activeNativeWide())clearNativeWide(undefined,false);
   pageVisitTracker.observe(state);
   const scope=openAppHoldScope();
   if(scope!==lastOpenAppHoldScope){
@@ -6942,8 +6963,19 @@ function applyNativeSdkEffect(message){
     if(ok)scheduleSdkSync();
     return ok;
   }
+  if(op?.op==='wideOverlay'){
+    if(!wideDisplayAvailable()||instance.slot===13)return false;
+    if(op.value===null)return clearNativeWide(message.context);
+    if(!activeNativeWide())clearNativeWide(undefined,false);
+    const overlay=nativeWideTracker.offer(message.context,nativeWideScope(),op.value,op.durationMs);
+    if(!overlay)return false;
+    clearTimeout(nativeWideTimer);
+    nativeWideTimer=setTimeout(()=>clearNativeWide(message.context),op.durationMs);
+    renderGrid();window.scheduleDeckSync?.(0);return true;
+  }
   if(op?.op==='wideMode'){
     if(!wideDisplayAvailable()||!state.wideDisplay?.enabled?.includes(op.value))return false;
+    if(activeNativeWide()&&!clearNativeWide(message.context,false))return false;
     state.wideDisplay.current=op.value;persist(false);render();
     if(window.scheduleD200XWideSync)window.scheduleD200XWideSync();
     else window.scheduleDeckSync?.(0);
@@ -6971,8 +7003,10 @@ function applyNativeSdkEffect(message){
 if(window.deckBridge?.onSdkEvent){
   window.deckBridge.onSdkEvent(message=>{
     const ctx=message?.context;
-    if(message.kind==='nativeUnavailable'){
-      sdkVisuals.delete(ctx);renderGrid();window.scheduleDeckSync?.();
+    if(message.kind==='nativeWideReleased'){
+      clearNativeWide(ctx);
+    }else if(message.kind==='nativeUnavailable'){
+      clearNativeWide(ctx,false);sdkVisuals.delete(ctx);renderGrid();window.scheduleDeckSync?.();
     }else if(message.kind==='nativeEffect'){
       if(!applyNativeSdkEffect(message))window.d200xActionStatus?.('독자 SDK 요청 거부: 현재 설정 또는 편집 상태를 확인하세요.');
     }else if(message.kind==='settings'){

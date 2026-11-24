@@ -6,12 +6,13 @@ const {randomUUID}=require('node:crypto');
 const {NativeSettingsVault,validateValue}=require('./deckforge-native-settings.cjs');
 const {NativeVersionStore,assertAppRequirement}=require('./deckforge-native-versions.cjs');
 const {validateDependencies,resolveDependencies,assertDependencyChange}=require('./deckforge-native-dependencies.cjs');
+const {validateWideOverlay}=require('./deckforge-native-wide.cjs');
 const APP_VERSION=require('./package.json').version;
 const SUFFIX='.deckforge-native.json', LIMIT=1024*1024;
 const ID=/^com\.deckforge\.native\.[a-z0-9][a-z0-9.-]{0,110}$/;
 const EVENTS=new Set(['appear','disappear','settings','press','release','rotateLeft','rotateRight','heldRotateLeft','heldRotateRight']);
 const OPS=new Set(['title','titleFromSetting','state','toggleState','image']);
-const EXTRA_PERMISSIONS=['settings.write','navigation','wide.mode','global.settings'];
+const EXTRA_PERMISSIONS=['settings.write','navigation','wide.mode','global.settings','wide.overlay'];
 const INPUT_EVENTS=new Set(['press','release','rotateLeft','rotateRight','heldRotateLeft','heldRotateRight']);
 const obj=x=>x!==null&&typeof x==='object'&&!Array.isArray(x);
 const validText=(x,n)=>typeof x==='string'&&x.length>0&&x.length<=n;
@@ -160,6 +161,9 @@ class NativePluginHost{
           (target==='profile'&&validText(value,160))||
           (target==='folder'&&Number.isInteger(value)&&value>=0&&value<13)||
           (target==='back'&&value===null),'invalid navigation target');
+      }else if(op?.op==='wideOverlay'){
+        check(ctx.permissions.includes('wide.overlay'),'unauthorized wide overlay');
+        validateWideOverlay(op);
       }else if(op?.op==='wideMode'){
         check(ctx.permissions.includes('wide.mode')&&exact(op,['op','value'])&&['clock','datetime','stats','knobs'].includes(op.value),'invalid or unauthorized wide mode');
       }else throw Error('DeckForge SDK: unsupported operation');
@@ -185,6 +189,7 @@ class NativePluginHost{
       }
   }
   resetScript(ctx){
+    if(ctx.wideOverlaySent){ctx.wideOverlaySent=false;this.onUpdate({kind:'nativeWideReleased',context:ctx.context});}
     clearTimeout(ctx.recoveryTimer);ctx.recoveryTimer=null;
     ctx.epoch=(ctx.epoch||0)+1;
     try{ctx.runner?.close();}catch{}
@@ -242,9 +247,12 @@ class NativePluginHost{
         if(!active())return;
         ctx.memory=result.memory;
         this.applyOps(ctx,normal);
-        for(const operation of effects)if(operation.op!=='globalSettings')this.onUpdate({kind:'nativeEffect',context:ctx.context,
-          pluginUUID:ctx.pluginUUID,actionUUID:ctx.action.id,operation,
-          expectedSettings:operation.op==='settings'?settingsSnapshot:undefined});
+        for(const operation of effects)if(operation.op!=='globalSettings'){
+          if(operation.op==='wideOverlay')ctx.wideOverlaySent=operation.value!==null;
+          this.onUpdate({kind:'nativeEffect',context:ctx.context,
+            pluginUUID:ctx.pluginUUID,actionUUID:ctx.action.id,operation,
+            expectedSettings:operation.op==='settings'?settingsSnapshot:undefined});
+        }
       }catch(error){if(active())this.fail(ctx,error);}
     }).finally(()=>{if(ctx.epoch===epoch)ctx.pending--;});
     return true; // accepted for dispatch; not a claim of completed execution

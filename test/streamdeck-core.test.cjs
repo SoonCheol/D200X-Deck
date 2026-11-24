@@ -1866,3 +1866,18 @@ test('Fusion smart profiles match exact workspace/tab and do not override manual
  assert.equal(core.matchFusionProfile(persisted,ctx.fusion),tab);
  assert.equal(core.matchForegroundProfile(persisted,'C:\\Fusion.exe'),null);
 });
+
+
+test('wide overlay lease expires, rejects competing owners, and cannot cross page scope',()=>{
+ const tracker=core.createWideOverlayTracker(),valid=id=>id==='a',frame={kind:'layout',elements:[]};
+ const lease=tracker.offer('a','page-1',frame,2000,100);
+ assert.equal(tracker.read('page-1',valid,101),lease);
+ assert.equal(tracker.offer('b','page-1',frame,2000,102),null);
+ assert.equal(tracker.clear('b'),false);
+ assert.equal(tracker.read('page-2',valid,102),null);
+ assert.equal(tracker.read('page-1',()=>false,102),null);
+ assert.equal(tracker.read('page-1',valid,2100),null);
+ assert.ok(tracker.offer('b','page-1',frame,2000,2100));
+ assert.equal(tracker.clear(),true);
+ assert.equal(tracker.read('page-1',()=>true,2101),null);
+});

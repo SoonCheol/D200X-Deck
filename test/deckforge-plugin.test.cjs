@@ -403,3 +403,37 @@ test('native router rechecks dependencies at install and runtime without falling
     await router.sync([cfg]);assert.equal(router.key(cfg.context,'down'),true);
   }finally{await router.close();await fs.rm(temp,{recursive:true,force:true});}
 });
+
+
+test('native wide overlay requires explicit permission, bounds and physical input',()=>{
+ const host=new NativePluginHost('/unused');
+ const {validateWideOverlay}=require('../app/streamdeck-editor/deckforge-native-wide.cjs');
+ const ctx={pluginUUID:nativeId,action:scriptManifest.actions[0],permissions:['display','wide.overlay']};
+ const frame={kind:'layout',background:'#101010',elements:[
+  {type:'text',x:0,y:0,w:392,h:80,text:'Ready',size:32,color:'#ffffff',align:'center'},
+  {type:'bar',x:16,y:100,w:360,h:20,color:'#33aabb',track:'#333333',value:0.5}]};
+ const op={op:'wideOverlay',value:frame,durationMs:5000};
+ assert.deepEqual(host.validateScriptOps(ctx,'press',[op]).effects,[op]);
+ assert.doesNotThrow(()=>validateNativeManifest({...scriptManifest,permissions:ctx.permissions}));
+ assert.throws(()=>host.validateScriptOps(ctx,'appear',[op]),/input event/);
+ assert.throws(()=>host.validateScriptOps({...ctx,permissions:['display']},'press',[op]),/unauthorized/);
+ assert.throws(()=>validateWideOverlay({...op,durationMs:30001}),/invalid wide/);
+ assert.throws(()=>validateWideOverlay({...op,value:{...frame,elements:[{...frame.elements[0],w:393}]}}),/invalid wide/);
+ assert.throws(()=>validateWideOverlay({...op,value:{kind:'png',data:'https://example.com/image.png'}}),/invalid wide/);
+ assert.doesNotThrow(()=>validateWideOverlay({op:'wideOverlay',value:null,durationMs:0}));
+});
+test('native wide overlay ownership is released on runtime shutdown or removal',async()=>{
+ const events=[],frame={kind:'layout',background:'#000000',elements:[]};
+ const host=new NativePluginHost('/unused',e=>events.push(e),()=>({async run(_s,input){
+   return {ops:input.event.type==='press'?[{op:'wideOverlay',value:frame,durationMs:1000}]:[],memory:{}};
+ },close(){}}));
+ const m={...scriptManifest,permissions:['display','wide.overlay']};
+ const cfg={context:'owner',slot:0,pluginUUID:nativeId,actionUUID:nativeId+'.toggle',settings:{}};
+ try{
+  host.sync([cfg],[m]);await host.contexts.get('owner').queue;
+  host.key('owner','down');await host.contexts.get('owner').queue;
+  assert.ok(events.some(e=>e.kind==='nativeEffect'&&e.operation.op==='wideOverlay'));
+  host.suspend();
+  assert.ok(events.some(e=>e.kind==='nativeWideReleased'&&e.context==='owner'));
+ }finally{host.close();}
+});

@@ -104,3 +104,17 @@ test('editor reveal uses only its exact native handle and owner PID, verifies he
     if(status==='error')assert.equal(logs[1].stage,'wide-warning-focus-error');
   }
 });
+
+
+test('warning cache does not restore an expired or replaced native wide overlay',()=>{
+ const first=sync.indexOf('  const warningPageStamp='),last=sync.indexOf('  async function synchronize()',first);
+ let stamp=1,active=false;const scheduled=[],sent=[];
+ const context={state:{profileId:'a',page:0,folderPath:[]},DeckCore:{activeFolder:()=>null},
+  window:{D200XUnsavedWarning:()=>active,D200XWideOverlayStamp:()=>stamp},
+  bridge:{syncPage:(images,mode)=>sent.push({images,mode})},lastSentImages:null,lastSentWideMode:'blank',
+  lastSentPageStamp:null,schedule:ms=>scheduled.push(ms)};
+ vm.runInNewContext(sync.slice(first,last)+';window.publish=images=>cacheAndSendImages(images,"blank",warningPageStamp());',context);
+ context.window.publish(Array.from({length:14},(_,index)=>({index,png:'test'})));
+ stamp=0;context.window.scheduleD200XWarningSync();
+ assert.deepEqual(scheduled,[0]);assert.equal(sent.length,1);
+});
