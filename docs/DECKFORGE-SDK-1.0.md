@@ -103,3 +103,5 @@ API 2 manifest의 service={script,tickIntervalMs?} 및 별도 background.run 권
 - 1.1.190 DrawOps 후보: Worker 결과는 512 KiB JSON·16개 명령·2회 그리기·8 KiB memory 제한. 호스트에서 전체 그리기 명령을 먼저 검증하며 Worker 원시 pixels 금지. 신뢰 painter는 데이터만 받아 RGBA 생성, 치수/인코딩/총량 및 취소 재검증 후 기존 validateScriptOps 경계를 반드시 통과한다. 아직 Model 5 실행 연결 없음. 집중 Node 검사와 Electron 기존 drawKey 픽셀 동등성 검사 추가.
 
 - 07B-1(1.1.209): 선택 action.titlePolicy={selectionLabel?,defaultTitle?}. selectionLabel은 dynamicSelect 필드만 참조. 사용자 직접 입력(빈 값 포함) > 현재 선택값에 대응하는 검증된 label snapshot > 동적 제목(빈 값 포함) > defaultTitle. 기존 비선언 플러그인·저장된 상태별 제목 유지. 신규 상태쌍의 자동 제목과 명시 입력 분리. HA 적용/기존 제목 이관·단일 센서 편집 일반화는 후속. 예제 및 집중 검사 추가, 실제 GUI 별도.
+
+- 07B-2(1.1.212): HA 0.1.7 control은 titlePolicy.selectionLabel='entity', defaultTitle='기기 선택' 사용. 기존 haAutoTitle과 정확히 일치하는 제목만 자동으로 이관하며 별도 입력과 빈 제목 보존. 읽기에서는 복사본만 변환, 사용자 승인 설정/상태 편집에서 이관을 저장. 기존 설치 manifest 호환 경로 보존. 센서 전경/단일 카드 일반화는 후속.

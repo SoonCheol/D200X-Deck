@@ -2585,3 +2585,27 @@ test('native title policy prioritizes explicit empty title, current selection, l
  item.title='Manual';assert.equal(core.nativeTitle(item,policy,'Live'),'Manual');
  item.title='';item.settings.nativeTitleExplicit=true;assert.equal(core.nativeTitle(item,policy,'Live'),'');
 });
+
+test('HA title policy adopts legacy automatic titles without modifying source or explicit state text',()=>{
+ const core=require('../app/streamdeck-editor/deck-core.js');
+ const m=require('../app/streamdeck-editor/deckforge-ha-plugin.cjs').createHomeAssistantManifest('https://example.com');
+ assert.doesNotThrow(()=>validateNativeManifest(m));
+ const policy=m.actions[0].titlePolicy;
+ assert.equal(policy.selectionLabel,'entity');
+ const legacy={title:'Living',settings:{haAutoTitle:'Living',pluginSettings:{entity:'switch.a'},stateTitles:{first:{title:'Living',enabled:true},second:{title:'',enabled:true}}}};
+ const before=JSON.stringify(legacy);
+ const migrated=core.nativeAdoptLegacyTitle(legacy,policy,legacy.settings.haAutoTitle);
+ assert.equal(JSON.stringify(legacy),before);
+ assert.equal(migrated.title,'');
+ assert.deepEqual(migrated.settings.nativeTitleAutoStates,{first:true,second:false});
+ assert.equal(core.nativeTitle(migrated,policy,'New live'),'Living');
+ const changed={...migrated,settings:{...migrated.settings,pluginSettings:{entity:'switch.b'}}};
+ assert.equal(core.nativeTitle(changed,policy,'Kitchen'),'Kitchen');
+ assert.equal(core.nativeAdoptLegacyTitle(changed,policy,'Living'),changed);
+ const manual=core.nativeAdoptLegacyTitle({...legacy,title:''},policy,'Living');
+ assert.equal(manual.settings.nativeTitleExplicit,true);
+ assert.equal(core.nativeTitle(manual,policy,'Live'),'');
+ const explicit=core.nativeAdoptLegacyTitle({...legacy,settings:{...legacy.settings,nativeTitleExplicit:true,nativeTitleAutoStates:{first:false}}},policy,'Living');
+ assert.equal(explicit.title,'Living');
+ assert.equal(explicit.settings.nativeTitleAutoStates.first,false);
+});

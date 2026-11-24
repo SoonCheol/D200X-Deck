@@ -345,7 +345,8 @@ function displayItem(item,index,preserveGesture=false){
     const icon=stateIcon||item.icon||(visual?.image?{kind:'file',value:visual.image}:null)||
       (defaultImage?{kind:'file',value:defaultImage}:null);
     const policy=nativeTitlePolicyFor(item);
-    if(icon||visual||policy)return {...item,title:policy?DeckCore.nativeTitle(item,policy,visual?.title):visual?.title??item.title,...(icon?{icon}:{})};
+    const titled=policy?nativeTitleView(item,policy):item;
+    if(icon||visual||policy)return {...titled,title:policy?DeckCore.nativeTitle(titled,policy,visual?.title):visual?.title??item.title,...(icon?{icon}:{})};
   }
   if(!item||item.type!=="indicator")return item;
   const common=DeckCore.indicatorCommon(state,item);
@@ -381,12 +382,18 @@ function nativeTitlePolicyFor(item){
   const plugin=sdkPlugins.find(p=>p.uuid===item.settings?.pluginUUID&&p.runtime==='deckforge-sdk');
   return plugin?.actions?.find(a=>a.uuid===item.settings?.actionUUID)?.titlePolicy||null;
 }
+function nativeTitleView(item,policy){
+  // Legacy HA profiles retain the old marker; generic migration runs only for
+  // the opted-in action. Older installed manifests retain their old behavior.
+  return item?.settings?.actionUUID==='com.deckforge.native.home-assistant.control'
+    ?DeckCore.nativeAdoptLegacyTitle(item,policy,item.settings.haAutoTitle):item;
+}
 function nativeInspectorTitle(item){
   const policy=nativeTitlePolicyFor(item);
   if(!policy)return item.title||'';
   const slot=typeof state!=='undefined'?DeckCore.visibleActions(state).indexOf(item):-1;
   const live=slot>=0&&typeof sdkVisuals!=='undefined'?sdkVisuals.get(sdkContext(slot,'down'))?.title:undefined;
-  return DeckCore.nativeTitle(item,policy,live);
+  return DeckCore.nativeTitle(nativeTitleView(item,policy),policy,live);
 }
 function isNativeHaControl(item){return item?.type==='sd-plugin'&&item.settings?.actionUUID==='com.deckforge.native.home-assistant.control';}
 function autoHaControlTitle(item,label){
@@ -416,6 +423,8 @@ function defaultStateTitlePair(item){
 }
 function ensureStateTitlePair(item){
   item.settings??={};
+  const policy=nativeTitlePolicyFor(item);
+  if(policy){const migrated=nativeTitleView(item,policy);if(migrated!==item)Object.assign(item,migrated);}
   if(!item.settings.stateTitles){
     item.settings.stateTitles=defaultStateTitlePair(item);
     if(nativeTitlePolicyFor(item))item.settings.nativeTitleAutoStates={first:true,second:true};
@@ -1688,7 +1697,7 @@ function bindActionAppearance(){
   exportButton.title='선택한 .sdPlugin 폴더를 단일 .deckforgePlugin 설치 파일로 저장합니다. 원본은 변경하지 않습니다.';
   exportButton.addEventListener('click',exportDeckForgePlugin);pluginToolbar.append(exportButton);
   if(window.deckBridge?.nativeHaInstall){
-    const ha=document.createElement('button');ha.type='button';ha.className='plugin-add-button';ha.textContent=sdkPlugins.some(p=>p.uuid==='com.deckforge.native.home-assistant'&&['0.1.0','0.1.1','0.1.2','0.1.3','0.1.4','0.1.5'].includes(p.version))?'HA 전용 업데이트':'HA 전용 추가';
+    const ha=document.createElement('button');ha.type='button';ha.className='plugin-add-button';ha.textContent=sdkPlugins.some(p=>p.uuid==='com.deckforge.native.home-assistant'&&['0.1.0','0.1.1','0.1.2','0.1.3','0.1.4','0.1.5','0.1.6'].includes(p.version))?'HA 전용 업데이트':'HA 전용 추가';
     ha.addEventListener('click',installNativeHa);pluginToolbar.append(ha);
   }
   host.after(pluginToolbar);
@@ -3552,7 +3561,7 @@ async function refreshStateTitleCards(item){
     if(item.type==='multi'&&second){const input=card.querySelector('.state-title-input');if(input)input.value=multiProgressTitle(item,progress);}
     if(item.type==='indicator'&&second){const downTitle=card.querySelector('.indicator-down-title');if(downTitle&&document.activeElement!==downTitle)downTitle.value=item.settings?.indicatorDownTitle??item.title??'';}
     const policy=nativeTitlePolicyFor(item),which=second?'second':'first';
-    if((policy&&(!item.settings.stateTitles||item.settings.nativeTitleAutoStates?.[which]===true))||(isNativeHaControl(item)&&!item.settings.stateTitles)){
+    if((policy&&(!visual.settings?.stateTitles||visual.settings.nativeTitleAutoStates?.[which]===true))||(isNativeHaControl(item)&&!item.settings.stateTitles)){
       const input=card.querySelector('.state-title-input');
       if(input&&document.activeElement!==input)input.value=policy?visual.title:item.title||visual.title||'';
     }
@@ -3575,6 +3584,7 @@ async function refreshStateTitleCards(item){
 function attachStateTitleControls(card,item,which){
   // Rendering and selecting an action must never mutate its stored SDK settings.
   const config=(item.settings?.stateTitles||defaultStateTitlePair(item))[which];
+  const titlePolicy=nativeTitlePolicyFor(item),titleView=titlePolicy?nativeTitleView(item,titlePolicy):item;
   const row=document.createElement('div');row.className='state-title-control';
   const check=document.createElement('input');check.type='checkbox';check.checked=config.enabled;
   check.className='state-title-visible';check.title='표시 속성 선택';
@@ -3583,7 +3593,7 @@ function attachStateTitleControls(card,item,which){
   input.placeholder=item.type==='text'?'자동 제목':'제목';input.title=item.type==='text'?'제목을 비우면 입력 텍스트가 자동 표시됩니다. <br>로 강제 줄바꿈':'<br>로 강제 줄바꿈';input.setAttribute('aria-label',which==='first'?'제목 1':'제목 2');
   const timer=item.type==='timer',timerIdle=timer&&which==='first';
   const multiAuto=item.type==='multi'&&which==='second';
-  input.maxLength=256;input.value=timer?(timerIdle?'':DeckCore.formatTimerTime(DeckCore.timerSeconds(item.settings?.seconds),item.settings?.seconds)):multiAuto?multiProgressTitle(item,runningMultiProgress.get(DeckCore.runtimeActionKey(state,state.selected,'down'))):nativeTitlePolicyFor(item)&&(!item.settings.stateTitles||item.settings.nativeTitleAutoStates?.[which]===true)?nativeInspectorTitle(item):config.title;input.readOnly=timer||multiAuto;input.disabled=timerIdle||!config.enabled;
+  input.maxLength=256;input.value=timer?(timerIdle?'':DeckCore.formatTimerTime(DeckCore.timerSeconds(item.settings?.seconds),item.settings?.seconds)):multiAuto?multiProgressTitle(item,runningMultiProgress.get(DeckCore.runtimeActionKey(state,state.selected,'down'))):titlePolicy&&(!titleView.settings.stateTitles||titleView.settings.nativeTitleAutoStates?.[which]===true)?nativeInspectorTitle(item):config.title;input.readOnly=timer||multiAuto;input.disabled=timerIdle||!config.enabled;
   if(multiAuto)input.title='실행 단계 자동 표시';
   const styleButton=document.createElement('button');styleButton.type='button';
   styleButton.className='state-title-style';styleButton.textContent='T⌄';
@@ -4061,6 +4071,7 @@ async function openNativeSettings(item,action,plugin){
   if(JSON.stringify(item.settings.pluginSettings||{})!==JSON.stringify(original)){
     window.d200xActionStatus?.('다른 설정 변경이 발생했습니다. 속성창을 다시 열어 주세요.');return;
   }
+  if(action.titlePolicy){const migrated=nativeTitleView(item,action.titlePolicy);if(migrated!==item)Object.assign(item,migrated);}
   item.settings.pluginSettings=result;
   if(action.titlePolicy?.selectionLabel){
     const key=action.titlePolicy.selectionLabel;

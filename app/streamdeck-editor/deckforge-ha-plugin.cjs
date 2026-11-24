@@ -156,13 +156,13 @@ function createHomeAssistantManifest(server){
   u.protocol='wss:';u.pathname='/api/websocket';
   const script=f=>'return ('+f.toString()+')(event,settings,state,memory,api);';
   const select=(key,label,value,options)=>({key,label,type:'select',default:value,options:options.map(([value,label])=>({value,label}))});
-  return {apiVersion:2,id:ID,name:'DeckForge Home Assistant',version:'0.1.6',requiresDeckForge:'>=1.1.207',
+  return {apiVersion:2,id:ID,name:'DeckForge Home Assistant',version:'0.1.7',requiresDeckForge:'>=1.1.212',
     permissions:['display','background.run','network.websocket','timer.tick'],
     networkEndpoints:[{id:'ha',url:u.href,method:'WSS',auth:'home-assistant',reconnect:true,maxReceiveBytes:1048576}],
     service:{script:script(service),sharedStateBytes:262144},
     actions:[
       {id:ID+'.control',name:'HA 기기 제어',controllers:['Keypad'],states:2,script:script(controlKey),sharedStateView:{keys:['status','commandError'],map:'entities',selection:'entity'},
-       settingsSchema:[{key:'entity',label:'기기 선택',type:'dynamicSelect',source:'controls',default:''}]},
+       settingsSchema:[{key:'entity',label:'기기 선택',type:'dynamicSelect',source:'controls',default:''}],titlePolicy:{selectionLabel:'entity',defaultTitle:'기기 선택'}},
       {id:ID+'.sensor',name:'HA 센서 표시',controllers:['Keypad'],states:1,script:script(sensorKey),tickIntervalMs:1000,tickWhen:{setting:'mode',equals:'auto',selection:'entities',minItems:2},sharedStateView:{keys:['status'],map:'entities',selection:'entities'},
        settingsSchema:[
          {key:'entities',label:'표시 항목',type:'dynamicMultiSelect',source:'sensors',maxItems:4,default:[]},

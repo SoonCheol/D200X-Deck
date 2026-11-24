@@ -467,3 +467,15 @@ test('renderer title policy preserves manual empty title and keeps user artwork 
  assert.equal(item.title,'');
  assert.equal(render(item,{title:'Legacy'},0,true,[]).title,'Legacy');
 });
+
+test('new HA policy renders old saved auto title without rewriting original profile',()=>{
+ const pluginUUID='com.deckforge.native.home-assistant',actionUUID=pluginUUID+'.control';
+ const plugins=[{uuid:pluginUUID,runtime:'deckforge-sdk',actions:[{uuid:actionUUID,titlePolicy:{selectionLabel:'entity',defaultTitle:'기기 선택'}}]}];
+ const item={type:'sd-plugin',title:'거실등',settings:{pluginUUID,actionUUID,haAutoTitle:'거실등',pluginSettings:{entity:'switch.a'},stateTitles:{first:{title:'거실등'},second:{title:'직접 입력'}}}};
+ const before=JSON.stringify(item);
+ const result=render(item,{title:'Live'},0,true,plugins);
+ assert.equal(result.title,'거실등');
+ assert.equal(result.settings.nativeTitleAutoStates.first,true);
+ assert.equal(result.settings.nativeTitleAutoStates.second,false);
+ assert.equal(JSON.stringify(item),before);
+});
