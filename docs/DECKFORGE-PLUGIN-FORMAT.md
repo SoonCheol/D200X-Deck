@@ -3,6 +3,11 @@
 > 기록일: 2026-11-24 · 상태: **패키지 v1 유지 / 독자 SDK API 1·2 및 패키지 v2 / Ulanzi 정적 분석·제한 후보 변환기 구현**
 > 저장소·브랜치: `SoonCheol/D200X-Deck` / `codex/streamdeck-761-clean-editor`
 
+## 0.9 독자 SDK 선언형 속성창 (1.1.122)
+
+- API 1/2 action의 선택 필드 `settingsSchema`: 최대 16개 필드, key/label/type/default 필수. text(maxLength 1~256), boolean, integer(min/max), select(options 최대 32개, value/label) 지원. 임의 HTML/JS/URL/비밀 입력 필드는 금지. 예: `{"key":"count","label":"횟수","type":"integer","min":0,"max":10,"default":1}`.
+- 기존 '플러그인 속성 열기' 버튼과 DeckForge 공통 대화상자 재사용. 적용은 기존 inspector draft만 변경하며 저장/취소 동작 유지. 다른 세션·동시 설정 변경 거부. 값과 기본값은 공유 검증기로 검사하며 원래 설정의 다른 키 보존. 런타임은 저장되지 않은 누락 필드에 기본값을 적용하되 원본 저장 파일을 변경하지 않는다. API 2 설정 쓰기에도 값 계약 적용. 기존 필드 제거/값 계약 변경 업데이트는 마이그레이션 없이는 거부. 암호화 전역 설정 입력 UI, 기존 Ulanzi HTML 속성창 변환은 후속.
+
 ## 0.8 독자 SDK 와이드 임시 화면 (1.1.121)
 
 - API 2 선택 권한 `wide.overlay`: `api.setWideOverlay(frame, durationMs=5000)`, `api.clearWideOverlay()`. 392×196 PNG(data URI, 256KiB 및 IHDR 크기 제한) 또는 선언형 layout(background, elements 최대 8개; text/rect/bar). 좌표·색상·문자 길이·글꼴 크기·비율 제한, HTML/CSS/외부 URL/임의 스크립트 없음. 기존 권한 확인창에 추가.

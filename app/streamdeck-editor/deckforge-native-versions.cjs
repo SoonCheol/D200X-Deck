@@ -29,6 +29,13 @@ function assertCompatible(current,next){
     const action=next.actions.find(a=>a.id===old.id);
     assert(action&&action.states===old.states&&old.controllers.every(c=>action.controllers.includes(c)),
       'existing action contract would be removed or changed: '+old.id);
+    // Without a settings migration, existing declared fields must retain their value contract.
+    for(const field of old.settingsSchema||[]){
+      const updated=action.settingsSchema?.find(f=>f.key===field.key);
+      const contract=({label,...rest})=>({...rest,...(rest.options?{options:rest.options.map(o=>o.value)}:{})});
+      assert(updated&&canonical(contract(updated))===canonical(contract(field)),
+        'existing settings contract would be changed: '+old.id+'.'+field.key);
+    }
   }
 }
 class NativeVersionStore{

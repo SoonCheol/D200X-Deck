@@ -7,6 +7,7 @@ const {NativeSettingsVault,validateValue}=require('./deckforge-native-settings.c
 const {NativeVersionStore,assertAppRequirement}=require('./deckforge-native-versions.cjs');
 const {validateDependencies,resolveDependencies,assertDependencyChange}=require('./deckforge-native-dependencies.cjs');
 const {validateWideOverlay}=require('./deckforge-native-wide.cjs');
+const {validateNativeSettingsSchema,nativeEffectiveSettings}=require('./deck-core.js');
 const APP_VERSION=require('./package.json').version;
 const SUFFIX='.deckforge-native.json', LIMIT=1024*1024;
 const ID=/^com\.deckforge\.native\.[a-z0-9][a-z0-9.-]{0,110}$/;
@@ -29,10 +30,11 @@ function validateNativeManifest(m){
   check(Array.isArray(m.actions)&&m.actions.length>0&&m.actions.length<=64,'invalid actions');
   const ids=new Set();
   for(const a of m.actions){
-    check(exact(a,m.apiVersion===1?['id','name','controllers','states','events']:['id','name','controllers','states','script'])&&typeof a.id==='string'&&
+    check(exact(a,m.apiVersion===1?['id','name','controllers','states','events','settingsSchema']:['id','name','controllers','states','script','settingsSchema'])&&typeof a.id==='string'&&
       a.id.startsWith(m.id+'.')&&/^[a-z0-9.-]+$/.test(a.id)&&a.id.length<=180&&
       !a.id.endsWith('.')&&!a.id.includes('..')&&!ids.has(a.id)&&validText(a.name,180),'invalid action');
     ids.add(a.id);
+    validateNativeSettingsSchema(a.settingsSchema);
     check(Array.isArray(a.controllers)&&a.controllers.length>0&&a.controllers.length<=2&&
       new Set(a.controllers).size===a.controllers.length&&a.controllers.every(c=>['Keypad','Encoder'].includes(c))&&
       [1,2].includes(a.states),'invalid action controllers or states');
@@ -69,7 +71,7 @@ function validateNativeManifest(m){
 }
 function catalog(m){return {uuid:m.id,name:m.name,version:m.version,runtime:'deckforge-sdk',permissions:[...m.permissions],dependencies:{...(m.dependencies||{})},
   actions:m.actions.map(a=>({uuid:a.id,name:a.name,states:a.states,controllers:a.controllers,
-    propertyInspectorPath:'',defaultImages:{off:null,on:null}}))};}
+    propertyInspectorPath:'',defaultImages:{off:null,on:null},...(a.settingsSchema?{settingsSchema:a.settingsSchema}:{})}))};}
 class NativePluginHost{
   constructor(userData,onUpdate=()=>{},runnerFactory=id=>require('./deckforge-js-runtime.cjs').createScriptRunner(id),options={}){
     this.root=path.join(userData,'Plugins');this.onUpdate=onUpdate;
@@ -151,6 +153,7 @@ class NativePluginHost{
           return v===null||['string','boolean','number'].includes(typeof v);
         };
         check(valid(op.value),'unsafe settings keys');
+        if(ctx.action.settingsSchema)nativeEffectiveSettings(ctx.action.settingsSchema,op.value);
       }else if(op?.op==='globalSettings'){
         check(ctx.permissions.includes('global.settings')&&exact(op,['op','value']),'unauthorized global settings');
         validateValue(op.value);
@@ -179,7 +182,8 @@ class NativePluginHost{
         const send=(kind,payload)=>this.onUpdate({kind,context:ctx.context,payload});
         if(op.op==='title')send('setTitle',{title:op.value});
         if(op.op==='titleFromSetting'){
-          const value=Object.hasOwn(ctx.settings,op.key)?ctx.settings[op.key]:undefined;
+          const effective=ctx.action.settingsSchema?nativeEffectiveSettings(ctx.action.settingsSchema,ctx.settings):ctx.settings;
+          const value=Object.hasOwn(effective,op.key)?effective[op.key]:undefined;
           send('setTitle',{title:typeof value==='string'?value.slice(0,256):op.fallback});
         }
         if(op.op==='state'||op.op==='toggleState'){
@@ -228,7 +232,7 @@ class NativePluginHost{
         if(!ctx.runner)ctx.runner=this.runnerFactory(ctx.pluginUUID);
         const result=await ctx.runner.run(ctx.action.script,{
           event:{type:event,slot:ctx.slot,gesture:ctx.gesture||'down'},
-          settings:settingsSnapshot,state:ctx.state,memory:ctx.memory,globalSettings:global.value
+          settings:ctx.action.settingsSchema?nativeEffectiveSettings(ctx.action.settingsSchema,settingsSnapshot):settingsSnapshot,state:ctx.state,memory:ctx.memory,globalSettings:global.value
         });
         if(!active())return;
         check(exact(result,['ops','memory'])&&obj(result.memory)&&

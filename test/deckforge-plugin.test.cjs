@@ -437,3 +437,38 @@ test('native wide overlay ownership is released on runtime shutdown or removal',
   assert.ok(events.some(e=>e.kind==='nativeWideReleased'&&e.context==='owner'));
  }finally{host.close();}
 });
+
+
+test('native settings schema supports bounded typed fields, defaults and existing stored values',()=>{
+ const core=require('../app/streamdeck-editor/deck-core.js');
+ const schema=[{key:'label',label:'Label',type:'text',maxLength:20,default:'Ready'},
+  {key:'enabled',label:'Enabled',type:'boolean',default:true},
+  {key:'count',label:'Count',type:'integer',min:0,max:10,default:1},
+  {key:'mode',label:'Mode',type:'select',options:[{value:'a',label:'A'},{value:'b',label:'B'}],default:'a'}];
+ const manifest={...nativeManifest,actions:[{...nativeManifest.actions[0],settingsSchema:schema}]};
+ assert.doesNotThrow(()=>validateNativeManifest(manifest));
+ assert.deepEqual(core.nativeEffectiveSettings(schema,{count:5,old:'preserve'}),{count:5,old:'preserve',label:'Ready',enabled:true,mode:'a'});
+ assert.throws(()=>core.nativeEffectiveSettings(schema,{count:11}),/invalid setting/);
+ assert.throws(()=>core.nativeEffectiveSettings(schema,{enabled:'false'}),/invalid setting/);
+ assert.throws(()=>core.validateNativeSettingsSchema([{...schema[0],key:'__proto__'}]),/schema/);
+ assert.throws(()=>core.validateNativeSettingsSchema([{...schema[0],type:'password'}]),/schema/);
+ assert.throws(()=>core.validateNativeSettingsSchema([...schema,schema[0]]),/schema/);
+ const events=[],host=new NativePluginHost('/unused',e=>events.push(e));
+ try{
+  host.sync([{context:'settings',slot:0,pluginUUID:nativeId,actionUUID:nativeId+'.toggle',settings:{}}],[manifest]);
+  assert.equal(events.find(e=>e.kind==='setTitle').payload.title,'Ready');
+  const ctx={pluginUUID:nativeId,action:{...scriptManifest.actions[0],settingsSchema:schema},permissions:['display','settings.write']};
+  assert.throws(()=>host.validateScriptOps(ctx,'press',[{op:'settings',value:{count:99}}]),/invalid setting/);
+  assert.doesNotThrow(()=>host.validateScriptOps(ctx,'press',[{op:'settings',value:{count:3}}]));
+ }finally{host.close();}
+});
+test('native version update cannot narrow or remove existing declared settings',async()=>{
+ const temp=await fs.mkdtemp(path.join(os.tmpdir(),'deckforge-schema-')),host=new NativePluginHost(temp);
+ const schema=[{key:'count',label:'Count',type:'integer',min:0,max:10,default:1}];
+ const m={...nativeManifest,actions:[{...nativeManifest.actions[0],settingsSchema:schema}]};
+ try{
+  await host.install(m);
+  await assert.rejects(host.planInstall({...m,version:'2.0.0',actions:[{...m.actions[0],settingsSchema:[{...schema[0],max:5}]}]}),/settings contract/);
+  assert.equal((await host.planInstall({...m,version:'1.1.0',actions:[{...m.actions[0],settingsSchema:[{...schema[0],label:'Number'},{key:'flag',label:'Flag',type:'boolean',default:false}]}]})).kind,'update');
+ }finally{host.close();await fs.rm(temp,{recursive:true,force:true});}
+});

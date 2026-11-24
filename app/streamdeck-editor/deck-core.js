@@ -6,6 +6,56 @@
   if(typeof module==='object'&&module.exports)module.exports=factory();
   else root.DeckCore=factory();
 })(globalThis,function(){
+  // Native SDK settings are declarative data, never plugin-provided HTML or JS.
+  const nativeObject=v=>v!==null&&typeof v==='object'&&!Array.isArray(v);
+  const nativeKey=k=>typeof k==='string'&&/^[A-Za-z0-9_-]{1,48}$/.test(k)&&!['__proto__','prototype','constructor'].includes(k);
+  const nativeLabel=v=>typeof v==='string'&&v.trim().length>0&&v.length<=100&&!/[\x00-\x1f\x7f]/.test(v);
+  const nativeText=v=>typeof v==='string'&&v.length<=256&&!/[\x00-\x1f\x7f]/.test(v);
+  function nativeSettingValue(field,value){
+    if(field.type==='boolean')return typeof value==='boolean';
+    if(field.type==='text')return nativeText(value)&&value.length<=field.maxLength;
+    if(field.type==='integer')return Number.isSafeInteger(value)&&value>=field.min&&value<=field.max;
+    if(field.type==='select')return field.options.some(o=>o.value===value);
+    return false;
+  }
+  function validateNativeSettingsSchema(schema){
+    if(schema===undefined)return;
+    const check=(ok)=>{if(!ok)throw Error('DeckForge SDK: invalid settings schema');};
+    check(Array.isArray(schema)&&schema.length<=16);
+    const seen=new Set();
+    for(const field of schema){
+      check(nativeObject(field)&&nativeKey(field.key)&&!seen.has(field.key)&&nativeLabel(field.label));
+      seen.add(field.key);
+      const common=['key','label','type','default'];
+      let extra=[];
+      if(field.type==='text'){
+        extra=['maxLength'];check(Number.isInteger(field.maxLength)&&field.maxLength>=1&&field.maxLength<=256);
+      }else if(field.type==='integer'){
+        extra=['min','max'];check(Number.isSafeInteger(field.min)&&Number.isSafeInteger(field.max)&&
+          field.min>=-1000000000&&field.max<=1000000000&&field.min<=field.max);
+      }else if(field.type==='select'){
+        extra=['options'];check(Array.isArray(field.options)&&field.options.length>=1&&field.options.length<=32);
+        const values=new Set();
+        for(const option of field.options){
+          check(nativeObject(option)&&Object.keys(option).length===2&&nativeLabel(option.label)&&
+            nativeText(option.value)&&!values.has(option.value));values.add(option.value);
+        }
+      }else check(field.type==='boolean');
+      const keys=[...common,...extra];
+      check(Object.keys(field).length===keys.length&&keys.every(k=>Object.hasOwn(field,k))&&nativeSettingValue(field,field.default));
+    }
+  }
+  function nativeEffectiveSettings(schema,stored){
+    validateNativeSettingsSchema(schema);
+    if(!nativeObject(stored))throw Error('DeckForge SDK: invalid stored settings');
+    const next={...stored};
+    for(const field of schema||[]){
+      if(!Object.hasOwn(stored,field.key))next[field.key]=field.default;
+      else if(!nativeSettingValue(field,stored[field.key]))throw Error('DeckForge SDK: invalid setting '+field.key);
+    }
+    if(new TextEncoder().encode(JSON.stringify(next)).length>8192)throw Error('DeckForge SDK: settings size limit');
+    return next;
+  }
   const ACTION_IDS=[
     'audio-play','audio-stop','timer','brightness','sleep','virtual',
     'multi','multi-switch','random','logic','website','hotkey-switch',
@@ -1569,5 +1619,5 @@
       url:action.settings?.url||'',mode:action.settings?.open||'default',browserPath:action.settings?.browserPath||''};
     return {kind:'unsupported',message:'이 동작의 실행 기능은 아직 구현되지 않았습니다.'};
   }
-  return {ACTION_IDS,D200X_ACTION_IDS,PLUGIN_ACTION_IDS,PRESS_ACTION_TYPES,DEFAULTS,TITLE,INDICATOR_NUMBER_STYLE,INDICATOR_NAV_LABELS,indicatorConfig,indicatorCommon,sharedIndicatorConfig,updateIndicatorCommon,manageIndicators,indicatorNumberDisplayStyle,planIndicatorNavigation,fixedIndicatorNavigation,planFixedIndicatorNavigation,indicatorPinState,setIndicatorPinned,SIDE_NAV_LABELS,SIDE_HOLD_MS,sideConfig,makeSideAction,sideActionConfig,sideFolderTargets,planSideNavigation,applySideNavigation,createPageVisitTracker,createSidePressTracker,createAction,cleanAction,cleanCompositeEntry,timerSeconds,formatTimerTime,displaySwitchAction,compositeModel,planComposite,runComposite,createMultiPauseGate,multiRows,setMultiRows,blankPage,cleanWideDisplay,createWideOverlayTracker,cycleWideDisplay,isWideDisplayPress,folderContents,folderPageCount,changeFolderPage,addFolderPage,deleteFolderPage,editPageStructure,currentActions,visibleActions,togglePinned,activeFolder,enterFolder,exitFolder,migrateState,profileSnapshot,switchProfile,createProfile,renameProfile,exportSingleProfile,findProfileTemplate,saveProfileTemplate,renameProfileTemplate,deleteProfileTemplate,applyProfileTemplate,setProfileApp,setProfileFusionScope,matchFusionProfile,createSmartProfileTracker,matchForegroundProfile,deleteProfile,previewHardwareEvent,physicalSlot,hardwareGesture,resolveHardwareEvent,runtimeActionKey,folderWideBackEvent,resolveKeyPress,planHardwareEvent,deletePage,planAction,emptyBinding,cleanBinding,controlAction,activeControlAction,assignControlAction,automaticControl,ensureControls,controlBinding,changeControlScope};
+  return {validateNativeSettingsSchema,nativeSettingValue,nativeEffectiveSettings,ACTION_IDS,D200X_ACTION_IDS,PLUGIN_ACTION_IDS,PRESS_ACTION_TYPES,DEFAULTS,TITLE,INDICATOR_NUMBER_STYLE,INDICATOR_NAV_LABELS,indicatorConfig,indicatorCommon,sharedIndicatorConfig,updateIndicatorCommon,manageIndicators,indicatorNumberDisplayStyle,planIndicatorNavigation,fixedIndicatorNavigation,planFixedIndicatorNavigation,indicatorPinState,setIndicatorPinned,SIDE_NAV_LABELS,SIDE_HOLD_MS,sideConfig,makeSideAction,sideActionConfig,sideFolderTargets,planSideNavigation,applySideNavigation,createPageVisitTracker,createSidePressTracker,createAction,cleanAction,cleanCompositeEntry,timerSeconds,formatTimerTime,displaySwitchAction,compositeModel,planComposite,runComposite,createMultiPauseGate,multiRows,setMultiRows,blankPage,cleanWideDisplay,createWideOverlayTracker,cycleWideDisplay,isWideDisplayPress,folderContents,folderPageCount,changeFolderPage,addFolderPage,deleteFolderPage,editPageStructure,currentActions,visibleActions,togglePinned,activeFolder,enterFolder,exitFolder,migrateState,profileSnapshot,switchProfile,createProfile,renameProfile,exportSingleProfile,findProfileTemplate,saveProfileTemplate,renameProfileTemplate,deleteProfileTemplate,applyProfileTemplate,setProfileApp,setProfileFusionScope,matchFusionProfile,createSmartProfileTracker,matchForegroundProfile,deleteProfile,previewHardwareEvent,physicalSlot,hardwareGesture,resolveHardwareEvent,runtimeActionKey,folderWideBackEvent,resolveKeyPress,planHardwareEvent,deletePage,planAction,emptyBinding,cleanBinding,controlAction,activeControlAction,assignControlAction,automaticControl,ensureControls,controlBinding,changeControlScope};
 });

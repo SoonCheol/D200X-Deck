@@ -3534,9 +3534,63 @@ function bindIndicatorInspector(root,item){
   down.card.append(down.heading,downTitle,downNumber,down.image,down.buttons);cards.append(down.card);panel.append(cards);
   void refreshStateTitleCards(item);
 }
+async function openNativeSettings(item,action){
+  const schema=action?.settingsSchema;
+  if(!Array.isArray(schema)||!schema.length){window.d200xActionStatus?.('이 독자 플러그인에는 편집 가능한 설정이 없습니다.');return;}
+  const session=inspectorSession;
+  if(!inspectorPickerCurrent(session,item))return;
+  const original=clone(item.settings?.pluginSettings||{});
+  const content=document.createElement('div');
+  const inputs=[];
+  for(const field of schema){
+    const row=document.createElement('label');row.className='field';
+    const label=document.createElement('span');label.textContent=field.label;
+    let input;
+    if(field.type==='select'){
+      input=document.createElement('select');
+      for(const option of field.options){const el=document.createElement('option');el.value=option.value;el.textContent=option.label;input.append(el);}
+    }else{
+      input=document.createElement('input');
+      input.type=field.type==='boolean'?'checkbox':field.type==='integer'?'number':'text';
+      if(field.type==='integer'){input.min=field.min;input.max=field.max;input.step=1;}
+      if(field.type==='text')input.maxLength=field.maxLength;
+    }
+    const stored=Object.hasOwn(original,field.key)?original[field.key]:field.default;
+    const value=DeckCore.nativeSettingValue(field,stored)?stored:field.default;
+    if(field.type==='boolean')input.checked=value;else input.value=String(value);
+    input.setAttribute('aria-label',field.label);row.append(label,input);content.append(row);
+    inputs.push({field,input});
+  }
+  const notice=document.createElement('p');notice.className='hint';content.append(notice);
+  let result=null;
+  const accepted=await window.DeckForgeDialogs.show({title:'플러그인 속성',intro:action.name+' · 일반 설정은 프로필에 저장됩니다. 비밀번호·토큰을 입력하지 마세요.',
+    content,ask:true,actionLabel:'적용',onAccept:()=>{
+      try{
+        const next={...original};
+        for(const {field,input} of inputs){
+          const value=field.type==='boolean'?input.checked:field.type==='integer'?input.valueAsNumber:input.value;
+          if(!DeckCore.nativeSettingValue(field,value)){notice.textContent=field.label+' 값을 확인하세요.';return false;}
+          next[field.key]=value;
+        }
+        result=DeckCore.nativeEffectiveSettings(schema,next);return true;
+      }catch{notice.textContent='설정 크기 또는 형식을 확인하세요.';return false;}
+    }});
+  if(!accepted||!result||!inspectorPickerCurrent(session,item))return;
+  if(JSON.stringify(item.settings.pluginSettings||{})!==JSON.stringify(original)){
+    window.d200xActionStatus?.('다른 설정 변경이 발생했습니다. 속성창을 다시 열어 주세요.');return;
+  }
+  item.settings.pluginSettings=result;
+  persistInspectorChange();renderGrid();
+  window.d200xActionStatus?.('플러그인 설정 변경 · 기존 저장 버튼으로 확정하세요.');
+}
 function bindExtendedActionFields(root,item){
   if(item.type==='sd-plugin'){
     root.querySelector('[data-sdk-inspector]')?.addEventListener('click',async()=>{
+      const plugin=sdkPlugins.find(p=>p.uuid===item.settings?.pluginUUID);
+      if(plugin?.runtime==='deckforge-sdk'){
+        try{await openNativeSettings(item,plugin.actions.find(a=>a.uuid===item.settings?.actionUUID));}
+        catch(error){window.d200xActionStatus?.('독자 SDK 속성 편집 실패: '+String(error?.message||error));}return;
+      }
       const context=pluginSlotContext(item);
       if(!context)return;
       try{
