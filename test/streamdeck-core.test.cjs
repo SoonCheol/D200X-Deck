@@ -2133,3 +2133,24 @@ test('purged plugin cleanup removes exact ID across profiles, folders, controls 
  assert.deepEqual(state.profileTemplates[0].snapshot.pages,[[null,keep]]);
  assert.equal(core.removePluginReferences(state,id),0);
 });
+
+test('SDK wrapping and single-profile export preserve identity; Fusion batch allocates unique instances',()=>{
+  const s=core.migrateState(null),a=core.createAction('sd-plugin');
+  a.settings.pluginUUID='example.plugin';a.settings.actionUUID='example.action';
+  a.settings.pluginSettings={value:42};
+  const folder=core.createAction('folder');folder.children=[core.cleanAction(a)];
+  assert.equal(folder.children[0].instanceId,a.instanceId);
+  const logic=core.createAction('logic');logic.slots={single:core.cleanAction(a),double:null,hold:null};
+  assert.equal(logic.slots.single.instanceId,a.instanceId);
+  s.pages[0][0]=a;
+  const exported=core.exportSingleProfile(s,s.profileId);
+  const ids=[];core.walkSdkActions(exported.snapshot,x=>ids.push(x.instanceId));
+  assert.deepEqual(ids,[a.instanceId]);
+  const batch=require('../app/streamdeck-editor/fusion-batch.js');
+  const raw={format:batch.FORMAT,pluginUUID:batch.PLUGIN,actionUUID:batch.ACTION,profileName:'Audit Fusion',commands:Array.from({length:14},(_,i)=>({id:'cmd'+i,name:'Command '+i}))};
+  const result=batch.apply(s,raw,core);
+  assert.equal(result.count,14);assert.equal(result.pageCount,2);
+  const newIds=[];core.walkSdkActions(s.pages,x=>newIds.push(x.instanceId));
+  assert.equal(newIds.length,14);assert.equal(new Set(newIds).size,14);
+  assert.ok(newIds.every(id=>core.validInstanceId(id)&&id!==a.instanceId));
+});

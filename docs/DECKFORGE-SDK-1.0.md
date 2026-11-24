@@ -144,3 +144,28 @@ API 2 manifest의 service={script,tickIntervalMs?} 및 별도 background.run 권
 - Model 5 생산 OFF: IndexedDB/CacheStorage/OPFS 격리 미충족 및 opaque Worker 생성 실패, 실제 OOM 미검증. KEY 생산 기본 OFF: mock 통과, 실제 D200X trial 미실시.
 - Windows #984 attempt2 (job 138688628564) 전체 성공. 1.1.230 설치본 deckforge-v1.1.230 게시, 135231273 bytes. 동일 SDK 실제 장애 검사 통과, 24쌍+6 lease 2502ms, idle 최대3. Model5 eligible=false. USB mock 기본 PAGE121/KEY0, 시험 PAGE17/KEY104. 현재 root .test.cjs 45개를 test 디렉터리·실제 workflow node --test 명령·attempt2 로그에 대조하여 45/45 확인, 누락 0. 초기 native helper 3개 skip, 후속 패키지 검증 step 성공; 전체 고유 testcase 수 또는 과거 감사 44개와 동일하다는 주장 아님. SDK 저장 관련 3개 suite의 테스트 선언에서 원자 저장/receipt, ABA·복제·이동·중복 프로필, 응답 유실/재조회, child exit 및 오류 보존 검사 존재 확인. 감사 13개 원문 전수 대조 및 실제 전원 손실은 별도.
 - 정식 SDK 1.0 출시 보류: 최신 실제 HA/D200X/절전·재연결/장시간 soak, 실제 OOM, 이전 감사 19개 경로/13개 저장 항목 전수 대응 미완료. 검증된 범위만 사용 가능하며 사용자 데이터/권한 및 재실행 금지 보존. 신규 범위는 별도 승인.
+
+## 10C 감사 identity 대조 (1.1.231 후보)
+대상: 사용자가 제공한 report03.md §5.2 19행(기준 1.1.177), 비교 소스 080a305fdf70519f59b4780e91781ecd75f7fc8a. 현행 승인 계약 우선. 아래는 소스 대조 및 집중 검사 현황이며 GUI/모든 런타임 경로의 통과 선언이 아니다.
+| # | 감사 경로 | 현행 근거와 검증 상태 |
+|---|---|---|
+| 1 | 신규 버튼/노브 | editor newAction → Core.createAction; UUIDv4 기존 core 검사 |
+| 2 | 잘라내기/첫 붙여넣기 | editor cutClipboardAction/pasteClipboardAction clipboardMode=cut, 성공 후 copy; GUI 별도 |
+| 3 | 복사/붙여넣기 | pasteClipboardAction cloneActionInstances; helper 검사 기존, GUI 별도 |
+| 4 | 드래그 이동/교환 | 일반 슬롯/컨트롤 대입 경로 일부 확인; 실제 이동/교환 GUI 및 전체 핸들러 독립 검증 보류 |
+| 5 | 페이지 복제 | editPageStructure cloneActionInstances; 기존 core 검사 |
+| 6 | 폴더 페이지 복제 | 동일 core 경로; 기존 core 검사 |
+| 7 | 폴더 래핑 | editor cleanAction(item), ID 보존; 집중 helper 검사 추가 |
+| 8 | Logic 래핑 | editor cleanAction(item), ID 보존; 집중 helper 검사 추가. sdkMountDescriptors는 표시 중 직접 SDK 액션/노브를 수집, 중첩 Logic의 실제 실행/등록 별도 확인 |
+| 9 | 고정 등록 | togglePinned cloneActionInstances; 로컬 유지 복사라는 승인 규칙, 기존 core 검사 |
+| 10 | 고정키 로컬 override | setPressSlot cloneActionInstances; helper 기존, GUI 경로 별도 |
+| 11 | 액션 JSON 입출력 | importSlotAction cleanAction+cloneActionInstances; GUI 별도 |
+| 12 | 프로필 복제 | createProfile cloneActionInstances; 기존 core 검사 |
+| 13 | 프로필 JSON 입출력 | exportSingleProfile 보존, 집중 검사 추가. 개별 JSON import 구현/진입 경로 미확인; 백업 복원과 구분 |
+| 14 | 템플릿 저장 | saveProfileTemplate 비활성 snapshot; 적용 시 신규 ID. 기존 core 연계 검사 |
+| 15 | 템플릿 적용 | applyProfileTemplate cloneActionInstances; 기존 core 검사 |
+| 16 | 백업 복원 | planRestore 전체 보존/merge·select 신규 ID; 기존 backup 검사 |
+| 17 | Fusion batch | fusion-batch apply/assign createAction; 14개 명령 2페이지 신규 UUID 집중 검사 추가 |
+| 18 | AI 기본 편집 | protectedType/at에서 SDK 수정·복사·이동 자체 차단; 기존 정책 유지, 차단 검사 강화. 허용한 일반 액션과 구분 |
+| 19 | AI 고급 편집 | editPageStructure, fusionButton createAction, template cloneActionInstances; 복제/템플릿 ID 집중 검사 강화, profile_build 신규 ID 경로는 후속 |
+- 기존 1.1.230 Windows #984 성공과 이번 신규 검사 대기 구분. 제품 코드 변경 없음. report03 §4.2의 13개 저장 시나리오 원문 확보, 독립 대응 대조 후속. Model5/KEY OFF 유지.

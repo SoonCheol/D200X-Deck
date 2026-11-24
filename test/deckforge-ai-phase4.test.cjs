@@ -48,6 +48,10 @@ test('native HA and verified installed template only; state art and titles prese
  assert.equal(A.walkTemplates(s)[0].id,'VerifiedCommand');assert.throws(()=>A.makePlan(s,q));
  const p=A.makePlan(s,q,{template:{kind:'fusion',id:'VerifiedCommand'}}).next;
  assert.equal(p.pages[0][2].settings.pluginSettings.commandId,'VerifiedCommand');assert.ok(p.pages[0][2]!==s.pages[0][4]);
+ assert.ok(Core.validInstanceId(p.pages[0][2].instanceId));assert.notEqual(p.pages[0][2].instanceId,s.pages[0][4].instanceId);
+ const duplicated=A.makePlan(s,req('page_structure',{op:'duplicate',index:1})).next;
+ assert.equal(duplicated.pages[0][4].instanceId,s.pages[0][4].instanceId);
+ assert.ok(Core.validInstanceId(duplicated.pages[1][4].instanceId));assert.notEqual(duplicated.pages[1][4].instanceId,s.pages[0][4].instanceId);
  const ha=req('plugin',{kind:'ha',id:'light.room'},{slot:4});assert.throws(()=>A.makePlan(s,ha));assert.equal(A.makePlan(s,ha,{ha:{id:'light.room',name:'Room'}}).next.pages[0][3].settings.entityId,'light.room');
  const png={kind:'file',value:'data:image/png;base64,AAAA',packId:'pack'},design=req('state_design',{first:{title:'Up',enabled:true,iconName:'One'},second:{title:'Down',enabled:true,color:'#123456'}},{slot:5});
  const after=A.makePlan(s,design,{icons:{first:{name:'One',pack:'pack',data:png}}}).next.pages[0][4];

@@ -16,6 +16,9 @@ test('plan leaves live state untouched, preserves SDK identities and respects pi
   assert.equal(JSON.stringify(s),before);assert.equal(p.next.pages[0][1].settings.keys,'Ctrl+C');assert.equal(p.next.pages[0][1].titleStyle.family,'Segoe UI');
   assert.equal(p.next.pages[0][3],plugin);assert.equal(p.next.pinned,s.pinned);assert.equal(p.next.controls,s.controls);
   assert.throws(()=>Plan.makePlan(s,req(op('delete',{slot:4}))),/보호/);
+  assert.throws(()=>Plan.makePlan(s,req(op('copy',{slot:4,toSlot:2}))),/보호/);
+  assert.throws(()=>Plan.makePlan(s,req(op('move',{slot:4,toSlot:2}))),/보호/);
+  assert.equal(s.pages[0][3].instanceId,plugin.instanceId);
   assert.throws(()=>Plan.makePlan(s,req(op('put',{slot:5,type:'hotkey',value:'Ctrl+C'}))),/고정/);
   assert.throws(()=>Plan.makePlan(s,req(op('put',{slot:1,type:'hotkey',value:'Ctrl+C'}))),/비어/);
   assert.throws(()=>Plan.makePlan(s,req(op('put',{slot:14,type:'hotkey',value:'Ctrl+C'}))),/번호/);
