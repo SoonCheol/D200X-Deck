@@ -311,3 +311,32 @@ test('dirty revisions survive in-flight rendering, page invalidation and failed 
  ctx.fullPending=false;const recovered=ctx.window.flushRender(false);complete();await recovered;
  assert.equal(sent.length,3);assert.equal(sent.at(-1).s,'page-b');assert.equal(ctx.dirtyNativeSlots.size,0);assert.equal(ctx.renderRetryCount,0);
 });
+
+
+test('Fusion repeated titles/images/states do not request new visual frames',()=>{
+ const start=source.indexOf('function fusionVisualDelta('),end=source.indexOf('async function refreshFusionHealth(',start);
+ assert.ok(start>=0&&end>start);
+ const delta=vm.runInNewContext(source.slice(start,end)+';fusionVisualDelta');
+ let visual=null;
+ const image={kind:'setImage',payload:{image:'data:image/png;base64,QQ=='}};
+ for(const msg of [{kind:'setTitle',payload:{title:'Extrude'}},image,{kind:'setState',payload:{state:1}}]){
+   visual=delta(visual,msg);assert.ok(visual);
+   assert.equal(delta(visual,msg),null);
+ }
+ assert.equal(delta(visual,{kind:'setImage',payload:{image:'https://example.com'}}),null);
+ assert.equal(delta(visual,{kind:'setState',payload:{state:0}}).state,0);
+ assert.equal(delta(visual,{kind:'setImage',payload:{image:'data:image/png;base64,Qg=='}}).image,'data:image/png;base64,Qg==');
+});
+test('Fusion health checks repaint only mounted Fusion slots on actual transitions',async()=>{
+ const start=source.indexOf('function queueFusionVisualRefresh('),end=source.indexOf('function fusionCommandId(',start);
+ assert.ok(start>=0&&end>start);
+ const FUSION_PLUGIN='com.autodesk.fusionstreamdeck';
+ const entries=[{pluginUUID:FUSION_PLUGIN,slot:2,settings:{commandId:'one'}},{pluginUUID:'other',slot:3},{pluginUUID:FUSION_PLUGIN,slot:5,settings:{commandId:'two'}}];
+ let health=false;const calls=[];
+ const ctx={FUSION_PLUGIN,sdkActionInstances:()=>entries,queueNativeVisualRefresh:x=>calls.push(x.slot),fusionHealthAvailable:null,fusionHealthBusy:false,window:{deckBridge:{fusionHealth:async()=>health}},console};
+ vm.runInNewContext(source.slice(start,end)+';this.refresh=refreshFusionHealth;this.iconRefresh=queueFusionVisualRefresh;',ctx);
+ await ctx.refresh();assert.deepEqual(calls,[2,5]);
+ await ctx.refresh();assert.deepEqual(calls,[2,5]);
+ health=true;await ctx.refresh();assert.deepEqual(calls,[2,5,2,5]);
+ ctx.iconRefresh('two');assert.deepEqual(calls,[2,5,2,5,5]);
+});

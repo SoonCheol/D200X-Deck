@@ -196,6 +196,22 @@ async function refreshFusionButtonLanguage(){
 const fusionIconCache=new Map(),fusionCachePending=new Set(),fusionCacheMisses=new Map(),
   fusionConnected=new Set(),fusionOfflineContexts=new Set(),fusionLiveContexts=new Set(),unverifiedFusionContexts=new Set();
 let fusionHealthAvailable=null,fusionHealthBusy=false;
+function queueFusionVisualRefresh(commandId=null){
+  for(const entry of sdkActionInstances())
+    if(entry.pluginUUID===FUSION_PLUGIN&&(commandId===null||entry.settings?.commandId===commandId))
+      queueNativeVisualRefresh(entry);
+}
+function fusionVisualDelta(previous,message){
+  const old=previous||{};
+  let key,value;
+  if(message.kind==='setTitle'&&typeof message.payload?.title==='string'){key='title';value=message.payload.title.slice(0,256);}
+  else if(message.kind==='setImage'&&typeof message.payload?.image==='string'&&
+    /^data:image\/(png|jpeg|webp|svg\+xml);/.test(message.payload.image)&&message.payload.image.length<1024*1024){
+    key='image';value=message.payload.image;
+  }else if(message.kind==='setState'&&message.payload?.state!==undefined){key='state';value=message.payload.state;}
+  else return null;
+  return Object.hasOwn(old,key)&&old[key]===value?null:{...old,[key]:value};
+}
 async function refreshFusionHealth(){
   if(fusionHealthBusy||!window.deckBridge?.fusionHealth)return;
   fusionHealthBusy=true;
@@ -203,10 +219,10 @@ async function refreshFusionHealth(){
     const available=await window.deckBridge.fusionHealth();
     if(typeof available==='boolean'&&available!==fusionHealthAvailable){
       fusionHealthAvailable=available;
-      renderGrid();window.scheduleDeckSync?.();
+      queueFusionVisualRefresh();
     }
   }catch(error){console.warn('Fusion 연결 상태 조회 실패',error);
-    if(fusionHealthAvailable!==false){fusionHealthAvailable=false;renderGrid();window.scheduleDeckSync?.();}
+    if(fusionHealthAvailable!==false){fusionHealthAvailable=false;queueFusionVisualRefresh();}
   }finally{fusionHealthBusy=false;}
 }
 
@@ -226,7 +242,7 @@ function requestFusionIcon(id){
   if(!id||fusionIconCache.has(id)||fusionCachePending.has(id)||(fusionCacheMisses.has(id)&&Date.now()-fusionCacheMisses.get(id)<5000)||!window.deckBridge?.fusionIconRead)return;
   fusionCachePending.add(id);
   window.deckBridge.fusionIconRead(id).then(png=>{
-    if(typeof png==='string'){fusionIconCache.set(id,png);renderGrid();window.scheduleDeckSync?.();}
+    if(typeof png==='string'){fusionIconCache.set(id,png);queueFusionVisualRefresh(id);}
     else fusionCacheMisses.set(id,Date.now());
   }).catch(error=>console.warn('Fusion 아이콘 캐시 읽기 실패',error))
     .finally(()=>fusionCachePending.delete(id));
@@ -7377,13 +7393,14 @@ if(window.deckBridge?.onSdkEvent){
         }
       }
     }else if(message.kind==='pluginConnection'&&message.pluginUUID===FUSION_PLUGIN){
+      const wasConnected=fusionConnected.has(FUSION_PLUGIN);
       if(message.connected)fusionConnected.add(FUSION_PLUGIN);
       else {fusionConnected.delete(FUSION_PLUGIN);fusionLiveContexts.clear();for(const [context] of sdkVisuals) {
         // Disconnected runtime art must not override the cached image.
         const entry=sdkActionInstances().find(x=>x.context===context);
         if(entry?.pluginUUID===FUSION_PLUGIN)sdkVisuals.delete(context);
       }}
-      renderGrid();window.scheduleDeckSync?.();
+      if(wasConnected!==Boolean(message.connected)||!message.connected)queueFusionVisualRefresh();
     }else if(['setTitle','setImage','setState'].includes(message.kind)){
       const active=sdkActionInstances().find(x=>x.context===ctx);
       if(!active)return;
@@ -7391,6 +7408,23 @@ if(window.deckBridge?.onSdkEvent){
         const next=DeckCore.nativeVisualDelta(sdkVisuals.get(ctx),active,message);
         if(!next)return;
         sdkVisuals.set(ctx,next);
+        queueNativeVisualRefresh(active);
+        return;
+      }
+      if(active.pluginUUID===FUSION_PLUGIN){
+        const next=fusionVisualDelta(sdkVisuals.get(ctx),message);
+        if(!next)return; // periodic unchanged plugin output is not a repaint
+        sdkVisuals.set(ctx,next);
+        if(message.kind==='setImage'){
+          void refreshFusionHealth();
+          const disabled=fusionDisabledImage(next.image);
+          if(disabled){fusionOfflineContexts.add(ctx);fusionLiveContexts.delete(ctx);}
+          else{
+            fusionOfflineContexts.delete(ctx);fusionLiveContexts.add(ctx);
+            if(typeof active.settings?.commandId==='string'&&!unverifiedFusionContexts.has(ctx))
+              void rememberFusionIcon(active.settings.commandId,next.image);
+          }
+        }
         queueNativeVisualRefresh(active);
         return;
       }
@@ -7403,24 +7437,6 @@ if(window.deckBridge?.onSdkEvent){
       if(validImage)old.image=message.payload.image;
       if(message.kind==='setState')old.state=message.payload?.state;
       sdkVisuals.set(ctx,old);
-      if(validImage){
-        const cfg=active;
-        if(cfg?.pluginUUID===FUSION_PLUGIN){
-          // Refresh Fusion's actual add-in status when artwork changes, not
-          // just on the periodic check; the SDK plugin is a separate process.
-          void refreshFusionHealth();
-          const disabled=fusionDisabledImage(old.image);
-          if(disabled){
-            fusionOfflineContexts.add(ctx);
-            fusionLiveContexts.delete(ctx);
-          }else{
-            fusionOfflineContexts.delete(ctx);
-            fusionLiveContexts.add(ctx);
-            if(typeof cfg.settings?.commandId==='string'&&!unverifiedFusionContexts.has(ctx))
-              void rememberFusionIcon(cfg.settings.commandId,old.image);
-          }
-        }
-      }
       renderGrid();
       const selectedItem=DeckCore.visibleActions(state)[state.selected];
       if(!haPreviewStates.has(selectedItem))void refreshSelectedVisual();
