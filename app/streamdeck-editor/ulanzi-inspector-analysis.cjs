@@ -43,7 +43,8 @@ function analyzeHtml(entry,html,{inspector=false}={}){
     if(['iframe','object','embed','base'].includes(n.tagName))note('unsupported-element',n.tagName);
   }
   if(!inspector)return {scripts,findings};
-  const form=all.find(n=>n.tagName==='form'&&attrs(n).id==='property-inspector');
+  const forms=all.filter(n=>n.tagName==='form');
+  const form=forms.find(n=>attrs(n).id==='property-inspector');
   if(!form){note('property-form-missing');return {scripts,findings,fields,settingsSchemaCandidate:[],requiresReview:true};}
   const formNodes=nodes(form);
   for(const n of formNodes){
@@ -94,7 +95,17 @@ function analyzeHtml(entry,html,{inspector=false}={}){
       proposals.push(proposal);field.status='schema-proposal';field.reason='requires-source-setting-contract-review';
     }catch{field.reason='native-schema-limit';}
   }
-  return {scripts,findings,fields,settingsSchemaCandidate:proposals,requiresReview:true};
+  // Only a fully described inert form may enter source/schema binding.
+  // Unknown markup, attributes, active/external resources and unrepresented
+  // controls remain review-only rather than silently changing behavior.
+  const allowedTags=new Set(['html','head','body','title','form','div','span','p','label','input','select','option','br','fieldset','legend']);
+  const allowedAttrs=new Set(['id','class','for','name','type','value','maxlength','min','max','step','selected']);
+  const formSet=new Set(formNodes);
+  const staticSchema=!!(forms.length===1&&scripts.length===0&&findings.length===0&&fields.length&&fields.length===proposals.length&&
+    proposals.every(f=>['text','select'].includes(f.type))&&all.every(n=>
+      (!n.tagName||allowedTags.has(n.tagName))&&Object.keys(attrs(n)).every(k=>allowedAttrs.has(k))&&
+      (!['input','select','option'].includes(n.tagName)||formSet.has(n))));
+  return {scripts,findings,fields,settingsSchemaCandidate:proposals,staticSchema,requiresReview:true};
 }
 function imageReport(bytes,relative){
   const ext=path.extname(relative).toLowerCase();

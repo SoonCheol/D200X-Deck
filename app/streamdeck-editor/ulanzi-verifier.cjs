@@ -13,6 +13,12 @@ const SOURCE_EVENT=Object.freeze({
   left:'onDialRotateLeft',right:'onDialRotateRight',
   heldLeft:'onDialRotateHoldLeft',heldRight:'onDialRotateHoldRight'
 });
+function sampleSetting(action,key,seed){
+  const field=action.settingsSchema?.find(f=>f.key===key);
+  if(field?.type==='select')return field.options.find(o=>o.value!==field.default)?.value??field.default;
+  if(field?.type==='text')return String(seed).slice(0,field.maxLength);
+  return String(seed)+' '+key;
+}
 function simulateCandidate(manifest,sourceEvents){
   validateNativeManifest(manifest);
   if(manifest.apiVersion===1&&manifest.actions.length>1)return simulateMultiple(manifest,sourceEvents);
@@ -41,7 +47,7 @@ function simulateCandidate(manifest,sourceEvents){
   const cfg=(context,slot)=>({context,slot,gesture:'down',pluginUUID:manifest.id,actionUUID:action.id,settings:{}});
   const a=cfg('verify-a',dial?16:0),b=cfg('verify-b',dial?17:1);
   const keys=[...new Set([...events.values()].flat().filter(e=>e.setting).map(e=>e.setting))];
-  b.settings=Object.fromEntries(keys.map(k=>[k,'Context B '+k]));
+  b.settings=Object.fromEntries(keys.map(k=>[k,sampleSetting(action,k,'B')]));
   const current=new Map([[a.context,a.settings],[b.context,b.settings]]);
   const expected=(context,event,ticks=1)=>{
     const output=[];
@@ -81,11 +87,11 @@ function simulateCandidate(manifest,sourceEvents){
       check('held-binding-left',()=>host.key(a.context,'hold-left'),expected(a.context,SOURCE_EVENT.heldLeft),true);
     }else check('keypad-rejects-rotate',()=>host.key(a.context,'left'),[],false);
     check('unchanged-sync',()=>host.sync([a,b],[manifest]),[]);
-    const changed=Object.fromEntries([['probe',1],...keys.map(k=>[k,'Updated '+k])]);
+    const changed=Object.fromEntries([['probe',1],...keys.map(k=>[k,sampleSetting(action,k,'U')])]);
     // Use a distinct probe key even when the original field is named probe.
     current.set(a.context,changed);
     check('settings-sync',()=>host.sync([{...a,settings:changed},b],[manifest]),expected(a.context,SOURCE_EVENT.settings));
-    if(keys.length){
+    if(keys.length&&!action.settingsSchema){
       const wrong=Object.fromEntries(keys.map(k=>[k,42]));
       current.set(a.context,wrong);
       check('settings-non-string-fallback',()=>host.sync([{...a,settings:wrong},b],[manifest]),expected(a.context,SOURCE_EVENT.settings));
@@ -123,7 +129,7 @@ function simulateMultiple(manifest,traces){
   const host=new NativePluginHost('/unused-offline-verification',event=>observed.push(event),()=>{throw Error('JavaScript runner forbidden');});
   const configs=manifest.actions.map((a,i)=>{
     const fields=traces.find(t=>t.actionId===a.id).events.flatMap(e=>e.calls).filter(c=>c.method==='setTitleFromParam');
-    return {context:'verify-multi-'+i,slot:a.controllers[0]==='Encoder'?16:0,gesture:'down',pluginUUID:manifest.id,actionUUID:a.id,settings:Object.fromEntries(fields.map(f=>[f.key,'Action '+i+' '+f.key]))};
+    return {context:'verify-multi-'+i,slot:a.controllers[0]==='Encoder'?16:0,gesture:'down',pluginUUID:manifest.id,actionUUID:a.id,settings:Object.fromEntries(fields.map(f=>[f.key,sampleSetting(a,f.key,'A'+i)]))};
   });
   const expected=(cfg,method)=>(traces.find(t=>t.actionId===cfg.actionUUID).events.find(e=>e.method===method)?.calls||[]).map(c=>({
     kind:c.method==='setTitleFromParam'?'setTitle':c.method,context:cfg.context,payload:c.method==='setTitleFromParam'?{title:typeof cfg.settings[c.key]==='string'?cfg.settings[c.key].slice(0,256):c.fallback}:c.method==='setTitle'?{title:c.value}:c.method==='setState'?{state:c.value}:{image:c.value}

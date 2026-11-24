@@ -2,6 +2,11 @@
 
 > **상태 기록 기준: 2026-11-24**. 실제 최신 HEAD는 Git에서 확인하며, 코드·자동 검사·Windows 빌드·사용자 Windows/D200X 실기 결과를 구분한다. 시작 시 `AGENTS.md`와 이 문서만 읽고 로드맵은 필요한 경우에만 참고한다.
 
+## 1.1.141 — Ulanzi 제한형 속성창 schema와 소스 설정 결합 (2026-11-24)
+
+- inert 단일 form, text/select 정적 schema, 모든 필드의 appear/settings 문자열 참조와 기본값 일치 조건에서 기존 독자 SDK 속성창에 후보 연결. script/동적/민감/미표현 필드 및 불일치 거부. 액션별 독립 schema, 유효 입력 trace 확장. 원본 HTML/JS 미실행, 실제 출시/설치 차단 유지.
+- 집중 fixture 추가. 1.1.139 CI #1179 성공. 1.1.140 이후 신규 검사 및 실기 별도.
+
 ## 1.1.140 — GIF 애니메이션 시간/세대/전송 준비 (2026-11-24)
 
 - 실기와 분리된 AnimationClock: 최소 100ms 프레임 간격, 유한/무한 반복, 지연 프레임 건너뛰기, 슬롯 round-robin, 단일 outstanding ticket, page epoch 변경 시 stale 작업 무효화, pause/resume/clear, 최대 4개 활성·16MiB 전체 용량 제한. PNG 재검증.

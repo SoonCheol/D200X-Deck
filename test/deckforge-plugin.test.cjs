@@ -1094,3 +1094,28 @@ test('animation clock skips late frames, preserves finite loops, isolates pages 
  assert.throws(()=>clock.replace([{slot:13,animation}]),/slot/);
  assert.throws(()=>animationTimeline({...animation,frames:[{png:Buffer.from('bad'),delayMs:5}]}),/frame/);
 });
+
+test('inert Ulanzi inspector schema is bound only to matching source settings and remains review-only',async()=>{
+ const {analyzeDirectory}=require('../app/streamdeck-editor/ulanzi-converter.cjs');
+ const {buildReviewRecord,validateReviewRecord}=require('../app/streamdeck-editor/ulanzi-release-review.cjs');
+ const root=await fs.mkdtemp(path.join(os.tmpdir(),'deckforge-inspector-bind-')),dir=path.join(root,'source.ulanziPlugin');await fs.mkdir(dir);
+ const id='com.ulanzi.ulanzistudio.Form',m={Type:'JavaScript',UUID:id,Name:'Form',Version:'1',CodePath:'app.js',Actions:[{UUID:id+'.a',Name:'A',PropertyInspectorPath:'pi.html'}]};
+ const form='<form id="property-inspector"><label for="label">Label</label><input id="label" name="label" maxlength="8" value="Ready"></form>';
+ const display="m=>$UD.setTitle(m.context,typeof m.param?.label === 'string' ? m.param.label : 'Ready')";
+ const src="$UD.connect('"+id+"');$UD.onAdd("+display+");$UD.onParamFromApp("+display+");";
+ try{
+  await fs.writeFile(path.join(dir,'manifest.json'),JSON.stringify(m));
+  await fs.writeFile(path.join(dir,'app.js'),src);
+  await fs.writeFile(path.join(dir,'pi.html'),form);
+  const report=await analyzeDirectory(dir,{fullFingerprint:true});
+  assert.equal(report.inspectors[0].staticSchema,true);
+  assert.deepEqual(report.candidate.actions[0].settingsSchema,[{key:'label',label:'Label',type:'text',maxLength:8,default:'Ready'}]);
+  assert.equal(report.verification.status,'pass');
+  const record=buildReviewRecord(report);for(const c of record.checks){c.status='passed';c.evidence='synthetic fixture only';}
+  assert.throws(()=>validateReviewRecord(record,report),/manual conversion/);
+  for(const bad of [form.replace('Ready','Other'),form.replace('</form>','<input name="extra"></form>'),form+'<script src="pi.js"></script>',form.replace('<input','<input onchange="update()"')]){
+    await fs.writeFile(path.join(dir,'pi.html'),bad);
+    assert.equal((await analyzeDirectory(dir)).candidate,null);
+  }
+ }finally{await fs.rm(root,{recursive:true,force:true});}
+});

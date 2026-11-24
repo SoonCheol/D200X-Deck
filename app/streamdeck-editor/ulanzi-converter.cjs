@@ -90,7 +90,7 @@ function settingTitle(node,param){
     /token|password|secret|credential|authorization|headers?|api[_-]?key|cookie|request[_-]?body|url|endpoint/i.test(key))return null;
   return {key,fallback:node.alternate.value};
 }
-function analyzeSource(manifest,source,{stateImages,stateImagesByAction}={}){
+function analyzeSource(manifest,source,{stateImages,stateImagesByAction,inspectorSchemas}={}){
   validateSourceManifest(manifest);
   if(typeof source!=='string'||Buffer.byteLength(source)>MAX_SOURCE)throw Error('source size limit');
   const findings=[],seen=new Set(),calls=new Map(),imports=new Set();
@@ -223,14 +223,20 @@ function analyzeSource(manifest,source,{stateImages,stateImagesByAction}={}){
     if(ops.length>16)reject(node,'event operation limit');
     programs[event]=ops;sourceEvents.push({method,calls:sourceCalls});
   }
-  actionResults.push({a,controllers,states,programs,sourceEvents,valid:structurallySafe&&connected&&Object.keys(programs).length>0&&
-    !a.PropertyInspectorPath&&validController(a)&&[1,2].includes(states)&&(!own(a,'States')||Array.isArray(a.States))});
+  const schema=inspectorSchemas?.get(a.UUID);
+  const reads=Object.values(programs).flat().filter(op=>op.op==='titleFromSetting');
+  const schemaBound=Array.isArray(schema)&&schema.length>0&&
+    reads.every(op=>schema.some(f=>f.key===op.key&&['text','select'].includes(f.type)&&f.default===op.fallback))&&
+    schema.every(f=>['appear','settings'].every(event=>programs[event]?.some(op=>op.op==='titleFromSetting'&&op.key===f.key&&op.fallback===f.default)));
+  if(a.PropertyInspectorPath&&schemaBound)note('inspector-schema-bound','inert form and source fallback bound; manual inspector review required');
+  actionResults.push({a,controllers,states,programs,sourceEvents,schema:schemaBound?schema:undefined,valid:structurallySafe&&connected&&Object.keys(programs).length>0&&
+    (!a.PropertyInspectorPath||schemaBound)&&validController(a)&&[1,2].includes(states)&&(!own(a,'States')||Array.isArray(a.States))});
   }
   let candidate=null,verification=null;
   if(!manifest.PrivateAPI&&actionResults.every(x=>x.valid)){
     const id='com.deckforge.native.ulanzi-'+sha(manifest.UUID).slice(0,24);
-    const actions=actionResults.map(({a,controllers,states,programs})=>({
-      id:multi?id+'.a-'+sha(a.UUID).slice(0,24):id+'.action',name:a.Name,controllers,states,events:programs,
+    const actions=actionResults.map(({a,controllers,states,programs,schema})=>({
+      id:multi?id+'.a-'+sha(a.UUID).slice(0,24):id+'.action',name:a.Name,controllers,states,events:programs,...(schema?{settingsSchema:schema}:{}),
       ...(multi&&stateImagesByAction?.has(a.UUID)?{stateImages:stateImagesByAction.get(a.UUID)}:!multi&&stateImages?{stateImages}:{})
     }));
     const native={apiVersion:1,id,name:manifest.Name,version:manifest.Version,permissions:['display'],actions};
@@ -387,7 +393,8 @@ async function analyzeDirectory(folder,{fullFingerprint=false}={}){
   else if(entryInfo.bytes>MAX_SOURCE)report.findings.push({code:'large-entry',detail:'bundled entry exceeds static parser limit; source required',line:0});
   else{
     const bytes=await readEntry(manifest.CodePath,MAX_SOURCE);entryHash=sha(bytes);
-    report=analyzeSource(manifest,bytes.toString('utf8'),{stateImages,stateImagesByAction});
+    const inspectorSchemas=new Map(inspectors.filter(r=>r.staticSchema).map(r=>[r.action,r.settingsSchemaCandidate]));
+    report=analyzeSource(manifest,bytes.toString('utf8'),{stateImages,stateImagesByAction,inspectorSchemas});
   }
   // Report licensing evidence, not a legal conclusion; never infer a license.
   const licenseFiles=inventory.filter(x=>/(^|\/)(license|copying|notice)([._-]|$)/i.test(x.path)).map(x=>x.path);
