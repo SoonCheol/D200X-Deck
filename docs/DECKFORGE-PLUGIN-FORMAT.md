@@ -3,6 +3,12 @@
 > 기록일: 2026-11-24 · 상태: **패키지 v1 유지 / 독자 SDK API 1·2 및 패키지 v2 / Ulanzi 정적 분석·제한 후보 변환기 구현**
 > 저장소·브랜치: `SoonCheol/D200X-Deck` / `codex/streamdeck-761-clean-editor`
 
+## 0.13 독자 SDK 작성·패키징 CLI 및 Ulanzi PNG 변환 (1.1.126)
+
+- 공식 Node SDK V3.1 `setImage(context,{isDefault:false,icons:{source:'base64',base64:'data:image/png;base64,...'}})`의 정적 literal PNG 임시 표시만 API 1 image로 변환. 기존 PNG 크기/헤더 검사 및 독립 trace 대조. 경로/GIF/SVG/default/clear/동적 값·중복 키·spread는 수동 검토. 원본 실행 금지.
+- `node app/streamdeck-editor/deckforge-sdk-cli.cjs package <native.json> <output-directory>`: 독자 작성 manifest를 검증하고 v2 설치 archive 생성, 실제 설치 parser로 왕복 검증, 기존 파일 덮어쓰기 금지. 예제 `examples/deckforge-sdk/counter.native.json` 포함. 앱 설치 또는 실행은 하지 않는다.
+- `node app/streamdeck-editor/deckforge-sdk-cli.cjs review-ulanzi <original.ulanziPlugin> <output-directory>`: 원본 외부에 검토 JSON 생성. Ulanzi 후보 전용 ID의 직접 CLI 패키징은 차단. 변환 후보는 라이선스·원본 자원·실제 의미·실기 검토 후 별도 출시 절차 필요. 자동 설치를 제공하지 않는다. CLI는 신뢰한 로컬 개발자를 위한 도구이지 악의적 패키지 작성 자체를 차단하는 보안 경계가 아니다.
+
 ## 0.12 Ulanzi 속성창·HTML 진입점·리소스 분석 (1.1.125)
 
 - Ulanzi 공식 SDK 예제(API Request, Analog Clock)의 manifest/HTML/inspector.js/HTML 진입점 확인. 정적 HTML parser parse5 7.3.0(MIT), entities 6.0.1(BSD-2-Clause), npm/cli lockfile의 패키지 버전/무결성 근거 사용. HTML은 실행하지 않고 script 의존 경로를 분석한다.

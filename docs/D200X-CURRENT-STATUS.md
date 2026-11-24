@@ -2,6 +2,10 @@
 
 > **상태 기록 기준: 2026-11-24**. 실제 최신 HEAD는 Git에서 확인하며, 코드·자동 검사·Windows 빌드·사용자 Windows/D200X 실기 결과를 구분한다. 시작 시 `AGENTS.md`와 이 문서만 읽고 로드맵은 필요한 경우에만 참고한다.
 
+## 1.1.126 — 독자 SDK 패키징 및 Ulanzi 임시 PNG 변환 (2026-11-24)
+
+- 공식 V3.1 literal temporary base64 PNG 변환/trace, 독자 작성 native.json 검증·v2 패키징 CLI/왕복 검증·덮어쓰기 금지, 별도 Ulanzi review JSON 생성·미검토 후보 패키징 차단, Counter 예제. 기존 설치/SDK 보존. 1.1.125 CI/Windows 성공 확인, 이번 버전 검증 별도.
+
 ## 1.1.125 — Ulanzi 속성창·HTML·리소스 정적 분석 (2026-11-24)
 
 - 공식 API Request/Analog Clock 예제 검토, parse5 재사용, HTML form에서 제한 독자 schema 제안, checkbox/dynamic/secret/외부 값 수동 검토, HTML 진입점 script 및 state artwork 해시/PNG 헤더 보고. 실행/자동 설치 없음, 기존 후보 변환 보존. 집중 테스트 추가. 1.1.124 CI/입력 검사 성공, Windows 별도 확인.

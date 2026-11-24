@@ -668,3 +668,40 @@ test('Ulanzi directory analysis inventories HTML entry, inspector proposals and 
    assert.match(result.resources[0].sha256,/^[a-f0-9]{64}$/);
  }finally{await fs.rm(temp,{recursive:true,force:true});}
 });
+
+
+test('Ulanzi documented temporary PNG image maps to the native host trace without executing source',()=>{
+ const {analyzeSource}=require('../app/streamdeck-editor/ulanzi-converter.cjs');
+ const id='com.ulanzi.ulanzistudio.ImageDemo',m={Type:'JavaScript',UUID:id,Name:'Image',Version:'1.0.0',
+ CodePath:'app.js',Actions:[{UUID:id+'.image',Name:'Image'}]};
+ const png=Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+j0ioAAAAASUVORK5CYII=','base64');
+ const image='data:image/png;base64,'+png.toString('base64');
+ const source="$UD.connect('"+id+"');$UD.onKeyDown(m=>$UD.setImage(m.context,{isDefault:false,icons:{source:'base64',base64:"+JSON.stringify(image)+"}}));";
+ const report=analyzeSource(m,source);
+ assert.deepEqual(report.candidate.actions[0].events.press,[{op:'image',value:image}]);
+ assert.equal(report.verification.status,'pass');
+ for(const bad of [source.replace('isDefault:false','isDefault:true'),source.replace("source:'base64'","source:'path'"),source.replace('isDefault:false','isDefault:false,isDefault:false'),source.replace('isDefault:false','...x,isDefault:false')])
+   assert.equal(analyzeSource(m,bad).candidate,null);
+});
+test('native author package round-trips through installer validation and refuses overwrite or unreviewed candidate',async()=>{
+ const {packageNativeManifest}=require('../app/streamdeck-editor/deckforge-plugin.cjs');
+ const {packageFile,prepareReview}=require('../app/streamdeck-editor/deckforge-sdk-cli.cjs');
+ const temp=await fs.mkdtemp(path.join(os.tmpdir(),'deckforge-author-'));
+ try{
+   const pack=await packageNativeManifest(scriptManifest);
+   assert.deepEqual((await parseDeckForgePackage(pack.archive)).native,scriptManifest);
+   const input=path.join(temp,'native.json');await fs.writeFile(input,JSON.stringify(scriptManifest));
+   const file=await packageFile(input,temp);
+   assert.equal(path.extname(file),'.deckforgePlugin');
+   await assert.rejects(packageFile(input,temp),/EEXIST/);
+   const folder=path.join(temp,'source.ulanziPlugin');await fs.mkdir(folder);
+   const id='com.ulanzi.ulanzistudio.Review',m={Type:'JavaScript',UUID:id,Name:'Review',Version:'1.0.0',CodePath:'app.js',Actions:[{UUID:id+'.a',Name:'A'}]};
+   await fs.writeFile(path.join(folder,'manifest.json'),JSON.stringify(m));
+   await fs.writeFile(path.join(folder,'app.js'),"$UD.connect('"+id+"');$UD.onKeyDown(m=>$UD.setTitle(m.context,'Ready'));");
+   const reviewPath=await prepareReview(folder,temp),report=JSON.parse(await fs.readFile(reviewPath,'utf8'));
+   assert.equal(report.installationAllowed,false);assert.ok(report.candidate);
+   await assert.rejects(prepareReview(folder,folder),/outside source/);
+   await fs.writeFile(input,JSON.stringify(report.candidate));
+   await assert.rejects(packageFile(input,temp),/reviewed conversion/);
+ }finally{await fs.rm(temp,{recursive:true,force:true});}
+});

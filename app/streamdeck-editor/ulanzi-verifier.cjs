@@ -26,6 +26,7 @@ function simulateCandidate(manifest,sourceEvents){
     const calls=entry.calls.map(call=>{
       if(call.method==='setTitle'&&typeof call.value==='string')return {kind:'setTitle',payload:{title:call.value}};
       if(call.method==='setState'&&Number.isInteger(call.value))return {kind:'setState',payload:{state:call.value}};
+      if(call.method==='setImage'&&typeof call.value==='string')return {kind:'setImage',payload:{image:call.value}};
       throw Error('unsupported source trace command');
     });
     events.set(entry.method,calls);

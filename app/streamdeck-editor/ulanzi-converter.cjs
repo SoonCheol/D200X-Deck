@@ -19,7 +19,7 @@ const EVENT_MAP=Object.freeze({
 const REVIEW_EVENTS=new Set(['onRun','onClear','onSetActive','onConnected','onClose','onError','onParamFromApp',
   'onParamFromPlugin','onDidReceiveSettings','onDidReceiveGlobalSettings','onSendToPlugin','onSendToPropertyInspector',
   'onDialRotate','onSelectdialog']);
-const REVIEW_COMMANDS=new Set(['setStateIcon','setBaseDataIcon','setPathIcon','setGifDataIcon','setGifPathIcon','setImage',
+const REVIEW_COMMANDS=new Set(['setStateIcon','setBaseDataIcon','setPathIcon','setGifDataIcon','setGifPathIcon',
   'setFeedback','setFeedbackLayout','setSettings','getSettings','getGlobalSettings','setGlobalSettings','sendParamFromPlugin',
   'sendToPropertyInspector','sendToPlugin','toast','showAlert','logMessage','hotkey','openUrl','openView','selectFileDialog','selectFolderDialog','emit']);
 const safeRelative=s=>typeof s==='string'&&s.length>0&&s.length<1024&&!/[:\\\x00-\x1f\x7f]/.test(s)&&
@@ -50,6 +50,29 @@ function member(n,owner,prop){
     (prop===undefined||n.property.name===prop);
 }
 function udCall(n){return n?.type==='CallExpression'&&!n.optional&&member(n.callee,'$UD')?n.callee.property.name:null;}
+// Only the documented V3.1 temporary base64 image variant. Reject getters,
+// spreads, computed keys, duplicates, path sources and default/clear updates.
+function literalObject(node){
+  if(node?.type!=='ObjectExpression')return null;
+  const result=Object.create(null);
+  for(const p of node.properties){
+    const key=p.key?.type==='Identifier'?p.key.name:lit(p.key,'string')?p.key.value:null;
+    if(p.type!=='Property'||p.kind!=='init'||p.computed||p.method||p.shorthand||!key||own(result,key))return null;
+    result[key]=p.value;
+  }
+  return result;
+}
+function temporaryImage(node){
+  const value=literalObject(node);
+  if(!value||Object.keys(value).length!==2||!lit(value.isDefault,'boolean')||value.isDefault.value!==false)return null;
+  const icon=literalObject(value.icons);
+  if(!icon||Object.keys(icon).length!==2||!lit(icon.source,'string')||icon.source.value!=='base64'||!lit(icon.base64,'string'))return null;
+  const png=icon.base64.value;
+  if(png.length>350000||!/^data:image\/png;base64,[A-Za-z0-9+/]+={0,2}$/.test(png))return null;
+  const bytes=Buffer.from(png.slice(22),'base64');
+  if(bytes.toString('base64')!==png.slice(22)||imageReport(bytes,'image.png').status!=='header-candidate')return null;
+  return png;
+}
 function analyzeSource(manifest,source){
   validateSourceManifest(manifest);
   if(typeof source!=='string'||Buffer.byteLength(source)>MAX_SOURCE)throw Error('source size limit');
@@ -74,7 +97,7 @@ function analyzeSource(manifest,source){
       note('dynamic-or-node','Node or dynamic execution requires manual analysis',n.loc.start.line);
     const method=udCall(n);
     if(method){
-      const prior=calls.get(method)||{name:method,count:0,support:own(EVENT_MAP,method)||['setTitle','setState','connect'].includes(method)?'candidate':REVIEW_EVENTS.has(method)||REVIEW_COMMANDS.has(method)?'review':'unknown'};
+      const prior=calls.get(method)||{name:method,count:0,support:own(EVENT_MAP,method)||['setTitle','setState','setImage','connect'].includes(method)?'candidate':REVIEW_EVENTS.has(method)||REVIEW_COMMANDS.has(method)?'review':'unknown'};
       prior.count++;calls.set(method,prior);
       if(prior.support==='unknown')note('unknown-sdk-method',method,n.loc.start.line);
       if(prior.support==='review')note('unsupported-sdk-method',method,n.loc.start.line);
@@ -135,7 +158,7 @@ function analyzeSource(manifest,source){
     for(const statement of body){
       if(statement.type==='EmptyStatement')continue;
       const cmd=statement.type==='ExpressionStatement'?statement.expression:null,name=udCall(cmd);
-      if(!['setTitle','setState'].includes(name)||cmd.arguments.length!==2||!member(cmd.arguments[0],param,'context')){
+      if(!['setTitle','setState','setImage'].includes(name)||cmd.arguments.length!==2||!member(cmd.arguments[0],param,'context')){
         reject(statement,'only current-context literal display calls are translatable');continue;
       }
       const value=cmd.arguments[1];
@@ -144,7 +167,9 @@ function analyzeSource(manifest,source){
       }else if(name==='setState'&&lit(value,'number')&&Number.isInteger(value.value)&&value.value>=0&&value.value<states){
         ops.push({op:'state',value:value.value});sourceCalls.push({method:name,value:value.value});
       }
-      else reject(statement,'unsupported display argument');
+      else if(name==='setImage'&&temporaryImage(value)){
+        const image=temporaryImage(value);ops.push({op:'image',value:image});sourceCalls.push({method:name,value:image});
+      }else reject(statement,'unsupported display argument');
     }
     if(ops.length>16)reject(node,'event operation limit');
     programs[event]=ops;sourceEvents.push({method,calls:sourceCalls});

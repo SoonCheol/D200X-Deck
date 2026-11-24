@@ -164,4 +164,21 @@ async function packageSdPluginDirectory(folder){
   return {archive,meta,filename};
 }
 
-module.exports={FORMAT,FORMAT_VERSION,validatePackageManifest,parseDeckForgePackage,packageSdPluginDirectory};
+// Authoring SDK: build a native manifest, not an original Ulanzi archive.
+// The same installer parser validates the resulting archive before publication.
+async function packageNativeManifest(manifest){
+  const native=validateNativeManifest(manifest);
+  const bytes=Buffer.from(JSON.stringify(native,null,2),'utf8');
+  if(bytes.length>NATIVE_LIMIT)throw Error('독자 SDK 프로그램 크기 제한');
+  const meta={format:FORMAT,formatVersion:2,
+    plugin:{id:native.id,name:native.name,version:native.version},
+    source:{kind:'deckforge'},runtime:{type:'deckforge-sdk',directory:'payload',apiVersion:native.apiVersion}};
+  validatePackageManifest(meta);
+  const zip=new JSZip();
+  zip.file('deckforge-plugin.json',JSON.stringify(meta,null,2));
+  zip.file('payload/native.json',bytes);
+  const archive=await zip.generateAsync({type:'nodebuffer',compression:'DEFLATE'});
+  await parseDeckForgePackage(archive);
+  return {archive,meta,filename:safeName(native.id)+'-'+safeName(native.version)+'.deckforgePlugin'};
+}
+module.exports={FORMAT,FORMAT_VERSION,validatePackageManifest,parseDeckForgePackage,packageSdPluginDirectory,packageNativeManifest};
