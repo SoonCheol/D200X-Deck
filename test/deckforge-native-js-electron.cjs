@@ -255,6 +255,49 @@ async function verifyModel2Limits(){
   console.log('MODEL2_BOUNDED_LIMITS '+JSON.stringify({rejectedCases:5,serviceSurvived:true,buttonRecovered:true,opaqueStorageBlocked:true,dataFetchBlocked:true,oomTested:false}));
  }finally{pool.close();}
 }
+// Deliberate loss of a uniquely identified test renderer, not OOM injection.
+async function verifyModel2ProcessLoss(){
+ const {BrowserWindow}=require('electron');
+ const {ScriptRunnerPool,deadline}=require('../app/streamdeck-editor/deckforge-js-runtime.cjs');
+ const pool=new ScriptRunnerPool(),id='com.deckforge.native.crash-smoke',peerId=id+'-peer';
+ const button=pool.lease(id,'button'),service=pool.lease(id,'service'),peer=pool.lease(peerId,'button');
+ const title=text=>({ops:[{op:'title',value:text}],memory:{}});
+ const run=(lease,text)=>lease.run('api.setTitle('+JSON.stringify(text)+');',input);
+ try{
+  await run(button,'button');await run(service,'service');await run(peer,'peer');
+  const before={button:pool.processId(id,'button'),service:pool.processId(id,'service'),peer:pool.processId(peerId,'button')};
+  assert.ok(Object.values(before).every(pid=>Number.isInteger(pid)&&pid>0));
+  assert.equal(new Set(Object.values(before)).size,3);
+  const buttonRunner=pool.entries.get(pool.key(id,'button')).runner;
+  const serviceRunner=pool.entries.get(pool.key(id,'service')).runner;
+  const peerRunner=pool.entries.get(pool.key(peerId,'button')).runner;
+  const windows=BrowserWindow.getAllWindows().filter(w=>!w.isDestroyed()&&w.webContents.getOSProcessId()===before.button);
+  assert.equal(windows.length,1,'crash target must uniquely identify test renderer');
+  const wc=windows[0].webContents;
+  let goneDetails;
+  const gone=new Promise(resolve=>wc.prependOnceListener('render-process-gone',(_event,details)=>{goneDetails=details;resolve();}));
+  const pending=button.run('await new Promise(()=>{});api.setTitle("must not commit");',input);
+  const rejected=assert.rejects(pending,/closed|unavailable|timeout/);
+  rejected.catch(()=>{});
+  wc.forcefullyCrashRenderer();
+  await deadline(()=>gone,5000,()=>{});
+  await rejected;
+  assert.ok(['killed','crashed'].includes(goneDetails.reason));
+  assert.equal(buttonRunner.isClosed(),true);
+  assert.equal(pool.entries.has(pool.key(id,'button')),false);
+  assert.equal(serviceRunner.isClosed(),false);assert.equal(peerRunner.isClosed(),false);
+  assert.deepEqual(await run(service,'service alive'),title('service alive'));
+  assert.deepEqual(await run(peer,'peer alive'),title('peer alive'));
+  assert.equal(pool.entries.get(pool.key(id,'service')).runner,serviceRunner);
+  assert.equal(pool.entries.get(pool.key(peerId,'button')).runner,peerRunner);
+  assert.deepEqual(await run(button,'new event only'),title('new event only'));
+  assert.notEqual(pool.entries.get(pool.key(id,'button')).runner,buttonRunner);
+  const after=[pool.processId(id,'button'),pool.processId(id,'service'),pool.processId(peerId,'button')];
+  assert.ok(after.every(pid=>Number.isInteger(pid)&&pid>0));
+  assert.equal(new Set(after).size,3);
+  console.log('MODEL2_PROCESS_LOSS '+JSON.stringify({reason:goneDetails.reason,failedEventRejected:true,serviceSurvived:true,peerSurvived:true,nextEventRecovered:true,before,after,oomTested:false}));
+ }finally{pool.close();}
+}
 async function verifyTrustedDrawOps(legacy){
  const {BrowserWindow}=require('electron');
  const {paintValidatedDrawSpec,resolveWorkerDrawProgram}=require('../app/streamdeck-editor/deckforge-draw-ops.cjs');
@@ -337,6 +380,7 @@ app.whenReady().then(async()=>{
     await verifyModel2();
     await verifyModel2Repetition();
     await verifyModel2Limits();
+    await verifyModel2ProcessLoss();
     await verifyTrustedDrawOps(b);
     await verifyPublicApi(b);
     await verifyHomeAssistant(b);
