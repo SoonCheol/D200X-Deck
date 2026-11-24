@@ -133,7 +133,9 @@ test('native setting effect rejects dirty editor, open dialog, and storage lock 
  item.settings.pluginUUID='com.deckforge.native.test';
  const instance=DeckCore.createSdkMountTracker().reconcile('test',DeckCore.sdkMountDescriptors(state))[0];
  const id=require('node:crypto').randomUUID();
- const message={...instance,requestId:id,receiptId:id,expectedRevision:instance.configRevision,expectedSettings:instance.settings,expiresAt:Date.now()+60000,operation:{op:'settings',value:{value:'after'}}};
+ const message={...instance,kind:'nativeSettingsCommit',requestId:id,receiptId:id,expectedRevision:instance.configRevision,expectedSettings:instance.settings,expiresAt:Date.now()+60000,operation:{op:'settings',value:{value:'after'}}};
+ assert.equal(DeckCore.nativeSettingsCommitMatches(instance,message),true,'valid request fixture');
+ assert.equal(DeckCore.nativeSettingsCommitMatches(instance,{...message,kind:undefined}),false,'missing event kind must be rejected');
  for(const mode of ['dirty','dialog','locked','clean']){
   let writes=0;
   const ctx={DeckCore,message,sdkActionInstances:()=>[instance],profileStorageFailure:mode==='locked',

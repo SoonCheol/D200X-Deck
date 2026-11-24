@@ -187,4 +187,4 @@ report03.md §4.2 13행 원문 기준. 1.1.231 CI #1281/입력 #521/Windows #985
 | 11 | 플러그인 장애 중 저장 | runner 장애 복구 및 atomic child exit 각각 통과; commit 진행 중 실제 renderer crash 통합 미검증 |
 | 12 | global+local 효과 | validateScriptOps 한 권한 효과 제한, 기존 compound 검사; 분리 트랜잭션 미도입(승인 계약) |
 | 13 | settingsResult 호환 | manifest opt-in, saved/rejected/unknown·부수효과 거부·legacy 미전달 기존 검사 |
-- 1.1.232 제품 변경은 main 신규 native settings commit의 quitting guard만. 진행 중 동기 원자 저장과 읽기 전용 reconciliation 계약 유지. 신규 집중 테스트 실행 대기, 실제 HA/D200X/전원 손실/OOM/장시간 soak 미검증.
+- 1.1.232 제품 변경은 main 신규 native settings commit의 quitting guard만. 진행 중 동기 원자 저장과 읽기 전용 reconciliation 계약 유지. CI #1282/입력 #522 성공. Windows #986 실패: 신규 editor VM 테스트의 clean 요청에 필수 kind='nativeSettingsCommit' 누락, 정상 요청까지 거부됨. 신규 종료 guard, page/delete, retire/close 검사는 실제 로그 통과. 1.1.233은 테스트 fixture kind와 정상/누락 계약 검증만 추가, 제품 guard 및 저장 조건 유지. 실제 HA/D200X/전원 손실/OOM/장시간 soak 미검증.

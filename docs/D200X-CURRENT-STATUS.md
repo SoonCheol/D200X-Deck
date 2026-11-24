@@ -2,7 +2,7 @@
 > 2026-11-25 · 현재 스냅샷, 누적 금지.
 ## 개발 기준
 - 저장소 SoonCheol/D200X-Deck · 브랜치 codex/streamdeck-761-clean-editor · Draft PR #5 유지.
-- 로컬 E:\Codex\DeckForge. 최신 HEAD는 Git에서 확인. 소스 버전 **1.1.232** (저장 감사 집중 검사 후보; 1.1.231 게시).
+- 로컬 E:\Codex\DeckForge. 최신 HEAD는 Git에서 확인. 소스 버전 **1.1.233** (저장 감사 fixture 수정 후보; 1.1.231 게시).
 - 감사 기준 `49ba39fe094ee808c5715f2348be0789f61d5e20`. CI #1221 성공; Windows #930 사용자 인수인계.
 ## 현재 상태
 - 독자 SDK API 1/2, 공개 25개 함수, HTTP/WSS, 전역 서비스/공유 상태, 동적 속성, 암호화·권한·패키지, HA 0.1.8 후보 및 Stream Deck 호환 호스트 구현. SDK 1.0 정식 완성 선언 보류.
@@ -33,7 +33,7 @@
 - 1.1.222: 오래된 압축 실패 시 최신 PAGE 보존, 절전 중 전송 보류/깨우기 전체 복원, 종료 후 지연 HID 연결 차단, KEY 실패 재연결 mock 검증 추가. CI #1270·Windows #976 성공. KEY 기본 OFF 유지.
 - 1.1.223: purge 성공 뒤 정확한 pluginUUID 등록 액션 전체 프로필/템플릿 정리, 기존 버튼 위치/다른 액션 유지, 저장 실패 시 UI 원복. 이미 삭제된 누락 ID는 설치/보존 부재 재검사 및 명시 승인 후 정리. 사용자 데이터 직접 조작 없음. CI #1271·입력 #519·Windows #977 성공. GUI 별도.
 - 1.1.224: --test-key-transport 실행 인자에서만 KEY 허용, 동일 페이지 native 단일 일반 키 부분 렌더만 liveOnly 전달. 일반 실행/와이드 경고는 PAGE. USB log 구조화 slot/ZIP bytes/session, AI 조회, 집중 검사 추가. CI #1272·입력 #520·Windows #978 성공, 설치본 게시 확인. 실제 KEY 미검증.
-- 1.1.231: identity 19행 대조·집중 검사, CI #1281/입력 #521/Windows #985 성공, 설치본 게시. 1.1.232: 저장 감사 13행 대응 기록, 종료 신규 commit 차단 및 dirty/dialog/lock·페이지/삭제·retire/close 집중 검사 추가. 검사 대기.
+- 1.1.231: identity 19행 대조·집중 검사, CI #1281/입력 #521/Windows #985 성공, 게시. 1.1.232: 저장 13행 대응·종료 commit 차단. CI #1282/입력 #522 성공, Windows #986 clean fixture 실패(kind 누락), 종료/페이지·삭제/retire 검사 통과. 1.1.233: fixture kind 및 정상/누락 검증 추가, 제품 변경 없음. 검사 대기.
 - 1.1.226: Model2 실제 반복/자원 제한/서비스 생존·복구, opaque storage/CSP 검사 및 USB mock 통과. CI #1274·Windows #980 성공. OOM 별도. 세부 수치 SDK 계약.
 - 1.1.230: CI #1278, Windows #984 attempt2 전체 성공. 실제 idle/active crash·거부·서비스/peer 생존·새 이벤트 복구, 25함수·vault 통과. 1차 npm 404 해소(버전 변경 없음). deckforge-v1.1.230 게시, EXE 135231273 bytes. 현재 root suite 45/45 실행 명령 확인, 초기 helper skip 3개와 후속 패키지 검사 구분.
 ## 다음 작업
