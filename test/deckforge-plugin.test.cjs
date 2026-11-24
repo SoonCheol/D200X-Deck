@@ -496,6 +496,45 @@ test('native network contract permits only declared HTTPS endpoints and input-tr
  assert.throws(()=>validateNetworkRequest({...op,body:JSON.parse('{"__proto__":1}')},[post]),/invalid global settings/);
  host.close();
 });
+test('native HTTP extension permits approved methods and bounded query only',async()=>{
+ const {validateNetworkEndpoints,validateNetworkRequest,resolveNetworkEndpoint,requestEndpoint,credentialBinding}=require('../app/streamdeck-editor/deckforge-native-network.cjs');
+ const {EventEmitter}=require('node:events');
+ const permissions=['display','network.request'],base={id:'status',url:'https://example.com/api/status',method:'GET'};
+ const op={op:'networkRequest',endpoint:'status',body:null};
+ for(const method of ['GET','POST','PUT','PATCH','DELETE']){
+   const e={...base,method,queryKeys:['search']};
+   validateNetworkEndpoints([e],permissions);
+   const body=method==='GET'?null:{value:1},query={search:'a&next=https://elsewhere.example/#x'};
+   assert.equal(validateNetworkRequest({...op,body,query},[e]),e);
+   const resolved=resolveNetworkEndpoint(e,query);
+   const url=new URL(resolved.url);
+   assert.equal(url.origin,'https://example.com');assert.equal(url.pathname,'/api/status');assert.equal(url.hash,'');
+   assert.equal(url.searchParams.get('search'),query.search);assert.equal(url.searchParams.size,1);
+   const mock=(url,opts,callback)=>{
+     assert.equal(url.href,resolved.url);assert.equal(opts.method,method);assert.equal(opts.rejectUnauthorized,true);
+     const req=new EventEmitter();req.destroy=()=>{};req.end=payload=>{
+       assert.equal(payload?.toString(),body===null?undefined:JSON.stringify(body));
+       const res=new EventEmitter();res.statusCode=204;res.headers={};res.destroy=()=>{};
+       callback(res);res.emit('end');
+     };return req;
+   };
+   assert.equal((await requestEndpoint(resolved,body,undefined,{request:mock})).ok,true);
+ }
+ for(const method of ['CONNECT','TRACE','OPTIONS','get'])assert.throws(()=>validateNetworkEndpoints([{...base,method}],permissions),/method/);
+ for(const queryKeys of [[],['a','a'],['__proto__'],['a b']])assert.throws(()=>validateNetworkEndpoints([{...base,queryKeys}],permissions),/query/);
+ for(const query of [{other:'x'},{search:1},{search:'x'.repeat(257)},null,JSON.parse('{"__proto__":"x"}')])
+   assert.throws(()=>validateNetworkRequest({...op,query},[{...base,queryKeys:['search']}]),/query/);
+ assert.throws(()=>validateNetworkRequest({...op,query:{search:'x'}},[base]),/query/);
+ const bearer={...base,auth:'bearer'};
+ assert.notEqual(credentialBinding(nativeId,bearer),credentialBinding(nativeId,{...bearer,queryKeys:['search']}));
+ const host=new NativePluginHost('/unused');
+ try{
+   const ctx={pluginUUID:nativeId,action:{...scriptManifest.actions[0],tickIntervalMs:5000},permissions:[...permissions,'network.poll','timer.tick'],networkEndpoints:[{...base,method:'DELETE'}]};
+   assert.throws(()=>host.validateScriptOps(ctx,'tick',[op]),/must use GET/);
+   assert.deepEqual(host.validateScriptOps(ctx,'press',[op]).effects,[op]);
+ }finally{host.close();}
+});
+
 test('native HTTPS broker bounds response, denies redirects, times out and uses verified TLS',async()=>{
  const {EventEmitter}=require('node:events');
  const {requestEndpoint}=require('../app/streamdeck-editor/deckforge-native-network.cjs');

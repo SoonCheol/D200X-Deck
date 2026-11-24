@@ -38,6 +38,10 @@
 - settingsSchema는 boolean/text/integer/select, 최대 16필드. 기본값은 실행 시 적용, 사용자 저장 여부 별도.
 - 설치/업데이트/복원·SemVer 의존성·원자적 저장 및 버전 이력은 기존 native package 계약. 패키지 생성/설치 방법은 DECKFORGE-PLUGIN-FORMAT.md의 CLI 절 참고.
 
+## SDK 1.1 확장 — 2026-11-24 사용자 승인
+
+1.0의 19개 API는 기준선으로 유지한다. WebSocket 및 HTTP 확장을 최고 우선순위로 별도 진행한다. DeckForge 1.1.164: 기존 request(endpoint, body=null, query?)에 PUT/PATCH/DELETE와 endpoint.queryKeys(최대 8개, 값 문자열 최대 256자, 최종 URL 2048자)를 추가. 사용자가 승인한 HTTPS origin/path/method는 고정이며 query 값만 인코딩하여 변경한다. GET body 금지, GET 전용 polling, 기존 TLS/취소/응답 한도 유지. queryKeys 변경 시 Bearer 인증정보를 새 계약에 다시 등록해야 한다. 동적 경로·헤더 및 WebSocket은 후속 미구현. 신규 CI/Windows/실기는 별도 확인.
+
 ## 출시 기준 (추가 기능은 기준이 아님)
 
 1. 19개 함수 목록 및 실제 Electron→host 명령 검증, 부수 효과 권한 거부 검증.

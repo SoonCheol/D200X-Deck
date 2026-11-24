@@ -12,7 +12,7 @@ const {NativeVersionStore,assertAppRequirement}=require('./deckforge-native-vers
 const {validateDependencies,resolveDependencies,assertDependencyChange}=require('./deckforge-native-dependencies.cjs');
 const {validateWideOverlay}=require('./deckforge-native-wide.cjs');
 const {validateNativeSettingsSchema,nativeEffectiveSettings}=require('./deck-core.js');
-const {validateNetworkEndpoints,validateNetworkRequest,requestEndpoint,networkFailure,normalizeNetworkResult,credentialBinding,validBearer}=require('./deckforge-native-network.cjs');
+const {validateNetworkEndpoints,validateNetworkRequest,resolveNetworkEndpoint,requestEndpoint,networkFailure,normalizeNetworkResult,credentialBinding,validBearer}=require('./deckforge-native-network.cjs');
 const APP_VERSION=require('./package.json').version;
 const SUFFIX='.deckforge-native.json', LIMIT=1024*1024;
 const ID=/^com\.deckforge\.native\.[a-z0-9][a-z0-9.-]{0,110}$/;
@@ -388,7 +388,7 @@ class NativePluginHost{
         if(!validBearer(bearer))return networkFailure(endpoint.id,'credential-required');
         if(this.credentialChanges.has(binding)||!active()||controller.signal.aborted)return networkFailure(endpoint.id,'cancelled');
       }
-      return normalizeNetworkResult(endpoint,await this.networkRequest(endpoint,operation.body,controller.signal,{bearer}),bearer);
+      return normalizeNetworkResult(endpoint,await this.networkRequest(resolveNetworkEndpoint(endpoint,operation.query),operation.body,controller.signal,{bearer}),bearer);
     }).catch(()=>networkFailure(endpoint.id,'connection-error')).then(result=>{
       if(!active()||ctx.networkToken!==token||controller.signal.aborted)return;
       ctx.networkToken=null;

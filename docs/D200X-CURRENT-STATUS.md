@@ -2,6 +2,12 @@
 
 > **상태 기록 기준: 2026-11-24**. 실제 최신 HEAD는 Git에서 확인하며, 코드·자동 검사·Windows 빌드·사용자 Windows/D200X 실기 결과를 구분한다. 시작 시 `AGENTS.md`와 이 문서만 읽고 로드맵은 필요한 경우에만 참고한다.
 
+## 1.1.164 — SDK 1.1 네트워크 확장 첫 단계 (2026-11-24)
+
+- 사용자 최우선 지시: WebSocket/HTTP 확장. 1.1.163 CI #1203 성공(358 pass/0 fail/5 skip), Windows #914 성공, native 72/72 및 실제 Electron 19개 계약/Windows vault smoke 성공. D200X 물리 검증 미실시.
+- HTTP PUT/PATCH/DELETE 및 승인된 queryKeys 기반 동적 쿼리 추가. 원래 주소/메서드 고정, 입력 이벤트 및 GET polling 경계, TLS/취소/크기 제한 유지. 설치 확인에 쿼리 키 표시, 인증정보 계약 분리. 집중 검사 추가. 신규 CI 및 Windows 빌드 미확인.
+- WebSocket 및 동적 경로/헤더는 아직 미구현. SDK 1.0 기준선과 확장 작업 구분.
+
 ## 1.1.163 — 독자 SDK 1.0 출시 후보: API 범위 확정·통합 검증 (2026-11-24)
 
 - 독자 SDK 1.0 공개 API 19개 동결, 호환 SDK/신규 함수 확장 분리. API 1/2 번호는 기존 manifest 계약 유지. 실제 Electron renderer→host 검증기 전 함수 검사, 권한/비입력 거부, 모든 공개 예제 패키지 왕복/설치 검사 추가.
