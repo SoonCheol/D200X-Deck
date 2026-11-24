@@ -2724,10 +2724,15 @@ function appearanceIconAnchor(trigger,root){
   const anchor=cardBounds&&cardBounds.width>0&&cardBounds.height>0?cardBounds:bounds;
   return {left:anchor.left,right:anchor.right,top:anchor.top};
 }
-function positionIconAppearancePopover(popup,trigger){
+function positionIconAppearancePopover(popup,trigger,minSideWidth=0){
   const root=$('inspector'),anchor=appearanceIconAnchor(trigger,root);
   popup.style.maxHeight='';
   if(!anchor)return false;
+  if(minSideWidth){
+    popup.style.maxWidth='';
+    const rightRoom=window.innerWidth-anchor.right-16;
+    if(rightRoom>=minSideWidth)popup.style.maxWidth=rightRoom+'px';
+  }
   // Preserve card-top alignment by scrolling within the popup when possible.
   const available=window.innerHeight-Math.max(8,anchor.top)-8;
   if(available>=160)popup.style.maxHeight=available+'px';
@@ -3579,7 +3584,7 @@ function bindSdkStateIcons(root,item){
         else image.textContent='기본';
       }
       const choose=document.createElement('button');choose.type='button';choose.textContent='라이브러리';
-      choose.addEventListener('click',()=>openIconLibrary(item,key));
+      choose.addEventListener('click',event=>openIconLibrary(item,key,event.currentTarget));
       const file=document.createElement('button');file.type='button';file.textContent='파일';
       file.addEventListener('click',async()=>{
         try{
@@ -3595,7 +3600,7 @@ function bindSdkStateIcons(root,item){
       const paste=document.createElement('button');paste.type='button';paste.textContent='클립보드';
       paste.addEventListener('click',()=>pasteIcon(item,key));
       const symbol=document.createElement('button');symbol.type='button';symbol.textContent='특수문자';
-      symbol.addEventListener('click',()=>openIconMaker(item,key));
+      symbol.addEventListener('click',event=>openIconMaker(item,key,event.currentTarget));
       const reset=document.createElement('button');reset.type='button';reset.textContent='초기화';
       reset.addEventListener('click',()=>{
         if(item.settings?.sdkStateIcons)delete item.settings.sdkStateIcons[key];
@@ -3629,7 +3634,7 @@ function bindKeyPressIconControls(root,item){
     preview.append(iconNode({...visual,...(icon?{icon}:{})},ACTIONS.get(item.type)?.icon||'+'));
     const buttons=document.createElement('div');buttons.className='sdk-state-buttons';
     const library=document.createElement('button');library.type='button';library.textContent='라이브러리';
-    library.addEventListener('click',()=>openIconLibrary(item,'press:'+key));
+    library.addEventListener('click',event=>openIconLibrary(item,'press:'+key,event.currentTarget));
     const file=document.createElement('button');file.type='button';file.textContent='파일';
     file.addEventListener('click',async()=>{
       try{
@@ -3651,7 +3656,7 @@ function bindKeyPressIconControls(root,item){
     const paste=document.createElement('button');paste.type='button';paste.textContent='클립보드';
     paste.addEventListener('click',()=>pasteIcon(item,'press:'+key));
     const symbol=document.createElement('button');symbol.type='button';symbol.textContent='특수문자';
-    symbol.addEventListener('click',()=>openIconMaker(item,'press:'+key));
+    symbol.addEventListener('click',event=>openIconMaker(item,'press:'+key,event.currentTarget));
     buttons.append(library,file,paste,symbol,reset);
     bindKeyBackgroundControl(preview,item,key==='up'?'first':'second');
     card.dataset.stateTitle=key==='up'?'first':'second';
@@ -3709,10 +3714,10 @@ function bindIndicatorInspector(root,item){
     const buttons=document.createElement('div');buttons.className='sdk-state-buttons';
     const key=pressed?'press:down':null;
     const add=(title,fn)=>{const b=document.createElement('button');b.type='button';b.textContent=title;b.addEventListener('click',fn);buttons.append(b);};
-    add('라이브러리',()=>openIconLibrary(item,key));
+    add('라이브러리',event=>openIconLibrary(item,key,event.currentTarget));
     add('파일',async()=>{try{const chosen=await chooseNativeImage('image');if(chosen?.dataUrl)applyStateIconData(item,key,await rasterizeIcon(chosen.dataUrl));}catch(error){window.d200xActionStatus?.('아이콘 선택 실패: '+String(error?.message||error));}});
     add('클립보드',()=>pasteIcon(item,key));
-    add('특수문자',()=>openIconMaker(item,key));
+    add('특수문자',event=>openIconMaker(item,key,event.currentTarget));
     add('초기화',()=>{
       if(pressed){if(item.settings.keyPressIcons)delete item.settings.keyPressIcons.down;}
       else {delete item.icon;if(item.settings.keyPressIcons)delete item.settings.keyPressIcons.up;}
@@ -6353,7 +6358,29 @@ function renderIconLibrary(){
   $("icon-library-count").textContent='아이콘 '+count+'개 · 등록된 팩 '+importedIconPacks.length+'개';
 }
 let librarySession=null;
-function openIconLibrary(item,stateKey=null){
+// Keep the modal's existing focus, backdrop, selection and close behaviour.
+function positionIconDialog(overlay,trigger,minSideWidth){
+  const dialog=overlay.querySelector(':scope > section');
+  if(!dialog)return false;
+  const anchored=!!(trigger?.isConnected&&appearanceIconAnchor(trigger,$('inspector')));
+  overlay.classList.toggle('icon-dialog-anchored',anchored);
+  if(!anchored){
+    for(const prop of ['left','top','maxHeight','maxWidth'])dialog.style[prop]='';
+    return false;
+  }
+  return positionIconAppearancePopover(dialog,trigger,minSideWidth);
+}
+function openAnchoredIconDialog(overlay,trigger,minSideWidth){
+  overlay.hidden=false;
+  overlay._iconDialogAnchor={trigger,minSideWidth};
+  positionIconDialog(overlay,trigger,minSideWidth);
+}
+function closeAnchoredIconDialog(overlay){
+  overlay.hidden=true;
+  overlay._iconDialogAnchor=null;
+  positionIconDialog(overlay,null,0);
+}
+function openIconLibrary(item,stateKey=null,trigger=null){
   libraryTarget=item;
   librarySession=inspectorSession;
   libraryStateKey=stateKey;
@@ -6361,12 +6388,12 @@ function openIconLibrary(item,stateKey=null){
   iconVisibleCounts.clear();
   expandedIconPacks.clear();
   renderIconLibrary();
-  $("icon-library").hidden=false;
+  openAnchoredIconDialog($("icon-library"),trigger,360);
   refreshImportedIconPacks();
   $("icon-library-search").focus();
 }
 function closeIconLibrary(){
-  $("icon-library").hidden=true;libraryTarget=null;libraryStateKey=null;librarySession=null;
+  closeAnchoredIconDialog($("icon-library"));libraryTarget=null;libraryStateKey=null;librarySession=null;
 }
 let fileIconTarget=null;
 let fileIconSession=null;
@@ -6439,12 +6466,12 @@ function renderIconMaker(){
   ctx.font=(Array.from(glyph).length>1?65:115)+'px "Segoe UI Symbol","Malgun Gothic",sans-serif';
   ctx.fillText(glyph,98,98,178);
 }
-function openIconMaker(target,key=null){
+function openIconMaker(target,key=null,trigger=null){
   makerTarget=target;makerStateKey=key;makerSession=inspectorSession;
-  $("icon-maker").hidden=false;
+  openAnchoredIconDialog($("icon-maker"),trigger,300);
   renderIconMaker();
 }
-function closeIconMaker(){makerTarget=null;makerStateKey=null;makerSession=null;$("icon-maker").hidden=true;}
+function closeIconMaker(){makerTarget=null;makerStateKey=null;makerSession=null;closeAnchoredIconDialog($("icon-maker"));}
 function bindIconControls(item){
   const host=$("icon-preview-content");host.replaceChildren(iconNode(item,ACTIONS.get(item.type)?.icon||"+"));
   if((isMomentaryIconAction(item)||item.type==='indicator')&&state.selected<13){
@@ -6474,7 +6501,7 @@ function bindIconControls(item){
     return;
   }
   bindKeyBackgroundControl($("icon-preview"),item,"default");
-  $("icon-library-open").addEventListener("click",()=>openIconLibrary(item));
+  $("icon-library-open").addEventListener("click",event=>openIconLibrary(item,null,event.currentTarget));
   const dropdown=$("icon-dropdown"),toggle=$("icon-menu-trigger");
   toggle.addEventListener("click",()=>{
     dropdown.hidden=!dropdown.hidden;
@@ -6484,7 +6511,7 @@ function bindIconControls(item){
     button.addEventListener("click",()=>{
       dropdown.hidden=true;toggle.setAttribute("aria-expanded","false");
       const cmd=button.dataset.iconCommand;
-      if(cmd==="library")openIconLibrary(item);
+      if(cmd==="library")openIconLibrary(item,null,toggle);
       else if(cmd==="file"){
         if(window.deckBridge?.chooseImportFile){
           const session=inspectorSession;
@@ -6495,7 +6522,7 @@ function bindIconControls(item){
         }else{fileIconTarget=item;fileIconSession=inspectorSession;$("custom-icon-file").click();}
       }
       else if(cmd==="paste")pasteIcon(item);
-      else if(cmd==="new")openIconMaker(item);
+      else if(cmd==="new")openIconMaker(item,null,toggle);
     });
   });
   document.addEventListener("pointerdown",event=>{
@@ -7224,6 +7251,12 @@ function bindSidebarHeader(){
 }
 $("icon-pack-import").addEventListener("click",()=>importIconPackIntoLibrary(false));
 $("icon-pack-folder-import").addEventListener("click",()=>importIconPackIntoLibrary(true));
+window.addEventListener('resize',()=>{
+  for(const id of ['icon-library','icon-maker']){
+    const overlay=$(id),anchor=overlay._iconDialogAnchor;
+    if(!overlay.hidden&&anchor)positionIconDialog(overlay,anchor.trigger,anchor.minSideWidth);
+  }
+});
 $("close-icon-library").addEventListener("click",closeIconLibrary);
 $("icon-library").addEventListener("click",event=>{if(event.target===$("icon-library"))closeIconLibrary();});
 $("icon-library-search").addEventListener("input",renderIconLibrary);

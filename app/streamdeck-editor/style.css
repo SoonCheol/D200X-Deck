@@ -1604,3 +1604,7 @@ dialog.deckforge-message-dialog::backdrop{background:#000a}
     appearance:auto!important;-webkit-appearance:auto!important;forced-color-adjust:auto
   }
 }
+
+/* Icon card modal panels share the same viewport anchor as appearance popovers. */
+.icon-dialog-anchored > .icon-library-dialog,.icon-dialog-anchored > .icon-maker-dialog{position:fixed;left:8px;top:8px;max-width:calc(100vw - 16px);max-height:calc(100dvh - 16px);box-sizing:border-box}
+.icon-dialog-anchored > .icon-maker-dialog{overflow-y:auto}

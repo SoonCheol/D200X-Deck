@@ -355,3 +355,35 @@ test('state popup uses complete clicked card outer border instead of artwork bor
   assert.equal(popup.style.left,x+'px');assert.equal(popup.style.top,'106px');assert.equal(popup.style.maxHeight,'486px');
  }
 });
+
+test('icon library and maker use the selected card outer edge, reset on close and keep their system pickers unchanged',()=>{
+ const start=source.indexOf('function appearancePalettePosition('),end=source.indexOf('function positionAppearancePalette(',start);
+ const modalStart=source.indexOf('function positionIconDialog('),modalEnd=source.indexOf('function openIconLibrary(',modalStart);
+ const root={querySelector:()=>null};
+ const context={window:{innerWidth:894,innerHeight:600},$:()=>root};
+ const funcs=vm.runInNewContext(source.slice(start,end)+'\n'+source.slice(modalStart,modalEnd)+'\n;({openAnchoredIconDialog,closeAnchoredIconDialog,positionIconDialog})',context);
+ function modal(width){
+  const dialog={style:{},getBoundingClientRect(){return {width:Math.min(width,parseInt(this.style.maxWidth)||width),height:Math.min(530,parseInt(this.style.maxHeight)||530)};}};
+  const overlay={hidden:true,querySelector:()=>dialog,classList:{toggle(_c,v){overlay.anchored=v;}}};
+  return {overlay,dialog};
+ }
+ function trigger(left,right){
+  const preview={getBoundingClientRect:()=>({left:left+8,right:left+140,top:172,width:132,height:132})};
+  const card={querySelector:()=>preview,getBoundingClientRect:()=>({left,right,top:106,width:right-left,height:220})};
+  return {isConnected:true,closest:s=>s==='.sdk-state-icon'?card:null};
+ }
+ for(const [width,min] of [[455,360],[320,300]])for(const [left,right] of [[24,256],[268,499]]){
+  const {overlay,dialog}=modal(width),button=trigger(left,right);
+  funcs.openAnchoredIconDialog(overlay,button,min);
+  assert.equal(overlay.hidden,false);assert.equal(overlay.anchored,true);
+  assert.equal(dialog.style.left,(right+8)+'px');assert.equal(dialog.style.top,'106px');
+  assert.equal(dialog.style.maxHeight,'486px');
+  funcs.closeAnchoredIconDialog(overlay);
+  assert.equal(overlay.hidden,true);assert.equal(overlay.anchored,false);
+  assert.equal(dialog.style.left,'');assert.equal(dialog.style.maxWidth,'');
+ }
+ assert.match(source,/openAnchoredIconDialog\(\$\("icon-library"\),trigger,360\)/);
+ assert.match(source,/openAnchoredIconDialog\(\$\("icon-maker"\),trigger,300\)/);
+ assert.match(source,/openIconLibrary\(item,'press:'\+key,event.currentTarget\)/);
+ assert.match(source,/openIconMaker\(item,'press:'\+key,event.currentTarget\)/);
+});
