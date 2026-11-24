@@ -2,6 +2,11 @@
 
 > **상태 기록 기준: 2026-11-24**. 실제 최신 HEAD는 Git에서 확인하며, 코드·자동 검사·Windows 빌드·사용자 Windows/D200X 실기 결과를 구분한다. 시작 시 `AGENTS.md`와 이 문서만 읽고 로드맵은 필요한 경우에만 참고한다.
 
+## 1.1.166 — SDK HTTP 승인 동적 경로·헤더 (2026-11-24)
+
+- HTTP request 4번째 선택 인자 options={path,headers}, 사용자 승인 pathKeys 및 headerKeys 기반 제한형 확장. 경로 탈출, 임의 호스트/메서드, 헤더 주입·인증정보 노출·프로토콜 프레이밍 변경 차단. 기존 TLS/권한/한도/취소 유지. 집중 테스트 및 실제 Electron 명령 검증 추가.
+- 1.1.165 CI #1205, 입력 #475 성공, Windows #916 확인 중. 신규 자동 검사/Windows/실기 미확인. HA 메시지 인증, 실제 WSS/HTTP 연동, 재연결 정책은 별도.
+
 ## 1.1.165 — 독자 SDK WSS 실시간 연결 첫 단계 (2026-11-24)
 
 - 사용자 최고 우선순위에 따라 network.websocket 및 WSS endpoint, connectSocket/sendSocket/closeSocket 구현. 22개 공개 함수, 활성 context 수명 및 제한형 socketEvent, 사용자 승인 URL, TLS, 암호화 Bearer handshake, 송수신/큐/연결 제한, 취소/절전/설정 변경 처리. 기존 HTTP/호환 SDK 유지.

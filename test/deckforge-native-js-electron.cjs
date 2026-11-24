@@ -52,7 +52,7 @@ async function verifyPublicApi(runner){
   const {NativePluginHost,validateNativeManifest}=require('../app/streamdeck-editor/deckforge-native-sdk.cjs');
   const id='com.deckforge.native.api-contract';
   const permissions=['display','settings.write','global.settings','navigation','wide.mode','wide.overlay','network.request','network.websocket'];
-  const endpoints=[{id:'status',url:'https://example.com/status',method:'GET'},{id:'live',url:'wss://example.com/events',method:'WSS'}];
+  const endpoints=[{id:'status',url:'https://example.com/status',method:'GET'},{id:'live',url:'wss://example.com/events',method:'WSS'},{id:'entity',url:'https://example.com/entities/',method:'PATCH',pathKeys:['id'],queryKeys:['view'],headerKeys:['if-match']}];
   const action={id:id+'.key',name:'Contract',controllers:['Keypad'],states:2,script:'api.setTitle("contract");'};
   validateNativeManifest({apiVersion:2,id,name:'Contract',version:'1.0.0',permissions,networkEndpoints:endpoints,actions:[action]});
   const host=new NativePluginHost('/unused');
@@ -101,6 +101,8 @@ async function verifyPublicApi(runner){
         else assert.throws(()=>host.validateScriptOps(ctx,'appear',result.ops),/input event/,name);
       }
     }
+    const extended=await runner.run('api.request("entity",{state:1},{view:"full"},{path:{id:"light"},headers:{"if-match":"rev"}});',input);
+    assert.deepEqual(host.validateScriptOps(ctx,'press',extended.ops).effects,[{op:'networkRequest',endpoint:'entity',body:{state:1},query:{view:'full'},options:{path:{id:'light'},headers:{'if-match':'rev'}}}]);
     console.log('DeckForge native SDK 22-function renderer/host contract passed');
   }finally{host.close();}
 }

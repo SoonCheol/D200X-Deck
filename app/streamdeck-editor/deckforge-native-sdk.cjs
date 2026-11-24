@@ -473,7 +473,7 @@ class NativePluginHost{
         if(!validBearer(bearer))return networkFailure(endpoint.id,'credential-required');
         if(this.credentialChanges.has(binding)||!active()||controller.signal.aborted)return networkFailure(endpoint.id,'cancelled');
       }
-      return normalizeNetworkResult(endpoint,await this.networkRequest(resolveNetworkEndpoint(endpoint,operation.query),operation.body,controller.signal,{bearer}),bearer);
+      return normalizeNetworkResult(endpoint,await this.networkRequest(resolveNetworkEndpoint(endpoint,operation.query,operation.options),operation.body,controller.signal,{bearer}),bearer);
     }).catch(()=>networkFailure(endpoint.id,'connection-error')).then(result=>{
       if(!active()||ctx.networkToken!==token||controller.signal.aborted)return;
       ctx.networkToken=null;

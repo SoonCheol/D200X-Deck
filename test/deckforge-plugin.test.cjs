@@ -535,6 +535,40 @@ test('native HTTP extension permits approved methods and bounded query only',asy
  }finally{host.close();}
 });
 
+test('native HTTP dynamic path and headers remain inside the exact approved contract',async()=>{
+ const {validateNetworkEndpoints,validateNetworkRequest,resolveNetworkEndpoint,requestEndpoint,credentialBinding}=require('../app/streamdeck-editor/deckforge-native-network.cjs');
+ const {EventEmitter}=require('node:events');
+ const permissions=['display','network.request'],endpoint={id:'entity',method:'PATCH',url:'https://example.com/api/states/',auth:'bearer',pathKeys:['domain','entity'],queryKeys:['view'],headerKeys:['if-match','x-request-id']};
+ const query={view:'full'},options={path:{domain:'light',entity:'living_room'},headers:{'if-match':'"rev-1"','x-request-id':'123'}};
+ const op={op:'networkRequest',endpoint:'entity',body:{on:true},query,options};
+ validateNetworkEndpoints([endpoint],permissions);assert.equal(validateNetworkRequest(op,[endpoint]),endpoint);
+ const resolved=resolveNetworkEndpoint(endpoint,query,options);
+ assert.equal(resolved.url,'https://example.com/api/states/light/living_room?view=full');
+ assert.deepEqual(resolved.requestHeaders,options.headers);
+ for(const value of ['..','.','%2e%2e','a/b','a\\b','https://evil.example','x?y','x#y','x%2fy','x'.repeat(129)])
+   assert.throws(()=>validateNetworkRequest({...op,options:{...options,path:{domain:value,entity:'a'}}},[endpoint]),/path/);
+ for(const path of [{domain:'light'}, {...options.path,other:'x'}, null])
+   assert.throws(()=>validateNetworkRequest({...op,options:{...options,path}},[endpoint]),/path/);
+ assert.throws(()=>validateNetworkRequest({...op,options:undefined},[endpoint]),/path/);
+ for(const headers of [{'authorization':'x'},{'x-request-id':'a\r\nb'}, {'x-request-id':'x'.repeat(257)}, {'if-match':1},{'X-Request-ID':'x'},{'x-other':'x'}])
+   assert.throws(()=>validateNetworkRequest({...op,options:{...options,headers}},[endpoint]),/header/);
+ for(const h of ['authorization','cookie','host','content-length','transfer-encoding','connection','proxy-authorization','x-forwarded-for','x-http-method-override','x-api-key'])
+   assert.throws(()=>validateNetworkEndpoints([{...endpoint,headerKeys:[h]}],permissions),/header/);
+ assert.throws(()=>validateNetworkEndpoints([{...endpoint,url:'https://example.com/api/states'}],permissions),/slash/);
+ assert.throws(()=>validateNetworkRequest({...op,options:{...options,url:'https://evil.example/'}},[endpoint]),/options/);
+ assert.notEqual(credentialBinding(nativeId,endpoint),credentialBinding(nativeId,{...endpoint,pathKeys:['entity','domain']}));
+ assert.notEqual(credentialBinding(nativeId,endpoint),credentialBinding(nativeId,{...endpoint,headerKeys:['if-match']}));
+ const mock=(url,opts,callback)=>{
+   assert.equal(url.href,resolved.url);assert.equal(opts.headers.authorization,'Bearer abc123');
+   assert.equal(opts.headers['if-match'],'"rev-1"');assert.equal(opts.headers['x-request-id'],'123');
+   assert.equal(opts.headers['content-type'],'application/json');assert.equal(opts.headers['accept-encoding'],'identity');
+   const req=new EventEmitter();req.destroy=()=>{};req.end=()=>{
+     const res=new EventEmitter();res.statusCode=204;res.headers={};res.destroy=()=>{};callback(res);res.emit('end');
+   };return req;
+ };
+ assert.equal((await requestEndpoint(resolved,op.body,undefined,{request:mock,bearer:'abc123'})).ok,true);
+});
+
 test('native WSS endpoint is permission-bound and transport enforces TLS, limits and no redirects',()=>{
  const {validateNetworkEndpoints,validateNetworkRequest,validateSocketOperation,createSocket}=require('../app/streamdeck-editor/deckforge-native-network.cjs');
  const endpoint={id:'live',url:'wss://example.com/events',method:'WSS',auth:'bearer'},permissions=['display','network.websocket'];
