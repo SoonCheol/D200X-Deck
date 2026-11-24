@@ -90,7 +90,25 @@ ipcMain.handle('d200x:fusion-icon-write',async(event,id,data)=>{
   return true;
 });
 ipcMain.handle('d200x:sdk-list',async event=>{assertEditor(event);return sdk().list();});
-ipcMain.handle('d200x:native-retained-list',async event=>{assertEditor(event);return sdk().listRetainedNative();});
+ipcMain.handle('d200x:native-retained-list',async event=>{assertEditor(event);return [...await sdk().listRetainedNative(),...await sdk().listRetainedLegacy()];});
+ipcMain.handle('d200x:legacy-plugin-remove',async(event,id)=>{
+ assertEditor(event);
+ const plan=await sdk().planLegacyRemoval(id);
+ const choice=await dialog.showMessageBox(window,{type:'question',title:'플러그인 제거',message:plan.name+' '+plan.version+' 제거',
+   detail:'DeckForge의 설치 폴더만 보존 영역으로 옮깁니다. 기존 버튼, 인증정보와 외부 애드인은 유지됩니다.',
+   buttons:['취소','데이터 유지 후 제거'],defaultId:0,cancelId:0,noLink:true});
+ if(choice.response!==1)return null;
+ return sdk().removeLegacyKeepingData(id,plan.revision);
+});
+ipcMain.handle('d200x:legacy-retained-restore',async(event,id)=>{
+ assertEditor(event);
+ const plan=await sdk().planLegacyRestore(id);
+ const choice=await dialog.showMessageBox(window,{type:'question',title:'보존 플러그인 다시 설치',message:plan.name+' '+plan.version+' 다시 설치',
+   detail:'보존된 Stream Deck 호환 코드를 다시 실행할 수 있게 됩니다. 신뢰하는 플러그인만 설치하세요.',
+   buttons:['취소','신뢰하고 다시 설치'],defaultId:0,cancelId:0,noLink:true});
+ if(choice.response!==1)return null;
+ return sdk().restoreLegacyRetained(id,plan.revision);
+});
 ipcMain.handle('d200x:native-retained-purge',async(event,id)=>{
  assertEditor(event);
  const plan=await sdk().planRetainedPurge(id);

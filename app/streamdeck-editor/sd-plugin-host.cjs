@@ -175,6 +175,74 @@ class StreamDeckPluginHost{
     }
     return items;
   }
+  // Move the installed SDK directory as a whole; never delete global data.
+  retainedPath(uuid){
+    if(typeof uuid!=='string'||!UUID.test(uuid)||uuid.includes('..')||uuid.endsWith('.'))throw Error('잘못된 플러그인 ID');
+    return path.join(this.root,'StreamDeckRemoved',uuid+'.sdPlugin');
+  }
+  async retainedRecord(uuid,removed=false){
+    await this.ensureRoot();
+    const retained=this.retainedPath(uuid),dir=removed?retained:path.join(this.root,uuid+'.sdPlugin');
+    if(removed){const st=await fs.promises.lstat(path.dirname(retained));if(!st.isDirectory()||st.isSymbolicLink())throw Error('보존 경로 오류');}
+    const st=await fs.promises.lstat(dir);
+    if(!st.isDirectory()||st.isSymbolicLink())throw Error('플러그인 경로 오류');
+    const hash=crypto.createHash('sha256');let count=0,total=0;
+    async function walk(base,relative=''){
+      for(const name of (await fs.promises.readdir(base)).sort()){
+        const file=path.join(base,name),rel=relative+name,stat=await fs.promises.lstat(file);
+        if(stat.isSymbolicLink()||!filename(rel))throw Error('안전하지 않은 플러그인 경로');
+        if(stat.isDirectory()){await walk(file,rel+'/');continue;}
+        if(!stat.isFile()||++count>MAX_FILES||(total+=stat.size)>MAX_EXPANDED)throw Error('플러그인 파일 제한');
+        const bytes=await fs.promises.readFile(file);
+        if(bytes.length!==stat.size)throw Error('플러그인 변경 감지');
+        hash.update(JSON.stringify([rel,crypto.createHash('sha256').update(bytes).digest('hex')]));
+      }
+    }
+    await walk(dir);
+    const m=validateManifest(JSON.parse(await fs.promises.readFile(path.join(dir,'manifest.json'),'utf8')));
+    if(m.UUID!==uuid)throw Error('플러그인 ID 불일치');
+    return {id:uuid,name:String(m.Name||uuid),version:String(m.Version||''),revision:hash.digest('hex'),runtime:'streamdeck-sdk'};
+  }
+  async listRetained(){
+    await this.ensureRoot();
+    const parent=path.join(this.root,'StreamDeckRemoved');
+    let names;
+    try{const st=await fs.promises.lstat(parent);if(!st.isDirectory()||st.isSymbolicLink())throw Error('보존 경로 오류');names=await fs.promises.readdir(parent,{withFileTypes:true});}
+    catch(e){if(e.code==='ENOENT')return [];throw e;}
+    const items=[];
+    for(const entry of names)if(entry.isDirectory()&&entry.name.endsWith('.sdPlugin')){
+      const id=entry.name.slice(0,-9);
+      try{items.push(await this.retainedRecord(id,true));}catch{items.push({id,name:id,runtime:'streamdeck-sdk',available:false});}
+    }
+    return items;
+  }
+  async removeKeepingData(uuid,revision){
+    const plan=await this.retainedRecord(uuid);
+    if(plan.revision!==revision)throw Error('플러그인 변경 감지 · 다시 확인하세요.');
+    const target=this.retainedPath(uuid);
+    await fs.promises.mkdir(path.dirname(target),{recursive:true});
+    const parent=await fs.promises.lstat(path.dirname(target));
+    if(!parent.isDirectory()||parent.isSymbolicLink())throw Error('보존 경로 오류');
+    try{await fs.promises.lstat(target);throw Error('기존 보존 원본이 있어 제거를 중단했습니다.');}catch(e){if(e.code!=='ENOENT')throw e;}
+    // Remove mounts before awaiting any pending runtime start/recovery.
+    for(const [key,ctx] of this.contexts)if(ctx.pluginUUID===uuid){this.disappear(ctx);this.contexts.delete(key);}
+    await this.starting.get(uuid)?.catch(()=>{});
+    await this.recoveries.get(uuid)?.catch(()=>{});
+    for(const pi of this.inspectors.values())if(pi.pluginUUID===uuid&&!pi.window.isDestroyed())pi.window.destroy();
+    const inst=this.instances.get(uuid);if(inst)this.disconnect(inst);
+    const latest=await this.retainedRecord(uuid);
+    if(latest.revision!==revision)throw Error('플러그인 변경 감지 · 다시 확인하세요.');
+    await fs.promises.rename(path.join(this.root,uuid+'.sdPlugin'),target);
+    return {id:uuid,version:plan.version,mode:'keepData'};
+  }
+  async restoreRetained(uuid,revision){
+    const plan=await this.retainedRecord(uuid,true);
+    if(plan.revision!==revision)throw Error('보존 원본 변경 감지 · 다시 확인하세요.');
+    const target=path.join(this.root,uuid+'.sdPlugin');
+    try{await fs.promises.lstat(target);throw Error('같은 ID의 플러그인이 이미 있습니다.');}catch(e){if(e.code!=='ENOENT')throw e;}
+    await fs.promises.rename(this.retainedPath(uuid),target);
+    return {uuid,name:plan.name,version:plan.version,runtime:'streamdeck-sdk'};
+  }
   async install(data){
     const pack=await parseArchive(data),{manifest}=pack;
     await this.ensureRoot();

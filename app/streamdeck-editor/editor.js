@@ -1340,7 +1340,7 @@ function sdkAvailabilityLabel(item){
 }
 async function restoreRetainedPlugin(plugin){
   try{
-    const installed=await window.deckBridge.nativeRetainedRestore(plugin.id);
+    const installed=plugin.runtime==='streamdeck-sdk'?await window.deckBridge.legacyRetainedRestore(plugin.id):await window.deckBridge.nativeRetainedRestore(plugin.id);
     if(!installed)return;
     await refreshSdkPlugins();scheduleSdkSync();
     window.d200xActionStatus?.('플러그인 다시 설치 완료 · 기존 버튼 설정 유지');
@@ -1364,7 +1364,7 @@ function renderRetainedSdkPlugins(root,query){
     button.textContent=plugin.available===false?'보존 코드 확인 필요':'다시 설치';
     button.disabled=plugin.available===false;button.addEventListener('click',()=>void restoreRetainedPlugin(plugin));
     section.append(heading,button);
-    if(window.deckBridge?.nativeRetainedPurge&&plugin.available!==false){
+    if(window.deckBridge?.nativeRetainedPurge&&plugin.runtime!=='streamdeck-sdk'&&plugin.available!==false){
       const purge=document.createElement('button');purge.type='button';purge.className='fusion-manager-launch';
       purge.textContent='보존 데이터 삭제…';purge.addEventListener('click',()=>void purgeRetainedPlugin(plugin));section.append(purge);
     }
@@ -1455,7 +1455,7 @@ function openSdkPluginHelp(plugin,isFusion){
   }
   dialog.replaceChildren();
   const heading=document.createElement('div');heading.style.cssText='display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:12px';
-  const label=document.createElement('strong');label.textContent=isFusion?'Fusion 360 사용 방법':'Home Assistant 사용 방법';
+  const label=document.createElement('strong');label.textContent=isFusion?'Fusion 360 사용 방법':plugin.name+' 사용 방법';
   const close=document.createElement('button');close.type='button';close.className='sdk-plugin-help-close';close.textContent='닫기 ×';
   close.onclick=()=>dialog.close();
   heading.append(label,close);dialog.append(heading);
@@ -1482,10 +1482,19 @@ function openSdkPluginHelp(plugin,isFusion){
     dialog.append(install,output);
   }
   const guide=document.createElement('div');guide.style.cssText='white-space:pre-line;line-height:1.75;font-size:13px';
+  const isHa=plugin.uuid==='de.perdoctus.streamdeck.homeassistant'||plugin.uuid==='com.deckforge.native.home-assistant';
   guide.textContent=isFusion
     ?'1. Fusion 360을 실행합니다.\n2. 스크립트 및 애드인에서 FusionStreamDeck을 실행하고 시작 시 자동 실행을 선택합니다.\n3. DeckForge의 Run Command를 D200X 버튼에 등록합니다.\n4. 버튼 속성에서 원하는 명령을 검색하고 선택합니다.\n5. 연결된 Fusion의 원본 아이콘이 나타나며 버튼으로 명령을 실행할 수 있습니다.'
-    :'1. Home Assistant에서 장기 액세스 토큰을 발급합니다.\n2. Home Assistant 장치 제어를 D200X 버튼에 등록합니다.\n3. 속성의 설정 열기를 눌러 HA 서버 주소와 장기 토큰을 입력합니다.\n4. 인증 성공 후 조회되는 엔티티 목록에서 제어할 장치를 선택합니다.\n5. 토큰은 비밀번호처럼 보관하고 GitHub에 업로드하지 않습니다.';
-  dialog.append(guide);dialog.showModal();
+    :isHa?'1. Home Assistant에서 장기 액세스 토큰을 발급합니다.\n2. Home Assistant 장치 제어를 D200X 버튼에 등록합니다.\n3. 속성의 설정 열기를 눌러 HA 서버 주소와 장기 토큰을 입력합니다.\n4. 인증 성공 후 조회되는 엔티티 목록에서 제어할 장치를 선택합니다.\n5. 토큰은 비밀번호처럼 보관하고 GitHub에 업로드하지 않습니다.'
+    :'1. 플러그인 액션을 빈 버튼에 끌어 놓습니다.\n2. 필요하면 플러그인 속성을 설정하고 저장합니다.\n3. 실행 테스트 또는 D200X 버튼으로 동작을 확인합니다.';
+  dialog.append(guide);
+  const canRemove=plugin.runtime==='deckforge-sdk'?window.deckBridge?.nativeRemove:window.deckBridge?.legacyPluginRemove;
+  if(canRemove){
+    const footer=document.createElement('div');footer.style.cssText='display:flex;justify-content:flex-end;border-top:1px solid #46505b;margin-top:14px;padding-top:12px;gap:8px';
+    const remove=document.createElement('button');remove.type='button';remove.className='sdk-plugin-help-close';remove.textContent='플러그인 제거 (데이터 유지)';
+    remove.addEventListener('click',async()=>{dialog.close();await removePluginKeepingData(plugin);});footer.append(remove);dialog.append(footer);
+  }
+  dialog.showModal();
 }
 function launchFusionManager(){
   window.deckBridge.openFusionManager().catch(error=>window.d200xActionStatus?.('Fusion Manager 실행 실패: '+String(error?.message||error)));
@@ -1508,10 +1517,11 @@ async function openNativeServiceManager(plugin){
     window.d200xActionStatus?.('전역 서비스: '+(names[next.state]||'확인 필요'));
   }catch{window.d200xActionStatus?.('전역 서비스 관리 실패: 의존성 또는 서비스 설정을 확인하세요.');}
 }
-async function removeNativePluginKeepingData(plugin){
-  if(plugin.runtime!=='deckforge-sdk'||!window.deckBridge?.nativeRemove)return;
+async function removePluginKeepingData(plugin){
+  const remove=plugin.runtime==='deckforge-sdk'?window.deckBridge?.nativeRemove:window.deckBridge?.legacyPluginRemove;
+  if(!remove)return;
   try{
-    const result=await window.deckBridge.nativeRemove(plugin.uuid);
+    const result=await remove(plugin.uuid);
     if(!result)return;
     for(const instance of sdkActionInstances())if(instance.pluginUUID===plugin.uuid)sdkVisuals.delete(instance.context);
     await refreshSdkPlugins();
@@ -1533,7 +1543,7 @@ function renderInstalledSdkPlugins(root,query){
     title.append(heading);
     const isFusion=plugin.uuid==='com.autodesk.fusionstreamdeck';
     const isHa=plugin.uuid==='de.perdoctus.streamdeck.homeassistant';
-    if(isFusion||isHa){
+    {
       const info=document.createElement('button');info.type='button';info.textContent='?';
       info.title=plugin.name+' 사용법';info.setAttribute('aria-label',plugin.name+' 도움말');
       info.style.cssText='float:right;border:1px solid #777;border-radius:50%;height:22px;width:22px;background:#414141;color:white';
@@ -1549,10 +1559,6 @@ function renderInstalledSdkPlugins(root,query){
       setDeckForgeTooltip(tile,()=>({title:sdkCatalogueLabel(action),lines:[isFusion?'등록한 Fusion 명령 실행':isHa?'지정한 Home Assistant 장치 제어':'설정한 플러그인 동작 실행']}));
       tile.addEventListener('dragstart',ev=>ev.dataTransfer.setData('application/x-d200x-action',id));
       body.append(tile);
-    }
-    if(plugin.runtime==='deckforge-sdk'&&window.deckBridge?.nativeRemove){
-      const remove=document.createElement('button');remove.type='button';remove.className='fusion-manager-launch';
-      remove.textContent='플러그인 제거 (데이터 유지)';remove.addEventListener('click',event=>{event.stopPropagation();void removeNativePluginKeepingData(plugin);});body.append(remove);
     }
     if(plugin.background&&window.deckBridge?.nativeServiceControl){
       const manager=document.createElement('button');manager.type='button';manager.className='fusion-manager-launch';

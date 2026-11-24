@@ -222,3 +222,25 @@ test('SDK openUrl context authorization supports absent context but refuses fore
  assert.equal(allowedSdkOpenUrlContext(plugin,undefined,'unknown-context'),false);
  assert.equal(allowedSdkOpenUrlContext('',undefined,undefined),false);
 });
+
+test('legacy plugin keepData removal and trusted recovery preserve globals and reject stale revisions',async()=>{
+ const root=await fs.mkdtemp(path.join(os.tmpdir(),'deckforge-legacy-retained-'));
+ const host=new StreamDeckPluginHost(root),uuid=M.UUID,prefix=uuid+'.sdPlugin/';
+ try{
+  await host.install(await zipWith({[prefix+'manifest.json']:JSON.stringify(M),[prefix+'plugin.html']:'<html></html>'}));
+  const globals=host.settingsFile(uuid);await fs.writeFile(globals,'local encrypted fixture');
+  const plan=await host.retainedRecord(uuid);
+  await assert.rejects(host.removeKeepingData(uuid,'stale'),/변경 감지/);
+  assert.equal((await host.list()).length,1);
+  await host.removeKeepingData(uuid,plan.revision);
+  assert.equal((await host.list()).length,0);
+  const retained=await host.listRetained();
+  assert.equal(retained.length,1);assert.equal(retained[0].id,uuid);
+  assert.equal(retained[0].revision,plan.revision);
+  assert.equal(await fs.readFile(globals,'utf8'),'local encrypted fixture');
+  await assert.rejects(host.restoreRetained(uuid,'stale'),/변경 감지/);
+  await host.restoreRetained(uuid,plan.revision);
+  assert.equal((await host.list()).length,1);assert.deepEqual(await host.listRetained(),[]);
+  assert.equal(await fs.readFile(globals,'utf8'),'local encrypted fixture');
+ }finally{await host.close();await fs.rm(root,{recursive:true,force:true});}
+});

@@ -15,9 +15,11 @@ async function installFusionPlugin(host,root=bundledRoot()){
 }
 async function installMissingPlugins(host,root=bundledRoot()){
  const installed=new Set((await host.list()).map(item=>item.uuid)),results={};
- results.fusion=installed.has(FUSION)?'existing':await installFusionPlugin(host,root);
+ const retained=new Set(typeof host.listRetainedLegacy==='function'?(await host.listRetainedLegacy()).map(item=>item.id):[]);
+ results.fusion=installed.has(FUSION)?'existing':retained.has(FUSION)?'retained':await installFusionPlugin(host,root);
  const home=path.join(root,'de.perdoctus.streamdeck.homeassistant.streamDeckPlugin');
  if(installed.has(HA))results.ha='existing';
+ else if(retained.has(HA))results.ha='retained';
  else if(await exists(home)){await host.install(await fs.readFile(home));results.ha='installed'}
  else results.ha='not-bundled';
  return results;

@@ -1061,6 +1061,20 @@ class PluginRouter{
     await this.checkNativeCandidate(m);
     return this.native.replace(m,expectedRevision);
   });}
+  listRetainedLegacy(){return this.serial(async()=>{
+    const {legacy,native}=await this.catalog(),installed=new Set([...legacy.map(p=>p.uuid.toLowerCase()),...native.map(p=>p.id)]);
+    return (await this.legacy.listRetained()).filter(p=>!installed.has(p.id.toLowerCase()));
+  });}
+  planLegacyRemoval(id){return this.serial(()=>this.legacy.retainedRecord(id));}
+  removeLegacyKeepingData(id,revision){return this.serial(()=>this.legacy.removeKeepingData(id,revision));}
+  planLegacyRestore(id){return this.serial(async()=>{
+    check(!(await this.native.manifests()).some(m=>m.id===id.toLowerCase()),'plugin ID already installed');
+    return this.legacy.retainedRecord(id,true);
+  });}
+  restoreLegacyRetained(id,revision){return this.serial(async()=>{
+    check(!(await this.native.manifests()).some(m=>m.id===id.toLowerCase()),'plugin ID already installed');
+    return this.legacy.restoreRetained(id,revision);
+  });}
   listRetainedNative(){return this.serial(async()=>{
     const {legacy,native}=await this.catalog();
     const installed=new Set([...legacy.map(p=>p.uuid.toLowerCase()),...native.map(p=>p.id)]);

@@ -32,6 +32,8 @@ contextBridge.exposeInMainWorld('deckBridge', Object.freeze({
   haStatus: () => ipcRenderer.invoke('d200x:ha-status'),
   sdkList: () => ipcRenderer.invoke('d200x:sdk-list'),
   nativeRemove:id=>ipcRenderer.invoke('d200x:native-remove',id),
+  legacyPluginRemove:id=>ipcRenderer.invoke('d200x:legacy-plugin-remove',id),
+  legacyRetainedRestore:id=>ipcRenderer.invoke('d200x:legacy-retained-restore',id),
   nativeRetainedList:()=>ipcRenderer.invoke('d200x:native-retained-list'),
   nativeRetainedRestore:id=>ipcRenderer.invoke('d200x:native-retained-restore',id),
   nativeRetainedPurge:id=>ipcRenderer.invoke('d200x:native-retained-purge',id),

@@ -115,3 +115,5 @@ API 2 manifest의 service={script,tickIntervalMs?} 및 별도 background.run 권
 - 08C(1.1.216): purge는 keepData로 이미 제거된 native ID만 대상. main 이중 확인 및 파일별 SHA-256 inventory revision 재검사. 검증된 retained/history manifest에서 식별 가능한 credential binding, native global vault, 보존 코드/이력만 삭제. 미확인 과거 binding·서비스 중지 선호·프로필/버튼·외부 백업은 유지. 파일별 삭제이며 부분 실패를 성공으로 표시하지 않음. 물리 완전 삭제 보장 없음. 실제 사용자 데이터 삭제 없음.
 
 - 08D(1.1.217): 기존 로컬/Drive 선택·병합·전체 복원 및 사전 안전 백업 유지. 전체 복원 결과는 정해진 구성 필드로 투영, 외부 플러그인 코드/독립 암호화 vault 미복원. 최종 복원 확인에서 결과 프로필·템플릿 SDK 참조의 설치/누락/의존성/액션/미확인 상태 안내. 별도 플러그인 설치 신뢰 승인과 필요한 재인증은 기존 경로 사용. local DPAPI 파일 미변경 fixture 검사 추가; 실제 DPAPI/GUI 검증 별도.
+
+- 1.1.218: 사용자 요청으로 설치 플러그인 ? 도움말 하단에 데이터 유지 제거를 통합. Stream Deck 호환 플러그인도 DeckForge 설치 폴더만 StreamDeckRemoved로 이동하고 파일별 해시 revision 확인 후 명시 승인 재설치; 원본 외부 폴더·globals·프로필·Fusion 애드인 보존. 내장 자동 설치는 보존 목록 제외. 호환 플러그인 purge 미지원. 실제 GUI 및 자동 검사 별도.
