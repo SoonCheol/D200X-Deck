@@ -118,7 +118,7 @@ async function purgeRetainedWithApproval(id){
  return pluginAudit('purge',id,async audit=>{
  const plan=await sdk().planRetainedPurge(id);audit.identify(plan);audit.mode('purge');audit.stage('confirm');
  const c=plan.counts;
- const detail=['이 작업은 되돌릴 수 없습니다. 기존 버튼 등록과 프로필, 외부 백업은 삭제하지 않습니다.',
+ const detail=['이 작업은 되돌릴 수 없습니다. 보존 데이터 삭제 성공 후 모든 프로필 및 템플릿에서 해당 플러그인의 등록 액션도 정리합니다. 다른 액션과 프로필, 외부 백업은 유지합니다.',
    '삭제 대상: 보존 원본 '+c.retained+'개, 이전 코드 '+c.history+'개, 암호화 전역 설정 '+c.settings+'개, 확인된 인증정보 '+c.credential+'개.',
    '기존 버튼에 필요한 인증정보는 다시 등록해야 할 수 있습니다. 물리적 완전 삭제나 확인되지 않은 과거 인증정보 삭제를 보장하지 않습니다.'].join('\n');
  const first=await dialog.showMessageBox(window,{type:'warning',title:'보존 데이터 삭제',message:plan.name+' '+plan.version,detail,
@@ -150,7 +150,7 @@ ipcMain.handle('d200x:native-remove',async(event,id)=>{
  const plan=await sdk().planNativeRemoval(id);audit.identify(plan);audit.mode('keepData');audit.stage('confirm');
  if(plan.dependents.length)throw Error('이 플러그인을 사용하는 다른 플러그인: '+plan.dependents.map(p=>p.name).join(', '));
  const choice=await dialog.showMessageBox(window,{type:'question',title:'플러그인 제거',message:plan.name+' '+plan.version+' 제거',
-   detail:'데이터 유지 제거는 원본 코드와 설정·인증정보를 보존합니다. 데이터까지 삭제를 선택하면 먼저 제거한 뒤 실제 삭제 대상과 개수를 확인합니다. 두 방식 모두 기존 등록 버튼과 프로필은 유지합니다.',
+   detail:'데이터 유지 제거는 원본 코드와 설정·인증정보를 보존합니다. 데이터까지 삭제를 선택하면 먼저 제거한 뒤 실제 삭제 대상과 개수를 확인합니다. 데이터 유지 제거는 등록 버튼을 유지합니다. 보존 데이터까지 삭제하면 해당 플러그인의 등록 액션도 정리합니다.',
    buttons:['취소','데이터 유지 제거','제거 후 보존 데이터 삭제…'],defaultId:1,cancelId:0,noLink:true});
  if(![1,2].includes(choice.response))return null;
  purgeAfter=choice.response===2;

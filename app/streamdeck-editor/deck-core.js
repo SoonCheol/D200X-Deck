@@ -283,6 +283,45 @@
     }
     for(const key of ['pages','pinned','controls','global','inactiveProfiles','down','sideHold','left','right','holdLeft','holdRight'])walk(value[key]);
   }
+  // Mutate only a detached profile snapshot. Preserve grid indices and
+  // nonmatching actions; compact only ordered composite sequences.
+  function removePluginReferences(state,pluginId){
+    if(typeof pluginId!=='string'||!pluginId)return 0;
+    let count=0;
+    const matches=a=>a?.type==='sd-plugin'&&a.settings?.pluginUUID===pluginId;
+    function action(a){
+      if(!a||typeof a!=='object')return a;
+      if(matches(a)){count++;return null;}
+      if(Array.isArray(a.children)){
+        a.children=a.type==='folder'?a.children.map(action):a.children.flatMap(child=>{const next=action(child);return matches(child)?[]:[next];});
+      }
+      if(Array.isArray(a.pages))a.pages=a.pages.map(row=>Array.isArray(row)?row.map(action):row);
+      if(Array.isArray(a.sequences))a.sequences=a.sequences.map(row=>Array.isArray(row)?row.flatMap(child=>{const next=action(child);return matches(child)?[]:[next];}):row);
+      const representativeRemoved=matches(a.pressActions?.[a.pressMeta?.representative]);
+      for(const key of ['slots','pressActions'])if(a[key])for(const gesture of ['single','double','hold'])
+        if(Object.hasOwn(a[key],gesture))a[key][gesture]=action(a[key][gesture]);
+      if(representativeRemoved)
+        a.pressMeta.representative='single';
+      return a;
+    }
+    function bindings(row){
+      if(!Array.isArray(row))return;
+      for(const binding of row)if(binding&&typeof binding==='object')
+        for(const key of ['down','sideHold','left','right','holdLeft','holdRight'])
+          if(Object.hasOwn(binding,key))binding[key]=action(binding[key]);
+    }
+    function profile(p){
+      if(!p)return;
+      if(Array.isArray(p.pages))p.pages=p.pages.map(row=>Array.isArray(row)?row.map(action):row);
+      if(Array.isArray(p.pinned))p.pinned=p.pinned.map(action);
+      bindings(p.controls?.global);
+      for(const row of p.controls?.pages||[])bindings(row);
+    }
+    profile(state);
+    for(const p of state.inactiveProfiles||[])profile(p);
+    for(const t of state.profileTemplates||[])profile(t.snapshot);
+    return count;
+  }
   function normalizeInstanceIds(value){
     const ids=new Set();
     walkSdkActions(value,action=>{
@@ -1936,5 +1975,5 @@
       url:action.settings?.url||'',mode:action.settings?.open||'default',browserPath:action.settings?.browserPath||''};
     return {kind:'unsupported',message:'이 동작의 실행 기능은 아직 구현되지 않았습니다.'};
   }
-  return {validateNativeSettingsSchema,validateNativeSettingsUI,nativeSettingVisible,validateNativeTitlePolicy,nativeTitle,nativeTitleSelection,nativeAdoptLegacyTitle,nativeSettingValue,nativeDynamicOptions,moveNativeSelection,isNativeHaSensor,isNativeForeground,sdkAvailability,nativeEffectiveSettings,nativeVisualOwner,nativeVisualDelta,pruneNativeVisuals,createNativeRenderGate,ACTION_IDS,D200X_ACTION_IDS,PLUGIN_ACTION_IDS,PRESS_ACTION_TYPES,DEFAULTS,TITLE,INDICATOR_NUMBER_STYLE,INDICATOR_NAV_LABELS,indicatorConfig,indicatorCommon,sharedIndicatorConfig,updateIndicatorCommon,manageIndicators,indicatorNumberDisplayStyle,planIndicatorNavigation,fixedIndicatorNavigation,planFixedIndicatorNavigation,indicatorPinState,setIndicatorPinned,SIDE_NAV_LABELS,SIDE_HOLD_MS,sideConfig,makeSideAction,sideActionConfig,sideFolderTargets,planSideNavigation,applySideNavigation,createPageVisitTracker,createSidePressTracker,createAction,cleanAction,validInstanceId,normalizeInstanceIds,cloneActionInstances,walkSdkActions,sdkMountDescriptors,createSdkMountTracker,validSdkMount,nativeSettingsCommitMatches,createBitmapCache,cleanCompositeEntry,timerSeconds,formatTimerTime,displaySwitchAction,compositeModel,planComposite,runComposite,createMultiPauseGate,multiRows,setMultiRows,blankPage,cleanWideDisplay,createWideOverlayTracker,cycleWideDisplay,isWideDisplayPress,folderContents,folderPageCount,changeFolderPage,addFolderPage,deleteFolderPage,editPageStructure,currentActions,visibleActions,togglePinned,activeFolder,enterFolder,exitFolder,migrateState,profileSnapshot,switchProfile,createProfile,renameProfile,exportSingleProfile,findProfileTemplate,saveProfileTemplate,renameProfileTemplate,deleteProfileTemplate,applyProfileTemplate,setProfileApp,setProfileFusionScope,matchFusionProfile,createSmartProfileTracker,matchForegroundProfile,deleteProfile,previewHardwareEvent,physicalSlot,hardwareGesture,resolveHardwareEvent,runtimeActionKey,folderWideBackEvent,resolveKeyPress,planHardwareEvent,deletePage,planAction,emptyBinding,cleanBinding,controlAction,activeControlAction,assignControlAction,automaticControl,ensureControls,controlBinding,changeControlScope};
+  return {validateNativeSettingsSchema,validateNativeSettingsUI,nativeSettingVisible,validateNativeTitlePolicy,nativeTitle,nativeTitleSelection,nativeAdoptLegacyTitle,nativeSettingValue,nativeDynamicOptions,moveNativeSelection,isNativeHaSensor,isNativeForeground,sdkAvailability,nativeEffectiveSettings,nativeVisualOwner,nativeVisualDelta,pruneNativeVisuals,createNativeRenderGate,ACTION_IDS,D200X_ACTION_IDS,PLUGIN_ACTION_IDS,PRESS_ACTION_TYPES,DEFAULTS,TITLE,INDICATOR_NUMBER_STYLE,INDICATOR_NAV_LABELS,indicatorConfig,indicatorCommon,sharedIndicatorConfig,updateIndicatorCommon,manageIndicators,indicatorNumberDisplayStyle,planIndicatorNavigation,fixedIndicatorNavigation,planFixedIndicatorNavigation,indicatorPinState,setIndicatorPinned,SIDE_NAV_LABELS,SIDE_HOLD_MS,sideConfig,makeSideAction,sideActionConfig,sideFolderTargets,planSideNavigation,applySideNavigation,createPageVisitTracker,createSidePressTracker,createAction,cleanAction,validInstanceId,normalizeInstanceIds,cloneActionInstances,walkSdkActions,removePluginReferences,sdkMountDescriptors,createSdkMountTracker,validSdkMount,nativeSettingsCommitMatches,createBitmapCache,cleanCompositeEntry,timerSeconds,formatTimerTime,displaySwitchAction,compositeModel,planComposite,runComposite,createMultiPauseGate,multiRows,setMultiRows,blankPage,cleanWideDisplay,createWideOverlayTracker,cycleWideDisplay,isWideDisplayPress,folderContents,folderPageCount,changeFolderPage,addFolderPage,deleteFolderPage,editPageStructure,currentActions,visibleActions,togglePinned,activeFolder,enterFolder,exitFolder,migrateState,profileSnapshot,switchProfile,createProfile,renameProfile,exportSingleProfile,findProfileTemplate,saveProfileTemplate,renameProfileTemplate,deleteProfileTemplate,applyProfileTemplate,setProfileApp,setProfileFusionScope,matchFusionProfile,createSmartProfileTracker,matchForegroundProfile,deleteProfile,previewHardwareEvent,physicalSlot,hardwareGesture,resolveHardwareEvent,runtimeActionKey,folderWideBackEvent,resolveKeyPress,planHardwareEvent,deletePage,planAction,emptyBinding,cleanBinding,controlAction,activeControlAction,assignControlAction,automaticControl,ensureControls,controlBinding,changeControlScope};
 });

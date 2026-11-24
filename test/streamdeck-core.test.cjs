@@ -2115,3 +2115,21 @@ test('native settings requests cannot cross slot or gesture even with matching a
  assert.equal(core.nativeSettingsCommitMatches(cfg,{...request,slot:1},99),false);
  assert.equal(core.nativeSettingsCommitMatches(cfg,{...request,gesture:'left'},99),false);
 });
+
+test('purged plugin cleanup removes exact ID across profiles, folders, controls and templates without shifting keys',()=>{
+ const id='com.deckforge.native.test',other='com.deckforge.native.test-other';
+ const plug=(uuid=id)=>({type:'sd-plugin',settings:{pluginUUID:uuid}});
+ const keep={type:'hotkey',title:'Keep',settings:{keys:'Ctrl+A'}};
+ const state={pages:[[plug(),keep,{type:'folder',children:[plug(),plug(other)],pages:[[plug(),keep]]},{type:'multi',children:[keep,plug(),{kind:'delay',ms:50}]}]],pinned:[plug(),null],controls:{global:[{down:plug(),left:keep}],pages:[[{right:plug()}]]},inactiveProfiles:[{pages:[[plug(),plug(other)]]}],profileTemplates:[{snapshot:{pages:[[plug(),keep]]}}]};
+ assert.equal(core.removePluginReferences(state,id),9);
+ assert.equal(state.pages[0][0],null);assert.deepEqual(state.pages[0][1],keep);
+ assert.deepEqual(state.pages[0][2].children,[null,plug(other)]);
+ assert.deepEqual(state.pages[0][2].pages,[[null,keep]]);
+ assert.deepEqual(state.pages[0][3].children,[keep,{kind:'delay',ms:50}]);
+ assert.deepEqual(state.pinned,[null,null]);
+ assert.deepEqual(state.controls.global,[{down:null,left:keep}]);
+ assert.equal(state.controls.pages[0][0].right,null);
+ assert.deepEqual(state.inactiveProfiles[0].pages,[[null,plug(other)]]);
+ assert.deepEqual(state.profileTemplates[0].snapshot.pages,[[null,keep]]);
+ assert.equal(core.removePluginReferences(state,id),0);
+});

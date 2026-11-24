@@ -1346,12 +1346,51 @@ async function restoreRetainedPlugin(plugin){
     window.d200xActionStatus?.('플러그인 다시 설치 완료 · 기존 버튼 설정 유지');
   }catch(error){window.d200xActionStatus?.('다시 설치 실패: '+String(error?.message||error));}
 }
+function pluginCleanupReady(){
+  return !profileStorageFailure&&!inspectorSession?.dirty&&!inspectorEditing&&!nativeGridBusy&&!nativeGridDrag&&
+    !openAppHoldTimers.size&&!runningMultiActions.size&&!activeActionTimers.size&&!allPlayingAudio.size&&
+    !knobPresses.size&&!logicPresses.size&&!multiPhysicalPresses.size&&!sidePressTimers.size;
+}
+function cleanupPurgedPluginReferences(id){
+  if(!pluginCleanupReady())return null;
+  const before=state,session=inspectorSession,next=clone(state);
+  const count=DeckCore.removePluginReferences(next,id);
+  if(!count)return 0;
+  const oldContexts=sdkActionInstances().filter(instance=>instance.pluginUUID===id).map(instance=>instance.context);
+  next.selected=null;state=next;inspectorSession=null;
+  if(!persist(false)){state=before;inspectorSession=session;return null;}
+  pageStructureEpoch++;
+  for(const context of oldContexts)sdkVisuals.delete(context);
+  render();window.scheduleDeckSync?.(0);
+  return count;
+}
+async function cleanupMissingPluginReferences(id){
+  if(!pluginCleanupReady())return window.d200xActionStatus?.('미저장 편집이나 실행 중인 동작을 먼저 마치세요.');
+  // Do not clean a temporarily unavailable installed plugin, or one whose
+  // code was intentionally retained for recovery.
+  const checkMissing=async()=>{
+    const installed=await window.deckBridge.sdkList(),retained=await window.deckBridge.nativeRetainedList();
+    return !installed.some(p=>p.uuid===id)&&!retained.some(p=>p.id===id);
+  };
+  try{
+    if(!await checkMissing())return;
+    const baseline=JSON.stringify(state),count=DeckCore.removePluginReferences(clone(state),id);
+    if(!count)return;
+    if(!await window.DeckForgeDialogs.show({title:'미설치 플러그인 버튼 정리',intro:'모든 프로필 및 템플릿에서 이 플러그인의 등록 액션 '+count+'개를 제거합니다.',detail:'다른 플러그인·페이지·폴더·백업은 유지합니다. 다시 설치할 계획이라면 취소하세요.',ask:true,actionLabel:'등록 버튼 정리'}))return;
+    if(!await checkMissing())return;
+    if(JSON.stringify(state)!==baseline)return window.d200xActionStatus?.('등록 상태 변경 · 다시 확인하세요.');
+    const cleaned=cleanupPurgedPluginReferences(id);
+    window.d200xActionStatus?.(cleaned===null?'버튼 정리 미완료 · 저장 상태 확인':'등록 액션 '+cleaned+'개 정리 완료');
+  }catch(error){window.d200xActionStatus?.('버튼 정리 실패: '+String(error?.message||error));}
+}
 async function purgeRetainedPlugin(plugin){
   try{
+    if(!pluginCleanupReady())throw Error('미저장 편집이나 실행 중인 동작을 먼저 마치세요.');
     const result=await window.deckBridge.nativeRetainedPurge(plugin.id);
     if(!result)return;
+    const count=result.status==='purged'?cleanupPurgedPluginReferences(plugin.id):null;
     await refreshSdkPlugins();
-    window.d200xActionStatus?.(result.status==='purged'?'보존 데이터 삭제 완료 · 버튼 및 프로필 유지':'삭제 미완료 ('+result.deleted+'/'+result.total+') · 남은 데이터 확인 필요');
+    window.d200xActionStatus?.(result.status==='purged'?(count===null?'보존 데이터 삭제 완료 · 버튼 정리 미완료':'보존 데이터 및 등록 액션 '+count+'개 삭제 완료'):'삭제 미완료 ('+result.deleted+'/'+result.total+') · 남은 데이터 확인 필요');
   }catch(error){window.d200xActionStatus?.('보존 데이터 삭제 실패: '+String(error?.message||error));}
 }
 function pluginHelpButton(plugin,retained=false){
@@ -1529,12 +1568,14 @@ async function removePluginKeepingData(plugin){
   const remove=plugin.runtime==='deckforge-sdk'?window.deckBridge?.nativeRemove:window.deckBridge?.legacyPluginRemove;
   if(!remove)return;
   try{
+    if(!pluginCleanupReady())throw Error('미저장 편집이나 실행 중인 동작을 먼저 마치세요.');
     const result=await remove(plugin.uuid);
     if(!result)return;
     for(const instance of sdkActionInstances())if(instance.pluginUUID===plugin.uuid)sdkVisuals.delete(instance.context);
     await refreshSdkPlugins();
     scheduleSdkSync();
-    const message=({purged:'플러그인 및 보존 데이터 삭제 완료 · 등록 버튼 유지',cancelled:'플러그인 제거 완료 · 데이터 삭제 취소, 보존 중',incomplete:'플러그인 제거 완료 · 보존 데이터 일부 삭제 실패',failed:'플러그인 제거 완료 · 보존 데이터 삭제 실패'})[result.purgeStatus]||'플러그인 제거 완료 · 버튼 및 데이터 유지';
+    const cleaned=result.purgeStatus==='purged'?cleanupPurgedPluginReferences(plugin.uuid):null;
+    const message=({purged:cleaned===null?'플러그인 삭제 완료 · 버튼 정리 미완료':'플러그인 및 등록 액션 '+cleaned+'개 삭제 완료',cancelled:'플러그인 제거 완료 · 데이터 삭제 취소, 보존 중',incomplete:'플러그인 제거 완료 · 보존 데이터 일부 삭제 실패',failed:'플러그인 제거 완료 · 보존 데이터 삭제 실패'})[result.purgeStatus]||'플러그인 제거 완료 · 버튼 및 데이터 유지';
     window.d200xActionStatus?.(message);
   }catch(error){
     scheduleSdkSync();
@@ -4160,7 +4201,9 @@ function updateSdkAvailabilityInspector(){
   const item=pressIsOrdinary(rootItem)&&state.selected<13?pressSlotAction(rootItem,activePressTab):rootItem;
   const label=sdkAvailabilityLabel(item);
   button.textContent=label?'⚠ '+label:'⚙ 플러그인 속성 열기';
-  button.title=label?'기존 버튼 설정은 유지됩니다. 클릭하여 설치 또는 복구 방법을 확인하세요.':'플러그인 속성 열기';
+  button.title=label?'클릭하여 설치 또는 복구 방법을 확인하세요.':'플러그인 속성 열기';
+  const cleanup=$('inspector')?.querySelector('[data-sdk-cleanup]');
+  if(cleanup)cleanup.hidden=!(window.deckBridge?.nativeRetainedList&&DeckCore.sdkAvailability(item,sdkCatalogueReady?sdkPlugins:null)==='missing'&&!sdkRetained.some(p=>p.id===item?.settings?.pluginUUID));
 }
 function bindExtendedActionFields(root,item){
   if(item.type==='sd-plugin'){
@@ -4667,6 +4710,8 @@ function renderInspector(){
     settingsButton.textContent='⚙ 플러그인 속성 열기';
     settingsButton.dataset.sdkAvailability='';
     controls.append(settingsButton);
+    const cleanup=document.createElement('button');cleanup.type='button';cleanup.className='sdk-settings-open';cleanup.dataset.sdkCleanup='';cleanup.textContent='미설치 등록 버튼 정리…';cleanup.hidden=true;
+    cleanup.onclick=()=>void cleanupMissingPluginReferences(item.settings?.pluginUUID);controls.append(cleanup);
     if(isFusionAction(item)){
       const row=document.createElement('div');row.className='field fusion-title-language';
       const label=document.createElement('label');label.textContent='표시 언어';label.htmlFor='fusion-title-language';
