@@ -2,6 +2,12 @@
 
 > **상태 기록 기준: 2026-11-24**. 실제 최신 HEAD는 Git에서 확인하며, 코드·자동 검사·Windows 빌드·사용자 Windows/D200X 실기 결과를 구분한다. 시작 시 `AGENTS.md`와 이 문서만 읽고 로드맵은 필요한 경우에만 참고한다.
 
+## 1.1.139 — GIF 부분 프레임 및 투명 합성 (2026-11-24)
+
+- GIF89a §23 disposal 0/1/2/3, 투명 palette index, 부분 영역 및 local/global palette 합성. 원본 프레임 간격/loop 유지. 투명 아이콘 배경은 alpha-zero 정책, 인터랙티브 GIF는 수동 검토. 합성 PNG CRC/scanline 및 총 크기 제한 유지.
+- 5개 합성 프레임·투명 유지·배경/이전 복원 fixture 추가. 실제 장치 animation scheduling 후속, 신규 Windows/CI/실기 별도. 1.1.135/136 Windows #886/887 성공, 1.1.138 CI #1178 성공.
+- 기준: https://www.w3.org/Graphics/GIF/spec-gif89a.txt (GIF89a 규격).
+
 ## 1.1.138 — 제한 GIF 실제 픽셀·PNG 프레임 디코딩 (2026-11-24)
 
 - 기존 bounded LZW 검증에 선택형 index 복원, palette RGBA 및 interlace row 복원, 지연·loop 보존, PNG 프레임 인코딩과 CRC/scanline 재검증 추가. 전체 opaque full-frame만 허용, 부분 프레임/투명 합성·실시간 장치 스케줄러는 후속. 정지 이미지 대체·자동 설치 없음.

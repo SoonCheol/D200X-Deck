@@ -1,7 +1,6 @@
 'use strict';
-// Read-only media inventory. No decoding, rendering or release permission.
-// GIF LZW is checked by bounded dictionary lengths and palette references;
-// no raster is rendered and SVG markup is not loaded.
+// Read-only media inventory and bounded offline GIF decoding. No hardware
+// writes or release permission. SVG markup is not loaded here.
 const MAX=256*1024,MAX_FRAMES=240,MAX_PIXELS=144*144*MAX_FRAMES;
 // Validate the exact number of decoded palette indices without allocating
 // frame pixels. Every dictionary entry inherits already-validated symbols.
@@ -62,7 +61,7 @@ function verifyLzw(data,min,paletteSize,pixelCount,decode=false){
   }
   throw Error('missing LZW end code');
 }
-function inspectGif(bytes,decode=false){
+function inspectGif(bytes,decode=false,composite=false){
   try{
     if(!Buffer.isBuffer(bytes)||bytes.length<14||bytes.length>MAX||!/^GIF8[79]a$/.test(bytes.toString('ascii',0,6)))throw Error('invalid header');
     const width=bytes.readUInt16LE(6),height=bytes.readUInt16LE(8),flags=bytes[10];
@@ -74,7 +73,17 @@ function inspectGif(bytes,decode=false){
     const decodedFrames=[];
     const palette=f=>{const colors=f&128?2**((f&7)+1):0;if(!colors)return null;need(3*colors);const data=bytes.subarray(pos,pos+3*colors);skip(3*colors);return {colors,data};};
     const subblocks=(collect=false)=>{const chunks=[];let size=0,n;while((n=take())!==0){need(n);if(collect)chunks.push(bytes.subarray(pos,pos+n));skip(n);size+=n;}return collect?Buffer.concat(chunks,size):size;};
-    const globalPalette=palette(flags);
+    const globalPalette=palette(flags),backgroundIndex=bytes[11];
+    if(globalPalette&&backgroundIndex>=globalPalette.colors)throw Error('invalid background index');
+    let canvas=null;
+    const background=transparent=>{
+      if(transparent||!globalPalette)return Buffer.alloc(4);
+      const offset=backgroundIndex*3;
+      return Buffer.from([...globalPalette.data.subarray(offset,offset+3),255]);
+    };
+    const clearRect=(buffer,x,y,w,h,color)=>{
+      for(let row=y;row<y+h;row++)for(let col=x;col<x+w;col++)color.copy(buffer,(row*width+col)*4);
+    };
     for(let blocks=0;blocks<bytes.length;blocks++){
       const tag=take();
       if(tag===0x3b){
@@ -85,9 +94,10 @@ function inspectGif(bytes,decode=false){
         const label=take();
         if(label===0xf9){
           if(pending!==null||take()!==4)throw Error('invalid graphic control');
-          const packed=take();need(3);const delay=bytes.readUInt16LE(pos)*10;skip(3);
+          const packed=take();need(3);const delay=bytes.readUInt16LE(pos)*10,index=bytes[pos+2];skip(3);
           if((packed&0xe0)||((packed>>2)&7)>3||take()!==0)throw Error('unsupported graphic control');
-          pending={delay,transparent:Boolean(packed&1),disposal:(packed>>2)&7};
+          if(composite&&(packed&2))throw Error('interactive GIF requires manual review');
+          pending={delay,transparent:Boolean(packed&1),index,disposal:(packed>>2)&7};
         }else if(label===0xff){
           if(take()!==11)throw Error('invalid application extension');
           need(11);const name=bytes.toString('ascii',pos,pos+11);skip(11);
@@ -105,17 +115,27 @@ function inspectGif(bytes,decode=false){
       if(++frames>MAX_FRAMES||(pixels+=w*h)>MAX_PIXELS)throw Error('frame budget');
       const colors=palette(f)||globalPalette;
       const code=take();if(code<2||code>8)throw Error('invalid LZW minimum code size');
-      if(decode&&(x||y||w!==width||h!==height||pending?.transparent))throw Error('partial or transparent frame requires compositing');
+      if(pending?.transparent&&pending.index>=colors.colors)throw Error('invalid transparent palette index');
+      if(decode&&!composite&&(x||y||w!==width||h!==height||pending?.transparent))throw Error('partial or transparent frame requires compositing');
       const indices=verifyLzw(subblocks(true),code,colors.colors,w*h,decode);
       if(decode){
-        const rgba=Buffer.alloc(w*h*4),rows=[];
+        // GIF89a §23: leave transparent pixels untouched, retain, restore
+        // background, or restore previous. For transparent artwork use an
+        // alpha-zero background so the button background remains visible.
+        if(!canvas){canvas=Buffer.alloc(width*height*4);clearRect(canvas,0,0,width,height,background(pending?.transparent));}
+        const previous=pending?.disposal===3?Buffer.from(canvas):null;
+        const rows=[];
         if(f&0x40){for(const [start,step] of [[0,8],[4,8],[2,4],[1,2]])for(let row=start;row<h;row+=step)rows.push(row);}
         else for(let row=0;row<h;row++)rows.push(row);
         for(let i=0;i<indices.length;i++){
-          const src=indices[i]*3,dst=(rows[Math.floor(i/w)]*w+i%w)*4;
-          rgba[dst]=colors.data[src];rgba[dst+1]=colors.data[src+1];rgba[dst+2]=colors.data[src+2];rgba[dst+3]=255;
+          const index=indices[i];
+          if(pending?.transparent&&index===pending.index)continue;
+          const src=index*3,dst=((y+rows[Math.floor(i/w)])*width+x+i%w)*4;
+          canvas[dst]=colors.data[src];canvas[dst+1]=colors.data[src+1];canvas[dst+2]=colors.data[src+2];canvas[dst+3]=255;
         }
-        decodedFrames.push({delayMs:pending?.delay??0,rgba});
+        decodedFrames.push({delayMs:pending?.delay??0,rgba:Buffer.from(canvas)});
+        if(pending?.disposal===2)clearRect(canvas,x,y,w,h,background(pending.transparent));
+        else if(previous)canvas=previous;
       }
       delayMs+=pending?.delay??0;pending=null;
     }
@@ -128,12 +148,17 @@ function decodeOpaqueGif(bytes){
   if(!result.decodedFrames)throw Error(result.reason||'GIF decoding failed');
   return result;
 }
-// Encode a decoded frame through the same bounded PNG format used by the
+function decodeCompositeGif(bytes){
+  const result=inspectGif(bytes,true,true);
+  if(!result.decodedFrames)throw Error(result.reason||'GIF decoding failed');
+  return result;
+}
+// Encode composited frames through the bounded PNG format used by the
 // existing hardware compositor. No frame is discarded or installed.
-function opaqueGifPngFrames(bytes){
+function gifPngFrames(bytes,composite=true){
   const {crc32,deflateSync}=require('node:zlib');
   const {verifyPng}=require('./ulanzi-png-verifier.cjs');
-  const result=decodeOpaqueGif(bytes),{width,height}=result;
+  const result=composite?decodeCompositeGif(bytes):decodeOpaqueGif(bytes),{width,height}=result;
   const chunk=(type,data)=>{
     const head=Buffer.alloc(8);head.writeUInt32BE(data.length);head.write(type,4);
     const tail=Buffer.alloc(4);tail.writeUInt32BE(crc32(Buffer.concat([head.subarray(4),data])));
@@ -150,6 +175,7 @@ function opaqueGifPngFrames(bytes){
   });
   return {width,height,loopCount:result.loopCount,frames};
 }
+function opaqueGifPngFrames(bytes){return gifPngFrames(bytes,false);}
 // Very small XML-like subset. No entity expansion, CSS, URL, namespace
 // aliases, scripts, animation, filters, external references or text markup.
 // This is a classification only; actual rasterization must validate pixels.
@@ -206,4 +232,4 @@ function svgReport(bytes){
     return {format:'svg',status:'restricted-vector-review',width,height,nodes,viewBox,verification:'syntax-subset-only',requiresReview:true};
   }catch(error){return {format:'svg',status:'manual-resource-review',reason:error.message,requiresReview:true};}
 }
-module.exports={gifReport,svgReport,decodeOpaqueGif,opaqueGifPngFrames};
+module.exports={gifReport,svgReport,decodeOpaqueGif,opaqueGifPngFrames,decodeCompositeGif,gifPngFrames};

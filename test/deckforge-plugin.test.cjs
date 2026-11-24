@@ -1047,3 +1047,25 @@ test('opaque GIF decoder retains complete frames, colors, timing and PNG output 
  assert.equal(gifReport(transparent).status,'bounded-animation-review');
  assert.throws(()=>decodeOpaqueGif(transparent),/compositing/);
 });
+
+test('GIF partial frames honor transparency and restore background or previous pixels',()=>{
+ const {decodeCompositeGif,gifPngFrames}=require('../app/streamdeck-editor/ulanzi-media-analysis.cjs');
+ const {verifyPng}=require('../app/streamdeck-editor/ulanzi-png-verifier.cjs');
+ const header=Buffer.from('47494638396102000100800000ff00000000ff','hex');
+ const frame=(x,w,indices,packed=0)=>{
+   // Clear between pixels: fixed 3-bit codes, no dictionary-width transition.
+   const codes=indices.flatMap(i=>[4,i]).concat(5);
+   const data=Buffer.alloc(Math.ceil(codes.length*3/8));
+   codes.forEach((c,i)=>{for(let b=0;b<3;b++)if(c&(1<<b))data[(i*3+b)>>3]|=1<<((i*3+b)&7);});
+   return Buffer.concat([Buffer.from([0x21,0xf9,4,packed,5,0,0,0,0x2c,x,0,0,0,w,0,1,0,0,2,data.length]),data,Buffer.from([0])]);
+ };
+ const bytes=Buffer.concat([header,frame(0,2,[0,1],1),frame(0,1,[1],13),frame(1,1,[0],1),frame(0,1,[1],9),frame(1,1,[1],1),Buffer.from([0x3b])]);
+ const decoded=decodeCompositeGif(bytes);
+ const red=[255,0,0,255],blue=[0,0,255,255],clear=[0,0,0,0];
+ assert.deepEqual(decoded.decodedFrames.map(f=>[...f.rgba]),[[...clear,...blue],[...blue,...blue],[...clear,...blue],[...blue,...blue],[...clear,...blue]]);
+ const encoded=gifPngFrames(bytes);
+ assert.equal(encoded.frames.length,5);
+ assert.ok(encoded.frames.every(f=>verifyPng(f.png).ok&&f.delayMs===50));
+ const interactive=Buffer.from(bytes);interactive[22]|=2;
+ assert.throws(()=>decodeCompositeGif(interactive),/interactive/);
+});
