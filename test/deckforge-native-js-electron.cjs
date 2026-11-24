@@ -51,8 +51,8 @@ async function verifyVectorRendering(){
 async function verifyPublicApi(runner){
   const {NativePluginHost,validateNativeManifest}=require('../app/streamdeck-editor/deckforge-native-sdk.cjs');
   const id='com.deckforge.native.api-contract';
-  const permissions=['display','settings.write','global.settings','navigation','wide.mode','wide.overlay','network.request'];
-  const endpoints=[{id:'status',url:'https://example.com/status',method:'GET'}];
+  const permissions=['display','settings.write','global.settings','navigation','wide.mode','wide.overlay','network.request','network.websocket'];
+  const endpoints=[{id:'status',url:'https://example.com/status',method:'GET'},{id:'live',url:'wss://example.com/events',method:'WSS'}];
   const action={id:id+'.key',name:'Contract',controllers:['Keypad'],states:2,script:'api.setTitle("contract");'};
   validateNativeManifest({apiVersion:2,id,name:'Contract',version:'1.0.0',permissions,networkEndpoints:endpoints,actions:[action]});
   const host=new NativePluginHost('/unused');
@@ -79,7 +79,10 @@ async function verifyPublicApi(runner){
     ['setWideMode','api.setWideMode("clock")','wideMode','wide.mode'],
     ['setWideOverlay','api.setWideOverlay('+JSON.stringify(frame)+')','wideOverlay','wide.overlay'],
     ['clearWideOverlay','api.clearWideOverlay()','wideOverlay','wide.overlay'],
-    ['request','api.request("status")','networkRequest','network.request']
+    ['request','api.request("status")','networkRequest','network.request'],
+    ['connectSocket','api.connectSocket("live")','socketConnect','network.websocket'],
+    ['sendSocket','api.sendSocket({subscribe:true})','socketSend','network.websocket'],
+    ['closeSocket','api.closeSocket()','socketClose','network.websocket']
   ];
   try{
     const names=await runner.run('api.setTitle(Object.keys(api).sort().join(","));',input);
@@ -94,10 +97,11 @@ async function verifyPublicApi(runner){
       if(name==='patchSettings')assert.deepEqual(commands[0].value,{count:2,keep:true});
       if(permission){
         assert.throws(()=>host.validateScriptOps({...ctx,permissions:permissions.filter(p=>p!==permission)},'press',result.ops),/unauthorized/,name);
-        assert.throws(()=>host.validateScriptOps(ctx,'appear',result.ops),/input event/,name);
+        if(name==='connectSocket')assert.equal(host.validateScriptOps(ctx,'appear',result.ops).effects[0].op,'socketConnect');
+        else assert.throws(()=>host.validateScriptOps(ctx,'appear',result.ops),/input event/,name);
       }
     }
-    console.log('DeckForge native SDK 19-function renderer/host contract passed');
+    console.log('DeckForge native SDK 22-function renderer/host contract passed');
   }finally{host.close();}
 }
 

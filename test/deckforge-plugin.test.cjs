@@ -535,6 +535,72 @@ test('native HTTP extension permits approved methods and bounded query only',asy
  }finally{host.close();}
 });
 
+test('native WSS endpoint is permission-bound and transport enforces TLS, limits and no redirects',()=>{
+ const {validateNetworkEndpoints,validateNetworkRequest,validateSocketOperation,createSocket}=require('../app/streamdeck-editor/deckforge-native-network.cjs');
+ const endpoint={id:'live',url:'wss://example.com/events',method:'WSS',auth:'bearer'},permissions=['display','network.websocket'];
+ validateNetworkEndpoints([endpoint],permissions);
+ assert.throws(()=>validateNetworkEndpoints([endpoint],['display','network.request']),/method/);
+ for(const url of ['ws://example.com/events','wss://user:pass@example.com/events','wss://example.com/events?token=x','wss://example.com/events#x'])
+   assert.throws(()=>validateNetworkEndpoints([{...endpoint,url}],permissions),/HTTPS\/WSS/);
+ assert.throws(()=>validateNetworkRequest({op:'networkRequest',endpoint:'live',body:null},[endpoint]),/not approved/);
+ assert.throws(()=>validateSocketOperation({op:'socketConnect',endpoint:'other'},[endpoint]),/not approved/);
+ assert.throws(()=>validateSocketOperation({op:'socketSend',value:'x'.repeat(8193)},[endpoint]),/limit/);
+ let called=0;
+ class MockSocket{constructor(url,options){
+   called++;assert.equal(url,endpoint.url);assert.equal(options.rejectUnauthorized,true);assert.equal(options.minVersion,'TLSv1.2');
+   assert.equal(options.followRedirects,false);assert.equal(options.perMessageDeflate,false);assert.equal(options.maxPayload,8192);
+   assert.equal(options.handshakeTimeout,5000);assert.equal(options.headers.authorization,'Bearer example.token');
+ }}
+ assert.throws(()=>createSocket(endpoint,{WebSocket:MockSocket}),/credential/);
+ createSocket(endpoint,{bearer:'example.token',WebSocket:MockSocket});assert.equal(called,1);
+ const host=new NativePluginHost('/unused'),ctx={pluginUUID:nativeId,action:scriptManifest.actions[0],permissions,networkEndpoints:[endpoint]};
+ try{
+   const op={op:'socketConnect',endpoint:'live'};
+   assert.deepEqual(host.validateScriptOps(ctx,'appear',[op]).effects,[op]);
+   assert.throws(()=>host.validateScriptOps({...ctx,permissions:['display']},'press',[op]),/unauthorized/);
+   assert.throws(()=>host.validateScriptOps(ctx,'socketEvent',[op]),/input event/);
+   assert.throws(()=>host.validateScriptOps(ctx,'tick',[op]),/input event/);
+   assert.deepEqual(host.validateScriptOps(ctx,'socketEvent',[{op:'socketSend',value:{subscribe:true}}]).effects,[{op:'socketSend',value:{subscribe:true}}]);
+ }finally{host.close();}
+});
+test('native WebSocket lifecycle sends and receives, isolates stale context and limits message rate',async()=>{
+ const {EventEmitter}=require('node:events');
+ const endpoint={id:'live',url:'wss://example.com/events',method:'WSS'};
+ const manifest={...scriptManifest,permissions:['display','network.websocket'],networkEndpoints:[endpoint]};
+ const sockets=[],updates=[],calls=[];
+ class MockSocket extends EventEmitter{
+   constructor(){super();this.readyState=0;this.bufferedAmount=0;this.sent=[];this.terminated=false;}
+   open(){this.readyState=1;this.emit('open');}
+   send(data,cb){this.sent.push(data);cb();}
+   terminate(){this.terminated=true;this.readyState=3;this.emit('close');}
+ }
+ const host=new NativePluginHost('/unused',e=>updates.push(e),()=>({async run(_src,input){
+   const {type,response}=input.event;calls.push(type);
+   if(type==='appear')return {ops:[{op:'socketConnect',endpoint:'live'}],memory:{}};
+   if(type==='socketEvent'&&response.event==='open')return {ops:[{op:'socketSend',value:{subscribe:true}}],memory:{}};
+   if(type==='socketEvent'&&response.event==='message')return {ops:[{op:'title',value:response.body}],memory:{}};
+   if(type==='press')return {ops:[{op:'socketClose'}],memory:{}};
+   return {ops:[],memory:{}};
+ },close(){}}),{socketFactory:()=>{const socket=new MockSocket();sockets.push(socket);return socket;},now:()=>1000});
+ const cfg={context:'socket',slot:0,pluginUUID:nativeId,actionUUID:nativeId+'.toggle',settings:{}};
+ const flush=()=>new Promise(resolve=>setImmediate(resolve));
+ const drain=async()=>{await flush();await host.contexts.get(cfg.context)?.queue;await flush();};
+ try{
+   host.sync([cfg],[manifest]);await drain();assert.equal(sockets.length,1);
+   sockets[0].open();await drain();assert.deepEqual(sockets[0].sent,['{"subscribe":true}']);
+   sockets[0].emit('message',Buffer.from('ready'),false);await drain();
+   assert.ok(updates.some(e=>e.kind==='setTitle'&&e.payload.title==='ready'));
+   host.sync([],[manifest]);assert.equal(sockets[0].terminated,true);
+   sockets[0].emit('message',Buffer.from('stale'),false);await flush();
+   assert.equal(updates.some(e=>e.payload?.title==='stale'),false);
+   host.sync([cfg],[manifest]);await drain();assert.equal(sockets.length,2);
+   sockets[1].open();await drain();
+   for(let i=0;i<9;i++)sockets[1].emit('message',Buffer.from('event'+i),false);
+   await drain();assert.equal(sockets[1].terminated,true);assert.equal(host.socketPending.size,0);
+   host.suspend();assert.equal(host.socketPending.size,0);
+ }finally{host.close();}
+});
+
 test('native HTTPS broker bounds response, denies redirects, times out and uses verified TLS',async()=>{
  const {EventEmitter}=require('node:events');
  const {requestEndpoint}=require('../app/streamdeck-editor/deckforge-native-network.cjs');

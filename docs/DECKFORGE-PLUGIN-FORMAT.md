@@ -3,6 +3,10 @@
 > 기록일: 2026-11-24 · 상태: **패키지 v1 유지 / 독자 SDK API 1·2 및 패키지 v2 / Ulanzi 정적 분석·제한 후보 변환기 구현**
 > 저장소·브랜치: `SoonCheol/D200X-Deck` / `codex/streamdeck-761-clean-editor`
 
+## 0.23 독자 SDK 1.1 네트워크 확장 (1.1.164~165)
+
+- 승인 HTTP PUT/PATCH/DELETE와 queryKeys 기반 쿼리 값, WSS 연결/송수신/종료 구현. 최신 계약은 docs/DECKFORGE-SDK-1.0.md SDK 1.1 절. API 2 번호 유지. 새 권한 network.websocket 및 설치 화면의 승인 WSS 주소. 실제 서버/실기 별도.
+
 ## 0.22 독자 SDK GIF 재생 (1.1.160)
 
 - API 2 `api.setAnimation('data:image/gif;base64,...')` 또는 `api.stopAnimation()`. display 권한, 일반 키만. 최대 32프레임, 144×144, 총 1M 픽셀, 4개 활성/8MiB; 전체 페이지 전송 보호를 위해 프레임 간격 최소 500ms. stop은 마지막 이미지를 유지하고 setImage는 재생을 중단 후 교체한다. 외부 설정 변경/페이지 이탈/절전 시 취소. 원본 GIF 직접 HID 전송 없음, 실제 장치 검증 별도.

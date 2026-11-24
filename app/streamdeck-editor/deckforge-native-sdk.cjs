@@ -12,13 +12,13 @@ const {NativeVersionStore,assertAppRequirement}=require('./deckforge-native-vers
 const {validateDependencies,resolveDependencies,assertDependencyChange}=require('./deckforge-native-dependencies.cjs');
 const {validateWideOverlay}=require('./deckforge-native-wide.cjs');
 const {validateNativeSettingsSchema,nativeEffectiveSettings}=require('./deck-core.js');
-const {validateNetworkEndpoints,validateNetworkRequest,resolveNetworkEndpoint,requestEndpoint,networkFailure,normalizeNetworkResult,credentialBinding,validBearer}=require('./deckforge-native-network.cjs');
+const {validateNetworkEndpoints,validateNetworkRequest,resolveNetworkEndpoint,validateSocketOperation,createSocket,requestEndpoint,networkFailure,normalizeNetworkResult,credentialBinding,validBearer}=require('./deckforge-native-network.cjs');
 const APP_VERSION=require('./package.json').version;
 const SUFFIX='.deckforge-native.json', LIMIT=1024*1024;
 const ID=/^com\.deckforge\.native\.[a-z0-9][a-z0-9.-]{0,110}$/;
 const EVENTS=new Set(['appear','disappear','settings','press','release','rotateLeft','rotateRight','heldRotateLeft','heldRotateRight']);
 const OPS=new Set(['title','titleFromSetting','state','stateFromSetting','toggleState','image']);
-const EXTRA_PERMISSIONS=['settings.write','navigation','wide.mode','global.settings','wide.overlay','network.request','timer.tick','network.poll'];
+const EXTRA_PERMISSIONS=['settings.write','navigation','wide.mode','global.settings','wide.overlay','network.request','timer.tick','network.poll','network.websocket'];
 const MAX_PENDING_EVENTS=64,INPUT_RESERVE=4,MAX_NETWORK_GLOBAL=8,MAX_NETWORK_PLUGIN=2;
 const INPUT_EVENTS=new Set(['press','release','rotateLeft','rotateRight','heldRotateLeft','heldRotateRight']);
 const obj=x=>x!==null&&typeof x==='object'&&!Array.isArray(x);
@@ -113,6 +113,7 @@ class NativePluginHost{
     this.versions=new NativeVersionStore(this.root,validateNativeManifest);
     this.dependencyWarnings=new Map();
     this.networkRequest=options.networkRequest||requestEndpoint;this.networkPending=new Set();
+    this.socketFactory=options.socketFactory||createSocket;this.socketPending=new Set();
     this.tickTimer=null;this.now=options.now||Date.now;
     this.scheduler=new SdkScheduler();
     this.settingsReceiptTimeout=options.settingsReceiptTimeout??5000;
@@ -147,8 +148,10 @@ class NativePluginHost{
     check(!this.credentialChanges.has(binding),'credential update busy');
     this.credentialChanges.add(binding);
     const cancel=()=>{
-      for(const ctx of this.contexts.values())if(ctx.pluginUUID===manifest.id&&ctx.networkToken?.binding===binding)
-        this.cancelNetwork(ctx);
+      for(const ctx of this.contexts.values())if(ctx.pluginUUID===manifest.id){
+        if(ctx.networkToken?.binding===binding)this.cancelNetwork(ctx);
+        if(ctx.socketToken?.binding===binding)this.cancelSocket(ctx);
+      }
     };
     try{
       cancel();
@@ -222,7 +225,9 @@ class NativePluginHost{
       }
       if(OPS.has(op?.op)){normal.push(op);continue;}
       const polling=event==='tick'&&op?.op==='networkRequest'&&ctx.permissions.includes('network.poll')&&ctx.action.tickIntervalMs>=5000;
-      check(INPUT_EVENTS.has(event)||polling,'privileged operation requires input event');
+      const socketLifecycle=op?.op==='socketConnect'&&['appear','settings'].includes(event);
+      const socketContinuation=['socketSend','socketClose'].includes(op?.op)&&event==='socketEvent';
+      check(INPUT_EVENTS.has(event)||polling||socketLifecycle||socketContinuation,'privileged operation requires input event');
       check(effects.length===0,'only one privileged operation per event');
       if(op?.op==='settingsPatch'){
         check(ctx.permissions.includes('settings.write')&&exact(op,['op','value'])&&obj(op.value)&&
@@ -251,6 +256,9 @@ class NativePluginHost{
         check(ctx.permissions.includes('network.request'),'unauthorized network request');
         const endpoint=validateNetworkRequest(op,ctx.networkEndpoints);
         check(!polling||endpoint.method==='GET','periodic network request must use GET');
+      }else if(['socketConnect','socketSend','socketClose'].includes(op?.op)){
+        check(ctx.permissions.includes('network.websocket'),'unauthorized WebSocket operation');
+        validateSocketOperation(op,ctx.networkEndpoints);
       }else if(op?.op==='wideOverlay'){
         check(ctx.permissions.includes('wide.overlay'),'unauthorized wide overlay');
         validateWideOverlay(op);
@@ -319,7 +327,7 @@ class NativePluginHost{
       // newly saved settings when they reach the head of the FIFO.
       const changed=JSON.stringify(ctx.settings)!==JSON.stringify(pending.value);
       ctx.settings=pending.value;
-      if(changed){this.cancelNetwork(ctx);ctx.settingsRefresh=true;}
+      if(changed){this.cancelNetwork(ctx);this.cancelSocket(ctx);ctx.settingsRefresh=true;}
     }
     pending.resolve(ok);return ok;
   }
@@ -332,7 +340,7 @@ class NativePluginHost{
     this.cancelSettingsReceipt(ctx);ctx.settingsRefresh=false;
     this.animations.stop(ctx);
     ctx.tickDue=null;
-    this.cancelNetwork(ctx);
+    this.cancelNetwork(ctx);this.cancelSocket(ctx);
     if(ctx.wideOverlaySent){ctx.wideOverlaySent=false;this.onUpdate({kind:'nativeWideReleased',context:ctx.context});}
     clearTimeout(ctx.recoveryTimer);ctx.recoveryTimer=null;
     ctx.epoch=(ctx.epoch||0)+1;
@@ -361,6 +369,83 @@ class NativePluginHost{
   cancelNetwork(ctx){
     const token=ctx.networkToken;
     if(token){ctx.networkToken=null;token.controller.abort();}
+  }
+  cancelSocket(ctx){
+    ctx.socketGeneration=(ctx.socketGeneration||0)+1;
+    const token=ctx.socketToken;
+    if(!token)return;
+    ctx.socketToken=null;this.socketPending.delete(token);
+    try{token.socket?.terminate();}catch{}
+  }
+  socketEvent(ctx,token,event,body='',error=null){
+    if(!token.active()||ctx.socketGeneration!==token.generation)return false;
+    // Preserve reserved capacity for physical release and lifecycle events.
+    if(ctx.pending>=MAX_PENDING_EVENTS-INPUT_RESERVE){this.reportBackpressure(ctx);return false;}
+    return this.runScript(ctx,'socketEvent',{endpoint:token.endpoint.id,event,body,error},token.settings,token.generation);
+  }
+  finishSocket(ctx,token,event,error=null){
+    if(ctx.socketToken!==token)return;
+    ctx.socketToken=null;this.socketPending.delete(token);
+    try{token.socket?.terminate();}catch{}
+    this.socketEvent(ctx,token,event,'',error);
+  }
+  socketRate(token,direction){
+    const now=this.now(),field=direction+'Rate';
+    let rate=token[field];
+    if(!rate||now<rate.start||now-rate.start>=1000)rate=token[field]={start:now,count:0};
+    return ++rate.count<=8;
+  }
+  startSocket(ctx,operation,active){
+    const endpoint=validateSocketOperation(operation,ctx.networkEndpoints);
+    if(ctx.socketToken){this.report(ctx.pluginUUID,Error('WebSocket already active'));return;}
+    const generation=ctx.socketGeneration=(ctx.socketGeneration||0)+1;
+    const binding=endpoint.auth==='bearer'?credentialBinding(ctx.pluginUUID,endpoint):null;
+    const token={endpoint,binding,generation,active,settings:JSON.stringify(ctx.settings),plugin:ctx.pluginUUID,socket:null,bearer:null};
+    if(this.socketPending.size>=8||[...this.socketPending].filter(t=>t.plugin===ctx.pluginUUID).length>=2){
+      this.socketEvent(ctx,token,'error','','capacity');return;
+    }
+    ctx.socketToken=token;this.socketPending.add(token);
+    const live=()=>active()&&ctx.socketToken===token&&ctx.socketGeneration===generation;
+    const fail=error=>this.finishSocket(ctx,token,'error',error);
+    Promise.resolve().then(async()=>{
+      if(!live())return;
+      if(binding){
+        if(this.credentialChanges.has(binding)){fail('credential-update-busy');return;}
+        try{token.bearer=(await this.credentials.read(binding)).value.token;}
+        catch{fail('credential-unavailable');return;}
+        if(!live())return;
+        if(!validBearer(token.bearer)){fail('credential-required');return;}
+        if(this.credentialChanges.has(binding)){fail('credential-update-busy');return;}
+      }
+      if(!live())return;
+      const socket=token.socket=this.socketFactory(resolveNetworkEndpoint(endpoint,operation.query),{bearer:token.bearer});
+      socket.on('error',()=>{if(live())fail('connection-error');});
+      socket.on('close',()=>{if(live())this.finishSocket(ctx,token,'close');});
+      socket.on('open',()=>{if(live()&&!this.socketEvent(ctx,token,'open'))fail('queue-capacity');});
+      socket.on('message',(data,binary)=>{
+        if(!live())return;
+        if(binary||!Buffer.isBuffer(data)||data.length>8192){fail('invalid-message');return;}
+        const body=data.toString('utf8');
+        if(Buffer.byteLength(JSON.stringify(body))>8192){fail('message-limit');return;}
+        if(token.bearer!==null&&body.includes(token.bearer)){fail('credential-in-response');return;}
+        if(!this.socketRate(token,'receive')){fail('rate-limit');return;}
+        if(!this.socketEvent(ctx,token,'message',body))fail('queue-capacity');
+      });
+    }).catch(()=>{if(live())fail('connection-error');});
+  }
+  sendSocket(ctx,operation){
+    const token=ctx.socketToken;
+    if(!token||!token.active()||token.socket?.readyState!==1){this.report(ctx.pluginUUID,Error('WebSocket not open'));return;}
+    const fail=error=>this.finishSocket(ctx,token,'error',error);
+    if(!this.socketRate(token,'send')){fail('rate-limit');return;}
+    const data=typeof operation.value==='string'?operation.value:JSON.stringify(operation.value);
+    if(token.socket.bufferedAmount+Buffer.byteLength(data)>32768){fail('send-capacity');return;}
+    try{token.socket.send(data,error=>{if(error)fail('connection-error');});}
+    catch{fail('connection-error');}
+  }
+  closeSocket(ctx){
+    const token=ctx.socketToken;
+    if(token)this.finishSocket(ctx,token,'close');
   }
   startNetwork(ctx,operation,active){
     const endpoint=validateNetworkRequest(operation,ctx.networkEndpoints);
@@ -435,7 +520,7 @@ class NativePluginHost{
       this.report(ctx.pluginUUID,Error('input queue busy; event not accepted'));
     }
   }
-  runScript(ctx,event,response=null,expectedSettings=null){
+  runScript(ctx,event,response=null,expectedSettings=null,expectedSocket=null){
     // Saturation is backpressure, not a plugin failure. Keep admitted work
     // ordered and leave the renderer and context alive.
     if(ctx.pending>=MAX_PENDING_EVENTS){
@@ -447,7 +532,8 @@ class NativePluginHost{
     // where a user subsequently restores exactly the old values.
     const active=()=>!this.closed&&!this.suspended&&!ctx.failed&&ctx.epoch===epoch&&this.contexts.get(ctx.context)===ctx&&
       (ctx.settingsRevision||0)===revision&&
-      (expectedSettings===null||expectedSettings===JSON.stringify(ctx.settings));
+      (expectedSettings===null||expectedSettings===JSON.stringify(ctx.settings))&&
+      (expectedSocket===null||expectedSocket===ctx.socketGeneration);
     ctx.pending++;
     ctx.queue=ctx.queue.then(async()=>{
       if(!active())return;
@@ -487,6 +573,9 @@ class NativePluginHost{
         this.applyOps(ctx,normal);
         for(const operation of effects)if(!['globalSettings','settings'].includes(operation.op)){
           if(operation.op==='networkRequest'){this.startNetwork(ctx,operation,active);continue;}
+          if(operation.op==='socketConnect'){this.startSocket(ctx,operation,active);continue;}
+          if(operation.op==='socketSend'){this.sendSocket(ctx,operation);continue;}
+          if(operation.op==='socketClose'){this.closeSocket(ctx);continue;}
           if(operation.op==='wideOverlay')ctx.wideOverlaySent=operation.value!==null;
           this.onUpdate({kind:'nativeEffect',context:ctx.context,
             pluginUUID:ctx.pluginUUID,actionUUID:ctx.action.id,operation});
@@ -550,7 +639,7 @@ class NativePluginHost{
           this.animations.stop(ctx);
           ctx.settingsRevision++;
           this.scheduler.prune();
-          this.cancelNetwork(ctx);
+          this.cancelNetwork(ctx);this.cancelSocket(ctx);
           // Reset input pairing across settings generations. Never turn a
           // discarded press into a release-triggered privileged operation.
           if(ctx.apiVersion===2)ctx.pressed=false;

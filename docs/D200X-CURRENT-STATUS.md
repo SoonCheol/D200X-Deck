@@ -2,6 +2,11 @@
 
 > **상태 기록 기준: 2026-11-24**. 실제 최신 HEAD는 Git에서 확인하며, 코드·자동 검사·Windows 빌드·사용자 Windows/D200X 실기 결과를 구분한다. 시작 시 `AGENTS.md`와 이 문서만 읽고 로드맵은 필요한 경우에만 참고한다.
 
+## 1.1.165 — 독자 SDK WSS 실시간 연결 첫 단계 (2026-11-24)
+
+- 사용자 최고 우선순위에 따라 network.websocket 및 WSS endpoint, connectSocket/sendSocket/closeSocket 구현. 22개 공개 함수, 활성 context 수명 및 제한형 socketEvent, 사용자 승인 URL, TLS, 암호화 Bearer handshake, 송수신/큐/연결 제한, 취소/절전/설정 변경 처리. 기존 HTTP/호환 SDK 유지.
+- 집중 mock lifecycle/권한/전송 제한 검사 및 Electron 22개 API 검증, WSS 예제 추가. 1.1.164 CI #1204 및 입력 #474 성공, Windows #915 확인 중. 신규 자동 검사 및 실제 WSS 서비스/D200X 실기는 미확인. HA 메시지 인증·동적 경로·헤더는 후속.
+
 ## 1.1.164 — SDK 1.1 네트워크 확장 첫 단계 (2026-11-24)
 
 - 사용자 최우선 지시: WebSocket/HTTP 확장. 1.1.163 CI #1203 성공(358 pass/0 fail/5 skip), Windows #914 성공, native 72/72 및 실제 Electron 19개 계약/Windows vault smoke 성공. D200X 물리 검증 미실시.

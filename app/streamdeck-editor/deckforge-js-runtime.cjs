@@ -96,7 +96,10 @@ async function runProgram(source,input){
     setWideMode:value=>append({op:'wideMode',value}),
     setWideOverlay:(value,durationMs=5000)=>append({op:'wideOverlay',value,durationMs}),
     clearWideOverlay:()=>append({op:'wideOverlay',value:null,durationMs:0}),
-    request:(endpoint,body=null,query)=>append({op:'networkRequest',endpoint,body,...(query===undefined?{}:{query})})
+    request:(endpoint,body=null,query)=>append({op:'networkRequest',endpoint,body,...(query===undefined?{}:{query})}),
+    connectSocket:(endpoint,query)=>append({op:'socketConnect',endpoint,...(query===undefined?{}:{query})}),
+    sendSocket:value=>append({op:'socketSend',value}),
+    closeSocket:()=>append({op:'socketClose'})
   });
   // Reduce access to network-capable APIs beyond CSP/session controls.
   for(const key of ['RTCPeerConnection','webkitRTCPeerConnection','WebTransport','Worker','SharedWorker','setTimeout','setInterval','requestAnimationFrame','requestIdleCallback','queueMicrotask']){

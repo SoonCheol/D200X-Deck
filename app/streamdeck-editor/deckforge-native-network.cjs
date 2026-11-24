@@ -1,5 +1,5 @@
 'use strict';
-// User-approved HTTPS endpoints with bounded optional query parameters. No renderer socket, arbitrary headers,
+// User-approved HTTPS/WSS endpoints with bounded optional query parameters. No renderer socket, arbitrary headers,
 // redirect, automatic retry, script-visible credentials, or TLS verification bypass.
 const https=require('node:https');
 const {createHash}=require('node:crypto');
@@ -10,26 +10,29 @@ const exact=(v,keys)=>obj(v)&&Object.keys(v).length===keys.length&&keys.every(k=
 const key=v=>typeof v==='string'&&/^[A-Za-z0-9_-]{1,48}$/.test(v)&&!['constructor','prototype','__proto__'].includes(v);
 function check(ok,why){if(!ok)throw Error('DeckForge SDK network: '+why);}
 function validateNetworkEndpoints(endpoints,permissions){
-  if(endpoints===undefined){check(!permissions.includes('network.request'),'missing endpoints');return;}
-  check(permissions.includes('network.request')&&Array.isArray(endpoints)&&endpoints.length>0&&endpoints.length<=8,'invalid endpoint list or permission');
+  const http=permissions.includes('network.request'),socket=permissions.includes('network.websocket');
+  if(endpoints===undefined){check(!http&&!socket,'missing endpoints');return;}
+  check((http||socket)&&Array.isArray(endpoints)&&endpoints.length>0&&endpoints.length<=8,'invalid endpoint list or permission');
   const ids=new Set();
   for(const e of endpoints){
     check(obj(e)&&Object.keys(e).every(k=>['id','url','method','auth','queryKeys'].includes(k))&&
-      (e.auth===undefined||e.auth==='bearer')&&key(e.id)&&!ids.has(e.id)&&['GET','POST','PUT','PATCH','DELETE'].includes(e.method),'invalid endpoint identity or method');
+      (e.auth===undefined||e.auth==='bearer')&&key(e.id)&&!ids.has(e.id)&&(e.method==='WSS'?socket:http&&['GET','POST','PUT','PATCH','DELETE'].includes(e.method)),'invalid endpoint identity or method');
     if(e.queryKeys!==undefined)check(Array.isArray(e.queryKeys)&&e.queryKeys.length>0&&e.queryKeys.length<=8&&
       e.queryKeys.every(key)&&new Set(e.queryKeys).size===e.queryKeys.length,'invalid approved query keys');
     ids.add(e.id);
     check(typeof e.url==='string'&&e.url.length<=1024,'invalid endpoint URL');
     let u;try{u=new URL(e.url);}catch{throw Error('DeckForge SDK network: invalid endpoint URL');}
-    check(u.protocol==='https:'&&u.href===e.url&&!u.username&&!u.password&&!u.hash&&!u.search,'only canonical HTTPS URLs without credentials, query or fragment');
+    check(u.protocol===(e.method==='WSS'?'wss:':'https:')&&u.href===e.url&&!u.username&&!u.password&&!u.hash&&!u.search,'only canonical HTTPS/WSS URLs without credentials, query or fragment');
   }
+  check(!http||endpoints.some(e=>e.method!=='WSS'),'missing HTTP endpoints');
+  check(!socket||endpoints.some(e=>e.method==='WSS'),'missing WebSocket endpoints');
 }
 function validateNetworkRequest(op,endpoints){
   check((exact(op,['op','endpoint','body'])||exact(op,['op','endpoint','body','query']))&&op.op==='networkRequest'&&key(op.endpoint),'invalid request');
   const endpoint=endpoints?.find(e=>e.id===op.endpoint);
-  check(endpoint,'endpoint not approved');
+  check(endpoint&&endpoint.method!=='WSS','HTTP endpoint not approved');
   if(endpoint.method==='GET')check(op.body===null,'GET must not contain a body');
-  else if(op.body!==null){
+  else if(endpoint.method!=='DELETE'||op.body!==null){
     validateValue(op.body);
     check(Buffer.byteLength(JSON.stringify(op.body))<=MAX_BODY,'body limit');
   }
@@ -46,6 +49,31 @@ function resolveNetworkEndpoint(endpoint,query){
   for(const k of Object.keys(query).sort())url.searchParams.set(k,query[k]);
   check(url.href.length<=2048,'query URL limit');
   return {...endpoint,url:url.href};
+}
+function validateSocketOperation(op,endpoints){
+  if(op?.op==='socketConnect'){
+    check((exact(op,['op','endpoint'])||exact(op,['op','endpoint','query']))&&key(op.endpoint),'invalid socket connect');
+    const endpoint=endpoints?.find(e=>e.id===op.endpoint&&e.method==='WSS');
+    check(endpoint,'WebSocket endpoint not approved');
+    if(Object.hasOwn(op,'query'))resolveNetworkEndpoint(endpoint,op.query);
+    return endpoint;
+  }
+  if(op?.op==='socketSend'){
+    check(exact(op,['op','value']),'invalid socket send');
+    if(typeof op.value!=='string')validateValue(op.value);
+    check(Buffer.byteLength(JSON.stringify(op.value))<=MAX_BODY,'socket message limit');
+    return;
+  }
+  check(op?.op==='socketClose'&&exact(op,['op']),'invalid socket close');
+}
+function createSocket(endpoint,{bearer=null,WebSocket=require('ws')}={}){
+  check(endpoint.method==='WSS'&&new URL(endpoint.url).protocol==='wss:','invalid socket endpoint');
+  check(endpoint.auth==='bearer'?validBearer(bearer):bearer===null,'credential required or not approved');
+  return new WebSocket(endpoint.url,{
+    headers:bearer===null?{}:{authorization:'Bearer '+bearer},
+    handshakeTimeout:DEADLINE,followRedirects:false,maxPayload:MAX_RESPONSE,
+    perMessageDeflate:false,rejectUnauthorized:true,minVersion:'TLSv1.2'
+  });
 }
 function credentialBinding(pluginId,endpoint){
   check(endpoint?.auth==='bearer','credential endpoint required');
@@ -116,4 +144,4 @@ function requestEndpoint(endpoint,body,signal,{request=https.request,deadline=DE
     }catch{fail('connection-error');req?.destroy();}
   });
 }
-module.exports={validateNetworkEndpoints,validateNetworkRequest,resolveNetworkEndpoint,requestEndpoint,networkFailure,normalizeNetworkResult,credentialBinding,validBearer};
+module.exports={validateNetworkEndpoints,validateNetworkRequest,resolveNetworkEndpoint,validateSocketOperation,createSocket,requestEndpoint,networkFailure,normalizeNetworkResult,credentialBinding,validBearer};
