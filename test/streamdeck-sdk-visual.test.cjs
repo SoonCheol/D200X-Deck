@@ -430,14 +430,14 @@ test('common key compositor draws HA readings over artwork and under title; cach
 });
 
 test('single HA sensor uses one dedicated edit card with the five standard commands and default background',()=>{
- const begin=source.indexOf('function bindHaSensorIconCard('),end=source.indexOf('function bindSdkStateIcons(',begin);
+ const begin=source.indexOf('function bindNativeForegroundIconCard('),end=source.indexOf('function bindSdkStateIcons(',begin);
  function node(tag){return {tag,children:[],classList:{add(){}},setAttribute(){},append(...nodes){this.children.push(...nodes);},replaceChildren(...nodes){this.children=nodes;},addEventListener(type,fn){this[type]=fn;}};}
  const panel=node('section'),title=node('div'),line=node('div'),check=node('input'),background=[];
  title.querySelector=()=>line;
  const root={querySelector:selector=>selector==='[data-inspector-icons]'?panel:title};
  const sensor={type:'sd-plugin',settings:{actionUUID:'com.deckforge.native.home-assistant.sensor'}};
  const ctx={DeckCore:core,$:()=>check,document:{createElement:node},bindKeyBackgroundControl:(image,item,key)=>background.push([image,item,key])};
- const bind=vm.runInNewContext(source.slice(begin,end)+';bindHaSensorIconCard',ctx);
+ const bind=vm.runInNewContext(source.slice(begin,end)+';bindNativeForegroundIconCard',ctx);
  bind(root,sensor);
  const cards=panel.children[0],card=cards.children[0];
  assert.equal(cards.children.length,1);assert.equal(card.className,'sdk-state-icon ha-sensor-edit-card');
@@ -447,6 +447,14 @@ test('single HA sensor uses one dedicated edit card with the five standard comma
  assert.equal(background[0][2],'default');
  bind(root,{type:'sd-plugin',settings:{actionUUID:'com.deckforge.native.home-assistant.control'}});
  assert.equal(panel.children.length,1);
+ const pluginUUID='com.deckforge.native.example.settings',actionUUID=pluginUUID+'.key';
+ ctx.sdkPlugins=[{uuid:pluginUUID,runtime:'deckforge-sdk',actions:[{uuid:actionUUID,states:1,visualPolicy:'foreground'}]}];
+ // New VM: the function's lexical environment must see the catalogue.
+ const genericBind=vm.runInNewContext(source.slice(begin,end)+';bindNativeForegroundIconCard',ctx);
+ genericBind(root,{type:'sd-plugin',settings:{pluginUUID,actionUUID}});
+ assert.equal(panel.children.length,2);
+ assert.equal(panel.children[1].children.length,1);
+ assert.equal(background.at(-1)[2],'default');
 });
 
 test('renderer title policy preserves manual empty title and keeps user artwork on cloned slots',()=>{
@@ -478,4 +486,18 @@ test('new HA policy renders old saved auto title without rewriting original prof
  assert.equal(result.settings.nativeTitleAutoStates.first,true);
  assert.equal(result.settings.nativeTitleAutoStates.second,false);
  assert.equal(JSON.stringify(item),before);
+});
+
+test('non-HA native foreground action uses shared live layer and title policy with cloned slots',()=>{
+ const pluginUUID='com.deckforge.native.example.settings',actionUUID=pluginUUID+'.key';
+ const plugins=[{uuid:pluginUUID,runtime:'deckforge-sdk',actions:[{uuid:actionUUID,states:1,visualPolicy:'foreground',titlePolicy:{defaultTitle:'Default'}}]}];
+ const item={type:'sd-plugin',title:'Custom',icon:{kind:'file',value:'custom'},settings:{pluginUUID,actionUUID}};
+ const before=JSON.stringify(item);
+ const result=render(item,{title:'Live',image:'foreground'},0,true,plugins);
+ assert.equal(result.sensorDisplay,true);
+ assert.equal(result.sensorOverlay,'foreground');
+ assert.equal(result.title,'Custom');
+ assert.equal(result.icon.value,'custom');
+ assert.equal(JSON.stringify(item),before);
+ assert.equal(render(item,{image:'foreground'},0,true,[]).sensorDisplay,undefined);
 });

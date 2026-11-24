@@ -454,7 +454,7 @@ test('page indicator uses standard paired cards with independent title and numbe
   assert.match(editor,/root\._openIndicatorStyle\(font,field\)/);
   assert.match(editor,/titleLine\.prepend\(titleCheck\)/);
   assert.match(editor,/line\.prepend\(check,name\)/);
-  assert.match(editor,/if\(\(hasStateTitlePair\(item\)\|\|item\.type==='indicator'\|\|DeckCore\.isNativeHaSensor\(item\)\)&&iconRegion\)/);
+  assert.match(editor,/if\(\(hasStateTitlePair\(item\)\|\|item\.type==='indicator'\|\|DeckCore\.isNativeForeground\(item,typeof sdkPlugins==='undefined'\?null:sdkPlugins\)\)&&iconRegion\)/);
   assert.match(editor,/const hasStateCards=hasStateTitlePair\(item\)\|\|item\.type==='indicator';/);
   assert.match(css,/\.indicator-inspector \.state-title-layout \.indicator-icon-cards>\.sdk-state-icon\{grid-template-rows:auto 31px 31px auto\}/);
   assert.match(css,/\.indicator-inspector \.state-title-layout \.indicator-icon-cards \.sdk-state-preview,.*\{grid-row:4\}/);

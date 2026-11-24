@@ -84,7 +84,7 @@ function validateNativeManifest(m){
   check(Array.isArray(m.actions)&&m.actions.length>0&&m.actions.length<=64,'invalid actions');
   const ids=new Set();
   for(const a of m.actions){
-    check(exact(a,m.apiVersion===1?['id','name','controllers','states','events','settingsSchema','settingsUI','titlePolicy','stateImages']:['id','name','controllers','states','script','settingsSchema','settingsUI','titlePolicy','tickIntervalMs','stateImages','sharedStateView','tickWhen'])&&typeof a.id==='string'&&
+    check(exact(a,m.apiVersion===1?['id','name','controllers','states','events','settingsSchema','settingsUI','titlePolicy','visualPolicy','stateImages']:['id','name','controllers','states','script','settingsSchema','settingsUI','titlePolicy','visualPolicy','tickIntervalMs','stateImages','sharedStateView','tickWhen'])&&typeof a.id==='string'&&
       a.id.startsWith(m.id+'.')&&/^[a-z0-9.-]+$/.test(a.id)&&a.id.length<=180&&
       !a.id.endsWith('.')&&!a.id.includes('..')&&!ids.has(a.id)&&validText(a.name,180),'invalid action');
     ids.add(a.id);
@@ -95,6 +95,7 @@ function validateNativeManifest(m){
     check(Array.isArray(a.controllers)&&a.controllers.length>0&&a.controllers.length<=2&&
       new Set(a.controllers).size===a.controllers.length&&a.controllers.every(c=>['Keypad','Encoder'].includes(c))&&
       [1,2].includes(a.states),'invalid action controllers or states');
+    check(a.visualPolicy===undefined||(a.visualPolicy==='foreground'&&a.states===1&&a.controllers.includes('Keypad')),'invalid visual policy');
     if(a.stateImages!==undefined){
       check(Array.isArray(a.stateImages)&&a.stateImages.length===a.states,'invalid state image count');
       for(const image of a.stateImages)validateNativeImage(image);
@@ -136,7 +137,7 @@ function validateNativeManifest(m){
 }
 function catalog(m){return {uuid:m.id,name:m.name,version:m.version,runtime:'deckforge-sdk',permissions:[...m.permissions],dependencies:{...(m.dependencies||{})},background:!!m.service,...(m.capabilities?{capabilities:[...m.capabilities]}:{}),
   actions:m.actions.map(a=>({uuid:a.id,name:a.name,states:a.states,controllers:a.controllers,
-    propertyInspectorPath:'',defaultImages:{off:a.stateImages?.[0]||null,on:a.stateImages?.[1]||null},...(a.settingsSchema?{settingsSchema:a.settingsSchema}:{}),...(a.settingsUI?{settingsUI:a.settingsUI}:{}),...(a.titlePolicy?{titlePolicy:a.titlePolicy}:{})}))};}
+    propertyInspectorPath:'',defaultImages:{off:a.stateImages?.[0]||null,on:a.stateImages?.[1]||null},...(a.settingsSchema?{settingsSchema:a.settingsSchema}:{}),...(a.settingsUI?{settingsUI:a.settingsUI}:{}),...(a.titlePolicy?{titlePolicy:a.titlePolicy}:{}),...(a.visualPolicy?{visualPolicy:a.visualPolicy}:{})}))};}
 class NativePluginHost{
   constructor(userData,onUpdate=()=>{},runnerFactory=null,options={}){
     this.root=path.join(userData,'Plugins');this.onUpdate=onUpdate;

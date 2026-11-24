@@ -313,10 +313,11 @@ function displayItem(item,index,preserveGesture=false){
     // Resolve by physical slot, not object identity: the hardware renderer clones actions.
     const slot=Number.isInteger(index)?index:DeckCore.visibleActions(state).findIndex(x=>x===item);
     const visual=slot>=0?sdkVisuals.get(sdkContext(slot,'down')):null;
-    if(DeckCore.isNativeHaSensor(item)){
-      // Sensor artwork is a transient foreground layer, not a replacement
-      // for the user-selected image. Never persist it into the profile.
-      return {...item,sensorDisplay:true,sensorOverlay:visual?.image||null};
+    if(DeckCore.isNativeForeground(item,typeof sdkPlugins==='undefined'?null:sdkPlugins)){
+      // Runtime foreground is transient; keep user artwork, background and title.
+      const policy=nativeTitlePolicyFor(item);
+      const titled=policy?nativeTitleView(item,policy):item;
+      return {...titled,title:policy?DeckCore.nativeTitle(titled,policy,visual?.title):item.title,sensorDisplay:true,sensorOverlay:visual?.image||null};
     }
     const stateName=visual?.state===1?'on':'off';
     const assigned=item.settings?.sdkStateIcons?.[stateName];
@@ -368,7 +369,7 @@ function isMomentaryIconAction(item){
 }
 // A pair of state titles shares the preset library, not the individual style.
 function hasStateTitlePair(item){
-  return (item?.type==='sd-plugin'&&!DeckCore.isNativeHaSensor(item))||item?.type==='timer'||item?.type==='hotkey-switch'||isMomentaryIconAction(item);
+  return (item?.type==='sd-plugin'&&!DeckCore.isNativeForeground(item,typeof sdkPlugins==='undefined'?null:sdkPlugins))||item?.type==='timer'||item?.type==='hotkey-switch'||isMomentaryIconAction(item);
 }
 // Text action labels are render-only; never copy the body into a stored title.
 function textActionDisplayTitle(item,title){
@@ -536,7 +537,7 @@ function displayKeyPressItem(item,index){
   }
   if(!isMomentaryIconAction(item)||!Number.isInteger(index)||index<0||index>=13){
     if(item?.type==='sd-plugin'){
-      if(DeckCore.isNativeHaSensor(item))return item;
+      if(DeckCore.isNativeForeground(item,typeof sdkPlugins==='undefined'?null:sdkPlugins))return item;
       const raw=DeckCore.visibleActions(state)[index];
       const selected=inspectorPreview&&raw&&haPreviewStates.get(raw);
       const runtime=index>=0?sdkVisuals.get(sdkContext(index,'down')):null;
@@ -1697,7 +1698,7 @@ function bindActionAppearance(){
   exportButton.title='선택한 .sdPlugin 폴더를 단일 .deckforgePlugin 설치 파일로 저장합니다. 원본은 변경하지 않습니다.';
   exportButton.addEventListener('click',exportDeckForgePlugin);pluginToolbar.append(exportButton);
   if(window.deckBridge?.nativeHaInstall){
-    const ha=document.createElement('button');ha.type='button';ha.className='plugin-add-button';ha.textContent=sdkPlugins.some(p=>p.uuid==='com.deckforge.native.home-assistant'&&['0.1.0','0.1.1','0.1.2','0.1.3','0.1.4','0.1.5','0.1.6'].includes(p.version))?'HA 전용 업데이트':'HA 전용 추가';
+    const ha=document.createElement('button');ha.type='button';ha.className='plugin-add-button';ha.textContent=sdkPlugins.some(p=>p.uuid==='com.deckforge.native.home-assistant'&&['0.1.0','0.1.1','0.1.2','0.1.3','0.1.4','0.1.5','0.1.6','0.1.7'].includes(p.version))?'HA 전용 업데이트':'HA 전용 추가';
     ha.addEventListener('click',installNativeHa);pluginToolbar.append(ha);
   }
   host.after(pluginToolbar);
@@ -3630,11 +3631,11 @@ function attachStateTitleControls(card,item,which){
   row.append(check,input,styleButton);
   card.append(row);
 }
-// A single-state sensor still needs the standard left-hand artwork editor.
+// A single-state foreground action uses the standard left-hand artwork editor.
 // Reuse the bound title controls and the existing card geometry. The right
 // preview is display-only and is refreshed from the same composed image.
-function bindHaSensorIconCard(root,item){
-  if(!DeckCore.isNativeHaSensor(item))return;
+function bindNativeForegroundIconCard(root,item){
+  if(!DeckCore.isNativeForeground(item,typeof sdkPlugins==='undefined'?null:sdkPlugins))return;
   const panel=root.querySelector('[data-inspector-icons]');
   const titleRow=root.querySelector('.title-setting-field');
   if(!panel||!titleRow)return;
@@ -3666,7 +3667,7 @@ function bindHaSensorIconCard(root,item){
   card.append(heading,titleRow,image,buttons);cards.append(card);panel.append(cards);
 }
 function bindSdkStateIcons(root,item){
-  if(DeckCore.isNativeHaSensor(item))return;
+  if(DeckCore.isNativeForeground(item,typeof sdkPlugins==='undefined'?null:sdkPlugins))return;
   if(item.type!=='timer'&&item.type!=='hotkey-switch'&&(item.type!=='sd-plugin'||isMomentaryIconAction(item)))return;
   const panel=root.querySelector('[data-inspector-icons]');
   if(!panel)return;
@@ -4492,7 +4493,7 @@ function renderInspector(){
     root.className="inspector empty";root.textContent=state.selected===null?"버튼을 선택하세요":"액션을 끌어 이 키에 놓으세요";
     if(inspectorSession?.dirty)appendInspectorSaveBar(root);return;
   }
-  root.className="inspector action-layout-inspector"+(pressIsOrdinary(rootItem)&&state.selected<13?' press-gesture-inspector':'')+(item.type==='text'?' text-inspector':'')+(item.type==='hotkey-switch'?' hotkey-switch-inspector':'')+(item.type==='sd-plugin'?' sdk-plugin-inspector':'')+(hasStateTitlePair(item)||item.type==='indicator'||DeckCore.isNativeHaSensor(item)?' state-title-inspector':'')+(item.type==='indicator'?' indicator-inspector':'');
+  root.className="inspector action-layout-inspector"+(pressIsOrdinary(rootItem)&&state.selected<13?' press-gesture-inspector':'')+(item.type==='text'?' text-inspector':'')+(item.type==='hotkey-switch'?' hotkey-switch-inspector':'')+(item.type==='sd-plugin'?' sdk-plugin-inspector':'')+(hasStateTitlePair(item)||item.type==='indicator'||DeckCore.isNativeForeground(item,typeof sdkPlugins==='undefined'?null:sdkPlugins)?' state-title-inspector':'')+(item.type==='indicator'?' indicator-inspector':'');
   const action=ACTIONS.get(item.type),fields=item.type==='timer'?'':actionFields(item);
   const sdkName=item.type==='sd-plugin'
     ?(item.settings?.actionUUID===HA_CUSTOM_ACTION?'Home Assistant 장치 제어':
@@ -4670,7 +4671,7 @@ function renderInspector(){
   if(item.type==='gesture-test')renderGestureTestEditor(item,root);
   if(item.type==='folder')renderFolderInspector(item,root);
   // Preserve the original bound icon cards/preview; adjust only their surrounding toolbar.
-  bindHaSensorIconCard(root,item);
+  bindNativeForegroundIconCard(root,item);
   bindSdkStateIcons(root,item);
   bindKeyPressIconControls(root,item);
   appendInspectorSaveBar(root);
@@ -4713,7 +4714,7 @@ function renderInspector(){
       stop.addEventListener('click',()=>{runningMultiProgress.get(DeckCore.runtimeActionKey(state,state.selected,'down'))?.controller.abort();refreshMultiRunControls();});
       preview.append(stop);refreshMultiRunControls();
     }
-    if((hasStateTitlePair(item)||item.type==='indicator'||DeckCore.isNativeHaSensor(item))&&iconRegion){
+    if((hasStateTitlePair(item)||item.type==='indicator'||DeckCore.isNativeForeground(item,typeof sdkPlugins==='undefined'?null:sdkPlugins))&&iconRegion){
       const layout=document.createElement('div');layout.className='state-title-layout';
       // Keep the bound Key Up/Key Down cards together, then the original preview/test.
       layout.append(iconRegion,preview);
@@ -4732,7 +4733,7 @@ function renderInspector(){
       properties.classList.add('action-single-extra');
     }
   }
-  if(DeckCore.isNativeHaSensor(item))void refreshSelectedVisual();
+  if(DeckCore.isNativeForeground(item,typeof sdkPlugins==='undefined'?null:sdkPlugins))void refreshSelectedVisual();
   if(ordinaryPress)renderPressTabs(rootItem,root);
   const actionHeader=root.querySelector('.action-head');
   if(actionHeader&&!actionHeader.childElementCount)actionHeader.remove();
@@ -6640,9 +6641,9 @@ function bindIconControls(item){
     host.addEventListener('pointerleave',release);
   }
   const hasStateCards=hasStateTitlePair(item)||item.type==='indicator';
-  if(hasStateCards||DeckCore.isNativeHaSensor(item)){
+  if(hasStateCards||DeckCore.isNativeForeground(item,typeof sdkPlugins==='undefined'?null:sdkPlugins)){
     $("icon-library-open").remove();$("icon-menu-trigger").remove();$("icon-dropdown").remove();
-    if(item.type==='sd-plugin'&&!isMomentaryIconAction(item)&&!DeckCore.isNativeHaSensor(item)){
+    if(item.type==='sd-plugin'&&!isMomentaryIconAction(item)&&!DeckCore.isNativeForeground(item,typeof sdkPlugins==='undefined'?null:sdkPlugins)){
       $("icon-preview").title='클릭하면 OFF/ON 이미지를 미리 봅니다 (실제 장치 동작 없음)';
       $("icon-preview").style.cursor='pointer';
       $("icon-preview").addEventListener('click',()=>{

@@ -105,3 +105,5 @@ API 2 manifest의 service={script,tickIntervalMs?} 및 별도 background.run 권
 - 07B-1(1.1.209): 선택 action.titlePolicy={selectionLabel?,defaultTitle?}. selectionLabel은 dynamicSelect 필드만 참조. 사용자 직접 입력(빈 값 포함) > 현재 선택값에 대응하는 검증된 label snapshot > 동적 제목(빈 값 포함) > defaultTitle. 기존 비선언 플러그인·저장된 상태별 제목 유지. 신규 상태쌍의 자동 제목과 명시 입력 분리. HA 적용/기존 제목 이관·단일 센서 편집 일반화는 후속. 예제 및 집중 검사 추가, 실제 GUI 별도.
 
 - 07B-2(1.1.212): HA 0.1.7 control은 titlePolicy.selectionLabel='entity', defaultTitle='기기 선택' 사용. 기존 haAutoTitle과 정확히 일치하는 제목만 자동으로 이관하며 별도 입력과 빈 제목 보존. 읽기에서는 복사본만 변환, 사용자 승인 설정/상태 편집에서 이관을 저장. 기존 설치 manifest 호환 경로 보존. 센서 전경/단일 카드 일반화는 후속.
+
+- 07B-3(1.1.213): 선택 action.visualPolicy='foreground'는 단일 상태 Keypad 선언만 허용. 설치된 native catalogue의 plugin/action ID 일치로 선택, runtime 이미지는 사용자 배경/아이콘 위·제목 아래의 일시적 레이어, 공통 단일 카드 편집. HA 0.1.8 sensor 선언 사용; 구 HA ID와 기존 저장 데이터 이관 호환 경로 유지. 내부 sensorDisplay/sensorOverlay 및 CSS 이름은 레이아웃 보호를 위해 유지. 비HA settings-ui 예제와 검증 추가. GUI/실기 별도.

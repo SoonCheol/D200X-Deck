@@ -2609,3 +2609,21 @@ test('HA title policy adopts legacy automatic titles without modifying source or
  assert.equal(explicit.title,'Living');
  assert.equal(explicit.settings.nativeTitleAutoStates.first,false);
 });
+
+test('native foreground policy is an opt-in single-keypad action contract',()=>{
+ const core=require('../app/streamdeck-editor/deck-core.js');
+ const manifest=require('../examples/deckforge-sdk/settings-ui.native.json');
+ const action=manifest.actions[0];
+ assert.equal(action.visualPolicy,'foreground');
+ assert.doesNotThrow(()=>validateNativeManifest(manifest));
+ for(const patch of [{states:2},{visualPolicy:'unknown'},{controllers:['Encoder']}]){
+  assert.throws(()=>validateNativeManifest({...manifest,actions:[{...action,...patch}]}),/visual policy/);
+ }
+ const plugin={uuid:manifest.id,runtime:'deckforge-sdk',actions:[{uuid:action.id,states:1,visualPolicy:'foreground'}]};
+ const item={type:'sd-plugin',settings:{pluginUUID:manifest.id,actionUUID:action.id}};
+ assert.equal(core.isNativeForeground(item,[plugin]),true);
+ assert.equal(core.isNativeForeground(item,[]),false);
+ assert.equal(core.isNativeForeground(item,[{...plugin,runtime:'streamdeck-sdk'}]),false);
+ assert.equal(core.isNativeForeground({...item,settings:{...item.settings,pluginUUID:'other'}},[plugin]),false);
+ assert.equal(core.isNativeForeground({type:'sd-plugin',settings:{actionUUID:'com.deckforge.native.home-assistant.sensor'}},[]),true);
+});
