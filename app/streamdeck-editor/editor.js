@@ -924,10 +924,13 @@ function appendKeyPressNumber(button,root){
   badge.title=number+'번 누르기의 대표 이미지';badge.setAttribute('aria-hidden','true');
   button.append(badge);
 }
-function renderGrid(){
+function renderGrid(onlySlots=null){
   if(nativeGridDrag&&(state!==nativeGridDrag.snapshot.state||currentPage()!==nativeGridDrag.snapshot.page))clearNativeGridDrag(nativeGridDrag,true);
-  const grid=$("key-grid");hideReplacedTooltip(grid);grid.replaceChildren();
+  const grid=$("key-grid"),partial=Array.isArray(onlySlots)&&grid.children.length===KEY_COUNT;
+  const slots=partial?new Set(onlySlots):null;
+  if(!partial){hideReplacedTooltip(grid);grid.replaceChildren();}
   DeckCore.visibleActions(state).slice(0,KEY_COUNT).forEach((raw,i)=>{
+    if(slots&&!slots.has(i))return;
     const folderBack=state.folderPath?.length>0&&i===13&&!raw;
     const item=i===13&&wideUnsavedWarningActive()?wideUnsavedVisual():folderBack?{type:'folder-back',title:'뒤로',icon:{kind:'glyph',glyph:'↩'}}:(i===13&&wideDisplayAvailable()?wideVisual():raw);
     const b=document.createElement("button");b.type="button";b.className="deck-key"+(i===13?" wide":"")+(state.selected===i?" selected":"");
@@ -986,14 +989,44 @@ function renderGrid(){
       if(isAssignableAction(id))setPressSlot(i,'single',newAction(id),true);
       hidePressDropOverlay();
     });
-    grid.append(b);
+    if(partial){const previous=grid.children[i];hideReplacedTooltip(previous);previous.replaceWith(b);}
+    else grid.append(b);
   });
+  if(partial)return;
   renderPhysicalControls();
   const folder=DeckCore.activeFolder(state);
   $("page-label").textContent=folder
     ?`폴더 ${state.folderPath.length}단계 · 페이지 ${(folder.pageIndex||0)+1} / ${DeckCore.folderPageCount(state)}`
     :`페이지 ${state.page+1} / ${state.pages.length}`;
   $("delete-page").disabled=folder?DeckCore.folderPageCount(state)<=1:state.pages.length<=1;
+}
+// Coalesce native title/state/image events and render only current slot owners.
+const nativeVisualDirty=new Map();
+let nativeVisualTimer=null;
+function queueNativeVisualRefresh(instance){
+  nativeVisualDirty.set(instance.slot,instance.context);
+  if(nativeVisualTimer!==null)return;
+  nativeVisualTimer=setTimeout(()=>{
+    nativeVisualTimer=null;
+    const pending=[...nativeVisualDirty];nativeVisualDirty.clear();
+    const current=new Map(sdkActionInstances().map(entry=>[entry.context,entry]));
+    const slots=pending.filter(([slot,context])=>current.get(context)?.slot===slot).map(([slot])=>slot);
+    if(!slots.length)return;
+    if(slots.some(slot=>slot>=13)){
+      // Wide and knob visuals retain their existing complete rendering path.
+      renderGrid();
+      window.scheduleDeckSync?.(0);
+    }else{
+      renderGrid(slots);
+      if(window.scheduleNativeDeckSync)window.scheduleNativeDeckSync(slots);
+      else window.scheduleDeckSync?.(0);
+    }
+    if(slots.includes(state.selected)){
+      const item=DeckCore.visibleActions(state)[state.selected];
+      if(item&&!haPreviewStates.has(item))void refreshSelectedVisual();
+      if(item)void refreshStateTitleCards(item);
+    }
+  },16);
 }
 // One compact, text-only tooltip for the canvas and action catalogue.
 const deckForgeTooltipData=new WeakMap();
@@ -7270,11 +7303,7 @@ if(window.deckBridge?.onSdkEvent){
         const next=DeckCore.nativeVisualDelta(sdkVisuals.get(ctx),active,message);
         if(!next)return;
         sdkVisuals.set(ctx,next);
-        renderGrid();
-        const selectedItem=DeckCore.visibleActions(state)[state.selected];
-        if(!haPreviewStates.has(selectedItem))void refreshSelectedVisual();
-        if(selectedItem)void refreshStateTitleCards(selectedItem);
-        (window.scheduleNativeDeckSync||window.scheduleDeckSync)?.();
+        queueNativeVisualRefresh(active);
         return;
       }
       const old=sdkVisuals.get(ctx)||{};

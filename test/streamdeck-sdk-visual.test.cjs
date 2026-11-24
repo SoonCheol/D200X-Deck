@@ -191,3 +191,36 @@ test('read-only SDK manifest artwork appears when no runtime image exists',()=>{
  assert.equal(result.icon.value,'data:image/png;base64,T04=');
  assert.equal(common.image,undefined,'must not fabricate live setImage event');
 });
+
+test('native visual events coalesce per current slot, without redrawing unrelated inspector',()=>{
+ const begin=source.indexOf('const nativeVisualDirty=new Map();'),end=source.indexOf('// One compact, text-only tooltip',begin);
+ assert.ok(begin>=0&&end>begin);
+ let pending,entries=[{slot:2,context:'a'},{slot:4,context:'b'}],calls=[];
+ const state={selected:2};
+ const context={state,sdkActionInstances:()=>entries,setTimeout:fn=>{pending=fn;return 1;},
+   renderGrid:slots=>calls.push(['grid',...slots]),window:{scheduleNativeDeckSync:slots=>calls.push(['device',...slots])},
+   DeckCore:{visibleActions:()=>[null,null,{}]},haPreviewStates:new WeakMap(),
+   refreshSelectedVisual:()=>calls.push(['preview']),refreshStateTitleCards:()=>calls.push(['cards'])};
+ vm.runInNewContext(source.slice(begin,end)+';queueNativeVisualRefresh({slot:2,context:"a"});queueNativeVisualRefresh({slot:2,context:"a"});queueNativeVisualRefresh({slot:4,context:"b"});',context);
+ entries=[{slot:2,context:'a'}];pending();
+ assert.deepEqual(calls,[['grid',2],['device',2],['preview'],['cards']]);
+});
+test('native device refresh reuses cached PNGs and falls back on a changed page',async()=>{
+ const code=fs.readFileSync(path.join(__dirname,'../app/streamdeck-editor/device-sync.js'),'utf8');
+ const begin=code.indexOf('  async function synchronize('),end=code.indexOf('  function runScheduledRender()',begin);
+ assert.ok(begin>=0&&end>begin);
+ const old=Array.from({length:14},(_,index)=>({index,png:'old-'+index}));
+ const rendered=[],sent=[],dirtyNativeSlots=new Set([3,7]);
+ const ctx={dirtyNativeSlots,renderSerial:0,lastSentImages:old,lastSentPageStamp:'p',lastSentWideMode:'blank',
+  nativeRenderGate:{begin(){},end(){}},warningPageStamp:()=> 'p',window:{getD200XWideMode:()=> 'blank',getD200XDisplayItem:x=>x},
+  state:{folderPath:[]},DeckCore:{visibleActions:()=>Array(14).fill(null)},document:{fonts:{ready:Promise.resolve()}},
+  drawSlot:async(_,index)=>{rendered.push(index);return {index,png:'new-'+index};},
+  cacheAndSendImages:images=>sent.push(images),schedule:()=>assert.fail('unexpected fallback'),text:()=>assert.fail('render error')};
+ await vm.runInNewContext(code.slice(begin,end)+';synchronize(true)',ctx);
+ assert.deepEqual(rendered,[3,7]);assert.equal(sent[0].length,14);
+ assert.equal(sent[0][0],old[0]);assert.equal(sent[0][3].png,'new-3');
+ assert.equal(old[3].png,'old-3');
+ rendered.length=0;dirtyNativeSlots.add(3);ctx.lastSentPageStamp='other';
+ await vm.runInNewContext(code.slice(begin,end)+';synchronize(true)',ctx);
+ assert.deepEqual(rendered,Array.from({length:14},(_,i)=>i));
+});
