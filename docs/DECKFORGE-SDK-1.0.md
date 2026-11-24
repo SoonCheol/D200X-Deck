@@ -117,3 +117,5 @@ API 2 manifest의 service={script,tickIntervalMs?} 및 별도 background.run 권
 - 08D(1.1.217): 기존 로컬/Drive 선택·병합·전체 복원 및 사전 안전 백업 유지. 전체 복원 결과는 정해진 구성 필드로 투영, 외부 플러그인 코드/독립 암호화 vault 미복원. 최종 복원 확인에서 결과 프로필·템플릿 SDK 참조의 설치/누락/의존성/액션/미확인 상태 안내. 별도 플러그인 설치 신뢰 승인과 필요한 재인증은 기존 경로 사용. local DPAPI 파일 미변경 fixture 검사 추가; 실제 DPAPI/GUI 검증 별도.
 
 - 1.1.218: 사용자 요청으로 설치 플러그인 ? 도움말 하단에 데이터 유지 제거를 통합. Stream Deck 호환 플러그인도 DeckForge 설치 폴더만 StreamDeckRemoved로 이동하고 파일별 해시 revision 확인 후 명시 승인 재설치; 원본 외부 폴더·globals·프로필·Fusion 애드인 보존. 내장 자동 설치는 보존 목록 제외. 호환 플러그인 purge 미지원. 실제 GUI 및 자동 검사 별도.
+
+- 09A(1.1.219): 전송 계층 완전 14슬롯 Buffer SHA-256 및 wide mode 서명으로 마지막 성공 PAGE ZIP 1개(최대 8MiB) 재사용. 캐시는 압축 결과이며 실기 ACK 아님. 같은 화면도 기존 PAGE 전송 유지, reconnect/wake 전체 PAGE, 전송 실패 캐시 폐기. 진단 ZIP 크기는 USB 실제 총량이 아님. KEY(0x0d)는 기존 probe만, 제품 비활성 유지. 집중 검사 추가.

@@ -214,3 +214,25 @@ test('switching from native stats to uploaded PNG never reactivates native stats
   ]);
   t.stop();
 });
+
+test('complete-page ZIP cache reuses compression but never skips full PAGE writes',async()=>{
+ const deck=new FakeDeck(),logs=[];let builds=0;
+ const t=new D200XTransport({deck,buildPage:async(_images,mode)=>Buffer.from(mode+'-'+(++builds))});
+ t.on('diagnostic',x=>logs.push(x));
+ const images=()=>Array.from({length:14},(_,index)=>({index,png:Buffer.from('slot-'+index)}));
+ try{
+  await t.start();
+  t.schedule(images(),'blank');await idle();
+  t.schedule(images(),'blank');await idle();
+  assert.equal(builds,1);
+  assert.equal(deck.calls.filter(x=>x[0]==='page').length,2);
+  assert.ok(logs.some(x=>x.type==='page-sent'&&x.detail.includes('cached ZIP')));
+  deck.disconnect();await t.connect();await idle();
+  assert.equal(builds,1);
+  assert.equal(deck.calls.filter(x=>x[0]==='page').length,3);
+  t.schedule(images(),'clock');await idle();assert.equal(builds,2);
+  const changed=images();changed[4].png=Buffer.from('changed');
+  t.schedule(changed,'clock');await idle();assert.equal(builds,3);
+  assert.equal(deck.calls.filter(x=>x[0]==='page').length,5);
+ }finally{t.stop();}
+});

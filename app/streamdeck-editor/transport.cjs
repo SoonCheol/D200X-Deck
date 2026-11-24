@@ -2,6 +2,7 @@
 // D200X device-only transport. One owner for page and keep-alive HID writes.
 // Do not reuse the legacy editor, action handlers or plugin infrastructure.
 const { EventEmitter } = require('node:events');
+const { createHash } = require('node:crypto');
 const { Deck } = require('../lib/deck');
 const { buildPage } = require('../lib/page');
 const { PROTO } = require('../lib/protocol');
@@ -14,6 +15,19 @@ const TICK_MS = 1000;
 // Valid D200X mode-2 packet: numeric placeholders and HH:mm:ss, not empty fields.
 const IMAGE_MODE_PAYLOAD = Buffer.from('2|0|0|00:00:00|0', 'ascii');
 
+// Only a complete page is eligible for the bounded ZIP cache. It is a
+// compression cache, not an acknowledgement or proof of device display.
+const MAX_PAGE_CACHE_BYTES=8*1024*1024;
+function fullPageSignature(images,mode){
+  if(!Array.isArray(images)||images.length!==14)return null;
+  const seen=new Set(),slots=[];
+  for(const image of images){
+    if(!Number.isInteger(image?.index)||image.index<0||image.index>=14||seen.has(image.index)||!Buffer.isBuffer(image.png))return null;
+    seen.add(image.index);
+    slots[image.index]=createHash('sha256').update(image.png).digest('hex');
+  }
+  return JSON.stringify([mode,slots]);
+}
 class D200XTransport extends EventEmitter {
   constructor(options = {}) {
     super();
@@ -25,6 +39,7 @@ class D200XTransport extends EventEmitter {
     this.inFlight = false;
     this.pending = null;
     this.currentImages = null;
+    this.pageZipCache = null;
     this.wideMode = 'blank';
     this.appliedWideMode = null;
     this.closed = false;
@@ -185,10 +200,12 @@ class D200XTransport extends EventEmitter {
       while (this.pending && this.deck.connected && !this.closed) {
         const images = this.pending;
         this.pending = null;
-        const generation = this.session;
+        const generation = this.session,mode=this.wideMode;
         let zip;
         try {
-          zip = await this.buildPage(images, this.wideMode);
+          const signature=fullPageSignature(images,mode);
+          const cached=signature&&this.pageZipCache?.signature===signature?this.pageZipCache:null;
+          zip=cached?cached.zip:await this.buildPage(images,mode);
           if (this.pending || this.closed || !this.deck.connected || generation !== this.session) continue;
           // Synchronous multi-report write: the keep-alive timer cannot
           // interleave its HID reports inside a page transfer.
@@ -202,12 +219,18 @@ class D200XTransport extends EventEmitter {
           this.deck.pushPage(zip);
           if(this.wideMode==='blank')
             this.deck.sendFrame(0,PROTO.CLOCK,IMAGE_MODE_PAYLOAD);
+          // Publish a cache entry only after the entire existing PAGE path
+          // completes. Reconnect and wake still send a full PAGE packet.
+          if(signature&&Buffer.isBuffer(zip)&&zip.length<=MAX_PAGE_CACHE_BYTES)
+            this.pageZipCache={signature,zip};
+          else this.pageZipCache=null;
           this.appliedWideMode=this.wideMode;
           this.lastWriteAt = this.now();
-          this.log('page-sent', String(images.length) + ' slots');
+          this.log('page-sent', String(images.length)+' slots · '+zip.length+' ZIP bytes'+(cached?' · cached ZIP':''));
           this.emit('synced', { slots: images.length });
         } catch (error) {
           failed = true;
+          this.pageZipCache=null;
           // Keep the page in currentImages for the next reconnect or edit.
           // If still connected, leave the queue idle rather than retrying
           // an invalid ZIP forever or blocking keep-alives.
@@ -232,6 +255,7 @@ class D200XTransport extends EventEmitter {
     if (this.timer) clearInterval(this.timer);
     this.timer = null;
     this.pending = null;
+    this.pageZipCache=null;
     this.deck.disconnect('Editor closed');
   }
 }

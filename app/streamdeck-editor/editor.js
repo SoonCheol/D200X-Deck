@@ -1455,7 +1455,8 @@ function openSdkPluginHelp(plugin,isFusion){
   }
   dialog.replaceChildren();
   const heading=document.createElement('div');heading.style.cssText='display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:12px';
-  const label=document.createElement('strong');label.textContent=isFusion?'Fusion 360 사용 방법':plugin.name+' 사용 방법';
+  const isHa=plugin.uuid==='de.perdoctus.streamdeck.homeassistant'||plugin.uuid==='com.deckforge.native.home-assistant';
+  const label=document.createElement('strong');label.textContent=isFusion?'Fusion 360 사용 방법':isHa?'Home Assistant 사용 방법':plugin.name+' 사용 방법';
   const close=document.createElement('button');close.type='button';close.className='sdk-plugin-help-close';close.textContent='닫기 ×';
   close.onclick=()=>dialog.close();
   heading.append(label,close);dialog.append(heading);
@@ -1482,7 +1483,6 @@ function openSdkPluginHelp(plugin,isFusion){
     dialog.append(install,output);
   }
   const guide=document.createElement('div');guide.style.cssText='white-space:pre-line;line-height:1.75;font-size:13px';
-  const isHa=plugin.uuid==='de.perdoctus.streamdeck.homeassistant'||plugin.uuid==='com.deckforge.native.home-assistant';
   guide.textContent=isFusion
     ?'1. Fusion 360을 실행합니다.\n2. 스크립트 및 애드인에서 FusionStreamDeck을 실행하고 시작 시 자동 실행을 선택합니다.\n3. DeckForge의 Run Command를 D200X 버튼에 등록합니다.\n4. 버튼 속성에서 원하는 명령을 검색하고 선택합니다.\n5. 연결된 Fusion의 원본 아이콘이 나타나며 버튼으로 명령을 실행할 수 있습니다.'
     :isHa?'1. Home Assistant에서 장기 액세스 토큰을 발급합니다.\n2. Home Assistant 장치 제어를 D200X 버튼에 등록합니다.\n3. 속성의 설정 열기를 눌러 HA 서버 주소와 장기 토큰을 입력합니다.\n4. 인증 성공 후 조회되는 엔티티 목록에서 제어할 장치를 선택합니다.\n5. 토큰은 비밀번호처럼 보관하고 GitHub에 업로드하지 않습니다.'
