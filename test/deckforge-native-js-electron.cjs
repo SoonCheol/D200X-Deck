@@ -176,6 +176,48 @@ async function verifyModel2(){
  }finally{pool.close();}
 }
 
+// Bounded actual Electron repetition, not a wall-clock endurance claim.
+// Exercise the same production pool, with independent service and button
+// lanes and an eviction sequence across distinct plugin identities.
+async function verifyModel2Repetition(){
+ const {ScriptRunnerPool}=require('../app/streamdeck-editor/deckforge-js-runtime.cjs');
+ const pool=new ScriptRunnerPool(undefined,{idleLimit:3,idleMs:30000});
+ const id='com.deckforge.native.repeat',started=Date.now();
+ const button=pool.lease(id,'button'),service=pool.lease(id,'service');
+ let buttonMemory={},serviceMemory={},maxEntries=0,buttonPid=null,servicePid=null;
+ try{
+  for(let i=1;i<=24;i++){
+   const run=(lease,memory,label)=>lease.run(
+    "if(typeof globalThis.carry!=='undefined')throw Error('realm leaked');globalThis.carry=1;memory.n=(memory.n||0)+1;api.setTitle(settings.label+':'+memory.n);",
+    {...input,settings:{label},memory});
+   const [b,a]=await Promise.all([run(button,buttonMemory,'button'),run(service,serviceMemory,'service')]);
+   assert.deepEqual(b.ops,[{op:'title',value:'button:'+i}]);
+   assert.deepEqual(a.ops,[{op:'title',value:'service:'+i}]);
+   assert.equal(b.memory.n,i);assert.equal(a.memory.n,i);
+   buttonMemory=b.memory;serviceMemory=a.memory;
+   buttonPid??=pool.processId(id,'button');servicePid??=pool.processId(id,'service');
+   assert.ok(buttonPid>0&&servicePid>0&&buttonPid!==servicePid);
+   assert.equal(pool.processId(id,'button'),buttonPid);
+   assert.equal(pool.processId(id,'service'),servicePid);
+   maxEntries=Math.max(maxEntries,pool.entries.size);
+   assert.equal(pool.entries.size,2);
+  }
+  button.close();service.close();
+  const firstRunner=pool.entries.get(pool.key(id,'button')).runner;
+  for(let i=0;i<6;i++){
+   const lease=pool.lease('com.deckforge.native.repeat'+i,'button');
+   try{
+    const result=await lease.run("api.setTitle(typeof globalThis.carry);",input);
+    assert.deepEqual(result.ops,[{op:'title',value:'undefined'}]);
+   }finally{lease.close();}
+   maxEntries=Math.max(maxEntries,pool.entries.size);
+   assert.ok(pool.entries.size<=3);
+  }
+  assert.ok(!pool.entries.has(pool.key(id,'button')));
+  assert.ok(firstRunner.isClosed?.()===true);
+  console.log('MODEL2_REPETITION '+JSON.stringify({pairedRounds:24,additionalLeases:6,maxIdleEntries:maxEntries,elapsedMs:Date.now()-started,buttonPid,servicePid}));
+ }finally{pool.close();assert.equal(pool.entries.size,0);}
+}
 async function verifyTrustedDrawOps(legacy){
  const {BrowserWindow}=require('electron');
  const {paintValidatedDrawSpec,resolveWorkerDrawProgram}=require('../app/streamdeck-editor/deckforge-draw-ops.cjs');
@@ -256,6 +298,7 @@ app.whenReady().then(async()=>{
     }finally{cancelled.close();}
     console.log('DeckForge JavaScript SDK renderer smoke passed');
     await verifyModel2();
+    await verifyModel2Repetition();
     await verifyTrustedDrawOps(b);
     await verifyPublicApi(b);
     await verifyHomeAssistant(b);

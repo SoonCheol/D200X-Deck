@@ -129,3 +129,5 @@ API 2 manifest의 service={script,tickIntervalMs?} 및 별도 background.run 권
 - 1.1.223: keepData는 등록 보존, purge 성공 뒤 정확한 pluginUUID 등록 액션을 활성/비활성 프로필·페이지·덱폴더·고정키·노브/측면·복합·템플릿에서 제거(다른 액션/슬롯 유지). 미저장/실행 중 차단, 저장 실패 시 메모리 원복 및 정리 미완료 안내. 이전에 삭제된 미설치 ID는 설치/보존 부재 확인과 사용자 별도 승인 후 정리. 외부 백업 미변경; purge 로그는 파일 삭제 결과이며 프로필 정리 결과와 구분.
 
 - 09 실기 시험(1.1.224): 명시 실행 인자 --test-key-transport에서만 transport opt-in. renderer는 기존 동일 stamp/단일 일반 키 native partial blank만 liveOnly; main frame 검증, main opt-in 이중 조건. 일반 실행/페이지/와이드 경고·재연결은 PAGE. 제목에 시험 모드 표시, USB 구조화 로그의 session/slot/slots/ZIP bytes/모드/캐시/KEY 여부 AI usb_log 제공(원시 detail 제외). ZIP bytes는 HID 총량이나 실기 ACK가 아님. 시험 미통과/미실시 시 기본 OFF 유지.
+
+- 10A(1.1.225): Windows 기존 실제 Electron smoke에 Model 2 service/button 24쌍 반복, 개별 memory/realm/PID 유지, 6개 추가 plugin ID 순차 실행 후 idleLimit=3 LRU·close 확인 추가. 실제 측정 elapsedMs/PID/entry 수를 로그에 기록(성능 목표·장시간 soak 아님). USB mock 기본/시험 각 120회 변경, navigation, sleep/wake, reconnect, keepalive 및 최종 화면 모델 일치 검증. 실제 장치·HA·OS suspend/장시간 soak 및 04B OOM/저장 격리는 별도 통과 기준, KEY/Model 5 기본 OFF. 생산 코드 동작 미변경.

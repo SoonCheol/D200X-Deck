@@ -366,3 +366,47 @@ test('production trial requires explicit process flag and renderer single-slot p
  assert.match(renderer,/cacheAndSendImages\(images,mode,stamp,partial&&indices\.length===1&&indices\[0\]<13&&mode==='blank'\)/);
  assert.match(renderer,/bridge\.syncPage\(overlay,'blank'\)/);
 });
+
+test('bounded repeated transport simulation preserves full display across live updates, navigation, sleep and reconnect',async()=>{
+ for(const incrementalKeys of [false,true]){
+  const deck=new FakeDeck(),stats={page:0,key:0};let screen=null,mode='blank',clock=10000;
+  deck.setWideMode=value=>{mode=value;};
+  deck.pushPage=bytes=>{stats.page++;screen=JSON.parse(bytes.toString());};
+  deck.pushKey=bytes=>{
+   stats.key++;
+   const {slot,value}=JSON.parse(bytes.toString()),[col,row]=slot.split('_').map(Number);
+   assert.ok(screen&&mode==='blank'&&row*5+col<13);
+   screen[row*5+col]=value;
+  };
+  const t=new D200XTransport({deck,incrementalKeys,now:()=>clock,
+   buildPage:async images=>Buffer.from(JSON.stringify(images.map(x=>x.png.toString()))),
+   buildKeyUpdate:async(slot,png)=>Buffer.from(JSON.stringify({slot,value:png.toString()}))});
+  let expected=completeImages();
+  const verify=()=>assert.deepEqual(screen,expected.map(x=>x.png.toString()));
+  try{
+   await t.start();t.schedule(expected);await idle();verify();
+   for(let n=1;n<=120;n++){
+    const slot=n%13;
+    expected=expected.map(x=>x.index===slot?{index:slot,png:Buffer.from('live-'+n)}:x);
+    if(n%20===0){
+     t.sleepDisplay();const writes=stats.page+stats.key;
+     t.schedule(expected,'blank',true);await idle();assert.equal(stats.page+stats.key,writes);
+     t.wakeDisplay();await idle();verify();
+    }else if(n%15===0){
+     deck.disconnect();screen=null;t.schedule(expected,'blank',true);
+     await t.connect();await idle();verify();
+    }else if(n%10===0){
+     const previous=expected;
+     expected=completeImages({0:'page-'+n,13:'wide-'+n});
+     t.schedule(previous,'blank');t.schedule(expected,'blank');await idle();verify();
+    }else{
+     t.schedule(expected,'blank',true);await idle();verify();
+    }
+    clock+=KEEPALIVE_MS;t.tick();verify();
+   }
+   assert.ok(stats.page>0);assert.equal(stats.key>0,incrementalKeys);
+   assert.equal(t.pending,null);assert.equal(t.inFlight,false);
+   console.log('USB_REPEAT_SIM '+JSON.stringify({incrementalKeys,rounds:120,...stats}));
+  }finally{t.stop();}
+ }
+});
