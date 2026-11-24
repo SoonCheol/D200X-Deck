@@ -1881,3 +1881,23 @@ test('wide overlay lease expires, rejects competing owners, and cannot cross pag
  assert.equal(tracker.clear(),true);
  assert.equal(tracker.read('page-1',()=>true,2101),null);
 });
+
+test('native SDK visual cache ignores duplicate pixels and releases inactive owners without changing legacy cache',()=>{
+ const core=require('../app/streamdeck-editor/deck-core.js');
+ const instance={context:'a',pluginUUID:'com.deckforge.native.example',actionUUID:'com.deckforge.native.example.a'};
+ const image='data:image/png;base64,AAAA';
+ const first=core.nativeVisualDelta(null,instance,{kind:'setImage',payload:{image}});
+ assert.equal(first.image,image);
+ assert.equal(core.nativeVisualDelta(first,instance,{kind:'setImage',payload:{image}}),null);
+ const titled=core.nativeVisualDelta(first,instance,{kind:'setTitle',payload:{title:'New'}});
+ assert.equal(titled.image,image);assert.equal(titled.title,'New');
+ assert.equal(core.nativeVisualDelta(titled,instance,{kind:'setState',payload:{state:99}}),null);
+ const replacement={...instance,actionUUID:'com.deckforge.native.example.b'};
+ const fresh=core.nativeVisualDelta(titled,replacement,{kind:'setTitle',payload:{title:'New'}});
+ assert.equal(fresh.image,undefined);assert.notEqual(fresh.nativeOwner,titled.nativeOwner);
+ const cache=new Map([['a',titled],['b',first],['fusion',{image:'cached'}]]);
+ assert.equal(core.pruneNativeVisuals(cache,[instance]),1);
+ assert.ok(cache.has('a')&&cache.has('fusion'));
+ assert.equal(core.pruneNativeVisuals(cache,[replacement]),1);
+ assert.deepEqual([...cache.keys()],['fusion']);
+});

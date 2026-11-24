@@ -287,7 +287,9 @@ function scheduleSdkSync(){
   const serial=++sdkSyncSerial;
   Promise.resolve().then(async()=>{
     if(serial!==sdkSyncSerial)return;
-    await window.deckBridge.sdkSync(sdkActionInstances());
+    const instances=sdkActionInstances();
+    DeckCore.pruneNativeVisuals(sdkVisuals,instances);
+    await window.deckBridge.sdkSync(instances);
   }).catch(error=>window.d200xActionStatus?.('SDK 플러그인 등록 오류: '+String(error?.message||error)));
 }
 function displayItem(item,index,preserveGesture=false){
@@ -7143,6 +7145,17 @@ if(window.deckBridge?.onSdkEvent){
     }else if(['setTitle','setImage','setState'].includes(message.kind)){
       const active=sdkActionInstances().find(x=>x.context===ctx);
       if(!active)return;
+      if(DeckCore.nativeVisualOwner(active)){
+        const next=DeckCore.nativeVisualDelta(sdkVisuals.get(ctx),active,message);
+        if(!next)return;
+        sdkVisuals.set(ctx,next);
+        renderGrid();
+        const selectedItem=DeckCore.visibleActions(state)[state.selected];
+        if(!haPreviewStates.has(selectedItem))void refreshSelectedVisual();
+        if(selectedItem)void refreshStateTitleCards(selectedItem);
+        window.scheduleDeckSync?.();
+        return;
+      }
       const old=sdkVisuals.get(ctx)||{};
       if(message.kind==='setTitle'&&typeof message.payload?.title==='string')
         old.title=message.payload.title.slice(0,256);
