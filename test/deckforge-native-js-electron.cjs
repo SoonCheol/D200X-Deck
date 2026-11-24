@@ -60,6 +60,20 @@ app.whenReady().then(async()=>{
     assert.deepEqual(network.ops,[{op:'networkRequest',endpoint:'status',body:null}]);
     const continuation=await b.run("if(event.type==='networkResult')api.setTitle(event.response.body);",{...input,event:{type:'networkResult',response:{body:'Ready'}}});
     assert.deepEqual(continuation.ops,[{op:'title',value:'Ready'}]);
+    const asyncResult=await b.run("globalThis.carry='must vanish'; const value=await Promise.resolve('async ready'); api.setTitle(value); memory.saved=1;",input);
+    assert.deepEqual(asyncResult,{ops:[{op:'title',value:'async ready'}],memory:{saved:1}});
+    const clean=await b.run("api.setTitle(typeof globalThis.carry);api.setTitle(String(memory.saved));",{...input,memory:asyncResult.memory});
+    assert.deepEqual(clean.ops,[{op:'title',value:'undefined'},{op:'title',value:'1'}]);
+    const c=createScriptRunner('com.deckforge.native.smokec');
+    try{
+      await assert.rejects(c.run("await new Promise(()=>{});",input),/timeout/);
+    }finally{c.close();}
+    const cancelled=createScriptRunner('com.deckforge.native.cancelled');
+    try{
+      const pending=cancelled.run("await new Promise(()=>{});",input);
+      cancelled.close();
+      await assert.rejects(pending,/closed|initialization failed/);
+    }finally{cancelled.close();}
     console.log('DeckForge JavaScript SDK renderer smoke passed');
     await verifyWindowsEncryption();
     await verifyVectorRendering();

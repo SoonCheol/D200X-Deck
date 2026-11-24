@@ -50,7 +50,7 @@
 ## 0.10 독자 SDK 비동기 HTTPS 요청 (1.1.123)
 
 - API 2 선택 권한 `network.request`와 manifest `networkEndpoints` (최대 8개, id/url/method). 정확한 HTTPS URL(인증정보/쿼리/fragment 금지), GET 또는 JSON POST, 설치/업데이트 확인창에 주소·메서드 표시. 예: `{"id":"status","url":"https://example.com/api/status","method":"GET"}`. TLS 검증 및 리다이렉트 차단. 임의 URL/헤더/쿠키·평문 HTTP·인증정보 주입은 미지원. 지정된 호스트의 네트워크 위치는 사용자 신뢰 범위이며 모든 악성 서비스 접근을 방지한다고 보장하지 않는다.
-- `api.request("status")` 또는 `api.request("postId",{value:1})`는 입력 이벤트에서만 요청을 예약한다. 호스트가 비동기로 처리하고 별도 `event.type==="networkResult"`, `event.response={endpoint,ok,status,body,error}`를 전달한다. body는 JSON/text 문자열; HTTP 실패 응답 본문은 전달하지 않는다. 결과 이벤트는 표시 명령만 허용, 연쇄 네트워크/설정/탐색 금지. 일반 await/비동기 JS 실행은 여전히 미지원.
+- `api.request("status")` 또는 `api.request("postId",{value:1})`는 입력 이벤트에서만 요청을 예약한다. 호스트가 비동기로 처리하고 별도 `event.type==="networkResult"`, `event.response={endpoint,ok,status,body,error}`를 전달한다. body는 JSON/text 문자열; HTTP 실패 응답 본문은 전달하지 않는다. 결과 이벤트는 표시 명령만 허용, 연쇄 네트워크/설정/탐색 금지. 1.1.146부터 제한형 await/비동기 JS 지원. 직접 네트워크/타이머 호출 금지, host continuation 계약 유지.
 - 요청 5초 제한, 본문/응답 8KiB, 컨텍스트당 하나·전체 최대 8개, 요청 중 버튼 release 처리 가능. 페이지 이탈/설정 변경/절전/종료 시 취소 및 늦은 결과 폐기. POST 서버 부수 효과는 취소로 되돌릴 수 없음. 자동 재시도 없음. 모의 전송/취소/오류 집중 테스트 추가. 인증정보 연결·로컬 실제 HTTPS 통신·실기 검증은 후속.
 
 ## 0.9 독자 SDK 선언형 속성창 (1.1.122)
@@ -105,10 +105,10 @@
 
 ## 0.1 독자 JavaScript SDK API 2 (1.1.113)
 
-- 패키지 v2의 `runtime.apiVersion`과 native.json의 `apiVersion`을 2로 지정한다. 각 action의 `events` 대신 `script` (최대 64KiB, 동기 JavaScript 함수 본문)를 제공한다. 기존 API 1과 v1 호환 패키지는 그대로 유지한다.
+- 패키지 v2의 `runtime.apiVersion`과 native.json의 `apiVersion`을 2로 지정한다. 각 action의 `events` 대신 `script` (최대 64KiB, 1.1.146부터 제한형 async JavaScript 함수 본문)를 제공한다. 기존 API 1과 v1 호환 패키지는 그대로 유지한다.
 - 함수 인자 `event` (`type`, `slot`, `gesture`), `settings` (읽기용 사본), `state`, `memory` (컨텍스트별 8KiB JSON 객체), `api`. `api.setTitle`, `setState`, `toggleState`, `setImage`만 허용. 예: `if(event.type==='press'){memory.n=(memory.n||0)+1;api.setTitle(String(memory.n));}`. 설치 시 문법 검사, 실제 실행은 등록된 컨텍스트에서만.
 - Node/Electron API를 노출하지 않는 sandboxed Chromium 렌더러, 플러그인별 비영구 세션, CSP·요청 차단·권한 거부·탐색 차단, 1.5초 실행 제한, 입력/출력/메모리/큐 제한. 메인 프로세스는 반환 명령을 API 1 검사기로 재검증. 임의 OS 접근 권한을 허용하지 않으며 브라우저 취약점이나 모든 부채널까지 차단하는 완전한 보안 샌드박스라고 보장하지 않는다. 신뢰하는 플러그인만 설치한다.
-- 예외/시간 초과/큐 초과는 해당 컨텍스트를 중단하고 렌더러를 폐기한다. 페이지 이동/절전 시 대기 명령과 오래된 결과를 폐기하며, 사라지는 이벤트는 유휴 상태에서 최선 노력으로 수행한다. 다시 등록하거나 절전 복귀 시 재시작. 자동 재시도·전체 플러그인 감시, 비동기 JS, 파일·네트워크·설정 쓰기·와이드/탐색 권한은 후속.
+- 예외/시간 초과는 해당 컨텍스트를 중단하고 렌더러를 폐기한다. 큐 포화는 입력 거절로 처리(1.1.143+). 1.1.146부터 결과 수용 전 렌더러 문서를 초기화하며 host memory만 이벤트 사이 유지한다. 페이지 이동/절전 시 대기 명령과 오래된 결과를 폐기하며, 사라지는 이벤트는 유휴 상태에서 최선 노력으로 수행한다. 다시 등록하거나 절전 복귀 시 재시작. 파일 직접 접근 및 임의 네트워크는 미지원. 승인된 네트워크·설정·와이드/탐색 권한은 상단 최신 절 참조.
 - Node 모의 테스트와 Windows 실제 Electron 렌더러 스모크 테스트를 추가한다. 결과 및 물리 D200X 실기는 별도 확인.
 
 ## 0. 독자 SDK API 1 (1.1.112 첫 구현)

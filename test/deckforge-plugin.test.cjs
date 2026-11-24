@@ -1252,3 +1252,15 @@ test('SDK transport result boundary rejects malformed, unbounded and credential-
  assert.equal(normalizeNetworkResult(endpoint,{...valid,body:'Bearer sample'},'sample').error,'credential-in-response');
  assert.deepEqual(normalizeNetworkResult(endpoint,{...valid,ok:false,error:'private details',body:'hidden'}),{endpoint:'status',ok:false,status:200,body:'',error:'connection-error'});
 });
+
+test('API 2 syntax supports async event bodies and cancellable deadlines settle promptly',async()=>{
+ const {deadline}=require('../app/streamdeck-editor/deckforge-js-runtime.cjs');
+ assert.doesNotThrow(()=>validateNativeManifest({...scriptManifest,actions:[{...scriptManifest.actions[0],script:"const value=await Promise.resolve('OK');api.setTitle(value);"}]}));
+ const controller=new AbortController();
+ let started=false;
+ const pending=deadline(()=>{started=true;return new Promise(()=>{});},10000,()=>{},controller.signal);
+ await Promise.resolve();assert.equal(started,true);
+ controller.abort();await assert.rejects(pending,/closed/);
+ assert.equal(await deadline(()=>42,100,()=>{}),42);
+ await assert.rejects(deadline(()=>new Promise(()=>{}),5,()=>{}),/timeout/);
+});

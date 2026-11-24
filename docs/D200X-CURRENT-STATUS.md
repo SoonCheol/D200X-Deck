@@ -2,6 +2,12 @@
 
 > **상태 기록 기준: 2026-11-24**. 실제 최신 HEAD는 Git에서 확인하며, 코드·자동 검사·Windows 빌드·사용자 Windows/D200X 실기 결과를 구분한다. 시작 시 `AGENTS.md`와 이 문서만 읽고 로드맵은 필요한 경우에만 참고한다.
 
+## 1.1.146 — 독자 SDK bounded async/await 및 실행 realm 초기화 (2026-11-24)
+
+- API 2 AsyncFunction 문법 및 await 결과 지원. 일반 네트워크/타이머는 여전히 금지, 기존 승인된 host request continuation 사용. 작업 buffer snapshot·누적 용량·종료 후 호출 제한.
+- 렌더러 단일 실행, 명시 close 시 즉시 대기 취소, 실행 1500ms/문서 reset 3000ms 상한. 결과 수용 전 동일 sandbox 문서 초기화로 전역 변수/분리 Promise 잔존 차단; host memory만 유지. reset 실패 시 결과 폐기. 실제 Electron async/realm/timeout smoke 추가.
+- 1.1.145 CI #1185 및 Windows #896 성공. 신규 CI/Windows/실기는 별도.
+
 ## 1.1.145 — 독자 SDK 네트워크 자원 격리 및 결과 계약 (2026-11-24)
 
 - 전체 동시 HTTPS 작업 8개/동일 플러그인 2개 제한, 컨텍스트 단일 진행 유지. 플러그인별 포화 시 명시 capacity 결과 이벤트, 다른 플러그인 여유 보존. 취소 전송의 실제 종료까지 자원 카운트 유지.
