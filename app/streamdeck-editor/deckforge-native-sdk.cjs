@@ -14,7 +14,7 @@ const APP_VERSION=require('./package.json').version;
 const SUFFIX='.deckforge-native.json', LIMIT=1024*1024;
 const ID=/^com\.deckforge\.native\.[a-z0-9][a-z0-9.-]{0,110}$/;
 const EVENTS=new Set(['appear','disappear','settings','press','release','rotateLeft','rotateRight','heldRotateLeft','heldRotateRight']);
-const OPS=new Set(['title','titleFromSetting','state','toggleState','image']);
+const OPS=new Set(['title','titleFromSetting','state','stateFromSetting','toggleState','image']);
 const EXTRA_PERMISSIONS=['settings.write','navigation','wide.mode','global.settings','wide.overlay','network.request','timer.tick','network.poll'];
 const MAX_PENDING_EVENTS=64,INPUT_RESERVE=4,MAX_NETWORK_GLOBAL=8,MAX_NETWORK_PLUGIN=2;
 const INPUT_EVENTS=new Set(['press','release','rotateLeft','rotateRight','heldRotateLeft','heldRotateRight']);
@@ -80,6 +80,9 @@ function validateNativeManifest(m){
           case 'title':check(exact(op,['op','value'])&&typeof op.value==='string'&&op.value.length<=256,'invalid title');break;
           case 'titleFromSetting':check(exact(op,['op','key','fallback'])&&typeof op.key==='string'&&/^[a-zA-Z0-9_-]{1,64}$/.test(op.key)&&
             !['__proto__','constructor','prototype'].includes(op.key)&&typeof op.fallback==='string'&&op.fallback.length<=256,'invalid setting reference');break;
+          case 'stateFromSetting':check(exact(op,['op','key','match','yes','no'])&&typeof op.key==='string'&&/^[a-zA-Z0-9_-]{1,48}$/.test(op.key)&&
+            !['__proto__','constructor','prototype'].includes(op.key)&&typeof op.match==='string'&&op.match.length<=256&&
+            [op.yes,op.no].every(x=>Number.isInteger(x)&&x>=0&&x<a.states),'invalid setting state mapping');break;
           case 'state':check(exact(op,['op','value'])&&Number.isInteger(op.value)&&op.value>=0&&op.value<a.states,'invalid state');break;
           case 'toggleState':check(exact(op,['op'])&&a.states===2,'toggle requires two states');break;
           case 'image':check(exact(op,['op','value']),'invalid image operation');validateNativeImage(op.value);break;
@@ -243,6 +246,11 @@ class NativePluginHost{
           const effective=ctx.action.settingsSchema?nativeEffectiveSettings(ctx.action.settingsSchema,ctx.settings):ctx.settings;
           const value=Object.hasOwn(effective,op.key)?effective[op.key]:undefined;
           send('setTitle',{title:typeof value==='string'?value.slice(0,256):op.fallback});
+        }
+        if(op.op==='stateFromSetting'){
+          const effective=ctx.action.settingsSchema?nativeEffectiveSettings(ctx.action.settingsSchema,ctx.settings):ctx.settings;
+          ctx.state=Object.hasOwn(effective,op.key)&&effective[op.key]===op.match?op.yes:op.no;
+          send('setState',{state:ctx.state});
         }
         if(op.op==='state'||op.op==='toggleState'){
           ctx.state=op.op==='state'?op.value:1-ctx.state;send('setState',{state:ctx.state});

@@ -1295,3 +1295,29 @@ test('encrypted vault isolates writers by plugin, snapshots input and never trea
    assert.equal((await vault.read(nativeId)).value.label,'first');
  }finally{unblock();await fs.rm(temp,{recursive:true,force:true});}
 });
+
+test('Ulanzi static radio inspector binds strict setting state mapping without running source',async()=>{
+ const {analyzeDirectory}=require('../app/streamdeck-editor/ulanzi-converter.cjs');
+ const {analyzeHtml}=require('../app/streamdeck-editor/ulanzi-inspector-analysis.cjs');
+ const {buildReviewRecord,validateReviewRecord}=require('../app/streamdeck-editor/ulanzi-release-review.cjs');
+ const root=await fs.mkdtemp(path.join(os.tmpdir(),'deckforge-radio-bind-')),dir=path.join(root,'source.ulanziPlugin');await fs.mkdir(dir);
+ const id='com.ulanzi.ulanzistudio.Radio',m={Type:'JavaScript',UUID:id,Name:'Radio',Version:'1',CodePath:'app.js',Actions:[{UUID:id+'.a',Name:'A',PropertyInspectorPath:'pi.html',States:[{},{}]}]};
+ const form='<form id="property-inspector"><label for="off">Off</label><input id="off" type="radio" name="mode" value="off" checked><label for="on">On</label><input id="on" type="radio" name="mode" value="on"></form>';
+ const display="m=>$UD.setState(m.context,m.param?.mode === 'on' ? 1 : 0)";
+ const src="$UD.connect('"+id+"');$UD.onAdd("+display+");$UD.onParamFromApp("+display+");";
+ try{
+  await fs.writeFile(path.join(dir,'manifest.json'),JSON.stringify(m));await fs.writeFile(path.join(dir,'app.js'),src);
+  await fs.writeFile(path.join(dir,'pi.html'),form);
+  const report=await analyzeDirectory(dir,{fullFingerprint:true});
+  assert.equal(report.inspectors[0].staticSchema,true);
+  assert.deepEqual(report.candidate.actions[0].settingsSchema,[{key:'mode',label:'mode',type:'select',options:[{value:'off',label:'Off'},{value:'on',label:'On'}],default:'off'}]);
+  assert.deepEqual(report.candidate.actions[0].events.settings,[{op:'stateFromSetting',key:'mode',match:'on',yes:1,no:0}]);
+  assert.equal(report.verification.status,'pass');
+  const record=buildReviewRecord(report);for(const check of record.checks){check.status='passed';check.evidence='fixture';}
+  assert.throws(()=>validateReviewRecord(record,report),/manual conversion/);
+  for(const bad of [form.replace(' checked',''),form.replace('value="on"','value="off"'),form.replace('value="on"','value="on" disabled')])
+    assert.equal(analyzeHtml('pi.html',bad,{inspector:true}).staticSchema,false);
+  await fs.writeFile(path.join(dir,'pi.html'),form.replace(' checked','').replace('value="on"','value="on" checked'));
+  assert.equal((await analyzeDirectory(dir)).candidate,null);
+ }finally{await fs.rm(root,{recursive:true,force:true});}
+});

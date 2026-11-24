@@ -46,10 +46,12 @@ function analyzeHtml(entry,html,{inspector=false}={}){
   const forms=all.filter(n=>n.tagName==='form');
   const form=forms.find(n=>attrs(n).id==='property-inspector');
   if(!form){note('property-form-missing');return {scripts,findings,fields,settingsSchemaCandidate:[],requiresReview:true};}
-  const formNodes=nodes(form);
+  const formNodes=nodes(form),radioGroups=new Map();
+  for(const node of formNodes){const a=attrs(node);if(node.tagName==='input'&&a.type?.toLowerCase()==='radio'){const group=radioGroups.get(a.name)||[];group.push(node);radioGroups.set(a.name,group);}}
   for(const n of formNodes){
     if(!['input','select','textarea'].includes(n.tagName))continue;
     const a=attrs(n),name=a.name,type=n.tagName==='input'?(a.type||'text').toLowerCase():n.tagName;
+    if(type==='radio'&&radioGroups.get(name)?.[0]!==n)continue;
     if(!key(name)||names.has(name)){note('invalid-or-duplicate-field',typeof name==='string'?name.slice(0,48):'');continue;}
     names.add(name);
     const label=formNodes.find(x=>x.tagName==='label'&&a.id&&attrs(x).for===a.id);
@@ -77,6 +79,17 @@ function analyzeHtml(entry,html,{inspector=false}={}){
         field.reason='number-contract-unknown';continue;
       }
       proposal={key:name,label:title,type:'integer',min:Number(a.min),max:Number(a.max),default:Number(a.value)};
+    }else if(type==='radio'){
+      const group=radioGroups.get(name)||[],selected=group.filter(x=>Object.hasOwn(attrs(x),'checked'));
+      if(group.length<2||selected.length!==1||group.some(x=>{
+        const a=attrs(x);
+        return a.value===undefined||['disabled','readonly','required','pattern','multiple','form'].some(k=>Object.hasOwn(a,k));
+      })){field.reason='radio-contract-unknown';continue;}
+      const options=group.map(x=>{
+        const a=attrs(x),label=formNodes.find(y=>y.tagName==='label'&&a.id&&attrs(y).for===a.id);
+        return {value:a.value,label:label?text(label):a.value};
+      });
+      proposal={key:name,label:near?text(near):name,type:'select',options,default:attrs(selected[0]).value};
     }else if(type==='checkbox'){
       // HTML form serialization is often string-valued (e.g. "digital"/"on").
       // Do not silently replace that contract with a boolean.
@@ -99,7 +112,7 @@ function analyzeHtml(entry,html,{inspector=false}={}){
   // Unknown markup, attributes, active/external resources and unrepresented
   // controls remain review-only rather than silently changing behavior.
   const allowedTags=new Set(['html','head','body','title','form','div','span','p','label','input','select','option','br','fieldset','legend']);
-  const allowedAttrs=new Set(['id','class','for','name','type','value','maxlength','min','max','step','selected']);
+  const allowedAttrs=new Set(['id','class','for','name','type','value','maxlength','min','max','step','selected','checked']);
   const formSet=new Set(formNodes);
   const staticSchema=!!(forms.length===1&&scripts.length===0&&findings.length===0&&fields.length&&fields.length===proposals.length&&
     proposals.every(f=>['text','select'].includes(f.type))&&all.every(n=>

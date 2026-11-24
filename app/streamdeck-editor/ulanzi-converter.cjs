@@ -90,6 +90,17 @@ function settingTitle(node,param){
     /token|password|secret|credential|authorization|headers?|api[_-]?key|cookie|request[_-]?body|url|endpoint/i.test(key))return null;
   return {key,fallback:node.alternate.value};
 }
+function settingState(node,param,states){
+  const test=node?.test,access=test?.left?.type==='ChainExpression'?test.left.expression:null;
+  if(node?.type!=='ConditionalExpression'||test?.type!=='BinaryExpression'||test.operator!=='==='||
+    access?.type!=='MemberExpression'||!access.optional||access.computed||!member(access.object,param,'param')||
+    access.property?.type!=='Identifier'||!lit(test.right,'string')||test.right.value.length>256||
+    ![node.consequent,node.alternate].every(x=>lit(x,'number')&&Number.isInteger(x.value)&&x.value>=0&&x.value<states))return null;
+  const key=access.property.name;
+  if(!/^[a-zA-Z0-9_-]{1,48}$/.test(key)||['__proto__','constructor','prototype'].includes(key)||
+    /token|password|secret|credential|authorization|headers?|api[_-]?key|cookie|request[_-]?body|url|endpoint/i.test(key))return null;
+  return {key,match:test.right.value,yes:node.consequent.value,no:node.alternate.value};
+}
 function analyzeSource(manifest,source,{stateImages,stateImagesByAction,inspectorSchemas}={}){
   validateSourceManifest(manifest);
   if(typeof source!=='string'||Buffer.byteLength(source)>MAX_SOURCE)throw Error('source size limit');
@@ -213,6 +224,10 @@ function analyzeSource(manifest,source,{stateImages,stateImagesByAction,inspecto
         const field=settingTitle(value,param);
         ops.push({op:'titleFromSetting',...field});sourceCalls.push({method:'setTitleFromParam',...field});
         note('dynamic-settings','type-guarded title setting requires source setting contract review',statement.loc.start.line);
+      }else if(name==='setState'&&['onAdd','onParamFromApp'].includes(method)&&settingState(value,param,states)){
+        const field=settingState(value,param,states);
+        ops.push({op:'stateFromSetting',...field});sourceCalls.push({method:'setStateFromParam',...field});
+        note('dynamic-settings','strict string state comparison requires source setting contract review',statement.loc.start.line);
       }else if(name==='setState'&&lit(value,'number')&&Number.isInteger(value.value)&&value.value>=0&&value.value<states){
         ops.push({op:'state',value:value.value});sourceCalls.push({method:name,value:value.value});
       }
@@ -224,10 +239,16 @@ function analyzeSource(manifest,source,{stateImages,stateImagesByAction,inspecto
     programs[event]=ops;sourceEvents.push({method,calls:sourceCalls});
   }
   const schema=inspectorSchemas?.get(a.UUID);
-  const reads=Object.values(programs).flat().filter(op=>op.op==='titleFromSetting');
+  const isRead=op=>['titleFromSetting','stateFromSetting'].includes(op.op);
+  const reads=Object.values(programs).flat().filter(isRead);
+  const compatible=(op,f)=>op.key===f.key&&['text','select'].includes(f.type)&&
+    (op.op==='titleFromSetting'?f.default===op.fallback:
+      // Missing source values take the no branch. Do not introduce a
+      // different appearance through a matching schema default.
+      (f.default!==op.match||op.yes===op.no)&&(f.type==='select'?f.options.some(o=>o.value===op.match):op.match.length<=f.maxLength));
   const schemaBound=Array.isArray(schema)&&schema.length>0&&
-    reads.every(op=>schema.some(f=>f.key===op.key&&['text','select'].includes(f.type)&&f.default===op.fallback))&&
-    schema.every(f=>['appear','settings'].every(event=>programs[event]?.some(op=>op.op==='titleFromSetting'&&op.key===f.key&&op.fallback===f.default)));
+    reads.every(op=>schema.some(f=>compatible(op,f)))&&
+    schema.every(f=>['appear','settings'].every(event=>programs[event]?.some(op=>isRead(op)&&compatible(op,f))));
   if(a.PropertyInspectorPath&&schemaBound)note('inspector-schema-bound','inert form and source fallback bound; manual inspector review required');
   actionResults.push({a,controllers,states,programs,sourceEvents,schema:schemaBound?schema:undefined,valid:structurallySafe&&connected&&Object.keys(programs).length>0&&
     (!a.PropertyInspectorPath||schemaBound)&&validController(a)&&[1,2].includes(states)&&(!own(a,'States')||Array.isArray(a.States))});

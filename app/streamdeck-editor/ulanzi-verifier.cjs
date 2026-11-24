@@ -34,6 +34,8 @@ function simulateCandidate(manifest,sourceEvents){
       if(call.method==='setTitle'&&typeof call.value==='string')return {kind:'setTitle',payload:{title:call.value}};
       if(call.method==='setTitleFromParam'&&typeof call.key==='string'&&/^[a-zA-Z0-9_-]{1,48}$/.test(call.key)&&typeof call.fallback==='string')
         return {setting:call.key,fallback:call.fallback};
+      if(call.method==='setStateFromParam'&&typeof call.key==='string'&&typeof call.match==='string'&&[call.yes,call.no].every(Number.isInteger))
+        return {setting:call.key,match:call.match,yes:call.yes,no:call.no};
       if(call.method==='setState'&&Number.isInteger(call.value))return {kind:'setState',payload:{state:call.value}};
       if(call.method==='setImage'&&typeof call.value==='string')return {kind:'setImage',payload:{image:call.value}};
       throw Error('unsupported source trace command');
@@ -47,14 +49,19 @@ function simulateCandidate(manifest,sourceEvents){
   const cfg=(context,slot)=>({context,slot,gesture:'down',pluginUUID:manifest.id,actionUUID:action.id,settings:{}});
   const a=cfg('verify-a',dial?16:0),b=cfg('verify-b',dial?17:1);
   const keys=[...new Set([...events.values()].flat().filter(e=>e.setting).map(e=>e.setting))];
-  b.settings=Object.fromEntries(keys.map(k=>[k,sampleSetting(action,k,'B')]));
+  const sample=(k,seed)=>{
+    const mapping=[...events.values()].flat().find(e=>e.setting===k&&Object.hasOwn(e,'match'));
+    return mapping&&seed==='B'?mapping.match:sampleSetting(action,k,seed);
+  };
+  b.settings=Object.fromEntries(keys.map(k=>[k,sample(k,'B')]));
   const current=new Map([[a.context,a.settings],[b.context,b.settings]]);
   const expected=(context,event,ticks=1)=>{
     const output=[];
     for(let i=0;i<ticks;i++)for(const item of events.get(event)||[]){
       if(item.setting){
         const data=current.get(context)||{},value=Object.hasOwn(data,item.setting)?data[item.setting]:undefined;
-        output.push({kind:'setTitle',context,payload:{title:typeof value==='string'?value.slice(0,256):item.fallback}});
+        if(Object.hasOwn(item,'match'))output.push({kind:'setState',context,payload:{state:value===item.match?item.yes:item.no}});
+        else output.push({kind:'setTitle',context,payload:{title:typeof value==='string'?value.slice(0,256):item.fallback}});
       }else output.push({...item,context});
     }
     return output;
@@ -128,11 +135,11 @@ function simulateMultiple(manifest,traces){
   }
   const host=new NativePluginHost('/unused-offline-verification',event=>observed.push(event),()=>{throw Error('JavaScript runner forbidden');});
   const configs=manifest.actions.map((a,i)=>{
-    const fields=traces.find(t=>t.actionId===a.id).events.flatMap(e=>e.calls).filter(c=>c.method==='setTitleFromParam');
+    const fields=traces.find(t=>t.actionId===a.id).events.flatMap(e=>e.calls).filter(c=>['setTitleFromParam','setStateFromParam'].includes(c.method));
     return {context:'verify-multi-'+i,slot:a.controllers[0]==='Encoder'?16:0,gesture:'down',pluginUUID:manifest.id,actionUUID:a.id,settings:Object.fromEntries(fields.map(f=>[f.key,sampleSetting(a,f.key,'A'+i)]))};
   });
   const expected=(cfg,method)=>(traces.find(t=>t.actionId===cfg.actionUUID).events.find(e=>e.method===method)?.calls||[]).map(c=>({
-    kind:c.method==='setTitleFromParam'?'setTitle':c.method,context:cfg.context,payload:c.method==='setTitleFromParam'?{title:typeof cfg.settings[c.key]==='string'?cfg.settings[c.key].slice(0,256):c.fallback}:c.method==='setTitle'?{title:c.value}:c.method==='setState'?{state:c.value}:{image:c.value}
+    kind:c.method==='setTitleFromParam'?'setTitle':c.method==='setStateFromParam'?'setState':c.method,context:cfg.context,payload:c.method==='setStateFromParam'?{state:cfg.settings[c.key]===c.match?c.yes:c.no}:c.method==='setTitleFromParam'?{title:typeof cfg.settings[c.key]==='string'?cfg.settings[c.key].slice(0,256):c.fallback}:c.method==='setTitle'?{title:c.value}:c.method==='setState'?{state:c.value}:{image:c.value}
   }));
   const check=(name,run,want,accepted)=>{
     observed.length=0;let receipt,error=false;

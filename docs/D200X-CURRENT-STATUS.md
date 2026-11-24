@@ -2,6 +2,11 @@
 
 > **상태 기록 기준: 2026-11-24**. 실제 최신 HEAD는 Git에서 확인하며, 코드·자동 검사·Windows 빌드·사용자 Windows/D200X 실기 결과를 구분한다. 시작 시 `AGENTS.md`와 이 문서만 읽고 로드맵은 필요한 경우에만 참고한다.
 
+## 1.1.148 — Ulanzi 라디오 선택 그룹 및 설정 기반 상태 변환 (2026-11-24)
+
+- 단일 선택 radio 그룹을 명시 값·단일 checked default·중복/제약 검사 후 native select schema 후보로 변환. 엄격한 문자열 비교와 literal 상태 분기만 선언형 stateFromSetting으로 변환. 기본값 적용 의미가 달라지는 경우 차단. 원본 실행 없음, 속성창 출시 검토 차단 유지.
+- 설정별 ON/OFF, 초기값 및 다중 context trace 검증 확대. 신규 집중 fixture와 기존 공식 공개 예제 회귀 유지. 1.1.147 CI #1187 성공; 신규 Windows/CI/실기는 별도.
+
 ## 1.1.147 — SDK 암호화 저장소 identity별 쓰기 격리 (2026-11-24)
 
 - global writer 대신 plugin/binding identity별 FIFO, 동일 identity 8개·전체 64개 대기/진행 제한. 저장 요청 시 독립 snapshot, 취소 상태 사전 확인 및 암호화 이후 재확인. revision·atomic replacement 유지.
