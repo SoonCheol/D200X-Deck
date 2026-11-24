@@ -209,12 +209,32 @@ function restoreItems(current,incoming){
     packs:incoming.legacy?[]:items(incoming.packs,current.packs),
     appearance:!incoming.legacyAppearance&&incoming.sections?.appearance!==false};
 }
+// Read-only report on the resulting configuration, including inactive
+// profiles and templates. Do not expose plugin settings, secrets or code.
+function restorePluginReport(data,catalogue){
+  const profiles=validateSnapshot(data),groups=new Map();
+  const visit=action=>{
+    const id=action.settings?.pluginUUID;
+    if(typeof id!=='string'||!id||id.length>180)return;
+    const status=Core.sdkAvailability(action,catalogue)||'unknown';
+    const key=JSON.stringify([id,status]);
+    const old=groups.get(key);
+    if(old)old.count++;
+    else groups.set(key,{id,status,count:1});
+  };
+  Core.walkSdkActions(profiles,visit);
+  for(const template of profiles.profileTemplates||[])Core.walkSdkActions(template.snapshot,visit);
+  return [...groups.values()].sort((a,b)=>a.id.localeCompare(b.id)||a.status.localeCompare(b.status));
+}
 function planRestore(current,incoming,options){
   const prior=validateSnapshot(current),source=validateSnapshot(incoming);
   if(!obj(options)||!['all','merge','select'].includes(options.mode))throw Error('복원 방식을 선택하세요.');
   if(options.mode==='all'){
     const hasAppearance=incoming.sections?.appearance!==false;
-    const data={...incoming,profiles:source,appearance:hasAppearance?incoming.appearance:current.appearance};
+    // Project only the configuration contract. Unknown archive sections (including
+    // executable plugins or external encrypted vaults) are not restored.
+    const data={format:'deckforge-backup-v1',createdAt:incoming.createdAt,version:incoming.version,
+      profiles:source,packs:incoming.packs,appearance:hasAppearance?incoming.appearance:current.appearance};
     return {data,report:{mode:'all',added:0,replaced:0,kept:0,renamed:0,missingLinks:0,details:[],appearance:hasAppearance}};
   }
   if(!['keep','overwrite','rename'].includes(options.conflict)||typeof options.appearance!=='boolean')throw Error('복원 옵션이 올바르지 않습니다.');
@@ -394,4 +414,4 @@ function restore({store,packsFile,safetyDirectory,current,incoming,password}){
   }
   return {state,safetyFile:safety.file};
 }
-module.exports={validateAppearance,validateSnapshot,snapshot,backupChoices,selectSnapshot,summary,encrypt,decrypt,encode,decode,extension,readArchive,writeArchive,restoreItems,planRestore,fingerprint,restore};
+module.exports={validateAppearance,validateSnapshot,snapshot,backupChoices,selectSnapshot,summary,encrypt,decrypt,encode,decode,extension,readArchive,writeArchive,restoreItems,restorePluginReport,planRestore,fingerprint,restore};

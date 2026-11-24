@@ -7273,13 +7273,15 @@ async function restoreBackup(cloud=null,format='encrypted'){
       const actionName=d=>d.action==='keep'?'기존 유지':d.action==='overwrite'?'백업본으로 교체':d.action==='rename'?'새 '+labels[d.kind]+' 이름으로 추가':'새 '+labels[d.kind]+' 추가';
       const details=r.details.slice(0,18).map(d=>labels[d.kind]+' · '+d.name+(d.resultName&&d.resultName!==d.name?' → '+d.resultName:'')+' : '+actionName(d)).join('\n');
       const message=r.mode==='all'?'전체 복원: 백업 당시 상태로 교체합니다. 백업에 없는 기존 항목은 삭제됩니다.':'선택 복원: 새 항목 '+r.added+'개 · 백업본으로 교체 '+r.replaced+'개 · 새 이름으로 추가 '+r.renamed+'개 · 기존 유지 '+r.kept+'개\n'+details+(r.details.length>18?'\n… 나머지 항목 포함':'')+(r.missingLinks?'\n주의: 연결할 대상 프로필을 찾지 못한 이동 버튼 '+r.missingLinks+'개는 잘못된 대상을 실행하지 않도록 연결 해제합니다.':'');
+      const requirements=r.sdkRequirements||[],sdkLabels={available:'설치됨',missing:'미설치',dependency:'의존성 확인 필요','action-missing':'액션 누락',unknown:'설치 상태 확인 필요'};
+      const sdkDetail=requirements.length?'\n\n복원 후 플러그인 참조 (비활성 프로필·템플릿 포함)\n'+requirements.slice(0,12).map(x=>x.id+' · '+(sdkLabels[x.status]||'확인 필요')+' · '+x.count+'개').join('\n')+(requirements.length>12?'\n… 나머지 참조 포함':''):'';
       if(await window.DeckForgeDialogs.show({
         title:r.mode==='all'?'전체 복원 최종 확인':'선택 복원 최종 확인',
         kind:r.mode==='all'?'warning':'info',
         intro:r.mode==='all'?'백업 당시 상태로 교체합니다. 백업에 없는 현재 항목은 삭제됩니다.':'선택한 항목을 다음 내용으로 복원합니다.',
         fields:[{label:'복원 후 프로필',value:plan.profiles+'개'},{label:'복원 후 템플릿',value:plan.templates+'개'},{label:'복원 후 아이콘팩',value:plan.packs+'개'}],
-        detailLabel:'복원 적용 내역',detail:message,
-        warning:'복원 전에 현재 설정의 암호화 안전 백업을 별도로 저장합니다.',
+        detailLabel:'복원 적용 내역',detail:message+sdkDetail,
+        warning:'복원 전에 암호화 안전 백업을 저장합니다. 플러그인 코드와 별도 암호화 인증정보는 복원하지 않으며 기존 PC의 인증정보를 유지합니다. 누락된 플러그인은 별도로 설치·승인하고 필요한 경우 재인증하세요.',
         ask:true,actionLabel:'복원 실행'
       }))break;
       return;

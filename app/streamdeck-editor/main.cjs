@@ -686,6 +686,10 @@ ipcMain.handle('d200x:backup-plan',async(event,{id,options}={})=>{
   const preview=backupPending;preview.plan=null;
   if(Backup.fingerprint(currentBackup(preview.current.appearance))!==preview.base)throw Error('미리보기 이후 설정이 변경되었습니다. 다시 복원하세요.');
   const {data,report}=Backup.planRestore(preview.current,preview.incoming,options);
+  let catalogue=null;
+  try{catalogue=await sdk().list();}catch{/* Unavailable catalogue is explicitly marked unknown. */}
+  if(backupPending!==preview||Backup.fingerprint(currentBackup(preview.current.appearance))!==preview.base)throw Error('미리보기 이후 설정이 변경되었습니다. 다시 복원하세요.');
+  report.sdkRequirements=Backup.restorePluginReport(data,catalogue);
   const token=randomUUID();preview.plan={data,token};
   if(backupTimer)clearTimeout(backupTimer);
   backupTimer=setTimeout(clearBackupPending,5*60*1000);backupTimer.unref?.();

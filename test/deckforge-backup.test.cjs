@@ -214,3 +214,30 @@ test('SDK identity survives full restore, merge/overwrite and select allocate ne
   const ids=[];Core.walkSdkActions(select,x=>ids.push(x.instanceId));
   assert.equal(ids.length,2);assert.equal(new Set(ids).size,2);assert.ok(ids.includes(action.instanceId));
 });
+
+test('restore reports SDK references without reading secrets or accepting external plugin vaults',t=>{
+ const {root,store,packsFile,make}=setup(t);
+ const state=store.read(),id='com.deckforge.native.test';
+ const action=state.pages[0][1]=Core.createAction('sd-plugin');
+ action.settings.pluginUUID=id;action.settings.actionUUID=id+'.key';action.settings.pluginSettings={private:'DO-NOT-REPORT'};
+ const withTemplate=Core.saveProfileTemplate(state,state.profileId,'SDK template').next;
+ store.write(withTemplate);
+ const current=make();
+ const external={...make(),nativeCredentials:{[id]:'EXTERNAL-CREDENTIAL'},nativeSettings:{[id]:'EXTERNAL-VAULT'},plugins:[{id,script:'EXTERNAL-CODE'}]};
+ const files=['NativeCredentials','NativeSettings','NativeHistory'].map(folder=>path.join(root,'Plugins',folder,id+'.fixture'));
+ for(const file of files){fs.mkdirSync(path.dirname(file),{recursive:true});fs.writeFileSync(file,'LOCAL-ONLY');}
+ const plan=Backup.planRestore(current,external,{mode:'all'});
+ for(const k of ['nativeCredentials','nativeSettings','plugins'])assert.equal(Object.hasOwn(plan.data,k),false);
+ const report=Backup.restorePluginReport(plan.data,[{uuid:id,actions:[{uuid:id+'.key'}]}]);
+ assert.deepEqual(report,[{id,status:'available',count:2}]);
+ assert.equal(JSON.stringify(report).includes('DO-NOT-REPORT'),false);
+ assert.equal(Backup.restorePluginReport(plan.data,[])[0].status,'missing');
+ assert.equal(Backup.restorePluginReport(plan.data,null)[0].status,'unknown');
+ assert.equal(Backup.restorePluginReport(plan.data,[{uuid:id,available:false,actions:[]}])[0].status,'dependency');
+ assert.equal(Backup.restorePluginReport(plan.data,[{uuid:id,actions:[]}])[0].status,'action-missing');
+ const selected=Backup.planRestore(current,external,{mode:'select',conflict:'rename',appearance:false,profiles:[state.profileId],templates:[],packs:[]});
+ assert.deepEqual(Backup.restorePluginReport(selected.data,[]),[{id,status:'missing',count:3}]);
+ Backup.restore({store,packsFile,safetyDirectory:path.join(root,'Backups'),current,incoming:plan.data,password});
+ for(const file of files)assert.equal(fs.readFileSync(file,'utf8'),'LOCAL-ONLY');
+ assert.deepEqual(store.read().pages[0][1].settings.pluginSettings,{private:'DO-NOT-REPORT'});
+});
