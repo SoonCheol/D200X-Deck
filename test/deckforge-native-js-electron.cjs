@@ -131,6 +131,17 @@ async function verifyHomeAssistant(runner){
     assert.equal(started.normal[0].op,'publishSharedState');
     const rendered=await runner.run(action.script,{...input,event:{type:'appear'},settings,sharedState:projectSharedState(ctx,shared)});
     assert.equal(host.validateScriptOps(ctx,'appear',rendered.ops).normal.at(-1).op,'image');
+    const alpha=output=>{
+      const pixels=Buffer.from(output.ops.find(op=>op.op==='pixels').rgba,'base64');
+      assert.equal(pixels[3],0,'corner must be transparent');
+      assert.ok(pixels.some((value,i)=>i%4===3&&value>0),'foreground remains visible');
+    };
+    alpha(rendered);
+    for(const value of ['on','off']){
+      const control=await runner.run(manifest.actions[0].script,{...input,event:{type:'appear'},settings:{entity:'switch.fan'},
+        sharedState:{status:'연결됨',entities:{'switch.fan':{label:'환풍기',value}}}});
+      alpha(control);
+    }
     const changed=await runner.run(action.script,{...input,event:{type:'sharedState'},settings,memory:rendered.memory,sharedState:{...shared,entities:{...shared.entities,'sensor.temp':{label:'온도',value:'24.5',unit:'°C'}}}});
     assert.notEqual(rendered.ops.at(-1).rgba,changed.ops.at(-1).rgba);
     const same=await runner.run(action.script,{...input,event:{type:'sharedState'},settings,memory:rendered.memory,sharedState:shared});

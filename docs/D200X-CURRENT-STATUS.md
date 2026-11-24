@@ -3,11 +3,11 @@
 
 ## 개발 기준
 - 저장소 SoonCheol/D200X-Deck · 브랜치 codex/streamdeck-761-clean-editor · Draft PR #5 유지.
-- 로컬 E:\Codex\DeckForge. 최신 HEAD는 Git에서 확인. 소스 버전 **1.1.196** (05A 설정 저장 세대 보호).
+- 로컬 E:\Codex\DeckForge. 최신 HEAD는 Git에서 확인. 소스 버전 **1.1.197** (HA 투명 이미지).
 - 감사 기준 소스 `49ba39fe094ee808c5715f2348be0789f61d5e20`. CI #1221 성공(커넥터 확인); Windows #930 성공(사용자 인수인계, 이번 문서 작업에서 재검증하지 않음).
 
 ## 현재 상태
-- 독자 SDK API 1/2, 공개 25개 함수, HTTP/WSS, 전역 서비스/공유 상태, 동적 속성, 암호화·권한·패키지, HA 0.1.3 및 Stream Deck 호환 호스트 구현. SDK 1.0 정식 완성 선언 보류.
+- 독자 SDK API 1/2, 공개 25개 함수, HTTP/WSS, 전역 서비스/공유 상태, 동적 속성, 암호화·권한·패키지, HA 0.1.4 및 Stream Deck 호환 호스트 구현. SDK 1.0 정식 완성 선언 보류.
 - HA 기존 실기 인증·기기 목록·전등 제어·센서 표시 성공, 최신 실기 별도.
 - 1·2차 감사 합의와 3차 보고서 검토를 기반으로 재설계 방향 및 단계 순서 사용자 승인. 3차 전체 및 핵심 소스 대조 완료; 1·2차 원문 재검토, 전체 19개 경로 및 44개 테스트 독립 검증은 미실시.
 - 소스 대조: DOM 교체·중복 합성·설정 receipt 위험 확인; 기존 1권한효과 제한과 epoch/settingsRevision, WSS 오류 종료 처리 존재. 미저장 실기 미리보기 의도는 정책 결정 전 보존.
@@ -18,7 +18,7 @@
 
 - 04A Model 2 후보: 플러그인별 service/button 분리 partition·renderer 재사용, lane 직렬화, 실행 lease 취소, idle LRU/30초 만료, suspend/close 정리. 기존 context FIFO·검증·realm reset 유지. legacy 복귀는 DECKFORGE_SDK_RUNNER=legacy (실패 이벤트 자동 재실행 금지). 집중 Node/실제 Electron PID·timeout/realm/서비스 생존 검사 추가. 1.1.188 실제 Electron PID 3844/3472 분리, timeout·서비스 생존 및 Node 검사 통과, 설치본 생성 성공, Releases HTTP 403 게시 실패. 1.1.189 Windows 전체 성공; CSP 결과 로그 미출력.
 
-- 04B 선행 검증: 별도 Electron 테스트 프로세스에서 standard/opaque 전용 scheme, host/worker 개별 CSP, AsyncFunction, 네트워크·저장소·중첩 Worker·Node 차단, timeout 후 재실행·서비스 생존·PID 검사. 결과 로그 MODEL5_WORKER_CSP_PROBE. 실제 앱에 scheme/Worker 등록 없음, 부정 결과도 기록하고 Model 2 유지. Windows 검사 대기. 기존 SDK Node 검사 exit code 누락 보완.
+- 04B 선행 검증: 전용 Electron CSP/격리 검사만, 실제 앱 Worker 미등록.
 
 - 1.1.190: Model 5 전용 DrawOps 호스트 JSON/명령/개수/메모리/출력 검증, Worker 원시 픽셀 거부, 신뢰 painter 및 취소 검증, 기존 host 효과 검증 호출 계약. 기존 Model 2 실행 경로 미변경. Node 경계 테스트·실제 Electron 픽셀 동등성 추가, 실행 결과 대기. 1.1.190 Node 95/95, Electron 픽셀 비교 이후 테스트 가상 manifest 누락으로 실패.
 
@@ -29,6 +29,8 @@
 - 1.1.195: 동일 물리 버튼의 일반 누르기 등록/교체, 노브 제스처 등록/내부 삭제를 초안으로 유지. 카드 자체 팝업 편집 범위 공통화. 기존 외부 이동/전역 관리 보호 유지, 저장/취소/탭 전환 및 외부 이동 동작 검사 추가. 자동 빌드 및 GUI 대기.
 
 - 1.1.196: 05A mount configRevision, 요청 identity/만료/값 대조, ABA 및 stale sync 보호, 응답 유실 시 해당 컨텍스트 정지·새 확정 revision/remount에서 재개. 집중 테스트 추가. 영구 receipt·settingsResult 미구현, 05B/C 잔여. CI/Windows 대기.
+
+- 1.1.197: 사용자 보고 HA만 단추 배경색 미적용. control/sensor drawKey의 고정 불투명 #121820 제거, 투명 RGBA 전경 생성. HA 패키지 0.1.4, 기존 동일 서버 업데이트 경로 필요(자동 덮어쓰기 없음). 이미지 알파 실제 Electron 검사 추가. 기존 미지정 기본 배경은 공통 합성기 #08090c 사용. 1.1.195 Windows 성공, 1.1.196 CI/입력 성공 및 Windows 진행 확인. 1.1.197 빌드/실기 대기.
 
 ## 다음 작업
 - **05 설정 저장 안정성:** 1.1.196 검사 후 05B 영구 receipt 및 05C 장애/재시작/선택 capability 검증. Model 2 유지. 04B 저장소 격리 해결은 별도 검증 대상으로 유지. OOM/DrawOps/자원 한도·실기 미검증 상태에서 Model 5 활성화 금지. 편집기 깜박임 개선/GUI 재확인은 최후순위이며 다음 단계의 선행조건 아님. 기능·보안 회귀는 예외적으로 즉시 해결. 성능/D200X 실기 검증 별도. 기존 실기 미리보기 정책 유지. 설정 revision/receipt 상세는 05에서 계속. 사용자 연속 개발 승인 유지.

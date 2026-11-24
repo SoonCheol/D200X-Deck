@@ -2133,6 +2133,7 @@ test('HA native manifest, compressed entity state, device grouping, control and 
  assert.equal(shared.entities['sensor.temp'].unit,'');
  const settings={entities:['sensor.temp','sensor.humidity'],mode:'all',labels:true,unit:true,decimals:1,fontSize:36,seconds:5,color:'#FFFFFF'};
  sensorKey({type:'appear'},settings,0,{},api);
+ assert.equal(drawn.at(-1).background,undefined,'sensor artwork must allow button background');
  assert.ok(drawn.at(-1).commands.some(c=>c.text==='24.0'));assert.ok(drawn.at(-1).commands.some(c=>c.text==='48.0 %'));
  const sensorMemory={};
  sensorKey({type:'appear'},{...settings,mode:'press'},0,sensorMemory,api);sensorKey({type:'press'},{...settings,mode:'press'},0,sensorMemory,api);
@@ -2194,6 +2195,7 @@ test('HA control publishes editable title independently from its status image',(
   setTitle:value=>{title=value;},setState(){},drawKey:value=>{draw=value;}};
  controlKey({type:'appear'},{entity:'switch.fan'},0,{},api);
  assert.equal(title,'주방등');
+ assert.equal(draw.background,undefined,'control artwork must allow button background');
  assert.ok(draw.commands.some(x=>x.text==='켜짐'));
  assert.ok(!draw.commands.some(x=>x.text==='주방등'));
 });
