@@ -344,7 +344,8 @@ function displayItem(item,index,preserveGesture=false){
     const defaultImage=sdkActionDefaults.get(item.settings?.actionUUID)?.[stateName];
     const icon=stateIcon||item.icon||(visual?.image?{kind:'file',value:visual.image}:null)||
       (defaultImage?{kind:'file',value:defaultImage}:null);
-    if(icon||visual)return {...item,title:visual?.title??item.title,...(icon?{icon}:{})};
+    const policy=nativeTitlePolicyFor(item);
+    if(icon||visual||policy)return {...item,title:policy?DeckCore.nativeTitle(item,policy,visual?.title):visual?.title??item.title,...(icon?{icon}:{})};
   }
   if(!item||item.type!=="indicator")return item;
   const common=DeckCore.indicatorCommon(state,item);
@@ -375,6 +376,18 @@ function textActionDisplayTitle(item,title){
   // Bound the preview work for large pasted strings, preserving Unicode characters.
   return Array.from(body.slice(0,512)).slice(0,256).join('');
 }
+function nativeTitlePolicyFor(item){
+  if(item?.type!=='sd-plugin'||typeof sdkPlugins==='undefined')return null;
+  const plugin=sdkPlugins.find(p=>p.uuid===item.settings?.pluginUUID&&p.runtime==='deckforge-sdk');
+  return plugin?.actions?.find(a=>a.uuid===item.settings?.actionUUID)?.titlePolicy||null;
+}
+function nativeInspectorTitle(item){
+  const policy=nativeTitlePolicyFor(item);
+  if(!policy)return item.title||'';
+  const slot=typeof state!=='undefined'?DeckCore.visibleActions(state).indexOf(item):-1;
+  const live=slot>=0&&typeof sdkVisuals!=='undefined'?sdkVisuals.get(sdkContext(slot,'down'))?.title:undefined;
+  return DeckCore.nativeTitle(item,policy,live);
+}
 function isNativeHaControl(item){return item?.type==='sd-plugin'&&item.settings?.actionUUID==='com.deckforge.native.home-assistant.control';}
 function autoHaControlTitle(item,label){
   if(!isNativeHaControl(item)||typeof label!=='string'||!label.trim())return;
@@ -391,8 +404,8 @@ function defaultStateTitlePair(item){
   if(item?.type==='hotkey-switch')return {first:{enabled:true,title:item.title||'',style:{...DEFAULT_TITLE_STYLE,...item.titleStyle}},second:{enabled:true,title:item.title||'',style:{...DEFAULT_TITLE_STYLE,...item.titleStyle}}};
   if(item?.type==='timer')return {first:{enabled:true,title:'',style:{...DEFAULT_TITLE_STYLE,...item.titleStyle}},second:{enabled:true,title:DeckCore.formatTimerTime(DeckCore.timerSeconds(item.settings?.seconds),item.settings?.seconds),style:{...DEFAULT_TITLE_STYLE,...item.titleStyle}}};
   if(item?.type==='multi')return {first:{enabled:item.titleStyle?.visible!==false,title:item.title||'',style:{...DEFAULT_TITLE_STYLE,...item.titleStyle}},second:{enabled:item.titleStyle?.visible!==false,title:'',style:{...DEFAULT_TITLE_STYLE,...item.titleStyle}}};
-  let title=item.title||'';
-  if(!title&&isNativeHaControl(item)&&typeof sdkVisuals!=='undefined'&&typeof state!=='undefined'){
+  let title=nativeTitlePolicyFor(item)?nativeInspectorTitle(item):item.title||'';
+  if(!nativeTitlePolicyFor(item)&&!title&&isNativeHaControl(item)&&typeof sdkVisuals!=='undefined'&&typeof state!=='undefined'){
     const slot=DeckCore.visibleActions(state).indexOf(item);
     if(slot>=0)title=sdkVisuals.get(sdkContext(slot,'down'))?.title||'';
   }
@@ -403,7 +416,10 @@ function defaultStateTitlePair(item){
 }
 function ensureStateTitlePair(item){
   item.settings??={};
-  if(!item.settings.stateTitles)item.settings.stateTitles=defaultStateTitlePair(item);
+  if(!item.settings.stateTitles){
+    item.settings.stateTitles=defaultStateTitlePair(item);
+    if(nativeTitlePolicyFor(item))item.settings.nativeTitleAutoStates={first:true,second:true};
+  }
   return item.settings.stateTitles;
 }
 // Resolve every display property without changing the saved independent states.
@@ -438,7 +454,8 @@ function resolveStateTitle(item,second,artwork=null){
       return {...result,title:textActionDisplayTitle(item,result.title)};
     return result;
   }
-  return {...result,title:selected?textActionDisplayTitle(item,selected.title):'',titleStyle:{...DEFAULT_TITLE_STYLE,...(selected?.style||{}),visible:!!selected}};
+  const auto=source&&item.settings?.nativeTitleAutoStates?.[source]===true&&nativeTitlePolicyFor(item);
+  return {...result,title:selected?textActionDisplayTitle(item,auto?result.title:selected.title):'',titleStyle:{...DEFAULT_TITLE_STYLE,...(selected?.style||{}),visible:!!selected}};
 }
 function stateDisplayArtwork(item,index,momentary){
   const keyRoot=DeckCore.visibleActions(state)[index];
@@ -3534,9 +3551,10 @@ async function refreshStateTitleCards(item){
     const titleVisual=item.type==='indicator'?indicatorPressVisual(visual,second):item.type==='timer'?resolveTimerVisual(visual,second,DeckCore.timerSeconds(item.settings?.seconds),artwork):item.type==='multi'?resolveMultiVisual(visual,second,artwork,progress):resolveStateTitle(visual,second,artwork);
     if(item.type==='multi'&&second){const input=card.querySelector('.state-title-input');if(input)input.value=multiProgressTitle(item,progress);}
     if(item.type==='indicator'&&second){const downTitle=card.querySelector('.indicator-down-title');if(downTitle&&document.activeElement!==downTitle)downTitle.value=item.settings?.indicatorDownTitle??item.title??'';}
-    if(isNativeHaControl(item)&&!item.settings.stateTitles){
+    const policy=nativeTitlePolicyFor(item),which=second?'second':'first';
+    if((policy&&(!item.settings.stateTitles||item.settings.nativeTitleAutoStates?.[which]===true))||(isNativeHaControl(item)&&!item.settings.stateTitles)){
       const input=card.querySelector('.state-title-input');
-      if(input&&document.activeElement!==input)input.value=item.title||visual.title||'';
+      if(input&&document.activeElement!==input)input.value=policy?visual.title:item.title||visual.title||'';
     }
     // State previews are snapshots, not a physical key-down effect.
     const img=card.querySelector('.sdk-state-preview');
@@ -3565,7 +3583,7 @@ function attachStateTitleControls(card,item,which){
   input.placeholder=item.type==='text'?'자동 제목':'제목';input.title=item.type==='text'?'제목을 비우면 입력 텍스트가 자동 표시됩니다. <br>로 강제 줄바꿈':'<br>로 강제 줄바꿈';input.setAttribute('aria-label',which==='first'?'제목 1':'제목 2');
   const timer=item.type==='timer',timerIdle=timer&&which==='first';
   const multiAuto=item.type==='multi'&&which==='second';
-  input.maxLength=256;input.value=timer?(timerIdle?'':DeckCore.formatTimerTime(DeckCore.timerSeconds(item.settings?.seconds),item.settings?.seconds)):multiAuto?multiProgressTitle(item,runningMultiProgress.get(DeckCore.runtimeActionKey(state,state.selected,'down'))):config.title;input.readOnly=timer||multiAuto;input.disabled=timerIdle||!config.enabled;
+  input.maxLength=256;input.value=timer?(timerIdle?'':DeckCore.formatTimerTime(DeckCore.timerSeconds(item.settings?.seconds),item.settings?.seconds)):multiAuto?multiProgressTitle(item,runningMultiProgress.get(DeckCore.runtimeActionKey(state,state.selected,'down'))):nativeTitlePolicyFor(item)&&(!item.settings.stateTitles||item.settings.nativeTitleAutoStates?.[which]===true)?nativeInspectorTitle(item):config.title;input.readOnly=timer||multiAuto;input.disabled=timerIdle||!config.enabled;
   if(multiAuto)input.title='실행 단계 자동 표시';
   const styleButton=document.createElement('button');styleButton.type='button';
   styleButton.className='state-title-style';styleButton.textContent='T⌄';
@@ -3594,6 +3612,7 @@ function attachStateTitleControls(card,item,which){
     if(timer||multiAuto)return;
     const saved=ensureStateTitlePair(item)[which];
     saved.title=input.value;
+    if(nativeTitlePolicyFor(item))item.settings.nativeTitleAutoStates={...item.settings.nativeTitleAutoStates,[which]:false};
     // The legacy title is a fallback for imported versions, not the active state title.
     persistInspectorChange();renderGrid();refreshTitlePreview(item);
   });
@@ -4043,7 +4062,12 @@ async function openNativeSettings(item,action,plugin){
     window.d200xActionStatus?.('다른 설정 변경이 발생했습니다. 속성창을 다시 열어 주세요.');return;
   }
   item.settings.pluginSettings=result;
-  if(isNativeHaControl(item)&&!['0.1.0','0.1.1','0.1.2'].includes(plugin.version))
+  if(action.titlePolicy?.selectionLabel){
+    const key=action.titlePolicy.selectionLabel;
+    const selection=DeckCore.nativeTitleSelection(action.titlePolicy,result,inputs.find(x=>x.field.key===key)?.selectedLabel?.(),item.settings.nativeTitleSelection);
+    if(selection)item.settings.nativeTitleSelection=selection;else delete item.settings.nativeTitleSelection;
+  }
+  if(!action.titlePolicy&&isNativeHaControl(item)&&!['0.1.0','0.1.1','0.1.2'].includes(plugin.version))
     autoHaControlTitle(item,inputs.find(x=>x.field.key==='entity')?.selectedLabel?.());
   persistInspectorChange();renderGrid();renderInspector();
   window.d200xActionStatus?.('플러그인 설정 변경 · 아래 저장 버튼을 누르면 기기에 반영됩니다.');
@@ -4564,7 +4588,7 @@ function renderInspector(){
   bindIconControls(item);
   if(item.type==='indicator')bindIndicatorInspector(root,item);
   refreshTitlePreview(item);
-  $("key-title").addEventListener("input",ev=>{item.title=ev.target.value;persist();renderGrid();refreshTitlePreview(item);});
+  $("key-title").addEventListener("input",ev=>{item.title=ev.target.value;if(nativeTitlePolicyFor(item))item.settings.nativeTitleExplicit=true;persist();renderGrid();refreshTitlePreview(item);});
   bindExtendedActionFields(root,item);
   if(item.type==='website'){
     const url=root.querySelector('[data-field="url"]');

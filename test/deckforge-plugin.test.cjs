@@ -2563,3 +2563,25 @@ test('generic native settings UI separates presentation, validates references an
  const conditional=[{key:'a',label:'A',type:'boolean',default:true},{key:'b',label:'B',type:'boolean',default:true},{key:'c',label:'C',type:'boolean',default:false}];
  assert.throws(()=>core.validateNativeSettingsUI(conditional,[{key:'a',visibleWhen:{key:'b',equals:true}},{key:'b',visibleWhen:{key:'c',equals:false}}]),/settings UI/);
 });
+
+test('native title policy prioritizes explicit empty title, current selection, live and default',()=>{
+ const core=require('../app/streamdeck-editor/deck-core.js');
+ const m=require('../examples/deckforge-sdk/settings-ui.native.json');
+ assert.doesNotThrow(()=>validateNativeManifest(m));
+ const schema=[{key:'entity',label:'Device',type:'dynamicSelect',source:'devices',default:''}];
+ const policy={selectionLabel:'entity',defaultTitle:'Default'};
+ assert.doesNotThrow(()=>core.validateNativeTitlePolicy(schema,policy));
+ for(const bad of [{selectionLabel:'missing'},{defaultTitle:5},{html:'<b>'},{}])
+   assert.throws(()=>core.validateNativeTitlePolicy(schema,bad),/title policy/);
+ const item={title:'',settings:{pluginSettings:{entity:'a'}}};
+ assert.equal(core.nativeTitle(item,policy),'Default');
+ assert.equal(core.nativeTitle(item,policy,'Live'),'Live');
+ assert.equal(core.nativeTitle(item,policy,''),'');
+ item.settings.nativeTitleSelection=core.nativeTitleSelection(policy,item.settings.pluginSettings,'Device A');
+ assert.equal(core.nativeTitle(item,policy,'Live'),'Device A');
+ assert.deepEqual(core.nativeTitleSelection(policy,{entity:'a'},'',item.settings.nativeTitleSelection),item.settings.nativeTitleSelection);
+ assert.equal(core.nativeTitleSelection(policy,{entity:'b'},'',item.settings.nativeTitleSelection),null);
+ item.settings.pluginSettings.entity='b';assert.equal(core.nativeTitle(item,policy,'Live'),'Live');
+ item.title='Manual';assert.equal(core.nativeTitle(item,policy,'Live'),'Manual');
+ item.title='';item.settings.nativeTitleExplicit=true;assert.equal(core.nativeTitle(item,policy,'Live'),'');
+});

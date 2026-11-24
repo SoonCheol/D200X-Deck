@@ -11,7 +11,7 @@ const {NativeSettingsVault,validateValue}=require('./deckforge-native-settings.c
 const {NativeVersionStore,assertAppRequirement}=require('./deckforge-native-versions.cjs');
 const {validateDependencies,resolveDependencies,assertDependencyChange}=require('./deckforge-native-dependencies.cjs');
 const {validateWideOverlay}=require('./deckforge-native-wide.cjs');
-const {validateNativeSettingsSchema,validateNativeSettingsUI,nativeEffectiveSettings,nativeDynamicOptions}=require('./deck-core.js');
+const {validateNativeSettingsSchema,validateNativeSettingsUI,validateNativeTitlePolicy,nativeEffectiveSettings,nativeDynamicOptions}=require('./deck-core.js');
 const {validateNetworkEndpoints,validateNetworkRequest,resolveNetworkEndpoint,validateSocketOperation,createSocket,requestEndpoint,networkFailure,normalizeNetworkResult,credentialBinding,validBearer,socketReceiveLimit}=require('./deckforge-native-network.cjs');
 const APP_VERSION=require('./package.json').version;
 const SUFFIX='.deckforge-native.json', LIMIT=1024*1024;
@@ -84,12 +84,13 @@ function validateNativeManifest(m){
   check(Array.isArray(m.actions)&&m.actions.length>0&&m.actions.length<=64,'invalid actions');
   const ids=new Set();
   for(const a of m.actions){
-    check(exact(a,m.apiVersion===1?['id','name','controllers','states','events','settingsSchema','settingsUI','stateImages']:['id','name','controllers','states','script','settingsSchema','settingsUI','tickIntervalMs','stateImages','sharedStateView','tickWhen'])&&typeof a.id==='string'&&
+    check(exact(a,m.apiVersion===1?['id','name','controllers','states','events','settingsSchema','settingsUI','titlePolicy','stateImages']:['id','name','controllers','states','script','settingsSchema','settingsUI','titlePolicy','tickIntervalMs','stateImages','sharedStateView','tickWhen'])&&typeof a.id==='string'&&
       a.id.startsWith(m.id+'.')&&/^[a-z0-9.-]+$/.test(a.id)&&a.id.length<=180&&
       !a.id.endsWith('.')&&!a.id.includes('..')&&!ids.has(a.id)&&validText(a.name,180),'invalid action');
     ids.add(a.id);
     validateNativeSettingsSchema(a.settingsSchema);
     validateNativeSettingsUI(a.settingsSchema,a.settingsUI);
+    validateNativeTitlePolicy(a.settingsSchema,a.titlePolicy);
     if(a.sharedStateView!==undefined){check(m.apiVersion===2&&m.permissions.includes('background.run'),'shared state view requires background service');validateSharedView(a.sharedStateView,a.settingsSchema);}
     check(Array.isArray(a.controllers)&&a.controllers.length>0&&a.controllers.length<=2&&
       new Set(a.controllers).size===a.controllers.length&&a.controllers.every(c=>['Keypad','Encoder'].includes(c))&&
@@ -135,7 +136,7 @@ function validateNativeManifest(m){
 }
 function catalog(m){return {uuid:m.id,name:m.name,version:m.version,runtime:'deckforge-sdk',permissions:[...m.permissions],dependencies:{...(m.dependencies||{})},background:!!m.service,...(m.capabilities?{capabilities:[...m.capabilities]}:{}),
   actions:m.actions.map(a=>({uuid:a.id,name:a.name,states:a.states,controllers:a.controllers,
-    propertyInspectorPath:'',defaultImages:{off:a.stateImages?.[0]||null,on:a.stateImages?.[1]||null},...(a.settingsSchema?{settingsSchema:a.settingsSchema}:{}),...(a.settingsUI?{settingsUI:a.settingsUI}:{})}))};}
+    propertyInspectorPath:'',defaultImages:{off:a.stateImages?.[0]||null,on:a.stateImages?.[1]||null},...(a.settingsSchema?{settingsSchema:a.settingsSchema}:{}),...(a.settingsUI?{settingsUI:a.settingsUI}:{}),...(a.titlePolicy?{titlePolicy:a.titlePolicy}:{})}))};}
 class NativePluginHost{
   constructor(userData,onUpdate=()=>{},runnerFactory=null,options={}){
     this.root=path.join(userData,'Plugins');this.onUpdate=onUpdate;

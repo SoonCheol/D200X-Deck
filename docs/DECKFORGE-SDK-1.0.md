@@ -101,3 +101,5 @@ API 2 manifest의 service={script,tickIntervalMs?} 및 별도 background.run 권
 - 참조: Electron protocol API (https://www.electronjs.org/docs/latest/api/protocol), MDN CSP Worker 정책 (https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/Content-Security-Policy). blob/data Worker는 부모 CSP를 상속하므로 단순 worker-src 완화는 채택하지 않는다. 결과가 부정적이거나 불확정이면 후보 부적격. 이 테스트가 통과해도 OOM·DrawOps·출력/메모리 상한 및 전체 API 회귀는 별도이며 Model 5 활성화 근거가 아니다.
 
 - 1.1.190 DrawOps 후보: Worker 결과는 512 KiB JSON·16개 명령·2회 그리기·8 KiB memory 제한. 호스트에서 전체 그리기 명령을 먼저 검증하며 Worker 원시 pixels 금지. 신뢰 painter는 데이터만 받아 RGBA 생성, 치수/인코딩/총량 및 취소 재검증 후 기존 validateScriptOps 경계를 반드시 통과한다. 아직 Model 5 실행 연결 없음. 집중 Node 검사와 Electron 기존 drawKey 픽셀 동등성 검사 추가.
+
+- 07B-1(1.1.209): 선택 action.titlePolicy={selectionLabel?,defaultTitle?}. selectionLabel은 dynamicSelect 필드만 참조. 사용자 직접 입력(빈 값 포함) > 현재 선택값에 대응하는 검증된 label snapshot > 동적 제목(빈 값 포함) > defaultTitle. 기존 비선언 플러그인·저장된 상태별 제목 유지. 신규 상태쌍의 자동 제목과 명시 입력 분리. HA 적용/기존 제목 이관·단일 센서 편집 일반화는 후속. 예제 및 집중 검사 추가, 실제 GUI 별도.

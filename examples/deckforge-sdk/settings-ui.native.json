@@ -2,8 +2,8 @@
   "apiVersion": 2,
   "id": "com.deckforge.native.example.settings",
   "name": "Settings UI Example",
-  "version": "1.0.0",
-  "requiresDeckForge": ">=1.1.208",
+  "version": "1.1.0",
+  "requiresDeckForge": ">=1.1.209",
   "permissions": [
     "display"
   ],
@@ -56,7 +56,10 @@
           "group": "Style"
         }
       ],
-      "script": "if(event.type==='appear'||event.type==='settings'){api.setTitle(settings.enabled?String(settings.amount):'');api.drawKey({width:144,height:144,commands:[{type:'text',text:settings.enabled?String(settings.amount):' ',x:72,y:72,size:42,color:settings.color}]});}"
+      "script": "if(event.type==='appear'||event.type==='settings'){api.setTitle(settings.enabled?String(settings.amount):'');api.drawKey({width:144,height:144,commands:[{type:'text',text:settings.enabled?String(settings.amount):' ',x:72,y:72,size:42,color:settings.color}]});}",
+      "titlePolicy": {
+        "defaultTitle": "Settings UI"
+      }
     }
   ]
 }

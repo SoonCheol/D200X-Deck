@@ -76,6 +76,28 @@
   function nativeSettingVisible(entry,values){
     return !entry?.visibleWhen||values[entry.visibleWhen.key]===entry.visibleWhen.equals;
   }
+  // Opt-in title policy: stored manual title (even empty) > selected label > live > default.
+  function validateNativeTitlePolicy(schema,policy){
+    if(policy===undefined)return;
+    const check=ok=>{if(!ok)throw Error('DeckForge SDK: invalid title policy');};
+    check(nativeObject(policy)&&Object.keys(policy).every(k=>['selectionLabel','defaultTitle'].includes(k))&&Object.keys(policy).length>0);
+    check(policy.defaultTitle===undefined||nativeText(policy.defaultTitle));
+    check(policy.selectionLabel===undefined||(nativeKey(policy.selectionLabel)&&schema?.some(f=>f.key===policy.selectionLabel&&f.type==='dynamicSelect')));
+  }
+  function nativeTitle(item,policy,live){
+    const settings=item?.settings||{},stored=item?.title;
+    if(settings.nativeTitleExplicit===true||(typeof stored==='string'&&stored!==''))return typeof stored==='string'?stored.slice(0,256):'';
+    const selection=settings.nativeTitleSelection,key=policy?.selectionLabel;
+    if(key&&selection?.key===key&&selection.value===settings.pluginSettings?.[key]&&nativeLabel(selection.label))return selection.label;
+    if(typeof live==='string')return live.slice(0,256);
+    return policy?.defaultTitle??'';
+  }
+  function nativeTitleSelection(policy,values,label,previous){
+    const key=policy?.selectionLabel,value=key?values?.[key]:undefined;
+    if(!key||!nativeText(value)||!value)return null;
+    if(nativeLabel(label))return {key,value,label};
+    return previous?.key===key&&previous.value===value&&nativeLabel(previous.label)?{key,value,label:previous.label}:null;
+  }
   // Only inert, validated display data leaves the plugin service for the editor.
   function nativeDynamicOptions(field,snapshot){
     const list=snapshot?.[field.source],out=[],seen=new Set();
@@ -1878,5 +1900,5 @@
       url:action.settings?.url||'',mode:action.settings?.open||'default',browserPath:action.settings?.browserPath||''};
     return {kind:'unsupported',message:'이 동작의 실행 기능은 아직 구현되지 않았습니다.'};
   }
-  return {validateNativeSettingsSchema,validateNativeSettingsUI,nativeSettingVisible,nativeSettingValue,nativeDynamicOptions,moveNativeSelection,isNativeHaSensor,nativeEffectiveSettings,nativeVisualOwner,nativeVisualDelta,pruneNativeVisuals,createNativeRenderGate,ACTION_IDS,D200X_ACTION_IDS,PLUGIN_ACTION_IDS,PRESS_ACTION_TYPES,DEFAULTS,TITLE,INDICATOR_NUMBER_STYLE,INDICATOR_NAV_LABELS,indicatorConfig,indicatorCommon,sharedIndicatorConfig,updateIndicatorCommon,manageIndicators,indicatorNumberDisplayStyle,planIndicatorNavigation,fixedIndicatorNavigation,planFixedIndicatorNavigation,indicatorPinState,setIndicatorPinned,SIDE_NAV_LABELS,SIDE_HOLD_MS,sideConfig,makeSideAction,sideActionConfig,sideFolderTargets,planSideNavigation,applySideNavigation,createPageVisitTracker,createSidePressTracker,createAction,cleanAction,validInstanceId,normalizeInstanceIds,cloneActionInstances,walkSdkActions,sdkMountDescriptors,createSdkMountTracker,validSdkMount,nativeSettingsCommitMatches,createBitmapCache,cleanCompositeEntry,timerSeconds,formatTimerTime,displaySwitchAction,compositeModel,planComposite,runComposite,createMultiPauseGate,multiRows,setMultiRows,blankPage,cleanWideDisplay,createWideOverlayTracker,cycleWideDisplay,isWideDisplayPress,folderContents,folderPageCount,changeFolderPage,addFolderPage,deleteFolderPage,editPageStructure,currentActions,visibleActions,togglePinned,activeFolder,enterFolder,exitFolder,migrateState,profileSnapshot,switchProfile,createProfile,renameProfile,exportSingleProfile,findProfileTemplate,saveProfileTemplate,renameProfileTemplate,deleteProfileTemplate,applyProfileTemplate,setProfileApp,setProfileFusionScope,matchFusionProfile,createSmartProfileTracker,matchForegroundProfile,deleteProfile,previewHardwareEvent,physicalSlot,hardwareGesture,resolveHardwareEvent,runtimeActionKey,folderWideBackEvent,resolveKeyPress,planHardwareEvent,deletePage,planAction,emptyBinding,cleanBinding,controlAction,activeControlAction,assignControlAction,automaticControl,ensureControls,controlBinding,changeControlScope};
+  return {validateNativeSettingsSchema,validateNativeSettingsUI,nativeSettingVisible,validateNativeTitlePolicy,nativeTitle,nativeTitleSelection,nativeSettingValue,nativeDynamicOptions,moveNativeSelection,isNativeHaSensor,nativeEffectiveSettings,nativeVisualOwner,nativeVisualDelta,pruneNativeVisuals,createNativeRenderGate,ACTION_IDS,D200X_ACTION_IDS,PLUGIN_ACTION_IDS,PRESS_ACTION_TYPES,DEFAULTS,TITLE,INDICATOR_NUMBER_STYLE,INDICATOR_NAV_LABELS,indicatorConfig,indicatorCommon,sharedIndicatorConfig,updateIndicatorCommon,manageIndicators,indicatorNumberDisplayStyle,planIndicatorNavigation,fixedIndicatorNavigation,planFixedIndicatorNavigation,indicatorPinState,setIndicatorPinned,SIDE_NAV_LABELS,SIDE_HOLD_MS,sideConfig,makeSideAction,sideActionConfig,sideFolderTargets,planSideNavigation,applySideNavigation,createPageVisitTracker,createSidePressTracker,createAction,cleanAction,validInstanceId,normalizeInstanceIds,cloneActionInstances,walkSdkActions,sdkMountDescriptors,createSdkMountTracker,validSdkMount,nativeSettingsCommitMatches,createBitmapCache,cleanCompositeEntry,timerSeconds,formatTimerTime,displaySwitchAction,compositeModel,planComposite,runComposite,createMultiPauseGate,multiRows,setMultiRows,blankPage,cleanWideDisplay,createWideOverlayTracker,cycleWideDisplay,isWideDisplayPress,folderContents,folderPageCount,changeFolderPage,addFolderPage,deleteFolderPage,editPageStructure,currentActions,visibleActions,togglePinned,activeFolder,enterFolder,exitFolder,migrateState,profileSnapshot,switchProfile,createProfile,renameProfile,exportSingleProfile,findProfileTemplate,saveProfileTemplate,renameProfileTemplate,deleteProfileTemplate,applyProfileTemplate,setProfileApp,setProfileFusionScope,matchFusionProfile,createSmartProfileTracker,matchForegroundProfile,deleteProfile,previewHardwareEvent,physicalSlot,hardwareGesture,resolveHardwareEvent,runtimeActionKey,folderWideBackEvent,resolveKeyPress,planHardwareEvent,deletePage,planAction,emptyBinding,cleanBinding,controlAction,activeControlAction,assignControlAction,automaticControl,ensureControls,controlBinding,changeControlScope};
 });
