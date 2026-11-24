@@ -2704,7 +2704,7 @@ function bindSharedColorPalette(palette,prefix,getColor,applyColor,close){
   node('close').addEventListener('click',()=>{dismissContext();close();});
   render();return render;
 }
-// Anchor each state popup to its own artwork horizontally and card top vertically.
+// Anchor each state popup to the outer border of its own complete icon card.
 function appearancePalettePosition(anchor,bounds,width,height){
   const margin=8,gap=8;
   const maxX=Math.max(margin,width-bounds.width-margin),maxY=Math.max(margin,height-bounds.height-margin);
@@ -2721,7 +2721,8 @@ function appearanceIconAnchor(trigger,root){
   const bounds=preview?.getBoundingClientRect();
   if(!bounds||bounds.width<=0||bounds.height<=0)return null;
   const cardBounds=card?.getBoundingClientRect();
-  return {left:bounds.left,right:bounds.right,top:cardBounds&&cardBounds.height>0?cardBounds.top:bounds.top};
+  const anchor=cardBounds&&cardBounds.width>0&&cardBounds.height>0?cardBounds:bounds;
+  return {left:anchor.left,right:anchor.right,top:anchor.top};
 }
 function positionIconAppearancePopover(popup,trigger){
   const root=$('inspector'),anchor=appearanceIconAnchor(trigger,root);

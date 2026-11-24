@@ -460,7 +460,7 @@ test('page indicator uses standard paired cards with independent title and numbe
   assert.match(css,/\.indicator-inspector \.state-title-layout \.indicator-icon-cards \.sdk-state-preview,.*\{grid-row:4\}/);
 });
 
-test('background palettes and title properties use icon right edge and card top with viewport fallback',()=>{
+test('background palettes and title properties use outer card right edge and top with viewport fallback',()=>{
   assert.match(css,/\.title-style-popover #title-palette\{position:fixed;[^}]*max-height:calc\(100dvh - 16px\)/);
   assert.match(editor,/function openPalette\(field,trigger\)/);
   assert.match(editor,/positionAppearancePalette\(palette,trigger\)/);
@@ -469,10 +469,10 @@ test('background palettes and title properties use icon right edge and card top 
   assert.match(editor,/positionIconAppearancePopover\(menu,trigger\)/);
   const start=editor.indexOf('function appearancePalettePosition('),end=editor.indexOf('function appearanceIconAnchor(',start);
   const position=new Function(editor.slice(start,end)+';return appearancePalettePosition;')();
-  const up={left:32,right:164,top:106},down={left:276,right:408,top:106};
+  const up={left:24,right:256,top:106},down={left:268,right:499,top:106};
   for(const bounds of [{width:251,height:240},{width:277,height:240}]){
-    assert.deepEqual(position(up,bounds,894,600),{x:172,y:106});
-    assert.deepEqual(position(down,bounds,894,600),{x:416,y:106});
+    assert.deepEqual(position(up,bounds,894,600),{x:264,y:106});
+    assert.deepEqual(position(down,bounds,894,600),{x:507,y:106});
     assert.equal(position({left:640,right:772,top:106},bounds,894,600).x,640-8-bounds.width);
     const tight=position(down,bounds,500,300);
     assert.ok(tight.x>=8&&tight.x+bounds.width<=492&&tight.y+bounds.height<=292);
