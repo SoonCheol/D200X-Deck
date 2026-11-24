@@ -281,6 +281,7 @@
     const visual=item?{type:item.type,title:item.title||'',titleStyle:visualStyle(item.titleStyle),
       icon:item.icon?{kind:item.icon.kind,value:item.icon.value,glyph:item.icon.glyph}:undefined,
       keyBackground:background?{enabled:background.enabled,color:background.color}:undefined,
+      sensorDisplay:item.sensorDisplay===true,sensorOverlay:item.sensorDisplay===true&&typeof item.sensorOverlay==='string'?item.sensorOverlay:null,
       indicatorNumber:item.indicatorNumber,indicatorNumberStyle:visualStyle(item.indicatorNumberStyle),
       fusionOffline:item.fusionOffline===true,keyPressAlternate:item.keyPressAlternate===true,
       wideNotice:item.wideNotice===true,wideOverlay:item.wideOverlay?JSON.parse(JSON.stringify(item.wideOverlay)):undefined}:null;
@@ -329,6 +330,8 @@
           ctx.drawImage(image, (width - w)/2, (height - h)/2, w, h);
           indicatorArtwork=true;
         }
+      } else if(item.sensorDisplay&&!item.icon?.glyph){
+        // A sensor with no custom image uses only the selected background.
       } else if (item.type==='indicator'&&item.indicatorNumber!==undefined&&!item.icon?.glyph) {
         // Number is drawn independently of the optional background artwork.
       } else if (!item.icon?.glyph && panelArtwork) {
@@ -370,6 +373,12 @@
         indicatorArtwork=!!item.icon?.glyph;
       }
       if(item.type==='indicator'&&item.indicatorNumber!==undefined)drawText(ctx,item.indicatorNumber,width,height,DeckCore.indicatorNumberDisplayStyle(item.indicatorNumberStyle,baseColor,indicatorArtwork));
+      // Bottom to top: button color, custom artwork, live HA readings,
+      // then the existing title. Keep the live layer in the cache signature.
+      if(item.sensorDisplay&&item.sensorOverlay&&!wide){
+        const image=await imageLoaded(item.sensorOverlay);
+        if(image)ctx.drawImage(image,0,0,width,height);
+      }
       drawText(ctx, item.title || '', width, height, item.titleStyle);
       // Offline indicator is an overlay; never alter the original cached PNG.
       if(item.fusionOffline){

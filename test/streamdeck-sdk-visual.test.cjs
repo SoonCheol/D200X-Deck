@@ -10,6 +10,7 @@ const beginning=source.indexOf('function displayItem(item,index,preserveGesture=
 const ending=source.indexOf('const previewPressKeys=new Set();',beginning);
 if(beginning<0||ending<0)throw Error('SDK renderer not found');
 const fn=source.slice(beginning,ending);
+const core=require('../app/streamdeck-editor/deck-core.js');
 function render(item,visual,slot=0,clone=false){
   const actual=clone?JSON.parse(JSON.stringify(item)):item;
   const original=item;
@@ -18,7 +19,7 @@ function render(item,visual,slot=0,clone=false){
     item:actual,index:slot,
     state:{profileId:'profile',page:0,folderPath:[],selected:2},
     sdkVisuals:map,sdkActionDefaults:new Map(),sdkContext:(i,g)=>'profile:0::'+i+':'+g,
-    DeckCore:{visibleActions:()=>[original]},timerDeadlines:new Map()
+    DeckCore:{...core,visibleActions:()=>[original]},timerDeadlines:new Map()
   });
 }
 test('SDK runtime image renders for both reference and cloned D200X slot',()=>{
@@ -65,7 +66,7 @@ test('Fusion live command artwork has no offline overlay even if plugin connecti
   const result=vm.runInNewContext(fn+';displayItem(item,0)',{
     item,state:{profileId:'profile',page:0,folderPath:[]},
     sdkVisuals:new Map([[ctx,{image}]]),
-    sdkContext:()=>ctx,DeckCore:{visibleActions:()=>[item]},
+    sdkContext:()=>ctx,DeckCore:{...core,visibleActions:()=>[item]},
     timerDeadlines:new Map(),fusionCommandId:()=> 'ExtrudeCommand',
     fusionConnected:new Set(),FUSION_PLUGIN:'com.autodesk.fusionstreamdeck',
     fusionOfflineContexts:new Set(),fusionLiveContexts:new Set([ctx]),
@@ -83,7 +84,7 @@ test('Fusion disabled command image retains cached artwork and adds offline over
   const result=vm.runInNewContext(fn+';displayItem(item,0)',{
     item,state:{profileId:'profile',page:0,folderPath:[]},
     sdkVisuals:new Map([[ctx,{image:'data:image/svg+xml;base64,b2ZmbGluZQ=='}]]),
-    sdkContext:()=>ctx,DeckCore:{visibleActions:()=>[item]},
+    sdkContext:()=>ctx,DeckCore:{...core,visibleActions:()=>[item]},
     timerDeadlines:new Map(),fusionCommandId:()=> 'ExtrudeCommand',
     fusionConnected:new Set(['com.autodesk.fusionstreamdeck']),FUSION_PLUGIN:'com.autodesk.fusionstreamdeck',
     fusionOfflineContexts:new Set([ctx]),fusionLiveContexts:new Set(),
@@ -101,7 +102,7 @@ test('Fusion healthy add-in removes X even if a stale disabled image was receive
   const ctx='profile:0::0:down',image='data:image/png;base64,bGl2ZQ==';
   const result=vm.runInNewContext(fn+';displayItem(item,0)',{
     item,state:{profileId:'profile',page:0,folderPath:[]},
-    sdkVisuals:new Map([[ctx,{image}]]),sdkContext:()=>ctx,DeckCore:{visibleActions:()=>[item]},
+    sdkVisuals:new Map([[ctx,{image}]]),sdkContext:()=>ctx,DeckCore:{...core,visibleActions:()=>[item]},
     timerDeadlines:new Map(),fusionCommandId:()=> 'ExtrudeCommand',
     fusionConnected:new Set(['com.autodesk.fusionstreamdeck']),FUSION_PLUGIN:'com.autodesk.fusionstreamdeck',
     fusionOfflineContexts:new Set([ctx]),fusionLiveContexts:new Set(),
@@ -116,7 +117,7 @@ test('Fusion unavailable add-in adds X even if Stream Deck plugin stays connecte
   const ctx='profile:0::0:down',image='data:image/png;base64,Y2FjaGU=';
   const result=vm.runInNewContext(fn+';displayItem(item,0)',{
     item,state:{profileId:'profile',page:0,folderPath:[]},
-    sdkVisuals:new Map([[ctx,{image}]]),sdkContext:()=>ctx,DeckCore:{visibleActions:()=>[item]},
+    sdkVisuals:new Map([[ctx,{image}]]),sdkContext:()=>ctx,DeckCore:{...core,visibleActions:()=>[item]},
     timerDeadlines:new Map(),fusionCommandId:()=> 'ExtrudeCommand',
     fusionConnected:new Set(['com.autodesk.fusionstreamdeck']),FUSION_PLUGIN:'com.autodesk.fusionstreamdeck',
     fusionOfflineContexts:new Set(),fusionLiveContexts:new Set([ctx]),
@@ -186,7 +187,7 @@ test('read-only SDK manifest artwork appears when no runtime image exists',()=>{
  const result=vm.runInNewContext(fn+';displayItem(item,0)',{
    item,state:{profileId:'profile',page:0,folderPath:[]},
    sdkVisuals:new Map([[key,common]]),sdkActionDefaults:defaults,
-   sdkContext:()=>key,DeckCore:{visibleActions:()=>[item]},timerDeadlines:new Map()
+   sdkContext:()=>key,DeckCore:{...core,visibleActions:()=>[item]},timerDeadlines:new Map()
  });
  assert.equal(result.icon.value,'data:image/png;base64,T04=');
  assert.equal(common.image,undefined,'must not fabricate live setImage event');
@@ -386,4 +387,41 @@ test('icon library and maker use the selected card outer edge, reset on close an
  assert.match(source,/openAnchoredIconDialog\(\$\("icon-maker"\),trigger,300\)/);
  assert.match(source,/openIconLibrary\(item,'press:'\+key,event.currentTarget\)/);
  assert.match(source,/openIconMaker\(item,'press:'\+key,event.currentTarget\)/);
+});
+
+test('HA sensor live layer never replaces the user image or title, including cloned device actions',()=>{
+ const item={type:'sd-plugin',title:'내 제목',settings:{actionUUID:'com.deckforge.native.home-assistant.sensor'},
+  icon:{kind:'file',value:'custom',packId:'pack'}};
+ const before=JSON.stringify(item);
+ for(const clone of [false,true]){
+  const result=render(item,{image:'live-1',title:''},0,clone);
+  assert.equal(result.sensorDisplay,true);assert.equal(result.sensorOverlay,'live-1');
+  assert.equal(result.icon.value,'custom');assert.equal(result.title,'내 제목');
+  assert.equal(render(item,{image:'live-2'},0,clone).sensorOverlay,'live-2');
+ }
+ assert.equal(JSON.stringify(item),before);
+ const empty=render({...item,icon:undefined},{image:'live-3'});
+ assert.equal(empty.icon,undefined);assert.equal(empty.sensorOverlay,'live-3');
+});
+test('common key compositor draws HA readings over artwork and under title; cache tracks live readings',async()=>{
+ const code=fs.readFileSync(path.join(__dirname,'../app/streamdeck-editor/device-sync.js'),'utf8');
+ const start=code.indexOf('  const bitmapCache='),end=code.indexOf('  // Same compositor feeds',start);
+ assert.ok(start>=0&&end>start);
+ const ops=[];
+ const canvas={getContext:()=>({fillStyle:'',fillRect(){ops.push(['background',this.fillStyle]);},drawImage(image){ops.push(['image',image.id]);},fillText(value){ops.push(['glyph',value]);}}),toDataURL:()=> 'data:image/png;base64,ok'};
+ const context={DeckCore:core,window:{D200XPanelIcons:{keyArtwork:()=> 'generic'}},ACTIONS:new Map(),keyPressed:()=>false,
+  document:{createElement:()=>canvas,fonts:{}},imageLoaded:async id=>({id,width:144,height:144}),
+  drawText:(_ctx,title)=>ops.push(['title',title])};
+ const f=vm.runInNewContext(code.slice(start,end)+';({prepareDeckKeyImage,keyDescriptor,composeSlot})',context);
+ const item={type:'sd-plugin',sensorDisplay:true,sensorOverlay:'live-1',icon:{kind:'file',value:'custom'},title:'title',keyBackground:{enabled:true,color:'#ff0000'}};
+ const first=f.prepareDeckKeyImage(item,0),next=f.prepareDeckKeyImage({...item,sensorOverlay:'live-2'},0);
+ assert.notEqual(first.signature,next.signature);
+ await first.render();
+ assert.deepEqual(ops,[['background','#ff0000'],['image','custom'],['image','live-1'],['title','title']]);
+ ops.length=0;await next.render();
+ assert.deepEqual(ops,[['background','#ff0000'],['image','custom'],['image','live-2'],['title','title']]);
+ ops.length=0;await f.prepareDeckKeyImage({...item,icon:undefined},0).render();
+ assert.deepEqual(ops,[['background','#ff0000'],['image','live-1'],['title','title']]);
+ ops.length=0;await f.prepareDeckKeyImage({...item,sensorOverlay:null},0).render();
+ assert.deepEqual(ops,[['background','#ff0000'],['image','custom'],['title','title']]);
 });

@@ -68,7 +68,16 @@ test('inspector has four fixed and ordered regions and puts cards outside action
  assert.doesNotMatch(src,/fields\.prepend\(cards\)/);
 });
 test('momentary Fusion cannot also render OFF ON SDK cards',()=>{
- assert.match(src,/function bindSdkStateIcons\(root,item\)\{\s*if\(item\.type!=='timer'&&item\.type!=='hotkey-switch'&&\(item\.type!=='sd-plugin'\|\|isMomentaryIconAction\(item\)\)\)return;/);
+ const start=src.indexOf('function bindSdkStateIcons('),end=src.indexOf('function bindKeyPressIconControls(',start);
+ const Core=require('../app/streamdeck-editor/deck-core.js');
+ let queried=0;
+ const bind=vm.runInNewContext(src.slice(start,end)+';bindSdkStateIcons',{DeckCore:Core,isMomentaryIconAction:item=>item.settings?.pluginUUID==='com.autodesk.fusionstreamdeck'});
+ const root={querySelector:()=>{queried++;return null;}};
+ bind(root,{type:'sd-plugin',settings:{pluginUUID:'com.autodesk.fusionstreamdeck'}});
+ bind(root,{type:'sd-plugin',settings:{actionUUID:'com.deckforge.native.home-assistant.sensor'}});
+ assert.equal(queried,0,'neither Fusion nor single-state HA sensor uses OFF/ON cards');
+ bind(root,{type:'sd-plugin',settings:{actionUUID:'com.deckforge.native.home-assistant.control'}});
+ assert.equal(queried,1,'HA control retains OFF/ON cards');
  assert.match(src,/case "sd-plugin":return "";/);
  assert.match(src,/bindSdkStateIcons\(root,item\);\s*bindKeyPressIconControls\(root,item\);\s*appendInspectorSaveBar\(root\);/);
 });

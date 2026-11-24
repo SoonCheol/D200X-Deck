@@ -313,9 +313,13 @@ function displayItem(item,index,preserveGesture=false){
     // Resolve by physical slot, not object identity: the hardware renderer clones actions.
     const slot=Number.isInteger(index)?index:DeckCore.visibleActions(state).findIndex(x=>x===item);
     const visual=slot>=0?sdkVisuals.get(sdkContext(slot,'down')):null;
-    const singleSensor=DeckCore.isNativeHaSensor(item);
+    if(DeckCore.isNativeHaSensor(item)){
+      // Sensor artwork is a transient foreground layer, not a replacement
+      // for the user-selected image. Never persist it into the profile.
+      return {...item,sensorDisplay:true,sensorOverlay:visual?.image||null};
+    }
     const stateName=visual?.state===1?'on':'off';
-    const assigned=singleSensor?null:item.settings?.sdkStateIcons?.[stateName];
+    const assigned=item.settings?.sdkStateIcons?.[stateName];
     const stateIcon=assigned?.kind==='file'&&typeof assigned.value==='string'?assigned:null;
     if(item?.settings?.pluginUUID==='com.autodesk.fusionstreamdeck'&&
       item.settings?.actionUUID==='com.autodesk.fusionstreamdeck.runcommand'){
@@ -340,7 +344,7 @@ function displayItem(item,index,preserveGesture=false){
     const defaultImage=sdkActionDefaults.get(item.settings?.actionUUID)?.[stateName];
     const icon=stateIcon||item.icon||(visual?.image?{kind:'file',value:visual.image}:null)||
       (defaultImage?{kind:'file',value:defaultImage}:null);
-    if(icon||visual)return {...item,title:singleSensor?item.title:visual?.title??item.title,...(icon?{icon}:{})};
+    if(icon||visual)return {...item,title:visual?.title??item.title,...(icon?{icon}:{})};
   }
   if(!item||item.type!=="indicator")return item;
   const common=DeckCore.indicatorCommon(state,item);

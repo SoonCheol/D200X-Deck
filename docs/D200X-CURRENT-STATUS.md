@@ -3,7 +3,7 @@
 
 ## 개발 기준
 - 저장소 SoonCheol/D200X-Deck · 브랜치 codex/streamdeck-761-clean-editor · Draft PR #5 유지.
-- 로컬 E:\Codex\DeckForge. 최신 HEAD는 Git에서 확인. 소스 버전 **1.1.198** (HA 센서 단일 편집/순서).
+- 로컬 E:\Codex\DeckForge. 최신 HEAD는 Git에서 확인. 소스 버전 **1.1.199** (HA 센서 실시간 레이어).
 - 감사 기준 소스 `49ba39fe094ee808c5715f2348be0789f61d5e20`. CI #1221 성공(커넥터 확인); Windows #930 성공(사용자 인수인계, 이번 문서 작업에서 재검증하지 않음).
 
 ## 현재 상태
@@ -30,9 +30,11 @@
 
 - 1.1.196: 05A mount configRevision, 요청 identity/만료/값 대조, ABA 및 stale sync 보호, 응답 유실 시 해당 컨텍스트 정지·새 확정 revision/remount에서 재개. 집중 테스트 추가. 영구 receipt·settingsResult 미구현, 05B/C 잔여. CI/Windows 대기.
 
-- 1.1.197: 사용자 보고 HA만 단추 배경색 미적용. control/sensor drawKey의 고정 불투명 #121820 제거, 투명 RGBA 전경 생성. HA 패키지 0.1.4, 기존 동일 서버 업데이트 경로 필요(자동 덮어쓰기 없음). 이미지 알파 실제 Electron 검사 추가. 기존 미지정 기본 배경은 공통 합성기 #08090c 사용. 1.1.195 Windows 성공, 1.1.196 CI/입력 성공 및 Windows 진행 확인. 1.1.197 빌드/실기 대기.
+- 1.1.197: HA 0.1.4 투명 control/sensor 이미지, 동일 서버 업데이트 필요. Windows/CI 성공.
 
 - 1.1.198: HA 센서만 단일 이미지 속성창, 기존 상태별 데이터 보존 및 기본 표시 속성 이관. HA 제어 2카드 유지. 범용 dynamicMultiSelect 선택 순서 및 위/아래 버튼, 배열 순서에 따라 센서 동시/순차 표시. 집중 검사 추가. 1.1.197 Windows/CI 성공; 1.1.198 자동 빌드/GUI 대기.
+
+- 1.1.199: HA 센서 실시간 레이어 독립 합성(배경색→사용자 이미지→센서→제목), 실시간 PNG를 캐시 서명에 포함. HA 0.1.4 투명 이미지 필요. 1.1.198 Windows 실패: 이전 Fusion OFF/ON 가드 정적 검사, 실제 센서/Fusion/HA 제어 분기 검사로 교체 및 SDK visual fixture 보완. 합성 순서/갱신 집중 검사 추가. 자동 빌드/실기 대기.
 
 ## 다음 작업
 - **05 설정 저장 안정성:** 1.1.196 검사 후 05B 영구 receipt 및 05C 장애/재시작/선택 capability 검증. Model 2 유지. 04B 저장소 격리 해결은 별도 검증 대상으로 유지. OOM/DrawOps/자원 한도·실기 미검증 상태에서 Model 5 활성화 금지. 편집기 깜박임 개선/GUI 재확인은 최후순위이며 다음 단계의 선행조건 아님. 기능·보안 회귀는 예외적으로 즉시 해결. 성능/D200X 실기 검증 별도. 기존 실기 미리보기 정책 유지. 설정 revision/receipt 상세는 05에서 계속. 사용자 연속 개발 승인 유지.
