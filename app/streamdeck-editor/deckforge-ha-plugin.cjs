@@ -81,12 +81,11 @@ function controlKey(event,settings,state,memory,api){
   const active=ready&&entry.value==='on',name=(entry?.label||'기기 선택').slice(0,30);
   const value=ready?(entry.value==='on'?'켜짐':entry.value==='off'?'꺼짐':entry.value):id?(shared.status==='연결됨'?'사용 불가':shared.status||'연결 안 됨'):'설정 필요';
   const frame=JSON.stringify([name,value,active]);if(memory.frame===frame&&event.type!=='appear'&&event.type!=='settings')return;memory.frame=frame;
-  api.setTitle('');api.setState(active?1:0);
+  api.setTitle(name);api.setState(active?1:0);
   api.drawKey({width:144,height:144,background:'#121820',commands:[
     {type:'circle',x:72,y:44,radius:25,color:active?'#39AF80':'#657384'},
     {type:'line',x:72,y:26,toX:72,toY:43,width:4,color:'#FFFFFF'},
-    {type:'text',x:72,y:83,text:value.slice(0,24),size:24,bold:true,color:active?'#6EF3BC':'#FFFFFF'},
-    {type:'text',x:72,y:120,text:name,size:17,color:'#CFD7E2'}
+    {type:'text',x:72,y:83,text:value.slice(0,24),size:24,bold:true,color:active?'#6EF3BC':'#FFFFFF'}
   ]});
 }
 function sensorKey(event,settings,state,memory,api){
@@ -132,7 +131,7 @@ function createHomeAssistantManifest(server){
   u.protocol='wss:';u.pathname='/api/websocket';
   const script=f=>'return ('+f.toString()+')(event,settings,state,memory,api);';
   const select=(key,label,value,options)=>({key,label,type:'select',default:value,options:options.map(([value,label])=>({value,label}))});
-  return {apiVersion:2,id:ID,name:'DeckForge Home Assistant',version:'0.1.2',requiresDeckForge:'>=1.1.174',
+  return {apiVersion:2,id:ID,name:'DeckForge Home Assistant',version:'0.1.3',requiresDeckForge:'>=1.1.177',
     permissions:['display','background.run','network.websocket','timer.tick'],
     networkEndpoints:[{id:'ha',url:u.href,method:'WSS',auth:'home-assistant',reconnect:true,maxReceiveBytes:1048576}],
     service:{script:script(service),sharedStateBytes:262144},

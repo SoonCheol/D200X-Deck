@@ -1571,3 +1571,6 @@ dialog.deckforge-message-dialog::backdrop{background:#000a}
 .native-sdk-form .native-sdk-options{height:200px;min-height:200px;max-height:200px;overflow-y:auto;scrollbar-gutter:stable;padding:6px 8px;border:1px solid #555;border-radius:4px;background:#303030}
 .native-sdk-form .native-sdk-picker>.hint{min-height:17px;line-height:17px}
 .native-sdk-form .native-sdk-connection{min-height:38px}
+
+/* Shared title properties: viewport positioning escapes the inspector clip. */
+.title-style-popover,.state-title-inspector .state-title-control>.title-style-popover{position:fixed;left:8px;right:auto;top:8px;z-index:100;box-sizing:border-box;max-width:calc(100vw - 16px);max-height:calc(100dvh - 16px);overflow-y:auto;color-scheme:dark}

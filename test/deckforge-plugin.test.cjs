@@ -2186,3 +2186,14 @@ test('native discovery WSS allows explicit 1 MiB receive while keeping default a
  assert.throws(()=>validateNetworkEndpoints([{...ep,maxReceiveBytes:1048577}],['display','network.websocket']),/receive limit/);
  assert.throws(()=>validateSocketOperation({op:'socketSend',value:'x'.repeat(8193)},[ep]),/limit/);
 });
+
+test('HA control publishes editable title independently from its status image',()=>{
+ const {controlKey}=require('../app/streamdeck-editor/deckforge-ha-plugin.cjs');
+ let title,draw;
+ const api={getSharedState:()=>({status:'연결됨',entities:{'switch.fan':{label:'주방등',value:'on'}}}),
+  setTitle:value=>{title=value;},setState(){},drawKey:value=>{draw=value;}};
+ controlKey({type:'appear'},{entity:'switch.fan'},0,{},api);
+ assert.equal(title,'주방등');
+ assert.ok(draw.commands.some(x=>x.text==='켜짐'));
+ assert.ok(!draw.commands.some(x=>x.text==='주방등'));
+});

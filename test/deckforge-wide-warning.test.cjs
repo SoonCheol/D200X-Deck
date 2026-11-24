@@ -39,7 +39,7 @@ test('ordinary actions, previews and pre-existing releases are not intercepted',
 });
 test('warning temporarily replaces only outgoing slot 13; restores legacy slot and native modes',()=>{
   const first=sync.indexOf('  const warningPageStamp=');
-  const last=sync.indexOf('  async function synchronize()',first);
+  const last=sync.indexOf('  async function synchronize(',first);
   assert.ok(first>=0&&last>first);
   let active=false;const sent=[],scheduled=[];
   const state={profileId:'a',page:0,folderPath:[]};
@@ -107,7 +107,7 @@ test('editor reveal uses only its exact native handle and owner PID, verifies he
 
 
 test('warning cache does not restore an expired or replaced native wide overlay',()=>{
- const first=sync.indexOf('  const warningPageStamp='),last=sync.indexOf('  async function synchronize()',first);
+ const first=sync.indexOf('  const warningPageStamp='),last=sync.indexOf('  async function synchronize(',first);
  let stamp=1,active=false;const scheduled=[],sent=[];
  const context={state:{profileId:'a',page:0,folderPath:[]},DeckCore:{activeFolder:()=>null},
   window:{D200XUnsavedWarning:()=>active,D200XWideOverlayStamp:()=>stamp},

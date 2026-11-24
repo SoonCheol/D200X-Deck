@@ -361,13 +361,30 @@ function textActionDisplayTitle(item,title){
   // Bound the preview work for large pasted strings, preserving Unicode characters.
   return Array.from(body.slice(0,512)).slice(0,256).join('');
 }
+function isNativeHaControl(item){return item?.type==='sd-plugin'&&item.settings?.actionUUID==='com.deckforge.native.home-assistant.control';}
+function autoHaControlTitle(item,label){
+  if(!isNativeHaControl(item)||typeof label!=='string'||!label.trim())return;
+  const name=label.trim().slice(0,256),previous=item.settings.haAutoTitle;
+  const canReplace=value=>previous===undefined?!value:value===previous;
+  if(canReplace(item.title))item.title=name;
+  if(item.settings.stateTitles)for(const key of ['first','second']){
+    const entry=item.settings.stateTitles[key];
+    if(entry&&canReplace(entry.title))entry.title=name;
+  }
+  item.settings.haAutoTitle=name;
+}
 function defaultStateTitlePair(item){
   if(item?.type==='hotkey-switch')return {first:{enabled:true,title:item.title||'',style:{...DEFAULT_TITLE_STYLE,...item.titleStyle}},second:{enabled:true,title:item.title||'',style:{...DEFAULT_TITLE_STYLE,...item.titleStyle}}};
   if(item?.type==='timer')return {first:{enabled:true,title:'',style:{...DEFAULT_TITLE_STYLE,...item.titleStyle}},second:{enabled:true,title:DeckCore.formatTimerTime(DeckCore.timerSeconds(item.settings?.seconds),item.settings?.seconds),style:{...DEFAULT_TITLE_STYLE,...item.titleStyle}}};
   if(item?.type==='multi')return {first:{enabled:item.titleStyle?.visible!==false,title:item.title||'',style:{...DEFAULT_TITLE_STYLE,...item.titleStyle}},second:{enabled:item.titleStyle?.visible!==false,title:'',style:{...DEFAULT_TITLE_STYLE,...item.titleStyle}}};
+  let title=item.title||'';
+  if(!title&&isNativeHaControl(item)&&typeof sdkVisuals!=='undefined'&&typeof state!=='undefined'){
+    const slot=DeckCore.visibleActions(state).indexOf(item);
+    if(slot>=0)title=sdkVisuals.get(sdkContext(slot,'down'))?.title||'';
+  }
   return {
-    first:{enabled:item.titleStyle?.visible!==false,title:item.title||'',style:{...DEFAULT_TITLE_STYLE,...item.titleStyle}},
-    second:{enabled:false,title:item.title||'',style:{...DEFAULT_TITLE_STYLE,...item.titleStyle}}
+    first:{enabled:item.titleStyle?.visible!==false,title,style:{...DEFAULT_TITLE_STYLE,...item.titleStyle}},
+    second:{enabled:false,title,style:{...DEFAULT_TITLE_STYLE,...item.titleStyle}}
   };
 }
 function ensureStateTitlePair(item){
@@ -2685,6 +2702,28 @@ function bindKeyBackgroundControl(preview,item,key){
   window.addEventListener('resize',close,{signal:inspectorListener.signal});
 }
 
+// Prefer the action panel beside the complete icon preview region, not an
+// overlay on the icon card. If the window is narrow, prefer a free side or
+// the canvas above the inspector before allowing any overlap.
+function titlePopoverPosition(region,trigger,bounds,width,height){
+  const margin=8,gap=8;
+  const maxX=Math.max(margin,width-bounds.width-margin),maxY=Math.max(margin,height-bounds.height-margin);
+  const clamp=(v,max)=>Math.max(margin,Math.min(v,max));
+  const right=region.right+gap,left=region.left-gap-bounds.width;
+  const y=clamp(trigger.top,maxY);
+  if(right<=maxX)return {x:right,y};
+  if(left>=margin)return {x:left,y};
+  const above=region.top-gap-bounds.height,below=region.bottom+gap;
+  if(above>=margin)return {x:clamp(trigger.right-bounds.width,maxX),y:above};
+  if(below<=maxY)return {x:clamp(trigger.right-bounds.width,maxX),y:below};
+  return {x:maxX,y};
+}
+function positionTitleStylePopover(menu,trigger){
+  const root=$('inspector');
+  const region=root.querySelector('.state-title-layout')||root;
+  const {x,y}=titlePopoverPosition(region.getBoundingClientRect(),trigger.getBoundingClientRect(),menu.getBoundingClientRect(),window.innerWidth,window.innerHeight);
+  menu.style.left=x+'px';menu.style.top=y+'px';
+}
 function bindTitleStyle(item){
   let indicatorField='title';
   let style={...DEFAULT_TITLE_STYLE,...item.titleStyle};
@@ -2700,6 +2739,7 @@ function bindTitleStyle(item){
   toggle.addEventListener("click",()=>{
     if(item.type==='indicator'){root._openIndicatorStyle(toggle,'title');return;}
     else menu.hidden=!menu.hidden;
+    if(!menu.hidden)positionTitleStylePopover(menu,toggle);
     toggle.setAttribute("aria-expanded",String(!menu.hidden));
   });
   const save=(field,value)=>{style[field]=value;commitStyle();};
@@ -2879,6 +2919,7 @@ function bindTitleStyle(item){
     const already=indicatorField===field&&!menu.hidden&&menu.parentElement===trigger.parentElement;
     indicatorField=field;style=getIndicatorStyle(field);syncIndicatorStyle();
     (field==='title'?titleHost:trigger.parentElement).append(menu);menu.hidden=already;
+    if(!menu.hidden)positionTitleStylePopover(menu,trigger);
     root.querySelectorAll('.state-title-style').forEach(button=>button.setAttribute('aria-expanded',String(button===trigger&&!menu.hidden)));
   };
   root._openIndicatorNumberStyle=trigger=>root._openIndicatorStyle(trigger,'number');
@@ -2905,10 +2946,15 @@ function bindTitleStyle(item){
     syncTitleBackgroundFields();
     const host=trigger.closest('.state-title-control');
     if(host)host.append(menu);
+    positionTitleStylePopover(menu,trigger);
     root.querySelectorAll('.state-title-style').forEach(b=>b.setAttribute('aria-expanded',String(b===trigger)));
     trigger.setAttribute('aria-expanded','true');
     if(palette)palette.hidden=true;
   };
+  const closeTitlePopover=()=>{menu.hidden=true;palette.hidden=true;toggle.setAttribute('aria-expanded','false');
+    root.querySelectorAll('.state-title-style').forEach(button=>button.setAttribute('aria-expanded','false'));};
+  root.addEventListener('scroll',closeTitlePopover,{signal:inspectorListener.signal});
+  window.addEventListener('resize',closeTitlePopover,{signal:inspectorListener.signal});
   document.addEventListener("pointerdown",event=>{
     if(!menu.isConnected)return;
     if(!menu.contains(event.target)&&!toggle.contains(event.target)&&
@@ -3354,6 +3400,10 @@ async function refreshStateTitleCards(item){
     const titleVisual=item.type==='indicator'?indicatorPressVisual(visual,second):item.type==='timer'?resolveTimerVisual(visual,second,DeckCore.timerSeconds(item.settings?.seconds),artwork):item.type==='multi'?resolveMultiVisual(visual,second,artwork,progress):resolveStateTitle(visual,second,artwork);
     if(item.type==='multi'&&second){const input=card.querySelector('.state-title-input');if(input)input.value=multiProgressTitle(item,progress);}
     if(item.type==='indicator'&&second){const downTitle=card.querySelector('.indicator-down-title');if(downTitle&&document.activeElement!==downTitle)downTitle.value=item.settings?.indicatorDownTitle??item.title??'';}
+    if(isNativeHaControl(item)&&!item.settings.stateTitles){
+      const input=card.querySelector('.state-title-input');
+      if(input&&document.activeElement!==input)input.value=item.title||visual.title||'';
+    }
     // State previews are snapshots, not a physical key-down effect.
     const img=card.querySelector('.sdk-state-preview');
     if(!img)continue;
@@ -3707,7 +3757,7 @@ async function openNativeSettings(item,action,plugin){
       const clear=document.createElement('button');clear.type='button';clear.className='deckforge-message-button';clear.textContent='선택 해제';clear.addEventListener('click',()=>{selected=[];render();});
       pane.append(search,summary,list,clear);row.append(label,pane);content.append(row);
       dynamicFields.push({field,apply:rows=>{const next=Array.isArray(rows)?rows:[];if(JSON.stringify(options)===JSON.stringify(next))return;options=next;render();}});
-      inputs.push({field,read:()=>multi?[...selected]:selected[0]||''});render();continue;
+      inputs.push({field,read:()=>multi?[...selected]:selected[0]||'',selectedLabel:()=>options.find(o=>o.value===selected[0])?.label||''});render();continue;
     }
     if(field.type==='select'){
       input=document.createElement('select');
@@ -3781,7 +3831,9 @@ async function openNativeSettings(item,action,plugin){
     window.d200xActionStatus?.('다른 설정 변경이 발생했습니다. 속성창을 다시 열어 주세요.');return;
   }
   item.settings.pluginSettings=result;
-  persistInspectorChange();renderGrid();
+  if(isNativeHaControl(item)&&!['0.1.0','0.1.1','0.1.2'].includes(plugin.version))
+    autoHaControlTitle(item,inputs.find(x=>x.field.key==='entity')?.selectedLabel?.());
+  persistInspectorChange();renderGrid();renderInspector();
   window.d200xActionStatus?.('플러그인 설정 변경 · 아래 저장 버튼을 누르면 기기에 반영됩니다.');
 }
 function bindExtendedActionFields(root,item){

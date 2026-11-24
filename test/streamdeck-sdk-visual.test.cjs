@@ -224,3 +224,24 @@ test('native device refresh reuses cached PNGs and falls back on a changed page'
  await vm.runInNewContext(code.slice(begin,end)+';synchronize(true)',ctx);
  assert.deepEqual(rendered,Array.from({length:14},(_,i)=>i));
 });
+
+test('HA device auto title preserves custom independent state labels',()=>{
+ const start=source.indexOf('function isNativeHaControl('),end=source.indexOf('function defaultStateTitlePair(',start);
+ const item={type:'sd-plugin',title:'',settings:{actionUUID:'com.deckforge.native.home-assistant.control',stateTitles:{first:{title:''},second:{title:'사용자 제목'}}}};
+ const ctx={item};
+ vm.runInNewContext(source.slice(start,end)+';autoHaControlTitle(item,"주방등");',ctx);
+ assert.equal(item.title,'주방등');assert.equal(item.settings.stateTitles.first.title,'주방등');assert.equal(item.settings.stateTitles.second.title,'사용자 제목');
+ vm.runInNewContext(source.slice(start,end)+';autoHaControlTitle(item,"거실등");',ctx);
+ assert.equal(item.title,'거실등');assert.equal(item.settings.stateTitles.first.title,'거실등');assert.equal(item.settings.stateTitles.second.title,'사용자 제목');
+});
+test('title properties prefer the right side of the complete icon region and stay in bounds',()=>{
+ const start=source.indexOf('function titlePopoverPosition('),end=source.indexOf('function positionTitleStylePopover(',start);
+ const position=vm.runInNewContext(source.slice(start,end)+';titlePopoverPosition');
+ const region={left:60,right:620,top:250,bottom:580},trigger={right:250,top:300};
+ const right=position(region,trigger,{width:277,height:300},1000,700);
+ assert.ok(right.x>=region.right+8);assert.ok(right.x+277<=992);
+ const left=position({...region,left:380,right:950},trigger,{width:277,height:300},1000,700);
+ assert.ok(left.x+277<=372);assert.ok(left.x>=8);
+ const above=position({left:20,right:780,top:390,bottom:700},trigger,{width:277,height:300},800,750);
+ assert.ok(above.y+300<=382);assert.ok(above.x>=8);
+});
