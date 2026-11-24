@@ -5,7 +5,7 @@ const fs=require('node:fs/promises');
 const path=require('node:path');
 const {createHash}=require('node:crypto');
 const acorn=require('acorn');
-const {analyzeHtml,imageReport,MAX:MAX_HTML}=require('./ulanzi-inspector-analysis.cjs');
+const {analyzeHtml,analyzeInspectorScript,imageReport,MAX:MAX_HTML}=require('./ulanzi-inspector-analysis.cjs');
 const {verifyPng}=require('./ulanzi-png-verifier.cjs');
 const {svgReport}=require('./ulanzi-media-analysis.cjs');
 const {validateNativeManifest}=require('./deckforge-native-sdk.cjs');
@@ -333,6 +333,14 @@ async function analyzeDirectory(folder,{fullFingerprint=false}={}){
       try{
         const bytes=await readEntry(file,MAX_HTML);
         Object.assign(record,{sha256:sha(bytes),...analyzeHtml(file,bytes.toString('utf8'),{inspector:true})});
+        for(const script of record.scripts.slice(0,16)){
+          if(!script.path)continue;
+          try{
+            const source=await readEntry(script.path,MAX_HTML);
+            script.sha256=sha(source);
+            script.behavior=analyzeInspectorScript(source.toString('utf8'));
+          }catch{script.status='unreadable-or-oversize';}
+        }
       }catch{record.status='unreadable-or-unsupported-inspector';}
       inspectors.push(record);
     }
@@ -395,6 +403,7 @@ async function analyzeDirectory(folder,{fullFingerprint=false}={}){
   const artworkPreservation=artRecords.length?(manifest.Actions.length===1?
     {stateImages:artRecords[0].stateImages,remainingPaths:[...remaining],verification}:
     {actions:artRecords,remainingPaths:[...remaining],verification}):null;
+  const inspectorSchemas=new Map(inspectors.filter(r=>r.staticSchema).map(r=>[r.action,r.settingsSchemaCandidate]));
   let report={calls:[],imports:[],findings:[],candidate:null},entryHash=null,htmlEntry=null;
   if(!/\.js$/i.test(manifest.CodePath)){
     report.findings.push({code:'html-entry',detail:'HTML entry requires dependency and behavior review',line:0});
@@ -407,6 +416,10 @@ async function analyzeDirectory(folder,{fullFingerprint=false}={}){
         script.status=!info?'missing':info.bytes>MAX_SOURCE?'oversize':'review';
         if(script.status==='review'){
           const source=await readEntry(script.path,MAX_SOURCE);script.sha256=sha(source);
+          if(htmlEntry.staticWrapper){
+            report=analyzeSource(manifest,source.toString('utf8'),{stateImages,stateImagesByAction,inspectorSchemas});
+            report.findings.push({code:'html-entry',detail:'single inert HTML script wrapper; source and lifecycle review required',line:0});
+          }
         }
       }
     }catch{report.findings.push({code:'html-unreadable',detail:'HTML entry or script inventory unavailable',line:0});}
@@ -414,7 +427,6 @@ async function analyzeDirectory(folder,{fullFingerprint=false}={}){
   else if(entryInfo.bytes>MAX_SOURCE)report.findings.push({code:'large-entry',detail:'bundled entry exceeds static parser limit; source required',line:0});
   else{
     const bytes=await readEntry(manifest.CodePath,MAX_SOURCE);entryHash=sha(bytes);
-    const inspectorSchemas=new Map(inspectors.filter(r=>r.staticSchema).map(r=>[r.action,r.settingsSchemaCandidate]));
     report=analyzeSource(manifest,bytes.toString('utf8'),{stateImages,stateImagesByAction,inspectorSchemas});
   }
   // Report licensing evidence, not a legal conclusion; never infer a license.

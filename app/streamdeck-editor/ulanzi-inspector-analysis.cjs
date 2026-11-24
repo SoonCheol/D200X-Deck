@@ -2,6 +2,7 @@
 // Inert HTML parsing. Field proposals are review artifacts, not executable
 // property inspectors. Never load scripts, styles, network URLs or form data.
 const parse5=require('parse5');
+const acorn=require('acorn');
 const path=require('node:path').posix;
 const {validateNativeSettingsSchema}=require('./deck-core.js');
 const {gifReport,svgReport}=require('./ulanzi-media-analysis.cjs');
@@ -42,7 +43,19 @@ function analyzeHtml(entry,html,{inspector=false}={}){
     if(Object.keys(a).some(k=>k.startsWith('on')))note('inline-handler');
     if(['iframe','object','embed','base'].includes(n.tagName))note('unsupported-element',n.tagName);
   }
-  if(!inspector)return {scripts,findings};
+  if(!inspector){
+    const tags=new Set(['html','head','body','title','script']);
+    const wrapper=scripts.length===1&&scripts[0].kind==='local'&&/\.js$/i.test(scripts[0].path)&&
+      findings.every(f=>f.code==='script-review')&&all.every(n=>{
+        const a=attrs(n);
+        if(n.tagName==='script')return Object.keys(a).every(k=>['src','type'].includes(k))&&
+          (a.type===undefined||a.type==='module'||a.type==='text/javascript')&&
+          !(n.childNodes||[]).some(x=>x.nodeName==='#text'&&x.value.trim());
+        if(n.tagName)return tags.has(n.tagName)&&Object.keys(a).length===0;
+        return n.nodeName!=='#text'||!n.value.trim()||n.parentNode?.tagName==='title';
+      });
+    return {scripts,findings,staticWrapper:wrapper};
+  }
   const forms=all.filter(n=>n.tagName==='form');
   const form=forms.find(n=>attrs(n).id==='property-inspector');
   if(!form){note('property-form-missing');return {scripts,findings,fields,settingsSchemaCandidate:[],requiresReview:true};}
@@ -120,6 +133,42 @@ function analyzeHtml(entry,html,{inspector=false}={}){
       (!['input','select','option'].includes(n.tagName)||formSet.has(n))));
   return {scripts,findings,fields,settingsSchemaCandidate:proposals,staticSchema,requiresReview:true};
 }
+// Inventory behavior of an inspector script without exporting literals,
+// executing code or assuming form serialization semantics.
+function analyzeInspectorScript(source){
+  const flags=new Set(),sdk=new Set();
+  if(typeof source!=='string'||Buffer.byteLength(source)>MAX)return {status:'oversize',requiresReview:true};
+  let ast;
+  try{ast=acorn.parse(source,{ecmaVersion:'latest',sourceType:'module'});}
+  catch{return {status:'syntax-review',requiresReview:true};}
+  const stack=[ast];let count=0;
+  const prop=n=>n?.type==='MemberExpression'&&!n.computed&&n.property?.type==='Identifier'?n.property.name:null;
+  const root=n=>n?.object?.type==='Identifier'?n.object.name:null;
+  while(stack.length){
+    const n=stack.pop();if(++count>100000)return {status:'node-limit',requiresReview:true};
+    if(n.type==='CallExpression'){
+      const name=prop(n.callee),owner=root(n.callee);
+      if(owner==='$UD'&&name&&/^[A-Za-z][A-Za-z0-9_]{0,47}$/.test(name))sdk.add(name);
+      if(owner==='Utils'&&name==='getFormValue')flags.add('form-serialization');
+      if(owner==='Utils'&&name==='setFormValue')flags.add('form-restoration');
+      if(owner==='document'&&name==='createElement'&&n.arguments[0]?.value==='option')flags.add('dynamic-options');
+      if(name==='addEventListener')flags.add('event-listeners');
+      if(name==='fetch'||n.callee?.name==='fetch'||n.callee?.name==='eval')flags.add('external-or-dynamic-execution');
+    }
+    if(n.type==='AssignmentExpression'){
+      const lhs=n.left;
+      if(prop(lhs)==='display'&&prop(lhs.object)==='style')flags.add('conditional-visibility');
+      if(prop(lhs)&&root(lhs)==='ACTION_SETTING')flags.add('setting-rewrite');
+      if(prop(lhs)==='innerHTML')flags.add('dynamic-markup');
+    }
+    if(n.type==='ImportDeclaration'||n.type==='ImportExpression')flags.add('dependencies');
+    for(const value of Object.values(n)){
+      if(Array.isArray(value)){for(const x of value)if(x?.type)stack.push(x);}
+      else if(value?.type)stack.push(value);
+    }
+  }
+  return {status:'static-inventory',sdkMethods:[...sdk].sort(),behaviors:[...flags].sort(),requiresReview:true};
+}
 function imageReport(bytes,relative){
   const ext=path.extname(relative).toLowerCase();
   if(ext==='.gif')return gifReport(bytes);
@@ -131,4 +180,4 @@ function imageReport(bytes,relative){
   const width=bytes.readUInt32BE(16),height=bytes.readUInt32BE(20);
   return {format:'png',width,height,status:width>0&&height>0&&width<=144&&height<=144?'header-candidate':'resize-or-invalid'};
 }
-module.exports={analyzeHtml,imageReport,localRef,MAX};
+module.exports={analyzeHtml,analyzeInspectorScript,imageReport,localRef,MAX};

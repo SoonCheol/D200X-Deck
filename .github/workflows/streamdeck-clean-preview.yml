@@ -220,13 +220,25 @@ jobs:
           )
           foreach ($font in $sources) {
             $file = Join-Path $destination $font.Name
-            Invoke-WebRequest -Uri $font.Url -OutFile $file -TimeoutSec 180 -ErrorAction Stop
+            # Retry transient upstream failures; never accept a partial or
+            # unverified binary. Pinning and size/blob checks remain below.
+            for ($attempt = 1; $attempt -le 4; $attempt++) {
+              try {
+                Invoke-WebRequest -Uri $font.Url -OutFile $file -TimeoutSec 180 -ErrorAction Stop
+                break
+              } catch {
+                Remove-Item $file -Force -ErrorAction SilentlyContinue
+                if ($attempt -eq 4) { throw }
+                Write-Warning "Font download attempt $attempt failed for $($font.Name); retrying"
+                Start-Sleep -Seconds (3 * $attempt)
+              }
+            }
             if ((Get-Item $file).Length -lt $font.Min) { throw "Incomplete font: $($font.Name)" }
             $blob = (& git hash-object -- $file).Trim()
             if ($LASTEXITCODE -ne 0 -or $blob -ne $font.Blob) {
               throw "Font blob verification failed for $($font.Name): $blob"
             }
-            Write-Host "Verified bundled font: $($font.Name) ($(Get-Item $file).Length bytes)"
+            Write-Host "Verified bundled font: $($font.Name) ($((Get-Item $file).Length) bytes)"
           }
           if (-not (Test-Path (Join-Path $destination 'Pretendard-LICENSE.txt')) -or
               -not (Test-Path (Join-Path $destination 'Noto-Symbols-OFL.txt'))) {

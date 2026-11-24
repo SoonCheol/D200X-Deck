@@ -2,6 +2,12 @@
 
 > **상태 기록 기준: 2026-11-24**. 실제 최신 HEAD는 Git에서 확인하며, 코드·자동 검사·Windows 빌드·사용자 Windows/D200X 실기 결과를 구분한다. 시작 시 `AGENTS.md`와 이 문서만 읽고 로드맵은 필요한 경우에만 참고한다.
 
+## 1.1.149 — Ulanzi HTML 진입점/공개 inspector 동작 분석 및 빌드 복원력 (2026-11-24)
+
+- 단일 inert HTML script wrapper의 JS 정적 후보 변환 및 원본/JS SHA 기록. 다중/inline/active/external markup은 계속 차단, HTML 후보 출시 검토 차단 유지.
+- 원본 inspector JS AST에서 SDK 이벤트, form 저장/복원, 동적 option, 조건부 표시, 값 재작성 등 동작만 식별. 원본 코드 실행/값 노출 없음. 고정 공식 API Request/Analog Clock inspector JS 회귀에 실제 동작 분류 검증 추가.
+- Windows #897 실패 원인은 소스 테스트가 아닌 외부 폰트 HTTP 503. 고정 URL/크기/blob 검증을 유지하며 다운로드 최대 4회 재시도. 신규 CI/Windows/실기 별도.
+
 ## 1.1.148 — Ulanzi 라디오 선택 그룹 및 설정 기반 상태 변환 (2026-11-24)
 
 - 단일 선택 radio 그룹을 명시 값·단일 checked default·중복/제약 검사 후 native select schema 후보로 변환. 엄격한 문자열 비교와 literal 상태 분기만 선언형 stateFromSetting으로 변환. 기본값 적용 의미가 달라지는 경우 차단. 원본 실행 없음, 속성창 출시 검토 차단 유지.

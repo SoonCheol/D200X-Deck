@@ -731,6 +731,13 @@ test('official pinned Ulanzi examples are analyzed without pretending unsupporte
    assert.ok(result.calls.some(c=>c.name==='onRun'&&c.support==='review'));
    assert.ok(result.calls.some(c=>c.name==='onParamFromApp'&&c.support==='candidate'));
    const inspector=analyzeHtml('property-inspector/action/inspector.html',await load(name,'inspector.html'),{inspector:true});
+   const {analyzeInspectorScript}=require('../app/streamdeck-editor/ulanzi-inspector-analysis.cjs');
+   const behavior=analyzeInspectorScript(await load(name,'inspector.js'));
+   assert.equal(behavior.status,'static-inventory');
+   assert.ok(behavior.sdkMethods.includes('sendParamFromPlugin'));
+   for(const flag of ['dynamic-options','form-serialization','form-restoration','setting-rewrite'])assert.ok(behavior.behaviors.includes(flag),name+' '+flag);
+   if(name==='api')assert.ok(behavior.behaviors.includes('conditional-visibility'));
+   assert.equal(behavior.requiresReview,true);
    assert.equal(inspector.requiresReview,true);
    assert.ok(inspector.scripts.some(s=>s.kind==='local'));
    if(name==='api'){
@@ -1320,4 +1327,24 @@ test('Ulanzi static radio inspector binds strict setting state mapping without r
   await fs.writeFile(path.join(dir,'pi.html'),form.replace(' checked','').replace('value="on"','value="on" checked'));
   assert.equal((await analyzeDirectory(dir)).candidate,null);
  }finally{await fs.rm(root,{recursive:true,force:true});}
+});
+
+test('single inert Ulanzi HTML entry can produce a trace candidate but active HTML remains manual',async()=>{
+ const {analyzeDirectory}=require('../app/streamdeck-editor/ulanzi-converter.cjs');
+ const {buildReviewRecord,validateReviewRecord}=require('../app/streamdeck-editor/ulanzi-release-review.cjs');
+ const temp=await fs.mkdtemp(path.join(os.tmpdir(),'deckforge-html-wrapper-')),dir=path.join(temp,'source.ulanziPlugin');await fs.mkdir(dir);
+ const id='com.ulanzi.ulanzistudio.Wrapper',manifest={Type:'JavaScript',UUID:id,Name:'Wrapper',Version:'1',CodePath:'app.html',Actions:[{UUID:id+'.a',Name:'A'}]};
+ const html='<script type="module" src="app.js"></script>';
+ try{
+   await fs.writeFile(path.join(dir,'manifest.json'),JSON.stringify(manifest));
+   await fs.writeFile(path.join(dir,'app.js'),"$UD.connect('"+id+"');$UD.onAdd(m=>$UD.setTitle(m.context,'Ready'));");
+   await fs.writeFile(path.join(dir,'app.html'),html);
+   const report=await analyzeDirectory(dir,{fullFingerprint:true});
+   assert.equal(report.htmlEntry.staticWrapper,true);assert.equal(report.verification.status,'pass');
+   const record=buildReviewRecord(report);for(const check of record.checks){check.status='passed';check.evidence='fixture';}
+   assert.throws(()=>validateReviewRecord(record,report),/manual conversion/);
+   for(const bad of [html+'<img src="remote.png">',html+'<script>run()</script>',html.replace('src=', 'async src='),html+'<script src="other.js"></script>']){
+     await fs.writeFile(path.join(dir,'app.html'),bad);assert.equal((await analyzeDirectory(dir)).candidate,null);
+   }
+ }finally{await fs.rm(temp,{recursive:true,force:true});}
 });
