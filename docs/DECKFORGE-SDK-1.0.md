@@ -70,3 +70,7 @@ API 2 manifest의 service={script,tickIntervalMs?} 및 별도 background.run 권
 5. 물리 확인 항목: 예제 설치→키/노브 입력→설정 저장/재실행, GIF 및 wide 표시, 페이지 전환/절전/재연결. 사용자 실기 없이는 물리 호환 확정 금지.
 
 검증 상태는 최신 D200X-CURRENT-STATUS.md에 기록. 위 기준 충족 전 정식 완료 선언 금지. 이후 새 기능은 실제 플러그인 개발 요구에 따라 별도 버전으로 추가.
+
+## 1.1.172 동적 설정 및 HA 첫 후보
+- service.sharedStateBytes: 기본 8192, 선택 262144. 기존 암호화 설정/메모리/송신 한도 유지. 동적 설정 dynamicSelect/dynamicMultiSelect(source, maxItems)는 service 공유 상태의 선택 목록을 검증해 편집기에 제공하며 기존 선택 보존, 검색 및 그룹 표시. 인증정보 교체 후 활성 서비스 재시작(명시 중지 보존).
+- HA 전용 설치는 사용자 지정 HTTPS/WSS 주소 승인 및 별도 암호화 토큰, 기존 HA 플러그인과 공존. 기기 레지스트리/압축 상태 구독, 스위치류 및 센서 최대 4개, 동시/수동/자동 전환. 대량 목록 상한 및 실기 검증 필요. 공식 HA WebSocket 및 공개 JS client protocol 참고, 원본 코드/아이콘 미포함.

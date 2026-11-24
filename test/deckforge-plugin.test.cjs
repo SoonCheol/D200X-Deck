@@ -2098,3 +2098,49 @@ test('native WSS opt-in large message reaches service but oversized frame closes
    assert.equal(sock.terminated,true);assert.deepEqual(received,[96*1024]);
  }finally{host.close();}
 });
+
+test('native dynamic settings validate bounded selections and sanitize published choices',()=>{
+ const core=require('../app/streamdeck-editor/deck-core.js');
+ const schema=[{key:'items',label:'센서',type:'dynamicMultiSelect',source:'sensors',maxItems:4,default:[]}];
+ core.validateNativeSettingsSchema(schema);
+ assert.deepEqual(core.nativeEffectiveSettings(schema,{items:['sensor.temp','sensor.humidity']}),{items:['sensor.temp','sensor.humidity']});
+ assert.throws(()=>core.nativeEffectiveSettings(schema,{items:['a','a']}),/invalid setting/);
+ assert.throws(()=>core.nativeEffectiveSettings(schema,{items:['a','b','c','d','e']}),/invalid setting/);
+ assert.deepEqual(core.nativeDynamicOptions(schema[0],{sensors:[{value:'a',label:'온도',group:'발코니',secret:'ignored'},{value:'a',label:'duplicate'},{value:'b',label:'\n'}]}),[{value:'a',label:'온도',group:'발코니'}]);
+});
+test('HA native manifest, compressed entity state, device grouping, control and sensor drawing',()=>{
+ const {createHomeAssistantManifest,service,sensorKey,controlKey}=require('../app/streamdeck-editor/deckforge-ha-plugin.cjs');
+ const manifest=createHomeAssistantManifest('https://example.com');
+ assert.equal(manifest.networkEndpoints[0].url,'wss://example.com/api/websocket');
+ assert.doesNotThrow(()=>validateNativeManifest(manifest));
+ assert.throws(()=>createHomeAssistantManifest('http://example.com'),/HTTPS/);
+ assert.throws(()=>createHomeAssistantManifest('https://user:password@example.com'),/HTTPS/);
+ let shared={},memory={},sent=[],drawn=[],commands=[];
+ const api={getSharedState:()=>structuredClone(shared),publishSharedState:s=>{shared=structuredClone(s);},connectSocket:id=>sent.push(id),sendSocket:v=>sent.push(v),
+   setTitle(){},setState(){},drawKey:v=>drawn.push(v),sendServiceMessage:v=>commands.push(v)};
+ const run=(type,response)=>service({type,response},{},0,memory,api);
+ const msg=m=>run('socketEvent',{event:'message',body:JSON.stringify(m)});
+ run('start');run('socketEvent',{event:'open'});
+ const device='a'.repeat(32);
+ msg({type:'result',id:1,success:true,result:[{id:device,name:'발코니'}]});
+ msg({type:'result',id:2,success:true,result:{entities:[{ei:'sensor.temp',di:device},{ei:'sensor.humidity',di:device}]}});
+ assert.equal(sent.at(-1).type,'subscribe_entities');
+ msg({type:'event',id:3,event:{a:{'sensor.temp':{s:'23.5',a:{friendly_name:'온도',unit_of_measurement:'°C'}},'sensor.humidity':{s:'48',a:{friendly_name:'습도',unit_of_measurement:'%'}},'switch.fan':{s:'off',a:{friendly_name:'환풍기'}}}}});
+ assert.equal(shared.status,'연결됨');assert.equal(shared.sensors.length,2);assert.ok(shared.sensors.every(o=>o.group==='발코니'));
+ msg({type:'event',id:3,event:{c:{'sensor.temp':{'+':{s:'24.0'}}}}});
+ assert.equal(shared.entities['sensor.temp'].value,'24.0');assert.equal(shared.entities['sensor.temp'].unit,'°C');
+ msg({type:'event',id:3,event:{c:{'sensor.temp':{'-':{a:['unit_of_measurement']}}}}});
+ assert.equal(shared.entities['sensor.temp'].unit,'');
+ const settings={entities:['sensor.temp','sensor.humidity'],mode:'all',labels:true,unit:true,decimals:1,fontSize:36,seconds:5,color:'#FFFFFF'};
+ sensorKey({type:'appear'},settings,0,{},api);
+ assert.ok(drawn.at(-1).commands.some(c=>c.text==='24.0'));assert.ok(drawn.at(-1).commands.some(c=>c.text==='48.0 %'));
+ const sensorMemory={};
+ sensorKey({type:'appear'},{...settings,mode:'press'},0,sensorMemory,api);sensorKey({type:'press'},{...settings,mode:'press'},0,sensorMemory,api);
+ assert.ok(drawn.at(-1).commands.some(c=>c.text==='48.0 %'));
+ controlKey({type:'press'},{entity:'switch.fan'},0,{},api);
+ assert.deepEqual(commands,[{entity:'switch.fan'}]);
+ run('serviceMessage',{message:commands[0]});assert.equal(sent.at(-1).service,'toggle');
+ const count=sent.length;run('serviceMessage',{message:{entity:'sensor.temp'}});assert.equal(sent.length,count);
+ run('socketEvent',{event:'close'});assert.equal(shared.status,'연결 끊김');
+ controlKey({type:'press'},{entity:'switch.fan'},0,{},api);assert.equal(commands.length,1);
+});

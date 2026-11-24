@@ -11,7 +11,7 @@ const {NativeSettingsVault,validateValue}=require('./deckforge-native-settings.c
 const {NativeVersionStore,assertAppRequirement}=require('./deckforge-native-versions.cjs');
 const {validateDependencies,resolveDependencies,assertDependencyChange}=require('./deckforge-native-dependencies.cjs');
 const {validateWideOverlay}=require('./deckforge-native-wide.cjs');
-const {validateNativeSettingsSchema,nativeEffectiveSettings}=require('./deck-core.js');
+const {validateNativeSettingsSchema,nativeEffectiveSettings,nativeDynamicOptions}=require('./deck-core.js');
 const {validateNetworkEndpoints,validateNetworkRequest,resolveNetworkEndpoint,validateSocketOperation,createSocket,requestEndpoint,networkFailure,normalizeNetworkResult,credentialBinding,validBearer,socketReceiveLimit}=require('./deckforge-native-network.cjs');
 const APP_VERSION=require('./package.json').version;
 const SUFFIX='.deckforge-native.json', LIMIT=1024*1024;
@@ -52,8 +52,9 @@ function validateNativeManifest(m){
   check((m.service!==undefined)===m.permissions.includes('background.run'),'background service requires explicit permission and declaration');
   if(m.service!==undefined){
     const service=m.service;
-    check(m.apiVersion===2&&exact(service,['script','tickIntervalMs'])&&typeof service.script==='string'&&service.script.length>0&&Buffer.byteLength(service.script)<=65536,'invalid background service');
+    check(m.apiVersion===2&&exact(service,['script','tickIntervalMs','sharedStateBytes'])&&typeof service.script==='string'&&service.script.length>0&&Buffer.byteLength(service.script)<=65536,'invalid background service');
     check(service.tickIntervalMs===undefined||(m.permissions.includes('timer.tick')&&Number.isInteger(service.tickIntervalMs)&&service.tickIntervalMs>=1000&&service.tickIntervalMs<=3600000),'invalid background tick');
+    check(service.sharedStateBytes===undefined||[8192,262144].includes(service.sharedStateBytes),'invalid shared state limit');
     try{const AsyncFunction=Object.getPrototypeOf(async function(){}).constructor;new AsyncFunction('event','settings','state','memory','api','"use strict";\n'+service.script);}catch{throw Error('DeckForge SDK: invalid background JavaScript syntax');}
   }
   validateNetworkEndpoints(m.networkEndpoints,m.permissions);
@@ -276,7 +277,7 @@ class NativePluginHost{
     for(let op of program){
       if(op?.op==='publishSharedState'){
         check(ctx.service&&ctx.permissions.includes('background.run')&&exact(op,['op','value'])&&!normal.some(o=>o.op==='publishSharedState'),'unauthorized or duplicate shared state publication');
-        validateValue(op.value);normal.push(op);continue;
+        validateValue(op.value,ctx.sharedStateBytes||8192);normal.push(op);continue;
       }
       if(ctx.service)check(['networkRequest','socketConnect','socketSend','socketClose'].includes(op?.op),'background service cannot operate physical controls or saved settings');
       if(op?.op==='animation'||op?.op==='stopAnimation'){
@@ -794,7 +795,7 @@ class NativePluginHost{
       if(ctx&&ctx.signature!==signature){this.retire(ctx);this.contexts.delete(id);ctx=null;}
       if(!ctx){
         ctx={context:id,service:true,pluginUUID:m.id,action:{id:m.id+'.service',script:m.service.script,tickIntervalMs:m.service.tickIntervalMs},
-          apiVersion:2,permissions:[...m.permissions],networkEndpoints:m.networkEndpoints||[],signature,settings:{},state:0,pressed:false,failed:false,
+          apiVersion:2,permissions:[...m.permissions],networkEndpoints:m.networkEndpoints||[],signature,settings:{},state:0,pressed:false,failed:false,sharedStateBytes:m.service.sharedStateBytes||8192,
           epoch:0,settingsRevision:0,pending:0,queue:Promise.resolve(),runner:null,memory:{},sharedState:{},recoveryAttempts:0,recoveryTimer:null};
         this.contexts.set(id,ctx);if(!this.suspended)this.initialize(ctx);
       }
@@ -937,13 +938,29 @@ class PluginRouter{
     await this.checkNativeCandidate(m);
     return this.native.replace(m,expectedRevision);
   });}
+  dynamicOptions(pluginId,actionId){return this.serial(async()=>{
+    const {native}=await this.catalog(),manifest=native.find(m=>m.id===pluginId);
+    const action=manifest?.actions.find(a=>a.id===actionId);
+    check(action,'native plugin action not installed');
+    const service=this.native.contexts.get(SERVICE_PREFIX+pluginId);
+    const snapshot=service&&!service.failed&&!this.native.suspended?service.sharedState:{};
+    return {status:this.native.serviceStatus(pluginId),fields:Object.fromEntries((action.settingsSchema||[])
+      .filter(f=>f.type==='dynamicSelect'||f.type==='dynamicMultiSelect')
+      .map(f=>[f.key,nativeDynamicOptions(f,snapshot)]))};
+  });}
   credentialInfo(pluginId){return this.serial(async()=>{
     const {native}=await this.catalog(),manifest=native.find(m=>m.id===pluginId);
     check(manifest,'native plugin not installed');return this.native.credentialInfo(manifest);
   });}
   writeCredential(pluginId,binding,revision,token){return this.serial(async()=>{
     const {native}=await this.catalog(),manifest=native.find(m=>m.id===pluginId);
-    check(manifest,'native plugin not installed');return this.native.writeCredential(manifest,binding,revision,token);
+    check(manifest,'native plugin not installed');
+    const result=await this.native.writeCredential(manifest,binding,revision,token);
+    // Credential replacement invalidates old sockets. Restart only an enabled
+    // service, preserving an explicit user stop and never replaying input.
+    if(manifest.service&&this.native.serviceStatus(pluginId).enabled&&!this.native.suspended&&resolveDependencies(native).ready.has(pluginId))
+      await this.native.manageService(native,pluginId,'restart');
+    return result;
   });}
   manageService(id,mode){return this.serial(async()=>{
     const {native}=await this.catalog();return this.native.manageService(native,id,mode);

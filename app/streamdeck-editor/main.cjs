@@ -94,6 +94,18 @@ ipcMain.handle('d200x:native-service-status',async(event,id)=>{assertEditor(even
 ipcMain.handle('d200x:native-service-control',async(event,id,mode)=>{
   assertEditor(event);return sdk().manageService(id,mode);
 });
+ipcMain.handle('d200x:native-dynamic-options',async(event,id,action)=>{assertEditor(event);return sdk().dynamicOptions(id,action);});
+ipcMain.handle('d200x:native-ha-install',async(event,url)=>{
+  assertEditor(event);
+  const manifest=require('./deckforge-ha-plugin.cjs').createHomeAssistantManifest(url);
+  const plan=await sdk().planNativeInstall(manifest);
+  if(plan.kind!=='install')throw Error('기존 HA 전용 플러그인은 패키지 업데이트를 사용하세요.');
+  const choice=await dialog.showMessageBox(window,{type:'question',title:'HA 전용 플러그인 설치',
+    message:'DeckForge Home Assistant 설치',detail:'연결 주소: '+manifest.networkEndpoints[0].url+'\n페이지 독립 서비스 및 상태 구독·선택한 기기 제어를 허용합니다.\n토큰은 설치 후 인증정보 관리에서 암호화 저장합니다.',
+    buttons:['취소','설치'],defaultId:0,cancelId:0,noLink:true});
+  if(choice.response!==1)return null;
+  return sdk().installNative(manifest);
+});
 ipcMain.handle('d200x:native-credential-info',async(event,id)=>{assertEditor(event);return sdk().credentialInfo(id);});
 ipcMain.handle('d200x:native-credential-write',async(event,id,binding,revision,token)=>{
   assertEditor(event);

@@ -1229,6 +1229,19 @@ async function installSdkPlugin(fromFolder=false){
     window.d200xActionStatus?.('DeckForge 플러그인 적용: '+plugin.name+' '+plugin.version);
   }catch(error){window.d200xActionStatus?.('플러그인 설치 실패: '+String(error?.message||error));}
 }
+async function installNativeHa(){
+  if(!window.deckBridge?.nativeHaInstall)return;
+  const content=document.createElement('div'),row=document.createElement('label'),input=document.createElement('input');
+  row.className='field';const label=document.createElement('span');label.textContent='HA 서버 주소';
+  input.type='url';input.placeholder='https://ha.example.com';input.maxLength=1024;row.append(label,input);content.append(row);
+  const hint=document.createElement('p');hint.className='hint';content.append(hint);
+  const accepted=await window.DeckForgeDialogs.show({title:'HA 전용 플러그인 추가',intro:'HTTPS 서버 주소를 입력하세요. 토큰은 다음 단계에서 별도 등록합니다.',content,ask:true,actionLabel:'계속',
+    onAccept:()=>{try{const u=new URL(input.value.trim());if(!['https:','wss:'].includes(u.protocol)||u.username||u.password||u.search||u.hash)throw Error();return true;}catch{hint.textContent='HTTPS 또는 WSS 주소를 확인하세요.';return false;}}});
+  if(!accepted)return;
+  try{const plugin=await window.deckBridge.nativeHaInstall(input.value.trim());if(!plugin)return;
+    await refreshSdkPlugins();scheduleSdkSync();window.d200xActionStatus?.('HA 전용 플러그인 설치 완료 · 버튼 속성의 인증정보 관리에서 토큰을 등록하세요.');
+  }catch(error){window.d200xActionStatus?.('HA 전용 설치 실패: '+String(error?.message||error));}
+}
 async function exportDeckForgePlugin(){
   if(!window.deckBridge?.deckforgeExportPlugin)
     return window.d200xActionStatus?.('Windows EXE에서만 패키징 가능합니다.');
@@ -1537,6 +1550,10 @@ function bindActionAppearance(){
   exportButton.className='plugin-add-button';exportButton.textContent='패키지 저장';
   exportButton.title='선택한 .sdPlugin 폴더를 단일 .deckforgePlugin 설치 파일로 저장합니다. 원본은 변경하지 않습니다.';
   exportButton.addEventListener('click',exportDeckForgePlugin);pluginToolbar.append(exportButton);
+  if(window.deckBridge?.nativeHaInstall){
+    const ha=document.createElement('button');ha.type='button';ha.className='plugin-add-button';ha.textContent='HA 전용 추가';
+    ha.addEventListener('click',installNativeHa);pluginToolbar.append(ha);
+  }
   host.after(pluginToolbar);
   updatePluginToolbar();
 }
@@ -3602,11 +3619,42 @@ async function openNativeSettings(item,action,plugin){
   if(!inspectorPickerCurrent(session,item))return;
   const original=clone(item.settings?.pluginSettings||{});
   const content=document.createElement('div');
-  const inputs=[];
+  const inputs=[],dynamicFields=[];
   for(const field of schema){
     const row=document.createElement('label');row.className='field';
     const label=document.createElement('span');label.textContent=field.label;
     let input;
+    if(field.type==='dynamicSelect'||field.type==='dynamicMultiSelect'){
+      const multi=field.type==='dynamicMultiSelect',stored=Object.hasOwn(original,field.key)?original[field.key]:field.default;
+      let selected=DeckCore.nativeSettingValue(field,stored)?(multi?[...stored]:stored?[stored]:[]):[],options=[];
+      const pane=document.createElement('div'),search=document.createElement('input'),list=document.createElement('div'),summary=document.createElement('div');
+      search.type='search';search.placeholder='이름·기기·ID 검색';search.setAttribute('aria-label',field.label+' 검색');
+      list.style.maxHeight='200px';list.style.overflowY='auto';summary.className='hint';
+      const render=()=>{
+        const q=search.value.trim().toLocaleLowerCase(),all=[...options];
+        for(const v of selected)if(!all.some(o=>o.value===v))all.push({value:v,label:v,group:'저장된 항목 (현재 목록 없음)'});
+        all.sort((a,b)=>(a.group||'').localeCompare(b.group||'','ko')||a.label.localeCompare(b.label,'ko'));
+        list.replaceChildren();let group=null;
+        for(const option of all.filter(o=>!q||[o.label,o.value,o.group||''].join(' ').toLocaleLowerCase().includes(q))){
+          if((option.group||'')!==group){group=option.group||'';if(group){const heading=document.createElement('div');heading.className='hint';heading.textContent=group;list.append(heading);}}
+          const line=document.createElement('label'),box=document.createElement('input'),name=document.createElement('span');
+          line.style.display='flex';line.style.alignItems='center';line.style.gap='6px';
+          box.type=multi?'checkbox':'radio';box.name='native-dynamic-'+field.key;box.checked=selected.includes(option.value);
+          name.textContent=option.label;name.title=option.value;
+          box.addEventListener('change',()=>{if(multi){
+            if(box.checked&&!selected.includes(option.value)){if(selected.length>=field.maxItems){box.checked=false;return;}selected.push(option.value);}
+            else if(!box.checked)selected=selected.filter(v=>v!==option.value);
+          }else if(box.checked)selected=[option.value];render();});
+          line.append(box,name);list.append(line);
+        }
+        summary.textContent=(options.length?'조회 '+options.length+'개':'목록 없음 · 인증정보/연결 확인')+' / 선택 '+selected.length+(multi?' / 최대 '+field.maxItems:'');
+      };
+      search.addEventListener('input',render);
+      const clear=document.createElement('button');clear.type='button';clear.textContent='선택 해제';clear.addEventListener('click',()=>{selected=[];render();});
+      pane.append(search,summary,list,clear);row.append(label,pane);content.append(row);
+      dynamicFields.push({field,apply:rows=>{options=Array.isArray(rows)?rows:[];render();}});
+      inputs.push({field,read:()=>multi?[...selected]:selected[0]||''});render();continue;
+    }
     if(field.type==='select'){
       input=document.createElement('select');
       for(const option of field.options){const el=document.createElement('option');el.value=option.value;el.textContent=option.label;input.append(el);}
@@ -3622,11 +3670,22 @@ async function openNativeSettings(item,action,plugin){
     input.setAttribute('aria-label',field.label);row.append(label,input);content.append(row);
     inputs.push({field,input});
   }
+  const refreshDynamic=async()=>{
+    if(!dynamicFields.length||!window.deckBridge?.nativeDynamicOptions)return;
+    try{const data=await window.deckBridge.nativeDynamicOptions(plugin.uuid,action.uuid);
+      if(!inspectorPickerCurrent(session,item))return;
+      for(const entry of dynamicFields)entry.apply(data.fields?.[entry.field.key]);
+    }catch{window.d200xActionStatus?.('기기 목록 조회 실패');}
+  };
+  if(dynamicFields.length){
+    const reload=document.createElement('button');reload.type='button';reload.textContent='기기 목록 새로 고침';
+    reload.addEventListener('click',()=>void refreshDynamic());content.append(reload);void refreshDynamic();
+  }
   if(credentialCapable){
     const credentialButton=document.createElement('button');credentialButton.type='button';credentialButton.textContent='인증정보 관리';
     credentialButton.addEventListener('click',async()=>{
       credentialButton.disabled=true;
-      try{await openNativeCredentials(item,plugin);}catch{window.d200xActionStatus?.('인증정보 상태 확인 실패');}
+      try{await openNativeCredentials(item,plugin);await refreshDynamic();}catch{window.d200xActionStatus?.('인증정보 상태 확인 실패');}
       finally{credentialButton.disabled=false;}
     });content.append(credentialButton);
   }
@@ -3636,8 +3695,8 @@ async function openNativeSettings(item,action,plugin){
     content,ask:true,actionLabel:'적용',onAccept:()=>{
       try{
         const next={...original};
-        for(const {field,input} of inputs){
-          const value=field.type==='boolean'?input.checked:field.type==='integer'?input.valueAsNumber:input.value;
+        for(const {field,input,read} of inputs){
+          const value=read?read():field.type==='boolean'?input.checked:field.type==='integer'?input.valueAsNumber:input.value;
           if(!DeckCore.nativeSettingValue(field,value)){notice.textContent=field.label+' 값을 확인하세요.';return false;}
           next[field.key]=value;
         }

@@ -16,6 +16,9 @@
     if(field.type==='text')return nativeText(value)&&value.length<=field.maxLength;
     if(field.type==='integer')return Number.isSafeInteger(value)&&value>=field.min&&value<=field.max;
     if(field.type==='select')return field.options.some(o=>o.value===value);
+    if(field.type==='dynamicSelect')return nativeText(value);
+    if(field.type==='dynamicMultiSelect')return Array.isArray(value)&&value.length<=field.maxItems&&
+      value.every(v=>nativeText(v)&&v.length>0)&&new Set(value).size===value.length;
     return false;
   }
   function validateNativeSettingsSchema(schema){
@@ -40,10 +43,24 @@
           check(nativeObject(option)&&Object.keys(option).length===2&&nativeLabel(option.label)&&
             nativeText(option.value)&&!values.has(option.value));values.add(option.value);
         }
+      }else if(field.type==='dynamicSelect'||field.type==='dynamicMultiSelect'){
+        extra=['source'];check(nativeKey(field.source));
+        if(field.type==='dynamicMultiSelect'){extra.push('maxItems');check(Number.isInteger(field.maxItems)&&field.maxItems>=1&&field.maxItems<=8);}
       }else check(field.type==='boolean');
       const keys=[...common,...extra];
       check(Object.keys(field).length===keys.length&&keys.every(k=>Object.hasOwn(field,k))&&nativeSettingValue(field,field.default));
     }
+  }
+  // Only inert, validated display data leaves the plugin service for the editor.
+  function nativeDynamicOptions(field,snapshot){
+    const list=snapshot?.[field.source],out=[],seen=new Set();
+    if(!Array.isArray(list))return out;
+    for(const row of list.slice(0,2048)){
+      if(!nativeObject(row)||!nativeText(row.value)||!row.value||!nativeLabel(row.label)||seen.has(row.value)||
+        (row.group!==undefined&&!nativeLabel(row.group)))continue;
+      seen.add(row.value);out.push({value:row.value,label:row.label,...(row.group?{group:row.group}:{})});
+    }
+    return out;
   }
   function nativeEffectiveSettings(schema,stored){
     validateNativeSettingsSchema(schema);
@@ -1655,5 +1672,5 @@
       url:action.settings?.url||'',mode:action.settings?.open||'default',browserPath:action.settings?.browserPath||''};
     return {kind:'unsupported',message:'이 동작의 실행 기능은 아직 구현되지 않았습니다.'};
   }
-  return {validateNativeSettingsSchema,nativeSettingValue,nativeEffectiveSettings,nativeVisualOwner,nativeVisualDelta,pruneNativeVisuals,createNativeRenderGate,ACTION_IDS,D200X_ACTION_IDS,PLUGIN_ACTION_IDS,PRESS_ACTION_TYPES,DEFAULTS,TITLE,INDICATOR_NUMBER_STYLE,INDICATOR_NAV_LABELS,indicatorConfig,indicatorCommon,sharedIndicatorConfig,updateIndicatorCommon,manageIndicators,indicatorNumberDisplayStyle,planIndicatorNavigation,fixedIndicatorNavigation,planFixedIndicatorNavigation,indicatorPinState,setIndicatorPinned,SIDE_NAV_LABELS,SIDE_HOLD_MS,sideConfig,makeSideAction,sideActionConfig,sideFolderTargets,planSideNavigation,applySideNavigation,createPageVisitTracker,createSidePressTracker,createAction,cleanAction,cleanCompositeEntry,timerSeconds,formatTimerTime,displaySwitchAction,compositeModel,planComposite,runComposite,createMultiPauseGate,multiRows,setMultiRows,blankPage,cleanWideDisplay,createWideOverlayTracker,cycleWideDisplay,isWideDisplayPress,folderContents,folderPageCount,changeFolderPage,addFolderPage,deleteFolderPage,editPageStructure,currentActions,visibleActions,togglePinned,activeFolder,enterFolder,exitFolder,migrateState,profileSnapshot,switchProfile,createProfile,renameProfile,exportSingleProfile,findProfileTemplate,saveProfileTemplate,renameProfileTemplate,deleteProfileTemplate,applyProfileTemplate,setProfileApp,setProfileFusionScope,matchFusionProfile,createSmartProfileTracker,matchForegroundProfile,deleteProfile,previewHardwareEvent,physicalSlot,hardwareGesture,resolveHardwareEvent,runtimeActionKey,folderWideBackEvent,resolveKeyPress,planHardwareEvent,deletePage,planAction,emptyBinding,cleanBinding,controlAction,activeControlAction,assignControlAction,automaticControl,ensureControls,controlBinding,changeControlScope};
+  return {validateNativeSettingsSchema,nativeSettingValue,nativeDynamicOptions,nativeEffectiveSettings,nativeVisualOwner,nativeVisualDelta,pruneNativeVisuals,createNativeRenderGate,ACTION_IDS,D200X_ACTION_IDS,PLUGIN_ACTION_IDS,PRESS_ACTION_TYPES,DEFAULTS,TITLE,INDICATOR_NUMBER_STYLE,INDICATOR_NAV_LABELS,indicatorConfig,indicatorCommon,sharedIndicatorConfig,updateIndicatorCommon,manageIndicators,indicatorNumberDisplayStyle,planIndicatorNavigation,fixedIndicatorNavigation,planFixedIndicatorNavigation,indicatorPinState,setIndicatorPinned,SIDE_NAV_LABELS,SIDE_HOLD_MS,sideConfig,makeSideAction,sideActionConfig,sideFolderTargets,planSideNavigation,applySideNavigation,createPageVisitTracker,createSidePressTracker,createAction,cleanAction,cleanCompositeEntry,timerSeconds,formatTimerTime,displaySwitchAction,compositeModel,planComposite,runComposite,createMultiPauseGate,multiRows,setMultiRows,blankPage,cleanWideDisplay,createWideOverlayTracker,cycleWideDisplay,isWideDisplayPress,folderContents,folderPageCount,changeFolderPage,addFolderPage,deleteFolderPage,editPageStructure,currentActions,visibleActions,togglePinned,activeFolder,enterFolder,exitFolder,migrateState,profileSnapshot,switchProfile,createProfile,renameProfile,exportSingleProfile,findProfileTemplate,saveProfileTemplate,renameProfileTemplate,deleteProfileTemplate,applyProfileTemplate,setProfileApp,setProfileFusionScope,matchFusionProfile,createSmartProfileTracker,matchForegroundProfile,deleteProfile,previewHardwareEvent,physicalSlot,hardwareGesture,resolveHardwareEvent,runtimeActionKey,folderWideBackEvent,resolveKeyPress,planHardwareEvent,deletePage,planAction,emptyBinding,cleanBinding,controlAction,activeControlAction,assignControlAction,automaticControl,ensureControls,controlBinding,changeControlScope};
 });

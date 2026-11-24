@@ -6,14 +6,14 @@ const path=require('node:path');
 const {randomUUID,createHash}=require('node:crypto');
 const ID=/^com\.deckforge\.native\.[a-z0-9][a-z0-9.-]{0,110}$/;
 const MAX=8192;
-function validateValue(value){
+function validateValue(value,maxBytes=MAX){
   const valid=(v,depth=0)=>{
     if(depth>12)return false;
     if(Array.isArray(v))return v.every(x=>valid(x,depth+1));
     if(v&&typeof v==='object')return Object.keys(v).every(k=>!['__proto__','constructor','prototype'].includes(k)&&valid(v[k],depth+1));
     return v===null||typeof v==='string'||typeof v==='boolean'||(typeof v==='number'&&Number.isFinite(v));
   };
-  if(!value||typeof value!=='object'||Array.isArray(value)||!valid(value)||Buffer.byteLength(JSON.stringify(value))>MAX)
+  if(!value||typeof value!=='object'||Array.isArray(value)||!valid(value)||Buffer.byteLength(JSON.stringify(value))>maxBytes)
     throw Error('invalid global settings');
   return value;
 }
