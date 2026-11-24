@@ -13,6 +13,7 @@
 
   let renderSerial = 0;
   let timeout = null;
+  const nativeRenderGate=DeckCore.createNativeRenderGate(()=>{if(timeout===null)schedule(250);});
   let lastSentImages = null;
   let lastSentWideMode='blank',lastSentPageStamp=null;
   let online = false;
@@ -389,6 +390,7 @@
     else schedule(0);
   };
   async function synchronize() {
+    nativeRenderGate.begin();
     const serial = ++renderSerial;
     const stamp=warningPageStamp();
     const page = DeckCore.visibleActions(state).slice(0, 14).map((item,index) =>
@@ -409,7 +411,7 @@
       cacheAndSendImages(images,window.getD200XWideMode?.()||'blank',stamp);
     } catch (error) {
       text('D200X 아이콘 생성 오류: ' + String(error?.message || error));
-    }
+    } finally {nativeRenderGate.end();}
   }
   function schedule(delay=250) {
     ++renderSerial;
@@ -417,12 +419,13 @@
     timeout = setTimeout(() => { timeout = null; synchronize(); }, delay);
   }
   window.scheduleDeckSync = schedule;
+  window.scheduleNativeDeckSync=()=>nativeRenderGate.mark();
   // Wide-mode cycling changes only slot 13. Reuse the last complete set
   // of physical key bitmaps rather than re-rendering all fourteen on every
   // press. The existing whole-page synchronization remains the fallback
   // for initial connection, page changes and all other edits.
   window.scheduleD200XWideSync=()=>{
-    if(!lastSentImages||lastSentImages.length!==14||lastSentPageStamp!==warningPageStamp()){schedule(0);return;}
+    if(nativeRenderGate.pending()||nativeRenderGate.busy()||!lastSentImages||lastSentImages.length!==14||lastSentPageStamp!==warningPageStamp()){schedule(0);return;}
     const serial=++renderSerial;
     if(timeout!==null){clearTimeout(timeout);timeout=null;}
     const wide=window.getD200XDisplayItem?.(null,13);

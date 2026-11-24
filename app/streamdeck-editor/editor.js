@@ -7153,7 +7153,7 @@ if(window.deckBridge?.onSdkEvent){
         const selectedItem=DeckCore.visibleActions(state)[state.selected];
         if(!haPreviewStates.has(selectedItem))void refreshSelectedVisual();
         if(selectedItem)void refreshStateTitleCards(selectedItem);
-        window.scheduleDeckSync?.();
+        (window.scheduleNativeDeckSync||window.scheduleDeckSync)?.();
         return;
       }
       const old=sdkVisuals.get(ctx)||{};

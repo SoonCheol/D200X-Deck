@@ -1901,3 +1901,19 @@ test('native SDK visual cache ignores duplicate pixels and releases inactive own
  assert.equal(core.pruneNativeVisuals(cache,[replacement]),1);
  assert.deepEqual([...cache.keys()],['fusion']);
 });
+
+test('native visual render gate coalesces updates without invalidating an in-progress page',()=>{
+ const {createNativeRenderGate}=require('../app/streamdeck-editor/deck-core.js');
+ let scheduled=false,requests=0;
+ const gate=createNativeRenderGate(()=>{if(!scheduled){scheduled=true;requests++;}});
+ gate.mark();gate.mark();assert.equal(requests,1);
+ scheduled=false;gate.begin();assert.equal(gate.pending(),false);
+ for(let i=0;i<50;i++)gate.mark();
+ assert.equal(requests,1);assert.equal(gate.pending(),true);
+ gate.end();assert.equal(requests,2);
+ scheduled=false;gate.begin();gate.end();assert.equal(requests,2);
+ // A normal edit can start a newer render while the old one is finishing.
+ gate.begin();gate.begin();gate.mark();gate.end();
+ assert.equal(requests,2);assert.equal(gate.busy(),true);
+ gate.end();assert.equal(requests,3);assert.equal(gate.busy(),false);
+});
