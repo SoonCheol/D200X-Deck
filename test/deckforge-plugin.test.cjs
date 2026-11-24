@@ -1562,3 +1562,36 @@ test('native settings receipts serialize rapid inputs and preserve external edit
    assert.ok(events.some(e=>e.kind==='error'&&e.message.includes('not confirmed')));
  }finally{host.close();}
 });
+
+test('native GIF playback uses bounded PNG events, stops on replacement and cancels stale contexts',async()=>{
+ const {prepareGif,NativeAnimationPlayer}=require('../app/streamdeck-editor/deckforge-native-animation.cjs');
+ const {verifyPng}=require('../app/streamdeck-editor/ulanzi-png-verifier.cjs');
+ const header=Buffer.from('47494638396101000100800000ff00000000ff','hex');
+ const frame=i=>Buffer.from([0x21,0xf9,4,0,5,0,0,0,0x2c,0,0,0,0,1,0,1,0,0,2,2,4|(i<<3)|(5<<6&255),1,0]);
+ const gif='data:image/gif;base64,'+Buffer.concat([header,frame(0),frame(1),Buffer.from([0x3b])]).toString('base64');
+ const prepared=prepareGif(gif),frames=[];
+ let time=0,active=true;
+ const player=new NativeAnimationPlayer((ctx,image)=>frames.push({ctx,image}),()=>time);
+ try{
+   assert.equal(player.start('a',prepared,()=>active),true);
+   time=499;player.tick();assert.equal(frames.length,1);
+   time=500;player.tick();assert.equal(frames.length,2);assert.notEqual(frames[0].image,frames[1].image);
+   assert.ok(frames.every(f=>verifyPng(Buffer.from(f.image.slice(22),'base64')).ok));
+   time=1000;player.tick();assert.equal(player.entries.size,0);assert.equal(player.timer,null);
+   time=1200;player.start('a',prepared,()=>active);active=false;time=1800;player.tick();assert.equal(player.entries.size,0);
+   assert.throws(()=>prepareGif('data:image/gif;base64,AAAA'),/GIF/);
+ }finally{player.close();}
+ const observed=[],host=new NativePluginHost('/unused',e=>observed.push(e),()=>({
+   async run(_s,input){return {ops:input.event.type==='appear'?[{op:'animation',value:gif}]:input.event.type==='press'?[{op:'stopAnimation'}]:[],memory:{}};},close(){}
+ }),{animationNow:()=>time});
+ const cfg={context:'gif',slot:0,gesture:'down',pluginUUID:scriptManifest.id,actionUUID:scriptManifest.actions[0].id,settings:{}};
+ try{
+   host.sync([cfg],[scriptManifest]);await host.contexts.get(cfg.context).queue;
+   assert.ok(observed.some(e=>e.kind==='setImage'));
+   assert.equal(host.animations.entries.size,1);
+   host.key(cfg.context,'down');await host.contexts.get(cfg.context).queue;
+   assert.equal(host.animations.entries.size,0);
+   host.sync([],[scriptManifest]);assert.equal(host.animations.timer,null);
+   assert.throws(()=>host.validateScriptOps({slot:13,action:scriptManifest.actions[0],pluginUUID:nativeId,permissions:['display']},'appear',[{op:'animation',value:gif}]),/normal key/);
+ }finally{host.close();}
+});

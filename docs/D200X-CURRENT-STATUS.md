@@ -2,6 +2,12 @@
 
 > **상태 기록 기준: 2026-11-24**. 실제 최신 HEAD는 Git에서 확인하며, 코드·자동 검사·Windows 빌드·사용자 Windows/D200X 실기 결과를 구분한다. 시작 시 `AGENTS.md`와 이 문서만 읽고 로드맵은 필요한 경우에만 참고한다.
 
+## 1.1.160 — 독자 SDK 제한형 GIF 재생 및 기존 PNG 출력 연결 (2026-11-24)
+
+- API 2 api.setAnimation(GIF data URI)/stopAnimation: 일반 키 0~12, 32프레임/144px/전체 1M 픽셀, 최대 4개 활성/8MiB PNG 메모리. 500ms 최소 프레임 간격과 단일 sweep, 놓친 프레임 재생 없음. 정적 setImage로 전환 시 재생 종료. 페이지 이탈/외부 설정 변경/절전/오류/종료 시 취소.
+- host GIF 합성/PNG 검증 후 기존 setImage 이벤트→editor→기존 전체 페이지 PNG 동기화 경로 사용. 신규 HID 명령 없음. 실기 GIF 재생·전송 부하/속도 미검증. 원본 Ulanzi 자동 변환 아님.
+- 1.1.159 CI #1199/입력 #472/Windows #910 성공. 신규 자동 검사 별도.
+
 ## 1.1.159 — 독자 SDK 동적 표시 캐시 수명 및 중복 갱신 차단 (2026-11-24)
 
 - 독자 SDK 전용 nativeVisualOwner/Delta, 유효한 이미지/제목/상태만 반영, 동일 결과의 grid/inspector/HID 동기화 예약 생략. 다른 액션 ID로 교체된 context의 기존 표시 재사용 방지.

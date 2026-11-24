@@ -6,6 +6,7 @@ const {randomUUID}=require('node:crypto');
 const {SdkScheduler}=require('./deckforge-sdk-scheduler.cjs');
 const {verifyPng}=require('./ulanzi-png-verifier.cjs');
 const {pixelImage}=require('./deckforge-pixel-image.cjs');
+const {prepareGif,NativeAnimationPlayer}=require('./deckforge-native-animation.cjs');
 const {NativeSettingsVault,validateValue}=require('./deckforge-native-settings.cjs');
 const {NativeVersionStore,assertAppRequirement}=require('./deckforge-native-versions.cjs');
 const {validateDependencies,resolveDependencies,assertDependencyChange}=require('./deckforge-native-dependencies.cjs');
@@ -115,6 +116,7 @@ class NativePluginHost{
     this.tickTimer=null;this.now=options.now||Date.now;
     this.scheduler=new SdkScheduler();
     this.settingsReceiptTimeout=options.settingsReceiptTimeout??5000;
+    this.animations=new NativeAnimationPlayer((ctx,image)=>this.onUpdate({kind:'setImage',context:ctx.context,payload:{image}}),options.animationNow);
   }
   async manifests(){
     await fs.mkdir(this.root,{recursive:true});const items=[];
@@ -195,7 +197,7 @@ class NativePluginHost{
   }
   validateScriptOps(ctx,event,program){
     check(Array.isArray(program)&&program.length<=16,'invalid operation list');
-    const normal=[],effects=[];let pixelCount=0;
+    const normal=[],effects=[];let pixelCount=0,animationCount=0;
     const validSettings=(v,depth=0)=>{
       if(depth>12)return false;
       if(Array.isArray(v))return v.every(x=>validSettings(x,depth+1));
@@ -203,6 +205,17 @@ class NativePluginHost{
       return v===null||typeof v==='string'||typeof v==='boolean'||(typeof v==='number'&&Number.isFinite(v));
     };
     for(let op of program){
+      if(op?.op==='animation'||op?.op==='stopAnimation'){
+        check(ctx.slot>=0&&ctx.slot<13&&ctx.action.controllers.includes('Keypad')&&++animationCount===1,'animation requires a normal key and one command');
+        if(op.op==='animation'){
+          check(exact(op,['op','value']),'invalid animation operation');
+          normal.push({op:'animation',prepared:prepareGif(op.value)});
+        }else{
+          check(exact(op,['op']),'invalid animation stop');
+          normal.push(op);
+        }
+        continue;
+      }
       if(op?.op==='pixels'){
         check(++pixelCount<=2,'key drawing limit');
         normal.push(pixelImage(op));continue;
@@ -246,9 +259,10 @@ class NativePluginHost{
       }else throw Error('DeckForge SDK: unsupported operation');
       effects.push(op);
     }
+    check(!animationCount||!normal.some(op=>op.op==='image'),'animation and static image cannot share an event');
     const {script,tickIntervalMs,stateImages,...action}=ctx.action;
     validateNativeManifest({apiVersion:1,id:ctx.pluginUUID,name:'Runtime',version:'1',
-      permissions:['display'],actions:[{...action,events:{press:normal}}]});
+      permissions:['display'],actions:[{...action,events:{press:normal.filter(op=>!['animation','stopAnimation'].includes(op.op))}}]});
     return {normal,effects};
   }
   applyOps(ctx,program){
@@ -268,7 +282,13 @@ class NativePluginHost{
         if(op.op==='state'||op.op==='toggleState'){
           ctx.state=op.op==='state'?op.value:1-ctx.state;send('setState',{state:ctx.state});
         }
-        if(op.op==='image')send('setImage',{image:op.value});
+        if(op.op==='image'){this.animations.stop(ctx);send('setImage',{image:op.value});}
+        if(op.op==='stopAnimation')this.animations.stop(ctx);
+        if(op.op==='animation'){
+          const epoch=ctx.epoch,revision=ctx.settingsRevision;
+          const active=()=>!this.closed&&!this.suspended&&!ctx.failed&&this.contexts.get(ctx.context)===ctx&&ctx.epoch===epoch&&ctx.settingsRevision===revision;
+          if(!this.animations.start(ctx,op.prepared,active))this.report(ctx.pluginUUID,Error('animation capacity or inactive context'));
+        }
       }
   }
   cancelSettingsReceipt(ctx){
@@ -310,6 +330,7 @@ class NativePluginHost{
   }
   resetScript(ctx){
     this.cancelSettingsReceipt(ctx);ctx.settingsRefresh=false;
+    this.animations.stop(ctx);
     ctx.tickDue=null;
     this.cancelNetwork(ctx);
     if(ctx.wideOverlaySent){ctx.wideOverlaySent=false;this.onUpdate({kind:'nativeWideReleased',context:ctx.context});}
@@ -526,6 +547,7 @@ class NativePluginHost{
         ctx.settings=incoming;
         if(changed){
           this.cancelSettingsReceipt(ctx);ctx.settingsRefresh=false;
+          this.animations.stop(ctx);
           ctx.settingsRevision++;
           this.scheduler.prune();
           this.cancelNetwork(ctx);
@@ -568,7 +590,7 @@ class NativePluginHost{
   closeRetired(){for(const runner of this.retired)runner.close();this.retired.clear();}
   suspend(){this.suspended=true;this.closeRetired();for(const ctx of this.contexts.values()){ctx.pressed=false;this.resetScript(ctx);}this.reconcileTickTimer();}
   resume(){if(this.closed)return;this.suspended=false;for(const ctx of this.contexts.values()){ctx.failed=false;ctx.recoveryAttempts=0;this.initialize(ctx);}}
-  close(){this.closed=true;this.scheduler.close();this.closeRetired();for(const ctx of this.contexts.values())this.resetScript(ctx);this.contexts.clear();this.reconcileTickTimer();}
+  close(){this.closed=true;this.animations.close();this.scheduler.close();this.closeRetired();for(const ctx of this.contexts.values())this.resetScript(ctx);this.contexts.clear();this.reconcileTickTimer();}
 }
 // Compatibility host stays unchanged; only validated native IDs are routed here.
 class PluginRouter{

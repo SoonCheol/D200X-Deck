@@ -82,6 +82,8 @@ async function runProgram(source,input){
     setState:value=>append({op:'state',value}),
     toggleState:()=>append({op:'toggleState'}),
     setImage:value=>append({op:'image',value}),
+    setAnimation:value=>append({op:'animation',value}),
+    stopAnimation:()=>append({op:'stopAnimation'}),
     drawKey,
     setSettings:value=>append({op:'settings',value}),
     patchSettings:value=>append({op:'settingsPatch',value}),
