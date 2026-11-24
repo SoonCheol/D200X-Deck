@@ -615,10 +615,10 @@ function removeSlotAction(index){
   setItem(index,null);
   return true;
 }
-function removeControlAction(index,gesture='down'){
+function removeControlAction(index,gesture='down',draft=false){
   if(index===14||index===15){
     if(!confirm('이 입력에 할당된 액션을 삭제하시겠습니까?'))return false;
-    return assignSideControl(index,gesture,{navigation:'none'});
+    return assignSideControl(index,gesture,{navigation:'none'},draft);
   }
   const binding=DeckCore.controlBinding(state,index);
   if(!binding||!binding[gesture])return false;
@@ -626,7 +626,8 @@ function removeControlAction(index,gesture='down'){
   clearOldSdkVisual(index,({'holdLeft':'hold-left','holdRight':'hold-right'})[gesture]||gesture);
   DeckCore.assignControlAction(binding,gesture,null);
   state.selected=index;controlGesture=gesture;
-  persist();render();
+  if(draft){persistInspectorChange();renderPhysicalControls();renderControlInspector();}
+  else{persist();render();}
   return true;
 }
 function showControlMenu(index,x,y){
@@ -661,13 +662,14 @@ function choose(index){
 }
 function controlDrop(index,id,gesture='down',direct=true){
   if(!isAssignableAction(id))return;
-  if(inspectorSession?.dirty){showInspectorLeaveDialog(()=>controlDrop(index,id,gesture,direct));return;}
+  const draft=!!inspectorSession&&state.selected===index;
+  if(!draft&&inspectorSession?.dirty){showInspectorLeaveDialog(()=>controlDrop(index,id,gesture,direct));return;}
   const binding=DeckCore.controlBinding(state,index);
   if(!binding)return;
   if(index===14||index===15){
     const config=sideDropConfig(id);
     if(!config){window.d200xActionStatus?.('측면 단추에는 페이지·프로필·덱폴더 이동만 등록할 수 있습니다.');return;}
-    assignSideControl(index,gesture==='hold'?'hold':'down',config);return;
+    assignSideControl(index,gesture==='hold'?'hold':'down',config,draft);return;
   }
   if(index>=16&&!direct&&((knobTab==='held'&&!binding.heldEnabled)||(gesture==='down'&&binding.heldEnabled)||((knobTab==='held'?binding.heldMode:binding.mode)==='stack')))return;
   clearOldSdkVisual(index,({'holdLeft':'hold-left','holdRight':'hold-right'})[gesture]||gesture);
@@ -694,7 +696,8 @@ function controlDrop(index,id,gesture='down',direct=true){
     DeckCore.assignControlAction(binding,gesture,newAction(id));
   }
   state.selected=index;controlGesture=gesture;
-  persist();render();
+  if(draft){persistInspectorChange();renderPhysicalControls();renderControlInspector();}
+  else{persist();render();}
 }
 const WIDE_LABELS={clock:'아날로그 + 디지털 시계',datetime:'날짜 · 시간 · 요일',stats:'CPU · RAM · GPU',knobs:'노브 정보'};
 function wideDisplayAvailable(){
@@ -2373,10 +2376,14 @@ function pressEnsureMeta(root){
 }
 function setPressSlot(index,slot,next,immediate=false){
   if(index<0||index>=13||!PRESS_TABS.some(x=>x[0]===slot))return false;
+  const current=DeckCore.visibleActions(state)[index]||null;
+  // A registration or replacement within the selected ordinary button is
+  // part of its draft, even when the caller normally commits grid drops.
+  if(inspectorSession&&state.selected===index&&(!current||pressIsOrdinary(current))&&
+    (!next||DeckCore.PRESS_ACTION_TYPES.includes(next.type)))immediate=false;
   if(immediate&&inspectorSession?.dirty){
     showInspectorLeaveDialog(()=>setPressSlot(index,slot,next,immediate));return false;
   }
-  const current=DeckCore.visibleActions(state)[index]||null;
   const occupied=pressIsOrdinary(current)?pressSlotAction(current,slot):null;
   if(next&&occupied&&!confirm(PRESS_TABS.find(x=>x[0]===slot)[1]+'에 등록된 동작을 교체하시겠습니까?'))
     return false;
@@ -3171,9 +3178,13 @@ function appendInspectorSaveBar(root){
   footer.append(cancel,save);footer.classList.add('inspector-footer-region');root.append(footer);
   updateInspectorSaveButtons();
 }
-// A viewport-level palette belongs to the inspector even though it lives in body.
+// The selected physical button owns its inspector and its editing overlays,
+// regardless of which gesture tab is visible or where an overlay is mounted.
 function isInspectorEditTarget(target){
-  return Boolean($('inspector')?.contains(target)||target?.closest?.('.key-background-popover'));
+  if($('inspector')?.contains(target))return true;
+  if(target?.closest?.('.key-background-popover, #icon-maker, .ordered-multi-dialog'))return true;
+  // Pack removal changes the global library, not this button's draft.
+  return !!target?.closest?.('#icon-library')&&!target?.closest?.('.icon-pack-remove');
 }
 // Capture outside clicks so a different key, profile, page, or tool cannot
 // silently discard a dirty inspector. Programmatic profile switches are
@@ -3186,13 +3197,13 @@ for(const type of ['click','change','input','drop'])document.addEventListener(ty
 },true);
 document.addEventListener('click',event=>{
   if(!inspectorSession?.dirty)return;
+  if(isInspectorEditTarget(event.target))return;
   // Viewing help, opening a picker, searching, or choosing an icon stays in the
   // same editing session. Do not mistake these separate overlays for navigation.
   if(event.target.closest('#inspector-unsaved-dialog, .inspector-help-dialog, #sdk-plugin-help-dialog, #icon-maker, .deckforge-message-dialog, .deckforge-input-dialog'))return;
   if(event.target.closest('#icon-library')&&!event.target.closest('.icon-pack-remove'))return;
   if(event.target.closest('.action-customize, .action-override-controls'))return;
   if(event.target.closest('#action-search, #action-search-clear, .library-tabs, #profile-trigger, .profile-row-gear, .profile-global-trigger, .settings-trigger, .group-title'))return;
-  if(isInspectorEditTarget(event.target))return;
   // Key/knob selection already checks for unsaved edits in choose(index).
   // Let that handler own the navigation so it survives inspector re-render.
   if(event.target.closest('#key-grid, #physical-controls'))return;
@@ -3432,7 +3443,7 @@ function renderControlInspector(){
     const remove=document.createElement('button');remove.type='button';remove.className='control-tile-remove';
     remove.textContent='×';remove.title='등록된 동작 삭제';
     remove.disabled=!assigned||!allowed;
-    remove.addEventListener('click',e=>{e.stopPropagation();removeControlAction(index,gesture);});
+    remove.addEventListener('click',e=>{e.stopPropagation();removeControlAction(index,gesture,true);});
     const holder=document.createElement('div');holder.className='control-tile-holder';
     holder.append(tile,remove);
     if(knob){

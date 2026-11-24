@@ -169,7 +169,7 @@ test('body-level key background palette remains inside the dirty inspector edit 
  const document={addEventListener(type,fn,capture){assert.equal(capture,true);if(!handlers.has(type))handlers.set(type,[]);handlers.get(type).push(fn);}};
  const ctx={document,$:()=>root,inspectorSession:{dirty:true},inspectorEditing:false,setTimeout:fn=>timers.push(fn),showInspectorLeaveDialog:fn=>warnings.push(fn)};
  vm.runInNewContext(editor.slice(start,end),ctx);
- function target(kind){return {inInspector:kind==='inspector',isConnected:true,click(){},closest(selector){return kind==='palette'&&selector==='.key-background-popover'?this:null;}};}
+ function target(kind){return {inInspector:kind==='inspector',isConnected:true,click(){},closest(selector){return ({palette:'.key-background-popover',maker:'#icon-maker',multi:'.ordered-multi-dialog',library:'#icon-library',packRemove:'#icon-library'})[kind]&&selector.includes(({palette:'.key-background-popover',maker:'#icon-maker',multi:'.ordered-multi-dialog',library:'#icon-library',packRemove:'#icon-library'})[kind])?this:kind==='packRemove'&&selector==='.icon-pack-remove'?this:null;}};}
  function fire(type,node){
   const event={target:node,prevented:false,stopped:false,preventDefault(){this.prevented=true;},stopImmediatePropagation(){this.stopped=true;}};
   for(const fn of handlers.get(type)||[]){fn(event);if(event.stopped)break;}
@@ -180,7 +180,8 @@ test('body-level key background palette remains inside the dirty inspector edit 
  for(const dirty of [false,true]){
   ctx.inspectorSession.dirty=dirty;
   for(const type of ['click','change','input']){
-   for(const node of [target('palette'),target('inspector')]){
+   for(const kind of ['palette','inspector','maker','multi','library']){
+    const node=target(kind);
     const event=fire(type,node);
     assert.equal(event.prevented,false);assert.equal(event.stopped,false);assert.equal(ctx.inspectorEditing,true);
     assert.equal(warnings.length,0);while(timers.length)timers.shift()();assert.equal(ctx.inspectorEditing,false);
@@ -192,6 +193,7 @@ test('body-level key background palette remains inside the dirty inspector edit 
  const outside=fire('click',target('outside'));
  assert.equal(outside.prevented,true);assert.equal(outside.stopped,true);assert.equal(warnings.length,1);
  assert.equal(ctx.inspectorSession.dirty,true);
+ assert.equal(fire('click',target('packRemove')).prevented,true);assert.equal(warnings.length,2);
  ctx.inspectorSession.dirty=false;
- assert.equal(fire('click',target('outside')).prevented,false);assert.equal(warnings.length,1);
+ assert.equal(fire('click',target('outside')).prevented,false);assert.equal(warnings.length,2);
 });

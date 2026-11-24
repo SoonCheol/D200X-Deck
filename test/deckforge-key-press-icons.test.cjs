@@ -137,7 +137,7 @@ test('other-key selection, external drops, right-click, and physical controls ke
   assert.match(src,/function choose\(index\)\{\s*if\(state\.selected===index\)\{/);
   assert.match(src,/activePressTab='single';state\.selected=index;persist\(\);render\(\);/);
   assert.match(src,/function setItem\(index,item\)\{\s*if\(inspectorSession\?\.dirty\)/);
-  assert.match(src,/function controlDrop\(index,id,gesture='down',direct=true\)\{\s*if\(!isAssignableAction\(id\)\)return;\s*if\(inspectorSession\?\.dirty\)\{showInspectorLeaveDialog\(\(\)=>controlDrop\(index,id,gesture,direct\)\);return;\}/);
+  assert.match(src,/if\(!draft&&inspectorSession\?\.dirty\)\{showInspectorLeaveDialog\(\(\)=>controlDrop\(index,id,gesture,direct\)\);return;\}/);
   assert.match(src,/addEventListener\("contextmenu",ev=>\{[\s\S]*?showInspectorLeaveDialog\(open\)/);
 });
 test('SDK help close control uses its own dark theme style, separate from the approved inspector layout',()=>{
@@ -388,4 +388,37 @@ test('gesture number alone selects representative on either state card and disti
  attach(root,inspector);assert.equal(hosts[0].badge.dataset.representative,'preferred');
  displayed=actions.double;attach(root,inspector);assert.equal(hosts[1].badge.dataset.representative,'displayed');
  assert.equal(hosts[0].badge.tag,'button');
+});
+
+test('same physical button gesture registrations remain one draft across tab rebuild, save and cancel',()=>{
+ const Core=require('../app/streamdeck-editor/deck-core.js');
+ const state=Core.migrateState(null);state.selected=0;
+ state.pages[0][0]=Core.createAction('hotkey');
+ const start=src.indexOf('function pressEnsureMeta('),end=src.indexOf('function attachPressPreviewBadges(',start);
+ const sessionStart=src.indexOf('function beginInspectorSession('),sessionEnd=src.indexOf('// External SDK Property Inspector',sessionStart);
+ let warnings=0,writes=0,changes=0,committed=null;
+ const ctx={state,DeckCore:Core,activePressTab:'single',inspectorSession:null,PRESS_TABS:[['single'],['double'],['hold']],
+  currentPage:()=>ctx.state.pages[0],pressIsOrdinary:x=>!!x&&Core.PRESS_ACTION_TYPES.includes(x.type)||x?.type==='press-empty',
+  pressSlotAction:(x,slot)=>slot==='single'?x:x.pressActions?.[slot],confirm:()=>true,showInspectorLeaveDialog:()=>warnings++,
+  persist(){writes++;committed=JSON.stringify(ctx.state);return true;},renderGrid(){},renderInspector(){ctx.begin();},render(){ctx.begin();},
+  persistInspectorChange(){changes++;ctx.inspectorSession.dirty=JSON.stringify(ctx.state)!==ctx.inspectorSession.snapshot;},
+  commitPendingAudioVolumes(){},revertPendingAudioVolumes(){},beginInspectorSession:()=>ctx.begin(),updateInspectorSaveButtons(){},scheduleSdkSync(){},
+  window:{}};
+ const saveStart=src.indexOf('function saveInspector('),saveEnd=src.indexOf('function showInspectorLeaveDialog(',saveStart);
+ vm.runInNewContext(src.slice(sessionStart,sessionEnd)+'\n'+src.slice(start,end)+'\n'+src.slice(saveStart,saveEnd)+'\n;this.begin=beginInspectorSession;this.set=setPressSlot;this.save=saveInspector;this.discard=discardInspector;',ctx);
+ ctx.begin();const initial=ctx.inspectorSession;
+ state.pages[0][0].title='first draft';ctx.persistInspectorChange();
+ const second=Core.createAction('hotkey');second.title='second draft';
+ assert.equal(ctx.set(0,'double',second,true),true);
+ assert.equal(ctx.inspectorSession,initial);assert.equal(ctx.activePressTab,'double');assert.equal(writes,0);assert.equal(warnings,0);
+ const hold=Core.createAction('hotkey');hold.title='hold draft';
+ assert.equal(ctx.set(0,'hold',hold,true),true);assert.equal(ctx.inspectorSession,initial);assert.equal(writes,0);
+ assert.equal(ctx.set(1,'single',Core.createAction('hotkey'),true),false);assert.equal(warnings,1);
+ ctx.save();assert.equal(writes,1);assert.equal(ctx.inspectorSession.dirty,false);
+ const saved=JSON.parse(committed).pages[0][0];
+ assert.equal(saved.title,'first draft');assert.equal(saved.pressActions.double.title,'second draft');assert.equal(saved.pressActions.hold.title,'hold draft');
+ ctx.state.pages[0][0].title='discard this';ctx.persistInspectorChange();
+ ctx.set(0,'double',Core.createAction('text'),true);ctx.discard();
+ assert.equal(writes,1);assert.equal(ctx.state.pages[0][0].title,'first draft');assert.equal(ctx.state.pages[0][0].pressActions.double.title,'second draft');
+ assert.equal(ctx.inspectorSession.dirty,false);assert.ok(changes>=5);
 });
