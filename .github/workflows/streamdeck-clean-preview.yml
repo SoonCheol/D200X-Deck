@@ -31,6 +31,7 @@ on:
       - 'test/deckforge-app-focus.test.cjs'
       - 'test/deckforge-app-control.test.cjs'
       - 'test/deckforge-wide-warning.test.cjs'
+      - 'test/deckforge-key-backgrounds.test.cjs'
       - 'test/deckforge-plugin.test.cjs'
       - 'tools/native-drop-probe/NativeDropProbe.cs'
       - '.github/workflows/streamdeck-clean-preview.yml'
