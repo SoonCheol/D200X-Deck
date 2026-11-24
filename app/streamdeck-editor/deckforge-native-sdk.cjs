@@ -5,6 +5,7 @@ const path=require('node:path');
 const {randomUUID}=require('node:crypto');
 const {SdkScheduler}=require('./deckforge-sdk-scheduler.cjs');
 const {verifyPng}=require('./ulanzi-png-verifier.cjs');
+const {pixelImage}=require('./deckforge-pixel-image.cjs');
 const {NativeSettingsVault,validateValue}=require('./deckforge-native-settings.cjs');
 const {NativeVersionStore,assertAppRequirement}=require('./deckforge-native-versions.cjs');
 const {validateDependencies,resolveDependencies,assertDependencyChange}=require('./deckforge-native-dependencies.cjs');
@@ -193,8 +194,12 @@ class NativePluginHost{
   }
   validateScriptOps(ctx,event,program){
     check(Array.isArray(program)&&program.length<=16,'invalid operation list');
-    const normal=[],effects=[];
+    const normal=[],effects=[];let pixelCount=0;
     for(const op of program){
+      if(op?.op==='pixels'){
+        check(++pixelCount<=2,'key drawing limit');
+        normal.push(pixelImage(op));continue;
+      }
       if(OPS.has(op?.op)){normal.push(op);continue;}
       const polling=event==='tick'&&op?.op==='networkRequest'&&ctx.permissions.includes('network.poll')&&ctx.action.tickIntervalMs>=5000;
       check(INPUT_EVENTS.has(event)||polling,'privileged operation requires input event');

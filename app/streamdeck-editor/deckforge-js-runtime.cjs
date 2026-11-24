@@ -38,11 +38,51 @@ async function runProgram(source,input){
     if(typeof data!=='string'||(budget+=data.length)>512*1024)throw Error('operation data limit');
     push(parse(data));
   };
+  // A small, local drawing API for dynamically generated key artwork.
+  // No external fonts/images, URLs, markup, or arbitrary host-side drawing.
+  let drawings=0;
+  const drawKey=spec=>{
+    if(sealed||++drawings>2)throw Error('key drawing limit');
+    const valid=(ok)=>{if(!ok)throw Error('invalid key drawing');};
+    const exact=(v,keys)=>v&&typeof v==='object'&&!Array.isArray(v)&&Object.keys(v).every(k=>keys.includes(k));
+    const color=v=>typeof v==='string'&&/^#[0-9a-fA-F]{6}(?:[0-9a-fA-F]{2})?$/.test(v);
+    const coord=v=>Number.isFinite(v)&&Math.abs(v)<=576;
+    const size=v=>Number.isFinite(v)&&v>=0&&v<=288;
+    valid(exact(spec,['width','height','background','commands'])&&[spec.width,spec.height].every(v=>Number.isInteger(v)&&v>=1&&v<=144)&&
+      (spec.background===undefined||color(spec.background))&&Array.isArray(spec.commands)&&spec.commands.length<=32);
+    const canvas=document.createElement('canvas');canvas.width=spec.width;canvas.height=spec.height;
+    const ctx=canvas.getContext('2d',{willReadFrequently:true});valid(ctx);
+    if(spec.background){ctx.fillStyle=spec.background;ctx.fillRect(0,0,canvas.width,canvas.height);}
+    for(const cmd of spec.commands){
+      valid(cmd&&color(cmd.color));ctx.fillStyle=cmd.color;ctx.strokeStyle=cmd.color;
+      if(cmd.type==='rect'){
+        valid(exact(cmd,['type','color','x','y','width','height'])&&[cmd.x,cmd.y].every(coord)&&[cmd.width,cmd.height].every(size));
+        ctx.fillRect(cmd.x,cmd.y,cmd.width,cmd.height);
+      }else if(cmd.type==='circle'){
+        valid(exact(cmd,['type','color','x','y','radius'])&&[cmd.x,cmd.y].every(coord)&&size(cmd.radius));
+        ctx.beginPath();ctx.arc(cmd.x,cmd.y,cmd.radius,0,Math.PI*2);ctx.fill();
+      }else if(cmd.type==='line'){
+        valid(exact(cmd,['type','color','x','y','toX','toY','width'])&&[cmd.x,cmd.y,cmd.toX,cmd.toY].every(coord)&&Number.isFinite(cmd.width)&&cmd.width>0&&cmd.width<=32);
+        ctx.lineWidth=cmd.width;ctx.beginPath();ctx.moveTo(cmd.x,cmd.y);ctx.lineTo(cmd.toX,cmd.toY);ctx.stroke();
+      }else if(cmd.type==='text'){
+        valid(exact(cmd,['type','color','x','y','text','size','font','align','bold'])&&[cmd.x,cmd.y].every(coord)&&
+          typeof cmd.text==='string'&&cmd.text.length<=128&&!/[\x00-\x1f\x7f]/.test(cmd.text)&&
+          Number.isInteger(cmd.size)&&cmd.size>=6&&cmd.size<=96&&['sans-serif','serif','monospace'].includes(cmd.font??'sans-serif')&&
+          ['left','center','right'].includes(cmd.align??'center')&&(cmd.bold===undefined||typeof cmd.bold==='boolean'));
+        ctx.font=(cmd.bold?'bold ':'')+cmd.size+'px '+(cmd.font??'sans-serif');
+        ctx.textAlign=cmd.align??'center';ctx.textBaseline='middle';ctx.fillText(cmd.text,cmd.x,cmd.y,canvas.width);
+      }else valid(false);
+    }
+    const data=ctx.getImageData(0,0,canvas.width,canvas.height).data;
+    let binary='';for(let i=0;i<data.length;i+=4096)binary+=String.fromCharCode(...data.subarray(i,i+4096));
+    append({op:'pixels',width:canvas.width,height:canvas.height,rgba:btoa(binary)});
+  };
   const api=Object.freeze({
     setTitle:value=>append({op:'title',value}),
     setState:value=>append({op:'state',value}),
     toggleState:()=>append({op:'toggleState'}),
     setImage:value=>append({op:'image',value}),
+    drawKey,
     setSettings:value=>append({op:'settings',value}),
     getGlobalSettings:()=>input.globalSettings||{},
     setGlobalSettings:value=>append({op:'globalSettings',value}),

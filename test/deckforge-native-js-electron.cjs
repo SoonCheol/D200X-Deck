@@ -64,6 +64,16 @@ app.whenReady().then(async()=>{
     assert.deepEqual(asyncResult,{ops:[{op:'title',value:'async ready'}],memory:{saved:1}});
     const clean=await b.run("api.setTitle(typeof globalThis.carry);api.setTitle(String(memory.saved));",{...input,memory:asyncResult.memory});
     assert.deepEqual(clean.ops,[{op:'title',value:'undefined'},{op:'title',value:'1'}]);
+    const drawing=await b.run("api.drawKey({width:16,height:16,background:'#ff0000',commands:[{type:'rect',x:0,y:0,width:4,height:4,color:'#0000ff'}]});",input);
+    const {pixelImage}=require('../app/streamdeck-editor/deckforge-pixel-image.cjs');
+    const pixels=Buffer.from(drawing.ops[0].rgba,'base64');
+    assert.deepEqual([...pixels.subarray(0,4)],[0,0,255,255]);
+    assert.deepEqual([...pixels.subarray(8*16*4+8*4,8*16*4+8*4+4)],[255,0,0,255]);
+    assert.ok(pixelImage(drawing.ops[0]).value.startsWith('data:image/png;base64,'));
+    const text=await b.run("api.drawKey({width:64,height:64,commands:[{type:'text',x:32,y:32,text:'42',size:28,color:'#ffffff',bold:true}]});",input);
+    assert.ok(Buffer.from(text.ops[0].rgba,'base64').some((v,i)=>i%4===3&&v>0));
+    const badDraw=createScriptRunner('com.deckforge.native.baddraw');
+    try{await assert.rejects(badDraw.run("api.drawKey({width:9999,height:64,commands:[]});",input),/invalid key drawing/);}finally{badDraw.close();}
     const c=createScriptRunner('com.deckforge.native.smokec');
     try{
       await assert.rejects(c.run("await new Promise(()=>{});",input),/timeout/);

@@ -3,6 +3,11 @@
 > 기록일: 2026-11-24 · 상태: **패키지 v1 유지 / 독자 SDK API 1·2 및 패키지 v2 / Ulanzi 정적 분석·제한 후보 변환기 구현**
 > 저장소·브랜치: `SoonCheol/D200X-Deck` / `codex/streamdeck-761-clean-editor`
 
+## 0.19 독자 SDK 동적 키 그림 (1.1.156)
+
+- API 2 `api.drawKey({width:144,height:144,background:'#101010',commands:[{type:'text',x:72,y:72,text:'42',size:48,color:'#ffffff',bold:true}]})`: rect/circle/line/text, 1~144px, 32개 명령/그림, 이벤트당 2장. 색상은 #RRGGBB 또는 #RRGGBBAA, 글꼴 sans-serif/serif/monospace. 외부 이미지/폰트/URL 없음.
+- sandbox RGBA 출력은 host가 재검증하고 PNG로 변환하여 기존 image operation으로 처리. 물리 출력과 원본 Ulanzi 자동 변환은 별도 검증.
+
 ## 0.18 Ulanzi 변환 PNG 무결성 강화 (1.1.131)
 
 - 변환 후보의 PNG에 한해 256KiB/144×144 제한, 전체 chunk CRC·순서·IHDR/IEND·palette·제한된 ancillary 검사와 zlib 제한 해제/scanline 길이/필터 검사 추가. interlace/APNG/미지원 메타데이터는 수동 검토. 전체 픽셀 재구성 또는 실기 인증은 아니다.

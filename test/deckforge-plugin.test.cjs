@@ -1487,3 +1487,22 @@ test('multi-script HTML audit records available real community source and missin
   assert.equal(report.installationAllowed,false);
  }finally{await fs.rm(root,{recursive:true,force:true});}
 });
+
+test('dynamic key RGBA is bounded and converted to a verified PNG before host display',()=>{
+ const {pixelImage}=require('../app/streamdeck-editor/deckforge-pixel-image.cjs');
+ const {verifyPng}=require('../app/streamdeck-editor/ulanzi-png-verifier.cjs');
+ const rgba=Buffer.from([255,0,0,255,0,0,255,128]);
+ const op={op:'pixels',width:2,height:1,rgba:rgba.toString('base64')};
+ const expected=pixelImage(op),png=Buffer.from(expected.value.slice(22),'base64');
+ assert.equal(verifyPng(png).ok,true);
+ const raw=require('node:zlib').inflateSync(png.subarray(41,41+png.readUInt32BE(33)));
+ assert.deepEqual([...raw],[0,...rgba]);
+ const host=new NativePluginHost('/unused');
+ const ctx={pluginUUID:nativeId,action:scriptManifest.actions[0],permissions:['display']};
+ try{
+   assert.deepEqual(host.validateScriptOps(ctx,'press',[op]).normal,[expected]);
+   for(const bad of [{...op,width:145},{...op,rgba:'AAAA'},{...op,extra:true},{...op,rgba:op.rgba.replace(/=$/,'A')}])
+     assert.throws(()=>host.validateScriptOps(ctx,'press',[bad]),/key pixel/);
+   assert.throws(()=>host.validateScriptOps(ctx,'press',[op,op,op]),/drawing limit/);
+ }finally{host.close();}
+});

@@ -2,6 +2,12 @@
 
 > **상태 기록 기준: 2026-11-24**. 실제 최신 HEAD는 Git에서 확인하며, 코드·자동 검사·Windows 빌드·사용자 Windows/D200X 실기 결과를 구분한다. 시작 시 `AGENTS.md`와 이 문서만 읽고 로드맵은 필요한 경우에만 참고한다.
 
+## 1.1.156 — 독자 SDK 동적 키 이미지 생성 (2026-11-24)
+
+- 실제 공개 CounterAction의 동적 canvas 그림 요구를 참고, API 2 api.drawKey 제공. sandbox 안에서 배경/rect/circle/line/text 생성, 최대 144×144·32 명령·이벤트당 2장·내장 글꼴만 사용. 원본 plugin 코드를 실행하거나 복사하지 않음.
+- renderer는 bounded RGBA만 전달, host가 정확한 길이/canonical base64 재검증 후 자체 PNG 생성·CRC/scanline 검사 및 기존 image 표시 경로에 전달. 권한/USB/UI 변경 없음.
+- 실제 Electron 색상/글자 픽셀 smoke 및 host 부정 테스트 추가. 1.1.155 CI #1195 및 Windows #906 성공. 신규 검사/실기는 별도.
+
 ## 1.1.155 — 다중 HTML 스크립트 정적 의존성 분석 (2026-11-24)
 
 - 다중 HTML script 진입점의 로컬 소스별 SHA·SDK 호출·분류 및 누락/초과/실패 상태, 전체 호출 집계. 최대 32개/4MiB 분석 한도, 원본 실행 및 변환 금지 유지. 단일 inert wrapper의 기존 제한 변환 보존.
