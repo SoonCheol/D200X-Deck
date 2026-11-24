@@ -296,3 +296,48 @@ test('experimental KEY burst periodically restores full PAGE',async()=>{
   assert.deepEqual(pageWrites(deck).map(x=>x[0]),['page',...Array(16).fill('key'),'page']);
  }finally{t.stop();}
 });
+
+test('obsolete PAGE compression failure preserves newer complete request',async()=>{
+ const deck=new FakeDeck();let reject;const gate=new Promise((_r,j)=>{reject=j;});
+ let builds=0;
+ const t=new D200XTransport({deck,buildPage:async(images)=>{if(++builds===1)await gate;return Buffer.from(images[0].png);}});
+ try{
+  await t.start();t.schedule(completeImages({0:'old'}));t.schedule(completeImages({0:'latest'}));
+  reject(Error('old compression failed'));await idle();await idle();
+  assert.deepEqual(pageWrites(deck),[['page','latest']]);assert.equal(t.pending,null);
+ }finally{t.stop();}
+});
+test('sleep during compression defers all visual writes until wake and restores latest PAGE',async()=>{
+ const deck=new FakeDeck();let release;const gate=new Promise(r=>{release=r;});
+ let builds=0;const t=new D200XTransport({deck,incrementalKeys:true,buildPage:async(images)=>{if(++builds===1)await gate;return Buffer.from(images[0].png);}});
+ try{
+  await t.start();t.schedule(completeImages({0:'before'}));t.sleepDisplay();
+  t.schedule(completeImages({0:'asleep'}),'blank',true);
+  release();await idle();await idle();
+  assert.deepEqual(pageWrites(deck),[]);assert.equal(t.pending,t.currentImages);
+  t.wakeDisplay();await idle();await idle();
+  assert.deepEqual(pageWrites(deck),[['page','asleep']]);assert.equal(t.pending,null);
+ }finally{t.stop();}
+});
+test('KEY write disconnect restores latest PAGE on reconnect without repeating KEY',async()=>{
+ const deck=new FakeDeck();let attempts=0;
+ deck.pushKey=()=>{attempts++;deck.disconnect();throw Error('USB lost');};
+ const t=new D200XTransport({deck,incrementalKeys:true,buildPage:async(images)=>Buffer.from(images[0].png),buildKeyUpdate:async()=>Buffer.from('key')});
+ try{
+  await t.start();t.schedule(completeImages());await idle();
+  t.schedule(completeImages({0:'failed-key'}),'blank',true);await idle();
+  assert.equal(deck.connected,false);
+  t.schedule(completeImages({0:'latest'}),'blank',true);
+  await t.connect();await idle();await idle();
+  assert.deepEqual(pageWrites(deck),[['page','slot-0'],['page','latest']]);assert.equal(attempts,1);
+  t.schedule(completeImages({0:'after'}),'blank',true);await idle();
+  assert.equal(pageWrites(deck).at(-1)[0],'page');assert.equal(attempts,1);
+ }finally{t.stop();}
+});
+test('stop closes a handle opened by a delayed HID scan',async()=>{
+ const deck=new FakeDeck();let release;const gate=new Promise(r=>{release=r;});
+ deck.connectAsync=async()=>{await gate;deck.connected=true;deck.emit('status',deck.status());return true;};
+ const t=new D200XTransport({deck});
+ const starting=t.start();await idle();t.stop();release();await starting;
+ assert.equal(deck.connected,false);assert.equal(t.pending,null);assert.equal(t.timer,null);
+});

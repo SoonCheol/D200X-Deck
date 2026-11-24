@@ -123,3 +123,5 @@ API 2 manifest의 service={script,tickIntervalMs?} 및 별도 background.run 권
 - 1.1.220: 설치/보존 목록 동일 ? 관리창. native 제거는 데이터 유지 기본 또는 제거 후 보존 데이터 삭제 선택; 먼저 제거 후 정확한 삭제 목록 승인, 취소/실패는 제거 성공과 구분. 프로필/등록 버튼 유지, legacy purge 미지원. 사용자가 수행한 설치·업데이트·롤백·제거·복구·purge의 main 결과를 diagnostics/plugin-management.jsonl(1MiB, 이전 1개) 및 AI inspect plugin_log(최근 64KiB씩, 허용 필드)로 기록/조회. raw 오류·경로·설정·토큰 미수집. 로그 기록 실패가 실제 작업 성공을 뒤집지 않음. 기존 작업 기록 소급 불가.
 
 - 09B(1.1.221): transport 생성자 incrementalKeys=true 및 호출 liveOnly=true 두 조건 필요(생산 호출 미연결, 기본 OFF). 마지막 완료 PAGE/KEY 서명과 blank mode 및 일반 1슬롯 변경만 허용, 와이드 변경·전체 요청·sleep/reconnect는 PAGE, 16회 KEY 후 PAGE. KEY 압축/쓰기 실패 시 프로세스 내 비활성화 및 최신 전체 PAGE 복원, 세대/대기 요청 검사. mock 검증과 실기 ACK 구분. 사용자 실기 전 활성화 금지.
+
+- 09C(1.1.222): stale PAGE 압축 실패로 최신 pending 유실하지 않도록 보호; 동일 실패 반복 금지. 절전 중 이미지 전송 보류, wake 최신 PAGE; stop 이후 지연 scan handle 즉시 종료. KEY 오류 후 disconnect/reconnect 최신 PAGE 복원 및 재시도 차단 mock 검사 추가. KEY 생산 비활성 유지. 사용자 보고: 테스트용 v1.0.0 제거 및 보존 삭제(2/2), AI 로그 조회 성공(2026-11-24 16:38:12/16 UTC); 원본 로그 직접 열람 아님.

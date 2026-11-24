@@ -66,6 +66,7 @@ class D200XTransport extends EventEmitter {
     this.session = 0;
     this.sleeping = false;
     this.deck.on('status', status => {
+      if(this.closed)return;
       const connected = Boolean(status.connected);
       this.emit('status', status);
       if (!connected) {
@@ -112,7 +113,12 @@ class D200XTransport extends EventEmitter {
     if (this.closed || this.deck.connected || this.connecting) return this.connecting;
     this.lastConnectAttempt = this.now();
     this.connecting = Promise.resolve().then(() => this.deck.connectAsync());
-    try { return await this.connecting; }
+    try {
+      const result=await this.connecting;
+      // An asynchronous HID scan can finish after stop(). Close the late handle.
+      if(this.closed){if(this.deck.connected)this.deck.disconnect('Editor closed');return false;}
+      return result;
+    }
     catch (error) {
       this.emit('error-message', String(error?.message || error));
       return false;
@@ -214,11 +220,11 @@ class D200XTransport extends EventEmitter {
   }
 
   async flush() {
-    if (this.inFlight || !this.deck.connected || !this.pending || this.closed) return;
+    if (this.inFlight || !this.deck.connected || !this.pending || this.closed || this.sleeping) return;
     this.inFlight = true;
     let failed = false;
     try {
-      while (this.pending && this.deck.connected && !this.closed) {
+      while (this.pending && this.deck.connected && !this.closed && !this.sleeping) {
         const images = this.pending;
         this.pending = null;
         const generation = this.session,mode=this.wideMode;
@@ -233,7 +239,8 @@ class D200XTransport extends EventEmitter {
               const image=images.find(item=>item.index===index);
               const keyZip=await this.buildKeyUpdate(index%COLUMNS+'_'+Math.floor(index/COLUMNS),image.png);
               if(this.pending||this.closed||!this.deck.connected||generation!==this.session)continue;
-              if(this.incrementalBase===base&&!this.sleeping){
+              if(this.sleeping){this.pending=this.currentImages;continue;}
+              if(this.incrementalBase===base){
                 if(!Buffer.isBuffer(keyZip)||keyZip.length>MAX_PAGE_CACHE_BYTES)throw Error('invalid KEY archive');
                 this.deck.pushKey(keyZip);
                 this.incrementalBase=signature;this.incrementalCount++;
@@ -256,6 +263,7 @@ class D200XTransport extends EventEmitter {
           const cached=signature&&this.pageZipCache?.signature===signature?this.pageZipCache:null;
           zip=cached?cached.zip:await this.buildPage(images,mode);
           if (this.pending || this.closed || !this.deck.connected || generation !== this.session) continue;
+          if(this.sleeping){this.pending=this.currentImages;continue;}
           // Synchronous multi-report write: the keep-alive timer cannot
           // interleave its HID reports inside a page transfer.
           // Firmware can retain the previous native CPU/RAM/GPU renderer
@@ -279,22 +287,29 @@ class D200XTransport extends EventEmitter {
           this.log('page-sent', String(images.length)+' slots · '+zip.length+' ZIP bytes'+(cached?' · cached ZIP':''));
           this.emit('synced', { slots: images.length });
         } catch (error) {
-          failed = true;
           this.pageZipCache=null;
           this.incrementalBase=null;this.incrementalCount=0;
-          // Keep the page in currentImages for the next reconnect or edit.
-          // If still connected, leave the queue idle rather than retrying
-          // an invalid ZIP forever or blocking keep-alives.
-          this.pending = this.deck.connected ? null : this.currentImages;
-          this.log('write-failure', 'Page transfer failed');
-          this.emit('error-message', String(error?.message || error));
-          // Avoid immediate retry loops for errors unrelated to unplugging.
+          if(this.closed)break;
+          // A failed obsolete compression must not erase a newer page.
+          // Preserve the newer queue (including a reconnect's full snapshot).
+          if(this.pending&&this.deck.connected&&this.pending!==images){
+            this.log('page-superseded','Obsolete transfer failed; newer PAGE retained');
+            continue;
+          }
+          if(this.pending&&this.deck.connected&&generation!==this.session)continue;
+          if(this.sleeping){this.pending=this.currentImages;break;}
+          failed=true;
+          // Do not retry the same failing payload in a tight loop. A later
+          // edit or reconnection restores the latest complete image snapshot.
+          this.pending=this.deck.connected?null:this.currentImages;
+          this.log('write-failure','Page transfer failed');
+          this.emit('error-message',String(error?.message||error));
           break;
         }
       }
     } finally {
       this.inFlight = false;
-      if (!failed && this.pending && this.deck.connected && !this.closed)
+      if (!failed && this.pending && this.deck.connected && !this.closed && !this.sleeping)
         queueMicrotask(() => this.flush().catch(error =>
           this.emit('error-message', String(error?.message || error))));
     }
