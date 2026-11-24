@@ -2,6 +2,11 @@
 
 > **상태 기록 기준: 2026-11-24**. 실제 최신 HEAD는 Git에서 확인하며, 코드·자동 검사·Windows 빌드·사용자 Windows/D200X 실기 결과를 구분한다. 시작 시 `AGENTS.md`와 이 문서만 읽고 로드맵은 필요한 경우에만 참고한다.
 
+## 1.1.140 — GIF 애니메이션 시간/세대/전송 준비 (2026-11-24)
+
+- 실기와 분리된 AnimationClock: 최소 100ms 프레임 간격, 유한/무한 반복, 지연 프레임 건너뛰기, 슬롯 round-robin, 단일 outstanding ticket, page epoch 변경 시 stale 작업 무효화, pause/resume/clear, 최대 4개 활성·16MiB 전체 용량 제한. PNG 재검증.
+- 기존 HID page/keepalive에 연결하지 않음. 실기 미검증 0x0d key-update 전송은 별도 단계로 보류. mock 시간·동시성·페이지 전환 집중 검사 추가.
+
 ## 1.1.139 — GIF 부분 프레임 및 투명 합성 (2026-11-24)
 
 - GIF89a §23 disposal 0/1/2/3, 투명 palette index, 부분 영역 및 local/global palette 합성. 원본 프레임 간격/loop 유지. 투명 아이콘 배경은 alpha-zero 정책, 인터랙티브 GIF는 수동 검토. 합성 PNG CRC/scanline 및 총 크기 제한 유지.

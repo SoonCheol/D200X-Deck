@@ -1069,3 +1069,28 @@ test('GIF partial frames honor transparency and restore background or previous p
  const interactive=Buffer.from(bytes);interactive[22]|=2;
  assert.throws(()=>decodeCompositeGif(interactive),/interactive/);
 });
+
+test('animation clock skips late frames, preserves finite loops, isolates pages and serializes writers',()=>{
+ const {animationTimeline,AnimationClock}=require('../app/streamdeck-editor/deckforge-animation-clock.cjs');
+ const {gifPngFrames}=require('../app/streamdeck-editor/ulanzi-media-analysis.cjs');
+ const gif=Buffer.from('R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAICRAEAOw==','base64');
+ const png=gifPngFrames(gif).frames[0].png;
+ const animation={loopCount:1,frames:[{png,delayMs:20},{png,delayMs:150},{png,delayMs:100}]};
+ const tl=animationTimeline(animation);
+ assert.equal(tl.at(99).index,0);assert.equal(tl.at(100).index,1);assert.equal(tl.at(349).index,2);
+ assert.equal(tl.at(350).index,0);assert.equal(tl.at(700).done,true);
+ let time=0;const clock=new AnimationClock(()=>time);
+ clock.replace([{slot:0,animation},{slot:1,animation}]);
+ const a=clock.next();assert.equal(a.slot,0);assert.equal(clock.next(),null);
+ clock.settle(a,true);const b=clock.next();assert.equal(b.slot,1);clock.settle(b,true);
+ time=275;const late=clock.next();assert.equal(late.index,2);
+ clock.replace([{slot:3,animation}]);
+ assert.equal(clock.isCurrent(late),false);assert.equal(clock.next(),null);
+ assert.equal(clock.settle(late,true),false);
+ const next=clock.next();assert.equal(next.slot,3);assert.equal(next.index,0);clock.settle(next,true);
+ clock.pause();assert.equal(clock.next(),null);clock.resume();
+ const resumed=clock.next();assert.equal(resumed.index,0);clock.settle(resumed,true);
+ clock.clear();assert.equal(clock.next(),null);
+ assert.throws(()=>clock.replace([{slot:13,animation}]),/slot/);
+ assert.throws(()=>animationTimeline({...animation,frames:[{png:Buffer.from('bad'),delayMs:5}]}),/frame/);
+});
