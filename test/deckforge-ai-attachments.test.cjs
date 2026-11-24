@@ -79,7 +79,7 @@ test('inspector preserves original cards and uses Key Up, Key Down, then preview
 });
 
 test('pasted screenshot is queued, not sent; normal text Ctrl+V is untouched',async()=>{
-  const panel=fs.readFileSync(path.join(__dirname,'../app/streamdeck-editor/ai/panel.js'),'utf8');
+  const panel=fs.readFileSync(path.join(__dirname,'../app/streamdeck-editor/ai/panel.js'),'utf8').replace(/\r\n/g,'\n');
   const first=panel.indexOf('async function queueAttachments(files){');
   const last=panel.indexOf("\n$('input').oninput=controls;",first);
   assert.ok(first>=0&&last>first);
