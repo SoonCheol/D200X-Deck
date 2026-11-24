@@ -1671,7 +1671,7 @@ function bindActionAppearance(){
   exportButton.title='선택한 .sdPlugin 폴더를 단일 .deckforgePlugin 설치 파일로 저장합니다. 원본은 변경하지 않습니다.';
   exportButton.addEventListener('click',exportDeckForgePlugin);pluginToolbar.append(exportButton);
   if(window.deckBridge?.nativeHaInstall){
-    const ha=document.createElement('button');ha.type='button';ha.className='plugin-add-button';ha.textContent=sdkPlugins.some(p=>p.uuid==='com.deckforge.native.home-assistant'&&['0.1.0','0.1.1','0.1.2','0.1.3'].includes(p.version))?'HA 전용 업데이트':'HA 전용 추가';
+    const ha=document.createElement('button');ha.type='button';ha.className='plugin-add-button';ha.textContent=sdkPlugins.some(p=>p.uuid==='com.deckforge.native.home-assistant'&&['0.1.0','0.1.1','0.1.2','0.1.3','0.1.4'].includes(p.version))?'HA 전용 업데이트':'HA 전용 추가';
     ha.addEventListener('click',installNativeHa);pluginToolbar.append(ha);
   }
   host.after(pluginToolbar);

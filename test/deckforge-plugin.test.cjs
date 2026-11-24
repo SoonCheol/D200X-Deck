@@ -2464,3 +2464,39 @@ test('socket loss invalidates queued stream data and delivers terminal notice de
   assert.equal(socket.sent.length,0);
  }finally{unblock();host.close();}
 });
+
+test('HA reconnect preserves catalogue but invalidates live values until a fresh full snapshot',()=>{
+ const {service}=require('../app/streamdeck-editor/deckforge-ha-plugin.cjs');
+ let shared={},memory={},sent=[];
+ const api={getSharedState:()=>structuredClone(shared),publishSharedState:s=>shared=structuredClone(s),connectSocket:()=>{},sendSocket:v=>sent.push(v)};
+ const event=(type,response)=>service({type,response},{},0,memory,api);
+ const msg=(generation,m)=>event('socketEvent',{event:'message',generation,body:JSON.stringify(m)});
+ const open=generation=>event('socketEvent',{event:'open',generation});
+ const discover=generation=>{
+  msg(generation,{type:'result',id:1,success:true,result:[]});
+  msg(generation,{type:'result',id:2,success:true,result:{entities:[]}});
+ };
+ const snapshot=(generation,a)=>msg(generation,{type:'event',id:3,event:{a}});
+ event('start');open(1);discover(1);
+ snapshot(1,{'switch.fan':{s:'off',a:{friendly_name:'Fan'}},'sensor.temp':{s:'21'}});
+ assert.equal(shared.status,'연결됨');
+ event('socketEvent',{event:'reconnecting',generation:2,gap:true});
+ assert.equal(shared.status,'재연결 중');assert.equal(shared.controls.length,1);assert.equal(shared.sensors.length,1);
+ assert.deepEqual(shared.entities,{});
+ const before=sent.length;
+ event('serviceMessage',{message:{entity:'switch.fan'}});
+ assert.equal(sent.length,before);
+ msg(1,{type:'event',id:3,event:{a:{'switch.fan':{s:'on'}}}});
+ assert.equal(shared.status,'재연결 중');
+ open(2);discover(2);
+ msg(2,{type:'event',id:3,event:{c:{'switch.fan':{'+':{s:'on'}}}}});
+ assert.equal(shared.status,'상태 구독 중');assert.deepEqual(shared.entities,{});
+ snapshot(2,{'switch.fan':{s:'off'},'sensor.new':{s:'22'}});
+ assert.equal(shared.status,'연결됨');assert.deepEqual(shared.sensors.map(x=>x.value),['sensor.new']);
+ event('serviceMessage',{message:{entity:'switch.fan'}});
+ const command=sent.at(-1);assert.equal(command.service,'toggle');
+ msg(2,{type:'result',id:command.id,success:true});
+ assert.equal(shared.entities['switch.fan'].value,'off','command receipt must not invent state');
+ msg(2,{type:'event',id:3,event:{c:{'switch.fan':{'+':{s:'on'}}},r:['sensor.new']}});
+ assert.equal(shared.entities['switch.fan'].value,'on');assert.equal(shared.sensors.length,0);
+});

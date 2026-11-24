@@ -13,11 +13,15 @@ function service(event,settings,state,memory,api){
     api.publishSharedState(s);
   }
   const empty=status=>({status,controls:[],sensors:[],entities:{},groups:{},devices:{}});
+  // Retain only the catalogue during reconnect; old readings cannot be
+  // treated as current or used for a control request.
+  const stale=status=>({...empty(status),controls:old.controls||[],sensors:old.sensors||[]});
+  const object=v=>v!==null&&typeof v==='object'&&!Array.isArray(v);
   const send=(id,type)=>api.sendSocket({id,type});
-  if(event.type==='start'){memory.next=10;publish(empty('연결 중'));api.connectSocket('ha');return;}
+  if(event.type==='start'){memory.next=10;memory.phase='connecting';delete memory.generation;publish(stale('연결 중'));api.connectSocket('ha');return;}
   if(event.type==='serviceMessage'){
     const id=event.response?.message?.entity;
-    if(old.status!=='연결됨'||!valid(id)||!control(id)||!Object.hasOwn(old.entities||{},id))return;
+    if(memory.phase!=='live'||old.status!=='연결됨'||!valid(id)||!control(id)||!Object.hasOwn(old.entities||{},id))return;
     const entry=old.entities[id],domain=id.split('.')[0];
     if(['unknown','unavailable',''].includes(entry.value))return;
     const operation=domain==='automation'?'trigger':domain==='button'||domain==='input_button'?'press':domain==='script'||domain==='scene'?'turn_on':'toggle';
@@ -26,17 +30,27 @@ function service(event,settings,state,memory,api){
   }
   if(event.type!=='socketEvent')return;
   const response=event.response||{};
-  if(response.event==='open'){memory.next=10;publish(empty('기기 조회 중'));send(1,'config/device_registry/list');return;}
-  if(response.event!=='message'){publish(empty(response.event==='reconnecting'?'재연결 중':'연결 끊김'));return;}
+  const gen=Number.isSafeInteger(response.generation)?response.generation:null;
+  if(gen!==null&&Number.isSafeInteger(memory.generation)&&gen<memory.generation)return;
+  if(response.event==='open'){
+    if(gen!==null&&memory.generation===gen&&['devices','registry','snapshot','live'].includes(memory.phase))return;
+    memory.generation=gen;memory.next=10;memory.phase='devices';
+    publish(stale('기기 조회 중'));send(1,'config/device_registry/list');return;
+  }
+  if(response.event!=='message'){
+    memory.generation=gen;memory.phase='connecting';
+    publish(stale(response.event==='reconnecting'?'재연결 중':'연결 끊김'));return;
+  }
+  if(response.gap===true||gen!==null&&gen!==memory.generation)return;
   let m;try{m=JSON.parse(response.body);}catch{return;}
   if(!m||typeof m!=='object')return;
-  if(m.type==='result'&&m.id===1){
-    const next=empty('엔티티 조회 중');
+  if(m.type==='result'&&m.id===1&&memory.phase==='devices'){
+    memory.phase='registry';const next=stale('엔티티 조회 중');
     for(const d of Array.isArray(m.result)?m.result:[]){const id=clean(d?.id,64),name=clean(d?.name_by_user||d?.name);if(/^[a-f0-9]{32}$/.test(id)&&name)next.devices[id]=name;}
     publish(next);send(2,'config/entity_registry/list_for_display');return;
   }
-  if(m.type==='result'&&m.id===2){
-    const next={...old,status:'상태 구독 중',groups:{},devices:{}};
+  if(m.type==='result'&&m.id===2&&memory.phase==='registry'){
+    memory.phase='snapshot';const next={...old,status:'상태 구독 중',groups:{},devices:{},entities:{}};
     for(const e of Array.isArray(m.result?.entities)?m.result.entities:[]){
       if(valid(e?.ei)&&(control(e.ei)||sensor(e.ei))){
         const device=clean(e.di,64);if(/^[a-f0-9]{32}$/.test(device))next.groups[e.ei]=old.devices?.[device]||'기기 '+device.slice(0,8);
@@ -44,10 +58,21 @@ function service(event,settings,state,memory,api){
     }
     publish(next);send(3,'subscribe_entities');return;
   }
-  if(m.type==='result'&&m.id===3&&m.success===false){publish(empty('상태 구독 실패'));return;}
-  if(m.type==='result'&&m.id>10&&m.success===false){publish({...old,commandError:'HA 제어 실패'});return;}
-  if(m.type!=='event'||m.id!==3||!m.event||old.status==='목록 용량 초과')return;
-  const changes=m.event,entities={...(old.entities||{})};
+  if(m.type==='result'&&m.id===3&&m.success===false&&['snapshot','live'].includes(memory.phase)){
+    memory.phase='failed';publish(stale('상태 구독 실패'));return;
+  }
+  if(m.type==='result'&&m.id>10&&m.id<=memory.next&&memory.phase==='live'){
+    if(m.success===false)publish({...old,commandError:'HA 제어 실패'});
+    else if(m.success===true&&old.commandError)publish({...old,commandError:''});
+    return; // Receipt is not physical state confirmation.
+  }
+  if(m.type!=='event'||m.id!==3||!object(m.event)||old.status==='목록 용량 초과'||
+     !['snapshot','live'].includes(memory.phase))return;
+  const changes=m.event,initial=memory.phase==='snapshot';
+  // The first subscription event is a complete added-state snapshot, not a delta.
+  if(initial&&!(object(changes.a)||Object.keys(changes).length===0))return;
+  if(initial&&(Object.hasOwn(changes,'c')||Object.hasOwn(changes,'r')))return;
+  const entities=initial?{}:{...(old.entities||{})};
   const merge=(id,part,removed,reset)=>{
     if(!valid(id)||!(sensor(id)||control(id)))return;
     const prior=reset?{}:entities[id];if(!prior)return;
@@ -71,7 +96,7 @@ function service(event,settings,state,memory,api){
     const group=old.groups?.[id]||(sensor(id)?'기기 미분류 센서':'기기 미분류 제어');
     (sensor(id)?sensors:controls).push({value:id,label:e.label,group});
   }
-  publish({...old,status:'연결됨',entities,controls,sensors});
+  memory.phase='live';publish({...old,status:'연결됨',entities,controls,sensors});
 }
 function controlKey(event,settings,state,memory,api){
   const shared=api.getSharedState(),id=settings.entity,entry=shared.entities?.[id];
@@ -131,7 +156,7 @@ function createHomeAssistantManifest(server){
   u.protocol='wss:';u.pathname='/api/websocket';
   const script=f=>'return ('+f.toString()+')(event,settings,state,memory,api);';
   const select=(key,label,value,options)=>({key,label,type:'select',default:value,options:options.map(([value,label])=>({value,label}))});
-  return {apiVersion:2,id:ID,name:'DeckForge Home Assistant',version:'0.1.4',requiresDeckForge:'>=1.1.177',
+  return {apiVersion:2,id:ID,name:'DeckForge Home Assistant',version:'0.1.5',requiresDeckForge:'>=1.1.205',
     permissions:['display','background.run','network.websocket','timer.tick'],
     networkEndpoints:[{id:'ha',url:u.href,method:'WSS',auth:'home-assistant',reconnect:true,maxReceiveBytes:1048576}],
     service:{script:script(service),sharedStateBytes:262144},
