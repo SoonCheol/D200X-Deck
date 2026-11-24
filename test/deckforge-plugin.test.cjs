@@ -2500,3 +2500,41 @@ test('HA reconnect preserves catalogue but invalidates live values until a fresh
  msg(2,{type:'event',id:3,event:{c:{'switch.fan':{'+':{s:'on'}}},r:['sensor.new']}});
  assert.equal(shared.entities['switch.fan'].value,'on');assert.equal(shared.sensors.length,0);
 });
+
+test('conditional tick schedule runs only for auto multi-selection and follows confirmed settings',async()=>{
+ const {createHomeAssistantManifest}=require('../app/streamdeck-editor/deckforge-ha-plugin.cjs');
+ const m=createHomeAssistantManifest('https://example.com'),action=m.actions[1];
+ assert.doesNotThrow(()=>validateNativeManifest(m));
+ for(const tickWhen of [{...action.tickWhen,minItems:0},{...action.tickWhen,setting:'missing'},{...action.tickWhen,equals:'invalid'},{...action.tickWhen,selection:'mode'}])
+  assert.throws(()=>validateNativeManifest({...m,actions:[m.actions[0],{...action,tickWhen}]}),/tick condition/);
+ let now=1000;const calls=[];
+ const cfg={context:'conditional-tick',slot:0,gesture:'down',pluginUUID:m.id,actionUUID:action.id,settings:{mode:'all',entities:['sensor.a','sensor.b']}};
+ // Isolate the action scheduler from real HA I/O.
+ const manifest={...m,permissions:['display','timer.tick'],networkEndpoints:undefined,service:undefined,actions:[{...action,sharedStateView:undefined}]};
+ const host=new NativePluginHost('/unused',()=>{},()=>({async run(_source,input){calls.push(input.event.type);return {ops:[],memory:{}};},close(){}}),{now:()=>now});
+ try{
+  host.sync([cfg],[manifest]);const ctx=host.contexts.get(cfg.context);await ctx.queue;
+  assert.equal(ctx.tickDue,null);assert.equal(host.tickTimer,null);
+  host.sync([{...cfg,settings:{mode:'press',entities:['sensor.a','sensor.b']}}],[manifest]);await ctx.queue;assert.equal(ctx.tickDue,null);
+  host.sync([{...cfg,settings:{mode:'auto',entities:['sensor.a']}}],[manifest]);await ctx.queue;assert.equal(ctx.tickDue,null);
+  host.sync([{...cfg,settings:{mode:'auto',entities:['sensor.a','sensor.b']}}],[manifest]);await ctx.queue;
+  assert.equal(ctx.tickDue,2000);assert.ok(host.tickTimer);
+  now=1999;host.tick();assert.equal(calls.includes('tick'),false);
+  now=2000;host.tick();await ctx.queue;assert.equal(calls.filter(x=>x==='tick').length,1);
+  host.sync([cfg],[manifest]);await ctx.queue;assert.equal(ctx.tickDue,null);assert.equal(host.tickTimer,null);
+  now=10000;host.tick();assert.equal(calls.filter(x=>x==='tick').length,1);
+ }finally{host.close();}
+});
+test('HA shared state changes never reset or advance automatic sensor rotation',()=>{
+ const {sensorKey}=require('../app/streamdeck-editor/deckforge-ha-plugin.cjs');
+ const vm=require('node:vm');let now=1000;
+ const render=vm.runInNewContext('('+sensorKey.toString()+')',{Date:{now:()=>now}});
+ let shared={status:'연결됨',entities:{'sensor.a':{label:'A',value:'10'},'sensor.b':{label:'B',value:'20'}}},frame;
+ const api={getSharedState:()=>shared,setTitle(){},drawKey:spec=>frame=spec};
+ const settings={mode:'auto',entities:['sensor.a','sensor.b'],seconds:5,labels:true,unit:false,decimals:-1,fontSize:36};
+ const memory={};render({type:'appear'},settings,0,memory,api);
+ now=5500;shared.entities['sensor.a'].value='11';render({type:'sharedState'},settings,0,memory,api);
+ assert.equal(memory.since,1000);assert.equal(memory.index,0);assert.ok(frame.commands.some(c=>c.text==='11'));
+ now=6000;render({type:'tick'},settings,0,memory,api);assert.equal(memory.index,1);assert.equal(memory.since,6000);
+ now=7000;render({type:'sharedState'},settings,0,memory,api);assert.equal(memory.index,1);assert.equal(memory.since,6000);
+});

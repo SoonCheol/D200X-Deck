@@ -2,10 +2,10 @@
 > 2026-11-24 · 현재 스냅샷, 누적 금지.
 ## 개발 기준
 - 저장소 SoonCheol/D200X-Deck · 브랜치 codex/streamdeck-761-clean-editor · Draft PR #5 유지.
-- 로컬 E:\Codex\DeckForge. 최신 HEAD는 Git에서 확인. 소스 버전 **1.1.206** (06B HA 재동기화).
+- 로컬 E:\Codex\DeckForge. 최신 HEAD는 Git에서 확인. 소스 버전 **1.1.207** (06C 조건부 주기 실행).
 - 감사 기준 소스 `49ba39fe094ee808c5715f2348be0789f61d5e20`. CI #1221 성공(커넥터 확인); Windows #930 성공(사용자 인수인계, 이번 문서 작업에서 재검증하지 않음).
 ## 현재 상태
-- 독자 SDK API 1/2, 공개 25개 함수, HTTP/WSS, 전역 서비스/공유 상태, 동적 속성, 암호화·권한·패키지, HA 0.1.5 후보 및 Stream Deck 호환 호스트 구현. SDK 1.0 정식 완성 선언 보류.
+- 독자 SDK API 1/2, 공개 25개 함수, HTTP/WSS, 전역 서비스/공유 상태, 동적 속성, 암호화·권한·패키지, HA 0.1.6 후보 및 Stream Deck 호환 호스트 구현. SDK 1.0 정식 완성 선언 보류.
 - HA 기존 실기 인증·기기 목록·전등 제어·센서 표시 성공, 최신 실기 별도.
 - 1·2차 감사 합의와 3차 보고서 검토를 기반으로 재설계 방향 및 단계 순서 사용자 승인. 3차 전체 및 핵심 소스 대조 완료; 1·2차 원문 재검토, 전체 19개 경로 및 44개 테스트 독립 검증은 미실시.
 - 소스 대조: DOM 교체·중복 합성·설정 receipt 위험 확인; 기존 1권한효과 제한과 epoch/settingsRevision, WSS 오류 종료 처리 존재. 미저장 실기 미리보기 의도는 정책 결정 전 보존.
@@ -19,7 +19,7 @@
 - 04B 실제 Electron: Model 2 PID 5668/844 및 realm/timeout/서비스 생존, DrawOps 픽셀/host 경계 통과. standard Worker 저장소 IndexedDB/CacheStorage/OPFS 허용, opaque Worker 생성 실패. Model 5 비활성 유지. 로드맵에 따라 05 선행 분석만 수행.
 - 1.1.194: body 팔레트 미저장 이동 경고 오류 수정, Windows 성공.
 - 1.1.195: 물리 버튼 단위 초안, 외부 이동 보호, Windows 성공.
-- 1.1.196: 05A mount configRevision, 요청 identity/만료/값 대조, ABA 및 stale sync 보호, 응답 유실 시 해당 컨텍스트 정지·새 확정 revision/remount에서 재개. 집중 테스트 추가. 영구 receipt·settingsResult 미구현, 05B/C 잔여. CI/Windows 대기.
+- 1.1.196: 05A configRevision·요청 ID/만료/ABA 및 stale sync 보호. 후속 05B/C로 확장.
 - 1.1.197: HA 0.1.4 투명 control/sensor 이미지, 동일 서버 업데이트 필요. Windows/CI 성공.
 - 1.1.198~199: HA 센서 단일 편집·순서·실시간 레이어, 1.1.199 Windows/CI/입력 성공.
 - 1.1.200: 05B 프로필 atomic 설정+receipt, ACK 영구 증거, 24h/4096건. Windows/CI/입력 성공. 1.1.201 Windows/CI/입력 성공(실기 실패와 구분).
@@ -28,9 +28,10 @@
 - 1.1.203: 선택 settingsResult·child exit 검사, Windows/CI 성공.
 - 1.1.204: 05C-3 최신 mount 의도·ABA/slot/gesture·이동/복제·복합 효과 검사. Windows/CI/입력 성공. 감사 원문 13개 전체 대조/실제 전원 손실 미검증.
 - 1.1.205: 06A WSS 연결 세대/갭·종료 예약 큐, old data 무효화. 포화 검사 추가, 빌드 대기.
-- 1.1.206: 06B HA 0.1.5, catalogue 보존/실시간 값 무효화, discovery/초기 snapshot/live 단계 및 generation 검증, 삭제 및 제어 ACK/상태 분리 검사. 기존 0.1.4 유지 가능, 0.1.5는 동일 서버 수동 업데이트 필요. 자동 빌드/실기 대기.
+- 1.1.206: 06B HA 0.1.5 catalogue/live 분리·generation/초기 snapshot·삭제·ACK 검사. 빌드 대기.
+- 1.1.207: 06C API2 tickWhen 선택 조건(선택/boolean 비교 및 복수선택 최소 수), 기존 주기 계약 호환. HA 0.1.6은 auto+2개 이상만 tick, sharedState 회전 시각 유지 검사. 0.1.4 기존 설치 유지 가능, 새 HA는 동일 서버 수동 업데이트 필요. 자동 빌드/실기 대기.
 ## 다음 작업
-- **06 통신/공유 상태:** 1.1.205~206 검사 후 06C 조건부 센서 tick 및 회전/상태 이벤트 분리, 실기 별도. Model 2 유지. 04B 저장소 격리 해결은 별도 검증 대상으로 유지. OOM/DrawOps/자원 한도·실기 미검증 상태에서 Model 5 활성화 금지. 편집기 깜박임 개선/GUI 재확인은 최후순위이며 다음 단계의 선행조건 아님. 기능·보안 회귀는 예외적으로 즉시 해결. 성능/D200X 실기 검증 별도. 기존 실기 미리보기 정책 유지. 설정 revision/receipt 상세는 05에서 계속. 사용자 연속 개발 승인 유지.
+- **06 통신/공유 상태:** 1.1.205~207 집중 검사 후 07 범용 schema/제목 및 편집 계약, HA 실기 별도. Model 2 유지. 04B 저장소 격리 해결은 별도 검증 대상으로 유지. OOM/DrawOps/자원 한도·실기 미검증 상태에서 Model 5 활성화 금지. 편집기 깜박임 개선/GUI 재확인은 최후순위이며 다음 단계의 선행조건 아님. 기능·보안 회귀는 예외적으로 즉시 해결. 성능/D200X 실기 검증 별도. 기존 실기 미리보기 정책 유지. 설정 revision/receipt 상세는 05에서 계속. 사용자 연속 개발 승인 유지.
 - 이후 02 식별자 → 03 이미지 → 04A/B 실행 엔진 → 05 저장 → 06 통신 → 07 범용 schema → 08 관리 → 09 USB → 10 출시 검증.
 - 기존 기능/데이터/API·보안 보존, 테스트/CI/Windows/실기 구분. 미측정 성능 수치 단정 금지.
 ## 참조

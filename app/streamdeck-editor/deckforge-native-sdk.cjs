@@ -84,7 +84,7 @@ function validateNativeManifest(m){
   check(Array.isArray(m.actions)&&m.actions.length>0&&m.actions.length<=64,'invalid actions');
   const ids=new Set();
   for(const a of m.actions){
-    check(exact(a,m.apiVersion===1?['id','name','controllers','states','events','settingsSchema','stateImages']:['id','name','controllers','states','script','settingsSchema','tickIntervalMs','stateImages','sharedStateView'])&&typeof a.id==='string'&&
+    check(exact(a,m.apiVersion===1?['id','name','controllers','states','events','settingsSchema','stateImages']:['id','name','controllers','states','script','settingsSchema','tickIntervalMs','stateImages','sharedStateView','tickWhen'])&&typeof a.id==='string'&&
       a.id.startsWith(m.id+'.')&&/^[a-z0-9.-]+$/.test(a.id)&&a.id.length<=180&&
       !a.id.endsWith('.')&&!a.id.includes('..')&&!ids.has(a.id)&&validText(a.name,180),'invalid action');
     ids.add(a.id);
@@ -99,6 +99,13 @@ function validateNativeManifest(m){
     }
     if(m.apiVersion===2){
       check(a.tickIntervalMs===undefined||(m.permissions.includes('timer.tick')&&Number.isInteger(a.tickIntervalMs)&&a.tickIntervalMs>=1000&&a.tickIntervalMs<=3600000),'invalid or unauthorized tick interval');
+      if(a.tickWhen!==undefined){
+        const rule=a.tickWhen;
+        check(a.tickIntervalMs!==undefined&&exact(rule,['setting','equals','selection','minItems'])&&Object.keys(rule).length===4,'invalid tick condition');
+        const field=a.settingsSchema?.find(x=>x.key===rule.setting),selection=a.settingsSchema?.find(x=>x.key===rule.selection);
+        check(field&&(field.type==='boolean'&&typeof rule.equals==='boolean'||field.type==='select'&&field.options.some(o=>o.value===rule.equals))&&
+          selection?.type==='dynamicMultiSelect'&&Number.isInteger(rule.minItems)&&rule.minItems>=1&&rule.minItems<=selection.maxItems,'invalid tick condition settings');
+      }
       check(typeof a.script==='string'&&a.script.length>0&&Buffer.byteLength(a.script)<=65536,'invalid JavaScript source');
       // Compile for syntax validation only. Never invoke plugin code in Node.
       try{const AsyncFunction=Object.getPrototypeOf(async function(){}).constructor;new AsyncFunction('event','settings','state','memory','api','"use strict";\n'+a.script);}catch{throw Error('DeckForge SDK: invalid JavaScript syntax');}
@@ -373,7 +380,7 @@ class NativePluginHost{
     }
     check(!animationCount||!normal.some(op=>op.op==='image'),'animation and static image cannot share an event');
     if(ctx.service)return {normal,effects};
-    const {script,tickIntervalMs,stateImages,sharedStateView,...action}=ctx.action;
+    const {script,tickIntervalMs,stateImages,sharedStateView,tickWhen,...action}=ctx.action;
     validateNativeManifest({apiVersion:1,id:ctx.pluginUUID,name:'Runtime',version:'1',
       permissions:['display'],actions:[{...action,events:{press:normal.filter(op=>!['animation','stopAnimation'].includes(op.op))}}]});
     return {normal,effects};
@@ -479,6 +486,7 @@ class NativePluginHost{
       if(changed){
         if(Number.isSafeInteger(ctx.configRevision))ctx.configRevision++;
         this.cancelNetwork(ctx);this.cancelSocket(ctx);ctx.settingsRefresh=true;
+        if(ctx.action.tickWhen)this.refreshTickSchedule(ctx);
       }
     }
     pending.resolve({status:ok?'saved':accepted?'unknown':'rejected',requestId:pending.id});return ok;
@@ -739,14 +747,25 @@ class NativePluginHost{
       this.networkPending.delete(token);
     });
   }
+  refreshTickSchedule(ctx){
+    let enabled=ctx.apiVersion===2&&ctx.permissions.includes('timer.tick')&&!!ctx.action.tickIntervalMs;
+    if(enabled&&ctx.action.tickWhen){
+      const rule=ctx.action.tickWhen;
+      try{
+        const settings=nativeEffectiveSettings(ctx.action.settingsSchema,ctx.settings);
+        enabled=settings[rule.setting]===rule.equals&&Array.isArray(settings[rule.selection])&&settings[rule.selection].length>=rule.minItems;
+      }catch{enabled=false;}
+    }
+    ctx.tickDue=enabled?this.now()+ctx.action.tickIntervalMs:null;
+    this.reconcileTickTimer();
+  }
   initialize(ctx){
-    ctx.tickDue=ctx.apiVersion===2&&ctx.permissions.includes('timer.tick')&&ctx.action.tickIntervalMs?
-      this.now()+ctx.action.tickIntervalMs:null;
+    this.refreshTickSchedule(ctx);
     this.run(ctx,ctx.service?'start':'appear');
     this.reconcileTickTimer();
   }
   reconcileTickTimer(){
-    const needed=!this.closed&&!this.suspended&&[...this.contexts.values()].some(ctx=>!ctx.failed&&ctx.tickDue!==null&&ctx.tickDue!==undefined);
+    const needed=!this.closed&&!this.suspended&&[...this.contexts.values()].some(ctx=>!ctx.failed&&!ctx.settingsUncertain&&ctx.tickDue!==null&&ctx.tickDue!==undefined);
     if(needed&&!this.tickTimer){
       this.tickTimer=setInterval(()=>this.tick(),1000);this.tickTimer.unref?.();
     }else if(!needed&&this.tickTimer){clearInterval(this.tickTimer);this.tickTimer=null;}
@@ -755,7 +774,7 @@ class NativePluginHost{
     if(this.closed||this.suspended)return;
     let dispatched=0;
     // Oldest due context first: the per-sweep cap must not starve later slots.
-    const due=[...this.contexts.values()].filter(ctx=>!ctx.failed&&ctx.tickDue!=null&&now>=ctx.tickDue)
+    const due=[...this.contexts.values()].filter(ctx=>!ctx.failed&&!ctx.settingsUncertain&&ctx.tickDue!=null&&now>=ctx.tickDue)
       .sort((a,b)=>a.tickDue-b.tickDue);
     for(const ctx of due){
       // Skip busy periods rather than queuing missed ticks. Limit work per
@@ -944,6 +963,7 @@ class NativePluginHost{
           // Reset input pairing across settings generations. Never turn a
           // discarded press into a release-triggered privileged operation.
           if(ctx.apiVersion===2)ctx.pressed=false;
+          if(ctx.action.tickWhen)this.refreshTickSchedule(ctx);
           this.run(ctx,'settings');
         }
       }
