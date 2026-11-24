@@ -2538,3 +2538,28 @@ test('HA shared state changes never reset or advance automatic sensor rotation',
  now=6000;render({type:'tick'},settings,0,memory,api);assert.equal(memory.index,1);assert.equal(memory.since,6000);
  now=7000;render({type:'sharedState'},settings,0,memory,api);assert.equal(memory.index,1);assert.equal(memory.since,6000);
 });
+
+test('generic native settings UI separates presentation, validates references and preserves stored values',()=>{
+ const core=require('../app/streamdeck-editor/deck-core.js');
+ const manifest=require('../examples/deckforge-sdk/settings-ui.native.json'),action=manifest.actions[0];
+ assert.doesNotThrow(()=>validateNativeManifest(manifest));
+ const {settingsSchema:schema,settingsUI:ui}=action;
+ const defaults=core.nativeEffectiveSettings(schema,{});
+ assert.equal(core.nativeSettingVisible(ui[1],defaults),true);
+ assert.equal(core.nativeSettingVisible(ui[1],{...defaults,enabled:false}),false);
+ assert.deepEqual(core.nativeEffectiveSettings(schema,{enabled:false,amount:31,color:'#abcdef'}),{enabled:false,amount:31,color:'#abcdef'});
+ for(const color of ['red','#fff','#11223344','url(x)'])assert.throws(()=>core.nativeEffectiveSettings(schema,{color}),/invalid setting/);
+ for(const bad of [
+  [...ui,{key:'missing'}],
+  [...ui,ui[0]],
+  [{key:'color',control:'slider'}],
+  [{key:'amount',visibleWhen:{key:'amount',equals:50}}],
+  [{key:'amount',visibleWhen:{key:'enabled',equals:'true'}}],
+  [{key:'amount',visibleWhen:{key:'color',equals:'#FFFFFF'}}],
+  [{key:'enabled',group:'<x>',html:'<script>'}],
+  [{key:'enabled',visibleWhen:{key:'amount',equals:50}}]
+ ])assert.throws(()=>validateNativeManifest({...manifest,actions:[{...action,settingsUI:bad}]}),/settings UI/);
+ assert.doesNotThrow(()=>validateNativeManifest({...manifest,actions:[{...action,settingsUI:undefined}]}));
+ const conditional=[{key:'a',label:'A',type:'boolean',default:true},{key:'b',label:'B',type:'boolean',default:true},{key:'c',label:'C',type:'boolean',default:false}];
+ assert.throws(()=>core.validateNativeSettingsUI(conditional,[{key:'a',visibleWhen:{key:'b',equals:true}},{key:'b',visibleWhen:{key:'c',equals:false}}]),/settings UI/);
+});

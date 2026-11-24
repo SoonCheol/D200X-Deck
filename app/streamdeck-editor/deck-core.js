@@ -13,6 +13,7 @@
   const nativeText=v=>typeof v==='string'&&v.length<=256&&!/[\x00-\x1f\x7f]/.test(v);
   function nativeSettingValue(field,value){
     if(field.type==='boolean')return typeof value==='boolean';
+    if(field.type==='color')return typeof value==='string'&&/^#[0-9a-fA-F]{6}$/.test(value);
     if(field.type==='text')return nativeText(value)&&value.length<=field.maxLength;
     if(field.type==='integer')return Number.isSafeInteger(value)&&value>=field.min&&value<=field.max;
     if(field.type==='select')return field.options.some(o=>o.value===value);
@@ -46,10 +47,34 @@
       }else if(field.type==='dynamicSelect'||field.type==='dynamicMultiSelect'){
         extra=['source'];check(nativeKey(field.source));
         if(field.type==='dynamicMultiSelect'){extra.push('maxItems');check(Number.isInteger(field.maxItems)&&field.maxItems>=1&&field.maxItems<=8);}
-      }else check(field.type==='boolean');
+      }else check(field.type==='boolean'||field.type==='color');
       const keys=[...common,...extra];
       check(Object.keys(field).length===keys.length&&keys.every(k=>Object.hasOwn(field,k))&&nativeSettingValue(field,field.default));
     }
+  }
+  // Presentation is separate from the stored value contract. No executable UI.
+  function validateNativeSettingsUI(schema,ui){
+    if(ui===undefined)return;
+    const check=ok=>{if(!ok)throw Error('DeckForge SDK: invalid settings UI');};
+    check(Array.isArray(schema)&&Array.isArray(ui)&&ui.length<=schema.length);
+    const fields=new Map(schema.map(f=>[f.key,f])),seen=new Set();
+    for(const entry of ui){
+      check(nativeObject(entry)&&Object.keys(entry).every(k=>['key','group','control','visibleWhen'].includes(k))&&fields.has(entry.key)&&!seen.has(entry.key));
+      seen.add(entry.key);
+      const field=fields.get(entry.key);
+      check(entry.group===undefined||nativeLabel(entry.group));
+      check(entry.control===undefined||(entry.control==='slider'&&field.type==='integer'&&field.max-field.min<=10000&&field.max>field.min));
+      if(entry.visibleWhen!==undefined){
+        const rule=entry.visibleWhen;
+        check(nativeObject(rule)&&Object.keys(rule).length===2&&Object.hasOwn(rule,'key')&&Object.hasOwn(rule,'equals')&&rule.key!==entry.key);
+        const source=fields.get(rule.key);
+        check(source&&['boolean','select'].includes(source.type)&&nativeSettingValue(source,rule.equals));
+      }
+    }
+    for(const entry of ui)if(entry.visibleWhen)check(!ui.some(e=>e.key===entry.visibleWhen.key&&e.visibleWhen!==undefined));
+  }
+  function nativeSettingVisible(entry,values){
+    return !entry?.visibleWhen||values[entry.visibleWhen.key]===entry.visibleWhen.equals;
   }
   // Only inert, validated display data leaves the plugin service for the editor.
   function nativeDynamicOptions(field,snapshot){
@@ -1853,5 +1878,5 @@
       url:action.settings?.url||'',mode:action.settings?.open||'default',browserPath:action.settings?.browserPath||''};
     return {kind:'unsupported',message:'이 동작의 실행 기능은 아직 구현되지 않았습니다.'};
   }
-  return {validateNativeSettingsSchema,nativeSettingValue,nativeDynamicOptions,moveNativeSelection,isNativeHaSensor,nativeEffectiveSettings,nativeVisualOwner,nativeVisualDelta,pruneNativeVisuals,createNativeRenderGate,ACTION_IDS,D200X_ACTION_IDS,PLUGIN_ACTION_IDS,PRESS_ACTION_TYPES,DEFAULTS,TITLE,INDICATOR_NUMBER_STYLE,INDICATOR_NAV_LABELS,indicatorConfig,indicatorCommon,sharedIndicatorConfig,updateIndicatorCommon,manageIndicators,indicatorNumberDisplayStyle,planIndicatorNavigation,fixedIndicatorNavigation,planFixedIndicatorNavigation,indicatorPinState,setIndicatorPinned,SIDE_NAV_LABELS,SIDE_HOLD_MS,sideConfig,makeSideAction,sideActionConfig,sideFolderTargets,planSideNavigation,applySideNavigation,createPageVisitTracker,createSidePressTracker,createAction,cleanAction,validInstanceId,normalizeInstanceIds,cloneActionInstances,walkSdkActions,sdkMountDescriptors,createSdkMountTracker,validSdkMount,nativeSettingsCommitMatches,createBitmapCache,cleanCompositeEntry,timerSeconds,formatTimerTime,displaySwitchAction,compositeModel,planComposite,runComposite,createMultiPauseGate,multiRows,setMultiRows,blankPage,cleanWideDisplay,createWideOverlayTracker,cycleWideDisplay,isWideDisplayPress,folderContents,folderPageCount,changeFolderPage,addFolderPage,deleteFolderPage,editPageStructure,currentActions,visibleActions,togglePinned,activeFolder,enterFolder,exitFolder,migrateState,profileSnapshot,switchProfile,createProfile,renameProfile,exportSingleProfile,findProfileTemplate,saveProfileTemplate,renameProfileTemplate,deleteProfileTemplate,applyProfileTemplate,setProfileApp,setProfileFusionScope,matchFusionProfile,createSmartProfileTracker,matchForegroundProfile,deleteProfile,previewHardwareEvent,physicalSlot,hardwareGesture,resolveHardwareEvent,runtimeActionKey,folderWideBackEvent,resolveKeyPress,planHardwareEvent,deletePage,planAction,emptyBinding,cleanBinding,controlAction,activeControlAction,assignControlAction,automaticControl,ensureControls,controlBinding,changeControlScope};
+  return {validateNativeSettingsSchema,validateNativeSettingsUI,nativeSettingVisible,nativeSettingValue,nativeDynamicOptions,moveNativeSelection,isNativeHaSensor,nativeEffectiveSettings,nativeVisualOwner,nativeVisualDelta,pruneNativeVisuals,createNativeRenderGate,ACTION_IDS,D200X_ACTION_IDS,PLUGIN_ACTION_IDS,PRESS_ACTION_TYPES,DEFAULTS,TITLE,INDICATOR_NUMBER_STYLE,INDICATOR_NAV_LABELS,indicatorConfig,indicatorCommon,sharedIndicatorConfig,updateIndicatorCommon,manageIndicators,indicatorNumberDisplayStyle,planIndicatorNavigation,fixedIndicatorNavigation,planFixedIndicatorNavigation,indicatorPinState,setIndicatorPinned,SIDE_NAV_LABELS,SIDE_HOLD_MS,sideConfig,makeSideAction,sideActionConfig,sideFolderTargets,planSideNavigation,applySideNavigation,createPageVisitTracker,createSidePressTracker,createAction,cleanAction,validInstanceId,normalizeInstanceIds,cloneActionInstances,walkSdkActions,sdkMountDescriptors,createSdkMountTracker,validSdkMount,nativeSettingsCommitMatches,createBitmapCache,cleanCompositeEntry,timerSeconds,formatTimerTime,displaySwitchAction,compositeModel,planComposite,runComposite,createMultiPauseGate,multiRows,setMultiRows,blankPage,cleanWideDisplay,createWideOverlayTracker,cycleWideDisplay,isWideDisplayPress,folderContents,folderPageCount,changeFolderPage,addFolderPage,deleteFolderPage,editPageStructure,currentActions,visibleActions,togglePinned,activeFolder,enterFolder,exitFolder,migrateState,profileSnapshot,switchProfile,createProfile,renameProfile,exportSingleProfile,findProfileTemplate,saveProfileTemplate,renameProfileTemplate,deleteProfileTemplate,applyProfileTemplate,setProfileApp,setProfileFusionScope,matchFusionProfile,createSmartProfileTracker,matchForegroundProfile,deleteProfile,previewHardwareEvent,physicalSlot,hardwareGesture,resolveHardwareEvent,runtimeActionKey,folderWideBackEvent,resolveKeyPress,planHardwareEvent,deletePage,planAction,emptyBinding,cleanBinding,controlAction,activeControlAction,assignControlAction,automaticControl,ensureControls,controlBinding,changeControlScope};
 });

@@ -1619,3 +1619,9 @@ dialog.deckforge-message-dialog::backdrop{background:#000a}
 .ha-sensor-title-row .title-line{flex:1;min-width:0;width:100%}
 .ha-sensor-title-row #key-title{box-sizing:border-box;width:100%;min-width:0;height:29px;background:#363636;color:#eee;border:1px solid #666;border-radius:4px;padding:3px 34px 3px 6px;font-size:12px}
 .ha-sensor-title-row #title-style-trigger{color:#eee;background:#434d5b;border:1px solid #626e7c;min-height:24px;padding:2px 5px;font-size:12px}
+
+.native-sdk-form>.field[hidden],.native-sdk-form>.native-sdk-group[hidden]{display:none}
+.native-sdk-form>.native-sdk-group{font-weight:600;color:#ddd;border-bottom:1px solid #555;padding:6px 0 4px}
+.native-sdk-form .native-sdk-slider{display:flex;align-items:center;gap:10px;min-width:0}
+.native-sdk-form .native-sdk-slider input[type=range]{flex:1;min-width:0;accent-color:#2368bb;padding:0;border:0;background:transparent}
+.native-sdk-form .native-sdk-slider output{min-width:4ch;text-align:right;font-variant-numeric:tabular-nums;color:#ddd}

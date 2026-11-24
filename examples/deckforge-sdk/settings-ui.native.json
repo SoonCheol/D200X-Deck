@@ -1,0 +1,62 @@
+{
+  "apiVersion": 2,
+  "id": "com.deckforge.native.example.settings",
+  "name": "Settings UI Example",
+  "version": "1.0.0",
+  "requiresDeckForge": ">=1.1.208",
+  "permissions": [
+    "display"
+  ],
+  "actions": [
+    {
+      "id": "com.deckforge.native.example.settings.key",
+      "name": "Settings UI",
+      "controllers": [
+        "Keypad"
+      ],
+      "states": 1,
+      "settingsSchema": [
+        {
+          "key": "enabled",
+          "label": "Show value",
+          "type": "boolean",
+          "default": true
+        },
+        {
+          "key": "amount",
+          "label": "Value",
+          "type": "integer",
+          "min": 0,
+          "max": 100,
+          "default": 50
+        },
+        {
+          "key": "color",
+          "label": "Text color",
+          "type": "color",
+          "default": "#FFFFFF"
+        }
+      ],
+      "settingsUI": [
+        {
+          "key": "enabled",
+          "group": "Display"
+        },
+        {
+          "key": "amount",
+          "group": "Display",
+          "control": "slider",
+          "visibleWhen": {
+            "key": "enabled",
+            "equals": true
+          }
+        },
+        {
+          "key": "color",
+          "group": "Style"
+        }
+      ],
+      "script": "if(event.type==='appear'||event.type==='settings'){api.setTitle(settings.enabled?String(settings.amount):'');api.drawKey({width:144,height:144,commands:[{type:'text',text:settings.enabled?String(settings.amount):' ',x:72,y:72,size:42,color:settings.color}]});}"
+    }
+  ]
+}

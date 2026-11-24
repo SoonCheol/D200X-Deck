@@ -3888,7 +3888,26 @@ async function openNativeSettings(item,action,plugin){
   const original=clone(item.settings?.pluginSettings||{});
   const content=document.createElement('div');content.className='native-sdk-form';
   const connection=document.createElement('div');connection.className='native-sdk-connection';connection.textContent='연결 상태 확인 중';
-  const inputs=[],dynamicFields=[];
+  const inputs=[],dynamicFields=[],fieldRows=new Map(),groups=[];
+  const ui=new Map((action.settingsUI||[]).map(entry=>[entry.key,entry]));
+  let previousGroup=null,currentGroup=null;
+  const appendRow=(row,field)=>{
+    const name=ui.get(field.key)?.group||null;
+    if(name!==previousGroup){
+      previousGroup=name;currentGroup=null;
+      if(name){
+        const heading=document.createElement('div');heading.className='native-sdk-group';heading.textContent=name;
+        currentGroup={heading,rows:[]};groups.push(currentGroup);content.append(heading);
+      }
+    }
+    currentGroup?.rows.push(row);fieldRows.set(field.key,row);content.append(row);
+  };
+  const readValue=({field,input,read})=>read?read():field.type==='boolean'?input.checked:field.type==='integer'?input.valueAsNumber:input.value;
+  const updateVisibility=()=>{
+    const values=Object.fromEntries(inputs.map(entry=>[entry.field.key,readValue(entry)]));
+    for(const [key,row] of fieldRows)row.hidden=!DeckCore.nativeSettingVisible(ui.get(key),values);
+    for(const group of groups)group.heading.hidden=group.rows.every(row=>row.hidden);
+  };
   for(const field of schema){
     const row=document.createElement('div');row.className='field';
     const label=document.createElement('span');label.textContent=field.label;
@@ -3939,7 +3958,7 @@ async function openNativeSettings(item,action,plugin){
       };
       search.addEventListener('input',()=>{list.scrollTop=0;render();});
       const clear=document.createElement('button');clear.type='button';clear.className='deckforge-message-button';clear.textContent='선택 해제';clear.addEventListener('click',()=>{selected=[];render();});
-      pane.append(search,summary,list);if(multi)pane.append(order);pane.append(clear);row.append(label,pane);content.append(row);
+      pane.append(search,summary,list);if(multi)pane.append(order);pane.append(clear);row.append(label,pane);appendRow(row,field);
       dynamicFields.push({field,apply:rows=>{const next=Array.isArray(rows)?rows:[];if(JSON.stringify(options)===JSON.stringify(next))return;options=next;render();}});
       inputs.push({field,read:()=>multi?[...selected]:selected[0]||'',selectedLabel:()=>options.find(o=>o.value===selected[0])?.label||''});render();continue;
     }
@@ -3948,16 +3967,22 @@ async function openNativeSettings(item,action,plugin){
       for(const option of field.options){const el=document.createElement('option');el.value=option.value;el.textContent=option.label;input.append(el);}
     }else{
       input=document.createElement('input');
-      input.type=field.type==='boolean'?'checkbox':field.type==='integer'?'number':'text';
+      input.type=field.type==='boolean'?'checkbox':field.type==='integer'?(ui.get(field.key)?.control==='slider'?'range':'number'):field.type==='color'?'color':'text';
       if(field.type==='integer'){input.min=field.min;input.max=field.max;input.step=1;}
       if(field.type==='text')input.maxLength=field.maxLength;
     }
     const stored=Object.hasOwn(original,field.key)?original[field.key]:field.default;
     const value=DeckCore.nativeSettingValue(field,stored)?stored:field.default;
     if(field.type==='boolean')input.checked=value;else input.value=String(value);
-    input.setAttribute('aria-label',field.label);row.append(label,input);content.append(row);
-    inputs.push({field,input});
+    input.setAttribute('aria-label',field.label);
+    if(input.type==='range'){
+      const wrap=document.createElement('div'),output=document.createElement('output');wrap.className='native-sdk-slider';
+      output.textContent=input.value;input.addEventListener('input',()=>{output.textContent=input.value;});wrap.append(input,output);row.append(label,wrap);
+    }else row.append(label,input);
+    appendRow(row,field);inputs.push({field,input});
+    if(['boolean','select'].includes(field.type))input.addEventListener('change',updateVisibility);
   }
+  updateVisibility();
   let refreshing=false,closed=false;
   const statusNames={active:'실행 중',waiting:'실행 대기',stopped:'중지됨',suspended:'절전 중',recovering:'복구 중',failed:'실행 오류',capacity:'서비스 한도 초과',unavailable:'사용 불가','policy-error':'서비스 설정 오류'};
   const socketNames={connected:'인증 성공',connecting:'연결 중',reconnecting:'재연결 중',disconnected:'연결 안 됨'};
@@ -4002,8 +4027,11 @@ async function openNativeSettings(item,action,plugin){
     content,ask:true,actionLabel:'적용',onAccept:()=>{
       try{
         const next={...original};
-        for(const {field,input,read} of inputs){
-          const value=read?read():field.type==='boolean'?input.checked:field.type==='integer'?input.valueAsNumber:input.value;
+        for(const entry of inputs){
+          const {field}=entry;
+          // Hidden fields keep their original stored values/defaults; a hidden draft is not committed.
+          if(fieldRows.get(field.key)?.hidden)continue;
+          const value=readValue(entry);
           if(!DeckCore.nativeSettingValue(field,value)){notice.textContent=field.label+' 값을 확인하세요.';return false;}
           next[field.key]=value;
         }
