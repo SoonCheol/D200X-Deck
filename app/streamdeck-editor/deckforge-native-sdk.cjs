@@ -12,7 +12,7 @@ const {NativeVersionStore,assertAppRequirement}=require('./deckforge-native-vers
 const {validateDependencies,resolveDependencies,assertDependencyChange}=require('./deckforge-native-dependencies.cjs');
 const {validateWideOverlay}=require('./deckforge-native-wide.cjs');
 const {validateNativeSettingsSchema,nativeEffectiveSettings}=require('./deck-core.js');
-const {validateNetworkEndpoints,validateNetworkRequest,resolveNetworkEndpoint,validateSocketOperation,createSocket,requestEndpoint,networkFailure,normalizeNetworkResult,credentialBinding,validBearer}=require('./deckforge-native-network.cjs');
+const {validateNetworkEndpoints,validateNetworkRequest,resolveNetworkEndpoint,validateSocketOperation,createSocket,requestEndpoint,networkFailure,normalizeNetworkResult,credentialBinding,validBearer,socketReceiveLimit}=require('./deckforge-native-network.cjs');
 const APP_VERSION=require('./package.json').version;
 const SUFFIX='.deckforge-native.json', LIMIT=1024*1024;
 const ID=/^com\.deckforge\.native\.[a-z0-9][a-z0-9.-]{0,110}$/;
@@ -581,9 +581,14 @@ class NativePluginHost{
       });
       socket.on('message',(data,binary)=>{
         if(!live())return;
-        if(binary||!Buffer.isBuffer(data)||data.length>8192){fail('invalid-message');return;}
+        // Authentication remains on the small default budget. Large frames are opt-in,
+        // admitted only after authentication and bounded before queueing.
+        const limit=authPhase?8192:socketReceiveLimit(endpoint);
+        if(binary||!Buffer.isBuffer(data)||data.length>limit){fail('invalid-message');return;}
         const body=data.toString('utf8');
-        if(Buffer.byteLength(JSON.stringify(body))>8192){fail('message-limit');return;}
+        const serializedBytes=Buffer.byteLength(JSON.stringify(body));
+        if(serializedBytes>limit){fail('message-limit');return;}
+        if(serializedBytes>8192&&ctx.pending>=4){fail('queue-capacity');return;}
         if(token.bearer!==null&&body.includes(token.bearer)){fail('credential-in-response');return;}
         if(authPhase){
           let message;try{message=JSON.parse(body);}catch{fail('authentication-protocol');return;}

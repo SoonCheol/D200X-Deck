@@ -5,6 +5,8 @@ const https=require('node:https');
 const {createHash}=require('node:crypto');
 const {validateValue}=require('./deckforge-native-settings.cjs');
 const MAX_RESPONSE=8192,MAX_BODY=8192,DEADLINE=5000;
+const LARGE_SOCKET_RESPONSE=256*1024;
+function socketReceiveLimit(endpoint){return endpoint?.maxReceiveBytes===LARGE_SOCKET_RESPONSE?LARGE_SOCKET_RESPONSE:MAX_RESPONSE;}
 const obj=v=>v!==null&&typeof v==='object'&&!Array.isArray(v);
 const exact=(v,keys)=>obj(v)&&Object.keys(v).length===keys.length&&keys.every(k=>Object.hasOwn(v,k));
 const key=v=>typeof v==='string'&&/^[A-Za-z0-9_-]{1,48}$/.test(v)&&!['constructor','prototype','__proto__'].includes(v);
@@ -21,8 +23,9 @@ function validateNetworkEndpoints(endpoints,permissions){
   check((http||socket)&&Array.isArray(endpoints)&&endpoints.length>0&&endpoints.length<=8,'invalid endpoint list or permission');
   const ids=new Set();
   for(const e of endpoints){
-    check(obj(e)&&Object.keys(e).every(k=>['id','url','method','auth','queryKeys','pathKeys','headerKeys','reconnect'].includes(k))&&
+    check(obj(e)&&Object.keys(e).every(k=>['id','url','method','auth','queryKeys','pathKeys','headerKeys','reconnect','maxReceiveBytes'].includes(k))&&
       (e.auth===undefined||e.auth==='bearer'||(e.method==='WSS'&&e.auth==='home-assistant'))&&key(e.id)&&!ids.has(e.id)&&(e.method==='WSS'?socket:http&&['GET','POST','PUT','PATCH','DELETE'].includes(e.method)),'invalid endpoint identity or method');
+    if(e.maxReceiveBytes!==undefined)check(e.method==='WSS'&&[MAX_RESPONSE,LARGE_SOCKET_RESPONSE].includes(e.maxReceiveBytes),'invalid WSS receive limit');
     if(e.reconnect!==undefined)check(e.method==='WSS'&&typeof e.reconnect==='boolean','invalid WSS reconnect policy');
     if(e.queryKeys!==undefined)check(keyList(e.queryKeys,8,key),'invalid approved query keys');
     if(e.pathKeys!==undefined)check(e.method!=='WSS'&&keyList(e.pathKeys,4,key),'invalid approved path keys');
@@ -96,7 +99,7 @@ function createSocket(endpoint,{bearer=null,WebSocket=require('ws')}={}){
   check(endpoint.auth!==undefined?validBearer(bearer):bearer===null,'credential required or not approved');
   return new WebSocket(endpoint.url,{
     headers:endpoint.auth==='bearer'?{authorization:'Bearer '+bearer}:{},
-    handshakeTimeout:DEADLINE,followRedirects:false,maxPayload:MAX_RESPONSE,
+    handshakeTimeout:DEADLINE,followRedirects:false,maxPayload:socketReceiveLimit(endpoint),
     perMessageDeflate:false,rejectUnauthorized:true,minVersion:'TLSv1.2'
   });
 }
@@ -169,4 +172,4 @@ function requestEndpoint(endpoint,body,signal,{request=https.request,deadline=DE
     }catch{fail('connection-error');req?.destroy();}
   });
 }
-module.exports={validateNetworkEndpoints,validateNetworkRequest,resolveNetworkEndpoint,validateSocketOperation,createSocket,requestEndpoint,networkFailure,normalizeNetworkResult,credentialBinding,validBearer};
+module.exports={socketReceiveLimit,validateNetworkEndpoints,validateNetworkRequest,resolveNetworkEndpoint,validateSocketOperation,createSocket,requestEndpoint,networkFailure,normalizeNetworkResult,credentialBinding,validBearer};

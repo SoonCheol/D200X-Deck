@@ -2056,3 +2056,45 @@ test('all published native examples round-trip through real package parser and i
    assert.equal((await host.manifests()).length,names.length);
  }finally{host.close();await fs.rm(root,{recursive:true,force:true});}
 });
+
+
+test('native WSS large receive is opt-in, bounded and does not enlarge outgoing messages',()=>{
+ const {validateNetworkEndpoints,validateSocketOperation,createSocket,socketReceiveLimit}=require('../app/streamdeck-editor/deckforge-native-network.cjs');
+ const ep={id:'large',url:'wss://example.com/events',method:'WSS'},permissions=['display','network.websocket'];
+ assert.equal(socketReceiveLimit(ep),8192);
+ const large={...ep,maxReceiveBytes:256*1024};
+ validateNetworkEndpoints([large],permissions);
+ assert.equal(socketReceiveLimit(large),256*1024);
+ for(const invalid of [0,8193,256*1024+1,'262144'])
+   assert.throws(()=>validateNetworkEndpoints([{...ep,maxReceiveBytes:invalid}],permissions),/receive limit/);
+ assert.throws(()=>validateNetworkEndpoints([{...large,method:'GET',url:'https://example.com/events'}],['display','network.request']),/receive limit/);
+ let checked=false;
+ class Mock{constructor(_url,opts){assert.equal(opts.maxPayload,256*1024);assert.equal(opts.rejectUnauthorized,true);assert.equal(opts.followRedirects,false);checked=true;}}
+ createSocket(large,{WebSocket:Mock});assert.equal(checked,true);
+ assert.throws(()=>validateSocketOperation({op:'socketSend',value:'x'.repeat(8193)},[large]),/limit/);
+});
+test('native WSS opt-in large message reaches service but oversized frame closes transport',async()=>{
+ const {EventEmitter}=require('node:events');
+ const ep={id:'large',url:'wss://example.com/events',method:'WSS',maxReceiveBytes:256*1024};
+ const manifest={...scriptManifest,permissions:['display','background.run','network.websocket'],networkEndpoints:[ep],service:{script:'service'}};
+ const received=[],sockets=[];
+ class Mock extends EventEmitter{
+   constructor(){super();this.readyState=0;this.terminated=false;}
+   terminate(){this.terminated=true;this.readyState=3;}
+   send(_value,cb){cb?.();}
+ }
+ const host=new NativePluginHost('/unused',()=>{},()=>({async run(_s,input){
+   if(input.event.type==='start')return {ops:[{op:'socketConnect',endpoint:'large'}],memory:{}};
+   if(input.event.response?.event==='message')received.push(input.event.response.body.length);
+   return {ops:[],memory:{}};
+ },close(){}}),{socketFactory:()=>{const sock=new Mock();sockets.push(sock);return sock;}});
+ const drain=async()=>{for(let i=0;i<12;i++)await new Promise(r=>setImmediate(r));};
+ try{
+   host.sync([],[manifest]);await drain();assert.equal(sockets.length,1);
+   const sock=sockets[0];sock.readyState=1;sock.emit('open');await drain();
+   sock.emit('message',Buffer.alloc(96*1024,120),false);await drain();
+   assert.deepEqual(received,[96*1024]);assert.equal(sock.terminated,false);
+   sock.emit('message',Buffer.alloc(256*1024+1,120),false);await drain();
+   assert.equal(sock.terminated,true);assert.deepEqual(received,[96*1024]);
+ }finally{host.close();}
+});
