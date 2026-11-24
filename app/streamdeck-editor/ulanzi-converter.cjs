@@ -188,7 +188,7 @@ function analyzeSource(manifest,source){
   if(verification?.status==='fail')note('simulation-failed','converted candidate trace mismatch');
   return {calls:[...calls.values()].sort((a,b)=>a.name.localeCompare(b.name)),imports:[...imports].sort(),findings,candidate,verification};
 }
-async function analyzeDirectory(folder){
+async function analyzeDirectory(folder,{fullFingerprint=false}={}){
   const root=path.resolve(folder),rootStat=await fs.lstat(root);
   if(!rootStat.isDirectory()||rootStat.isSymbolicLink()||!/\.ulanziPlugin$/i.test(path.basename(root)))
     throw Error('select the original .ulanziPlugin directory');
@@ -207,7 +207,7 @@ async function analyzeDirectory(folder){
     }
   }
   await walk(root);
-  async function readEntry(name,max){
+  async function readEntry(name,max,verify=true){
     if(!safeRelative(name)||!inventory.some(x=>x.path===name))throw Error('missing source file: '+name);
     const file=path.join(root,...name.split('/')),actual=await fs.realpath(file);
     const realRoot=await fs.realpath(root);
@@ -216,7 +216,19 @@ async function analyzeDirectory(folder){
     if(st.size>max)throw Error('source entry size limit');
     const bytes=await fs.readFile(file);
     if(bytes.length>max)throw Error('source entry size limit');
+    const expected=inventory.find(x=>x.path===name);
+    if(verify&&expected.sha256&&sha(bytes)!==expected.sha256)throw Error('source changed during analysis');
     return bytes;
+  }
+  let sourceTreeSha256=null;
+  if(fullFingerprint){
+    let hashedBytes=0;
+    for(const item of inventory){
+      const bytes=await readEntry(item.path,item.bytes,false);
+      if(bytes.length!==item.bytes||(hashedBytes+=bytes.length)>MAX_BYTES)throw Error('source changed during analysis');
+      item.sha256=sha(bytes);
+    }
+    sourceTreeSha256=sha(JSON.stringify(inventory.map(({path,bytes,sha256})=>({path,bytes,sha256})).sort((a,b)=>a.path<b.path?-1:a.path>b.path?1:0)));
   }
   const manifestBytes=await readEntry('manifest.json',65536);
   const manifest=validateSourceManifest(JSON.parse(manifestBytes.toString('utf8').replace(/^\uFEFF/,'')));
@@ -278,7 +290,7 @@ async function analyzeDirectory(folder){
     if(info.bytes<=256*1024)licenseHashes.push({path:file,sha256:sha(await readEntry(file,256*1024))});
   }
   return {converterVersion:2,targetApi:1,inspectors,resources,htmlEntry,source:{id:manifest.UUID,name:manifest.Name,version:manifest.Version,
-    entry:manifest.CodePath,manifestSha256:sha(manifestBytes),entrySha256:entryHash},
+    entry:manifest.CodePath,manifestSha256:sha(manifestBytes),entrySha256:entryHash,...(sourceTreeSha256?{treeSha256:sourceTreeSha256}:{})},
     inventory:{files:inventory.length,bytes:total,licenseFiles,licenseHashes},
     status:report.candidate&&report.verification?.status==='pass'?'candidate-review-required':'manual-conversion-required',
     ...report,installationAllowed:false,requiredChecks:['license','original artwork and resources','semantic comparison','runtime simulation','physical validation']};

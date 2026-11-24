@@ -3,6 +3,7 @@
 // adapter runtime. This does NOT execute or automatically convert Ulanzi code.
 const fs=require('node:fs/promises');
 const path=require('node:path');
+const {createHash}=require('node:crypto');
 const JSZip=require('jszip');
 const {parseArchive,validateManifest}=require('./sd-plugin-host.cjs');
 const {validateNativeManifest,LIMIT:NATIVE_LIMIT}=require('./deckforge-native-sdk.cjs');
@@ -16,6 +17,15 @@ const ID=/^[a-zA-Z0-9][a-zA-Z0-9._-]{2,180}$/;
 const safePart=value=>typeof value==='string'&&value.length>0&&value.length<1024&&
   !/[\\\\:\x00-\x1f\x7f]/.test(value)&&!value.startsWith('/')&&
   value.split('/').every(part=>part&&part!=='.'&&part!=='..');
+const conversionId=id=>typeof id==='string'&&id.startsWith('com.deckforge.native.ulanzi-');
+const hash=x=>createHash('sha256').update(x).digest('hex');
+const hex=v=>typeof v==='string'&&/^[a-f0-9]{64}$/.test(v);
+function validConversionSource(source,id){
+  return source?.kind==='ulanzi-converted'&&Object.keys(source).length===5&&
+    typeof source.originalId==='string'&&/^com\.[a-zA-Z0-9-]+\.ulanzistudio\.[a-zA-Z0-9-]+$/.test(source.originalId)&&
+    id==='com.deckforge.native.ulanzi-'+hash(source.originalId).slice(0,24)&&
+    ['sourceTreeSha256','candidateSha256','reviewSha256'].every(k=>hex(source[k]));
+}
 const safeName=value=>String(value).replace(/[^a-zA-Z0-9._-]+/g,'-').replace(/^-+|-+$/g,'').slice(0,90)||'plugin';
 
 function validatePackageManifest(meta){
@@ -27,7 +37,7 @@ function validatePackageManifest(meta){
     typeof p.version!=='string'||!p.version.trim()||p.name.length>180||p.version.length>64)
     throw Error('DeckForge 플러그인 식별 정보가 올바르지 않습니다.');
   if(meta.formatVersion===2){
-    if(meta.runtime?.type!=='deckforge-sdk'||meta.runtime?.directory!=='payload'||![1,2].includes(meta.runtime?.apiVersion)||meta.source?.kind!=='deckforge')
+    if(meta.runtime?.type!=='deckforge-sdk'||meta.runtime?.directory!=='payload'||![1,2].includes(meta.runtime?.apiVersion)||(conversionId(p.id)?!validConversionSource(meta.source,p.id):meta.source?.kind!=='deckforge'))
       throw Error('지원하지 않는 DeckForge 독자 SDK 런타임 또는 원본입니다.');
     return meta;
   }
@@ -76,6 +86,7 @@ async function parseDeckForgePackage(data){
     if(raw.length>NATIVE_LIMIT)throw Error('독자 SDK 프로그램 크기 제한');
     const native=validateNativeManifest(JSON.parse(raw.toString('utf8')));
     if(native.apiVersion!==meta.runtime.apiVersion||native.id!==meta.plugin.id||native.name!==meta.plugin.name||native.version!==meta.plugin.version)throw Error('독자 SDK 패키지 식별 정보가 일치하지 않습니다.');
+    if(conversionId(native.id)&&(native.apiVersion!==1||hash(JSON.stringify(native))!==meta.source.candidateSha256))throw Error('Ulanzi 변환 후보 무결성 오류');
     return {meta,native};
   }
   await JSZip.loadAsync(data,{checkCRC32:true});
@@ -166,13 +177,13 @@ async function packageSdPluginDirectory(folder){
 
 // Authoring SDK: build a native manifest, not an original Ulanzi archive.
 // The same installer parser validates the resulting archive before publication.
-async function packageNativeManifest(manifest){
+async function packageNativeManifest(manifest,source={kind:'deckforge'}){
   const native=validateNativeManifest(manifest);
   const bytes=Buffer.from(JSON.stringify(native,null,2),'utf8');
   if(bytes.length>NATIVE_LIMIT)throw Error('독자 SDK 프로그램 크기 제한');
   const meta={format:FORMAT,formatVersion:2,
     plugin:{id:native.id,name:native.name,version:native.version},
-    source:{kind:'deckforge'},runtime:{type:'deckforge-sdk',directory:'payload',apiVersion:native.apiVersion}};
+    source,runtime:{type:'deckforge-sdk',directory:'payload',apiVersion:native.apiVersion}};
   validatePackageManifest(meta);
   const zip=new JSZip();
   zip.file('deckforge-plugin.json',JSON.stringify(meta,null,2));

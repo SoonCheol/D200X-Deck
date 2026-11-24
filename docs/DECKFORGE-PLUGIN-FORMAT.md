@@ -3,6 +3,12 @@
 > 기록일: 2026-11-24 · 상태: **패키지 v1 유지 / 독자 SDK API 1·2 및 패키지 v2 / Ulanzi 정적 분석·제한 후보 변환기 구현**
 > 저장소·브랜치: `SoonCheol/D200X-Deck` / `codex/streamdeck-761-clean-editor`
 
+## 0.16 Ulanzi 변환 검토 기록과 조건부 패키징 (1.1.129)
+
+- review-ulanzi 명령에 전체 원본 파일 경로/크기/SHA-256 집합의 해시와 후보·검증·보고서 해시를 결합한 review 객체 추가. 원본/설정/리소스 수정 없이 분석. 로컬 검토자가 review 객체를 별도 JSON에 복사해 각 항목의 실제 증거를 기록한다.
+- release-ulanzi <original.ulanziPlugin> <review-record.json> <output-directory>는 원본 전체 재분석과 후보 trace 통과, 라이선스/리소스/의미/실행/실기 항목의 명시 증거가 모두 있어야 패키징한다. 리소스·속성창이 현재 후보에 보존되지 않는 경우 증거 기록만으로 통과시키지 않는다. 설치 파일은 독자 API 1만 포함하며 v2 source.kind=ulanzi-converted, 원본 ID·원본/후보/검토 해시 기록. 후보 ID와 내용 해시 불일치 또는 출처 누락 패키지 거부. 기존 독자/호환 SDK 패키지 유지.
+- 검토 기록은 신뢰한 개발자의 수동 확인 자료이며 전자서명이나 실기 성공의 독립적 증명은 아니다. 자동 설치 없음. 실제 실기 증거를 아직 확보하지 않았으므로 실제 Ulanzi 출시 패키지는 생성하지 않았다. 집중 테스트는 가상의 증거만 사용한다.
+
 ## 0.15 활성 컨텍스트 주기적 실행 (1.1.128)
 
 - API 2 선택 권한 `timer.tick`, action `tickIntervalMs` 1000~3600000. 등록된 활성 컨텍스트만 host tick 이벤트 수신, 단일 1초 sweep, 한 sweep 최대 8개, 실행/통신 중 누락 tick은 재생하지 않는다. 페이지 이탈/교체/오류/절전/종료 시 중단; 복귀·재등록은 appear 이후 새 간격부터. `examples/deckforge-sdk/clock.native.json` 예제. 원래 JavaScript 타이머/임의 await는 미지원.

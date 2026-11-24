@@ -805,3 +805,37 @@ test('periodic sweep cap does not starve contexts beyond the first eight',async(
    assert.equal(new Set(events.filter(e=>e.kind==='setTitle').map(e=>e.context)).size,10);
  }finally{host.close();}
 });
+
+
+test('reviewed Ulanzi package requires exact source and candidate revision plus explicit manual evidence',async()=>{
+ const {prepareReview,releaseReviewed}=require('../app/streamdeck-editor/deckforge-sdk-cli.cjs');
+ const {packageNativeManifest}=require('../app/streamdeck-editor/deckforge-plugin.cjs');
+ const temp=await fs.mkdtemp(path.join(os.tmpdir(),'deckforge-release-review-'));
+ const folder=path.join(temp,'source.ulanziPlugin');await fs.mkdir(folder);
+ const id='com.ulanzi.ulanzistudio.Release',manifest={Type:'JavaScript',UUID:id,Name:'Review',Version:'1.0.0',CodePath:'app.js',Actions:[{UUID:id+'.a',Name:'A'}]};
+ try{
+   await fs.writeFile(path.join(folder,'manifest.json'),JSON.stringify(manifest));
+   await fs.writeFile(path.join(folder,'app.js'),"$UD.connect('"+id+"');$UD.onKeyDown(m=>$UD.setTitle(m.context,'Ready'));");
+   const other=path.join(folder,'dependency.js');await fs.writeFile(other,'// revision 1');
+   const reviewPath=await prepareReview(folder,temp);
+   const report=JSON.parse(await fs.readFile(reviewPath,'utf8')),record=report.review;
+   assert.match(record.source.treeSha256,/^[a-f0-9]{64}$/);
+   const recordPath=path.join(temp,'record.json');
+   await fs.writeFile(recordPath,JSON.stringify(record));
+   await assert.rejects(releaseReviewed(folder,recordPath,temp),/manual review evidence/);
+   await assert.rejects(packageNativeManifest(report.candidate),/런타임 또는 원본/);
+   // Synthetic evidence tests only the workflow, not a real hardware pass.
+   for(const check of record.checks){check.status='passed';check.evidence='synthetic test fixture';}
+   await fs.writeFile(recordPath,JSON.stringify(record));
+   await fs.writeFile(other,'// revision 2');
+   await assert.rejects(releaseReviewed(folder,recordPath,temp),/conversion changed/);
+   await fs.writeFile(other,'// revision 1');
+   const archive=await releaseReviewed(folder,recordPath,temp);
+   const parsed=await parseDeckForgePackage(await fs.readFile(archive));
+   assert.equal(parsed.meta.source.kind,'ulanzi-converted');
+   assert.deepEqual(parsed.native,report.candidate);
+   const altered=structuredClone(report.candidate);altered.actions[0].events.press[0].value='Changed';
+   await assert.rejects(packageNativeManifest(altered,parsed.meta.source),/무결성/);
+   await assert.rejects(releaseReviewed(folder,recordPath,temp),/EEXIST/);
+ }finally{await fs.rm(temp,{recursive:true,force:true});}
+});
