@@ -178,7 +178,7 @@ ipcMain.handle('d200x:sdk-install',async event=>{
     // metadata and payload have already passed validation.
     if(packageData.native){
       const native=packageData.native;
-      const labels={'settings.write':'현재 버튼 설정 저장','navigation':'프로필·페이지·덱폴더 이동','wide.mode':'와이드 화면 모드 전환','wide.overlay':'와이드 화면 임시 이미지·레이아웃 표시','global.settings':'플러그인 전역 암호화 설정 읽기·쓰기'};
+      const labels={'settings.write':'현재 버튼 설정 저장','navigation':'프로필·페이지·덱폴더 이동','wide.mode':'와이드 화면 모드 전환','wide.overlay':'와이드 화면 임시 이미지·레이아웃 표시','global.settings':'플러그인 전역 암호화 설정 읽기·쓰기','network.request':'승인된 HTTPS 주소로 네트워크 요청'};
       const plan=await sdk().planNativeInstall(native);
       const extra=native.permissions.filter(p=>p!=='display');
       const dependencies=Object.entries(native.dependencies||{}).map(([id,range])=>id+' '+range);
@@ -189,6 +189,7 @@ ipcMain.handle('d200x:sdk-install',async event=>{
           type:'question',title:'DeckForge 플러그인 '+verb,message:native.name+' '+verb+' 확인',
           detail:'ID: '+native.id+'\n버전: '+versions+'\n'+extra.map(p=>'• '+labels[p]).join('\n')+'\n'+
             (dependencies.length?'필요 플러그인: '+dependencies.join(', ')+'\n':'')+
+            (native.networkEndpoints?.length?'허용할 네트워크 요청:\n'+native.networkEndpoints.map(e=>e.method+' '+e.url).join('\n')+'\n':'')+
             (plan.kind==='install'?'':'이전 코드 보존 · 설정과 프로필은 그대로 유지됩니다.\n')+'신뢰하는 플러그인만 설치하세요.',
           buttons:['취소',verb],defaultId:0,cancelId:0,noLink:true
         });

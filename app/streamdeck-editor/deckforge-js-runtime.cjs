@@ -33,7 +33,8 @@ function runProgram(source,input){
     exitFolder:()=>append({op:'navigate',target:'back',value:null}),
     setWideMode:value=>append({op:'wideMode',value}),
     setWideOverlay:(value,durationMs=5000)=>append({op:'wideOverlay',value,durationMs}),
-    clearWideOverlay:()=>append({op:'wideOverlay',value:null,durationMs:0})
+    clearWideOverlay:()=>append({op:'wideOverlay',value:null,durationMs:0}),
+    request:(endpoint,body=null)=>append({op:'networkRequest',endpoint,body})
   });
   // Reduce access to network-capable APIs beyond CSP/session controls.
   for(const key of ['RTCPeerConnection','webkitRTCPeerConnection','WebTransport','Worker','SharedWorker','setTimeout','setInterval','requestAnimationFrame','requestIdleCallback','queueMicrotask']){

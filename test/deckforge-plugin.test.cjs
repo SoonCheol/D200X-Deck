@@ -472,3 +472,78 @@ test('native version update cannot narrow or remove existing declared settings',
   assert.equal((await host.planInstall({...m,version:'1.1.0',actions:[{...m.actions[0],settingsSchema:[{...schema[0],label:'Number'},{key:'flag',label:'Flag',type:'boolean',default:false}]}]})).kind,'update');
  }finally{host.close();await fs.rm(temp,{recursive:true,force:true});}
 });
+
+
+test('native network contract permits only declared HTTPS endpoints and input-triggered requests',()=>{
+ const {validateNetworkEndpoints,validateNetworkRequest}=require('../app/streamdeck-editor/deckforge-native-network.cjs');
+ const permissions=['display','network.request'],endpoint={id:'status',url:'https://example.com/api/status',method:'GET'};
+ const m={...scriptManifest,permissions,networkEndpoints:[endpoint]};
+ assert.doesNotThrow(()=>validateNativeManifest(m));
+ assert.throws(()=>validateNativeManifest({...m,networkEndpoints:undefined}),/missing endpoints/);
+ for(const url of ['http://example.com/','https://user:pass@example.com/','https://example.com/#secret','https://example.com/?secret=x']){
+   assert.throws(()=>validateNetworkEndpoints([{...endpoint,url}],permissions),/HTTPS/);
+ }
+ const host=new NativePluginHost('/unused'),ctx={pluginUUID:nativeId,action:scriptManifest.actions[0],permissions,networkEndpoints:[endpoint]};
+ const op={op:'networkRequest',endpoint:'status',body:null};
+ assert.deepEqual(host.validateScriptOps(ctx,'press',[op]).effects,[op]);
+ assert.throws(()=>host.validateScriptOps(ctx,'networkResult',[op]),/input event/);
+ assert.throws(()=>host.validateScriptOps(ctx,'appear',[op]),/input event/);
+ assert.throws(()=>host.validateScriptOps({...ctx,permissions:['display']},'press',[op]),/unauthorized/);
+ assert.throws(()=>validateNetworkRequest({...op,endpoint:'other'},[endpoint]),/not approved/);
+ assert.throws(()=>validateNetworkRequest({...op,body:{}},[endpoint]),/GET/);
+ const post={...endpoint,method:'POST'};
+ assert.doesNotThrow(()=>validateNetworkRequest({...op,body:{value:1}},[post]));
+ assert.throws(()=>validateNetworkRequest({...op,body:JSON.parse('{"__proto__":1}')},[post]),/invalid global settings/);
+ host.close();
+});
+test('native HTTPS broker bounds response, denies redirects, times out and uses verified TLS',async()=>{
+ const {EventEmitter}=require('node:events');
+ const {requestEndpoint}=require('../app/streamdeck-editor/deckforge-native-network.cjs');
+ const endpoint={id:'status',url:'https://example.com/api/status',method:'GET'};
+ const mock=(status,body,headers={'content-type':'application/json'})=>(url,opts,callback)=>{
+   assert.equal(url.href,endpoint.url);assert.equal(opts.rejectUnauthorized,true);assert.equal(opts.agent,false);
+   assert.equal(opts.method,'GET');assert.equal(opts.headers.cookie,undefined);
+   const req=new EventEmitter();req.destroy=()=>{};req.end=()=>{
+     const res=new EventEmitter();res.statusCode=status;res.headers=headers;res.destroy=()=>{};
+     callback(res);res.emit('data',Buffer.from(body));res.emit('end');
+   };return req;
+ };
+ const result=await requestEndpoint(endpoint,null,undefined,{request:mock(200,'{"ok":true}')});
+ assert.deepEqual(result,{endpoint:'status',ok:true,status:200,body:'{"ok":true}',error:null});
+ assert.equal((await requestEndpoint(endpoint,null,undefined,{request:mock(302,'',{})})).error,'redirect-denied');
+ assert.equal((await requestEndpoint(endpoint,null,undefined,{request:mock(200,'x'.repeat(8193))})).error,'response-limit');
+ assert.equal((await requestEndpoint(endpoint,null,undefined,{request:mock(200,'<html>',{'content-type':'text/html'})})).error,'unsupported-response');
+ const never=()=>{const req=new EventEmitter();req.end=()=>{};req.destroy=()=>{};return req;};
+ assert.equal((await requestEndpoint(endpoint,null,undefined,{request:never,deadline:5})).error,'timeout');
+ const controller=new AbortController(),pending=requestEndpoint(endpoint,null,controller.signal,{request:never});
+ controller.abort();assert.equal((await pending).error,'cancelled');
+});
+test('native async network continuation does not block release or replay input; removal aborts stale response',async()=>{
+ const events=[],requests=[],calls=[];
+ const endpoint={id:'status',url:'https://example.com/api/status',method:'GET'};
+ const manifest={...scriptManifest,permissions:['display','network.request'],networkEndpoints:[endpoint]};
+ const host=new NativePluginHost('/unused',e=>events.push(e),()=>({async run(_src,input){
+   calls.push(input.event.type);
+   if(input.event.type==='press')return {ops:[{op:'networkRequest',endpoint:'status',body:null}],memory:{}};
+   if(input.event.type==='networkResult')return {ops:[{op:'title',value:input.event.response.body}],memory:{}};
+   return {ops:[],memory:{}};
+ },close(){}}),{networkRequest:(e,b,signal)=>new Promise(resolve=>requests.push({signal,resolve}))});
+ const cfg={context:'network',slot:0,pluginUUID:nativeId,actionUUID:nativeId+'.toggle',settings:{}};
+ const flush=()=>new Promise(resolve=>setImmediate(resolve));
+ try{
+   host.sync([cfg],[manifest]);await host.contexts.get(cfg.context).queue;
+   host.key(cfg.context,'down');await host.contexts.get(cfg.context).queue;await flush();
+   assert.equal(requests.length,1);
+   host.key(cfg.context,'up');await host.contexts.get(cfg.context).queue;
+   assert.ok(calls.includes('release'));
+   requests[0].resolve({endpoint:'status',ok:true,status:200,body:'success',error:null});
+   await flush();await host.contexts.get(cfg.context).queue;
+   assert.equal(events.find(e=>e.kind==='setTitle').payload.title,'success');
+   host.key(cfg.context,'down');await host.contexts.get(cfg.context).queue;await flush();
+   assert.equal(requests.length,2);
+   host.sync([],[manifest]);assert.equal(requests[1].signal.aborted,true);
+   requests[1].resolve({endpoint:'status',ok:true,status:200,body:'stale',error:null});
+   await flush();assert.equal(events.some(e=>e.payload?.title==='stale'),false);
+   assert.equal(calls.filter(e=>e==='press').length,2);
+ }finally{host.close();}
+});

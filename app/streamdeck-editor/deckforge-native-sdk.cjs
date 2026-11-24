@@ -8,25 +8,27 @@ const {NativeVersionStore,assertAppRequirement}=require('./deckforge-native-vers
 const {validateDependencies,resolveDependencies,assertDependencyChange}=require('./deckforge-native-dependencies.cjs');
 const {validateWideOverlay}=require('./deckforge-native-wide.cjs');
 const {validateNativeSettingsSchema,nativeEffectiveSettings}=require('./deck-core.js');
+const {validateNetworkEndpoints,validateNetworkRequest,requestEndpoint,networkFailure}=require('./deckforge-native-network.cjs');
 const APP_VERSION=require('./package.json').version;
 const SUFFIX='.deckforge-native.json', LIMIT=1024*1024;
 const ID=/^com\.deckforge\.native\.[a-z0-9][a-z0-9.-]{0,110}$/;
 const EVENTS=new Set(['appear','disappear','settings','press','release','rotateLeft','rotateRight','heldRotateLeft','heldRotateRight']);
 const OPS=new Set(['title','titleFromSetting','state','toggleState','image']);
-const EXTRA_PERMISSIONS=['settings.write','navigation','wide.mode','global.settings','wide.overlay'];
+const EXTRA_PERMISSIONS=['settings.write','navigation','wide.mode','global.settings','wide.overlay','network.request'];
 const INPUT_EVENTS=new Set(['press','release','rotateLeft','rotateRight','heldRotateLeft','heldRotateRight']);
 const obj=x=>x!==null&&typeof x==='object'&&!Array.isArray(x);
 const validText=(x,n)=>typeof x==='string'&&x.length>0&&x.length<=n;
 const exact=(x,keys)=>obj(x)&&Object.keys(x).every(k=>keys.includes(k));
 function check(ok,message){if(!ok)throw Error('DeckForge SDK: '+message);}
 function validateNativeManifest(m){
-  check(exact(m,['apiVersion','id','name','version','permissions','actions','requiresDeckForge','dependencies'])&&[1,2].includes(m.apiVersion)&&
+  check(exact(m,['apiVersion','id','name','version','permissions','actions','requiresDeckForge','dependencies','networkEndpoints'])&&[1,2].includes(m.apiVersion)&&
     typeof m.id==='string'&&ID.test(m.id)&&!m.id.endsWith('.')&&!m.id.includes('..')&&
     validText(m.name,180)&&validText(m.version,64),'invalid manifest or API version');
   assertAppRequirement(m.requiresDeckForge,APP_VERSION);
   validateDependencies(m.id,m.dependencies);
   check(Array.isArray(m.permissions)&&m.permissions.includes('display')&&new Set(m.permissions).size===m.permissions.length&&
     m.permissions.every(p=>p==='display'||(m.apiVersion===2&&EXTRA_PERMISSIONS.includes(p))),'unsupported permissions');
+  validateNetworkEndpoints(m.networkEndpoints,m.permissions);
   check(Array.isArray(m.actions)&&m.actions.length>0&&m.actions.length<=64,'invalid actions');
   const ids=new Set();
   for(const a of m.actions){
@@ -84,6 +86,7 @@ class NativePluginHost{
     this.recoveryDelay=options.recoveryDelay||[1000,3000];
     this.versions=new NativeVersionStore(this.root,validateNativeManifest);
     this.dependencyWarnings=new Map();
+    this.networkRequest=options.networkRequest||requestEndpoint;this.networkPending=new Set();
   }
   async manifests(){
     await fs.mkdir(this.root,{recursive:true});const items=[];
@@ -164,6 +167,9 @@ class NativePluginHost{
           (target==='profile'&&validText(value,160))||
           (target==='folder'&&Number.isInteger(value)&&value>=0&&value<13)||
           (target==='back'&&value===null),'invalid navigation target');
+      }else if(op?.op==='networkRequest'){
+        check(ctx.permissions.includes('network.request'),'unauthorized network request');
+        validateNetworkRequest(op,ctx.networkEndpoints);
       }else if(op?.op==='wideOverlay'){
         check(ctx.permissions.includes('wide.overlay'),'unauthorized wide overlay');
         validateWideOverlay(op);
@@ -193,6 +199,7 @@ class NativePluginHost{
       }
   }
   resetScript(ctx){
+    this.cancelNetwork(ctx);
     if(ctx.wideOverlaySent){ctx.wideOverlaySent=false;this.onUpdate({kind:'nativeWideReleased',context:ctx.context});}
     clearTimeout(ctx.recoveryTimer);ctx.recoveryTimer=null;
     ctx.epoch=(ctx.epoch||0)+1;
@@ -217,10 +224,37 @@ class NativePluginHost{
     },this.recoveryDelay[attempt]);
     ctx.recoveryTimer.unref?.();
   }
-  runScript(ctx,event){
+  cancelNetwork(ctx){
+    const token=ctx.networkToken;
+    if(token){ctx.networkToken=null;token.controller.abort();}
+  }
+  startNetwork(ctx,operation,active){
+    const endpoint=validateNetworkRequest(operation,ctx.networkEndpoints);
+    if(ctx.networkToken||this.networkPending.size>=8){
+      this.report(ctx.pluginUUID,Error('network request busy'));return;
+    }
+    const controller=new AbortController(),token={controller};
+    const settings=JSON.stringify(ctx.settings);
+    ctx.networkToken=token;this.networkPending.add(token);
+    Promise.resolve().then(()=>{
+      if(!active()||controller.signal.aborted)return networkFailure(endpoint.id,'cancelled');
+      return this.networkRequest(endpoint,operation.body,controller.signal);
+    }).catch(()=>networkFailure(endpoint.id,'connection-error')).then(result=>{
+      if(!active()||ctx.networkToken!==token||controller.signal.aborted)return;
+      ctx.networkToken=null;
+      if(settings!==JSON.stringify(ctx.settings))return;
+      // A bounded continuation event, not a replay of the triggering input.
+      this.runScript(ctx,'networkResult',result,settings);
+    }).finally(()=>{
+      if(ctx.networkToken===token)ctx.networkToken=null;
+      this.networkPending.delete(token);
+    });
+  }
+  runScript(ctx,event,response=null,expectedSettings=null){
     if(ctx.pending>=16){this.fail(ctx,Error('JavaScript SDK event queue limit'));return false;}
     const epoch=ctx.epoch||0;
-    const active=()=>!this.closed&&!this.suspended&&!ctx.failed&&ctx.epoch===epoch&&this.contexts.get(ctx.context)===ctx;
+    const active=()=>!this.closed&&!this.suspended&&!ctx.failed&&ctx.epoch===epoch&&this.contexts.get(ctx.context)===ctx&&
+      (expectedSettings===null||expectedSettings===JSON.stringify(ctx.settings));
     ctx.pending++;
     ctx.queue=ctx.queue.then(async()=>{
       if(!active())return;
@@ -231,7 +265,7 @@ class NativePluginHost{
         const settingsSnapshot=ctx.settings;
         if(!ctx.runner)ctx.runner=this.runnerFactory(ctx.pluginUUID);
         const result=await ctx.runner.run(ctx.action.script,{
-          event:{type:event,slot:ctx.slot,gesture:ctx.gesture||'down'},
+          event:{type:event,slot:ctx.slot,gesture:ctx.gesture||'down',...(response?{response}:{})},
           settings:ctx.action.settingsSchema?nativeEffectiveSettings(ctx.action.settingsSchema,settingsSnapshot):settingsSnapshot,state:ctx.state,memory:ctx.memory,globalSettings:global.value
         });
         if(!active())return;
@@ -252,6 +286,7 @@ class NativePluginHost{
         ctx.memory=result.memory;
         this.applyOps(ctx,normal);
         for(const operation of effects)if(operation.op!=='globalSettings'){
+          if(operation.op==='networkRequest'){this.startNetwork(ctx,operation,active);continue;}
           if(operation.op==='wideOverlay')ctx.wideOverlaySent=operation.value!==null;
           this.onUpdate({kind:'nativeEffect',context:ctx.context,
             pluginUUID:ctx.pluginUUID,actionUUID:ctx.action.id,operation,
@@ -302,16 +337,16 @@ class NativePluginHost{
       seen.add(cfg.context);
       const incoming=obj(cfg.settings)?cfg.settings:{};
       let ctx=this.contexts.get(cfg.context);
-      const signature=JSON.stringify([plugin.apiVersion,plugin.permissions,a]);
+      const signature=JSON.stringify([plugin.apiVersion,plugin.permissions,plugin.networkEndpoints||[],a]);
       if(!ctx||ctx.pluginUUID!==cfg.pluginUUID||ctx.action.id!==a.id||ctx.signature!==signature||ctx.slot!==cfg.slot||ctx.gesture!==cfg.gesture){
         if(ctx)this.retire(ctx);
-        ctx={...cfg,action:a,apiVersion:plugin.apiVersion,permissions:[...plugin.permissions],signature,settings:incoming,state:0,pressed:false,failed:false,
+        ctx={...cfg,action:a,apiVersion:plugin.apiVersion,permissions:[...plugin.permissions],networkEndpoints:plugin.networkEndpoints||[],signature,settings:incoming,state:0,pressed:false,failed:false,
           epoch:0,pending:0,queue:Promise.resolve(),runner:null,memory:{},recoveryAttempts:0,recoveryTimer:null};
         this.contexts.set(cfg.context,ctx);this.run(ctx,'appear');
       }else{
         const changed=JSON.stringify(ctx.settings)!==JSON.stringify(incoming);
         ctx.settings=incoming;
-        if(changed)this.run(ctx,'settings');
+        if(changed){this.cancelNetwork(ctx);this.run(ctx,'settings');}
       }
     }
     for(const [id,ctx] of this.contexts)if(!seen.has(id)){

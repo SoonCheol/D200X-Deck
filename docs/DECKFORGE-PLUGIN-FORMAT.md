@@ -3,6 +3,12 @@
 > 기록일: 2026-11-24 · 상태: **패키지 v1 유지 / 독자 SDK API 1·2 및 패키지 v2 / Ulanzi 정적 분석·제한 후보 변환기 구현**
 > 저장소·브랜치: `SoonCheol/D200X-Deck` / `codex/streamdeck-761-clean-editor`
 
+## 0.10 독자 SDK 비동기 HTTPS 요청 (1.1.123)
+
+- API 2 선택 권한 `network.request`와 manifest `networkEndpoints` (최대 8개, id/url/method). 정확한 HTTPS URL(인증정보/쿼리/fragment 금지), GET 또는 JSON POST, 설치/업데이트 확인창에 주소·메서드 표시. 예: `{"id":"status","url":"https://example.com/api/status","method":"GET"}`. TLS 검증 및 리다이렉트 차단. 임의 URL/헤더/쿠키·평문 HTTP·인증정보 주입은 미지원. 지정된 호스트의 네트워크 위치는 사용자 신뢰 범위이며 모든 악성 서비스 접근을 방지한다고 보장하지 않는다.
+- `api.request("status")` 또는 `api.request("postId",{value:1})`는 입력 이벤트에서만 요청을 예약한다. 호스트가 비동기로 처리하고 별도 `event.type==="networkResult"`, `event.response={endpoint,ok,status,body,error}`를 전달한다. body는 JSON/text 문자열; HTTP 실패 응답 본문은 전달하지 않는다. 결과 이벤트는 표시 명령만 허용, 연쇄 네트워크/설정/탐색 금지. 일반 await/비동기 JS 실행은 여전히 미지원.
+- 요청 5초 제한, 본문/응답 8KiB, 컨텍스트당 하나·전체 최대 8개, 요청 중 버튼 release 처리 가능. 페이지 이탈/설정 변경/절전/종료 시 취소 및 늦은 결과 폐기. POST 서버 부수 효과는 취소로 되돌릴 수 없음. 자동 재시도 없음. 모의 전송/취소/오류 집중 테스트 추가. 인증정보 연결·로컬 실제 HTTPS 통신·실기 검증은 후속.
+
 ## 0.9 독자 SDK 선언형 속성창 (1.1.122)
 
 - API 1/2 action의 선택 필드 `settingsSchema`: 최대 16개 필드, key/label/type/default 필수. text(maxLength 1~256), boolean, integer(min/max), select(options 최대 32개, value/label) 지원. 임의 HTML/JS/URL/비밀 입력 필드는 금지. 예: `{"key":"count","label":"횟수","type":"integer","min":0,"max":10,"default":1}`.
