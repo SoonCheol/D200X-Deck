@@ -109,6 +109,8 @@ async function probe(scheme){
   }catch(e){return {scheme,error:String(e.message).slice(0,240),eligible:false};}
   finally{service.close();close();ses.protocol.unhandle(scheme);await ses.clearStorageData();}
 }
+// Keep the probe alive while the first candidate's final window is destroyed.
+app.on('window-all-closed',()=>{});
 app.whenReady().then(async()=>{
   const results=[];
   for(const scheme of schemes)results.push(await probe(scheme));

@@ -460,18 +460,22 @@ test('page indicator uses standard paired cards with independent title and numbe
   assert.match(css,/\.indicator-inspector \.state-title-layout \.indicator-icon-cards \.sdk-state-preview,.*\{grid-row:4\}/);
 });
 
-test('title and key background palettes use the right side of the entire inspector',()=>{
+test('background palettes and title properties use icon right edge and card top with viewport fallback',()=>{
   assert.match(css,/\.title-style-popover #title-palette\{position:fixed;[^}]*max-height:calc\(100dvh - 16px\)/);
   assert.match(editor,/function openPalette\(field,trigger\)/);
   assert.match(editor,/positionAppearancePalette\(palette,trigger\)/);
   assert.match(editor,/positionAppearancePalette\(popup,trigger\)/);
-  const start=editor.indexOf('function appearancePalettePosition('),end=editor.indexOf('function positionAppearancePalette(',start);
+  assert.match(editor,/positionIconAppearancePopover\(popup,trigger\)/);
+  assert.match(editor,/positionIconAppearancePopover\(menu,trigger\)/);
+  const start=editor.indexOf('function appearancePalettePosition('),end=editor.indexOf('function appearanceIconAnchor(',start);
   const position=new Function(editor.slice(start,end)+';return appearancePalettePosition;')();
-  for(const [width,height,inspectorRight] of [[960,630,680],[1180,800,860],[1920,1080,1600]]){
-    const p=position({right:inspectorRight},{top:height-30},{width:251,height:280},width,height);
-    assert.equal(p.x,inspectorRight+8);
-    assert.equal(p.y,height-288);
-    assert.ok(p.x+251<=width-8);
+  const up={left:32,right:164,top:106},down={left:276,right:408,top:106};
+  for(const bounds of [{width:251,height:240},{width:277,height:240}]){
+    assert.deepEqual(position(up,bounds,894,600),{x:172,y:106});
+    assert.deepEqual(position(down,bounds,894,600),{x:416,y:106});
+    assert.equal(position({left:640,right:772,top:106},bounds,894,600).x,640-8-bounds.width);
+    const tight=position(down,bounds,500,300);
+    assert.ok(tight.x>=8&&tight.x+bounds.width<=492&&tight.y+bounds.height<=292);
   }
   assert.match(editor,/openPalette\(field,event\.currentTarget\)/);
 });

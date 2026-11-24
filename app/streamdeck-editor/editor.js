@@ -2704,15 +2704,39 @@ function bindSharedColorPalette(palette,prefix,getColor,applyColor,close){
   node('close').addEventListener('click',()=>{dismissContext();close();});
   render();return render;
 }
-// Prefer the actions-panel side of the inspector, never the adjacent icon card.
-function appearancePalettePosition(inspector,trigger,bounds,width,height){
-  const margin=8;
-  const right=inspector.right+margin;
-  const x=right+bounds.width<=width-margin?right:Math.max(margin,width-bounds.width-margin);
-  const y=Math.max(margin,Math.min(trigger.top,height-bounds.height-margin));
+// Anchor each state popup to its own artwork horizontally and card top vertically.
+function appearancePalettePosition(anchor,bounds,width,height){
+  const margin=8,gap=8;
+  const maxX=Math.max(margin,width-bounds.width-margin),maxY=Math.max(margin,height-bounds.height-margin);
+  const right=anchor.right+gap,left=anchor.left-gap-bounds.width;
+  const x=right<=maxX?right:left>=margin?left:maxX;
+  const y=Math.max(margin,Math.min(anchor.top,maxY));
   return {x,y};
 }
+function appearanceIconAnchor(trigger,root){
+  if(trigger.closest('.title-style-popover'))return null;
+  const card=trigger.closest('.sdk-state-icon');
+  const preview=trigger.closest('.sdk-state-preview,#icon-preview')||
+    card?.querySelector('.sdk-state-preview')||root.querySelector('#icon-preview');
+  const bounds=preview?.getBoundingClientRect();
+  if(!bounds||bounds.width<=0||bounds.height<=0)return null;
+  const cardBounds=card?.getBoundingClientRect();
+  return {left:bounds.left,right:bounds.right,top:cardBounds&&cardBounds.height>0?cardBounds.top:bounds.top};
+}
+function positionIconAppearancePopover(popup,trigger){
+  const root=$('inspector'),anchor=appearanceIconAnchor(trigger,root);
+  popup.style.maxHeight='';
+  if(!anchor)return false;
+  // Preserve card-top alignment by scrolling within the popup when possible.
+  const available=window.innerHeight-Math.max(8,anchor.top)-8;
+  if(available>=160)popup.style.maxHeight=available+'px';
+  const {x,y}=appearancePalettePosition(anchor,popup.getBoundingClientRect(),window.innerWidth,window.innerHeight);
+  popup.style.left=x+'px';popup.style.top=y+'px';
+  return true;
+}
 function positionAppearancePalette(popup,trigger){
+  if(positionIconAppearancePopover(popup,trigger))return;
+  // Nested text-color palettes and non-icon fields retain the previous placement.
   const root=$('inspector'),region=root.querySelector('.state-title-layout')||root;
   const {x,y}=titlePopoverPosition(region.getBoundingClientRect(),trigger.getBoundingClientRect(),popup.getBoundingClientRect(),window.innerWidth,window.innerHeight);
   popup.style.left=x+'px';popup.style.top=y+'px';
@@ -2776,6 +2800,7 @@ function titlePopoverPosition(region,trigger,bounds,width,height){
   return {x:maxX,y};
 }
 function positionTitleStylePopover(menu,trigger){
+  if(positionIconAppearancePopover(menu,trigger))return;
   const root=$('inspector');
   const region=root.querySelector('.state-title-layout')||root;
   const {x,y}=titlePopoverPosition(region.getBoundingClientRect(),trigger.getBoundingClientRect(),menu.getBoundingClientRect(),window.innerWidth,window.innerHeight);

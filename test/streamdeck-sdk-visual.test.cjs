@@ -340,3 +340,18 @@ test('Fusion health checks repaint only mounted Fusion slots on actual transitio
  health=true;await ctx.refresh();assert.deepEqual(calls,[2,5,2,5]);
  ctx.iconRefresh('two');assert.deepEqual(calls,[2,5,2,5,5]);
 });
+
+test('state popup uses clicked card top instead of the artwork top for palette and font',()=>{
+ const start=source.indexOf('function appearancePalettePosition('),end=source.indexOf('function positionAppearancePalette(',start);
+ const up={getBoundingClientRect:()=>({left:32,right:164,top:172,bottom:304,width:132,height:132})};
+ const down={getBoundingClientRect:()=>({left:276,right:408,top:172,bottom:304,width:132,height:132})};
+ const root={querySelector:()=>null};
+ const ctx={window:{innerWidth:894,innerHeight:600},$:()=>root};
+ const position=vm.runInNewContext(source.slice(start,end)+';positionIconAppearancePopover',ctx);
+ function trigger(image,isPalette){const card={querySelector:()=>image,getBoundingClientRect:()=>({top:106,height:220})};return {closest:s=>s==='.sdk-state-preview,#icon-preview'&&isPalette?image:s==='.sdk-state-icon'?card:null};}
+ for(const [image,x] of [[up,172],[down,416]])for(const isPalette of [true,false]){
+  const popup={style:{},getBoundingClientRect(){return {width:isPalette?251:277,height:Math.min(500,Number.parseInt(this.style.maxHeight)||500)};}};
+  assert.equal(position(popup,trigger(image,isPalette)),true);
+  assert.equal(popup.style.left,x+'px');assert.equal(popup.style.top,'106px');assert.equal(popup.style.maxHeight,'486px');
+ }
+});

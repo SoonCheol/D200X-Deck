@@ -184,7 +184,8 @@ async function verifyTrustedDrawOps(legacy){
   const raw=JSON.stringify({ops:[{op:'drawKey',spec}],memory:{}});
   const resolved=await resolveWorkerDrawProgram(raw,validated=>deadline(()=>win.webContents.executeJavaScript('('+paintValidatedDrawSpec.toString()+')('+JSON.stringify(validated)+')'),1500,()=>win.destroy()));
   assert.deepEqual(resolved,original);
-  const ctx={slot:0,action:{controllers:['Keypad'],states:2},permissions:['display'],settings:{}};
+  const pluginUUID='com.deckforge.native.drawops-smoke';
+  const ctx={slot:0,pluginUUID,action:{id:pluginUUID+'.key',name:'DrawOps',controllers:['Keypad'],states:2},permissions:['display'],settings:{}};
   const expected=host.validateScriptOps(ctx,'press',original.ops);
   assert.deepEqual(host.validateScriptOps(ctx,'press',resolved.ops),expected);
   assert.throws(()=>host.validateScriptOps({...ctx,service:true,permissions:['background.run']},'start',resolved.ops),/background service/);

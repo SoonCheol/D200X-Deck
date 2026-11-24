@@ -3,7 +3,7 @@
 
 ## 개발 기준
 - 저장소 SoonCheol/D200X-Deck · 브랜치 codex/streamdeck-761-clean-editor · Draft PR #5 유지.
-- 로컬 E:\Codex\DeckForge. 최신 HEAD는 Git에서 확인. 소스 버전 **1.1.190** (04B DrawOps 검증 후보).
+- 로컬 E:\Codex\DeckForge. 최신 HEAD는 Git에서 확인. 소스 버전 **1.1.191** (개별 아이콘 팝업 위치).
 - 감사 기준 소스 `49ba39fe094ee808c5715f2348be0789f61d5e20`. CI #1221 성공(커넥터 확인); Windows #930 성공(사용자 인수인계, 이번 문서 작업에서 재검증하지 않음).
 
 ## 현재 상태
@@ -18,11 +18,13 @@
 
 - 1.1.186 CI 및 입력 검사 성공, Windows 통합 검사 149/150: 이전 overlays 정적 조건 잔존. 1.1.187에서 실제 팔레트·번호 DOM 보존 동작 검사로 교체. 런타임/UI 변경 없음, Windows 빌드 성공 확인.
 
-- 04A Model 2 후보: 플러그인별 service/button 분리 partition·renderer 재사용, lane 직렬화, 실행 lease 취소, idle LRU/30초 만료, suspend/close 정리. 기존 context FIFO·검증·realm reset 유지. legacy 복귀는 DECKFORGE_SDK_RUNNER=legacy (실패 이벤트 자동 재실행 금지). 집중 Node/실제 Electron PID·timeout/realm/서비스 생존 검사 추가. 1.1.188 CI 및 Windows 회귀 검사 통과 확인; 패키징·PID 로그 상세 및 실기 미확인.
+- 04A Model 2 후보: 플러그인별 service/button 분리 partition·renderer 재사용, lane 직렬화, 실행 lease 취소, idle LRU/30초 만료, suspend/close 정리. 기존 context FIFO·검증·realm reset 유지. legacy 복귀는 DECKFORGE_SDK_RUNNER=legacy (실패 이벤트 자동 재실행 금지). 집중 Node/실제 Electron PID·timeout/realm/서비스 생존 검사 추가. 1.1.188 실제 Electron PID 3844/3472 분리, timeout·서비스 생존 및 Node 검사 통과, 설치본 생성 성공, Releases HTTP 403 게시 실패. 1.1.189 Windows 전체 성공; CSP 결과 로그 미출력.
 
 - 04B 선행 검증: 별도 Electron 테스트 프로세스에서 standard/opaque 전용 scheme, host/worker 개별 CSP, AsyncFunction, 네트워크·저장소·중첩 Worker·Node 차단, timeout 후 재실행·서비스 생존·PID 검사. 결과 로그 MODEL5_WORKER_CSP_PROBE. 실제 앱에 scheme/Worker 등록 없음, 부정 결과도 기록하고 Model 2 유지. Windows 검사 대기. 기존 SDK Node 검사 exit code 누락 보완.
 
-- 1.1.190: Model 5 전용 DrawOps 호스트 JSON/명령/개수/메모리/출력 검증, Worker 원시 픽셀 거부, 신뢰 painter 및 취소 검증, 기존 host 효과 검증 호출 계약. 기존 Model 2 실행 경로 미변경. Node 경계 테스트·실제 Electron 픽셀 동등성 추가, 실행 결과 대기. 1.1.189 CSP 실제 결과 미확인.
+- 1.1.190: Model 5 전용 DrawOps 호스트 JSON/명령/개수/메모리/출력 검증, Worker 원시 픽셀 거부, 신뢰 painter 및 취소 검증, 기존 host 효과 검증 호출 계약. 기존 Model 2 실행 경로 미변경. Node 경계 테스트·실제 Electron 픽셀 동등성 추가, 실행 결과 대기. 1.1.190 Node 95/95, Electron 픽셀 비교 이후 테스트 가상 manifest 누락으로 실패.
+
+- 1.1.191 사용자 요청: 개별 아이콘 우측 8px·Key Up/Down 카드 상단 테두리 정렬을 배경색/글꼴 팝오버에 공통 적용, 좁은 화면 예외 및 스크롤. 기존 레이아웃·독립 상태 보존. DrawOps smoke fixture 및 Worker probe 창 종료 수명 보완. 빌드/GUI 확인 대기.
 
 ## 다음 작업
 - **04B 실행 엔진:** 1.1.188 Windows PID 로그·패키징 확인, 1.1.189 Worker CSP 검증 결과를 확인해 안전한 후보만 이어서 구현. OOM/DrawOps/자원 한도·실기 미검증 상태에서 Model 5 활성화 금지. 편집기 깜박임 개선/GUI 재확인은 최후순위이며 다음 단계의 선행조건 아님. 기능·보안 회귀는 예외적으로 즉시 해결. 성능/D200X 실기 검증 별도. 기존 실기 미리보기 정책 유지. 설정 revision/receipt 상세는 05에서 계속. 사용자 연속 개발 승인 유지.
