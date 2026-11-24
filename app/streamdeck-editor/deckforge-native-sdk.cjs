@@ -2,7 +2,7 @@
 // API 1 declarative; API 2 JavaScript in a sandboxed renderer.
 const fs=require('node:fs/promises');
 const path=require('node:path');
-const {randomUUID}=require('node:crypto');
+const {randomUUID,createHash}=require('node:crypto');
 const {SdkScheduler}=require('./deckforge-sdk-scheduler.cjs');
 const {verifyPng}=require('./ulanzi-png-verifier.cjs');
 const {pixelImage}=require('./deckforge-pixel-image.cjs');
@@ -1082,6 +1082,72 @@ class PluginRouter{
     const p=await this.retainedCandidate(id);
     check(p.revision===revision,'retained revision changed; reopen recovery');
     return this.native.install(p.manifest);
+  });}
+  // Only explicitly retained, uninstalled native programs can be purged.
+  // Resolve credential identities from validated current/archived manifests,
+  // never enumerate unrelated credential data or decrypt it.
+  async retainedPurgePlan(id){
+    const {legacy,native}=await this.catalog();
+    check(!legacy.some(p=>p.uuid.toLowerCase()===id)&&!native.some(m=>m.id===id),'remove installed plugin with keepData first');
+    const host=this.native,versions=host.versions,target=versions.currentFile(id);
+    try{await fs.lstat(target);throw Error('installed manifest exists; no data deleted');}catch(error){if(error.code!=='ENOENT')throw error;}
+    check(![...host.contexts.values()].some(c=>c.pluginUUID===id),'plugin is still active');
+    const retained=await versions.removed(id);
+    check(retained,'retained plugin not found');
+    const history=await versions.retainedHistory(id);
+    const bindings=new Set();
+    for(const record of [retained,...history])for(const endpoint of record.manifest.networkEndpoints||[])
+      if(endpoint.auth!==undefined)bindings.add(credentialBinding(id,endpoint));
+    check(!host.vault.writers.has(id)&&[...bindings].every(b=>!host.credentials.writers.has(b)&&!host.credentialChanges.has(b)),'plugin data write pending; retry');
+    const files=[];
+    const add=async(file,kind,required=false)=>{
+      // All paths come from validated IDs and known roots, not renderer input.
+      const relative=path.relative(host.root,file),parts=relative.split(path.sep);
+      check(parts.length>=2&&!path.isAbsolute(relative)&&!parts.includes('..'),'unsafe retained path');
+      let parent=host.root;
+      for(const part of parts.slice(0,-1)){
+        parent=path.join(parent,part);
+        try{const st=await fs.lstat(parent);check(st.isDirectory()&&!st.isSymbolicLink(),'unsafe retained directory');}
+        catch(error){if(!required&&error.code==='ENOENT')return;throw error;}
+      }
+      let st;
+      try{st=await fs.lstat(file);}catch(error){if(!required&&error.code==='ENOENT')return;throw error;}
+      check(st.isFile()&&!st.isSymbolicLink()&&st.size<=LIMIT,'unsafe retained file');
+      const raw=await fs.readFile(file);
+      check(raw.length<=LIMIT,'retained file exceeds limit');
+      files.push({file,relative,kind,digest:createHash('sha256').update(raw).digest('hex')});
+    };
+    // Credentials first; history and retained identity last, so an interrupted
+    // purge can be retried without losing the binding inventory.
+    for(const binding of [...bindings].sort())await add(host.credentials.file(binding),'credential');
+    await add(host.vault.file(id),'settings');
+    for(const h of history)await add(h.file,'history',true);
+    await add(versions.removedFile(id),'retained',true);
+    const revision=createHash('sha256').update(JSON.stringify(files.map(f=>[f.relative,f.kind,f.digest]))).digest('hex');
+    const counts={credential:0,settings:0,history:0,retained:0};
+    for(const f of files)counts[f.kind]++;
+    return {id,name:retained.manifest.name,version:retained.manifest.version,revision,counts,files};
+  }
+  planRetainedPurge(id){return this.serial(async()=>{
+    const {files,...plan}=await this.retainedPurgePlan(id);return plan;
+  });}
+  purgeRetainedNative(id,revision){return this.serial(async()=>{
+    const plan=await this.retainedPurgePlan(id);
+    check(plan.revision===revision,'retained data changed; reopen deletion');
+    let deleted=0;
+    try{
+      for(const f of plan.files){
+        const st=await fs.lstat(f.file);
+        check(st.isFile()&&!st.isSymbolicLink()&&st.size<=LIMIT,'retained file changed');
+        const bytes=await fs.readFile(f.file);
+        check(createHash('sha256').update(bytes).digest('hex')===f.digest,'retained file changed');
+        await fs.unlink(f.file);deleted++;
+      }
+    }catch{
+      // Do not report success on partial filesystem failure.
+      return {id,status:'incomplete',deleted,total:plan.files.length};
+    }
+    return {id,status:'purged',deleted,total:plan.files.length};
   });}
   async removalPlan(id){
     const {native}=await this.catalog();

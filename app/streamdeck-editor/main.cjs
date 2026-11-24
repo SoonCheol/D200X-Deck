@@ -91,6 +91,21 @@ ipcMain.handle('d200x:fusion-icon-write',async(event,id,data)=>{
 });
 ipcMain.handle('d200x:sdk-list',async event=>{assertEditor(event);return sdk().list();});
 ipcMain.handle('d200x:native-retained-list',async event=>{assertEditor(event);return sdk().listRetainedNative();});
+ipcMain.handle('d200x:native-retained-purge',async(event,id)=>{
+ assertEditor(event);
+ const plan=await sdk().planRetainedPurge(id);
+ const c=plan.counts;
+ const detail=['이 작업은 되돌릴 수 없습니다. 기존 버튼 등록과 프로필, 외부 백업은 삭제하지 않습니다.',
+   '삭제 대상: 보존 원본 '+c.retained+'개, 이전 코드 '+c.history+'개, 암호화 전역 설정 '+c.settings+'개, 확인된 인증정보 '+c.credential+'개.',
+   '기존 버튼에 필요한 인증정보는 다시 등록해야 할 수 있습니다. 물리적 완전 삭제나 확인되지 않은 과거 인증정보 삭제를 보장하지 않습니다.'].join('\n');
+ const first=await dialog.showMessageBox(window,{type:'warning',title:'보존 데이터 삭제',message:plan.name+' '+plan.version,detail,
+   buttons:['취소','삭제 대상 확인'],defaultId:0,cancelId:0,noLink:true});
+ if(first.response!==1)return null;
+ const second=await dialog.showMessageBox(window,{type:'warning',title:'최종 삭제 확인',message:plan.name+'의 보존 데이터를 삭제하시겠습니까?',detail,
+   buttons:['취소','보존 데이터 삭제'],defaultId:0,cancelId:0,noLink:true});
+ if(second.response!==1)return null;
+ return sdk().purgeRetainedNative(id,plan.revision);
+});
 ipcMain.handle('d200x:native-retained-restore',async(event,id)=>{
  assertEditor(event);
  const plan=await sdk().planRetainedNative(id);

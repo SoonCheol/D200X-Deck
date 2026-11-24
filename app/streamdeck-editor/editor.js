@@ -1346,6 +1346,14 @@ async function restoreRetainedPlugin(plugin){
     window.d200xActionStatus?.('플러그인 다시 설치 완료 · 기존 버튼 설정 유지');
   }catch(error){window.d200xActionStatus?.('다시 설치 실패: '+String(error?.message||error));}
 }
+async function purgeRetainedPlugin(plugin){
+  try{
+    const result=await window.deckBridge.nativeRetainedPurge(plugin.id);
+    if(!result)return;
+    await refreshSdkPlugins();
+    window.d200xActionStatus?.(result.status==='purged'?'보존 데이터 삭제 완료 · 버튼 및 프로필 유지':'삭제 미완료 ('+result.deleted+'/'+result.total+') · 남은 데이터 확인 필요');
+  }catch(error){window.d200xActionStatus?.('보존 데이터 삭제 실패: '+String(error?.message||error));}
+}
 function renderRetainedSdkPlugins(root,query){
   for(const plugin of sdkRetained){
     if(!(plugin.name+' '+plugin.id).toLowerCase().includes(query))continue;
@@ -1355,7 +1363,12 @@ function renderRetainedSdkPlugins(root,query){
     const button=document.createElement('button');button.type='button';button.className='fusion-manager-launch';
     button.textContent=plugin.available===false?'보존 코드 확인 필요':'다시 설치';
     button.disabled=plugin.available===false;button.addEventListener('click',()=>void restoreRetainedPlugin(plugin));
-    section.append(heading,button);root.append(section);
+    section.append(heading,button);
+    if(window.deckBridge?.nativeRetainedPurge&&plugin.available!==false){
+      const purge=document.createElement('button');purge.type='button';purge.className='fusion-manager-launch';
+      purge.textContent='보존 데이터 삭제…';purge.addEventListener('click',()=>void purgeRetainedPlugin(plugin));section.append(purge);
+    }
+    root.append(section);
   }
 }
 const sdkActionNames=new Map();
@@ -4133,7 +4146,8 @@ async function openNativeSettings(item,action,plugin){
 function updateSdkAvailabilityInspector(){
   const button=$('inspector')?.querySelector('[data-sdk-availability]');
   if(!button)return;
-  const item=DeckCore.visibleActions(state)[state.selected];
+  const rootItem=DeckCore.visibleActions(state)[state.selected];
+  const item=pressIsOrdinary(rootItem)&&state.selected<13?pressSlotAction(rootItem,activePressTab):rootItem;
   const label=sdkAvailabilityLabel(item);
   button.textContent=label?'⚠ '+label:'⚙ 플러그인 속성 열기';
   button.title=label?'기존 버튼 설정은 유지됩니다. 클릭하여 설치 또는 복구 방법을 확인하세요.':'플러그인 속성 열기';

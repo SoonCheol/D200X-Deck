@@ -89,6 +89,21 @@ class NativeVersionStore{
     }
     return result;
   }
+  async retainedHistory(id){
+    const dir=this.historyDir(id),parent=path.dirname(dir);
+    for(const folder of [parent,dir]){
+      try{const st=await fs.lstat(folder);assert(st.isDirectory()&&!st.isSymbolicLink(),'invalid history directory');}
+      catch(error){if(error.code==='ENOENT')return [];throw error;}
+    }
+    const result=[];
+    for(const name of (await fs.readdir(dir)).sort()){
+      assert(/^[a-f0-9]{64}\.json$/.test(name),'unrecognized history entry; no data deleted');
+      const file=path.join(dir,name),record=await this.read(file);
+      assert(record.manifest.id===id&&record.digest+'.json'===name,'history integrity mismatch');
+      result.push({...record,file});
+    }
+    return result;
+  }
   async assertReinstall(next){
     const prior=await this.removed(next.id);
     if(!prior)return;

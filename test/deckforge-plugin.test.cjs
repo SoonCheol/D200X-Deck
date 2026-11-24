@@ -2710,3 +2710,44 @@ test('SDK availability distinguishes missing action and dependency without modif
  assert.equal(core.sdkAvailability(item,[plugin]),'available');
  assert.equal(JSON.stringify(item),prior);
 });
+
+test('native retained purge targets only approved removed identity and known historical credentials',async()=>{
+ const root=await fs.mkdtemp(path.join(os.tmpdir(),'deckforge-retained-purge-'));
+ const legacy={list:async()=>[],sync:async()=>{},key:()=>true,inspector:()=>true,onSystemSuspend(){},onSystemResume(){},close:async()=>{}};
+ const host=new NativePluginHost(root),router=new PluginRouter(legacy,host);
+ const {createHomeAssistantManifest}=require('../app/streamdeck-editor/deckforge-ha-plugin.cjs');
+ const {credentialBinding}=require('../app/streamdeck-editor/deckforge-native-network.cjs');
+ const first=createHomeAssistantManifest('https://first.example.com');
+ const second={...createHomeAssistantManifest('https://second.example.com'),version:'9.0.0'};
+ const id=first.id;
+ try{
+  await router.installNative(first);
+  await assert.rejects(router.planRetainedPurge(id),/keepData first/);
+  const update=await router.planNativeInstall(second);await router.replaceNative(second,update.currentRevision);
+  const oldCredential=host.credentials.file(credentialBinding(id,first.networkEndpoints[0]));
+  const newCredential=host.credentials.file(credentialBinding(id,second.networkEndpoints[0]));
+  const unrelated=host.credentials.file(credentialBinding(nativeId,second.networkEndpoints[0]));
+  const global=host.vault.file(id),profile=path.join(root,'profile.json');
+  for(const file of [oldCredential,newCredential,unrelated,global,profile]){
+   await fs.mkdir(path.dirname(file),{recursive:true});await fs.writeFile(file,'fixture bytes');
+  }
+  const remove=await router.planNativeRemoval(id);await router.removeNativeKeepingData(id,remove.revision);
+  const plan=await router.planRetainedPurge(id);
+  assert.deepEqual(plan.counts,{credential:2,settings:1,history:2,retained:1});
+  assert.equal(Object.hasOwn(plan,'files'),false);
+  await assert.rejects(router.purgeRetainedNative(id,'stale'),/data changed/);
+  await fs.writeFile(global,'changed');
+  await assert.rejects(router.purgeRetainedNative(id,plan.revision),/data changed/);
+  const foreign=path.join(host.versions.historyDir(id),'unknown.txt');await fs.writeFile(foreign,'keep');
+  await assert.rejects(router.planRetainedPurge(id),/unrecognized history/);
+  await fs.unlink(foreign);
+  const latest=await router.planRetainedPurge(id);
+  const result=await router.purgeRetainedNative(id,latest.revision);
+  assert.deepEqual(result,{id,status:'purged',deleted:6,total:6});
+  for(const file of [oldCredential,newCredential,global,host.versions.removedFile(id)])await assert.rejects(fs.access(file),/ENOENT/);
+  assert.equal(await fs.readFile(unrelated,'utf8'),'fixture bytes');
+  assert.equal(await fs.readFile(profile,'utf8'),'fixture bytes');
+  assert.equal((await router.listRetainedNative()).length,0);
+  assert.deepEqual(await fs.readdir(host.versions.historyDir(id)),[]);
+ }finally{await router.close();await fs.rm(root,{recursive:true,force:true});}
+});

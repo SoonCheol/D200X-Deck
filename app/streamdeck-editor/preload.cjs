@@ -34,6 +34,7 @@ contextBridge.exposeInMainWorld('deckBridge', Object.freeze({
   nativeRemove:id=>ipcRenderer.invoke('d200x:native-remove',id),
   nativeRetainedList:()=>ipcRenderer.invoke('d200x:native-retained-list'),
   nativeRetainedRestore:id=>ipcRenderer.invoke('d200x:native-retained-restore',id),
+  nativeRetainedPurge:id=>ipcRenderer.invoke('d200x:native-retained-purge',id),
   nativeServiceStatus:id=>ipcRenderer.invoke('d200x:native-service-status',id),
   nativeServiceControl:(id,mode)=>ipcRenderer.invoke('d200x:native-service-control',id,mode),
   nativeDynamicOptions:(id,action)=>ipcRenderer.invoke('d200x:native-dynamic-options',id,action),

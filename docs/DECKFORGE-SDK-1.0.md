@@ -111,3 +111,5 @@ API 2 manifest의 service={script,tickIntervalMs?} 및 별도 background.run 권
 - 08A(1.1.214): 독자 플러그인 keepData 제거는 main 확인창과 현재 manifest revision, 직접 설치 의존 플러그인 부재 확인 필수. 실행 context 종료 후 현재 manifest를 NativeRemoved로 이동, 기존 및 현재 코드는 NativeHistory에 보존. 프로필·암호화 vault·서비스 환경설정 미변경. 재설치 시 보존 원본 동일 내용 또는 더 높은 호환 버전 요구. 기존 패키지 설치 신뢰 승인 유지. purge 및 누락/선택 복원 관리 후속. 실제 사용자 데이터 조작 없음.
 
 - 08B(1.1.215): NativeRemoved 목록은 설치 목록과 분리, 설치된 ID 제외. 보존 원본 재설치는 main 권한 및 endpoint 명시 승인 뒤 revision/의존성/ID 재검증. 누락·의존성·액션 누락은 편집기 표시와 속성 복구 안내만 추가; 기존 프로필과 기기 합성 결과 보존. 외부 누락은 설치 파일 선택, 손상 보존 코드 재설치 차단. 자동 검사/GUI 별도.
+
+- 08C(1.1.216): purge는 keepData로 이미 제거된 native ID만 대상. main 이중 확인 및 파일별 SHA-256 inventory revision 재검사. 검증된 retained/history manifest에서 식별 가능한 credential binding, native global vault, 보존 코드/이력만 삭제. 미확인 과거 binding·서비스 중지 선호·프로필/버튼·외부 백업은 유지. 파일별 삭제이며 부분 실패를 성공으로 표시하지 않음. 물리 완전 삭제 보장 없음. 실제 사용자 데이터 삭제 없음.
