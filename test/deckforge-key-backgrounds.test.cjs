@@ -161,3 +161,37 @@ test('palette opens from either card, retains independent drafts, toggles and cl
  assert.equal(saved,3);down.child.handlers.click(click);assert.equal(second.isConnected,false);
  up.child.handlers.click(click);const third=positioned.at(-1).popup;listener.abort();assert.equal(third.isConnected,false);
 });
+
+test('body-level key background palette remains inside the dirty inspector edit session',()=>{
+ const start=editor.indexOf('function isInspectorEditTarget('),end=editor.indexOf('let inspectorListener=new AbortController();',start);
+ assert.ok(start>=0&&end>start);
+ const handlers=new Map(),timers=[],warnings=[],root={contains:target=>target.inInspector===true};
+ const document={addEventListener(type,fn,capture){assert.equal(capture,true);if(!handlers.has(type))handlers.set(type,[]);handlers.get(type).push(fn);}};
+ const ctx={document,$:()=>root,inspectorSession:{dirty:true},inspectorEditing:false,setTimeout:fn=>timers.push(fn),showInspectorLeaveDialog:fn=>warnings.push(fn)};
+ vm.runInNewContext(editor.slice(start,end),ctx);
+ function target(kind){return {inInspector:kind==='inspector',isConnected:true,click(){},closest(selector){return kind==='palette'&&selector==='.key-background-popover'?this:null;}};}
+ function fire(type,node){
+  const event={target:node,prevented:false,stopped:false,preventDefault(){this.prevented=true;},stopImmediatePropagation(){this.stopped=true;}};
+  for(const fn of handlers.get(type)||[]){fn(event);if(event.stopped)break;}
+  return event;
+ }
+ // Checkbox, swatches, color input, save/delete custom color and close all
+ // belong to the same viewport-level palette, including its descendants.
+ for(const dirty of [false,true]){
+  ctx.inspectorSession.dirty=dirty;
+  for(const type of ['click','change','input']){
+   for(const node of [target('palette'),target('inspector')]){
+    const event=fire(type,node);
+    assert.equal(event.prevented,false);assert.equal(event.stopped,false);assert.equal(ctx.inspectorEditing,true);
+    assert.equal(warnings.length,0);while(timers.length)timers.shift()();assert.equal(ctx.inspectorEditing,false);
+   }
+  }
+ }
+ // A genuine outside navigation still opens the existing unsaved guard.
+ ctx.inspectorSession.dirty=true;
+ const outside=fire('click',target('outside'));
+ assert.equal(outside.prevented,true);assert.equal(outside.stopped,true);assert.equal(warnings.length,1);
+ assert.equal(ctx.inspectorSession.dirty,true);
+ ctx.inspectorSession.dirty=false;
+ assert.equal(fire('click',target('outside')).prevented,false);assert.equal(warnings.length,1);
+});

@@ -3171,11 +3171,15 @@ function appendInspectorSaveBar(root){
   footer.append(cancel,save);footer.classList.add('inspector-footer-region');root.append(footer);
   updateInspectorSaveButtons();
 }
+// A viewport-level palette belongs to the inspector even though it lives in body.
+function isInspectorEditTarget(target){
+  return Boolean($('inspector')?.contains(target)||target?.closest?.('.key-background-popover'));
+}
 // Capture outside clicks so a different key, profile, page, or tool cannot
 // silently discard a dirty inspector. Programmatic profile switches are
 // separately guarded where they originate.
 for(const type of ['click','change','input','drop'])document.addEventListener(type,event=>{
-  if($('inspector')?.contains(event.target)){
+  if(isInspectorEditTarget(event.target)){
     inspectorEditing=true;
     setTimeout(()=>{inspectorEditing=false;},0);
   }
@@ -3188,8 +3192,7 @@ document.addEventListener('click',event=>{
   if(event.target.closest('#icon-library')&&!event.target.closest('.icon-pack-remove'))return;
   if(event.target.closest('.action-customize, .action-override-controls'))return;
   if(event.target.closest('#action-search, #action-search-clear, .library-tabs, #profile-trigger, .profile-row-gear, .profile-global-trigger, .settings-trigger, .group-title'))return;
-  const root=$('inspector');
-  if(root?.contains(event.target))return;
+  if(isInspectorEditTarget(event.target))return;
   // Key/knob selection already checks for unsaved edits in choose(index).
   // Let that handler own the navigation so it survives inspector re-render.
   if(event.target.closest('#key-grid, #physical-controls'))return;
