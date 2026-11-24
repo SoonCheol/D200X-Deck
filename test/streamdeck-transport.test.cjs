@@ -341,3 +341,28 @@ test('stop closes a handle opened by a delayed HID scan',async()=>{
  const starting=t.start();await idle();t.stop();release();await starting;
  assert.equal(deck.connected,false);assert.equal(t.pending,null);assert.equal(t.timer,null);
 });
+
+test('explicit hardware trial records PAGE and KEY ZIP bytes without asserting firmware acknowledgement',async()=>{
+ const deck=new FakeDeck(),logs=[];
+ const t=new D200XTransport({deck,incrementalKeys:true,buildPage:async()=>Buffer.alloc(100),buildKeyUpdate:async()=>Buffer.alloc(20)});
+ t.on('diagnostic',x=>logs.push(x));
+ try{
+  await t.start();t.schedule(completeImages());await idle();
+  t.schedule(completeImages({5:'live'}),'blank',true);await idle();
+  const page=logs.find(x=>x.type==='page-sent'),key=logs.find(x=>x.type==='key-sent');
+  assert.equal(page.zipBytes,100);assert.equal(page.slots,14);assert.equal(page.incremental,false);
+  assert.equal(key.zipBytes,20);assert.equal(key.slot,5);assert.equal(key.slots,1);
+  assert.equal(key.session,page.session);assert.equal(key.incremental,true);
+ }finally{t.stop();}
+});
+test('production trial requires explicit process flag and renderer single-slot partial request',()=>{
+ const fs=require('node:fs'),path=require('node:path');
+ const read=file=>fs.readFileSync(path.join(__dirname,'../app/streamdeck-editor',file),'utf8');
+ assert.match(read('main.cjs'),/const keyTransportTrial=process\.argv\.includes\('--test-key-transport'\)/);
+ assert.match(read('main.cjs'),/new D200XTransport\(\{incrementalKeys:keyTransportTrial\}\)/);
+ assert.match(read('main.cjs'),/wideMode,keyTransportTrial&&liveOnly===true\)/);
+ assert.match(read('preload.cjs'),/syncPage:.*liveOnly===true/);
+ const renderer=read('device-sync.js');
+ assert.match(renderer,/cacheAndSendImages\(images,mode,stamp,partial&&indices\.length===1&&indices\[0\]<13&&mode==='blank'\)/);
+ assert.match(renderer,/bridge\.syncPage\(overlay,'blank'\)/);
+});

@@ -104,8 +104,8 @@ class D200XTransport extends EventEmitter {
     this.deck.on('error', message => this.emit('error-message', String(message)));
   }
 
-  log(type, detail) {
-    const info = { type, detail, at: new Date(this.now()).toISOString() };
+  log(type, detail,metrics={}) {
+    const info = { type, detail, at: new Date(this.now()).toISOString(),session:this.session,...metrics };
     this.emit('diagnostic', info);
   }
 
@@ -245,7 +245,7 @@ class D200XTransport extends EventEmitter {
                 this.deck.pushKey(keyZip);
                 this.incrementalBase=signature;this.incrementalCount++;
                 this.lastWriteAt=this.now();
-                this.log('key-sent','slot '+(index+1)+' · '+keyZip.length+' ZIP bytes');
+                this.log('key-sent','slot '+(index+1)+' · '+keyZip.length+' ZIP bytes',{slot:index,slots:1,zipBytes:keyZip.length,wideMode:mode,incremental:true});
                 this.emit('synced',{slots:1,kind:'key'});
                 continue;
               }
@@ -253,7 +253,7 @@ class D200XTransport extends EventEmitter {
               // Never repeat an uncertain KEY write. Disable the candidate
               // for this process and restore the newest complete PAGE.
               this.incrementalFault=true;this.incrementalBase=null;this.incrementalCount=0;
-              this.log('key-fallback','KEY failed; complete PAGE required');
+              this.log('key-fallback','KEY failed; complete PAGE required',{slot:index,incremental:false,wideMode:mode});
               if(this.pending||this.closed||!this.deck.connected||generation!==this.session){
                 if(!this.closed&&!this.pending)this.pending=this.currentImages;
                 continue;
@@ -284,7 +284,7 @@ class D200XTransport extends EventEmitter {
           this.incrementalBase=this.sleeping?null:signature;this.incrementalCount=0;
           this.appliedWideMode=this.wideMode;
           this.lastWriteAt = this.now();
-          this.log('page-sent', String(images.length)+' slots · '+zip.length+' ZIP bytes'+(cached?' · cached ZIP':''));
+          this.log('page-sent', String(images.length)+' slots · '+zip.length+' ZIP bytes'+(cached?' · cached ZIP':''),{slots:images.length,zipBytes:zip.length,wideMode:mode,cached:!!cached,incremental:false});
           this.emit('synced', { slots: images.length });
         } catch (error) {
           this.pageZipCache=null;

@@ -922,7 +922,9 @@ ipcMain.handle('d200x:native-drop-warning',async event=>{
   const result=await dialog.showMessageBox(window,{type:'warning',title:'DeckForge',message:'드래그 등록 불가',detail:'이 프로그램은 드래그로 등록할 수 없습니다. 프로그램을 직접 선택하여 등록하시겠습니까?',buttons:['취소','프로그램 열기'],cancelId:0,defaultId:1,noLink:true});
   return result.response===1;
 });
-const transport = new D200XTransport();
+// Explicit per-process hardware trial; no persisted preference or remote toggle.
+const keyTransportTrial=process.argv.includes('--test-key-transport');
+const transport = new D200XTransport({incrementalKeys:keyTransportTrial});
 function send(channel, payload) {
   if (rendererReady && window && !window.isDestroyed()) {
     window.webContents.send(channel, payload);
@@ -980,8 +982,8 @@ ipcMain.on('d200x:renderer-ready', event => {
   rendererReady = true;
   send('d200x:status', transport.deck.status());
 });
-ipcMain.on('d200x:sync-page', (event, images, wideMode='blank') => {
-  if (!window || event.sender !== window.webContents) return;
+ipcMain.on('d200x:sync-page', (event, images, wideMode='blank',liveOnly=false) => {
+  if (!window || event.sender !== window.webContents || event.senderFrame!==window.webContents.mainFrame) return;
   if (!validImages(images)) {
     send('d200x:error', '페이지 이미지 형식이 올바르지 않습니다.');
     return;
@@ -992,7 +994,7 @@ ipcMain.on('d200x:sync-page', (event, images, wideMode='blank') => {
   transport.schedule(images.map(entry => ({
     index: entry.index,
     png: Buffer.from(entry.png, 'base64'),
-  })),wideMode);
+  })),wideMode,keyTransportTrial&&liveOnly===true);
 });
 
 // Only user-configured HTTP(S) URLs may be opened by a physical key press.
@@ -2030,6 +2032,7 @@ ipcMain.handle('d200x:smart-profile-context',async(event,includeFusion)=>{
 
 if(singleInstanceLock)app.whenReady().then(async () => {
   diagnosticPath = path.join(app.getPath('userData'), 'd200x-connection.log');
+  transport.log('key-trial',keyTransportTrial?'Explicit KEY trial enabled for this process':'KEY disabled',{incremental:keyTransportTrial});
   powerMonitor.on('suspend',()=>sdkHost?.onSystemSuspend());
   powerMonitor.on('resume',()=>sdkHost?.onSystemResume());
   Menu.setApplicationMenu(null);
@@ -2054,7 +2057,7 @@ if(singleInstanceLock)app.whenReady().then(async () => {
     minHeight:minimumHeight,
     backgroundColor: '#292929',
     show:!process.argv.includes('--hidden')&&!process.argv.includes('--fusion-manager'),
-    title: 'DeckForge '+app.getVersion()+' — D200X',
+    title: 'DeckForge '+app.getVersion()+' — D200X'+(keyTransportTrial?' · USB 개별 키 시험 모드':''),
     webPreferences: {
       preload: path.join(__dirname, 'preload.cjs'),
       contextIsolation: true,

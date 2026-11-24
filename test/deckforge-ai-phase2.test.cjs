@@ -194,3 +194,18 @@ test('plugin management audit reports actual results and safe metadata via inspe
  assert.equal(result.items[5].deckForgeVersion,'1.1.220');
  assert.equal((await inspect(query('plugin_log',{query:'unknown'}))).total,0);
 });
+
+test('USB log exposes only structured transfer evidence, not raw detail or claimed screen success',async t=>{
+ const fs=require('node:fs/promises'),os=require('node:os'),path=require('node:path');
+ const root=await fs.mkdtemp(path.join(os.tmpdir(),'deckforge-usb-log-'));
+ t.after(()=>fs.rm(root,{recursive:true,force:true}));
+ const records=[{type:'key-trial',incremental:true,session:0},{type:'page-sent',session:1,slots:14,zipBytes:12000,wideMode:'blank',cached:false,incremental:false},{type:'key-sent',session:1,slot:5,slots:1,zipBytes:900,wideMode:'blank',incremental:true}];
+ await fs.writeFile(path.join(root,'d200x-connection.log'),records.map(r=>JSON.stringify({...r,at:'2026-11-24T16:00:00.000Z',detail:'PRIVATE_PATH_TOKEN',ack:true})).join('\n')+'\n');
+ const inspect=createReader(opts(fixture(),{userData:root}))();
+ const result=await inspect(query('usb_log'));
+ assert.equal(result.ok,true);assert.equal(result.total,3);
+ assert.equal(result.items[0].stage,'key-sent');assert.equal(result.items[0].slot,6);
+ assert.equal(result.items[0].zipBytes,900);assert.equal(result.items[1].slots,14);
+ assert.equal(result.items[1].zipBytes,12000);assert.equal(result.items[2].incremental,true);
+ assert.doesNotMatch(JSON.stringify(result),/PRIVATE_PATH_TOKEN|"ack"/);
+});

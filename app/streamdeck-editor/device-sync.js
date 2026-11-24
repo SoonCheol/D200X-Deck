@@ -416,17 +416,17 @@
   // Keep normal bitmaps/mode cached. Apply the alert only to the outgoing
   // page, including native clock/stats and legacy populated folder slots.
   const warningPageStamp=()=>JSON.stringify([state.profileId,state.page,state.folderPath||[],DeckCore.activeFolder(state)?.pageIndex||0,window.D200XWideOverlayStamp?.()||0,window.D200XPageStructureEpoch?.()||0]);
-  function sendImages(images,mode){
+  function sendImages(images,mode,liveOnly=false){
     if(window.D200XUnsavedWarning?.()){
       const canvas=document.createElement('canvas');canvas.width=392;canvas.height=196;
       drawWidePanel(canvas.getContext('2d'),392,196,'unsaved');
       const overlay=images.slice();
       overlay[13]={index:13,png:canvas.toDataURL('image/png').split(',')[1]};
       bridge.syncPage(overlay,'blank');
-    }else bridge.syncPage(images,mode);
+    }else bridge.syncPage(images,mode,liveOnly===true);
   }
-  function cacheAndSendImages(images,mode,stamp){
-    sendImages(images,mode);
+  function cacheAndSendImages(images,mode,stamp,liveOnly=false){
+    sendImages(images,mode,liveOnly);
     lastSentImages=images;lastSentWideMode=mode;lastSentPageStamp=stamp;
   }
   window.scheduleD200XWarningSync=()=>{
@@ -470,7 +470,9 @@
       if(rejected)throw rejected.reason;
       // Single flight means an older frame can never overwrite an already
       // submitted newer frame. A change during rendering remains dirty.
-      cacheAndSendImages(images,mode,stamp);
+      // Only a same-page partial render of one ordinary slot is eligible.
+      // Main/transport still require a complete snapshot and explicit opt-in.
+      cacheAndSendImages(images,mode,stamp,partial&&indices.length===1&&indices[0]<13&&mode==='blank');
       for(const [index,revision] of changed)
         if(dirtyNativeSlots.get(index)===revision)dirtyNativeSlots.delete(index);
       renderRetryCount=0;

@@ -127,3 +127,5 @@ API 2 manifest의 service={script,tickIntervalMs?} 및 별도 background.run 권
 - 09C(1.1.222): stale PAGE 압축 실패로 최신 pending 유실하지 않도록 보호; 동일 실패 반복 금지. 절전 중 이미지 전송 보류, wake 최신 PAGE; stop 이후 지연 scan handle 즉시 종료. KEY 오류 후 disconnect/reconnect 최신 PAGE 복원 및 재시도 차단 mock 검사 추가. KEY 생산 비활성 유지. 사용자 보고: 테스트용 v1.0.0 제거 및 보존 삭제(2/2), AI 로그 조회 성공(2026-11-24 16:38:12/16 UTC); 원본 로그 직접 열람 아님.
 
 - 1.1.223: keepData는 등록 보존, purge 성공 뒤 정확한 pluginUUID 등록 액션을 활성/비활성 프로필·페이지·덱폴더·고정키·노브/측면·복합·템플릿에서 제거(다른 액션/슬롯 유지). 미저장/실행 중 차단, 저장 실패 시 메모리 원복 및 정리 미완료 안내. 이전에 삭제된 미설치 ID는 설치/보존 부재 확인과 사용자 별도 승인 후 정리. 외부 백업 미변경; purge 로그는 파일 삭제 결과이며 프로필 정리 결과와 구분.
+
+- 09 실기 시험(1.1.224): 명시 실행 인자 --test-key-transport에서만 transport opt-in. renderer는 기존 동일 stamp/단일 일반 키 native partial blank만 liveOnly; main frame 검증, main opt-in 이중 조건. 일반 실행/페이지/와이드 경고·재연결은 PAGE. 제목에 시험 모드 표시, USB 구조화 로그의 session/slot/slots/ZIP bytes/모드/캐시/KEY 여부 AI usb_log 제공(원시 detail 제외). ZIP bytes는 HID 총량이나 실기 ACK가 아님. 시험 미통과/미실시 시 기본 OFF 유지.

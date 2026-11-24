@@ -153,6 +153,16 @@ function logRecord(r){
   const target=specKind==='AppID'?appId(spec.target):specKind==='EXE'?targetName(spec.target):specKind==='Terminal'&&['admin','normal'].includes(spec.target)?spec.target:undefined;
   return {at:iso(r.at),trace:code(r.traceId),version:code(r.version),specKind,target,...appDetails(x.details),stage:code(r.stage||r.type),mode:code(r.mode),status:code(x.status),reason:code(x.reason),found:bool(x.found),ok:bool(r.ok),error:!!r.error||!!x.error,errorFieldPresent:Object.hasOwn(r,'error'),rendererStage:code(rec.stage),slot:num(rec.slot??trace.slot),page:Number.isInteger(rec.page??trace.page)?(rec.page??trace.page)+1:undefined,dirty:bool(rec.dirty??trace.dirty),force:bool(r.force),foreground:bool(r.foreground),steps:arr(x.steps).slice(-8).map(y=>({stage:code(y.stage),pid:num(y.pid),reason:code(y.reason),result:bool(y.detail)})),remaining:Array.isArray(x.remaining)?x.remaining.length:num(x.remaining)};
 }
+// USB evidence is restricted to known event names and numeric/enum fields.
+function usbLogRecord(r){
+  const kind=['key-trial','key-sent','key-fallback','page-sent','page-superseded','connected','disconnect','write-failure','display-sleep','display-wake','keepalive','brightness-change'].includes(r.type)?r.type:'unknown';
+  const int=(v,min,max)=>Number.isSafeInteger(v)&&v>=min&&v<=max?v:undefined;
+  return {at:iso(r.at),stage:kind,session:int(r.session,0,1000000),
+    slot:Number.isInteger(r.slot)&&r.slot>=0&&r.slot<13?r.slot+1:undefined,
+    slots:int(r.slots,1,14),zipBytes:int(r.zipBytes,0,32*1024*1024),
+    wideMode:['blank','clock','stats'].includes(r.wideMode)?r.wideMode:undefined,
+    incremental:bool(r.incremental),cached:bool(r.cached)};
+}
 const START_SCRIPT="$ErrorActionPreference='Stop';[Console]::OutputEncoding=[System.Text.Encoding]::UTF8; @(Get-StartApps | Select-Object Name,AppID) | ConvertTo-Json -Compress";
 const WINDOW_SCRIPT=String.raw`$ErrorActionPreference='Stop';[Console]::OutputEncoding=[System.Text.Encoding]::UTF8
 Add-Type -TypeDefinition @'
@@ -365,7 +375,7 @@ function createReader({root,userData,view,device,inputs,evidence=()=>[],version=
         else{
           const section=a.section,day=new Date(),previous=new Date(day.getTime()-86400000),dates=[previous,day].map(d=>d.toISOString().slice(0,10));
           const files=section==='usb_log'?['d200x-connection.log.previous','d200x-connection.log'].map(f=>path.join(userData,f)):dates.map(d=>path.join(userData,'diagnostics',(section==='app_log'?'app-control-':'folder-control-')+d+'.jsonl'));
-          const rawRows=(await Promise.all(files.map(f=>tail(f)))).flat(),rows=rawRows.map(logRecord).reverse();
+          const rawRows=(await Promise.all(files.map(f=>tail(f)))).flat(),rows=rawRows.map(section==='usb_log'?usbLogRecord:logRecord).reverse();
           result={...slice(filtered(rows,q),o,16),source:'bounded latest log tails (64 KiB each); only allowlisted structured fields, not raw log text',partial:true};
         }
         signal?.throwIfAborted();const out={section:a.section,ok:!result.error,...result};

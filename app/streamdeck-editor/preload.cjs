@@ -97,7 +97,7 @@ contextBridge.exposeInMainWorld('deckBridge', Object.freeze({
   closeLocalApp: (filePath,force=false,trace=null) => ipcRenderer.invoke('d200x:close-local-app', {filePath,force,trace}),
   inputEvidence: record => ipcRenderer.send('d200x:input-evidence',record),
   logAppControl: record => ipcRenderer.invoke('d200x:app-control-event',record),
-  syncPage: (images,mode='blank') => ipcRenderer.send('d200x:sync-page', images,mode),
+  syncPage: (images,mode='blank',liveOnly=false) => ipcRenderer.send('d200x:sync-page', images,mode,liveOnly===true),
   onStatus: callback => {
     if (typeof callback !== 'function') return;
     ipcRenderer.on('d200x:status', (_event, status) => callback(status));
