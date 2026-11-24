@@ -1608,3 +1608,8 @@ dialog.deckforge-message-dialog::backdrop{background:#000a}
 /* Icon card modal panels share the same viewport anchor as appearance popovers. */
 .icon-dialog-anchored > .icon-library-dialog,.icon-dialog-anchored > .icon-maker-dialog{position:fixed;left:8px;top:8px;max-width:calc(100vw - 16px);max-height:calc(100dvh - 16px);box-sizing:border-box}
 .icon-dialog-anchored > .icon-maker-dialog{overflow-y:auto}
+
+.native-selection-order{display:flex;flex-direction:column;gap:4px;min-width:0}
+.native-selection-row{display:grid;grid-template-columns:minmax(0,1fr) 30px 30px;gap:5px;align-items:center;padding:4px 6px;border:1px solid #555;border-radius:4px;background:#303030}
+.native-selection-row>span{overflow-wrap:anywhere;min-width:0}
+.native-selection-row>.deckforge-message-button{min-width:0;width:30px;padding:3px 0}

@@ -313,8 +313,9 @@ function displayItem(item,index,preserveGesture=false){
     // Resolve by physical slot, not object identity: the hardware renderer clones actions.
     const slot=Number.isInteger(index)?index:DeckCore.visibleActions(state).findIndex(x=>x===item);
     const visual=slot>=0?sdkVisuals.get(sdkContext(slot,'down')):null;
+    const singleSensor=DeckCore.isNativeHaSensor(item);
     const stateName=visual?.state===1?'on':'off';
-    const assigned=item.settings?.sdkStateIcons?.[stateName];
+    const assigned=singleSensor?null:item.settings?.sdkStateIcons?.[stateName];
     const stateIcon=assigned?.kind==='file'&&typeof assigned.value==='string'?assigned:null;
     if(item?.settings?.pluginUUID==='com.autodesk.fusionstreamdeck'&&
       item.settings?.actionUUID==='com.autodesk.fusionstreamdeck.runcommand'){
@@ -339,7 +340,7 @@ function displayItem(item,index,preserveGesture=false){
     const defaultImage=sdkActionDefaults.get(item.settings?.actionUUID)?.[stateName];
     const icon=stateIcon||item.icon||(visual?.image?{kind:'file',value:visual.image}:null)||
       (defaultImage?{kind:'file',value:defaultImage}:null);
-    if(icon||visual)return {...item,title:visual?.title??item.title,...(icon?{icon}:{})};
+    if(icon||visual)return {...item,title:singleSensor?item.title:visual?.title??item.title,...(icon?{icon}:{})};
   }
   if(!item||item.type!=="indicator")return item;
   const common=DeckCore.indicatorCommon(state,item);
@@ -361,7 +362,7 @@ function isMomentaryIconAction(item){
 }
 // A pair of state titles shares the preset library, not the individual style.
 function hasStateTitlePair(item){
-  return item?.type==='sd-plugin'||item?.type==='timer'||item?.type==='hotkey-switch'||isMomentaryIconAction(item);
+  return (item?.type==='sd-plugin'&&!DeckCore.isNativeHaSensor(item))||item?.type==='timer'||item?.type==='hotkey-switch'||isMomentaryIconAction(item);
 }
 // Text action labels are render-only; never copy the body into a stored title.
 function textActionDisplayTitle(item,title){
@@ -505,6 +506,7 @@ function displayKeyPressItem(item,index){
   }
   if(!isMomentaryIconAction(item)||!Number.isInteger(index)||index<0||index>=13){
     if(item?.type==='sd-plugin'){
+      if(DeckCore.isNativeHaSensor(item))return item;
       const raw=DeckCore.visibleActions(state)[index];
       const selected=inspectorPreview&&raw&&haPreviewStates.get(raw);
       const runtime=index>=0?sdkVisuals.get(sdkContext(index,'down')):null;
@@ -561,6 +563,7 @@ function newAction(id){
   const item=DeckCore.createAction('sd-plugin');
   item.settings.pluginUUID=parts[1];item.settings.actionUUID=parts[2];
   item.settings.actionName=sdkActionNames.get(parts[2])||parts[2];
+  if(DeckCore.isNativeHaSensor(item)){item.title='';item.settings.haSingleVisual=true;}
   return item;
 }
 function currentPage(){return DeckCore.currentActions(state);}
@@ -3579,6 +3582,7 @@ function attachStateTitleControls(card,item,which){
   card.append(row);
 }
 function bindSdkStateIcons(root,item){
+  if(DeckCore.isNativeHaSensor(item))return;
   if(item.type!=='timer'&&item.type!=='hotkey-switch'&&(item.type!=='sd-plugin'||isMomentaryIconAction(item)))return;
   const panel=root.querySelector('[data-inspector-icons]');
   if(!panel)return;
@@ -3840,6 +3844,7 @@ async function openNativeSettings(item,action,plugin){
       const pane=document.createElement('div'),search=document.createElement('input'),list=document.createElement('div'),summary=document.createElement('div');pane.className='native-sdk-picker';list.className='native-sdk-options';
       search.type='search';search.placeholder='이름·기기·ID 검색';search.setAttribute('aria-label',field.label+' 검색');
       summary.className='hint';
+      const order=document.createElement('div');order.className='native-selection-order';
       const render=()=>{
         const q=search.value.trim().toLocaleLowerCase(),all=[...options];
         for(const v of selected)if(!all.some(o=>o.value===v))all.push({value:v,label:v,group:'저장된 항목 (현재 목록 없음)'});
@@ -3862,10 +3867,24 @@ async function openNativeSettings(item,action,plugin){
         if(!matches.length){const empty=document.createElement('div');empty.className='hint';empty.textContent=options.length?'검색 결과 없음':'기기 목록 수신 대기';list.append(empty);}
         list.scrollTop=previousScroll;
         summary.textContent=(options.length?'전체 '+options.length+'개 / 검색 '+matches.length+'개':'목록 없음 · 위 연결 상태 확인')+' / 선택 '+selected.length+(multi?' / 최대 '+field.maxItems:'');
+        if(multi){
+          order.replaceChildren();
+          const heading=document.createElement('div');heading.className='hint';heading.textContent='표시 순서 (위 → 아래)';order.append(heading);
+          selected.forEach((value,index)=>{
+            const line=document.createElement('div');line.className='native-selection-row';
+            const label=document.createElement('span');label.textContent=(index+1)+'. '+(all.find(o=>o.value===value)?.label||value);label.title=value;line.append(label);
+            for(const [delta,glyph,description] of [[-1,'↑','위로 이동'],[1,'↓','아래로 이동']]){
+              const button=document.createElement('button');button.type='button';button.textContent=glyph;button.className='deckforge-message-button';
+              button.disabled=index+delta<0||index+delta>=selected.length;button.title=description;button.setAttribute('aria-label',label.textContent+' '+description);
+              button.addEventListener('click',()=>{selected=DeckCore.moveNativeSelection(selected,index,delta);render();});line.append(button);
+            }
+            order.append(line);
+          });
+        }
       };
       search.addEventListener('input',()=>{list.scrollTop=0;render();});
       const clear=document.createElement('button');clear.type='button';clear.className='deckforge-message-button';clear.textContent='선택 해제';clear.addEventListener('click',()=>{selected=[];render();});
-      pane.append(search,summary,list,clear);row.append(label,pane);content.append(row);
+      pane.append(search,summary,list);if(multi)pane.append(order);pane.append(clear);row.append(label,pane);content.append(row);
       dynamicFields.push({field,apply:rows=>{const next=Array.isArray(rows)?rows:[];if(JSON.stringify(options)===JSON.stringify(next))return;options=next;render();}});
       inputs.push({field,read:()=>multi?[...selected]:selected[0]||'',selectedLabel:()=>options.find(o=>o.value===selected[0])?.label||''});render();continue;
     }

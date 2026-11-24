@@ -2083,3 +2083,23 @@ test('native settings commit checks request identity, generation, expiry and ABA
  assert.equal(core.nativeSettingsCommitMatches(read('another page'),request,99),false);
  assert.equal(core.validSdkMount({...aba,configRevision:-1}),false);
 });
+
+test('HA single sensor migration retains original state entries and selected sensor order',()=>{
+ const item=core.createAction('sd-plugin');
+ item.settings.pluginUUID='com.deckforge.native.home-assistant';
+ item.settings.actionUUID='com.deckforge.native.home-assistant.sensor';
+ item.settings.pluginSettings={entities:['sensor.outdoor','sensor.indoor']};
+ item.settings.keyBackgrounds={first:{enabled:true,color:'#123456'},second:{enabled:true,color:'#abcdef'}};
+ item.settings.stateTitles={first:{enabled:true,title:'Temperature',style:core.TITLE},second:{enabled:false,title:'Old',style:core.TITLE}};
+ const migrated=core.cleanAction(item);
+ assert.equal(core.isNativeHaSensor(migrated),true);assert.equal(migrated.settings.haSingleVisual,true);
+ assert.equal(migrated.settings.keyBackgrounds.default.color,'#123456');
+ assert.equal(migrated.settings.keyBackgrounds.second.color,'#abcdef');
+ assert.equal(migrated.settings.stateTitles.second.title,'Old');assert.equal(migrated.title,'Temperature');
+ const values=migrated.settings.pluginSettings.entities;
+ const changed=core.moveNativeSelection(values,1,-1);
+ assert.deepEqual(changed,['sensor.indoor','sensor.outdoor']);assert.deepEqual(values,['sensor.outdoor','sensor.indoor']);
+ assert.equal(core.moveNativeSelection(values,0,-1),values);
+ migrated.settings.keyBackgrounds.default={enabled:true,color:'#ffffff'};migrated.title='New';
+ const reloaded=core.cleanAction(migrated);assert.equal(reloaded.title,'New');assert.equal(reloaded.settings.keyBackgrounds.default.color,'#ffffff');
+});

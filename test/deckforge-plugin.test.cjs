@@ -2315,3 +2315,19 @@ test('versioned settings receipts reject stale sync and pause after an uncertain
   assert.equal(ctx.settingsUncertain,false);assert.equal(ctx.settings.count,2);assert.deepEqual(counts,[0,1],'no automatic replay');
  }finally{host.close();}
 });
+
+test('HA sensor simultaneous display and rotation follow the saved selection order',()=>{
+ const {sensorKey}=require('../app/streamdeck-editor/deckforge-ha-plugin.cjs');
+ const shared={status:'연결됨',entities:{'sensor.outdoor':{label:'Outdoor',value:'10'},'sensor.indoor':{label:'Indoor',value:'20'}}};
+ let frame;const api={getSharedState:()=>shared,setTitle(){},drawKey:spec=>frame=spec};
+ const settings={entities:['sensor.outdoor','sensor.indoor'],mode:'all',labels:true,unit:false,decimals:-1,fontSize:36,seconds:5};
+ sensorKey({type:'appear'},settings,0,{},api);
+ assert.ok(frame.commands.find(c=>c.text==='Outdoor').y<frame.commands.find(c=>c.text==='Indoor').y);
+ const reversed={...settings,entities:[...settings.entities].reverse()};
+ sensorKey({type:'appear'},reversed,0,{},api);
+ assert.ok(frame.commands.find(c=>c.text==='Indoor').y<frame.commands.find(c=>c.text==='Outdoor').y);
+ const memory={};sensorKey({type:'appear'},{...reversed,mode:'press'},0,memory,api);
+ assert.ok(frame.commands.some(c=>c.text==='Indoor'));
+ sensorKey({type:'press'},{...reversed,mode:'press'},0,memory,api);
+ assert.ok(frame.commands.some(c=>c.text==='Outdoor'));
+});
