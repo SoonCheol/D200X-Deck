@@ -1410,3 +1410,27 @@ test('Ulanzi verifier exercises every setting comparison and isolates multi-acti
  assert.equal(multi.verification.status,'pass');
  assert.equal(multi.verification.checks.filter(c=>c.name.endsWith(':isolated-settings')).length,2);
 });
+
+test('corpus audit summarizes candidates and blockers without executing or exporting original source',async()=>{
+ const {writeCorpusAudit}=require('../app/streamdeck-editor/deckforge-sdk-cli.cjs');
+ const root=await fs.mkdtemp(path.join(os.tmpdir(),'deckforge-corpus-')),src=path.join(root,'source'),out=path.join(root,'reports');
+ await fs.mkdir(src);await fs.mkdir(out);
+ try{
+  for(const [name,priv] of [['a',false],['b',true]]){
+   const dir=path.join(src,name+'.ulanziPlugin');await fs.mkdir(dir);
+   const id='com.ulanzi.ulanzistudio.Audit'+name;
+   await fs.writeFile(path.join(dir,'manifest.json'),JSON.stringify({Type:'JavaScript',UUID:id,Name:name,Version:'1',CodePath:'app.js',PrivateAPI:priv,Actions:[{UUID:id+'.a',Name:'A'}]}));
+   await fs.writeFile(path.join(dir,'app.js'),"$UD.connect('"+id+"');$UD.onAdd(m=>$UD.setTitle(m.context,'NEVER_EXPORT_SOURCE_LITERAL'));"+(priv?"$UD.onRun(m=>{});":""));
+  }
+  await fs.mkdir(path.join(src,'broken.ulanziPlugin'));
+  const file=await writeCorpusAudit(src,out),raw=await fs.readFile(file,'utf8'),report=JSON.parse(raw);
+  assert.deepEqual(report.counts,{candidateReviewRequired:1,manualConversionRequired:1,unreadable:1});
+  assert.equal(report.total,3);
+  assert.ok(report.blockerFrequency.unsupportedMethods.some(x=>x.name==='onRun'&&x.count===1));
+  assert.ok(report.plugins[0].treeSha256);
+  assert.equal(report.installationAllowed,false);
+  assert.ok(!raw.includes('NEVER_EXPORT_SOURCE_LITERAL')&&!raw.includes(root));
+  await assert.rejects(writeCorpusAudit(src,out),/EEXIST/);
+  await assert.rejects(writeCorpusAudit(src,src),/outside source/);
+ }finally{await fs.rm(root,{recursive:true,force:true});}
+});

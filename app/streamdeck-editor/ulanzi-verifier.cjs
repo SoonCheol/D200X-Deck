@@ -21,6 +21,12 @@ function sampleSetting(action,key,seed){
 }
 // Exercise every distinct literal comparison, not just the first match
 // for a setting. A non-matching sample is required where the schema allows it.
+function probeKey(action,keys=[]){
+  const reserved=new Set([...keys,...(action.settingsSchema||[]).map(f=>f.key)]);
+  let key='__verifyProbe';
+  while(reserved.has(key))key+='_';
+  return key;
+}
 function settingProbes(action,events){
   const values=new Map();
   for(const item of [...events.values()].flat()){
@@ -139,7 +145,7 @@ function simulateCandidate(manifest,sourceEvents){
       const initial={...a.settings,[probe.key]:probe.value};
       current.set(context,initial);
       check('setting-probe-'+index+'-appear',()=>host.sync([{...a,settings:current.get(a.context)},b,{...config,settings:initial}],[manifest]),expected(context,SOURCE_EVENT.appear));
-      const updated={...initial,__verifyProbe:index};
+      const updated={...initial,[probeKey(action,keys)]:index};
       current.set(context,updated);
       check('setting-probe-'+index+'-settings',()=>host.sync([{...a,settings:current.get(a.context)},b,{...config,settings:updated}],[manifest]),expected(context,SOURCE_EVENT.settings));
       check('setting-probe-'+index+'-remove',()=>host.sync([{...a,settings:current.get(a.context)},b],[manifest]),[]);
@@ -198,7 +204,7 @@ function simulateMultiple(manifest,traces){
     for(const [index,cfg] of configs.entries()){
       const action=manifest.actions[index]; // traces are resolved by action identity
       const keys=traces.find(t=>t.actionId===cfg.actionUUID).events.flatMap(e=>e.calls).filter(c=>['setTitleFromParam','setStateFromParam'].includes(c.method));
-      const settings={...cfg.settings,__verifyProbe:index};
+      const settings={...cfg.settings,[probeKey(action,keys.map(f=>f.key))]:index};
       for(const field of keys)settings[field.key]=sampleSetting(action,field.key,'Z'+index);
       const changed={...cfg,settings};
       const next=configs.slice();next[index]=changed;

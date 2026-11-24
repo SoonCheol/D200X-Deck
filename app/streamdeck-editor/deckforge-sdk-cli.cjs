@@ -4,6 +4,7 @@ const path=require('node:path');
 const {packageNativeManifest}=require('./deckforge-plugin.cjs');
 const {LIMIT}=require('./deckforge-native-sdk.cjs');
 const {analyzeDirectory}=require('./ulanzi-converter.cjs');
+const {writeCorpusAudit}=require('./ulanzi-corpus-audit.cjs');
 const {buildReviewRecord,reviewedCandidate}=require('./ulanzi-release-review.cjs');
 async function packageFile(input,outputDir){
   const stat=await fs.lstat(input);
@@ -38,12 +39,12 @@ async function releaseReviewed(folder,record,outputDir){
   await fs.writeFile(target,pack.archive,{flag:'wx'});
   return target;
 }
-module.exports={packageFile,prepareReview,releaseReviewed};
+module.exports={packageFile,prepareReview,releaseReviewed,writeCorpusAudit};
 if(require.main===module){
   const [command,input,output,releaseDir]=process.argv.slice(2);
-  if(!((process.argv.length===5&&['package','review-ulanzi'].includes(command))||(process.argv.length===6&&command==='release-ulanzi'))){
-    console.error('Usage: node deckforge-sdk-cli.cjs package <native.json> <output-directory>\n       node deckforge-sdk-cli.cjs review-ulanzi <original.ulanziPlugin> <output-directory>\n       node deckforge-sdk-cli.cjs release-ulanzi <original.ulanziPlugin> <review-record.json> <output-directory>');
+  if(!((process.argv.length===5&&['package','review-ulanzi','audit-ulanzi'].includes(command))||(process.argv.length===6&&command==='release-ulanzi'))){
+    console.error('Usage: node deckforge-sdk-cli.cjs package <native.json> <output-directory>\n       node deckforge-sdk-cli.cjs review-ulanzi <original.ulanziPlugin> <output-directory>\n       node deckforge-sdk-cli.cjs release-ulanzi <original.ulanziPlugin> <review-record.json> <output-directory>\n       node deckforge-sdk-cli.cjs audit-ulanzi <corpus-directory> <output-directory>');
     process.exitCode=2;
-  }else (command==='package'?packageFile(input,output):command==='review-ulanzi'?prepareReview(input,output):releaseReviewed(input,output,releaseDir))
+  }else (command==='package'?packageFile(input,output):command==='review-ulanzi'?prepareReview(input,output):command==='audit-ulanzi'?writeCorpusAudit(input,output):releaseReviewed(input,output,releaseDir))
     .then(file=>console.log(file)).catch(error=>{console.error('DeckForge SDK: '+error.message);process.exitCode=1;});
 }
