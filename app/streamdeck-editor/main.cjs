@@ -23,6 +23,7 @@ const {StreamDeckPluginHost}=require('./sd-plugin-host.cjs');
 const {NativePluginHost,PluginRouter}=require('./deckforge-native-sdk.cjs');
 const DeckForgePlugins=require('./deckforge-plugin.cjs');
 const Bundled=require('./bundled-integration.cjs');
+const FusionState=require('./fusion-state-client.cjs');
 const {ProfileStore}=require('./profile-store.cjs');
 const Backup=require('./backup.cjs');
 const BackupPrivacy=require('./backup-privacy.cjs');
@@ -90,7 +91,20 @@ ipcMain.handle('d200x:fusion-icon-write',async(event,id,data)=>{
 });
 ipcMain.handle('d200x:sdk-list',async event=>{assertEditor(event);return sdk().list();});
 ipcMain.handle('d200x:fusion-addin-install',async event=>{
- assertEditor(event);return Bundled.installFusionAddin();
+ assertEditor(event);
+ const result=await Bundled.installFusionAddin();
+ if(result.status!=='existing')return result;
+ const plan=await Bundled.planFusionStateUpgrade();
+ if(plan.status!=='ready')return result;
+ const choice=await dialog.showMessageBox(window,{type:'question',title:'Fusion 상태 연동 확장',
+   message:'기존 Fusion 애드인에 읽기 전용 상태 연동을 추가하시겠습니까?',
+   detail:'확인된 Autodesk 원본 파일만 변경하며 원본을 별도로 보존합니다. 적용 후 Fusion을 다시 시작해야 합니다.',
+   buttons:['취소','확장 적용'],defaultId:0,cancelId:0,noLink:true});
+ if(choice.response!==1)return result;
+ return Bundled.applyFusionStateUpgrade(plan);
+});
+ipcMain.handle('d200x:fusion-live-state',async event=>{
+ assertEditor(event);return FusionState.readFusionState(fusionDiscoveryFile());
 });
 // Editor and integrated manager use the same shipped/user catalog and preference.
 const fusionManagerDir=()=>{const staged=path.join(__dirname,'../fusion-manager');return fs.existsSync(path.join(staged,'fusion-language-catalog.cjs'))?staged:path.join(__dirname,'../../tools/fusion-manager')};
@@ -1824,9 +1838,8 @@ ipcMain.handle('d200x:choose-import-file',async(event,kind)=>{
 });
 // Read only the foreground process executable; never execute profile-provided
 // values or return other window text. Smart Profiles require a minimized editor.
-ipcMain.handle('d200x:foreground-app',async event=>{
-  if(!window||event.sender!==window.webContents||!window.isMinimized()||process.platform!=='win32')
-    return null;
+async function readForegroundApp(){
+  if(!window||!window.isMinimized()||process.platform!=='win32')return null;
   const script=String.raw`
 Add-Type -TypeDefinition @'
 using System;
@@ -1839,16 +1852,28 @@ public static class D200XFocus {
 $handle=[D200XFocus]::GetForegroundWindow()
 [uint32]$targetPid=0
 [void][D200XFocus]::GetWindowThreadProcessId($handle,[ref]$targetPid)
-if($targetPid -gt 0){try{(Get-Process -Id $targetPid -ErrorAction Stop).Path}catch{''}}
+if($targetPid -gt 0){try{$p=Get-Process -Id $targetPid -ErrorAction Stop; @{pid=[int]$targetPid;appPath=$p.Path}|ConvertTo-Json -Compress}catch{''}}
 `;
   try{
     const result=await execFileAsync('powershell.exe',
       ['-NoProfile','-NonInteractive','-WindowStyle','Hidden','-Command',script],
       {windowsHide:true,timeout:3500,maxBuffer:4096});
-    const value=String(result.stdout||'').trim();
-    return /^[A-Za-z]:/.test(value)&&value.charCodeAt(2)===92&&value.toLowerCase().endsWith('.exe')
-      ?value:null;
+    const record=JSON.parse(String(result.stdout||'').trim()),value=record.appPath;
+    return window?.isMinimized()&&Number.isSafeInteger(record.pid)&&record.pid>0&&typeof value==='string'&&
+      /^[A-Za-z]:/.test(value)&&value.charCodeAt(2)===92&&value.toLowerCase().endsWith('.exe')
+      ?{pid:record.pid,appPath:value}:null;
   }catch{return null;}
+}
+ipcMain.handle('d200x:foreground-app',async event=>{
+  if(!window||event.sender!==window.webContents)return null;
+  return (await readForegroundApp())?.appPath||null;
+});
+ipcMain.handle('d200x:smart-profile-context',async(event,includeFusion)=>{
+  if(!window||event.sender!==window.webContents)return null;
+  const foreground=await readForegroundApp();
+  if(!foreground)return null;
+  const fusion=includeFusion===true?await FusionState.readFusionState(fusionDiscoveryFile(),foreground.pid):null;
+  return window?.isMinimized()?{...foreground,fusion}:null;
 });
 
 if(singleInstanceLock)app.whenReady().then(async () => {

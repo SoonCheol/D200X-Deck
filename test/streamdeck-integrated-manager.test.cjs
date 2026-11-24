@@ -114,3 +114,35 @@ test('Fusion add-in supports both documented roots and preserves existing manife
   assert.equal((await integration.installFusionAddin(root,{appData,configureStartup:true})).status,'ambiguous');
  }finally{await fs.rm(root,{recursive:true,force:true});}
 });
+
+
+test('Fusion status extension preserves original and only upgrades byte-identical installed source',async()=>{
+ const {extend}=require('../app/streamdeck-editor/extend-fusion-status.cjs');
+ const {projectState,readFusionState}=require('../app/streamdeck-editor/fusion-state-client.cjs');
+ const root=await fs.mkdtemp(path.join(os.tmpdir(),'deckforge-fusion-state-'));
+ try{
+   const original="def get_status():\n    return {\n        'activeDocument': doc.name if doc else None,\n    }\n";
+   const extended=extend(original);
+   assert.ok(extended.includes('ui.activeWorkspace'));assert.throws(()=>extend(extended));
+   const source=path.join(root,'FusionStreamDeck','lib'),appData=path.join(root,'appdata');
+   const target=path.join(appData,'Autodesk','Autodesk Fusion','API','AddIns','FusionStreamDeck','lib');
+   await fs.mkdir(source,{recursive:true});await fs.mkdir(target,{recursive:true});
+   await fs.writeFile(path.join(root,'fusion-actions-original.py'),original);
+   await fs.writeFile(path.join(source,'fusion_actions.py'),extended);
+   const file=path.join(target,'fusion_actions.py');await fs.writeFile(file,original);
+   const plan=await integration.planFusionStateUpgrade(root,{appData});assert.equal(plan.status,'ready');
+   assert.equal((await integration.applyFusionStateUpgrade(plan)).status,'state-upgraded');
+   assert.equal(await fs.readFile(file+'.deckforge-original.bak','utf8'),original);
+   assert.equal(await fs.readFile(file,'utf8'),extended);
+   assert.equal((await integration.planFusionStateUpgrade(root,{appData})).status,'already-extended');
+   await fs.writeFile(file,'user-modified');
+   assert.equal((await integration.planFusionStateUpgrade(root,{appData})).status,'unrecognized');
+   const discovery=path.join(root,'endpoint.json');await fs.writeFile(discovery,JSON.stringify({status:'running',port:12345,pid:10}));
+   const raw={ok:true,activeDocument:'private name',deckforgeState:{schema:1,pid:10,workspace:'Design',tab:'Sketch',command:'Select'}};
+   assert.deepEqual(projectState(raw,10),{pid:10,workspace:'Design',tab:'Sketch',command:'Select'});
+   assert.equal(projectState(raw,11),null);
+   assert.equal(await readFusionState(discovery,11,{health:async()=>{throw Error('must not connect');}}),null);
+   assert.equal((await readFusionState(discovery,10,{health:async()=>raw})).status,'ready');
+   assert.equal((await readFusionState(discovery,10,{health:async()=>({ok:true})})).status,'unavailable');
+ }finally{await fs.rm(root,{recursive:true,force:true});}
+});

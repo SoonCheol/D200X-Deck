@@ -64,6 +64,42 @@ async function installFusionAddin(root=bundledRoot(),options={}){
  }
  return {status,startup,message:status==='installed'?'FusionStreamDeck 애드인을 복사했습니다. Fusion에서 실행 상태를 확인하세요.':'기존 FusionStreamDeck 애드인을 확인했습니다.'};
 }
+// Existing add-ins are never upgraded during automatic setup or startup.
+async function planFusionStateUpgrade(root=bundledRoot(),options={}){
+ const appData=options.appData||process.env.APPDATA||path.join(os.homedir(),'AppData','Roaming');
+ const candidates=['Autodesk Fusion 360','Autodesk Fusion'].map(name=>path.join(appData,'Autodesk',name,'API','AddIns','FusionStreamDeck'));
+ const present=[];
+ for(const candidate of candidates)if(await exists(candidate))present.push(candidate);
+ if(present.length!==1)return {status:'unavailable'};
+ const target=path.join(present[0],'lib','fusion_actions.py');
+ try{
+   const files=[target,path.join(root,'fusion-actions-original.py'),path.join(root,'FusionStreamDeck','lib','fusion_actions.py')];
+   const data=await Promise.all(files.map(async file=>{
+     const st=await fs.lstat(file);if(!st.isFile()||st.size>65536)throw Error('invalid Fusion source');
+     return fs.readFile(file);
+   }));
+   const [current,original,extended]=data;
+   if(current.equals(extended))return {status:'already-extended'};
+   if(!current.equals(original)||!extended.toString('utf8').includes("'deckforgeState': _deckforge_status(app)"))
+     return {status:'unrecognized'};
+   return {status:'ready',target,original,extended};
+ }catch{return {status:'unavailable'};}
+}
+async function applyFusionStateUpgrade(plan){
+ if(plan?.status!=='ready')throw Error('확장 대상 확인 실패');
+ const {target,original,extended}=plan;
+ const backup=target+'.deckforge-original.bak';
+ const tmp=target+'.'+require('node:crypto').randomUUID()+'.tmp';
+ try{
+   if(!(await fs.readFile(target)).equals(original))throw Error('Fusion 원본이 변경되었습니다.');
+   try{await fs.writeFile(backup,original,{flag:'wx'});}
+   catch(error){if(error.code!=='EEXIST'||!(await fs.readFile(backup)).equals(original))throw error;}
+   await fs.writeFile(tmp,extended,{flag:'wx'});
+   if(!(await fs.readFile(target)).equals(original))throw Error('Fusion 원본이 변경되었습니다.');
+   await fs.rename(tmp,target);
+   return {status:'state-upgraded',message:'Fusion 상태 연동 확장 완료. Fusion을 다시 시작하세요.'};
+ }finally{await fs.rm(tmp,{force:true}).catch(()=>{});}
+}
 function createMagnet(deck,manager,display,saveEnabled=()=>{}){
  let enabled=true,attached=false,side='right',changing=false,normal=manager.getBounds();
  const isLive=()=>!deck.isDestroyed()&&!manager.isDestroyed();
@@ -124,4 +160,4 @@ function createMagnet(deck,manager,display,saveEnabled=()=>{}){
   enable(value){enabled=Boolean(value);if(!enabled)detach();return this.status()}
  };
 }
-module.exports={installMissingPlugins,installFusionPlugin,installFusionAddin,createMagnet};
+module.exports={installMissingPlugins,installFusionPlugin,installFusionAddin,planFusionStateUpgrade,applyFusionStateUpgrade,createMagnet};

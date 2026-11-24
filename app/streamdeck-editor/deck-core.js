@@ -1101,7 +1101,8 @@
     state.profileNames=source?source.slice(0,50).filter(p=>p&&typeof p.id==='string'&&typeof p.name==='string')
       .map(p=>({id:p.id.slice(0,40),name:p.name.slice(0,80),
         appPath:typeof p.appPath==='string'&&p.appPath.length<=1024?p.appPath:'',
-        smartEnabled:p.smartEnabled===true||(p.smartEnabled===undefined&&value?.smartProfilesEnabled===true&&!!p.appPath)})):[];
+        smartEnabled:p.smartEnabled===true||(p.smartEnabled===undefined&&value?.smartProfilesEnabled===true&&!!p.appPath),
+        ...(cleanFusionScope(p.fusionScope)?{fusionScope:cleanFusionScope(p.fusionScope)}:{})})):[];
     const seen=new Set();
     state.profileNames=state.profileNames.filter(p=>p.id&& !seen.has(p.id)&&seen.add(p.id));
     if(!state.profileNames.length)state.profileNames=[{id:'default',name:'기본 프로필'}];
@@ -1156,7 +1157,7 @@
     const data={
       format:'d200x-single-profile-v1',
       profile:{id:profile.id,name:profile.name,appPath:profile.appPath||'',
-        smartEnabled:profile.smartEnabled===true},
+        smartEnabled:profile.smartEnabled===true,...(cleanFusionScope(profile.fusionScope)?{fusionScope:cleanFusionScope(profile.fusionScope)}:{})},
       snapshot:profileSnapshot(snapshot)
     };
     return data;
@@ -1246,10 +1247,56 @@
     if(appPath&&(!/^[A-Za-z]:/.test(appPath)||appPath.charCodeAt(2)!==92||!appPath.toLowerCase().endsWith('.exe')))return false;
     profile.appPath=appPath;return true;
   }
+  function cleanFusionScope(value){
+    const valid=v=>typeof v==='string'&&/^[A-Za-z0-9._-]{1,180}$/.test(v);
+    if(!value||!valid(value.workspace)||(value.tab!==undefined&&!valid(value.tab)))return null;
+    return {workspace:value.workspace,...(value.tab?{tab:value.tab}:{})};
+  }
+  function setProfileFusionScope(state,id,scope){
+    const profile=state.profileNames?.find(p=>p.id===id);
+    if(!profile)return false;
+    if(scope===null){delete profile.fusionScope;return true;}
+    const clean=cleanFusionScope(scope);
+    if(!clean||state.profileNames.some(p=>p.id!==id&&p.fusionScope?.workspace===clean.workspace&&
+      (p.fusionScope?.tab||'')===(clean.tab||'')))return false;
+    profile.fusionScope=clean;profile.smartEnabled=true;state.smartProfilesEnabled=true;return true;
+  }
+  function matchFusionProfile(state,fusion){
+    if(!state?.smartProfilesEnabled||fusion?.status!=='ready'||!fusion.workspace)return null;
+    const profiles=state.profileNames.filter(p=>p.smartEnabled&&p.fusionScope?.workspace===fusion.workspace);
+    // A specific toolbar tab takes precedence over a workspace-wide rule.
+    return profiles.find(p=>p.fusionScope.tab&&p.fusionScope.tab===fusion.tab)?.id||
+      profiles.find(p=>!p.fusionScope.tab)?.id||null;
+  }
+  function createSmartProfileTracker(){
+    let candidate=null,count=0,last=null,lastFusionPid=null;
+    return {
+      observe(state,context){
+        if(!state?.smartProfilesEnabled||!context?.appPath||!Number.isInteger(context.pid))return null;
+        const fusion=context.fusion;
+        if(fusion?.status==='unavailable'||(fusion?.status==='ready'&&!fusion.workspace)||
+          (!fusion&&context.pid===lastFusionPid)) {candidate=null;count=0;return null;}
+        if(fusion?.status==='ready')lastFusionPid=context.pid;
+        else lastFusionPid=null;
+        const matched=matchFusionProfile(state,fusion)||matchForegroundProfile(state,context.appPath);
+        const active=state.profileNames.find(p=>p.id===state.profileId);
+        const fallback=state.profileNames.find(p=>p.id==='default')?.id||state.profileNames[0]?.id;
+        const target=matched||(active?.smartEnabled?fallback:null);
+        // The context signature ignores the active command: a command in
+        // progress must not constantly reset the user's selected profile.
+        const key=JSON.stringify([context.pid,context.appPath.toLowerCase(),fusion?.workspace||'',fusion?.tab||'',matched||'']);
+        if(candidate!==key){candidate=key;count=1;return null;}
+        if(++count<2||last===key)return null;
+        last=key;
+        return target&&target!==state.profileId?target:null;
+      },
+      reset(){candidate=null;count=0;last=null;lastFusionPid=null;}
+    };
+  }
   function matchForegroundProfile(state,appPath){
     if(!state?.smartProfilesEnabled||typeof appPath!=='string'||!appPath)return null;
     const normalized=appPath.replaceAll('/',String.fromCharCode(92)).toLowerCase();
-    return state.profileNames.find(p=>p.smartEnabled&&p.appPath&&p.appPath.replaceAll('/',String.fromCharCode(92)).toLowerCase()===normalized)?.id||null;
+    return state.profileNames.find(p=>p.smartEnabled&&!p.fusionScope&&p.appPath&&p.appPath.replaceAll('/',String.fromCharCode(92)).toLowerCase()===normalized)?.id||null;
   }
   function deleteProfile(state,id){
     if(!state.profileNames?.some(p=>p.id===id)||state.profileNames.length<=1)return false;
@@ -1503,5 +1550,5 @@
       url:action.settings?.url||'',mode:action.settings?.open||'default',browserPath:action.settings?.browserPath||''};
     return {kind:'unsupported',message:'이 동작의 실행 기능은 아직 구현되지 않았습니다.'};
   }
-  return {ACTION_IDS,D200X_ACTION_IDS,PLUGIN_ACTION_IDS,PRESS_ACTION_TYPES,DEFAULTS,TITLE,INDICATOR_NUMBER_STYLE,INDICATOR_NAV_LABELS,indicatorConfig,indicatorCommon,sharedIndicatorConfig,updateIndicatorCommon,manageIndicators,indicatorNumberDisplayStyle,planIndicatorNavigation,fixedIndicatorNavigation,planFixedIndicatorNavigation,indicatorPinState,setIndicatorPinned,SIDE_NAV_LABELS,SIDE_HOLD_MS,sideConfig,makeSideAction,sideActionConfig,sideFolderTargets,planSideNavigation,applySideNavigation,createPageVisitTracker,createSidePressTracker,createAction,cleanAction,cleanCompositeEntry,timerSeconds,formatTimerTime,displaySwitchAction,compositeModel,planComposite,runComposite,createMultiPauseGate,multiRows,setMultiRows,blankPage,cleanWideDisplay,cycleWideDisplay,isWideDisplayPress,folderContents,folderPageCount,changeFolderPage,addFolderPage,deleteFolderPage,editPageStructure,currentActions,visibleActions,togglePinned,activeFolder,enterFolder,exitFolder,migrateState,profileSnapshot,switchProfile,createProfile,renameProfile,exportSingleProfile,findProfileTemplate,saveProfileTemplate,renameProfileTemplate,deleteProfileTemplate,applyProfileTemplate,setProfileApp,matchForegroundProfile,deleteProfile,previewHardwareEvent,physicalSlot,hardwareGesture,resolveHardwareEvent,runtimeActionKey,folderWideBackEvent,resolveKeyPress,planHardwareEvent,deletePage,planAction,emptyBinding,cleanBinding,controlAction,activeControlAction,assignControlAction,automaticControl,ensureControls,controlBinding,changeControlScope};
+  return {ACTION_IDS,D200X_ACTION_IDS,PLUGIN_ACTION_IDS,PRESS_ACTION_TYPES,DEFAULTS,TITLE,INDICATOR_NUMBER_STYLE,INDICATOR_NAV_LABELS,indicatorConfig,indicatorCommon,sharedIndicatorConfig,updateIndicatorCommon,manageIndicators,indicatorNumberDisplayStyle,planIndicatorNavigation,fixedIndicatorNavigation,planFixedIndicatorNavigation,indicatorPinState,setIndicatorPinned,SIDE_NAV_LABELS,SIDE_HOLD_MS,sideConfig,makeSideAction,sideActionConfig,sideFolderTargets,planSideNavigation,applySideNavigation,createPageVisitTracker,createSidePressTracker,createAction,cleanAction,cleanCompositeEntry,timerSeconds,formatTimerTime,displaySwitchAction,compositeModel,planComposite,runComposite,createMultiPauseGate,multiRows,setMultiRows,blankPage,cleanWideDisplay,cycleWideDisplay,isWideDisplayPress,folderContents,folderPageCount,changeFolderPage,addFolderPage,deleteFolderPage,editPageStructure,currentActions,visibleActions,togglePinned,activeFolder,enterFolder,exitFolder,migrateState,profileSnapshot,switchProfile,createProfile,renameProfile,exportSingleProfile,findProfileTemplate,saveProfileTemplate,renameProfileTemplate,deleteProfileTemplate,applyProfileTemplate,setProfileApp,setProfileFusionScope,matchFusionProfile,createSmartProfileTracker,matchForegroundProfile,deleteProfile,previewHardwareEvent,physicalSlot,hardwareGesture,resolveHardwareEvent,runtimeActionKey,folderWideBackEvent,resolveKeyPress,planHardwareEvent,deletePage,planAction,emptyBinding,cleanBinding,controlAction,activeControlAction,assignControlAction,automaticControl,ensureControls,controlBinding,changeControlScope};
 });

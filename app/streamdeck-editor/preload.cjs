@@ -19,6 +19,8 @@ contextBridge.exposeInMainWorld('deckBridge', Object.freeze({
   driveCreate: (password,appearance,expectedEmail,format,selection) => ipcRenderer.invoke('d200x:drive-create',{password,appearance,expectedEmail,format,selection}),
   drivePreview: (id,password,appearance,expectedEmail) => ipcRenderer.invoke('d200x:drive-preview',{id,password,appearance,expectedEmail}),
   foregroundApp: () => ipcRenderer.invoke('d200x:foreground-app'),
+  smartProfileContext:includeFusion=>ipcRenderer.invoke('d200x:smart-profile-context',includeFusion===true),
+  fusionLiveState:()=>ipcRenderer.invoke('d200x:fusion-live-state'),
   appVersion: () => ipcRenderer.invoke('d200x:app-version'),
   openAiAssistant: () => ipcRenderer.invoke('d200x:open-ai'),
   revealUnsavedEditor: () => ipcRenderer.invoke('d200x:reveal-unsaved-editor'),

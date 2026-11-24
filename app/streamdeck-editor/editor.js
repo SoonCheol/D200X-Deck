@@ -6696,6 +6696,21 @@ function bindSidebarHeader(){
         const path=await window.deckBridge.choosePath('app');
         if(path&&DeckCore.setProfileApp(state,profile.id,path)){persist();renderProfiles();}
       }));
+      async function bindFusionScope(useTab){
+        const live=await window.deckBridge?.fusionLiveState?.();
+        if(live?.status!=='ready'||!live.workspace||(useTab&&!live.tab)){
+          window.d200xActionStatus?.('Fusion 작업영역 확인 실패: 애드인 상태 연동 확장 및 Fusion 재시작을 확인하세요.');return;
+        }
+        if(!DeckCore.setProfileFusionScope(state,profile.id,{workspace:live.workspace,...(useTab?{tab:live.tab}:{})})){
+          window.d200xActionStatus?.('같은 Fusion 작업영역 또는 탭이 다른 프로필에 등록되어 있습니다.');return;
+        }
+        smartProfileTracker.reset();persist();renderProfiles();
+      }
+      entry(tools,'Fusion 현재 작업영역 연결',run(()=>bindFusionScope(false)));
+      entry(tools,'Fusion 현재 탭 연결',run(()=>bindFusionScope(true)));
+      if(profile.fusionScope)entry(tools,'Fusion 연결 해제 · '+(profile.fusionScope.tab||profile.fusionScope.workspace),run(()=>{
+        if(DeckCore.setProfileFusionScope(state,profile.id,null)){smartProfileTracker.reset();persist();renderProfiles();}
+      }));
       const del=entry(tools,'프로필 삭제',run(()=>{
         if(state.profileNames.length<=1)return;
         if(confirm('프로필 "'+profile.name+'"과 설정을 삭제하시겠습니까?')){
@@ -6891,17 +6906,18 @@ tabs.forEach((button,index)=>button.addEventListener('click',()=>{
 // Poll only when explicitly enabled. The native bridge refuses to identify
 // foreground programs while the editor is not minimized.
 let smartProfileBusy=false;
+const smartProfileTracker=DeckCore.createSmartProfileTracker();
+const smartProfileBlocked=()=>profileStorageFailure||inspectorSession?.dirty||inspectorEditing||
+  runningMultiActions.size||nativeGridBusy||nativeGridDrag||openAppHoldTimers.size||document.querySelector('dialog[open]');
 setInterval(async()=>{
-  // Defer automatic profile switches while unsaved inspector edits exist.
-  if(inspectorSession?.dirty||smartProfileBusy||!state.smartProfilesEnabled||runningMultiActions.size||
-    !state.profileNames.some(p=>p.appPath)||!window.deckBridge?.foregroundApp)return;
+  if(smartProfileBusy||smartProfileBlocked()||!state.smartProfilesEnabled||
+    !state.profileNames.some(p=>p.smartEnabled&&(p.appPath||p.fusionScope))||!window.deckBridge?.smartProfileContext)return;
   smartProfileBusy=true;
   try{
-    const app=await window.deckBridge.foregroundApp();
-    const matched=DeckCore.matchForegroundProfile(state,app);
-    const activeProfile=state.profileNames.find(p=>p.id===state.profileId);
-    const fallback=state.profileNames.find(p=>p.id==='default')?.id||state.profileNames[0]?.id;
-    const id=matched||(activeProfile?.smartEnabled?fallback:null);
+    const startProfile=state.profileId;
+    const context=await window.deckBridge.smartProfileContext(state.profileNames.some(p=>p.smartEnabled&&p.fusionScope));
+    if(startProfile!==state.profileId||smartProfileBlocked())return;
+    const id=smartProfileTracker.observe(state,context);
     if(id&&id!==state.profileId&&DeckCore.switchProfile(state,id)){
       cancelFolderAutoExit();lastHardwareDown.clear();
       persist();render();

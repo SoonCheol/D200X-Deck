@@ -295,6 +295,8 @@ jobs:
           $bundled='app/preview-device-build/bundled'
           New-Item -ItemType Directory -Force $bundled | Out-Null
           Copy-Item 'fusion-compat-fixture/fusion_addin/FusionStreamDeck' "$bundled/FusionStreamDeck" -Recurse -Force
+          node app/streamdeck-editor/extend-fusion-status.cjs "$bundled/FusionStreamDeck/lib/fusion_actions.py" "$bundled/fusion-actions-original.py"
+          if ($LASTEXITCODE -ne 0) { throw 'Fusion status extension failed' }
           Copy-Item 'fusion-compat-fixture/streamdeck_plugin/com.autodesk.fusionstreamdeck.sdPlugin' "$bundled/com.autodesk.fusionstreamdeck.sdPlugin" -Recurse -Force
           Copy-Item 'fusion-compat-fixture/LICENSE' "$bundled/Fusion-LICENSE.txt"
           Copy-Item 'ha-plugin-source/LICENSE' "$bundled/HA-LICENSE.txt"

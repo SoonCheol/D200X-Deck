@@ -1844,3 +1844,25 @@ test('unchecked Program Open hold consumes release and invokes legacy close/forc
  assert.deepEqual(executed,['terminal'],'re-enabled hold resumes the saved terminal');
  assert.equal(close.length,2,'re-enabled hold suppresses legacy close');
 });
+
+
+test('Fusion smart profiles match exact workspace/tab and do not override manual choice in stable context',()=>{
+ const s=core.migrateState(null),workspace=core.createProfile(s,'Design'),tab=core.createProfile(s,'Sketch');
+ assert.equal(core.setProfileFusionScope(s,workspace,{workspace:'DesignWorkspace'}),true);
+ assert.equal(core.setProfileFusionScope(s,tab,{workspace:'DesignWorkspace',tab:'SketchTab'}),true);
+ assert.equal(core.setProfileFusionScope(s,tab,{workspace:'DesignWorkspace'}),false);
+ const t=core.createSmartProfileTracker(),ctx={pid:5,appPath:'C:\\Fusion.exe',fusion:{status:'ready',workspace:'DesignWorkspace',tab:'SketchTab'}};
+ assert.equal(t.observe(s,ctx),null);assert.equal(t.observe(s,ctx),tab);
+ assert.equal(core.switchProfile(s,tab),true);assert.equal(core.switchProfile(s,'default'),true);
+ assert.equal(t.observe(s,ctx),null);
+ const change={...ctx,fusion:{...ctx.fusion,tab:'SolidTab'}};
+ assert.equal(t.observe(s,change),null);assert.equal(t.observe(s,change),workspace);
+ core.switchProfile(s,workspace);
+ assert.equal(t.observe(s,{...ctx,fusion:{status:'unavailable',pid:5}}),null);
+ assert.equal(t.observe(s,{...ctx,fusion:null}),null);
+ assert.equal(t.observe(s,null),null);
+ const persisted=core.migrateState(JSON.parse(JSON.stringify(s)));
+ assert.deepEqual(persisted.profileNames.find(p=>p.id===tab).fusionScope,{workspace:'DesignWorkspace',tab:'SketchTab'});
+ assert.equal(core.matchFusionProfile(persisted,ctx.fusion),tab);
+ assert.equal(core.matchForegroundProfile(persisted,'C:\\Fusion.exe'),null);
+});
