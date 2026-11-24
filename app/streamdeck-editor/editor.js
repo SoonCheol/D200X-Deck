@@ -1289,6 +1289,24 @@ function openSdkPluginHelp(plugin,isFusion){
 function launchFusionManager(){
   window.deckBridge.openFusionManager().catch(error=>window.d200xActionStatus?.('Fusion Manager 실행 실패: '+String(error?.message||error)));
 }
+async function openNativeServiceManager(plugin){
+  const names={active:'실행 중',waiting:'실행 대기',stopped:'중지됨',suspended:'절전 중',recovering:'자동 복구 중',failed:'실행 오류',capacity:'서비스 실행 한도 초과',unavailable:'의존성 사용 불가','policy-error':'설정 파일 읽기 실패'};
+  const sockets={connected:'연결됨',connecting:'연결 중',reconnecting:'재연결 중',disconnected:'연결 없음'};
+  try{
+    const status=await window.deckBridge.nativeServiceStatus(plugin.uuid);
+    const intro=plugin.name+' · 서비스: '+(names[status.state]||'확인 필요')+' / WebSocket: '+(sockets[status.socket]||'확인 필요');
+    if(status.state==='policy-error'){
+      await window.DeckForgeDialogs.show({title:'전역 서비스 관리',intro,warning:'기존 서비스 설정 파일을 보호하기 위해 실행을 중지했습니다.',actionLabel:'닫기'});return;
+    }
+    const choice=await window.DeckForgeDialogs.show({title:'전역 서비스 관리',intro,
+      detail:'서비스 중지는 프로그램 재시작 후에도 유지됩니다. 기존 버튼 등록과 설정은 삭제하지 않습니다.',
+      ask:true,actionLabel:status.enabled?'중지':'시작',alternateLabel:status.enabled&&status.state!=='unavailable'?'재시작':''});
+    if(!choice)return;
+    const mode=choice==='alternate'?'restart':status.enabled?'stop':'start';
+    const next=await window.deckBridge.nativeServiceControl(plugin.uuid,mode);
+    window.d200xActionStatus?.('전역 서비스: '+(names[next.state]||'확인 필요'));
+  }catch{window.d200xActionStatus?.('전역 서비스 관리 실패: 의존성 또는 서비스 설정을 확인하세요.');}
+}
 function renderInstalledSdkPlugins(root,query){
   for(const plugin of sdkPlugins){
     const matching=plugin.actions.filter(a=>a.uuid!==HA_GENERIC_ACTION &&
@@ -1316,6 +1334,10 @@ function renderInstalledSdkPlugins(root,query){
       setDeckForgeTooltip(tile,()=>({title:sdkCatalogueLabel(action),lines:[isFusion?'등록한 Fusion 명령 실행':isHa?'지정한 Home Assistant 장치 제어':'설정한 플러그인 동작 실행']}));
       tile.addEventListener('dragstart',ev=>ev.dataTransfer.setData('application/x-d200x-action',id));
       body.append(tile);
+    }
+    if(plugin.background&&window.deckBridge?.nativeServiceControl){
+      const manager=document.createElement('button');manager.type='button';manager.className='fusion-manager-launch';
+      manager.textContent='전역 서비스 관리';manager.addEventListener('click',event=>{event.stopPropagation();void openNativeServiceManager(plugin);});body.append(manager);
     }
     if(isFusion){
       const manager=document.createElement('button');manager.type='button';

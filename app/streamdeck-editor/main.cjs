@@ -90,6 +90,10 @@ ipcMain.handle('d200x:fusion-icon-write',async(event,id,data)=>{
   return true;
 });
 ipcMain.handle('d200x:sdk-list',async event=>{assertEditor(event);return sdk().list();});
+ipcMain.handle('d200x:native-service-status',async(event,id)=>{assertEditor(event);return sdk().serviceStatus(id);});
+ipcMain.handle('d200x:native-service-control',async(event,id,mode)=>{
+  assertEditor(event);return sdk().manageService(id,mode);
+});
 ipcMain.handle('d200x:native-credential-info',async(event,id)=>{assertEditor(event);return sdk().credentialInfo(id);});
 ipcMain.handle('d200x:native-credential-write',async(event,id,binding,revision,token)=>{
   assertEditor(event);

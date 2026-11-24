@@ -107,7 +107,7 @@ function catalog(m){return {uuid:m.id,name:m.name,version:m.version,runtime:'dec
 class NativePluginHost{
   constructor(userData,onUpdate=()=>{},runnerFactory=id=>require('./deckforge-js-runtime.cjs').createScriptRunner(id),options={}){
     this.root=path.join(userData,'Plugins');this.onUpdate=onUpdate;
-    this.contexts=new Map();this.suspended=false;this.closed=false;this.runnerFactory=runnerFactory;this.retired=new Set();
+    this.contexts=new Map();this.serviceDisabled=new Set();this.servicePolicyLoaded=false;this.servicePolicyError=false;this.suspended=false;this.closed=false;this.runnerFactory=runnerFactory;this.retired=new Set();
     const storage=options.storage||{
       isAsyncEncryptionAvailable:()=>require('electron').safeStorage.isAsyncEncryptionAvailable(),
       encryptStringAsync:value=>require('electron').safeStorage.encryptStringAsync(value),
@@ -129,6 +129,60 @@ class NativePluginHost{
     this.scheduler=new SdkScheduler();
     this.settingsReceiptTimeout=options.settingsReceiptTimeout??5000;
     this.animations=new NativeAnimationPlayer((ctx,image)=>this.onUpdate({kind:'setImage',context:ctx.context,payload:{image}}),options.animationNow);
+  }
+  async loadServicePolicy(){
+    if(this.servicePolicyLoaded)return;
+    this.servicePolicyLoaded=true;
+    const file=path.join(this.root,'NativeServicePreferences.json');
+    try{
+      let st;try{st=await fs.lstat(file);}catch(error){if(error.code==='ENOENT')return;throw error;}
+      check(st.isFile()&&st.size<=262144,'invalid background service preferences');
+      const raw=await fs.readFile(file,'utf8');
+      check(Buffer.byteLength(raw)<=262144,'invalid background service preferences');
+      const data=JSON.parse(raw);
+      check(exact(data,['version','disabled'])&&data.version===1&&Array.isArray(data.disabled)&&data.disabled.length<=1024&&
+        data.disabled.every(id=>typeof id==='string'&&ID.test(id)&&!id.endsWith('.')&&!id.includes('..'))&&new Set(data.disabled).size===data.disabled.length,'invalid background service preferences');
+      this.serviceDisabled=new Set(data.disabled);
+    }catch{
+      // Fail closed; never overwrite an unreadable user preference file.
+      this.servicePolicyError=true;this.report('background',Error('service preferences unavailable'));
+    }
+  }
+  async saveServicePolicy(next){
+    check(!this.servicePolicyError&&next.size<=1024,'background service preferences unavailable');
+    const data=JSON.stringify({version:1,disabled:[...next].sort()});
+    check(Buffer.byteLength(data)<=262144,'background service preferences limit');
+    const file=path.join(this.root,'NativeServicePreferences.json'),tmp=path.join(this.root,'.native-service-'+randomUUID());
+    await fs.mkdir(this.root,{recursive:true});
+    try{await fs.writeFile(tmp,data,{flag:'wx'});await fs.rename(tmp,file);}
+    finally{await fs.rm(tmp,{force:true}).catch(()=>{});}
+    this.serviceDisabled=next;
+  }
+  serviceStatus(id,available=true){
+    const enabled=!this.serviceDisabled.has(id)&&!this.servicePolicyError;
+    const ctx=this.contexts.get(SERVICE_PREFIX+id);
+    const state=this.servicePolicyError?'policy-error':!enabled?'stopped':!available?'unavailable':this.suspended?'suspended':
+      this.serviceCapacity?.has(id)?'capacity':!ctx?'waiting':ctx.failed?(ctx.recoveryTimer?'recovering':'failed'):'active';
+    const token=ctx?.socketToken;
+    return {enabled,state,socket:token?(token.retryTimer?'reconnecting':token.ready?'connected':'connecting'):'disconnected'};
+  }
+  async manageService(manifests,id,mode){
+    await this.loadServicePolicy();
+    const manifest=manifests.find(m=>m.id===id&&m.service);
+    check(manifest&&['start','stop','restart'].includes(mode),'invalid background service control');
+    check(!this.servicePolicyError,'background service preferences unavailable');
+    const graph=resolveDependencies(manifests);
+    check(mode==='stop'||graph.ready.has(id),'background service dependency unavailable');
+    const next=new Set(this.serviceDisabled);
+    if(mode==='stop')next.add(id);else next.delete(id);
+    if(next.size!==this.serviceDisabled.size||[...next].some(x=>!this.serviceDisabled.has(x)))await this.saveServicePolicy(next);
+    if(mode==='restart'){
+      const key=SERVICE_PREFIX+id,ctx=this.contexts.get(key);
+      if(ctx){this.retire(ctx);this.contexts.delete(key);}
+    }
+    this.syncServices(new Map(manifests.filter(m=>graph.ready.has(m.id)).map(m=>[m.id,m])),new Set());
+    this.reconcileTickTimer();
+    return this.serviceStatus(id,graph.ready.has(id));
   }
   async manifests(){
     await fs.mkdir(this.root,{recursive:true});const items=[];
@@ -218,7 +272,7 @@ class NativePluginHost{
       if(obj(v))return Object.keys(v).every(k=>!['__proto__','constructor','prototype'].includes(k)&&validSettings(v[k],depth+1));
       return v===null||typeof v==='string'||typeof v==='boolean'||(typeof v==='number'&&Number.isFinite(v));
     };
-    if(ctx.service)check(ctx.permissions.includes('background.run')&&['start','settings','tick','networkResult','socketEvent'].includes(event),'invalid background event');
+    if(ctx.service)check(ctx.permissions.includes('background.run')&&['start','settings','tick','networkResult','socketEvent','serviceMessage'].includes(event),'invalid background event');
     for(let op of program){
       if(op?.op==='publishSharedState'){
         check(ctx.service&&ctx.permissions.includes('background.run')&&exact(op,['op','value'])&&!normal.some(o=>o.op==='publishSharedState'),'unauthorized or duplicate shared state publication');
@@ -244,7 +298,8 @@ class NativePluginHost{
       const polling=event==='tick'&&op?.op==='networkRequest'&&ctx.permissions.includes('network.poll')&&ctx.action.tickIntervalMs>=5000;
       const socketLifecycle=op?.op==='socketConnect'&&['appear','settings','start'].includes(event)&&(event!=='start'||ctx.service);
       const socketContinuation=['socketSend','socketClose'].includes(op?.op)&&event==='socketEvent';
-      check(INPUT_EVENTS.has(event)||polling||socketLifecycle||socketContinuation,'privileged operation requires input event');
+      const serviceInput=ctx.service&&event==='serviceMessage'&&['networkRequest','socketSend','socketClose','socketConnect'].includes(op?.op);
+      check(INPUT_EVENTS.has(event)||polling||socketLifecycle||socketContinuation||serviceInput,'privileged operation requires input event');
       check(effects.length===0,'only one privileged operation per event');
       if(op?.op==='settingsPatch'){
         check(ctx.permissions.includes('settings.write')&&exact(op,['op','value'])&&obj(op.value)&&
@@ -269,6 +324,9 @@ class NativePluginHost{
           (target==='profile'&&validText(value,160))||
           (target==='folder'&&Number.isInteger(value)&&value>=0&&value<13)||
           (target==='back'&&value===null),'invalid navigation target');
+      }else if(op?.op==='serviceMessage'){
+        check(!ctx.service&&ctx.permissions.includes('background.run')&&exact(op,['op','value']),'unauthorized service message');
+        validateValue(op.value);
       }else if(op?.op==='networkRequest'){
         check(ctx.permissions.includes('network.request'),'unauthorized network request');
         const endpoint=validateNetworkRequest(op,ctx.networkEndpoints);
@@ -290,6 +348,13 @@ class NativePluginHost{
     validateNativeManifest({apiVersion:1,id:ctx.pluginUUID,name:'Runtime',version:'1',
       permissions:['display'],actions:[{...action,events:{press:normal.filter(op=>!['animation','stopAnimation'].includes(op.op))}}]});
     return {normal,effects};
+  }
+  sendServiceMessage(ctx,operation){
+    const target=this.contexts.get(SERVICE_PREFIX+ctx.pluginUUID);
+    if(!target||target.failed||target.pending>=MAX_PENDING_EVENTS-INPUT_RESERVE||this.suspended||this.closed){
+      this.report(ctx.pluginUUID,Error('background service message not accepted'));return;
+    }
+    this.runScript(target,'serviceMessage',{actionId:ctx.action.id,message:structuredClone(operation.value)});
   }
   sharedSnapshot(ctx){
     if(!ctx.permissions.includes('background.run'))return {};
@@ -678,6 +743,7 @@ class NativePluginHost{
         ctx.memory=result.memory;
         this.applyOps(ctx,normal);
         for(const operation of effects)if(!['globalSettings','settings'].includes(operation.op)){
+          if(operation.op==='serviceMessage'){this.sendServiceMessage(ctx,operation);continue;}
           if(operation.op==='networkRequest'){this.startNetwork(ctx,operation,active);continue;}
           if(operation.op==='socketConnect'){this.startSocket(ctx,operation,active);continue;}
           if(operation.op==='socketSend'){this.sendSocket(ctx,operation);continue;}
@@ -711,7 +777,7 @@ class NativePluginHost{
     catch(error){this.fail(ctx,error);return false;}
   }
   syncServices(plugins,seen){
-    const eligible=[...plugins.values()].filter(m=>m.service).sort((a,b)=>a.id.localeCompare(b.id));
+    const eligible=this.servicePolicyError?[]:[...plugins.values()].filter(m=>m.service&&!this.serviceDisabled.has(m.id)).sort((a,b)=>a.id.localeCompare(b.id));
     const selected=eligible.slice(0,MAX_SERVICES),ids=new Set(selected.map(m=>SERVICE_PREFIX+m.id));
     for(const [id,ctx] of this.contexts)if(ctx.service&&!ids.has(id)){
       this.retire(ctx);this.contexts.delete(id);
@@ -821,8 +887,10 @@ class PluginRouter{
   }
   async list(){
     const {legacy,native}=await this.catalog(),graph=resolveDependencies(native);
+    await this.native.loadServicePolicy();
     return [...legacy,...native.map(m=>{
       const entry=catalog(m),reason=graph.blocked.get(m.id);
+      if(m.service)entry.serviceStatus=this.native.serviceStatus(m.id,!reason);
       return reason?{...entry,actions:[],available:false,dependencyError:reason}:{...entry,available:true};
     })];
   }
@@ -872,8 +940,17 @@ class PluginRouter{
     const {native}=await this.catalog(),manifest=native.find(m=>m.id===pluginId);
     check(manifest,'native plugin not installed');return this.native.writeCredential(manifest,binding,revision,token);
   });}
+  manageService(id,mode){return this.serial(async()=>{
+    const {native}=await this.catalog();return this.native.manageService(native,id,mode);
+  });}
+  serviceStatus(id){return this.serial(async()=>{
+    const {native}=await this.catalog(),manifest=native.find(m=>m.id===id&&m.service);
+    check(manifest,'background service not installed');await this.native.loadServicePolicy();
+    return this.native.serviceStatus(id,resolveDependencies(native).ready.has(id));
+  });}
   sync(configs){return this.serial(async()=>{
     const {native,legacy}=await this.catalog(),ids=new Set(native.map(m=>m.id));
+    await this.native.loadServicePolicy();
     const legacyIds=new Set(legacy.map(p=>p.uuid.toLowerCase()));
     const isNative=c=>ids.has(c?.pluginUUID)||(typeof c?.pluginUUID==='string'&&ID.test(c.pluginUUID)&&!legacyIds.has(c.pluginUUID.toLowerCase()));
     const local=configs.filter(isNative),other=configs.filter(c=>!isNative(c));

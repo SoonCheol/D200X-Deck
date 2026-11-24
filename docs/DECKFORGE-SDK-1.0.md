@@ -2,7 +2,7 @@
 
 상태: **출시 후보**, 1.1.168 소프트웨어 검증 통과(실기 미실시). 이 문서는 기존 개발 이력의 최신 독자 SDK 계약을 정리한다. SDK 제품 버전 1.0은 native.json의 apiVersion(1: 선언형, 2: JavaScript)이나 패키지 formatVersion(2)과 별개다. 외부 Stream Deck/Ulanzi 호환성은 별도 과제다.
 
-## JavaScript 공개 API 24개 (API 2, 1.0 기준선 19개 + 확장 5개)
+## JavaScript 공개 API 25개 (API 2, 1.0 기준선 19개 + 확장 6개)
 
 | 함수 | 권한 | 계약 |
 |---|---|---|
@@ -30,6 +30,7 @@
 | closeSocket() | network.websocket | 연결 종료 |
 | getSharedState() | background.run | 동일 플러그인 휘발성 상태 스냅샷 |
 | publishSharedState(object) | background.run | 전역 서비스만 상태 발행 |
+| sendServiceMessage(object) | background.run | 입력 이벤트에서 같은 플러그인의 서비스에 메시지 전송 |
 
 함수는 동기적으로 명령을 제출한다. 반환값은 저장/실행 성공이 아니다. display 및 읽기 외 부수 효과는 입력 이벤트당 한 개, 예외적으로 승인 GET polling을 허용한다. API 1은 별도 선언형 6개 op(title/titleFromSetting/state/stateFromSetting/toggleState/image) 유지.
 
@@ -49,15 +50,17 @@
 
 DeckForge 1.1.165: `network.websocket` 권한과 method `WSS`, 승인된 wss:// 주소를 사용한다. `api.connectSocket(endpoint,query?)` (appear/settings/입력), `api.sendSocket(value)` 및 `api.closeSocket()` (입력/socketEvent) 3개 추가. `event.type==='socketEvent'`, `event.response={endpoint,event:'open'|'message'|'close'|'error'|'reconnecting',body,error}`. 활성 context당 1개/플러그인당 2개/전체 8개, 송수신 각각 초당 8개, 텍스트/JSON 8KiB, 송신 대기 32KiB. TLS 검증/redirect 금지/압축 금지/5초 handshake, 1.1.167부터 endpoint.reconnect:true일 때만 transient 오류/비정상 종료/heartbeat timeout에 1/3/10초 최대 3회 재연결(활성 context 수명 전체). 송신/입력 재생 없음, 연결마다 open 이벤트에서 구독 재등록. 30초 ping/10초 pong deadline, 명시 종료/설정 변경/페이지 이탈/절전 시 재시도와 타이머 모두 취소. 페이지 이탈·설정 변경·절전·오류·종료 시 해제 및 늦은 이벤트 폐기. Bearer handshake 외 1.1.167부터 auth:'home-assistant' WSS 지원: host가 auth_required→auth(access_token)→auth_ok를 처리하고 인증 성공 후에만 open 이벤트 전달. 5초 인증 제한, auth_invalid/비정상 메시지 재시도 금지. 스크립트·일반 로그에 토큰 미전달. 공식 규격 https://developers.home-assistant.io/docs/api/websocket/ 참고. 실제 HA 서비스 연결 별도 검증. 1.1.168 실제 loopback TLS HTTPS/WSS 통합 검사 추가(테스트 전용 CA, 제품 검증 정책 변경 없음). API 1/2 manifest 번호 유지, 공개 API 확장 22개. 1.1.168 CI/Windows 및 실제 로컬 TLS 통신 성공, 실제 HA 서비스/D200X 실기 미실시.
 
-## 전역 서비스 (DeckForge 1.1.169)
+## 전역 서비스 (DeckForge 1.1.169~170)
 
 API 2 manifest의 service={script,tickIntervalMs?} 및 별도 background.run 권한이 필요. 설치 승인 후 첫 host sync에서 페이지/프로필과 무관하게 서비스 1개/플러그인, 전체 최대 8개 실행. 기존 scheduler(전체 6/플러그인 2 실행), 네트워크/WS 제한 재사용. start/settings/tick/networkResult/socketEvent, slot/gesture=null, scope:'service'. stop은 유휴 renderer의 best-effort 알림(효과 무시). 서비스는 물리 버튼 출력/설정 저장/탐색 금지; 승인 WSS 및 GET polling만 자동 실행. 페이지 이동 시 서비스 연결 유지; 제거/버전 변경/의존성 차단/절전/종료 시 취소. 복귀 시 새 start, 실패 입력 재생 없음.
 - publishSharedState(object): 서비스만 허용, 8KiB 검증 JSON 전체 교체. 동일 plugin의 활성 버튼에 coalesced sharedState 이벤트, 동일 값 반복 갱신 생략. getSharedState(): 해당 plugin snapshot 사본, 권한 없으면 빈 객체. 새 페이지 appear에서도 읽음. 서비스 중지/실패/절전 시 초기화. 휘발성 상태이며 인증정보 보관용 아님.
-- 공개 함수 24개. 신규 자동 검증 및 실제 HA/D200X 실기 확인 필요.
+- 1.1.170: 플러그인 목록의 전역 서비스 관리에서 시작/중지/재시작. 중지는 Plugins/NativeServicePreferences.json에 원자 저장(토큰 없음), 재실행/업데이트 후 유지. 읽기 오류 시 fail closed, 원본 보존. 시작/재시작은 의존성 검사 후 수행; 실제 연결 여부 별도 표시. 명시 중지 시 서비스만 제거하고 등록 버튼/설정은 보존.
+- sendServiceMessage(object): 버튼 입력 이벤트당 기존 부수 효과 한도 내 동일 플러그인 서비스에 8KiB JSON 전달. serviceMessage 이벤트 response={actionId,message}; 서비스는 승인 HTTP/WSS 효과 1개 가능, 자동 입력 재실행/타 플러그인 전달 없음. 큐 포화/서비스 중지 시 거부. 반환은 실행 성공 아님.
+- 공개 함수 25개. 1.1.169 CI/입력 자동 검사 성공, 1.1.170 신규 자동 검증 및 실제 HA/D200X 실기 확인 필요.
 
 ## 출시 기준 (추가 기능은 기준이 아님)
 
-1. 1.0 기준선 19개 및 확장 포함 현재 24개 함수 목록과 실제 Electron→host 명령 검증, 부수 효과 권한 거부 검증.
+1. 1.0 기준선 19개 및 확장 포함 현재 25개 함수 목록과 실제 Electron→host 명령 검증, 부수 효과 권한 거부 검증.
 2. API 1/2 패키지 검사, 모든 예제 패키지 왕복·설치, 버전/의존성 검사.
 3. 기존 집중 테스트: 큐, 취소, 설정 receipt, 암호화, 네트워크, 렌더러 오류 격리, GIF/PNG/SVG, 페이지/입력.
 4. Windows CI 및 통합 빌드 성공 확인. 실제 PC/D200X 시험과 자동 검증은 구분.

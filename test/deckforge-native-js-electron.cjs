@@ -51,10 +51,10 @@ async function verifyVectorRendering(){
 async function verifyPublicApi(runner){
   const {NativePluginHost,validateNativeManifest}=require('../app/streamdeck-editor/deckforge-native-sdk.cjs');
   const id='com.deckforge.native.api-contract';
-  const permissions=['display','settings.write','global.settings','navigation','wide.mode','wide.overlay','network.request','network.websocket'];
+  const permissions=['display','settings.write','global.settings','navigation','wide.mode','wide.overlay','network.request','network.websocket','background.run'];
   const endpoints=[{id:'status',url:'https://example.com/status',method:'GET'},{id:'live',url:'wss://example.com/events',method:'WSS'},{id:'entity',url:'https://example.com/entities/',method:'PATCH',pathKeys:['id'],queryKeys:['view'],headerKeys:['if-match']}];
   const action={id:id+'.key',name:'Contract',controllers:['Keypad'],states:2,script:'api.setTitle("contract");'};
-  validateNativeManifest({apiVersion:2,id,name:'Contract',version:'1.0.0',permissions,networkEndpoints:endpoints,actions:[action]});
+  validateNativeManifest({apiVersion:2,id,name:'Contract',version:'1.0.0',permissions,networkEndpoints:endpoints,service:{script:'void 0;'},actions:[action]});
   const host=new NativePluginHost('/unused');
   const ctx={slot:0,pluginUUID:id,action,permissions,networkEndpoints:endpoints,settings:{count:1,keep:true}};
   const gif='data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAICRAEAOw==';
@@ -84,7 +84,8 @@ async function verifyPublicApi(runner){
     ['sendSocket','api.sendSocket({subscribe:true})','socketSend','network.websocket'],
     ['closeSocket','api.closeSocket()','socketClose','network.websocket'],
     ['getSharedState','api.setTitle(api.getSharedState().label||"empty")','title'],
-    ['publishSharedState','api.publishSharedState({label:"ready"})','publishSharedState']
+    ['publishSharedState','api.publishSharedState({label:"ready"})','publishSharedState'],
+    ['sendServiceMessage','api.sendServiceMessage({entity:"light"})','serviceMessage','background.run']
   ];
   try{
     const names=await runner.run('api.setTitle(Object.keys(api).sort().join(","));',input);
@@ -110,7 +111,7 @@ async function verifyPublicApi(runner){
     }
     const extended=await runner.run('api.request("entity",{state:1},{view:"full"},{path:{id:"light"},headers:{"if-match":"rev"}});',input);
     assert.deepEqual(host.validateScriptOps(ctx,'press',extended.ops).effects,[{op:'networkRequest',endpoint:'entity',body:{state:1},query:{view:'full'},options:{path:{id:'light'},headers:{'if-match':'rev'}}}]);
-    console.log('DeckForge native SDK 24-function renderer/host contract passed');
+    console.log('DeckForge native SDK 25-function renderer/host contract passed');
   }finally{host.close();}
 }
 

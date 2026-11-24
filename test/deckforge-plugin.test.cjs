@@ -628,6 +628,53 @@ test('native background WSS and shared snapshot survive page changes, clear on r
  }finally{host.close();}
 });
 
+test('native service stop preference persists, restart resets only service and blocked policy is preserved',async()=>{
+ const temp=await fs.mkdtemp(path.join(os.tmpdir(),'deckforge-service-policy-'));
+ const m={...scriptManifest,permissions:['display','background.run'],service:{script:'service'}};
+ const cfg={context:'button',slot:0,pluginUUID:nativeId,actionUUID:nativeId+'.toggle',settings:{}};
+ let starts=0;
+ const runner=()=>({async run(_s,input){if(input.event.type==='start')starts++;return {ops:[],memory:{}};},close(){}});
+ let host=new NativePluginHost(temp,()=>{},runner);
+ const drain=async()=>{await Promise.all([...host.contexts.values()].map(c=>c.queue));};
+ try{
+   await host.loadServicePolicy();host.sync([cfg],[m]);await drain();
+   const key='@service:'+nativeId,button=host.contexts.get(cfg.context),first=host.contexts.get(key);
+   assert.equal(starts,1);assert.equal(host.serviceStatus(nativeId).state,'active');
+   assert.equal((await host.manageService([m],nativeId,'restart')).state,'active');await drain();
+   assert.notEqual(host.contexts.get(key),first);assert.equal(host.contexts.get(cfg.context),button);assert.equal(starts,2);
+   assert.equal((await host.manageService([m],nativeId,'stop')).state,'stopped');host.sync([cfg],[m]);assert.equal(host.contexts.has(key),false);
+   host.close();host=new NativePluginHost(temp,()=>{},runner);await host.loadServicePolicy();host.sync([cfg],[m]);await drain();
+   assert.equal(host.serviceStatus(nativeId).state,'stopped');assert.equal(starts,2);
+   await host.manageService([m],nativeId,'start');await drain();assert.equal(starts,3);assert.ok(host.contexts.has(key));
+   host.close();const pref=path.join(temp,'Plugins','NativeServicePreferences.json');await fs.writeFile(pref,'invalid');
+   host=new NativePluginHost(temp,()=>{},runner);await host.loadServicePolicy();host.sync([cfg],[m]);assert.equal(host.serviceStatus(nativeId).state,'policy-error');
+   await assert.rejects(host.manageService([m],nativeId,'start'),/preferences/);
+   assert.equal(await fs.readFile(pref,'utf8'),'invalid');assert.equal(host.contexts.has(key),false);
+ }finally{host.close();await fs.rm(temp,{recursive:true,force:true});}
+});
+test('native action service message is same-plugin and input-only, delivered once across page change',async()=>{
+ const m={...scriptManifest,permissions:['display','background.run','network.request'],service:{script:'service'},networkEndpoints:[{id:'toggle',method:'POST',url:'https://example.com/toggle'}]};
+ const calls=[],events=[];
+ const host=new NativePluginHost('/unused',e=>events.push(e),()=>({async run(_s,input){
+   if(input.event.type==='press')return {ops:[{op:'serviceMessage',value:{entity:'light.kitchen'}}],memory:{}};
+   if(input.event.type==='serviceMessage')return {ops:[{op:'networkRequest',endpoint:'toggle',body:input.event.response.message}],memory:{}};
+   return {ops:[],memory:{}};
+ },close(){}}),{networkRequest:async(ep,body)=>{calls.push({ep:ep.id,body});return {endpoint:ep.id,ok:true,status:200,body:'ok',error:null};}});
+ const cfg={context:'button',slot:0,pluginUUID:nativeId,actionUUID:nativeId+'.toggle',settings:{}};
+ const flush=async()=>{for(let i=0;i<4;i++){await new Promise(r=>setImmediate(r));await Promise.all([...host.contexts.values()].map(c=>c.queue));}};
+ try{
+   host.sync([cfg],[m]);await flush();
+   const action=host.contexts.get(cfg.context),op={op:'serviceMessage',value:{entity:'light.kitchen'}};
+   assert.throws(()=>host.validateScriptOps(action,'appear',[op]),/input event/);
+   assert.throws(()=>host.validateScriptOps(action,'sharedState',[op]),/input event/);
+   assert.throws(()=>host.validateScriptOps({...action,permissions:['display']},'press',[op]),/unauthorized/);
+   assert.throws(()=>host.validateScriptOps(action,'press',[{...op,value:{entity:'x'.repeat(8193)}}]),/invalid global settings/);
+   assert.equal(host.key(cfg.context,'down'),true);await flush();
+   host.sync([],[m]);await flush();assert.deepEqual(calls,[{ep:'toggle',body:{entity:'light.kitchen'}}]);
+   assert.equal(host.contexts.size,1);
+ }finally{host.close();}
+});
+
 test('native WSS endpoint is permission-bound and transport enforces TLS, limits and no redirects',()=>{
  const {validateNetworkEndpoints,validateNetworkRequest,validateSocketOperation,createSocket}=require('../app/streamdeck-editor/deckforge-native-network.cjs');
  const endpoint={id:'live',url:'wss://example.com/events',method:'WSS',auth:'bearer'},permissions=['display','network.websocket'];

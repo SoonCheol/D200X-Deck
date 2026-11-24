@@ -101,7 +101,8 @@ async function runProgram(source,input){
     sendSocket:value=>append({op:'socketSend',value}),
     closeSocket:()=>append({op:'socketClose'}),
     getSharedState:()=>structuredClone(input.sharedState||{}),
-    publishSharedState:value=>append({op:'publishSharedState',value})
+    publishSharedState:value=>append({op:'publishSharedState',value}),
+    sendServiceMessage:value=>append({op:'serviceMessage',value})
   });
   // Reduce access to network-capable APIs beyond CSP/session controls.
   for(const key of ['RTCPeerConnection','webkitRTCPeerConnection','WebTransport','Worker','SharedWorker','setTimeout','setInterval','requestAnimationFrame','requestIdleCallback','queueMicrotask']){
