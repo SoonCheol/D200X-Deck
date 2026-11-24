@@ -3,6 +3,12 @@
 > 기록일: 2026-11-24 · 상태: **패키지 v1 유지 / 독자 SDK API 1·2 및 패키지 v2 / Ulanzi 정적 분석·제한 후보 변환기 구현**
 > 저장소·브랜치: `SoonCheol/D200X-Deck` / `codex/streamdeck-761-clean-editor`
 
+## 0.12 Ulanzi 속성창·HTML 진입점·리소스 분석 (1.1.125)
+
+- Ulanzi 공식 SDK 예제(API Request, Analog Clock)의 manifest/HTML/inspector.js/HTML 진입점 확인. 정적 HTML parser parse5 7.3.0(MIT), entities 6.0.1(BSD-2-Clause), npm/cli lockfile의 패키지 버전/무결성 근거 사용. HTML은 실행하지 않고 script 의존 경로를 분석한다.
+- property-inspector form의 text/범위 지정 integer/정적 select를 독자 settingsSchema 제안으로 변환. 동적 옵션, 문자열 checkbox 직렬화, 비밀정보/URL/headers/body/복합 제약은 수동 검토. 원본 JS 설정 계약과 기본값 검토 전 자동 적용 금지. 제안은 실행 manifest에 자동 병합하지 않는다.
+- HTML 진입점 local script 목록과 해시, manifest의 plugin/category/action/state 이미지 경로·해시 및 PNG 헤더 크기 검사. SVG/GIF/크기 조정/완전 PNG 디코딩은 수동 검토. 외부 스크립트 로딩, 원본 수정, 자동 설치 없음. 기존 제한 AST 변환과 trace 검사 보존. 집중 테스트 추가.
+
 ## 0.11 독자 SDK Bearer 인증정보 (1.1.124)
 
 - `networkEndpoints`의 선택 필드 `auth:"bearer"`. 설치 확인창에 인증 방식 표시. 기존 플러그인 속성 버튼에서 인증정보 관리, 비밀번호 입력 필드(기존 값 미표시), 명시 암호화 저장/등록 해제. 일반 프로필 편집과 별개로 즉시 적용. Windows Electron safeStorage 비동기 API 재사용, 별도 NativeCredentials 암호화 저장소, 다른 vault와 scope 분리. SHA-256 결합 ID는 plugin ID/endpoint ID/정확한 HTTPS URL/method/auth를 포함. 변경된 주소에는 이전 토큰 재사용 금지. 정확히 동일한 등록 주소를 복원하면 기존 저장값이 남을 수 있음.

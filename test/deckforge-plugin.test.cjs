@@ -624,3 +624,47 @@ test('native authenticated request receives credential only in host transport, n
    assert.ok(inputs.some(v=>v.includes('networkResult')));
  }finally{host.close();await fs.rm(temp,{recursive:true,force:true});}
 });
+
+
+test('Ulanzi inspector analysis proposes only bounded native fields and never loads scripts or secret defaults',()=>{
+ const {analyzeHtml,localRef}=require('../app/streamdeck-editor/ulanzi-inspector-analysis.cjs');
+ const source='<form id="property-inspector"><div class="uspi-item"><div class="uspi-item-label">Label &amp; name</div><input name="label" maxlength="32" value="Ready"></div>'+
+ '<select name="mode"><option value="a">A</option><option value="b" selected>B</option></select>'+
+ '<input name="count" type="number" min="0" max="10" value="2">'+
+ '<input name="enabled" type="checkbox" value="digital"><select name="dynamic"></select>'+
+ '<input name="token" value="do-not-export"><textarea name="request_headers">secret</textarea></form>'+
+ '<script src="../lib.js"></script><script src="https://example.com/ex.js"></script><script>throw Error("never execute")</script>';
+ const report=analyzeHtml('pi/inspector.html',source,{inspector:true});
+ assert.deepEqual(report.settingsSchemaCandidate.map(f=>[f.key,f.default]),[['label','Ready'],['mode','b'],['count',2]]);
+ assert.equal(report.settingsSchemaCandidate[0].label,'Label & name');
+ assert.equal(report.fields.find(f=>f.key==='enabled').reason,'checkbox-serialization-review');
+ assert.equal(report.fields.find(f=>f.key==='dynamic').reason,'dynamic-options');
+ assert.equal(report.fields.find(f=>f.key==='token').reason,'sensitive-or-external-value');
+ assert.equal(JSON.stringify(report).includes('do-not-export'),false);
+ assert.deepEqual(report.scripts.map(s=>s.kind),['local','external','inline']);
+ assert.equal(localRef('pi/inspector.html','../../outside.js'),null);
+ assert.equal(localRef('pi/inspector.html','../lib.js'),'lib.js');
+});
+test('Ulanzi directory analysis inventories HTML entry, inspector proposals and state artwork without installing',async()=>{
+ const {analyzeDirectory}=require('../app/streamdeck-editor/ulanzi-converter.cjs');
+ const temp=await fs.mkdtemp(path.join(os.tmpdir(),'deckforge-ulanzi-html-'));
+ const root=path.join(temp,'demo.ulanziPlugin');await fs.mkdir(root);
+ const id='com.ulanzi.ulanzistudio.HtmlDemo';
+ const manifest={Type:'JavaScript',UUID:id,Name:'Demo',Version:'1.0.0',CodePath:'app.html',Actions:[
+  {UUID:id+'.action',Name:'Action',PropertyInspectorPath:'pi.html',States:[{Image:'icon.png'}]}]};
+ try{
+   await fs.writeFile(path.join(root,'manifest.json'),JSON.stringify(manifest));
+   await fs.writeFile(path.join(root,'app.html'),'<script src="app.js"></script>');
+   await fs.writeFile(path.join(root,'app.js'),'throw Error("not executed")');
+   await fs.writeFile(path.join(root,'pi.html'),'<form id="property-inspector"><input name="label" value="Ready"></form>');
+   const png=Buffer.alloc(33);Buffer.from('89504e470d0a1a0a','hex').copy(png);png.writeUInt32BE(13,8);
+   png.write('IHDR',12);png.writeUInt32BE(144,16);png.writeUInt32BE(144,20);
+   await fs.writeFile(path.join(root,'icon.png'),png);
+   const result=await analyzeDirectory(root);
+   assert.equal(result.converterVersion,2);assert.equal(result.installationAllowed,false);
+   assert.equal(result.candidate,null);assert.equal(result.htmlEntry.scripts[0].status,'review');
+   assert.equal(result.inspectors[0].settingsSchemaCandidate[0].default,'Ready');
+   assert.equal(result.resources[0].status,'header-candidate');assert.equal(result.resources[0].width,144);
+   assert.match(result.resources[0].sha256,/^[a-f0-9]{64}$/);
+ }finally{await fs.rm(temp,{recursive:true,force:true});}
+});

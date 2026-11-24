@@ -5,6 +5,7 @@ const fs=require('node:fs/promises');
 const path=require('node:path');
 const {createHash}=require('node:crypto');
 const acorn=require('acorn');
+const {analyzeHtml,imageReport,MAX:MAX_HTML}=require('./ulanzi-inspector-analysis.cjs');
 const {validateNativeManifest}=require('./deckforge-native-sdk.cjs');
 const MAX_FILES=2500,MAX_BYTES=100*1024*1024,MAX_SOURCE=1024*1024;
 const sha=bytes=>createHash('sha256').update(bytes).digest('hex');
@@ -196,8 +197,49 @@ async function analyzeDirectory(folder){
   const manifest=validateSourceManifest(JSON.parse(manifestBytes.toString('utf8').replace(/^\uFEFF/,'')));
   const entryInfo=inventory.find(x=>x.path===manifest.CodePath);
   if(!entryInfo)throw Error('manifest entrypoint missing');
-  let report={calls:[],imports:[],findings:[],candidate:null},entryHash=null;
-  if(!/\.js$/i.test(manifest.CodePath))report.findings.push({code:'html-entry',detail:'HTML/script dependency analysis not yet supported',line:0});
+  const inspectors=[],resources=[],resourcePaths=new Set();
+  const addResource=(name,role)=>{
+    if(typeof name!=='string'||!name||resourcePaths.has(name)||resourcePaths.size>=256)return;
+    resourcePaths.add(name);resources.push({path:name,role});
+  };
+  addResource(manifest.Icon,'plugin-icon');addResource(manifest.CategoryIcon,'category-icon');
+  for(const action of manifest.Actions){
+    addResource(action.Icon,'action-icon');
+    for(const state of Array.isArray(action.States)?action.States:[])addResource(state?.Image,'state-image');
+    if(action.PropertyInspectorPath){
+      const file=action.PropertyInspectorPath,record={action:action.UUID,path:file};
+      try{
+        const bytes=await readEntry(file,MAX_HTML);
+        Object.assign(record,{sha256:sha(bytes),...analyzeHtml(file,bytes.toString('utf8'),{inspector:true})});
+      }catch{record.status='unreadable-or-unsupported-inspector';}
+      inspectors.push(record);
+    }
+  }
+  for(const item of resources){
+    if(!safeRelative(item.path)){item.status='unsafe-path';continue;}
+    const file=inventory.find(f=>f.path===item.path);
+    if(!file){item.status='missing';continue;}
+    item.bytes=file.bytes;
+    if(file.bytes>256*1024){item.status='oversize';continue;}
+    try{const bytes=await readEntry(item.path,256*1024);Object.assign(item,{sha256:sha(bytes),...imageReport(bytes,item.path)});}
+    catch{item.status='unreadable';}
+  }
+  let report={calls:[],imports:[],findings:[],candidate:null},entryHash=null,htmlEntry=null;
+  if(!/\.js$/i.test(manifest.CodePath)){
+    report.findings.push({code:'html-entry',detail:'HTML entry requires dependency and behavior review',line:0});
+    try{
+      const bytes=await readEntry(manifest.CodePath,MAX_HTML);entryHash=sha(bytes);
+      htmlEntry=analyzeHtml(manifest.CodePath,bytes.toString('utf8'));
+      for(const script of htmlEntry.scripts){
+        if(!script.path)continue;
+        const info=inventory.find(x=>x.path===script.path);
+        script.status=!info?'missing':info.bytes>MAX_SOURCE?'oversize':'review';
+        if(script.status==='review'){
+          const source=await readEntry(script.path,MAX_SOURCE);script.sha256=sha(source);
+        }
+      }
+    }catch{report.findings.push({code:'html-unreadable',detail:'HTML entry or script inventory unavailable',line:0});}
+  }
   else if(entryInfo.bytes>MAX_SOURCE)report.findings.push({code:'large-entry',detail:'bundled entry exceeds static parser limit; source required',line:0});
   else{
     const bytes=await readEntry(manifest.CodePath,MAX_SOURCE);entryHash=sha(bytes);
@@ -210,7 +252,7 @@ async function analyzeDirectory(folder){
     const info=inventory.find(x=>x.path===file);
     if(info.bytes<=256*1024)licenseHashes.push({path:file,sha256:sha(await readEntry(file,256*1024))});
   }
-  return {converterVersion:1,targetApi:1,source:{id:manifest.UUID,name:manifest.Name,version:manifest.Version,
+  return {converterVersion:2,targetApi:1,inspectors,resources,htmlEntry,source:{id:manifest.UUID,name:manifest.Name,version:manifest.Version,
     entry:manifest.CodePath,manifestSha256:sha(manifestBytes),entrySha256:entryHash},
     inventory:{files:inventory.length,bytes:total,licenseFiles,licenseHashes},
     status:report.candidate&&report.verification?.status==='pass'?'candidate-review-required':'manual-conversion-required',

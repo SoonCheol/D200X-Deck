@@ -2,6 +2,10 @@
 
 > **상태 기록 기준: 2026-11-24**. 실제 최신 HEAD는 Git에서 확인하며, 코드·자동 검사·Windows 빌드·사용자 Windows/D200X 실기 결과를 구분한다. 시작 시 `AGENTS.md`와 이 문서만 읽고 로드맵은 필요한 경우에만 참고한다.
 
+## 1.1.125 — Ulanzi 속성창·HTML·리소스 정적 분석 (2026-11-24)
+
+- 공식 API Request/Analog Clock 예제 검토, parse5 재사용, HTML form에서 제한 독자 schema 제안, checkbox/dynamic/secret/외부 값 수동 검토, HTML 진입점 script 및 state artwork 해시/PNG 헤더 보고. 실행/자동 설치 없음, 기존 후보 변환 보존. 집중 테스트 추가. 1.1.124 CI/입력 검사 성공, Windows 별도 확인.
+
 ## 1.1.124 — 독자 SDK 암호화 Bearer 인증정보 (2026-11-24)
 
 - 정확한 승인 HTTPS endpoint의 Bearer 토큰 등록/해제, 별도 Windows safeStorage vault, plugin/주소/메서드 결합 ID, 상태만 조회, 호스트 헤더 주입·누락 차단·직접 토큰 반사 응답 차단·요청 취소. 기존 속성창 버튼과 공통 dialog 재사용, 프로필/일반 설정/원본 SDK 경로 유지. 집중 테스트 추가. 1.1.123 CI/입력 검증 성공, Windows 진행 중. 실제 암호화/서비스 및 D200X 검증 별도.
