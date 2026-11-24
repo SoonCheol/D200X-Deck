@@ -2000,3 +2000,27 @@ test('SDK mount generation is stable while visible and never reused after naviga
  assert.ok(!core.validSdkMount({...replaced,mountGeneration:1}));
  assert.notEqual(core.createSdkMountTracker().reconcile('page-0',core.sdkMountDescriptors(state))[0].context,replaced.context);
 });
+
+
+test('bitmap cache deduplicates in-flight draws, bounds memory and never caches failure',async()=>{
+ const cache=core.createBitmapCache({maxEntries:2,maxBytes:80,maxPending:2,maxPendingBytes:40});
+ let resolve,draws=0;
+ const first=cache.get('a',()=>{draws++;return new Promise(r=>{resolve=r;});});
+ const same=cache.get('a',()=>{draws++;return 'unexpected';});
+ assert.equal(first,same);await Promise.resolve();assert.equal(draws,1);
+ resolve('one');assert.equal(await first,'one');assert.equal(await cache.get('a',()=>{throw Error('cache miss');}),'one');
+ await cache.get('b',()=> 'two');await cache.get('c',()=> 'three');
+ assert.equal(cache.stats().entries,2);assert.ok(cache.stats().bytes<=80);
+ assert.equal(await cache.get('a',()=> 'new-one'),'new-one');
+ await assert.rejects(cache.get('failure',()=>{throw Error('decode failed');}),/decode failed/);
+ assert.equal(cache.stats().pending,0);
+ assert.equal(await cache.get('failure',()=> 'retry'),'retry');
+ await assert.rejects(cache.get('x'.repeat(21),()=> 'too big'),/capacity/);
+ assert.ok(cache.stats().bytes<=80);
+});
+test('unconfigured SDK assignments never poison an otherwise valid mount list',()=>{
+ const s=core.migrateState(null),a=s.pages[0][0]=core.createAction('sd-plugin');
+ s.pages[0][1]=core.createAction('sd-plugin');a.settings.pluginUUID='example.plugin';a.settings.actionUUID='example.action';
+ const cfg=core.createSdkMountTracker().reconcile('page',core.sdkMountDescriptors(s));
+ assert.equal(cfg.length,1);assert.ok(core.validSdkMount(cfg[0]));
+});

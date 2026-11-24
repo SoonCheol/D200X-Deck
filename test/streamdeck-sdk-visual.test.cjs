@@ -245,3 +245,37 @@ test('title properties prefer the right side of the complete icon region and sta
  const above=position({left:20,right:780,top:390,bottom:700},trigger,{width:277,height:300},800,750);
  assert.ok(above.y+300<=382);assert.ok(above.x>=8);
 });
+
+
+test('stable key surface keeps a decoded image until the current replacement decodes',async()=>{
+ const begin=source.indexOf('const deckKeyPaints=new WeakMap();'),end=source.indexOf('function createDeckGridButton',begin);
+ assert.ok(begin>=0&&end>begin);
+ const deferred=()=>{let resolve,reject;const promise=new Promise((a,b)=>{resolve=a;reject=b;});return {promise,resolve,reject};};
+ const frames=[],decodes=[],warnings=[];
+ const button={isConnected:true,children:[],replaceChildren(...children){this.children=children;}};
+ const window={prepareDeckKeyImage:visual=>({signature:visual.title,render:()=>{
+   const job=deferred();frames.push(job);return job.promise;
+ }})};
+ const ctx={window,button,ACTIONS:new Map(),appendKeyPressNumber(){},updateTitleAppearance(){},
+  iconNode:()=>({classList:{add(){}}}),document:{createElement:tag=>{
+    if(tag!=='img')return {className:'',textContent:''};
+    const job=deferred();decodes.push(job);return {src:'',decode:()=>job.promise};
+  }},console:{warn:(...args)=>warnings.push(args)}};
+ const paint=vm.runInNewContext(source.slice(begin,end)+';paintDeckKey',ctx);
+ const flush=()=>new Promise(resolve=>setImmediate(resolve));
+ const owner={type:'hotkey'};
+ const render=(title,scope='a',item=owner)=>paint(button,item,{title},0,scope,item);
+ render('first');await flush();frames[0].resolve('one');await flush();decodes[0].resolve();await flush();
+ const first=button.children[0];assert.equal(first.src,'data:image/png;base64,one');
+ render('first');await flush();assert.equal(frames.length,1);assert.equal(button.children[0],first);
+ render('second');await flush();assert.equal(button.children[0],first);
+ frames[1].resolve('two');await flush();assert.equal(button.children[0],first);
+ render('third');await flush();decodes[1].resolve();await flush();assert.equal(button.children[0],first,'stale decode must not replace current image');
+ frames[2].resolve('three');await flush();decodes[2].resolve();await flush();
+ assert.equal(button.children[0].src,'data:image/png;base64,three');
+ const third=button.children[0];render('failure');await flush();frames[3].reject(Error('bad frame'));await flush();assert.equal(button.children[0],third);
+ assert.equal(warnings.length,1);
+ render('new page','b');await flush();assert.notEqual(button.children[0],third,'never display old page action on new page');
+ frames[4].resolve('four');await flush();decodes[3].resolve();await flush();
+ assert.equal(button.children[0].src,'data:image/png;base64,four');
+});

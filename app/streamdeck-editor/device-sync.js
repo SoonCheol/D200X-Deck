@@ -177,8 +177,7 @@
     });
   }
 
-  function drawWidePanel(ctx,width,height,mode){
-    const now=new Date();
+  function drawWidePanel(ctx,width,height,mode,now=new Date(),knobs=null){
     const text=(value,x,y,font,align='center',color='#f2f5fa')=>{
       ctx.font=font;ctx.textAlign=align;ctx.textBaseline='middle';ctx.fillStyle=color;ctx.fillText(value,x,y);
     };
@@ -221,7 +220,7 @@
       text(now.toLocaleTimeString('ko-KR',{hour12:false,hour:'2-digit',minute:'2-digit'}),w/2,107,'bold 60px "Segoe UI",sans-serif');
       text(day,w/2,167,'24px "Malgun Gothic",sans-serif','center','#aebbd0');
     }else if(mode==='knobs'){
-      const info=window.D200XKnobInfo?.()||[];
+      const info=knobs??window.D200XKnobInfo?.()??[];
       info.slice(0,3).forEach((knob,i)=>{
         const x=65+i*131;
         if(i){
@@ -270,8 +269,39 @@
     }
     return true;
   }
-  async function drawSlot(item, index) {
-    const wide = index === 13;
+  const bitmapCache=DeckCore.createBitmapCache();
+  let fontEpoch=0;
+  const styleFields=['visible','align','family','size','bold','italic','underline','color','outlineColor','outlineWidth','backgroundEnabled','backgroundColor','backgroundOpacity'];
+  const visualStyle=style=>style?Object.fromEntries(styleFields.map(key=>[key,style[key]])):undefined;
+  function keyDescriptor(item,index,previewPressed=false){
+    const wide=index===13;
+    const wideMode=item?.type==='wide-display'?(item.wideNotice?'unsaved':window.D200XWideModeName?.()||'clock'):null;
+    const panelArtwork=item&&!item.icon?.glyph&&item.icon?.kind!=='file'?window.D200XPanelIcons?.keyArtwork?.(item.type)||null:null;
+    const background=item?.keyBackground||item?.settings?.keyBackgrounds?.default;
+    const visual=item?{type:item.type,title:item.title||'',titleStyle:visualStyle(item.titleStyle),
+      icon:item.icon?{kind:item.icon.kind,value:item.icon.value,glyph:item.icon.glyph}:undefined,
+      keyBackground:background?{enabled:background.enabled,color:background.color}:undefined,
+      indicatorNumber:item.indicatorNumber,indicatorNumberStyle:visualStyle(item.indicatorNumberStyle),
+      fusionOffline:item.fusionOffline===true,keyPressAlternate:item.keyPressAlternate===true,
+      wideNotice:item.wideNotice===true,wideOverlay:item.wideOverlay?JSON.parse(JSON.stringify(item.wideOverlay)):undefined}:null;
+    const pressed=Boolean(item&&(keyPressed(index)||previewPressed||item.previewPressed===true)&&!item.keyPressAlternate);
+    const time=wideMode==='clock'?Math.floor(Date.now()/1000)*1000:wideMode==='datetime'?Math.floor(Date.now()/60000)*60000:0;
+    const knobs=wideMode==='knobs'?(window.D200XKnobInfo?.()||[]).map(k=>({name:k.name,title:k.title,detail:k.detail})):null;
+    return {version:1,fontEpoch,wide,visual,pressed,panelArtwork,fallback:item?ACTIONS.get(item.type)?.icon||'•':'•',wideMode,time,knobs};
+  }
+  function prepareDeckKeyImage(item,index,previewPressed=false){
+    const descriptor=keyDescriptor(item,index,previewPressed);
+    return {signature:JSON.stringify(descriptor),render:async()=>{
+      await document.fonts?.ready;
+      const ready={...descriptor,fontEpoch};
+      return bitmapCache.get(JSON.stringify(ready),()=>composeSlot(ready));
+    }};
+  }
+  async function drawSlot(item,index,previewPressed=false){
+    return {index,png:await prepareDeckKeyImage(item,index,previewPressed).render()};
+  }
+  async function composeSlot(descriptor){
+    const {visual:item,wide,pressed,panelArtwork,fallback,wideMode,time,knobs}=descriptor;
     const width = wide ? 392 : 196;
     const height = 196;
     const canvas = document.createElement('canvas');
@@ -285,11 +315,10 @@
     if(item?.type==='wide-display'){
       // The custom knobs screen is rendered as PNG; the device-native mode must stay blank.
       if(item.wideNotice||!item.wideOverlay||!await drawNativeWide(ctx,item.wideOverlay))
-        drawWidePanel(ctx,width,height,item.wideNotice?'unsaved':window.D200XWideModeName?.()||'clock');
-      return {index,png:canvas.toDataURL('image/png').split(',')[1]};
+        drawWidePanel(ctx,width,height,wideMode,new Date(time),knobs);
+      return canvas.toDataURL('image/png').split(',')[1];
     }
     if (item) {
-      const fallback = ACTIONS.get(item.type)?.icon || '•';
       let indicatorArtwork=false;
       if (item.icon?.kind === 'file' && typeof item.icon.value === 'string') {
         const image = await imageLoaded(item.icon.value);
@@ -302,8 +331,8 @@
         }
       } else if (item.type==='indicator'&&item.indicatorNumber!==undefined&&!item.icon?.glyph) {
         // Number is drawn independently of the optional background artwork.
-      } else if (!item.icon?.glyph && window.D200XPanelIcons?.keyArtwork?.(item.type)) {
-        const image = await imageLoaded(window.D200XPanelIcons.keyArtwork(item.type));
+      } else if (!item.icon?.glyph && panelArtwork) {
+        const image = await imageLoaded(panelArtwork);
         if (image) {
           const side = Math.min(width, height) * 0.79;
           ctx.drawImage(image, (width-side)/2, (height-side)/2, side, side);
@@ -352,7 +381,7 @@
         ctx.beginPath();ctx.moveTo(x-r*.45,y-r*.45);ctx.lineTo(x+r*.45,y+r*.45);
         ctx.moveTo(x+r*.45,y-r*.45);ctx.lineTo(x-r*.45,y+r*.45);ctx.stroke();
       }
-      if((keyPressed(index)||item.previewPressed===true)&&!item.keyPressAlternate){
+      if(pressed){
         const snapshot=document.createElement('canvas');
         snapshot.width=width;snapshot.height=height;
         snapshot.getContext('2d').drawImage(canvas,0,0);
@@ -361,11 +390,13 @@
         ctx.drawImage(snapshot,inset,inset,width-inset*2,height-inset*2);
       }
     }
-    return {index, png: canvas.toDataURL('image/png').split(',')[1]};
+    return canvas.toDataURL('image/png').split(',')[1];
   }
 
   // Same compositor feeds the inspector preview and the D200X transfer.
-  window.renderDeckKeyImage = async (item,index=0,previewPressed=false) => (await drawSlot(previewPressed?{...item,previewPressed:true}:item, index)).png;
+  window.prepareDeckKeyImage=prepareDeckKeyImage;
+  window.renderDeckKeyImage = async (item,index=0,previewPressed=false) => (await drawSlot(item,index,previewPressed)).png;
+  document.fonts?.addEventListener?.('loadingdone',()=>{fontEpoch++;renderGrid();window.refreshSelectedVisual?.();schedule(0);});
   renderGrid();
   window.refreshSelectedVisual?.();
   // The initial inspector was constructed before this deferred compositor existed.
@@ -410,17 +441,14 @@
       const raw=page[index];
       const item=raw?JSON.parse(JSON.stringify(raw)):
         state.folderPath?.length&&index===13?{type:'folder-back',title:'뒤로',icon:{kind:'glyph',glyph:'↩'},titleStyle:DeckCore.TITLE}:null;
-      return {index,item};
+      const visual=window.getD200XDisplayItem
+        ?window.getD200XDisplayItem(item,index)
+        :item?.type==='indicator'?{...item,icon:{kind:'glyph',glyph:String(state.page+1)}}:DeckCore.displaySwitchAction(item);
+      return {index,visual};
     });
     try {
-      await document.fonts?.ready;
-      await Promise.all(jobs.map(async({item,index})=>{
-        images[index]=await drawSlot(
-          window.getD200XDisplayItem
-            ? window.getD200XDisplayItem(item,index)
-            : item?.type === 'indicator'
-              ? {...item,icon:{kind:'glyph',glyph:String(state.page+1)}}
-              : DeckCore.displaySwitchAction(item),index);
+      await Promise.all(jobs.map(async({visual,index})=>{
+        images[index]=await drawSlot(visual,index);
       }));
       if(serial!==renderSerial)return;
       if(stamp!==warningPageStamp()||mode!==(window.getD200XWideMode?.()||'blank')){schedule(0);return;}

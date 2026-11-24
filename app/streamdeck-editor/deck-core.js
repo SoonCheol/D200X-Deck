@@ -233,7 +233,7 @@
         if(scope!==priorScope){mounted.clear();priorScope=scope;}
         const seen=new Set(),result=[];
         for(const entry of descriptors){
-          if(!validInstanceId(entry.instanceId)||typeof entry.pluginUUID!=='string'||typeof entry.actionUUID!=='string')continue;
+          if(!validInstanceId(entry.instanceId)||typeof entry.pluginUUID!=='string'||!entry.pluginUUID||entry.pluginUUID.length>160||typeof entry.actionUUID!=='string'||!entry.actionUUID||entry.actionUUID.length>160)continue;
           const key=entry.slot+':'+entry.gesture;
           if(seen.has(key))continue;
           seen.add(key);
@@ -259,6 +259,39 @@
     if(entry.slot<14?entry.gesture!=='down':!['down','left','right','hold-left','hold-right'].includes(entry.gesture))return false;
     const parts=entry.context.split(':');
     return parts.length===4&&parts[0]==='df'&&parts[1]===entry.instanceId&&validInstanceId(parts[2])&&parts[3]===String(entry.mountGeneration);
+  }
+  // Shared bounded LRU. Keys are exact canonical visual descriptors; neither
+  // plugin settings nor action execution data belong in a bitmap cache.
+  function createBitmapCache({maxEntries=192,maxBytes=32*1024*1024,maxPending=64,maxPendingBytes=24*1024*1024}={}){
+    const ready=new Map(),pending=new Map();
+    let bytes=0,pendingBytes=0;
+    return {
+      get(key,produce){
+        if(ready.has(key)){
+          const entry=ready.get(key);ready.delete(key);ready.set(key,entry);
+          return Promise.resolve(entry.png);
+        }
+        if(pending.has(key))return pending.get(key);
+        const cost=key.length*2;
+        if(pending.size>=maxPending||pendingBytes+cost>maxPendingBytes)
+          return Promise.reject(Error('bitmap rendering capacity'));
+        pendingBytes+=cost;
+        const promise=Promise.resolve().then(produce).then(png=>{
+          if(typeof png!=='string'||!png)throw Error('invalid bitmap');
+          const size=cost+png.length*2;
+          if(size<=maxBytes&&maxEntries>0){
+            while(ready.size&&(ready.size>=maxEntries||bytes+size>maxBytes)){
+              const first=ready.keys().next().value;
+              bytes-=ready.get(first).size;ready.delete(first);
+            }
+            ready.set(key,{png,size});bytes+=size;
+          }
+          return png;
+        }).finally(()=>{pending.delete(key);pendingBytes-=cost;});
+        pending.set(key,promise);return promise;
+      },
+      stats:()=>({entries:ready.size,bytes,pending:pending.size,pendingBytes})
+    };
   }
   function createAction(id){
     if(!validId(id))throw new Error('Unsupported built-in action: '+String(id));
@@ -1775,5 +1808,5 @@
       url:action.settings?.url||'',mode:action.settings?.open||'default',browserPath:action.settings?.browserPath||''};
     return {kind:'unsupported',message:'이 동작의 실행 기능은 아직 구현되지 않았습니다.'};
   }
-  return {validateNativeSettingsSchema,nativeSettingValue,nativeDynamicOptions,nativeEffectiveSettings,nativeVisualOwner,nativeVisualDelta,pruneNativeVisuals,createNativeRenderGate,ACTION_IDS,D200X_ACTION_IDS,PLUGIN_ACTION_IDS,PRESS_ACTION_TYPES,DEFAULTS,TITLE,INDICATOR_NUMBER_STYLE,INDICATOR_NAV_LABELS,indicatorConfig,indicatorCommon,sharedIndicatorConfig,updateIndicatorCommon,manageIndicators,indicatorNumberDisplayStyle,planIndicatorNavigation,fixedIndicatorNavigation,planFixedIndicatorNavigation,indicatorPinState,setIndicatorPinned,SIDE_NAV_LABELS,SIDE_HOLD_MS,sideConfig,makeSideAction,sideActionConfig,sideFolderTargets,planSideNavigation,applySideNavigation,createPageVisitTracker,createSidePressTracker,createAction,cleanAction,validInstanceId,normalizeInstanceIds,cloneActionInstances,walkSdkActions,sdkMountDescriptors,createSdkMountTracker,validSdkMount,cleanCompositeEntry,timerSeconds,formatTimerTime,displaySwitchAction,compositeModel,planComposite,runComposite,createMultiPauseGate,multiRows,setMultiRows,blankPage,cleanWideDisplay,createWideOverlayTracker,cycleWideDisplay,isWideDisplayPress,folderContents,folderPageCount,changeFolderPage,addFolderPage,deleteFolderPage,editPageStructure,currentActions,visibleActions,togglePinned,activeFolder,enterFolder,exitFolder,migrateState,profileSnapshot,switchProfile,createProfile,renameProfile,exportSingleProfile,findProfileTemplate,saveProfileTemplate,renameProfileTemplate,deleteProfileTemplate,applyProfileTemplate,setProfileApp,setProfileFusionScope,matchFusionProfile,createSmartProfileTracker,matchForegroundProfile,deleteProfile,previewHardwareEvent,physicalSlot,hardwareGesture,resolveHardwareEvent,runtimeActionKey,folderWideBackEvent,resolveKeyPress,planHardwareEvent,deletePage,planAction,emptyBinding,cleanBinding,controlAction,activeControlAction,assignControlAction,automaticControl,ensureControls,controlBinding,changeControlScope};
+  return {validateNativeSettingsSchema,nativeSettingValue,nativeDynamicOptions,nativeEffectiveSettings,nativeVisualOwner,nativeVisualDelta,pruneNativeVisuals,createNativeRenderGate,ACTION_IDS,D200X_ACTION_IDS,PLUGIN_ACTION_IDS,PRESS_ACTION_TYPES,DEFAULTS,TITLE,INDICATOR_NUMBER_STYLE,INDICATOR_NAV_LABELS,indicatorConfig,indicatorCommon,sharedIndicatorConfig,updateIndicatorCommon,manageIndicators,indicatorNumberDisplayStyle,planIndicatorNavigation,fixedIndicatorNavigation,planFixedIndicatorNavigation,indicatorPinState,setIndicatorPinned,SIDE_NAV_LABELS,SIDE_HOLD_MS,sideConfig,makeSideAction,sideActionConfig,sideFolderTargets,planSideNavigation,applySideNavigation,createPageVisitTracker,createSidePressTracker,createAction,cleanAction,validInstanceId,normalizeInstanceIds,cloneActionInstances,walkSdkActions,sdkMountDescriptors,createSdkMountTracker,validSdkMount,createBitmapCache,cleanCompositeEntry,timerSeconds,formatTimerTime,displaySwitchAction,compositeModel,planComposite,runComposite,createMultiPauseGate,multiRows,setMultiRows,blankPage,cleanWideDisplay,createWideOverlayTracker,cycleWideDisplay,isWideDisplayPress,folderContents,folderPageCount,changeFolderPage,addFolderPage,deleteFolderPage,editPageStructure,currentActions,visibleActions,togglePinned,activeFolder,enterFolder,exitFolder,migrateState,profileSnapshot,switchProfile,createProfile,renameProfile,exportSingleProfile,findProfileTemplate,saveProfileTemplate,renameProfileTemplate,deleteProfileTemplate,applyProfileTemplate,setProfileApp,setProfileFusionScope,matchFusionProfile,createSmartProfileTracker,matchForegroundProfile,deleteProfile,previewHardwareEvent,physicalSlot,hardwareGesture,resolveHardwareEvent,runtimeActionKey,folderWideBackEvent,resolveKeyPress,planHardwareEvent,deletePage,planAction,emptyBinding,cleanBinding,controlAction,activeControlAction,assignControlAction,automaticControl,ensureControls,controlBinding,changeControlScope};
 });

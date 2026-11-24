@@ -746,7 +746,7 @@ function wideKnobLabels(binding,position){
 window.D200XKnobInfo=()=>[16,17,18].map((index,i)=>({
   name:'노브 '+(i+1),...wideKnobLabels(DeckCore.controlBinding(state,index),stackPositions[i])
 }));
-window.renderGridWideClock=()=>{if(wideDisplayAvailable())renderGrid();};
+window.renderGridWideClock=()=>{if(wideDisplayAvailable())renderGrid([13]);};
 window.getD200XWideMode=()=>wideDisplayAvailable()&&!activeNativeWide()
   ?(state.wideDisplay?.current==='clock'?'clock':state.wideDisplay?.current==='stats'?'stats':'blank'):'blank';
 function renderWideInspector(){
@@ -920,49 +920,60 @@ function showPressDropOverlay(index,key){
 document.addEventListener('dragend',hidePressDropOverlay,true);
 document.addEventListener('drop',()=>setTimeout(hidePressDropOverlay,0),true);
 function appendKeyPressNumber(button,root){
-  // Editor-only badge for the action whose image is displayed on this key.
-  // The actual device PNG remains pixel-for-pixel unchanged.
-  if(!pressIsOrdinary(root))return;
-  const displayed=pressDisplayAction(root);
-  if(!displayed||displayed.type==='press-empty')return;
+  // Editor-only badge, never part of the actual device PNG.
+  const existing=button.querySelector('.deck-key-press-number');
+  const displayed=pressIsOrdinary(root)?pressDisplayAction(root):null;
+  if(!displayed||displayed.type==='press-empty'){existing?.remove();return;}
   const match=PRESS_TABS.find(([slot])=>pressSlotAction(root,slot)===displayed);
   const number=match?.[2]||'1';
-  const badge=document.createElement('span');
+  const badge=existing||document.createElement('span');
   badge.className='deck-key-press-number';badge.textContent=number;
   badge.title=number+'번 누르기의 대표 이미지';badge.setAttribute('aria-hidden','true');
-  button.append(badge);
+  if(!existing)button.append(badge);
 }
-function renderGrid(onlySlots=null){
-  if(nativeGridDrag&&(state!==nativeGridDrag.snapshot.state||currentPage()!==nativeGridDrag.snapshot.page))clearNativeGridDrag(nativeGridDrag,true);
-  const grid=$("key-grid"),partial=Array.isArray(onlySlots)&&grid.children.length===KEY_COUNT;
-  const slots=partial?new Set(onlySlots):null;
-  if(!partial){hideReplacedTooltip(grid);grid.replaceChildren();}
-  DeckCore.visibleActions(state).slice(0,KEY_COUNT).forEach((raw,i)=>{
-    if(slots&&!slots.has(i))return;
-    const folderBack=state.folderPath?.length>0&&i===13&&!raw;
-    const item=i===13&&wideUnsavedWarningActive()?wideUnsavedVisual():folderBack?{type:'folder-back',title:'뒤로',icon:{kind:'glyph',glyph:'↩'}}:(i===13&&wideDisplayAvailable()?wideVisual():raw);
-    const b=document.createElement("button");b.type="button";b.className="deck-key"+(i===13?" wide":"")+(state.selected===i?" selected":"");
-    b.dataset.index=i;b.setAttribute("aria-label",`키 ${i+1}: ${keyName(item)||"비어 있음"}`);
-    const pin=!state.folderPath?.length&&i<13?state.pinned?.[i]:null;
-    if(pin)b.classList.add(currentPage()[i]?'pin-shadowed':'pin-shared');
-    if(item)setDeckForgeTooltip(b,()=>({title:keyName(item)||item.type,lines:[shortActionDescription(item),...(pin?[currentPage()[i]?'페이지별 액션 우선 적용 · 고정 액션: '+keyName(pin):'모든 페이지의 고정 액션']:[])]}));
-    const visual=displayKeyPressItem(displayItem(item,i),i);
+const deckKeyPaints=new WeakMap();
+function paintDeckKey(button,item,visual,index,scope,owner){
+  let paint=deckKeyPaints.get(button);
+  if(!paint){paint={revision:0,scope:null,owner:null,signature:null,ready:false,pending:false};deckKeyPaints.set(button,paint);}
+  const prepared=item&&window.prepareDeckKeyImage?window.prepareDeckKeyImage(visual,index):null;
+  const signature=prepared?.signature??null;
+  const sameOwner=paint.scope===scope&&paint.owner===owner;
+  if(sameOwner&&signature!==null&&paint.signature===signature&&(paint.ready||paint.pending)){
+    appendKeyPressNumber(button,item);return;
+  }
+  if(!sameOwner||!paint.ready||!prepared){
+    // Never show the previous page's action as a new action. For a current
+    // owner, retain the last decoded image during a normal visual update.
     const glyph=iconNode(visual,ACTIONS.get(item?.type)?.icon||"+");glyph.classList.add("glyph");
-    const label=document.createElement("span");label.className="caption";label.textContent=String(visual?.title||"").replace(/<br\s*\/?>/gi,"\n");updateTitleAppearance(label,visual);
-    b.append(glyph,label);appendKeyPressNumber(b,item);
-    // Render the actual D200X PNG as the editor key surface. Icon and title
-    // must stay in fixed coordinates, independent of the title font size.
-    if(item&&window.renderDeckKeyImage){
-      window.renderDeckKeyImage(visual,i).then(png=>{
-        if(!b.isConnected||(item.type!=='wide-display'&&DeckCore.visibleActions(state)[i]!==item))return;
-        const preview=document.createElement("img");
-        preview.className="rendered-key-image";
-        preview.alt="";
-        preview.src="data:image/png;base64,"+png;
-        b.replaceChildren(preview);appendKeyPressNumber(b,item);
-      }).catch(error=>console.warn("버튼 이미지 미리보기 실패",error));
-    }
+    const label=document.createElement("span");label.className="caption";
+    label.textContent=String(visual?.title||"").replace(/<br\s*\/?>/gi,"\n");updateTitleAppearance(label,visual);
+    button.replaceChildren(glyph,label);paint.ready=false;
+  }
+  paint.scope=scope;paint.owner=owner;paint.signature=signature;
+  paint.pending=Boolean(prepared);
+  const revision=++paint.revision;
+  appendKeyPressNumber(button,item);
+  if(!prepared)return;
+  Promise.resolve().then(()=>prepared.render()).then(async png=>{
+    if(!button.isConnected||paint.revision!==revision)return;
+    const preview=document.createElement("img");
+    preview.className="rendered-key-image";preview.alt="";
+    preview.src="data:image/png;base64,"+png;
+    if(typeof preview.decode==='function')await preview.decode();
+    if(!button.isConnected||paint.revision!==revision)return;
+    button.replaceChildren(preview);appendKeyPressNumber(button,item);
+    paint.ready=true;
+  }).catch(error=>{
+    if(paint.revision===revision)console.warn("버튼 이미지 미리보기 실패",error);
+  }).finally(()=>{
+    if(paint.revision===revision)paint.pending=false;
+  });
+}
+function createDeckGridButton(i){
+  const b=document.createElement("button");b.type="button";b.className="deck-key";
+  b.dataset.index=i;
     b.addEventListener("click",()=>{
+      const folderBack=state.folderPath?.length>0&&i===13&&!DeckCore.visibleActions(state)[i];
       if(folderBack){
         if(inspectorSession?.dirty){showInspectorLeaveDialog(()=>{DeckCore.exitFolder(state);persist();render();});return;}
         DeckCore.exitFolder(state);persist();render();
@@ -997,12 +1008,39 @@ function renderGrid(onlySlots=null){
       if(isAssignableAction(id))setPressSlot(i,'single',newAction(id),true);
       hidePressDropOverlay();
     });
-    if(partial){const previous=grid.children[i];hideReplacedTooltip(previous);previous.replaceWith(b);}
-    else grid.append(b);
+  return b;
+}
+function renderGrid(onlySlots=null){
+  if(nativeGridDrag&&(state!==nativeGridDrag.snapshot.state||currentPage()!==nativeGridDrag.snapshot.page))clearNativeGridDrag(nativeGridDrag,true);
+  const grid=$("key-grid"),folder=DeckCore.activeFolder(state);
+  const scope=JSON.stringify([state.profileId,state.page,state.folderPath||[],folder?.pageIndex||0,pageStructureEpoch]);
+  const partial=Array.isArray(onlySlots)&&grid.children.length===KEY_COUNT&&grid.dataset.renderScope===scope;
+  const slots=partial?new Set(onlySlots):null;
+  if(grid.children.length!==KEY_COUNT){
+    hideReplacedTooltip(grid);grid.replaceChildren();
+    for(let i=0;i<KEY_COUNT;i++)grid.append(createDeckGridButton(i));
+  }
+  grid.dataset.renderScope=scope;
+  DeckCore.visibleActions(state).slice(0,KEY_COUNT).forEach((raw,i)=>{
+    if(slots&&!slots.has(i))return;
+    const folderBack=state.folderPath?.length>0&&i===13&&!raw;
+    const item=i===13&&wideUnsavedWarningActive()?wideUnsavedVisual():folderBack?{type:'folder-back',title:'뒤로',icon:{kind:'glyph',glyph:'↩'}}:(i===13&&wideDisplayAvailable()?wideVisual():raw);
+    const b=grid.children[i];
+    b.classList.toggle("wide",i===13);b.classList.toggle("selected",state.selected===i);
+    b.setAttribute("aria-label",`키 ${i+1}: ${keyName(item)||"비어 있음"}`);
+    const pin=!state.folderPath?.length&&i<13?state.pinned?.[i]:null;
+    b.classList.toggle('pin-shadowed',Boolean(pin&&currentPage()[i]));
+    b.classList.toggle('pin-shared',Boolean(pin&&!currentPage()[i]));
+    const owner=item?.type==='wide-display'?(item.wideNotice?'wide-warning':'wide-display'):folderBack?'folder-back':raw?.instanceId||raw;
+    const prior=deckKeyPaints.get(b);
+    if(prior&&(prior.scope!==scope||prior.owner!==owner))hideReplacedTooltip(b);
+    if(item)setDeckForgeTooltip(b,()=>({title:keyName(item)||item.type,lines:[shortActionDescription(item),...(pin?[currentPage()[i]?'페이지별 액션 우선 적용 · 고정 액션: '+keyName(pin):'모든 페이지의 고정 액션']:[])]}));
+    else{delete b.dataset.deckforgeTooltip;deckForgeTooltipData.delete(b);}
+    const visual=displayKeyPressItem(displayItem(item,i),i);
+    paintDeckKey(b,item,visual,i,scope,owner);
   });
   if(partial)return;
   renderPhysicalControls();
-  const folder=DeckCore.activeFolder(state);
   $("page-label").textContent=folder
     ?`폴더 ${state.folderPath.length}단계 · 페이지 ${(folder.pageIndex||0)+1} / ${DeckCore.folderPageCount(state)}`
     :`페이지 ${state.page+1} / ${state.pages.length}`;
