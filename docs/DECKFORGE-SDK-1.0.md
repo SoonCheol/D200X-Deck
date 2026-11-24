@@ -99,3 +99,5 @@ API 2 manifest의 service={script,tickIntervalMs?} 및 별도 background.run 권
 
 - 별도 Electron 테스트 실행 파일 `test/deckforge-worker-csp-electron.cjs`만 전용 scheme을 등록한다. 실제 앱의 Model 2/legacy 보안 정책은 변경하지 않는다. host CSP의 script-src는 none, worker의 응답 CSP는 unsafe-eval만 허용하고 worker-src/connect-src는 none. 두 scheme 후보의 AsyncFunction, 네트워크/스크립트 로딩/중첩 Worker, Node·저장소 차단, timeout·다음 실행·서비스 PID와 생존을 개별 기록한다.
 - 참조: Electron protocol API (https://www.electronjs.org/docs/latest/api/protocol), MDN CSP Worker 정책 (https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/Content-Security-Policy). blob/data Worker는 부모 CSP를 상속하므로 단순 worker-src 완화는 채택하지 않는다. 결과가 부정적이거나 불확정이면 후보 부적격. 이 테스트가 통과해도 OOM·DrawOps·출력/메모리 상한 및 전체 API 회귀는 별도이며 Model 5 활성화 근거가 아니다.
+
+- 1.1.190 DrawOps 후보: Worker 결과는 512 KiB JSON·16개 명령·2회 그리기·8 KiB memory 제한. 호스트에서 전체 그리기 명령을 먼저 검증하며 Worker 원시 pixels 금지. 신뢰 painter는 데이터만 받아 RGBA 생성, 치수/인코딩/총량 및 취소 재검증 후 기존 validateScriptOps 경계를 반드시 통과한다. 아직 Model 5 실행 연결 없음. 집중 Node 검사와 Electron 기존 drawKey 픽셀 동등성 검사 추가.

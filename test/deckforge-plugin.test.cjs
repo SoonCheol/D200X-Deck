@@ -2254,3 +2254,33 @@ test('Model 2 scheduler serializes same lane without blocking a service lane',as
    assert.deepEqual(calls,['a','service','b']);releases[1]();releases[2]();await Promise.all([b,c]);
  }finally{s.close();releases.forEach(fn=>fn());}
 });
+
+test('Model 5 DrawOps host rejects unbounded, malformed and raw pixel worker commands before paint',async()=>{
+ const {parseWorkerDrawProgram,resolveWorkerDrawProgram}=require('../app/streamdeck-editor/deckforge-draw-ops.cjs');
+ const spec={width:16,height:16,background:'#000000',commands:[{type:'rect',color:'#ff0000',x:0,y:0,width:4,height:4}]};
+ const raw=(ops,memory={})=>JSON.stringify({ops,memory});
+ const draw=spec=>({op:'drawKey',spec});
+ const invalid=[
+  raw([draw({...spec,width:145})]),raw([draw({...spec,commands:Array(33).fill(spec.commands[0])})]),
+  raw([draw({...spec,commands:[{...spec.commands[0],url:'https://example.com'}]})]),
+  raw([draw({...spec,commands:[{type:'text',color:'#ffffff',x:0,y:0,text:'bad\ntext',size:12}]})]),
+  raw([draw({...spec,commands:[{type:'text',color:'#ffffff',x:0,y:0,text:'ok',size:12,font:'url(bad)'}]})]),
+  raw([draw({...spec,commands:[{type:'image',color:'#ffffff'}]})]),
+  raw([draw(spec),draw(spec),draw(spec)]),raw([draw(spec),{op:'pixels',width:1,height:1,rgba:'AAAAAA=='}]),
+  raw(Array(17).fill({op:'title',value:'x'})),raw([],{value:'x'.repeat(8192)}),
+  raw([{op:'title',value:'x'.repeat(512*1024)}]),'null','{}'
+ ];
+ let calls=0;
+ for(const value of invalid)await assert.rejects(resolveWorkerDrawProgram(value,()=>{calls++;}),/invalid SDK draw operation/);
+ assert.equal(calls,0);
+ const original=raw([{op:'title',value:'before'},draw(spec),{op:'state',value:1}],{n:1});
+ assert.equal(parseWorkerDrawProgram(original).ops.length,3);
+ const rgba=Buffer.alloc(16*16*4).toString('base64');
+ const painted=await resolveWorkerDrawProgram(original,async value=>{
+  assert.deepEqual(value,spec);calls++;return {op:'pixels',width:16,height:16,rgba};
+ });
+ assert.deepEqual(painted,{ops:[{op:'title',value:'before'},{op:'pixels',width:16,height:16,rgba},{op:'state',value:1}],memory:{n:1}});
+ await assert.rejects(resolveWorkerDrawProgram(original,async()=>({op:'pixels',width:1,height:1,rgba:'AAAAAA=='})),/invalid SDK draw operation/);
+ let active=true;
+ await assert.rejects(resolveWorkerDrawProgram(original,async()=>{active=false;return {op:'pixels',width:16,height:16,rgba};},()=>active),/cancelled/);
+});

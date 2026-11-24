@@ -164,6 +164,34 @@ async function verifyModel2(){
    console.log('DeckForge Model 2 scoped reuse, reset, timeout and service survival passed');
  }finally{pool.close();}
 }
+
+async function verifyTrustedDrawOps(legacy){
+ const {BrowserWindow}=require('electron');
+ const {paintValidatedDrawSpec,resolveWorkerDrawProgram}=require('../app/streamdeck-editor/deckforge-draw-ops.cjs');
+ const {NativePluginHost}=require('../app/streamdeck-editor/deckforge-native-sdk.cjs');
+ const {deadline}=require('../app/streamdeck-editor/deckforge-js-runtime.cjs');
+ const win=new BrowserWindow({show:false,webPreferences:{sandbox:true,contextIsolation:true,nodeIntegration:false,webSecurity:true}});
+ const host=new NativePluginHost('/unused');
+ const spec={width:64,height:64,background:'#123456',commands:[
+  {type:'rect',color:'#ff0000',x:0,y:0,width:4,height:4},
+  {type:'circle',color:'#00ff00',x:12,y:12,radius:5},
+  {type:'line',color:'#0000ff',x:0,y:22,toX:60,toY:22,width:2},
+  {type:'text',color:'#ffffff',x:32,y:45,text:'42',size:18,font:'sans-serif',bold:true}
+ ]};
+ try{
+  await win.loadURL('data:text/html,'+encodeURIComponent('<meta http-equiv="Content-Security-Policy" content="default-src \'none\'; script-src \'none\'">'));
+  const original=await legacy.run('api.drawKey('+JSON.stringify(spec)+');',input);
+  const raw=JSON.stringify({ops:[{op:'drawKey',spec}],memory:{}});
+  const resolved=await resolveWorkerDrawProgram(raw,validated=>deadline(()=>win.webContents.executeJavaScript('('+paintValidatedDrawSpec.toString()+')('+JSON.stringify(validated)+')'),1500,()=>win.destroy()));
+  assert.deepEqual(resolved,original);
+  const ctx={slot:0,action:{controllers:['Keypad'],states:2},permissions:['display'],settings:{}};
+  const expected=host.validateScriptOps(ctx,'press',original.ops);
+  assert.deepEqual(host.validateScriptOps(ctx,'press',resolved.ops),expected);
+  assert.throws(()=>host.validateScriptOps({...ctx,service:true,permissions:['background.run']},'start',resolved.ops),/background service/);
+  console.log('Model 5 trusted DrawOps pixel parity and host effect boundary passed');
+ }finally{host.close();if(!win.isDestroyed())win.destroy();}
+}
+
 app.whenReady().then(async()=>{
   const a=createScriptRunner('com.deckforge.native.smokea');
   const b=createScriptRunner('com.deckforge.native.smokeb');
@@ -216,6 +244,7 @@ app.whenReady().then(async()=>{
     }finally{cancelled.close();}
     console.log('DeckForge JavaScript SDK renderer smoke passed');
     await verifyModel2();
+    await verifyTrustedDrawOps(b);
     await verifyPublicApi(b);
     await verifyHomeAssistant(b);
     await verifyWindowsEncryption();
