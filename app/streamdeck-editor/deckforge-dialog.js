@@ -9,7 +9,7 @@
     if(text!==undefined&&text!==null)node.textContent=String(text);
     return node;
   }
-  function show({title,kind='info',intro='',fields=[],included=[],excluded=[],content=null,onAccept=null,detailLabel='',detail='',copyDetail=false,warning='',ask=false,actionLabel='확인',cancelLabel='취소',alternateLabel=''}={}){
+  function show({title,kind='info',intro='',fields=[],included=[],excluded=[],content=null,onAccept=null,detailLabel='',detail='',copyDetail=false,warning='',ask=false,actionLabel='확인',cancelLabel='취소',alternateLabel='',anchorTop=false}={}){
     if(typeof title!=='string'||!title.trim()||!Object.hasOwn(icons,kind))throw Error('대화상자 제목 또는 상태가 올바르지 않습니다.');
     return new Promise(resolve=>{
       const dialog=element('dialog','deckforge-message-dialog'+(content?' deckforge-message-dialog-selection':''));
@@ -93,7 +93,15 @@
       footer.append(accept);
       dialog.append(header,main,footer);
       dialog.addEventListener('close',()=>{const choice=dialog.returnValue==='accept'?true:dialog.returnValue==='alternate'?'alternate':false;dialog.remove();resolve(choice);},{once:true});
-      document.body.append(dialog);dialog.showModal();accept.focus();
+      document.body.append(dialog);dialog.showModal();
+      if(anchorTop){
+        // Capture the initial viewport position once, rather than recentering
+        // whenever search results or other dynamic fields change height.
+        const top=Math.max(8,Math.round(dialog.getBoundingClientRect().top));
+        dialog.style.top=top+'px';dialog.style.bottom='auto';dialog.style.marginBlock='0';
+        dialog.style.maxHeight='min(720px, calc(100vh - '+(top+8)+'px))';
+      }
+      accept.focus();
     });
   }
   window.DeckForgeDialogs=Object.freeze({show});

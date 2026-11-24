@@ -86,3 +86,14 @@ test('profile read failure is reported during startup and write lock remains',()
  assert.match(source,/dialog\.showModal\(\);\s*window\.d200xActionStatus\?\.\('프로필 파일 읽기 실패: 저장 차단'\)/);
  assert.match(source,/if\(profileStorageFailure\)throw Error\('프로필 파일 읽기 실패 상태에서는 덮어쓰지 않습니다\.'\)/);
 });
+
+test('successful inspector save publishes SDK configuration; failed save does not',()=>{
+ const code=source.slice(source.indexOf('function saveInspector(){'),source.indexOf('function discardInspector(){'));
+ for(const success of [true,false]){
+  const session={dirty:true},calls=[];
+  const ctx={inspectorSession:session,persist:()=>success,commitPendingAudioVolumes:()=>{},beginInspectorSession:()=>{},updateInspectorSaveButtons:()=>{},scheduleSdkSync:()=>calls.push('sync')};
+  vm.runInNewContext(code+';saveInspector();',ctx);
+  assert.equal(calls.length,success?1:0);
+  if(!success)assert.equal(ctx.inspectorSession,session);
+ }
+});

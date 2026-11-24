@@ -2959,6 +2959,8 @@ function saveInspector(){
   commitPendingAudioVolumes();
   beginInspectorSession();
   updateInspectorSaveButtons();
+  // Device image sync is independent from the committed SDK configuration.
+  scheduleSdkSync();
 }
 function discardInspector(){
   if(!inspectorSession?.dirty)return;
@@ -3015,7 +3017,7 @@ document.addEventListener('click',event=>{
   if(!inspectorSession?.dirty)return;
   // Viewing help, opening a picker, searching, or choosing an icon stays in the
   // same editing session. Do not mistake these separate overlays for navigation.
-  if(event.target.closest('#inspector-unsaved-dialog, .inspector-help-dialog, #sdk-plugin-help-dialog, #icon-maker, .deckforge-input-dialog'))return;
+  if(event.target.closest('#inspector-unsaved-dialog, .inspector-help-dialog, #sdk-plugin-help-dialog, #icon-maker, .deckforge-message-dialog, .deckforge-input-dialog'))return;
   if(event.target.closest('#icon-library')&&!event.target.closest('.icon-pack-remove'))return;
   if(event.target.closest('.action-customize, .action-override-controls'))return;
   if(event.target.closest('#action-search, #action-search-clear, .library-tabs, #profile-trigger, .profile-row-gear, .profile-global-trigger, .settings-trigger, .group-title'))return;
@@ -3606,7 +3608,7 @@ async function openNativeCredentials(item,plugin){
   select.addEventListener('change',()=>{input.value='';note.textContent='';});
   const field=(name,control)=>{const row=document.createElement('label');row.className='field';const label=document.createElement('span');label.textContent=name;row.append(label,control);return row;};
   content.append(field('서버 주소',select),field('액세스 토큰',input),note);
-  const choice=await window.DeckForgeDialogs.show({title:'플러그인 인증정보',intro:plugin.name+' · 선택한 HTTPS/WSS 주소에만 사용합니다. 프로필 저장과 별개로 즉시 적용됩니다. 기존 토큰은 표시하지 않습니다.',
+  const choice=await window.DeckForgeDialogs.show({anchorTop:true,title:'플러그인 인증정보',intro:plugin.name+' · 선택한 HTTPS/WSS 주소에만 사용합니다. 프로필 저장과 별개로 즉시 적용됩니다. 기존 토큰은 표시하지 않습니다.',
     content,ask:true,actionLabel:'암호화 저장',alternateLabel:'등록 해제',onAccept:()=>{
       if(!/^[A-Za-z0-9._~+/-]+=*$/.test(input.value)||input.value.length>4096){note.textContent='액세스 토큰 형식을 확인하세요.';return false;}return true;
     }});
@@ -3644,11 +3646,12 @@ async function openNativeSettings(item,action,plugin){
       let selected=DeckCore.nativeSettingValue(field,stored)?(multi?[...stored]:stored?[stored]:[]):[],options=[];
       const pane=document.createElement('div'),search=document.createElement('input'),list=document.createElement('div'),summary=document.createElement('div');pane.className='native-sdk-picker';list.className='native-sdk-options';
       search.type='search';search.placeholder='이름·기기·ID 검색';search.setAttribute('aria-label',field.label+' 검색');
-      list.style.maxHeight='200px';list.style.overflowY='auto';summary.className='hint';
+      summary.className='hint';
       const render=()=>{
         const q=search.value.trim().toLocaleLowerCase(),all=[...options];
         for(const v of selected)if(!all.some(o=>o.value===v))all.push({value:v,label:v,group:'저장된 항목 (현재 목록 없음)'});
         all.sort((a,b)=>(a.group||'').localeCompare(b.group||'','ko')||a.label.localeCompare(b.label,'ko'));
+        const previousScroll=list.scrollTop;
         list.replaceChildren();let group=null;
         const matches=all.filter(o=>!q||[o.label,o.value,o.group||''].join(' ').toLocaleLowerCase().includes(q));
         for(const option of matches){
@@ -3663,9 +3666,11 @@ async function openNativeSettings(item,action,plugin){
           }else if(box.checked)selected=[option.value];render();});
           line.append(box,name);list.append(line);
         }
+        if(!matches.length){const empty=document.createElement('div');empty.className='hint';empty.textContent=options.length?'검색 결과 없음':'기기 목록 수신 대기';list.append(empty);}
+        list.scrollTop=previousScroll;
         summary.textContent=(options.length?'전체 '+options.length+'개 / 검색 '+matches.length+'개':'목록 없음 · 위 연결 상태 확인')+' / 선택 '+selected.length+(multi?' / 최대 '+field.maxItems:'');
       };
-      search.addEventListener('input',render);
+      search.addEventListener('input',()=>{list.scrollTop=0;render();});
       const clear=document.createElement('button');clear.type='button';clear.className='deckforge-message-button';clear.textContent='선택 해제';clear.addEventListener('click',()=>{selected=[];render();});
       pane.append(search,summary,list,clear);row.append(label,pane);content.append(row);
       dynamicFields.push({field,apply:rows=>{const next=Array.isArray(rows)?rows:[];if(JSON.stringify(options)===JSON.stringify(next))return;options=next;render();}});
@@ -3726,7 +3731,7 @@ async function openNativeSettings(item,action,plugin){
   const poll=dynamicFields.length?setInterval(()=>void refreshDynamic(),1500):null;
   void refreshDynamic();
   let accepted;
-  try{accepted=await window.DeckForgeDialogs.show({title:'플러그인 속성',intro:action.name+' · 일반 설정은 프로필에 저장됩니다. 비밀번호·토큰을 입력하지 마세요.',
+  try{accepted=await window.DeckForgeDialogs.show({anchorTop:true,title:'플러그인 속성',intro:action.name+' · 일반 설정은 프로필에 저장됩니다. 비밀번호·토큰을 입력하지 마세요.',
     content,ask:true,actionLabel:'적용',onAccept:()=>{
       try{
         const next={...original};
@@ -3744,7 +3749,7 @@ async function openNativeSettings(item,action,plugin){
   }
   item.settings.pluginSettings=result;
   persistInspectorChange();renderGrid();
-  window.d200xActionStatus?.('플러그인 설정 변경 · 기존 저장 버튼으로 확정하세요.');
+  window.d200xActionStatus?.('플러그인 설정 변경 · 아래 저장 버튼을 누르면 기기에 반영됩니다.');
 }
 function bindExtendedActionFields(root,item){
   if(item.type==='sd-plugin'){

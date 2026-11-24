@@ -1566,3 +1566,8 @@ dialog.deckforge-message-dialog::backdrop{background:#000a}
 .native-sdk-form .deckforge-message-button:disabled{opacity:.5;cursor:default}
 .native-sdk-form .native-sdk-connection{padding:8px 10px;border:1px solid #555;border-radius:5px;background:#343434;color:#ddd;overflow-wrap:anywhere}
 .native-sdk-form .hint{margin:0;overflow-wrap:anywhere}
+
+/* Native SDK dynamic lists have stable dimensions independently of result count. */
+.native-sdk-form .native-sdk-options{height:200px;min-height:200px;max-height:200px;overflow-y:auto;scrollbar-gutter:stable;padding:6px 8px;border:1px solid #555;border-radius:4px;background:#303030}
+.native-sdk-form .native-sdk-picker>.hint{min-height:17px;line-height:17px}
+.native-sdk-form .native-sdk-connection{min-height:38px}

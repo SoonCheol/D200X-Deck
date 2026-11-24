@@ -9,7 +9,7 @@ function fakeDocument(){
   const body={children:[],append(...items){this.children.push(...items);}};
   function createElement(tag){
     return {
-      tagName:tag.toUpperCase(),className:'',textContent:'',children:[],attributes:{},events:{},removed:false,
+      tagName:tag.toUpperCase(),className:'',textContent:'',children:[],attributes:{},events:{},removed:false,style:{},getBoundingClientRect(){return {top:120};},
       append(...children){this.children.push(...children);},
       setAttribute(name,value){this.attributes[name]=value;},
       getAttribute(name){return this.attributes[name];},
@@ -124,4 +124,18 @@ test('privacy details are read-only text and can be copied with explicit click',
   assert.equal(dialog.removed,false);
   nodes.find(n=>n.textContent==='취소').events.click[0]();
   assert.equal(await pending,false);
+});
+
+test('dynamic modal captures initial top position without recentering on content changes',async()=>{
+ const {document,window}=load();
+ const content=document.createElement('div');
+ const pending=window.DeckForgeDialogs.show({title:'플러그인 속성',content,anchorTop:true,ask:true});
+ const modal=document.body.children.at(-1);
+ assert.equal(modal.style.top,'120px');
+ assert.equal(modal.style.bottom,'auto');
+ assert.equal(modal.style.marginBlock,'0');
+ assert.equal(modal.style.maxHeight,'min(720px, calc(100vh - 128px))');
+ content.append(document.createElement('div'));
+ assert.equal(modal.style.top,'120px');
+ modal.close('cancel');assert.equal(await pending,false);
 });
