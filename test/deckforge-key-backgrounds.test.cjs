@@ -61,7 +61,8 @@ test('one shared 60-color palette preserves storage and fixed ordering',()=>{
 });
 
 test('startup compositor explicitly repaints the selected state cards',()=>{
- const start=source.indexOf('  // Same compositor feeds'),end=source.indexOf('  async function synchronize()',start);
+ const start=source.indexOf('  // Same compositor feeds'),end=source.indexOf('  async function synchronize(',start);
+ assert.ok(start>=0&&end>start,'startup compositor source block');
  const calls=[],item={type:'sd-plugin'};
  const window={refreshSelectedVisual:()=>calls.push('representative')};
  vm.runInNewContext(source.slice(start,end),{window,renderGrid:()=>calls.push('grid'),state:{selected:0},DeckCore:{visibleActions:()=>[item]},refreshStateTitleCards:actual=>{assert.equal(actual,item);assert.equal(typeof window.renderDeckKeyImage,'function');calls.push('cards');}});
