@@ -705,3 +705,43 @@ test('native author package round-trips through installer validation and refuses
    await assert.rejects(packageFile(input,temp),/reviewed conversion/);
  }finally{await fs.rm(temp,{recursive:true,force:true});}
 });
+
+
+test('official pinned Ulanzi examples are analyzed without pretending unsupported code is convertible',async()=>{
+ const {analyzeSource}=require('../app/streamdeck-editor/ulanzi-converter.cjs');
+ const {analyzeHtml}=require('../app/streamdeck-editor/ulanzi-inspector-analysis.cjs');
+ const dir=path.join(__dirname,'fixtures','ulanzi-sdk');
+ const info=JSON.parse(await fs.readFile(path.join(dir,'sources.json'),'utf8'));
+ assert.equal(info.commit,'550ab80c69285ecf259bd494a7fff767c14f0c0f');
+ // Git may normalize line endings on Windows checkout. Verify exact upstream
+ // bytes or the LF/CRLF equivalent, without rewriting any fixture.
+ const hash=b=>require('node:crypto').createHash('sha1').update('blob '+b.length+'\0').update(b).digest('hex');
+ for(const item of info.files){
+   const raw=await fs.readFile(path.join(dir,item.file)),lf=raw.toString('utf8').replace(/\r\n/g,'\n');
+   assert.ok([raw,Buffer.from(lf),Buffer.from(lf.replace(/\n/g,'\r\n'))].some(b=>hash(b)===item.gitBlobSha),item.file+' fixture provenance');
+ }
+ const load=(name,file)=>fs.readFile(path.join(dir,name,file),'utf8');
+ for(const name of ['api','clock']){
+   const m=JSON.parse(await load(name,'manifest.json'));
+   // API Request source entry is inspected, not its bundled dist artifact.
+   // Clock app.js is an HTML-loaded source, not a direct manifest entry.
+   const result=analyzeSource(m,await load(name,'app.js'));
+   assert.equal(result.candidate,null);
+   assert.ok(result.findings.some(f=>f.code==='private-api'));
+   assert.ok(result.calls.some(c=>c.name==='onRun'&&c.support==='review'));
+   assert.ok(result.calls.some(c=>c.name==='onParamFromApp'&&c.support==='review'));
+   const inspector=analyzeHtml('property-inspector/action/inspector.html',await load(name,'inspector.html'),{inspector:true});
+   assert.equal(inspector.requiresReview,true);
+   assert.ok(inspector.scripts.some(s=>s.kind==='local'));
+   if(name==='api'){
+     assert.ok(inspector.fields.some(f=>f.key==='request_headers'&&f.reason==='sensitive-or-external-value'));
+     assert.ok(inspector.fields.some(f=>f.key==='response_color'&&f.reason==='dynamic-options'));
+     assert.ok(inspector.settingsSchemaCandidate.some(f=>f.key==='request_method'&&f.default==='GET'));
+   }else{
+     assert.ok(inspector.fields.some(f=>f.key==='clock_index'&&f.reason==='dynamic-options'));
+     assert.ok(inspector.fields.some(f=>f.key==='clock_type'&&f.reason==='checkbox-serialization-review'));
+     const html=analyzeHtml('plugin/app.html',await load(name,'app.html'));
+     assert.ok(html.scripts.some(s=>s.path==='plugin/app.js'));
+   }
+ }
+});

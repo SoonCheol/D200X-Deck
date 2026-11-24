@@ -3,6 +3,11 @@
 > 기록일: 2026-11-24 · 상태: **패키지 v1 유지 / 독자 SDK API 1·2 및 패키지 v2 / Ulanzi 정적 분석·제한 후보 변환기 구현**
 > 저장소·브랜치: `SoonCheol/D200X-Deck` / `codex/streamdeck-761-clean-editor`
 
+## 0.14 공식 예제 회귀 및 실제 Windows 암호화 검사 (1.1.127)
+
+- `test/fixtures/ulanzi-sdk`: 공식 Ulanzi SDK commit 550ab80c69285ecf259bd494a7fff767c14f0c0f의 API Request 및 Analog Clock 선택 원본 파일, Apache-2.0 LICENSE, 원본 경로/Git blob 해시. 원본 소스·속성창 정적 검사를 기존 테스트에 추가. 미지원 PrivateAPI, onRun, 설정 전달 이벤트, 동적 옵션·인증 헤더·checkbox 직렬화 구분을 확인한다. 이 fixture는 완전한 플러그인이 아니며 실행/설치/실기 호환을 입증하지 않는다.
+- 기존 Windows 실제 Electron smoke에 네트워크 요청·결과 명령 전달 및 OS safeStorage 암호화 쓰기/재열기/복호화/낡은 revision 거부/등록 해제 테스트 추가. 임시 테스트 디렉터리만 사용, 사용자 데이터 접근 없음. Windows DPAPI는 같은 사용자 계정의 다른 프로세스까지 보호하는 경계가 아니다. 실제 CI 결과 확인 전 성공으로 간주하지 않는다.
+
 ## 0.13 독자 SDK 작성·패키징 CLI 및 Ulanzi PNG 변환 (1.1.126)
 
 - 공식 Node SDK V3.1 `setImage(context,{isDefault:false,icons:{source:'base64',base64:'data:image/png;base64,...'}})`의 정적 literal PNG 임시 표시만 API 1 image로 변환. 기존 PNG 크기/헤더 검사 및 독립 trace 대조. 경로/GIF/SVG/default/clear/동적 값·중복 키·spread는 수동 검토. 원본 실행 금지.

@@ -2,6 +2,10 @@
 
 > **상태 기록 기준: 2026-11-24**. 실제 최신 HEAD는 Git에서 확인하며, 코드·자동 검사·Windows 빌드·사용자 Windows/D200X 실기 결과를 구분한다. 시작 시 `AGENTS.md`와 이 문서만 읽고 로드맵은 필요한 경우에만 참고한다.
 
+## 1.1.127 — 공식 Ulanzi 예제 회귀·Windows 암호화 검증 (2026-11-24)
+
+- 고정 공개 SDK의 선택 원본 파일/라이선스/출처 해시, 실제 API Request/Analog Clock 정적 호환 검사, 기존 Electron smoke에서 비동기 결과 이벤트와 실제 Windows safeStorage 암호화 저장·복원·충돌 검증. 신규 테스트 추가, 실행 결과/실기는 별도. 원본/사용자 데이터 보존.
+
 ## 1.1.126 — 독자 SDK 패키징 및 Ulanzi 임시 PNG 변환 (2026-11-24)
 
 - 공식 V3.1 literal temporary base64 PNG 변환/trace, 독자 작성 native.json 검증·v2 패키징 CLI/왕복 검증·덮어쓰기 금지, 별도 Ulanzi review JSON 생성·미검토 후보 패키징 차단, Counter 예제. 기존 설치/SDK 보존. 1.1.125 CI/Windows 성공 확인, 이번 버전 검증 별도.
