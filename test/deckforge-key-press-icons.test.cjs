@@ -371,3 +371,21 @@ test('gesture icon selection and async composite images respect editor drafts',(
  assert.match(swap,/currentPage\(\)\[index\]=replacement;\s*root=replacement/);
  assert.doesNotMatch(swap,/Object\.assign\(root,next/);
 });
+
+
+test('gesture number alone selects representative on either state card and distinguishes fallback',()=>{
+ const start=src.indexOf('function attachPressPreviewBadges('),end=src.indexOf('function renderPressTabs(',start);
+ const hosts=[{append(x){this.badge=x;}},{append(x){this.badge=x;}}];
+ const root={pressMeta:{representative:'single'}},actions={single:{},double:{},hold:{}};
+ const inspector={querySelectorAll:()=>hosts,querySelector:()=>null};let displayed=actions.single,changes=0;
+ const ctx={activePressTab:'double',PRESS_TABS:[['single','one','1'],['double','two','2'],['hold','three','3']],
+  pressSlotAction:(_r,s)=>actions[s],pressDisplayAction:()=>displayed,pressEnsureMeta(){},
+  persistInspectorChange:()=>changes++,renderGrid(){},renderInspector(){},
+  document:{createElement:tag=>({tag,dataset:{},setAttribute(){},addEventListener(_e,f){this.click=f;}})}};
+ const attach=vm.runInNewContext(src.slice(start,end)+';attachPressPreviewBadges',ctx);
+ attach(root,inspector);assert.equal(hosts[0].badge.textContent,'2');assert.equal(hosts[1].badge.dataset.representative,'none');
+ hosts[1].badge.click({stopPropagation(){}});assert.equal(root.pressMeta.representative,'double');assert.equal(changes,1);
+ attach(root,inspector);assert.equal(hosts[0].badge.dataset.representative,'preferred');
+ displayed=actions.double;attach(root,inspector);assert.equal(hosts[1].badge.dataset.representative,'displayed');
+ assert.equal(hosts[0].badge.tag,'button');
+});

@@ -122,3 +122,42 @@ test('named-pair markers are explicit and changing one image ends the exception'
  icons.off={kind:'file',value:'A',packId:'pack'};assert.equal(check(),false);
  assert.match(editor,/await raster\(candidate\)!==off.value\|\|await raster\(companion\)!==on.value/);
 });
+
+
+test('state artwork swaps never detach palette or gesture controls',()=>{
+ const start=editor.indexOf('function replaceStateCardArtwork('),end=editor.indexOf('// Preview state title artwork',start);
+ const swap=vm.runInNewContext(editor.slice(start,end)+';replaceStateCardArtwork');
+ const removed=[],palette={nodeType:1,matches:()=>true,remove:()=>removed.push('palette')},badge={nodeType:1,matches:()=>true,remove:()=>removed.push('badge')};
+ const artwork={nodeType:1,matches:()=>false,remove:()=>removed.push('artwork')},text={nodeType:3,remove:()=>removed.push('text')};
+ const next={};let prepended;
+ swap({childNodes:[artwork,palette,badge,text],prepend:x=>prepended=x},next);
+ assert.deepEqual(removed,['artwork','text']);assert.equal(prepended,next);
+});
+test('palette opens from either card, retains independent drafts, toggles and cleans up on inspector abort',()=>{
+ const start=editor.indexOf('let activeKeyBackgroundClose=null;'),end=editor.indexOf('// Prefer the action panel beside',start);
+ assert.ok(start>=0&&end>start);
+ const root={addEventListener(){}},body={append(node){node.isConnected=true;}};
+ const listener=new AbortController();let positioned=[],saved=0;
+ function element(){
+  const handlers={},nodes={};return {isConnected:false,handlers,attrs:{},setAttribute(k,v){this.attrs[k]=v;},
+   addEventListener(k,fn){handlers[k]=fn;},append(node){this.child=node;node.isConnected=true;},
+   remove(){this.isConnected=false;},contains(x){return x===this;},querySelector(k){return nodes[k]??=(element());}};
+ }
+ const document={body,createElement:element,addEventListener(){}};
+ const ctx={state:{selected:0},$:()=>root,document,window:{addEventListener(){}},inspectorListener:listener,
+  PALETTE_ICON:'svg',sharedPaletteMarkup:()=>'',validPaletteColor:()=>true,bindSharedColorPalette:(popup,_p,_g,apply)=>{popup.apply=apply;},
+  positionAppearancePalette:(popup,trigger)=>positioned.push({popup,trigger}),persistInspectorChange:()=>saved++,renderGrid(){},refreshTitlePreview(){}};
+ const bind=vm.runInNewContext(editor.slice(start,end)+';bindKeyBackgroundControl',ctx);
+ const up=element(),down=element(),item={settings:{}},click={stopPropagation(){}};
+ bind(up,item,'first');bind(down,item,'second');
+ up.child.handlers.click(click);const first=positioned.at(-1).popup;
+ assert.equal(first.isConnected,true);assert.equal(up.child.attrs['aria-expanded'],'true');
+ first.apply('#ff0000');assert.equal(item.settings.keyBackgrounds.first.color,'#ff0000');
+ first.querySelector('.key-background-enabled').checked=true;first.querySelector('.key-background-enabled').handlers.change();
+ assert.equal(item.settings.keyBackgrounds.first.enabled,true);
+ down.child.handlers.click(click);const second=positioned.at(-1).popup;
+ assert.equal(first.isConnected,false);assert.equal(up.child.attrs['aria-expanded'],'false');
+ second.apply('#00ff00');assert.equal(item.settings.keyBackgrounds.second.color,'#00ff00');assert.equal(item.settings.keyBackgrounds.first.color,'#ff0000');
+ assert.equal(saved,3);down.child.handlers.click(click);assert.equal(second.isConnected,false);
+ up.child.handlers.click(click);const third=positioned.at(-1).popup;listener.abort();assert.equal(third.isConnected,false);
+});

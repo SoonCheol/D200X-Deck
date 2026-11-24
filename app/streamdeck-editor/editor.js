@@ -2422,35 +2422,30 @@ function setPressSlot(index,slot,next,immediate=false){
   return true;
 }
 function attachPressPreviewBadges(root,inspector){
-  // The gesture number and representative choice belong on the upper key preview,
-  // never in the tab or in the PNG uploaded to the physical D200X.
+  // Both state cards represent the same gesture. The number itself is the
+  // representative selector; no independent check button or PNG overlay.
   const stateIcons=Array.from(inspector.querySelectorAll('.sdk-state-icon[data-state-title] .sdk-state-preview'));
   const image=inspector.querySelector('#icon-preview');
   const images=stateIcons.length?stateIcons:(image?[image]:[]);
-  if(!images.length)return;
   const action=pressSlotAction(root,activePressTab);
   const [,,number]=PRESS_TABS.find(([slot])=>slot===activePressTab);
-  for(const [pos,host] of images.entries()){
-    const badge=document.createElement('span');badge.className='press-image-number';
-    badge.textContent=number;badge.title='현재 편집 중인 누르기: '+number+'번';
-    host.append(badge);
-    // One representative selector per action, regardless of Key Up/Down.
-    if(pos!==0)continue;
-    const button=document.createElement('button');button.type='button';
-  button.className='press-image-representative';
   const preferred=(root.pressMeta?.representative||'single')===activePressTab;
   const displayed=!!action&&pressDisplayAction(root)===action;
-  button.textContent=displayed?'✓':preferred?'◎':'○';
-  button.title=displayed?'현재 표시되는 대표 아이콘':preferred
-    ?'저장된 대표 선택 · 현재 비활성으로 다른 액션이 표시 중':'이 액션을 대표 아이콘으로 선택';
-  button.setAttribute('aria-label','현재 탭의 액션을 대표 아이콘으로 선택');
-  button.disabled=!action;
-  if(displayed)button.classList.add('chosen');
-  button.addEventListener('click',()=>{
-    pressEnsureMeta(root);root.pressMeta.representative=activePressTab;
-    persistInspectorChange();renderGrid();renderInspector();
-  });
-    host.append(button);
+  for(const host of images){
+    const badge=document.createElement('button');badge.type='button';badge.className='press-image-number';
+    badge.textContent=number;badge.disabled=!action;
+    badge.dataset.representative=displayed?'displayed':preferred?'preferred':'none';
+    badge.title=displayed?'현재 표시되는 대표 아이콘 · '+number+'번':
+      preferred?'저장된 대표 선택 · 현재 비활성으로 다른 액션 표시 중':'이 액션을 대표 아이콘으로 선택 · '+number+'번';
+    badge.setAttribute('aria-label',badge.title);
+    badge.setAttribute('aria-pressed',String(displayed));
+    badge.addEventListener('click',event=>{
+      event.stopPropagation();
+      if(!action||preferred)return;
+      pressEnsureMeta(root);root.pressMeta.representative=activePressTab;
+      persistInspectorChange();renderGrid();renderInspector();
+    });
+    host.append(badge);
   }
 }
 function renderPressTabs(root,inspector){
@@ -2711,9 +2706,11 @@ function appearancePalettePosition(inspector,trigger,bounds,width,height){
   return {x,y};
 }
 function positionAppearancePalette(popup,trigger){
-  const {x,y}=appearancePalettePosition($('inspector').getBoundingClientRect(),trigger.getBoundingClientRect(),popup.getBoundingClientRect(),window.innerWidth,window.innerHeight);
+  const root=$('inspector'),region=root.querySelector('.state-title-layout')||root;
+  const {x,y}=titlePopoverPosition(region.getBoundingClientRect(),trigger.getBoundingClientRect(),popup.getBoundingClientRect(),window.innerWidth,window.innerHeight);
   popup.style.left=x+'px';popup.style.top=y+'px';
 }
+let activeKeyBackgroundClose=null;
 function bindKeyBackgroundControl(preview,item,key){
   if(!preview||state.selected>=13)return;
   const root=$('inspector'),trigger=document.createElement('button');
@@ -2728,11 +2725,12 @@ function bindKeyBackgroundControl(preview,item,key){
     item.settings.keyBackgrounds[key]={...previous,[field]:value};
     persistInspectorChange();renderGrid();refreshTitlePreview(item);
   };
-  const close=()=>{popup?.remove();popup=null;trigger.setAttribute('aria-expanded','false');};
+  const close=()=>{popup?.remove();popup=null;trigger.setAttribute('aria-expanded','false');if(activeKeyBackgroundClose===close)activeKeyBackgroundClose=null;};
+  inspectorListener.signal.addEventListener('abort',close,{once:true});
   trigger.addEventListener('click',event=>{
     event.stopPropagation();
     if(popup?.isConnected){close();return;}
-    root.querySelector('.key-background-popover')?._close?.();
+    activeKeyBackgroundClose?.();
     popup=document.createElement('div');popup.className='title-palette key-background-popover';
     popup._close=close;
     popup.innerHTML='<div class="key-background-settings"><label><input type="checkbox" class="key-background-enabled"> 단추 배경색</label><input aria-label="단추 배경색" type="color" class="key-background-color"></div>'+sharedPaletteMarkup('key-palette','단추 배경색');
@@ -2741,13 +2739,17 @@ function bindKeyBackgroundControl(preview,item,key){
     enabled.addEventListener('change',()=>save('enabled',enabled.checked));
     color.addEventListener('input',()=>save('color',color.value));
     bindSharedColorPalette(popup,'key-palette',()=>get().color,value=>{color.value=value;save('color',value);},close);
-    root.append(popup);trigger.setAttribute('aria-expanded','true');
+    // Use a viewport-level popup, outside the clipped icon/inspector region.
+    document.body.append(popup);activeKeyBackgroundClose=close;
+    trigger.setAttribute('aria-expanded','true');
     positionAppearancePalette(popup,trigger);
   });
   document.addEventListener('pointerdown',event=>{
     if(popup?.isConnected&&!popup.contains(event.target)&&!trigger.contains(event.target))close();
   },{signal:inspectorListener.signal});
   window.addEventListener('resize',close,{signal:inspectorListener.signal});
+  root.addEventListener('scroll',close,{signal:inspectorListener.signal});
+  document.addEventListener('keydown',event=>{if(event.key==='Escape'&&popup)close();},{signal:inspectorListener.signal});
 }
 
 // Prefer the action panel beside the complete icon preview region, not an
@@ -3429,6 +3431,14 @@ function renderControlInspector(){
   updateInspectorSaveButtons();
 
 }
+// Preserve all interactive overlays in place, including the palette button.
+function replaceStateCardArtwork(host,rendered){
+  for(const node of Array.from(host.childNodes)){
+    if(node.nodeType===1&&node.matches('.key-background-trigger,.press-image-number'))continue;
+    node.remove();
+  }
+  host.prepend(rendered);
+}
 // Preview state title artwork through the same compositor as the physical key.
 async function refreshStateTitleCards(item){
   const root=$('inspector');
@@ -3462,10 +3472,9 @@ async function refreshStateTitleCards(item){
       const rendered=document.createElement('img');
       rendered.src='data:image/png;base64,'+png;
       rendered.alt=(second?'두 번째':'첫 번째')+' 상태 제목과 아이콘 미리보기';
-      const paletteTrigger=img.querySelector('.key-background-trigger');
-      const overlays=Array.from(img.querySelectorAll(':scope > .press-image-number,:scope > .press-image-representative'));
-      img.replaceChildren(rendered,...overlays);
-      if(paletteTrigger)img.append(paletteTrigger);
+      if(typeof rendered.decode==='function')await rendered.decode();
+      if(root.dataset.stateCardVersion!==version||!img.isConnected||!isCurrentInspectorAction(item))return;
+      replaceStateCardArtwork(img,rendered);
     }catch(error){console.warn('상태별 제목 이미지 미리보기 실패',error);}
   }
 }
