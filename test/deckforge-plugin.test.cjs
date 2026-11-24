@@ -745,3 +745,63 @@ test('official pinned Ulanzi examples are analyzed without pretending unsupporte
    }
  }
 });
+
+
+test('native periodic display uses permission, skips busy ticks and stops on context retirement',async()=>{
+ let now=1000;const calls=[],events=[];
+ const host=new NativePluginHost('/unused',e=>events.push(e),()=>({async run(_s,input){
+   calls.push(input.event.type);return {ops:input.event.type==='tick'?[{op:'title',value:'Tick'}]:[],memory:{}};
+ },close(){}}),{now:()=>now});
+ const m={...scriptManifest,permissions:['display','timer.tick'],actions:[{...scriptManifest.actions[0],tickIntervalMs:1000}]};
+ const cfg={context:'tick',slot:0,pluginUUID:nativeId,actionUUID:nativeId+'.toggle',settings:{}};
+ assert.doesNotThrow(()=>validateNativeManifest(m));
+ assert.throws(()=>validateNativeManifest({...m,permissions:['display']}),/tick interval/);
+ assert.throws(()=>validateNativeManifest({...m,actions:[{...m.actions[0],tickIntervalMs:1}]}),/tick interval/);
+ try{
+   host.sync([cfg],[m]);const ctx=host.contexts.get(cfg.context);await ctx.queue;
+   host.tick(1999);assert.deepEqual(calls,['appear']);
+   now=2000;host.tick();await ctx.queue;assert.equal(calls.at(-1),'tick');
+   now=100000;host.tick();await ctx.queue;assert.equal(calls.filter(x=>x==='tick').length,2);
+   ctx.pending=1;now=101000;host.tick();ctx.pending=0;
+   assert.equal(calls.filter(x=>x==='tick').length,2);
+   host.suspend();assert.equal(host.tickTimer,null);now=200000;host.tick();
+   host.resume();await ctx.queue;assert.equal(calls.at(-1),'appear');
+   assert.equal(ctx.tickDue,201000);
+   host.sync([],[m]);assert.equal(host.tickTimer,null);
+   host.tick(300000);assert.equal(calls.filter(x=>x==='tick').length,2);
+ }finally{host.close();}
+});
+test('periodic network permits only explicitly authorized GET and never chains networkResult',()=>{
+ const endpoint={id:'status',url:'https://example.com/status',method:'GET'};
+ const m={...scriptManifest,permissions:['display','timer.tick','network.request','network.poll'],networkEndpoints:[endpoint],
+  actions:[{...scriptManifest.actions[0],tickIntervalMs:5000}]};
+ assert.doesNotThrow(()=>validateNativeManifest(m));
+ assert.throws(()=>validateNativeManifest({...m,permissions:['display','network.request','network.poll']}),/polling requires/);
+ const host=new NativePluginHost('/unused');
+ const ctx={pluginUUID:nativeId,action:m.actions[0],permissions:m.permissions,networkEndpoints:[endpoint]};
+ const op={op:'networkRequest',endpoint:'status',body:null};
+ assert.deepEqual(host.validateScriptOps(ctx,'tick',[op]).effects,[op]);
+ assert.throws(()=>host.validateScriptOps({...ctx,permissions:['display','timer.tick','network.request']},'tick',[op]),/input event/);
+ assert.throws(()=>host.validateScriptOps({...ctx,action:{...ctx.action,tickIntervalMs:1000}},'tick',[op]),/input event/);
+ assert.throws(()=>host.validateScriptOps({...ctx,networkEndpoints:[{...endpoint,method:'POST'}]},'tick',[{...op,body:{}}]),/must use GET/);
+ assert.throws(()=>host.validateScriptOps(ctx,'networkResult',[op]),/input event/);
+ assert.throws(()=>host.validateScriptOps(ctx,'tick',[{op:'navigate',target:'page',value:1}]),/input event/);
+ host.close();
+});
+
+
+test('periodic sweep cap does not starve contexts beyond the first eight',async()=>{
+ let now=0;const events=[];
+ const host=new NativePluginHost('/unused',e=>events.push(e),()=>({async run(_s,input){
+   return {ops:input.event.type==='tick'?[{op:'title',value:'Tick'}]:[],memory:{}};
+ },close(){}}),{now:()=>now});
+ const m={...scriptManifest,permissions:['display','timer.tick'],actions:[{...scriptManifest.actions[0],tickIntervalMs:1000}]};
+ const configs=Array.from({length:10},(_,slot)=>({context:'tick-'+slot,slot,pluginUUID:nativeId,actionUUID:nativeId+'.toggle',settings:{}}));
+ const flush=()=>Promise.all([...host.contexts.values()].map(c=>c.queue));
+ try{
+   host.sync(configs,[m]);await flush();
+   now=1000;host.tick();await flush();assert.equal(events.filter(e=>e.kind==='setTitle').length,8);
+   now=2000;host.tick();await flush();
+   assert.equal(new Set(events.filter(e=>e.kind==='setTitle').map(e=>e.context)).size,10);
+ }finally{host.close();}
+});

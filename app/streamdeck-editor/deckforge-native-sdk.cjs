@@ -14,7 +14,7 @@ const SUFFIX='.deckforge-native.json', LIMIT=1024*1024;
 const ID=/^com\.deckforge\.native\.[a-z0-9][a-z0-9.-]{0,110}$/;
 const EVENTS=new Set(['appear','disappear','settings','press','release','rotateLeft','rotateRight','heldRotateLeft','heldRotateRight']);
 const OPS=new Set(['title','titleFromSetting','state','toggleState','image']);
-const EXTRA_PERMISSIONS=['settings.write','navigation','wide.mode','global.settings','wide.overlay','network.request'];
+const EXTRA_PERMISSIONS=['settings.write','navigation','wide.mode','global.settings','wide.overlay','network.request','timer.tick','network.poll'];
 const INPUT_EVENTS=new Set(['press','release','rotateLeft','rotateRight','heldRotateLeft','heldRotateRight']);
 const obj=x=>x!==null&&typeof x==='object'&&!Array.isArray(x);
 const validText=(x,n)=>typeof x==='string'&&x.length>0&&x.length<=n;
@@ -29,10 +29,11 @@ function validateNativeManifest(m){
   check(Array.isArray(m.permissions)&&m.permissions.includes('display')&&new Set(m.permissions).size===m.permissions.length&&
     m.permissions.every(p=>p==='display'||(m.apiVersion===2&&EXTRA_PERMISSIONS.includes(p))),'unsupported permissions');
   validateNetworkEndpoints(m.networkEndpoints,m.permissions);
+  check(!m.permissions.includes('network.poll')||(m.permissions.includes('network.request')&&m.permissions.includes('timer.tick')),'network polling requires timer and network permissions');
   check(Array.isArray(m.actions)&&m.actions.length>0&&m.actions.length<=64,'invalid actions');
   const ids=new Set();
   for(const a of m.actions){
-    check(exact(a,m.apiVersion===1?['id','name','controllers','states','events','settingsSchema']:['id','name','controllers','states','script','settingsSchema'])&&typeof a.id==='string'&&
+    check(exact(a,m.apiVersion===1?['id','name','controllers','states','events','settingsSchema']:['id','name','controllers','states','script','settingsSchema','tickIntervalMs'])&&typeof a.id==='string'&&
       a.id.startsWith(m.id+'.')&&/^[a-z0-9.-]+$/.test(a.id)&&a.id.length<=180&&
       !a.id.endsWith('.')&&!a.id.includes('..')&&!ids.has(a.id)&&validText(a.name,180),'invalid action');
     ids.add(a.id);
@@ -41,6 +42,7 @@ function validateNativeManifest(m){
       new Set(a.controllers).size===a.controllers.length&&a.controllers.every(c=>['Keypad','Encoder'].includes(c))&&
       [1,2].includes(a.states),'invalid action controllers or states');
     if(m.apiVersion===2){
+      check(a.tickIntervalMs===undefined||(m.permissions.includes('timer.tick')&&Number.isInteger(a.tickIntervalMs)&&a.tickIntervalMs>=1000&&a.tickIntervalMs<=3600000),'invalid or unauthorized tick interval');
       check(typeof a.script==='string'&&a.script.length>0&&Buffer.byteLength(a.script)<=65536,'invalid JavaScript source');
       // Compile for syntax validation only. Never invoke plugin code in Node.
       try{new Function('event','settings','state','memory','api','"use strict";\n'+a.script);}catch{throw Error('DeckForge SDK: invalid JavaScript syntax');}
@@ -91,6 +93,7 @@ class NativePluginHost{
     this.versions=new NativeVersionStore(this.root,validateNativeManifest);
     this.dependencyWarnings=new Map();
     this.networkRequest=options.networkRequest||requestEndpoint;this.networkPending=new Set();
+    this.tickTimer=null;this.now=options.now||Date.now;
   }
   async manifests(){
     await fs.mkdir(this.root,{recursive:true});const items=[];
@@ -163,7 +166,7 @@ class NativePluginHost{
       if(this.closed)return;
       for(const [id,ctx] of retired){
         this.contexts.set(id,ctx);
-        if(!ctx.failed&&!this.suspended)this.run(ctx,'appear');
+        if(!ctx.failed&&!this.suspended)this.initialize(ctx);
       }
     };
     await this.versions.replace(m,expectedRevision,stop,restore);
@@ -174,7 +177,8 @@ class NativePluginHost{
     const normal=[],effects=[];
     for(const op of program){
       if(OPS.has(op?.op)){normal.push(op);continue;}
-      check(INPUT_EVENTS.has(event),'privileged operation requires input event');
+      const polling=event==='tick'&&op?.op==='networkRequest'&&ctx.permissions.includes('network.poll')&&ctx.action.tickIntervalMs>=5000;
+      check(INPUT_EVENTS.has(event)||polling,'privileged operation requires input event');
       check(effects.length===0,'only one privileged operation per event');
       if(op?.op==='settings'){
         check(ctx.permissions.includes('settings.write')&&exact(op,['op','value'])&&obj(op.value)&&
@@ -199,7 +203,8 @@ class NativePluginHost{
           (target==='back'&&value===null),'invalid navigation target');
       }else if(op?.op==='networkRequest'){
         check(ctx.permissions.includes('network.request'),'unauthorized network request');
-        validateNetworkRequest(op,ctx.networkEndpoints);
+        const endpoint=validateNetworkRequest(op,ctx.networkEndpoints);
+        check(!polling||endpoint.method==='GET','periodic network request must use GET');
       }else if(op?.op==='wideOverlay'){
         check(ctx.permissions.includes('wide.overlay'),'unauthorized wide overlay');
         validateWideOverlay(op);
@@ -208,7 +213,7 @@ class NativePluginHost{
       }else throw Error('DeckForge SDK: unsupported operation');
       effects.push(op);
     }
-    const {script,...action}=ctx.action;
+    const {script,tickIntervalMs,...action}=ctx.action;
     validateNativeManifest({apiVersion:1,id:ctx.pluginUUID,name:'Runtime',version:'1',
       permissions:['display'],actions:[{...action,events:{press:normal}}]});
     return {normal,effects};
@@ -229,6 +234,7 @@ class NativePluginHost{
       }
   }
   resetScript(ctx){
+    ctx.tickDue=null;
     this.cancelNetwork(ctx);
     if(ctx.wideOverlaySent){ctx.wideOverlaySent=false;this.onUpdate({kind:'nativeWideReleased',context:ctx.context});}
     clearTimeout(ctx.recoveryTimer);ctx.recoveryTimer=null;
@@ -250,7 +256,7 @@ class NativePluginHost{
       if(this.closed||this.suspended||ctx.epoch!==epoch||this.contexts.get(ctx.context)!==ctx)return;
       ctx.failed=false;ctx.pressed=false;ctx.memory={};
       // Only initialize a new instance: never replay a press or write.
-      this.run(ctx,'appear');
+      this.initialize(ctx);
     },this.recoveryDelay[attempt]);
     ctx.recoveryTimer.unref?.();
   }
@@ -288,6 +294,34 @@ class NativePluginHost{
       if(ctx.networkToken===token)ctx.networkToken=null;
       this.networkPending.delete(token);
     });
+  }
+  initialize(ctx){
+    ctx.tickDue=ctx.apiVersion===2&&ctx.permissions.includes('timer.tick')&&ctx.action.tickIntervalMs?
+      this.now()+ctx.action.tickIntervalMs:null;
+    this.run(ctx,'appear');
+    this.reconcileTickTimer();
+  }
+  reconcileTickTimer(){
+    const needed=!this.closed&&!this.suspended&&[...this.contexts.values()].some(ctx=>!ctx.failed&&ctx.tickDue!==null&&ctx.tickDue!==undefined);
+    if(needed&&!this.tickTimer){
+      this.tickTimer=setInterval(()=>this.tick(),1000);this.tickTimer.unref?.();
+    }else if(!needed&&this.tickTimer){clearInterval(this.tickTimer);this.tickTimer=null;}
+  }
+  tick(now=this.now()){
+    if(this.closed||this.suspended)return;
+    let dispatched=0;
+    // Oldest due context first: the per-sweep cap must not starve later slots.
+    const due=[...this.contexts.values()].filter(ctx=>!ctx.failed&&ctx.tickDue!=null&&now>=ctx.tickDue)
+      .sort((a,b)=>a.tickDue-b.tickDue);
+    for(const ctx of due){
+      // Skip busy periods rather than queuing missed ticks. Limit work per
+      // sweep so periodic plugins do not monopolize the input dispatcher.
+      if(ctx.pending||ctx.networkToken){ctx.tickDue=now+ctx.action.tickIntervalMs;continue;}
+      if(dispatched>=8)continue;
+      ctx.tickDue=now+ctx.action.tickIntervalMs;
+      dispatched++;this.runScript(ctx,'tick');
+    }
+    this.reconcileTickTimer();
   }
   runScript(ctx,event,response=null,expectedSettings=null){
     if(ctx.pending>=16){this.fail(ctx,Error('JavaScript SDK event queue limit'));return false;}
@@ -381,7 +415,7 @@ class NativePluginHost{
         if(ctx)this.retire(ctx);
         ctx={...cfg,action:a,apiVersion:plugin.apiVersion,permissions:[...plugin.permissions],networkEndpoints:plugin.networkEndpoints||[],signature,settings:incoming,state:0,pressed:false,failed:false,
           epoch:0,pending:0,queue:Promise.resolve(),runner:null,memory:{},recoveryAttempts:0,recoveryTimer:null};
-        this.contexts.set(cfg.context,ctx);this.run(ctx,'appear');
+        this.contexts.set(cfg.context,ctx);this.initialize(ctx);
       }else{
         const changed=JSON.stringify(ctx.settings)!==JSON.stringify(incoming);
         ctx.settings=incoming;
@@ -395,6 +429,7 @@ class NativePluginHost{
       }else this.retire(ctx);
       this.contexts.delete(id);
     }
+    this.reconcileTickTimer();
   }
   key(context,gesture,ticks=1){
     const ctx=this.contexts.get(context);
@@ -407,9 +442,9 @@ class NativePluginHost{
     return true;
   }
   closeRetired(){for(const runner of this.retired)runner.close();this.retired.clear();}
-  suspend(){this.suspended=true;this.closeRetired();for(const ctx of this.contexts.values()){ctx.pressed=false;this.resetScript(ctx);}}
-  resume(){if(this.closed)return;this.suspended=false;for(const ctx of this.contexts.values()){ctx.failed=false;ctx.recoveryAttempts=0;this.run(ctx,'appear');}}
-  close(){this.closed=true;this.closeRetired();for(const ctx of this.contexts.values())this.resetScript(ctx);this.contexts.clear();}
+  suspend(){this.suspended=true;this.closeRetired();for(const ctx of this.contexts.values()){ctx.pressed=false;this.resetScript(ctx);}this.reconcileTickTimer();}
+  resume(){if(this.closed)return;this.suspended=false;for(const ctx of this.contexts.values()){ctx.failed=false;ctx.recoveryAttempts=0;this.initialize(ctx);}}
+  close(){this.closed=true;this.closeRetired();for(const ctx of this.contexts.values())this.resetScript(ctx);this.contexts.clear();this.reconcileTickTimer();}
 }
 // Compatibility host stays unchanged; only validated native IDs are routed here.
 class PluginRouter{

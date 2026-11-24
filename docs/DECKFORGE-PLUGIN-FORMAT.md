@@ -3,6 +3,11 @@
 > 기록일: 2026-11-24 · 상태: **패키지 v1 유지 / 독자 SDK API 1·2 및 패키지 v2 / Ulanzi 정적 분석·제한 후보 변환기 구현**
 > 저장소·브랜치: `SoonCheol/D200X-Deck` / `codex/streamdeck-761-clean-editor`
 
+## 0.15 활성 컨텍스트 주기적 실행 (1.1.128)
+
+- API 2 선택 권한 `timer.tick`, action `tickIntervalMs` 1000~3600000. 등록된 활성 컨텍스트만 host tick 이벤트 수신, 단일 1초 sweep, 한 sweep 최대 8개, 실행/통신 중 누락 tick은 재생하지 않는다. 페이지 이탈/교체/오류/절전/종료 시 중단; 복귀·재등록은 appear 이후 새 간격부터. `examples/deckforge-sdk/clock.native.json` 예제. 원래 JavaScript 타이머/임의 await는 미지원.
+- 별도 `network.poll` 권한은 `timer.tick`과 `network.request`가 모두 필요하며 5초 이상의 tick 간격에서 승인된 GET endpoint만 허용. POST·설정·탐색·와이드 제어 및 연쇄 networkResult 요청은 주기 실행에서 금지. 기존 TLS·동시 요청·인증·취소 제한 유지. 설치 확인창에 두 권한 표시. 자동 검사 추가, 실제 네트워크·실기 별도.
+
 ## 0.14 공식 예제 회귀 및 실제 Windows 암호화 검사 (1.1.127)
 
 - `test/fixtures/ulanzi-sdk`: 공식 Ulanzi SDK commit 550ab80c69285ecf259bd494a7fff767c14f0c0f의 API Request 및 Analog Clock 선택 원본 파일, Apache-2.0 LICENSE, 원본 경로/Git blob 해시. 원본 소스·속성창 정적 검사를 기존 테스트에 추가. 미지원 PrivateAPI, onRun, 설정 전달 이벤트, 동적 옵션·인증 헤더·checkbox 직렬화 구분을 확인한다. 이 fixture는 완전한 플러그인이 아니며 실행/설치/실기 호환을 입증하지 않는다.
