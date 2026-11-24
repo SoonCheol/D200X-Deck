@@ -2,7 +2,7 @@
 > 2026-11-24 · 현재 스냅샷, 누적 금지.
 ## 개발 기준
 - 저장소 SoonCheol/D200X-Deck · 브랜치 codex/streamdeck-761-clean-editor · Draft PR #5 유지.
-- 로컬 E:\Codex\DeckForge. 최신 HEAD는 Git에서 확인. 소스 버전 **1.1.229** (10B 유휴/실행 중 장애 분리 검사 후보).
+- 로컬 E:\Codex\DeckForge. 최신 HEAD는 Git에서 확인. 소스 버전 **1.1.230** (10B 실제 종료 통지 경쟁 수정 후보).
 - 감사 기준 `49ba39fe094ee808c5715f2348be0789f61d5e20`. CI #1221 성공; Windows #930 사용자 인수인계.
 ## 현재 상태
 - 독자 SDK API 1/2, 공개 25개 함수, HTTP/WSS, 전역 서비스/공유 상태, 동적 속성, 암호화·권한·패키지, HA 0.1.8 후보 및 Stream Deck 호환 호스트 구현. SDK 1.0 정식 완성 선언 보류.
@@ -33,9 +33,9 @@
 - 1.1.222: 오래된 압축 실패 시 최신 PAGE 보존, 절전 중 전송 보류/깨우기 전체 복원, 종료 후 지연 HID 연결 차단, KEY 실패 재연결 mock 검증 추가. CI #1270·Windows #976 성공. KEY 기본 OFF 유지.
 - 1.1.223: purge 성공 뒤 정확한 pluginUUID 등록 액션 전체 프로필/템플릿 정리, 기존 버튼 위치/다른 액션 유지, 저장 실패 시 UI 원복. 이미 삭제된 누락 ID는 설치/보존 부재 재검사 및 명시 승인 후 정리. 사용자 데이터 직접 조작 없음. CI #1271·입력 #519·Windows #977 성공. GUI 별도.
 - 1.1.224: --test-key-transport 실행 인자에서만 KEY 허용, 동일 페이지 native 단일 일반 키 부분 렌더만 liveOnly 전달. 일반 실행/와이드 경고는 PAGE. USB log 구조화 slot/ZIP bytes/session, AI 조회, 집중 검사 추가. CI #1272·입력 #520·Windows #978 성공, 설치본 게시 확인. 실제 KEY 미검증.
-- 1.1.225: 10A 기존 Windows Electron smoke에 Model 2 실제 24쌍 service/button 반복, 6개 추가 ID LRU 퇴거·realm/memory·PID·종료 확인 추가. USB 120회씩 기본/시험 mock 화면 일치 검사. 장시간 실기 soak·OOM 판정과 구분. CI #1273 성공; Windows #979 실패(고정 PID 단정, 8952≠3624).
+- 1.1.225: Model 2 실제 반복·LRU 및 USB mock 검사 추가. CI #1273 성공; Windows #979 고정 PID 가정 실패. 장시간 실기/OOM 별도.
 - 1.1.226: 반복 검사 PID 고정 대신 runner 객체 재사용과 매회 scope PID 분리/realm/memory 검증, PID 목록 실측. Model 2 실제 Electron 입력·연산·출력·draw 한계 5종, 서비스 생존/버튼 복구, opaque local/sessionStorage 및 CSP data fetch 검증 추가. 실제 OOM 미실시. CI #1274·Windows #980 성공. 24쌍+6 lease, 2650ms, 최대 idle 3; USB mock PAGE 121 vs PAGE 17+KEY 104. Model5 standard storage 허용/opaque worker 실패 재확인.
-- 1.1.227~228: CI #1275~1276 성공, Windows #981~982 종료 통지 timeout 실패. #982 실행 진입/반복/자원 제한 통과. 1.1.229: 공식 crash API, 유휴/실행 중 분리 및 app/webContents 통지 진단. 생산 코드 미변경, 검사 대기.
+- 1.1.227~229: CI #1275~1277 성공, Windows #981~983 실패. #983 유휴 crash/복구 성공, 실행 중 frame disposed 직후 destroy로 통지 미관측. 1.1.230: 해당 오류에만 500ms 이내 수명 종료 통지 대기, 재실행 금지·기존 deadline 유지. 검사 대기.
 ## 다음 작업
 - **10 통합:** process-loss 검사 후 10C 출시 판정; Model5 차단 유지, OOM/실기 미검증 명시. 09 실제 trial 미검증 KEY 기본 OFF. HA 실제 서버 별도. Model 2 유지; 04B 저장소 격리·OOM·자원 한도 검증 전 Model 5 활성화 금지. 기존 실기 미리보기 정책 유지.
 - 기존 기능/데이터/API·보안 보존, 테스트/CI/Windows/실기 구분. 미측정 성능 수치 단정 금지.

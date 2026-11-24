@@ -173,6 +173,21 @@ function createScriptRunner(pluginId,scope='legacy'){
         if(closed)throw unavailable('JavaScript SDK renderer closed');
         return result;
       }catch(error){
+        // Electron can reject a disposed-frame request before delivering
+        // render-process-gone. Immediate destroy() can suppress that signal.
+        // Keep the lane busy and discard the result while waiting briefly for
+        // the existing lifetime handler; explicit cancellation still closes
+        // immediately. A message alone never grants recoverable error status.
+        if(!closed&&error?.message==='Render frame was disposed before the request completed'){
+          await new Promise(resolve=>{
+            const finish=()=>{
+              clearTimeout(timer);lifetime.signal.removeEventListener('abort',finish);resolve();
+            };
+            const timer=setTimeout(finish,500);
+            lifetime.signal.addEventListener('abort',finish,{once:true});
+            if(lifetime.signal.aborted)finish();
+          });
+        }
         const wasClosed=closed;
         close();
         if(error?.code==='SDK_RUNTIME_UNAVAILABLE')throw error;

@@ -252,7 +252,13 @@ async function verifyModel2Limits(){
   assert.deepEqual(storage,title('true:true:undefined:undefined'));
   const noNetwork=await button.run("let denied=false;try{await fetch('data:text/plain,probe')}catch{denied=true}api.setTitle(String(denied));",input);
   assert.deepEqual(noNetwork,title('true'));
-  console.log('MODEL2_BOUNDED_LIMITS '+JSON.stringify({rejectedCases:5,serviceSurvived:true,buttonRecovered:true,opaqueStorageBlocked:true,dataFetchBlocked:true,oomTested:false}));
+  // An ordinary plugin error must not become a recoverable renderer loss
+  // merely by imitating Electron's disposed-frame error text.
+  await assert.rejects(button.run("throw Error('Render frame was disposed before the request completed');",input),error=>error?.code!=='SDK_RUNTIME_UNAVAILABLE');
+  assert.equal(pool.entries.has(pool.key(id,'button')),false);
+  await expectService();
+  assert.deepEqual(await button.run("api.setTitle('recovered');",input),title('recovered'));
+  console.log('MODEL2_BOUNDED_LIMITS '+JSON.stringify({rejectedCases:5,serviceSurvived:true,buttonRecovered:true,opaqueStorageBlocked:true,dataFetchBlocked:true,spoofedCrashErrorRejected:true,oomTested:false}));
  }finally{pool.close();}
 }
 // Deliberate loss of a uniquely identified test renderer, not OOM injection.
