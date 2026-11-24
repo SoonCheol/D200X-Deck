@@ -1,0 +1,49 @@
+# DeckForge 독자 SDK 1.0 — 출시 후보 계약
+
+상태: **출시 후보**, 1.1.163. 이 문서는 기존 개발 이력의 최신 독자 SDK 계약을 정리한다. SDK 제품 버전 1.0은 native.json의 apiVersion(1: 선언형, 2: JavaScript)이나 패키지 formatVersion(2)과 별개다. 외부 Stream Deck/Ulanzi 호환성은 별도 과제다.
+
+## JavaScript 공개 API 19개 (API 2)
+
+| 함수 | 권한 | 계약 |
+|---|---|---|
+| setTitle(text) | display | 문자열 256자 이하 |
+| setState(index) | display | 등록 상태 범위 0/1 |
+| toggleState() | display | 2상태 액션 |
+| setImage(dataUri) | display | 검증 PNG 또는 제한 SVG, GIF 재생 중지 |
+| setAnimation(gifDataUri) | display | 일반 키 0~12, 최대 32프레임/전체 1M 픽셀, 4개 활성/8MiB, 최소 500ms |
+| stopAnimation() | display | 마지막 이미지 유지 |
+| drawKey(spec) | display | 144×144 이하, rect/circle/line/text, 32명령/그림, 이벤트당 2장 |
+| setSettings(object) | settings.write | 현재 액션 설정 전체 교체, 저장 receipt |
+| patchSettings(object) | settings.write | 최상위 키 병합, 저장 receipt |
+| getGlobalSettings() | global.settings | 현재 플러그인 전역 설정 사본, 권한 없으면 빈 객체 |
+| setGlobalSettings(object) | global.settings | 암호화 저장, revision 검사 |
+| goToPage(index) | navigation | 0 기반, 기존 페이지 범위 검사 |
+| switchProfile(idOrDirection) | navigation | 기존 ID/next/previous |
+| enterFolder(slot) | navigation | 0 기반 일반 키, 실제 폴더 확인 |
+| exitFolder() | navigation | 기존 폴더 탐색 |
+| setWideMode(mode) | wide.mode | clock/datetime/stats/knobs 중 활성 모드 |
+| setWideOverlay(frame, durationMs=5000) | wide.overlay | 선언형 layout 또는 검증된 392×196 PNG, 1000~30000ms |
+| clearWideOverlay() | wide.overlay | 소유 context의 overlay 해제 |
+| request(endpoint, body=null) | network.request | manifest 등록 HTTPS GET/POST, networkResult 이벤트 |
+
+함수는 동기적으로 명령을 제출한다. 반환값은 저장/실행 성공이 아니다. display 및 읽기 외 부수 효과는 입력 이벤트당 한 개, 예외적으로 승인 GET polling을 허용한다. API 1은 별도 선언형 6개 op(title/titleFromSetting/state/stateFromSetting/toggleState/image) 유지.
+
+## 실행 계약
+
+- async 함수 본문 인자 event/settings/state/memory/api. appear/disappear/settings/press/release/rotateLeft/rotateRight/heldRotateLeft/heldRotateRight, 권한형 tick, networkResult.
+- event.slot/gesture는 등록된 context의 물리 위치/제스처. settings는 읽기용 스냅샷; memory는 context별 8KiB, 사라진 context에서는 보존을 보장하지 않음. state는 해당 시점 상태.
+- JS 최대 64KiB, 이벤트당 16명령, 렌더러 출력 512KiB, 실행 제한 1.5초, 렌더러 초기화/리셋 별도. 파일/셸/Node/임의 네트워크/직접 타이머 미지원. 신뢰한 플러그인만 설치.
+- settings.write/global.settings는 JSON 8KiB, 권한·저장 충돌·수명 검증. 저장 성공 이후 다음 입력에서 읽을 수 있음. 사용자 편집/대화상자·페이지 이탈 시 부수 효과 거부 또는 취소. 실패 입력 자동 재실행 없음.
+- tickIntervalMs 1000~3600000, timer.tick 권한. network.poll + network.request + timer.tick 및 간격 5000ms 이상에서 GET polling 허용. 응답/요청 8KiB, TLS, 5초 제한, redirect 차단. 인증 토큰은 별도 OS 암호화 vault, script에 노출하지 않는다.
+- settingsSchema는 boolean/text/integer/select, 최대 16필드. 기본값은 실행 시 적용, 사용자 저장 여부 별도.
+- 설치/업데이트/복원·SemVer 의존성·원자적 저장 및 버전 이력은 기존 native package 계약. 패키지 생성/설치 방법은 DECKFORGE-PLUGIN-FORMAT.md의 CLI 절 참고.
+
+## 출시 기준 (추가 기능은 기준이 아님)
+
+1. 19개 함수 목록 및 실제 Electron→host 명령 검증, 부수 효과 권한 거부 검증.
+2. API 1/2 패키지 검사, 모든 예제 패키지 왕복·설치, 버전/의존성 검사.
+3. 기존 집중 테스트: 큐, 취소, 설정 receipt, 암호화, 네트워크, 렌더러 오류 격리, GIF/PNG/SVG, 페이지/입력.
+4. Windows CI 및 통합 빌드 성공 확인. 실제 PC/D200X 시험과 자동 검증은 구분.
+5. 물리 확인 항목: 예제 설치→키/노브 입력→설정 저장/재실행, GIF 및 wide 표시, 페이지 전환/절전/재연결. 사용자 실기 없이는 물리 호환 확정 금지.
+
+검증 상태는 최신 D200X-CURRENT-STATUS.md에 기록. 위 기준 충족 전 정식 완료 선언 금지. 이후 새 기능은 실제 플러그인 개발 요구에 따라 별도 버전으로 추가.

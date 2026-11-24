@@ -1615,3 +1615,39 @@ test('active GIF preparation reuses verified frames and rejects inactive duplica
  assert.throws(()=>failing.start('key',failing.prepare('key',gif),()=>true),/display failure/);
  assert.equal(failing.entries.size,0);assert.equal(failing.timer,null);
 });
+
+test('native wide PNG verifies complete bounded image rather than trusting its header',()=>{
+ const {crc32,deflateSync}=require('node:zlib');
+ const {verifyPng}=require('../app/streamdeck-editor/ulanzi-png-verifier.cjs');
+ const {validateWideOverlay}=require('../app/streamdeck-editor/deckforge-native-wide.cjs');
+ const chunk=(type,data)=>{
+   const body=Buffer.concat([Buffer.from(type),data]),size=Buffer.alloc(4),crc=Buffer.alloc(4);
+   size.writeUInt32BE(data.length);crc.writeUInt32BE(crc32(body));return Buffer.concat([size,body,crc]);
+ };
+ const header=Buffer.alloc(13);header.writeUInt32BE(392,0);header.writeUInt32BE(196,4);header[8]=8;header[9]=6;
+ const prefix=Buffer.concat([Buffer.from('89504e470d0a1a0a','hex'),chunk('IHDR',header)]);
+ const png=Buffer.concat([prefix,chunk('IDAT',deflateSync(Buffer.alloc((392*4+1)*196))),chunk('IEND',Buffer.alloc(0))]);
+ const op=b=>({op:'wideOverlay',value:{kind:'png',data:'data:image/png;base64,'+b.toString('base64')},durationMs:1000});
+ assert.equal(verifyPng(png).ok,false);assert.equal(verifyPng(png,{wide:true}).ok,true);
+ assert.doesNotThrow(()=>validateWideOverlay(op(png)));
+ assert.throws(()=>validateWideOverlay(op(prefix)),/invalid wide/);
+ const corrupt=Buffer.from(png);corrupt[corrupt.length-1]^=1;
+ assert.throws(()=>validateWideOverlay(op(corrupt)),/invalid wide/);
+ const oversized=Buffer.concat([prefix,chunk('IDAT',deflateSync(Buffer.alloc((392*4+1)*197))),chunk('IEND',Buffer.alloc(0))]);
+ assert.throws(()=>validateWideOverlay(op(oversized)),/invalid wide/);
+});
+test('all published native examples round-trip through real package parser and installer',async()=>{
+ const {packageNativeManifest}=require('../app/streamdeck-editor/deckforge-plugin.cjs');
+ const root=await fs.mkdtemp(path.join(os.tmpdir(),'deckforge-sdk-examples-')),host=new NativePluginHost(root);
+ try{
+   const dir=path.join(__dirname,'../examples/deckforge-sdk');
+   const names=(await fs.readdir(dir)).filter(n=>n.endsWith('.native.json')).sort();
+   assert.ok(names.length>=3);
+   for(const name of names){
+     const m=JSON.parse(await fs.readFile(path.join(dir,name),'utf8'));
+     const parsed=await parseDeckForgePackage((await packageNativeManifest(m)).archive);
+     assert.deepEqual(parsed.native,m);assert.equal((await host.install(parsed.native)).uuid,m.id);
+   }
+   assert.equal((await host.manifests()).length,names.length);
+ }finally{host.close();await fs.rm(root,{recursive:true,force:true});}
+});

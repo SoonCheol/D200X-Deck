@@ -6,7 +6,7 @@ const SIGNATURE=Buffer.from('89504e470d0a1a0a','hex');
 const DEPTHS={0:[1,2,4,8,16],2:[8,16],3:[1,2,4,8],4:[8,16],6:[8,16]};
 const CHANNELS={0:1,2:3,3:1,4:2,6:4};
 const ANCILLARY={gAMA:4,cHRM:32,sRGB:1,pHYs:9,tIME:7};
-function verifyPng(bytes){
+function verifyPng(bytes,{wide=false}={}){
   const reject=reason=>({ok:false,reason});
   if(!Buffer.isBuffer(bytes)||bytes.length<45||bytes.length>256*1024||!bytes.subarray(0,8).equals(SIGNATURE))return reject('invalid PNG size or signature');
   let pos=8,header=null,palette=0,hasData=false,dataClosed=false,ended=false;
@@ -29,7 +29,7 @@ function verifyPng(bytes){
     if(type==='IHDR'){
       if(length!==13)return reject('invalid IHDR length');
       const width=data.readUInt32BE(0),height=data.readUInt32BE(4),depth=data[8],color=data[9];
-      if(width<1||width>144||height<1||height>144||!DEPTHS[color]?.includes(depth)||data[10]!==0||data[11]!==0||data[12]!==0)return reject('unsupported PNG dimensions or encoding');
+      if((wide?(width!==392||height!==196):(width<1||width>144||height<1||height>144))||!DEPTHS[color]?.includes(depth)||data[10]!==0||data[11]!==0||data[12]!==0)return reject('unsupported PNG dimensions or encoding');
       header={width,height,depth,color};continue;
     }
     if(type==='PLTE'){

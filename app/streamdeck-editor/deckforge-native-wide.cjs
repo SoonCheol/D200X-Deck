@@ -1,5 +1,6 @@
 'use strict';
 // Bounded declarative 392x196 wide canvas. No URLs, DOM, CSS or executable code.
+const {verifyPng}=require('./ulanzi-png-verifier.cjs');
 const object=v=>v!==null&&typeof v==='object'&&!Array.isArray(v);
 const exact=(v,keys)=>object(v)&&Object.keys(v).length===keys.length&&keys.every(k=>Object.hasOwn(v,k));
 const color=v=>typeof v==='string'&&/^#[0-9a-fA-F]{6}$/.test(v);
@@ -14,8 +15,7 @@ function validateWideOverlay(op){
   if(v?.kind==='png'){
     check(exact(v,['kind','data'])&&typeof v.data==='string'&&v.data.length<=350000&&/^data:image\/png;base64,[A-Za-z0-9+/]+={0,2}$/.test(v.data));
     const b=Buffer.from(v.data.slice(22),'base64');
-    check(b.length>=33&&b.length<=256*1024&&b.subarray(0,8).toString('hex')==='89504e470d0a1a0a'&&
-      b.readUInt32BE(8)===13&&b.toString('ascii',12,16)==='IHDR'&&b.readUInt32BE(16)===392&&b.readUInt32BE(20)===196);
+    check(b.toString('base64')===v.data.slice(22)&&verifyPng(b,{wide:true}).ok);
   }else{
     check(exact(v,['kind','background','elements'])&&v.kind==='layout'&&color(v.background)&&Array.isArray(v.elements)&&v.elements.length<=8);
     for(const e of v.elements){

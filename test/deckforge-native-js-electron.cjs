@@ -47,6 +47,60 @@ async function verifyVectorRendering(){
   console.log('DeckForge restricted SVG canvas pixel smoke passed');
  }finally{win.destroy();}
 }
+
+async function verifyPublicApi(runner){
+  const {NativePluginHost,validateNativeManifest}=require('../app/streamdeck-editor/deckforge-native-sdk.cjs');
+  const id='com.deckforge.native.api-contract';
+  const permissions=['display','settings.write','global.settings','navigation','wide.mode','wide.overlay','network.request'];
+  const endpoints=[{id:'status',url:'https://example.com/status',method:'GET'}];
+  const action={id:id+'.key',name:'Contract',controllers:['Keypad'],states:2,script:'api.setTitle("contract");'};
+  validateNativeManifest({apiVersion:2,id,name:'Contract',version:'1.0.0',permissions,networkEndpoints:endpoints,actions:[action]});
+  const host=new NativePluginHost('/unused');
+  const ctx={slot:0,pluginUUID:id,action,permissions,networkEndpoints:endpoints,settings:{count:1,keep:true}};
+  const gif='data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAICRAEAOw==';
+  const png='data:image/png;base64,'+require('../app/streamdeck-editor/ulanzi-media-analysis.cjs').gifPngFrames(Buffer.from(gif.slice(22),'base64')).frames[0].png.toString('base64');
+  const frame={kind:'layout',background:'#000000',elements:[]};
+  const cases=[
+    ['setTitle','api.setTitle("ready")','title'],
+    ['setState','api.setState(1)','state'],
+    ['toggleState','api.toggleState()','toggleState'],
+    ['setImage','api.setImage('+JSON.stringify(png)+')','image'],
+    ['setAnimation','api.setAnimation('+JSON.stringify(gif)+')','animation'],
+    ['stopAnimation','api.stopAnimation()','stopAnimation'],
+    ['drawKey','api.drawKey({width:8,height:8,background:"#123456",commands:[]})','image'],
+    ['setSettings','api.setSettings({count:2})','settings','settings.write'],
+    ['patchSettings','api.patchSettings({count:2})','settings','settings.write'],
+    ['getGlobalSettings','api.setTitle(api.getGlobalSettings().label)','title'],
+    ['setGlobalSettings','api.setGlobalSettings({label:"ready"})','globalSettings','global.settings'],
+    ['goToPage','api.goToPage(1)','navigate','navigation'],
+    ['switchProfile','api.switchProfile("next")','navigate','navigation'],
+    ['enterFolder','api.enterFolder(2)','navigate','navigation'],
+    ['exitFolder','api.exitFolder()','navigate','navigation'],
+    ['setWideMode','api.setWideMode("clock")','wideMode','wide.mode'],
+    ['setWideOverlay','api.setWideOverlay('+JSON.stringify(frame)+')','wideOverlay','wide.overlay'],
+    ['clearWideOverlay','api.clearWideOverlay()','wideOverlay','wide.overlay'],
+    ['request','api.request("status")','networkRequest','network.request']
+  ];
+  try{
+    const names=await runner.run('api.setTitle(Object.keys(api).sort().join(","));',input);
+    // Title length is not a concern here: this is a renderer-only inventory.
+    assert.deepEqual(names.ops[0].value.split(','),cases.map(c=>c[0]).sort());
+    for(const [name,source,op,permission] of cases){
+      const result=await runner.run(source,{...input,settings:ctx.settings,globalSettings:{label:'ready'}});
+      const validated=host.validateScriptOps(ctx,'press',result.ops);
+      const commands=permission?validated.effects:validated.normal;
+      assert.equal(commands.length,1,name);assert.equal(commands[0].op,op,name);
+      if(name==='getGlobalSettings')assert.equal(commands[0].value,'ready');
+      if(name==='patchSettings')assert.deepEqual(commands[0].value,{count:2,keep:true});
+      if(permission){
+        assert.throws(()=>host.validateScriptOps({...ctx,permissions:permissions.filter(p=>p!==permission)},'press',result.ops),/unauthorized/,name);
+        assert.throws(()=>host.validateScriptOps(ctx,'appear',result.ops),/input event/,name);
+      }
+    }
+    console.log('DeckForge native SDK 19-function renderer/host contract passed');
+  }finally{host.close();}
+}
+
 app.whenReady().then(async()=>{
   const a=createScriptRunner('com.deckforge.native.smokea');
   const b=createScriptRunner('com.deckforge.native.smokeb');
@@ -98,6 +152,7 @@ app.whenReady().then(async()=>{
       await assert.rejects(pending,/closed|initialization failed/);
     }finally{cancelled.close();}
     console.log('DeckForge JavaScript SDK renderer smoke passed');
+    await verifyPublicApi(b);
     await verifyWindowsEncryption();
     await verifyVectorRendering();
     a.close();b.close();app.exit(0);
