@@ -132,3 +132,24 @@ test('failed rename and intact prior state give confirmed rejection; unreadable 
   assert.deepEqual(store.commitNativeSettingsChecked(request),{status:'unknown'});
  });
 });
+
+test('abrupt child exit before and after profile replacement preserves atomic setting/receipt pair',()=>{
+ fixture((store,dir)=>{
+  const request=nativeFixture(store);
+  const {spawnSync}=require('node:child_process');
+  const modulePath=require.resolve('../app/streamdeck-editor/profile-store.cjs');
+  const script='const fs=require("node:fs");const {ProfileStore}=require(process.argv[1]);'+
+    'const store=new ProfileStore(process.argv[2]);const request=JSON.parse(process.argv[3]);'+
+    'const rename=fs.renameSync;fs.renameSync=(from,to)=>{if(to!==store.file)return rename(from,to);'+
+    'if(process.argv[4]==="before")process.exit(73);rename(from,to);process.exit(73);};'+
+    'store.commitNativeSettings(request);process.exit(99);';
+  for(const phase of ['before','after']){
+   const child=spawnSync(process.execPath,['-e',script,modulePath,dir,JSON.stringify(request),phase],{encoding:'utf8',timeout:15000});
+   assert.equal(child.status,73,child.stderr||String(child.error||''));
+   const reopened=new ProfileStore(dir),state=reopened.read();
+   assert.equal(state.pages[0][0].settings.pluginSettings.count,phase==='before'?0:1);
+   assert.equal(reopened.nativeReceipt(request.context,request.requestId),phase==='before'?null:'saved');
+   assert.equal(reopened.nativeSettingsOutcome(request).status,phase==='before'?'rejected':'saved');
+  }
+ });
+});

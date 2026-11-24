@@ -17,6 +17,7 @@
 
 ## 0.20 독자 SDK 부분 설정 저장 (1.1.157)
 
+- API 2 선택 `capabilities:["settingsResult"]` + `settings.write`: 같은 활성 세대에 `event.type==='settingsResult'`, `event.response={requestId,status}` (saved/rejected/unknown). 표시·메모리만 허용, 저장/제어 등 권한형 효과 재호출 금지. 미확정 입력 및 종료된 컨텍스트 자동 재생 없음. 미선언 manifest는 기존 동작 유지.
 - API 2 `api.patchSettings({count:5})`: 기존 저장 설정의 최상위 키를 병합한다. settings.write 권한 및 입력 이벤트 필요, 이벤트당 부수 효과 한 개. 중첩 객체는 해당 키 단위로 교체하며, 삭제 연산 없음. editor의 기존 stale write 검증 및 저장 승인 정책 적용.
 - `examples/deckforge-sdk/visual-counter.native.json`은 독자 SDK로 새로 작성한 동적 그림/지속 설정 예제이며, Ulanzi 원본 변환 결과가 아니다. 저장 반영 후 settings 이벤트에서 그림을 갱신한다.
 

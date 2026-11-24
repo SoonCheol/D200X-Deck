@@ -61,13 +61,16 @@ function projectSharedState(ctx,snapshot){
   return structuredClone(out);
 }
 function validateNativeManifest(m){
-  check(exact(m,['apiVersion','id','name','version','permissions','actions','requiresDeckForge','dependencies','networkEndpoints','service'])&&[1,2].includes(m.apiVersion)&&
+  check(exact(m,['apiVersion','id','name','version','permissions','actions','requiresDeckForge','dependencies','networkEndpoints','service','capabilities'])&&[1,2].includes(m.apiVersion)&&
     typeof m.id==='string'&&ID.test(m.id)&&!m.id.endsWith('.')&&!m.id.includes('..')&&
     validText(m.name,180)&&validText(m.version,64),'invalid manifest or API version');
   assertAppRequirement(m.requiresDeckForge,APP_VERSION);
   validateDependencies(m.id,m.dependencies);
   check(Array.isArray(m.permissions)&&m.permissions.includes('display')&&new Set(m.permissions).size===m.permissions.length&&
     m.permissions.every(p=>p==='display'||(m.apiVersion===2&&EXTRA_PERMISSIONS.includes(p))),'unsupported permissions');
+  if(m.capabilities!==undefined)check(m.apiVersion===2&&Array.isArray(m.capabilities)&&
+    m.capabilities.length===1&&m.capabilities[0]==='settingsResult'&&m.permissions.includes('settings.write'),
+    'unsupported capabilities or missing settings.write');
   check((m.service!==undefined)===m.permissions.includes('background.run'),'background service requires explicit permission and declaration');
   if(m.service!==undefined){
     const service=m.service;
@@ -122,7 +125,7 @@ function validateNativeManifest(m){
   }
   return m;
 }
-function catalog(m){return {uuid:m.id,name:m.name,version:m.version,runtime:'deckforge-sdk',permissions:[...m.permissions],dependencies:{...(m.dependencies||{})},background:!!m.service,
+function catalog(m){return {uuid:m.id,name:m.name,version:m.version,runtime:'deckforge-sdk',permissions:[...m.permissions],dependencies:{...(m.dependencies||{})},background:!!m.service,...(m.capabilities?{capabilities:[...m.capabilities]}:{}),
   actions:m.actions.map(a=>({uuid:a.id,name:a.name,states:a.states,controllers:a.controllers,
     propertyInspectorPath:'',defaultImages:{off:a.stateImages?.[0]||null,on:a.stateImages?.[1]||null},...(a.settingsSchema?{settingsSchema:a.settingsSchema}:{})}))};}
 class NativePluginHost{
@@ -325,7 +328,7 @@ class NativePluginHost{
       const socketLifecycle=op?.op==='socketConnect'&&['appear','settings','start'].includes(event)&&(event!=='start'||ctx.service);
       const socketContinuation=['socketSend','socketClose'].includes(op?.op)&&event==='socketEvent';
       const serviceInput=ctx.service&&event==='serviceMessage'&&['networkRequest','socketSend','socketClose','socketConnect'].includes(op?.op);
-      check(INPUT_EVENTS.has(event)||polling||socketLifecycle||socketContinuation||serviceInput,'privileged operation requires input event');
+      check(event!=='settingsResult'&&(INPUT_EVENTS.has(event)||polling||socketLifecycle||socketContinuation||serviceInput),'privileged operation requires input event');
       check(effects.length===0,'only one privileged operation per event');
       if(op?.op==='settingsPatch'){
         check(ctx.permissions.includes('settings.write')&&exact(op,['op','value'])&&obj(op.value)&&
@@ -431,10 +434,10 @@ class NativePluginHost{
   }
   cancelSettingsReceipt(ctx,result='cancelled'){
     const pending=ctx.settingsReceipt;
-    if(pending){ctx.settingsReceipt=null;clearTimeout(pending.timer);pending.resolve(result);}
+    if(pending){ctx.settingsReceipt=null;clearTimeout(pending.timer);pending.resolve({status:result,requestId:pending.id});}
   }
   requestSettingsCommit(ctx,operation,expectedSettings,active){
-    if(!active()||ctx.settingsReceipt||ctx.settingsUncertain)return Promise.resolve('cancelled');
+    if(!active()||ctx.settingsReceipt||ctx.settingsUncertain)return Promise.resolve({status:'cancelled',requestId:null});
     return new Promise(resolve=>{
       const id=randomUUID(),expiresAt=Date.now()+this.settingsReceiptTimeout;
       const pending={id,active,resolve,value:structuredClone(operation.value),expiresAt,revision:ctx.configRevision,timer:null};
@@ -478,7 +481,7 @@ class NativePluginHost{
         this.cancelNetwork(ctx);this.cancelSocket(ctx);ctx.settingsRefresh=true;
       }
     }
-    pending.resolve(ok?'saved':accepted?'unknown':'rejected');return ok;
+    pending.resolve({status:ok?'saved':accepted?'unknown':'rejected',requestId:pending.id});return ok;
   }
   queueSettingsRefresh(ctx){
     if(ctx.settingsRefresh&&ctx.pending<MAX_PENDING_EVENTS&&!ctx.failed&&!this.closed&&!this.suspended){
@@ -749,17 +752,19 @@ class NativePluginHost{
     }
   }
   runScript(ctx,event,response=null,expectedSettings=null,expectedSocket=null){
-    if(ctx.settingsUncertain)return false;
+    const resultEvent=event==='settingsResult';
+    if(resultEvent&&(!ctx.capabilities?.includes('settingsResult')||ctx.service))return false;
+    if(ctx.settingsUncertain&&!resultEvent)return false;
     // Saturation is backpressure, not a plugin failure. Keep admitted work
     // ordered and leave the renderer and context alive.
-    if(ctx.pending>=MAX_PENDING_EVENTS){
+    if(ctx.pending>=MAX_PENDING_EVENTS+(resultEvent?1:0)){
       this.reportBackpressure(ctx);return false;
     }
     const epoch=ctx.epoch||0,revision=ctx.settingsRevision||0;
     // Every dispatch is tied to the settings generation at acceptance.
     // A changed setting invalidates old queued work, including ABA changes
     // where a user subsequently restores exactly the old values.
-    const active=()=>!this.closed&&!this.suspended&&!ctx.failed&&!ctx.settingsUncertain&&ctx.epoch===epoch&&this.contexts.get(ctx.context)===ctx&&
+    const active=()=>!this.closed&&!this.suspended&&!ctx.failed&&(!ctx.settingsUncertain||resultEvent)&&ctx.epoch===epoch&&this.contexts.get(ctx.context)===ctx&&
       (ctx.settingsRevision||0)===revision&&
       (expectedSettings===null||expectedSettings===JSON.stringify(ctx.settings))&&
       (expectedSocket===null||expectedSocket===ctx.socketGeneration);
@@ -785,12 +790,19 @@ class NativePluginHost{
         for(const operation of effects){
           if(operation.op==='settings'){
             const receipt=await this.requestSettingsCommit(ctx,operation,settingsSnapshot,active);
-            if(receipt==='unknown'){
-              if(this.contexts.get(ctx.context)===ctx)this.report(ctx.pluginUUID,Error('settings write outcome unknown; context paused until confirmed settings change or remount'));
+            // Result notifications are optional, local to the same mount and
+            // generation. A notification can update display/memory, never
+            // submit another privileged effect. No cancelled input is replayed.
+            const sameMount=!this.closed&&!this.suspended&&!ctx.failed&&ctx.epoch===epoch&&
+              this.contexts.get(ctx.context)===ctx&&(ctx.settingsRevision||0)===revision;
+            if(sameMount&&ctx.capabilities?.includes('settingsResult')&&['saved','rejected','unknown'].includes(receipt.status))
+              this.runScript(ctx,'settingsResult',receipt);
+            if(receipt.status==='unknown'){
+              if(sameMount)this.report(ctx.pluginUUID,Error('settings write outcome unknown; context paused until confirmed settings change or remount'));
               return;
             }
             if(!active())return;
-            if(receipt!=='saved'){this.report(ctx.pluginUUID,Error('settings write not confirmed'));return;}
+            if(receipt.status!=='saved'){this.report(ctx.pluginUUID,Error('settings write not confirmed'));return;}
           }
           if(operation.op==='globalSettings'){
             const saved=await this.vault.write(ctx.pluginUUID,operation.value,global.revision,active);
@@ -882,10 +894,10 @@ class NativePluginHost{
       seen.add(cfg.context);
       const incoming=obj(cfg.settings)?cfg.settings:{};
       let ctx=this.contexts.get(cfg.context);
-      const signature=JSON.stringify([plugin.apiVersion,plugin.permissions,plugin.networkEndpoints||[],a]);
+      const signature=JSON.stringify([plugin.apiVersion,plugin.permissions,plugin.capabilities||[],plugin.networkEndpoints||[],a]);
       if(!ctx||ctx.pluginUUID!==cfg.pluginUUID||ctx.action.id!==a.id||ctx.signature!==signature||ctx.slot!==cfg.slot||ctx.gesture!==cfg.gesture){
         if(ctx)this.retire(ctx);
-        ctx={...cfg,action:a,apiVersion:plugin.apiVersion,permissions:[...plugin.permissions],networkEndpoints:plugin.networkEndpoints||[],signature,settings:incoming,state:0,pressed:false,failed:false,
+        ctx={...cfg,action:a,apiVersion:plugin.apiVersion,permissions:[...plugin.permissions],capabilities:[...(plugin.capabilities||[])],networkEndpoints:plugin.networkEndpoints||[],signature,settings:incoming,state:0,pressed:false,failed:false,
           epoch:0,settingsRevision:0,pending:0,queue:Promise.resolve(),runner:null,memory:{},recoveryAttempts:0,recoveryTimer:null};
         this.contexts.set(cfg.context,ctx);this.initialize(ctx);
       }else{

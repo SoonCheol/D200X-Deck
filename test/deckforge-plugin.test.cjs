@@ -2331,3 +2331,39 @@ test('HA sensor simultaneous display and rotation follow the saved selection ord
  sensorKey({type:'press'},{...reversed,mode:'press'},0,memory,api);
  assert.ok(frame.commands.some(c=>c.text==='Outdoor'));
 });
+
+test('settingsResult is opt-in, bounded, non-privileged, and never replays an uncertain input',async()=>{
+ const m={...scriptManifest,permissions:['display','settings.write'],capabilities:['settingsResult'],actions:[{...scriptManifest.actions[0],controllers:['Encoder']}]};
+ assert.doesNotThrow(()=>validateNativeManifest(m));
+ assert.throws(()=>validateNativeManifest({...m,permissions:['display']}),/capabilities/);
+ assert.throws(()=>validateNativeManifest({...m,capabilities:['unknown']}),/capabilities/);
+ assert.throws(()=>validateNativeManifest({...m,capabilities:['settingsResult','settingsResult']}),/capabilities/);
+ const cfg={context:'result-test',slot:16,gesture:'down',pluginUUID:m.id,actionUUID:m.actions[0].id,settings:{count:0}};
+ const req=[],results=[],inputs=[];
+ const host=new NativePluginHost('/unused',e=>{if(e.kind==='nativeSettingsCommit')req.push(e);},()=>({
+  async run(_source,input){
+   if(input.event.type==='settingsResult'){results.push(input.event.response);return {ops:[{op:'title',value:input.event.response.status}],memory:{}};}
+   if(input.event.type==='rotateRight'){inputs.push(input.settings.count);return {ops:[{op:'settingsPatch',value:{count:input.settings.count+1}}],memory:{}};}
+   return {ops:[],memory:{}};
+  },close(){}
+ }),{settingsReceiptTimeout:100});
+ const wait=async n=>{for(let i=0;i<100&&req.length<n;i++)await new Promise(r=>setImmediate(r));assert.equal(req.length,n);};
+ const drain=async ctx=>{for(let i=0;i<8;i++){const queue=ctx.queue;await queue;if(queue===ctx.queue)return;}assert.fail('queue did not settle');};
+ try{
+  host.sync([cfg],[m]);const ctx=host.contexts.get(cfg.context);await drain(ctx);
+  assert.throws(()=>host.validateScriptOps(ctx,'settingsResult',[{op:'settingsPatch',value:{count:99}}]),/privileged operation/);
+  assert.equal(host.key(cfg.context,'right'),true);await wait(1);
+  assert.equal(host.acknowledgeSettings(cfg.context,req[0].requestId,true),true);await drain(ctx);
+  assert.deepEqual(results,[{status:'saved',requestId:req[0].requestId}]);assert.equal(ctx.settings.count,1);
+  assert.equal(host.key(cfg.context,'right'),true);await wait(2);
+  assert.equal(host.acknowledgeSettings(cfg.context,req[1].requestId,false),false);await drain(ctx);
+  assert.deepEqual(results[1],{status:'rejected',requestId:req[1].requestId});assert.equal(ctx.settings.count,1);
+  assert.equal(host.key(cfg.context,'right',2),true);await wait(3);await drain(ctx);
+  assert.deepEqual(results[2],{status:'unknown',requestId:req[2].requestId});
+  assert.deepEqual(inputs,[0,1,1]);assert.equal(ctx.settingsUncertain,true);
+  assert.equal(host.key(cfg.context,'right'),false);assert.equal(req.length,3);
+  host.sync([],[m]);host.sync([cfg],[{...m,capabilities:undefined}]);const next=host.contexts.get(cfg.context);await drain(next);
+  assert.equal(host.key(cfg.context,'right'),true);await wait(4);host.acknowledgeSettings(cfg.context,req[3].requestId,true);await drain(next);
+  assert.equal(results.length,3,'legacy manifests do not receive result events');
+ }finally{host.close();}
+});
