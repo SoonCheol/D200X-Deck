@@ -33,6 +33,20 @@ async function verifyWindowsEncryption(){
     console.log('DeckForge Windows encrypted credential vault smoke passed');
   }finally{await fs.rm(root,{recursive:true,force:true});}
 }
+async function verifyVectorRendering(){
+ const {BrowserWindow}=require('electron');
+ const svg='<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16"><rect width="16" height="16" fill="#f00"/></svg>';
+ const uri='data:image/svg+xml;base64,'+Buffer.from(svg).toString('base64');
+ const {svgReport}=require('../app/streamdeck-editor/ulanzi-media-analysis.cjs');
+ assert.equal(svgReport(Buffer.from(svg)).status,'restricted-vector-review');
+ const win=new BrowserWindow({show:false,webPreferences:{sandbox:true,contextIsolation:true,nodeIntegration:false}});
+ try{
+  await win.loadURL('data:text/html,'+encodeURIComponent('<meta http-equiv="Content-Security-Policy" content="default-src \'none\'; img-src data:"><canvas width="16" height="16"></canvas>'));
+  const pixel=await win.webContents.executeJavaScript('(async()=>{const img=new Image();img.src='+JSON.stringify(uri)+';await img.decode();const ctx=document.querySelector("canvas").getContext("2d");ctx.drawImage(img,0,0);return Array.from(ctx.getImageData(8,8,1,1).data);})()');
+  assert.deepEqual(pixel,[255,0,0,255]);
+  console.log('DeckForge restricted SVG canvas pixel smoke passed');
+ }finally{win.destroy();}
+}
 app.whenReady().then(async()=>{
   const a=createScriptRunner('com.deckforge.native.smokea');
   const b=createScriptRunner('com.deckforge.native.smokeb');
@@ -48,6 +62,7 @@ app.whenReady().then(async()=>{
     assert.deepEqual(continuation.ops,[{op:'title',value:'Ready'}]);
     console.log('DeckForge JavaScript SDK renderer smoke passed');
     await verifyWindowsEncryption();
+    await verifyVectorRendering();
     a.close();b.close();app.exit(0);
   }catch(error){console.error(error);a.close();b.close();app.exit(1);}
 }).catch(error=>{console.error(error);app.exit(1);});

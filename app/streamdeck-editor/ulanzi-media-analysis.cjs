@@ -127,6 +127,10 @@ function svgReport(bytes){
         else if(name==='transform'){if(!transform.test(value))throw Error('transform syntax');}
         else if(['stroke-linecap','stroke-linejoin','fill-rule'].includes(name)){if(!/^(?:butt|round|square|miter|bevel|nonzero|evenodd)$/.test(value))throw Error('style');}
         else if(!numeric.test(value))throw Error('numeric attribute');
+        if(!['xmlns','fill','stroke','stroke-linecap','stroke-linejoin','fill-rule'].includes(name)){
+          const numbers=value.match(/[+-]?(?:\d+\.?\d*|\.\d+)(?:[eE][+-]?\d+)?/g)||[];
+          if(numbers.length>4096||numbers.some(x=>!Number.isFinite(Number(x))||Math.abs(Number(x))>1e6))throw Error('numeric budget');
+        }
         values[name]=value;
       }
       if(nodes===1){

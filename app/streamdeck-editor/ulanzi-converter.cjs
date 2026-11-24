@@ -7,6 +7,7 @@ const {createHash}=require('node:crypto');
 const acorn=require('acorn');
 const {analyzeHtml,imageReport,MAX:MAX_HTML}=require('./ulanzi-inspector-analysis.cjs');
 const {verifyPng}=require('./ulanzi-png-verifier.cjs');
+const {svgReport}=require('./ulanzi-media-analysis.cjs');
 const {validateNativeManifest}=require('./deckforge-native-sdk.cjs');
 const MAX_FILES=2500,MAX_BYTES=100*1024*1024,MAX_SOURCE=1024*1024;
 const sha=bytes=>createHash('sha256').update(bytes).digest('hex');
@@ -318,13 +319,13 @@ async function analyzeDirectory(folder,{fullFingerprint=false}={}){
     try{const bytes=await readEntry(item.path,256*1024);Object.assign(item,{sha256:sha(bytes),...imageReport(bytes,item.path)});if(item.status==='header-candidate')item.integrity=verifyPng(bytes);}
     catch{item.status='unreadable';}
   }
-  // Preserve only exact, bounded PNG state resources. Category/plugin/action
+  // Preserve exact bounded PNG and restricted SVG state resources. Category/plugin/action
   // art with distinct paths still needs a separate conversion decision.
   const stateImagesByAction=new Map(),artRecords=[],usedPaths=new Set(),remaining=new Set();
   let imageBytes=0;
   for(const action of manifest.Actions){
     const declaredStates=Array.isArray(action.States)?action.States:[];
-    if(![1,2].includes(declaredStates.length)||!declaredStates.every(s=>typeof s?.Image==='string'&&resources.some(r=>r.path===s.Image&&r.status==='header-candidate'&&r.integrity?.ok))){
+    if(![1,2].includes(declaredStates.length)||!declaredStates.every(s=>typeof s?.Image==='string'&&resources.some(r=>r.path===s.Image&&((r.status==='header-candidate'&&r.integrity?.ok)||r.status==='restricted-vector-review')))){
       if(action.Icon)remaining.add(action.Icon);
       for(const state of declaredStates)if(state?.Image)remaining.add(state.Image);
       continue;
@@ -335,10 +336,12 @@ async function analyzeDirectory(folder,{fullFingerprint=false}={}){
       for(const [index,s] of declaredStates.entries()){
         const bytes=await readEntry(s.Image,256*1024);
         const digest=sha(bytes);
-        if(!verifyPng(bytes).ok||resources.find(r=>r.path===s.Image)?.sha256!==digest)throw Error('invalid or changed state image');
-        const image='data:image/png;base64,'+bytes.toString('base64');
+        const resource=resources.find(r=>r.path===s.Image);
+        const svg=resource?.format==='svg';
+        if(resource?.sha256!==digest||(svg?svgReport(bytes).status!=='restricted-vector-review':!verifyPng(bytes).ok))throw Error('invalid or changed state image');
+        const image='data:image/'+(svg?'svg+xml':'png')+';base64,'+bytes.toString('base64');
         size+=Buffer.byteLength(image);
-        images.push(image);records.push({state:index,path:s.Image,sha256:digest});
+        images.push(image);records.push({state:index,path:s.Image,sha256:digest,...(svg?{format:'svg'}:{})});
       }
       if(imageBytes+size>MAX_SOURCE)throw Error('aggregate state image limit');
       imageBytes+=size;
@@ -361,9 +364,10 @@ async function analyzeDirectory(folder,{fullFingerprint=false}={}){
     if(manifest.CategoryIcon)remaining.add(manifest.CategoryIcon);
   }
   const stateImages=stateImagesByAction.get(manifest.Actions[0].UUID);
+  const verification=artRecords.some(a=>a.stateImages.some(s=>s.format==='svg'))?'bounded-png-and-restricted-svg':'crc-and-bounded-scanlines';
   const artworkPreservation=artRecords.length?(manifest.Actions.length===1?
-    {stateImages:artRecords[0].stateImages,remainingPaths:[...remaining],verification:'crc-and-bounded-scanlines'}:
-    {actions:artRecords,remainingPaths:[...remaining],verification:'crc-and-bounded-scanlines'}):null;
+    {stateImages:artRecords[0].stateImages,remainingPaths:[...remaining],verification}:
+    {actions:artRecords,remainingPaths:[...remaining],verification}):null;
   let report={calls:[],imports:[],findings:[],candidate:null},entryHash=null,htmlEntry=null;
   if(!/\.js$/i.test(manifest.CodePath)){
     report.findings.push({code:'html-entry',detail:'HTML entry requires dependency and behavior review',line:0});

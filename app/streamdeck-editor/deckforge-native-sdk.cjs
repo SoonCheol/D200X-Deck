@@ -27,6 +27,16 @@ function validateNativePng(value){
     bytes.toString('ascii',12,16)==='IHDR'&&bytes.readUInt32BE(16)>0&&bytes.readUInt32BE(16)<=144&&
     bytes.readUInt32BE(20)>0&&bytes.readUInt32BE(20)<=144,'invalid PNG header or dimensions');
 }
+function validateNativeImage(value){
+  if(typeof value==='string'&&value.startsWith('data:image/svg+xml;base64,')){
+    const prefix='data:image/svg+xml;base64,',encoded=value.slice(prefix.length);
+    check(value.length<=350000&&/^[A-Za-z0-9+/]+={0,2}$/.test(encoded),'invalid SVG data URI');
+    const bytes=Buffer.from(encoded,'base64');
+    check(bytes.toString('base64')===encoded&&require('./ulanzi-media-analysis.cjs').svgReport(bytes).status==='restricted-vector-review','invalid or unsupported SVG');
+    return;
+  }
+  validateNativePng(value);
+}
 function validateNativeManifest(m){
   check(exact(m,['apiVersion','id','name','version','permissions','actions','requiresDeckForge','dependencies','networkEndpoints'])&&[1,2].includes(m.apiVersion)&&
     typeof m.id==='string'&&ID.test(m.id)&&!m.id.endsWith('.')&&!m.id.includes('..')&&
@@ -50,7 +60,7 @@ function validateNativeManifest(m){
       [1,2].includes(a.states),'invalid action controllers or states');
     if(a.stateImages!==undefined){
       check(Array.isArray(a.stateImages)&&a.stateImages.length===a.states,'invalid state image count');
-      for(const image of a.stateImages)validateNativePng(image);
+      for(const image of a.stateImages)validateNativeImage(image);
     }
     if(m.apiVersion===2){
       check(a.tickIntervalMs===undefined||(m.permissions.includes('timer.tick')&&Number.isInteger(a.tickIntervalMs)&&a.tickIntervalMs>=1000&&a.tickIntervalMs<=3600000),'invalid or unauthorized tick interval');
@@ -70,7 +80,7 @@ function validateNativeManifest(m){
             !['__proto__','constructor','prototype'].includes(op.key)&&typeof op.fallback==='string'&&op.fallback.length<=256,'invalid setting reference');break;
           case 'state':check(exact(op,['op','value'])&&Number.isInteger(op.value)&&op.value>=0&&op.value<a.states,'invalid state');break;
           case 'toggleState':check(exact(op,['op'])&&a.states===2,'toggle requires two states');break;
-          case 'image':check(exact(op,['op','value']),'invalid image operation');validateNativePng(op.value);break;
+          case 'image':check(exact(op,['op','value']),'invalid image operation');validateNativeImage(op.value);break;
         }
       }
     }

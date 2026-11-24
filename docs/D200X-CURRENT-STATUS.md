@@ -2,6 +2,11 @@
 
 > **상태 기록 기준: 2026-11-24**. 실제 최신 HEAD는 Git에서 확인하며, 코드·자동 검사·Windows 빌드·사용자 Windows/D200X 실기 결과를 구분한다. 시작 시 `AGENTS.md`와 이 문서만 읽고 로드맵은 필요한 경우에만 참고한다.
 
+## 1.1.137 — 독자 SDK 제한 SVG 표시 및 원본 상태 자원 보존 (2026-11-24)
+
+- 기존 이미지 렌더링/상태 catalog 경로에 엄격한 SVG data URI 허용. 외부 참조/활성 콘텐츠 및 숫자 범위 초과 차단. PNG 기존 검증 유지. Ulanzi 상태 SVG 원본 바이트 및 SHA-256 결합, 기존 명시 검토 조건 유지. GIF 출력은 별도.
+- 패키지 왕복 및 위험 입력 집중 검사, Electron canvas 실제 픽셀 smoke 추가. 실제 검사 결과/물리 출력 별도. 1.1.136 CI #1176 성공.
+
 ## 1.1.136 — Ulanzi GIF bounded LZW index 검증 (2026-11-24)
 
 - GIF frame의 LZW clear/end·dictionary reference·팔레트 색상 index·정확한 decoded pixel count·초과 출력/후행 데이터 검사. 전체 프레임 예산 유지, 렌더링/실제 색상 합성은 미검증. 프레임 원본을 정지 이미지로 바꾸지 않으며 출시/설치 차단 유지.

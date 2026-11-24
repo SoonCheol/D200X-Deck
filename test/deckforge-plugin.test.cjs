@@ -1000,3 +1000,28 @@ test('Ulanzi media inventory preserves animation structure and rejects unsafe SV
  for(const bad of [src.replace('<path','<script'),src.replace('stroke="#fff"','stroke="url(http://a)"'),src.replace('<path','<path onload="x"'),src.replace('</svg>',''),src.replace('width="144"','width="999"'),src.replace('<path','<path href="x"')])
    assert.equal(svgReport(Buffer.from(bad)).status,'manual-resource-review');
 });
+
+test('restricted SVG native images retain bytes, reject active content, and require review for conversion',async()=>{
+ const {analyzeDirectory}=require('../app/streamdeck-editor/ulanzi-converter.cjs');
+ const {buildReviewRecord,validateReviewRecord}=require('../app/streamdeck-editor/ulanzi-release-review.cjs');
+ const {packageNativeManifest}=require('../app/streamdeck-editor/deckforge-plugin.cjs');
+ const svg='<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16"><rect width="16" height="16" fill="#f00"/></svg>';
+ const uri=s=>'data:image/svg+xml;base64,'+Buffer.from(s).toString('base64');
+ const image=uri(svg);
+ const action={...nativeManifest.actions[0],stateImages:[image,image],events:{press:[{op:'image',value:image}]}};
+ const m={...nativeManifest,actions:[action]};
+ assert.deepEqual((await parseDeckForgePackage((await packageNativeManifest(m)).archive)).native,m);
+ for(const bad of [svg.replace('<rect','<rect onload="x"'),svg.replace('#f00','url(http://a)'),svg.replace('width="16" height="16" fill','width="1e999" height="16" fill')])
+   assert.throws(()=>validateNativeManifest({...m,actions:[{...action,stateImages:[uri(bad),image]}]}),/SVG/);
+ const root=await fs.mkdtemp(path.join(os.tmpdir(),'deckforge-svg-art-')),dir=path.join(root,'source.ulanziPlugin');await fs.mkdir(dir);
+ const id='com.ulanzi.ulanzistudio.Vector';
+ try{
+  await fs.writeFile(path.join(dir,'manifest.json'),JSON.stringify({Type:'JavaScript',UUID:id,Name:'Vector',Version:'1',CodePath:'app.js',Actions:[{UUID:id+'.a',Name:'A',States:[{Image:'icon.svg'}]}]}));
+  await fs.writeFile(path.join(dir,'app.js'),"$UD.connect('"+id+"');$UD.onAdd(m=>$UD.setTitle(m.context,'Vector'));");
+  await fs.writeFile(path.join(dir,'icon.svg'),svg);
+  const report=await analyzeDirectory(dir,{fullFingerprint:true});
+  assert.equal(report.candidate.actions[0].stateImages[0],image);
+  assert.equal(report.artworkPreservation.verification,'bounded-png-and-restricted-svg');
+  assert.throws(()=>validateReviewRecord(buildReviewRecord(report),report),/manual review evidence/);
+ }finally{await fs.rm(root,{recursive:true,force:true});}
+});

@@ -24,18 +24,23 @@ function validateReviewRecord(record,report){
     record.verificationSha256!==expected.verificationSha256)throw Error('source or conversion changed; repeat review');
   if(report.status!=='candidate-review-required'||!report.candidate||report.verification?.status!=='pass')
     throw Error('no verified restricted conversion candidate');
-  // Only exact embedded state PNGs can satisfy the artwork contract here.
-  // Distinct category/plugin artwork and non-PNG files still need a manual port.
+  // Exact embedded PNG and restricted SVG state artwork must retain original bytes.
+  // GIF and independent category/plugin artwork still need a manual port.
   const art=report.artworkPreservation,actions=report.candidate.actions;
   const match=(records,images)=>Array.isArray(records)&&Array.isArray(images)&&records.length===images.length&&
-    records.every((s,i)=>s.state===i&&typeof images[i]==='string'&&s.sha256===createHash('sha256').update(Buffer.from(images[i].slice(22),'base64')).digest('hex')&&
-      report.resources?.some(r=>r.path===s.path&&r.sha256===s.sha256&&r.integrity?.ok));
+    records.every((s,i)=>{
+      const svg=s.format==='svg',prefix=svg?'data:image/svg+xml;base64,':'data:image/png;base64,';
+      if(s.state!==i||typeof images[i]!=='string'||!images[i].startsWith(prefix))return false;
+      const bytes=Buffer.from(images[i].slice(prefix.length),'base64');
+      return s.sha256===createHash('sha256').update(bytes).digest('hex')&&
+        report.resources?.some(r=>r.path===s.path&&r.sha256===s.sha256&&(svg?r.status==='restricted-vector-review'&&require('./ulanzi-media-analysis.cjs').svgReport(bytes).status==='restricted-vector-review':r.integrity?.ok));
+    });
   const entries=actions.length===1?(art?.stateImages?[{actionId:actions[0].id,stateImages:art.stateImages}]:[]):art?.actions;
   const validEntries=Array.isArray(entries)&&entries.length>0&&new Set(entries.map(e=>e.actionId)).size===entries.length&&
     entries.every(e=>actions.some(a=>a.id===e.actionId&&match(e.stateImages,a.stateImages)))&&
     actions.every(a=>!a.stateImages||entries.some(e=>e.actionId===a.id))&&
     report.resources?.every(r=>entries.some(e=>e.stateImages.some(s=>s.path===r.path&&s.sha256===r.sha256)));
-  const preserved=art?.verification==='crc-and-bounded-scanlines'&&Array.isArray(art.remainingPaths)&&!art.remainingPaths.length&&validEntries;
+  const preserved=['crc-and-bounded-scanlines','bounded-png-and-restricted-svg'].includes(art?.verification)&&Array.isArray(art.remainingPaths)&&!art.remainingPaths.length&&validEntries;
   if((report.resources?.length&&!preserved)||report.inspectors?.length||
     report.findings.some(f=>['property-inspector','private-api','dynamic-settings'].includes(f.code)||(f.code==='artwork'&&!preserved))||
     (actions.length>1&&report.verification?.verifierVersion!==2))
