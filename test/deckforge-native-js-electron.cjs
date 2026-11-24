@@ -257,66 +257,105 @@ async function verifyModel2Limits(){
 }
 // Deliberate loss of a uniquely identified test renderer, not OOM injection.
 async function verifyModel2ProcessLoss(){
- const {BrowserWindow,webContents}=require('electron');
+ const {webContents}=require('electron');
  const {ScriptRunnerPool,deadline}=require('../app/streamdeck-editor/deckforge-js-runtime.cjs');
  const pool=new ScriptRunnerPool(),id='com.deckforge.native.crash-smoke',peerId=id+'-peer';
  const button=pool.lease(id,'button'),service=pool.lease(id,'service'),peer=pool.lease(peerId,'button');
  const title=text=>({ops:[{op:'title',value:text}],memory:{}});
  const run=(lease,text)=>lease.run('api.setTitle('+JSON.stringify(text)+');',input);
+ const entry=(plugin,scope)=>pool.entries.get(pool.key(plugin,scope));
+ const pids=()=>({button:pool.processId(id,'button'),service:pool.processId(id,'service'),peer:pool.processId(peerId,'button')});
+ const assertDistinct=ids=>{
+  assert.ok(Object.values(ids).every(pid=>Number.isInteger(pid)&&pid>0&&pid!==process.pid));
+  assert.equal(new Set(Object.values(ids)).size,3);
+ };
+ const getTarget=()=>{
+  const ids=pids();assertDistinct(ids);
+  const owners=webContents.getAllWebContents().filter(w=>!w.isDestroyed()&&w.getOSProcessId()===ids.button);
+  assert.equal(owners.length,1,'only the dedicated test webContents may own the target PID');
+  return {wc:owners[0],pid:ids.button,runner:entry(id,'button').runner};
+ };
+ // Observe both documented Electron notification surfaces. Separate an idle
+ // crash (no event deadline/executeJavaScript in flight) from an active crash.
+ // Do not treat a timeout or a destroyed window as proof of a renderer crash.
+ const observe=(wc,phase)=>{
+  let resolveGone;
+  const gone=new Promise(resolve=>{resolveGone=resolve;});
+  const record=(surface,details)=>{
+   console.log('MODEL2_PROCESS_LOSS_NOTIFICATION '+JSON.stringify({phase,surface,reason:details?.reason,exitCode:details?.exitCode}));
+   resolveGone(details);
+  };
+  const onApp=(_event,target,details)=>{if(target===wc)record('app',details);};
+  const onContents=(_event,details)=>record('webContents',details);
+  const onDestroyed=()=>console.log('MODEL2_PROCESS_LOSS_DESTROYED '+phase);
+  app.prependListener('render-process-gone',onApp);
+  wc.prependListener('render-process-gone',onContents);
+  wc.once('destroyed',onDestroyed);
+  return {gone,dispose(){
+   app.removeListener('render-process-gone',onApp);
+   wc.removeListener('render-process-gone',onContents);
+   wc.removeListener('destroyed',onDestroyed);
+  }};
+ };
+ const checkGone=async(observer,phase)=>{
+  const details=await deadline(()=>observer.gone,5000,()=>console.log('MODEL2_PROCESS_LOSS_NO_NOTIFICATION '+phase));
+  assert.ok(['killed','crashed'].includes(details?.reason),'unexpected renderer termination reason');
+  return details.reason;
+ };
  try{
   await run(button,'button');await run(service,'service');await run(peer,'peer');
-  const before={button:pool.processId(id,'button'),service:pool.processId(id,'service'),peer:pool.processId(peerId,'button')};
-  assert.ok(Object.values(before).every(pid=>Number.isInteger(pid)&&pid>0));
-  assert.equal(new Set(Object.values(before)).size,3);
-  const buttonRunner=pool.entries.get(pool.key(id,'button')).runner;
-  const serviceRunner=pool.entries.get(pool.key(id,'service')).runner;
-  const peerRunner=pool.entries.get(pool.key(peerId,'button')).runner;
-  const windows=BrowserWindow.getAllWindows().filter(w=>!w.isDestroyed()&&w.webContents.getOSProcessId()===before.button);
-  assert.equal(windows.length,1,'crash target must uniquely identify test renderer');
-  const wc=windows[0].webContents;
-  let goneDetails;
-  const gone=new Promise(resolve=>wc.prependOnceListener('render-process-gone',(_event,details)=>{goneDetails=details;resolve();}));
-  // Confirm execution in the current opaque realm before terminating it.
-  const marker='DECKFORGE_TEST_PROCESS_LOSS_ENTERED';
-  const entered=new Promise(resolve=>{
-   const onMessage=(details,_level,message)=>{
-    if((details?.message??message)!==marker)return;
-    wc.removeListener('console-message',onMessage);resolve();
-   };
-   wc.on('console-message',onMessage);
-  });
-  const pending=button.run('console.log('+JSON.stringify(marker)+');await new Promise(()=>{});api.setTitle("must not commit");',input);
-  const rejected=assert.rejects(pending,/closed|unavailable/);
-  rejected.catch(()=>{});
-  await deadline(()=>entered,1000,()=>{});
-  const pid=wc.getOSProcessId();
-  assert.ok(Number.isInteger(pid)&&pid>0&&pid!==process.pid);
-  assert.equal(pid,pool.processId(id,'button'));
-  assert.equal(pool.entries.get(pool.key(id,'button')).runner,buttonRunner);
-  assert.notEqual(pid,pool.processId(id,'service'));assert.notEqual(pid,pool.processId(peerId,'button'));
-  const owners=webContents.getAllWebContents().filter(w=>!w.isDestroyed()&&w.getOSProcessId()===pid);
-  assert.equal(owners.length,1,'only the dedicated test webContents may own the target PID');
-  assert.equal(owners[0],wc);
-  console.log('MODEL2_PROCESS_LOSS_ENTERED '+JSON.stringify({pid}));
-  // Test-only OS termination avoids asynchronous renderer crash dispatch.
-  // Do not relax the production deadline or accept timeout as crash evidence.
-  assert.equal(process.kill(pid,'SIGKILL'),true);
-  await deadline(()=>gone,5000,()=>{});
-  await rejected;
-  assert.ok(['killed','crashed'].includes(goneDetails.reason));
-  assert.equal(buttonRunner.isClosed(),true);
-  assert.equal(pool.entries.has(pool.key(id,'button')),false);
-  assert.equal(serviceRunner.isClosed(),false);assert.equal(peerRunner.isClosed(),false);
-  assert.deepEqual(await run(service,'service alive'),title('service alive'));
-  assert.deepEqual(await run(peer,'peer alive'),title('peer alive'));
-  assert.equal(pool.entries.get(pool.key(id,'service')).runner,serviceRunner);
-  assert.equal(pool.entries.get(pool.key(peerId,'button')).runner,peerRunner);
+  const before=pids();assertDistinct(before);
+  const serviceRunner=entry(id,'service').runner,peerRunner=entry(peerId,'button').runner;
+  const verifyPeers=async()=>{
+   assert.equal(serviceRunner.isClosed(),false);assert.equal(peerRunner.isClosed(),false);
+   assert.deepEqual(await run(service,'service alive'),title('service alive'));
+   assert.deepEqual(await run(peer,'peer alive'),title('peer alive'));
+   assert.equal(entry(id,'service').runner,serviceRunner);assert.equal(entry(peerId,'button').runner,peerRunner);
+  };
+  const idle=getTarget(),idleObserver=observe(idle.wc,'idle');
+  let idleReason;
+  try{
+   console.log('MODEL2_PROCESS_LOSS_TARGET '+JSON.stringify({phase:'idle',pid:idle.pid}));
+   idle.wc.forcefullyCrashRenderer();
+   idleReason=await checkGone(idleObserver,'idle');
+   assert.equal(idle.runner.isClosed(),true,'idle renderer must close');
+  }finally{idleObserver.dispose();}
+  await verifyPeers();
+  assert.deepEqual(await run(button,'idle recovery'),title('idle recovery'));
+  assert.notEqual(entry(id,'button').runner,idle.runner);
+  const active=getTarget(),activeObserver=observe(active.wc,'active');
+  let activeReason;
+  try{
+   const marker='DECKFORGE_TEST_PROCESS_LOSS_ENTERED';
+   const entered=new Promise(resolve=>{
+    const onMessage=(event,_level,message)=>{
+     if((event?.message??message)!==marker)return;
+     active.wc.removeListener('console-message',onMessage);resolve();
+    };
+    active.wc.on('console-message',onMessage);
+   });
+   const pending=button.run('console.log('+JSON.stringify(marker)+');await new Promise(()=>{});api.setTitle("must not commit");',input);
+   const rejected=assert.rejects(pending,error=>{
+    console.log('MODEL2_PROCESS_LOSS_REJECTED '+JSON.stringify({code:error?.code,message:error?.message}));
+    return error?.code==='SDK_RUNTIME_UNAVAILABLE'&&/closed|unavailable/.test(error.message)&&!/timeout/.test(error.message);
+   });
+   rejected.catch(()=>{});
+   await deadline(()=>entered,1000,()=>{});
+   await new Promise(resolve=>setImmediate(resolve));
+   const current=getTarget();
+   assert.equal(current.wc,active.wc);assert.equal(current.runner,active.runner);
+   console.log('MODEL2_PROCESS_LOSS_TARGET '+JSON.stringify({phase:'active',pid:current.pid}));
+   active.wc.forcefullyCrashRenderer();
+   activeReason=await checkGone(activeObserver,'active');
+   await rejected;
+   assert.equal(active.runner.isClosed(),true);
+   assert.equal(pool.entries.has(pool.key(id,'button')),false);
+  }finally{activeObserver.dispose();}
+  await verifyPeers();
   assert.deepEqual(await run(button,'new event only'),title('new event only'));
-  assert.notEqual(pool.entries.get(pool.key(id,'button')).runner,buttonRunner);
-  const after=[pool.processId(id,'button'),pool.processId(id,'service'),pool.processId(peerId,'button')];
-  assert.ok(after.every(pid=>Number.isInteger(pid)&&pid>0));
-  assert.equal(new Set(after).size,3);
-  console.log('MODEL2_PROCESS_LOSS '+JSON.stringify({reason:goneDetails.reason,failedEventRejected:true,serviceSurvived:true,peerSurvived:true,nextEventRecovered:true,before,after,oomTested:false}));
+  assert.notEqual(entry(id,'button').runner,active.runner);
+  const after=pids();assertDistinct(after);
+  console.log('MODEL2_PROCESS_LOSS '+JSON.stringify({idleReason,activeReason,failedEventRejected:true,serviceSurvived:true,peerSurvived:true,nextEventRecovered:true,before,after,oomTested:false}));
  }finally{pool.close();}
 }
 async function verifyTrustedDrawOps(legacy){
