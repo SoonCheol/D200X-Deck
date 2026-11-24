@@ -157,13 +157,12 @@ test('native state titles preserve explicit empty state and dynamic sibling afte
  const pluginUUID='com.deckforge.native.example.settings',actionUUID=pluginUUID+'.key';
  const item={type:'sd-plugin',title:'Live value',titleStyle:style,settings:{pluginUUID,actionUUID}};
  const ctx={item,DEFAULT_TITLE_STYLE:style,DeckCore:core,isMomentaryIconAction:()=>false,sdkPlugins:[{uuid:pluginUUID,runtime:'deckforge-sdk',actions:[{uuid:actionUUID,titlePolicy:{defaultTitle:'Default'}}]}]};
- vm.runInNewContext(editor.slice(start,end)+';ensureStateTitlePair(item);',ctx);
+ const render=vm.runInNewContext(editor.slice(start,end)+';ensureStateTitlePair(item); (second)=>resolveStateTitle(item,second)',ctx);
  assert.equal(item.settings.nativeTitleAutoStates.first,true);
  assert.equal(item.settings.nativeTitleAutoStates.second,true);
  item.settings.stateTitles.first.title='';
  item.settings.nativeTitleAutoStates.first=false;
  item.settings.stateTitles.second.enabled=true;
- const render=second=>vm.runInNewContext(editor.slice(start,end)+';resolveStateTitle(item,'+second+')',ctx);
  assert.equal(render(false).title,'');
  assert.equal(render(true).title,'Live value');
  item.title='Updated';
