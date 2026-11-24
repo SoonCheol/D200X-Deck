@@ -1595,3 +1595,23 @@ test('native GIF playback uses bounded PNG events, stops on replacement and canc
    assert.throws(()=>host.validateScriptOps({slot:13,action:scriptManifest.actions[0],pluginUUID:nativeId,permissions:['display']},'appear',[{op:'animation',value:gif}]),/normal key/);
  }finally{host.close();}
 });
+
+test('active GIF preparation reuses verified frames and rejects inactive duplicate starts',()=>{
+ const {NativeAnimationPlayer}=require('../app/streamdeck-editor/deckforge-native-animation.cjs');
+ const gif='data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAICRAEAOw==';
+ let active=true,time=0,updates=0;
+ const player=new NativeAnimationPlayer(()=>updates++,()=>time);
+ try{
+   const prepared=player.prepare('key',gif);
+   assert.equal(player.start('key',prepared,()=>active),true);
+   assert.equal(player.prepare('key',gif).timeline,prepared.timeline);
+   assert.equal(player.start('key',prepared,()=>false),false);
+   assert.equal(updates,1);
+   active=false;
+   assert.notEqual(player.prepare('key',gif).timeline,prepared.timeline);
+   time=500;player.tick();assert.equal(player.entries.size,0);assert.equal(player.timer,null);
+ }finally{player.close();}
+ const failing=new NativeAnimationPlayer(()=>{throw Error('display failure');});
+ assert.throws(()=>failing.start('key',failing.prepare('key',gif),()=>true),/display failure/);
+ assert.equal(failing.entries.size,0);assert.equal(failing.timer,null);
+});

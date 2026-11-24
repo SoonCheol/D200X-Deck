@@ -27,14 +27,23 @@ class NativeAnimationPlayer{
     if(this.entries.size&&!this.timer){this.timer=setInterval(()=>this.tick(),INTERVAL);this.timer.unref?.();}
     else if(!this.entries.size&&this.timer){clearInterval(this.timer);this.timer=null;}
   }
-  start(ctx,prepared,active){
+  prepare(ctx,uri){
     const previous=this.entries.get(ctx);
-    if(previous?.uri===prepared.uri)return true;
+    if(previous?.uri===uri&&previous.active())return {uri,timeline:previous.timeline};
+    return prepareGif(uri);
+  }
+  start(ctx,prepared,active){
+    if(!active())return false;
+    const previous=this.entries.get(ctx);
+    if(previous?.uri===prepared.uri&&previous.active())return true;
     const total=[...this.entries].reduce((sum,[owner,e])=>sum+(owner===ctx?0:e.timeline.bytes),prepared.timeline.bytes);
     if((!previous&&this.entries.size>=MAX_ACTIVE)||total>MAX_BYTES||!active())return false;
     const entry={...prepared,active,start:this.now(),last:null};
     this.entries.set(ctx,entry);
-    this.emitFrame(ctx,entry,this.now());this.reconcile();return true;
+    try{this.emitFrame(ctx,entry,this.now());}
+    catch(error){this.entries.delete(ctx);throw error;}
+    finally{this.reconcile();}
+    return true;
   }
   emitFrame(ctx,entry,time){
     if(!entry.active()){this.entries.delete(ctx);return;}

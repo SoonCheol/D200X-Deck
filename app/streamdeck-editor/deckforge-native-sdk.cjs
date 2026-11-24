@@ -6,7 +6,7 @@ const {randomUUID}=require('node:crypto');
 const {SdkScheduler}=require('./deckforge-sdk-scheduler.cjs');
 const {verifyPng}=require('./ulanzi-png-verifier.cjs');
 const {pixelImage}=require('./deckforge-pixel-image.cjs');
-const {prepareGif,NativeAnimationPlayer}=require('./deckforge-native-animation.cjs');
+const {NativeAnimationPlayer}=require('./deckforge-native-animation.cjs');
 const {NativeSettingsVault,validateValue}=require('./deckforge-native-settings.cjs');
 const {NativeVersionStore,assertAppRequirement}=require('./deckforge-native-versions.cjs');
 const {validateDependencies,resolveDependencies,assertDependencyChange}=require('./deckforge-native-dependencies.cjs');
@@ -209,7 +209,7 @@ class NativePluginHost{
         check(ctx.slot>=0&&ctx.slot<13&&ctx.action.controllers.includes('Keypad')&&++animationCount===1,'animation requires a normal key and one command');
         if(op.op==='animation'){
           check(exact(op,['op','value']),'invalid animation operation');
-          normal.push({op:'animation',prepared:prepareGif(op.value)});
+          normal.push({op:'animation',prepared:this.animations.prepare(ctx,op.value)});
         }else{
           check(exact(op,['op']),'invalid animation stop');
           normal.push(op);
