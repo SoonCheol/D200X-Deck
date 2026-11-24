@@ -78,3 +78,7 @@ API 2 manifest의 service={script,tickIntervalMs?} 및 별도 background.run 권
 ## 1.1.173 선택 상태 전달 및 HA 패키지
 - API 2 action.sharedStateView={keys,map,selection}: 허용 공유 상태 최상위 키와 설정에 선택된 최대 8개 map 항목만 버튼 renderer에 복제. 관계없는 상태 변경 이벤트 생략. 기존 선언 없는 액션은 이전 동작 유지. HA 0.1.1은 이 기능 사용.
 - HA 전용 추가에서 설치/업데이트 또는 서버 주소 포함 독립 .deckforgePlugin 파일 저장(토큰 미포함, 덮어쓰기 금지). 이진 센서 device_class별 상태 문구 및 Electron 센서 출력 집중 검사 추가. 실제 HA 연결·D200X 실기는 별도.
+
+## 1.1.174 공통 속성 UI 및 HA 진단
+- 독자 SDK 속성·인증창은 공통 message button/field 규격 사용. 동적 목록 창이 열린 동안 1.5초 조회, 종료 시 해제, 선택 보존 및 동일 목록 재렌더 생략. 서비스/연결/단계·안전 오류 코드 표시 및 수동 재연결. 토큰/원본 응답/임의 transport 오류 미노출.
+- WSS 수신 1MiB 선택 허용 및 renderer 입력 1.5MiB, 기존 기본 8KiB·송신·인증·공유 상태 한도 유지. HA 0.1.2 적용. 실 서버 원인 확정은 아직 아님.

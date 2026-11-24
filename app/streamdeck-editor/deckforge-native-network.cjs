@@ -5,8 +5,8 @@ const https=require('node:https');
 const {createHash}=require('node:crypto');
 const {validateValue}=require('./deckforge-native-settings.cjs');
 const MAX_RESPONSE=8192,MAX_BODY=8192,DEADLINE=5000;
-const LARGE_SOCKET_RESPONSE=256*1024;
-function socketReceiveLimit(endpoint){return endpoint?.maxReceiveBytes===LARGE_SOCKET_RESPONSE?LARGE_SOCKET_RESPONSE:MAX_RESPONSE;}
+const LARGE_SOCKET_RESPONSE=256*1024,DISCOVERY_SOCKET_RESPONSE=1024*1024;
+function socketReceiveLimit(endpoint){return [LARGE_SOCKET_RESPONSE,DISCOVERY_SOCKET_RESPONSE].includes(endpoint?.maxReceiveBytes)?endpoint.maxReceiveBytes:MAX_RESPONSE;}
 const obj=v=>v!==null&&typeof v==='object'&&!Array.isArray(v);
 const exact=(v,keys)=>obj(v)&&Object.keys(v).length===keys.length&&keys.every(k=>Object.hasOwn(v,k));
 const key=v=>typeof v==='string'&&/^[A-Za-z0-9_-]{1,48}$/.test(v)&&!['constructor','prototype','__proto__'].includes(v);
@@ -25,7 +25,7 @@ function validateNetworkEndpoints(endpoints,permissions){
   for(const e of endpoints){
     check(obj(e)&&Object.keys(e).every(k=>['id','url','method','auth','queryKeys','pathKeys','headerKeys','reconnect','maxReceiveBytes'].includes(k))&&
       (e.auth===undefined||e.auth==='bearer'||(e.method==='WSS'&&e.auth==='home-assistant'))&&key(e.id)&&!ids.has(e.id)&&(e.method==='WSS'?socket:http&&['GET','POST','PUT','PATCH','DELETE'].includes(e.method)),'invalid endpoint identity or method');
-    if(e.maxReceiveBytes!==undefined)check(e.method==='WSS'&&[MAX_RESPONSE,LARGE_SOCKET_RESPONSE].includes(e.maxReceiveBytes),'invalid WSS receive limit');
+    if(e.maxReceiveBytes!==undefined)check(e.method==='WSS'&&[MAX_RESPONSE,LARGE_SOCKET_RESPONSE,DISCOVERY_SOCKET_RESPONSE].includes(e.maxReceiveBytes),'invalid WSS receive limit');
     if(e.reconnect!==undefined)check(e.method==='WSS'&&typeof e.reconnect==='boolean','invalid WSS reconnect policy');
     if(e.queryKeys!==undefined)check(keyList(e.queryKeys,8,key),'invalid approved query keys');
     if(e.pathKeys!==undefined)check(e.method!=='WSS'&&keyList(e.pathKeys,4,key),'invalid approved path keys');

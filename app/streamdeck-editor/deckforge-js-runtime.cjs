@@ -6,7 +6,7 @@ const {createHash}=require('node:crypto');
 const HTML='<!doctype html><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="default-src \'none\'; script-src \'unsafe-eval\'; connect-src \'none\'; object-src \'none\'; frame-src \'none\'; worker-src \'none\'; base-uri \'none\'; form-action \'none\'"><meta http-equiv="x-dns-prefetch-control" content="off"><title>DeckForge SDK runtime</title>';
 const PAGE='data:text/html;charset=utf-8,'+encodeURIComponent(HTML);
 const configured=new WeakSet();
-const MAX_OUTPUT=512*1024, MAX_INPUT=64*1024, MAX_SOCKET_INPUT=512*1024, MAX_SHARED_INPUT=768*1024;
+const MAX_OUTPUT=512*1024, MAX_INPUT=64*1024, MAX_SOCKET_INPUT=1536*1024, MAX_SHARED_INPUT=1536*1024;
 function unavailable(message){const error=Error(message);error.code='SDK_RUNTIME_UNAVAILABLE';return error;}
 function deadline(work,ms,onTimeout,signal){
   let timer,abort;

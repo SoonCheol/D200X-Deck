@@ -185,7 +185,7 @@ class NativePluginHost{
     const state=this.servicePolicyError?'policy-error':!enabled?'stopped':!available?'unavailable':this.suspended?'suspended':
       this.serviceCapacity?.has(id)?'capacity':!ctx?'waiting':ctx.failed?(ctx.recoveryTimer?'recovering':'failed'):'active';
     const token=ctx?.socketToken;
-    return {enabled,state,socket:token?(token.retryTimer?'reconnecting':token.ready?'connected':'connecting'):'disconnected'};
+    return {enabled,state,socket:token?(token.retryTimer?'reconnecting':token.ready?'connected':'connecting'):'disconnected',...(ctx?.socketError?{socketError:ctx.socketError}:{}),...(ctx?.failed?{socketError:'runtime-failed'}:{})};
   }
   async manageService(manifests,id,mode){
     await this.loadServicePolicy();
@@ -517,6 +517,7 @@ class NativePluginHost{
   }
   finishSocket(ctx,token,event,error=null,retry=false){
     if(ctx.socketToken!==token)return;
+    ctx.socketError=error||null;
     this.disposeSocketTransport(token);
     if(retry&&token.endpoint.reconnect===true&&token.active()&&token.attempt<this.socketRetryDelays.length){
       // Invalidate all previously queued socket events before a new transport.
@@ -551,7 +552,7 @@ class NativePluginHost{
     if(this.socketPending.size>=8||[...this.socketPending].filter(t=>t.plugin===ctx.pluginUUID).length>=2){
       this.socketEvent(ctx,token,'error','','capacity');return;
     }
-    ctx.socketToken=token;this.socketPending.add(token);
+    ctx.socketError=null;ctx.socketToken=token;this.socketPending.add(token);
     this.openSocketTransport(ctx,token);
   }
   openSocketTransport(ctx,token){
@@ -583,13 +584,18 @@ class NativePluginHost{
         },this.socketHeartbeatMs);
       };
       const opened=()=>{
-        clearTimeout(token.authTimer);token.authTimer=null;token.ready=true;
+        clearTimeout(token.authTimer);token.authTimer=null;token.ready=true;ctx.socketError=null;
         if(!this.socketEvent(ctx,token,'open')){fail('queue-capacity');return;}
         heartbeat();
       };
       let authPhase=endpoint.auth==='home-assistant'?'required':null;
       socket.on('error',error=>{
-        if(live())fail('connection-error',['ECONNRESET','ECONNREFUSED','ETIMEDOUT','EPIPE','EHOSTUNREACH','ENETUNREACH','EAI_AGAIN'].includes(error?.code));
+        if(!live())return;
+        const code=error?.code;
+        const reason=code==='WS_ERR_UNSUPPORTED_MESSAGE_LENGTH'?'message-limit':
+          /^(?:ERR_TLS|CERT_|DEPTH_ZERO|SELF_SIGNED|UNABLE_TO_VERIFY|UNABLE_TO_GET)/.test(String(code||''))?'tls-error':
+          /^Unexpected server response: [0-9]{3}$/.test(String(error?.message||''))?'upgrade-rejected':'connection-error';
+        fail(reason,['ECONNRESET','ECONNREFUSED','ETIMEDOUT','EPIPE','EHOSTUNREACH','ENETUNREACH','EAI_AGAIN'].includes(code));
       });
       socket.on('close',code=>{if(live())this.finishSocket(ctx,token,'close',null,[1001,1006,1011,1012,1013].includes(code));});
       socket.on('pong',()=>{
@@ -965,7 +971,8 @@ class PluginRouter{
     check(action,'native plugin action not installed');
     const service=this.native.contexts.get(SERVICE_PREFIX+pluginId);
     const snapshot=service&&!service.failed&&!this.native.suspended?service.sharedState:{};
-    return {status:this.native.serviceStatus(pluginId),fields:Object.fromEntries((action.settingsSchema||[])
+    const phase=typeof snapshot?.status==='string'&&snapshot.status.length<=100&&!/[\x00-\x1f\x7f]/.test(snapshot.status)?snapshot.status:'';
+    return {status:this.native.serviceStatus(pluginId),phase,fields:Object.fromEntries((action.settingsSchema||[])
       .filter(f=>f.type==='dynamicSelect'||f.type==='dynamicMultiSelect')
       .map(f=>[f.key,nativeDynamicOptions(f,snapshot)]))};
   });}

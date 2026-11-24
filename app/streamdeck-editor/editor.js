@@ -3594,7 +3594,7 @@ async function openNativeCredentials(item,plugin){
   const entries=await window.deckBridge.nativeCredentialInfo(plugin.uuid);
   if(!inspectorPickerCurrent(session,item))return;
   if(!entries.length){window.d200xActionStatus?.('등록할 인증정보가 없습니다.');return;}
-  const content=document.createElement('div');
+  const content=document.createElement('div');content.className='native-sdk-form';
   const select=document.createElement('select');select.setAttribute('aria-label','인증 대상 주소');
   for(const e of entries){
     const option=document.createElement('option');option.value=e.binding;
@@ -3604,7 +3604,8 @@ async function openNativeCredentials(item,plugin){
   input.autocomplete='off';input.placeholder='새 액세스 토큰';input.setAttribute('aria-label','새 액세스 토큰');
   const note=document.createElement('p');note.className='hint';
   select.addEventListener('change',()=>{input.value='';note.textContent='';});
-  content.append(select,input,note);
+  const field=(name,control)=>{const row=document.createElement('label');row.className='field';const label=document.createElement('span');label.textContent=name;row.append(label,control);return row;};
+  content.append(field('서버 주소',select),field('액세스 토큰',input),note);
   const choice=await window.DeckForgeDialogs.show({title:'플러그인 인증정보',intro:plugin.name+' · 선택한 HTTPS/WSS 주소에만 사용합니다. 프로필 저장과 별개로 즉시 적용됩니다. 기존 토큰은 표시하지 않습니다.',
     content,ask:true,actionLabel:'암호화 저장',alternateLabel:'등록 해제',onAccept:()=>{
       if(!/^[A-Za-z0-9._~+/-]+=*$/.test(input.value)||input.value.length>4096){note.textContent='액세스 토큰 형식을 확인하세요.';return false;}return true;
@@ -3631,16 +3632,17 @@ async function openNativeSettings(item,action,plugin){
   const session=inspectorSession;
   if(!inspectorPickerCurrent(session,item))return;
   const original=clone(item.settings?.pluginSettings||{});
-  const content=document.createElement('div');
+  const content=document.createElement('div');content.className='native-sdk-form';
+  const connection=document.createElement('div');connection.className='native-sdk-connection';connection.textContent='연결 상태 확인 중';
   const inputs=[],dynamicFields=[];
   for(const field of schema){
-    const row=document.createElement('label');row.className='field';
+    const row=document.createElement('div');row.className='field';
     const label=document.createElement('span');label.textContent=field.label;
     let input;
     if(field.type==='dynamicSelect'||field.type==='dynamicMultiSelect'){
       const multi=field.type==='dynamicMultiSelect',stored=Object.hasOwn(original,field.key)?original[field.key]:field.default;
       let selected=DeckCore.nativeSettingValue(field,stored)?(multi?[...stored]:stored?[stored]:[]):[],options=[];
-      const pane=document.createElement('div'),search=document.createElement('input'),list=document.createElement('div'),summary=document.createElement('div');
+      const pane=document.createElement('div'),search=document.createElement('input'),list=document.createElement('div'),summary=document.createElement('div');pane.className='native-sdk-picker';list.className='native-sdk-options';
       search.type='search';search.placeholder='이름·기기·ID 검색';search.setAttribute('aria-label',field.label+' 검색');
       list.style.maxHeight='200px';list.style.overflowY='auto';summary.className='hint';
       const render=()=>{
@@ -3648,7 +3650,8 @@ async function openNativeSettings(item,action,plugin){
         for(const v of selected)if(!all.some(o=>o.value===v))all.push({value:v,label:v,group:'저장된 항목 (현재 목록 없음)'});
         all.sort((a,b)=>(a.group||'').localeCompare(b.group||'','ko')||a.label.localeCompare(b.label,'ko'));
         list.replaceChildren();let group=null;
-        for(const option of all.filter(o=>!q||[o.label,o.value,o.group||''].join(' ').toLocaleLowerCase().includes(q))){
+        const matches=all.filter(o=>!q||[o.label,o.value,o.group||''].join(' ').toLocaleLowerCase().includes(q));
+        for(const option of matches){
           if((option.group||'')!==group){group=option.group||'';if(group){const heading=document.createElement('div');heading.className='hint';heading.textContent=group;list.append(heading);}}
           const line=document.createElement('label'),box=document.createElement('input'),name=document.createElement('span');
           line.style.display='flex';line.style.alignItems='center';line.style.gap='6px';
@@ -3660,12 +3663,12 @@ async function openNativeSettings(item,action,plugin){
           }else if(box.checked)selected=[option.value];render();});
           line.append(box,name);list.append(line);
         }
-        summary.textContent=(options.length?'조회 '+options.length+'개':'목록 없음 · 인증정보/연결 확인')+' / 선택 '+selected.length+(multi?' / 최대 '+field.maxItems:'');
+        summary.textContent=(options.length?'전체 '+options.length+'개 / 검색 '+matches.length+'개':'목록 없음 · 위 연결 상태 확인')+' / 선택 '+selected.length+(multi?' / 최대 '+field.maxItems:'');
       };
       search.addEventListener('input',render);
-      const clear=document.createElement('button');clear.type='button';clear.textContent='선택 해제';clear.addEventListener('click',()=>{selected=[];render();});
+      const clear=document.createElement('button');clear.type='button';clear.className='deckforge-message-button';clear.textContent='선택 해제';clear.addEventListener('click',()=>{selected=[];render();});
       pane.append(search,summary,list,clear);row.append(label,pane);content.append(row);
-      dynamicFields.push({field,apply:rows=>{options=Array.isArray(rows)?rows:[];render();}});
+      dynamicFields.push({field,apply:rows=>{const next=Array.isArray(rows)?rows:[];if(JSON.stringify(options)===JSON.stringify(next))return;options=next;render();}});
       inputs.push({field,read:()=>multi?[...selected]:selected[0]||''});render();continue;
     }
     if(field.type==='select'){
@@ -3683,28 +3686,47 @@ async function openNativeSettings(item,action,plugin){
     input.setAttribute('aria-label',field.label);row.append(label,input);content.append(row);
     inputs.push({field,input});
   }
+  let refreshing=false,closed=false;
+  const statusNames={active:'실행 중',waiting:'실행 대기',stopped:'중지됨',suspended:'절전 중',recovering:'복구 중',failed:'실행 오류',capacity:'서비스 한도 초과',unavailable:'사용 불가','policy-error':'서비스 설정 오류'};
+  const socketNames={connected:'인증 성공',connecting:'연결 중',reconnecting:'재연결 중',disconnected:'연결 안 됨'};
+  const errorNames={'credential-required':'토큰 미등록','credential-unavailable':'인증정보 읽기 실패','credential-update-busy':'인증정보 갱신 중','authentication-rejected':'HA 토큰 거부','authentication-timeout':'HA 인증 시간 초과','authentication-protocol':'HA 인증 응답 오류','connection-error':'서버 연결 실패','tls-error':'TLS 인증서 오류','upgrade-rejected':'WebSocket 업그레이드 거부','message-limit':'수신 데이터 용량 초과','invalid-message':'지원하지 않는 수신 데이터','rate-limit':'수신 속도 한도 초과','queue-capacity':'처리 대기열 초과','heartbeat-timeout':'서버 응답 없음','credential-in-response':'인증정보 포함 응답 차단','runtime-failed':'플러그인 실행 오류'};
   const refreshDynamic=async()=>{
-    if(!dynamicFields.length||!window.deckBridge?.nativeDynamicOptions)return;
+    if(closed||refreshing||!dynamicFields.length||!window.deckBridge?.nativeDynamicOptions)return;
+    refreshing=true;
     try{const data=await window.deckBridge.nativeDynamicOptions(plugin.uuid,action.uuid);
-      if(!inspectorPickerCurrent(session,item))return;
+      if(closed||!inspectorPickerCurrent(session,item))return;
+      const st=data.status||{};
+      connection.textContent=[statusNames[st.state]||'상태 확인 필요',socketNames[st.socket]||'연결 확인 필요',errorNames[st.socketError]||'',data.phase||''].filter(Boolean).join(' · ');
       for(const entry of dynamicFields)entry.apply(data.fields?.[entry.field.key]);
-    }catch{window.d200xActionStatus?.('기기 목록 조회 실패');}
+    }catch{if(!closed)connection.textContent='기기 목록 조회 실패 · 서비스 상태 확인';}
+    finally{refreshing=false;}
   };
+  const toolsRow=document.createElement('div');toolsRow.className='native-sdk-tools';
   if(dynamicFields.length){
-    const reload=document.createElement('button');reload.type='button';reload.textContent='기기 목록 새로 고침';
-    reload.addEventListener('click',()=>void refreshDynamic());content.append(reload);void refreshDynamic();
+    content.prepend(connection);
+    const reload=document.createElement('button');reload.type='button';reload.className='deckforge-message-button';reload.textContent='기기 목록 새로 고침';
+    reload.addEventListener('click',()=>void refreshDynamic());toolsRow.append(reload);
+    if(plugin.background){
+      const reconnect=document.createElement('button');reconnect.type='button';reconnect.className='deckforge-message-button';reconnect.textContent='다시 연결';
+      reconnect.addEventListener('click',async()=>{reconnect.disabled=true;try{await window.deckBridge.nativeServiceControl(plugin.uuid,'restart');await refreshDynamic();}catch{connection.textContent='서비스 재시작 실패';}finally{reconnect.disabled=false;}});
+      toolsRow.append(reconnect);
+    }
   }
   if(credentialCapable){
-    const credentialButton=document.createElement('button');credentialButton.type='button';credentialButton.textContent='인증정보 관리';
+    const credentialButton=document.createElement('button');credentialButton.type='button';credentialButton.className='deckforge-message-button';credentialButton.textContent='인증정보 관리';
     credentialButton.addEventListener('click',async()=>{
       credentialButton.disabled=true;
       try{await openNativeCredentials(item,plugin);await refreshDynamic();}catch{window.d200xActionStatus?.('인증정보 상태 확인 실패');}
       finally{credentialButton.disabled=false;}
-    });content.append(credentialButton);
+    });toolsRow.append(credentialButton);
   }
+  if(toolsRow.childElementCount)content.append(toolsRow);
   const notice=document.createElement('p');notice.className='hint';content.append(notice);
   let result=null;
-  const accepted=await window.DeckForgeDialogs.show({title:'플러그인 속성',intro:action.name+' · 일반 설정은 프로필에 저장됩니다. 비밀번호·토큰을 입력하지 마세요.',
+  const poll=dynamicFields.length?setInterval(()=>void refreshDynamic(),1500):null;
+  void refreshDynamic();
+  let accepted;
+  try{accepted=await window.DeckForgeDialogs.show({title:'플러그인 속성',intro:action.name+' · 일반 설정은 프로필에 저장됩니다. 비밀번호·토큰을 입력하지 마세요.',
     content,ask:true,actionLabel:'적용',onAccept:()=>{
       try{
         const next={...original};
@@ -3715,7 +3737,7 @@ async function openNativeSettings(item,action,plugin){
         }
         result=DeckCore.nativeEffectiveSettings(schema,next);return true;
       }catch{notice.textContent='설정 크기 또는 형식을 확인하세요.';return false;}
-    }});
+    }});}finally{closed=true;clearInterval(poll);}
   if(!accepted||!result||!inspectorPickerCurrent(session,item))return;
   if(JSON.stringify(item.settings.pluginSettings||{})!==JSON.stringify(original)){
     window.d200xActionStatus?.('다른 설정 변경이 발생했습니다. 속성창을 다시 열어 주세요.');return;

@@ -31,12 +31,12 @@ function service(event,settings,state,memory,api){
   let m;try{m=JSON.parse(response.body);}catch{return;}
   if(!m||typeof m!=='object')return;
   if(m.type==='result'&&m.id===1){
-    const next=empty('기기 조회 중');
+    const next=empty('엔티티 조회 중');
     for(const d of Array.isArray(m.result)?m.result:[]){const id=clean(d?.id,64),name=clean(d?.name_by_user||d?.name);if(/^[a-f0-9]{32}$/.test(id)&&name)next.devices[id]=name;}
     publish(next);send(2,'config/entity_registry/list_for_display');return;
   }
   if(m.type==='result'&&m.id===2){
-    const next={...old,groups:{},devices:{}};
+    const next={...old,status:'상태 구독 중',groups:{},devices:{}};
     for(const e of Array.isArray(m.result?.entities)?m.result.entities:[]){
       if(valid(e?.ei)&&(control(e.ei)||sensor(e.ei))){
         const device=clean(e.di,64);if(/^[a-f0-9]{32}$/.test(device))next.groups[e.ei]=old.devices?.[device]||'기기 '+device.slice(0,8);
@@ -132,9 +132,9 @@ function createHomeAssistantManifest(server){
   u.protocol='wss:';u.pathname='/api/websocket';
   const script=f=>'return ('+f.toString()+')(event,settings,state,memory,api);';
   const select=(key,label,value,options)=>({key,label,type:'select',default:value,options:options.map(([value,label])=>({value,label}))});
-  return {apiVersion:2,id:ID,name:'DeckForge Home Assistant',version:'0.1.1',requiresDeckForge:'>=1.1.173',
+  return {apiVersion:2,id:ID,name:'DeckForge Home Assistant',version:'0.1.2',requiresDeckForge:'>=1.1.174',
     permissions:['display','background.run','network.websocket','timer.tick'],
-    networkEndpoints:[{id:'ha',url:u.href,method:'WSS',auth:'home-assistant',reconnect:true,maxReceiveBytes:262144}],
+    networkEndpoints:[{id:'ha',url:u.href,method:'WSS',auth:'home-assistant',reconnect:true,maxReceiveBytes:1048576}],
     service:{script:script(service),sharedStateBytes:262144},
     actions:[
       {id:ID+'.control',name:'HA 기기 제어',controllers:['Keypad'],states:2,script:script(controlKey),sharedStateView:{keys:['status','commandError'],map:'entities',selection:'entity'},

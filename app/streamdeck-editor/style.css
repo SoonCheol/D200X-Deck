@@ -1549,3 +1549,20 @@ dialog.deckforge-message-dialog::backdrop{background:#000a}
 .indicator-inspector .indicator-fixed-binding{grid-template-columns:82px minmax(0,1fr);gap:8px}
 .indicator-inspector .indicator-fixed-binding input[readonly]{cursor:default;opacity:1}
 .indicator-inspector .indicator-fixed-binding .action-preview-test{flex:0 0 30px;min-width:30px;margin:0}
+
+/* Native SDK dialogs reuse the common message button and field design. */
+.native-sdk-form{display:flex;flex-direction:column;gap:8px;min-width:0;color-scheme:dark}
+.native-sdk-form>.field{grid-template-columns:112px minmax(0,1fr);align-items:start;gap:10px}
+.native-sdk-form>.field>span{align-self:center;color:#d4d4d4}
+.native-sdk-form .field select,.native-sdk-form .field input:not([type=checkbox]):not([type=radio]){min-width:0;width:100%;min-height:32px;background:#363636;color:#eee;border:1px solid #666;border-radius:4px;padding:6px 9px}
+.native-sdk-form .field input[type=checkbox],.native-sdk-form .field input[type=radio]{width:auto;min-height:0;accent-color:#2368bb}
+.native-sdk-form .field input[type=checkbox]{justify-self:start}
+.native-sdk-form .native-sdk-picker{display:flex;flex-direction:column;align-items:stretch;gap:6px;min-width:0}
+.native-sdk-form .native-sdk-picker>.deckforge-message-button{align-self:flex-start}
+.native-sdk-form .native-sdk-options:not(:empty){padding:6px 8px;border:1px solid #555;border-radius:4px;background:#303030}
+.native-sdk-form .native-sdk-options label{min-height:28px;text-align:left;cursor:pointer;color:#eee}
+.native-sdk-form .native-sdk-options label span{min-width:0;overflow-wrap:anywhere}
+.native-sdk-form .native-sdk-tools{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.native-sdk-form .deckforge-message-button:disabled{opacity:.5;cursor:default}
+.native-sdk-form .native-sdk-connection{padding:8px 10px;border:1px solid #555;border-radius:5px;background:#343434;color:#ddd;overflow-wrap:anywhere}
+.native-sdk-form .hint{margin:0;overflow-wrap:anywhere}

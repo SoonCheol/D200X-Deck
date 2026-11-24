@@ -2176,3 +2176,13 @@ test('HA plugin independent package round trip preserves address but contains no
  const parsed=await parseDeckForgePackage(pack.archive);
  assert.deepEqual(parsed.native,manifest);
 });
+
+test('native discovery WSS allows explicit 1 MiB receive while keeping default and outgoing limits',()=>{
+ const {validateNetworkEndpoints,socketReceiveLimit,validateSocketOperation}=require('../app/streamdeck-editor/deckforge-native-network.cjs');
+ const ep={id:'ha',url:'wss://example.com/api/websocket',method:'WSS',auth:'home-assistant',maxReceiveBytes:1048576};
+ validateNetworkEndpoints([ep],['display','network.websocket']);
+ assert.equal(socketReceiveLimit(ep),1048576);
+ assert.equal(socketReceiveLimit({...ep,maxReceiveBytes:undefined}),8192);
+ assert.throws(()=>validateNetworkEndpoints([{...ep,maxReceiveBytes:1048577}],['display','network.websocket']),/receive limit/);
+ assert.throws(()=>validateSocketOperation({op:'socketSend',value:'x'.repeat(8193)},[ep]),/limit/);
+});
