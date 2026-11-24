@@ -2,7 +2,7 @@
 > 2026-11-24 · 현재 스냅샷, 누적 금지.
 ## 개발 기준
 - 저장소 SoonCheol/D200X-Deck · 브랜치 codex/streamdeck-761-clean-editor · Draft PR #5 유지.
-- 로컬 E:\Codex\DeckForge. 최신 HEAD는 Git에서 확인. 소스 버전 **1.1.230** (10B 실제 종료 통지 경쟁 수정 후보).
+- 로컬 E:\Codex\DeckForge. 최신 HEAD는 Git에서 확인. 소스 버전 **1.1.230** (10B 실제 장애 복구 통과, 10C 조건부 판정).
 - 감사 기준 `49ba39fe094ee808c5715f2348be0789f61d5e20`. CI #1221 성공; Windows #930 사용자 인수인계.
 ## 현재 상태
 - 독자 SDK API 1/2, 공개 25개 함수, HTTP/WSS, 전역 서비스/공유 상태, 동적 속성, 암호화·권한·패키지, HA 0.1.8 후보 및 Stream Deck 호환 호스트 구현. SDK 1.0 정식 완성 선언 보류.
@@ -11,7 +11,7 @@
 - 소스 대조: DOM 교체·중복 합성·설정 receipt 위험 확인; 기존 1권한효과 제한과 epoch/settingsRevision, WSS 오류 종료 처리 존재. 미저장 실기 미리보기 의도는 정책 결정 전 보존.
 - 01~04A: 검증 인벤토리·instanceId/mountGeneration·공통 합성기·Model 2 실행 격리 구현 및 집중/Windows 검사 통과. 1.1.183 깜박임 국소 개선, 04B 별도. 상세 SDK 계약 및 Git 참조.
 - 02~03: UUIDv4·세대 검증·렌더 합성/dirty loop·Fusion 중복 갱신 차단 구현. 사용자 1.1.182 편집기 깜박임 해소 확인, 물리 버튼 깜박임 없음. 개별 키 USB 기본 OFF, HA 제어 재실행 금지. 상세 이력은 Git/SDK 계약.
-- 04A Model 2 후보: 플러그인별 service/button 분리 partition·renderer 재사용, lane 직렬화, 실행 lease 취소, idle LRU/30초 만료, suspend/close 정리. 기존 context FIFO·검증·realm reset 유지. legacy 복귀는 DECKFORGE_SDK_RUNNER=legacy (실패 이벤트 자동 재실행 금지). 집중 Node/실제 Electron PID·timeout/realm/서비스 생존 검사 추가. 1.1.188 실제 Electron PID 3844/3472 분리, timeout·서비스 생존 및 Node 검사 통과, 설치본 생성 성공, Releases HTTP 403 게시 실패. 1.1.189 Windows 전체 성공; CSP 결과 로그 미출력.
+- 04A Model 2: service/button partition·runner 재사용, lane 직렬화·lease 취소·idle LRU/30초·suspend/close·realm reset. legacy 복귀 DECKFORGE_SDK_RUNNER=legacy, 실패 이벤트 재실행 금지. 1.1.189 Windows 성공; 1.1.230 실제 장애 검증 통과.
 - 04B 선행 검증: 전용 Electron CSP/격리 검사만, 실제 앱 Worker 미등록.
 - 1.1.190: Model 5 DrawOps 신뢰 painter 후보, 생산 경로 미변경. 후속 1.1.193에서 픽셀/host 검증 통과.
 - 1.1.191~193: 카드 외곽 팝업 위치 규격, Windows 성공.
@@ -35,9 +35,9 @@
 - 1.1.224: --test-key-transport 실행 인자에서만 KEY 허용, 동일 페이지 native 단일 일반 키 부분 렌더만 liveOnly 전달. 일반 실행/와이드 경고는 PAGE. USB log 구조화 slot/ZIP bytes/session, AI 조회, 집중 검사 추가. CI #1272·입력 #520·Windows #978 성공, 설치본 게시 확인. 실제 KEY 미검증.
 - 1.1.225: Model 2 실제 반복·LRU 및 USB mock 검사 추가. CI #1273 성공; Windows #979 고정 PID 가정 실패. 장시간 실기/OOM 별도.
 - 1.1.226: 반복 검사 PID 고정 대신 runner 객체 재사용과 매회 scope PID 분리/realm/memory 검증, PID 목록 실측. Model 2 실제 Electron 입력·연산·출력·draw 한계 5종, 서비스 생존/버튼 복구, opaque local/sessionStorage 및 CSP data fetch 검증 추가. 실제 OOM 미실시. CI #1274·Windows #980 성공. 24쌍+6 lease, 2650ms, 최대 idle 3; USB mock PAGE 121 vs PAGE 17+KEY 104. Model5 standard storage 허용/opaque worker 실패 재확인.
-- 1.1.227~229: CI #1275~1277 성공, Windows #981~983 실패. #983 유휴 crash/복구 성공, 실행 중 frame disposed 직후 destroy로 통지 미관측. 1.1.230: 해당 오류에만 500ms 이내 수명 종료 통지 대기, 재실행 금지·기존 deadline 유지. 검사 대기.
+- 1.1.227~229: CI 성공, Windows #981~983 종료 통지 실패. 1.1.230: 500ms 이내 수명 통지 대기, CI #1278 성공; Windows #984 유휴/실행 중 실제 crash·거부·서비스/peer 생존·새 이벤트 복구, 25함수·vault 통과. NSIS npm asar 4.3.3 404 실패, 동일 빌드 재실행 요청 성공.
 ## 다음 작업
-- **10 통합:** process-loss 검사 후 10C 출시 판정; Model5 차단 유지, OOM/실기 미검증 명시. 09 실제 trial 미검증 KEY 기본 OFF. HA 실제 서버 별도. Model 2 유지; 04B 저장소 격리·OOM·자원 한도 검증 전 Model 5 활성화 금지. 기존 실기 미리보기 정책 유지.
+- **10C 판정:** Model 2 자동 장애 검증 통과, 정식 SDK 1.0 출시 보류. #984 재실행/설치본 게시 확인, 실제 HA/D200X/OS 절전·재연결/장시간 soak, 실제 OOM 및 감사 전수 증거 잔여. Model5 차단, KEY 기본 OFF, 기존 실기 미리보기 유지. 미검증 항목 활성화 금지.
 - 기존 기능/데이터/API·보안 보존, 테스트/CI/Windows/실기 구분. 미측정 성능 수치 단정 금지.
 ## 참조
 - [SDK 계약 및 재설계](DECKFORGE-SDK-1.0.md) · [잔여 로드맵](D200X-STREAMDECK-ROADMAP.md).
