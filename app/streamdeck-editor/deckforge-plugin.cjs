@@ -5,6 +5,7 @@ const fs=require('node:fs/promises');
 const path=require('node:path');
 const JSZip=require('jszip');
 const {parseArchive,validateManifest}=require('./sd-plugin-host.cjs');
+const {validateNativeManifest,LIMIT:NATIVE_LIMIT}=require('./deckforge-native-sdk.cjs');
 
 const FORMAT='deckforge-plugin';
 const FORMAT_VERSION=1;
@@ -19,12 +20,17 @@ const safeName=value=>String(value).replace(/[^a-zA-Z0-9._-]+/g,'-').replace(/^-
 
 function validatePackageManifest(meta){
   if(!meta||typeof meta!=='object'||Array.isArray(meta)||
-    meta.format!==FORMAT||meta.formatVersion!==FORMAT_VERSION)
+    meta.format!==FORMAT||![FORMAT_VERSION,2].includes(meta.formatVersion))
     throw Error('지원하지 않는 DeckForge 플러그인 패키지 규격입니다.');
   const p=meta.plugin;
   if(!p||!ID.test(p.id)||typeof p.name!=='string'||!p.name.trim()||
     typeof p.version!=='string'||!p.version.trim()||p.name.length>180||p.version.length>64)
     throw Error('DeckForge 플러그인 식별 정보가 올바르지 않습니다.');
+  if(meta.formatVersion===2){
+    if(meta.runtime?.type!=='deckforge-sdk'||meta.runtime?.directory!=='payload'||meta.runtime?.apiVersion!==1||meta.source?.kind!=='deckforge')
+      throw Error('지원하지 않는 DeckForge 독자 SDK 런타임 또는 원본입니다.');
+    return meta;
+  }
   if(meta.runtime?.type!=='streamdeck-sdk'||meta.runtime?.directory!=='payload')
     throw Error('지원하지 않는 DeckForge 플러그인 런타임입니다. v1은 streamdeck-sdk만 허용합니다.');
   if(!['streamdeck','deckforge'].includes(meta.source?.kind))
@@ -35,18 +41,44 @@ function validatePackageManifest(meta){
 async function parseDeckForgePackage(data){
   if(!Buffer.isBuffer(data)||data.length<50||data.length>MAX_ARCHIVE)
     throw Error('DeckForge 플러그인 파일은 40MB 이하여야 합니다.');
-  const zip=await JSZip.loadAsync(data,{checkCRC32:true});
+  // Inspect declared bounds before requesting CRC verification (which inflates entries).
+  const zip=await JSZip.loadAsync(data);
   const entries=Object.values(zip.files);
   const files=entries.filter(entry=>!entry.dir);
   if(!files.length||files.length>MAX_FILES+1)
     throw Error('DeckForge 플러그인 파일 개수가 허용 범위를 벗어났습니다.');
   const descriptor=zip.file('deckforge-plugin.json');
   if(!descriptor||descriptor.dir)throw Error('DeckForge 전용 manifest(deckforge-plugin.json)가 없습니다.');
+  let declared=0;
+  for(const entry of files){
+    const size=Number(entry._data?.uncompressedSize);
+    if(!Number.isSafeInteger(size)||size<0||(declared+=size)>MAX_EXPANDED)
+      throw Error('DeckForge 패키지 압축 해제 크기 제한 초과');
+  }
+  if(Number(descriptor._data?.uncompressedSize)>32768)throw Error('DeckForge 패키지 매니페스트가 너무 큽니다.');
   const descriptorBytes=await descriptor.async('nodebuffer');
   if(descriptorBytes.length>32768)throw Error('DeckForge 패키지 매니페스트가 너무 큽니다.');
   let meta;
   try{meta=validatePackageManifest(JSON.parse(descriptorBytes.toString('utf8')));}
   catch(error){throw Error('DeckForge 패키지 검증 실패: '+error.message);}
+  if(meta.formatVersion===2){
+    if(data.length>NATIVE_LIMIT||files.length!==2||!zip.file('payload/native.json'))throw Error('독자 SDK 패키지에는 native.json만 허용합니다.');
+    for(const entry of entries){
+      const name=entry.dir?entry.name.replace(/\/$/,''):entry.name;
+      if(!safePart(name)||(entry.unixPermissions&0xf000)===0xa000||
+        (entry.unsafeOriginalName&&entry.unsafeOriginalName!==entry.name)||
+        !['payload','payload/native.json','deckforge-plugin.json'].includes(name))throw Error('독자 SDK 패키지 경로 오류');
+    }
+    const item=zip.file('payload/native.json');
+    if(Number(item._data?.uncompressedSize)>NATIVE_LIMIT)throw Error('독자 SDK 프로그램 크기 제한');
+    await JSZip.loadAsync(data,{checkCRC32:true});
+    const raw=await item.async('nodebuffer');
+    if(raw.length>NATIVE_LIMIT)throw Error('독자 SDK 프로그램 크기 제한');
+    const native=validateNativeManifest(JSON.parse(raw.toString('utf8')));
+    if(native.id!==meta.plugin.id||native.name!==meta.plugin.name||native.version!==meta.plugin.version)throw Error('독자 SDK 패키지 식별 정보가 일치하지 않습니다.');
+    return {meta,native};
+  }
+  await JSZip.loadAsync(data,{checkCRC32:true});
   const targetRoot=meta.plugin.id+'.sdPlugin/';
   const converted=new JSZip();
   let fileCount=0,total=0;

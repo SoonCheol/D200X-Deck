@@ -20,6 +20,7 @@ const { parseIconPack, parseIconFolder, readPacks, registerPack, removePack } = 
 const { safeStorage } = require('electron');
 const HA = require('./ha-client.cjs');
 const {StreamDeckPluginHost}=require('./sd-plugin-host.cjs');
+const {NativePluginHost,PluginRouter}=require('./deckforge-native-sdk.cjs');
 const DeckForgePlugins=require('./deckforge-plugin.cjs');
 const Bundled=require('./bundled-integration.cjs');
 const {ProfileStore}=require('./profile-store.cjs');
@@ -29,7 +30,10 @@ const {GoogleDrive}=require('./google-drive.cjs');
 const UpdateCheck=require('./update-check.cjs');
 let sdkHost=null;
 function sdk(){
-  if(!sdkHost)sdkHost=new StreamDeckPluginHost(app.getPath('userData'),payload=>send('d200x:sdk-event',payload),()=>window);
+  if(!sdkHost){
+    const userData=app.getPath('userData'),update=payload=>send('d200x:sdk-event',payload);
+    sdkHost=new PluginRouter(new StreamDeckPluginHost(userData,update,()=>window),new NativePluginHost(userData,update));
+  }
   return sdkHost;
 }
 // Local-only Fusion artwork cache: filenames are stable SDK command IDs.
@@ -158,7 +162,7 @@ ipcMain.handle('d200x:sdk-install',async event=>{
     const packageData=await DeckForgePlugins.parseDeckForgePackage(bytes);
     // Preserve the SDK compatibility runtime; independent DeckForge package
     // metadata and payload have already passed validation.
-    return sdk().install(packageData.archive);
+    return packageData.native?sdk().installNative(packageData.native):sdk().install(packageData.archive);
   }
   return sdk().install(bytes);
 });

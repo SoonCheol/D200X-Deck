@@ -1,13 +1,21 @@
 # DeckForge 플러그인 규격·패키징·Ulanzi 변환 검증 계획
 
-> 기록일: 2026-11-24 · 상태: **전용 설치 패키지 v1 구현 / Ulanzi 코드 변환기 미구현**
+> 기록일: 2026-11-24 · 상태: **설치 패키지 v1 유지 / 선언형 독자 SDK API 1 및 패키지 v2 첫 구현 / Ulanzi 변환기 미구현**
 > 저장소·브랜치: `SoonCheol/D200X-Deck` / `codex/streamdeck-761-clean-editor`
+
+## 0. 독자 SDK API 1 (1.1.112 첫 구현)
+
+- 기존 v1은 변경 없이 유지. v2는 `runtime.type=deckforge-sdk`, `runtime.apiVersion=1`, `source.kind=deckforge`와 `payload/native.json` 단일 프로그램을 사용한다. 기존 패키지 내보내기는 v1 전용이다.
+- 프로그램은 `apiVersion:1`, `id` (`com.deckforge.native.*`), `name`, `version`, `permissions:["display"]`, `actions` 배열을 가진다. 각 action은 `id` (plugin ID + suffix), `name`, `controllers` (`Keypad`/`Encoder`), `states` (1/2), `events` 객체를 가진다. 이벤트는 appear/disappear/settings/press/release/rotateLeft/rotateRight/heldRotateLeft/heldRotateRight. 각 이벤트는 최대 16개 명령을 실행한다.
+- 명령: `{"op":"title","value":"Ready"}`, `{"op":"titleFromSetting","key":"label","fallback":"Ready"}`, `{"op":"state","value":0}`, `{"op":"toggleState"}`, `{"op":"image","value":"data:image/png;base64,..."}`. 컨텍스트별 상태와 눌림을 분리한다. 기존 표시 IPC를 재사용한다.
+- 임의 JS/Node/네트워크/파일/셸 실행, 전역 설정 쓰기, 와이드 화면/프로필 이동, 속성창 및 실제 프로세스 격리·자동 재시작은 **미구현**. 선언형 런타임은 외부 코드를 실행하지 않으며 권한은 display만 허용한다. 기존 호환 플러그인은 기존 신뢰 모델을 그대로 사용한다.
+- 기존 호스트와 라우터로 공존하며 native 프로그램은 `Plugins/<id>.deckforge-native.json`에 별도 저장한다. 동일 ID 덮어쓰기 차단, 기존 SDK 우선. 모의 테스트와 Windows 빌드/실기는 별도 확인한다.
 
 ## 1. 기본 원칙
 
 - **Stream Deck 호환 플러그인 직접 설치 유지:** `.sdPlugin` 폴더와 `.streamDeckPlugin`(또는 호환 ZIP) 파일은 기존 호스트로 설치한다. 파일 확장자나 SDK 프로토콜을 임의로 변경하지 않는다.
 - **DeckForge 전용 설치 파일:** `.deckforgePlugin`은 자체 최상위 매니페스트를 가진 ZIP 기반 단일 파일이다. NAS·Google Drive·OneDrive에 그대로 보관 가능하며 원본은 보존한다.
-- **패키지 형식과 실행 규격 분리:** DeckForge 패키지 v1의 `runtime.type=streamdeck-sdk`는 기존 SDK 호스트로 실행한다. 따라서 전용 **설치 파일 규격**이 별도로 존재하지만 **독립 실행 SDK는 아직 없다**. 미래에 새로운 런타임 타입을 추가할 때 하위 호환성을 유지한다.
+- **패키지 형식과 실행 규격 분리:** DeckForge 패키지 v1의 `runtime.type=streamdeck-sdk`는 기존 SDK 호스트로 실행한다. 따라서 전용 **설치 파일 규격**이 별도로 존재하지만 **v1 자체에는 독립 실행 SDK가 없다**. 미래에 새로운 런타임 타입을 추가할 때 하위 호환성을 유지한다.
 - **Ulanzi 폴더는 이름만 바꿔서 설치하지 않음:** 변환 코드·API 매핑과 실제 동작 검증에 통과한 결과에만 전용 패키지를 만든다. **현 v1 설치기는 변환되지 않은 Ulanzi 패키지를 거부한다.**
 - **미지원 중 유용한 플러그인은 DeckForge 전용으로 재구현:** 지원하지 않는 API를 임의로 대체하거나 동작한다고 가장하지 않는다. 기능 단위로 사용자 가치·권한·라이선스를 확인한 뒤 별도 개발 대상으로 기록한다.
 
@@ -89,7 +97,7 @@ Example-plugin-1.2.3.deckforgePlugin
 - `.deckforgePlugin` v1 생성·검증·설치 IPC: **코드 반영**. 자동 테스트/Windows 빌드/실기 성공은 각각 확인한 뒤 기록한다.
 - `.sdPlugin` 및 `.streamDeckPlugin`: **기존 호환 경로 보존**.
 - `.ulanziPlugin` 코드 자동 변환·변환 실행 검증/보고서: **미구현, 후속 목표**.
-- DeckForge 독립 네이티브 실행 SDK·공개 웹스토어: **미구현, 후속 목표**.
+- DeckForge 독자 SDK: **선언형 API 1 첫 구현**(§0), 범용 코드 SDK·공개 웹스토어: 미구현.
 
 ## 7. 11월 말 집중 개발 순서 (2026-11-24 인수인계)
 

@@ -88,3 +88,52 @@ test('DeckForge exporter blocks unexpected symlinks and never overwrites install
     await assert.rejects(packageSdPluginDirectory(folder),/심볼릭 링크/);
   }finally{await fs.rm(temp,{recursive:true,force:true});}
 });
+
+
+const {validateNativeManifest,NativePluginHost,PluginRouter}=require('../app/streamdeck-editor/deckforge-native-sdk.cjs');
+const nativeId='com.deckforge.native.counter';
+const nativeManifest={apiVersion:1,id:nativeId,name:'Native counter',version:'1.0.0',permissions:['display'],actions:[
+  {id:nativeId+'.toggle',name:'Toggle',controllers:['Keypad','Encoder'],states:2,
+    events:{appear:[{op:'titleFromSetting',key:'label',fallback:'Ready'}],press:[{op:'toggleState'}],
+      rotateRight:[{op:'toggleState'}],heldRotateLeft:[{op:'title',value:'Held'}]}}
+]};
+async function nativeArchive(m=nativeManifest,extra=false){
+  const zip=new JSZip();
+  zip.file('deckforge-plugin.json',JSON.stringify({format:'deckforge-plugin',formatVersion:2,
+    plugin:{id:m.id,name:m.name,version:m.version},source:{kind:'deckforge'},
+    runtime:{type:'deckforge-sdk',directory:'payload',apiVersion:1}}));
+  zip.file('payload/native.json',JSON.stringify(m));if(extra)zip.file('payload/evil.js','throw Error()');
+  return zip.generateAsync({type:'nodebuffer'});
+}
+test('native package v2 validates identity, permissions and executable-free payload',async()=>{
+  assert.deepEqual((await parseDeckForgePackage(await nativeArchive())).native,nativeManifest);
+  await assert.rejects(parseDeckForgePackage(await nativeArchive(nativeManifest,true)),/native.json/);
+  assert.throws(()=>validateNativeManifest({...nativeManifest,permissions:['shell']}),/permissions/);
+  const bad=structuredClone(nativeManifest);bad.actions[0].events.press=[{op:'exec',value:'bad'}];
+  assert.throws(()=>validateNativeManifest(bad),/unsupported operation/);
+});
+test('native routing coexists, keeps separate context state, blocks overwrite and handles suspend',async()=>{
+  const temp=await fs.mkdtemp(path.join(os.tmpdir(),'deckforge-native-'));
+  const events=[],legacyCalls=[];
+  const legacy={list:async()=>[{uuid:'com.legacy.example',actions:[]}],sync:async c=>legacyCalls.push(c),
+    key:()=>true,inspector:()=>true,onSystemSuspend(){},onSystemResume(){},close:async()=>{}};
+  const native=new NativePluginHost(temp,e=>events.push(e)),router=new PluginRouter(legacy,native);
+  try{
+    await router.installNative(nativeManifest);
+    await assert.rejects(router.installNative(nativeManifest),/EEXIST/);
+    assert.equal((await router.list()).length,2);
+    const config=(context,slot,gesture='down')=>({context,slot,gesture,pluginUUID:nativeId,actionUUID:nativeId+'.toggle',settings:{label:context}});
+    const cfg=[config('a',0),config('b',1),config('dial',16,'hold-left'),{context:'legacy',pluginUUID:'com.legacy.example'}];
+    await router.sync(cfg);assert.deepEqual(legacyCalls[0],[cfg[3]]);
+    assert.equal(events.find(e=>e.context==='a').payload.title,'a');
+    assert.equal(router.key('a','up'),false);
+    assert.equal(router.key('a','down'),true);assert.equal(router.key('a','down'),false);
+    assert.equal(router.key('a','up'),true);assert.equal(router.key('b','down'),true);
+    assert.deepEqual(events.filter(e=>e.kind==='setState').map(e=>e.payload.state),[1,1]);
+    assert.equal(router.key('dial','left'),true);
+    assert.equal(events.at(-1).payload.title,'Held');
+    router.onSystemSuspend();assert.equal(router.key('a','down'),false);router.onSystemResume();
+    await router.sync([cfg[3]]);assert.equal(native.contexts.size,0);
+    assert.equal(router.key('legacy','down'),true);
+  }finally{await router.close();await fs.rm(temp,{recursive:true,force:true});}
+});
