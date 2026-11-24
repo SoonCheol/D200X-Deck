@@ -3098,9 +3098,18 @@ function commitExternalSdkSettings(instance,settings,request=null){
   try{
     if(profileStorageFailure)throw Error('프로필 파일 읽기 실패 상태');
     if(request){
-      if(!window.deckBridge?.commitNativeSettings)return null;
-      const result=window.deckBridge.commitNativeSettings(request.context,request.requestId);
-      if(result?.status!=='saved')return result?.status==='rejected'?false:null;
+      let result;
+      try{result=window.deckBridge?.commitNativeSettings?.(request.context,request.requestId);}catch{}
+      if(!['saved','rejected'].includes(result?.status)){
+        try{result=window.deckBridge?.nativeSettingsOutcome?.(request.context,request.requestId);}catch{}
+      }
+      if(result?.status==='rejected')return false;
+      if(result?.status!=='saved'){
+        // Do not let a stale renderer overwrite a potentially committed write.
+        profileStorageFailure=true;
+        window.d200xActionStatus?.('SDK 저장 결과 미확정 · 프로필 저장 차단 · DeckForge를 다시 시작하세요.');
+        return null;
+      }
     }else if(window.deckBridge?.writeProfile){
       const saved=window.deckBridge.writeProfile(confirmed);
       if(!saved?.ok)throw Error(saved?.error||'SDK 프로필 파일 저장 실패');
@@ -3108,6 +3117,7 @@ function commitExternalSdkSettings(instance,settings,request=null){
   }catch(error){
     console.error('외부 SDK 설정 저장 실패',error);
     window.d200xActionStatus?.('플러그인 속성 저장 실패: 저장 공간/권한을 확인하세요.');
+    if(request)profileStorageFailure=true;
     return request?null:false;
   }
   live.settings.pluginSettings=clone(settings);
@@ -7528,7 +7538,8 @@ if(window.deckBridge?.onSdkEvent){
           saved=applyNativeSdkEffect(message);
       }catch{saved=null;}
       if(saved===null){
-        window.d200xActionStatus?.('독자 SDK 설정 저장 결과 미확정 · 자동 재실행하지 않습니다.');
+        profileStorageFailure=true;
+        window.d200xActionStatus?.('독자 SDK 설정 저장 결과 미확정 · 프로필 저장 차단 · 다시 시작하세요.');
         return; // Do not send a false rejection for an unknown write.
       }
       // The profile write is synchronous; acknowledge before publishing a

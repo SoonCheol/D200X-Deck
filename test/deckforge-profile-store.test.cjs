@@ -107,3 +107,28 @@ test('profile write failure leaves both native setting and durable receipt absen
   assert.equal(reopened.commitNativeSettings(request).status,'saved');
  });
 });
+
+test('lost reply after atomic rename is recovered by reading, without a second write',()=>{
+ fixture((store,dir)=>{
+  const request=nativeFixture(store),write=store.writeDocument.bind(store);let writes=0;
+  store.writeDocument=(state,receipts)=>{writes++;write(state,receipts);throw Error('reply lost after replacement');};
+  assert.deepEqual(store.commitNativeSettingsChecked(request),{status:'saved',recovered:true});
+  assert.equal(writes,1);
+  const reopened=new ProfileStore(dir);
+  assert.deepEqual(reopened.nativeSettingsOutcome(request),{status:'saved',recovered:true});
+  assert.equal(reopened.read().pages[0][0].settings.pluginSettings.count,1);
+  const state=reopened.read();state.pages[0][0].settings.pluginSettings.count=7;reopened.write(state);
+  assert.deepEqual(reopened.nativeSettingsOutcome(request),{status:'unknown'});
+ });
+});
+test('failed rename and intact prior state give confirmed rejection; unreadable disk gives unknown',()=>{
+ fixture(store=>{
+  const request=nativeFixture(store),raw=fs.readFileSync(store.file,'utf8');
+  store.writeDocument=()=>{throw Error('disk full');};
+  assert.deepEqual(store.commitNativeSettingsChecked(request),{status:'rejected'});
+  assert.equal(fs.readFileSync(store.file,'utf8'),raw);
+  fs.writeFileSync(store.file,'invalid JSON');
+  assert.deepEqual(store.nativeSettingsOutcome(request),{status:'unknown'});
+  assert.deepEqual(store.commitNativeSettingsChecked(request),{status:'unknown'});
+ });
+});

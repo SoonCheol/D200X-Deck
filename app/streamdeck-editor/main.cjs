@@ -520,7 +520,15 @@ ipcMain.on('d200x:native-settings-commit',(event,context,id)=>{
   try{
     assertEditor(event);
     const request=sdk().pendingSettingsRequest(context,id);
-    event.returnValue=request?profileStore.commitNativeSettings(request):{status:'rejected'};
+    event.returnValue=request?profileStore.commitNativeSettingsChecked(request):{status:'rejected'};
+  }catch{event.returnValue={status:'unknown'};}
+});
+
+ipcMain.on('d200x:native-settings-outcome',(event,context,id)=>{
+  try{
+    assertEditor(event);
+    const request=sdk().pendingSettingsRequest(context,id);
+    event.returnValue=request?profileStore.nativeSettingsOutcome(request):{status:'unknown'};
   }catch{event.returnValue={status:'unknown'};}
 });
 

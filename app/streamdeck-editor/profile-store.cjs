@@ -16,6 +16,14 @@ const {validSdkMount,visibleActions,activeControlAction,controlBinding}=require(
 const requestId=id=>typeof id==='string'&&/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/.test(id);
 const object=value=>value!==null&&typeof value==='object'&&!Array.isArray(value);
 const hash=value=>crypto.createHash('sha256').update(JSON.stringify(value)).digest('hex');
+const digestRequest=request=>hash([request.context,request.instanceId,request.mountGeneration,request.expectedRevision,
+  request.pluginUUID,request.actionUUID,request.slot,request.gesture,request.expectedSettings,request.operation.value,request.expiresAt]);
+function requestItem(state,request){
+  if(!state)return null;
+  const item=request.slot<14?visibleActions(state)[request.slot]:activeControlAction(controlBinding(state,request.slot),request.gesture);
+  return item?.type==='sd-plugin'&&item.instanceId===request.instanceId&&
+    item.settings?.pluginUUID===request.pluginUUID&&item.settings?.actionUUID===request.actionUUID?item:null;
+}
 class ProfileStore{
   constructor(userData){
     this.root=path.join(userData,'Profiles');
@@ -82,14 +90,12 @@ class ProfileStore{
        Buffer.byteLength(JSON.stringify(request.operation.value))>8192||
        !Number.isFinite(request.expiresAt))return {status:'rejected'};
     const state=this.read(),receipts=this.loadReceipts();
-    const digest=hash([request.context,request.instanceId,request.mountGeneration,request.expectedRevision,
-      request.pluginUUID,request.actionUUID,request.slot,request.gesture,request.expectedSettings,request.operation.value,request.expiresAt]);
+    const digest=digestRequest(request);
     const prior=receipts.find(r=>r.id===request.requestId);
     if(prior&&prior.digest!==digest)return {status:'rejected'};
     if(now>request.expiresAt||!state)return {status:'rejected'};
-    const item=request.slot<14?visibleActions(state)[request.slot]:activeControlAction(controlBinding(state,request.slot),request.gesture);
-    if(item?.type!=='sd-plugin'||item.instanceId!==request.instanceId||
-       item.settings?.pluginUUID!==request.pluginUUID||item.settings?.actionUUID!==request.actionUUID)return {status:'rejected'};
+    const item=requestItem(state,request);
+    if(!item)return {status:'rejected'};
     const actual=item.settings.pluginSettings||{};
     if(prior)return {status:JSON.stringify(actual)===JSON.stringify(request.operation.value)?'saved':'rejected',duplicate:true};
     if(JSON.stringify(actual)!==JSON.stringify(request.expectedSettings))return {status:'rejected'};
@@ -100,6 +106,27 @@ class ProfileStore{
     // State and receipt are one atomic replacement, not two files.
     this.writeDocument(state,next);
     return {status:'saved'};
+  }
+  // Read-only reconciliation: never repeat a write after a lost reply.
+  nativeSettingsOutcome(request){
+    try{
+      if(!request||!requestId(request.requestId)||request.requestId!==request.receiptId)return {status:'unknown'};
+      const state=this.read(),prior=this.loadReceipts().find(r=>r.id===request.requestId);
+      if(!state)return {status:'unknown'};
+      const item=requestItem(state,request);
+      if(prior){
+        if(prior.context!==request.context||prior.digest!==digestRequest(request)||!item||
+           JSON.stringify(item.settings.pluginSettings||{})!==JSON.stringify(request.operation.value))
+          return {status:'unknown'};
+        return {status:'saved',recovered:true};
+      }
+      return item&&JSON.stringify(item.settings.pluginSettings||{})===JSON.stringify(request.expectedSettings)?
+        {status:'rejected'}:{status:'unknown'};
+    }catch{return {status:'unknown'};}
+  }
+  commitNativeSettingsChecked(request){
+    try{return this.commitNativeSettings(request);}
+    catch{return this.nativeSettingsOutcome(request);}
   }
   write(state){
     return this.writeDocument(state,this.loadReceipts().filter(r=>Date.now()-r.at<=RECEIPT_TTL));

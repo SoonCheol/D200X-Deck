@@ -5,6 +5,7 @@ contextBridge.exposeInMainWorld('deckBridge', Object.freeze({
   readProfile: () => ipcRenderer.sendSync('d200x:profile-read'),
   writeProfile: state => ipcRenderer.sendSync('d200x:profile-write',state),
   commitNativeSettings: (context,id) => ipcRenderer.sendSync('d200x:native-settings-commit',context,id),
+  nativeSettingsOutcome: (context,id) => ipcRenderer.sendSync('d200x:native-settings-outcome',context,id),
   createBackup: (password,appearance,format,selection) => ipcRenderer.invoke('d200x:backup-create',{password,appearance,format,selection}),
   getBackupItems: appearance => ipcRenderer.invoke('d200x:backup-items',{appearance}),
   scanBackup: (appearance,selection) => ipcRenderer.invoke('d200x:backup-scan',{appearance,selection}),

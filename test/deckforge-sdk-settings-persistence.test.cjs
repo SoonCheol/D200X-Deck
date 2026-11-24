@@ -111,5 +111,17 @@ test('native receipt path does not fall back to an ordinary profile write on unc
   const result=vm.runInNewContext(script+';commitExternalSdkSettings(instance,{value:"after"},request)',ctx);
   assert.equal(result,status==='saved'?true:status==='rejected'?false:null);assert.equal(calls,1);
   assert.equal(item.settings.pluginSettings.value,status==='saved'?'after':'before');
+  assert.equal(ctx.profileStorageFailure,status==='unknown');
  }
+});
+
+test('lost native IPC response is reconciled by a read and never repeats the commit',()=>{
+ const state=DeckCore.migrateState(null),item=state.pages[0][0]=plugin(),session={snapshot:JSON.stringify(state),dirty:false};
+ const instance={slot:0,gesture:'down',instanceId:item.instanceId,pluginUUID:item.settings.pluginUUID,actionUUID:item.settings.actionUUID};
+ let writes=0,reads=0;
+ const ctx={state,DeckCore,instance,inspectorSession:session,profileStorageFailure:false,clone:v=>JSON.parse(JSON.stringify(v)),
+  window:{deckBridge:{commitNativeSettings:()=>{writes++;throw Error('reply lost');},nativeSettingsOutcome:()=>{reads++;return {status:'saved',recovered:true};},
+    writeProfile:()=>assert.fail('must not overwrite')}},renderGrid(){},updateInspectorSaveButtons(){},console};
+ assert.equal(vm.runInNewContext(script+';commitExternalSdkSettings(instance,{value:"after"},{context:"ctx",requestId:"id"})',ctx),true);
+ assert.equal(writes,1);assert.equal(reads,1);assert.equal(item.settings.pluginSettings.value,'after');assert.equal(ctx.profileStorageFailure,false);
 });
