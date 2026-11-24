@@ -2671,3 +2671,42 @@ test('native keepData removal requires current revision, blocks dependents and r
   assert.equal((await router.list()).find(p=>p.uuid===nativeId).version,'1.1.0');
  }finally{await router.close();await fs.rm(root,{recursive:true,force:true});}
 });
+
+test('retained native recovery lists only absent plugins and checks revision and dependencies before reinstall',async()=>{
+ const root=await fs.mkdtemp(path.join(os.tmpdir(),'deckforge-retained-'));
+ const legacy={list:async()=>[],sync:async()=>{},key:()=>true,inspector:()=>true,onSystemSuspend(){},onSystemResume(){},close:async()=>{}};
+ const host=new NativePluginHost(root),router=new PluginRouter(legacy,host);
+ const depId='com.deckforge.native.retained-dependent';
+ const dependent={...nativeManifest,id:depId,dependencies:{[nativeId]:'^1.0.0'},actions:[{...nativeManifest.actions[0],id:depId+'.toggle'}]};
+ try{
+  await router.installNative(nativeManifest);await router.installNative(dependent);
+  for(const id of [depId,nativeId]){
+    const plan=await router.planNativeRemoval(id);await router.removeNativeKeepingData(id,plan.revision);
+  }
+  assert.deepEqual((await router.listRetainedNative()).map(p=>p.id).sort(),[nativeId,depId].sort());
+  await assert.rejects(router.planRetainedNative(depId),/missing dependency/);
+  const plan=await router.planRetainedNative(nativeId);
+  assert.deepEqual(plan.permissions,['display']);
+  assert.deepEqual(plan.endpoints,[]);
+  await assert.rejects(router.restoreRetainedNative(nativeId,'stale'),/revision changed/);
+  await router.restoreRetainedNative(nativeId,plan.revision);
+  assert.deepEqual((await router.listRetainedNative()).map(p=>p.id),[depId]);
+  await assert.rejects(router.planRetainedNative(nativeId),/identical version|already installed/);
+  const dp=await router.planRetainedNative(depId);
+  await router.restoreRetainedNative(depId,dp.revision);
+  assert.deepEqual(await router.listRetainedNative(),[]);
+  assert.equal((await router.list()).length,2);
+ }finally{await router.close();await fs.rm(root,{recursive:true,force:true});}
+});
+test('SDK availability distinguishes missing action and dependency without modifying saved button',()=>{
+ const core=require('../app/streamdeck-editor/deck-core.js');
+ const item={type:'sd-plugin',title:'Saved',icon:{kind:'glyph',glyph:'X'},settings:{pluginUUID:nativeId,actionUUID:nativeId+'.toggle',pluginSettings:{label:'Saved'}}};
+ const prior=JSON.stringify(item);
+ const plugin={uuid:nativeId,actions:[{uuid:nativeId+'.toggle'}]};
+ assert.equal(core.sdkAvailability(item,null),null);
+ assert.equal(core.sdkAvailability(item,[]),'missing');
+ assert.equal(core.sdkAvailability(item,[{...plugin,available:false}]),'dependency');
+ assert.equal(core.sdkAvailability(item,[{...plugin,actions:[]}]),'action-missing');
+ assert.equal(core.sdkAvailability(item,[plugin]),'available');
+ assert.equal(JSON.stringify(item),prior);
+});

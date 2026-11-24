@@ -109,3 +109,5 @@ API 2 manifest의 service={script,tickIntervalMs?} 및 별도 background.run 권
 - 07B-3(1.1.213): 선택 action.visualPolicy='foreground'는 단일 상태 Keypad 선언만 허용. 설치된 native catalogue의 plugin/action ID 일치로 선택, runtime 이미지는 사용자 배경/아이콘 위·제목 아래의 일시적 레이어, 공통 단일 카드 편집. HA 0.1.8 sensor 선언 사용; 구 HA ID와 기존 저장 데이터 이관 호환 경로 유지. 내부 sensorDisplay/sensorOverlay 및 CSS 이름은 레이아웃 보호를 위해 유지. 비HA settings-ui 예제와 검증 추가. GUI/실기 별도.
 
 - 08A(1.1.214): 독자 플러그인 keepData 제거는 main 확인창과 현재 manifest revision, 직접 설치 의존 플러그인 부재 확인 필수. 실행 context 종료 후 현재 manifest를 NativeRemoved로 이동, 기존 및 현재 코드는 NativeHistory에 보존. 프로필·암호화 vault·서비스 환경설정 미변경. 재설치 시 보존 원본 동일 내용 또는 더 높은 호환 버전 요구. 기존 패키지 설치 신뢰 승인 유지. purge 및 누락/선택 복원 관리 후속. 실제 사용자 데이터 조작 없음.
+
+- 08B(1.1.215): NativeRemoved 목록은 설치 목록과 분리, 설치된 ID 제외. 보존 원본 재설치는 main 권한 및 endpoint 명시 승인 뒤 revision/의존성/ID 재검증. 누락·의존성·액션 누락은 편집기 표시와 속성 복구 안내만 추가; 기존 프로필과 기기 합성 결과 보존. 외부 누락은 설치 파일 선택, 손상 보존 코드 재설치 차단. 자동 검사/GUI 별도.

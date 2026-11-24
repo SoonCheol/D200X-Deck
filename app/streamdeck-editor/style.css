@@ -1625,3 +1625,6 @@ dialog.deckforge-message-dialog::backdrop{background:#000a}
 .native-sdk-form .native-sdk-slider{display:flex;align-items:center;gap:10px;min-width:0}
 .native-sdk-form .native-sdk-slider input[type=range]{flex:1;min-width:0;accent-color:#2368bb;padding:0;border:0;background:transparent}
 .native-sdk-form .native-sdk-slider output{min-width:4ch;text-align:right;font-variant-numeric:tabular-nums;color:#ddd}
+
+/* Missing SDK actions retain their artwork and editability. Editor-only marker. */
+#key-grid .sdk-unavailable{outline:2px dashed #e6ab56;outline-offset:-3px;}

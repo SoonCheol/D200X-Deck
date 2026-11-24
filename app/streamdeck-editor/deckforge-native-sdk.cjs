@@ -1061,6 +1061,28 @@ class PluginRouter{
     await this.checkNativeCandidate(m);
     return this.native.replace(m,expectedRevision);
   });}
+  listRetainedNative(){return this.serial(async()=>{
+    const {legacy,native}=await this.catalog();
+    const installed=new Set([...legacy.map(p=>p.uuid.toLowerCase()),...native.map(p=>p.id)]);
+    return (await this.native.versions.listRemoved()).filter(p=>!installed.has(p.id));
+  });}
+  async retainedCandidate(id){
+    const retained=await this.native.versions.removed(id);
+    check(retained,'retained plugin not found');
+    await this.checkNativeCandidate(retained.manifest);
+    const plan=await this.native.planInstall(retained.manifest);
+    check(plan.kind==='install','plugin already installed');
+    return retained;
+  }
+  planRetainedNative(id){return this.serial(async()=>{
+    const p=await this.retainedCandidate(id);
+    return {id,name:p.manifest.name,version:p.manifest.version,revision:p.revision,permissions:[...p.manifest.permissions],endpoints:(p.manifest.networkEndpoints||[]).map(e=>e.url)};
+  });}
+  restoreRetainedNative(id,revision){return this.serial(async()=>{
+    const p=await this.retainedCandidate(id);
+    check(p.revision===revision,'retained revision changed; reopen recovery');
+    return this.native.install(p.manifest);
+  });}
   async removalPlan(id){
     const {native}=await this.catalog();
     check(native.some(m=>m.id===id),'native plugin not installed');

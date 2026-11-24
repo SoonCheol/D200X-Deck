@@ -90,6 +90,17 @@ ipcMain.handle('d200x:fusion-icon-write',async(event,id,data)=>{
   return true;
 });
 ipcMain.handle('d200x:sdk-list',async event=>{assertEditor(event);return sdk().list();});
+ipcMain.handle('d200x:native-retained-list',async event=>{assertEditor(event);return sdk().listRetainedNative();});
+ipcMain.handle('d200x:native-retained-restore',async(event,id)=>{
+ assertEditor(event);
+ const plan=await sdk().planRetainedNative(id);
+ const choice=await dialog.showMessageBox(window,{type:'question',title:'보존 플러그인 다시 설치',
+   message:plan.name+' '+plan.version+' 다시 설치',
+   detail:['기존 버튼과 설정을 유지합니다. 실행 및 네트워크 접근은 아래 권한으로 다시 허용됩니다.', '권한: '+plan.permissions.join(', '),...plan.endpoints].join('\n'),
+   buttons:['취소','신뢰하고 다시 설치'],defaultId:0,cancelId:0,noLink:true});
+ if(choice.response!==1)return null;
+ return sdk().restoreRetainedNative(id,plan.revision);
+});
 ipcMain.handle('d200x:native-remove',async(event,id)=>{
  assertEditor(event);
  const plan=await sdk().planNativeRemoval(id);

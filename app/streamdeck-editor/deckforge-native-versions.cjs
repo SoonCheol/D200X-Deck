@@ -73,6 +73,22 @@ class NativeVersionStore{
     assert(!prior||prior.manifest.id===id,'retained manifest identity mismatch');
     return prior;
   }
+  async listRemoved(){
+    const dir=path.dirname(this.removedFile('com.deckforge.native.placeholder'));
+    let names;
+    try{const st=await fs.lstat(dir);assert(st.isDirectory()&&!st.isSymbolicLink(),'invalid retained directory');names=await fs.readdir(dir);}
+    catch(error){if(error.code==='ENOENT')return [];throw error;}
+    const result=[];
+    for(const name of names.sort()){
+      const id=name.endsWith('.json')?name.slice(0,-5):'';
+      if(!ID.test(id)||id.includes('..')||id.endsWith('.'))continue;
+      try{
+        const prior=await this.removed(id);
+        if(prior)result.push({id,name:prior.manifest.name,version:prior.manifest.version,revision:prior.revision});
+      }catch{result.push({id,name:id,available:false});}
+    }
+    return result;
+  }
   async assertReinstall(next){
     const prior=await this.removed(next.id);
     if(!prior)return;

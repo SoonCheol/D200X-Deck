@@ -1082,14 +1082,16 @@ function renderGrid(onlySlots=null){
     const item=i===13&&wideUnsavedWarningActive()?wideUnsavedVisual():folderBack?{type:'folder-back',title:'뒤로',icon:{kind:'glyph',glyph:'↩'}}:(i===13&&wideDisplayAvailable()?wideVisual():raw);
     const b=grid.children[i];
     b.classList.toggle("wide",i===13);b.classList.toggle("selected",state.selected===i);
-    b.setAttribute("aria-label",`키 ${i+1}: ${keyName(item)||"비어 있음"}`);
+    const unavailable=typeof sdkAvailabilityLabel==='function'?sdkAvailabilityLabel(item):'';
+    b.classList.toggle('sdk-unavailable',!!unavailable);
+    b.setAttribute("aria-label",`키 ${i+1}: ${keyName(item)||"비어 있음"}${unavailable?' · '+unavailable:''}`);
     const pin=!state.folderPath?.length&&i<13?state.pinned?.[i]:null;
     b.classList.toggle('pin-shadowed',Boolean(pin&&currentPage()[i]));
     b.classList.toggle('pin-shared',Boolean(pin&&!currentPage()[i]));
     const owner=item?.type==='wide-display'?(item.wideNotice?'wide-warning':'wide-display'):folderBack?'folder-back':raw?.instanceId||raw;
     const prior=deckKeyPaints.get(b);
     if(prior&&(prior.scope!==scope||prior.owner!==owner)){hideReplacedTooltip(b);b.classList.remove('drag-over');}
-    if(item)setDeckForgeTooltip(b,()=>({title:keyName(item)||item.type,lines:[shortActionDescription(item),...(pin?[currentPage()[i]?'페이지별 액션 우선 적용 · 고정 액션: '+keyName(pin):'모든 페이지의 고정 액션']:[])]}));
+    if(item)setDeckForgeTooltip(b,()=>({title:keyName(item)||item.type,lines:[shortActionDescription(item),...(unavailable?[unavailable]:[]),...(pin?[currentPage()[i]?'페이지별 액션 우선 적용 · 고정 액션: '+keyName(pin):'모든 페이지의 고정 액션']:[])]}));
     else{delete b.dataset.deckforgeTooltip;deckForgeTooltipData.delete(b);}
     const visual=displayKeyPressItem(displayItem(item,i),i);
     paintDeckKey(b,item,visual,i,scope,owner);
@@ -1331,13 +1333,38 @@ async function chooseNativeImage(kind='image'){
   return window.deckBridge.chooseImportFile(kind);
 }
 let libraryTab='keys';
-let sdkPlugins=[];
+let sdkPlugins=[],sdkCatalogueReady=false,sdkRetained=[];
+function sdkAvailabilityLabel(item){
+  const availability=DeckCore.sdkAvailability(item,sdkCatalogueReady?sdkPlugins:null);
+  return ({missing:'플러그인 미설치',dependency:'의존 플러그인 확인 필요','action-missing':'액션 누락'})[availability]||'';
+}
+async function restoreRetainedPlugin(plugin){
+  try{
+    const installed=await window.deckBridge.nativeRetainedRestore(plugin.id);
+    if(!installed)return;
+    await refreshSdkPlugins();scheduleSdkSync();
+    window.d200xActionStatus?.('플러그인 다시 설치 완료 · 기존 버튼 설정 유지');
+  }catch(error){window.d200xActionStatus?.('다시 설치 실패: '+String(error?.message||error));}
+}
+function renderRetainedSdkPlugins(root,query){
+  for(const plugin of sdkRetained){
+    if(!(plugin.name+' '+plugin.id).toLowerCase().includes(query))continue;
+    const section=document.createElement('section');section.className='group';
+    const heading=document.createElement('div');heading.className='group-title';
+    heading.textContent=plugin.name+(plugin.version?' ('+plugin.version+')':'')+' · 데이터 보존 중';
+    const button=document.createElement('button');button.type='button';button.className='fusion-manager-launch';
+    button.textContent=plugin.available===false?'보존 코드 확인 필요':'다시 설치';
+    button.disabled=plugin.available===false;button.addEventListener('click',()=>void restoreRetainedPlugin(plugin));
+    section.append(heading,button);root.append(section);
+  }
+}
 const sdkActionNames=new Map();
 const sdkActionDefaults=new Map();
 async function refreshSdkPlugins(){
   if(!window.deckBridge?.sdkList)return;
   try{
-    sdkPlugins=await window.deckBridge.sdkList();
+    sdkPlugins=await window.deckBridge.sdkList();sdkCatalogueReady=true;
+    if(window.deckBridge.nativeRetainedList)try{sdkRetained=await window.deckBridge.nativeRetainedList();}catch{sdkRetained=[];}
     sdkActionNames.clear();sdkActionDefaults.clear();
     for(const plugin of sdkPlugins)for(const action of plugin.actions){
       sdkActionNames.set(action.uuid,sdkCatalogueLabel(action));
@@ -1347,6 +1374,7 @@ async function refreshSdkPlugins(){
     // Update default-card thumbnails in place: do not disturb an open inspector's focus.
     const selectedItem=state.selected!==null&&state.selected<14?DeckCore.visibleActions(state)[state.selected]:null;
     if(selectedItem)void refreshStateTitleCards(selectedItem);
+    updateSdkAvailabilityInspector();
     if(libraryTab==='plugins')renderLibrary();
   }catch(error){window.d200xActionStatus?.('SDK 플러그인 목록 오류: '+String(error?.message||error));}
 }
@@ -1610,7 +1638,7 @@ function renderLibrary(){
   if(libraryTab==='plugins'){
     // SDK plugins own their connection settings via the original Property Inspector.
     // The old standalone HA REST setup control was redundant and looked like a white bar.
-    renderInstalledSdkPlugins(root,query);
+    renderInstalledSdkPlugins(root,query);renderRetainedSdkPlugins(root,query);
   }
   for(const [category,entries] of CATALOG){
     // The legacy built-in HA action stays executable for saved profiles, but is no longer offered.
@@ -4102,9 +4130,24 @@ async function openNativeSettings(item,action,plugin){
   persistInspectorChange();renderGrid();renderInspector();
   window.d200xActionStatus?.('플러그인 설정 변경 · 아래 저장 버튼을 누르면 기기에 반영됩니다.');
 }
+function updateSdkAvailabilityInspector(){
+  const button=$('inspector')?.querySelector('[data-sdk-availability]');
+  if(!button)return;
+  const item=DeckCore.visibleActions(state)[state.selected];
+  const label=sdkAvailabilityLabel(item);
+  button.textContent=label?'⚠ '+label:'⚙ 플러그인 속성 열기';
+  button.title=label?'기존 버튼 설정은 유지됩니다. 클릭하여 설치 또는 복구 방법을 확인하세요.':'플러그인 속성 열기';
+}
 function bindExtendedActionFields(root,item){
   if(item.type==='sd-plugin'){
     root.querySelector('[data-sdk-inspector]')?.addEventListener('click',async()=>{
+      const label=sdkAvailabilityLabel(item);
+      if(label){
+        const retained=sdkRetained.find(p=>p.id===item.settings?.pluginUUID&&p.available!==false);
+        if(retained){await restoreRetainedPlugin(retained);return;}
+        const choice=await window.DeckForgeDialogs.show({title:label,intro:'기존 버튼과 설정은 유지됩니다.',detail:'동일한 플러그인과 액션을 제공하는 호환 설치 파일을 선택하세요.',ask:true,actionLabel:'설치 파일 선택'});
+        if(choice)await installSdkPlugin();return;
+      }
       const plugin=sdkPlugins.find(p=>p.uuid===item.settings?.pluginUUID);
       if(plugin?.runtime==='deckforge-sdk'){
         try{await openNativeSettings(item,plugin.actions.find(a=>a.uuid===item.settings?.actionUUID),plugin);}
@@ -4598,6 +4641,7 @@ function renderInspector(){
     const settingsButton=document.createElement('button');settingsButton.type='button';
     settingsButton.className='sdk-settings-open';settingsButton.dataset.sdkInspector='';
     settingsButton.textContent='⚙ 플러그인 속성 열기';
+    settingsButton.dataset.sdkAvailability='';
     controls.append(settingsButton);
     if(isFusionAction(item)){
       const row=document.createElement('div');row.className='field fusion-title-language';
@@ -4753,6 +4797,7 @@ function renderInspector(){
   }
   if(DeckCore.isNativeForeground(item,typeof sdkPlugins==='undefined'?null:sdkPlugins))void refreshSelectedVisual();
   if(ordinaryPress)renderPressTabs(rootItem,root);
+  updateSdkAvailabilityInspector();
   const actionHeader=root.querySelector('.action-head');
   if(actionHeader&&!actionHeader.childElementCount)actionHeader.remove();
   if(item.type==='folder-shortcut'){
