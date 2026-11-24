@@ -81,7 +81,9 @@ test('state title is composed directly onto both card images using device compos
  assert.match(editor,/const titleVisual=item\.type==='indicator'\?indicatorPressVisual\(visual,second\):item\.type==='timer'\?resolveTimerVisual\(visual,second,DeckCore\.timerSeconds\(item\.settings\?\.seconds\),artwork\):item\.type==='multi'\?resolveMultiVisual\(visual,second,artwork,progress\):resolveStateTitle\(visual,second,artwork\);/);
  assert.match(editor,/window\.renderDeckKeyImage\(item\.type==='indicator'\?\{\.\.\.titleVisual,keyPressAlternate:true\}:titleVisual,slot,false\)/);
  assert.match(editor,/card\.dataset\.stateTitle=pressed\?'second':'first'/);
- assert.match(editor,/img\.replaceChildren\(rendered,\.\.\.overlays\)/);
+ assert.match(editor,/replaceStateCardArtwork\(img,rendered\)/);
+ assert.match(editor,/node\.matches\('\.key-background-trigger,\.press-image-number'\)/);
+ assert.match(editor,/host\.prepend\(rendered\)/);
   assert.match(editor,/const overlays=Array\.from\(img\.querySelectorAll/);
  assert.match(editor,/void refreshStateTitleCards\(item\)/);
  assert.match(editor,/group\.dataset\.stateTitle=key==='off'\?'first':'second'/);

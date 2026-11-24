@@ -2038,9 +2038,27 @@ test('editor circular checks preserve checkbox input semantics and inset gesture
   assert.match(block,/check\.type='checkbox'/);
   assert.match(block,/check\.checked=enabled;check\.disabled=!action/);
   assert.match(block,/pressMeta\.enabled\[slot\]=check\.checked/);
-  assert.match(css,/\.press-tab-heading\{[^}]*grid-template-columns:24px minmax\(0,1fr\) 24px/);
-  assert.match(css,/\.press-tab-heading input\{[^}]*justify-self:center/);
+  assert.match(css,/\.press-tab-heading\{[^}]*grid-template-columns:18px minmax\(0,1fr\) 18px/);
+  assert.match(css,/\.press-tab-heading input\{[^}]*justify-self:center;transform:translateX\(3px\)/);
   assert.match(css,/\.inspector input\[type="checkbox"\],\.key-background-popover input\[type="checkbox"\]\{[^}]*appearance:none;[^}]*border-radius:50%/);
   assert.match(css,/input\[type="checkbox"\]:checked/);
   assert.match(css,/input\[type="checkbox"\]:focus-visible/);
+});
+
+
+test('entire gesture tab selects without toggling independent checkbox or double invocation',()=>{
+ const fs=require('node:fs'),path=require('node:path'),vm=require('node:vm');
+ const editor=fs.readFileSync(path.join(__dirname,'../app/streamdeck-editor/editor.js'),'utf8');
+ const start=editor.indexOf('function bindPressTabSelection('),end=editor.indexOf('function renderPressTabs(',start);
+ assert.ok(start>=0&&end>start);
+ const bind=vm.runInNewContext(editor.slice(start,end)+';bindPressTabSelection');
+ let handler,selected=0;
+ const tile={addEventListener:(type,fn)=>{assert.equal(type,'click');handler=fn;}};
+ const check={contains:()=>false};
+ bind(tile,check,()=>selected++);
+ for(const target of [tile,{name:'caption'},{name:'heading'},{name:'keyboard native button'}])handler({target});
+ assert.equal(selected,4);
+ handler({target:check});assert.equal(selected,4);
+ assert.match(editor,/bindPressTabSelection\(tile,check,\(\)=>\{/);
+ assert.doesNotMatch(editor,/choose\.addEventListener\('click',\(\)=>\{\s*if\(activePressTab!==slot\)/);
 });

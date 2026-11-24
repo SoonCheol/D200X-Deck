@@ -2448,6 +2448,13 @@ function attachPressPreviewBadges(root,inspector){
     host.append(badge);
   }
 }
+// The entire visible tab is a selection target except its independent check.
+function bindPressTabSelection(tile,check,select){
+  tile.addEventListener('click',event=>{
+    if(event.target===check||check.contains(event.target))return;
+    select();
+  });
+}
 function renderPressTabs(root,inspector){
   if(!pressIsOrdinary(root)||state.selected>=13)return;
   const host=document.createElement('section');
@@ -2469,7 +2476,7 @@ function renderPressTabs(root,inspector){
     });
     const choose=document.createElement('button');choose.type='button';
     choose.className='press-tab-select';choose.textContent=label;
-    choose.addEventListener('click',()=>{
+    bindPressTabSelection(tile,check,()=>{
       if(activePressTab!==slot){
         closeIconLibrary();closeIconMaker();fileIconTarget=null;fileIconSession=null;
         activePressTab=slot;
