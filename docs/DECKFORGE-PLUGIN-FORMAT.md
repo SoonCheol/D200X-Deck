@@ -3,7 +3,7 @@
 > 기록일: 2026-11-24 · 상태: **패키지 v1 유지 / 독자 SDK API 1·2 및 패키지 v2 / Ulanzi 정적 분석·제한 후보 변환기 구현**
 > 저장소·브랜치: `SoonCheol/D200X-Deck` / `codex/streamdeck-761-clean-editor`
 
-## 0.23 독자 SDK 1.1 네트워크 확장 (1.1.164~165)
+## 0.23 독자 SDK 1.1 네트워크 확장 (최신 계약은 SDK 문서 참조)
 
 - 승인 HTTP PUT/PATCH/DELETE와 queryKeys 기반 쿼리 값, WSS 연결/송수신/종료 구현. 최신 계약은 docs/DECKFORGE-SDK-1.0.md SDK 1.1 절. API 2 번호 유지. 새 권한 network.websocket 및 설치 화면의 승인 WSS 주소. 실제 서버/실기 별도.
 
@@ -229,7 +229,9 @@ Example-plugin-1.2.3.deckforgePlugin
 - `.ulanziPlugin` 코드 자동 변환·변환 실행 검증/보고서: **미구현, 후속 목표**.
 - DeckForge 독자 SDK: **선언형 API 1 첫 구현**(§0), 범용 코드 SDK·공개 웹스토어: 미구현.
 
-## 7. 11월 말 집중 개발 순서 (2026-11-24 인수인계)
+## 7. 개발 우선순위 (최신 로드맵 우선)
+
+최신 잔여 순서는 [D200X-STREAMDECK-ROADMAP.md](D200X-STREAMDECK-ROADMAP.md). 아래는 2026-11-24 기존 기반 개발 방향 기록이며 현재 상태나 재구현 지시가 아니다.
 
 사용자 결정: 높은 난도의 기반 기술부터 최대한 완성하고 단순 UI·개별 플러그인 제작·스토어 화면은 후순위로 둔다. 아래는 개발 목표이며 구현 완료를 의미하지 않는다.
 

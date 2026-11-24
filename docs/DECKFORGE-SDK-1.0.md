@@ -1,8 +1,8 @@
 # DeckForge 독자 SDK 1.0 — 출시 후보 계약
 
-상태: **출시 후보**, 1.1.163. 이 문서는 기존 개발 이력의 최신 독자 SDK 계약을 정리한다. SDK 제품 버전 1.0은 native.json의 apiVersion(1: 선언형, 2: JavaScript)이나 패키지 formatVersion(2)과 별개다. 외부 Stream Deck/Ulanzi 호환성은 별도 과제다.
+상태: **출시 후보**, 1.1.168 소프트웨어 검증 통과(실기 미실시). 이 문서는 기존 개발 이력의 최신 독자 SDK 계약을 정리한다. SDK 제품 버전 1.0은 native.json의 apiVersion(1: 선언형, 2: JavaScript)이나 패키지 formatVersion(2)과 별개다. 외부 Stream Deck/Ulanzi 호환성은 별도 과제다.
 
-## JavaScript 공개 API 19개 (API 2)
+## JavaScript 공개 API 22개 (API 2, 1.0 기준선 19개 + 확장 3개)
 
 | 함수 | 권한 | 계약 |
 |---|---|---|
@@ -24,7 +24,10 @@
 | setWideMode(mode) | wide.mode | clock/datetime/stats/knobs 중 활성 모드 |
 | setWideOverlay(frame, durationMs=5000) | wide.overlay | 선언형 layout 또는 검증된 392×196 PNG, 1000~30000ms |
 | clearWideOverlay() | wide.overlay | 소유 context의 overlay 해제 |
-| request(endpoint, body=null) | network.request | manifest 등록 HTTPS GET/POST, networkResult 이벤트 |
+| request(endpoint, body=null, query?, options?) | network.request | 승인 HTTPS GET/POST/PUT/PATCH/DELETE, networkResult |
+| connectSocket(endpoint, query?) | network.websocket | 승인 WSS 연결 |
+| sendSocket(value) | network.websocket | 텍스트/JSON 전송 |
+| closeSocket() | network.websocket | 연결 종료 |
 
 함수는 동기적으로 명령을 제출한다. 반환값은 저장/실행 성공이 아니다. display 및 읽기 외 부수 효과는 입력 이벤트당 한 개, 예외적으로 승인 GET polling을 허용한다. API 1은 별도 선언형 6개 op(title/titleFromSetting/state/stateFromSetting/toggleState/image) 유지.
 
@@ -42,11 +45,11 @@
 
 1.0의 19개 API는 기준선으로 유지한다. WebSocket 및 HTTP 확장을 최고 우선순위로 별도 진행한다. DeckForge 1.1.164: 기존 request(endpoint, body=null, query?)에 PUT/PATCH/DELETE와 endpoint.queryKeys(최대 8개, 값 문자열 최대 256자, 최종 URL 2048자)를 추가. 사용자가 승인한 HTTPS origin/path/method는 고정이며 query 값만 인코딩하여 변경한다. GET body 금지, GET 전용 polling, 기존 TLS/취소/응답 한도 유지. queryKeys 변경 시 Bearer 인증정보를 새 계약에 다시 등록해야 한다. DeckForge 1.1.166: request의 4번째 선택 인자 options={path,headers}. manifest pathKeys(1~4개)로 승인한 HTTPS base 하위 단일 경로 조각만 변경(영문/숫자/._~- 128자, dot traversal 및 slash/percent 금지); headerKeys(1~8개)로 승인한 일부 표준 및 제한 x- 헤더 값만 변경(ASCII 256자, CR/LF·인증/쿠키/프록시/프레이밍 헤더 금지). 헤더·경로 계약 변경 시 기존 Bearer vault binding 분리. WSS는 기존 queryKeys만 지원. 임의 URL/임의 헤더/비밀 직접 전달은 의도적으로 지원하지 않는다.
 
-DeckForge 1.1.165: `network.websocket` 권한과 method `WSS`, 승인된 wss:// 주소를 사용한다. `api.connectSocket(endpoint,query?)` (appear/settings/입력), `api.sendSocket(value)` 및 `api.closeSocket()` (입력/socketEvent) 3개 추가. `event.type==='socketEvent'`, `event.response={endpoint,event:'open'|'message'|'close'|'error',body,error}`. 활성 context당 1개/플러그인당 2개/전체 8개, 송수신 각각 초당 8개, 텍스트/JSON 8KiB, 송신 대기 32KiB. TLS 검증/redirect 금지/압축 금지/5초 handshake, 1.1.167부터 endpoint.reconnect:true일 때만 transient 오류/비정상 종료/heartbeat timeout에 1/3/10초 최대 3회 재연결(활성 context 수명 전체). 송신/입력 재생 없음, 연결마다 open 이벤트에서 구독 재등록. 30초 ping/10초 pong deadline, 명시 종료/설정 변경/페이지 이탈/절전 시 재시도와 타이머 모두 취소. 페이지 이탈·설정 변경·절전·오류·종료 시 해제 및 늦은 이벤트 폐기. Bearer handshake 외 1.1.167부터 auth:'home-assistant' WSS 지원: host가 auth_required→auth(access_token)→auth_ok를 처리하고 인증 성공 후에만 open 이벤트 전달. 5초 인증 제한, auth_invalid/비정상 메시지 재시도 금지. 스크립트·일반 로그에 토큰 미전달. 공식 규격 https://developers.home-assistant.io/docs/api/websocket/ 참고. 실제 HA 서비스 연결 별도 검증. 1.1.168 실제 loopback TLS HTTPS/WSS 통합 검사 추가(테스트 전용 CA, 제품 검증 정책 변경 없음). API 1/2 manifest 번호 유지, 공개 API 확장 22개. 신규 CI/Windows/실기는 별도 확인.
+DeckForge 1.1.165: `network.websocket` 권한과 method `WSS`, 승인된 wss:// 주소를 사용한다. `api.connectSocket(endpoint,query?)` (appear/settings/입력), `api.sendSocket(value)` 및 `api.closeSocket()` (입력/socketEvent) 3개 추가. `event.type==='socketEvent'`, `event.response={endpoint,event:'open'|'message'|'close'|'error'|'reconnecting',body,error}`. 활성 context당 1개/플러그인당 2개/전체 8개, 송수신 각각 초당 8개, 텍스트/JSON 8KiB, 송신 대기 32KiB. TLS 검증/redirect 금지/압축 금지/5초 handshake, 1.1.167부터 endpoint.reconnect:true일 때만 transient 오류/비정상 종료/heartbeat timeout에 1/3/10초 최대 3회 재연결(활성 context 수명 전체). 송신/입력 재생 없음, 연결마다 open 이벤트에서 구독 재등록. 30초 ping/10초 pong deadline, 명시 종료/설정 변경/페이지 이탈/절전 시 재시도와 타이머 모두 취소. 페이지 이탈·설정 변경·절전·오류·종료 시 해제 및 늦은 이벤트 폐기. Bearer handshake 외 1.1.167부터 auth:'home-assistant' WSS 지원: host가 auth_required→auth(access_token)→auth_ok를 처리하고 인증 성공 후에만 open 이벤트 전달. 5초 인증 제한, auth_invalid/비정상 메시지 재시도 금지. 스크립트·일반 로그에 토큰 미전달. 공식 규격 https://developers.home-assistant.io/docs/api/websocket/ 참고. 실제 HA 서비스 연결 별도 검증. 1.1.168 실제 loopback TLS HTTPS/WSS 통합 검사 추가(테스트 전용 CA, 제품 검증 정책 변경 없음). API 1/2 manifest 번호 유지, 공개 API 확장 22개. 1.1.168 CI/Windows 및 실제 로컬 TLS 통신 성공, 실제 HA 서비스/D200X 실기 미실시.
 
 ## 출시 기준 (추가 기능은 기준이 아님)
 
-1. 19개 함수 목록 및 실제 Electron→host 명령 검증, 부수 효과 권한 거부 검증.
+1. 1.0 기준선 19개 및 확장 포함 현재 22개 함수 목록과 실제 Electron→host 명령 검증, 부수 효과 권한 거부 검증.
 2. API 1/2 패키지 검사, 모든 예제 패키지 왕복·설치, 버전/의존성 검사.
 3. 기존 집중 테스트: 큐, 취소, 설정 receipt, 암호화, 네트워크, 렌더러 오류 격리, GIF/PNG/SVG, 페이지/입력.
 4. Windows CI 및 통합 빌드 성공 확인. 실제 PC/D200X 시험과 자동 검증은 구분.
