@@ -12,6 +12,9 @@ const {validateNativeManifest}=require('./deckforge-native-sdk.cjs');
 const MAX_FILES=2500,MAX_BYTES=100*1024*1024,MAX_SOURCE=1024*1024;
 const sha=bytes=>createHash('sha256').update(bytes).digest('hex');
 const ID=/^com\.[a-zA-Z0-9-]+\.ulanzistudio\.[a-zA-Z0-9-]+$/;
+// Community manifests sometimes use other reverse-domain namespaces.
+// Recognize them for diagnostics, not as an automatically convertible identity.
+const AUDIT_ID=/^[a-zA-Z0-9-]+(?:\.[a-zA-Z0-9-]+){3,11}$/;
 const EVENT_MAP=Object.freeze({
   onAdd:'appear',onParamFromApp:'settings',onKeyDown:'press',onKeyUp:'release',
   onDialDown:'press',onDialUp:'release',onDialRotateLeft:'rotateLeft',
@@ -29,8 +32,8 @@ const safeRelative=s=>typeof s==='string'&&s.length>0&&s.length<1024&&!/[:\\\x00
 const own=(o,k)=>Object.prototype.hasOwnProperty.call(o,k);
 const obj=o=>o&&typeof o==='object'&&!Array.isArray(o);
 const lit=(n,t)=>n?.type==='Literal'&&typeof n.value===t;
-function validateSourceManifest(m){
-  if(!obj(m)||m.Type!=='JavaScript'||typeof m.UUID!=='string'||!ID.test(m.UUID)||
+function validateSourceManifest(m,{auditOnly=false}={}){
+  if(!obj(m)||m.Type!=='JavaScript'||typeof m.UUID!=='string'||m.UUID.length>160||!(auditOnly?AUDIT_ID:ID).test(m.UUID)||
     typeof m.Name!=='string'||!m.Name.trim()||m.Name.length>180||typeof m.Version!=='string'||
     !m.Version.trim()||m.Version.length>64||!safeRelative(m.CodePath)||
     !/\.(js|html)$/i.test(m.CodePath)||!Array.isArray(m.Actions)||!m.Actions.length||m.Actions.length>64)
@@ -102,7 +105,7 @@ function settingState(node,param,states){
   return {key,match:test.right.value,yes:node.consequent.value,no:node.alternate.value};
 }
 function analyzeSource(manifest,source,{stateImages,stateImagesByAction,inspectorSchemas}={}){
-  validateSourceManifest(manifest);
+  validateSourceManifest(manifest,{auditOnly:true});
   if(typeof source!=='string'||Buffer.byteLength(source)>MAX_SOURCE)throw Error('source size limit');
   const findings=[],seen=new Set(),calls=new Map(),imports=new Set();
   const note=(code,detail,line=0)=>{
@@ -123,10 +126,18 @@ function analyzeSource(manifest,source,{stateImages,stateImagesByAction,inspecto
     if(n.type==='ImportExpression')note('dynamic-import','dynamic import requires manual analysis',n.loc.start.line);
     if(n.type==='CallExpression'&&n.callee?.type==='Identifier'&&['require','eval','Function'].includes(n.callee.name))
       note('dynamic-or-node','Node or dynamic execution requires manual analysis',n.loc.start.line);
-    const method=udCall(n);
+    const direct=udCall(n);
+    const callee=n.type==='CallExpression'?n.callee:null;
+    const receiver=callee?.object;
+    const indirect=callee?.type==='MemberExpression'&&!callee.computed&&callee.property?.type==='Identifier'&&
+      receiver?.type==='MemberExpression'&&!receiver.computed&&receiver.object?.type==='ThisExpression'&&receiver.property?.name==='$UD';
+    const method=direct||(indirect?callee.property.name:null);
+    if(indirect)note('indirect-sdk-receiver','instance-owned SDK receiver requires review',n.loc.start.line);
+    if(n.type==='CallExpression'&&n.callee?.type==='Identifier'&&['setInterval','setTimeout','fetch'].includes(n.callee.name))
+      note('external-runtime','timer or network behavior requires review',n.loc.start.line);
     if(method){
       const prior=calls.get(method)||{name:method,count:0,support:own(EVENT_MAP,method)||['setTitle','setState','setImage','connect'].includes(method)?'candidate':REVIEW_EVENTS.has(method)||REVIEW_COMMANDS.has(method)?'review':'unknown'};
-      prior.count++;calls.set(method,prior);
+      prior.count++;if(indirect&&prior.support==='candidate')prior.support='review';calls.set(method,prior);
       if(prior.support==='unknown')note('unknown-sdk-method',method,n.loc.start.line);
       if(prior.support==='review')note('unsupported-sdk-method',method,n.loc.start.line);
     }else if(n.type==='CallExpression'&&n.callee?.type==='MemberExpression'&&n.callee.object?.name==='$UD')
@@ -137,6 +148,7 @@ function analyzeSource(manifest,source,{stateImages,stateImagesByAction,inspecto
       else if(value?.type)stack.push(value);
     }
   }
+  if(!ID.test(manifest.UUID))note('community-identity','noncanonical plugin UUID; manual identity review required');
   if(manifest.PrivateAPI)note('private-api','private Ulanzi APIs');
   if(manifest.Actions.length!==1)note('multi-action','multi-action candidate requires separate resource and release review');
   if(manifest.Actions.some(a=>a.PropertyInspectorPath))note('property-inspector','property inspector requires separate conversion');
@@ -293,7 +305,7 @@ function analyzeSource(manifest,source,{stateImages,stateImagesByAction,inspecto
     (!a.PropertyInspectorPath||schemaBound)&&validController(a)&&[1,2].includes(states)&&(!own(a,'States')||Array.isArray(a.States))});
   }
   let candidate=null,verification=null;
-  if(!manifest.PrivateAPI&&actionResults.every(x=>x.valid)){
+  if(ID.test(manifest.UUID)&&!manifest.PrivateAPI&&actionResults.every(x=>x.valid)){
     const id='com.deckforge.native.ulanzi-'+sha(manifest.UUID).slice(0,24);
     const actions=actionResults.map(({a,controllers,states,programs,schema})=>({
       id:multi?id+'.a-'+sha(a.UUID).slice(0,24):id+'.action',name:a.Name,controllers,states,events:programs,...(schema?{settingsSchema:schema}:{}),
@@ -355,7 +367,7 @@ async function analyzeDirectory(folder,{fullFingerprint=false}={}){
     sourceTreeSha256=sha(JSON.stringify(inventory.map(({path,bytes,sha256})=>({path,bytes,sha256})).sort((a,b)=>a.path<b.path?-1:a.path>b.path?1:0)));
   }
   const manifestBytes=await readEntry('manifest.json',65536);
-  const manifest=validateSourceManifest(JSON.parse(manifestBytes.toString('utf8').replace(/^\uFEFF/,'')));
+  const manifest=validateSourceManifest(JSON.parse(manifestBytes.toString('utf8').replace(/^\uFEFF/,'')),{auditOnly:true});
   const entryInfo=inventory.find(x=>x.path===manifest.CodePath);
   if(!entryInfo)throw Error('manifest entrypoint missing');
   const inspectors=[],resources=[],resourcePaths=new Set();
@@ -471,6 +483,8 @@ async function analyzeDirectory(folder,{fullFingerprint=false}={}){
     const bytes=await readEntry(manifest.CodePath,MAX_SOURCE);entryHash=sha(bytes);
     report=analyzeSource(manifest,bytes.toString('utf8'),{stateImages,stateImagesByAction,inspectorSchemas});
   }
+  if(!ID.test(manifest.UUID)&&!report.findings.some(f=>f.code==='community-identity'))
+    report.findings.push({code:'community-identity',detail:'noncanonical plugin UUID; manual identity review required',line:0});
   // Report licensing evidence, not a legal conclusion; never infer a license.
   const licenseFiles=inventory.filter(x=>/(^|\/)(license|copying|notice)([._-]|$)/i.test(x.path)).map(x=>x.path);
   const licenseHashes=[];

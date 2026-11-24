@@ -1,0 +1,46 @@
+[
+  {
+    "name": "zentala",
+    "repository": "https://github.com/zentala/ulanzi-deck-d200-plugin-example",
+    "commit": "ba1190a4e0be6b61694905dcaa256f8018e78389",
+    "files": [
+      {
+        "file": "LICENSE",
+        "upstreamPath": "LICENSE",
+        "gitBlobSha": "e3b703b6de16bd0fca00f9fb07a3254f4220e4c4"
+      },
+      {
+        "file": "manifest.json",
+        "upstreamPath": "ulanzi-demos/plugins/demo/io.zentala.ulanzideck.demo.ulanziPlugin/manifest.json",
+        "gitBlobSha": "83ef866471ae4002dcba9becb34fea12d4ccde4d"
+      },
+      {
+        "file": "app.js",
+        "upstreamPath": "ulanzi-demos/plugins/demo/io.zentala.ulanzideck.demo.ulanziPlugin/plugin/app.js",
+        "gitBlobSha": "7448e3db6a2c2b6f5dbaeb021a7582c699005d56"
+      }
+    ]
+  },
+  {
+    "name": "n8n",
+    "repository": "https://github.com/prostonik94/ulanzi-n8n-workflow-monitor",
+    "commit": "2e0e8ec66db066fc4a95f62059fe5c64d765eb34",
+    "files": [
+      {
+        "file": "LICENSE",
+        "upstreamPath": "LICENSE",
+        "gitBlobSha": "f38710afbfbc740f2fda6959676e3527568fc915"
+      },
+      {
+        "file": "manifest.json",
+        "upstreamPath": "com.n8n.workflowmonitor.ulanziPlugin/manifest.json",
+        "gitBlobSha": "cc86e96bcc4122c3a2238bd373fa24639da3a7c0"
+      },
+      {
+        "file": "app.js",
+        "upstreamPath": "com.n8n.workflowmonitor.ulanziPlugin/plugin/app.js",
+        "gitBlobSha": "249946966f4e3582393f44e76791eb2fef780f18"
+      }
+    ]
+  }
+]

@@ -1434,3 +1434,33 @@ test('corpus audit summarizes candidates and blockers without executing or expor
   await assert.rejects(writeCorpusAudit(src,src),/outside source/);
  }finally{await fs.rm(root,{recursive:true,force:true});}
 });
+
+test('pinned community plugin manifests and source are inventoried without granting conversion permission',async()=>{
+ const {analyzeSource,validateSourceManifest}=require('../app/streamdeck-editor/ulanzi-converter.cjs');
+ const root=path.join(__dirname,'fixtures','ulanzi-community');
+ const sources=JSON.parse(await fs.readFile(path.join(root,'sources.json'),'utf8'));
+ const hash=b=>require('node:crypto').createHash('sha1').update('blob '+b.length+'\0').update(b).digest('hex');
+ for(const item of sources){
+   const folder=path.join(root,item.name);
+   for(const record of item.files){
+     const raw=await fs.readFile(path.join(folder,record.file)),lf=raw.toString('utf8').replace(/\r\n/g,'\n');
+     assert.ok([raw,Buffer.from(lf),Buffer.from(lf.replace(/\n/g,'\r\n'))].some(b=>hash(b)===record.gitBlobSha),item.name+' '+record.file+' provenance');
+   }
+   const m=JSON.parse(await fs.readFile(path.join(folder,'manifest.json'),'utf8'));
+   const result=analyzeSource(m,await fs.readFile(path.join(folder,'app.js'),'utf8'));
+   assert.throws(()=>validateSourceManifest(m),/manifest/);
+   assert.equal(result.candidate,null);
+   assert.ok(result.findings.some(f=>f.code==='community-identity'));
+   assert.ok(result.findings.some(f=>f.code==='private-api'));
+   assert.ok(result.calls.some(c=>c.name==='onRun'&&c.support==='review'));
+   if(item.name==='n8n'){
+     assert.ok(result.calls.some(c=>c.name==='setBaseDataIcon'&&c.support==='review'));
+     assert.ok(result.findings.some(f=>f.code==='external-runtime'));
+   }
+ }
+ const id='io.example.deck.simple';
+ const m={Type:'JavaScript',UUID:id,Name:'Simple',Version:'1',CodePath:'app.js',Actions:[{UUID:id+'.a',Name:'A'}]};
+ const result=analyzeSource(m,"$UD.connect('"+id+"');$UD.onAdd(m=>$UD.setTitle(m.context,'Ready'));");
+ assert.equal(result.candidate,null);
+ assert.throws(()=>analyzeSource({...m,UUID:'../bad'},''),/manifest/);
+});

@@ -2,6 +2,12 @@
 
 > **상태 기록 기준: 2026-11-24**. 실제 최신 HEAD는 Git에서 확인하며, 코드·자동 검사·Windows 빌드·사용자 Windows/D200X 실기 결과를 구분한다. 시작 시 `AGENTS.md`와 이 문서만 읽고 로드맵은 필요한 경우에만 참고한다.
 
+## 1.1.154 — 실제 공개 Ulanzi 플러그인 진단 범위 확대 (2026-11-24)
+
+- zentala/ulanzi-deck-d200-plugin-example, prostonik94/ulanzi-n8n-workflow-monitor의 원본 manifest/app.js 및 MIT license 고정 fixture, upstream SHA 검증. 전체 플러그인 실행이나 설치 없음.
+- 공식 UUID와 다른 reverse-domain ID를 읽기 전용 진단에서만 허용, 변환/패키징은 계속 차단. instance-owned this.$UD 호출, timer/network 동작 식별, 기존 공식 SDK 계약 유지.
+- 1.1.153 CI #1193 성공, 신규 CI/Windows/실기 검증 별도.
+
 ## 1.1.153 — Ulanzi 공개 플러그인 묶음 호환성 분석 CLI (2026-11-24)
 
 - audit-ulanzi <corpus-directory> <output-directory>: 최대 16개 원본 디렉터리 순차 분석, 전체 SHA-256 fingerprint, 후보/수동/읽기 실패 분류와 미지원 SDK·자원·속성창 동작 빈도 집계. 원본 실행·설치·후보 payload·설정값·절대 경로 출력 없음. 원본 외부 신규 보고서만 생성.
