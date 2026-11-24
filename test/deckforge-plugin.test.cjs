@@ -926,3 +926,38 @@ test('Ulanzi restricted multi-action routing separates declared UUID branches an
   const reordered=analyzeSource({...m,Actions:[m.Actions[2],m.Actions[0],m.Actions[1]]},src);
   assert.equal(reordered.candidate.actions.find(x=>x.name==='Key').id,a.id);
 });
+
+test('multi-action Ulanzi PNG preservation keeps resource ownership and requires full reviewed evidence',async()=>{
+ const {analyzeDirectory}=require('../app/streamdeck-editor/ulanzi-converter.cjs');
+ const {buildReviewRecord,validateReviewRecord}=require('../app/streamdeck-editor/ulanzi-release-review.cjs');
+ const root=await fs.mkdtemp(path.join(os.tmpdir(),'deckforge-multi-art-'));
+ const dir=path.join(root,'original.ulanziPlugin');await fs.mkdir(dir);
+ const id='com.ulanzi.ulanzistudio.MultiArt',m={Type:'JavaScript',UUID:id,Name:'Multi Art',Version:'1.0.0',CodePath:'app.js',
+ Actions:[{UUID:id+'.a',Name:'A',Icon:'a.png',States:[{Image:'a.png'}]},{UUID:id+'.b',Name:'B',Icon:'b.png',States:[{Image:'b.png'}]}]};
+ const bytes=Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+ip1sAAAAASUVORK5CYII=','base64');
+ const attest=report=>{const record=buildReviewRecord(report);for(const c of record.checks){c.status='passed';c.evidence='synthetic fixture only';}return record;};
+ try{
+   await fs.writeFile(path.join(dir,'manifest.json'),JSON.stringify(m));
+   await fs.writeFile(path.join(dir,'app.js'),"$UD.connect('"+id+"');$UD.onAdd(m=>$UD.setTitle(m.context,'Ready'));");
+   for(const name of ['a.png','b.png'])await fs.writeFile(path.join(dir,name),bytes);
+   const report=await analyzeDirectory(dir,{fullFingerprint:true});
+   assert.equal(report.verification.status,'pass');
+   assert.equal(report.artworkPreservation.actions.length,2);
+   assert.deepEqual(report.artworkPreservation.remainingPaths,[]);
+   assert.equal(report.artworkPreservation.actions[1].actionId,report.candidate.actions[1].id);
+   assert.equal(report.artworkPreservation.actions[1].stateImages[0].path,'b.png');
+   assert.equal(report.candidate.actions[1].stateImages.length,1);
+   assert.throws(()=>validateReviewRecord(buildReviewRecord(report),report),/manual review evidence/);
+   assert.equal(validateReviewRecord(attest(report),report).kind,'ulanzi-converted');
+   const swapped=structuredClone(m);swapped.Actions[0].Icon='b.png';
+   await fs.writeFile(path.join(dir,'manifest.json'),JSON.stringify(swapped));
+   const cross=await analyzeDirectory(dir,{fullFingerprint:true});
+   assert.deepEqual(cross.artworkPreservation.remainingPaths,['b.png']);
+   assert.throws(()=>validateReviewRecord(attest(cross),cross),/manual conversion/);
+   await fs.writeFile(path.join(dir,'manifest.json'),JSON.stringify(m));
+   await fs.writeFile(path.join(dir,'b.png'),bytes.subarray(0,-1));
+   const corrupt=await analyzeDirectory(dir,{fullFingerprint:true});
+   assert.equal(corrupt.candidate.actions[1].stateImages,undefined);
+   assert.throws(()=>validateReviewRecord(attest(corrupt),corrupt),/manual conversion/);
+ }finally{await fs.rm(root,{recursive:true,force:true});}
+});
