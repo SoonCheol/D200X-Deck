@@ -104,7 +104,7 @@ function settingState(node,param,states){
     /token|password|secret|credential|authorization|headers?|api[_-]?key|cookie|request[_-]?body|url|endpoint/i.test(key))return null;
   return {key,match:test.right.value,yes:node.consequent.value,no:node.alternate.value};
 }
-function analyzeSource(manifest,source,{stateImages,stateImagesByAction,inspectorSchemas}={}){
+function analyzeSource(manifest,source,{stateImages,stateImagesByAction,inspectorSchemas,inventoryOnly=false}={}){
   validateSourceManifest(manifest,{auditOnly:true});
   if(typeof source!=='string'||Buffer.byteLength(source)>MAX_SOURCE)throw Error('source size limit');
   const findings=[],seen=new Set(),calls=new Map(),imports=new Set();
@@ -153,6 +153,7 @@ function analyzeSource(manifest,source,{stateImages,stateImagesByAction,inspecto
   if(manifest.Actions.length!==1)note('multi-action','multi-action candidate requires separate resource and release review');
   if(manifest.Actions.some(a=>a.PropertyInspectorPath))note('property-inspector','property inspector requires separate conversion');
   if(manifest.Actions.some(a=>a.Icon||(Array.isArray(a.States)&&a.States.some(s=>s?.Image))))note('artwork','original state/icon resources require preservation and verification');
+  if(inventoryOnly)return {calls:[...calls.values()].sort((a,b)=>a.name.localeCompare(b.name)),imports:[...imports].sort(),findings,candidate:null,verification:null};
   const multi=manifest.Actions.length>1;
   const knownIds=new Set(manifest.Actions.map(a=>a.UUID));
   const actionResults=[];
@@ -464,17 +465,40 @@ async function analyzeDirectory(folder,{fullFingerprint=false}={}){
     try{
       const bytes=await readEntry(manifest.CodePath,MAX_HTML);entryHash=sha(bytes);
       htmlEntry=analyzeHtml(manifest.CodePath,bytes.toString('utf8'));
+      const methods=new Map(),imports=new Set(),codes=new Set();
+      let analyzedBytes=0,analyzedCount=0;
       for(const script of htmlEntry.scripts){
         if(!script.path)continue;
         const info=inventory.find(x=>x.path===script.path);
         script.status=!info?'missing':info.bytes>MAX_SOURCE?'oversize':'review';
-        if(script.status==='review'){
+        if(script.status!=='review')continue;
+        if(analyzedCount>=32||analyzedBytes+info.bytes>4*MAX_SOURCE){script.status='analysis-budget';continue;}
+        try{
           const source=await readEntry(script.path,MAX_SOURCE);script.sha256=sha(source);
+          analyzedCount++;analyzedBytes+=source.length;
           if(htmlEntry.staticWrapper){
             report=analyzeSource(manifest,source.toString('utf8'),{stateImages,stateImagesByAction,inspectorSchemas});
             report.findings.push({code:'html-entry',detail:'single inert HTML script wrapper; source and lifecycle review required',line:0});
+          }else{
+            const result=analyzeSource(manifest,source.toString('utf8'),{inventoryOnly:true});
+            const findings=[...new Set(result.findings.map(f=>f.code))].sort();
+            script.analysis={calls:result.calls,findings};
+            script.status=findings.includes('syntax')?'syntax-review':'inventoried';
+            for(const call of result.calls){
+              const old=methods.get(call.name);
+              const rank={candidate:0,review:1,unknown:2};
+              methods.set(call.name,{name:call.name,count:(old?.count||0)+call.count,support:old&&rank[old.support]>rank[call.support]?old.support:call.support});
+            }
+            for(const name of result.imports)imports.add(name);
+            for(const code of findings)codes.add(code);
           }
-        }
+        }catch{script.status='analysis-failed';}
+      }
+      if(!htmlEntry.staticWrapper){
+        report.calls=[...methods.values()].sort((a,b)=>a.name.localeCompare(b.name));
+        report.imports=[...imports].sort();
+        for(const code of [...codes].sort())report.findings.push({code,detail:'static HTML script inventory; dependencies not executed',line:0});
+        htmlEntry.inventory={analyzedCount,analyzedBytes,complete:htmlEntry.scripts.every(s=>s.status==='inventoried'),originalExecuted:false};
       }
     }catch{report.findings.push({code:'html-unreadable',detail:'HTML entry or script inventory unavailable',line:0});}
   }

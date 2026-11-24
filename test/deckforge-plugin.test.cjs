@@ -1464,3 +1464,26 @@ test('pinned community plugin manifests and source are inventoried without grant
  assert.equal(result.candidate,null);
  assert.throws(()=>analyzeSource({...m,UUID:'../bad'},''),/manifest/);
 });
+
+test('multi-script HTML audit records available real community source and missing dependencies without translation',async()=>{
+ const {analyzeDirectory}=require('../app/streamdeck-editor/ulanzi-converter.cjs');
+ const fixture=path.join(__dirname,'fixtures','ulanzi-community','zentala');
+ const root=await fs.mkdtemp(path.join(os.tmpdir(),'deckforge-html-inventory-'));
+ const dir=path.join(root,'community.ulanziPlugin');
+ try{
+  await fs.mkdir(path.join(dir,'plugin','actions'),{recursive:true});
+  for(const [src,dst] of [['manifest.json','manifest.json'],['LICENSE','LICENSE'],['app.html','plugin/app.html'],['app.js','plugin/app.js'],['CounterAction.js','plugin/actions/CounterAction.js']])
+    await fs.copyFile(path.join(fixture,src),path.join(dir,dst));
+  const report=await analyzeDirectory(dir,{fullFingerprint:true});
+  assert.equal(report.candidate,null);
+  assert.equal(report.htmlEntry.scripts.length,14);
+  assert.equal(report.htmlEntry.inventory.analyzedCount,2);
+  assert.equal(report.htmlEntry.inventory.complete,false);
+  assert.equal(report.htmlEntry.scripts.filter(s=>s.status==='missing').length,12);
+  const counter=report.htmlEntry.scripts.find(s=>s.path.endsWith('CounterAction.js'));
+  assert.ok(counter.analysis.calls.some(c=>c.name==='setBaseDataIcon'&&c.support==='review'));
+  assert.ok(report.calls.some(c=>c.name==='sendParamFromPlugin'&&c.support==='review'));
+  assert.ok(report.findings.some(f=>f.code==='community-identity'));
+  assert.equal(report.installationAllowed,false);
+ }finally{await fs.rm(root,{recursive:true,force:true});}
+});

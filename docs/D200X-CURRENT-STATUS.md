@@ -2,6 +2,12 @@
 
 > **상태 기록 기준: 2026-11-24**. 실제 최신 HEAD는 Git에서 확인하며, 코드·자동 검사·Windows 빌드·사용자 Windows/D200X 실기 결과를 구분한다. 시작 시 `AGENTS.md`와 이 문서만 읽고 로드맵은 필요한 경우에만 참고한다.
 
+## 1.1.155 — 다중 HTML 스크립트 정적 의존성 분석 (2026-11-24)
+
+- 다중 HTML script 진입점의 로컬 소스별 SHA·SDK 호출·분류 및 누락/초과/실패 상태, 전체 호출 집계. 최대 32개/4MiB 분석 한도, 원본 실행 및 변환 금지 유지. 단일 inert wrapper의 기존 제한 변환 보존.
+- 공개 zentala 데모 실제 app.html 및 CounterAction.js 원본/해시 fixture 추가. 14개 스크립트 중 선택한 2개 소스 분석과 나머지 누락을 명시하는 테스트. 전체 플러그인 호환성/실기 검증 아님.
+- 1.1.151~153 Windows #902~904 성공 확인. 신규 자동 검사 별도.
+
 ## 1.1.154 — 실제 공개 Ulanzi 플러그인 진단 범위 확대 (2026-11-24)
 
 - zentala/ulanzi-deck-d200-plugin-example, prostonik94/ulanzi-n8n-workflow-monitor의 원본 manifest/app.js 및 MIT license 고정 fixture, upstream SHA 검증. 전체 플러그인 실행이나 설치 없음.

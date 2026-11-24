@@ -18,6 +18,16 @@
         "file": "app.js",
         "upstreamPath": "ulanzi-demos/plugins/demo/io.zentala.ulanzideck.demo.ulanziPlugin/plugin/app.js",
         "gitBlobSha": "7448e3db6a2c2b6f5dbaeb021a7582c699005d56"
+      },
+      {
+        "file": "app.html",
+        "upstreamPath": "ulanzi-demos/plugins/demo/io.zentala.ulanzideck.demo.ulanziPlugin/plugin/app.html",
+        "gitBlobSha": "3e2213cd0fc2bdbc9987f8d2c336d62c3cbff9bd"
+      },
+      {
+        "file": "CounterAction.js",
+        "upstreamPath": "ulanzi-demos/plugins/demo/io.zentala.ulanzideck.demo.ulanziPlugin/plugin/actions/CounterAction.js",
+        "gitBlobSha": "2b1e4bf104395340bfb6af0419cf534019341450"
       }
     ]
   },
