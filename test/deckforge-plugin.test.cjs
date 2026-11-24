@@ -248,3 +248,42 @@ test('native runtime recovery is bounded and never replays failed user input',as
     assert.equal(ctx.failed,true);assert.equal(host.key('a','down'),false);
   }finally{host.close();}
 });
+
+
+test('Ulanzi AST converter translates only a known current-context display subset',()=>{
+  const {analyzeSource}=require('../app/streamdeck-editor/ulanzi-converter.cjs');
+  const m={Type:'JavaScript',UUID:'com.ulanzi.ulanzistudio.Test',Name:'Example',Version:'1.0.0',
+    CodePath:'plugin/app.js',Actions:[{Name:'Toggle',UUID:'com.ulanzi.ulanzistudio.Test.toggle',States:[{},{}]}]};
+  const script="import UlanziApi from './ulanzi-api/index.js';const $UD=new UlanziApi();$UD.connect('"+m.UUID+"');$UD.onKeyDown(msg=>{$UD.setTitle(msg.context,'On');$UD.setState(msg.context,1);});";
+  const report=analyzeSource(m,script);
+  assert.deepEqual(report.candidate.actions[0].events.press,[{op:'title',value:'On'},{op:'state',value:1}]);
+  assert.equal(report.candidate.apiVersion,1);
+  for(const suffix of ["$UD.onRun(m=>{});","$UD['setTitle']('other','x');","$UD.onKeyUp(m=>$UD.setState('other',0));","require('fs');","eval('1');"]){
+    const rejected=analyzeSource(m,script+suffix);
+    assert.equal(rejected.candidate,null,suffix);assert.ok(rejected.findings.length);
+  }
+  assert.equal(analyzeSource({...m,PrivateAPI:true},script).candidate,null);
+  assert.equal(analyzeSource({...m,Actions:[{...m.Actions[0],PropertyInspectorPath:'pi.html'}]},script).candidate,null);
+  assert.equal(analyzeSource(m,"$UD.onKeyDown(m=>{").candidate,null);
+});
+test('Ulanzi directory analyzer hashes original source and never installs or mutates it',async()=>{
+  const {analyzeDirectory}=require('../app/streamdeck-editor/ulanzi-converter.cjs');
+  const temp=await fs.mkdtemp(path.join(os.tmpdir(),'deckforge-ulanzi-'));
+  const folder=path.join(temp,'com.example.ulanziPlugin');await fs.mkdir(path.join(folder,'plugin'),{recursive:true});
+  const id='com.ulanzi.ulanzistudio.Test',m={Type:'JavaScript',UUID:id,Name:'Example',Version:'1',
+    CodePath:'plugin/app.js',Actions:[{Name:'Demo',UUID:id+'.demo'}]};
+  const source="$UD.connect('"+id+"');$UD.onAdd(m=>$UD.setTitle(m.context,'Ready'));";
+  try{
+    await fs.writeFile(path.join(folder,'manifest.json'),JSON.stringify(m));
+    await fs.writeFile(path.join(folder,'plugin/app.js'),source);
+    await fs.writeFile(path.join(folder,'LICENSE'),'test fixture');
+    const report=await analyzeDirectory(folder);
+    assert.equal(report.status,'candidate-review-required');assert.equal(report.installationAllowed,false);
+    assert.match(report.source.entrySha256,/^[0-9a-f]{64}$/);
+    assert.equal(report.inventory.licenseHashes.length,1);
+    assert.equal(await fs.readFile(path.join(folder,'plugin/app.js'),'utf8'),source);
+    assert.deepEqual((await fs.readdir(folder)).sort(),['LICENSE','manifest.json','plugin']);
+    await fs.writeFile(path.join(folder,'manifest.json'),JSON.stringify({...m,CodePath:'../outside.js'}));
+    await assert.rejects(analyzeDirectory(folder),/manifest/);
+  }finally{await fs.rm(temp,{recursive:true,force:true});}
+});

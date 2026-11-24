@@ -314,6 +314,7 @@ jobs:
             "private": true,
             "main": "streamdeck-editor/main.cjs",
             "dependencies": {
+              "acorn": "8.19.0",
               "jszip": "3.10.2",
               "node-hid": "3.4.0",
               "ws": "8.22.1"

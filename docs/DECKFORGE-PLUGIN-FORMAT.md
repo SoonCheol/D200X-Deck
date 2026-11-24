@@ -1,7 +1,13 @@
 # DeckForge 플러그인 규격·패키징·Ulanzi 변환 검증 계획
 
-> 기록일: 2026-11-24 · 상태: **패키지 v1 유지 / 독자 SDK API 1·2 및 패키지 v2 / Ulanzi 변환기 미구현**
+> 기록일: 2026-11-24 · 상태: **패키지 v1 유지 / 독자 SDK API 1·2 및 패키지 v2 / Ulanzi 정적 분석·제한 후보 변환기 구현**
 > 저장소·브랜치: `SoonCheol/D200X-Deck` / `codex/streamdeck-761-clean-editor`
+
+## 0.4 Ulanzi 정적 분석·제한 AST 변환기 (1.1.116)
+
+- 공식 [매니페스트](https://github.com/UlanziTechnology/UlanziDeckPlugin-SDK/blob/main/manifest.md), [Node SDK 이벤트/명령](https://github.com/UlanziTechnology/plugin-common-node/blob/main/README.md), 공식 API Request 및 Analog Clock 예제의 manifest/진입 소스 참고. 기존 lockfile의 MIT Acorn 8.19.0을 명시적 런타임 의존성으로 사용(직접 JS 파서를 재작성하지 않음).
+- `node app/streamdeck-editor/ulanzi-converter.cjs <original.ulanziPlugin>`: 원본 폴더 읽기 전용 인벤토리, 파일/크기/경로 제한, manifest/entry SHA-256, 라이선스 파일 목록 및 제한 해시, AST SDK 호출/이벤트/정적 import 분류. HTML/대형 번들/속성창/다중 액션/PrivateAPI/동적 호출/의존성 등은 수동 검토로 분류. 소스 실행·네트워크 접근·설치 없음.
+- 단일 액션 및 명시적인 현재 context의 literal setTitle/setState, 명확한 onAdd/onKeyDown/onKeyUp/노브 방향 이벤트만 API 1 후보로 번역. onRun은 확인된 단일 클릭이므로 press로 임의 변환하지 않음. 원본 아이콘/설정/라이선스/실행 의미 검증이 남아 있으므로 모든 결과는 installationAllowed:false. 후보는 검증·사용자 승인 전 배포 불가. 범용 변환/HTML/번들/자동 설치는 후속.
 
 ## 0.3 암호화 전역 설정 및 제한 복구 (1.1.115)
 
