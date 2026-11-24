@@ -2423,3 +2423,44 @@ test('compound settings and global/network effects never publish a partial write
   assert.equal(ctx.failed,true);
  }finally{host.close();}
 });
+
+test('socket loss invalidates queued stream data and delivers terminal notice despite saturated FIFO',async()=>{
+ const {EventEmitter}=require('node:events');
+ const ep={id:'live',url:'wss://example.com/events',method:'WSS'};
+ const m={...scriptManifest,permissions:['display','network.websocket'],networkEndpoints:[ep]};
+ const calls=[],sockets=[];
+ let unblock,started;const gate=new Promise(r=>unblock=r),entered=new Promise(r=>started=r);
+ let hold=false;
+ class Mock extends EventEmitter{
+  constructor(){super();this.readyState=1;this.bufferedAmount=0;this.sent=[];}
+  send(data,cb){this.sent.push(data);cb?.();}
+  terminate(){this.readyState=3;}
+ }
+ const host=new NativePluginHost('/unused',()=>{},()=>({
+  async run(_source,input){
+   const {type,response}=input.event;
+   if(type==='appear')return {ops:[{op:'socketConnect',endpoint:'live'}],memory:{}};
+   if(type==='settings'&&hold){hold=false;started();await gate;}
+   if(type==='socketEvent')calls.push(response);
+   return {ops:[],memory:{}};
+  },close(){}
+ }),{socketFactory:()=>{const socket=new Mock();sockets.push(socket);return socket;}});
+ const cfg={context:'socket-notice',slot:0,gesture:'down',pluginUUID:nativeId,actionUUID:nativeId+'.toggle',settings:{}};
+ const drain=async ctx=>{for(let i=0;i<10;i++){const q=ctx.queue;await q;await new Promise(r=>setImmediate(r));if(q===ctx.queue)return;}assert.fail('queue did not settle');};
+ try{
+  host.sync([cfg],[m]);const ctx=host.contexts.get(cfg.context);await drain(ctx);
+  const socket=sockets[0];socket.emit('open');await drain(ctx);
+  const gen=calls[0].generation;assert.equal(calls[0].gap,false);
+  hold=true;assert.equal(host.runScript(ctx,'settings'),true);await entered;
+  socket.emit('message',Buffer.from('queued-old-data'),false);
+  for(let i=ctx.pending;i<64;i++)assert.equal(host.runScript(ctx,'settings'),true);
+  socket.emit('message',Buffer.from('overflow'),false);
+  assert.equal(socket.readyState,3);assert.equal(host.socketPending.size,0);
+  assert.ok(ctx.pending<=66);
+  unblock();await drain(ctx);
+  assert.equal(calls.some(x=>x.event==='message'),false);
+  const last=calls.at(-1);assert.equal(last.event,'error');assert.equal(last.error,'queue-capacity');
+  assert.equal(last.gap,true);assert.ok(last.generation>gen);assert.equal(ctx.socketNotice,null);
+  assert.equal(socket.sent.length,0);
+ }finally{unblock();host.close();}
+});

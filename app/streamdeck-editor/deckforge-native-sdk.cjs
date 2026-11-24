@@ -532,6 +532,7 @@ class NativePluginHost{
   }
   cancelSocket(ctx){
     ctx.socketGeneration=(ctx.socketGeneration||0)+1;
+    ctx.socketNotice=null;
     const token=ctx.socketToken;
     if(!token)return;
     ctx.socketToken=null;this.socketPending.delete(token);
@@ -539,17 +540,39 @@ class NativePluginHost{
   }
   socketEvent(ctx,token,event,body='',error=null){
     if(!token.active()||ctx.socketGeneration!==token.generation)return false;
+    const terminal=['error','close','reconnecting'].includes(event);
+    const response={endpoint:token.endpoint.id,event,body,error,generation:token.generation,gap:terminal};
+    if(terminal){
+      // Loss of a transport is not ordinary traffic. Reserve capacity for
+      // its invalidation; retain at most the newest undelivered notice.
+      ctx.socketNotice={token,response};
+      this.queueSocketNotice(ctx);
+      return true;
+    }
     if(ctx.pending>=MAX_PENDING_EVENTS-INPUT_RESERVE){this.reportBackpressure(ctx);return false;}
-    return this.runScript(ctx,'socketEvent',{endpoint:token.endpoint.id,event,body,error},token.settings,token.generation);
+    return this.runScript(ctx,'socketEvent',response,token.settings,token.generation);
+  }
+  queueSocketNotice(ctx){
+    const notice=ctx.socketNotice;
+    if(!notice)return;
+    const {token,response}=notice;
+    if(!token.active()||ctx.socketGeneration!==token.generation||this.contexts.get(ctx.context)!==ctx){
+      ctx.socketNotice=null;return;
+    }
+    if(ctx.pending>=MAX_PENDING_EVENTS+2)return;
+    if(this.runScript(ctx,'socketEvent',response,token.settings,token.generation))ctx.socketNotice=null;
   }
   finishSocket(ctx,token,event,error=null,retry=false){
     if(ctx.socketToken!==token)return;
     ctx.socketError=error||null;
     this.disposeSocketTransport(token);
+    // A disconnected stream cannot be treated as a complete snapshot.
+    // Discard queued data from the old connection before delivering notice.
+    token.generation=ctx.socketGeneration=(ctx.socketGeneration||0)+1;
+    ctx.socketNotice=null;
     if(retry&&token.endpoint.reconnect===true&&token.active()&&token.attempt<this.socketRetryDelays.length){
       // Invalidate all previously queued socket events before a new transport.
       // Reconnect the approved endpoint only, never replay a send or input.
-      token.generation=ctx.socketGeneration=(ctx.socketGeneration||0)+1;
       const delay=this.socketRetryDelays[token.attempt++];
       token.retryTimer=setTimeout(()=>{
         token.retryTimer=null;
@@ -577,7 +600,7 @@ class NativePluginHost{
     const token={endpoint,binding,generation,active,settings:JSON.stringify(ctx.settings),plugin:ctx.pluginUUID,
       query:structuredClone(operation.query),socket:null,bearer:null,attempt:0,ready:false};
     if(this.socketPending.size>=8||[...this.socketPending].filter(t=>t.plugin===ctx.pluginUUID).length>=2){
-      this.socketEvent(ctx,token,'error','','capacity');return;
+      ctx.socketError='capacity';this.socketEvent(ctx,token,'error','','capacity');return;
     }
     ctx.socketError=null;ctx.socketToken=token;this.socketPending.add(token);
     this.openSocketTransport(ctx,token);
@@ -753,11 +776,12 @@ class NativePluginHost{
   }
   runScript(ctx,event,response=null,expectedSettings=null,expectedSocket=null){
     const resultEvent=event==='settingsResult';
+    const socketNoticeEvent=event==='socketEvent'&&['error','close','reconnecting'].includes(response?.event);
     if(resultEvent&&(!ctx.capabilities?.includes('settingsResult')||ctx.service))return false;
     if(ctx.settingsUncertain&&!resultEvent)return false;
     // Saturation is backpressure, not a plugin failure. Keep admitted work
     // ordered and leave the renderer and context alive.
-    if(ctx.pending>=MAX_PENDING_EVENTS+(resultEvent?1:0)){
+    if(ctx.pending>=MAX_PENDING_EVENTS+(socketNoticeEvent?2:resultEvent?1:0)){
       this.reportBackpressure(ctx);return false;
     }
     const epoch=ctx.epoch||0,revision=ctx.settingsRevision||0;
@@ -827,7 +851,7 @@ class NativePluginHost{
             pluginUUID:ctx.pluginUUID,actionUUID:ctx.action.id,operation});
         }
       }catch(error){if(active())this.fail(ctx,error);}
-    }).finally(()=>{if(ctx.epoch===epoch){ctx.pending--;if(event==='sharedState')ctx.sharedQueued=false;this.queueSettingsRefresh(ctx);this.queueSharedRefresh(ctx);}});
+    }).finally(()=>{if(ctx.epoch===epoch){ctx.pending--;if(event==='sharedState')ctx.sharedQueued=false;this.queueSocketNotice(ctx);this.queueSettingsRefresh(ctx);this.queueSharedRefresh(ctx);}});
     return true; // accepted for dispatch; not a claim of completed execution
   }
   retire(ctx){
