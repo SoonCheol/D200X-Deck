@@ -114,6 +114,7 @@ class NativePluginHost{
     this.networkRequest=options.networkRequest||requestEndpoint;this.networkPending=new Set();
     this.tickTimer=null;this.now=options.now||Date.now;
     this.scheduler=new SdkScheduler();
+    this.settingsReceiptTimeout=options.settingsReceiptTimeout??5000;
   }
   async manifests(){
     await fs.mkdir(this.root,{recursive:true});const items=[];
@@ -270,7 +271,45 @@ class NativePluginHost{
         if(op.op==='image')send('setImage',{image:op.value});
       }
   }
+  cancelSettingsReceipt(ctx){
+    const pending=ctx.settingsReceipt;
+    if(pending){ctx.settingsReceipt=null;clearTimeout(pending.timer);pending.resolve(false);}
+  }
+  requestSettingsCommit(ctx,operation,expectedSettings,active){
+    if(!active()||ctx.settingsReceipt)return Promise.resolve(false);
+    return new Promise(resolve=>{
+      const id=randomUUID(),expiresAt=Date.now()+this.settingsReceiptTimeout;
+      const pending={id,active,resolve,value:structuredClone(operation.value),expiresAt,timer:null};
+      ctx.settingsReceipt=pending;
+      pending.timer=setTimeout(()=>this.cancelSettingsReceipt(ctx),this.settingsReceiptTimeout);
+      try{
+        this.onUpdate({kind:'nativeSettingsCommit',context:ctx.context,pluginUUID:ctx.pluginUUID,
+          actionUUID:ctx.action.id,operation,expectedSettings,receiptId:id,expiresAt});
+      }catch{this.cancelSettingsReceipt(ctx);}
+    });
+  }
+  acknowledgeSettings(context,id,accepted){
+    const ctx=this.contexts.get(context),pending=ctx?.settingsReceipt;
+    if(!pending||pending.id!==id||typeof accepted!=='boolean')return false;
+    const ok=accepted&&pending.active()&&Date.now()<=pending.expiresAt;
+    ctx.settingsReceipt=null;clearTimeout(pending.timer);
+    if(ok){
+      // A confirmed write from this same action is not an external edit.
+      // Already-admitted input events keep their generation and read the
+      // newly saved settings when they reach the head of the FIFO.
+      const changed=JSON.stringify(ctx.settings)!==JSON.stringify(pending.value);
+      ctx.settings=pending.value;
+      if(changed){this.cancelNetwork(ctx);ctx.settingsRefresh=true;}
+    }
+    pending.resolve(ok);return ok;
+  }
+  queueSettingsRefresh(ctx){
+    if(ctx.settingsRefresh&&ctx.pending<MAX_PENDING_EVENTS&&!ctx.failed&&!this.closed&&!this.suspended){
+      ctx.settingsRefresh=false;this.runScript(ctx,'settings');
+    }
+  }
   resetScript(ctx){
+    this.cancelSettingsReceipt(ctx);ctx.settingsRefresh=false;
     ctx.tickDue=null;
     this.cancelNetwork(ctx);
     if(ctx.wideOverlaySent){ctx.wideOverlaySent=false;this.onUpdate({kind:'nativeWideReleased',context:ctx.context});}
@@ -408,6 +447,11 @@ class NativePluginHost{
           Buffer.byteLength(JSON.stringify(result.memory))<=8192,'invalid JavaScript memory');
         const {normal,effects}=this.validateScriptOps(ctx,event,result.ops);
         for(const operation of effects){
+          if(operation.op==='settings'){
+            const saved=await this.requestSettingsCommit(ctx,operation,settingsSnapshot,active);
+            if(!active())return;
+            if(!saved){this.report(ctx.pluginUUID,Error('settings write not confirmed'));return;}
+          }
           if(operation.op==='globalSettings'){
             const saved=await this.vault.write(ctx.pluginUUID,operation.value,global.revision,active);
             if(!active())return;
@@ -420,15 +464,14 @@ class NativePluginHost{
         if(!active())return;
         ctx.memory=result.memory;
         this.applyOps(ctx,normal);
-        for(const operation of effects)if(operation.op!=='globalSettings'){
+        for(const operation of effects)if(!['globalSettings','settings'].includes(operation.op)){
           if(operation.op==='networkRequest'){this.startNetwork(ctx,operation,active);continue;}
           if(operation.op==='wideOverlay')ctx.wideOverlaySent=operation.value!==null;
           this.onUpdate({kind:'nativeEffect',context:ctx.context,
-            pluginUUID:ctx.pluginUUID,actionUUID:ctx.action.id,operation,
-            expectedSettings:operation.op==='settings'?settingsSnapshot:undefined});
+            pluginUUID:ctx.pluginUUID,actionUUID:ctx.action.id,operation});
         }
       }catch(error){if(active())this.fail(ctx,error);}
-    }).finally(()=>{if(ctx.epoch===epoch)ctx.pending--;});
+    }).finally(()=>{if(ctx.epoch===epoch){ctx.pending--;this.queueSettingsRefresh(ctx);}});
     return true; // accepted for dispatch; not a claim of completed execution
   }
   retire(ctx){
@@ -482,6 +525,7 @@ class NativePluginHost{
         const changed=JSON.stringify(ctx.settings)!==JSON.stringify(incoming);
         ctx.settings=incoming;
         if(changed){
+          this.cancelSettingsReceipt(ctx);ctx.settingsRefresh=false;
           ctx.settingsRevision++;
           this.scheduler.prune();
           this.cancelNetwork(ctx);
@@ -597,6 +641,7 @@ class PluginRouter{
     // Remove stale legacy contexts before publishing a new native context.
     try{await this.legacy.sync(other);}finally{if(!this.closed)this.native.sync(local,native);}
   });}
+  acknowledgeSettings(context,id,accepted){return this.serial(()=>this.native.acknowledgeSettings(context,id,accepted));}
   key(context,gesture,ticks){if(this.closed)return false;return this.nativeContextIds.has(context)||this.native.contexts.has(context)?this.native.key(context,gesture,ticks):this.legacy.key(context,gesture,ticks);}
   inspector(context){return this.nativeContextIds.has(context)||this.native.contexts.has(context)?false:this.legacy.inspector(context);}
   onSystemSuspend(){this.native.suspend();this.legacy.onSystemSuspend();}

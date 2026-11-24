@@ -7059,7 +7059,6 @@ function applyNativeSdkEffect(message){
     // Reject stale writes instead of overwriting intervening user edits.
     if(JSON.stringify(instance.settings)!==JSON.stringify(message.expectedSettings))return false;
     const ok=commitExternalSdkSettings(instance,op.value);
-    if(ok)scheduleSdkSync();
     return ok;
   }
   if(op?.op==='wideOverlay'){
@@ -7106,6 +7105,19 @@ if(window.deckBridge?.onSdkEvent){
       clearNativeWide(ctx);
     }else if(message.kind==='nativeUnavailable'){
       clearNativeWide(ctx,false);sdkVisuals.delete(ctx);renderGrid();window.scheduleDeckSync?.();
+    }else if(message.kind==='nativeSettingsCommit'){
+      let saved=false;
+      try{
+        if(message.operation?.op==='settings'&&Number.isFinite(message.expiresAt)&&Date.now()<=message.expiresAt)
+          saved=applyNativeSdkEffect(message);
+      }catch{}
+      // The profile write is synchronous; acknowledge before publishing a
+      // new SDK snapshot so earlier queued inputs can use committed settings.
+      Promise.resolve(window.deckBridge.nativeSettingsReceipt(ctx,message.receiptId,saved))
+        .then(confirmed=>{if(!confirmed)window.d200xActionStatus?.('독자 SDK 설정 저장 확인 실패');})
+        .catch(()=>window.d200xActionStatus?.('독자 SDK 설정 저장 확인 실패'))
+        .finally(()=>{if(saved)scheduleSdkSync();});
+      if(!saved)window.d200xActionStatus?.('독자 SDK 설정 저장 거부: 현재 편집 상태를 확인하세요.');
     }else if(message.kind==='nativeEffect'){
       if(!applyNativeSdkEffect(message))window.d200xActionStatus?.('독자 SDK 요청 거부: 현재 설정 또는 편집 상태를 확인하세요.');
     }else if(message.kind==='settings'){

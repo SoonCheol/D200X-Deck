@@ -1526,3 +1526,39 @@ test('settings patch preserves unrelated settings and retains input, permission,
    assert.throws(()=>host.validateScriptOps(ctx,'press',[{op:'settingsPatch',value:{count:NaN}}]),/settings patch/);
  }finally{host.close();}
 });
+
+test('native settings receipts serialize rapid inputs and preserve external edit generation cancellation',async()=>{
+ const requests=[],events=[],counts=[];
+ const m={...scriptManifest,permissions:['display','settings.write']};
+ const cfg={context:'receipt',slot:16,gesture:'down',pluginUUID:m.id,actionUUID:m.actions[0].id,settings:{count:0}};
+ const action={...m.actions[0],controllers:['Encoder']};m.actions=[action];
+ const host=new NativePluginHost('/unused',e=>{events.push(e);if(e.kind==='nativeSettingsCommit')requests.push(e);},()=>({
+   async run(_source,input){
+     if(input.event.type==='rotateRight'){counts.push(input.settings.count);return {ops:[{op:'settingsPatch',value:{count:input.settings.count+1}}],memory:{}};}
+     return {ops:[{op:'title',value:String(input.settings.count)}],memory:{}};
+   },close(){}
+ }),{settingsReceiptTimeout:500});
+ const wait=async n=>{for(let i=0;i<100&&requests.length<n;i++)await new Promise(r=>setImmediate(r));assert.equal(requests.length,n);};
+ try{
+   host.sync([cfg],[m]);await host.contexts.get(cfg.context).queue;
+   assert.equal(host.key(cfg.context,'right',3),true);
+   await wait(1);
+   assert.deepEqual(counts,[0]);
+   assert.equal(host.acknowledgeSettings(cfg.context,'wrong',true),false);
+   for(let i=0;i<3;i++){
+     await wait(i+1);assert.equal(requests[i].operation.value.count,i+1);
+     assert.equal(host.acknowledgeSettings(cfg.context,requests[i].receiptId,true),true);
+     assert.equal(host.acknowledgeSettings(cfg.context,requests[i].receiptId,true),false);
+   }
+   const ctx=host.contexts.get(cfg.context);await ctx.queue;await ctx.queue;
+   assert.deepEqual(counts,[0,1,2]);assert.equal(ctx.settings.count,3);
+   assert.equal(host.key(cfg.context,'right',2),true);await wait(4);
+   host.sync([{...cfg,settings:{count:99}}],[m]);
+   assert.equal(host.acknowledgeSettings(cfg.context,requests[3].receiptId,true),false);
+   await ctx.queue;assert.equal(ctx.settings.count,99);assert.equal(requests.length,4);
+   assert.equal(host.key(cfg.context,'right'),true);await wait(5);
+   assert.equal(host.acknowledgeSettings(cfg.context,requests[4].receiptId,false),false);
+   await ctx.queue;assert.equal(ctx.settings.count,99);
+   assert.ok(events.some(e=>e.kind==='error'&&e.message.includes('not confirmed')));
+ }finally{host.close();}
+});

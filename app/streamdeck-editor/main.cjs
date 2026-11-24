@@ -247,6 +247,11 @@ ipcMain.handle('d200x:sdk-sync',async(event,configs)=>{
   if(!Array.isArray(configs)||configs.length>32)throw Error('플러그인 액션 목록 크기 오류');
   await sdk().sync(configs);return true;
 });
+ipcMain.handle('d200x:native-settings-receipt',async(event,context,id,accepted)=>{
+  assertEditor(event);
+  if(typeof context!=='string'||context.length>160||typeof id!=='string'||!/^[a-f0-9-]{36}$/.test(id)||typeof accepted!=='boolean')return false;
+  return sdk().acknowledgeSettings(context,id,accepted);
+});
 ipcMain.handle('d200x:sdk-key',async(event,context,gesture,ticks)=>{
   assertEditor(event);
   return sdk().key(context,gesture,ticks);

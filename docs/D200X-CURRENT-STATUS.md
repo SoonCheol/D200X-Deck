@@ -2,6 +2,11 @@
 
 > **상태 기록 기준: 2026-11-24**. 실제 최신 HEAD는 Git에서 확인하며, 코드·자동 검사·Windows 빌드·사용자 Windows/D200X 실기 결과를 구분한다. 시작 시 `AGENTS.md`와 이 문서만 읽고 로드맵은 필요한 경우에만 참고한다.
 
+## 1.1.158 — SDK 설정 저장 확인과 연속 입력 직렬화 (2026-11-24)
+
+- API 2 설정 쓰기는 editor의 실제 profile 저장 성공 receipt를 기다린다. context/UUID/deadline 결합, 중복/늦은 receipt 거부, 취소·5초 제한. 확인 전 메모리/표시 결과 적용 안 함. 자체 저장 성공은 기존 대기 입력 generation을 유지하고 다음 입력은 최신 저장값을 읽는다. 외부 변경/페이지 이탈/절전은 이전 대기 취소 유지.
+- editor IPC는 기존 저장 검증 및 미저장 경고 유지, receipt 후 SDK sync. 빠른 노브 3회/외부 변경/거부/중복 mock 테스트 추가. 1.1.157 CI #1197 및 Windows #908 성공. 새 CI/Windows/실기 별도.
+
 ## 1.1.157 — 독자 SDK 부분 설정 저장 및 동적 카운터 예제 (2026-11-24)
 
 - API 2 api.patchSettings: 기존 settings.write 권한·입력 이벤트·단일 부수 효과·설정 generation/expectedSettings 검사 유지. 저장된 다른 최상위 키 보존, 병합 후 schema/크기/금지 키·유한 숫자 검사. 기존 전체 setSettings 유지.
