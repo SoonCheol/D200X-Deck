@@ -39,7 +39,7 @@ test('deferred legacy knob tap replays down and up, never starts an orphaned hol
  let scope='a';const seen=[];
  const create=new Function('state','DeckCore','openAppHoldScope','handleWideWarningInput','reportInputEvidence','observeInputEvidence','seen',
    section('const knobPresses=new Map();','// One physical packet ID')+
-   section('function executeHardwareAction(event,preview=false,skipKnobGesture=false){','  if(DeckCore.isWideDisplayPress(event)')+
+   section('function executeHardwareAction(event,preview=false,skipKnobGesture=false,pressOverride=null,bypassPressBindings=false){','  const folderBackWide=')+
    'seen.push([event.state,event.pressed]);return String(event.state);};return executeHardwareAction;');
  const run=create(s,Core,()=>scope,()=>null,()=>{},()=>{},seen);
  const fire=n=>run({index:17,kind:2,state:n,pressed:n===1});

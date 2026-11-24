@@ -72,8 +72,9 @@ test('Electron input dialogs replace prompt and are ignored by inspector leave g
  assert.doesNotMatch(source,/(^|[^A-Za-z.])prompt\(/m);
  assert.match(source,/function askDeckForgeText\(/);
  assert.match(source,/function chooseDeckForgeEntity\(/);
- assert.match(source,/\.deckforge-input-dialog'\)\)return;/);
- assert.match(source,/const item=state\.selected===null\?null:state\.selected>=14\?null/);
+ assert.match(source,/if\(event\.target\.closest\('[^']*\.deckforge-input-dialog'\)\)return;/);
+ assert.match(source,/const rootItem=state\.selected===null\?null:state\.selected>=14\?null:DeckCore\.visibleActions\(state\)\[state\.selected\]/);
+ assert.match(source,/const item=pressIsOrdinary\(rootItem\)&&state\.selected<13\?\s*pressSlotAction\(rootItem,activePressTab\):rootItem;/);
 });
 
 test('text dialog identifies whitespace-only values and resets validation while typing',()=>{

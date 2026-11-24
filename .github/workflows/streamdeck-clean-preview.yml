@@ -15,7 +15,7 @@ on:
       - 'tools/fusion-manager/**'
       - 'tools/fusion-mcp/fusion-menu-catalog.json'
       - 'tools/fusion-mcp/fusion-command-catalog-final.json'
-      - 'test/streamdeck-integrated-manager.test.cjs'
+      - 'test/*.test.cjs'
       - 'test/fusion-english-catalog.test.cjs'
       - 'test/deckforge-platform-data-layout.test.cjs'
       - 'test/deckforge-backup.test.cjs'
@@ -173,6 +173,11 @@ jobs:
           node --check app/streamdeck-editor/deck-core.js
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           node --test test/streamdeck-core.test.cjs test/deckforge-key-backgrounds.test.cjs test/deckforge-dual-state-titles.test.cjs test/deckforge-ordered-multi.test.cjs test/deckforge-runtime-receipt.test.cjs
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Verify remaining root regression suites and CI inventory
+        shell: pwsh
+        run: |
+          node --test test/d200x-github-actions-verification.test.cjs test/deckforge-ai-attachments.test.cjs test/deckforge-control-dispatch-regression.test.cjs test/deckforge-profile-store.test.cjs test/deckforge-sdk-settings-persistence.test.cjs test/fusion-command-curation.test.cjs test/fusion-manager-layout.test.cjs test/fusion-menu-navigation.test.cjs test/deckforge-ci-inventory.test.cjs
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - name: Bundle pinned MIT Fluent UI Filled and Regular icon packs
         shell: pwsh
