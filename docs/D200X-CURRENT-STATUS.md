@@ -2,6 +2,12 @@
 
 > **상태 기록 기준: 2026-11-24**. 실제 최신 HEAD는 Git에서 확인하며, 코드·자동 검사·Windows 빌드·사용자 Windows/D200X 실기 결과를 구분한다. 시작 시 `AGENTS.md`와 이 문서만 읽고 로드맵은 필요한 경우에만 참고한다.
 
+## 1.1.150 — Ulanzi UUID switch 변환 및 자원 누락 차단 (2026-11-24)
+
+- 명시 UUID strict switch/case/default 및 종료 break만 제한 변환. fallthrough·중복/미등록 UUID·instance actionid·비지원 코드 거부. 선택되지 않는 분기까지 정적 형태 검사, 원본 실행 없음.
+- 선언 자원 256개 초과/비문자 경로를 누락시키지 않고 분석 실패로 처리. 신규 집중 회귀 추가, 실제 출시/실기 검증 별도.
+- 1.1.149 CI #1189 및 Windows #900 성공 확인.
+
 ## 1.1.149 — Ulanzi HTML 진입점/공개 inspector 동작 분석 및 빌드 복원력 (2026-11-24)
 
 - 단일 inert HTML script wrapper의 JS 정적 후보 변환 및 원본/JS SHA 기록. 다중/inline/active/external markup은 계속 차단, HTML 후보 출시 검토 차단 유지.

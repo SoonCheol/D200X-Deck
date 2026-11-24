@@ -1348,3 +1348,27 @@ test('single inert Ulanzi HTML entry can produce a trace candidate but active HT
    }
  }finally{await fs.rm(temp,{recursive:true,force:true});}
 });
+
+test('Ulanzi UUID switch routing validates all branches and rejects ambiguous fallthrough',()=>{
+ const {analyzeSource}=require('../app/streamdeck-editor/ulanzi-converter.cjs');
+ const id='com.ulanzi.ulanzistudio.Switch',a=id+'.a',b=id+'.b',c=id+'.c';
+ const m={Type:'JavaScript',UUID:id,Name:'Switch',Version:'1',CodePath:'app.js',Actions:[{UUID:a,Name:'A'},{UUID:b,Name:'B'},{UUID:c,Name:'C',Controllers:['Encoder']}]};
+ const source="$UD.connect('"+id+"');$UD.onAdd(m=>{switch(m.uuid){case '"+a+"':$UD.setTitle(m.context,'A');break;case '"+b+"':$UD.setTitle(m.context,'B');break;default:$UD.setTitle(m.context,'C');break;}});";
+ const result=analyzeSource(m,source);
+ assert.equal(result.verification.status,'pass');
+ assert.deepEqual(result.candidate.actions.map(x=>x.events.appear[0].value),['A','B','C']);
+ for(const bad of [source.replace("break;case","case"),source.replace(b,a),source.replace(b,id+'.unknown'),source.replace('switch(m.uuid)','switch(m.actionid)'),source.replace("break;default","break;default:eval('1');break;case '"+c+"':")])
+   assert.equal(analyzeSource(m,bad).candidate,null);
+ const unreachable="$UD.connect('"+id+"');$UD.onKeyDown(m=>{if(m.uuid === '"+c+"'){eval('1');}else{$UD.setTitle(m.context,'Ready');}});$UD.onAdd(m=>$UD.setTitle(m.context,'Ready'));";
+ assert.equal(analyzeSource(m,unreachable).candidate,null);
+});
+test('Ulanzi declared resource inventory cannot silently omit over-budget paths',async()=>{
+ const {analyzeDirectory}=require('../app/streamdeck-editor/ulanzi-converter.cjs');
+ const root=await fs.mkdtemp(path.join(os.tmpdir(),'deckforge-resource-cap-')),dir=path.join(root,'source.ulanziPlugin');await fs.mkdir(dir);
+ const id='com.ulanzi.ulanzistudio.ResourceCap',m={Type:'JavaScript',UUID:id,Name:'Cap',Version:'1',CodePath:'app.js',Actions:[{UUID:id+'.a',Name:'A',States:Array.from({length:257},(_,i)=>({Image:'img'+i+'.png'}))}]};
+ try{
+  await fs.writeFile(path.join(dir,'manifest.json'),JSON.stringify(m));
+  await fs.writeFile(path.join(dir,'app.js'),"$UD.connect('"+id+"');$UD.onAdd(m=>$UD.setTitle(m.context,'Ready'));");
+  await assert.rejects(analyzeDirectory(dir),/resource inventory limit/);
+ }finally{await fs.rm(root,{recursive:true,force:true});}
+});

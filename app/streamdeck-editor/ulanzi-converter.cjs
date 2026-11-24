@@ -195,18 +195,57 @@ function analyzeSource(manifest,source,{stateImages,stateImagesByAction,inspecto
     if(param==='$UD'){reject(node,'ambiguous SDK shadowing');continue;}
     const body=cb.body.type==='BlockStatement'?cb.body.body:[{type:'ExpressionStatement',expression:cb.body,loc:cb.loc}];
     const ops=[],sourceCalls=[];
-    // Only exact equality against a declared action UUID is interpreted.
-    // Never evaluate source expressions, and never route by instance actionid.
-    function project(statements,depth=0){
-      if(depth>16){reject(node,'action branch depth limit');return [];}
+    // Validate every branch, including a branch unreachable for this action.
+    // Only strict declared action UUID tests and non-fallthrough switches
+    // are interpreted. Never evaluate original expressions.
+    const statementsOf=n=>n?.type==='BlockStatement'?n.body:n?[n]:[];
+    const routeTest=test=>test?.type==='BinaryExpression'&&test.operator==='==='&&member(test.left,param,'uuid')&&lit(test.right,'string')?test.right.value:null;
+    function casesOf(statement){
+      if(!member(statement.discriminant,param,'uuid')||statement.cases.length>65)return null;
+      const ids=new Set(),cases=[];
+      for(const item of statement.cases){
+        const id=item.test===null?null:lit(item.test,'string')?item.test.value:undefined;
+        if((id!==null&&!knownIds.has(id))||ids.has(id))return null;
+        ids.add(id);
+        const list=item.consequent.filter(s=>s.type!=='EmptyStatement');
+        const last=list.at(-1);
+        if(last?.type!=='BreakStatement'||last.label)return null;
+        cases.push({id,body:list.slice(0,-1)});
+      }
+      return cases;
+    }
+    function safeShape(statements,depth=0){
+      if(depth>16)return false;
+      for(const statement of statements){
+        if(statement.type==='EmptyStatement')continue;
+        if(multi&&statement.type==='IfStatement'){
+          if(!knownIds.has(routeTest(statement.test))||!safeShape(statementsOf(statement.consequent),depth+1)||!safeShape(statementsOf(statement.alternate),depth+1))return false;
+          continue;
+        }
+        if(multi&&statement.type==='SwitchStatement'){
+          const cases=casesOf(statement);
+          if(!cases||!cases.every(c=>safeShape(c.body,depth+1)))return false;
+          continue;
+        }
+        const cmd=statement.type==='ExpressionStatement'?statement.expression:null,name=udCall(cmd);
+        if(!['setTitle','setState','setImage'].includes(name)||cmd.arguments.length!==2||!member(cmd.arguments[0],param,'context'))return false;
+        const value=cmd.arguments[1],settings=['onAdd','onParamFromApp'].includes(method);
+        if(name==='setTitle'&&!(lit(value,'string')&&value.value.length<=256||settings&&settingTitle(value,param)))return false;
+        if(name==='setState'&&!(lit(value,'number')&&Number.isInteger(value.value)&&value.value>=0&&value.value<2||settings&&settingState(value,param,2)))return false;
+        if(name==='setImage'&&!temporaryImage(value))return false;
+      }
+      return true;
+    }
+    if(!safeShape(body)){reject(node,'unsupported callback branch or display expression');continue;}
+    function project(statements){
       const out=[];
       for(const statement of statements){
         if(multi&&statement.type==='IfStatement'){
-          const test=statement.test;
-          const id=test?.type==='BinaryExpression'&&test.operator==='==='&&member(test.left,param,'uuid')&&lit(test.right,'string')?test.right.value:null;
-          if(!knownIds.has(id)){reject(statement,'unsupported action UUID condition');continue;}
-          const selected=id===a.UUID?statement.consequent:statement.alternate;
-          if(selected)out.push(...project(selected.type==='BlockStatement'?selected.body:[selected],depth+1));
+          const selected=routeTest(statement.test)===a.UUID?statement.consequent:statement.alternate;
+          out.push(...project(statementsOf(selected)));
+        }else if(multi&&statement.type==='SwitchStatement'){
+          const cases=casesOf(statement),selected=cases.find(c=>c.id===a.UUID)||cases.find(c=>c.id===null);
+          if(selected)out.push(...project(selected.body));
         }else out.push(statement);
       }
       return out;
@@ -321,7 +360,10 @@ async function analyzeDirectory(folder,{fullFingerprint=false}={}){
   if(!entryInfo)throw Error('manifest entrypoint missing');
   const inspectors=[],resources=[],resourcePaths=new Set();
   const addResource=(name,role)=>{
-    if(typeof name!=='string'||!name||resourcePaths.has(name)||resourcePaths.size>=256)return;
+    if(name===undefined||name===null||name==='')return;
+    if(typeof name!=='string')throw Error('invalid declared resource path');
+    if(resourcePaths.has(name))return;
+    if(resourcePaths.size>=256)throw Error('declared resource inventory limit');
     resourcePaths.add(name);resources.push({path:name,role});
   };
   addResource(manifest.Icon,'plugin-icon');addResource(manifest.CategoryIcon,'category-icon');
