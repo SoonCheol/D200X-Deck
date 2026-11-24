@@ -2,6 +2,11 @@
 
 > **상태 기록 기준: 2026-11-24**. 실제 최신 HEAD는 Git에서 확인하며, 코드·자동 검사·Windows 빌드·사용자 Windows/D200X 실기 결과를 구분한다. 시작 시 `AGENTS.md`와 이 문서만 읽고 로드맵은 필요한 경우에만 참고한다.
 
+## 1.1.151 — 독자 SDK PNG 무결성 검증 통합 (2026-11-24)
+
+- API 1/2 stateImages 및 실시간 image operation에서 단순 헤더 대신 canonical base64·chunk CRC·제한 zlib scanline 검증 적용. 비지원 encoding, 잘린 PNG·손상 CRC·후행 데이터 거부. 기존 사용자 직접 이미지 가져오기 및 Stream Deck 호환 호스트는 변경하지 않음.
+- native manifest/stateImages/API 2 runtime 결과 집중 회귀 추가. 신규 자동/실기 검사 별도.
+
 ## 1.1.150 — Ulanzi UUID switch 변환 및 자원 누락 차단 (2026-11-24)
 
 - 명시 UUID strict switch/case/default 및 종료 break만 제한 변환. fallthrough·중복/미등록 UUID·instance actionid·비지원 코드 거부. 선택되지 않는 분기까지 정적 형태 검사, 원본 실행 없음.

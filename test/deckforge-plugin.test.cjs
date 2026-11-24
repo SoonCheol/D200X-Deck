@@ -1372,3 +1372,22 @@ test('Ulanzi declared resource inventory cannot silently omit over-budget paths'
   await assert.rejects(analyzeDirectory(dir),/resource inventory limit/);
  }finally{await fs.rm(root,{recursive:true,force:true});}
 });
+
+test('native image validation rejects malformed PNGs both at install and on API 2 display output',()=>{
+ const png=Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+ip1sAAAAASUVORK5CYII=','base64');
+ const uri=b=>'data:image/png;base64,'+b.toString('base64');
+ const damaged=Buffer.from(png);damaged[45]^=1;
+ const action=nativeManifest.actions[0];
+ const host=new NativePluginHost('/unused');
+ try{
+  for(const bytes of [png.subarray(0,24),damaged,Buffer.concat([png,Buffer.from([0])])]){
+   const image=uri(bytes);
+   assert.throws(()=>validateNativeManifest({...nativeManifest,actions:[{...action,stateImages:[image,image]}]}),/PNG integrity/);
+   assert.throws(()=>validateNativeManifest({...nativeManifest,actions:[{...action,events:{press:[{op:'image',value:image}]}}]}),/PNG integrity/);
+   assert.throws(()=>host.validateScriptOps({pluginUUID:nativeId,action:scriptManifest.actions[0],permissions:['display']},'press',[{op:'image',value:image}]),/PNG integrity/);
+  }
+  const image=uri(png);
+  assert.doesNotThrow(()=>validateNativeManifest({...nativeManifest,actions:[{...action,stateImages:[image,image]}]}));
+  assert.deepEqual(host.validateScriptOps({pluginUUID:nativeId,action:scriptManifest.actions[0],permissions:['display']},'press',[{op:'image',value:image}]).normal,[{op:'image',value:image}]);
+ }finally{host.close();}
+});

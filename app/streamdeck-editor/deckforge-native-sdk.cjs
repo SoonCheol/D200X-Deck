@@ -4,6 +4,7 @@ const fs=require('node:fs/promises');
 const path=require('node:path');
 const {randomUUID}=require('node:crypto');
 const {SdkScheduler}=require('./deckforge-sdk-scheduler.cjs');
+const {verifyPng}=require('./ulanzi-png-verifier.cjs');
 const {NativeSettingsVault,validateValue}=require('./deckforge-native-settings.cjs');
 const {NativeVersionStore,assertAppRequirement}=require('./deckforge-native-versions.cjs');
 const {validateDependencies,resolveDependencies,assertDependencyChange}=require('./deckforge-native-dependencies.cjs');
@@ -25,9 +26,7 @@ function check(ok,message){if(!ok)throw Error('DeckForge SDK: '+message);}
 function validateNativePng(value){
   check(typeof value==='string'&&value.length<=350000&&/^data:image\/png;base64,[A-Za-z0-9+/]+={0,2}$/.test(value),'invalid PNG data URI');
   const bytes=Buffer.from(value.slice(22),'base64');
-  check(bytes.length>=24&&bytes.length<=256*1024&&bytes.subarray(0,8).toString('hex')==='89504e470d0a1a0a'&&
-    bytes.toString('ascii',12,16)==='IHDR'&&bytes.readUInt32BE(16)>0&&bytes.readUInt32BE(16)<=144&&
-    bytes.readUInt32BE(20)>0&&bytes.readUInt32BE(20)<=144,'invalid PNG header or dimensions');
+  check(bytes.toString('base64')===value.slice(22)&&verifyPng(bytes).ok,'invalid PNG integrity or unsupported encoding');
 }
 function validateNativeImage(value){
   if(typeof value==='string'&&value.startsWith('data:image/svg+xml;base64,')){
