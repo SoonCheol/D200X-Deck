@@ -93,7 +93,7 @@ function analyzeSource(manifest,source){
   const states=Array.isArray(a.States)&&a.States.length?a.States.length:1;
   if(!Array.isArray(controllers)||controllers.length!==1||!['Keypad','Encoder'].includes(controllers[0])||![1,2].includes(states))
     note('controller-state','unsupported controller or state combination');
-  const programs=Object.create(null);
+  const programs=Object.create(null),sourceEvents=[];
   let structurallySafe=true,connected=false,declared=false;
   const reject=(n,why)=>{structurallySafe=false;note('manual-code',why,n?.loc?.start.line||0);};
   for(const node of ast.body){
@@ -130,7 +130,7 @@ function analyzeSource(manifest,source){
     const param=cb.params[0].name;
     if(param==='$UD'){reject(node,'ambiguous SDK shadowing');continue;}
     const body=cb.body.type==='BlockStatement'?cb.body.body:[{type:'ExpressionStatement',expression:cb.body,loc:cb.loc}];
-    const ops=[];
+    const ops=[],sourceCalls=[];
     for(const statement of body){
       if(statement.type==='EmptyStatement')continue;
       const cmd=statement.type==='ExpressionStatement'?statement.expression:null,name=udCall(cmd);
@@ -138,13 +138,15 @@ function analyzeSource(manifest,source){
         reject(statement,'only current-context literal display calls are translatable');continue;
       }
       const value=cmd.arguments[1];
-      if(name==='setTitle'&&lit(value,'string')&&value.value.length<=256)ops.push({op:'title',value:value.value});
-      else if(name==='setState'&&lit(value,'number')&&Number.isInteger(value.value)&&value.value>=0&&value.value<states)
-        ops.push({op:'state',value:value.value});
+      if(name==='setTitle'&&lit(value,'string')&&value.value.length<=256){
+        ops.push({op:'title',value:value.value});sourceCalls.push({method:name,value:value.value});
+      }else if(name==='setState'&&lit(value,'number')&&Number.isInteger(value.value)&&value.value>=0&&value.value<states){
+        ops.push({op:'state',value:value.value});sourceCalls.push({method:name,value:value.value});
+      }
       else reject(statement,'unsupported display argument');
     }
     if(ops.length>16)reject(node,'event operation limit');
-    programs[event]=ops;
+    programs[event]=ops;sourceEvents.push({method,calls:sourceCalls});
   }
   let candidate=null;
   if(structurallySafe&&connected&&Object.keys(programs).length&&manifest.Actions.length===1&&!manifest.PrivateAPI&&
@@ -156,7 +158,9 @@ function analyzeSource(manifest,source){
       actions:[{id:id+'.action',name:a.Name,controllers,states,events:programs}]};
     try{candidate=validateNativeManifest(native);}catch{note('candidate-invalid','target SDK validation rejected candidate');}
   }
-  return {calls:[...calls.values()].sort((a,b)=>a.name.localeCompare(b.name)),imports:[...imports].sort(),findings,candidate};
+  const verification=candidate?require('./ulanzi-verifier.cjs').simulateCandidate(candidate,sourceEvents):null;
+  if(verification?.status==='fail')note('simulation-failed','converted candidate trace mismatch');
+  return {calls:[...calls.values()].sort((a,b)=>a.name.localeCompare(b.name)),imports:[...imports].sort(),findings,candidate,verification};
 }
 async function analyzeDirectory(folder){
   const root=path.resolve(folder),rootStat=await fs.lstat(root);
@@ -209,7 +213,7 @@ async function analyzeDirectory(folder){
   return {converterVersion:1,targetApi:1,source:{id:manifest.UUID,name:manifest.Name,version:manifest.Version,
     entry:manifest.CodePath,manifestSha256:sha(manifestBytes),entrySha256:entryHash},
     inventory:{files:inventory.length,bytes:total,licenseFiles,licenseHashes},
-    status:report.candidate?'candidate-review-required':'manual-conversion-required',
+    status:report.candidate&&report.verification?.status==='pass'?'candidate-review-required':'manual-conversion-required',
     ...report,installationAllowed:false,requiredChecks:['license','original artwork and resources','semantic comparison','runtime simulation','physical validation']};
 }
 module.exports={analyzeDirectory,analyzeSource,validateSourceManifest};

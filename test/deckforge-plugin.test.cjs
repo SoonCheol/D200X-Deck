@@ -287,3 +287,37 @@ test('Ulanzi directory analyzer hashes original source and never installs or mut
     await assert.rejects(analyzeDirectory(folder),/manifest/);
   }finally{await fs.rm(temp,{recursive:true,force:true});}
 });
+
+
+test('Ulanzi offline verifier compares source SDK traces with real native host dispatch and rejects altered conversion',()=>{
+  const {analyzeSource}=require('../app/streamdeck-editor/ulanzi-converter.cjs');
+  const {simulateCandidate}=require('../app/streamdeck-editor/ulanzi-verifier.cjs');
+  const id='com.ulanzi.ulanzistudio.Verify',m={Type:'JavaScript',UUID:id,Name:'Verify',Version:'1',
+    CodePath:'plugin/app.js',Actions:[{Name:'Dial',UUID:id+'.dial',Controllers:['Encoder'],States:[{},{}]}]};
+  const source="$UD.connect('"+id+"');$UD.onAdd(m=>$UD.setTitle(m.context,'Ready'));"+
+    "$UD.onDialDown(m=>$UD.setState(m.context,1));$UD.onDialUp(m=>$UD.setState(m.context,0));"+
+    "$UD.onDialRotateLeft(m=>$UD.setTitle(m.context,'Left'));$UD.onDialRotateRight(m=>$UD.setTitle(m.context,'Right'));"+
+    "$UD.onDialRotateHoldLeft(m=>$UD.setTitle(m.context,'Held left'));$UD.onDialRotateHoldRight(m=>$UD.setTitle(m.context,'Held right'));";
+  const report=analyzeSource(m,source);
+  assert.equal(report.verification.status,'pass');
+  assert.equal(report.verification.total,report.verification.passed);
+  assert.equal(report.verification.originalExecuted,false);
+  assert.equal(report.verification.installationAllowed,false);
+  const sourceTrace=[{method:'onAdd',calls:[{method:'setTitle',value:'Ready'}]},
+    {method:'onDialDown',calls:[{method:'setState',value:1}]},
+    {method:'onDialUp',calls:[{method:'setState',value:0}]},
+    {method:'onDialRotateLeft',calls:[{method:'setTitle',value:'Left'}]},
+    {method:'onDialRotateRight',calls:[{method:'setTitle',value:'Right'}]},
+    {method:'onDialRotateHoldLeft',calls:[{method:'setTitle',value:'Held left'}]},
+    {method:'onDialRotateHoldRight',calls:[{method:'setTitle',value:'Held right'}]}];
+  const changed=structuredClone(report.candidate);
+  changed.actions[0].events.rotateLeft[0].value='WRONG';
+  const check=simulateCandidate(changed,sourceTrace);
+  assert.equal(check.status,'fail');
+  assert.equal(check.checks.find(x=>x.name==='rotate-left').pass,false);
+  assert.equal(check.installationAllowed,false);
+  const key={...m,Actions:[{...m.Actions[0],Controllers:['Keypad']}]};
+  const keyReport=analyzeSource(key,"$UD.connect('"+id+"');$UD.onKeyDown(m=>$UD.setTitle(m.context,'Down'));");
+  assert.equal(keyReport.verification.status,'pass');
+  assert.equal(keyReport.verification.checks.find(x=>x.name==='keypad-rejects-rotate').pass,true);
+});

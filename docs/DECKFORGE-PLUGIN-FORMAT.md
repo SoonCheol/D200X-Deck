@@ -3,6 +3,12 @@
 > 기록일: 2026-11-24 · 상태: **패키지 v1 유지 / 독자 SDK API 1·2 및 패키지 v2 / Ulanzi 정적 분석·제한 후보 변환기 구현**
 > 저장소·브랜치: `SoonCheol/D200X-Deck` / `codex/streamdeck-761-clean-editor`
 
+## 0.5 Ulanzi 변환 후보 오프라인 검증 (1.1.117)
+
+- 공식 Node SDK README에서 onRun(확정 단일 클릭), onKeyDown/Up, 노브 및 held 방향, setTitle/setState의 의미를 대조. onRun과 onClear 등은 여전히 자동 변환하지 않는다. onAdd와 appear의 생명주기 타이밍 차이는 검토 필요.
+- 변환기의 지원 AST에서 원본 SDK 호출 trace를 따로 보존하고 독립 이벤트 매핑으로 기대 출력 생성. 실제 NativePluginHost의 키/노브 dispatch와 대조하며 원본 JS는 실행하지 않는다. 2개 context, 중복/유실 up, 회전/held/복수 tick, 설정 동기화, 제거·재등장, 절전·복귀·종료 시나리오. 변환 후보와 source trace 해시, 각 단계 pass/fail, 검증 범위/제약을 JSON 보고서에 기록.
+- 의도적으로 바꾼 변환 결과를 검출하는 부정 테스트 추가. 오프라인 pass는 지원된 표시 명령의 동작 검증에 한정; 실제 Ulanzi 실행 동등성, 리소스/라이선스 및 물리 D200X 검증은 별도. 모든 후보 installationAllowed:false 유지.
+
 ## 0.4 Ulanzi 정적 분석·제한 AST 변환기 (1.1.116)
 
 - 공식 [매니페스트](https://github.com/UlanziTechnology/UlanziDeckPlugin-SDK/blob/main/manifest.md), [Node SDK 이벤트/명령](https://github.com/UlanziTechnology/plugin-common-node/blob/main/README.md), 공식 API Request 및 Analog Clock 예제의 manifest/진입 소스 참고. 기존 lockfile의 MIT Acorn 8.19.0을 명시적 런타임 의존성으로 사용(직접 JS 파서를 재작성하지 않음).
