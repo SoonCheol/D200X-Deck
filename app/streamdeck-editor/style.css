@@ -1613,3 +1613,9 @@ dialog.deckforge-message-dialog::backdrop{background:#000a}
 .native-selection-row{display:grid;grid-template-columns:minmax(0,1fr) 30px 30px;gap:5px;align-items:center;padding:4px 6px;border:1px solid #555;border-radius:4px;background:#303030}
 .native-selection-row>span{overflow-wrap:anywhere;min-width:0}
 .native-selection-row>.deckforge-message-button{min-width:0;width:30px;padding:3px 0}
+
+/* Single-state HA sensor: same edit card as the OFF/ON editor, not the small read-only preview. */
+.state-title-inspector .state-title-layout .ha-sensor-icon-cards{grid-template-columns:minmax(0,232px);justify-content:start}
+.ha-sensor-title-row .title-line{flex:1;min-width:0;width:100%}
+.ha-sensor-title-row #key-title{box-sizing:border-box;width:100%;min-width:0;height:29px;background:#363636;color:#eee;border:1px solid #666;border-radius:4px;padding:3px 34px 3px 6px;font-size:12px}
+.ha-sensor-title-row #title-style-trigger{color:#eee;background:#434d5b;border:1px solid #626e7c;min-height:24px;padding:2px 5px;font-size:12px}

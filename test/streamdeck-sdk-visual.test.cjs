@@ -425,3 +425,23 @@ test('common key compositor draws HA readings over artwork and under title; cach
  ops.length=0;await f.prepareDeckKeyImage({...item,sensorOverlay:null},0).render();
  assert.deepEqual(ops,[['background','#ff0000'],['image','custom'],['title','title']]);
 });
+
+test('single HA sensor uses one dedicated edit card with the five standard commands and default background',()=>{
+ const begin=source.indexOf('function bindHaSensorIconCard('),end=source.indexOf('function bindSdkStateIcons(',begin);
+ function node(tag){return {tag,children:[],classList:{add(){}},setAttribute(){},append(...nodes){this.children.push(...nodes);},replaceChildren(...nodes){this.children=nodes;},addEventListener(type,fn){this[type]=fn;}};}
+ const panel=node('section'),title=node('div'),line=node('div'),check=node('input'),background=[];
+ title.querySelector=()=>line;
+ const root={querySelector:selector=>selector==='[data-inspector-icons]'?panel:title};
+ const sensor={type:'sd-plugin',settings:{actionUUID:'com.deckforge.native.home-assistant.sensor'}};
+ const ctx={DeckCore:core,$:()=>check,document:{createElement:node},bindKeyBackgroundControl:(image,item,key)=>background.push([image,item,key])};
+ const bind=vm.runInNewContext(source.slice(begin,end)+';bindHaSensorIconCard',ctx);
+ bind(root,sensor);
+ const cards=panel.children[0],card=cards.children[0];
+ assert.equal(cards.children.length,1);assert.equal(card.className,'sdk-state-icon ha-sensor-edit-card');
+ assert.deepEqual(title.children,[check,line]);
+ assert.equal(card.children[2].className,'sdk-state-preview');
+ assert.deepEqual(card.children[3].children.map(button=>button.textContent),['라이브러리','파일','클립보드','특수문자','초기화']);
+ assert.equal(background[0][2],'default');
+ bind(root,{type:'sd-plugin',settings:{actionUUID:'com.deckforge.native.home-assistant.control'}});
+ assert.equal(panel.children.length,1);
+});
