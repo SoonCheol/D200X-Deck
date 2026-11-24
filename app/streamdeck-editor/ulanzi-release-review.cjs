@@ -24,9 +24,13 @@ function validateReviewRecord(record,report){
     record.verificationSha256!==expected.verificationSha256)throw Error('source or conversion changed; repeat review');
   if(report.status!=='candidate-review-required'||!report.candidate||report.verification?.status!=='pass')
     throw Error('no verified restricted conversion candidate');
-  // The current candidate format cannot preserve original artwork. An
-  // attestation alone must not override that known conversion limitation.
-  if(report.resources?.length||report.inspectors?.length||report.findings.some(f=>['artwork','property-inspector','private-api','multi-action'].includes(f.code)))
+  // Only exact embedded state PNGs can satisfy the artwork contract here.
+  // Distinct category/plugin artwork and non-PNG files still need a manual port.
+  const art=report.artworkPreservation,images=report.candidate.actions[0].stateImages;
+  const preserved=art&&Array.isArray(images)&&!art.remainingPaths.length&&art.stateImages.length===images.length&&
+    art.stateImages.every((s,i)=>s.state===i&&s.sha256===createHash('sha256').update(Buffer.from(images[i].slice(22),'base64')).digest('hex'));
+  if((report.resources?.length&&!preserved)||report.inspectors?.length||
+    report.findings.some(f=>['property-inspector','private-api','multi-action'].includes(f.code)||(f.code==='artwork'&&!preserved)))
     throw Error('manual conversion required for original resources or property inspector');
   if(!Array.isArray(record.checks)||record.checks.length!==CHECKS.length||
     CHECKS.some(name=>record.checks.filter(c=>c?.name===name&&c.status==='passed'&&

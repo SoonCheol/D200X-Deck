@@ -20,6 +20,13 @@ const obj=x=>x!==null&&typeof x==='object'&&!Array.isArray(x);
 const validText=(x,n)=>typeof x==='string'&&x.length>0&&x.length<=n;
 const exact=(x,keys)=>obj(x)&&Object.keys(x).every(k=>keys.includes(k));
 function check(ok,message){if(!ok)throw Error('DeckForge SDK: '+message);}
+function validateNativePng(value){
+  check(typeof value==='string'&&value.length<=350000&&/^data:image\/png;base64,[A-Za-z0-9+/]+={0,2}$/.test(value),'invalid PNG data URI');
+  const bytes=Buffer.from(value.slice(22),'base64');
+  check(bytes.length>=24&&bytes.length<=256*1024&&bytes.subarray(0,8).toString('hex')==='89504e470d0a1a0a'&&
+    bytes.toString('ascii',12,16)==='IHDR'&&bytes.readUInt32BE(16)>0&&bytes.readUInt32BE(16)<=144&&
+    bytes.readUInt32BE(20)>0&&bytes.readUInt32BE(20)<=144,'invalid PNG header or dimensions');
+}
 function validateNativeManifest(m){
   check(exact(m,['apiVersion','id','name','version','permissions','actions','requiresDeckForge','dependencies','networkEndpoints'])&&[1,2].includes(m.apiVersion)&&
     typeof m.id==='string'&&ID.test(m.id)&&!m.id.endsWith('.')&&!m.id.includes('..')&&
@@ -33,7 +40,7 @@ function validateNativeManifest(m){
   check(Array.isArray(m.actions)&&m.actions.length>0&&m.actions.length<=64,'invalid actions');
   const ids=new Set();
   for(const a of m.actions){
-    check(exact(a,m.apiVersion===1?['id','name','controllers','states','events','settingsSchema']:['id','name','controllers','states','script','settingsSchema','tickIntervalMs'])&&typeof a.id==='string'&&
+    check(exact(a,m.apiVersion===1?['id','name','controllers','states','events','settingsSchema','stateImages']:['id','name','controllers','states','script','settingsSchema','tickIntervalMs','stateImages'])&&typeof a.id==='string'&&
       a.id.startsWith(m.id+'.')&&/^[a-z0-9.-]+$/.test(a.id)&&a.id.length<=180&&
       !a.id.endsWith('.')&&!a.id.includes('..')&&!ids.has(a.id)&&validText(a.name,180),'invalid action');
     ids.add(a.id);
@@ -41,6 +48,10 @@ function validateNativeManifest(m){
     check(Array.isArray(a.controllers)&&a.controllers.length>0&&a.controllers.length<=2&&
       new Set(a.controllers).size===a.controllers.length&&a.controllers.every(c=>['Keypad','Encoder'].includes(c))&&
       [1,2].includes(a.states),'invalid action controllers or states');
+    if(a.stateImages!==undefined){
+      check(Array.isArray(a.stateImages)&&a.stateImages.length===a.states,'invalid state image count');
+      for(const image of a.stateImages)validateNativePng(image);
+    }
     if(m.apiVersion===2){
       check(a.tickIntervalMs===undefined||(m.permissions.includes('timer.tick')&&Number.isInteger(a.tickIntervalMs)&&a.tickIntervalMs>=1000&&a.tickIntervalMs<=3600000),'invalid or unauthorized tick interval');
       check(typeof a.script==='string'&&a.script.length>0&&Buffer.byteLength(a.script)<=65536,'invalid JavaScript source');
@@ -59,14 +70,7 @@ function validateNativeManifest(m){
             !['__proto__','constructor','prototype'].includes(op.key)&&typeof op.fallback==='string'&&op.fallback.length<=256,'invalid setting reference');break;
           case 'state':check(exact(op,['op','value'])&&Number.isInteger(op.value)&&op.value>=0&&op.value<a.states,'invalid state');break;
           case 'toggleState':check(exact(op,['op'])&&a.states===2,'toggle requires two states');break;
-          case 'image':{
-            check(exact(op,['op','value'])&&typeof op.value==='string'&&op.value.length<=350000&&
-              /^data:image\/png;base64,[A-Za-z0-9+/]+={0,2}$/.test(op.value),'invalid PNG data URI');
-            const bytes=Buffer.from(op.value.slice(22),'base64');
-            check(bytes.length>=24&&bytes.length<=256*1024&&bytes.subarray(0,8).toString('hex')==='89504e470d0a1a0a'&&
-              bytes.toString('ascii',12,16)==='IHDR'&&bytes.readUInt32BE(16)>0&&bytes.readUInt32BE(16)<=144&&
-              bytes.readUInt32BE(20)>0&&bytes.readUInt32BE(20)<=144,'invalid PNG header or dimensions');break;
-          }
+          case 'image':check(exact(op,['op','value']),'invalid image operation');validateNativePng(op.value);break;
         }
       }
     }
@@ -75,7 +79,7 @@ function validateNativeManifest(m){
 }
 function catalog(m){return {uuid:m.id,name:m.name,version:m.version,runtime:'deckforge-sdk',permissions:[...m.permissions],dependencies:{...(m.dependencies||{})},
   actions:m.actions.map(a=>({uuid:a.id,name:a.name,states:a.states,controllers:a.controllers,
-    propertyInspectorPath:'',defaultImages:{off:null,on:null},...(a.settingsSchema?{settingsSchema:a.settingsSchema}:{})}))};}
+    propertyInspectorPath:'',defaultImages:{off:a.stateImages?.[0]||null,on:a.stateImages?.[1]||null},...(a.settingsSchema?{settingsSchema:a.settingsSchema}:{})}))};}
 class NativePluginHost{
   constructor(userData,onUpdate=()=>{},runnerFactory=id=>require('./deckforge-js-runtime.cjs').createScriptRunner(id),options={}){
     this.root=path.join(userData,'Plugins');this.onUpdate=onUpdate;
@@ -213,7 +217,7 @@ class NativePluginHost{
       }else throw Error('DeckForge SDK: unsupported operation');
       effects.push(op);
     }
-    const {script,tickIntervalMs,...action}=ctx.action;
+    const {script,tickIntervalMs,stateImages,...action}=ctx.action;
     validateNativeManifest({apiVersion:1,id:ctx.pluginUUID,name:'Runtime',version:'1',
       permissions:['display'],actions:[{...action,events:{press:normal}}]});
     return {normal,effects};

@@ -839,3 +839,42 @@ test('reviewed Ulanzi package requires exact source and candidate revision plus 
    await assert.rejects(releaseReviewed(folder,recordPath,temp),/EEXIST/);
  }finally{await fs.rm(temp,{recursive:true,force:true});}
 });
+
+
+test('native state PNGs populate catalog and survive package roundtrip without changing user settings',async()=>{
+ const {packageNativeManifest}=require('../app/streamdeck-editor/deckforge-plugin.cjs');
+ const png='data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+j0ioAAAAASUVORK5CYII=';
+ const m={...nativeManifest,actions:[{...nativeManifest.actions[0],stateImages:[png,png]}]};
+ const temp=await fs.mkdtemp(path.join(os.tmpdir(),'deckforge-state-art-')),host=new NativePluginHost(temp);
+ try{
+   assert.throws(()=>validateNativeManifest({...m,actions:[{...m.actions[0],stateImages:[png]}]}),/state image count/);
+   assert.throws(()=>validateNativeManifest({...m,actions:[{...m.actions[0],stateImages:[png,'https://example.com/x.png']}]}),/PNG/);
+   const catalog=await host.install(m);assert.deepEqual(catalog.actions[0].defaultImages,{off:png,on:png});
+   const pack=await packageNativeManifest(m);
+   assert.deepEqual((await parseDeckForgePackage(pack.archive)).native,m);
+ }finally{host.close();await fs.rm(temp,{recursive:true,force:true});}
+});
+test('Ulanzi state PNG bytes are embedded while unrelated artwork blocks reviewed release',async()=>{
+ const {analyzeDirectory}=require('../app/streamdeck-editor/ulanzi-converter.cjs');
+ const {buildReviewRecord,validateReviewRecord}=require('../app/streamdeck-editor/ulanzi-release-review.cjs');
+ const root=await fs.mkdtemp(path.join(os.tmpdir(),'deckforge-art-review-'));
+ const dir=path.join(root,'original.ulanziPlugin');await fs.mkdir(dir);
+ const id='com.ulanzi.ulanzistudio.Art',m={Type:'JavaScript',UUID:id,Name:'Art',Version:'1.0.0',CodePath:'app.js',
+ Actions:[{UUID:id+'.action',Name:'Action',Icon:'off.png',States:[{Image:'off.png'},{Image:'on.png'}]}]};
+ const bytes=Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+j0ioAAAAASUVORK5CYII=','base64');
+ const attest=report=>{const record=buildReviewRecord(report);for(const c of record.checks){c.status='passed';c.evidence='synthetic fixture only';}return record;};
+ try{
+   await fs.writeFile(path.join(dir,'manifest.json'),JSON.stringify(m));
+   await fs.writeFile(path.join(dir,'app.js'),"$UD.connect('"+id+"');$UD.onKeyDown(m=>$UD.setState(m.context,1));");
+   for(const name of ['off.png','on.png','category.png'])await fs.writeFile(path.join(dir,name),bytes);
+   const report=await analyzeDirectory(dir,{fullFingerprint:true});
+   assert.deepEqual(report.candidate.actions[0].stateImages,Array(2).fill('data:image/png;base64,'+bytes.toString('base64')));
+   assert.equal(report.verification.status,'pass');
+   assert.deepEqual(report.artworkPreservation.remainingPaths,[]);
+   assert.equal(validateReviewRecord(attest(report),report).kind,'ulanzi-converted');
+   await fs.writeFile(path.join(dir,'manifest.json'),JSON.stringify({...m,CategoryIcon:'category.png'}));
+   const extra=await analyzeDirectory(dir,{fullFingerprint:true});
+   assert.deepEqual(extra.artworkPreservation.remainingPaths,['category.png']);
+   assert.throws(()=>validateReviewRecord(attest(extra),extra),/manual conversion/);
+ }finally{await fs.rm(root,{recursive:true,force:true});}
+});

@@ -3,6 +3,12 @@
 > 기록일: 2026-11-24 · 상태: **패키지 v1 유지 / 독자 SDK API 1·2 및 패키지 v2 / Ulanzi 정적 분석·제한 후보 변환기 구현**
 > 저장소·브랜치: `SoonCheol/D200X-Deck` / `codex/streamdeck-761-clean-editor`
 
+## 0.17 독자 SDK 상태별 기본 PNG 및 제한 원본 이미지 보존 (1.1.130)
+
+- API 1/2 action 선택 필드 `stateImages`: 상태 수와 동일한 1~2개의 PNG data URI. 기존 이미지 명령과 동일한 헤더/크기/차원 제한, 기존 SDK catalog defaultImages에 연결. 사용자 지정 이미지는 기존 우선순위 그대로 유지. 전체 PNG 디코딩/물리 출력 별도 확인.
+- 제한 Ulanzi 단일 액션의 모든 States.Image가 지원 범위 PNG이면 실제 원본 바이트를 후보에 포함하고 상태별 SHA-256을 기록한다. 원본 파일과 후보 임베딩 해시를 대조. 별도 plugin/category/action artwork 또는 속성창은 여전히 수동 변환 필요. 자동 설치 없음, 기존 수동 검토 절차 유지.
+- Ulanzi 변환 패키지 설치 때 원본 ID 및 검토 해시 표시, 별도 사용자 확인. 검토 기록은 인증서가 아니다. 집중 검사 추가.
+
 ## 0.16 Ulanzi 변환 검토 기록과 조건부 패키징 (1.1.129)
 
 - review-ulanzi 명령에 전체 원본 파일 경로/크기/SHA-256 집합의 해시와 후보·검증·보고서 해시를 결합한 review 객체 추가. 원본/설정/리소스 수정 없이 분석. 로컬 검토자가 review 객체를 별도 JSON에 복사해 각 항목의 실제 증거를 기록한다.

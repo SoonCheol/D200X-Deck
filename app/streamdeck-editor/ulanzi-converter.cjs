@@ -73,7 +73,7 @@ function temporaryImage(node){
   if(bytes.toString('base64')!==png.slice(22)||imageReport(bytes,'image.png').status!=='header-candidate')return null;
   return png;
 }
-function analyzeSource(manifest,source){
+function analyzeSource(manifest,source,{stateImages}={}){
   validateSourceManifest(manifest);
   if(typeof source!=='string'||Buffer.byteLength(source)>MAX_SOURCE)throw Error('source size limit');
   const findings=[],seen=new Set(),calls=new Map(),imports=new Set();
@@ -181,8 +181,8 @@ function analyzeSource(manifest,source){
     // Hash the original ID so distinct case/spelling cannot collide.
     const id='com.deckforge.native.ulanzi-'+sha(manifest.UUID).slice(0,24);
     const native={apiVersion:1,id,name:manifest.Name,version:manifest.Version,permissions:['display'],
-      actions:[{id:id+'.action',name:a.Name,controllers,states,events:programs}]};
-    try{candidate=validateNativeManifest(native);}catch{note('candidate-invalid','target SDK validation rejected candidate');}
+      actions:[{id:id+'.action',name:a.Name,controllers,states,events:programs,...(stateImages?{stateImages}:{})}]};
+    try{if(Buffer.byteLength(JSON.stringify(native))>MAX_SOURCE)throw Error('candidate size limit');candidate=validateNativeManifest(native);}catch{note('candidate-invalid','target SDK validation rejected candidate');}
   }
   const verification=candidate?require('./ulanzi-verifier.cjs').simulateCandidate(candidate,sourceEvents):null;
   if(verification?.status==='fail')note('simulation-failed','converted candidate trace mismatch');
@@ -261,6 +261,25 @@ async function analyzeDirectory(folder,{fullFingerprint=false}={}){
     try{const bytes=await readEntry(item.path,256*1024);Object.assign(item,{sha256:sha(bytes),...imageReport(bytes,item.path)});}
     catch{item.status='unreadable';}
   }
+  // Preserve only exact, bounded PNG state resources. Category/plugin/action
+  // art with distinct paths still needs a separate conversion decision.
+  const art=manifest.Actions[0],declaredStates=Array.isArray(art.States)?art.States:[];
+  let stateImages,artworkPreservation=null;
+  if(manifest.Actions.length===1&&[1,2].includes(declaredStates.length)&&
+    declaredStates.every(s=>typeof s?.Image==='string'&&resources.some(r=>r.path===s.Image&&r.status==='header-candidate'))){
+    try{
+      const images=[];
+      for(const s of declaredStates){
+        const bytes=await readEntry(s.Image,256*1024);
+        if(imageReport(bytes,s.Image).status!=='header-candidate')throw Error('invalid state image');
+        images.push('data:image/png;base64,'+bytes.toString('base64'));
+      }
+      stateImages=images;
+      artworkPreservation={stateImages:declaredStates.map((s,index)=>({state:index,path:s.Image,sha256:sha(Buffer.from(images[index].slice(22),'base64'))})),
+        remainingPaths:resources.filter(r=>!declaredStates.some(s=>s.Image===r.path)).map(r=>r.path),
+        verification:'header-and-source-bytes-only'};
+    }catch{stateImages=undefined;artworkPreservation=null;}
+  }
   let report={calls:[],imports:[],findings:[],candidate:null},entryHash=null,htmlEntry=null;
   if(!/\.js$/i.test(manifest.CodePath)){
     report.findings.push({code:'html-entry',detail:'HTML entry requires dependency and behavior review',line:0});
@@ -280,7 +299,7 @@ async function analyzeDirectory(folder,{fullFingerprint=false}={}){
   else if(entryInfo.bytes>MAX_SOURCE)report.findings.push({code:'large-entry',detail:'bundled entry exceeds static parser limit; source required',line:0});
   else{
     const bytes=await readEntry(manifest.CodePath,MAX_SOURCE);entryHash=sha(bytes);
-    report=analyzeSource(manifest,bytes.toString('utf8'));
+    report=analyzeSource(manifest,bytes.toString('utf8'),{stateImages});
   }
   // Report licensing evidence, not a legal conclusion; never infer a license.
   const licenseFiles=inventory.filter(x=>/(^|\/)(license|copying|notice)([._-]|$)/i.test(x.path)).map(x=>x.path);
@@ -289,7 +308,7 @@ async function analyzeDirectory(folder,{fullFingerprint=false}={}){
     const info=inventory.find(x=>x.path===file);
     if(info.bytes<=256*1024)licenseHashes.push({path:file,sha256:sha(await readEntry(file,256*1024))});
   }
-  return {converterVersion:2,targetApi:1,inspectors,resources,htmlEntry,source:{id:manifest.UUID,name:manifest.Name,version:manifest.Version,
+  return {converterVersion:2,targetApi:1,inspectors,resources,htmlEntry,artworkPreservation,source:{id:manifest.UUID,name:manifest.Name,version:manifest.Version,
     entry:manifest.CodePath,manifestSha256:sha(manifestBytes),entrySha256:entryHash,...(sourceTreeSha256?{treeSha256:sourceTreeSha256}:{})},
     inventory:{files:inventory.length,bytes:total,licenseFiles,licenseHashes},
     status:report.candidate&&report.verification?.status==='pass'?'candidate-review-required':'manual-conversion-required',

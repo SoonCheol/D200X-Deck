@@ -188,12 +188,14 @@ ipcMain.handle('d200x:sdk-install',async event=>{
       const plan=await sdk().planNativeInstall(native);
       const extra=native.permissions.filter(p=>p!=='display');
       const dependencies=Object.entries(native.dependencies||{}).map(([id,range])=>id+' '+range);
-      if(extra.length||dependencies.length||plan.kind!=='install'){
+      const conversion=packageData.meta.source?.kind==='ulanzi-converted'?packageData.meta.source:null;
+      if(extra.length||dependencies.length||conversion||plan.kind!=='install'){
         const verb=plan.kind==='update'?'업데이트':plan.kind==='rollback'?'이전 버전 복원':'설치';
         const versions=plan.kind==='install'?native.version:plan.currentVersion+' → '+native.version;
         const result=await dialog.showMessageBox(window,{
           type:'question',title:'DeckForge 플러그인 '+verb,message:native.name+' '+verb+' 확인',
           detail:'ID: '+native.id+'\n버전: '+versions+'\n'+extra.map(p=>'• '+labels[p]).join('\n')+'\n'+
+            (conversion?'Ulanzi 변환 원본: '+conversion.originalId+'\n검토 기록 해시: '+conversion.reviewSha256+'\n검토 기록은 전자서명 또는 실기 인증서가 아닙니다.\n':'')+
             (dependencies.length?'필요 플러그인: '+dependencies.join(', ')+'\n':'')+
             (native.networkEndpoints?.length?'허용할 네트워크 요청:\n'+native.networkEndpoints.map(e=>e.method+' '+e.url+(e.auth==='bearer'?' · Bearer 인증':'')).join('\n')+'\n':'')+
             (plan.kind==='install'?'':'이전 코드 보존 · 설정과 프로필은 그대로 유지됩니다.\n')+'신뢰하는 플러그인만 설치하세요.',
