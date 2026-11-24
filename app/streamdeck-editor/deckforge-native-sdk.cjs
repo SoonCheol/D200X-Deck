@@ -446,11 +446,18 @@ class NativePluginHost{
         this.cancelSettingsReceipt(ctx,'unknown');
       },this.settingsReceiptTimeout);
       try{
-        this.onUpdate({kind:'nativeSettingsCommit',context:ctx.context,pluginUUID:ctx.pluginUUID,
+        pending.request=structuredClone({kind:'nativeSettingsCommit',context:ctx.context,pluginUUID:ctx.pluginUUID,
           actionUUID:ctx.action.id,operation,expectedSettings,receiptId:id,requestId:id,
-          instanceId:ctx.instanceId,mountGeneration:ctx.mountGeneration,expectedRevision:ctx.configRevision,expiresAt});
+          instanceId:ctx.instanceId,mountGeneration:ctx.mountGeneration,expectedRevision:ctx.configRevision,
+          slot:ctx.slot,gesture:ctx.gesture,expiresAt});
+        this.onUpdate(structuredClone(pending.request));
       }catch{ctx.settingsUncertain=true;ctx.pressed=false;this.cancelSettingsReceipt(ctx,'unknown');}
     });
+  }
+  pendingSettingsRequest(context,id){
+    const ctx=this.contexts.get(context),pending=ctx?.settingsReceipt;
+    if(!pending||pending.id!==id||!pending.active()||ctx.configRevision!==pending.revision||Date.now()>pending.expiresAt)return null;
+    return structuredClone(pending.request);
   }
   acknowledgeSettings(context,id,accepted){
     const ctx=this.contexts.get(context),pending=ctx?.settingsReceipt;
@@ -1047,6 +1054,7 @@ class PluginRouter{
     // Remove stale legacy contexts before publishing a new native context.
     try{await this.legacy.sync(other);}finally{if(!this.closed&&revision===this.syncRevision)this.native.sync(local,native);}
   });}
+  pendingSettingsRequest(context,id){return this.closed||this.desiredContexts&&!this.desiredContexts.has(context)?null:this.native.pendingSettingsRequest(context,id);}
   acknowledgeSettings(context,id,accepted){return this.serial(()=>this.native.acknowledgeSettings(context,id,accepted));}
   key(context,gesture,ticks){if(this.closed||(this.desiredContexts&&!this.desiredContexts.has(context)))return false;return this.nativeContextIds.has(context)||this.native.contexts.has(context)?this.native.key(context,gesture,ticks):this.legacy.key(context,gesture,ticks);}
   inspector(context){if(this.closed||(this.desiredContexts&&!this.desiredContexts.has(context)))return false;return this.nativeContextIds.has(context)||this.native.contexts.has(context)?false:this.legacy.inspector(context);}

@@ -3083,7 +3083,7 @@ function sdkItemAtLocation(source,slot,gesture){
   const key=({'hold-left':'holdLeft','hold-right':'holdRight'})[gesture]||gesture;
   return DeckCore.controlBinding(source,slot)?.[key];
 }
-function commitExternalSdkSettings(instance,settings){
+function commitExternalSdkSettings(instance,settings,request=null){
   const live=sdkItemAtLocation(state,instance.slot,instance.gesture);
   if(live?.type!=='sd-plugin'||!instance.instanceId||live.instanceId!==instance.instanceId||live.settings?.pluginUUID!==instance.pluginUUID||
     live.settings?.actionUUID!==instance.actionUUID)return false;
@@ -3095,14 +3095,18 @@ function commitExternalSdkSettings(instance,settings){
   const next=JSON.stringify(confirmed);
   try{
     if(profileStorageFailure)throw Error('프로필 파일 읽기 실패 상태');
-    if(window.deckBridge?.writeProfile){
+    if(request){
+      if(!window.deckBridge?.commitNativeSettings)return null;
+      const result=window.deckBridge.commitNativeSettings(request.context,request.requestId);
+      if(result?.status!=='saved')return result?.status==='rejected'?false:null;
+    }else if(window.deckBridge?.writeProfile){
       const saved=window.deckBridge.writeProfile(confirmed);
       if(!saved?.ok)throw Error(saved?.error||'SDK 프로필 파일 저장 실패');
     }else localStorage.setItem(STORAGE_KEY,next);
   }catch(error){
     console.error('외부 SDK 설정 저장 실패',error);
     window.d200xActionStatus?.('플러그인 속성 저장 실패: 저장 공간/권한을 확인하세요.');
-    return false;
+    return request?null:false;
   }
   live.settings.pluginSettings=clone(settings);
   if(inspectorSession){
@@ -7431,7 +7435,7 @@ function applyNativeSdkEffect(message){
   if(op?.op==='settings'){
     // Reject stale writes instead of overwriting intervening user edits.
     if(!DeckCore.nativeSettingsCommitMatches(instance,message))return false;
-    const ok=commitExternalSdkSettings(instance,op.value);
+    const ok=commitExternalSdkSettings(instance,op.value,message);
     return ok;
   }
   if(op?.op==='wideOverlay'){
@@ -7483,7 +7487,11 @@ if(window.deckBridge?.onSdkEvent){
       try{
         if(message.operation?.op==='settings'&&Number.isFinite(message.expiresAt)&&Date.now()<=message.expiresAt)
           saved=applyNativeSdkEffect(message);
-      }catch{}
+      }catch{saved=null;}
+      if(saved===null){
+        window.d200xActionStatus?.('독자 SDK 설정 저장 결과 미확정 · 자동 재실행하지 않습니다.');
+        return; // Do not send a false rejection for an unknown write.
+      }
       // The profile write is synchronous; acknowledge before publishing a
       // new SDK snapshot so earlier queued inputs can use committed settings.
       Promise.resolve(window.deckBridge.nativeSettingsReceipt(ctx,message.receiptId,saved))

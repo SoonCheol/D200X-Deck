@@ -98,3 +98,18 @@ test('successful inspector save publishes SDK configuration; failed save does no
   if(!success)assert.equal(ctx.inspectorSession,session);
  }
 });
+
+test('native receipt path does not fall back to an ordinary profile write on uncertain outcome',()=>{
+ for(const status of ['saved','rejected','unknown']){
+  const state=DeckCore.migrateState(null),item=state.pages[0][0]=plugin(),session={snapshot:JSON.stringify(state),dirty:false};
+  const instance={slot:0,gesture:'down',instanceId:item.instanceId,pluginUUID:item.settings.pluginUUID,actionUUID:item.settings.actionUUID};
+  const request={context:'test-context',requestId:'test-id'};let calls=0;
+  const ctx={state,DeckCore,instance,request,inspectorSession:session,profileStorageFailure:false,
+   clone:v=>JSON.parse(JSON.stringify(v)),window:{deckBridge:{writeProfile:()=>assert.fail('must not bypass durable receipt'),
+    commitNativeSettings:(context,id)=>{assert.equal(context,request.context);assert.equal(id,request.requestId);calls++;return {status};}}},
+   renderGrid(){},updateInspectorSaveButtons(){},console};
+  const result=vm.runInNewContext(script+';commitExternalSdkSettings(instance,{value:"after"},request)',ctx);
+  assert.equal(result,status==='saved'?true:status==='rejected'?false:null);assert.equal(calls,1);
+  assert.equal(item.settings.pluginSettings.value,status==='saved'?'after':'before');
+ }
+});

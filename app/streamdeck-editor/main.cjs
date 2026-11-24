@@ -284,6 +284,9 @@ ipcMain.handle('d200x:sdk-sync',async(event,configs)=>{
 ipcMain.handle('d200x:native-settings-receipt',async(event,context,id,accepted)=>{
   assertEditor(event);
   if(typeof context!=='string'||context.length>160||typeof id!=='string'||!/^[a-f0-9-]{36}$/.test(id)||typeof accepted!=='boolean')return false;
+  // A success ACK must correspond to the durable, atomic profile receipt.
+  const durable=profileStore.nativeReceipt(context,id)==='saved';
+  if(durable!==accepted)return false;
   return sdk().acknowledgeSettings(context,id,accepted);
 });
 ipcMain.handle('d200x:sdk-key',async(event,context,gesture,ticks)=>{
@@ -511,6 +514,14 @@ ipcMain.on('d200x:profile-write',(event,state)=>{
   }catch(error){
     event.returnValue={ok:false,error:String(error?.message||error)};
   }
+});
+
+ipcMain.on('d200x:native-settings-commit',(event,context,id)=>{
+  try{
+    assertEditor(event);
+    const request=sdk().pendingSettingsRequest(context,id);
+    event.returnValue=request?profileStore.commitNativeSettings(request):{status:'rejected'};
+  }catch{event.returnValue={status:'unknown'};}
 });
 
 // Local and Google Drive backups share the protected restore path.

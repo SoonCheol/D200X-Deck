@@ -54,3 +54,56 @@ test('non-image data URLs and other settings remain unchanged',()=>{
   assert.deepEqual(store.read(),state);
  });
 });
+
+function nativeFixture(store){
+ const Core=require('../app/streamdeck-editor/deck-core.js');
+ const state=Core.migrateState(null),item=state.pages[0][0]=Core.createAction('sd-plugin');
+ item.settings.pluginUUID='com.deckforge.native.test';item.settings.actionUUID='com.deckforge.native.test.key';
+ item.settings.pluginSettings={count:0};state.pages[0][1]=Core.createAction('text');state.pages[0][1].title='retain';
+ store.write(state);
+ const cfg=Core.createSdkMountTracker().reconcile('test',Core.sdkMountDescriptors(state))[0];
+ const id=require('node:crypto').randomUUID();
+ return {...cfg,requestId:id,receiptId:id,expectedRevision:cfg.configRevision,expectedSettings:{count:0},
+  operation:{op:'settings',value:{count:1}},expiresAt:Date.now()+60000};
+}
+test('native saved receipt and profile share atomic replacement and survive restart',()=>{
+ fixture((store,dir)=>{
+  const request=nativeFixture(store);
+  assert.deepEqual(store.commitNativeSettings(request),{status:'saved'});
+  const reopened=new ProfileStore(dir),state=reopened.read();
+  assert.equal(reopened.nativeReceipt(request.context,request.requestId),'saved');
+  assert.equal(state.pages[0][0].settings.pluginSettings.count,1);
+  assert.equal(state.pages[0][1].title,'retain');
+  assert.ok(!Object.hasOwn(state,'_deckforgeNativeSettingsReceiptsV1'));
+  const raw=fs.readFileSync(store.file,'utf8');
+  assert.deepEqual(reopened.commitNativeSettings(request),{status:'saved',duplicate:true});
+  assert.equal(fs.readFileSync(store.file,'utf8'),raw,'duplicate must not write');
+  assert.equal(reopened.commitNativeSettings({...request,operation:{op:'settings',value:{count:9}}}).status,'rejected');
+  state.pages[0][0].settings.pluginSettings.count=2;reopened.write(state);
+  assert.equal(reopened.commitNativeSettings(request).status,'rejected');
+  assert.equal(new ProfileStore(dir).nativeReceipt(request.context,request.requestId),'saved');
+  assert.equal(new ProfileStore(dir).read().pages[0][0].settings.pluginSettings.count,2);
+ });
+});
+test('native settings reject expiry, replaced action and stale values before write',()=>{
+ fixture(store=>{
+  const request=nativeFixture(store),raw=fs.readFileSync(store.file,'utf8');
+  assert.equal(store.commitNativeSettings(request,request.expiresAt+1).status,'rejected');
+  assert.equal(store.commitNativeSettings({...request,expectedSettings:{count:99}}).status,'rejected');
+  assert.equal(fs.readFileSync(store.file,'utf8'),raw);
+  const state=store.read();state.pages[0][0].instanceId=require('node:crypto').randomUUID();store.write(state);
+  assert.equal(store.commitNativeSettings(request).status,'rejected');
+  assert.equal(store.nativeReceipt(request.context,request.requestId),null);
+ });
+});
+test('profile write failure leaves both native setting and durable receipt absent',()=>{
+ fixture((store,dir)=>{
+  const request=nativeFixture(store);
+  const rename=fs.renameSync;fs.renameSync=(from,to)=>{if(to===store.file)throw Error('simulated disk failure');return rename(from,to);};
+  try{assert.throws(()=>store.commitNativeSettings(request),/simulated disk failure/);}finally{fs.renameSync=rename;}
+  const reopened=new ProfileStore(dir);
+  assert.equal(reopened.read().pages[0][0].settings.pluginSettings.count,0);
+  assert.equal(reopened.nativeReceipt(request.context,request.requestId),null);
+  assert.equal(reopened.commitNativeSettings(request).status,'saved');
+ });
+});
