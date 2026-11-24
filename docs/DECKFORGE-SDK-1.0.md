@@ -131,3 +131,5 @@ API 2 manifest의 service={script,tickIntervalMs?} 및 별도 background.run 권
 - 09 실기 시험(1.1.224): 명시 실행 인자 --test-key-transport에서만 transport opt-in. renderer는 기존 동일 stamp/단일 일반 키 native partial blank만 liveOnly; main frame 검증, main opt-in 이중 조건. 일반 실행/페이지/와이드 경고·재연결은 PAGE. 제목에 시험 모드 표시, USB 구조화 로그의 session/slot/slots/ZIP bytes/모드/캐시/KEY 여부 AI usb_log 제공(원시 detail 제외). ZIP bytes는 HID 총량이나 실기 ACK가 아님. 시험 미통과/미실시 시 기본 OFF 유지.
 
 - 10A(1.1.225): Windows 기존 실제 Electron smoke에 Model 2 service/button 24쌍 반복, 개별 memory/realm/PID 유지, 6개 추가 plugin ID 순차 실행 후 idleLimit=3 LRU·close 확인 추가. 실제 측정 elapsedMs/PID/entry 수를 로그에 기록(성능 목표·장시간 soak 아님). USB mock 기본/시험 각 120회 변경, navigation, sleep/wake, reconnect, keepalive 및 최종 화면 모델 일치 검증. 실제 장치·HA·OS suspend/장시간 soak 및 04B OOM/저장 격리는 별도 통과 기준, KEY/Model 5 기본 OFF. 생산 코드 동작 미변경.
+
+- 10A/B(1.1.226): Windows #979 반복 검사에서 PID 고정 가정 실패(8952≠3624). runner 객체 재사용과 회차별 PID 분리·realm/memory 검사는 유지하고 PID 변화 기록. 기존 Model 2 실제 Electron 입력 크기/operation 수·데이터/출력/draw 제한 거부 및 별도 서비스 생존·button 복구, opaque local/sessionStorage와 CSP data fetch 차단 시험 추가. 전체 OOM 및 Model 5 저장소 격리 판정 아님. 생산 코드 변경 없음.

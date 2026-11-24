@@ -184,7 +184,8 @@ async function verifyModel2Repetition(){
  const pool=new ScriptRunnerPool(undefined,{idleLimit:3,idleMs:30000});
  const id='com.deckforge.native.repeat',started=Date.now();
  const button=pool.lease(id,'button'),service=pool.lease(id,'service');
- let buttonMemory={},serviceMemory={},maxEntries=0,buttonPid=null,servicePid=null;
+ let buttonMemory={},serviceMemory={},maxEntries=0,buttonRunner=null,serviceRunner=null;
+ const buttonPids=new Set(),servicePids=new Set();
  try{
   for(let i=1;i<=24;i++){
    const run=(lease,memory,label)=>lease.run(
@@ -195,10 +196,15 @@ async function verifyModel2Repetition(){
    assert.deepEqual(a.ops,[{op:'title',value:'service:'+i}]);
    assert.equal(b.memory.n,i);assert.equal(a.memory.n,i);
    buttonMemory=b.memory;serviceMemory=a.memory;
-   buttonPid??=pool.processId(id,'button');servicePid??=pool.processId(id,'service');
+   // loadURL resets the opaque document and Chromium may swap processes.
+   // Reuse is the runner object's lifetime, not a promise of a constant PID.
+   buttonRunner??=pool.entries.get(pool.key(id,'button')).runner;
+   serviceRunner??=pool.entries.get(pool.key(id,'service')).runner;
+   assert.equal(pool.entries.get(pool.key(id,'button')).runner,buttonRunner);
+   assert.equal(pool.entries.get(pool.key(id,'service')).runner,serviceRunner);
+   const buttonPid=pool.processId(id,'button'),servicePid=pool.processId(id,'service');
    assert.ok(buttonPid>0&&servicePid>0&&buttonPid!==servicePid);
-   assert.equal(pool.processId(id,'button'),buttonPid);
-   assert.equal(pool.processId(id,'service'),servicePid);
+   buttonPids.add(buttonPid);servicePids.add(servicePid);
    maxEntries=Math.max(maxEntries,pool.entries.size);
    assert.equal(pool.entries.size,2);
   }
@@ -215,8 +221,39 @@ async function verifyModel2Repetition(){
   }
   assert.ok(!pool.entries.has(pool.key(id,'button')));
   assert.ok(firstRunner.isClosed?.()===true);
-  console.log('MODEL2_REPETITION '+JSON.stringify({pairedRounds:24,additionalLeases:6,maxIdleEntries:maxEntries,elapsedMs:Date.now()-started,buttonPid,servicePid}));
+  console.log('MODEL2_REPETITION '+JSON.stringify({pairedRounds:24,additionalLeases:6,maxIdleEntries:maxEntries,elapsedMs:Date.now()-started,buttonPids:[...buttonPids],servicePids:[...servicePids]}));
  }finally{pool.close();assert.equal(pool.entries.size,0);}
+}
+// Bounded adversarial input/output, not an intentional system OOM test.
+async function verifyModel2Limits(){
+ const {ScriptRunnerPool}=require('../app/streamdeck-editor/deckforge-js-runtime.cjs');
+ const pool=new ScriptRunnerPool(),id='com.deckforge.native.limits';
+ const button=pool.lease(id,'button'),service=pool.lease(id,'service');
+ const title=text=>({ops:[{op:'title',value:text}],memory:{}});
+ const expectService=async()=>assert.deepEqual(await service.run("api.setTitle('alive');",input),title('alive'));
+ try{
+  await expectService();
+  const serviceRunner=pool.entries.get(pool.key(id,'service')).runner;
+  const rejectAndRecover=async(source,event,pattern)=>{
+   await assert.rejects(button.run(source,event),pattern);
+   assert.equal(pool.entries.has(pool.key(id,'button')),false,'failed runner must be removed');
+   await expectService();
+   assert.equal(pool.entries.get(pool.key(id,'service')).runner,serviceRunner);
+   assert.deepEqual(await button.run("api.setTitle('recovered');",input),title('recovered'));
+   assert.notEqual(pool.processId(id,'button'),pool.processId(id,'service'));
+  };
+  await rejectAndRecover("api.setTitle('must not execute');",{...input,settings:{payload:'a'.repeat(70*1024)}},/input limit/);
+  await rejectAndRecover("for(let i=0;i<17;i++)api.setTitle('x');",input,/operation limit/);
+  await rejectAndRecover("api.setTitle('x'.repeat(520*1024));",input,/operation data limit/);
+  await rejectAndRecover("memory.payload='x'.repeat(520*1024);",input,/output limit/);
+  await rejectAndRecover("api.drawKey({width:145,height:144,commands:[]});",input,/invalid key drawing/);
+  const storage=await button.run(
+   "const blocked=[];for(const key of ['localStorage','sessionStorage']){try{globalThis[key].setItem('probe','x');blocked.push(false)}catch{blocked.push(true)}}api.setTitle(blocked.join(':')+':'+typeof Worker+':'+typeof require);",input);
+  assert.deepEqual(storage,title('true:true:undefined:undefined'));
+  const noNetwork=await button.run("let denied=false;try{await fetch('data:text/plain,probe')}catch{denied=true}api.setTitle(String(denied));",input);
+  assert.deepEqual(noNetwork,title('true'));
+  console.log('MODEL2_BOUNDED_LIMITS '+JSON.stringify({rejectedCases:5,serviceSurvived:true,buttonRecovered:true,opaqueStorageBlocked:true,dataFetchBlocked:true,oomTested:false}));
+ }finally{pool.close();}
 }
 async function verifyTrustedDrawOps(legacy){
  const {BrowserWindow}=require('electron');
@@ -299,6 +336,7 @@ app.whenReady().then(async()=>{
     console.log('DeckForge JavaScript SDK renderer smoke passed');
     await verifyModel2();
     await verifyModel2Repetition();
+    await verifyModel2Limits();
     await verifyTrustedDrawOps(b);
     await verifyPublicApi(b);
     await verifyHomeAssistant(b);

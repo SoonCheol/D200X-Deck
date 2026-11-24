@@ -2,7 +2,7 @@
 > 2026-11-24 · 현재 스냅샷, 누적 금지.
 ## 개발 기준
 - 저장소 SoonCheol/D200X-Deck · 브랜치 codex/streamdeck-761-clean-editor · Draft PR #5 유지.
-- 로컬 E:\Codex\DeckForge. 최신 HEAD는 Git에서 확인. 소스 버전 **1.1.225** (10A 반복·격리 통합 검증 후보).
+- 로컬 E:\Codex\DeckForge. 최신 HEAD는 Git에서 확인. 소스 버전 **1.1.226** (10A PID 검사 수정·10B 제한 검증 후보).
 - 감사 기준 소스 `49ba39fe094ee808c5715f2348be0789f61d5e20`. CI #1221 성공(커넥터 확인); Windows #930 성공(사용자 인수인계, 이번 문서 작업에서 재검증하지 않음).
 ## 현재 상태
 - 독자 SDK API 1/2, 공개 25개 함수, HTTP/WSS, 전역 서비스/공유 상태, 동적 속성, 암호화·권한·패키지, HA 0.1.8 후보 및 Stream Deck 호환 호스트 구현. SDK 1.0 정식 완성 선언 보류.
@@ -25,8 +25,7 @@
 - 1.1.203: 선택 settingsResult·child exit 검사, Windows/CI 성공.
 - 1.1.204: 05C-3 최신 mount 의도·ABA/slot/gesture·이동/복제·복합 효과 검사. Windows/CI/입력 성공. 감사 원문 13개 전체 대조/실제 전원 손실 미검증.
 - 1.1.205~207: WSS 연결 세대/갭·종료 큐, HA catalogue/live 분리, tickWhen 조건 및 자동 회전. Windows #961·CI #1255·입력 #507 성공. 실기 별도.
-- 1.1.208: 07A settingsUI 별도 선언(그룹·조건·정수 슬라이더) 및 색상 값 타입, 기존 form 재사용. 숨겨진 필드는 기존 값 유지; 비HA 예제 및 집중 검사 추가. CI #1256·입력 #508·Windows #962 성공; GUI 별도.
-- 1.1.209~211: 범용 제목 정책 및 상태별 검사, VM 오류 수정 후 Windows #965·CI #1259 성공.
+- 1.1.208~211: 범용 속성/제목 정책 및 상태별 검사, CI #1256/1259·Windows #962/965 성공.
 - 1.1.212~213: HA 범용 제목/단일 전경 카드 선언 및 기존 데이터 이관, CI #1260~1261·입력 #510~511·Windows #966~967 성공.
 - 1.1.214~216: 데이터 유지 제거/재설치, 누락 표시, 명시 purge 및 보존 범위 검사. CI #1262~1264·입력 #512~514·Windows #968~970 성공.
 - 1.1.217~218: 선택 복원/인증정보 보호 및 호환 관리. #971 성공, #972 제목 실패 후 219 수정.
@@ -35,10 +34,11 @@
 - 사용자 실기 보고: 테스트 플러그인 v1.0.0 제거 성공 2026-11-24 16:38:12 UTC, 보존 데이터 삭제 성공(2/2) 16:38:16 UTC; AI 로그 조회 확인. 원본 로그 직접 열람은 아님.
 - 1.1.222: 오래된 압축 실패 시 최신 PAGE 보존, 절전 중 전송 보류/깨우기 전체 복원, 종료 후 지연 HID 연결 차단, KEY 실패 재연결 mock 검증 추가. CI #1270·Windows #976 성공. KEY 기본 OFF 유지.
 - 1.1.223: purge 성공 뒤 정확한 pluginUUID 등록 액션 전체 프로필/템플릿 정리, 기존 버튼 위치/다른 액션 유지, 저장 실패 시 UI 원복. 이미 삭제된 누락 ID는 설치/보존 부재 재검사 및 명시 승인 후 정리. 사용자 데이터 직접 조작 없음. CI #1271·입력 #519·Windows #977 성공. GUI 별도.
-- 1.1.224: --test-key-transport 실행 인자에서만 KEY 허용, 동일 페이지 native 단일 일반 키 부분 렌더만 liveOnly 전달. 일반 실행/와이드 경고는 PAGE. USB log 구조화 slot/ZIP bytes/session, AI 조회, 집중 검사 추가. CI #1272·입력 #520·Windows #978 회귀 및 설치본 생성 통과, 게시 별도. 실제 KEY 미검증.
-- 1.1.225: 10A 기존 Windows Electron smoke에 Model 2 실제 24쌍 service/button 반복, 6개 추가 ID LRU 퇴거·realm/memory·PID·종료 확인 추가. USB 120회씩 기본/시험 mock 화면 일치 검사. 장시간 실기 soak·OOM 판정과 구분. 자동 검사 대기.
+- 1.1.224: --test-key-transport 실행 인자에서만 KEY 허용, 동일 페이지 native 단일 일반 키 부분 렌더만 liveOnly 전달. 일반 실행/와이드 경고는 PAGE. USB log 구조화 slot/ZIP bytes/session, AI 조회, 집중 검사 추가. CI #1272·입력 #520·Windows #978 성공, 설치본 게시 확인. 실제 KEY 미검증.
+- 1.1.225: 10A 기존 Windows Electron smoke에 Model 2 실제 24쌍 service/button 반복, 6개 추가 ID LRU 퇴거·realm/memory·PID·종료 확인 추가. USB 120회씩 기본/시험 mock 화면 일치 검사. 장시간 실기 soak·OOM 판정과 구분. CI #1273 성공; Windows #979 실패(고정 PID 단정, 8952≠3624).
+- 1.1.226: 반복 검사 PID 고정 대신 runner 객체 재사용과 매회 scope PID 분리/realm/memory 검증, PID 목록 실측. Model 2 실제 Electron 입력·연산·출력·draw 한계 5종, 서비스 생존/버튼 복구, opaque local/sessionStorage 및 CSP data fetch 검증 추가. 실제 OOM 미실시. 자동 검사 대기.
 ## 다음 작업
-- **10 통합:** 10A 자동 검사 후 04B 보안/자원 경계 잔여 및 최종 판정. 09 실제 trial 미검증 KEY 기본 OFF. HA 실제 서버 별도. Model 2 유지; 04B 저장소 격리·OOM·자원 한도 검증 전 Model 5 활성화 금지. 기존 실기 미리보기 정책 유지.
+- **10 통합:** 10A/B 자동 검사 후 04B 보안/자원 경계 잔여 및 최종 판정. 09 실제 trial 미검증 KEY 기본 OFF. HA 실제 서버 별도. Model 2 유지; 04B 저장소 격리·OOM·자원 한도 검증 전 Model 5 활성화 금지. 기존 실기 미리보기 정책 유지.
 - 이후 02 식별자 → 03 이미지 → 04A/B 실행 엔진 → 05 저장 → 06 통신 → 07 범용 schema → 08 관리 → 09 USB → 10 출시 검증.
 - 기존 기능/데이터/API·보안 보존, 테스트/CI/Windows/실기 구분. 미측정 성능 수치 단정 금지.
 ## 참조
