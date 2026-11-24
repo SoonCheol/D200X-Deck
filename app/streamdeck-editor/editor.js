@@ -1202,8 +1202,12 @@ async function installSdkPlugin(fromFolder=false){
   try{
     const plugin=fromFolder?await window.deckBridge.sdkInstallFolder():await window.deckBridge.sdkInstall();
     if(!plugin)return;
+    if(plugin.runtime==='deckforge-sdk'){
+      for(const instance of sdkActionInstances())if(instance.pluginUUID===plugin.uuid)sdkVisuals.delete(instance.context);
+      scheduleSdkSync();
+    }
     await refreshSdkPlugins();
-    window.d200xActionStatus?.('DeckForge 플러그인 설치: '+plugin.name+' '+plugin.version);
+    window.d200xActionStatus?.('DeckForge 플러그인 적용: '+plugin.name+' '+plugin.version);
   }catch(error){window.d200xActionStatus?.('플러그인 설치 실패: '+String(error?.message||error));}
 }
 async function exportDeckForgePlugin(){

@@ -165,16 +165,20 @@ ipcMain.handle('d200x:sdk-install',async event=>{
     if(packageData.native){
       const native=packageData.native;
       const labels={'settings.write':'현재 버튼 설정 저장','navigation':'프로필·페이지·덱폴더 이동','wide.mode':'와이드 화면 모드 전환','global.settings':'플러그인 전역 암호화 설정 읽기·쓰기'};
+      const plan=await sdk().planNativeInstall(native);
       const extra=native.permissions.filter(p=>p!=='display');
-      if(extra.length){
+      if(extra.length||plan.kind!=='install'){
+        const verb=plan.kind==='update'?'업데이트':plan.kind==='rollback'?'이전 버전 복원':'설치';
+        const versions=plan.kind==='install'?native.version:plan.currentVersion+' → '+native.version;
         const result=await dialog.showMessageBox(window,{
-          type:'question',title:'DeckForge 플러그인 권한',message:native.name+' 설치 권한 확인',
-          detail:'ID: '+native.id+'\n'+extra.map(p=>'• '+labels[p]).join('\n')+'\n신뢰하는 플러그인만 설치하세요.',
-          buttons:['취소','설치'],defaultId:0,cancelId:0,noLink:true
+          type:'question',title:'DeckForge 플러그인 '+verb,message:native.name+' '+verb+' 확인',
+          detail:'ID: '+native.id+'\n버전: '+versions+'\n'+extra.map(p=>'• '+labels[p]).join('\n')+'\n'+
+            (plan.kind==='install'?'':'이전 코드 보존 · 설정과 프로필은 그대로 유지됩니다.\n')+'신뢰하는 플러그인만 설치하세요.',
+          buttons:['취소',verb],defaultId:0,cancelId:0,noLink:true
         });
         if(result.response!==1)return null;
       }
-      return sdk().installNative(native);
+      return plan.kind==='install'?sdk().installNative(native):sdk().replaceNative(native,plan.currentRevision);
     }
     return sdk().install(packageData.archive);
   }

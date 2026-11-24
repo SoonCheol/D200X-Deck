@@ -321,3 +321,35 @@ test('Ulanzi offline verifier compares source SDK traces with real native host d
   assert.equal(keyReport.verification.status,'pass');
   assert.equal(keyReport.verification.checks.find(x=>x.name==='keypad-rejects-rotate').pass,true);
 });
+
+
+test('native version manager preserves original code and accepts only approved compatible updates or exact rollback',async()=>{
+  const tmp=await fs.mkdtemp(path.join(os.tmpdir(),'deckforge-versions-'));
+  const host=new NativePluginHost(tmp),original=structuredClone(nativeManifest);
+  original.version='1.0.0';
+  try{
+    assert.equal((await host.planInstall(original)).kind,'install');
+    await host.install(original);
+    const newer={...original,version:'1.1.0',name:'New version',requiresDeckForge:'>=1.1.0 <2.0.0'};
+    const plan=await host.planInstall(newer);
+    assert.equal(plan.kind,'update');
+    await assert.rejects(host.replace(newer,'wrong-revision'),/revision changed/);
+    const before=await fs.readFile(host.versions.currentFile(original.id),'utf8');
+    await host.replace(newer,plan.currentRevision);
+    const after=await fs.readFile(host.versions.currentFile(original.id),'utf8');
+    assert.equal(JSON.parse(after).version,'1.1.0');
+    const history=await host.versions.read(host.versions.historyFile(original.id,
+      require('../app/streamdeck-editor/deckforge-native-versions.cjs').fingerprint(original)));
+    assert.equal(history.raw.toString(),before);
+    await assert.rejects(host.planInstall({...original,name:'Tampered old code'}),/rollback/);
+    await assert.rejects(host.planInstall({...newer,name:'Different content'}),/same version/);
+    await assert.rejects(host.planInstall({...newer,version:'2.0.0',actions:[{...newer.actions[0],states:1}]}),/contract|state/);
+    assert.throws(()=>validateNativeManifest({...newer,requiresDeckForge:'>=999.0.0'}),/requires DeckForge/);
+    assert.throws(()=>validateNativeManifest({...newer,requiresDeckForge:'bad range'}),/version range/);
+    const rollback=await host.planInstall(original);
+    assert.equal(rollback.kind,'rollback');
+    await host.replace(original,rollback.currentRevision);
+    assert.equal(JSON.parse(await fs.readFile(host.versions.currentFile(original.id),'utf8')).version,'1.0.0');
+    assert.equal((await host.planInstall(newer)).kind,'update');
+  }finally{host.close();await fs.rm(tmp,{recursive:true,force:true});}
+});

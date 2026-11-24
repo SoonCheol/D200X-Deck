@@ -4,6 +4,8 @@ const fs=require('node:fs/promises');
 const path=require('node:path');
 const {randomUUID}=require('node:crypto');
 const {NativeSettingsVault,validateValue}=require('./deckforge-native-settings.cjs');
+const {NativeVersionStore,assertAppRequirement}=require('./deckforge-native-versions.cjs');
+const APP_VERSION=require('./package.json').version;
 const SUFFIX='.deckforge-native.json', LIMIT=1024*1024;
 const ID=/^com\.deckforge\.native\.[a-z0-9][a-z0-9.-]{0,110}$/;
 const EVENTS=new Set(['appear','disappear','settings','press','release','rotateLeft','rotateRight','heldRotateLeft','heldRotateRight']);
@@ -15,9 +17,10 @@ const validText=(x,n)=>typeof x==='string'&&x.length>0&&x.length<=n;
 const exact=(x,keys)=>obj(x)&&Object.keys(x).every(k=>keys.includes(k));
 function check(ok,message){if(!ok)throw Error('DeckForge SDK: '+message);}
 function validateNativeManifest(m){
-  check(exact(m,['apiVersion','id','name','version','permissions','actions'])&&[1,2].includes(m.apiVersion)&&
+  check(exact(m,['apiVersion','id','name','version','permissions','actions','requiresDeckForge'])&&[1,2].includes(m.apiVersion)&&
     typeof m.id==='string'&&ID.test(m.id)&&!m.id.endsWith('.')&&!m.id.includes('..')&&
     validText(m.name,180)&&validText(m.version,64),'invalid manifest or API version');
+  assertAppRequirement(m.requiresDeckForge,APP_VERSION);
   check(Array.isArray(m.permissions)&&m.permissions.includes('display')&&new Set(m.permissions).size===m.permissions.length&&
     m.permissions.every(p=>p==='display'||(m.apiVersion===2&&EXTRA_PERMISSIONS.includes(p))),'unsupported permissions');
   check(Array.isArray(m.actions)&&m.actions.length>0&&m.actions.length<=64,'invalid actions');
@@ -74,6 +77,7 @@ class NativePluginHost{
       decryptStringAsync:value=>require('electron').safeStorage.decryptStringAsync(value)
     });
     this.recoveryDelay=options.recoveryDelay||[1000,3000];
+    this.versions=new NativeVersionStore(this.root,validateNativeManifest);
   }
   async manifests(){
     await fs.mkdir(this.root,{recursive:true});const items=[];
@@ -99,6 +103,25 @@ class NativePluginHost{
       // Exclusive publication: never replace the existing installed program.
       await fs.link(tmp,target);
     }finally{await fs.rm(tmp,{force:true}).catch(()=>{});}
+    return catalog(m);
+  }
+  planInstall(m){return this.versions.plan(m);}
+  async replace(m,expectedRevision){
+    const retired=[];
+    const stop=()=>{
+      for(const [id,ctx] of this.contexts)if(ctx.pluginUUID===m.id){
+        this.resetScript(ctx);ctx.pressed=false;
+        retired.push([id,ctx]);this.contexts.delete(id);
+      }
+    };
+    const restore=()=>{
+      if(this.closed)return;
+      for(const [id,ctx] of retired){
+        this.contexts.set(id,ctx);
+        if(!ctx.failed&&!this.suspended)this.run(ctx,'appear');
+      }
+    };
+    await this.versions.replace(m,expectedRevision,stop,restore);
     return catalog(m);
   }
   validateScriptOps(ctx,event,program){
@@ -311,6 +334,16 @@ class PluginRouter{
     validateNativeManifest(m);
     check(!(await this.legacy.list()).some(p=>p.uuid.toLowerCase()===m.id),'plugin ID already installed');
     return this.native.install(m);
+  });}
+  planNativeInstall(m){return this.serial(async()=>{
+    validateNativeManifest(m);
+    check(!(await this.legacy.list()).some(p=>p.uuid.toLowerCase()===m.id),'plugin ID already installed');
+    return this.native.planInstall(m);
+  });}
+  replaceNative(m,expectedRevision){return this.serial(async()=>{
+    validateNativeManifest(m);
+    check(!(await this.legacy.list()).some(p=>p.uuid.toLowerCase()===m.id),'plugin ID already installed');
+    return this.native.replace(m,expectedRevision);
   });}
   sync(configs){return this.serial(async()=>{
     const {native}=await this.catalog(),ids=new Set(native.map(m=>m.id));
