@@ -2,6 +2,12 @@
 
 > **상태 기록 기준: 2026-11-24**. 실제 최신 HEAD는 Git에서 확인하며, 코드·자동 검사·Windows 빌드·사용자 Windows/D200X 실기 결과를 구분한다. 시작 시 `AGENTS.md`와 이 문서만 읽고 로드맵은 필요한 경우에만 참고한다.
 
+## 1.1.142 — 품질 우선 설계 계약 및 SDK 설정 세대 격리 (2026-11-24)
+
+- 사용자 승인: 기존 DeckForge 프로필/저장 형식·구버전 호환보다 완성 품질, 성능, 안정성, 보안 우선. 필요한 구조 재설계 및 호환 코드 제거 허용. 불필요한 파일 삭제와 외부 원본 변경은 제외. AGENTS.md 최신 원칙 적용.
+- API 2 이벤트 승인 시 설정 generation 캡처, 설정 변경/ABA 복원 시 이전 대기·실행 중 결과/권한 효과/네트워크 continuation 무효화, stale press와 release 분리, 설정·메모리·전역 설정 독립 snapshot. 집중 회귀 fixture 추가.
+- 1.1.141 CI #1181 성공, Windows #892 진행 중. 신규 CI/Windows/실기 별도.
+
 ## 1.1.141 — Ulanzi 제한형 속성창 schema와 소스 설정 결합 (2026-11-24)
 
 - inert 단일 form, text/select 정적 schema, 모든 필드의 appear/settings 문자열 참조와 기본값 일치 조건에서 기존 독자 SDK 속성창에 후보 연결. script/동적/민감/미표현 필드 및 불일치 거부. 액션별 독립 schema, 유효 입력 trace 확장. 원본 HTML/JS 미실행, 실제 출시/설치 차단 유지.

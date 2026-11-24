@@ -1119,3 +1119,31 @@ test('inert Ulanzi inspector schema is bound only to matching source settings an
   }
  }finally{await fs.rm(root,{recursive:true,force:true});}
 });
+
+test('API 2 settings generation cancels stale queued and in-flight effects even after ABA changes',async()=>{
+ const events=[],calls=[];let finish;
+ const host=new NativePluginHost('/unused',e=>events.push(e),()=>({
+  async run(_source,input){
+   calls.push([input.event.type,input.settings.label]);
+   if(input.event.type==='press')return new Promise(resolve=>{finish=resolve;});
+   if(input.event.type==='settings')return {ops:[{op:'title',value:input.settings.label}],memory:{}};
+   return {ops:[],memory:{}};
+  },close(){}
+ }));
+ const m={...scriptManifest,permissions:['display','navigation']};
+ const cfg=label=>({context:'generation',slot:0,pluginUUID:nativeId,actionUUID:nativeId+'.toggle',settings:{label}});
+ try{
+   host.sync([cfg('A')],[m]);const ctx=host.contexts.get('generation');await ctx.queue;
+   assert.equal(host.key('generation','down'),true);
+   await new Promise(resolve=>setImmediate(resolve));
+   assert.equal(typeof finish,'function');
+   assert.equal(host.key('generation','up'),true);
+   host.sync([cfg('B')],[m]);host.sync([cfg('A')],[m]);
+   finish({ops:[{op:'title',value:'stale'},{op:'navigate',target:'page',value:1}],memory:{stale:true}});
+   await ctx.queue;
+   assert.deepEqual(calls,[['appear','A'],['press','A'],['settings','A']]);
+   assert.equal(events.some(e=>e.payload?.title==='stale'||e.kind==='nativeEffect'),false);
+   assert.deepEqual(ctx.memory,{});assert.equal(ctx.pending,0);
+   assert.equal(host.key('generation','up'),false);
+ }finally{host.close();}
+});

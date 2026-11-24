@@ -339,8 +339,12 @@ class NativePluginHost{
   }
   runScript(ctx,event,response=null,expectedSettings=null){
     if(ctx.pending>=16){this.fail(ctx,Error('JavaScript SDK event queue limit'));return false;}
-    const epoch=ctx.epoch||0;
+    const epoch=ctx.epoch||0,revision=ctx.settingsRevision||0;
+    // Every dispatch is tied to the settings generation at acceptance.
+    // A changed setting invalidates old queued work, including ABA changes
+    // where a user subsequently restores exactly the old values.
     const active=()=>!this.closed&&!this.suspended&&!ctx.failed&&ctx.epoch===epoch&&this.contexts.get(ctx.context)===ctx&&
+      (ctx.settingsRevision||0)===revision&&
       (expectedSettings===null||expectedSettings===JSON.stringify(ctx.settings));
     ctx.pending++;
     ctx.queue=ctx.queue.then(async()=>{
@@ -349,11 +353,11 @@ class NativePluginHost{
         const global=ctx.permissions.includes('global.settings')?
           await this.vault.read(ctx.pluginUUID):{value:{},revision:null};
         if(!active())return;
-        const settingsSnapshot=ctx.settings;
+        const settingsSnapshot=structuredClone(ctx.settings);
         if(!ctx.runner)ctx.runner=this.runnerFactory(ctx.pluginUUID);
         const result=await ctx.runner.run(ctx.action.script,{
           event:{type:event,slot:ctx.slot,gesture:ctx.gesture||'down',...(response?{response}:{})},
-          settings:ctx.action.settingsSchema?nativeEffectiveSettings(ctx.action.settingsSchema,settingsSnapshot):settingsSnapshot,state:ctx.state,memory:ctx.memory,globalSettings:global.value
+          settings:ctx.action.settingsSchema?nativeEffectiveSettings(ctx.action.settingsSchema,settingsSnapshot):structuredClone(settingsSnapshot),state:ctx.state,memory:structuredClone(ctx.memory),globalSettings:structuredClone(global.value)
         });
         if(!active())return;
         check(exact(result,['ops','memory'])&&obj(result.memory)&&
@@ -428,12 +432,19 @@ class NativePluginHost{
       if(!ctx||ctx.pluginUUID!==cfg.pluginUUID||ctx.action.id!==a.id||ctx.signature!==signature||ctx.slot!==cfg.slot||ctx.gesture!==cfg.gesture){
         if(ctx)this.retire(ctx);
         ctx={...cfg,action:a,apiVersion:plugin.apiVersion,permissions:[...plugin.permissions],networkEndpoints:plugin.networkEndpoints||[],signature,settings:incoming,state:0,pressed:false,failed:false,
-          epoch:0,pending:0,queue:Promise.resolve(),runner:null,memory:{},recoveryAttempts:0,recoveryTimer:null};
+          epoch:0,settingsRevision:0,pending:0,queue:Promise.resolve(),runner:null,memory:{},recoveryAttempts:0,recoveryTimer:null};
         this.contexts.set(cfg.context,ctx);this.initialize(ctx);
       }else{
         const changed=JSON.stringify(ctx.settings)!==JSON.stringify(incoming);
         ctx.settings=incoming;
-        if(changed){this.cancelNetwork(ctx);this.run(ctx,'settings');}
+        if(changed){
+          ctx.settingsRevision++;
+          this.cancelNetwork(ctx);
+          // Reset input pairing across settings generations. Never turn a
+          // discarded press into a release-triggered privileged operation.
+          if(ctx.apiVersion===2)ctx.pressed=false;
+          this.run(ctx,'settings');
+        }
       }
     }
     for(const [id,ctx] of this.contexts)if(!seen.has(id)){
