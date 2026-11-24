@@ -409,7 +409,7 @@
         }else{
           const found=walkTemplates(state).find(x=>x.kind===c.kind&&x.id===c.id);
           if(!found||resources.template?.kind!==c.kind||resources.template?.id!==c.id)fail('설치된 플러그인과 등록된 명령 또는 장치 설정을 확인하세요.');
-          item=clone(found.action);if(has(c,'title'))item.title=c.title;
+          item=Core.cloneActionInstances(found.action);if(has(c,'title'))item.title=c.title;
           // Explicit state titles may otherwise hide the new label.
           if(has(c,'title')&&item.settings.stateTitles?.first)item.settings.stateTitles.first.title=c.title;
         }

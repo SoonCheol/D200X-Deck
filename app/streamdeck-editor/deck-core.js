@@ -160,9 +160,58 @@
   const INDICATOR_NUMBER_STYLE={...TITLE,align:'middle',size:48,outlineWidth:'none'};
   const copy=x=>JSON.parse(JSON.stringify(x));
   const validId=id=>ACTION_IDS.includes(id)||D200X_ACTION_IDS.includes(id)||PLUGIN_ACTION_IDS.includes(id)||id==='side-nav'||id==='press-empty';
+  // Persistent identity is separate from a mounted SDK execution context.
+  const validInstanceId=id=>typeof id==='string'&&/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(id);
+  function newInstanceId(){
+    const crypto=globalThis.crypto;
+    if(crypto?.randomUUID)return crypto.randomUUID();
+    if(crypto?.getRandomValues){
+      const bytes=crypto.getRandomValues(new Uint8Array(16));
+      bytes[6]=(bytes[6]&15)|64;bytes[8]=(bytes[8]&63)|128;
+      const hex=Array.from(bytes,x=>x.toString(16).padStart(2,'0')).join('');
+      return [hex.slice(0,8),hex.slice(8,12),hex.slice(12,16),hex.slice(16,20),hex.slice(20)].join('-');
+    }
+    if(typeof require==='function')return require('node:crypto').randomUUID();
+    throw Error('Secure SDK instance identity generation unavailable');
+  }
+  // Traverse only action-bearing model fields. Never interpret arbitrary
+  // pluginSettings, icons, or other user JSON as actions.
+  function walkSdkActions(value,visit,seen=new WeakSet()){
+    if(!value||typeof value!=='object'||seen.has(value))return;
+    seen.add(value);
+    const walk=child=>walkSdkActions(child,visit,seen);
+    if(Array.isArray(value)){value.forEach(walk);return;}
+    if(validId(value.type)){
+      if(value.type==='sd-plugin')visit(value);
+      for(const key of ['children','pages','sequences'])walk(value[key]);
+      for(const key of ['slots','pressActions'])for(const gesture of ['single','double','hold'])walk(value[key]?.[gesture]);
+      return;
+    }
+    for(const key of ['pages','pinned','controls','global','inactiveProfiles','down','sideHold','left','right','holdLeft','holdRight'])walk(value[key]);
+  }
+  function normalizeInstanceIds(value){
+    const ids=new Set();
+    walkSdkActions(value,action=>{
+      const id=validInstanceId(action.instanceId)?action.instanceId.toLowerCase():null;
+      if(!id||ids.has(id))action.instanceId=newInstanceId();
+      else action.instanceId=id;
+      ids.add(action.instanceId);
+    });
+    return value;
+  }
+  function cloneActionInstances(value){
+    const next=copy(value);
+    walkSdkActions(next,action=>{action.instanceId=newInstanceId();});
+    return next;
+  }
+  function legacyActionSignature(value){
+    const next=copy(value);
+    walkSdkActions(next,action=>{delete action.instanceId;});
+    return JSON.stringify(next);
+  }
   function createAction(id){
     if(!validId(id))throw new Error('Unsupported built-in action: '+String(id));
-    return {type:id,title:id==='folder'?'폴더':'',
+    return {type:id,...(id==='sd-plugin'?{instanceId:newInstanceId()}:{}),title:id==='folder'?'폴더':'',
       settings:copy(DEFAULTS[id]),titleStyle:copy(TITLE),children:[]};
   }
   function cleanTitleStyle(value,defaults){
@@ -184,6 +233,7 @@
   function cleanAction(value){
     if(!value||!validId(value.type))return null;
     const base=createAction(value.type);
+    if(value.type==='sd-plugin'&&validInstanceId(value.instanceId))base.instanceId=value.instanceId.toLowerCase();
     base.title=typeof value.title==='string'?value.title.slice(0,256):base.title;
     if(value.settings&&typeof value.settings==='object'&&!Array.isArray(value.settings))
       base.settings={...base.settings,...value.settings};
@@ -534,9 +584,9 @@
       // their own imported/previously edited entries.
       const local=controls.pages[state.page][index];
       if(!local?.down&&!local?.sideHold&&!local?.left&&!local?.right&&!local?.holdLeft&&!local?.holdRight&&local?.mode==='trigger')
-        controls.pages[state.page][index]=cleanBinding(controls.global[index]);
+        controls.pages[state.page][index]=cloneActionInstances(cleanBinding(controls.global[index]));
     }else{
-      controls.global[index]=cleanBinding(controls.pages[state.page][index]);
+      controls.global[index]=cloneActionInstances(cleanBinding(controls.pages[state.page][index]));
     }
     controls.scopes[index]=scope;
     return true;
@@ -934,7 +984,7 @@
       const row=mapArray(original[entry.from],action=>rewrite(action,true));
       // Duplicate action data, including nested folders; inherited pins stay shared.
       if(!entry.duplicate)return row;
-      const duplicate=copy(row);if(common?.autoAdd)placeIndicator(duplicate,folder?null:state.pinned,indicatorTemplate);return duplicate;
+      const duplicate=cloneActionInstances(row);if(common?.autoAdd)placeIndicator(duplicate,folder?null:state.pinned,indicatorTemplate);return duplicate;
     });
     const controls=state.controls;
     const rewriteBinding=binding=>{
@@ -956,7 +1006,7 @@
       const pages=folder?mapArray(source.pages,row=>mapArray(row,rewriteBinding)):order.map(entry=>{
         if(entry.from===null)return emptyControlRow();
         const row=mapArray(source.pages?.[entry.from]||emptyControlRow(),rewriteBinding);
-        return entry.duplicate?copy(row):row;
+        return entry.duplicate?cloneActionInstances(row):row;
       });
       if(global!==source.global||pages!==source.pages||!controls)nextControls={...source,global,pages};
     }
@@ -1120,7 +1170,9 @@
     if(state.pinned[index]){state.pinned[index]=null;return true;}
     const item=state.pages?.[state.page]?.[index];
     if(!item)return false;
-    state.pinned[index]=cleanAction(item);
+    // Pinning currently retains the original local action as an override.
+    // The newly created inherited action is a separate saved instance.
+    state.pinned[index]=cloneActionInstances(cleanAction(item));
     return true;
   }
   function currentActions(state){
@@ -1157,7 +1209,7 @@
     const state={pages:[blankPage()],page:0,selected:null,controls:emptyControls(1),folderPath:[],pinned:Array.from({length:14},()=>null),wideDisplay:cleanWideDisplay(value?.wideDisplay)};
     // Legacy single-profile storage gains metadata but never loses its pages.
     if(!value||typeof value!=='object'||!Array.isArray(value.pages)||!value.pages.length){
-      initProfiles(state,value);return state;
+      initProfiles(state,value);return normalizeInstanceIds(state);
     }
 
     state.pages=value.pages.slice(0,128).map(raw=>{
@@ -1179,12 +1231,12 @@
       // Old projects assigned a single action to each physical control on
       // each page. Keep these assignments instead of silently dropping them.
       for(let i=0;i<5;i++){
-        const legacy=state.pages.map(row=>row[14+i]).filter(Boolean).map(a=>JSON.stringify(a));
+        const legacy=state.pages.map(row=>row[14+i]).filter(Boolean).map(legacyActionSignature);
         // A single assigned legacy knob remains global across otherwise empty pages.
         // Conflicting nonempty per-page assignments must remain page-specific.
         if(new Set(legacy).size>1)state.controls.scopes[i]='page';
         const source=state.pages.find(row=>row[14+i])?.[14+i]||null;
-        state.controls.global[i].down=source;
+        state.controls.global[i].down=cleanAction(source);
         // Legacy knobs interpreted previous/next as bidirectional page rotation.
         // Migrate that behavior rather than silently removing it.
         if(i>=2&&['previous','next'].includes(source?.type)){
@@ -1193,7 +1245,7 @@
         }
         for(let p=0;p<state.pages.length;p++){
           const local=state.controls.pages[p][i];
-          local.down=state.pages[p][14+i];
+          local.down=cleanAction(state.pages[p][14+i]);
           if(i>=2&&['previous','next'].includes(local.down?.type)){
             local.mode='adjust';local.target='page';
           }
@@ -1210,7 +1262,7 @@
       }
     }
     initProfiles(state,value);
-    return state;
+    return normalizeInstanceIds(state);
   }
   // Only inactive profiles are stored as snapshots. The active one uses the
   // existing top-level pages/page/controls fields, avoiding doubled icon data.
@@ -1260,7 +1312,7 @@
     do{id='profile-'+(++state.profileSeq);}while(state.profileNames.some(p=>p.id===id));
     state.profileNames.push({id,name:label,appPath:'',smartEnabled:false});
     const original=sourceId===state.profileId?profileSnapshot(state):state.inactiveProfiles.find(p=>p.id===sourceId);
-    const source=duplicate&&original?profileSnapshot(original):profileSnapshot(migrateState(null));
+    const source=duplicate&&original?cloneActionInstances(profileSnapshot(original)):profileSnapshot(migrateState(null));
     state.inactiveProfiles.push({id,...source});
     return id;
   }
@@ -1356,7 +1408,7 @@
   function applyProfileTemplate(state,id,name){
     const template=getTemplate(state,id),label=templateName(name);
     if(state.profileNames.some(p=>sameName(p.name,label)))throw Error('같은 이름의 프로필이 이미 있습니다.');
-    const clean=profileSnapshot(migrateState(templateSnapshot(template.snapshot)));
+    const clean=cloneActionInstances(profileSnapshot(migrateState(templateSnapshot(template.snapshot))));
     // Preserve explicit linked profile IDs as ordinary duplication does.
     const next=templateFork(state),createdProfileId=createProfile(next,label);
     if(!createdProfileId)throw Error('프로필은 최대 50개입니다.');
@@ -1672,5 +1724,5 @@
       url:action.settings?.url||'',mode:action.settings?.open||'default',browserPath:action.settings?.browserPath||''};
     return {kind:'unsupported',message:'이 동작의 실행 기능은 아직 구현되지 않았습니다.'};
   }
-  return {validateNativeSettingsSchema,nativeSettingValue,nativeDynamicOptions,nativeEffectiveSettings,nativeVisualOwner,nativeVisualDelta,pruneNativeVisuals,createNativeRenderGate,ACTION_IDS,D200X_ACTION_IDS,PLUGIN_ACTION_IDS,PRESS_ACTION_TYPES,DEFAULTS,TITLE,INDICATOR_NUMBER_STYLE,INDICATOR_NAV_LABELS,indicatorConfig,indicatorCommon,sharedIndicatorConfig,updateIndicatorCommon,manageIndicators,indicatorNumberDisplayStyle,planIndicatorNavigation,fixedIndicatorNavigation,planFixedIndicatorNavigation,indicatorPinState,setIndicatorPinned,SIDE_NAV_LABELS,SIDE_HOLD_MS,sideConfig,makeSideAction,sideActionConfig,sideFolderTargets,planSideNavigation,applySideNavigation,createPageVisitTracker,createSidePressTracker,createAction,cleanAction,cleanCompositeEntry,timerSeconds,formatTimerTime,displaySwitchAction,compositeModel,planComposite,runComposite,createMultiPauseGate,multiRows,setMultiRows,blankPage,cleanWideDisplay,createWideOverlayTracker,cycleWideDisplay,isWideDisplayPress,folderContents,folderPageCount,changeFolderPage,addFolderPage,deleteFolderPage,editPageStructure,currentActions,visibleActions,togglePinned,activeFolder,enterFolder,exitFolder,migrateState,profileSnapshot,switchProfile,createProfile,renameProfile,exportSingleProfile,findProfileTemplate,saveProfileTemplate,renameProfileTemplate,deleteProfileTemplate,applyProfileTemplate,setProfileApp,setProfileFusionScope,matchFusionProfile,createSmartProfileTracker,matchForegroundProfile,deleteProfile,previewHardwareEvent,physicalSlot,hardwareGesture,resolveHardwareEvent,runtimeActionKey,folderWideBackEvent,resolveKeyPress,planHardwareEvent,deletePage,planAction,emptyBinding,cleanBinding,controlAction,activeControlAction,assignControlAction,automaticControl,ensureControls,controlBinding,changeControlScope};
+  return {validateNativeSettingsSchema,nativeSettingValue,nativeDynamicOptions,nativeEffectiveSettings,nativeVisualOwner,nativeVisualDelta,pruneNativeVisuals,createNativeRenderGate,ACTION_IDS,D200X_ACTION_IDS,PLUGIN_ACTION_IDS,PRESS_ACTION_TYPES,DEFAULTS,TITLE,INDICATOR_NUMBER_STYLE,INDICATOR_NAV_LABELS,indicatorConfig,indicatorCommon,sharedIndicatorConfig,updateIndicatorCommon,manageIndicators,indicatorNumberDisplayStyle,planIndicatorNavigation,fixedIndicatorNavigation,planFixedIndicatorNavigation,indicatorPinState,setIndicatorPinned,SIDE_NAV_LABELS,SIDE_HOLD_MS,sideConfig,makeSideAction,sideActionConfig,sideFolderTargets,planSideNavigation,applySideNavigation,createPageVisitTracker,createSidePressTracker,createAction,cleanAction,validInstanceId,normalizeInstanceIds,cloneActionInstances,walkSdkActions,cleanCompositeEntry,timerSeconds,formatTimerTime,displaySwitchAction,compositeModel,planComposite,runComposite,createMultiPauseGate,multiRows,setMultiRows,blankPage,cleanWideDisplay,createWideOverlayTracker,cycleWideDisplay,isWideDisplayPress,folderContents,folderPageCount,changeFolderPage,addFolderPage,deleteFolderPage,editPageStructure,currentActions,visibleActions,togglePinned,activeFolder,enterFolder,exitFolder,migrateState,profileSnapshot,switchProfile,createProfile,renameProfile,exportSingleProfile,findProfileTemplate,saveProfileTemplate,renameProfileTemplate,deleteProfileTemplate,applyProfileTemplate,setProfileApp,setProfileFusionScope,matchFusionProfile,createSmartProfileTracker,matchForegroundProfile,deleteProfile,previewHardwareEvent,physicalSlot,hardwareGesture,resolveHardwareEvent,runtimeActionKey,folderWideBackEvent,resolveKeyPress,planHardwareEvent,deletePage,planAction,emptyBinding,cleanBinding,controlAction,activeControlAction,assignControlAction,automaticControl,ensureControls,controlBinding,changeControlScope};
 });

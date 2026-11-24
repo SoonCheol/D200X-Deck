@@ -84,7 +84,7 @@
         const dest=at(o.toPage??(t.i+1),o.toSlot);
         if(dest.before)fail('대상 버튼이 비어 있지 않습니다.');
         // Copy only known basic action, no plugin context or runtime state.
-        const copiedAction=clone(t.before);dest.row[dest.index]=copiedAction;record(dest,null,copiedAction,o.op);
+        const copiedAction=o.op==='move'?clone(t.before):Core.cloneActionInstances(t.before);dest.row[dest.index]=copiedAction;record(dest,null,copiedAction,o.op);
         if(o.op==='move'){t.row[t.index]=null;record(t,t.before,null,'move_source');}
         continue;
       }

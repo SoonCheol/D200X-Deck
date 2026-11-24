@@ -198,3 +198,19 @@ test('selected archives include only checked profiles, templates, icon packs and
   assert.throws(()=>Backup.selectSnapshot(data,{...options,profiles:[id,id]}),/선택 정보/);
   assert.throws(()=>Backup.selectSnapshot(data,{...options,appearance:'no'}),/올바르지/);
 });
+
+
+test('SDK identity survives full restore, merge/overwrite and select allocate new IDs',t=>{
+  const {store,make}=setup(t);
+  const state=store.read(),action=state.pages[0][0]=Core.createAction('sd-plugin');
+  action.settings.pluginSettings={type:'sd-plugin',instanceId:'plugin-owned-value'};
+  store.write(state);const current=make(),incoming=make();
+  const full=Backup.planRestore(current,incoming,{mode:'all'}).data.profiles;
+  assert.equal(full.pages[0][0].instanceId,action.instanceId);
+  const merge=Backup.planRestore(current,incoming,{mode:'merge',conflict:'overwrite',appearance:false}).data.profiles;
+  assert.notEqual(merge.pages[0][0].instanceId,action.instanceId);
+  assert.deepEqual(merge.pages[0][0].settings.pluginSettings,action.settings.pluginSettings);
+  const select=Backup.planRestore(current,incoming,{mode:'select',conflict:'rename',appearance:false,profiles:[state.profileId],templates:[],packs:[]}).data.profiles;
+  const ids=[];Core.walkSdkActions(select,x=>ids.push(x.instanceId));
+  assert.equal(ids.length,2);assert.equal(new Set(ids).size,2);assert.ok(ids.includes(action.instanceId));
+});

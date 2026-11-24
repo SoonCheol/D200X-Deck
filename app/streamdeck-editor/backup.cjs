@@ -283,6 +283,9 @@ function planRestore(current,incoming,options){
       const replacing=matches.length>0&&policy==='overwrite';
       if(replacing&&(matches.length!==1||touched.has(matches[0].id)))throw Error('동일 이름이 여러 개여서 안전하게 덮어쓸 수 없습니다: '+item.name+' · 기존 유지 또는 새 이름으로 복원하세요.');
       const next=clone(item);
+      // Merge/select creates a new mounted identity, even on overwrite.
+      // Whole-store restore preserves the archived valid instance IDs.
+      if(kind==='profiles')next.snapshot=Core.cloneActionInstances(next.snapshot);
       if(replacing){
         next.id=matches[0].id;records[records.indexOf(matches[0])]=next;
         report.replaced++;

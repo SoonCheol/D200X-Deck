@@ -2349,7 +2349,7 @@ function setPressSlot(index,slot,next,immediate=false){
   }
   // A pinned button must not be modified across every page by an ordinary local drop.
   else if(!currentPage()[index]&&state.pinned?.[index]===root){
-    root=DeckCore.cleanAction(root);currentPage()[index]=root;
+    root=DeckCore.cloneActionInstances(DeckCore.cleanAction(root));currentPage()[index]=root;
   }
   pressEnsureMeta(root);
   if(slot==='single'){
@@ -4539,7 +4539,7 @@ async function importSlotAction(index){
     const action=DeckCore.cleanAction(parsed.action);
     if(!action)throw Error('지원되지 않는 액션입니다.');
     if(DeckCore.visibleActions(state)[index]&&!confirm('현재 버튼의 액션을 가져온 액션으로 교체하시겠습니까?'))return;
-    setItem(index,action);
+    setItem(index,DeckCore.cloneActionInstances(action));
   }catch(error){window.d200xActionStatus?.('동작 불러오기 실패: '+String(error?.message||error));}
 }
 function exportSlotAction(action){
@@ -4559,21 +4559,24 @@ function canCutSlot(index){
 function cutClipboardAction(index){
   if(!canCutSlot(index))return false;
   if(inspectorSession?.dirty){showInspectorLeaveDialog(()=>cutClipboardAction(index));return false;}
-  const page=currentPage(),item=page[index],previousClipboard=clipboard,previousSelected=state.selected;
-  clipboard=clone(item);
+  const page=currentPage(),item=page[index],previousClipboard=clipboard,previousClipboardMode=clipboardMode,previousSelected=state.selected;
+  clipboard=clone(item);clipboardMode='cut';
   page[index]=null;state.selected=index;
   if(!persist()){
-    page[index]=item;state.selected=previousSelected;clipboard=previousClipboard;
+    page[index]=item;state.selected=previousSelected;clipboard=previousClipboard;clipboardMode=previousClipboardMode;
     render();return false;
   }
   clearOldSdkVisual(index);render();return true;
 }
 function pasteClipboardAction(index){
   if(!clipboard||!Number.isInteger(index)||index<0||index>=14||reservedWideSlot(index))return false;
+  if(inspectorSession?.dirty){showInspectorLeaveDialog(()=>pasteClipboardAction(index));return false;}
   const existing=DeckCore.visibleActions(state)[index];
   if(existing&&!confirm('이 버튼의 기존 액션을 복사한 액션으로 교체하시겠습니까?'))return false;
-  setItem(index,clone(clipboard));
-  return true;
+  const action=clipboardMode==='cut'?clone(clipboard):DeckCore.cloneActionInstances(clipboard);
+  setItem(index,action);
+  if(currentPage()?.[index]!==action)return false;
+  clipboardMode='copy';return true;
 }
 function showMenu(index,x,y){
   if(reservedWideSlot(index)){
@@ -4602,7 +4605,7 @@ function showMenu(index,x,y){
       if(DeckCore.togglePinned(state,index)){persist();render();}
     });
     add("잘라내기　Ctrl+X",canCutSlot(index)?()=>cutClipboardAction(index):null);
-    add("복사하기　Ctrl+C",()=>{clipboard=clone(item);});
+    add("복사하기　Ctrl+C",()=>{clipboard=clone(item);clipboardMode='copy';});
     add("붙여넣기　Ctrl+V",clipboard?()=>pasteClipboardAction(index):null);
     add("폴더로 이동",isLocal?()=>{
       if(item.type==='folder')return;
@@ -4632,7 +4635,7 @@ function showMenu(index,x,y){
   menu.style.top=Math.max(0,Math.min(y,window.innerHeight-415))+"px";
   menu.hidden=false;
 }
-let clipboard=null;
+let clipboard=null,clipboardMode='copy';
 window.addEventListener("click",ev=>{if(!ev.target.closest("#key-menu"))$("key-menu").hidden=true;});
 window.addEventListener("keydown",ev=>{
   if(ev.key==="Escape")$("key-menu").hidden=true;
@@ -4643,7 +4646,7 @@ window.addEventListener("keydown",ev=>{
     ev.preventDefault();cutClipboardAction(index);
   }else if(key==="c"){
     const item=DeckCore.visibleActions(state)[index];
-    if(item){ev.preventDefault();clipboard=clone(item);}
+    if(item){ev.preventDefault();clipboard=clone(item);clipboardMode='copy';}
   }else if(key==="v"&&clipboard){
     ev.preventDefault();pasteClipboardAction(index);
   }

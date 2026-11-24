@@ -1917,3 +1917,68 @@ test('native visual render gate coalesces updates without invalidating an in-pro
  assert.equal(requests,2);assert.equal(gate.busy(),true);
  gate.end();assert.equal(requests,3);assert.equal(gate.busy(),false);
 });
+
+
+test('SDK instance IDs are UUIDv4, stable through cleaning, absent from ordinary actions',()=>{
+  const first=core.createAction('sd-plugin'),second=core.createAction('sd-plugin');
+  assert.ok(core.validInstanceId(first.instanceId));assert.notEqual(first.instanceId,second.instanceId);
+  first.settings.pluginSettings={type:'sd-plugin',instanceId:'opaque-plugin-data'};
+  const restored=core.cleanAction(JSON.parse(JSON.stringify(first)));
+  assert.equal(restored.instanceId,first.instanceId);
+  const copied=core.cloneActionInstances(restored);
+  assert.notEqual(copied.instanceId,restored.instanceId);
+  assert.deepEqual(copied.settings.pluginSettings,first.settings.pluginSettings);
+  assert.equal(Object.hasOwn(core.createAction('hotkey'),'instanceId'),false);
+  assert.ok(core.validInstanceId(core.cleanAction({type:'sd-plugin',instanceId:'invalid'}).instanceId));
+});
+test('SDK identity migration repairs duplicates across nested and inactive profile actions',()=>{
+  const a=core.createAction('sd-plugin'),s=core.migrateState(null);
+  s.pages[0][0]=a;s.pages[0][1]=core.createAction('folder');
+  s.pages[0][1].children=[JSON.parse(JSON.stringify(a))];
+  s.pinned[2]=JSON.parse(JSON.stringify(a));
+  s.controls.global[2].down=JSON.parse(JSON.stringify(a));
+  const id=core.createProfile(s,'Other');
+  s.inactiveProfiles.find(p=>p.id===id).pages[0][0]=JSON.parse(JSON.stringify(a));
+  const clean=core.migrateState(JSON.parse(JSON.stringify(s))),ids=[];
+  core.walkSdkActions(clean,x=>ids.push(x.instanceId));
+  assert.equal(ids.length,5);assert.equal(new Set(ids).size,5);
+  assert.equal(clean.pages[0][0].instanceId,a.instanceId);
+  const again=core.migrateState(JSON.parse(JSON.stringify(clean))),ids2=[];
+  core.walkSdkActions(again,x=>ids2.push(x.instanceId));
+  assert.deepEqual(ids2,ids);
+});
+test('SDK page and control duplicates get new IDs; page moves and profile switches preserve them',()=>{
+  const s=core.migrateState(null),a=s.pages[0][0]=core.createAction('sd-plugin');
+  const b=s.controls.pages[0][2].down=core.createAction('sd-plugin');
+  assert.ok(core.editPageStructure(s,{op:'duplicate',index:0,folder:null}));
+  assert.equal(s.pages[0][0].instanceId,a.instanceId);
+  assert.notEqual(s.pages[1][0].instanceId,a.instanceId);
+  assert.notEqual(s.controls.pages[1][2].down.instanceId,b.instanceId);
+  const duplicate=s.pages[1][0].instanceId;
+  assert.ok(core.editPageStructure(s,{op:'move',index:1,to:0,folder:null}));
+  assert.equal(s.pages[0][0].instanceId,duplicate);
+  const original=s.profileId,id=core.createProfile(s,'Copy',true);
+  assert.ok(core.switchProfile(s,id));assert.notEqual(s.pages[0][0].instanceId,duplicate);
+  assert.ok(core.switchProfile(s,original));assert.equal(s.pages[0][0].instanceId,duplicate);
+});
+test('folder page, pin copies, control scope and template application keep independent SDK identities',()=>{
+  const s=core.migrateState(null),folder=s.pages[0][0]=core.createAction('folder');
+  const a=folder.children[0]=core.createAction('sd-plugin');
+  assert.ok(core.editPageStructure(s,{op:'duplicate',index:0,folder}));
+  assert.notEqual(folder.pages[0][0].instanceId,a.instanceId);
+  const pin=s.pages[0][1]=core.createAction('sd-plugin');
+  assert.ok(core.togglePinned(s,1));
+  assert.notEqual(s.pinned[1].instanceId,pin.instanceId);
+  assert.equal(s.pages[0][1].instanceId,pin.instanceId);
+  const knob=s.controls.global[2].down=core.createAction('sd-plugin');
+  assert.ok(core.changeControlScope(s,16,'page'));
+  assert.notEqual(s.controls.pages[0][2].down.instanceId,knob.instanceId);
+  const saved=core.saveProfileTemplate(s,s.profileId,'SDK template');
+  const applied=core.applyProfileTemplate(saved.next,saved.template.id,'SDK from template');
+  const snapshot=applied.next.inactiveProfiles.find(p=>p.id===applied.createdProfileId);
+  const originalIds=[],newIds=[];
+  core.walkSdkActions(s,x=>originalIds.push(x.instanceId));
+  core.walkSdkActions(snapshot,x=>newIds.push(x.instanceId));
+  assert.ok(newIds.length>0);assert.equal(new Set(newIds).size,newIds.length);
+  assert.ok(newIds.every(id=>!originalIds.includes(id)));
+});
