@@ -257,7 +257,7 @@ async function verifyModel2Limits(){
 }
 // Deliberate loss of a uniquely identified test renderer, not OOM injection.
 async function verifyModel2ProcessLoss(){
- const {BrowserWindow}=require('electron');
+ const {BrowserWindow,webContents}=require('electron');
  const {ScriptRunnerPool,deadline}=require('../app/streamdeck-editor/deckforge-js-runtime.cjs');
  const pool=new ScriptRunnerPool(),id='com.deckforge.native.crash-smoke',peerId=id+'-peer';
  const button=pool.lease(id,'button'),service=pool.lease(id,'service'),peer=pool.lease(peerId,'button');
@@ -276,10 +276,31 @@ async function verifyModel2ProcessLoss(){
   const wc=windows[0].webContents;
   let goneDetails;
   const gone=new Promise(resolve=>wc.prependOnceListener('render-process-gone',(_event,details)=>{goneDetails=details;resolve();}));
-  const pending=button.run('await new Promise(()=>{});api.setTitle("must not commit");',input);
-  const rejected=assert.rejects(pending,/closed|unavailable|timeout/);
+  // Confirm execution in the current opaque realm before terminating it.
+  const marker='DECKFORGE_TEST_PROCESS_LOSS_ENTERED';
+  const entered=new Promise(resolve=>{
+   const onMessage=(details,_level,message)=>{
+    if((details?.message??message)!==marker)return;
+    wc.removeListener('console-message',onMessage);resolve();
+   };
+   wc.on('console-message',onMessage);
+  });
+  const pending=button.run('console.log('+JSON.stringify(marker)+');await new Promise(()=>{});api.setTitle("must not commit");',input);
+  const rejected=assert.rejects(pending,/closed|unavailable/);
   rejected.catch(()=>{});
-  wc.forcefullyCrashRenderer();
+  await deadline(()=>entered,1000,()=>{});
+  const pid=wc.getOSProcessId();
+  assert.ok(Number.isInteger(pid)&&pid>0&&pid!==process.pid);
+  assert.equal(pid,pool.processId(id,'button'));
+  assert.equal(pool.entries.get(pool.key(id,'button')).runner,buttonRunner);
+  assert.notEqual(pid,pool.processId(id,'service'));assert.notEqual(pid,pool.processId(peerId,'button'));
+  const owners=webContents.getAllWebContents().filter(w=>!w.isDestroyed()&&w.getOSProcessId()===pid);
+  assert.equal(owners.length,1,'only the dedicated test webContents may own the target PID');
+  assert.equal(owners[0],wc);
+  console.log('MODEL2_PROCESS_LOSS_ENTERED '+JSON.stringify({pid}));
+  // Test-only OS termination avoids asynchronous renderer crash dispatch.
+  // Do not relax the production deadline or accept timeout as crash evidence.
+  assert.equal(process.kill(pid,'SIGKILL'),true);
   await deadline(()=>gone,5000,()=>{});
   await rejected;
   assert.ok(['killed','crashed'].includes(goneDetails.reason));
