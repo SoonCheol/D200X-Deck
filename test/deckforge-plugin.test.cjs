@@ -661,7 +661,7 @@ test('Ulanzi directory analysis inventories HTML entry, inspector proposals and 
    png.write('IHDR',12);png.writeUInt32BE(144,16);png.writeUInt32BE(144,20);
    await fs.writeFile(path.join(root,'icon.png'),png);
    const result=await analyzeDirectory(root);
-   assert.equal(result.converterVersion,2);assert.equal(result.installationAllowed,false);
+   assert.equal(result.converterVersion,3);assert.equal(result.installationAllowed,false);
    assert.equal(result.candidate,null);assert.equal(result.htmlEntry.scripts[0].status,'review');
    assert.equal(result.inspectors[0].settingsSchemaCandidate[0].default,'Ready');
    assert.equal(result.resources[0].status,'header-candidate');assert.equal(result.resources[0].width,144);
@@ -729,7 +729,7 @@ test('official pinned Ulanzi examples are analyzed without pretending unsupporte
    assert.equal(result.candidate,null);
    assert.ok(result.findings.some(f=>f.code==='private-api'));
    assert.ok(result.calls.some(c=>c.name==='onRun'&&c.support==='review'));
-   assert.ok(result.calls.some(c=>c.name==='onParamFromApp'&&c.support==='review'));
+   assert.ok(result.calls.some(c=>c.name==='onParamFromApp'&&c.support==='candidate'));
    const inspector=analyzeHtml('property-inspector/action/inspector.html',await load(name,'inspector.html'),{inspector:true});
    assert.equal(inspector.requiresReview,true);
    assert.ok(inspector.scripts.some(s=>s.kind==='local'));
@@ -960,4 +960,22 @@ test('multi-action Ulanzi PNG preservation keeps resource ownership and requires
    assert.equal(corrupt.candidate.actions[1].stateImages,undefined);
    assert.throws(()=>validateReviewRecord(attest(corrupt),corrupt),/manual conversion/);
  }finally{await fs.rm(root,{recursive:true,force:true});}
+});
+
+test('Ulanzi type-guarded dynamic titles map settings events and reject sensitive or arbitrary expressions',()=>{
+ const {analyzeSource}=require('../app/streamdeck-editor/ulanzi-converter.cjs');
+ const id='com.ulanzi.ulanzistudio.Dynamic',m={Type:'JavaScript',UUID:id,Name:'Dynamic',Version:'1.0.0',CodePath:'app.js',Actions:[{UUID:id+'.a',Name:'A'}]};
+ const display="m=>$UD.setTitle(m.context,typeof m.param?.label === 'string' ? m.param.label : 'Ready')";
+ const source="$UD.connect('"+id+"');$UD.onAdd("+display+");$UD.onParamFromApp("+display+");";
+ const result=analyzeSource(m,source);
+ assert.deepEqual(result.candidate.actions[0].events.settings,[{op:'titleFromSetting',key:'label',fallback:'Ready'}]);
+ assert.equal(result.verification.status,'pass');
+ assert.equal(result.verification.checks.find(c=>c.name==='settings-sync').pass,true);
+ assert.equal(result.verification.checks.find(c=>c.name==='settings-non-string-fallback').pass,true);
+ assert.ok(result.findings.some(f=>f.code==='dynamic-settings'));
+ assert.equal(result.installationAllowed,undefined);
+ for(const bad of [source.replaceAll('label','token'),source.replaceAll('m.param.label','m.param.other'),source.replaceAll('typeof m.param?.label','typeof m.param.label'),source.replaceAll("'string'","'number'")])
+   assert.equal(analyzeSource(m,bad).candidate,null);
+ const multi=analyzeSource({...m,Actions:[...m.Actions,{UUID:id+'.b',Name:'B'}]},source);
+ assert.equal(multi.verification.status,'pass');
 });

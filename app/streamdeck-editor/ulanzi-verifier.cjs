@@ -8,7 +8,7 @@ const {validateNativeManifest,NativePluginHost}=require('./deckforge-native-sdk.
 const hash=x=>createHash('sha256').update(x).digest('hex');
 const digest=x=>hash(JSON.stringify(x));
 const SOURCE_EVENT=Object.freeze({
-  appear:'onAdd',press:'onKeyDown',release:'onKeyUp',
+  appear:'onAdd',settings:'onParamFromApp',press:'onKeyDown',release:'onKeyUp',
   dialPress:'onDialDown',dialRelease:'onDialUp',
   left:'onDialRotateLeft',right:'onDialRotateRight',
   heldLeft:'onDialRotateHoldLeft',heldRight:'onDialRotateHoldRight'
@@ -16,7 +16,7 @@ const SOURCE_EVENT=Object.freeze({
 function simulateCandidate(manifest,sourceEvents){
   validateNativeManifest(manifest);
   if(manifest.apiVersion===1&&manifest.actions.length>1)return simulateMultiple(manifest,sourceEvents);
-  if(manifest.apiVersion!==1||manifest.actions.length!==1||!Array.isArray(sourceEvents)||sourceEvents.length>9)
+  if(manifest.apiVersion!==1||manifest.actions.length!==1||!Array.isArray(sourceEvents)||sourceEvents.length>10)
     throw Error('unsupported simulation input');
   const action=manifest.actions[0],dial=action.controllers[0]==='Encoder';
   if(action.controllers.length!==1)throw Error('ambiguous controller');
@@ -26,6 +26,8 @@ function simulateCandidate(manifest,sourceEvents){
       throw Error('invalid source trace');
     const calls=entry.calls.map(call=>{
       if(call.method==='setTitle'&&typeof call.value==='string')return {kind:'setTitle',payload:{title:call.value}};
+      if(call.method==='setTitleFromParam'&&typeof call.key==='string'&&/^[a-zA-Z0-9_-]{1,48}$/.test(call.key)&&typeof call.fallback==='string')
+        return {setting:call.key,fallback:call.fallback};
       if(call.method==='setState'&&Number.isInteger(call.value))return {kind:'setState',payload:{state:call.value}};
       if(call.method==='setImage'&&typeof call.value==='string')return {kind:'setImage',payload:{image:call.value}};
       throw Error('unsupported source trace command');
@@ -38,9 +40,17 @@ function simulateCandidate(manifest,sourceEvents){
   },()=>{throw Error('JavaScript runner is forbidden in candidate verification');});
   const cfg=(context,slot)=>({context,slot,gesture:'down',pluginUUID:manifest.id,actionUUID:action.id,settings:{}});
   const a=cfg('verify-a',dial?16:0),b=cfg('verify-b',dial?17:1);
+  const keys=[...new Set([...events.values()].flat().filter(e=>e.setting).map(e=>e.setting))];
+  b.settings=Object.fromEntries(keys.map(k=>[k,'Context B '+k]));
+  const current=new Map([[a.context,a.settings],[b.context,b.settings]]);
   const expected=(context,event,ticks=1)=>{
     const output=[];
-    for(let i=0;i<ticks;i++)for(const item of events.get(event)||[])output.push({...item,context});
+    for(let i=0;i<ticks;i++)for(const item of events.get(event)||[]){
+      if(item.setting){
+        const data=current.get(context)||{},value=Object.hasOwn(data,item.setting)?data[item.setting]:undefined;
+        output.push({kind:'setTitle',context,payload:{title:typeof value==='string'?value.slice(0,256):item.fallback}});
+      }else output.push({...item,context});
+    }
     return output;
   };
   const check=(name,execute,want=[],receipt)=>{
@@ -71,7 +81,15 @@ function simulateCandidate(manifest,sourceEvents){
       check('held-binding-left',()=>host.key(a.context,'hold-left'),expected(a.context,SOURCE_EVENT.heldLeft),true);
     }else check('keypad-rejects-rotate',()=>host.key(a.context,'left'),[],false);
     check('unchanged-sync',()=>host.sync([a,b],[manifest]),[]);
-    check('settings-sync',()=>host.sync([{...a,settings:{probe:1}},b],[manifest]),[]);
+    const changed=Object.fromEntries([['probe',1],...keys.map(k=>[k,'Updated '+k])]);
+    // Use a distinct probe key even when the original field is named probe.
+    current.set(a.context,changed);
+    check('settings-sync',()=>host.sync([{...a,settings:changed},b],[manifest]),expected(a.context,SOURCE_EVENT.settings));
+    if(keys.length){
+      const wrong=Object.fromEntries(keys.map(k=>[k,42]));
+      current.set(a.context,wrong);
+      check('settings-non-string-fallback',()=>host.sync([{...a,settings:wrong},b],[manifest]),expected(a.context,SOURCE_EVENT.settings));
+    }
     check('remove-a',()=>host.sync([b],[manifest]),[]);
     check('removed-context-ignored',()=>host.key(a.context,'down'),[],false);
     check('remaining-context-press',()=>host.key(b.context,'down'),expected(b.context,down),true);
@@ -79,6 +97,7 @@ function simulateCandidate(manifest,sourceEvents){
     check('suspend-input-blocked',()=>host.key(b.context,'down'),[],false);
     check('resume-initializes-only',()=>host.resume(),expected(b.context,SOURCE_EVENT.appear));
     check('resume-orphan-release',()=>host.key(b.context,'up'),[],false);
+    current.set(a.context,a.settings);
     check('reappearance',()=>host.sync([a,b],[manifest]),expected(a.context,SOURCE_EVENT.appear));
     check('shutdown',()=>host.close(),[]);
     check('shutdown-input-blocked',()=>host.key(a.context,'down'),[],false);
@@ -102,9 +121,12 @@ function simulateMultiple(manifest,traces){
     checks.push(...result.checks.map(c=>({...c,name:action.id+':'+c.name})));
   }
   const host=new NativePluginHost('/unused-offline-verification',event=>observed.push(event),()=>{throw Error('JavaScript runner forbidden');});
-  const configs=manifest.actions.map((a,i)=>({context:'verify-multi-'+i,slot:a.controllers[0]==='Encoder'?16:0,gesture:'down',pluginUUID:manifest.id,actionUUID:a.id,settings:{}}));
+  const configs=manifest.actions.map((a,i)=>{
+    const fields=traces.find(t=>t.actionId===a.id).events.flatMap(e=>e.calls).filter(c=>c.method==='setTitleFromParam');
+    return {context:'verify-multi-'+i,slot:a.controllers[0]==='Encoder'?16:0,gesture:'down',pluginUUID:manifest.id,actionUUID:a.id,settings:Object.fromEntries(fields.map(f=>[f.key,'Action '+i+' '+f.key]))};
+  });
   const expected=(cfg,method)=>(traces.find(t=>t.actionId===cfg.actionUUID).events.find(e=>e.method===method)?.calls||[]).map(c=>({
-    kind:c.method,context:cfg.context,payload:c.method==='setTitle'?{title:c.value}:c.method==='setState'?{state:c.value}:{image:c.value}
+    kind:c.method==='setTitleFromParam'?'setTitle':c.method,context:cfg.context,payload:c.method==='setTitleFromParam'?{title:typeof cfg.settings[c.key]==='string'?cfg.settings[c.key].slice(0,256):c.fallback}:c.method==='setTitle'?{title:c.value}:c.method==='setState'?{state:c.value}:{image:c.value}
   }));
   const check=(name,run,want,accepted)=>{
     observed.length=0;let receipt,error=false;

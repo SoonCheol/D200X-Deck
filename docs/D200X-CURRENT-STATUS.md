@@ -2,6 +2,11 @@
 
 > **상태 기록 기준: 2026-11-24**. 실제 최신 HEAD는 Git에서 확인하며, 코드·자동 검사·Windows 빌드·사용자 Windows/D200X 실기 결과를 구분한다. 시작 시 `AGENTS.md`와 이 문서만 읽고 로드맵은 필요한 경우에만 참고한다.
 
+## 1.1.134 — 제한 동적 설정 제목·설정 이벤트 변환 (2026-11-24)
+
+- 공식 Node SDK의 add/paramfromapp param 계약 참고, 문자열 type guard 및 literal fallback인 안전한 제목 참조만 기존 titleFromSetting/설정 이벤트로 변환. 비밀 의심 필드·임의 식 거부. 설정 출처/PI 계약 미검증으로 동적 후보 출시 차단 유지.
+- 독립 설정값, 누락·타입 불일치 fallback 및 여러 액션 trace 검사 확대. 1.1.133 CI #1173 성공, Windows #884 standalone 검사는 converterVersion 2→3 반영 누락으로 실패하여 기대값 갱신. 새 CI/Windows/실기는 별도.
+
 ## 1.1.133 — Ulanzi 다중 액션 상태 PNG 보존 및 검토 (2026-11-24)
 
 - 액션 UUID별 상태 PNG·원본 경로·SHA-256 결합, CRC 및 scanline 재확인, 총 이미지 용량 제한. 다른 액션의 이미지·독립 category/plugin 그림·손상 또는 누락 자원은 출시 차단. 기존 단일 액션 보고 구조 유지.

@@ -37,7 +37,7 @@ function validateReviewRecord(record,report){
     report.resources?.every(r=>entries.some(e=>e.stateImages.some(s=>s.path===r.path&&s.sha256===r.sha256)));
   const preserved=art?.verification==='crc-and-bounded-scanlines'&&Array.isArray(art.remainingPaths)&&!art.remainingPaths.length&&validEntries;
   if((report.resources?.length&&!preserved)||report.inspectors?.length||
-    report.findings.some(f=>['property-inspector','private-api'].includes(f.code)||(f.code==='artwork'&&!preserved))||
+    report.findings.some(f=>['property-inspector','private-api','dynamic-settings'].includes(f.code)||(f.code==='artwork'&&!preserved))||
     (actions.length>1&&report.verification?.verifierVersion!==2))
     throw Error('manual conversion required for original resources or property inspector');
   if(!Array.isArray(record.checks)||record.checks.length!==CHECKS.length||

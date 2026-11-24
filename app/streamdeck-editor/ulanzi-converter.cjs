@@ -12,12 +12,12 @@ const MAX_FILES=2500,MAX_BYTES=100*1024*1024,MAX_SOURCE=1024*1024;
 const sha=bytes=>createHash('sha256').update(bytes).digest('hex');
 const ID=/^com\.[a-zA-Z0-9-]+\.ulanzistudio\.[a-zA-Z0-9-]+$/;
 const EVENT_MAP=Object.freeze({
-  onAdd:'appear',onKeyDown:'press',onKeyUp:'release',
+  onAdd:'appear',onParamFromApp:'settings',onKeyDown:'press',onKeyUp:'release',
   onDialDown:'press',onDialUp:'release',onDialRotateLeft:'rotateLeft',
   onDialRotateRight:'rotateRight',onDialRotateHoldLeft:'heldRotateLeft',
   onDialRotateHoldRight:'heldRotateRight'
 });
-const REVIEW_EVENTS=new Set(['onRun','onClear','onSetActive','onConnected','onClose','onError','onParamFromApp',
+const REVIEW_EVENTS=new Set(['onRun','onClear','onSetActive','onConnected','onClose','onError',
   'onParamFromPlugin','onDidReceiveSettings','onDidReceiveGlobalSettings','onSendToPlugin','onSendToPropertyInspector',
   'onDialRotate','onSelectdialog']);
 const REVIEW_COMMANDS=new Set(['setStateIcon','setBaseDataIcon','setPathIcon','setGifDataIcon','setGifPathIcon',
@@ -73,6 +73,21 @@ function temporaryImage(node){
   const bytes=Buffer.from(png.slice(22),'base64');
   if(bytes.toString('base64')!==png.slice(22)||!verifyPng(bytes).ok)return null;
   return png;
+}
+// Recognize only a type-guarded read of a plain, non-secret field.
+function settingTitle(node,param){
+  if(node?.type!=='ConditionalExpression'||node.test?.type!=='BinaryExpression'||node.test.operator!=='==='||
+    node.test.left?.type!=='UnaryExpression'||node.test.left.operator!=='typeof'||
+    !lit(node.test.right,'string')||node.test.right.value!=='string'||!lit(node.alternate,'string')||node.alternate.value.length>256)return null;
+  const guard=node.test.left.argument;
+  const access=guard?.type==='ChainExpression'?guard.expression:null,read=node.consequent;
+  if(access?.type!=='MemberExpression'||!access.optional||access.computed||!member(access.object,param,'param')||
+    read?.type!=='MemberExpression'||read.optional||read.computed||!member(read.object,param,'param')||
+    access.property?.type!=='Identifier'||read.property?.name!==access.property.name)return null;
+  const key=access.property.name;
+  if(!/^[a-zA-Z0-9_-]{1,48}$/.test(key)||['__proto__','constructor','prototype'].includes(key)||
+    /token|password|secret|credential|authorization|headers?|api[_-]?key|cookie|request[_-]?body|url|endpoint/i.test(key))return null;
+  return {key,fallback:node.alternate.value};
 }
 function analyzeSource(manifest,source,{stateImages,stateImagesByAction}={}){
   validateSourceManifest(manifest);
@@ -193,6 +208,10 @@ function analyzeSource(manifest,source,{stateImages,stateImagesByAction}={}){
       const value=cmd.arguments[1];
       if(name==='setTitle'&&lit(value,'string')&&value.value.length<=256){
         ops.push({op:'title',value:value.value});sourceCalls.push({method:name,value:value.value});
+      }else if(name==='setTitle'&&['onAdd','onParamFromApp'].includes(method)&&settingTitle(value,param)){
+        const field=settingTitle(value,param);
+        ops.push({op:'titleFromSetting',...field});sourceCalls.push({method:'setTitleFromParam',...field});
+        note('dynamic-settings','type-guarded title setting requires source setting contract review',statement.loc.start.line);
       }else if(name==='setState'&&lit(value,'number')&&Number.isInteger(value.value)&&value.value>=0&&value.value<states){
         ops.push({op:'state',value:value.value});sourceCalls.push({method:name,value:value.value});
       }
