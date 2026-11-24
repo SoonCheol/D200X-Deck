@@ -16,10 +16,10 @@ test('one active action contract covers SDK registration and physical plans',()=
  Core.automaticControl(b,true);assert.equal(b.holdLeft,held);check(4,null,'profile');
  b.heldEnabled=false;Core.automaticControl(b);b.target='volume';assert.equal(b.left,left);check(2,null,'adjust');
  Core.assignControlAction(b,'left',left);check(2,left,'sd-plugin');
- const instances=new Function('state','DeckCore','sdkContext',section('function sdkActionInstances(){','let sdkSyncSerial=')+';return sdkActionInstances();')(s,Core,(i,g)=>i+':'+g);
+ const instances=Core.sdkMountDescriptors(s);
  assert.deepEqual(instances.map(x=>x.gesture),['down','left']);
  b.heldEnabled=true;
- const after=new Function('state','DeckCore','sdkContext',section('function sdkActionInstances(){','let sdkSyncSerial=')+';return sdkActionInstances();')(s,Core,(i,g)=>i+':'+g);
+ const after=Core.sdkMountDescriptors(s);
  assert.deepEqual(after.map(x=>x.gesture),['left']);
 });
 test('resolved composite uses pinned, folder and actual held rotary assignment',()=>{

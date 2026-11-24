@@ -911,7 +911,7 @@ class NativePluginHost{
 }
 // Compatibility host stays unchanged; only validated native IDs are routed here.
 class PluginRouter{
-  constructor(legacy,native){this.legacy=legacy;this.native=native;this.queue=Promise.resolve();this.closed=false;this.nativeContextIds=new Set();}
+  constructor(legacy,native){this.legacy=legacy;this.native=native;this.queue=Promise.resolve();this.closed=false;this.nativeContextIds=new Set();this.desiredContexts=null;this.syncRevision=0;}
   serial(fn){const task=this.queue.then(()=>{if(this.closed)throw Error('Plugin host closed');return fn();});this.queue=task.catch(()=>{});return task;}
   async catalog(){
     const legacy=await this.legacy.list(),ids=new Set(legacy.map(x=>x.uuid.toLowerCase()));
@@ -998,19 +998,28 @@ class PluginRouter{
     check(manifest,'background service not installed');await this.native.loadServicePolicy();
     return this.native.serviceStatus(id,resolveDependencies(native).ready.has(id));
   });}
-  sync(configs){return this.serial(async()=>{
+  sync(configs){
+    // Invalidate removed mounts immediately, before slower catalogue/legacy work.
+    const revision=++this.syncRevision;
+    this.desiredContexts=new Set(configs.map(c=>c?.context));
+    for(const [id,ctx] of this.native.contexts)if(!ctx.service&&!this.desiredContexts.has(id)){
+      this.native.contexts.delete(id);this.native.retire(ctx);
+    }
+    return this.serial(async()=>{
+    if(revision!==this.syncRevision)return;
     const {native,legacy}=await this.catalog(),ids=new Set(native.map(m=>m.id));
     await this.native.loadServicePolicy();
+    if(revision!==this.syncRevision)return;
     const legacyIds=new Set(legacy.map(p=>p.uuid.toLowerCase()));
     const isNative=c=>ids.has(c?.pluginUUID)||(typeof c?.pluginUUID==='string'&&ID.test(c.pluginUUID)&&!legacyIds.has(c.pluginUUID.toLowerCase()));
     const local=configs.filter(isNative),other=configs.filter(c=>!isNative(c));
     this.nativeContextIds=new Set(local.map(c=>c.context));
     // Remove stale legacy contexts before publishing a new native context.
-    try{await this.legacy.sync(other);}finally{if(!this.closed)this.native.sync(local,native);}
+    try{await this.legacy.sync(other);}finally{if(!this.closed&&revision===this.syncRevision)this.native.sync(local,native);}
   });}
   acknowledgeSettings(context,id,accepted){return this.serial(()=>this.native.acknowledgeSettings(context,id,accepted));}
-  key(context,gesture,ticks){if(this.closed)return false;return this.nativeContextIds.has(context)||this.native.contexts.has(context)?this.native.key(context,gesture,ticks):this.legacy.key(context,gesture,ticks);}
-  inspector(context){return this.nativeContextIds.has(context)||this.native.contexts.has(context)?false:this.legacy.inspector(context);}
+  key(context,gesture,ticks){if(this.closed||(this.desiredContexts&&!this.desiredContexts.has(context)))return false;return this.nativeContextIds.has(context)||this.native.contexts.has(context)?this.native.key(context,gesture,ticks):this.legacy.key(context,gesture,ticks);}
+  inspector(context){if(this.closed||(this.desiredContexts&&!this.desiredContexts.has(context)))return false;return this.nativeContextIds.has(context)||this.native.contexts.has(context)?false:this.legacy.inspector(context);}
   onSystemSuspend(){this.native.suspend();this.legacy.onSystemSuspend();}
   onSystemResume(){this.native.resume();this.legacy.onSystemResume();}
   async close(){this.closed=true;this.native.close();await this.legacy.close();}

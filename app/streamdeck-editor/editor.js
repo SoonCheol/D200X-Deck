@@ -239,18 +239,21 @@ async function rememberFusionIcon(id,image){
   }catch(error){console.warn('Fusion 아이콘 캐시 저장 실패',error);}
 }
 
-const fusionActionTokens=new WeakMap();
-let fusionTokenSerial=0,pageStructureEpoch=0;
+const sdkMounts=DeckCore.createSdkMountTracker();
+let pageStructureEpoch=0;
+let sdkCommittedSnapshot=null,sdkCommittedState=null;
+function sdkCommittedSource(){
+  if(!inspectorSession?.dirty)return state;
+  if(sdkCommittedSnapshot!==inspectorSession.snapshot){
+    sdkCommittedSnapshot=inspectorSession.snapshot;sdkCommittedState=JSON.parse(sdkCommittedSnapshot);
+  }
+  return sdkCommittedState;
+}
 function sdkContext(index,gesture='down'){
-  const folder=DeckCore.activeFolder(state);
-  const base=String(state.profileId)+':'+state.page+':'+(state.folderPath||[]).join('-')+
-    (folder?'-p'+(folder.pageIndex||0):'')+':'+index+':'+gesture+(pageStructureEpoch?':layout'+pageStructureEpoch:'');
-  const key=({'hold-left':'holdLeft','hold-right':'holdRight'})[gesture]||gesture;
-  const item=index<14?DeckCore.visibleActions(state)[index]:DeckCore.controlBinding(state,index)?.[key];
-  if(!isFusionAction(item)&&!String(item?.settings?.pluginUUID||'').startsWith('com.deckforge.native.'))return base;
-  let token=fusionActionTokens.get(item);
-  if(!token){token='i'+(++fusionTokenSerial);fusionActionTokens.set(item,token);}
-  return base+':'+token;
+  const item=sdkItemAtLocation(state,index,gesture);
+  const mounted=sdkActionInstances().find(x=>x.slot===index&&x.gesture===gesture);
+  return mounted&&item?.instanceId===mounted.instanceId&&
+    item.settings?.pluginUUID===mounted.pluginUUID&&item.settings?.actionUUID===mounted.actionUUID?mounted.context:'';
 }
 function clearOldSdkVisual(index,gesture='down'){
   const ctx=sdkContext(index,gesture);
@@ -263,23 +266,9 @@ function pluginSlotContext(item){
   return sdkContext(state.selected,'down');
 }
 function sdkActionInstances(){
-  const entries=[];
-  const append=(item,index,gesture)=>{
-    if(item?.type!=='sd-plugin')return;
-    const settings=item.settings||{};
-    entries.push({context:sdkContext(index,gesture),slot:index,gesture,
-      pluginUUID:settings.pluginUUID,actionUUID:settings.actionUUID,
-      settings:settings.pluginSettings||{}});
-  };
-  DeckCore.visibleActions(state).slice(0,14).forEach((item,index)=>append(item,index,'down'));
-  // Side controls are navigation-only. Register only actions the knob
-  // dispatcher can actually execute, including supported legacy held bindings.
-  for(let index=16;index<=18;index++){
-    const binding=DeckCore.controlBinding(state,index);
-    for(const gesture of ['down','left','right','hold-left','hold-right'])
-      append(DeckCore.activeControlAction(binding,gesture),index,gesture);
-  }
-  return entries;
+  const source=sdkCommittedSource(),folder=DeckCore.activeFolder(source);
+  const scope=JSON.stringify([source.profileId,source.page,source.folderPath||[],folder?.pageIndex||0,pageStructureEpoch]);
+  return sdkMounts.reconcile(scope,DeckCore.sdkMountDescriptors(source));
 }
 let sdkSyncSerial=0;
 function scheduleSdkSync(){
@@ -288,7 +277,9 @@ function scheduleSdkSync(){
   Promise.resolve().then(async()=>{
     if(serial!==sdkSyncSerial)return;
     const instances=sdkActionInstances();
-    DeckCore.pruneNativeVisuals(sdkVisuals,instances);
+    const active=new Set(instances.map(x=>x.context));
+    for(const map of [sdkVisuals,fusionLiveContexts,fusionOfflineContexts,unverifiedFusionContexts])
+      for(const context of map.keys())if(!active.has(context))map.delete(context);
     await window.deckBridge.sdkSync(instances);
   }).catch(error=>window.d200xActionStatus?.('SDK 플러그인 등록 오류: '+String(error?.message||error)));
 }
@@ -2982,11 +2973,11 @@ function sdkItemAtLocation(source,slot,gesture){
 }
 function commitExternalSdkSettings(instance,settings){
   const live=sdkItemAtLocation(state,instance.slot,instance.gesture);
-  if(live?.type!=='sd-plugin'||live.settings?.pluginUUID!==instance.pluginUUID||
+  if(live?.type!=='sd-plugin'||!instance.instanceId||live.instanceId!==instance.instanceId||live.settings?.pluginUUID!==instance.pluginUUID||
     live.settings?.actionUUID!==instance.actionUUID)return false;
   const confirmed=JSON.parse(inspectorSession?.snapshot||JSON.stringify(state));
   const stored=sdkItemAtLocation(confirmed,instance.slot,instance.gesture);
-  if(stored?.type!=='sd-plugin'||stored.settings?.pluginUUID!==instance.pluginUUID||
+  if(stored?.type!=='sd-plugin'||stored.instanceId!==instance.instanceId||stored.settings?.pluginUUID!==instance.pluginUUID||
     stored.settings?.actionUUID!==instance.actionUUID)return false;
   stored.settings.pluginSettings=clone(settings);
   const next=JSON.stringify(confirmed);
@@ -3848,7 +3839,7 @@ function bindExtendedActionFields(root,item){
       if(!context)return;
       try{
         await window.deckBridge.sdkSync(sdkActionInstances());
-        await window.deckBridge.sdkInspector(context);
+        if(pluginSlotContext(item)===context)await window.deckBridge.sdkInspector(context);
       }catch(error){window.d200xActionStatus?.('SDK 속성 편집기 오류: '+String(error?.message||error));}
     });
   }
@@ -5571,6 +5562,7 @@ function executeHardwareAction(event,preview=false,skipKnobGesture=false,pressOv
   if(sdkAction?.type==='sd-plugin'){
     const ctx=sdkContext(index,
       resolved.gesture==='up'?'down':resolved.gesture);
+    if(!ctx)return 'SDK 액션이 변경되었거나 아직 활성화되지 않았습니다.';
     if(!window.deckBridge?.sdkKey)return 'SDK 플러그인은 Windows EXE에서만 실행됩니다.';
     if(resolved.gesture==='up')lastHardwareDown.delete(index);
     report('sdk-dispatch');observe(window.deckBridge.sdkKey(ctx,resolved.gesture),'sdk').then(ok=>{

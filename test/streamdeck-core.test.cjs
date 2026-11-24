@@ -1982,3 +1982,21 @@ test('folder page, pin copies, control scope and template application keep indep
   assert.ok(newIds.length>0);assert.equal(new Set(newIds).size,newIds.length);
   assert.ok(newIds.every(id=>!originalIds.includes(id)));
 });
+
+
+test('SDK mount generation is stable while visible and never reused after navigation or replacement',()=>{
+ const state=core.migrateState(null),item=state.pages[0][0]=core.createAction('sd-plugin');
+ item.settings.pluginUUID='example.plugin';item.settings.actionUUID='example.action';
+ const tracker=core.createSdkMountTracker(),read=scope=>tracker.reconcile(scope,core.sdkMountDescriptors(state));
+ const first=read('page-0')[0];assert.ok(core.validSdkMount(first));
+ item.title='edit';item.settings.pluginSettings={value:1};
+ const edited=read('page-0')[0];assert.equal(edited.context,first.context);assert.equal(edited.settings.value,1);
+ assert.equal(read('page-1')[0].instanceId,first.instanceId);
+ const back=read('page-0')[0];assert.notEqual(back.context,first.context);
+ state.pages[0][0]=null;assert.deepEqual(read('page-0'),[]);
+ state.pages[0][0]=item;const remount=read('page-0')[0];assert.notEqual(remount.context,back.context);
+ state.pages[0][0]=core.cloneActionInstances(item);const replaced=read('page-0')[0];
+ assert.notEqual(replaced.instanceId,first.instanceId);assert.notEqual(replaced.context,remount.context);
+ assert.ok(!core.validSdkMount({...replaced,mountGeneration:1}));
+ assert.notEqual(core.createSdkMountTracker().reconcile('page-0',core.sdkMountDescriptors(state))[0].context,replaced.context);
+});

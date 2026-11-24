@@ -29,7 +29,7 @@ function run(mode='key',fail=false){
  item.title='UNSAVED TITLE';
  const writes=[];
  const inspectorSession={snapshot,dirty:true};
- const instance={slot,gesture:mode==='knob'?'hold-left':'down',pluginUUID:'example.plugin',actionUUID:'example.action'};
+ const instance={slot,gesture:mode==='knob'?'hold-left':'down',instanceId:item.instanceId,pluginUUID:'example.plugin',actionUUID:'example.action'};
  const window={deckBridge:{writeProfile:confirmed=>{
    if(fail)return {ok:false,error:'full'};
    writes.push(JSON.parse(JSON.stringify(confirmed)));

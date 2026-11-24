@@ -272,6 +272,13 @@ ipcMain.handle('d200x:sdk-install-folder',async event=>{
 ipcMain.handle('d200x:sdk-sync',async(event,configs)=>{
   assertEditor(event);
   if(!Array.isArray(configs)||configs.length>32)throw Error('플러그인 액션 목록 크기 오류');
+  const {validSdkMount}=require('./deck-core.js'),contexts=new Set(),instances=new Set(),locations=new Set();
+  for(const cfg of configs){
+    const location=cfg?.slot+':'+cfg?.gesture;
+    if(!validSdkMount(cfg)||contexts.has(cfg.context)||instances.has(cfg.instanceId)||locations.has(location))
+      throw Error('플러그인 실행 식별자 오류');
+    contexts.add(cfg.context);instances.add(cfg.instanceId);locations.add(location);
+  }
   await sdk().sync(configs);return true;
 });
 ipcMain.handle('d200x:native-settings-receipt',async(event,context,id,accepted)=>{

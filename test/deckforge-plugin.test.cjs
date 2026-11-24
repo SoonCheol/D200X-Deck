@@ -2197,3 +2197,24 @@ test('HA control publishes editable title independently from its status image',(
  assert.ok(draw.commands.some(x=>x.text==='켜짐'));
  assert.ok(!draw.commands.some(x=>x.text==='주방등'));
 });
+
+
+test('router revokes old mount before catalogue awaits and skips obsolete sync generations',async()=>{
+ const old={context:'old',pluginUUID:nativeId,actionUUID:nativeId+'.toggle',slot:0,gesture:'down'};
+ const fresh={...old,context:'fresh'},last={...old,context:'last'};
+ const ctx={context:'old'},retired=[],applied=[],legacyApplied=[];
+ let release,started;
+ const entered=new Promise(resolve=>{started=resolve;});
+ const block=new Promise(resolve=>{release=resolve;});
+ let calls=0;
+ const native={contexts:new Map([['old',ctx]]),retire:x=>retired.push(x),manifests:async()=>[nativeManifest],
+   loadServicePolicy:async()=>{},sync:cfg=>applied.push(cfg.map(x=>x.context)),key:()=>true,close(){}};
+ const legacy={list:async()=>{if(++calls===1){started();await block;}return [];},sync:async cfg=>legacyApplied.push(cfg),key:()=>true,close:async()=>{}};
+ const router=new PluginRouter(legacy,native);
+ const a=router.sync([fresh]);await entered;
+ assert.equal(router.key('old','down'),false);assert.deepEqual(retired,[ctx]);
+ const b=router.sync([last]);assert.equal(router.key('fresh','down'),false);
+ release();await Promise.all([a,b]);
+ assert.deepEqual(applied,[['last']]);assert.equal(legacyApplied.length,1);
+ await router.close();
+});
