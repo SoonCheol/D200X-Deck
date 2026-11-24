@@ -2,6 +2,12 @@
 
 > **상태 기록 기준: 2026-11-24**. 실제 최신 HEAD는 Git에서 확인하며, 코드·자동 검사·Windows 빌드·사용자 Windows/D200X 실기 결과를 구분한다. 시작 시 `AGENTS.md`와 이 문서만 읽고 로드맵은 필요한 경우에만 참고한다.
 
+## 1.1.167 — WSS 연결 유지·HA 메시지 인증 (2026-11-24)
+
+- 승인 endpoint.reconnect:true에 한해 최대 3회 1/3/10초 재연결, 30초 ping 및 10초 pong 제한. 이전 이벤트 generation 폐기, 송신/입력 자동 재실행 금지. 명시 종료/페이지 이탈/설정 변경/절전·인증 오류에서 취소.
+- Home Assistant 공식 auth_required/auth/auth_ok 절차를 host vault 토큰으로 처리, 인증 전 open/일반 메시지 금지, 인증 실패·타임아웃 제한. WSS 전용 plugin의 인증정보 관리 진입 보완. 모의 연결·인증·재시도/heartbeat 검사 추가. 공개 API 22개 유지.
+- 1.1.166 CI #1206, 입력 #476, Windows #917 성공. 1.1.167 신규 검증 및 실제 HTTPS/WSS 서비스·D200X 실기 미확인.
+
 ## 1.1.166 — SDK HTTP 승인 동적 경로·헤더 (2026-11-24)
 
 - HTTP request 4번째 선택 인자 options={path,headers}, 사용자 승인 pathKeys 및 headerKeys 기반 제한형 확장. 경로 탈출, 임의 호스트/메서드, 헤더 주입·인증정보 노출·프로토콜 프레이밍 변경 차단. 기존 TLS/권한/한도/취소 유지. 집중 테스트 및 실제 Electron 명령 검증 추가.

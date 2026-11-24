@@ -3549,13 +3549,13 @@ async function openNativeCredentials(item,plugin){
     option.textContent=e.method+' '+e.url+' · '+(e.configured?'등록됨':'미등록');select.append(option);
   }
   const input=document.createElement('input');input.type='password';input.maxLength=4096;
-  input.autocomplete='off';input.placeholder='새 Bearer 토큰';input.setAttribute('aria-label','새 Bearer 토큰');
+  input.autocomplete='off';input.placeholder='새 액세스 토큰';input.setAttribute('aria-label','새 액세스 토큰');
   const note=document.createElement('p');note.className='hint';
   select.addEventListener('change',()=>{input.value='';note.textContent='';});
   content.append(select,input,note);
-  const choice=await window.DeckForgeDialogs.show({title:'플러그인 인증정보',intro:plugin.name+' · 선택한 HTTPS 주소에만 사용합니다. 프로필 저장과 별개로 즉시 적용됩니다. 기존 토큰은 표시하지 않습니다.',
+  const choice=await window.DeckForgeDialogs.show({title:'플러그인 인증정보',intro:plugin.name+' · 선택한 HTTPS/WSS 주소에만 사용합니다. 프로필 저장과 별개로 즉시 적용됩니다. 기존 토큰은 표시하지 않습니다.',
     content,ask:true,actionLabel:'암호화 저장',alternateLabel:'등록 해제',onAccept:()=>{
-      if(!/^[A-Za-z0-9._~+/-]+=*$/.test(input.value)||input.value.length>4096){note.textContent='Bearer 토큰 형식을 확인하세요.';return false;}return true;
+      if(!/^[A-Za-z0-9._~+/-]+=*$/.test(input.value)||input.value.length>4096){note.textContent='액세스 토큰 형식을 확인하세요.';return false;}return true;
     }});
   const entry=entries.find(e=>e.binding===select.value);
   let token=choice===true?input.value:null;input.value='';
@@ -3571,7 +3571,7 @@ async function openNativeCredentials(item,plugin){
   finally{token=null;}
 }
 async function openNativeSettings(item,action,plugin){
-  const schema=action?.settingsSchema,credentialCapable=plugin?.permissions?.includes('network.request');
+  const schema=action?.settingsSchema,credentialCapable=plugin?.permissions?.some(p=>['network.request','network.websocket'].includes(p));
   if(!Array.isArray(schema)||!schema.length){
     if(credentialCapable)return openNativeCredentials(item,plugin);
     window.d200xActionStatus?.('이 독자 플러그인에는 편집 가능한 설정이 없습니다.');return;

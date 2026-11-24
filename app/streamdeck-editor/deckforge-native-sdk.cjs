@@ -114,6 +114,9 @@ class NativePluginHost{
     this.dependencyWarnings=new Map();
     this.networkRequest=options.networkRequest||requestEndpoint;this.networkPending=new Set();
     this.socketFactory=options.socketFactory||createSocket;this.socketPending=new Set();
+    this.socketRetryDelays=options.socketRetryDelays||[1000,3000,10000];
+    this.socketHeartbeatMs=options.socketHeartbeatMs??30000;this.socketPongMs=options.socketPongMs??10000;
+    this.socketAuthMs=options.socketAuthMs??5000;
     this.tickTimer=null;this.now=options.now||Date.now;
     this.scheduler=new SdkScheduler();
     this.settingsReceiptTimeout=options.settingsReceiptTimeout??5000;
@@ -134,7 +137,7 @@ class NativePluginHost{
   }
   report(id,error){this.onUpdate({kind:'error',message:'DeckForge SDK '+id+': '+String(error?.message||error).slice(0,300)});}
   async credentialInfo(manifest){
-    const endpoints=(manifest.networkEndpoints||[]).filter(e=>e.auth==='bearer');
+    const endpoints=(manifest.networkEndpoints||[]).filter(e=>e.auth!==undefined);
     return Promise.all(endpoints.map(async e=>{
       const binding=credentialBinding(manifest.id,e);
       const {value,revision}=await this.credentials.read(binding);
@@ -142,7 +145,7 @@ class NativePluginHost{
     }));
   }
   async writeCredential(manifest,binding,revision,token){
-    const endpoint=(manifest.networkEndpoints||[]).find(e=>e.auth==='bearer'&&credentialBinding(manifest.id,e)===binding);
+    const endpoint=(manifest.networkEndpoints||[]).find(e=>e.auth!==undefined&&credentialBinding(manifest.id,e)===binding);
     check(endpoint&&(revision===null||typeof revision==='string'&&/^[a-f0-9]{64}$/.test(revision))&&
       (token===null||validBearer(token)),'invalid credential input or changed endpoint');
     check(!this.credentialChanges.has(binding),'credential update busy');
@@ -370,23 +373,43 @@ class NativePluginHost{
     const token=ctx.networkToken;
     if(token){ctx.networkToken=null;token.controller.abort();}
   }
+  disposeSocketTransport(token){
+    for(const name of ['retryTimer','heartbeatTimer','pongTimer','authTimer']){
+      clearTimeout(token[name]);token[name]=null;
+    }
+    const socket=token.socket;token.socket=null;token.ready=false;
+    try{socket?.terminate();}catch{}
+  }
   cancelSocket(ctx){
     ctx.socketGeneration=(ctx.socketGeneration||0)+1;
     const token=ctx.socketToken;
     if(!token)return;
     ctx.socketToken=null;this.socketPending.delete(token);
-    try{token.socket?.terminate();}catch{}
+    this.disposeSocketTransport(token);
   }
   socketEvent(ctx,token,event,body='',error=null){
     if(!token.active()||ctx.socketGeneration!==token.generation)return false;
-    // Preserve reserved capacity for physical release and lifecycle events.
     if(ctx.pending>=MAX_PENDING_EVENTS-INPUT_RESERVE){this.reportBackpressure(ctx);return false;}
     return this.runScript(ctx,'socketEvent',{endpoint:token.endpoint.id,event,body,error},token.settings,token.generation);
   }
-  finishSocket(ctx,token,event,error=null){
+  finishSocket(ctx,token,event,error=null,retry=false){
     if(ctx.socketToken!==token)return;
+    this.disposeSocketTransport(token);
+    if(retry&&token.endpoint.reconnect===true&&token.active()&&token.attempt<this.socketRetryDelays.length){
+      // Invalidate all previously queued socket events before a new transport.
+      // Reconnect the approved endpoint only, never replay a send or input.
+      token.generation=ctx.socketGeneration=(ctx.socketGeneration||0)+1;
+      const delay=this.socketRetryDelays[token.attempt++];
+      token.retryTimer=setTimeout(()=>{
+        token.retryTimer=null;
+        if(ctx.socketToken===token&&token.active())this.openSocketTransport(ctx,token);
+        else if(ctx.socketToken===token)this.cancelSocket(ctx);
+      },delay);
+      token.retryTimer.unref?.();
+      if(this.socketEvent(ctx,token,'reconnecting','',error))return;
+      this.disposeSocketTransport(token);
+    }
     ctx.socketToken=null;this.socketPending.delete(token);
-    try{token.socket?.terminate();}catch{}
     this.socketEvent(ctx,token,event,'',error);
   }
   socketRate(token,direction){
@@ -399,48 +422,95 @@ class NativePluginHost{
     const endpoint=validateSocketOperation(operation,ctx.networkEndpoints);
     if(ctx.socketToken){this.report(ctx.pluginUUID,Error('WebSocket already active'));return;}
     const generation=ctx.socketGeneration=(ctx.socketGeneration||0)+1;
-    const binding=endpoint.auth==='bearer'?credentialBinding(ctx.pluginUUID,endpoint):null;
-    const token={endpoint,binding,generation,active,settings:JSON.stringify(ctx.settings),plugin:ctx.pluginUUID,socket:null,bearer:null};
+    const binding=endpoint.auth!==undefined?credentialBinding(ctx.pluginUUID,endpoint):null;
+    const token={endpoint,binding,generation,active,settings:JSON.stringify(ctx.settings),plugin:ctx.pluginUUID,
+      query:structuredClone(operation.query),socket:null,bearer:null,attempt:0,ready:false};
     if(this.socketPending.size>=8||[...this.socketPending].filter(t=>t.plugin===ctx.pluginUUID).length>=2){
       this.socketEvent(ctx,token,'error','','capacity');return;
     }
     ctx.socketToken=token;this.socketPending.add(token);
-    const live=()=>active()&&ctx.socketToken===token&&ctx.socketGeneration===generation;
-    const fail=error=>this.finishSocket(ctx,token,'error',error);
+    this.openSocketTransport(ctx,token);
+  }
+  openSocketTransport(ctx,token){
+    const {endpoint,binding,generation}=token;
+    const active=()=>token.active()&&ctx.socketToken===token&&ctx.socketGeneration===generation;
+    const fail=(error,retry=false)=>this.finishSocket(ctx,token,'error',error,retry);
+    token.ready=false;token.bearer=null;token.sendRate=null;token.receiveRate=null;
     Promise.resolve().then(async()=>{
-      if(!live())return;
+      if(!active())return;
       if(binding){
         if(this.credentialChanges.has(binding)){fail('credential-update-busy');return;}
         try{token.bearer=(await this.credentials.read(binding)).value.token;}
         catch{fail('credential-unavailable');return;}
-        if(!live())return;
+        if(!active())return;
         if(!validBearer(token.bearer)){fail('credential-required');return;}
         if(this.credentialChanges.has(binding)){fail('credential-update-busy');return;}
       }
-      if(!live())return;
-      const socket=token.socket=this.socketFactory(resolveNetworkEndpoint(endpoint,operation.query),{bearer:token.bearer});
-      socket.on('error',()=>{if(live())fail('connection-error');});
-      socket.on('close',()=>{if(live())this.finishSocket(ctx,token,'close');});
-      socket.on('open',()=>{if(live()&&!this.socketEvent(ctx,token,'open'))fail('queue-capacity');});
+      if(!active())return;
+      const socket=token.socket=this.socketFactory(resolveNetworkEndpoint(endpoint,token.query),{bearer:token.bearer});
+      const live=()=>active()&&token.socket===socket;
+      const later=(fn,ms)=>{const timer=setTimeout(fn,ms);timer.unref?.();return timer;};
+      const heartbeat=()=>{
+        if(!live()||!token.ready||typeof socket.ping!=='function')return;
+        token.heartbeatTimer=later(()=>{
+          if(!live()||!token.ready)return;
+          token.pongTimer=later(()=>{if(live())fail('heartbeat-timeout',true);},this.socketPongMs);
+          try{socket.ping(undefined,undefined,error=>{if(error&&live())fail('connection-error',true);});}
+          catch{if(live())fail('connection-error',true);}
+        },this.socketHeartbeatMs);
+      };
+      const opened=()=>{
+        clearTimeout(token.authTimer);token.authTimer=null;token.ready=true;
+        if(!this.socketEvent(ctx,token,'open')){fail('queue-capacity');return;}
+        heartbeat();
+      };
+      let authPhase=endpoint.auth==='home-assistant'?'required':null;
+      socket.on('error',error=>{
+        if(live())fail('connection-error',['ECONNRESET','ECONNREFUSED','ETIMEDOUT','EPIPE','EHOSTUNREACH','ENETUNREACH','EAI_AGAIN'].includes(error?.code));
+      });
+      socket.on('close',code=>{if(live())this.finishSocket(ctx,token,'close',null,[1001,1006,1011,1012,1013].includes(code));});
+      socket.on('pong',()=>{
+        if(!live()||!token.pongTimer)return;
+        clearTimeout(token.pongTimer);token.pongTimer=null;heartbeat();
+      });
+      socket.on('open',()=>{
+        if(!live())return;
+        if(authPhase)token.authTimer=later(()=>{if(live()&&!token.ready)fail('authentication-timeout');},this.socketAuthMs);
+        else opened();
+      });
       socket.on('message',(data,binary)=>{
         if(!live())return;
         if(binary||!Buffer.isBuffer(data)||data.length>8192){fail('invalid-message');return;}
         const body=data.toString('utf8');
         if(Buffer.byteLength(JSON.stringify(body))>8192){fail('message-limit');return;}
         if(token.bearer!==null&&body.includes(token.bearer)){fail('credential-in-response');return;}
+        if(authPhase){
+          let message;try{message=JSON.parse(body);}catch{fail('authentication-protocol');return;}
+          if(message?.type==='auth_invalid'){fail('authentication-rejected');return;}
+          if(authPhase==='required'&&message?.type==='auth_required'){
+            authPhase='waiting';
+            try{socket.send(JSON.stringify({type:'auth',access_token:token.bearer}),error=>{if(error&&live())fail('connection-error');});}
+            catch{if(live())fail('connection-error');}
+            return;
+          }
+          if(authPhase==='waiting'&&message?.type==='auth_ok'){authPhase=null;opened();return;}
+          fail('authentication-protocol');return;
+        }
+        if(!token.ready){fail('invalid-message');return;}
         if(!this.socketRate(token,'receive')){fail('rate-limit');return;}
         if(!this.socketEvent(ctx,token,'message',body))fail('queue-capacity');
       });
-    }).catch(()=>{if(live())fail('connection-error');});
+    }).catch(()=>{if(active())fail('connection-error');});
   }
   sendSocket(ctx,operation){
     const token=ctx.socketToken;
-    if(!token||!token.active()||token.socket?.readyState!==1){this.report(ctx.pluginUUID,Error('WebSocket not open'));return;}
-    const fail=error=>this.finishSocket(ctx,token,'error',error);
+    if(!token||!token.active()||!token.ready||token.socket?.readyState!==1){this.report(ctx.pluginUUID,Error('WebSocket not open'));return;}
+    const socket=token.socket,generation=token.generation;
+    const fail=error=>{if(ctx.socketToken===token&&token.socket===socket&&token.generation===generation)this.finishSocket(ctx,token,'error',error);};
     if(!this.socketRate(token,'send')){fail('rate-limit');return;}
     const data=typeof operation.value==='string'?operation.value:JSON.stringify(operation.value);
-    if(token.socket.bufferedAmount+Buffer.byteLength(data)>32768){fail('send-capacity');return;}
-    try{token.socket.send(data,error=>{if(error)fail('connection-error');});}
+    if(socket.bufferedAmount+Buffer.byteLength(data)>32768){fail('send-capacity');return;}
+    try{socket.send(data,error=>{if(error)fail('connection-error');});}
     catch{fail('connection-error');}
   }
   closeSocket(ctx){

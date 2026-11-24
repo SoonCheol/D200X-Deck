@@ -197,7 +197,7 @@ ipcMain.handle('d200x:sdk-install',async event=>{
           detail:'ID: '+native.id+'\n버전: '+versions+'\n'+extra.map(p=>'• '+labels[p]).join('\n')+'\n'+
             (conversion?'Ulanzi 변환 원본: '+conversion.originalId+'\n검토 기록 해시: '+conversion.reviewSha256+'\n검토 기록은 전자서명 또는 실기 인증서가 아닙니다.\n':'')+
             (dependencies.length?'필요 플러그인: '+dependencies.join(', ')+'\n':'')+
-            (native.networkEndpoints?.length?'허용할 네트워크 요청:\n'+native.networkEndpoints.map(e=>e.method+' '+e.url+(e.pathKeys?e.pathKeys.map(k=>'{'+k+'}').join('/'):'')+(e.queryKeys?' · 쿼리: '+e.queryKeys.join(', '):'')+(e.headerKeys?' · 헤더: '+e.headerKeys.join(', '):'')+(e.auth==='bearer'?' · Bearer 인증':'')).join('\n')+'\n':'')+
+            (native.networkEndpoints?.length?'허용할 네트워크 요청:\n'+native.networkEndpoints.map(e=>e.method+' '+e.url+(e.pathKeys?e.pathKeys.map(k=>'{'+k+'}').join('/'):'')+(e.queryKeys?' · 쿼리: '+e.queryKeys.join(', '):'')+(e.headerKeys?' · 헤더: '+e.headerKeys.join(', '):'')+(e.auth==='bearer'?' · Bearer 인증':e.auth==='home-assistant'?' · Home Assistant 메시지 인증':'')+(e.reconnect?' · 제한 자동 재연결':'')).join('\n')+'\n':'')+
             (plan.kind==='install'?'':'이전 코드 보존 · 설정과 프로필은 그대로 유지됩니다.\n')+'신뢰하는 플러그인만 설치하세요.',
           buttons:['취소',verb],defaultId:0,cancelId:0,noLink:true
         });

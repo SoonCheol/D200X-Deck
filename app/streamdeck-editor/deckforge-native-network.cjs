@@ -1,6 +1,6 @@
 'use strict';
 // User-approved HTTPS/WSS endpoints with bounded path/query/header parameters. No renderer socket, unapproved headers,
-// redirect, automatic retry, script-visible credentials, or TLS verification bypass.
+// redirect, script-visible credentials, or TLS verification bypass. WSS retry is opt-in and host-owned.
 const https=require('node:https');
 const {createHash}=require('node:crypto');
 const {validateValue}=require('./deckforge-native-settings.cjs');
@@ -21,8 +21,9 @@ function validateNetworkEndpoints(endpoints,permissions){
   check((http||socket)&&Array.isArray(endpoints)&&endpoints.length>0&&endpoints.length<=8,'invalid endpoint list or permission');
   const ids=new Set();
   for(const e of endpoints){
-    check(obj(e)&&Object.keys(e).every(k=>['id','url','method','auth','queryKeys','pathKeys','headerKeys'].includes(k))&&
-      (e.auth===undefined||e.auth==='bearer')&&key(e.id)&&!ids.has(e.id)&&(e.method==='WSS'?socket:http&&['GET','POST','PUT','PATCH','DELETE'].includes(e.method)),'invalid endpoint identity or method');
+    check(obj(e)&&Object.keys(e).every(k=>['id','url','method','auth','queryKeys','pathKeys','headerKeys','reconnect'].includes(k))&&
+      (e.auth===undefined||e.auth==='bearer'||(e.method==='WSS'&&e.auth==='home-assistant'))&&key(e.id)&&!ids.has(e.id)&&(e.method==='WSS'?socket:http&&['GET','POST','PUT','PATCH','DELETE'].includes(e.method)),'invalid endpoint identity or method');
+    if(e.reconnect!==undefined)check(e.method==='WSS'&&typeof e.reconnect==='boolean','invalid WSS reconnect policy');
     if(e.queryKeys!==undefined)check(keyList(e.queryKeys,8,key),'invalid approved query keys');
     if(e.pathKeys!==undefined)check(e.method!=='WSS'&&keyList(e.pathKeys,4,key),'invalid approved path keys');
     if(e.headerKeys!==undefined)check(e.method!=='WSS'&&keyList(e.headerKeys,8,headerKey),'invalid approved header keys');
@@ -92,15 +93,15 @@ function validateSocketOperation(op,endpoints){
 }
 function createSocket(endpoint,{bearer=null,WebSocket=require('ws')}={}){
   check(endpoint.method==='WSS'&&new URL(endpoint.url).protocol==='wss:','invalid socket endpoint');
-  check(endpoint.auth==='bearer'?validBearer(bearer):bearer===null,'credential required or not approved');
+  check(endpoint.auth!==undefined?validBearer(bearer):bearer===null,'credential required or not approved');
   return new WebSocket(endpoint.url,{
-    headers:bearer===null?{}:{authorization:'Bearer '+bearer},
+    headers:endpoint.auth==='bearer'?{authorization:'Bearer '+bearer}:{},
     handshakeTimeout:DEADLINE,followRedirects:false,maxPayload:MAX_RESPONSE,
     perMessageDeflate:false,rejectUnauthorized:true,minVersion:'TLSv1.2'
   });
 }
 function credentialBinding(pluginId,endpoint){
-  check(endpoint?.auth==='bearer','credential endpoint required');
+  check(endpoint?.auth==='bearer'||(endpoint?.method==='WSS'&&endpoint.auth==='home-assistant'),'credential endpoint required');
   return 'com.deckforge.native.credential-'+createHash('sha256').update(JSON.stringify([pluginId,endpoint.id,endpoint.method,endpoint.url,endpoint.auth,...(endpoint.queryKeys?[['queryKeys',...endpoint.queryKeys.slice().sort()]]:[]),...(endpoint.pathKeys?[['pathKeys',...endpoint.pathKeys]]:[]),...(endpoint.headerKeys?[['headerKeys',...endpoint.headerKeys.slice().sort()]]:[])])).digest('hex');
 }
 function validBearer(token){return typeof token==='string'&&token.length>=1&&token.length<=4096&&/^[A-Za-z0-9._~+/-]+=*$/.test(token);}

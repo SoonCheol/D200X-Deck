@@ -635,6 +635,73 @@ test('native WebSocket lifecycle sends and receives, isolates stale context and 
  }finally{host.close();}
 });
 
+test('native HA socket auth stays in host, reconnects without replay and cancels retry on retirement',async()=>{
+ const {EventEmitter}=require('node:events');
+ const {validateNetworkEndpoints,credentialBinding,createSocket}=require('../app/streamdeck-editor/deckforge-native-network.cjs');
+ const endpoint={id:'live',url:'wss://example.com/api/websocket',method:'WSS',auth:'home-assistant',reconnect:true};
+ const manifest={...scriptManifest,permissions:['display','network.websocket'],networkEndpoints:[endpoint]};
+ validateNetworkEndpoints([endpoint],manifest.permissions);
+ assert.throws(()=>validateNetworkEndpoints([{...endpoint,method:'GET',url:'https://example.com/'}],['display','network.request']),/method/);
+ assert.throws(()=>validateNetworkEndpoints([{...endpoint,reconnect:1}],manifest.permissions),/reconnect/);
+ const secret='example.token-123';
+ class HeaderCheck{constructor(url,opts){assert.equal(url,endpoint.url);assert.deepEqual(opts.headers,{});}}
+ createSocket(endpoint,{bearer:secret,WebSocket:HeaderCheck});
+ const sockets=[],inputs=[],updates=[];
+ class Mock extends EventEmitter{
+   constructor(){super();this.readyState=0;this.bufferedAmount=0;this.sent=[];}
+   open(){this.readyState=1;this.emit('open');}
+   message(value){this.emit('message',Buffer.from(JSON.stringify(value)),false);}
+   send(data,cb){this.sent.push(JSON.parse(data));cb?.();}
+   terminate(){this.readyState=3;this.emit('close',1006);}
+ }
+ const host=new NativePluginHost('/unused',e=>updates.push(e),()=>({async run(_src,input){
+   inputs.push(input);
+   if(input.event.type==='appear')return {ops:[{op:'socketConnect',endpoint:'live'}],memory:{}};
+   if(input.event.response?.event==='open')return {ops:[{op:'socketSend',value:{id:1,type:'subscribe_events'}}],memory:{}};
+   if(input.event.response?.event==='message')return {ops:[{op:'title',value:'received'}],memory:{}};
+   return {ops:[],memory:{}};
+ },close(){}}),{credentials:{async read(binding){assert.equal(binding,credentialBinding(nativeId,endpoint));return {value:{token:secret},revision:null};}},
+   socketFactory:(_e,opts)=>{assert.equal(opts.bearer,secret);const s=new Mock();sockets.push(s);return s;},socketRetryDelays:[5,10]});
+ const cfg={context:'ha',slot:0,pluginUUID:nativeId,actionUUID:nativeId+'.toggle',settings:{}};
+ const wait=ms=>new Promise(resolve=>setTimeout(resolve,ms));
+ const drain=async()=>{await new Promise(resolve=>setImmediate(resolve));await host.contexts.get(cfg.context)?.queue;};
+ try{
+   host.sync([cfg],[manifest]);await drain();
+   const a=sockets[0];a.open();await drain();assert.equal(a.sent.length,0);
+   a.message({type:'auth_required'});assert.deepEqual(a.sent,[{type:'auth',access_token:secret}]);
+   assert.equal(inputs.some(i=>i.event.response?.event==='open'),false);
+   a.message({type:'auth_ok'});await drain();assert.deepEqual(a.sent[1],{id:1,type:'subscribe_events'});
+   assert.equal(JSON.stringify(inputs).includes(secret),false);
+   a.message({type:'event',id:1});await drain();assert.ok(updates.some(e=>e.payload?.title==='received'));
+   a.emit('close',1006);await wait(25);await drain();assert.equal(sockets.length,2);
+   const b=sockets[1];assert.deepEqual(b.sent,[]);b.open();b.message({type:'auth_required'});b.message({type:'auth_ok'});await drain();
+   assert.deepEqual(b.sent,[{type:'auth',access_token:secret},{id:1,type:'subscribe_events'}]);
+   b.emit('close',1006);host.sync([],[manifest]);await wait(25);assert.equal(sockets.length,2);assert.equal(host.socketPending.size,0);
+   host.sync([cfg],[manifest]);await drain();const bad=sockets[2];bad.open();bad.message({type:'auth_required'});bad.message({type:'auth_invalid',message:secret});await drain();
+   await wait(25);assert.equal(sockets.length,3);assert.equal(host.socketPending.size,0);
+   assert.equal(JSON.stringify(inputs).includes(secret),false);assert.equal(JSON.stringify(updates).includes(secret),false);
+ }finally{host.close();}
+});
+test('native WSS heartbeat timeout closes transport without unbounded retries',async()=>{
+ const {EventEmitter}=require('node:events');
+ const ep={id:'live',url:'wss://example.com/events',method:'WSS'};
+ const manifest={...scriptManifest,permissions:['display','network.websocket'],networkEndpoints:[ep]};
+ const sockets=[];
+ class Mock extends EventEmitter{
+   constructor(){super();this.readyState=1;this.bufferedAmount=0;this.pings=0;}
+   ping(){this.pings++;}
+   terminate(){this.readyState=3;}
+ }
+ const host=new NativePluginHost('/unused',()=>{},()=>({async run(_s,input){return {ops:input.event.type==='appear'?[{op:'socketConnect',endpoint:'live'}]:[],memory:{}};},close(){}}),
+  {socketFactory:()=>{const s=new Mock();sockets.push(s);return s;},socketHeartbeatMs:5,socketPongMs:5});
+ const cfg={context:'heartbeat',slot:0,pluginUUID:nativeId,actionUUID:nativeId+'.toggle',settings:{}};
+ try{
+   host.sync([cfg],[manifest]);await host.contexts.get(cfg.context).queue;await new Promise(r=>setImmediate(r));
+   sockets[0].emit('open');await new Promise(r=>setTimeout(r,30));
+   assert.equal(sockets[0].pings,1);assert.equal(sockets[0].readyState,3);assert.equal(host.socketPending.size,0);assert.equal(sockets.length,1);
+ }finally{host.close();}
+});
+
 test('native HTTPS broker bounds response, denies redirects, times out and uses verified TLS',async()=>{
  const {EventEmitter}=require('node:events');
  const {requestEndpoint}=require('../app/streamdeck-editor/deckforge-native-network.cjs');
