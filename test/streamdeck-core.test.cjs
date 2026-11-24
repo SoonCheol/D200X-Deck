@@ -2103,3 +2103,15 @@ test('HA single sensor migration retains original state entries and selected sen
  migrated.settings.keyBackgrounds.default={enabled:true,color:'#ffffff'};migrated.title='New';
  const reloaded=core.cleanAction(migrated);assert.equal(reloaded.title,'New');assert.equal(reloaded.settings.keyBackgrounds.default.color,'#ffffff');
 });
+
+test('native settings requests cannot cross slot or gesture even with matching action identity',()=>{
+ const state=core.migrateState(null),item=state.pages[0][0]=core.createAction('sd-plugin');
+ item.settings.pluginUUID='com.deckforge.native.test';item.settings.actionUUID='com.deckforge.native.test.key';
+ const cfg=core.createSdkMountTracker().reconcile('page',core.sdkMountDescriptors(state))[0];
+ const id='00000000-0000-4000-8000-000000000001';
+ const request={...cfg,kind:'nativeSettingsCommit',requestId:id,receiptId:id,expectedRevision:cfg.configRevision,
+  expectedSettings:cfg.settings,expiresAt:100,operation:{op:'settings',value:{x:1}}};
+ assert.equal(core.nativeSettingsCommitMatches(cfg,request,99),true);
+ assert.equal(core.nativeSettingsCommitMatches(cfg,{...request,slot:1},99),false);
+ assert.equal(core.nativeSettingsCommitMatches(cfg,{...request,gesture:'left'},99),false);
+});

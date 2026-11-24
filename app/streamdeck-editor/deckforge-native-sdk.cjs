@@ -960,7 +960,7 @@ class NativePluginHost{
 }
 // Compatibility host stays unchanged; only validated native IDs are routed here.
 class PluginRouter{
-  constructor(legacy,native){this.legacy=legacy;this.native=native;this.queue=Promise.resolve();this.closed=false;this.nativeContextIds=new Set();this.desiredContexts=null;this.syncRevision=0;}
+  constructor(legacy,native){this.legacy=legacy;this.native=native;this.queue=Promise.resolve();this.closed=false;this.nativeContextIds=new Set();this.desiredContexts=null;this.desiredMounts=null;this.syncRevision=0;}
   serial(fn){const task=this.queue.then(()=>{if(this.closed)throw Error('Plugin host closed');return fn();});this.queue=task.catch(()=>{});return task;}
   async catalog(){
     const legacy=await this.legacy.list(),ids=new Set(legacy.map(x=>x.uuid.toLowerCase()));
@@ -1051,6 +1051,8 @@ class PluginRouter{
     // Invalidate removed mounts immediately, before slower catalogue/legacy work.
     const revision=++this.syncRevision;
     this.desiredContexts=new Set(configs.map(c=>c?.context));
+    // Snapshot the newest intent synchronously, before catalogue I/O.
+    this.desiredMounts=new Map(configs.map(c=>[c?.context,structuredClone(c)]));
     for(const [id,ctx] of this.native.contexts)if(!ctx.service&&!this.desiredContexts.has(id)){
       this.native.contexts.delete(id);this.native.retire(ctx);
     }
@@ -1066,7 +1068,24 @@ class PluginRouter{
     // Remove stale legacy contexts before publishing a new native context.
     try{await this.legacy.sync(other);}finally{if(!this.closed&&revision===this.syncRevision)this.native.sync(local,native);}
   });}
-  pendingSettingsRequest(context,id){return this.closed||this.desiredContexts&&!this.desiredContexts.has(context)?null:this.native.pendingSettingsRequest(context,id);}
+  pendingSettingsRequest(context,id){
+    if(this.closed||this.desiredContexts&&!this.desiredContexts.has(context))return null;
+    const request=this.native.pendingSettingsRequest(context,id);
+    if(!request)return null;
+    const desired=this.desiredMounts?.get(context);
+    if(desired){
+      if(desired.instanceId!==request.instanceId||desired.mountGeneration!==request.mountGeneration||
+        desired.slot!==request.slot||desired.gesture!==request.gesture||desired.pluginUUID!==request.pluginUUID||
+        desired.actionUUID!==request.actionUUID)return null;
+      // A newer committed revision invalidates the pending write even while
+      // native.sync is queued. An older snapshot may precede a confirmed
+      // self-write, so it must not invalidate the current host revision.
+      if(Number.isSafeInteger(desired.configRevision)&&Number.isSafeInteger(request.expectedRevision)&&
+        (desired.configRevision>request.expectedRevision||
+         desired.configRevision===request.expectedRevision&&JSON.stringify(desired.settings||{})!==JSON.stringify(request.expectedSettings)))return null;
+    }
+    return request;
+  }
   acknowledgeSettings(context,id,accepted){return this.serial(()=>this.native.acknowledgeSettings(context,id,accepted));}
   key(context,gesture,ticks){if(this.closed||(this.desiredContexts&&!this.desiredContexts.has(context)))return false;return this.nativeContextIds.has(context)||this.native.contexts.has(context)?this.native.key(context,gesture,ticks):this.legacy.key(context,gesture,ticks);}
   inspector(context){if(this.closed||(this.desiredContexts&&!this.desiredContexts.has(context)))return false;return this.nativeContextIds.has(context)||this.native.contexts.has(context)?false:this.legacy.inspector(context);}

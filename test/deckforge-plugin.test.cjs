@@ -2367,3 +2367,59 @@ test('settingsResult is opt-in, bounded, non-privileged, and never replays an un
   assert.equal(results.length,3,'legacy manifests do not receive result events');
  }finally{host.close();}
 });
+
+test('router blocks a pending settings write immediately when a newer mount revision is queued',async()=>{
+ const Core=require('../app/streamdeck-editor/deck-core.js');
+ const state=Core.migrateState(null),item=state.pages[0][0]=Core.createAction('sd-plugin');
+ item.settings.pluginUUID=nativeId;item.settings.actionUUID=nativeId+'.toggle';item.settings.pluginSettings={count:0};
+ const tracker=Core.createSdkMountTracker(),read=()=>tracker.reconcile('page',Core.sdkMountDescriptors(state));
+ const cfg=read()[0],m={...scriptManifest,permissions:['display','settings.write']};
+ let release,entered,calls=0;
+ const gate=new Promise(r=>release=r),started=new Promise(r=>entered=r);
+ const requests=[];
+ const native=new NativePluginHost('/unused',e=>{if(e.kind==='nativeSettingsCommit')requests.push(e);},()=>({
+  async run(_source,input){return {ops:input.event.type==='press'?[{op:'settingsPatch',value:{count:input.settings.count+1}}]:[],memory:{}};},close(){}
+ }),{settingsReceiptTimeout:2000});
+ native.manifests=async()=>[m];native.loadServicePolicy=async()=>{};
+ const legacy={list:async()=>{if(++calls===2){entered();await gate;}return [];},sync:async()=>{},close:async()=>{}};
+ const router=new PluginRouter(legacy,native);
+ try{
+  await router.sync([cfg]);const ctx=native.contexts.get(cfg.context);await ctx.queue;
+  assert.equal(router.key(cfg.context,'down'),true);
+  for(let i=0;i<100&&!requests.length;i++)await new Promise(r=>setImmediate(r));
+  assert.equal(requests.length,1);
+  const request=requests[0];
+  assert.equal(router.pendingSettingsRequest(cfg.context,request.requestId).requestId,request.requestId);
+  item.settings.pluginSettings={count:8};read();
+  item.settings.pluginSettings={count:0};const aba=read()[0];
+  assert.equal(aba.configRevision,cfg.configRevision+2);
+  const sync=router.sync([aba]);await started;
+  assert.equal(router.pendingSettingsRequest(cfg.context,request.requestId),null);
+  release();await sync;await ctx.queue;
+  assert.equal(native.acknowledgeSettings(cfg.context,request.requestId,true),false);
+  assert.equal(ctx.settings.count,0);assert.equal(requests.length,1);
+  // Same physical slot, new identity: the old request must remain revoked.
+  state.pages[0][0]=Core.cloneActionInstances(item);
+  const clone=read()[0];assert.notEqual(clone.instanceId,cfg.instanceId);
+  const moved=router.sync([clone]);
+  assert.equal(router.pendingSettingsRequest(cfg.context,request.requestId),null);
+  await moved;
+  assert.equal(native.contexts.has(cfg.context),false);
+ }finally{release();await router.close();}
+});
+test('compound settings and global/network effects never publish a partial write or display',async()=>{
+ const manifest={...scriptManifest,permissions:['display','settings.write','global.settings']};
+ const cfg={context:'compound-test',slot:0,gesture:'down',pluginUUID:nativeId,actionUUID:nativeId+'.toggle',settings:{count:0}};
+ const events=[];
+ const host=new NativePluginHost('/unused',e=>events.push(e),()=>({
+  async run(_source,input){return {ops:input.event.type==='press'?[{op:'title',value:'partial'},{op:'settingsPatch',value:{count:1}},{op:'globalSettings',value:{count:2}}]:[],memory:{}};},close(){}
+ }));
+ let vaultWrites=0;host.vault={read:async()=>({value:{},revision:null}),write:async()=>{vaultWrites++;return true;}};
+ try{
+  host.sync([cfg],[manifest]);const ctx=host.contexts.get(cfg.context);await ctx.queue;
+  assert.equal(host.key(cfg.context,'down'),true);await ctx.queue;
+  assert.equal(vaultWrites,0);assert.equal(ctx.settings.count,0);
+  assert.ok(!events.some(e=>e.kind==='nativeSettingsCommit'||e.payload?.title==='partial'));
+  assert.equal(ctx.failed,true);
+ }finally{host.close();}
+});

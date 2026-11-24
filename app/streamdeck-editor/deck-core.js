@@ -282,6 +282,7 @@
       Number.isFinite(message.expiresAt)&&now<=message.expiresAt&&
       instance.context===message.context&&instance.instanceId===message.instanceId&&
       instance.mountGeneration===message.mountGeneration&&instance.configRevision===message.expectedRevision&&
+      instance.slot===message.slot&&instance.gesture===message.gesture&&
       instance.pluginUUID===message.pluginUUID&&instance.actionUUID===message.actionUUID&&
       JSON.stringify(instance.settings)===JSON.stringify(message.expectedSettings);
   }

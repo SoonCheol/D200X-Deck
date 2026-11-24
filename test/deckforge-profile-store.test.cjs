@@ -153,3 +153,22 @@ test('abrupt child exit before and after profile replacement preserves atomic se
   }
  });
 });
+
+test('pending save cannot target moved action, copied action, or a duplicate profile',()=>{
+ const Core=require('../app/streamdeck-editor/deck-core.js');
+ fixture(store=>{
+  const request=nativeFixture(store),state=store.read();
+  const original=state.pages[0][0];
+  state.pages[0][2]=original;state.pages[0][0]=Core.cloneActionInstances(original);
+  store.write(state);
+  assert.equal(store.commitNativeSettings(request).status,'rejected');
+  assert.equal(store.read().pages[0][2].settings.pluginSettings.count,0);
+  assert.equal(store.read().pages[0][0].settings.pluginSettings.count,0);
+  const copied=Core.createProfile(state,'Copy',true);
+  assert.ok(copied);assert.ok(Core.switchProfile(state,copied));
+  store.write(state);
+  assert.equal(store.commitNativeSettings(request).status,'rejected');
+  assert.equal(store.nativeReceipt(request.context,request.requestId),null);
+  assert.equal(store.read().pages[0][0].settings.pluginSettings.count,0);
+ });
+});
