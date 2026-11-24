@@ -1147,3 +1147,33 @@ test('API 2 settings generation cancels stale queued and in-flight effects even 
    assert.equal(host.key('generation','up'),false);
  }finally{host.close();}
 });
+
+test('API 2 rotation bursts use bounded atomic admission instead of killing the action',async()=>{
+ const events=[],calls=[];let release;
+ const host=new NativePluginHost('/unused',e=>events.push(e),()=>({
+  async run(_source,input){
+   calls.push(input.event.type);
+   if(input.event.type==='heldRotateRight'&&!release)await new Promise(resolve=>{release=resolve;});
+   return {ops:[],memory:{}};
+  },close(){}
+ }));
+ const manifest={...scriptManifest,actions:[{...scriptManifest.actions[0],controllers:['Encoder']}]};
+ const cfg={context:'burst',slot:16,pluginUUID:nativeId,actionUUID:manifest.actions[0].id,settings:{}};
+ try{
+   host.sync([cfg],[manifest]);const ctx=host.contexts.get('burst');await ctx.queue;
+   assert.equal(host.key('burst','down'),true);
+   assert.equal(host.key('burst','right',32),true);
+   await new Promise(resolve=>setImmediate(resolve));
+   assert.equal(typeof release,'function');
+   const before=ctx.pending;
+   assert.equal(host.key('burst','right',32),false);
+   assert.equal(ctx.pending,before);assert.equal(ctx.failed,false);
+   assert.equal(host.key('burst','up'),true);
+   release();await ctx.queue;
+   assert.equal(calls.filter(x=>x==='heldRotateRight').length,32);
+   assert.equal(calls.at(-1),'release');assert.equal(ctx.pending,0);assert.equal(ctx.failed,false);
+   assert.equal(events.filter(e=>e.kind==='error'&&e.message.includes('queue busy')).length,1);
+   assert.equal(host.key('burst','right',2),true);await ctx.queue;
+   assert.equal(calls.filter(x=>x==='rotateRight').length,2);
+ }finally{host.close();}
+});

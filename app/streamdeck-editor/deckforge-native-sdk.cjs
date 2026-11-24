@@ -15,6 +15,7 @@ const ID=/^com\.deckforge\.native\.[a-z0-9][a-z0-9.-]{0,110}$/;
 const EVENTS=new Set(['appear','disappear','settings','press','release','rotateLeft','rotateRight','heldRotateLeft','heldRotateRight']);
 const OPS=new Set(['title','titleFromSetting','state','toggleState','image']);
 const EXTRA_PERMISSIONS=['settings.write','navigation','wide.mode','global.settings','wide.overlay','network.request','timer.tick','network.poll'];
+const MAX_PENDING_EVENTS=64,INPUT_RESERVE=4;
 const INPUT_EVENTS=new Set(['press','release','rotateLeft','rotateRight','heldRotateLeft','heldRotateRight']);
 const obj=x=>x!==null&&typeof x==='object'&&!Array.isArray(x);
 const validText=(x,n)=>typeof x==='string'&&x.length>0&&x.length<=n;
@@ -337,8 +338,19 @@ class NativePluginHost{
     }
     this.reconcileTickTimer();
   }
+  reportBackpressure(ctx){
+    const now=this.now();
+    if(ctx.lastBackpressureAt===undefined||now-ctx.lastBackpressureAt>=1000){
+      ctx.lastBackpressureAt=now;
+      this.report(ctx.pluginUUID,Error('input queue busy; event not accepted'));
+    }
+  }
   runScript(ctx,event,response=null,expectedSettings=null){
-    if(ctx.pending>=16){this.fail(ctx,Error('JavaScript SDK event queue limit'));return false;}
+    // Saturation is backpressure, not a plugin failure. Keep admitted work
+    // ordered and leave the renderer and context alive.
+    if(ctx.pending>=MAX_PENDING_EVENTS){
+      this.reportBackpressure(ctx);return false;
+    }
     const epoch=ctx.epoch||0,revision=ctx.settingsRevision||0;
     // Every dispatch is tied to the settings generation at acceptance.
     // A changed setting invalidates old queued work, including ABA changes
@@ -459,9 +471,19 @@ class NativePluginHost{
   key(context,gesture,ticks=1){
     const ctx=this.contexts.get(context);
     if(!ctx||this.closed||this.suspended||ctx.failed)return false;
-    if(gesture==='down'){if(ctx.pressed)return false;ctx.pressed=true;return this.run(ctx,'press');}
+    if(gesture==='down'){
+      if(ctx.pressed)return false;
+      if(ctx.apiVersion===2&&ctx.pending>=MAX_PENDING_EVENTS-INPUT_RESERVE){this.reportBackpressure(ctx);return false;}
+      ctx.pressed=true;
+      const accepted=this.run(ctx,'press');
+      if(!accepted)ctx.pressed=false;
+      return accepted;
+    }
     if(gesture==='up'){if(!ctx.pressed)return false;ctx.pressed=false;return this.run(ctx,'release');}
     if(ctx.slot<16||!['left','right','hold-left','hold-right'].includes(gesture)||!Number.isInteger(ticks)||ticks<1||ticks>32)return false;
+    // Accept an entire hardware rotation packet or none of it. Reserve
+    // queue capacity for release and lifecycle/settings events.
+    if(ctx.apiVersion===2&&ctx.pending+ticks>MAX_PENDING_EVENTS-INPUT_RESERVE){this.reportBackpressure(ctx);return false;}
     const event=(gesture.startsWith('hold-')||ctx.gesture==='hold-left'||ctx.gesture==='hold-right'||ctx.pressed?'heldRotate':'rotate')+(gesture.endsWith('left')?'Left':'Right');
     for(let i=0;i<ticks;i++)if(!this.run(ctx,event))return false;
     return true;
