@@ -1177,3 +1177,42 @@ test('API 2 rotation bursts use bounded atomic admission instead of killing the 
    assert.equal(calls.filter(x=>x==='rotateRight').length,2);
  }finally{host.close();}
 });
+
+test('SDK global scheduler limits one plugin, admits another and cancels obsolete waiting work',async()=>{
+ const {SdkScheduler}=require('../app/streamdeck-editor/deckforge-sdk-scheduler.cjs');
+ const scheduler=new SdkScheduler({globalLimit:3,pluginLimit:2});
+ const calls=[],release=[];
+ const gate=id=>()=>new Promise(resolve=>{calls.push(id);release.push(()=>resolve(id));});
+ let active=true;
+ const a=scheduler.run('A',()=>true,gate('a1')),b=scheduler.run('A',()=>true,gate('a2'));
+ const stale=scheduler.run('A',()=>active,gate('a3')),other=scheduler.run('B',()=>true,gate('b1'));
+ await new Promise(resolve=>setImmediate(resolve));
+ assert.deepEqual(calls,['a1','a2','b1']);assert.equal(scheduler.running,3);
+ active=false;scheduler.prune();assert.equal(await stale,undefined);
+ release.splice(0).forEach(fn=>fn());assert.deepEqual(await Promise.all([a,b,other]),['a1','a2','b1']);
+ await new Promise(resolve=>setImmediate(resolve));
+ assert.equal(scheduler.running,0);assert.equal(scheduler.byPlugin.size,0);
+ await assert.rejects(scheduler.run('A',()=>true,()=>{throw Error('failure');}),/failure/);
+ assert.equal(await scheduler.run('B',()=>true,()=>42),42);
+ scheduler.close();assert.equal(await scheduler.run('B',()=>true,()=>{throw Error('closed');}),undefined);
+});
+test('native renderer scheduling prevents one plugin from blocking an unrelated plugin',async()=>{
+ const calls=[],release=[];
+ const host=new NativePluginHost('/unused',()=>{},id=>({async run(_source,input){
+  calls.push([id,input.settings.label]);
+  if(id===nativeId)return new Promise(resolve=>release.push(()=>resolve({ops:[],memory:{}})));
+  return {ops:[],memory:{}};
+ },close(){}}));
+ const otherId=nativeId+'-other',other={...scriptManifest,id:otherId,actions:[{...scriptManifest.actions[0],id:otherId+'.toggle'}]};
+ const cfg=(context,id)=>({context,slot:0,pluginUUID:id,actionUUID:id+'.toggle',settings:{label:context}});
+ try{
+  host.sync([cfg('a1',nativeId),cfg('a2',nativeId),cfg('a3',nativeId),cfg('b1',otherId)],[scriptManifest,other]);
+  await host.contexts.get('b1').queue;
+  assert.deepEqual(calls.map(x=>x[1]),['a1','a2','b1']);
+  const stale=host.contexts.get('a3').queue;
+  host.sync([cfg('a1',nativeId),cfg('a2',nativeId),cfg('b1',otherId)],[scriptManifest,other]);
+  await stale;release.forEach(fn=>fn());
+  await Promise.all([host.contexts.get('a1').queue,host.contexts.get('a2').queue]);
+  assert.equal(calls.some(x=>x[1]==='a3'),false);
+ }finally{release.forEach(fn=>fn());host.close();}
+});

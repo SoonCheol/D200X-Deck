@@ -3,6 +3,7 @@
 const fs=require('node:fs/promises');
 const path=require('node:path');
 const {randomUUID}=require('node:crypto');
+const {SdkScheduler}=require('./deckforge-sdk-scheduler.cjs');
 const {NativeSettingsVault,validateValue}=require('./deckforge-native-settings.cjs');
 const {NativeVersionStore,assertAppRequirement}=require('./deckforge-native-versions.cjs');
 const {validateDependencies,resolveDependencies,assertDependencyChange}=require('./deckforge-native-dependencies.cjs');
@@ -109,6 +110,7 @@ class NativePluginHost{
     this.dependencyWarnings=new Map();
     this.networkRequest=options.networkRequest||requestEndpoint;this.networkPending=new Set();
     this.tickTimer=null;this.now=options.now||Date.now;
+    this.scheduler=new SdkScheduler();
   }
   async manifests(){
     await fs.mkdir(this.root,{recursive:true});const items=[];
@@ -256,6 +258,7 @@ class NativePluginHost{
     ctx.epoch=(ctx.epoch||0)+1;
     try{ctx.runner?.close();}catch{}
     ctx.runner=null;ctx.pending=0;ctx.queue=Promise.resolve();
+    this.scheduler.prune();
   }
   fail(ctx,error){
     ctx.failed=true;ctx.pressed=false;this.resetScript(ctx);
@@ -366,10 +369,12 @@ class NativePluginHost{
           await this.vault.read(ctx.pluginUUID):{value:{},revision:null};
         if(!active())return;
         const settingsSnapshot=structuredClone(ctx.settings);
-        if(!ctx.runner)ctx.runner=this.runnerFactory(ctx.pluginUUID);
-        const result=await ctx.runner.run(ctx.action.script,{
-          event:{type:event,slot:ctx.slot,gesture:ctx.gesture||'down',...(response?{response}:{})},
-          settings:ctx.action.settingsSchema?nativeEffectiveSettings(ctx.action.settingsSchema,settingsSnapshot):structuredClone(settingsSnapshot),state:ctx.state,memory:structuredClone(ctx.memory),globalSettings:structuredClone(global.value)
+        const result=await this.scheduler.run(ctx.pluginUUID,active,()=>{
+          if(!ctx.runner)ctx.runner=this.runnerFactory(ctx.pluginUUID);
+          return ctx.runner.run(ctx.action.script,{
+            event:{type:event,slot:ctx.slot,gesture:ctx.gesture||'down',...(response?{response}:{})},
+            settings:ctx.action.settingsSchema?nativeEffectiveSettings(ctx.action.settingsSchema,settingsSnapshot):structuredClone(settingsSnapshot),state:ctx.state,memory:structuredClone(ctx.memory),globalSettings:structuredClone(global.value)
+          });
         });
         if(!active())return;
         check(exact(result,['ops','memory'])&&obj(result.memory)&&
@@ -408,8 +413,8 @@ class NativePluginHost{
     if(runner){
       if(idle&&!this.suspended&&!this.closed&&!ctx.failed&&this.retired.size<16){
         this.retired.add(runner);
-        Promise.resolve().then(()=>runner.run(ctx.action.script,{event:{type:'disappear',slot:ctx.slot,gesture:ctx.gesture||'down'},
-          settings:ctx.settings,state:ctx.state,memory:ctx.memory})).catch(()=>{}).finally(()=>{this.retired.delete(runner);runner.close();});
+        this.scheduler.run(ctx.pluginUUID,()=>!this.closed&&!this.suspended&&this.retired.has(runner),()=>runner.run(ctx.action.script,{event:{type:'disappear',slot:ctx.slot,gesture:ctx.gesture||'down'},
+          settings:structuredClone(ctx.settings),state:ctx.state,memory:structuredClone(ctx.memory)})).catch(()=>{}).finally(()=>{this.retired.delete(runner);runner.close();});
       }else runner.close();
     }
   }
@@ -451,6 +456,7 @@ class NativePluginHost{
         ctx.settings=incoming;
         if(changed){
           ctx.settingsRevision++;
+          this.scheduler.prune();
           this.cancelNetwork(ctx);
           // Reset input pairing across settings generations. Never turn a
           // discarded press into a release-triggered privileged operation.
@@ -491,7 +497,7 @@ class NativePluginHost{
   closeRetired(){for(const runner of this.retired)runner.close();this.retired.clear();}
   suspend(){this.suspended=true;this.closeRetired();for(const ctx of this.contexts.values()){ctx.pressed=false;this.resetScript(ctx);}this.reconcileTickTimer();}
   resume(){if(this.closed)return;this.suspended=false;for(const ctx of this.contexts.values()){ctx.failed=false;ctx.recoveryAttempts=0;this.initialize(ctx);}}
-  close(){this.closed=true;this.closeRetired();for(const ctx of this.contexts.values())this.resetScript(ctx);this.contexts.clear();this.reconcileTickTimer();}
+  close(){this.closed=true;this.scheduler.close();this.closeRetired();for(const ctx of this.contexts.values())this.resetScript(ctx);this.contexts.clear();this.reconcileTickTimer();}
 }
 // Compatibility host stays unchanged; only validated native IDs are routed here.
 class PluginRouter{

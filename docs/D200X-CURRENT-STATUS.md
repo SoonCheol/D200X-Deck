@@ -2,6 +2,11 @@
 
 > **상태 기록 기준: 2026-11-24**. 실제 최신 HEAD는 Git에서 확인하며, 코드·자동 검사·Windows 빌드·사용자 Windows/D200X 실기 결과를 구분한다. 시작 시 `AGENTS.md`와 이 문서만 읽고 로드맵은 필요한 경우에만 참고한다.
 
+## 1.1.144 — 독자 SDK 렌더러 실행 자원 스케줄러 (2026-11-24)
+
+- 전체 동시 renderer 작업 6개, 동일 plugin 2개, 대기 128개 한도. 컨텍스트 FIFO 유지, 다른 플러그인 우회 수용, 설정/페이지 세대 변경 시 미실행 대기 제거, 종료 시 대기 취소. retire callback도 같은 한도 적용. 기존 renderer timeout 및 권한 검증 유지.
+- 독립 scheduler와 실제 host mock 통합 집중 fixture 추가. 1.1.143 CI #1183 성공, Windows #894 진행 중. 새 CI/Windows/실기는 별도.
+
 ## 1.1.143 — SDK 입력 폭주 backpressure 및 노브 packet 단위 수용 (2026-11-24)
 
 - API 2 대기열 64개 한도와 4개 제어 이벤트 여유, 32 tick 물리 노브 packet을 전부 수용하거나 전부 거절. 포화만으로 플러그인 실패/재시작하지 않음. 거절 press의 pressed 플래그 정리, rate-limited 진단, 순서/권한 유지.
