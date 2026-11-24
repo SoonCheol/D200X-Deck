@@ -182,3 +182,20 @@ test('JavaScript SDK context queue validates results, isolates faults and cancel
     assert.equal(typeof runProgram,'function');
   }finally{host.close();await fs.rm(temp,{recursive:true,force:true});}
 });
+
+
+test('SDK privileged operations require explicit permission and physical input; invalid batch has no partial output',()=>{
+  const host=new NativePluginHost('/unused');
+  const ctx={pluginUUID:nativeId,action:scriptManifest.actions[0],permissions:['display','settings.write','navigation','wide.mode']};
+  const settings={op:'settings',value:{count:3}},nav={op:'navigate',target:'page',value:1},wide={op:'wideMode',value:'clock'};
+  assert.deepEqual(host.validateScriptOps(ctx,'press',[{op:'title',value:'ok'},settings]),{normal:[{op:'title',value:'ok'}],effects:[settings]});
+  assert.deepEqual(host.validateScriptOps(ctx,'heldRotateLeft',[nav]).effects,[nav]);
+  assert.deepEqual(host.validateScriptOps(ctx,'release',[wide]).effects,[wide]);
+  assert.throws(()=>host.validateScriptOps(ctx,'appear',[settings]),/input event/);
+  assert.throws(()=>host.validateScriptOps({...ctx,permissions:['display']},'press',[nav]),/unauthorized/);
+  assert.throws(()=>host.validateScriptOps(ctx,'press',[settings,nav]),/one privileged/);
+  assert.throws(()=>host.validateScriptOps(ctx,'press',[{op:'settings',value:JSON.parse('{"__proto__":{"bad":1}}')}]),/unsafe/);
+  assert.throws(()=>host.validateScriptOps(ctx,'press',[{op:'navigate',target:'page',value:-1}]),/invalid navigation/);
+  assert.doesNotThrow(()=>validateNativeManifest({...scriptManifest,permissions:ctx.permissions}));
+  assert.throws(()=>validateNativeManifest({...nativeManifest,permissions:ctx.permissions}),/permissions/);
+});

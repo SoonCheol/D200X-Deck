@@ -7,6 +7,8 @@ const SUFFIX='.deckforge-native.json', LIMIT=1024*1024;
 const ID=/^com\.deckforge\.native\.[a-z0-9][a-z0-9.-]{0,110}$/;
 const EVENTS=new Set(['appear','disappear','settings','press','release','rotateLeft','rotateRight','heldRotateLeft','heldRotateRight']);
 const OPS=new Set(['title','titleFromSetting','state','toggleState','image']);
+const EXTRA_PERMISSIONS=['settings.write','navigation','wide.mode'];
+const INPUT_EVENTS=new Set(['press','release','rotateLeft','rotateRight','heldRotateLeft','heldRotateRight']);
 const obj=x=>x!==null&&typeof x==='object'&&!Array.isArray(x);
 const validText=(x,n)=>typeof x==='string'&&x.length>0&&x.length<=n;
 const exact=(x,keys)=>obj(x)&&Object.keys(x).every(k=>keys.includes(k));
@@ -15,7 +17,8 @@ function validateNativeManifest(m){
   check(exact(m,['apiVersion','id','name','version','permissions','actions'])&&[1,2].includes(m.apiVersion)&&
     typeof m.id==='string'&&ID.test(m.id)&&!m.id.endsWith('.')&&!m.id.includes('..')&&
     validText(m.name,180)&&validText(m.version,64),'invalid manifest or API version');
-  check(Array.isArray(m.permissions)&&m.permissions.length===1&&m.permissions[0]==='display','unsupported permissions');
+  check(Array.isArray(m.permissions)&&m.permissions.includes('display')&&new Set(m.permissions).size===m.permissions.length&&
+    m.permissions.every(p=>p==='display'||(m.apiVersion===2&&EXTRA_PERMISSIONS.includes(p))),'unsupported permissions');
   check(Array.isArray(m.actions)&&m.actions.length>0&&m.actions.length<=64,'invalid actions');
   const ids=new Set();
   for(const a of m.actions){
@@ -57,7 +60,7 @@ function validateNativeManifest(m){
   }
   return m;
 }
-function catalog(m){return {uuid:m.id,name:m.name,version:m.version,runtime:'deckforge-sdk',
+function catalog(m){return {uuid:m.id,name:m.name,version:m.version,runtime:'deckforge-sdk',permissions:[...m.permissions],
   actions:m.actions.map(a=>({uuid:a.id,name:a.name,states:a.states,controllers:a.controllers,
     propertyInspectorPath:'',defaultImages:{off:null,on:null}}))};}
 class NativePluginHost{
@@ -90,6 +93,40 @@ class NativePluginHost{
       await fs.link(tmp,target);
     }finally{await fs.rm(tmp,{force:true}).catch(()=>{});}
     return catalog(m);
+  }
+  validateScriptOps(ctx,event,program){
+    check(Array.isArray(program)&&program.length<=16,'invalid operation list');
+    const normal=[],effects=[];
+    for(const op of program){
+      if(OPS.has(op?.op)){normal.push(op);continue;}
+      check(INPUT_EVENTS.has(event),'privileged operation requires input event');
+      check(effects.length===0,'only one privileged operation per event');
+      if(op?.op==='settings'){
+        check(ctx.permissions.includes('settings.write')&&exact(op,['op','value'])&&obj(op.value)&&
+          Buffer.byteLength(JSON.stringify(op.value))<=8192,'invalid or unauthorized settings');
+        const valid=(v,depth=0)=>{
+          if(depth>12)return false;
+          if(Array.isArray(v))return v.every(x=>valid(x,depth+1));
+          if(obj(v))return Object.keys(v).every(k=>!['__proto__','constructor','prototype'].includes(k)&&valid(v[k],depth+1));
+          return v===null||['string','boolean','number'].includes(typeof v);
+        };
+        check(valid(op.value),'unsafe settings keys');
+      }else if(op?.op==='navigate'){
+        check(ctx.permissions.includes('navigation')&&exact(op,['op','target','value']),'unauthorized navigation');
+        const {target,value}=op;
+        check((target==='page'&&Number.isInteger(value)&&value>=0&&value<128)||
+          (target==='profile'&&validText(value,160))||
+          (target==='folder'&&Number.isInteger(value)&&value>=0&&value<13)||
+          (target==='back'&&value===null),'invalid navigation target');
+      }else if(op?.op==='wideMode'){
+        check(ctx.permissions.includes('wide.mode')&&exact(op,['op','value'])&&['clock','datetime','stats','knobs'].includes(op.value),'invalid or unauthorized wide mode');
+      }else throw Error('DeckForge SDK: unsupported operation');
+      effects.push(op);
+    }
+    const {script,...action}=ctx.action;
+    validateNativeManifest({apiVersion:1,id:ctx.pluginUUID,name:'Runtime',version:'1',
+      permissions:['display'],actions:[{...action,events:{press:normal}}]});
+    return {normal,effects};
   }
   applyOps(ctx,program){
       for(const op of program){
@@ -129,12 +166,12 @@ class NativePluginHost{
         if(!active())return;
         check(exact(result,['ops','memory'])&&obj(result.memory)&&
           Buffer.byteLength(JSON.stringify(result.memory))<=8192,'invalid JavaScript memory');
-        const {script,...action}=ctx.action;
-        // Reuse the API 1 operation and permission validator before applying anything.
-        validateNativeManifest({apiVersion:1,id:ctx.pluginUUID,name:'Runtime',version:'1',
-          permissions:['display'],actions:[{...action,events:{press:result.ops}}]});
+        const {normal,effects}=this.validateScriptOps(ctx,event,result.ops);
         ctx.memory=result.memory;
-        this.applyOps(ctx,result.ops);
+        this.applyOps(ctx,normal);
+        for(const operation of effects)this.onUpdate({kind:'nativeEffect',context:ctx.context,
+          pluginUUID:ctx.pluginUUID,actionUUID:ctx.action.id,operation,
+          expectedSettings:operation.op==='settings'?ctx.settings:undefined});
       }catch(error){if(active())this.fail(ctx,error);}
     }).finally(()=>{if(ctx.epoch===epoch)ctx.pending--;});
     return true; // accepted for dispatch; not a claim of completed execution
@@ -170,10 +207,10 @@ class NativePluginHost{
       seen.add(cfg.context);
       const incoming=obj(cfg.settings)?cfg.settings:{};
       let ctx=this.contexts.get(cfg.context);
-      const signature=JSON.stringify([plugin.apiVersion,a]);
+      const signature=JSON.stringify([plugin.apiVersion,plugin.permissions,a]);
       if(!ctx||ctx.pluginUUID!==cfg.pluginUUID||ctx.action.id!==a.id||ctx.signature!==signature||ctx.slot!==cfg.slot||ctx.gesture!==cfg.gesture){
         if(ctx)this.retire(ctx);
-        ctx={...cfg,action:a,apiVersion:plugin.apiVersion,signature,settings:incoming,state:0,pressed:false,failed:false,
+        ctx={...cfg,action:a,apiVersion:plugin.apiVersion,permissions:[...plugin.permissions],signature,settings:incoming,state:0,pressed:false,failed:false,
           epoch:0,pending:0,queue:Promise.resolve(),runner:null,memory:{}};
         this.contexts.set(cfg.context,ctx);this.run(ctx,'appear');
       }else{
@@ -189,8 +226,8 @@ class NativePluginHost{
     if(!ctx||this.closed||this.suspended||ctx.failed)return false;
     if(gesture==='down'){if(ctx.pressed)return false;ctx.pressed=true;return this.run(ctx,'press');}
     if(gesture==='up'){if(!ctx.pressed)return false;ctx.pressed=false;return this.run(ctx,'release');}
-    if(ctx.slot<16||!['left','right'].includes(gesture)||!Number.isInteger(ticks)||ticks<1||ticks>32)return false;
-    const event=(ctx.gesture==='hold-left'||ctx.gesture==='hold-right'||ctx.pressed?'heldRotate':'rotate')+(gesture==='left'?'Left':'Right');
+    if(ctx.slot<16||!['left','right','hold-left','hold-right'].includes(gesture)||!Number.isInteger(ticks)||ticks<1||ticks>32)return false;
+    const event=(gesture.startsWith('hold-')||ctx.gesture==='hold-left'||ctx.gesture==='hold-right'||ctx.pressed?'heldRotate':'rotate')+(gesture.endsWith('left')?'Left':'Right');
     for(let i=0;i<ticks;i++)if(!this.run(ctx,event))return false;
     return true;
   }

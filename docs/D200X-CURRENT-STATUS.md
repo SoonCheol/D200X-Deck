@@ -2,6 +2,11 @@
 
 > **상태 기록 기준: 2026-11-24**. 실제 최신 HEAD는 Git에서 확인하며, 코드·자동 검사·Windows 빌드·사용자 Windows/D200X 실기 결과를 구분한다. 시작 시 `AGENTS.md`와 이 문서만 읽고 로드맵은 필요한 경우에만 참고한다.
 
+## 1.1.114 — 독자 SDK 권한형 설정·탐색·와이드 모드 API (2026-11-24)
+
+- Ulanzi 공개 SDK 및 Elgato 공식 설정·프로필 규격, OpenDeck의 공존 사례 참고. 기존 DeckForge 설정 저장·탐색 및 화면 모드 엔진 재사용. API 2에 settings.write/navigation/wide.mode 선택 권한과 입력 이벤트당 하나의 부수 효과, 오래된 컨텍스트/미저장 편집 차단 추가. held rotate 이벤트 직접 처리.
+- 사용자 승인 UI·원본 플러그인·기존 프로필 변경 없음. 전역 비밀 설정, 임의 와이드 레이아웃, 자동 복구·Ulanzi 변환은 후속. 집중 테스트 추가; CI/Windows/실기 결과 별도.
+
 ## 1.1.113 — 독자 JavaScript SDK API 2 (2026-11-24)
 
 - API 2 동기 JavaScript 함수와 컨텍스트별 메모리, sandboxed Chromium 실행 및 비영구 플러그인 세션, 호스트 출력 재검증, 제한 시간·큐·오래된 출력 차단. 기존 API 1 및 Stream Deck 호환 경로 보존.

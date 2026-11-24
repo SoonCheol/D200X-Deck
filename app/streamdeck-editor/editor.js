@@ -247,7 +247,7 @@ function sdkContext(index,gesture='down'){
     (folder?'-p'+(folder.pageIndex||0):'')+':'+index+':'+gesture+(pageStructureEpoch?':layout'+pageStructureEpoch:'');
   const key=({'hold-left':'holdLeft','hold-right':'holdRight'})[gesture]||gesture;
   const item=index<14?DeckCore.visibleActions(state)[index]:DeckCore.controlBinding(state,index)?.[key];
-  if(!isFusionAction(item))return base;
+  if(!isFusionAction(item)&&!String(item?.settings?.pluginUUID||'').startsWith('com.deckforge.native.'))return base;
   let token=fusionActionTokens.get(item);
   if(!token){token='i'+(++fusionTokenSerial);fusionActionTokens.set(item,token);}
   return base+':'+token;
@@ -6907,10 +6907,53 @@ setInterval(async()=>{
   }finally{smartProfileBusy=false;}
 },4000);
 
+// Privileged native SDK requests use the same profile/physical navigation core.
+// Never allow background lifecycle events to discard drafts or bypass the wide warning.
+function applyNativeSdkEffect(message){
+  const instance=sdkActionInstances().find(x=>x.context===message.context&&
+    x.pluginUUID===message.pluginUUID&&x.actionUUID===message.actionUUID);
+  if(!instance||!String(instance.pluginUUID).startsWith('com.deckforge.native.')||
+    profileStorageFailure||inspectorSession?.dirty||document.querySelector('dialog[open]'))return false;
+  const op=message.operation;
+  if(op?.op==='settings'){
+    // Reject stale writes instead of overwriting intervening user edits.
+    if(JSON.stringify(instance.settings)!==JSON.stringify(message.expectedSettings))return false;
+    const ok=commitExternalSdkSettings(instance,op.value);
+    if(ok)scheduleSdkSync();
+    return ok;
+  }
+  if(op?.op==='wideMode'){
+    if(!wideDisplayAvailable()||!state.wideDisplay?.enabled?.includes(op.value))return false;
+    state.wideDisplay.current=op.value;persist(false);render();
+    if(window.scheduleD200XWideSync)window.scheduleD200XWideSync();
+    else window.scheduleDeckSync?.(0);
+    return true;
+  }
+  if(op?.op!=='navigate')return false;
+  const {target,value}=op;
+  if(target==='page'){
+    const folder=DeckCore.activeFolder(state),count=folder?DeckCore.folderPageCount(state):state.pages.length;
+    if(!Number.isInteger(value)||value<0||value>=count)return false;
+    if(folder){if(!DeckCore.changeFolderPage(state,value))return false;}
+    else{state.page=value;state.folderPath=[];state.selected=null;}
+  }else if(target==='profile'){
+    const names=state.profileNames||[],pos=names.findIndex(p=>p.id===state.profileId);
+    const id=value==='next'?names[(pos+1)%names.length]?.id:
+      value==='previous'?names[(pos-1+names.length)%names.length]?.id:value;
+    if(!id||!DeckCore.switchProfile(state,id))return false;
+  }else if(target==='folder'){
+    if(!DeckCore.enterFolder(state,value))return false;
+  }else if(target==='back'){
+    if(!DeckCore.exitFolder(state))return false;
+  }else return false;
+  cancelFolderAutoExit();lastHardwareDown.clear();persist();render();return true;
+}
 if(window.deckBridge?.onSdkEvent){
   window.deckBridge.onSdkEvent(message=>{
     const ctx=message?.context;
-    if(message.kind==='settings'){
+    if(message.kind==='nativeEffect'){
+      if(!applyNativeSdkEffect(message))window.d200xActionStatus?.('독자 SDK 요청 거부: 현재 설정 또는 편집 상태를 확인하세요.');
+    }else if(message.kind==='settings'){
       const instance=sdkActionInstances().find(x=>x.context===ctx);
       if(instance&&message.settings&&typeof message.settings==='object'&&!Array.isArray(message.settings)){
         const item=sdkItemAtLocation(state,instance.slot,instance.gesture);

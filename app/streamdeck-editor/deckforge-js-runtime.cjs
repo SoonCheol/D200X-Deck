@@ -22,7 +22,13 @@ function runProgram(source,input){
     setTitle:value=>append({op:'title',value}),
     setState:value=>append({op:'state',value}),
     toggleState:()=>append({op:'toggleState'}),
-    setImage:value=>append({op:'image',value})
+    setImage:value=>append({op:'image',value}),
+    setSettings:value=>append({op:'settings',value}),
+    goToPage:value=>append({op:'navigate',target:'page',value}),
+    switchProfile:value=>append({op:'navigate',target:'profile',value}),
+    enterFolder:value=>append({op:'navigate',target:'folder',value}),
+    exitFolder:()=>append({op:'navigate',target:'back',value:null}),
+    setWideMode:value=>append({op:'wideMode',value})
   });
   // Reduce access to network-capable APIs beyond CSP/session controls.
   for(const key of ['RTCPeerConnection','webkitRTCPeerConnection','WebTransport','Worker','SharedWorker','setTimeout','setInterval','requestAnimationFrame','requestIdleCallback','queueMicrotask']){

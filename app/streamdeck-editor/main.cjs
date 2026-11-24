@@ -162,7 +162,21 @@ ipcMain.handle('d200x:sdk-install',async event=>{
     const packageData=await DeckForgePlugins.parseDeckForgePackage(bytes);
     // Preserve the SDK compatibility runtime; independent DeckForge package
     // metadata and payload have already passed validation.
-    return packageData.native?sdk().installNative(packageData.native):sdk().install(packageData.archive);
+    if(packageData.native){
+      const native=packageData.native;
+      const labels={'settings.write':'현재 버튼 설정 저장','navigation':'프로필·페이지·덱폴더 이동','wide.mode':'와이드 화면 모드 전환'};
+      const extra=native.permissions.filter(p=>p!=='display');
+      if(extra.length){
+        const result=await dialog.showMessageBox(window,{
+          type:'question',title:'DeckForge 플러그인 권한',message:native.name+' 설치 권한 확인',
+          detail:'ID: '+native.id+'\n'+extra.map(p=>'• '+labels[p]).join('\n')+'\n신뢰하는 플러그인만 설치하세요.',
+          buttons:['취소','설치'],defaultId:0,cancelId:0,noLink:true
+        });
+        if(result.response!==1)return null;
+      }
+      return sdk().installNative(native);
+    }
+    return sdk().install(packageData.archive);
   }
   return sdk().install(bytes);
 });

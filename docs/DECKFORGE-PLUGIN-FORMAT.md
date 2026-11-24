@@ -3,6 +3,14 @@
 > 기록일: 2026-11-24 · 상태: **패키지 v1 유지 / 독자 SDK API 1·2 및 패키지 v2 / Ulanzi 변환기 미구현**
 > 저장소·브랜치: `SoonCheol/D200X-Deck` / `codex/streamdeck-761-clean-editor`
 
+## 0.2 API 2 권한 확장 (1.1.114)
+
+- 공식 참고: [Ulanzi JS SDK 3.1.0](https://github.com/UlanziTechnology/plugin-common-node) (설정 및 held rotation), [Ulanzi D200X SDK](https://github.com/UlanziTechnology/UlanziDeckPlugin-SDK) (encoder layout), [Elgato settings](https://docs.elgato.com/streamdeck/sdk/guides/settings/), [profiles](https://docs.elgato.com/streamdeck/sdk/guides/profiles/), [OpenDeck](https://github.com/nekename/OpenDeck) (이중 SDK 지원 사례; GPL 코드 복사 없음).
+- 선택 권한 `settings.write`: `api.setSettings(object)`는 현재 등록된 버튼 설정만 기존 저장 엔진으로 요청. JSON 8KiB 제한, 금지 키 검사, 기존 사용자 편집과 경합하면 거부. 반환값은 저장 성공 확인이 아니며 다음 settings 이벤트에서 확인한다. 전역/비밀 설정은 미구현. 액션 설정은 프로필에 포함되므로 인증정보를 저장하지 않는다.
+- 선택 권한 `navigation`: `goToPage(index)`, `switchProfile(id|next|previous)`, `enterFolder(slot)`, `exitFolder()`. 인덱스는 0부터 시작. 기존 프로필·폴더 이동과 저장 로직 재사용.
+- 선택 권한 `wide.mode`: `setWideMode(clock|datetime|stats|knobs)`는 기존 활성화된 모드만 선택. 임의 와이드 레이아웃/이미지 렌더링은 아직 미구현.
+- 모든 추가 권한은 API 2에서만 허용하며 입력 이벤트당 최대 1개의 부수 효과. appear/settings/disappear에서 금지. 미저장 편집/대화상자/오래된 컨텍스트 및 설정 충돌 시 거부. 기존 SDK와 API 1 보존. 추가 권한은 설치 시 확인창으로 명시한다. 직접 파일 배치 등은 신뢰한 패키지만 사용.
+
 ## 0.1 독자 JavaScript SDK API 2 (1.1.113)
 
 - 패키지 v2의 `runtime.apiVersion`과 native.json의 `apiVersion`을 2로 지정한다. 각 action의 `events` 대신 `script` (최대 64KiB, 동기 JavaScript 함수 본문)를 제공한다. 기존 API 1과 v1 호환 패키지는 그대로 유지한다.
