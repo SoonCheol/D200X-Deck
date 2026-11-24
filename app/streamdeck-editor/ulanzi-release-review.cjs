@@ -27,7 +27,7 @@ function validateReviewRecord(record,report){
   // Only exact embedded state PNGs can satisfy the artwork contract here.
   // Distinct category/plugin artwork and non-PNG files still need a manual port.
   const art=report.artworkPreservation,images=report.candidate.actions[0].stateImages;
-  const preserved=art&&Array.isArray(images)&&!art.remainingPaths.length&&art.stateImages.length===images.length&&
+  const preserved=art?.verification==='crc-and-bounded-scanlines'&&Array.isArray(images)&&!art.remainingPaths.length&&art.stateImages.length===images.length&&
     art.stateImages.every((s,i)=>s.state===i&&s.sha256===createHash('sha256').update(Buffer.from(images[i].slice(22),'base64')).digest('hex'));
   if((report.resources?.length&&!preserved)||report.inspectors?.length||
     report.findings.some(f=>['property-inspector','private-api','multi-action'].includes(f.code)||(f.code==='artwork'&&!preserved)))

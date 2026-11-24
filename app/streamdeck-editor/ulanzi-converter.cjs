@@ -6,6 +6,7 @@ const path=require('node:path');
 const {createHash}=require('node:crypto');
 const acorn=require('acorn');
 const {analyzeHtml,imageReport,MAX:MAX_HTML}=require('./ulanzi-inspector-analysis.cjs');
+const {verifyPng}=require('./ulanzi-png-verifier.cjs');
 const {validateNativeManifest}=require('./deckforge-native-sdk.cjs');
 const MAX_FILES=2500,MAX_BYTES=100*1024*1024,MAX_SOURCE=1024*1024;
 const sha=bytes=>createHash('sha256').update(bytes).digest('hex');
@@ -70,7 +71,7 @@ function temporaryImage(node){
   const png=icon.base64.value;
   if(png.length>350000||!/^data:image\/png;base64,[A-Za-z0-9+/]+={0,2}$/.test(png))return null;
   const bytes=Buffer.from(png.slice(22),'base64');
-  if(bytes.toString('base64')!==png.slice(22)||imageReport(bytes,'image.png').status!=='header-candidate')return null;
+  if(bytes.toString('base64')!==png.slice(22)||!verifyPng(bytes).ok)return null;
   return png;
 }
 function analyzeSource(manifest,source,{stateImages}={}){
@@ -258,7 +259,7 @@ async function analyzeDirectory(folder,{fullFingerprint=false}={}){
     if(!file){item.status='missing';continue;}
     item.bytes=file.bytes;
     if(file.bytes>256*1024){item.status='oversize';continue;}
-    try{const bytes=await readEntry(item.path,256*1024);Object.assign(item,{sha256:sha(bytes),...imageReport(bytes,item.path)});}
+    try{const bytes=await readEntry(item.path,256*1024);Object.assign(item,{sha256:sha(bytes),...imageReport(bytes,item.path)});if(item.status==='header-candidate')item.integrity=verifyPng(bytes);}
     catch{item.status='unreadable';}
   }
   // Preserve only exact, bounded PNG state resources. Category/plugin/action
@@ -266,18 +267,18 @@ async function analyzeDirectory(folder,{fullFingerprint=false}={}){
   const art=manifest.Actions[0],declaredStates=Array.isArray(art.States)?art.States:[];
   let stateImages,artworkPreservation=null;
   if(manifest.Actions.length===1&&[1,2].includes(declaredStates.length)&&
-    declaredStates.every(s=>typeof s?.Image==='string'&&resources.some(r=>r.path===s.Image&&r.status==='header-candidate'))){
+    declaredStates.every(s=>typeof s?.Image==='string'&&resources.some(r=>r.path===s.Image&&r.status==='header-candidate'&&r.integrity?.ok))){
     try{
       const images=[];
       for(const s of declaredStates){
         const bytes=await readEntry(s.Image,256*1024);
-        if(imageReport(bytes,s.Image).status!=='header-candidate')throw Error('invalid state image');
+        if(!verifyPng(bytes).ok)throw Error('invalid state image');
         images.push('data:image/png;base64,'+bytes.toString('base64'));
       }
       stateImages=images;
       artworkPreservation={stateImages:declaredStates.map((s,index)=>({state:index,path:s.Image,sha256:sha(Buffer.from(images[index].slice(22),'base64'))})),
         remainingPaths:resources.filter(r=>!declaredStates.some(s=>s.Image===r.path)).map(r=>r.path),
-        verification:'header-and-source-bytes-only'};
+        verification:'crc-and-bounded-scanlines'};
     }catch{stateImages=undefined;artworkPreservation=null;}
   }
   let report={calls:[],imports:[],findings:[],candidate:null},entryHash=null,htmlEntry=null;

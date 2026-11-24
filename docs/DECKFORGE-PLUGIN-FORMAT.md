@@ -3,6 +3,11 @@
 > 기록일: 2026-11-24 · 상태: **패키지 v1 유지 / 독자 SDK API 1·2 및 패키지 v2 / Ulanzi 정적 분석·제한 후보 변환기 구현**
 > 저장소·브랜치: `SoonCheol/D200X-Deck` / `codex/streamdeck-761-clean-editor`
 
+## 0.18 Ulanzi 변환 PNG 무결성 강화 (1.1.131)
+
+- 변환 후보의 PNG에 한해 256KiB/144×144 제한, 전체 chunk CRC·순서·IHDR/IEND·palette·제한된 ancillary 검사와 zlib 제한 해제/scanline 길이/필터 검사 추가. interlace/APNG/미지원 메타데이터는 수동 검토. 전체 픽셀 재구성 또는 실기 인증은 아니다.
+- 기존 사용자 지정 이미지 및 기존 독자 SDK 런타임 허용 규칙은 변경하지 않는다. 손상·초과·지원하지 않는 원본은 자동 후보 임베딩에서 제외한다. 기존 header-only 분석 보고는 유지하고 integrity 결과 추가. 실제 fixture의 CRC를 교정하고 집중 손상 검사 추가.
+
 ## 0.17 독자 SDK 상태별 기본 PNG 및 제한 원본 이미지 보존 (1.1.130)
 
 - API 1/2 action 선택 필드 `stateImages`: 상태 수와 동일한 1~2개의 PNG data URI. 기존 이미지 명령과 동일한 헤더/크기/차원 제한, 기존 SDK catalog defaultImages에 연결. 사용자 지정 이미지는 기존 우선순위 그대로 유지. 전체 PNG 디코딩/물리 출력 별도 확인.

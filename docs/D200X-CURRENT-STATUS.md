@@ -2,6 +2,10 @@
 
 > **상태 기록 기준: 2026-11-24**. 실제 최신 HEAD는 Git에서 확인하며, 코드·자동 검사·Windows 빌드·사용자 Windows/D200X 실기 결과를 구분한다. 시작 시 `AGENTS.md`와 이 문서만 읽고 로드맵은 필요한 경우에만 참고한다.
 
+## 1.1.131 — Ulanzi PNG 변환 무결성 강화 (2026-11-24)
+
+- 변환 전용 chunk CRC/구조 및 제한 zlib scanline 검증, APNG/interlace/미지원 metadata 수동 검토, 기존 설치·사용자 PNG 허용 정책 보존. CRC 교정 fixture와 손상/초과 검사 추가. 실제 픽셀 출력 미확인.
+
 ## 1.1.130 — 독자 SDK 상태별 PNG 및 원본 자원 보존 (2026-11-24)
 
 - stateImages 선택 필드 및 기존 catalog 기본 그림 경로 재사용, 원본 Ulanzi 단일 액션 상태 PNG 바이트/해시 보존, 미지원 별도 artwork/PI 계속 차단. 변환 패키지 설치 확인창 출처 표시. 집중 검사 추가. 실제 실기 미확인.

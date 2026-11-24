@@ -674,7 +674,7 @@ test('Ulanzi documented temporary PNG image maps to the native host trace withou
  const {analyzeSource}=require('../app/streamdeck-editor/ulanzi-converter.cjs');
  const id='com.ulanzi.ulanzistudio.ImageDemo',m={Type:'JavaScript',UUID:id,Name:'Image',Version:'1.0.0',
  CodePath:'app.js',Actions:[{UUID:id+'.image',Name:'Image'}]};
- const png=Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+j0ioAAAAASUVORK5CYII=','base64');
+ const png=Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+ip1sAAAAASUVORK5CYII=','base64');
  const image='data:image/png;base64,'+png.toString('base64');
  const source="$UD.connect('"+id+"');$UD.onKeyDown(m=>$UD.setImage(m.context,{isDefault:false,icons:{source:'base64',base64:"+JSON.stringify(image)+"}}));";
  const report=analyzeSource(m,source);
@@ -843,7 +843,7 @@ test('reviewed Ulanzi package requires exact source and candidate revision plus 
 
 test('native state PNGs populate catalog and survive package roundtrip without changing user settings',async()=>{
  const {packageNativeManifest}=require('../app/streamdeck-editor/deckforge-plugin.cjs');
- const png='data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+j0ioAAAAASUVORK5CYII=';
+ const png='data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+ip1sAAAAASUVORK5CYII=';
  const m={...nativeManifest,actions:[{...nativeManifest.actions[0],stateImages:[png,png]}]};
  const temp=await fs.mkdtemp(path.join(os.tmpdir(),'deckforge-state-art-')),host=new NativePluginHost(temp);
  try{
@@ -861,7 +861,7 @@ test('Ulanzi state PNG bytes are embedded while unrelated artwork blocks reviewe
  const dir=path.join(root,'original.ulanziPlugin');await fs.mkdir(dir);
  const id='com.ulanzi.ulanzistudio.Art',m={Type:'JavaScript',UUID:id,Name:'Art',Version:'1.0.0',CodePath:'app.js',
  Actions:[{UUID:id+'.action',Name:'Action',Icon:'off.png',States:[{Image:'off.png'},{Image:'on.png'}]}]};
- const bytes=Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+j0ioAAAAASUVORK5CYII=','base64');
+ const bytes=Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+ip1sAAAAASUVORK5CYII=','base64');
  const attest=report=>{const record=buildReviewRecord(report);for(const c of record.checks){c.status='passed';c.evidence='synthetic fixture only';}return record;};
  try{
    await fs.writeFile(path.join(dir,'manifest.json'),JSON.stringify(m));
@@ -877,4 +877,27 @@ test('Ulanzi state PNG bytes are embedded while unrelated artwork blocks reviewe
    assert.deepEqual(extra.artworkPreservation.remainingPaths,['category.png']);
    assert.throws(()=>validateReviewRecord(attest(extra),extra),/manual conversion/);
  }finally{await fs.rm(root,{recursive:true,force:true});}
+});
+
+
+test('conversion PNG verification rejects CRC corruption, truncation, extra data and decompression overflow',()=>{
+ const {verifyPng}=require('../app/streamdeck-editor/ulanzi-png-verifier.cjs');
+ const {crc32,deflateSync}=require('node:zlib');
+ const valid=Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+ip1sAAAAASUVORK5CYII=','base64');
+ assert.deepEqual(verifyPng(valid),{ok:true,width:1,height:1,verification:'crc-and-bounded-scanlines'});
+ const corrupt=Buffer.from(valid);corrupt[45]^=1;
+ assert.equal(verifyPng(corrupt).ok,false);
+ assert.equal(verifyPng(valid.subarray(0,-1)).ok,false);
+ assert.equal(verifyPng(Buffer.concat([valid,Buffer.from([0])])).ok,false);
+ const chunk=(type,data)=>{
+   const head=Buffer.alloc(8);head.writeUInt32BE(data.length);head.write(type,4);
+   const tail=Buffer.alloc(4);tail.writeUInt32BE(crc32(Buffer.concat([head.subarray(4),data])));
+   return Buffer.concat([head,data,tail]);
+ };
+ const oversized=Buffer.concat([valid.subarray(0,33),chunk('IDAT',deflateSync(Buffer.alloc(4096))),valid.subarray(-12)]);
+ assert.equal(verifyPng(oversized).ok,false);
+ const badFilter=Buffer.concat([valid.subarray(0,33),chunk('IDAT',deflateSync(Buffer.from([5,0,0]))),valid.subarray(-12)]);
+ assert.equal(verifyPng(badFilter).ok,false);
+ const animation=Buffer.concat([valid.subarray(0,33),chunk('acTL',Buffer.alloc(8)),valid.subarray(33)]);
+ assert.equal(verifyPng(animation).ok,false);
 });
