@@ -142,4 +142,5 @@ API 2 manifest의 service={script,tickIntervalMs?} 및 별도 background.run 권
 ## 10C 출시 판정 (1.1.230)
 - Model 2 현재 구현의 자동 장애 복구/제한/격리 검증 통과. 기존 legacy rollback 유지. 자동 검증을 장시간 실기나 OOM 증거로 확대하지 않는다.
 - Model 5 생산 OFF: IndexedDB/CacheStorage/OPFS 격리 미충족 및 opaque Worker 생성 실패, 실제 OOM 미검증. KEY 생산 기본 OFF: mock 통과, 실제 D200X trial 미실시.
-- 정식 SDK 1.0 출시 보류: Windows 설치본 생성·게시, 최신 실제 HA/D200X/절전·재연결/장시간 soak, 실제 OOM, 이전 감사 전수 증거(19개 경로/44개 테스트/13개 저장 항목 독립 대조) 미완료. 검증된 범위만 사용 가능하며 사용자 데이터/권한 및 재실행 금지 보존. 신규 범위는 별도 승인.
+- Windows #984 attempt2 (job 138688628564) 전체 성공. 1.1.230 설치본 deckforge-v1.1.230 게시, 135231273 bytes. 동일 SDK 실제 장애 검사 통과, 24쌍+6 lease 2502ms, idle 최대3. Model5 eligible=false. USB mock 기본 PAGE121/KEY0, 시험 PAGE17/KEY104. 현재 root .test.cjs 45개를 test 디렉터리·실제 workflow node --test 명령·attempt2 로그에 대조하여 45/45 확인, 누락 0. 초기 native helper 3개 skip, 후속 패키지 검증 step 성공; 전체 고유 testcase 수 또는 과거 감사 44개와 동일하다는 주장 아님. SDK 저장 관련 3개 suite의 테스트 선언에서 원자 저장/receipt, ABA·복제·이동·중복 프로필, 응답 유실/재조회, child exit 및 오류 보존 검사 존재 확인. 감사 13개 원문 전수 대조 및 실제 전원 손실은 별도.
+- 정식 SDK 1.0 출시 보류: 최신 실제 HA/D200X/절전·재연결/장시간 soak, 실제 OOM, 이전 감사 19개 경로/13개 저장 항목 전수 대응 미완료. 검증된 범위만 사용 가능하며 사용자 데이터/권한 및 재실행 금지 보존. 신규 범위는 별도 승인.
