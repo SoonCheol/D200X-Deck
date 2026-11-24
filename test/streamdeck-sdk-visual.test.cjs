@@ -210,9 +210,9 @@ test('native device refresh reuses cached PNGs and falls back on a changed page'
  const begin=code.indexOf('  async function synchronize('),end=code.indexOf('  function runScheduledRender()',begin);
  assert.ok(begin>=0&&end>begin);
  const old=Array.from({length:14},(_,index)=>({index,png:'old-'+index}));
- const rendered=[],sent=[],dirtyNativeSlots=new Set([3,7]);
- const ctx={dirtyNativeSlots,renderSerial:0,lastSentImages:old,lastSentPageStamp:'p',lastSentWideMode:'blank',
-  nativeRenderGate:{begin(){},end(){}},warningPageStamp:()=> 'p',window:{getD200XWideMode:()=> 'blank',getD200XDisplayItem:x=>x},
+ const rendered=[],sent=[],dirtyNativeSlots=new Map([[3,1],[7,2]]);
+ const ctx={dirtyNativeSlots,renderSerial:0,rendering:false,fullPending:false,renderRetryCount:0,lastSentImages:old,lastSentPageStamp:'p',lastSentWideMode:'blank',
+  ensureRenderTimer:()=>assert.fail('unexpected timer'),warningPageStamp:()=> 'p',window:{getD200XWideMode:()=> 'blank',getD200XDisplayItem:x=>x},
   state:{folderPath:[]},DeckCore:{visibleActions:()=>Array(14).fill(null)},document:{fonts:{ready:Promise.resolve()}},
   drawSlot:async(_,index)=>{rendered.push(index);return {index,png:'new-'+index};},
   cacheAndSendImages:images=>sent.push(images),schedule:()=>assert.fail('unexpected fallback'),text:()=>assert.fail('render error')};
@@ -220,7 +220,7 @@ test('native device refresh reuses cached PNGs and falls back on a changed page'
  assert.deepEqual(rendered,[3,7]);assert.equal(sent[0].length,14);
  assert.equal(sent[0][0],old[0]);assert.equal(sent[0][3].png,'new-3');
  assert.equal(old[3].png,'old-3');
- rendered.length=0;dirtyNativeSlots.add(3);ctx.lastSentPageStamp='other';
+ rendered.length=0;dirtyNativeSlots.set(3,3);ctx.lastSentPageStamp='other';
  await vm.runInNewContext(code.slice(begin,end)+';synchronize(true)',ctx);
  assert.deepEqual(rendered,Array.from({length:14},(_,i)=>i));
 });
@@ -275,7 +275,39 @@ test('stable key surface keeps a decoded image until the current replacement dec
  assert.equal(button.children[0].src,'data:image/png;base64,three');
  const third=button.children[0];render('failure');await flush();frames[3].reject(Error('bad frame'));await flush();assert.equal(button.children[0],third);
  assert.equal(warnings.length,1);
+ render('failure');await flush();assert.equal(frames.length,5,'failed requested frame is retried');
+ frames[4].reject(Error('still invalid'));await flush();assert.equal(button.children[0],third);
  render('new page','b');await flush();assert.notEqual(button.children[0],third,'never display old page action on new page');
- frames[4].resolve('four');await flush();decodes[3].resolve();await flush();
+ frames[5].resolve('four');await flush();decodes[3].resolve();await flush();
  assert.equal(button.children[0].src,'data:image/png;base64,four');
+});
+
+
+test('dirty revisions survive in-flight rendering, page invalidation and failed submissions',async()=>{
+ const code=fs.readFileSync(path.join(__dirname,'../app/streamdeck-editor/device-sync.js'),'utf8');
+ const begin=code.indexOf('  async function synchronize('),end=code.indexOf('  bridge.ready();',begin);
+ assert.ok(begin>=0&&end>begin);
+ const images=Array.from({length:14},(_,index)=>({index,png:'old-'+index}));
+ let stamp='page-a',mode='blank',pending=new Map(),sent=[],timers=[],error=false;
+ const ctx={dirtyNativeSlots:new Map(),renderSerial:0,slotRevision:0,rendering:false,fullPending:false,renderRetryCount:0,timeout:null,
+  lastSentImages:images,lastSentPageStamp:stamp,lastSentWideMode:mode,warningPageStamp:()=>stamp,
+  window:{getD200XWideMode:()=>mode,getD200XDisplayItem:x=>x},state:{folderPath:[]},
+  DeckCore:{visibleActions:()=>Array(14).fill(null)},drawSlot:(_,index)=>new Promise((resolve,reject)=>pending.set(index,{resolve,reject})),
+  cacheAndSendImages:(frames,m,s)=>{sent.push({frames,m,s});ctx.lastSentImages=frames;ctx.lastSentPageStamp=s;ctx.lastSentWideMode=m;},
+  setTimeout:(fn,ms)=>{timers.push({fn,ms});return timers.length;},clearTimeout:()=>{},text:()=>{error=true;}};
+ vm.runInNewContext(code.slice(begin,end)+';window.flushRender=synchronize;',ctx);
+ const flush=()=>new Promise(resolve=>setImmediate(resolve)),request=ctx.window.scheduleNativeDeckSync;
+ const complete=()=>{for(const [index,job] of pending)job.resolve({index,png:'new-'+index});pending.clear();};
+ request([2]);const first=ctx.window.flushRender(true);
+ request([2,4]);assert.equal(ctx.dirtyNativeSlots.size,2);
+ await ctx.window.flushRender(true);assert.equal(pending.size,1,'no overlapping render');
+ complete();await first;assert.equal(sent.length,1);assert.deepEqual([...ctx.dirtyNativeSlots.keys()],[2,4]);
+ const second=ctx.window.flushRender(true);complete();await second;assert.equal(sent.length,2);assert.equal(ctx.dirtyNativeSlots.size,0);
+ request([3]);const stale=ctx.window.flushRender(true);stamp='page-b';ctx.window.scheduleDeckSync(0);complete();await stale;
+ assert.equal(sent.length,2,'old page must never be submitted');assert.equal(ctx.fullPending,true);
+ ctx.fullPending=false;const failed=ctx.window.flushRender(false);
+ pending.get(3).reject(Error('decode failure'));pending.delete(3);complete();await failed;await flush();
+ assert.equal(error,true);assert.equal(sent.length,2);assert.equal(ctx.dirtyNativeSlots.has(3),true);assert.equal(ctx.fullPending,true);
+ ctx.fullPending=false;const recovered=ctx.window.flushRender(false);complete();await recovered;
+ assert.equal(sent.length,3);assert.equal(sent.at(-1).s,'page-b');assert.equal(ctx.dirtyNativeSlots.size,0);assert.equal(ctx.renderRetryCount,0);
 });

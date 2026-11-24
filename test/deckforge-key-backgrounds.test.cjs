@@ -64,8 +64,10 @@ test('startup compositor explicitly repaints the selected state cards',()=>{
  const start=source.indexOf('  // Same compositor feeds'),end=source.indexOf('  async function synchronize(',start);
  assert.ok(start>=0&&end>start,'startup compositor source block');
  const calls=[],item={type:'sd-plugin'};
+ const prepareDeckKeyImage=()=>({signature:'test',render:async()=> 'png'});
  const window={refreshSelectedVisual:()=>calls.push('representative')};
- vm.runInNewContext(source.slice(start,end),{window,renderGrid:()=>calls.push('grid'),state:{selected:0},DeckCore:{visibleActions:()=>[item]},refreshStateTitleCards:actual=>{assert.equal(actual,item);assert.equal(typeof window.renderDeckKeyImage,'function');calls.push('cards');}});
+ vm.runInNewContext(source.slice(start,end),{window,prepareDeckKeyImage,document:{fonts:{}},renderGrid:()=>calls.push('grid'),state:{selected:0},DeckCore:{visibleActions:()=>[item]},refreshStateTitleCards:actual=>{assert.equal(actual,item);assert.equal(typeof window.renderDeckKeyImage,'function');calls.push('cards');}});
+ assert.equal(window.prepareDeckKeyImage,prepareDeckKeyImage);
  assert.deepEqual(calls,['grid','representative','cards']);
 });
 test('opening state title style does not create profile data; real edits commit drafts',()=>{

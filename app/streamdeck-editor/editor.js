@@ -241,6 +241,7 @@ async function rememberFusionIcon(id,image){
 
 const sdkMounts=DeckCore.createSdkMountTracker();
 let pageStructureEpoch=0;
+window.D200XPageStructureEpoch=()=>pageStructureEpoch;
 let sdkCommittedSnapshot=null,sdkCommittedState=null;
 function sdkCommittedSource(){
   if(!inspectorSession?.dirty)return state;
@@ -934,11 +935,11 @@ function appendKeyPressNumber(button,root){
 const deckKeyPaints=new WeakMap();
 function paintDeckKey(button,item,visual,index,scope,owner){
   let paint=deckKeyPaints.get(button);
-  if(!paint){paint={revision:0,scope:null,owner:null,signature:null,ready:false,pending:false};deckKeyPaints.set(button,paint);}
+  if(!paint){paint={revision:0,scope:null,owner:null,signature:null,shownSignature:null,ready:false,pending:false};deckKeyPaints.set(button,paint);}
   const prepared=item&&window.prepareDeckKeyImage?window.prepareDeckKeyImage(visual,index):null;
   const signature=prepared?.signature??null;
   const sameOwner=paint.scope===scope&&paint.owner===owner;
-  if(sameOwner&&signature!==null&&paint.signature===signature&&(paint.ready||paint.pending)){
+  if(sameOwner&&signature!==null&&paint.signature===signature&&(paint.shownSignature===signature||paint.pending)){
     appendKeyPressNumber(button,item);return;
   }
   if(!sameOwner||!paint.ready||!prepared){
@@ -947,7 +948,7 @@ function paintDeckKey(button,item,visual,index,scope,owner){
     const glyph=iconNode(visual,ACTIONS.get(item?.type)?.icon||"+");glyph.classList.add("glyph");
     const label=document.createElement("span");label.className="caption";
     label.textContent=String(visual?.title||"").replace(/<br\s*\/?>/gi,"\n");updateTitleAppearance(label,visual);
-    button.replaceChildren(glyph,label);paint.ready=false;
+    button.replaceChildren(glyph,label);paint.ready=false;paint.shownSignature=null;
   }
   paint.scope=scope;paint.owner=owner;paint.signature=signature;
   paint.pending=Boolean(prepared);
@@ -962,7 +963,7 @@ function paintDeckKey(button,item,visual,index,scope,owner){
     if(typeof preview.decode==='function')await preview.decode();
     if(!button.isConnected||paint.revision!==revision)return;
     button.replaceChildren(preview);appendKeyPressNumber(button,item);
-    paint.ready=true;
+    paint.ready=true;paint.shownSignature=signature;
   }).catch(error=>{
     if(paint.revision===revision)console.warn("버튼 이미지 미리보기 실패",error);
   }).finally(()=>{
@@ -1033,7 +1034,7 @@ function renderGrid(onlySlots=null){
     b.classList.toggle('pin-shared',Boolean(pin&&!currentPage()[i]));
     const owner=item?.type==='wide-display'?(item.wideNotice?'wide-warning':'wide-display'):folderBack?'folder-back':raw?.instanceId||raw;
     const prior=deckKeyPaints.get(b);
-    if(prior&&(prior.scope!==scope||prior.owner!==owner))hideReplacedTooltip(b);
+    if(prior&&(prior.scope!==scope||prior.owner!==owner)){hideReplacedTooltip(b);b.classList.remove('drag-over');}
     if(item)setDeckForgeTooltip(b,()=>({title:keyName(item)||item.type,lines:[shortActionDescription(item),...(pin?[currentPage()[i]?'페이지별 액션 우선 적용 · 고정 액션: '+keyName(pin):'모든 페이지의 고정 액션']:[])]}));
     else{delete b.dataset.deckforgeTooltip;deckForgeTooltipData.delete(b);}
     const visual=displayKeyPressItem(displayItem(item,i),i);
@@ -2576,6 +2577,8 @@ async function refreshSelectedVisual(){
     const image=document.createElement("img");
     image.className="icon-image rendered-key-image";
     image.src="data:image/png;base64,"+data;
+    if(typeof image.decode==='function')await image.decode();
+    if(request!==previewRequest||!isCurrentInspectorAction(item)||$("icon-preview-content")!==host)return;
     host.replaceChildren(image);
     const fallback=$("icon-preview")?.querySelector(".preview-title");
     if(fallback)fallback.hidden=true;

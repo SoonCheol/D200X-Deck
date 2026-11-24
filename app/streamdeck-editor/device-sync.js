@@ -11,22 +11,16 @@
     return;
   }
 
-  let renderSerial = 0;
-  let timeout = null;
-  const dirtyNativeSlots=new Set();
-  let fullPending=false;
-  const nativeRenderGate=DeckCore.createNativeRenderGate(()=>{
-    // An already scheduled full render takes priority, but native artwork
-    // does not need to wait out the usual edit debounce.
-    if(timeout!==null){if(!fullPending)return;clearTimeout(timeout);}
-    timeout=setTimeout(runScheduledRender,0);
-  });
+  let renderSerial=0,slotRevision=0;
+  let timeout=null,rendering=false,fullPending=false,renderRetryCount=0;
+  // Keep each dirty slot until the exact captured revision has been submitted.
+  const dirtyNativeSlots=new Map();
   let lastSentImages = null;
   let lastSentWideMode='blank',lastSentPageStamp=null;
   let online = false;
   const pressedKeys=new Map();
   const releaseTimers=new Map();
-  const pageStamp=()=>String(state.profileId)+':'+state.page+':'+(state.folderPath||[]).join('-')+':'+(DeckCore.activeFolder(state)?.pageIndex||0);
+  const pageStamp=()=>String(state.profileId)+':'+state.page+':'+(state.folderPath||[]).join('-')+':'+(DeckCore.activeFolder(state)?.pageIndex||0)+':'+(window.D200XPageStructureEpoch?.()||0);
   const keyPressed=index=>pressedKeys.get(index)===pageStamp();
   window.D200XPhysicalKeyPressed=keyPressed;
   const text = message => { if (notice) notice.textContent = message; };
@@ -171,9 +165,15 @@
   function imageLoaded(source) {
     return new Promise(resolve => {
       const img = new Image();
-      img.onload = () => resolve(img);
-      img.onerror = () => resolve(null);
-      img.src = source;
+      let settled=false;
+      const finish=value=>{
+        if(settled)return;settled=true;clearTimeout(timer);
+        img.onload=null;img.onerror=null;resolve(value);
+      };
+      const timer=setTimeout(()=>finish(null),5000);
+      img.onload=()=>finish(img);
+      img.onerror=()=>finish(null);
+      img.src=source;
     });
   }
 
@@ -406,7 +406,7 @@
 
   // Keep normal bitmaps/mode cached. Apply the alert only to the outgoing
   // page, including native clock/stats and legacy populated folder slots.
-  const warningPageStamp=()=>JSON.stringify([state.profileId,state.page,state.folderPath||[],DeckCore.activeFolder(state)?.pageIndex||0,window.D200XWideOverlayStamp?.()||0]);
+  const warningPageStamp=()=>JSON.stringify([state.profileId,state.page,state.folderPath||[],DeckCore.activeFolder(state)?.pageIndex||0,window.D200XWideOverlayStamp?.()||0,window.D200XPageStructureEpoch?.()||0]);
   function sendImages(images,mode){
     if(window.D200XUnsavedWarning?.()){
       const canvas=document.createElement('canvas');canvas.width=392;canvas.height=196;
@@ -417,8 +417,8 @@
     }else bridge.syncPage(images,mode);
   }
   function cacheAndSendImages(images,mode,stamp){
-    lastSentImages=images;lastSentWideMode=mode;lastSentPageStamp=stamp;
     sendImages(images,mode);
+    lastSentImages=images;lastSentWideMode=mode;lastSentPageStamp=stamp;
   }
   window.scheduleD200XWarningSync=()=>{
     // Do not cancel an outstanding normal page synchronization. It will
@@ -428,80 +428,93 @@
     else schedule(0);
   };
   async function synchronize(nativeOnly=false) {
-    nativeRenderGate.begin();
-    const serial = ++renderSerial;
-    const stamp=warningPageStamp();
-    const changed=[...dirtyNativeSlots];dirtyNativeSlots.clear();
-    const mode=window.getD200XWideMode?.()||'blank';
-    const partial=nativeOnly&&changed.length>0&&lastSentImages?.length===14&&lastSentPageStamp===stamp&&lastSentWideMode===mode;
-    const indices=partial?changed:Array.from({length:14},(_,i)=>i);
-    const images=partial?lastSentImages.slice():new Array(14);
-    const page=DeckCore.visibleActions(state).slice(0,14);
-    const jobs=indices.map(index=>{
-      const raw=page[index];
-      const item=raw?JSON.parse(JSON.stringify(raw)):
-        state.folderPath?.length&&index===13?{type:'folder-back',title:'뒤로',icon:{kind:'glyph',glyph:'↩'},titleStyle:DeckCore.TITLE}:null;
-      const visual=window.getD200XDisplayItem
-        ?window.getD200XDisplayItem(item,index)
-        :item?.type==='indicator'?{...item,icon:{kind:'glyph',glyph:String(state.page+1)}}:DeckCore.displaySwitchAction(item);
-      return {index,visual};
-    });
-    try {
-      await Promise.all(jobs.map(async({visual,index})=>{
+    if(rendering)return;
+    rendering=true;
+    const serial=renderSerial;
+    let failed=false;
+    try{
+      const stamp=warningPageStamp(),mode=window.getD200XWideMode?.()||'blank';
+      const changed=new Map(dirtyNativeSlots);
+      const partial=nativeOnly&&changed.size>0&&lastSentImages?.length===14&&lastSentPageStamp===stamp&&
+        (lastSentWideMode===mode||changed.has(13));
+      const indices=partial?[...changed.keys()]:Array.from({length:14},(_,i)=>i);
+      const images=partial?lastSentImages.slice():new Array(14);
+      // Capture visual state before awaiting any decode. The editor and USB
+      // compositor consume the same resolved visual state.
+      const page=DeckCore.visibleActions(state).slice(0,14);
+      const jobs=indices.map(index=>{
+        const raw=page[index];
+        const item=raw|| (state.folderPath?.length&&index===13?{type:'folder-back',title:'뒤로',icon:{kind:'glyph',glyph:'↩'},titleStyle:DeckCore.TITLE}:null);
+        const visual=window.getD200XDisplayItem
+          ?window.getD200XDisplayItem(item,index)
+          :item?.type==='indicator'?{...item,icon:{kind:'glyph',glyph:String(state.page+1)}}:DeckCore.displaySwitchAction(item);
+        return {index,visual};
+      });
+      const results=await Promise.allSettled(jobs.map(async({visual,index})=>{
         images[index]=await drawSlot(visual,index);
       }));
-      if(serial!==renderSerial)return;
-      if(stamp!==warningPageStamp()||mode!==(window.getD200XWideMode?.()||'blank')){schedule(0);return;}
-      // The validated 14-entry USB protocol stays intact; only changed PNGs
-      // are composed. Transport can reuse its own unchanged-image hashes.
+      // A newer full page request supersedes all older page bitmaps.
+      if(serial!==renderSerial||stamp!==warningPageStamp()||mode!==(window.getD200XWideMode?.()||'blank')){
+        fullPending=true;return;
+      }
+      const rejected=results.find(result=>result.status==='rejected');
+      if(rejected)throw rejected.reason;
+      // Single flight means an older frame can never overwrite an already
+      // submitted newer frame. A change during rendering remains dirty.
       cacheAndSendImages(images,mode,stamp);
+      for(const [index,revision] of changed)
+        if(dirtyNativeSlots.get(index)===revision)dirtyNativeSlots.delete(index);
+      renderRetryCount=0;
     }catch(error){
+      failed=true;fullPending=true;renderRetryCount++;
       text('D200X 아이콘 생성 오류: '+String(error?.message||error));
-      if(partial)schedule(0);
-    }finally{nativeRenderGate.end();}
+    }finally{
+      rendering=false;
+      // Bounded retries preserve pending state, without spinning forever on a
+      // corrupt asset or a persistent renderer/transport failure.
+      if((fullPending||dirtyNativeSlots.size)&&(!failed||renderRetryCount<=3))
+        ensureRenderTimer(failed?Math.min(1000,125*2**renderRetryCount):0);
+    }
   }
   function runScheduledRender(){
     timeout=null;
-    const nativeOnly=!fullPending;fullPending=false;
+    if(rendering)return;
+    const nativeOnly=!fullPending;
+    if(nativeOnly&&!dirtyNativeSlots.size)return;
+    fullPending=false;
     void synchronize(nativeOnly);
   }
-  function schedule(delay=250) {
-    ++renderSerial;fullPending=true;
-    if(timeout!==null)clearTimeout(timeout);
+  function ensureRenderTimer(delay=0,replace=false){
+    if(rendering)return;
+    if(timeout!==null){
+      if(!replace)return;
+      clearTimeout(timeout);
+    }
     timeout=setTimeout(runScheduledRender,delay);
+  }
+  function schedule(delay=250){
+    ++renderSerial;fullPending=true;renderRetryCount=0;
+    ensureRenderTimer(delay,true);
+  }
+  function requestSlots(slots){
+    for(const index of slots)dirtyNativeSlots.set(index,++slotRevision);
+    renderRetryCount=0;
+    ensureRenderTimer(0,true);
   }
   window.scheduleDeckSync=schedule;
   window.scheduleNativeDeckSync=slots=>{
     if(!Array.isArray(slots)||!slots.length||slots.some(i=>!Number.isInteger(i)||i<0||i>=13)){schedule(0);return;}
-    for(const i of slots)dirtyNativeSlots.add(i);
-    nativeRenderGate.mark();
+    requestSlots(slots);
   };
-  // Wide-mode cycling changes only slot 13. Reuse the last complete set
-  // of physical key bitmaps rather than re-rendering all fourteen on every
-  // press. The existing whole-page synchronization remains the fallback
-  // for initial connection, page changes and all other edits.
-  window.scheduleD200XWideSync=()=>{
-    if(timeout!==null||nativeRenderGate.pending()||nativeRenderGate.busy()||!lastSentImages||lastSentImages.length!==14||lastSentPageStamp!==warningPageStamp()){schedule(0);return;}
-    const serial=++renderSerial;
-    if(timeout!==null){clearTimeout(timeout);timeout=null;}
-    const wide=window.getD200XDisplayItem?.(null,13);
-    if(wide?.type!=='wide-display'){schedule(0);return;}
-    drawSlot(wide,13).then(image=>{
-      if(serial!==renderSerial)return;
-      const images=lastSentImages.slice();
-      images[13]=image;
-      cacheAndSendImages(images,window.getD200XWideMode?.()||'blank',warningPageStamp());
-    }).catch(error=>{
-      text('가로 화면 전환 이미지 오류: '+String(error?.message||error));
-      schedule(0);
-    });
-  };
+  // Wide-mode changes share the same single-flight scheduler. The old full
+  // page remains the safe fallback if page identity has changed.
+  window.scheduleD200XWideSync=()=>requestSlots([13]);
   bridge.ready();
   schedule();
   // Refresh the date/time image without polling or overwriting unrelated keys.
   setInterval(()=>{
     if(window.getD200XWideMode?.()==='blank'&&window.D200XWideModeName?.()==='datetime'){
-      window.renderGridWideClock?.();schedule();
+      window.renderGridWideClock?.();window.scheduleD200XWideSync();
     }
   },60_000);
 })();
