@@ -108,7 +108,14 @@ function sensorKey(event,settings,state,memory,api){
       const row=shared.entities?.[id],label=(row?.label||id).slice(0,35);
       let value=row?.value??'unknown';
       if(value==='unknown'||value==='unavailable')value='—';
-      else if(id.startsWith('binary_sensor.'))value=value==='on'?'감지 / 열림':value==='off'?'정상 / 닫힘':value;
+      else if(id.startsWith('binary_sensor.')){
+        const pairs={door:['열림','닫힘'],window:['열림','닫힘'],opening:['열림','닫힘'],garage_door:['열림','닫힘'],
+          motion:['감지','미감지'],occupancy:['재실','부재'],presence:['재실','부재'],moisture:['누수 감지','정상'],
+          smoke:['연기 감지','정상'],gas:['가스 감지','정상'],battery:['배터리 부족','정상'],connectivity:['연결','끊김'],
+          lock:['잠금 해제','잠김'],problem:['이상','정상'],safety:['위험','안전'],power:['전원 있음','전원 없음']};
+        const pair=Object.hasOwn(pairs,row?.kind)?pairs[row.kind]:['켜짐','꺼짐'];
+        value=value==='on'?pair[0]:value==='off'?pair[1]:value;
+      }
       else if(value!==''&&Number.isFinite(Number(value))&&settings.decimals>=0)value=Number(value).toFixed(settings.decimals);
       if(settings.unit&&row?.unit&&value!=='—')value+=' '+row.unit;
       if(settings.labels)add(label,i*h+h*0.26,selected.length===1?20:13,'#CFD7E2');
@@ -125,14 +132,14 @@ function createHomeAssistantManifest(server){
   u.protocol='wss:';u.pathname='/api/websocket';
   const script=f=>'return ('+f.toString()+')(event,settings,state,memory,api);';
   const select=(key,label,value,options)=>({key,label,type:'select',default:value,options:options.map(([value,label])=>({value,label}))});
-  return {apiVersion:2,id:ID,name:'DeckForge Home Assistant',version:'0.1.0',requiresDeckForge:'>=1.1.172',
+  return {apiVersion:2,id:ID,name:'DeckForge Home Assistant',version:'0.1.1',requiresDeckForge:'>=1.1.173',
     permissions:['display','background.run','network.websocket','timer.tick'],
     networkEndpoints:[{id:'ha',url:u.href,method:'WSS',auth:'home-assistant',reconnect:true,maxReceiveBytes:262144}],
     service:{script:script(service),sharedStateBytes:262144},
     actions:[
-      {id:ID+'.control',name:'HA 기기 제어',controllers:['Keypad'],states:2,script:script(controlKey),
+      {id:ID+'.control',name:'HA 기기 제어',controllers:['Keypad'],states:2,script:script(controlKey),sharedStateView:{keys:['status','commandError'],map:'entities',selection:'entity'},
        settingsSchema:[{key:'entity',label:'기기 선택',type:'dynamicSelect',source:'controls',default:''}]},
-      {id:ID+'.sensor',name:'HA 센서 표시',controllers:['Keypad'],states:1,script:script(sensorKey),tickIntervalMs:1000,
+      {id:ID+'.sensor',name:'HA 센서 표시',controllers:['Keypad'],states:1,script:script(sensorKey),tickIntervalMs:1000,sharedStateView:{keys:['status'],map:'entities',selection:'entities'},
        settingsSchema:[
          {key:'entities',label:'표시 항목',type:'dynamicMultiSelect',source:'sensors',maxItems:4,default:[]},
          select('mode','표시 방식','all',[['all','동시에 표시'],['press','누를 때 전환'],['auto','자동 전환']]),

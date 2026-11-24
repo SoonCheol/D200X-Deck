@@ -32,7 +32,7 @@ contextBridge.exposeInMainWorld('deckBridge', Object.freeze({
   nativeServiceStatus:id=>ipcRenderer.invoke('d200x:native-service-status',id),
   nativeServiceControl:(id,mode)=>ipcRenderer.invoke('d200x:native-service-control',id,mode),
   nativeDynamicOptions:(id,action)=>ipcRenderer.invoke('d200x:native-dynamic-options',id,action),
-  nativeHaInstall:url=>ipcRenderer.invoke('d200x:native-ha-install',url),
+  nativeHaInstall:(url,mode)=>ipcRenderer.invoke('d200x:native-ha-install',url,mode),
   nativeCredentialInfo:id=>ipcRenderer.invoke('d200x:native-credential-info',id),
   nativeCredentialWrite:(id,binding,revision,token)=>ipcRenderer.invoke('d200x:native-credential-write',id,binding,revision,token),
   fusionHealth: () => ipcRenderer.invoke('d200x:fusion-health'),

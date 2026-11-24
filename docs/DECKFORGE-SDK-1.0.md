@@ -74,3 +74,7 @@ API 2 manifest의 service={script,tickIntervalMs?} 및 별도 background.run 권
 ## 1.1.172 동적 설정 및 HA 첫 후보
 - service.sharedStateBytes: 기본 8192, 선택 262144. 기존 암호화 설정/메모리/송신 한도 유지. 동적 설정 dynamicSelect/dynamicMultiSelect(source, maxItems)는 service 공유 상태의 선택 목록을 검증해 편집기에 제공하며 기존 선택 보존, 검색 및 그룹 표시. 인증정보 교체 후 활성 서비스 재시작(명시 중지 보존).
 - HA 전용 설치는 사용자 지정 HTTPS/WSS 주소 승인 및 별도 암호화 토큰, 기존 HA 플러그인과 공존. 기기 레지스트리/압축 상태 구독, 스위치류 및 센서 최대 4개, 동시/수동/자동 전환. 대량 목록 상한 및 실기 검증 필요. 공식 HA WebSocket 및 공개 JS client protocol 참고, 원본 코드/아이콘 미포함.
+
+## 1.1.173 선택 상태 전달 및 HA 패키지
+- API 2 action.sharedStateView={keys,map,selection}: 허용 공유 상태 최상위 키와 설정에 선택된 최대 8개 map 항목만 버튼 renderer에 복제. 관계없는 상태 변경 이벤트 생략. 기존 선언 없는 액션은 이전 동작 유지. HA 0.1.1은 이 기능 사용.
+- HA 전용 추가에서 설치/업데이트 또는 서버 주소 포함 독립 .deckforgePlugin 파일 저장(토큰 미포함, 덮어쓰기 금지). 이진 센서 device_class별 상태 문구 및 Electron 센서 출력 집중 검사 추가. 실제 HA 연결·D200X 실기는 별도.

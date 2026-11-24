@@ -1234,12 +1234,25 @@ async function installNativeHa(){
   const content=document.createElement('div'),row=document.createElement('label'),input=document.createElement('input');
   row.className='field';const label=document.createElement('span');label.textContent='HA 서버 주소';
   input.type='url';input.placeholder='https://ha.example.com';input.maxLength=1024;row.append(label,input);content.append(row);
+  const operation=document.createElement('label');operation.className='field';
+  const operationLabel=document.createElement('span');operationLabel.textContent='작업';
+  const mode=document.createElement('select');
+  for(const [value,text] of [['install','설치 / 업데이트'],['export','설치 파일 저장']]){
+    const option=document.createElement('option');option.value=value;option.textContent=text;mode.append(option);
+  }
+  operation.append(operationLabel,mode);content.append(operation);
+  const existing=sdkPlugins.find(p=>p.uuid==='com.deckforge.native.home-assistant');
+  if(existing&&window.deckBridge?.nativeCredentialInfo){
+    try{const entries=await window.deckBridge.nativeCredentialInfo(existing.uuid);const ha=entries.find(x=>x.id==='ha');if(ha)input.value=ha.url.replace(/^wss:/,'https:').replace(/\/api\/websocket$/,'');}catch{}
+  }
   const hint=document.createElement('p');hint.className='hint';content.append(hint);
-  const accepted=await window.DeckForgeDialogs.show({title:'HA 전용 플러그인 추가',intro:'HTTPS 서버 주소를 입력하세요. 토큰은 다음 단계에서 별도 등록합니다.',content,ask:true,actionLabel:'계속',
+  const accepted=await window.DeckForgeDialogs.show({title:'HA 전용 플러그인',intro:'HTTPS 서버 주소를 입력하세요. 설치 파일에는 토큰이 포함되지 않습니다.',content,ask:true,actionLabel:'계속',
     onAccept:()=>{try{const u=new URL(input.value.trim());if(!['https:','wss:'].includes(u.protocol)||u.username||u.password||u.search||u.hash)throw Error();return true;}catch{hint.textContent='HTTPS 또는 WSS 주소를 확인하세요.';return false;}}});
   if(!accepted)return;
-  try{const plugin=await window.deckBridge.nativeHaInstall(input.value.trim());if(!plugin)return;
-    await refreshSdkPlugins();scheduleSdkSync();window.d200xActionStatus?.('HA 전용 플러그인 설치 완료 · 버튼 속성의 인증정보 관리에서 토큰을 등록하세요.');
+  try{const plugin=await window.deckBridge.nativeHaInstall(input.value.trim(),mode.value);if(!plugin)return;
+    if(mode.value==='export'){window.d200xActionStatus?.('HA 전용 설치 파일 저장 완료: '+plugin.filePath);return;}
+    for(const instance of sdkActionInstances())if(instance.pluginUUID===plugin.uuid)sdkVisuals.delete(instance.context);
+    await refreshSdkPlugins();scheduleSdkSync();window.d200xActionStatus?.('HA 전용 플러그인 적용 완료 · 필요한 경우 인증정보를 등록하세요.');
   }catch(error){window.d200xActionStatus?.('HA 전용 설치 실패: '+String(error?.message||error));}
 }
 async function exportDeckForgePlugin(){

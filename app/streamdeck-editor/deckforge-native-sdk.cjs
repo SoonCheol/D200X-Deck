@@ -41,6 +41,25 @@ function validateNativeImage(value){
   }
   validateNativePng(value);
 }
+const sharedKey=v=>typeof v==='string'&&/^[a-zA-Z0-9_-]{1,48}$/.test(v)&&!['__proto__','prototype','constructor'].includes(v);
+function validateSharedView(view,schema){
+  check(exact(view,['keys','map','selection'])&&Object.keys(view).length===3&&Array.isArray(view.keys)&&view.keys.length<=8&&
+    view.keys.every(sharedKey)&&new Set(view.keys).size===view.keys.length&&sharedKey(view.map)&&!view.keys.includes(view.map)&&
+    sharedKey(view.selection)&&schema?.some(f=>f.key===view.selection&&['dynamicSelect','dynamicMultiSelect','text'].includes(f.type)),'invalid shared state view');
+}
+function projectSharedState(ctx,snapshot){
+  const view=ctx.action?.sharedStateView;
+  if(ctx.service||!view)return structuredClone(snapshot);
+  const out={};
+  for(const key of view.keys)if(Object.hasOwn(snapshot,key))out[key]=snapshot[key];
+  const field=ctx.action.settingsSchema?.find(f=>f.key===view.selection);
+  const raw=Object.hasOwn(ctx.settings||{},view.selection)?ctx.settings[view.selection]:field?.default;
+  const ids=(Array.isArray(raw)?raw:[raw]).filter(v=>typeof v==='string'&&v.length<=256).slice(0,8);
+  const entries={},source=snapshot[view.map];
+  if(obj(source))for(const id of ids)if(!['__proto__','constructor','prototype'].includes(id)&&Object.hasOwn(source,id))entries[id]=source[id];
+  out[view.map]=entries;
+  return structuredClone(out);
+}
 function validateNativeManifest(m){
   check(exact(m,['apiVersion','id','name','version','permissions','actions','requiresDeckForge','dependencies','networkEndpoints','service'])&&[1,2].includes(m.apiVersion)&&
     typeof m.id==='string'&&ID.test(m.id)&&!m.id.endsWith('.')&&!m.id.includes('..')&&
@@ -62,11 +81,12 @@ function validateNativeManifest(m){
   check(Array.isArray(m.actions)&&m.actions.length>0&&m.actions.length<=64,'invalid actions');
   const ids=new Set();
   for(const a of m.actions){
-    check(exact(a,m.apiVersion===1?['id','name','controllers','states','events','settingsSchema','stateImages']:['id','name','controllers','states','script','settingsSchema','tickIntervalMs','stateImages'])&&typeof a.id==='string'&&
+    check(exact(a,m.apiVersion===1?['id','name','controllers','states','events','settingsSchema','stateImages']:['id','name','controllers','states','script','settingsSchema','tickIntervalMs','stateImages','sharedStateView'])&&typeof a.id==='string'&&
       a.id.startsWith(m.id+'.')&&/^[a-z0-9.-]+$/.test(a.id)&&a.id.length<=180&&
       !a.id.endsWith('.')&&!a.id.includes('..')&&!ids.has(a.id)&&validText(a.name,180),'invalid action');
     ids.add(a.id);
     validateNativeSettingsSchema(a.settingsSchema);
+    if(a.sharedStateView!==undefined){check(m.apiVersion===2&&m.permissions.includes('background.run'),'shared state view requires background service');validateSharedView(a.sharedStateView,a.settingsSchema);}
     check(Array.isArray(a.controllers)&&a.controllers.length>0&&a.controllers.length<=2&&
       new Set(a.controllers).size===a.controllers.length&&a.controllers.every(c=>['Keypad','Encoder'].includes(c))&&
       [1,2].includes(a.states),'invalid action controllers or states');
@@ -345,7 +365,7 @@ class NativePluginHost{
     }
     check(!animationCount||!normal.some(op=>op.op==='image'),'animation and static image cannot share an event');
     if(ctx.service)return {normal,effects};
-    const {script,tickIntervalMs,stateImages,...action}=ctx.action;
+    const {script,tickIntervalMs,stateImages,sharedStateView,...action}=ctx.action;
     validateNativeManifest({apiVersion:1,id:ctx.pluginUUID,name:'Runtime',version:'1',
       permissions:['display'],actions:[{...action,events:{press:normal.filter(op=>!['animation','stopAnimation'].includes(op.op))}}]});
     return {normal,effects};
@@ -360,10 +380,11 @@ class NativePluginHost{
   sharedSnapshot(ctx){
     if(!ctx.permissions.includes('background.run'))return {};
     const service=this.contexts.get(SERVICE_PREFIX+ctx.pluginUUID);
-    return structuredClone(service?.sharedState||{});
+    return projectSharedState(ctx,service?.sharedState||{});
   }
-  notifyShared(pluginUUID){
+  notifyShared(pluginUUID,previous){
     for(const other of this.contexts.values())if(!other.service&&other.pluginUUID===pluginUUID&&other.permissions.includes('background.run')&&!other.failed){
+      if(previous&&other.action.sharedStateView&&JSON.stringify(projectSharedState(other,previous))===JSON.stringify(this.sharedSnapshot(other)))continue;
       other.sharedDirty=true;this.queueSharedRefresh(other);
     }
   }
@@ -376,7 +397,7 @@ class NativePluginHost{
   applyOps(ctx,program){
       for(const op of program){
         if(op.op==='publishSharedState'){
-          if(JSON.stringify(ctx.sharedState)!==JSON.stringify(op.value)){ctx.sharedState=structuredClone(op.value);this.notifyShared(ctx.pluginUUID);}
+          if(JSON.stringify(ctx.sharedState)!==JSON.stringify(op.value)){const previous=ctx.sharedState;ctx.sharedState=structuredClone(op.value);this.notifyShared(ctx.pluginUUID,previous);}
           continue;
         }
         const send=(kind,payload)=>this.onUpdate({kind,context:ctx.context,payload});
@@ -442,7 +463,7 @@ class NativePluginHost{
   }
   resetScript(ctx){
     this.cancelSettingsReceipt(ctx);ctx.settingsRefresh=false;ctx.sharedDirty=false;ctx.sharedQueued=false;
-    if(ctx.service&&Object.keys(ctx.sharedState||{}).length){ctx.sharedState={};this.notifyShared(ctx.pluginUUID);}
+    if(ctx.service&&Object.keys(ctx.sharedState||{}).length){const previous=ctx.sharedState;ctx.sharedState={};this.notifyShared(ctx.pluginUUID,previous);}
     this.animations.stop(ctx);
     ctx.tickDue=null;
     this.cancelNetwork(ctx);this.cancelSocket(ctx);
@@ -987,4 +1008,4 @@ class PluginRouter{
   onSystemResume(){this.native.resume();this.legacy.onSystemResume();}
   async close(){this.closed=true;this.native.close();await this.legacy.close();}
 }
-module.exports={validateNativeManifest,NativePluginHost,PluginRouter,LIMIT};
+module.exports={validateNativeManifest,NativePluginHost,PluginRouter,projectSharedState,LIMIT};

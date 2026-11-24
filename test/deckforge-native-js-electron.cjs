@@ -115,6 +115,29 @@ async function verifyPublicApi(runner){
   }finally{host.close();}
 }
 
+async function verifyHomeAssistant(runner){
+  const {createHomeAssistantManifest}=require('../app/streamdeck-editor/deckforge-ha-plugin.cjs');
+  const {validateNativeManifest,NativePluginHost,projectSharedState}=require('../app/streamdeck-editor/deckforge-native-sdk.cjs');
+  const manifest=validateNativeManifest(createHomeAssistantManifest('https://example.com'));
+  const host=new NativePluginHost('/unused'),action=manifest.actions[1];
+  const settings={entities:['sensor.temp','sensor.humidity'],mode:'all',seconds:5,labels:true,unit:true,decimals:1,fontSize:36,color:'#FFFFFF'};
+  const shared={status:'연결됨',entities:{'sensor.temp':{label:'온도',value:'23.5',unit:'°C'},'sensor.humidity':{label:'습도',value:'48',unit:'%'}}};
+  const ctx={action,settings,pluginUUID:manifest.id,permissions:manifest.permissions,slot:0};
+  const svc={service:true,sharedStateBytes:262144,pluginUUID:manifest.id,permissions:manifest.permissions,action:{id:manifest.id+'.service'},networkEndpoints:manifest.networkEndpoints};
+  try{
+    const initial=await runner.run(manifest.service.script,{...input,event:{type:'start',scope:'service'},sharedState:{}});
+    const started=host.validateScriptOps(svc,'start',initial.ops);
+    assert.equal(started.effects[0].op,'socketConnect');
+    assert.equal(started.normal[0].op,'publishSharedState');
+    const rendered=await runner.run(action.script,{...input,event:{type:'appear'},settings,sharedState:projectSharedState(ctx,shared)});
+    assert.equal(host.validateScriptOps(ctx,'appear',rendered.ops).normal.at(-1).op,'image');
+    const changed=await runner.run(action.script,{...input,event:{type:'sharedState'},settings,memory:rendered.memory,sharedState:{...shared,entities:{...shared.entities,'sensor.temp':{label:'온도',value:'24.5',unit:'°C'}}}});
+    assert.notEqual(rendered.ops.at(-1).rgba,changed.ops.at(-1).rgba);
+    const same=await runner.run(action.script,{...input,event:{type:'sharedState'},settings,memory:rendered.memory,sharedState:shared});
+    assert.deepEqual(same.ops,[]);
+    console.log('DeckForge HA independent service and actual sensor key rendering smoke passed');
+  }finally{host.close();}
+}
 app.whenReady().then(async()=>{
   const a=createScriptRunner('com.deckforge.native.smokea');
   const b=createScriptRunner('com.deckforge.native.smokeb');
@@ -167,6 +190,7 @@ app.whenReady().then(async()=>{
     }finally{cancelled.close();}
     console.log('DeckForge JavaScript SDK renderer smoke passed');
     await verifyPublicApi(b);
+    await verifyHomeAssistant(b);
     await verifyWindowsEncryption();
     await verifyVectorRendering();
     a.close();b.close();app.exit(0);

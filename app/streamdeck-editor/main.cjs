@@ -95,16 +95,27 @@ ipcMain.handle('d200x:native-service-control',async(event,id,mode)=>{
   assertEditor(event);return sdk().manageService(id,mode);
 });
 ipcMain.handle('d200x:native-dynamic-options',async(event,id,action)=>{assertEditor(event);return sdk().dynamicOptions(id,action);});
-ipcMain.handle('d200x:native-ha-install',async(event,url)=>{
+ipcMain.handle('d200x:native-ha-install',async(event,url,mode='install')=>{
   assertEditor(event);
+  if(!['install','export'].includes(mode))throw Error('잘못된 HA 플러그인 작업');
   const manifest=require('./deckforge-ha-plugin.cjs').createHomeAssistantManifest(url);
+  if(mode==='export'){
+    const pack=await DeckForgePlugins.packageNativeManifest(manifest);
+    const result=await dialog.showSaveDialog(window,{title:'HA 전용 설치 파일 저장',
+      defaultPath:pack.filename,filters:[{name:'DeckForge 플러그인',extensions:['deckforgePlugin']}]});
+    if(result.canceled||!result.filePath)return null;
+    if(path.extname(result.filePath).toLowerCase()!=='.deckforgeplugin')throw Error('확장자는 .deckforgePlugin이어야 합니다.');
+    await fs.promises.writeFile(result.filePath,pack.archive,{flag:'wx'});
+    return {name:manifest.name,version:manifest.version,filePath:result.filePath};
+  }
   const plan=await sdk().planNativeInstall(manifest);
-  if(plan.kind!=='install')throw Error('기존 HA 전용 플러그인은 패키지 업데이트를 사용하세요.');
-  const choice=await dialog.showMessageBox(window,{type:'question',title:'HA 전용 플러그인 설치',
-    message:'DeckForge Home Assistant 설치',detail:'연결 주소: '+manifest.networkEndpoints[0].url+'\n페이지 독립 서비스 및 상태 구독·선택한 기기 제어를 허용합니다.\n토큰은 설치 후 인증정보 관리에서 암호화 저장합니다.',
-    buttons:['취소','설치'],defaultId:0,cancelId:0,noLink:true});
+  if(plan.kind==='rollback')throw Error('이전 버전 복원은 패키지 설치에서 진행하세요.');
+  const verb=plan.kind==='install'?'설치':'업데이트';
+  const choice=await dialog.showMessageBox(window,{type:'question',title:'HA 전용 플러그인 '+verb,
+    message:'DeckForge Home Assistant '+verb,detail:'연결 주소: '+manifest.networkEndpoints[0].url+'\n버전: '+(plan.kind==='install'?manifest.version:plan.currentVersion+' → '+manifest.version)+'\n페이지 독립 서비스 및 상태 구독·선택한 기기 제어를 허용합니다.\n같은 서버의 인증정보와 기존 버튼 설정은 보존됩니다. 다른 서버 주소에는 별도 인증정보가 필요합니다.',
+    buttons:['취소',verb],defaultId:0,cancelId:0,noLink:true});
   if(choice.response!==1)return null;
-  return sdk().installNative(manifest);
+  return plan.kind==='install'?sdk().installNative(manifest):sdk().replaceNative(manifest,plan.currentRevision);
 });
 ipcMain.handle('d200x:native-credential-info',async(event,id)=>{assertEditor(event);return sdk().credentialInfo(id);});
 ipcMain.handle('d200x:native-credential-write',async(event,id,binding,revision,token)=>{

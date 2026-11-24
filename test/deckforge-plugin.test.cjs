@@ -2144,3 +2144,35 @@ test('HA native manifest, compressed entity state, device grouping, control and 
  run('socketEvent',{event:'close'});assert.equal(shared.status,'연결 끊김');
  controlKey({type:'press'},{entity:'switch.fan'},0,{},api);assert.equal(commands.length,1);
 });
+
+test('native shared state view limits per-key input and skips unrelated updates',()=>{
+ const {projectSharedState}=require('../app/streamdeck-editor/deckforge-native-sdk.cjs');
+ const {createHomeAssistantManifest}=require('../app/streamdeck-editor/deckforge-ha-plugin.cjs');
+ const m=createHomeAssistantManifest('https://example.com'),a=m.actions[0];
+ const ctx={action:a,settings:{entity:'switch.fan'},permissions:m.permissions};
+ const snapshot={status:'연결됨',entities:{'switch.fan':{value:'off'},'sensor.temp':{value:'23'}},controls:[{value:'switch.fan',label:'fan'}]};
+ assert.deepEqual(projectSharedState(ctx,snapshot),{status:'연결됨',entities:{'switch.fan':{value:'off'}}});
+ assert.deepEqual(projectSharedState({...ctx,settings:{entity:'__proto__'}},snapshot),{status:'연결됨',entities:{}});
+ assert.throws(()=>validateNativeManifest({...m,actions:[{...a,sharedStateView:{keys:['__proto__'],map:'entities',selection:'entity'}}]}),/shared state view/);
+ assert.throws(()=>validateNativeManifest({...m,actions:[{...a,sharedStateView:{keys:['status'],map:'entities',selection:'missing'}}]}),/shared state view/);
+ const host=new NativePluginHost('/unused');
+ const service={sharedState:snapshot};
+ const key={...ctx,context:'key',pluginUUID:m.id};
+ host.contexts.set('@service:'+m.id,service);host.contexts.set('key',key);
+ let calls=0;host.queueSharedRefresh=()=>{calls++;};
+ try{
+   host.notifyShared(m.id,{...snapshot,entities:{...snapshot.entities,'sensor.temp':{value:'22'}}});
+   assert.equal(calls,0);
+   host.notifyShared(m.id,{...snapshot,entities:{...snapshot.entities,'switch.fan':{value:'on'}}});
+   assert.equal(calls,1);
+ }finally{host.contexts.clear();host.close();}
+});
+test('HA plugin independent package round trip preserves address but contains no credentials',async()=>{
+ const {createHomeAssistantManifest}=require('../app/streamdeck-editor/deckforge-ha-plugin.cjs');
+ const {packageNativeManifest}=require('../app/streamdeck-editor/deckforge-plugin.cjs');
+ const manifest=createHomeAssistantManifest('https://example.com');
+ const pack=await packageNativeManifest(manifest);
+ assert.ok(pack.filename.endsWith('.deckforgePlugin'));
+ const parsed=await parseDeckForgePackage(pack.archive);
+ assert.deepEqual(parsed.native,manifest);
+});
