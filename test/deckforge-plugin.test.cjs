@@ -901,3 +901,28 @@ test('conversion PNG verification rejects CRC corruption, truncation, extra data
  const animation=Buffer.concat([valid.subarray(0,33),chunk('acTL',Buffer.alloc(8)),valid.subarray(33)]);
  assert.equal(verifyPng(animation).ok,false);
 });
+
+test('Ulanzi restricted multi-action routing separates declared UUID branches and controllers',()=>{
+  const {analyzeSource}=require('../app/streamdeck-editor/ulanzi-converter.cjs');
+  const id='com.ulanzi.ulanzistudio.Multi',key=id+'.key',dial=id+'.dial',other=id+'.other';
+  const m={Type:'JavaScript',UUID:id,Name:'Multi',Version:'1',CodePath:'app.js',Actions:[
+    {UUID:key,Name:'Key',States:[{},{}]},{UUID:dial,Name:'Dial',Controllers:['Encoder']},{UUID:other,Name:'Other'}]};
+  const src="$UD.connect('"+id+"');$UD.onAdd(m=>{if(m.uuid === '"+key+"'){$UD.setTitle(m.context,'Key');}else if(m.uuid === '"+dial+"'){$UD.setTitle(m.context,'Dial');}else{$UD.setTitle(m.context,'Other');}});"+
+    "$UD.onKeyDown(m=>{if(m.uuid === '"+key+"'){$UD.setState(m.context,1);}else{$UD.setTitle(m.context,'Other down');}});"+
+    "$UD.onDialRotateLeft(m=>$UD.setTitle(m.context,'Left'));";
+  const result=analyzeSource(m,src);
+  assert.ok(result.candidate);
+  assert.equal(result.verification.status,'pass');
+  assert.equal(result.verification.installationAllowed,false);
+  const [a,b,c]=result.candidate.actions;
+  assert.equal(new Set([a.id,b.id,c.id]).size,3);
+  assert.deepEqual(a.events.press,[{op:'state',value:1}]);
+  assert.deepEqual(b.events.rotateLeft,[{op:'title',value:'Left'}]);
+  assert.equal(b.events.press,undefined);
+  assert.deepEqual(c.events.press,[{op:'title',value:'Other down'}]);
+  assert.equal(result.verification.checks.find(x=>x.name==='multi-appear').pass,true);
+  for(const bad of [src.replace('m.uuid ===','m.actionid ==='),src.replace(key,id+'.unknown'),src+"$UD.onKeyDown(m=>{});",src.replace("'Other down'","m.param.title")])
+    assert.equal(analyzeSource(m,bad).candidate,null);
+  const reordered=analyzeSource({...m,Actions:[m.Actions[2],m.Actions[0],m.Actions[1]]},src);
+  assert.equal(reordered.candidate.actions.find(x=>x.name==='Key').id,a.id);
+});

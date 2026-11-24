@@ -111,14 +111,20 @@ function analyzeSource(manifest,source,{stateImages}={}){
     }
   }
   if(manifest.PrivateAPI)note('private-api','private Ulanzi APIs');
-  if(manifest.Actions.length!==1)note('multi-action','action routing requires manual conversion');
+  if(manifest.Actions.length!==1)note('multi-action','multi-action candidate requires separate resource and release review');
   if(manifest.Actions.some(a=>a.PropertyInspectorPath))note('property-inspector','property inspector requires separate conversion');
   if(manifest.Actions.some(a=>a.Icon||(Array.isArray(a.States)&&a.States.some(s=>s?.Image))))note('artwork','original state/icon resources require preservation and verification');
-  const a=manifest.Actions[0],controllers=a.Controllers||['Keypad'];
+  const multi=manifest.Actions.length>1;
+  const knownIds=new Set(manifest.Actions.map(a=>a.UUID));
+  const actionResults=[];
+  const validController=a=>{const cs=a.Controllers||['Keypad'];return Array.isArray(cs)&&cs.length===1&&['Keypad','Encoder'].includes(cs[0]);};
+  const eligible=(a,method)=>validController(a)&&(!method.startsWith('onDial')||(a.Controllers||['Keypad'])[0]==='Encoder')&&(!method.startsWith('onKey')||(a.Controllers||['Keypad'])[0]==='Keypad');
+  for(const a of manifest.Actions){
+  const controllers=a.Controllers||['Keypad'];
   const states=Array.isArray(a.States)&&a.States.length?a.States.length:1;
   if(!Array.isArray(controllers)||controllers.length!==1||!['Keypad','Encoder'].includes(controllers[0])||![1,2].includes(states))
     note('controller-state','unsupported controller or state combination');
-  const programs=Object.create(null),sourceEvents=[];
+  const programs=Object.create(null),sourceEvents=[],registered=new Set();
   let structurallySafe=true,connected=false,declared=false;
   const reject=(n,why)=>{structurallySafe=false;note('manual-code',why,n?.loc?.start.line||0);};
   for(const node of ast.body){
@@ -145,6 +151,12 @@ function analyzeSource(manifest,source,{stateImages}={}){
       connected=true;continue;
     }
     if(!method||!own(EVENT_MAP,method)){reject(node,'top-level code or unsupported lifecycle');continue;}
+    if(registered.has(method)){reject(node,'duplicate event registration');continue;}
+    registered.add(method);
+    if(multi&&!eligible(a,method)){
+      if(!manifest.Actions.some(other=>eligible(other,method)))reject(node,'no matching controller for event');
+      continue;
+    }
     const event=EVENT_MAP[method],cb=call.arguments[0];
     if(call.arguments.length!==1||!['ArrowFunctionExpression','FunctionExpression'].includes(cb?.type)||
       cb.async||cb.generator||cb.params.length!==1||cb.params[0]?.type!=='Identifier'||
@@ -156,7 +168,23 @@ function analyzeSource(manifest,source,{stateImages}={}){
     if(param==='$UD'){reject(node,'ambiguous SDK shadowing');continue;}
     const body=cb.body.type==='BlockStatement'?cb.body.body:[{type:'ExpressionStatement',expression:cb.body,loc:cb.loc}];
     const ops=[],sourceCalls=[];
-    for(const statement of body){
+    // Only exact equality against a declared action UUID is interpreted.
+    // Never evaluate source expressions, and never route by instance actionid.
+    function project(statements,depth=0){
+      if(depth>16){reject(node,'action branch depth limit');return [];}
+      const out=[];
+      for(const statement of statements){
+        if(multi&&statement.type==='IfStatement'){
+          const test=statement.test;
+          const id=test?.type==='BinaryExpression'&&test.operator==='==='&&member(test.left,param,'uuid')&&lit(test.right,'string')?test.right.value:null;
+          if(!knownIds.has(id)){reject(statement,'unsupported action UUID condition');continue;}
+          const selected=id===a.UUID?statement.consequent:statement.alternate;
+          if(selected)out.push(...project(selected.type==='BlockStatement'?selected.body:[selected],depth+1));
+        }else out.push(statement);
+      }
+      return out;
+    }
+    for(const statement of project(body)){
       if(statement.type==='EmptyStatement')continue;
       const cmd=statement.type==='ExpressionStatement'?statement.expression:null,name=udCall(cmd);
       if(!['setTitle','setState','setImage'].includes(name)||cmd.arguments.length!==2||!member(cmd.arguments[0],param,'context')){
@@ -175,17 +203,26 @@ function analyzeSource(manifest,source,{stateImages}={}){
     if(ops.length>16)reject(node,'event operation limit');
     programs[event]=ops;sourceEvents.push({method,calls:sourceCalls});
   }
-  let candidate=null;
-  if(structurallySafe&&connected&&Object.keys(programs).length&&manifest.Actions.length===1&&!manifest.PrivateAPI&&
-    !a.PropertyInspectorPath&&Array.isArray(controllers)&&controllers.length===1&&['Keypad','Encoder'].includes(controllers[0])&&[1,2].includes(states)&&
-    (!own(a,'States')||Array.isArray(a.States))){
-    // Hash the original ID so distinct case/spelling cannot collide.
-    const id='com.deckforge.native.ulanzi-'+sha(manifest.UUID).slice(0,24);
-    const native={apiVersion:1,id,name:manifest.Name,version:manifest.Version,permissions:['display'],
-      actions:[{id:id+'.action',name:a.Name,controllers,states,events:programs,...(stateImages?{stateImages}:{})}]};
-    try{if(Buffer.byteLength(JSON.stringify(native))>MAX_SOURCE)throw Error('candidate size limit');candidate=validateNativeManifest(native);}catch{note('candidate-invalid','target SDK validation rejected candidate');}
+  actionResults.push({a,controllers,states,programs,sourceEvents,valid:structurallySafe&&connected&&Object.keys(programs).length>0&&
+    !a.PropertyInspectorPath&&validController(a)&&[1,2].includes(states)&&(!own(a,'States')||Array.isArray(a.States))});
   }
-  const verification=candidate?require('./ulanzi-verifier.cjs').simulateCandidate(candidate,sourceEvents):null;
+  let candidate=null,verification=null;
+  if(!manifest.PrivateAPI&&actionResults.every(x=>x.valid)){
+    const id='com.deckforge.native.ulanzi-'+sha(manifest.UUID).slice(0,24);
+    const actions=actionResults.map(({a,controllers,states,programs})=>({
+      id:multi?id+'.a-'+sha(a.UUID).slice(0,24):id+'.action',name:a.Name,controllers,states,events:programs,
+      ...(!multi&&stateImages?{stateImages}:{})
+    }));
+    const native={apiVersion:1,id,name:manifest.Name,version:manifest.Version,permissions:['display'],actions};
+    try{
+      if(Buffer.byteLength(JSON.stringify(native))>MAX_SOURCE)throw Error('candidate size limit');
+      candidate=validateNativeManifest(native);
+    }catch{note('candidate-invalid','target SDK validation rejected candidate');}
+    if(candidate){
+      const traces=multi?actionResults.map((x,i)=>({actionId:actions[i].id,events:x.sourceEvents})):actionResults[0].sourceEvents;
+      verification=require('./ulanzi-verifier.cjs').simulateCandidate(candidate,traces);
+    }
+  }
   if(verification?.status==='fail')note('simulation-failed','converted candidate trace mismatch');
   return {calls:[...calls.values()].sort((a,b)=>a.name.localeCompare(b.name)),imports:[...imports].sort(),findings,candidate,verification};
 }

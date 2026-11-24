@@ -2,6 +2,12 @@
 
 > **상태 기록 기준: 2026-11-24**. 실제 최신 HEAD는 Git에서 확인하며, 코드·자동 검사·Windows 빌드·사용자 Windows/D200X 실기 결과를 구분한다. 시작 시 `AGENTS.md`와 이 문서만 읽고 로드맵은 필요한 경우에만 참고한다.
 
+## 1.1.132 — 제한형 Ulanzi 다중 액션 후보 변환 (2026-11-24)
+
+- 공식 Node SDK의 message.uuid와 context 구분을 참고해 액션별 안정 ID, Keypad/Encoder 이벤트 분리, 선언된 UUID의 엄격한 동등 비교 분기와 기존 literal 표시 명령을 변환. 원본 실행 없음. 단일 액션 ID/기존 처리 보존.
+- 각 액션 별도 trace 및 다중 컨텍스트 동시 등록·입력·제거 검사 추가. 다중 액션 원본 리소스·동적 설정·출시 검토는 아직 수동 처리, 패키징/자동 설치 차단 유지. CI·Windows·실기 검증 별도.
+- 1.1.131 CI #1171 및 Windows #882 성공 확인.
+
 ## 1.1.131 — Ulanzi PNG 변환 무결성 강화 (2026-11-24)
 
 - 변환 전용 chunk CRC/구조 및 제한 zlib scanline 검증, APNG/interlace/미지원 metadata 수동 검토, 기존 설치·사용자 PNG 허용 정책 보존. CRC 교정 fixture와 손상/초과 검사 추가. 실제 픽셀 출력 미확인.

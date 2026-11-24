@@ -15,6 +15,7 @@ const SOURCE_EVENT=Object.freeze({
 });
 function simulateCandidate(manifest,sourceEvents){
   validateNativeManifest(manifest);
+  if(manifest.apiVersion===1&&manifest.actions.length>1)return simulateMultiple(manifest,sourceEvents);
   if(manifest.apiVersion!==1||manifest.actions.length!==1||!Array.isArray(sourceEvents)||sourceEvents.length>9)
     throw Error('unsupported simulation input');
   const action=manifest.actions[0],dial=action.controllers[0]==='Encoder';
@@ -89,5 +90,43 @@ function simulateCandidate(manifest,sourceEvents){
     limitations:['source trace derived from supported AST literals, not execution of original plugin',
       'Ulanzi onAdd and DeckForge appear lifecycle timing is not proven equivalent',
       'resources, license, actual source dependencies and device behavior need separate review']};
+}
+function simulateMultiple(manifest,traces){
+  if(!Array.isArray(traces)||traces.length!==manifest.actions.length||
+    new Set(traces.map(t=>t?.actionId)).size!==traces.length||
+    manifest.actions.some(a=>!traces.some(t=>t?.actionId===a.id)))throw Error('invalid multi-action source traces');
+  const checks=[],observed=[];
+  for(const action of manifest.actions){
+    const trace=traces.find(t=>t.actionId===action.id);
+    const result=simulateCandidate({...manifest,actions:[action]},trace.events);
+    checks.push(...result.checks.map(c=>({...c,name:action.id+':'+c.name})));
+  }
+  const host=new NativePluginHost('/unused-offline-verification',event=>observed.push(event),()=>{throw Error('JavaScript runner forbidden');});
+  const configs=manifest.actions.map((a,i)=>({context:'verify-multi-'+i,slot:a.controllers[0]==='Encoder'?16:0,gesture:'down',pluginUUID:manifest.id,actionUUID:a.id,settings:{}}));
+  const expected=(cfg,method)=>(traces.find(t=>t.actionId===cfg.actionUUID).events.find(e=>e.method===method)?.calls||[]).map(c=>({
+    kind:c.method,context:cfg.context,payload:c.method==='setTitle'?{title:c.value}:c.method==='setState'?{state:c.value}:{image:c.value}
+  }));
+  const check=(name,run,want,accepted)=>{
+    observed.length=0;let receipt,error=false;
+    try{receipt=run();}catch{error=true;}
+    checks.push({name,pass:!error&&(accepted===undefined||receipt===accepted)&&isDeepStrictEqual(observed,want),expectedMessages:want.length,actualMessages:observed.length});
+  };
+  try{
+    check('multi-appear',()=>host.sync(configs,[manifest]),configs.flatMap(c=>expected(c,'onAdd')));
+    for(const cfg of configs){
+      const dial=cfg.slot>=16;
+      check(cfg.context+':press',()=>host.key(cfg.context,'down'),expected(cfg,dial?'onDialDown':'onKeyDown'),true);
+      check(cfg.context+':release',()=>host.key(cfg.context,'up'),expected(cfg,dial?'onDialUp':'onKeyUp'),true);
+    }
+    check('multi-remove-first',()=>host.sync(configs.slice(1),[manifest]),[]);
+    check('multi-removed-context',()=>host.key(configs[0].context,'down'),[],false);
+    const last=configs[configs.length-1];
+    check('multi-remaining-context',()=>host.key(last.context,'down'),expected(last,last.slot>=16?'onDialDown':'onKeyDown'),true);
+  }finally{host.close();}
+  const passed=checks.filter(c=>c.pass).length;
+  return {verifierVersion:2,scope:'offline-restricted-multi-action-display-trace',candidateSha256:digest(manifest),
+    sourceTraceSha256:digest(traces),status:passed===checks.length?'pass':'fail',passed,total:checks.length,checks,
+    originalExecuted:false,hardwareVerified:false,installationAllowed:false,
+    limitations:['restricted source trace, not original execution','simulated contexts, not physical hardware','multi-action resource and release review required']};
 }
 module.exports={simulateCandidate};
