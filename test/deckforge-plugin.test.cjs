@@ -547,3 +547,80 @@ test('native async network continuation does not block release or replay input; 
    assert.equal(calls.filter(e=>e==='press').length,2);
  }finally{host.close();}
 });
+
+
+test('native bearer credentials are bound to exact plugin and endpoint and never returned by status',async()=>{
+ const {NativeSettingsVault}=require('../app/streamdeck-editor/deckforge-native-settings.cjs');
+ const {credentialBinding,validBearer}=require('../app/streamdeck-editor/deckforge-native-network.cjs');
+ const temp=await fs.mkdtemp(path.join(os.tmpdir(),'deckforge-credential-'));
+ const storage={isAsyncEncryptionAvailable:async()=>true,encryptStringAsync:async v=>Buffer.from(v),
+  decryptStringAsync:async b=>({result:b.toString()})}; // Mock only, never production encryption.
+ const host=new NativePluginHost(temp,()=>{},undefined,{storage});
+ const ep={id:'status',url:'https://example.com/status',method:'GET',auth:'bearer'};
+ const m={...scriptManifest,permissions:['display','network.request'],networkEndpoints:[ep]};
+ const binding=credentialBinding(m.id,ep),secret='example.token-123';
+ try{
+   assert.doesNotThrow(()=>validateNativeManifest(m));
+   assert.equal(validBearer('bad\r\nheader'),false);
+   const before=(await host.credentialInfo(m))[0];assert.equal(before.configured,false);
+   assert.equal(before.binding,binding);
+   await host.writeCredential(m,binding,before.revision,secret);
+   const after=(await host.credentialInfo(m))[0];
+   assert.equal(after.configured,true);assert.ok(!JSON.stringify(after).includes(secret));
+   assert.equal((await host.credentials.read(binding)).value.token,secret);
+   assert.deepEqual((await host.vault.read(binding)).value,{});
+   const changed={...m,networkEndpoints:[{...ep,url:'https://example.com/other'}]};
+   assert.equal((await host.credentialInfo(changed))[0].configured,false);
+   await assert.rejects(host.writeCredential(changed,binding,after.revision,secret),/changed endpoint/);
+   await assert.rejects(host.writeCredential(m,binding,null,'new-token'),/credential changed/);
+   await host.writeCredential(m,binding,after.revision,null);
+   assert.equal((await host.credentialInfo(m))[0].configured,false);
+   const wrong=new NativeSettingsVault(temp,storage,'settings');
+   await fs.copyFile(host.credentials.file(binding),wrong.file(binding)).catch(async()=>{await fs.mkdir(wrong.root,{recursive:true});await fs.copyFile(host.credentials.file(binding),wrong.file(binding));});
+   await assert.rejects(wrong.read(binding),/read failed/);
+ }finally{host.close();await fs.rm(temp,{recursive:true,force:true});}
+});
+test('native broker requires credential for bearer endpoint and rejects literal token echo',async()=>{
+ const {EventEmitter}=require('node:events');
+ const {requestEndpoint}=require('../app/streamdeck-editor/deckforge-native-network.cjs');
+ const endpoint={id:'status',url:'https://example.com/status',method:'GET',auth:'bearer'};
+ const token='example.token-123';let calls=0;
+ const mock=text=>(_url,opts,cb)=>{
+   calls++;assert.equal(opts.headers.authorization,'Bearer '+token);assert.equal(opts.rejectUnauthorized,true);
+   const req=new EventEmitter();req.destroy=()=>{};req.end=()=>{
+     const res=new EventEmitter();res.statusCode=200;res.headers={'content-type':'text/plain'};res.destroy=()=>{};
+     cb(res);res.emit('data',Buffer.from(text));res.emit('end');
+   };return req;
+ };
+ assert.equal((await requestEndpoint(endpoint,null,undefined,{request:mock('ok')})).error,'credential-required');
+ assert.equal(calls,0);
+ assert.equal((await requestEndpoint(endpoint,null,undefined,{request:mock('ok'),bearer:token})).body,'ok');
+ const echo=await requestEndpoint(endpoint,null,undefined,{request:mock(token),bearer:token});
+ assert.equal(echo.error,'credential-in-response');assert.equal(echo.body,'');
+ assert.equal((await requestEndpoint({...endpoint,auth:undefined},null,undefined,{request:mock('ok'),bearer:token})).error,'credential-not-approved');
+});
+test('native authenticated request receives credential only in host transport, not script input',async()=>{
+ const events=[],inputs=[],calls=[];
+ const ep={id:'status',url:'https://example.com/status',method:'GET',auth:'bearer'};
+ const m={...scriptManifest,permissions:['display','network.request'],networkEndpoints:[ep]};
+ const temp=await fs.mkdtemp(path.join(os.tmpdir(),'deckforge-auth-host-'));
+ const storage={isAsyncEncryptionAvailable:async()=>true,encryptStringAsync:async v=>Buffer.from(v),decryptStringAsync:async b=>({result:b.toString()})};
+ const token='host-only-token';
+ const host=new NativePluginHost(temp,e=>events.push(e),()=>({async run(_s,input){
+   inputs.push(JSON.stringify(input));
+   return {ops:input.event.type==='press'?[{op:'networkRequest',endpoint:'status',body:null}]:[],memory:{}};
+ },close(){}}),{storage,networkRequest:async(e,_b,_signal,options)=>{
+   calls.push([e.id,options.bearer]);return {endpoint:e.id,ok:true,status:200,body:'ok',error:null};
+ }});
+ try{
+   const info=(await host.credentialInfo(m))[0];await host.writeCredential(m,info.binding,info.revision,token);
+   const cfg={context:'auth',slot:0,pluginUUID:nativeId,actionUUID:nativeId+'.toggle',settings:{}};
+   host.sync([cfg],[m]);await host.contexts.get(cfg.context).queue;
+   host.key(cfg.context,'down');await host.contexts.get(cfg.context).queue;
+   for(let i=0;i<100&&host.networkPending.size;i++)await new Promise(r=>setTimeout(r,5));
+   await host.contexts.get(cfg.context).queue;
+   assert.deepEqual(calls,[['status',token]]);
+   assert.equal(inputs.some(v=>v.includes(token)),false);assert.equal(JSON.stringify(events).includes(token),false);
+   assert.ok(inputs.some(v=>v.includes('networkResult')));
+ }finally{host.close();await fs.rm(temp,{recursive:true,force:true});}
+});

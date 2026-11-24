@@ -3534,9 +3534,46 @@ function bindIndicatorInspector(root,item){
   down.card.append(down.heading,downTitle,downNumber,down.image,down.buttons);cards.append(down.card);panel.append(cards);
   void refreshStateTitleCards(item);
 }
-async function openNativeSettings(item,action){
-  const schema=action?.settingsSchema;
-  if(!Array.isArray(schema)||!schema.length){window.d200xActionStatus?.('이 독자 플러그인에는 편집 가능한 설정이 없습니다.');return;}
+async function openNativeCredentials(item,plugin){
+  const session=inspectorSession;
+  if(!inspectorPickerCurrent(session,item))return;
+  const entries=await window.deckBridge.nativeCredentialInfo(plugin.uuid);
+  if(!inspectorPickerCurrent(session,item))return;
+  if(!entries.length){window.d200xActionStatus?.('등록할 인증정보가 없습니다.');return;}
+  const content=document.createElement('div');
+  const select=document.createElement('select');select.setAttribute('aria-label','인증 대상 주소');
+  for(const e of entries){
+    const option=document.createElement('option');option.value=e.binding;
+    option.textContent=e.method+' '+e.url+' · '+(e.configured?'등록됨':'미등록');select.append(option);
+  }
+  const input=document.createElement('input');input.type='password';input.maxLength=4096;
+  input.autocomplete='off';input.placeholder='새 Bearer 토큰';input.setAttribute('aria-label','새 Bearer 토큰');
+  const note=document.createElement('p');note.className='hint';
+  select.addEventListener('change',()=>{input.value='';note.textContent='';});
+  content.append(select,input,note);
+  const choice=await window.DeckForgeDialogs.show({title:'플러그인 인증정보',intro:plugin.name+' · 선택한 HTTPS 주소에만 사용합니다. 프로필 저장과 별개로 즉시 적용됩니다. 기존 토큰은 표시하지 않습니다.',
+    content,ask:true,actionLabel:'암호화 저장',alternateLabel:'등록 해제',onAccept:()=>{
+      if(!/^[A-Za-z0-9._~+/-]+=*$/.test(input.value)||input.value.length>4096){note.textContent='Bearer 토큰 형식을 확인하세요.';return false;}return true;
+    }});
+  const entry=entries.find(e=>e.binding===select.value);
+  let token=choice===true?input.value:null;input.value='';
+  if(!choice||!entry||!inspectorPickerCurrent(session,item))return;
+  if(choice==='alternate'){
+    const confirm=await window.DeckForgeDialogs.show({title:'인증정보 등록 해제',intro:entry.method+' '+entry.url,ask:true,actionLabel:'등록 해제',kind:'warning'});
+    if(!confirm||!inspectorPickerCurrent(session,item))return;
+  }
+  try{
+    await window.deckBridge.nativeCredentialWrite(plugin.uuid,entry.binding,entry.revision,token);
+    window.d200xActionStatus?.(token===null?'인증정보 등록 해제 완료':'인증정보 암호화 저장 완료');
+  }catch{window.d200xActionStatus?.('인증정보 저장 실패: 암호화 저장소 또는 등록 주소를 확인하세요.');}
+  finally{token=null;}
+}
+async function openNativeSettings(item,action,plugin){
+  const schema=action?.settingsSchema,credentialCapable=plugin?.permissions?.includes('network.request');
+  if(!Array.isArray(schema)||!schema.length){
+    if(credentialCapable)return openNativeCredentials(item,plugin);
+    window.d200xActionStatus?.('이 독자 플러그인에는 편집 가능한 설정이 없습니다.');return;
+  }
   const session=inspectorSession;
   if(!inspectorPickerCurrent(session,item))return;
   const original=clone(item.settings?.pluginSettings||{});
@@ -3560,6 +3597,14 @@ async function openNativeSettings(item,action){
     if(field.type==='boolean')input.checked=value;else input.value=String(value);
     input.setAttribute('aria-label',field.label);row.append(label,input);content.append(row);
     inputs.push({field,input});
+  }
+  if(credentialCapable){
+    const credentialButton=document.createElement('button');credentialButton.type='button';credentialButton.textContent='인증정보 관리';
+    credentialButton.addEventListener('click',async()=>{
+      credentialButton.disabled=true;
+      try{await openNativeCredentials(item,plugin);}catch{window.d200xActionStatus?.('인증정보 상태 확인 실패');}
+      finally{credentialButton.disabled=false;}
+    });content.append(credentialButton);
   }
   const notice=document.createElement('p');notice.className='hint';content.append(notice);
   let result=null;
@@ -3588,7 +3633,7 @@ function bindExtendedActionFields(root,item){
     root.querySelector('[data-sdk-inspector]')?.addEventListener('click',async()=>{
       const plugin=sdkPlugins.find(p=>p.uuid===item.settings?.pluginUUID);
       if(plugin?.runtime==='deckforge-sdk'){
-        try{await openNativeSettings(item,plugin.actions.find(a=>a.uuid===item.settings?.actionUUID));}
+        try{await openNativeSettings(item,plugin.actions.find(a=>a.uuid===item.settings?.actionUUID),plugin);}
         catch(error){window.d200xActionStatus?.('독자 SDK 속성 편집 실패: '+String(error?.message||error));}return;
       }
       const context=pluginSlotContext(item);

@@ -29,6 +29,8 @@ contextBridge.exposeInMainWorld('deckBridge', Object.freeze({
   viewReleaseNotes: () => ipcRenderer.invoke('d200x:release-notes'),
   haStatus: () => ipcRenderer.invoke('d200x:ha-status'),
   sdkList: () => ipcRenderer.invoke('d200x:sdk-list'),
+  nativeCredentialInfo:id=>ipcRenderer.invoke('d200x:native-credential-info',id),
+  nativeCredentialWrite:(id,binding,revision,token)=>ipcRenderer.invoke('d200x:native-credential-write',id,binding,revision,token),
   fusionHealth: () => ipcRenderer.invoke('d200x:fusion-health'),
   fusionButtonLanguage:()=>ipcRenderer.invoke('d200x:fusion-button-language'),
   onFusionLanguageChanged:fn=>ipcRenderer.on('d200x:fusion-language-changed',()=>fn()),

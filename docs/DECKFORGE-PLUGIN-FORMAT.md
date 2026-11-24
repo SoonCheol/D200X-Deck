@@ -3,6 +3,11 @@
 > 기록일: 2026-11-24 · 상태: **패키지 v1 유지 / 독자 SDK API 1·2 및 패키지 v2 / Ulanzi 정적 분석·제한 후보 변환기 구현**
 > 저장소·브랜치: `SoonCheol/D200X-Deck` / `codex/streamdeck-761-clean-editor`
 
+## 0.11 독자 SDK Bearer 인증정보 (1.1.124)
+
+- `networkEndpoints`의 선택 필드 `auth:"bearer"`. 설치 확인창에 인증 방식 표시. 기존 플러그인 속성 버튼에서 인증정보 관리, 비밀번호 입력 필드(기존 값 미표시), 명시 암호화 저장/등록 해제. 일반 프로필 편집과 별개로 즉시 적용. Windows Electron safeStorage 비동기 API 재사용, 별도 NativeCredentials 암호화 저장소, 다른 vault와 scope 분리. SHA-256 결합 ID는 plugin ID/endpoint ID/정확한 HTTPS URL/method/auth를 포함. 변경된 주소에는 이전 토큰 재사용 금지. 정확히 동일한 등록 주소를 복원하면 기존 저장값이 남을 수 있음.
+- RFC 6750 Bearer 토큰 형식 및 최대 4096자 검사, 호스트만 Authorization 헤더에 주입. 스크립트·전역 설정·프로필·일반 로그·상태 조회에 원본 토큰을 전달하지 않는다. 사용자 입력 시 인증된 편집기 IPC를 사용한다. 인증정보 없음/암호화 실패 시 요청 거부. 직접 토큰을 포함하는 응답은 차단하나 악성 서버의 변형된 응답까지 완전히 방지하지 못한다. TLS·리다이렉트 금지·요청 제한 유지. 등록 변경 중 요청 차단 및 기존 요청 취소, 이미 서버에 전달된 요청은 취소로 되돌릴 수 없음. 등록 해제는 앱의 저장 토큰 제거이지 서버 토큰 폐기가 아님. 자동 테스트 추가; 실제 Windows 암호화·서비스 연동·실기는 별도.
+
 ## 0.10 독자 SDK 비동기 HTTPS 요청 (1.1.123)
 
 - API 2 선택 권한 `network.request`와 manifest `networkEndpoints` (최대 8개, id/url/method). 정확한 HTTPS URL(인증정보/쿼리/fragment 금지), GET 또는 JSON POST, 설치/업데이트 확인창에 주소·메서드 표시. 예: `{"id":"status","url":"https://example.com/api/status","method":"GET"}`. TLS 검증 및 리다이렉트 차단. 임의 URL/헤더/쿠키·평문 HTTP·인증정보 주입은 미지원. 지정된 호스트의 네트워크 위치는 사용자 신뢰 범위이며 모든 악성 서비스 접근을 방지한다고 보장하지 않는다.

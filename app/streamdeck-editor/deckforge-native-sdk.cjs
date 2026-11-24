@@ -8,7 +8,7 @@ const {NativeVersionStore,assertAppRequirement}=require('./deckforge-native-vers
 const {validateDependencies,resolveDependencies,assertDependencyChange}=require('./deckforge-native-dependencies.cjs');
 const {validateWideOverlay}=require('./deckforge-native-wide.cjs');
 const {validateNativeSettingsSchema,nativeEffectiveSettings}=require('./deck-core.js');
-const {validateNetworkEndpoints,validateNetworkRequest,requestEndpoint,networkFailure}=require('./deckforge-native-network.cjs');
+const {validateNetworkEndpoints,validateNetworkRequest,requestEndpoint,networkFailure,credentialBinding,validBearer}=require('./deckforge-native-network.cjs');
 const APP_VERSION=require('./package.json').version;
 const SUFFIX='.deckforge-native.json', LIMIT=1024*1024;
 const ID=/^com\.deckforge\.native\.[a-z0-9][a-z0-9.-]{0,110}$/;
@@ -78,11 +78,15 @@ class NativePluginHost{
   constructor(userData,onUpdate=()=>{},runnerFactory=id=>require('./deckforge-js-runtime.cjs').createScriptRunner(id),options={}){
     this.root=path.join(userData,'Plugins');this.onUpdate=onUpdate;
     this.contexts=new Map();this.suspended=false;this.closed=false;this.runnerFactory=runnerFactory;this.retired=new Set();
-    this.vault=options.vault||new NativeSettingsVault(userData,options.storage||{
+    const storage=options.storage||{
       isAsyncEncryptionAvailable:()=>require('electron').safeStorage.isAsyncEncryptionAvailable(),
       encryptStringAsync:value=>require('electron').safeStorage.encryptStringAsync(value),
       decryptStringAsync:value=>require('electron').safeStorage.decryptStringAsync(value)
-    });
+    };
+    this.vault=options.vault||new NativeSettingsVault(userData,storage);
+    const credentialStorage=options.storage||{...storage,isAsyncEncryptionAvailable:()=>process.platform==='win32'&&storage.isAsyncEncryptionAvailable()};
+    this.credentials=options.credentials||new NativeSettingsVault(userData,credentialStorage,'credentials');
+    this.credentialChanges=new Set();
     this.recoveryDelay=options.recoveryDelay||[1000,3000];
     this.versions=new NativeVersionStore(this.root,validateNativeManifest);
     this.dependencyWarnings=new Map();
@@ -102,6 +106,32 @@ class NativePluginHost{
     return items;
   }
   report(id,error){this.onUpdate({kind:'error',message:'DeckForge SDK '+id+': '+String(error?.message||error).slice(0,300)});}
+  async credentialInfo(manifest){
+    const endpoints=(manifest.networkEndpoints||[]).filter(e=>e.auth==='bearer');
+    return Promise.all(endpoints.map(async e=>{
+      const binding=credentialBinding(manifest.id,e);
+      const {value,revision}=await this.credentials.read(binding);
+      return {id:e.id,url:e.url,method:e.method,binding,revision,configured:validBearer(value.token)};
+    }));
+  }
+  async writeCredential(manifest,binding,revision,token){
+    const endpoint=(manifest.networkEndpoints||[]).find(e=>e.auth==='bearer'&&credentialBinding(manifest.id,e)===binding);
+    check(endpoint&&(revision===null||typeof revision==='string'&&/^[a-f0-9]{64}$/.test(revision))&&
+      (token===null||validBearer(token)),'invalid credential input or changed endpoint');
+    check(!this.credentialChanges.has(binding),'credential update busy');
+    this.credentialChanges.add(binding);
+    const cancel=()=>{
+      for(const ctx of this.contexts.values())if(ctx.pluginUUID===manifest.id&&ctx.networkToken?.binding===binding)
+        this.cancelNetwork(ctx);
+    };
+    try{
+      cancel();
+      const ok=await this.credentials.write(binding,token===null?{}:{token},revision,()=>!this.closed);
+      check(ok,'credential changed; reopen settings');
+      cancel();
+      return {configured:token!==null};
+    }finally{this.credentialChanges.delete(binding);}
+  }
   async checkDependencies(m,excluded=new Set()){
     validateNativeManifest(m);
     const manifests=(await this.manifests()).filter(p=>!excluded.has(p.id));
@@ -233,12 +263,21 @@ class NativePluginHost{
     if(ctx.networkToken||this.networkPending.size>=8){
       this.report(ctx.pluginUUID,Error('network request busy'));return;
     }
-    const controller=new AbortController(),token={controller};
+    const binding=endpoint.auth==='bearer'?credentialBinding(ctx.pluginUUID,endpoint):null;
+    const controller=new AbortController(),token={controller,binding};
     const settings=JSON.stringify(ctx.settings);
     ctx.networkToken=token;this.networkPending.add(token);
-    Promise.resolve().then(()=>{
+    Promise.resolve().then(async()=>{
       if(!active()||controller.signal.aborted)return networkFailure(endpoint.id,'cancelled');
-      return this.networkRequest(endpoint,operation.body,controller.signal);
+      let bearer=null;
+      if(binding){
+        if(this.credentialChanges.has(binding))return networkFailure(endpoint.id,'credential-update-busy');
+        try{bearer=(await this.credentials.read(binding)).value.token;}
+        catch{return networkFailure(endpoint.id,'credential-unavailable');}
+        if(!validBearer(bearer))return networkFailure(endpoint.id,'credential-required');
+        if(this.credentialChanges.has(binding)||!active()||controller.signal.aborted)return networkFailure(endpoint.id,'cancelled');
+      }
+      return this.networkRequest(endpoint,operation.body,controller.signal,{bearer});
     }).catch(()=>networkFailure(endpoint.id,'connection-error')).then(result=>{
       if(!active()||ctx.networkToken!==token||controller.signal.aborted)return;
       ctx.networkToken=null;
@@ -425,6 +464,14 @@ class PluginRouter{
   replaceNative(m,expectedRevision){return this.serial(async()=>{
     await this.checkNativeCandidate(m);
     return this.native.replace(m,expectedRevision);
+  });}
+  credentialInfo(pluginId){return this.serial(async()=>{
+    const {native}=await this.catalog(),manifest=native.find(m=>m.id===pluginId);
+    check(manifest,'native plugin not installed');return this.native.credentialInfo(manifest);
+  });}
+  writeCredential(pluginId,binding,revision,token){return this.serial(async()=>{
+    const {native}=await this.catalog(),manifest=native.find(m=>m.id===pluginId);
+    check(manifest,'native plugin not installed');return this.native.writeCredential(manifest,binding,revision,token);
   });}
   sync(configs){return this.serial(async()=>{
     const {native,legacy}=await this.catalog(),ids=new Set(native.map(m=>m.id));

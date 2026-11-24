@@ -1,7 +1,8 @@
 'use strict';
 // Fixed, user-approved HTTPS endpoints. No renderer socket, arbitrary headers,
-// redirect, automatic retry, credentials, or TLS verification bypass.
+// redirect, automatic retry, script-visible credentials, or TLS verification bypass.
 const https=require('node:https');
+const {createHash}=require('node:crypto');
 const {validateValue}=require('./deckforge-native-settings.cjs');
 const MAX_RESPONSE=8192,MAX_BODY=8192,DEADLINE=5000;
 const obj=v=>v!==null&&typeof v==='object'&&!Array.isArray(v);
@@ -13,7 +14,7 @@ function validateNetworkEndpoints(endpoints,permissions){
   check(permissions.includes('network.request')&&Array.isArray(endpoints)&&endpoints.length>0&&endpoints.length<=8,'invalid endpoint list or permission');
   const ids=new Set();
   for(const e of endpoints){
-    check(exact(e,['id','url','method'])&&key(e.id)&&!ids.has(e.id)&&['GET','POST'].includes(e.method),'invalid endpoint identity or method');
+    check((exact(e,['id','url','method'])||(exact(e,['id','url','method','auth'])&&e.auth==='bearer'))&&key(e.id)&&!ids.has(e.id)&&['GET','POST'].includes(e.method),'invalid endpoint identity or method');
     ids.add(e.id);
     check(typeof e.url==='string'&&e.url.length<=1024,'invalid endpoint URL');
     let u;try{u=new URL(e.url);}catch{throw Error('DeckForge SDK network: invalid endpoint URL');}
@@ -31,8 +32,13 @@ function validateNetworkRequest(op,endpoints){
   }
   return endpoint;
 }
+function credentialBinding(pluginId,endpoint){
+  check(endpoint?.auth==='bearer','credential endpoint required');
+  return 'com.deckforge.native.credential-'+createHash('sha256').update(JSON.stringify([pluginId,endpoint.id,endpoint.method,endpoint.url,endpoint.auth])).digest('hex');
+}
+function validBearer(token){return typeof token==='string'&&token.length>=1&&token.length<=4096&&/^[A-Za-z0-9._~+/-]+=*$/.test(token);}
 function networkFailure(endpoint,error,status=0){return {endpoint,ok:false,status,body:'',error};}
-function requestEndpoint(endpoint,body,signal,{request=https.request,deadline=DEADLINE}={}){
+function requestEndpoint(endpoint,body,signal,{request=https.request,deadline=DEADLINE,bearer=null}={}){
   return new Promise(resolve=>{
     let req,timer,done=false;
     const fail=(code,status)=>finish(networkFailure(endpoint.id,code,status));
@@ -45,8 +51,11 @@ function requestEndpoint(endpoint,body,signal,{request=https.request,deadline=DE
     signal?.addEventListener('abort',abort,{once:true});
     timer=setTimeout(()=>{fail('timeout');req?.destroy();},deadline);
     try{
+      if(endpoint.auth==='bearer'&&!validBearer(bearer)){fail('credential-required');return;}
+      if(endpoint.auth!=='bearer'&&bearer!==null){fail('credential-not-approved');return;}
       const payload=body===null?null:Buffer.from(JSON.stringify(body),'utf8');
       const headers={accept:'application/json, text/plain','accept-encoding':'identity'};
+      if(bearer!==null)headers.authorization='Bearer '+bearer;
       if(payload){headers['content-type']='application/json';headers['content-length']=payload.length;}
       req=request(new URL(endpoint.url),{method:endpoint.method,headers,agent:false,
         rejectUnauthorized:true,minVersion:'TLSv1.2',maxHeaderSize:8192},res=>{
@@ -67,6 +76,7 @@ function requestEndpoint(endpoint,body,signal,{request=https.request,deadline=DE
         res.on('aborted',()=>fail('response-error',status));
         res.on('end',()=>{
           const text=Buffer.concat(chunks).toString('utf8');
+          if(bearer!==null&&text.includes(bearer)){fail('credential-in-response',status);return;}
           // The serialized result must also fit within the renderer input cap.
           if(Buffer.byteLength(JSON.stringify(text))>MAX_RESPONSE){fail('response-limit',status);return;}
           finish({endpoint:endpoint.id,ok:true,status,body:text,error:null});
@@ -78,4 +88,4 @@ function requestEndpoint(endpoint,body,signal,{request=https.request,deadline=DE
     }catch{fail('connection-error');req?.destroy();}
   });
 }
-module.exports={validateNetworkEndpoints,validateNetworkRequest,requestEndpoint,networkFailure};
+module.exports={validateNetworkEndpoints,validateNetworkRequest,requestEndpoint,networkFailure,credentialBinding,validBearer};

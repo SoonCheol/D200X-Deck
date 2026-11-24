@@ -90,6 +90,12 @@ ipcMain.handle('d200x:fusion-icon-write',async(event,id,data)=>{
   return true;
 });
 ipcMain.handle('d200x:sdk-list',async event=>{assertEditor(event);return sdk().list();});
+ipcMain.handle('d200x:native-credential-info',async(event,id)=>{assertEditor(event);return sdk().credentialInfo(id);});
+ipcMain.handle('d200x:native-credential-write',async(event,id,binding,revision,token)=>{
+  assertEditor(event);
+  try{return await sdk().writeCredential(id,binding,revision,token);}
+  catch{throw Error('인증정보 저장 실패: 암호화 저장소 또는 등록 주소를 확인하세요.');}
+});
 ipcMain.handle('d200x:fusion-addin-install',async event=>{
  assertEditor(event);
  const result=await Bundled.installFusionAddin();
@@ -189,7 +195,7 @@ ipcMain.handle('d200x:sdk-install',async event=>{
           type:'question',title:'DeckForge 플러그인 '+verb,message:native.name+' '+verb+' 확인',
           detail:'ID: '+native.id+'\n버전: '+versions+'\n'+extra.map(p=>'• '+labels[p]).join('\n')+'\n'+
             (dependencies.length?'필요 플러그인: '+dependencies.join(', ')+'\n':'')+
-            (native.networkEndpoints?.length?'허용할 네트워크 요청:\n'+native.networkEndpoints.map(e=>e.method+' '+e.url).join('\n')+'\n':'')+
+            (native.networkEndpoints?.length?'허용할 네트워크 요청:\n'+native.networkEndpoints.map(e=>e.method+' '+e.url+(e.auth==='bearer'?' · Bearer 인증':'')).join('\n')+'\n':'')+
             (plan.kind==='install'?'':'이전 코드 보존 · 설정과 프로필은 그대로 유지됩니다.\n')+'신뢰하는 플러그인만 설치하세요.',
           buttons:['취소',verb],defaultId:0,cancelId:0,noLink:true
         });

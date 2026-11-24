@@ -18,8 +18,10 @@ function validateValue(value){
   return value;
 }
 class NativeSettingsVault{
-  constructor(userData,storage){
-    this.root=path.join(userData,'Plugins','NativeSettings');
+  constructor(userData,storage,scope='settings'){
+    if(!['settings','credentials'].includes(scope))throw Error('invalid vault scope');
+    this.scope=scope;
+    this.root=path.join(userData,'Plugins',scope==='credentials'?'NativeCredentials':'NativeSettings');
     this.storage=storage;this.queue=Promise.resolve();
   }
   file(id){
@@ -38,7 +40,7 @@ class NativeSettingsVault{
       await this.available();
       const decrypted=await this.storage.decryptStringAsync(bytes);
       const envelope=JSON.parse(decrypted.result);
-      if(envelope?.id!==id||envelope?.version!==1)throw Error('invalid vault identity');
+      if(envelope?.id!==id||envelope?.version!==1||(envelope.scope||'settings')!==this.scope)throw Error('invalid vault identity');
       return {value:validateValue(envelope.value),revision:createHash('sha256').update(bytes).digest('hex')};
     }catch(error){
       if(error.code==='ENOENT')return {value:{},revision:null};
@@ -53,7 +55,7 @@ class NativeSettingsVault{
       const prior=await this.read(id);
       if(prior.revision!==revision||!active())return false;
       await fs.mkdir(this.root,{recursive:true});
-      const bytes=await this.storage.encryptStringAsync(JSON.stringify({id,version:1,value}));
+      const bytes=await this.storage.encryptStringAsync(JSON.stringify({id,version:1,value,...(this.scope==='credentials'?{scope:this.scope}:{})}));
       if(!Buffer.isBuffer(bytes)||bytes.length>65536)throw Error('encrypted settings size limit');
       const tmp=file+'.'+randomUUID()+'.tmp';
       try{
