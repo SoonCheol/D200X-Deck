@@ -5,9 +5,22 @@
 const MAX=256*1024,MAX_FRAMES=240,MAX_PIXELS=144*144*MAX_FRAMES;
 // Validate the exact number of decoded palette indices without allocating
 // frame pixels. Every dictionary entry inherits already-validated symbols.
-function verifyLzw(data,min,paletteSize,pixelCount){
+function verifyLzw(data,min,paletteSize,pixelCount,decode=false){
   const clear=1<<min,end=clear+1,lengths=new Uint16Array(4096);
   const first=new Uint16Array(4096);
+  const prefixes=decode?new Uint16Array(4096):null,suffixes=decode?new Uint8Array(4096):null;
+  const indices=decode?Buffer.alloc(pixelCount):null,stack=decode?new Uint8Array(4096):null;
+  const emit=(code,at)=>{
+    let count=0;
+    while(code>=clear){
+      if(code<=end||count>=stack.length)throw Error('invalid LZW expansion');
+      stack[count++]=suffixes[code];code=prefixes[code];
+    }
+    if(count>=stack.length)throw Error('LZW expansion limit');
+    stack[count++]=code;
+    while(count)indices[at++]=stack[--count];
+    return at;
+  };
   let bit=0,size=min+1,next=end+1,previous=-1,total=0,started=false;
   const read=()=>{
     if(bit+size>data.length*8)throw Error('truncated LZW code');
@@ -20,7 +33,7 @@ function verifyLzw(data,min,paletteSize,pixelCount){
     if(!started)throw Error('missing initial LZW clear');
     if(code===end){
       if(total!==pixelCount||data.length*8-bit>=8)throw Error('LZW pixel count or trailing data');
-      return;
+      return indices;
     }
     let length,head;
     if(code<clear){
@@ -31,17 +44,25 @@ function verifyLzw(data,min,paletteSize,pixelCount){
       length=(previous<clear?1:lengths[previous])+1;
       head=previous<clear?previous:first[previous];
     }else throw Error('invalid LZW dictionary reference');
+    const offset=total;
     if(!length||(total+=length)>pixelCount)throw Error('LZW pixel budget');
+    if(decode){
+      let written;
+      if(code===next){written=emit(previous,offset);indices[written++]=head;}
+      else written=emit(code,offset);
+      if(written!==total)throw Error('LZW expansion length');
+    }
     if(previous!==-1&&next<4096){
       lengths[next]=(previous<clear?1:lengths[previous])+1;
       first[next]=previous<clear?previous:first[previous];
+      if(decode){prefixes[next]=previous;suffixes[next]=head;}
       if(++next===(1<<size)&&size<12)size++;
     }
     previous=code;
   }
   throw Error('missing LZW end code');
 }
-function gifReport(bytes){
+function inspectGif(bytes,decode=false){
   try{
     if(!Buffer.isBuffer(bytes)||bytes.length<14||bytes.length>MAX||!/^GIF8[79]a$/.test(bytes.toString('ascii',0,6)))throw Error('invalid header');
     const width=bytes.readUInt16LE(6),height=bytes.readUInt16LE(8),flags=bytes[10];
@@ -50,14 +71,15 @@ function gifReport(bytes){
     const need=n=>{if(pos+n>bytes.length)throw Error('truncated block');};
     const take=()=>{need(1);return bytes[pos++];};
     const skip=n=>{need(n);pos+=n;};
-    const palette=f=>{const colors=f&128?2**((f&7)+1):0;if(colors)skip(3*colors);return colors;};
+    const decodedFrames=[];
+    const palette=f=>{const colors=f&128?2**((f&7)+1):0;if(!colors)return null;need(3*colors);const data=bytes.subarray(pos,pos+3*colors);skip(3*colors);return {colors,data};};
     const subblocks=(collect=false)=>{const chunks=[];let size=0,n;while((n=take())!==0){need(n);if(collect)chunks.push(bytes.subarray(pos,pos+n));skip(n);size+=n;}return collect?Buffer.concat(chunks,size):size;};
-    const globalColors=palette(flags);
+    const globalPalette=palette(flags);
     for(let blocks=0;blocks<bytes.length;blocks++){
       const tag=take();
       if(tag===0x3b){
         if(pos!==bytes.length||!frames||pending!==null)throw Error('invalid trailer');
-        return {format:'gif',status:'bounded-animation-review',width,height,frames,delayMs,loopCount,verification:'bounded-lzw-indices',requiresReview:true};
+        return {format:'gif',status:'bounded-animation-review',width,height,frames,delayMs,loopCount,verification:'bounded-lzw-indices',requiresReview:true,...(decode?{decodedFrames}:{})};
       }
       if(tag===0x21){
         const label=take();
@@ -65,7 +87,7 @@ function gifReport(bytes){
           if(pending!==null||take()!==4)throw Error('invalid graphic control');
           const packed=take();need(3);const delay=bytes.readUInt16LE(pos)*10;skip(3);
           if((packed&0xe0)||((packed>>2)&7)>3||take()!==0)throw Error('unsupported graphic control');
-          pending=delay;
+          pending={delay,transparent:Boolean(packed&1),disposal:(packed>>2)&7};
         }else if(label===0xff){
           if(take()!==11)throw Error('invalid application extension');
           need(11);const name=bytes.toString('ascii',pos,pos+11);skip(11);
@@ -81,13 +103,52 @@ function gifReport(bytes){
       const x=bytes.readUInt16LE(pos),y=bytes.readUInt16LE(pos+2),w=bytes.readUInt16LE(pos+4),h=bytes.readUInt16LE(pos+6),f=bytes[pos+8];skip(9);
       if(!w||!h||x+w>width||y+h>height||(!((flags|f)&128))||(f&0x18))throw Error('invalid image descriptor');
       if(++frames>MAX_FRAMES||(pixels+=w*h)>MAX_PIXELS)throw Error('frame budget');
-      const colors=palette(f)||globalColors;
+      const colors=palette(f)||globalPalette;
       const code=take();if(code<2||code>8)throw Error('invalid LZW minimum code size');
-      verifyLzw(subblocks(true),code,colors,w*h);
-      delayMs+=pending??0;pending=null;
+      if(decode&&(x||y||w!==width||h!==height||pending?.transparent))throw Error('partial or transparent frame requires compositing');
+      const indices=verifyLzw(subblocks(true),code,colors.colors,w*h,decode);
+      if(decode){
+        const rgba=Buffer.alloc(w*h*4),rows=[];
+        if(f&0x40){for(const [start,step] of [[0,8],[4,8],[2,4],[1,2]])for(let row=start;row<h;row+=step)rows.push(row);}
+        else for(let row=0;row<h;row++)rows.push(row);
+        for(let i=0;i<indices.length;i++){
+          const src=indices[i]*3,dst=(rows[Math.floor(i/w)]*w+i%w)*4;
+          rgba[dst]=colors.data[src];rgba[dst+1]=colors.data[src+1];rgba[dst+2]=colors.data[src+2];rgba[dst+3]=255;
+        }
+        decodedFrames.push({delayMs:pending?.delay??0,rgba});
+      }
+      delayMs+=pending?.delay??0;pending=null;
     }
     throw Error('missing trailer');
   }catch(error){return {format:'gif',status:'manual-resource-review',reason:error.message,requiresReview:true};}
+}
+function gifReport(bytes){return inspectGif(bytes);}
+function decodeOpaqueGif(bytes){
+  const result=inspectGif(bytes,true);
+  if(!result.decodedFrames)throw Error(result.reason||'GIF decoding failed');
+  return result;
+}
+// Encode a decoded frame through the same bounded PNG format used by the
+// existing hardware compositor. No frame is discarded or installed.
+function opaqueGifPngFrames(bytes){
+  const {crc32,deflateSync}=require('node:zlib');
+  const {verifyPng}=require('./ulanzi-png-verifier.cjs');
+  const result=decodeOpaqueGif(bytes),{width,height}=result;
+  const chunk=(type,data)=>{
+    const head=Buffer.alloc(8);head.writeUInt32BE(data.length);head.write(type,4);
+    const tail=Buffer.alloc(4);tail.writeUInt32BE(crc32(Buffer.concat([head.subarray(4),data])));
+    return Buffer.concat([head,data,tail]);
+  };
+  const hdr=Buffer.alloc(13);hdr.writeUInt32BE(width,0);hdr.writeUInt32BE(height,4);hdr[8]=8;hdr[9]=6;
+  let budget=0;
+  const frames=result.decodedFrames.map(frame=>{
+    const stride=width*4,raw=Buffer.alloc((stride+1)*height);
+    for(let row=0;row<height;row++)frame.rgba.copy(raw,row*(stride+1)+1,row*stride,(row+1)*stride);
+    const png=Buffer.concat([Buffer.from('89504e470d0a1a0a','hex'),chunk('IHDR',hdr),chunk('IDAT',deflateSync(raw)),chunk('IEND',Buffer.alloc(0))]);
+    if(!verifyPng(png).ok||(budget+=png.length)>8*1024*1024)throw Error('decoded GIF PNG frame budget');
+    return {delayMs:frame.delayMs,png};
+  });
+  return {width,height,loopCount:result.loopCount,frames};
 }
 // Very small XML-like subset. No entity expansion, CSS, URL, namespace
 // aliases, scripts, animation, filters, external references or text markup.
@@ -145,4 +206,4 @@ function svgReport(bytes){
     return {format:'svg',status:'restricted-vector-review',width,height,nodes,viewBox,verification:'syntax-subset-only',requiresReview:true};
   }catch(error){return {format:'svg',status:'manual-resource-review',reason:error.message,requiresReview:true};}
 }
-module.exports={gifReport,svgReport};
+module.exports={gifReport,svgReport,decodeOpaqueGif,opaqueGifPngFrames};

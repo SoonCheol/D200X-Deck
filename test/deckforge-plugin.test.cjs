@@ -1025,3 +1025,25 @@ test('restricted SVG native images retain bytes, reject active content, and requ
   assert.throws(()=>validateReviewRecord(buildReviewRecord(report),report),/manual review evidence/);
  }finally{await fs.rm(root,{recursive:true,force:true});}
 });
+
+test('opaque GIF decoder retains complete frames, colors, timing and PNG output without installing',()=>{
+ const {decodeOpaqueGif,opaqueGifPngFrames,gifReport}=require('../app/streamdeck-editor/ulanzi-media-analysis.cjs');
+ const {verifyPng}=require('../app/streamdeck-editor/ulanzi-png-verifier.cjs');
+ const {inflateSync}=require('node:zlib');
+ const header=Buffer.from('47494638396101000100800000ff00000000ff','hex');
+ const frame=(index,delay)=>Buffer.from([0x21,0xf9,4,0,delay,0,0,0,0x2c,0,0,0,0,1,0,1,0,0,2,2,4|(index<<3)|(5<<6&255),1,0]);
+ const gif=Buffer.concat([header,frame(0,5),frame(1,10),Buffer.from([0x3b])]);
+ const decoded=decodeOpaqueGif(gif);
+ assert.equal(decoded.frames,2);
+ assert.deepEqual(decoded.decodedFrames.map(f=>[f.delayMs,[...f.rgba]]),[[50,[255,0,0,255]],[100,[0,0,255,255]]]);
+ const rendered=opaqueGifPngFrames(gif);
+ assert.equal(rendered.frames.length,2);
+ for(const [i,f] of rendered.frames.entries()){
+   assert.equal(verifyPng(f.png).ok,true);
+   const n=f.png.readUInt32BE(33),raw=inflateSync(f.png.subarray(41,41+n));
+   assert.deepEqual([...raw],[0,...decoded.decodedFrames[i].rgba]);
+ }
+ const transparent=Buffer.from(gif);transparent[22]=1;
+ assert.equal(gifReport(transparent).status,'bounded-animation-review');
+ assert.throws(()=>decodeOpaqueGif(transparent),/compositing/);
+});
