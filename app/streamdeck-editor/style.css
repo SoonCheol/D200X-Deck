@@ -1433,9 +1433,9 @@ dialog.deckforge-message-dialog::backdrop{background:#000a}
 .press-tab-tile{box-sizing:border-box;min-width:0;padding:9px 8px;border:1px solid #616b76;
   background:#333942;border-radius:7px;display:flex;flex-direction:column;align-items:center;gap:4px}
 .press-tab-tile.selected{border:2px solid #61aff9;padding:8px 7px;background:#354356}
-.press-tab-heading{width:100%;display:grid;grid-template-columns:18px minmax(0,1fr) 18px;
+.press-tab-heading{width:100%;display:grid;grid-template-columns:24px minmax(0,1fr) 24px;
   align-items:center;gap:3px}
-.press-tab-heading input{grid-column:1;width:16px;height:16px;margin:0;accent-color:#3990dc}
+.press-tab-heading input{grid-column:1;justify-self:center;width:16px;height:16px;margin:0;accent-color:#3990dc}
 .press-tab-select{grid-column:2;text-align:center;border:0;background:transparent;color:#f5f7fa;
   padding:3px 0;font-weight:600;font-size:12px;cursor:pointer;white-space:nowrap}
 .press-tab-tile.inactive .press-tab-select{color:#c1c8d0}
@@ -1572,3 +1572,35 @@ dialog.deckforge-message-dialog::backdrop{background:#000a}
 
 /* Shared title properties: viewport positioning escapes the inspector clip. */
 .title-style-popover,.state-title-inspector .state-title-control>.title-style-popover{position:fixed;left:8px;right:auto;top:8px;z-index:100;box-sizing:border-box;max-width:calc(100vw - 16px);max-height:calc(100dvh - 16px);overflow-y:auto;color-scheme:dark}
+
+
+/* Circular check controls, retaining native checkbox semantics and keyboard input.
+   Scope to the built-in editor properties and its viewport-level palette. */
+.inspector input[type="checkbox"],.key-background-popover input[type="checkbox"]{
+  appearance:none;-webkit-appearance:none;box-sizing:border-box;
+  width:15px!important;height:15px!important;min-width:15px;min-height:0!important;
+  padding:0!important;flex-shrink:0;border:1px solid #8b99a8!important;
+  border-radius:50%!important;background:#272d35!important;
+  vertical-align:middle;cursor:pointer
+}
+.inspector .press-tab-heading input[type="checkbox"]{
+  width:16px!important;height:16px!important;min-width:16px;justify-self:center
+}
+.inspector input[type="checkbox"]:checked,.key-background-popover input[type="checkbox"]:checked{
+  border-color:#78b9f3!important;
+  background:#2676c1 url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='M4 8l2.6 2.6L12 5.2' fill='none' stroke='white' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") center/100% 100% no-repeat!important
+}
+.inspector input[type="checkbox"]:indeterminate,.key-background-popover input[type="checkbox"]:indeterminate{
+  border-color:#78b9f3!important;background:#2676c1 url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='M4 8h8' stroke='white' stroke-width='2' stroke-linecap='round'/%3E%3C/svg%3E") center/100% 100% no-repeat!important
+}
+.inspector input[type="checkbox"]:focus-visible,.key-background-popover input[type="checkbox"]:focus-visible{
+  outline:2px solid #a6d4ff;outline-offset:2px
+}
+.inspector input[type="checkbox"]:disabled,.key-background-popover input[type="checkbox"]:disabled{
+  opacity:.42;cursor:default
+}
+@media(forced-colors:active){
+  .inspector input[type="checkbox"],.key-background-popover input[type="checkbox"]{
+    appearance:auto!important;-webkit-appearance:auto!important;forced-color-adjust:auto
+  }
+}

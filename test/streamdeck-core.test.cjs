@@ -1605,7 +1605,9 @@ test('1.1.95 three separate action tabs preserve the existing icon regions and s
   assert.match(editor,/renderPressTabs\(rootItem,root\)/);
   assert.match(editor,/function showPressDropOverlay\(index,key\)/);
   assert.match(editor,/function attachPressPreviewBadges\(root,inspector\)/);
-  assert.match(editor,/press-image-representative/);
+  assert.match(editor,/badge\.className='press-image-number'/);
+  assert.match(editor,/badge\.dataset\.representative=displayed/);
+  assert.doesNotMatch(editor,/press-image-representative/);
   assert.match(editor,/deck-key-press-number/);
   assert.doesNotMatch(editor,/className='press-tab-symbol'/);
   assert.doesNotMatch(editor,/className='press-tab-number'/);
@@ -2023,4 +2025,22 @@ test('unconfigured SDK assignments never poison an otherwise valid mount list',(
  s.pages[0][1]=core.createAction('sd-plugin');a.settings.pluginUUID='example.plugin';a.settings.actionUUID='example.action';
  const cfg=core.createSdkMountTracker().reconcile('page',core.sdkMountDescriptors(s));
  assert.equal(cfg.length,1);assert.ok(core.validSdkMount(cfg[0]));
+});
+
+
+test('editor circular checks preserve checkbox input semantics and inset gesture controls',()=>{
+  const fs=require('node:fs'),path=require('node:path');
+  const dir=path.join(__dirname,'../app/streamdeck-editor');
+  const css=fs.readFileSync(path.join(dir,'style.css'),'utf8');
+  const editor=fs.readFileSync(path.join(dir,'editor.js'),'utf8');
+  const start=editor.indexOf('function renderPressTabs('),end=editor.indexOf('function ',start+25);
+  const block=editor.slice(start,end);
+  assert.match(block,/check\.type='checkbox'/);
+  assert.match(block,/check\.checked=enabled;check\.disabled=!action/);
+  assert.match(block,/pressMeta\.enabled\[slot\]=check\.checked/);
+  assert.match(css,/\.press-tab-heading\{[^}]*grid-template-columns:24px minmax\(0,1fr\) 24px/);
+  assert.match(css,/\.press-tab-heading input\{[^}]*justify-self:center/);
+  assert.match(css,/\.inspector input\[type="checkbox"\],\.key-background-popover input\[type="checkbox"\]\{[^}]*appearance:none;[^}]*border-radius:50%/);
+  assert.match(css,/input\[type="checkbox"\]:checked/);
+  assert.match(css,/input\[type="checkbox"\]:focus-visible/);
 });
