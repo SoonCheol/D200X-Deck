@@ -82,7 +82,9 @@ async function verifyPublicApi(runner){
     ['request','api.request("status")','networkRequest','network.request'],
     ['connectSocket','api.connectSocket("live")','socketConnect','network.websocket'],
     ['sendSocket','api.sendSocket({subscribe:true})','socketSend','network.websocket'],
-    ['closeSocket','api.closeSocket()','socketClose','network.websocket']
+    ['closeSocket','api.closeSocket()','socketClose','network.websocket'],
+    ['getSharedState','api.setTitle(api.getSharedState().label||"empty")','title'],
+    ['publishSharedState','api.publishSharedState({label:"ready"})','publishSharedState']
   ];
   try{
     const names=await runner.run('api.setTitle(Object.keys(api).sort().join(","));',input);
@@ -90,6 +92,11 @@ async function verifyPublicApi(runner){
     assert.deepEqual(names.ops[0].value.split(','),cases.map(c=>c[0]).sort());
     for(const [name,source,op,permission] of cases){
       const result=await runner.run(source,{...input,settings:ctx.settings,globalSettings:{label:'ready'}});
+      if(name==='publishSharedState'){
+        const service={...ctx,service:true,permissions:[...permissions,'background.run']};
+        assert.equal(host.validateScriptOps(service,'start',result.ops).normal[0].op,op);
+        assert.throws(()=>host.validateScriptOps(ctx,'press',result.ops),/unauthorized/);continue;
+      }
       const validated=host.validateScriptOps(ctx,'press',result.ops);
       const commands=permission?validated.effects:validated.normal;
       assert.equal(commands.length,1,name);assert.equal(commands[0].op,op,name);
@@ -103,7 +110,7 @@ async function verifyPublicApi(runner){
     }
     const extended=await runner.run('api.request("entity",{state:1},{view:"full"},{path:{id:"light"},headers:{"if-match":"rev"}});',input);
     assert.deepEqual(host.validateScriptOps(ctx,'press',extended.ops).effects,[{op:'networkRequest',endpoint:'entity',body:{state:1},query:{view:'full'},options:{path:{id:'light'},headers:{'if-match':'rev'}}}]);
-    console.log('DeckForge native SDK 22-function renderer/host contract passed');
+    console.log('DeckForge native SDK 24-function renderer/host contract passed');
   }finally{host.close();}
 }
 

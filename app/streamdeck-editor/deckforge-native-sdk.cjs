@@ -18,7 +18,8 @@ const SUFFIX='.deckforge-native.json', LIMIT=1024*1024;
 const ID=/^com\.deckforge\.native\.[a-z0-9][a-z0-9.-]{0,110}$/;
 const EVENTS=new Set(['appear','disappear','settings','press','release','rotateLeft','rotateRight','heldRotateLeft','heldRotateRight']);
 const OPS=new Set(['title','titleFromSetting','state','stateFromSetting','toggleState','image']);
-const EXTRA_PERMISSIONS=['settings.write','navigation','wide.mode','global.settings','wide.overlay','network.request','timer.tick','network.poll','network.websocket'];
+const EXTRA_PERMISSIONS=['settings.write','navigation','wide.mode','global.settings','wide.overlay','network.request','timer.tick','network.poll','network.websocket','background.run'];
+const SERVICE_PREFIX='@service:',MAX_SERVICES=8;
 const MAX_PENDING_EVENTS=64,INPUT_RESERVE=4,MAX_NETWORK_GLOBAL=8,MAX_NETWORK_PLUGIN=2;
 const INPUT_EVENTS=new Set(['press','release','rotateLeft','rotateRight','heldRotateLeft','heldRotateRight']);
 const obj=x=>x!==null&&typeof x==='object'&&!Array.isArray(x);
@@ -41,13 +42,20 @@ function validateNativeImage(value){
   validateNativePng(value);
 }
 function validateNativeManifest(m){
-  check(exact(m,['apiVersion','id','name','version','permissions','actions','requiresDeckForge','dependencies','networkEndpoints'])&&[1,2].includes(m.apiVersion)&&
+  check(exact(m,['apiVersion','id','name','version','permissions','actions','requiresDeckForge','dependencies','networkEndpoints','service'])&&[1,2].includes(m.apiVersion)&&
     typeof m.id==='string'&&ID.test(m.id)&&!m.id.endsWith('.')&&!m.id.includes('..')&&
     validText(m.name,180)&&validText(m.version,64),'invalid manifest or API version');
   assertAppRequirement(m.requiresDeckForge,APP_VERSION);
   validateDependencies(m.id,m.dependencies);
   check(Array.isArray(m.permissions)&&m.permissions.includes('display')&&new Set(m.permissions).size===m.permissions.length&&
     m.permissions.every(p=>p==='display'||(m.apiVersion===2&&EXTRA_PERMISSIONS.includes(p))),'unsupported permissions');
+  check((m.service!==undefined)===m.permissions.includes('background.run'),'background service requires explicit permission and declaration');
+  if(m.service!==undefined){
+    const service=m.service;
+    check(m.apiVersion===2&&exact(service,['script','tickIntervalMs'])&&typeof service.script==='string'&&service.script.length>0&&Buffer.byteLength(service.script)<=65536,'invalid background service');
+    check(service.tickIntervalMs===undefined||(m.permissions.includes('timer.tick')&&Number.isInteger(service.tickIntervalMs)&&service.tickIntervalMs>=1000&&service.tickIntervalMs<=3600000),'invalid background tick');
+    try{const AsyncFunction=Object.getPrototypeOf(async function(){}).constructor;new AsyncFunction('event','settings','state','memory','api','"use strict";\n'+service.script);}catch{throw Error('DeckForge SDK: invalid background JavaScript syntax');}
+  }
   validateNetworkEndpoints(m.networkEndpoints,m.permissions);
   check(!m.permissions.includes('network.poll')||(m.permissions.includes('network.request')&&m.permissions.includes('timer.tick')),'network polling requires timer and network permissions');
   check(Array.isArray(m.actions)&&m.actions.length>0&&m.actions.length<=64,'invalid actions');
@@ -93,7 +101,7 @@ function validateNativeManifest(m){
   }
   return m;
 }
-function catalog(m){return {uuid:m.id,name:m.name,version:m.version,runtime:'deckforge-sdk',permissions:[...m.permissions],dependencies:{...(m.dependencies||{})},
+function catalog(m){return {uuid:m.id,name:m.name,version:m.version,runtime:'deckforge-sdk',permissions:[...m.permissions],dependencies:{...(m.dependencies||{})},background:!!m.service,
   actions:m.actions.map(a=>({uuid:a.id,name:a.name,states:a.states,controllers:a.controllers,
     propertyInspectorPath:'',defaultImages:{off:a.stateImages?.[0]||null,on:a.stateImages?.[1]||null},...(a.settingsSchema?{settingsSchema:a.settingsSchema}:{})}))};}
 class NativePluginHost{
@@ -210,7 +218,13 @@ class NativePluginHost{
       if(obj(v))return Object.keys(v).every(k=>!['__proto__','constructor','prototype'].includes(k)&&validSettings(v[k],depth+1));
       return v===null||typeof v==='string'||typeof v==='boolean'||(typeof v==='number'&&Number.isFinite(v));
     };
+    if(ctx.service)check(ctx.permissions.includes('background.run')&&['start','settings','tick','networkResult','socketEvent'].includes(event),'invalid background event');
     for(let op of program){
+      if(op?.op==='publishSharedState'){
+        check(ctx.service&&ctx.permissions.includes('background.run')&&exact(op,['op','value'])&&!normal.some(o=>o.op==='publishSharedState'),'unauthorized or duplicate shared state publication');
+        validateValue(op.value);normal.push(op);continue;
+      }
+      if(ctx.service)check(['networkRequest','socketConnect','socketSend','socketClose'].includes(op?.op),'background service cannot operate physical controls or saved settings');
       if(op?.op==='animation'||op?.op==='stopAnimation'){
         check(ctx.slot>=0&&ctx.slot<13&&ctx.action.controllers.includes('Keypad')&&++animationCount===1,'animation requires a normal key and one command');
         if(op.op==='animation'){
@@ -228,7 +242,7 @@ class NativePluginHost{
       }
       if(OPS.has(op?.op)){normal.push(op);continue;}
       const polling=event==='tick'&&op?.op==='networkRequest'&&ctx.permissions.includes('network.poll')&&ctx.action.tickIntervalMs>=5000;
-      const socketLifecycle=op?.op==='socketConnect'&&['appear','settings'].includes(event);
+      const socketLifecycle=op?.op==='socketConnect'&&['appear','settings','start'].includes(event)&&(event!=='start'||ctx.service);
       const socketContinuation=['socketSend','socketClose'].includes(op?.op)&&event==='socketEvent';
       check(INPUT_EVENTS.has(event)||polling||socketLifecycle||socketContinuation,'privileged operation requires input event');
       check(effects.length===0,'only one privileged operation per event');
@@ -271,13 +285,34 @@ class NativePluginHost{
       effects.push(op);
     }
     check(!animationCount||!normal.some(op=>op.op==='image'),'animation and static image cannot share an event');
+    if(ctx.service)return {normal,effects};
     const {script,tickIntervalMs,stateImages,...action}=ctx.action;
     validateNativeManifest({apiVersion:1,id:ctx.pluginUUID,name:'Runtime',version:'1',
       permissions:['display'],actions:[{...action,events:{press:normal.filter(op=>!['animation','stopAnimation'].includes(op.op))}}]});
     return {normal,effects};
   }
+  sharedSnapshot(ctx){
+    if(!ctx.permissions.includes('background.run'))return {};
+    const service=this.contexts.get(SERVICE_PREFIX+ctx.pluginUUID);
+    return structuredClone(service?.sharedState||{});
+  }
+  notifyShared(pluginUUID){
+    for(const other of this.contexts.values())if(!other.service&&other.pluginUUID===pluginUUID&&other.permissions.includes('background.run')&&!other.failed){
+      other.sharedDirty=true;this.queueSharedRefresh(other);
+    }
+  }
+  queueSharedRefresh(ctx){
+    if(ctx.sharedDirty&&!ctx.sharedQueued&&!ctx.failed&&!this.closed&&!this.suspended&&this.contexts.get(ctx.context)===ctx&&ctx.pending<MAX_PENDING_EVENTS-INPUT_RESERVE){
+      ctx.sharedDirty=false;ctx.sharedQueued=true;
+      if(!this.runScript(ctx,'sharedState')){ctx.sharedQueued=false;ctx.sharedDirty=true;}
+    }
+  }
   applyOps(ctx,program){
       for(const op of program){
+        if(op.op==='publishSharedState'){
+          if(JSON.stringify(ctx.sharedState)!==JSON.stringify(op.value)){ctx.sharedState=structuredClone(op.value);this.notifyShared(ctx.pluginUUID);}
+          continue;
+        }
         const send=(kind,payload)=>this.onUpdate({kind,context:ctx.context,payload});
         if(op.op==='title')send('setTitle',{title:op.value});
         if(op.op==='titleFromSetting'){
@@ -340,7 +375,8 @@ class NativePluginHost{
     }
   }
   resetScript(ctx){
-    this.cancelSettingsReceipt(ctx);ctx.settingsRefresh=false;
+    this.cancelSettingsReceipt(ctx);ctx.settingsRefresh=false;ctx.sharedDirty=false;ctx.sharedQueued=false;
+    if(ctx.service&&Object.keys(ctx.sharedState||{}).length){ctx.sharedState={};this.notifyShared(ctx.pluginUUID);}
     this.animations.stop(ctx);
     ctx.tickDue=null;
     this.cancelNetwork(ctx);this.cancelSocket(ctx);
@@ -558,7 +594,7 @@ class NativePluginHost{
   initialize(ctx){
     ctx.tickDue=ctx.apiVersion===2&&ctx.permissions.includes('timer.tick')&&ctx.action.tickIntervalMs?
       this.now()+ctx.action.tickIntervalMs:null;
-    this.run(ctx,'appear');
+    this.run(ctx,ctx.service?'start':'appear');
     this.reconcileTickTimer();
   }
   reconcileTickTimer(){
@@ -615,8 +651,8 @@ class NativePluginHost{
         const result=await this.scheduler.run(ctx.pluginUUID,active,()=>{
           if(!ctx.runner)ctx.runner=this.runnerFactory(ctx.pluginUUID);
           return ctx.runner.run(ctx.action.script,{
-            event:{type:event,slot:ctx.slot,gesture:ctx.gesture||'down',...(response?{response}:{})},
-            settings:ctx.action.settingsSchema?nativeEffectiveSettings(ctx.action.settingsSchema,settingsSnapshot):structuredClone(settingsSnapshot),state:ctx.state,memory:structuredClone(ctx.memory),globalSettings:structuredClone(global.value)
+            event:{type:event,slot:ctx.service?null:ctx.slot,gesture:ctx.service?null:ctx.gesture||'down',...(ctx.service?{scope:'service'}:{}),...(response?{response}:{})},
+            settings:ctx.action.settingsSchema?nativeEffectiveSettings(ctx.action.settingsSchema,settingsSnapshot):structuredClone(settingsSnapshot),state:ctx.state,memory:structuredClone(ctx.memory),globalSettings:structuredClone(global.value),sharedState:this.sharedSnapshot(ctx)
           });
         });
         if(!active())return;
@@ -651,7 +687,7 @@ class NativePluginHost{
             pluginUUID:ctx.pluginUUID,actionUUID:ctx.action.id,operation});
         }
       }catch(error){if(active())this.fail(ctx,error);}
-    }).finally(()=>{if(ctx.epoch===epoch){ctx.pending--;this.queueSettingsRefresh(ctx);}});
+    }).finally(()=>{if(ctx.epoch===epoch){ctx.pending--;if(event==='sharedState')ctx.sharedQueued=false;this.queueSettingsRefresh(ctx);this.queueSharedRefresh(ctx);}});
     return true; // accepted for dispatch; not a claim of completed execution
   }
   retire(ctx){
@@ -663,7 +699,7 @@ class NativePluginHost{
     if(runner){
       if(idle&&!this.suspended&&!this.closed&&!ctx.failed&&this.retired.size<16){
         this.retired.add(runner);
-        this.scheduler.run(ctx.pluginUUID,()=>!this.closed&&!this.suspended&&this.retired.has(runner),()=>runner.run(ctx.action.script,{event:{type:'disappear',slot:ctx.slot,gesture:ctx.gesture||'down'},
+        this.scheduler.run(ctx.pluginUUID,()=>!this.closed&&!this.suspended&&this.retired.has(runner),()=>runner.run(ctx.action.script,{event:{type:ctx.service?'stop':'disappear',slot:ctx.service?null:ctx.slot,gesture:ctx.service?null:ctx.gesture||'down',...(ctx.service?{scope:'service'}:{})},
           settings:structuredClone(ctx.settings),state:ctx.state,memory:structuredClone(ctx.memory)})).catch(()=>{}).finally(()=>{this.retired.delete(runner);runner.close();});
       }else runner.close();
     }
@@ -673,6 +709,28 @@ class NativePluginHost{
     if(ctx.apiVersion===2)return this.runScript(ctx,event);
     try{this.applyOps(ctx,ctx.action.events[event]||[]);return true;}
     catch(error){this.fail(ctx,error);return false;}
+  }
+  syncServices(plugins,seen){
+    const eligible=[...plugins.values()].filter(m=>m.service).sort((a,b)=>a.id.localeCompare(b.id));
+    const selected=eligible.slice(0,MAX_SERVICES),ids=new Set(selected.map(m=>SERVICE_PREFIX+m.id));
+    for(const [id,ctx] of this.contexts)if(ctx.service&&!ids.has(id)){
+      this.retire(ctx);this.contexts.delete(id);
+    }
+    for(const m of selected){
+      const id=SERVICE_PREFIX+m.id;
+      const signature=JSON.stringify([m.version,m.permissions,m.networkEndpoints||[],m.service]);
+      let ctx=this.contexts.get(id);
+      if(ctx&&ctx.signature!==signature){this.retire(ctx);this.contexts.delete(id);ctx=null;}
+      if(!ctx){
+        ctx={context:id,service:true,pluginUUID:m.id,action:{id:m.id+'.service',script:m.service.script,tickIntervalMs:m.service.tickIntervalMs},
+          apiVersion:2,permissions:[...m.permissions],networkEndpoints:m.networkEndpoints||[],signature,settings:{},state:0,pressed:false,failed:false,
+          epoch:0,settingsRevision:0,pending:0,queue:Promise.resolve(),runner:null,memory:{},sharedState:{},recoveryAttempts:0,recoveryTimer:null};
+        this.contexts.set(id,ctx);if(!this.suspended)this.initialize(ctx);
+      }
+      seen.add(id);
+    }
+    for(const m of eligible.slice(MAX_SERVICES))if(!this.serviceCapacity?.has(m.id))this.report(m.id,Error('background service capacity'));
+    this.serviceCapacity=new Set(eligible.slice(MAX_SERVICES).map(m=>m.id));
   }
   sync(configs,manifests){
     if(this.closed)return;
@@ -687,8 +745,9 @@ class NativePluginHost{
         this.report(cfg.pluginUUID,Error(reason));
     }
     this.dependencyWarnings=warnings;
+    this.syncServices(plugins,seen);
     for(const cfg of configs){
-      if(!cfg||typeof cfg.context!=='string'||!cfg.context||cfg.context.length>160||
+      if(!cfg||typeof cfg.context!=='string'||!cfg.context||cfg.context.length>160||cfg.context.startsWith(SERVICE_PREFIX)||
         !Number.isInteger(cfg.slot)||cfg.slot<0||cfg.slot>18||seen.has(cfg.context))continue;
       const plugin=plugins.get(cfg.pluginUUID),a=plugin?.actions.find(x=>x.id===cfg.actionUUID);
       if(!a||!a.controllers.includes(cfg.slot>=16?'Encoder':'Keypad'))continue;
@@ -728,7 +787,7 @@ class NativePluginHost{
   }
   key(context,gesture,ticks=1){
     const ctx=this.contexts.get(context);
-    if(!ctx||this.closed||this.suspended||ctx.failed)return false;
+    if(!ctx||ctx.service||this.closed||this.suspended||ctx.failed)return false;
     if(gesture==='down'){
       if(ctx.pressed)return false;
       if(ctx.apiVersion===2&&ctx.pending>=MAX_PENDING_EVENTS-INPUT_RESERVE){this.reportBackpressure(ctx);return false;}

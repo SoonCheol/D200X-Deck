@@ -569,6 +569,65 @@ test('native HTTP dynamic path and headers remain inside the exact approved cont
  assert.equal((await requestEndpoint(resolved,op.body,undefined,{request:mock,bearer:'abc123'})).ok,true);
 });
 
+test('native background service requires permission and cannot control physical actions',()=>{
+ const service={script:'api.publishSharedState({ready:true});',tickIntervalMs:1000};
+ const m={...scriptManifest,permissions:['display','background.run','timer.tick'],service};
+ assert.doesNotThrow(()=>validateNativeManifest(m));
+ assert.throws(()=>validateNativeManifest({...m,permissions:['display','timer.tick']}),/background/);
+ assert.throws(()=>validateNativeManifest({...m,service:undefined}),/background/);
+ assert.throws(()=>validateNativeManifest({...m,permissions:['display','background.run']}),/tick/);
+ assert.throws(()=>validateNativeManifest({...m,service:{script:'invalid )'}}),/syntax/);
+ const host=new NativePluginHost('/unused');
+ const ctx={service:true,pluginUUID:nativeId,permissions:m.permissions,action:{id:nativeId+'.service',tickIntervalMs:1000}};
+ try{
+   assert.deepEqual(host.validateScriptOps(ctx,'start',[{op:'publishSharedState',value:{ready:true}}]).normal,[{op:'publishSharedState',value:{ready:true}}]);
+   for(const op of [{op:'title',value:'bad'},{op:'navigate',target:'page',value:0},{op:'settings',value:{}},{op:'globalSettings',value:{}},{op:'wideMode',value:'clock'}])
+     assert.throws(()=>host.validateScriptOps(ctx,'start',[op]),/background service/);
+   assert.throws(()=>host.validateScriptOps(ctx,'press',[]),/background event/);
+   assert.throws(()=>host.validateScriptOps({...ctx,service:false,action:scriptManifest.actions[0]},'press',[{op:'publishSharedState',value:{}}]),/unauthorized/);
+ }finally{host.close();}
+});
+test('native background WSS and shared snapshot survive page changes, clear on retirement and restart after suspend',async()=>{
+ const {EventEmitter}=require('node:events');
+ const ep={id:'live',url:'wss://example.com/events',method:'WSS'};
+ const m={...scriptManifest,permissions:['display','background.run','network.websocket','timer.tick'],networkEndpoints:[ep],service:{script:'service',tickIntervalMs:1000}};
+ const sockets=[],events=[],updates=[];
+ class Mock extends EventEmitter{
+   constructor(){super();this.readyState=0;this.bufferedAmount=0;this.closed=false;}
+   terminate(){this.closed=true;this.readyState=3;this.emit('close',1006);}
+ }
+ let now=1000;
+ const host=new NativePluginHost('/unused',e=>updates.push(e),()=>({async run(src,input){
+   const {type,response,scope}=input.event;events.push({src,type,scope,state:input.sharedState});
+   if(scope==='service'){
+     if(type==='start')return {ops:[{op:'socketConnect',endpoint:'live'}],memory:{}};
+     if(type==='socketEvent'&&response.event==='message')return {ops:[{op:'publishSharedState',value:{status:response.body}}],memory:{}};
+     if(type==='tick')return {ops:[{op:'publishSharedState',value:{status:'tick'}}],memory:{}};
+     return {ops:[],memory:{}};
+   }
+   if(type==='appear'||type==='sharedState')return {ops:[{op:'title',value:input.sharedState?.status||'empty'}],memory:{}};
+   return {ops:[],memory:{}};
+ },close(){}}),{socketFactory:()=>{const s=new Mock();sockets.push(s);return s;},now:()=>now});
+ const key='@service:'+nativeId,cfg={context:'page1',slot:0,pluginUUID:nativeId,actionUUID:nativeId+'.toggle',settings:{}};
+ const drain=async()=>{for(let i=0;i<3;i++){await new Promise(r=>setImmediate(r));await Promise.all([...host.contexts.values()].map(c=>c.queue));}};
+ try{
+   host.sync([],[m]);await drain();assert.equal(sockets.length,1);
+   const original=host.contexts.get(key);assert.ok(original.service);assert.equal(host.key(key,'down'),false);
+   sockets[0].readyState=1;sockets[0].emit('open');
+   sockets[0].emit('message',Buffer.from('on'),false);await drain();
+   host.sync([cfg],[m]);await drain();assert.ok(updates.some(e=>e.context==='page1'&&e.payload?.title==='on'));
+   host.sync([{...cfg,context:'page2'}],[m]);await drain();assert.equal(host.contexts.get(key),original);assert.equal(sockets.length,1);
+   sockets[0].emit('message',Buffer.from('off'),false);await drain();
+   assert.ok(updates.some(e=>e.context==='page2'&&e.payload?.title==='off'));
+   assert.equal(updates.some(e=>e.context===key&&e.kind==='setTitle'),false);
+   now=3000;host.tick(now);await drain();assert.ok(updates.some(e=>e.context==='page2'&&e.payload?.title==='tick'));
+   host.suspend();assert.equal(sockets[0].closed,true);assert.deepEqual(original.sharedState,{});
+   host.resume();await drain();assert.equal(sockets.length,2);
+   host.sync([],[]);await drain();assert.equal(sockets[1].closed,true);assert.equal(host.contexts.size,0);
+   assert.ok(events.filter(e=>e.scope==='service'&&e.type==='start').length>=2);
+ }finally{host.close();}
+});
+
 test('native WSS endpoint is permission-bound and transport enforces TLS, limits and no redirects',()=>{
  const {validateNetworkEndpoints,validateNetworkRequest,validateSocketOperation,createSocket}=require('../app/streamdeck-editor/deckforge-native-network.cjs');
  const endpoint={id:'live',url:'wss://example.com/events',method:'WSS',auth:'bearer'},permissions=['display','network.websocket'];

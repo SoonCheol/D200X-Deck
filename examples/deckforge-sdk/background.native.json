@@ -1,0 +1,27 @@
+{
+  "apiVersion": 2,
+  "id": "com.deckforge.native.background-example",
+  "name": "Background shared status",
+  "version": "1.0.0",
+  "requiresDeckForge": ">=1.1.169",
+  "permissions": [
+    "display",
+    "background.run",
+    "timer.tick"
+  ],
+  "service": {
+    "tickIntervalMs": 1000,
+    "script": "if(event.type==='start'||event.type==='tick'){memory.count=(memory.count||0)+1;api.publishSharedState({count:memory.count});}"
+  },
+  "actions": [
+    {
+      "id": "com.deckforge.native.background-example.key",
+      "name": "Shared counter",
+      "controllers": [
+        "Keypad"
+      ],
+      "states": 1,
+      "script": "if(event.type==='appear'||event.type==='sharedState')api.setTitle(String(api.getSharedState().count||0));"
+    }
+  ]
+}
