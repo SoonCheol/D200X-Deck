@@ -2,6 +2,11 @@
 
 > **상태 기록 기준: 2026-11-24**. 실제 최신 HEAD는 Git에서 확인하며, 코드·자동 검사·Windows 빌드·사용자 Windows/D200X 실기 결과를 구분한다. 시작 시 `AGENTS.md`와 이 문서만 읽고 로드맵은 필요한 경우에만 참고한다.
 
+## 1.1.152 — Ulanzi 설정 분기 및 다중 액션 격리 검증 확대 (2026-11-24)
+
+- 첫 비교값만 검증하지 않고 모든 서로 다른 stateFromSetting literal 비교와 가능한 불일치값을 별도 context의 appear/settings에서 검사. 64 probe 초과 시 검증 실패, 누락 방지. 다중 액션 동시 활성 상태에서 개별 settings 변경 및 unchanged sync 검증.
+- 두 번째 분기 변조 탐지 및 다중 설정 격리 fixture 추가. 원본 실행/설치 없음. 신규 Windows/CI/실기 별도. 1.1.151 CI #1191 성공.
+
 ## 1.1.151 — 독자 SDK PNG 무결성 검증 통합 (2026-11-24)
 
 - API 1/2 stateImages 및 실시간 image operation에서 단순 헤더 대신 canonical base64·chunk CRC·제한 zlib scanline 검증 적용. 비지원 encoding, 잘린 PNG·손상 CRC·후행 데이터 거부. 기존 사용자 직접 이미지 가져오기 및 Stream Deck 호환 호스트는 변경하지 않음.

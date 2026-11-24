@@ -1391,3 +1391,22 @@ test('native image validation rejects malformed PNGs both at install and on API 
   assert.deepEqual(host.validateScriptOps({pluginUUID:nativeId,action:scriptManifest.actions[0],permissions:['display']},'press',[{op:'image',value:image}]).normal,[{op:'image',value:image}]);
  }finally{host.close();}
 });
+
+test('Ulanzi verifier exercises every setting comparison and isolates multi-action settings changes',()=>{
+ const {analyzeSource}=require('../app/streamdeck-editor/ulanzi-converter.cjs');
+ const {simulateCandidate}=require('../app/streamdeck-editor/ulanzi-verifier.cjs');
+ const id='com.ulanzi.ulanzistudio.Probes',m={Type:'JavaScript',UUID:id,Name:'Probes',Version:'1',CodePath:'app.js',Actions:[{UUID:id+'.a',Name:'A',States:[{},{}]}]};
+ const body="m=>{$UD.setState(m.context,m.param?.mode === 'first' ? 1 : 0);$UD.setState(m.context,m.param?.mode === 'second' ? 1 : 0);}";
+ const source="$UD.connect('"+id+"');$UD.onAdd("+body+");$UD.onParamFromApp("+body+");";
+ const result=analyzeSource(m,source);
+ assert.equal(result.verification.status,'pass');
+ assert.equal(result.verification.checks.filter(c=>/^setting-probe-\d+-appear$/.test(c.name)).length,3);
+ const calls=[{method:'setStateFromParam',key:'mode',match:'first',yes:1,no:0},{method:'setStateFromParam',key:'mode',match:'second',yes:1,no:0}];
+ const trace=[{method:'onAdd',calls},{method:'onParamFromApp',calls}];
+ const altered=structuredClone(result.candidate);
+ altered.actions[0].events.settings[1].yes=0;
+ assert.equal(simulateCandidate(altered,trace).status,'fail');
+ const multi=analyzeSource({...m,Actions:[...m.Actions,{UUID:id+'.b',Name:'B',States:[{},{}]}]},source);
+ assert.equal(multi.verification.status,'pass');
+ assert.equal(multi.verification.checks.filter(c=>c.name.endsWith(':isolated-settings')).length,2);
+});

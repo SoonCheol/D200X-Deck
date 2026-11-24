@@ -19,6 +19,32 @@ function sampleSetting(action,key,seed){
   if(field?.type==='text')return String(seed).slice(0,field.maxLength);
   return String(seed)+' '+key;
 }
+// Exercise every distinct literal comparison, not just the first match
+// for a setting. A non-matching sample is required where the schema allows it.
+function settingProbes(action,events){
+  const values=new Map();
+  for(const item of [...events.values()].flat()){
+    if(!item.setting||!Object.hasOwn(item,'match'))continue;
+    const set=values.get(item.setting)||new Set();set.add(item.match);values.set(item.setting,set);
+  }
+  const probes=[];
+  for(const [key,matches] of values){
+    const field=action.settingsSchema?.find(f=>f.key===key);
+    for(const value of matches)probes.push({key,value});
+    let alternate;
+    if(field?.type==='select')alternate=field.options.find(o=>!matches.has(o.value))?.value;
+    else{
+      const max=field?.maxLength??256;
+      // There are at most 160 literal comparisons. Find a short unused value.
+      for(let i=0;i<256;i++){
+        const value=i===0?'':String.fromCharCode(0x100+i);
+        if(value.length<=max&&!matches.has(value)){alternate=value;break;}
+      }
+    }
+    if(alternate!==undefined)probes.push({key,value:alternate});
+  }
+  return probes;
+}
 function simulateCandidate(manifest,sourceEvents){
   validateNativeManifest(manifest);
   if(manifest.apiVersion===1&&manifest.actions.length>1)return simulateMultiple(manifest,sourceEvents);
@@ -103,6 +129,22 @@ function simulateCandidate(manifest,sourceEvents){
       current.set(a.context,wrong);
       check('settings-non-string-fallback',()=>host.sync([{...a,settings:wrong},b],[manifest]),expected(a.context,SOURCE_EVENT.settings));
     }
+    const probes=settingProbes(action,events);
+    // Bound the whole simulation instead of silently omitting comparisons.
+    if(probes.length>64)checks.push({name:'setting-probe-budget',pass:false,expectedMessages:0,actualMessages:0});
+    else for(const [index,probe] of probes.entries()){
+      // Use a separate context for each probe; its appearance, settings
+      // and input trace must not mutate the two original contexts.
+      const context='verify-probe-'+index,config=cfg(context,a.slot);
+      const initial={...a.settings,[probe.key]:probe.value};
+      current.set(context,initial);
+      check('setting-probe-'+index+'-appear',()=>host.sync([{...a,settings:current.get(a.context)},b,{...config,settings:initial}],[manifest]),expected(context,SOURCE_EVENT.appear));
+      const updated={...initial,__verifyProbe:index};
+      current.set(context,updated);
+      check('setting-probe-'+index+'-settings',()=>host.sync([{...a,settings:current.get(a.context)},b,{...config,settings:updated}],[manifest]),expected(context,SOURCE_EVENT.settings));
+      check('setting-probe-'+index+'-remove',()=>host.sync([{...a,settings:current.get(a.context)},b],[manifest]),[]);
+      current.delete(context);
+    }
     check('remove-a',()=>host.sync([b],[manifest]),[]);
     check('removed-context-ignored',()=>host.key(a.context,'down'),[],false);
     check('remaining-context-press',()=>host.key(b.context,'down'),expected(b.context,down),true);
@@ -152,6 +194,17 @@ function simulateMultiple(manifest,traces){
       const dial=cfg.slot>=16;
       check(cfg.context+':press',()=>host.key(cfg.context,'down'),expected(cfg,dial?'onDialDown':'onKeyDown'),true);
       check(cfg.context+':release',()=>host.key(cfg.context,'up'),expected(cfg,dial?'onDialUp':'onKeyUp'),true);
+    }
+    for(const [index,cfg] of configs.entries()){
+      const action=manifest.actions[index]; // traces are resolved by action identity
+      const keys=traces.find(t=>t.actionId===cfg.actionUUID).events.flatMap(e=>e.calls).filter(c=>['setTitleFromParam','setStateFromParam'].includes(c.method));
+      const settings={...cfg.settings,__verifyProbe:index};
+      for(const field of keys)settings[field.key]=sampleSetting(action,field.key,'Z'+index);
+      const changed={...cfg,settings};
+      const next=configs.slice();next[index]=changed;
+      check(cfg.context+':isolated-settings',()=>host.sync(next,[manifest]),expected(changed,'onParamFromApp'));
+      configs[index]=changed;
+      check(cfg.context+':unchanged-settings',()=>host.sync(configs,[manifest]),[]);
     }
     check('multi-remove-first',()=>host.sync(configs.slice(1),[manifest]),[]);
     check('multi-removed-context',()=>host.key(configs[0].context,'down'),[],false);
