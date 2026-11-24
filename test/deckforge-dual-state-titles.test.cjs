@@ -84,7 +84,7 @@ test('state title is composed directly onto both card images using device compos
  assert.match(editor,/replaceStateCardArtwork\(img,rendered\)/);
  assert.match(editor,/node\.matches\('\.key-background-trigger,\.press-image-number'\)/);
  assert.match(editor,/host\.prepend\(rendered\)/);
-  assert.match(editor,/const overlays=Array\.from\(img\.querySelectorAll/);
+
  assert.match(editor,/void refreshStateTitleCards\(item\)/);
  assert.match(editor,/group\.dataset\.stateTitle=key==='off'\?'first':'second'/);
  assert.match(editor,/card\.dataset\.stateTitle=key==='up'\?'first':'second'/);
@@ -135,4 +135,19 @@ test('text action preview is bounded without truncating the actual body',()=>{
  assert.equal(visible.title,'😀'.repeat(256));
  assert.equal(item.settings.body,body);
  assert.match(editor,/if\(item\.type==='text'\)\{renderGrid\(\);refreshTitlePreview\(item\);\}/);
+});
+
+test('state card artwork refresh retains the actual palette and number nodes in place',()=>{
+ const start=editor.indexOf('function replaceStateCardArtwork(host,rendered){');
+ const end=editor.indexOf('// Preview state title artwork',start);
+ assert.ok(start>=0&&end>start);
+ const replace=vm.runInNewContext(editor.slice(start,end)+';replaceStateCardArtwork');
+ const host={childNodes:[],prepend(node){this.childNodes.unshift(node);}};
+ const node=(name,nodeType=1)=>({name,nodeType,matches(selector){return selector.split(',').includes(name);},remove(){host.childNodes.splice(host.childNodes.indexOf(this),1);}});
+ const palette=node('.key-background-trigger'),number=node('.press-image-number'),old=node('.old'),text=node('text',3);
+ host.childNodes=[old,palette,number,text];
+ const next=node('.new');replace(host,next);
+ assert.deepEqual(host.childNodes,[next,palette,number]);
+ const newer=node('.newer');replace(host,newer);
+ assert.deepEqual(host.childNodes,[newer,palette,number]);
 });
