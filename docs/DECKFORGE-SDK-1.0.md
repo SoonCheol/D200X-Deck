@@ -119,3 +119,5 @@ API 2 manifest의 service={script,tickIntervalMs?} 및 별도 background.run 권
 - 1.1.218: 사용자 요청으로 설치 플러그인 ? 도움말 하단에 데이터 유지 제거를 통합. Stream Deck 호환 플러그인도 DeckForge 설치 폴더만 StreamDeckRemoved로 이동하고 파일별 해시 revision 확인 후 명시 승인 재설치; 원본 외부 폴더·globals·프로필·Fusion 애드인 보존. 내장 자동 설치는 보존 목록 제외. 호환 플러그인 purge 미지원. 실제 GUI 및 자동 검사 별도.
 
 - 09A(1.1.219): 전송 계층 완전 14슬롯 Buffer SHA-256 및 wide mode 서명으로 마지막 성공 PAGE ZIP 1개(최대 8MiB) 재사용. 캐시는 압축 결과이며 실기 ACK 아님. 같은 화면도 기존 PAGE 전송 유지, reconnect/wake 전체 PAGE, 전송 실패 캐시 폐기. 진단 ZIP 크기는 USB 실제 총량이 아님. KEY(0x0d)는 기존 probe만, 제품 비활성 유지. 집중 검사 추가.
+
+- 1.1.220: 설치/보존 목록 동일 ? 관리창. native 제거는 데이터 유지 기본 또는 제거 후 보존 데이터 삭제 선택; 먼저 제거 후 정확한 삭제 목록 승인, 취소/실패는 제거 성공과 구분. 프로필/등록 버튼 유지, legacy purge 미지원. 사용자가 수행한 설치·업데이트·롤백·제거·복구·purge의 main 결과를 diagnostics/plugin-management.jsonl(1MiB, 이전 1개) 및 AI inspect plugin_log(최근 64KiB씩, 허용 필드)로 기록/조회. raw 오류·경로·설정·토큰 미수집. 로그 기록 실패가 실제 작업 성공을 뒤집지 않음. 기존 작업 기록 소급 불가.

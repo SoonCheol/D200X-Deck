@@ -146,3 +146,17 @@ test('Fusion status extension preserves original and only upgrades byte-identica
    assert.equal((await readFusionState(discovery,10,{health:async()=>({ok:true})})).status,'unavailable');
  }finally{await fs.rm(root,{recursive:true,force:true});}
 });
+
+test('installed and retained plugin groups share help button and management actions stay in dialog',async()=>{
+ const ui=await fs.readFile(path.join(__dirname,'../app/streamdeck-editor/editor.js'),'utf8');
+ const retained=ui.slice(ui.indexOf('function renderRetainedSdkPlugins('),ui.indexOf('const sdkActionNames='));
+ const installed=ui.slice(ui.indexOf('function renderInstalledSdkPlugins('),ui.indexOf('async function configureHomeAssistant('));
+ const help=ui.slice(ui.indexOf('function openSdkPluginHelp('),ui.indexOf('function launchFusionManager('));
+ assert.match(retained,/pluginHelpButton\(plugin,true\)/);
+ assert.match(installed,/pluginHelpButton\(plugin\)/);
+ assert.doesNotMatch(retained,/nativeRetainedPurge|restoreRetainedPlugin/);
+ assert.doesNotMatch(installed,/removePluginKeepingData/);
+ assert.match(help,/restoreRetainedPlugin\(plugin\)/);
+ assert.match(help,/purgeRetainedPlugin\(plugin\)/);
+ assert.match(help,/removePluginKeepingData\(plugin\)/);
+});

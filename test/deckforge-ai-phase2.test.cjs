@@ -167,3 +167,30 @@ test('user template inventory exposes names and page counts only, never action s
  assert.equal(result.ok,true);assert.equal(result.total,1);assert.deepEqual(result.items,[{name:'My template',pageCount:s.pages.length}]);
  assert.equal(JSON.stringify(result).includes('DO_NOT_SEND_TEMPLATE_TEXT'),false);
 });
+
+test('plugin management audit reports actual results and safe metadata via inspect plugin_log',async t=>{
+ const fs=require('node:fs/promises'),os=require('node:os'),path=require('node:path');
+ const {createPluginAudit}=require('../app/streamdeck-editor/plugin-audit.cjs');
+ const root=await fs.mkdtemp(path.join(os.tmpdir(),'deckforge-plugin-audit-'));
+ t.after(()=>fs.rm(root,{recursive:true,force:true}));
+ const plugin={id:'com.deckforge.native.test',name:'DeckForge 테스트용',version:'1.0.0'};
+ const run=createPluginAudit({userData:root,appVersion:'1.1.220'});
+ await run('install',null,async a=>{a.identify(plugin);a.stage('execute');return {...plugin,token:'DO_NOT_SEND_TOKEN'};});
+ await run('install',plugin.id,async a=>{a.identify(plugin);a.identify({currentVersion:'1.0.0',nextVersion:'1.1.0'});a.operation('update');a.stage('confirm');return null;});
+ await run('remove',plugin.id,async a=>{a.identify(plugin);a.mode('keepData');a.stage('execute');return {id:plugin.id,mode:'keepData'};});
+ await run('restore',plugin.id,async a=>{a.identify(plugin);a.stage('execute');return plugin;});
+ await run('purge',plugin.id,async a=>{a.identify(plugin);a.mode('purge');a.stage('execute');return {id:plugin.id,status:'incomplete',deleted:2,total:3};});
+ await assert.rejects(run('purge',plugin.id,async a=>{a.identify(plugin);throw Error('revision changed https://private.test/?token=DO_NOT_SEND_TOKEN');}),/revision changed/);
+ const text=await fs.readFile(path.join(root,'diagnostics','plugin-management.jsonl'),'utf8');
+ assert.doesNotMatch(text,/DO_NOT_SEND_TOKEN|private\.test/);
+ const inspect=createReader(opts(fixture(),{userData:root}))();
+ const result=await inspect(query('plugin_log',{query:'테스트용'}));
+ assert.equal(result.ok,true);assert.equal(result.total,6);
+ assert.deepEqual(result.items.map(x=>x.status),['failed','incomplete','success','success','cancelled','success']);
+ assert.equal(result.items[0].reason,'revision_changed');
+ assert.equal(result.items[1].deleted,2);assert.equal(result.items[1].total,3);
+ assert.equal(result.items[4].operation,'update');assert.equal(result.items[4].previousVersion,'1.0.0');
+ assert.equal(result.items[4].pluginVersion,'1.1.0');
+ assert.equal(result.items[5].deckForgeVersion,'1.1.220');
+ assert.equal((await inspect(query('plugin_log',{query:'unknown'}))).total,0);
+});

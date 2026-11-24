@@ -30,6 +30,7 @@ const BackupPrivacy=require('./backup-privacy.cjs');
 const {GoogleDrive}=require('./google-drive.cjs');
 const UpdateCheck=require('./update-check.cjs');
 let sdkHost=null;
+const pluginAudit=require('./plugin-audit.cjs').createPluginAudit({userData:app.getPath('userData'),appVersion:app.getVersion(),onError:()=>console.warn('DeckForge plugin audit write failed')});
 function sdk(){
   if(!sdkHost){
     const userData=app.getPath('userData'),update=payload=>send('d200x:sdk-event',payload);
@@ -93,25 +94,29 @@ ipcMain.handle('d200x:sdk-list',async event=>{assertEditor(event);return sdk().l
 ipcMain.handle('d200x:native-retained-list',async event=>{assertEditor(event);return [...await sdk().listRetainedNative(),...await sdk().listRetainedLegacy()];});
 ipcMain.handle('d200x:legacy-plugin-remove',async(event,id)=>{
  assertEditor(event);
- const plan=await sdk().planLegacyRemoval(id);
+ return pluginAudit('remove',id,async audit=>{
+ const plan=await sdk().planLegacyRemoval(id);audit.identify(plan);audit.mode('keepData');audit.stage('confirm');
  const choice=await dialog.showMessageBox(window,{type:'question',title:'플러그인 제거',message:plan.name+' '+plan.version+' 제거',
    detail:'DeckForge의 설치 폴더만 보존 영역으로 옮깁니다. 기존 버튼, 인증정보와 외부 애드인은 유지됩니다.',
    buttons:['취소','데이터 유지 후 제거'],defaultId:0,cancelId:0,noLink:true});
  if(choice.response!==1)return null;
- return sdk().removeLegacyKeepingData(id,plan.revision);
+ audit.stage('execute');return sdk().removeLegacyKeepingData(id,plan.revision);
+ });
 });
 ipcMain.handle('d200x:legacy-retained-restore',async(event,id)=>{
  assertEditor(event);
- const plan=await sdk().planLegacyRestore(id);
+ return pluginAudit('restore',id,async audit=>{
+ const plan=await sdk().planLegacyRestore(id);audit.identify(plan);audit.mode('keepData');audit.stage('confirm');
  const choice=await dialog.showMessageBox(window,{type:'question',title:'보존 플러그인 다시 설치',message:plan.name+' '+plan.version+' 다시 설치',
    detail:'보존된 Stream Deck 호환 코드를 다시 실행할 수 있게 됩니다. 신뢰하는 플러그인만 설치하세요.',
    buttons:['취소','신뢰하고 다시 설치'],defaultId:0,cancelId:0,noLink:true});
  if(choice.response!==1)return null;
- return sdk().restoreLegacyRetained(id,plan.revision);
+ audit.stage('execute');return sdk().restoreLegacyRetained(id,plan.revision);
+ });
 });
-ipcMain.handle('d200x:native-retained-purge',async(event,id)=>{
- assertEditor(event);
- const plan=await sdk().planRetainedPurge(id);
+async function purgeRetainedWithApproval(id){
+ return pluginAudit('purge',id,async audit=>{
+ const plan=await sdk().planRetainedPurge(id);audit.identify(plan);audit.mode('purge');audit.stage('confirm');
  const c=plan.counts;
  const detail=['이 작업은 되돌릴 수 없습니다. 기존 버튼 등록과 프로필, 외부 백업은 삭제하지 않습니다.',
    '삭제 대상: 보존 원본 '+c.retained+'개, 이전 코드 '+c.history+'개, 암호화 전역 설정 '+c.settings+'개, 확인된 인증정보 '+c.credential+'개.',
@@ -122,27 +127,42 @@ ipcMain.handle('d200x:native-retained-purge',async(event,id)=>{
  const second=await dialog.showMessageBox(window,{type:'warning',title:'최종 삭제 확인',message:plan.name+'의 보존 데이터를 삭제하시겠습니까?',detail,
    buttons:['취소','보존 데이터 삭제'],defaultId:0,cancelId:0,noLink:true});
  if(second.response!==1)return null;
- return sdk().purgeRetainedNative(id,plan.revision);
-});
+ audit.stage('execute');return sdk().purgeRetainedNative(id,plan.revision);
+ });
+}
+ipcMain.handle('d200x:native-retained-purge',async(event,id)=>{assertEditor(event);return purgeRetainedWithApproval(id);});
 ipcMain.handle('d200x:native-retained-restore',async(event,id)=>{
  assertEditor(event);
- const plan=await sdk().planRetainedNative(id);
+ return pluginAudit('restore',id,async audit=>{
+ const plan=await sdk().planRetainedNative(id);audit.identify(plan);audit.mode('keepData');audit.stage('confirm');
  const choice=await dialog.showMessageBox(window,{type:'question',title:'보존 플러그인 다시 설치',
    message:plan.name+' '+plan.version+' 다시 설치',
    detail:['기존 버튼과 설정을 유지합니다. 실행 및 네트워크 접근은 아래 권한으로 다시 허용됩니다.', '권한: '+plan.permissions.join(', '),...plan.endpoints].join('\n'),
    buttons:['취소','신뢰하고 다시 설치'],defaultId:0,cancelId:0,noLink:true});
  if(choice.response!==1)return null;
- return sdk().restoreRetainedNative(id,plan.revision);
+ audit.stage('execute');return sdk().restoreRetainedNative(id,plan.revision);
+ });
 });
 ipcMain.handle('d200x:native-remove',async(event,id)=>{
  assertEditor(event);
- const plan=await sdk().planNativeRemoval(id);
+ let purgeAfter=false;
+ const removed=await pluginAudit('remove',id,async audit=>{
+ const plan=await sdk().planNativeRemoval(id);audit.identify(plan);audit.mode('keepData');audit.stage('confirm');
  if(plan.dependents.length)throw Error('이 플러그인을 사용하는 다른 플러그인: '+plan.dependents.map(p=>p.name).join(', '));
  const choice=await dialog.showMessageBox(window,{type:'question',title:'플러그인 제거',message:plan.name+' '+plan.version+' 제거',
-   detail:'데이터 유지 방식입니다. 실행 및 전역 서비스는 중단되고 기존 버튼 등록, 설정, 암호화 인증정보와 원본 코드는 보존됩니다. 같은 플러그인을 다시 설치할 수 있습니다.',
-   buttons:['취소','데이터 유지 후 제거'],defaultId:0,cancelId:0,noLink:true});
- if(choice.response!==1)return null;
- return sdk().removeNativeKeepingData(id,plan.revision);
+   detail:'데이터 유지 제거는 원본 코드와 설정·인증정보를 보존합니다. 데이터까지 삭제를 선택하면 먼저 제거한 뒤 실제 삭제 대상과 개수를 확인합니다. 두 방식 모두 기존 등록 버튼과 프로필은 유지합니다.',
+   buttons:['취소','데이터 유지 제거','제거 후 보존 데이터 삭제…'],defaultId:1,cancelId:0,noLink:true});
+ if(![1,2].includes(choice.response))return null;
+ purgeAfter=choice.response===2;
+ audit.stage('execute');return sdk().removeNativeKeepingData(id,plan.revision);
+ });
+ if(!removed||!purgeAfter)return removed;
+ // Removal is already committed; cancellation or failure of the second
+ // operation must never masquerade as failure of the completed removal.
+ try{
+   const purged=await purgeRetainedWithApproval(id);
+   return {...removed,purgeStatus:purged?.status||'cancelled'};
+ }catch{return {...removed,purgeStatus:'failed'};}
 });
 ipcMain.handle('d200x:native-service-status',async(event,id)=>{assertEditor(event);return sdk().serviceStatus(id);});
 ipcMain.handle('d200x:native-service-control',async(event,id,mode)=>{
@@ -162,14 +182,17 @@ ipcMain.handle('d200x:native-ha-install',async(event,url,mode='install')=>{
     await fs.promises.writeFile(result.filePath,pack.archive,{flag:'wx'});
     return {name:manifest.name,version:manifest.version,filePath:result.filePath};
   }
-  const plan=await sdk().planNativeInstall(manifest);
+  return pluginAudit('install',manifest.id,async audit=>{
+  audit.identify(manifest);
+  const plan=await sdk().planNativeInstall(manifest);audit.identify(plan);audit.operation(plan.kind);audit.stage('confirm');
   if(plan.kind==='rollback')throw Error('이전 버전 복원은 패키지 설치에서 진행하세요.');
   const verb=plan.kind==='install'?'설치':'업데이트';
   const choice=await dialog.showMessageBox(window,{type:'question',title:'HA 전용 플러그인 '+verb,
     message:'DeckForge Home Assistant '+verb,detail:'연결 주소: '+manifest.networkEndpoints[0].url+'\n버전: '+(plan.kind==='install'?manifest.version:plan.currentVersion+' → '+manifest.version)+'\n페이지 독립 서비스 및 상태 구독·선택한 기기 제어를 허용합니다.\n같은 서버의 인증정보와 기존 버튼 설정은 보존됩니다. 다른 서버 주소에는 별도 인증정보가 필요합니다.',
     buttons:['취소',verb],defaultId:0,cancelId:0,noLink:true});
   if(choice.response!==1)return null;
-  return plan.kind==='install'?sdk().installNative(manifest):sdk().replaceNative(manifest,plan.currentRevision);
+  audit.stage('execute');return plan.kind==='install'?sdk().installNative(manifest):sdk().replaceNative(manifest,plan.currentRevision);
+  });
 });
 ipcMain.handle('d200x:native-credential-info',async(event,id)=>{assertEditor(event);return sdk().credentialInfo(id);});
 ipcMain.handle('d200x:native-credential-write',async(event,id,binding,revision,token)=>{
@@ -246,8 +269,9 @@ ipcMain.handle('d200x:open-fusion-manager',async event=>{
 });
 
 ipcMain.handle('d200x:sdk-install',async event=>{
-  assertEditor(event);
-  const selected=await openRememberedPicker({
+ assertEditor(event);
+ return pluginAudit('install',null,async audit=>{
+  audit.stage('select');const selected=await openRememberedPicker({
     title:'DeckForge 플러그인 설치',
     properties:['openFile'],
     filters:[
@@ -256,7 +280,7 @@ ipcMain.handle('d200x:sdk-install',async event=>{
     ]
   });
   if(!selected)return null;
-  const stat=await fs.promises.stat(selected);
+  audit.stage('validate');const stat=await fs.promises.stat(selected);
   if(!stat.isFile()||stat.size>40*1024*1024)throw Error('40MB 이하의 플러그인만 가져올 수 있습니다.');
   const bytes=await fs.promises.readFile(selected);
   if(path.extname(selected).toLowerCase()==='.deckforgeplugin'){
@@ -264,9 +288,9 @@ ipcMain.handle('d200x:sdk-install',async event=>{
     // Preserve the SDK compatibility runtime; independent DeckForge package
     // metadata and payload have already passed validation.
     if(packageData.native){
-      const native=packageData.native;
+      const native=packageData.native;audit.identify(native);
       const labels={'settings.write':'현재 버튼 설정 저장','navigation':'프로필·페이지·덱폴더 이동','wide.mode':'와이드 화면 모드 전환','wide.overlay':'와이드 화면 임시 이미지·레이아웃 표시','global.settings':'플러그인 전역 암호화 설정 읽기·쓰기','network.request':'승인된 HTTPS 주소로 네트워크 요청','timer.tick':'활성 화면에서 주기적 표시 갱신','network.poll':'승인된 HTTPS GET 주소 주기적 조회','network.websocket':'승인된 WSS 실시간 연결 및 메시지 송수신','background.run':'페이지와 무관하게 독립 서비스 실행 및 상태 공유'};
-      const plan=await sdk().planNativeInstall(native);
+      const plan=await sdk().planNativeInstall(native);audit.identify(plan);audit.operation(plan.kind);audit.stage('confirm');
       const extra=native.permissions.filter(p=>p!=='display');
       const dependencies=Object.entries(native.dependencies||{}).map(([id,range])=>id+' '+range);
       const conversion=packageData.meta.source?.kind==='ulanzi-converted'?packageData.meta.source:null;
@@ -284,11 +308,12 @@ ipcMain.handle('d200x:sdk-install',async event=>{
         });
         if(result.response!==1)return null;
       }
-      return plan.kind==='install'?sdk().installNative(native):sdk().replaceNative(native,plan.currentRevision);
+      audit.stage('execute');return plan.kind==='install'?sdk().installNative(native):sdk().replaceNative(native,plan.currentRevision);
     }
-    return sdk().install(packageData.archive);
+    audit.stage('execute');return sdk().install(packageData.archive);
   }
-  return sdk().install(bytes);
+  audit.stage('execute');return sdk().install(bytes);
+ });
 });
 ipcMain.handle('d200x:deckforge-export-plugin',async event=>{
   assertEditor(event);
@@ -315,13 +340,15 @@ ipcMain.handle('d200x:deckforge-export-plugin',async event=>{
   return {name:pack.meta.plugin.name,version:pack.meta.plugin.version,filePath:result.filePath};
 });
 ipcMain.handle('d200x:sdk-install-folder',async event=>{
-  assertEditor(event);
-  const selected=await openRememberedPicker({
+ assertEditor(event);
+ return pluginAudit('install',null,async audit=>{
+  audit.stage('select');const selected=await openRememberedPicker({
     title:'DeckForge 플러그인 폴더 선택',
     properties:['openDirectory']
   },'sdk-plugin-folder');
   if(!selected)return null;
-  return sdk().installDirectory(selected);
+  audit.stage('execute');return sdk().installDirectory(selected);
+ });
 });
 ipcMain.handle('d200x:sdk-sync',async(event,configs)=>{
   assertEditor(event);

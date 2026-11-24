@@ -1354,21 +1354,20 @@ async function purgeRetainedPlugin(plugin){
     window.d200xActionStatus?.(result.status==='purged'?'보존 데이터 삭제 완료 · 버튼 및 프로필 유지':'삭제 미완료 ('+result.deleted+'/'+result.total+') · 남은 데이터 확인 필요');
   }catch(error){window.d200xActionStatus?.('보존 데이터 삭제 실패: '+String(error?.message||error));}
 }
+function pluginHelpButton(plugin,retained=false){
+  const info=document.createElement('button');info.type='button';info.textContent='?';
+  info.title=plugin.name+' 사용법 및 관리';info.setAttribute('aria-label',plugin.name+' 도움말');
+  info.style.cssText='flex:0 0 22px;border:1px solid #777;border-radius:50%;height:22px;width:22px;background:#414141;color:white;margin-left:8px';
+  info.onclick=event=>{event.stopPropagation();openSdkPluginHelp(plugin,plugin.uuid==='com.autodesk.fusionstreamdeck',retained);};
+  return info;
+}
 function renderRetainedSdkPlugins(root,query){
   for(const plugin of sdkRetained){
     if(!(plugin.name+' '+plugin.id).toLowerCase().includes(query))continue;
     const section=document.createElement('section');section.className='group';
-    const heading=document.createElement('div');heading.className='group-title';
-    heading.textContent=plugin.name+(plugin.version?' ('+plugin.version+')':'')+' · 데이터 보존 중';
-    const button=document.createElement('button');button.type='button';button.className='fusion-manager-launch';
-    button.textContent=plugin.available===false?'보존 코드 확인 필요':'다시 설치';
-    button.disabled=plugin.available===false;button.addEventListener('click',()=>void restoreRetainedPlugin(plugin));
-    section.append(heading,button);
-    if(window.deckBridge?.nativeRetainedPurge&&plugin.runtime!=='streamdeck-sdk'&&plugin.available!==false){
-      const purge=document.createElement('button');purge.type='button';purge.className='fusion-manager-launch';
-      purge.textContent='보존 데이터 삭제…';purge.addEventListener('click',()=>void purgeRetainedPlugin(plugin));section.append(purge);
-    }
-    root.append(section);
+    const heading=document.createElement('div');heading.className='group-title';heading.style.cssText='display:flex;align-items:center;justify-content:space-between';
+    const name=document.createElement('span');name.textContent=plugin.name+(plugin.version?' ('+plugin.version+')':'')+' · 데이터 보존 중';
+    heading.append(name,pluginHelpButton(plugin,true));section.append(heading);root.append(section);
   }
 }
 const sdkActionNames=new Map();
@@ -1445,7 +1444,7 @@ const HA_CUSTOM_ACTION='de.perdoctus.streamdeck.homeassistant.dual-state-entity'
 function sdkCatalogueLabel(action){
   return action.uuid===HA_CUSTOM_ACTION?'Home Assistant 장치 제어':action.name;
 }
-function openSdkPluginHelp(plugin,isFusion){
+function openSdkPluginHelp(plugin,isFusion,retained=false){
   let dialog=document.getElementById('sdk-plugin-help-dialog');
   if(!dialog){
     dialog=document.createElement('dialog');dialog.id='sdk-plugin-help-dialog';
@@ -1456,10 +1455,19 @@ function openSdkPluginHelp(plugin,isFusion){
   dialog.replaceChildren();
   const heading=document.createElement('div');heading.style.cssText='display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:12px';
   const isHa=plugin.uuid==='de.perdoctus.streamdeck.homeassistant'||plugin.uuid==='com.deckforge.native.home-assistant';
-  const label=document.createElement('strong');label.textContent=isFusion?'Fusion 360 사용 방법':isHa?'Home Assistant 사용 방법':plugin.name+' 사용 방법';
+  const label=document.createElement('strong');label.textContent=retained?plugin.name+' 관리':isFusion?'Fusion 360 사용 방법':isHa?'Home Assistant 사용 방법':plugin.name+' 사용 방법';
   const close=document.createElement('button');close.type='button';close.className='sdk-plugin-help-close';close.textContent='닫기 ×';
   close.onclick=()=>dialog.close();
   heading.append(label,close);dialog.append(heading);
+  if(retained){
+    const info=document.createElement('p');info.textContent=plugin.available===false?'보존 원본을 확인할 수 없습니다.':'현재 제거되어 실행되지 않습니다. 기존 버튼 등록과 설정은 유지됩니다.';dialog.append(info);
+    const footer=document.createElement('div');footer.style.cssText='display:flex;justify-content:flex-end;gap:8px;margin-top:14px;border-top:1px solid #46505b;padding-top:12px';
+    if(plugin.available!==false){
+      const restore=document.createElement('button');restore.type='button';restore.className='sdk-plugin-help-close';restore.textContent='다시 설치';restore.onclick=async()=>{dialog.close();await restoreRetainedPlugin(plugin);};footer.append(restore);
+      if(plugin.runtime!=='streamdeck-sdk'&&window.deckBridge?.nativeRetainedPurge){const purge=document.createElement('button');purge.type='button';purge.className='sdk-plugin-help-close';purge.textContent='보존 데이터 삭제…';purge.onclick=async()=>{dialog.close();await purgeRetainedPlugin(plugin);};footer.append(purge);}
+    }
+    dialog.append(footer);dialog.showModal();return;
+  }
   if(isFusion){
     const install=document.createElement('button');install.type='button';
     install.textContent='FusionStreamDeck 애드인 설치';
@@ -1491,7 +1499,7 @@ function openSdkPluginHelp(plugin,isFusion){
   const canRemove=plugin.runtime==='deckforge-sdk'?window.deckBridge?.nativeRemove:window.deckBridge?.legacyPluginRemove;
   if(canRemove){
     const footer=document.createElement('div');footer.style.cssText='display:flex;justify-content:flex-end;border-top:1px solid #46505b;margin-top:14px;padding-top:12px;gap:8px';
-    const remove=document.createElement('button');remove.type='button';remove.className='sdk-plugin-help-close';remove.textContent='플러그인 제거 (데이터 유지)';
+    const remove=document.createElement('button');remove.type='button';remove.className='sdk-plugin-help-close';remove.textContent='플러그인 제거…';
     remove.addEventListener('click',async()=>{dialog.close();await removePluginKeepingData(plugin);});footer.append(remove);dialog.append(footer);
   }
   dialog.showModal();
@@ -1526,7 +1534,8 @@ async function removePluginKeepingData(plugin){
     for(const instance of sdkActionInstances())if(instance.pluginUUID===plugin.uuid)sdkVisuals.delete(instance.context);
     await refreshSdkPlugins();
     scheduleSdkSync();
-    window.d200xActionStatus?.('플러그인 제거 완료 · 버튼 및 데이터 유지');
+    const message=({purged:'플러그인 및 보존 데이터 삭제 완료 · 등록 버튼 유지',cancelled:'플러그인 제거 완료 · 데이터 삭제 취소, 보존 중',incomplete:'플러그인 제거 완료 · 보존 데이터 일부 삭제 실패',failed:'플러그인 제거 완료 · 보존 데이터 삭제 실패'})[result.purgeStatus]||'플러그인 제거 완료 · 버튼 및 데이터 유지';
+    window.d200xActionStatus?.(message);
   }catch(error){
     scheduleSdkSync();
     window.d200xActionStatus?.('플러그인 제거 실패: '+String(error?.message||error));
@@ -1543,13 +1552,8 @@ function renderInstalledSdkPlugins(root,query){
     title.append(heading);
     const isFusion=plugin.uuid==='com.autodesk.fusionstreamdeck';
     const isHa=plugin.uuid==='de.perdoctus.streamdeck.homeassistant';
-    {
-      const info=document.createElement('button');info.type='button';info.textContent='?';
-      info.title=plugin.name+' 사용법';info.setAttribute('aria-label',plugin.name+' 도움말');
-      info.style.cssText='float:right;border:1px solid #777;border-radius:50%;height:22px;width:22px;background:#414141;color:white';
-      info.onclick=event=>{event.stopPropagation();openSdkPluginHelp(plugin,isFusion)};
-      title.append(info);
-    }
+    title.style.cssText='display:flex;align-items:center;justify-content:space-between';
+    title.append(pluginHelpButton(plugin));
     const body=document.createElement('div');
     title.addEventListener('click',()=>{body.hidden=!body.hidden;});
     for(const action of matching){
