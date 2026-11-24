@@ -84,6 +84,7 @@ async function runProgram(source,input){
     setImage:value=>append({op:'image',value}),
     drawKey,
     setSettings:value=>append({op:'settings',value}),
+    patchSettings:value=>append({op:'settingsPatch',value}),
     getGlobalSettings:()=>input.globalSettings||{},
     setGlobalSettings:value=>append({op:'globalSettings',value}),
     goToPage:value=>append({op:'navigate',target:'page',value}),

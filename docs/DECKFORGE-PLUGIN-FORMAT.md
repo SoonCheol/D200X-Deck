@@ -3,6 +3,11 @@
 > 기록일: 2026-11-24 · 상태: **패키지 v1 유지 / 독자 SDK API 1·2 및 패키지 v2 / Ulanzi 정적 분석·제한 후보 변환기 구현**
 > 저장소·브랜치: `SoonCheol/D200X-Deck` / `codex/streamdeck-761-clean-editor`
 
+## 0.20 독자 SDK 부분 설정 저장 (1.1.157)
+
+- API 2 `api.patchSettings({count:5})`: 기존 저장 설정의 최상위 키를 병합한다. settings.write 권한 및 입력 이벤트 필요, 이벤트당 부수 효과 한 개. 중첩 객체는 해당 키 단위로 교체하며, 삭제 연산 없음. editor의 기존 stale write 검증 및 저장 승인 정책 적용.
+- `examples/deckforge-sdk/visual-counter.native.json`은 독자 SDK로 새로 작성한 동적 그림/지속 설정 예제이며, Ulanzi 원본 변환 결과가 아니다. 저장 반영 후 settings 이벤트에서 그림을 갱신한다.
+
 ## 0.19 독자 SDK 동적 키 그림 (1.1.156)
 
 - API 2 `api.drawKey({width:144,height:144,background:'#101010',commands:[{type:'text',x:72,y:72,text:'42',size:48,color:'#ffffff',bold:true}]})`: rect/circle/line/text, 1~144px, 32개 명령/그림, 이벤트당 2장. 색상은 #RRGGBB 또는 #RRGGBBAA, 글꼴 sans-serif/serif/monospace. 외부 이미지/폰트/URL 없음.

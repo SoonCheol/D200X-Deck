@@ -1,0 +1,57 @@
+{
+  "apiVersion": 2,
+  "id": "com.deckforge.native.example.visualcounter",
+  "name": "Visual Counter",
+  "version": "1.0.0",
+  "requiresDeckForge": ">=1.1.157",
+  "permissions": [
+    "display",
+    "settings.write"
+  ],
+  "actions": [
+    {
+      "id": "com.deckforge.native.example.visualcounter.count",
+      "name": "Visual Counter",
+      "controllers": [
+        "Keypad",
+        "Encoder"
+      ],
+      "states": 1,
+      "settingsSchema": [
+        {
+          "key": "count",
+          "label": "Count",
+          "type": "integer",
+          "min": -9999,
+          "max": 9999,
+          "default": 0
+        },
+        {
+          "key": "step",
+          "label": "Step",
+          "type": "integer",
+          "min": 1,
+          "max": 100,
+          "default": 1
+        },
+        {
+          "key": "direction",
+          "label": "Direction",
+          "type": "select",
+          "options": [
+            {
+              "value": "up",
+              "label": "Increase"
+            },
+            {
+              "value": "down",
+              "label": "Decrease"
+            }
+          ],
+          "default": "up"
+        }
+      ],
+      "script": "if(event.type==='press'||event.type==='rotateRight'||event.type==='rotateLeft'||event.type==='heldRotateLeft'){const delta=event.type==='rotateLeft'?-settings.step:settings.direction==='down'&&event.type==='press'?-settings.step:settings.step;const count=event.type==='heldRotateLeft'?0:Math.max(-9999,Math.min(9999,settings.count+delta));api.patchSettings({count});}else if(event.type==='appear'||event.type==='settings'){api.drawKey({width:144,height:144,background:'#18202a',commands:[{type:'text',text:'COUNT',x:72,y:20,size:15,color:'#9baabc'},{type:'text',text:String(settings.count),x:72,y:74,size:42,font:'monospace',bold:true,color:settings.count<0?'#ff7878':'#5ee6a1'},{type:'text',text:'STEP '+settings.step,x:72,y:122,size:14,color:'#c2cbd6'}]});}"
+    }
+  ]
+}

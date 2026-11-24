@@ -195,7 +195,13 @@ class NativePluginHost{
   validateScriptOps(ctx,event,program){
     check(Array.isArray(program)&&program.length<=16,'invalid operation list');
     const normal=[],effects=[];let pixelCount=0;
-    for(const op of program){
+    const validSettings=(v,depth=0)=>{
+      if(depth>12)return false;
+      if(Array.isArray(v))return v.every(x=>validSettings(x,depth+1));
+      if(obj(v))return Object.keys(v).every(k=>!['__proto__','constructor','prototype'].includes(k)&&validSettings(v[k],depth+1));
+      return v===null||typeof v==='string'||typeof v==='boolean'||(typeof v==='number'&&Number.isFinite(v));
+    };
+    for(let op of program){
       if(op?.op==='pixels'){
         check(++pixelCount<=2,'key drawing limit');
         normal.push(pixelImage(op));continue;
@@ -204,16 +210,18 @@ class NativePluginHost{
       const polling=event==='tick'&&op?.op==='networkRequest'&&ctx.permissions.includes('network.poll')&&ctx.action.tickIntervalMs>=5000;
       check(INPUT_EVENTS.has(event)||polling,'privileged operation requires input event');
       check(effects.length===0,'only one privileged operation per event');
+      if(op?.op==='settingsPatch'){
+        check(ctx.permissions.includes('settings.write')&&exact(op,['op','value'])&&obj(op.value)&&
+          Object.keys(op.value).length>0&&Buffer.byteLength(JSON.stringify(op.value))<=8192&&
+          validSettings(op.value)&&obj(ctx.settings),'invalid or unauthorized settings patch');
+        // Shallow merge against the current generation's stored settings.
+        // The existing expectedSettings receipt still rejects concurrent edits.
+        op={op:'settings',value:{...ctx.settings,...structuredClone(op.value)}};
+      }
       if(op?.op==='settings'){
         check(ctx.permissions.includes('settings.write')&&exact(op,['op','value'])&&obj(op.value)&&
           Buffer.byteLength(JSON.stringify(op.value))<=8192,'invalid or unauthorized settings');
-        const valid=(v,depth=0)=>{
-          if(depth>12)return false;
-          if(Array.isArray(v))return v.every(x=>valid(x,depth+1));
-          if(obj(v))return Object.keys(v).every(k=>!['__proto__','constructor','prototype'].includes(k)&&valid(v[k],depth+1));
-          return v===null||['string','boolean','number'].includes(typeof v);
-        };
-        check(valid(op.value),'unsafe settings keys');
+        check(validSettings(op.value),'unsafe settings keys or values');
         if(ctx.action.settingsSchema)nativeEffectiveSettings(ctx.action.settingsSchema,op.value);
       }else if(op?.op==='globalSettings'){
         check(ctx.permissions.includes('global.settings')&&exact(op,['op','value']),'unauthorized global settings');

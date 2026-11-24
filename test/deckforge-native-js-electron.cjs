@@ -72,6 +72,19 @@ app.whenReady().then(async()=>{
     assert.ok(pixelImage(drawing.ops[0]).value.startsWith('data:image/png;base64,'));
     const text=await b.run("api.drawKey({width:64,height:64,commands:[{type:'text',x:32,y:32,text:'42',size:28,color:'#ffffff',bold:true}]});",input);
     assert.ok(Buffer.from(text.ops[0].rgba,'base64').some((v,i)=>i%4===3&&v>0));
+    const {validateNativeManifest,NativePluginHost}=require('../app/streamdeck-editor/deckforge-native-sdk.cjs');
+    const manifest=validateNativeManifest(JSON.parse(await fs.readFile(path.join(__dirname,'../examples/deckforge-sdk/visual-counter.native.json'),'utf8')));
+    const action=manifest.actions[0],host=new NativePluginHost('/unused');
+    try{
+      const settings={count:3,step:2,direction:'up',unrelated:'keep'};
+      const press=await b.run(action.script,{...input,settings});
+      const validated=host.validateScriptOps({pluginUUID:manifest.id,action,permissions:manifest.permissions,settings},'press',press.ops);
+      assert.deepEqual(validated,{normal:[],effects:[{op:'settings',value:{...settings,count:5}}]});
+      const refreshed=await b.run(action.script,{...input,event:{...input.event,type:'settings'},settings:validated.effects[0].value});
+      const other=await b.run(action.script,{...input,event:{...input.event,type:'settings'},settings:{count:17,step:1,direction:'down'}});
+      assert.notEqual(refreshed.ops[0].rgba,other.ops[0].rgba);
+      assert.equal(host.validateScriptOps({pluginUUID:manifest.id,action,permissions:manifest.permissions,settings},'settings',refreshed.ops).normal[0].op,'image');
+    }finally{host.close();}
     const badDraw=createScriptRunner('com.deckforge.native.baddraw');
     try{await assert.rejects(badDraw.run("api.drawKey({width:9999,height:64,commands:[]});",input),/invalid key drawing/);}finally{badDraw.close();}
     const c=createScriptRunner('com.deckforge.native.smokec');

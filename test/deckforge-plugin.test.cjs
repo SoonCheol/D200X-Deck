@@ -1506,3 +1506,23 @@ test('dynamic key RGBA is bounded and converted to a verified PNG before host di
    assert.throws(()=>host.validateScriptOps(ctx,'press',[op,op,op]),/drawing limit/);
  }finally{host.close();}
 });
+
+test('settings patch preserves unrelated settings and retains input, permission, and schema restrictions',()=>{
+ const host=new NativePluginHost('/unused');
+ const settings={count:3,other:{keep:true}};
+ const action={...scriptManifest.actions[0],settingsSchema:[{key:'count',label:'Count',type:'integer',min:0,max:10,default:0}]};
+ const ctx={pluginUUID:nativeId,action,permissions:['display','settings.write'],settings};
+ const patch={op:'settingsPatch',value:{count:4}};
+ try{
+   const result=host.validateScriptOps(ctx,'press',[patch]);
+   assert.deepEqual(result.effects,[{op:'settings',value:{count:4,other:{keep:true}}}]);
+   assert.deepEqual(settings,{count:3,other:{keep:true}});
+   assert.deepEqual(patch,{op:'settingsPatch',value:{count:4}});
+   assert.throws(()=>host.validateScriptOps(ctx,'settings',[patch]),/input event/);
+   assert.throws(()=>host.validateScriptOps({...ctx,permissions:['display']},'press',[patch]),/unauthorized/);
+   assert.throws(()=>host.validateScriptOps(ctx,'press',[patch,patch]),/one privileged/);
+   assert.throws(()=>host.validateScriptOps(ctx,'press',[{op:'settingsPatch',value:{count:99}}]),/invalid setting/);
+   assert.throws(()=>host.validateScriptOps(ctx,'press',[{op:'settingsPatch',value:JSON.parse('{"__proto__":{"bad":true}}')}]),/settings patch/);
+   assert.throws(()=>host.validateScriptOps(ctx,'press',[{op:'settingsPatch',value:{count:NaN}}]),/settings patch/);
+ }finally{host.close();}
+});
