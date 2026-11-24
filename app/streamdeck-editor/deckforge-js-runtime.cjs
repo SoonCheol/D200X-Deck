@@ -116,11 +116,11 @@ async function runProgram(source,input){
   if(typeof out!=='string'||out.length>512*1024)throw Error('output limit');
   return out;
 }
-function createScriptRunner(pluginId){
+function createScriptRunner(pluginId,scope='legacy'){
   const {BrowserWindow,session}=require('electron');
   // A non-persistent partition per plugin separates it from the editor,
   // other plugins and ordinary browsing. Opaque data origins have no shared storage.
-  const partition='deckforge-sdk-'+createHash('sha256').update(pluginId).digest('hex');
+  const partition='deckforge-sdk-'+createHash('sha256').update(scope==='legacy'?pluginId:JSON.stringify([pluginId,scope])).digest('hex');
   const ses=session.fromPartition(partition,{cache:false});
   if(!configured.has(ses)){
     ses.setPermissionRequestHandler((_wc,_permission,cb)=>cb(false));
@@ -180,7 +180,68 @@ function createScriptRunner(pluginId){
         throw error;
       }finally{busy=false;}
     },
-    close
+    close,
+    isClosed:()=>closed,
+    processId:()=>closed?null:wc.getOSProcessId()
   };
 }
-module.exports={createScriptRunner,runProgram,deadline};
+// Model 2: one reusable renderer per plugin and scope. The scheduler owns
+// lane admission; a lease owns cancellation, never another context's work.
+// run() returns only after the underlying runner has reset its document.
+class ScriptRunnerPool{
+  constructor(factory=createScriptRunner,{idleLimit=8,idleMs=30000}={}){
+    this.factory=factory;this.idleLimit=idleLimit;this.idleMs=idleMs;
+    this.entries=new Map();this.closed=false;
+  }
+  key(plugin,scope){return JSON.stringify([plugin,scope]);}
+  drop(key,entry){
+    if(this.entries.get(key)!==entry)return;
+    this.entries.delete(key);clearTimeout(entry.timer);entry.runner.close();
+  }
+  trim(){
+    const idle=[...this.entries].filter(([,entry])=>!entry.owner);
+    while(idle.length>this.idleLimit){
+      const [key,entry]=idle.shift();this.drop(key,entry);
+    }
+  }
+  lease(plugin,scope){
+    if(!['service','button'].includes(scope))throw Error('invalid SDK runner scope');
+    const key=this.key(plugin,scope),owner={closed:false};
+    return {
+      run:async(source,input)=>{
+        if(this.closed||owner.closed)throw unavailable('JavaScript SDK lease closed');
+        let entry=this.entries.get(key);
+        if(entry?.owner)throw Error('JavaScript SDK lane busy');
+        if(entry?.runner.isClosed?.()){this.drop(key,entry);entry=null;}
+        if(!entry){
+          entry={runner:this.factory(plugin,scope),owner:null,timer:null};
+          this.entries.set(key,entry);
+        }
+        clearTimeout(entry.timer);entry.owner=owner;
+        try{
+          const result=await entry.runner.run(source,input);
+          if(owner.closed||this.entries.get(key)!==entry)throw unavailable('JavaScript SDK lease closed');
+          return result;
+        }catch(error){this.drop(key,entry);throw error;}
+        finally{
+          if(this.entries.get(key)===entry){
+            entry.owner=null;
+            // Refresh LRU order only after a complete realm reset.
+            this.entries.delete(key);this.entries.set(key,entry);
+            entry.timer=setTimeout(()=>this.drop(key,entry),this.idleMs);entry.timer.unref?.();
+            this.trim();
+          }
+        }
+      },
+      close:()=>{
+        owner.closed=true;
+        const entry=this.entries.get(key);
+        if(entry?.owner===owner)this.drop(key,entry);
+      }
+    };
+  }
+  processId(plugin,scope){return this.entries.get(this.key(plugin,scope))?.runner.processId?.()??null;}
+  clear(){for(const [key,entry] of this.entries)this.drop(key,entry);}
+  close(){this.closed=true;this.clear();}
+}
+module.exports={createScriptRunner,ScriptRunnerPool,runProgram,deadline};

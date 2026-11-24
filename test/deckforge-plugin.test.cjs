@@ -2218,3 +2218,39 @@ test('router revokes old mount before catalogue awaits and skips obsolete sync g
  assert.deepEqual(applied,[['last']]);assert.equal(legacyApplied.length,1);
  await router.close();
 });
+
+test('Model 2 pool reuses only reset renderer within scope and cancels only active owner',async()=>{
+ const {ScriptRunnerPool}=require('../app/streamdeck-editor/deckforge-js-runtime.cjs');
+ const created=[];
+ const pool=new ScriptRunnerPool((plugin,scope)=>{
+   const runner={plugin,scope,closed:false,async run(source){if(source==='wait')return new Promise((_,reject)=>{this.reject=reject;});if(source==='fail')throw Error('failure');return {scope};},close(){this.closed=true;this.reject?.(Error('cancelled'));}};
+   created.push(runner);return runner;
+ },{idleLimit:2});
+ const a=pool.lease('A','button'),b=pool.lease('A','button'),svc=pool.lease('A','service');
+ try{
+   await a.run('one');await b.run('two');assert.equal(created.length,1);
+   await svc.run('three');assert.equal(created.length,2);
+   a.close();assert.equal(created[0].closed,false);
+   const pending=b.run('wait');b.close();await assert.rejects(pending,/cancelled/);
+   assert.equal(created[0].closed,true);assert.equal(created[1].closed,false);
+   const next=pool.lease('A','button');await next.run('new');assert.equal(created.length,3);
+   await assert.rejects(next.run('fail'),/failure/);assert.equal(created[2].closed,true);
+   await next.run('newer');assert.equal(created.length,4);
+   await pool.lease('B','button').run('other');assert.equal(pool.entries.size,2);assert.equal(created[1].closed,true);
+   pool.clear();assert.equal(pool.entries.size,0);assert.ok(created.every(x=>x.closed));
+ }finally{pool.close();}
+ await assert.rejects(svc.run('closed'),/closed/);
+});
+test('Model 2 scheduler serializes same lane without blocking a service lane',async()=>{
+ const {SdkScheduler}=require('../app/streamdeck-editor/deckforge-sdk-scheduler.cjs');
+ const s=new SdkScheduler(),calls=[],releases=[];
+ const gate=id=>()=>{calls.push(id);return new Promise(resolve=>releases.push(resolve));};
+ const a=s.run('A',()=>true,gate('a'),'button');
+ const b=s.run('A',()=>true,gate('b'),'button');
+ const c=s.run('A',()=>true,gate('service'),'service');
+ try{
+   await new Promise(resolve=>setImmediate(resolve));assert.deepEqual(calls,['a','service']);
+   releases[0]();await a;await new Promise(resolve=>setImmediate(resolve));
+   assert.deepEqual(calls,['a','service','b']);releases[1]();releases[2]();await Promise.all([b,c]);
+ }finally{s.close();releases.forEach(fn=>fn());}
+});

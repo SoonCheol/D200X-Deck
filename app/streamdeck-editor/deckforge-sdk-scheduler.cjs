@@ -4,14 +4,14 @@
 class SdkScheduler{
   constructor({globalLimit=6,pluginLimit=2,queueLimit=128}={}){
     this.globalLimit=globalLimit;this.pluginLimit=pluginLimit;this.queueLimit=queueLimit;
-    this.running=0;this.byPlugin=new Map();this.waiting=[];this.closed=false;
+    this.running=0;this.byPlugin=new Map();this.lanes=new Set();this.waiting=[];this.closed=false;
   }
-  run(plugin,active,work){
+  run(plugin,active,work,scope=null){
     if(this.closed||!active())return Promise.resolve(undefined);
     this.prune();
     if(this.waiting.length>=this.queueLimit)return Promise.reject(Error('SDK scheduler capacity'));
     return new Promise((resolve,reject)=>{
-      this.waiting.push({plugin,active,work,resolve,reject});this.drain();
+      this.waiting.push({plugin,active,work,resolve,reject,lane:scope===null?null:JSON.stringify([plugin,scope])});this.drain();
     });
   }
   prune(){
@@ -26,12 +26,14 @@ class SdkScheduler{
     this.prune();
     if(this.closed)return;
     while(this.running<this.globalLimit){
-      const index=this.waiting.findIndex(t=>(this.byPlugin.get(t.plugin)||0)<this.pluginLimit);
+      const index=this.waiting.findIndex(t=>(this.byPlugin.get(t.plugin)||0)<this.pluginLimit&&(!t.lane||!this.lanes.has(t.lane)));
       if(index<0)return;
       const task=this.waiting.splice(index,1)[0];
       this.running++;this.byPlugin.set(task.plugin,(this.byPlugin.get(task.plugin)||0)+1);
+      if(task.lane)this.lanes.add(task.lane);
       Promise.resolve().then(()=>task.active()?task.work():undefined).then(task.resolve,task.reject).finally(()=>{
         this.running--;
+        if(task.lane)this.lanes.delete(task.lane);
         const count=this.byPlugin.get(task.plugin)-1;
         if(count)this.byPlugin.set(task.plugin,count);else this.byPlugin.delete(task.plugin);
         this.drain();

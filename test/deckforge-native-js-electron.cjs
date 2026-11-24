@@ -138,6 +138,32 @@ async function verifyHomeAssistant(runner){
     console.log('DeckForge HA independent service and actual sensor key rendering smoke passed');
   }finally{host.close();}
 }
+async function verifyModel2(){
+ const {ScriptRunnerPool}=require('../app/streamdeck-editor/deckforge-js-runtime.cjs');
+ const pool=new ScriptRunnerPool(),id='com.deckforge.native.pool-smoke';
+ const button=pool.lease(id,'button'),next=pool.lease(id,'button'),service=pool.lease(id,'service');
+ try{
+   const first=await button.run("globalThis.carry=1;memory.x=1;api.setTitle('button');",input);
+   assert.equal(first.memory.x,1);
+   const firstRunner=pool.entries.get(pool.key(id,'button')).runner;
+   button.close();
+   const second=await next.run("api.setTitle(typeof globalThis.carry+':'+typeof memory.x);",input);
+   assert.deepEqual(second.ops,[{op:'title',value:'undefined:undefined'}]);
+   assert.equal(pool.entries.get(pool.key(id,'button')).runner,firstRunner);
+   await service.run("api.setTitle('service');",input);
+   const serviceRunner=pool.entries.get(pool.key(id,'service')).runner;
+   const buttonPid=pool.processId(id,'button'),servicePid=pool.processId(id,'service');
+   assert.ok(buttonPid>0&&servicePid>0);
+   console.log('Model 2 process IDs after realm reset:',{buttonPid,servicePid});
+   await assert.rejects(next.run('while(true){}',input),/timeout/);
+   const alive=await service.run("api.setTitle('alive');",input);
+   assert.deepEqual(alive.ops,[{op:'title',value:'alive'}]);
+   assert.equal(pool.entries.get(pool.key(id,'service')).runner,serviceRunner);
+   await next.run("api.setTitle('recovered');",input);
+   assert.notEqual(pool.entries.get(pool.key(id,'button')).runner,firstRunner);
+   console.log('DeckForge Model 2 scoped reuse, reset, timeout and service survival passed');
+ }finally{pool.close();}
+}
 app.whenReady().then(async()=>{
   const a=createScriptRunner('com.deckforge.native.smokea');
   const b=createScriptRunner('com.deckforge.native.smokeb');
@@ -189,6 +215,7 @@ app.whenReady().then(async()=>{
       await assert.rejects(pending,/closed|initialization failed/);
     }finally{cancelled.close();}
     console.log('DeckForge JavaScript SDK renderer smoke passed');
+    await verifyModel2();
     await verifyPublicApi(b);
     await verifyHomeAssistant(b);
     await verifyWindowsEncryption();

@@ -126,9 +126,14 @@ function catalog(m){return {uuid:m.id,name:m.name,version:m.version,runtime:'dec
   actions:m.actions.map(a=>({uuid:a.id,name:a.name,states:a.states,controllers:a.controllers,
     propertyInspectorPath:'',defaultImages:{off:a.stateImages?.[0]||null,on:a.stateImages?.[1]||null},...(a.settingsSchema?{settingsSchema:a.settingsSchema}:{})}))};}
 class NativePluginHost{
-  constructor(userData,onUpdate=()=>{},runnerFactory=id=>require('./deckforge-js-runtime.cjs').createScriptRunner(id),options={}){
+  constructor(userData,onUpdate=()=>{},runnerFactory=null,options={}){
     this.root=path.join(userData,'Plugins');this.onUpdate=onUpdate;
-    this.contexts=new Map();this.serviceDisabled=new Set();this.servicePolicyLoaded=false;this.servicePolicyError=false;this.suspended=false;this.closed=false;this.runnerFactory=runnerFactory;this.retired=new Set();
+    this.contexts=new Map();this.serviceDisabled=new Set();this.servicePolicyLoaded=false;this.servicePolicyError=false;this.suspended=false;this.closed=false;this.retired=new Set();
+    const {createScriptRunner,ScriptRunnerPool}=require('./deckforge-js-runtime.cjs');
+    // Explicit legacy rollback; never retry a failed input in another runner.
+    this.runnerPool=!runnerFactory&&process.env.DECKFORGE_SDK_RUNNER!=='legacy'?new ScriptRunnerPool():null;
+    this.runnerFactory=runnerFactory||(this.runnerPool?
+      (id,scope)=>this.runnerPool.lease(id,scope):id=>createScriptRunner(id));
     const storage=options.storage||{
       isAsyncEncryptionAvailable:()=>require('electron').safeStorage.isAsyncEncryptionAvailable(),
       encryptStringAsync:value=>require('electron').safeStorage.encryptStringAsync(value),
@@ -747,12 +752,12 @@ class NativePluginHost{
         if(!active())return;
         const settingsSnapshot=structuredClone(ctx.settings);
         const result=await this.scheduler.run(ctx.pluginUUID,active,()=>{
-          if(!ctx.runner)ctx.runner=this.runnerFactory(ctx.pluginUUID);
+          if(!ctx.runner)ctx.runner=this.runnerFactory(ctx.pluginUUID,ctx.service?'service':'button');
           return ctx.runner.run(ctx.action.script,{
             event:{type:event,slot:ctx.service?null:ctx.slot,gesture:ctx.service?null:ctx.gesture||'down',...(ctx.service?{scope:'service'}:{}),...(response?{response}:{})},
             settings:ctx.action.settingsSchema?nativeEffectiveSettings(ctx.action.settingsSchema,settingsSnapshot):structuredClone(settingsSnapshot),state:ctx.state,memory:structuredClone(ctx.memory),globalSettings:structuredClone(global.value),sharedState:this.sharedSnapshot(ctx)
           });
-        });
+        },this.runnerPool?(ctx.service?'service':'button'):null);
         if(!active())return;
         check(exact(result,['ops','memory'])&&obj(result.memory)&&
           Buffer.byteLength(JSON.stringify(result.memory))<=8192,'invalid JavaScript memory');
@@ -799,7 +804,7 @@ class NativePluginHost{
       if(idle&&!this.suspended&&!this.closed&&!ctx.failed&&this.retired.size<16){
         this.retired.add(runner);
         this.scheduler.run(ctx.pluginUUID,()=>!this.closed&&!this.suspended&&this.retired.has(runner),()=>runner.run(ctx.action.script,{event:{type:ctx.service?'stop':'disappear',slot:ctx.service?null:ctx.slot,gesture:ctx.service?null:ctx.gesture||'down',...(ctx.service?{scope:'service'}:{})},
-          settings:structuredClone(ctx.settings),state:ctx.state,memory:structuredClone(ctx.memory)})).catch(()=>{}).finally(()=>{this.retired.delete(runner);runner.close();});
+          settings:structuredClone(ctx.settings),state:ctx.state,memory:structuredClone(ctx.memory)}),this.runnerPool?(ctx.service?'service':'button'):null).catch(()=>{}).finally(()=>{this.retired.delete(runner);runner.close();});
       }else runner.close();
     }
   }
@@ -905,9 +910,9 @@ class NativePluginHost{
     return true;
   }
   closeRetired(){for(const runner of this.retired)runner.close();this.retired.clear();}
-  suspend(){this.suspended=true;this.closeRetired();for(const ctx of this.contexts.values()){ctx.pressed=false;this.resetScript(ctx);}this.reconcileTickTimer();}
+  suspend(){this.suspended=true;this.closeRetired();for(const ctx of this.contexts.values()){ctx.pressed=false;this.resetScript(ctx);}this.runnerPool?.clear();this.reconcileTickTimer();}
   resume(){if(this.closed)return;this.suspended=false;for(const ctx of this.contexts.values()){ctx.failed=false;ctx.recoveryAttempts=0;this.initialize(ctx);}}
-  close(){this.closed=true;this.animations.close();this.scheduler.close();this.closeRetired();for(const ctx of this.contexts.values())this.resetScript(ctx);this.contexts.clear();this.reconcileTickTimer();}
+  close(){this.closed=true;this.animations.close();this.scheduler.close();this.closeRetired();for(const ctx of this.contexts.values())this.resetScript(ctx);this.contexts.clear();this.runnerPool?.close();this.reconcileTickTimer();}
 }
 // Compatibility host stays unchanged; only validated native IDs are routed here.
 class PluginRouter{
