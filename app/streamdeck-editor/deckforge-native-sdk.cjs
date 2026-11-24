@@ -271,7 +271,7 @@ class NativePluginHost{
     return assertDependencyChange(manifests,m);
   }
   async install(m){
-    await this.checkDependencies(m);const data=JSON.stringify(m);
+    await this.checkDependencies(m);await this.versions.assertReinstall(m);const data=JSON.stringify(m);
     check(Buffer.byteLength(data)<=LIMIT,'program too large');
     await fs.mkdir(this.root,{recursive:true});
     const tmp=path.join(this.root,'.native-'+randomUUID()),target=path.join(this.root,m.id+SUFFIX);
@@ -1060,6 +1060,25 @@ class PluginRouter{
   replaceNative(m,expectedRevision){return this.serial(async()=>{
     await this.checkNativeCandidate(m);
     return this.native.replace(m,expectedRevision);
+  });}
+  async removalPlan(id){
+    const {native}=await this.catalog();
+    check(native.some(m=>m.id===id),'native plugin not installed');
+    const plan=await this.native.versions.planRemoval(id);
+    const dependents=native.filter(m=>Object.hasOwn(m.dependencies||{},id)).map(m=>({id:m.id,name:m.name})).sort((a,b)=>a.id.localeCompare(b.id));
+    return {...plan,dependents};
+  }
+  planNativeRemoval(id){return this.serial(()=>this.removalPlan(id));}
+  removeNativeKeepingData(id,revision){return this.serial(async()=>{
+    const plan=await this.removalPlan(id);
+    check(plan.revision===revision,'installed revision changed; reopen removal');
+    check(!plan.dependents.length,'installed dependents must be removed or updated first');
+    return this.native.versions.removeKeepingData(id,revision,()=>{
+      for(const [context,ctx] of this.native.contexts)if(ctx.pluginUUID===id){
+        this.native.contexts.delete(context);this.native.retire(ctx);
+      }
+      this.native.reconcileTickTimer();
+    });
   });}
   dynamicOptions(pluginId,actionId){return this.serial(async()=>{
     const {native}=await this.catalog(),manifest=native.find(m=>m.id===pluginId);

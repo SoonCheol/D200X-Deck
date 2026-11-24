@@ -1467,11 +1467,25 @@ async function openNativeServiceManager(plugin){
     window.d200xActionStatus?.('전역 서비스: '+(names[next.state]||'확인 필요'));
   }catch{window.d200xActionStatus?.('전역 서비스 관리 실패: 의존성 또는 서비스 설정을 확인하세요.');}
 }
+async function removeNativePluginKeepingData(plugin){
+  if(plugin.runtime!=='deckforge-sdk'||!window.deckBridge?.nativeRemove)return;
+  try{
+    const result=await window.deckBridge.nativeRemove(plugin.uuid);
+    if(!result)return;
+    for(const instance of sdkActionInstances())if(instance.pluginUUID===plugin.uuid)sdkVisuals.delete(instance.context);
+    await refreshSdkPlugins();
+    scheduleSdkSync();
+    window.d200xActionStatus?.('플러그인 제거 완료 · 버튼 및 데이터 유지');
+  }catch(error){
+    scheduleSdkSync();
+    window.d200xActionStatus?.('플러그인 제거 실패: '+String(error?.message||error));
+  }
+}
 function renderInstalledSdkPlugins(root,query){
   for(const plugin of sdkPlugins){
     const matching=plugin.actions.filter(a=>a.uuid!==HA_GENERIC_ACTION &&
       (plugin.name+' '+sdkCatalogueLabel(a)+' '+a.name+' '+a.uuid).toLowerCase().includes(query));
-    if(!matching.length)continue;
+    if(!matching.length&&!(plugin.runtime==='deckforge-sdk'&&plugin.name.toLowerCase().includes(query)))continue;
     const section=document.createElement('section');section.className='group';
     const title=document.createElement('div');title.className='group-title';
     const heading=document.createElement('span');heading.textContent=plugin.name+' ('+plugin.version+')';
@@ -1494,6 +1508,10 @@ function renderInstalledSdkPlugins(root,query){
       setDeckForgeTooltip(tile,()=>({title:sdkCatalogueLabel(action),lines:[isFusion?'등록한 Fusion 명령 실행':isHa?'지정한 Home Assistant 장치 제어':'설정한 플러그인 동작 실행']}));
       tile.addEventListener('dragstart',ev=>ev.dataTransfer.setData('application/x-d200x-action',id));
       body.append(tile);
+    }
+    if(plugin.runtime==='deckforge-sdk'&&window.deckBridge?.nativeRemove){
+      const remove=document.createElement('button');remove.type='button';remove.className='fusion-manager-launch';
+      remove.textContent='플러그인 제거 (데이터 유지)';remove.addEventListener('click',event=>{event.stopPropagation();void removeNativePluginKeepingData(plugin);});body.append(remove);
     }
     if(plugin.background&&window.deckBridge?.nativeServiceControl){
       const manager=document.createElement('button');manager.type='button';manager.className='fusion-manager-launch';

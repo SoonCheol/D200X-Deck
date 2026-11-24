@@ -64,10 +64,47 @@ class NativeVersionStore{
       throw error;
     }
   }
+  removedFile(id){this.currentFile(id);return path.join(this.root,'NativeRemoved',id+'.json');}
+  async removed(id){
+    const file=this.removedFile(id),dir=path.dirname(file);
+    try{const st=await fs.lstat(dir);assert(st.isDirectory()&&!st.isSymbolicLink(),'invalid retained directory');}
+    catch(error){if(error.code==='ENOENT')return null;throw error;}
+    const prior=await this.read(file,true);
+    assert(!prior||prior.manifest.id===id,'retained manifest identity mismatch');
+    return prior;
+  }
+  async assertReinstall(next){
+    const prior=await this.removed(next.id);
+    if(!prior)return;
+    assertCompatible(prior.manifest,next);
+    assert(prior.digest===fingerprint(next)||(semver.valid(prior.manifest.version)&&semver.valid(next.version)&&semver.gt(next.version,prior.manifest.version)),
+      'reinstall requires preserved version or compatible newer version');
+  }
+  async planRemoval(id){
+    const current=await this.read(this.currentFile(id));
+    assert(current.manifest.id===id,'installed manifest identity mismatch');
+    return {id,name:current.manifest.name,version:current.manifest.version,revision:current.revision,mode:'keepData'};
+  }
+  async removeKeepingData(id,expectedRevision,beforeCommit=()=>{}){
+    const target=this.currentFile(id),current=await this.read(target);
+    assert(current.manifest.id===id&&current.revision===expectedRevision,'installed revision changed; reopen removal');
+    const removed=this.removedFile(id),dir=path.dirname(removed);
+    await fs.mkdir(dir,{recursive:true});
+    const prior=await this.removed(id);
+    if(prior)await this.preserve(prior);
+    await this.preserve(current);
+    const latest=await this.read(target);
+    assert(latest.revision===expectedRevision,'installed revision changed; reopen removal');
+    beforeCommit();
+    // Move only the active manifest. Previous code is already retained in
+    // immutable history; profile data, vaults and service preferences are untouched.
+    await fs.rename(target,removed);
+    return {id,version:current.manifest.version,mode:'keepData'};
+  }
   async plan(next){
     this.validate(next);
     const current=await this.read(this.currentFile(next.id),true);
-    if(!current)return {kind:'install',currentVersion:null,nextVersion:next.version,currentRevision:null};
+    if(!current){await this.assertReinstall(next);return {kind:'install',currentVersion:null,nextVersion:next.version,currentRevision:null};}
     assert(current.manifest.id===next.id,'installed manifest identity mismatch');
     const digest=fingerprint(next);
     assert(current.digest!==digest,'identical version already installed');

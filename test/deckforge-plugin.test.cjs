@@ -2627,3 +2627,47 @@ test('native foreground policy is an opt-in single-keypad action contract',()=>{
  assert.equal(core.isNativeForeground({...item,settings:{...item.settings,pluginUUID:'other'}},[plugin]),false);
  assert.equal(core.isNativeForeground({type:'sd-plugin',settings:{actionUUID:'com.deckforge.native.home-assistant.sensor'}},[]),true);
 });
+
+test('native keepData removal requires current revision, blocks dependents and restores compatible package without touching data',async()=>{
+ const root=await fs.mkdtemp(path.join(os.tmpdir(),'deckforge-keepdata-'));
+ const events=[],legacyCalls=[],legacy={list:async()=>[],sync:async c=>legacyCalls.push(c),key:()=>true,inspector:()=>true,onSystemSuspend(){},onSystemResume(){},close:async()=>{}};
+ const host=new NativePluginHost(root,e=>events.push(e)),router=new PluginRouter(legacy,host);
+ const depId='com.deckforge.native.removal-dependent';
+ const dependent={...nativeManifest,id:depId,dependencies:{[nativeId]:'^1.0.0'},actions:[{...nativeManifest.actions[0],id:depId+'.toggle'}]};
+ const cfg={context:'keepdata',slot:0,gesture:'down',pluginUUID:nativeId,actionUUID:nativeId+'.toggle',settings:{label:'Saved'}};
+ try{
+  await router.installNative(nativeManifest);
+  await router.installNative(dependent);
+  const blocked=await router.planNativeRemoval(nativeId);
+  assert.deepEqual(blocked.dependents.map(p=>p.id),[depId]);
+  await assert.rejects(router.removeNativeKeepingData(nativeId,blocked.revision),/dependents/);
+  const depPlan=await router.planNativeRemoval(depId);
+  await router.removeNativeKeepingData(depId,depPlan.revision);
+  const plan=await router.planNativeRemoval(nativeId);
+  await assert.rejects(router.removeNativeKeepingData(nativeId,'stale'),/revision changed/);
+  const file=host.versions.currentFile(nativeId),before=await fs.readFile(file);
+  const protectedFiles=[host.vault.file(nativeId),host.credentials.file(nativeId),path.join(root,'profile.json')];
+  for(const file of protectedFiles){await fs.mkdir(path.dirname(file),{recursive:true});await fs.writeFile(file,'unchanged test bytes');}
+  await router.sync([cfg]);assert.equal(router.key(cfg.context,'down'),true);
+  const removed=await router.removeNativeKeepingData(nativeId,plan.revision);
+  assert.equal(removed.mode,'keepData');
+  assert.equal(host.contexts.has(cfg.context),false);
+  assert.equal(router.key(cfg.context,'up'),false);
+  await assert.rejects(fs.access(file),/ENOENT/);
+  assert.deepEqual((await host.versions.removed(nativeId)).raw,before);
+  assert.equal((await router.list()).some(p=>p.uuid===nativeId),false);
+  await router.sync([cfg]);assert.deepEqual(legacyCalls.at(-1),[]);
+  assert.equal(router.key(cfg.context,'down'),false);
+  for(const file of protectedFiles)assert.equal(await fs.readFile(file,'utf8'),'unchanged test bytes');
+  await assert.rejects(router.installNative({...nativeManifest,name:'Changed same version'}),/reinstall requires/);
+  await assert.rejects(router.installNative({...nativeManifest,version:'2.0.0',actions:[{...nativeManifest.actions[0],states:1,events:{appear:[]}}]}),/contract/);
+  await router.installNative(nativeManifest);
+  await router.sync([cfg]);assert.equal(router.key(cfg.context,'down'),true);
+  for(const file of protectedFiles)assert.equal(await fs.readFile(file,'utf8'),'unchanged test bytes');
+  const again=await router.planNativeRemoval(nativeId);
+  await router.removeNativeKeepingData(nativeId,again.revision);
+  const newer={...nativeManifest,version:'1.1.0'};
+  await router.installNative(newer);
+  assert.equal((await router.list()).find(p=>p.uuid===nativeId).version,'1.1.0');
+ }finally{await router.close();await fs.rm(root,{recursive:true,force:true});}
+});

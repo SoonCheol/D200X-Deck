@@ -90,6 +90,16 @@ ipcMain.handle('d200x:fusion-icon-write',async(event,id,data)=>{
   return true;
 });
 ipcMain.handle('d200x:sdk-list',async event=>{assertEditor(event);return sdk().list();});
+ipcMain.handle('d200x:native-remove',async(event,id)=>{
+ assertEditor(event);
+ const plan=await sdk().planNativeRemoval(id);
+ if(plan.dependents.length)throw Error('이 플러그인을 사용하는 다른 플러그인: '+plan.dependents.map(p=>p.name).join(', '));
+ const choice=await dialog.showMessageBox(window,{type:'question',title:'플러그인 제거',message:plan.name+' '+plan.version+' 제거',
+   detail:'데이터 유지 방식입니다. 실행 및 전역 서비스는 중단되고 기존 버튼 등록, 설정, 암호화 인증정보와 원본 코드는 보존됩니다. 같은 플러그인을 다시 설치할 수 있습니다.',
+   buttons:['취소','데이터 유지 후 제거'],defaultId:0,cancelId:0,noLink:true});
+ if(choice.response!==1)return null;
+ return sdk().removeNativeKeepingData(id,plan.revision);
+});
 ipcMain.handle('d200x:native-service-status',async(event,id)=>{assertEditor(event);return sdk().serviceStatus(id);});
 ipcMain.handle('d200x:native-service-control',async(event,id,mode)=>{
   assertEditor(event);return sdk().manageService(id,mode);

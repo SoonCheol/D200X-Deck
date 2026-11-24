@@ -31,6 +31,7 @@ contextBridge.exposeInMainWorld('deckBridge', Object.freeze({
   viewReleaseNotes: () => ipcRenderer.invoke('d200x:release-notes'),
   haStatus: () => ipcRenderer.invoke('d200x:ha-status'),
   sdkList: () => ipcRenderer.invoke('d200x:sdk-list'),
+  nativeRemove:id=>ipcRenderer.invoke('d200x:native-remove',id),
   nativeServiceStatus:id=>ipcRenderer.invoke('d200x:native-service-status',id),
   nativeServiceControl:(id,mode)=>ipcRenderer.invoke('d200x:native-service-control',id,mode),
   nativeDynamicOptions:(id,action)=>ipcRenderer.invoke('d200x:native-dynamic-options',id,action),
