@@ -979,3 +979,19 @@ test('Ulanzi type-guarded dynamic titles map settings events and reject sensitiv
  const multi=analyzeSource({...m,Actions:[...m.Actions,{UUID:id+'.b',Name:'B'}]},source);
  assert.equal(multi.verification.status,'pass');
 });
+
+test('Ulanzi media inventory preserves animation structure and rejects unsafe SVG without rendering',()=>{
+ const {gifReport,svgReport}=require('../app/streamdeck-editor/ulanzi-media-analysis.cjs');
+ const gif=Buffer.from('R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7','base64');
+ const result=gifReport(gif);
+ assert.equal(result.status,'bounded-animation-review');assert.equal(result.frames,1);
+ assert.equal(result.verification,'structure-only');
+ assert.equal(gifReport(gif.subarray(0,-1)).status,'manual-resource-review');
+ const oversized=Buffer.from(gif);oversized.writeUInt16LE(145,6);
+ assert.equal(gifReport(oversized).status,'manual-resource-review');
+ const src='<svg xmlns="http://www.w3.org/2000/svg" width="144" height="144" viewBox="0 0 144 144"><path d="M0 0 L144 144" stroke="#fff"/></svg>';
+ const svg=svgReport(Buffer.from(src));
+ assert.equal(svg.status,'restricted-vector-review');assert.equal(svg.verification,'syntax-subset-only');
+ for(const bad of [src.replace('<path','<script'),src.replace('stroke="#fff"','stroke="url(http://a)"'),src.replace('<path','<path onload="x"'),src.replace('</svg>',''),src.replace('width="144"','width="999"'),src.replace('<path','<path href="x"')])
+   assert.equal(svgReport(Buffer.from(bad)).status,'manual-resource-review');
+});

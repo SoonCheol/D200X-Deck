@@ -2,6 +2,11 @@
 
 > **상태 기록 기준: 2026-11-24**. 실제 최신 HEAD는 Git에서 확인하며, 코드·자동 검사·Windows 빌드·사용자 Windows/D200X 실기 결과를 구분한다. 시작 시 `AGENTS.md`와 이 문서만 읽고 로드맵은 필요한 경우에만 참고한다.
 
+## 1.1.135 — Ulanzi GIF/SVG 제한형 정적 자원 검사 (2026-11-24)
+
+- GIF header/canvas/팔레트/프레임/extension/subblock/trailer 구조 및 프레임 예산 검사, 애니메이션 프레임 수·총 지연·loop 정보 기록. LZW 실제 픽셀 디코딩 미구현.
+- SVG 명시 namespace·제한 tag/속성·크기·깊이 검사, 외부 참조·script·CSS·entity·animation 차단. 실제 rasterization 미구현. PNG 기존 동작 유지, GIF/SVG 후보 출시/설치 차단 유지. 집중 테스트 추가. 자동 및 실기 검증 별도.
+
 ## 1.1.134 — 제한 동적 설정 제목·설정 이벤트 변환 (2026-11-24)
 
 - 공식 Node SDK의 add/paramfromapp param 계약 참고, 문자열 type guard 및 literal fallback인 안전한 제목 참조만 기존 titleFromSetting/설정 이벤트로 변환. 비밀 의심 필드·임의 식 거부. 설정 출처/PI 계약 미검증으로 동적 후보 출시 차단 유지.

@@ -4,6 +4,7 @@
 const parse5=require('parse5');
 const path=require('node:path').posix;
 const {validateNativeSettingsSchema}=require('./deck-core.js');
+const {gifReport,svgReport}=require('./ulanzi-media-analysis.cjs');
 const MAX=256*1024;
 const key=v=>typeof v==='string'&&/^[A-Za-z0-9_-]{1,48}$/.test(v)&&!['constructor','prototype','__proto__'].includes(v);
 const sensitive=v=>/token|password|secret|credential|authorization|headers?|api[_-]?key|cookie|request[_-]?body|url|endpoint/i.test(v);
@@ -97,6 +98,8 @@ function analyzeHtml(entry,html,{inspector=false}={}){
 }
 function imageReport(bytes,relative){
   const ext=path.extname(relative).toLowerCase();
+  if(ext==='.gif')return gifReport(bytes);
+  if(ext==='.svg')return svgReport(bytes);
   if(ext!=='.png')return {format:ext.slice(1)||'unknown',status:'manual-resource-review'};
   if(bytes.length<33||bytes.length>256*1024||bytes.subarray(0,8).toString('hex')!=='89504e470d0a1a0a'||
     bytes.readUInt32BE(8)!==13||bytes.toString('ascii',12,16)!=='IHDR')
