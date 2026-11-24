@@ -125,3 +125,34 @@ test('lost native IPC response is reconciled by a read and never repeats the com
  assert.equal(vm.runInNewContext(script+';commitExternalSdkSettings(instance,{value:"after"},{context:"ctx",requestId:"id"})',ctx),true);
  assert.equal(writes,1);assert.equal(reads,1);assert.equal(item.settings.pluginSettings.value,'after');assert.equal(ctx.profileStorageFailure,false);
 });
+
+test('native setting effect rejects dirty editor, open dialog, and storage lock before commit',()=>{
+ const start=source.indexOf('function applyNativeSdkEffect(message){'),end=source.indexOf('if(window.deckBridge?.onSdkEvent){',start);
+ assert.ok(start>=0&&end>start);
+ const state=DeckCore.migrateState(null),item=state.pages[0][0]=plugin();
+ item.settings.pluginUUID='com.deckforge.native.test';
+ const instance=DeckCore.createSdkMountTracker().reconcile('test',DeckCore.sdkMountDescriptors(state))[0];
+ const id=require('node:crypto').randomUUID();
+ const message={...instance,requestId:id,receiptId:id,expectedRevision:instance.configRevision,expectedSettings:instance.settings,expiresAt:Date.now()+60000,operation:{op:'settings',value:{value:'after'}}};
+ for(const mode of ['dirty','dialog','locked','clean']){
+  let writes=0;
+  const ctx={DeckCore,message,sdkActionInstances:()=>[instance],profileStorageFailure:mode==='locked',
+   inspectorSession:{dirty:mode==='dirty'},document:{querySelector:()=>mode==='dialog'?{}:null},
+   commitExternalSdkSettings:()=>{writes++;return true;}};
+  const result=vm.runInNewContext(source.slice(start,end)+';applyNativeSdkEffect(message)',ctx);
+  assert.equal(result,mode==='clean',mode);assert.equal(writes,mode==='clean'?1:0,mode);
+ }
+});
+test('main rejects new native settings writes while quitting, before host creation',()=>{
+ const main=fs.readFileSync(path.join(__dirname,'../app/streamdeck-editor/main.cjs'),'utf8');
+ const start=main.indexOf("ipcMain.on('d200x:native-settings-commit'"),end=main.indexOf("ipcMain.on('d200x:native-settings-outcome'",start);
+ assert.ok(start>=0&&end>start);
+ let handler,hostCalls=0,writes=0;
+ const ctx={ipcMain:{on:(_name,fn)=>{handler=fn;}},assertEditor:()=>{},quitting:false,
+  sdk:()=>{hostCalls++;return {pendingSettingsRequest:()=>({})};},
+  profileStore:{commitNativeSettingsChecked:()=>{writes++;return {status:'saved'};}}};
+ vm.runInNewContext(main.slice(start,end),ctx);
+ const first={};handler(first,'ctx','id');assert.equal(first.returnValue.status,'saved');
+ ctx.quitting=true;const second={};handler(second,'ctx','id');
+ assert.equal(second.returnValue.status,'rejected');assert.equal(hostCalls,1);assert.equal(writes,1);
+});

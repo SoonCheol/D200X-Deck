@@ -600,6 +600,9 @@ ipcMain.on('d200x:profile-write',(event,state)=>{
 ipcMain.on('d200x:native-settings-commit',(event,context,id)=>{
   try{
     assertEditor(event);
+    // An already completed synchronous atomic write stays committed.
+    // Never admit another write or lazily instantiate a host during shutdown.
+    if(quitting){event.returnValue={status:'rejected'};return;}
     const request=sdk().pendingSettingsRequest(context,id);
     event.returnValue=request?profileStore.commitNativeSettingsChecked(request):{status:'rejected'};
   }catch{event.returnValue={status:'unknown'};}

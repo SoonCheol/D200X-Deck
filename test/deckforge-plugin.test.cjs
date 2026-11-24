@@ -2751,3 +2751,35 @@ test('native retained purge targets only approved removed identity and known his
   assert.deepEqual(await fs.readdir(host.versions.historyDir(id)),[]);
  }finally{await router.close();await fs.rm(root,{recursive:true,force:true});}
 });
+
+test('native settings pending request is revoked on page retirement and host close',async()=>{
+ const Core=require('../app/streamdeck-editor/deck-core.js');
+ const state=Core.migrateState(null),item=state.pages[0][0]=Core.createAction('sd-plugin');
+ item.settings.pluginUUID=nativeId;item.settings.actionUUID=scriptManifest.actions[0].id;item.settings.pluginSettings={count:0};
+ const tracker=Core.createSdkMountTracker(),m={...scriptManifest,permissions:['display','settings.write'],capabilities:['settingsResult']};
+ const requests=[],resultEvents=[];
+ const native=new NativePluginHost('/unused',e=>{if(e.kind==='nativeSettingsCommit')requests.push(e);},()=>({
+  async run(_source,input){
+   if(input.event.type==='settingsResult')resultEvents.push(input.event.response);
+   return {ops:input.event.type==='press'?[{op:'settingsPatch',value:{count:1}}]:[],memory:{}};
+  },close(){}
+ }),{settingsReceiptTimeout:2000});
+ native.manifests=async()=>[m];native.loadServicePolicy=async()=>{};
+ const router=new PluginRouter({list:async()=>[],sync:async()=>{},close:async()=>{}},native);
+ try{
+  for(const [i,mode] of ['retire','close'].entries()){
+   const cfg=tracker.reconcile('page-'+i,Core.sdkMountDescriptors(state))[0];
+   await router.sync([cfg]);const ctx=native.contexts.get(cfg.context);await ctx.queue;
+   assert.equal(router.key(cfg.context,'down'),true);
+   for(let n=0;n<100&&requests.length<=i;n++)await new Promise(r=>setImmediate(r));
+   assert.equal(requests.length,i+1);
+   const request=requests[i],queued=ctx.queue;
+   assert.ok(router.pendingSettingsRequest(cfg.context,request.requestId));
+   if(mode==='retire')await router.sync([]);else await router.close();
+   assert.equal(router.pendingSettingsRequest(cfg.context,request.requestId),null);
+   assert.equal(native.acknowledgeSettings(cfg.context,request.requestId,true),false);
+   await queued;
+   assert.equal(ctx.settings.count,0);assert.equal(resultEvents.length,0);
+  }
+ }finally{await router.close();}
+});

@@ -169,3 +169,22 @@ API 2 manifest의 service={script,tickIntervalMs?} 및 별도 background.run 권
 | 18 | AI 기본 편집 | protectedType/at에서 SDK 수정·복사·이동 자체 차단; 기존 정책 유지, 차단 검사 강화. 허용한 일반 액션과 구분 |
 | 19 | AI 고급 편집 | editPageStructure, fusionButton createAction, template cloneActionInstances; 복제/템플릿 ID 집중 검사 강화, profile_build 신규 ID 경로는 후속 |
 - 기존 1.1.230 Windows #984 성공과 이번 신규 검사 대기 구분. 제품 코드 변경 없음. report03 §4.2의 13개 저장 시나리오 원문 확보, 독립 대응 대조 후속. Model5/KEY OFF 유지.
+
+## 10C 감사 저장 시나리오 대조 (1.1.232 후보)
+report03.md §4.2 13행 원문 기준. 1.1.231 CI #1281/입력 #521/Windows #985 성공, identity 신규 검사 및 실제 renderer 장애 복구 통과, deckforge-v1.1.231 게시 확인. 아래 대응은 현재 제품 계약 기준이며 모든 실제 IPC/전원 손실 통과를 뜻하지 않는다.
+| # | 시나리오 | 근거/검증 범위 |
+|---|---|---|
+| 1 | 페이지 전환 | router.sync 즉시 retire, pendingSettingsRequest 및 store requestItem; 신규 페이지 분리/retire 검사 |
+| 2 | 프로필 전환 | profile-store 기존 pending save/duplicate profile 검사, mount 세대 검사; 실제 GUI 별도 |
+| 3 | 삭제/덮어쓰기 | 기존 교체 ID 및 신규 삭제 fixture 검사 |
+| 4 | 이동/교환 | store moved action/copy 및 slot/gesture 비교 기존 검사; 실제 GUI 별도 |
+| 5 | PI 편집 충돌 | editor applyNativeSdkEffect dirty/dialog/lock 거부, router ABA revision 취소; 신규 실제 함수 VM 검사. 외부 legacy PI 병합 경로와 구분 |
+| 6 | 저장 장애 | atomic rename 실패/기존 값 보존 및 receipt 없음, 읽기 불가 unknown, 기존 host 거부 검사 |
+| 7 | 쓰기 후 응답 유실 | store read-only outcome 및 editor 재조회/1회 쓰기 기존 검사 |
+| 8 | 쓰기 전후 timeout | expiresAt 거부 및 저장 결과 재조회 기존 검사, host unknown pause/no replay |
+| 9 | ABA | configRevision 단조 증가, 최신 의도 동기 취소, 기존 core/router 검사 |
+| 10 | 앱 종료 | main before-quit + router.close 즉시 취소, 신규 commit quitting 차단/VM 및 host close 검사. 실제 child exit atomic rename 검사 기존. 실제 전원 손실 아님 |
+| 11 | 플러그인 장애 중 저장 | runner 장애 복구 및 atomic child exit 각각 통과; commit 진행 중 실제 renderer crash 통합 미검증 |
+| 12 | global+local 효과 | validateScriptOps 한 권한 효과 제한, 기존 compound 검사; 분리 트랜잭션 미도입(승인 계약) |
+| 13 | settingsResult 호환 | manifest opt-in, saved/rejected/unknown·부수효과 거부·legacy 미전달 기존 검사 |
+- 1.1.232 제품 변경은 main 신규 native settings commit의 quitting guard만. 진행 중 동기 원자 저장과 읽기 전용 reconciliation 계약 유지. 신규 집중 테스트 실행 대기, 실제 HA/D200X/전원 손실/OOM/장시간 soak 미검증.

@@ -172,3 +172,19 @@ test('pending save cannot target moved action, copied action, or a duplicate pro
   assert.equal(store.read().pages[0][0].settings.pluginSettings.count,0);
  });
 });
+
+test('pending native setting request cannot write a different page or a deleted slot',()=>{
+ const Core=require('../app/streamdeck-editor/deck-core.js');
+ fixture(store=>{
+  const request=nativeFixture(store),state=store.read();
+  state.pages.push(Core.blankPage());state.pages[1][0]=Core.cloneActionInstances(state.pages[0][0]);
+  state.page=1;store.write(state);
+  assert.equal(store.commitNativeSettings(request).status,'rejected');
+  assert.equal(store.read().pages[1][0].settings.pluginSettings.count,0);
+  state.page=0;state.pages[0][0]=null;store.write(state);
+  const raw=fs.readFileSync(store.file,'utf8');
+  assert.equal(store.commitNativeSettings(request).status,'rejected');
+  assert.equal(fs.readFileSync(store.file,'utf8'),raw);
+  assert.equal(store.nativeReceipt(request.context,request.requestId),null);
+ });
+});
