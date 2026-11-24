@@ -353,3 +353,53 @@ test('native version manager preserves original code and accepts only approved c
     assert.equal((await host.planInstall(newer)).kind,'update');
   }finally{host.close();await fs.rm(tmp,{recursive:true,force:true});}
 });
+
+
+test('native dependencies resolve transitively, reject cycles and protect working dependents',()=>{
+  const {resolveDependencies,assertDependencyChange}=require('../app/streamdeck-editor/deckforge-native-dependencies.cjs');
+  const mk=(name,version='1.0.0',dependencies)=>({
+    ...nativeManifest,id:'com.deckforge.native.'+name,version,
+    actions:[{...nativeManifest.actions[0],id:'com.deckforge.native.'+name+'.toggle'}],...(dependencies?{dependencies}:{})
+  });
+  const a=mk('dep-a'),b=mk('dep-b','1.0.0',{[a.id]:'^1.0.0'}),
+    c=mk('dep-c','1.0.0',{[b.id]:'~1.0.0'}),other=mk('dep-independent');
+  assert.equal(resolveDependencies([a,b,c,other]).ready.size,4);
+  const missing=resolveDependencies([b,c,other]);
+  assert.deepEqual([...missing.ready],[other.id]);
+  assert.match(missing.blocked.get(b.id),/missing dependency/);
+  assert.throws(()=>assertDependencyChange([a,b,c],{...a,version:'2.0.0'}),/disable/);
+  assert.throws(()=>assertDependencyChange([a,b,c],{...a,dependencies:{[c.id]:'*'}}),/cyclic/);
+  assert.doesNotThrow(()=>assertDependencyChange([a,b,c],{...a,version:'1.1.0'}));
+  assert.throws(()=>validateNativeManifest({...a,dependencies:{[a.id]:'*'}}),/dependency ID/);
+  assert.throws(()=>validateNativeManifest({...a,dependencies:{[b.id]:'not-a-range'}}),/version range/);
+  assert.throws(()=>validateNativeManifest({...a,dependencies:{'com.legacy.external':'*'}}),/dependency ID/);
+});
+test('native router rechecks dependencies at install and runtime without falling through to legacy',async()=>{
+  const temp=await fs.mkdtemp(path.join(os.tmpdir(),'deckforge-dependencies-'));
+  const events=[],legacyCalls=[];
+  const legacy={list:async()=>[],sync:async c=>legacyCalls.push(c),key:()=>true,inspector:()=>true,
+    onSystemSuspend(){},onSystemResume(){},close:async()=>{}};
+  const host=new NativePluginHost(temp,e=>events.push(e)),router=new PluginRouter(legacy,host);
+  const dependentId='com.deckforge.native.dependent';
+  const dependent={...nativeManifest,id:dependentId,dependencies:{[nativeId]:'^1.0.0'},
+    actions:[{...nativeManifest.actions[0],id:dependentId+'.toggle'}]};
+  const cfg={context:'dependent',slot:0,pluginUUID:dependentId,actionUUID:dependentId+'.toggle',settings:{}};
+  try{
+    await assert.rejects(router.installNative(dependent),/missing dependency/);
+    await router.installNative(nativeManifest);await router.installNative(dependent);
+    const plan=await router.planNativeInstall({...nativeManifest,version:'1.1.0'});
+    await router.replaceNative({...nativeManifest,version:'1.1.0'},plan.currentRevision);
+    await assert.rejects(router.planNativeInstall({...nativeManifest,version:'2.0.0'}),/disable/);
+    await router.sync([cfg]);assert.equal(router.key(cfg.context,'down'),true);
+    // Simulate an externally missing dependency in the temporary test fixture.
+    await fs.rename(host.versions.currentFile(nativeId),host.versions.currentFile(nativeId)+'.missing');
+    await router.sync([cfg]);assert.deepEqual(legacyCalls.at(-1),[]);
+    assert.equal(router.key(cfg.context,'down'),false);assert.equal(router.inspector(cfg.context),false);
+    assert.equal(host.contexts.has(cfg.context),false);
+    assert.ok(events.some(e=>e.kind==='nativeUnavailable'&&e.context===cfg.context));
+    const blocked=(await router.list()).find(m=>m.uuid===dependentId);
+    assert.equal(blocked.available,false);assert.deepEqual(blocked.actions,[]);
+    await fs.rename(host.versions.currentFile(nativeId)+'.missing',host.versions.currentFile(nativeId));
+    await router.sync([cfg]);assert.equal(router.key(cfg.context,'down'),true);
+  }finally{await router.close();await fs.rm(temp,{recursive:true,force:true});}
+});

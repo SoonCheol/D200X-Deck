@@ -6955,7 +6955,9 @@ function applyNativeSdkEffect(message){
 if(window.deckBridge?.onSdkEvent){
   window.deckBridge.onSdkEvent(message=>{
     const ctx=message?.context;
-    if(message.kind==='nativeEffect'){
+    if(message.kind==='nativeUnavailable'){
+      sdkVisuals.delete(ctx);renderGrid();window.scheduleDeckSync?.();
+    }else if(message.kind==='nativeEffect'){
       if(!applyNativeSdkEffect(message))window.d200xActionStatus?.('독자 SDK 요청 거부: 현재 설정 또는 편집 상태를 확인하세요.');
     }else if(message.kind==='settings'){
       const instance=sdkActionInstances().find(x=>x.context===ctx);

@@ -5,6 +5,7 @@ const path=require('node:path');
 const {randomUUID}=require('node:crypto');
 const {NativeSettingsVault,validateValue}=require('./deckforge-native-settings.cjs');
 const {NativeVersionStore,assertAppRequirement}=require('./deckforge-native-versions.cjs');
+const {validateDependencies,resolveDependencies,assertDependencyChange}=require('./deckforge-native-dependencies.cjs');
 const APP_VERSION=require('./package.json').version;
 const SUFFIX='.deckforge-native.json', LIMIT=1024*1024;
 const ID=/^com\.deckforge\.native\.[a-z0-9][a-z0-9.-]{0,110}$/;
@@ -17,10 +18,11 @@ const validText=(x,n)=>typeof x==='string'&&x.length>0&&x.length<=n;
 const exact=(x,keys)=>obj(x)&&Object.keys(x).every(k=>keys.includes(k));
 function check(ok,message){if(!ok)throw Error('DeckForge SDK: '+message);}
 function validateNativeManifest(m){
-  check(exact(m,['apiVersion','id','name','version','permissions','actions','requiresDeckForge'])&&[1,2].includes(m.apiVersion)&&
+  check(exact(m,['apiVersion','id','name','version','permissions','actions','requiresDeckForge','dependencies'])&&[1,2].includes(m.apiVersion)&&
     typeof m.id==='string'&&ID.test(m.id)&&!m.id.endsWith('.')&&!m.id.includes('..')&&
     validText(m.name,180)&&validText(m.version,64),'invalid manifest or API version');
   assertAppRequirement(m.requiresDeckForge,APP_VERSION);
+  validateDependencies(m.id,m.dependencies);
   check(Array.isArray(m.permissions)&&m.permissions.includes('display')&&new Set(m.permissions).size===m.permissions.length&&
     m.permissions.every(p=>p==='display'||(m.apiVersion===2&&EXTRA_PERMISSIONS.includes(p))),'unsupported permissions');
   check(Array.isArray(m.actions)&&m.actions.length>0&&m.actions.length<=64,'invalid actions');
@@ -64,7 +66,7 @@ function validateNativeManifest(m){
   }
   return m;
 }
-function catalog(m){return {uuid:m.id,name:m.name,version:m.version,runtime:'deckforge-sdk',permissions:[...m.permissions],
+function catalog(m){return {uuid:m.id,name:m.name,version:m.version,runtime:'deckforge-sdk',permissions:[...m.permissions],dependencies:{...(m.dependencies||{})},
   actions:m.actions.map(a=>({uuid:a.id,name:a.name,states:a.states,controllers:a.controllers,
     propertyInspectorPath:'',defaultImages:{off:null,on:null}}))};}
 class NativePluginHost{
@@ -78,6 +80,7 @@ class NativePluginHost{
     });
     this.recoveryDelay=options.recoveryDelay||[1000,3000];
     this.versions=new NativeVersionStore(this.root,validateNativeManifest);
+    this.dependencyWarnings=new Map();
   }
   async manifests(){
     await fs.mkdir(this.root,{recursive:true});const items=[];
@@ -93,8 +96,13 @@ class NativePluginHost{
     return items;
   }
   report(id,error){this.onUpdate({kind:'error',message:'DeckForge SDK '+id+': '+String(error?.message||error).slice(0,300)});}
+  async checkDependencies(m,excluded=new Set()){
+    validateNativeManifest(m);
+    const manifests=(await this.manifests()).filter(p=>!excluded.has(p.id));
+    return assertDependencyChange(manifests,m);
+  }
   async install(m){
-    validateNativeManifest(m);const data=JSON.stringify(m);
+    await this.checkDependencies(m);const data=JSON.stringify(m);
     check(Buffer.byteLength(data)<=LIMIT,'program too large');
     await fs.mkdir(this.root,{recursive:true});
     const tmp=path.join(this.root,'.native-'+randomUUID()),target=path.join(this.root,m.id+SUFFIX);
@@ -105,8 +113,9 @@ class NativePluginHost{
     }finally{await fs.rm(tmp,{force:true}).catch(()=>{});}
     return catalog(m);
   }
-  planInstall(m){return this.versions.plan(m);}
+  async planInstall(m){await this.checkDependencies(m);return this.versions.plan(m);}
   async replace(m,expectedRevision){
+    await this.checkDependencies(m);
     const retired=[];
     const stop=()=>{
       for(const [id,ctx] of this.contexts)if(ctx.pluginUUID===m.id){
@@ -262,7 +271,17 @@ class NativePluginHost{
   }
   sync(configs,manifests){
     if(this.closed)return;
-    const plugins=new Map(manifests.map(m=>[m.id,m])),seen=new Set();
+    const graph=resolveDependencies(manifests);
+    const plugins=new Map(manifests.filter(m=>graph.ready.has(m.id)).map(m=>[m.id,m])),seen=new Set();
+    const warnings=new Map();
+    for(const cfg of configs){
+      const reason=graph.blocked.get(cfg?.pluginUUID);
+      if(!reason)continue;
+      warnings.set(cfg.pluginUUID,reason);
+      if(this.dependencyWarnings.get(cfg.pluginUUID)!==reason&&!this.suspended)
+        this.report(cfg.pluginUUID,Error(reason));
+    }
+    this.dependencyWarnings=warnings;
     for(const cfg of configs){
       if(!cfg||typeof cfg.context!=='string'||!cfg.context||cfg.context.length>160||
         !Number.isInteger(cfg.slot)||cfg.slot<0||cfg.slot>18||seen.has(cfg.context))continue;
@@ -283,7 +302,13 @@ class NativePluginHost{
         if(changed)this.run(ctx,'settings');
       }
     }
-    for(const [id,ctx] of this.contexts)if(!seen.has(id)){this.retire(ctx);this.contexts.delete(id);}
+    for(const [id,ctx] of this.contexts)if(!seen.has(id)){
+      if(graph.blocked.has(ctx.pluginUUID)||!manifests.some(m=>m.id===ctx.pluginUUID)){
+        this.resetScript(ctx);
+        this.onUpdate({kind:'nativeUnavailable',context:id});
+      }else this.retire(ctx);
+      this.contexts.delete(id);
+    }
   }
   key(context,gesture,ticks=1){
     const ctx=this.contexts.get(context);
@@ -302,14 +327,26 @@ class NativePluginHost{
 }
 // Compatibility host stays unchanged; only validated native IDs are routed here.
 class PluginRouter{
-  constructor(legacy,native){this.legacy=legacy;this.native=native;this.queue=Promise.resolve();this.closed=false;}
+  constructor(legacy,native){this.legacy=legacy;this.native=native;this.queue=Promise.resolve();this.closed=false;this.nativeContextIds=new Set();}
   serial(fn){const task=this.queue.then(()=>{if(this.closed)throw Error('Plugin host closed');return fn();});this.queue=task.catch(()=>{});return task;}
   async catalog(){
     const legacy=await this.legacy.list(),ids=new Set(legacy.map(x=>x.uuid.toLowerCase()));
     const native=(await this.native.manifests()).filter(m=>!ids.has(m.id));
     return {legacy,native};
   }
-  async list(){const {legacy,native}=await this.catalog();return [...legacy,...native.map(catalog)];}
+  async list(){
+    const {legacy,native}=await this.catalog(),graph=resolveDependencies(native);
+    return [...legacy,...native.map(m=>{
+      const entry=catalog(m),reason=graph.blocked.get(m.id);
+      return reason?{...entry,actions:[],available:false,dependencyError:reason}:{...entry,available:true};
+    })];
+  }
+  async checkNativeCandidate(m){
+    validateNativeManifest(m);
+    const legacyIds=new Set((await this.legacy.list()).map(p=>p.uuid.toLowerCase()));
+    check(!legacyIds.has(m.id),'plugin ID already installed');
+    await this.native.checkDependencies(m,legacyIds);
+  }
   install(bytes){return this.serial(async()=>{
     // Existing archive validator remains authoritative; native collisions cannot shadow a legacy plugin.
     const {parseArchive}=require('./sd-plugin-host.cjs');
@@ -331,29 +368,28 @@ class PluginRouter{
     return this.legacy.installDirectory(dir);
   });}
   installNative(m){return this.serial(async()=>{
-    validateNativeManifest(m);
-    check(!(await this.legacy.list()).some(p=>p.uuid.toLowerCase()===m.id),'plugin ID already installed');
+    await this.checkNativeCandidate(m);
     return this.native.install(m);
   });}
   planNativeInstall(m){return this.serial(async()=>{
-    validateNativeManifest(m);
-    check(!(await this.legacy.list()).some(p=>p.uuid.toLowerCase()===m.id),'plugin ID already installed');
+    await this.checkNativeCandidate(m);
     return this.native.planInstall(m);
   });}
   replaceNative(m,expectedRevision){return this.serial(async()=>{
-    validateNativeManifest(m);
-    check(!(await this.legacy.list()).some(p=>p.uuid.toLowerCase()===m.id),'plugin ID already installed');
+    await this.checkNativeCandidate(m);
     return this.native.replace(m,expectedRevision);
   });}
   sync(configs){return this.serial(async()=>{
-    const {native}=await this.catalog(),ids=new Set(native.map(m=>m.id));
-    const local=configs.filter(c=>ids.has(c?.pluginUUID));
-    const other=configs.filter(c=>!ids.has(c?.pluginUUID));
+    const {native,legacy}=await this.catalog(),ids=new Set(native.map(m=>m.id));
+    const legacyIds=new Set(legacy.map(p=>p.uuid.toLowerCase()));
+    const isNative=c=>ids.has(c?.pluginUUID)||(typeof c?.pluginUUID==='string'&&ID.test(c.pluginUUID)&&!legacyIds.has(c.pluginUUID.toLowerCase()));
+    const local=configs.filter(isNative),other=configs.filter(c=>!isNative(c));
+    this.nativeContextIds=new Set(local.map(c=>c.context));
     // Remove stale legacy contexts before publishing a new native context.
     try{await this.legacy.sync(other);}finally{if(!this.closed)this.native.sync(local,native);}
   });}
-  key(context,gesture,ticks){if(this.closed)return false;return this.native.contexts.has(context)?this.native.key(context,gesture,ticks):this.legacy.key(context,gesture,ticks);}
-  inspector(context){return this.native.contexts.has(context)?false:this.legacy.inspector(context);}
+  key(context,gesture,ticks){if(this.closed)return false;return this.nativeContextIds.has(context)||this.native.contexts.has(context)?this.native.key(context,gesture,ticks):this.legacy.key(context,gesture,ticks);}
+  inspector(context){return this.nativeContextIds.has(context)||this.native.contexts.has(context)?false:this.legacy.inspector(context);}
   onSystemSuspend(){this.native.suspend();this.legacy.onSystemSuspend();}
   onSystemResume(){this.native.resume();this.legacy.onSystemResume();}
   async close(){this.closed=true;this.native.close();await this.legacy.close();}
