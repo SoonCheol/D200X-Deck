@@ -2062,3 +2062,24 @@ test('entire gesture tab selects without toggling independent checkbox or double
  assert.match(editor,/bindPressTabSelection\(tile,check,\(\)=>\{/);
  assert.doesNotMatch(editor,/choose\.addEventListener\('click',\(\)=>\{\s*if\(activePressTab!==slot\)/);
 });
+
+test('native settings commit checks request identity, generation, expiry and ABA revision',()=>{
+ const state=core.migrateState(null),item=state.pages[0][0]=core.createAction('sd-plugin');
+ item.settings.pluginUUID='com.deckforge.native.test';item.settings.actionUUID='com.deckforge.native.test.key';
+ item.settings.pluginSettings={value:1};
+ const tracker=core.createSdkMountTracker(),read=scope=>tracker.reconcile(scope,core.sdkMountDescriptors(state))[0];
+ const first=read('page'),id='00000000-0000-4000-8000-000000000001';
+ const request={kind:'nativeSettingsCommit',...first,requestId:id,receiptId:id,expectedRevision:first.configRevision,
+  expectedSettings:{value:1},expiresAt:100,operation:{op:'settings',value:{value:2}}};
+ assert.equal(core.nativeSettingsCommitMatches(first,request,99),true);
+ assert.equal(core.nativeSettingsCommitMatches(first,request,101),false);
+ for(const field of ['requestId','receiptId','instanceId','mountGeneration','expectedRevision','context','pluginUUID','actionUUID'])
+  assert.equal(core.nativeSettingsCommitMatches(first,{...request,[field]:'invalid'},99),false,field);
+ item.title='visual only';assert.equal(read('page').configRevision,first.configRevision);
+ item.settings.pluginSettings.value=9;assert.equal(read('page').configRevision,first.configRevision+1);
+ item.settings.pluginSettings.value=1;const aba=read('page');
+ assert.equal(aba.configRevision,first.configRevision+2);assert.equal(aba.context,first.context);
+ assert.equal(core.nativeSettingsCommitMatches(aba,request,99),false);
+ assert.equal(core.nativeSettingsCommitMatches(read('another page'),request,99),false);
+ assert.equal(core.validSdkMount({...aba,configRevision:-1}),false);
+});

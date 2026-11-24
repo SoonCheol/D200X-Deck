@@ -2284,3 +2284,32 @@ test('Model 5 DrawOps host rejects unbounded, malformed and raw pixel worker com
  let active=true;
  await assert.rejects(resolveWorkerDrawProgram(original,async()=>{active=false;return {op:'pixels',width:16,height:16,rgba};},()=>active),/cancelled/);
 });
+
+test('versioned settings receipts reject stale sync and pause after an uncertain write without replay',async()=>{
+ const requests=[],events=[],counts=[];
+ const m={...scriptManifest,permissions:['display','settings.write'],actions:[{...scriptManifest.actions[0],controllers:['Encoder']}]};
+ const cfg={context:'revision-receipt',instanceId:'00000000-0000-4000-8000-000000000001',mountGeneration:1,configRevision:0,
+  slot:16,gesture:'down',pluginUUID:m.id,actionUUID:m.actions[0].id,settings:{count:0}};
+ const host=new NativePluginHost('/unused',e=>{events.push(e);if(e.kind==='nativeSettingsCommit')requests.push(e);},()=>({
+  async run(_source,input){if(input.event.type==='rotateRight'){counts.push(input.settings.count);return {ops:[{op:'settingsPatch',value:{count:input.settings.count+1}}],memory:{}};}
+   return {ops:[],memory:{}};},close(){}
+ }),{settingsReceiptTimeout:100});
+ const wait=async n=>{for(let i=0;i<100&&requests.length<n;i++)await new Promise(r=>setImmediate(r));assert.equal(requests.length,n);};
+ try{
+  host.sync([cfg],[m]);const ctx=host.contexts.get(cfg.context);await ctx.queue;
+  assert.equal(host.key(cfg.context,'right',2),true);await wait(1);
+  const first=requests[0];assert.equal(first.requestId,first.receiptId);assert.equal(first.instanceId,cfg.instanceId);
+  assert.equal(first.mountGeneration,1);assert.equal(first.expectedRevision,0);
+  assert.equal(host.acknowledgeSettings(cfg.context,first.requestId,true),true);await wait(2);
+  assert.equal(requests[1].expectedRevision,1);
+  host.sync([cfg],[m]);assert.equal(ctx.settings.count,1,'old sync must not roll back a confirmed write');
+  await ctx.queue;
+  assert.equal(ctx.settingsUncertain,true);assert.equal(host.key(cfg.context,'right'),false);
+  assert.equal(host.acknowledgeSettings(cfg.context,requests[1].requestId,true),false);
+  assert.deepEqual(counts,[0,1]);assert.ok(events.some(e=>e.kind==='error'&&e.message.includes('outcome unknown')));
+  host.sync([{...cfg,configRevision:1,settings:{count:1}}],[m]);
+  assert.equal(ctx.settingsUncertain,true,'same revision is not proof of a lost write outcome');
+  host.sync([{...cfg,configRevision:2,settings:{count:2}}],[m]);await ctx.queue;
+  assert.equal(ctx.settingsUncertain,false);assert.equal(ctx.settings.count,2);assert.deepEqual(counts,[0,1],'no automatic replay');
+ }finally{host.close();}
+});

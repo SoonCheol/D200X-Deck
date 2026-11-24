@@ -429,27 +429,36 @@ class NativePluginHost{
         }
       }
   }
-  cancelSettingsReceipt(ctx){
+  cancelSettingsReceipt(ctx,result='cancelled'){
     const pending=ctx.settingsReceipt;
-    if(pending){ctx.settingsReceipt=null;clearTimeout(pending.timer);pending.resolve(false);}
+    if(pending){ctx.settingsReceipt=null;clearTimeout(pending.timer);pending.resolve(result);}
   }
   requestSettingsCommit(ctx,operation,expectedSettings,active){
-    if(!active()||ctx.settingsReceipt)return Promise.resolve(false);
+    if(!active()||ctx.settingsReceipt||ctx.settingsUncertain)return Promise.resolve('cancelled');
     return new Promise(resolve=>{
       const id=randomUUID(),expiresAt=Date.now()+this.settingsReceiptTimeout;
-      const pending={id,active,resolve,value:structuredClone(operation.value),expiresAt,timer:null};
+      const pending={id,active,resolve,value:structuredClone(operation.value),expiresAt,revision:ctx.configRevision,timer:null};
       ctx.settingsReceipt=pending;
-      pending.timer=setTimeout(()=>this.cancelSettingsReceipt(ctx),this.settingsReceiptTimeout);
+      pending.timer=setTimeout(()=>{
+        if(ctx.settingsReceipt!==pending)return;
+        // A missing receipt does not prove that the profile write failed.
+        ctx.settingsUncertain=true;ctx.pressed=false;
+        this.cancelSettingsReceipt(ctx,'unknown');
+      },this.settingsReceiptTimeout);
       try{
         this.onUpdate({kind:'nativeSettingsCommit',context:ctx.context,pluginUUID:ctx.pluginUUID,
-          actionUUID:ctx.action.id,operation,expectedSettings,receiptId:id,expiresAt});
-      }catch{this.cancelSettingsReceipt(ctx);}
+          actionUUID:ctx.action.id,operation,expectedSettings,receiptId:id,requestId:id,
+          instanceId:ctx.instanceId,mountGeneration:ctx.mountGeneration,expectedRevision:ctx.configRevision,expiresAt});
+      }catch{ctx.settingsUncertain=true;ctx.pressed=false;this.cancelSettingsReceipt(ctx,'unknown');}
     });
   }
   acknowledgeSettings(context,id,accepted){
     const ctx=this.contexts.get(context),pending=ctx?.settingsReceipt;
     if(!pending||pending.id!==id||typeof accepted!=='boolean')return false;
-    const ok=accepted&&pending.active()&&Date.now()<=pending.expiresAt;
+    const current=pending.active()&&ctx.configRevision===pending.revision;
+    const timely=Date.now()<=pending.expiresAt;
+    const ok=accepted&&current&&timely;
+    if(accepted&&(!current||!timely)){ctx.settingsUncertain=true;ctx.pressed=false;}
     ctx.settingsReceipt=null;clearTimeout(pending.timer);
     if(ok){
       // A confirmed write from this same action is not an external edit.
@@ -457,9 +466,12 @@ class NativePluginHost{
       // newly saved settings when they reach the head of the FIFO.
       const changed=JSON.stringify(ctx.settings)!==JSON.stringify(pending.value);
       ctx.settings=pending.value;
-      if(changed){this.cancelNetwork(ctx);this.cancelSocket(ctx);ctx.settingsRefresh=true;}
+      if(changed){
+        if(Number.isSafeInteger(ctx.configRevision))ctx.configRevision++;
+        this.cancelNetwork(ctx);this.cancelSocket(ctx);ctx.settingsRefresh=true;
+      }
     }
-    pending.resolve(ok);return ok;
+    pending.resolve(ok?'saved':accepted?'unknown':'rejected');return ok;
   }
   queueSettingsRefresh(ctx){
     if(ctx.settingsRefresh&&ctx.pending<MAX_PENDING_EVENTS&&!ctx.failed&&!this.closed&&!this.suspended){
@@ -730,6 +742,7 @@ class NativePluginHost{
     }
   }
   runScript(ctx,event,response=null,expectedSettings=null,expectedSocket=null){
+    if(ctx.settingsUncertain)return false;
     // Saturation is backpressure, not a plugin failure. Keep admitted work
     // ordered and leave the renderer and context alive.
     if(ctx.pending>=MAX_PENDING_EVENTS){
@@ -739,7 +752,7 @@ class NativePluginHost{
     // Every dispatch is tied to the settings generation at acceptance.
     // A changed setting invalidates old queued work, including ABA changes
     // where a user subsequently restores exactly the old values.
-    const active=()=>!this.closed&&!this.suspended&&!ctx.failed&&ctx.epoch===epoch&&this.contexts.get(ctx.context)===ctx&&
+    const active=()=>!this.closed&&!this.suspended&&!ctx.failed&&!ctx.settingsUncertain&&ctx.epoch===epoch&&this.contexts.get(ctx.context)===ctx&&
       (ctx.settingsRevision||0)===revision&&
       (expectedSettings===null||expectedSettings===JSON.stringify(ctx.settings))&&
       (expectedSocket===null||expectedSocket===ctx.socketGeneration);
@@ -764,9 +777,13 @@ class NativePluginHost{
         const {normal,effects}=this.validateScriptOps(ctx,event,result.ops);
         for(const operation of effects){
           if(operation.op==='settings'){
-            const saved=await this.requestSettingsCommit(ctx,operation,settingsSnapshot,active);
+            const receipt=await this.requestSettingsCommit(ctx,operation,settingsSnapshot,active);
+            if(receipt==='unknown'){
+              if(this.contexts.get(ctx.context)===ctx)this.report(ctx.pluginUUID,Error('settings write outcome unknown; context paused until confirmed settings change or remount'));
+              return;
+            }
             if(!active())return;
-            if(!saved){this.report(ctx.pluginUUID,Error('settings write not confirmed'));return;}
+            if(receipt!=='saved'){this.report(ctx.pluginUUID,Error('settings write not confirmed'));return;}
           }
           if(operation.op==='globalSettings'){
             const saved=await this.vault.write(ctx.pluginUUID,operation.value,global.revision,active);
@@ -865,8 +882,16 @@ class NativePluginHost{
           epoch:0,settingsRevision:0,pending:0,queue:Promise.resolve(),runner:null,memory:{},recoveryAttempts:0,recoveryTimer:null};
         this.contexts.set(cfg.context,ctx);this.initialize(ctx);
       }else{
-        const changed=JSON.stringify(ctx.settings)!==JSON.stringify(incoming);
+        // Ignore delayed snapshots older than a confirmed write. A newer
+        // revision also invalidates work for an A/B/A settings change.
+        const versioned=Number.isSafeInteger(cfg.configRevision)&&Number.isSafeInteger(ctx.configRevision);
+        if(versioned&&cfg.configRevision<ctx.configRevision)continue;
+        const revisionChanged=versioned&&cfg.configRevision>ctx.configRevision;
+        const valueChanged=JSON.stringify(ctx.settings)!==JSON.stringify(incoming);
+        if(versioned&&!revisionChanged&&valueChanged)continue;
+        const changed=revisionChanged||valueChanged;
         ctx.settings=incoming;
+        if(revisionChanged){ctx.configRevision=cfg.configRevision;ctx.settingsUncertain=false;}
         if(changed){
           this.cancelSettingsReceipt(ctx);ctx.settingsRefresh=false;
           this.animations.stop(ctx);
@@ -891,7 +916,7 @@ class NativePluginHost{
   }
   key(context,gesture,ticks=1){
     const ctx=this.contexts.get(context);
-    if(!ctx||ctx.service||this.closed||this.suspended||ctx.failed)return false;
+    if(!ctx||ctx.service||this.closed||this.suspended||ctx.failed||ctx.settingsUncertain)return false;
     if(gesture==='down'){
       if(ctx.pressed)return false;
       if(ctx.apiVersion===2&&ctx.pending>=MAX_PENDING_EVENTS-INPUT_RESERVE){this.reportBackpressure(ctx);return false;}

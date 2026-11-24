@@ -291,9 +291,10 @@ let sdkSyncSerial=0;
 function scheduleSdkSync(){
   if(!window.deckBridge?.sdkSync)return;
   const serial=++sdkSyncSerial;
+  // Observe every committed change before coalescing IPC, including A/B/A.
+  const instances=sdkActionInstances().map(entry=>({...entry,settings:clone(entry.settings)}));
   Promise.resolve().then(async()=>{
     if(serial!==sdkSyncSerial)return;
-    const instances=sdkActionInstances();
     const active=new Set(instances.map(x=>x.context));
     for(const map of [sdkVisuals,fusionLiveContexts,fusionOfflineContexts,unverifiedFusionContexts])
       for(const context of map.keys())if(!active.has(context))map.delete(context);
@@ -7406,7 +7407,7 @@ function applyNativeSdkEffect(message){
   const op=message.operation;
   if(op?.op==='settings'){
     // Reject stale writes instead of overwriting intervening user edits.
-    if(JSON.stringify(instance.settings)!==JSON.stringify(message.expectedSettings))return false;
+    if(!DeckCore.nativeSettingsCommitMatches(instance,message))return false;
     const ok=commitExternalSdkSettings(instance,op.value);
     return ok;
   }
