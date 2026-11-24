@@ -2,6 +2,11 @@
 
 > **상태 기록 기준: 2026-11-24**. 실제 최신 HEAD는 Git에서 확인하며, 코드·자동 검사·Windows 빌드·사용자 Windows/D200X 실기 결과를 구분한다. 시작 시 `AGENTS.md`와 이 문서만 읽고 로드맵은 필요한 경우에만 참고한다.
 
+## 1.1.136 — Ulanzi GIF bounded LZW index 검증 (2026-11-24)
+
+- GIF frame의 LZW clear/end·dictionary reference·팔레트 색상 index·정확한 decoded pixel count·초과 출력/후행 데이터 검사. 전체 프레임 예산 유지, 렌더링/실제 색상 합성은 미검증. 프레임 원본을 정지 이미지로 바꾸지 않으며 출시/설치 차단 유지.
+- 유효/손상/다중 프레임 집중 fixture 갱신. 1.1.134 CI #1174 성공, Windows 별도. 신규 CI/Windows/실기 별도.
+
 ## 1.1.135 — Ulanzi GIF/SVG 제한형 정적 자원 검사 (2026-11-24)
 
 - GIF header/canvas/팔레트/프레임/extension/subblock/trailer 구조 및 프레임 예산 검사, 애니메이션 프레임 수·총 지연·loop 정보 기록. LZW 실제 픽셀 디코딩 미구현.

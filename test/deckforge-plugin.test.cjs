@@ -982,10 +982,15 @@ test('Ulanzi type-guarded dynamic titles map settings events and reject sensitiv
 
 test('Ulanzi media inventory preserves animation structure and rejects unsafe SVG without rendering',()=>{
  const {gifReport,svgReport}=require('../app/streamdeck-editor/ulanzi-media-analysis.cjs');
- const gif=Buffer.from('R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7','base64');
+ const gif=Buffer.from('R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAICRAEAOw==','base64');
  const result=gifReport(gif);
  assert.equal(result.status,'bounded-animation-review');assert.equal(result.frames,1);
- assert.equal(result.verification,'structure-only');
+ assert.equal(result.verification,'bounded-lzw-indices');
+ const noEnd=Buffer.from(gif);noEnd[noEnd.length-3]=0;
+ assert.equal(gifReport(noEnd).status,'manual-resource-review');
+ const frameStart=gif.indexOf(0x2c,19);
+ const animated=Buffer.concat([gif.subarray(0,-1),gif.subarray(frameStart,-1),gif.subarray(-1)]);
+ assert.equal(gifReport(animated).frames,2);
  assert.equal(gifReport(gif.subarray(0,-1)).status,'manual-resource-review');
  const oversized=Buffer.from(gif);oversized.writeUInt16LE(145,6);
  assert.equal(gifReport(oversized).status,'manual-resource-review');

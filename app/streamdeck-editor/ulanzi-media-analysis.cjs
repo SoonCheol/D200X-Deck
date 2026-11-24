@@ -1,7 +1,46 @@
 'use strict';
 // Read-only media inventory. No decoding, rendering or release permission.
-// GIF compressed data is not executed or expanded; SVG markup is not loaded.
+// GIF LZW is checked by bounded dictionary lengths and palette references;
+// no raster is rendered and SVG markup is not loaded.
 const MAX=256*1024,MAX_FRAMES=240,MAX_PIXELS=144*144*MAX_FRAMES;
+// Validate the exact number of decoded palette indices without allocating
+// frame pixels. Every dictionary entry inherits already-validated symbols.
+function verifyLzw(data,min,paletteSize,pixelCount){
+  const clear=1<<min,end=clear+1,lengths=new Uint16Array(4096);
+  const first=new Uint16Array(4096);
+  let bit=0,size=min+1,next=end+1,previous=-1,total=0,started=false;
+  const read=()=>{
+    if(bit+size>data.length*8)throw Error('truncated LZW code');
+    let code=0;for(let i=0;i<size;i++,bit++)code|=((data[bit>>3]>>(bit&7))&1)<<i;
+    return code;
+  };
+  while(bit+size<=data.length*8){
+    const code=read();
+    if(code===clear){size=min+1;next=end+1;previous=-1;started=true;continue;}
+    if(!started)throw Error('missing initial LZW clear');
+    if(code===end){
+      if(total!==pixelCount||data.length*8-bit>=8)throw Error('LZW pixel count or trailing data');
+      return;
+    }
+    let length,head;
+    if(code<clear){
+      if(code>=paletteSize)throw Error('palette index out of range');
+      length=1;head=code;
+    }else if(code<next&&code>end){length=lengths[code];head=first[code];}
+    else if(code===next&&previous!==-1&&next<4096){
+      length=(previous<clear?1:lengths[previous])+1;
+      head=previous<clear?previous:first[previous];
+    }else throw Error('invalid LZW dictionary reference');
+    if(!length||(total+=length)>pixelCount)throw Error('LZW pixel budget');
+    if(previous!==-1&&next<4096){
+      lengths[next]=(previous<clear?1:lengths[previous])+1;
+      first[next]=previous<clear?previous:first[previous];
+      if(++next===(1<<size)&&size<12)size++;
+    }
+    previous=code;
+  }
+  throw Error('missing LZW end code');
+}
 function gifReport(bytes){
   try{
     if(!Buffer.isBuffer(bytes)||bytes.length<14||bytes.length>MAX||!/^GIF8[79]a$/.test(bytes.toString('ascii',0,6)))throw Error('invalid header');
@@ -11,14 +50,14 @@ function gifReport(bytes){
     const need=n=>{if(pos+n>bytes.length)throw Error('truncated block');};
     const take=()=>{need(1);return bytes[pos++];};
     const skip=n=>{need(n);pos+=n;};
-    const palette=f=>{if(f&128)skip(3*(2**((f&7)+1)));};
-    const subblocks=()=>{let size=0,n;while((n=take())!==0){skip(n);size+=n;}return size;};
-    palette(flags);
+    const palette=f=>{const colors=f&128?2**((f&7)+1):0;if(colors)skip(3*colors);return colors;};
+    const subblocks=(collect=false)=>{const chunks=[];let size=0,n;while((n=take())!==0){need(n);if(collect)chunks.push(bytes.subarray(pos,pos+n));skip(n);size+=n;}return collect?Buffer.concat(chunks,size):size;};
+    const globalColors=palette(flags);
     for(let blocks=0;blocks<bytes.length;blocks++){
       const tag=take();
       if(tag===0x3b){
         if(pos!==bytes.length||!frames||pending!==null)throw Error('invalid trailer');
-        return {format:'gif',status:'bounded-animation-review',width,height,frames,delayMs,loopCount,verification:'structure-only',requiresReview:true};
+        return {format:'gif',status:'bounded-animation-review',width,height,frames,delayMs,loopCount,verification:'bounded-lzw-indices',requiresReview:true};
       }
       if(tag===0x21){
         const label=take();
@@ -42,8 +81,9 @@ function gifReport(bytes){
       const x=bytes.readUInt16LE(pos),y=bytes.readUInt16LE(pos+2),w=bytes.readUInt16LE(pos+4),h=bytes.readUInt16LE(pos+6),f=bytes[pos+8];skip(9);
       if(!w||!h||x+w>width||y+h>height||(!((flags|f)&128))||(f&0x18))throw Error('invalid image descriptor');
       if(++frames>MAX_FRAMES||(pixels+=w*h)>MAX_PIXELS)throw Error('frame budget');
-      palette(f);
-      const code=take();if(code<2||code>8||!subblocks())throw Error('invalid LZW block');
+      const colors=palette(f)||globalColors;
+      const code=take();if(code<2||code>8)throw Error('invalid LZW minimum code size');
+      verifyLzw(subblocks(true),code,colors,w*h);
       delayMs+=pending??0;pending=null;
     }
     throw Error('missing trailer');
