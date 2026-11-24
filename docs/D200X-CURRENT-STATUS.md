@@ -3,7 +3,7 @@
 
 ## 개발 기준
 - 저장소 SoonCheol/D200X-Deck · 브랜치 codex/streamdeck-761-clean-editor · Draft PR #5 유지.
-- 로컬 E:\Codex\DeckForge. 최신 HEAD는 Git에서 확인. 소스 버전 **1.1.188** (04A Model 2 후보).
+- 로컬 E:\Codex\DeckForge. 최신 HEAD는 Git에서 확인. 소스 버전 **1.1.189** (04B Worker CSP 검증 후보).
 - 감사 기준 소스 `49ba39fe094ee808c5715f2348be0789f61d5e20`. CI #1221 성공(커넥터 확인); Windows #930 성공(사용자 인수인계, 이번 문서 작업에서 재검증하지 않음).
 
 ## 현재 상태
@@ -18,10 +18,12 @@
 
 - 1.1.186 CI 및 입력 검사 성공, Windows 통합 검사 149/150: 이전 overlays 정적 조건 잔존. 1.1.187에서 실제 팔레트·번호 DOM 보존 동작 검사로 교체. 런타임/UI 변경 없음, 자동 빌드 확인 대기.
 
-- 04A Model 2 후보: 플러그인별 service/button 분리 partition·renderer 재사용, lane 직렬화, 실행 lease 취소, idle LRU/30초 만료, suspend/close 정리. 기존 context FIFO·검증·realm reset 유지. legacy 복귀는 DECKFORGE_SDK_RUNNER=legacy (실패 이벤트 자동 재실행 금지). 집중 Node/실제 Electron PID·timeout/realm/서비스 생존 검사 추가. 실제 Windows/실기 및 PID 결과 미확인.
+- 04A Model 2 후보: 플러그인별 service/button 분리 partition·renderer 재사용, lane 직렬화, 실행 lease 취소, idle LRU/30초 만료, suspend/close 정리. 기존 context FIFO·검증·realm reset 유지. legacy 복귀는 DECKFORGE_SDK_RUNNER=legacy (실패 이벤트 자동 재실행 금지). 집중 Node/실제 Electron PID·timeout/realm/서비스 생존 검사 추가. 1.1.188 CI 및 Windows 회귀 검사 통과 확인; 패키징·PID 로그 상세 및 실기 미확인.
+
+- 04B 선행 검증: 별도 Electron 테스트 프로세스에서 standard/opaque 전용 scheme, host/worker 개별 CSP, AsyncFunction, 네트워크·저장소·중첩 Worker·Node 차단, timeout 후 재실행·서비스 생존·PID 검사. 결과 로그 MODEL5_WORKER_CSP_PROBE. 실제 앱에 scheme/Worker 등록 없음, 부정 결과도 기록하고 Model 2 유지. Windows 검사 대기. 기존 SDK Node 검사 exit code 누락 보완.
 
 ## 다음 작업
-- **04A 실행 풀:** 1.1.187 및 1.1.188 통합 검사 확인, Model 2 실제 검증 후 04B. 편집기 깜박임 개선/GUI 재확인은 최후순위이며 다음 단계의 선행조건 아님. 기능·보안 회귀는 예외적으로 즉시 해결. 성능/D200X 실기 검증 별도. 기존 실기 미리보기 정책 유지. 설정 revision/receipt 상세는 05에서 계속. 사용자 연속 개발 승인 유지.
+- **04B 실행 엔진:** 1.1.188 Windows PID 로그·패키징 확인, 1.1.189 Worker CSP 검증 결과를 확인해 안전한 후보만 이어서 구현. OOM/DrawOps/자원 한도·실기 미검증 상태에서 Model 5 활성화 금지. 편집기 깜박임 개선/GUI 재확인은 최후순위이며 다음 단계의 선행조건 아님. 기능·보안 회귀는 예외적으로 즉시 해결. 성능/D200X 실기 검증 별도. 기존 실기 미리보기 정책 유지. 설정 revision/receipt 상세는 05에서 계속. 사용자 연속 개발 승인 유지.
 - 이후 02 식별자 → 03 이미지 → 04A/B 실행 엔진 → 05 저장 → 06 통신 → 07 범용 schema → 08 관리 → 09 USB → 10 출시 검증.
 - 기존 기능/데이터/API·보안 보존, 테스트/CI/Windows/실기 구분. 미측정 성능 수치 단정 금지.
 

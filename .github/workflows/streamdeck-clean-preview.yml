@@ -33,6 +33,7 @@ on:
       - 'test/deckforge-wide-warning.test.cjs'
       - 'test/deckforge-key-backgrounds.test.cjs'
       - 'test/deckforge-plugin.test.cjs'
+      - 'test/deckforge-worker-csp-electron.cjs'
       - 'tools/native-drop-probe/NativeDropProbe.cs'
       - '.github/workflows/streamdeck-clean-preview.yml'
   workflow_dispatch:
@@ -129,14 +130,19 @@ jobs:
           node --check app/streamdeck-editor/sd-plugin-host.cjs
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           node --test test/streamdeck-sdk-host.test.cjs
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           node --check app/streamdeck-editor/deckforge-plugin.cjs
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           node --test test/deckforge-plugin.test.cjs
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           node --check app/streamdeck-editor/deckforge-js-runtime.cjs
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           & app/node_modules/.bin/electron.cmd test/deckforge-native-js-electron.cjs
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          node --check test/deckforge-worker-csp-electron.cjs
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          & app/node_modules/.bin/electron.cmd test/deckforge-worker-csp-electron.cjs
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           node --check tools/fusion-mcp/server.cjs
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
