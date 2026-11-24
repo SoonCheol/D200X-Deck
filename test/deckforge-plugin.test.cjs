@@ -101,7 +101,7 @@ async function nativeArchive(m=nativeManifest,extra=false){
   const zip=new JSZip();
   zip.file('deckforge-plugin.json',JSON.stringify({format:'deckforge-plugin',formatVersion:2,
     plugin:{id:m.id,name:m.name,version:m.version},source:{kind:'deckforge'},
-    runtime:{type:'deckforge-sdk',directory:'payload',apiVersion:1}}));
+    runtime:{type:'deckforge-sdk',directory:'payload',apiVersion:m.apiVersion}}));
   zip.file('payload/native.json',JSON.stringify(m));if(extra)zip.file('payload/evil.js','throw Error()');
   return zip.generateAsync({type:'nodebuffer'});
 }
@@ -136,4 +136,49 @@ test('native routing coexists, keeps separate context state, blocks overwrite an
     await router.sync([cfg[3]]);assert.equal(native.contexts.size,0);
     assert.equal(router.key('legacy','down'),true);
   }finally{await router.close();await fs.rm(temp,{recursive:true,force:true});}
+});
+
+
+const scriptManifest={...nativeManifest,apiVersion:2,actions:[{
+  id:nativeId+'.toggle',name:'JS',controllers:['Keypad'],states:2,
+  script:"if(event.type==='press'){memory.count=(memory.count||0)+1;api.setTitle(String(memory.count));api.toggleState();}"
+}]};
+test('JavaScript SDK package declares API 2 and rejects syntax, permissions and mismatch',async()=>{
+  assert.deepEqual((await parseDeckForgePackage(await nativeArchive(scriptManifest))).native,scriptManifest);
+  const bad=structuredClone(scriptManifest);bad.actions[0].script='if(';
+  assert.throws(()=>validateNativeManifest(bad),/syntax/);
+  await assert.rejects(parseDeckForgePackage(await rewritePackage(await nativeArchive(scriptManifest),(_z,m)=>{m.runtime.apiVersion=1;})),/일치하지 않습니다/);
+});
+test('JavaScript SDK context queue validates results, isolates faults and cancels stale output',async()=>{
+  const {runProgram}=require('../app/streamdeck-editor/deckforge-js-runtime.cjs');
+  // Avoid executing browser-specific hardening in this Node test: use a mock transport.
+  const temp=await fs.mkdtemp(path.join(os.tmpdir(),'deckforge-js-'));
+  const events=[],closed=[];let release;
+  const host=new NativePluginHost(temp,e=>events.push(e),()=>({
+    async run(_source,input){
+      if(input.event.type==='appear'||input.event.type==='disappear')return {ops:[],memory:input.memory};
+      if(input.settings.bad)return {ops:[{op:'exec'}],memory:{}};
+      if(input.settings.wait)return new Promise(resolve=>{release=resolve;});
+      const count=(input.memory.count||0)+1;
+      return {ops:[{op:'title',value:String(count)},{op:'toggleState'}],memory:{count}};
+    },close(){closed.push(true);}
+  }));
+  const cfg=(context,settings={})=>({context,slot:0,pluginUUID:nativeId,actionUUID:nativeId+'.toggle',settings});
+  const settle=async id=>{await host.contexts.get(id).queue;};
+  try{
+    host.sync([cfg('a'),cfg('b',{bad:true}),cfg('c',{wait:true})],[scriptManifest]);
+    await Promise.all(['a','b','c'].map(settle));
+    assert.equal(host.key('a','down'),true);await settle('a');
+    host.key('a','up');await settle('a');host.key('a','down');await settle('a');
+    assert.deepEqual(events.filter(e=>e.context==='a'&&e.kind==='setTitle').map(e=>e.payload.title),['1','2','3']);
+    host.key('b','down');await settle('b');assert.equal(host.contexts.get('b').failed,true);
+    assert.equal(host.contexts.get('a').failed,false);
+    host.key('c','down');await new Promise(resolve=>setImmediate(resolve));
+    const pending=host.contexts.get('c').queue;
+    host.sync([cfg('a'),cfg('b',{bad:true})],[scriptManifest]);
+    release({ops:[{op:'title',value:'stale'}],memory:{}});await pending;
+    assert.equal(events.some(e=>e.payload?.title==='stale'),false);
+    assert.ok(closed.length>=2);
+    assert.equal(typeof runProgram,'function');
+  }finally{host.close();await fs.rm(temp,{recursive:true,force:true});}
 });

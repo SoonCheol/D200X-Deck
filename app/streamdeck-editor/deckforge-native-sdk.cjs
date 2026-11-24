@@ -1,5 +1,5 @@
 'use strict';
-// DeckForge SDK API 1: bounded, declarative programs. No JS, shell or network.
+// API 1 declarative; API 2 JavaScript in a sandboxed renderer.
 const fs=require('node:fs/promises');
 const path=require('node:path');
 const {randomUUID}=require('node:crypto');
@@ -12,20 +12,27 @@ const validText=(x,n)=>typeof x==='string'&&x.length>0&&x.length<=n;
 const exact=(x,keys)=>obj(x)&&Object.keys(x).every(k=>keys.includes(k));
 function check(ok,message){if(!ok)throw Error('DeckForge SDK: '+message);}
 function validateNativeManifest(m){
-  check(exact(m,['apiVersion','id','name','version','permissions','actions'])&&m.apiVersion===1&&
+  check(exact(m,['apiVersion','id','name','version','permissions','actions'])&&[1,2].includes(m.apiVersion)&&
     typeof m.id==='string'&&ID.test(m.id)&&!m.id.endsWith('.')&&!m.id.includes('..')&&
     validText(m.name,180)&&validText(m.version,64),'invalid manifest or API version');
   check(Array.isArray(m.permissions)&&m.permissions.length===1&&m.permissions[0]==='display','unsupported permissions');
   check(Array.isArray(m.actions)&&m.actions.length>0&&m.actions.length<=64,'invalid actions');
   const ids=new Set();
   for(const a of m.actions){
-    check(exact(a,['id','name','controllers','states','events'])&&typeof a.id==='string'&&
+    check(exact(a,m.apiVersion===1?['id','name','controllers','states','events']:['id','name','controllers','states','script'])&&typeof a.id==='string'&&
       a.id.startsWith(m.id+'.')&&/^[a-z0-9.-]+$/.test(a.id)&&a.id.length<=180&&
       !a.id.endsWith('.')&&!a.id.includes('..')&&!ids.has(a.id)&&validText(a.name,180),'invalid action');
     ids.add(a.id);
     check(Array.isArray(a.controllers)&&a.controllers.length>0&&a.controllers.length<=2&&
       new Set(a.controllers).size===a.controllers.length&&a.controllers.every(c=>['Keypad','Encoder'].includes(c))&&
-      [1,2].includes(a.states)&&obj(a.events),'invalid action controllers, states or events');
+      [1,2].includes(a.states),'invalid action controllers or states');
+    if(m.apiVersion===2){
+      check(typeof a.script==='string'&&a.script.length>0&&Buffer.byteLength(a.script)<=65536,'invalid JavaScript source');
+      // Compile for syntax validation only. Never invoke plugin code in Node.
+      try{new Function('event','settings','state','memory','api','"use strict";\n'+a.script);}catch{throw Error('DeckForge SDK: invalid JavaScript syntax');}
+      continue;
+    }
+    check(obj(a.events),'invalid events');
     for(const [event,program] of Object.entries(a.events)){
       check(EVENTS.has(event)&&Array.isArray(program)&&program.length<=16,'unsupported event or program size');
       for(const op of program){
@@ -54,9 +61,9 @@ function catalog(m){return {uuid:m.id,name:m.name,version:m.version,runtime:'dec
   actions:m.actions.map(a=>({uuid:a.id,name:a.name,states:a.states,controllers:a.controllers,
     propertyInspectorPath:'',defaultImages:{off:null,on:null}}))};}
 class NativePluginHost{
-  constructor(userData,onUpdate=()=>{}){
+  constructor(userData,onUpdate=()=>{},runnerFactory=id=>require('./deckforge-js-runtime.cjs').createScriptRunner(id)){
     this.root=path.join(userData,'Plugins');this.onUpdate=onUpdate;
-    this.contexts=new Map();this.suspended=false;this.closed=false;
+    this.contexts=new Map();this.suspended=false;this.closed=false;this.runnerFactory=runnerFactory;this.retired=new Set();
   }
   async manifests(){
     await fs.mkdir(this.root,{recursive:true});const items=[];
@@ -84,10 +91,8 @@ class NativePluginHost{
     }finally{await fs.rm(tmp,{force:true}).catch(()=>{});}
     return catalog(m);
   }
-  run(ctx,event){
-    if(ctx.failed||this.closed||this.suspended)return false;
-    try{
-      for(const op of ctx.action.events[event]||[]){
+  applyOps(ctx,program){
+      for(const op of program){
         const send=(kind,payload)=>this.onUpdate({kind,context:ctx.context,payload});
         if(op.op==='title')send('setTitle',{title:op.value});
         if(op.op==='titleFromSetting'){
@@ -99,8 +104,60 @@ class NativePluginHost{
         }
         if(op.op==='image')send('setImage',{image:op.value});
       }
-      return true;
-    }catch(error){ctx.failed=true;ctx.pressed=false;this.report(ctx.pluginUUID,error);return false;}
+  }
+  resetScript(ctx){
+    ctx.epoch=(ctx.epoch||0)+1;
+    try{ctx.runner?.close();}catch{}
+    ctx.runner=null;ctx.pending=0;ctx.queue=Promise.resolve();
+  }
+  fail(ctx,error){
+    ctx.failed=true;ctx.pressed=false;this.resetScript(ctx);this.report(ctx.pluginUUID,error);
+  }
+  runScript(ctx,event){
+    if(ctx.pending>=16){this.fail(ctx,Error('JavaScript SDK event queue limit'));return false;}
+    const epoch=ctx.epoch||0;
+    const active=()=>!this.closed&&!this.suspended&&!ctx.failed&&ctx.epoch===epoch&&this.contexts.get(ctx.context)===ctx;
+    ctx.pending++;
+    ctx.queue=ctx.queue.then(async()=>{
+      if(!active())return;
+      try{
+        if(!ctx.runner)ctx.runner=this.runnerFactory(ctx.pluginUUID);
+        const result=await ctx.runner.run(ctx.action.script,{
+          event:{type:event,slot:ctx.slot,gesture:ctx.gesture||'down'},
+          settings:ctx.settings,state:ctx.state,memory:ctx.memory
+        });
+        if(!active())return;
+        check(exact(result,['ops','memory'])&&obj(result.memory)&&
+          Buffer.byteLength(JSON.stringify(result.memory))<=8192,'invalid JavaScript memory');
+        const {script,...action}=ctx.action;
+        // Reuse the API 1 operation and permission validator before applying anything.
+        validateNativeManifest({apiVersion:1,id:ctx.pluginUUID,name:'Runtime',version:'1',
+          permissions:['display'],actions:[{...action,events:{press:result.ops}}]});
+        ctx.memory=result.memory;
+        this.applyOps(ctx,result.ops);
+      }catch(error){if(active())this.fail(ctx,error);}
+    }).finally(()=>{if(ctx.epoch===epoch)ctx.pending--;});
+    return true; // accepted for dispatch; not a claim of completed execution
+  }
+  retire(ctx){
+    if(ctx.apiVersion!==2){this.run(ctx,'disappear');return;}
+    // A disappearing context cannot emit stale output. If idle, allow a
+    // bounded best-effort lifecycle callback, then dispose the renderer.
+    const runner=ctx.runner,idle=ctx.pending===0;
+    ctx.runner=null;this.resetScript(ctx);
+    if(runner){
+      if(idle&&!this.suspended&&!this.closed&&!ctx.failed&&this.retired.size<16){
+        this.retired.add(runner);
+        Promise.resolve().then(()=>runner.run(ctx.action.script,{event:{type:'disappear',slot:ctx.slot,gesture:ctx.gesture||'down'},
+          settings:ctx.settings,state:ctx.state,memory:ctx.memory})).catch(()=>{}).finally(()=>{this.retired.delete(runner);runner.close();});
+      }else runner.close();
+    }
+  }
+  run(ctx,event){
+    if(ctx.failed||this.closed||this.suspended)return false;
+    if(ctx.apiVersion===2)return this.runScript(ctx,event);
+    try{this.applyOps(ctx,ctx.action.events[event]||[]);return true;}
+    catch(error){this.fail(ctx,error);return false;}
   }
   sync(configs,manifests){
     if(this.closed)return;
@@ -108,15 +165,16 @@ class NativePluginHost{
     for(const cfg of configs){
       if(!cfg||typeof cfg.context!=='string'||!cfg.context||cfg.context.length>160||
         !Number.isInteger(cfg.slot)||cfg.slot<0||cfg.slot>18||seen.has(cfg.context))continue;
-      const a=plugins.get(cfg.pluginUUID)?.actions.find(x=>x.id===cfg.actionUUID);
+      const plugin=plugins.get(cfg.pluginUUID),a=plugin?.actions.find(x=>x.id===cfg.actionUUID);
       if(!a||!a.controllers.includes(cfg.slot>=16?'Encoder':'Keypad'))continue;
       seen.add(cfg.context);
       const incoming=obj(cfg.settings)?cfg.settings:{};
       let ctx=this.contexts.get(cfg.context);
-      const signature=JSON.stringify(a);
+      const signature=JSON.stringify([plugin.apiVersion,a]);
       if(!ctx||ctx.pluginUUID!==cfg.pluginUUID||ctx.action.id!==a.id||ctx.signature!==signature||ctx.slot!==cfg.slot||ctx.gesture!==cfg.gesture){
-        if(ctx)this.run(ctx,'disappear');
-        ctx={...cfg,action:a,signature,settings:incoming,state:0,pressed:false,failed:false};
+        if(ctx)this.retire(ctx);
+        ctx={...cfg,action:a,apiVersion:plugin.apiVersion,signature,settings:incoming,state:0,pressed:false,failed:false,
+          epoch:0,pending:0,queue:Promise.resolve(),runner:null,memory:{}};
         this.contexts.set(cfg.context,ctx);this.run(ctx,'appear');
       }else{
         const changed=JSON.stringify(ctx.settings)!==JSON.stringify(incoming);
@@ -124,7 +182,7 @@ class NativePluginHost{
         if(changed)this.run(ctx,'settings');
       }
     }
-    for(const [id,ctx] of this.contexts)if(!seen.has(id)){this.run(ctx,'disappear');this.contexts.delete(id);}
+    for(const [id,ctx] of this.contexts)if(!seen.has(id)){this.retire(ctx);this.contexts.delete(id);}
   }
   key(context,gesture,ticks=1){
     const ctx=this.contexts.get(context);
@@ -136,9 +194,10 @@ class NativePluginHost{
     for(let i=0;i<ticks;i++)if(!this.run(ctx,event))return false;
     return true;
   }
-  suspend(){this.suspended=true;for(const ctx of this.contexts.values())ctx.pressed=false;}
-  resume(){this.suspended=false;for(const ctx of this.contexts.values()){ctx.failed=false;this.run(ctx,'appear');}}
-  close(){this.closed=true;this.contexts.clear();}
+  closeRetired(){for(const runner of this.retired)runner.close();this.retired.clear();}
+  suspend(){this.suspended=true;this.closeRetired();for(const ctx of this.contexts.values()){ctx.pressed=false;this.resetScript(ctx);}}
+  resume(){if(this.closed)return;this.suspended=false;for(const ctx of this.contexts.values()){ctx.failed=false;this.run(ctx,'appear');}}
+  close(){this.closed=true;this.closeRetired();for(const ctx of this.contexts.values())this.resetScript(ctx);this.contexts.clear();}
 }
 // Compatibility host stays unchanged; only validated native IDs are routed here.
 class PluginRouter{

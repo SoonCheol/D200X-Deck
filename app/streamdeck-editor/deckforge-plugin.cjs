@@ -27,7 +27,7 @@ function validatePackageManifest(meta){
     typeof p.version!=='string'||!p.version.trim()||p.name.length>180||p.version.length>64)
     throw Error('DeckForge 플러그인 식별 정보가 올바르지 않습니다.');
   if(meta.formatVersion===2){
-    if(meta.runtime?.type!=='deckforge-sdk'||meta.runtime?.directory!=='payload'||meta.runtime?.apiVersion!==1||meta.source?.kind!=='deckforge')
+    if(meta.runtime?.type!=='deckforge-sdk'||meta.runtime?.directory!=='payload'||![1,2].includes(meta.runtime?.apiVersion)||meta.source?.kind!=='deckforge')
       throw Error('지원하지 않는 DeckForge 독자 SDK 런타임 또는 원본입니다.');
     return meta;
   }
@@ -75,7 +75,7 @@ async function parseDeckForgePackage(data){
     const raw=await item.async('nodebuffer');
     if(raw.length>NATIVE_LIMIT)throw Error('독자 SDK 프로그램 크기 제한');
     const native=validateNativeManifest(JSON.parse(raw.toString('utf8')));
-    if(native.id!==meta.plugin.id||native.name!==meta.plugin.name||native.version!==meta.plugin.version)throw Error('독자 SDK 패키지 식별 정보가 일치하지 않습니다.');
+    if(native.apiVersion!==meta.runtime.apiVersion||native.id!==meta.plugin.id||native.name!==meta.plugin.name||native.version!==meta.plugin.version)throw Error('독자 SDK 패키지 식별 정보가 일치하지 않습니다.');
     return {meta,native};
   }
   await JSZip.loadAsync(data,{checkCRC32:true});

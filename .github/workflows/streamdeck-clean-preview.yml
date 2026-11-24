@@ -132,6 +132,10 @@ jobs:
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           node --test test/deckforge-plugin.test.cjs
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          node --check app/streamdeck-editor/deckforge-js-runtime.cjs
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          & app/node_modules/.bin/electron.cmd test/deckforge-native-js-electron.cjs
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           node --check tools/fusion-mcp/server.cjs
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }

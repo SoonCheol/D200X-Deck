@@ -1,7 +1,15 @@
 # DeckForge 플러그인 규격·패키징·Ulanzi 변환 검증 계획
 
-> 기록일: 2026-11-24 · 상태: **설치 패키지 v1 유지 / 선언형 독자 SDK API 1 및 패키지 v2 첫 구현 / Ulanzi 변환기 미구현**
+> 기록일: 2026-11-24 · 상태: **패키지 v1 유지 / 독자 SDK API 1·2 및 패키지 v2 / Ulanzi 변환기 미구현**
 > 저장소·브랜치: `SoonCheol/D200X-Deck` / `codex/streamdeck-761-clean-editor`
+
+## 0.1 독자 JavaScript SDK API 2 (1.1.113)
+
+- 패키지 v2의 `runtime.apiVersion`과 native.json의 `apiVersion`을 2로 지정한다. 각 action의 `events` 대신 `script` (최대 64KiB, 동기 JavaScript 함수 본문)를 제공한다. 기존 API 1과 v1 호환 패키지는 그대로 유지한다.
+- 함수 인자 `event` (`type`, `slot`, `gesture`), `settings` (읽기용 사본), `state`, `memory` (컨텍스트별 8KiB JSON 객체), `api`. `api.setTitle`, `setState`, `toggleState`, `setImage`만 허용. 예: `if(event.type==='press'){memory.n=(memory.n||0)+1;api.setTitle(String(memory.n));}`. 설치 시 문법 검사, 실제 실행은 등록된 컨텍스트에서만.
+- Node/Electron API를 노출하지 않는 sandboxed Chromium 렌더러, 플러그인별 비영구 세션, CSP·요청 차단·권한 거부·탐색 차단, 1.5초 실행 제한, 입력/출력/메모리/큐 제한. 메인 프로세스는 반환 명령을 API 1 검사기로 재검증. 임의 OS 접근 권한을 허용하지 않으며 브라우저 취약점이나 모든 부채널까지 차단하는 완전한 보안 샌드박스라고 보장하지 않는다. 신뢰하는 플러그인만 설치한다.
+- 예외/시간 초과/큐 초과는 해당 컨텍스트를 중단하고 렌더러를 폐기한다. 페이지 이동/절전 시 대기 명령과 오래된 결과를 폐기하며, 사라지는 이벤트는 유휴 상태에서 최선 노력으로 수행한다. 다시 등록하거나 절전 복귀 시 재시작. 자동 재시도·전체 플러그인 감시, 비동기 JS, 파일·네트워크·설정 쓰기·와이드/탐색 권한은 후속.
+- Node 모의 테스트와 Windows 실제 Electron 렌더러 스모크 테스트를 추가한다. 결과 및 물리 D200X 실기는 별도 확인.
 
 ## 0. 독자 SDK API 1 (1.1.112 첫 구현)
 
