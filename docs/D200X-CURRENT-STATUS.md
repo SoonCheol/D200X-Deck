@@ -2,6 +2,12 @@
 
 > **상태 기록 기준: 2026-11-24**. 실제 최신 HEAD는 Git에서 확인하며, 코드·자동 검사·Windows 빌드·사용자 Windows/D200X 실기 결과를 구분한다. 시작 시 `AGENTS.md`와 이 문서만 읽고 로드맵은 필요한 경우에만 참고한다.
 
+## 1.1.147 — SDK 암호화 저장소 identity별 쓰기 격리 (2026-11-24)
+
+- global writer 대신 plugin/binding identity별 FIFO, 동일 identity 8개·전체 64개 대기/진행 제한. 저장 요청 시 독립 snapshot, 취소 상태 사전 확인 및 암호화 이후 재확인. revision·atomic replacement 유지.
+- 최초 파일 부재만 empty vault로 취급. 이후 read/decrypt ENOENT 포함 모든 오류는 fail-closed, 크기 재검증. 느린 A 저장 중 B 저장 성공·동일 identity 충돌·입력 mutation·decrypt 오류 회귀 fixture 추가.
+- 신규 CI/Windows/실기 별도.
+
 ## 1.1.146 — 독자 SDK bounded async/await 및 실행 realm 초기화 (2026-11-24)
 
 - API 2 AsyncFunction 문법 및 await 결과 지원. 일반 네트워크/타이머는 여전히 금지, 기존 승인된 host request continuation 사용. 작업 buffer snapshot·누적 용량·종료 후 호출 제한.

@@ -1264,3 +1264,34 @@ test('API 2 syntax supports async event bodies and cancellable deadlines settle 
  assert.equal(await deadline(()=>42,100,()=>{}),42);
  await assert.rejects(deadline(()=>new Promise(()=>{}),5,()=>{}),/timeout/);
 });
+
+test('encrypted vault isolates writers by plugin, snapshots input and never treats decrypt errors as absence',async()=>{
+ const {NativeSettingsVault}=require('../app/streamdeck-editor/deckforge-native-settings.cjs');
+ const temp=await fs.mkdtemp(path.join(os.tmpdir(),'deckforge-isolated-vault-'));
+ let unblock,started;
+ const ready=new Promise(resolve=>{started=resolve;});
+ const wait=new Promise(resolve=>{unblock=resolve;});
+ let failDecrypt=false;
+ const storage={isAsyncEncryptionAvailable:async()=>true,
+   encryptStringAsync:async value=>{const parsed=JSON.parse(value);if(parsed.id===nativeId&&parsed.value.label==='first'){started();await wait;}return Buffer.from(value);},
+   decryptStringAsync:async bytes=>{if(failDecrypt){const error=Error('provider missing');error.code='ENOENT';throw error;}return {result:bytes.toString()};}};
+ const vault=new NativeSettingsVault(temp,storage),other=nativeId+'-isolated';
+ try{
+   const input={label:'first'};
+   const first=vault.write(nativeId,input,null);
+   input.label='mutated';
+   await ready;
+   const queued=vault.write(nativeId,{label:'second'},null);
+   assert.equal(await vault.write(other,{label:'other'},null),true);
+   assert.equal((await vault.read(other)).value.label,'other');
+   unblock();
+   assert.equal(await first,true);assert.equal(await queued,false);
+   assert.equal((await vault.read(nativeId)).value.label,'first');
+   assert.equal(vault.pendingWrites,0);assert.equal(vault.writers.size,0);
+   failDecrypt=true;
+   await assert.rejects(vault.read(nativeId),/read failed/);
+   await assert.rejects(vault.write(nativeId,{label:'overwrite'},null),/read failed/);
+   failDecrypt=false;
+   assert.equal((await vault.read(nativeId)).value.label,'first');
+ }finally{unblock();await fs.rm(temp,{recursive:true,force:true});}
+});
