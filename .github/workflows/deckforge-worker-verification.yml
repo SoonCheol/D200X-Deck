@@ -5,6 +5,7 @@ on:
       - codex/streamdeck-761-clean-editor
     paths:
       - 'test/deckforge-worker-csp-electron.cjs'
+      - 'test/deckforge-worker-vm-probe.cjs'
       - '.github/workflows/deckforge-worker-verification.yml'
   workflow_dispatch:
 permissions:
@@ -30,3 +31,29 @@ jobs:
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           & app/node_modules/.bin/electron.cmd test/deckforge-worker-csp-electron.cjs
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+  guest-vm-preflight:
+    runs-on: windows-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1
+        with:
+          node-version: '22'
+      - name: Verify disposable guest JS VM candidate
+        shell: pwsh
+        run: |
+          $dir = Join-Path $env:RUNNER_TEMP ('deckforge-vm-probe-' + [guid]::NewGuid())
+          New-Item -ItemType Directory -Path $dir | Out-Null
+          $env:DECKFORGE_VM_PROBE_DIR = $dir
+          try {
+            npm install --prefix $dir --no-save --package-lock=false --ignore-scripts --no-audit --no-fund quickjs-emscripten@0.32.0
+            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+            node --check test/deckforge-worker-vm-probe.cjs
+            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+            node test/deckforge-worker-vm-probe.cjs
+            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          } finally {
+            Remove-Item -LiteralPath $dir -Recurse -Force -ErrorAction SilentlyContinue
+          }
