@@ -3777,7 +3777,8 @@ function bindNativeForegroundIconCard(root,item){
   if(!panel||!titleRow)return;
   const cards=document.createElement('div');cards.className='sdk-state-icons ha-sensor-icon-cards';
   const card=document.createElement('div');card.className='sdk-state-icon ha-sensor-edit-card';
-  const heading=document.createElement('strong');heading.textContent='Key Up';
+  const sensor=DeckCore.isNativeHaSensor(item);
+  const heading=document.createElement('strong');heading.textContent=sensor?'Key Up':'아이콘';
   const check=$('title-visible'),line=titleRow.querySelector('.title-line');
   // Move the already-bound settings button out before replacing the title row.
   const settingsButton=titleRow.querySelector('[data-sdk-inspector]');
@@ -3806,13 +3807,23 @@ function bindNativeForegroundIconCard(root,item){
   card.append(heading,titleRow,image,buttons);
   // Same two-card geometry as ordinary keys; the second card is a disabled
   // presentation placeholder, not a second sensor state or stored setting.
-  const down=card.cloneNode(true);down.classList.remove('ha-sensor-edit-card');down.classList.add('ha-sensor-disabled-card');
-  down.querySelector('strong').textContent='Key Down';down.inert=true;down.setAttribute('aria-disabled','true');
-  down.querySelectorAll('[id]').forEach(node=>node.removeAttribute('id'));
-  down.querySelectorAll('.title-style-popover').forEach(node=>node.remove());
-  down.querySelectorAll('button,input,select,textarea').forEach(node=>{node.disabled=true;node.removeAttribute('aria-controls');if(node.tagName==='INPUT'){node.value='';node.checked=false;}});
-  down.querySelector('.sdk-state-preview').replaceChildren();
-  cards.append(card,down);panel.append(cards);
+  cards.append(card);
+  if(sensor){
+    const down=document.createElement('div');down.className='sdk-state-icon ha-sensor-disabled-card';down.inert=true;down.setAttribute('aria-disabled','true');
+    const label=document.createElement('strong');label.textContent='Key Down';
+    const row=document.createElement('div');row.className='state-title-control';
+    const disabledCheck=document.createElement('input');disabledCheck.type='checkbox';disabledCheck.className='state-title-visible';disabledCheck.disabled=true;
+    const disabledTitle=document.createElement('input');disabledTitle.className='state-title-input';disabledTitle.disabled=true;
+    const disabledStyle=document.createElement('button');disabledStyle.type='button';disabledStyle.className='state-title-style';disabledStyle.textContent='T⌄';disabledStyle.disabled=true;
+    row.append(disabledCheck,disabledTitle,disabledStyle);
+    const preview=document.createElement('div');preview.className='sdk-state-preview';
+    const controls=document.createElement('div');controls.className='sdk-state-buttons';
+    for(const name of ['라이브러리','파일','클립보드','특수문자','초기화']){
+      const button=document.createElement('button');button.type='button';button.textContent=name;button.disabled=true;controls.append(button);
+    }
+    down.append(label,row,preview,controls);cards.append(down);
+  }else cards.style.gridTemplateColumns='minmax(0,232px)';
+  panel.append(cards);
 }
 function bindSdkStateIcons(root,item){
   if(DeckCore.isNativeForeground(item,typeof sdkPlugins==='undefined'?null:sdkPlugins))return;
