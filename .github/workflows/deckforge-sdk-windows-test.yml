@@ -11,7 +11,7 @@ permissions:
 jobs:
   native-sdk:
     runs-on: windows-latest
-    timeout-minutes: 15
+    timeout-minutes: 25
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1
@@ -23,6 +23,8 @@ jobs:
         working-directory: app
         run: npm ci
       - name: Verify native SDK in Electron
+        env:
+          DECKFORGE_SDK_SOAK: '1'
         shell: pwsh
         run: |
           & app/node_modules/.bin/electron.cmd test/deckforge-native-js-electron.cjs
