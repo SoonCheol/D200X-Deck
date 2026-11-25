@@ -4249,7 +4249,7 @@ async function openNativeCredentials(item,plugin){
   select.addEventListener('change',()=>{input.value='';note.textContent='';});
   const field=(name,control)=>{const row=document.createElement('label');row.className='field';const label=document.createElement('span');label.textContent=name;row.append(label,control);return row;};
   content.append(field('서버 주소',select),field('액세스 토큰',input),note);
-  const choice=await window.DeckForgeDialogs.show({anchorTop:true,title:'플러그인 인증정보',intro:plugin.name+' · 선택한 HTTPS/WSS 주소에만 사용합니다. 프로필 저장과 별개로 즉시 적용됩니다. 기존 토큰은 표시하지 않습니다.',
+  const choice=await window.DeckForgeDialogs.show({anchorTop:true,title:'플러그인 인증정보',intro:plugin.name+' · '+(plugin.uuid==='com.deckforge.native.github-status'?'api.github.com의 저장소·브랜치·Actions 읽기 조회에 사용합니다.':'선택한 HTTPS/WSS 주소에만 사용합니다.')+' 프로필 저장과 별개로 즉시 적용됩니다. 기존 토큰은 표시하지 않습니다.',
     content,ask:true,actionLabel:'암호화 저장',alternateLabel:'등록 해제',onAccept:()=>{
       if(!/^[A-Za-z0-9._~+/-]+=*$/.test(input.value)||input.value.length>4096){note.textContent='액세스 토큰 형식을 확인하세요.';return false;}return true;
     }});
@@ -4276,6 +4276,8 @@ async function openNativeSettings(item,action,plugin){
   if(!inspectorPickerCurrent(session,item))return;
   const original=clone(item.settings?.pluginSettings||{});
   const ha=plugin.uuid==='com.deckforge.native.home-assistant',haControl=ha&&action.uuid.endsWith('.control');
+  const githubBuild=plugin.uuid==='com.deckforge.native.github-status'&&action.uuid.endsWith('.build');
+  const githubFields=new Map();
   const content=document.createElement('div');content.className='native-sdk-form'+(ha?' ha-native-settings':'')+(haControl?' ha-switch-settings':'');
   let linkFlagsRow=null,linkFlags=null;
   const controlPickers=new Map();
@@ -4312,6 +4314,13 @@ async function openNativeSettings(item,action,plugin){
     const label=document.createElement('span');label.textContent=plugin.uuid==='com.deckforge.native.home-assistant'&&action.uuid.endsWith('.control')&&field.key==='entity'?'기준 기기':field.label;
     label.title=field.label;
     let input;
+    if(githubBuild&&['repository','branch','workflow'].includes(field.key)){
+      label.textContent={repository:'저장소',branch:'브랜치',workflow:'빌드 종류'}[field.key];
+      input=document.createElement('select');input.setAttribute('aria-label',label.textContent);
+      const stored=String(original[field.key]??field.default??'');
+      const option=document.createElement('option');option.value=stored;option.textContent=stored||'전체 브랜치';input.append(option);
+      githubFields.set(field.key,input);row.append(label,input);appendRow(row,field);inputs.push({field,input});continue;
+    }
     if(field.type==='dynamicSelect'||field.type==='dynamicMultiSelect'){
       const multi=field.type==='dynamicMultiSelect',stored=Object.hasOwn(original,field.key)?original[field.key]:field.default;
       let selected=DeckCore.nativeSettingValue(field,stored)?(multi?[...stored]:stored?[stored]:[]):[],options=[];
@@ -4471,6 +4480,50 @@ async function openNativeSettings(item,action,plugin){
     }catch{if(!closed)showConnection('조회 실패','error','기기 목록 조회 실패 · 서비스 상태 확인');}
     finally{refreshing=false;}
   };
+  let githubLoading=false,githubVerified=false,githubCredentialButton=null;
+  const fillGithub=(key,rows,previous,placeholder,allowEmpty=false)=>{
+    const field=githubFields.get(key);if(!field)return;
+    field.replaceChildren();
+    const add=(value,label)=>{const option=document.createElement('option');option.value=value;option.textContent=label;field.append(option);};
+    add('',placeholder);
+    if(!allowEmpty)field.options[0].disabled=true;
+    for(const row of rows)add(row.value,row.label);
+    const found=rows.find(row=>row.value===previous||key==='workflow'&&row.file===previous);
+    if(previous&&!found)add(previous,previous+' (기존 설정)');
+    field.value=found?.value||previous||'';
+  };
+  const refreshGithub=async(repositories=true)=>{
+    if(!githubBuild||closed||githubLoading)return;
+    githubLoading=true;githubVerified=false;showConnection('목록 조회 중');
+    for(const field of githubFields.values())field.disabled=true;
+    if(githubCredentialButton)githubCredentialButton.disabled=true;
+    try{
+      if(!window.deckBridge?.nativeGitHubOptions)throw Error('목록 조회 기능 없음');
+      const repo=githubFields.get('repository'),branch=githubFields.get('branch'),workflow=githubFields.get('workflow');
+      let truncated=false;
+      if(repositories){
+        const data=await window.deckBridge.nativeGitHubOptions('');
+        if(closed||!inspectorPickerCurrent(session,item))return;
+        fillGithub('repository',data.repositories,repo.value,'저장소 선택');truncated=!!data.truncated;
+      }
+      if(repo.value){
+        const data=await window.deckBridge.nativeGitHubOptions(repo.value);
+        if(closed||!inspectorPickerCurrent(session,item))return;
+        fillGithub('branch',data.branches,branch.value,'전체 브랜치',true);
+        fillGithub('workflow',data.workflows,workflow.value,'빌드 종류 선택');
+        truncated=truncated||!!data.truncated;
+      }
+      githubVerified=true;showConnection('인증 완료','success');
+      notice.textContent=truncated?'목록은 항목별 최대 500개까지 표시합니다.':'';
+    }catch(error){
+      if(!closed){showConnection('조회 실패','error');notice.textContent=String(error?.message||'GitHub 목록 조회 실패').replace(/^.*?Error: /,'');}
+    }finally{githubLoading=false;for(const field of githubFields.values())field.disabled=false;if(githubCredentialButton)githubCredentialButton.disabled=false;}
+  };
+  if(githubBuild)githubFields.get('repository')?.addEventListener('change',()=>{
+    fillGithub('branch',[],'','전체 브랜치',true);
+    fillGithub('workflow',[],'','빌드 종류 선택');
+    void refreshGithub(false);
+  });
   const toolsRow=document.createElement('div');toolsRow.className='native-sdk-tools';
   const managementRow=document.createElement('div');managementRow.className='native-sdk-tools';
   const managementTarget=haControl?managementRow:toolsRow;
@@ -4484,11 +4537,12 @@ async function openNativeSettings(item,action,plugin){
       managementTarget.append(reconnect);
     }
   }
+  if(githubBuild)toolsRow.append(connection);
   if(credentialCapable){
-    const credentialButton=document.createElement('button');credentialButton.type='button';credentialButton.className='deckforge-message-button';credentialButton.textContent='인증정보 관리';
+    const credentialButton=document.createElement('button');credentialButton.type='button';credentialButton.className='deckforge-message-button';credentialButton.textContent='인증정보 관리';if(githubBuild)githubCredentialButton=credentialButton;
     credentialButton.addEventListener('click',async()=>{
       credentialButton.disabled=true;
-      try{await openNativeCredentials(item,plugin);await refreshDynamic();}catch{window.d200xActionStatus?.('인증정보 상태 확인 실패');}
+      try{await openNativeCredentials(item,plugin);if(githubBuild)await refreshGithub();else await refreshDynamic();}catch{window.d200xActionStatus?.('인증정보 상태 확인 실패');}
       finally{credentialButton.disabled=false;}
     });managementTarget.append(credentialButton);
   }
@@ -4497,6 +4551,7 @@ async function openNativeSettings(item,action,plugin){
   let result=null;
   const poll=dynamicFields.length?setInterval(()=>void refreshDynamic(),1500):null;
   void refreshDynamic();
+  if(githubBuild)void refreshGithub();
   let accepted;
   if(haControl&&original.linked===true&&!original.linkEntity&&(original.offEntity||original.onEntity))notice.textContent='이전 연동 설정은 보존됩니다. 새 연동 기기를 선택하세요.';
   const instructions=ha?(action.uuid.endsWith('.sensor')
@@ -4511,7 +4566,7 @@ async function openNativeSettings(item,action,plugin){
   const onHelp=haControl?()=>void window.DeckForgeDialogs.show({title:action.name+' · 도움말',detail:helpText,
     content:managementRow.childElementCount?managementRow:null,actionLabel:'닫기'}):null;
   try{accepted=await window.DeckForgeDialogs.show({anchorTop:!ha,title:action.name,helpText,onHelp,
-    content,ask:true,actionLabel:haControl?'저장':'적용',onAccept:()=>{
+    content,ask:true,actionLabel:haControl||githubBuild?'저장':'적용',onAccept:()=>{
       try{
         const next={...original};
         for(const entry of inputs){
@@ -4521,6 +4576,11 @@ async function openNativeSettings(item,action,plugin){
           const value=readValue(entry);
           if(!DeckCore.nativeSettingValue(field,value)){notice.textContent=field.label+' 값을 확인하세요.';return false;}
           next[field.key]=value;
+        }
+        if(githubBuild){
+          if(githubLoading){notice.textContent='목록 조회 중입니다.';return false;}
+          if(!next.repository||!next.workflow){notice.textContent='저장소와 빌드 종류를 선택하세요.';return false;}
+          if(!githubVerified&&['repository','branch','workflow'].some(key=>next[key]!==String(original[key]??schema.find(f=>f.key===key)?.default??''))){notice.textContent='GitHub 인증 및 목록 조회를 확인하세요.';return false;}
         }
         if(haControl){
           if(!next.entity){notice.textContent='기준 기기를 선택하세요.';return false;}

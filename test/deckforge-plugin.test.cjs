@@ -3255,3 +3255,23 @@ test('scheduler admission pressure retries only unexecuted work and preserves co
   assert.equal(calls,3,'an actual execution error is not replayed');}
  finally{host.close();}
 });
+
+test('GitHub build discovery returns bounded repository, branch and workflow selections without leaking tokens',async()=>{
+  const {discoverGitHubBuildOptions}=require('../app/deckforge-editor/deckforge-github-plugin.cjs');
+  const seen=[],bearer='fixture.secret-token';
+  const request=async(endpoint,body,signal,opts)=>{
+    seen.push(endpoint.url);assert.equal(endpoint.method,'GET');assert.equal(opts.bearer,bearer);
+    const url=new URL(endpoint.url);assert.equal(url.origin,'https://api.github.com');
+    const rows=url.pathname==='/user/repos'?[{full_name:'Owner/Repo'},{full_name:'Bad/../Repo'}]:
+      url.pathname.endsWith('/branches')?[{name:'main'},{name:'feature/x'}]:
+      {workflows:[{id:42,name:'Windows build',path:'.github/workflows/build.yml'}]};
+    return {ok:true,body:JSON.stringify(rows)};
+  };
+  assert.deepEqual(await discoverGitHubBuildOptions('',bearer,request),{repositories:[{value:'Owner/Repo',label:'Owner/Repo'}],truncated:false});
+  const detail=await discoverGitHubBuildOptions('Owner/Repo',bearer,request);
+  assert.deepEqual(detail.workflows,[{value:'42',label:'Windows build',file:'build.yml'}]);
+  assert.equal(detail.branches.length,2);assert.equal(seen.length,3);
+  await assert.rejects(discoverGitHubBuildOptions('../Repo',bearer,request),/저장소 이름/);
+  await assert.rejects(discoverGitHubBuildOptions('',null,request),/토큰 등록/);
+  await assert.rejects(discoverGitHubBuildOptions('',bearer,async()=>({ok:false,status:401})),/인증 실패/);
+});

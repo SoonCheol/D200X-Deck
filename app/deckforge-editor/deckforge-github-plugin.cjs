@@ -77,4 +77,36 @@ function createGitHubManifest(){
       settingsSchema:[field('label','표시 이름','DeckForge',100),field('repository','저장소 (소유자/이름)','SoonCheol/D200X-Deck',256),field('workflow','빌드 파일명 또는 ID','deckforge-windows-build.yml'),field('branch','브랜치 (빈 값: 전체)','codex/streamdeck-761-clean-editor',256),{key:'marquee',label:'긴 이름 흐르기',type:'boolean',default:true},{key:'marqueeSpeed',label:'마퀴 속도',type:'select',default:'1000',options:[{value:'1000',label:'빠르게 (1초)'},{value:'2000',label:'보통 (2초)'},{value:'3000',label:'느리게 (3초)'}]},{key:'refresh',label:'자동 갱신 간격',type:'select',default:'auto',options:[{value:'auto',label:'자동 (5/15초)'},...['5000','10000','15000','30000'].map(value=>({value,label:Number(value)/1000+'초'}))]}],settingsUI:[{key:'marqueeSpeed',visibleWhen:{key:'marquee',equals:true}}]}]
   };
 }
-module.exports={createGitHubManifest,buildKey};
+// Host-only discovery. The renderer supplies a repository name, never a URL or token.
+async function discoverGitHubBuildOptions(repository,bearer,request=require('./deckforge-native-network.cjs').requestEndpoint){
+  const {validBearer}=require('./deckforge-native-network.cjs');
+  if(!validBearer(bearer))throw Error('토큰 등록 필요');
+  const segment=s=>/^[A-Za-z0-9_.~-]{1,128}$/.test(s)&&s!=='.'&&s!=='..';
+  if(typeof repository!=='string'||repository.length>256||(repository&&(repository.split('/').length!==2||!repository.split('/').every(segment))))throw Error('저장소 이름 확인');
+  const clean=(v,max)=>typeof v==='string'&&v.length>0&&v.length<=max&&!/[\x00-\x1f\x7f]/.test(v)&&!v.includes(bearer);
+  const list=async(path,key,map)=>{
+    const rows=[];let truncated=false;
+    for(let page=1;page<=10;page++){
+      const endpoint={id:'github-catalog',url:'https://api.github.com'+path+'?per_page=50&page='+page,method:'GET',auth:'bearer'};
+      const result=await request(endpoint,null,null,{bearer,maxBytes:1048576});
+      if(!result?.ok)throw Error(result?.status===401?'인증 실패':result?.status===403?'권한 또는 API 한도 확인':result?.status===404?'저장소 또는 Actions 권한 확인':'목록 조회 실패');
+      if(typeof result.body!=='string'||result.body.length>1048576||result.body.includes(bearer))throw Error('목록 응답 오류');
+      let json;try{json=JSON.parse(result.body);}catch{throw Error('목록 응답 오류');}
+      const items=key?json?.[key]:json;
+      if(!Array.isArray(items)||items.length>50)throw Error('목록 응답 오류');
+      for(const row of items){const value=map(row);if(value)rows.push(value);}
+      if(items.length<50)break;
+      if(page===10)truncated=true;
+    }
+    return {items:[...new Map(rows.map(row=>[row.value,row])).values()].sort((a,b)=>a.label.localeCompare(b.label,'ko')),truncated};
+  };
+  if(!repository){
+    const repositories=await list('/user/repos',null,row=>clean(row?.full_name,256)&&row.full_name.split('/').length===2&&row.full_name.split('/').every(segment)?{value:row.full_name,label:row.full_name}:null);
+    return {repositories:repositories.items,truncated:repositories.truncated};
+  }
+  const base='/repos/'+repository.split('/').map(encodeURIComponent).join('/');
+  const branches=await list(base+'/branches',null,row=>clean(row?.name,256)?{value:row.name,label:row.name}:null);
+  const workflows=await list(base+'/actions/workflows','workflows',row=>Number.isSafeInteger(row?.id)&&row.id>0&&clean(row.name,256)&&clean(row.path,1024)?{value:String(row.id),label:row.name,file:row.path.split('/').at(-1)}:null);
+  return {branches:branches.items,workflows:workflows.items,truncated:branches.truncated||workflows.truncated};
+}
+module.exports={createGitHubManifest,buildKey,discoverGitHubBuildOptions};

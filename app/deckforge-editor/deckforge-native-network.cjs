@@ -124,7 +124,9 @@ function normalizeNetworkResult(endpoint,result,bearer=null){
   if(bearer!==null&&result.body.includes(bearer))return networkFailure(endpoint.id,'credential-in-response',result.status);
   return {endpoint:endpoint.id,ok:true,status:result.status,body:result.body,error:null};
 }
-function requestEndpoint(endpoint,body,signal,{request=https.request,deadline=DEADLINE,bearer=null}={}){
+function requestEndpoint(endpoint,body,signal,{request=https.request,deadline=DEADLINE,bearer=null,maxBytes=responseLimit(endpoint)}={}){
+  // maxBytes is a host-only transport option, not a guest manifest capability.
+  const limit=maxBytes===1048576?maxBytes:responseLimit(endpoint);
   return new Promise(resolve=>{
     let req,timer,done=false;
     const fail=(code,status)=>finish(networkFailure(endpoint.id,code,status));
@@ -155,7 +157,7 @@ function requestEndpoint(endpoint,body,signal,{request=https.request,deadline=DE
         const chunks=[];let bytes=0;
         res.on('data',chunk=>{
           bytes+=chunk.length;
-          if(bytes>responseLimit(endpoint)){fail('response-limit',status);res.destroy();req.destroy();}
+          if(bytes>limit){fail('response-limit',status);res.destroy();req.destroy();}
           else chunks.push(chunk);
         });
         res.on('error',()=>fail('response-error',status));
@@ -164,7 +166,7 @@ function requestEndpoint(endpoint,body,signal,{request=https.request,deadline=DE
           const text=Buffer.concat(chunks).toString('utf8');
           if(bearer!==null&&text.includes(bearer)){fail('credential-in-response',status);return;}
           // The serialized result must also fit within the renderer input cap.
-          if(Buffer.byteLength(JSON.stringify(text))>responseLimit(endpoint)){fail('response-limit',status);return;}
+          if(Buffer.byteLength(JSON.stringify(text))>limit){fail('response-limit',status);return;}
           finish({endpoint:endpoint.id,ok:true,status,body:text,error:null});
         });
       });

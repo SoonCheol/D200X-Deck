@@ -154,6 +154,32 @@ app.whenReady().then(async()=>{
     assert.ok(Math.abs(removal.positions.labelPadding-7)<1,JSON.stringify(removal.positions));
     assert.ok(removal.positions.decimalTops.every(y=>Math.abs(y-removal.positions.decimalTops[0])<1),JSON.stringify(removal.positions));
     console.log('HA_SENSOR_REMOVE_OK '+JSON.stringify(removal));
+    const githubManifest=require('../app/deckforge-editor/deckforge-github-plugin.cjs').createGitHubManifest();
+    const githubAction=githubManifest.actions[0],githubPlugin={uuid:githubManifest.id,name:githubManifest.name,permissions:githubManifest.permissions};
+    const github=await run(`(async()=>{
+      const bridge=window.deckBridge,calls=[];
+      window.deckBridge={nativeGitHubOptions:async repo=>{calls.push(repo);if(!repo)return {repositories:[{value:'SoonCheol/D200X-Deck',label:'SoonCheol/D200X-Deck'},{value:'Owner/Other',label:'Owner/Other'}]};
+        return repo==='Owner/Other'?{branches:[{value:'main',label:'main'}],workflows:[{value:'24',label:'Other build',file:'other.yml'}]}:{branches:[{value:'codex/streamdeck-761-clean-editor',label:'codex/streamdeck-761-clean-editor'}],workflows:[{value:'42',label:'Windows build',file:'deckforge-windows-build.yml'}]};}};
+      state.selected=0;inspectorSession=null;
+      const item={type:'sd-plugin',settings:{pluginUUID:'${githubManifest.id}',actionUUID:'${githubAction.id}',pluginSettings:{repository:'SoonCheol/D200X-Deck',branch:'codex/streamdeck-761-clean-editor',workflow:'deckforge-windows-build.yml'}}};
+      currentPage()[0]=item;beginInspectorSession();
+      const p=openNativeSettings(item,${JSON.stringify({...githubAction,uuid:githubAction.id})},${JSON.stringify(githubPlugin)});
+      await new Promise(resolve=>setTimeout(resolve,0));
+      const d=document.querySelector('dialog[open]');
+      const repo=d.querySelector('select[aria-label="저장소"]'),branch=d.querySelector('select[aria-label="브랜치"]'),workflow=d.querySelector('select[aria-label="빌드 종류"]');
+      const initial=[repo.value,branch.value,workflow.value,workflow.selectedOptions[0].textContent];
+      const verified=d.querySelector('.native-sdk-connection').textContent;
+      repo.value='Owner/Other';repo.dispatchEvent(new Event('change',{bubbles:true}));await new Promise(resolve=>setTimeout(resolve,0));
+      const reset=[branch.value,workflow.value];branch.value='main';workflow.value='24';
+      d.querySelector('.deckforge-message-primary').click();await p;
+      const saved=item.settings.pluginSettings;window.deckBridge=bridge;
+      return {initial,verified,reset,calls,saved};
+    })()`);
+    assert.deepEqual(github.initial,['SoonCheol/D200X-Deck','codex/streamdeck-761-clean-editor','42','Windows build']);
+    assert.equal(github.verified,'인증 완료');assert.deepEqual(github.reset,['','']);
+    assert.deepEqual(github.calls,['','SoonCheol/D200X-Deck','Owner/Other']);
+    assert.equal(github.saved.repository,'Owner/Other');assert.equal(github.saved.branch,'main');assert.equal(github.saved.workflow,'24');
+    console.log('GITHUB_BUILD_SETTINGS_OK '+JSON.stringify(github));
     const previews=await run(`(async()=>{
       const bridge=window.deckBridge;let executions=0,reads=0;
       window.deckBridge={sendHotkey:()=>{executions++;},nativeHaSensorPreview:async(_settings,index)=>{reads++;return {width:144,height:144,commands:[{type:'text',x:72,y:72,text:String(index),size:24,color:'#FFFFFF'}]};}};

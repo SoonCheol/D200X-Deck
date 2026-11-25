@@ -218,6 +218,7 @@ ipcMain.handle('d200x:native-github-install',async event=>{
     audit.stage('execute');return plan.kind==='install'?sdk().installNative(manifest):sdk().replaceNative(manifest,plan.currentRevision);
   });
 });
+ipcMain.handle('d200x:native-github-options',async(event,repository)=>{assertEditor(event);return sdk().githubBuildOptions(repository);});
 ipcMain.handle('d200x:native-credential-info',async(event,id)=>{assertEditor(event);return sdk().credentialInfo(id);});
 ipcMain.handle('d200x:native-credential-write',async(event,id,binding,revision,token)=>{
   assertEditor(event);

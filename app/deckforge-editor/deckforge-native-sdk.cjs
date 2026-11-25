@@ -1348,6 +1348,27 @@ class PluginRouter{
       .filter(f=>f.type==='dynamicSelect'||f.type==='dynamicMultiSelect')
       .map(f=>[f.key,nativeDynamicOptions(f,snapshot)]))};
   });}
+  async githubBuildOptions(repository){
+    const id='com.deckforge.native.github-status';
+    check(!this.githubCatalogPending,'GitHub 목록 조회 중');
+    this.githubCatalogPending=true;
+    try{
+      const auth=await this.serial(async()=>{
+        const {native}=await this.catalog(),manifest=native.find(m=>m.id===id);
+        const endpoint=manifest?.networkEndpoints?.find(e=>e.id==='runs');
+        const expected=require('./deckforge-github-plugin.cjs').createGitHubManifest().networkEndpoints[0];
+        check(endpoint&&credentialBinding(id,endpoint)===credentialBinding(id,expected),'GitHub 인증 대상 확인');
+        const binding=credentialBinding(id,endpoint);
+        check(!this.native.credentialChanges.has(binding),'인증정보 변경 중');
+        const {value,revision}=await this.native.credentials.read(binding);
+        return {binding,revision,bearer:value.token};
+      });
+      const result=await require('./deckforge-github-plugin.cjs').discoverGitHubBuildOptions(repository,auth.bearer);
+      const current=await this.native.credentials.read(auth.binding);
+      check(!this.native.closed&&!this.native.credentialChanges.has(auth.binding)&&current.revision===auth.revision,'인증정보 변경됨');
+      return result;
+    }finally{this.githubCatalogPending=false;}
+  }
   credentialInfo(pluginId){return this.serial(async()=>{
     const {native}=await this.catalog(),manifest=native.find(m=>m.id===pluginId);
     check(manifest,'native plugin not installed');return this.native.credentialInfo(manifest);

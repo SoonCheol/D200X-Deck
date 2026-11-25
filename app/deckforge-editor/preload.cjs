@@ -44,6 +44,7 @@ contextBridge.exposeInMainWorld('deckBridge', Object.freeze({
   nativeHaSensorPreview:(settings,index)=>ipcRenderer.invoke('d200x:native-ha-sensor-preview',settings,index),
   nativeHaInstall:(url,mode)=>ipcRenderer.invoke('d200x:native-ha-install',url,mode),
   nativeGitHubInstall:()=>ipcRenderer.invoke('d200x:native-github-install'),
+  nativeGitHubOptions:repository=>ipcRenderer.invoke('d200x:native-github-options',repository),
   nativeCredentialInfo:id=>ipcRenderer.invoke('d200x:native-credential-info',id),
   nativeCredentialWrite:(id,binding,revision,token)=>ipcRenderer.invoke('d200x:native-credential-write',id,binding,revision,token),
   fusionHealth: () => ipcRenderer.invoke('d200x:fusion-health'),
