@@ -157,18 +157,21 @@ async function verifyGuestFaults(wc,service){
  const input={event:{type:'press'},settings:{},state:0,memory:{}};
  const run=(source,ms,kind='event')=>deadline(()=>wc.executeJavaScript('('+runSdkEvent.toString()+')('+[worker,randomUUID(),guestProgram(source,input),ms,kind].map(JSON.stringify).join(',')+')'),ms+3000,()=>{});
  const serviceInput={...input,event:{type:'start',scope:'service'}};
- const pid=service.processId();
+ const buttonPid=wc.getOSProcessId(),servicePids=[service.processId()];
+ const observeService=()=>{const pid=service.processId();assert.ok(!service.isClosed());assert.ok(pid>0&&pid!==buttonPid);servicePids.push(pid);};
+ observeService();
  const allocation=await run('const bytes=new ArrayBuffer(64*1024*1024);api.setTitle("unexpected");',1500);
  assert.equal(allocation.kind,'error');assert.match(allocation.message,/out of memory|allocation/i);assert.notEqual(allocation.interrupted,true);
  const hanging=run('void 0;',1000,'watchdog');
  const alive=await service.run('api.setTitle("during");',serviceInput);
- assert.equal(alive.ops[0].value,'during');
+ assert.equal(alive.ops[0].value,'during');observeService();
  assert.equal((await hanging).kind,'timeout');
  const next=await run('api.setTitle("recovered");',1500);
  assert.equal(next.kind,'result');assert.equal(next.value.ops[0].value,'recovered');
- assert.equal(service.processId(),pid);
+ assert.equal((await service.run('api.setTitle("after");',serviceInput)).ops[0].value,'after');observeService();
+ assert.equal(wc.getOSProcessId(),buttonPid);
  assert.equal(await wc.executeJavaScript('globalThis.__dfGuestRuns?.size||0'),0);
- console.log('MODEL5_GUEST_FAULTS '+JSON.stringify({guestAllocationRejected:true,guestHeapLimitMiB:32,actualRendererOom:false,outerWorkerWatchdog:true,nextEventRecovered:true,serviceSurvived:true,servicePid:pid,productionEnabled:false}));
+ console.log('MODEL5_GUEST_FAULTS '+JSON.stringify({guestAllocationRejected:true,guestHeapLimitMiB:32,actualRendererOom:false,outerWorkerWatchdog:true,nextEventRecovered:true,serviceRespondedDuringAndAfter:true,serviceRunnerOpen:true,servicePids,servicePidStable:new Set(servicePids).size===1,productionEnabled:false}));
 }
 async function verifyGuestSoak(wc,service){
  const id='com.deckforge.native.guest-soak';
@@ -179,8 +182,10 @@ async function verifyGuestSoak(wc,service){
  validateNativeManifest(manifest);
  const host=new NativePluginHost('/unused',v=>{if(v.kind==='setTitle')counts.set(v.context,v.payload.title);},()=>candidateRunner(wc));
  const input={event:{type:'start',scope:'service'},settings:{},state:0,memory:{}};
- const buttonPid=wc.getOSProcessId(),servicePid=service.processId();
- assert.ok(buttonPid>0&&servicePid>0&&buttonPid!==servicePid);
+ const buttonPid=wc.getOSProcessId(),initialServicePid=service.processId();
+ assert.ok(buttonPid>0&&initialServicePid>0&&buttonPid!==initialServicePid);
+ const servicePids=new Set([initialServicePid]);let lastServicePid=initialServicePid,servicePidChanges=0;
+ const observeService=()=>{const pid=service.processId();assert.ok(!service.isClosed());assert.ok(pid>0&&pid!==buttonPid);if(pid!==lastServicePid)servicePidChanges++;lastServicePid=pid;servicePids.add(pid);return pid;};
  const start=performance.now(),duration=300000,samples=[];
  let cycles=0,presses=0,serviceChecks=0;
  const sample=async()=>{
@@ -188,8 +193,8 @@ async function verifyGuestSoak(wc,service){
    const memory=pid=>metrics.find(m=>m.pid===pid)?.memory?.workingSetSize??null;
    const activeWorkers=await wc.executeJavaScript('globalThis.__dfGuestRuns?.size||0');
    assert.equal(activeWorkers,0);
-   assert.equal(wc.getOSProcessId(),buttonPid);assert.equal(service.processId(),servicePid);
-   samples.push({cycle:cycles,elapsedMs:Math.round(performance.now()-start),buttonWorkingSetKiB:memory(buttonPid),serviceWorkingSetKiB:memory(servicePid),mainHeapBytes:process.memoryUsage().heapUsed,activeWorkers});
+   assert.equal(wc.getOSProcessId(),buttonPid);const servicePid=observeService();
+   samples.push({cycle:cycles,elapsedMs:Math.round(performance.now()-start),buttonWorkingSetKiB:memory(buttonPid),servicePid,serviceWorkingSetKiB:memory(servicePid),mainHeapBytes:process.memoryUsage().heapUsed,activeWorkers});
  };
  const drain=async ids=>{await Promise.all(ids.map(k=>{const ctx=host.contexts.get(k);assert.ok(ctx);return ctx.queue;}));};
  try{
@@ -204,7 +209,7 @@ async function verifyGuestSoak(wc,service){
      assert.ok(host.key(key,'down'));assert.ok(host.key(key,'up'));
    }
    const pending=drain(ids);
-   assert.equal((await service.run('api.setTitle("alive");',input)).ops[0].value,'alive');serviceChecks++;
+   observeService();assert.equal((await service.run('api.setTitle("alive");',input)).ops[0].value,'alive');observeService();serviceChecks++;
    await pending;
    for(let i=0;i<ids.length;i++){
     const ctx=host.contexts.get(ids[i]);assert.equal(ctx.failed,false);assert.deepEqual(ctx.memory,{count:1});
@@ -215,7 +220,7 @@ async function verifyGuestSoak(wc,service){
   }
   assert.ok(cycles>=2);
   host.sync([],[manifest]);await sample();
-  console.log('MODEL5_GUEST_SOAK '+JSON.stringify({elapsedMs:Math.round(performance.now()-start),pageCycles:cycles,presses,serviceChecks,buttonsPerPage:13,buttonPid,servicePid,samples,actualChromiumWorker:true,actualNativeHost:true,physicalDevice:false,actualRendererOom:false,productionEnabled:false}));
+  console.log('MODEL5_GUEST_SOAK '+JSON.stringify({elapsedMs:Math.round(performance.now()-start),pageCycles:cycles,presses,serviceChecks,buttonsPerPage:13,buttonPid,initialServicePid,servicePidChanges,distinctServicePids:servicePids.size,servicePidStable:servicePidChanges===0,samples,actualChromiumWorker:true,actualNativeHost:true,physicalDevice:false,actualRendererOom:false,productionEnabled:false}));
  }finally{host.close();}
 }
 
