@@ -754,6 +754,24 @@ test('native service management cannot recreate contexts after shutdown during p
   }
  }finally{release?.();await task?.catch(()=>{});host?.close();await fs.rm(temp,{recursive:true,force:true});}
 });
+test('native elapsed clock and socket rate limit ignore wall clock changes',()=>{
+ const {performance}=require('node:perf_hooks');
+ const host=new NativePluginHost('/unused',()=>{},()=>({close(){}}));
+ const original=Date.now,token={};
+ try{
+  const before=performance.now(),observed=host.now();
+  assert.ok(observed>=before&&observed<=performance.now());
+  for(let i=0;i<8;i++)assert.equal(host.socketRate(token,'receive'),true);
+  const started=token.receiveRate.start,wall=original();
+  // Keep the simulation synchronous so no other asynchronous task observes it.
+  Date.now=()=>wall+86400000;
+  assert.equal(host.socketRate(token,'receive'),false);
+  Date.now=()=>wall-86400000;
+  assert.equal(host.socketRate(token,'receive'),false);
+  assert.equal(token.receiveRate.start,started);
+  assert.ok(host.now()>=observed);
+ }finally{Date.now=original;host.close();}
+});
 test('native action service message is same-plugin and input-only, delivered once across page change',async()=>{
  const m={...scriptManifest,permissions:['display','background.run','network.request'],service:{script:'service'},networkEndpoints:[{id:'toggle',method:'POST',url:'https://example.com/toggle'}]};
  const calls=[],events=[];

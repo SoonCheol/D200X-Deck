@@ -3,6 +3,7 @@
 const fs=require('node:fs/promises');
 const path=require('node:path');
 const {randomUUID,createHash}=require('node:crypto');
+const {performance}=require('node:perf_hooks');
 const {SdkScheduler}=require('./deckforge-sdk-scheduler.cjs');
 const {verifyPng}=require('./ulanzi-png-verifier.cjs');
 const {pixelImage}=require('./deckforge-pixel-image.cjs');
@@ -165,7 +166,10 @@ class NativePluginHost{
     this.socketRetryDelays=options.socketRetryDelays||[1000,3000,10000];
     this.socketHeartbeatMs=options.socketHeartbeatMs??30000;this.socketPongMs=options.socketPongMs??10000;
     this.socketAuthMs=options.socketAuthMs??5000;
-    this.tickTimer=null;this.now=options.now||Date.now;
+    // Use elapsed time for periodic work and rate limits. Wall clock changes
+    // must not postpone ticks or reset request/socket limits. Cross-process
+    // settings receipt timestamps retain their existing wall-clock contract.
+    this.tickTimer=null;this.now=options.now||(()=>performance.now());
     this.scheduler=new SdkScheduler();
     this.settingsReceiptTimeout=options.settingsReceiptTimeout??5000;
     this.animations=new NativeAnimationPlayer((ctx,image)=>this.onUpdate({kind:'setImage',context:ctx.context,payload:{image}}),options.animationNow);

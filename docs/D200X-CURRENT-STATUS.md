@@ -2,7 +2,7 @@
 > 2026-11-25 · 현재 스냅샷, 누적 금지.
 ## 개발 기준
 - 저장소 SoonCheol/D200X-Deck · 브랜치 codex/streamdeck-761-clean-editor · Draft PR #5 유지.
-- 로컬 E:\Codex\DeckForge. 최신 HEAD는 Git에서 확인. 소스 버전 **2.0.41** (GitHub 마퀴·자동 조회; 2.0.7 센서 UI 사용자 정상 확인).
+- 로컬 E:\Codex\DeckForge. 최신 HEAD는 Git에서 확인. 소스 버전 **2.0.42** (GitHub 마퀴·자동 조회; 2.0.7 센서 UI 사용자 정상 확인).
 - 감사 기준 `49ba39fe094ee808c5715f2348be0789f61d5e20`. CI #1221 성공; Windows #930 사용자 인수인계.
 ## 현재 상태
 - 독자 SDK API 1/2, 공개 25개 함수, HTTP/WSS, 전역 서비스/공유 상태, 동적 속성, 암호화·권한·패키지, HA 0.1.8 후보 및 Stream Deck 호환 호스트 구현. SDK 1.0 정식 완성 선언 보류.
@@ -17,7 +17,7 @@
 - 1.1.231: identity 19행 대조·집중 검사, CI #1281/입력 #521/Windows #985 성공, 게시. 1.1.232: 저장 13행 대응·종료 commit 차단. CI #1282/입력 #522 성공, Windows #986 clean fixture 실패(kind 누락), 종료/페이지·삭제/retire 검사 통과. 1.1.233: fixture 수정 CI #1283/Windows #987 성공, 게시. 1.1.234: 실제 Electron NativePluginHost+임시 ProfileStore, 요청 전/저장 후 ACK 전 renderer crash, 재조회·재실행 금지 검증 추가. CI #1284·Windows #988 성공, 1.1.234 설치본 게시.
 - 1.1.230: CI #1278, Windows #984 attempt2 전체 성공. 실제 idle/active crash·거부·서비스/peer 생존·새 이벤트 복구, 25함수·vault 통과. 1차 npm 404 해소(버전 변경 없음). deckforge-v1.1.230 게시, EXE 135231273 bytes. 현재 root suite 45/45 실행 명령 확인, 초기 helper skip 3개와 후속 패키지 검사 구분.
 ## 다음 작업
-- 2.0.42 예정: 독자 SDK tick/periodic request/WebSocket rate/backpressure의 경과 시간을 monotonic clock으로 전환. 설정 receipt의 교차 프로세스 wall clock 계약 유지.
+- 2.0.42: 독자 SDK tick/periodic request/WebSocket rate/backpressure 경과 시간 monotonic clock 전환. 시스템 시계 ±24시간 변경 중 제한 유지 집중 검사 추가. 설정 receipt wall clock 계약 보존. 신규 CI/Windows 결과 대기.
 - 2.0.41: 독자 서비스 관리 중 종료 시 설정 읽기/쓰기 이후 재생성 차단. 이미 확정된 설정 보존. 읽기 중 종료/저장 확정 후 종료 집중 검사 추가. CI #1405 성공, Windows #44 패키징 진행 중.
 - 2.0.40: 독자 서비스 시작 정책 동시 읽기 경쟁 해결. 공통 Promise 완료 전 서비스 시작 차단, 정지/오류 정책 보존, 동시 읽기 회귀 검사 추가. CI #1403 성공, Windows #43 진행 중. 외부 호환 엔진 추가 개발 보류.
 - SDK #93 실제 OOM 통과(reason=oom), 서비스/peer 생존, 입력 복구 및 5분 soak(1391 press/105 전환/274 tick), 임시 ProfileStore 장애 검사 통과. CI #1401 성공. 실제 장치/OS 절전 및 전원 손실 별도.
