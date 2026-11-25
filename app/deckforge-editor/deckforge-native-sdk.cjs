@@ -851,8 +851,8 @@ class NativePluginHost{
           });
         },this.runnerPool?(ctx.service?'service':'button'):null);
         if(!active())return;
-        check(exact(result,['ops','memory'])&&obj(result.memory)&&
-          Buffer.byteLength(JSON.stringify(result.memory))<=8192,'invalid JavaScript memory');
+        check(exact(result,['ops','memory'])&&obj(result.memory),'invalid JavaScript memory');
+        validateValue(result.memory,8192);
         const {normal,effects}=this.validateScriptOps(ctx,event,result.ops);
         for(const operation of effects){
           if(operation.op==='settings'){

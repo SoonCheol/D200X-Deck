@@ -9,6 +9,51 @@ const {NativeSettingsVault}=require('../app/deckforge-editor/deckforge-native-se
 const assert=require('node:assert/strict');
 const {createScriptRunner}=require('../app/deckforge-editor/deckforge-js-runtime.cjs');
 const input={event:{type:'press',slot:0,gesture:'down'},settings:{},state:0,memory:{}};
+
+async function verifyModel2SerializationBoundary(){
+ const scripts=[
+  'api.setTitle("legitimate");Object.prototype.toJSON=()=>({ops:[{op:"title",value:"forged"}],memory:{}});',
+  'Object.prototype.toJSON=()=>({op:"title",value:"forged"});api.setTitle("legitimate");',
+  'api.setTitle("legitimate");Array.prototype.toJSON=()=>[{op:"title",value:"forged"}];'
+ ];
+ for(let i=0;i<scripts.length;i++){
+  const runner=createScriptRunner('com.deckforge.native.serialization-'+i,'button');
+  try{await assert.rejects(runner.run(scripts[i],input),/unsafe SDK serialization hook/);}
+  finally{runner.close();}
+ }
+ const safe=createScriptRunner('com.deckforge.native.serialization-safe','button');
+ try{
+  const result=await safe.run('api.setTitle("normal");memory.list=[1,{value:"ok"}];',input);
+  assert.deepEqual(result,{ops:[{op:'title',value:'normal'}],memory:{list:[1,{value:'ok'}]}});
+ }finally{safe.close();}
+ const {NativePluginHost,validateNativeManifest}=require('../app/deckforge-editor/deckforge-native-sdk.cjs');
+ const id='com.deckforge.native.memory-validation',updates=[];
+ const root=await fs.mkdtemp(path.join(os.tmpdir(),'deckforge-memory-boundary-'));
+ const host=new NativePluginHost(root,e=>updates.push(e));
+ try{
+  const cases=[
+   'memory["__proto__"]=null;Object.defineProperty(memory,"__proto__",{value:{bad:1},enumerable:true});',
+   'memory.nested={constructor:{bad:1}};',
+   'memory.nested={prototype:{bad:1}};',
+   'let n=memory;for(let i=0;i<14;i++){n.next={};n=n.next;}',
+   'memory.text="x".repeat(8192);'
+  ];
+  for(let i=0;i<cases.length;i++){
+   const action={id:id+'.key',name:'Memory validation',controllers:['Keypad'],states:2,script:'if(event.type==="press"){'+cases[i]+'api.setTitle("must-not-apply");}'};
+   const manifest={apiVersion:2,id,name:'Memory validation',version:'1.0.0',permissions:['display'],actions:[action]};
+   validateNativeManifest(manifest);
+   const context='memory-'+i;
+   host.sync([{context,pluginUUID:id,actionUUID:action.id,slot:0,gesture:'down',settings:{}}],[manifest]);
+   const ctx=host.contexts.get(context);assert.ok(ctx);await ctx.queue;
+   assert.equal(ctx.failed,false);
+   assert.ok(host.key(context,'down'));await ctx.queue;
+   assert.equal(ctx.failed,true);assert.deepEqual(ctx.memory,{});
+   assert.equal(updates.some(e=>e.context===context&&e.payload?.title==='must-not-apply'),false);
+  }
+ }finally{host.close();await fs.rm(root,{recursive:true,force:true});}
+ console.log('MODEL2_SERIALIZATION_BOUNDARY '+JSON.stringify({prototypeHooksRejected:3,normalRoundTrip:true,unsafeMemoryRejected:5,effectsNotApplied:true,actualElectron:true}));
+}
+
 async function verifyWindowsEncryption(){
   if(process.platform!=='win32')return;
   const root=await fs.mkdtemp(path.join(os.tmpdir(),'deckforge-native-real-vault-'));
@@ -747,6 +792,7 @@ app.whenReady().then(async()=>{
     await verifyModel2MountedPageCycles();
     await verifySettingsProcessLoss();
     await verifyTrustedDrawOps(b);
+    await verifyModel2SerializationBoundary();
     await verifyPublicApi(b);
     await verifyHomeAssistant(b);
     await verifyWindowsEncryption();

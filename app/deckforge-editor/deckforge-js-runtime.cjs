@@ -29,14 +29,23 @@ function deadline(work,ms,onTimeout,signal){
 async function runProgram(source,input){
   'use strict';
   const stringify=JSON.stringify.bind(JSON),parse=JSON.parse.bind(JSON),ops=[];
-  const push=Array.prototype.push.bind(ops);
+  const push=Array.prototype.push.bind(ops),join=Array.prototype.join.bind(ops);
+  const setPrototype=Object.setPrototypeOf.bind(Object),own=Object.getOwnPropertyDescriptor.bind(Object);
+  const objectProto=Object.prototype,arrayProto=Array.prototype;
+  // Private operation snapshots must never inherit a guest-controlled JSON hook.
+  setPrototype(ops,null);
+  const assertSerialization=()=>{
+    if(own(objectProto,'toJSON')||own(arrayProto,'toJSON'))throw Error('unsafe SDK serialization hook');
+  };
   let sealed=false,budget=0;
   const append=op=>{
     if(sealed)throw Error('event already completed');
     if(ops.length>=16)throw Error('operation limit');
-    const data=stringify(op);
+    assertSerialization();
+    const data=stringify(setPrototype(op,null));
+    assertSerialization();
     if(typeof data!=='string'||(budget+=data.length)>512*1024)throw Error('operation data limit');
-    push(parse(data));
+    push(data);
   };
   // A small, local drawing API for dynamically generated key artwork.
   // No external fonts/images, URLs, markup, or arbitrary host-side drawing.
@@ -112,7 +121,13 @@ async function runProgram(source,input){
   const run=new AsyncFunction('event','settings','state','memory','api','"use strict";\n'+source);
   try{await run(Object.freeze(input.event),input.settings,input.state,input.memory,api);}
   finally{sealed=true;}
-  const out=stringify({ops,memory:input.memory});
+  assertSerialization();
+  const memoryJson=stringify(input.memory);
+  assertSerialization();
+  if(typeof memoryJson!=='string')throw Error('invalid SDK memory');
+  // Each operation is already JSON. Never serialize the private envelope or
+  // snapshots again in the plugin realm after the script has returned.
+  const out='{"ops":['+join(',')+'],"memory":'+memoryJson+'}';
   if(typeof out!=='string'||out.length>512*1024)throw Error('output limit');
   return out;
 }
