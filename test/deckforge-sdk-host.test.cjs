@@ -382,3 +382,19 @@ test('active SDK logs changing after approval do not block removal; retained log
   await assert.rejects(host.purgeRetained(id,retained.revision),/변경 감지/);
  }finally{await host.close();await fs.rm(root,{recursive:true,force:true});}
 });
+
+test('SDK external link grant is one-shot, scoped to live user action and expires',()=>{
+ const host=new StreamDeckPluginHost('/unused'),uuid=M.UUID,context='link',ws={readyState:1};
+ const inst={uuid,ws},ctx={context,pluginUUID:uuid,actionUUID:M.Actions[0].UUID,slot:0};
+ host.instances.set(uuid,inst);host.contexts.set(context,ctx);host.send=()=>true;
+ assert.equal(host.consumeUserLinkGrant(inst,undefined),false);
+ assert.equal(host.key(context,'down'),true);
+ assert.equal(host.consumeUserLinkGrant(inst,'foreign'),false);
+ assert.equal(host.consumeUserLinkGrant(inst,undefined),true);
+ assert.equal(host.consumeUserLinkGrant(inst,undefined),false);
+ assert.equal(host.key(context,'up'),true);
+ assert.equal(host.consumeUserLinkGrant(inst,undefined),false);
+ host.key(context,'down');assert.equal(host.consumeUserLinkGrant(inst,context,Date.now()+4000),false);
+ host.key(context,'up');assert.equal(host.consumeUserLinkGrant(inst,context),true);
+ host.key(context,'down');inst.ws={readyState:1};assert.equal(host.consumeUserLinkGrant(inst,undefined),false);
+});

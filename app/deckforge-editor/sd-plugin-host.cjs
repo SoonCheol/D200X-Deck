@@ -643,6 +643,15 @@ class StreamDeckPluginHost{
       }
     }finally{this.haPollBusy=false;}
   }
+  // One short-lived browser-open grant per delivered user gesture, tied to
+  // the live plugin socket and action context. No persistent trust escalation.
+  consumeUserLinkGrant(inst,requestedContext,now=Date.now()){
+    if(!inst||this.closing||this.suspended||this.instances.get(inst.uuid)!==inst||inst.ws?.readyState!==1)return false;
+    const grant=inst.userLinkGrant,ctx=grant&&this.contexts.get(grant.context);
+    if(!grant||grant.socket!==inst.ws||grant.until<now||ctx!==grant.ctx||
+       (requestedContext&&requestedContext!==grant.context))return false;
+    inst.userLinkGrant=null;return true;
+  }
   key(context,gesture,ticks=1){
     const ctx=this.contexts.get(context);
     if(!ctx)return false;
@@ -655,6 +664,13 @@ class StreamDeckPluginHost{
     if(event==='keyUp'||event==='dialUp'){if(this.pressed.get(context)!==inst.ws)return false;this.pressed.delete(context);}
     const ok=this.send(inst.ws,{event,action:ctx.actionUUID,context,device:DEVICE,payload});
     if(ok&&(event==='keyDown'||event==='dialDown'))this.pressed.set(context,inst.ws);
+    if(ok){
+      const previous=inst.userLinkGrant;
+      if(event==='keyDown'||event==='dialDown'||event==='dialRotate')
+        inst.userLinkGrant={context,ctx,socket:inst.ws,until:Date.now()+3000};
+      else if(previous?.context===context&&previous.ctx===ctx&&previous.socket===inst.ws)
+        previous.until=Date.now()+3000;
+    }
     return ok;
   }
   async inspector(context,anchor){
@@ -753,10 +769,11 @@ class StreamDeckPluginHost{
         this.onUpdate({kind:msg.event,context:msg.context});break;
       case 'logMessage':break;
       case 'openUrl':{
-        // External plugin links require explicit approval and cannot use file: or script: URLs.
+        // User-initiated links may open once without a prompt; unsolicited links still require approval.
         if(!allowedSdkOpenUrlContext(uuid,ctx,msg.context))return;
         const href=safeSdkExternalUrl(msg.payload?.url);
         if(!href)return;
+        if(inst&&ws===inst.ws&&this.consumeUserLinkGrant(inst,msg.context)){await shell.openExternal(href);break;}
         const parent=this.getParent();
         const options={
           type:'question',buttons:['취소','브라우저에서 열기'],defaultId:0,cancelId:0,
