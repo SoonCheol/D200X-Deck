@@ -2406,6 +2406,41 @@ test('settingsResult is opt-in, bounded, non-privileged, and never replays an un
  }finally{host.close();}
 });
 
+test('native durable receipt is independent of a blocked compatibility catalogue',async()=>{
+ const Core=require('../app/streamdeck-editor/deck-core.js');
+ const state=Core.migrateState(null),item=state.pages[0][0]=Core.createAction('sd-plugin');
+ item.settings.pluginUUID=nativeId;item.settings.actionUUID=nativeId+'.toggle';item.settings.pluginSettings={count:0};
+ const cfg=Core.createSdkMountTracker().reconcile('page',Core.sdkMountDescriptors(state))[0];
+ const m={...scriptManifest,permissions:['display','settings.write']},requests=[];
+ let entered,release,calls=0,blockedSync;
+ const started=new Promise(r=>entered=r),gate=new Promise(r=>release=r);
+ const native=new NativePluginHost('/unused',e=>{if(e.kind==='nativeSettingsCommit')requests.push(e);},()=>({
+  async run(_source,input){return {ops:input.event.type==='press'?[{op:'settingsPatch',value:{count:input.settings.count+1}}]:[],memory:{}};},close(){}
+ }),{settingsReceiptTimeout:5000});
+ native.manifests=async()=>[m];native.loadServicePolicy=async()=>{};
+ const legacy={list:async()=>{if(++calls===2){entered();await gate;}return [];},sync:async()=>{},close:async()=>{}};
+ const router=new PluginRouter(legacy,native);
+ try{
+  await router.sync([cfg]);const ctx=native.contexts.get(cfg.context);await ctx.queue;
+  assert.equal(router.key(cfg.context,'down'),true);
+  for(let i=0;i<100&&!requests.length;i++)await new Promise(r=>setImmediate(r));
+  assert.equal(requests.length,1);
+  const id=requests[0].requestId;
+  blockedSync=router.sync([cfg]);await started;
+  assert.ok(router.pendingSettingsRequest(cfg.context,id));
+  let outcome;
+  const ack=router.acknowledgeSettings(cfg.context,id,true).then(value=>{outcome=value;});
+  // The unrelated catalogue is still blocked. A valid acknowledgement
+  // must settle without requiring the gate to be released.
+  await new Promise(r=>setImmediate(r));
+  assert.equal(outcome,true);
+  await ack;assert.equal(ctx.settings.count,1);
+  assert.equal(await router.acknowledgeSettings(cfg.context,id,true),false);
+  release();await blockedSync;
+  assert.equal(requests.length,1);assert.equal(ctx.settings.count,1);
+ }finally{release();if(blockedSync)await blockedSync.catch(()=>{});await router.close();}
+});
+
 test('router blocks a pending settings write immediately when a newer mount revision is queued',async()=>{
  const Core=require('../app/streamdeck-editor/deck-core.js');
  const state=Core.migrateState(null),item=state.pages[0][0]=Core.createAction('sd-plugin');
@@ -2433,6 +2468,7 @@ test('router blocks a pending settings write immediately when a newer mount revi
   assert.equal(aba.configRevision,cfg.configRevision+2);
   const sync=router.sync([aba]);await started;
   assert.equal(router.pendingSettingsRequest(cfg.context,request.requestId),null);
+  assert.equal(await router.acknowledgeSettings(cfg.context,request.requestId,true),false,'stale durable ACK must not bypass desired revision guard');
   release();await sync;await ctx.queue;
   assert.equal(native.acknowledgeSettings(cfg.context,request.requestId,true),false);
   assert.equal(ctx.settings.count,0);assert.equal(requests.length,1);

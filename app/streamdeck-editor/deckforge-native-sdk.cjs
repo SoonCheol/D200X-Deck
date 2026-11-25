@@ -1254,7 +1254,12 @@ class PluginRouter{
     }
     return request;
   }
-  acknowledgeSettings(context,id,accepted){return this.serial(()=>this.native.acknowledgeSettings(context,id,accepted));}
+  async acknowledgeSettings(context,id,accepted){
+    // Durable native receipts must not wait for unrelated compatibility I/O.
+    // Revalidate the latest desired mount synchronously before resolving.
+    if(typeof accepted!=='boolean'||!this.pendingSettingsRequest(context,id))return false;
+    return this.native.acknowledgeSettings(context,id,accepted);
+  }
   key(context,gesture,ticks){if(this.closed||(this.desiredContexts&&!this.desiredContexts.has(context)))return false;return this.nativeContextIds.has(context)||this.native.contexts.has(context)?this.native.key(context,gesture,ticks):this.legacy.key(context,gesture,ticks);}
   inspector(context){if(this.closed||(this.desiredContexts&&!this.desiredContexts.has(context)))return false;return this.nativeContextIds.has(context)||this.native.contexts.has(context)?false:this.legacy.inspector(context);}
   onSystemSuspend(){this.native.suspend();this.legacy.onSystemSuspend();}
