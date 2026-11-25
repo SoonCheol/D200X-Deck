@@ -35,7 +35,8 @@
 - 1.1.226: Model2 실제 반복/자원 제한/서비스 생존·복구, opaque storage/CSP 검사 및 USB mock 통과. CI #1274·Windows #980 성공. OOM 별도. 세부 수치 SDK 계약.
 - 1.1.230: CI #1278, Windows #984 attempt2 전체 성공. 실제 idle/active crash·거부·서비스/peer 생존·새 이벤트 복구, 25함수·vault 통과. 1차 npm 404 해소(버전 변경 없음). deckforge-v1.1.230 게시, EXE 135231273 bytes. 현재 root suite 45/45 실행 명령 확인, 초기 helper skip 3개와 후속 패키지 검사 구분.
 ## 다음 작업
-- 2.0.30: Windows 경로 정규화 native, 양측 SDK 등록 완료 후 appear 단일 전달, Node 오류 분류(원문 미기록), 실행 중 로그 변화 허용·종료 대기·rename 재시도, 삭제 실패 팝업. 집중 검사 추가. 빌드 및 실제 GPU·삭제 확인 대기.
+- 2.0.31 작업: 등록된 플러그인의 실제 키 입력 직후 HTTP(S) openUrl 1회는 확인 없이 실행, 백그라운드 요청은 기존 확인 유지.
+- 2.0.30: Windows 경로 정규화 native, 양측 SDK 등록 완료 후 appear 단일 전달, Node 오류 분류(원문 미기록), 실행 중 로그 변화 허용·종료 대기·rename 재시도, 삭제 실패 팝업. 집중 검사 추가. Windows #33·CI #1378·SDK #70·입력 #549 성공, 실제 GPU·삭제 확인 대기.
 - 2.0.29: 원본 속성창을 플러그인별 표준 로컬 프로토콜 및 격리 세션에서 로드, 같은 폴더 HTML 팝업·opener 허용. 외부 file 접근 및 다른 폴더 차단. 실제 Electron 팝업/콜백 검사 추가, Windows #32 경로 비교 실패(콜백 미실행).
 - 2.0.28: 기본 액션 및 동작 선택·AI 표시 명칭 상용구 입력으로 변경, ID text·저장값·실행 보존. Windows #31·CI #1374·SDK #66·입력 #547 성공.
 - 2.0.27: 제거된 타이틀 숨김, 관리 메뉴 완전 삭제(독자/Stream Deck), 설치된 Stream Deck 제거 시 완전 삭제 선택. ID/보존 원본·전역 설정 재검사, 삭제 성공 후 등록 액션 정리. 집중 테스트 추가, Windows #30·CI #1372·SDK #64·입력 #546 성공, GUI 대기. 2.0.26 Windows #29 성공. HA 내장 및 파일 필터 개선 별도 대기.
