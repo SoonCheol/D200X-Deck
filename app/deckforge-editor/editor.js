@@ -343,7 +343,7 @@ function displayItem(item,index,preserveGesture=false){
         (cached?{kind:'file',value:cached}:null)||
         (visual?.image?{kind:'file',value:visual.image}:null);
       const fusionVisual=typeof fusionLocalizedVisual==='function'?fusionLocalizedVisual(item,item.title||visual?.title||''):{...item,title:visual?.title??item.title};
-      return {...fusionVisual,...(icon?{icon}:{}),fusionOffline:offline};
+      return {...fusionVisual,...(icon?{icon}:{}),fusionCommandArtwork:!stateIcon&&!item.icon,fusionOffline:offline};
     }
     const defaultImage=sdkActionDefaults.get(item.settings?.actionUUID)?.[stateName];
     const icon=stateIcon||item.icon||(visual?.image?{kind:'file',value:visual.image}:null)||

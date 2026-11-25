@@ -273,6 +273,13 @@
   let fontEpoch=0;
   const styleFields=['visible','align','family','size','bold','italic','underline','color','outlineColor','outlineWidth','backgroundEnabled','backgroundColor','backgroundOpacity'];
   const visualStyle=style=>style?Object.fromEntries(styleFields.map(key=>[key,style[key]])):undefined;
+  // Only the automatically supplied Fusion command artwork is constrained.
+  // Explicit key artwork and background images retain the normal full canvas.
+  function fusionArtworkScale(item){
+    if(item?.fusionCommandArtwork!==true||item.icon?.kind!=='file')return 1;
+    const custom=[...Object.values(item.settings?.keyPressIcons||{}),...Object.values(item.settings?.sdkStateIcons||{})];
+    return custom.some(icon=>icon?.kind==='file'&&icon.value===item.icon.value)?1:0.79;
+  }
   function keyDescriptor(item,index,previewPressed=false){
     const wide=index===13;
     const wideMode=item?.type==='wide-display'?(item.wideNotice?'unsaved':window.D200XWideModeName?.()||'clock'):null;
@@ -283,7 +290,7 @@
       keyBackground:background?{enabled:background.enabled,color:background.color}:undefined,
       sensorDisplay:item.sensorDisplay===true,sensorOverlay:item.sensorDisplay===true&&typeof item.sensorOverlay==='string'?item.sensorOverlay:null,
       indicatorNumber:item.indicatorNumber,indicatorNumberStyle:visualStyle(item.indicatorNumberStyle),
-      fusionOffline:item.fusionOffline===true,keyPressAlternate:item.keyPressAlternate===true,
+      fusionOffline:item.fusionOffline===true,fusionArtworkScale:fusionArtworkScale(item),keyPressAlternate:item.keyPressAlternate===true,
       wideNotice:item.wideNotice===true,wideOverlay:item.wideOverlay?JSON.parse(JSON.stringify(item.wideOverlay)):undefined}:null;
     const pressed=Boolean(item&&(keyPressed(index)||previewPressed||item.previewPressed===true)&&!item.keyPressAlternate);
     const time=wideMode==='clock'?Math.floor(Date.now()/1000)*1000:wideMode==='datetime'?Math.floor(Date.now()/60000)*60000:0;
@@ -324,7 +331,8 @@
       if (item.icon?.kind === 'file' && typeof item.icon.value === 'string') {
         const image = await imageLoaded(item.icon.value);
         if (image) {
-          const limitWidth = width, limitHeight = height;
+          const artworkScale=item.fusionArtworkScale===0.79?0.79:1;
+          const limitWidth = width*artworkScale, limitHeight = height*artworkScale;
           const scale = Math.min(limitWidth / image.width, limitHeight / image.height);
           const w = image.width * scale, h = image.height * scale;
           ctx.drawImage(image, (width - w)/2, (height - h)/2, w, h);

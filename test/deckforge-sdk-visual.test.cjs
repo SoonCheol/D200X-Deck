@@ -521,3 +521,18 @@ test('legacy HA auto title tracks selected entity and preserves explicit state t
  assert.equal(item.title,'주방등');assert.equal(item.settings.stateTitles.first.title,'주방등');assert.equal(item.settings.stateTitles.second.title,'');
  assert.equal(render(item,{title:'Upstream',state:1}).title,'주방등');
 });
+
+
+test('automatic Fusion command artwork uses the standard inset without resizing user images',()=>{
+ const sync=fs.readFileSync(path.join(__dirname,'../app/deckforge-editor/device-sync.js'),'utf8');
+ const from=sync.indexOf('function fusionArtworkScale('),to=sync.indexOf('function keyDescriptor(',from);
+ assert.ok(from>=0&&to>from);
+ const scale=vm.runInNewContext(sync.slice(from,to)+';fusionArtworkScale',{});
+ const icon={kind:'file',value:'automatic'};
+ assert.equal(scale({fusionCommandArtwork:true,icon}),0.79);
+ assert.equal(scale({icon}),1);
+ assert.equal(scale({fusionCommandArtwork:true,icon,settings:{keyPressIcons:{up:icon}}}),1);
+ assert.equal(scale({fusionCommandArtwork:true,icon,settings:{sdkStateIcons:{on:icon}}}),1);
+ assert.match(sync,/fusionArtworkScale:fusionArtworkScale\(item\)/);
+ assert.match(sync,/limitWidth = width\*artworkScale, limitHeight = height\*artworkScale/);
+});
