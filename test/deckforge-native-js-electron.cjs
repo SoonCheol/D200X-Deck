@@ -485,6 +485,68 @@ async function verifySettingsProcessLoss(){
  console.log('MODEL2_SETTINGS_PROCESS_LOSS '+JSON.stringify({results,actualRenderer:true,actualProfileStore:true,receiptDelivery:'test-controlled',powerLossTested:false}));
 }
 
+
+ // Bounded integration workload using the actual native host, scheduler and
+ // Electron pool. No real device, external service, credentials or OOM claim.
+async function verifyModel2MountedPageCycles(){
+ const {NativePluginHost,validateNativeManifest}=require('../app/deckforge-editor/deckforge-native-sdk.cjs');
+ const {deadline}=require('../app/deckforge-editor/deckforge-js-runtime.cjs');
+ const id='com.deckforge.native.page-cycles',actionId=id+'.key',events=[];
+ const manifest=validateNativeManifest({apiVersion:2,id,name:'Page cycles',version:'1.0.0',
+  permissions:['display','background.run'],
+  service:{script:"if(event.type==='start')memory.starts=(memory.starts||0)+1;"},
+  actions:[{id:actionId,name:'Cycle key',controllers:['Keypad'],states:2,
+   script:"if(event.type==='press'){memory.count=(memory.count||0)+1;api.setTitle(settings.label+':'+memory.count);}"}]});
+ const host=new NativePluginHost('/unused',e=>events.push(e));
+ const makePage=page=>Array.from({length:13},(_,slot)=>({context:page+':'+slot,slot,gesture:'down',pluginUUID:id,actionUUID:actionId,settings:{label:page+':'+slot}}));
+ const drain=()=>deadline(async()=>{
+  for(;;){
+   const contexts=[...host.contexts.values()];
+   await Promise.all(contexts.map(c=>c.queue));
+   if(contexts.every(c=>c.pending===0)&&host.scheduler.running===0&&host.scheduler.waiting.length===0&&host.retired.size===0)return;
+   await new Promise(resolve=>setTimeout(resolve,10));
+  }
+ },30000,()=>host.close());
+ const service=()=>[...host.contexts.values()].find(c=>c.service);
+ const assertPage=(page,count)=>{
+  const buttons=[...host.contexts.values()].filter(c=>!c.service);
+  assert.equal(buttons.length,13);
+  for(const c of buttons){assert.ok(c.context.startsWith(page+':'));assert.equal(c.failed,false);assert.equal(c.memory.count,count);}
+  assert.equal(service().failed,false);
+  assert.ok(host.runnerPool.entries.size<=2);
+  const buttonPid=host.runnerPool.processId(id,'button'),servicePid=host.runnerPool.processId(id,'service');
+  assert.ok(buttonPid>0&&servicePid>0&&buttonPid!==servicePid);
+ };
+ const pressPage=async configs=>{
+  const mark=events.length;
+  for(const c of configs){assert.equal(host.key(c.context,'down'),true);assert.equal(host.key(c.context,'up'),true);}
+  await drain();
+  const titles=events.slice(mark).filter(e=>e.kind==='setTitle');
+  assert.equal(titles.length,13);
+  for(const c of configs)assert.equal(titles.filter(e=>e.context===c.context).length,1);
+ };
+ const started=Date.now();let presses=0;
+ try{
+  assert.ok(host.runnerPool);
+  const first=makePage('first'),second=makePage('second');
+  host.sync(first,[manifest]);await drain();const originalService=service();
+  assert.equal(originalService.memory.starts,1);
+  await pressPage(first);presses+=13;assertPage('first',1);
+  host.sync(second,[manifest]);await drain();
+  assert.equal(service(),originalService);assert.equal(service().memory.starts,1);
+  assert.equal(host.key(first[0].context,'down'),false);
+  await pressPage(second);presses+=13;assertPage('second',1);
+  host.suspend();assert.equal(host.runnerPool.entries.size,0);
+  assert.equal(host.key(second[0].context,'down'),false);
+  host.resume();await drain();assert.equal(service().memory.starts,2);
+  await pressPage(second);presses+=13;assertPage('second',2);
+  host.sync(first,[manifest]);await drain();assert.equal(service(),originalService);
+  await pressPage(first);presses+=13;assertPage('first',1);
+  assert.equal(events.some(e=>e.kind==='nativeEffect'||e.kind==='nativeSettingsCommit'),false);
+  console.log('MODEL2_MOUNTED_PAGE_CYCLES '+JSON.stringify({buttonsPerPage:13,presses,pageTransitions:2,suspendResumeCycles:1,isolatedMemory:true,serviceSurvived:true,elapsedMs:Date.now()-started,actualElectron:true,physicalDevice:false,oomTested:false}));
+ }finally{host.close();assert.equal(host.contexts.size,0);assert.equal(host.runnerPool.entries.size,0);}
+}
+
 async function verifyTrustedDrawOps(legacy){
  const {BrowserWindow}=require('electron');
  const {paintValidatedDrawSpec,resolveWorkerDrawProgram}=require('../app/deckforge-editor/deckforge-draw-ops.cjs');
@@ -568,6 +630,7 @@ app.whenReady().then(async()=>{
     await verifyModel2Repetition();
     await verifyModel2Limits();
     await verifyModel2ProcessLoss();
+    await verifyModel2MountedPageCycles();
     await verifySettingsProcessLoss();
     await verifyTrustedDrawOps(b);
     await verifyPublicApi(b);
