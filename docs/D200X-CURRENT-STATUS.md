@@ -17,15 +17,16 @@
 - 1.1.231: identity 19행 대조·집중 검사, CI #1281/입력 #521/Windows #985 성공, 게시. 1.1.232: 저장 13행 대응·종료 commit 차단. CI #1282/입력 #522 성공, Windows #986 clean fixture 실패(kind 누락), 종료/페이지·삭제/retire 검사 통과. 1.1.233: fixture 수정 CI #1283/Windows #987 성공, 게시. 1.1.234: 실제 Electron NativePluginHost+임시 ProfileStore, 요청 전/저장 후 ACK 전 renderer crash, 재조회·재실행 금지 검증 추가. CI #1284·Windows #988 성공, 1.1.234 설치본 게시.
 - 1.1.230: CI #1278, Windows #984 attempt2 전체 성공. 실제 idle/active crash·거부·서비스/peer 생존·새 이벤트 복구, 25함수·vault 통과. 1차 npm 404 해소(버전 변경 없음). deckforge-v1.1.230 게시, EXE 135231273 bytes. 현재 root suite 45/45 실행 명령 확인, 초기 helper skip 3개와 후속 패키지 검사 구분.
 ## 다음 작업
-- OOM 시험: 시험 프로세스에서만 Electron Crashpad 초기화(uploadToServer:false), 별도 임시 dump 위치, 대상 PID native log 진단/덤프 개수만 출력, 임시 파일 정리. 실제 OOM 판정 조건 유지, 제품 변경 없음. 새 검증 결과 대기.
+- 2.0.40 예정: 독자 서비스 시작 정책 동시 읽기 경쟁 해결. 읽기 완료 전 중복 호출이 먼저 반환되는 문제를 공통 Promise로 차단. 정지/오류 정책 유지. 외부 호환 엔진 추가 개발 보류.
+- SDK #93 실제 OOM 통과(reason=oom), 서비스/peer 생존, 입력 복구 및 5분 soak(1391 press/105 전환/274 tick), 임시 ProfileStore 장애 검사 통과. CI #1401 성공. 실제 장치/OS 절전 및 전원 손실 별도.
 - 2.0.38: catalogue/native mount 큐와 호환 startup 큐 분리. 새 native mount가 이전 호환 startup 완료를 기다리지 않음. 관리 작업은 양쪽 큐 완료 후 실행; ID 충돌/최신 revision 검사 유지. gate 집중 검사 추가, CI #1398 성공, Windows #41 신규 검사 491행 실패(첫 down 성공 후 up 없이 두 번째 down). 2.0.39: 두 입력 사이 release 추가 및 중복 down 거절 명시 검사. 제품 코드 변경 없음, CI #1399/Windows #42 성공. SDK #91은 실제 검사 skip. catalogue 및 관리 작업 자체의 대기는 유지.
 - 2.0.37: 호환 startup 대기 중 최신 페이지 변경 시 이전 호환 mount 즉시 퇴역, await 이후 폐기 세대 sync 종료. 이전 willAppear 및 후속 mount 차단 집중 검사 추가. 관리 직렬화/충돌 검증 유지; CI #1396, Windows #40 성공. 대기열 완전 분리 아님.
 - 2.0.35: 실행/설치 충돌 검증용 catalogue와 UI artwork 조회 분리. 아이콘 읽기 실패 시 검증된 ID 유지 및 개별 이미지 null. manifest/CodePath 검증 유지. CI #1392 성공, Windows #38 소스 패턴 검사 실패. 2.0.36: 아이콘 fallback 패턴 검사를 새 helper에 맞추고 충돌 fixture를 유효 native ID로 수정. 제품 코드 변경 없음. Windows #39 attempt2 성공. 외부 catalogue/관리 큐 의존은 남음.
-- SDK 10C 재개: Windows #37 성공(2.0.34). 전용 SDK #78은 soak/OOM skip. #9 실제 로그: 장시간 테스트 service/button PID assertion 실패, OOM skip. 유휴 runner 30초 정리와 정적 service fixture 불일치 가능성. `0846974`에서 실제 1초 service tick·soak tick count/PID 진단, OOM 독립 실행, SDK 핵심 변경 시 전용 CI 트리거 추가. 생산 소스·버전·Model5/KEY 정책 미변경. SDK #84 실제 5분 soak 성공: 1417 press/107 전환/293 service tick, host heap 표본 6.7~13.8MB, runner 2개. OOM 실패: reason=crashed, exitCode=-36861(Chromium Crashpad 미연결 코드, OOM 증거 아님). 시험 전용 Chromium 파일 로그의 대상 PID/native Blink V8 javascript OOM 메시지 또는 Electron oom 이벤트만 허용; 장애 후 서비스/peer/새 입력 복구를 먼저 검증. SDK #88: 5분 soak 재통과(1365 추가 입력/282 service tick). heap-pressure 격리·복구 통과, OOM native 증거 미확보로 실패 유지. SDK #90도 5분/1729 추가 입력/274 tick 및 격리 복구 성공, OOM 증거 미확보. 실제 HA/D200X/OS 절전·전원 손실 별도.
+- SDK 10C: #84/#88/#90 실제 5분 soak 및 장애 복구 통과, OOM 통지 미확보. #93에서 로컬 Crashpad 초기화 후 실제 oom 확인. 제품 보안 제한 유지. Model5 저장소 격리 실패는 별도.
 - 2.0.34: GitHub 0.1.1 번호 23px/상태 26px, 이름 마퀴 1~3초, 자동 조회 5/15초 또는 고정 5/10/15/30초, 기존 PAT binding 유지. 독립 pollIntervalMs 5초 이상, 집중 검사 추가. Windows #37 성공; 실기 미검증. 후속 GitHub 기능은 로드맵 보류.
 - 사용자 승인: 독자 HA 플러그인 기본 내장 설치, 별도 HA 추가 버튼 제거, 서버/인증 설정 및 기존 등록 데이터 보존. 별도 대기.
 - 작업 체크포인트: f718990 2.0.22 명령 관리자 카드/페이지 슬롯/편집기 hover 캐시 설명, ⓘ 상세 경로 제거·설명 표시, 오프라인/늦은 응답 방지. 2.0.21 Windows 성공, 사용자 1555 설명 저장·아이콘 659 실패 보고. 2.0.22 자동 빌드/GUI 미확인. 아이콘 실패 진단 별도.
-- **10C 판정:** 자동 검증/설치본 통과, 정식 SDK 1.0 출시 보류. 실제 HA/D200X/OS 절전·재연결/장시간 soak, 실제 OOM, identity GUI, 설정 저장 13행 추가 검사 통과, 1.1.234 Windows 통합 검사 통과, 전원 손실/제품 IPC 실기 별도. Model5 차단, KEY 기본 OFF, 기존 미리보기 유지.
+- **10C 판정:** 자동 검증/설치본 통과, 정식 SDK 1.0 출시 보류. 실제 HA/D200X/OS 절전·재연결/실기 장시간 사용, identity GUI 별도; Model2 자동 soak/OOM 및 설정 저장 검사 통과, 1.1.234 Windows 통합 검사 통과, 전원 손실/제품 IPC 실기 별도. Model5 차단, KEY 기본 OFF, 기존 미리보기 유지.
 - 기존 기능/데이터/API·보안 보존, 테스트/CI/Windows/실기 구분. 미측정 성능 수치 단정 금지.
 ## 참조
 - [SDK 계약 및 재설계](DECKFORGE-SDK-1.0.md) · [잔여 로드맵](DECKFORGE-ROADMAP.md).
