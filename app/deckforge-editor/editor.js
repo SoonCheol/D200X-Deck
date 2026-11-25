@@ -4167,8 +4167,9 @@ async function openNativeSettings(item,action,plugin){
   if(!inspectorPickerCurrent(session,item))return;
   const original=clone(item.settings?.pluginSettings||{});
   const ha=plugin.uuid==='com.deckforge.native.home-assistant',haControl=ha&&action.uuid.endsWith('.control');
-  const content=document.createElement('div');content.className='native-sdk-form'+(ha?' ha-native-settings':'');
+  const content=document.createElement('div');content.className='native-sdk-form'+(ha?' ha-native-settings':'')+(haControl?' ha-switch-settings':'');
   let linkFlagsRow=null,linkFlags=null;
+  const controlPickers=new Map();
   const connection=document.createElement('span');connection.className='native-sdk-connection';connection.setAttribute('role','status');
   const dot=document.createElement('span');dot.className='native-sdk-status-dot';dot.setAttribute('aria-hidden','true');
   const connectionText=document.createElement('span');connection.append(dot,connectionText);
@@ -4195,6 +4196,7 @@ async function openNativeSettings(item,action,plugin){
     const values=Object.fromEntries(inputs.map(entry=>[entry.field.key,readValue(entry)]));
     for(const [key,row] of fieldRows)row.hidden=!DeckCore.nativeSettingVisible(ui.get(key),values);
     for(const group of groups)group.heading.hidden=group.rows.every(row=>row.hidden);
+    if(haControl)for(const [key,picker] of controlPickers)if(fieldRows.get(key)?.hidden)picker.details.open=false;
   };
   for(const field of schema){
     const row=document.createElement('div');row.className='field';
@@ -4208,13 +4210,23 @@ async function openNativeSettings(item,action,plugin){
       search.type='search';search.placeholder='이름·기기·ID 검색';search.setAttribute('aria-label',field.label+' 검색');
       summary.className='hint';
       const order=document.createElement('div');order.className='native-selection-order';
+      const compact=haControl&&!multi&&['entity','linkEntity'].includes(field.key);
+      const details=compact?document.createElement('details'):null;
+      const trigger=compact?document.createElement('summary'):null;
       const render=()=>{
         const q=search.value.trim().toLocaleLowerCase(),all=[...options];
         for(const v of selected)if(!all.some(o=>o.value===v))all.push({value:v,label:v,group:'저장된 항목 (현재 목록 없음)'});
         all.sort((a,b)=>(a.group||'').localeCompare(b.group||'','ko')||a.label.localeCompare(b.label,'ko'));
         const previousScroll=list.scrollTop;
         list.replaceChildren();let group=null;
-        const matches=all.filter(o=>!q||[o.label,o.value,o.group||''].join(' ').toLocaleLowerCase().includes(q));
+        const base=field.key==='linkEntity'&&compact?controlPickers.get('entity')?.value():null;
+        const matches=all.filter(o=>(!base||o.value!==base)&&(!q||[o.label,o.value,o.group||''].join(' ').toLocaleLowerCase().includes(q)));
+        if(trigger){
+          const chosen=all.find(o=>o.value===selected[0]);
+          trigger.textContent=chosen?.label||selected[0]||'기기 선택';
+          trigger.title=chosen?.value||selected[0]||'기기 목록 펼치기';
+          trigger.setAttribute('aria-label',label.textContent+': '+trigger.textContent);
+        }
         for(const option of matches){
           if((option.group||'')!==group){group=option.group||'';if(group){const heading=document.createElement('div');heading.className='hint';heading.textContent=group;list.append(heading);}}
           const line=document.createElement('label'),box=document.createElement('input'),name=document.createElement('span');
@@ -4224,7 +4236,11 @@ async function openNativeSettings(item,action,plugin){
           box.addEventListener('change',()=>{if(multi){
             if(box.checked&&!selected.includes(option.value)){if(selected.length>=field.maxItems){box.checked=false;return;}selected.push(option.value);}
             else if(!box.checked)selected=selected.filter(v=>v!==option.value);
-          }else if(box.checked)selected=[option.value];render();});
+          }else if(box.checked){
+            selected=[option.value];
+            if(details){details.open=false;search.value='';trigger.focus();}
+            if(compact&&field.key==='entity')controlPickers.get('linkEntity')?.render();
+          }render();});
           line.append(box,name);list.append(line);
         }
         if(!matches.length){const empty=document.createElement('div');empty.className='hint';empty.textContent=options.length?'검색 결과 없음':'기기 목록 수신 대기';list.append(empty);}
@@ -4247,7 +4263,21 @@ async function openNativeSettings(item,action,plugin){
       };
       search.addEventListener('input',()=>{list.scrollTop=0;render();});
       const clear=document.createElement('button');clear.type='button';clear.className='deckforge-message-button';clear.textContent='선택 해제';clear.addEventListener('click',()=>{selected=[];render();});
-      pane.append(search,summary,list);if(multi)pane.append(order);if(!ha)pane.append(clear);row.append(label,pane);appendRow(row,field);
+      if(compact){
+        details.className='ha-device-dropdown';details.dataset.field=field.key;
+        trigger.className='ha-device-trigger';
+        pane.append(search,list);details.append(trigger,pane);
+        controlPickers.set(field.key,{details,value:()=>selected[0]||'',render});
+        details.addEventListener('toggle',()=>{
+          if(!details.open)return;
+          for(const other of controlPickers.values())if(other.details!==details)other.details.open=false;
+          search.focus();
+        });
+        row.append(label,details);
+      }else{
+        pane.append(search,summary,list);if(multi)pane.append(order);if(!ha)pane.append(clear);row.append(label,pane);
+      }
+      appendRow(row,field);
       dynamicFields.push({field,apply:rows=>{const next=Array.isArray(rows)?rows:[];if(JSON.stringify(options)===JSON.stringify(next))return;options=next;render();}});
       inputs.push({field,read:()=>multi?[...selected]:selected[0]||'',selectedLabel:()=>options.find(o=>o.value===selected[0])?.label||''});render();continue;
     }
@@ -4275,7 +4305,10 @@ async function openNativeSettings(item,action,plugin){
       const choice=document.createElement('label');choice.append(input,document.createTextNode(field.label));linkFlags.append(choice);
       fieldRows.set(field.key,linkFlagsRow);inputs.push({field,input});input.addEventListener('change',updateVisibility);continue;
     }
-    if(input.type==='range'){
+    if(haControl&&field.key==='linked'){
+      row.classList.add('ha-link-enable');
+      const choice=document.createElement('label');choice.append(input,document.createTextNode(field.label));row.append(choice);
+    }else if(input.type==='range'){
       const wrap=document.createElement('div'),output=document.createElement('output');wrap.className='native-sdk-slider';
       output.textContent=input.value;input.addEventListener('input',()=>{output.textContent=input.value;});wrap.append(input,output);row.append(label,wrap);
     }else row.append(label,input);
@@ -4321,14 +4354,16 @@ async function openNativeSettings(item,action,plugin){
     finally{refreshing=false;}
   };
   const toolsRow=document.createElement('div');toolsRow.className='native-sdk-tools';
+  const managementRow=document.createElement('div');managementRow.className='native-sdk-tools';
+  const managementTarget=haControl?managementRow:toolsRow;
   if(dynamicFields.length){
     toolsRow.append(connection);
-    const reload=document.createElement('button');reload.type='button';reload.className='deckforge-message-button';reload.textContent='기기 목록 새로 고침';
+    const reload=document.createElement('button');reload.type='button';reload.className='deckforge-message-button';reload.textContent=haControl?'목록 새로 고침':'기기 목록 새로 고침';
     reload.addEventListener('click',()=>void refreshDynamic());toolsRow.append(reload);
     if(plugin.background){
       const reconnect=document.createElement('button');reconnect.type='button';reconnect.className='deckforge-message-button';reconnect.textContent='다시 연결';
       reconnect.addEventListener('click',async()=>{reconnect.disabled=true;try{await window.deckBridge.nativeServiceControl(plugin.uuid,'restart');await refreshDynamic();}catch{showConnection('재시작 실패','error','서비스 재시작 실패');}finally{reconnect.disabled=false;}});
-      toolsRow.append(reconnect);
+      managementTarget.append(reconnect);
     }
   }
   if(credentialCapable){
@@ -4337,10 +4372,10 @@ async function openNativeSettings(item,action,plugin){
       credentialButton.disabled=true;
       try{await openNativeCredentials(item,plugin);await refreshDynamic();}catch{window.d200xActionStatus?.('인증정보 상태 확인 실패');}
       finally{credentialButton.disabled=false;}
-    });toolsRow.append(credentialButton);
+    });managementTarget.append(credentialButton);
   }
   if(toolsRow.childElementCount)content.prepend(toolsRow);
-  const notice=document.createElement('p');notice.className='hint';content.append(notice);
+  const notice=document.createElement('p');notice.className='hint';notice.setAttribute('role','status');content.append(notice);
   let result=null;
   const poll=dynamicFields.length?setInterval(()=>void refreshDynamic(),1500):null;
   void refreshDynamic();
@@ -4355,8 +4390,10 @@ async function openNativeSettings(item,action,plugin){
       :'등록한 액션의 설정값을 편집합니다. 플러그인 설치와 서비스 관리는 액션 목록의 해당 플러그인 도움말에서 확인할 수 있습니다.';
   const helpText=[instructions,ha?'초기 연결: Home Assistant 그룹의 도움말에서 서버 주소를 설정하고 장기 액세스 토큰을 인증정보 관리에 등록하세요. 연결 후 기기 목록을 새로 고치면 됩니다.':credentialCapable?'필요한 인증정보는 인증정보 관리에서 별도로 등록하세요.':'설치된 플러그인의 안내에 따라 필요한 설정을 입력하세요.',
     '일반 설정은 프로필에 저장됩니다. 적용한 다음 편집기의 저장 버튼을 눌러 기기에 반영하세요. 비밀번호·토큰은 일반 설정에 입력하지 마세요.'].join('\n\n');
-  try{accepted=await window.DeckForgeDialogs.show({anchorTop:!ha,title:action.name,helpText,
-    content,ask:true,actionLabel:'적용',onAccept:()=>{
+  const onHelp=haControl?()=>void window.DeckForgeDialogs.show({title:action.name+' · 도움말',detail:helpText,
+    content:managementRow.childElementCount?managementRow:null,actionLabel:'닫기'}):null;
+  try{accepted=await window.DeckForgeDialogs.show({anchorTop:!ha,title:action.name,helpText,onHelp,
+    content,ask:true,actionLabel:haControl?'저장':'적용',onAccept:()=>{
       try{
         const next={...original};
         for(const entry of inputs){
@@ -4366,6 +4403,13 @@ async function openNativeSettings(item,action,plugin){
           const value=readValue(entry);
           if(!DeckCore.nativeSettingValue(field,value)){notice.textContent=field.label+' 값을 확인하세요.';return false;}
           next[field.key]=value;
+        }
+        if(haControl){
+          if(!next.entity){notice.textContent='기준 기기를 선택하세요.';return false;}
+          if(next.linked===true){
+            if(!next.linkEntity){notice.textContent='연동 기기를 선택하세요.';return false;}
+            if(next.linkEntity===next.entity){notice.textContent='기준 기기와 다른 연동 기기를 선택하세요.';return false;}
+          }
         }
         result=DeckCore.nativeEffectiveSettings(schema,next);return true;
       }catch{notice.textContent='설정 크기 또는 형식을 확인하세요.';return false;}

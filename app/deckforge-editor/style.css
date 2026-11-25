@@ -1708,3 +1708,21 @@ dialog.deckforge-message-dialog:has(.fusion-command-properties){width:min(360px,
 .ha-native-settings .ha-sensor-labels label{display:flex;align-items:center;gap:6px;cursor:pointer;white-space:nowrap}
 .ha-native-settings .ha-sensor-compact>.field[hidden]{display:none}
 @media(max-width:480px){.ha-native-settings .ha-sensor-decimals{grid-template-columns:repeat(2,minmax(0,1fr))}}
+
+/* HA switch properties: compact closed pickers; only the selected list expands. */
+.ha-switch-settings{gap:12px}
+.ha-switch-settings>.field{align-items:center}
+.ha-switch-settings>.field.ha-link-enable{display:block;padding:3px 0}
+.ha-switch-settings>.field.ha-link-enable[hidden]{display:none}
+.ha-switch-settings .ha-link-enable>label{display:flex;align-items:center;gap:8px;cursor:pointer}
+.ha-switch-settings .ha-link-flags{flex-wrap:nowrap;gap:clamp(7px,2vw,16px)}
+.ha-switch-settings .ha-device-dropdown{min-width:0}
+.ha-switch-settings .ha-device-trigger{display:flex;align-items:center;justify-content:space-between;gap:8px;min-height:34px;padding:6px 10px;border:1px solid #666;border-radius:4px;background:#363636;color:#eee;cursor:pointer;list-style:none;overflow-wrap:anywhere}
+.ha-switch-settings .ha-device-trigger::-webkit-details-marker{display:none}
+.ha-switch-settings .ha-device-trigger::after{content:'▾';flex:none;color:#b9c4d1}
+.ha-switch-settings .ha-device-dropdown[open]>.ha-device-trigger::after{content:'▴'}
+.ha-switch-settings .ha-device-trigger:focus-visible{outline:2px solid #78b9f3;outline-offset:2px}
+.ha-switch-settings .ha-device-dropdown>.native-sdk-picker{margin-top:5px}
+.ha-switch-settings .ha-device-dropdown:not([open])>.native-sdk-picker{display:none}
+.ha-switch-settings .native-sdk-options{height:156px;min-height:0;max-height:156px}
+.ha-switch-settings>p.hint:empty{display:none}
