@@ -1238,6 +1238,8 @@ class PluginRouter{
     // Use one owned snapshot for both the routing guards and queued work.
     configs=structuredClone(configs);
     this.desiredMounts=new Map(configs.map(c=>[c?.context,c]));
+    // Invalidate incompatible compatibility contexts before awaiting an older startup.
+    this.legacy.retireUnmatched?.(configs);
     for(const [id,ctx] of this.native.contexts)if(!ctx.service&&!this.desiredContexts.has(id)){
       this.native.contexts.delete(id);this.native.retire(ctx);
     }
@@ -1259,7 +1261,7 @@ class PluginRouter{
         if(this.closed||revision!==this.syncRevision)return;
         this.native.sync(local,native);
         if(this.closed||revision!==this.syncRevision)return;
-        await this.legacy.sync(other,legacy);
+        await this.legacy.sync(other,legacy,()=>!this.closed&&revision===this.syncRevision);
       }else{
         // Hosts without a separate retirement phase retain the safe old order.
         try{await this.legacy.sync(other,legacy);}

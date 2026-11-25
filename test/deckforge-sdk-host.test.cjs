@@ -452,3 +452,34 @@ test('compatibility artwork is UI-only and failed artwork cannot hide installed 
   assert.ok(events.some(e=>e.kind==='error'&&e.message.includes('fixture artwork denied')));
  }finally{await router.close();await fs.rm(tmp,{recursive:true,force:true});}
 });
+
+
+test('new page retires pending compatibility startup and prevents obsolete mount publication',async()=>{
+ const {NativePluginHost,PluginRouter}=require('../app/deckforge-editor/deckforge-native-sdk.cjs');
+ const legacy=new StreamDeckPluginHost('/unused'),native=new NativePluginHost('/unused');
+ const uuid='com.deckforge.compat.pending',actionUUID=uuid+'.key';
+ const nativeId='com.deckforge.native.next-page',manifest={apiVersion:1,id:nativeId,name:'Native next',version:'1.0.0',permissions:['display'],actions:[{id:nativeId+'.key',name:'Next',controllers:['Keypad'],states:1,events:{press:[{op:'title',value:'next'}]}}]};
+ const first={context:'old-first',slot:0,gesture:'down',pluginUUID:uuid,actionUUID,settings:{}};
+ const second={...first,context:'old-second',slot:1};
+ const fresh={...first,context:'new-page',pluginUUID:nativeId,actionUUID:nativeId+'.key'};
+ legacy.list=async()=>[{uuid,actions:[{uuid:actionUUID}]}];
+ native.manifests=async()=>[manifest];native.loadServicePolicy=async()=>{};
+ let entered,release;const ready=new Promise(r=>entered=r),gate=new Promise(r=>release=r);
+ const messages=[],calls=[];
+ legacy.send=(_ws,msg)=>messages.push(msg);
+ legacy.ensure=async id=>{calls.push(id);entered();await gate;const inst={uuid:id,ws:{readyState:1}};legacy.instances.set(id,inst);return inst;};
+ const router=new PluginRouter(legacy,native);
+ let pending,next;
+ try{
+  pending=router.sync([first,second]);pending.catch(()=>{});
+  await ready;assert.ok(legacy.contexts.has(first.context));
+  next=router.sync([fresh]);next.catch(()=>{});
+  assert.equal(legacy.contexts.has(first.context),false);
+  assert.equal(router.key(first.context,'down'),false);
+  release();await Promise.all([pending,next]);
+  assert.equal(legacy.contexts.size,0);
+  assert.equal(messages.some(m=>m.event==='willAppear'),false);
+  assert.deepEqual(calls,[uuid]);
+  assert.equal(router.key(fresh.context,'down'),true);
+ }finally{release();await Promise.allSettled([pending,next]);await router.close();}
+});

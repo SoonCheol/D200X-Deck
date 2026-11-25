@@ -563,15 +563,18 @@ class StreamDeckPluginHost{
       this.disappear(ctx);this.contexts.delete(id);
     }
   }
-  async sync(configs,catalogue){
+  async sync(configs,catalogue,isCurrent=()=>true){
     // The router already obtained a fresh catalogue for this serialized sync.
     // Direct callers load it lazily, once per non-empty valid batch.
     let plugins=catalogue;
     const seen=new Set();
+    const active=()=>!this.closing&&isCurrent();
     for(const cfg of configs){
+      if(!active())return;
       if(!cfg||typeof cfg.context!=='string'||cfg.context.length>160||
         !UUID.test(cfg.pluginUUID)||!UUID.test(cfg.actionUUID)||!Number.isInteger(cfg.slot)||cfg.slot<0||cfg.slot>18)continue;
       plugins??=await this.list({includeArtwork:false});
+      if(!active())return;
       const plugin=plugins.find(p=>p.uuid===cfg.pluginUUID);
       if(!plugin?.actions.some(a=>a.uuid===cfg.actionUUID))continue;
       seen.add(cfg.context);
@@ -581,7 +584,8 @@ class StreamDeckPluginHost{
         ctx={...cfg,settings:cfg.settings||{},appeared:false};
         this.contexts.set(cfg.context,ctx);
         await this.ensure(cfg.pluginUUID);
-        this.willAppear(ctx);
+        if(!active())return;
+        if(this.contexts.get(cfg.context)===ctx)this.willAppear(ctx);
       }else{
         const incoming=cfg.settings||{};
         const changed=JSON.stringify(ctx.settings)!==JSON.stringify(incoming);
@@ -596,10 +600,12 @@ class StreamDeckPluginHost{
         // Re-establish it on the next explicit editor sync, not by resetting the profile.
         if(!this.instances.has(cfg.pluginUUID)){
           await this.ensure(cfg.pluginUUID);
-          this.willAppear(ctx);
+          if(!active())return;
+          if(this.contexts.get(cfg.context)===ctx)this.willAppear(ctx);
         }
       }
     }
+    if(!active())return;
     for(const [key,ctx] of this.contexts)if(!seen.has(key)){
       this.disappear(ctx);this.contexts.delete(key);
     }
