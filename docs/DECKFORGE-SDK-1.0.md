@@ -208,3 +208,5 @@ report03.md §4.2 13행 원문 기준. 1.1.231 CI #1281/입력 #521/Windows #985
 - 2.0.2 동기화 I/O 국소 개선: PluginRouter가 동일 직렬 sync에서 확인한 호환 catalogue를 호환 host.sync에 전달하고, 단독 sync도 유효 batch 내 목록 조회를 1회로 제한한다. 13개 등록·누락 action·다음 sync 삭제·빈 batch 집중 검사 추가. 새 플러그인 실행 시 기존 별도 list/manifest 확인은 유지하며 설치/제거 충돌 검증과 장기 캐시는 변경하지 않는다. 실제 지연/메모리 절감 수치 미측정. 2.0.1 CI #1296/Windows #3 standalone 검사 성공·설치 모드 검사 중. 2.0.2 신규 검사 대기.
 
 - 2.0.3: 호환 HA 읽기 전용 상태 보정 요청을 mount 완료 경로에서 분리. credential I/O 전 poll lock, 설정 객체/entity/context 및 suspend/credential epoch 검증, 늦은 이미지 전송 재검증. 기존 4초 요청 제한/6초 주기 유지; HA 제어 재실행 없음. 실제 플러그인 시작 및 catalogue 검증은 여전히 직렬로 유지하며 완전 독립 선언 금지. 집중 검사 대기. 2.0.1 회귀 통과·패키징 중, 2.0.2 CI #1297 및 Windows #4 standalone 통과.
+
+- 2.0.4: 동시 반영된 동일 설정 동기화 시 설정 객체 유지 및 진행 중 HA 읽기 보존 검사 유지. 2.0.5: 검증된 catalogue와 dependency policy 이후 기존 호환 mount를 동기 해제하고 독자 mount를 먼저 확정한다. 느린/실패한 호환 프로세스 시작에 독자 입력이 대기하지 않도록 분리하고, 호환 route는 성공 시에만 확정. retire 단계 없는 host는 기존 안전 순서 유지. sync 입력은 호출자와 분리된 snapshot 사용. 집중 검사 2개 추가. catalogue 및 관리 직렬 큐 의존은 남아 있음. 신규 검사 대기.

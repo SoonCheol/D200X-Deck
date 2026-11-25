@@ -2894,3 +2894,60 @@ test('native settings pending request is revoked on page retirement and host clo
   }
  }finally{await router.close();}
 });
+
+
+test('native mounts become usable before unrelated compatibility startup completes, after old routes retire',async()=>{
+ const {StreamDeckPluginHost}=require('../app/deckforge-editor/sd-plugin-host.cjs');
+ const legacy=new StreamDeckPluginHost('/unused'),native=new NativePluginHost('/unused');
+ const uuid='com.deckforge.compat.startup',actionUUID=uuid+'.key';
+ const nativeCfg={context:'replacement',slot:0,gesture:'down',pluginUUID:nativeId,actionUUID:nativeId+'.toggle',settings:{label:'native'}};
+ const legacyCfg={context:'slow',slot:1,gesture:'down',pluginUUID:uuid,actionUUID,settings:{}};
+ const old={...nativeCfg,pluginUUID:uuid,actionUUID,appeared:true};
+ legacy.contexts.set(old.context,old);
+ legacy.list=async()=>[{uuid,actions:[{uuid:actionUUID}]}];
+ native.manifests=async()=>[nativeManifest];native.loadServicePolicy=async()=>{};
+ const retired=[],disappear=legacy.disappear.bind(legacy);
+ legacy.disappear=ctx=>{retired.push(ctx.context);disappear(ctx);};
+ let release,entered;
+ const gate=new Promise(r=>release=r),ready=new Promise(r=>entered=r);
+ legacy.ensure=async()=>{entered();await gate;throw Error('compatibility startup failed');};
+ const router=new PluginRouter(legacy,native);
+ let pending;
+ try{
+  pending=router.sync([nativeCfg,legacyCfg]);pending.catch(()=>{});
+  await ready;
+  assert.deepEqual(retired,['replacement']);
+  assert.equal(legacy.contexts.has('replacement'),false);
+  assert.equal(native.contexts.has('replacement'),true);
+  assert.equal(router.key('replacement','down'),true);
+  assert.equal(router.key('replacement','up'),true);
+  assert.equal(router.key('slow','down'),false);
+  release();await assert.rejects(pending,/compatibility startup failed/);
+  assert.equal(router.key('replacement','down'),true);
+  assert.equal(router.key('replacement','up'),true);
+  assert.equal(router.key('slow','down'),false);
+  legacy.ensure=async()=>{const inst={uuid};legacy.instances.set(uuid,inst);return inst;};
+  await router.sync([nativeCfg,legacyCfg]);
+  assert.equal(router.legacyMounts.has('slow'),true);
+  assert.equal(router.key('replacement','down'),true);
+ }finally{release();if(pending)await pending.catch(()=>{});await router.close();}
+});
+
+test('queued router synchronization applies its owned snapshot, not a subsequently mutated caller object',async()=>{
+ let release,entered;
+ const gate=new Promise(r=>release=r),ready=new Promise(r=>entered=r);
+ const legacy={list:async()=>{entered();await gate;return [];},sync:async()=>{},close:async()=>{}};
+ const native=new NativePluginHost('/unused');
+ native.manifests=async()=>[nativeManifest];native.loadServicePolicy=async()=>{};
+ const router=new PluginRouter(legacy,native);
+ const cfg={context:'snapshot',slot:0,gesture:'down',pluginUUID:nativeId,actionUUID:nativeId+'.toggle',settings:{label:'before'}};
+ let pending;
+ try{
+  pending=router.sync([cfg]);await ready;
+  cfg.settings.label='after';cfg.slot=1;
+  release();await pending;
+  assert.equal(native.contexts.get('snapshot').settings.label,'before');
+  assert.equal(native.contexts.get('snapshot').slot,0);
+  assert.equal(router.key('snapshot','down'),true);
+ }finally{release();if(pending)await pending.catch(()=>{});await router.close();}
+});

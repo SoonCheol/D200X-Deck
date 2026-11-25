@@ -1219,8 +1219,9 @@ class PluginRouter{
     // Invalidate removed mounts immediately, before slower catalogue/legacy work.
     const revision=++this.syncRevision;
     this.desiredContexts=new Set(configs.map(c=>c?.context));
-    // Snapshot the newest intent synchronously, before catalogue I/O.
-    this.desiredMounts=new Map(configs.map(c=>[c?.context,structuredClone(c)]));
+    // Use one owned snapshot for both the routing guards and queued work.
+    configs=structuredClone(configs);
+    this.desiredMounts=new Map(configs.map(c=>[c?.context,c]));
     for(const [id,ctx] of this.native.contexts)if(!ctx.service&&!this.desiredContexts.has(id)){
       this.native.contexts.delete(id);this.native.retire(ctx);
     }
@@ -1233,13 +1234,23 @@ class PluginRouter{
     const isNative=c=>ids.has(c?.pluginUUID)||(typeof c?.pluginUUID==='string'&&ID.test(c.pluginUUID)&&!legacyIds.has(c.pluginUUID.toLowerCase()));
     const local=configs.filter(isNative),other=configs.filter(c=>!isNative(c));
     this.nativeContextIds=new Set(local.map(c=>c.context));
-    // Remove stale compatibility contexts before publishing a new native context.
-    // A partial compatibility sync is not proof that any of its routes are ready.
+    // Retire incompatible old mounts synchronously before publishing native
+    // routes. Starting unrelated compatibility processes must not delay native
+    // input. Catalogue and dependency validation still precede either host.
     try{
-      await this.legacy.sync(other,legacy);
+      if(typeof this.legacy.retireUnmatched==='function'){
+        this.legacy.retireUnmatched(other);
+        if(this.closed||revision!==this.syncRevision)return;
+        this.native.sync(local,native);
+        if(this.closed||revision!==this.syncRevision)return;
+        await this.legacy.sync(other,legacy);
+      }else{
+        // Hosts without a separate retirement phase retain the safe old order.
+        try{await this.legacy.sync(other,legacy);}
+        finally{if(!this.closed&&revision===this.syncRevision)this.native.sync(local,native);}
+      }
       if(!this.closed&&revision===this.syncRevision)this.legacyMounts=new Map(other.map(c=>[c.context,structuredClone(c)]));
     }catch(error){this.legacyMounts.clear();throw error;}
-    finally{if(!this.closed&&revision===this.syncRevision)this.native.sync(local,native);}
   });}
   pendingSettingsRequest(context,id){
     if(this.closed||this.desiredContexts&&!this.desiredContexts.has(context))return null;

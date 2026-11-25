@@ -466,6 +466,15 @@ class StreamDeckPluginHost{
     this.send(inst.ws,{event:'willAppear',action:ctx.actionUUID,context:ctx.context,device:DEVICE,payload:this.payload(ctx)});
     ctx.appeared=true;
   }
+  retireUnmatched(configs){
+    // Retire old compatibility routes before native mount publication.
+    const desired=new Map(configs.map(c=>[c?.context,c]));
+    for(const [id,ctx] of this.contexts){
+      const next=desired.get(id);
+      if(next&&['pluginUUID','actionUUID','instanceId','mountGeneration','slot','gesture'].every(k=>ctx[k]===next[k]))continue;
+      this.disappear(ctx);this.contexts.delete(id);
+    }
+  }
   async sync(configs,catalogue){
     // The router already obtained a fresh catalogue for this serialized sync.
     // Direct callers load it lazily, once per non-empty valid batch.
