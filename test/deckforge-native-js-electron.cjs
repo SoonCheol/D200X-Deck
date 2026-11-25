@@ -600,20 +600,39 @@ async function verifyTrustedDrawOps(legacy){
 // Separate opt-in CI process: a small renderer heap and bounded allocation.
 // Never use OS-wide memory pressure or count a forced crash/timeout as OOM.
 const oomOnly=process.env.DECKFORGE_SDK_OOM==='1';
-if(oomOnly)app.commandLine.appendSwitch('js-flags','--max-old-space-size=64');
+if(oomOnly){
+ app.commandLine.appendSwitch('js-flags','--max-old-space-size=64');
+ // Dedicated synthetic CI test only. Initialize the local crash handler before
+ // any renderer exists; never enable report uploads or use product data.
+ if(process.platform==='win32'){
+  const dumpDir=process.env.DECKFORGE_SDK_OOM_DUMPS;
+  if(!dumpDir)throw Error('Dedicated Windows OOM test requires an isolated crash dump directory');
+  require('node:fs').mkdirSync(dumpDir,{recursive:true});
+  app.setPath('crashDumps',dumpDir);
+  const {crashReporter}=require('electron');
+  crashReporter.start({uploadToServer:false});
+  assert.equal(crashReporter.getUploadToServer(),false);
+  console.log('MODEL2_OOM_CRASH_REPORTER '+JSON.stringify({localOnly:true,isolatedDirectory:true}));
+ }
+}
 // Windows renderer stderr is unavailable. Match only the target PID and
 // Chromium's native Blink V8 OOM diagnostic, never a generic crash code.
 async function nativeHeapOomEvidence(pid){
  const file=process.env.DECKFORGE_SDK_OOM_LOG;
  if(!file)return false;
  const prefix=new RegExp('^\\['+pid+':\\d+:');
+ let lastLines=[],logBytes=0;
  for(let i=0;i<20;i++){
   let lines=[];
-  try{lines=(await fs.readFile(file,'utf8')).split(/\r?\n/);}catch(error){if(error.code!=='ENOENT')throw error;}
+  try{const raw=await fs.readFile(file,'utf8');logBytes=Buffer.byteLength(raw);lines=raw.split(/\r?\n/);}catch(error){if(error.code!=='ENOENT')throw error;}
+  lastLines=lines;
   const match=lines.find(line=>prefix.test(line)&&/\b(?:ERROR|FATAL):[^\]]*v8_initializer\.cc:\d+\]\s+V8 javascript OOM \(/i.test(line));
   if(match){console.log('MODEL2_OOM_NATIVE_EVIDENCE '+JSON.stringify({pid,line:match.slice(0,500)}));return true;}
   await new Promise(resolve=>setTimeout(resolve,100));
  }
+ // Missing evidence must remain a failure; report only bounded diagnostic
+ // lines from the actual target renderer, not a generic fatal message.
+ console.log('MODEL2_OOM_LOG_DIAGNOSTIC '+JSON.stringify({pid,logBytes,targetLines:lastLines.filter(line=>prefix.test(line)).length,diagnostics:lastLines.filter(line=>prefix.test(line)&&/oom|heap|crashpad|fatal/i.test(line)).slice(-8).map(line=>line.slice(0,500))}));
  return false;
 }
 async function verifyModel2HeapExhaustion(){

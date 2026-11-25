@@ -67,7 +67,18 @@ jobs:
           DECKFORGE_SDK_OOM: '1'
         shell: pwsh
         run: |
-          $log = Join-Path $env:RUNNER_TEMP ('deckforge-sdk-oom-' + [guid]::NewGuid() + '.log')
+          $dir = Join-Path $env:RUNNER_TEMP ('deckforge-sdk-oom-' + [guid]::NewGuid())
+          New-Item -ItemType Directory -Path $dir | Out-Null
+          $log = Join-Path $dir 'electron.log'
           $env:DECKFORGE_SDK_OOM_LOG = $log
-          & app/node_modules/.bin/electron.cmd --enable-logging=file "--log-file=$log" test/deckforge-native-js-electron.cjs
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $env:DECKFORGE_SDK_OOM_DUMPS = Join-Path $dir 'dumps'
+          try {
+            & app/node_modules/.bin/electron.cmd --enable-logging=file "--log-file=$log" test/deckforge-native-js-electron.cjs
+            $code = $LASTEXITCODE
+            $dumps = @(Get-ChildItem -LiteralPath $env:DECKFORGE_SDK_OOM_DUMPS -Recurse -Filter '*.dmp' -File -ErrorAction SilentlyContinue)
+            Write-Host "OOM local dump count: $($dumps.Count)"
+            if ($code -ne 0) { exit $code }
+          } finally {
+            # Never publish dump contents; this is a synthetic, disposable test.
+            Remove-Item -LiteralPath $dir -Recurse -Force -ErrorAction SilentlyContinue
+          }
