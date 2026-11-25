@@ -58,7 +58,7 @@
 | 노브·측면 키 | 회전/누름/누른 채 회전, 동작별 할당/다이얼 스택, 측면 버튼, 적용 범위와 전용 UI 보존. 일반 LCD 키 3탭을 강제 적용하지 않음 | renderControlInspector(), style.css의 .knob-inspector와 .control-gesture-strip |
 | 와이드 화면 | 시계·날짜·통계·노브 정보 및 표시 순환, 고유 속성/실기 상태. 일반 키 편집기·아이콘 카드로 치환 금지 | renderWideInspector(), .wide-mode-row, 관련 wide 표시 소스 |
 | 프로필·덱폴더·템플릿 | 프로필 선택/메뉴, 페이지/폴더 이동, 템플릿·백업/복원 UI, 사용자 데이터·저장/복원 동작 보존 | #profile-menu, editor.js, profile-store.cjs, D200X-CURRENT-STATUS.md |
-| AI·HA·Fusion·SDK | AI 도우미, HA 엔티티, Fusion 명령 Manager, SDK 플러그인과 원래 속성창(Property Inspector)의 별도 UI/연결 보존 | ai/panel.html·panel.css, Fusion Manager, editor.js SDK/HA 바인딩 |
+| AI·HA·Fusion·SDK | AI 도우미, HA 엔티티, Fusion 명령 Manager, SDK 플러그인과 원래 속성창(Property Inspector)의 별도 UI/연결 보존. 같은 플러그인 내부 HTML 설정 팝업과 opener 콜백 허용, 외부 파일/특권 접근 금지 | ai/panel.html·panel.css, Fusion Manager, editor.js SDK/HA 바인딩 |
 | 공통 팝업·경고 | 우클릭 메뉴, 미저장 경고, 확인/취소, 파일 선택, 팔레트·글꼴 팝오버의 포커스·버튼 정렬·대화상자 동작 보존 | deckforge-dialog.js, editor.js, style.css |
 
 **위 표는 다른 화면의 치수를 새로 만들어낸 규격이 아니다.** 정확한 너비·높이·반응형 규칙은 해당 화면의 최신 CSS와 개별 사용자 승인 내용을 따른다. 소스 미확인 영역을 임의로 단정하지 않는다.

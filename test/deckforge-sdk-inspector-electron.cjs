@@ -1,0 +1,40 @@
+'use strict';
+const {app,BrowserWindow}=require('electron');
+const fs=require('node:fs/promises');
+const os=require('node:os');
+const path=require('node:path');
+const assert=require('node:assert/strict');
+const {registerInspectorScheme,createInspectorScope,bindInspectorWindows}=require('../app/deckforge-editor/sdk-inspector-scope.cjs');
+registerInspectorScheme();
+app.whenReady().then(async()=>{
+  const root=await fs.mkdtemp(path.join(os.tmpdir(),'deckforge-inspector-'));
+  let win;
+  try{
+    const dir=path.join(root,'plugin.sdPlugin');await fs.mkdir(dir);
+    await fs.writeFile(path.join(dir,'pi.html'),'<html><script src="pi.js"></script></html>');
+    await fs.writeFile(path.join(dir,'pi.js'),'window._saveToken=v=>{window.saved=v;return true;};');
+    await fs.writeFile(path.join(dir,'setup.html'),'<html><script>window.onload=()=>{window.result=window.opener._saveToken(location.hash.slice(1));};</script></html>');
+    await fs.writeFile(path.join(root,'secret.html'),'outside');
+    const scope=createInspectorScope(dir);
+    assert.equal(scope.html(scope.url('setup.html')),await fs.realpath(path.join(dir,'setup.html')));
+    assert.equal(scope.html(scope.url('../secret.html')),null);
+    assert.equal(scope.html('file:///C:/Windows/win.ini'),null);
+    assert.equal(scope.html('deckforge-pi://other/setup.html'),null);
+    win=new BrowserWindow({show:false,webPreferences:{session:scope.session,nodeIntegration:false,contextIsolation:false,sandbox:true,webSecurity:true}});
+    bindInspectorWindows(win,scope,()=>null);
+    await win.loadURL(scope.url('pi.html'));
+    assert.equal(await win.webContents.executeJavaScript('typeof window._saveToken'),'function');
+    const created=new Promise(resolve=>win.webContents.once('did-create-window',resolve));
+    await win.webContents.executeJavaScript('Boolean(window.open("setup.html#fake-token","settings"))',true);
+    let timer;
+    const child=await Promise.race([created,new Promise((_,reject)=>{timer=setTimeout(()=>reject(Error('popup not created')),5000);})]).finally(()=>clearTimeout(timer));
+    const deadline=Date.now()+5000;
+    while(Date.now()<deadline&&await win.webContents.executeJavaScript('window.saved||""')!=='fake-token')await new Promise(r=>setTimeout(r,50));
+    assert.equal(await win.webContents.executeJavaScript('window.saved'),'fake-token');
+    assert.equal(await child.webContents.executeJavaScript('typeof require'), 'undefined');
+    assert.equal(await child.webContents.executeJavaScript('Boolean(window.open("file:///C:/Windows/win.ini","bad"))',true),false);
+    child.destroy();
+    console.log('DeckForge local inspector popup and opener callback verified');
+  }finally{if(win&&!win.isDestroyed())win.destroy();await fs.rm(root,{recursive:true,force:true});}
+  app.exit(0);
+}).catch(error=>{console.error(error);app.exit(1);});

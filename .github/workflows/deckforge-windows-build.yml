@@ -138,6 +138,8 @@ jobs:
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           node --check app/deckforge-editor/deckforge-js-runtime.cjs
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          & app/node_modules/.bin/electron.cmd test/deckforge-sdk-inspector-electron.cjs
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           & app/node_modules/.bin/electron.cmd test/deckforge-native-js-electron.cjs
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           node --check test/deckforge-worker-csp-electron.cjs

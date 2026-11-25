@@ -10,6 +10,7 @@ const {promisify}=require('node:util');
 const execFileAsync=promisify(execFile);
 const {WebSocketServer}=require('ws');
 const JSZip=require('jszip');
+const {createInspectorScope,bindInspectorWindows}=require('./sdk-inspector-scope.cjs');
 const {BrowserWindow,safeStorage,screen,dialog,shell}=require('electron');
 const UUID=/^[a-zA-Z0-9][a-zA-Z0-9._-]{2,180}$/;
 const MAX_ARCHIVE=40*1024*1024,MAX_FILES=2500,MAX_EXPANDED=100*1024*1024;
@@ -644,11 +645,14 @@ class StreamDeckPluginHost{
       if(placement)pi.window.setBounds(placement);
       pi.window.show();pi.window.focus();return true;
     }
+    const scope=createInspectorScope(inst.dir);
+    const inspectorUrl=scope.url(action.PropertyInspectorPath);
+    if(!scope.html(inspectorUrl))throw Error('플러그인 속성 HTML 파일을 찾을 수 없습니다.');
     const win=new BrowserWindow({width:560,height:780,minWidth:420,minHeight:500,
       ...(fusion?{width:440,height:460,minWidth:320,minHeight:280,...(placement||{})}:{}),
       show:false,backgroundColor:'#111217',title:inst.manifest.Name+' · 설정',
       ...(parent&&!parent.isDestroyed()?{parent,modal:true}:{}),
-      webPreferences:{nodeIntegration:false,contextIsolation:false,sandbox:true,webSecurity:true}});
+      webPreferences:{session:scope.session,nodeIntegration:false,contextIsolation:false,sandbox:true,webSecurity:true}});
     if(!fusion&&parent&&!parent.isDestroyed()){
       const p=parent.getBounds();
       const area=screen.getDisplayMatching(p).workArea;
@@ -658,20 +662,14 @@ class StreamDeckPluginHost{
         Math.max(area.y,Math.min(area.y+area.height-h,p.y+Math.round((p.height-h)/2)))
       );
     }
-    win.webContents.setWindowOpenHandler(({url})=>{
-      if(/^https?:\/\//i.test(url))require('electron').shell.openExternal(url).catch(()=>{});
-      return {action:'deny'};
-    });
-    win.webContents.on('will-navigate',(event,url)=>{
-      if(!url.startsWith('file://'))event.preventDefault();
-    });
+    bindInspectorWindows(win,scope,safeSdkExternalUrl);
     pi={context,actionUUID:ctx.actionUUID,slot:ctx.slot,window:win,ws:null,pluginUUID:ctx.pluginUUID};
     this.inspectors.set(context,pi);
     win.on('closed',()=>{
       this.inspectors.delete(context);
       this.send(inst.ws,{event:'propertyInspectorDidDisappear',action:ctx.actionUUID,context,device:DEVICE});
     });
-    await win.loadFile(path.join(inst.dir,action.PropertyInspectorPath));
+    await win.loadURL(inspectorUrl);
     const info=json({application:{language:'ko',platform:'windows',version:'7.6.1'},devices:[{id:DEVICE,name:'D200X'}],plugin:{version:inst.manifest.Version}});
     const actionInfo=json({action:ctx.actionUUID,context,device:DEVICE,payload:this.payload(ctx)});
     await win.webContents.executeJavaScript('typeof connectElgatoStreamDeckSocket==="function" && connectElgatoStreamDeckSocket('+[this.port,context,'registerPropertyInspector',info,actionInfo].map(json).join(',')+')');

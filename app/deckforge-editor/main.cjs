@@ -20,6 +20,7 @@ const { parseIconPack, parseIconFolder, readPacks, registerPack, removePack } = 
 const { safeStorage } = require('electron');
 const HA = require('./ha-client.cjs');
 const {StreamDeckPluginHost}=require('./sd-plugin-host.cjs');
+require('./sdk-inspector-scope.cjs').registerInspectorScheme();
 const {NativePluginHost,PluginRouter}=require('./deckforge-native-sdk.cjs');
 const DeckForgePlugins=require('./deckforge-plugin.cjs');
 const Bundled=require('./bundled-integration.cjs');
