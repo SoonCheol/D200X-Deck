@@ -1015,8 +1015,11 @@ class NativePluginHost{
 }
 // Compatibility host stays unchanged; only validated native IDs are routed here.
 class PluginRouter{
-  constructor(legacy,native){this.legacy=legacy;this.native=native;this.queue=Promise.resolve();this.closed=false;this.nativeContextIds=new Set();this.legacyMounts=new Map();this.desiredContexts=null;this.desiredMounts=null;this.syncRevision=0;}
-  serial(fn){const task=this.queue.then(()=>{if(this.closed)throw Error('Plugin host closed');return fn();});this.queue=task.catch(()=>{});return task;}
+  constructor(legacy,native){this.legacy=legacy;this.native=native;this.queue=Promise.resolve();this.compatibilityQueue=Promise.resolve();this.closed=false;this.nativeContextIds=new Set();this.legacyMounts=new Map();this.desiredContexts=null;this.desiredMounts=null;this.syncRevision=0;}
+  enqueue(fn){const task=this.queue.then(()=>{if(this.closed)throw Error('Plugin host closed');return fn();});this.queue=task.catch(()=>{});return task;}
+  // Management still waits for outstanding compatibility startup before touching installed data.
+  serial(fn){return this.enqueue(async()=>{await this.compatibilityQueue;if(this.closed)throw Error('Plugin host closed');return fn();});}
+  enqueueCompatibility(fn){const task=this.compatibilityQueue.then(fn);this.compatibilityQueue=task.catch(()=>{});return task;}
   async catalog(includeArtwork=false){
     const legacy=await this.legacy.list({includeArtwork}),ids=new Set(legacy.map(x=>x.uuid.toLowerCase()));
     const native=(await this.native.manifests()).filter(m=>!ids.has(m.id));
@@ -1243,11 +1246,11 @@ class PluginRouter{
     for(const [id,ctx] of this.native.contexts)if(!ctx.service&&!this.desiredContexts.has(id)){
       this.native.contexts.delete(id);this.native.retire(ctx);
     }
-    return this.serial(async()=>{
+    return this.enqueue(async()=>{
     if(revision!==this.syncRevision)return;
     const {native,legacy}=await this.catalog(),ids=new Set(native.map(m=>m.id));
     await this.native.loadServicePolicy();
-    if(revision!==this.syncRevision)return;
+    if(this.closed||revision!==this.syncRevision)return;
     const legacyIds=new Set(legacy.map(p=>p.uuid.toLowerCase()));
     const isNative=c=>ids.has(c?.pluginUUID)||(typeof c?.pluginUUID==='string'&&ID.test(c.pluginUUID)&&!legacyIds.has(c.pluginUUID.toLowerCase()));
     const local=configs.filter(isNative),other=configs.filter(c=>!isNative(c));
@@ -1261,15 +1264,25 @@ class PluginRouter{
         if(this.closed||revision!==this.syncRevision)return;
         this.native.sync(local,native);
         if(this.closed||revision!==this.syncRevision)return;
-        await this.legacy.sync(other,legacy,()=>!this.closed&&revision===this.syncRevision);
+        const active=()=>!this.closed&&revision===this.syncRevision;
+        // Return a wrapper, not the startup promise itself: the catalogue/native
+        // queue can advance while older compatibility work drains in order.
+        const completion=this.enqueueCompatibility(async()=>{
+          if(!active())return;
+          try{
+            await this.legacy.sync(other,legacy,active);
+            if(active())this.legacyMounts=new Map(other.map(c=>[c.context,structuredClone(c)]));
+          }catch(error){if(active())this.legacyMounts.clear();throw error;}
+        });
+        return {completion};
       }else{
         // Hosts without a separate retirement phase retain the safe old order.
         try{await this.legacy.sync(other,legacy);}
         finally{if(!this.closed&&revision===this.syncRevision)this.native.sync(local,native);}
       }
       if(!this.closed&&revision===this.syncRevision)this.legacyMounts=new Map(other.map(c=>[c.context,structuredClone(c)]));
-    }catch(error){this.legacyMounts.clear();throw error;}
-  });}
+    }catch(error){if(revision===this.syncRevision)this.legacyMounts.clear();throw error;}
+  }).then(result=>result?.completion);}
   pendingSettingsRequest(context,id){
     if(this.closed||this.desiredContexts&&!this.desiredContexts.has(context))return null;
     const request=this.native.pendingSettingsRequest(context,id);

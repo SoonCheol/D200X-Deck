@@ -469,17 +469,25 @@ test('new page retires pending compatibility startup and prevents obsolete mount
  legacy.send=(_ws,msg)=>messages.push(msg);
  legacy.ensure=async id=>{calls.push(id);entered();await gate;const inst={uuid:id,ws:{readyState:1}};legacy.instances.set(id,inst);return inst;};
  const router=new PluginRouter(legacy,native);
- let pending,next;
+ let pending,next,management,timer;
+ let mounted;const nativeReady=new Promise(r=>mounted=r);
+ const syncNative=native.sync.bind(native);native.sync=(configs,manifests)=>{syncNative(configs,manifests);if(configs.some(c=>c.context===fresh.context))mounted();};
+ let managementStarted=false;legacy.retainedRecord=async()=>{managementStarted=true;return {revision:'fixture'};};
  try{
   pending=router.sync([first,second]);pending.catch(()=>{});
   await ready;assert.ok(legacy.contexts.has(first.context));
   next=router.sync([fresh]);next.catch(()=>{});
   assert.equal(legacy.contexts.has(first.context),false);
   assert.equal(router.key(first.context,'down'),false);
-  release();await Promise.all([pending,next]);
+  await Promise.race([nativeReady,new Promise((_,reject)=>{timer=setTimeout(()=>reject(Error('native mount waited for compatibility startup')),2000);})]);
+  clearTimeout(timer);assert.equal(router.key(fresh.context,'down'),true);
+  management=router.planLegacyRemoval(uuid);
+  await new Promise(r=>setImmediate(r));assert.equal(managementStarted,false,'management must still wait for compatibility startup');
+  release();await Promise.all([pending,next,management]);
+  assert.equal(managementStarted,true);
   assert.equal(legacy.contexts.size,0);
   assert.equal(messages.some(m=>m.event==='willAppear'),false);
   assert.deepEqual(calls,[uuid]);
   assert.equal(router.key(fresh.context,'down'),true);
- }finally{release();await Promise.allSettled([pending,next]);await router.close();}
+ }finally{clearTimeout(timer);release();await Promise.allSettled([pending,next,management]);await router.close();}
 });
