@@ -1,8 +1,8 @@
 {
   "name": "deckforge",
   "productName": "DeckForge",
-  "version": "1.1.234",
+  "version": "1.1.235",
   "private": true,
-  "description": "DeckForge — Ulanzi D200X editor with Stream Deck SDK plugin support",
+  "description": "DeckForge — Independent Ulanzi D200X editor and native plugin SDK",
   "main": "main.cjs"
 }

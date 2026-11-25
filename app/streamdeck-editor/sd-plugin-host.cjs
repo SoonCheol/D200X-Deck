@@ -1,5 +1,6 @@
 'use strict';
-// Stream Deck SDK 3 host, first target: HTML-based cgiesche Home Assistant plugin.
+// DeckForge optional compatibility host for Stream Deck SDK plugins.
+// This is distinct from the DeckForge native SDK execution engine.
 // Installer never executes package contents. Execution begins only after user assigns an action.
 const fs=require('node:fs');
 const path=require('node:path');

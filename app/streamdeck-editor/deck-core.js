@@ -1,6 +1,6 @@
 'use strict';
 // Pure, UI/HID-independent action model. No action execution in this module.
-// Defaults reflect 24-action Stream Deck 7.6.1 Korean observation report;
+// DeckForge built-in action defaults preserve the established editor behavior;
 // audio-play values were observed on an existing key, not proven install defaults.
 (function(root,factory){
   if(typeof module==='object'&&module.exports)module.exports=factory();
@@ -613,8 +613,8 @@
       icon:visual?.icon||action.icon};
   }
   // Delay is an internal Multi step, never a new right-panel action ID.
-  // The limits below guard malformed saved data; they do not claim to be the
-  // Stream Deck 7.6.1 UI's observed minimum/maximum delay settings.
+  // DeckForge data validation limits guard malformed saved entries.
+  // These are not claims about another product's UI limits.
   function cleanCompositeEntry(value){
     if(!value||typeof value!=='object'||Array.isArray(value))return null;
     if(value.kind==='delay')return {kind:'delay',ms:Number.isFinite(value.ms)

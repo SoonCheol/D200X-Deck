@@ -1001,7 +1001,7 @@ ipcMain.on('d200x:sync-page', (event, images, wideMode='blank',liveOnly=false) =
 });
 
 // Only user-configured HTTP(S) URLs may be opened by a physical key press.
-// The other original Stream Deck URL modes (GET/browser selection) are pending.
+// Additional URL execution modes (GET/browser selection) are not implemented here.
 ipcMain.handle('d200x:open-website', async (event, args) => {
   if (!window || event.sender !== window.webContents)
     throw new Error('허용되지 않은 호출입니다.');
@@ -1370,7 +1370,7 @@ $text=[Text.Encoding]::Unicode.GetString([Convert]::FromBase64String('${encoded}
   return true;
 });
 
-// Original Stream Deck media keys. Never execute user-supplied code.
+// DeckForge Windows media key mapping. Never execute user-supplied code.
 const MEDIA_CODES=Object.freeze({previous:0xB1,playpause:0xB3,next:0xB0,stop:0xB2,mute:0xAD,up:0xAF,down:0xAE});
 function emitWindowsKeys(held,key,options=null){
   const flags=options?.extended?1:0,scan=options?.scan||0;

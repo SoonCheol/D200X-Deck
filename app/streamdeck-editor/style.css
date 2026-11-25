@@ -37,7 +37,7 @@
 @media(max-width:1000px){.work{grid-template-rows:70px minmax(290px,auto) minmax(210px,1fr)}.canvas{padding-top:5px;gap:7px}.physical-controls{gap:8px;padding:4px}.physical-control.knob .physical-symbol{width:29px;height:29px}.physical-control .physical-name{font-size:9px}}
 
 
-/* Stream Deck geometry pass: the keypad starts high and the inspector owns the remaining height. */
+/* DeckForge editor geometry: the keypad starts high and the inspector owns the remaining height. */
 #app{min-height:620px;grid-template-columns:minmax(530px,1fr) 320px}
 .work{grid-template-rows:clamp(358px,48vh,413px) minmax(220px,1fr);min-height:0}
 .canvas{padding-top:15px;justify-content:flex-start;overflow:auto;gap:9px}
@@ -208,7 +208,7 @@
 #icon-maker-save{background:#2977c9;border-color:#2977c9;}
 
 
-/* Stream Deck title overlay: fixed icon bitmap, title drawn over it in the
+/* DeckForge title overlay: fixed icon bitmap, title drawn over it in the
    shared 196px compositor. Never vertically reflow the key when font grows. */
 .deck-key{position:relative;}
 .deck-key:has(> .rendered-key-image){padding:0;gap:0;}
@@ -306,7 +306,7 @@
 .panel-action-svg.theme-button{border-radius:7px;background:linear-gradient(145deg,#4e5b6b,#1b222e);border:1px solid #657083;color:#fff;box-shadow:inset 0 1px 0 #ffffff25,0 1px 2px #0008}
 .panel-action-svg.theme-button svg{height:18px;width:18px}
 
-/* Keep unavailable Virtual Stream Deck visible without allowing assignment. */
+/* Keep unavailable Virtual DeckForge visible without allowing assignment. */
 .library .action-item.action-disabled{opacity:.48;cursor:not-allowed}
 .library .action-item.action-disabled:hover{background:transparent}
 .library .action-item.action-disabled .action-unavailable{font-size:10px;color:#b9b9b9}

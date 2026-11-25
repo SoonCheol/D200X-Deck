@@ -77,7 +77,8 @@ const PANEL_SHORTCUTS={
   "text":"유니코드 텍스트 입력"
 };
 const ACTIONS = new Map(CATALOG.flatMap(([category, entries]) => entries.map(([id,label,icon]) => [id,{category,id,label,icon}])));
-ACTIONS.set('sd-plugin',{category:'플러그인',id:'sd-plugin',label:'DeckForge 플러그인 (Stream Deck SDK)',icon:'▣'});
+ACTIONS.set('sd-plugin',{category:'플러그인',id:'sd-plugin',label:'DeckForge 플러그인',icon:'▣'});
+// Historical storage identifier: retain the exact key for existing profiles.
 const STORAGE_KEY="d200x-streamdeck-editor-prototype-v1";
 const $ = id => document.getElementById(id);
 const clone = value => JSON.parse(JSON.stringify(value));
@@ -2781,6 +2782,7 @@ function refreshTitlePreview(item){
 }
 
 const SHARED_COLOR_PALETTE=["#ffffff","#000000","#ff0000","#ff8800","#ffff00","#00cc66","#00ffff","#0088ff","#0000ff","#a855f7","#ff66cc","#808080","#ffb3ba","#ffd4b8","#fff0b3","#b9e8c4","#b5e3fa","#d9c2f0","#d98f95","#d9aa85","#d9c987","#8cb99a","#8cb5d2","#b39acb","#d64545","#d98236","#c3a42e","#3c9659","#377dbd","#8653b8","#702626","#754622","#756328","#285c3b","#244f78","#51346f","#f4c3e4","#b5e8df","#bfcbfa","#e4f4b5","#cf9ab8","#85b9b5","#1c1c1c","#333333","#505050","#707070","#909090","#b0b0b0","#d0d0d0","#eeeeee","#319a91","#5359b8","#bd548e","#86a63d","#245b58","#34386f","#753758","#505e2b","#919fcb","#b6c58b"];
+// Historical color storage identifier: retain existing user palettes.
 const SHARED_COLOR_STORAGE='d200x-streamdeck-custom-title-colors-v1';
 const PALETTE_ICON='<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3a9 9 0 1 0 0 18h1.5a2 2 0 0 0 1.3-3.5 1.2 1.2 0 0 1 1-2H18a3 3 0 0 0 3-3C21 7 17 3 12 3Z"/><circle cx="7.5" cy="10" r="1"/><circle cx="11" cy="6.5" r="1"/><circle cx="16" cy="8" r="1"/></svg>';
 function validPaletteColor(value){return typeof value==='string'&&/^#[0-9a-fA-F]{6}$/.test(value);}
@@ -4465,7 +4467,7 @@ const INSPECTOR_HELP={
     cautions:['단축키 지원 범위는 실행 중인 Windows 앱에 따라 달라집니다.']
   },
   'sd-plugin':{
-    title:'플러그인 설정',description:'DeckForge에 설치된 Stream Deck SDK 호환 플러그인의 동작과 표시 상태를 설정합니다.',
+    title:'플러그인 설정',description:'DeckForge에 설치된 독자 또는 호환 플러그인의 동작과 표시 상태를 설정합니다.',
     steps:['플러그인 속성 열기로 해당 플러그인의 설정을 확인하세요.','OFF/ON 이미지는 필요할 때 각 상태에 지정하세요.'],
     cautions:['지원되는 설정은 설치된 플러그인의 구현에 따라 다릅니다.']
   },

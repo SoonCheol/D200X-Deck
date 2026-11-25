@@ -90,8 +90,8 @@
       ' · 해당 동작은 아직 실행되지 않음');
   });
 
-  // Stream Deck renders title ON TOP of a fixed full-key icon. The source
-  // font size is calibrated to a 72px Stream Deck key; D200X accepts 196px PNG.
+  // DeckForge renders titles over a fixed full-key icon.
+  // Preserve the established 72px logical font scale; D200X accepts 196px PNG.
   // Rendering both views from this compositor prevents CSS flex layout drift.
   function drawText(ctx, title, width, height, style) {
     if (!title || style?.visible === false) return;
@@ -108,7 +108,7 @@
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
     ctx.lineJoin = 'round';
-    // Stream Deck text is overlaid on the icon, never used to reposition it.
+    // DeckForge title text overlays the icon without repositioning it.
     const maxWidth = width - 16;
     const lines = [];
     for (const paragraph of String(title).split(/\r?\n|<br\s*\/?>/gi)) {
@@ -144,7 +144,7 @@
     visibleLines.forEach((value,index)=>{
       const y = top + (index + 0.5) * lineHeight;
       // A subtle black outline is readable over bright icons without
-      // introducing an extra title background not shown in Stream Deck.
+      // adding an unwanted background when title background is disabled.
       const outlineColor = /^#[0-9a-fA-F]{6}$/.test(style?.outlineColor)
         ? style.outlineColor : '#000000';
       const outlineWidth = {none:0,thin:fontSize/16,medium:fontSize/10,thick:fontSize/6}
