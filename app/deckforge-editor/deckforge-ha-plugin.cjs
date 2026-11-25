@@ -28,16 +28,22 @@ function service(event,settings,state,memory,api){
     if(['unknown','unavailable',''].includes(entry.value))return;
     let target=id,domain=id.split('.')[0],operation=domain==='automation'?'trigger':domain==='button'||domain==='input_button'?'press':domain==='script'||domain==='scene'?'turn_on':'toggle';
     if(message.other===true&&!otherDevice(id))return;
-    if(message.linked===true){
-      if(!switchDevice(id)||!['on','off'].includes(entry.value))return;
-      const on=entry.value==='on';
-      target=on?message.onEntity:message.offEntity;operation=on?message.onOperation:message.offOperation;
-      if(!valid(target)||!switchDevice(target)||!Object.hasOwn(old.entities||{},target)||['unknown','unavailable',''].includes(old.entities[target].value))return;
-      domain=target.split('.')[0];
-      if(!['turn_on','turn_off','toggle'].includes(operation))return;
+    const command=(entity,op)=>{
+      memory.next=(memory.next||10)+1;
+      api.sendSocket({id:memory.next,type:'call_service',domain:entity.split('.')[0],service:op,target:{entity_id:entity}});
+    };
+    if(message.linked===true&&switchDevice(id)){
+      if(!['on','off'].includes(entry.value))return;
+      const nextOn=entry.value==='off';
+      // Always operate the primary switch first, even with an absent/invalid linked target.
+      command(id,nextOn?'turn_on':'turn_off');
+      if(nextOn?message.linkOn===false:message.linkOff===false)return;
+      const linked=message.linkEntity;
+      if(!valid(linked)||linked===id||!switchDevice(linked)||!Object.hasOwn(old.entities||{},linked)||!['on','off'].includes(old.entities[linked].value))return;
+      command(linked,nextOn!==(message.linkReverse===true)?'turn_on':'turn_off');return;
     }
-    memory.next=(memory.next||10)+1;
-    api.sendSocket({id:memory.next,type:'call_service',domain,service:operation,target:{entity_id:target}});return;
+    if(message.linked===true&&!switchDevice(id))return;
+    command(target,operation);return;
   }
   if(event.type!=='socketEvent')return;
   const response=event.response||{};
@@ -113,7 +119,7 @@ function controlKey(event,settings,state,memory,api){
   const shared=api.getSharedState(),id=settings.entity,entry=shared.entities?.[id];
   const ready=shared.status==='연결됨'&&entry&&!['unknown','unavailable'].includes(entry.value);
   if(event.type==='press'&&ready){
-    api.sendServiceMessage(settings.linked===true?{entity:id,linked:true,onEntity:settings.onEntity||'',offEntity:settings.offEntity||'',onOperation:settings.onOperation||'turn_off',offOperation:settings.offOperation||'turn_on'}:{entity:id});return;
+    api.sendServiceMessage(settings.linked===true?{entity:id,linked:true,linkEntity:settings.linkEntity||'',linkOn:settings.linkOn!==false,linkOff:settings.linkOff!==false,linkReverse:settings.linkReverse===true}:{entity:id});return;
   }
   if(!['appear','settings','sharedState','tick'].includes(event.type))return;
   const active=ready&&entry.value==='on',name=(entry?.label||'기기 선택').slice(0,30);
@@ -187,18 +193,17 @@ function createHomeAssistantManifest(server){
   }
   const script=f=>'return ('+f.toString()+')(event,settings,state,memory,api);';
   const select=(key,label,value,options)=>({key,label,type:'select',default:value,options:options.map(([value,label])=>({value,label}))});
-  const operations=[['turn_on','켜기'],['turn_off','끄기'],['toggle','전환'],['trigger','자동화 실행'],['press','버튼 누르기']];
   const device=(key,label)=>({key,label,type:'dynamicSelect',source:'controls',default:''});
-  return {apiVersion:2,id:ID,name:'DeckForge Home Assistant',version:'0.1.10',requiresDeckForge:'>=2.0.48',
+  return {apiVersion:2,id:ID,name:'DeckForge Home Assistant',version:'0.1.11',requiresDeckForge:'>=2.0.51',
     permissions:['display','background.run','timer.tick',...(u?['network.websocket']:[])],
     ...(u?{networkEndpoints:[{id:'ha',url:u.href,method:'WSS',auth:'home-assistant',reconnect:true,maxReceiveBytes:1048576}]}:{}),
     service:{script:u?script(service):"if(event.type==='start')api.publishSharedState({status:'초기 연결 필요',controls:[],sensors:[],others:[],entities:{}});",sharedStateBytes:262144},
     actions:[
       {id:ID+'.control',name:'HA 스위치 기기',controllers:['Keypad'],states:2,script:script(controlKey),sharedStateView:{keys:['status','commandError'],map:'entities',selection:'entity'},
        settingsSchema:[device('entity','상태 기준 기기'),{key:'linked',label:'별도 기기 연동 제어',type:'boolean',default:false},
-         device('offEntity','기준 OFF · 제어 기기'),select('offOperation','기준 OFF · 실행','turn_on',operations),
-         device('onEntity','기준 ON · 제어 기기'),select('onOperation','기준 ON · 실행','turn_off',operations)],
-       settingsUI:['offEntity','offOperation','onEntity','onOperation'].map(key=>({key,visibleWhen:{key:'linked',equals:true}})),titlePolicy:{selectionLabel:'entity',defaultTitle:'기기 선택'}},
+         device('linkEntity','연동 기기'),{key:'linkOn',label:'ON',type:'boolean',default:true},
+         {key:'linkOff',label:'OFF',type:'boolean',default:true},{key:'linkReverse',label:'반대로 작동',type:'boolean',default:false}],
+       settingsUI:['linkEntity','linkOn','linkOff','linkReverse'].map(key=>({key,visibleWhen:{key:'linked',equals:true}})),titlePolicy:{selectionLabel:'entity',defaultTitle:'기기 선택'}},
       {id:ID+'.sensor',name:'HA 센서 기기',controllers:['Keypad'],states:1,visualPolicy:'foreground',script:script(sensorKey),tickIntervalMs:1000,tickWhen:{setting:'mode',equals:'auto',selection:'entities',minItems:2},sharedStateView:{keys:['status'],map:'entities',selection:'entities'},
        settingsSchema:[
          {key:'entities',label:'표시 항목',type:'dynamicMultiSelect',source:'sensors',maxItems:4,default:[]},

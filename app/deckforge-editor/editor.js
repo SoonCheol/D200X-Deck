@@ -4166,7 +4166,9 @@ async function openNativeSettings(item,action,plugin){
   const session=inspectorSession;
   if(!inspectorPickerCurrent(session,item))return;
   const original=clone(item.settings?.pluginSettings||{});
+  const ha=plugin.uuid==='com.deckforge.native.home-assistant',haControl=ha&&action.uuid.endsWith('.control');
   const content=document.createElement('div');content.className='native-sdk-form';
+  let linkFlagsRow=null,linkFlags=null;
   const connection=document.createElement('span');connection.className='native-sdk-connection';connection.setAttribute('role','status');
   const dot=document.createElement('span');dot.className='native-sdk-status-dot';dot.setAttribute('aria-hidden','true');
   const connectionText=document.createElement('span');connection.append(dot,connectionText);
@@ -4251,13 +4253,8 @@ async function openNativeSettings(item,action,plugin){
     }
     if(field.type==='select'){
       input=document.createElement('select');
-      const linkedOperation=plugin.uuid==='com.deckforge.native.home-assistant'&&action.uuid.endsWith('.control')&&['offOperation','onOperation'].includes(field.key);
       for(const option of field.options){
-        if(linkedOperation&&!['turn_on','turn_off','toggle'].includes(option.value))continue;
         const el=document.createElement('option');el.value=option.value;el.textContent=option.label;input.append(el);
-      }
-      if(linkedOperation&&Object.hasOwn(original,field.key)&&!['turn_on','turn_off','toggle'].includes(original[field.key])){
-        const el=document.createElement('option');el.value=original[field.key];el.textContent='이전 명령 · 다시 선택';input.append(el);
       }
     }else{
       input=document.createElement('input');
@@ -4269,6 +4266,15 @@ async function openNativeSettings(item,action,plugin){
     const value=DeckCore.nativeSettingValue(field,stored)?stored:field.default;
     if(field.type==='boolean')input.checked=value;else input.value=String(value);
     input.setAttribute('aria-label',field.label);
+    if(haControl&&['linkOn','linkOff','linkReverse'].includes(field.key)){
+      if(!linkFlagsRow){
+        linkFlagsRow=document.createElement('div');linkFlagsRow.className='field';
+        linkFlags=document.createElement('div');linkFlags.className='ha-link-flags';
+        linkFlagsRow.append(document.createElement('span'),linkFlags);content.append(linkFlagsRow);
+      }
+      const choice=document.createElement('label');choice.append(input,document.createTextNode(field.label));linkFlags.append(choice);
+      fieldRows.set(field.key,linkFlagsRow);inputs.push({field,input});input.addEventListener('change',updateVisibility);continue;
+    }
     if(input.type==='range'){
       const wrap=document.createElement('div'),output=document.createElement('output');wrap.className='native-sdk-slider';
       output.textContent=input.value;input.addEventListener('input',()=>{output.textContent=input.value;});wrap.append(input,output);row.append(label,wrap);
@@ -4322,18 +4328,17 @@ async function openNativeSettings(item,action,plugin){
   const poll=dynamicFields.length?setInterval(()=>void refreshDynamic(),1500):null;
   void refreshDynamic();
   let accepted;
-  const sensorCard=DeckCore.isNativeHaSensor(item)?$('inspector')?.querySelector('.ha-sensor-edit-card'):null;
-  const ha=plugin.uuid==='com.deckforge.native.home-assistant';
+  if(haControl&&original.linked===true&&!original.linkEntity&&(original.offEntity||original.onEntity))notice.textContent='이전 연동 설정은 보존됩니다. 새 연동 기기를 선택하세요.';
   const instructions=ha?(action.uuid.endsWith('.sensor')
     ?'선택한 HA 센서의 측정값을 표시합니다. 여러 센서를 동시에 표시하거나 버튼 누르기·자동 전환으로 표시할 수 있습니다. 표시 순서는 위에서 아래로 변경합니다.'
     :action.uuid.endsWith('.other')?'자동화·스크립트·장면·버튼을 선택해 해당 유형의 기본 실행 명령을 보냅니다. 그 밖의 유형은 아직 지원하지 않습니다.':
-    '스위치·전등·환풍기·가상 스위치의 실제 상태를 표시하고 제어합니다. 별도 기기 연동은 스위치 기기 사이에서만 사용합니다.')
+    '기준 기기는 항상 ON/OFF 전환합니다. 연동 기기 하나를 선택하고 ON·OFF 이벤트와 반대 작동을 지정할 수 있습니다. 기준 기기의 전환 목표 상태에 따라 연동 명령을 보냅니다.')
     :plugin.uuid==='com.deckforge.native.github-status'
       ?'지정한 GitHub 저장소와 워크플로의 최근 빌드 상태를 읽기 전용으로 표시합니다. 저장소·브랜치·워크플로를 선택하고 Actions 읽기 권한 토큰을 등록하세요.'
       :'등록한 액션의 설정값을 편집합니다. 플러그인 설치와 서비스 관리는 액션 목록의 해당 플러그인 도움말에서 확인할 수 있습니다.';
   const helpText=[instructions,ha?'초기 연결: Home Assistant 그룹의 도움말에서 서버 주소를 설정하고 장기 액세스 토큰을 인증정보 관리에 등록하세요. 연결 후 기기 목록을 새로 고치면 됩니다.':credentialCapable?'필요한 인증정보는 인증정보 관리에서 별도로 등록하세요.':'설치된 플러그인의 안내에 따라 필요한 설정을 입력하세요.',
     '일반 설정은 프로필에 저장됩니다. 적용한 다음 편집기의 저장 버튼을 눌러 기기에 반영하세요. 비밀번호·토큰은 일반 설정에 입력하지 마세요.'].join('\n\n');
-  try{accepted=await window.DeckForgeDialogs.show({anchorTop:true,anchorCard:sensorCard,title:action.name,helpText,
+  try{accepted=await window.DeckForgeDialogs.show({anchorTop:!ha,title:action.name,helpText,
     content,ask:true,actionLabel:'적용',onAccept:()=>{
       try{
         const next={...original};
@@ -4342,7 +4347,6 @@ async function openNativeSettings(item,action,plugin){
           // Hidden fields keep their original stored values/defaults; a hidden draft is not committed.
           if(fieldRows.get(field.key)?.hidden)continue;
           const value=readValue(entry);
-          if(ha&&action.uuid.endsWith('.control')&&['offOperation','onOperation'].includes(field.key)&&!['turn_on','turn_off','toggle'].includes(value)){notice.textContent='스위치 제어 명령을 다시 선택하세요.';return false;}
           if(!DeckCore.nativeSettingValue(field,value)){notice.textContent=field.label+' 값을 확인하세요.';return false;}
           next[field.key]=value;
         }

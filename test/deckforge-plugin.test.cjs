@@ -2278,11 +2278,23 @@ test('HA native manifest, compressed entity state, device grouping, control and 
  run('serviceMessage',{message:commands[0]});assert.equal(sent.at(-1).service,'toggle');
  const count=sent.length;run('serviceMessage',{message:{entity:'sensor.temp'}});assert.equal(sent.length,count);
  msg({type:'event',id:3,event:{a:{'light.kitchen':{s:'off',a:{friendly_name:'주방등'}}}}});
- const linked={entity:'switch.fan',linked:true,offEntity:'light.kitchen',offOperation:'turn_on',onEntity:'light.kitchen',onOperation:'turn_off'};
+ const linked={entity:'switch.fan',linked:true,linkEntity:'light.kitchen',linkOn:true,linkOff:true,linkReverse:false};
  controlKey({type:'press'},linked,0,{},api);run('serviceMessage',{message:commands.pop()});
- assert.equal(sent.at(-1).service,'turn_on');assert.equal(sent.at(-1).target.entity_id,'light.kitchen');
+ assert.deepEqual(sent.slice(-2).map(x=>[x.target.entity_id,x.service]),[['switch.fan','turn_on'],['light.kitchen','turn_on']]);
  msg({type:'event',id:3,event:{c:{'switch.fan':{'+':{s:'on'}}}}});
- run('serviceMessage',{message:linked});assert.equal(sent.at(-1).service,'turn_off');
+ run('serviceMessage',{message:linked});
+ assert.deepEqual(sent.slice(-2).map(x=>[x.target.entity_id,x.service]),[['switch.fan','turn_off'],['light.kitchen','turn_off']]);
+ for(const primary of ['off','on']){
+   msg({type:'event',id:3,event:{c:{'switch.fan':{'+':{s:primary}}}}});
+   for(const linkOn of [true,false])for(const linkOff of [true,false])for(const linkReverse of [true,false]){
+     const start=sent.length,nextOn=primary==='off';
+     controlKey({type:'press'},{...linked,linkOn,linkOff,linkReverse},0,{},api);
+     run('serviceMessage',{message:commands.pop()});
+     const expected=[['switch.fan',nextOn?'turn_on':'turn_off']];
+     if(nextOn?linkOn:linkOff)expected.push(['light.kitchen',nextOn!==linkReverse?'turn_on':'turn_off']);
+     assert.deepEqual(sent.slice(start).map(x=>[x.target.entity_id,x.service]),expected);
+   }
+ }
  msg({type:'event',id:3,event:{a:{'automation.test':{s:'on',a:{friendly_name:'자동화'}},'button.test':{s:'2026-01-01',a:{friendly_name:'버튼'}}}}});
  assert.deepEqual(shared.controls.map(x=>x.value).sort(),['light.kitchen','switch.fan']);
  assert.deepEqual(shared.others.map(x=>x.value).sort(),['automation.test','button.test']);
@@ -2291,9 +2303,13 @@ test('HA native manifest, compressed entity state, device grouping, control and 
  otherKey({type:'press'},{entity:'automation.test'},0,{},api);run('serviceMessage',{message:commands.pop()});assert.equal(sent.at(-1).service,'trigger');
  otherKey({type:'press'},{entity:'button.test'},0,{},api);run('serviceMessage',{message:commands.pop()});assert.equal(sent.at(-1).service,'press');
  run('serviceMessage',{message:{entity:'automation.test'}});assert.equal(sent.at(-1).service,'trigger','old configured control stays executable');
- const before=sent.length;run('serviceMessage',{message:{...linked,onEntity:'sensor.temp'}});assert.equal(sent.length,before);
- run('serviceMessage',{message:{...linked,onEntity:'automation.test',onOperation:'trigger'}});assert.equal(sent.length,before);
- run('serviceMessage',{message:{...linked,entity:'automation.test'}});assert.equal(sent.length,before);
+ for(const linkEntity of ['', 'sensor.temp','automation.test','switch.missing','switch.fan']){
+   const start=sent.length;run('serviceMessage',{message:{...linked,linkEntity}});
+   assert.deepEqual(sent.slice(start).map(x=>[x.target.entity_id,x.service]),[['switch.fan','turn_off']]);
+ }
+ msg({type:'event',id:3,event:{c:{'light.kitchen':{'+':{s:'unavailable'}}}}});
+ const invalid=sent.length;run('serviceMessage',{message:linked});assert.equal(sent.length,invalid+1);assert.equal(sent.at(-1).target.entity_id,'switch.fan');
+ const before=sent.length;run('serviceMessage',{message:{...linked,entity:'automation.test'}});assert.equal(sent.length,before);
  run('serviceMessage',{message:{entity:'switch.fan',other:true}});assert.equal(sent.length,before);
  msg({type:'event',id:3,event:{c:{'switch.fan':{'+':{s:'unknown'}}}}});
  run('serviceMessage',{message:linked});assert.equal(sent.length,before);

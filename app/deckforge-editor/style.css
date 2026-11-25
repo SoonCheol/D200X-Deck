@@ -1681,3 +1681,8 @@ dialog.deckforge-message-dialog:has(.fusion-command-properties){width:min(360px,
 .library .basic-ha-group .action-item{display:flex;flex-direction:row;align-items:center}
 .library .basic-ha-group .native-ha-caption{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:block}
 .library .basic-ha-group .action-icon{flex:0 0 30px}
+
+/* HA linked switch event controls share one row; radio controls retain native semantics. */
+.native-sdk-form .ha-link-flags{display:flex;align-items:center;gap:16px;min-width:0;flex-wrap:wrap}
+.native-sdk-form .ha-link-flags label{display:inline-flex;align-items:center;gap:6px;white-space:nowrap;cursor:pointer}
+.native-sdk-form .ha-link-flags input[type=checkbox]{margin:0;flex:none}
