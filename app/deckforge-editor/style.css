@@ -1386,14 +1386,27 @@ dialog.deckforge-message-dialog::backdrop{background:#000a}
 
 /* 1.1.94: compact clear control inside the original action search input. */
 .library .search{position:relative}
-.library .search #action-search{padding-right:33px}
+.library .search #action-search{padding-right:60px}
 .library .search #action-search-clear{
-  position:absolute;right:18px;top:50%;transform:translateY(-50%);
+  position:absolute;right:43px;top:50%;transform:translateY(-50%);
   width:23px;height:23px;padding:0;border:0;border-radius:50%;
   background:transparent;color:#b5bdc7;font-size:19px;line-height:23px
 }
 .library .search #action-search-clear:hover{background:#515761;color:#fff}
 .library .search #action-search-clear[hidden]{display:none}
+.library .search #action-search-list{
+  position:absolute;right:18px;top:50%;transform:translateY(-50%);width:23px;height:23px;
+  padding:0;border:0;border-left:1px solid #555;border-radius:0 4px 4px 0;
+  background:transparent;color:#b5bdc7;font-size:15px;line-height:23px
+}
+.library .search #action-search-list:hover,.library .search #action-search-list[aria-expanded="true"]{background:#515761;color:#fff}
+#action-search-menu{position:absolute;top:calc(100% - 9px);left:14px;right:14px;z-index:110;
+  max-height:min(320px,50vh);overflow:auto;padding:4px;background:#303030;border:1px solid #60646b;
+  border-radius:5px;box-shadow:0 6px 18px #0008}
+#action-search-menu[hidden]{display:none}
+#action-search-menu button{display:block;width:100%;border:0;border-radius:3px;padding:6px 8px;background:transparent;text-align:left;color:#eee;overflow-wrap:anywhere}
+#action-search-menu button:hover,#action-search-menu button:focus-visible,#action-search-menu button[aria-pressed="true"]{background:#46566d}
+#action-search-menu>span{display:block;padding:8px;color:#aaa}
 
 /* Ordinary LCD key gesture assignment properties. Icon cards remain unchanged. */
 .action-layout-inspector .press-assignment-section{

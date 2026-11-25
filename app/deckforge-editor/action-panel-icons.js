@@ -12,7 +12,7 @@ window.D200XPanelIcons=(()=>{
     ["자동화·순차 동작",["multi","multi-switch","random","logic"]],
     ["유틸리티",["timer","screenshot","clipboard-edit","gesture-test"]],
     ["편집 작업 도구",["brush-size","timeline-step","timeline-zoom"]],
-    ["플러그인 · Home Assistant",["ha-toggle"]]
+    ["플러그인 · Home Assistant",["ha-toggle","ha-other"]]
   ];
   // Compact, self-contained 24px stroke SVGs (no remote assets or emoji fonts).
   const paths={
@@ -75,7 +75,7 @@ window.D200XPanelIcons=(()=>{
     ["website","open","open-app","close","file-open","folder-shortcut","terminal","terminal-admin"],
     ["multi","multi-switch","random","logic","gesture-test","timer"],
     ["audio-play","audio-stop","media"],
-    ["ha-toggle"]
+    ["ha-toggle","ha-other"]
   ];
   const accentFor=id=>accents[Math.max(0,accentGroups.findIndex(ids=>ids.includes(id)))];
   function read(){

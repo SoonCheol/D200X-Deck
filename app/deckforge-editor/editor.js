@@ -1354,7 +1354,7 @@ async function chooseNativeImage(kind='image'){
   if(!window.deckBridge?.chooseImportFile)return null;
   return window.deckBridge.chooseImportFile(kind);
 }
-let libraryTab='keys';
+let libraryTab='keys',exactActionId=null;
 let sdkPlugins=[],sdkCatalogueReady=false,sdkRetained=[];
 function sdkAvailabilityLabel(item){
   const availability=DeckCore.sdkAvailability(item,sdkCatalogueReady?sdkPlugins:null);
@@ -1647,13 +1647,32 @@ async function removePluginKeepingData(plugin){
     await window.DeckForgeDialogs.show({title:'플러그인 제거 실패',kind:'error',intro:plugin.name,detail,copyDetail:true});
   }
 }
+function sdkPanelActions(plugin){
+  return plugin.actions.filter(a=>a.uuid!==HA_GENERIC_ACTION &&
+    !(plugin.uuid==='com.autodesk.fusionstreamdeck'&&a.uuid===FUSION_PLUGIN+'.runcommand'));
+}
+function sdkPanelActionId(plugin,action){return 'sd::'+plugin.uuid+'::'+action.uuid;}
+function actionSearchChoices(){
+  const choices=[];
+  for(const plugin of sdkPlugins){
+    if((plugin.uuid==='com.deckforge.native.home-assistant')!==(libraryTab==='keys'))continue;
+    for(const action of sdkPanelActions(plugin))choices.push({id:sdkPanelActionId(plugin,action),label:sdkCatalogueLabel(action),group:plugin.name});
+  }
+  if(libraryTab==='keys')for(const [category,entries] of CATALOG){
+    if(category==='플러그인 · Home Assistant')continue;
+    for(const [id,label] of entries)if(!HIDDEN_BASIC_ACTION_IDS.has(id))choices.push({id,label,group:category});
+  }
+  return choices.sort((a,b)=>a.label.localeCompare(b.label,'ko')||a.group.localeCompare(b.group,'ko')||a.id.localeCompare(b.id));
+}
+function actionSearchMatches(id,text,query){
+  return exactActionId!==null?id===exactActionId:text.toLocaleLowerCase().includes(query);
+}
 function renderInstalledSdkPlugins(root,query,basic=false){
   for(const plugin of sdkPlugins){
     const nativeHa=plugin.uuid==='com.deckforge.native.home-assistant';
     if(nativeHa!==basic)continue;
-    const matching=plugin.actions.filter(a=>a.uuid!==HA_GENERIC_ACTION &&
-      (plugin.name+' '+sdkCatalogueLabel(a)+' '+a.name+' '+a.uuid).toLowerCase().includes(query));
-    if(!matching.length&&!(plugin.runtime==='deckforge-sdk'&&plugin.name.toLowerCase().includes(query)))continue;
+    const matching=sdkPanelActions(plugin).filter(a=>actionSearchMatches(sdkPanelActionId(plugin,a),plugin.name+' '+sdkCatalogueLabel(a)+' '+a.name+' '+a.uuid,query));
+    if(!matching.length&&(exactActionId!==null||!(plugin.runtime==='deckforge-sdk'&&plugin.name.toLowerCase().includes(query))))continue;
     const section=document.createElement('section');section.className='group sdk-plugin-group'+(nativeHa?' basic-ha-group':'');
     const title=document.createElement('div');title.className='group-title';
     const heading=document.createElement('span');heading.textContent=nativeHa?'Home Assistant':plugin.name+' ('+plugin.version+')';
@@ -1665,8 +1684,7 @@ function renderInstalledSdkPlugins(root,query,basic=false){
     const body=document.createElement('div');
     title.addEventListener('click',()=>{body.hidden=!body.hidden;});
     for(const action of matching){
-      if(isFusion&&action.uuid===FUSION_PLUGIN+'.runcommand')continue;
-      const id='sd::'+plugin.uuid+'::'+action.uuid;
+      const id=sdkPanelActionId(plugin,action);
       const tile=document.createElement('div');tile.className='action-item';tile.draggable=true;
       if(nativeHa){
         const symbol=document.createElement('span');symbol.className='action-icon';
@@ -1679,11 +1697,11 @@ function renderInstalledSdkPlugins(root,query,basic=false){
       tile.addEventListener('dragstart',ev=>ev.dataTransfer.setData('application/x-d200x-action',id));
       body.append(tile);
     }
-    if(!nativeHa&&plugin.background&&window.deckBridge?.nativeServiceControl){
+    if(exactActionId===null&&!nativeHa&&plugin.background&&window.deckBridge?.nativeServiceControl){
       const manager=document.createElement('button');manager.type='button';manager.className='fusion-manager-launch';
       manager.textContent='전역 서비스 관리';manager.addEventListener('click',event=>{event.stopPropagation();void openNativeServiceManager(plugin);});body.append(manager);
     }
-    if(isFusion){
+    if(exactActionId===null&&isFusion){
       const manager=document.createElement('button');manager.type='button';
       manager.className='fusion-manager-launch';
       manager.textContent='Fusion 명령 관리자';
@@ -1772,6 +1790,9 @@ document.addEventListener('click',dismissPanelActionOptions,true);
 const HIDDEN_BASIC_ACTION_IDS=new Set(["explorer-open","screenshot","clipboard-edit","window-switch","window-state","window-monitor","desktop-switch","brush-size","timeline-step","timeline-zoom"]);
 function renderLibrary(){
   const root=$("library-list");hideReplacedTooltip(root);root.replaceChildren();
+  if(exactActionId!==null&&!actionSearchChoices().some(choice=>choice.id===exactActionId)){
+    exactActionId=null;$("action-search").value='';$("action-search-clear").hidden=true;
+  }
   const query=$("action-search").value.trim().toLocaleLowerCase();
   if(libraryTab==='plugins'){
     // SDK plugins own their connection settings via the original Property Inspector.
@@ -1782,7 +1803,7 @@ function renderLibrary(){
     // The legacy built-in HA action stays executable for saved profiles, but is no longer offered.
     if(category==='플러그인 · Home Assistant')continue;
     if(libraryTab==='plugins')continue;
-    const visible=entries.filter(([id,label])=>!HIDDEN_BASIC_ACTION_IDS.has(id)&&(category+" "+label+" "+(PANEL_SHORTCUTS[id]||"")).toLocaleLowerCase().includes(query));
+    const visible=entries.filter(([id,label])=>!HIDDEN_BASIC_ACTION_IDS.has(id)&&actionSearchMatches(id,category+" "+label+" "+(PANEL_SHORTCUTS[id]||""),query));
     if(!visible.length)continue;
     const section=document.createElement("section");section.className="group";
     const title=document.createElement("div");title.className="group-title";title.textContent=category;
@@ -3458,7 +3479,7 @@ document.addEventListener('click',event=>{
   if(event.target.closest('#inspector-unsaved-dialog, .inspector-help-dialog, #sdk-plugin-help-dialog, #icon-maker, .deckforge-message-dialog, .deckforge-input-dialog'))return;
   if(event.target.closest('#icon-library')&&!event.target.closest('.icon-pack-remove'))return;
   if(event.target.closest('.action-customize, .action-override-controls'))return;
-  if(event.target.closest('#action-search, #action-search-clear, .library-tabs, #plugin-install-toolbar>summary, #profile-trigger, .profile-row-gear, .profile-global-trigger, .settings-trigger, .group-title'))return;
+  if(event.target.closest('#action-search, #action-search-clear, #action-search-list, #action-search-menu, .library-tabs, #plugin-install-toolbar>summary, #profile-trigger, .profile-row-gear, .profile-global-trigger, .settings-trigger, .group-title'))return;
   // Key/knob selection already checks for unsaved edits in choose(index).
   // Let that handler own the navigation so it survives inspector re-render.
   if(event.target.closest('#key-grid, #physical-controls'))return;
@@ -5259,14 +5280,59 @@ window.addEventListener("keydown",ev=>{
   }
 });
 const actionSearch=$("action-search"),actionSearchClear=$("action-search-clear");
+const actionSearchList=$("action-search-list"),actionSearchMenu=$("action-search-menu");
+function closeActionSearchMenu(){
+  actionSearchMenu.hidden=true;actionSearchList.setAttribute('aria-expanded','false');
+}
 function updateActionSearch(){
+  exactActionId=null;closeActionSearchMenu();
   actionSearchClear.hidden=!actionSearch.value;
   renderLibrary();
+}
+function openActionSearchMenu(){
+  const choices=actionSearchChoices();
+  actionSearchMenu.replaceChildren();
+  const counts=new Map();
+  for(const choice of choices)counts.set(choice.label,(counts.get(choice.label)||0)+1);
+  for(const choice of choices){
+    const button=document.createElement('button');button.type='button';
+    button.textContent=choice.label+(counts.get(choice.label)>1?' · '+choice.group:'');
+    button.setAttribute('aria-pressed',String(choice.id===exactActionId));
+    button.addEventListener('click',()=>{
+      exactActionId=choice.id;actionSearch.value=choice.label;
+      actionSearchClear.hidden=false;closeActionSearchMenu();renderLibrary();actionSearchList.focus();
+    });
+    actionSearchMenu.append(button);
+  }
+  if(!choices.length){const empty=document.createElement('span');empty.textContent='표시할 액션이 없습니다.';actionSearchMenu.append(empty);}
+  actionSearchMenu.hidden=false;actionSearchList.setAttribute('aria-expanded','true');
+  (actionSearchMenu.querySelector('[aria-pressed="true"]')||actionSearchMenu.querySelector('button'))?.focus();
 }
 actionSearch.addEventListener("input",updateActionSearch);
 actionSearchClear.addEventListener("click",()=>{
   actionSearch.value='';updateActionSearch();actionSearch.focus();
 });
+actionSearchList.addEventListener('click',()=>actionSearchMenu.hidden?openActionSearchMenu():closeActionSearchMenu());
+document.addEventListener('pointerdown',event=>{
+  if(!event.target.closest('#action-search-list, #action-search-menu'))closeActionSearchMenu();
+});
+document.addEventListener('focusin',event=>{
+  if(!event.target.closest('#action-search-list, #action-search-menu'))closeActionSearchMenu();
+});
+actionSearchMenu.addEventListener('keydown',event=>{
+  const buttons=[...actionSearchMenu.querySelectorAll('button')],index=buttons.indexOf(document.activeElement);
+  if(event.key==='ArrowDown'||event.key==='ArrowUp'||event.key==='Home'||event.key==='End'){
+    event.preventDefault();event.stopPropagation();
+    const next=event.key==='Home'?0:event.key==='End'?buttons.length-1:
+      event.key==='ArrowDown'?Math.min(index+1,buttons.length-1):Math.max(index-1,0);
+    buttons[next]?.focus();
+  }
+});
+document.addEventListener('keydown',event=>{
+  if(event.key==='Escape'&&!actionSearchMenu.hidden){
+    event.preventDefault();event.stopImmediatePropagation();closeActionSearchMenu();actionSearchList.focus();
+  }
+},true);
 function pageStructureInfo(){
   const folder=DeckCore.activeFolder(state);
   return {folder,index:folder?(folder.pageIndex||0):state.page,count:folder?DeckCore.folderPageCount(state):state.pages.length};
@@ -7874,6 +7940,10 @@ bindSidebarHeader();
 const tabs=document.querySelectorAll('.library-tabs button');
 tabs[1].disabled=false;tabs[1].removeAttribute('title');
 tabs.forEach((button,index)=>button.addEventListener('click',()=>{
+  if(libraryTab!==(index?'plugins':'keys')&&exactActionId!==null){
+    exactActionId=null;actionSearch.value='';actionSearchClear.hidden=true;
+  }
+  closeActionSearchMenu();
   libraryTab=index?'plugins':'keys';
   tabs.forEach((tab,i)=>{tab.classList.toggle('active',i===index);tab.setAttribute('aria-pressed',String(i===index));});
   updatePluginToolbar();
