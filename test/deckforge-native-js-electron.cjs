@@ -585,6 +585,20 @@ async function verifyModel2MountedPageCycles(){
   assert.equal(host.key(second[0].context,'down'),false);
   host.resume();await drain();assert.equal(service().memory.starts,2);
   await pressPage(second);presses+=13;assertPage('second',2);
+  // Real renderer: wake-only notification invalidates already admitted inputs.
+  const beforeWake=events.length,oldQueues=[];
+  for(const c of second){
+    assert.equal(host.key(c.context,'down'),true);
+    assert.equal(host.key(c.context,'up'),true);
+    oldQueues.push(host.contexts.get(c.context).queue);
+  }
+  host.resume();assert.equal(host.runnerPool.entries.size,0);
+  await Promise.all(oldQueues);await drain();
+  assert.equal(service().memory.starts,3);
+  for(const c of second)assert.equal(host.contexts.get(c.context).memory.count,2);
+  assert.equal(events.slice(beforeWake).filter(e=>e.kind==='setTitle').length,0);
+  await pressPage(second);presses+=13;assertPage('second',3);
+  console.log('MODEL2_WAKE_ONLY '+JSON.stringify({discardedPresses:13,recoveredPresses:13,serviceStarts:service().memory.starts,actualElectron:true,actualOSResume:false}));
   host.sync(first,[manifest]);await drain();assert.equal(service(),originalService);
   await pressPage(first);presses+=13;assertPage('first',1);
   // Bounded repeated mount/retire stress; not a long-duration soak.
