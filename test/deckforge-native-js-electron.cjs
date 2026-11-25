@@ -601,6 +601,21 @@ async function verifyTrustedDrawOps(legacy){
 // Never use OS-wide memory pressure or count a forced crash/timeout as OOM.
 const oomOnly=process.env.DECKFORGE_SDK_OOM==='1';
 if(oomOnly)app.commandLine.appendSwitch('js-flags','--max-old-space-size=64');
+// Windows renderer stderr is unavailable. Match only the target PID and
+// Chromium's native Blink V8 OOM diagnostic, never a generic crash code.
+async function nativeHeapOomEvidence(pid){
+ const file=process.env.DECKFORGE_SDK_OOM_LOG;
+ if(!file)return false;
+ const prefix=new RegExp('^\\['+pid+':\\d+:');
+ for(let i=0;i<20;i++){
+  let lines=[];
+  try{lines=(await fs.readFile(file,'utf8')).split(/\r?\n/);}catch(error){if(error.code!=='ENOENT')throw error;}
+  const match=lines.find(line=>prefix.test(line)&&/\b(?:ERROR|FATAL):[^\]]*v8_initializer\.cc:\d+\]\s+V8 javascript OOM \(/i.test(line));
+  if(match){console.log('MODEL2_OOM_NATIVE_EVIDENCE '+JSON.stringify({pid,line:match.slice(0,500)}));return true;}
+  await new Promise(resolve=>setTimeout(resolve,100));
+ }
+ return false;
+}
 async function verifyModel2HeapExhaustion(){
  const {webContents}=require('electron');
  const {ScriptRunnerPool,deadline}=require('../app/deckforge-editor/deckforge-js-runtime.cjs');
@@ -623,6 +638,7 @@ async function verifyModel2HeapExhaustion(){
   const onAppGone=(_event,target,details)=>{if(target===wc)resolveGone(details);};
   wc.prependListener('render-process-gone',onGone);
   app.prependListener('render-process-gone',onAppGone);
+  let actualOom=false,oomReason;
   try{
    // Finite upper bound (32 million array elements); the reduced heap is
    // applied only in this dedicated Electron test invocation.
@@ -631,8 +647,9 @@ async function verifyModel2HeapExhaustion(){
    rejected.catch(()=>{});
    const details=await deadline(()=>gone,5000,()=>{});
    console.log('MODEL2_OOM_NOTIFICATION '+JSON.stringify({reason:details?.reason,exitCode:details?.exitCode}));
-   assert.equal(details?.reason,'oom','only an actual Electron oom notification counts');
+   oomReason=details?.reason;
    await rejected;
+   actualOom=oomReason==='oom'||(oomReason==='crashed'&&await nativeHeapOomEvidence(ids[0]));
    assert.equal(runner.isClosed(),true);
    assert.equal(pool.entries.has(pool.key(id,'button')),false);
   }finally{
@@ -645,7 +662,9 @@ async function verifyModel2HeapExhaustion(){
   assert.equal(entry(other,'button').runner,peerRunner);
   assert.deepEqual(await run(button,'new input'),title('new input'));
   assert.notEqual(entry(id,'button').runner,runner);
-  console.log('MODEL2_OOM_VERIFIED '+JSON.stringify({actualOom:true,failedEventRejected:true,serviceSurvived:true,peerSurvived:true,nextEventRecovered:true,reducedTestHeap:true}));
+  console.log('MODEL2_HEAP_PRESSURE_ISOLATION '+JSON.stringify({actualOom,oomReason,failedEventRejected:true,serviceSurvived:true,peerSurvived:true,nextEventRecovered:true,reducedTestHeap:true}));
+  assert.equal(actualOom,true,'OOM requires Electron oom notification or target PID native V8 heap OOM evidence');
+  console.log('MODEL2_OOM_VERIFIED '+JSON.stringify({actualOom:true,oomReason,failedEventRejected:true,serviceSurvived:true,peerSurvived:true,nextEventRecovered:true,reducedTestHeap:true}));
  }finally{pool.close();}
 }
 

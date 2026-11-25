@@ -67,5 +67,7 @@ jobs:
           DECKFORGE_SDK_OOM: '1'
         shell: pwsh
         run: |
-          & app/node_modules/.bin/electron.cmd test/deckforge-native-js-electron.cjs
+          $log = Join-Path $env:RUNNER_TEMP ('deckforge-sdk-oom-' + [guid]::NewGuid() + '.log')
+          $env:DECKFORGE_SDK_OOM_LOG = $log
+          & app/node_modules/.bin/electron.cmd --enable-logging=file "--log-file=$log" test/deckforge-native-js-electron.cjs
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
