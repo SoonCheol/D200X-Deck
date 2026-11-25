@@ -1637,6 +1637,7 @@ dialog.deckforge-message-dialog::backdrop{background:#000a}
 
 .native-selection-order{display:flex;flex-direction:column;gap:4px;min-width:0}
 .native-selection-row{display:grid;grid-template-columns:minmax(0,1fr) 30px 30px;gap:5px;align-items:center;padding:4px 6px;border:1px solid #555;border-radius:4px;background:#303030}
+.native-selection-row.native-selection-removable{grid-template-columns:minmax(0,1fr) repeat(3,30px)}
 .native-selection-row>span{overflow-wrap:anywhere;min-width:0}
 .native-selection-row>.deckforge-message-button{min-width:0;width:30px;padding:3px 0}
 

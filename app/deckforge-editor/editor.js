@@ -4257,6 +4257,13 @@ async function openNativeSettings(item,action,plugin){
               button.disabled=index+delta<0||index+delta>=selected.length;button.title=description;button.setAttribute('aria-label',label.textContent+' '+description);
               button.addEventListener('click',()=>{selected=DeckCore.moveNativeSelection(selected,index,delta);render();});line.append(button);
             }
+            if(ha&&action.uuid.endsWith('.sensor')&&field.key==='entities'){
+              line.classList.add('native-selection-removable');
+              const remove=document.createElement('button');remove.type='button';remove.textContent='×';remove.className='deckforge-message-button';
+              remove.title='선택 기기에서 제거';remove.setAttribute('aria-label',label.textContent+' 선택 기기에서 제거');
+              remove.addEventListener('click',()=>{selected=selected.filter(id=>id!==value);render();});
+              line.append(remove);
+            }
             order.append(line);
           });
         }

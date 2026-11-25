@@ -111,6 +111,34 @@ app.whenReady().then(async()=>{
     assert.deepEqual(functional.saved,{entity:'switch.b',linked:true,linkEntity:'light.c',linkOn:true,linkOff:false,linkReverse:true});
     assert.equal(functional.cancelled,true);
     console.log('HA_SWITCH_SETTINGS_OK '+JSON.stringify(functional));
+    const sensor=manifest.actions.find(a=>a.id.endsWith('.sensor'));
+    const removal=await run(`(async()=>{
+      const oldBridge=window.deckBridge;
+      const options=['a','b','c'].map(value=>({value:'sensor.'+value,label:value.toUpperCase(),group:'센서'}));
+      window.deckBridge={nativeDynamicOptions:async()=>({status:{state:'active',socket:'connected'},phase:'연결됨',fields:{entities:options}})};
+      state.selected=0;inspectorSession=null;
+      const item={type:'sd-plugin',settings:{pluginUUID:'${manifest.id}',actionUUID:'${sensor.id}',pluginSettings:{entities:['sensor.a','sensor.b','sensor.c']}}};
+      currentPage()[0]=item;beginInspectorSession();
+      const open=()=>openNativeSettings(item,${JSON.stringify({...sensor,uuid:sensor.id})},${JSON.stringify(plugin)});
+      const p=open();await Promise.resolve();await Promise.resolve();
+      const dialog=document.querySelector('dialog[open]');
+      const rows=()=>[...dialog.querySelectorAll('.native-selection-row')];
+      const sizes=[...rows()[1].querySelectorAll('button')].map(b=>[b.getBoundingClientRect().width,b.getBoundingClientRect().height]);
+      rows()[1].lastElementChild.click();
+      const labels=rows().map(row=>row.firstElementChild.textContent);
+      const unchecked=![...dialog.querySelectorAll('.native-sdk-options label')].find(l=>l.textContent==='B').querySelector('input').checked;
+      const draftUnchanged=item.settings.pluginSettings.entities.length===3;
+      dialog.querySelector('.deckforge-message-primary').click();await p;
+      const saved=[...item.settings.pluginSettings.entities];
+      const p2=open();const d2=document.querySelector('dialog[open]');d2.querySelector('.native-selection-row').lastElementChild.click();d2.close('cancel');await p2;
+      const cancelled=JSON.stringify(item.settings.pluginSettings.entities)===JSON.stringify(saved);
+      window.deckBridge=oldBridge;
+      return {sizes,labels,unchecked,draftUnchanged,saved,cancelled};
+    })()`);
+    assert.equal(removal.sizes.length,3);assert.ok(removal.sizes.every(s=>s[0]===removal.sizes[0][0]&&s[1]===removal.sizes[0][1]));
+    assert.deepEqual(removal.labels,['1. A','2. C']);assert.equal(removal.unchecked,true);assert.equal(removal.draftUnchanged,true);
+    assert.deepEqual(removal.saved,['sensor.a','sensor.c']);assert.equal(removal.cancelled,true);
+    console.log('HA_SENSOR_REMOVE_OK '+JSON.stringify(removal));
     assert.deepEqual(errors,[]);
     console.log('EDITOR_STARTUP_OK '+JSON.stringify({initial,partial:filtered.partial,exact:filtered.exact,restored:filtered.restored}));
   }finally{if(win&&!win.isDestroyed())win.destroy();}
