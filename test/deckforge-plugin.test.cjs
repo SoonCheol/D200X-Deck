@@ -720,6 +720,40 @@ test('concurrent native service policy readers await the same persisted stop or 
   }
  }finally{host?.close();await fs.rm(temp,{recursive:true,force:true});}
 });
+test('native service management cannot recreate contexts after shutdown during policy IO',async()=>{
+ const temp=await fs.mkdtemp(path.join(os.tmpdir(),'deckforge-service-close-'));
+ const m={...scriptManifest,permissions:['display','background.run'],service:{script:'service'}};
+ const pref=path.join(temp,'Plugins','NativeServicePreferences.json');
+ let host,starts=0,release,task;
+ const runner=()=>({async run(_s,input){if(input.event.type==='start')starts++;return {ops:[],memory:{}};},close(){}});
+ try{
+  await fs.mkdir(path.dirname(pref));
+  const stopped=JSON.stringify({version:1,disabled:[nativeId]});
+  await fs.writeFile(pref,stopped);
+  for(const phase of ['read','committed-write']){
+   host=new NativePluginHost(temp,()=>{},runner);
+   let entered;const gate=new Promise(r=>release=r),ready=new Promise(r=>entered=r);
+   if(phase==='read'){
+    const original=host.readServicePolicy.bind(host);
+    host.readServicePolicy=async()=>{entered();await gate;await original();};
+   }else{
+    await host.loadServicePolicy();
+    const original=host.saveServicePolicy.bind(host);
+    host.saveServicePolicy=async next=>{await original(next);entered();await gate;};
+   }
+   task=host.manageService([m],nativeId,'start');task.catch(()=>{});
+   await ready;
+   host.close();release();
+   await assert.rejects(task,/native host closed/);
+   assert.equal(host.contexts.size,0);
+   assert.equal(host.tickTimer,null);
+   assert.equal(starts,0);
+   assert.deepEqual(JSON.parse(await fs.readFile(pref,'utf8')),
+    {version:1,disabled:phase==='read'?[nativeId]:[]});
+   await assert.rejects(host.manageService([m],nativeId,'start'),/native host closed/);
+  }
+ }finally{release?.();await task?.catch(()=>{});host?.close();await fs.rm(temp,{recursive:true,force:true});}
+});
 test('native action service message is same-plugin and input-only, delivered once across page change',async()=>{
  const m={...scriptManifest,permissions:['display','background.run','network.request'],service:{script:'service'},networkEndpoints:[{id:'toggle',method:'POST',url:'https://example.com/toggle'}]};
  const calls=[],events=[];

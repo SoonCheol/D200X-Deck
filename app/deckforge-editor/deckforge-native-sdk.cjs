@@ -211,7 +211,9 @@ class NativePluginHost{
     return {enabled,state,socket:token?(token.retryTimer?'reconnecting':token.ready?'connected':'connecting'):'disconnected',...(ctx?.socketError?{socketError:ctx.socketError}:{}),...(ctx?.failed?{socketError:'runtime-failed'}:{})};
   }
   async manageService(manifests,id,mode){
+    check(!this.closed,'native host closed');
     await this.loadServicePolicy();
+    check(!this.closed,'native host closed');
     const manifest=manifests.find(m=>m.id===id&&m.service);
     check(manifest&&['start','stop','restart'].includes(mode),'invalid background service control');
     check(!this.servicePolicyError,'background service preferences unavailable');
@@ -220,6 +222,9 @@ class NativePluginHost{
     const next=new Set(this.serviceDisabled);
     if(mode==='stop')next.add(id);else next.delete(id);
     if(next.size!==this.serviceDisabled.size||[...next].some(x=>!this.serviceDisabled.has(x)))await this.saveServicePolicy(next);
+    // A committed preference remains durable, but an asynchronous management
+    // operation must never recreate a service after host shutdown.
+    check(!this.closed,'native host closed');
     if(mode==='restart'){
       const key=SERVICE_PREFIX+id,ctx=this.contexts.get(key);
       if(ctx){this.retire(ctx);this.contexts.delete(key);}
@@ -909,6 +914,7 @@ class NativePluginHost{
     catch(error){this.fail(ctx,error);return false;}
   }
   syncServices(plugins,seen){
+    if(this.closed)return;
     const eligible=this.servicePolicyError||(this.servicePolicyLoad&&!this.servicePolicyLoaded)?[]:[...plugins.values()].filter(m=>m.service&&!this.serviceDisabled.has(m.id)).sort((a,b)=>a.id.localeCompare(b.id));
     const selected=eligible.slice(0,MAX_SERVICES),ids=new Set(selected.map(m=>SERVICE_PREFIX+m.id));
     for(const [id,ctx] of this.contexts)if(ctx.service&&!ids.has(id)){
