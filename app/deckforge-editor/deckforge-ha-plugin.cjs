@@ -224,7 +224,7 @@ function createHomeAssistantManifest(server){
   const script=f=>'return ('+f.toString()+')(event,settings,state,memory,api);';
   const select=(key,label,value,options)=>({key,label,type:'select',default:value,options:options.map(([value,label])=>({value,label}))});
   const device=(key,label)=>({key,label,type:'dynamicSelect',source:'controls',default:''});
-  return {apiVersion:2,id:ID,name:'DeckForge Home Assistant',version:'0.1.13',requiresDeckForge:'>=2.0.53',
+  return {apiVersion:2,id:ID,name:'DeckForge Home Assistant',version:'0.1.14',requiresDeckForge:'>=2.0.64',
     permissions:['display','background.run','timer.tick',...(u?['network.websocket']:[])],
     ...(u?{capabilities:['socketBatch'],networkEndpoints:[{id:'ha',url:u.href,method:'WSS',auth:'home-assistant',reconnect:true,maxReceiveBytes:1048576}]}:{}),
     service:{script:u?script(service):"if(event.type==='start')api.publishSharedState({status:'초기 연결 필요',controls:[],sensors:[],others:[],entities:{}});",sharedStateBytes:262144},

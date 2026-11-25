@@ -23,6 +23,12 @@ function assertAppRequirement(requirement,current){
 }
 function assertCompatible(current,next){
   assert(current.id===next.id,'plugin identity changed');
+  // Only the shipped HA manifest may retire the four superseded link fields.
+  // Stored values remain in profiles; no legacy target is inferred or executed.
+  const haId='com.deckforge.native.home-assistant';
+  const retiredHaLink=new Set(['offEntity','offOperation','onEntity','onOperation']);
+  const migrateHa=current.id===haId&&['0.1.9','0.1.10'].includes(current.version)&&
+    fingerprint(next)===fingerprint(require('./deckforge-ha-plugin.cjs').createHomeAssistantManifest(next.networkEndpoints?.find(e=>e.id==='ha')?.url??null));
   // Profiles can contain references on hidden pages. Do not infer that any
   // removed action is unused. Keep action contracts valid without migration.
   for(const old of current.actions){
@@ -32,6 +38,7 @@ function assertCompatible(current,next){
     // Without a settings migration, existing declared fields must retain their value contract.
     for(const field of old.settingsSchema||[]){
       const updated=action.settingsSchema?.find(f=>f.key===field.key);
+      if(!updated&&migrateHa&&old.id===haId+'.control'&&retiredHaLink.has(field.key))continue;
       const contract=({label,...rest})=>({...rest,...(rest.options?{options:rest.options.map(o=>o.value)}:{})});
       assert(updated&&canonical(contract(updated))===canonical(contract(field)),
         'existing settings contract would be changed: '+old.id+'.'+field.key);

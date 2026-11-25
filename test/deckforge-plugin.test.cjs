@@ -3182,7 +3182,15 @@ test('built-in HA upgrade keeps previous endpoint credential and action setting 
  const legacy={list:async()=>[],sync:async()=>{},close:async()=>{}};
  const host=new NativePluginHost(temp,()=>{},null,{storage}),router=new PluginRouter(legacy,host);
  const newer=createHomeAssistantManifest('https://example.com');
- const old=structuredClone(newer);delete old.capabilities;old.version='0.1.9';old.requiresDeckForge='>=2.0.45';old.actions=old.actions.slice(0,2);old.actions[0].name='HA 기기 제어';old.actions[1].name='HA 센서 표시';
+ const old=structuredClone(newer);delete old.capabilities;old.version='0.1.10';old.requiresDeckForge='>=2.0.48';
+ const action=old.actions[0],legacyKeys=['offEntity','offOperation','onEntity','onOperation'];
+ const operations=[['turn_on','켜기'],['turn_off','끄기'],['toggle','전환'],['trigger','자동화 실행'],['press','버튼 누르기']].map(([value,label])=>({value,label}));
+ action.settingsSchema=[...action.settingsSchema.slice(0,2),
+   {key:'offEntity',label:'기준 OFF · 제어 기기',type:'dynamicSelect',source:'controls',default:''},
+   {key:'offOperation',label:'기준 OFF · 실행',type:'select',default:'turn_on',options:operations},
+   {key:'onEntity',label:'기준 ON · 제어 기기',type:'dynamicSelect',source:'controls',default:''},
+   {key:'onOperation',label:'기준 ON · 실행',type:'select',default:'turn_off',options:operations}];
+ action.settingsUI=legacyKeys.map(key=>({key,visibleWhen:{key:'linked',equals:true}}));
 
  const binding=credentialBinding(old.id,old.networkEndpoints[0]),token='fixture.token-123';
  try{
@@ -3190,9 +3198,14 @@ test('built-in HA upgrade keeps previous endpoint credential and action setting 
    const before=(await host.credentialInfo(old))[0];assert.equal(before.binding,binding);
    await host.writeCredential(old,binding,before.revision,token);
    const saved=await host.credentials.read(binding);
+   await assert.rejects(router.planNativeInstall({...newer,name:'tampered HA'}),/existing settings contract/);
    assert.equal(await router.ensureBuiltinHa(),'updated');
    const actual=(await host.manifests()).find(m=>m.id===old.id);
    assert.deepEqual(actual,newer);
+   assert.deepEqual(actual.actions[0].settingsSchema.map(f=>f.key),['entity','linked','linkEntity','linkOn','linkOff','linkReverse']);
+   const stored={entity:'switch.base',linked:true,offEntity:'switch.a',onEntity:'switch.b',offOperation:'turn_on',onOperation:'turn_off'};
+   const effective=require('../app/deckforge-editor/deck-core.js').nativeEffectiveSettings(actual.actions[0].settingsSchema,stored);
+   assert.equal(effective.linkEntity,'');for(const key of legacyKeys)assert.equal(effective[key],stored[key]);
    const info=(await host.credentialInfo(actual))[0];assert.equal(info.binding,binding);assert.equal(info.configured,true);
    assert.deepEqual(await host.credentials.read(binding),saved);
    assert.equal(actual.actions[0].settingsSchema.find(f=>f.key==='linked').default,false);
