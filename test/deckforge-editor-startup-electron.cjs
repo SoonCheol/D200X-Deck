@@ -129,6 +129,7 @@ app.whenReady().then(async()=>{
         left:[rect('.ha-sensor-entities .native-sdk-picker').left,rect('.ha-sensor-mode>.field:first-child select').left,rect('.ha-sensor-labels>.field:first-child input').left,rect('.ha-sensor-decimals>.field:first-child input').left],
         right:[rect('.ha-sensor-mode>.field:nth-child(2) input').left,rect('.ha-sensor-labels>.field:nth-child(2) input').left],
         labelOffset:rect('.ha-sensor-entities>span').top-rect('.ha-sensor-entities .native-sdk-picker').top,
+        labelPadding:parseFloat(getComputedStyle(dialog.querySelector('.ha-sensor-entities>span')).paddingTop),
         decimalTops:[...dialog.querySelectorAll('.ha-sensor-decimals>.field')].map(x=>x.getBoundingClientRect().top)
       };
       rows()[1].lastElementChild.click();
@@ -147,7 +148,10 @@ app.whenReady().then(async()=>{
     assert.deepEqual(removal.saved,['sensor.a','sensor.c']);assert.equal(removal.cancelled,true);
     assert.ok(removal.positions.left.every(x=>Math.abs(x-removal.positions.left[0])<1),JSON.stringify(removal.positions));
     assert.ok(Math.abs(removal.positions.right[0]-removal.positions.right[1])<1,JSON.stringify(removal.positions));
-    assert.ok(Math.abs(removal.positions.labelOffset-7)<1,JSON.stringify(removal.positions));
+    // getBoundingClientRect includes padding. Check box alignment and its
+    // internal text inset independently, not a fictitious external offset.
+    assert.ok(Math.abs(removal.positions.labelOffset)<1,JSON.stringify(removal.positions));
+    assert.ok(Math.abs(removal.positions.labelPadding-7)<1,JSON.stringify(removal.positions));
     assert.ok(removal.positions.decimalTops.every(y=>Math.abs(y-removal.positions.decimalTops[0])<1),JSON.stringify(removal.positions));
     console.log('HA_SENSOR_REMOVE_OK '+JSON.stringify(removal));
     assert.deepEqual(errors,[]);
