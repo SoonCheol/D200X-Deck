@@ -1548,7 +1548,8 @@ ipcMain.handle('d200x:media-control',async(event,args)=>{
   await emitWindowsKeys([],MEDIA_CODES[args.operation]);return true;
 });
 // SendInput reports Windows input-stream insertion, not foreground-app action success.
-async function emitVerifiedWindowsHotkey(parsed){
+async function emitVerifiedWindowsHotkey(parsed,foregroundPid=0){
+  if(!Number.isSafeInteger(foregroundPid)||foregroundPid<0||foregroundPid>0xffffffff)throw Error('Invalid foreground PID');
   const keyFlags=parsed.extended?1:0;
   const inputs=[...parsed.held.map(v=>[v,0,0]),[parsed.key,parsed.scan||0,keyFlags],[parsed.key,parsed.scan||0,keyFlags|2],...parsed.held.slice().reverse().map(v=>[v,0,2])];
   const ps=`Add-Type -TypeDefinition @'
@@ -1565,7 +1566,9 @@ public static class D200XVerifiedHotkey {
     [FieldOffset(8)] public KEYBDINPUT ki;
   }
   [DllImport("user32.dll",SetLastError=true)] static extern uint SendInput(uint count,INPUT[] input,int size);
-  public static uint Write(int[] values){
+  [DllImport("user32.dll")] static extern IntPtr GetForegroundWindow();
+  [DllImport("user32.dll")] static extern uint GetWindowThreadProcessId(IntPtr hwnd,out uint pid);
+  public static uint Write(int[] values,uint foregroundPid){
     var inputs=new INPUT[values.Length/3];
     for(int i=0;i<inputs.Length;i++){
       inputs[i].type=1;
@@ -1573,16 +1576,31 @@ public static class D200XVerifiedHotkey {
       inputs[i].ki.wScan=(ushort)values[i*3+1];
       inputs[i].ki.dwFlags=(uint)values[i*3+2];
     }
+    if(foregroundPid!=0){
+      uint actual; IntPtr hwnd=GetForegroundWindow();
+      if(hwnd==IntPtr.Zero||GetWindowThreadProcessId(hwnd,out actual)==0||actual!=foregroundPid)return 0;
+    }
     return SendInput((uint)inputs.Length,inputs,Marshal.SizeOf(typeof(INPUT)));
   }
 }
 '@;
-[Console]::Write([D200XVerifiedHotkey]::Write(@(${inputs.flat().join(',')})))`;
+[Console]::Write([D200XVerifiedHotkey]::Write(@(${inputs.flat().join(',')}),${foregroundPid}))`;
   const {stdout}=await execFileAsync('powershell.exe',['-NoProfile','-NonInteractive','-WindowStyle','Hidden','-Command',ps],
     {windowsHide:true,timeout:6000,maxBuffer:32768});
   return {inserted:Number(String(stdout).trim()),expected:inputs.length};
 }
 function parseWindowsHotkey(value){return DeckHotkeys.resolve(value);}
+ipcMain.handle('d200x:fusion-escape',async(event,inputId)=>{
+  assertEditor(event);
+  if(process.platform!=='win32')return false;
+  const fusion=await FusionState.readFusionState(fusionDiscoveryFile());
+  if(fusion?.status!=='ready')return false;
+  const {inserted,expected}=await emitVerifiedWindowsHotkey(parseWindowsHotkey('Escape'),fusion.pid);
+  const confirmed=inserted===expected;
+  if(typeof inputId==='string'&&aiEvidence.has(inputId))aiEvidence.append(inputId,{stage:'windows-input',keys:'Escape',status:confirmed?'inserted':'failed',count:inserted,expected});
+  if(inserted!==0&&!confirmed)throw Error('Windows ESC 입력 삽입 개수가 일치하지 않습니다.');
+  return confirmed;
+});
 ipcMain.handle('d200x:send-hotkey',async(event,args)=>{
   if(!window||event.sender!==window.webContents)throw new Error('허용되지 않은 호출입니다.');
   const parsed=parseWindowsHotkey(args?.keys);

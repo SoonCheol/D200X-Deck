@@ -30,6 +30,7 @@
     if(!online){
       window.clearD200XNativeWide?.();
       window.clearD200XOpenAppHolds?.('hid-disconnect');
+      window.clearD200XFusionPresses?.();
       window.clearD200XSidePresses?.();
       window.clearD200XWarningPresses?.();
       pressedKeys.clear();

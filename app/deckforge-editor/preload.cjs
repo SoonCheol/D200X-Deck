@@ -44,6 +44,7 @@ contextBridge.exposeInMainWorld('deckBridge', Object.freeze({
   nativeCredentialInfo:id=>ipcRenderer.invoke('d200x:native-credential-info',id),
   nativeCredentialWrite:(id,binding,revision,token)=>ipcRenderer.invoke('d200x:native-credential-write',id,binding,revision,token),
   fusionHealth: () => ipcRenderer.invoke('d200x:fusion-health'),
+  fusionEscape: inputId => ipcRenderer.invoke('d200x:fusion-escape',inputId),
   fusionMcpSettings: () => ipcRenderer.invoke('d200x:fusion-mcp-settings'),
   fusionMcpCheck: address => ipcRenderer.invoke('d200x:fusion-mcp-check',address),
   fusionMcpSave: address => ipcRenderer.invoke('d200x:fusion-mcp-save',address),

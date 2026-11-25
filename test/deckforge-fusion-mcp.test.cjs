@@ -185,3 +185,23 @@ test('FusionDeckForge fresh installation uses new name without duplicating legac
    await assert.rejects(fs.stat(target),{code:'ENOENT'});
  }finally{await fs.rm(temp,{recursive:true,force:true});}
 });
+
+const FusionPress=require('../app/deckforge-editor/fusion-press.js');
+test('Fusion hold ESC is default-on only for Run Command, preserves explicit opt-out',()=>{
+  const item={type:'sd-plugin',settings:{pluginUUID:'com.autodesk.fusionstreamdeck',actionUUID:'com.autodesk.fusionstreamdeck.runcommand'}};
+  assert.equal(FusionPress.enabled(item),true);
+  assert.equal(FusionPress.enabled({...item,settings:{...item.settings,fusionHoldEscape:false}}),false);
+  assert.equal(FusionPress.enabled({...item,settings:{...item.settings,actionUUID:'other'}}),false);
+});
+test('Fusion press separates tap/hold, duplicate down, stale release and disconnect',()=>{
+  const timers=new Map(),out=[];let next=0,token='a';
+  const p=FusionPress.create({setTimer:f=>{timers.set(++next,f);return next;},clearTimer:n=>timers.delete(n),
+    current:(i,t)=>t===token,onTap:i=>out.push(['tap',i]),onHold:i=>out.push(['hold',i])});
+  const fire=()=>{for(const [n,f] of [...timers]){timers.delete(n);f();}};
+  assert.equal(p.handle(1,'down',token,{}),true);p.handle(1,'up',token,{});fire();
+  p.handle(2,'down',token,{});p.handle(2,'down',token,{});fire();fire();p.handle(2,'up',token,{});
+  p.handle(3,'down',token,{});token='b';fire();assert.equal(p.handle(3,'up',null,{}),true);
+  p.handle(4,'down',token,{});p.clear();fire();assert.equal(p.handle(4,'up',null,{}),false);
+  assert.deepEqual(out,[['tap',1],['hold',2]]);
+  assert.equal(p.handle(5,'down',null,{}),false);
+});

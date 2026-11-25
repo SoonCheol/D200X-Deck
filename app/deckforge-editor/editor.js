@@ -4856,6 +4856,15 @@ function renderInspector(){
         persistInspectorChange();renderGrid();refreshTitlePreview(item);void refreshStateTitleCards(item);
       });
       row.append(label,select);root.querySelector('.properties>.fields').append(row);
+      if(state.selected<13&&item.settings.actionUUID===FUSION_PLUGIN+'.runcommand'){
+        const option=document.createElement('div');option.className='field checkbox-setting-field';
+        const check=document.createElement('input');check.type='checkbox';check.id='fusion-hold-escape';
+        check.checked=window.DeckForgeFusionPress.enabled(item);
+        const caption=document.createElement('label');caption.htmlFor=check.id;caption.textContent='길게 누르기 : ESC';
+        check.title='짧게 누르면 명령 실행, 길게 누르면 Fusion에 ESC 전송';
+        check.addEventListener('change',()=>{item.settings.fusionHoldEscape=check.checked;persistInspectorChange();});
+        option.append(caption,check);root.querySelector('.properties>.fields').append(option);
+      }
     }
   }
   bindTitleStyle(item);
@@ -5583,6 +5592,33 @@ function handleGestureTest(action,index,gesture,event,preview){
 // action; only explicitly assigned double / hold actions enable the new router.
 const assignedKeyPresses=new Map();
 const ASSIGNED_DOUBLE_MS=300,ASSIGNED_HOLD_MS=600;
+function fusionPressToken(index){
+  const item=sdkItemAtLocation(sdkCommittedSource(),index,'down');
+  if(!window.DeckForgeFusionPress.enabled(item))return null;
+  const context=sdkContext(index,'down');
+  return context?JSON.stringify([context,item.instanceId,item.settings.pluginSettings?.commandId,pageStructureEpoch]):null;
+}
+const fusionPresses=window.DeckForgeFusionPress.create({holdMs:ASSIGNED_HOLD_MS,
+  current:(index,token)=>fusionPressToken(index)===token,
+  onTap:(index,token,event)=>{
+    reportInputEvidence(event,'press-gesture',{outcome:'single',action:'sd-plugin'});
+    const context=JSON.parse(token)[0];
+    if(!window.deckBridge?.sdkKey)return;
+    const task=async()=>{
+      if(fusionPressToken(index)!==token)return false;
+      const ok=await window.deckBridge.sdkKey(context,'down');
+      if(!ok)return false;
+      return window.deckBridge.sdkKey(context,'up');
+    };
+    observeInputEvidence(event,task(),'sdk').then(ok=>{if(!ok)window.d200xActionStatus?.('Fusion 명령 실행 불가');}).catch(error=>window.d200xActionStatus?.('Fusion 명령 실행 실패: '+String(error?.message||error)));
+  },
+  onHold:(index,token,event)=>{
+    reportInputEvidence(event,'press-gesture',{outcome:'hold',action:'sd-plugin'});
+    if(!window.deckBridge?.fusionEscape)return;
+    observeInputEvidence(event,window.deckBridge.fusionEscape(event.inputId),'fusion-escape').then(ok=>window.d200xActionStatus?.(ok?'Fusion ESC 전송 완료':'Fusion 연결 또는 활성 창 미확인: ESC 전송 안 함')).catch(error=>window.d200xActionStatus?.('Fusion ESC 전송 실패: '+String(error?.message||error)));
+  }
+});
+window.clearD200XFusionPresses=()=>fusionPresses.clear();
 function legacyOpenAppHoldAvailable(action){
   return action?.type==='open-app'&&(!action.pressActions?.hold||!pressEnabled(action,'hold'))&&
     ['close','force'].includes(action.settings?.hold);
@@ -6062,6 +6098,15 @@ function executeHardwareAction(event,preview=false,skipKnobGesture=false,pressOv
   const bindingAction=resolved.action;
   report('resolved',{slot:index,gesture:resolved.gesture,action:bindingAction?.type});
   if(index===14||index===15)return handleSideNavigationInput(index,resolved.gesture,event,preview);
+  if(!preview&&!bypassPressBindings&&index<13&&['down','up'].includes(resolved.gesture)){
+    const token=fusionPressToken(index);
+    if(fusionPresses.handle(index,resolved.gesture,token,event)){
+      if(resolved.gesture==='up')lastHardwareDown.delete(index);
+      return 'Fusion 버튼 누르기 판정';
+    }
+    // An enabled command awaiting its SDK mount must not bypass the hold router.
+    if(window.DeckForgeFusionPress.enabled(sdkItemAtLocation(sdkCommittedSource(),index,'down')))return 'Fusion 명령 활성화 대기';
+  }
   if(index<13&&(resolved.action?.type==='indicator'||fixedIndicatorPresses.has(index))){
     if(resolved.gesture==='up')lastHardwareDown.delete(index);
     return handleFixedIndicatorInput(index,resolved.gesture,event,preview);
