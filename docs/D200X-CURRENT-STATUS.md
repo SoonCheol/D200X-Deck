@@ -2,7 +2,7 @@
 > 2026-11-25 · 현재 스냅샷, 누적 금지.
 ## 개발 기준
 - 저장소 SoonCheol/D200X-Deck · 브랜치 codex/streamdeck-761-clean-editor · Draft PR #5 유지.
-- 로컬 E:\Codex\DeckForge. 최신 HEAD는 Git에서 확인. 소스 버전 **2.0.33** (독자 GitHub 빌드 상태; 2.0.7 센서 UI 사용자 정상 확인).
+- 로컬 E:\Codex\DeckForge. 최신 HEAD는 Git에서 확인. 소스 버전 **2.0.34** (GitHub 마퀴·자동 조회; 2.0.7 센서 UI 사용자 정상 확인).
 - 감사 기준 `49ba39fe094ee808c5715f2348be0789f61d5e20`. CI #1221 성공; Windows #930 사용자 인수인계.
 ## 현재 상태
 - 독자 SDK API 1/2, 공개 25개 함수, HTTP/WSS, 전역 서비스/공유 상태, 동적 속성, 암호화·권한·패키지, HA 0.1.8 후보 및 Stream Deck 호환 호스트 구현. SDK 1.0 정식 완성 선언 보류.
@@ -31,8 +31,8 @@
 - 1.1.226: Model2 실제 반복/자원 제한/서비스 생존·복구, opaque storage/CSP 검사 및 USB mock 통과. CI #1274·Windows #980 성공. OOM 별도. 세부 수치 SDK 계약.
 - 1.1.230: CI #1278, Windows #984 attempt2 전체 성공. 실제 idle/active crash·거부·서비스/peer 생존·새 이벤트 복구, 25함수·vault 통과. 1차 npm 404 해소(버전 변경 없음). deckforge-v1.1.230 게시, EXE 135231273 bytes. 현재 root suite 45/45 실행 명령 확인, 초기 helper skip 3개와 후속 패키지 검사 구분.
 ## 다음 작업
-- 2.0.34 작업: GitHub 0.1.1 마퀴 및 5/15초 자동 조회, 일반 제목 마퀴 공통 합성 검토.
-- 2.0.33: GitHub 개발 현황 0.1.0 관리 메뉴 내장 설치, 단일 저장소/워크플로/브랜치, 읽기 PAT vault, 30초 조회·한글 상태/빌드 번호·누르면 새로고침. GET 선택 32KiB 응답/6 pathKeys/User-Agent, 집중 검사 추가. Windows #36·CI #1384·SDK #76·입력 #550 성공, 실 서버/순환/길게 누르기 별도.
+- 2.0.34: GitHub 0.1.1 번호 23px/상태 26px, 이름 마퀴 1~3초, 자동 조회 5/15초 또는 고정 5/10/15/30초, 기존 PAT binding 유지. 독립 pollIntervalMs 5초 이상, 집중 검사 추가. Windows 대기. 공통 제목 마퀴 및 저장소/워크플로/브랜치 목록·순환은 별도.
+- 2.0.33: GitHub 개발 현황 0.1.0 관리 메뉴 내장 설치, 단일 저장소/워크플로/브랜치, 읽기 PAT vault, 30초 조회·한글 상태/빌드 번호·누르면 새로고침. GET 선택 32KiB 응답/6 pathKeys/User-Agent, 집중 검사 추가. Windows #36·CI #1384·SDK #76·입력 #550 성공, 사용자 #36 빌드 성공 표시 확인, 일회성 실행 다운 원인 미확인; 순환/길게 누르기 별도.
 - 2.0.32: 호환 엔진에서 쉼표/UTF-8 charset SVG data URI를 base64로 정규화, 1MiB 제한·기존 사용자 아이콘 우선순위 보존. 실제 setImage 전달 집중 검사 추가. Windows #35·CI #1382·SDK #74 성공; 사용자 GitHub 실시간 표시 확인.
 - 2.0.31: 실제 키/노브 입력 직후 HTTP(S) 링크 1회 직접 실행(3초·동일 소켓/컨텍스트), 배경 요청 확인 유지. 외부 URL 검증 보존, 집중 검사 추가. Windows #34·CI #1380·SDK #72 성공, 실기 대기.
 - 2.0.30: Windows 경로 정규화 native, 양측 SDK 등록 완료 후 appear 단일 전달, Node 오류 분류(원문 미기록), 실행 중 로그 변화 허용·종료 대기·rename 재시도, 삭제 실패 팝업. 집중 검사 추가. Windows #33·CI #1378·SDK #70·입력 #549 성공, 실제 GPU·삭제 확인 대기.

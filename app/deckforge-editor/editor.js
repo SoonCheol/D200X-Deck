@@ -1874,7 +1874,7 @@ function bindActionAppearance(){
     ha.addEventListener('click',installNativeHa);management.append(ha);
   }
   if(window.deckBridge?.nativeGitHubInstall){
-    const github=document.createElement('button');github.type='button';github.className='plugin-add-button';github.textContent='GitHub 개발 현황 추가';
+    const github=document.createElement('button');github.type='button';github.className='plugin-add-button';github.textContent=sdkPlugins.some(p=>p.uuid==='com.deckforge.native.github-status')?'GitHub 개발 현황 업데이트':'GitHub 개발 현황 추가';
     github.addEventListener('click',async()=>{github.disabled=true;try{const result=await window.deckBridge.nativeGitHubInstall();if(result){await refreshSdkPlugins();scheduleSdkSync();window.d200xActionStatus?.('GitHub 개발 현황 설치 완료');}}catch(error){await window.DeckForgeDialogs.show({title:'GitHub 플러그인 설치 실패',kind:'error',detail:String(error?.message||error)});}finally{github.disabled=false;}});management.append(github);
   }
   const purge=document.createElement('button');purge.type='button';purge.className='plugin-add-button';purge.textContent='완전 삭제';

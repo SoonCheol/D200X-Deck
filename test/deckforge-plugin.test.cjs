@@ -2967,6 +2967,30 @@ test('native GitHub build monitor uses approved GET and renders Korean status',(
  assert.equal(normalizeNetworkResult(m.networkEndpoints[0],response).ok,true);
  assert.equal(normalizeNetworkResult({...m.networkEndpoints[0],maxResponseBytes:undefined},response).ok,false);
  buildKey({type:'networkResult',response},settings,0,memory,api);
- assert.ok(frames.at(-1).commands.some(x=>x.text==='빌드 성공'));assert.ok(frames.at(-1).commands.some(x=>x.text==='#35'));
+ assert.ok(frames.at(-1).commands.some(x=>x.text==='빌드 성공'));assert.ok(frames.at(-1).commands.some(x=>x.text==='#35'&&x.size===23&&x.bold));
  buildKey({type:'networkResult',response:{ok:false,status:403}},settings,0,memory,api);assert.ok(frames.at(-1).commands.some(x=>x.text==='권한 확인'));
+});
+
+test('GitHub adaptive refresh and marquee are independent, with bounded native polling',()=>{
+ const {createGitHubManifest,buildKey}=require('../app/deckforge-editor/deckforge-github-plugin.cjs');
+ const m=validateNativeManifest(createGitHubManifest()),a=m.actions[0],settings=Object.fromEntries(a.settingsSchema.map(f=>[f.key,f.default]));
+ settings.label='MusicAssistantKOR';const memory={},requests=[],frames=[];
+ const api={setTitle(){},drawKey:x=>frames.push(x),request:(...args)=>requests.push(args)};
+ const realNow=Date.now;let now=100000;Date.now=()=>now;
+ try{
+  buildKey({type:'appear'},settings,0,memory,api);
+  now+=1000;buildKey({type:'tick'},settings,0,memory,api);assert.equal(requests.length,1);
+  const op={op:'networkRequest',endpoint:'runs',body:null,query:requests[0][2],options:requests[0][3]};
+  const host=new NativePluginHost('/unused');
+  const ctx={pluginUUID:m.id,permissions:m.permissions,action:a,networkEndpoints:m.networkEndpoints};
+  assert.deepEqual(host.validateScriptOps(ctx,'tick',[op]).effects,[op]);host.close();
+  assert.throws(()=>validateNativeManifest({...m,actions:[{...a,pollIntervalMs:1000}]}),/polling interval/);
+  buildKey({type:'networkResult',response:{ok:true,body:JSON.stringify({workflow_runs:[{status:'in_progress',run_number:36}]})}},settings,0,memory,api);
+  const first=frames.at(-1).commands[1].text;
+  now+=3000;buildKey({type:'tick'},settings,0,memory,api);assert.equal(requests.length,1);assert.notEqual(frames.at(-1).commands[1].text,first);
+  now+=2000;buildKey({type:'tick'},settings,0,memory,api);assert.equal(requests.length,2);
+  buildKey({type:'networkResult',response:{ok:true,body:JSON.stringify({workflow_runs:[{status:'completed',conclusion:'success',run_number:36}]})}},settings,0,memory,api);
+  now+=5000;buildKey({type:'tick'},settings,0,memory,api);assert.equal(requests.length,2);
+  now+=10000;buildKey({type:'tick'},settings,0,memory,api);assert.equal(requests.length,3);
+ }finally{Date.now=realNow;}
 });

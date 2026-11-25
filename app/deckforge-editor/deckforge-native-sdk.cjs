@@ -84,7 +84,7 @@ function validateNativeManifest(m){
   check(Array.isArray(m.actions)&&m.actions.length>0&&m.actions.length<=64,'invalid actions');
   const ids=new Set();
   for(const a of m.actions){
-    check(exact(a,m.apiVersion===1?['id','name','controllers','states','events','settingsSchema','settingsUI','titlePolicy','visualPolicy','stateImages']:['id','name','controllers','states','script','settingsSchema','settingsUI','titlePolicy','visualPolicy','tickIntervalMs','stateImages','sharedStateView','tickWhen'])&&typeof a.id==='string'&&
+    check(exact(a,m.apiVersion===1?['id','name','controllers','states','events','settingsSchema','settingsUI','titlePolicy','visualPolicy','stateImages']:['id','name','controllers','states','script','settingsSchema','settingsUI','titlePolicy','visualPolicy','tickIntervalMs','stateImages','sharedStateView','tickWhen','pollIntervalMs'])&&typeof a.id==='string'&&
       a.id.startsWith(m.id+'.')&&/^[a-z0-9.-]+$/.test(a.id)&&a.id.length<=180&&
       !a.id.endsWith('.')&&!a.id.includes('..')&&!ids.has(a.id)&&validText(a.name,180),'invalid action');
     ids.add(a.id);
@@ -102,6 +102,7 @@ function validateNativeManifest(m){
     }
     if(m.apiVersion===2){
       check(a.tickIntervalMs===undefined||(m.permissions.includes('timer.tick')&&Number.isInteger(a.tickIntervalMs)&&a.tickIntervalMs>=1000&&a.tickIntervalMs<=3600000),'invalid or unauthorized tick interval');
+      if(a.pollIntervalMs!==undefined)check(m.permissions.includes('network.poll')&&a.tickIntervalMs!==undefined&&Number.isInteger(a.pollIntervalMs)&&a.pollIntervalMs>=5000&&a.pollIntervalMs<=3600000,'invalid independent polling interval');
       if(a.tickWhen!==undefined){
         const rule=a.tickWhen;
         check(a.tickIntervalMs!==undefined&&exact(rule,['setting','equals','selection','minItems'])&&Object.keys(rule).length===4,'invalid tick condition');
@@ -334,7 +335,7 @@ class NativePluginHost{
         normal.push(pixelImage(op));continue;
       }
       if(OPS.has(op?.op)){normal.push(op);continue;}
-      const polling=event==='tick'&&op?.op==='networkRequest'&&ctx.permissions.includes('network.poll')&&ctx.action.tickIntervalMs>=5000;
+      const polling=event==='tick'&&op?.op==='networkRequest'&&ctx.permissions.includes('network.poll')&&(ctx.action.pollIntervalMs??ctx.action.tickIntervalMs)>=5000;
       const socketLifecycle=op?.op==='socketConnect'&&['appear','settings','start'].includes(event)&&(event!=='start'||ctx.service);
       const socketContinuation=['socketSend','socketClose'].includes(op?.op)&&event==='socketEvent';
       const serviceInput=ctx.service&&event==='serviceMessage'&&['networkRequest','socketSend','socketClose','socketConnect'].includes(op?.op);
@@ -383,7 +384,7 @@ class NativePluginHost{
     }
     check(!animationCount||!normal.some(op=>op.op==='image'),'animation and static image cannot share an event');
     if(ctx.service)return {normal,effects};
-    const {script,tickIntervalMs,stateImages,sharedStateView,tickWhen,...action}=ctx.action;
+    const {script,tickIntervalMs,stateImages,sharedStateView,tickWhen,pollIntervalMs,...action}=ctx.action;
     validateNativeManifest({apiVersion:1,id:ctx.pluginUUID,name:'Runtime',version:'1',
       permissions:['display'],actions:[{...action,events:{press:normal.filter(op=>!['animation','stopAnimation'].includes(op.op))}}]});
     return {normal,effects};
@@ -712,11 +713,18 @@ class NativePluginHost{
     const token=ctx.socketToken;
     if(token)this.finishSocket(ctx,token,'close');
   }
-  startNetwork(ctx,operation,active){
+  startNetwork(ctx,operation,active,event){
     const endpoint=validateNetworkRequest(operation,ctx.networkEndpoints);
     if(ctx.networkToken){
       // An existing context request retains its single result contract.
       this.report(ctx.pluginUUID,Error('network request busy'));return;
+    }
+    if(event==='tick'&&ctx.action.pollIntervalMs!==undefined){
+      const now=this.now();
+      if(ctx.lastPeriodicRequest!==undefined&&now-ctx.lastPeriodicRequest<ctx.action.pollIntervalMs){
+        if(active())this.runScript(ctx,'networkResult',networkFailure(endpoint.id,'capacity'),JSON.stringify(ctx.settings));return;
+      }
+      ctx.lastPeriodicRequest=now;
     }
     const pluginPending=[...this.networkPending].filter(t=>t.plugin===ctx.pluginUUID).length;
     if(this.networkPending.size>=MAX_NETWORK_GLOBAL||pluginPending>=MAX_NETWORK_PLUGIN){
@@ -864,7 +872,7 @@ class NativePluginHost{
         this.applyOps(ctx,normal);
         for(const operation of effects)if(!['globalSettings','settings'].includes(operation.op)){
           if(operation.op==='serviceMessage'){this.sendServiceMessage(ctx,operation);continue;}
-          if(operation.op==='networkRequest'){this.startNetwork(ctx,operation,active);continue;}
+          if(operation.op==='networkRequest'){this.startNetwork(ctx,operation,active,event);continue;}
           if(operation.op==='socketConnect'){this.startSocket(ctx,operation,active);continue;}
           if(operation.op==='socketSend'){this.sendSocket(ctx,operation);continue;}
           if(operation.op==='socketClose'){this.closeSocket(ctx);continue;}
