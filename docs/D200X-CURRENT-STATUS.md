@@ -2,7 +2,7 @@
 > 2026-11-25 · 현재 스냅샷, 누적 금지.
 ## 개발 기준
 - 저장소 SoonCheol/D200X-Deck · 브랜치 codex/streamdeck-761-clean-editor · Draft PR #5 유지.
-- 로컬 E:\Codex\DeckForge. 최신 HEAD는 Git에서 확인. 소스 버전 **2.0.31** (사용자 키 입력 외부 링크 확인 간소화; 2.0.7 센서 UI 사용자 정상 확인).
+- 로컬 E:\Codex\DeckForge. 최신 HEAD는 Git에서 확인. 소스 버전 **2.0.32** (외부 SDK SVG 상태 이미지 정규화; 2.0.7 센서 UI 사용자 정상 확인).
 - 감사 기준 `49ba39fe094ee808c5715f2348be0789f61d5e20`. CI #1221 성공; Windows #930 사용자 인수인계.
 ## 현재 상태
 - 독자 SDK API 1/2, 공개 25개 함수, HTTP/WSS, 전역 서비스/공유 상태, 동적 속성, 암호화·권한·패키지, HA 0.1.8 후보 및 Stream Deck 호환 호스트 구현. SDK 1.0 정식 완성 선언 보류.
@@ -15,8 +15,6 @@
 - 04B 선행 검증: 전용 Electron CSP/격리 검사만, 실제 앱 Worker 미등록.
 - 04B 실제 Electron: Model 2 PID 5668/844 및 realm/timeout/서비스 생존, DrawOps 픽셀/host 경계 통과. standard Worker 저장소 IndexedDB/CacheStorage/OPFS 허용, opaque Worker 생성 실패. Model 5 비활성 유지. 로드맵에 따라 05 선행 분석만 수행.
 - 1.1.194~196: 미저장 이동/물리 초안 보호, configRevision/요청 ID/ABA 보호. 후속 05B/C 확장.
-- 1.1.197: HA 0.1.4 투명 control/sensor 이미지, 동일 서버 업데이트 필요. Windows/CI 성공.
-- 1.1.198~199: HA 센서 단일 편집·순서·실시간 레이어, 1.1.199 Windows/CI/입력 성공.
 - 1.1.200: 05B 프로필 atomic 설정+receipt, ACK 영구 증거, 24h/4096건. Windows/CI/입력 성공. 1.1.201 Windows/CI/입력 성공(실기 실패와 구분).
 - **HA 사용자 실기 정정:** 기존 배경색 미표시는 HA 0.1.3 미업데이트가 원인, 업데이트 후 정상 작동 사용자 확인. 이전 배경색 결함 보류 해제. 기타 UI 개별 검증은 별도, SDK 로드맵 우선.
 - 1.1.202~204: 05C 저장 재조회·결과/child exit·최신 mount/ABA 검증. Windows/CI 성공. 전원 손실·감사 13개 전체 대조 미검증.
@@ -35,7 +33,7 @@
 - 1.1.226: Model2 실제 반복/자원 제한/서비스 생존·복구, opaque storage/CSP 검사 및 USB mock 통과. CI #1274·Windows #980 성공. OOM 별도. 세부 수치 SDK 계약.
 - 1.1.230: CI #1278, Windows #984 attempt2 전체 성공. 실제 idle/active crash·거부·서비스/peer 생존·새 이벤트 복구, 25함수·vault 통과. 1차 npm 404 해소(버전 변경 없음). deckforge-v1.1.230 게시, EXE 135231273 bytes. 현재 root suite 45/45 실행 명령 확인, 초기 helper skip 3개와 후속 패키지 검사 구분.
 ## 다음 작업
-- 2.0.32 작업: Stream Deck 호환 엔진의 SVG data URI(쉼표/charset) 정규화 및 상태 이미지 전달 검증. 기존 사용자 아이콘 우선순위 보존.
+- 2.0.32: 호환 엔진에서 쉼표/UTF-8 charset SVG data URI를 base64로 정규화, 1MiB 제한·기존 사용자 아이콘 우선순위 보존. 실제 setImage 전달 집중 검사 추가. Windows/실기 대기.
 - 2.0.31: 실제 키/노브 입력 직후 HTTP(S) 링크 1회 직접 실행(3초·동일 소켓/컨텍스트), 배경 요청 확인 유지. 외부 URL 검증 보존, 집중 검사 추가. Windows #34·CI #1380·SDK #72 성공, 실기 대기.
 - 2.0.30: Windows 경로 정규화 native, 양측 SDK 등록 완료 후 appear 단일 전달, Node 오류 분류(원문 미기록), 실행 중 로그 변화 허용·종료 대기·rename 재시도, 삭제 실패 팝업. 집중 검사 추가. Windows #33·CI #1378·SDK #70·입력 #549 성공, 실제 GPU·삭제 확인 대기.
 - 2.0.29: 원본 속성창을 플러그인별 표준 로컬 프로토콜 및 격리 세션에서 로드, 같은 폴더 HTML 팝업·opener 허용. 외부 file 접근 및 다른 폴더 차단. 실제 Electron 팝업/콜백 검사 추가, Windows #32 경로 비교 실패(콜백 미실행).

@@ -37,6 +37,20 @@ function fusionInspectorBounds(content,area,anchor,zoom=1){
 function allowedSdkOpenUrlContext(uuid,ctx,requestedContext){
   return Boolean(uuid)&&(!requestedContext||ctx?.pluginUUID===uuid);
 }
+// Stream Deck SDK supports percent-encoded SVG as well as base64 data URIs.
+// Canonicalize at the compatibility boundary; the independent SDK stays unchanged.
+function normalizeSdkImage(raw){
+  const limit=1024*1024;
+  if(typeof raw!=='string'||raw.length>=limit)return null;
+  if(/^data:image\/(?:png|jpeg|webp|svg\+xml);base64,[A-Za-z0-9+/]+={0,2}$/i.test(raw))return raw;
+  const match=/^data:image\/svg\+xml(?:;charset=(?:utf-?8|us-ascii))?,([\s\S]+)$/i.exec(raw);
+  if(!match)return null;
+  try{
+    const svg=decodeURIComponent(match[1]);
+    const image='data:image/svg+xml;base64,'+Buffer.from(svg,'utf8').toString('base64');
+    return image.length<limit?image:null;
+  }catch{return null;}
+}
 function safeSdkExternalUrl(raw){
   if(typeof raw!=='string'||raw.length>2048||/[\x00-\x1f\x7f]/.test(raw))return null;
   try{
@@ -758,7 +772,14 @@ class StreamDeckPluginHost{
       case 'sendToPropertyInspector':if(ctx)this.send(this.inspectors.get(ctx.context)?.ws,msg);break;
       case 'setTitle':case 'setImage':case 'setState':
         if(ctx&&ctx.pluginUUID===uuid){
-          this.onUpdate({kind:msg.event,context:ctx.context,payload:msg.payload});
+          if(msg.event==='setImage'){
+            const image=normalizeSdkImage(msg.payload?.image);
+            if(image)this.onUpdate({kind:msg.event,context:ctx.context,payload:{...msg.payload,image}});
+            else if(typeof msg.payload?.image==='string'&&!msg.payload.image.startsWith('data:')){
+              // Preserve the previous behavior for non-data SDK image references.
+              this.onUpdate({kind:msg.event,context:ctx.context,payload:msg.payload});
+            }
+          }else this.onUpdate({kind:msg.event,context:ctx.context,payload:msg.payload});
           if(msg.event==='setState'){
             ctx.lastState=Number(msg.payload?.state);
             const image=await this.stateArtwork(ctx,msg.payload?.state);
@@ -802,4 +823,4 @@ class StreamDeckPluginHost{
     this.server=null;
   }
 }
-module.exports={StreamDeckPluginHost,parseArchive,validateManifest,pluginKind,nodeRuntime,safeSdkExternalUrl,allowedSdkOpenUrlContext,fusionInspectorBounds};
+module.exports={StreamDeckPluginHost,parseArchive,validateManifest,pluginKind,nodeRuntime,safeSdkExternalUrl,allowedSdkOpenUrlContext,fusionInspectorBounds,normalizeSdkImage};

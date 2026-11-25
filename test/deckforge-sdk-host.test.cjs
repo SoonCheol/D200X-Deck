@@ -398,3 +398,18 @@ test('SDK external link grant is one-shot, scoped to live user action and expire
  host.key(context,'up');assert.equal(host.consumeUserLinkGrant(inst,context),true);
  host.key(context,'down');inst.ws={readyState:1};assert.equal(host.consumeUserLinkGrant(inst,undefined),false);
 });
+
+test('SDK percent encoded SVG images reach the existing renderer as base64',async()=>{
+ const {normalizeSdkImage}=require('../app/deckforge-editor/sd-plugin-host.cjs');
+ const svg='<svg xmlns="http://www.w3.org/2000/svg"><text>Success · 성공 100%</text></svg>';
+ const encoded=encodeURIComponent(svg),expected='data:image/svg+xml;base64,'+Buffer.from(svg).toString('base64');
+ for(const uri of ['data:image/svg+xml,'+encoded,'data:image/svg+xml;charset=utf8,'+encoded,'data:image/svg+xml;charset=UTF-8,'+encoded,expected])assert.equal(normalizeSdkImage(uri),expected);
+ for(const uri of ['data:text/html,'+encoded,'data:image/svg+xml,%ZZ','data:image/svg+xml,'+'x'.repeat(1024*1024),'https://example.com/icon.svg'])assert.equal(normalizeSdkImage(uri),null);
+ assert.equal(normalizeSdkImage('data:image/png;base64,iVBORw=='),'data:image/png;base64,iVBORw==');
+ const events=[],host=new StreamDeckPluginHost('/unused',msg=>events.push(msg)),uuid=M.UUID,context='image';
+ host.contexts.set(context,{context,pluginUUID:uuid,actionUUID:M.Actions[0].UUID});
+ await host.message({event:'setImage',context,payload:{image:'data:image/svg+xml,'+encoded}},{uuid},null,{});
+ assert.deepEqual(events,[{kind:'setImage',context,payload:{image:expected}}]);
+ await host.message({event:'setImage',context,payload:{image:'data:image/svg+xml,%ZZ'}},{uuid},null,{});
+ assert.equal(events.length,1);
+});
