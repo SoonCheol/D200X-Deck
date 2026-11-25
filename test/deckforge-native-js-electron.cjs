@@ -544,7 +544,10 @@ async function verifyModel2MountedPageCycles(){
   await pressPage(first);presses+=13;assertPage('first',1);
   // Bounded repeated mount/retire stress; not a long-duration soak.
   const samples=[];
-  for(let cycle=0;cycle<8;cycle++){
+  const soak=process.env.DECKFORGE_SDK_SOAK==='1';
+  const repeatStarted=Date.now();
+  let cycle=0;
+  for(;cycle<8||(soak&&Date.now()-repeatStarted<300000);cycle++){
    const next=cycle%2===0?second:first,previous=cycle%2===0?first:second;
    host.sync(next,[manifest]);await drain();
    assert.equal(service(),originalService);
@@ -553,11 +556,13 @@ async function verifyModel2MountedPageCycles(){
    assert.equal(host.retired.size,0);
    assert.equal(host.scheduler.running,0);
    assert.equal(host.scheduler.waiting.length,0);
-   samples.push({cycle,hostHeapBytes:process.memoryUsage().heapUsed,runnerEntries:host.runnerPool.entries.size});
+   assert.equal(events.some(e=>e.kind==='nativeEffect'||e.kind==='nativeSettingsCommit'),false);
+   events.length=0;
+   if(cycle%8===0) samples.push({cycle,hostHeapBytes:process.memoryUsage().heapUsed,runnerEntries:host.runnerPool.entries.size});
   }
-  console.log('MODEL2_REPEAT_RESOURCE_SAMPLES '+JSON.stringify({samples,additionalTransitions:8,additionalPresses:104,longDurationSoak:false}));
+  console.log('MODEL2_REPEAT_RESOURCE_SAMPLES '+JSON.stringify({samples,additionalTransitions:cycle,additionalPresses:cycle*13,elapsedMs:Date.now()-repeatStarted,longDurationSoak:soak}));
   assert.equal(events.some(e=>e.kind==='nativeEffect'||e.kind==='nativeSettingsCommit'),false);
-  console.log('MODEL2_MOUNTED_PAGE_CYCLES '+JSON.stringify({buttonsPerPage:13,presses,pageTransitions:10,suspendResumeCycles:1,isolatedMemory:true,serviceSurvived:true,elapsedMs:Date.now()-started,actualElectron:true,physicalDevice:false,oomTested:false}));
+  console.log('MODEL2_MOUNTED_PAGE_CYCLES '+JSON.stringify({buttonsPerPage:13,presses,pageTransitions:2+cycle,suspendResumeCycles:1,isolatedMemory:true,serviceSurvived:true,elapsedMs:Date.now()-started,actualElectron:true,physicalDevice:false,oomTested:false}));
  }finally{host.close();assert.equal(host.contexts.size,0);assert.equal(host.runnerPool.entries.size,0);}
 }
 
