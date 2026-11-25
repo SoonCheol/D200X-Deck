@@ -73,7 +73,7 @@ function validateNativeManifest(m){
     m.permissions.every(p=>p==='display'||(m.apiVersion===2&&EXTRA_PERMISSIONS.includes(p))),'unsupported permissions');
   if(m.capabilities!==undefined)check(m.apiVersion===2&&Array.isArray(m.capabilities)&&
     m.capabilities.length>0&&new Set(m.capabilities).size===m.capabilities.length&&
-    m.capabilities.every(c=>c==='settingsResult'?m.permissions.includes('settings.write'):c==='socketBatch'&&m.permissions.includes('network.websocket')&&m.permissions.includes('background.run')),
+    m.capabilities.every(c=>c==='settingsResult'?m.permissions.includes('settings.write'):(c==='socketBatch'||c==='socketJsonArray'&&m.capabilities.includes('socketBatch'))&&m.permissions.includes('network.websocket')&&m.permissions.includes('background.run')),
     'unsupported capabilities or missing permissions');
   check((m.service!==undefined)===m.permissions.includes('background.run'),'background service requires explicit permission and declaration');
   if(m.service!==undefined){
@@ -626,7 +626,7 @@ class NativePluginHost{
     ctx.socketToken=null;this.socketPending.delete(token);
     this.socketEvent(ctx,token,event,'',error);
   }
-  socketRate(token,direction,bytes=0){
+  socketRate(token,direction,bytes=0,count=1){
     const now=this.now(),field=direction+'Rate',rx=direction==='receive';
     const capacity=rx?128:16,refill=rx?64:8,byteCapacity=rx?RX_SOCKET_BYTES:32768,byteRefill=rx?512*1024:32768;
     let rate=token[field];
@@ -635,15 +635,34 @@ class NativePluginHost{
     rate.start=Math.max(now,rate.start);
     rate.tokens=Math.min(capacity,rate.tokens+elapsed*refill);
     rate.bytes=Math.min(byteCapacity,rate.bytes+elapsed*byteRefill);
-    if(rate.tokens<1||rate.bytes<bytes)return false;
-    rate.tokens--;rate.bytes-=bytes;return true;
+    if(rate.tokens<count||rate.bytes<bytes)return false;
+    rate.tokens-=count;rate.bytes-=bytes;return true;
   }
   receiveSocketFrame(ctx,token,body,bytes){
-    if(!this.socketRate(token,'receive',bytes)){this.finishSocket(ctx,token,'error','rate-limit',true);return;}
-    if(token.rxCount>=RX_FRAMES||token.rxBytes+bytes>RX_SOCKET_BYTES||this.rxReservedBytes+bytes>RX_GLOBAL_BYTES){
+    let frames=[{body,bytes}];
+    // Explicit opt-in only. Preserve the ordinary opaque WebSocket contract.
+    // Admit a complete array atomically, charging every logical message and
+    // the larger of original vs normalized bytes; never drop a partial array.
+    if(ctx.service&&ctx.capabilities?.includes('socketJsonArray')&&ctx.capabilities.includes('socketBatch')&&body.trimStart().startsWith('[')){
+      let messages;
+      try{messages=JSON.parse(body);}catch{this.finishSocket(ctx,token,'error','invalid-message');return;}
+      if(!Array.isArray(messages)||messages.length===0||messages.length>RX_FRAMES||messages.some(v=>!obj(v))){
+        this.finishSocket(ctx,token,'error','invalid-message');return;
+      }
+      frames=messages.map(v=>{const body=JSON.stringify(v);return {body,bytes:Buffer.byteLength(JSON.stringify(body))};});
+      const normalized=frames.reduce((total,f)=>total+f.bytes,0);
+      if(frames.some(f=>f.bytes>socketReceiveLimit(token.endpoint)||token.bearer&&f.body.includes(token.bearer))){
+        this.finishSocket(ctx,token,'error','invalid-message');return;
+      }
+      if(bytes>normalized)frames[0].bytes+=bytes-normalized;
+      bytes=Math.max(bytes,normalized);
+    }
+    const count=frames.length;
+    if(!this.socketRate(token,'receive',bytes,count)){this.finishSocket(ctx,token,'error','rate-limit',true);return;}
+    if(token.rxCount+count>RX_FRAMES||token.rxBytes+bytes>RX_SOCKET_BYTES||this.rxReservedBytes+bytes>RX_GLOBAL_BYTES){
       this.finishSocket(ctx,token,'error','queue-capacity',true);return;
     }
-    token.rxQueue.push({body,bytes});token.rxBytes+=bytes;token.rxCount++;this.rxReservedBytes+=bytes;
+    token.rxQueue.push(...frames);token.rxBytes+=bytes;token.rxCount+=count;this.rxReservedBytes+=bytes;
     this.flushSocketFrames(ctx,token);
   }
   flushSocketFrames(ctx,token,force=false){

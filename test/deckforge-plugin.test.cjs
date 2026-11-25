@@ -2269,14 +2269,15 @@ test('HA native manifest, compressed entity state, device grouping, control and 
  const msg=m=>run('socketEvent',{event:'message',body:JSON.stringify(m)});
  run('start');run('socketEvent',{event:'open'});
  const device='a'.repeat(32);
- msg({type:'result',id:1,success:true,result:[{id:device,name:'발코니'}]});
- msg({type:'result',id:2,success:true,result:{entities:[{ei:'sensor.temp',di:device},{ei:'sensor.humidity',di:device}]}});
+ msg({type:'result',id:1,success:true});
+ msg({type:'result',id:2,success:true,result:[{id:device,name:'발코니'}]});
+ msg({type:'result',id:3,success:true,result:{entities:[{ei:'sensor.temp',di:device},{ei:'sensor.humidity',di:device}]}});
  assert.equal(sent.at(-1).type,'subscribe_entities');
- msg({type:'event',id:3,event:{a:{'sensor.temp':{s:'23.5',a:{friendly_name:'온도',unit_of_measurement:'°C'}},'sensor.humidity':{s:'48',a:{friendly_name:'습도',unit_of_measurement:'%'}},'switch.fan':{s:'off',a:{friendly_name:'환풍기'}}}}});
+ msg({type:'event',id:4,event:{a:{'sensor.temp':{s:'23.5',a:{friendly_name:'온도',unit_of_measurement:'°C'}},'sensor.humidity':{s:'48',a:{friendly_name:'습도',unit_of_measurement:'%'}},'switch.fan':{s:'off',a:{friendly_name:'환풍기'}}}}});
  assert.equal(shared.status,'연결됨');assert.equal(shared.sensors.length,2);assert.ok(shared.sensors.every(o=>o.group==='발코니'));
- msg({type:'event',id:3,event:{c:{'sensor.temp':{'+':{s:'24.0'}}}}});
+ msg({type:'event',id:4,event:{c:{'sensor.temp':{'+':{s:'24.0'}}}}});
  assert.equal(shared.entities['sensor.temp'].value,'24.0');assert.equal(shared.entities['sensor.temp'].unit,'°C');
- msg({type:'event',id:3,event:{c:{'sensor.temp':{'-':{a:['unit_of_measurement']}}}}});
+ msg({type:'event',id:4,event:{c:{'sensor.temp':{'-':{a:['unit_of_measurement']}}}}});
  assert.equal(shared.entities['sensor.temp'].unit,'');
  const settings={entities:['sensor.temp','sensor.humidity'],mode:'all',labels:true,unit:true,decimals:1,fontSize:36,seconds:5,color:'#FFFFFF'};
  sensorKey({type:'appear'},settings,0,{},api);
@@ -2289,17 +2290,17 @@ test('HA native manifest, compressed entity state, device grouping, control and 
  assert.deepEqual(commands,[{entity:'switch.fan'}]);
  run('serviceMessage',{message:commands[0]});assert.equal(sent.at(-1).service,'toggle');
  const count=sent.length;run('serviceMessage',{message:{entity:'sensor.temp'}});assert.equal(sent.length,count);
- msg({type:'event',id:3,event:{a:{'light.kitchen':{s:'off',a:{friendly_name:'주방등'}}}}});
+ msg({type:'event',id:4,event:{a:{'light.kitchen':{s:'off',a:{friendly_name:'주방등'}}}}});
  const linked={entity:'switch.fan',linked:true,linkEntity:'light.kitchen',linkOn:true,linkOff:true,linkReverse:false};
  controlKey({type:'press'},linked,0,{},api);run('serviceMessage',{message:commands.pop()});
  assert.equal(sent.at(-1).target.entity_id,'switch.fan');msg({type:'result',id:sent.at(-1).id,success:true});
  assert.deepEqual(sent.slice(-2).map(x=>[x.target.entity_id,x.service]),[['switch.fan','turn_on'],['light.kitchen','turn_on']]);
- msg({type:'event',id:3,event:{c:{'switch.fan':{'+':{s:'on'}}}}});
+ msg({type:'event',id:4,event:{c:{'switch.fan':{'+':{s:'on'}}}}});
  run('serviceMessage',{message:linked});
  msg({type:'result',id:sent.at(-1).id,success:true});
  assert.deepEqual(sent.slice(-2).map(x=>[x.target.entity_id,x.service]),[['switch.fan','turn_off'],['light.kitchen','turn_off']]);
  for(const primary of ['off','on']){
-   msg({type:'event',id:3,event:{c:{'switch.fan':{'+':{s:primary}}}}});
+   msg({type:'event',id:4,event:{c:{'switch.fan':{'+':{s:primary}}}}});
    for(const linkOn of [true,false])for(const linkOff of [true,false])for(const linkReverse of [true,false]){
      const start=sent.length,nextOn=primary==='off';
      controlKey({type:'press'},{...linked,linkOn,linkOff,linkReverse},0,{},api);
@@ -2315,7 +2316,7 @@ test('HA native manifest, compressed entity state, device grouping, control and 
  const rejected=sent.length;run('serviceMessage',{message:linked});msg({type:'result',id:sent.at(-1).id,success:false});assert.equal(sent.length,rejected+1);
  const stale=sent.length;run('serviceMessage',{message:linked});const oldId=sent.at(-1).id;
  run('serviceMessage',{message:{entity:'switch.fan'}});msg({type:'result',id:oldId,success:true});assert.equal(sent.length,stale+2);
- msg({type:'event',id:3,event:{a:{'automation.test':{s:'on',a:{friendly_name:'자동화'}},'button.test':{s:'2026-01-01',a:{friendly_name:'버튼'}}}}});
+ msg({type:'event',id:4,event:{a:{'automation.test':{s:'on',a:{friendly_name:'자동화'}},'button.test':{s:'2026-01-01',a:{friendly_name:'버튼'}}}}});
  assert.deepEqual(shared.controls.map(x=>x.value).sort(),['light.kitchen','switch.fan']);
  assert.deepEqual(shared.others.map(x=>x.value).sort(),['automation.test','button.test']);
  assert.equal(manifest.actions.length,3);
@@ -2327,11 +2328,11 @@ test('HA native manifest, compressed entity state, device grouping, control and 
    const start=sent.length;run('serviceMessage',{message:{...linked,linkEntity}});
    assert.deepEqual(sent.slice(start).map(x=>[x.target.entity_id,x.service]),[['switch.fan','turn_off']]);
  }
- msg({type:'event',id:3,event:{c:{'light.kitchen':{'+':{s:'unavailable'}}}}});
+ msg({type:'event',id:4,event:{c:{'light.kitchen':{'+':{s:'unavailable'}}}}});
  const invalid=sent.length;run('serviceMessage',{message:linked});assert.equal(sent.length,invalid+1);assert.equal(sent.at(-1).target.entity_id,'switch.fan');
  const before=sent.length;run('serviceMessage',{message:{...linked,entity:'automation.test'}});assert.equal(sent.length,before);
  run('serviceMessage',{message:{entity:'switch.fan',other:true}});assert.equal(sent.length,before);
- msg({type:'event',id:3,event:{c:{'switch.fan':{'+':{s:'unknown'}}}}});
+ msg({type:'event',id:4,event:{c:{'switch.fan':{'+':{s:'unknown'}}}}});
  run('serviceMessage',{message:linked});assert.equal(sent.length,before);
  run('socketEvent',{event:'close'});assert.equal(shared.status,'연결 끊김');
  controlKey({type:'press'},{entity:'switch.fan'},0,{},api);assert.equal(commands.length,1);
@@ -2740,10 +2741,11 @@ test('HA reconnect preserves catalogue but invalidates live values until a fresh
  const msg=(generation,m)=>event('socketEvent',{event:'message',generation,body:JSON.stringify(m)});
  const open=generation=>event('socketEvent',{event:'open',generation});
  const discover=generation=>{
-  msg(generation,{type:'result',id:1,success:true,result:[]});
-  msg(generation,{type:'result',id:2,success:true,result:{entities:[]}});
+  msg(generation,{type:'result',id:1,success:true});
+  msg(generation,{type:'result',id:2,success:true,result:[]});
+  msg(generation,{type:'result',id:3,success:true,result:{entities:[]}});
  };
- const snapshot=(generation,a)=>msg(generation,{type:'event',id:3,event:{a}});
+ const snapshot=(generation,a)=>msg(generation,{type:'event',id:4,event:{a}});
  event('start');open(1);discover(1);
  snapshot(1,{'switch.fan':{s:'off',a:{friendly_name:'Fan'}},'sensor.temp':{s:'21'}});
  assert.equal(shared.status,'연결됨');
@@ -2753,10 +2755,10 @@ test('HA reconnect preserves catalogue but invalidates live values until a fresh
  const before=sent.length;
  event('serviceMessage',{message:{entity:'switch.fan'}});
  assert.equal(sent.length,before);
- msg(1,{type:'event',id:3,event:{a:{'switch.fan':{s:'on'}}}});
+ msg(1,{type:'event',id:4,event:{a:{'switch.fan':{s:'on'}}}});
  assert.equal(shared.status,'재연결 중');
  open(2);discover(2);
- msg(2,{type:'event',id:3,event:{c:{'switch.fan':{'+':{s:'on'}}}}});
+ msg(2,{type:'event',id:4,event:{c:{'switch.fan':{'+':{s:'on'}}}}});
  assert.equal(shared.status,'상태 구독 중');assert.deepEqual(shared.entities,{});
  snapshot(2,{'switch.fan':{s:'off'},'sensor.new':{s:'22'}});
  assert.equal(shared.status,'연결됨');assert.deepEqual(shared.sensors.map(x=>x.value),['sensor.new']);
@@ -2764,7 +2766,7 @@ test('HA reconnect preserves catalogue but invalidates live values until a fresh
  const command=sent.at(-1);assert.equal(command.service,'toggle');
  msg(2,{type:'result',id:command.id,success:true});
  assert.equal(shared.entities['switch.fan'].value,'off','command receipt must not invent state');
- msg(2,{type:'event',id:3,event:{c:{'switch.fan':{'+':{s:'on'}}},r:['sensor.new']}});
+ msg(2,{type:'event',id:4,event:{c:{'switch.fan':{'+':{s:'on'}}},r:['sensor.new']}});
  assert.equal(shared.entities['switch.fan'].value,'on');assert.equal(shared.sensors.length,0);
 });
 
@@ -3218,13 +3220,13 @@ test('HA batch preserves ordered deltas and publishes once; bounded send excepti
  const m=createHomeAssistantManifest('https://example.com'),host=new NativePluginHost('/unused');
  const ctx={service:true,permissions:m.permissions,capabilities:m.capabilities,networkEndpoints:m.networkEndpoints,sharedStateBytes:262144};
  let shared={status:'연결됨',entities:{'switch.a':{label:'A',value:'off',unit:'',kind:''}},controls:[{value:'switch.a',label:'A',group:'기기 미분류 스위치'}],sensors:[],others:[]},published=0;
- const memory={phase:'live',next:20,generation:2,subscriptionId:3,pending:[{id:11,base:'switch.a',target:'switch.a',operation:'turn_on'},{id:12,base:'switch.a',target:'switch.a',operation:'turn_off'}]};
+ const memory={phase:'live',next:20,generation:2,subscriptionId:4,pending:[{id:11,base:'switch.a',target:'switch.a',operation:'turn_on'},{id:12,base:'switch.a',target:'switch.a',operation:'turn_off'}]};
  const ops=[],api={getSharedState:()=>structuredClone(shared),publishSharedState:v=>{published++;shared=v;ops.push({op:'publishSharedState',value:v});},sendSocket:v=>ops.push({op:'socketSend',value:v})};
  const event={type:'socketEvent',response:{event:'messages',generation:2,bodies:[
-  {type:'event',id:3,event:{c:{'switch.a':{'+':{s:'on'}}}}},
+  {type:'event',id:4,event:{c:{'switch.a':{'+':{s:'on'}}}}},
   {type:'result',id:11,success:true},{type:'result',id:12,success:true},
-  {type:'event',id:3,event:{r:['switch.a']}},
-  {type:'event',id:3,event:{a:{'switch.a':{s:'off',a:{friendly_name:'Renamed'}}}}}
+  {type:'event',id:4,event:{r:['switch.a']}},
+  {type:'event',id:4,event:{a:{'switch.a':{s:'off',a:{friendly_name:'Renamed'}}}}}
  ].map(x=>JSON.stringify(x))}};
  try{
   service(event,{},0,memory,api);assert.equal(published,1);
@@ -3282,19 +3284,45 @@ test('HA domain subscription uses one legacy fallback per connection and rejects
  const api={getSharedState:()=>structuredClone(shared),publishSharedState:s=>shared=structuredClone(s),connectSocket:()=>{},sendSocket:v=>sent.push(v)};
  const event=(type,response)=>service({type,response},{},0,memory,api);
  const msg=(generation,m)=>event('socketEvent',{event:'message',generation,body:JSON.stringify(m)});
- const discover=gen=>{event('socketEvent',{event:'open',generation:gen});msg(gen,{type:'result',id:1,success:true,result:[]});msg(gen,{type:'result',id:2,success:true,result:{entities:[]}});};
+ const discover=gen=>{event('socketEvent',{event:'open',generation:gen});msg(gen,{type:'result',id:1,success:false,error:{code:'unknown_command'}});msg(gen,{type:'result',id:2,success:true,result:[]});msg(gen,{type:'result',id:3,success:true,result:{entities:[]}});};
  const reject=(gen,id,code='invalid_format')=>msg(gen,{type:'result',id,success:false,error:{code}});
  const snapshot=(gen,id,a)=>msg(gen,{type:'event',id,event:{a}});
  event('start');discover(1);
- assert.deepEqual(sent.at(-1),{id:3,type:'subscribe_entities',include:{domains:['switch','light','fan','input_boolean','script','scene','automation','button','input_button','sensor','binary_sensor']}});
- reject(1,3);assert.deepEqual(sent.at(-1),{id:4,type:'subscribe_entities'});
- const count=sent.length;reject(1,3);snapshot(1,3,{'switch.old':{s:'on'}});assert.equal(sent.length,count);assert.equal(shared.status,'상태 구독 중');
- snapshot(1,4,{'switch.new':{s:'off'},'weather.ignore':{s:'sunny'}});assert.equal(shared.status,'연결됨');assert.deepEqual(Object.keys(shared.entities),['switch.new']);
- snapshot(1,3,{'switch.old':{s:'on'}});assert.deepEqual(Object.keys(shared.entities),['switch.new']);
+ assert.deepEqual(sent.at(-1),{id:4,type:'subscribe_entities',include:{domains:['switch','light','fan','input_boolean','script','scene','automation','button','input_button','sensor','binary_sensor']}});
+ reject(1,4);assert.deepEqual(sent.at(-1),{id:5,type:'subscribe_entities'});
+ const count=sent.length;reject(1,4);snapshot(1,4,{'switch.old':{s:'on'}});assert.equal(sent.length,count);assert.equal(shared.status,'상태 구독 중');
+ snapshot(1,5,{'switch.new':{s:'off'},'weather.ignore':{s:'sunny'}});assert.equal(shared.status,'연결됨');assert.deepEqual(Object.keys(shared.entities),['switch.new']);
+ snapshot(1,4,{'switch.old':{s:'on'}});assert.deepEqual(Object.keys(shared.entities),['switch.new']);
  event('socketEvent',{event:'reconnecting',generation:2,gap:true});discover(2);
- assert.equal(sent.at(-1).id,3);assert.ok(sent.at(-1).include);
- snapshot(1,4,{'switch.old':{s:'on'}});assert.equal(shared.status,'상태 구독 중');
- reject(2,3);reject(2,4);assert.equal(shared.status,'상태 구독 실패');
- const end=sent.length;reject(2,4);event('socketEvent',{event:'open',generation:2});assert.equal(sent.length,end);
- discover(3);reject(3,3,'unauthorized');assert.equal(shared.status,'상태 구독 실패');assert.equal(sent.at(-1).id,3);
+ assert.equal(sent.at(-1).id,4);assert.ok(sent.at(-1).include);
+ snapshot(1,5,{'switch.old':{s:'on'}});assert.equal(shared.status,'상태 구독 중');
+ reject(2,4);reject(2,5);assert.equal(shared.status,'상태 구독 실패');
+ const end=sent.length;reject(2,5);event('socketEvent',{event:'open',generation:2});assert.equal(sent.length,end);
+ discover(3);reject(3,4,'unauthorized');assert.equal(shared.status,'상태 구독 실패');assert.equal(sent.at(-1).id,4);
+});
+
+test('opt-in socket JSON arrays preserve FIFO and atomically enforce logical message and byte budgets',()=>{
+ const {createHomeAssistantManifest}=require('../app/deckforge-editor/deckforge-ha-plugin.cjs');
+ const m=createHomeAssistantManifest('https://example.com'),host=new NativePluginHost('/unused');
+ assert.doesNotThrow(()=>validateNativeManifest(m));
+ assert.throws(()=>validateNativeManifest({...m,capabilities:['socketJsonArray']}),/capabilities/);
+ const ctx={service:true,capabilities:m.capabilities},failures=[];
+ host.now=()=>1000;host.flushSocketFrames=()=>{};host.finishSocket=(_c,_t,_e,reason,retry)=>failures.push({reason,retry});
+ const token=()=>({rxQueue:[],rxCount:0,rxBytes:0,endpoint:m.networkEndpoints[0],bearer:'fixture.secret'});
+ const push=(t,body,c=ctx)=>{const s=JSON.stringify(body);host.receiveSocketFrame(c,t,s,Buffer.byteLength(JSON.stringify(s)));};
+ try{
+  const t=token();
+  push(t,[{id:1},{id:2}]);
+  assert.deepEqual(t.rxQueue.map(x=>JSON.parse(x.body)),[{id:1},{id:2}]);
+  assert.equal(t.rxCount,2);assert.equal(host.rxReservedBytes,t.rxBytes);
+  assert.equal(t.rxBytes,t.rxQueue.reduce((sum,x)=>sum+x.bytes,0));
+  const before=t.rxBytes;
+  push(t,[{id:3},null]);assert.equal(failures.at(-1).reason,'invalid-message');
+  push(t,Array.from({length:127},(_,id)=>({id})));assert.equal(failures.at(-1).reason,'rate-limit');
+  assert.equal(t.rxCount,2);assert.equal(t.rxBytes,before);
+  const legacy=token();push(legacy,[{id:1},{id:2}],{service:true,capabilities:['socketBatch']});
+  assert.equal(legacy.rxCount,1);assert.deepEqual(JSON.parse(legacy.rxQueue[0].body),[{id:1},{id:2}]);
+  const capped=token();capped.rxCount=255;push(capped,[{id:1},{id:2}]);
+  assert.equal(failures.at(-1).reason,'queue-capacity');assert.equal(capped.rxQueue.length,0);
+ }finally{host.close();}
 });

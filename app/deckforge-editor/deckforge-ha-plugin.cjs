@@ -58,9 +58,9 @@ function service(event,settings,state,memory,api){
   const gen=Number.isSafeInteger(response.generation)?response.generation:null;
   if(gen!==null&&Number.isSafeInteger(memory.generation)&&gen<memory.generation)return;
   if(response.event==='open'){
-    if(gen!==null&&memory.generation===gen&&['devices','registry','snapshot','live','failed'].includes(memory.phase))return;
-    memory.pending=[];memory.generation=gen;memory.next=10;memory.phase='devices';delete memory.subscriptionId;
-    publish(stale('기기 조회 중'));send(1,'config/device_registry/list');return;
+    if(gen!==null&&memory.generation===gen&&['features','devices','registry','snapshot','live','failed'].includes(memory.phase))return;
+    memory.pending=[];memory.generation=gen;memory.next=10;memory.phase='features';delete memory.subscriptionId;
+    publish(stale('연결 중'));api.sendSocket({id:1,type:'supported_features',features:{coalesce_messages:1}});return;
   }
   if(response.event!=='message'){
     memory.pending=[];memory.generation=gen;memory.phase='connecting';delete memory.subscriptionId;
@@ -70,26 +70,32 @@ function service(event,settings,state,memory,api){
   if(response.gap===true){memory.pending=[];return;}
   let m;try{m=JSON.parse(response.body);}catch{return;}
   if(!m||typeof m!=='object')return;
-  if(m.type==='result'&&m.id===1&&memory.phase==='devices'){
+  if(m.type==='result'&&m.id===1&&memory.phase==='features'){
+    if(m.success!==true&&!(m.success===false&&['unknown_command','not_supported','invalid_format'].includes(m.error?.code))){
+      memory.phase='failed';publish(stale('연결 기능 협상 실패'));return;
+    }
+    memory.phase='devices';publish(stale('기기 조회 중'));send(2,'config/device_registry/list');return;
+  }
+  if(m.type==='result'&&m.id===2&&memory.phase==='devices'){
     memory.phase='registry';const next=stale('엔티티 조회 중');
     for(const d of Array.isArray(m.result)?m.result:[]){const id=clean(d?.id,64),name=clean(d?.name_by_user||d?.name);if(/^[a-f0-9]{32}$/.test(id)&&name)next.devices[id]=name;}
-    publish(next);send(2,'config/entity_registry/list_for_display');return;
+    publish(next);send(3,'config/entity_registry/list_for_display');return;
   }
-  if(m.type==='result'&&m.id===2&&memory.phase==='registry'){
+  if(m.type==='result'&&m.id===3&&memory.phase==='registry'){
     memory.phase='snapshot';const next={...old,status:'상태 구독 중',groups:{},devices:{},entities:{}};
     for(const e of Array.isArray(m.result?.entities)?m.result.entities:[]){
       if(valid(e?.ei)&&(control(e.ei)||sensor(e.ei))){
         const device=clean(e.di,64);if(/^[a-f0-9]{32}$/.test(device))next.groups[e.ei]=old.devices?.[device]||'기기 '+device.slice(0,8);
       }
     }
-    memory.subscriptionId=3;
-    publish(next);api.sendSocket({id:3,type:'subscribe_entities',include:{domains:[...switchDomains,...otherDomains,...sensorDomains]}});return;
+    memory.subscriptionId=4;
+    publish(next);api.sendSocket({id:4,type:'subscribe_entities',include:{domains:[...switchDomains,...otherDomains,...sensorDomains]}});return;
   }
   // Older HA versions reject the include filter. Retry only an explicitly
   // rejected subscription, once per connection, under a fresh request ID.
   if(m.type==='result'&&m.id===memory.subscriptionId&&m.success===false&&['snapshot','live'].includes(memory.phase)){
-    if(memory.phase==='snapshot'&&memory.subscriptionId===3&&m.error?.code==='invalid_format'){
-      memory.subscriptionId=4;send(4,'subscribe_entities');return;
+    if(memory.phase==='snapshot'&&memory.subscriptionId===4&&m.error?.code==='invalid_format'){
+      memory.subscriptionId=5;send(5,'subscribe_entities');return;
     }
     memory.pending=[];memory.phase='failed';publish(stale('상태 구독 실패'));return;
   }
@@ -231,9 +237,9 @@ function createHomeAssistantManifest(server){
   const script=f=>'return ('+f.toString()+')(event,settings,state,memory,api);';
   const select=(key,label,value,options)=>({key,label,type:'select',default:value,options:options.map(([value,label])=>({value,label}))});
   const device=(key,label)=>({key,label,type:'dynamicSelect',source:'controls',default:''});
-  return {apiVersion:2,id:ID,name:'DeckForge Home Assistant',version:'0.1.15',requiresDeckForge:'>=2.0.68',
+  return {apiVersion:2,id:ID,name:'DeckForge Home Assistant',version:'0.1.16',requiresDeckForge:'>=2.0.69',
     permissions:['display','background.run','timer.tick',...(u?['network.websocket']:[])],
-    ...(u?{capabilities:['socketBatch'],networkEndpoints:[{id:'ha',url:u.href,method:'WSS',auth:'home-assistant',reconnect:true,maxReceiveBytes:1048576}]}:{}),
+    ...(u?{capabilities:['socketBatch','socketJsonArray'],networkEndpoints:[{id:'ha',url:u.href,method:'WSS',auth:'home-assistant',reconnect:true,maxReceiveBytes:1048576}]}:{}),
     service:{script:u?script(service):"if(event.type==='start')api.publishSharedState({status:'초기 연결 필요',controls:[],sensors:[],others:[],entities:{}});",sharedStateBytes:262144},
     actions:[
       {id:ID+'.control',name:'HA 스위치 기기',controllers:['Keypad'],states:2,script:script(controlKey),sharedStateView:{keys:['status','commandError'],map:'entities',selection:'entity'},

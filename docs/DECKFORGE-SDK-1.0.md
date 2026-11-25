@@ -231,3 +231,5 @@ report03.md §4.2 13행 원문 기준. 1.1.231 CI #1281/입력 #521/Windows #985
 - 2.0.54: 연결 세대 폐기 후에도 실제 FIFO 완료 전 수신 데이터의 전역 예약 바이트 유지. 스케줄러 고유 admission 오류 타입만 재시도; 실행 오류 코드 문자열 위조/충돌은 재실행 금지. 송수신 과부하 상태 구분.
 
 - 2.0.68 HA 0.1.15: `subscribe_entities`의 `include.domains`로 지원 11개 도메인만 구독. 구버전 `invalid_format` 결과에 한해 연결마다 ID 3→4 전체 구독 1회 폴백, 이전 ID/세대 프레임 폐기, 다른 오류 및 두 번째 실패는 실패 상태. 기존 클라이언트 필터/인증 바인딩 유지. 실제 Electron 모의 소켓 재연결 검사 추가; 실제 HA 별도. 참고: https://github.com/home-assistant/core/blob/dev/homeassistant/components/websocket_api/commands.py 및 helpers/entityfilter.py.
+
+- 2.0.69: API 2 서비스 `socketJsonArray` capability는 기존 `socketBatch` 및 network.websocket/background.run 권한과 함께 명시할 때만 적용. JSON 배열을 FIFO 논리 메시지로 원자적으로 수용하고 기존 256개 queue/128개 burst, 전역 및 연결별 바이트 예산을 유지(원본/정규화 중 큰 바이트 수). 최대 8개 기존 배치·권한 효과 제한 유지; 비선택 서비스의 raw frame 계약 유지. HA 0.1.16 첫 명령 ID 1 supported_features/coalesce_messages, 지원 거절(unknown_command/not_supported/invalid_format) 시 일반 프레임 사용, 이후 device 2/entity 3/subscription 4/legacy 5. HA 공식 WebSocket API 참고. 배열 초과/오류는 기존 연결 종료·복구 정책, 실제 서버 검증 별도.
