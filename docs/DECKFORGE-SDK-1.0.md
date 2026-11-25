@@ -156,7 +156,7 @@ API 2 manifest의 service={script,tickIntervalMs?} 및 별도 background.run 권
 | 5 | 페이지 복제 | editPageStructure cloneActionInstances; 기존 core 검사 |
 | 6 | 폴더 페이지 복제 | 동일 core 경로; 기존 core 검사 |
 | 7 | 폴더 래핑 | editor cleanAction(item), ID 보존; 집중 helper 검사 추가 |
-| 8 | Logic 래핑 | editor cleanAction(item), ID 보존; 집중 helper 검사 추가. sdkMountDescriptors는 표시 중 직접 SDK 액션/노브를 수집, 중첩 Logic의 실제 실행/등록 별도 확인 |
+| 8 | Logic 래핑 | editor cleanAction(item), ID 보존; 집중 helper 검사 추가. sdkMountDescriptors는 표시 중 직접 SDK 액션/노브를 수집, 중첩 Logic의 실제 실행/등록 미지원 확인(1.1.239 메뉴 제한, 기존 데이터 보존; 아래 참조) |
 | 9 | 고정 등록 | togglePinned cloneActionInstances; 로컬 유지 복사라는 승인 규칙, 기존 core 검사 |
 | 10 | 고정키 로컬 override | setPressSlot cloneActionInstances; helper 기존, GUI 경로 별도 |
 | 11 | 액션 JSON 입출력 | importSlotAction cleanAction+cloneActionInstances; GUI 별도 |
@@ -196,3 +196,5 @@ report03.md §4.2 13행 원문 기준. 1.1.231 CI #1281/입력 #521/Windows #985
 - 1.1.237: PluginRouter의 native settings ACK는 독자 호스트의 동기 검증·적용으로 처리하며 외부 catalogue/관리 직렬 큐를 기다리지 않는다. main의 영구 receipt 대조, 최신 desiredMount/revision, host active/expiry, 중복 ACK 차단 유지. 외부 catalogue를 gate로 지연한 검사 및 ABA 지연 중 stale ACK 거부 검사 추가. 목록/설치/삭제 시 충돌 검증은 유지하며 전체 catalogue 장애 독립성은 별도. 1.1.236 CI #1287 성공, Windows #991 진행 중; 신규 검사 미실행.
 
 - 1.1.238 실행 경로 보호: catalogue 조회 실패를 빈 목록으로 간주하지 않는다(충돌·삭제 검증 유지). 새/변경 native 입력은 최신 desiredMount와 실제 native context 일치 및 revision/설정 확인 후만 허용; 확정 자기 저장의 이전 snapshot 예외 유지. 외부 호환 입력/inspector는 성공한 sync의 동일 설정 snapshot만 허용, 부분 sync 실패 시 호환 경로 차단. catalogue 실패에서 기존 동일 native 입력 유지, 변경/신규 차단, 재조회 후 복구 집중 검사 추가. 이미 접수된 이벤트의 장애 처리 및 실제 앱 독립 catalogue는 별도. 1.1.237 CI #1288 및 Windows #992 회귀 단계 성공, 패키징 중. 신규 검사 미실행.
+
+- 1.1.239 감사 경로 #8 판정: sdkMountDescriptors는 직접 SDK 버튼/노브만 등록하고 executeMultiStep은 SDK를 명시 거부, triggerLogicSlot/renderLogicEditor는 MULTI_ALLOWED만 지원한다. 따라서 Key Logic 중첩 SDK 실행은 미지원 계약으로 구분하며 기존 중첩 데이터/instanceId는 삭제하지 않는다. context menu의 이동 허용 조건을 기존 실행 목록으로 통일하고 SDK 등 미지원 타입 차단·일반 단축키 변환·기존 중첩 데이터 보존 집중 검사 추가. 새 SDK 중첩 실행은 범위 확장 없이 보류. 1.1.238 CI #1289/Windows #993 전체 성공 및 설치본 게시, branding/native package independence/route failure/ACK isolation/ABA 관련 5개 실제 통과 로그 확인. 1.1.239 신규 검사 대기.

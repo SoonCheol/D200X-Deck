@@ -4996,7 +4996,9 @@ function showMenu(index,x,y){
       const folder=newAction('folder');folder.children=[DeckCore.cleanAction(item)];
       setItem(index,folder);
     }:null);
-    add("Key Logic으로 이동",isLocal&&!['folder','logic','multi','multi-switch','random'].includes(item.type)?()=>{
+    // Use the same executable-action allowlist as the Key Logic editor and runner.
+    // Preserve existing unsupported nested data, but never create a non-working binding here.
+    add("Key Logic으로 이동",isLocal&&MULTI_ALLOWED.includes(item.type)?()=>{
       const logic=newAction('logic');logic.slots={single:DeckCore.cleanAction(item),double:null,hold:null};
       setItem(index,logic);
     }:null);

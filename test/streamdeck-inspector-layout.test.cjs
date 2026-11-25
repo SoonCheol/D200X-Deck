@@ -573,3 +573,33 @@ test('three tabs are shorter and equal width without resizing the separate icon 
   assert.match(css,/\.action-layout-inspector\.press-gesture-inspector>\.inspector-properties-region/);
   assert.match(editor,/layout\.append\(iconRegion,preview\)/);
 });
+
+
+test('Key Logic context menu only wraps executable actions and leaves unsupported SDK data intact',()=>{
+ const Core=require('../app/streamdeck-editor/deck-core.js');
+ const menuSource=editor.slice(editor.indexOf('function showMenu('),editor.indexOf('let clipboard=null,clipboardMode='));
+ const allow=editor.match(/const MULTI_ALLOWED=(\[[\s\S]*?\]);/);
+ assert.ok(menuSource.startsWith('function showMenu(')&&allow);
+ const state=Core.migrateState(null),menu={items:[],style:{},hidden:true,replaceChildren(){this.items=[];},append(b){this.items.push(b);}};
+ const sandbox={DeckCore:Core,state,$:()=>menu,reservedWideSlot:()=>false,currentPage:()=>Core.currentActions(state),
+   document:{createElement(tag){return {tag,addEventListener(_event,fn){this.click=fn;}};}},
+   window:{innerWidth:1000,innerHeight:800},canCutSlot:()=>true,clipboard:null,
+   newAction:Core.createAction,setItem:(index,item)=>{Core.currentActions(state)[index]=item;}};
+ const show=vm.runInNewContext('const MULTI_ALLOWED='+allow[1]+';'+menuSource+';showMenu',sandbox);
+ const action=type=>{const a=Core.createAction(type);Core.currentActions(state)[0]=a;return a;};
+ const row=()=>menu.items.find(b=>b.textContent==='Key Logic으로 이동');
+ for(const type of ['sd-plugin','folder','logic','multi','multi-switch','random','indicator','virtual','profile']){
+   const item=action(type),before=JSON.stringify(state);show(0,0,0);
+   assert.ok(row()?.disabled,type);assert.equal(row().click,undefined);
+   assert.equal(Core.currentActions(state)[0],item);assert.equal(JSON.stringify(state),before);
+ }
+ const sdk=action('sd-plugin');sdk.settings.pluginUUID='com.deckforge.native.example';sdk.settings.actionUUID='com.deckforge.native.example.key';
+ const old=Core.createAction('logic');old.slots.single=sdk;
+ const reloaded=Core.cleanAction(old);
+ assert.equal(reloaded.slots.single.instanceId,sdk.instanceId);
+ assert.deepEqual(reloaded.slots.single.settings,sdk.settings);
+ const hotkey=action('hotkey');hotkey.settings.keys='Ctrl+A';show(0,0,0);
+ assert.equal(row().disabled,undefined);row().click();
+ const wrapped=Core.currentActions(state)[0];assert.equal(wrapped.type,'logic');
+ assert.equal(wrapped.slots.single.type,'hotkey');assert.equal(wrapped.slots.single.settings.keys,'Ctrl+A');
+});
