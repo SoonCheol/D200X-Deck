@@ -99,7 +99,9 @@ API 2 manifest의 service={script,tickIntervalMs?} 및 별도 background.run 권
 - **USB:** 전체 14슬롯 PAGE 전송 기본 유지, 해시/PNG 캐시 개선. KEY 부분 전송은 실기에서 인접 슬롯·와이드·재연결 검증 전 기본 OFF, 오류 즉시 PAGE 복귀. USB 세션 변경 시 전체 갱신.
 - **검증·롤백:** 변경 집중 검사 → 단계별 회귀 → 실행 엔진 보안/장애 주입 → 통합 soak → 실기. 미측정 숫자나 완성도 단정 금지, 기준선 측정 후 수치 목표 확정. 보안 우회·서비스 장애 전파·잘못된 설정 저장·데이터 손실·기존 기능 회귀·자원 이상 시 단계 중단 및 기능 플래그/커밋 롤백(데이터 원본 유지). USB 실기 불합격은 부분 전송 비활성화. 단계 순서·통과 조건은 [로드맵](DECKFORGE-ROADMAP.md).
 
-### 04B Worker CSP 선행 검증 (1.1.189)
+### 04B Worker CSP 선행 검증 (1.1.189, 후속 연구 보류)
+
+- 2026-11-26 사용자 승인: SDK 1.0은 Model 2만 사용. Model 5 시험 결과/보안 조건 보존, 제품 OFF, 출시 필수 경로에서 제외. 기존 Model 2 보안 보강·실기 게이트 우선. USB 개별 KEY는 별도 실기 검증 전 기본 OFF.
 
 - 별도 Electron 테스트 실행 파일 `test/deckforge-worker-csp-electron.cjs`만 전용 scheme을 등록한다. 실제 앱의 Model 2/legacy 보안 정책은 변경하지 않는다. host CSP의 script-src는 none, worker의 응답 CSP는 unsafe-eval만 허용하고 worker-src/connect-src는 none. 두 scheme 후보의 AsyncFunction, 네트워크/스크립트 로딩/중첩 Worker, Node·저장소 차단, timeout·다음 실행·서비스 PID와 생존을 개별 기록한다.
 - 참조: Electron protocol API (https://www.electronjs.org/docs/latest/api/protocol), MDN CSP Worker 정책 (https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/Content-Security-Policy). blob/data Worker는 부모 CSP를 상속하므로 단순 worker-src 완화는 채택하지 않는다. 결과가 부정적이거나 불확정이면 후보 부적격. 이 테스트가 통과해도 OOM·DrawOps·출력/메모리 상한 및 전체 API 회귀는 별도이며 Model 5 활성화 근거가 아니다.

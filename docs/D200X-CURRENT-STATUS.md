@@ -17,18 +17,18 @@
 - 1.1.231: identity 19행 대조·집중 검사, CI #1281/입력 #521/Windows #985 성공, 게시. 1.1.232: 저장 13행 대응·종료 commit 차단. CI #1282/입력 #522 성공, Windows #986 clean fixture 실패(kind 누락), 종료/페이지·삭제/retire 검사 통과. 1.1.233: fixture 수정 CI #1283/Windows #987 성공, 게시. 1.1.234: 실제 Electron NativePluginHost+임시 ProfileStore, 요청 전/저장 후 ACK 전 renderer crash, 재조회·재실행 금지 검증 추가. CI #1284·Windows #988 성공, 1.1.234 설치본 게시.
 - 1.1.230: CI #1278, Windows #984 attempt2 전체 성공. 실제 idle/active crash·거부·서비스/peer 생존·새 이벤트 복구, 25함수·vault 통과. 1차 npm 404 해소(버전 변경 없음). deckforge-v1.1.230 게시, EXE 135231273 bytes. 현재 root suite 45/45 실행 명령 확인, 초기 helper skip 3개와 후속 패키지 검사 구분.
 ## 다음 작업
-- 04B: #2 data Worker 중첩 허용 부적격, #3 Node guest 9항목 통과, #5 Chromium guest/외부 eval·self/data nested·Node global 차단 및 서비스 PID 분리 통과. #6 25 API/4 fixture 및 RGBA 동일. #7 (45652095478) 실제 NativePluginHost title/draw/memory·권한 거부·retire·복구·별도 서비스 검사 통과. 사용자 지시: Gemini 감사 대기 중 제품 변경 금지, 검증만. 검증 코드 추가: 동적 32MiB guest 할당 거부, 외부 Worker watchdog, 5분/13키 페이지 반복·서비스 생존·WorkingSet/heap/activeWorkers 실측. #8 (45653144816) 할당 거부·watchdog·복구 assertion 통과 후 서비스 PID 변경(5236→1484) assertion 실패. Model2는 이벤트마다 문서 reload하므로 PID 고정은 별도 검증 대상. 다음: 각 서비스 요청 전후 PID/응답·버튼 PID 분리·runner 폐쇄 여부 기록, 변경을 숨기지 않고 5분 시험 진행. 실제 renderer OOM·보안 감사 별도. 제품 OFF.
+- 2026-11-26 사용자 승인: Model 2만 SDK 1.0 정식 출시 경로로 확정, Model 5 연구 보류/제품 OFF. Gemini report001/002 전문 검토. P0 기존 runProgram prototype/toJSON 출력 방어 및 ctx.memory 키·깊이 검증 보강부터 진행. P1 HA 내장·최종 Windows 회귀, P2 실제 장치/HA/OS/GUI. 개발 항목 8/10(80%, 동일 가중·실기 별도), 정확한 공수 아님. #9 guest 시험 300367ms/217 페이지/2821 press/217 서비스 응답, 할당 거부·watchdog 통과, PID 변경 217회·button WorkingSet 89284→260544 KiB, 실제 OOM 미검증. 시험 코드 보존.
 - 04B #46 실제 Electron 45.2.3/Chromium 156: standard 저장소 3종 허용, opaque 생성 실패, sandbox 후보 render frame disposed; 모두 부적격. 제품 OFF. 시험용 변경이 동일 버전 설치본 재게시를 유발해 release 보호로 #46 실패. 독립 Worker 검증 workflow 분리 완료(읽기 권한만, 배포 단계 없음), 통합 빌드는 제품 변경 시 기존 Worker 검사 유지. 독립 Worker #1 (45646799413) 실행 성공, 3종 모두 부적격 재확인. 기존 설치본 보존.
 - 2.0.42: 독자 SDK tick/periodic request/WebSocket rate/backpressure 경과 시간 monotonic clock 전환. 시스템 시계 ±24시간 변경 중 제한 유지 집중 검사 추가. 설정 receipt wall clock 계약 보존. CI #1407·Windows #45·SDK #99 성공, 2.0.42 설치본 게시 확인.
 - 2.0.41: 독자 서비스 관리 중 종료 시 설정 읽기/쓰기 이후 재생성 차단. 이미 확정된 설정 보존. 읽기 중 종료/저장 확정 후 종료 집중 검사 추가. CI #1405 및 Windows #44 성공.
-- 2.0.40: 독자 서비스 시작 정책 동시 읽기 경쟁 해결. 공통 Promise 완료 전 서비스 시작 차단, 정지/오류 정책 보존, 동시 읽기 회귀 검사 추가. CI #1403 성공, Windows #43 진행 중. 외부 호환 엔진 추가 개발 보류.
+- 2.0.40: 독자 서비스 시작 정책 동시 읽기 경쟁 해결. 공통 Promise 완료 전 서비스 시작 차단, 정지/오류 정책 보존, 동시 읽기 회귀 검사 추가. CI #1403 성공, Windows #43 결과 별도. 외부 호환 엔진 추가 개발 보류.
 - SDK #93 실제 OOM 통과(reason=oom), 서비스/peer 생존, 입력 복구 및 5분 soak(1391 press/105 전환/274 tick), 임시 ProfileStore 장애 검사 통과. CI #1401 성공. 실제 장치/OS 절전 및 전원 손실 별도.
 - 2.0.35~39 이전 수정 및 검증 이력은 Git에서 확인. 기존 외부 호환 기능 유지, 추가 개발 보류.
 - SDK 10C: #84/#88/#90 실제 5분 soak 및 장애 복구 통과, OOM 통지 미확보. #93에서 로컬 Crashpad 초기화 후 실제 oom 확인. 제품 보안 제한 유지. Model5 저장소 격리 실패는 별도.
 - 2.0.34: GitHub 0.1.1 번호 23px/상태 26px, 이름 마퀴 1~3초, 자동 조회 5/15초 또는 고정 5/10/15/30초, 기존 PAT binding 유지. 독립 pollIntervalMs 5초 이상, 집중 검사 추가. Windows #37 성공; 실기 미검증. 후속 GitHub 기능은 로드맵 보류.
 - 사용자 승인: 독자 HA 플러그인 기본 내장 설치, 별도 HA 추가 버튼 제거, 서버/인증 설정 및 기존 등록 데이터 보존. 별도 대기.
 - 작업 체크포인트: f718990 2.0.22 명령 관리자 카드/페이지 슬롯/편집기 hover 캐시 설명, ⓘ 상세 경로 제거·설명 표시, 오프라인/늦은 응답 방지. 2.0.21 Windows 성공, 사용자 1555 설명 저장·아이콘 659 실패 보고. 2.0.22 자동 빌드/GUI 미확인. 아이콘 실패 진단 별도.
-- **10C 판정:** 자동 검증/설치본 통과, 정식 SDK 1.0 출시 보류. 실제 HA/D200X/OS 절전·재연결/실기 장시간 사용, identity GUI 별도; Model2 자동 soak/OOM 및 설정 저장 검사 통과, 1.1.234 Windows 통합 검사 통과, 전원 손실/제품 IPC 실기 별도. Model5 차단, KEY 기본 OFF, 기존 미리보기 유지.
+- **10C 판정:** 자동 검증/설치본 통과, 정식 SDK 1.0 출시 보류. 실제 HA/D200X/OS 절전·재연결/실기 장시간 사용, identity GUI 별도; Model2 자동 soak/OOM 및 설정 저장 검사 통과, 1.1.234 Windows 통합 검사 통과, 전원 손실/제품 IPC 실기 별도. Model5 연구 보류, KEY 기본 OFF, 기존 미리보기 유지.
 - 기존 기능/데이터/API·보안 보존, 테스트/CI/Windows/실기 구분. 미측정 성능 수치 단정 금지.
 ## 참조
 - [SDK 계약 및 재설계](DECKFORGE-SDK-1.0.md) · [잔여 로드맵](DECKFORGE-ROADMAP.md).
