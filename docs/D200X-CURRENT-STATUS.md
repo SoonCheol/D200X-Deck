@@ -35,7 +35,7 @@
 - 1.1.226: Model2 실제 반복/자원 제한/서비스 생존·복구, opaque storage/CSP 검사 및 USB mock 통과. CI #1274·Windows #980 성공. OOM 별도. 세부 수치 SDK 계약.
 - 1.1.230: CI #1278, Windows #984 attempt2 전체 성공. 실제 idle/active crash·거부·서비스/peer 생존·새 이벤트 복구, 25함수·vault 통과. 1차 npm 404 해소(버전 변경 없음). deckforge-v1.1.230 게시, EXE 135231273 bytes. 현재 root suite 45/45 실행 명령 확인, 초기 helper skip 3개와 후속 패키지 검사 구분.
 ## 다음 작업
-- 작업 체크포인트: b6dabac 2.0.17 원본 아이콘 자동/수동 수집에 등록 명령 tooltip 일괄 수집 통합. 별도 버튼 삭제, 캐시된 아이콘만 있어도 첫 연결 설명 수집, 중복 억제/실패 재시도, 기존 캐시 유지. 통합 관리자 대상, Windows/CI/실제 반환 확인 필요. SDK 10C 별도.
+- 작업 체크포인트: 2.0.18 예정. 사용자 PowerShell 공식 MCP 초기화/4도구/스크립트 실측, 3152 명령 중 3151 조회·1687 tooltip·1 오류, 애드인 stop 후 run(false) 지연 ON 확인. 기존 초기 연결에 내장 애드인 설치/정확한 경로 등록·시작·health, MCP 설명/원본 아이콘 일괄 수집 통합. 신규 설치 실기 별도.
 - 2.0.1~2.0.3 CI/Windows 성공, 2.0.3 게시. 2.0.4 CI/root 회귀 성공. 동시 반영 2.0.5 독자 mount 선등록·snapshot 보존, CI 성공·Windows 진행. 2.0.6 실제 Electron 13키×4 입력·페이지 전환·모의 절전복귀·서비스/메모리 검사 추가, 실행 대기. 실기·OOM·장시간 soak 별도. SDK 10C 계속.
 - **10C 판정:** 자동 검증/설치본 통과, 정식 SDK 1.0 출시 보류. 실제 HA/D200X/OS 절전·재연결/장시간 soak, 실제 OOM, identity GUI, 설정 저장 13행 추가 검사 통과, 1.1.234 Windows 통합 검사 통과, 전원 손실/제품 IPC 실기 별도. Model5 차단, KEY 기본 OFF, 기존 미리보기 유지.
 - 기존 기능/데이터/API·보안 보존, 테스트/CI/Windows/실기 구분. 미측정 성능 수치 단정 금지.
