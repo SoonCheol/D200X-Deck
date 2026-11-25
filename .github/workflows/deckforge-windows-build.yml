@@ -318,8 +318,14 @@ jobs:
           Copy-Item 'app/deckforge-editor/fonts/Pretendard-LICENSE.txt' "$manager/fonts/Pretendard-LICENSE.txt"
           $bundled='app/preview-device-build/bundled'
           New-Item -ItemType Directory -Force $bundled | Out-Null
-          Copy-Item 'fusion-compat-fixture/fusion_addin/FusionStreamDeck' "$bundled/FusionStreamDeck" -Recurse -Force
-          node app/deckforge-editor/extend-fusion-status.cjs "$bundled/FusionStreamDeck/lib/fusion_actions.py" "$bundled/fusion-actions-original.py"
+          Copy-Item 'fusion-compat-fixture/fusion_addin/FusionStreamDeck' "$bundled/FusionDeckForge" -Recurse -Force
+          Rename-Item -LiteralPath "$bundled/FusionDeckForge/FusionStreamDeck.py" -NewName 'FusionDeckForge.py'
+          Rename-Item -LiteralPath "$bundled/FusionDeckForge/FusionStreamDeck.manifest" -NewName 'FusionDeckForge.manifest'
+          $manifestPath = "$bundled/FusionDeckForge/FusionDeckForge.manifest"
+          $manifest = Get-Content -Raw $manifestPath | ConvertFrom-Json
+          $manifest.description = 'FusionDeckForge - local Fusion command and icon bridge for DeckForge (based on Autodesk FusionStreamDeck).'
+          $manifest | ConvertTo-Json -Depth 10 | Set-Content -Encoding utf8NoBOM $manifestPath
+          node app/deckforge-editor/extend-fusion-status.cjs "$bundled/FusionDeckForge/lib/fusion_actions.py" "$bundled/fusion-actions-original.py"
           if ($LASTEXITCODE -ne 0) { throw 'Fusion status extension failed' }
           Copy-Item 'fusion-compat-fixture/streamdeck_plugin/com.autodesk.fusionstreamdeck.sdPlugin' "$bundled/com.autodesk.fusionstreamdeck.sdPlugin" -Recurse -Force
           Copy-Item 'fusion-compat-fixture/LICENSE' "$bundled/Fusion-LICENSE.txt"
@@ -328,7 +334,7 @@ jobs:
           Copy-Item 'app/deckforge-editor/install-fusion-addin.ps1' "$bundled/install-fusion-addin.ps1"
           Copy-Item "$manager/fusion-manager-icon.ico" "$bundled/fusion-manager-icon.ico" -Force
           Copy-Item 'app/deckforge-editor/installer-fusion.nsh' 'app/preview-device-build/installer-fusion.nsh'
-          foreach ($required in @("$manager/main.cjs","$manager/HELP.md","$manager/fusion-manager-icon.png","$bundled/fusion-manager-icon.ico","$bundled/FusionStreamDeck/FusionStreamDeck.py","$bundled/com.autodesk.fusionstreamdeck.sdPlugin/manifest.json","$bundled/de.perdoctus.streamdeck.homeassistant.streamDeckPlugin","$bundled/HA-LICENSE.txt","$bundled/install-fusion-addin.ps1")) {
+          foreach ($required in @("$manager/main.cjs","$manager/HELP.md","$manager/fusion-manager-icon.png","$bundled/fusion-manager-icon.ico","$bundled/FusionDeckForge/FusionDeckForge.py","$bundled/com.autodesk.fusionstreamdeck.sdPlugin/manifest.json","$bundled/de.perdoctus.streamdeck.homeassistant.streamDeckPlugin","$bundled/HA-LICENSE.txt","$bundled/install-fusion-addin.ps1")) {
             if (-not (Test-Path -LiteralPath $required)) { throw "Missing integrated build file: $required" }
           }
 

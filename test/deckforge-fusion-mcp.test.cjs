@@ -158,3 +158,30 @@ test('Fusion MCP settings restrict endpoints to local HTTP and check without exe
  assert.deepEqual(await client.check(),{protocolVersion:'2025-11-25',toolCount:1});
  assert.deepEqual(calls,['initialize','notifications/initialized','tools/list']);
 });
+
+
+test('FusionDeckForge fresh installation uses new name without duplicating legacy add-in',async()=>{
+ const fs=require('node:fs/promises'),path=require('node:path'),os=require('node:os');
+ const {installFusionAddin}=require('../app/deckforge-editor/bundled-integration.cjs');
+ const temp=await fs.mkdtemp(path.join(os.tmpdir(),'deckforge-fusion-name-'));
+ try{
+   const root=path.join(temp,'bundle'),appData=path.join(temp,'roaming');
+   const source=path.join(root,'FusionDeckForge'),base=path.join(appData,'Autodesk','Autodesk Fusion','API','AddIns');
+   await fs.mkdir(source,{recursive:true});await fs.mkdir(base,{recursive:true});
+   const manifest=JSON.stringify({type:'addin',autodeskProduct:'Fusion360',runOnStartup:false});
+   await fs.writeFile(path.join(source,'FusionDeckForge.py'),'# fixture');
+   await fs.writeFile(path.join(source,'FusionDeckForge.manifest'),manifest);
+   const target=path.join(base,'FusionDeckForge');
+   const first=await installFusionAddin(root,{appData,configureStartup:true});
+   assert.equal(first.status,'installed');assert.equal(first.target,target);
+   assert.equal(JSON.parse(await fs.readFile(path.join(target,'FusionDeckForge.manifest'),'utf8')).runOnStartup,true);
+   assert.equal((await installFusionAddin(root,{appData})).status,'existing');
+   await fs.rm(target,{recursive:true});
+   const legacy=path.join(base,'FusionStreamDeck');
+   await fs.mkdir(legacy);await fs.writeFile(path.join(legacy,'FusionStreamDeck.py'),'# old');
+   await fs.writeFile(path.join(legacy,'FusionStreamDeck.manifest'),manifest);
+   const old=await installFusionAddin(root,{appData});
+   assert.equal(old.status,'existing');assert.equal(old.target,legacy);
+   await assert.rejects(fs.stat(target),{code:'ENOENT'});
+ }finally{await fs.rm(temp,{recursive:true,force:true});}
+});

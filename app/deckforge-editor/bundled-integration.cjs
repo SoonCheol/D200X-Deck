@@ -27,26 +27,26 @@ async function installMissingPlugins(host,root=bundledRoot()){
 async function installFusionAddin(root=bundledRoot(),options={}){
  const appData=options.appData||process.env.APPDATA||path.join(os.homedir(),'AppData','Roaming');
  const bases=['Autodesk Fusion 360','Autodesk Fusion'].map(name=>path.join(appData,'Autodesk',name,'API','AddIns'));
- const targets=bases.map(base=>path.join(base,'FusionStreamDeck'));
+ const targets=bases.map(base=>path.join(base,'FusionDeckForge'));
  const present=[];
- for(const target of targets)if(await exists(target))present.push(target);
+ for(const base of bases)for(const name of ['FusionDeckForge','FusionStreamDeck']){const target=path.join(base,name);if(await exists(target))present.push(target);}
  if(present.length>1)return {status:'ambiguous',message:'Fusion 애드인 폴더가 두 곳에 있습니다. 중복 설치는 변경하지 않았습니다.'};
  let target=present[0],status='existing';
- const source=path.join(root,'FusionStreamDeck');
- if(target&&(!await exists(path.join(target,'FusionStreamDeck.py'))||!await exists(path.join(target,'FusionStreamDeck.manifest'))))
-   return {status:'existing-incomplete',message:'기존 FusionStreamDeck 폴더에 필요한 파일이 없습니다. 덮어쓰지 않았습니다.'};
+ const source=path.join(root,'FusionDeckForge');
+ if(target&&(!await exists(path.join(target,path.basename(target)+'.py'))||!await exists(path.join(target,path.basename(target)+'.manifest'))))
+   return {status:'existing-incomplete',message:'기존 Fusion 애드인 폴더에 필요한 파일이 없습니다. 덮어쓰지 않았습니다.'};
  if(!target){
    const ready=[];
    for(let i=0;i<bases.length;i++)if(await exists(bases[i]))ready.push(targets[i]);
    if(ready.length>1)return {status:'ambiguous',message:'Fusion 애드인 설치 후보가 두 곳입니다. 임의로 선택하지 않았습니다.'};
    if(!ready.length)return {status:'fusion-not-ready',message:'Fusion 360을 설치하고 한 번 실행한 뒤 애드인 설치를 다시 누르세요.'};
-   if(!await exists(path.join(source,'FusionStreamDeck.py'))||!await exists(path.join(source,'FusionStreamDeck.manifest')))
+   if(!await exists(path.join(source,'FusionDeckForge.py'))||!await exists(path.join(source,'FusionDeckForge.manifest')))
      return {status:'not-bundled',message:'설치 파일에 Fusion 애드인이 없습니다.'};
    target=ready[0];await fs.cp(source,target,{recursive:true,errorOnExist:true,force:false});status='installed';
  }
  let startup='unchanged';
  if(options.configureStartup===true){
-   const file=path.join(target,'FusionStreamDeck.manifest');
+   const file=path.join(target,path.basename(target)+'.manifest');
    try{
      const stat=await fs.lstat(file);
      if(!stat.isFile()||stat.size>65536)throw Error('invalid');
@@ -64,18 +64,18 @@ async function installFusionAddin(root=bundledRoot(),options={}){
      }
    }catch{startup='unverified';}
  }
- return {status,startup,target,message:status==='installed'?'FusionStreamDeck 애드인을 복사했습니다. Fusion에서 실행 상태를 확인하세요.':'기존 FusionStreamDeck 애드인을 확인했습니다.'};
+ return {status,startup,target,message:status==='installed'?'FusionDeckForge 애드인을 복사했습니다. Fusion에서 실행 상태를 확인하세요.':'기존 '+path.basename(target)+' 애드인을 확인했습니다.'};
 }
 // Existing add-ins are never upgraded during automatic setup or startup.
 async function planFusionStateUpgrade(root=bundledRoot(),options={}){
  const appData=options.appData||process.env.APPDATA||path.join(os.homedir(),'AppData','Roaming');
- const candidates=['Autodesk Fusion 360','Autodesk Fusion'].map(name=>path.join(appData,'Autodesk',name,'API','AddIns','FusionStreamDeck'));
+ const candidates=['Autodesk Fusion 360','Autodesk Fusion'].flatMap(name=>['FusionDeckForge','FusionStreamDeck'].map(addin=>path.join(appData,'Autodesk',name,'API','AddIns',addin)));
  const present=[];
  for(const candidate of candidates)if(await exists(candidate))present.push(candidate);
  if(present.length!==1)return {status:'unavailable'};
  const target=path.join(present[0],'lib','fusion_actions.py');
  try{
-   const files=[target,path.join(root,'fusion-actions-original.py'),path.join(root,'FusionStreamDeck','lib','fusion_actions.py')];
+   const files=[target,path.join(root,'fusion-actions-original.py'),path.join(root,'FusionDeckForge','lib','fusion_actions.py')];
    const data=await Promise.all(files.map(async file=>{
      const st=await fs.lstat(file);if(!st.isFile()||st.size>65536)throw Error('invalid Fusion source');
      return fs.readFile(file);

@@ -78,9 +78,9 @@ function createClient(fetcher=fetch,getEndpoint=()=>URL){
  return {
   async check(signal){const {protocolVersion,toolCount}=await connect(signal);return {protocolVersion,toolCount};},
   ensureAddin(folder,signal){
-   if(typeof folder!=='string'||!folder.endsWith('FusionStreamDeck')||folder.length>1024)throw Error('Invalid add-in folder');
+   if(typeof folder!=='string'||!/(?:^|[\\/])(?:FusionDeckForge|FusionStreamDeck)$/.test(folder)||folder.length>1024)throw Error('Invalid add-in folder');
    // JSON string escaping is valid for the Windows path in a Python string literal.
-   const script='import adsk.core\nimport json\n\ndef run(_context):\n    scripts = adsk.core.Application.get().scripts\n    folder = '+JSON.stringify(folder)+'\n    s = scripts.itemByPath(folder)\n    registered = False\n    if not s:\n        s = scripts.addExisting(folder)\n        registered = bool(s)\n    if not s or not s.isAddIn or s.name.lower() != "fusionstreamdeck":\n        raise RuntimeError("Expected add-in not found")\n    s.isRunOnStartup = True\n    before = s.isRunning\n    requested = True if before else s.run(False)\n    print(json.dumps({"registered": registered, "runningBefore": before, "requested": requested, "startup": s.isRunOnStartup}))\n';
+   const script='import adsk.core\nimport json\n\ndef run(_context):\n    scripts = adsk.core.Application.get().scripts\n    folder = '+JSON.stringify(folder)+'\n    s = scripts.itemByPath(folder)\n    registered = False\n    if not s:\n        s = scripts.addExisting(folder)\n        registered = bool(s)\n    if not s or not s.isAddIn or s.name.lower() not in ("fusiondeckforge", "fusionstreamdeck"):\n        raise RuntimeError("Expected add-in not found")\n    s.isRunOnStartup = True\n    before = s.isRunning\n    requested = True if before else s.run(False)\n    print(json.dumps({"registered": registered, "runningBefore": before, "requested": requested, "startup": s.isRunOnStartup}))\n';
    return execute(script,false,signal);
   },
   async listCommands(signal){

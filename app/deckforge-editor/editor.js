@@ -1550,7 +1550,7 @@ function openSdkPluginHelp(plugin,isFusion,retained=false){
     address.addEventListener('input',()=>{state.textContent='변경된 주소는 저장해야 적용됩니다.';});
     window.deckBridge.fusionMcpSettings().then(result=>{address.value=result.endpoint;state.textContent='Fusion 기본 설정 > 일반 > API에서 공식 MCP 서버를 활성화하세요.';}).catch(error=>{state.textContent='설정 읽기 실패: '+String(error?.message||error);}).finally(()=>busy(false));
     const install=document.createElement('button');install.type='button';
-    install.textContent='FusionStreamDeck 애드인 설치';
+    install.textContent='FusionDeckForge 애드인 설치';
     install.style.cssText='width:100%;padding:9px;border:1px solid #67717c;background:#393f49;color:#fff;border-radius:5px;margin-bottom:8px';
     const output=document.createElement('p');output.style.cssText='font-size:12px;line-height:1.5;margin:4px 0 12px;white-space:pre-wrap';
     output.textContent='Fusion 360이 설치되어 있지 않아도 DeckForge를 사용할 수 있습니다. Fusion 설치 후 이 버튼을 눌러 애드인을 설치하세요.';
@@ -1560,7 +1560,7 @@ function openSdkPluginHelp(plugin,isFusion,retained=false){
         const result=await window.deckBridge.installFusionAddin();
         output.textContent=({
           installed:'애드인을 복사했습니다. Fusion 360에서 실행하고 시작 시 자동 실행을 설정하세요.',
-          existing:'FusionStreamDeck 애드인이 이미 설치되어 있습니다.',
+          existing:result?.message||'Fusion 애드인이 이미 설치되어 있습니다.',
           'fusion-not-ready':'Fusion 360을 설치하고 한 번 실행한 다음 다시 시도하세요.',
           'existing-incomplete':'기존 애드인 폴더가 있어 자동 덮어쓰지 않았습니다.',
           'not-bundled':'이 설치본에 Fusion 애드인 파일이 없습니다.'
