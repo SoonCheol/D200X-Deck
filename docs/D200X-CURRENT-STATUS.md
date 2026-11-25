@@ -18,7 +18,7 @@
 - 1.1.230: CI #1278, Windows #984 attempt2 전체 성공. 실제 idle/active crash·거부·서비스/peer 생존·새 이벤트 복구, 25함수·vault 통과. 1차 npm 404 해소(버전 변경 없음). deckforge-v1.1.230 게시, EXE 135231273 bytes. 현재 root suite 45/45 실행 명령 확인, 초기 helper skip 3개와 후속 패키지 검사 구분.
 ## 다음 작업
 - 2026-11-26 사용자 승인: Model 2만 SDK 1.0 정식 출시 경로로 확정, Model 5 연구 보류/제품 OFF. Gemini report001/002 전문 검토. P0 2.0.43 후보: private ops JSON snapshot·null prototype envelope 방어 및 Object/Array prototype toJSON 거부, ctx.memory validateValue(8KiB/깊이/금지 키), 실제 Electron 집중 회귀 추가. CI #1428·SDK #120·Windows #47 성공, 실제 serialization 3종/메모리 5종 거부 통과. P1 HA 내장·최종 Windows 회귀, P2 실제 장치/HA/OS/GUI. 개발 항목 9/10(90%, 동일 가중·실기 별도), 정확한 공수 아님. Model 5 시험 이력·코드 Git 보존.
-- 실기 2.0.42: 절전/대기 복귀 후 HA 전등 상태·제어 및 GitHub 조회 정지, 일반 입력/CPU/RAM 정상(사용자 보고). 완전 종료·재실행 후 표시 정상. OS 이벤트/실행 로그 미확보, 원인 미확정. 2.0.44 후보: resume 단독 수신에도 이전 runner/socket/queue 취소 후 초기화, stale 입력 재실행 금지 유지, sdk-power-suspend/resume 진단 기록 및 WSS 재연결 집중 회귀 추가. CI #1430·입력 #552·Windows #48 게시·SDK #122 성공(1417 press/107 전환, 5분 및 보안 검사 통과). 실기 대기. 실제 Electron resume 단독/대기 입력 13개 폐기·서비스 재시작·새 입력 13개 복구 검사 추가, 결과 대기. 기존 Model 5 시험 이력 Git 보존.
+- 실기 2.0.42: 절전/대기 복귀 후 HA 전등 상태·제어 및 GitHub 조회 정지, 일반 입력/CPU/RAM 정상(사용자 보고). 완전 종료·재실행 후 표시 정상. OS 이벤트/실행 로그 미확보, 원인 미확정. 2.0.44 후보: resume 단독 수신에도 이전 runner/socket/queue 취소 후 초기화, stale 입력 재실행 금지 유지, sdk-power-suspend/resume 진단 기록 및 WSS 재연결 집중 회귀 추가. CI #1430·입력 #552·Windows #48 게시·SDK #122 성공(1417 press/107 전환, 5분 및 보안 검사 통과). 실기 대기. SDK #124 실제 Electron resume 단독/이전 입력 13개 폐기·새 입력 13개 복구·서비스 재시작 통과(실제 OS 제외). 기존 Model 5 시험 이력 Git 보존.
 - 2.0.42: 독자 SDK tick/periodic request/WebSocket rate/backpressure 경과 시간 monotonic clock 전환. 시스템 시계 ±24시간 변경 중 제한 유지 집중 검사 추가. 설정 receipt wall clock 계약 보존. CI #1407·Windows #45·SDK #99 성공, 2.0.42 설치본 게시 확인.
 - 2.0.41: 독자 서비스 관리 중 종료 시 설정 읽기/쓰기 이후 재생성 차단. 이미 확정된 설정 보존. 읽기 중 종료/저장 확정 후 종료 집중 검사 추가. CI #1405 및 Windows #44 성공.
 - 2.0.40: 독자 서비스 시작 정책 동시 읽기 경쟁 해결. 공통 Promise 완료 전 서비스 시작 차단, 정지/오류 정책 보존, 동시 읽기 회귀 검사 추가. CI #1403 성공, Windows #43 결과 별도. 외부 호환 엔진 추가 개발 보류.
@@ -26,7 +26,7 @@
 - 2.0.35~39 이전 수정 및 검증 이력은 Git에서 확인. 기존 외부 호환 기능 유지, 추가 개발 보류.
 - SDK 10C: #84/#88/#90 실제 5분 soak 및 장애 복구 통과, OOM 통지 미확보. #93에서 로컬 Crashpad 초기화 후 실제 oom 확인. 제품 보안 제한 유지. Model5 저장소 격리 실패는 별도.
 - 2.0.34: GitHub 0.1.1 번호 23px/상태 26px, 이름 마퀴 1~3초, 자동 조회 5/15초 또는 고정 5/10/15/30초, 기존 PAT binding 유지. 독립 pollIntervalMs 5초 이상, 집중 검사 추가. Windows #37 성공; 실기 미검증. 후속 GitHub 기능은 로드맵 보류.
-- P1 HA 내장: 최초 1회 미설정 manifest(네트워크 권한/endpoint 없음), 기존 설치/보존본·토큰·등록 유지. 일반 추가 버튼 제거, HA 도움말에서 서버 설정/변경·내보내기, 속성 인증정보 기존 경로 유지. 동일 버전 주소 변경은 동일한 내장 HA 코드에만 제한된 별도 설정 경로, 일반 버전 규칙 유지. 집중 검사 후 빌드.
+- P1 사용자 승인: HA 기본 액션 맨 위(기기 제어/센서), 미등록 시 초기 연결, 도움말 주소·인증·내보내기 유지. 기존 주소·토큰·액션 ID·설정 보존. 별도 기기 연동 제어 기본 OFF, 기준 ON/OFF별 대상/명령, 서비스 최신 상태 기준·미확인 상태 실행 차단. 기본 미설정 manifest는 네트워크 권한 없음, 설치/보존본 존중. HA 전용 주소 변경만 동일 버전 허용, 일반 버전 규칙 보존. 타이틀 바 축소 요청(대상 확인 필요).
 - 작업 체크포인트: f718990 2.0.22 명령 관리자 카드/페이지 슬롯/편집기 hover 캐시 설명, ⓘ 상세 경로 제거·설명 표시, 오프라인/늦은 응답 방지. 2.0.21 Windows 성공, 사용자 1555 설명 저장·아이콘 659 실패 보고. 2.0.22 자동 빌드/GUI 미확인. 아이콘 실패 진단 별도.
 - **10C 판정:** 자동 검증/설치본 통과, 정식 SDK 1.0 출시 보류. 실제 HA/D200X/OS 절전·재연결/실기 장시간 사용, identity GUI 별도; Model2 자동 soak/OOM 및 설정 저장 검사 통과, 1.1.234 Windows 통합 검사 통과, 전원 손실/제품 IPC 실기 별도. Model5 연구 보류, KEY 기본 OFF, 기존 미리보기 유지.
 - 기존 기능/데이터/API·보안 보존, 테스트/CI/Windows/실기 구분. 미측정 성능 수치 단정 금지.
