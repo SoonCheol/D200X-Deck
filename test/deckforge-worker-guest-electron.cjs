@@ -57,7 +57,7 @@ async function buildBundle(prefix){
  'import {guestChecks,evaluateGuest} from '+JSON.stringify(checks)+';\n'+
  'const sdkPrograms='+JSON.stringify(guestPrograms())+';\n'+
  'const assert={ok(v,m){if(!v)throw Error(m||"assertion failed")},equal(a,b,m){this.ok(Object.is(a,b),m||"equal failed")},notEqual(a,b){this.ok(!Object.is(a,b),"notEqual failed")},deepEqual(a,b){this.equal(JSON.stringify(a),JSON.stringify(b),"deepEqual failed")},match(a,b){this.ok(b.test(a),"match failed")}};\n'+
- 'self.onmessage=async e=>{try{if(e.data==="ping"){self.postMessage({ping:true});return}if(e.data&&e.data.kind==="event"){const engine=await newQuickJSWASMModuleFromVariant(variant);self.postMessage(evaluateGuest(engine,e.data.program,{heap:32*1024*1024,maxOutput:512*1024}));return}if(e.data!=="checks")throw Error("invalid test request");const engine=await newQuickJSWASMModuleFromVariant(variant);let sdkResults;const result=guestChecks(engine,assert,sdkPrograms,v=>sdkResults=v);let evalBlocked=false;try{Function("return 1")()}catch{evalBlocked=true}const nested=await Promise.all([location.href,"data:text/javascript,postMessage(1)"].map(url=>new Promise(resolve=>{let w,t;const done=v=>{clearTimeout(t);w?.terminate();resolve(v)};try{w=new Worker(url);w.onmessage=()=>done("allowed");w.onerror=e=>{e.preventDefault();done("blocked")};t=setTimeout(()=>done("inconclusive"),1200);w.postMessage("ping")}catch{done("blocked")}})));const nodeTypes=Object.fromEntries(["process","require","Buffer","ipcRenderer","module"].map(k=>[k,typeof globalThis[k]]));self.postMessage({kind:"result",checks:result,sdkResults,outerEvalBlocked:evalBlocked,outerNestedBlocked:nested.every(v=>v==="blocked"),nested,nodeAbsent:Object.values(nodeTypes).every(v=>v==="undefined"),nodeTypes})}catch(e){self.postMessage({kind:"error",message:String(e.message).slice(0,240)})}};\n';
+ 'self.onmessage=async e=>{try{if(e.data==="ping"){self.postMessage({ping:true});return}if(e.data&&e.data.kind==="watchdog"){while(true){}}if(e.data&&e.data.kind==="event"){const engine=await newQuickJSWASMModuleFromVariant(variant);self.postMessage(evaluateGuest(engine,e.data.program,{heap:32*1024*1024,maxOutput:512*1024}));return}if(e.data!=="checks")throw Error("invalid test request");const engine=await newQuickJSWASMModuleFromVariant(variant);let sdkResults;const result=guestChecks(engine,assert,sdkPrograms,v=>sdkResults=v);let evalBlocked=false;try{Function("return 1")()}catch{evalBlocked=true}const nested=await Promise.all([location.href,"data:text/javascript,postMessage(1)"].map(url=>new Promise(resolve=>{let w,t;const done=v=>{clearTimeout(t);w?.terminate();resolve(v)};try{w=new Worker(url);w.onmessage=()=>done("allowed");w.onerror=e=>{e.preventDefault();done("blocked")};t=setTimeout(()=>done("inconclusive"),1200);w.postMessage("ping")}catch{done("blocked")}})));const nodeTypes=Object.fromEntries(["process","require","Buffer","ipcRenderer","module"].map(k=>[k,typeof globalThis[k]]));self.postMessage({kind:"result",checks:result,sdkResults,outerEvalBlocked:evalBlocked,outerNestedBlocked:nested.every(v=>v==="blocked"),nested,nodeAbsent:Object.values(nodeTypes).every(v=>v==="undefined"),nodeTypes})}catch(e){self.postMessage({kind:"error",message:String(e.message).slice(0,240)})}};\n';
  await build({stdin:{contents:source,resolveDir:prefix,sourcefile:'guest-worker-entry.js'},outfile,bundle:true,platform:'browser',format:'iife',target:'chrome140',logLevel:'warning'});
  return readFile(outfile,'utf8');
 }
@@ -72,7 +72,7 @@ function runWorker(url){
 
 // One short-lived worker per event. This adapter is test-only; the actual
 // NativePluginHost still performs its existing permission/epoch checks.
-function runSdkEvent(url,id,program,ms){
+function runSdkEvent(url,id,program,ms,kind='event'){
  return new Promise(resolve=>{
   const running=globalThis.__dfGuestRuns??=new Map();
   let w,timer,doneAlready=false;
@@ -86,7 +86,7 @@ function runSdkEvent(url,id,program,ms){
    w.onmessage=e=>done(e.data);
    w.onerror=e=>{e.preventDefault();done({kind:'worker-error'});};
    timer=setTimeout(()=>done({kind:'timeout'}),ms);
-   w.postMessage({kind:'event',program});
+   w.postMessage({kind,program});
   }catch{done({kind:'construction-error'});}
  });
 }
@@ -150,6 +150,75 @@ async function verifyHostIntegration(wc,service){
  }finally{host.close();}
 }
 
+
+// Verification only: distinguish guest allocation rejection from actual
+// Chromium renderer OOM, and a trusted outer Worker hang from guest interrupt.
+async function verifyGuestFaults(wc,service){
+ const input={event:{type:'press'},settings:{},state:0,memory:{}};
+ const run=(source,ms,kind='event')=>deadline(()=>wc.executeJavaScript('('+runSdkEvent.toString()+')('+[worker,randomUUID(),guestProgram(source,input),ms,kind].map(JSON.stringify).join(',')+')'),ms+3000,()=>{});
+ const serviceInput={...input,event:{type:'start',scope:'service'}};
+ const pid=service.processId();
+ const allocation=await run('const bytes=new ArrayBuffer(64*1024*1024);api.setTitle("unexpected");',1500);
+ assert.equal(allocation.kind,'error');assert.match(allocation.message,/out of memory|allocation/i);assert.notEqual(allocation.interrupted,true);
+ const hanging=run('void 0;',1000,'watchdog');
+ const alive=await service.run('api.setTitle("during");',serviceInput);
+ assert.equal(alive.ops[0].value,'during');
+ assert.equal((await hanging).kind,'timeout');
+ const next=await run('api.setTitle("recovered");',1500);
+ assert.equal(next.kind,'result');assert.equal(next.value.ops[0].value,'recovered');
+ assert.equal(service.processId(),pid);
+ assert.equal(await wc.executeJavaScript('globalThis.__dfGuestRuns?.size||0'),0);
+ console.log('MODEL5_GUEST_FAULTS '+JSON.stringify({guestAllocationRejected:true,guestHeapLimitMiB:32,actualRendererOom:false,outerWorkerWatchdog:true,nextEventRecovered:true,serviceSurvived:true,servicePid:pid,productionEnabled:false}));
+}
+async function verifyGuestSoak(wc,service){
+ const id='com.deckforge.native.guest-soak';
+ const counts=new Map();
+ const script='if(event.type==="appear")api.setTitle("ready");if(event.type==="press"){memory.count=(memory.count||0)+1;api.setTitle(settings.label+":"+memory.count);}';
+ const action={id:id+'.key',name:'Guest soak',controllers:['Keypad'],states:2,script};
+ const manifest={apiVersion:2,id,name:'Guest soak',version:'1.0.0',permissions:['display'],actions:[action]};
+ validateNativeManifest(manifest);
+ const host=new NativePluginHost('/unused',v=>{if(v.kind==='setTitle')counts.set(v.context,v.payload.title);},()=>candidateRunner(wc));
+ const input={event:{type:'start',scope:'service'},settings:{},state:0,memory:{}};
+ const buttonPid=wc.getOSProcessId(),servicePid=service.processId();
+ assert.ok(buttonPid>0&&servicePid>0&&buttonPid!==servicePid);
+ const start=performance.now(),duration=300000,samples=[];
+ let cycles=0,presses=0,serviceChecks=0;
+ const sample=async()=>{
+   const metrics=app.getAppMetrics();
+   const memory=pid=>metrics.find(m=>m.pid===pid)?.memory?.workingSetSize??null;
+   const activeWorkers=await wc.executeJavaScript('globalThis.__dfGuestRuns?.size||0');
+   assert.equal(activeWorkers,0);
+   assert.equal(wc.getOSProcessId(),buttonPid);assert.equal(service.processId(),servicePid);
+   samples.push({cycle:cycles,elapsedMs:Math.round(performance.now()-start),buttonWorkingSetKiB:memory(buttonPid),serviceWorkingSetKiB:memory(servicePid),mainHeapBytes:process.memoryUsage().heapUsed,activeWorkers});
+ };
+ const drain=async ids=>{await Promise.all(ids.map(k=>{const ctx=host.contexts.get(k);assert.ok(ctx);return ctx.queue;}));};
+ try{
+  await sample();
+  while(performance.now()-start<duration){
+   const cfgs=Array.from({length:13},(_,slot)=>({context:'page-'+cycles+'-'+slot,pluginUUID:id,actionUUID:action.id,slot,gesture:'down',settings:{label:'key-'+slot}}));
+   counts.clear();host.sync(cfgs,[manifest]);const ids=cfgs.map(c=>c.context);
+   await drain(ids);
+   assert.equal(host.contexts.size,13);
+   for(let i=0;i<ids.length;i++){
+     const key=ids[i];assert.equal(counts.get(key),'ready');assert.equal(host.contexts.get(key).failed,false);
+     assert.ok(host.key(key,'down'));assert.ok(host.key(key,'up'));
+   }
+   const pending=drain(ids);
+   assert.equal((await service.run('api.setTitle("alive");',input)).ops[0].value,'alive');serviceChecks++;
+   await pending;
+   for(let i=0;i<ids.length;i++){
+    const ctx=host.contexts.get(ids[i]);assert.equal(ctx.failed,false);assert.deepEqual(ctx.memory,{count:1});
+    assert.equal(counts.get(ids[i]),'key-'+i+':1');
+   }
+   presses+=13;cycles++;
+   if(cycles%10===0)await sample();
+  }
+  assert.ok(cycles>=2);
+  host.sync([],[manifest]);await sample();
+  console.log('MODEL5_GUEST_SOAK '+JSON.stringify({elapsedMs:Math.round(performance.now()-start),pageCycles:cycles,presses,serviceChecks,buttonsPerPage:13,buttonPid,servicePid,samples,actualChromiumWorker:true,actualNativeHost:true,physicalDevice:false,actualRendererOom:false,productionEnabled:false}));
+ }finally{host.close();}
+}
+
 app.on('window-all-closed',()=>{});
 app.whenReady().then(async()=>{
  const prefix=process.env.DECKFORGE_VM_PROBE_DIR;
@@ -199,6 +268,8 @@ app.whenReady().then(async()=>{
    }
    console.log('MODEL5_SDK_API_PARITY '+JSON.stringify({apiCount:25,fixtures:sdkCases.length,drawPixelsEqual:true,actualChromiumWorker:true,hostEffectsExecuted:false,productionEnabled:false}));
    await verifyHostIntegration(wc,service);
+   await verifyGuestFaults(wc,service);
+   await verifyGuestSoak(wc,service);
  }finally{service.close();close();ses.protocol.unhandle(scheme);await ses.clearStorageData();}
  app.exit(0);
 }).catch(e=>{console.error(e);app.exit(1);});
