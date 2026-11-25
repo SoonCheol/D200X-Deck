@@ -84,3 +84,18 @@ test("action search separates exact IDs from partial text and sorts current tab"
   assert.equal(context.actionSearchMatches('sd::other::1','파일 열기','파일'),false);
   assert.equal(context.actionSearchMatches('sd::other::2','파일 열기','파일'),true);
 });
+
+test("real icon catalogue initializes editor and preserves executable IDs",()=>{
+  const {panel}=load();
+  const editor=fs.readFileSync(path.join(__dirname,"../deckforge-editor/editor.js"),"utf8");
+  const startup=editor.slice(0,editor.indexOf("const HOTKEY_PRESETS"));
+  const context={window:{D200XPanelIcons:panel}};
+  vm.createContext(context);
+  const result=vm.runInContext(startup+"\nJSON.stringify({original:ORIGINAL_CATALOG.flatMap(([,items])=>items.map(x=>x[0])),catalog:CATALOG.flatMap(([,items])=>items.map(x=>x[0]))})",context);
+  const {original,catalog}=JSON.parse(result);
+  assert.equal(catalog.length,46);
+  assert.deepEqual([...catalog].sort(),[...original].sort());
+  assert.ok(catalog.includes("ha-toggle"));
+  assert.ok(!catalog.includes("ha-other"));
+  assert.ok(panel.ids.includes("ha-other"));
+});

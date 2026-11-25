@@ -11,7 +11,8 @@ const ORIGINAL_CATALOG = [
 ];
 // The catalogue changes presentation only: stable IDs, settings and executable actions remain unchanged.
 const CATALOG = window.D200XPanelIcons.groups.map(([category,ids])=>[
-  category,ids.map(id=>{
+  // Native SDK artwork is not an executable built-in action. Preserve the legacy HA action.
+  category,ids.filter(id=>!(category==='플러그인 · Home Assistant'&&id==='ha-other')).map(id=>{
     const entry=ORIGINAL_CATALOG.flatMap(([,items])=>items).find(item=>item[0]===id);
     if(!entry)throw new Error("액션 목록 누락: "+id);
     return entry;
