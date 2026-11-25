@@ -3777,8 +3777,11 @@ function bindNativeForegroundIconCard(root,item){
   if(!panel||!titleRow)return;
   const cards=document.createElement('div');cards.className='sdk-state-icons ha-sensor-icon-cards';
   const card=document.createElement('div');card.className='sdk-state-icon ha-sensor-edit-card';
-  const heading=document.createElement('strong');heading.textContent='아이콘';
+  const heading=document.createElement('strong');heading.textContent='Key Up';
   const check=$('title-visible'),line=titleRow.querySelector('.title-line');
+  // Move the already-bound settings button out before replacing the title row.
+  const settingsButton=titleRow.querySelector('[data-sdk-inspector]');
+  if(settingsButton)titleRow.before(settingsButton);
   titleRow.className='state-title-control ha-sensor-title-row';
   check.classList.add('state-title-visible');check.title='제목 표시';check.setAttribute('aria-label','제목 표시');
   titleRow.replaceChildren(check,line);
@@ -3800,7 +3803,16 @@ function bindNativeForegroundIconCard(root,item){
   add('특수문자',event=>openIconMaker(item,null,event.currentTarget));
   add('초기화',()=>{delete item.icon;persistInspectorChange();render();});
   bindKeyBackgroundControl(image,item,'default');
-  card.append(heading,titleRow,image,buttons);cards.append(card);panel.append(cards);
+  card.append(heading,titleRow,image,buttons);
+  // Same two-card geometry as ordinary keys; the second card is a disabled
+  // presentation placeholder, not a second sensor state or stored setting.
+  const down=card.cloneNode(true);down.classList.remove('ha-sensor-edit-card');down.classList.add('ha-sensor-disabled-card');
+  down.querySelector('strong').textContent='Key Down';down.inert=true;down.setAttribute('aria-disabled','true');
+  down.querySelectorAll('[id]').forEach(node=>node.removeAttribute('id'));
+  down.querySelectorAll('.title-style-popover').forEach(node=>node.remove());
+  down.querySelectorAll('button,input,select,textarea').forEach(node=>{node.disabled=true;node.removeAttribute('aria-controls');if(node.tagName==='INPUT'){node.value='';node.checked=false;}});
+  down.querySelector('.sdk-state-preview').replaceChildren();
+  cards.append(card,down);panel.append(cards);
 }
 function bindSdkStateIcons(root,item){
   if(DeckCore.isNativeForeground(item,typeof sdkPlugins==='undefined'?null:sdkPlugins))return;
@@ -4189,7 +4201,8 @@ async function openNativeSettings(item,action,plugin){
   const poll=dynamicFields.length?setInterval(()=>void refreshDynamic(),1500):null;
   void refreshDynamic();
   let accepted;
-  try{accepted=await window.DeckForgeDialogs.show({anchorTop:true,title:'플러그인 속성',intro:action.name+' · 일반 설정은 프로필에 저장됩니다. 비밀번호·토큰을 입력하지 마세요.',
+  const sensorCard=DeckCore.isNativeHaSensor(item)?$('inspector')?.querySelector('.ha-sensor-edit-card'):null;
+  try{accepted=await window.DeckForgeDialogs.show({anchorTop:true,anchorCard:sensorCard,title:sensorCard?'센서 설정':'플러그인 속성',intro:action.name+' · 일반 설정은 프로필에 저장됩니다. 비밀번호·토큰을 입력하지 마세요.',
     content,ask:true,actionLabel:'적용',onAccept:()=>{
       try{
         const next={...original};
@@ -4226,7 +4239,7 @@ function updateSdkAvailabilityInspector(){
   const rootItem=DeckCore.visibleActions(state)[state.selected];
   const item=pressIsOrdinary(rootItem)&&state.selected<13?pressSlotAction(rootItem,activePressTab):rootItem;
   const label=sdkAvailabilityLabel(item);
-  button.textContent=label?'⚠ '+label:'⚙ 플러그인 속성 열기';
+  button.textContent=label?'⚠ '+label:DeckCore.isNativeHaSensor(item)?'⚙ 센서 설정':'⚙ 플러그인 속성 열기';
   button.title=label?'클릭하여 설치 또는 복구 방법을 확인하세요.':'플러그인 속성 열기';
   const cleanup=$('inspector')?.querySelector('[data-sdk-cleanup]');
   if(cleanup)cleanup.hidden=!(window.deckBridge?.nativeRetainedList&&DeckCore.sdkAvailability(item,sdkCatalogueReady?sdkPlugins:null)==='missing'&&!sdkRetained.some(p=>p.id===item?.settings?.pluginUUID));
@@ -4733,7 +4746,7 @@ function renderInspector(){
     titleLine.before(controls);controls.append(titleLine);
     const settingsButton=document.createElement('button');settingsButton.type='button';
     settingsButton.className='sdk-settings-open';settingsButton.dataset.sdkInspector='';
-    settingsButton.textContent='⚙ 플러그인 속성 열기';
+    settingsButton.textContent=DeckCore.isNativeHaSensor(item)?'⚙ 센서 설정':'⚙ 플러그인 속성 열기';
     settingsButton.dataset.sdkAvailability='';
     controls.append(settingsButton);
     const cleanup=document.createElement('button');cleanup.type='button';cleanup.className='sdk-settings-open';cleanup.dataset.sdkCleanup='';cleanup.textContent='미설치 등록 버튼 정리…';cleanup.hidden=true;

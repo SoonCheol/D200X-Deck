@@ -9,7 +9,7 @@
     if(text!==undefined&&text!==null)node.textContent=String(text);
     return node;
   }
-  function show({title,kind='info',intro='',fields=[],included=[],excluded=[],content=null,onAccept=null,detailLabel='',detail='',copyDetail=false,warning='',ask=false,actionLabel='확인',cancelLabel='취소',alternateLabel='',anchorTop=false}={}){
+  function show({title,kind='info',intro='',fields=[],included=[],excluded=[],content=null,onAccept=null,detailLabel='',detail='',copyDetail=false,warning='',ask=false,actionLabel='확인',cancelLabel='취소',alternateLabel='',anchorTop=false,anchorCard=null}={}){
     if(typeof title!=='string'||!title.trim()||!Object.hasOwn(icons,kind))throw Error('대화상자 제목 또는 상태가 올바르지 않습니다.');
     return new Promise(resolve=>{
       const dialog=element('dialog','deckforge-message-dialog'+(content?' deckforge-message-dialog-selection':''));
@@ -94,7 +94,19 @@
       dialog.append(header,main,footer);
       dialog.addEventListener('close',()=>{const choice=dialog.returnValue==='accept'?true:dialog.returnValue==='alternate'?'alternate':false;dialog.remove();resolve(choice);},{once:true});
       document.body.append(dialog);dialog.showModal();
-      if(anchorTop){
+      if(anchorCard?.isConnected){
+        const rect=anchorCard.getBoundingClientRect();
+        const width=window.innerWidth,height=window.innerHeight;
+        const top=Math.max(8,Math.min(Math.round(rect.top),height-80));
+        const right=Math.round(rect.right)+8,leftSpace=Math.round(rect.left)-16,rightSpace=width-right-8;
+        const desired=Math.min(dialog.getBoundingClientRect().width||650,width-16);
+        // Prefer the card's right edge + 8px. Only use the opposite side or
+        // clamp when the available viewport cannot contain the dialog.
+        let left=right,maxWidth=rightSpace;
+        if(rightSpace<320&&leftSpace>rightSpace){maxWidth=leftSpace;left=Math.round(rect.left)-8-Math.min(desired,maxWidth);}
+        if(maxWidth<320){maxWidth=width-16;left=Math.max(8,Math.min(right,width-8-Math.min(desired,maxWidth)));}
+        Object.assign(dialog.style,{position:'fixed',top:top+'px',left:Math.max(8,left)+'px',right:'auto',bottom:'auto',margin:'0',maxWidth:Math.max(0,maxWidth)+'px',maxHeight:'min(720px, calc(100vh - '+(top+8)+'px))'});
+      }else if(anchorTop){
         // Capture the initial viewport position once, rather than recentering
         // whenever search results or other dynamic fields change height.
         const top=Math.max(8,Math.round(dialog.getBoundingClientRect().top));

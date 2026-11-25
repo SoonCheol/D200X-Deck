@@ -139,3 +139,13 @@ test('dynamic modal captures initial top position without recentering on content
  assert.equal(modal.style.top,'120px');
  modal.close('cancel');assert.equal(await pending,false);
 });
+
+
+test('sensor settings align with the first icon card at an 8px gap',async()=>{
+ const {document,window}=load();window.innerWidth=1400;window.innerHeight=900;
+ const anchorCard={isConnected:true,getBoundingClientRect:()=>({top:150,left:200,right:432})};
+ const pending=window.DeckForgeDialogs.show({title:'센서 설정',anchorCard,anchorTop:true});
+ const modal=document.body.children.at(-1);
+ assert.equal(modal.style.left,'440px');assert.equal(modal.style.top,'150px');
+ assert.equal(modal.style.maxWidth,'952px');modal.close('cancel');assert.equal(await pending,false);
+});
