@@ -493,8 +493,8 @@ async function verifyModel2MountedPageCycles(){
  const {deadline}=require('../app/deckforge-editor/deckforge-js-runtime.cjs');
  const id='com.deckforge.native.page-cycles',actionId=id+'.key',events=[];
  const manifest=validateNativeManifest({apiVersion:2,id,name:'Page cycles',version:'1.0.0',
-  permissions:['display','background.run'],
-  service:{script:"if(event.type==='start')memory.starts=(memory.starts||0)+1;"},
+  permissions:['display','background.run','timer.tick'],
+  service:{tickIntervalMs:1000,script:"if(event.type==='start')memory.starts=(memory.starts||0)+1;if(event.type==='tick')memory.ticks=(memory.ticks||0)+1;"},
   actions:[{id:actionId,name:'Cycle key',controllers:['Keypad'],states:2,
    script:"if(event.type==='press'){memory.count=(memory.count||0)+1;api.setTitle(settings.label+':'+memory.count);}"}]});
  const host=new NativePluginHost('/unused',e=>events.push(e));
@@ -515,7 +515,7 @@ async function verifyModel2MountedPageCycles(){
   assert.equal(service().failed,false);
   assert.ok(host.runnerPool.entries.size<=2);
   const buttonPid=host.runnerPool.processId(id,'button'),servicePid=host.runnerPool.processId(id,'service');
-  assert.ok(buttonPid>0&&servicePid>0&&buttonPid!==servicePid);
+  assert.ok(buttonPid>0&&servicePid>0&&buttonPid!==servicePid,JSON.stringify({buttonPid,servicePid,serviceTicks:service().memory.ticks||0}));
  };
  const pressPage=async configs=>{
   const mark=events.length;
@@ -546,6 +546,7 @@ async function verifyModel2MountedPageCycles(){
   const samples=[];
   const soak=process.env.DECKFORGE_SDK_SOAK==='1';
   const repeatStarted=Date.now();
+  const initialServiceTicks=service().memory.ticks||0;
   let cycle=0;
   for(;cycle<8||(soak&&Date.now()-repeatStarted<300000);cycle++){
    const next=cycle%2===0?second:first,previous=cycle%2===0?first:second;
@@ -560,7 +561,9 @@ async function verifyModel2MountedPageCycles(){
    events.length=0;
    if(cycle%8===0) samples.push({cycle,hostHeapBytes:process.memoryUsage().heapUsed,runnerEntries:host.runnerPool.entries.size});
   }
-  console.log('MODEL2_REPEAT_RESOURCE_SAMPLES '+JSON.stringify({samples,additionalTransitions:cycle,additionalPresses:cycle*13,elapsedMs:Date.now()-repeatStarted,longDurationSoak:soak}));
+  const serviceTicks=(service().memory.ticks||0)-initialServiceTicks;
+  if(soak)assert.ok(serviceTicks>0,'background timer must actually execute during soak');
+  console.log('MODEL2_REPEAT_RESOURCE_SAMPLES '+JSON.stringify({samples,additionalTransitions:cycle,additionalPresses:cycle*13,serviceTicks,elapsedMs:Date.now()-repeatStarted,longDurationSoak:soak}));
   assert.equal(events.some(e=>e.kind==='nativeEffect'||e.kind==='nativeSettingsCommit'),false);
   console.log('MODEL2_MOUNTED_PAGE_CYCLES '+JSON.stringify({buttonsPerPage:13,presses,pageTransitions:2+cycle,suspendResumeCycles:1,isolatedMemory:true,serviceSurvived:true,elapsedMs:Date.now()-started,actualElectron:true,physicalDevice:false,oomTested:false}));
  }finally{host.close();assert.equal(host.contexts.size,0);assert.equal(host.runnerPool.entries.size,0);}

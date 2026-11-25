@@ -5,6 +5,15 @@ on:
     paths:
       - 'test/deckforge-native-js-electron.cjs'
       - '.github/workflows/deckforge-sdk-windows-test.yml'
+      - 'app/deckforge-editor/deckforge-native-sdk.cjs'
+      - 'app/deckforge-editor/deckforge-js-runtime.cjs'
+      - 'app/deckforge-editor/deckforge-sdk-scheduler.cjs'
+      - 'app/deckforge-editor/deckforge-native-network.cjs'
+      - 'app/deckforge-editor/deckforge-native-settings.cjs'
+      - 'app/deckforge-editor/deckforge-draw-ops.cjs'
+      - 'app/deckforge-editor/profile-store.cjs'
+      - 'app/deckforge-editor/deck-core.js'
+      - 'app/package-lock.json'
 permissions:
   contents: read
 jobs:
@@ -28,7 +37,7 @@ jobs:
             if ($LASTEXITCODE -eq 0) {
               $changed = git diff --name-only $env:BEFORE_SHA HEAD
               if ($LASTEXITCODE -eq 0) {
-                $run = [bool]($changed | Where-Object { $_ -in @('test/deckforge-native-js-electron.cjs','.github/workflows/deckforge-sdk-windows-test.yml') })
+                $run = [bool]($changed | Where-Object { $_ -in @('test/deckforge-native-js-electron.cjs','.github/workflows/deckforge-sdk-windows-test.yml','app/deckforge-editor/deckforge-native-sdk.cjs','app/deckforge-editor/deckforge-js-runtime.cjs','app/deckforge-editor/deckforge-sdk-scheduler.cjs','app/deckforge-editor/deckforge-native-network.cjs','app/deckforge-editor/deckforge-native-settings.cjs','app/deckforge-editor/deckforge-draw-ops.cjs','app/deckforge-editor/profile-store.cjs','app/deckforge-editor/deck-core.js','app/package-lock.json') })
               }
             }
           }
@@ -40,6 +49,7 @@ jobs:
           cache: npm
           cache-dependency-path: app/package-lock.json
       - name: Install Electron
+        id: install
         if: steps.changes.outputs.run == 'true'
         working-directory: app
         run: npm ci
@@ -52,7 +62,7 @@ jobs:
           & app/node_modules/.bin/electron.cmd test/deckforge-native-js-electron.cjs
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - name: Verify isolated renderer heap exhaustion
-        if: steps.changes.outputs.run == 'true'
+        if: ${{ !cancelled() && steps.changes.outputs.run == 'true' && steps.install.outcome == 'success' }}
         env:
           DECKFORGE_SDK_OOM: '1'
         shell: pwsh
