@@ -382,8 +382,9 @@
 .update-version-row{display:flex;align-items:center;justify-content:space-between;gap:12px;color:#bbb;font-size:12px}
 .update-version-row strong{color:#f3f3f3;font-size:12px;font-weight:600;font-variant-numeric:tabular-nums}
 .update-state{border-top:1px solid #4b4b4b;padding-top:8px;color:#b9b9b9;font-size:11px;white-space:normal;line-height:1.45}
-.settings-menu #check-update{border-top:1px solid #4b4b4b;border-radius:0;text-align:center}
-.settings-menu #check-update:disabled{opacity:.45;cursor:default}
+.settings-menu .update-button-row{display:grid;grid-template-columns:1fr 1fr;gap:5px;padding:5px 0;border-top:1px solid #4b4b4b}
+.settings-menu .update-button-row button{min-width:0;text-align:center;padding:8px 5px;font-size:12px;background:#3b4047;border:1px solid #58616c;border-radius:4px}
+.settings-menu .update-button-row button:disabled{opacity:.45;cursor:default}
 
 /* Consistent inspector header, compact knob tabs, and action buttons. */
 .control-head{gap:9px;min-height:34px}

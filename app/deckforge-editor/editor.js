@@ -7696,15 +7696,15 @@ $("icon-maker-save").addEventListener("click",()=>{
 });
 // General options: backup/restore is independent of the profile picker.
 function bindSettingsMenu(){
-  const trigger=$("settings-trigger"),menu=$("settings-menu"),update=$("check-update");
+  const trigger=$("settings-trigger"),menu=$("settings-menu"),update=$("check-update"),refresh=$("refresh-update-status");
   const current=$("current-version"),latest=$("latest-version"),status=$("update-status");
   let requestNumber=0;
-  const loadStatus=async()=>{
+  const loadStatus=async(force=false)=>{
     const request=++requestNumber;
-    update.disabled=true;latest.textContent='확인 중';status.textContent='설치 가능한 빌드 확인 중…';
+    refresh.disabled=true;update.disabled=true;latest.textContent='확인 중';status.textContent='설치 가능한 빌드 확인 중…';
     try{
       if(!window.deckBridge?.updateStatus)throw Error('Windows DeckForge에서만 사용할 수 있습니다.');
-      const result=await window.deckBridge.updateStatus();
+      const result=await window.deckBridge.updateStatus(force);
       if(request!==requestNumber||menu.hidden)return;
       if(result?.currentVersion)current.textContent=result.currentVersion;
       latest.textContent=result?.latestVersion||'확인 불가';
@@ -7715,8 +7715,11 @@ function bindSettingsMenu(){
       if(request!==requestNumber||menu.hidden)return;
       latest.textContent='확인 불가';status.textContent='네트워크 또는 GitHub 상태를 확인하세요.';
       update.disabled=true;
+    }finally{
+      if(request===requestNumber)refresh.disabled=false;
     }
   };
+  refresh.addEventListener('click',()=>{if(!refresh.disabled)void loadStatus(true);});
   const makeEntry=(parent,label,fn)=>{
     const button=document.createElement('button');button.type='button';button.textContent=label;
     button.setAttribute('role','menuitem');button.addEventListener('click',fn);parent.append(button);return button;

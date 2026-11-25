@@ -798,9 +798,9 @@ let tray = null;
 let quitting = false;
 let trayPreferences = null;
 let cachedUpdate=null,cachedUpdateAt=0,pendingUpdate=null;
-async function installedUpdateStatus(){
-  if(cachedUpdate&&Date.now()-cachedUpdateAt<60000)return cachedUpdate;
+async function installedUpdateStatus(force=false){
   if(pendingUpdate)return pendingUpdate;
+  if(!force&&cachedUpdate&&Date.now()-cachedUpdateAt<60000)return cachedUpdate;
   pendingUpdate=UpdateCheck.checkUpdateStatus(app.getVersion())
     .then(info=>{cachedUpdate=info;cachedUpdateAt=Date.now();return info;})
     .finally(()=>{pendingUpdate=null;});
@@ -812,8 +812,8 @@ ipcMain.handle('d200x:app-version',event=>{assertEditor(event);return app.getVer
    await shell.openExternal('https://github.com/SoonCheol/D200X-Deck/blob/codex/streamdeck-761-clean-editor/docs/DECKFORGE-CHANGELOG.md');
    return true;
  });
-ipcMain.handle('d200x:update-status',async event=>{
-  assertEditor(event);return installedUpdateStatus();
+ipcMain.handle('d200x:update-status',async(event,force)=>{
+  assertEditor(event);return installedUpdateStatus(force===true);
 });
 ipcMain.handle('d200x:check-updates',async event=>{
   assertEditor(event);
