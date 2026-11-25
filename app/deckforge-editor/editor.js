@@ -4303,7 +4303,7 @@ async function openNativeSettings(item,action,plugin){
   let refreshing=false,closed=false;
   const statusNames={active:'실행 중',waiting:'실행 대기',stopped:'중지됨',suspended:'절전 중',recovering:'복구 중',failed:'실행 오류',capacity:'서비스 한도 초과',unavailable:'사용 불가','policy-error':'서비스 설정 오류'};
   const socketNames={connected:'인증 성공',connecting:'연결 중',reconnecting:'재연결 중',disconnected:'연결 안 됨'};
-  const errorNames={'credential-required':'토큰 미등록','credential-unavailable':'인증정보 읽기 실패','credential-update-busy':'인증정보 갱신 중','authentication-rejected':'HA 토큰 거부','authentication-timeout':'HA 인증 시간 초과','authentication-protocol':'HA 인증 응답 오류','connection-error':'서버 연결 실패','tls-error':'TLS 인증서 오류','upgrade-rejected':'WebSocket 업그레이드 거부','message-limit':'수신 데이터 용량 초과','invalid-message':'지원하지 않는 수신 데이터','rate-limit':'수신 속도 한도 초과','queue-capacity':'처리 대기열 초과','heartbeat-timeout':'서버 응답 없음','credential-in-response':'인증정보 포함 응답 차단','runtime-failed':'플러그인 실행 오류'};
+  const errorNames={'credential-required':'토큰 미등록','credential-unavailable':'인증정보 읽기 실패','credential-update-busy':'인증정보 갱신 중','authentication-rejected':'HA 토큰 거부','authentication-timeout':'HA 인증 시간 초과','authentication-protocol':'HA 인증 응답 오류','connection-error':'서버 연결 실패','tls-error':'TLS 인증서 오류','upgrade-rejected':'WebSocket 업그레이드 거부','message-limit':'수신 데이터 용량 초과','invalid-message':'지원하지 않는 수신 데이터','rate-limit':'수신 과부하','send-rate-limit':'송신 속도 초과 · 명령 미전송','send-capacity':'송신 대기열 초과 · 명령 미전송','queue-capacity':'처리 대기열 초과','heartbeat-timeout':'서버 응답 없음','credential-in-response':'인증정보 포함 응답 차단','runtime-failed':'플러그인 실행 오류'};
   const refreshDynamic=async()=>{
     if(closed||refreshing||!dynamicFields.length||!window.deckBridge?.nativeDynamicOptions)return;
     refreshing=true;

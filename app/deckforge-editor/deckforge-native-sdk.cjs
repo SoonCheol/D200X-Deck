@@ -4,7 +4,7 @@ const fs=require('node:fs/promises');
 const path=require('node:path');
 const {randomUUID,createHash}=require('node:crypto');
 const {performance}=require('node:perf_hooks');
-const {SdkScheduler}=require('./deckforge-sdk-scheduler.cjs');
+const {SdkScheduler,SchedulerCapacityError}=require('./deckforge-sdk-scheduler.cjs');
 const {verifyPng}=require('./ulanzi-png-verifier.cjs');
 const {pixelImage}=require('./deckforge-pixel-image.cjs');
 const {NativeAnimationPlayer}=require('./deckforge-native-animation.cjs');
@@ -23,6 +23,7 @@ const EXTRA_PERMISSIONS=['settings.write','navigation','wide.mode','global.setti
 const SERVICE_PREFIX='@service:',MAX_SERVICES=8;
 const MAX_PENDING_EVENTS=64,INPUT_RESERVE=4,MAX_NETWORK_GLOBAL=8,MAX_NETWORK_PLUGIN=2;
 const RX_SOCKET_BYTES=2*1024*1024,RX_GLOBAL_BYTES=8*1024*1024,RX_FRAMES=256,RX_BATCH_BYTES=512*1024,RX_BATCH_COUNT=8;
+const ADMISSION_CANCELLED=Symbol('admission-cancelled');
 const INPUT_EVENTS=new Set(['press','release','rotateLeft','rotateRight','heldRotateLeft','heldRotateRight']);
 const obj=x=>x!==null&&typeof x==='object'&&!Array.isArray(x);
 const validText=(x,n)=>typeof x==='string'&&x.length>0&&x.length<=n;
@@ -164,7 +165,7 @@ class NativePluginHost{
     this.versions=new NativeVersionStore(this.root,validateNativeManifest);
     this.dependencyWarnings=new Map();
     this.networkRequest=options.networkRequest||requestEndpoint;this.networkPending=new Set();
-    this.socketFactory=options.socketFactory||createSocket;this.socketPending=new Set();
+    this.socketFactory=options.socketFactory||createSocket;this.socketPending=new Set();this.rxReservedBytes=0;
     this.socketRetryDelays=options.socketRetryDelays||[1000,2000,5000,10000,30000];
     this.socketStableMs=options.socketStableMs??30000;
     this.socketRetryJitter=options.socketRetryDelays?0:0.2;
@@ -560,6 +561,9 @@ class NativePluginHost{
     for(const name of ['retryTimer','heartbeatTimer','pongTimer','authTimer']){
       clearTimeout(token[name]);token[name]=null;
     }
+    // Queued but not dispatched frames are freed now. Accepted frames remain
+    // charged until their actual queue closures settle, even across generations.
+    this.rxReservedBytes-=(token.rxQueue||[]).reduce((sum,f)=>sum+f.bytes,0);
     token.rxQueue=[];token.rxBytes=0;token.rxCount=0;token.rxInFlight=0;token.openedAt=null;
     const socket=token.socket;token.socket=null;token.ready=false;
     try{socket?.terminate();}catch{}
@@ -636,11 +640,10 @@ class NativePluginHost{
   }
   receiveSocketFrame(ctx,token,body,bytes){
     if(!this.socketRate(token,'receive',bytes)){this.finishSocket(ctx,token,'error','rate-limit',true);return;}
-    const total=[...this.socketPending].reduce((sum,t)=>sum+(t.rxBytes||0),0);
-    if(token.rxCount>=RX_FRAMES||token.rxBytes+bytes>RX_SOCKET_BYTES||total+bytes>RX_GLOBAL_BYTES){
+    if(token.rxCount>=RX_FRAMES||token.rxBytes+bytes>RX_SOCKET_BYTES||this.rxReservedBytes+bytes>RX_GLOBAL_BYTES){
       this.finishSocket(ctx,token,'error','queue-capacity',true);return;
     }
-    token.rxQueue.push({body,bytes});token.rxBytes+=bytes;token.rxCount++;
+    token.rxQueue.push({body,bytes});token.rxBytes+=bytes;token.rxCount++;this.rxReservedBytes+=bytes;
     this.flushSocketFrames(ctx,token);
   }
   flushSocketFrames(ctx,token,force=false){
@@ -664,6 +667,8 @@ class NativePluginHost{
   }
   completeSocketFrames(ctx,receipt){
     const {token,generation,bytes,count}=receipt;
+    // A stale generation still owns retained bytes until its FIFO settles.
+    this.rxReservedBytes-=bytes;
     if(ctx.socketToken!==token||token.generation!==generation)return;
     token.rxBytes-=bytes;token.rxCount-=count;token.rxInFlight--;
   }
@@ -872,13 +877,14 @@ class NativePluginHost{
     while(active()){
       try{return await this.scheduler.run(ctx.pluginUUID,active,work,scope);}
       catch(error){
-        if(error?.code!=='SDK_SCHEDULER_CAPACITY')throw error;
+        if(!(error instanceof SchedulerCapacityError))throw error;
         if((INPUT_EVENTS.has(event)||event==='serviceMessage')&&this.now()-started>=2000){
-          this.reportBackpressure(ctx);return undefined;
+          this.reportBackpressure(ctx);return ADMISSION_CANCELLED;
         }
         await new Promise(resolve=>setTimeout(resolve,25));
       }
     }
+    return ADMISSION_CANCELLED;
   }
   runScript(ctx,event,response=null,expectedSettings=null,expectedSocket=null,socketReceipt=null){
     const resultEvent=event==='settingsResult';
@@ -916,7 +922,7 @@ class NativePluginHost{
             settings:ctx.action.settingsSchema?nativeEffectiveSettings(ctx.action.settingsSchema,settingsSnapshot):structuredClone(settingsSnapshot),state:ctx.state,memory:structuredClone(ctx.memory),globalSettings:structuredClone(global.value),sharedState:this.sharedSnapshot(ctx)
           });
         },this.runnerPool?(ctx.service?'service':'button'):null);
-        if(!active()||result===undefined)return;
+        if(!active()||result===ADMISSION_CANCELLED)return;
         check(exact(result,['ops','memory'])&&obj(result.memory),'invalid JavaScript memory');
         validateValue(result.memory,8192);
         const {normal,effects}=this.validateScriptOps(ctx,event,result.ops,response);
@@ -960,11 +966,14 @@ class NativePluginHost{
             pluginUUID:ctx.pluginUUID,actionUUID:ctx.action.id,operation});
         }
       }catch(error){if(active())this.fail(ctx,error);}
-    }).finally(()=>{if(ctx.epoch===epoch){
-      ctx.pending--;if(socketReceipt)this.completeSocketFrames(ctx,socketReceipt);
-      if(event==='sharedState')ctx.sharedQueued=false;
-      this.queueSocketNotice(ctx);this.flushSocketFrames(ctx,ctx.socketToken);this.queueSettingsRefresh(ctx);this.queueSharedRefresh(ctx);
-    }});
+    }).finally(()=>{
+      if(socketReceipt)this.completeSocketFrames(ctx,socketReceipt);
+      if(ctx.epoch===epoch){
+        ctx.pending--;
+        if(event==='sharedState')ctx.sharedQueued=false;
+        this.queueSocketNotice(ctx);this.flushSocketFrames(ctx,ctx.socketToken);this.queueSettingsRefresh(ctx);this.queueSharedRefresh(ctx);
+      }
+    });
     return true; // accepted for dispatch; not a claim of completed execution
   }
   retire(ctx){

@@ -227,3 +227,5 @@ report03.md §4.2 13행 원문 기준. 1.1.231 CI #1281/입력 #521/Windows #985
 - API2 capability socketBatch: background.run+network.websocket 필요, 서비스만 최대 8건/512KiB, 큰 단건은 기존 한도. response.event='messages', bodies:string[]; 기존 단건 호환. 첫 프레임 즉시, 처리 중 후속 프레임 묶음. 배치에 한해 socketSend만 8개/합계16KiB 허용(그 외 1효과, settings/권한 불변). 실제 송신 실패 시 재연결/명령 재실행 금지. HA 0.1.13 순서 보존, 최종 publish 1회, 수치만 변경 시 목록 재사용.
 - 재연결 1/2/5/10/30초±20%, 연결 30초 안정 후 시도 횟수 재충전, 인증·TLS·잘못된 프레임 재시도 금지. rate-limit/queue-capacity/송신 과부하 복구 가능 오류, 명령 재전송 없음. Scheduler admission 포화만 실행 전 재시도, 입력은 2초 초과 거부, 실제 실행 실패 재실행 금지.
 - Gemini 감사의 HA 서버 coalesce_messages 협상, 구독 범위 최적화, 공유 상태/HTTP 한도 및 일반 다중 송신은 후속 계측 후 결정. 실제 Model 2 13키/500엔티티/50프레임 모의 transport 시험 추가; 실 HA/D200X 별도. 기존 자격증명 바인딩 유지.
+
+- 2.0.54: 연결 세대 폐기 후에도 실제 FIFO 완료 전 수신 데이터의 전역 예약 바이트 유지. 스케줄러 고유 admission 오류 타입만 재시도; 실행 오류 코드 문자열 위조/충돌은 재실행 금지. 송수신 과부하 상태 구분.

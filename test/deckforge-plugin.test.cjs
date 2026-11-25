@@ -772,6 +772,7 @@ test('native elapsed clock and socket rate limit ignore wall clock changes',()=>
  try{
   const before=performance.now(),observed=host.now();
   assert.ok(observed>=before&&observed<=performance.now());
+  let elapsed=observed;host.now=()=>elapsed;
   for(let i=0;i<128;i++)assert.equal(host.socketRate(token,'receive'),true);
   const started=token.receiveRate.start,wall=original();
   // Keep the simulation synchronous so no other asynchronous task observes it.
@@ -779,7 +780,10 @@ test('native elapsed clock and socket rate limit ignore wall clock changes',()=>
   assert.equal(host.socketRate(token,'receive'),false);
   Date.now=()=>wall-86400000;
   assert.equal(host.socketRate(token,'receive'),false);
-  assert.ok(token.receiveRate.start>=started);
+  assert.equal(token.receiveRate.start,started);
+  elapsed+=1000;
+  for(let i=0;i<64;i++)assert.equal(host.socketRate(token,'receive'),true);
+  assert.equal(host.socketRate(token,'receive'),false);
   assert.ok(host.now()>=observed);
  }finally{Date.now=original;host.close();}
 });
@@ -2718,8 +2722,9 @@ test('socket loss invalidates queued stream data and delivers terminal notice de
   socket.emit('message',Buffer.from('buffered'),false);assert.equal(socket.readyState,1);
   host.receiveSocketFrame(ctx,ctx.socketToken,'overflow',2*1024*1024);
   assert.equal(socket.readyState,3);assert.equal(host.socketPending.size,0);
+  assert.equal(host.rxReservedBytes,Buffer.byteLength(JSON.stringify('queued-old-data')),'stale accepted data stays charged');
   assert.ok(ctx.pending<=66);
-  unblock();await drain(ctx);
+  unblock();await drain(ctx);assert.equal(host.rxReservedBytes,0);
   assert.equal(calls.some(x=>x.event==='message'),false);
   const last=calls.at(-1);assert.equal(last.event,'error');assert.ok(['queue-capacity','rate-limit'].includes(last.error));
   assert.equal(last.gap,true);assert.ok(last.generation>gen);assert.equal(ctx.socketNotice,null);
@@ -3230,7 +3235,10 @@ test('socket retry budget replenishes only after a stable connection',()=>{
 });
 test('scheduler admission pressure retries only unexecuted work and preserves context',async()=>{
  const host=new NativePluginHost('/unused',()=>{},()=>({close(){}}));
- let calls=0,work=0;host.scheduler.run=async(_p,active,fn)=>{if(++calls===1)throw Object.assign(Error('capacity'),{code:'SDK_SCHEDULER_CAPACITY'});return active()?fn():undefined;};
- try{const result=await host.runAdmitted({pluginUUID:nativeId},'socketEvent',()=>true,()=>++work,'service');assert.equal(result,1);assert.equal(calls,2);assert.equal(work,1);}
+ const {SchedulerCapacityError}=require('../app/deckforge-editor/deckforge-sdk-scheduler.cjs');
+ let calls=0,work=0;host.scheduler.run=async(_p,active,fn)=>{if(++calls===1)throw new SchedulerCapacityError();return active()?fn():undefined;};
+ try{const result=await host.runAdmitted({pluginUUID:nativeId},'socketEvent',()=>true,()=>++work,'service');assert.equal(result,1);assert.equal(calls,2);assert.equal(work,1);
+  await assert.rejects(host.runAdmitted({pluginUUID:nativeId},'socketEvent',()=>true,()=>{throw Object.assign(Error('execution failed'),{code:'SDK_SCHEDULER_CAPACITY'});},'service'),/execution failed/);
+  assert.equal(calls,3,'an actual execution error is not replayed');}
  finally{host.close();}
 });

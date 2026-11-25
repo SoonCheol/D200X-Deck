@@ -1,6 +1,9 @@
 'use strict';
 // Bound concurrent renderer work across plugins. Per-context FIFO remains
 // owned by NativePluginHost; a busy plugin cannot consume all global slots.
+class SchedulerCapacityError extends Error{
+  constructor(){super('SDK scheduler capacity');this.code='SDK_SCHEDULER_CAPACITY';}
+}
 class SdkScheduler{
   constructor({globalLimit=6,pluginLimit=2,queueLimit=128}={}){
     this.globalLimit=globalLimit;this.pluginLimit=pluginLimit;this.queueLimit=queueLimit;
@@ -9,7 +12,7 @@ class SdkScheduler{
   run(plugin,active,work,scope=null){
     if(this.closed||!active())return Promise.resolve(undefined);
     this.prune();
-    if(this.waiting.length>=this.queueLimit)return Promise.reject(Object.assign(Error('SDK scheduler capacity'),{code:'SDK_SCHEDULER_CAPACITY'}));
+    if(this.waiting.length>=this.queueLimit)return Promise.reject(new SchedulerCapacityError());
     return new Promise((resolve,reject)=>{
       this.waiting.push({plugin,active,work,resolve,reject,lane:scope===null?null:JSON.stringify([plugin,scope])});this.drain();
     });
@@ -42,4 +45,4 @@ class SdkScheduler{
   }
   close(){this.closed=true;this.prune();}
 }
-module.exports={SdkScheduler};
+module.exports={SdkScheduler,SchedulerCapacityError};
