@@ -10,6 +10,8 @@ const artifact=(version,expired=false)=>({name:'DeckForge-'+version+'-Setup-win-
 test('compare semver triplets numerically and reject ambiguous versions',()=>{
  assert.equal(compareVersions('1.1.102','1.1.101'),1);
  assert.equal(compareVersions('1.2.0','1.1.102'),1);
+ assert.equal(compareVersions('2.0.0','1.1.243'),1);
+ assert.equal(compareVersions('1.1.243','2.0.0'),-1);
  assert.equal(compareVersions('1.1.101','1.1.101'),0);
  assert.equal(compareVersions('1.1.99','1.1.101'),-1);
  assert.equal(compareVersions('v1.1.103','1.1.101'),null);
@@ -69,4 +71,11 @@ test('installer uploads without archive while portable retains artifact archive 
  assert.match(yml,/path: app\/dist-installer\/[^\n]+\.exe\n\s+archive: false/);
  assert.match(yml,/path: app\/dist\/DeckForge-win32-x64\/\n\s+if-no-files-found: error/);
  assert.match(yml,/gh release create \$tag \$installer --target \$env:GITHUB_SHA/);
+});
+
+test('major version transition discovers the published DeckForge 2.0.0 installer without changing update channels',async()=>{
+ const release=version=>({tag_name:'deckforge-v'+version,draft:false,prerelease:true,assets:[{name:'DeckForge-'+version+'-Setup-win-x64.exe',state:'uploaded',size:135000000,browser_download_url:'https://github.com/SoonCheol/D200X-Deck/releases/download/deckforge-v'+version+'/DeckForge-'+version+'-Setup-win-x64.exe'}]});
+ const fetch=async url=>{assert.match(url,/\/releases\?/);return [release('1.1.243'),release('2.0.0')];};
+ assert.deepEqual(await checkUpdateStatus('1.1.243',fetch),{state:'available',currentVersion:'1.1.243',latestVersion:'2.0.0',runId:null,downloadUrl:'https://github.com/SoonCheol/D200X-Deck/releases/download/deckforge-v2.0.0/DeckForge-2.0.0-Setup-win-x64.exe'});
+ assert.equal((await checkUpdateStatus('2.0.0',fetch)).state,'current');
 });
