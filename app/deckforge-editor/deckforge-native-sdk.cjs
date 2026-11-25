@@ -1017,13 +1017,13 @@ class NativePluginHost{
 class PluginRouter{
   constructor(legacy,native){this.legacy=legacy;this.native=native;this.queue=Promise.resolve();this.closed=false;this.nativeContextIds=new Set();this.legacyMounts=new Map();this.desiredContexts=null;this.desiredMounts=null;this.syncRevision=0;}
   serial(fn){const task=this.queue.then(()=>{if(this.closed)throw Error('Plugin host closed');return fn();});this.queue=task.catch(()=>{});return task;}
-  async catalog(){
-    const legacy=await this.legacy.list(),ids=new Set(legacy.map(x=>x.uuid.toLowerCase()));
+  async catalog(includeArtwork=false){
+    const legacy=await this.legacy.list({includeArtwork}),ids=new Set(legacy.map(x=>x.uuid.toLowerCase()));
     const native=(await this.native.manifests()).filter(m=>!ids.has(m.id));
     return {legacy,native};
   }
   async list(){
-    const {legacy,native}=await this.catalog(),graph=resolveDependencies(native);
+    const {legacy,native}=await this.catalog(true),graph=resolveDependencies(native);
     await this.native.loadServicePolicy();
     return [...legacy,...native.map(m=>{
       const entry=catalog(m),reason=graph.blocked.get(m.id);
@@ -1033,7 +1033,7 @@ class PluginRouter{
   }
   async checkNativeCandidate(m){
     validateNativeManifest(m);
-    const legacyIds=new Set((await this.legacy.list()).map(p=>p.uuid.toLowerCase()));
+    const legacyIds=new Set((await this.legacy.list({includeArtwork:false})).map(p=>p.uuid.toLowerCase()));
     check(!legacyIds.has(m.id),'plugin ID already installed');
     await this.native.checkDependencies(m,legacyIds);
   }

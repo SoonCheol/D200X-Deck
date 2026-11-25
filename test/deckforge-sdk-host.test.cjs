@@ -413,3 +413,40 @@ test('SDK percent encoded SVG images reach the existing renderer as base64',asyn
  await host.message({event:'setImage',context,payload:{image:'data:image/svg+xml,%ZZ'}},{uuid},null,{});
  assert.equal(events.length,1);
 });
+
+
+test('compatibility artwork is UI-only and failed artwork cannot hide installed identity',async()=>{
+ const {NativePluginHost,PluginRouter}=require('../app/deckforge-editor/deckforge-native-sdk.cjs');
+ const tmp=await fs.mkdtemp(path.join(os.tmpdir(),'deckforge-catalog-artwork-'));
+ const events=[],legacy=new StreamDeckPluginHost(tmp,e=>events.push(e)),native=new NativePluginHost(tmp);
+ const router=new PluginRouter(legacy,native);
+ const nativeId='com.deckforge.native.artwork-test';
+ const nativeManifest={apiVersion:1,id:nativeId,name:'Native test',version:'1.0.0',permissions:['display'],actions:[
+  {id:nativeId+'.toggle',name:'Toggle',controllers:['Keypad'],states:2,events:{press:[{op:'toggleState'}]}}]};
+ try{
+  const dir=path.join(legacy.root,M.UUID+'.sdPlugin');
+  await fs.mkdir(dir,{recursive:true});
+  await fs.writeFile(path.join(dir,'manifest.json'),JSON.stringify(M));
+  await fs.writeFile(path.join(dir,'plugin.html'),'<html></html>');
+  let reads=0;
+  legacy.defaultArtwork=async()=>{reads++;if(reads===1)throw Error('fixture artwork denied');return 'data:image/png;base64,iVBORw==';};
+  native.manifests=async()=>[nativeManifest];native.loadServicePolicy=async()=>{};
+  const catalogue=await router.catalog();
+  assert.equal(catalogue.legacy[0].uuid,M.UUID);
+  assert.equal(catalogue.legacy[0].actions[0].uuid,M.Actions[0].UUID);
+  assert.equal(Object.hasOwn(catalogue.legacy[0].actions[0],'defaultImages'),false);
+  assert.equal(reads,0);
+  const cfg={context:'native-artwork-free',slot:0,gesture:'down',pluginUUID:nativeId,actionUUID:nativeId+'.toggle',settings:{}};
+  await router.sync([cfg]);
+  assert.equal(router.key(cfg.context,'down'),true);
+  assert.equal(reads,0);
+  const collision={...nativeManifest,id:M.UUID,actions:[{...nativeManifest.actions[0],id:M.UUID+'.toggle'}]};
+  await assert.rejects(router.checkNativeCandidate(collision),/plugin ID already installed/);
+  assert.equal(reads,0);
+  const displayed=(await router.list()).find(p=>p.uuid===M.UUID);
+  assert.ok(displayed);
+  assert.deepEqual(displayed.actions[0].defaultImages,{off:null,on:'data:image/png;base64,iVBORw=='});
+  assert.equal(reads,2);
+  assert.ok(events.some(e=>e.kind==='error'&&e.message.includes('fixture artwork denied')));
+ }finally{await router.close();await fs.rm(tmp,{recursive:true,force:true});}
+});

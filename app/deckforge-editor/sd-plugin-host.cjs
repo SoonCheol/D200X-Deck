@@ -180,10 +180,15 @@ class StreamDeckPluginHost{
     }
     return null;
   }
-  async list(){
+  async list({includeArtwork=true}={}){
     await this.ensureRoot();
     const dirs=await fs.promises.readdir(this.root,{withFileTypes:true});
     const items=[];
+    // Artwork is optional UI data, never a prerequisite for identity or execution.
+    const artwork=async(dir,base,uuid)=>{
+      try{return await this.defaultArtwork(dir,base);}
+      catch(error){this.onUpdate({kind:'error',message:'SDK 플러그인 아이콘 로드 실패 ('+uuid+'): '+String(error?.message||error).slice(0,200)});return null;}
+    };
     for(const entry of dirs){
       if(!entry.isDirectory()||!entry.name.endsWith('.sdPlugin'))continue;
       try{
@@ -196,7 +201,7 @@ class StreamDeckPluginHost{
         items.push({uuid:manifest.UUID,name:String(manifest.Name||manifest.UUID),
           version:String(manifest.Version||''),actions:await Promise.all(manifest.Actions.map(async a=>({uuid:a.UUID,name:a.Name,
             states:Array.isArray(a.States)?a.States.length:1,controllers:Array.isArray(a.Controllers)?a.Controllers:['Keypad'],propertyInspectorPath:a.PropertyInspectorPath||'',
-            defaultImages:{off:await this.defaultArtwork(dir,a.States?.[0]?.Image||a.Icon),on:await this.defaultArtwork(dir,a.States?.[1]?.Image||a.States?.[0]?.Image||a.Icon)}
+            ...(includeArtwork?{defaultImages:{off:await artwork(dir,a.States?.[0]?.Image||a.Icon,manifest.UUID),on:await artwork(dir,a.States?.[1]?.Image||a.States?.[0]?.Image||a.Icon,manifest.UUID)}}:{})
           })))});
       }catch(error){
         const message='SDK 플러그인 로드 실패 ('+entry.name+'): '+String(error?.message||error);
@@ -485,7 +490,7 @@ class StreamDeckPluginHost{
   }
   async createInstance(uuid){
     await this.start();
-    const plugins=await this.list();
+    const plugins=await this.list({includeArtwork:false});
     if(!plugins.some(x=>x.uuid===uuid))throw Error('설치되지 않은 플러그인입니다.');
     const dir=path.join(this.root,uuid+'.sdPlugin');
     const manifest=validateManifest(JSON.parse(await fs.promises.readFile(path.join(dir,'manifest.json'),'utf8')));
@@ -566,7 +571,7 @@ class StreamDeckPluginHost{
     for(const cfg of configs){
       if(!cfg||typeof cfg.context!=='string'||cfg.context.length>160||
         !UUID.test(cfg.pluginUUID)||!UUID.test(cfg.actionUUID)||!Number.isInteger(cfg.slot)||cfg.slot<0||cfg.slot>18)continue;
-      plugins??=await this.list();
+      plugins??=await this.list({includeArtwork:false});
       const plugin=plugins.find(p=>p.uuid===cfg.pluginUUID);
       if(!plugin?.actions.some(a=>a.uuid===cfg.actionUUID))continue;
       seen.add(cfg.context);
