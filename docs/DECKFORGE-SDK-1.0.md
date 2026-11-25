@@ -188,3 +188,5 @@ report03.md §4.2 13행 원문 기준. 1.1.231 CI #1281/입력 #521/Windows #985
 | 12 | global+local 효과 | validateScriptOps 한 권한 효과 제한, 기존 compound 검사; 분리 트랜잭션 미도입(승인 계약) |
 | 13 | settingsResult 호환 | manifest opt-in, saved/rejected/unknown·부수효과 거부·legacy 미전달 기존 검사 |
 - 1.1.232 제품 변경은 main 신규 native settings commit의 quitting guard만. 진행 중 동기 원자 저장과 읽기 전용 reconciliation 계약 유지. CI #1282/입력 #522 성공. Windows #986 실패: 신규 editor VM 테스트의 clean 요청에 필수 kind='nativeSettingsCommit' 누락, 정상 요청까지 거부됨. 신규 종료 guard, page/delete, retire/close 검사는 실제 로그 통과. 1.1.233은 테스트 fixture kind와 정상/누락 계약 검증만 추가, 제품 guard 및 저장 조건 유지. 실제 HA/D200X/전원 손실/OOM/장시간 soak 미검증.
+
+- 1.1.233 CI #1283 및 Windows #987 전체 성공, 설치본 게시 확인. 1.1.234: 기존 Windows Electron smoke에 실제 NativePluginHost(Model2)와 임시 ProfileStore의 설정 요청 전 renderer crash(쓰기 0/자동 재실행 없음) 및 원자 저장 뒤 ACK 전 renderer crash(실제 receipt 읽기/단일 쓰기/재실행 없음/새 runner) 집중 검사 추가. 종료 통지·전용 webContents 소유 검증, test-controlled receipt 전달, 15초 시험 전용 ACK 제한. 제품 코드·기존 제한·사용자 데이터 변경 없음. 실제 main/editor IPC 동시 장애, OS 전원 손실·OOM과 구분하며 새 검사 통과 전 완료 선언 금지.

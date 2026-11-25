@@ -364,6 +364,127 @@ async function verifyModel2ProcessLoss(){
   console.log('MODEL2_PROCESS_LOSS '+JSON.stringify({idleReason,activeReason,failedEventRejected:true,serviceSurvived:true,peerSurvived:true,nextEventRecovered:true,before,after,oomTested:false}));
  }finally{pool.close();}
 }
+// Real Chromium process loss on either side of an actual temporary-profile
+// commit. Host receipt delivery is controlled here, not production editor IPC.
+async function verifySettingsProcessLoss(){
+ const {webContents}=require('electron');
+ const {NativePluginHost,validateNativeManifest}=require('../app/streamdeck-editor/deckforge-native-sdk.cjs');
+ const {ProfileStore}=require('../app/streamdeck-editor/profile-store.cjs');
+ const Core=require('../app/streamdeck-editor/deck-core.js');
+ const {deadline}=require('../app/streamdeck-editor/deckforge-js-runtime.cjs');
+ const waitFor=async(predicate,label,ms=5000)=>{
+  const end=Date.now()+ms;
+  while(!predicate()){
+   if(Date.now()>=end)throw Error('settings process loss: '+label+' timeout');
+   await new Promise(resolve=>setTimeout(resolve,10));
+  }
+ };
+ const drain=async ctx=>{
+  for(let i=0;i<10;i++){
+   const q=ctx.queue;await q;
+   if(q===ctx.queue&&ctx.pending===0)return;
+  }
+  throw Error('settings process loss: queue did not settle');
+ };
+ const results=[];
+ for(const phase of ['before-request','after-write']){
+  const root=await fs.mkdtemp(path.join(os.tmpdir(),'deckforge-sdk-settings-crash-'));
+  const id='com.deckforge.native.settings-crash-'+phase,actionId=id+'.key';
+  const marker='DECKFORGE_SETTINGS_CRASH_ENTERED';
+  const script='if(event.type==="press"){'+(phase==='before-request'?
+   'console.log('+JSON.stringify(marker)+');await new Promise(()=>{});':'')+
+   'memory.presses=(memory.presses||0)+1;api.patchSettings({count:settings.count+1});}'+
+   'else if(event.type==="settingsResult"){memory.result=event.response.status;}';
+  const manifest=validateNativeManifest({apiVersion:2,id,name:'Settings crash test',version:'1.0.0',
+   permissions:['display','settings.write'],capabilities:['settingsResult'],
+   actions:[{id:actionId,name:'Counter',controllers:['Keypad'],states:2,script}]});
+  const requests=[];
+  const host=new NativePluginHost(root,e=>{if(e.kind==='nativeSettingsCommit')requests.push(e);},null,
+   {settingsReceiptTimeout:15000,recoveryDelay:[100,300]});
+  try{
+   assert.ok(host.runnerPool,'test requires production Model 2 pool');
+   const store=new ProfileStore(root),state=Core.migrateState(null);
+   const action=state.pages[0][0]=Core.createAction('sd-plugin');
+   action.settings.pluginUUID=id;action.settings.actionUUID=actionId;action.settings.pluginSettings={count:0};
+   state.pages[0][1]=Core.createAction('text');state.pages[0][1].title='retain';
+   store.write(state);
+   const original=await fs.readFile(store.file,'utf8');
+   const cfg=Core.createSdkMountTracker().reconcile('settings-crash',Core.sdkMountDescriptors(state))[0];
+   host.sync([cfg],[manifest]);const ctx=host.contexts.get(cfg.context);await drain(ctx);
+   const pool=host.runnerPool,key=pool.key(id,'button'),runner=pool.entries.get(key).runner;
+   const pid=pool.processId(id,'button');
+   assert.ok(Number.isInteger(pid)&&pid>0&&pid!==process.pid);
+   const owners=webContents.getAllWebContents().filter(w=>!w.isDestroyed()&&w.getOSProcessId()===pid);
+   assert.equal(owners.length,1,'only dedicated test renderer may be crashed');
+   const wc=owners[0];
+   let resolveGone,resolveEntered;
+   const gone=new Promise(resolve=>{resolveGone=resolve;});
+   const entered=new Promise(resolve=>{resolveEntered=resolve;});
+   const onGone=(_event,target,details)=>{if(target===wc)resolveGone(details);};
+   const onContentsGone=(_event,details)=>resolveGone(details);
+   const onMessage=(event,_level,message)=>{if((event?.message??message)===marker)resolveEntered();};
+   app.prependListener('render-process-gone',onGone);
+   wc.prependListener('render-process-gone',onContentsGone);
+   wc.on('console-message',onMessage);
+   try{
+    assert.equal(host.key(cfg.context,'down'),true);
+    let request=null,raw=null,writes=0;
+    if(phase==='before-request'){
+     await deadline(()=>entered,1000,()=>{});
+     assert.equal(requests.length,0);
+    }else{
+     await waitFor(()=>requests.length===1,'commit request');
+     request=host.pendingSettingsRequest(cfg.context,requests[0].requestId);
+     assert.ok(request);assert.equal(request.operation.value.count,1);
+     const write=store.writeDocument.bind(store);
+     store.writeDocument=(...args)=>{writes++;return write(...args);};
+     assert.deepEqual(store.commitNativeSettingsChecked(request),{status:'saved'});
+     raw=await fs.readFile(store.file,'utf8');
+     assert.equal(writes,1);assert.ok(host.pendingSettingsRequest(cfg.context,request.requestId));
+    }
+    // PID may change on realm reset; refuse to crash a different owner.
+    assert.equal(pool.entries.get(key).runner,runner);
+    assert.equal(pool.processId(id,'button'),wc.getOSProcessId());
+    assert.equal(webContents.getAllWebContents().filter(w=>!w.isDestroyed()&&w.getOSProcessId()===wc.getOSProcessId()).length,1);
+    wc.forcefullyCrashRenderer();
+    const detail=await deadline(()=>gone,5000,()=>{});
+    assert.ok(['crashed','killed'].includes(detail?.reason));
+    assert.equal(runner.isClosed(),true);
+    if(phase==='before-request'){
+     await waitFor(()=>ctx.recoveryAttempts>0&&!ctx.failed,'host recovery');
+     await drain(ctx);
+     assert.equal(requests.length,0,'failed input must not replay');
+     assert.equal(await fs.readFile(store.file,'utf8'),original);
+     assert.equal(new ProfileStore(root).read().pages[0][0].settings.pluginSettings.count,0);
+     assert.equal(ctx.settings.count,0);
+    }else{
+     // The script returned before the crash. Its already validated operation
+     // was saved once; reconstruct the ACK only from the durable evidence.
+     const reopened=new ProfileStore(root);
+     const outcome=reopened.nativeSettingsOutcome(request);
+     assert.deepEqual(outcome,{status:'saved',recovered:true});
+     assert.equal(host.acknowledgeSettings(cfg.context,request.requestId,true),true);
+     await drain(ctx);
+     assert.equal(ctx.memory.result,'saved');assert.equal(ctx.memory.presses,1);
+     assert.equal(ctx.settings.count,1);assert.ok(!ctx.settingsUncertain);
+     assert.equal(reopened.read().pages[0][0].settings.pluginSettings.count,1);
+     assert.equal(reopened.read().pages[0][1].title,'retain');
+     assert.equal(requests.length,1);assert.equal(writes,1);
+     assert.equal(await fs.readFile(store.file,'utf8'),raw);
+     assert.equal(host.acknowledgeSettings(cfg.context,request.requestId,true),false);
+    }
+    assert.notEqual(pool.entries.get(key).runner,runner,'recovered renderer must be new');
+    results.push({phase,reason:detail.reason,requests:requests.length,writes,storedCount:ctx.settings.count,noReplay:true});
+   }finally{
+    app.removeListener('render-process-gone',onGone);
+    wc.removeListener('render-process-gone',onContentsGone);
+    wc.removeListener('console-message',onMessage);
+   }
+  }finally{host.close();await fs.rm(root,{recursive:true,force:true});}
+ }
+ console.log('MODEL2_SETTINGS_PROCESS_LOSS '+JSON.stringify({results,actualRenderer:true,actualProfileStore:true,receiptDelivery:'test-controlled',powerLossTested:false}));
+}
+
 async function verifyTrustedDrawOps(legacy){
  const {BrowserWindow}=require('electron');
  const {paintValidatedDrawSpec,resolveWorkerDrawProgram}=require('../app/streamdeck-editor/deckforge-draw-ops.cjs');
@@ -447,6 +568,7 @@ app.whenReady().then(async()=>{
     await verifyModel2Repetition();
     await verifyModel2Limits();
     await verifyModel2ProcessLoss();
+    await verifySettingsProcessLoss();
     await verifyTrustedDrawOps(b);
     await verifyPublicApi(b);
     await verifyHomeAssistant(b);
