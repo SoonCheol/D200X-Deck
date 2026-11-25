@@ -4144,7 +4144,13 @@ async function openNativeSettings(item,action,plugin){
   if(!inspectorPickerCurrent(session,item))return;
   const original=clone(item.settings?.pluginSettings||{});
   const content=document.createElement('div');content.className='native-sdk-form';
-  const connection=document.createElement('div');connection.className='native-sdk-connection';connection.textContent='연결 상태 확인 중';
+  const connection=document.createElement('span');connection.className='native-sdk-connection';connection.setAttribute('role','status');
+  const dot=document.createElement('span');dot.className='native-sdk-status-dot';dot.setAttribute('aria-hidden','true');
+  const connectionText=document.createElement('span');connection.append(dot,connectionText);
+  const showConnection=(text,tone='neutral',detail=text)=>{
+    connectionText.textContent=text;connection.dataset.tone=tone;connection.title=detail;connection.setAttribute('aria-label',detail);
+  };
+  showConnection('확인 중');
   const inputs=[],dynamicFields=[],fieldRows=new Map(),groups=[];
   const ui=new Map((action.settingsUI||[]).map(entry=>[entry.key,entry]));
   let previousGroup=null,currentGroup=null;
@@ -4167,7 +4173,8 @@ async function openNativeSettings(item,action,plugin){
   };
   for(const field of schema){
     const row=document.createElement('div');row.className='field';
-    const label=document.createElement('span');label.textContent=field.label;
+    const label=document.createElement('span');label.textContent=plugin.uuid==='com.deckforge.native.home-assistant'&&action.uuid.endsWith('.control')&&field.key==='entity'?'기준 기기':field.label;
+    label.title=field.label;
     let input;
     if(field.type==='dynamicSelect'||field.type==='dynamicMultiSelect'){
       const multi=field.type==='dynamicMultiSelect',stored=Object.hasOwn(original,field.key)?original[field.key]:field.default;
@@ -4250,19 +4257,24 @@ async function openNativeSettings(item,action,plugin){
     try{const data=await window.deckBridge.nativeDynamicOptions(plugin.uuid,action.uuid);
       if(closed||!inspectorPickerCurrent(session,item))return;
       const st=data.status||{};
-      connection.textContent=[statusNames[st.state]||'상태 확인 필요',socketNames[st.socket]||'연결 확인 필요',errorNames[st.socketError]||'',data.phase||''].filter(Boolean).join(' · ');
+      const detail=[statusNames[st.state]||'상태 확인 필요',socketNames[st.socket]||'연결 확인 필요',errorNames[st.socketError]||'',data.phase||''].filter(Boolean).join(' · ');
+      const failed=!!st.socketError||['failed','capacity','unavailable','policy-error'].includes(st.state)||/실패|오류|초과|거부/.test(data.phase||'');
+      const live=!failed&&st.state==='active'&&st.socket==='connected'&&(plugin.uuid!=='com.deckforge.native.home-assistant'||data.phase==='연결됨');
+      const label=live?'연결됨':failed?(errorNames[st.socketError]||data.phase||statusNames[st.state]||'연결 오류'):
+        st.state!=='active'?(statusNames[st.state]||'확인 중'):(data.phase||socketNames[st.socket]||'실행 중');
+      showConnection(label,live?'success':failed?'error':'neutral',detail);
       for(const entry of dynamicFields)entry.apply(data.fields?.[entry.field.key]);
-    }catch{if(!closed)connection.textContent='기기 목록 조회 실패 · 서비스 상태 확인';}
+    }catch{if(!closed)showConnection('조회 실패','error','기기 목록 조회 실패 · 서비스 상태 확인');}
     finally{refreshing=false;}
   };
   const toolsRow=document.createElement('div');toolsRow.className='native-sdk-tools';
   if(dynamicFields.length){
-    content.prepend(connection);
+    toolsRow.append(connection);
     const reload=document.createElement('button');reload.type='button';reload.className='deckforge-message-button';reload.textContent='기기 목록 새로 고침';
     reload.addEventListener('click',()=>void refreshDynamic());toolsRow.append(reload);
     if(plugin.background){
       const reconnect=document.createElement('button');reconnect.type='button';reconnect.className='deckforge-message-button';reconnect.textContent='다시 연결';
-      reconnect.addEventListener('click',async()=>{reconnect.disabled=true;try{await window.deckBridge.nativeServiceControl(plugin.uuid,'restart');await refreshDynamic();}catch{connection.textContent='서비스 재시작 실패';}finally{reconnect.disabled=false;}});
+      reconnect.addEventListener('click',async()=>{reconnect.disabled=true;try{await window.deckBridge.nativeServiceControl(plugin.uuid,'restart');await refreshDynamic();}catch{showConnection('재시작 실패','error','서비스 재시작 실패');}finally{reconnect.disabled=false;}});
       toolsRow.append(reconnect);
     }
   }
@@ -4274,14 +4286,23 @@ async function openNativeSettings(item,action,plugin){
       finally{credentialButton.disabled=false;}
     });toolsRow.append(credentialButton);
   }
-  if(toolsRow.childElementCount)content.append(toolsRow);
+  if(toolsRow.childElementCount)content.prepend(toolsRow);
   const notice=document.createElement('p');notice.className='hint';content.append(notice);
   let result=null;
   const poll=dynamicFields.length?setInterval(()=>void refreshDynamic(),1500):null;
   void refreshDynamic();
   let accepted;
   const sensorCard=DeckCore.isNativeHaSensor(item)?$('inspector')?.querySelector('.ha-sensor-edit-card'):null;
-  try{accepted=await window.DeckForgeDialogs.show({anchorTop:true,anchorCard:sensorCard,title:sensorCard?'센서 설정':'플러그인 속성',intro:action.name+' · 일반 설정은 프로필에 저장됩니다. 비밀번호·토큰을 입력하지 마세요.',
+  const ha=plugin.uuid==='com.deckforge.native.home-assistant';
+  const instructions=ha?(action.uuid.endsWith('.sensor')
+    ?'선택한 HA 센서의 측정값을 표시합니다. 여러 센서를 동시에 표시하거나 버튼 누르기·자동 전환으로 표시할 수 있습니다. 표시 순서는 위에서 아래로 변경합니다.'
+    :'기준 기기의 실제 상태를 표시하고 버튼을 누르면 제어합니다. 별도 기기 연동 제어를 켜면 기준 기기의 ON/OFF 상태별로 다른 대상과 명령을 지정할 수 있습니다.')
+    :plugin.uuid==='com.deckforge.native.github-status'
+      ?'지정한 GitHub 저장소와 워크플로의 최근 빌드 상태를 읽기 전용으로 표시합니다. 저장소·브랜치·워크플로를 선택하고 Actions 읽기 권한 토큰을 등록하세요.'
+      :'등록한 액션의 설정값을 편집합니다. 플러그인 설치와 서비스 관리는 액션 목록의 해당 플러그인 도움말에서 확인할 수 있습니다.';
+  const helpText=[instructions,ha?'초기 연결: Home Assistant 그룹의 도움말에서 서버 주소를 설정하고 장기 액세스 토큰을 인증정보 관리에 등록하세요. 연결 후 기기 목록을 새로 고치면 됩니다.':credentialCapable?'필요한 인증정보는 인증정보 관리에서 별도로 등록하세요.':'설치된 플러그인의 안내에 따라 필요한 설정을 입력하세요.',
+    '일반 설정은 프로필에 저장됩니다. 적용한 다음 편집기의 저장 버튼을 눌러 기기에 반영하세요. 비밀번호·토큰은 일반 설정에 입력하지 마세요.'].join('\n\n');
+  try{accepted=await window.DeckForgeDialogs.show({anchorTop:true,anchorCard:sensorCard,title:action.name,helpText,
     content,ask:true,actionLabel:'적용',onAccept:()=>{
       try{
         const next={...original};

@@ -9,7 +9,7 @@
     if(text!==undefined&&text!==null)node.textContent=String(text);
     return node;
   }
-  function show({title,kind='info',intro='',fields=[],included=[],excluded=[],content=null,onAccept=null,detailLabel='',detail='',copyDetail=false,warning='',ask=false,actionLabel='확인',cancelLabel='취소',alternateLabel='',anchorTop=false,anchorCard=null,headerTitleOnly=false}={}){
+  function show({title,kind='info',intro='',fields=[],included=[],excluded=[],content=null,onAccept=null,detailLabel='',detail='',copyDetail=false,warning='',ask=false,actionLabel='확인',cancelLabel='취소',alternateLabel='',anchorTop=false,anchorCard=null,headerTitleOnly=false,helpText=''}={}){
     if(typeof title!=='string'||!title.trim()||!Object.hasOwn(icons,kind))throw Error('대화상자 제목 또는 상태가 올바르지 않습니다.');
     return new Promise(resolve=>{
       const dialog=element('dialog','deckforge-message-dialog'+(content?' deckforge-message-dialog-selection':''));
@@ -23,8 +23,12 @@
       header.append(product,close);
       const main=element('div','deckforge-message-main');
       const headline=element('div','deckforge-message-heading');
-      const icon=element('span','deckforge-message-icon deckforge-message-icon-'+kind,icons[kind]);
-      icon.setAttribute('aria-hidden','true');
+      const hasHelp=typeof helpText==='string'&&helpText.trim().length>0&&!headerTitleOnly;
+      const icon=element(hasHelp?'button':'span','deckforge-message-icon deckforge-message-icon-'+kind+(hasHelp?' deckforge-message-help':''),icons[kind]);
+      if(hasHelp){
+        icon.type='button';icon.title='액션 설명 및 설정 방법';icon.setAttribute('aria-label','액션 설명 및 설정 방법');
+        icon.addEventListener('click',()=>{void show({title:title+' · 도움말',detail:helpText,actionLabel:'닫기'});});
+      }else icon.setAttribute('aria-hidden','true');
       const name=element('strong','deckforge-message-title',title);
       name.id=dialog.getAttribute('aria-labelledby');
       headline.append(icon,name);if(!headerTitleOnly)main.append(headline);

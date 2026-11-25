@@ -160,3 +160,18 @@ test('read-only Fusion information has its title in the header and only the clos
  const buttons=nodes.filter(n=>n.tagName==='BUTTON');assert.equal(buttons.length,1);assert.equal(buttons[0].textContent,'×');assert.ok(buttons[0].focused);
  buttons[0].events.click[0]();assert.equal(await pending,false);
 });
+
+test('native action properties show DeckForge title and optional help without permanent intro or committing',async()=>{
+ const {document,window}=load();let applied=0;
+ const pending=window.DeckForgeDialogs.show({title:'HA 기기 제어',helpText:'초기 연결과 기기 선택 방법',content:document.createElement('div'),ask:true,onAccept:()=>{applied++;return true;}});
+ const modal=document.body.children.at(-1),nodes=descendants(modal);
+ assert.ok(nodes.some(n=>n.className==='deckforge-message-product'&&n.textContent==='DeckForge'));
+ assert.ok(nodes.some(n=>n.className==='deckforge-message-title'&&n.textContent==='HA 기기 제어'));
+ assert.equal(nodes.some(n=>n.className==='deckforge-message-intro'),false);
+ const help=nodes.find(n=>n.className.includes('deckforge-message-help'));
+ assert.equal(help.tagName,'BUTTON');help.events.click[0]();
+ const child=document.body.children.at(-1);assert.notEqual(child,modal);
+ assert.ok(descendants(child).some(n=>n.textContent==='초기 연결과 기기 선택 방법'));
+ child.close('cancel');assert.equal(modal.removed,false);assert.equal(applied,0);
+ modal.close('cancel');assert.equal(await pending,false);assert.equal(applied,0);
+});

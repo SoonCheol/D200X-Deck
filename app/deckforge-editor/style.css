@@ -1556,8 +1556,8 @@ dialog.deckforge-message-dialog::backdrop{background:#000a}
 
 /* Native SDK dialogs reuse the common message button and field design. */
 .native-sdk-form{display:flex;flex-direction:column;gap:8px;min-width:0;color-scheme:dark}
-.native-sdk-form>.field{grid-template-columns:112px minmax(0,1fr);align-items:start;gap:10px}
-.native-sdk-form>.field>span{align-self:center;color:#d4d4d4}
+.native-sdk-form>.field{grid-template-columns:84px minmax(0,1fr);align-items:start;gap:8px}
+.native-sdk-form>.field>span{align-self:center;color:#d4d4d4;overflow-wrap:anywhere}
 .native-sdk-form .field select,.native-sdk-form .field input:not([type=checkbox]):not([type=radio]){min-width:0;width:100%;min-height:32px;background:#363636;color:#eee;border:1px solid #666;border-radius:4px;padding:6px 9px}
 .native-sdk-form .field input[type=checkbox],.native-sdk-form .field input[type=radio]{width:auto;min-height:0;accent-color:#2368bb}
 .native-sdk-form .field input[type=checkbox]{justify-self:start}
@@ -1566,15 +1566,22 @@ dialog.deckforge-message-dialog::backdrop{background:#000a}
 .native-sdk-form .native-sdk-options:not(:empty){padding:6px 8px;border:1px solid #555;border-radius:4px;background:#303030}
 .native-sdk-form .native-sdk-options label{min-height:28px;text-align:left;cursor:pointer;color:#eee}
 .native-sdk-form .native-sdk-options label span{min-width:0;overflow-wrap:anywhere}
-.native-sdk-form .native-sdk-tools{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.native-sdk-form .native-sdk-tools{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+.native-sdk-form .native-sdk-tools>.deckforge-message-button{padding:5px 9px;min-width:0;white-space:nowrap;font-size:12px}
+.deckforge-message-help{background:transparent;padding:0;cursor:pointer}
+.deckforge-message-help:hover,.deckforge-message-help:focus-visible{color:#fff;border-color:#fff}
 .native-sdk-form .deckforge-message-button:disabled{opacity:.5;cursor:default}
-.native-sdk-form .native-sdk-connection{padding:8px 10px;border:1px solid #555;border-radius:5px;background:#343434;color:#ddd;overflow-wrap:anywhere}
+.native-sdk-form .native-sdk-connection{display:inline-flex;align-items:center;gap:5px;min-width:0;max-width:130px;color:#ddd;font-size:12px;margin-right:auto}
+.native-sdk-form .native-sdk-connection>span:last-child{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.native-sdk-status-dot{display:inline-block;width:8px;height:8px;flex:0 0 8px;border-radius:50%;background:#888}
+.native-sdk-connection[data-tone=success] .native-sdk-status-dot{background:#4bd18b}
+.native-sdk-connection[data-tone=error] .native-sdk-status-dot{background:#ef6b6b}
 .native-sdk-form .hint{margin:0;overflow-wrap:anywhere}
 
 /* Native SDK dynamic lists have stable dimensions independently of result count. */
 .native-sdk-form .native-sdk-options{height:200px;min-height:200px;max-height:200px;overflow-y:auto;scrollbar-gutter:stable;padding:6px 8px;border:1px solid #555;border-radius:4px;background:#303030}
 .native-sdk-form .native-sdk-picker>.hint{min-height:17px;line-height:17px}
-.native-sdk-form .native-sdk-connection{min-height:38px}
+
 
 /* Shared title properties: viewport positioning escapes the inspector clip. */
 .title-style-popover,.state-title-inspector .state-title-control>.title-style-popover{position:fixed;left:8px;right:auto;top:8px;z-index:100;box-sizing:border-box;max-width:calc(100vw - 16px);max-height:calc(100dvh - 16px);overflow-y:auto;color-scheme:dark}
