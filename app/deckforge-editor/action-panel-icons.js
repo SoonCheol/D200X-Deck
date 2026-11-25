@@ -16,6 +16,7 @@ window.D200XPanelIcons=(()=>{
   ];
   // Compact, self-contained 24px stroke SVGs (no remote assets or emoji fonts).
   const paths={
+    "ha-other":'<rect x="3" y="4" width="18" height="16" rx="2"/><path d="m10 8 6 4-6 4Z"/>',
     "ha-toggle":'<path d="M3 11 12 3l9 8v10H3V11Z"/><path d="M8 21v-8h8v8"/><circle cx="12" cy="9" r="1"/>',
     "system-volume":'<polygon points="3 9 7 9 12 5 12 19 7 15 3 15"/><path d="M16 9a5 5 0 0 1 0 6M19 6a9 9 0 0 1 0 12"/>',
     "system-mute":'<polygon points="3 9 7 9 12 5 12 19 7 15 3 15"/><path d="m16 9 6 6m0-6-6 6"/>',

@@ -5,17 +5,19 @@ const ID='com.deckforge.native.home-assistant';
 function service(event,settings,state,memory,api){
   const clean=(v,n=100)=>typeof v==='string'?v.replace(/[\x00-\x1f\x7f]/g,' ').trim().slice(0,n):'';
   const valid=id=>typeof id==='string'&&id.length<=256&&/^[a-z0-9_]+\.[a-z0-9_]+$/.test(id);
-  const control=id=>['switch','light','fan','input_boolean','script','scene','automation','button','input_button'].includes(id.split('.')[0]);
+  const switchDevice=id=>['switch','light','fan','input_boolean'].includes(id.split('.')[0]);
+  const otherDevice=id=>['script','scene','automation','button','input_button'].includes(id.split('.')[0]);
+  const control=id=>switchDevice(id)||otherDevice(id);
   const sensor=id=>['sensor','binary_sensor'].includes(id.split('.')[0]);
   const old=api.getSharedState();
   function publish(s){
-    if(new TextEncoder().encode(JSON.stringify(s)).length>262144){api.publishSharedState({status:'목록 용량 초과',controls:[],sensors:[],entities:{}});return;}
+    if(new TextEncoder().encode(JSON.stringify(s)).length>262144){api.publishSharedState({status:'목록 용량 초과',controls:[],sensors:[],others:[],entities:{}});return;}
     api.publishSharedState(s);
   }
-  const empty=status=>({status,controls:[],sensors:[],entities:{},groups:{},devices:{}});
+  const empty=status=>({status,controls:[],sensors:[],others:[],entities:{},groups:{},devices:{}});
   // Retain only the catalogue during reconnect; old readings cannot be
   // treated as current or used for a control request.
-  const stale=status=>({...empty(status),controls:old.controls||[],sensors:old.sensors||[]});
+  const stale=status=>({...empty(status),controls:old.controls||[],sensors:old.sensors||[],others:old.others||[]});
   const object=v=>v!==null&&typeof v==='object'&&!Array.isArray(v);
   const send=(id,type)=>api.sendSocket({id,type});
   if(event.type==='start'){memory.next=10;memory.phase='connecting';delete memory.generation;publish(stale('연결 중'));api.connectSocket('ha');return;}
@@ -25,16 +27,14 @@ function service(event,settings,state,memory,api){
     const entry=old.entities[id],message=event.response.message;
     if(['unknown','unavailable',''].includes(entry.value))return;
     let target=id,domain=id.split('.')[0],operation=domain==='automation'?'trigger':domain==='button'||domain==='input_button'?'press':domain==='script'||domain==='scene'?'turn_on':'toggle';
+    if(message.other===true&&!otherDevice(id))return;
     if(message.linked===true){
-      if(!['on','off'].includes(entry.value))return;
+      if(!switchDevice(id)||!['on','off'].includes(entry.value))return;
       const on=entry.value==='on';
       target=on?message.onEntity:message.offEntity;operation=on?message.onOperation:message.offOperation;
-      if(!valid(target)||!control(target)||!Object.hasOwn(old.entities||{},target)||['unknown','unavailable',''].includes(old.entities[target].value))return;
+      if(!valid(target)||!switchDevice(target)||!Object.hasOwn(old.entities||{},target)||['unknown','unavailable',''].includes(old.entities[target].value))return;
       domain=target.split('.')[0];
-      const allowed=['switch','light','fan','input_boolean'].includes(domain)?['turn_on','turn_off','toggle']:
-        domain==='automation'?['turn_on','turn_off','toggle','trigger']:domain==='script'?['turn_on','turn_off','toggle']:
-        domain==='scene'?['turn_on']:['press'];
-      if(!allowed.includes(operation))return;
+      if(!['turn_on','turn_off','toggle'].includes(operation))return;
     }
     memory.next=(memory.next||10)+1;
     api.sendSocket({id:memory.next,type:'call_service',domain,service:operation,target:{entity_id:target}});return;
@@ -102,12 +102,12 @@ function service(event,settings,state,memory,api){
   for(const [id,part] of Object.entries(changes.a||{}))merge(id,part,null,true);
   for(const [id,part] of Object.entries(changes.c||{}))merge(id,part?.['+'],part?.['-'],false);
   if(Array.isArray(changes.r))for(const id of changes.r)if(valid(id))delete entities[id];
-  const controls=[],sensors=[];
+  const controls=[],sensors=[],others=[];
   for(const [id,e] of Object.entries(entities)){
-    const group=old.groups?.[id]||(sensor(id)?'기기 미분류 센서':'기기 미분류 제어');
-    (sensor(id)?sensors:controls).push({value:id,label:e.label,group});
+    const group=old.groups?.[id]||(sensor(id)?'기기 미분류 센서':switchDevice(id)?'기기 미분류 스위치':'기기 미분류 기타');
+    (sensor(id)?sensors:switchDevice(id)?controls:others).push({value:id,label:e.label,group});
   }
-  memory.phase='live';publish({...old,status:'연결됨',entities,controls,sensors});
+  memory.phase='live';publish({...old,status:'연결됨',entities,controls,sensors,others});
 }
 function controlKey(event,settings,state,memory,api){
   const shared=api.getSharedState(),id=settings.entity,entry=shared.entities?.[id];
@@ -124,6 +124,21 @@ function controlKey(event,settings,state,memory,api){
     {type:'circle',x:72,y:44,radius:25,color:active?'#39AF80':'#657384'},
     {type:'line',x:72,y:26,toX:72,toY:43,width:4,color:'#FFFFFF'},
     {type:'text',x:72,y:83,text:value.slice(0,24),size:24,bold:true,color:active?'#6EF3BC':'#FFFFFF'}
+  ]});
+}
+function otherKey(event,settings,state,memory,api){
+  const shared=api.getSharedState(),id=settings.entity,entry=shared.entities?.[id];
+  const domain=typeof id==='string'?id.split('.')[0]:'';
+  const labels={automation:'자동화 실행',script:'스크립트 실행',scene:'장면 실행',button:'버튼 누르기',input_button:'버튼 누르기'};
+  const supported=Object.hasOwn(labels,domain),ready=supported&&shared.status==='연결됨'&&entry&&!['unknown','unavailable',''].includes(entry.value);
+  if(event.type==='press'&&ready){api.sendServiceMessage({entity:id,other:true});return;}
+  if(!['appear','settings','sharedState','tick'].includes(event.type))return;
+  const name=(entry?.label||'기기 선택').slice(0,30),value=ready?labels[domain]:id?(shared.status==='연결됨'?'사용 불가':shared.status||'연결 안 됨'):'설정 필요';
+  const frame=JSON.stringify([name,value,!!ready]);if(memory.frame===frame&&event.type!=='appear'&&event.type!=='settings')return;memory.frame=frame;
+  api.setTitle(name);api.drawKey({width:144,height:144,commands:[
+    {type:'circle',x:72,y:44,radius:25,color:ready?'#367FA8':'#657384'},
+    {type:'text',x:72,y:44,text:'▶',size:28,bold:true,color:'#FFFFFF'},
+    {type:'text',x:72,y:83,text:value.slice(0,24),size:20,bold:true,color:'#FFFFFF'}
   ]});
 }
 function sensorKey(event,settings,state,memory,api){
@@ -174,17 +189,17 @@ function createHomeAssistantManifest(server){
   const select=(key,label,value,options)=>({key,label,type:'select',default:value,options:options.map(([value,label])=>({value,label}))});
   const operations=[['turn_on','켜기'],['turn_off','끄기'],['toggle','전환'],['trigger','자동화 실행'],['press','버튼 누르기']];
   const device=(key,label)=>({key,label,type:'dynamicSelect',source:'controls',default:''});
-  return {apiVersion:2,id:ID,name:'DeckForge Home Assistant',version:'0.1.9',requiresDeckForge:'>=2.0.45',
+  return {apiVersion:2,id:ID,name:'DeckForge Home Assistant',version:'0.1.10',requiresDeckForge:'>=2.0.48',
     permissions:['display','background.run','timer.tick',...(u?['network.websocket']:[])],
     ...(u?{networkEndpoints:[{id:'ha',url:u.href,method:'WSS',auth:'home-assistant',reconnect:true,maxReceiveBytes:1048576}]}:{}),
-    service:{script:u?script(service):"if(event.type==='start')api.publishSharedState({status:'초기 연결 필요',controls:[],sensors:[],entities:{}});",sharedStateBytes:262144},
+    service:{script:u?script(service):"if(event.type==='start')api.publishSharedState({status:'초기 연결 필요',controls:[],sensors:[],others:[],entities:{}});",sharedStateBytes:262144},
     actions:[
-      {id:ID+'.control',name:'HA 기기 제어',controllers:['Keypad'],states:2,script:script(controlKey),sharedStateView:{keys:['status','commandError'],map:'entities',selection:'entity'},
+      {id:ID+'.control',name:'HA 스위치 기기',controllers:['Keypad'],states:2,script:script(controlKey),sharedStateView:{keys:['status','commandError'],map:'entities',selection:'entity'},
        settingsSchema:[device('entity','상태 기준 기기'),{key:'linked',label:'별도 기기 연동 제어',type:'boolean',default:false},
          device('offEntity','기준 OFF · 제어 기기'),select('offOperation','기준 OFF · 실행','turn_on',operations),
          device('onEntity','기준 ON · 제어 기기'),select('onOperation','기준 ON · 실행','turn_off',operations)],
        settingsUI:['offEntity','offOperation','onEntity','onOperation'].map(key=>({key,visibleWhen:{key:'linked',equals:true}})),titlePolicy:{selectionLabel:'entity',defaultTitle:'기기 선택'}},
-      {id:ID+'.sensor',name:'HA 센서 표시',controllers:['Keypad'],states:1,visualPolicy:'foreground',script:script(sensorKey),tickIntervalMs:1000,tickWhen:{setting:'mode',equals:'auto',selection:'entities',minItems:2},sharedStateView:{keys:['status'],map:'entities',selection:'entities'},
+      {id:ID+'.sensor',name:'HA 센서 기기',controllers:['Keypad'],states:1,visualPolicy:'foreground',script:script(sensorKey),tickIntervalMs:1000,tickWhen:{setting:'mode',equals:'auto',selection:'entities',minItems:2},sharedStateView:{keys:['status'],map:'entities',selection:'entities'},
        settingsSchema:[
          {key:'entities',label:'표시 항목',type:'dynamicMultiSelect',source:'sensors',maxItems:4,default:[]},
          select('mode','표시 방식','all',[['all','동시에 표시'],['press','누를 때 전환'],['auto','자동 전환']]),
@@ -194,7 +209,11 @@ function createHomeAssistantManifest(server){
          {key:'decimals',label:'소수점 (-1: 원본)',type:'integer',min:-1,max:3,default:-1},
          {key:'fontSize',label:'측정값 크기',type:'integer',min:16,max:48,default:36},
          select('color','측정값 색상','#FFFFFF',[['#FFFFFF','흰색'],['#65BDFF','하늘색'],['#FFAD55','주황'],['#86D99A','연두']])
-       ]}
+       ]},
+      {id:ID+'.other',name:'HA 기타 기기',controllers:['Keypad'],states:1,script:script(otherKey),
+       sharedStateView:{keys:['status','commandError'],map:'entities',selection:'entity'},
+       settingsSchema:[{key:'entity',label:'기기 선택',type:'dynamicSelect',source:'others',default:''}],
+       titlePolicy:{selectionLabel:'entity',defaultTitle:'기기 선택'}}
     ]};
 }
-module.exports={createHomeAssistantManifest,service,controlKey,sensorKey};
+module.exports={createHomeAssistantManifest,service,controlKey,sensorKey,otherKey};

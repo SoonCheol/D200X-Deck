@@ -1654,7 +1654,7 @@ function renderInstalledSdkPlugins(root,query,basic=false){
     const matching=plugin.actions.filter(a=>a.uuid!==HA_GENERIC_ACTION &&
       (plugin.name+' '+sdkCatalogueLabel(a)+' '+a.name+' '+a.uuid).toLowerCase().includes(query));
     if(!matching.length&&!(plugin.runtime==='deckforge-sdk'&&plugin.name.toLowerCase().includes(query)))continue;
-    const section=document.createElement('section');section.className='group sdk-plugin-group';
+    const section=document.createElement('section');section.className='group sdk-plugin-group'+(nativeHa?' basic-ha-group':'');
     const title=document.createElement('div');title.className='group-title';
     const heading=document.createElement('span');heading.textContent=nativeHa?'Home Assistant':plugin.name+' ('+plugin.version+')';
     title.append(heading);
@@ -1670,8 +1670,9 @@ function renderInstalledSdkPlugins(root,query,basic=false){
       const tile=document.createElement('div');tile.className='action-item';tile.draggable=true;
       if(nativeHa){
         const symbol=document.createElement('span');symbol.className='action-icon';
-        if(action.uuid.endsWith('.sensor'))symbol.textContent='🌡';else symbol.append(window.D200XPanelIcons.create('ha-toggle'));
-        const caption=document.createElement('span');caption.className='action-caption';caption.textContent=sdkCatalogueLabel(action);
+        if(action.uuid.endsWith('.sensor'))symbol.textContent='🌡';
+        else symbol.append(window.D200XPanelIcons.create(action.uuid.endsWith('.other')?'ha-other':'ha-toggle'));
+        const caption=document.createElement('span');caption.className='action-caption native-ha-caption';caption.textContent=sdkCatalogueLabel(action);
         tile.append(symbol,caption);
       }else tile.textContent='▣  '+sdkCatalogueLabel(action);
       setDeckForgeTooltip(tile,()=>({title:sdkCatalogueLabel(action),lines:[isFusion?'등록한 Fusion 명령 실행':isHa?'지정한 Home Assistant 장치 제어':'설정한 플러그인 동작 실행']}));
@@ -4228,7 +4229,14 @@ async function openNativeSettings(item,action,plugin){
     }
     if(field.type==='select'){
       input=document.createElement('select');
-      for(const option of field.options){const el=document.createElement('option');el.value=option.value;el.textContent=option.label;input.append(el);}
+      const linkedOperation=plugin.uuid==='com.deckforge.native.home-assistant'&&action.uuid.endsWith('.control')&&['offOperation','onOperation'].includes(field.key);
+      for(const option of field.options){
+        if(linkedOperation&&!['turn_on','turn_off','toggle'].includes(option.value))continue;
+        const el=document.createElement('option');el.value=option.value;el.textContent=option.label;input.append(el);
+      }
+      if(linkedOperation&&Object.hasOwn(original,field.key)&&!['turn_on','turn_off','toggle'].includes(original[field.key])){
+        const el=document.createElement('option');el.value=original[field.key];el.textContent='이전 명령 · 다시 선택';input.append(el);
+      }
     }else{
       input=document.createElement('input');
       input.type=field.type==='boolean'?'checkbox':field.type==='integer'?(ui.get(field.key)?.control==='slider'?'range':'number'):field.type==='color'?'color':'text';
@@ -4296,7 +4304,8 @@ async function openNativeSettings(item,action,plugin){
   const ha=plugin.uuid==='com.deckforge.native.home-assistant';
   const instructions=ha?(action.uuid.endsWith('.sensor')
     ?'선택한 HA 센서의 측정값을 표시합니다. 여러 센서를 동시에 표시하거나 버튼 누르기·자동 전환으로 표시할 수 있습니다. 표시 순서는 위에서 아래로 변경합니다.'
-    :'기준 기기의 실제 상태를 표시하고 버튼을 누르면 제어합니다. 별도 기기 연동 제어를 켜면 기준 기기의 ON/OFF 상태별로 다른 대상과 명령을 지정할 수 있습니다.')
+    :action.uuid.endsWith('.other')?'자동화·스크립트·장면·버튼을 선택해 해당 유형의 기본 실행 명령을 보냅니다. 그 밖의 유형은 아직 지원하지 않습니다.':
+    '스위치·전등·환풍기·가상 스위치의 실제 상태를 표시하고 제어합니다. 별도 기기 연동은 스위치 기기 사이에서만 사용합니다.')
     :plugin.uuid==='com.deckforge.native.github-status'
       ?'지정한 GitHub 저장소와 워크플로의 최근 빌드 상태를 읽기 전용으로 표시합니다. 저장소·브랜치·워크플로를 선택하고 Actions 읽기 권한 토큰을 등록하세요.'
       :'등록한 액션의 설정값을 편집합니다. 플러그인 설치와 서비스 관리는 액션 목록의 해당 플러그인 도움말에서 확인할 수 있습니다.';
@@ -4311,6 +4320,7 @@ async function openNativeSettings(item,action,plugin){
           // Hidden fields keep their original stored values/defaults; a hidden draft is not committed.
           if(fieldRows.get(field.key)?.hidden)continue;
           const value=readValue(entry);
+          if(ha&&action.uuid.endsWith('.control')&&['offOperation','onOperation'].includes(field.key)&&!['turn_on','turn_off','toggle'].includes(value)){notice.textContent='스위치 제어 명령을 다시 선택하세요.';return false;}
           if(!DeckCore.nativeSettingValue(field,value)){notice.textContent=field.label+' 값을 확인하세요.';return false;}
           next[field.key]=value;
         }

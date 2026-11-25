@@ -2283,7 +2283,18 @@ test('HA native manifest, compressed entity state, device grouping, control and 
  assert.equal(sent.at(-1).service,'turn_on');assert.equal(sent.at(-1).target.entity_id,'light.kitchen');
  msg({type:'event',id:3,event:{c:{'switch.fan':{'+':{s:'on'}}}}});
  run('serviceMessage',{message:linked});assert.equal(sent.at(-1).service,'turn_off');
+ msg({type:'event',id:3,event:{a:{'automation.test':{s:'on',a:{friendly_name:'자동화'}},'button.test':{s:'2026-01-01',a:{friendly_name:'버튼'}}}}});
+ assert.deepEqual(shared.controls.map(x=>x.value).sort(),['light.kitchen','switch.fan']);
+ assert.deepEqual(shared.others.map(x=>x.value).sort(),['automation.test','button.test']);
+ assert.equal(manifest.actions.length,3);
+ const {otherKey}=require('../app/deckforge-editor/deckforge-ha-plugin.cjs');
+ otherKey({type:'press'},{entity:'automation.test'},0,{},api);run('serviceMessage',{message:commands.pop()});assert.equal(sent.at(-1).service,'trigger');
+ otherKey({type:'press'},{entity:'button.test'},0,{},api);run('serviceMessage',{message:commands.pop()});assert.equal(sent.at(-1).service,'press');
+ run('serviceMessage',{message:{entity:'automation.test'}});assert.equal(sent.at(-1).service,'trigger','old configured control stays executable');
  const before=sent.length;run('serviceMessage',{message:{...linked,onEntity:'sensor.temp'}});assert.equal(sent.length,before);
+ run('serviceMessage',{message:{...linked,onEntity:'automation.test',onOperation:'trigger'}});assert.equal(sent.length,before);
+ run('serviceMessage',{message:{...linked,entity:'automation.test'}});assert.equal(sent.length,before);
+ run('serviceMessage',{message:{entity:'switch.fan',other:true}});assert.equal(sent.length,before);
  msg({type:'event',id:3,event:{c:{'switch.fan':{'+':{s:'unknown'}}}}});
  run('serviceMessage',{message:linked});assert.equal(sent.length,before);
  run('socketEvent',{event:'close'});assert.equal(shared.status,'연결 끊김');
@@ -3131,8 +3142,8 @@ test('built-in HA upgrade keeps previous endpoint credential and action setting 
  const legacy={list:async()=>[],sync:async()=>{},close:async()=>{}};
  const host=new NativePluginHost(temp,()=>{},null,{storage}),router=new PluginRouter(legacy,host);
  const newer=createHomeAssistantManifest('https://example.com');
- const old=structuredClone(newer);old.version='0.1.8';old.requiresDeckForge='>=1.1.213';
- old.actions[0].settingsSchema=[{key:'entity',label:'기기 선택',type:'dynamicSelect',source:'controls',default:''}];delete old.actions[0].settingsUI;
+ const old=structuredClone(newer);old.version='0.1.9';old.requiresDeckForge='>=2.0.45';old.actions=old.actions.slice(0,2);old.actions[0].name='HA 기기 제어';old.actions[1].name='HA 센서 표시';
+
  const binding=credentialBinding(old.id,old.networkEndpoints[0]),token='fixture.token-123';
  try{
    await router.installNative(old);
