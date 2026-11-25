@@ -1,0 +1,29 @@
+name: DeckForge native SDK Windows verification
+on:
+  push:
+    branches:
+      - codex/streamdeck-761-clean-editor
+    paths:
+      - 'test/deckforge-native-js-electron.cjs'
+      - '.github/workflows/deckforge-sdk-windows-test.yml'
+permissions:
+  contents: read
+jobs:
+  native-sdk:
+    runs-on: windows-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: app/package-lock.json
+      - name: Install Electron
+        working-directory: app
+        run: npm ci
+      - name: Verify native SDK in Electron
+        shell: pwsh
+        run: |
+          & app/node_modules/.bin/electron.cmd test/deckforge-native-js-electron.cjs
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
