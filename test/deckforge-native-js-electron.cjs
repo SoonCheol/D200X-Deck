@@ -219,6 +219,7 @@ async function verifyHaBurst(){
   await until(()=>socket.sent.some(x=>x.id===2),'entity registry request');
   socket.message({type:'result',id:2,success:true,result:{entities:[]}});
   await until(()=>socket.sent.some(x=>x.id===3),'subscribe request');
+  assert.ok(socket.sent.find(x=>x.id===3).include.domains.includes('sensor'));
   const a={};for(const id of ids)a[id]={s:'off',a:{friendly_name:id}};
   for(let i=0;i<487;i++)a['sensor.fixture_'+i]={s:'0',a:{friendly_name:'Sensor '+i,unit_of_measurement:'W'}};
   socket.message({type:'event',id:3,event:{a}});
@@ -230,6 +231,25 @@ async function verifyHaBurst(){
   assert.equal(socket.readyState,1);assert.equal(sockets.length,1);assert.ok([...host.contexts.values()].every(c=>!c.failed));
   assert.ok(ids.every(id=>svc.sharedState.entities[id].value==='on'));
   console.log('MODEL2_HA_BURST_OK '+JSON.stringify({entities:Object.keys(svc.sharedState.entities).length,buttons:13,frames:50,elapsedMs:Date.now()-start,actualElectron:true,mockTransport:true}));
+  // Actual renderer and host, simulated transport: reconnect to an older HA.
+  socket.emit('close',1006);
+  await until(()=>sockets.length===2,'reconnect transport');
+  const fresh=sockets[1];fresh.emit('open');fresh.message({type:'auth_required'});fresh.message({type:'auth_ok'});
+  await until(()=>fresh.sent.some(x=>x.id===1),'reconnect device registry');
+  fresh.message({type:'result',id:1,success:true,result:[]});
+  await until(()=>fresh.sent.some(x=>x.id===2),'reconnect entity registry');
+  fresh.message({type:'result',id:2,success:true,result:{entities:[]}});
+  await until(()=>fresh.sent.some(x=>x.id===3),'filtered subscription');
+  fresh.message({type:'result',id:3,success:false,error:{code:'invalid_format'}});
+  await until(()=>fresh.sent.some(x=>x.id===4),'legacy subscription fallback');
+  assert.deepEqual(fresh.sent.find(x=>x.id===4),{id:4,type:'subscribe_entities'});
+  fresh.message({type:'event',id:3,event:{a:{'switch.obsolete':{s:'on'}}}});
+  fresh.message({type:'event',id:4,event:{a:{[ids[0]]:{s:'off'},'weather.ignore':{s:'sunny'}}}});
+  await until(()=>svc.sharedState.status==='연결됨'&&svc.sharedState.entities[ids[0]]?.value==='off','fallback fresh snapshot');
+  assert.deepEqual(Object.keys(svc.sharedState.entities),[ids[0]]);
+  assert.equal(fresh.sent.filter(x=>x.id===4).length,1);
+  assert.ok(!fresh.sent.some(x=>x.type==='call_service'));
+  console.log('MODEL2_HA_FILTER_RECONNECT_OK');
  }finally{host.close();await fs.rm(root,{recursive:true,force:true});}
 }
 async function verifyModel2(){

@@ -3218,7 +3218,7 @@ test('HA batch preserves ordered deltas and publishes once; bounded send excepti
  const m=createHomeAssistantManifest('https://example.com'),host=new NativePluginHost('/unused');
  const ctx={service:true,permissions:m.permissions,capabilities:m.capabilities,networkEndpoints:m.networkEndpoints,sharedStateBytes:262144};
  let shared={status:'연결됨',entities:{'switch.a':{label:'A',value:'off',unit:'',kind:''}},controls:[{value:'switch.a',label:'A',group:'기기 미분류 스위치'}],sensors:[],others:[]},published=0;
- const memory={phase:'live',next:20,generation:2,pending:[{id:11,base:'switch.a',target:'switch.a',operation:'turn_on'},{id:12,base:'switch.a',target:'switch.a',operation:'turn_off'}]};
+ const memory={phase:'live',next:20,generation:2,subscriptionId:3,pending:[{id:11,base:'switch.a',target:'switch.a',operation:'turn_on'},{id:12,base:'switch.a',target:'switch.a',operation:'turn_off'}]};
  const ops=[],api={getSharedState:()=>structuredClone(shared),publishSharedState:v=>{published++;shared=v;ops.push({op:'publishSharedState',value:v});},sendSocket:v=>ops.push({op:'socketSend',value:v})};
  const event={type:'socketEvent',response:{event:'messages',generation:2,bodies:[
   {type:'event',id:3,event:{c:{'switch.a':{'+':{s:'on'}}}}},
@@ -3274,4 +3274,27 @@ test('GitHub build discovery returns bounded repository, branch and workflow sel
   await assert.rejects(discoverGitHubBuildOptions('../Repo',bearer,request),/저장소 이름/);
   await assert.rejects(discoverGitHubBuildOptions('',null,request),/토큰 등록/);
   await assert.rejects(discoverGitHubBuildOptions('',bearer,async()=>({ok:false,status:401})),/인증 실패/);
+});
+
+test('HA domain subscription uses one legacy fallback per connection and rejects obsolete subscription frames',()=>{
+ const {service}=require('../app/deckforge-editor/deckforge-ha-plugin.cjs');
+ let shared={},memory={},sent=[];
+ const api={getSharedState:()=>structuredClone(shared),publishSharedState:s=>shared=structuredClone(s),connectSocket:()=>{},sendSocket:v=>sent.push(v)};
+ const event=(type,response)=>service({type,response},{},0,memory,api);
+ const msg=(generation,m)=>event('socketEvent',{event:'message',generation,body:JSON.stringify(m)});
+ const discover=gen=>{event('socketEvent',{event:'open',generation:gen});msg(gen,{type:'result',id:1,success:true,result:[]});msg(gen,{type:'result',id:2,success:true,result:{entities:[]}});};
+ const reject=(gen,id,code='invalid_format')=>msg(gen,{type:'result',id,success:false,error:{code}});
+ const snapshot=(gen,id,a)=>msg(gen,{type:'event',id,event:{a}});
+ event('start');discover(1);
+ assert.deepEqual(sent.at(-1),{id:3,type:'subscribe_entities',include:{domains:['switch','light','fan','input_boolean','script','scene','automation','button','input_button','sensor','binary_sensor']}});
+ reject(1,3);assert.deepEqual(sent.at(-1),{id:4,type:'subscribe_entities'});
+ const count=sent.length;reject(1,3);snapshot(1,3,{'switch.old':{s:'on'}});assert.equal(sent.length,count);assert.equal(shared.status,'상태 구독 중');
+ snapshot(1,4,{'switch.new':{s:'off'},'weather.ignore':{s:'sunny'}});assert.equal(shared.status,'연결됨');assert.deepEqual(Object.keys(shared.entities),['switch.new']);
+ snapshot(1,3,{'switch.old':{s:'on'}});assert.deepEqual(Object.keys(shared.entities),['switch.new']);
+ event('socketEvent',{event:'reconnecting',generation:2,gap:true});discover(2);
+ assert.equal(sent.at(-1).id,3);assert.ok(sent.at(-1).include);
+ snapshot(1,4,{'switch.old':{s:'on'}});assert.equal(shared.status,'상태 구독 중');
+ reject(2,3);reject(2,4);assert.equal(shared.status,'상태 구독 실패');
+ const end=sent.length;reject(2,4);event('socketEvent',{event:'open',generation:2});assert.equal(sent.length,end);
+ discover(3);reject(3,3,'unauthorized');assert.equal(shared.status,'상태 구독 실패');assert.equal(sent.at(-1).id,3);
 });

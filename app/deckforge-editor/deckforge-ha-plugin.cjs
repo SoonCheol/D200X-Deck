@@ -6,10 +6,11 @@ function service(event,settings,state,memory,api){
   function handle(event,api){
   const clean=(v,n=100)=>typeof v==='string'?v.replace(/[\x00-\x1f\x7f]/g,' ').trim().slice(0,n):'';
   const valid=id=>typeof id==='string'&&id.length<=256&&/^[a-z0-9_]+\.[a-z0-9_]+$/.test(id);
-  const switchDevice=id=>['switch','light','fan','input_boolean'].includes(id.split('.')[0]);
-  const otherDevice=id=>['script','scene','automation','button','input_button'].includes(id.split('.')[0]);
+  const switchDomains=['switch','light','fan','input_boolean'],otherDomains=['script','scene','automation','button','input_button'],sensorDomains=['sensor','binary_sensor'];
+  const switchDevice=id=>switchDomains.includes(id.split('.')[0]);
+  const otherDevice=id=>otherDomains.includes(id.split('.')[0]);
   const control=id=>switchDevice(id)||otherDevice(id);
-  const sensor=id=>['sensor','binary_sensor'].includes(id.split('.')[0]);
+  const sensor=id=>sensorDomains.includes(id.split('.')[0]);
   const old=api.getSharedState();
   function publish(s){
     if(new TextEncoder().encode(JSON.stringify(s)).length>262144){api.publishSharedState({status:'목록 용량 초과',controls:[],sensors:[],others:[],entities:{}});return;}
@@ -27,7 +28,7 @@ function service(event,settings,state,memory,api){
     api.sendSocket({id:memory.next,type:'call_service',domain:entity.split('.')[0],service:op,target:{entity_id:entity}});
     return memory.next;
   };
-  if(event.type==='start'){memory.pending=[];memory.next=10;memory.phase='connecting';delete memory.generation;publish(stale('연결 중'));api.connectSocket('ha');return;}
+  if(event.type==='start'){memory.pending=[];memory.next=10;memory.phase='connecting';delete memory.generation;delete memory.subscriptionId;publish(stale('연결 중'));api.connectSocket('ha');return;}
   if(event.type==='serviceMessage'){
     const id=event.response?.message?.entity;
     if(memory.phase!=='live'||old.status!=='연결됨'||!valid(id)||!control(id)||!Object.hasOwn(old.entities||{},id))return;
@@ -57,12 +58,12 @@ function service(event,settings,state,memory,api){
   const gen=Number.isSafeInteger(response.generation)?response.generation:null;
   if(gen!==null&&Number.isSafeInteger(memory.generation)&&gen<memory.generation)return;
   if(response.event==='open'){
-    if(gen!==null&&memory.generation===gen&&['devices','registry','snapshot','live'].includes(memory.phase))return;
-    memory.pending=[];memory.generation=gen;memory.next=10;memory.phase='devices';
+    if(gen!==null&&memory.generation===gen&&['devices','registry','snapshot','live','failed'].includes(memory.phase))return;
+    memory.pending=[];memory.generation=gen;memory.next=10;memory.phase='devices';delete memory.subscriptionId;
     publish(stale('기기 조회 중'));send(1,'config/device_registry/list');return;
   }
   if(response.event!=='message'){
-    memory.pending=[];memory.generation=gen;memory.phase='connecting';
+    memory.pending=[];memory.generation=gen;memory.phase='connecting';delete memory.subscriptionId;
     publish(stale(response.event==='reconnecting'?'재연결 중':'연결 끊김'));return;
   }
   if(gen!==null&&gen!==memory.generation)return;
@@ -81,10 +82,16 @@ function service(event,settings,state,memory,api){
         const device=clean(e.di,64);if(/^[a-f0-9]{32}$/.test(device))next.groups[e.ei]=old.devices?.[device]||'기기 '+device.slice(0,8);
       }
     }
-    publish(next);send(3,'subscribe_entities');return;
+    memory.subscriptionId=3;
+    publish(next);api.sendSocket({id:3,type:'subscribe_entities',include:{domains:[...switchDomains,...otherDomains,...sensorDomains]}});return;
   }
-  if(m.type==='result'&&m.id===3&&m.success===false&&['snapshot','live'].includes(memory.phase)){
-    memory.phase='failed';publish(stale('상태 구독 실패'));return;
+  // Older HA versions reject the include filter. Retry only an explicitly
+  // rejected subscription, once per connection, under a fresh request ID.
+  if(m.type==='result'&&m.id===memory.subscriptionId&&m.success===false&&['snapshot','live'].includes(memory.phase)){
+    if(memory.phase==='snapshot'&&memory.subscriptionId===3&&m.error?.code==='invalid_format'){
+      memory.subscriptionId=4;send(4,'subscribe_entities');return;
+    }
+    memory.pending=[];memory.phase='failed';publish(stale('상태 구독 실패'));return;
   }
   if(m.type==='result'&&m.id>10&&m.id<=memory.next&&memory.phase==='live'){
     const pending=(memory.pending||[]).find(p=>p.id===m.id);
@@ -96,7 +103,7 @@ function service(event,settings,state,memory,api){
     }
     return; // Receipt is not physical state confirmation.
   }
-  if(m.type!=='event'||m.id!==3||!object(m.event)||old.status==='목록 용량 초과'||
+  if(m.type!=='event'||m.id!==memory.subscriptionId||!object(m.event)||old.status==='목록 용량 초과'||
      !['snapshot','live'].includes(memory.phase))return;
   const changes=m.event,initial=memory.phase==='snapshot';
   // The first subscription event is a complete added-state snapshot, not a delta.
@@ -224,7 +231,7 @@ function createHomeAssistantManifest(server){
   const script=f=>'return ('+f.toString()+')(event,settings,state,memory,api);';
   const select=(key,label,value,options)=>({key,label,type:'select',default:value,options:options.map(([value,label])=>({value,label}))});
   const device=(key,label)=>({key,label,type:'dynamicSelect',source:'controls',default:''});
-  return {apiVersion:2,id:ID,name:'DeckForge Home Assistant',version:'0.1.14',requiresDeckForge:'>=2.0.64',
+  return {apiVersion:2,id:ID,name:'DeckForge Home Assistant',version:'0.1.15',requiresDeckForge:'>=2.0.68',
     permissions:['display','background.run','timer.tick',...(u?['network.websocket']:[])],
     ...(u?{capabilities:['socketBatch'],networkEndpoints:[{id:'ha',url:u.href,method:'WSS',auth:'home-assistant',reconnect:true,maxReceiveBytes:1048576}]}:{}),
     service:{script:u?script(service):"if(event.type==='start')api.publishSharedState({status:'초기 연결 필요',controls:[],sensors:[],others:[],entities:{}});",sharedStateBytes:262144},

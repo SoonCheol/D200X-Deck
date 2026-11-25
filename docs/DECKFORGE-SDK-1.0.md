@@ -229,3 +229,5 @@ report03.md §4.2 13행 원문 기준. 1.1.231 CI #1281/입력 #521/Windows #985
 - Gemini 감사의 HA 서버 coalesce_messages 협상, 구독 범위 최적화, 공유 상태/HTTP 한도 및 일반 다중 송신은 후속 계측 후 결정. 실제 Model 2 13키/500엔티티/50프레임 모의 transport 시험 추가; 실 HA/D200X 별도. 기존 자격증명 바인딩 유지.
 
 - 2.0.54: 연결 세대 폐기 후에도 실제 FIFO 완료 전 수신 데이터의 전역 예약 바이트 유지. 스케줄러 고유 admission 오류 타입만 재시도; 실행 오류 코드 문자열 위조/충돌은 재실행 금지. 송수신 과부하 상태 구분.
+
+- 2.0.68 HA 0.1.15: `subscribe_entities`의 `include.domains`로 지원 11개 도메인만 구독. 구버전 `invalid_format` 결과에 한해 연결마다 ID 3→4 전체 구독 1회 폴백, 이전 ID/세대 프레임 폐기, 다른 오류 및 두 번째 실패는 실패 상태. 기존 클라이언트 필터/인증 바인딩 유지. 실제 Electron 모의 소켓 재연결 검사 추가; 실제 HA 별도. 참고: https://github.com/home-assistant/core/blob/dev/homeassistant/components/websocket_api/commands.py 및 helpers/entityfilter.py.
