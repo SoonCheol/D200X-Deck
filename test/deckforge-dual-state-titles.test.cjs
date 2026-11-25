@@ -3,7 +3,7 @@ const test=require('node:test'),assert=require('node:assert/strict');
 const fs=require('node:fs'),path=require('node:path'),vm=require('node:vm');
 const editor=fs.readFileSync(path.join(__dirname,'../app/deckforge-editor/editor.js'),'utf8');
 const css=fs.readFileSync(path.join(__dirname,'../app/deckforge-editor/style.css'),'utf8');
-const start=editor.indexOf('function hasStateTitlePair(item){'),end=editor.indexOf('function displayKeyPressItem(item,index){',start);
+const start=editor.indexOf('function hasStateTitlePair(item){'),end=editor.indexOf('function displayKeyPressItem(',start);
 assert.ok(start>=0&&end>start);
 const style={visible:true,align:'bottom',family:'default',size:12,color:'#fff'};
 function render(config,second){

@@ -41,7 +41,7 @@ test('automatic wrapping and blank explicit line retain bounded geometry',()=>{
  assert.deepEqual(draw('A<br><br>B').filter(x=>x[0]==='text').map(x=>x[1]),['A','','B']);
 });
 test('state card background follows the selected display properties without overwriting stored values',()=>{
- const start=editor.indexOf('function hasStateTitlePair(item){'),end=editor.indexOf('function displayKeyPressItem(item,index){',start);
+ const start=editor.indexOf('function hasStateTitlePair(item){'),end=editor.indexOf('function displayKeyPressItem(',start);
  const item={type:'sd-plugin',title:'Title',titleStyle:core.TITLE,settings:{keyBackgrounds:{first:{enabled:true,color:'#111111'},second:{enabled:false,color:'#222222'}},stateTitles:{first:{enabled:true,title:'Shared',style:core.TITLE},second:{enabled:false,title:'Hidden',style:core.TITLE}}}};
  const resolve=second=>vm.runInNewContext(editor.slice(start,end)+';resolveStateTitle(item,second)',{item,second,DEFAULT_TITLE_STYLE:core.TITLE,isMomentaryIconAction:()=>false});
  assert.equal(resolve(false).keyBackground.color,'#111111');assert.equal(resolve(true).keyBackground.color,'#111111');
@@ -88,7 +88,7 @@ test('saved-color tile has a text-only context menu, basic palette has no delete
 });
 
 test('all four checkbox combinations share title, background and ordinary icon without changing saved values',()=>{
- const start=editor.indexOf('function hasStateTitlePair(item){'),end=editor.indexOf('function displayKeyPressItem(item,index){',start);
+ const start=editor.indexOf('function hasStateTitlePair(item){'),end=editor.indexOf('function displayKeyPressItem(',start);
  const first={kind:'file',value:'A'},second={kind:'file',value:'B'};
  const item=core.createAction('hotkey');
  item.settings.keyBackgrounds={first:{enabled:true,color:'#123456'},second:{enabled:true,color:'#abcdef'}};
@@ -114,7 +114,7 @@ test('all four checkbox combinations share title, background and ordinary icon w
  }
 });
 test('named-pair markers are explicit and changing one image ends the exception',()=>{
- const start=editor.indexOf('function hasStateTitlePair(item){'),end=editor.indexOf('function displayKeyPressItem(item,index){',start);
+ const start=editor.indexOf('function hasStateTitlePair(item){'),end=editor.indexOf('function displayKeyPressItem(',start);
  const icons={off:{kind:'file',value:'A',packId:'pack',statePair:'id'},on:{kind:'file',value:'B',packId:'pack',statePair:'id'}};
  const check=()=>vm.runInNewContext(editor.slice(start,end)+';isNamedStateIconPair(icons)',{icons});
  assert.equal(check(),true);
