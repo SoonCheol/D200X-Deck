@@ -280,3 +280,40 @@ test('user templates copy whole profiles independently, persist, rename/delete a
  assert.throws(()=>Core.migrateState({...reloaded,profileTemplates:[t,t]}));assert.equal(JSON.stringify(reloaded),base);
  const legacy=JSON.parse(base);delete legacy.profileTemplates;delete legacy.profileTemplateSeq;assert.equal(Core.migrateState(legacy).profileTemplates.length,0);
 });
+
+
+test('new profile preview creates distinct SDK identities for repeated Fusion commands across pages and nested folders',()=>{
+ const s=fixture();
+ const existing=Core.createProfile(s,'Existing SDK copy',true);
+ const before=JSON.stringify(s);
+ const oldIds=[];Core.walkSdkActions(s,a=>oldIds.push(a.instanceId));
+ assert.equal(oldIds.length,2);assert.equal(new Set(oldIds).size,2);
+ const c={name:'SDK identity profile',pageCount:2,keys:[
+   {page:1,slot:1,type:'fusion-live',value:'VerifiedCommand'},
+   {page:2,slot:1,type:'fusion-live',value:'VerifiedCommand'},
+   {page:1,slot:2,type:'folder',pageCount:2},
+   {page:1,folder:'2:1',slot:1,type:'fusion-live',value:'VerifiedCommand'},
+   {page:1,folder:'2:2',slot:1,type:'fusion-live',value:'VerifiedCommand'}
+ ]};
+ const resources={fusionBatch:[{id:'VerifiedCommand',name:'Verified'}]};
+ const plan=A.makePlan(s,req('profile_build',c),resources);
+ assert.equal(JSON.stringify(s),before);
+ const fresh=plan.next.inactiveProfiles.find(p=>p.id===plan.createdProfileId);
+ const ids=[];Core.walkSdkActions(fresh,a=>{
+   assert.ok(Core.validInstanceId(a.instanceId));ids.push(a.instanceId);
+   assert.equal(a.settings.pluginSettings.commandId,'VerifiedCommand');
+ });
+ assert.equal(ids.length,4);assert.equal(new Set([...oldIds,...ids]).size,6);
+ const abandoned=A.makePlan(s,req('profile_build',c),resources),abandonedIds=[];
+ Core.walkSdkActions(abandoned.next.inactiveProfiles.find(p=>p.id===abandoned.createdProfileId),a=>abandonedIds.push(a.instanceId));
+ assert.equal(abandonedIds.length,4);assert.equal(new Set([...oldIds,...ids,...abandonedIds]).size,10);
+ const reloaded=Core.migrateState(JSON.parse(JSON.stringify(plan.next)));
+ const all=[];Core.walkSdkActions(reloaded,a=>all.push(a.instanceId));
+ assert.deepEqual([...all].sort(),[...oldIds,...ids].sort());
+ assert.equal(reloaded.profileId,s.profileId);
+ assert.equal(reloaded.inactiveProfiles.find(p=>p.id===existing).pages[0][4].instanceId,s.inactiveProfiles.find(p=>p.id===existing).pages[0][4].instanceId);
+ assert.ok(Core.switchProfile(reloaded,plan.createdProfileId));
+ const mounted=Core.createSdkMountTracker().reconcile('root',Core.sdkMountDescriptors(reloaded));
+ assert.deepEqual(mounted.map(m=>m.instanceId),[ids[0]]);
+ assert.deepEqual(Core.sdkMountDescriptors(reloaded).map(m=>m.instanceId),[ids[0]]);
+});

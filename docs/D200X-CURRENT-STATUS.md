@@ -2,7 +2,7 @@
 > 2026-11-25 · 현재 스냅샷, 누적 금지.
 ## 개발 기준
 - 저장소 SoonCheol/D200X-Deck · 브랜치 codex/streamdeck-761-clean-editor · Draft PR #5 유지.
-- 로컬 E:\Codex\DeckForge. 최신 HEAD는 Git에서 확인. 소스 버전 **1.1.239** (Key Logic 지원 범위 보호 후보; 1.1.238 게시).
+- 로컬 E:\Codex\DeckForge. 최신 HEAD는 Git에서 확인. 소스 버전 **1.1.240** (회귀 fixture 수정·AI ID 검증; 1.1.238 게시).
 - 감사 기준 `49ba39fe094ee808c5715f2348be0789f61d5e20`. CI #1221 성공; Windows #930 사용자 인수인계.
 ## 현재 상태
 - 독자 SDK API 1/2, 공개 25개 함수, HTTP/WSS, 전역 서비스/공유 상태, 동적 속성, 암호화·권한·패키지, HA 0.1.8 후보 및 Stream Deck 호환 호스트 구현. SDK 1.0 정식 완성 선언 보류.
@@ -35,7 +35,7 @@
 - 1.1.226: Model2 실제 반복/자원 제한/서비스 생존·복구, opaque storage/CSP 검사 및 USB mock 통과. CI #1274·Windows #980 성공. OOM 별도. 세부 수치 SDK 계약.
 - 1.1.230: CI #1278, Windows #984 attempt2 전체 성공. 실제 idle/active crash·거부·서비스/peer 생존·새 이벤트 복구, 25함수·vault 통과. 1차 npm 404 해소(버전 변경 없음). deckforge-v1.1.230 게시, EXE 135231273 bytes. 현재 root suite 45/45 실행 명령 확인, 초기 helper skip 3개와 후속 패키지 검사 구분.
 ## 다음 작업
-- 1.1.235 구 표시명 검사 실패. 1.1.236 패키징 분리·명칭 수정, 1.1.237 native ACK 큐 분리, 1.1.238 실행 경로 보호. CI #1287~1289·Windows #991~993 성공, 1.1.238 게시 및 5개 관련 검사 로그 확인. 1.1.239: Key Logic 이동을 기존 실행 허용 목록으로 제한, 기존 중첩 SDK 데이터 보존. 신규 검사 대기. 경로 유지.
+- 1.1.235 구 표시명 검사 실패. 1.1.236 패키징 분리·명칭 수정, 1.1.237 native ACK 큐 분리, 1.1.238 실행 경로 보호. CI #1287~1289·Windows #991~993 성공, 1.1.238 게시 및 5개 관련 검사 로그 확인. 1.1.239: Key Logic 이동을 기존 실행 허용 목록으로 제한, 기존 중첩 SDK 데이터 보존. 1.1.239 CI #1290/입력 #524 성공, Windows #994 fixture 실패. 1.1.240 fixture 수정 및 AI 신규 프로필 Fusion ID 검증 추가. 결과 대기. 경로 유지.
 - **10C 판정:** 자동 검증/설치본 통과, 정식 SDK 1.0 출시 보류. 실제 HA/D200X/OS 절전·재연결/장시간 soak, 실제 OOM, identity GUI·직접 profile import 경로, 설정 저장 13행 추가 검사 통과, 1.1.234 Windows 통합 검사 통과, 전원 손실/제품 IPC 실기 별도. Model5 차단, KEY 기본 OFF, 기존 미리보기 유지.
 - 기존 기능/데이터/API·보안 보존, 테스트/CI/Windows/실기 구분. 미측정 성능 수치 단정 금지.
 ## 참조

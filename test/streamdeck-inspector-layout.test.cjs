@@ -594,7 +594,7 @@ test('Key Logic context menu only wraps executable actions and leaves unsupporte
    assert.equal(Core.currentActions(state)[0],item);assert.equal(JSON.stringify(state),before);
  }
  const sdk=action('sd-plugin');sdk.settings.pluginUUID='com.deckforge.native.example';sdk.settings.actionUUID='com.deckforge.native.example.key';
- const old=Core.createAction('logic');old.slots.single=sdk;
+ const old=Core.createAction('logic');old.slots={single:sdk,double:null,hold:null};
  const reloaded=Core.cleanAction(old);
  assert.equal(reloaded.slots.single.instanceId,sdk.instanceId);
  assert.deepEqual(reloaded.slots.single.settings,sdk.settings);

@@ -167,7 +167,7 @@ API 2 manifest의 service={script,tickIntervalMs?} 및 별도 background.run 권
 | 16 | 백업 복원 | planRestore 전체 보존/merge·select 신규 ID; 기존 backup 검사 |
 | 17 | Fusion batch | fusion-batch apply/assign createAction; 14개 명령 2페이지 신규 UUID 집중 검사 추가 |
 | 18 | AI 기본 편집 | protectedType/at에서 SDK 수정·복사·이동 자체 차단; 기존 정책 유지, 차단 검사 강화. 허용한 일반 액션과 구분 |
-| 19 | AI 고급 편집 | editPageStructure, fusionButton createAction, template cloneActionInstances; 복제/템플릿 ID 집중 검사 강화, profile_build 신규 ID 경로는 후속 |
+| 19 | AI 고급 편집 | editPageStructure, fusionButton createAction, template cloneActionInstances; 복제/템플릿 ID 집중 검사 강화, profile_build 신규 ID 경로: 1.1.240 반복 명령·다중 페이지·중첩 폴더 신규 ID/보존 검사 추가, 실행 결과 대기 |
 - 기존 1.1.230 Windows #984 성공과 이번 신규 검사 대기 구분. 제품 코드 변경 없음. report03 §4.2의 13개 저장 시나리오 원문 확보, 독립 대응 대조 후속. Model5/KEY OFF 유지.
 
 ## 10C 감사 저장 시나리오 대조 (1.1.232 후보)
@@ -198,3 +198,5 @@ report03.md §4.2 13행 원문 기준. 1.1.231 CI #1281/입력 #521/Windows #985
 - 1.1.238 실행 경로 보호: catalogue 조회 실패를 빈 목록으로 간주하지 않는다(충돌·삭제 검증 유지). 새/변경 native 입력은 최신 desiredMount와 실제 native context 일치 및 revision/설정 확인 후만 허용; 확정 자기 저장의 이전 snapshot 예외 유지. 외부 호환 입력/inspector는 성공한 sync의 동일 설정 snapshot만 허용, 부분 sync 실패 시 호환 경로 차단. catalogue 실패에서 기존 동일 native 입력 유지, 변경/신규 차단, 재조회 후 복구 집중 검사 추가. 이미 접수된 이벤트의 장애 처리 및 실제 앱 독립 catalogue는 별도. 1.1.237 CI #1288 및 Windows #992 회귀 단계 성공, 패키징 중. 신규 검사 미실행.
 
 - 1.1.239 감사 경로 #8 판정: sdkMountDescriptors는 직접 SDK 버튼/노브만 등록하고 executeMultiStep은 SDK를 명시 거부, triggerLogicSlot/renderLogicEditor는 MULTI_ALLOWED만 지원한다. 따라서 Key Logic 중첩 SDK 실행은 미지원 계약으로 구분하며 기존 중첩 데이터/instanceId는 삭제하지 않는다. context menu의 이동 허용 조건을 기존 실행 목록으로 통일하고 SDK 등 미지원 타입 차단·일반 단축키 변환·기존 중첩 데이터 보존 집중 검사 추가. 새 SDK 중첩 실행은 범위 확장 없이 보류. 1.1.238 CI #1289/Windows #993 전체 성공 및 설치본 게시, branding/native package independence/route failure/ACK isolation/ABA 관련 5개 실제 통과 로그 확인. 1.1.239 신규 검사 대기.
+
+- 1.1.239 CI #1290·입력 #524 통과, Windows #994 신규 Key Logic 테스트에서 createAction('logic') 반환의 slots 초기화 누락으로 TypeError. 1.1.240 fixture를 실제 메뉴와 동일하게 slots 객체로 초기화. #19 AI profile_build는 makeProfileBuild → fusionButton → Core.createAction('sd-plugin')으로 각 ID 발급; 기존 프로필 유지, 반복 명령/페이지/중첩 폴더 및 별도 미리보기, 저장 재로드·프로필 전환 mount 대조 검사 추가. 생산 실행 코드 변경 없음. 신규 Windows 검사 결과 대기.
