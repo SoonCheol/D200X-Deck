@@ -1,5 +1,5 @@
 # DeckForge 현재 작업 상태
-> 2026-11-25 · 현재 스냅샷, 누적 금지.
+> 2026-11-26 · 현재 스냅샷, 누적 금지.
 ## 개발 기준
 - 저장소 SoonCheol/D200X-Deck · 브랜치 codex/streamdeck-761-clean-editor · Draft PR #5 유지.
 - 로컬 E:\Codex\DeckForge. 최신 HEAD는 Git에서 확인. 소스 버전 **2.0.42** (GitHub 마퀴·자동 조회; 2.0.7 센서 UI 사용자 정상 확인).
@@ -17,7 +17,7 @@
 - 1.1.231: identity 19행 대조·집중 검사, CI #1281/입력 #521/Windows #985 성공, 게시. 1.1.232: 저장 13행 대응·종료 commit 차단. CI #1282/입력 #522 성공, Windows #986 clean fixture 실패(kind 누락), 종료/페이지·삭제/retire 검사 통과. 1.1.233: fixture 수정 CI #1283/Windows #987 성공, 게시. 1.1.234: 실제 Electron NativePluginHost+임시 ProfileStore, 요청 전/저장 후 ACK 전 renderer crash, 재조회·재실행 금지 검증 추가. CI #1284·Windows #988 성공, 1.1.234 설치본 게시.
 - 1.1.230: CI #1278, Windows #984 attempt2 전체 성공. 실제 idle/active crash·거부·서비스/peer 생존·새 이벤트 복구, 25함수·vault 통과. 1차 npm 404 해소(버전 변경 없음). deckforge-v1.1.230 게시, EXE 135231273 bytes. 현재 root suite 45/45 실행 명령 확인, 초기 helper skip 3개와 후속 패키지 검사 구분.
 ## 다음 작업
-- 04B data: Worker 후보 시험 추가(Chromium opaque origin 변경: https://groups.google.com/a/chromium.org/g/blink-dev/c/4Hy56DZjF34). 절대 URL fetch/import 및 data/self 중첩 실행, data fetch/import 검사 추가; CSP 상속으로 중첩 허용 시 부적격. 새 독립 Worker 결과 대기. 제품 변경 없음.
+- 04B Worker #2 (45647115750) 실제 로그: data: origin=null, IndexedDB/CacheStorage/OPFS/localStorage 및 fetch/import/WSS 차단, 서비스 생존·hang 복구 통과. nestedSelf/nestedData 허용으로 부적격. 다음: 별도 WASM JS VM 내부 guest 격리 및 메모리/시간/비동기/JSON 경계 시험(시험 전용 QuickJS 0.32.0, Node Worker 사전 검증). 실제 Chromium Worker 통합 및 전체 API·DrawOps·보안 검토 별도. 제품 변경 없음.
 - 04B #46 실제 Electron 45.2.3/Chromium 156: standard 저장소 3종 허용, opaque 생성 실패, sandbox 후보 render frame disposed; 모두 부적격. 제품 OFF. 시험용 변경이 동일 버전 설치본 재게시를 유발해 release 보호로 #46 실패. 독립 Worker 검증 workflow 분리 완료(읽기 권한만, 배포 단계 없음), 통합 빌드는 제품 변경 시 기존 Worker 검사 유지. 독립 Worker #1 (45646799413) 실행 성공, 3종 모두 부적격 재확인. 기존 설치본 보존.
 - 2.0.42: 독자 SDK tick/periodic request/WebSocket rate/backpressure 경과 시간 monotonic clock 전환. 시스템 시계 ±24시간 변경 중 제한 유지 집중 검사 추가. 설정 receipt wall clock 계약 보존. CI #1407·Windows #45·SDK #99 성공, 2.0.42 설치본 게시 확인.
 - 2.0.41: 독자 서비스 관리 중 종료 시 설정 읽기/쓰기 이후 재생성 차단. 이미 확정된 설정 보존. 읽기 중 종료/저장 확정 후 종료 집중 검사 추가. CI #1405 및 Windows #44 성공.

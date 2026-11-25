@@ -22,7 +22,7 @@
 ## 10C 현재 출시 게이트 (DeckForge 2.0.42 후보)
 
 - Model 2: SDK #93 실제 Windows Electron 5분 soak(1391 press/105 전환/274 service tick), 실제 oom 통지·서비스/peer 생존·새 입력 복구 통과. 시험 힙 제한 사용, 실제 시스템 전체 메모리 고갈 아님. 임시 ProfileStore renderer 장애 전/후 저장 일관성 검사 통과. 감사 19/13행 대응표 및 기존 검사 증거는 SDK 계약 참조.
-- Windows #44 및 CI #1405 성공(2.0.41), 2.0.42 CI #1407 성공·Windows #45 대기. 04B Model 5 저장소 격리 미충족, 제품 OFF. Windows #46 Worker 응답 CSP sandbox 후보 실행 실패(render frame disposed), 기존 후보도 저장소 차단 미충족. 별도 읽기 전용 Worker 검증 workflow 분리, 기존 정책 완화 금지. 2.0.42 설치본은 #45 게시 확인.
+- Windows #44 및 CI #1405 성공(2.0.41), 2.0.42 CI #1407 성공·Windows #45 대기. 04B Model 5 저장소 격리 미충족, 제품 OFF. Windows #46 Worker 응답 CSP sandbox 후보 실행 실패(render frame disposed), 기존 후보도 저장소 차단 미충족. 별도 읽기 전용 Worker 검증 workflow 분리. #2 data: 후보 저장소·네트워크 차단 통과, nestedSelf/nestedData 허용으로 부적격. 새로운 guest VM 후보는 별도 시험만 수행하며 Model 5 계약·활성화 조건 유지. 2.0.42 설치본은 #45 게시 확인.
 - 실제 HA/D200X/OS 절전·재연결·장시간 실기, 전원 손실, 잔여 GUI 검증 별도. KEY trial은 별도 승인 및 안전 검증, 기본 OFF. 검증된 Model 2 유지, 정식 출시 판정 보류.
 
 ## 재설계 이후 잔여·보류
