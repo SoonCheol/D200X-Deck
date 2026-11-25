@@ -9,10 +9,26 @@ let explorerArea='',explorerPanel='',explorerItems=[],menuTreeCache=null,menuCat
 const iconCache=new Map(),iconPending=new Set();
 const automaticIconAttempts=new Set();
 let automaticIconBusy=false,automaticIconCheck=0,automaticIconConnected=false;
+let tooltipDone=false,tooltipAttemptAt=0,tooltipPending=null;
+function collectFusionDescriptions(force=false){
+ if(tooltipPending)return tooltipPending;
+ if(!force&&(tooltipDone||Date.now()-tooltipAttemptAt<60000))return Promise.resolve(null);
+ tooltipAttemptAt=Date.now();
+ tooltipPending=window.fusionManager.collectTooltips().then(result=>{
+   tooltipDone=true;return result;
+ }).catch(()=>({error:true})).finally(()=>{tooltipPending=null;});
+ return tooltipPending;
+}
+function descriptionCollectionText(result){
+ if(!result)return '';
+ if(result.error)return ' · 명령 설명 수집 실패';
+ return ' · 설명 '+result.collected+'개 수집 / '+result.missing+'개 없음 · 전체 설명 '+result.total+'개';
+}
 async function collectVisibleFusionIconsAutomatically(){
  if(automaticIconBusy||!explorerItems.length)return;
  const missing=explorerItems.slice(0,240).filter(v=>iconCache.get(v.id)==null&&!automaticIconAttempts.has(v.id));
- if(!missing.length)return;
+ const descriptionsDue=!tooltipDone&&Date.now()-tooltipAttemptAt>=60000;
+ if(!missing.length&&!descriptionsDue)return;
  automaticIconBusy=true;
  try{
   if(Date.now()-automaticIconCheck>15000){
@@ -31,6 +47,7 @@ async function collectVisibleFusionIconsAutomatically(){
    }
   };
   await Promise.all(Array.from({length:Math.min(2,missing.length)},worker));
+  await collectFusionDescriptions();
   if(changed)renderExplorer();
  }finally{automaticIconBusy=false}
 }
@@ -510,8 +527,10 @@ $('collectIcons').onclick=async()=>{
    }
   };
   await Promise.all(Array.from({length:Math.min(3,ids.length)},()=>worker()));
+  statusNode.textContent='명령 설명 수집 중…';
+  const descriptions=await collectFusionDescriptions(true);
   render();
-  statusNode.textContent='완료 '+processed+'개 · 새로 저장 '+saved+' · 기존 캐시 '+cached+' · 원본 없음 '+missing+' · 오류 '+failed;
+  statusNode.textContent='완료 '+processed+'개 · 새로 저장 '+saved+' · 기존 캐시 '+cached+' · 원본 없음 '+missing+' · 오류 '+failed+descriptionCollectionText(descriptions);
  }catch(e){statusNode.textContent='아이콘 수집 실패: '+e.message}
  finally{iconCollecting=false;$('collectIcons').disabled=false}
 };
@@ -535,16 +554,6 @@ $('exploreEnglish').onclick=()=>selectDisplayLanguage('en');
 $('exploreSearch').oninput=renderExplorer;
 $('exploreReset').onclick=()=>{$('exploreSearch').value='';renderExplorer()};
 $('exploreCapture').onclick=()=>$('importCapture').click();
-$('collectTooltips').onclick=async()=>{
- const button=$('collectTooltips'),statusNode=$('tooltipCollectStatus');
- if(button.disabled)return;
- button.disabled=true;statusNode.textContent='Fusion 전체 등록 명령 설명 조회 중…';
- try{
-   const result=await window.fusionManager.collectTooltips();
-   statusNode.textContent='조회 '+result.scanned+'개 · 설명 수집 '+result.collected+'개 · 설명 없음 '+result.missing+'개 · 전체 저장 '+result.total+'개';
- }catch(error){statusNode.textContent='설명 수집 실패: Fusion 및 애드인 연결을 확인하세요.'}
- finally{button.disabled=false}
-};
 $('exploreIcons').onclick=async()=>{
  const ids=explorerItems.slice(0,240).map(v=>v.id);
  if(!ids.length)return;
@@ -562,7 +571,9 @@ $('exploreIcons').onclick=async()=>{
  };
  $('exploreIcons').disabled=true;
  try{await Promise.all(Array.from({length:Math.min(3,ids.length)},worker));
-     renderExplorer();state.textContent='원본 아이콘 수집: 새로 저장 '+saved+' · 기존 '+known+' · 없음 '+missing+' · 실패 '+failed;}
+     state.textContent='명령 설명 수집 중…';
+     const descriptions=await collectFusionDescriptions(true);
+     renderExplorer();state.textContent='원본 아이콘 수집: 새로 저장 '+saved+' · 기존 '+known+' · 없음 '+missing+' · 실패 '+failed+descriptionCollectionText(descriptions);}
  catch(e){state.textContent='수집 오류: '+e.message}
  finally{$('exploreIcons').disabled=false}
 };
