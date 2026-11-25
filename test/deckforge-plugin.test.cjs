@@ -3122,3 +3122,29 @@ test('built-in HA preserves installed server and supports safe same-version conf
    assert.equal((await host.manifests()).find(m=>m.id===id).networkEndpoints[0].url,'wss://other.example/api/websocket');
  }finally{await router.close();await fs.rm(temp,{recursive:true,force:true});}
 });
+
+test('built-in HA upgrade keeps previous endpoint credential and action setting contract',async()=>{
+ const {createHomeAssistantManifest}=require('../app/deckforge-editor/deckforge-ha-plugin.cjs');
+ const {credentialBinding}=require('../app/deckforge-editor/deckforge-native-network.cjs');
+ const temp=await fs.mkdtemp(path.join(os.tmpdir(),'deckforge-ha-upgrade-'));
+ const storage={isAsyncEncryptionAvailable:async()=>true,encryptStringAsync:async v=>Buffer.from(v),decryptStringAsync:async b=>({result:b.toString()})};
+ const legacy={list:async()=>[],sync:async()=>{},close:async()=>{}};
+ const host=new NativePluginHost(temp,()=>{},null,{storage}),router=new PluginRouter(legacy,host);
+ const newer=createHomeAssistantManifest('https://example.com');
+ const old=structuredClone(newer);old.version='0.1.8';old.requiresDeckForge='>=1.1.213';
+ old.actions[0].settingsSchema=[{key:'entity',label:'기기 선택',type:'dynamicSelect',source:'controls',default:''}];delete old.actions[0].settingsUI;
+ const binding=credentialBinding(old.id,old.networkEndpoints[0]),token='fixture.token-123';
+ try{
+   await router.installNative(old);
+   const before=(await host.credentialInfo(old))[0];assert.equal(before.binding,binding);
+   await host.writeCredential(old,binding,before.revision,token);
+   const saved=await host.credentials.read(binding);
+   assert.equal(await router.ensureBuiltinHa(),'updated');
+   const actual=(await host.manifests()).find(m=>m.id===old.id);
+   assert.deepEqual(actual,newer);
+   const info=(await host.credentialInfo(actual))[0];assert.equal(info.binding,binding);assert.equal(info.configured,true);
+   assert.deepEqual(await host.credentials.read(binding),saved);
+   assert.equal(actual.actions[0].settingsSchema.find(f=>f.key==='linked').default,false);
+   assert.equal(await router.ensureBuiltinHa(),'existing');
+ }finally{await router.close();await fs.rm(temp,{recursive:true,force:true});}
+});
