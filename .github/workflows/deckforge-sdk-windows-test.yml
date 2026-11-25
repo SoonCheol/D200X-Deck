@@ -1,8 +1,7 @@
 name: DeckForge native SDK Windows verification
 on:
-  push:
-    branches:
-      - codex/streamdeck-761-clean-editor
+  pull_request:
+    types: [synchronize]
     paths:
       - 'test/deckforge-native-js-electron.cjs'
       - '.github/workflows/deckforge-sdk-windows-test.yml'
@@ -10,10 +9,78 @@ permissions:
   contents: read
 jobs:
   native-sdk:
+    if: github.event.pull_request.number == 5 && github.event.pull_request.head.repo.full_name == github.repository
     runs-on: windows-latest
     timeout-minutes: 25
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+      - name: Skip unrelated follow-up commits
+        id: changes
+        shell: pwsh
+        env:
+          BEFORE_SHA: ${{ github.event.before }}
+        run: |
+          $run = $true
+          if ($env:BEFORE_SHA -match '^[0-9a-f]{40} actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1
+        if: steps.changes.outputs.run == 'true'
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: app/package-lock.json
+      - name: Install Electron
+        if: steps.changes.outputs.run == 'true'
+        working-directory: app
+        run: npm ci
+      - name: Verify native SDK in Electron
+        if: steps.changes.outputs.run == 'true'
+        env:
+          DECKFORGE_SDK_SOAK: '1'
+        shell: pwsh
+        run: |
+          & app/node_modules/.bin/electron.cmd test/deckforge-native-js-electron.cjs
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Verify isolated renderer heap exhaustion
+        if: steps.changes.outputs.run == 'true'
+        env:
+          DECKFORGE_SDK_OOM: '1'
+        shell: pwsh
+        run: |
+          & app/node_modules/.bin/electron.cmd test/deckforge-native-js-electron.cjs
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+) {
+            git fetch --no-tags --depth=1 origin $env:BEFORE_SHA
+            if ($LASTEXITCODE -eq 0) {
+              $changed = git diff --name-only $env:BEFORE_SHA HEAD
+              if ($LASTEXITCODE -eq 0) {
+                $run = [bool]($changed | Where-Object { $_ -match '^test/deckforge-native-js-electron\.cjs$|^\.github/workflows/deckforge-sdk-windows-test\.yml actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: app/package-lock.json
+      - name: Install Electron
+        working-directory: app
+        run: npm ci
+      - name: Verify native SDK in Electron
+        env:
+          DECKFORGE_SDK_SOAK: '1'
+        shell: pwsh
+        run: |
+          & app/node_modules/.bin/electron.cmd test/deckforge-native-js-electron.cjs
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Verify isolated renderer heap exhaustion
+        env:
+          DECKFORGE_SDK_OOM: '1'
+        shell: pwsh
+        run: |
+          & app/node_modules/.bin/electron.cmd test/deckforge-native-js-electron.cjs
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+ })
+              }
+            }
+          }
+          "run=$($run.ToString().ToLowerInvariant())" >> $env:GITHUB_OUTPUT
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1
         with:
           node-version: '22'
