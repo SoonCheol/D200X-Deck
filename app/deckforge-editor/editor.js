@@ -291,6 +291,12 @@ function sdkActionInstances(){
   const scope=JSON.stringify([source.profileId,source.page,source.folderPath||[],folder?.pageIndex||0,pageStructureEpoch]);
   return sdkMounts.reconcile(scope,DeckCore.sdkMountDescriptors(source));
 }
+// These shipped actions always publish a bitmap on appear, even offline.
+window.D200XInitialNativeImagesReady=()=>{
+  const mounts=sdkActionInstances().filter(x=>x.slot<13&&x.gesture==='down'&&
+    ['com.deckforge.native.home-assistant','com.deckforge.native.github-status'].includes(x.pluginUUID));
+  return {count:mounts.length,ready:mounts.every(x=>!!sdkVisuals.get(x.context)?.image)};
+};
 let sdkSyncSerial=0;
 function scheduleSdkSync(){
   if(!window.deckBridge?.sdkSync)return;
@@ -6961,6 +6967,7 @@ function render(){
     for(const press of logicPresses.values()){clearTimeout(press.holdTimer);clearTimeout(press.singleTimer);}
     logicPresses.clear();lastOpenAppHoldScope=scope;
   }
+  window.D200XObservePageEntry?.();
   previewPressKeys.clear();renderGrid();renderInspector();refreshProfilesMenu();scheduleSdkSync();
 }
 

@@ -360,11 +360,11 @@ test('production trial requires explicit process flag and renderer single-slot p
  const read=file=>fs.readFileSync(path.join(__dirname,'../app/deckforge-editor',file),'utf8');
  assert.match(read('main.cjs'),/const keyTransportTrial=process\.argv\.includes\('--test-key-transport'\)/);
  assert.match(read('main.cjs'),/new D200XTransport\(\{incrementalKeys:keyTransportTrial\}\)/);
- assert.match(read('main.cjs'),/wideMode,keyTransportTrial&&liveOnly===true\)/);
+ assert.match(read('main.cjs'),/wideMode,keyTransportTrial&&liveOnly===true,pageToken\)/);
  assert.match(read('preload.cjs'),/syncPage:.*liveOnly===true/);
  const renderer=read('device-sync.js');
  assert.match(renderer,/cacheAndSendImages\(images,mode,stamp,partial&&indices\.length===1&&indices\[0\]<13&&mode==='blank'\)/);
- assert.match(renderer,/bridge\.syncPage\(overlay,'blank'\)/);
+ assert.match(renderer,/bridge\.syncPage\(overlay,'blank',false,window\.D200XPageEntryToken\?\.\(\)\)/);
 });
 
 test('bounded repeated transport simulation preserves full display across live updates, navigation, sleep and reconnect',async()=>{
@@ -409,4 +409,58 @@ test('bounded repeated transport simulation preserves full display across live u
    console.log('USB_REPEAT_SIM '+JSON.stringify({incrementalKeys,rounds:120,...stats}));
   }finally{t.stop();}
  }
+});
+
+test('initial native PAGE collection keeps original deadline, merges dirty slots, and ignores old scopes',()=>{
+ const fs=require('node:fs'),vm=require('node:vm'),path=require('node:path');
+ const src=fs.readFileSync(path.join(__dirname,'../app/deckforge-editor/device-sync.js'),'utf8');
+ const first=src.indexOf('  function observePageEntry(){'),last=src.indexOf('  window.scheduleDeckSync=schedule;',first);
+ assert.ok(first>=0&&last>first);
+ let now=1000,scope='A',ready=false,count=3,next=0;const timers=new Map(),sent=[];
+ const ctx={window:{D200XInitialNativeImagesReady:()=>({count,ready})},pageStamp:()=>scope,
+  pageEntry:null,pageGeneration:0,pageSession:'session',displayedPageToken:null,PAGE_ENTRY_MAX_MS:500,
+  Date:{now:()=>now},dirtyNativeSlots:new Map(),renderSerial:0,slotRevision:0,fullPending:false,renderRetryCount:0,
+  pressedKeys:new Map(),releaseTimers:new Map(),rendering:false,timeout:null,
+  setTimeout:(fn,ms)=>{const id=++next;timers.set(id,{at:now+ms,fn});return id;},clearTimeout:id=>timers.delete(id),
+  synchronize:nativeOnly=>{sent.push({nativeOnly,slots:[...ctx.dirtyNativeSlots.keys()],token:ctx.pageEntry.token,at:now});ctx.dirtyNativeSlots.clear();}};
+ vm.runInNewContext(src.slice(first,last)+';window.schedule=schedule;window.slots=requestSlots;',ctx);
+ const tick=ms=>{now+=ms;for(const [id,t] of [...timers])if(t.at<=now&&timers.delete(id))t.fn();};
+ const w=ctx.window;
+ w.schedule();const a=w.D200XPageEntryToken();tick(40);w.slots([1]);tick(80);w.slots([2]);tick(100);
+ assert.equal(sent.length,0);assert.equal([...timers.values()][0].at,1500);
+ ready=true;w.slots([3]);tick(0);assert.deepEqual(sent,[{nativeOnly:false,slots:[1,2,3],token:a,at:1220}]);
+ w.slots([2]);tick(0);assert.equal(sent.at(-1).nativeOnly,true);
+ scope='B';ready=false;w.schedule();const b=w.D200XPageEntryToken();w.slots([5]);tick(200);
+ scope='A';w.schedule();const a2=w.D200XPageEntryToken();assert.notEqual(a2,a);assert.notEqual(a2,b);
+ w.slots([7]);tick(499);assert.equal(sent.length,2);
+ tick(1);assert.deepEqual(sent.at(-1),{nativeOnly:false,slots:[7],token:a2,at:1920});
+ count=0;ready=true;scope='C';w.schedule();tick(249);assert.equal(sent.length,3);tick(1);assert.equal(sent.length,4);
+});
+
+test('page transport receipt belongs to the actual latest completed transfer, including reconnect',async()=>{
+ const deck=new FakeDeck(),receipts=[];let release;const gate=new Promise(r=>release=r);let builds=0;
+ const t=new D200XTransport({deck,buildPage:async images=>{if(++builds===1)await gate;return Buffer.from(images[0].png);}});
+ t.on('synced',x=>receipts.push(x.pageToken));
+ try{
+  await t.start();t.schedule(completeImages({0:'old'}),'blank',false,'session-1');
+  t.schedule(completeImages({0:'new'}),'blank',false,'session-2');
+  release();await idle();await idle();
+  assert.deepEqual(receipts,['session-2']);assert.deepEqual(pageWrites(deck),[['page','new']]);
+  deck.disconnect();await t.connect();await idle();assert.deepEqual(receipts,['session-2','session-2']);
+ }finally{t.stop();}
+});
+
+test('ordinary physical input is discarded until matching page transfer and blocked releases are not replayed',()=>{
+ const fs=require('node:fs'),vm=require('node:vm'),path=require('node:path');
+ const src=fs.readFileSync(path.join(__dirname,'../app/deckforge-editor/device-sync.js'),'utf8');
+ const first=src.indexOf('    const keyIndex=Number(event?.index);'),last=src.indexOf('    // Wide key (13/14)',first);
+ assert.ok(first>=0&&last>first);
+ const context={pageEntry:{token:'A'},displayedPageToken:'old',physicalDownTokens:new Map(),text:()=>{}};
+ const accept=vm.runInNewContext('(event)=>{'+src.slice(first,last)+';return true;}',context);
+ const press=(index,pressed)=>accept({kind:1,index,pressed});
+ assert.equal(press(1,true),undefined);
+ context.displayedPageToken='A';assert.equal(press(1,false),undefined);
+ assert.equal(press(1,true),true);assert.equal(press(1,false),true);
+ assert.equal(press(2,true),true);context.pageEntry={token:'B'};context.displayedPageToken='B';
+ assert.equal(press(2,false),undefined);assert.equal(press(13,true),true);
 });

@@ -55,6 +55,7 @@ class D200XTransport extends EventEmitter {
     this.inFlight = false;
     this.pending = null;
     this.currentImages = null;
+    this.currentPageToken=null;
     this.pageZipCache = null;
     this.wideMode = 'blank';
     this.appliedWideMode = null;
@@ -207,7 +208,7 @@ class D200XTransport extends EventEmitter {
     return true;
   }
 
-  schedule(images,wideMode='blank',liveOnly=false) {
+  schedule(images,wideMode='blank',liveOnly=false,pageToken=this.currentPageToken) {
     if(!['blank','clock','stats'].includes(wideMode))return;
     if (this.closed) return;
     // A full request invalidates eligibility immediately, even if a newer
@@ -215,6 +216,7 @@ class D200XTransport extends EventEmitter {
     if(liveOnly!==true||wideMode!==this.wideMode){this.incrementalBase=null;this.incrementalCount=0;}
     this.wideMode=wideMode;
     this.currentImages = images;
+    this.currentPageToken=pageToken;
     this.pending = images;
     this.flush().catch(error => this.emit('error-message', String(error?.message || error)));
   }
@@ -227,7 +229,7 @@ class D200XTransport extends EventEmitter {
       while (this.pending && this.deck.connected && !this.closed && !this.sleeping) {
         const images = this.pending;
         this.pending = null;
-        const generation = this.session,mode=this.wideMode;
+        const generation = this.session,mode=this.wideMode,pageToken=this.currentPageToken;
         let zip;
         try {
           const signature=fullPageSignature(images,mode);
@@ -246,7 +248,7 @@ class D200XTransport extends EventEmitter {
                 this.incrementalBase=signature;this.incrementalCount++;
                 this.lastWriteAt=this.now();
                 this.log('key-sent','slot '+(index+1)+' · '+keyZip.length+' ZIP bytes',{slot:index,slots:1,zipBytes:keyZip.length,wideMode:mode,incremental:true});
-                this.emit('synced',{slots:1,kind:'key'});
+                this.emit('synced',{slots:1,kind:'key',...(pageToken?{pageToken}:{})});
                 continue;
               }
             }catch(error){
@@ -285,7 +287,7 @@ class D200XTransport extends EventEmitter {
           this.appliedWideMode=this.wideMode;
           this.lastWriteAt = this.now();
           this.log('page-sent', String(images.length)+' slots · '+zip.length+' ZIP bytes'+(cached?' · cached ZIP':''),{slots:images.length,zipBytes:zip.length,wideMode:mode,cached:!!cached,incremental:false});
-          this.emit('synced', { slots: images.length });
+          this.emit('synced', { slots: images.length,...(pageToken?{pageToken}:{}) });
         } catch (error) {
           this.pageZipCache=null;
           this.incrementalBase=null;this.incrementalCount=0;

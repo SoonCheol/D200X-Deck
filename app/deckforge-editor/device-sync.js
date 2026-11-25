@@ -18,6 +18,10 @@
   let lastSentImages = null;
   let lastSentWideMode='blank',lastSentPageStamp=null;
   let online = false;
+  const pageSession=Date.now().toString(36)+'-'+Math.random().toString(36).slice(2);
+  let pageEntry=null,pageGeneration=0,displayedPageToken=null;
+  const physicalDownTokens=new Map();
+  const PAGE_ENTRY_MAX_MS=500;
   const pressedKeys=new Map();
   const releaseTimers=new Map();
   const pageStamp=()=>String(state.profileId)+':'+state.page+':'+(state.folderPath||[]).join('-')+':'+(DeckCore.activeFolder(state)?.pageIndex||0)+':'+(window.D200XPageStructureEpoch?.()||0);
@@ -33,6 +37,7 @@
       window.clearD200XFusionPresses?.();
       window.clearD200XSidePresses?.();
       window.clearD200XWarningPresses?.();
+      displayedPageToken=null;physicalDownTokens.clear();
       pressedKeys.clear();
       for(const timer of releaseTimers.values())clearTimeout(timer);
       releaseTimers.clear();
@@ -50,12 +55,26 @@
   });
   bridge.onError(message => text('D200X 전송 오류: ' + message));
   bridge.onSynced(details => {
+    if(online&&details?.pageToken===pageEntry?.token)displayedPageToken=details.pageToken;
     if (online) text('D200X 화면 동기화 전송 완료 (' + details.slots + '개 키) · 실제 화면 확인 필요');
   });
   window.d200xActionStatus = message => text('D200X 동작 · ' + message);
   bridge.onKey(event => {
     // A brief visual press acknowledgement, independent of action/HA state.
     const keyIndex=Number(event?.index);
+    if(Number(event?.kind)===1&&Number.isInteger(keyIndex)&&keyIndex>=0&&keyIndex<13){
+      // A late release must never activate a different page's action.
+      const token=pageEntry?.token;
+      if(event.pressed){
+        if(displayedPageToken!==token||physicalDownTokens.has(keyIndex)&&physicalDownTokens.get(keyIndex)!==token){
+          physicalDownTokens.set(keyIndex,null);text('페이지 전환 중 · 버튼 입력 보류');return;
+        }
+        physicalDownTokens.set(keyIndex,token);
+      }else{
+        const down=physicalDownTokens.get(keyIndex);physicalDownTokens.delete(keyIndex);
+        if(down!==token||displayedPageToken!==token)return;
+      }
+    }
     // Wide key (13/14) has its own mode switch. Do not schedule full-page
     // press/release repaints: those can overwrite the newly chosen mode.
     if(Number(event?.kind)===1&&Number.isInteger(keyIndex)&&keyIndex>=0&&keyIndex<13){
@@ -432,8 +451,8 @@
       drawWidePanel(canvas.getContext('2d'),392,196,'unsaved');
       const overlay=images.slice();
       overlay[13]={index:13,png:canvas.toDataURL('image/png').split(',')[1]};
-      bridge.syncPage(overlay,'blank');
-    }else bridge.syncPage(images,mode,liveOnly===true);
+      bridge.syncPage(overlay,'blank',false,window.D200XPageEntryToken?.());
+    }else bridge.syncPage(images,mode,liveOnly===true,window.D200XPageEntryToken?.());
   }
   function cacheAndSendImages(images,mode,stamp,liveOnly=false){
     sendImages(images,mode,liveOnly);
@@ -442,7 +461,7 @@
   window.scheduleD200XWarningSync=()=>{
     // Do not cancel an outstanding normal page synchronization. It will
     // also apply the current alert state at the point of transmission.
-    if(lastSentImages?.length===14&&lastSentPageStamp===warningPageStamp())
+    if(!window.D200XPageEntryPending?.()&&lastSentImages?.length===14&&lastSentPageStamp===warningPageStamp())
       sendImages(lastSentImages,lastSentWideMode);
     else schedule(0);
   };
@@ -497,9 +516,31 @@
         ensureRenderTimer(failed?Math.min(1000,125*2**renderRetryCount):0);
     }
   }
+  // A scope transition owns one bounded initial collection window.
+  function observePageEntry(){
+    const scope=pageStamp();
+    if(pageEntry?.scope===scope)return false;
+    const initial=window.D200XInitialNativeImagesReady?.()||{count:0,ready:true};
+    pageEntry={scope,token:pageSession+'-'+(++pageGeneration),deadline:Date.now()+PAGE_ENTRY_MAX_MS,collecting:initial.count>0&&!initial.ready};
+    dirtyNativeSlots.clear();++renderSerial;fullPending=true;renderRetryCount=0;
+    pressedKeys.clear();for(const timer of releaseTimers.values())clearTimeout(timer);releaseTimers.clear();
+    return true;
+  }
+  function entryDelay(delay){
+    if(!pageEntry?.collecting)return delay;
+    if(window.D200XInitialNativeImagesReady?.()?.ready)return 0;
+    return Math.max(0,pageEntry.deadline-Date.now());
+  }
+  window.D200XPageEntryToken=()=>pageEntry?.token;
+  window.D200XPageEntryPending=()=>displayedPageToken!==pageEntry?.token;
+  window.D200XObservePageEntry=()=>{if(observePageEntry())ensureRenderTimer(250,true);};
   function runScheduledRender(){
     timeout=null;
     if(rendering)return;
+    observePageEntry();
+    const wait=entryDelay(0);
+    if(wait>0){ensureRenderTimer(wait);return;}
+    if(pageEntry)pageEntry.collecting=false;
     const nativeOnly=!fullPending;
     if(nativeOnly&&!dirtyNativeSlots.size)return;
     fullPending=false;
@@ -511,13 +552,14 @@
       if(!replace)return;
       clearTimeout(timeout);
     }
-    timeout=setTimeout(runScheduledRender,delay);
+    timeout=setTimeout(runScheduledRender,entryDelay(delay));
   }
   function schedule(delay=250){
-    ++renderSerial;fullPending=true;renderRetryCount=0;
+    observePageEntry();++renderSerial;fullPending=true;renderRetryCount=0;
     ensureRenderTimer(delay,true);
   }
   function requestSlots(slots){
+    observePageEntry();
     for(const index of slots)dirtyNativeSlots.set(index,++slotRevision);
     renderRetryCount=0;
     ensureRenderTimer(0,true);
