@@ -1,6 +1,6 @@
 'use strict';
 // Shared synthetic guest checks, without access to host capabilities.
-function guestChecks(engine,assert){
+function guestChecks(engine,assert,sdkPrograms=[],onSdkResults=()=>{}){
   const evaluate=source=>{
     const runtime=engine.newRuntime();
     runtime.setMemoryLimit(8*1024*1024);
@@ -50,6 +50,7 @@ function guestChecks(engine,assert){
   assert.ok(['job-limit','interrupted'].includes(jobs.kind)||jobs.interrupted===true,'unbounded jobs must be rejected');
   const next=evaluate('JSON.stringify({next:true})');
   assert.deepEqual(next,{kind:'result',value:{next:true}});
+  onSdkResults(sdkPrograms.map(evaluate));
   return {guestGlobalsBlocked:true,importBlocked:true,asyncJson:true,interrupted:true,allocationRejected:true,outputLimited:true,pendingRejected:true,jobBudget:true,nextRecovered:true};
 }
 module.exports={guestChecks};
