@@ -310,7 +310,7 @@ test('each gesture tab displays its own independent Key Up and Key Down artwork,
  root.pressActions={double:each('website','double-up','double-down'),hold:each('hotkey','hold-up','hold-down')};
  root.pressMeta={representative:'hold',enabled:{single:true,double:true,hold:true}};
  const context={
-  root,window:{D200XPhysicalKeyPressed:()=>false},previewPressKeys:new Set(),state:{selected:0},
+  root,window:{D200XPhysicalKeyPressed:()=>false},visualPreviewPresses:new WeakSet(),state:{selected:0},
   DeckCore:{...Core,visibleActions:()=>[root],runtimeActionKey:()=>'test'},
   DEFAULT_TITLE_STYLE:{visible:true,size:12},haPreviewStates:new WeakMap(),sdkVisuals:new Map(),
   sdkContext:()=>'',sdkActionDefaults:new Map(),activeActionTimers:new Map(),runningMultiProgress:new Map(),
@@ -322,14 +322,23 @@ test('each gesture tab displays its own independent Key Up and Key Down artwork,
  const output=vm.runInNewContext(allSource+
   ';({physical:displayItem(root,0).type,slots:Object.fromEntries(["single","double","hold"].map(slot=>{'+
   'const action=pressSlotAction(root,slot);const visual=inspectorDisplayItem(action,0);'+
-  'const up=displayKeyPressItem(visual,0);previewPressKeys.add(0);'+
-  'const down=displayKeyPressItem(visual,0);previewPressKeys.delete(0);'+
-  'return [slot,{up:up.icon.value,down:down.icon.value,upTitle:up.title,downTitle:down.title}];}))});',context);
+  'const up=displayKeyPressItem(visual,0,true,action);visualPreviewPresses.add(action);'+
+  'const down=displayKeyPressItem(visual,0,true,action);'+
+  'const device=displayKeyPressItem(displayItem(root,0),0,false,pressDisplayAction(root));'+
+  'const other=pressSlotAction(root,slot==="single"?"double":"single");'+
+  'const unaffected=displayKeyPressItem(inspectorDisplayItem(other,0),0,true,other);'+
+  'visualPreviewPresses.delete(action);const released=displayKeyPressItem(visual,0,true,action);'+
+  'return [slot,{up:up.icon.value,down:down.icon.value,upTitle:up.title,downTitle:down.title,device:device.icon.value,unaffected:unaffected.icon.value,released:released.icon.value}];}))});',context);
  const get=output.slots;
  assert.equal(get.single.up,'single-up');assert.equal(get.single.down,'single-down');
  assert.equal(get.double.up,'double-up');assert.equal(get.double.down,'double-down');
  assert.equal(get.hold.up,'hold-up');assert.equal(get.hold.down,'hold-down');
  assert.equal(get.single.upTitle,'open-app UP');assert.equal(get.hold.downTitle,'hotkey DOWN');
+ for(const [slot,visual] of Object.entries(get)){
+  assert.equal(visual.device,'hold-up',slot+' must not change physical representative');
+  assert.equal(visual.unaffected,slot==='single'?'double-up':'single-up',slot+' must not change another tab');
+  assert.equal(visual.released,visual.up,slot+' must restore on release');
+ }
  const physical=output.physical;
  assert.equal(physical,'hotkey','physical representative remains selected hold action');
  assert.equal(root.settings.keyPressIcons.down.value,'single-down');
@@ -344,7 +353,8 @@ test('inspector icon and title previews bypass representative selection while ph
  assert.match(src,/const visual=inspectorDisplayItem\(item,slot\)/);
  assert.match(src,/const visual=inspectorDisplayItem\(item,state\.selected\)/);
  assert.match(src,/const current=displayKeyPressItem\(inspectorDisplayItem\(item,state\.selected\)/);
- assert.match(src,/const visual=displayKeyPressItem\(displayItem\(item,i\),i\)/);
+ assert.match(src,/const visual=displayKeyPressItem\(displayItem\(item,i\),i,true,pressDisplayAction\(item\)\)/);
+ assert.match(src,/window\.getD200XDisplayItem=.*displayKeyPressItem\(displayItem\(DeckCore\.visibleActions\(state\)\[index\]\|\|item,index\),index,false,previewActionAt\(index\)\)/);
  assert.match(src,/\['sd-plugin','timer','hotkey-switch'\]\.includes\(target\.type\)/);
 });
 
