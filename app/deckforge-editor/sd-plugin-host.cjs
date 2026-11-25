@@ -100,7 +100,7 @@ class StreamDeckPluginHost{
     this.onUpdate=onUpdate;this.server=null;this.port=0;
     this.plugins=new Map();this.contexts=new Map();this.global=new Map();
     this.instances=new Map();this.inspectors=new Map();
-    this.haPollTimer=null;this.haPollBusy=false;
+    this.haPollTimer=null;this.haPollBusy=false;this.haPollEpoch=0;
     this.recoveries=new Map();this.starting=new Map();this.pressed=new Map();this.closing=false;this.suspended=false;this.resumeTimer=null;
   }
 
@@ -365,7 +365,7 @@ class StreamDeckPluginHost{
     })().catch(()=>{this.diagnostic(uuid,'recovery-failed');return false;}).finally(()=>this.recoveries.delete(uuid));
     this.recoveries.set(uuid,task);return task;
   }
-  onSystemSuspend(){this.suspended=true;this.pressed.clear();clearTimeout(this.resumeTimer);this.resumeTimer=null;}
+  onSystemSuspend(){this.suspended=true;this.haPollEpoch++;this.pressed.clear();clearTimeout(this.resumeTimer);this.resumeTimer=null;}
   onSystemResume(){
     this.suspended=false;this.pressed.clear();clearTimeout(this.resumeTimer);
     // HA's upstream connection cannot be inspected through the local SDK socket.
@@ -400,6 +400,7 @@ class StreamDeckPluginHost{
     await fs.promises.writeFile(temp,safeStorage.encryptString(json(payload)));
     await fs.promises.rename(temp,this.settingsFile(uuid));
     this.global.set(uuid,payload);
+    if(uuid===HA_PLUGIN)this.haPollEpoch++;
   }
   async ensure(uuid){
     if(this.starting.has(uuid))return this.starting.get(uuid);
@@ -505,29 +506,37 @@ class StreamDeckPluginHost{
       this.disappear(ctx);this.contexts.delete(key);
     }
     // Load the initial ON/OFF state even if HA connected before this key was assigned.
-    await this.refreshHaDualStates();
+    // Network state refresh is best effort, not part of mount completion.
+    void this.refreshHaDualStates().catch(()=>{});
   }
   disappear(ctx){
     this.pressed.delete(ctx.context);
     this.send(this.instances.get(ctx.pluginUUID)?.ws,{event:'willDisappear',action:ctx.actionUUID,context:ctx.context,device:DEVICE,payload:this.payload(ctx)});
   }
   async refreshHaDualStates(fetcher=globalThis.fetch){
-    if(this.haPollBusy)return;
+    if(this.haPollBusy||this.closing||this.suspended)return;
     const dual=[...this.contexts.values()].filter(ctx=>
       ctx.pluginUUID===HA_PLUGIN&&ctx.actionUUID===HA_DUAL_ACTION&&
-      HA_SWITCH_ENTITY.test(ctx.settings?.display?.entityId||''));
+      HA_SWITCH_ENTITY.test(ctx.settings?.display?.entityId||'')).map(ctx=>({
+        ctx,settings:ctx.settings,entity:ctx.settings.display.entityId,lastState:ctx.lastState
+      }));
     if(!dual.length)return;
-    const config=await this.readGlobal(HA_PLUGIN);
-    if(!config||typeof config.accessToken!=='string'||!config.accessToken||
-      typeof config.serverUrl!=='string')return;
-    let base;
-    try{
-      base=new URL(config.serverUrl);
-      if(!['http:','https:'].includes(base.protocol)||base.username||base.password)return;
-    }catch{return;}
+    const epoch=this.haPollEpoch;
+    const active=()=>!this.closing&&!this.suspended&&this.haPollEpoch===epoch;
+    const current=entry=>active()&&this.contexts.get(entry.ctx.context)===entry.ctx&&
+      entry.ctx.settings===entry.settings&&entry.ctx.settings?.display?.entityId===entry.entity;
+    // Claim the poll before credential I/O, including the initial refresh.
     this.haPollBusy=true;
     try{
-      const unique=[...new Set(dual.map(ctx=>ctx.settings.display.entityId))];
+      const config=await this.readGlobal(HA_PLUGIN);
+      if(!active()||!config||typeof config.accessToken!=='string'||!config.accessToken||
+        typeof config.serverUrl!=='string')return;
+      let base;
+      try{
+        base=new URL(config.serverUrl);
+        if(!['http:','https:'].includes(base.protocol)||base.username||base.password)return;
+      }catch{return;}
+      const unique=[...new Set(dual.filter(current).map(entry=>entry.entity))];
       const results=await Promise.all(unique.map(async entity=>{
         try{
           const endpoint=new URL('api/states/'+encodeURIComponent(entity),base.href.endsWith('/')?base:base.href+'/');
@@ -539,14 +548,14 @@ class StreamDeckPluginHost{
         }catch{return [entity,null];}
       }));
       const states=new Map(results);
-      for(const ctx of dual){
-        if(this.contexts.get(ctx.context)!==ctx)continue;
-        const state=states.get(ctx.settings.display.entityId);
+      for(const entry of dual){
+        const {ctx}=entry,state=states.get(entry.entity);
+        if(!current(entry)||ctx.lastState!==entry.lastState)continue;
         if(state!==0&&state!==1||ctx.lastState===state)continue;
         ctx.lastState=state;
         this.onUpdate({kind:'setState',context:ctx.context,payload:{state}});
         const artwork=await this.stateArtwork(ctx,state);
-        if(artwork)this.onUpdate({kind:'setImage',context:ctx.context,payload:{image:artwork}});
+        if(artwork&&current(entry)&&ctx.lastState===state)this.onUpdate({kind:'setImage',context:ctx.context,payload:{image:artwork}});
       }
     }finally{this.haPollBusy=false;}
   }

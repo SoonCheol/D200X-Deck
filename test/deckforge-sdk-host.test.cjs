@@ -270,3 +270,44 @@ test('each compatibility sync uses a single fresh catalogue, including the route
   assert.equal(calls,4);
  }finally{await router.close();}
 });
+
+
+test('compatibility mount completion does not wait for a pending HA state refresh',async()=>{
+ const host=new StreamDeckPluginHost('/unused');
+ const uuid=M.UUID,actionUUID=uuid+'.dual-state-entity';
+ const cfg={context:'ha',slot:0,pluginUUID:uuid,actionUUID,settings:{display:{entityId:'switch.one'}}};
+ host.list=async()=>[{uuid,actions:[{uuid:actionUUID}]}];host.instances.set(uuid,{uuid});
+ let release,entered=false;
+ const gate=new Promise(resolve=>{release=resolve;});
+ host.refreshHaDualStates=async()=>{entered=true;await gate;};
+ let timer;
+ try{
+  await Promise.race([host.sync([cfg]),new Promise((_,reject)=>{timer=setTimeout(()=>reject(Error('mount waited for HA polling')),1000);})]);
+  assert.equal(entered,true);assert.equal(host.contexts.has('ha'),true);
+ }finally{clearTimeout(timer);release();await host.close();}
+});
+
+test('HA fallback claims one poll before credential I/O and drops stale settings and suspend results',async()=>{
+ const events=[],host=new StreamDeckPluginHost('/unused',e=>events.push(e));
+ const uuid=M.UUID,actionUUID=uuid+'.dual-state-entity';
+ const ctx={context:'ha',slot:0,pluginUUID:uuid,actionUUID,settings:{display:{entityId:'switch.one'}}};
+ host.contexts.set(ctx.context,ctx);
+ let release,reads=0,requests=0;
+ const gate=new Promise(resolve=>{release=resolve;});
+ host.readGlobal=async()=>{reads++;await gate;return {serverUrl:'https://ha.example.test',accessToken:'test'};};
+ host.stateArtwork=async()=>null;
+ const fetcher=async()=>{requests++;return {ok:true,json:async()=>({state:'on'})};};
+ try{
+  const first=host.refreshHaDualStates(fetcher);
+  await host.refreshHaDualStates(fetcher);assert.equal(reads,1);
+  ctx.settings={display:{entityId:'switch.two'}};release();await first;
+  assert.equal(requests,0);assert.deepEqual(events,[]);
+  let reply,started;const response=new Promise(resolve=>{reply=resolve;}),ready=new Promise(resolve=>{started=resolve;});
+  const pending=host.refreshHaDualStates(async()=>{started();await response;return {ok:true,json:async()=>({state:'on'})};});
+  await ready;host.onSystemSuspend();host.onSystemResume();
+  reply();await pending;assert.deepEqual(events,[]);
+  await host.refreshHaDualStates(fetcher);
+  assert.equal(requests,1);assert.equal(events.filter(e=>e.kind==='setState').length,1);
+  assert.equal(host.haPollBusy,false);
+ }finally{release();await host.close();}
+});

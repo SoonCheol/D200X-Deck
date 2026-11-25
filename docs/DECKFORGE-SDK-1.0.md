@@ -206,3 +206,5 @@ report03.md §4.2 13행 원문 기준. 1.1.231 CI #1281/입력 #521/Windows #985
 - 1.1.242: 일반 버튼 즉시 누르기 편집은 원본 local action을 복제해 수정하고, persist 실패 시 원래 slot/selected/tab/inspectorSession을 복구한다. 성공 후만 장치 sync. 전용 액션 등록 및 일반 삭제는 setItem의 성공 반환을 전달하고 Fusion 성공 표시는 실제 성공 후만 표시한다. 미저장 속성 편집·노브/측면·고정 해제 경로는 기존 유지. 집중 VM 검사 추가. 1.1.240 CI #1291/Windows #995 성공·설치본 게시. 1.1.241 CI #1292/입력 #525/Windows #996 회귀 통과·패키징 중. 신규 검사 대기.
 
 - 2.0.2 동기화 I/O 국소 개선: PluginRouter가 동일 직렬 sync에서 확인한 호환 catalogue를 호환 host.sync에 전달하고, 단독 sync도 유효 batch 내 목록 조회를 1회로 제한한다. 13개 등록·누락 action·다음 sync 삭제·빈 batch 집중 검사 추가. 새 플러그인 실행 시 기존 별도 list/manifest 확인은 유지하며 설치/제거 충돌 검증과 장기 캐시는 변경하지 않는다. 실제 지연/메모리 절감 수치 미측정. 2.0.1 CI #1296/Windows #3 standalone 검사 성공·설치 모드 검사 중. 2.0.2 신규 검사 대기.
+
+- 2.0.3: 호환 HA 읽기 전용 상태 보정 요청을 mount 완료 경로에서 분리. credential I/O 전 poll lock, 설정 객체/entity/context 및 suspend/credential epoch 검증, 늦은 이미지 전송 재검증. 기존 4초 요청 제한/6초 주기 유지; HA 제어 재실행 없음. 실제 플러그인 시작 및 catalogue 검증은 여전히 직렬로 유지하며 완전 독립 선언 금지. 집중 검사 대기. 2.0.1 회귀 통과·패키징 중, 2.0.2 CI #1297 및 Windows #4 standalone 통과.
