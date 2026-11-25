@@ -4,7 +4,7 @@ const ORIGINAL_CATALOG = [
   ["Soundboard", [["audio-play","효과음 재생","♫"],["audio-stop","효과음 정지","◼"]]],
   ["DeckForge", [["timer","타이머","◴"],["brightness","D200X 밝기 설정","☼"],["sleep","D200X 화면 끄기","☾"],["virtual","Virtual DeckForge 토글","▣"]]],
   ["순차 동작", [["multi","순차 동작","▤"],["multi-switch","순차 동작 스위치","⇄"],["random","무작위 동작","⚄"],["logic","Key Logic","⇧"],["gesture-test","터치 입력 검증","◎"]]],
-  ["시스템", [["website","웹페이지","◎"],["hotkey-switch","단축키 전환","⇄"],["hotkey","단축키","⌨"],["open","열기 (통합)","▢"],["open-app","프로그램 열기","▣"],["close","프로그램 종료","×"],["text","텍스트 입력","¶"],["media","재생 제어","♫"]]],
+  ["시스템", [["website","웹페이지","◎"],["hotkey-switch","단축키 전환","⇄"],["hotkey","단축키","⌨"],["open","열기 (통합)","▢"],["open-app","프로그램 열기","▣"],["close","프로그램 종료","×"],["text","상용구 입력","¶"],["media","재생 제어","♫"]]],
   ["탐색", [["folder","덱폴더","▣"],["profile","프로필 전환","⇆"],["previous","이전 페이지","←"],["next","다음 페이지","→"],["goto","선택 페이지","↗"],["indicator","페이지 표시","①"]]],
   ["플러그인 · Home Assistant", [["ha-toggle","HA 장치 켜기/끄기","⌂"]]],
   ["D200X 추가 액션", [["system-volume","윈도우 음량 조절","🔊"],["system-mute","윈도우 음소거","🔇"],["system-scroll","윈도우 스크롤","↕"],["edit-history","실행 취소·다시 실행","↶"],["window-switch","창 전환","▣"],["desktop-switch","가상 데스크톱 전환","⇄"],["device-brightness","D200X 밝기 조절","☀"],["system-zoom","앱 확대·축소","⊕"],["screenshot","화면 캡처","▣"],["clipboard-edit","클립보드 편집","▤"],["window-state","창 상태","□"],["window-monitor","다른 모니터로 이동","⇆"],["explorer-open","파일 탐색기 열기","▢"],["brush-size","브러시 크기","◉"],["timeline-step","타임라인 한 단계","▶"],["timeline-zoom","타임라인 확대·축소 (앱별)","⊕"],["file-open","파일 열기","▣"],["folder-shortcut","폴더 열기","▢"],["terminal","터미널","▣"],["terminal-admin","터미널(관리자)","▣"]]]
@@ -74,7 +74,7 @@ const PANEL_SHORTCUTS={
   "timeline-zoom":"Ctrl + + / - (앱별)",
   "hotkey":"사용자 지정",
   "hotkey-switch":"사용자 지정",
-  "text":"유니코드 텍스트 입력"
+  "text":"등록한 상용구를 유니코드 텍스트로 입력"
 };
 const ACTIONS = new Map(CATALOG.flatMap(([category, entries]) => entries.map(([id,label,icon]) => [id,{category,id,label,icon}])));
 ACTIONS.set('sd-plugin',{category:'플러그인',id:'sd-plugin',label:'DeckForge 플러그인',icon:'▣'});
@@ -2459,7 +2459,7 @@ const TEST_TOUCH_CHOICES=[
   ['none','기록만 (동작 없음)'],
   ['hotkey','단축키'],['open-app','프로그램 열기'],
   ['file-open','파일 열기'],['folder-shortcut','폴더 열기'],
-  ['text','텍스트 입력'],['ha-toggle','HA 장치 제어'],
+  ['text','상용구 입력'],['ha-toggle','HA 장치 제어'],
   ['goto','페이지 이동'],['media','멀티미디어 제어']
 ];
 function renderGestureTestEditor(item,root){
@@ -6261,7 +6261,7 @@ function executeHardwareAction(event,preview=false,skipKnobGesture=false,pressOv
     if(!command)return 'Windows 실행 환경에서만 사용할 수 있습니다.';
     observe(command(outcome.text,outcome.enter),outcome.kind).then(
       ()=>window.d200xActionStatus?.(useClipboard?'클립보드에 기록하고 붙여넣기 완료':'유니코드 직접 입력 완료'),
-      error=>window.d200xActionStatus?.('텍스트 입력 실패: '+String(error?.message||error)));
+      error=>window.d200xActionStatus?.('상용구 입력 실패: '+String(error?.message||error)));
     return useClipboard?'Windows 클립보드 붙여넣기 요청':'유니코드 직접 입력 요청';
   }
   if(outcome.kind==='timer'){
