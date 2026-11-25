@@ -17,6 +17,7 @@
 - 1.1.231: identity 19행 대조·집중 검사, CI #1281/입력 #521/Windows #985 성공, 게시. 1.1.232: 저장 13행 대응·종료 commit 차단. CI #1282/입력 #522 성공, Windows #986 clean fixture 실패(kind 누락), 종료/페이지·삭제/retire 검사 통과. 1.1.233: fixture 수정 CI #1283/Windows #987 성공, 게시. 1.1.234: 실제 Electron NativePluginHost+임시 ProfileStore, 요청 전/저장 후 ACK 전 renderer crash, 재조회·재실행 금지 검증 추가. CI #1284·Windows #988 성공, 1.1.234 설치본 게시.
 - 1.1.230: CI #1278, Windows #984 attempt2 전체 성공. 실제 idle/active crash·거부·서비스/peer 생존·새 이벤트 복구, 25함수·vault 통과. 1차 npm 404 해소(버전 변경 없음). deckforge-v1.1.230 게시, EXE 135231273 bytes. 현재 root suite 45/45 실행 명령 확인, 초기 helper skip 3개와 후속 패키지 검사 구분.
 ## 다음 작업
+- 2.0.41 예정: 독자 서비스 관리 중 종료되면 지연된 설정 읽기/쓰기 완료 후 서비스가 재생성되지 않도록 차단. 이미 확정된 설정은 보존. 종료 경쟁 집중 검사.
 - 2.0.40: 독자 서비스 시작 정책 동시 읽기 경쟁 해결. 공통 Promise 완료 전 서비스 시작 차단, 정지/오류 정책 보존, 동시 읽기 회귀 검사 추가. CI/Windows 신규 결과 대기. 외부 호환 엔진 추가 개발 보류.
 - SDK #93 실제 OOM 통과(reason=oom), 서비스/peer 생존, 입력 복구 및 5분 soak(1391 press/105 전환/274 tick), 임시 ProfileStore 장애 검사 통과. CI #1401 성공. 실제 장치/OS 절전 및 전원 손실 별도.
 - 2.0.38: catalogue/native mount 큐와 호환 startup 큐 분리. 새 native mount가 이전 호환 startup 완료를 기다리지 않음. 관리 작업은 양쪽 큐 완료 후 실행; ID 충돌/최신 revision 검사 유지. gate 집중 검사 추가, CI #1398 성공, Windows #41 신규 검사 491행 실패(첫 down 성공 후 up 없이 두 번째 down). 2.0.39: 두 입력 사이 release 추가 및 중복 down 거절 명시 검사. 제품 코드 변경 없음, CI #1399/Windows #42 성공. SDK #91은 실제 검사 skip. catalogue 및 관리 작업 자체의 대기는 유지.
