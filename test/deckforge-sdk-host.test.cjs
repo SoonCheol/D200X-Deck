@@ -481,6 +481,8 @@ test('new page retires pending compatibility startup and prevents obsolete mount
   assert.equal(router.key(first.context,'down'),false);
   await Promise.race([nativeReady,new Promise((_,reject)=>{timer=setTimeout(()=>reject(Error('native mount waited for compatibility startup')),2000);})]);
   clearTimeout(timer);assert.equal(router.key(fresh.context,'down'),true);
+  assert.equal(router.key(fresh.context,'down'),false,'duplicate press must still be rejected');
+  assert.equal(router.key(fresh.context,'up'),true);
   management=router.planLegacyRemoval(uuid);
   await new Promise(r=>setImmediate(r));assert.equal(managementStarted,false,'management must still wait for compatibility startup');
   release();await Promise.all([pending,next,management]);
@@ -489,5 +491,6 @@ test('new page retires pending compatibility startup and prevents obsolete mount
   assert.equal(messages.some(m=>m.event==='willAppear'),false);
   assert.deepEqual(calls,[uuid]);
   assert.equal(router.key(fresh.context,'down'),true);
+  assert.equal(router.key(fresh.context,'up'),true);
  }finally{clearTimeout(timer);release();await Promise.allSettled([pending,next,management]);await router.close();}
 });

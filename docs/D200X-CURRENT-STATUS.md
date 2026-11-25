@@ -2,7 +2,7 @@
 > 2026-11-25 · 현재 스냅샷, 누적 금지.
 ## 개발 기준
 - 저장소 SoonCheol/D200X-Deck · 브랜치 codex/streamdeck-761-clean-editor · Draft PR #5 유지.
-- 로컬 E:\Codex\DeckForge. 최신 HEAD는 Git에서 확인. 소스 버전 **2.0.38** (GitHub 마퀴·자동 조회; 2.0.7 센서 UI 사용자 정상 확인).
+- 로컬 E:\Codex\DeckForge. 최신 HEAD는 Git에서 확인. 소스 버전 **2.0.39** (GitHub 마퀴·자동 조회; 2.0.7 센서 UI 사용자 정상 확인).
 - 감사 기준 `49ba39fe094ee808c5715f2348be0789f61d5e20`. CI #1221 성공; Windows #930 사용자 인수인계.
 ## 현재 상태
 - 독자 SDK API 1/2, 공개 25개 함수, HTTP/WSS, 전역 서비스/공유 상태, 동적 속성, 암호화·권한·패키지, HA 0.1.8 후보 및 Stream Deck 호환 호스트 구현. SDK 1.0 정식 완성 선언 보류.
@@ -17,7 +17,7 @@
 - 1.1.231: identity 19행 대조·집중 검사, CI #1281/입력 #521/Windows #985 성공, 게시. 1.1.232: 저장 13행 대응·종료 commit 차단. CI #1282/입력 #522 성공, Windows #986 clean fixture 실패(kind 누락), 종료/페이지·삭제/retire 검사 통과. 1.1.233: fixture 수정 CI #1283/Windows #987 성공, 게시. 1.1.234: 실제 Electron NativePluginHost+임시 ProfileStore, 요청 전/저장 후 ACK 전 renderer crash, 재조회·재실행 금지 검증 추가. CI #1284·Windows #988 성공, 1.1.234 설치본 게시.
 - 1.1.230: CI #1278, Windows #984 attempt2 전체 성공. 실제 idle/active crash·거부·서비스/peer 생존·새 이벤트 복구, 25함수·vault 통과. 1차 npm 404 해소(버전 변경 없음). deckforge-v1.1.230 게시, EXE 135231273 bytes. 현재 root suite 45/45 실행 명령 확인, 초기 helper skip 3개와 후속 패키지 검사 구분.
 ## 다음 작업
-- 2.0.38: catalogue/native mount 큐와 호환 startup 큐 분리. 새 native mount가 이전 호환 startup 완료를 기다리지 않음. 관리 작업은 양쪽 큐 완료 후 실행; ID 충돌/최신 revision 검사 유지. gate 집중 검사 추가, 새 CI/Windows 미확인. catalogue 및 관리 작업 자체의 대기는 유지.
+- 2.0.38: catalogue/native mount 큐와 호환 startup 큐 분리. 새 native mount가 이전 호환 startup 완료를 기다리지 않음. 관리 작업은 양쪽 큐 완료 후 실행; ID 충돌/최신 revision 검사 유지. gate 집중 검사 추가, CI #1398 성공, Windows #41 신규 검사 491행 실패(첫 down 성공 후 up 없이 두 번째 down). 2.0.39: 두 입력 사이 release 추가 및 중복 down 거절 명시 검사. 제품 코드 변경 없음, 새 Windows 결과 미확인. catalogue 및 관리 작업 자체의 대기는 유지.
 - 2.0.37: 호환 startup 대기 중 최신 페이지 변경 시 이전 호환 mount 즉시 퇴역, await 이후 폐기 세대 sync 종료. 이전 willAppear 및 후속 mount 차단 집중 검사 추가. 관리 직렬화/충돌 검증 유지; CI #1396, Windows #40 성공. 대기열 완전 분리 아님.
 - 2.0.35: 실행/설치 충돌 검증용 catalogue와 UI artwork 조회 분리. 아이콘 읽기 실패 시 검증된 ID 유지 및 개별 이미지 null. manifest/CodePath 검증 유지. CI #1392 성공, Windows #38 소스 패턴 검사 실패. 2.0.36: 아이콘 fallback 패턴 검사를 새 helper에 맞추고 충돌 fixture를 유효 native ID로 수정. 제품 코드 변경 없음. Windows #39 attempt2 성공. 외부 catalogue/관리 큐 의존은 남음.
 - SDK 10C 재개: Windows #37 성공(2.0.34). 전용 SDK #78은 soak/OOM skip. #9 실제 로그: 장시간 테스트 service/button PID assertion 실패, OOM skip. 유휴 runner 30초 정리와 정적 service fixture 불일치 가능성. `0846974`에서 실제 1초 service tick·soak tick count/PID 진단, OOM 독립 실행, SDK 핵심 변경 시 전용 CI 트리거 추가. 생산 소스·버전·Model5/KEY 정책 미변경. SDK #84 실제 5분 soak 성공: 1417 press/107 전환/293 service tick, host heap 표본 6.7~13.8MB, runner 2개. OOM 실패: reason=crashed, exitCode=-36861(Chromium Crashpad 미연결 코드, OOM 증거 아님). 시험 전용 Chromium 파일 로그의 대상 PID/native Blink V8 javascript OOM 메시지 또는 Electron oom 이벤트만 허용; 장애 후 서비스/peer/새 입력 복구를 먼저 검증. SDK #88: 5분 soak 재통과(1365 추가 입력/282 service tick). heap-pressure 격리·복구 통과, OOM native 증거 미확보로 실패 유지. 실제 HA/D200X/OS 절전·전원 손실 별도.
