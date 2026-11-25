@@ -149,3 +149,14 @@ test('sensor settings align with the first icon card at an 8px gap',async()=>{
  assert.equal(modal.style.left,'440px');assert.equal(modal.style.top,'150px');
  assert.equal(modal.style.maxWidth,'952px');modal.close('cancel');assert.equal(await pending,false);
 });
+
+
+test('read-only Fusion information has its title in the header and only the close button',async()=>{
+ const {document,window}=load();
+ const pending=window.DeckForgeDialogs.show({title:'Fusion 명령 속성',content:document.createElement('div'),headerTitleOnly:true});
+ const modal=document.body.children.at(-1),nodes=descendants(modal);
+ assert.equal(nodes.filter(n=>n.textContent==='Fusion 명령 속성').length,1);
+ assert.equal(nodes.some(n=>n.textContent==='DeckForge'),false);
+ const buttons=nodes.filter(n=>n.tagName==='BUTTON');assert.equal(buttons.length,1);assert.equal(buttons[0].textContent,'×');assert.ok(buttons[0].focused);
+ buttons[0].events.click[0]();assert.equal(await pending,false);
+});

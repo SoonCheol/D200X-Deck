@@ -20,14 +20,14 @@ function normaliseCatalog(raw){
  }
  return names;
 }
-function projectCommands(raw,names=new Map()){
+function projectCommands(raw,names=new Map(),tooltipLimit=140){
  if(raw?.ok!==true||!Array.isArray(raw.commands)||raw.commands.length>30000)throw Error('invalid-fusion-commands');
  const out=[],seen=new Set();
  for(const row of raw.commands){
   if(!safeId(row?.id)||seen.has(row.id))continue;
   const name=clean(row.name);if(!name)continue;seen.add(row.id);
   const known=names.get(row.id)||{};
-  out.push({id:row.id,name,ko:known.ko||(/[가-힣]/.test(name)?name:''),en:known.en||(!/[가-힣]/.test(name)?name:''),category:known.category||'',tooltip:clean(row.tooltip,140)});
+  out.push({id:row.id,name,ko:known.ko||(/[가-힣]/.test(name)?name:''),en:known.en||(!/[가-힣]/.test(name)?name:''),category:known.category||'',tooltip:clean(row.tooltip,tooltipLimit)});
  }
  return out;
 }
@@ -66,7 +66,7 @@ async function readBounded(file,limit,io=fs){
 function createClient({discoveryFile,catalogFile,fetcher=fetch,io=fs}){
  let namesPromise;
  const names=()=>namesPromise??=readBounded(catalogFile,MAX_BYTES,io).then(normaliseCatalog).catch(()=>new Map());
- async function commands({id=null,signal}={}){
+ async function commands({id=null,signal,tooltipLimit=140}={}){
   signal?.throwIfAborted();
   if(id!==null&&!safeId(id))throw Error('invalid-fusion-id');
   const info=await readBounded(discoveryFile,8192,io);
@@ -75,9 +75,11 @@ function createClient({discoveryFile,catalogFile,fetcher=fetch,io=fs}){
   const timeout=AbortSignal.timeout(11000);
   const raw=await limitedJson(await fetcher(url,{method:'GET',redirect:'error',headers:{accept:'application/json'},signal:signal?AbortSignal.any([timeout,signal]):timeout}),MAX_BYTES);
   signal?.throwIfAborted();
-  return projectCommands(raw,await names());
+  return projectCommands(raw,await names(),tooltipLimit);
  }
- return {list:signal=>commands({signal}),exact:async(id,signal)=>{
+ return {list:signal=>commands({signal}),details:async(id,signal)=>{
+  const rows=await commands({id,signal,tooltipLimit:1000});return rows.find(r=>r.id===id)||null;
+ },exact:async(id,signal)=>{
   const rows=await commands({id,signal});return rows.find(r=>r.id===id)||null;
  }};
 }

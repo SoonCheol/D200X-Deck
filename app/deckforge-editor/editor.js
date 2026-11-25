@@ -4261,62 +4261,37 @@ function updateSdkAvailabilityInspector(){
   if(cleanup)cleanup.hidden=!(window.deckBridge?.nativeRetainedList&&DeckCore.sdkAvailability(item,sdkCatalogueReady?sdkPlugins:null)==='missing'&&!sdkRetained.some(p=>p.id===item?.settings?.pluginUUID));
 }
 async function openFusionCommandProperties(root,item){
-  const session=inspectorSession,originalId=fusionCommandId(item);
+  const session=inspectorSession,key=fusionCommandId(item);
   if(!inspectorPickerCurrent(session,item))return;
   const content=document.createElement('div');content.className='fusion-command-properties';
-  const search=document.createElement('input');search.type='search';search.placeholder='명령 이름 또는 ID 검색';search.maxLength=160;
-  search.setAttribute('aria-label','Fusion 명령 검색');
-  const label=document.createElement('strong');label.textContent='현재 명령';
   const card=document.createElement('div');card.className='fusion-command-summary';
   const art=document.createElement('div');art.className='fusion-command-art';
-  const info=document.createElement('div'),name=document.createElement('strong'),id=document.createElement('div'),desc=document.createElement('p');
-  id.className='hint';desc.className='fusion-command-description';info.append(name,id,desc);card.append(art,info);
-  const status=document.createElement('p');status.className='hint';
-  const results=document.createElement('div');results.className='fusion-command-results';
-  content.append(label,card,search,status,results);
-  let selected={id:originalId,name:item.settings?.pluginSettings?.name||item.title||originalId||'',tooltip:''},serial=0,closed=false,timer=null,changed=false;
-  function draw(row){
-    selected=row;name.textContent=row?.ko||row?.name||row?.en||'명령 미선택';
-    id.textContent=row?.id||'';desc.textContent=row?.tooltip||'명령 설명을 확인할 수 없습니다.';
-    art.replaceChildren();const key=row?.id;
-    if(!key)return;
-    const apply=image=>{if(closed||selected?.id!==key)return;art.replaceChildren();if(image){const img=document.createElement('img');img.src=image;img.alt='기본 명령 아이콘';art.append(img);}else art.textContent='아이콘 없음';};
-    apply(fusionIconCache.get(key)||null);
-    window.deckBridge?.fusionIconRead?.(key).then(image=>{if(image)apply(image);}).catch(()=>{});
+  const info=document.createElement('div'),ko=document.createElement('strong'),en=document.createElement('div'),id=document.createElement('div');
+  en.className='fusion-command-english';id.className='hint';
+  info.append(ko,en,id);card.append(art,info);
+  const desc=document.createElement('p');desc.className='fusion-command-description';
+  content.append(card,desc);
+  let closed=false;
+  const storedName=item.settings?.pluginSettings?.name||'';
+  function draw(row={}){
+    ko.textContent=row.ko||fusionButtonNames.ko?.[key]||(/[가-힣]/.test(storedName)?storedName:'한글 명령명 없음');
+    en.textContent=row.en||fusionButtonNames.en?.[key]||(!/[가-힣]/.test(storedName)&&storedName?storedName:'영문 명령명 없음');
+    id.textContent=key||'명령 미등록';
+    desc.textContent=row.tooltip||'명령 설명을 확인할 수 없습니다.';
   }
-  draw(selected);
-  async function load(){
-    const request=++serial,query=search.value.trim();
-    if(query.includes('|')){status.textContent='명령 이름 또는 ID 하나를 입력하세요.';return;}
-    status.textContent='명령 정보 조회 중…';
-    try{
-      const data=await window.deckBridge.fusionCommandPicker(originalId||null,query);
-      if(closed||request!==serial)return;
-      if(!changed&&data.current)draw(data.current);
-      status.textContent=data.online?'Fusion 연결됨':'Fusion 연결 안 됨 · 저장된 명령 이름 사용';
-      results.replaceChildren();
-      for(const row of data.results||[]){
-        const button=document.createElement('button');button.type='button';button.className='deckforge-message-button';
-        button.textContent=(row.ko||row.name||row.en)+' · '+row.id;
-        button.addEventListener('click',()=>{changed=true;label.textContent='선택한 명령';draw(row);results.replaceChildren();search.value='';});
-        results.append(button);
-      }
-    }catch{if(!closed&&request===serial)status.textContent='명령 정보 조회 실패';}
+  function showArtwork(image){
+    if(closed)return;
+    art.replaceChildren();
+    if(image){const img=document.createElement('img');img.src=image;img.alt='기본 명령 아이콘';art.append(img);}
+    else art.textContent='아이콘 없음';
   }
-  search.addEventListener('input',()=>{clearTimeout(timer);serial++;timer=setTimeout(()=>void load(),250);});
-  void load();
-  let accepted;
-  try{accepted=await window.DeckForgeDialogs.show({title:'Fusion 명령 속성',content,anchorCard:root.querySelector('.sdk-state-icon[data-state-title="first"]'),anchorTop:true,ask:true,actionLabel:'적용',onAccept:()=>!changed||!!selected?.id});}
-  finally{closed=true;clearTimeout(timer);}
-  if(!accepted||!changed||!selected?.id||!inspectorPickerCurrent(session,item)||fusionCommandId(item)!==originalId)return;
-  const previous=item.settings.pluginSettings||{},nextName=selected.ko||selected.name||selected.en||selected.id;
-  if(!item.title||item.title===previous.name)item.title=nextName;
-  for(const key of ['first','second']){
-    const stateTitle=item.settings.stateTitles?.[key];
-    if(stateTitle&&(!stateTitle.title||stateTitle.title===previous.name))stateTitle.title=nextName;
+  draw();showArtwork(fusionIconCache.get(key)||null);
+  if(key){
+    window.deckBridge?.fusionIconRead?.(key).then(image=>{if(image)showArtwork(image);}).catch(()=>{});
+    window.deckBridge?.fusionCommandDetails?.(key).then(row=>{if(!closed&&row)draw(row);}).catch(()=>{});
   }
-  item.settings.pluginSettings={...previous,commandId:selected.id,name:nextName};
-  persistInspectorChange();renderGrid();renderInspector();
+  try{await window.DeckForgeDialogs.show({title:'Fusion 명령 속성',content,anchorCard:root.querySelector('.sdk-state-icon[data-state-title="first"]'),anchorTop:true,headerTitleOnly:true});}
+  finally{closed=true;}
 }
 function bindExtendedActionFields(root,item){
   if(item.type==='sd-plugin'){

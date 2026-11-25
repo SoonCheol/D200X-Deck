@@ -404,23 +404,23 @@ const fusionCommands=LiveFusion.createClient({
   discoveryFile:fusionDiscoveryFile(),
   catalogFile:path.join(__dirname,'../fusion-manager/fusion-command-catalog-final.json')
 });
-// Read-only command chooser: use the same trusted bridge and local name catalogue.
-let fusionPickerLive=null,fusionPickerAt=0,fusionPickerPending=null;
-ipcMain.handle('d200x:fusion-command-picker',async(event,id,query)=>{
+// Read-only command information, with per-command local tooltip cache.
+ipcMain.handle('d200x:fusion-command-details',async(event,id)=>{
   assertEditor(event);
-  if((id!==null&&!LiveFusion.safeId(id))||typeof query!=='string'||query.length>160||query.includes('|'))throw Error('invalid-fusion-picker-query');
-  const names=await fusionButtonLanguageData();
-  if(!fusionPickerLive||Date.now()-fusionPickerAt>30000){
-    if(!fusionPickerPending)fusionPickerPending=fusionCommands.list().then(rows=>{fusionPickerLive=rows;fusionPickerAt=Date.now();return rows;}).catch(()=>null).finally(()=>{fusionPickerPending=null;});
-    const rows=await fusionPickerPending;
-    if(!rows)fusionPickerLive=null;
+  if(!LiveFusion.safeId(id))throw Error('invalid-fusion-command-id');
+  const folder=path.join(app.getPath('userData'),'Cache','Fusion','descriptions');
+  const file=path.join(folder,id+'.json');
+  let cached='';
+  try{const stat=await fs.promises.stat(file);if(stat.isFile()&&stat.size<=8192){const row=JSON.parse(await fs.promises.readFile(file,'utf8'));if(row.id===id&&typeof row.tooltip==='string')cached=row.tooltip.slice(0,1000);}}catch{}
+  const names=await fusionButtonLanguageData().catch(()=>({ko:{},en:{}}));
+  let live=null;
+  try{live=await fusionCommands.details(id);}catch{}
+  const tooltip=live?.tooltip||cached;
+  if(live?.tooltip&&live.tooltip!==cached){
+    const temp=file+'.'+randomUUID()+'.tmp';
+    try{await fs.promises.mkdir(folder,{recursive:true});await fs.promises.writeFile(temp,JSON.stringify({id,tooltip:live.tooltip}),'utf8');await fs.promises.rename(temp,file);}catch{await fs.promises.rm(temp,{force:true}).catch(()=>{});}
   }
-  const ids=new Set([...Object.keys(names.ko),...Object.keys(names.en)]);
-  const offline=[...ids].filter(LiveFusion.safeId).map(id=>({id,name:names.ko[id]||names.en[id]||id,ko:names.ko[id]||'',en:names.en[id]||'',category:'',tooltip:''}));
-  const rows=fusionPickerLive||offline;
-  const current=rows.find(row=>row.id===id)||offline.find(row=>row.id===id)||null;
-  const results=query.trim()?LiveFusion.search(rows,query,0,20).items:[];
-  return {current,results,online:!!fusionPickerLive};
+  return {id,ko:names.ko[id]||live?.ko||'',en:names.en[id]||live?.en||'',tooltip};
 });
 async function runLocalFusionSetup(signal){
   if(process.platform!=='win32')throw Error('Windows에서만 지원합니다.');

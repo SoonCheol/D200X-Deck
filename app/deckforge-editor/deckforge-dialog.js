@@ -9,13 +9,14 @@
     if(text!==undefined&&text!==null)node.textContent=String(text);
     return node;
   }
-  function show({title,kind='info',intro='',fields=[],included=[],excluded=[],content=null,onAccept=null,detailLabel='',detail='',copyDetail=false,warning='',ask=false,actionLabel='확인',cancelLabel='취소',alternateLabel='',anchorTop=false,anchorCard=null}={}){
+  function show({title,kind='info',intro='',fields=[],included=[],excluded=[],content=null,onAccept=null,detailLabel='',detail='',copyDetail=false,warning='',ask=false,actionLabel='확인',cancelLabel='취소',alternateLabel='',anchorTop=false,anchorCard=null,headerTitleOnly=false}={}){
     if(typeof title!=='string'||!title.trim()||!Object.hasOwn(icons,kind))throw Error('대화상자 제목 또는 상태가 올바르지 않습니다.');
     return new Promise(resolve=>{
       const dialog=element('dialog','deckforge-message-dialog'+(content?' deckforge-message-dialog-selection':''));
       dialog.setAttribute('aria-labelledby','deckforge-message-title-'+(++serial));
       const header=element('header','deckforge-message-header');
-      const product=element('strong','deckforge-message-product','DeckForge');
+      const product=element('strong','deckforge-message-product',headerTitleOnly?title:'DeckForge');
+      if(headerTitleOnly)product.id=dialog.getAttribute('aria-labelledby');
       const close=element('button','deckforge-message-close','×');
       close.type='button';close.setAttribute('aria-label','닫기');
       close.addEventListener('click',()=>dialog.close('cancel'));
@@ -26,7 +27,7 @@
       icon.setAttribute('aria-hidden','true');
       const name=element('strong','deckforge-message-title',title);
       name.id=dialog.getAttribute('aria-labelledby');
-      headline.append(icon,name);main.append(headline);
+      headline.append(icon,name);if(!headerTitleOnly)main.append(headline);
       if(intro)main.append(element('p','deckforge-message-intro',intro));
       if(fields.length){
         const fieldBox=element('dl','deckforge-message-fields');
@@ -91,7 +92,7 @@
       const accept=element('button','deckforge-message-button deckforge-message-primary',actionLabel);
       accept.type='button';accept.addEventListener('click',()=>{if(onAccept&&onAccept()===false)return;dialog.close('accept');});
       footer.append(accept);
-      dialog.append(header,main,footer);
+      dialog.append(header,main);if(!headerTitleOnly)dialog.append(footer);
       dialog.addEventListener('close',()=>{const choice=dialog.returnValue==='accept'?true:dialog.returnValue==='alternate'?'alternate':false;dialog.remove();resolve(choice);},{once:true});
       document.body.append(dialog);dialog.showModal();
       if(anchorCard?.isConnected){
@@ -113,7 +114,7 @@
         dialog.style.top=top+'px';dialog.style.bottom='auto';dialog.style.marginBlock='0';
         dialog.style.maxHeight='min(720px, calc(100vh - '+(top+8)+'px))';
       }
-      accept.focus();
+      if(headerTitleOnly)close.focus();else accept.focus();
     });
   }
   window.DeckForgeDialogs=Object.freeze({show});
