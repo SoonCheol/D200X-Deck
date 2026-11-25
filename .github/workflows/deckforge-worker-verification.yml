@@ -6,6 +6,8 @@ on:
     paths:
       - 'test/deckforge-worker-csp-electron.cjs'
       - 'test/deckforge-worker-vm-probe.cjs'
+      - 'test/deckforge-worker-guest-checks.cjs'
+      - 'test/deckforge-worker-guest-electron.cjs'
       - '.github/workflows/deckforge-worker-verification.yml'
   workflow_dispatch:
 permissions:
@@ -41,6 +43,9 @@ jobs:
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1
         with:
           node-version: '22'
+      - name: Install Electron for guest VM probe
+        working-directory: app
+        run: npm ci
       - name: Verify disposable guest JS VM candidate
         shell: pwsh
         run: |
@@ -48,11 +53,15 @@ jobs:
           New-Item -ItemType Directory -Path $dir | Out-Null
           $env:DECKFORGE_VM_PROBE_DIR = $dir
           try {
-            npm install --prefix $dir --no-save --package-lock=false --ignore-scripts --no-audit --no-fund quickjs-emscripten@0.32.0
+            npm install --prefix $dir --no-save --package-lock=false --ignore-scripts --no-audit --no-fund quickjs-emscripten@0.32.0 quickjs-emscripten-core@0.32.0 @jitl/quickjs-singlefile-browser-release-sync@0.32.0 esbuild@0.25.12
             if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
             node --check test/deckforge-worker-vm-probe.cjs
             if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
             node test/deckforge-worker-vm-probe.cjs
+            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+            node --check test/deckforge-worker-guest-electron.cjs
+            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+            & app/node_modules/.bin/electron.cmd test/deckforge-worker-guest-electron.cjs
             if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           } finally {
             Remove-Item -LiteralPath $dir -Recurse -Force -ErrorAction SilentlyContinue
