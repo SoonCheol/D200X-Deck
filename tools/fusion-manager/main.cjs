@@ -85,6 +85,17 @@ const managerReady=app.whenReady().then(()=>{
        {state:'missing',id};
    }catch(error){return {state:'error',message:error.message}}
  });
+ ipcMain.handle('fusion-tooltip-read',async(event,id)=>{
+   if(!embeddedWindow||embeddedWindow.isDestroyed()||event.sender!==embeddedWindow.webContents||!safeId(id))return '';
+   if(integratedBridge)return integratedBridge('read-tooltip',id);
+   // Standalone manager reads the same cache without writing or calling Fusion.
+   try{
+     const file=path.join(app.getPath('appData'),'DeckForge','Cache','Fusion','descriptions','catalog-v1.json');
+     const stat=await fs.stat(file);if(!stat.isFile()||stat.size>48*1024*1024)return '';
+     const data=JSON.parse(await fs.readFile(file,'utf8')).tooltips;
+     return data&&Object.hasOwn(data,id)&&typeof data[id]==='string'?data[id].slice(0,1000):'';
+   }catch{return '';}
+ });
  ipcMain.handle('fusion-tooltip-collect',async(event)=>{
    if(!embeddedWindow||embeddedWindow.isDestroyed()||event.sender!==embeddedWindow.webContents)throw Error('허용되지 않은 요청');
    if(!integratedBridge)throw Error('DeckForge에서 Fusion 명령 관리자를 실행하세요.');

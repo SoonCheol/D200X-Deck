@@ -192,20 +192,21 @@ function setArt(el,src){
  if(!symbol||!src)return;
  const img=document.createElement('img');img.className='cmd-art';img.alt='';img.draggable=false;img.src=src;symbol.replaceWith(img);
 }
-let hoverTimer=null;
-function hideTooltip(){clearTimeout(hoverTimer);$('tooltip').style.display='none'}
+let hoverTimer=null,hoverRevision=0;
+function hideTooltip(){clearTimeout(hoverTimer);hoverRevision++;$('tooltip').style.display='none'}
 function showTooltip(event,v,nameNode){
  hideTooltip();
  if(!v||!nameNode)return;
- // Only truncated names need a tooltip. Text is always exactly two lines.
- if(nameNode.scrollHeight<=nameNode.clientHeight+1&&nameNode.scrollWidth<=nameNode.clientWidth+1)return;
+ const anchor=event.currentTarget,revision=hoverRevision;
  const ko=v.ko||(/[가-힣]/.test(v.name)?v.name:'한글 이름 정보 없음');
  const en=v.en||'영문명 정보 없음';
- const rect=event.currentTarget.getBoundingClientRect();
- hoverTimer=setTimeout(()=>{
-  const tip=$('tooltip');tip.textContent=ko+'\n'+en;tip.style.display='block';
+ hoverTimer=setTimeout(async()=>{
+  const description=await window.fusionManager.readTooltip(v.id).catch(()=>'');
+  if(revision!==hoverRevision||!anchor.isConnected)return;
+  const tip=$('tooltip');tip.textContent=ko+'\n'+en+(description?'\n\n'+description:'\n\n수집된 명령 설명 없음');tip.style.display='block';
+  const rect=anchor.getBoundingClientRect();
   tip.style.left=Math.max(8,Math.min(rect.left,innerWidth-tip.offsetWidth-8))+'px';
-  tip.style.top=(rect.bottom+tip.offsetHeight+8<innerHeight?rect.bottom+5:Math.max(8,rect.top-tip.offsetHeight-5))+'px';
+  tip.style.top=Math.max(8,Math.min(rect.bottom+tip.offsetHeight+8<innerHeight?rect.bottom+5:rect.top-tip.offsetHeight-5,innerHeight-tip.offsetHeight-8))+'px';
  },500);
 }
 function showDetail(v){
@@ -215,19 +216,10 @@ function showDetail(v){
   const dt=document.createElement('dt'),dd=document.createElement('dd');
   dt.textContent=label;dd.textContent=value;dl.append(dt,dd);
  }
- const pathLabel=document.createElement('dt'),pathValue=document.createElement('dd');
- pathLabel.textContent='메뉴·툴바 경로';
- const paths=MenuTree.bilingualPaths(v,capturedUI,englishOverlay);
- if(!paths.length)pathValue.textContent='정보 없음';
- for(const entry of paths){
-  const group=document.createElement('div');group.className='detail-path';
-  for(const [language,value] of [['한국어',entry.ko],['English',entry.en]]){
-   const label=document.createElement('small'),line=document.createElement('div');
-   label.textContent=language;line.textContent=value;group.append(label,line);
-  }
-  pathValue.append(group);
- }
- dl.append(pathLabel,pathValue);
+ const descriptionLabel=document.createElement('dt'),descriptionValue=document.createElement('dd');
+ descriptionLabel.textContent='명령 설명';descriptionValue.style.whiteSpace='pre-wrap';descriptionValue.textContent='설명 불러오는 중…';
+ dl.append(descriptionLabel,descriptionValue);
+ window.fusionManager.readTooltip(v.id).then(value=>{if(descriptionValue.isConnected)descriptionValue.textContent=value||'수집된 명령 설명 없음';}).catch(()=>{if(descriptionValue.isConnected)descriptionValue.textContent='설명 조회 실패';});
  const nameKey=String(v.ko||v.name||'').trim();
  const similar=commands.filter(other=>other.id!==v.id&&String(other.ko||other.name||'').trim()===nameKey);
  if(similar.length){

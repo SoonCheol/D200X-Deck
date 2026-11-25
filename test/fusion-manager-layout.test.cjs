@@ -27,3 +27,24 @@ test('search sits above Fusion tabs with independent Korean English display butt
  assert.match(main,/fusion-display-language-save/);
  assert.match(renderer,/commandById\.get\(id\)\?\.name/); // exports remain independent of display language
 });
+
+
+test('Fusion button descriptions use local cache and detail replaces toolbar path',()=>{
+ const fs=require('node:fs'),path=require('node:path');
+ const read=file=>fs.readFileSync(path.join(__dirname,'..',file),'utf8');
+ const renderer=read('tools/fusion-manager/renderer.js');
+ const hover=renderer.slice(renderer.indexOf('function showTooltip('),renderer.indexOf('function showDetail('));
+ const detail=renderer.slice(renderer.indexOf('function showDetail('),renderer.indexOf(' const nameKey=',renderer.indexOf('function showDetail(')));
+ assert.match(hover,/readTooltip\(v.id\)/);
+ assert.match(hover,/revision!==hoverRevision\|\|!anchor.isConnected/);
+ assert.doesNotMatch(hover,/scrollHeight<=/);
+ assert.match(detail,/명령 설명/);
+ assert.match(detail,/readTooltip\(v.id\)/);
+ assert.doesNotMatch(detail,/메뉴·툴바 경로|bilingualPaths/);
+ const editor=read('app/deckforge-editor/editor.js');
+ assert.match(editor,/fusionTooltipRead\?\.\(id\)/);
+ const main=read('app/deckforge-editor/main.cjs');
+ const cached=main.slice(main.indexOf('async function readCachedFusionTooltip('),main.indexOf("ipcMain.handle('d200x:fusion-tooltip-read'"));
+ assert.match(cached,/readFusionTooltipCatalog/);
+ assert.doesNotMatch(cached,/fetch\(|fusionCommands\.|fusionMcp\./);
+});

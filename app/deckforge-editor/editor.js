@@ -1107,7 +1107,11 @@ function renderGrid(onlySlots=null){
     const owner=item?.type==='wide-display'?(item.wideNotice?'wide-warning':'wide-display'):folderBack?'folder-back':raw?.instanceId||raw;
     const prior=deckKeyPaints.get(b);
     if(prior&&(prior.scope!==scope||prior.owner!==owner)){hideReplacedTooltip(b);b.classList.remove('drag-over');}
-    if(item)setDeckForgeTooltip(b,()=>({title:keyName(item)||item.type,lines:[shortActionDescription(item),...(unavailable?[unavailable]:[]),...(pin?[currentPage()[i]?'페이지별 액션 우선 적용 · 고정 액션: '+keyName(pin):'모든 페이지의 고정 액션']:[])]}));
+    if(item)setDeckForgeTooltip(b,async()=>{
+      const action=pressDisplayAction(item),id=fusionCommandId(action);
+      const description=id?await window.deckBridge?.fusionTooltipRead?.(id).catch(()=>''):'';
+      return {title:keyName(item)||item.type,lines:[description||(id?'수집된 명령 설명 없음':shortActionDescription(item)),...(unavailable?[unavailable]:[]),...(pin?[currentPage()[i]?'페이지별 액션 우선 적용 · 고정 액션: '+keyName(pin):'모든 페이지의 고정 액션']:[])]};
+    });
     else{delete b.dataset.deckforgeTooltip;deckForgeTooltipData.delete(b);}
     const visual=displayKeyPressItem(displayItem(item,i),i);
     paintDeckKey(b,item,visual,i,scope,owner);
@@ -1149,7 +1153,7 @@ function queueNativeVisualRefresh(instance){
 }
 // One compact, text-only tooltip for the canvas and action catalogue.
 const deckForgeTooltipData=new WeakMap();
-let deckForgeTooltipNode=null,deckForgeTooltipAnchor=null,deckForgeTooltipTimer=null;
+let deckForgeTooltipNode=null,deckForgeTooltipAnchor=null,deckForgeTooltipTimer=null,deckForgeTooltipRevision=0;
 function setDeckForgeTooltip(element,getContent){
   element.removeAttribute('title');
   element.dataset.deckforgeTooltip='';
@@ -1157,12 +1161,14 @@ function setDeckForgeTooltip(element,getContent){
 }
 function hideDeckForgeTooltip(){
   clearTimeout(deckForgeTooltipTimer);deckForgeTooltipTimer=null;
-  deckForgeTooltipAnchor=null;
+  deckForgeTooltipAnchor=null;deckForgeTooltipRevision++;
   if(deckForgeTooltipNode)deckForgeTooltipNode.hidden=true;
 }
-function showDeckForgeTooltip(anchor){
+async function showDeckForgeTooltip(anchor){
   if(deckForgeTooltipAnchor!==anchor||!anchor.isConnected)return;
-  const content=deckForgeTooltipData.get(anchor)?.();
+  const revision=deckForgeTooltipRevision,getContent=deckForgeTooltipData.get(anchor);
+  const content=await getContent?.();
+  if(revision!==deckForgeTooltipRevision||deckForgeTooltipAnchor!==anchor||!anchor.isConnected)return;
   if(!content?.title||!content.lines?.length)return;
   if(!deckForgeTooltipNode){
     deckForgeTooltipNode=document.createElement('div');

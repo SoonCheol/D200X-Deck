@@ -23,6 +23,7 @@ contextBridge.exposeInMainWorld('fusionManager',{
  commandStatus:id=>ipcRenderer.invoke('fusion-command-status',id),
  collectIcon:id=>ipcRenderer.invoke('fusion-icon-collect',id),
  collectTooltips:()=>ipcRenderer.invoke('fusion-tooltip-collect'),
+ readTooltip:id=>ipcRenderer.invoke('fusion-tooltip-read',id),
  save:(data,defaultName)=>ipcRenderer.invoke('save-json',{data,defaultName}),
  open:()=>ipcRenderer.invoke('open-json')
 });

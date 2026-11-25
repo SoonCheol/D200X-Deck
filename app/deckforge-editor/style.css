@@ -1094,7 +1094,7 @@
 .deckforge-tooltip{position:fixed;z-index:200;pointer-events:none;max-width:min(420px,calc(100vw - 16px));background:#27292c;color:#d9dde2;border:1px solid #51555c;border-radius:5px;overflow:hidden;font-size:11px;line-height:1.45;box-shadow:none}
 .deckforge-tooltip[hidden]{display:none}
 .deckforge-tooltip-title{padding:5px 9px;background:#36393e;color:#e2e5e9;font-weight:500;overflow-wrap:anywhere}
-.deckforge-tooltip-body{display:grid;gap:4px;padding:6px 9px;overflow-wrap:anywhere}
+.deckforge-tooltip-body{display:grid;gap:4px;padding:6px 9px;overflow-wrap:anywhere;white-space:pre-wrap}
 
 /* Ordered Multi only; no change to switch/random/logic property layout. */
 .ordered-multi .multi-action-toolbar{margin:0 0 8px 24px;flex-wrap:nowrap}

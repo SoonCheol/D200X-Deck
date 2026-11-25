@@ -251,6 +251,7 @@ async function openIntegratedManager(){
    if(operation==='open-deckforge'){revealEditor();return true}
    if(operation==='language-changed'){send('d200x:fusion-language-changed',null);return true}
    if(operation==='collect-tooltips')return collectFusionTooltips();
+   if(operation==='read-tooltip')return readCachedFusionTooltip(argument);
    if(operation==='dock')return fusionMagnet?argument==='toggle'?fusionMagnet.toggle():fusionMagnet.status():{available:false,attached:false};
    return false;
   });
@@ -468,6 +469,23 @@ function collectFusionTooltips(inventory=null,signal){
  })().finally(()=>{tooltipCollection=null;});
  return tooltipCollection;
 }
+// Hover reads cache only, never calls Fusion or triggers a collection.
+async function readCachedFusionTooltip(id){
+ if(!LiveFusion.safeId(id))return '';
+ const bulk=await readFusionTooltipCatalog();
+ if(bulk[id])return bulk[id];
+ try{
+   const file=path.join(fusionTooltipFolder(),id+'.json'),stat=await fs.promises.stat(file);
+   if(stat.isFile()&&stat.size<=8192){
+     const row=JSON.parse(await fs.promises.readFile(file,'utf8'));
+     if(row.id===id&&typeof row.tooltip==='string')return DesktopMcp.plainTooltip(row.tooltip).slice(0,1000);
+   }
+ }catch{}
+ return '';
+}
+ipcMain.handle('d200x:fusion-tooltip-read',async(event,id)=>{
+ assertEditor(event);return readCachedFusionTooltip(id);
+});
 // Read-only command information, with per-command local tooltip cache.
 ipcMain.handle('d200x:fusion-command-details',async(event,id)=>{
   assertEditor(event);
