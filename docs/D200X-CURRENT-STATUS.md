@@ -14,8 +14,8 @@
 - **HA 사용자 실기 정정:** 기존 배경색 미표시는 HA 0.1.3 미업데이트가 원인, 업데이트 후 정상 작동 사용자 확인. 이전 배경색 결함 보류 해제. 기타 UI 개별 검증은 별도, SDK 로드맵 우선.
 - 1.1.221: KEY 후보 기본 OFF, 단일 일반 키·16회 한도·실패 시 PAGE 복원. CI #1269·Windows #975 성공. 실제 KEY 미검증.
 - 사용자 실기 보고: 테스트 플러그인 v1.0.0 제거 성공 2026-11-24 16:38:12 UTC, 보존 데이터 삭제 성공(2/2) 16:38:16 UTC; AI 로그 조회 확인. 원본 로그 직접 열람은 아님.
-- 1.1.231: identity 19행 대조·집중 검사, CI #1281/입력 #521/Windows #985 성공, 게시. 1.1.232: 저장 13행 대응·종료 commit 차단. CI #1282/입력 #522 성공, Windows #986 clean fixture 실패(kind 누락), 종료/페이지·삭제/retire 검사 통과. 1.1.233: fixture 수정 CI #1283/Windows #987 성공, 게시. 1.1.234: 실제 Electron NativePluginHost+임시 ProfileStore, 요청 전/저장 후 ACK 전 renderer crash, 재조회·재실행 금지 검증 추가. CI #1284·Windows #988 성공, 1.1.234 설치본 게시.
 ## 다음 작업
+- 긴급 P0 2.0.53: HA rate-limit 실제 장애. Gemini SDK-WebSocket-Analysis 434행 검토/소스 대조 완료. 수신 FIFO·바이트/버스트 예산·선택 배치·재연결 안정화·scheduler 포화 복구, HA 배치 정합성 및 실제 Model2 13키/500엔티티 부하 검사. 기존 인증·프로필 보존, 실기 별도. SDK 1.0 출시 보류.
 - 2.0.52: HA 기준 스위치 독립 전환, 연동 대상 1개·ON/OFF/반대로 작동 한 줄, HA 속성창 중앙 통일. 기존 연동 데이터 보존·새 대상 재선택 안내, HA 0.1.12. 2.0.51 단순 모의 검사에서 누락된 SDK 1효과 제한 보완: 기준 HA 성공 응답 후 연동 1회. 센서 옵션 3행·선택 해제 제거. Windows/실기 별도.
 - 긴급 2.0.50: 2.0.49 최초/재실행 편집기 공백·실기 입력 무반응·AI 조회 불가 사용자 보고. 실제 초기 코드 재현: `액션 목록 누락: ha-other`. SDK 전용 아이콘을 실행 카탈로그에서 분리, 초기화 수정, Windows #54 성공/게시, 실제 Electron 14키·35액션·검색·입력/AI 함수 통과. 사용자 편집기 화면 복구 확인. 사용자 데이터 변경 금지.
 - 2026-11-26 사용자 승인: Model 2만 SDK 1.0 정식 출시 경로로 확정, Model 5 연구 보류/제품 OFF. Gemini report001/002 전문 검토. P0 2.0.43 후보: private ops JSON snapshot·null prototype envelope 방어 및 Object/Array prototype toJSON 거부, ctx.memory validateValue(8KiB/깊이/금지 키), 실제 Electron 집중 회귀 추가. CI #1428·SDK #120·Windows #47 성공, 실제 serialization 3종/메모리 5종 거부 통과. P1 HA 내장·최종 Windows 회귀, P2 실제 장치/HA/OS/GUI. 개발 항목 9/10(90%, 동일 가중·실기 별도), 정확한 공수 아님. Model 5 시험 이력·코드 Git 보존.
