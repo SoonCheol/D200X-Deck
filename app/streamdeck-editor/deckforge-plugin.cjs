@@ -1,11 +1,10 @@
 'use strict';
-// DeckForge v1 installation package: independent envelope, Stream Deck SDK
-// adapter runtime. This does NOT execute or automatically convert Ulanzi code.
+// DeckForge native v2 packages and external compatibility v1 packages.
+// Native packaging must not require the external compatibility host.
 const fs=require('node:fs/promises');
 const path=require('node:path');
 const {createHash}=require('node:crypto');
 const JSZip=require('jszip');
-const {parseArchive,validateManifest}=require('./sd-plugin-host.cjs');
 const {validateNativeManifest,LIMIT:NATIVE_LIMIT}=require('./deckforge-native-sdk.cjs');
 
 const FORMAT='deckforge-plugin';
@@ -116,6 +115,7 @@ async function parseDeckForgePackage(data){
   }
   if(fileCount===0)throw Error('DeckForge 플러그인 실행 파일이 없습니다.');
   const archive=await converted.generateAsync({type:'nodebuffer',compression:'DEFLATE'});
+  const {parseArchive}=require('./sd-plugin-host.cjs');
   const parsed=await parseArchive(archive);
   if(parsed.manifest.UUID!==meta.plugin.id||
     parsed.manifest.Name!==meta.plugin.name||
@@ -155,6 +155,7 @@ async function packageSdPluginDirectory(folder){
   await walk(dir);
   if(!manifestBytes||manifestBytes.length>32768)
     throw Error('플러그인 manifest.json이 없거나 너무 큽니다.');
+  const {parseArchive,validateManifest}=require('./sd-plugin-host.cjs');
   const manifest=validateManifest(JSON.parse(manifestBytes.toString('utf8')));
   if(folderName!==manifest.UUID+'.sdPlugin')
     throw Error('플러그인 폴더 이름과 manifest UUID가 일치하지 않습니다.');

@@ -112,6 +112,44 @@ test('native package v2 validates identity, permissions and executable-free payl
   const bad=structuredClone(nativeManifest);bad.actions[0].events.press=[{op:'exec',value:'bad'}];
   assert.throws(()=>validateNativeManifest(bad),/unsupported operation/);
 });
+test('native package and declarative execution do not load the external compatibility host',async()=>{
+ const root=await fs.mkdtemp(path.join(os.tmpdir(),'deckforge-native-independent-'));
+ try{
+  const {execFileSync}=require('node:child_process');
+  const base=path.resolve(__dirname,'../app/streamdeck-editor');
+  const source=String.raw`
+   const assert=require('node:assert/strict');
+   const path=require('node:path');
+   const Module=require('node:module');
+   const [base,root,json]=process.argv.slice(1);
+   const load=Module._load;
+   Module._load=function(request,...args){
+    if(path.basename(request)==='sd-plugin-host.cjs')throw Error('external compatibility host is unavailable');
+    return load.call(this,request,...args);
+   };
+   (async()=>{
+    const {packageNativeManifest,parseDeckForgePackage}=require(path.join(base,'deckforge-plugin.cjs'));
+    const {NativePluginHost}=require(path.join(base,'deckforge-native-sdk.cjs'));
+    const manifest=JSON.parse(json);
+    const pack=await packageNativeManifest(manifest);
+    const decoded=await parseDeckForgePackage(pack.archive);
+    assert.deepEqual(decoded.native,manifest);
+    const events=[],host=new NativePluginHost(root,e=>events.push(e));
+    try{
+     await host.install(decoded.native);
+     host.sync([{context:'native-only',slot:0,gesture:'down',pluginUUID:manifest.id,actionUUID:manifest.actions[0].id,settings:{label:'Independent'}}],await host.manifests());
+     assert.equal(events.find(e=>e.kind==='setTitle')?.payload.title,'Independent');
+     assert.equal(host.key('native-only','down'),true);
+     assert.equal(events.find(e=>e.kind==='setState')?.payload.state,1);
+     assert.equal(host.key('native-only','up'),true);
+     assert.ok(!Object.keys(require.cache).some(file=>path.basename(file)==='sd-plugin-host.cjs'));
+    }finally{host.close();}
+   })().catch(error=>{console.error(error);process.exitCode=1;});
+  `;
+  execFileSync(process.execPath,['-e',source,base,root,JSON.stringify(nativeManifest)],{timeout:30000,stdio:'pipe'});
+ }finally{await fs.rm(root,{recursive:true,force:true});}
+});
+
 test('native routing coexists, keeps separate context state, blocks overwrite and handles suspend',async()=>{
   const temp=await fs.mkdtemp(path.join(os.tmpdir(),'deckforge-native-'));
   const events=[],legacyCalls=[];
