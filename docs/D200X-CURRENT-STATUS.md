@@ -2,7 +2,7 @@
 > 2026-11-25 · 현재 스냅샷, 누적 금지.
 ## 개발 기준
 - 저장소 SoonCheol/D200X-Deck · 브랜치 codex/streamdeck-761-clean-editor · Draft PR #5 유지.
-- 로컬 E:\Codex\DeckForge. 최신 HEAD는 Git에서 확인. 소스 버전 **2.0.29** (Stream Deck 속성창 로컬 팝업; 2.0.7 센서 UI 사용자 정상 확인).
+- 로컬 E:\Codex\DeckForge. 최신 HEAD는 Git에서 확인. 소스 버전 **2.0.30** (속성창 연결 순서·삭제 오류 안내; 2.0.7 센서 UI 사용자 정상 확인).
 - 감사 기준 `49ba39fe094ee808c5715f2348be0789f61d5e20`. CI #1221 성공; Windows #930 사용자 인수인계.
 ## 현재 상태
 - 독자 SDK API 1/2, 공개 25개 함수, HTTP/WSS, 전역 서비스/공유 상태, 동적 속성, 암호화·권한·패키지, HA 0.1.8 후보 및 Stream Deck 호환 호스트 구현. SDK 1.0 정식 완성 선언 보류.
@@ -35,7 +35,7 @@
 - 1.1.226: Model2 실제 반복/자원 제한/서비스 생존·복구, opaque storage/CSP 검사 및 USB mock 통과. CI #1274·Windows #980 성공. OOM 별도. 세부 수치 SDK 계약.
 - 1.1.230: CI #1278, Windows #984 attempt2 전체 성공. 실제 idle/active crash·거부·서비스/peer 생존·새 이벤트 복구, 25함수·vault 통과. 1차 npm 404 해소(버전 변경 없음). deckforge-v1.1.230 게시, EXE 135231273 bytes. 현재 root suite 45/45 실행 명령 확인, 초기 helper skip 3개와 후속 패키지 검사 구분.
 ## 다음 작업
-- 2.0.30 작업: Windows #32 실패(8.3 경로 표기 차이) 수정, SDK 속성창 양방향 등록 완료 후 appear 전달, Node 종료 원인 분류, 플러그인 삭제 실패 팝업 및 실행 종료/로그 변경 대응. 실제 GPU·삭제 원인 별도 확인.
+- 2.0.30: Windows 경로 정규화 native, 양측 SDK 등록 완료 후 appear 단일 전달, Node 오류 분류(원문 미기록), 실행 중 로그 변화 허용·종료 대기·rename 재시도, 삭제 실패 팝업. 집중 검사 추가. 빌드 및 실제 GPU·삭제 확인 대기.
 - 2.0.29: 원본 속성창을 플러그인별 표준 로컬 프로토콜 및 격리 세션에서 로드, 같은 폴더 HTML 팝업·opener 허용. 외부 file 접근 및 다른 폴더 차단. 실제 Electron 팝업/콜백 검사 추가, Windows #32 경로 비교 실패(콜백 미실행).
 - 2.0.28: 기본 액션 및 동작 선택·AI 표시 명칭 상용구 입력으로 변경, ID text·저장값·실행 보존. Windows #31·CI #1374·SDK #66·입력 #547 성공.
 - 2.0.27: 제거된 타이틀 숨김, 관리 메뉴 완전 삭제(독자/Stream Deck), 설치된 Stream Deck 제거 시 완전 삭제 선택. ID/보존 원본·전역 설정 재검사, 삭제 성공 후 등록 액션 정리. 집중 테스트 추가, Windows #30·CI #1372·SDK #64·입력 #546 성공, GUI 대기. 2.0.26 Windows #29 성공. HA 내장 및 파일 필터 개선 별도 대기.

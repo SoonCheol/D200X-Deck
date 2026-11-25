@@ -1412,8 +1412,10 @@ async function purgeRetainedPlugin(plugin){
     if(!result)return;
     const count=result.status==='purged'?cleanupPurgedPluginReferences(plugin.id):null;
     await refreshSdkPlugins();
-    window.d200xActionStatus?.(result.status==='purged'?(count===null?'보존 데이터 삭제 완료 · 버튼 정리 미완료':'보존 데이터 및 등록 액션 '+count+'개 삭제 완료'):'삭제 미완료 ('+result.deleted+'/'+result.total+') · 남은 데이터 확인 필요');
-  }catch(error){window.d200xActionStatus?.('보존 데이터 삭제 실패: '+String(error?.message||error));}
+    const message=result.status==='purged'?(count===null?'보존 데이터 삭제 완료 · 버튼 정리 미완료':'보존 데이터 및 등록 액션 '+count+'개 삭제 완료'):'삭제 미완료 ('+result.deleted+'/'+result.total+') · 남은 데이터 확인 필요';
+    window.d200xActionStatus?.(message);
+    if(result.status!=='purged'||count===null)await window.DeckForgeDialogs.show({title:'완전 삭제 미완료',kind:'warning',intro:plugin.name,detail:message});
+  }catch(error){const detail=String(error?.message||error);window.d200xActionStatus?.('보존 데이터 삭제 실패: '+detail);await window.DeckForgeDialogs.show({title:'완전 삭제 실패',kind:'error',intro:plugin.name,detail,copyDetail:true});}
 }
 function pluginHelpButton(plugin,retained=false){
   const info=document.createElement('button');info.type='button';info.textContent='?';
@@ -1631,9 +1633,11 @@ async function removePluginKeepingData(plugin){
     const cleaned=result.purgeStatus==='purged'?cleanupPurgedPluginReferences(plugin.uuid):null;
     const message=({purged:cleaned===null?'플러그인 삭제 완료 · 버튼 정리 미완료':'플러그인 및 등록 액션 '+cleaned+'개 삭제 완료',cancelled:'플러그인 제거 완료 · 데이터 삭제 취소, 보존 중',incomplete:'플러그인 제거 완료 · 보존 데이터 일부 삭제 실패',failed:'플러그인 제거 완료 · 보존 데이터 삭제 실패'})[result.purgeStatus]||'플러그인 제거 완료 · 버튼 및 데이터 유지';
     window.d200xActionStatus?.(message);
+    if(['incomplete','failed'].includes(result.purgeStatus)||result.purgeStatus==='purged'&&cleaned===null)await window.DeckForgeDialogs.show({title:'완전 삭제 미완료',kind:'warning',intro:plugin.name,detail:result.purgeError||message,copyDetail:true});
   }catch(error){
     scheduleSdkSync();
-    window.d200xActionStatus?.('플러그인 제거 실패: '+String(error?.message||error));
+    const detail=String(error?.message||error);window.d200xActionStatus?.('플러그인 제거 실패: '+detail);
+    await window.DeckForgeDialogs.show({title:'플러그인 제거 실패',kind:'error',intro:plugin.name,detail,copyDetail:true});
   }
 }
 function renderInstalledSdkPlugins(root,query){

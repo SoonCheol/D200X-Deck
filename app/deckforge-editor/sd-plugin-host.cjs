@@ -210,6 +210,9 @@ class StreamDeckPluginHost{
         if(stat.isSymbolicLink()||!filename(rel))throw Error('안전하지 않은 플러그인 경로');
         if(stat.isDirectory()){await walk(file,rel+'/');continue;}
         if(!stat.isFile()||++count>MAX_FILES||(total+=stat.size)>MAX_EXPANDED)throw Error('플러그인 파일 제한');
+        // SDK log files can change between approval and stopping the process.
+        // Keep them on removal; hash their content only for the retained purge.
+        if(!removed&&/^logs\/.*\.log(?:\.\d+)?$/i.test(rel))continue;
         const bytes=await fs.promises.readFile(file);
         if(bytes.length!==stat.size)throw Error('플러그인 변경 감지');
         hash.update(JSON.stringify([rel,crypto.createHash('sha256').update(bytes).digest('hex')]));
@@ -246,10 +249,16 @@ class StreamDeckPluginHost{
     await this.starting.get(uuid)?.catch(()=>{});
     await this.recoveries.get(uuid)?.catch(()=>{});
     for(const pi of this.inspectors.values())if(pi.pluginUUID===uuid&&!pi.window.isDestroyed())pi.window.destroy();
-    const inst=this.instances.get(uuid);if(inst)this.disconnect(inst);
+    const inst=this.instances.get(uuid),child=inst?.process;
+    let exited;
+    if(child&&child.exitCode===null&&child.signalCode===null)exited=new Promise(resolve=>child.once('exit',resolve));
+    if(inst)this.disconnect(inst);
+    if(exited){let timer;await Promise.race([exited,new Promise(resolve=>{timer=setTimeout(resolve,2500);})]).finally(()=>clearTimeout(timer));
+      if(child.exitCode===null&&child.signalCode===null)throw Error('플러그인 실행이 종료되지 않았습니다. 다시 시도하세요.');}
     const latest=await this.retainedRecord(uuid);
     if(latest.revision!==revision)throw Error('플러그인 변경 감지 · 다시 확인하세요.');
-    await fs.promises.rename(path.join(this.root,uuid+'.sdPlugin'),target);
+    for(let attempt=0;;attempt++)try{await fs.promises.rename(path.join(this.root,uuid+'.sdPlugin'),target);break;}
+    catch(error){if(attempt>=3||!['EBUSY','EPERM','EACCES'].includes(error.code))throw error;await new Promise(resolve=>setTimeout(resolve,150*(attempt+1)));}
     return {id:uuid,version:plan.version,mode:'keepData'};
   }
   async planRetainedPurge(uuid){
@@ -353,6 +362,7 @@ class StreamDeckPluginHost{
             if(!owner)return ws.close();
             owner.ws=ws;this.onUpdate({kind:'pluginConnection',pluginUUID:owner.uuid,connected:true});this.send(ws,{event:'applicationDidLaunch'});
             for(const ctx of this.contexts.values())if(ctx.pluginUUID===owner.uuid)this.willAppear(ctx);
+            for(const pi of this.inspectors.values())if(pi.pluginUUID===owner.uuid)this.notifyInspectorReady(pi);
             return;
           }
           if(msg.event==='registerPropertyInspector'){
@@ -362,6 +372,7 @@ class StreamDeckPluginHost{
             this.send(ws,{event:'didReceiveSettings',action:inspector.actionUUID,context:inspector.context,device:DEVICE,payload:{
               controller:inspector.slot>=16?'Encoder':'Keypad',isInMultiAction:false,settings:this.contexts.get(inspector.context)?.settings||{}
             }});
+            this.notifyInspectorReady(inspector);
             return;
           }
           if((owner&&this.instances.get(owner.uuid)===owner&&owner.ws===ws)||inspector)Promise.resolve(this.message(msg,owner,inspector,ws))
@@ -374,11 +385,17 @@ class StreamDeckPluginHost{
           this.onUpdate({kind:'pluginConnection',pluginUUID:owner.uuid,connected:false});
           for(const ctx of this.contexts.values())if(ctx.pluginUUID===owner.uuid){ctx.appeared=false;this.pressed.delete(ctx.context);}
         }
-        if(inspector&&inspector.ws===ws)inspector.ws=null;
+        if(inspector&&inspector.ws===ws){inspector.ws=null;inspector.notified=null;}
       });
     });
   }
   send(ws,msg){if(!ws||ws.readyState!==1)return false;try{ws.send(json(msg));return true;}catch{return false;}}
+  notifyInspectorReady(pi){
+    const inst=this.instances.get(pi.pluginUUID),ctx=this.contexts.get(pi.context);
+    if(this.inspectors.get(pi.context)!==pi||!ctx||ctx.pluginUUID!==pi.pluginUUID||ctx.actionUUID!==pi.actionUUID||!ctx.appeared||pi.ws?.readyState!==1||inst?.ws?.readyState!==1||pi.notified===inst.ws)return false;
+    if(!this.send(inst.ws,{event:'propertyInspectorDidAppear',action:pi.actionUUID,context:pi.context,device:DEVICE}))return false;
+    pi.notified=inst.ws;return true;
+  }
   diagnostic(uuid,event){console.info('[DeckForge SDK]',uuid,event);}
   disconnect(inst){
     if(this.instances.get(inst.uuid)!==inst)return;
@@ -475,6 +492,7 @@ class StreamDeckPluginHost{
         this.onUpdate({kind:'error',message:'Node.js 플러그인 '+uuid+' 실행 실패: '+error.message});
       };
       child.once('error',fail);
+      let failureKind='';
       child.once('exit',(code,signal)=>{
         if(this.instances.get(uuid)!==instance)return;
         this.instances.delete(uuid);
@@ -482,11 +500,18 @@ class StreamDeckPluginHost{
         instance.ws?.close();
         for(const ctx of this.contexts.values())if(ctx.pluginUUID===uuid)ctx.appeared=false;
         if(code!==0&&signal!=='SIGTERM')
-          this.onUpdate({kind:'error',message:'Node.js 플러그인 '+uuid+' 종료 (code '+code+')'});
+          this.onUpdate({kind:'error',message:'Node.js 플러그인 '+uuid+' 종료 (code '+code+')'+(failureKind?' · '+failureKind:'')});
       });
       // Drain stdout/stderr to prevent child process blocking on full pipes.
       child.stdout?.on('data',()=>{});
-      child.stderr?.on('data',()=>{});
+      child.stderr?.on('data',chunk=>{
+        const s=String(chunk).slice(0,4096);
+        // Classify only; never log arbitrary plugin output or credentials.
+        if(/NODE_MODULE_VERSION|ERR_DLOPEN_FAILED|not a valid Win32 application/i.test(s))failureKind='네이티브 모듈 로드 오류';
+        else if(/Cannot find module|ERR_MODULE_NOT_FOUND/i.test(s))failureKind='모듈 파일 누락';
+        else if(/ADLX|NVML/i.test(s))failureKind='GPU 드라이버 API 오류';
+        else if(!failureKind&&/Error|Exception/i.test(s))failureKind='플러그인 실행 오류';
+      });
       return instance;
     }
     const win=new BrowserWindow({show:false,webPreferences:{nodeIntegration:false,contextIsolation:false,sandbox:true,webSecurity:true,backgroundThrottling:false}});
@@ -508,6 +533,7 @@ class StreamDeckPluginHost{
     if(ctx.appeared||!inst?.ws||inst.ws.readyState!==1)return;
     this.send(inst.ws,{event:'willAppear',action:ctx.actionUUID,context:ctx.context,device:DEVICE,payload:this.payload(ctx)});
     ctx.appeared=true;
+    const pi=this.inspectors.get(ctx.context);if(pi)this.notifyInspectorReady(pi);
   }
   retireUnmatched(configs){
     // Retire old compatibility routes before native mount publication.
@@ -666,14 +692,15 @@ class StreamDeckPluginHost{
     pi={context,actionUUID:ctx.actionUUID,slot:ctx.slot,window:win,ws:null,pluginUUID:ctx.pluginUUID};
     this.inspectors.set(context,pi);
     win.on('closed',()=>{
-      this.inspectors.delete(context);
-      this.send(inst.ws,{event:'propertyInspectorDidDisappear',action:ctx.actionUUID,context,device:DEVICE});
+      if(this.inspectors.get(context)===pi)this.inspectors.delete(context);
+      if(pi.notified)this.send(pi.notified,{event:'propertyInspectorDidDisappear',action:ctx.actionUUID,context,device:DEVICE});
+      pi.ws?.close();
     });
     await win.loadURL(inspectorUrl);
     const info=json({application:{language:'ko',platform:'windows',version:'7.6.1'},devices:[{id:DEVICE,name:'D200X'}],plugin:{version:inst.manifest.Version}});
     const actionInfo=json({action:ctx.actionUUID,context,device:DEVICE,payload:this.payload(ctx)});
     await win.webContents.executeJavaScript('typeof connectElgatoStreamDeckSocket==="function" && connectElgatoStreamDeckSocket('+[this.port,context,'registerPropertyInspector',info,actionInfo].map(json).join(',')+')');
-    this.send(inst.ws,{event:'propertyInspectorDidAppear',action:ctx.actionUUID,context,device:DEVICE});
+    this.notifyInspectorReady(pi);
     win.show();win.focus();
     return true;
   }

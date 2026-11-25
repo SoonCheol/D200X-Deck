@@ -16,7 +16,7 @@ app.whenReady().then(async()=>{
     await fs.writeFile(path.join(dir,'setup.html'),'<html><script>window.onload=()=>{window.result=window.opener._saveToken(location.hash.slice(1));};</script></html>');
     await fs.writeFile(path.join(root,'secret.html'),'outside');
     const scope=createInspectorScope(dir);
-    assert.equal(scope.html(scope.url('setup.html')),await fs.realpath(path.join(dir,'setup.html')));
+    assert.equal(scope.html(scope.url('setup.html')),require('node:fs').realpathSync.native(path.join(dir,'setup.html')));
     assert.equal(scope.html(scope.url('../secret.html')),null);
     assert.equal(scope.html('file:///C:/Windows/win.ini'),null);
     assert.equal(scope.html('deckforge-pi://other/setup.html'),null);

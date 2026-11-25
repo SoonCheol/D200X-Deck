@@ -107,7 +107,7 @@ ipcMain.handle('d200x:legacy-plugin-remove',async(event,id)=>{
  });
  if(!removed||!purgeAfter)return removed;
  try{const purged=await purgeRetainedWithApproval(id,true);return {...removed,purgeStatus:purged?.status||'cancelled'};}
- catch{return {...removed,purgeStatus:'failed'};}
+ catch(error){return {...removed,purgeStatus:'failed',purgeError:String(error?.message||error)};}
 });
 ipcMain.handle('d200x:legacy-retained-restore',async(event,id)=>{
  assertEditor(event);
@@ -169,7 +169,7 @@ ipcMain.handle('d200x:native-remove',async(event,id)=>{
  try{
    const purged=await purgeRetainedWithApproval(id);
    return {...removed,purgeStatus:purged?.status||'cancelled'};
- }catch{return {...removed,purgeStatus:'failed'};}
+ }catch(error){return {...removed,purgeStatus:'failed',purgeError:String(error?.message||error)};}
 });
 ipcMain.handle('d200x:native-service-status',async(event,id)=>{assertEditor(event);return sdk().serviceStatus(id);});
 ipcMain.handle('d200x:native-service-control',async(event,id,mode)=>{

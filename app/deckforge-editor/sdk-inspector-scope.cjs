@@ -23,13 +23,13 @@ function inspectorFile(root,raw,htmlOnly=false){
     if(parts.some(p=>!p||p==='.'||p==='..'||/[\\/:\x00-\x1f\x7f]/.test(p)||/[ .]$/.test(p)))return null;
     const file=path.resolve(root,...parts);
     if(!below(root,file)||htmlOnly&&!/\.html?$/i.test(file))return null;
-    const actual=fs.realpathSync(file);
+    const actual=fs.realpathSync.native(file);
     if(!below(root,actual)||!fs.statSync(actual).isFile())return null;
     return actual;
   }catch{return null;}
 }
 function createInspectorScope(directory){
-  const root=fs.realpathSync(directory);
+  const root=fs.realpathSync.native(directory);
   const partition='deckforge-pi-'+createHash('sha256').update(root).digest('hex');
   const ses=session.fromPartition(partition);
   if(!sessions.has(ses)){

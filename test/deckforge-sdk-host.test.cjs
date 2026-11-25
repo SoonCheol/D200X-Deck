@@ -359,3 +359,26 @@ test('legacy retained full deletion removes only confirmed code and global data'
   assert.equal(await fs.readFile(other,'utf8'),'other');
  }finally{await fs.rm(root,{recursive:true,force:true});}
 });
+
+test('property inspector appear is sent only after both sockets and action are ready',()=>{
+ const host=new StreamDeckPluginHost('/unused'),id=M.UUID,context='test-pi',actionUUID=M.Actions[0].UUID;
+ const ctx={context,pluginUUID:id,actionUUID,appeared:false},pi={context,pluginUUID:id,actionUUID,ws:null};
+ const sent=[];host.send=(ws,msg)=>{sent.push(msg.event);return true;};host.contexts.set(context,ctx);host.inspectors.set(context,pi);
+ const inst={uuid:id,ws:null};host.instances.set(id,inst);
+ assert.equal(host.notifyInspectorReady(pi),false);
+ inst.ws={readyState:1};ctx.appeared=true;assert.equal(host.notifyInspectorReady(pi),false);
+ pi.ws={readyState:1};assert.equal(host.notifyInspectorReady(pi),true);assert.equal(host.notifyInspectorReady(pi),false);
+ inst.ws={readyState:1};assert.equal(host.notifyInspectorReady(pi),true);
+ assert.deepEqual(sent,['propertyInspectorDidAppear','propertyInspectorDidAppear']);
+});
+test('active SDK logs changing after approval do not block removal; retained logs remain protected',async()=>{
+ const root=await fs.mkdtemp(path.join(os.tmpdir(),'deckforge-legacy-logs-'));
+ const host=new StreamDeckPluginHost(root),id=M.UUID,prefix=id+'.sdPlugin/';
+ try{
+  await host.install(await zipWith({[prefix+'manifest.json']:JSON.stringify(M),[prefix+'plugin.html']:'<html></html>',[prefix+'logs/plugin.log']:'one'}));
+  const plan=await host.retainedRecord(id);await fs.appendFile(path.join(host.root,id+'.sdPlugin','logs','plugin.log'),'two');
+  await host.removeKeepingData(id,plan.revision);
+  const retained=await host.planRetainedPurge(id);await fs.appendFile(path.join(host.retainedPath(id),'logs','plugin.log'),'three');
+  await assert.rejects(host.purgeRetained(id,retained.revision),/변경 감지/);
+ }finally{await host.close();await fs.rm(root,{recursive:true,force:true});}
+});
