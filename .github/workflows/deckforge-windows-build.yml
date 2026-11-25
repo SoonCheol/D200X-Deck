@@ -33,9 +33,8 @@ on:
       - 'test/deckforge-wide-warning.test.cjs'
       - 'test/deckforge-key-backgrounds.test.cjs'
       - 'test/deckforge-plugin.test.cjs'
-      - 'test/deckforge-worker-csp-electron.cjs'
       - 'tools/native-drop-probe/NativeDropProbe.cs'
-      - '.github/workflows/deckforge-windows-build.yml'
+    # Workflow-only changes are validated separately; manual dispatch remains available.
   workflow_dispatch:
 
 permissions:
