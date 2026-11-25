@@ -2406,6 +2406,42 @@ test('settingsResult is opt-in, bounded, non-privileged, and never replays an un
  }finally{host.close();}
 });
 
+test('router preserves unchanged native input on compatibility catalogue failure and rejects unconfirmed routes',async()=>{
+ const Core=require('../app/streamdeck-editor/deck-core.js');
+ const state=Core.migrateState(null),item=state.pages[0][0]=Core.createAction('sd-plugin');
+ item.settings.pluginUUID=nativeId;item.settings.actionUUID=nativeId+'.toggle';item.settings.pluginSettings={label:'Original'};
+ const tracker=Core.createSdkMountTracker(),read=()=>tracker.reconcile('page',Core.sdkMountDescriptors(state));
+ const cfg=read()[0],events=[],legacyCalls=[];
+ let failed=false;
+ const native=new NativePluginHost('/unused',e=>events.push(e));
+ native.manifests=async()=>[nativeManifest];native.loadServicePolicy=async()=>{};
+ const legacy={list:async()=>{if(failed)throw Error('compatibility catalogue unavailable');return [];},
+   sync:async()=>{},key:(...args)=>{legacyCalls.push(args);return true;},inspector:()=>true,close:async()=>{}};
+ const router=new PluginRouter(legacy,native);
+ try{
+  await router.sync([cfg]);
+  failed=true;await assert.rejects(router.sync([cfg]),/compatibility catalogue unavailable/);
+  assert.equal(router.key(cfg.context,'down'),true);
+  assert.equal(router.key(cfg.context,'up'),true);
+  item.settings.pluginSettings={label:'Changed'};const changed=read()[0];
+  assert.equal(changed.context,cfg.context);
+  const additional=state.pages[0][1]=Core.createAction('sd-plugin');
+  additional.settings.pluginUUID=nativeId;additional.settings.actionUUID=nativeId+'.toggle';
+  const latest=read(),fresh=latest.find(c=>c.context!==cfg.context);
+  assert.ok(fresh);
+  await assert.rejects(router.sync(latest),/compatibility catalogue unavailable/);
+  const count=events.length;
+  assert.equal(router.key(cfg.context,'down'),false,'old native settings are not a current route');
+  assert.equal(router.key(fresh.context,'down'),false,'unconfirmed native mount never falls through');
+  assert.equal(router.inspector(fresh.context),false);
+  assert.equal(events.length,count);assert.deepEqual(legacyCalls,[]);
+  failed=false;await router.sync(latest);
+  assert.equal(router.key(cfg.context,'down'),true);
+  assert.equal(router.key(fresh.context,'down'),true);
+  assert.deepEqual(legacyCalls,[]);
+ }finally{await router.close();}
+});
+
 test('native durable receipt is independent of a blocked compatibility catalogue',async()=>{
  const Core=require('../app/streamdeck-editor/deck-core.js');
  const state=Core.migrateState(null),item=state.pages[0][0]=Core.createAction('sd-plugin');

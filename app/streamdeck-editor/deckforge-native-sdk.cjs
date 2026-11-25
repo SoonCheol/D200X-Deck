@@ -1007,7 +1007,7 @@ class NativePluginHost{
 }
 // Compatibility host stays unchanged; only validated native IDs are routed here.
 class PluginRouter{
-  constructor(legacy,native){this.legacy=legacy;this.native=native;this.queue=Promise.resolve();this.closed=false;this.nativeContextIds=new Set();this.desiredContexts=null;this.desiredMounts=null;this.syncRevision=0;}
+  constructor(legacy,native){this.legacy=legacy;this.native=native;this.queue=Promise.resolve();this.closed=false;this.nativeContextIds=new Set();this.legacyMounts=new Map();this.desiredContexts=null;this.desiredMounts=null;this.syncRevision=0;}
   serial(fn){const task=this.queue.then(()=>{if(this.closed)throw Error('Plugin host closed');return fn();});this.queue=task.catch(()=>{});return task;}
   async catalog(){
     const legacy=await this.legacy.list(),ids=new Set(legacy.map(x=>x.uuid.toLowerCase()));
@@ -1233,8 +1233,13 @@ class PluginRouter{
     const isNative=c=>ids.has(c?.pluginUUID)||(typeof c?.pluginUUID==='string'&&ID.test(c.pluginUUID)&&!legacyIds.has(c.pluginUUID.toLowerCase()));
     const local=configs.filter(isNative),other=configs.filter(c=>!isNative(c));
     this.nativeContextIds=new Set(local.map(c=>c.context));
-    // Remove stale legacy contexts before publishing a new native context.
-    try{await this.legacy.sync(other);}finally{if(!this.closed&&revision===this.syncRevision)this.native.sync(local,native);}
+    // Remove stale compatibility contexts before publishing a new native context.
+    // A partial compatibility sync is not proof that any of its routes are ready.
+    try{
+      await this.legacy.sync(other);
+      if(!this.closed&&revision===this.syncRevision)this.legacyMounts=new Map(other.map(c=>[c.context,structuredClone(c)]));
+    }catch(error){this.legacyMounts.clear();throw error;}
+    finally{if(!this.closed&&revision===this.syncRevision)this.native.sync(local,native);}
   });}
   pendingSettingsRequest(context,id){
     if(this.closed||this.desiredContexts&&!this.desiredContexts.has(context))return null;
@@ -1260,8 +1265,33 @@ class PluginRouter{
     if(typeof accepted!=='boolean'||!this.pendingSettingsRequest(context,id))return false;
     return this.native.acknowledgeSettings(context,id,accepted);
   }
-  key(context,gesture,ticks){if(this.closed||(this.desiredContexts&&!this.desiredContexts.has(context)))return false;return this.nativeContextIds.has(context)||this.native.contexts.has(context)?this.native.key(context,gesture,ticks):this.legacy.key(context,gesture,ticks);}
-  inspector(context){if(this.closed||(this.desiredContexts&&!this.desiredContexts.has(context)))return false;return this.nativeContextIds.has(context)||this.native.contexts.has(context)?false:this.legacy.inspector(context);}
+  nativeRouteReady(context,desired){
+    const ctx=this.native.contexts.get(context);
+    if(!ctx||ctx.service||!desired)return false;
+    if(['instanceId','mountGeneration','slot','gesture','pluginUUID','actionUUID'].some(k=>ctx[k]!==desired[k]))return false;
+    if(Number.isSafeInteger(ctx.configRevision)&&Number.isSafeInteger(desired.configRevision)){
+      if(desired.configRevision>ctx.configRevision)return false;
+      // A confirmed self-write can be newer than the renderer's last sync.
+      if(desired.configRevision<ctx.configRevision)return true;
+    }
+    return JSON.stringify(desired.settings||{})===JSON.stringify(ctx.settings||{});
+  }
+  legacyRouteReady(context,desired){
+    const confirmed=this.legacyMounts.get(context);
+    return !!confirmed&&!!desired&&JSON.stringify(confirmed)===JSON.stringify(desired);
+  }
+  key(context,gesture,ticks){
+    if(this.closed)return false;
+    const desired=this.desiredMounts?.get(context);
+    if(!desired)return false;
+    if(this.nativeContextIds.has(context)||this.native.contexts.has(context))
+      return this.nativeRouteReady(context,desired)&&this.native.key(context,gesture,ticks);
+    return this.legacyRouteReady(context,desired)&&this.legacy.key(context,gesture,ticks);
+  }
+  inspector(context){
+    if(this.closed||this.nativeContextIds.has(context)||this.native.contexts.has(context))return false;
+    return this.legacyRouteReady(context,this.desiredMounts?.get(context))&&this.legacy.inspector(context);
+  }
   onSystemSuspend(){this.native.suspend();this.legacy.onSystemSuspend();}
   onSystemResume(){this.native.resume();this.legacy.onSystemResume();}
   async close(){this.closed=true;this.native.close();await this.legacy.close();}
