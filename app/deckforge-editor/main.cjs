@@ -1125,7 +1125,7 @@ transport.on('synced', details => send('d200x:synced', details));
 transport.on('error-message', message => send('d200x:error', message));
 let diagnosticPath = null;
 let keepaliveLogCounter = 0;
-transport.on('diagnostic', info => {
+function recordDeviceDiagnostic(info) {
   // A successful keep-alive every 5 seconds is routine. Summarize it once
   // per minute to keep logs small while preserving all failure transitions.
   if (info.type === 'keepalive' && ++keepaliveLogCounter % 12 !== 1) return;
@@ -1140,7 +1140,8 @@ transport.on('diagnostic', info => {
   } catch (error) {
     console.warn('[D200X] Cannot write diagnostic log:', error.message);
   }
-});
+}
+transport.on('diagnostic',recordDeviceDiagnostic);
 
 // Accept only the 14 known display slots, not arbitrary file paths or code.
 function validImages(value) {
@@ -2228,8 +2229,9 @@ ipcMain.handle('d200x:smart-profile-context',async(event,includeFusion)=>{
 if(singleInstanceLock)app.whenReady().then(async () => {
   diagnosticPath = path.join(app.getPath('userData'), 'd200x-connection.log');
   transport.log('key-trial',keyTransportTrial?'Explicit KEY trial enabled for this process':'KEY disabled',{incremental:keyTransportTrial});
-  powerMonitor.on('suspend',()=>sdkHost?.onSystemSuspend());
-  powerMonitor.on('resume',()=>sdkHost?.onSystemResume());
+  const powerDiagnostic=type=>recordDeviceDiagnostic({time:new Date().toISOString(),type:'sdk-power-'+type,detail:{hostPresent:!!sdkHost,nativeSuspended:sdkHost?.native.suspended??null,contexts:sdkHost?.native.contexts.size??0}});
+  powerMonitor.on('suspend',()=>{powerDiagnostic('suspend');sdkHost?.onSystemSuspend();});
+  powerMonitor.on('resume',()=>{powerDiagnostic('resume');sdkHost?.onSystemResume();});
   Menu.setApplicationMenu(null);
   initializeTray();
   // Initial size fits the current monitor's usable work area (taskbar excluded).

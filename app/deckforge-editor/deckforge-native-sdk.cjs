@@ -1023,8 +1023,16 @@ class NativePluginHost{
     return true;
   }
   closeRetired(){for(const runner of this.retired)runner.close();this.retired.clear();}
-  suspend(){this.suspended=true;this.closeRetired();for(const ctx of this.contexts.values()){ctx.pressed=false;this.resetScript(ctx);}this.runnerPool?.clear();this.reconcileTickTimer();}
-  resume(){if(this.closed)return;this.suspended=false;for(const ctx of this.contexts.values()){ctx.failed=false;ctx.recoveryAttempts=0;this.initialize(ctx);}}
+  suspend(){if(this.closed)return;this.suspended=true;this.closeRetired();for(const ctx of this.contexts.values()){ctx.pressed=false;this.resetScript(ctx);}this.runnerPool?.clear();this.reconcileTickTimer();}
+  resume(){
+    if(this.closed)return;
+    // A wake notification need not have a matching suspend notification.
+    // Reset all old transports, runners and epochs before reinitializing;
+    // never replay an old input or clear an uncertain settings receipt.
+    if(!this.suspended)this.suspend();
+    this.suspended=false;
+    for(const ctx of this.contexts.values()){ctx.failed=false;ctx.recoveryAttempts=0;this.initialize(ctx);}
+  }
   close(){this.closed=true;this.animations.close();this.scheduler.close();this.closeRetired();for(const ctx of this.contexts.values())this.resetScript(ctx);this.contexts.clear();this.runnerPool?.close();this.reconcileTickTimer();}
 }
 // Compatibility host stays unchanged; only validated native IDs are routed here.

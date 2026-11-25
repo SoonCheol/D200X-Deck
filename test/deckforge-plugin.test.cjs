@@ -662,7 +662,18 @@ test('native background WSS and shared snapshot survive page changes, clear on r
    now=3000;host.tick(now);await drain();assert.ok(updates.some(e=>e.context==='page2'&&e.payload?.title==='tick'));
    host.suspend();assert.equal(sockets[0].closed,true);assert.deepEqual(original.sharedState,{});
    host.resume();await drain();assert.equal(sockets.length,2);
-   host.sync([],[]);await drain();assert.equal(sockets[1].closed,true);assert.equal(host.contexts.size,0);
+   // Resume-only notification: an existing socket must be discarded and
+   // replaced even if the OS did not deliver a preceding suspend event.
+   sockets[1].readyState=1;sockets[1].emit('open');
+   sockets[1].emit('message',Buffer.from('on'),false);await drain();
+   assert.equal(original.sharedState.status,'on');
+   const epoch=original.epoch;
+   host.resume();await drain();assert.equal(sockets[1].closed,true);
+   assert.equal(sockets.length,3);assert.ok(original.epoch>epoch);assert.deepEqual(original.sharedState,{});
+   sockets[1].emit('message',Buffer.from('stale'),false);await drain();assert.deepEqual(original.sharedState,{});
+   sockets[2].readyState=1;sockets[2].emit('open');sockets[2].emit('message',Buffer.from('fresh'),false);await drain();
+   assert.equal(original.sharedState.status,'fresh');assert.ok(updates.some(e=>e.context==='page2'&&e.payload?.title==='fresh'));
+   host.sync([],[]);await drain();assert.equal(sockets[2].closed,true);assert.equal(host.contexts.size,0);
    assert.ok(events.filter(e=>e.scope==='service'&&e.type==='start').length>=2);
  }finally{host.close();}
 });
