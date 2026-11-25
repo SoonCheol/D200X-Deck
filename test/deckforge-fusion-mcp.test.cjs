@@ -83,3 +83,11 @@ test('MCP exposes read-only list and safe export tools',async()=>{
   const listed=await MCP.dispatch({jsonrpc:'2.0',id:2,method:'tools/list'});
   assert.deepEqual(listed.result.tools.map(x=>x.name),['fusion_list_commands','fusion_export_batch']);
 });
+
+
+test('bulk Fusion tooltip cache preserves unavailable commands and counts actual descriptions',()=>{
+ const {mergeTooltips}=require('../app/deckforge-editor/ai/fusion-commands.cjs');
+ const result=mergeTooltips({Revolve:'이전 회전 설명',Circle:'원 설명'},[{id:'Revolve',tooltip:'새 회전 설명'},{id:'Circle',tooltip:''},{id:'Line',tooltip:'선 설명'},{id:'Empty',tooltip:''}]);
+ assert.equal(result.data.Revolve,'새 회전 설명');assert.equal(result.data.Circle,'원 설명');assert.equal(result.data.Line,'선 설명');assert.equal(result.data.Empty,undefined);
+ assert.deepEqual({scanned:result.scanned,collected:result.collected,missing:result.missing,total:result.total},{scanned:4,collected:2,missing:2,total:3});
+});

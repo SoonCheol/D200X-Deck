@@ -85,6 +85,11 @@ const managerReady=app.whenReady().then(()=>{
        {state:'missing',id};
    }catch(error){return {state:'error',message:error.message}}
  });
+ ipcMain.handle('fusion-tooltip-collect',async(event)=>{
+   if(!embeddedWindow||embeddedWindow.isDestroyed()||event.sender!==embeddedWindow.webContents)throw Error('허용되지 않은 요청');
+   if(!integratedBridge)throw Error('DeckForge에서 Fusion 명령 관리자를 실행하세요.');
+   return integratedBridge('collect-tooltips');
+ });
  ipcMain.handle('fusion-icon-health',async()=>{
    try{return {available:true,endpoint:await fusionEndpoint()}}catch(e){return {available:false,message:e.message}}
  });

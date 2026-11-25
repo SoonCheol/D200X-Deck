@@ -22,6 +22,7 @@ contextBridge.exposeInMainWorld('fusionManager',{
  iconHealth:()=>ipcRenderer.invoke('fusion-icon-health'),
  commandStatus:id=>ipcRenderer.invoke('fusion-command-status',id),
  collectIcon:id=>ipcRenderer.invoke('fusion-icon-collect',id),
+ collectTooltips:()=>ipcRenderer.invoke('fusion-tooltip-collect'),
  save:(data,defaultName)=>ipcRenderer.invoke('save-json',{data,defaultName}),
  open:()=>ipcRenderer.invoke('open-json')
 });

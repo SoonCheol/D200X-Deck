@@ -77,10 +77,25 @@ function createClient({discoveryFile,catalogFile,fetcher=fetch,io=fs}){
   signal?.throwIfAborted();
   return projectCommands(raw,await names(),tooltipLimit);
  }
- return {list:signal=>commands({signal}),details:async(id,signal)=>{
+ return {list:signal=>commands({signal}),listDetails:signal=>commands({signal,tooltipLimit:1000}),details:async(id,signal)=>{
   const rows=await commands({id,signal,tooltipLimit:1000});return rows.find(r=>r.id===id)||null;
  },exact:async(id,signal)=>{
   const rows=await commands({id,signal});return rows.find(r=>r.id===id)||null;
  }};
 }
-module.exports={PLUGIN,ACTION,safeId,normaliseCatalog,projectCommands,search,createClient};
+// Keep previous non-empty tooltips when another workspace is not loaded.
+function mergeTooltips(previous,rows){
+ const data=Object.create(null);
+ for(const [id,value] of Object.entries(previous||{})){
+  if(safeId(id)&&typeof value==='string'&&value.trim())data[id]=value.slice(0,1000);
+ }
+ let collected=0,missing=0;
+ for(const row of rows){
+  if(!safeId(row?.id))continue;
+  const tooltip=typeof row.tooltip==='string'?row.tooltip.trim().slice(0,1000):'';
+  if(tooltip){data[row.id]=tooltip;collected++;}else missing++;
+ }
+ if(Object.keys(data).length>30000)throw Error('fusion-tooltip-cache-limit');
+ return {data,collected,missing,total:Object.keys(data).length,scanned:rows.length};
+}
+module.exports={PLUGIN,ACTION,safeId,normaliseCatalog,projectCommands,search,createClient,mergeTooltips};

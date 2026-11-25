@@ -250,6 +250,7 @@ async function openIntegratedManager(){
   const manager=await integrated.openEmbeddedManager((operation,argument)=>{
    if(operation==='open-deckforge'){revealEditor();return true}
    if(operation==='language-changed'){send('d200x:fusion-language-changed',null);return true}
+   if(operation==='collect-tooltips')return collectFusionTooltips();
    if(operation==='dock')return fusionMagnet?argument==='toggle'?fusionMagnet.toggle():fusionMagnet.status():{available:false,attached:false};
    return false;
   });
@@ -404,17 +405,51 @@ const fusionCommands=LiveFusion.createClient({
   discoveryFile:fusionDiscoveryFile(),
   catalogFile:path.join(__dirname,'../fusion-manager/fusion-command-catalog-final.json')
 });
+// Bulk original Fusion descriptions; one bounded GET, no command execution.
+const fusionTooltipFolder=()=>path.join(app.getPath('userData'),'Cache','Fusion','descriptions');
+const fusionTooltipCatalog=()=>path.join(fusionTooltipFolder(),'catalog-v1.json');
+let tooltipCatalogPromise=null,tooltipCollection=null;
+function readFusionTooltipCatalog(){
+ if(!tooltipCatalogPromise)tooltipCatalogPromise=(async()=>{
+   try{
+     const file=fusionTooltipCatalog(),stat=await fs.promises.stat(file);
+     if(!stat.isFile()||stat.size>48*1024*1024)throw Error('tooltip-cache-size');
+     const parsed=JSON.parse(await fs.promises.readFile(file,'utf8'));
+     return LiveFusion.mergeTooltips(parsed?.tooltips,[]).data;
+   }catch{return Object.create(null);}
+ })();
+ return tooltipCatalogPromise;
+}
+function collectFusionTooltips(){
+ if(tooltipCollection)return tooltipCollection;
+ tooltipCollection=(async()=>{
+   const rows=await fusionCommands.listDetails();
+   const merged=LiveFusion.mergeTooltips(await readFusionTooltipCatalog(),rows);
+   if(merged.collected){
+     const file=fusionTooltipCatalog(),temp=file+'.'+randomUUID()+'.tmp';
+     const payload=JSON.stringify({version:1,collectedAt:new Date().toISOString(),tooltips:merged.data});
+     if(Buffer.byteLength(payload)>48*1024*1024)throw Error('tooltip-cache-size');
+     await fs.promises.mkdir(fusionTooltipFolder(),{recursive:true});
+     try{await fs.promises.writeFile(temp,payload,{encoding:'utf8',flag:'wx'});await fs.promises.rename(temp,file);}
+     finally{await fs.promises.rm(temp,{force:true}).catch(()=>{});}
+     tooltipCatalogPromise=Promise.resolve(merged.data);
+   }
+   return {scanned:merged.scanned,collected:merged.collected,missing:merged.missing,total:merged.total};
+ })().finally(()=>{tooltipCollection=null;});
+ return tooltipCollection;
+}
 // Read-only command information, with per-command local tooltip cache.
 ipcMain.handle('d200x:fusion-command-details',async(event,id)=>{
   assertEditor(event);
   if(!LiveFusion.safeId(id))throw Error('invalid-fusion-command-id');
-  const folder=path.join(app.getPath('userData'),'Cache','Fusion','descriptions');
+  const folder=fusionTooltipFolder();
   const file=path.join(folder,id+'.json');
-  let cached='';
-  try{const stat=await fs.promises.stat(file);if(stat.isFile()&&stat.size<=8192){const row=JSON.parse(await fs.promises.readFile(file,'utf8'));if(row.id===id&&typeof row.tooltip==='string')cached=row.tooltip.slice(0,1000);}}catch{}
+  const bulk=await readFusionTooltipCatalog();
+  let cached=bulk[id]||'';
+  try{const stat=await fs.promises.stat(file);if(stat.isFile()&&stat.size<=8192){const row=JSON.parse(await fs.promises.readFile(file,'utf8'));if(!cached&&row.id===id&&typeof row.tooltip==='string')cached=row.tooltip.slice(0,1000);}}catch{}
   const names=await fusionButtonLanguageData().catch(()=>({ko:{},en:{}}));
   let live=null;
-  try{live=await fusionCommands.details(id);}catch{}
+  if(!cached)try{live=await fusionCommands.details(id);}catch{}
   const tooltip=live?.tooltip||cached;
   if(live?.tooltip&&live.tooltip!==cached){
     const temp=file+'.'+randomUUID()+'.tmp';

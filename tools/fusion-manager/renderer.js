@@ -535,6 +535,16 @@ $('exploreEnglish').onclick=()=>selectDisplayLanguage('en');
 $('exploreSearch').oninput=renderExplorer;
 $('exploreReset').onclick=()=>{$('exploreSearch').value='';renderExplorer()};
 $('exploreCapture').onclick=()=>$('importCapture').click();
+$('collectTooltips').onclick=async()=>{
+ const button=$('collectTooltips'),statusNode=$('tooltipCollectStatus');
+ if(button.disabled)return;
+ button.disabled=true;statusNode.textContent='Fusion 전체 등록 명령 설명 조회 중…';
+ try{
+   const result=await window.fusionManager.collectTooltips();
+   statusNode.textContent='조회 '+result.scanned+'개 · 설명 수집 '+result.collected+'개 · 설명 없음 '+result.missing+'개 · 전체 저장 '+result.total+'개';
+ }catch(error){statusNode.textContent='설명 수집 실패: Fusion 및 애드인 연결을 확인하세요.'}
+ finally{button.disabled=false}
+};
 $('exploreIcons').onclick=async()=>{
  const ids=explorerItems.slice(0,240).map(v=>v.id);
  if(!ids.length)return;
