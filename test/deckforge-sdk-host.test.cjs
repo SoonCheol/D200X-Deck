@@ -311,3 +311,21 @@ test('HA fallback claims one poll before credential I/O and drops stale settings
   assert.equal(host.haPollBusy,false);
  }finally{release();await host.close();}
 });
+
+test('unchanged compatibility sync preserves an in-flight HA state observation',async()=>{
+ const events=[],host=new StreamDeckPluginHost('/unused',e=>events.push(e));
+ const uuid=M.UUID,actionUUID=uuid+'.dual-state-entity';
+ const cfg={context:'ha',slot:0,pluginUUID:uuid,actionUUID,settings:{display:{entityId:'switch.one'}}};
+ const ctx={...cfg,appeared:true};host.contexts.set(cfg.context,ctx);host.instances.set(uuid,{uuid});
+ host.readGlobal=async()=>({serverUrl:'https://ha.example.test',accessToken:'test'});
+ host.stateArtwork=async()=>null;
+ let release,started;const gate=new Promise(r=>{release=r;}),ready=new Promise(r=>{started=r;});
+ try{
+  const pending=host.refreshHaDualStates(async()=>{started();await gate;return {ok:true,json:async()=>({state:'on'})};});
+  await ready;
+  await host.sync([structuredClone(cfg)],[{uuid,actions:[{uuid:actionUUID}]}]);
+  assert.equal(ctx.settings,cfg.settings);
+  release();await pending;
+  assert.equal(events.filter(e=>e.kind==='setState').length,1);
+ }finally{release();await host.close();}
+});

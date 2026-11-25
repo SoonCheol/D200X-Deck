@@ -488,8 +488,9 @@ class StreamDeckPluginHost{
       }else{
         const incoming=cfg.settings||{};
         const changed=JSON.stringify(ctx.settings)!==JSON.stringify(incoming);
-        ctx.settings=incoming;ctx.slot=cfg.slot;
+        ctx.slot=cfg.slot;
         if(changed){
+          ctx.settings=incoming;
           ctx.lastState=undefined;
           this.send(this.instances.get(cfg.pluginUUID)?.ws,{event:'didReceiveSettings',
             action:ctx.actionUUID,context:ctx.context,device:DEVICE,payload:this.payload(ctx)});
