@@ -1236,7 +1236,7 @@ class PluginRouter{
     // Remove stale compatibility contexts before publishing a new native context.
     // A partial compatibility sync is not proof that any of its routes are ready.
     try{
-      await this.legacy.sync(other);
+      await this.legacy.sync(other,legacy);
       if(!this.closed&&revision===this.syncRevision)this.legacyMounts=new Map(other.map(c=>[c.context,structuredClone(c)]));
     }catch(error){this.legacyMounts.clear();throw error;}
     finally{if(!this.closed&&revision===this.syncRevision)this.native.sync(local,native);}

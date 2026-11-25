@@ -244,3 +244,29 @@ test('legacy plugin keepData removal and trusted recovery preserve globals and r
   assert.equal(await fs.readFile(globals,'utf8'),'local encrypted fixture');
  }finally{await host.close();await fs.rm(root,{recursive:true,force:true});}
 });
+
+
+test('each compatibility sync uses a single fresh catalogue, including the router snapshot',async()=>{
+ const {NativePluginHost,PluginRouter}=require('../app/deckforge-editor/deckforge-native-sdk.cjs');
+ const legacy=new StreamDeckPluginHost('/unused'),native=new NativePluginHost('/unused');
+ const uuid='com.deckforge.compat.test',actionUUID=uuid+'.button';
+ let calls=0,installed=true;
+ legacy.list=async()=>{calls++;return installed?[{uuid,actions:[{uuid:actionUUID}]}]:[];};
+ native.manifests=async()=>[];native.loadServicePolicy=async()=>{};
+ legacy.instances.set(uuid,{uuid});
+ const configs=Array.from({length:13},(_,slot)=>({context:'compat-'+slot,slot,gesture:'down',pluginUUID:uuid,actionUUID,settings:{}}));
+ const router=new PluginRouter(legacy,native);
+ try{
+  await legacy.sync(configs);
+  assert.equal(calls,1);assert.equal(legacy.contexts.size,13);
+  await router.sync(configs);
+  assert.equal(calls,2);assert.equal(legacy.contexts.size,13);
+  await legacy.sync([...configs,{...configs[0],context:'invalid-action',actionUUID:uuid+'.missing'}]);
+  assert.equal(calls,3);assert.equal(legacy.contexts.has('invalid-action'),false);
+  installed=false;
+  await router.sync(configs);
+  assert.equal(calls,4);assert.equal(legacy.contexts.size,0);
+  await legacy.sync([]);
+  assert.equal(calls,4);
+ }finally{await router.close();}
+});

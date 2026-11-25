@@ -465,12 +465,16 @@ class StreamDeckPluginHost{
     this.send(inst.ws,{event:'willAppear',action:ctx.actionUUID,context:ctx.context,device:DEVICE,payload:this.payload(ctx)});
     ctx.appeared=true;
   }
-  async sync(configs){
+  async sync(configs,catalogue){
+    // The router already obtained a fresh catalogue for this serialized sync.
+    // Direct callers load it lazily, once per non-empty valid batch.
+    let plugins=catalogue;
     const seen=new Set();
     for(const cfg of configs){
       if(!cfg||typeof cfg.context!=='string'||cfg.context.length>160||
         !UUID.test(cfg.pluginUUID)||!UUID.test(cfg.actionUUID)||!Number.isInteger(cfg.slot)||cfg.slot<0||cfg.slot>18)continue;
-      const plugins=await this.list(),plugin=plugins.find(p=>p.uuid===cfg.pluginUUID);
+      plugins??=await this.list();
+      const plugin=plugins.find(p=>p.uuid===cfg.pluginUUID);
       if(!plugin?.actions.some(a=>a.uuid===cfg.actionUUID))continue;
       seen.add(cfg.context);
       let ctx=this.contexts.get(cfg.context);
