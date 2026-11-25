@@ -273,10 +273,12 @@ function sdkContext(index,gesture='down'){
   return mounted&&item?.instanceId===mounted.instanceId&&
     item.settings?.pluginUUID===mounted.pluginUUID&&item.settings?.actionUUID===mounted.actionUUID?mounted.context:'';
 }
-function clearOldSdkVisual(index,gesture='down'){
-  const ctx=sdkContext(index,gesture);
+function clearSdkVisualContext(ctx){
   sdkVisuals.delete(ctx);fusionLiveContexts.delete(ctx);
   fusionOfflineContexts.delete(ctx);unverifiedFusionContexts.delete(ctx);
+}
+function clearOldSdkVisual(index,gesture='down'){
+  clearSdkVisualContext(sdkContext(index,gesture));
 }
 function pluginSlotContext(item){
   if(item?.type!=='sd-plugin')return '';
@@ -635,7 +637,21 @@ function setItem(index,item){
       (controlGesture==='down'&&binding.mode==='adjust'))))binding.mode='trigger';
     clearOldSdkVisual(index,({'holdLeft':'hold-left','holdRight':'hold-right'})[controlGesture]||controlGesture);
     DeckCore.assignControlAction(binding,controlGesture,item);
-  }else {clearOldSdkVisual(index);if(item?.type==='indicator'&&!state.indicatorCommon)DeckCore.updateIndicatorCommon(state,item,{});currentPage()[index]=item;}
+  }else {
+    // A committed grid replacement must not consume a cut or retire the old
+    // mount until the profile write succeeds.
+    const page=currentPage(),previous=page[index],selected=state.selected;
+    const hadCommon=Object.hasOwn(state,'indicatorCommon'),common=state.indicatorCommon;
+    const oldContext=sdkContext(index);
+    if(item?.type==='indicator'&&!state.indicatorCommon)DeckCore.updateIndicatorCommon(state,item,{});
+    page[index]=item;state.selected=index;
+    if(!persist(false)){
+      page[index]=previous;state.selected=selected;
+      if(hadCommon)state.indicatorCommon=common;else delete state.indicatorCommon;
+      render();return false;
+    }
+    clearSdkVisualContext(oldContext);window.scheduleDeckSync?.();render();return true;
+  }
   state.selected=index;persist();render();
 }
 function removeSlotAction(index){
@@ -4955,11 +4971,11 @@ function cutClipboardAction(index){
 function pasteClipboardAction(index){
   if(!clipboard||!Number.isInteger(index)||index<0||index>=14||reservedWideSlot(index))return false;
   if(inspectorSession?.dirty){showInspectorLeaveDialog(()=>pasteClipboardAction(index));return false;}
+  if(inspectorSession&&inspectorEditing)return false;
   const existing=DeckCore.visibleActions(state)[index];
   if(existing&&!confirm('이 버튼의 기존 액션을 복사한 액션으로 교체하시겠습니까?'))return false;
   const action=clipboardMode==='cut'?clone(clipboard):DeckCore.cloneActionInstances(clipboard);
-  setItem(index,action);
-  if(currentPage()?.[index]!==action)return false;
+  if(setItem(index,action)!==true||currentPage()?.[index]!==action)return false;
   clipboardMode='copy';return true;
 }
 function showMenu(index,x,y){

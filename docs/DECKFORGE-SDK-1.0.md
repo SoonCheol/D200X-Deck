@@ -161,7 +161,7 @@ API 2 manifest의 service={script,tickIntervalMs?} 및 별도 background.run 권
 | 10 | 고정키 로컬 override | setPressSlot cloneActionInstances; helper 기존, GUI 경로 별도 |
 | 11 | 액션 JSON 입출력 | importSlotAction cleanAction+cloneActionInstances; GUI 별도 |
 | 12 | 프로필 복제 | createProfile cloneActionInstances; 기존 core 검사 |
-| 13 | 프로필 JSON 입출력 | exportSingleProfile 보존, 집중 검사 추가. 개별 JSON import 구현/진입 경로 미확인; 백업 복원과 구분 |
+| 13 | 프로필 JSON 입출력 | exportSingleProfile 보존, 집중 검사 추가. 현행 프로필 메뉴는 JSON export만 제공, backup decoder는 deckforge-backup-v1 요구. 별도 개별 JSON import 미확인/신규 구현 보류; 지원 복원은 #16 |
 | 14 | 템플릿 저장 | saveProfileTemplate 비활성 snapshot; 적용 시 신규 ID. 기존 core 연계 검사 |
 | 15 | 템플릿 적용 | applyProfileTemplate cloneActionInstances; 기존 core 검사 |
 | 16 | 백업 복원 | planRestore 전체 보존/merge·select 신규 ID; 기존 backup 검사 |
@@ -200,3 +200,5 @@ report03.md §4.2 13행 원문 기준. 1.1.231 CI #1281/입력 #521/Windows #985
 - 1.1.239 감사 경로 #8 판정: sdkMountDescriptors는 직접 SDK 버튼/노브만 등록하고 executeMultiStep은 SDK를 명시 거부, triggerLogicSlot/renderLogicEditor는 MULTI_ALLOWED만 지원한다. 따라서 Key Logic 중첩 SDK 실행은 미지원 계약으로 구분하며 기존 중첩 데이터/instanceId는 삭제하지 않는다. context menu의 이동 허용 조건을 기존 실행 목록으로 통일하고 SDK 등 미지원 타입 차단·일반 단축키 변환·기존 중첩 데이터 보존 집중 검사 추가. 새 SDK 중첩 실행은 범위 확장 없이 보류. 1.1.238 CI #1289/Windows #993 전체 성공 및 설치본 게시, branding/native package independence/route failure/ACK isolation/ABA 관련 5개 실제 통과 로그 확인. 1.1.239 신규 검사 대기.
 
 - 1.1.239 CI #1290·입력 #524 통과, Windows #994 신규 Key Logic 테스트에서 createAction('logic') 반환의 slots 초기화 누락으로 TypeError. 1.1.240 fixture를 실제 메뉴와 동일하게 slots 객체로 초기화. #19 AI profile_build는 makeProfileBuild → fusionButton → Core.createAction('sd-plugin')으로 각 ID 발급; 기존 프로필 유지, 반복 명령/페이지/중첩 폴더 및 별도 미리보기, 저장 재로드·프로필 전환 mount 대조 검사 추가. 생산 실행 코드 변경 없음. 신규 Windows 검사 결과 대기.
+
+- 1.1.241 감사 #2/3/7/11: editor setItem의 일반 grid 교체가 persist 실패에도 성공처럼 진행되어 cut clipboard가 copy로 바뀌는 경로 수정. 저장 전 기존 context 확보, 실패 시 slot/selected/indicatorCommon 원복, 성공 후 이전 visual 해제 및 장치/SDK sync; 붙여넣기는 성공 반환 후만 cut→copy. 기존 dirty dialog 유지, inspectorEditing 중 clipboard 적용 차단. 실패·재시도·복사 ID 집중 검사 추가. knob/side/일반 press draft 저장 경로는 변경하지 않는다. 개별 profile JSON export 및 backup decoder를 대조했고 신규 import 기능은 추가하지 않는다. 1.1.240 CI #1291/Windows #995 회귀 단계 통과, 패키징 진행 중. 1.1.241 신규 검사 대기.

@@ -603,3 +603,30 @@ test('Key Logic context menu only wraps executable actions and leaves unsupporte
  const wrapped=Core.currentActions(state)[0];assert.equal(wrapped.type,'logic');
  assert.equal(wrapped.slots.single.type,'hotkey');assert.equal(wrapped.slots.single.settings.keys,'Ctrl+A');
 });
+
+
+test('failed grid paste restores prior button and retains cut identity until a successful write',()=>{
+ const Core=require('../app/streamdeck-editor/deck-core.js');
+ const state=Core.migrateState(null),page=Core.currentActions(state);
+ const original=Core.createAction('sd-plugin'),target=Core.createAction('sd-plugin');
+ original.settings.pluginUUID='com.deckforge.native.example';original.settings.actionUUID=original.settings.pluginUUID+'.key';
+ target.settings.pluginUUID=original.settings.pluginUUID;target.settings.actionUUID=original.settings.actionUUID;
+ page[1]=target;state.selected=0;
+ const setSource=editor.slice(editor.indexOf('function setItem('),editor.indexOf('function removeSlotAction('));
+ const pasteSource=editor.slice(editor.indexOf('function pasteClipboardAction('),editor.indexOf('function showMenu('));
+ const retired=[],writes=[],syncs=[];
+ let success=false;
+ const sandbox={DeckCore:Core,state,clipboard:original,clipboardMode:'cut',inspectorSession:null,inspectorEditing:false,
+   clone:x=>JSON.parse(JSON.stringify(x)),currentPage:()=>page,reservedWideSlot:i=>i===13,
+   confirm:()=>true,sdkContext:i=>'old-'+i,clearSdkVisualContext:c=>retired.push(c),
+   persist:schedule=>{assert.equal(schedule,false);writes.push(page[state.selected].instanceId);return success;},
+   render(){},window:{scheduleDeckSync:()=>syncs.push(true)}};
+ const paste=vm.runInNewContext(setSource+'\n'+pasteSource+'\npasteClipboardAction',sandbox);
+ assert.equal(paste(1),false);assert.equal(page[1],target);assert.equal(state.selected,0);
+ assert.equal(sandbox.clipboardMode,'cut');assert.deepEqual(retired,[]);assert.deepEqual(syncs,[]);
+ success=true;assert.equal(paste(1),true);assert.equal(page[1].instanceId,original.instanceId);
+ assert.equal(sandbox.clipboardMode,'copy');assert.deepEqual(retired,['old-1']);assert.equal(syncs.length,1);
+ assert.equal(paste(2),true);assert.notEqual(page[2].instanceId,original.instanceId);
+ assert.deepEqual(page[2].settings,original.settings);
+ assert.equal(writes[0],original.instanceId);assert.equal(writes[1],original.instanceId);
+});
