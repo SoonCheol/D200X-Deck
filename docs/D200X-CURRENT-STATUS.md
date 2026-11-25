@@ -15,13 +15,11 @@
 - 1.1.221: KEY 후보 기본 OFF, 단일 일반 키·16회 한도·실패 시 PAGE 복원. CI #1269·Windows #975 성공. 실제 KEY 미검증.
 - 사용자 실기 보고: 테스트 플러그인 v1.0.0 제거 성공 2026-11-24 16:38:12 UTC, 보존 데이터 삭제 성공(2/2) 16:38:16 UTC; AI 로그 조회 확인. 원본 로그 직접 열람은 아님.
 - 1.1.231: identity 19행 대조·집중 검사, CI #1281/입력 #521/Windows #985 성공, 게시. 1.1.232: 저장 13행 대응·종료 commit 차단. CI #1282/입력 #522 성공, Windows #986 clean fixture 실패(kind 누락), 종료/페이지·삭제/retire 검사 통과. 1.1.233: fixture 수정 CI #1283/Windows #987 성공, 게시. 1.1.234: 실제 Electron NativePluginHost+임시 ProfileStore, 요청 전/저장 후 ACK 전 renderer crash, 재조회·재실행 금지 검증 추가. CI #1284·Windows #988 성공, 1.1.234 설치본 게시.
-- 1.1.230: CI #1278·Windows #984 attempt2 성공/게시. 실제 crash·25함수·vault 검사 이력 Git 보존; root suite 45/45 확인.
 ## 다음 작업
+- 긴급 2.0.50: 2.0.49 최초/재실행 편집기 공백·실기 입력 무반응·AI 조회 불가 사용자 보고. 실제 초기 코드 재현: `액션 목록 누락: ha-other`. SDK 전용 아이콘을 실행 카탈로그에서 분리, 초기화 및 실제 Electron DOM smoke 검사 추가. 사용자 데이터 변경 금지.
 - 2026-11-26 사용자 승인: Model 2만 SDK 1.0 정식 출시 경로로 확정, Model 5 연구 보류/제품 OFF. Gemini report001/002 전문 검토. P0 2.0.43 후보: private ops JSON snapshot·null prototype envelope 방어 및 Object/Array prototype toJSON 거부, ctx.memory validateValue(8KiB/깊이/금지 키), 실제 Electron 집중 회귀 추가. CI #1428·SDK #120·Windows #47 성공, 실제 serialization 3종/메모리 5종 거부 통과. P1 HA 내장·최종 Windows 회귀, P2 실제 장치/HA/OS/GUI. 개발 항목 9/10(90%, 동일 가중·실기 별도), 정확한 공수 아님. Model 5 시험 이력·코드 Git 보존.
 - 실기 2.0.42: 절전/대기 복귀 후 HA 전등 상태·제어 및 GitHub 조회 정지, 일반 입력/CPU/RAM 정상(사용자 보고). 완전 종료·재실행 후 표시 정상. OS 이벤트/실행 로그 미확보, 원인 미확정. 2.0.44 후보: resume 단독 수신에도 이전 runner/socket/queue 취소 후 초기화, stale 입력 재실행 금지 유지, sdk-power-suspend/resume 진단 기록 및 WSS 재연결 집중 회귀 추가. CI #1430·입력 #552·Windows #48 게시·SDK #122 성공(1417 press/107 전환, 5분 및 보안 검사 통과). 실기 대기. SDK #124 실제 Electron resume 단독/이전 입력 13개 폐기·새 입력 13개 복구·서비스 재시작 통과(실제 OS 제외). 기존 Model 5 시험 이력 Git 보존.
-- 2.0.42 monotonic clock 보강, CI #1407·Windows #45·SDK #99 성공.
-- 2.0.41 종료 중 서비스 재생성 차단, CI #1405·Windows #44 성공.
-- 2.0.40 서비스 정책 동시 읽기 보강, CI #1403 성공.
+- 2.0.40~42 안정성 보강 이력 Git 보존.
 - SDK #93 실제 OOM 통과(reason=oom), 서비스/peer 생존, 입력 복구 및 5분 soak(1391 press/105 전환/274 tick), 임시 ProfileStore 장애 검사 통과. CI #1401 성공. 실제 장치/OS 절전 및 전원 손실 별도.
 - 2.0.34: GitHub 0.1.1 번호 23px/상태 26px, 이름 마퀴 1~3초, 자동 조회 5/15초 또는 고정 5/10/15/30초, 기존 PAT binding 유지. 독립 pollIntervalMs 5초 이상, 집중 검사 추가. Windows #37 성공; 실기 미검증. 후속 GitHub 기능은 로드맵 보류.
 - 2.0.45 후보: HA 0.1.9 기본 액션 맨 위, 미설정 최초 설치/기존 서버 자동 보존 업데이트, 도움말 서버·인증·서비스·내보내기, 최초 속성 초기 연결. 별도 기기 연동 제어 기본 OFF, ON/OFF별 대상/명령 및 서비스 최신 상태 검증. 일반 패키지 동일 버전 제한 유지, 내장 코드 일치 시 주소 변경만 허용. CI #1435·입력 #553·Windows #49 성공. 2.0.46 후보: 오른쪽 기본/플러그인 그룹 제목 여백 4/3px, 기존 도움말 버튼 유지·공통 대화상자 원복. 0.1.8 계약 fixture→0.1.9 주소/토큰/기본 OFF 보존 검사 추가. CI #1437·Windows #50 성공, 2.0.46 게시. 실기 GUI 별도.
