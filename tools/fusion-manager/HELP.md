@@ -4,7 +4,7 @@
 
 - Windows에서 **Fusion Command Manager**를 실행합니다.
 - **저장된 Fusion 메뉴 탐색, 명령 검색, 페이지 편집, 프로젝트 JSON 저장·불러오기**는 오프라인으로 가능합니다. 이 기능에 Fusion 360 실행이나 Codex MCP 연결은 필수가 아닙니다.
-- **현재 목록 원본 아이콘 수집**과 **현재 Fusion에서 명령 ID 확인**은 같은 PC에서 **Autodesk Fusion 360** 및 **FusionStreamDeck 애드인**이 실행 중이어야 합니다. 애드인이 제공하는 로컬 주소 `127.0.0.1`로 연결하며, 애드인의 발견 파일 `%LOCALAPPDATA%\FusionStreamDeck\endpoint.json`을 사용합니다.
+- **현재 목록 원본 아이콘 수집**은 같은 PC에서 **Autodesk Fusion 360** 및 **FusionStreamDeck 애드인**이 실행 중이어야 합니다. 애드인이 제공하는 로컬 주소 `127.0.0.1`로 연결하며, 애드인의 발견 파일 `%LOCALAPPDATA%\FusionStreamDeck\endpoint.json`을 사용합니다.
 - **DeckForge 버튼에서 명령 실행**하려면 Fusion 360과 FusionStreamDeck 애드인, DeckForge의 원본 FusionStreamDeck 플러그인 및 해당 명령을 실행할 수 있는 작업 환경이 필요합니다. 명령 ID가 등록되어 있어도 현재 작업 영역·선택 상태에 따라 실행되지 않을 수 있습니다.
 - **Codex MCP**는 Codex에서 실행 중인 Fusion의 명령을 조회하고 일괄 등록용 JSON을 생성하는 **별도 도구**입니다. 매니저의 오프라인 탐색·아이콘 수집에 Codex MCP 연결은 필요하지 않습니다. MCP를 사용하는 경우에는 Codex에 `deckforge-fusion`을 등록하고 Fusion 360/애드인을 실행해야 합니다.
 

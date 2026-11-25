@@ -5588,17 +5588,13 @@ function handleGestureTest(action,index,gesture,event,preview){
   }
   return null;
 }
-// Generic ordinary-key gesture routing. A saved action stays the single-press
-// action; only explicitly assigned double / hold actions enable the new router.
-const assignedKeyPresses=new Map();
-const ASSIGNED_DOUBLE_MS=300,ASSIGNED_HOLD_MS=600;
 function fusionPressToken(index){
   const item=sdkItemAtLocation(sdkCommittedSource(),index,'down');
   if(!window.DeckForgeFusionPress.enabled(item))return null;
   const context=sdkContext(index,'down');
   return context?JSON.stringify([context,item.instanceId,item.settings.pluginSettings?.commandId,pageStructureEpoch]):null;
 }
-const fusionPresses=window.DeckForgeFusionPress.create({holdMs:ASSIGNED_HOLD_MS,
+const fusionPresses=window.DeckForgeFusionPress.create({holdMs:600,
   current:(index,token)=>fusionPressToken(index)===token,
   onTap:(index,token,event)=>{
     reportInputEvidence(event,'press-gesture',{outcome:'single',action:'sd-plugin'});
@@ -5619,6 +5615,17 @@ const fusionPresses=window.DeckForgeFusionPress.create({holdMs:ASSIGNED_HOLD_MS,
   }
 });
 window.clearD200XFusionPresses=()=>fusionPresses.clear();
+// Register the specialised router independently of the ordinary key engine.
+window.handleD200XFusionPress=(index,gesture,event)=>{
+  const token=fusionPressToken(index);
+  if(fusionPresses.handle(index,gesture,token,event))return true;
+  return window.DeckForgeFusionPress.enabled(sdkItemAtLocation(sdkCommittedSource(),index,'down'));
+};
+
+// Generic ordinary-key gesture routing. A saved action stays the single-press
+// action; only explicitly assigned double / hold actions enable the new router.
+const assignedKeyPresses=new Map();
+const ASSIGNED_DOUBLE_MS=300,ASSIGNED_HOLD_MS=600;
 function legacyOpenAppHoldAvailable(action){
   return action?.type==='open-app'&&(!action.pressActions?.hold||!pressEnabled(action,'hold'))&&
     ['close','force'].includes(action.settings?.hold);
@@ -6098,14 +6105,10 @@ function executeHardwareAction(event,preview=false,skipKnobGesture=false,pressOv
   const bindingAction=resolved.action;
   report('resolved',{slot:index,gesture:resolved.gesture,action:bindingAction?.type});
   if(index===14||index===15)return handleSideNavigationInput(index,resolved.gesture,event,preview);
-  if(!preview&&!bypassPressBindings&&index<13&&['down','up'].includes(resolved.gesture)){
-    const token=fusionPressToken(index);
-    if(fusionPresses.handle(index,resolved.gesture,token,event)){
-      if(resolved.gesture==='up')lastHardwareDown.delete(index);
-      return 'Fusion 버튼 누르기 판정';
-    }
-    // An enabled command awaiting its SDK mount must not bypass the hold router.
-    if(window.DeckForgeFusionPress.enabled(sdkItemAtLocation(sdkCommittedSource(),index,'down')))return 'Fusion 명령 활성화 대기';
+  if(!preview&&!bypassPressBindings&&index<13&&['down','up'].includes(resolved.gesture)&&
+    window.handleD200XFusionPress?.(index,resolved.gesture,event)){
+    if(resolved.gesture==='up')lastHardwareDown.delete(index);
+    return 'Fusion 버튼 누르기 판정';
   }
   if(index<13&&(resolved.action?.type==='indicator'||fixedIndicatorPresses.has(index))){
     if(resolved.gesture==='up')lastHardwareDown.delete(index);
