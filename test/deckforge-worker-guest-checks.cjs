@@ -1,9 +1,8 @@
 'use strict';
 // Shared synthetic guest checks, without access to host capabilities.
-function guestChecks(engine,assert,sdkPrograms=[],onSdkResults=()=>{}){
-  const evaluate=source=>{
+function evaluateGuest(engine,source,{heap=8*1024*1024,maxOutput=8192}={}){
     const runtime=engine.newRuntime();
-    runtime.setMemoryLimit(8*1024*1024);
+    runtime.setMemoryLimit(heap);
     runtime.setMaxStackSize(256*1024);
     const deadline=performance.now()+500;
     let interrupted=false;
@@ -25,14 +24,16 @@ function guestChecks(engine,assert,sdkPrograms=[],onSdkResults=()=>{}){
       promiseValue=settled.value;
       if(ctx.typeof(promiseValue)!=='string')return {kind:'invalid-output'};
       const json=ctx.getString(promiseValue);
-      if(new TextEncoder().encode(json).length>8192)return {kind:'output-limit'};
+      if(new TextEncoder().encode(json).length>maxOutput)return {kind:'output-limit'};
       return {kind:'result',value:JSON.parse(json)};
     }finally{
       if(promiseValue&&promiseValue!==result?.value)promiseValue.dispose();
       result?.value?.dispose();result?.error?.dispose();
       ctx.dispose();runtime.dispose();
     }
-  };
+}
+function guestChecks(engine,assert,sdkPrograms=[],onSdkResults=()=>{}){
+  const evaluate=source=>evaluateGuest(engine,source);
   const forbidden=['fetch','XMLHttpRequest','WebSocket','Worker','SharedWorker','importScripts','indexedDB','caches','localStorage','sessionStorage','navigator','document','process','require','Buffer','ipcRenderer','postMessage','setTimeout','Deno','Bun','WebAssembly'];
   // The guest receives only JS literal data; no host object or function.
   const isolation=evaluate('(async()=>{const names='+JSON.stringify(forbidden)+';const missing=names.every(k=>typeof globalThis[k]==="undefined");let importBlocked=false;try{await import("node:fs")}catch{importBlocked=true}return JSON.stringify({missing,importBlocked,constructorCannotReachHost:Function("return typeof process")()==="undefined"})})()');
@@ -53,4 +54,4 @@ function guestChecks(engine,assert,sdkPrograms=[],onSdkResults=()=>{}){
   onSdkResults(sdkPrograms.map(evaluate));
   return {guestGlobalsBlocked:true,importBlocked:true,asyncJson:true,interrupted:true,allocationRejected:true,outputLimited:true,pendingRejected:true,jobBudget:true,nextRecovered:true};
 }
-module.exports={guestChecks};
+module.exports={guestChecks,evaluateGuest};
