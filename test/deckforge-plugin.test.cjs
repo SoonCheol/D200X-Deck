@@ -873,7 +873,7 @@ test('native WebSocket lifecycle sends and receives, isolates stale context and 
    for(let i=0;i<30;i++)sockets[1].emit('message',Buffer.from('event'+i),false);
    const ctx=host.contexts.get(cfg.context);
    for(let i=0;i<40&&ctx.socketToken?.rxCount;i++)await drain();
-   assert.equal(sockets[1].terminated,undefined);assert.equal(host.socketPending.size,1);
+   assert.equal(sockets[1].terminated,false);assert.equal(host.socketPending.size,1);
    assert.equal(ctx.socketToken.rxCount,0);assert.ok(updates.some(e=>e.payload?.title==='event29'));
    host.suspend();assert.equal(host.socketPending.size,0);
  }finally{host.close();}
