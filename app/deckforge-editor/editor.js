@@ -1547,7 +1547,7 @@ function openSdkPluginHelp(plugin,isFusion,retained=false){
   }
   const guide=document.createElement('div');guide.style.cssText='white-space:pre-line;line-height:1.75;font-size:13px';
   guide.textContent=isFusion
-    ?'1. Fusion 360을 실행합니다.\n2. 스크립트 및 애드인에서 FusionStreamDeck을 실행하고 시작 시 자동 실행을 선택합니다.\n3. DeckForge의 Run Command를 D200X 버튼에 등록합니다.\n4. 버튼 속성에서 원하는 명령을 검색하고 선택합니다.\n5. 연결된 Fusion의 원본 아이콘이 나타나며 버튼으로 명령을 실행할 수 있습니다.'
+    ?'1. Fusion 360을 실행합니다.\n2. 스크립트 및 애드인에서 FusionStreamDeck을 실행하고 시작 시 자동 실행을 선택합니다.\n3. Fusion 명령 관리자에서 원하는 명령을 D200X 버튼으로 끌어 등록합니다.\n4. 버튼의 명령 속성에서 현재 명령 정보를 확인하거나 변경합니다.\n5. 연결된 Fusion의 원본 아이콘이 나타나며 버튼으로 명령을 실행할 수 있습니다.'
     :isHa?'1. Home Assistant에서 장기 액세스 토큰을 발급합니다.\n2. Home Assistant 장치 제어를 D200X 버튼에 등록합니다.\n3. 속성의 설정 열기를 눌러 HA 서버 주소와 장기 토큰을 입력합니다.\n4. 인증 성공 후 조회되는 엔티티 목록에서 제어할 장치를 선택합니다.\n5. 토큰은 비밀번호처럼 보관하고 GitHub에 업로드하지 않습니다.'
     :'1. 플러그인 액션을 빈 버튼에 끌어 놓습니다.\n2. 필요하면 플러그인 속성을 설정하고 저장합니다.\n3. 실행 테스트 또는 D200X 버튼으로 동작을 확인합니다.';
   dialog.append(guide);
@@ -1614,6 +1614,7 @@ function renderInstalledSdkPlugins(root,query){
     const body=document.createElement('div');
     title.addEventListener('click',()=>{body.hidden=!body.hidden;});
     for(const action of matching){
+      if(isFusion&&action.uuid===FUSION_PLUGIN+'.runcommand')continue;
       const id='sd::'+plugin.uuid+'::'+action.uuid;
       const tile=document.createElement('div');tile.className='action-item';tile.draggable=true;
       tile.textContent='▣  '+sdkCatalogueLabel(action);
@@ -1628,7 +1629,7 @@ function renderInstalledSdkPlugins(root,query){
     if(isFusion){
       const manager=document.createElement('button');manager.type='button';
       manager.className='fusion-manager-launch';
-      manager.textContent='Fusion 명령 관리자 열기';
+      manager.textContent='Fusion 명령 관리자';
       manager.title='Fusion Command Manager 실행';
       manager.addEventListener('click',event=>{event.stopPropagation();launchFusionManager()});
       body.append(manager);
@@ -4259,6 +4260,64 @@ function updateSdkAvailabilityInspector(){
   const cleanup=$('inspector')?.querySelector('[data-sdk-cleanup]');
   if(cleanup)cleanup.hidden=!(window.deckBridge?.nativeRetainedList&&DeckCore.sdkAvailability(item,sdkCatalogueReady?sdkPlugins:null)==='missing'&&!sdkRetained.some(p=>p.id===item?.settings?.pluginUUID));
 }
+async function openFusionCommandProperties(root,item){
+  const session=inspectorSession,originalId=fusionCommandId(item);
+  if(!inspectorPickerCurrent(session,item))return;
+  const content=document.createElement('div');content.className='fusion-command-properties';
+  const search=document.createElement('input');search.type='search';search.placeholder='명령 이름 또는 ID 검색';search.maxLength=160;
+  search.setAttribute('aria-label','Fusion 명령 검색');
+  const label=document.createElement('strong');label.textContent='현재 명령';
+  const card=document.createElement('div');card.className='fusion-command-summary';
+  const art=document.createElement('div');art.className='fusion-command-art';
+  const info=document.createElement('div'),name=document.createElement('strong'),id=document.createElement('div'),desc=document.createElement('p');
+  id.className='hint';desc.className='fusion-command-description';info.append(name,id,desc);card.append(art,info);
+  const status=document.createElement('p');status.className='hint';
+  const results=document.createElement('div');results.className='fusion-command-results';
+  content.append(label,card,search,status,results);
+  let selected={id:originalId,name:item.settings?.pluginSettings?.name||item.title||originalId||'',tooltip:''},serial=0,closed=false,timer=null,changed=false;
+  function draw(row){
+    selected=row;name.textContent=row?.ko||row?.name||row?.en||'명령 미선택';
+    id.textContent=row?.id||'';desc.textContent=row?.tooltip||'명령 설명을 확인할 수 없습니다.';
+    art.replaceChildren();const key=row?.id;
+    if(!key)return;
+    const apply=image=>{if(closed||selected?.id!==key)return;art.replaceChildren();if(image){const img=document.createElement('img');img.src=image;img.alt='기본 명령 아이콘';art.append(img);}else art.textContent='아이콘 없음';};
+    apply(fusionIconCache.get(key)||null);
+    window.deckBridge?.fusionIconRead?.(key).then(image=>{if(image)apply(image);}).catch(()=>{});
+  }
+  draw(selected);
+  async function load(){
+    const request=++serial,query=search.value.trim();
+    if(query.includes('|')){status.textContent='명령 이름 또는 ID 하나를 입력하세요.';return;}
+    status.textContent='명령 정보 조회 중…';
+    try{
+      const data=await window.deckBridge.fusionCommandPicker(originalId||null,query);
+      if(closed||request!==serial)return;
+      if(!changed&&data.current)draw(data.current);
+      status.textContent=data.online?'Fusion 연결됨':'Fusion 연결 안 됨 · 저장된 명령 이름 사용';
+      results.replaceChildren();
+      for(const row of data.results||[]){
+        const button=document.createElement('button');button.type='button';button.className='deckforge-message-button';
+        button.textContent=(row.ko||row.name||row.en)+' · '+row.id;
+        button.addEventListener('click',()=>{changed=true;label.textContent='선택한 명령';draw(row);results.replaceChildren();search.value='';});
+        results.append(button);
+      }
+    }catch{if(!closed&&request===serial)status.textContent='명령 정보 조회 실패';}
+  }
+  search.addEventListener('input',()=>{clearTimeout(timer);serial++;timer=setTimeout(()=>void load(),250);});
+  void load();
+  let accepted;
+  try{accepted=await window.DeckForgeDialogs.show({title:'Fusion 명령 속성',content,anchorCard:root.querySelector('.sdk-state-icon[data-state-title="first"]'),anchorTop:true,ask:true,actionLabel:'적용',onAccept:()=>!changed||!!selected?.id});}
+  finally{closed=true;clearTimeout(timer);}
+  if(!accepted||!changed||!selected?.id||!inspectorPickerCurrent(session,item)||fusionCommandId(item)!==originalId)return;
+  const previous=item.settings.pluginSettings||{},nextName=selected.ko||selected.name||selected.en||selected.id;
+  if(!item.title||item.title===previous.name)item.title=nextName;
+  for(const key of ['first','second']){
+    const stateTitle=item.settings.stateTitles?.[key];
+    if(stateTitle&&(!stateTitle.title||stateTitle.title===previous.name))stateTitle.title=nextName;
+  }
+  item.settings.pluginSettings={...previous,commandId:selected.id,name:nextName};
+  persistInspectorChange();renderGrid();renderInspector();
+}
 function bindExtendedActionFields(root,item){
   if(item.type==='sd-plugin'){
     root.querySelector('[data-sdk-inspector]')?.addEventListener('click',async()=>{
@@ -4273,6 +4332,9 @@ function bindExtendedActionFields(root,item){
       if(plugin?.runtime==='deckforge-sdk'){
         try{await openNativeSettings(item,plugin.actions.find(a=>a.uuid===item.settings?.actionUUID),plugin);}
         catch(error){window.d200xActionStatus?.('독자 SDK 속성 편집 실패: '+String(error?.message||error));}return;
+      }
+      if(isFusionAction(item)&&item.settings.actionUUID===FUSION_PLUGIN+'.runcommand'){
+        try{await openFusionCommandProperties(root,item);}catch(error){window.d200xActionStatus?.('Fusion 명령 속성 오류: '+String(error?.message||error));}return;
       }
       const context=pluginSlotContext(item);
       if(!context)return;

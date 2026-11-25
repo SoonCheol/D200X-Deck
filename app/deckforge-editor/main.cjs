@@ -404,6 +404,24 @@ const fusionCommands=LiveFusion.createClient({
   discoveryFile:fusionDiscoveryFile(),
   catalogFile:path.join(__dirname,'../fusion-manager/fusion-command-catalog-final.json')
 });
+// Read-only command chooser: use the same trusted bridge and local name catalogue.
+let fusionPickerLive=null,fusionPickerAt=0,fusionPickerPending=null;
+ipcMain.handle('d200x:fusion-command-picker',async(event,id,query)=>{
+  assertEditor(event);
+  if((id!==null&&!LiveFusion.safeId(id))||typeof query!=='string'||query.length>160||query.includes('|'))throw Error('invalid-fusion-picker-query');
+  const names=await fusionButtonLanguageData();
+  if(!fusionPickerLive||Date.now()-fusionPickerAt>30000){
+    if(!fusionPickerPending)fusionPickerPending=fusionCommands.list().then(rows=>{fusionPickerLive=rows;fusionPickerAt=Date.now();return rows;}).catch(()=>null).finally(()=>{fusionPickerPending=null;});
+    const rows=await fusionPickerPending;
+    if(!rows)fusionPickerLive=null;
+  }
+  const ids=new Set([...Object.keys(names.ko),...Object.keys(names.en)]);
+  const offline=[...ids].filter(LiveFusion.safeId).map(id=>({id,name:names.ko[id]||names.en[id]||id,ko:names.ko[id]||'',en:names.en[id]||'',category:'',tooltip:''}));
+  const rows=fusionPickerLive||offline;
+  const current=rows.find(row=>row.id===id)||offline.find(row=>row.id===id)||null;
+  const results=query.trim()?LiveFusion.search(rows,query,0,20).items:[];
+  return {current,results,online:!!fusionPickerLive};
+});
 async function runLocalFusionSetup(signal){
   if(process.platform!=='win32')throw Error('Windows에서만 지원합니다.');
   return FusionSetup.run({

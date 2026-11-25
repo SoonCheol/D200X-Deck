@@ -48,6 +48,7 @@ contextBridge.exposeInMainWorld('deckBridge', Object.freeze({
   onFusionLanguageChanged:fn=>ipcRenderer.on('d200x:fusion-language-changed',()=>fn()),
   openFusionManager: () => ipcRenderer.invoke('d200x:open-fusion-manager'),
   installFusionAddin: () => ipcRenderer.invoke('d200x:fusion-addin-install'),
+  fusionCommandPicker: (id,query) => ipcRenderer.invoke('d200x:fusion-command-picker',id,query),
   fusionIconRead: id => ipcRenderer.invoke('d200x:fusion-icon-read',id),
   fusionIconWrite: (id,png) => ipcRenderer.invoke('d200x:fusion-icon-write',id,png),
   sdkInstall: () => ipcRenderer.invoke('d200x:sdk-install'),
