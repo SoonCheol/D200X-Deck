@@ -94,14 +94,19 @@ ipcMain.handle('d200x:sdk-list',async event=>{assertEditor(event);return sdk().l
 ipcMain.handle('d200x:native-retained-list',async event=>{assertEditor(event);return [...await sdk().listRetainedNative(),...await sdk().listRetainedLegacy()];});
 ipcMain.handle('d200x:legacy-plugin-remove',async(event,id)=>{
  assertEditor(event);
- return pluginAudit('remove',id,async audit=>{
+ let purgeAfter=false;
+ const removed=await pluginAudit('remove',id,async audit=>{
  const plan=await sdk().planLegacyRemoval(id);audit.identify(plan);audit.mode('keepData');audit.stage('confirm');
  const choice=await dialog.showMessageBox(window,{type:'question',title:'플러그인 제거',message:plan.name+' '+plan.version+' 제거',
    detail:'DeckForge의 설치 폴더만 보존 영역으로 옮깁니다. 기존 버튼, 인증정보와 외부 애드인은 유지됩니다.',
-   buttons:['취소','데이터 유지 후 제거'],defaultId:0,cancelId:0,noLink:true});
- if(choice.response!==1)return null;
+   buttons:['취소','데이터 유지 후 제거','완전 삭제…'],defaultId:0,cancelId:0,noLink:true});
+ if(![1,2].includes(choice.response))return null;
+ purgeAfter=choice.response===2;
  audit.stage('execute');return sdk().removeLegacyKeepingData(id,plan.revision);
  });
+ if(!removed||!purgeAfter)return removed;
+ try{const purged=await purgeRetainedWithApproval(id,true);return {...removed,purgeStatus:purged?.status||'cancelled'};}
+ catch{return {...removed,purgeStatus:'failed'};}
 });
 ipcMain.handle('d200x:legacy-retained-restore',async(event,id)=>{
  assertEditor(event);
@@ -114,9 +119,9 @@ ipcMain.handle('d200x:legacy-retained-restore',async(event,id)=>{
  audit.stage('execute');return sdk().restoreLegacyRetained(id,plan.revision);
  });
 });
-async function purgeRetainedWithApproval(id){
+async function purgeRetainedWithApproval(id,legacy=false){
  return pluginAudit('purge',id,async audit=>{
- const plan=await sdk().planRetainedPurge(id);audit.identify(plan);audit.mode('purge');audit.stage('confirm');
+ const plan=await (legacy?sdk().planLegacyPurge(id):sdk().planRetainedPurge(id));audit.identify(plan);audit.mode('purge');audit.stage('confirm');
  const c=plan.counts;
  const detail=['이 작업은 되돌릴 수 없습니다. 보존 데이터 삭제 성공 후 모든 프로필 및 템플릿에서 해당 플러그인의 등록 액션도 정리합니다. 다른 액션과 프로필, 외부 백업은 유지합니다.',
    '삭제 대상: 보존 원본 '+c.retained+'개, 이전 코드 '+c.history+'개, 암호화 전역 설정 '+c.settings+'개, 확인된 인증정보 '+c.credential+'개.',
@@ -127,9 +132,10 @@ async function purgeRetainedWithApproval(id){
  const second=await dialog.showMessageBox(window,{type:'warning',title:'최종 삭제 확인',message:plan.name+'의 보존 데이터를 삭제하시겠습니까?',detail,
    buttons:['취소','보존 데이터 삭제'],defaultId:0,cancelId:0,noLink:true});
  if(second.response!==1)return null;
- audit.stage('execute');return sdk().purgeRetainedNative(id,plan.revision);
+ audit.stage('execute');return legacy?sdk().purgeRetainedLegacy(id,plan.revision):sdk().purgeRetainedNative(id,plan.revision);
  });
 }
+ipcMain.handle('d200x:legacy-retained-purge',async(event,id)=>{assertEditor(event);return purgeRetainedWithApproval(id,true);});
 ipcMain.handle('d200x:native-retained-purge',async(event,id)=>{assertEditor(event);return purgeRetainedWithApproval(id);});
 ipcMain.handle('d200x:native-retained-restore',async(event,id)=>{
  assertEditor(event);

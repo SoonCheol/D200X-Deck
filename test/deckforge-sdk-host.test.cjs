@@ -341,3 +341,21 @@ test('Fusion property inspector is compact and anchored in screen DIP coordinate
  assert.deepEqual(edge,{x:402,y:340,width:440,height:460});
  assert.deepEqual(fusionInspectorBounds(content,area,{left:NaN,right:252,top:350}),{x:480,y:230,width:440,height:460});
 });
+
+test('legacy retained full deletion removes only confirmed code and global data',async()=>{
+ const root=await fs.mkdtemp(path.join(os.tmpdir(),'deckforge-legacy-purge-'));
+ try{
+  const host=new StreamDeckPluginHost(root),id=M.UUID,prefix=id+'.sdPlugin/';
+  await host.install(await zipWith({[prefix+'manifest.json']:JSON.stringify(M),[prefix+'plugin.html']:'<html></html>'}));
+  const other=path.join(host.root,'another.plugin.globals');await fs.writeFile(other,'other');
+  await fs.writeFile(host.settingsFile(id),'retained global');
+  await host.removeKeepingData(id,(await host.retainedRecord(id)).revision);
+  const plan=await host.planRetainedPurge(id);
+  assert.deepEqual(plan.counts,{retained:1,history:0,settings:1,credential:0});
+  await assert.rejects(host.purgeRetained(id,'stale'),/변경 감지/);
+  assert.equal((await host.purgeRetained(id,plan.revision)).status,'purged');
+  assert.deepEqual(await host.listRetained(),[]);
+  await assert.rejects(fs.access(host.settingsFile(id)),{code:'ENOENT'});
+  assert.equal(await fs.readFile(other,'utf8'),'other');
+ }finally{await fs.rm(root,{recursive:true,force:true});}
+});

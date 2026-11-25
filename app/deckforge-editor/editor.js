@@ -1408,7 +1408,7 @@ async function cleanupMissingPluginReferences(id){
 async function purgeRetainedPlugin(plugin){
   try{
     if(!pluginCleanupReady())throw Error('미저장 편집이나 실행 중인 동작을 먼저 마치세요.');
-    const result=await window.deckBridge.nativeRetainedPurge(plugin.id);
+    const result=await (plugin.runtime==='streamdeck-sdk'?window.deckBridge.legacyRetainedPurge(plugin.id):window.deckBridge.nativeRetainedPurge(plugin.id));
     if(!result)return;
     const count=result.status==='purged'?cleanupPurgedPluginReferences(plugin.id):null;
     await refreshSdkPlugins();
@@ -1422,14 +1422,21 @@ function pluginHelpButton(plugin,retained=false){
   info.onclick=event=>{event.stopPropagation();openSdkPluginHelp(plugin,plugin.uuid==='com.autodesk.fusionstreamdeck',retained);};
   return info;
 }
-function renderRetainedSdkPlugins(root,query){
-  for(const plugin of sdkRetained){
-    if(!(plugin.name+' '+plugin.id).toLowerCase().includes(query))continue;
-    const section=document.createElement('section');section.className='group sdk-plugin-group';
-    const heading=document.createElement('div');heading.className='group-title';heading.style.cssText='display:flex;align-items:center;justify-content:space-between';
-    const name=document.createElement('span');name.textContent=plugin.name+(plugin.version?' ('+plugin.version+')':'')+' · 데이터 보존 중';
-    heading.append(name,pluginHelpButton(plugin,true));section.append(heading);root.append(section);
-  }
+async function openRetainedPluginDeletion(){
+  if(!window.deckBridge?.nativeRetainedList)return;
+  try{
+    const items=(await window.deckBridge.nativeRetainedList()).filter(p=>p.available!==false);
+    if(!items.length){await window.DeckForgeDialogs.show({title:'완전 삭제',intro:'삭제할 보존 플러그인이 없습니다.',actionLabel:'닫기'});return;}
+    const content=document.createElement('div'),select=document.createElement('select');
+    select.setAttribute('aria-label','완전 삭제할 플러그인');select.style.width='100%';
+    for(const [index,p] of items.entries()){
+      const option=document.createElement('option');option.value=String(index);option.textContent=p.name+(p.version?' ('+p.version+')':'');select.append(option);
+    }
+    content.append(select);
+    if(await window.DeckForgeDialogs.show({title:'완전 삭제',intro:'제거된 플러그인의 보존 데이터를 삭제합니다.',detail:'설치 목록에 표시되지 않는 보존 데이터만 선택합니다.',content,ask:true,actionLabel:'완전 삭제'})){
+      const plugin=items[Number(select.value)];if(plugin)await purgeRetainedPlugin(plugin);
+    }
+  }catch(error){window.d200xActionStatus?.('완전 삭제 실패: '+String(error?.message||error));}
 }
 const sdkActionNames=new Map();
 const sdkActionDefaults=new Map();
@@ -1525,7 +1532,7 @@ function openSdkPluginHelp(plugin,isFusion,retained=false){
     const footer=document.createElement('div');footer.style.cssText='display:flex;justify-content:flex-end;gap:8px;margin-top:14px;border-top:1px solid #46505b;padding-top:12px';
     if(plugin.available!==false){
       const restore=document.createElement('button');restore.type='button';restore.className='sdk-plugin-help-close';restore.textContent='다시 설치';restore.onclick=async()=>{dialog.close();await restoreRetainedPlugin(plugin);};footer.append(restore);
-      if(plugin.runtime!=='streamdeck-sdk'&&window.deckBridge?.nativeRetainedPurge){const purge=document.createElement('button');purge.type='button';purge.className='sdk-plugin-help-close';purge.textContent='보존 데이터 삭제…';purge.onclick=async()=>{dialog.close();await purgeRetainedPlugin(plugin);};footer.append(purge);}
+      if(plugin.runtime==='streamdeck-sdk'?window.deckBridge?.legacyRetainedPurge:window.deckBridge?.nativeRetainedPurge){const purge=document.createElement('button');purge.type='button';purge.className='sdk-plugin-help-close';purge.textContent='완전 삭제…';purge.onclick=async()=>{dialog.close();await purgeRetainedPlugin(plugin);};footer.append(purge);}
     }
     dialog.append(footer);dialog.showModal();return;
   }
@@ -1750,7 +1757,7 @@ function renderLibrary(){
   if(libraryTab==='plugins'){
     // SDK plugins own their connection settings via the original Property Inspector.
     // The old standalone HA REST setup control was redundant and looked like a white bar.
-    renderInstalledSdkPlugins(root,query);renderRetainedSdkPlugins(root,query);
+    renderInstalledSdkPlugins(root,query);
   }
   for(const [category,entries] of CATALOG){
     // The legacy built-in HA action stays executable for saved profiles, but is no longer offered.
@@ -1862,6 +1869,9 @@ function bindActionAppearance(){
     const ha=document.createElement('button');ha.type='button';ha.className='plugin-add-button';ha.textContent=sdkPlugins.some(p=>p.uuid==='com.deckforge.native.home-assistant'&&['0.1.0','0.1.1','0.1.2','0.1.3','0.1.4','0.1.5','0.1.6','0.1.7'].includes(p.version))?'HA 전용 업데이트':'HA 전용 추가';
     ha.addEventListener('click',installNativeHa);management.append(ha);
   }
+  const purge=document.createElement('button');purge.type='button';purge.className='plugin-add-button';purge.textContent='완전 삭제';
+  purge.title='이미 제거한 플러그인의 보존 코드와 설정 삭제';
+  purge.addEventListener('click',()=>void openRetainedPluginDeletion());management.append(purge);
   host.after(pluginToolbar);
   updatePluginToolbar();
 }

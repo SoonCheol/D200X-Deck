@@ -147,14 +147,16 @@ test('Fusion status extension preserves original and only upgrades byte-identica
  }finally{await fs.rm(root,{recursive:true,force:true});}
 });
 
-test('installed and retained plugin groups share help button and management actions stay in dialog',async()=>{
+test('only installed plugins are listed; retained deletion stays in management dialog',async()=>{
  const ui=await fs.readFile(path.join(__dirname,'../app/deckforge-editor/editor.js'),'utf8');
- const retained=ui.slice(ui.indexOf('function renderRetainedSdkPlugins('),ui.indexOf('const sdkActionNames='));
+ const retained=ui.slice(ui.indexOf('async function openRetainedPluginDeletion('),ui.indexOf('const sdkActionNames='));
+ const library=ui.slice(ui.indexOf('function renderLibrary('),ui.indexOf('function bindActionAppearance('));
  const installed=ui.slice(ui.indexOf('function renderInstalledSdkPlugins('),ui.indexOf('async function configureHomeAssistant('));
  const help=ui.slice(ui.indexOf('function openSdkPluginHelp('),ui.indexOf('function launchFusionManager('));
- assert.match(retained,/pluginHelpButton\(plugin,true\)/);
+ assert.doesNotMatch(library,/renderRetainedSdkPlugins|데이터 보존 중/);
+ assert.match(retained,/purgeRetainedPlugin\(plugin\)/);
  assert.match(installed,/pluginHelpButton\(plugin\)/);
- assert.doesNotMatch(retained,/nativeRetainedPurge|restoreRetainedPlugin/);
+ assert.doesNotMatch(retained,/restoreRetainedPlugin/);
  assert.doesNotMatch(installed,/removePluginKeepingData/);
  assert.match(help,/restoreRetainedPlugin\(plugin\)/);
  assert.match(help,/purgeRetainedPlugin\(plugin\)/);

@@ -251,6 +251,33 @@ class StreamDeckPluginHost{
     await fs.promises.rename(path.join(this.root,uuid+'.sdPlugin'),target);
     return {id:uuid,version:plan.version,mode:'keepData'};
   }
+  async planRetainedPurge(uuid){
+    const retained=await this.retainedRecord(uuid,true);
+    try{await fs.promises.lstat(path.join(this.root,uuid+'.sdPlugin'));throw Error('설치 중인 플러그인은 완전 삭제할 수 없습니다.');}
+    catch(error){if(error.code!=='ENOENT')throw error;}
+    let settingsDigest=null;
+    try{
+      const file=this.settingsFile(uuid),st=await fs.promises.lstat(file);
+      if(!st.isFile()||st.isSymbolicLink()||st.size>MAX_EXPANDED)throw Error('안전하지 않은 전역 설정 파일');
+      settingsDigest=crypto.createHash('sha256').update(await fs.promises.readFile(file)).digest('hex');
+    }catch(error){if(error.code!=='ENOENT')throw error;}
+    const revision=crypto.createHash('sha256').update(json([retained.revision,settingsDigest])).digest('hex');
+    return {...retained,revision,settingsDigest,counts:{retained:1,history:0,settings:settingsDigest===null?0:1,credential:0}};
+  }
+  async purgeRetained(uuid,revision){
+    const plan=await this.planRetainedPurge(uuid);
+    if(plan.revision!==revision)throw Error('보존 데이터 변경 감지 · 다시 확인하세요.');
+    const total=1+plan.counts.settings;
+    let deleted=0;
+    try{
+      if(plan.settingsDigest!==null){
+        await fs.promises.unlink(this.settingsFile(uuid));deleted++;
+      }
+      this.global.delete(uuid);
+      await fs.promises.rm(this.retainedPath(uuid),{recursive:true,force:false});deleted++;
+    }catch{return {id:uuid,status:'incomplete',deleted,total};}
+    return {id:uuid,status:'purged',deleted,total};
+  }
   async restoreRetained(uuid,revision){
     const plan=await this.retainedRecord(uuid,true);
     if(plan.revision!==revision)throw Error('보존 원본 변경 감지 · 다시 확인하세요.');

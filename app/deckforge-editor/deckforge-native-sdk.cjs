@@ -1065,6 +1065,14 @@ class PluginRouter{
     const {legacy,native}=await this.catalog(),installed=new Set([...legacy.map(p=>p.uuid.toLowerCase()),...native.map(p=>p.id)]);
     return (await this.legacy.listRetained()).filter(p=>!installed.has(p.id.toLowerCase()));
   });}
+  planLegacyPurge(id){return this.serial(async()=>{
+    check(!(await this.native.manifests()).some(m=>m.id===id.toLowerCase()),'plugin ID already installed');
+    return this.legacy.planRetainedPurge(id);
+  });}
+  purgeRetainedLegacy(id,revision){return this.serial(async()=>{
+    check(!(await this.native.manifests()).some(m=>m.id===id.toLowerCase()),'plugin ID already installed');
+    return this.legacy.purgeRetained(id,revision);
+  });}
   planLegacyRemoval(id){return this.serial(()=>this.legacy.retainedRecord(id));}
   removeLegacyKeepingData(id,revision){return this.serial(()=>this.legacy.removeKeepingData(id,revision));}
   planLegacyRestore(id){return this.serial(async()=>{
