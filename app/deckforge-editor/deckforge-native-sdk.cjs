@@ -142,7 +142,7 @@ function catalog(m){return {uuid:m.id,name:m.name,version:m.version,runtime:'dec
 class NativePluginHost{
   constructor(userData,onUpdate=()=>{},runnerFactory=null,options={}){
     this.root=path.join(userData,'Plugins');this.onUpdate=onUpdate;
-    this.contexts=new Map();this.serviceDisabled=new Set();this.servicePolicyLoaded=false;this.servicePolicyError=false;this.suspended=false;this.closed=false;this.retired=new Set();
+    this.contexts=new Map();this.serviceDisabled=new Set();this.servicePolicyLoaded=false;this.servicePolicyLoad=null;this.servicePolicyError=false;this.suspended=false;this.closed=false;this.retired=new Set();
     const {createScriptRunner,ScriptRunnerPool}=require('./deckforge-js-runtime.cjs');
     // Explicit legacy rollback; never retry a failed input in another runner.
     this.runnerPool=!runnerFactory&&process.env.DECKFORGE_SDK_RUNNER!=='legacy'?new ScriptRunnerPool():null;
@@ -170,9 +170,13 @@ class NativePluginHost{
     this.settingsReceiptTimeout=options.settingsReceiptTimeout??5000;
     this.animations=new NativeAnimationPlayer((ctx,image)=>this.onUpdate({kind:'setImage',context:ctx.context,payload:{image}}),options.animationNow);
   }
-  async loadServicePolicy(){
-    if(this.servicePolicyLoaded)return;
-    this.servicePolicyLoaded=true;
+  loadServicePolicy(){
+    if(!this.servicePolicyLoad){
+      this.servicePolicyLoad=this.readServicePolicy().finally(()=>{this.servicePolicyLoaded=true;});
+    }
+    return this.servicePolicyLoad;
+  }
+  async readServicePolicy(){
     const file=path.join(this.root,'NativeServicePreferences.json');
     try{
       let st;try{st=await fs.lstat(file);}catch(error){if(error.code==='ENOENT')return;throw error;}
@@ -905,7 +909,7 @@ class NativePluginHost{
     catch(error){this.fail(ctx,error);return false;}
   }
   syncServices(plugins,seen){
-    const eligible=this.servicePolicyError?[]:[...plugins.values()].filter(m=>m.service&&!this.serviceDisabled.has(m.id)).sort((a,b)=>a.id.localeCompare(b.id));
+    const eligible=this.servicePolicyError||(this.servicePolicyLoad&&!this.servicePolicyLoaded)?[]:[...plugins.values()].filter(m=>m.service&&!this.serviceDisabled.has(m.id)).sort((a,b)=>a.id.localeCompare(b.id));
     const selected=eligible.slice(0,MAX_SERVICES),ids=new Set(selected.map(m=>SERVICE_PREFIX+m.id));
     for(const [id,ctx] of this.contexts)if(ctx.service&&!ids.has(id)){
       this.retire(ctx);this.contexts.delete(id);

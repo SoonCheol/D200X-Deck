@@ -216,3 +216,6 @@ report03.md §4.2 13행 원문 기준. 1.1.231 CI #1281/입력 #521/Windows #985
 - 2.0.4: 동시 반영된 동일 설정 동기화 시 설정 객체 유지 및 진행 중 HA 읽기 보존 검사 유지. 2.0.5: 검증된 catalogue와 dependency policy 이후 기존 호환 mount를 동기 해제하고 독자 mount를 먼저 확정한다. 느린/실패한 호환 프로세스 시작에 독자 입력이 대기하지 않도록 분리하고, 호환 route는 성공 시에만 확정. retire 단계 없는 host는 기존 안전 순서 유지. sync 입력은 호출자와 분리된 snapshot 사용. 집중 검사 2개 추가. catalogue 및 관리 직렬 큐 의존은 남아 있음. 신규 검사 대기.
 
 - 2.0.6: 실제 Electron NativePluginHost/production scheduler/Model2 pool에서 페이지당 일반 13키, 4회 입력 묶음(52 press), 2회 페이지 전환 및 1회 모의 suspend/resume 호출, 서비스 메모리 유지/버튼 신규 mount 격리/종료 정리 검사 추가. 동시 반영된 2.0.5 독자 mount 선등록 및 snapshot 보호 보존. 실행 결과 대기. 실제 USB·OS 절전·장시간 soak·OOM 실측 아님.
+
+- 2.0.39 / SDK #93 (45608509435): 실제 Windows Electron OOM reason=oom, exitCode=-536870904, 실패 입력 거부·서비스/peer 생존·새 입력 복구 성공. 로컬 전용 Crashpad 초기화/임시 dump 정리. 5분 soak 1391 press/105 페이지 전환/274 service tick, runner 2개, 실제 renderer/임시 ProfileStore 요청 전·저장 후 crash 각각 0/1회 쓰기 및 재실행 없음. 실기/OS 전원 손실 및 Model 5 OOM은 별도. Model 5 기본 OFF 유지.
+- 2.0.40: NativePluginHost 서비스 정책 로딩 단일 Promise 공유, 읽기 진행 중 서비스 시작 차단, 기존 정지 설정/손상 파일 보존. 집중 회귀 검사 추가; 신규 결과 대기.

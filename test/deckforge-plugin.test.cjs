@@ -691,6 +691,35 @@ test('native service stop preference persists, restart resets only service and b
    assert.equal(await fs.readFile(pref,'utf8'),'invalid');assert.equal(host.contexts.has(key),false);
  }finally{host.close();await fs.rm(temp,{recursive:true,force:true});}
 });
+test('concurrent native service policy readers await the same persisted stop or error decision',async()=>{
+ const temp=await fs.mkdtemp(path.join(os.tmpdir(),'deckforge-policy-concurrent-'));
+ const m={...scriptManifest,permissions:['display','background.run'],service:{script:'service'}};
+ const key='@service:'+nativeId;
+ let host,starts=0;
+ const runner=()=>({async run(_s,input){if(input.event.type==='start')starts++;return {ops:[],memory:{}};},close(){}});
+ try{
+  await fs.mkdir(path.join(temp,'Plugins'));
+  const pref=path.join(temp,'Plugins','NativeServicePreferences.json');
+  for(const [raw,expected] of [[JSON.stringify({version:1,disabled:[nativeId]}),'stopped'],['invalid','policy-error']]){
+   await fs.writeFile(pref,raw);
+   host=new NativePluginHost(temp,()=>{},runner);
+   const first=host.loadServicePolicy(),second=host.loadServicePolicy();
+   assert.equal(first,second,'both callers must await the same read');
+   assert.equal(host.servicePolicyLoaded,false);
+   host.sync([],[m]);
+   assert.equal(host.contexts.has(key),false,'service cannot start during pending policy load');
+   await second;
+   assert.equal(host.servicePolicyLoaded,true);
+   host.sync([],[m]);
+   assert.equal(host.serviceStatus(nativeId).state,expected);
+   assert.equal(host.contexts.has(key),false);
+   await first;
+   assert.equal(starts,0);
+   assert.equal(await fs.readFile(pref,'utf8'),raw);
+   host.close();host=null;
+  }
+ }finally{host?.close();await fs.rm(temp,{recursive:true,force:true});}
+});
 test('native action service message is same-plugin and input-only, delivered once across page change',async()=>{
  const m={...scriptManifest,permissions:['display','background.run','network.request'],service:{script:'service'},networkEndpoints:[{id:'toggle',method:'POST',url:'https://example.com/toggle'}]};
  const calls=[],events=[];
