@@ -402,7 +402,33 @@ const {createReader:createAiReader,windowsApps}=require('./ai/read-tools.cjs');
 const FusionSetup=require('./ai/fusion-setup.js');
 const LiveFusion=require('./ai/fusion-commands.cjs');
 const DesktopMcp=require('./ai/fusion-desktop-mcp.cjs');
-const fusionMcp=DesktopMcp.createClient();
+const fusionMcpSettingsFile=()=>path.join(app.getPath('userData'),'fusion-mcp-settings-v1.json');
+async function loadFusionMcpEndpoint(){
+ const file=fusionMcpSettingsFile();
+ try{
+   const stat=await fs.promises.stat(file);
+   if(!stat.isFile()||stat.size>4096)throw Error('MCP 설정 파일 오류');
+   return DesktopMcp.normalizeEndpoint(JSON.parse(await fs.promises.readFile(file,'utf8')).endpoint);
+ }catch(error){if(error.code==='ENOENT')return DesktopMcp.DEFAULT_ENDPOINT;throw error;}
+}
+const fusionMcp=DesktopMcp.createClient(fetch,loadFusionMcpEndpoint);
+ipcMain.handle('d200x:fusion-mcp-settings',async event=>{
+ assertEditor(event);return {endpoint:await loadFusionMcpEndpoint()};
+});
+ipcMain.handle('d200x:fusion-mcp-check',async(event,address)=>{
+ assertEditor(event);
+ const endpoint=DesktopMcp.normalizeEndpoint(address);
+ return {endpoint,...await DesktopMcp.createClient(fetch,()=>endpoint).check()};
+});
+ipcMain.handle('d200x:fusion-mcp-save',async(event,address)=>{
+ assertEditor(event);
+ const endpoint=DesktopMcp.normalizeEndpoint(address);
+ const file=fusionMcpSettingsFile(),temp=file+'.'+randomUUID()+'.tmp';
+ await fs.promises.mkdir(path.dirname(file),{recursive:true});
+ try{await fs.promises.writeFile(temp,JSON.stringify({endpoint}),{encoding:'utf8',flag:'wx'});await fs.promises.rename(temp,file);}
+ finally{await fs.promises.rm(temp,{force:true}).catch(()=>{});}
+ return {endpoint};
+});
 const fusionCommands=LiveFusion.createClient({
   discoveryFile:fusionDiscoveryFile(),
   catalogFile:path.join(__dirname,'../fusion-manager/fusion-command-catalog-final.json')

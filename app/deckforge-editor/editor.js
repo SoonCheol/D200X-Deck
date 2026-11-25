@@ -1524,6 +1524,31 @@ function openSdkPluginHelp(plugin,isFusion,retained=false){
     dialog.append(footer);dialog.showModal();return;
   }
   if(isFusion){
+    const settings=document.createElement('section');settings.style.cssText='display:grid;gap:8px;padding:12px;margin-bottom:12px;border:1px solid #46505b;border-radius:6px';
+    const addressLabel=document.createElement('label');addressLabel.textContent='MCP 서버 주소';
+    const address=document.createElement('input');address.type='text';address.id='fusion-mcp-address';address.maxLength=100;address.spellcheck=false;
+    address.style.cssText='box-sizing:border-box;width:100%;min-width:0;padding:8px;background:#20252b;color:#fff;border:1px solid #67717c;border-radius:4px';
+    addressLabel.htmlFor=address.id;
+    const buttons=document.createElement('div');buttons.style.cssText='display:flex;justify-content:flex-end;gap:8px';
+    const check=document.createElement('button'),save=document.createElement('button');
+    for(const button of [check,save]){button.type='button';button.className='sdk-plugin-help-close';button.disabled=true;}
+    check.textContent='연결 확인';save.textContent='저장';buttons.append(check,save);
+    const state=document.createElement('p');state.setAttribute('role','status');state.style.cssText='margin:0;font-size:12px;line-height:1.5;color:#d0d4db;white-space:pre-wrap';
+    address.disabled=true;state.textContent='MCP 설정 불러오는 중…';
+    settings.append(addressLabel,address,buttons,state);dialog.append(settings);
+    const busy=value=>{address.disabled=value;check.disabled=value;save.disabled=value;};
+    const perform=async action=>{
+      busy(true);state.textContent=action==='check'?'MCP 연결 확인 중…':'MCP 주소 저장 중…';
+      try{
+        const result=action==='check'?await window.deckBridge.fusionMcpCheck(address.value):await window.deckBridge.fusionMcpSave(address.value);
+        address.value=result.endpoint;
+        state.textContent=action==='check'?'연결 성공 · MCP '+result.protocolVersion+' · 도구 '+result.toolCount+'개 (저장은 별도)':'MCP 주소 저장 완료';
+      }catch(error){state.textContent=(action==='check'?'연결 확인 실패: ':'저장 실패: ')+String(error?.message||error);}
+      finally{busy(false);}
+    };
+    check.onclick=()=>perform('check');save.onclick=()=>perform('save');
+    address.addEventListener('input',()=>{state.textContent='변경된 주소는 저장해야 적용됩니다.';});
+    window.deckBridge.fusionMcpSettings().then(result=>{address.value=result.endpoint;state.textContent='Fusion 기본 설정 > 일반 > API에서 공식 MCP 서버를 활성화하세요.';}).catch(error=>{state.textContent='설정 읽기 실패: '+String(error?.message||error);}).finally(()=>busy(false));
     const install=document.createElement('button');install.type='button';
     install.textContent='FusionStreamDeck 애드인 설치';
     install.style.cssText='width:100%;padding:9px;border:1px solid #67717c;background:#393f49;color:#fff;border-radius:5px;margin-bottom:8px';
@@ -1547,7 +1572,7 @@ function openSdkPluginHelp(plugin,isFusion,retained=false){
   }
   const guide=document.createElement('div');guide.style.cssText='white-space:pre-line;line-height:1.75;font-size:13px';
   guide.textContent=isFusion
-    ?'1. Fusion 360을 실행합니다.\n2. 스크립트 및 애드인에서 FusionStreamDeck을 실행하고 시작 시 자동 실행을 선택합니다.\n3. Fusion 명령 관리자에서 원하는 명령을 D200X 버튼으로 끌어 등록합니다.\n4. 버튼의 명령 속성에서 현재 명령 정보를 확인하거나 변경합니다.\n5. 연결된 Fusion의 원본 아이콘이 나타나며 버튼으로 명령을 실행할 수 있습니다.'
+    ?'1. Fusion 360을 실행하고 기본 설정 > 일반 > API에서 Fusion 공식 MCP 서버를 활성화합니다.\n2. 위 MCP 주소를 확인하고 연결 확인 및 저장을 누릅니다.\n3. AI 도우미의 Fusion 초기 연결 템플릿으로 애드인 설치·등록·실행 및 원본 아이콘·명령 설명을 수집합니다. (AI 토큰 사용 없음)\n4. Fusion 명령 관리자에서 원하는 명령을 D200X 버튼으로 끌어 등록합니다.\n5. 버튼의 명령 속성에서 현재 명령 정보를 확인합니다.'
     :isHa?'1. Home Assistant에서 장기 액세스 토큰을 발급합니다.\n2. Home Assistant 장치 제어를 D200X 버튼에 등록합니다.\n3. 속성의 설정 열기를 눌러 HA 서버 주소와 장기 토큰을 입력합니다.\n4. 인증 성공 후 조회되는 엔티티 목록에서 제어할 장치를 선택합니다.\n5. 토큰은 비밀번호처럼 보관하고 GitHub에 업로드하지 않습니다.'
     :'1. 플러그인 액션을 빈 버튼에 끌어 놓습니다.\n2. 필요하면 플러그인 속성을 설정하고 저장합니다.\n3. 실행 테스트 또는 D200X 버튼으로 동작을 확인합니다.';
   dialog.append(guide);

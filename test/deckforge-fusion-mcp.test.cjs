@@ -139,3 +139,22 @@ test('initial Fusion setup waits for health before collecting icons and descript
  assert.equal(result.ready,true);assert.equal(collected,true);
  assert.ok(result.rows.some(r=>r.name==='MCP 애드인 등록·실행'&&r.status==='완료'));
 });
+
+
+test('Fusion MCP settings restrict endpoints to local HTTP and check without executing scripts',async()=>{
+ const {createClient,normalizeEndpoint}=require('../app/deckforge-editor/ai/fusion-desktop-mcp.cjs');
+ assert.equal(normalizeEndpoint('http://localhost:12345/mcp/'),'http://127.0.0.1:12345/mcp');
+ for(const bad of ['http://192.168.0.100:27182/mcp','https://127.0.0.1:27182/mcp','http://127.0.0.1:65536/mcp','http://127.0.0.1:27182/mcp?x=1'])assert.throws(()=>normalizeEndpoint(bad));
+ const calls=[];
+ const client=createClient(async(url,options)=>{
+   assert.equal(url,'http://127.0.0.1:12345/mcp');
+   const body=JSON.parse(options.body);calls.push(body.method);
+   const response=result=>new Response(JSON.stringify({jsonrpc:'2.0',id:body.id,result}),{headers:{'content-type':'application/json'}});
+   if(body.method==='initialize')return response({protocolVersion:'2025-11-25',capabilities:{tools:{}}});
+   if(body.method==='notifications/initialized')return new Response(null,{status:202});
+   if(body.method==='tools/list')return response({tools:[{name:'fusion_mcp_execute',inputSchema:{properties:{featureType:{enum:['script']}}}}]});
+   assert.fail('connection check must not execute scripts');
+ },()=> 'http://localhost:12345/mcp');
+ assert.deepEqual(await client.check(),{protocolVersion:'2025-11-25',toolCount:1});
+ assert.deepEqual(calls,['initialize','notifications/initialized','tools/list']);
+});
