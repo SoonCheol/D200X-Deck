@@ -5588,40 +5588,6 @@ function handleGestureTest(action,index,gesture,event,preview){
   }
   return null;
 }
-function fusionPressToken(index){
-  const item=sdkItemAtLocation(sdkCommittedSource(),index,'down');
-  if(!window.DeckForgeFusionPress.enabled(item))return null;
-  const context=sdkContext(index,'down');
-  return context?JSON.stringify([context,item.instanceId,item.settings.pluginSettings?.commandId,pageStructureEpoch]):null;
-}
-const fusionPresses=window.DeckForgeFusionPress.create({holdMs:600,
-  current:(index,token)=>fusionPressToken(index)===token,
-  onTap:(index,token,event)=>{
-    reportInputEvidence(event,'press-gesture',{outcome:'single',action:'sd-plugin'});
-    const context=JSON.parse(token)[0];
-    if(!window.deckBridge?.sdkKey)return;
-    const task=async()=>{
-      if(fusionPressToken(index)!==token)return false;
-      const ok=await window.deckBridge.sdkKey(context,'down');
-      if(!ok)return false;
-      return window.deckBridge.sdkKey(context,'up');
-    };
-    observeInputEvidence(event,task(),'sdk').then(ok=>{if(!ok)window.d200xActionStatus?.('Fusion 명령 실행 불가');}).catch(error=>window.d200xActionStatus?.('Fusion 명령 실행 실패: '+String(error?.message||error)));
-  },
-  onHold:(index,token,event)=>{
-    reportInputEvidence(event,'press-gesture',{outcome:'hold',action:'sd-plugin'});
-    if(!window.deckBridge?.fusionEscape)return;
-    observeInputEvidence(event,window.deckBridge.fusionEscape(event.inputId),'fusion-escape').then(ok=>window.d200xActionStatus?.(ok?'Fusion ESC 전송 완료':'Fusion 연결 또는 활성 창 미확인: ESC 전송 안 함')).catch(error=>window.d200xActionStatus?.('Fusion ESC 전송 실패: '+String(error?.message||error)));
-  }
-});
-window.clearD200XFusionPresses=()=>fusionPresses.clear();
-// Register the specialised router independently of the ordinary key engine.
-window.handleD200XFusionPress=(index,gesture,event)=>{
-  const token=fusionPressToken(index);
-  if(fusionPresses.handle(index,gesture,token,event))return true;
-  return window.DeckForgeFusionPress.enabled(sdkItemAtLocation(sdkCommittedSource(),index,'down'));
-};
-
 // Generic ordinary-key gesture routing. A saved action stays the single-press
 // action; only explicitly assigned double / hold actions enable the new router.
 const assignedKeyPresses=new Map();
@@ -8017,6 +7983,40 @@ $('key-grid').addEventListener('dragleave',event=>{
     setTimeout(()=>{if(nativeGridDrag===session&&!session.armed)clearNativeGridDrag(session,true);},1300);
   }
 });
+function fusionPressToken(index){
+  const item=sdkItemAtLocation(sdkCommittedSource(),index,'down');
+  if(!window.DeckForgeFusionPress.enabled(item))return null;
+  const context=sdkContext(index,'down');
+  return context?JSON.stringify([context,item.instanceId,item.settings.pluginSettings?.commandId,pageStructureEpoch]):null;
+}
+const fusionPresses=window.DeckForgeFusionPress.create({holdMs:600,
+  current:(index,token)=>fusionPressToken(index)===token,
+  onTap:(index,token,event)=>{
+    reportInputEvidence(event,'press-gesture',{outcome:'single',action:'sd-plugin'});
+    const context=JSON.parse(token)[0];
+    if(!window.deckBridge?.sdkKey)return;
+    const task=async()=>{
+      if(fusionPressToken(index)!==token)return false;
+      const ok=await window.deckBridge.sdkKey(context,'down');
+      if(!ok)return false;
+      return window.deckBridge.sdkKey(context,'up');
+    };
+    observeInputEvidence(event,task(),'sdk').then(ok=>{if(!ok)window.d200xActionStatus?.('Fusion 명령 실행 불가');}).catch(error=>window.d200xActionStatus?.('Fusion 명령 실행 실패: '+String(error?.message||error)));
+  },
+  onHold:(index,token,event)=>{
+    reportInputEvidence(event,'press-gesture',{outcome:'hold',action:'sd-plugin'});
+    if(!window.deckBridge?.fusionEscape)return;
+    observeInputEvidence(event,window.deckBridge.fusionEscape(event.inputId),'fusion-escape').then(ok=>window.d200xActionStatus?.(ok?'Fusion ESC 전송 완료':'Fusion 연결 또는 활성 창 미확인: ESC 전송 안 함')).catch(error=>window.d200xActionStatus?.('Fusion ESC 전송 실패: '+String(error?.message||error)));
+  }
+});
+window.clearD200XFusionPresses=()=>fusionPresses.clear();
+// Register the specialised router independently of the ordinary key engine.
+window.handleD200XFusionPress=(index,gesture,event)=>{
+  const token=fusionPressToken(index);
+  if(fusionPresses.handle(index,gesture,token,event))return true;
+  return window.DeckForgeFusionPress.enabled(sdkItemAtLocation(sdkCommittedSource(),index,'down'));
+};
+
 bindInspectorActionDrop();bindActionAppearance();renderLibrary();render();refreshSdkPlugins();
 if(profileStorageFailure){
   const dialog=document.createElement('dialog');dialog.className='profile-name-dialog deckforge-input-dialog';

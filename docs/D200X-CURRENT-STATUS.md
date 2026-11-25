@@ -2,7 +2,7 @@
 > 2026-11-25 · 현재 스냅샷, 누적 금지.
 ## 개발 기준
 - 저장소 SoonCheol/D200X-Deck · 브랜치 codex/streamdeck-761-clean-editor · Draft PR #5 유지.
-- 로컬 E:\Codex\DeckForge. 최신 HEAD는 Git에서 확인. 소스 버전 **2.0.25** (Fusion ESC 라우터 격리 및 명령 ID 확인 UI 제거; 2.0.7 센서 UI 사용자 정상 확인).
+- 로컬 E:\Codex\DeckForge. 최신 HEAD는 Git에서 확인. 소스 버전 **2.0.26** (Fusion 라우터 초기화 위치 교정; 2.0.7 센서 UI 사용자 정상 확인).
 - 감사 기준 `49ba39fe094ee808c5715f2348be0789f61d5e20`. CI #1221 성공; Windows #930 사용자 인수인계.
 ## 현재 상태
 - 독자 SDK API 1/2, 공개 25개 함수, HTTP/WSS, 전역 서비스/공유 상태, 동적 속성, 암호화·권한·패키지, HA 0.1.8 후보 및 Stream Deck 호환 호스트 구현. SDK 1.0 정식 완성 선언 보류.
@@ -35,7 +35,7 @@
 - 1.1.226: Model2 실제 반복/자원 제한/서비스 생존·복구, opaque storage/CSP 검사 및 USB mock 통과. CI #1274·Windows #980 성공. OOM 별도. 세부 수치 SDK 계약.
 - 1.1.230: CI #1278, Windows #984 attempt2 전체 성공. 실제 idle/active crash·거부·서비스/peer 생존·새 이벤트 복구, 25함수·vault 통과. 1차 npm 404 해소(버전 변경 없음). deckforge-v1.1.230 게시, EXE 135231273 bytes. 현재 root suite 45/45 실행 명령 확인, 초기 helper skip 3개와 후속 패키지 검사 구분.
 ## 다음 작업
-- 2.0.24: Fusion Run Command 일반 키 ESC 기본 ON, 체크 해제 시 기존 SDK 이벤트 유지. 600ms 판정, 짧은 누름은 SDK down/up, 길게 누름은 명령 없이 전경 Fusion PID 확인 후 ESC 1회. 집중 테스트 추가. Windows #27 실패(기존 앱 실행 VM 테스트에서 fusionPressToken 미정의 5건). 2.0.25에서 독립 라우터 등록 및 기존 디스패처 선택 호출로 분리, 명령 관리자 ID 확인 버튼/메시지 삭제. Windows/실기 재검증 대기.
+- 2.0.24: Fusion Run Command 일반 키 ESC 기본 ON, 체크 해제 시 기존 SDK 이벤트 유지. 600ms 판정, 짧은 누름은 SDK down/up, 길게 누름은 명령 없이 전경 Fusion PID 확인 후 ESC 1회. 집중 테스트 추가. Windows #27 실패(기존 앱 실행 VM 테스트에서 fusionPressToken 미정의 5건). 2.0.25에서 독립 라우터 등록 및 기존 디스패처 선택 호출로 분리, 명령 관리자 ID 확인 버튼/메시지 삭제. Windows #28 실패: 읽기 전용 gesture-test 검증 범위에 라우터 구현이 포함됨. 2.0.26 라우터를 편집기 초기화부로 이동, 2.0.23과 dry-run 구간 완전 일치 및 금지 호출 정규식 검사 확인. 기존 테스트 변경 없음. Windows/실기 재검증 대기.
 - 2.0.23: 오른쪽 기본 액션/플러그인 브라우저형 탭, 기본 접힘 플러그인 관리(탭 이탈 시 닫힘). 기존 네 관리 기능과 패널 폭 유지. 자동 Windows 빌드·GUI 검증 대기. Fusion 초기 연결 자동화는 별도 구현 대기.
 - 작업 체크포인트: f718990 2.0.22 명령 관리자 카드/페이지 슬롯/편집기 hover 캐시 설명, ⓘ 상세 경로 제거·설명 표시, 오프라인/늦은 응답 방지. 2.0.21 Windows 성공, 사용자 1555 설명 저장·아이콘 659 실패 보고. 2.0.22 자동 빌드/GUI 미확인. 아이콘 실패 진단 별도.
 - 2.0.1~2.0.3 CI/Windows 성공, 2.0.3 게시. 2.0.4 CI/root 회귀 성공. 동시 반영 2.0.5 독자 mount 선등록·snapshot 보존, CI 성공·Windows 진행. 2.0.6 실제 Electron 13키×4 입력·페이지 전환·모의 절전복귀·서비스/메모리 검사 추가, 실행 대기. 실기·OOM·장시간 soak 별도. SDK 10C 계속.
