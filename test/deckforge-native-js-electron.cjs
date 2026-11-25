@@ -594,7 +594,61 @@ async function verifyTrustedDrawOps(legacy){
  }finally{host.close();if(!win.isDestroyed())win.destroy();}
 }
 
+// Separate opt-in CI process: a small renderer heap and bounded allocation.
+// Never use OS-wide memory pressure or count a forced crash/timeout as OOM.
+const oomOnly=process.env.DECKFORGE_SDK_OOM==='1';
+if(oomOnly)app.commandLine.appendSwitch('js-flags','--max-old-space-size=64');
+async function verifyModel2HeapExhaustion(){
+ const {webContents}=require('electron');
+ const {ScriptRunnerPool,deadline}=require('../app/deckforge-editor/deckforge-js-runtime.cjs');
+ const pool=new ScriptRunnerPool(undefined,{idleMs:60000}),id='com.deckforge.native.oom-test',other=id+'-peer';
+ const button=pool.lease(id,'button'),service=pool.lease(id,'service'),peer=pool.lease(other,'button');
+ const title=value=>({ops:[{op:'title',value}],memory:{}});
+ const run=(lease,value)=>lease.run('api.setTitle('+JSON.stringify(value)+');',input);
+ const entry=(plugin,scope)=>pool.entries.get(pool.key(plugin,scope));
+ try{
+  await run(button,'before');await run(service,'service');await run(peer,'peer');
+  const ids=[pool.processId(id,'button'),pool.processId(id,'service'),pool.processId(other,'button')];
+  assert.ok(ids.every(pid=>Number.isInteger(pid)&&pid>0&&pid!==process.pid));
+  assert.equal(new Set(ids).size,3);
+  const owners=webContents.getAllWebContents().filter(w=>!w.isDestroyed()&&w.getOSProcessId()===ids[0]);
+  assert.equal(owners.length,1);
+  const wc=owners[0],runner=entry(id,'button').runner,serviceRunner=entry(id,'service').runner,peerRunner=entry(other,'button').runner;
+  let resolveGone;
+  const gone=new Promise(resolve=>{resolveGone=resolve;});
+  const onGone=(_event,details)=>resolveGone(details);
+  const onAppGone=(_event,target,details)=>{if(target===wc)resolveGone(details);};
+  wc.prependListener('render-process-gone',onGone);
+  app.prependListener('render-process-gone',onAppGone);
+  try{
+   // Finite upper bound (32 million array elements); the reduced heap is
+   // applied only in this dedicated Electron test invocation.
+   const pending=button.run('const chunks=[];for(let i=0;i<32;i++)chunks.push(new Array(1048576).fill(i));api.setTitle("allocation survived");',input);
+   const rejected=assert.rejects(pending,error=>error?.code==='SDK_RUNTIME_UNAVAILABLE'&&!/timeout/i.test(error.message));
+   rejected.catch(()=>{});
+   const details=await deadline(()=>gone,5000,()=>{});
+   console.log('MODEL2_OOM_NOTIFICATION '+JSON.stringify({reason:details?.reason,exitCode:details?.exitCode}));
+   assert.equal(details?.reason,'oom','only an actual Electron oom notification counts');
+   await rejected;
+   assert.equal(runner.isClosed(),true);
+   assert.equal(pool.entries.has(pool.key(id,'button')),false);
+  }finally{
+   wc.removeListener('render-process-gone',onGone);
+   app.removeListener('render-process-gone',onAppGone);
+  }
+  assert.deepEqual(await run(service,'service alive'),title('service alive'));
+  assert.deepEqual(await run(peer,'peer alive'),title('peer alive'));
+  assert.equal(entry(id,'service').runner,serviceRunner);
+  assert.equal(entry(other,'button').runner,peerRunner);
+  assert.deepEqual(await run(button,'new input'),title('new input'));
+  assert.notEqual(entry(id,'button').runner,runner);
+  console.log('MODEL2_OOM_VERIFIED '+JSON.stringify({actualOom:true,failedEventRejected:true,serviceSurvived:true,peerSurvived:true,nextEventRecovered:true,reducedTestHeap:true}));
+ }finally{pool.close();}
+}
+
 app.whenReady().then(async()=>{
+  if(oomOnly){await verifyModel2HeapExhaustion();app.exit(0);return;}
+
   const a=createScriptRunner('com.deckforge.native.smokea');
   const b=createScriptRunner('com.deckforge.native.smokeb');
   try{
