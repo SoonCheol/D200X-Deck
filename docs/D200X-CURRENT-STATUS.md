@@ -35,7 +35,8 @@
 - 1.1.226: Model2 실제 반복/자원 제한/서비스 생존·복구, opaque storage/CSP 검사 및 USB mock 통과. CI #1274·Windows #980 성공. OOM 별도. 세부 수치 SDK 계약.
 - 1.1.230: CI #1278, Windows #984 attempt2 전체 성공. 실제 idle/active crash·거부·서비스/peer 생존·새 이벤트 복구, 25함수·vault 통과. 1차 npm 404 해소(버전 변경 없음). deckforge-v1.1.230 게시, EXE 135231273 bytes. 현재 root suite 45/45 실행 명령 확인, 초기 helper skip 3개와 후속 패키지 검사 구분.
 ## 다음 작업
-- 2.0.28: 기본 액션 및 동작 선택·AI 표시 명칭 상용구 입력으로 변경, ID text·저장값·실행 보존. Windows 빌드 대기.
+- 사용자 승인: Stream Deck 원본 속성창의 동일 플러그인 내부 HTML 팝업 지원(GitHub Utilities setup.html), opener 연결 유지·외부 접근 제한·실제 Electron 검사. 2.0.29 예정.
+- 2.0.28: 기본 액션 및 동작 선택·AI 표시 명칭 상용구 입력으로 변경, ID text·저장값·실행 보존. Windows #31·CI #1374·SDK #66·입력 #547 성공.
 - 2.0.27: 제거된 타이틀 숨김, 관리 메뉴 완전 삭제(독자/Stream Deck), 설치된 Stream Deck 제거 시 완전 삭제 선택. ID/보존 원본·전역 설정 재검사, 삭제 성공 후 등록 액션 정리. 집중 테스트 추가, Windows #30·CI #1372·SDK #64·입력 #546 성공, GUI 대기. 2.0.26 Windows #29 성공. HA 내장 및 파일 필터 개선 별도 대기.
 - 사용자 승인: 독자 HA 플러그인 기본 내장 설치, 별도 HA 추가 버튼 제거, 서버/인증 설정 및 기존 등록 데이터 보존. 별도 대기.
 - 2.0.24: Fusion Run Command 일반 키 ESC 기본 ON, 체크 해제 시 기존 SDK 이벤트 유지. 600ms 판정, 짧은 누름은 SDK down/up, 길게 누름은 명령 없이 전경 Fusion PID 확인 후 ESC 1회. 집중 테스트 추가. Windows #27 실패(기존 앱 실행 VM 테스트에서 fusionPressToken 미정의 5건). 2.0.25에서 독립 라우터 등록 및 기존 디스패처 선택 호출로 분리, 명령 관리자 ID 확인 버튼/메시지 삭제. Windows #28 실패: 읽기 전용 gesture-test 검증 범위에 라우터 구현이 포함됨. 2.0.26 라우터를 편집기 초기화부로 이동, 2.0.23과 dry-run 구간 완전 일치 및 금지 호출 정규식 검사 확인. 기존 테스트 변경 없음. Windows/실기 재검증 대기.
