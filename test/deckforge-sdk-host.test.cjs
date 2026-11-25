@@ -77,12 +77,13 @@ test('HA custom-icons action follows actual HA on/off state and ignores unknown 
   host.global.set(uuid,{serverUrl:'https://ha.example.test',accessToken:'secret'});
   const fetchMock=async (url,options)=>{
     calls.push({url,auth:options.headers.Authorization});
-    return {ok:true,json:async()=>({state:calls.length===1?'on':calls.length===2?'off':'unavailable'})};
+    return {ok:true,json:async()=>({state:calls.length===1?'on':calls.length===2?'off':'unavailable',attributes:{friendly_name:'거실등'}})};
   };
   await host.refreshHaDualStates(fetchMock);
   await host.refreshHaDualStates(fetchMock);
   await host.refreshHaDualStates(fetchMock);
   assert.deepEqual(states.filter(x=>x.kind==='setState').map(x=>x.payload.state),[1,0]);
+  assert.deepEqual(states.filter(x=>x.kind==='haEntityName'),[{kind:'haEntityName',context,entity:'switch.living_1',name:'거실등'}]);
   assert.ok(calls.every(x=>x.auth==='Bearer secret'));
   assert.ok(calls.every(x=>x.url.endsWith('/api/states/switch.living_1')));
   assert.equal(host.contexts.get(context).lastState,0);

@@ -506,3 +506,18 @@ test('non-HA native foreground action uses shared live layer and title policy wi
  assert.equal(JSON.stringify(item),before);
  assert.equal(render(item,{image:'foreground'},0,true,[]).sensorDisplay,undefined);
 });
+
+
+test('legacy HA auto title tracks selected entity and preserves explicit state titles',()=>{
+ const pluginUUID='de.perdoctus.streamdeck.homeassistant',actionUUID=pluginUUID+'.dual-state-entity';
+ const item={type:'sd-plugin',title:'',settings:{pluginUUID,actionUUID,pluginSettings:{display:{entityId:'switch.a'}},stateTitles:{first:{title:''},second:{title:''}}}};
+ assert.equal(core.applyLegacyHaTitle(item,'switch.other','Wrong'),false);
+ assert.equal(core.applyLegacyHaTitle(item,'switch.a','거실등'),true);
+ assert.equal(item.title,'거실등');assert.equal(item.settings.stateTitles.first.title,'거실등');
+ assert.equal(core.applyLegacyHaTitle(item,'switch.a','거실등'),false);
+ item.settings.stateTitles.second.title='';item.settings.haManualTitles={second:true};
+ item.settings.pluginSettings.display.entityId='switch.b';
+ assert.equal(core.applyLegacyHaTitle(item,'switch.b','주방등'),true);
+ assert.equal(item.title,'주방등');assert.equal(item.settings.stateTitles.first.title,'주방등');assert.equal(item.settings.stateTitles.second.title,'');
+ assert.equal(render(item,{title:'Upstream',state:1}).title,'주방등');
+});

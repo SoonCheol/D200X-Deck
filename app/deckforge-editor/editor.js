@@ -350,7 +350,7 @@ function displayItem(item,index,preserveGesture=false){
       (defaultImage?{kind:'file',value:defaultImage}:null);
     const policy=nativeTitlePolicyFor(item);
     const titled=policy?nativeTitleView(item,policy):item;
-    if(icon||visual||policy)return {...titled,title:policy?DeckCore.nativeTitle(titled,policy,visual?.title):visual?.title??item.title,...(icon?{icon}:{})};
+    if(icon||visual||policy)return {...titled,title:policy?DeckCore.nativeTitle(titled,policy,visual?.title):DeckCore.isLegacyHaControl?.(item)?(item.settings.haManualTitle===true?item.title:item.title||visual?.title||''):visual?.title??item.title,...(icon?{icon}:{})};
   }
   if(!item||item.type!=="indicator")return item;
   const common=DeckCore.indicatorCommon(state,item);
@@ -493,7 +493,7 @@ function stateDisplayArtwork(item,index,momentary){
     (defaults?.[key]?{kind:'file',value:defaults[key]}:null);
   return {first:valid(icons.off)?icons.off:fallback('off',false),
     second:valid(icons.on)?icons.on:fallback('on',true),
-    paired:isNamedStateIconPair(icons),
+    paired:isNamedStateIconPair(icons)||(DeckCore.isLegacyHaControl?.(raw)&&valid(icons.off)&&valid(icons.on)),
     runtimeOnly:!valid(icons.off)&&!valid(icons.on)&&!raw.icon};
 }
 function resolveTimerVisual(item,second,remaining,artwork,configured=item.settings?.seconds){
@@ -3248,7 +3248,7 @@ function sdkItemAtLocation(source,slot,gesture){
   const key=({'hold-left':'holdLeft','hold-right':'holdRight'})[gesture]||gesture;
   return DeckCore.controlBinding(source,slot)?.[key];
 }
-function commitExternalSdkSettings(instance,settings,request=null){
+function commitExternalSdkSettings(instance,settings,request=null,haName=null){
   const live=sdkItemAtLocation(state,instance.slot,instance.gesture);
   if(live?.type!=='sd-plugin'||!instance.instanceId||live.instanceId!==instance.instanceId||live.settings?.pluginUUID!==instance.pluginUUID||
     live.settings?.actionUUID!==instance.actionUUID)return false;
@@ -3256,7 +3256,9 @@ function commitExternalSdkSettings(instance,settings,request=null){
   const stored=sdkItemAtLocation(confirmed,instance.slot,instance.gesture);
   if(stored?.type!=='sd-plugin'||stored.instanceId!==instance.instanceId||stored.settings?.pluginUUID!==instance.pluginUUID||
     stored.settings?.actionUUID!==instance.actionUUID)return false;
-  stored.settings.pluginSettings=clone(settings);
+  if(haName){
+    if(!DeckCore.applyLegacyHaTitle(stored,haName.entity,haName.name))return false;
+  }else stored.settings.pluginSettings=clone(settings);
   const next=JSON.stringify(confirmed);
   try{
     if(profileStorageFailure)throw Error('프로필 파일 읽기 실패 상태');
@@ -3283,7 +3285,8 @@ function commitExternalSdkSettings(instance,settings,request=null){
     if(request)profileStorageFailure=true;
     return request?null:false;
   }
-  live.settings.pluginSettings=clone(settings);
+  if(haName)DeckCore.applyLegacyHaTitle(live,haName.entity,haName.name);
+  else live.settings.pluginSettings=clone(settings);
   if(inspectorSession){
     inspectorSession.snapshot=next;
     inspectorSession.dirty=JSON.stringify(state)!==next;
@@ -3759,6 +3762,7 @@ function attachStateTitleControls(card,item,which){
     if(timer||multiAuto)return;
     const saved=ensureStateTitlePair(item)[which];
     saved.title=input.value;
+    if(DeckCore.isLegacyHaControl?.(item))item.settings.haManualTitles={...item.settings.haManualTitles,[which]:true};
     if(nativeTitlePolicyFor(item))item.settings.nativeTitleAutoStates={...item.settings.nativeTitleAutoStates,[which]:false};
     // The legacy title is a fallback for imported versions, not the active state title.
     persistInspectorChange();renderGrid();refreshTitlePreview(item);
@@ -4781,7 +4785,7 @@ function renderInspector(){
   bindIconControls(item);
   if(item.type==='indicator')bindIndicatorInspector(root,item);
   refreshTitlePreview(item);
-  $("key-title").addEventListener("input",ev=>{item.title=ev.target.value;if(nativeTitlePolicyFor(item))item.settings.nativeTitleExplicit=true;persist();renderGrid();refreshTitlePreview(item);});
+  $("key-title").addEventListener("input",ev=>{item.title=ev.target.value;if(DeckCore.isLegacyHaControl?.(item))item.settings.haManualTitle=true;if(nativeTitlePolicyFor(item))item.settings.nativeTitleExplicit=true;persist();renderGrid();refreshTitlePreview(item);});
   bindExtendedActionFields(root,item);
   if(item.type==='website'){
     const url=root.querySelector('[data-field="url"]');
@@ -7801,6 +7805,18 @@ if(window.deckBridge?.onSdkEvent){
       if(!saved)window.d200xActionStatus?.('독자 SDK 설정 저장 거부: 현재 편집 상태를 확인하세요.');
     }else if(message.kind==='nativeEffect'){
       if(!applyNativeSdkEffect(message))window.d200xActionStatus?.('독자 SDK 요청 거부: 현재 설정 또는 편집 상태를 확인하세요.');
+    }else if(message.kind==='haEntityName'){
+      const instance=sdkActionInstances().find(x=>x.context===ctx);
+      if(instance?.settings?.display?.entityId===message.entity&&commitExternalSdkSettings(instance,instance.settings,null,message)){
+        const item=sdkItemAtLocation(state,instance.slot,instance.gesture);
+        if(isCurrentInspectorAction(item)){
+          for(const card of $('inspector').querySelectorAll('.sdk-state-icon[data-state-title]')){
+            const key=card.dataset.stateTitle,input=card.querySelector('.state-title-input');
+            if(input&&document.activeElement!==input)input.value=(item.settings.stateTitles||defaultStateTitlePair(item))[key]?.title||'';
+          }
+          void refreshSelectedVisual();void refreshStateTitleCards(item);
+        }
+      }
     }else if(message.kind==='settings'){
       const instance=sdkActionInstances().find(x=>x.context===ctx);
       if(instance&&message.settings&&typeof message.settings==='object'&&!Array.isArray(message.settings)){

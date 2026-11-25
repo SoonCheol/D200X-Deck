@@ -138,6 +138,22 @@
     [next[index],next[index+delta]]=[next[index+delta],next[index]];
     return next;
   }
+  function isLegacyHaControl(item){
+    return item?.type==='sd-plugin'&&item.settings?.pluginUUID==='de.perdoctus.streamdeck.homeassistant'&&item.settings.actionUUID==='de.perdoctus.streamdeck.homeassistant.dual-state-entity';
+  }
+  function applyLegacyHaTitle(item,entity,label){
+    if(!isLegacyHaControl(item)||item.settings.pluginSettings?.display?.entityId!==entity||typeof label!=='string'||!label.trim())return false;
+    const name=label.trim().slice(0,256),previous=item.settings.haAutoTitle;
+    let changed=false;
+    const automatic=value=>!value||value===previous;
+    if(item.settings.haManualTitle!==true&&automatic(item.title)&&item.title!==name){item.title=name;changed=true;}
+    for(const key of ['first','second']){
+      const entry=item.settings.stateTitles?.[key];
+      if(entry&&item.settings.haManualTitles?.[key]!==true&&automatic(entry.title)&&entry.title!==name){entry.title=name;changed=true;}
+    }
+    if(item.settings.haAutoTitle!==name){item.settings.haAutoTitle=name;changed=true;}
+    return changed;
+  }
   function isNativeHaSensor(item){
     return item?.type==='sd-plugin'&&item.settings?.actionUUID==='com.deckforge.native.home-assistant.sensor';
   }
@@ -1975,5 +1991,5 @@
       url:action.settings?.url||'',mode:action.settings?.open||'default',browserPath:action.settings?.browserPath||''};
     return {kind:'unsupported',message:'이 동작의 실행 기능은 아직 구현되지 않았습니다.'};
   }
-  return {validateNativeSettingsSchema,validateNativeSettingsUI,nativeSettingVisible,validateNativeTitlePolicy,nativeTitle,nativeTitleSelection,nativeAdoptLegacyTitle,nativeSettingValue,nativeDynamicOptions,moveNativeSelection,isNativeHaSensor,isNativeForeground,sdkAvailability,nativeEffectiveSettings,nativeVisualOwner,nativeVisualDelta,pruneNativeVisuals,createNativeRenderGate,ACTION_IDS,D200X_ACTION_IDS,PLUGIN_ACTION_IDS,PRESS_ACTION_TYPES,DEFAULTS,TITLE,INDICATOR_NUMBER_STYLE,INDICATOR_NAV_LABELS,indicatorConfig,indicatorCommon,sharedIndicatorConfig,updateIndicatorCommon,manageIndicators,indicatorNumberDisplayStyle,planIndicatorNavigation,fixedIndicatorNavigation,planFixedIndicatorNavigation,indicatorPinState,setIndicatorPinned,SIDE_NAV_LABELS,SIDE_HOLD_MS,sideConfig,makeSideAction,sideActionConfig,sideFolderTargets,planSideNavigation,applySideNavigation,createPageVisitTracker,createSidePressTracker,createAction,cleanAction,validInstanceId,normalizeInstanceIds,cloneActionInstances,walkSdkActions,removePluginReferences,sdkMountDescriptors,createSdkMountTracker,validSdkMount,nativeSettingsCommitMatches,createBitmapCache,cleanCompositeEntry,timerSeconds,formatTimerTime,displaySwitchAction,compositeModel,planComposite,runComposite,createMultiPauseGate,multiRows,setMultiRows,blankPage,cleanWideDisplay,createWideOverlayTracker,cycleWideDisplay,isWideDisplayPress,folderContents,folderPageCount,changeFolderPage,addFolderPage,deleteFolderPage,editPageStructure,currentActions,visibleActions,togglePinned,activeFolder,enterFolder,exitFolder,migrateState,profileSnapshot,switchProfile,createProfile,renameProfile,exportSingleProfile,findProfileTemplate,saveProfileTemplate,renameProfileTemplate,deleteProfileTemplate,applyProfileTemplate,setProfileApp,setProfileFusionScope,matchFusionProfile,createSmartProfileTracker,matchForegroundProfile,deleteProfile,previewHardwareEvent,physicalSlot,hardwareGesture,resolveHardwareEvent,runtimeActionKey,folderWideBackEvent,resolveKeyPress,planHardwareEvent,deletePage,planAction,emptyBinding,cleanBinding,controlAction,activeControlAction,assignControlAction,automaticControl,ensureControls,controlBinding,changeControlScope};
+  return {validateNativeSettingsSchema,validateNativeSettingsUI,nativeSettingVisible,validateNativeTitlePolicy,nativeTitle,nativeTitleSelection,nativeAdoptLegacyTitle,nativeSettingValue,nativeDynamicOptions,moveNativeSelection,isLegacyHaControl,applyLegacyHaTitle,isNativeHaSensor,isNativeForeground,sdkAvailability,nativeEffectiveSettings,nativeVisualOwner,nativeVisualDelta,pruneNativeVisuals,createNativeRenderGate,ACTION_IDS,D200X_ACTION_IDS,PLUGIN_ACTION_IDS,PRESS_ACTION_TYPES,DEFAULTS,TITLE,INDICATOR_NUMBER_STYLE,INDICATOR_NAV_LABELS,indicatorConfig,indicatorCommon,sharedIndicatorConfig,updateIndicatorCommon,manageIndicators,indicatorNumberDisplayStyle,planIndicatorNavigation,fixedIndicatorNavigation,planFixedIndicatorNavigation,indicatorPinState,setIndicatorPinned,SIDE_NAV_LABELS,SIDE_HOLD_MS,sideConfig,makeSideAction,sideActionConfig,sideFolderTargets,planSideNavigation,applySideNavigation,createPageVisitTracker,createSidePressTracker,createAction,cleanAction,validInstanceId,normalizeInstanceIds,cloneActionInstances,walkSdkActions,removePluginReferences,sdkMountDescriptors,createSdkMountTracker,validSdkMount,nativeSettingsCommitMatches,createBitmapCache,cleanCompositeEntry,timerSeconds,formatTimerTime,displaySwitchAction,compositeModel,planComposite,runComposite,createMultiPauseGate,multiRows,setMultiRows,blankPage,cleanWideDisplay,createWideOverlayTracker,cycleWideDisplay,isWideDisplayPress,folderContents,folderPageCount,changeFolderPage,addFolderPage,deleteFolderPage,editPageStructure,currentActions,visibleActions,togglePinned,activeFolder,enterFolder,exitFolder,migrateState,profileSnapshot,switchProfile,createProfile,renameProfile,exportSingleProfile,findProfileTemplate,saveProfileTemplate,renameProfileTemplate,deleteProfileTemplate,applyProfileTemplate,setProfileApp,setProfileFusionScope,matchFusionProfile,createSmartProfileTracker,matchForegroundProfile,deleteProfile,previewHardwareEvent,physicalSlot,hardwareGesture,resolveHardwareEvent,runtimeActionKey,folderWideBackEvent,resolveKeyPress,planHardwareEvent,deletePage,planAction,emptyBinding,cleanBinding,controlAction,activeControlAction,assignControlAction,automaticControl,ensureControls,controlBinding,changeControlScope};
 });

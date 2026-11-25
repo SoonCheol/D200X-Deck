@@ -554,13 +554,18 @@ class StreamDeckPluginHost{
             signal:AbortSignal.timeout(4000)});
           if(!response.ok)return [entity,null];
           const data=await response.json();
-          return [entity,data?.state==='on'?1:data?.state==='off'?0:null];
+          return [entity,{state:data?.state==='on'?1:data?.state==='off'?0:null,name:typeof data?.attributes?.friendly_name==='string'?data.attributes.friendly_name.trim().slice(0,256):''}];
         }catch{return [entity,null];}
       }));
       const states=new Map(results);
       for(const entry of dual){
-        const {ctx}=entry,state=states.get(entry.entity);
-        if(!current(entry)||ctx.lastState!==entry.lastState)continue;
+        const {ctx}=entry,result=states.get(entry.entity),state=result?.state;
+        if(!current(entry))continue;
+        if(result?.name&&(ctx.haNameEntity!==entry.entity||ctx.haName!==result.name)){
+          ctx.haNameEntity=entry.entity;ctx.haName=result.name;
+          this.onUpdate({kind:'haEntityName',context:ctx.context,entity:entry.entity,name:result.name});
+        }
+        if(ctx.lastState!==entry.lastState)continue;
         if(state!==0&&state!==1||ctx.lastState===state)continue;
         ctx.lastState=state;
         this.onUpdate({kind:'setState',context:ctx.context,payload:{state}});
