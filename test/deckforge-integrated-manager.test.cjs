@@ -54,7 +54,7 @@ test('integrated installer stages both runtime components without editing saved 
  assert.match(source,/fusion-manager\/main\.cjs/);
  assert.match(main,/d200x:open-fusion-manager/);
  assert.match(main,/d200x:fusion-addin-install/);
- assert.match(ui,/FusionStreamDeck 애드인 설치/);
+ assert.match(ui,/FusionDeckForge 애드인 설치/);
  assert.match(ui,/Home Assistant 사용 방법/);
  assert.match(manager,/openEmbeddedManager/);
 });
@@ -96,21 +96,21 @@ test('Fusion template handles uninitialized AddIns folder and does not launch tw
 test('Fusion add-in supports both documented roots and preserves existing manifest except explicit startup',async()=>{
  const root=await fs.mkdtemp(path.join(os.tmpdir(),'deckforge-fusion-setup-'));
  try{
-  const appData=path.join(root,'appdata'),source=path.join(root,'FusionStreamDeck');
+  const appData=path.join(root,'appdata'),source=path.join(root,'FusionDeckForge');
   const base=path.join(appData,'Autodesk','Autodesk Fusion','API','AddIns');
   await fs.mkdir(source);await fs.mkdir(base,{recursive:true});
-  await fs.writeFile(path.join(source,'FusionStreamDeck.py'),'original');
+  await fs.writeFile(path.join(source,'FusionDeckForge.py'),'original');
   const manifest={autodeskProduct:'Fusion360',type:'addin',runOnStartup:false,author:'original'};
-  await fs.writeFile(path.join(source,'FusionStreamDeck.manifest'),JSON.stringify(manifest));
+  await fs.writeFile(path.join(source,'FusionDeckForge.manifest'),JSON.stringify(manifest));
   let result=await integration.installFusionAddin(root,{appData});
   assert.equal(result.status,'installed');assert.equal(result.startup,'unchanged');
-  const file=path.join(base,'FusionStreamDeck','FusionStreamDeck.manifest');
+  const file=path.join(base,'FusionDeckForge','FusionDeckForge.manifest');
   assert.deepEqual(JSON.parse(await fs.readFile(file,'utf8')),manifest);
   result=await integration.installFusionAddin(root,{appData,configureStartup:true});
   assert.equal(result.startup,'enabled');
   assert.deepEqual(JSON.parse(await fs.readFile(file,'utf8')),{...manifest,runOnStartup:true});
-  assert.equal(await fs.readFile(path.join(base,'FusionStreamDeck','FusionStreamDeck.py'),'utf8'),'original');
-  await fs.mkdir(path.join(appData,'Autodesk','Autodesk Fusion 360','API','AddIns','FusionStreamDeck'),{recursive:true});
+  assert.equal(await fs.readFile(path.join(base,'FusionDeckForge','FusionDeckForge.py'),'utf8'),'original');
+  await fs.mkdir(path.join(appData,'Autodesk','Autodesk Fusion 360','API','AddIns','FusionDeckForge'),{recursive:true});
   assert.equal((await integration.installFusionAddin(root,{appData,configureStartup:true})).status,'ambiguous');
  }finally{await fs.rm(root,{recursive:true,force:true});}
 });
@@ -124,7 +124,7 @@ test('Fusion status extension preserves original and only upgrades byte-identica
    const original="def get_status():\n    return {\n        'activeDocument': doc.name if doc else None,\n    }\n";
    const extended=extend(original);
    assert.ok(extended.includes('ui.activeWorkspace'));assert.throws(()=>extend(extended));
-   const source=path.join(root,'FusionStreamDeck','lib'),appData=path.join(root,'appdata');
+   const source=path.join(root,'FusionDeckForge','lib'),appData=path.join(root,'appdata');
    const target=path.join(appData,'Autodesk','Autodesk Fusion','API','AddIns','FusionStreamDeck','lib');
    await fs.mkdir(source,{recursive:true});await fs.mkdir(target,{recursive:true});
    await fs.writeFile(path.join(root,'fusion-actions-original.py'),original);
