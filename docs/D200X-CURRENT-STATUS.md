@@ -35,7 +35,7 @@
 - 1.1.226: Model2 실제 반복/자원 제한/서비스 생존·복구, opaque storage/CSP 검사 및 USB mock 통과. CI #1274·Windows #980 성공. OOM 별도. 세부 수치 SDK 계약.
 - 1.1.230: CI #1278, Windows #984 attempt2 전체 성공. 실제 idle/active crash·거부·서비스/peer 생존·새 이벤트 복구, 25함수·vault 통과. 1차 npm 404 해소(버전 변경 없음). deckforge-v1.1.230 게시, EXE 135231273 bytes. 현재 root suite 45/45 실행 명령 확인, 초기 helper skip 3개와 후속 패키지 검사 구분.
 ## 다음 작업
-- 작업 체크포인트: 2.0.6 CI 성공(run 45539836883), Windows 통합 결과 확인 필요. 다음: 기존 Electron 반복 검사 기반 장시간 반복/자원 정리 검증 설계 및 구현. 실기와 OOM 별도.
+- 작업 체크포인트: 0dda6a5 반복 검사 156 press/10 page 전환, host heap 8회 기록 및 큐 정리 검사 추가. CI run 45540667996 syntax/lint/type/unit 성공(Electron 다운로드 생략). Windows Electron 실행 결과 미확인. 다음: Windows 검증 및 장시간 soak/OOM 별도.
 - 2.0.1~2.0.3 CI/Windows 성공, 2.0.3 게시. 2.0.4 CI/root 회귀 성공. 동시 반영 2.0.5 독자 mount 선등록·snapshot 보존, CI 성공·Windows 진행. 2.0.6 실제 Electron 13키×4 입력·페이지 전환·모의 절전복귀·서비스/메모리 검사 추가, 실행 대기. 실기·OOM·장시간 soak 별도. SDK 10C 계속.
 - **10C 판정:** 자동 검증/설치본 통과, 정식 SDK 1.0 출시 보류. 실제 HA/D200X/OS 절전·재연결/장시간 soak, 실제 OOM, identity GUI, 설정 저장 13행 추가 검사 통과, 1.1.234 Windows 통합 검사 통과, 전원 손실/제품 IPC 실기 별도. Model5 차단, KEY 기본 OFF, 기존 미리보기 유지.
 - 기존 기능/데이터/API·보안 보존, 테스트/CI/Windows/실기 구분. 미측정 성능 수치 단정 금지.
