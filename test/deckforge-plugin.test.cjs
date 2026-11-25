@@ -772,7 +772,7 @@ test('native elapsed clock and socket rate limit ignore wall clock changes',()=>
  try{
   const before=performance.now(),observed=host.now();
   assert.ok(observed>=before&&observed<=performance.now());
-  let elapsed=observed;host.now=()=>elapsed;
+  let elapsed=Math.ceil(observed);host.now=()=>elapsed;
   for(let i=0;i<128;i++)assert.equal(host.socketRate(token,'receive'),true);
   const started=token.receiveRate.start,wall=original();
   // Keep the simulation synchronous so no other asynchronous task observes it.
