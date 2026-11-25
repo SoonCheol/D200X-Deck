@@ -1319,6 +1319,24 @@ class PluginRouter{
       this.native.reconcileTickTimer();
     });
   });}
+  // Read-only preview of the built-in HA sensor. No arbitrary plugin code,
+  // runner event, credential, network request, or profile mutation.
+  nativeHaSensorPreview(input,index){return this.serial(async()=>{
+    const {createHomeAssistantManifest,sensorKey}=require('./deckforge-ha-plugin.cjs');
+    const manifest=createHomeAssistantManifest(null),action=manifest.actions.find(a=>a.id.endsWith('.sensor'));
+    check(input&&typeof input==='object'&&!Array.isArray(input),'invalid sensor preview settings');
+    const schema=action.settingsSchema;
+    const selected=Object.fromEntries(schema.filter(f=>Object.hasOwn(input,f.key)).map(f=>[f.key,input[f.key]]));
+    const settings=nativeEffectiveSettings(schema,selected);
+    check(Number.isInteger(index)&&index>=0&&index<settings.entities.length,'invalid sensor preview index');
+    check(settings.entities.every(id=>/^(sensor|binary_sensor)\.[a-z0-9_]+$/.test(id)),'invalid sensor entity');
+    const service=this.native.contexts.get(SERVICE_PREFIX+manifest.id);
+    const snapshot=service&&!service.failed&&!this.native.suspended?service.sharedState:{};
+    let spec=null;
+    sensorKey({type:'sharedState'},settings,0,{index},{getSharedState:()=>snapshot||{},setTitle(){},drawKey:value=>{spec=value;}});
+    check(spec,'sensor preview unavailable');
+    return require('./deckforge-draw-ops.cjs').validateDrawSpec(spec);
+  });}
   dynamicOptions(pluginId,actionId){return this.serial(async()=>{
     const {native}=await this.catalog(),manifest=native.find(m=>m.id===pluginId);
     const action=manifest?.actions.find(a=>a.id===actionId);

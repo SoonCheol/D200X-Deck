@@ -62,6 +62,7 @@
       const oldTimer=releaseTimers.get(keyIndex);
       if(oldTimer){clearTimeout(oldTimer);releaseTimers.delete(keyIndex);}
       if(event.pressed){
+        window.clearD200XVisualPreview?.(keyIndex);
         pressedKeys.set(keyIndex,pageStamp());
         schedule(0);window.refreshKeyPressIcons?.();
       }else{

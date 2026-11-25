@@ -154,6 +154,31 @@ app.whenReady().then(async()=>{
     assert.ok(Math.abs(removal.positions.labelPadding-7)<1,JSON.stringify(removal.positions));
     assert.ok(removal.positions.decimalTops.every(y=>Math.abs(y-removal.positions.decimalTops[0])<1),JSON.stringify(removal.positions));
     console.log('HA_SENSOR_REMOVE_OK '+JSON.stringify(removal));
+    const previews=await run(`(async()=>{
+      const bridge=window.deckBridge;let executions=0,reads=0;
+      window.deckBridge={sendHotkey:()=>{executions++;},nativeHaSensorPreview:async(_settings,index)=>{reads++;return {width:144,height:144,commands:[{type:'text',x:72,y:72,text:String(index),size:24,color:'#FFFFFF'}]};}};
+      const setup=(id)=>{clearVisualPreview(lastInspectorPreviewItem);inspectorSession=null;state.selected=0;activePressTab='single';const item=DeckCore.createAction(id);currentPage()[0]=item;beginInspectorSession();return item;};
+      const snapshot=item=>JSON.stringify(item);
+      let item=setup('hotkey-switch');item.settings.stateTitles={first:{enabled:true,title:'복사',style:{}},second:{enabled:true,title:'붙여넣기',style:{}}};
+      const initial=snapshot(item);
+      const visual=(preview=true)=>displayKeyPressItem(inspectorDisplayItem(item,0),0,preview,item);
+      const first=visual().title;activateVisualPreview(item,0);const second=visual().title,physical=visual(false).title;
+      activateVisualPreview(item,0);const restored=visual().title,unchanged=snapshot(item)===initial;
+      item=setup('multi-switch');item.stateVisuals=[{title:'A'},{title:'B'}];
+      const multiBefore=snapshot(item);activateVisualPreview(item,0);const multi=visual().title,multiPhysical=visual(false).title,multiUnchanged=snapshot(item)===multiBefore;
+      item=setup('timer');activateVisualPreview(item,0);const timer=visual().title,realTimer=visual(false).title;clearVisualPreview(item);
+      item=setup('hotkey');item.settings.stateTitles={first:{enabled:true,title:'up',style:{}},second:{enabled:true,title:'down',style:{}}};
+      visualPreviewPresses.add(item);const down=visual().title,realUp=visual(false).title;visualPreviewPresses.delete(item);
+      item=setup('sd-plugin');item.settings.pluginUUID='${manifest.id}';item.settings.actionUUID='${sensor.id}';item.settings.pluginSettings={mode:'press',entities:['sensor.a','sensor.b']};
+      activateVisualPreview(item,0);await Promise.resolve();await Promise.resolve();const sensorPreview=!!visual().sensorOverlay,sensorPhysical=!!visual(false).sensorOverlay;clearVisualPreview(item);
+      window.deckBridge=bridge;
+      return {first,second,physical,restored,unchanged,multi,multiPhysical,multiUnchanged,timer,realTimer,down,realUp,sensorPreview,sensorPhysical,executions,reads};
+    })()`);
+    assert.deepEqual([previews.first,previews.second,previews.physical,previews.restored],['복사','붙여넣기','복사','복사']);
+    assert.equal(previews.unchanged,true);assert.equal(previews.multi,'B');assert.equal(previews.multiPhysical,'A');assert.equal(previews.multiUnchanged,true);
+    assert.ok(previews.timer);assert.equal(previews.realTimer,'');assert.equal(previews.down,'down');assert.equal(previews.realUp,'up');
+    assert.equal(previews.sensorPreview,true);assert.equal(previews.sensorPhysical,false);assert.equal(previews.executions,0);assert.equal(previews.reads,1);
+    console.log('EDITOR_VISUAL_PREVIEW_OK '+JSON.stringify(previews));
     assert.deepEqual(errors,[]);
     console.log('EDITOR_STARTUP_OK '+JSON.stringify({initial,partial:filtered.partial,exact:filtered.exact,restored:filtered.restored}));
   }finally{if(win&&!win.isDestroyed())win.destroy();}

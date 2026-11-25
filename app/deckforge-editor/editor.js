@@ -365,6 +365,110 @@ function inspectorDisplayItem(item,index){
 const previewPressKeys=new Set();
 // Inspector-only HA preview; never sends a key event or changes a saved entity.
 const haPreviewStates=new WeakMap();
+// Editor-only visual state, keyed by the exact action (including press tab).
+// Never use these values for a physical key or a saved profile.
+const visualPreviewPresses=new WeakSet();
+function editorPreviewMode(item){
+  if(!item)return 'none';
+  if(DeckCore.isNativeHaSensor(item)){
+    const s=item.settings?.pluginSettings||{};
+    return s.mode!=='all'&&Array.isArray(s.entities)&&s.entities.length>1?'sensor':'press';
+  }
+  if(item.type==='hotkey-switch'||item.type==='multi-switch')return 'toggle';
+  if(item.type==='timer'||item.type==='multi')return item.type;
+  if(item.type==='sd-plugin'&&!isFusionAction(item)&&!DeckCore.isNativeForeground(item,typeof sdkPlugins==='undefined'?null:sdkPlugins)){
+    const action=typeof sdkPlugins==='undefined'?null:sdkPlugins.find(p=>p.uuid===item.settings?.pluginUUID)?.actions?.find(a=>a.uuid===item.settings?.actionUUID);
+    if(isNativeHaControl(item)||DeckCore.isLegacyHaControl(item)||action?.states===2)return 'toggle';
+  }
+  return 'press';
+}
+function previewActionAt(index){
+  return pressDisplayAction(DeckCore.visibleActions(state)[index]);
+}
+function previewActionVisible(item,index){
+  return index===state.selected&&(isCurrentInspectorAction(item)||previewActionAt(index)===item);
+}
+function redrawVisualPreview(item,index){
+  if(!previewActionVisible(item,index))return;
+  renderGrid([index]);void refreshSelectedVisual();
+}
+function clearVisualPreview(item){
+  if(!item)return;
+  const entry=haPreviewStates.get(item);
+  if(entry?.timer)clearTimeout(entry.timer);
+  haPreviewStates.delete(item);visualPreviewPresses.delete(item);
+}
+window.clearD200XVisualPreview=index=>{
+  const root=DeckCore.visibleActions(state)[index];
+  clearVisualPreview(root);clearVisualPreview(previewActionAt(index));
+  if(index===state.selected&&pressIsOrdinary(root))clearVisualPreview(pressSlotAction(root,activePressTab));
+  previewPressKeys.delete(index);
+};
+function sensorPreviewImage(spec){
+  if(!spec||spec.width!==144||spec.height!==144||!Array.isArray(spec.commands)||spec.commands.length>8)return null;
+  const canvas=document.createElement('canvas');canvas.width=144;canvas.height=144;
+  const ctx=canvas.getContext('2d');
+  for(const cmd of spec.commands){
+    if(cmd.type!=='text')return null;
+    ctx.fillStyle=cmd.color;ctx.font=(cmd.bold?'bold ':'')+cmd.size+'px sans-serif';
+    ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(cmd.text,cmd.x,cmd.y,144);
+  }
+  return canvas.toDataURL('image/png');
+}
+function activateVisualPreview(item,index){
+  if(!previewActionVisible(item,index))return;
+  const mode=editorPreviewMode(item),previous=haPreviewStates.get(item);
+  if(mode==='none'||mode==='press')return;
+  if(mode==='toggle'){
+    const live=item.type==='hotkey-switch'?(hotkeySwitchPositions.get(hotkeySwitchRuntimeKey(index,item))||0)===1:
+      item.type==='multi-switch'?item.settings?.activeState===1:sdkVisuals.get(sdkContext(index,'down'))?.state===1;
+    haPreviewStates.set(item,{second:!(previous?.second??live)});redrawVisualPreview(item,index);return;
+  }
+  if(mode==='sensor'){
+    const s=item.settings?.pluginSettings||{},ids=s.entities;
+    if(s.mode==='auto'&&previous){clearVisualPreview(item);redrawVisualPreview(item,index);return;}
+    clearVisualPreview(item);
+    const entry={index:((previous?.index??0)+1)%ids.length,image:null};
+    haPreviewStates.set(item,entry);
+    const update=async()=>{
+      try{
+        const spec=await window.deckBridge?.nativeHaSensorPreview?.(s,entry.index);
+        if(haPreviewStates.get(item)!==entry||!previewActionVisible(item,index))return;
+        entry.image=sensorPreviewImage(spec);redrawVisualPreview(item,index);
+      }catch{if(haPreviewStates.get(item)===entry){clearVisualPreview(item);redrawVisualPreview(item,index);}}
+      if(s.mode==='auto'&&haPreviewStates.get(item)===entry&&previewActionVisible(item,index)){
+        entry.timer=setTimeout(()=>{entry.index=(entry.index+1)%ids.length;void update();},Math.max(2000,Math.min(60000,(Number(s.seconds)||5)*1000)));
+      }
+    };
+    void update();return;
+  }
+  if(previous){clearVisualPreview(item);redrawVisualPreview(item,index);return;}
+  const entry={second:true,deadline:Date.now()+DeckCore.timerSeconds(item.settings?.seconds)*1000,step:1,total:mode==='multi'?DeckCore.multiRows(item).rows.length:0};
+  if(mode==='multi'&&!entry.total)return;
+  haPreviewStates.set(item,entry);
+  const tick=()=>{
+    if(haPreviewStates.get(item)!==entry||!previewActionVisible(item,index)){clearVisualPreview(item);return;}
+    if(mode==='timer'?Date.now()>=entry.deadline:entry.step>=entry.total){clearVisualPreview(item);redrawVisualPreview(item,index);return;}
+    if(mode==='multi')entry.step++;
+    redrawVisualPreview(item,index);
+    entry.timer=setTimeout(tick,mode==='timer'?250:500);
+  };
+  redrawVisualPreview(item,index);entry.timer=setTimeout(tick,mode==='timer'?250:500);
+}
+function bindVisualPreviewPress(node,getItem,index,signal){
+  node.addEventListener('pointerdown',event=>{
+    if(event.button!==0||editorPreviewMode(getItem())!=='press')return;
+    const item=getItem();if(!item)return;
+    visualPreviewPresses.add(item);
+    const refresh=()=>{renderGrid([index]);if(state.selected===index)void refreshSelectedVisual();};
+    const release=()=>{if(visualPreviewPresses.delete(item))refresh();};
+    refresh();
+    window.addEventListener('pointerup',release,{once:true,signal});
+    window.addEventListener('pointercancel',release,{once:true,signal});
+    node.addEventListener('pointerleave',release,{once:true,signal});
+    signal?.addEventListener('abort',release,{once:true});
+  },{signal});
+}
 function isMomentaryIconAction(item){
   if(!item)return false;
   if(item.type==='sd-plugin')return isFusionAction(item);
@@ -528,27 +632,29 @@ function indicatorPressVisual(item,pressed){
     indicatorNumberStyle:pressed?downNumberStyle:item.indicatorNumberStyle,
     icon:pressed?down:up,keyBackground:pressed?second:first,keyPressAlternate:distinct};
 }
-function displayKeyPressItem(item,index){
-  const inspectorPreview=arguments[2]===true;
-  if(item?.type==='indicator'&&Number.isInteger(index)&&index>=0&&index<13)return indicatorPressVisual(item,previewPressKeys.has(index)||window.D200XPhysicalKeyPressed?.(index)===true);
+function displayKeyPressItem(item,index,editorPreview=false,rawItem=null){
+  const raw=rawItem||DeckCore.visibleActions(state)[index]||item;
+  const preview=editorPreview&&raw?haPreviewStates.get(raw):null;
+  const pressed=(editorPreview&&raw&&visualPreviewPresses.has(raw))||window.D200XPhysicalKeyPressed?.(index)===true;
+  if(item?.type==='indicator'&&Number.isInteger(index)&&index>=0&&index<13)return {...indicatorPressVisual(item,pressed),previewPressed:editorPreview&&pressed};
   if(item?.type==='timer'&&Number.isInteger(index)&&index>=0&&index<13){
     const runtime=activeActionTimers.get(DeckCore.runtimeActionKey(state,index,'down'));
-    return resolveTimerVisual(item,!!runtime,runtime?Math.max(0,Math.ceil((runtime.deadline-Date.now())/1000)):DeckCore.timerSeconds(item.settings?.seconds),stateDisplayArtwork(item,index,false),runtime?.seconds??item.settings?.seconds);
+    const active=preview||runtime;
+    return resolveTimerVisual(item,!!active,active?Math.max(0,Math.ceil((active.deadline-Date.now())/1000)):DeckCore.timerSeconds(item.settings?.seconds),stateDisplayArtwork(item,index,false),runtime?.seconds??item.settings?.seconds);
   }
   if(item?.type==='hotkey-switch'&&Number.isInteger(index)&&index>=0&&index<13){
-    const second=(hotkeySwitchPositions.get(hotkeySwitchRuntimeKey(index,item))||0)===1;
+    const second=preview?.second??((hotkeySwitchPositions.get(hotkeySwitchRuntimeKey(index,raw))||0)===1);
     return resolveStateTitle(item,second,stateDisplayArtwork(item,index,false));
   }
+  if(item?.type==='multi-switch'&&preview)return DeckCore.displaySwitchAction({...raw,settings:{...raw.settings,activeState:preview.second?1:0}});
   if(!isMomentaryIconAction(item)||!Number.isInteger(index)||index<0||index>=13){
     if(item?.type==='sd-plugin'){
-      if(DeckCore.isNativeForeground(item,typeof sdkPlugins==='undefined'?null:sdkPlugins))return item;
-      const raw=DeckCore.visibleActions(state)[index];
-      const selected=inspectorPreview&&raw&&haPreviewStates.get(raw);
+      if(DeckCore.isNativeForeground(item,typeof sdkPlugins==='undefined'?null:sdkPlugins))return {...item,...(preview?.image?{sensorOverlay:preview.image}:{}),previewPressed:editorPreview&&pressed};
       const runtime=index>=0?sdkVisuals.get(sdkContext(index,'down')):null;
-      const second=selected?selected==='on':runtime?.state===1;
-      return resolveStateTitle(item,second,stateDisplayArtwork(item,index,false));
+      const second=preview?.second??(runtime?.state===1);
+      return {...resolveStateTitle(item,second,stateDisplayArtwork(item,index,false)),previewPressed:editorPreview&&pressed};
     }
-    return item;
+    return item&&editorPreview&&pressed?{...item,previewPressed:true}:item;
   }
   const artwork=stateDisplayArtwork(item,index,true);
   const up=resolveStateTitle(item,false,artwork),down=resolveStateTitle(item,true,artwork);
@@ -556,15 +662,14 @@ function displayKeyPressItem(item,index){
   const signature=visual=>JSON.stringify([visual.icon?.kind,visual.icon?.value,visual.icon?.glyph,bg(visual.keyBackground),visual.title,visual.titleStyle]);
   const same=signature(up)===signature(down);
   if(item.type==='multi'){
-    const progress=runningMultiProgress.get(DeckCore.runtimeActionKey(state,index,'down'));
+    const progress=preview||runningMultiProgress.get(DeckCore.runtimeActionKey(state,index,'down'));
     return resolveMultiVisual(item,!!progress,artwork,progress);
   }
-  const pressed=previewPressKeys.has(index)||window.D200XPhysicalKeyPressed?.(index)===true;
-  return {...(pressed?down:up),keyPressAlternate:!same};
+  return {...(pressed?down:up),keyPressAlternate:!same,previewPressed:editorPreview&&pressed};
 }
 window.D200XIconMode={eligible:isMomentaryIconAction};
 // Share actual key visuals (including timer countdown) with the USB renderer.
-window.getD200XDisplayItem=(item,index)=>index===13&&wideDisplayAvailable()?wideVisual():displayKeyPressItem(displayItem(DeckCore.visibleActions(state)[index]||item,index),index);
+window.getD200XDisplayItem=(item,index)=>index===13&&wideDisplayAvailable()?wideVisual():displayKeyPressItem(displayItem(DeckCore.visibleActions(state)[index]||item,index),index,false,previewActionAt(index));
 function iconNode(item,defaultGlyph){
   if(item?.icon?.kind==="file"&&typeof item.icon.value==="string"){
     const image=document.createElement("img");image.className="icon-image";image.src=item.icon.value;image.alt="";return image;
@@ -1052,8 +1157,12 @@ function createDeckGridButton(i){
       }else if(i===13&&wideDisplayAvailable()){
         if(inspectorSession?.dirty){showInspectorLeaveDialog(()=>{state.selected=i;advanceWideDisplay();});return;}
         state.selected=i;advanceWideDisplay();
-      }else choose(i);
+      }else{
+        choose(i);
+        if(state.selected===i)activateVisualPreview(previewActionAt(i),i);
+      }
     });
+    if(i<13)bindVisualPreviewPress(b,()=>previewActionAt(i),i);
     b.addEventListener("contextmenu",ev=>{
       ev.preventDefault();
       const open=()=>{choose(i);showMenu(i,ev.clientX,ev.clientY);};
@@ -1114,7 +1223,7 @@ function renderGrid(onlySlots=null){
       return {title:keyName(item)||item.type,lines:[description||(id?'수집된 명령 설명 없음':shortActionDescription(item)),...(unavailable?[unavailable]:[]),...(pin?[currentPage()[i]?'페이지별 액션 우선 적용 · 고정 액션: '+keyName(pin):'모든 페이지의 고정 액션']:[])]};
     });
     else{delete b.dataset.deckforgeTooltip;deckForgeTooltipData.delete(b);}
-    const visual=displayKeyPressItem(displayItem(item,i),i);
+    const visual=displayKeyPressItem(displayItem(item,i),i,true,pressDisplayAction(item));
     paintDeckKey(b,item,visual,i,scope,owner);
   });
   if(partial)return;
@@ -2852,7 +2961,7 @@ async function refreshSelectedVisual(){
   const request=++previewRequest;
   try{
     const visible=inspectorDisplayItem(item,state.selected);
-    const data=await window.renderDeckKeyImage(displayKeyPressItem(visible,state.selected,true),state.selected,previewPressKeys.has(state.selected));
+    const data=await window.renderDeckKeyImage(displayKeyPressItem(visible,state.selected,true,item),state.selected,previewPressKeys.has(state.selected));
     if(request!==previewRequest||!isCurrentInspectorAction(item))return;
     const host=$("icon-preview-content");
     if(!host)return;
@@ -2874,7 +2983,7 @@ function refreshTitlePreview(item){
   const host=$("icon-preview");if(!host)return;
   let label=host.querySelector(".preview-title");
   if(!label){label=document.createElement("span");label.className="preview-title";host.append(label);}
-  const current=displayKeyPressItem(inspectorDisplayItem(item,state.selected),state.selected,true);
+  const current=displayKeyPressItem(inspectorDisplayItem(item,state.selected),state.selected,true,item);
   label.textContent=String(current?.title||"").replace(/<br\s*\/?>/gi,"\n");
   const style={...DEFAULT_TITLE_STYLE,...current?.titleStyle};
   label.hidden=style.visible===false;
@@ -4907,7 +5016,7 @@ function renderInspector(){
   const item=pressIsOrdinary(rootItem)&&state.selected<13?
     pressSlotAction(rootItem,activePressTab):rootItem;
   if(item!==lastInspectorPreviewItem){
-    if(lastInspectorPreviewItem)haPreviewStates.delete(lastInspectorPreviewItem);
+    if(lastInspectorPreviewItem)clearVisualPreview(lastInspectorPreviewItem);
     lastInspectorPreviewItem=item;
   }
   if(state.selected!==null&&state.selected>=14){
@@ -6040,6 +6149,7 @@ function runActionPreview(gesture='down'){
   const index=state.selected;
   if(!Number.isInteger(index)||index<0||index>18)return;
   const root=index<13?DeckCore.visibleActions(state)[index]:null;
+  window.clearD200XVisualPreview(index);
   if(pressIsOrdinary(root)&&(root.pressMeta||activePressTab!=='single')){
     const target=pressSlotAction(root,activePressTab);
     if(!target||!pressEnabled(root,activePressTab)){
@@ -7132,30 +7242,19 @@ function openIconMaker(target,key=null,trigger=null){
 function closeIconMaker(){makerTarget=null;makerStateKey=null;makerSession=null;closeAnchoredIconDialog($("icon-maker"));}
 function bindIconControls(item){
   const host=$("icon-preview-content");host.replaceChildren(iconNode(item,ACTIONS.get(item.type)?.icon||"+"));
-  if((isMomentaryIconAction(item)||item.type==='indicator')&&state.selected<13){
-    const slot=state.selected;
-    const release=()=>{if(previewPressKeys.delete(slot))void refreshSelectedVisual();};
-    host.addEventListener('pointerdown',event=>{
-      if(event.button!==0)return;
-      event.preventDefault();previewPressKeys.add(slot);void refreshSelectedVisual();
-      window.addEventListener('pointerup',release,{once:true,signal:inspectorListener.signal});
-      window.addEventListener('pointercancel',release,{once:true,signal:inspectorListener.signal});
-    });
-    host.addEventListener('pointerleave',release);
+  if(state.selected<13){
+    const slot=state.selected,preview=$("icon-preview");
+    bindVisualPreviewPress(host,()=>item,slot,inspectorListener.signal);
+    preview.style.cursor='pointer';preview.title='시각 미리보기 · 실제 동작 실행 없음';
+    preview.addEventListener('click',event=>{
+      if(event.target.closest('button')||!isCurrentInspectorAction(item))return;
+      activateVisualPreview(item,slot);
+    },{signal:inspectorListener.signal});
   }
   const hasStateCards=hasStateTitlePair(item)||item.type==='indicator';
   if(hasStateCards||DeckCore.isNativeForeground(item,typeof sdkPlugins==='undefined'?null:sdkPlugins)){
     $("icon-library-open").remove();$("icon-menu-trigger").remove();$("icon-dropdown").remove();
-    if(item.type==='sd-plugin'&&!isMomentaryIconAction(item)&&!DeckCore.isNativeForeground(item,typeof sdkPlugins==='undefined'?null:sdkPlugins)){
-      $("icon-preview").title='클릭하면 OFF/ON 이미지를 미리 봅니다 (실제 장치 동작 없음)';
-      $("icon-preview").style.cursor='pointer';
-      $("icon-preview").addEventListener('click',()=>{
-        const current=haPreviewStates.get(item);
-        const runtime=sdkVisuals.get(sdkContext(state.selected,'down'));
-        haPreviewStates.set(item,current===undefined?(runtime?.state===1?'off':'on'):(current==='on'?'off':'on'));
-        void refreshSelectedVisual();
-      });
-    }
+    // Preview transitions are handled above for all action families.
     return;
   }
   bindKeyBackgroundControl($("icon-preview"),item,"default");

@@ -41,6 +41,7 @@ contextBridge.exposeInMainWorld('deckBridge', Object.freeze({
   nativeServiceStatus:id=>ipcRenderer.invoke('d200x:native-service-status',id),
   nativeServiceControl:(id,mode)=>ipcRenderer.invoke('d200x:native-service-control',id,mode),
   nativeDynamicOptions:(id,action)=>ipcRenderer.invoke('d200x:native-dynamic-options',id,action),
+  nativeHaSensorPreview:(settings,index)=>ipcRenderer.invoke('d200x:native-ha-sensor-preview',settings,index),
   nativeHaInstall:(url,mode)=>ipcRenderer.invoke('d200x:native-ha-install',url,mode),
   nativeGitHubInstall:()=>ipcRenderer.invoke('d200x:native-github-install'),
   nativeCredentialInfo:id=>ipcRenderer.invoke('d200x:native-credential-info',id),

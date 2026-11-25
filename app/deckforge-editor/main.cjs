@@ -176,6 +176,7 @@ ipcMain.handle('d200x:native-service-control',async(event,id,mode)=>{
   assertEditor(event);return sdk().manageService(id,mode);
 });
 ipcMain.handle('d200x:native-dynamic-options',async(event,id,action)=>{assertEditor(event);return sdk().dynamicOptions(id,action);});
+ipcMain.handle('d200x:native-ha-sensor-preview',async(event,settings,index)=>{assertEditor(event);return sdk().nativeHaSensorPreview(settings,index);});
 ipcMain.handle('d200x:native-ha-install',async(event,url,mode='install')=>{
   assertEditor(event);
   if(!['install','export'].includes(mode))throw Error('잘못된 HA 플러그인 작업');
