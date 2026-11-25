@@ -2,7 +2,7 @@
 > 2026-11-26 · 현재 스냅샷, 누적 금지.
 ## 개발 기준
 - 저장소 SoonCheol/D200X-Deck · 브랜치 codex/streamdeck-761-clean-editor · Draft PR #5 유지.
-- 로컬 E:\Codex\DeckForge. 최신 HEAD는 Git에서 확인. 소스 버전 **2.0.51**.
+- 로컬 E:\Codex\DeckForge. 최신 HEAD는 Git에서 확인. 소스 버전 **2.0.52**.
 - 감사 기준 `49ba39fe094ee808c5715f2348be0789f61d5e20`. CI #1221 성공; Windows #930 사용자 인수인계.
 ## 현재 상태
 - 독자 SDK API 1/2, 공개 25개 함수, HTTP/WSS, 전역 서비스/공유 상태, 동적 속성, 암호화·권한·패키지, HA 0.1.9 후보 및 기존 호환 호스트 구현. SDK 1.0 정식 완성 선언 보류.
@@ -16,7 +16,7 @@
 - 사용자 실기 보고: 테스트 플러그인 v1.0.0 제거 성공 2026-11-24 16:38:12 UTC, 보존 데이터 삭제 성공(2/2) 16:38:16 UTC; AI 로그 조회 확인. 원본 로그 직접 열람은 아님.
 - 1.1.231: identity 19행 대조·집중 검사, CI #1281/입력 #521/Windows #985 성공, 게시. 1.1.232: 저장 13행 대응·종료 commit 차단. CI #1282/입력 #522 성공, Windows #986 clean fixture 실패(kind 누락), 종료/페이지·삭제/retire 검사 통과. 1.1.233: fixture 수정 CI #1283/Windows #987 성공, 게시. 1.1.234: 실제 Electron NativePluginHost+임시 ProfileStore, 요청 전/저장 후 ACK 전 renderer crash, 재조회·재실행 금지 검증 추가. CI #1284·Windows #988 성공, 1.1.234 설치본 게시.
 ## 다음 작업
-- 2.0.51: HA 기준 스위치 독립 전환, 연동 대상 1개·ON/OFF/반대로 작동 한 줄, HA 속성창 중앙 통일. 기존 연동 데이터 보존·새 대상 재선택 안내, HA 0.1.11. 명령 모의 검사 및 Windows/실기 구분.
+- 2.0.52: HA 기준 스위치 독립 전환, 연동 대상 1개·ON/OFF/반대로 작동 한 줄, HA 속성창 중앙 통일. 기존 연동 데이터 보존·새 대상 재선택 안내, HA 0.1.12. 2.0.51 단순 모의 검사에서 누락된 SDK 1효과 제한 보완: 기준 HA 성공 응답 후 연동 1회. 센서 옵션 3행·선택 해제 제거. Windows/실기 별도.
 - 긴급 2.0.50: 2.0.49 최초/재실행 편집기 공백·실기 입력 무반응·AI 조회 불가 사용자 보고. 실제 초기 코드 재현: `액션 목록 누락: ha-other`. SDK 전용 아이콘을 실행 카탈로그에서 분리, 초기화 수정, Windows #54 성공/게시, 실제 Electron 14키·35액션·검색·입력/AI 함수 통과. 사용자 편집기 화면 복구 확인. 사용자 데이터 변경 금지.
 - 2026-11-26 사용자 승인: Model 2만 SDK 1.0 정식 출시 경로로 확정, Model 5 연구 보류/제품 OFF. Gemini report001/002 전문 검토. P0 2.0.43 후보: private ops JSON snapshot·null prototype envelope 방어 및 Object/Array prototype toJSON 거부, ctx.memory validateValue(8KiB/깊이/금지 키), 실제 Electron 집중 회귀 추가. CI #1428·SDK #120·Windows #47 성공, 실제 serialization 3종/메모리 5종 거부 통과. P1 HA 내장·최종 Windows 회귀, P2 실제 장치/HA/OS/GUI. 개발 항목 9/10(90%, 동일 가중·실기 별도), 정확한 공수 아님. Model 5 시험 이력·코드 Git 보존.
 - 실기 2.0.42: 절전/대기 복귀 후 HA 전등 상태·제어 및 GitHub 조회 정지, 일반 입력/CPU/RAM 정상(사용자 보고). 완전 종료·재실행 후 표시 정상. OS 이벤트/실행 로그 미확보, 원인 미확정. 2.0.44 후보: resume 단독 수신에도 이전 runner/socket/queue 취소 후 초기화, stale 입력 재실행 금지 유지, sdk-power-suspend/resume 진단 기록 및 WSS 재연결 집중 회귀 추가. CI #1430·입력 #552·Windows #48 게시·SDK #122 성공(1417 press/107 전환, 5분 및 보안 검사 통과). 실기 대기. SDK #124 실제 Electron resume 단독/이전 입력 13개 폐기·새 입력 13개 복구·서비스 재시작 통과(실제 OS 제외). 기존 Model 5 시험 이력 Git 보존.

@@ -2250,10 +2250,15 @@ test('HA native manifest, compressed entity state, device grouping, control and 
  assert.equal(unconfigured.actions[0].settingsSchema.find(f=>f.key==='linked').default,false);
  assert.throws(()=>createHomeAssistantManifest('http://example.com'),/HTTPS/);
  assert.throws(()=>createHomeAssistantManifest('https://user:password@example.com'),/HTTPS/);
- let shared={},memory={},sent=[],drawn=[],commands=[];
- const api={getSharedState:()=>structuredClone(shared),publishSharedState:s=>{shared=structuredClone(s);},connectSocket:id=>sent.push(id),sendSocket:v=>sent.push(v),
+ let shared={},memory={},sent=[],drawn=[],commands=[],ops=[];
+ const api={getSharedState:()=>structuredClone(shared),publishSharedState:s=>{shared=structuredClone(s);ops.push({op:'publishSharedState',value:s});},connectSocket:id=>{sent.push(id);ops.push({op:'socketConnect',endpoint:id});},sendSocket:v=>{sent.push(v);ops.push({op:'socketSend',value:v});},
    setTitle(){},setState(){},drawKey:v=>drawn.push(v),sendServiceMessage:v=>commands.push(v)};
- const run=(type,response)=>service({type,response},{},0,memory,api);
+ const host=new NativePluginHost('/unused');
+ const ctx={service:true,permissions:manifest.permissions,networkEndpoints:manifest.networkEndpoints,sharedStateBytes:262144};
+ const run=(type,response)=>{ops=[];service({type,response},{},0,memory,api);
+   if(type==='serviceMessage'||type==='socketEvent'&&ops.some(o=>o.op==='socketSend'))host.validateScriptOps(ctx,type,ops);
+   assert.ok(ops.filter(o=>o.op==='socketSend').length<=1);
+ };
  const msg=m=>run('socketEvent',{event:'message',body:JSON.stringify(m)});
  run('start');run('socketEvent',{event:'open'});
  const device='a'.repeat(32);
@@ -2280,9 +2285,11 @@ test('HA native manifest, compressed entity state, device grouping, control and 
  msg({type:'event',id:3,event:{a:{'light.kitchen':{s:'off',a:{friendly_name:'주방등'}}}}});
  const linked={entity:'switch.fan',linked:true,linkEntity:'light.kitchen',linkOn:true,linkOff:true,linkReverse:false};
  controlKey({type:'press'},linked,0,{},api);run('serviceMessage',{message:commands.pop()});
+ assert.equal(sent.at(-1).target.entity_id,'switch.fan');msg({type:'result',id:sent.at(-1).id,success:true});
  assert.deepEqual(sent.slice(-2).map(x=>[x.target.entity_id,x.service]),[['switch.fan','turn_on'],['light.kitchen','turn_on']]);
  msg({type:'event',id:3,event:{c:{'switch.fan':{'+':{s:'on'}}}}});
  run('serviceMessage',{message:linked});
+ msg({type:'result',id:sent.at(-1).id,success:true});
  assert.deepEqual(sent.slice(-2).map(x=>[x.target.entity_id,x.service]),[['switch.fan','turn_off'],['light.kitchen','turn_off']]);
  for(const primary of ['off','on']){
    msg({type:'event',id:3,event:{c:{'switch.fan':{'+':{s:primary}}}}});
@@ -2290,11 +2297,17 @@ test('HA native manifest, compressed entity state, device grouping, control and 
      const start=sent.length,nextOn=primary==='off';
      controlKey({type:'press'},{...linked,linkOn,linkOff,linkReverse},0,{},api);
      run('serviceMessage',{message:commands.pop()});
+     assert.equal(sent.length,start+1);
+     const requestId=sent.at(-1).id;msg({type:'result',id:requestId,success:true});
+     const after=sent.length;msg({type:'result',id:requestId,success:true});assert.equal(sent.length,after);
      const expected=[['switch.fan',nextOn?'turn_on':'turn_off']];
      if(nextOn?linkOn:linkOff)expected.push(['light.kitchen',nextOn!==linkReverse?'turn_on':'turn_off']);
      assert.deepEqual(sent.slice(start).map(x=>[x.target.entity_id,x.service]),expected);
    }
  }
+ const rejected=sent.length;run('serviceMessage',{message:linked});msg({type:'result',id:sent.at(-1).id,success:false});assert.equal(sent.length,rejected+1);
+ const stale=sent.length;run('serviceMessage',{message:linked});const oldId=sent.at(-1).id;
+ run('serviceMessage',{message:{entity:'switch.fan'}});msg({type:'result',id:oldId,success:true});assert.equal(sent.length,stale+2);
  msg({type:'event',id:3,event:{a:{'automation.test':{s:'on',a:{friendly_name:'자동화'}},'button.test':{s:'2026-01-01',a:{friendly_name:'버튼'}}}}});
  assert.deepEqual(shared.controls.map(x=>x.value).sort(),['light.kitchen','switch.fan']);
  assert.deepEqual(shared.others.map(x=>x.value).sort(),['automation.test','button.test']);

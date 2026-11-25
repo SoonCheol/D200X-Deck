@@ -45,6 +45,26 @@ app.whenReady().then(async()=>{
     assert.deepEqual(filtered.names,[...filtered.names].sort((a,b)=>a.localeCompare(b,'ko')));
     assert.deepEqual(filtered.exact,['파일 열기']);
     assert.equal(filtered.restored,35);
+    const {createHomeAssistantManifest}=require('../app/deckforge-editor/deckforge-ha-plugin.cjs');
+    const manifest=createHomeAssistantManifest(null);
+    for(const action of manifest.actions){
+      const a={...action,uuid:action.id};
+      const plugin={uuid:manifest.id,permissions:manifest.permissions};
+      const settings={linked:true};
+      const layout=await run(`(()=>{
+        state.selected=0;currentPage()[0]={type:'sd-plugin',settings:{pluginSettings:${JSON.stringify(settings)}}};
+        beginInspectorSession();void openNativeSettings(currentPage()[0],${JSON.stringify(a)},${JSON.stringify(plugin)});
+        const dialog=document.querySelector('dialog[open]'),rect=dialog.getBoundingClientRect();
+        const result={centered:Math.abs(rect.left+rect.width/2-innerWidth/2)<2&&Math.abs(rect.top+rect.height/2-innerHeight/2)<2,
+          clear:[...dialog.querySelectorAll('button')].some(b=>b.textContent==='선택 해제'),
+          linkFlags:dialog.querySelectorAll('.ha-link-flags input').length,
+          groups:[...dialog.querySelectorAll('.ha-sensor-compact')].map(x=>x.children.length)};
+        dialog.close('cancel');return result;
+      })()`);
+      assert.equal(layout.centered,true,JSON.stringify(layout));assert.equal(layout.clear,false);
+      if(action.id.endsWith('.control'))assert.equal(layout.linkFlags,3);
+      if(action.id.endsWith('.sensor'))assert.deepEqual(layout.groups,[2,2,3]);
+    }
     assert.deepEqual(errors,[]);
     console.log('EDITOR_STARTUP_OK '+JSON.stringify({initial,partial:filtered.partial,exact:filtered.exact,restored:filtered.restored}));
   }finally{if(win&&!win.isDestroyed())win.destroy();}

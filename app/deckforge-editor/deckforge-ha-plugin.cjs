@@ -20,7 +20,13 @@ function service(event,settings,state,memory,api){
   const stale=status=>({...empty(status),controls:old.controls||[],sensors:old.sensors||[],others:old.others||[]});
   const object=v=>v!==null&&typeof v==='object'&&!Array.isArray(v);
   const send=(id,type)=>api.sendSocket({id,type});
-  if(event.type==='start'){memory.next=10;memory.phase='connecting';delete memory.generation;publish(stale('연결 중'));api.connectSocket('ha');return;}
+  const available=id=>valid(id)&&switchDevice(id)&&['on','off'].includes(old.entities?.[id]?.value);
+  const command=(entity,op)=>{
+    memory.next=(memory.next||10)+1;
+    api.sendSocket({id:memory.next,type:'call_service',domain:entity.split('.')[0],service:op,target:{entity_id:entity}});
+    return memory.next;
+  };
+  if(event.type==='start'){memory.pending=[];memory.next=10;memory.phase='connecting';delete memory.generation;publish(stale('연결 중'));api.connectSocket('ha');return;}
   if(event.type==='serviceMessage'){
     const id=event.response?.message?.entity;
     if(memory.phase!=='live'||old.status!=='연결됨'||!valid(id)||!control(id)||!Object.hasOwn(old.entities||{},id))return;
@@ -28,19 +34,19 @@ function service(event,settings,state,memory,api){
     if(['unknown','unavailable',''].includes(entry.value))return;
     let target=id,domain=id.split('.')[0],operation=domain==='automation'?'trigger':domain==='button'||domain==='input_button'?'press':domain==='script'||domain==='scene'?'turn_on':'toggle';
     if(message.other===true&&!otherDevice(id))return;
-    const command=(entity,op)=>{
-      memory.next=(memory.next||10)+1;
-      api.sendSocket({id:memory.next,type:'call_service',domain:entity.split('.')[0],service:op,target:{entity_id:entity}});
-    };
+    // A newer press supersedes an unacknowledged link for this primary device.
+    memory.pending=(memory.pending||[]).filter(p=>p.base!==id);
     if(message.linked===true&&switchDevice(id)){
       if(!['on','off'].includes(entry.value))return;
       const nextOn=entry.value==='off';
       // Always operate the primary switch first, even with an absent/invalid linked target.
-      command(id,nextOn?'turn_on':'turn_off');
+      const requestId=command(id,nextOn?'turn_on':'turn_off');
       if(nextOn?message.linkOn===false:message.linkOff===false)return;
       const linked=message.linkEntity;
-      if(!valid(linked)||linked===id||!switchDevice(linked)||!Object.hasOwn(old.entities||{},linked)||!['on','off'].includes(old.entities[linked].value))return;
-      command(linked,nextOn!==(message.linkReverse===true)?'turn_on':'turn_off');return;
+      if(linked===id||!available(linked))return;
+      // One privileged operation per event: only a successful HA result can continue.
+      memory.pending.push({id:requestId,base:id,target:linked,operation:nextOn!==(message.linkReverse===true)?'turn_on':'turn_off'});
+      memory.pending=memory.pending.slice(-10);return;
     }
     if(message.linked===true&&!switchDevice(id))return;
     command(target,operation);return;
@@ -51,14 +57,15 @@ function service(event,settings,state,memory,api){
   if(gen!==null&&Number.isSafeInteger(memory.generation)&&gen<memory.generation)return;
   if(response.event==='open'){
     if(gen!==null&&memory.generation===gen&&['devices','registry','snapshot','live'].includes(memory.phase))return;
-    memory.generation=gen;memory.next=10;memory.phase='devices';
+    memory.pending=[];memory.generation=gen;memory.next=10;memory.phase='devices';
     publish(stale('기기 조회 중'));send(1,'config/device_registry/list');return;
   }
   if(response.event!=='message'){
-    memory.generation=gen;memory.phase='connecting';
+    memory.pending=[];memory.generation=gen;memory.phase='connecting';
     publish(stale(response.event==='reconnecting'?'재연결 중':'연결 끊김'));return;
   }
-  if(response.gap===true||gen!==null&&gen!==memory.generation)return;
+  if(gen!==null&&gen!==memory.generation)return;
+  if(response.gap===true){memory.pending=[];return;}
   let m;try{m=JSON.parse(response.body);}catch{return;}
   if(!m||typeof m!=='object')return;
   if(m.type==='result'&&m.id===1&&memory.phase==='devices'){
@@ -79,8 +86,13 @@ function service(event,settings,state,memory,api){
     memory.phase='failed';publish(stale('상태 구독 실패'));return;
   }
   if(m.type==='result'&&m.id>10&&m.id<=memory.next&&memory.phase==='live'){
+    const pending=(memory.pending||[]).find(p=>p.id===m.id);
+    memory.pending=(memory.pending||[]).filter(p=>p.id!==m.id);
     if(m.success===false)publish({...old,commandError:'HA 제어 실패'});
-    else if(m.success===true&&old.commandError)publish({...old,commandError:''});
+    else if(m.success===true){
+      if(old.commandError)publish({...old,commandError:''});
+      if(pending&&old.status==='연결됨'&&available(pending.target))command(pending.target,pending.operation);
+    }
     return; // Receipt is not physical state confirmation.
   }
   if(m.type!=='event'||m.id!==3||!object(m.event)||old.status==='목록 용량 초과'||
@@ -194,7 +206,7 @@ function createHomeAssistantManifest(server){
   const script=f=>'return ('+f.toString()+')(event,settings,state,memory,api);';
   const select=(key,label,value,options)=>({key,label,type:'select',default:value,options:options.map(([value,label])=>({value,label}))});
   const device=(key,label)=>({key,label,type:'dynamicSelect',source:'controls',default:''});
-  return {apiVersion:2,id:ID,name:'DeckForge Home Assistant',version:'0.1.11',requiresDeckForge:'>=2.0.51',
+  return {apiVersion:2,id:ID,name:'DeckForge Home Assistant',version:'0.1.12',requiresDeckForge:'>=2.0.52',
     permissions:['display','background.run','timer.tick',...(u?['network.websocket']:[])],
     ...(u?{networkEndpoints:[{id:'ha',url:u.href,method:'WSS',auth:'home-assistant',reconnect:true,maxReceiveBytes:1048576}]}:{}),
     service:{script:u?script(service):"if(event.type==='start')api.publishSharedState({status:'초기 연결 필요',controls:[],sensors:[],others:[],entities:{}});",sharedStateBytes:262144},

@@ -4167,7 +4167,7 @@ async function openNativeSettings(item,action,plugin){
   if(!inspectorPickerCurrent(session,item))return;
   const original=clone(item.settings?.pluginSettings||{});
   const ha=plugin.uuid==='com.deckforge.native.home-assistant',haControl=ha&&action.uuid.endsWith('.control');
-  const content=document.createElement('div');content.className='native-sdk-form';
+  const content=document.createElement('div');content.className='native-sdk-form'+(ha?' ha-native-settings':'');
   let linkFlagsRow=null,linkFlags=null;
   const connection=document.createElement('span');connection.className='native-sdk-connection';connection.setAttribute('role','status');
   const dot=document.createElement('span');dot.className='native-sdk-status-dot';dot.setAttribute('aria-hidden','true');
@@ -4247,7 +4247,7 @@ async function openNativeSettings(item,action,plugin){
       };
       search.addEventListener('input',()=>{list.scrollTop=0;render();});
       const clear=document.createElement('button');clear.type='button';clear.className='deckforge-message-button';clear.textContent='선택 해제';clear.addEventListener('click',()=>{selected=[];render();});
-      pane.append(search,summary,list);if(multi)pane.append(order);pane.append(clear);row.append(label,pane);appendRow(row,field);
+      pane.append(search,summary,list);if(multi)pane.append(order);if(!ha)pane.append(clear);row.append(label,pane);appendRow(row,field);
       dynamicFields.push({field,apply:rows=>{const next=Array.isArray(rows)?rows:[];if(JSON.stringify(options)===JSON.stringify(next))return;options=next;render();}});
       inputs.push({field,read:()=>multi?[...selected]:selected[0]||'',selectedLabel:()=>options.find(o=>o.value===selected[0])?.label||''});render();continue;
     }
@@ -4281,6 +4281,23 @@ async function openNativeSettings(item,action,plugin){
     }else row.append(label,input);
     appendRow(row,field);inputs.push({field,input});
     if(['boolean','select'].includes(field.type))input.addEventListener('change',updateVisibility);
+  }
+  if(ha&&action.uuid.endsWith('.sensor')){
+    for(const keys of [['mode','seconds'],['labels','unit'],['decimals','fontSize','color']]){
+      const rows=keys.map(key=>fieldRows.get(key));
+      if(rows.some(row=>!row))continue;
+      const compact=document.createElement('div');compact.className='ha-sensor-compact ha-sensor-'+keys[0];
+      rows[0].before(compact);
+      for(const row of rows)compact.append(row);
+    }
+    const short={seconds:'간격(초)',labels:'항목 이름 표시',unit:'측정 단위 표시',decimals:'소수점',fontSize:'크기',color:'색상'};
+    for(const [key,name] of Object.entries(short)){
+      const label=fieldRows.get(key)?.querySelector(':scope > span');if(label)label.textContent=name;
+    }
+    for(const key of ['labels','unit']){
+      const row=fieldRows.get(key),input=inputs.find(x=>x.field.key===key)?.input;
+      if(row&&input){const label=document.createElement('label');label.append(input,document.createTextNode(short[key]));row.replaceChildren(label);}
+    }
   }
   updateVisibility();
   let refreshing=false,closed=false;
@@ -4332,7 +4349,7 @@ async function openNativeSettings(item,action,plugin){
   const instructions=ha?(action.uuid.endsWith('.sensor')
     ?'선택한 HA 센서의 측정값을 표시합니다. 여러 센서를 동시에 표시하거나 버튼 누르기·자동 전환으로 표시할 수 있습니다. 표시 순서는 위에서 아래로 변경합니다.'
     :action.uuid.endsWith('.other')?'자동화·스크립트·장면·버튼을 선택해 해당 유형의 기본 실행 명령을 보냅니다. 그 밖의 유형은 아직 지원하지 않습니다.':
-    '기준 기기는 항상 ON/OFF 전환합니다. 연동 기기 하나를 선택하고 ON·OFF 이벤트와 반대 작동을 지정할 수 있습니다. 기준 기기의 전환 목표 상태에 따라 연동 명령을 보냅니다.')
+    '기준 기기는 항상 ON/OFF 전환합니다. 연동 기기 하나를 선택하고 ON·OFF 이벤트와 반대 작동을 지정할 수 있습니다. 기준 기기의 제어 성공 응답 후 전환 목표 상태에 따라 연동 명령을 보냅니다.')
     :plugin.uuid==='com.deckforge.native.github-status'
       ?'지정한 GitHub 저장소와 워크플로의 최근 빌드 상태를 읽기 전용으로 표시합니다. 저장소·브랜치·워크플로를 선택하고 Actions 읽기 권한 토큰을 등록하세요.'
       :'등록한 액션의 설정값을 편집합니다. 플러그인 설치와 서비스 관리는 액션 목록의 해당 플러그인 도움말에서 확인할 수 있습니다.';
