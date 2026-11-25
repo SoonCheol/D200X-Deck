@@ -5,19 +5,19 @@ const {app,BrowserWindow,protocol,session}=require('electron');
 const {randomUUID}=require('node:crypto');
 const {createScriptRunner,deadline}=require('../app/deckforge-editor/deckforge-js-runtime.cjs');
 const assert=require('node:assert/strict');
-const schemes=['df-worker-standard-probe','df-worker-opaque-probe','df-worker-sandbox-probe'];
+const schemes=['df-worker-standard-probe','df-worker-opaque-probe','df-worker-sandbox-probe','df-worker-data-probe'];
 protocol.registerSchemesAsPrivileged(schemes.map((scheme,i)=>({scheme,privileges:{
   standard:i!==1,secure:true,supportFetchAPI:true,corsEnabled:true,bypassCSP:false,allowServiceWorkers:false
 }})));
 const hostCsp="default-src 'none'; worker-src 'self'; script-src 'none'; connect-src 'none'; object-src 'none'; frame-src 'none'; base-uri 'none'; form-action 'none'";
 const workerCsp="default-src 'none'; script-src 'unsafe-eval'; worker-src 'none'; connect-src 'none'; object-src 'none'; frame-src 'none'; base-uri 'none'; form-action 'none'";
-async function workerProbe(){
+async function workerProbe(base){
   const settle=(promise,ms=1200)=>Promise.race([promise,new Promise(resolve=>setTimeout(()=>resolve('inconclusive'),ms))]);
   const attempt=async fn=>{try{await fn();return 'allowed';}catch{return 'blocked';}};
-  const child=async url=>{
+  const child=async (url,command)=>{
     try{
       const w=new Worker(url);
-      try{return await settle(new Promise(resolve=>{w.onmessage=()=>resolve('allowed');w.onerror=e=>{e.preventDefault();resolve('blocked');};}));}
+      try{return await settle(new Promise(resolve=>{w.onmessage=()=>resolve('allowed');w.onerror=e=>{e.preventDefault();resolve('blocked');};if(command!==undefined)w.postMessage(command);}));}
       finally{w.terminate();}
     }catch{return 'blocked';}
   };
@@ -31,9 +31,14 @@ async function workerProbe(){
       r.asyncFunction=await new AsyncFunction('return await Promise.resolve(42)')()===42;
     }catch{r.asyncFunction=false;}
     r.node=typeof require==='undefined'&&typeof process==='undefined'&&typeof Buffer==='undefined'&&typeof ipcRenderer==='undefined';
-    r.fetch=await settle(attempt(()=>fetch(new URL('/sample',location.href))));
-    r.importScripts=await attempt(()=>importScripts(new URL('/nested.js',location.href)));
-    r.nested=await child(new URL('/nested.js',location.href));
+    r.fetch=await settle(attempt(()=>fetch(new URL('/sample',base))));
+    r.fetchData=await settle(attempt(()=>fetch('data:text/plain,synthetic')));
+    r.importScripts=await attempt(()=>importScripts(new URL('/nested.js',base)));
+    r.importData=await attempt(()=>importScripts('data:text/javascript,void%200'));
+    r.nested=await child(new URL('/nested.js',base));
+    // Try the exact bootstrap URL too: filtering only other URLs cannot
+    // establish a nested-worker boundary when the bootstrap can be reused.
+    r.nestedSelf=await child(location.href,'ping');
     const blob=URL.createObjectURL(new Blob(['postMessage("nested")'],{type:'text/javascript'}));
     try{r.nestedBlob=await child(blob);}finally{URL.revokeObjectURL(blob);}
     r.nestedData=await child('data:text/javascript,postMessage("nested")');
@@ -66,7 +71,13 @@ function startWorker(url,command,timeout){
   });
 }
 async function probe(scheme){
-  const origin=scheme+'://probe',page=origin+'/index.html',worker=origin+'/worker.js';
+  const origin=scheme+'://probe',page=origin+'/index.html';
+  const dataCandidate=scheme==='df-worker-data-probe';
+  const source='('+workerProbe.toString()+')('+JSON.stringify(origin)+');';
+  const worker=dataCandidate?'data:text/javascript,'+encodeURIComponent(source):origin+'/worker.js';
+  // TEST ONLY: a data worker inherits the creator's CSP. Whether nested
+  // execution is blocked is measured, never presumed. No production change.
+  const pageCsp=dataCandidate?hostCsp.replace("worker-src 'self'","worker-src data:").replace("script-src 'none'","script-src 'unsafe-eval'"):hostCsp;
   // Candidate only: ask the browser to enforce sandbox on the worker
   // response itself. Do not infer origin isolation from the header alone.
   const sandboxCandidate=scheme==='df-worker-sandbox-probe';
@@ -80,8 +91,8 @@ async function probe(scheme){
   ses.webRequest.onBeforeRequest((d,cb)=>{const cancel=!permitted.has(d.url);if(cancel)denied++;cb({cancel});});
   ses.protocol.handle(scheme,req=>{
     const headers={'Cache-Control':'no-store','X-Content-Type-Options':'nosniff'};
-    if(req.url===page)return new Response('<!doctype html><title>Worker probe</title>',{headers:{...headers,'Content-Type':'text/html','Content-Security-Policy':hostCsp}});
-    if(req.url===worker)return new Response('('+workerProbe.toString()+')();',{headers:{...headers,'Content-Type':'text/javascript','Content-Security-Policy':responseCsp}});
+    if(req.url===page)return new Response('<!doctype html><title>Worker probe</title>',{headers:{...headers,'Content-Type':'text/html','Content-Security-Policy':pageCsp}});
+    if(req.url===worker)return new Response(source,{headers:{...headers,'Content-Type':'text/javascript','Content-Security-Policy':responseCsp}});
     if(req.url===origin+'/nested.js')return new Response('postMessage("nested");',{headers:{...headers,'Content-Type':'text/javascript'}});
     if(req.url===origin+'/sample')return new Response('synthetic probe data',{headers});
     return new Response('',{status:404,headers});
@@ -99,7 +110,7 @@ async function probe(scheme){
     const result=await execute('security',15000);
     if(result.kind!=='message')return {scheme,result,eligible:false};
     const checks=result.value;
-    const blocked=['fetch','importScripts','nested','nestedBlob','nestedData','webSocket','indexedDB','cacheStorage','fileSystem','localStorage'];
+    const blocked=['fetch','fetchData','importScripts','importData','nested','nestedSelf','nestedBlob','nestedData','webSocket','indexedDB','cacheStorage','fileSystem','localStorage'];
     const initial=await service.run("api.setTitle('before');",input);
     assert.equal(initial.ops[0].value,'before');
     const hang=execute('hang',1000);
@@ -109,7 +120,7 @@ async function probe(scheme){
     const serviceAlive=alive.ops[0].value==='alive';
     const recovered=timed.kind==='timeout'&&next.kind==='message'&&next.value.ping===true;
     const pids={button:wc.getOSProcessId(),service:service.processId()};
-    return {scheme,checks,serviceAlive,recovered,pids,denied,eligible:(!sandboxCandidate||checks.origin==='null')&&checks.asyncFunction===true&&checks.node===true&&blocked.every(k=>checks[k]==='blocked')&&serviceAlive&&recovered&&pids.button>0&&pids.service>0&&pids.button!==pids.service};
+    return {scheme,checks,serviceAlive,recovered,pids,denied,eligible:(!(sandboxCandidate||dataCandidate)||checks.origin==='null')&&checks.asyncFunction===true&&checks.node===true&&blocked.every(k=>checks[k]==='blocked')&&serviceAlive&&recovered&&pids.button>0&&pids.service>0&&pids.button!==pids.service};
   }catch(e){return {scheme,error:String(e.message).slice(0,240),eligible:false};}
   finally{service.close();close();ses.protocol.unhandle(scheme);await ses.clearStorageData();}
 }
