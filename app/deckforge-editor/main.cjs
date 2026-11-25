@@ -201,6 +201,21 @@ ipcMain.handle('d200x:native-ha-install',async(event,url,mode='install')=>{
   audit.stage('execute');return plan.kind==='install'?sdk().installNative(manifest):sdk().replaceNative(manifest,plan.currentRevision);
   });
 });
+ipcMain.handle('d200x:native-github-install',async event=>{
+  assertEditor(event);
+  const manifest=require('./deckforge-github-plugin.cjs').createGitHubManifest();
+  return pluginAudit('install',manifest.id,async audit=>{
+    audit.identify(manifest);
+    const plan=await sdk().planNativeInstall(manifest);audit.identify(plan);audit.operation(plan.kind);audit.stage('confirm');
+    if(plan.kind==='rollback')throw Error('이전 버전 복원은 패키지 설치에서 진행하세요.');
+    const verb=plan.kind==='install'?'설치':'업데이트';
+    const choice=await dialog.showMessageBox(window,{type:'question',title:'GitHub 개발 현황 '+verb,message:manifest.name+' '+verb,
+      detail:'GitHub API의 읽기 전용 HTTPS GET 조회를 허용합니다.\n주소: https://api.github.com/repos/ · 선택 저장소의 Actions 읽기 토큰을 별도로 암호화 등록합니다.\n빌드 실행이나 소스 변경 권한은 필요하지 않습니다.',
+      buttons:['취소',verb],defaultId:0,cancelId:0,noLink:true});
+    if(choice.response!==1)return null;
+    audit.stage('execute');return plan.kind==='install'?sdk().installNative(manifest):sdk().replaceNative(manifest,plan.currentRevision);
+  });
+});
 ipcMain.handle('d200x:native-credential-info',async(event,id)=>{assertEditor(event);return sdk().credentialInfo(id);});
 ipcMain.handle('d200x:native-credential-write',async(event,id,binding,revision,token)=>{
   assertEditor(event);

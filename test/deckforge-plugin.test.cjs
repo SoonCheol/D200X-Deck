@@ -2951,3 +2951,22 @@ test('queued router synchronization applies its owned snapshot, not a subsequent
   assert.equal(router.key('snapshot','down'),true);
  }finally{release();if(pending)await pending.catch(()=>{});await router.close();}
 });
+
+test('native GitHub build monitor uses approved GET and renders Korean status',()=>{
+ const {createGitHubManifest,buildKey}=require('../app/deckforge-editor/deckforge-github-plugin.cjs');
+ const {validateNativeManifest}=require('../app/deckforge-editor/deckforge-native-sdk.cjs');
+ const {resolveNetworkEndpoint,normalizeNetworkResult}=require('../app/deckforge-editor/deckforge-native-network.cjs');
+ const m=validateNativeManifest(createGitHubManifest()),a=m.actions[0],settings=Object.fromEntries(a.settingsSchema.map(f=>[f.key,f.default])),memory={},requests=[],frames=[];
+ const api={setTitle(){},drawKey:x=>frames.push(x),request:(...args)=>requests.push(args)};
+ buildKey({type:'appear'},settings,0,memory,api);assert.equal(requests.length,0);
+ buildKey({type:'tick'},settings,0,memory,api);assert.equal(requests.length,1);
+ const [id,body,query,options]=requests[0];assert.equal(id,'runs');assert.equal(body,null);
+ const resolved=resolveNetworkEndpoint(m.networkEndpoints[0],query,options);
+ assert.equal(new URL(resolved.url).pathname,'/repos/SoonCheol/D200X-Deck/actions/workflows/deckforge-windows-build.yml/runs');
+ const response={endpoint:'runs',ok:true,status:200,error:null,body:JSON.stringify({workflow_runs:[{status:'completed',conclusion:'success',run_number:35}],padding:'x'.repeat(12000)})};
+ assert.equal(normalizeNetworkResult(m.networkEndpoints[0],response).ok,true);
+ assert.equal(normalizeNetworkResult({...m.networkEndpoints[0],maxResponseBytes:undefined},response).ok,false);
+ buildKey({type:'networkResult',response},settings,0,memory,api);
+ assert.ok(frames.at(-1).commands.some(x=>x.text==='빌드 성공'));assert.ok(frames.at(-1).commands.some(x=>x.text==='#35'));
+ buildKey({type:'networkResult',response:{ok:false,status:403}},settings,0,memory,api);assert.ok(frames.at(-1).commands.some(x=>x.text==='권한 확인'));
+});

@@ -4,7 +4,8 @@
 const https=require('node:https');
 const {createHash}=require('node:crypto');
 const {validateValue}=require('./deckforge-native-settings.cjs');
-const MAX_RESPONSE=8192,MAX_BODY=8192,DEADLINE=5000;
+const MAX_RESPONSE=8192,MAX_BODY=8192,DEADLINE=5000,LARGE_HTTP_RESPONSE=32768;
+const responseLimit=e=>e?.method==='GET'&&e.maxResponseBytes===LARGE_HTTP_RESPONSE?LARGE_HTTP_RESPONSE:MAX_RESPONSE;
 const LARGE_SOCKET_RESPONSE=256*1024,DISCOVERY_SOCKET_RESPONSE=1024*1024;
 function socketReceiveLimit(endpoint){return [LARGE_SOCKET_RESPONSE,DISCOVERY_SOCKET_RESPONSE].includes(endpoint?.maxReceiveBytes)?endpoint.maxReceiveBytes:MAX_RESPONSE;}
 const obj=v=>v!==null&&typeof v==='object'&&!Array.isArray(v);
@@ -23,12 +24,13 @@ function validateNetworkEndpoints(endpoints,permissions){
   check((http||socket)&&Array.isArray(endpoints)&&endpoints.length>0&&endpoints.length<=8,'invalid endpoint list or permission');
   const ids=new Set();
   for(const e of endpoints){
-    check(obj(e)&&Object.keys(e).every(k=>['id','url','method','auth','queryKeys','pathKeys','headerKeys','reconnect','maxReceiveBytes'].includes(k))&&
+    check(obj(e)&&Object.keys(e).every(k=>['id','url','method','auth','queryKeys','pathKeys','headerKeys','reconnect','maxReceiveBytes','maxResponseBytes'].includes(k))&&
       (e.auth===undefined||e.auth==='bearer'||(e.method==='WSS'&&e.auth==='home-assistant'))&&key(e.id)&&!ids.has(e.id)&&(e.method==='WSS'?socket:http&&['GET','POST','PUT','PATCH','DELETE'].includes(e.method)),'invalid endpoint identity or method');
+    if(e.maxResponseBytes!==undefined)check(e.method==='GET'&&[MAX_RESPONSE,LARGE_HTTP_RESPONSE].includes(e.maxResponseBytes),'invalid HTTP response limit');
     if(e.maxReceiveBytes!==undefined)check(e.method==='WSS'&&[MAX_RESPONSE,LARGE_SOCKET_RESPONSE,DISCOVERY_SOCKET_RESPONSE].includes(e.maxReceiveBytes),'invalid WSS receive limit');
     if(e.reconnect!==undefined)check(e.method==='WSS'&&typeof e.reconnect==='boolean','invalid WSS reconnect policy');
     if(e.queryKeys!==undefined)check(keyList(e.queryKeys,8,key),'invalid approved query keys');
-    if(e.pathKeys!==undefined)check(e.method!=='WSS'&&keyList(e.pathKeys,4,key),'invalid approved path keys');
+    if(e.pathKeys!==undefined)check(e.method!=='WSS'&&keyList(e.pathKeys,6,key),'invalid approved path keys');
     if(e.headerKeys!==undefined)check(e.method!=='WSS'&&keyList(e.headerKeys,8,headerKey),'invalid approved header keys');
     ids.add(e.id);
     check(typeof e.url==='string'&&e.url.length<=1024,'invalid endpoint URL');
@@ -105,7 +107,7 @@ function createSocket(endpoint,{bearer=null,WebSocket=require('ws')}={}){
 }
 function credentialBinding(pluginId,endpoint){
   check(endpoint?.auth==='bearer'||(endpoint?.method==='WSS'&&endpoint.auth==='home-assistant'),'credential endpoint required');
-  return 'com.deckforge.native.credential-'+createHash('sha256').update(JSON.stringify([pluginId,endpoint.id,endpoint.method,endpoint.url,endpoint.auth,...(endpoint.queryKeys?[['queryKeys',...endpoint.queryKeys.slice().sort()]]:[]),...(endpoint.pathKeys?[['pathKeys',...endpoint.pathKeys]]:[]),...(endpoint.headerKeys?[['headerKeys',...endpoint.headerKeys.slice().sort()]]:[])])).digest('hex');
+  return 'com.deckforge.native.credential-'+createHash('sha256').update(JSON.stringify([pluginId,endpoint.id,endpoint.method,endpoint.url,endpoint.auth,...(endpoint.queryKeys?[['queryKeys',...endpoint.queryKeys.slice().sort()]]:[]),...(endpoint.pathKeys?[['pathKeys',...endpoint.pathKeys]]:[]),...(endpoint.headerKeys?[['headerKeys',...endpoint.headerKeys.slice().sort()]]:[]),...(endpoint.maxResponseBytes?[['maxResponseBytes',endpoint.maxResponseBytes]]:[])])).digest('hex');
 }
 function validBearer(token){return typeof token==='string'&&token.length>=1&&token.length<=4096&&/^[A-Za-z0-9._~+/-]+=*$/.test(token);}
 function networkFailure(endpoint,error,status=0){return {endpoint,ok:false,status,body:'',error};}
@@ -115,7 +117,7 @@ const RESULT_ERRORS=new Set(['cancelled','timeout','credential-required','creden
 function normalizeNetworkResult(endpoint,result,bearer=null){
   if(!exact(result,['endpoint','ok','status','body','error'])||result.endpoint!==endpoint.id||
      typeof result.ok!=='boolean'||!Number.isInteger(result.status)||result.status<0||result.status>599||
-     typeof result.body!=='string'||Buffer.byteLength(JSON.stringify(result.body))>MAX_RESPONSE)
+     typeof result.body!=='string'||Buffer.byteLength(JSON.stringify(result.body))>responseLimit(endpoint))
     return networkFailure(endpoint.id,'invalid-response');
   if(!result.ok)return networkFailure(endpoint.id,RESULT_ERRORS.has(result.error)?result.error:'connection-error',result.status);
   if(result.status<200||result.status>=300||result.error!==null)return networkFailure(endpoint.id,'invalid-response');
@@ -138,7 +140,7 @@ function requestEndpoint(endpoint,body,signal,{request=https.request,deadline=DE
       if(endpoint.auth==='bearer'&&!validBearer(bearer)){fail('credential-required');return;}
       if(endpoint.auth!=='bearer'&&bearer!==null){fail('credential-not-approved');return;}
       const payload=body===null?null:Buffer.from(JSON.stringify(body),'utf8');
-      const headers={accept:'application/json, text/plain','accept-encoding':'identity',...approvedHeaders(endpoint,endpoint.requestHeaders)};
+      const headers={accept:'application/json, text/plain','accept-encoding':'identity','user-agent':'DeckForge',...approvedHeaders(endpoint,endpoint.requestHeaders)};
       if(bearer!==null)headers.authorization='Bearer '+bearer;
       if(payload){headers['content-type']='application/json';headers['content-length']=payload.length;}
       req=request(new URL(endpoint.url),{method:endpoint.method,headers,agent:false,
@@ -153,7 +155,7 @@ function requestEndpoint(endpoint,body,signal,{request=https.request,deadline=DE
         const chunks=[];let bytes=0;
         res.on('data',chunk=>{
           bytes+=chunk.length;
-          if(bytes>MAX_RESPONSE){fail('response-limit',status);res.destroy();req.destroy();}
+          if(bytes>responseLimit(endpoint)){fail('response-limit',status);res.destroy();req.destroy();}
           else chunks.push(chunk);
         });
         res.on('error',()=>fail('response-error',status));
@@ -162,7 +164,7 @@ function requestEndpoint(endpoint,body,signal,{request=https.request,deadline=DE
           const text=Buffer.concat(chunks).toString('utf8');
           if(bearer!==null&&text.includes(bearer)){fail('credential-in-response',status);return;}
           // The serialized result must also fit within the renderer input cap.
-          if(Buffer.byteLength(JSON.stringify(text))>MAX_RESPONSE){fail('response-limit',status);return;}
+          if(Buffer.byteLength(JSON.stringify(text))>responseLimit(endpoint)){fail('response-limit',status);return;}
           finish({endpoint:endpoint.id,ok:true,status,body:text,error:null});
         });
       });
