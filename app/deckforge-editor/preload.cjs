@@ -56,7 +56,7 @@ contextBridge.exposeInMainWorld('deckBridge', Object.freeze({
   sdkSync: contexts => ipcRenderer.invoke('d200x:sdk-sync',contexts),
   nativeSettingsReceipt: (context,id,accepted) => ipcRenderer.invoke('d200x:native-settings-receipt',context,id,accepted),
   sdkKey: (context,gesture,ticks=1) => ipcRenderer.invoke('d200x:sdk-key',context,gesture,ticks),
-  sdkInspector: context => ipcRenderer.invoke('d200x:sdk-inspector',context),
+  sdkInspector: (context,anchor) => ipcRenderer.invoke('d200x:sdk-inspector',context,anchor),
   onSdkEvent: fn => ipcRenderer.on('d200x:sdk-event',(_event,data)=>fn(data)),
   haSave: (url,token) => ipcRenderer.invoke('d200x:ha-save',{url,token}),
   haEntities: () => ipcRenderer.invoke('d200x:ha-entities'),

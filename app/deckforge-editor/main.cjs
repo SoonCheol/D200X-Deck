@@ -374,8 +374,8 @@ ipcMain.handle('d200x:sdk-key',async(event,context,gesture,ticks)=>{
   assertEditor(event);
   return sdk().key(context,gesture,ticks);
 });
-ipcMain.handle('d200x:sdk-inspector',async(event,context)=>{
-  assertEditor(event);return sdk().inspector(context);
+ipcMain.handle('d200x:sdk-inspector',async(event,context,anchor)=>{
+  assertEditor(event);return sdk().inspector(context,anchor);
 });
 
 const haConfigPath=()=>path.join(app.getPath('userData'),'home-assistant-connection-v1.json');

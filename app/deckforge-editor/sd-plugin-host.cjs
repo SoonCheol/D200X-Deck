@@ -18,6 +18,21 @@ const HA_PLUGIN='de.perdoctus.streamdeck.homeassistant';
 const HA_DUAL_ACTION=HA_PLUGIN+'.dual-state-entity';
 const HA_SWITCH_ENTITY=/^(switch|light|fan|input_boolean)\.[a-z0-9_]+$/;
 const json=x=>JSON.stringify(x);
+function fusionInspectorBounds(content,area,anchor,zoom=1){
+  const width=Math.min(440,area.width),height=Math.min(460,area.height);
+  const clamp=(value,min,max)=>Math.max(min,Math.min(max,value));
+  const usable=anchor&&[anchor.left,anchor.right,anchor.top].every(Number.isFinite)&&
+    Number.isFinite(zoom)&&zoom>0&&anchor.left>=0&&anchor.right>=anchor.left&&
+    anchor.right*zoom<=content.width+1&&anchor.top>=0&&anchor.top*zoom<=content.height+1;
+  let x=content.x+Math.round((content.width-width)/2),y=content.y+Math.round((content.height-height)/2);
+  if(usable){
+    x=content.x+Math.round(anchor.right*zoom)+8;
+    y=content.y+Math.round(anchor.top*zoom);
+    const left=content.x+Math.round(anchor.left*zoom)-8-width;
+    if(x+width>area.x+area.width&&left>=area.x)x=left;
+  }
+  return {x:clamp(x,area.x,area.x+area.width-width),y:clamp(y,area.y,area.y+area.height-height),width,height};
+}
 function allowedSdkOpenUrlContext(uuid,ctx,requestedContext){
   return Boolean(uuid)&&(!requestedContext||ctx?.pluginUUID===uuid);
 }
@@ -588,20 +603,26 @@ class StreamDeckPluginHost{
     if(ok&&(event==='keyDown'||event==='dialDown'))this.pressed.set(context,inst.ws);
     return ok;
   }
-  async inspector(context){
+  async inspector(context,anchor){
     const ctx=this.contexts.get(context);
     if(!ctx)throw Error('플러그인 동작이 현재 페이지에 등록되어 있지 않습니다.');
     const inst=await this.ensure(ctx.pluginUUID);
     const action=inst.manifest.Actions.find(a=>a.UUID===ctx.actionUUID);
     if(!action||!filename(action.PropertyInspectorPath))throw Error('이 동작에는 속성 편집기가 없습니다.');
-    let pi=this.inspectors.get(context);
-    if(pi?.window&&!pi.window.isDestroyed()){pi.window.show();pi.window.focus();return true;}
     const parent=this.getParent();
+    const fusion=ctx.pluginUUID==='com.autodesk.fusionstreamdeck';
+    const placement=fusion&&parent&&!parent.isDestroyed()?fusionInspectorBounds(parent.getContentBounds(),screen.getDisplayMatching(parent.getBounds()).workArea,anchor,parent.webContents.getZoomFactor()):null;
+    let pi=this.inspectors.get(context);
+    if(pi?.window&&!pi.window.isDestroyed()){
+      if(placement)pi.window.setBounds(placement);
+      pi.window.show();pi.window.focus();return true;
+    }
     const win=new BrowserWindow({width:560,height:780,minWidth:420,minHeight:500,
+      ...(fusion?{width:440,height:460,minWidth:320,minHeight:280,...(placement||{})}:{}),
       show:false,backgroundColor:'#111217',title:inst.manifest.Name+' · 설정',
       ...(parent&&!parent.isDestroyed()?{parent,modal:true}:{}),
       webPreferences:{nodeIntegration:false,contextIsolation:false,sandbox:true,webSecurity:true}});
-    if(parent&&!parent.isDestroyed()){
+    if(!fusion&&parent&&!parent.isDestroyed()){
       const p=parent.getBounds();
       const area=screen.getDisplayMatching(p).workArea;
       const w=560,h=780;
@@ -712,4 +733,4 @@ class StreamDeckPluginHost{
     this.server=null;
   }
 }
-module.exports={StreamDeckPluginHost,parseArchive,validateManifest,pluginKind,nodeRuntime,safeSdkExternalUrl,allowedSdkOpenUrlContext};
+module.exports={StreamDeckPluginHost,parseArchive,validateManifest,pluginKind,nodeRuntime,safeSdkExternalUrl,allowedSdkOpenUrlContext,fusionInspectorBounds};

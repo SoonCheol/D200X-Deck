@@ -330,3 +330,14 @@ test('unchanged compatibility sync preserves an in-flight HA state observation',
   assert.equal(events.filter(e=>e.kind==='setState').length,1);
  }finally{release();await host.close();}
 });
+
+
+test('Fusion property inspector is compact and anchored in screen DIP coordinates',()=>{
+ const {fusionInspectorBounds}=require('../app/deckforge-editor/sd-plugin-host.cjs');
+ const content={x:100,y:60,width:1200,height:800},area={x:0,y:0,width:1600,height:1000};
+ assert.deepEqual(fusionInspectorBounds(content,area,{left:20,right:252,top:350}),{x:360,y:410,width:440,height:460});
+ assert.deepEqual(fusionInspectorBounds(content,area,{left:20,right:252,top:350},1.25),{x:423,y:498,width:440,height:460});
+ const edge=fusionInspectorBounds(content,{x:0,y:0,width:1300,height:800},{left:750,right:980,top:700});
+ assert.deepEqual(edge,{x:402,y:340,width:440,height:460});
+ assert.deepEqual(fusionInspectorBounds(content,area,{left:NaN,right:252,top:350}),{x:480,y:230,width:440,height:460});
+});

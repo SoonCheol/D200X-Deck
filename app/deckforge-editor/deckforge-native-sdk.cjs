@@ -1299,9 +1299,9 @@ class PluginRouter{
       return this.nativeRouteReady(context,desired)&&this.native.key(context,gesture,ticks);
     return this.legacyRouteReady(context,desired)&&this.legacy.key(context,gesture,ticks);
   }
-  inspector(context){
+  inspector(context,anchor){
     if(this.closed||this.nativeContextIds.has(context)||this.native.contexts.has(context))return false;
-    return this.legacyRouteReady(context,this.desiredMounts?.get(context))&&this.legacy.inspector(context);
+    return this.legacyRouteReady(context,this.desiredMounts?.get(context))&&this.legacy.inspector(context,anchor);
   }
   onSystemSuspend(){this.native.suspend();this.legacy.onSystemSuspend();}
   onSystemResume(){this.native.resume();this.legacy.onSystemResume();}

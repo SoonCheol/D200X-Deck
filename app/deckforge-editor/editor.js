@@ -4278,7 +4278,12 @@ function bindExtendedActionFields(root,item){
       if(!context)return;
       try{
         await window.deckBridge.sdkSync(sdkActionInstances());
-        if(pluginSlotContext(item)===context)await window.deckBridge.sdkInspector(context);
+        if(pluginSlotContext(item)===context){
+          const card=isFusionAction(item)?root.querySelector('.sdk-state-icon[data-state-title="first"]'):null;
+          const rect=card?.getBoundingClientRect();
+          const anchor=rect?{left:rect.left,right:rect.right,top:rect.top}:null;
+          await window.deckBridge.sdkInspector(context,anchor);
+        }
       }catch(error){window.d200xActionStatus?.('SDK 속성 편집기 오류: '+String(error?.message||error));}
     });
   }
