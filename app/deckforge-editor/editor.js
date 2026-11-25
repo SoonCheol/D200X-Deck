@@ -4323,6 +4323,8 @@ async function openNativeSettings(item,action,plugin){
     if(['boolean','select'].includes(field.type))input.addEventListener('change',updateVisibility);
   }
   if(ha&&action.uuid.endsWith('.sensor')){
+    content.classList.add('ha-sensor-settings');
+    fieldRows.get('entities')?.classList.add('ha-sensor-entities');
     for(const keys of [['mode','seconds'],['labels','unit'],['decimals','fontSize','color']]){
       const rows=keys.map(key=>fieldRows.get(key));
       if(rows.some(row=>!row))continue;

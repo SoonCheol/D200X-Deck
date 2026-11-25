@@ -1701,14 +1701,24 @@ dialog.deckforge-message-dialog:has(.fusion-command-properties){width:min(360px,
 }
 
 /* Compact HA sensor options, no other plugin forms affected. */
-.ha-native-settings .ha-sensor-compact{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;align-items:center}
-.ha-native-settings .ha-sensor-compact>.field{grid-template-columns:auto minmax(0,1fr);gap:6px;min-width:0}
+.ha-sensor-settings{--sensor-label:84px;--sensor-gap:8px;--sensor-second-label:54px}
+.ha-sensor-settings>.ha-sensor-entities>span{align-self:start;padding-top:7px}
+.ha-native-settings .ha-sensor-compact{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:var(--sensor-gap);align-items:center}
+.ha-native-settings .ha-sensor-compact>.field{grid-template-columns:32px minmax(0,1fr);gap:var(--sensor-gap);min-width:0}
+.ha-native-settings .ha-sensor-compact>.field:first-child{grid-template-columns:var(--sensor-label) minmax(0,1fr)}
+.ha-native-settings .ha-sensor-mode>.field:nth-child(2){grid-template-columns:var(--sensor-second-label) minmax(0,1fr)}
 .ha-native-settings .ha-sensor-compact>.field>span{white-space:nowrap}
-.ha-native-settings .ha-sensor-decimals{grid-template-columns:repeat(3,minmax(0,1fr))}
-.ha-native-settings .ha-sensor-labels>.field{display:flex;align-items:center}
-.ha-native-settings .ha-sensor-labels label{display:flex;align-items:center;gap:6px;cursor:pointer;white-space:nowrap}
+.ha-native-settings .ha-sensor-decimals{grid-template-columns:minmax(0,1.3fr) repeat(2,minmax(0,1fr))}
+.ha-native-settings .ha-sensor-labels>.field{display:flex;align-items:center;padding-left:calc(var(--sensor-label) + var(--sensor-gap))}
+.ha-native-settings .ha-sensor-labels>.field:nth-child(2){padding-left:calc(var(--sensor-second-label) + var(--sensor-gap))}
+.ha-native-settings .ha-sensor-labels label{display:flex;align-items:center;gap:6px;cursor:pointer;white-space:nowrap;min-width:0}
+.ha-native-settings .ha-sensor-labels input[type=checkbox]{margin:0}
 .ha-native-settings .ha-sensor-compact>.field[hidden]{display:none}
-@media(max-width:480px){.ha-native-settings .ha-sensor-decimals{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:480px){
+  .ha-native-settings .ha-sensor-mode,.ha-native-settings .ha-sensor-labels,.ha-native-settings .ha-sensor-decimals{grid-template-columns:minmax(0,1fr)}
+  .ha-native-settings .ha-sensor-compact>.field,.ha-native-settings .ha-sensor-mode>.field:nth-child(2){grid-template-columns:var(--sensor-label) minmax(0,1fr)}
+  .ha-native-settings .ha-sensor-labels>.field:nth-child(2){padding-left:calc(var(--sensor-label) + var(--sensor-gap))}
+}
 
 /* HA switch properties: compact closed pickers; only the selected list expands. */
 .ha-switch-settings{gap:12px}

@@ -124,6 +124,13 @@ app.whenReady().then(async()=>{
       const dialog=document.querySelector('dialog[open]');
       const rows=()=>[...dialog.querySelectorAll('.native-selection-row')];
       const sizes=[...rows()[1].querySelectorAll('button')].map(b=>[b.getBoundingClientRect().width,b.getBoundingClientRect().height]);
+      const rect=selector=>dialog.querySelector(selector).getBoundingClientRect();
+      const positions={
+        left:[rect('.ha-sensor-entities .native-sdk-picker').left,rect('.ha-sensor-mode>.field:first-child select').left,rect('.ha-sensor-labels>.field:first-child input').left,rect('.ha-sensor-decimals>.field:first-child input').left],
+        right:[rect('.ha-sensor-mode>.field:nth-child(2) input').left,rect('.ha-sensor-labels>.field:nth-child(2) input').left],
+        labelOffset:rect('.ha-sensor-entities>span').top-rect('.ha-sensor-entities .native-sdk-picker').top,
+        decimalTops:[...dialog.querySelectorAll('.ha-sensor-decimals>.field')].map(x=>x.getBoundingClientRect().top)
+      };
       rows()[1].lastElementChild.click();
       const labels=rows().map(row=>row.firstElementChild.textContent);
       const unchecked=![...dialog.querySelectorAll('.native-sdk-options label')].find(l=>l.textContent==='B').querySelector('input').checked;
@@ -133,11 +140,15 @@ app.whenReady().then(async()=>{
       const p2=open();const d2=document.querySelector('dialog[open]');d2.querySelector('.native-selection-row').lastElementChild.click();d2.close('cancel');await p2;
       const cancelled=JSON.stringify(item.settings.pluginSettings.entities)===JSON.stringify(saved);
       window.deckBridge=oldBridge;
-      return {sizes,labels,unchecked,draftUnchanged,saved,cancelled};
+      return {sizes,labels,unchecked,draftUnchanged,saved,cancelled,positions};
     })()`);
     assert.equal(removal.sizes.length,3);assert.ok(removal.sizes.every(s=>s[0]===removal.sizes[0][0]&&s[1]===removal.sizes[0][1]));
     assert.deepEqual(removal.labels,['1. A','2. C']);assert.equal(removal.unchecked,true);assert.equal(removal.draftUnchanged,true);
     assert.deepEqual(removal.saved,['sensor.a','sensor.c']);assert.equal(removal.cancelled,true);
+    assert.ok(removal.positions.left.every(x=>Math.abs(x-removal.positions.left[0])<1),JSON.stringify(removal.positions));
+    assert.ok(Math.abs(removal.positions.right[0]-removal.positions.right[1])<1,JSON.stringify(removal.positions));
+    assert.ok(Math.abs(removal.positions.labelOffset-7)<1,JSON.stringify(removal.positions));
+    assert.ok(removal.positions.decimalTops.every(y=>Math.abs(y-removal.positions.decimalTops[0])<1),JSON.stringify(removal.positions));
     console.log('HA_SENSOR_REMOVE_OK '+JSON.stringify(removal));
     assert.deepEqual(errors,[]);
     console.log('EDITOR_STARTUP_OK '+JSON.stringify({initial,partial:filtered.partial,exact:filtered.exact,restored:filtered.restored}));
