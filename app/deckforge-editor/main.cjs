@@ -191,14 +191,15 @@ ipcMain.handle('d200x:native-ha-install',async(event,url,mode='install')=>{
   }
   return pluginAudit('install',manifest.id,async audit=>{
   audit.identify(manifest);
-  const plan=await sdk().planNativeInstall(manifest);audit.identify(plan);audit.operation(plan.kind);audit.stage('confirm');
+  const plan=await sdk().planBuiltinHa(manifest);audit.identify(plan);audit.operation(plan.kind);audit.stage('confirm');
   if(plan.kind==='rollback')throw Error('이전 버전 복원은 패키지 설치에서 진행하세요.');
-  const verb=plan.kind==='install'?'설치':'업데이트';
-  const choice=await dialog.showMessageBox(window,{type:'question',title:'HA 전용 플러그인 '+verb,
+  if(plan.kind==='unchanged')return {uuid:manifest.id,name:manifest.name,version:manifest.version};
+  const verb=plan.kind==='install'?'설치':plan.kind==='configure'?'서버 변경':'업데이트';
+  const choice=await dialog.showMessageBox(window,{type:'question',title:'Home Assistant '+verb,
     message:'DeckForge Home Assistant '+verb,detail:'연결 주소: '+manifest.networkEndpoints[0].url+'\n버전: '+(plan.kind==='install'?manifest.version:plan.currentVersion+' → '+manifest.version)+'\n페이지 독립 서비스 및 상태 구독·선택한 기기 제어를 허용합니다.\n같은 서버의 인증정보와 기존 버튼 설정은 보존됩니다. 다른 서버 주소에는 별도 인증정보가 필요합니다.',
     buttons:['취소',verb],defaultId:0,cancelId:0,noLink:true});
   if(choice.response!==1)return null;
-  audit.stage('execute');return plan.kind==='install'?sdk().installNative(manifest):sdk().replaceNative(manifest,plan.currentRevision);
+  audit.stage('execute');return plan.kind==='install'?sdk().installNative(manifest):sdk().replaceBuiltinHa(manifest,plan.currentRevision);
   });
 });
 ipcMain.handle('d200x:native-github-install',async event=>{
@@ -2263,6 +2264,9 @@ if(singleInstanceLock)app.whenReady().then(async () => {
       webSecurity: true,
     },
   });
+  // Built-in HA never invents an endpoint or replaces retained user data.
+  try{console.info('기본 Home Assistant:',await sdk().ensureBuiltinHa());}
+  catch(error){console.warn('기본 Home Assistant 준비 실패:',error.message);}
   // Install missing default SDK plugins without touching existing profiles/settings.
   try{
     const result=await Bundled.installMissingPlugins(sdk());

@@ -297,7 +297,7 @@ class NativePluginHost{
     return catalog(m);
   }
   async planInstall(m){await this.checkDependencies(m);return this.versions.plan(m);}
-  async replace(m,expectedRevision){
+  async replace(m,expectedRevision,haConfiguration=false){
     await this.checkDependencies(m);
     const retired=[];
     const stop=()=>{
@@ -313,7 +313,7 @@ class NativePluginHost{
         if(!ctx.failed&&!this.suspended)this.initialize(ctx);
       }
     };
-    await this.versions.replace(m,expectedRevision,stop,restore);
+    await this.versions.replace(m,expectedRevision,stop,restore,haConfiguration);
     return catalog(m);
   }
   validateScriptOps(ctx,event,program){
@@ -1085,6 +1085,23 @@ class PluginRouter{
   installNative(m){return this.serial(async()=>{
     await this.checkNativeCandidate(m);
     return this.native.install(m);
+  });}
+  ensureBuiltinHa(){return this.serial(async()=>{
+    const {createHomeAssistantManifest}=require('./deckforge-ha-plugin.cjs'),id='com.deckforge.native.home-assistant';
+    const current=await this.native.versions.read(this.native.versions.currentFile(id),true);
+    if(!current&&await this.native.versions.removed(id))return 'retained';
+    const server=current?.manifest.networkEndpoints?.find(e=>e.id==='ha')?.url??null;
+    if(current&&require('semver').gte(current.manifest.version,createHomeAssistantManifest(server).version))return 'existing';
+    const manifest=createHomeAssistantManifest(server);
+    await this.checkNativeCandidate(manifest);
+    if(current){await this.native.replace(manifest,current.revision);return 'updated';}
+    await this.native.install(manifest);return 'installed';
+  });}
+  planBuiltinHa(m){return this.serial(async()=>{
+    await this.checkNativeCandidate(m);return this.native.versions.planHaConfiguration(m);
+  });}
+  replaceBuiltinHa(m,revision){return this.serial(async()=>{
+    await this.checkNativeCandidate(m);return this.native.replace(m,revision,true);
   });}
   planNativeInstall(m){return this.serial(async()=>{
     await this.checkNativeCandidate(m);

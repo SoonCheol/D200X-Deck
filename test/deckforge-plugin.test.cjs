@@ -2244,6 +2244,10 @@ test('HA native manifest, compressed entity state, device grouping, control and 
  const manifest=createHomeAssistantManifest('https://example.com');
  assert.equal(manifest.networkEndpoints[0].url,'wss://example.com/api/websocket');
  assert.doesNotThrow(()=>validateNativeManifest(manifest));
+ const unconfigured=createHomeAssistantManifest(null);
+ assert.doesNotThrow(()=>validateNativeManifest(unconfigured));
+ assert.equal(unconfigured.networkEndpoints,undefined);assert.ok(!unconfigured.permissions.includes('network.websocket'));
+ assert.equal(unconfigured.actions[0].settingsSchema.find(f=>f.key==='linked').default,false);
  assert.throws(()=>createHomeAssistantManifest('http://example.com'),/HTTPS/);
  assert.throws(()=>createHomeAssistantManifest('https://user:password@example.com'),/HTTPS/);
  let shared={},memory={},sent=[],drawn=[],commands=[];
@@ -2273,6 +2277,15 @@ test('HA native manifest, compressed entity state, device grouping, control and 
  assert.deepEqual(commands,[{entity:'switch.fan'}]);
  run('serviceMessage',{message:commands[0]});assert.equal(sent.at(-1).service,'toggle');
  const count=sent.length;run('serviceMessage',{message:{entity:'sensor.temp'}});assert.equal(sent.length,count);
+ msg({type:'event',id:3,event:{a:{'light.kitchen':{s:'off',a:{friendly_name:'주방등'}}}}});
+ const linked={entity:'switch.fan',linked:true,offEntity:'light.kitchen',offOperation:'turn_on',onEntity:'light.kitchen',onOperation:'turn_off'};
+ controlKey({type:'press'},linked,0,{},api);run('serviceMessage',{message:commands.pop()});
+ assert.equal(sent.at(-1).service,'turn_on');assert.equal(sent.at(-1).target.entity_id,'light.kitchen');
+ msg({type:'event',id:3,event:{c:{'switch.fan':{'+':{s:'on'}}}}});
+ run('serviceMessage',{message:linked});assert.equal(sent.at(-1).service,'turn_off');
+ const before=sent.length;run('serviceMessage',{message:{...linked,onEntity:'sensor.temp'}});assert.equal(sent.length,before);
+ msg({type:'event',id:3,event:{c:{'switch.fan':{'+':{s:'unknown'}}}}});
+ run('serviceMessage',{message:linked});assert.equal(sent.length,before);
  run('socketEvent',{event:'close'});assert.equal(shared.status,'연결 끊김');
  controlKey({type:'press'},{entity:'switch.fan'},0,{},api);assert.equal(commands.length,1);
 });
@@ -3085,4 +3098,27 @@ test('GitHub adaptive refresh and marquee are independent, with bounded native p
   now+=5000;buildKey({type:'tick'},settings,0,memory,api);assert.equal(requests.length,2);
   now+=10000;buildKey({type:'tick'},settings,0,memory,api);assert.equal(requests.length,3);
  }finally{Date.now=realNow;}
+});
+
+test('built-in HA preserves installed server and supports safe same-version configuration without general override',async()=>{
+ const {createHomeAssistantManifest}=require('../app/deckforge-editor/deckforge-ha-plugin.cjs');
+ const temp=await fs.mkdtemp(path.join(os.tmpdir(),'deckforge-builtin-ha-'));
+ const legacy={list:async()=>[],sync:async()=>{},close:async()=>{}};
+ const host=new NativePluginHost(temp),router=new PluginRouter(legacy,host);
+ try{
+   assert.equal(await router.ensureBuiltinHa(),'installed');assert.equal(await router.ensureBuiltinHa(),'existing');
+   const id='com.deckforge.native.home-assistant',next=createHomeAssistantManifest('https://example.com');
+   assert.deepEqual(await router.credentialInfo(id),[]);
+   await assert.rejects(router.planNativeInstall(next),/same version/);
+   const plan=await router.planBuiltinHa(next);assert.equal(plan.kind,'configure');
+   await router.replaceBuiltinHa(next,plan.currentRevision);
+   const active=(await host.manifests()).find(m=>m.id===id);assert.equal(active.networkEndpoints[0].url,'wss://example.com/api/websocket');
+   assert.equal(await router.ensureBuiltinHa(),'existing');
+   assert.equal((await router.planBuiltinHa(next)).kind,'unchanged');
+   await assert.rejects(router.planBuiltinHa({...next,name:'tampered'}),/only built-in/);
+   await assert.rejects(router.replaceBuiltinHa(createHomeAssistantManifest('https://other.example'),plan.currentRevision),/revision changed/);
+   const nextServer=createHomeAssistantManifest('https://other.example'),p=await router.planBuiltinHa(nextServer);
+   await router.replaceBuiltinHa(nextServer,p.currentRevision);
+   assert.equal((await host.manifests()).find(m=>m.id===id).networkEndpoints[0].url,'wss://other.example/api/websocket');
+ }finally{await router.close();await fs.rm(temp,{recursive:true,force:true});}
 });

@@ -1457,7 +1457,7 @@ async function refreshSdkPlugins(){
     const selectedItem=state.selected!==null&&state.selected<14?DeckCore.visibleActions(state)[state.selected]:null;
     if(selectedItem)void refreshStateTitleCards(selectedItem);
     updateSdkAvailabilityInspector();
-    if(libraryTab==='plugins')renderLibrary();
+    renderLibrary();
   }catch(error){window.d200xActionStatus?.('SDK 플러그인 목록 오류: '+String(error?.message||error));}
 }
 async function installSdkPlugin(fromFolder=false){
@@ -1473,7 +1473,7 @@ async function installSdkPlugin(fromFolder=false){
     window.d200xActionStatus?.('DeckForge 플러그인 적용: '+plugin.name+' '+plugin.version);
   }catch(error){window.d200xActionStatus?.('플러그인 설치 실패: '+String(error?.message||error));}
 }
-async function installNativeHa(){
+async function installNativeHa(initial=false){
   if(!window.deckBridge?.nativeHaInstall)return;
   const content=document.createElement('div'),row=document.createElement('label'),input=document.createElement('input');
   row.className='field';const label=document.createElement('span');label.textContent='HA 서버 주소';
@@ -1484,19 +1484,19 @@ async function installNativeHa(){
   for(const [value,text] of [['install','설치 / 업데이트'],['export','설치 파일 저장']]){
     const option=document.createElement('option');option.value=value;option.textContent=text;mode.append(option);
   }
-  operation.append(operationLabel,mode);content.append(operation);
+  operation.append(operationLabel,mode);if(!initial)content.append(operation);
   const existing=sdkPlugins.find(p=>p.uuid==='com.deckforge.native.home-assistant');
   if(existing&&window.deckBridge?.nativeCredentialInfo){
     try{const entries=await window.deckBridge.nativeCredentialInfo(existing.uuid);const ha=entries.find(x=>x.id==='ha');if(ha)input.value=ha.url.replace(/^wss:/,'https:').replace(/\/api\/websocket$/,'');}catch{}
   }
   const hint=document.createElement('p');hint.className='hint';content.append(hint);
-  const accepted=await window.DeckForgeDialogs.show({title:'HA 전용 플러그인',intro:'HTTPS 서버 주소를 입력하세요. 설치 파일에는 토큰이 포함되지 않습니다.',content,ask:true,actionLabel:'계속',
+  const accepted=await window.DeckForgeDialogs.show({title:initial?'HA 초기 연결':'Home Assistant 서버 설정',intro:'HTTPS 서버 주소를 입력하세요. 설치 파일에는 토큰이 포함되지 않습니다.',content,ask:true,actionLabel:'계속',
     onAccept:()=>{try{const u=new URL(input.value.trim());if(!['https:','wss:'].includes(u.protocol)||u.username||u.password||u.search||u.hash)throw Error();return true;}catch{hint.textContent='HTTPS 또는 WSS 주소를 확인하세요.';return false;}}});
   if(!accepted)return;
   try{const plugin=await window.deckBridge.nativeHaInstall(input.value.trim(),mode.value);if(!plugin)return;
     if(mode.value==='export'){window.d200xActionStatus?.('HA 전용 설치 파일 저장 완료: '+plugin.filePath);return;}
     for(const instance of sdkActionInstances())if(instance.pluginUUID===plugin.uuid)sdkVisuals.delete(instance.context);
-    await refreshSdkPlugins();scheduleSdkSync();window.d200xActionStatus?.('HA 전용 플러그인 적용 완료 · 필요한 경우 인증정보를 등록하세요.');
+    await refreshSdkPlugins();scheduleSdkSync();window.d200xActionStatus?.('HA 서버 설정 완료 · 필요한 경우 인증정보를 등록하세요.');return true;
   }catch(error){window.d200xActionStatus?.('HA 전용 설치 실패: '+String(error?.message||error));}
 }
 async function exportDeckForgePlugin(){
@@ -1585,13 +1585,20 @@ function openSdkPluginHelp(plugin,isFusion,retained=false){
     };
     dialog.append(install,output);
   }
+  if(plugin.uuid==='com.deckforge.native.home-assistant'){
+    const tools=document.createElement('div');tools.className='native-sdk-tools';
+    const add=(label,fn)=>{const button=document.createElement('button');button.type='button';button.className='sdk-plugin-help-close';button.textContent=label;button.onclick=async()=>{dialog.close();try{await fn();}catch{window.d200xActionStatus?.('HA 설정 확인 실패');}};tools.append(button);};
+    add('서버 설정 / 설치 파일 저장',()=>installNativeHa());
+    add('인증정보 관리',async()=>{if(!(await window.deckBridge.nativeCredentialInfo(plugin.uuid)).length){if(!await installNativeHa(true))return;}await openNativeCredentials(null,plugin);});
+    add('전역 서비스 관리',()=>openNativeServiceManager(plugin));dialog.append(tools);
+  }
   const guide=document.createElement('div');guide.style.cssText='white-space:pre-line;line-height:1.75;font-size:13px';
   guide.textContent=isFusion
     ?'1. Fusion 360을 실행하고 기본 설정 > 일반 > API에서 Fusion 공식 MCP 서버를 활성화합니다.\n2. 위 MCP 주소를 확인하고 연결 확인 및 저장을 누릅니다.\n3. AI 도우미의 Fusion 초기 연결 템플릿으로 애드인 설치·등록·실행 및 원본 아이콘·명령 설명을 수집합니다. (AI 토큰 사용 없음)\n4. Fusion 명령 관리자에서 원하는 명령을 D200X 버튼으로 끌어 등록합니다.\n5. 버튼의 명령 속성에서 현재 명령 정보를 확인합니다.'
     :isHa?'1. Home Assistant에서 장기 액세스 토큰을 발급합니다.\n2. Home Assistant 장치 제어를 D200X 버튼에 등록합니다.\n3. 속성의 설정 열기를 눌러 HA 서버 주소와 장기 토큰을 입력합니다.\n4. 인증 성공 후 조회되는 엔티티 목록에서 제어할 장치를 선택합니다.\n5. 토큰은 비밀번호처럼 보관하고 GitHub에 업로드하지 않습니다.'
     :'1. 플러그인 액션을 빈 버튼에 끌어 놓습니다.\n2. 필요하면 플러그인 속성을 설정하고 저장합니다.\n3. 실행 테스트 또는 D200X 버튼으로 동작을 확인합니다.';
   dialog.append(guide);
-  const canRemove=plugin.runtime==='deckforge-sdk'?window.deckBridge?.nativeRemove:window.deckBridge?.legacyPluginRemove;
+  const canRemove=plugin.uuid==='com.deckforge.native.home-assistant'?false:plugin.runtime==='deckforge-sdk'?window.deckBridge?.nativeRemove:window.deckBridge?.legacyPluginRemove;
   if(canRemove){
     const footer=document.createElement('div');footer.style.cssText='display:flex;justify-content:flex-end;border-top:1px solid #46505b;margin-top:14px;padding-top:12px;gap:8px';
     const remove=document.createElement('button');remove.type='button';remove.className='sdk-plugin-help-close';remove.textContent='플러그인 제거…';
@@ -1640,14 +1647,16 @@ async function removePluginKeepingData(plugin){
     await window.DeckForgeDialogs.show({title:'플러그인 제거 실패',kind:'error',intro:plugin.name,detail,copyDetail:true});
   }
 }
-function renderInstalledSdkPlugins(root,query){
+function renderInstalledSdkPlugins(root,query,basic=false){
   for(const plugin of sdkPlugins){
+    const nativeHa=plugin.uuid==='com.deckforge.native.home-assistant';
+    if(nativeHa!==basic)continue;
     const matching=plugin.actions.filter(a=>a.uuid!==HA_GENERIC_ACTION &&
       (plugin.name+' '+sdkCatalogueLabel(a)+' '+a.name+' '+a.uuid).toLowerCase().includes(query));
     if(!matching.length&&!(plugin.runtime==='deckforge-sdk'&&plugin.name.toLowerCase().includes(query)))continue;
     const section=document.createElement('section');section.className='group sdk-plugin-group';
     const title=document.createElement('div');title.className='group-title';
-    const heading=document.createElement('span');heading.textContent=plugin.name+' ('+plugin.version+')';
+    const heading=document.createElement('span');heading.textContent=nativeHa?'Home Assistant':plugin.name+' ('+plugin.version+')';
     title.append(heading);
     const isFusion=plugin.uuid==='com.autodesk.fusionstreamdeck';
     const isHa=plugin.uuid==='de.perdoctus.streamdeck.homeassistant';
@@ -1659,12 +1668,17 @@ function renderInstalledSdkPlugins(root,query){
       if(isFusion&&action.uuid===FUSION_PLUGIN+'.runcommand')continue;
       const id='sd::'+plugin.uuid+'::'+action.uuid;
       const tile=document.createElement('div');tile.className='action-item';tile.draggable=true;
-      tile.textContent='▣  '+sdkCatalogueLabel(action);
+      if(nativeHa){
+        const symbol=document.createElement('span');symbol.className='action-icon';
+        if(action.uuid.endsWith('.sensor'))symbol.textContent='🌡';else symbol.append(window.D200XPanelIcons.create('ha-toggle'));
+        const caption=document.createElement('span');caption.className='action-caption';caption.textContent=sdkCatalogueLabel(action);
+        tile.append(symbol,caption);
+      }else tile.textContent='▣  '+sdkCatalogueLabel(action);
       setDeckForgeTooltip(tile,()=>({title:sdkCatalogueLabel(action),lines:[isFusion?'등록한 Fusion 명령 실행':isHa?'지정한 Home Assistant 장치 제어':'설정한 플러그인 동작 실행']}));
       tile.addEventListener('dragstart',ev=>ev.dataTransfer.setData('application/x-d200x-action',id));
       body.append(tile);
     }
-    if(plugin.background&&window.deckBridge?.nativeServiceControl){
+    if(!nativeHa&&plugin.background&&window.deckBridge?.nativeServiceControl){
       const manager=document.createElement('button');manager.type='button';manager.className='fusion-manager-launch';
       manager.textContent='전역 서비스 관리';manager.addEventListener('click',event=>{event.stopPropagation();void openNativeServiceManager(plugin);});body.append(manager);
     }
@@ -1762,7 +1776,7 @@ function renderLibrary(){
     // SDK plugins own their connection settings via the original Property Inspector.
     // The old standalone HA REST setup control was redundant and looked like a white bar.
     renderInstalledSdkPlugins(root,query);
-  }
+  }else renderInstalledSdkPlugins(root,query,true);
   for(const [category,entries] of CATALOG){
     // The legacy built-in HA action stays executable for saved profiles, but is no longer offered.
     if(category==='플러그인 · Home Assistant')continue;
@@ -1869,10 +1883,6 @@ function bindActionAppearance(){
   exportButton.className='plugin-add-button';exportButton.textContent='패키지 저장';
   exportButton.title='선택한 .sdPlugin 폴더를 단일 .deckforgePlugin 설치 파일로 저장합니다. 원본은 변경하지 않습니다.';
   exportButton.addEventListener('click',exportDeckForgePlugin);management.append(exportButton);
-  if(window.deckBridge?.nativeHaInstall){
-    const ha=document.createElement('button');ha.type='button';ha.className='plugin-add-button';ha.textContent=sdkPlugins.some(p=>p.uuid==='com.deckforge.native.home-assistant'&&['0.1.0','0.1.1','0.1.2','0.1.3','0.1.4','0.1.5','0.1.6','0.1.7'].includes(p.version))?'HA 전용 업데이트':'HA 전용 추가';
-    ha.addEventListener('click',installNativeHa);management.append(ha);
-  }
   if(window.deckBridge?.nativeGitHubInstall){
     const github=document.createElement('button');github.type='button';github.className='plugin-add-button';github.textContent=sdkPlugins.some(p=>p.uuid==='com.deckforge.native.github-status')?'GitHub 개발 현황 업데이트':'GitHub 개발 현황 추가';
     github.addEventListener('click',async()=>{github.disabled=true;try{const result=await window.deckBridge.nativeGitHubInstall();if(result){await refreshSdkPlugins();scheduleSdkSync();window.d200xActionStatus?.('GitHub 개발 현황 설치 완료');}}catch(error){await window.DeckForgeDialogs.show({title:'GitHub 플러그인 설치 실패',kind:'error',detail:String(error?.message||error)});}finally{github.disabled=false;}});management.append(github);
@@ -4090,10 +4100,10 @@ function bindIndicatorInspector(root,item){
   void refreshStateTitleCards(item);
 }
 async function openNativeCredentials(item,plugin){
-  const session=inspectorSession;
-  if(!inspectorPickerCurrent(session,item))return;
+  const session=inspectorSession,current=()=>!item||inspectorPickerCurrent(session,item);
+  if(!current())return;
   const entries=await window.deckBridge.nativeCredentialInfo(plugin.uuid);
-  if(!inspectorPickerCurrent(session,item))return;
+  if(!current())return;
   if(!entries.length){window.d200xActionStatus?.('등록할 인증정보가 없습니다.');return;}
   const content=document.createElement('div');content.className='native-sdk-form';
   const select=document.createElement('select');select.setAttribute('aria-label','인증 대상 주소');
@@ -4113,10 +4123,10 @@ async function openNativeCredentials(item,plugin){
     }});
   const entry=entries.find(e=>e.binding===select.value);
   let token=choice===true?input.value:null;input.value='';
-  if(!choice||!entry||!inspectorPickerCurrent(session,item))return;
+  if(!choice||!entry||!current())return;
   if(choice==='alternate'){
     const confirm=await window.DeckForgeDialogs.show({title:'인증정보 등록 해제',intro:entry.method+' '+entry.url,ask:true,actionLabel:'등록 해제',kind:'warning'});
-    if(!confirm||!inspectorPickerCurrent(session,item))return;
+    if(!confirm||!current())return;
   }
   try{
     await window.deckBridge.nativeCredentialWrite(plugin.uuid,entry.binding,entry.revision,token);
@@ -4310,6 +4320,12 @@ function updateSdkAvailabilityInspector(){
   const label=sdkAvailabilityLabel(item);
   button.textContent=label?'⚠ '+label:DeckCore.isNativeHaSensor(item)?'⚙ 센서 설정':'⚙ 플러그인 속성 열기';
   button.title=label?'클릭하여 설치 또는 복구 방법을 확인하세요.':'플러그인 속성 열기';
+  if(!label&&item?.settings?.pluginUUID==='com.deckforge.native.home-assistant'&&window.deckBridge?.nativeCredentialInfo){
+    const session=inspectorSession;
+    window.deckBridge.nativeCredentialInfo(item.settings.pluginUUID).then(entries=>{
+      if(button.isConnected&&inspectorPickerCurrent(session,item)&&!entries.some(e=>e.configured)){button.textContent='⚙ HA 초기 연결';button.title='서버 주소와 인증정보를 등록합니다.';}
+    }).catch(()=>{});
+  }
   const cleanup=$('inspector')?.querySelector('[data-sdk-cleanup]');
   if(cleanup)cleanup.hidden=!(window.deckBridge?.nativeRetainedList&&DeckCore.sdkAvailability(item,sdkCatalogueReady?sdkPlugins:null)==='missing'&&!sdkRetained.some(p=>p.id===item?.settings?.pluginUUID));
 }
@@ -4356,10 +4372,28 @@ function bindExtendedActionFields(root,item){
         const choice=await window.DeckForgeDialogs.show({title:label,intro:'기존 버튼과 설정은 유지됩니다.',detail:'동일한 플러그인과 액션을 제공하는 호환 설치 파일을 선택하세요.',ask:true,actionLabel:'설치 파일 선택'});
         if(choice)await installSdkPlugin();return;
       }
-      const plugin=sdkPlugins.find(p=>p.uuid===item.settings?.pluginUUID);
+      let plugin=sdkPlugins.find(p=>p.uuid===item.settings?.pluginUUID);
       if(plugin?.runtime==='deckforge-sdk'){
-        try{await openNativeSettings(item,plugin.actions.find(a=>a.uuid===item.settings?.actionUUID),plugin);}
-        catch(error){window.d200xActionStatus?.('독자 SDK 속성 편집 실패: '+String(error?.message||error));}return;
+        try{
+          if(plugin.uuid==='com.deckforge.native.home-assistant'){
+            const session=inspectorSession;
+            let entries=await window.deckBridge.nativeCredentialInfo(plugin.uuid);
+            if(!inspectorPickerCurrent(session,item))return;
+            if(!entries.length){
+              if(!await installNativeHa(true)||!inspectorPickerCurrent(session,item))return;
+              plugin=sdkPlugins.find(p=>p.uuid===item.settings?.pluginUUID);
+              if(!plugin)return;entries=await window.deckBridge.nativeCredentialInfo(plugin.uuid);
+            }
+            if(!inspectorPickerCurrent(session,item))return;
+            if(!entries.some(e=>e.configured)){
+              await openNativeCredentials(item,plugin);
+              entries=await window.deckBridge.nativeCredentialInfo(plugin.uuid);
+              updateSdkAvailabilityInspector();
+              if(!entries.some(e=>e.configured)||!inspectorPickerCurrent(session,item))return;
+            }
+          }
+          await openNativeSettings(item,plugin.actions.find(a=>a.uuid===item.settings?.actionUUID),plugin);
+        }catch(error){window.d200xActionStatus?.('독자 SDK 속성 편집 실패: '+String(error?.message||error));}return;
       }
       if(isFusionAction(item)&&item.settings.actionUUID===FUSION_PLUGIN+'.runcommand'){
         try{await openFusionCommandProperties(root,item);}catch(error){window.d200xActionStatus?.('Fusion 명령 속성 오류: '+String(error?.message||error));}return;

@@ -151,6 +151,19 @@ class NativeVersionStore{
       currentRevision:current.revision,previousPermissions:[...current.manifest.permissions],
       addedPermissions:next.permissions.filter(p=>!current.manifest.permissions.includes(p))};
   }
+  async planHaConfiguration(next){
+    const {createHomeAssistantManifest}=require('./deckforge-ha-plugin.cjs');
+    const id='com.deckforge.native.home-assistant';
+    assert(next.id===id,'invalid built-in HA identity');
+    const generated=m=>createHomeAssistantManifest(m.networkEndpoints?.find(e=>e.id==='ha')?.url??null);
+    assert(fingerprint(next)===fingerprint(generated(next)),'only built-in HA server configuration may change');
+    const current=await this.read(this.currentFile(id),true);
+    if(!current||current.manifest.version!==next.version)return this.plan(next);
+    assert(fingerprint(current.manifest)===fingerprint(generated(current.manifest)),'only built-in HA server configuration may change');
+    this.validate(next);assertCompatible(current.manifest,next);
+    return {kind:current.digest===fingerprint(next)?'unchanged':'configure',currentVersion:current.manifest.version,nextVersion:next.version,currentRevision:current.revision,
+      previousPermissions:[...current.manifest.permissions],addedPermissions:next.permissions.filter(p=>!current.manifest.permissions.includes(p))};
+  }
   async preserve(current){
     const id=current.manifest.id,dir=this.historyDir(id),file=this.historyFile(id,current.digest);
     await fs.mkdir(dir,{recursive:true});
@@ -168,9 +181,9 @@ class NativeVersionStore{
       }
     }finally{await fs.rm(tmp,{force:true}).catch(()=>{});}
   }
-  async replace(next,expectedRevision,beforeCommit=()=>{},onAbort=()=>{}){
-    const plan=await this.plan(next);
-    assert(plan.kind!=='install'&&plan.currentRevision===expectedRevision,'installed revision changed; reselect package');
+  async replace(next,expectedRevision,beforeCommit=()=>{},onAbort=()=>{},haConfiguration=false){
+    const plan=haConfiguration?await this.planHaConfiguration(next):await this.plan(next);
+    assert(!['install','unchanged'].includes(plan.kind)&&plan.currentRevision===expectedRevision,'installed revision changed; reselect package');
     const target=this.currentFile(next.id),current=await this.read(target);
     assert(current.revision===expectedRevision,'installed revision changed');
     const nextBytes=Buffer.from(JSON.stringify(next));

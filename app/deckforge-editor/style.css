@@ -1206,7 +1206,7 @@ dialog.deckforge-message-dialog[open]{display:flex;flex-direction:column}
 dialog.deckforge-message-dialog::backdrop{background:#000a}
 .deckforge-message-header{
   display:flex;flex:0 0 auto;align-items:center;justify-content:space-between;
-  min-height:42px;padding:8px 14px;background:#343434;border-bottom:1px solid #4b4b4b;
+  min-height:28px;padding:1px 12px;background:#343434;border-bottom:1px solid #4b4b4b;
 }
 .deckforge-message-product{font-size:13px;font-weight:600;color:#f2f2f2}
 .deckforge-message-close{

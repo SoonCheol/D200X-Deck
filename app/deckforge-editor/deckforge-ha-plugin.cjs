@@ -22,11 +22,22 @@ function service(event,settings,state,memory,api){
   if(event.type==='serviceMessage'){
     const id=event.response?.message?.entity;
     if(memory.phase!=='live'||old.status!=='연결됨'||!valid(id)||!control(id)||!Object.hasOwn(old.entities||{},id))return;
-    const entry=old.entities[id],domain=id.split('.')[0];
+    const entry=old.entities[id],message=event.response.message;
     if(['unknown','unavailable',''].includes(entry.value))return;
-    const operation=domain==='automation'?'trigger':domain==='button'||domain==='input_button'?'press':domain==='script'||domain==='scene'?'turn_on':'toggle';
+    let target=id,domain=id.split('.')[0],operation=domain==='automation'?'trigger':domain==='button'||domain==='input_button'?'press':domain==='script'||domain==='scene'?'turn_on':'toggle';
+    if(message.linked===true){
+      if(!['on','off'].includes(entry.value))return;
+      const on=entry.value==='on';
+      target=on?message.onEntity:message.offEntity;operation=on?message.onOperation:message.offOperation;
+      if(!valid(target)||!control(target)||!Object.hasOwn(old.entities||{},target)||['unknown','unavailable',''].includes(old.entities[target].value))return;
+      domain=target.split('.')[0];
+      const allowed=['switch','light','fan','input_boolean'].includes(domain)?['turn_on','turn_off','toggle']:
+        domain==='automation'?['turn_on','turn_off','toggle','trigger']:domain==='script'?['turn_on','turn_off','toggle']:
+        domain==='scene'?['turn_on']:['press'];
+      if(!allowed.includes(operation))return;
+    }
     memory.next=(memory.next||10)+1;
-    api.sendSocket({id:memory.next,type:'call_service',domain,service:operation,target:{entity_id:id}});return;
+    api.sendSocket({id:memory.next,type:'call_service',domain,service:operation,target:{entity_id:target}});return;
   }
   if(event.type!=='socketEvent')return;
   const response=event.response||{};
@@ -101,7 +112,9 @@ function service(event,settings,state,memory,api){
 function controlKey(event,settings,state,memory,api){
   const shared=api.getSharedState(),id=settings.entity,entry=shared.entities?.[id];
   const ready=shared.status==='연결됨'&&entry&&!['unknown','unavailable'].includes(entry.value);
-  if(event.type==='press'&&ready){api.sendServiceMessage({entity:id});return;}
+  if(event.type==='press'&&ready){
+    api.sendServiceMessage(settings.linked===true?{entity:id,linked:true,onEntity:settings.onEntity||'',offEntity:settings.offEntity||'',onOperation:settings.onOperation||'turn_off',offOperation:settings.offOperation||'turn_on'}:{entity:id});return;
+  }
   if(!['appear','settings','sharedState','tick'].includes(event.type))return;
   const active=ready&&entry.value==='on',name=(entry?.label||'기기 선택').slice(0,30);
   const value=ready?(entry.value==='on'?'켜짐':entry.value==='off'?'꺼짐':entry.value):id?(shared.status==='연결됨'?'사용 불가':shared.status||'연결 안 됨'):'설정 필요';
@@ -150,19 +163,27 @@ function sensorKey(event,settings,state,memory,api){
   api.setTitle('');api.drawKey({width:144,height:144,commands});
 }
 function createHomeAssistantManifest(server){
-  if(typeof server!=='string'||server.length>1024)throw Error('HA 주소를 확인하세요.');
-  const u=new URL(server.trim());
-  if(!['https:','wss:'].includes(u.protocol)||u.username||u.password||u.search||u.hash||!['/','/api/websocket'].includes(u.pathname))throw Error('HTTPS/WSS 서버 주소만 지원합니다.');
-  u.protocol='wss:';u.pathname='/api/websocket';
+  let u=null;
+  if(server!==null){
+    if(typeof server!=='string'||server.length>1024)throw Error('HA 주소를 확인하세요.');
+    u=new URL(server.trim());
+    if(!['https:','wss:'].includes(u.protocol)||u.username||u.password||u.search||u.hash||!['/','/api/websocket'].includes(u.pathname))throw Error('HTTPS/WSS 서버 주소만 지원합니다.');
+    u.protocol='wss:';u.pathname='/api/websocket';
+  }
   const script=f=>'return ('+f.toString()+')(event,settings,state,memory,api);';
   const select=(key,label,value,options)=>({key,label,type:'select',default:value,options:options.map(([value,label])=>({value,label}))});
-  return {apiVersion:2,id:ID,name:'DeckForge Home Assistant',version:'0.1.8',requiresDeckForge:'>=1.1.213',
-    permissions:['display','background.run','network.websocket','timer.tick'],
-    networkEndpoints:[{id:'ha',url:u.href,method:'WSS',auth:'home-assistant',reconnect:true,maxReceiveBytes:1048576}],
-    service:{script:script(service),sharedStateBytes:262144},
+  const operations=[['turn_on','켜기'],['turn_off','끄기'],['toggle','전환'],['trigger','자동화 실행'],['press','버튼 누르기']];
+  const device=(key,label)=>({key,label,type:'dynamicSelect',source:'controls',default:''});
+  return {apiVersion:2,id:ID,name:'DeckForge Home Assistant',version:'0.1.9',requiresDeckForge:'>=2.0.45',
+    permissions:['display','background.run','timer.tick',...(u?['network.websocket']:[])],
+    ...(u?{networkEndpoints:[{id:'ha',url:u.href,method:'WSS',auth:'home-assistant',reconnect:true,maxReceiveBytes:1048576}]}:{}),
+    service:{script:u?script(service):"if(event.type==='start')api.publishSharedState({status:'초기 연결 필요',controls:[],sensors:[],entities:{}});",sharedStateBytes:262144},
     actions:[
       {id:ID+'.control',name:'HA 기기 제어',controllers:['Keypad'],states:2,script:script(controlKey),sharedStateView:{keys:['status','commandError'],map:'entities',selection:'entity'},
-       settingsSchema:[{key:'entity',label:'기기 선택',type:'dynamicSelect',source:'controls',default:''}],titlePolicy:{selectionLabel:'entity',defaultTitle:'기기 선택'}},
+       settingsSchema:[device('entity','상태 기준 기기'),{key:'linked',label:'별도 기기 연동 제어',type:'boolean',default:false},
+         device('offEntity','기준 OFF · 제어 기기'),select('offOperation','기준 OFF · 실행','turn_on',operations),
+         device('onEntity','기준 ON · 제어 기기'),select('onOperation','기준 ON · 실행','turn_off',operations)],
+       settingsUI:['offEntity','offOperation','onEntity','onOperation'].map(key=>({key,visibleWhen:{key:'linked',equals:true}})),titlePolicy:{selectionLabel:'entity',defaultTitle:'기기 선택'}},
       {id:ID+'.sensor',name:'HA 센서 표시',controllers:['Keypad'],states:1,visualPolicy:'foreground',script:script(sensorKey),tickIntervalMs:1000,tickWhen:{setting:'mode',equals:'auto',selection:'entities',minItems:2},sharedStateView:{keys:['status'],map:'entities',selection:'entities'},
        settingsSchema:[
          {key:'entities',label:'표시 항목',type:'dynamicMultiSelect',source:'sensors',maxItems:4,default:[]},
