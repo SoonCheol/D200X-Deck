@@ -17,6 +17,7 @@
 - 1.1.231: identity 19행 대조·집중 검사, CI #1281/입력 #521/Windows #985 성공, 게시. 1.1.232: 저장 13행 대응·종료 commit 차단. CI #1282/입력 #522 성공, Windows #986 clean fixture 실패(kind 누락), 종료/페이지·삭제/retire 검사 통과. 1.1.233: fixture 수정 CI #1283/Windows #987 성공, 게시. 1.1.234: 실제 Electron NativePluginHost+임시 ProfileStore, 요청 전/저장 후 ACK 전 renderer crash, 재조회·재실행 금지 검증 추가. CI #1284·Windows #988 성공, 1.1.234 설치본 게시.
 - 1.1.230: CI #1278, Windows #984 attempt2 전체 성공. 실제 idle/active crash·거부·서비스/peer 생존·새 이벤트 복구, 25함수·vault 통과. 1차 npm 404 해소(버전 변경 없음). deckforge-v1.1.230 게시, EXE 135231273 bytes. 현재 root suite 45/45 실행 명령 확인, 초기 helper skip 3개와 후속 패키지 검사 구분.
 ## 다음 작업
+- 2.0.35 예정: 외부 플러그인 catalogue의 실행용 ID/action 확인과 UI artwork 읽기 분리. 아이콘 읽기 실패 시 검증된 ID 유지, 기존 충돌 검사 및 manifest/CodePath 검증 유지. 집중 검사 후 기존 자동 Windows 빌드.
 - SDK 10C 재개: Windows #37 성공(2.0.34). 전용 SDK #78은 soak/OOM skip. #9 실제 로그: 장시간 테스트 service/button PID assertion 실패, OOM skip. 유휴 runner 30초 정리와 정적 service fixture 불일치 가능성. `0846974`에서 실제 1초 service tick·soak tick count/PID 진단, OOM 독립 실행, SDK 핵심 변경 시 전용 CI 트리거 추가. 생산 소스·버전·Model5/KEY 정책 미변경. 신규 실행 결과 미확인; 실제 HA/D200X/OS 절전·전원 손실은 별도.
 - 2.0.34: GitHub 0.1.1 번호 23px/상태 26px, 이름 마퀴 1~3초, 자동 조회 5/15초 또는 고정 5/10/15/30초, 기존 PAT binding 유지. 독립 pollIntervalMs 5초 이상, 집중 검사 추가. Windows #37 성공; 실기 미검증. 후속 GitHub 기능은 로드맵 보류.
 - 2.0.33: GitHub 개발 현황 0.1.0 관리 메뉴 내장 설치, 단일 저장소/워크플로/브랜치, 읽기 PAT vault, 30초 조회·한글 상태/빌드 번호·누르면 새로고침. GET 선택 32KiB 응답/6 pathKeys/User-Agent, 집중 검사 추가. Windows #36·CI #1384·SDK #76·입력 #550 성공, 사용자 #36 빌드 성공 표시 확인, 일회성 실행 다운 원인 미확인; 순환/길게 누르기 별도.
