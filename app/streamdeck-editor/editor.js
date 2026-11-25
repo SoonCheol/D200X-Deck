@@ -640,6 +640,7 @@ function setItem(index,item){
   }else {
     // A committed grid replacement must not consume a cut or retire the old
     // mount until the profile write succeeds.
+    if(inspectorSession&&inspectorEditing)return false;
     const page=currentPage(),previous=page[index],selected=state.selected;
     const hadCommon=Object.hasOwn(state,'indicatorCommon'),common=state.indicatorCommon;
     const oldContext=sdkContext(index);
@@ -664,8 +665,7 @@ function removeSlotAction(index){
   }
   if(!currentPage()?.[index])return false;
   if(!confirm('이 동작을 삭제하시겠습니까?'))return false;
-  setItem(index,null);
-  return true;
+  return setItem(index,null)===true;
 }
 function removeControlAction(index,gesture='down',draft=false){
   if(index===14||index===15){
@@ -896,8 +896,7 @@ function importFusionDraggedCommand(event,index){
  action.settings.pluginSettings={commandId:cmd.id,name:cmd.name};
  const art=cmd.png||cmd.svg;
   if(art){fusionIconCache.set(cmd.id,art);fusionCacheMisses.delete(cmd.id);void rememberFusionIcon(cmd.id,art);}
- setItem(index,action);
- window.d200xActionStatus?.('Fusion 명령 등록: '+cmd.name+' ('+cmd.id+')');
+ if(setItem(index,action)===true)window.d200xActionStatus?.('Fusion 명령 등록: '+cmd.name+' ('+cmd.id+')');
  return true;
 }
 let nativeGridDrag=null,nativeGridSequence=0,nativeGridBusy=false;
@@ -2550,14 +2549,19 @@ function setPressSlot(index,slot,next,immediate=false){
   if(next&&occupied&&!confirm(PRESS_TABS.find(x=>x[0]===slot)[1]+'에 등록된 동작을 교체하시겠습니까?'))
     return false;
   if(current&&!pressIsOrdinary(current)){
-    if(slot==='single'&&immediate){setItem(index,next);return true;}
+    if(slot==='single'&&immediate)return setItem(index,next)===true;
     window.d200xActionStatus?.('특수 액션은 기존 전용 편집기에서 관리합니다.');return false;
   }
   if(next&&!DeckCore.PRESS_ACTION_TYPES.includes(next.type)){
-    if(slot==='single'&&!current&&immediate){setItem(index,next);return true;}
+    if(slot==='single'&&!current&&immediate)return setItem(index,next)===true;
     window.d200xActionStatus?.('이 액션은 전용 편집기로 등록해야 합니다.');return false;
   }
+  const page=currentPage(),previous=page[index],selected=state.selected,previousTab=activePressTab,previousSession=inspectorSession;
+  if(immediate&&inspectorSession&&inspectorEditing)return false;
+  // Detach the local action before a committed gesture edit. The original
+  // object and nested gestures must survive a failed profile write unchanged.
   let root=current;
+  if(immediate&&root&&previous===root){root=clone(root);page[index]=root;}
   if(!root){
     root=slot==='single'&&next?next:DeckCore.createAction('press-empty');
     currentPage()[index]=root;
@@ -2584,7 +2588,11 @@ function setPressSlot(index,slot,next,immediate=false){
   state.selected=index;activePressTab=slot;
   if(immediate){
     inspectorSession=null;
-    persist();render();
+    if(!persist(false)){
+      page[index]=previous;state.selected=selected;activePressTab=previousTab;inspectorSession=previousSession;
+      render();return false;
+    }
+    window.scheduleDeckSync?.();render();
   }else{
     persistInspectorChange();renderGrid();renderInspector();
   }

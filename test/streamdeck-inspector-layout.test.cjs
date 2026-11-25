@@ -630,3 +630,31 @@ test('failed grid paste restores prior button and retains cut identity until a s
  assert.deepEqual(page[2].settings,original.settings);
  assert.equal(writes[0],original.instanceId);assert.equal(writes[1],original.instanceId);
 });
+
+
+test('immediate gesture edits preserve original button and nested settings on profile write failure',()=>{
+ const Core=require('../app/streamdeck-editor/deck-core.js'),state=Core.migrateState(null),page=Core.currentActions(state);
+ const original=Core.createAction('hotkey');original.settings.keys='Ctrl+A';
+ original.pressActions={double:Core.createAction('hotkey'),hold:null};original.pressActions.double.settings.keys='Ctrl+C';
+ original.pressMeta={enabled:{single:true,double:true,hold:true},representative:'single'};
+ page[1]=original;state.selected=0;
+ const before=JSON.stringify(original),syncs=[];
+ let success=false;
+ const source=editor.slice(editor.indexOf('function pressEnsureMeta('),editor.indexOf('function attachPressPreviewBadges('));
+ const sandbox={DeckCore:Core,state,currentPage:()=>page,clone:x=>JSON.parse(JSON.stringify(x)),
+   PRESS_TABS:[['single','single'],['double','double'],['hold','hold']],
+   inspectorSession:null,inspectorEditing:false,activePressTab:'single',
+   pressIsOrdinary:a=>!!a&&Core.PRESS_ACTION_TYPES.includes(a.type),
+   pressSlotAction:(a,k)=>k==='single'?a:a.pressActions?.[k],
+   confirm:()=>true,persist:schedule=>{assert.equal(schedule,false);return success;},
+   render(){},window:{scheduleDeckSync:()=>syncs.push(true)}};
+ const set=vm.runInNewContext(source+'\nsetPressSlot',sandbox);
+ const next=Core.createAction('hotkey');next.settings.keys='Ctrl+V';
+ assert.equal(set(1,'double',next,true),false);
+ assert.equal(page[1],original);assert.equal(JSON.stringify(original),before);assert.equal(state.selected,0);
+ assert.equal(sandbox.activePressTab,'single');assert.deepEqual(syncs,[]);
+ success=true;assert.equal(set(1,'double',next,true),true);
+ assert.notEqual(page[1],original);assert.equal(JSON.stringify(original),before);
+ assert.equal(page[1].pressActions.double.settings.keys,'Ctrl+V');assert.equal(page[1].settings.keys,'Ctrl+A');
+ assert.equal(state.selected,1);assert.equal(sandbox.activePressTab,'double');assert.equal(syncs.length,1);
+});
