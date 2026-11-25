@@ -542,8 +542,22 @@ async function verifyModel2MountedPageCycles(){
   await pressPage(second);presses+=13;assertPage('second',2);
   host.sync(first,[manifest]);await drain();assert.equal(service(),originalService);
   await pressPage(first);presses+=13;assertPage('first',1);
+  // Bounded repeated mount/retire stress; not a long-duration soak.
+  const samples=[];
+  for(let cycle=0;cycle<8;cycle++){
+   const next=cycle%2===0?second:first,previous=cycle%2===0?first:second;
+   host.sync(next,[manifest]);await drain();
+   assert.equal(service(),originalService);
+   assert.equal(host.key(previous[0].context,'down'),false);
+   await pressPage(next);presses+=13;assertPage(next===first?'first':'second',1);
+   assert.equal(host.retired.size,0);
+   assert.equal(host.scheduler.running,0);
+   assert.equal(host.scheduler.waiting.length,0);
+   samples.push({cycle,hostHeapBytes:process.memoryUsage().heapUsed,runnerEntries:host.runnerPool.entries.size});
+  }
+  console.log('MODEL2_REPEAT_RESOURCE_SAMPLES '+JSON.stringify({samples,additionalTransitions:8,additionalPresses:104,longDurationSoak:false}));
   assert.equal(events.some(e=>e.kind==='nativeEffect'||e.kind==='nativeSettingsCommit'),false);
-  console.log('MODEL2_MOUNTED_PAGE_CYCLES '+JSON.stringify({buttonsPerPage:13,presses,pageTransitions:2,suspendResumeCycles:1,isolatedMemory:true,serviceSurvived:true,elapsedMs:Date.now()-started,actualElectron:true,physicalDevice:false,oomTested:false}));
+  console.log('MODEL2_MOUNTED_PAGE_CYCLES '+JSON.stringify({buttonsPerPage:13,presses,pageTransitions:10,suspendResumeCycles:1,isolatedMemory:true,serviceSurvived:true,elapsedMs:Date.now()-started,actualElectron:true,physicalDevice:false,oomTested:false}));
  }finally{host.close();assert.equal(host.contexts.size,0);assert.equal(host.runnerPool.entries.size,0);}
 }
 
