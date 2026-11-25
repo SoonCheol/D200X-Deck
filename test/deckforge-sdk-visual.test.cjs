@@ -295,6 +295,8 @@ test('dirty revisions survive in-flight rendering, page invalidation and failed 
  let stamp='page-a',mode='blank',pending=new Map(),sent=[],timers=[],error=false;
  const ctx={dirtyNativeSlots:new Map(),renderSerial:0,slotRevision:0,rendering:false,fullPending:false,renderRetryCount:0,timeout:null,
   lastSentImages:images,lastSentPageStamp:stamp,lastSentWideMode:mode,warningPageStamp:()=>stamp,
+  pageStamp:()=>stamp,pageEntry:{scope:stamp,token:'test-1',collecting:false},pageGeneration:1,pageSession:'test',displayedPageToken:'test-1',PAGE_ENTRY_MAX_MS:500,
+  pressedKeys:new Map(),releaseTimers:new Map(),
   window:{getD200XWideMode:()=>mode,getD200XDisplayItem:x=>x},state:{folderPath:[]},
   DeckCore:{visibleActions:()=>Array(14).fill(null)},drawSlot:(_,index)=>new Promise((resolve,reject)=>pending.set(index,{resolve,reject})),
   cacheAndSendImages:(frames,m,s)=>{sent.push({frames,m,s});ctx.lastSentImages=frames;ctx.lastSentPageStamp=s;ctx.lastSentWideMode=m;},
@@ -307,11 +309,11 @@ test('dirty revisions survive in-flight rendering, page invalidation and failed 
  await ctx.window.flushRender(true);assert.equal(pending.size,1,'no overlapping render');
  complete();await first;assert.equal(sent.length,1);assert.deepEqual([...ctx.dirtyNativeSlots.keys()],[2,4]);
  const second=ctx.window.flushRender(true);complete();await second;assert.equal(sent.length,2);assert.equal(ctx.dirtyNativeSlots.size,0);
- request([3]);const stale=ctx.window.flushRender(true);stamp='page-b';ctx.window.scheduleDeckSync(0);complete();await stale;
+ request([3]);const stale=ctx.window.flushRender(true);stamp='page-b';ctx.window.scheduleDeckSync(0);request([5]);complete();await stale;
  assert.equal(sent.length,2,'old page must never be submitted');assert.equal(ctx.fullPending,true);
  ctx.fullPending=false;const failed=ctx.window.flushRender(false);
- pending.get(3).reject(Error('decode failure'));pending.delete(3);complete();await failed;await flush();
- assert.equal(error,true);assert.equal(sent.length,2);assert.equal(ctx.dirtyNativeSlots.has(3),true);assert.equal(ctx.fullPending,true);
+ pending.get(5).reject(Error('decode failure'));pending.delete(5);complete();await failed;await flush();
+ assert.equal(error,true);assert.equal(sent.length,2);assert.equal(ctx.dirtyNativeSlots.has(3),false,'old scope dirty slot retired');assert.equal(ctx.dirtyNativeSlots.has(5),true,'current scope dirty slot retained');assert.equal(ctx.fullPending,true);
  ctx.fullPending=false;const recovered=ctx.window.flushRender(false);complete();await recovered;
  assert.equal(sent.length,3);assert.equal(sent.at(-1).s,'page-b');assert.equal(ctx.dirtyNativeSlots.size,0);assert.equal(ctx.renderRetryCount,0);
 });
