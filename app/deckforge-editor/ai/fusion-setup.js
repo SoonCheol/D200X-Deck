@@ -16,7 +16,10 @@ async function run(deps,signal){
  add('Fusion 시작 메뉴',pick.status==='found'?'완료':'확인 필요',({found:'등록된 Fusion 앱 확인',ambiguous:'후보가 여러 개여서 임의 실행하지 않음','not-found':'등록된 앱을 찾지 못함',unavailable:'시작 메뉴 조회 실패'})[pick.status]);
  const plugin=await attempt(deps.plugin,'failed');
  add('SDK 플러그인',['existing','installed'].includes(plugin)?'완료':'확인 필요',({existing:'기존 설치 유지',installed:'누락된 Fusion 플러그인 설치','not-bundled':'내장 플러그인 없음',failed:'설치 또는 조회 실패'})[plugin]||'상태 확인 필요');
- let addin=await attempt(deps.addin,{status:'failed'}),online=await attempt(deps.health,false),launch='not-needed';
+ let addin=await attempt(deps.addin,{status:'failed'}),online=await attempt(deps.health,false),launch='not-needed',mcp=null;
+ const ensure=async()=>{if(!online&&deps.ensure&&addin.target&&['installed','existing'].includes(addin.status)&&!mcp?.requested)mcp=await attempt(()=>deps.ensure(addin.target,signal),null);};
+ await ensure();
+ if(mcp?.requested)online=await attempt(deps.health,false);
  if(!online&&pick.status==='found'&&['installed','existing','fusion-not-ready'].includes(addin.status)&&['existing','installed'].includes(plugin)){
    const state=await attempt(()=>deps.probe(pick.id,signal),'unavailable');
    if(state==='missing'){
@@ -28,6 +31,7 @@ async function run(deps,signal){
        check();await deps.sleep(2000,signal);check();
        if(addin.status==='fusion-not-ready')addin=await attempt(deps.addin,{status:'failed'});
        online=await attempt(deps.health,false);
+       await ensure();
        if(online)break;
      }
    }
@@ -39,12 +43,24 @@ async function run(deps,signal){
  add('Fusion 실행',launch==='requested'||launch==='already-running'||online?'완료':'확인 필요',
   ({'requested':'시작 메뉴 실행 요청 1회','already-running':'기존 프로세스 유지',failed:'실행 요청 실패',unavailable:'실행 상태 확인 불가, 중복 실행 방지를 위해 요청하지 않음','not-needed':online?'이미 연결됨':'실행 조건 미충족'})[launch]);
  add('애드인 연결',online?'완료':'확인 필요',online?'로컬 health 응답 정상':'로컬 health 응답 미확인');
+ // A non-blocking run(false) request is not proof of a live add-in.
+ if(!online&&mcp?.requested){for(let i=0;i<10;i++){await deps.sleep(1000,signal);online=await attempt(deps.health,false);if(online)break;}}
+ if(mcp)add('MCP 애드인 등록·실행',online?'완료':'확인 필요',mcp.registered?'설치 경로 등록 및 실행 요청':'기존 등록 확인 및 실행 요청');
+ else if(deps.ensure&&!online)add('MCP 애드인 등록·실행','확인 필요','Fusion 공식 MCP 활성화 및 애드인 등록 상태 확인');
+ const healthRow=rows.find(r=>r.name==='애드인 연결');
+ healthRow.status=online?'완료':'확인 필요';healthRow.detail=online?'로컬 health 응답 정상':'로컬 health 응답 미확인';
  const ready=online&&['installed','existing'].includes(plugin);
+ if(ready&&deps.collect){
+   const result=await attempt(()=>deps.collect(signal),null);
+   const d=result?.descriptions,i=result?.icons;
+   add('명령 설명 수집',d&&d.source==='MCP'&&d.collected>0?'완료':'확인 필요',d?d.source+' 조회 '+d.scanned+'개 · 설명 '+d.collected+'개 · 없음 '+d.missing+'개 · 조회 오류 '+d.errors+'개 · 전체 저장 '+d.total+'개':'설명 수집 실패');
+   add('원본 아이콘 수집',i&&i.failed===0?'완료':'확인 필요',i?'대상 '+i.total+'개 · 신규 '+i.saved+'개 · 기존 '+i.cached+'개 · 원본 없음 '+i.missing+'개 · 실패 '+i.failed+'개':'아이콘 수집 실패');
+ }
  return {ready,rows};
 }
 function format(result){
  const lines=['## Fusion 초기 연결 결과','',...result.rows.map(x=>'- **'+x.name+' · '+x.status+'**: '+x.detail),''];
- lines.push(result.ready?'Fusion 애드인 연결과 SDK 플러그인 설치를 확인했습니다. 실제 명령 실행은 별도 확인이 필요합니다.':'아직 연결 완료가 아닙니다. Fusion이 실행 중이면 로그인 상태와 Scripts and Add-Ins의 FusionStreamDeck Run 및 Run on Startup을 확인한 후 다시 실행하세요. 기존 앱을 종료하거나 재시작하지 않았습니다.');
+ lines.push(result.ready?'Fusion 애드인 연결과 SDK 플러그인 설치를 확인했습니다. 수집 결과는 위 항목을 확인하세요. 실제 명령 실행은 별도 확인이 필요합니다.':'아직 연결 완료가 아닙니다. Fusion 실행 및 로그인 상태, 기본 설정 > 일반 > API의 공식 MCP 서버 활성화와 애드인 설치 상태를 확인하세요. 기존 앱을 종료하거나 재시작하지 않았습니다.');
  return lines.join('\n');
 }
  const api={matches,choose,run,format};

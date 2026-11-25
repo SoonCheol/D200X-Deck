@@ -401,6 +401,8 @@ function assertEditor(event){
 const {createReader:createAiReader,windowsApps}=require('./ai/read-tools.cjs');
 const FusionSetup=require('./ai/fusion-setup.js');
 const LiveFusion=require('./ai/fusion-commands.cjs');
+const DesktopMcp=require('./ai/fusion-desktop-mcp.cjs');
+const fusionMcp=DesktopMcp.createClient();
 const fusionCommands=LiveFusion.createClient({
   discoveryFile:fusionDiscoveryFile(),
   catalogFile:path.join(__dirname,'../fusion-manager/fusion-command-catalog-final.json')
@@ -420,11 +422,13 @@ function readFusionTooltipCatalog(){
  })();
  return tooltipCatalogPromise;
 }
-function collectFusionTooltips(){
+function collectFusionTooltips(inventory=null,signal){
  if(tooltipCollection)return tooltipCollection;
  tooltipCollection=(async()=>{
-   const rows=await fusionCommands.listDetails();
-   const merged=LiveFusion.mergeTooltips(await readFusionTooltipCatalog(),rows);
+   let data=inventory;
+   if(!data)try{data=await fusionMcp.listCommands(signal);}catch{signal?.throwIfAborted();}
+   const rows=data?data.commands:await fusionCommands.listDetails(signal);
+   const merged=LiveFusion.mergeTooltips(await readFusionTooltipCatalog(),rows.map(row=>({...row,tooltip:DesktopMcp.plainTooltip(row.tooltip)})));
    if(merged.collected){
      const file=fusionTooltipCatalog(),temp=file+'.'+randomUUID()+'.tmp';
      const payload=JSON.stringify({version:1,collectedAt:new Date().toISOString(),tooltips:merged.data});
@@ -434,7 +438,7 @@ function collectFusionTooltips(){
      finally{await fs.promises.rm(temp,{force:true}).catch(()=>{});}
      tooltipCatalogPromise=Promise.resolve(merged.data);
    }
-   return {scanned:merged.scanned,collected:merged.collected,missing:merged.missing,total:merged.total};
+   return {scanned:merged.scanned,collected:merged.collected,missing:merged.missing,total:merged.total,source:data?'MCP':'addin',errors:data?.errors||0};
  })().finally(()=>{tooltipCollection=null;});
  return tooltipCollection;
 }
@@ -457,6 +461,55 @@ ipcMain.handle('d200x:fusion-command-details',async(event,id)=>{
   }
   return {id,ko:names.ko[id]||live?.ko||'',en:names.en[id]||live?.en||'',tooltip};
 });
+// One-click bulk collection. Existing icon cache files are never overwritten.
+async function collectInitialFusionIcons(rows,signal){
+ const dir=path.join(app.getPath('userData'),'Cache','Fusion','original');
+ const info=JSON.parse(await fs.promises.readFile(fusionDiscoveryFile(),'utf8'));
+ if(info?.status!=='running'||!Number.isInteger(info.port)||info.port<1||info.port>65535)throw Error('Fusion icon server unavailable');
+ await fs.promises.mkdir(dir,{recursive:true});
+ const ids=[...new Set(rows.map(r=>r.id).filter(LiveFusion.safeId))];
+ const counts={total:ids.length,saved:0,cached:0,missing:0,failed:0};
+ let next=0;
+ async function worker(){
+  while(next<ids.length){
+   signal?.throwIfAborted();
+   const id=ids[next++];
+   try{
+    let present=false;
+    for(const [folder,ext] of [[dir,'png'],[dir,'svg'],[fusionCacheDir(),'png']]){
+     try{const st=await fs.promises.stat(path.join(folder,id+'.'+ext));if(st.isFile()&&st.size>=8&&st.size<=768*1024){present=true;break;}}catch{}
+    }
+    if(present){counts.cached++;continue;}
+    const timeout=AbortSignal.timeout(6500);
+    const reply=await fetch('http://127.0.0.1:'+info.port+'/icon?commandId='+encodeURIComponent(id)+'&size=32',{redirect:'error',signal:signal?AbortSignal.any([signal,timeout]):timeout});
+    if(reply.status===404){counts.missing++;await reply.body?.cancel();continue;}
+    if(!reply.ok||!reply.body){await reply.body?.cancel();throw Error('icon HTTP');}
+    const type=(reply.headers.get('content-type')||'').split(';')[0].trim().toLowerCase();
+    const ext=type==='image/png'?'png':type==='image/svg+xml'?'svg':null;
+    if(!ext){await reply.body.cancel();throw Error('icon type');}
+    const reader=reply.body.getReader(),chunks=[];let size=0;
+    try{for(;;){const {done,value}=await reader.read();if(done)break;size+=value.byteLength;if(size>768*1024)throw Error('icon size');chunks.push(Buffer.from(value));}}finally{await reader.cancel().catch(()=>{});reader.releaseLock();}
+    const bytes=Buffer.concat(chunks);
+    if(bytes.length<8||(ext==='png'?bytes.subarray(0,8).toString('hex')!=='89504e470d0a1a0a':!/^\s*(<\?xml[^>]*>\s*)?<svg[\s>]/i.test(bytes.toString('utf8').replace(/<!--[\s\S]*?-->/g,''))))throw Error('icon format');
+    const target=path.join(dir,id+'.'+ext),temp=target+'.'+randomUUID()+'.tmp';
+    try{
+     await fs.promises.writeFile(temp,bytes,{flag:'wx'});
+     try{await fs.promises.link(temp,target);counts.saved++;}catch(error){if(error.code==='EEXIST')counts.cached++;else throw error;}
+    }finally{await fs.promises.rm(temp,{force:true}).catch(()=>{});}
+   }catch{signal?.throwIfAborted();counts.failed++;}
+  }
+ }
+ await Promise.all(Array.from({length:Math.min(3,ids.length)},worker));
+ return counts;
+}
+async function collectInitialFusionData(signal){
+ let inventory=null;
+ try{inventory=await fusionMcp.listCommands(signal);}catch{signal?.throwIfAborted();}
+ let descriptions=null,icons=null;
+ try{descriptions=await collectFusionTooltips(inventory,signal);}catch{signal?.throwIfAborted();}
+ try{icons=await collectInitialFusionIcons(inventory?.commands||await fusionCommands.list(signal),signal);}catch{signal?.throwIfAborted();}
+ return {descriptions,icons};
+}
 async function runLocalFusionSetup(signal){
   if(process.platform!=='win32')throw Error('Windows에서만 지원합니다.');
   return FusionSetup.run({
@@ -464,6 +517,8 @@ async function runLocalFusionSetup(signal){
     plugin:()=>Bundled.installFusionPlugin(sdk()),
     addin:()=>Bundled.installFusionAddin(undefined,{configureStartup:true}),
     health:fusionAddinAvailable,
+    ensure:(target,s)=>fusionMcp.ensureAddin(target,s),
+    collect:collectInitialFusionData,
     probe:async id=>(await runAppFocus(__dirname,{kind:'AppID',target:requireStartAppId(id)},'Probe')).status,
     launch:id=>openLocalPath({target:'appid',filePath:APP_ID_PREFIX+requireStartAppId(id)}),
     sleep:(ms,s)=>require('node:timers/promises').setTimeout(ms,undefined,{signal:s})

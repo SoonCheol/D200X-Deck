@@ -64,7 +64,7 @@ async function installFusionAddin(root=bundledRoot(),options={}){
      }
    }catch{startup='unverified';}
  }
- return {status,startup,message:status==='installed'?'FusionStreamDeck 애드인을 복사했습니다. Fusion에서 실행 상태를 확인하세요.':'기존 FusionStreamDeck 애드인을 확인했습니다.'};
+ return {status,startup,target,message:status==='installed'?'FusionStreamDeck 애드인을 복사했습니다. Fusion에서 실행 상태를 확인하세요.':'기존 FusionStreamDeck 애드인을 확인했습니다.'};
 }
 // Existing add-ins are never upgraded during automatic setup or startup.
 async function planFusionStateUpgrade(root=bundledRoot(),options={}){

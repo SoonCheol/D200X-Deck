@@ -91,3 +91,51 @@ test('bulk Fusion tooltip cache preserves unavailable commands and counts actual
  assert.equal(result.data.Revolve,'새 회전 설명');assert.equal(result.data.Circle,'원 설명');assert.equal(result.data.Line,'선 설명');assert.equal(result.data.Empty,undefined);
  assert.deepEqual({scanned:result.scanned,collected:result.collected,missing:result.missing,total:result.total},{scanned:4,collected:2,missing:2,total:3});
 });
+
+
+test('desktop Fusion MCP negotiates a local session and executes only fixed script tools',async()=>{
+ const {createClient,plainTooltip}=require('../app/deckforge-editor/ai/fusion-desktop-mcp.cjs');
+ const calls=[];
+ const client=createClient(async(url,options)=>{
+   assert.equal(url,'http://127.0.0.1:27182/mcp');
+   assert.equal(options.redirect,'error');
+   const body=JSON.parse(options.body);calls.push(body);
+   const response=result=>new Response(JSON.stringify({jsonrpc:'2.0',id:body.id,result}),{headers:{'content-type':'application/json','mcp-session-id':'local-test'}});
+   if(body.method==='initialize')return response({protocolVersion:'2025-11-25',capabilities:{tools:{}}});
+   assert.equal(options.headers['Mcp-Session-Id'],'local-test');
+   if(body.method==='notifications/initialized')return new Response(null,{status:202});
+   if(body.method==='tools/list')return response({tools:[{name:'fusion_mcp_execute',inputSchema:{properties:{featureType:{enum:['script']}}}}]});
+   assert.equal(body.params.name,'fusion_mcp_execute');
+   const script=body.params.arguments.object;
+   if(script.readOnly){
+     assert.match(script.script,/commandDefinitions/);
+     return response({content:[{type:'text',text:JSON.stringify({success:true,message:JSON.stringify({commands:[{id:'Revolve',name:'회전',tooltip:'설명<br><br>다음 줄'}],errors:0,count:1})})}]});
+   }
+   assert.match(script.script,/scripts\.itemByPath/);
+   assert.match(script.script,/scripts\.addExisting/);
+   assert.match(script.script,/s\.run\(False\)/);
+   return response({content:[{type:'text',text:JSON.stringify({success:true,message:JSON.stringify({registered:true,requested:true,startup:true})})}]});
+ });
+ const rows=await client.listCommands();
+ assert.equal(rows.count,1);
+ assert.equal(plainTooltip(rows.commands[0].tooltip),'설명\n\n다음 줄');
+ const started=await client.ensureAddin('C:\\Test\\FusionStreamDeck');
+ assert.equal(started.requested,true);
+ assert.equal(calls.length,8);
+});
+test('initial Fusion setup waits for health before collecting icons and descriptions',async()=>{
+ const Setup=require('../app/deckforge-editor/ai/fusion-setup.js');
+ let started=false,checks=0,collected=false;
+ const result=await Setup.run({
+   apps:async()=>[{appId:'AutodeskInc.Fusion360',name:'Fusion'}],
+   plugin:async()=>'existing',
+   addin:async()=>({status:'installed',startup:'enabled',target:'C:\\Test\\FusionStreamDeck'}),
+   health:async()=>started&&++checks>=2,
+   ensure:async target=>{assert.match(target,/FusionStreamDeck$/);started=true;return {registered:true,requested:true,startup:true}},
+   probe:async()=>'present',launch:async()=>assert.fail('should not relaunch'),
+   sleep:async()=>{},
+   collect:async()=>{assert.ok(checks>=2);collected=true;return {descriptions:{source:'MCP',scanned:2,collected:1,missing:1,total:1,errors:0},icons:{total:2,saved:1,cached:1,missing:0,failed:0}}}
+ });
+ assert.equal(result.ready,true);assert.equal(collected,true);
+ assert.ok(result.rows.some(r=>r.name==='MCP 애드인 등록·실행'&&r.status==='완료'));
+});

@@ -153,7 +153,7 @@ $('send').onclick=()=>run('chat',async()=>{
   const files=attachments.map(({name,dataUrl})=>({name,dataUrl}));
   const displayText=(text||'첨부한 파일을 분석해 주세요.')+(files.length?'\n\n[첨부: '+files.map(f=>f.name).join(', ')+']':'');
   const local=!files.length&&localSetup(text);
-  if(local&&!confirm('Fusion 초기 연결을 진행할까요? 누락된 Fusion 플러그인 및 애드인을 설치하고 자동 시작 manifest 설정을 활성화합니다. 필요한 경우 Fusion을 한 번 실행합니다. 기존 폴더와 프로필은 덮어쓰지 않고 실행 중인 Fusion은 종료하거나 재시작하지 않습니다.'))return;
+  if(local&&!confirm('Fusion 초기 연결을 진행할까요? 누락된 Fusion 플러그인 및 애드인을 설치하고 공식 로컬 MCP로 애드인을 등록·실행합니다. 자동 시작을 활성화하고 명령 설명과 원본 아이콘을 수집합니다. 필요한 경우 Fusion을 한 번 실행합니다. 기존 폴더와 프로필은 덮어쓰지 않고 실행 중인 Fusion은 종료하거나 재시작하지 않습니다.'))return;
   notice(local?'Fusion 로컬 초기 연결 중 · AI 요청 없음':'응답 요청 중');$('messages').querySelector('.empty')?.remove();addMessage('user',displayText);stream=addMessage('assistant','',local);
   try{const r=check(await api.send({id,model,text,attachments:files,readOnly,editMode,localApproved:local}));history=[r.conversation,...history.filter(c=>c.id!==id)];current=id;$('input').value='';clearAttachments();canUndo=!!r.canUndo;draw();showPreview(r.preview||null);if(r.previewFailure){notice('변경안 준비 실패: '+r.previewFailure);return;}if(r.local){notice('로컬 작업 종료 · AI 요청 0회 · 토큰 0');return;}notice((readOnly?(r.called?'조회 및 응답 완료 · '+r.toolCalls+'회 조회':'응답 완료 · 로컬 조회 없음'):'응답 완료')+' · 요청 '+r.requests+'회'+(r.usage?' · 입력 '+r.usage.input_tokens.toLocaleString()+' / 출력 '+r.usage.output_tokens.toLocaleString()+' 토큰':''));}
   catch(e){stream.textContent+=(stream.textContent?'\n\n':'')+(local?'[미완료 · 일부 로컬 설치 또는 설정은 이미 적용되었을 수 있습니다.]':'[미완료 · 저장하지 않음]');throw e;}

@@ -127,7 +127,7 @@ function registerAiWindow(assertEditor,newReadSession,editorEdits,runFusionSetup
         const fileNote=attachments.names.length?'\n\n[첨부 파일: '+attachments.names.join(', ')+' · 원본은 대화 기록에 저장하지 않음]':'';
         const message={role:'user',content:prompt+fileNote},messages=[...(old?.messages||[]),message];
         if(messages.length>200)throw Error('이 대화의 메시지 한도에 도달했습니다. 새 대화를 시작하세요.');
-        const signal=AbortSignal.any([job.controller.signal,AbortSignal.timeout(240000)]);
+        const signal=AbortSignal.any([job.controller.signal,AbortSignal.timeout(local?1800000:240000)]);
         if(local){
           const result=await runFusionSetup(signal);signal.throwIfAborted();
           const updated={id:args.id,title:old?.title||message.content.slice(0,48),messages:[...messages,{role:'assistant',local:true,content:FusionSetup.format(result)}],updated:Date.now()};
