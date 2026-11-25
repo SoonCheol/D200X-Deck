@@ -1419,7 +1419,7 @@ function pluginHelpButton(plugin,retained=false){
 function renderRetainedSdkPlugins(root,query){
   for(const plugin of sdkRetained){
     if(!(plugin.name+' '+plugin.id).toLowerCase().includes(query))continue;
-    const section=document.createElement('section');section.className='group';
+    const section=document.createElement('section');section.className='group sdk-plugin-group';
     const heading=document.createElement('div');heading.className='group-title';heading.style.cssText='display:flex;align-items:center;justify-content:space-between';
     const name=document.createElement('span');name.textContent=plugin.name+(plugin.version?' ('+plugin.version+')':'')+' · 데이터 보존 중';
     heading.append(name,pluginHelpButton(plugin,true));section.append(heading);root.append(section);
@@ -1603,7 +1603,7 @@ function renderInstalledSdkPlugins(root,query){
     const matching=plugin.actions.filter(a=>a.uuid!==HA_GENERIC_ACTION &&
       (plugin.name+' '+sdkCatalogueLabel(a)+' '+a.name+' '+a.uuid).toLowerCase().includes(query));
     if(!matching.length&&!(plugin.runtime==='deckforge-sdk'&&plugin.name.toLowerCase().includes(query)))continue;
-    const section=document.createElement('section');section.className='group';
+    const section=document.createElement('section');section.className='group sdk-plugin-group';
     const title=document.createElement('div');title.className='group-title';
     const heading=document.createElement('span');heading.textContent=plugin.name+' ('+plugin.version+')';
     title.append(heading);

@@ -1628,3 +1628,9 @@ dialog.deckforge-message-dialog::backdrop{background:#000a}
 
 /* Missing SDK actions retain their artwork and editability. Editor-only marker. */
 #key-grid .sdk-unavailable{outline:2px dashed #e6ab56;outline-offset:-3px;}
+
+/* Distinct plugin sections, without changing action or launcher alignment. */
+.library .sdk-plugin-group{margin-bottom:6px;border-bottom:1px solid #535b66;background:#232323}
+.library .sdk-plugin-group>.group-title{background:#383e46;border-top:1px solid #65717e;border-bottom:1px solid #4d5661;color:#f0f2f5}
+.library .sdk-plugin-group>.group-title:hover{background:#414955}
+.library .sdk-plugin-group>div:not(.group-title):not([hidden]){padding-bottom:3px}
