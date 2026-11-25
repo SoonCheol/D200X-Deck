@@ -1,4 +1,10 @@
-# ulanzi-deck-open
+# DeckForge
+
+**현재 프로젝트:** Ulanzi D200X용 독립 편집기와 DeckForge 독자 SDK. Stream Deck은 외부 플러그인 호환 및 기술 참고 대상이며 제품 기준이 아니다. [개발 지침](AGENTS.md) · [현재 상태](docs/D200X-CURRENT-STATUS.md) · [로드맵](docs/DECKFORGE-ROADMAP.md) · [SDK 계약](docs/DECKFORGE-SDK-1.0.md) · [편집기 안내](app/streamdeck-editor/README.md).
+
+## 초기 기반 프로젝트 기록 (현재 기능 명세 아님)
+
+아래는 기반 프로젝트 `ulanzi-deck-open`의 README를 출처와 이력 보존을 위해 유지한 내용이다. 현재 DeckForge 제품명, 설치 방법, 기능 보장 또는 개발 지시로 사용하지 않는다.
 
 An open-source desktop app for the **Ulanzi D200** (14 buttons: 13 square 196×196 keys
 plus one 2×1 wide key, USB `0x2207:0x0019`). It replaces Ulanzi Studio for editing pages

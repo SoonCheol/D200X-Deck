@@ -2,7 +2,7 @@
 > 2026-11-25 · 현재 스냅샷, 누적 금지.
 ## 개발 기준
 - 저장소 SoonCheol/D200X-Deck · 브랜치 codex/streamdeck-761-clean-editor · Draft PR #5 유지.
-- 로컬 E:\Codex\DeckForge. 최신 HEAD는 Git에서 확인. 소스 버전 **1.1.235** (내부 명칭 정리; 1.1.234 게시).
+- 로컬 E:\Codex\DeckForge. 최신 HEAD는 Git에서 확인. 소스 버전 **1.1.235** (CI #1285·입력 #523 성공, Windows #989 실패; 1.1.234 게시).
 - 감사 기준 `49ba39fe094ee808c5715f2348be0789f61d5e20`. CI #1221 성공; Windows #930 사용자 인수인계.
 ## 현재 상태
 - 독자 SDK API 1/2, 공개 25개 함수, HTTP/WSS, 전역 서비스/공유 상태, 동적 속성, 암호화·권한·패키지, HA 0.1.8 후보 및 Stream Deck 호환 호스트 구현. SDK 1.0 정식 완성 선언 보류.
@@ -13,8 +13,6 @@
 - 02~03: UUIDv4·세대 검증·렌더 합성/dirty loop·Fusion 중복 갱신 차단 구현. 사용자 1.1.182 편집기 깜박임 해소 확인, 물리 버튼 깜박임 없음. 개별 키 USB 기본 OFF, HA 제어 재실행 금지. 상세 이력은 Git/SDK 계약.
 - 04A Model 2: service/button partition·runner 재사용, lane 직렬화·lease 취소·idle LRU/30초·suspend/close·realm reset. legacy 복귀 DECKFORGE_SDK_RUNNER=legacy, 실패 이벤트 재실행 금지. 1.1.189 Windows 성공; 1.1.230 실제 장애 검증 통과.
 - 04B 선행 검증: 전용 Electron CSP/격리 검사만, 실제 앱 Worker 미등록.
-- 1.1.190: Model 5 DrawOps 신뢰 painter 후보, 생산 경로 미변경. 후속 1.1.193에서 픽셀/host 검증 통과.
-- 1.1.191~193: 카드 외곽 팝업 위치 규격, Windows 성공.
 - 04B 실제 Electron: Model 2 PID 5668/844 및 realm/timeout/서비스 생존, DrawOps 픽셀/host 경계 통과. standard Worker 저장소 IndexedDB/CacheStorage/OPFS 허용, opaque Worker 생성 실패. Model 5 비활성 유지. 로드맵에 따라 05 선행 분석만 수행.
 - 1.1.194~196: 미저장 이동/물리 초안 보호, configRevision/요청 ID/ABA 보호. 후속 05B/C 확장.
 - 1.1.197: HA 0.1.4 투명 control/sensor 이미지, 동일 서버 업데이트 필요. Windows/CI 성공.
@@ -37,9 +35,9 @@
 - 1.1.226: Model2 실제 반복/자원 제한/서비스 생존·복구, opaque storage/CSP 검사 및 USB mock 통과. CI #1274·Windows #980 성공. OOM 별도. 세부 수치 SDK 계약.
 - 1.1.230: CI #1278, Windows #984 attempt2 전체 성공. 실제 idle/active crash·거부·서비스/peer 생존·새 이벤트 복구, 25함수·vault 통과. 1차 npm 404 해소(버전 변경 없음). deckforge-v1.1.230 게시, EXE 135231273 bytes. 현재 root suite 45/45 실행 명령 확인, 초기 helper skip 3개와 후속 패키지 검사 구분.
 ## 다음 작업
-- 사용자 지시로 SDK 로드맵 일시 중지, DeckForge 독립 제품 명칭 정리 우선. 1.1.235 편집기·AI 표시/제품 설명/주석 및 AGENTS 기준 수정. 외부 호환 ID/저장 키 유지. 소스 폴더/워크플로/로드맵 이름과 전체 의존성 감사 별도. 빌드 미확인.
-- **10C 판정:** 자동 검증/설치본 통과, 정식 SDK 1.0 출시 보류. 실제 HA/D200X/OS 절전·재연결/장시간 soak, 실제 OOM, identity GUI/logic 실행·직접 profile import 경로, 설정 저장 13행 추가 검사 통과, 실제 commit 경계 renderer crash 검사 후보·전원 손실/제품 IPC 실기 별도. Model5 차단, KEY 기본 OFF, 기존 미리보기 유지.
+- 사용자 지시로 SDK 로드맵 일시 중지, DeckForge 독립 제품 명칭 정리 우선. 1.1.235 편집기·AI 표시/제품 설명/주석 및 AGENTS 기준 수정. 외부 호환 ID/저장 키 유지. 활성 문서/로드맵 정리. Windows #989 기존 표시명 정규식 실패, 문서 전용 지시로 테스트 수정 보류. 소스/워크플로/브랜치 경로 유지.
+- **10C 판정:** 자동 검증/설치본 통과, 정식 SDK 1.0 출시 보류. 실제 HA/D200X/OS 절전·재연결/장시간 soak, 실제 OOM, identity GUI/logic 실행·직접 profile import 경로, 설정 저장 13행 추가 검사 통과, 1.1.234 Windows 통합 검사 통과, 전원 손실/제품 IPC 실기 별도. Model5 차단, KEY 기본 OFF, 기존 미리보기 유지.
 - 기존 기능/데이터/API·보안 보존, 테스트/CI/Windows/실기 구분. 미측정 성능 수치 단정 금지.
 ## 참조
-- [SDK 계약 및 재설계](DECKFORGE-SDK-1.0.md) · [잔여 로드맵](D200X-STREAMDECK-ROADMAP.md).
+- [SDK 계약 및 재설계](DECKFORGE-SDK-1.0.md) · [잔여 로드맵](DECKFORGE-ROADMAP.md).
 - [UI 계약](DECKFORGE-UI-CONTRACT.md) · [데이터 계약](DECKFORGE-DATA-CONTRACT.md) · [패키지 형식](DECKFORGE-PLUGIN-FORMAT.md).
