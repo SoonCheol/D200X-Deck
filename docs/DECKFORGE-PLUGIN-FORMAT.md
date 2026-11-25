@@ -59,8 +59,8 @@ DeckForge 독자 패키지 v2와 외부 호환 패키지 v1을 구분한다. 외
 ## 0.13 독자 SDK 작성·패키징 CLI 및 Ulanzi PNG 변환 (1.1.126)
 
 - 공식 Node SDK V3.1 `setImage(context,{isDefault:false,icons:{source:'base64',base64:'data:image/png;base64,...'}})`의 정적 literal PNG 임시 표시만 API 1 image로 변환. 기존 PNG 크기/헤더 검사 및 독립 trace 대조. 경로/GIF/SVG/default/clear/동적 값·중복 키·spread는 수동 검토. 원본 실행 금지.
-- `node app/streamdeck-editor/deckforge-sdk-cli.cjs package <native.json> <output-directory>`: 독자 작성 manifest를 검증하고 v2 설치 archive 생성, 실제 설치 parser로 왕복 검증, 기존 파일 덮어쓰기 금지. 예제 `examples/deckforge-sdk/counter.native.json` 포함. 앱 설치 또는 실행은 하지 않는다.
-- `node app/streamdeck-editor/deckforge-sdk-cli.cjs review-ulanzi <original.ulanziPlugin> <output-directory>`: 원본 외부에 검토 JSON 생성. Ulanzi 후보 전용 ID의 직접 CLI 패키징은 차단. 변환 후보는 라이선스·원본 자원·실제 의미·실기 검토 후 별도 출시 절차 필요. 자동 설치를 제공하지 않는다. CLI는 신뢰한 로컬 개발자를 위한 도구이지 악의적 패키지 작성 자체를 차단하는 보안 경계가 아니다.
+- `node app/deckforge-editor/deckforge-sdk-cli.cjs package <native.json> <output-directory>`: 독자 작성 manifest를 검증하고 v2 설치 archive 생성, 실제 설치 parser로 왕복 검증, 기존 파일 덮어쓰기 금지. 예제 `examples/deckforge-sdk/counter.native.json` 포함. 앱 설치 또는 실행은 하지 않는다.
+- `node app/deckforge-editor/deckforge-sdk-cli.cjs review-ulanzi <original.ulanziPlugin> <output-directory>`: 원본 외부에 검토 JSON 생성. Ulanzi 후보 전용 ID의 직접 CLI 패키징은 차단. 변환 후보는 라이선스·원본 자원·실제 의미·실기 검토 후 별도 출시 절차 필요. 자동 설치를 제공하지 않는다. CLI는 신뢰한 로컬 개발자를 위한 도구이지 악의적 패키지 작성 자체를 차단하는 보안 경계가 아니다.
 
 ## 0.12 Ulanzi 속성창·HTML 진입점·리소스 분석 (1.1.125)
 
@@ -112,7 +112,7 @@ DeckForge 독자 패키지 v2와 외부 호환 패키지 v1을 구분한다. 외
 ## 0.4 Ulanzi 정적 분석·제한 AST 변환기 (1.1.116)
 
 - 공식 [매니페스트](https://github.com/UlanziTechnology/UlanziDeckPlugin-SDK/blob/main/manifest.md), [Node SDK 이벤트/명령](https://github.com/UlanziTechnology/plugin-common-node/blob/main/README.md), 공식 API Request 및 Analog Clock 예제의 manifest/진입 소스 참고. 기존 lockfile의 MIT Acorn 8.19.0을 명시적 런타임 의존성으로 사용(직접 JS 파서를 재작성하지 않음).
-- `node app/streamdeck-editor/ulanzi-converter.cjs <original.ulanziPlugin>`: 원본 폴더 읽기 전용 인벤토리, 파일/크기/경로 제한, manifest/entry SHA-256, 라이선스 파일 목록 및 제한 해시, AST SDK 호출/이벤트/정적 import 분류. HTML/대형 번들/속성창/다중 액션/PrivateAPI/동적 호출/의존성 등은 수동 검토로 분류. 소스 실행·네트워크 접근·설치 없음.
+- `node app/deckforge-editor/ulanzi-converter.cjs <original.ulanziPlugin>`: 원본 폴더 읽기 전용 인벤토리, 파일/크기/경로 제한, manifest/entry SHA-256, 라이선스 파일 목록 및 제한 해시, AST SDK 호출/이벤트/정적 import 분류. HTML/대형 번들/속성창/다중 액션/PrivateAPI/동적 호출/의존성 등은 수동 검토로 분류. 소스 실행·네트워크 접근·설치 없음.
 - 단일 액션 및 명시적인 현재 context의 literal setTitle/setState, 명확한 onAdd/onKeyDown/onKeyUp/노브 방향 이벤트만 API 1 후보로 번역. onRun은 확인된 단일 클릭이므로 press로 임의 변환하지 않음. 원본 아이콘/설정/라이선스/실행 의미 검증이 남아 있으므로 모든 결과는 installationAllowed:false. 후보는 검증·사용자 승인 전 배포 불가. 범용 변환/HTML/번들/자동 설치는 후속.
 
 ## 0.3 암호화 전역 설정 및 제한 복구 (1.1.115)
@@ -188,7 +188,7 @@ Example-plugin-1.2.3.deckforgePlugin
 }
 ```
 
-현재 소스: `app/streamdeck-editor/deckforge-plugin.cjs`(검증·패키징), `main.cjs`(파일 선택·설치·내보내기 IPC), `preload.cjs`, `editor.js`(패키지 저장 버튼).
+현재 소스: `app/deckforge-editor/deckforge-plugin.cjs`(검증·패키징), `main.cjs`(파일 선택·설치·내보내기 IPC), `preload.cjs`, `editor.js`(패키지 저장 버튼).
 
 플러그인 탭에서 **패키지 저장** → 기존 `.sdPlugin` 폴더 선택 → 단일 `.deckforgePlugin` 저장. NAS 공유 폴더나 클라우드 동기화 디렉터리를 저장 위치로 선택할 수 있다. 같은 이름의 기존 파일은 덮어쓰지 않으며 원본 플러그인 폴더와 별도 프로필 설정은 변경하지 않는다.
 

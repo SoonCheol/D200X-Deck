@@ -4,7 +4,7 @@ const assert=require('node:assert/strict');
 const fs=require('node:fs');
 const os=require('node:os');
 const path=require('node:path');
-const {ProfileStore}=require('../app/streamdeck-editor/profile-store.cjs');
+const {ProfileStore}=require('../app/deckforge-editor/profile-store.cjs');
 const png='data:image/png;base64,'+Buffer.from('test PNG bytes').toString('base64');
 function fixture(fn){
  const dir=fs.mkdtempSync(path.join(os.tmpdir(),'deckforge-profile-'));
@@ -56,7 +56,7 @@ test('non-image data URLs and other settings remain unchanged',()=>{
 });
 
 function nativeFixture(store){
- const Core=require('../app/streamdeck-editor/deck-core.js');
+ const Core=require('../app/deckforge-editor/deck-core.js');
  const state=Core.migrateState(null),item=state.pages[0][0]=Core.createAction('sd-plugin');
  item.settings.pluginUUID='com.deckforge.native.test';item.settings.actionUUID='com.deckforge.native.test.key';
  item.settings.pluginSettings={count:0};state.pages[0][1]=Core.createAction('text');state.pages[0][1].title='retain';
@@ -137,7 +137,7 @@ test('abrupt child exit before and after profile replacement preserves atomic se
  fixture((store,dir)=>{
   const request=nativeFixture(store);
   const {spawnSync}=require('node:child_process');
-  const modulePath=require.resolve('../app/streamdeck-editor/profile-store.cjs');
+  const modulePath=require.resolve('../app/deckforge-editor/profile-store.cjs');
   const script='const fs=require("node:fs");const {ProfileStore}=require(process.argv[1]);'+
     'const store=new ProfileStore(process.argv[2]);const request=JSON.parse(process.argv[3]);'+
     'const rename=fs.renameSync;fs.renameSync=(from,to)=>{if(to!==store.file)return rename(from,to);'+
@@ -155,7 +155,7 @@ test('abrupt child exit before and after profile replacement preserves atomic se
 });
 
 test('pending save cannot target moved action, copied action, or a duplicate profile',()=>{
- const Core=require('../app/streamdeck-editor/deck-core.js');
+ const Core=require('../app/deckforge-editor/deck-core.js');
  fixture(store=>{
   const request=nativeFixture(store),state=store.read();
   const original=state.pages[0][0];
@@ -174,7 +174,7 @@ test('pending save cannot target moved action, copied action, or a duplicate pro
 });
 
 test('pending native setting request cannot write a different page or a deleted slot',()=>{
- const Core=require('../app/streamdeck-editor/deck-core.js');
+ const Core=require('../app/deckforge-editor/deck-core.js');
  fixture(store=>{
   const request=nativeFixture(store),state=store.read();
   state.pages.push(Core.blankPage());state.pages[1][0]=Core.cloneActionInstances(state.pages[0][0]);

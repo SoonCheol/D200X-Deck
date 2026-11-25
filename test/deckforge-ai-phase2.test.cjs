@@ -1,9 +1,9 @@
 'use strict';
 const {test}=require('node:test');
 const assert=require('node:assert/strict');
-const {createReader,resolvePage,emptySlots,action,logRecord,validate}=require('../app/streamdeck-editor/ai/read-tools.cjs');
-const {chat,cleanHistory}=require('../app/streamdeck-editor/ai/responses.cjs');
-const Core=require('../app/streamdeck-editor/deck-core.js');
+const {createReader,resolvePage,emptySlots,action,logRecord,validate}=require('../app/deckforge-editor/ai/read-tools.cjs');
+const {chat,cleanHistory}=require('../app/deckforge-editor/ai/responses.cjs');
+const Core=require('../app/deckforge-editor/deck-core.js');
 const empty=()=>Array(19).fill(null);
 const query=(section,extra={})=>({section,profile:null,page:null,folder:null,query:null,offset:null,...extra});
 const fixture=()=>{
@@ -170,7 +170,7 @@ test('user template inventory exposes names and page counts only, never action s
 
 test('plugin management audit reports actual results and safe metadata via inspect plugin_log',async t=>{
  const fs=require('node:fs/promises'),os=require('node:os'),path=require('node:path');
- const {createPluginAudit}=require('../app/streamdeck-editor/plugin-audit.cjs');
+ const {createPluginAudit}=require('../app/deckforge-editor/plugin-audit.cjs');
  const root=await fs.mkdtemp(path.join(os.tmpdir(),'deckforge-plugin-audit-'));
  t.after(()=>fs.rm(root,{recursive:true,force:true}));
  const plugin={id:'com.deckforge.native.test',name:'DeckForge 테스트용',version:'1.0.0'};

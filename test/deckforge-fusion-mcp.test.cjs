@@ -4,9 +4,9 @@ const assert=require('node:assert/strict');
 const fs=require('node:fs/promises');
 const os=require('node:os');
 const path=require('node:path');
-const B=require('../app/streamdeck-editor/fusion-batch.js');
+const B=require('../app/deckforge-editor/fusion-batch.js');
 const MCP=require('../tools/fusion-mcp/server.cjs');
-const Core=require('../app/streamdeck-editor/deck-core.js');
+const Core=require('../app/deckforge-editor/deck-core.js');
 const fixture=[{id:'Extrude',name:'돌출'},{id:'SaveCommand',name:'저장'},
   {id:'UndoCommand',name:'실행 취소'}];
 

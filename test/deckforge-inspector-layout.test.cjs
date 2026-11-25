@@ -4,7 +4,7 @@ const assert=require('node:assert/strict');
 const fs=require('node:fs');
 const path=require('node:path');
 const vm=require('node:vm');
-const base=path.resolve(__dirname,'../app/streamdeck-editor');
+const base=path.resolve(__dirname,'../app/deckforge-editor');
 const editor=fs.readFileSync(path.join(base,'editor.js'),'utf8');
 const css=fs.readFileSync(path.join(base,'style.css'),'utf8');
 const block=editor.match(/const COMPACT_FIELD_GROUPS=([\s\S]*?);\s*const COMPACT_FIELD_LABELS/);
@@ -576,7 +576,7 @@ test('three tabs are shorter and equal width without resizing the separate icon 
 
 
 test('Key Logic context menu only wraps executable actions and leaves unsupported SDK data intact',()=>{
- const Core=require('../app/streamdeck-editor/deck-core.js');
+ const Core=require('../app/deckforge-editor/deck-core.js');
  const menuSource=editor.slice(editor.indexOf('function showMenu('),editor.indexOf('let clipboard=null,clipboardMode='));
  const allow=editor.match(/const MULTI_ALLOWED=(\[[\s\S]*?\]);/);
  assert.ok(menuSource.startsWith('function showMenu(')&&allow);
@@ -606,7 +606,7 @@ test('Key Logic context menu only wraps executable actions and leaves unsupporte
 
 
 test('failed grid paste restores prior button and retains cut identity until a successful write',()=>{
- const Core=require('../app/streamdeck-editor/deck-core.js');
+ const Core=require('../app/deckforge-editor/deck-core.js');
  const state=Core.migrateState(null),page=Core.currentActions(state);
  const original=Core.createAction('sd-plugin'),target=Core.createAction('sd-plugin');
  original.settings.pluginUUID='com.deckforge.native.example';original.settings.actionUUID=original.settings.pluginUUID+'.key';
@@ -633,7 +633,7 @@ test('failed grid paste restores prior button and retains cut identity until a s
 
 
 test('immediate gesture edits preserve original button and nested settings on profile write failure',()=>{
- const Core=require('../app/streamdeck-editor/deck-core.js'),state=Core.migrateState(null),page=Core.currentActions(state);
+ const Core=require('../app/deckforge-editor/deck-core.js'),state=Core.migrateState(null),page=Core.currentActions(state);
  const original=Core.createAction('hotkey');original.settings.keys='Ctrl+A';
  original.pressActions={double:Core.createAction('hotkey'),hold:null};original.pressActions.double.settings.keys='Ctrl+C';
  original.pressMeta={enabled:{single:true,double:true,hold:true},representative:'single'};

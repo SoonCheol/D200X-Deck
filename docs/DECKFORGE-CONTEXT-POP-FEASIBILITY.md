@@ -30,7 +30,7 @@
 
 | 항목 | 현재 근거 | 재사용/변경 필요 |
 |---|---|---|
-| Electron 메인 창과 트레이 상주 | `app/streamdeck-editor/main.cjs`의 `BrowserWindow`, 종료 시 `window.hide()` | 같은 메인 프로세스가 **별도 일시적 팝업 창**을 생성·회수하는 구조 검토 |
+| Electron 메인 창과 트레이 상주 | `app/deckforge-editor/main.cjs`의 `BrowserWindow`, 종료 시 `window.hide()` | 같은 메인 프로세스가 **별도 일시적 팝업 창**을 생성·회수하는 구조 검토 |
 | 활성 프로그램 식별 | `main.cjs` IPC `d200x:foreground-app`의 `GetForegroundWindow`, PID→EXE 경로 | **현행은 편집기 최소화 중에만 조회 가능하고 PowerShell을 호출**하므로 POP 호출 시 즉시 인식하는 용도로 그대로 쓰지 않음 |
 | Smart Profile | `editor.js`의 4,000ms 폴링과 `DeckCore.matchForegroundProfile()` | 전경 EXE **일치 규칙만 참고**. 전역 프로필 변경 로직이나 4초 폴링을 POP 메뉴 선택에 직접 연결하지 않음 |
 | 노브 입력·충돌 제어 | `editor.js`의 `renderControlInspector()`, `deck-core.js`의 노브/제스처 매핑 | POP 활성 중 우선 분기와 원래 경로 복원 필요. 현재 노브 스택·누른 채 회전·눌림 이벤트 보존 |
@@ -124,10 +124,10 @@
 ## 8. 착수할 때 확인할 문서·소스
 
 - `AGENTS.md`, `docs/D200X-CURRENT-STATUS.md`, `docs/D200X-STREAMDECK-ROADMAP.md`, UI 변경 시 `docs/DECKFORGE-UI-CONTRACT.md`.
-- `app/streamdeck-editor/main.cjs`: Electron 창·트레이·전경 앱 IPC·D200X 입력 수신.
-- `app/streamdeck-editor/editor.js`: 버튼/노브 입력 디스패치, `renderControlInspector()`, Smart Profile 4,000ms 폴링.
-- `app/streamdeck-editor/deck-core.js`: 프로필 앱 매칭, 액션 타입/설정 모델·입력 매핑.
-- `app/streamdeck-editor/preload.cjs`: 신뢰된 IPC 브리지 계약(구현 시 추가 확인).
+- `app/deckforge-editor/main.cjs`: Electron 창·트레이·전경 앱 IPC·D200X 입력 수신.
+- `app/deckforge-editor/editor.js`: 버튼/노브 입력 디스패치, `renderControlInspector()`, Smart Profile 4,000ms 폴링.
+- `app/deckforge-editor/deck-core.js`: 프로필 앱 매칭, 액션 타입/설정 모델·입력 매핑.
+- `app/deckforge-editor/preload.cjs`: 신뢰된 IPC 브리지 계약(구현 시 추가 확인).
 - Ulanzi POP 공식: https://docs.ulanzistudio.com/dialmini/en/software/pop-plugin.html
 - Ulanzi 공식 SDK: https://github.com/UlanziTechnology/UlanziDeckPlugin-SDK/blob/main/README.md
 - Ulanzi D200X 디스플레이: https://github.com/UlanziTechnology/UlanziDeckPlugin-SDK/blob/main/manifest.md

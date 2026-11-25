@@ -1,8 +1,8 @@
 'use strict';
 const test=require('node:test'),assert=require('node:assert/strict');
 const fs=require('node:fs'),path=require('node:path'),vm=require('node:vm');
-const editor=fs.readFileSync(path.join(__dirname,'../app/streamdeck-editor/editor.js'),'utf8');
-const css=fs.readFileSync(path.join(__dirname,'../app/streamdeck-editor/style.css'),'utf8');
+const editor=fs.readFileSync(path.join(__dirname,'../app/deckforge-editor/editor.js'),'utf8');
+const css=fs.readFileSync(path.join(__dirname,'../app/deckforge-editor/style.css'),'utf8');
 const start=editor.indexOf('function hasStateTitlePair(item){'),end=editor.indexOf('function displayKeyPressItem(item,index){',start);
 assert.ok(start>=0&&end>start);
 const style={visible:true,align:'bottom',family:'default',size:12,color:'#fff'};
@@ -153,7 +153,7 @@ test('state card artwork refresh retains the actual palette and number nodes in 
 });
 
 test('native state titles preserve explicit empty state and dynamic sibling after style-only initialization',()=>{
- const core=require('../app/streamdeck-editor/deck-core.js');
+ const core=require('../app/deckforge-editor/deck-core.js');
  const pluginUUID='com.deckforge.native.example.settings',actionUUID=pluginUUID+'.key';
  const item={type:'sd-plugin',title:'Live value',titleStyle:style,settings:{pluginUUID,actionUUID}};
  const ctx={item,DEFAULT_TITLE_STYLE:style,DeckCore:core,isMomentaryIconAction:()=>false,sdkPlugins:[{uuid:pluginUUID,runtime:'deckforge-sdk',actions:[{uuid:actionUUID,titlePolicy:{defaultTitle:'Default'}}]}]};

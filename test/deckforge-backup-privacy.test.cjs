@@ -1,7 +1,7 @@
 'use strict';
 const {test}=require('node:test');
 const assert=require('node:assert/strict');
-const {scan}=require('../app/streamdeck-editor/backup-privacy.cjs');
+const {scan}=require('../app/deckforge-editor/backup-privacy.cjs');
 function fixture(actions){
   const row=Array.from({length:19},(_,i)=>actions[i]||null);
   return {profiles:{

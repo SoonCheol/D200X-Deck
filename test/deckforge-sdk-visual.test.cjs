@@ -5,7 +5,7 @@ const fs=require('node:fs');
 const vm=require('node:vm');
 const path=require('node:path');
 // Run the actual renderer function in a narrow VM with fake state; no Electron or hardware needed.
-const source=fs.readFileSync(path.join(__dirname,'../app/streamdeck-editor/editor.js'),'utf8');
+const source=fs.readFileSync(path.join(__dirname,'../app/deckforge-editor/editor.js'),'utf8');
 const beginning=source.indexOf('function displayItem(item,index,preserveGesture=false){');
 const ending=source.indexOf('const previewPressKeys=new Set();',beginning);
 if(beginning<0||ending<0)throw Error('SDK renderer not found');
@@ -13,7 +13,7 @@ if(beginning<0||ending<0)throw Error('SDK renderer not found');
 const policyStart=source.indexOf('function nativeTitlePolicyFor(item){'),policyEnd=source.indexOf('function nativeInspectorTitle(item){',policyStart);
 assert.ok(policyStart>=0&&policyEnd>policyStart);
 const fn=source.slice(beginning,ending)+'\n'+source.slice(policyStart,policyEnd);
-const core=require('../app/streamdeck-editor/deck-core.js');
+const core=require('../app/deckforge-editor/deck-core.js');
 function render(item,visual,slot=0,clone=false,sdkPlugins=[]){
   const actual=clone?JSON.parse(JSON.stringify(item)):item;
   const original=item;
@@ -132,7 +132,7 @@ test('Fusion unavailable add-in adds X even if Stream Deck plugin stays connecte
 });
 
 test('Fusion drag payload retains SVG command artwork',()=>{
- const drag=require('../app/streamdeck-editor/fusion-drag.cjs');
+ const drag=require('../app/deckforge-editor/fusion-drag.cjs');
  const svg='data:image/svg+xml;base64,'+Buffer.from('<svg/>').toString('base64');
  assert.equal(drag.decode(drag.encode({id:'ExtrudeCommand',name:'돌출',svg})).svg,svg);
 });
@@ -141,7 +141,7 @@ test('Fusion icon IPC reads both trusted PNG and fallback cached PNG',async()=>{
  const os=require('node:os'),tmp=fs.mkdtempSync(path.join(os.tmpdir(),'d200x-fusion-png-'));
  try{
   const handlers=new Map();
-  const main=fs.readFileSync(path.join(__dirname,'../app/streamdeck-editor/main.cjs'),'utf8');
+  const main=fs.readFileSync(path.join(__dirname,'../app/deckforge-editor/main.cjs'),'utf8');
   const start=main.indexOf('const fusionCacheDir=');
   const end=main.indexOf("ipcMain.handle('d200x:sdk-list'",start);
   assert.ok(start>=0&&end>start,'Fusion IPC source block');
@@ -163,7 +163,7 @@ test('Fusion icon IPC reads both trusted PNG and fallback cached PNG',async()=>{
 });
 
 test('Pinned key inspector preview refreshes when page slot is empty',async()=>{
- const source=fs.readFileSync(path.join(__dirname,'../app/streamdeck-editor/editor.js'),'utf8');
+ const source=fs.readFileSync(path.join(__dirname,'../app/deckforge-editor/editor.js'),'utf8');
  const start=source.indexOf('let previewRequest=0;');
  const end=source.indexOf('window.refreshSelectedVisual=refreshSelectedVisual;',start);
  assert.ok(start>=0&&end>start,'Inspector preview source block');
@@ -210,7 +210,7 @@ test('native visual events coalesce per current slot, without redrawing unrelate
  assert.deepEqual(calls,[['grid',2],['device',2],['preview'],['cards']]);
 });
 test('native device refresh reuses cached PNGs and falls back on a changed page',async()=>{
- const code=fs.readFileSync(path.join(__dirname,'../app/streamdeck-editor/device-sync.js'),'utf8');
+ const code=fs.readFileSync(path.join(__dirname,'../app/deckforge-editor/device-sync.js'),'utf8');
  const begin=code.indexOf('  async function synchronize('),end=code.indexOf('  function runScheduledRender()',begin);
  assert.ok(begin>=0&&end>begin);
  const old=Array.from({length:14},(_,index)=>({index,png:'old-'+index}));
@@ -288,7 +288,7 @@ test('stable key surface keeps a decoded image until the current replacement dec
 
 
 test('dirty revisions survive in-flight rendering, page invalidation and failed submissions',async()=>{
- const code=fs.readFileSync(path.join(__dirname,'../app/streamdeck-editor/device-sync.js'),'utf8');
+ const code=fs.readFileSync(path.join(__dirname,'../app/deckforge-editor/device-sync.js'),'utf8');
  const begin=code.indexOf('  async function synchronize('),end=code.indexOf('  bridge.ready();',begin);
  assert.ok(begin>=0&&end>begin);
  const images=Array.from({length:14},(_,index)=>({index,png:'old-'+index}));
@@ -407,7 +407,7 @@ test('HA sensor live layer never replaces the user image or title, including clo
  assert.equal(empty.icon,undefined);assert.equal(empty.sensorOverlay,'live-3');
 });
 test('common key compositor draws HA readings over artwork and under title; cache tracks live readings',async()=>{
- const code=fs.readFileSync(path.join(__dirname,'../app/streamdeck-editor/device-sync.js'),'utf8');
+ const code=fs.readFileSync(path.join(__dirname,'../app/deckforge-editor/device-sync.js'),'utf8');
  const start=code.indexOf('  const bitmapCache='),end=code.indexOf('  // Same compositor feeds',start);
  assert.ok(start>=0&&end>start);
  const ops=[];

@@ -25,7 +25,7 @@ function fakeDocument(){
 function descendants(node){return [node,...(node.children||[]).flatMap(descendants)];}
 function load(){
   const document=fakeDocument(),window={};
-  const file=path.join(__dirname,'../app/streamdeck-editor/deckforge-dialog.js');
+  const file=path.join(__dirname,'../app/deckforge-editor/deckforge-dialog.js');
   vm.runInNewContext(fs.readFileSync(file,'utf8'),{document,window},{filename:file});
   return {document,window};
 }
@@ -58,7 +58,7 @@ test('cancel and window close never authorize a destructive operation',async()=>
   assert.equal(await second,false);
 });
 test('common dialog is loaded before editor and backup messages avoid native confirm/alert',()=>{
-  const base=path.join(__dirname,'../app/streamdeck-editor');
+  const base=path.join(__dirname,'../app/deckforge-editor');
   const html=fs.readFileSync(path.join(base,'index.html'),'utf8');
   const editor=fs.readFileSync(path.join(base,'editor.js'),'utf8');
   assert.ok(html.indexOf('deckforge-dialog.js')>=0);

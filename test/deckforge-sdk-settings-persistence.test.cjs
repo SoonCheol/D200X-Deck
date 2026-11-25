@@ -1,8 +1,8 @@
 'use strict';
 const test=require('node:test'),assert=require('node:assert/strict');
 const fs=require('node:fs'),path=require('node:path'),vm=require('node:vm');
-const DeckCore=require('../app/streamdeck-editor/deck-core.js');
-const source=fs.readFileSync(path.join(__dirname,'../app/streamdeck-editor/editor.js'),'utf8');
+const DeckCore=require('../app/deckforge-editor/deck-core.js');
+const source=fs.readFileSync(path.join(__dirname,'../app/deckforge-editor/editor.js'),'utf8');
 const start=source.indexOf('function sdkItemAtLocation(source,slot,gesture){');
 const end=source.indexOf('function persistInspectorChange(){',start);
 assert.ok(start>=0&&end>start,'SDK committed snapshot functions found');
@@ -146,7 +146,7 @@ test('native setting effect rejects dirty editor, open dialog, and storage lock 
  }
 });
 test('main rejects new native settings writes while quitting, before host creation',()=>{
- const main=fs.readFileSync(path.join(__dirname,'../app/streamdeck-editor/main.cjs'),'utf8');
+ const main=fs.readFileSync(path.join(__dirname,'../app/deckforge-editor/main.cjs'),'utf8');
  const start=main.indexOf("ipcMain.on('d200x:native-settings-commit'"),end=main.indexOf("ipcMain.on('d200x:native-settings-outcome'",start);
  assert.ok(start>=0&&end>start);
  let handler,hostCalls=0,writes=0;

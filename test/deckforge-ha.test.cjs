@@ -1,7 +1,7 @@
 'use strict';
 const test=require('node:test');
 const assert=require('node:assert/strict');
-const HA=require('../app/streamdeck-editor/ha-client.cjs');
+const HA=require('../app/deckforge-editor/ha-client.cjs');
 test('HA URL and entity validation',()=>{
   assert.equal(HA.normalizeUrl('http://192.168.0.100:8123/'),'http://192.168.0.100:8123');
   assert.throws(()=>HA.normalizeUrl('file:///etc/passwd'));

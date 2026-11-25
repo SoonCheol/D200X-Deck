@@ -1,7 +1,7 @@
 'use strict';
 const test=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),path=require('node:path');
-const Core=require('../app/streamdeck-editor/deck-core.js');
-const read=p=>fs.readFileSync(path.join(__dirname,'../app/streamdeck-editor',p),'utf8');
+const Core=require('../app/deckforge-editor/deck-core.js');
+const read=p=>fs.readFileSync(path.join(__dirname,'../app/deckforge-editor',p),'utf8');
 const editor=read('editor.js'),windowSource=read('ai/window.cjs'),transportSource=read('transport.cjs'),iconSource=read('icon-pack.cjs');
 
 test('runtime keys separate profiles, nested folder pages and control gestures',()=>{

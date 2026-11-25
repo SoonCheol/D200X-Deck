@@ -2,8 +2,8 @@
 const test=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),vm=require('node:vm'),path=require('node:path');
 const {execFileSync}=require('node:child_process'),{randomUUID}=require('node:crypto');
 const os=require('node:os');
-const editor=fs.readFileSync(path.join(__dirname,'../app/streamdeck-editor/editor.js'),'utf8');
-const ps=fs.readFileSync(path.join(__dirname,'../app/streamdeck-editor/app-control.ps1'),'utf8');
+const editor=fs.readFileSync(path.join(__dirname,'../app/deckforge-editor/editor.js'),'utf8');
+const ps=fs.readFileSync(path.join(__dirname,'../app/deckforge-editor/app-control.ps1'),'utf8');
 const holdStart=editor.indexOf('const openAppHoldTimers=new Map();');
 const holdEnd=editor.indexOf('const hotkeySwitchPositions=',holdStart);
 const warningStart=editor.indexOf('const wideWarningPresses=');
@@ -26,7 +26,7 @@ const legacyHoldStart=editor.indexOf('function legacyOpenAppHoldAvailable(');
 const legacyHoldEnd=editor.indexOf('function assignedPressStillCurrent(',legacyHoldStart);
 assert.ok(legacyHoldStart>=0&&legacyHoldEnd>legacyHoldStart);
 const legacyHoldSource=editor.slice(legacyHoldStart,legacyHoldEnd);
-const sidePressTracker=require('../app/streamdeck-editor/deck-core.js').createSidePressTracker;
+const sidePressTracker=require('../app/deckforge-editor/deck-core.js').createSidePressTracker;
 const dispatchSource=editor.slice(dispatchStart,dispatchEnd)+"  if(preview) opened.push(event);return null;\n}";
 function setup(mode='close'){
   const action={type:'open-app',settings:{app:'C:\\Tools\\Example.exe',hold:mode,args:'',foreground:true}};
@@ -125,7 +125,7 @@ test('external program grid drops arm native receiver and do not parse Electron 
   assert.ok(!editor.includes('void registerDroppedApplication(i,filePath,'));
 });
 
-const main=fs.readFileSync(path.join(__dirname,'../app/streamdeck-editor/main.cjs'),'utf8');
+const main=fs.readFileSync(path.join(__dirname,'../app/deckforge-editor/main.cjs'),'utf8');
 const knownFolderStart=main.indexOf('function splitKnownFolderDrop(value){');
 const knownFolderEnd=main.indexOf("ipcMain.handle('d200x:inspect-dropped-target'",knownFolderStart);
 assert.ok(knownFolderStart>=0&&knownFolderEnd>knownFolderStart);

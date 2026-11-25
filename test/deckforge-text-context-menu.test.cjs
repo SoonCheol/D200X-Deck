@@ -1,7 +1,7 @@
 'use strict';
 const {test}=require('node:test');
 const assert=require('node:assert/strict');
-const {textMenuTemplate,attachTextContextMenu}=require('../app/streamdeck-editor/text-context-menu.cjs');
+const {textMenuTemplate,attachTextContextMenu}=require('../app/deckforge-editor/text-context-menu.cjs');
 const flags={canUndo:true,canCut:true,canCopy:true,canPaste:true,canDelete:true,canSelectAll:true};
 const field={mediaType:'none',isEditable:true,formControlType:'input-text',selectionText:'text',editFlags:flags};
 const wc={isDestroyed:()=>false};

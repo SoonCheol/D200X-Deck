@@ -1,10 +1,10 @@
 'use strict';
 const {test}=require('node:test');
 const assert=require('node:assert/strict');
-const Core=require('../app/streamdeck-editor/deck-core.js');
-const A=require('../app/streamdeck-editor/ai/advanced-plan.js');
-const MD=require('../app/streamdeck-editor/ai/markdown.js');
-const {chat}=require('../app/streamdeck-editor/ai/responses.cjs');
+const Core=require('../app/deckforge-editor/deck-core.js');
+const A=require('../app/deckforge-editor/ai/advanced-plan.js');
+const MD=require('../app/deckforge-editor/ai/markdown.js');
+const {chat}=require('../app/deckforge-editor/ai/responses.cjs');
 const req=(kind,c,extra={})=>({kind,page:null,folder:null,slot:null,configJson:JSON.stringify(c),...extra});
 function fixture(){const s=Core.migrateState(null);s.pages[0][1]=Core.createAction('folder');s.pages[0][1].children=Array(14).fill(null);s.pages[0][1].pages=[];s.pages[0][1].children[0]=Core.createAction('hotkey');s.pages[0][1].children[0].settings.keys='Ctrl+A';s.pages[0][4]=Core.createAction('sd-plugin');s.pages[0][4].settings.pluginUUID='com.autodesk.fusionstreamdeck';s.pages[0][4].settings.actionUUID='com.autodesk.fusionstreamdeck.runcommand';s.pages[0][4].settings.pluginSettings={commandId:'VerifiedCommand',name:'Verified'};s.pinned[8]=Core.createAction('indicator');return s;}
 test('folder copy-on-write, target resolution, child app, add page, protected slots',()=>{
@@ -84,7 +84,7 @@ test('advanced proposal shares same authorization and one-proposal limit',async(
 
 test('read/edit preferences default off, persist, and keep edit dependent on read',async()=>{
  const fs=require('node:fs'),path=require('node:path'),vm=require('node:vm');
- const source=fs.readFileSync(path.join(__dirname,'../app/streamdeck-editor/ai/window.cjs'),'utf8');
+ const source=fs.readFileSync(path.join(__dirname,'../app/deckforge-editor/ai/window.cjs'),'utf8');
  const start=source.indexOf('  let preferences=null;'),end=source.indexOf('  let preferenceTail=',start);
  assert.ok(start>=0&&end>start);
  const disk=new Map();let serial=0;
@@ -96,7 +96,7 @@ test('read/edit preferences default off, persist, and keep edit dependent on rea
  await api.savePreferences({read:false,edit:false});api=load();
  assert.deepEqual(JSON.parse(JSON.stringify(await api.readPreferences())),{read:false,edit:false});
  await assert.rejects(api.savePreferences({read:true,edit:true,command:'no'}),/형식/);
- const panel=fs.readFileSync(path.join(__dirname,'../app/streamdeck-editor/ai/panel.js'),'utf8');
+ const panel=fs.readFileSync(path.join(__dirname,'../app/deckforge-editor/ai/panel.js'),'utf8');
  const send=panel.slice(panel.indexOf("$('send').onclick="),panel.indexOf('function describeEdit'));
  assert.ok(!send.includes("checked=false"));
 });
@@ -110,7 +110,7 @@ test('AI side control proposals cannot assign non-navigation actions',()=>{
 });
 
 
-const FusionLive=require('../app/streamdeck-editor/ai/fusion-commands.cjs');
+const FusionLive=require('../app/deckforge-editor/ai/fusion-commands.cjs');
 test('live Fusion command catalog joins Korean names only by verified ID and searches bounded results',()=>{
  const names=FusionLive.normaliseCatalog([{id:'SketchLine',koName:'선',englishName:'Line'},{id:'Missing',koName:'없는 명령'}]);
  const rows=FusionLive.projectCommands({ok:true,commands:[{id:'SketchLine',name:'Line',tooltip:'Sketch line'},{id:'Other',name:'Other'},{id:'../bad',name:'Invalid'},{id:'SketchLine',name:'Duplicate'}]},names);

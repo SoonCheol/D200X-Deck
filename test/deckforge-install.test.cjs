@@ -4,9 +4,9 @@ const assert=require('node:assert/strict');
 const fs=require('node:fs');
 const path=require('node:path');
 const root=path.join(__dirname,'..');
-const main=fs.readFileSync(path.join(root,'app/streamdeck-editor/main.cjs'),'utf8');
+const main=fs.readFileSync(path.join(root,'app/deckforge-editor/main.cjs'),'utf8');
 const cmd=fs.readFileSync(path.join(root,'tools/fusion-mcp/deckforge-mcp.cmd'),'utf8');
-const cfg=JSON.parse(fs.readFileSync(path.join(root,'app/streamdeck-editor/deckforge-installer.json'),'utf8'));
+const cfg=JSON.parse(fs.readFileSync(path.join(root,'app/deckforge-editor/deckforge-installer.json'),'utf8'));
 const manager=fs.readFileSync(path.join(root,'tools/fusion-manager/main.cjs'),'utf8');
 test('DeckForge uses its own data directory, without legacy migration',()=>{
   assert.match(main,/app\.setPath\('userData',path\.join\(app\.getPath\('appData'\),'DeckForge'\)\)/);
@@ -44,7 +44,7 @@ test('Fusion Manager shares only the new DeckForge icon cache',()=>{
 
 
 test('uninstaller preserves DeckForge app data unless deletion is explicitly confirmed',()=>{
-  const nsis=fs.readFileSync(path.join(root,'app/streamdeck-editor/installer-fusion.nsh'),'utf8');
+  const nsis=fs.readFileSync(path.join(root,'app/deckforge-editor/installer-fusion.nsh'),'utf8');
   assert.match(nsis,/!macro customUnInstall/);
   assert.match(nsis,/MessageBox MB_YESNO\|MB_ICONQUESTION\|MB_DEFBUTTON2/);
   assert.match(nsis,/IDNO keepDeckForgeData/);

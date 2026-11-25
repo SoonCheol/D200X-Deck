@@ -4,8 +4,8 @@ const assert=require('node:assert/strict');
 const fs=require('node:fs');
 const path=require('node:path');
 const vm=require('node:vm');
-const {prepareAttachments}=require('../app/streamdeck-editor/ai/attachments.cjs');
-const {chat,cleanHistory}=require('../app/streamdeck-editor/ai/responses.cjs');
+const {prepareAttachments}=require('../app/deckforge-editor/ai/attachments.cjs');
+const {chat,cleanHistory}=require('../app/deckforge-editor/ai/responses.cjs');
 
 const encoded=(name,bytes,mime='application/octet-stream')=>({
   name,dataUrl:'data:'+mime+';base64,'+Buffer.from(bytes).toString('base64')
@@ -68,8 +68,8 @@ test('attachments are present only in the current request; prior text history st
   assert.doesNotMatch(JSON.stringify(history),/SGVsbG8gZmlsZQ/);
 });
 test('inspector preserves original cards and uses Key Up, Key Down, then preview ordering',()=>{
-  const editor=fs.readFileSync(path.join(__dirname,'../app/streamdeck-editor/editor.js'),'utf8');
-  const style=fs.readFileSync(path.join(__dirname,'../app/streamdeck-editor/style.css'),'utf8');
+  const editor=fs.readFileSync(path.join(__dirname,'../app/deckforge-editor/editor.js'),'utf8');
+  const style=fs.readFileSync(path.join(__dirname,'../app/deckforge-editor/style.css'),'utf8');
   assert.match(editor,/layout\.append\(iconRegion,preview\)/);
   assert.match(editor,/layout\.append\(titleFields,preview\)/);
   assert.match(style,/\.state-title-inspector \.state-title-layout\{\s*grid-template-columns:minmax\(0,1fr\) 98px/);
@@ -79,7 +79,7 @@ test('inspector preserves original cards and uses Key Up, Key Down, then preview
 });
 
 test('pasted screenshot is queued, not sent; normal text Ctrl+V is untouched',async()=>{
-  const panel=fs.readFileSync(path.join(__dirname,'../app/streamdeck-editor/ai/panel.js'),'utf8').replace(/\r\n/g,'\n');
+  const panel=fs.readFileSync(path.join(__dirname,'../app/deckforge-editor/ai/panel.js'),'utf8').replace(/\r\n/g,'\n');
   const first=panel.indexOf('async function queueAttachments(files){');
   const last=panel.indexOf("\n$('input').oninput=controls;",first);
   assert.ok(first>=0&&last>first);

@@ -3,7 +3,7 @@
 // No actual plugin scripts, profile data, credentials or external services.
 const {app,BrowserWindow,protocol,session}=require('electron');
 const {randomUUID}=require('node:crypto');
-const {createScriptRunner,deadline}=require('../app/streamdeck-editor/deckforge-js-runtime.cjs');
+const {createScriptRunner,deadline}=require('../app/deckforge-editor/deckforge-js-runtime.cjs');
 const assert=require('node:assert/strict');
 const schemes=['df-worker-standard-probe','df-worker-opaque-probe'];
 protocol.registerSchemesAsPrivileged(schemes.map((scheme,i)=>({scheme,privileges:{

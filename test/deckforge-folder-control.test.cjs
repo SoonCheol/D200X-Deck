@@ -1,6 +1,6 @@
 'use strict';
 const test=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),path=require('node:path'),os=require('node:os');
-const root=path.join(__dirname,'../app/streamdeck-editor');
+const root=path.join(__dirname,'../app/deckforge-editor');
 const source=name=>fs.readFileSync(path.join(root,name),'utf8');
 const {runFolderHelper,helperPath}=require(path.join(root,'folder-helper.cjs'));
 const {buildFolderHelper}=require(path.join(root,'build-folder-helper.cjs'));
@@ -18,11 +18,11 @@ test('folder option reaches direct and composite routes, not application control
   assert.doesNotMatch(main,/folder-control\.ps1/);
 });
 test('source, portable and installed helper paths',()=>{
-  const plain=path.join('resources','app','streamdeck-editor');
-  const packed=path.join('resources','app.asar','streamdeck-editor');
+  const plain=path.join('resources','app','deckforge-editor');
+  const packed=path.join('resources','app.asar','deckforge-editor');
   assert.equal(helperPath(plain),path.join(plain,'folder-control-helper.exe'));
-  assert.equal(helperPath(packed),path.join('resources','app.asar.unpacked','streamdeck-editor','folder-control-helper.exe'));
-  assert.ok(JSON.parse(source('deckforge-installer.json')).asarUnpack.includes('streamdeck-editor/folder-control-helper.exe'));
+  assert.equal(helperPath(packed),path.join('resources','app.asar.unpacked','deckforge-editor','folder-control-helper.exe'));
+  assert.ok(JSON.parse(source('deckforge-installer.json')).asarUnpack.includes('deckforge-editor/folder-control-helper.exe'));
 });
 test('Windows compiled folder helper validates paths using the production launcher',{skip:process.platform!=='win32'},async()=>{
   let dir=process.env.DECKFORGE_TEST_HELPER_DIR||root,temporary;

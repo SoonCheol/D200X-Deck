@@ -5,8 +5,8 @@ const fs=require('node:fs/promises');
 const os=require('node:os');
 const path=require('node:path');
 const JSZip=require('../app/node_modules/jszip');
-const {parseArchive}=require('../app/streamdeck-editor/sd-plugin-host.cjs');
-const {parseDeckForgePackage,packageSdPluginDirectory,validatePackageManifest}=require('../app/streamdeck-editor/deckforge-plugin.cjs');
+const {parseArchive}=require('../app/deckforge-editor/sd-plugin-host.cjs');
+const {parseDeckForgePackage,packageSdPluginDirectory,validatePackageManifest}=require('../app/deckforge-editor/deckforge-plugin.cjs');
 
 const id='com.deckforge.example';
 const manifest={UUID:id,Name:'Example plugin',Version:'1.2.3',CodePath:'plugin.html',
@@ -90,7 +90,7 @@ test('DeckForge exporter blocks unexpected symlinks and never overwrites install
 });
 
 
-const {validateNativeManifest,NativePluginHost,PluginRouter}=require('../app/streamdeck-editor/deckforge-native-sdk.cjs');
+const {validateNativeManifest,NativePluginHost,PluginRouter}=require('../app/deckforge-editor/deckforge-native-sdk.cjs');
 const nativeId='com.deckforge.native.counter';
 const nativeManifest={apiVersion:1,id:nativeId,name:'Native counter',version:'1.0.0',permissions:['display'],actions:[
   {id:nativeId+'.toggle',name:'Toggle',controllers:['Keypad','Encoder'],states:2,
@@ -116,7 +116,7 @@ test('native package and declarative execution do not load the external compatib
  const root=await fs.mkdtemp(path.join(os.tmpdir(),'deckforge-native-independent-'));
  try{
   const {execFileSync}=require('node:child_process');
-  const base=path.resolve(__dirname,'../app/streamdeck-editor');
+  const base=path.resolve(__dirname,'../app/deckforge-editor');
   const source=String.raw`
    const assert=require('node:assert/strict');
    const path=require('node:path');
@@ -188,7 +188,7 @@ test('JavaScript SDK package declares API 2 and rejects syntax, permissions and 
   await assert.rejects(parseDeckForgePackage(await rewritePackage(await nativeArchive(scriptManifest),(_z,m)=>{m.runtime.apiVersion=1;})),/일치하지 않습니다/);
 });
 test('JavaScript SDK context queue validates results, isolates faults and cancels stale output',async()=>{
-  const {runProgram}=require('../app/streamdeck-editor/deckforge-js-runtime.cjs');
+  const {runProgram}=require('../app/deckforge-editor/deckforge-js-runtime.cjs');
   // Avoid executing browser-specific hardening in this Node test: use a mock transport.
   const temp=await fs.mkdtemp(path.join(os.tmpdir(),'deckforge-js-'));
   const events=[],closed=[];let release;
@@ -240,7 +240,7 @@ test('SDK privileged operations require explicit permission and physical input; 
 
 
 test('native global settings vault rejects stale revisions and unreadable data; isolates plugin identity',async()=>{
-  const {NativeSettingsVault}=require('../app/streamdeck-editor/deckforge-native-settings.cjs');
+  const {NativeSettingsVault}=require('../app/deckforge-editor/deckforge-native-settings.cjs');
   const temp=await fs.mkdtemp(path.join(os.tmpdir(),'deckforge-vault-'));
   // Test adapter only, not a cryptography implementation.
   const store={isAsyncEncryptionAvailable:async()=>true,
@@ -289,7 +289,7 @@ test('native runtime recovery is bounded and never replays failed user input',as
 
 
 test('Ulanzi AST converter translates only a known current-context display subset',()=>{
-  const {analyzeSource}=require('../app/streamdeck-editor/ulanzi-converter.cjs');
+  const {analyzeSource}=require('../app/deckforge-editor/ulanzi-converter.cjs');
   const m={Type:'JavaScript',UUID:'com.ulanzi.ulanzistudio.Test',Name:'Example',Version:'1.0.0',
     CodePath:'plugin/app.js',Actions:[{Name:'Toggle',UUID:'com.ulanzi.ulanzistudio.Test.toggle',States:[{},{}]}]};
   const script="import UlanziApi from './ulanzi-api/index.js';const $UD=new UlanziApi();$UD.connect('"+m.UUID+"');$UD.onKeyDown(msg=>{$UD.setTitle(msg.context,'On');$UD.setState(msg.context,1);});";
@@ -305,7 +305,7 @@ test('Ulanzi AST converter translates only a known current-context display subse
   assert.equal(analyzeSource(m,"$UD.onKeyDown(m=>{").candidate,null);
 });
 test('Ulanzi directory analyzer hashes original source and never installs or mutates it',async()=>{
-  const {analyzeDirectory}=require('../app/streamdeck-editor/ulanzi-converter.cjs');
+  const {analyzeDirectory}=require('../app/deckforge-editor/ulanzi-converter.cjs');
   const temp=await fs.mkdtemp(path.join(os.tmpdir(),'deckforge-ulanzi-'));
   const folder=path.join(temp,'com.example.ulanziPlugin');await fs.mkdir(path.join(folder,'plugin'),{recursive:true});
   const id='com.ulanzi.ulanzistudio.Test',m={Type:'JavaScript',UUID:id,Name:'Example',Version:'1',
@@ -328,8 +328,8 @@ test('Ulanzi directory analyzer hashes original source and never installs or mut
 
 
 test('Ulanzi offline verifier compares source SDK traces with real native host dispatch and rejects altered conversion',()=>{
-  const {analyzeSource}=require('../app/streamdeck-editor/ulanzi-converter.cjs');
-  const {simulateCandidate}=require('../app/streamdeck-editor/ulanzi-verifier.cjs');
+  const {analyzeSource}=require('../app/deckforge-editor/ulanzi-converter.cjs');
+  const {simulateCandidate}=require('../app/deckforge-editor/ulanzi-verifier.cjs');
   const id='com.ulanzi.ulanzistudio.Verify',m={Type:'JavaScript',UUID:id,Name:'Verify',Version:'1',
     CodePath:'plugin/app.js',Actions:[{Name:'Dial',UUID:id+'.dial',Controllers:['Encoder'],States:[{},{}]}]};
   const source="$UD.connect('"+id+"');$UD.onAdd(m=>$UD.setTitle(m.context,'Ready'));"+
@@ -377,7 +377,7 @@ test('native version manager preserves original code and accepts only approved c
     const after=await fs.readFile(host.versions.currentFile(original.id),'utf8');
     assert.equal(JSON.parse(after).version,'1.1.0');
     const history=await host.versions.read(host.versions.historyFile(original.id,
-      require('../app/streamdeck-editor/deckforge-native-versions.cjs').fingerprint(original)));
+      require('../app/deckforge-editor/deckforge-native-versions.cjs').fingerprint(original)));
     assert.equal(history.raw.toString(),before);
     await assert.rejects(host.planInstall({...original,name:'Tampered old code'}),/rollback/);
     await assert.rejects(host.planInstall({...newer,name:'Different content'}),/same version/);
@@ -394,7 +394,7 @@ test('native version manager preserves original code and accepts only approved c
 
 
 test('native dependencies resolve transitively, reject cycles and protect working dependents',()=>{
-  const {resolveDependencies,assertDependencyChange}=require('../app/streamdeck-editor/deckforge-native-dependencies.cjs');
+  const {resolveDependencies,assertDependencyChange}=require('../app/deckforge-editor/deckforge-native-dependencies.cjs');
   const mk=(name,version='1.0.0',dependencies)=>({
     ...nativeManifest,id:'com.deckforge.native.'+name,version,
     actions:[{...nativeManifest.actions[0],id:'com.deckforge.native.'+name+'.toggle'}],...(dependencies?{dependencies}:{})
@@ -445,7 +445,7 @@ test('native router rechecks dependencies at install and runtime without falling
 
 test('native wide overlay requires explicit permission, bounds and physical input',()=>{
  const host=new NativePluginHost('/unused');
- const {validateWideOverlay}=require('../app/streamdeck-editor/deckforge-native-wide.cjs');
+ const {validateWideOverlay}=require('../app/deckforge-editor/deckforge-native-wide.cjs');
  const ctx={pluginUUID:nativeId,action:scriptManifest.actions[0],permissions:['display','wide.overlay']};
  const frame={kind:'layout',background:'#101010',elements:[
   {type:'text',x:0,y:0,w:392,h:80,text:'Ready',size:32,color:'#ffffff',align:'center'},
@@ -478,7 +478,7 @@ test('native wide overlay ownership is released on runtime shutdown or removal',
 
 
 test('native settings schema supports bounded typed fields, defaults and existing stored values',()=>{
- const core=require('../app/streamdeck-editor/deck-core.js');
+ const core=require('../app/deckforge-editor/deck-core.js');
  const schema=[{key:'label',label:'Label',type:'text',maxLength:20,default:'Ready'},
   {key:'enabled',label:'Enabled',type:'boolean',default:true},
   {key:'count',label:'Count',type:'integer',min:0,max:10,default:1},
@@ -513,7 +513,7 @@ test('native version update cannot narrow or remove existing declared settings',
 
 
 test('native network contract permits only declared HTTPS endpoints and input-triggered requests',()=>{
- const {validateNetworkEndpoints,validateNetworkRequest}=require('../app/streamdeck-editor/deckforge-native-network.cjs');
+ const {validateNetworkEndpoints,validateNetworkRequest}=require('../app/deckforge-editor/deckforge-native-network.cjs');
  const permissions=['display','network.request'],endpoint={id:'status',url:'https://example.com/api/status',method:'GET'};
  const m={...scriptManifest,permissions,networkEndpoints:[endpoint]};
  assert.doesNotThrow(()=>validateNativeManifest(m));
@@ -535,7 +535,7 @@ test('native network contract permits only declared HTTPS endpoints and input-tr
  host.close();
 });
 test('native HTTP extension permits approved methods and bounded query only',async()=>{
- const {validateNetworkEndpoints,validateNetworkRequest,resolveNetworkEndpoint,requestEndpoint,credentialBinding}=require('../app/streamdeck-editor/deckforge-native-network.cjs');
+ const {validateNetworkEndpoints,validateNetworkRequest,resolveNetworkEndpoint,requestEndpoint,credentialBinding}=require('../app/deckforge-editor/deckforge-native-network.cjs');
  const {EventEmitter}=require('node:events');
  const permissions=['display','network.request'],base={id:'status',url:'https://example.com/api/status',method:'GET'};
  const op={op:'networkRequest',endpoint:'status',body:null};
@@ -574,7 +574,7 @@ test('native HTTP extension permits approved methods and bounded query only',asy
 });
 
 test('native HTTP dynamic path and headers remain inside the exact approved contract',async()=>{
- const {validateNetworkEndpoints,validateNetworkRequest,resolveNetworkEndpoint,requestEndpoint,credentialBinding}=require('../app/streamdeck-editor/deckforge-native-network.cjs');
+ const {validateNetworkEndpoints,validateNetworkRequest,resolveNetworkEndpoint,requestEndpoint,credentialBinding}=require('../app/deckforge-editor/deckforge-native-network.cjs');
  const {EventEmitter}=require('node:events');
  const permissions=['display','network.request'],endpoint={id:'entity',method:'PATCH',url:'https://example.com/api/states/',auth:'bearer',pathKeys:['domain','entity'],queryKeys:['view'],headerKeys:['if-match','x-request-id']};
  const query={view:'full'},options={path:{domain:'light',entity:'living_room'},headers:{'if-match':'"rev-1"','x-request-id':'123'}};
@@ -714,7 +714,7 @@ test('native action service message is same-plugin and input-only, delivered onc
 });
 
 test('native WSS endpoint is permission-bound and transport enforces TLS, limits and no redirects',()=>{
- const {validateNetworkEndpoints,validateNetworkRequest,validateSocketOperation,createSocket}=require('../app/streamdeck-editor/deckforge-native-network.cjs');
+ const {validateNetworkEndpoints,validateNetworkRequest,validateSocketOperation,createSocket}=require('../app/deckforge-editor/deckforge-native-network.cjs');
  const endpoint={id:'live',url:'wss://example.com/events',method:'WSS',auth:'bearer'},permissions=['display','network.websocket'];
  validateNetworkEndpoints([endpoint],permissions);
  assert.throws(()=>validateNetworkEndpoints([endpoint],['display','network.request']),/method/);
@@ -781,7 +781,7 @@ test('native WebSocket lifecycle sends and receives, isolates stale context and 
 
 test('native HA socket auth stays in host, reconnects without replay and cancels retry on retirement',async()=>{
  const {EventEmitter}=require('node:events');
- const {validateNetworkEndpoints,credentialBinding,createSocket}=require('../app/streamdeck-editor/deckforge-native-network.cjs');
+ const {validateNetworkEndpoints,credentialBinding,createSocket}=require('../app/deckforge-editor/deckforge-native-network.cjs');
  const endpoint={id:'live',url:'wss://example.com/api/websocket',method:'WSS',auth:'home-assistant',reconnect:true};
  const manifest={...scriptManifest,permissions:['display','network.websocket'],networkEndpoints:[endpoint]};
  validateNetworkEndpoints([endpoint],manifest.permissions);
@@ -850,7 +850,7 @@ test('native HTTPS and HA WSS use real loopback TLS, reject untrusted certificat
  const https=require('node:https');
  const {once}=require('node:events');
  const {WebSocket,WebSocketServer}=require('../app/node_modules/ws');
- const {validateNetworkEndpoints,validateNetworkRequest,resolveNetworkEndpoint,requestEndpoint,createSocket}=require('../app/streamdeck-editor/deckforge-native-network.cjs');
+ const {validateNetworkEndpoints,validateNetworkRequest,resolveNetworkEndpoint,requestEndpoint,createSocket}=require('../app/deckforge-editor/deckforge-native-network.cjs');
  // TEST-ONLY public fixture identity. Never use this private key or trust
  // anchor outside this single loopback test; it is intentionally public.
  const key=`-----BEGIN PRIVATE KEY-----
@@ -941,7 +941,7 @@ ICK4rG79B7PmPEgFai/KKbWsiufMAf+LK9jg5K/yxkZH
 
 test('native HTTPS broker bounds response, denies redirects, times out and uses verified TLS',async()=>{
  const {EventEmitter}=require('node:events');
- const {requestEndpoint}=require('../app/streamdeck-editor/deckforge-native-network.cjs');
+ const {requestEndpoint}=require('../app/deckforge-editor/deckforge-native-network.cjs');
  const endpoint={id:'status',url:'https://example.com/api/status',method:'GET'};
  const mock=(status,body,headers={'content-type':'application/json'})=>(url,opts,callback)=>{
    assert.equal(url.href,endpoint.url);assert.equal(opts.rejectUnauthorized,true);assert.equal(opts.agent,false);
@@ -993,8 +993,8 @@ test('native async network continuation does not block release or replay input; 
 
 
 test('native bearer credentials are bound to exact plugin and endpoint and never returned by status',async()=>{
- const {NativeSettingsVault}=require('../app/streamdeck-editor/deckforge-native-settings.cjs');
- const {credentialBinding,validBearer}=require('../app/streamdeck-editor/deckforge-native-network.cjs');
+ const {NativeSettingsVault}=require('../app/deckforge-editor/deckforge-native-settings.cjs');
+ const {credentialBinding,validBearer}=require('../app/deckforge-editor/deckforge-native-network.cjs');
  const temp=await fs.mkdtemp(path.join(os.tmpdir(),'deckforge-credential-'));
  const storage={isAsyncEncryptionAvailable:async()=>true,encryptStringAsync:async v=>Buffer.from(v),
   decryptStringAsync:async b=>({result:b.toString()})}; // Mock only, never production encryption.
@@ -1025,7 +1025,7 @@ test('native bearer credentials are bound to exact plugin and endpoint and never
 });
 test('native broker requires credential for bearer endpoint and rejects literal token echo',async()=>{
  const {EventEmitter}=require('node:events');
- const {requestEndpoint}=require('../app/streamdeck-editor/deckforge-native-network.cjs');
+ const {requestEndpoint}=require('../app/deckforge-editor/deckforge-native-network.cjs');
  const endpoint={id:'status',url:'https://example.com/status',method:'GET',auth:'bearer'};
  const token='example.token-123';let calls=0;
  const mock=text=>(_url,opts,cb)=>{
@@ -1070,7 +1070,7 @@ test('native authenticated request receives credential only in host transport, n
 
 
 test('Ulanzi inspector analysis proposes only bounded native fields and never loads scripts or secret defaults',()=>{
- const {analyzeHtml,localRef}=require('../app/streamdeck-editor/ulanzi-inspector-analysis.cjs');
+ const {analyzeHtml,localRef}=require('../app/deckforge-editor/ulanzi-inspector-analysis.cjs');
  const source='<form id="property-inspector"><div class="uspi-item"><div class="uspi-item-label">Label &amp; name</div><input name="label" maxlength="32" value="Ready"></div>'+
  '<select name="mode"><option value="a">A</option><option value="b" selected>B</option></select>'+
  '<input name="count" type="number" min="0" max="10" value="2">'+
@@ -1089,7 +1089,7 @@ test('Ulanzi inspector analysis proposes only bounded native fields and never lo
  assert.equal(localRef('pi/inspector.html','../lib.js'),'lib.js');
 });
 test('Ulanzi directory analysis inventories HTML entry, inspector proposals and state artwork without installing',async()=>{
- const {analyzeDirectory}=require('../app/streamdeck-editor/ulanzi-converter.cjs');
+ const {analyzeDirectory}=require('../app/deckforge-editor/ulanzi-converter.cjs');
  const temp=await fs.mkdtemp(path.join(os.tmpdir(),'deckforge-ulanzi-html-'));
  const root=path.join(temp,'demo.ulanziPlugin');await fs.mkdir(root);
  const id='com.ulanzi.ulanzistudio.HtmlDemo';
@@ -1114,7 +1114,7 @@ test('Ulanzi directory analysis inventories HTML entry, inspector proposals and 
 
 
 test('Ulanzi documented temporary PNG image maps to the native host trace without executing source',()=>{
- const {analyzeSource}=require('../app/streamdeck-editor/ulanzi-converter.cjs');
+ const {analyzeSource}=require('../app/deckforge-editor/ulanzi-converter.cjs');
  const id='com.ulanzi.ulanzistudio.ImageDemo',m={Type:'JavaScript',UUID:id,Name:'Image',Version:'1.0.0',
  CodePath:'app.js',Actions:[{UUID:id+'.image',Name:'Image'}]};
  const png=Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+ip1sAAAAASUVORK5CYII=','base64');
@@ -1127,8 +1127,8 @@ test('Ulanzi documented temporary PNG image maps to the native host trace withou
    assert.equal(analyzeSource(m,bad).candidate,null);
 });
 test('native author package round-trips through installer validation and refuses overwrite or unreviewed candidate',async()=>{
- const {packageNativeManifest}=require('../app/streamdeck-editor/deckforge-plugin.cjs');
- const {packageFile,prepareReview}=require('../app/streamdeck-editor/deckforge-sdk-cli.cjs');
+ const {packageNativeManifest}=require('../app/deckforge-editor/deckforge-plugin.cjs');
+ const {packageFile,prepareReview}=require('../app/deckforge-editor/deckforge-sdk-cli.cjs');
  const temp=await fs.mkdtemp(path.join(os.tmpdir(),'deckforge-author-'));
  try{
    const pack=await packageNativeManifest(scriptManifest);
@@ -1151,8 +1151,8 @@ test('native author package round-trips through installer validation and refuses
 
 
 test('official pinned Ulanzi examples are analyzed without pretending unsupported code is convertible',async()=>{
- const {analyzeSource}=require('../app/streamdeck-editor/ulanzi-converter.cjs');
- const {analyzeHtml}=require('../app/streamdeck-editor/ulanzi-inspector-analysis.cjs');
+ const {analyzeSource}=require('../app/deckforge-editor/ulanzi-converter.cjs');
+ const {analyzeHtml}=require('../app/deckforge-editor/ulanzi-inspector-analysis.cjs');
  const dir=path.join(__dirname,'fixtures','ulanzi-sdk');
  const info=JSON.parse(await fs.readFile(path.join(dir,'sources.json'),'utf8'));
  assert.equal(info.commit,'550ab80c69285ecf259bd494a7fff767c14f0c0f');
@@ -1174,7 +1174,7 @@ test('official pinned Ulanzi examples are analyzed without pretending unsupporte
    assert.ok(result.calls.some(c=>c.name==='onRun'&&c.support==='review'));
    assert.ok(result.calls.some(c=>c.name==='onParamFromApp'&&c.support==='candidate'));
    const inspector=analyzeHtml('property-inspector/action/inspector.html',await load(name,'inspector.html'),{inspector:true});
-   const {analyzeInspectorScript}=require('../app/streamdeck-editor/ulanzi-inspector-analysis.cjs');
+   const {analyzeInspectorScript}=require('../app/deckforge-editor/ulanzi-inspector-analysis.cjs');
    const behavior=analyzeInspectorScript(await load(name,'inspector.js'));
    assert.equal(behavior.status,'static-inventory');
    assert.ok(behavior.sdkMethods.includes('sendParamFromPlugin'));
@@ -1258,8 +1258,8 @@ test('periodic sweep cap does not starve contexts beyond the first eight',async(
 
 
 test('reviewed Ulanzi package requires exact source and candidate revision plus explicit manual evidence',async()=>{
- const {prepareReview,releaseReviewed}=require('../app/streamdeck-editor/deckforge-sdk-cli.cjs');
- const {packageNativeManifest}=require('../app/streamdeck-editor/deckforge-plugin.cjs');
+ const {prepareReview,releaseReviewed}=require('../app/deckforge-editor/deckforge-sdk-cli.cjs');
+ const {packageNativeManifest}=require('../app/deckforge-editor/deckforge-plugin.cjs');
  const temp=await fs.mkdtemp(path.join(os.tmpdir(),'deckforge-release-review-'));
  const folder=path.join(temp,'source.ulanziPlugin');await fs.mkdir(folder);
  const id='com.ulanzi.ulanzistudio.Release',manifest={Type:'JavaScript',UUID:id,Name:'Review',Version:'1.0.0',CodePath:'app.js',Actions:[{UUID:id+'.a',Name:'A'}]};
@@ -1292,7 +1292,7 @@ test('reviewed Ulanzi package requires exact source and candidate revision plus 
 
 
 test('native state PNGs populate catalog and survive package roundtrip without changing user settings',async()=>{
- const {packageNativeManifest}=require('../app/streamdeck-editor/deckforge-plugin.cjs');
+ const {packageNativeManifest}=require('../app/deckforge-editor/deckforge-plugin.cjs');
  const png='data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+ip1sAAAAASUVORK5CYII=';
  const m={...nativeManifest,actions:[{...nativeManifest.actions[0],stateImages:[png,png]}]};
  const temp=await fs.mkdtemp(path.join(os.tmpdir(),'deckforge-state-art-')),host=new NativePluginHost(temp);
@@ -1305,8 +1305,8 @@ test('native state PNGs populate catalog and survive package roundtrip without c
  }finally{host.close();await fs.rm(temp,{recursive:true,force:true});}
 });
 test('Ulanzi state PNG bytes are embedded while unrelated artwork blocks reviewed release',async()=>{
- const {analyzeDirectory}=require('../app/streamdeck-editor/ulanzi-converter.cjs');
- const {buildReviewRecord,validateReviewRecord}=require('../app/streamdeck-editor/ulanzi-release-review.cjs');
+ const {analyzeDirectory}=require('../app/deckforge-editor/ulanzi-converter.cjs');
+ const {buildReviewRecord,validateReviewRecord}=require('../app/deckforge-editor/ulanzi-release-review.cjs');
  const root=await fs.mkdtemp(path.join(os.tmpdir(),'deckforge-art-review-'));
  const dir=path.join(root,'original.ulanziPlugin');await fs.mkdir(dir);
  const id='com.ulanzi.ulanzistudio.Art',m={Type:'JavaScript',UUID:id,Name:'Art',Version:'1.0.0',CodePath:'app.js',
@@ -1331,7 +1331,7 @@ test('Ulanzi state PNG bytes are embedded while unrelated artwork blocks reviewe
 
 
 test('conversion PNG verification rejects CRC corruption, truncation, extra data and decompression overflow',()=>{
- const {verifyPng}=require('../app/streamdeck-editor/ulanzi-png-verifier.cjs');
+ const {verifyPng}=require('../app/deckforge-editor/ulanzi-png-verifier.cjs');
  const {crc32,deflateSync}=require('node:zlib');
  const valid=Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+ip1sAAAAASUVORK5CYII=','base64');
  assert.deepEqual(verifyPng(valid),{ok:true,width:1,height:1,verification:'crc-and-bounded-scanlines'});
@@ -1353,7 +1353,7 @@ test('conversion PNG verification rejects CRC corruption, truncation, extra data
 });
 
 test('Ulanzi restricted multi-action routing separates declared UUID branches and controllers',()=>{
-  const {analyzeSource}=require('../app/streamdeck-editor/ulanzi-converter.cjs');
+  const {analyzeSource}=require('../app/deckforge-editor/ulanzi-converter.cjs');
   const id='com.ulanzi.ulanzistudio.Multi',key=id+'.key',dial=id+'.dial',other=id+'.other';
   const m={Type:'JavaScript',UUID:id,Name:'Multi',Version:'1',CodePath:'app.js',Actions:[
     {UUID:key,Name:'Key',States:[{},{}]},{UUID:dial,Name:'Dial',Controllers:['Encoder']},{UUID:other,Name:'Other'}]};
@@ -1378,8 +1378,8 @@ test('Ulanzi restricted multi-action routing separates declared UUID branches an
 });
 
 test('multi-action Ulanzi PNG preservation keeps resource ownership and requires full reviewed evidence',async()=>{
- const {analyzeDirectory}=require('../app/streamdeck-editor/ulanzi-converter.cjs');
- const {buildReviewRecord,validateReviewRecord}=require('../app/streamdeck-editor/ulanzi-release-review.cjs');
+ const {analyzeDirectory}=require('../app/deckforge-editor/ulanzi-converter.cjs');
+ const {buildReviewRecord,validateReviewRecord}=require('../app/deckforge-editor/ulanzi-release-review.cjs');
  const root=await fs.mkdtemp(path.join(os.tmpdir(),'deckforge-multi-art-'));
  const dir=path.join(root,'original.ulanziPlugin');await fs.mkdir(dir);
  const id='com.ulanzi.ulanzistudio.MultiArt',m={Type:'JavaScript',UUID:id,Name:'Multi Art',Version:'1.0.0',CodePath:'app.js',
@@ -1413,7 +1413,7 @@ test('multi-action Ulanzi PNG preservation keeps resource ownership and requires
 });
 
 test('Ulanzi type-guarded dynamic titles map settings events and reject sensitive or arbitrary expressions',()=>{
- const {analyzeSource}=require('../app/streamdeck-editor/ulanzi-converter.cjs');
+ const {analyzeSource}=require('../app/deckforge-editor/ulanzi-converter.cjs');
  const id='com.ulanzi.ulanzistudio.Dynamic',m={Type:'JavaScript',UUID:id,Name:'Dynamic',Version:'1.0.0',CodePath:'app.js',Actions:[{UUID:id+'.a',Name:'A'}]};
  const display="m=>$UD.setTitle(m.context,typeof m.param?.label === 'string' ? m.param.label : 'Ready')";
  const source="$UD.connect('"+id+"');$UD.onAdd("+display+");$UD.onParamFromApp("+display+");";
@@ -1431,7 +1431,7 @@ test('Ulanzi type-guarded dynamic titles map settings events and reject sensitiv
 });
 
 test('Ulanzi media inventory preserves animation structure and rejects unsafe SVG without rendering',()=>{
- const {gifReport,svgReport}=require('../app/streamdeck-editor/ulanzi-media-analysis.cjs');
+ const {gifReport,svgReport}=require('../app/deckforge-editor/ulanzi-media-analysis.cjs');
  const gif=Buffer.from('R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAICRAEAOw==','base64');
  const result=gifReport(gif);
  assert.equal(result.status,'bounded-animation-review');assert.equal(result.frames,1);
@@ -1452,9 +1452,9 @@ test('Ulanzi media inventory preserves animation structure and rejects unsafe SV
 });
 
 test('restricted SVG native images retain bytes, reject active content, and require review for conversion',async()=>{
- const {analyzeDirectory}=require('../app/streamdeck-editor/ulanzi-converter.cjs');
- const {buildReviewRecord,validateReviewRecord}=require('../app/streamdeck-editor/ulanzi-release-review.cjs');
- const {packageNativeManifest}=require('../app/streamdeck-editor/deckforge-plugin.cjs');
+ const {analyzeDirectory}=require('../app/deckforge-editor/ulanzi-converter.cjs');
+ const {buildReviewRecord,validateReviewRecord}=require('../app/deckforge-editor/ulanzi-release-review.cjs');
+ const {packageNativeManifest}=require('../app/deckforge-editor/deckforge-plugin.cjs');
  const svg='<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16"><rect width="16" height="16" fill="#f00"/></svg>';
  const uri=s=>'data:image/svg+xml;base64,'+Buffer.from(s).toString('base64');
  const image=uri(svg);
@@ -1477,8 +1477,8 @@ test('restricted SVG native images retain bytes, reject active content, and requ
 });
 
 test('opaque GIF decoder retains complete frames, colors, timing and PNG output without installing',()=>{
- const {decodeOpaqueGif,opaqueGifPngFrames,gifReport}=require('../app/streamdeck-editor/ulanzi-media-analysis.cjs');
- const {verifyPng}=require('../app/streamdeck-editor/ulanzi-png-verifier.cjs');
+ const {decodeOpaqueGif,opaqueGifPngFrames,gifReport}=require('../app/deckforge-editor/ulanzi-media-analysis.cjs');
+ const {verifyPng}=require('../app/deckforge-editor/ulanzi-png-verifier.cjs');
  const {inflateSync}=require('node:zlib');
  const header=Buffer.from('47494638396101000100800000ff00000000ff','hex');
  const frame=(index,delay)=>Buffer.from([0x21,0xf9,4,0,delay,0,0,0,0x2c,0,0,0,0,1,0,1,0,0,2,2,4|(index<<3)|(5<<6&255),1,0]);
@@ -1499,8 +1499,8 @@ test('opaque GIF decoder retains complete frames, colors, timing and PNG output 
 });
 
 test('GIF partial frames honor transparency and restore background or previous pixels',()=>{
- const {decodeCompositeGif,gifPngFrames}=require('../app/streamdeck-editor/ulanzi-media-analysis.cjs');
- const {verifyPng}=require('../app/streamdeck-editor/ulanzi-png-verifier.cjs');
+ const {decodeCompositeGif,gifPngFrames}=require('../app/deckforge-editor/ulanzi-media-analysis.cjs');
+ const {verifyPng}=require('../app/deckforge-editor/ulanzi-png-verifier.cjs');
  const header=Buffer.from('47494638396102000100800000ff00000000ff','hex');
  const frame=(x,w,indices,packed=0)=>{
    // Clear between pixels: fixed 3-bit codes, no dictionary-width transition.
@@ -1521,8 +1521,8 @@ test('GIF partial frames honor transparency and restore background or previous p
 });
 
 test('animation clock skips late frames, preserves finite loops, isolates pages and serializes writers',()=>{
- const {animationTimeline,AnimationClock}=require('../app/streamdeck-editor/deckforge-animation-clock.cjs');
- const {gifPngFrames}=require('../app/streamdeck-editor/ulanzi-media-analysis.cjs');
+ const {animationTimeline,AnimationClock}=require('../app/deckforge-editor/deckforge-animation-clock.cjs');
+ const {gifPngFrames}=require('../app/deckforge-editor/ulanzi-media-analysis.cjs');
  const gif=Buffer.from('R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAICRAEAOw==','base64');
  const png=gifPngFrames(gif).frames[0].png;
  const animation={loopCount:1,frames:[{png,delayMs:20},{png,delayMs:150},{png,delayMs:100}]};
@@ -1546,8 +1546,8 @@ test('animation clock skips late frames, preserves finite loops, isolates pages 
 });
 
 test('inert Ulanzi inspector schema is bound only to matching source settings and remains review-only',async()=>{
- const {analyzeDirectory}=require('../app/streamdeck-editor/ulanzi-converter.cjs');
- const {buildReviewRecord,validateReviewRecord}=require('../app/streamdeck-editor/ulanzi-release-review.cjs');
+ const {analyzeDirectory}=require('../app/deckforge-editor/ulanzi-converter.cjs');
+ const {buildReviewRecord,validateReviewRecord}=require('../app/deckforge-editor/ulanzi-release-review.cjs');
  const root=await fs.mkdtemp(path.join(os.tmpdir(),'deckforge-inspector-bind-')),dir=path.join(root,'source.ulanziPlugin');await fs.mkdir(dir);
  const id='com.ulanzi.ulanzistudio.Form',m={Type:'JavaScript',UUID:id,Name:'Form',Version:'1',CodePath:'app.js',Actions:[{UUID:id+'.a',Name:'A',PropertyInspectorPath:'pi.html'}]};
  const form='<form id="property-inspector"><label for="label">Label</label><input id="label" name="label" maxlength="8" value="Ready"></form>';
@@ -1629,7 +1629,7 @@ test('API 2 rotation bursts use bounded atomic admission instead of killing the 
 });
 
 test('SDK global scheduler limits one plugin, admits another and cancels obsolete waiting work',async()=>{
- const {SdkScheduler}=require('../app/streamdeck-editor/deckforge-sdk-scheduler.cjs');
+ const {SdkScheduler}=require('../app/deckforge-editor/deckforge-sdk-scheduler.cjs');
  const scheduler=new SdkScheduler({globalLimit:3,pluginLimit:2});
  const calls=[],release=[];
  const gate=id=>()=>new Promise(resolve=>{calls.push(id);release.push(()=>resolve(id));});
@@ -1694,7 +1694,7 @@ test('SDK network quotas reserve capacity for another plugin and return bounded 
  }finally{requests.forEach(r=>r.resolve({endpoint:'status',ok:false,status:0,body:'',error:'cancelled'}));host.close();}
 });
 test('SDK transport result boundary rejects malformed, unbounded and credential-bearing responses',()=>{
- const {normalizeNetworkResult}=require('../app/streamdeck-editor/deckforge-native-network.cjs');
+ const {normalizeNetworkResult}=require('../app/deckforge-editor/deckforge-native-network.cjs');
  const endpoint={id:'status'},valid={endpoint:'status',ok:true,status:200,body:'ready',error:null};
  assert.deepEqual(normalizeNetworkResult(endpoint,valid),valid);
  for(const result of [null,{...valid,extra:'secret'},{...valid,body:'x'.repeat(9000)},{...valid,endpoint:'other'},{...valid,status:302}])
@@ -1704,7 +1704,7 @@ test('SDK transport result boundary rejects malformed, unbounded and credential-
 });
 
 test('API 2 syntax supports async event bodies and cancellable deadlines settle promptly',async()=>{
- const {deadline}=require('../app/streamdeck-editor/deckforge-js-runtime.cjs');
+ const {deadline}=require('../app/deckforge-editor/deckforge-js-runtime.cjs');
  assert.doesNotThrow(()=>validateNativeManifest({...scriptManifest,actions:[{...scriptManifest.actions[0],script:"const value=await Promise.resolve('OK');api.setTitle(value);"}]}));
  const controller=new AbortController();
  let started=false;
@@ -1716,7 +1716,7 @@ test('API 2 syntax supports async event bodies and cancellable deadlines settle 
 });
 
 test('encrypted vault isolates writers by plugin, snapshots input and never treats decrypt errors as absence',async()=>{
- const {NativeSettingsVault}=require('../app/streamdeck-editor/deckforge-native-settings.cjs');
+ const {NativeSettingsVault}=require('../app/deckforge-editor/deckforge-native-settings.cjs');
  const temp=await fs.mkdtemp(path.join(os.tmpdir(),'deckforge-isolated-vault-'));
  let unblock,started;
  const ready=new Promise(resolve=>{started=resolve;});
@@ -1747,9 +1747,9 @@ test('encrypted vault isolates writers by plugin, snapshots input and never trea
 });
 
 test('Ulanzi static radio inspector binds strict setting state mapping without running source',async()=>{
- const {analyzeDirectory}=require('../app/streamdeck-editor/ulanzi-converter.cjs');
- const {analyzeHtml}=require('../app/streamdeck-editor/ulanzi-inspector-analysis.cjs');
- const {buildReviewRecord,validateReviewRecord}=require('../app/streamdeck-editor/ulanzi-release-review.cjs');
+ const {analyzeDirectory}=require('../app/deckforge-editor/ulanzi-converter.cjs');
+ const {analyzeHtml}=require('../app/deckforge-editor/ulanzi-inspector-analysis.cjs');
+ const {buildReviewRecord,validateReviewRecord}=require('../app/deckforge-editor/ulanzi-release-review.cjs');
  const root=await fs.mkdtemp(path.join(os.tmpdir(),'deckforge-radio-bind-')),dir=path.join(root,'source.ulanziPlugin');await fs.mkdir(dir);
  const id='com.ulanzi.ulanzistudio.Radio',m={Type:'JavaScript',UUID:id,Name:'Radio',Version:'1',CodePath:'app.js',Actions:[{UUID:id+'.a',Name:'A',PropertyInspectorPath:'pi.html',States:[{},{}]}]};
  const form='<form id="property-inspector"><label for="off">Off</label><input id="off" type="radio" name="mode" value="off" checked><label for="on">On</label><input id="on" type="radio" name="mode" value="on"></form>';
@@ -1773,8 +1773,8 @@ test('Ulanzi static radio inspector binds strict setting state mapping without r
 });
 
 test('single inert Ulanzi HTML entry can produce a trace candidate but active HTML remains manual',async()=>{
- const {analyzeDirectory}=require('../app/streamdeck-editor/ulanzi-converter.cjs');
- const {buildReviewRecord,validateReviewRecord}=require('../app/streamdeck-editor/ulanzi-release-review.cjs');
+ const {analyzeDirectory}=require('../app/deckforge-editor/ulanzi-converter.cjs');
+ const {buildReviewRecord,validateReviewRecord}=require('../app/deckforge-editor/ulanzi-release-review.cjs');
  const temp=await fs.mkdtemp(path.join(os.tmpdir(),'deckforge-html-wrapper-')),dir=path.join(temp,'source.ulanziPlugin');await fs.mkdir(dir);
  const id='com.ulanzi.ulanzistudio.Wrapper',manifest={Type:'JavaScript',UUID:id,Name:'Wrapper',Version:'1',CodePath:'app.html',Actions:[{UUID:id+'.a',Name:'A'}]};
  const html='<script type="module" src="app.js"></script>';
@@ -1793,7 +1793,7 @@ test('single inert Ulanzi HTML entry can produce a trace candidate but active HT
 });
 
 test('Ulanzi UUID switch routing validates all branches and rejects ambiguous fallthrough',()=>{
- const {analyzeSource}=require('../app/streamdeck-editor/ulanzi-converter.cjs');
+ const {analyzeSource}=require('../app/deckforge-editor/ulanzi-converter.cjs');
  const id='com.ulanzi.ulanzistudio.Switch',a=id+'.a',b=id+'.b',c=id+'.c';
  const m={Type:'JavaScript',UUID:id,Name:'Switch',Version:'1',CodePath:'app.js',Actions:[{UUID:a,Name:'A'},{UUID:b,Name:'B'},{UUID:c,Name:'C',Controllers:['Encoder']}]};
  const source="$UD.connect('"+id+"');$UD.onAdd(m=>{switch(m.uuid){case '"+a+"':$UD.setTitle(m.context,'A');break;case '"+b+"':$UD.setTitle(m.context,'B');break;default:$UD.setTitle(m.context,'C');break;}});";
@@ -1806,7 +1806,7 @@ test('Ulanzi UUID switch routing validates all branches and rejects ambiguous fa
  assert.equal(analyzeSource(m,unreachable).candidate,null);
 });
 test('Ulanzi declared resource inventory cannot silently omit over-budget paths',async()=>{
- const {analyzeDirectory}=require('../app/streamdeck-editor/ulanzi-converter.cjs');
+ const {analyzeDirectory}=require('../app/deckforge-editor/ulanzi-converter.cjs');
  const root=await fs.mkdtemp(path.join(os.tmpdir(),'deckforge-resource-cap-')),dir=path.join(root,'source.ulanziPlugin');await fs.mkdir(dir);
  const id='com.ulanzi.ulanzistudio.ResourceCap',m={Type:'JavaScript',UUID:id,Name:'Cap',Version:'1',CodePath:'app.js',Actions:[{UUID:id+'.a',Name:'A',States:Array.from({length:257},(_,i)=>({Image:'img'+i+'.png'}))}]};
  try{
@@ -1836,8 +1836,8 @@ test('native image validation rejects malformed PNGs both at install and on API 
 });
 
 test('Ulanzi verifier exercises every setting comparison and isolates multi-action settings changes',()=>{
- const {analyzeSource}=require('../app/streamdeck-editor/ulanzi-converter.cjs');
- const {simulateCandidate}=require('../app/streamdeck-editor/ulanzi-verifier.cjs');
+ const {analyzeSource}=require('../app/deckforge-editor/ulanzi-converter.cjs');
+ const {simulateCandidate}=require('../app/deckforge-editor/ulanzi-verifier.cjs');
  const id='com.ulanzi.ulanzistudio.Probes',m={Type:'JavaScript',UUID:id,Name:'Probes',Version:'1',CodePath:'app.js',Actions:[{UUID:id+'.a',Name:'A',States:[{},{}]}]};
  const body="m=>{$UD.setState(m.context,m.param?.mode === 'first' ? 1 : 0);$UD.setState(m.context,m.param?.mode === 'second' ? 1 : 0);}";
  const source="$UD.connect('"+id+"');$UD.onAdd("+body+");$UD.onParamFromApp("+body+");";
@@ -1855,7 +1855,7 @@ test('Ulanzi verifier exercises every setting comparison and isolates multi-acti
 });
 
 test('corpus audit summarizes candidates and blockers without executing or exporting original source',async()=>{
- const {writeCorpusAudit}=require('../app/streamdeck-editor/deckforge-sdk-cli.cjs');
+ const {writeCorpusAudit}=require('../app/deckforge-editor/deckforge-sdk-cli.cjs');
  const root=await fs.mkdtemp(path.join(os.tmpdir(),'deckforge-corpus-')),src=path.join(root,'source'),out=path.join(root,'reports');
  await fs.mkdir(src);await fs.mkdir(out);
  try{
@@ -1879,7 +1879,7 @@ test('corpus audit summarizes candidates and blockers without executing or expor
 });
 
 test('pinned community plugin manifests and source are inventoried without granting conversion permission',async()=>{
- const {analyzeSource,validateSourceManifest}=require('../app/streamdeck-editor/ulanzi-converter.cjs');
+ const {analyzeSource,validateSourceManifest}=require('../app/deckforge-editor/ulanzi-converter.cjs');
  const root=path.join(__dirname,'fixtures','ulanzi-community');
  const sources=JSON.parse(await fs.readFile(path.join(root,'sources.json'),'utf8'));
  const hash=b=>require('node:crypto').createHash('sha1').update('blob '+b.length+'\0').update(b).digest('hex');
@@ -1909,7 +1909,7 @@ test('pinned community plugin manifests and source are inventoried without grant
 });
 
 test('multi-script HTML audit records available real community source and missing dependencies without translation',async()=>{
- const {analyzeDirectory}=require('../app/streamdeck-editor/ulanzi-converter.cjs');
+ const {analyzeDirectory}=require('../app/deckforge-editor/ulanzi-converter.cjs');
  const fixture=path.join(__dirname,'fixtures','ulanzi-community','zentala');
  const root=await fs.mkdtemp(path.join(os.tmpdir(),'deckforge-html-inventory-'));
  const dir=path.join(root,'community.ulanziPlugin');
@@ -1932,8 +1932,8 @@ test('multi-script HTML audit records available real community source and missin
 });
 
 test('dynamic key RGBA is bounded and converted to a verified PNG before host display',()=>{
- const {pixelImage}=require('../app/streamdeck-editor/deckforge-pixel-image.cjs');
- const {verifyPng}=require('../app/streamdeck-editor/ulanzi-png-verifier.cjs');
+ const {pixelImage}=require('../app/deckforge-editor/deckforge-pixel-image.cjs');
+ const {verifyPng}=require('../app/deckforge-editor/ulanzi-png-verifier.cjs');
  const rgba=Buffer.from([255,0,0,255,0,0,255,128]);
  const op={op:'pixels',width:2,height:1,rgba:rgba.toString('base64')};
  const expected=pixelImage(op),png=Buffer.from(expected.value.slice(22),'base64');
@@ -2007,8 +2007,8 @@ test('native settings receipts serialize rapid inputs and preserve external edit
 });
 
 test('native GIF playback uses bounded PNG events, stops on replacement and cancels stale contexts',async()=>{
- const {prepareGif,NativeAnimationPlayer}=require('../app/streamdeck-editor/deckforge-native-animation.cjs');
- const {verifyPng}=require('../app/streamdeck-editor/ulanzi-png-verifier.cjs');
+ const {prepareGif,NativeAnimationPlayer}=require('../app/deckforge-editor/deckforge-native-animation.cjs');
+ const {verifyPng}=require('../app/deckforge-editor/ulanzi-png-verifier.cjs');
  const header=Buffer.from('47494638396101000100800000ff00000000ff','hex');
  const frame=i=>Buffer.from([0x21,0xf9,4,0,5,0,0,0,0x2c,0,0,0,0,1,0,1,0,0,2,2,4|(i<<3)|(5<<6&255),1,0]);
  const gif='data:image/gif;base64,'+Buffer.concat([header,frame(0),frame(1),Buffer.from([0x3b])]).toString('base64');
@@ -2040,7 +2040,7 @@ test('native GIF playback uses bounded PNG events, stops on replacement and canc
 });
 
 test('active GIF preparation reuses verified frames and rejects inactive duplicate starts',()=>{
- const {NativeAnimationPlayer}=require('../app/streamdeck-editor/deckforge-native-animation.cjs');
+ const {NativeAnimationPlayer}=require('../app/deckforge-editor/deckforge-native-animation.cjs');
  const gif='data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAICRAEAOw==';
  let active=true,time=0,updates=0;
  const player=new NativeAnimationPlayer(()=>updates++,()=>time);
@@ -2061,8 +2061,8 @@ test('active GIF preparation reuses verified frames and rejects inactive duplica
 
 test('native wide PNG verifies complete bounded image rather than trusting its header',()=>{
  const {crc32,deflateSync}=require('node:zlib');
- const {verifyPng}=require('../app/streamdeck-editor/ulanzi-png-verifier.cjs');
- const {validateWideOverlay}=require('../app/streamdeck-editor/deckforge-native-wide.cjs');
+ const {verifyPng}=require('../app/deckforge-editor/ulanzi-png-verifier.cjs');
+ const {validateWideOverlay}=require('../app/deckforge-editor/deckforge-native-wide.cjs');
  const chunk=(type,data)=>{
    const body=Buffer.concat([Buffer.from(type),data]),size=Buffer.alloc(4),crc=Buffer.alloc(4);
    size.writeUInt32BE(data.length);crc.writeUInt32BE(crc32(body));return Buffer.concat([size,body,crc]);
@@ -2080,7 +2080,7 @@ test('native wide PNG verifies complete bounded image rather than trusting its h
  assert.throws(()=>validateWideOverlay(op(oversized)),/invalid wide/);
 });
 test('all published native examples round-trip through real package parser and installer',async()=>{
- const {packageNativeManifest}=require('../app/streamdeck-editor/deckforge-plugin.cjs');
+ const {packageNativeManifest}=require('../app/deckforge-editor/deckforge-plugin.cjs');
  const root=await fs.mkdtemp(path.join(os.tmpdir(),'deckforge-sdk-examples-')),host=new NativePluginHost(root);
  try{
    const dir=path.join(__dirname,'../examples/deckforge-sdk');
@@ -2097,7 +2097,7 @@ test('all published native examples round-trip through real package parser and i
 
 
 test('native WSS large receive is opt-in, bounded and does not enlarge outgoing messages',()=>{
- const {validateNetworkEndpoints,validateSocketOperation,createSocket,socketReceiveLimit}=require('../app/streamdeck-editor/deckforge-native-network.cjs');
+ const {validateNetworkEndpoints,validateSocketOperation,createSocket,socketReceiveLimit}=require('../app/deckforge-editor/deckforge-native-network.cjs');
  const ep={id:'large',url:'wss://example.com/events',method:'WSS'},permissions=['display','network.websocket'];
  assert.equal(socketReceiveLimit(ep),8192);
  const large={...ep,maxReceiveBytes:256*1024};
@@ -2138,7 +2138,7 @@ test('native WSS opt-in large message reaches service but oversized frame closes
 });
 
 test('native dynamic settings validate bounded selections and sanitize published choices',()=>{
- const core=require('../app/streamdeck-editor/deck-core.js');
+ const core=require('../app/deckforge-editor/deck-core.js');
  const schema=[{key:'items',label:'센서',type:'dynamicMultiSelect',source:'sensors',maxItems:4,default:[]}];
  core.validateNativeSettingsSchema(schema);
  assert.deepEqual(core.nativeEffectiveSettings(schema,{items:['sensor.temp','sensor.humidity']}),{items:['sensor.temp','sensor.humidity']});
@@ -2147,7 +2147,7 @@ test('native dynamic settings validate bounded selections and sanitize published
  assert.deepEqual(core.nativeDynamicOptions(schema[0],{sensors:[{value:'a',label:'온도',group:'발코니',secret:'ignored'},{value:'a',label:'duplicate'},{value:'b',label:'\n'}]}),[{value:'a',label:'온도',group:'발코니'}]);
 });
 test('HA native manifest, compressed entity state, device grouping, control and sensor drawing',()=>{
- const {createHomeAssistantManifest,service,sensorKey,controlKey}=require('../app/streamdeck-editor/deckforge-ha-plugin.cjs');
+ const {createHomeAssistantManifest,service,sensorKey,controlKey}=require('../app/deckforge-editor/deckforge-ha-plugin.cjs');
  const manifest=createHomeAssistantManifest('https://example.com');
  assert.equal(manifest.networkEndpoints[0].url,'wss://example.com/api/websocket');
  assert.doesNotThrow(()=>validateNativeManifest(manifest));
@@ -2185,8 +2185,8 @@ test('HA native manifest, compressed entity state, device grouping, control and 
 });
 
 test('native shared state view limits per-key input and skips unrelated updates',()=>{
- const {projectSharedState}=require('../app/streamdeck-editor/deckforge-native-sdk.cjs');
- const {createHomeAssistantManifest}=require('../app/streamdeck-editor/deckforge-ha-plugin.cjs');
+ const {projectSharedState}=require('../app/deckforge-editor/deckforge-native-sdk.cjs');
+ const {createHomeAssistantManifest}=require('../app/deckforge-editor/deckforge-ha-plugin.cjs');
  const m=createHomeAssistantManifest('https://example.com'),a=m.actions[0];
  const ctx={action:a,settings:{entity:'switch.fan'},permissions:m.permissions};
  const snapshot={status:'연결됨',entities:{'switch.fan':{value:'off'},'sensor.temp':{value:'23'}},controls:[{value:'switch.fan',label:'fan'}]};
@@ -2207,8 +2207,8 @@ test('native shared state view limits per-key input and skips unrelated updates'
  }finally{host.contexts.clear();host.close();}
 });
 test('HA plugin independent package round trip preserves address but contains no credentials',async()=>{
- const {createHomeAssistantManifest}=require('../app/streamdeck-editor/deckforge-ha-plugin.cjs');
- const {packageNativeManifest}=require('../app/streamdeck-editor/deckforge-plugin.cjs');
+ const {createHomeAssistantManifest}=require('../app/deckforge-editor/deckforge-ha-plugin.cjs');
+ const {packageNativeManifest}=require('../app/deckforge-editor/deckforge-plugin.cjs');
  const manifest=createHomeAssistantManifest('https://example.com');
  const pack=await packageNativeManifest(manifest);
  assert.ok(pack.filename.endsWith('.deckforgePlugin'));
@@ -2217,7 +2217,7 @@ test('HA plugin independent package round trip preserves address but contains no
 });
 
 test('native discovery WSS allows explicit 1 MiB receive while keeping default and outgoing limits',()=>{
- const {validateNetworkEndpoints,socketReceiveLimit,validateSocketOperation}=require('../app/streamdeck-editor/deckforge-native-network.cjs');
+ const {validateNetworkEndpoints,socketReceiveLimit,validateSocketOperation}=require('../app/deckforge-editor/deckforge-native-network.cjs');
  const ep={id:'ha',url:'wss://example.com/api/websocket',method:'WSS',auth:'home-assistant',maxReceiveBytes:1048576};
  validateNetworkEndpoints([ep],['display','network.websocket']);
  assert.equal(socketReceiveLimit(ep),1048576);
@@ -2227,7 +2227,7 @@ test('native discovery WSS allows explicit 1 MiB receive while keeping default a
 });
 
 test('HA control publishes editable title independently from its status image',()=>{
- const {controlKey}=require('../app/streamdeck-editor/deckforge-ha-plugin.cjs');
+ const {controlKey}=require('../app/deckforge-editor/deckforge-ha-plugin.cjs');
  let title,draw;
  const api={getSharedState:()=>({status:'연결됨',entities:{'switch.fan':{label:'주방등',value:'on'}}}),
   setTitle:value=>{title=value;},setState(){},drawKey:value=>{draw=value;}};
@@ -2260,7 +2260,7 @@ test('router revokes old mount before catalogue awaits and skips obsolete sync g
 });
 
 test('Model 2 pool reuses only reset renderer within scope and cancels only active owner',async()=>{
- const {ScriptRunnerPool}=require('../app/streamdeck-editor/deckforge-js-runtime.cjs');
+ const {ScriptRunnerPool}=require('../app/deckforge-editor/deckforge-js-runtime.cjs');
  const created=[];
  const pool=new ScriptRunnerPool((plugin,scope)=>{
    const runner={plugin,scope,closed:false,async run(source){if(source==='wait')return new Promise((_,reject)=>{this.reject=reject;});if(source==='fail')throw Error('failure');return {scope};},close(){this.closed=true;this.reject?.(Error('cancelled'));}};
@@ -2282,7 +2282,7 @@ test('Model 2 pool reuses only reset renderer within scope and cancels only acti
  await assert.rejects(svc.run('closed'),/closed/);
 });
 test('Model 2 scheduler serializes same lane without blocking a service lane',async()=>{
- const {SdkScheduler}=require('../app/streamdeck-editor/deckforge-sdk-scheduler.cjs');
+ const {SdkScheduler}=require('../app/deckforge-editor/deckforge-sdk-scheduler.cjs');
  const s=new SdkScheduler(),calls=[],releases=[];
  const gate=id=>()=>{calls.push(id);return new Promise(resolve=>releases.push(resolve));};
  const a=s.run('A',()=>true,gate('a'),'button');
@@ -2296,7 +2296,7 @@ test('Model 2 scheduler serializes same lane without blocking a service lane',as
 });
 
 test('Model 5 DrawOps host rejects unbounded, malformed and raw pixel worker commands before paint',async()=>{
- const {parseWorkerDrawProgram,resolveWorkerDrawProgram}=require('../app/streamdeck-editor/deckforge-draw-ops.cjs');
+ const {parseWorkerDrawProgram,resolveWorkerDrawProgram}=require('../app/deckforge-editor/deckforge-draw-ops.cjs');
  const spec={width:16,height:16,background:'#000000',commands:[{type:'rect',color:'#ff0000',x:0,y:0,width:4,height:4}]};
  const raw=(ops,memory={})=>JSON.stringify({ops,memory});
  const draw=spec=>({op:'drawKey',spec});
@@ -2355,7 +2355,7 @@ test('versioned settings receipts reject stale sync and pause after an uncertain
 });
 
 test('HA sensor simultaneous display and rotation follow the saved selection order',()=>{
- const {sensorKey}=require('../app/streamdeck-editor/deckforge-ha-plugin.cjs');
+ const {sensorKey}=require('../app/deckforge-editor/deckforge-ha-plugin.cjs');
  const shared={status:'연결됨',entities:{'sensor.outdoor':{label:'Outdoor',value:'10'},'sensor.indoor':{label:'Indoor',value:'20'}}};
  let frame;const api={getSharedState:()=>shared,setTitle(){},drawKey:spec=>frame=spec};
  const settings={entities:['sensor.outdoor','sensor.indoor'],mode:'all',labels:true,unit:false,decimals:-1,fontSize:36,seconds:5};
@@ -2407,7 +2407,7 @@ test('settingsResult is opt-in, bounded, non-privileged, and never replays an un
 });
 
 test('router preserves unchanged native input on compatibility catalogue failure and rejects unconfirmed routes',async()=>{
- const Core=require('../app/streamdeck-editor/deck-core.js');
+ const Core=require('../app/deckforge-editor/deck-core.js');
  const state=Core.migrateState(null),item=state.pages[0][0]=Core.createAction('sd-plugin');
  item.settings.pluginUUID=nativeId;item.settings.actionUUID=nativeId+'.toggle';item.settings.pluginSettings={label:'Original'};
  const tracker=Core.createSdkMountTracker(),read=()=>tracker.reconcile('page',Core.sdkMountDescriptors(state));
@@ -2443,7 +2443,7 @@ test('router preserves unchanged native input on compatibility catalogue failure
 });
 
 test('native durable receipt is independent of a blocked compatibility catalogue',async()=>{
- const Core=require('../app/streamdeck-editor/deck-core.js');
+ const Core=require('../app/deckforge-editor/deck-core.js');
  const state=Core.migrateState(null),item=state.pages[0][0]=Core.createAction('sd-plugin');
  item.settings.pluginUUID=nativeId;item.settings.actionUUID=nativeId+'.toggle';item.settings.pluginSettings={count:0};
  const cfg=Core.createSdkMountTracker().reconcile('page',Core.sdkMountDescriptors(state))[0];
@@ -2478,7 +2478,7 @@ test('native durable receipt is independent of a blocked compatibility catalogue
 });
 
 test('router blocks a pending settings write immediately when a newer mount revision is queued',async()=>{
- const Core=require('../app/streamdeck-editor/deck-core.js');
+ const Core=require('../app/deckforge-editor/deck-core.js');
  const state=Core.migrateState(null),item=state.pages[0][0]=Core.createAction('sd-plugin');
  item.settings.pluginUUID=nativeId;item.settings.actionUUID=nativeId+'.toggle';item.settings.pluginSettings={count:0};
  const tracker=Core.createSdkMountTracker(),read=()=>tracker.reconcile('page',Core.sdkMountDescriptors(state));
@@ -2576,7 +2576,7 @@ test('socket loss invalidates queued stream data and delivers terminal notice de
 });
 
 test('HA reconnect preserves catalogue but invalidates live values until a fresh full snapshot',()=>{
- const {service}=require('../app/streamdeck-editor/deckforge-ha-plugin.cjs');
+ const {service}=require('../app/deckforge-editor/deckforge-ha-plugin.cjs');
  let shared={},memory={},sent=[];
  const api={getSharedState:()=>structuredClone(shared),publishSharedState:s=>shared=structuredClone(s),connectSocket:()=>{},sendSocket:v=>sent.push(v)};
  const event=(type,response)=>service({type,response},{},0,memory,api);
@@ -2612,7 +2612,7 @@ test('HA reconnect preserves catalogue but invalidates live values until a fresh
 });
 
 test('conditional tick schedule runs only for auto multi-selection and follows confirmed settings',async()=>{
- const {createHomeAssistantManifest}=require('../app/streamdeck-editor/deckforge-ha-plugin.cjs');
+ const {createHomeAssistantManifest}=require('../app/deckforge-editor/deckforge-ha-plugin.cjs');
  const m=createHomeAssistantManifest('https://example.com'),action=m.actions[1];
  assert.doesNotThrow(()=>validateNativeManifest(m));
  for(const tickWhen of [{...action.tickWhen,minItems:0},{...action.tickWhen,setting:'missing'},{...action.tickWhen,equals:'invalid'},{...action.tickWhen,selection:'mode'}])
@@ -2636,7 +2636,7 @@ test('conditional tick schedule runs only for auto multi-selection and follows c
  }finally{host.close();}
 });
 test('HA shared state changes never reset or advance automatic sensor rotation',()=>{
- const {sensorKey}=require('../app/streamdeck-editor/deckforge-ha-plugin.cjs');
+ const {sensorKey}=require('../app/deckforge-editor/deckforge-ha-plugin.cjs');
  const vm=require('node:vm');let now=1000;
  const render=vm.runInNewContext('('+sensorKey.toString()+')',{Date:{now:()=>now}});
  let shared={status:'연결됨',entities:{'sensor.a':{label:'A',value:'10'},'sensor.b':{label:'B',value:'20'}}},frame;
@@ -2650,7 +2650,7 @@ test('HA shared state changes never reset or advance automatic sensor rotation',
 });
 
 test('generic native settings UI separates presentation, validates references and preserves stored values',()=>{
- const core=require('../app/streamdeck-editor/deck-core.js');
+ const core=require('../app/deckforge-editor/deck-core.js');
  const manifest=require('../examples/deckforge-sdk/settings-ui.native.json'),action=manifest.actions[0];
  assert.doesNotThrow(()=>validateNativeManifest(manifest));
  const {settingsSchema:schema,settingsUI:ui}=action;
@@ -2675,7 +2675,7 @@ test('generic native settings UI separates presentation, validates references an
 });
 
 test('native title policy prioritizes explicit empty title, current selection, live and default',()=>{
- const core=require('../app/streamdeck-editor/deck-core.js');
+ const core=require('../app/deckforge-editor/deck-core.js');
  const m=require('../examples/deckforge-sdk/settings-ui.native.json');
  assert.doesNotThrow(()=>validateNativeManifest(m));
  const schema=[{key:'entity',label:'Device',type:'dynamicSelect',source:'devices',default:''}];
@@ -2697,8 +2697,8 @@ test('native title policy prioritizes explicit empty title, current selection, l
 });
 
 test('HA title policy adopts legacy automatic titles without modifying source or explicit state text',()=>{
- const core=require('../app/streamdeck-editor/deck-core.js');
- const m=require('../app/streamdeck-editor/deckforge-ha-plugin.cjs').createHomeAssistantManifest('https://example.com');
+ const core=require('../app/deckforge-editor/deck-core.js');
+ const m=require('../app/deckforge-editor/deckforge-ha-plugin.cjs').createHomeAssistantManifest('https://example.com');
  assert.doesNotThrow(()=>validateNativeManifest(m));
  const policy=m.actions[0].titlePolicy;
  assert.equal(policy.selectionLabel,'entity');
@@ -2721,7 +2721,7 @@ test('HA title policy adopts legacy automatic titles without modifying source or
 });
 
 test('native foreground policy is an opt-in single-keypad action contract',()=>{
- const core=require('../app/streamdeck-editor/deck-core.js');
+ const core=require('../app/deckforge-editor/deck-core.js');
  const manifest=require('../examples/deckforge-sdk/settings-ui.native.json');
  const action=manifest.actions[0];
  assert.equal(action.visualPolicy,'foreground');
@@ -2809,7 +2809,7 @@ test('retained native recovery lists only absent plugins and checks revision and
  }finally{await router.close();await fs.rm(root,{recursive:true,force:true});}
 });
 test('SDK availability distinguishes missing action and dependency without modifying saved button',()=>{
- const core=require('../app/streamdeck-editor/deck-core.js');
+ const core=require('../app/deckforge-editor/deck-core.js');
  const item={type:'sd-plugin',title:'Saved',icon:{kind:'glyph',glyph:'X'},settings:{pluginUUID:nativeId,actionUUID:nativeId+'.toggle',pluginSettings:{label:'Saved'}}};
  const prior=JSON.stringify(item);
  const plugin={uuid:nativeId,actions:[{uuid:nativeId+'.toggle'}]};
@@ -2825,8 +2825,8 @@ test('native retained purge targets only approved removed identity and known his
  const root=await fs.mkdtemp(path.join(os.tmpdir(),'deckforge-retained-purge-'));
  const legacy={list:async()=>[],sync:async()=>{},key:()=>true,inspector:()=>true,onSystemSuspend(){},onSystemResume(){},close:async()=>{}};
  const host=new NativePluginHost(root),router=new PluginRouter(legacy,host);
- const {createHomeAssistantManifest}=require('../app/streamdeck-editor/deckforge-ha-plugin.cjs');
- const {credentialBinding}=require('../app/streamdeck-editor/deckforge-native-network.cjs');
+ const {createHomeAssistantManifest}=require('../app/deckforge-editor/deckforge-ha-plugin.cjs');
+ const {credentialBinding}=require('../app/deckforge-editor/deckforge-native-network.cjs');
  const first=createHomeAssistantManifest('https://first.example.com');
  const second={...createHomeAssistantManifest('https://second.example.com'),version:'9.0.0'};
  const id=first.id;
@@ -2863,7 +2863,7 @@ test('native retained purge targets only approved removed identity and known his
 });
 
 test('native settings pending request is revoked on page retirement and host close',async()=>{
- const Core=require('../app/streamdeck-editor/deck-core.js');
+ const Core=require('../app/deckforge-editor/deck-core.js');
  const state=Core.migrateState(null),item=state.pages[0][0]=Core.createAction('sd-plugin');
  item.settings.pluginUUID=nativeId;item.settings.actionUUID=scriptManifest.actions[0].id;item.settings.pluginSettings={count:0};
  const tracker=Core.createSdkMountTracker(),m={...scriptManifest,permissions:['display','settings.write'],capabilities:['settingsResult']};

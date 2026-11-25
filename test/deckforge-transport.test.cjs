@@ -2,7 +2,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const { EventEmitter } = require('node:events');
-const { D200XTransport, KEEPALIVE_MS, MIN_BRIGHTNESS } = require('../app/streamdeck-editor/transport.cjs');
+const { D200XTransport, KEEPALIVE_MS, MIN_BRIGHTNESS } = require('../app/deckforge-editor/transport.cjs');
 const { PROTO } = require('../app/lib/protocol');
 
 class FakeDeck extends EventEmitter {
@@ -357,7 +357,7 @@ test('explicit hardware trial records PAGE and KEY ZIP bytes without asserting f
 });
 test('production trial requires explicit process flag and renderer single-slot partial request',()=>{
  const fs=require('node:fs'),path=require('node:path');
- const read=file=>fs.readFileSync(path.join(__dirname,'../app/streamdeck-editor',file),'utf8');
+ const read=file=>fs.readFileSync(path.join(__dirname,'../app/deckforge-editor',file),'utf8');
  assert.match(read('main.cjs'),/const keyTransportTrial=process\.argv\.includes\('--test-key-transport'\)/);
  assert.match(read('main.cjs'),/new D200XTransport\(\{incrementalKeys:keyTransportTrial\}\)/);
  assert.match(read('main.cjs'),/wideMode,keyTransportTrial&&liveOnly===true\)/);

@@ -1,6 +1,6 @@
 'use strict';
 const test=require('node:test'),assert=require('node:assert/strict'),path=require('node:path'),fs=require('node:fs'),vm=require('node:vm');
-const root=path.join(__dirname,'../app/streamdeck-editor');
+const root=path.join(__dirname,'../app/deckforge-editor');
 const {physicalSlots,nativeDropPath}=require(path.join(root,'native-drop-host.cjs'));
 const editor=fs.readFileSync(path.join(root,'editor.js'),'utf8');
 test('physical slot mapping respects zoom, negative monitor origin and reserved wide key',()=>{
@@ -13,8 +13,8 @@ test('physical slot mapping respects zoom, negative monitor origin and reserved 
   assert.deepEqual(physicalSlots(bad,bounds,1,convert),[]);
 });
 test('native helper resolves to physical ASAR unpacked path',()=>{
- assert.equal(nativeDropPath(path.join('resources','app.asar','streamdeck-editor')),path.join('resources','app.asar.unpacked','streamdeck-editor','native-drop-helper.exe'));
- assert.ok(JSON.parse(fs.readFileSync(path.join(root,'deckforge-installer.json'),'utf8')).asarUnpack.includes('streamdeck-editor/native-drop-helper.exe'));
+ assert.equal(nativeDropPath(path.join('resources','app.asar','deckforge-editor')),path.join('resources','app.asar.unpacked','deckforge-editor','native-drop-helper.exe'));
+ assert.ok(JSON.parse(fs.readFileSync(path.join(root,'deckforge-installer.json'),'utf8')).asarUnpack.includes('deckforge-editor/native-drop-helper.exe'));
 });
 test('external route preserves original slot, manual picker and internal drag paths',()=>{
  const main=fs.readFileSync(path.join(root,'main.cjs'),'utf8');

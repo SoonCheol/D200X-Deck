@@ -1,7 +1,7 @@
 'use strict';
 const test=require('node:test'),assert=require('node:assert/strict');
 const Menu=require('../tools/fusion-manager/menu-tree.cjs');
-const Drag=require('../app/streamdeck-editor/fusion-drag.cjs');
+const Drag=require('../app/deckforge-editor/fusion-drag.cjs');
 const cmd=(id,name,parts)=>({id,name,paths:[{source:'fusion-api',location:'toolbar',path:parts}]});
 const ws={kind:'workspace',id:'FusionSolidEnvironment'},tab={kind:'tab',id:'SolidTab'},panel={kind:'panel',id:'SolidCreatePanel'};
 test('navigates workspace -> panel -> nested dropdown; preserves exact IDs',()=>{

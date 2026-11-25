@@ -4,7 +4,7 @@
 
 DeckForge는 Ulanzi D200X의 화면 버튼, 측면 버튼, 노브와 프로필을 편집하고 등록된 액션을 실행하는 독립 편집기이며 독자 SDK를 제공합니다. Elgato Stream Deck SDK 호환 플러그인과 Fusion Command Manager도 지원합니다. 실제 외부 제품·SDK·파일 형식의 공식 명칭은 호환성을 구분하기 위해 유지합니다.
 
-- 설치: [DeckForge integrated Windows build](https://github.com/SoonCheol/D200X-Deck/actions/workflows/streamdeck-clean-preview.yml)의 성공한 실행에서 `DeckForge-<버전>-Setup-win-x64` 설치형 또는 `DeckForge-<버전>-win-x64` 포터블 아티팩트를 다운로드합니다. 설치형을 설치하거나 포터블 압축을 풀어 DeckForge를 실행합니다.
+- 설치: [DeckForge integrated Windows build](https://github.com/SoonCheol/D200X-Deck/actions/workflows/deckforge-windows-build.yml)의 성공한 실행에서 `DeckForge-<버전>-Setup-win-x64` 설치형 또는 `DeckForge-<버전>-win-x64` 포터블 아티팩트를 다운로드합니다. 설치형을 설치하거나 포터블 압축을 풀어 DeckForge를 실행합니다.
 - 연결: D200X USB를 다른 프로그램이 점유 중이면 해당 프로그램을 종료합니다. DeckForge의 D200X 연결 상태를 확인합니다.
 - 액션 등록: 오른쪽 액션 목록에서 원하는 항목을 키나 지원하는 물리 입력에 드래그하거나 선택된 키에 클릭으로 등록합니다. 각 액션의 ⋯ → 액션 설명에서 사용 방법과 제한을 확인합니다. 속성을 편집한 후 저장합니다.
 - 기본 액션: D200X 장치·화면, D200X 탐색, 앱·파일·웹 실행, 멀티미디어, 키보드·마우스, 자동화·순차 동작, 유틸리티. 중복 키 명령은 단축키의 동작 선택기에서 선택합니다. Virtual DeckForge 토글은 현재 지원 예정입니다.
@@ -21,7 +21,7 @@ DeckForge는 Ulanzi D200X의 화면 버튼, 측면 버튼, 노브와 프로필�
 
 ## 실행
 
-`app/streamdeck-editor/index.html`을 브라우저에서 열면 별도의 개발용 UI가 표시된다. 기존 `app/renderer/`를 불러오지 않는다. 브라우저에서 직접 열면 USB와 연결되지 않는다. **Windows Device Sync 프리뷰 EXE에서는 기존 D200X HID 통신 모듈과 연결하도록 수정했다(실기 미검증).**
+`app/deckforge-editor/index.html`을 브라우저에서 열면 별도의 개발용 UI가 표시된다. 기존 `app/renderer/`를 불러오지 않는다. 브라우저에서 직접 열면 USB와 연결되지 않는다. **Windows Device Sync 프리뷰 EXE에서는 기존 D200X HID 통신 모듈과 연결하도록 수정했다(실기 미검증).**
 
 ## 이번 구현에 실제 포함된 기능
 
@@ -104,7 +104,7 @@ DeckForge는 Ulanzi D200X의 화면 버튼, 측면 버튼, 노브와 프로필�
 - 먼저 구현한 **4종 액션**: `이전 페이지`, `다음 페이지`, `페이지로 이동`, `웹사이트`의 **기본 브라우저로 열기** 모드. 페이지 이동 시 기존 화면 동기화 경로로 해당 페이지를 장치에 다시 보낸다. 이전/다음 페이지는 범위를 벗어나지 않는다.
 - 웹사이트 주소는 Electron 메인 프로세스에서 검증한다. `http:` 또는 `https:` URL만 허용하고, 자격 증명 URL·제어문자·비정상 입력과 아직 미지원인 **백그라운드 GET/브라우저 직접 선택**은 거부한다. `shell.openExternal`을 사용한다.
 - 나머지 20개 액션은 실행하지 않으며, 다른 키 종류(측면 버튼·노브)도 이번 단계에서 임의 연결하지 않는다. 기존 24개 속성 편집 및 기기 이미지 반영은 그대로 유지한다.
-- `test/streamdeck-core.test.cjs`에서 페이지 경계, 선택 페이지의 액션 조회, 눌림/뗌 필터, URL 액션 계획을 검증한다. **실제 Windows에서 웹페이지 열림과 D200X 키 인덱스/페이지 이동 동작은 사용자 실기 확인 필요.**
+- `test/deckforge-core.test.cjs`에서 페이지 경계, 선택 페이지의 액션 조회, 눌림/뗌 필터, URL 액션 계획을 검증한다. **실제 Windows에서 웹페이지 열림과 D200X 키 인덱스/페이지 이동 동작은 사용자 실기 확인 필요.**
 
 ## 페이지·측면 키 동작 보정 (2026-11-14)
 

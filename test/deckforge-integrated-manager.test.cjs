@@ -5,7 +5,7 @@ const {EventEmitter}=require('node:events');
 const fs=require('node:fs/promises');
 const os=require('node:os');
 const path=require('node:path');
-const integration=require('../app/streamdeck-editor/bundled-integration.cjs');
+const integration=require('../app/deckforge-editor/bundled-integration.cjs');
 
 class WindowMock extends EventEmitter{
  constructor(bounds){super();this.bounds={...bounds}}
@@ -45,9 +45,9 @@ test('missing default plugins are installed but existing ones are never overwrit
  }finally{await fs.rm(root,{recursive:true,force:true})}
 });
 test('integrated installer stages both runtime components without editing saved profiles',async()=>{
- const source=await fs.readFile(path.join(__dirname,'../.github/workflows/streamdeck-clean-preview.yml'),'utf8');
- const main=await fs.readFile(path.join(__dirname,'../app/streamdeck-editor/main.cjs'),'utf8');
- const ui=await fs.readFile(path.join(__dirname,'../app/streamdeck-editor/editor.js'),'utf8');
+ const source=await fs.readFile(path.join(__dirname,'../.github/workflows/deckforge-windows-build.yml'),'utf8');
+ const main=await fs.readFile(path.join(__dirname,'../app/deckforge-editor/main.cjs'),'utf8');
+ const ui=await fs.readFile(path.join(__dirname,'../app/deckforge-editor/editor.js'),'utf8');
  const manager=await fs.readFile(path.join(__dirname,'../tools/fusion-manager/main.cjs'),'utf8');
  assert.match(source,/com\.autodesk\.fusionstreamdeck\.sdPlugin/);
  assert.match(source,/de\.perdoctus\.streamdeck\.homeassistant\.streamDeckPlugin/);
@@ -59,7 +59,7 @@ test('integrated installer stages both runtime components without editing saved 
  assert.match(manager,/openEmbeddedManager/);
 });
 
-const FusionSetup=require('../app/streamdeck-editor/ai/fusion-setup.js');
+const FusionSetup=require('../app/deckforge-editor/ai/fusion-setup.js');
 test('local Fusion template matches explicit requests only',()=>{
  for(const text of ['Fusion 초기 연결','퓨젼 초기 연결해 주','Fusion 초기 연결해 줘','퓨전 연결해주세요'])assert.equal(FusionSetup.matches(text),true,text);
  for(const text of ['Fusion 연결 실패 원인 분석','메모장 실행','Fusion 명령 등록'])assert.equal(FusionSetup.matches(text),false,text);
@@ -117,8 +117,8 @@ test('Fusion add-in supports both documented roots and preserves existing manife
 
 
 test('Fusion status extension preserves original and only upgrades byte-identical installed source',async()=>{
- const {extend}=require('../app/streamdeck-editor/extend-fusion-status.cjs');
- const {projectState,readFusionState}=require('../app/streamdeck-editor/fusion-state-client.cjs');
+ const {extend}=require('../app/deckforge-editor/extend-fusion-status.cjs');
+ const {projectState,readFusionState}=require('../app/deckforge-editor/fusion-state-client.cjs');
  const root=await fs.mkdtemp(path.join(os.tmpdir(),'deckforge-fusion-state-'));
  try{
    const original="def get_status():\n    return {\n        'activeDocument': doc.name if doc else None,\n    }\n";
@@ -148,7 +148,7 @@ test('Fusion status extension preserves original and only upgrades byte-identica
 });
 
 test('installed and retained plugin groups share help button and management actions stay in dialog',async()=>{
- const ui=await fs.readFile(path.join(__dirname,'../app/streamdeck-editor/editor.js'),'utf8');
+ const ui=await fs.readFile(path.join(__dirname,'../app/deckforge-editor/editor.js'),'utf8');
  const retained=ui.slice(ui.indexOf('function renderRetainedSdkPlugins('),ui.indexOf('const sdkActionNames='));
  const installed=ui.slice(ui.indexOf('function renderInstalledSdkPlugins('),ui.indexOf('async function configureHomeAssistant('));
  const help=ui.slice(ui.indexOf('function openSdkPluginHelp('),ui.indexOf('function launchFusionManager('));

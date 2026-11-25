@@ -4,9 +4,9 @@ const assert=require('node:assert/strict');
 const fs=require('node:fs');
 const path=require('node:path');
 const vm=require('node:vm');
-const Core=require('../app/streamdeck-editor/deck-core.js');
-const Plan=require('../app/streamdeck-editor/ai/edit-plan.js');
-const {chat}=require('../app/streamdeck-editor/ai/responses.cjs');
+const Core=require('../app/deckforge-editor/deck-core.js');
+const Plan=require('../app/deckforge-editor/ai/edit-plan.js');
+const {chat}=require('../app/deckforge-editor/ai/responses.cjs');
 const op=(type,extra={})=>({op:type,page:null,slot:null,toPage:null,toSlot:null,type:null,value:null,title:null,iconPack:null,iconName:null,size:null,color:null,bold:null,font:null,...extra});
 const req=(...operations)=>({operations});
 const fixture=()=>{const s=Core.migrateState(null);s.pages[0][0]=Core.createAction('hotkey');s.pages[0][0].settings.keys='Ctrl+A';s.pages[0][0].title='Select all';s.pages[0][3]=Core.createAction('sd-plugin');s.pinned[4]=Core.createAction('indicator');return s;};
@@ -43,7 +43,7 @@ test('strict operation schema rejects arbitrary code and unresolved target or ic
   assert.equal(p.next.pages[0][1].settings.app,target.path);assert.equal(p.next.pages[0][1].settings.hold,'none');assert.equal(p.next.pages[0][1].settings.args,'');
 });
 function editorFixture(){
-  const source=fs.readFileSync(path.join(__dirname,'../app/streamdeck-editor/editor.js'),'utf8');
+  const source=fs.readFileSync(path.join(__dirname,'../app/deckforge-editor/editor.js'),'utf8');
   const start=source.indexOf(' let aiEditCapture=null,aiEditUndo=null;');
   const end=source.indexOf('\nlet refreshProfilesMenu=',start);
   assert.ok(start>=0&&end>start);

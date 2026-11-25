@@ -5,7 +5,7 @@ const JSZip=require('../app/node_modules/jszip');
 const fs=require('node:fs/promises');
 const os=require('node:os');
 const path=require('node:path');
-const {StreamDeckPluginHost,parseArchive,validateManifest}=require('../app/streamdeck-editor/sd-plugin-host.cjs');
+const {StreamDeckPluginHost,parseArchive,validateManifest}=require('../app/deckforge-editor/sd-plugin-host.cjs');
 const M={UUID:'de.perdoctus.streamdeck.homeassistant',Name:'Home Assistant',Version:'3.8.4',
   CodePath:'plugin.html',Actions:[
     {UUID:'de.perdoctus.streamdeck.homeassistant.entity',Name:'Entity (generic)',PropertyInspectorPath:'pi.html'}
@@ -119,7 +119,7 @@ test('Node plugin importer preserves its entrypoint and inspector assets',async(
   assert.deepEqual(pack.files.map(x=>x.name).sort(),['bin/plugin.js','manifest.json','ui/run-command.html']);
 });
 test('Node.js runtime enforces requested major version',async()=>{
-  const {nodeRuntime}=require('../app/streamdeck-editor/sd-plugin-host.cjs');
+  const {nodeRuntime}=require('../app/deckforge-editor/sd-plugin-host.cjs');
   const runtime=await nodeRuntime(20);
   assert.ok(Number(runtime.version.split('.')[0])>=20);
   await assert.rejects(nodeRuntime(99),/Node.js 99 이상/);
@@ -205,7 +205,7 @@ test('new unified Plugins path non-destructively imports old SDK plugin and encr
 });
 
 test('SDK openUrl accepts only credential-free HTTP(S) and refuses unsafe schemes',()=>{
- const {safeSdkExternalUrl}=require('../app/streamdeck-editor/sd-plugin-host.cjs');
+ const {safeSdkExternalUrl}=require('../app/deckforge-editor/sd-plugin-host.cjs');
  assert.equal(safeSdkExternalUrl('https://example.com/oauth?redirect=1'),'https://example.com/oauth?redirect=1');
  for(const value of ['file:///C:/Users/a','javascript:alert(1)','data:text/html,bad',
    'https://name:password@example.com/','https://example.com/\nmalicious',null,
@@ -214,7 +214,7 @@ test('SDK openUrl accepts only credential-free HTTP(S) and refuses unsafe scheme
 });
 
 test('SDK openUrl context authorization supports absent context but refuses foreign contexts',()=>{
- const {allowedSdkOpenUrlContext}=require('../app/streamdeck-editor/sd-plugin-host.cjs');
+ const {allowedSdkOpenUrlContext}=require('../app/deckforge-editor/sd-plugin-host.cjs');
  const plugin='com.example.plugin';
  assert.equal(allowedSdkOpenUrlContext(plugin,undefined,undefined),true);
  assert.equal(allowedSdkOpenUrlContext(plugin,{pluginUUID:plugin},'known-context'),true);

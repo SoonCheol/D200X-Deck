@@ -1,6 +1,6 @@
 'use strict';
 const test=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),path=require('node:path'),vm=require('node:vm');
-const dir=path.join(__dirname,'../app/streamdeck-editor');
+const dir=path.join(__dirname,'../app/deckforge-editor');
 const core=require(path.join(dir,'deck-core.js'));
 const editor=fs.readFileSync(path.join(dir,'editor.js'),'utf8');
 const source=fs.readFileSync(path.join(dir,'device-sync.js'),'utf8');

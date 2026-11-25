@@ -4,10 +4,10 @@ const assert=require('node:assert/strict');
 const fs=require('node:fs');
 const path=require('node:path');
 const base=path.join(__dirname,'..');
-const main=fs.readFileSync(path.join(base,'app/streamdeck-editor/main.cjs'),'utf8');
-const host=fs.readFileSync(path.join(base,'app/streamdeck-editor/sd-plugin-host.cjs'),'utf8');
+const main=fs.readFileSync(path.join(base,'app/deckforge-editor/main.cjs'),'utf8');
+const host=fs.readFileSync(path.join(base,'app/deckforge-editor/sd-plugin-host.cjs'),'utf8');
 const manager=fs.readFileSync(path.join(base,'tools/fusion-manager/main.cjs'),'utf8');
-const appearance=fs.readFileSync(path.join(base,'app/streamdeck-editor/action-panel-icons.js'),'utf8');
+const appearance=fs.readFileSync(path.join(base,'app/deckforge-editor/action-panel-icons.js'),'utf8');
 test('SDK plugins install, enumerate and run under Plugins with legacy migration',()=>{
   assert.match(host,/this\.root=path\.join\(userData,'Plugins'\)/);
   assert.match(host,/this\.legacyRoot=path\.join\(userData,'StreamDeck','Plugins'\)/);
@@ -34,5 +34,5 @@ test('Fusion images share Cache/Fusion paths between DeckForge and manager',()=>
 test('theme and profile persistence remain in localStorage until an actual theme-pack format exists',()=>{
   assert.match(appearance,/localStorage\.getItem\(KEY\)/);
   assert.match(appearance,/localStorage\.setItem\(KEY,JSON\.stringify\(config\)\)/);
-  assert.match(fs.readFileSync(path.join(base,'app/streamdeck-editor/editor.js'),'utf8'),/localStorage\.setItem\(STORAGE_KEY,JSON\.stringify\(state\)\)/);
+  assert.match(fs.readFileSync(path.join(base,'app/deckforge-editor/editor.js'),'utf8'),/localStorage\.setItem\(STORAGE_KEY,JSON\.stringify\(state\)\)/);
 });

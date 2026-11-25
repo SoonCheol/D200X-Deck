@@ -1,7 +1,7 @@
 'use strict';
 const {test}=require('node:test'),assert=require('node:assert/strict');
 const fs=require('node:fs'),os=require('node:os'),path=require('node:path'),crypto=require('node:crypto');
-const {GoogleDrive,clientConfig,authorizationUrl,uploadSession,backupMeta,SCOPE}=require('../app/streamdeck-editor/google-drive.cjs');
+const {GoogleDrive,clientConfig,authorizationUrl,uploadSession,backupMeta,SCOPE}=require('../app/deckforge-editor/google-drive.cjs');
 const config={installed:{client_id:'123-test.apps.googleusercontent.com',client_secret:'local-test-secret',auth_uri:'https://untrusted.invalid'}};
 const bytes=Buffer.from('encrypted backup fixture'),filename='DeckForge-2026-11-21-test.dfbackup';
 const plainBytes=Buffer.from('{"format":"deckforge-backup-v1"}'),plainName='DeckForge-2026-11-21-plain.dfjson';

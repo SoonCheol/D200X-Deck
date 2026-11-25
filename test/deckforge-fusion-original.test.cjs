@@ -4,7 +4,7 @@ const assert=require('node:assert/strict');
 const fs=require('node:fs/promises');
 const os=require('node:os');
 const path=require('node:path');
-const {StreamDeckPluginHost}=require('../app/streamdeck-editor/sd-plugin-host.cjs');
+const {StreamDeckPluginHost}=require('../app/deckforge-editor/sd-plugin-host.cjs');
 
 async function until(predicate,label,timeout=12000){
   const deadline=Date.now()+timeout;

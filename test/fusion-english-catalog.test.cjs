@@ -47,7 +47,7 @@ test('bundled catalog opens without an existing user capture',async()=>{
 
 test('individual Fusion language modes render without modifying saved titles or styles',()=>{
  const fs=require('node:fs'),vm=require('node:vm'),path=require('node:path');
- const source=fs.readFileSync(path.join(__dirname,'../app/streamdeck-editor/editor.js'),'utf8');
+ const source=fs.readFileSync(path.join(__dirname,'../app/deckforge-editor/editor.js'),'utf8');
  const start=source.indexOf('function fusionLocalizedVisual('),end=source.indexOf('async function refreshFusionButtonLanguage(',start);
  assert.ok(start>=0&&end>start);
  const context={fusionCommandId:item=>item.settings.pluginSettings.commandId,fusionButtonNames:{ko:{DrawPolyline:'선'},en:{DrawPolyline:'Line'},language:'en'}};

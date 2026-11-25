@@ -1,8 +1,8 @@
 'use strict';
 const test=require('node:test');
 const assert=require('node:assert/strict');
-const B=require('../app/streamdeck-editor/fusion-batch.js');
-const Core=require('../app/streamdeck-editor/deck-core.js');
+const B=require('../app/deckforge-editor/fusion-batch.js');
+const Core=require('../app/deckforge-editor/deck-core.js');
 const mk=id=>({id,name:id});
 const base=()=>({format:B.FORMAT,pluginUUID:B.PLUGIN,actionUUID:B.ACTION,profileName:'Fusion',commands:[mk('Line'),mk('Circle'),mk('Extrude')]});
 test('legacy Fusion JSON remains compatible',()=>{const state=Core.migrateState(null);const result=B.apply(state,base(),Core);assert.equal(result.pageCount,1);assert.equal(state.pages[0][0].settings.pluginSettings.commandId,'Line');assert.equal(state.pages[0][1].settings.pluginSettings.commandId,'Circle');});

@@ -1,6 +1,6 @@
 'use strict';
 const test=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),path=require('node:path');
-const {compareVersions,checkUpdateStatus}=require('../app/streamdeck-editor/update-check.cjs');
+const {compareVersions,checkUpdateStatus}=require('../app/deckforge-editor/update-check.cjs');
 const runs={workflow_runs:[
  {id:109,name:'DeckForge integrated Windows build',event:'push',status:'in_progress',conclusion:null},
  {id:108,name:'DeckForge integrated Windows build',event:'push',status:'completed',conclusion:'failure'},
@@ -41,9 +41,9 @@ test('GitHub API errors and missing files never enable update',async()=>{
  assert.equal(noFiles.state,'unavailable');assert.equal(noFiles.runId,null);
 });
 test('menu requires successful comparison before enabling update button',()=>{
- const html=fs.readFileSync(path.join(__dirname,'../app/streamdeck-editor/index.html'),'utf8');
- const editor=fs.readFileSync(path.join(__dirname,'../app/streamdeck-editor/editor.js'),'utf8');
- const main=fs.readFileSync(path.join(__dirname,'../app/streamdeck-editor/main.cjs'),'utf8');
+ const html=fs.readFileSync(path.join(__dirname,'../app/deckforge-editor/index.html'),'utf8');
+ const editor=fs.readFileSync(path.join(__dirname,'../app/deckforge-editor/editor.js'),'utf8');
+ const main=fs.readFileSync(path.join(__dirname,'../app/deckforge-editor/main.cjs'),'utf8');
  assert.match(html,/id="latest-version"/);
  assert.match(html,/id="check-update"[^>]*disabled/);
  assert.match(html,/id="view-release-notes"/);
@@ -65,7 +65,7 @@ test('unarchived EXE artifact is recognized when no release exists',async()=>{
  assert.equal(result.state,'available');assert.equal(result.runId,107);
 });
 test('installer uploads without archive while portable retains artifact archive and release publication',()=>{
- const yml=fs.readFileSync(path.join(__dirname,'../.github/workflows/streamdeck-clean-preview.yml'),'utf8').replace(/\r\n/g,'\n');
+ const yml=fs.readFileSync(path.join(__dirname,'../.github/workflows/deckforge-windows-build.yml'),'utf8').replace(/\r\n/g,'\n');
  assert.match(yml,/path: app\/dist-installer\/[^\n]+\.exe\n\s+archive: false/);
  assert.match(yml,/path: app\/dist\/DeckForge-win32-x64\/\n\s+if-no-files-found: error/);
  assert.match(yml,/gh release create \$tag \$installer --target \$env:GITHUB_SHA/);

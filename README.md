@@ -1,6 +1,6 @@
 # DeckForge
 
-**현재 프로젝트:** Ulanzi D200X용 독립 편집기와 DeckForge 독자 SDK. Stream Deck은 외부 플러그인 호환 및 기술 참고 대상이며 제품 기준이 아니다. [개발 지침](AGENTS.md) · [현재 상태](docs/D200X-CURRENT-STATUS.md) · [로드맵](docs/DECKFORGE-ROADMAP.md) · [SDK 계약](docs/DECKFORGE-SDK-1.0.md) · [편집기 안내](app/streamdeck-editor/README.md).
+**현재 프로젝트:** Ulanzi D200X용 독립 편집기와 DeckForge 독자 SDK. Stream Deck은 외부 플러그인 호환 및 기술 참고 대상이며 제품 기준이 아니다. [개발 지침](AGENTS.md) · [현재 상태](docs/D200X-CURRENT-STATUS.md) · [로드맵](docs/DECKFORGE-ROADMAP.md) · [SDK 계약](docs/DECKFORGE-SDK-1.0.md) · [편집기 안내](app/deckforge-editor/README.md).
 
 ## 초기 기반 프로젝트 기록 (현재 기능 명세 아님)
 

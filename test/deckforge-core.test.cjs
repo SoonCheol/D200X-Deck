@@ -1,7 +1,7 @@
 'use strict';
 const test=require('node:test');
 const assert=require('node:assert/strict');
-const core=require('../app/streamdeck-editor/deck-core.js');
+const core=require('../app/deckforge-editor/deck-core.js');
 
 test('all 24 observed Stream Deck actions have independent defaults',()=>{
   assert.equal(core.ACTION_IDS.length,24);
@@ -1541,7 +1541,7 @@ test('1.1.94 ordinary key press slots keep the legacy action and discard unsafe 
     assert.equal(core.PRESS_ACTION_TYPES.includes(id),false,id);
 });
 test('1.1.94 ordinary hardware dispatcher recognizes each gesture once without duplicate single',()=>{
-  const source=require('node:fs').readFileSync(require('node:path').join(__dirname,'../app/streamdeck-editor/editor.js'),'utf8');
+  const source=require('node:fs').readFileSync(require('node:path').join(__dirname,'../app/deckforge-editor/editor.js'),'utf8');
   const start=source.indexOf('const assignedKeyPresses=new Map();');
   const end=source.indexOf('// Generated local tones:',start);
   assert.ok(start>0&&end>start);
@@ -1595,7 +1595,7 @@ test('1.1.94 ordinary hardware dispatcher recognizes each gesture once without d
 });
 test('1.1.95 three separate action tabs preserve the existing icon regions and search clear',()=>{
   const fs=require('node:fs'),path=require('node:path');
-  const base=path.join(__dirname,'../app/streamdeck-editor');
+  const base=path.join(__dirname,'../app/deckforge-editor');
   const editor=fs.readFileSync(path.join(base,'editor.js'),'utf8');
   const html=fs.readFileSync(path.join(base,'index.html'),'utf8');
   const css=fs.readFileSync(path.join(base,'style.css'),'utf8');
@@ -1651,7 +1651,7 @@ test('1.1.95 slots retain disabled assignments and auto-selected representative 
 
 test('Program Open legacy long-press option stays saved but is disabled when hold tab has an action',()=>{
   const fs=require('node:fs'),path=require('node:path');
-  const source=fs.readFileSync(path.join(__dirname,'../app/streamdeck-editor/editor.js'),'utf8');
+  const source=fs.readFileSync(path.join(__dirname,'../app/deckforge-editor/editor.js'),'utf8');
   const start=source.indexOf('function openAppLegacyHold(item){'),end=source.indexOf('function actionFields(item){',start);
   assert.ok(start>0&&end>start);
   const snippet=source.slice(start,end);
@@ -1677,7 +1677,7 @@ test('Program Open legacy long-press option stays saved but is disabled when hol
 
 test('ordinary-key legacy Program Open hold and explicit hold action never run together',()=>{
   const fs=require('node:fs'),path=require('node:path');
-  const source=fs.readFileSync(path.join(__dirname,'../app/streamdeck-editor/editor.js'),'utf8');
+  const source=fs.readFileSync(path.join(__dirname,'../app/deckforge-editor/editor.js'),'utf8');
   const start=source.indexOf('const assignedKeyPresses=new Map();');
   const end=source.indexOf('// Generated local tones:',start);
   assert.ok(start>=0&&end>start);
@@ -1721,7 +1721,7 @@ test('ordinary-key legacy Program Open hold and explicit hold action never run t
 
 test('Program Open hold settings are not silently converted when switching tabs',()=>{
   const fs=require('node:fs'),path=require('node:path');
-  const source=fs.readFileSync(path.join(__dirname,'../app/streamdeck-editor/editor.js'),'utf8');
+  const source=fs.readFileSync(path.join(__dirname,'../app/deckforge-editor/editor.js'),'utf8');
   const begin=source.indexOf('function pressEnsureMeta(root){');
   const end=source.indexOf('function attachPressPreviewBadges(',begin);
   const section=source.slice(begin,end);
@@ -1752,7 +1752,7 @@ test('page-number fixed gesture plan ignores legacy choices without destroying s
 
 test('fixed page-number UI shows three read-only actions and leaves other controls unmodified',()=>{
  const fs=require('node:fs'),path=require('node:path');
- const source=fs.readFileSync(path.join(__dirname,'../app/streamdeck-editor/editor.js'),'utf8');
+ const source=fs.readFileSync(path.join(__dirname,'../app/deckforge-editor/editor.js'),'utf8');
  const start=source.indexOf('function renderFixedIndicatorBindings(root){');
  const end=source.indexOf('function renderSideBindings(',start);
  assert.ok(start>0&&end>start);
@@ -1770,7 +1770,7 @@ test('fixed page-number UI shows three read-only actions and leaves other contro
 
 test('fixed page-number recognizer distinguishes single, double and hold without touching side gestures',()=>{
  const fs=require('node:fs'),path=require('node:path');
- const source=fs.readFileSync(path.join(__dirname,'../app/streamdeck-editor/editor.js'),'utf8');
+ const source=fs.readFileSync(path.join(__dirname,'../app/deckforge-editor/editor.js'),'utf8');
  const start=source.indexOf('const fixedIndicatorPresses=new Map();');
  const end=source.indexOf('function handleSideNavigationInput(',start);
  assert.ok(start>0&&end>start);
@@ -1808,7 +1808,7 @@ test('fixed page-number recognizer distinguishes single, double and hold without
 
 test('unchecked Program Open hold consumes release and invokes legacy close/force/none',()=>{
  const fs=require('node:fs'),path=require('node:path');
- const source=fs.readFileSync(path.join(__dirname,'../app/streamdeck-editor/editor.js'),'utf8');
+ const source=fs.readFileSync(path.join(__dirname,'../app/deckforge-editor/editor.js'),'utf8');
  const body=source.slice(source.indexOf('const assignedKeyPresses=new Map();'),source.indexOf('// Generated local tones:'));
  const app=core.createAction('open-app');
  app.settings.app='C:\\Apps\\BatchRenamer.exe';
@@ -1885,7 +1885,7 @@ test('wide overlay lease expires, rejects competing owners, and cannot cross pag
 });
 
 test('native SDK visual cache ignores duplicate pixels and releases inactive owners without changing legacy cache',()=>{
- const core=require('../app/streamdeck-editor/deck-core.js');
+ const core=require('../app/deckforge-editor/deck-core.js');
  const instance={context:'a',pluginUUID:'com.deckforge.native.example',actionUUID:'com.deckforge.native.example.a'};
  const image='data:image/png;base64,AAAA';
  const first=core.nativeVisualDelta(null,instance,{kind:'setImage',payload:{image}});
@@ -1905,7 +1905,7 @@ test('native SDK visual cache ignores duplicate pixels and releases inactive own
 });
 
 test('native visual render gate coalesces updates without invalidating an in-progress page',()=>{
- const {createNativeRenderGate}=require('../app/streamdeck-editor/deck-core.js');
+ const {createNativeRenderGate}=require('../app/deckforge-editor/deck-core.js');
  let scheduled=false,requests=0;
  const gate=createNativeRenderGate(()=>{if(!scheduled){scheduled=true;requests++;}});
  gate.mark();gate.mark();assert.equal(requests,1);
@@ -2030,7 +2030,7 @@ test('unconfigured SDK assignments never poison an otherwise valid mount list',(
 
 test('editor circular checks preserve checkbox input semantics and inset gesture controls',()=>{
   const fs=require('node:fs'),path=require('node:path');
-  const dir=path.join(__dirname,'../app/streamdeck-editor');
+  const dir=path.join(__dirname,'../app/deckforge-editor');
   const css=fs.readFileSync(path.join(dir,'style.css'),'utf8');
   const editor=fs.readFileSync(path.join(dir,'editor.js'),'utf8');
   const start=editor.indexOf('function renderPressTabs('),end=editor.indexOf('function ',start+25);
@@ -2048,7 +2048,7 @@ test('editor circular checks preserve checkbox input semantics and inset gesture
 
 test('entire gesture tab selects without toggling independent checkbox or double invocation',()=>{
  const fs=require('node:fs'),path=require('node:path'),vm=require('node:vm');
- const editor=fs.readFileSync(path.join(__dirname,'../app/streamdeck-editor/editor.js'),'utf8');
+ const editor=fs.readFileSync(path.join(__dirname,'../app/deckforge-editor/editor.js'),'utf8');
  const start=editor.indexOf('function bindPressTabSelection('),end=editor.indexOf('function renderPressTabs(',start);
  assert.ok(start>=0&&end>start);
  const bind=vm.runInNewContext(editor.slice(start,end)+';bindPressTabSelection');
@@ -2146,7 +2146,7 @@ test('SDK wrapping and single-profile export preserve identity; Fusion batch all
   const exported=core.exportSingleProfile(s,s.profileId);
   const ids=[];core.walkSdkActions(exported.snapshot,x=>ids.push(x.instanceId));
   assert.deepEqual(ids,[a.instanceId]);
-  const batch=require('../app/streamdeck-editor/fusion-batch.js');
+  const batch=require('../app/deckforge-editor/fusion-batch.js');
   const raw={format:batch.FORMAT,pluginUUID:batch.PLUGIN,actionUUID:batch.ACTION,profileName:'Audit Fusion',commands:Array.from({length:14},(_,i)=>({id:'cmd'+i,name:'Command '+i}))};
   const result=batch.apply(s,raw,core);
   assert.equal(result.count,14);assert.equal(result.pageCount,2);

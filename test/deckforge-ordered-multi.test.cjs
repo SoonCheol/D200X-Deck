@@ -1,6 +1,6 @@
 'use strict';
 const test=require('node:test'),assert=require('node:assert/strict');
-const Core=require('../app/streamdeck-editor/deck-core.js');
+const Core=require('../app/deckforge-editor/deck-core.js');
 test('ordered multi keeps legacy timing, moves delays together and preserves terminal pause',async()=>{
  const m=Core.createAction('multi');m.settings.nextActionMs=10;m.children=[{kind:'delay',ms:500},Core.createAction('terminal'),Core.createAction('explorer-open'),{kind:'delay',ms:900},Core.createAction('hotkey'),{kind:'delay',ms:200}];
  const original=JSON.stringify(m),legacy=Core.multiRows(m);assert.deepEqual(legacy.rows.map(r=>r.ms),[500,10,900]);assert.equal(legacy.tail,200);assert.equal(JSON.stringify(m),original);

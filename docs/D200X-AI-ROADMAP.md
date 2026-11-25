@@ -13,7 +13,7 @@
 | 5 | 진단·지식 | 1.1.47 입력 ID 연계·구성 검토·버전 지식 및 대화 전체 선택 구현, 모의 7개 통과. Windows/실기 대기 |
 
 ## 1단계 구현 범위
-- app/streamdeck-editor/ai/: 독립 모델리스 창, 제한된 IPC, 공식 OAuth PKCE·nonce·state 및 ID 토큰 서명 검증, Windows safeStorage, 공개 models/Responses, SSE, 중지, 한도 안내, 로컬 암호화 대화 기록.
+- app/deckforge-editor/ai/: 독립 모델리스 창, 제한된 IPC, 공식 OAuth PKCE·nonce·state 및 ID 토큰 서명 검증, Windows safeStorage, 공개 models/Responses, SSE, 중지, 한도 안내, 로컬 암호화 대화 기록.
 - 기존 편집기 오른쪽 검색 아래 AI 도우미 버튼. 기존 2열 폭 보존을 위해 먼저 독립 창으로 구성. 도킹은 별도 승인 및 GUI 검증 후.
 - 개인용 단일 등록 계정의 로그인 및 재연결. 다중 계정/워크스페이스 선택 UI는 구현하지 않음. 새 계정 등록 지원은 추후 별도 검토.
 - 프로필/로그/PC 정보 자동 전송 없음. 사용자가 지시하여 전송한 대화 및 체크한 읽기 전용 get_version 함수 결과만 전달. 함수 호출 1회, 추가 모델 호출 1회로 제한.

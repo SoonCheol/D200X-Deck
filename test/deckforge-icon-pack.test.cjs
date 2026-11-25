@@ -5,7 +5,7 @@ const path=require('node:path');
 const os=require('node:os');
 const fs=require('node:fs/promises');
 const JSZip=require('../app/node_modules/jszip');
-const {parseIconPack,parseIconFolder,readPacks,registerPack,removePack}=require('../app/streamdeck-editor/icon-pack.cjs');
+const {parseIconPack,parseIconFolder,readPacks,registerPack,removePack}=require('../app/deckforge-editor/icon-pack.cjs');
 
 const png=Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Y5fAJkAAAAASUVORK5CYII=','base64');
 async function fixture(overrides={}){

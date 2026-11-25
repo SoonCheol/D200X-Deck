@@ -2,9 +2,9 @@
 const {test}=require('node:test');
 const assert=require('node:assert/strict');
 const fs=require('node:fs'),os=require('node:os'),path=require('node:path');
-const Core=require('../app/streamdeck-editor/deck-core.js');
-const {ProfileStore}=require('../app/streamdeck-editor/profile-store.cjs');
-const Backup=require('../app/streamdeck-editor/backup.cjs');
+const Core=require('../app/deckforge-editor/deck-core.js');
+const {ProfileStore}=require('../app/deckforge-editor/profile-store.cjs');
+const Backup=require('../app/deckforge-editor/backup.cjs');
 const password='test-only-passphrase';
 const appearance={theme:'line',overrides:{}};
 const icon='data:image/png;base64,YQ==';

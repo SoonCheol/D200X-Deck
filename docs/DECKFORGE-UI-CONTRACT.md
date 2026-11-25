@@ -48,7 +48,7 @@
 
 | 구역 | 변경 금지·보존 사항 | 확인 위치 |
 | --- | --- | --- |
-| 메인 화면 | 왼쪽 D200X 버튼/페이지 제어, 하단 속성창, 오른쪽 프로필·장치·검색·액션 패널의 승인된 위치, 창 크기·분할/스크롤·기본 폰트 유지 | app/streamdeck-editor/index.html의 #app, .work, .canvas, #inspector, .library 및 style.css |
+| 메인 화면 | 왼쪽 D200X 버튼/페이지 제어, 하단 속성창, 오른쪽 프로필·장치·검색·액션 패널의 승인된 위치, 창 크기·분할/스크롤·기본 폰트 유지 | app/deckforge-editor/index.html의 #app, .work, .canvas, #inspector, .library 및 style.css |
 | LCD 버튼·페이지 | 일반 키 13개 + 와이드 1개, 물리 측면 키 2개·노브 3개, 페이지 번호·이동·추가/제거·고정 키·드래그·폴더 구조 보존 | #key-grid, #physical-controls, .page-controls, editor.js, deck-core.js |
 | 오른쪽 액션 목록 | 기본 액션/플러그인, 카테고리·아이콘·검색어 삭제·검색·드래그·명칭/정렬 보존. 원본·D200X 확장 액션 임의 삭제 금지 | .library-tabs, #action-search, #library-list, action-panel-icons.js, editor.js |
 | 일반 LCD 키 속성창 | 아래 §3~5의 세 누르기 탭, 카드 2개/단일 이미지 예외, 미리보기·설정 필드·저장/취소 유지 | renderInspector(), renderPressTabs(), bindKeyPressIconControls(), bindSdkStateIcons(), style.css |
@@ -121,7 +121,7 @@
 - **오래된 인스펙터 계약:** docs/archive/D200X-INSPECTOR-LAYOUT-CONTRACT-20261117.md. 당시 196px 고정 계약과 이후 가변 카드 예외가 공존한다. 최신 UI 전체에 과거 수치를 적용하지 않는다.
 - **Key Up/Down 예외 이력:** docs/archive/D200X-KEY-DOWN-UP-ICON-EXCEPTIONS-20261117.md. 코드·실기 성공을 보증하지 않는 설계 이력이다.
 - **과거 정적 UI 비교:** docs/evidence/gui/DeckForge-Inspector-Template.html. **1.1.88 준비 당시 예시**이므로 최신 카드 좌우·3탭·메뉴 배치의 근거로 단독 사용 금지.
-- **활성 세부 계약:** 본 문서의 §7·§7.1; **실제 표시 기준:** app/streamdeck-editor/editor.js + style.css + index.html.
+- **활성 세부 계약:** 본 문서의 §7·§7.1; **실제 표시 기준:** app/deckforge-editor/editor.js + style.css + index.html.
 - 이번에 승인된 UI 변경은 기존 화면의 부분 변경이지 **메인/아이콘팩/노브/와이드/플러그인/프로필 레이아웃의 재설계 허가가 아니다.**
 
 ## 6. 앞으로의 문서·개발 작업 규칙

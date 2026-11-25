@@ -2,11 +2,11 @@
 const {test}=require('node:test');
 const assert=require('node:assert/strict');
 const fs=require('node:fs'),path=require('node:path');
-const {createEvidence,assess}=require('../app/streamdeck-editor/ai/evidence.cjs');
-const Core=require('../app/streamdeck-editor/deck-core.js');
-const {layoutReview,createReader}=require('../app/streamdeck-editor/ai/read-tools.cjs');
-const Selection=require('../app/streamdeck-editor/ai/selection.js');
-const {textMenuTemplate}=require('../app/streamdeck-editor/text-context-menu.cjs');
+const {createEvidence,assess}=require('../app/deckforge-editor/ai/evidence.cjs');
+const Core=require('../app/deckforge-editor/deck-core.js');
+const {layoutReview,createReader}=require('../app/deckforge-editor/ai/read-tools.cjs');
+const Selection=require('../app/deckforge-editor/ai/selection.js');
+const {textMenuTemplate}=require('../app/deckforge-editor/text-context-menu.cjs');
 const req=(section,extra={})=>({section,profile:null,page:null,folder:null,query:null,offset:null,...extra});
 test('correlates concurrent physical packets and actual helper results without disclosing paths',()=>{
  let t=0;const e=createEvidence({clock:()=>++t});
@@ -33,7 +33,7 @@ test('no rejection invented for missing evidence, release or unsaved confirmatio
  assert.equal(e.list().find(x=>x.id===c).events.length,18);assert.equal(e.list().find(x=>x.id===c).truncated,true);
 });
 test('renderer promise observation preserves return value and uses input-specific ID',async()=>{
- const source=fs.readFileSync(path.join(__dirname,'../app/streamdeck-editor/editor.js'),'utf8');
+ const source=fs.readFileSync(path.join(__dirname,'../app/deckforge-editor/editor.js'),'utf8');
  const start=source.indexOf('function reportInputEvidence('),end=source.indexOf('function tracedPhysicalDispatch(',start);
  assert.ok(start>=0&&end>start);
  const rows=[],window={deckBridge:{inputEvidence:r=>rows.push(r)}};
@@ -93,7 +93,7 @@ test('simulated gesture input trace includes selected action category but no sec
  assert.ok(!JSON.stringify(result).includes('secret'));
 });
 test('D200X dry-run detector distinguishes single double and hold without dispatching actions',()=>{
- const editor=fs.readFileSync(path.join(__dirname,'../app/streamdeck-editor/editor.js'),'utf8');
+ const editor=fs.readFileSync(path.join(__dirname,'../app/deckforge-editor/editor.js'),'utf8');
  const start=editor.indexOf('const gestureTestPresses='),end=editor.indexOf('// Generic ordinary-key gesture routing.',start);
  assert.ok(start>0&&end>start);
  const code=editor.slice(start,end);
@@ -198,9 +198,9 @@ test('AI one-call action check distinguishes app and folder request from native 
  r=await reader(req('action_check'));assert.equal(r.request.state,'failed');
 });
 test('verified hotkey path uses SendInput rather than keybd_event and carries physical packet ID',()=>{
- const main=fs.readFileSync(path.join(__dirname,'../app/streamdeck-editor/main.cjs'),'utf8');
- const preload=fs.readFileSync(path.join(__dirname,'../app/streamdeck-editor/preload.cjs'),'utf8');
- const editor=fs.readFileSync(path.join(__dirname,'../app/streamdeck-editor/editor.js'),'utf8');
+ const main=fs.readFileSync(path.join(__dirname,'../app/deckforge-editor/main.cjs'),'utf8');
+ const preload=fs.readFileSync(path.join(__dirname,'../app/deckforge-editor/preload.cjs'),'utf8');
+ const editor=fs.readFileSync(path.join(__dirname,'../app/deckforge-editor/editor.js'),'utf8');
  const start=main.indexOf('async function emitVerifiedWindowsHotkey('),end=main.indexOf('function parseWindowsHotkey(',start);
  assert.ok(start>=0&&end>start);
  assert.match(main.slice(start,end),/SendInput\(/);

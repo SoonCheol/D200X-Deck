@@ -3,7 +3,7 @@
 // No app source, user profiles, HID, or Windows state are changed by these tests.
 const test=require('node:test');
 const assert=require('node:assert/strict');
-const core=require('../app/streamdeck-editor/deck-core.js');
+const core=require('../app/deckforge-editor/deck-core.js');
 
 const side=(index,pressed=true)=>({kind:1,index,pressed});
 const knob=(index,state)=>({kind:2,index,state});

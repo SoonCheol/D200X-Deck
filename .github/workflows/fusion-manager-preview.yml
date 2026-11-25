@@ -7,8 +7,8 @@ on:
     paths:
       - 'tools/fusion-manager/**'
       - 'tools/fusion-mcp/fusion-ui-inventory.py'
-      - 'app/streamdeck-editor/fusion-batch.js'
-      - 'app/streamdeck-editor/fusion-drag.cjs'
+      - 'app/deckforge-editor/fusion-batch.js'
+      - 'app/deckforge-editor/fusion-drag.cjs'
       - 'test/fusion-menu-navigation.test.cjs'
       - 'test/fusion-manager-layout.test.cjs'
       - 'test/fusion-command-curation.test.cjs'
@@ -41,7 +41,7 @@ jobs:
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           node --check tools/fusion-manager/preload.cjs
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          node --check app/streamdeck-editor/fusion-drag.cjs
+          node --check app/deckforge-editor/fusion-drag.cjs
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           node --check tools/fusion-manager/menu-tree.cjs
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
@@ -55,7 +55,7 @@ jobs:
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           node --test test/fusion-manager-layout.test.cjs
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          node --test test/streamdeck-fusion-mcp.test.cjs
+          node --test test/deckforge-fusion-mcp.test.cjs
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - name: Download pinned Pretendard font for the standalone Manager
         shell: pwsh
@@ -71,7 +71,7 @@ jobs:
           if ($LASTEXITCODE -ne 0 -or $blob -ne '49c54b5152a184a243e85f7281ed338b6569987e') {
             throw "Pretendard font hash mismatch: $blob"
           }
-          if (-not (Test-Path 'app/streamdeck-editor/fonts/Pretendard-LICENSE.txt')) {
+          if (-not (Test-Path 'app/deckforge-editor/fonts/Pretendard-LICENSE.txt')) {
             throw 'Pretendard OFL license missing'
           }
       - name: Stage isolated prototype and Fusion command catalog
@@ -81,7 +81,7 @@ jobs:
           $dst = 'app/fusion-manager-build'
           New-Item -ItemType Directory -Force $dst | Out-Null
           Copy-Item 'tools/fusion-manager/main.cjs','tools/fusion-manager/preload.cjs','tools/fusion-manager/index.html','tools/fusion-manager/renderer.js','tools/fusion-manager/command-curation.cjs','tools/fusion-manager/menu-tree.cjs','tools/fusion-manager/fusion-language-catalog.cjs' $dst
-          Copy-Item 'app/streamdeck-editor/fusion-drag.cjs' "$dst/fusion-drag.cjs"
+          Copy-Item 'app/deckforge-editor/fusion-drag.cjs' "$dst/fusion-drag.cjs"
           Copy-Item 'tools/fusion-mcp/fusion-command-catalog-final.json' "$dst/fusion-command-catalog-final.json"
           Copy-Item 'tools/fusion-mcp/fusion-menu-catalog.json' "$dst/fusion-menu-catalog.json"
           Copy-Item 'tools/fusion-manager/fusion-command-english-names-v1.json' "$dst/fusion-command-english-names-v1.json"
@@ -91,7 +91,7 @@ jobs:
           Copy-Item 'tools/fusion-mcp/fusion-ui-inventory.py' "$dst/fusion-ui-inventory.py"
           New-Item -ItemType Directory -Force "$dst/fonts" | Out-Null
           Copy-Item 'tools/fusion-manager/fonts/PretendardVariable.woff2' "$dst/fonts/PretendardVariable.woff2"
-          Copy-Item 'app/streamdeck-editor/fonts/Pretendard-LICENSE.txt' "$dst/fonts/Pretendard-LICENSE.txt"
+          Copy-Item 'app/deckforge-editor/fonts/Pretendard-LICENSE.txt' "$dst/fonts/Pretendard-LICENSE.txt"
           if ((Get-Item "$dst/fonts/PretendardVariable.woff2").Length -lt 2000000) { throw 'Staged Manager font too small' }
           if (-not (Test-Path "$dst/HELP.md")) { throw 'Fusion Manager help file missing' }
           '{"name":"fusion-command-manager","productName":"Fusion Command Manager","version":"0.1.0","private":true,"main":"main.cjs"}' | Set-Content "$dst/package.json" -Encoding utf8

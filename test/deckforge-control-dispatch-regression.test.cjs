@@ -1,7 +1,7 @@
 'use strict';
 const test=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),path=require('node:path');
-const Core=require('../app/streamdeck-editor/deck-core.js');
-const editor=fs.readFileSync(path.join(__dirname,'../app/streamdeck-editor/editor.js'),'utf8');
+const Core=require('../app/deckforge-editor/deck-core.js');
+const editor=fs.readFileSync(path.join(__dirname,'../app/deckforge-editor/editor.js'),'utf8');
 function section(start,end){const a=editor.indexOf(start),b=editor.indexOf(end,a);assert.ok(a>=0&&b>a);return editor.slice(a,b);}
 
 test('one active action contract covers SDK registration and physical plans',()=>{

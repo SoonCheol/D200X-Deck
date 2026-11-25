@@ -3,7 +3,7 @@
 > **1.1.88 당시 정적 비교 시안. 최신 실행 화면이나 새 UI 계약이 아님.** [단일 UI 기준](../../DECKFORGE-UI-CONTRACT.md), [현재 상태](../../D200X-CURRENT-STATUS.md)와 개발 브랜치의 실제 `editor.js`/`style.css`가 우선한다. 특히 최신 **왼쪽 상태 카드 2장 → 오른쪽 미리보기**와 **누르기 3탭 상단 이동** 목표를 이 HTML로 덮어쓰지 않는다.
 
 - [DeckForge-Inspector-Template.html](./DeckForge-Inspector-Template.html)을 브라우저에서 열면 **원본 / 수정 후**를 전환할 수 있습니다. 오프라인 사용이 가능한 단일 HTML로 CSS와 예시 아이콘 이미지를 내장했습니다.
-- 기준: 실제 `app/streamdeck-editor/editor.js`의 속성창 구조 및 `app/streamdeck-editor/style.css`의 관련 레이아웃 규칙. 제작 당시 비교 기준은 **1.1.88 준비 커밋 `de418253`**이며, 이 HTML은 실행 중인 DeckForge 자체가 아니라 **구조를 발췌하여 재현한 정적 미리보기**입니다.
+- 기준: 실제 `app/deckforge-editor/editor.js`의 속성창 구조 및 `app/deckforge-editor/style.css`의 관련 레이아웃 규칙. 제작 당시 비교 기준은 **1.1.88 준비 커밋 `de418253`**이며, 이 HTML은 실행 중인 DeckForge 자체가 아니라 **구조를 발췌하여 재현한 정적 미리보기**입니다.
 - **공통 고정 영역**: 상단 액션 제목, 미리보기/실행 테스트, Key Up/Key Down의 제목·아이콘·라이브러리/파일/클립보드/특수문자/초기화 버튼, 저장/취소 및 카드 간격·폭을 유지합니다.
 - **액션별 수정 영역**: 공통 카드 아래의 필드(텍스트, 단축키, 프로그램 경로 등)와 상단 옵션 체크박스만 해당 액션에 맞게 교체합니다.
 - 이 HTML의 **수정 후** 화면은 당시 시안으로만 참고합니다. **새 레이아웃은 먼저 최신 단일 UI 계약 및 `editor.js` / `style.css`를 기준으로 확인**하고, 필요한 부분만 국소 수정합니다. 과거 카드 배치·치수·메뉴를 현재 화면에 임의로 복제하지 않습니다.

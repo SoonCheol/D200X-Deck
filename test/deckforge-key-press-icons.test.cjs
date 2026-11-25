@@ -1,6 +1,6 @@
 'use strict';
 const test=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),vm=require('node:vm'),path=require('node:path');
-const src=fs.readFileSync(path.join(__dirname,'../app/streamdeck-editor/editor.js'),'utf8');
+const src=fs.readFileSync(path.join(__dirname,'../app/deckforge-editor/editor.js'),'utf8');
 const start=src.indexOf('function isMomentaryIconAction(item){'),end=src.indexOf('// Share actual key visuals',start);
 assert.ok(start>=0&&end>start,'Press icon source functions');
 const funcs=src.slice(start,end);
@@ -8,7 +8,7 @@ const independentTitles=()=>({first:{enabled:true,title:'',style:{}},second:{ena
 function apply(item,pressed=false,runtime=null){
  const window={D200XPhysicalKeyPressed:()=>pressed};
  const state={selected:0};
- const Core=require('../app/streamdeck-editor/deck-core.js');
+ const Core=require('../app/deckforge-editor/deck-core.js');
  return vm.runInNewContext(funcs+';displayKeyPressItem(item,0)',{
   item,window,previewPressKeys:new Set(),state,DeckCore:{...Core,visibleActions:()=>[item],runtimeActionKey:()=>"test"},
   activeActionTimers:new Map(runtime&&item.type==='timer'?[['test',runtime]]:[]),runningMultiProgress:new Map(runtime&&item.type==='multi'?[['test',runtime]]:[]),
@@ -44,7 +44,7 @@ test('active timer and nonmomentary actions do not gain momentary artwork',()=>{
  }
 });
 test('icon settings survive existing DeckCore cleanAction without modifying status settings',()=>{
- const DeckCore=require('../app/streamdeck-editor/deck-core.js');
+ const DeckCore=require('../app/deckforge-editor/deck-core.js');
  const icon={kind:'file',value:'data:image/png;base64,dGVzdA=='};
  const old=DeckCore.createAction('hotkey');
  old.settings.keyPressIcons={up:icon,down:icon};
@@ -69,7 +69,7 @@ test('inspector has four fixed and ordered regions and puts cards outside action
 });
 test('momentary Fusion cannot also render OFF ON SDK cards',()=>{
  const start=src.indexOf('function bindSdkStateIcons('),end=src.indexOf('function bindKeyPressIconControls(',start);
- const Core=require('../app/streamdeck-editor/deck-core.js');
+ const Core=require('../app/deckforge-editor/deck-core.js');
  let queried=0;
  const bind=vm.runInNewContext(src.slice(start,end)+';bindSdkStateIcons',{DeckCore:Core,isMomentaryIconAction:item=>item.settings?.pluginUUID==='com.autodesk.fusionstreamdeck'});
  const root={querySelector:()=>{queried++;return null;}};
@@ -82,7 +82,7 @@ test('momentary Fusion cannot also render OFF ON SDK cards',()=>{
  assert.match(src,/bindSdkStateIcons\(root,item\);\s*bindKeyPressIconControls\(root,item\);\s*appendInspectorSaveBar\(root\);/);
 });
 test('icon layout has one nonwrapping 404px line, equal 196px cards and aligned starts',()=>{
- const css=require('node:fs').readFileSync(path.join(__dirname,'../app/streamdeck-editor/style.css'),'utf8');
+ const css=require('node:fs').readFileSync(path.join(__dirname,'../app/deckforge-editor/style.css'),'utf8');
  assert.match(css,/--inspector-values-left:calc\(var\(--inspector-preview-width\)/);
  assert.match(css,/\.inspector \.inspector-icon-section \.sdk-state-icons\{[\s\S]*?flex-wrap:nowrap;[\s\S]*?min-width:404px/);
  assert.match(css,/\.inspector \.inspector-icon-section \.sdk-state-icon\{flex:0 0 196px/);
@@ -150,7 +150,7 @@ test('other-key selection, external drops, right-click, and physical controls ke
   assert.match(src,/addEventListener\("contextmenu",ev=>\{[\s\S]*?showInspectorLeaveDialog\(open\)/);
 });
 test('SDK help close control uses its own dark theme style, separate from the approved inspector layout',()=>{
-  const css=fs.readFileSync(path.join(__dirname,'../app/streamdeck-editor/style.css'),'utf8');
+  const css=fs.readFileSync(path.join(__dirname,'../app/deckforge-editor/style.css'),'utf8');
   assert.match(src,/close\.className='sdk-plugin-help-close'/);
   assert.match(css,/#sdk-plugin-help-dialog \.sdk-plugin-help-close\{/);
   assert.match(css,/#sdk-plugin-help-dialog \.sdk-plugin-help-close:hover/);
@@ -189,12 +189,12 @@ unrelated:findIconCompanion({icons:[pack.icons[0],{filename:'a/fan_disabled.png'
  for(const [key,value] of Object.entries(result))assert.equal(value,true,key);
 });
 test('host manifest has non-destructive OFF ON artwork fallback',()=>{
- const host=fs.readFileSync(path.join(__dirname,'../app/streamdeck-editor/sd-plugin-host.cjs'),'utf8');
+ const host=fs.readFileSync(path.join(__dirname,'../app/deckforge-editor/sd-plugin-host.cjs'),'utf8');
  assert.match(host,/async defaultArtwork\(dir,base\)/);
  assert.match(host,/defaultImages:\{off:await this\.defaultArtwork/);
  assert.match(src,/const sdkActionDefaults=new Map\(\)/);
  assert.match(src,/haPreviewStates\.set\(item/);
- const css=fs.readFileSync(path.join(__dirname,'../app/streamdeck-editor/style.css'),'utf8');
+ const css=fs.readFileSync(path.join(__dirname,'../app/deckforge-editor/style.css'),'utf8');
  assert.match(css,/grid-template-rows:auto auto;align-items:start/);
 });
 
@@ -224,7 +224,7 @@ test('paired OFF ON artwork maps correctly regardless of launching card and clic
 });
 
 test('icon pair uses right-side padding before enabling horizontal scrolling',()=>{
- const css=fs.readFileSync(path.join(__dirname,'../app/streamdeck-editor/style.css'),'utf8');
+ const css=fs.readFileSync(path.join(__dirname,'../app/deckforge-editor/style.css'),'utf8');
  const segment=css.slice(css.indexOf('.inspector .inspector-icon-section{'),css.indexOf('.inspector .inspector-icon-section:empty'));
  assert.match(segment,/width:var\(--inspector-values-width\)/);
  assert.match(segment,/max-width:calc\(100% - var\(--inspector-values-left\) \+ 16px\)/);
@@ -281,7 +281,7 @@ test('hotkey switch has separate 1/2 icon cards and live state switching',()=>{
 });
 
 test('ordinary LCD visual region reserves the same footprint for paired, single and empty gestures',()=>{
- const style=fs.readFileSync(path.join(__dirname,'../app/streamdeck-editor/style.css'),'utf8');
+ const style=fs.readFileSync(path.join(__dirname,'../app/deckforge-editor/style.css'),'utf8');
  const expectedSelectors=[
   '.action-layout-inspector.press-gesture-inspector>.state-title-layout,',
   '.action-layout-inspector.press-gesture-inspector>.action-single-visual,',
@@ -294,7 +294,7 @@ test('ordinary LCD visual region reserves the same footprint for paired, single 
 });
 
 test('each gesture tab displays its own independent Key Up and Key Down artwork, regardless of representative',()=>{
- const Core=require('../app/streamdeck-editor/deck-core.js');
+ const Core=require('../app/deckforge-editor/deck-core.js');
  const displayStart=src.indexOf('function displayItem(item,index');
  const displayEnd=src.indexOf('// Visual press policy',displayStart);
  const pressStart=src.indexOf('function pressSlotAction(root,slot){');
@@ -351,7 +351,7 @@ test('gesture inspector keeps selected tab and rejects other-tab picker results'
  const choose=src.slice(src.indexOf('function choose(index){'),src.indexOf('function controlDrop(',src.indexOf('function choose(index){')));
  assert.match(choose,/if\(state\.selected===index\)\{\s*return;/);
  assert.doesNotMatch(choose,/if\(state\.selected===index\)\{\s*if\(index<13/);
- const Core=require('../app/streamdeck-editor/deck-core.js');
+ const Core=require('../app/deckforge-editor/deck-core.js');
  const state=Core.migrateState(null),single=Core.createAction('hotkey'),double=Core.createAction('hotkey'),hold=Core.createAction('hotkey');
  state.pages[0][0]=single;state.selected=0;single.pressActions={double,hold};
  const start=src.indexOf('function isCurrentInspectorAction(item){');
@@ -400,7 +400,7 @@ test('gesture number alone selects representative on either state card and disti
 });
 
 test('same physical button gesture registrations remain one draft across tab rebuild, save and cancel',()=>{
- const Core=require('../app/streamdeck-editor/deck-core.js');
+ const Core=require('../app/deckforge-editor/deck-core.js');
  const state=Core.migrateState(null);state.selected=0;
  state.pages[0][0]=Core.createAction('hotkey');
  const start=src.indexOf('function pressEnsureMeta('),end=src.indexOf('function attachPressPreviewBadges(',start);

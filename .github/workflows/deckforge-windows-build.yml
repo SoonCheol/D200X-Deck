@@ -8,7 +8,7 @@ on:
     branches:
       - codex/streamdeck-761-clean-editor
     paths:
-      - 'app/streamdeck-editor/**'
+      - 'app/deckforge-editor/**'
       - 'app/lib/**'
       - 'app/package.json'
       - 'app/package-lock.json'
@@ -24,8 +24,8 @@ on:
       - 'test/deckforge-google-drive.test.cjs'
       - 'test/deckforge-key-press-icons.test.cjs'
       - 'test/deckforge-runtime-receipt.test.cjs'
-      - 'test/streamdeck-inspector-layout.test.cjs'
-      - 'test/streamdeck-sdk-visual.test.cjs'
+      - 'test/deckforge-inspector-layout.test.cjs'
+      - 'test/deckforge-sdk-visual.test.cjs'
       - 'test/deckforge-dual-state-titles.test.cjs'
       - 'test/deckforge-native-drop.test.cjs'
       - 'test/deckforge-app-focus.test.cjs'
@@ -35,7 +35,7 @@ on:
       - 'test/deckforge-plugin.test.cjs'
       - 'test/deckforge-worker-csp-electron.cjs'
       - 'tools/native-drop-probe/NativeDropProbe.cs'
-      - '.github/workflows/streamdeck-clean-preview.yml'
+      - '.github/workflows/deckforge-windows-build.yml'
   workflow_dispatch:
 
 permissions:
@@ -58,7 +58,7 @@ jobs:
         id: version
         shell: pwsh
         run: |
-          $version = (Get-Content -Raw app/streamdeck-editor/package.json | ConvertFrom-Json).version
+          $version = (Get-Content -Raw app/deckforge-editor/package.json | ConvertFrom-Json).version
           if ($version -notmatch '^\d+\.\d+\.\d+$') { throw 'Invalid DeckForge version' }
           "version=$version" >> $env:GITHUB_OUTPUT
       - name: Install Electron packaging tools
@@ -67,28 +67,28 @@ jobs:
       - name: Compile dedicated folder helper
         shell: pwsh
         run: |
-          node app/streamdeck-editor/build-folder-helper.cjs
+          node app/deckforge-editor/build-folder-helper.cjs
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - name: Compile native external drop helper and verify resolver
         shell: pwsh
         run: |
-          node app/streamdeck-editor/build-native-drop-helper.cjs
+          node app/deckforge-editor/build-native-drop-helper.cjs
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           node --test test/deckforge-native-drop.test.cjs
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - name: Compile dedicated app focus helper and verify launch policy
         shell: pwsh
         run: |
-          node app/streamdeck-editor/build-app-focus-helper.cjs
+          node app/deckforge-editor/build-app-focus-helper.cjs
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           node --test test/deckforge-app-focus.test.cjs
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - name: Check standalone preview scripts
         shell: pwsh
         run: |
-          node --check app/streamdeck-editor/bundled-integration.cjs
+          node --check app/deckforge-editor/bundled-integration.cjs
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          node --test test/streamdeck-integrated-manager.test.cjs
+          node --test test/deckforge-integrated-manager.test.cjs
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           node --check tools/fusion-manager/renderer.js
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
@@ -96,47 +96,47 @@ jobs:
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           node --test test/fusion-english-catalog.test.cjs
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          node --check app/streamdeck-editor/main.cjs
+          node --check app/deckforge-editor/main.cjs
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          node --check app/streamdeck-editor/update-check.cjs
+          node --check app/deckforge-editor/update-check.cjs
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           node --test test/deckforge-update-check.test.cjs
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          node --check app/streamdeck-editor/deckforge-dialog.js
+          node --check app/deckforge-editor/deckforge-dialog.js
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          node --check app/streamdeck-editor/editor.js
+          node --check app/deckforge-editor/editor.js
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           node --test test/deckforge-ai-phase1.test.cjs test/deckforge-ai-phase2.test.cjs test/deckforge-ai-phase3.test.cjs test/deckforge-ai-phase4.test.cjs test/deckforge-ai-phase5.test.cjs test/deckforge-text-context-menu.test.cjs
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           foreach ($aiScript in @('ai-launch.js','ai/auth.cjs','ai/responses.cjs','ai/read-tools.cjs','ai/edit-plan.js','ai/advanced-plan.js','ai/evidence.cjs','ai/selection.js','ai/markdown.js','ai/window.cjs','ai/preload.cjs','ai/panel.js')) {
-            node --check "app/streamdeck-editor/$aiScript"
+            node --check "app/deckforge-editor/$aiScript"
             if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           }
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           node --test test/deckforge-key-press-icons.test.cjs test/deckforge-windows-args.test.cjs test/deckforge-app-control.test.cjs test/deckforge-folder-control.test.cjs test/deckforge-wide-warning.test.cjs
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          node --test test/streamdeck-inspector-layout.test.cjs
+          node --test test/deckforge-inspector-layout.test.cjs
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          node --check app/streamdeck-editor/action-panel-icons.js
+          node --check app/deckforge-editor/action-panel-icons.js
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          node --check app/streamdeck-editor/build-fluent-icons.cjs
+          node --check app/deckforge-editor/build-fluent-icons.cjs
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          node --check app/streamdeck-editor/icon-pack.cjs
+          node --check app/deckforge-editor/icon-pack.cjs
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          node --test test/streamdeck-icon-pack.test.cjs
+          node --test test/deckforge-icon-pack.test.cjs
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          node --check app/streamdeck-editor/ha-client.cjs
+          node --check app/deckforge-editor/ha-client.cjs
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          node --check app/streamdeck-editor/sd-plugin-host.cjs
+          node --check app/deckforge-editor/sd-plugin-host.cjs
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          node --test test/streamdeck-sdk-host.test.cjs
+          node --test test/deckforge-sdk-host.test.cjs
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          node --check app/streamdeck-editor/deckforge-plugin.cjs
+          node --check app/deckforge-editor/deckforge-plugin.cjs
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           node --test test/deckforge-plugin.test.cjs
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          node --check app/streamdeck-editor/deckforge-js-runtime.cjs
+          node --check app/deckforge-editor/deckforge-js-runtime.cjs
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           & app/node_modules/.bin/electron.cmd test/deckforge-native-js-electron.cjs
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
@@ -146,39 +146,39 @@ jobs:
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           node --check tools/fusion-mcp/server.cjs
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          node --test test/streamdeck-fusion-mcp.test.cjs
+          node --test test/deckforge-fusion-mcp.test.cjs
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          node --test test/streamdeck-sdk-visual.test.cjs
+          node --test test/deckforge-sdk-visual.test.cjs
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          node --test test/streamdeck-ha.test.cjs
+          node --test test/deckforge-ha.test.cjs
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - name: Check DeckForge installed-mode behavior
         shell: pwsh
         run: |
-          node --check app/streamdeck-editor/backup.cjs
+          node --check app/deckforge-editor/backup.cjs
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          node --check app/streamdeck-editor/backup-privacy.cjs
+          node --check app/deckforge-editor/backup-privacy.cjs
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          node --check app/streamdeck-editor/google-drive.cjs
+          node --check app/deckforge-editor/google-drive.cjs
           node --test test/deckforge-install.test.cjs test/deckforge-platform-data-layout.test.cjs test/deckforge-backup.test.cjs test/deckforge-backup-privacy.test.cjs test/deckforge-dialog.test.cjs test/deckforge-google-drive.test.cjs
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - name: Check hardware bridge and renderer scripts
         shell: pwsh
         run: |
-          node --check app/streamdeck-editor/transport.cjs
+          node --check app/deckforge-editor/transport.cjs
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          node --test test/streamdeck-transport.test.cjs
+          node --test test/deckforge-transport.test.cjs
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          node --check app/streamdeck-editor/preload.cjs
+          node --check app/deckforge-editor/preload.cjs
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          node --check app/streamdeck-editor/device-sync.js
+          node --check app/deckforge-editor/device-sync.js
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - name: Validate shared action core and migration
         shell: pwsh
         run: |
-          node --check app/streamdeck-editor/deck-core.js
+          node --check app/deckforge-editor/deck-core.js
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          node --test test/streamdeck-core.test.cjs test/deckforge-key-backgrounds.test.cjs test/deckforge-dual-state-titles.test.cjs test/deckforge-ordered-multi.test.cjs test/deckforge-runtime-receipt.test.cjs
+          node --test test/deckforge-core.test.cjs test/deckforge-key-backgrounds.test.cjs test/deckforge-dual-state-titles.test.cjs test/deckforge-ordered-multi.test.cjs test/deckforge-runtime-receipt.test.cjs
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - name: Verify remaining root regression suites and CI inventory
         shell: pwsh
@@ -193,11 +193,11 @@ jobs:
           $url = "https://codeload.github.com/czottmann/streamdeck-iconpack-fluentui-system-icons/zip/$commit"
           Invoke-WebRequest -Uri $url -OutFile $upstream -TimeoutSec 180 -ErrorAction Stop
           if (-not (Test-Path $upstream) -or (Get-Item $upstream).Length -lt 1MB) { throw 'Fluent UI upstream archive missing or empty' }
-          node app/streamdeck-editor/build-fluent-icons.cjs $upstream
+          node app/deckforge-editor/build-fluent-icons.cjs $upstream
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          if (-not (Test-Path 'app/streamdeck-editor/builtin-iconpacks.json')) { throw 'Fluent UI bundle missing' }
-          if (-not (Test-Path 'app/streamdeck-editor/fluentui-LICENSE.md')) { throw 'Fluent UI license missing' }
-          $bundle = Get-Item 'app/streamdeck-editor/builtin-iconpacks.json'
+          if (-not (Test-Path 'app/deckforge-editor/builtin-iconpacks.json')) { throw 'Fluent UI bundle missing' }
+          if (-not (Test-Path 'app/deckforge-editor/fluentui-LICENSE.md')) { throw 'Fluent UI license missing' }
+          $bundle = Get-Item 'app/deckforge-editor/builtin-iconpacks.json'
           Write-Host "Fluent UI pack JSON bytes: $($bundle.Length)"
           if ($bundle.Length -lt 1MB) { throw 'Fluent UI icon bundle too small' }
           $bundled = Get-Content -Raw $bundle.FullName | ConvertFrom-Json
@@ -208,7 +208,7 @@ jobs:
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Stop'
-          $destination = 'app/streamdeck-editor/fonts'
+          $destination = 'app/deckforge-editor/fonts'
           New-Item -ItemType Directory -Force $destination | Out-Null
           $sources = @(
             @{
@@ -285,23 +285,23 @@ jobs:
       - name: Assemble isolated preview with only D200X HID dependencies
         shell: pwsh
         run: |
-          New-Item -ItemType Directory -Force app/preview-device-build/streamdeck-editor | Out-Null
+          New-Item -ItemType Directory -Force app/preview-device-build/deckforge-editor | Out-Null
           New-Item -ItemType Directory -Force app/preview-device-build/lib | Out-Null
-          Copy-Item 'app/streamdeck-editor/*' 'app/preview-device-build/streamdeck-editor/' -Recurse -Force
+          Copy-Item 'app/deckforge-editor/*' 'app/preview-device-build/deckforge-editor/' -Recurse -Force
           Copy-Item 'app/lib/*' 'app/preview-device-build/lib/' -Recurse -Force
           # Keep the original dedicated D200X app and add only the independent
           # resources required for tray mode and bundled Fusion MCP.
           # Preserve the application atom icon and display it crisply at Windows tray size.
-          Copy-Item 'app/build/icon.png' 'app/preview-device-build/streamdeck-editor/tray.png' -Force
+          Copy-Item 'app/build/icon.png' 'app/preview-device-build/deckforge-editor/tray.png' -Force
           New-Item -ItemType Directory -Force app/preview-device-build/mcp/tools/fusion-mcp | Out-Null
-          New-Item -ItemType Directory -Force app/preview-device-build/mcp/app/streamdeck-editor | Out-Null
+          New-Item -ItemType Directory -Force app/preview-device-build/mcp/app/deckforge-editor | Out-Null
           Copy-Item 'tools/fusion-mcp/server.cjs' 'app/preview-device-build/mcp/tools/fusion-mcp/server.cjs' -Force
           Copy-Item 'tools/fusion-mcp/deckforge-mcp.cmd' 'app/preview-device-build/mcp/deckforge-mcp.cmd' -Force
-          Copy-Item 'app/streamdeck-editor/fusion-batch.js' 'app/preview-device-build/mcp/app/streamdeck-editor/fusion-batch.js' -Force
+          Copy-Item 'app/deckforge-editor/fusion-batch.js' 'app/preview-device-build/mcp/app/deckforge-editor/fusion-batch.js' -Force
           $manager='app/preview-device-build/fusion-manager'
           New-Item -ItemType Directory -Force "$manager/fonts" | Out-Null
           Copy-Item 'tools/fusion-manager/main.cjs','tools/fusion-manager/preload.cjs','tools/fusion-manager/index.html','tools/fusion-manager/renderer.js','tools/fusion-manager/menu-tree.cjs','tools/fusion-manager/command-curation.cjs','tools/fusion-manager/fusion-language-catalog.cjs','tools/fusion-manager/HELP.md' $manager
-          Copy-Item 'app/streamdeck-editor/fusion-drag.cjs' "$manager/fusion-drag.cjs"
+          Copy-Item 'app/deckforge-editor/fusion-drag.cjs' "$manager/fusion-drag.cjs"
           Copy-Item 'tools/fusion-mcp/fusion-command-catalog-final.json' "$manager/fusion-command-catalog-final.json"
           Copy-Item 'tools/fusion-mcp/fusion-menu-catalog.json' "$manager/fusion-menu-catalog.json"
           Copy-Item 'tools/fusion-manager/fusion-command-english-names-v1.json' "$manager/fusion-command-english-names-v1.json"
@@ -309,25 +309,25 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw 'Bundled Fusion English catalog missing or invalid' }
           Copy-Item 'tools/fusion-mcp/fusion-ui-inventory.py' "$manager/fusion-ui-inventory.py"
           # Generate the actual approved Manager icon from a source image, not a generic glyph.
-          & 'app/streamdeck-editor/create-manager-icon.ps1' -Source 'app/streamdeck-editor/assets/fusion-manager-approved-preview.jpg.base64' -OutputDirectory $manager
+          & 'app/deckforge-editor/create-manager-icon.ps1' -Source 'app/deckforge-editor/assets/fusion-manager-approved-preview.jpg.base64' -OutputDirectory $manager
           foreach ($iconFile in @("$manager/fusion-manager-icon.png","$manager/fusion-manager-icon.ico")) {
             if (-not (Test-Path -LiteralPath $iconFile) -or (Get-Item $iconFile).Length -lt 2000) { throw "Fusion Manager icon generation failed: $iconFile" }
           }
 
-          Copy-Item 'app/streamdeck-editor/fonts/PretendardVariable.woff2' "$manager/fonts/PretendardVariable.woff2"
-          Copy-Item 'app/streamdeck-editor/fonts/Pretendard-LICENSE.txt' "$manager/fonts/Pretendard-LICENSE.txt"
+          Copy-Item 'app/deckforge-editor/fonts/PretendardVariable.woff2' "$manager/fonts/PretendardVariable.woff2"
+          Copy-Item 'app/deckforge-editor/fonts/Pretendard-LICENSE.txt' "$manager/fonts/Pretendard-LICENSE.txt"
           $bundled='app/preview-device-build/bundled'
           New-Item -ItemType Directory -Force $bundled | Out-Null
           Copy-Item 'fusion-compat-fixture/fusion_addin/FusionStreamDeck' "$bundled/FusionStreamDeck" -Recurse -Force
-          node app/streamdeck-editor/extend-fusion-status.cjs "$bundled/FusionStreamDeck/lib/fusion_actions.py" "$bundled/fusion-actions-original.py"
+          node app/deckforge-editor/extend-fusion-status.cjs "$bundled/FusionStreamDeck/lib/fusion_actions.py" "$bundled/fusion-actions-original.py"
           if ($LASTEXITCODE -ne 0) { throw 'Fusion status extension failed' }
           Copy-Item 'fusion-compat-fixture/streamdeck_plugin/com.autodesk.fusionstreamdeck.sdPlugin' "$bundled/com.autodesk.fusionstreamdeck.sdPlugin" -Recurse -Force
           Copy-Item 'fusion-compat-fixture/LICENSE' "$bundled/Fusion-LICENSE.txt"
           Copy-Item 'ha-plugin-source/LICENSE' "$bundled/HA-LICENSE.txt"
           Copy-Item 'app/bundled-plugin-download/de.perdoctus.streamdeck.homeassistant.streamDeckPlugin' "$bundled/de.perdoctus.streamdeck.homeassistant.streamDeckPlugin"
-          Copy-Item 'app/streamdeck-editor/install-fusion-addin.ps1' "$bundled/install-fusion-addin.ps1"
+          Copy-Item 'app/deckforge-editor/install-fusion-addin.ps1' "$bundled/install-fusion-addin.ps1"
           Copy-Item "$manager/fusion-manager-icon.ico" "$bundled/fusion-manager-icon.ico" -Force
-          Copy-Item 'app/streamdeck-editor/installer-fusion.nsh' 'app/preview-device-build/installer-fusion.nsh'
+          Copy-Item 'app/deckforge-editor/installer-fusion.nsh' 'app/preview-device-build/installer-fusion.nsh'
           foreach ($required in @("$manager/main.cjs","$manager/HELP.md","$manager/fusion-manager-icon.png","$bundled/fusion-manager-icon.ico","$bundled/FusionStreamDeck/FusionStreamDeck.py","$bundled/com.autodesk.fusionstreamdeck.sdPlugin/manifest.json","$bundled/de.perdoctus.streamdeck.homeassistant.streamDeckPlugin","$bundled/HA-LICENSE.txt","$bundled/install-fusion-addin.ps1")) {
             if (-not (Test-Path -LiteralPath $required)) { throw "Missing integrated build file: $required" }
           }
@@ -338,7 +338,7 @@ jobs:
             "productName": "DeckForge",
             "version": "${{ steps.version.outputs.version }}",
             "private": true,
-            "main": "streamdeck-editor/main.cjs",
+            "main": "deckforge-editor/main.cjs",
             "dependencies": {
               "acorn": "8.19.0",
               "parse5": "7.3.0",
@@ -359,26 +359,26 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw 'Bundled plugin manifest verification failed' }
           Pop-Location
           Write-Host 'Fluent UI bundle source/staging contents:'
-          Get-ChildItem 'app/streamdeck-editor' -Filter '*iconpack*' | Select-Object Name,Length | Format-Table
-          Get-ChildItem 'app/preview-device-build/streamdeck-editor' | Select-Object -First 12 Name,Length | Format-Table
-          Copy-Item -LiteralPath 'app/streamdeck-editor/builtin-iconpacks.json' -Destination 'app/preview-device-build/streamdeck-editor/builtin-iconpacks.json' -Force
-          Copy-Item -LiteralPath 'app/streamdeck-editor/fluentui-LICENSE.md' -Destination 'app/preview-device-build/streamdeck-editor/fluentui-LICENSE.md' -Force
+          Get-ChildItem 'app/deckforge-editor' -Filter '*iconpack*' | Select-Object Name,Length | Format-Table
+          Get-ChildItem 'app/preview-device-build/deckforge-editor' | Select-Object -First 12 Name,Length | Format-Table
+          Copy-Item -LiteralPath 'app/deckforge-editor/builtin-iconpacks.json' -Destination 'app/preview-device-build/deckforge-editor/builtin-iconpacks.json' -Force
+          Copy-Item -LiteralPath 'app/deckforge-editor/fluentui-LICENSE.md' -Destination 'app/preview-device-build/deckforge-editor/fluentui-LICENSE.md' -Force
           # Package all three user-supplied archives without modifying their manifests or artwork.
-          $iotDestination = 'app/preview-device-build/streamdeck-editor/bundled'
+          $iotDestination = 'app/preview-device-build/deckforge-editor/bundled'
           New-Item -ItemType Directory -Force $iotDestination | Out-Null
           foreach ($iotName in @('DeckForge_IoT_COLOR_ON_OFF.streamDeckIconPack','DeckForge_IoT_LINE_ON_OFF.streamDeckIconPack','DeckForge_Logo_Icons_White_Color.streamDeckIconPack')) {
-            $iotSource = Join-Path 'app/streamdeck-editor/bundled' $iotName
+            $iotSource = Join-Path 'app/deckforge-editor/bundled' $iotName
             if (-not (Test-Path $iotSource)) { throw "Missing bundled icon pack: $iotName" }
             Copy-Item -LiteralPath $iotSource -Destination $iotDestination -Force
-            node -e "const fs=require('fs');const JSZip=require('./app/node_modules/jszip');const {parseIconPack}=require('./app/streamdeck-editor/icon-pack.cjs');(async()=>{const bytes=fs.readFileSync(process.argv[1]);await JSZip.loadAsync(bytes,{checkCRC32:true});const pack=await parseIconPack(bytes);console.log('Verified packaged '+pack.name+': '+pack.icons.length+' icons; author '+pack.author)})().catch(e=>{console.error(e);process.exit(1)})" "$iotDestination/$iotName"
+            node -e "const fs=require('fs');const JSZip=require('./app/node_modules/jszip');const {parseIconPack}=require('./app/deckforge-editor/icon-pack.cjs');(async()=>{const bytes=fs.readFileSync(process.argv[1]);await JSZip.loadAsync(bytes,{checkCRC32:true});const pack=await parseIconPack(bytes);console.log('Verified packaged '+pack.name+': '+pack.icons.length+' icons; author '+pack.author)})().catch(e=>{console.error(e);process.exit(1)})" "$iotDestination/$iotName"
             if ($LASTEXITCODE -ne 0) { throw "Bundled icon pack verification failed: $iotName" }
           }
-          $staged = Get-Item 'app/preview-device-build/streamdeck-editor/builtin-iconpacks.json' -ErrorAction SilentlyContinue
+          $staged = Get-Item 'app/preview-device-build/deckforge-editor/builtin-iconpacks.json' -ErrorAction SilentlyContinue
           if (-not $staged) { throw 'Staged preview missing Fluent UI icon bundle' }
-          if (-not (Test-Path 'app/preview-device-build/streamdeck-editor/main.cjs')) { throw 'Staged main.cjs missing' }
-          if (-not (Test-Path 'app/preview-device-build/streamdeck-editor/fluentui-LICENSE.md')) { throw 'Staged Fluent UI license missing' }
+          if (-not (Test-Path 'app/preview-device-build/deckforge-editor/main.cjs')) { throw 'Staged main.cjs missing' }
+          if (-not (Test-Path 'app/preview-device-build/deckforge-editor/fluentui-LICENSE.md')) { throw 'Staged Fluent UI license missing' }
           foreach ($name in @('PretendardVariable.woff2','NotoSansSymbols.ttf','NotoSansSymbols2-Regular.ttf','Pretendard-LICENSE.txt','Noto-Symbols-OFL.txt')) {
-            $fontFile = Join-Path 'app/preview-device-build/streamdeck-editor/fonts' $name
+            $fontFile = Join-Path 'app/preview-device-build/deckforge-editor/fonts' $name
             if (-not (Test-Path $fontFile)) { throw "Bundled UI font/license is absent: $name" }
           }
           Write-Host "Staged Fluent UI icon bytes: $($staged.Length)"
@@ -397,7 +397,7 @@ jobs:
           $resources = 'dist/DeckForge-win32-x64/resources'
           Write-Host 'Windows packaged resources:'
           Get-ChildItem $resources -Force | Select-Object Name, Length | Format-Table
-          $packaged = Join-Path $resources 'app/streamdeck-editor/builtin-iconpacks.json'
+          $packaged = Join-Path $resources 'app/deckforge-editor/builtin-iconpacks.json'
           $asarFile = Join-Path $resources 'app.asar'
           if (Test-Path $packaged) {
             $size = (Get-Item $packaged).Length
@@ -415,14 +415,14 @@ jobs:
           $resources = (Resolve-Path 'app/dist/DeckForge-win32-x64/resources').Path
           if (Test-Path (Join-Path $resources 'app.asar') -PathType Leaf) {
             # External child processes require a real filesystem path, not an ASAR entry.
-            $physical = Join-Path $resources 'app.asar.unpacked/streamdeck-editor'
+            $physical = Join-Path $resources 'app.asar.unpacked/deckforge-editor'
             New-Item -ItemType Directory -Force $physical | Out-Null
-            Copy-Item -LiteralPath 'app/preview-device-build/streamdeck-editor/folder-control-helper.exe' -Destination $physical -Force
-            Copy-Item -LiteralPath 'app/preview-device-build/streamdeck-editor/native-drop-helper.exe' -Destination $physical -Force
-            Copy-Item -LiteralPath 'app/preview-device-build/streamdeck-editor/app-focus-helper.exe' -Destination $physical -Force
-            $env:DECKFORGE_TEST_HELPER_DIR = Join-Path $resources 'app.asar/streamdeck-editor'
+            Copy-Item -LiteralPath 'app/preview-device-build/deckforge-editor/folder-control-helper.exe' -Destination $physical -Force
+            Copy-Item -LiteralPath 'app/preview-device-build/deckforge-editor/native-drop-helper.exe' -Destination $physical -Force
+            Copy-Item -LiteralPath 'app/preview-device-build/deckforge-editor/app-focus-helper.exe' -Destination $physical -Force
+            $env:DECKFORGE_TEST_HELPER_DIR = Join-Path $resources 'app.asar/deckforge-editor'
           } else {
-            $env:DECKFORGE_TEST_HELPER_DIR = (Resolve-Path (Join-Path $resources 'app/streamdeck-editor')).Path
+            $env:DECKFORGE_TEST_HELPER_DIR = (Resolve-Path (Join-Path $resources 'app/deckforge-editor')).Path
           }
           try {
             node --test test/deckforge-folder-control.test.cjs test/deckforge-native-drop.test.cjs test/deckforge-app-focus.test.cjs
@@ -450,7 +450,7 @@ jobs:
           # Electron executable as the Node plugin runtime (not runner node.exe).
           $env:D200X_NODE_PATH = $exe
           try {
-            node --test ../test/streamdeck-sdk-host.test.cjs
+            node --test ../test/deckforge-sdk-host.test.cjs
             if ($LASTEXITCODE -ne 0) { throw 'Packaged Electron Node SDK integration tests failed' }
           } finally {
             Remove-Item Env:D200X_NODE_PATH -ErrorAction SilentlyContinue
@@ -462,7 +462,7 @@ jobs:
           $env:D200X_NODE_PATH = (Resolve-Path 'dist/DeckForge-win32-x64/DeckForge.exe').Path
           $env:D200X_FUSION_SOURCE = (Resolve-Path '../fusion-compat-fixture/streamdeck_plugin/com.autodesk.fusionstreamdeck.sdPlugin').Path
           try {
-            node --test ../test/streamdeck-fusion-original.test.cjs
+            node --test ../test/deckforge-fusion-original.test.cjs
             if ($LASTEXITCODE -ne 0) { throw 'Original Fusion plugin SDK protocol compatibility test failed' }
           } finally {
             Remove-Item Env:D200X_NODE_PATH -ErrorAction SilentlyContinue
@@ -474,7 +474,7 @@ jobs:
         run: |
           # The installer uses the exact same staged app as the already-tested portable build.
           # Builder only packages; it must not rebuild native HID bindings.
-          Copy-Item 'streamdeck-editor/deckforge-installer.json' 'preview-device-build/electron-builder.json' -Force
+          Copy-Item 'deckforge-editor/deckforge-installer.json' 'preview-device-build/electron-builder.json' -Force
           Copy-Item 'preview-device-build/bundled' 'dist/DeckForge-win32-x64/resources/bundled' -Recurse -Force
           npm install --no-save --package-lock=false --ignore-scripts electron-builder@26.0.12
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
@@ -483,7 +483,7 @@ jobs:
           if (-not (Test-Path 'dist-installer/DeckForge-${{ steps.version.outputs.version }}-Setup-win-x64.exe')) { throw 'DeckForge NSIS setup missing' }
           if ((Get-Item 'dist-installer/DeckForge-${{ steps.version.outputs.version }}-Setup-win-x64.exe').Length -lt 30MB) { throw 'DeckForge NSIS setup unexpectedly small' }
           $asar = (Resolve-Path 'dist-installer/win-unpacked/resources/app.asar').Path
-          $env:DECKFORGE_TEST_HELPER_DIR = Join-Path $asar 'streamdeck-editor'
+          $env:DECKFORGE_TEST_HELPER_DIR = Join-Path $asar 'deckforge-editor'
           try {
             node --test ../test/deckforge-folder-control.test.cjs ../test/deckforge-native-drop.test.cjs ../test/deckforge-app-focus.test.cjs
             if ($LASTEXITCODE -ne 0) { throw 'Installer native helper validation failed' }

@@ -1,6 +1,6 @@
 'use strict';
 const test=require('node:test'),assert=require('node:assert/strict'),path=require('node:path'),fs=require('node:fs');
-const root=path.join(__dirname,'../app/streamdeck-editor');
+const root=path.join(__dirname,'../app/deckforge-editor');
 const {appFocusPath,runAppFocus,focusOrLaunch,createAppLaunchQueue}=require(path.join(root,'app-focus.cjs'));
 function policy(states,options={}){
   const calls=[];
@@ -60,8 +60,8 @@ test('rapid presses coalesce per target but not across different apps',async()=>
   await queue('AppID:calculator',()=>{n++;return true;});assert.equal(n,3);
 });
 test('native helper receives exact encoded target and is resolved outside ASAR',async()=>{
-  const dir=path.join('resources','app.asar','streamdeck-editor');
-  assert.equal(appFocusPath(dir),path.join('resources','app.asar.unpacked','streamdeck-editor','app-focus-helper.exe'));
+  const dir=path.join('resources','app.asar','deckforge-editor');
+  assert.equal(appFocusPath(dir),path.join('resources','app.asar.unpacked','deckforge-editor','app-focus-helper.exe'));
   const id='Microsoft.WindowsCalculator_8wekyb3d8bbwe!App';
   const result=await runAppFocus(dir,{kind:'AppID',target:id},'Focus',async(exe,args,options)=>{
     assert.equal(exe,appFocusPath(dir));assert.deepEqual(args,[]);
@@ -103,7 +103,7 @@ test('only program foreground actions use new path; regular file/folder and clos
   assert.match(cs,/protectedProcess\?"running-protected":"running-gui"/);
   assert.match(cs,/DFFolderNative\.AttachedFocus\(hwnd\)/);
   assert.match(cs,/if\(DFFolderNative.IsIconic\(hwnd\)\)/);
-  assert.ok(JSON.parse(fs.readFileSync(path.join(root,'deckforge-installer.json'),'utf8')).asarUnpack.includes('streamdeck-editor/app-focus-helper.exe'));
+  assert.ok(JSON.parse(fs.readFileSync(path.join(root,'deckforge-installer.json'),'utf8')).asarUnpack.includes('deckforge-editor/app-focus-helper.exe'));
 });
 test('packaged helper executes native validation',{skip:process.platform!=='win32'||!process.env.DECKFORGE_TEST_HELPER_DIR},()=>{
   const exe=appFocusPath(process.env.DECKFORGE_TEST_HELPER_DIR);
