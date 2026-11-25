@@ -421,29 +421,31 @@ test('compatibility artwork is UI-only and failed artwork cannot hide installed 
  const events=[],legacy=new StreamDeckPluginHost(tmp,e=>events.push(e)),native=new NativePluginHost(tmp);
  const router=new PluginRouter(legacy,native);
  const nativeId='com.deckforge.native.artwork-test';
+ const collisionId='com.deckforge.native.artwork-collision';
+ const legacyManifest={...M,UUID:collisionId,Actions:[{...M.Actions[0],UUID:collisionId+'.action'}]};
  const nativeManifest={apiVersion:1,id:nativeId,name:'Native test',version:'1.0.0',permissions:['display'],actions:[
   {id:nativeId+'.toggle',name:'Toggle',controllers:['Keypad'],states:2,events:{press:[{op:'toggleState'}]}}]};
  try{
-  const dir=path.join(legacy.root,M.UUID+'.sdPlugin');
+  const dir=path.join(legacy.root,legacyManifest.UUID+'.sdPlugin');
   await fs.mkdir(dir,{recursive:true});
-  await fs.writeFile(path.join(dir,'manifest.json'),JSON.stringify(M));
+  await fs.writeFile(path.join(dir,'manifest.json'),JSON.stringify(legacyManifest));
   await fs.writeFile(path.join(dir,'plugin.html'),'<html></html>');
   let reads=0;
   legacy.defaultArtwork=async()=>{reads++;if(reads===1)throw Error('fixture artwork denied');return 'data:image/png;base64,iVBORw==';};
   native.manifests=async()=>[nativeManifest];native.loadServicePolicy=async()=>{};
   const catalogue=await router.catalog();
-  assert.equal(catalogue.legacy[0].uuid,M.UUID);
-  assert.equal(catalogue.legacy[0].actions[0].uuid,M.Actions[0].UUID);
+  assert.equal(catalogue.legacy[0].uuid,legacyManifest.UUID);
+  assert.equal(catalogue.legacy[0].actions[0].uuid,legacyManifest.Actions[0].UUID);
   assert.equal(Object.hasOwn(catalogue.legacy[0].actions[0],'defaultImages'),false);
   assert.equal(reads,0);
   const cfg={context:'native-artwork-free',slot:0,gesture:'down',pluginUUID:nativeId,actionUUID:nativeId+'.toggle',settings:{}};
   await router.sync([cfg]);
   assert.equal(router.key(cfg.context,'down'),true);
   assert.equal(reads,0);
-  const collision={...nativeManifest,id:M.UUID,actions:[{...nativeManifest.actions[0],id:M.UUID+'.toggle'}]};
+  const collision={...nativeManifest,id:legacyManifest.UUID,actions:[{...nativeManifest.actions[0],id:legacyManifest.UUID+'.toggle'}]};
   await assert.rejects(router.checkNativeCandidate(collision),/plugin ID already installed/);
   assert.equal(reads,0);
-  const displayed=(await router.list()).find(p=>p.uuid===M.UUID);
+  const displayed=(await router.list()).find(p=>p.uuid===legacyManifest.UUID);
   assert.ok(displayed);
   assert.deepEqual(displayed.actions[0].defaultImages,{off:null,on:'data:image/png;base64,iVBORw=='});
   assert.equal(reads,2);

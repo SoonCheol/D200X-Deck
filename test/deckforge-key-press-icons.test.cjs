@@ -191,7 +191,8 @@ unrelated:findIconCompanion({icons:[pack.icons[0],{filename:'a/fan_disabled.png'
 test('host manifest has non-destructive OFF ON artwork fallback',()=>{
  const host=fs.readFileSync(path.join(__dirname,'../app/deckforge-editor/sd-plugin-host.cjs'),'utf8');
  assert.match(host,/async defaultArtwork\(dir,base\)/);
- assert.match(host,/defaultImages:\{off:await this\.defaultArtwork/);
+ assert.match(host,/includeArtwork\?\{defaultImages:\{off:await artwork/);
+ assert.match(host,/return await this\.defaultArtwork\(dir,base\)/);
  assert.match(src,/const sdkActionDefaults=new Map\(\)/);
  assert.match(src,/haPreviewStates\.set\(item/);
  const css=fs.readFileSync(path.join(__dirname,'../app/deckforge-editor/style.css'),'utf8');
