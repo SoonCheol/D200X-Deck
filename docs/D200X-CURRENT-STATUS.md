@@ -17,7 +17,7 @@
 - 1.1.231: identity 19행 대조·집중 검사, CI #1281/입력 #521/Windows #985 성공, 게시. 1.1.232: 저장 13행 대응·종료 commit 차단. CI #1282/입력 #522 성공, Windows #986 clean fixture 실패(kind 누락), 종료/페이지·삭제/retire 검사 통과. 1.1.233: fixture 수정 CI #1283/Windows #987 성공, 게시. 1.1.234: 실제 Electron NativePluginHost+임시 ProfileStore, 요청 전/저장 후 ACK 전 renderer crash, 재조회·재실행 금지 검증 추가. CI #1284·Windows #988 성공, 1.1.234 설치본 게시.
 - 1.1.230: CI #1278, Windows #984 attempt2 전체 성공. 실제 idle/active crash·거부·서비스/peer 생존·새 이벤트 복구, 25함수·vault 통과. 1차 npm 404 해소(버전 변경 없음). deckforge-v1.1.230 게시, EXE 135231273 bytes. 현재 root suite 45/45 실행 명령 확인, 초기 helper skip 3개와 후속 패키지 검사 구분.
 ## 다음 작업
-- 04B 다음 시험: standard worker 응답 CSP에 sandbox allow-scripts를 추가한 별도 후보에서 opaque origin 및 저장소·중첩 실행 차단을 확인. 시험 전용; 제품 활성화/보안 완화 없음.
+- 04B 시험 추가: standard worker 응답 CSP sandbox allow-scripts 후보, 실제 origin=null 및 기존 저장소·중첩 실행 차단 기준 요구, Electron/Chromium 버전 기록. Windows 실행 결과 대기. 시험 전용; 제품 활성화/보안 완화 없음.
 - 2.0.42: 독자 SDK tick/periodic request/WebSocket rate/backpressure 경과 시간 monotonic clock 전환. 시스템 시계 ±24시간 변경 중 제한 유지 집중 검사 추가. 설정 receipt wall clock 계약 보존. CI #1407 성공, Windows #45 진행 중.
 - 2.0.41: 독자 서비스 관리 중 종료 시 설정 읽기/쓰기 이후 재생성 차단. 이미 확정된 설정 보존. 읽기 중 종료/저장 확정 후 종료 집중 검사 추가. CI #1405 및 Windows #44 성공.
 - 2.0.40: 독자 서비스 시작 정책 동시 읽기 경쟁 해결. 공통 Promise 완료 전 서비스 시작 차단, 정지/오류 정책 보존, 동시 읽기 회귀 검사 추가. CI #1403 성공, Windows #43 진행 중. 외부 호환 엔진 추가 개발 보류.

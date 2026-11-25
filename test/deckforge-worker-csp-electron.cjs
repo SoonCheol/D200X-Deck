@@ -5,9 +5,9 @@ const {app,BrowserWindow,protocol,session}=require('electron');
 const {randomUUID}=require('node:crypto');
 const {createScriptRunner,deadline}=require('../app/deckforge-editor/deckforge-js-runtime.cjs');
 const assert=require('node:assert/strict');
-const schemes=['df-worker-standard-probe','df-worker-opaque-probe'];
+const schemes=['df-worker-standard-probe','df-worker-opaque-probe','df-worker-sandbox-probe'];
 protocol.registerSchemesAsPrivileged(schemes.map((scheme,i)=>({scheme,privileges:{
-  standard:i===0,secure:true,supportFetchAPI:true,corsEnabled:true,bypassCSP:false,allowServiceWorkers:false
+  standard:i!==1,secure:true,supportFetchAPI:true,corsEnabled:true,bypassCSP:false,allowServiceWorkers:false
 }})));
 const hostCsp="default-src 'none'; worker-src 'self'; script-src 'none'; connect-src 'none'; object-src 'none'; frame-src 'none'; base-uri 'none'; form-action 'none'";
 const workerCsp="default-src 'none'; script-src 'unsafe-eval'; worker-src 'none'; connect-src 'none'; object-src 'none'; frame-src 'none'; base-uri 'none'; form-action 'none'";
@@ -25,7 +25,7 @@ async function workerProbe(){
   onmessage=async e=>{
     if(e.data==='hang'){while(true){}}
     if(e.data==='ping'){postMessage({ping:true});return;}
-    const r={};
+    const r={origin:self.origin};
     try{
       const AsyncFunction=Object.getPrototypeOf(async function(){}).constructor;
       r.asyncFunction=await new AsyncFunction('return await Promise.resolve(42)')()===42;
@@ -67,6 +67,10 @@ function startWorker(url,command,timeout){
 }
 async function probe(scheme){
   const origin=scheme+'://probe',page=origin+'/index.html',worker=origin+'/worker.js';
+  // Candidate only: ask the browser to enforce sandbox on the worker
+  // response itself. Do not infer origin isolation from the header alone.
+  const sandboxCandidate=scheme==='df-worker-sandbox-probe';
+  const responseCsp=workerCsp+(sandboxCandidate?'; sandbox allow-scripts':'');
   const ses=session.fromPartition('df-worker-probe-'+randomUUID(),{cache:false});
   const permitted=new Set([page,worker,origin+'/nested.js',origin+'/sample']);
   let denied=0;
@@ -77,7 +81,7 @@ async function probe(scheme){
   ses.protocol.handle(scheme,req=>{
     const headers={'Cache-Control':'no-store','X-Content-Type-Options':'nosniff'};
     if(req.url===page)return new Response('<!doctype html><title>Worker probe</title>',{headers:{...headers,'Content-Type':'text/html','Content-Security-Policy':hostCsp}});
-    if(req.url===worker)return new Response('('+workerProbe.toString()+')();',{headers:{...headers,'Content-Type':'text/javascript','Content-Security-Policy':workerCsp}});
+    if(req.url===worker)return new Response('('+workerProbe.toString()+')();',{headers:{...headers,'Content-Type':'text/javascript','Content-Security-Policy':responseCsp}});
     if(req.url===origin+'/nested.js')return new Response('postMessage("nested");',{headers:{...headers,'Content-Type':'text/javascript'}});
     if(req.url===origin+'/sample')return new Response('synthetic probe data',{headers});
     return new Response('',{status:404,headers});
@@ -105,7 +109,7 @@ async function probe(scheme){
     const serviceAlive=alive.ops[0].value==='alive';
     const recovered=timed.kind==='timeout'&&next.kind==='message'&&next.value.ping===true;
     const pids={button:wc.getOSProcessId(),service:service.processId()};
-    return {scheme,checks,serviceAlive,recovered,pids,denied,eligible:checks.asyncFunction===true&&checks.node===true&&blocked.every(k=>checks[k]==='blocked')&&serviceAlive&&recovered&&pids.button>0&&pids.service>0&&pids.button!==pids.service};
+    return {scheme,checks,serviceAlive,recovered,pids,denied,eligible:(!sandboxCandidate||checks.origin==='null')&&checks.asyncFunction===true&&checks.node===true&&blocked.every(k=>checks[k]==='blocked')&&serviceAlive&&recovered&&pids.button>0&&pids.service>0&&pids.button!==pids.service};
   }catch(e){return {scheme,error:String(e.message).slice(0,240),eligible:false};}
   finally{service.close();close();ses.protocol.unhandle(scheme);await ses.clearStorageData();}
 }
@@ -114,7 +118,7 @@ app.on('window-all-closed',()=>{});
 app.whenReady().then(async()=>{
   const results=[];
   for(const scheme of schemes)results.push(await probe(scheme));
-  console.log('MODEL5_WORKER_CSP_PROBE '+JSON.stringify({results,eligible:results.some(r=>r.eligible),productionEnabled:false}));
+  console.log('MODEL5_WORKER_CSP_PROBE '+JSON.stringify({electron:process.versions.electron,chromium:process.versions.chrome,results,eligible:results.some(r=>r.eligible),productionEnabled:false}));
   // Negative feasibility is evidence, not permission to weaken the policy.
   // Existing Model 2 release is unaffected. Full OOM, DrawOps and resource
   // limits remain separate gates even when this probe is eligible.
