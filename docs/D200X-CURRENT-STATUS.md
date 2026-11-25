@@ -9,41 +9,21 @@
 - HA 기존 실기 인증·기기 목록·전등 제어·센서 표시 성공, 최신 실기 별도.
 - 1·2차 감사 합의와 3차 보고서 검토를 기반으로 재설계 방향 및 단계 순서 사용자 승인. 3차 전체 및 핵심 소스 대조 완료; 1·2차 원문 재검토, 감사 19/13행 소스 대응표 작성, 잔여 GUI·실제 장애 별도. 현재 root 45개 suite 등록 및 실제 실행 로그 대조 완료.
 - 소스 대조: DOM 교체·중복 합성·설정 receipt 위험 확인; 기존 1권한효과 제한과 epoch/settingsRevision, WSS 오류 종료 처리 존재. 미저장 실기 미리보기 의도는 정책 결정 전 보존.
-- 01~04A: 검증 인벤토리·instanceId/mountGeneration·공통 합성기·Model 2 실행 격리 구현 및 집중/Windows 검사 통과. 1.1.183 깜박임 국소 개선, 04B 별도. 상세 SDK 계약 및 Git 참조.
-- 02~03: UUIDv4·세대 검증·렌더 합성/dirty loop·Fusion 중복 갱신 차단 구현. 사용자 1.1.182 편집기 깜박임 해소 확인, 물리 버튼 깜박임 없음. 개별 키 USB 기본 OFF, HA 제어 재실행 금지. 상세 이력은 Git/SDK 계약.
 - 04A Model 2: service/button partition·runner 재사용, lane 직렬화·lease 취소·idle LRU/30초·suspend/close·realm reset. legacy 복귀 DECKFORGE_SDK_RUNNER=legacy, 실패 이벤트 재실행 금지. 1.1.189 Windows 성공; 1.1.230 실제 장애 검증 통과.
-- 04B 선행 검증: 전용 Electron CSP/격리 검사만, 실제 앱 Worker 미등록.
 - 04B 실제 Electron: Model 2 PID 5668/844 및 realm/timeout/서비스 생존, DrawOps 픽셀/host 경계 통과. standard Worker 저장소 IndexedDB/CacheStorage/OPFS 허용, opaque Worker 생성 실패. Model 5 비활성 유지. 로드맵에 따라 05 선행 분석만 수행.
-- 1.1.200: 05B 프로필 atomic 설정+receipt, ACK 영구 증거, 24h/4096건. Windows/CI/입력 성공. 1.1.201 Windows/CI/입력 성공(실기 실패와 구분).
 - **HA 사용자 실기 정정:** 기존 배경색 미표시는 HA 0.1.3 미업데이트가 원인, 업데이트 후 정상 작동 사용자 확인. 이전 배경색 결함 보류 해제. 기타 UI 개별 검증은 별도, SDK 로드맵 우선.
-- 1.1.202~204: 05C 저장 재조회·결과/child exit·최신 mount/ABA 검증. Windows/CI 성공. 전원 손실·감사 13개 전체 대조 미검증.
-- 1.1.205~207: WSS 연결 세대/갭·종료 큐, HA catalogue/live 분리, tickWhen 조건 및 자동 회전. Windows #961·CI #1255·입력 #507 성공. 실기 별도.
-- 1.1.212~213: HA 범용 제목/단일 전경 카드 선언 및 기존 데이터 이관, CI #1260~1261·입력 #510~511·Windows #966~967 성공.
-- 1.1.214~216: 데이터 유지 제거/재설치, 누락 표시, 명시 purge 및 보존 범위 검사. CI #1262~1264·입력 #512~514·Windows #968~970 성공.
-- 1.1.217~218: 선택 복원/인증정보 보호 및 호환 관리. #971 성공, #972 제목 실패 후 219 수정.
-- 1.1.219~220: PAGE ZIP 캐시·공통 관리창·AI plugin_log. CI #1267~1268·입력 #517~518·Windows #973~974 성공.
 - 1.1.221: KEY 후보 기본 OFF, 단일 일반 키·16회 한도·실패 시 PAGE 복원. CI #1269·Windows #975 성공. 실제 KEY 미검증.
 - 사용자 실기 보고: 테스트 플러그인 v1.0.0 제거 성공 2026-11-24 16:38:12 UTC, 보존 데이터 삭제 성공(2/2) 16:38:16 UTC; AI 로그 조회 확인. 원본 로그 직접 열람은 아님.
-- 1.1.222: 오래된 압축 실패 시 최신 PAGE 보존, 절전 중 전송 보류/깨우기 전체 복원, 종료 후 지연 HID 연결 차단, KEY 실패 재연결 mock 검증 추가. CI #1270·Windows #976 성공. KEY 기본 OFF 유지.
-- 1.1.223: purge 성공 뒤 정확한 pluginUUID 등록 액션 전체 프로필/템플릿 정리, 기존 버튼 위치/다른 액션 유지, 저장 실패 시 UI 원복. 이미 삭제된 누락 ID는 설치/보존 부재 재검사 및 명시 승인 후 정리. 사용자 데이터 직접 조작 없음. CI #1271·입력 #519·Windows #977 성공. GUI 별도.
-- 1.1.224: --test-key-transport 실행 인자에서만 KEY 허용, 동일 페이지 native 단일 일반 키 부분 렌더만 liveOnly 전달. 일반 실행/와이드 경고는 PAGE. USB log 구조화 slot/ZIP bytes/session, AI 조회, 집중 검사 추가. CI #1272·입력 #520·Windows #978 성공, 설치본 게시 확인. 실제 KEY 미검증.
 - 1.1.231: identity 19행 대조·집중 검사, CI #1281/입력 #521/Windows #985 성공, 게시. 1.1.232: 저장 13행 대응·종료 commit 차단. CI #1282/입력 #522 성공, Windows #986 clean fixture 실패(kind 누락), 종료/페이지·삭제/retire 검사 통과. 1.1.233: fixture 수정 CI #1283/Windows #987 성공, 게시. 1.1.234: 실제 Electron NativePluginHost+임시 ProfileStore, 요청 전/저장 후 ACK 전 renderer crash, 재조회·재실행 금지 검증 추가. CI #1284·Windows #988 성공, 1.1.234 설치본 게시.
-- 1.1.226: Model2 실제 반복/자원 제한/서비스 생존·복구, opaque storage/CSP 검사 및 USB mock 통과. CI #1274·Windows #980 성공. OOM 별도. 세부 수치 SDK 계약.
 - 1.1.230: CI #1278, Windows #984 attempt2 전체 성공. 실제 idle/active crash·거부·서비스/peer 생존·새 이벤트 복구, 25함수·vault 통과. 1차 npm 404 해소(버전 변경 없음). deckforge-v1.1.230 게시, EXE 135231273 bytes. 현재 root suite 45/45 실행 명령 확인, 초기 helper skip 3개와 후속 패키지 검사 구분.
 ## 다음 작업
-- 2.0.34: GitHub 0.1.1 번호 23px/상태 26px, 이름 마퀴 1~3초, 자동 조회 5/15초 또는 고정 5/10/15/30초, 기존 PAT binding 유지. 독립 pollIntervalMs 5초 이상, 집중 검사 추가. Windows 대기. 공통 제목 마퀴 및 저장소/워크플로/브랜치 목록·순환은 별도.
+- SDK 10C 재개: 전용 Windows #78은 soak/OOM 단계 skip. #9 로그에서 30초 이후 service/button PID assertion 실패, OOM 미실행. runner idle eviction 30초와 정적 service fixture 불일치 가능성. 실제 service tick 검증, OOM 독립 실행, 핵심 SDK 변경 시 CI 재검증 조건 보완 예정. 생산 엔진·USB·Model5 정책 유지.
+- 2.0.34: GitHub 0.1.1 번호 23px/상태 26px, 이름 마퀴 1~3초, 자동 조회 5/15초 또는 고정 5/10/15/30초, 기존 PAT binding 유지. 독립 pollIntervalMs 5초 이상, 집중 검사 추가. Windows #37 성공; 실기 미검증. 후속 GitHub 기능은 로드맵 보류.
 - 2.0.33: GitHub 개발 현황 0.1.0 관리 메뉴 내장 설치, 단일 저장소/워크플로/브랜치, 읽기 PAT vault, 30초 조회·한글 상태/빌드 번호·누르면 새로고침. GET 선택 32KiB 응답/6 pathKeys/User-Agent, 집중 검사 추가. Windows #36·CI #1384·SDK #76·입력 #550 성공, 사용자 #36 빌드 성공 표시 확인, 일회성 실행 다운 원인 미확인; 순환/길게 누르기 별도.
-- 2.0.32: 호환 엔진에서 쉼표/UTF-8 charset SVG data URI를 base64로 정규화, 1MiB 제한·기존 사용자 아이콘 우선순위 보존. 실제 setImage 전달 집중 검사 추가. Windows #35·CI #1382·SDK #74 성공; 사용자 GitHub 실시간 표시 확인.
-- 2.0.31: 실제 키/노브 입력 직후 HTTP(S) 링크 1회 직접 실행(3초·동일 소켓/컨텍스트), 배경 요청 확인 유지. 외부 URL 검증 보존, 집중 검사 추가. Windows #34·CI #1380·SDK #72 성공, 실기 대기.
 - 2.0.30: Windows 경로 정규화 native, 양측 SDK 등록 완료 후 appear 단일 전달, Node 오류 분류(원문 미기록), 실행 중 로그 변화 허용·종료 대기·rename 재시도, 삭제 실패 팝업. 집중 검사 추가. Windows #33·CI #1378·SDK #70·입력 #549 성공, 실제 GPU·삭제 확인 대기.
-- 2.0.29: 원본 속성창을 플러그인별 표준 로컬 프로토콜 및 격리 세션에서 로드, 같은 폴더 HTML 팝업·opener 허용. 외부 file 접근 및 다른 폴더 차단. 실제 Electron 팝업/콜백 검사 추가, Windows #32 경로 비교 실패(콜백 미실행).
-- 2.0.28: 기본 액션 및 동작 선택·AI 표시 명칭 상용구 입력으로 변경, ID text·저장값·실행 보존. Windows #31·CI #1374·SDK #66·입력 #547 성공.
 - 2.0.27: 제거된 타이틀 숨김, 관리 메뉴 완전 삭제(독자/Stream Deck), 설치된 Stream Deck 제거 시 완전 삭제 선택. ID/보존 원본·전역 설정 재검사, 삭제 성공 후 등록 액션 정리. 집중 테스트 추가, Windows #30·CI #1372·SDK #64·입력 #546 성공, GUI 대기. 2.0.26 Windows #29 성공. HA 내장 및 파일 필터 개선 별도 대기.
 - 사용자 승인: 독자 HA 플러그인 기본 내장 설치, 별도 HA 추가 버튼 제거, 서버/인증 설정 및 기존 등록 데이터 보존. 별도 대기.
-- 2.0.24: Fusion Run Command 일반 키 ESC 기본 ON, 체크 해제 시 기존 SDK 이벤트 유지. 600ms 판정, 짧은 누름은 SDK down/up, 길게 누름은 명령 없이 전경 Fusion PID 확인 후 ESC 1회. 집중 테스트 추가. Windows #27 실패(기존 앱 실행 VM 테스트에서 fusionPressToken 미정의 5건). 2.0.25에서 독립 라우터 등록 및 기존 디스패처 선택 호출로 분리, 명령 관리자 ID 확인 버튼/메시지 삭제. Windows #28 실패: 읽기 전용 gesture-test 검증 범위에 라우터 구현이 포함됨. 2.0.26 라우터를 편집기 초기화부로 이동, 2.0.23과 dry-run 구간 완전 일치 및 금지 호출 정규식 검사 확인. 기존 테스트 변경 없음. Windows/실기 재검증 대기.
-- 2.0.23: 오른쪽 기본 액션/플러그인 브라우저형 탭, 기본 접힘 플러그인 관리(탭 이탈 시 닫힘). 기존 네 관리 기능과 패널 폭 유지. 자동 Windows 빌드·GUI 검증 대기. Fusion 초기 연결 자동화는 별도 구현 대기.
 - 작업 체크포인트: f718990 2.0.22 명령 관리자 카드/페이지 슬롯/편집기 hover 캐시 설명, ⓘ 상세 경로 제거·설명 표시, 오프라인/늦은 응답 방지. 2.0.21 Windows 성공, 사용자 1555 설명 저장·아이콘 659 실패 보고. 2.0.22 자동 빌드/GUI 미확인. 아이콘 실패 진단 별도.
-- 2.0.1~2.0.3 CI/Windows 성공, 2.0.3 게시. 2.0.4 CI/root 회귀 성공. 동시 반영 2.0.5 독자 mount 선등록·snapshot 보존, CI 성공·Windows 진행. 2.0.6 실제 Electron 13키×4 입력·페이지 전환·모의 절전복귀·서비스/메모리 검사 추가, 실행 대기. 실기·OOM·장시간 soak 별도. SDK 10C 계속.
 - **10C 판정:** 자동 검증/설치본 통과, 정식 SDK 1.0 출시 보류. 실제 HA/D200X/OS 절전·재연결/장시간 soak, 실제 OOM, identity GUI, 설정 저장 13행 추가 검사 통과, 1.1.234 Windows 통합 검사 통과, 전원 손실/제품 IPC 실기 별도. Model5 차단, KEY 기본 OFF, 기존 미리보기 유지.
 - 기존 기능/데이터/API·보안 보존, 테스트/CI/Windows/실기 구분. 미측정 성능 수치 단정 금지.
 ## 참조
