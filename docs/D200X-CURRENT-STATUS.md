@@ -33,7 +33,8 @@
 - 1.1.226: Model2 실제 반복/자원 제한/서비스 생존·복구, opaque storage/CSP 검사 및 USB mock 통과. CI #1274·Windows #980 성공. OOM 별도. 세부 수치 SDK 계약.
 - 1.1.230: CI #1278, Windows #984 attempt2 전체 성공. 실제 idle/active crash·거부·서비스/peer 생존·새 이벤트 복구, 25함수·vault 통과. 1차 npm 404 해소(버전 변경 없음). deckforge-v1.1.230 게시, EXE 135231273 bytes. 현재 root suite 45/45 실행 명령 확인, 초기 helper skip 3개와 후속 패키지 검사 구분.
 ## 다음 작업
-- 2.0.32: 호환 엔진에서 쉼표/UTF-8 charset SVG data URI를 base64로 정규화, 1MiB 제한·기존 사용자 아이콘 우선순위 보존. 실제 setImage 전달 집중 검사 추가. Windows/실기 대기.
+- 2.0.33 작업: 독자 GitHub 개발 현황 0.1.0, 단일 저장소/워크플로/브랜치 조회, 읽기 전용 PAT vault, 한국어 고대비 상태, 자동 갱신. 복수 순환/길게 누르기 별도.
+- 2.0.32: 호환 엔진에서 쉼표/UTF-8 charset SVG data URI를 base64로 정규화, 1MiB 제한·기존 사용자 아이콘 우선순위 보존. 실제 setImage 전달 집중 검사 추가. Windows #35·CI #1382·SDK #74 성공; 사용자 GitHub 실시간 표시 확인.
 - 2.0.31: 실제 키/노브 입력 직후 HTTP(S) 링크 1회 직접 실행(3초·동일 소켓/컨텍스트), 배경 요청 확인 유지. 외부 URL 검증 보존, 집중 검사 추가. Windows #34·CI #1380·SDK #72 성공, 실기 대기.
 - 2.0.30: Windows 경로 정규화 native, 양측 SDK 등록 완료 후 appear 단일 전달, Node 오류 분류(원문 미기록), 실행 중 로그 변화 허용·종료 대기·rename 재시도, 삭제 실패 팝업. 집중 검사 추가. Windows #33·CI #1378·SDK #70·입력 #549 성공, 실제 GPU·삭제 확인 대기.
 - 2.0.29: 원본 속성창을 플러그인별 표준 로컬 프로토콜 및 격리 세션에서 로드, 같은 폴더 HTML 팝업·opener 허용. 외부 file 접근 및 다른 폴더 차단. 실제 Electron 팝업/콜백 검사 추가, Windows #32 경로 비교 실패(콜백 미실행).
