@@ -221,3 +221,9 @@ report03.md §4.2 13행 원문 기준. 1.1.231 CI #1281/입력 #521/Windows #985
 
 - 2.0.39 / SDK #93 (45608509435): 실제 Windows Electron OOM reason=oom, exitCode=-536870904, 실패 입력 거부·서비스/peer 생존·새 입력 복구 성공. 로컬 전용 Crashpad 초기화/임시 dump 정리. 5분 soak 1391 press/105 페이지 전환/274 service tick, runner 2개, 실제 renderer/임시 ProfileStore 요청 전·저장 후 crash 각각 0/1회 쓰기 및 재실행 없음. 실기/OS 전원 손실 및 Model 5 OOM은 별도. Model 5 기본 OFF 유지.
 - 2.0.40: NativePluginHost 서비스 정책 로딩 단일 Promise 공유, 읽기 진행 중 서비스 시작 차단, 기존 정지 설정/손상 파일 보존. 집중 회귀 검사 추가; 신규 결과 대기.
+
+## 2.0.53 실시간 WebSocket 장애 개선 (2026-11-26)
+- 기존 8개/초 고정 창 폐기: 단조 시계 token bucket 수신 burst 128/64 fps·2MiB/512KiB/s, 송신 burst 16/8 fps·32KiB/32KiB/s. 실제 용량 측정 전 초기 검증값. 미처리(실행 중 포함) 연결당 256건/2MiB, 전체 8MiB JSON 직렬화 기준; 단일 프레임 기존 제한 유지. FIFO 무음 유실 금지, 초과 시 세대 무효화/전체 재구독, 재연결 opt-in 한정. 대기 중 입력은 앞선 메시지를 먼저 FIFO에 넣고 포화 시 거부(재생 없음).
+- API2 capability socketBatch: background.run+network.websocket 필요, 서비스만 최대 8건/512KiB, 큰 단건은 기존 한도. response.event='messages', bodies:string[]; 기존 단건 호환. 첫 프레임 즉시, 처리 중 후속 프레임 묶음. 배치에 한해 socketSend만 8개/합계16KiB 허용(그 외 1효과, settings/권한 불변). 실제 송신 실패 시 재연결/명령 재실행 금지. HA 0.1.13 순서 보존, 최종 publish 1회, 수치만 변경 시 목록 재사용.
+- 재연결 1/2/5/10/30초±20%, 연결 30초 안정 후 시도 횟수 재충전, 인증·TLS·잘못된 프레임 재시도 금지. rate-limit/queue-capacity/송신 과부하 복구 가능 오류, 명령 재전송 없음. Scheduler admission 포화만 실행 전 재시도, 입력은 2초 초과 거부, 실제 실행 실패 재실행 금지.
+- Gemini 감사의 HA 서버 coalesce_messages 협상, 구독 범위 최적화, 공유 상태/HTTP 한도 및 일반 다중 송신은 후속 계측 후 결정. 실제 Model 2 13키/500엔티티/50프레임 모의 transport 시험 추가; 실 HA/D200X 별도. 기존 자격증명 바인딩 유지.

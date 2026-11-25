@@ -169,7 +169,7 @@ function createScriptRunner(pluginId,scope='legacy'){
       if(closed)throw unavailable('JavaScript SDK renderer closed');
       const data=JSON.stringify(input);
       const largeShared=Buffer.byteLength(JSON.stringify(input.sharedState||{}))>8192;
-      const inputLimit=largeShared?MAX_SHARED_INPUT:input.event?.type==='socketEvent'&&input.event.response?.event==='message'?MAX_SOCKET_INPUT:MAX_INPUT;
+      const inputLimit=largeShared?MAX_SHARED_INPUT:input.event?.type==='socketEvent'&&['message','messages'].includes(input.event.response?.event)?MAX_SOCKET_INPUT:MAX_INPUT;
       if(Buffer.byteLength(data)>inputLimit)throw Error('JavaScript SDK input limit');
       if(busy)throw Error('JavaScript SDK renderer busy');
       busy=true;

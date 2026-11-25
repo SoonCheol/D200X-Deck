@@ -9,7 +9,7 @@ class SdkScheduler{
   run(plugin,active,work,scope=null){
     if(this.closed||!active())return Promise.resolve(undefined);
     this.prune();
-    if(this.waiting.length>=this.queueLimit)return Promise.reject(Error('SDK scheduler capacity'));
+    if(this.waiting.length>=this.queueLimit)return Promise.reject(Object.assign(Error('SDK scheduler capacity'),{code:'SDK_SCHEDULER_CAPACITY'}));
     return new Promise((resolve,reject)=>{
       this.waiting.push({plugin,active,work,resolve,reject,lane:scope===null?null:JSON.stringify([plugin,scope])});this.drain();
     });

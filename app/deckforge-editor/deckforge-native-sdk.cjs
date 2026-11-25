@@ -22,6 +22,7 @@ const OPS=new Set(['title','titleFromSetting','state','stateFromSetting','toggle
 const EXTRA_PERMISSIONS=['settings.write','navigation','wide.mode','global.settings','wide.overlay','network.request','timer.tick','network.poll','network.websocket','background.run'];
 const SERVICE_PREFIX='@service:',MAX_SERVICES=8;
 const MAX_PENDING_EVENTS=64,INPUT_RESERVE=4,MAX_NETWORK_GLOBAL=8,MAX_NETWORK_PLUGIN=2;
+const RX_SOCKET_BYTES=2*1024*1024,RX_GLOBAL_BYTES=8*1024*1024,RX_FRAMES=256,RX_BATCH_BYTES=512*1024,RX_BATCH_COUNT=8;
 const INPUT_EVENTS=new Set(['press','release','rotateLeft','rotateRight','heldRotateLeft','heldRotateRight']);
 const obj=x=>x!==null&&typeof x==='object'&&!Array.isArray(x);
 const validText=(x,n)=>typeof x==='string'&&x.length>0&&x.length<=n;
@@ -70,8 +71,9 @@ function validateNativeManifest(m){
   check(Array.isArray(m.permissions)&&m.permissions.includes('display')&&new Set(m.permissions).size===m.permissions.length&&
     m.permissions.every(p=>p==='display'||(m.apiVersion===2&&EXTRA_PERMISSIONS.includes(p))),'unsupported permissions');
   if(m.capabilities!==undefined)check(m.apiVersion===2&&Array.isArray(m.capabilities)&&
-    m.capabilities.length===1&&m.capabilities[0]==='settingsResult'&&m.permissions.includes('settings.write'),
-    'unsupported capabilities or missing settings.write');
+    m.capabilities.length>0&&new Set(m.capabilities).size===m.capabilities.length&&
+    m.capabilities.every(c=>c==='settingsResult'?m.permissions.includes('settings.write'):c==='socketBatch'&&m.permissions.includes('network.websocket')&&m.permissions.includes('background.run')),
+    'unsupported capabilities or missing permissions');
   check((m.service!==undefined)===m.permissions.includes('background.run'),'background service requires explicit permission and declaration');
   if(m.service!==undefined){
     const service=m.service;
@@ -163,7 +165,9 @@ class NativePluginHost{
     this.dependencyWarnings=new Map();
     this.networkRequest=options.networkRequest||requestEndpoint;this.networkPending=new Set();
     this.socketFactory=options.socketFactory||createSocket;this.socketPending=new Set();
-    this.socketRetryDelays=options.socketRetryDelays||[1000,3000,10000];
+    this.socketRetryDelays=options.socketRetryDelays||[1000,2000,5000,10000,30000];
+    this.socketStableMs=options.socketStableMs??30000;
+    this.socketRetryJitter=options.socketRetryDelays?0:0.2;
     this.socketHeartbeatMs=options.socketHeartbeatMs??30000;this.socketPongMs=options.socketPongMs??10000;
     this.socketAuthMs=options.socketAuthMs??5000;
     // Use elapsed time for periodic work and rate limits. Wall clock changes
@@ -316,7 +320,7 @@ class NativePluginHost{
     await this.versions.replace(m,expectedRevision,stop,restore,haConfiguration);
     return catalog(m);
   }
-  validateScriptOps(ctx,event,program){
+  validateScriptOps(ctx,event,program,response=null){
     check(Array.isArray(program)&&program.length<=16,'invalid operation list');
     const normal=[],effects=[];let pixelCount=0,animationCount=0;
     const validSettings=(v,depth=0)=>{
@@ -353,7 +357,8 @@ class NativePluginHost{
       const socketContinuation=['socketSend','socketClose'].includes(op?.op)&&event==='socketEvent';
       const serviceInput=ctx.service&&event==='serviceMessage'&&['networkRequest','socketSend','socketClose','socketConnect'].includes(op?.op);
       check(event!=='settingsResult'&&(INPUT_EVENTS.has(event)||polling||socketLifecycle||socketContinuation||serviceInput),'privileged operation requires input event');
-      check(effects.length===0,'only one privileged operation per event');
+      const batchedSend=ctx.service&&ctx.capabilities?.includes('socketBatch')&&event==='socketEvent'&&response?.event==='messages'&&op?.op==='socketSend'&&effects.every(e=>e.op==='socketSend')&&effects.length<RX_BATCH_COUNT;
+      check(effects.length===0||batchedSend,'only one privileged operation per event');
       if(op?.op==='settingsPatch'){
         check(ctx.permissions.includes('settings.write')&&exact(op,['op','value'])&&obj(op.value)&&
           Object.keys(op.value).length>0&&Buffer.byteLength(JSON.stringify(op.value))<=8192&&
@@ -396,7 +401,10 @@ class NativePluginHost{
       effects.push(op);
     }
     check(!animationCount||!normal.some(op=>op.op==='image'),'animation and static image cannot share an event');
-    if(ctx.service)return {normal,effects};
+    if(ctx.service){
+      if(effects.length>1)check(effects.reduce((sum,e)=>sum+Buffer.byteLength(JSON.stringify(e.value)),0)<=16384,'socket batch send budget');
+      return {normal,effects};
+    }
     const {script,tickIntervalMs,stateImages,sharedStateView,tickWhen,pollIntervalMs,...action}=ctx.action;
     validateNativeManifest({apiVersion:1,id:ctx.pluginUUID,name:'Runtime',version:'1',
       permissions:['display'],actions:[{...action,events:{press:normal.filter(op=>!['animation','stopAnimation'].includes(op.op))}}]});
@@ -552,6 +560,7 @@ class NativePluginHost{
     for(const name of ['retryTimer','heartbeatTimer','pongTimer','authTimer']){
       clearTimeout(token[name]);token[name]=null;
     }
+    token.rxQueue=[];token.rxBytes=0;token.rxCount=0;token.rxInFlight=0;token.openedAt=null;
     const socket=token.socket;token.socket=null;token.ready=false;
     try{socket?.terminate();}catch{}
   }
@@ -563,10 +572,10 @@ class NativePluginHost{
     ctx.socketToken=null;this.socketPending.delete(token);
     this.disposeSocketTransport(token);
   }
-  socketEvent(ctx,token,event,body='',error=null){
+  socketEvent(ctx,token,event,body='',error=null,receipt=null,bodies=null){
     if(!token.active()||ctx.socketGeneration!==token.generation)return false;
     const terminal=['error','close','reconnecting'].includes(event);
-    const response={endpoint:token.endpoint.id,event,body,error,generation:token.generation,gap:terminal};
+    const response={endpoint:token.endpoint.id,event,body,error,generation:token.generation,gap:terminal,...(bodies?{bodies}:{})};
     if(terminal){
       // Loss of a transport is not ordinary traffic. Reserve capacity for
       // its invalidation; retain at most the newest undelivered notice.
@@ -575,7 +584,7 @@ class NativePluginHost{
       return true;
     }
     if(ctx.pending>=MAX_PENDING_EVENTS-INPUT_RESERVE){this.reportBackpressure(ctx);return false;}
-    return this.runScript(ctx,'socketEvent',response,token.settings,token.generation);
+    return this.runScript(ctx,'socketEvent',response,token.settings,token.generation,receipt);
   }
   queueSocketNotice(ctx){
     const notice=ctx.socketNotice;
@@ -590,6 +599,7 @@ class NativePluginHost{
   finishSocket(ctx,token,event,error=null,retry=false){
     if(ctx.socketToken!==token)return;
     ctx.socketError=error||null;
+    if(token.ready&&token.openedAt!==null&&this.now()-token.openedAt>=this.socketStableMs)token.attempt=0;
     this.disposeSocketTransport(token);
     // A disconnected stream cannot be treated as a complete snapshot.
     // Discard queued data from the old connection before delivering notice.
@@ -598,7 +608,8 @@ class NativePluginHost{
     if(retry&&token.endpoint.reconnect===true&&token.active()&&token.attempt<this.socketRetryDelays.length){
       // Invalidate all previously queued socket events before a new transport.
       // Reconnect the approved endpoint only, never replay a send or input.
-      const delay=this.socketRetryDelays[token.attempt++];
+      const base=this.socketRetryDelays[token.attempt++];
+      const delay=Math.round(base*(1+(Math.random()*2-1)*this.socketRetryJitter));
       token.retryTimer=setTimeout(()=>{
         token.retryTimer=null;
         if(ctx.socketToken===token&&token.active())this.openSocketTransport(ctx,token);
@@ -611,11 +622,50 @@ class NativePluginHost{
     ctx.socketToken=null;this.socketPending.delete(token);
     this.socketEvent(ctx,token,event,'',error);
   }
-  socketRate(token,direction){
-    const now=this.now(),field=direction+'Rate';
+  socketRate(token,direction,bytes=0){
+    const now=this.now(),field=direction+'Rate',rx=direction==='receive';
+    const capacity=rx?128:16,refill=rx?64:8,byteCapacity=rx?RX_SOCKET_BYTES:32768,byteRefill=rx?512*1024:32768;
     let rate=token[field];
-    if(!rate||now<rate.start||now-rate.start>=1000)rate=token[field]={start:now,count:0};
-    return ++rate.count<=8;
+    if(!rate)rate=token[field]={start:now,tokens:capacity,bytes:byteCapacity};
+    const elapsed=Math.max(0,now-rate.start)/1000;
+    rate.start=Math.max(now,rate.start);
+    rate.tokens=Math.min(capacity,rate.tokens+elapsed*refill);
+    rate.bytes=Math.min(byteCapacity,rate.bytes+elapsed*byteRefill);
+    if(rate.tokens<1||rate.bytes<bytes)return false;
+    rate.tokens--;rate.bytes-=bytes;return true;
+  }
+  receiveSocketFrame(ctx,token,body,bytes){
+    if(!this.socketRate(token,'receive',bytes)){this.finishSocket(ctx,token,'error','rate-limit',true);return;}
+    const total=[...this.socketPending].reduce((sum,t)=>sum+(t.rxBytes||0),0);
+    if(token.rxCount>=RX_FRAMES||token.rxBytes+bytes>RX_SOCKET_BYTES||total+bytes>RX_GLOBAL_BYTES){
+      this.finishSocket(ctx,token,'error','queue-capacity',true);return;
+    }
+    token.rxQueue.push({body,bytes});token.rxBytes+=bytes;token.rxCount++;
+    this.flushSocketFrames(ctx,token);
+  }
+  flushSocketFrames(ctx,token,force=false){
+    if(!token||ctx.socketToken!==token||!token.active()||!token.ready||ctx.socketGeneration!==token.generation)return false;
+    if(!force&&token.rxInFlight)return token.rxQueue.length===0;
+    do{
+      if(!token.rxQueue.length)return true;
+      if(ctx.pending>=MAX_PENDING_EVENTS-INPUT_RESERVE)return false;
+      const max=ctx.service&&ctx.capabilities?.includes('socketBatch')?RX_BATCH_COUNT:1;
+      let bytes=0,count=0;
+      for(const frame of token.rxQueue){
+        if(count>=max||(count>0&&bytes+frame.bytes>RX_BATCH_BYTES))break;
+        bytes+=frame.bytes;count++;
+      }
+      const frames=token.rxQueue.slice(0,count),bodies=frames.map(f=>f.body);
+      const receipt={token,generation:token.generation,bytes,count};
+      if(!this.socketEvent(ctx,token,count===1?'message':'messages',count===1?bodies[0]:'',null,receipt,count===1?null:bodies))return false;
+      token.rxQueue.splice(0,count);token.rxInFlight++;
+    }while(force);
+    return token.rxQueue.length===0;
+  }
+  completeSocketFrames(ctx,receipt){
+    const {token,generation,bytes,count}=receipt;
+    if(ctx.socketToken!==token||token.generation!==generation)return;
+    token.rxBytes-=bytes;token.rxCount-=count;token.rxInFlight--;
   }
   startSocket(ctx,operation,active){
     const endpoint=validateSocketOperation(operation,ctx.networkEndpoints);
@@ -635,6 +685,7 @@ class NativePluginHost{
     const active=()=>token.active()&&ctx.socketToken===token&&ctx.socketGeneration===generation;
     const fail=(error,retry=false)=>this.finishSocket(ctx,token,'error',error,retry);
     token.ready=false;token.bearer=null;token.sendRate=null;token.receiveRate=null;
+    token.rxQueue=[];token.rxBytes=0;token.rxCount=0;token.rxInFlight=0;token.openedAt=null;
     Promise.resolve().then(async()=>{
       if(!active())return;
       if(binding){
@@ -659,8 +710,8 @@ class NativePluginHost{
         },this.socketHeartbeatMs);
       };
       const opened=()=>{
-        clearTimeout(token.authTimer);token.authTimer=null;token.ready=true;ctx.socketError=null;
-        if(!this.socketEvent(ctx,token,'open')){fail('queue-capacity');return;}
+        clearTimeout(token.authTimer);token.authTimer=null;token.ready=true;token.openedAt=this.now();ctx.socketError=null;
+        if(!this.socketEvent(ctx,token,'open')){fail('queue-capacity',true);return;}
         heartbeat();
       };
       let authPhase=endpoint.auth==='home-assistant'?'required':null;
@@ -691,7 +742,6 @@ class NativePluginHost{
         const body=data.toString('utf8');
         const serializedBytes=Buffer.byteLength(JSON.stringify(body));
         if(serializedBytes>limit){fail('message-limit');return;}
-        if(serializedBytes>8192&&ctx.pending>=4){fail('queue-capacity');return;}
         if(token.bearer!==null&&body.includes(token.bearer)){fail('credential-in-response');return;}
         if(authPhase){
           let message;try{message=JSON.parse(body);}catch{fail('authentication-protocol');return;}
@@ -706,8 +756,7 @@ class NativePluginHost{
           fail('authentication-protocol');return;
         }
         if(!token.ready){fail('invalid-message');return;}
-        if(!this.socketRate(token,'receive')){fail('rate-limit');return;}
-        if(!this.socketEvent(ctx,token,'message',body))fail('queue-capacity');
+        this.receiveSocketFrame(ctx,token,body,serializedBytes);
       });
     }).catch(()=>{if(active())fail('connection-error');});
   }
@@ -715,10 +764,11 @@ class NativePluginHost{
     const token=ctx.socketToken;
     if(!token||!token.active()||!token.ready||token.socket?.readyState!==1){this.report(ctx.pluginUUID,Error('WebSocket not open'));return;}
     const socket=token.socket,generation=token.generation;
-    const fail=error=>{if(ctx.socketToken===token&&token.socket===socket&&token.generation===generation)this.finishSocket(ctx,token,'error',error);};
-    if(!this.socketRate(token,'send')){fail('rate-limit');return;}
+    const fail=error=>{if(ctx.socketToken===token&&token.socket===socket&&token.generation===generation)this.finishSocket(ctx,token,'error',error,true);};
     const data=typeof operation.value==='string'?operation.value:JSON.stringify(operation.value);
-    if(socket.bufferedAmount+Buffer.byteLength(data)>32768){fail('send-capacity');return;}
+    const bytes=Buffer.byteLength(data);
+    if(!this.socketRate(token,'send',bytes)){this.report(ctx.pluginUUID,Error('WebSocket send rate limit; command not sent'));fail('send-rate-limit');return;}
+    if(socket.bufferedAmount+bytes>32768){this.report(ctx.pluginUUID,Error('WebSocket send capacity; command not sent'));fail('send-capacity');return;}
     try{socket.send(data,error=>{if(error)fail('connection-error');});}
     catch{fail('connection-error');}
   }
@@ -817,11 +867,27 @@ class NativePluginHost{
       this.report(ctx.pluginUUID,Error('input queue busy; event not accepted'));
     }
   }
-  runScript(ctx,event,response=null,expectedSettings=null,expectedSocket=null){
+  async runAdmitted(ctx,event,active,work,scope){
+    const started=this.now();
+    while(active()){
+      try{return await this.scheduler.run(ctx.pluginUUID,active,work,scope);}
+      catch(error){
+        if(error?.code!=='SDK_SCHEDULER_CAPACITY')throw error;
+        if((INPUT_EVENTS.has(event)||event==='serviceMessage')&&this.now()-started>=2000){
+          this.reportBackpressure(ctx);return undefined;
+        }
+        await new Promise(resolve=>setTimeout(resolve,25));
+      }
+    }
+  }
+  runScript(ctx,event,response=null,expectedSettings=null,expectedSocket=null,socketReceipt=null){
     const resultEvent=event==='settingsResult';
     const socketNoticeEvent=event==='socketEvent'&&['error','close','reconnecting'].includes(response?.event);
     if(resultEvent&&(!ctx.capabilities?.includes('settingsResult')||ctx.service))return false;
     if(ctx.settingsUncertain&&!resultEvent)return false;
+    // Never read stale state when an earlier socket frame is still buffered.
+    if((INPUT_EVENTS.has(event)||event==='serviceMessage')&&ctx.socketToken?.rxQueue?.length&&
+       !this.flushSocketFrames(ctx,ctx.socketToken,true)){this.reportBackpressure(ctx);return false;}
     // Saturation is backpressure, not a plugin failure. Keep admitted work
     // ordered and leave the renderer and context alive.
     if(ctx.pending>=MAX_PENDING_EVENTS+(socketNoticeEvent?2:resultEvent?1:0)){
@@ -843,17 +909,17 @@ class NativePluginHost{
           await this.vault.read(ctx.pluginUUID):{value:{},revision:null};
         if(!active())return;
         const settingsSnapshot=structuredClone(ctx.settings);
-        const result=await this.scheduler.run(ctx.pluginUUID,active,()=>{
+        const result=await this.runAdmitted(ctx,event,active,()=>{
           if(!ctx.runner)ctx.runner=this.runnerFactory(ctx.pluginUUID,ctx.service?'service':'button');
           return ctx.runner.run(ctx.action.script,{
             event:{type:event,slot:ctx.service?null:ctx.slot,gesture:ctx.service?null:ctx.gesture||'down',...(ctx.service?{scope:'service'}:{}),...(response?{response}:{})},
             settings:ctx.action.settingsSchema?nativeEffectiveSettings(ctx.action.settingsSchema,settingsSnapshot):structuredClone(settingsSnapshot),state:ctx.state,memory:structuredClone(ctx.memory),globalSettings:structuredClone(global.value),sharedState:this.sharedSnapshot(ctx)
           });
         },this.runnerPool?(ctx.service?'service':'button'):null);
-        if(!active())return;
+        if(!active()||result===undefined)return;
         check(exact(result,['ops','memory'])&&obj(result.memory),'invalid JavaScript memory');
         validateValue(result.memory,8192);
-        const {normal,effects}=this.validateScriptOps(ctx,event,result.ops);
+        const {normal,effects}=this.validateScriptOps(ctx,event,result.ops,response);
         for(const operation of effects){
           if(operation.op==='settings'){
             const receipt=await this.requestSettingsCommit(ctx,operation,settingsSnapshot,active);
@@ -894,7 +960,11 @@ class NativePluginHost{
             pluginUUID:ctx.pluginUUID,actionUUID:ctx.action.id,operation});
         }
       }catch(error){if(active())this.fail(ctx,error);}
-    }).finally(()=>{if(ctx.epoch===epoch){ctx.pending--;if(event==='sharedState')ctx.sharedQueued=false;this.queueSocketNotice(ctx);this.queueSettingsRefresh(ctx);this.queueSharedRefresh(ctx);}});
+    }).finally(()=>{if(ctx.epoch===epoch){
+      ctx.pending--;if(socketReceipt)this.completeSocketFrames(ctx,socketReceipt);
+      if(event==='sharedState')ctx.sharedQueued=false;
+      this.queueSocketNotice(ctx);this.flushSocketFrames(ctx,ctx.socketToken);this.queueSettingsRefresh(ctx);this.queueSharedRefresh(ctx);
+    }});
     return true; // accepted for dispatch; not a claim of completed execution
   }
   retire(ctx){
@@ -926,12 +996,12 @@ class NativePluginHost{
     }
     for(const m of selected){
       const id=SERVICE_PREFIX+m.id;
-      const signature=JSON.stringify([m.version,m.permissions,m.networkEndpoints||[],m.service]);
+      const signature=JSON.stringify([m.version,m.permissions,m.capabilities||[],m.networkEndpoints||[],m.service]);
       let ctx=this.contexts.get(id);
       if(ctx&&ctx.signature!==signature){this.retire(ctx);this.contexts.delete(id);ctx=null;}
       if(!ctx){
         ctx={context:id,service:true,pluginUUID:m.id,action:{id:m.id+'.service',script:m.service.script,tickIntervalMs:m.service.tickIntervalMs},
-          apiVersion:2,permissions:[...m.permissions],networkEndpoints:m.networkEndpoints||[],signature,settings:{},state:0,pressed:false,failed:false,sharedStateBytes:m.service.sharedStateBytes||8192,
+          apiVersion:2,permissions:[...m.permissions],capabilities:[...(m.capabilities||[])],networkEndpoints:m.networkEndpoints||[],signature,settings:{},state:0,pressed:false,failed:false,sharedStateBytes:m.service.sharedStateBytes||8192,
           epoch:0,settingsRevision:0,pending:0,queue:Promise.resolve(),runner:null,memory:{},sharedState:{},recoveryAttempts:0,recoveryTimer:null};
         this.contexts.set(id,ctx);if(!this.suspended)this.initialize(ctx);
       }

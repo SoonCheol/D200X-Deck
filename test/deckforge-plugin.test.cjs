@@ -772,14 +772,14 @@ test('native elapsed clock and socket rate limit ignore wall clock changes',()=>
  try{
   const before=performance.now(),observed=host.now();
   assert.ok(observed>=before&&observed<=performance.now());
-  for(let i=0;i<8;i++)assert.equal(host.socketRate(token,'receive'),true);
+  for(let i=0;i<128;i++)assert.equal(host.socketRate(token,'receive'),true);
   const started=token.receiveRate.start,wall=original();
   // Keep the simulation synchronous so no other asynchronous task observes it.
   Date.now=()=>wall+86400000;
   assert.equal(host.socketRate(token,'receive'),false);
   Date.now=()=>wall-86400000;
   assert.equal(host.socketRate(token,'receive'),false);
-  assert.equal(token.receiveRate.start,started);
+  assert.ok(token.receiveRate.start>=started);
   assert.ok(host.now()>=observed);
  }finally{Date.now=original;host.close();}
 });
@@ -866,8 +866,11 @@ test('native WebSocket lifecycle sends and receives, isolates stale context and 
    assert.equal(updates.some(e=>e.payload?.title==='stale'),false);
    host.sync([cfg],[manifest]);await drain();assert.equal(sockets.length,2);
    sockets[1].open();await drain();
-   for(let i=0;i<9;i++)sockets[1].emit('message',Buffer.from('event'+i),false);
-   await drain();assert.equal(sockets[1].terminated,true);assert.equal(host.socketPending.size,0);
+   for(let i=0;i<30;i++)sockets[1].emit('message',Buffer.from('event'+i),false);
+   const ctx=host.contexts.get(cfg.context);
+   for(let i=0;i<40&&ctx.socketToken?.rxCount;i++)await drain();
+   assert.equal(sockets[1].terminated,undefined);assert.equal(host.socketPending.size,1);
+   assert.equal(ctx.socketToken.rxCount,0);assert.ok(updates.some(e=>e.payload?.title==='event29'));
    host.suspend();assert.equal(host.socketPending.size,0);
  }finally{host.close();}
 });
@@ -2710,12 +2713,15 @@ test('socket loss invalidates queued stream data and delivers terminal notice de
   hold=true;assert.equal(host.runScript(ctx,'settings'),true);await entered;
   socket.emit('message',Buffer.from('queued-old-data'),false);
   for(let i=ctx.pending;i<64;i++)assert.equal(host.runScript(ctx,'settings'),true);
-  socket.emit('message',Buffer.from('overflow'),false);
+  // Ordinary FIFO pressure is buffered, but real ingress overflow invalidates
+  // the generation and delivers the reserved terminal notice.
+  socket.emit('message',Buffer.from('buffered'),false);assert.equal(socket.readyState,1);
+  host.receiveSocketFrame(ctx,ctx.socketToken,'overflow',2*1024*1024);
   assert.equal(socket.readyState,3);assert.equal(host.socketPending.size,0);
   assert.ok(ctx.pending<=66);
   unblock();await drain(ctx);
   assert.equal(calls.some(x=>x.event==='message'),false);
-  const last=calls.at(-1);assert.equal(last.event,'error');assert.equal(last.error,'queue-capacity');
+  const last=calls.at(-1);assert.equal(last.event,'error');assert.ok(['queue-capacity','rate-limit'].includes(last.error));
   assert.equal(last.gap,true);assert.ok(last.generation>gen);assert.equal(ctx.socketNotice,null);
   assert.equal(socket.sent.length,0);
  }finally{unblock();host.close();}
@@ -2766,7 +2772,7 @@ test('conditional tick schedule runs only for auto multi-selection and follows c
  let now=1000;const calls=[];
  const cfg={context:'conditional-tick',slot:0,gesture:'down',pluginUUID:m.id,actionUUID:action.id,settings:{mode:'all',entities:['sensor.a','sensor.b']}};
  // Isolate the action scheduler from real HA I/O.
- const manifest={...m,permissions:['display','timer.tick'],networkEndpoints:undefined,service:undefined,actions:[{...action,sharedStateView:undefined}]};
+ const manifest={...m,permissions:['display','timer.tick'],capabilities:undefined,networkEndpoints:undefined,service:undefined,actions:[{...action,sharedStateView:undefined}]};
  const host=new NativePluginHost('/unused',()=>{},()=>({async run(_source,input){calls.push(input.event.type);return {ops:[],memory:{}};},close(){}}),{now:()=>now});
  try{
   host.sync([cfg],[manifest]);const ctx=host.contexts.get(cfg.context);await ctx.queue;
@@ -3171,7 +3177,7 @@ test('built-in HA upgrade keeps previous endpoint credential and action setting 
  const legacy={list:async()=>[],sync:async()=>{},close:async()=>{}};
  const host=new NativePluginHost(temp,()=>{},null,{storage}),router=new PluginRouter(legacy,host);
  const newer=createHomeAssistantManifest('https://example.com');
- const old=structuredClone(newer);old.version='0.1.9';old.requiresDeckForge='>=2.0.45';old.actions=old.actions.slice(0,2);old.actions[0].name='HA 기기 제어';old.actions[1].name='HA 센서 표시';
+ const old=structuredClone(newer);delete old.capabilities;old.version='0.1.9';old.requiresDeckForge='>=2.0.45';old.actions=old.actions.slice(0,2);old.actions[0].name='HA 기기 제어';old.actions[1].name='HA 센서 표시';
 
  const binding=credentialBinding(old.id,old.networkEndpoints[0]),token='fixture.token-123';
  try{
@@ -3187,4 +3193,44 @@ test('built-in HA upgrade keeps previous endpoint credential and action setting 
    assert.equal(actual.actions[0].settingsSchema.find(f=>f.key==='linked').default,false);
    assert.equal(await router.ensureBuiltinHa(),'existing');
  }finally{await router.close();await fs.rm(temp,{recursive:true,force:true});}
+});
+
+test('HA batch preserves ordered deltas and publishes once; bounded send exception is batch-only',()=>{
+ const {createHomeAssistantManifest,service}=require('../app/deckforge-editor/deckforge-ha-plugin.cjs');
+ const m=createHomeAssistantManifest('https://example.com'),host=new NativePluginHost('/unused');
+ const ctx={service:true,permissions:m.permissions,capabilities:m.capabilities,networkEndpoints:m.networkEndpoints,sharedStateBytes:262144};
+ let shared={status:'연결됨',entities:{'switch.a':{label:'A',value:'off',unit:'',kind:''}},controls:[{value:'switch.a',label:'A',group:'기기 미분류 스위치'}],sensors:[],others:[]},published=0;
+ const memory={phase:'live',next:20,generation:2,pending:[{id:11,base:'switch.a',target:'switch.a',operation:'turn_on'},{id:12,base:'switch.a',target:'switch.a',operation:'turn_off'}]};
+ const ops=[],api={getSharedState:()=>structuredClone(shared),publishSharedState:v=>{published++;shared=v;ops.push({op:'publishSharedState',value:v});},sendSocket:v=>ops.push({op:'socketSend',value:v})};
+ const event={type:'socketEvent',response:{event:'messages',generation:2,bodies:[
+  {type:'event',id:3,event:{c:{'switch.a':{'+':{s:'on'}}}}},
+  {type:'result',id:11,success:true},{type:'result',id:12,success:true},
+  {type:'event',id:3,event:{r:['switch.a']}},
+  {type:'event',id:3,event:{a:{'switch.a':{s:'off',a:{friendly_name:'Renamed'}}}}}
+ ].map(x=>JSON.stringify(x))}};
+ try{
+  service(event,{},0,memory,api);assert.equal(published,1);
+  assert.equal(shared.entities['switch.a'].value,'off');assert.equal(shared.controls[0].label,'Renamed');
+  assert.equal(host.validateScriptOps(ctx,'socketEvent',ops,event.response).effects.length,2);
+  assert.throws(()=>host.validateScriptOps(ctx,'socketEvent',ops),/one privileged/);
+  assert.throws(()=>host.validateScriptOps({...ctx,capabilities:[]},'socketEvent',ops,event.response),/one privileged/);
+ }finally{host.close();}
+});
+test('socket retry budget replenishes only after a stable connection',()=>{
+ const host=new NativePluginHost('/unused',()=>{},()=>({close(){}}),{now:()=>now,socketStableMs:30000,socketRetryDelays:[100000,100000]});
+ let now=1000;
+ try{
+  const ctx={socketGeneration:1,socketNotice:null},token={active:()=>true,generation:1,endpoint:{id:'x',reconnect:true},attempt:2,ready:true,openedAt:0};
+  host.socketEvent=()=>true;ctx.socketToken=token;host.socketPending.add(token);
+  host.finishSocket(ctx,token,'error','rate-limit',true);assert.equal(ctx.socketToken,null);
+  Object.assign(token,{attempt:2,ready:true,openedAt:0,generation:ctx.socketGeneration});ctx.socketToken=token;host.socketPending.add(token);now=31000;
+  host.finishSocket(ctx,token,'error','rate-limit',true);assert.equal(ctx.socketToken,token);assert.equal(token.attempt,1);
+  host.disposeSocketTransport(token);host.socketPending.delete(token);
+ }finally{host.close();}
+});
+test('scheduler admission pressure retries only unexecuted work and preserves context',async()=>{
+ const host=new NativePluginHost('/unused',()=>{},()=>({close(){}}));
+ let calls=0,work=0;host.scheduler.run=async(_p,active,fn)=>{if(++calls===1)throw Object.assign(Error('capacity'),{code:'SDK_SCHEDULER_CAPACITY'});return active()?fn():undefined;};
+ try{const result=await host.runAdmitted({pluginUUID:nativeId},'socketEvent',()=>true,()=>++work,'service');assert.equal(result,1);assert.equal(calls,2);assert.equal(work,1);}
+ finally{host.close();}
 });

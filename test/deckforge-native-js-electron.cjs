@@ -194,6 +194,44 @@ async function verifyHomeAssistant(runner){
     console.log('DeckForge HA independent service and actual sensor key rendering smoke passed');
   }finally{host.close();}
 }
+async function verifyHaBurst(){
+ const {EventEmitter}=require('node:events');
+ const {NativePluginHost,validateNativeManifest}=require('../app/deckforge-editor/deckforge-native-sdk.cjs');
+ const {createHomeAssistantManifest}=require('../app/deckforge-editor/deckforge-ha-plugin.cjs');
+ const m=validateNativeManifest(createHomeAssistantManifest('https://example.com'));
+ const root=await fs.mkdtemp(path.join(os.tmpdir(),'deckforge-ha-burst-')),updates=[],sockets=[];
+ class Mock extends EventEmitter{
+  constructor(){super();this.readyState=1;this.bufferedAmount=0;this.sent=[];}
+  send(body,cb){this.sent.push(JSON.parse(body));cb?.();}
+  terminate(){this.readyState=3;}
+  message(value){this.emit('message',Buffer.from(JSON.stringify(value)),false);}
+ }
+ const host=new NativePluginHost(root,e=>updates.push(e),null,{credentials:{read:async()=>({value:{token:'fixture.token'}})},socketFactory:()=>{const s=new Mock();sockets.push(s);return s;}});
+ const until=async(fn,label)=>{const deadline=Date.now()+30000;while(Date.now()<deadline){if(fn())return;await new Promise(r=>setTimeout(r,20));}throw Error('HA burst timeout: '+label);};
+ const ids=Array.from({length:13},(_,i)=>'switch.test_'+i);
+ const configs=ids.map((id,slot)=>({context:'ha-burst-'+slot,slot,gesture:'down',pluginUUID:m.id,actionUUID:m.actions[0].id,settings:{entity:id}}));
+ try{
+  host.sync(configs,[m]);await until(()=>sockets.length===1,'socket start');const socket=sockets[0],svc=host.contexts.get('@service:'+m.id);
+  assert.ok(host.runnerPool,'actual Model 2 pool required');
+  socket.emit('open');socket.message({type:'auth_required'});socket.message({type:'auth_ok'});
+  await until(()=>socket.sent.some(x=>x.id===1),'device registry request');
+  socket.message({type:'result',id:1,success:true,result:[]});
+  await until(()=>socket.sent.some(x=>x.id===2),'entity registry request');
+  socket.message({type:'result',id:2,success:true,result:{entities:[]}});
+  await until(()=>socket.sent.some(x=>x.id===3),'subscribe request');
+  const a={};for(const id of ids)a[id]={s:'off',a:{friendly_name:id}};
+  for(let i=0;i<487;i++)a['sensor.fixture_'+i]={s:'0',a:{friendly_name:'Sensor '+i,unit_of_measurement:'W'}};
+  socket.message({type:'event',id:3,event:{a}});
+  await until(()=>svc.sharedState.status==='연결됨','500 entity snapshot');
+  await until(()=>configs.every(c=>updates.some(x=>x.context===c.context&&x.kind==='setState')),'initial button state');
+  const start=Date.now(),before=updates.length;
+  for(let i=0;i<50;i++)socket.message({type:'event',id:3,event:{c:{[ids[i%13]]:{'+':{s:'on'}},'sensor.fixture_0':{'+':{s:String(i)}}}}});
+  await until(()=>svc.sharedState.entities['sensor.fixture_0']?.value==='49'&&svc.socketToken?.rxCount===0&&configs.every(c=>updates.slice(before).some(x=>x.context===c.context&&x.kind==='setState'&&x.payload.state===1)),'all final states');
+  assert.equal(socket.readyState,1);assert.equal(sockets.length,1);assert.ok([...host.contexts.values()].every(c=>!c.failed));
+  assert.ok(ids.every(id=>svc.sharedState.entities[id].value==='on'));
+  console.log('MODEL2_HA_BURST_OK '+JSON.stringify({entities:Object.keys(svc.sharedState.entities).length,buttons:13,frames:50,elapsedMs:Date.now()-start,actualElectron:true,mockTransport:true}));
+ }finally{host.close();await fs.rm(root,{recursive:true,force:true});}
+}
 async function verifyModel2(){
  const {ScriptRunnerPool}=require('../app/deckforge-editor/deckforge-js-runtime.cjs');
  const pool=new ScriptRunnerPool(),id='com.deckforge.native.pool-smoke';
@@ -809,6 +847,7 @@ app.whenReady().then(async()=>{
     await verifyModel2SerializationBoundary();
     await verifyPublicApi(b);
     await verifyHomeAssistant(b);
+    await verifyHaBurst();
     await verifyWindowsEncryption();
     await verifyVectorRendering();
     a.close();b.close();app.exit(0);

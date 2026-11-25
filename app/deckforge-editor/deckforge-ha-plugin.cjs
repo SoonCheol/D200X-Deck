@@ -3,6 +3,7 @@
 // home-assistant-js-websocket states.ts (interoperability only; no copied code).
 const ID='com.deckforge.native.home-assistant';
 function service(event,settings,state,memory,api){
+  function handle(event,api){
   const clean=(v,n=100)=>typeof v==='string'?v.replace(/[\x00-\x1f\x7f]/g,' ').trim().slice(0,n):'';
   const valid=id=>typeof id==='string'&&id.length<=256&&/^[a-z0-9_]+\.[a-z0-9_]+$/.test(id);
   const switchDevice=id=>['switch','light','fan','input_boolean'].includes(id.split('.')[0]);
@@ -102,6 +103,7 @@ function service(event,settings,state,memory,api){
   if(initial&&!(object(changes.a)||Object.keys(changes).length===0))return;
   if(initial&&(Object.hasOwn(changes,'c')||Object.hasOwn(changes,'r')))return;
   const entities=initial?{}:{...(old.entities||{})};
+  let catalogueDirty=initial,changed=initial;
   const merge=(id,part,removed,reset)=>{
     if(!valid(id)||!(sensor(id)||control(id)))return;
     const prior=reset?{}:entities[id];if(!prior)return;
@@ -115,17 +117,33 @@ function service(event,settings,state,memory,api){
       if(key==='unit_of_measurement')record.unit='';
       if(key==='device_class')record.kind='';
     }
-    entities[id]={label:record.label||id.slice(0,100),value:record.value||'unknown',unit:record.unit||'',kind:record.kind||''};
+    const next={label:record.label||id.slice(0,100),value:record.value||'unknown',unit:record.unit||'',kind:record.kind||''};
+    if(!entities[id]||entities[id].label!==next.label)catalogueDirty=true;
+    if(JSON.stringify(entities[id])!==JSON.stringify(next)){entities[id]=next;changed=true;}
   };
   for(const [id,part] of Object.entries(changes.a||{}))merge(id,part,null,true);
   for(const [id,part] of Object.entries(changes.c||{}))merge(id,part?.['+'],part?.['-'],false);
-  if(Array.isArray(changes.r))for(const id of changes.r)if(valid(id))delete entities[id];
-  const controls=[],sensors=[],others=[];
-  for(const [id,e] of Object.entries(entities)){
-    const group=old.groups?.[id]||(sensor(id)?'기기 미분류 센서':switchDevice(id)?'기기 미분류 스위치':'기기 미분류 기타');
-    (sensor(id)?sensors:switchDevice(id)?controls:others).push({value:id,label:e.label,group});
+  if(Array.isArray(changes.r))for(const id of changes.r)if(valid(id)&&Object.hasOwn(entities,id)){delete entities[id];catalogueDirty=true;changed=true;}
+  if(!changed)return;
+  let {controls=[],sensors=[],others=[]}=old;
+  if(catalogueDirty){
+    controls=[];sensors=[];others=[];
+    for(const [id,e] of Object.entries(entities)){
+      const group=old.groups?.[id]||(sensor(id)?'기기 미분류 센서':switchDevice(id)?'기기 미분류 스위치':'기기 미분류 기타');
+      (sensor(id)?sensors:switchDevice(id)?controls:others).push({value:id,label:e.label,group});
+    }
   }
   memory.phase='live';publish({...old,status:'연결됨',entities,controls,sensors,others});
+  }
+  if(event.type!=='socketEvent'||event.response?.event!=='messages')return handle(event,api);
+  // Transport batches preserve every frame in FIFO order; publish only the final
+  // shared snapshot. Result/registry frames retain their own protocol semantics.
+  const bodies=event.response.bodies;
+  if(!Array.isArray(bodies)||bodies.length<2||bodies.length>8)return;
+  let shared=api.getSharedState(),dirty=false;
+  const local={...api,getSharedState:()=>shared,publishSharedState:value=>{shared=value;dirty=true;}};
+  for(const body of bodies)handle({...event,response:{...event.response,event:'message',body}},local);
+  if(dirty)api.publishSharedState(shared);
 }
 function controlKey(event,settings,state,memory,api){
   const shared=api.getSharedState(),id=settings.entity,entry=shared.entities?.[id];
@@ -206,9 +224,9 @@ function createHomeAssistantManifest(server){
   const script=f=>'return ('+f.toString()+')(event,settings,state,memory,api);';
   const select=(key,label,value,options)=>({key,label,type:'select',default:value,options:options.map(([value,label])=>({value,label}))});
   const device=(key,label)=>({key,label,type:'dynamicSelect',source:'controls',default:''});
-  return {apiVersion:2,id:ID,name:'DeckForge Home Assistant',version:'0.1.12',requiresDeckForge:'>=2.0.52',
+  return {apiVersion:2,id:ID,name:'DeckForge Home Assistant',version:'0.1.13',requiresDeckForge:'>=2.0.53',
     permissions:['display','background.run','timer.tick',...(u?['network.websocket']:[])],
-    ...(u?{networkEndpoints:[{id:'ha',url:u.href,method:'WSS',auth:'home-assistant',reconnect:true,maxReceiveBytes:1048576}]}:{}),
+    ...(u?{capabilities:['socketBatch'],networkEndpoints:[{id:'ha',url:u.href,method:'WSS',auth:'home-assistant',reconnect:true,maxReceiveBytes:1048576}]}:{}),
     service:{script:u?script(service):"if(event.type==='start')api.publishSharedState({status:'초기 연결 필요',controls:[],sensors:[],others:[],entities:{}});",sharedStateBytes:262144},
     actions:[
       {id:ID+'.control',name:'HA 스위치 기기',controllers:['Keypad'],states:2,script:script(controlKey),sharedStateView:{keys:['status','commandError'],map:'entities',selection:'entity'},
