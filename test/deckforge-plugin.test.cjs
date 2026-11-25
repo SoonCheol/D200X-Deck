@@ -368,7 +368,8 @@ test('native version manager preserves original code and accepts only approved c
   try{
     assert.equal((await host.planInstall(original)).kind,'install');
     await host.install(original);
-    const newer={...original,version:'1.1.0',name:'New version',requiresDeckForge:'>=1.1.0 <2.0.0'};
+    const newer={...original,version:'1.1.0',name:'New version',requiresDeckForge:'>=1.1.0 <3.0.0'};
+    assert.throws(()=>validateNativeManifest({...newer,requiresDeckForge:'>=1.1.0 <2.0.0'}),/requires DeckForge/);
     const plan=await host.planInstall(newer);
     assert.equal(plan.kind,'update');
     await assert.rejects(host.replace(newer,'wrong-revision'),/revision changed/);
