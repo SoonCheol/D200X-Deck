@@ -38,7 +38,7 @@
       </header>
       <div class="search"><input id="action-search" placeholder="검색" aria-label="액션 검색"><button type="button" id="action-search-clear" aria-label="검색어 전체 삭제" title="검색어 삭제" hidden>×</button></div>
       <div class="ai-launch-row"><button type="button" id="open-ai-assistant">AI 도우미</button></div>
-      <div class="library-tabs"><button class="active" type="button">기본 액션</button><button type="button" disabled title="이번 구현 범위에서 제외">플러그인</button></div>
+      <div class="library-tabs" role="group" aria-label="액션 목록 전환"><button class="active" type="button" aria-pressed="true">기본 액션</button><button type="button" aria-pressed="false" disabled title="이번 구현 범위에서 제외">플러그인</button></div>
       <div class="library-list" id="library-list"></div>
     </aside>
   </div>

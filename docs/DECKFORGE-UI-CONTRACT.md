@@ -52,7 +52,7 @@
 | --- | --- | --- |
 | 메인 화면 | 왼쪽 D200X 버튼/페이지 제어, 하단 속성창, 오른쪽 프로필·장치·검색·액션 패널의 승인된 위치, 창 크기·분할/스크롤·기본 폰트 유지 | app/deckforge-editor/index.html의 #app, .work, .canvas, #inspector, .library 및 style.css |
 | LCD 버튼·페이지 | 일반 키 13개 + 와이드 1개, 물리 측면 키 2개·노브 3개, 페이지 번호·이동·추가/제거·고정 키·드래그·폴더 구조 보존 | #key-grid, #physical-controls, .page-controls, editor.js, deck-core.js |
-| 오른쪽 액션 목록 | 기본 액션/플러그인, 카테고리·아이콘·검색어 삭제·검색·드래그·명칭/정렬 보존. 원본·D200X 확장 액션 임의 삭제 금지 | .library-tabs, #action-search, #library-list, action-panel-icons.js, editor.js |
+| 오른쪽 액션 목록 | 기본 액션/플러그인은 브라우저형 탭(선택 탭이 내용 영역과 연결), 플러그인 관리는 기본 접힌 메뉴로 표시. 카테고리·아이콘·검색어 삭제·검색·드래그·명칭/정렬 및 기존 관리 기능 보존. 원본·D200X 확장 액션 임의 삭제 금지 | .library-tabs, #action-search, #library-list, action-panel-icons.js, editor.js |
 | 일반 LCD 키 속성창 | 아래 §3~5의 세 누르기 탭, 카드 2개/단일 이미지 예외, 미리보기·설정 필드·저장/취소 유지 | renderInspector(), renderPressTabs(), bindKeyPressIconControls(), bindSdkStateIcons(), style.css |
 | 아이콘·제목 관리 | 기존 아이콘 라이브러리/팩, 파일·클립보드·특수문자·초기화, 색상 팔레트, 독립 제목/T⌄/프리셋, 실제 이름 규칙 ON/OFF 쌍 보존 | #icon-library, #icon-maker, editor.js; D200X-CURRENT-STATUS.md §3.1 |
 | 노브·측면 키 | 회전/누름/누른 채 회전, 동작별 할당/다이얼 스택, 측면 버튼, 적용 범위와 전용 UI 보존. 일반 LCD 키 3탭을 강제 적용하지 않음 | renderControlInspector(), style.css의 .knob-inspector와 .control-gesture-strip |

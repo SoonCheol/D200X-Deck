@@ -1842,22 +1842,25 @@ function bindActionAppearance(){
   host.append(label,select,reset);
   host.id='action-appearance-toolbar';
   $("library-list").before(host);
-  const pluginToolbar=document.createElement('div');
-  pluginToolbar.id='plugin-install-toolbar';pluginToolbar.className='action-appearance plugin-install-toolbar';
+  const pluginToolbar=document.createElement('details');
+  pluginToolbar.id='plugin-install-toolbar';pluginToolbar.className='plugin-install-toolbar';
+  const summary=document.createElement('summary');summary.textContent='플러그인 관리';
+  const management=document.createElement('div');management.className='plugin-management-buttons';
+  pluginToolbar.append(summary,management);
   const add=document.createElement('button');add.type='button';add.className='plugin-add-button';
   add.textContent='＋ 플러그인 추가';
-  add.addEventListener('click',()=>installSdkPlugin());pluginToolbar.append(add);
+  add.addEventListener('click',()=>installSdkPlugin());management.append(add);
   const fromDir=document.createElement('button');fromDir.type='button';
   fromDir.className='plugin-add-button';fromDir.textContent='＋ 폴더에서 추가';
   fromDir.title='기존 Stream Deck 호환 .sdPlugin 폴더 설치';
-  fromDir.addEventListener('click',()=>installSdkPlugin(true));pluginToolbar.append(fromDir);
+  fromDir.addEventListener('click',()=>installSdkPlugin(true));management.append(fromDir);
   const exportButton=document.createElement('button');exportButton.type='button';
   exportButton.className='plugin-add-button';exportButton.textContent='패키지 저장';
   exportButton.title='선택한 .sdPlugin 폴더를 단일 .deckforgePlugin 설치 파일로 저장합니다. 원본은 변경하지 않습니다.';
-  exportButton.addEventListener('click',exportDeckForgePlugin);pluginToolbar.append(exportButton);
+  exportButton.addEventListener('click',exportDeckForgePlugin);management.append(exportButton);
   if(window.deckBridge?.nativeHaInstall){
     const ha=document.createElement('button');ha.type='button';ha.className='plugin-add-button';ha.textContent=sdkPlugins.some(p=>p.uuid==='com.deckforge.native.home-assistant'&&['0.1.0','0.1.1','0.1.2','0.1.3','0.1.4','0.1.5','0.1.6','0.1.7'].includes(p.version))?'HA 전용 업데이트':'HA 전용 추가';
-    ha.addEventListener('click',installNativeHa);pluginToolbar.append(ha);
+    ha.addEventListener('click',installNativeHa);management.append(ha);
   }
   host.after(pluginToolbar);
   updatePluginToolbar();
@@ -1865,7 +1868,8 @@ function bindActionAppearance(){
 function updatePluginToolbar(){
   const plugins=libraryTab==='plugins';
   if($("action-appearance-toolbar"))$("action-appearance-toolbar").hidden=plugins;
-  if($("plugin-install-toolbar"))$("plugin-install-toolbar").hidden=!plugins;
+  const toolbar=$("plugin-install-toolbar");
+  if(toolbar){toolbar.hidden=!plugins;if(!plugins)toolbar.open=false;}
 }
 function escapeHtml(x){return String(x??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));}
 const FIXED_SHORTCUT_OPTIONS={
@@ -3425,7 +3429,7 @@ document.addEventListener('click',event=>{
   if(event.target.closest('#inspector-unsaved-dialog, .inspector-help-dialog, #sdk-plugin-help-dialog, #icon-maker, .deckforge-message-dialog, .deckforge-input-dialog'))return;
   if(event.target.closest('#icon-library')&&!event.target.closest('.icon-pack-remove'))return;
   if(event.target.closest('.action-customize, .action-override-controls'))return;
-  if(event.target.closest('#action-search, #action-search-clear, .library-tabs, #profile-trigger, .profile-row-gear, .profile-global-trigger, .settings-trigger, .group-title'))return;
+  if(event.target.closest('#action-search, #action-search-clear, .library-tabs, #plugin-install-toolbar>summary, #profile-trigger, .profile-row-gear, .profile-global-trigger, .settings-trigger, .group-title'))return;
   // Key/knob selection already checks for unsaved edits in choose(index).
   // Let that handler own the navigation so it survives inspector re-render.
   if(event.target.closest('#key-grid, #physical-controls'))return;
@@ -7774,7 +7778,7 @@ const tabs=document.querySelectorAll('.library-tabs button');
 tabs[1].disabled=false;tabs[1].removeAttribute('title');
 tabs.forEach((button,index)=>button.addEventListener('click',()=>{
   libraryTab=index?'plugins':'keys';
-  tabs.forEach((tab,i)=>tab.classList.toggle('active',i===index));
+  tabs.forEach((tab,i)=>{tab.classList.toggle('active',i===index);tab.setAttribute('aria-pressed',String(i===index));});
   updatePluginToolbar();
   renderLibrary();
   renderInspector();
