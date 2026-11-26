@@ -396,7 +396,8 @@ function previewActionVisible(item,index){
 }
 function redrawVisualPreview(item,index){
   if(!previewActionVisible(item,index))return;
-  renderGrid([index]);void refreshSelectedVisual();
+  // Visual simulation is confined to the selected inspector preview.
+  void refreshSelectedVisual();
 }
 function clearVisualPreview(item){
   if(!item)return;
@@ -466,7 +467,7 @@ function bindVisualPreviewPress(node,getItem,index,signal){
     if(event.button!==0||editorPreviewMode(getItem())!=='press')return;
     const item=getItem();if(!item)return;
     visualPreviewPresses.add(item);
-    const refresh=()=>{renderGrid([index]);if(state.selected===index)void refreshSelectedVisual();};
+    const refresh=()=>{if(previewActionVisible(item,index))void refreshSelectedVisual();};
     const release=()=>{if(visualPreviewPresses.delete(item))refresh();};
     refresh();
     window.addEventListener('pointerup',release,{once:true,signal});
@@ -1179,11 +1180,10 @@ function createDeckGridButton(i){
         if(inspectorSession?.dirty){showInspectorLeaveDialog(()=>{state.selected=i;advanceWideDisplay();});return;}
         state.selected=i;advanceWideDisplay();
       }else{
+        // Main grid is the live device monitor, not a visual test surface.
         choose(i);
-        if(state.selected===i)activateVisualPreview(previewActionAt(i),i);
       }
     });
-    if(i<13)bindVisualPreviewPress(b,()=>previewActionAt(i),i);
     b.addEventListener("contextmenu",ev=>{
       ev.preventDefault();
       const open=()=>{choose(i);showMenu(i,ev.clientX,ev.clientY);};
@@ -1244,7 +1244,7 @@ function renderGrid(onlySlots=null){
       return {title:keyName(item)||item.type,lines:[description||(id?'수집된 명령 설명 없음':shortActionDescription(item)),...(unavailable?[unavailable]:[]),...(pin?[currentPage()[i]?'페이지별 액션 우선 적용 · 고정 액션: '+keyName(pin):'모든 페이지의 고정 액션']:[])]};
     });
     else{delete b.dataset.deckforgeTooltip;deckForgeTooltipData.delete(b);}
-    const visual=displayKeyPressItem(displayItem(item,i),i,true,pressDisplayAction(item));
+    const visual=displayKeyPressItem(displayItem(item,i),i,false,pressDisplayAction(item));
     paintDeckKey(b,item,visual,i,scope,owner);
   });
   if(partial)return;

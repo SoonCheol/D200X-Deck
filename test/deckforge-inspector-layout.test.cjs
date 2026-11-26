@@ -137,10 +137,10 @@ test('title visibility is by the input and presets update all controls in place'
   assert.match(editor,/Object\.assign\(style,chosen\.style\)/);
   assert.match(editor,/visible\.checked=style\.visible/);
   assert.match(editor,/family\.value=style\.family/);
-  assert.match(editor,/\$\("title-size"\)\.value=String\(style\.size\)/);
-  assert.match(editor,/\$\("title-color"\)\.value=style\.color/);
-  assert.match(editor,/\$\("outline-color"\)\.value=style\.outlineColor/);
-  assert.match(editor,/\$\("outline-width"\)\.value=style\.outlineWidth/);
+  assert.match(editor,/lookup\('title-size'\)\.value=String\(style\.size\)/);
+  assert.match(editor,/lookup\('title-color'\)\.value=style\.color/);
+  assert.match(editor,/lookup\('outline-color'\)\.value=style\.outlineColor/);
+  assert.match(editor,/lookup\('outline-width'\)\.value=style\.outlineWidth/);
   assert.match(editor,/persist\(\);renderGrid\(\);refreshTitlePreview\(item\)/);
   assert.match(css,/\.fields>\.field\.title-setting-field\{grid-template-columns:92px minmax\(0,404px\);\}/);
 });

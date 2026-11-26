@@ -355,7 +355,7 @@ test('inspector icon and title previews bypass representative selection while ph
  assert.match(src,/const visual=inspectorDisplayItem\(item,slot\)/);
  assert.match(src,/const visual=inspectorDisplayItem\(item,state\.selected\)/);
  assert.match(src,/const current=displayKeyPressItem\(inspectorDisplayItem\(item,state\.selected\)/);
- assert.match(src,/const visual=displayKeyPressItem\(displayItem\(item,i\),i,true,pressDisplayAction\(item\)\)/);
+ assert.match(src,/const visual=displayKeyPressItem\(displayItem\(item,i\),i,false,pressDisplayAction\(item\)\)/);
  assert.match(src,/window\.getD200XDisplayItem=.*displayKeyPressItem\(displayItem\(DeckCore\.visibleActions\(state\)\[index\]\|\|item,index\),index,false,previewActionAt\(index\)\)/);
  assert.match(src,/\['sd-plugin','timer','hotkey-switch'\]\.includes\(target\.type\)/);
 });
@@ -511,4 +511,26 @@ test('shared icon-card factory preserves order, dispatch target and disabled pla
  for(const button of buttons.children){assert.equal(button.type,'button');button.click({currentTarget:button});}
  assert.deepEqual(calls.map(x=>x[0]),keys);assert.deepEqual(calls.map(x=>x[1]),buttons.children);
  const disabled=createStateIconButtons();assert.ok(disabled.children.every(x=>x.disabled&&x.click===undefined));
+});
+
+
+test('main deck grid selects ordinary keys without simulating or executing actions',()=>{
+ const start=src.indexOf('function createDeckGridButton('),end=src.indexOf('function renderGrid(',start);
+ assert.ok(start>=0&&end>start);
+ const calls=[],state={selected:0,folderPath:[]};
+ const createElement=()=>({dataset:{},handlers:{},addEventListener(type,fn){this.handlers[type]=fn;}});
+ const build=vm.runInNewContext(src.slice(start,end)+';createDeckGridButton',{
+  document:{createElement},state,choose:i=>{calls.push(i);state.selected=i;},
+  wideDisplayAvailable:()=>false,DeckCore:{visibleActions:()=>[]}
+ });
+ const button=build(3);assert.equal(button.handlers.pointerdown,undefined);
+ button.handlers.click();button.handlers.click();assert.deepEqual(calls,[3,3]);
+ assert.equal(state.selected,3);
+ assert.ok(button.handlers.drop&&button.handlers.contextmenu);
+ const preview=src.slice(src.indexOf('function redrawVisualPreview('),src.indexOf('function isMomentaryIconAction('));
+ assert.doesNotMatch(preview,/renderGrid\s*\(/);
+ assert.match(preview,/refreshSelectedVisual\(\)/);
+ const grid=src.slice(end,src.indexOf('// Coalesce native title',end));
+ assert.match(grid,/displayKeyPressItem\(displayItem\(item,i\),i,false,pressDisplayAction\(item\)\)/);
+ assert.match(src,/bindVisualPreviewPress\(host,\(\)=>item,slot,inspectorListener\.signal\)/);
 });
