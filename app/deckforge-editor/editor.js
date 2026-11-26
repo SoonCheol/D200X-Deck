@@ -8219,7 +8219,8 @@ function bindSettingsMenu(){
       const message=result?.kind==='downloaded'?
         (result.folderOpened?'다운로드 완료 · 탐색기에서 설치 파일을 실행하세요.':'다운로드 완료 · '+result.filePath):
         result?.kind==='web'?'설치 파일 페이지를 열었습니다.':'설치 가능한 새 버전을 확인하지 못했습니다.';
-      status.textContent=message;window.d200xActionStatus?.(message);
+      const completion=message+(result?.cleanupWarning?' · 이전 파일 일부 정리 실패':'');
+      status.textContent=completion;window.d200xActionStatus?.(completion);
     }catch(error){
       const message='업데이트 다운로드 실패: '+String(error?.message||error);
       status.textContent=message;window.d200xActionStatus?.(message);

@@ -982,7 +982,8 @@ ipcMain.handle('d200x:check-updates',async event=>{
     if(!pendingInstallerDownload){
       pendingInstallerDownload=(async()=>{
         const directory=path.join(app.getPath('downloads'),'DeckForge');
-        const file=await UpdateCheck.downloadPublishedInstaller(info.latestVersion,directory);
+        let cleanupWarning=false;
+        const file=await UpdateCheck.downloadPublishedInstaller(info.latestVersion,directory,{onCleanupError:()=>{cleanupWarning=true;}});
         // Manual launch preserves the user's control over the running editor and installer.
         let folderOpened=false;
         try{
@@ -990,7 +991,7 @@ ipcMain.handle('d200x:check-updates',async event=>{
           folderOpened=!error;
           if(folderOpened)shell.showItemInFolder(file);
         }catch{}
-        return {kind:'downloaded',filePath:file,folderOpened};
+        return {kind:'downloaded',filePath:file,folderOpened,cleanupWarning};
       })().finally(()=>{pendingInstallerDownload=null;});
     }
     return pendingInstallerDownload;

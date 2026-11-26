@@ -105,11 +105,15 @@ test('verified EXE download preserves existing files and cleans incomplete downl
    const first=await downloadPublishedInstaller(version,folder,opts(data));
    assert.equal(first,path.join(folder,name));assert.deepEqual(await fs.promises.readFile(first),data);
    const second=await downloadPublishedInstaller(version,folder,opts(data));
-   assert.notEqual(second,first);assert.deepEqual(await fs.promises.readFile(second),data);
+   assert.equal(second,first);assert.deepEqual(await fs.promises.readFile(second),data);
+   // Force network validation for the failure cases without removing the valid installer.
+   const next='2.0.78',nextUrl=releaseDownloadUrl(next),nextName='DeckForge-'+next+'-Setup-win-x64.exe';
+   const nextMeta=[{...metadata[0],tag_name:'deckforge-v'+next,assets:[{...metadata[0].assets[0],name:nextName,browser_download_url:nextUrl}]}];
+   const nextOpts=bytes=>({requestJson:async()=>nextMeta,openResponse:async requested=>{assert.equal(requested,nextUrl);return Readable.from([bytes]);}});
    const existing=(await fs.promises.readdir(folder)).sort();
-   await assert.rejects(downloadPublishedInstaller(version,folder,opts(Buffer.from('x'))),/SHA-256/);
-   await assert.rejects(downloadPublishedInstaller(version,folder,opts(Buffer.alloc(data.length))),/SHA-256/);
-   await assert.rejects(downloadPublishedInstaller(version,folder,opts(Buffer.alloc(data.length+1))),/용량 초과/);
+   await assert.rejects(downloadPublishedInstaller(next,folder,nextOpts(Buffer.from('x'))),/SHA-256/);
+   await assert.rejects(downloadPublishedInstaller(next,folder,nextOpts(Buffer.alloc(data.length))),/SHA-256/);
+   await assert.rejects(downloadPublishedInstaller(next,folder,nextOpts(Buffer.alloc(data.length+1))),/용량 초과/);
    assert.deepEqual((await fs.promises.readdir(folder)).sort(),existing);
  }finally{await fs.promises.rm(root,{recursive:true,force:true});}
 });
@@ -117,8 +121,45 @@ test('installer is downloaded to the Windows Downloads subfolder and not automat
  const main=fs.readFileSync(path.join(__dirname,'../app/deckforge-editor/main.cjs'),'utf8');
  const handler=main.slice(main.indexOf("ipcMain.handle('d200x:check-updates'"),main.indexOf('function trayPreferencePath'));
  assert.match(handler,/path\.join\(app\.getPath\('downloads'\),'DeckForge'\)/);
- assert.match(handler,/downloadPublishedInstaller\(info\.latestVersion,directory\)/);
+ assert.match(handler,/downloadPublishedInstaller\(info\.latestVersion,directory,/);
  assert.match(handler,/shell\.showItemInFolder\(file\)/);
  assert.match(handler,/pendingInstallerDownload/);
  assert.doesNotMatch(handler,/shell\.openPath\(file\)|app\.quit\(|spawn\(/);
+});
+
+test('installer retention recognizes exact managed names and compares versions numerically',()=>{
+ const {installerFileVersion,previousInstallerVersions}=require('../app/deckforge-editor/update-check.cjs');
+ assert.equal(installerFileVersion('DeckForge-2.0.77-Setup-win-x64-01234567-89ab-4cde-8f01-23456789abcd.exe'),'2.0.77');
+ for(const name of ['other.exe','DeckForge-2.0.77-Setup-win-x64.exe.bak','DeckForge-02.0.77-Setup-win-x64.exe','DeckForge-2.0.77-Setup-win-x64-manual.exe'])assert.equal(installerFileVersion(name),null,name);
+ const names=['2.0.9','2.0.10','2.0.11','2.0.11','2.0.12'].map(v=>'DeckForge-'+v+'-Setup-win-x64.exe');
+ assert.deepEqual(previousInstallerVersions(names,'2.0.12'),['2.0.11','2.0.10','2.0.9']);
+});
+test('successful update keeps newest and one rollback version, reuses verified download, preserves unrelated files',async()=>{
+ const {downloadPublishedInstaller,releaseDownloadUrl}=require('../app/deckforge-editor/update-check.cjs');
+ const {Readable}=require('node:stream'),{createHash}=require('node:crypto');
+ const root=await fs.promises.mkdtemp(path.join(require('node:os').tmpdir(),'deckforge-retention-test-'));
+ const name=v=>'DeckForge-'+v+'-Setup-win-x64.exe';
+ const versions=['2.0.75','2.0.76','2.0.77','2.0.78'];
+ const bytes=v=>Buffer.from('installer '+v);
+ const metadata=versions.map(v=>({tag_name:'deckforge-v'+v,draft:false,prerelease:true,assets:[{name:name(v),state:'uploaded',size:bytes(v).length,digest:'sha256:'+createHash('sha256').update(bytes(v)).digest('hex'),browser_download_url:releaseDownloadUrl(v)}]}));
+ let downloads=0;
+ const opts={requestJson:async()=>metadata,openResponse:async url=>{downloads++;assert.equal(url,releaseDownloadUrl('2.0.78'));return Readable.from([bytes('2.0.78')]);}};
+ try{
+   for(const v of versions.slice(0,-1))await fs.promises.writeFile(path.join(root,name(v)),bytes(v));
+   const duplicate=name('2.0.77').slice(0,-4)+'-01234567-89ab-4cde-8f01-23456789abcd.exe';
+   await fs.promises.writeFile(path.join(root,duplicate),bytes('2.0.77'));
+   await fs.promises.writeFile(path.join(root,'notes.txt'),'keep');
+   const subdir=path.join(root,name('2.0.74'));await fs.promises.mkdir(subdir);
+   await fs.promises.writeFile(path.join(subdir,'keep.txt'),'keep');
+   const before=(await fs.promises.readdir(root)).sort();
+   await assert.rejects(downloadPublishedInstaller('2.0.78',root,{...opts,openResponse:async()=>Readable.from([Buffer.from('bad')])}),/SHA-256/);
+   assert.deepEqual((await fs.promises.readdir(root)).sort(),before);
+   const file=await downloadPublishedInstaller('2.0.78',root,opts);
+   assert.equal(file,path.join(root,name('2.0.78')));
+   assert.deepEqual((await fs.promises.readdir(root)).sort(),[name('2.0.74'),name('2.0.77'),name('2.0.78'),'notes.txt'].sort());
+   assert.equal(await downloadPublishedInstaller('2.0.78',root,opts),file);
+   assert.equal(downloads,1);
+   assert.equal(await fs.promises.readFile(path.join(subdir,'keep.txt'),'utf8'),'keep');
+   assert.deepEqual(await fs.promises.readFile(path.join(root,name('2.0.77'))),bytes('2.0.77'));
+ }finally{await fs.promises.rm(root,{recursive:true,force:true});}
 });
