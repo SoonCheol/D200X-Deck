@@ -96,7 +96,7 @@ async function verifyVectorRendering(){
 async function verifyPublicApi(runner){
   const {NativePluginHost,validateNativeManifest}=require('../app/deckforge-editor/deckforge-native-sdk.cjs');
   const id='com.deckforge.native.api-contract';
-  const permissions=['display','settings.write','global.settings','navigation','wide.mode','wide.overlay','network.request','network.websocket','background.run'];
+  const permissions=['display','settings.write','global.settings','navigation','wide.mode','wide.overlay','network.request','network.websocket','background.run','browser.open'];
   const endpoints=[{id:'status',url:'https://example.com/status',method:'GET'},{id:'live',url:'wss://example.com/events',method:'WSS'},{id:'entity',url:'https://example.com/entities/',method:'PATCH',pathKeys:['id'],queryKeys:['view'],headerKeys:['if-match']}];
   const action={id:id+'.key',name:'Contract',controllers:['Keypad'],states:2,script:'api.setTitle("contract");'};
   validateNativeManifest({apiVersion:2,id,name:'Contract',version:'1.0.0',permissions,networkEndpoints:endpoints,service:{script:'void 0;'},actions:[action]});
@@ -122,6 +122,7 @@ async function verifyPublicApi(runner){
     ['enterFolder','api.enterFolder(2)','navigate','navigation'],
     ['exitFolder','api.exitFolder()','navigate','navigation'],
     ['setWideMode','api.setWideMode("clock")','wideMode','wide.mode'],
+    ['openUrl','api.openUrl("https://example.com/build/123")','openUrl','browser.open'],
     ['setWideOverlay','api.setWideOverlay('+JSON.stringify(frame)+')','wideOverlay','wide.overlay'],
     ['clearWideOverlay','api.clearWideOverlay()','wideOverlay','wide.overlay'],
     ['request','api.request("status")','networkRequest','network.request'],
@@ -156,7 +157,7 @@ async function verifyPublicApi(runner){
     }
     const extended=await runner.run('api.request("entity",{state:1},{view:"full"},{path:{id:"light"},headers:{"if-match":"rev"}});',input);
     assert.deepEqual(host.validateScriptOps(ctx,'press',extended.ops).effects,[{op:'networkRequest',endpoint:'entity',body:{state:1},query:{view:'full'},options:{path:{id:'light'},headers:{'if-match':'rev'}}}]);
-    console.log('DeckForge native SDK 25-function renderer/host contract passed');
+    console.log('DeckForge native SDK 26-function renderer/host contract passed (browser effect gated)');
   }finally{host.close();}
 }
 

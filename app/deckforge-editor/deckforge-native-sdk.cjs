@@ -19,7 +19,7 @@ const SUFFIX='.deckforge-native.json', LIMIT=1024*1024;
 const ID=/^com\.deckforge\.native\.[a-z0-9][a-z0-9.-]{0,110}$/;
 const EVENTS=new Set(['appear','disappear','settings','press','release','rotateLeft','rotateRight','heldRotateLeft','heldRotateRight']);
 const OPS=new Set(['title','titleFromSetting','state','stateFromSetting','toggleState','image']);
-const EXTRA_PERMISSIONS=['settings.write','navigation','wide.mode','global.settings','wide.overlay','network.request','timer.tick','network.poll','network.websocket','background.run'];
+const EXTRA_PERMISSIONS=['settings.write','navigation','wide.mode','global.settings','wide.overlay','network.request','timer.tick','network.poll','network.websocket','background.run','browser.open'];
 const SERVICE_PREFIX='@service:',MAX_SERVICES=8;
 const MAX_PENDING_EVENTS=64,INPUT_RESERVE=4,MAX_NETWORK_GLOBAL=8,MAX_NETWORK_PLUGIN=2;
 const RX_SOCKET_BYTES=2*1024*1024,RX_GLOBAL_BYTES=8*1024*1024,RX_FRAMES=256,RX_BATCH_BYTES=512*1024,RX_BATCH_COUNT=8;
@@ -29,6 +29,13 @@ const obj=x=>x!==null&&typeof x==='object'&&!Array.isArray(x);
 const validText=(x,n)=>typeof x==='string'&&x.length>0&&x.length<=n;
 const exact=(x,keys)=>obj(x)&&Object.keys(x).every(k=>keys.includes(k));
 function check(ok,message){if(!ok)throw Error('DeckForge SDK: '+message);}
+function safeNativeBrowserUrl(raw){
+  if(typeof raw!=='string'||raw.length>2048||!/^(https?):\/\//i.test(raw)||/[\x00-\x20\x7f\\]/.test(raw))return null;
+  try{
+    const url=new URL(raw);
+    return ['http:','https:'].includes(url.protocol)&&url.hostname&&!url.username&&!url.password&&url.href.length<=2048?url.href:null;
+  }catch{return null;}
+}
 function validateNativePng(value){
   check(typeof value==='string'&&value.length<=350000&&/^data:image\/png;base64,[A-Za-z0-9+/]+={0,2}$/.test(value),'invalid PNG data URI');
   const bytes=Buffer.from(value.slice(22),'base64');
@@ -165,6 +172,9 @@ class NativePluginHost{
     this.versions=new NativeVersionStore(this.root,validateNativeManifest);
     this.dependencyWarnings=new Map();
     this.networkRequest=options.networkRequest||requestEndpoint;this.networkPending=new Set();
+    // No production browser adapter or approval store is connected yet. Fail closed.
+    this.browserOpen=options.browserOpen||null;this.browserApproval=options.browserApproval||null;
+    this.lastBrowserOpen=-Infinity;
     this.socketFactory=options.socketFactory||createSocket;this.socketPending=new Set();this.rxReservedBytes=0;
     this.socketRetryDelays=options.socketRetryDelays||[1000,2000,5000,10000,30000];
     this.socketStableMs=options.socketStableMs??30000;
@@ -396,6 +406,11 @@ class NativePluginHost{
       }else if(op?.op==='wideOverlay'){
         check(ctx.permissions.includes('wide.overlay'),'unauthorized wide overlay');
         validateWideOverlay(op);
+      }else if(op?.op==='openUrl'){
+        check(ctx.permissions.includes('browser.open')&&exact(op,['op','value']),'unauthorized browser operation');
+        check(event==='press'&&!ctx.service,'browser operation requires press input event');
+        const href=safeNativeBrowserUrl(op.value);
+        check(href,'invalid browser URL');op={op:'openUrl',value:href};
       }else if(op?.op==='wideMode'){
         check(ctx.permissions.includes('wide.mode')&&exact(op,['op','value'])&&['clock','datetime','stats','knobs'].includes(op.value),'invalid or unauthorized wide mode');
       }else throw Error('DeckForge SDK: unsupported operation');
@@ -410,6 +425,16 @@ class NativePluginHost{
     validateNativeManifest({apiVersion:1,id:ctx.pluginUUID,name:'Runtime',version:'1',
       permissions:['display'],actions:[{...action,events:{press:normal.filter(op=>!['animation','stopAnimation'].includes(op.op))}}]});
     return {normal,effects};
+  }
+  async dispatchBrowserUrl(ctx,operation,active){
+    const href=safeNativeBrowserUrl(operation?.value);
+    if(!href||!ctx.permissions.includes('browser.open')||ctx.service||!active()||!this.browserOpen||!this.browserApproval)return false;
+    // The trusted host supplies the approval adapter, never the plugin realm.
+    const approved=await this.browserApproval(ctx.pluginUUID,ctx.signature);
+    if(approved!==true||!active())return false;
+    const now=this.now();if(now-this.lastBrowserOpen<750)return false;
+    this.lastBrowserOpen=now;
+    await this.browserOpen(href);return true;
   }
   sendServiceMessage(ctx,operation){
     const target=this.contexts.get(SERVICE_PREFIX+ctx.pluginUUID);
@@ -975,6 +1000,10 @@ class NativePluginHost{
         ctx.memory=result.memory;
         this.applyOps(ctx,normal);
         for(const operation of effects)if(!['globalSettings','settings'].includes(operation.op)){
+          if(operation.op==='openUrl'){
+            if(!await this.dispatchBrowserUrl(ctx,operation,active)&&active())this.report(ctx.pluginUUID,Error('browser opening not approved or temporarily unavailable'));
+            continue;
+          }
           if(operation.op==='serviceMessage'){this.sendServiceMessage(ctx,operation);continue;}
           if(operation.op==='networkRequest'){this.startNetwork(ctx,operation,active,event);continue;}
           if(operation.op==='socketConnect'){this.startSocket(ctx,operation,active);continue;}

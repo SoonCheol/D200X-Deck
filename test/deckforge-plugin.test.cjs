@@ -3326,3 +3326,40 @@ test('opt-in socket JSON arrays preserve FIFO and atomically enforce logical mes
   assert.equal(failures.at(-1).reason,'queue-capacity');assert.equal(capped.rxQueue.length,0);
  }finally{host.close();}
 });
+
+
+test('native browser effect is press-only, permission-gated and HTTP(S)-only',async()=>{
+  const opened=[],approvals=[];
+  let now=1000,approved=false,active=true;
+  const options={now:()=>now,browserOpen:async href=>opened.push(href),browserApproval:async(id,signature)=>{approvals.push([id,signature]);return approved;}};
+  const host=new NativePluginHost('/unused',()=>{},()=>({close(){}}),options);
+  const closedHost=new NativePluginHost('/unused',()=>{},()=>({close(){}}));
+  const permissions=['display','browser.open'],ctx={pluginUUID:nativeId,action:scriptManifest.actions[0],permissions,signature:'fixture'};
+  const op={op:'openUrl',value:'https://github.com/example/repo/actions/runs/123'};
+  try{
+    assert.doesNotThrow(()=>validateNativeManifest({...scriptManifest,permissions}));
+    assert.throws(()=>validateNativeManifest({...nativeManifest,permissions}),/permissions/);
+    assert.deepEqual(host.validateScriptOps(ctx,'press',[op]).effects,[op]);
+    for(const event of ['appear','settings','tick','networkResult','release','rotateLeft','heldRotateRight'])
+      assert.throws(()=>host.validateScriptOps(ctx,event,[op]),/input event/);
+    assert.throws(()=>host.validateScriptOps({...ctx,permissions:['display']},'press',[op]),/unauthorized/);
+    assert.throws(()=>host.validateScriptOps({...ctx,service:true,permissions:[...permissions,'background.run']},'start',[op]),/background service/);
+    assert.throws(()=>host.validateScriptOps(ctx,'press',[op,op]),/one privileged/);
+    for(const value of ['file:///C:/Windows','javascript:alert(1)','ms-settings:','https://user:pass@example.com','https://example.com/a b','https://example.com\\evil','https://example.com/\n','https://','//example.com','https://example.com/'+ 'x'.repeat(2048)])
+      assert.throws(()=>host.validateScriptOps(ctx,'press',[{...op,value}]),/invalid browser URL/);
+    assert.equal(await closedHost.dispatchBrowserUrl(ctx,op,()=>true),false);
+    assert.equal(await host.dispatchBrowserUrl(ctx,op,()=>active),false);
+    assert.deepEqual(opened,[]);
+    approved=true;
+    assert.equal(await host.dispatchBrowserUrl(ctx,op,()=>active),true);
+    assert.equal(await host.dispatchBrowserUrl(ctx,op,()=>active),false,'rapid duplicate blocked');
+    now+=1000;approved=false;
+    assert.equal(await host.dispatchBrowserUrl(ctx,op,()=>active),false,'revoked approval blocked');
+    approved=true;active=false;
+    assert.equal(await host.dispatchBrowserUrl(ctx,op,()=>active),false,'stale context blocked');
+    assert.deepEqual(opened,[op.value]);assert.ok(approvals.every(a=>a[0]===nativeId&&a[1]==='fixture'));
+    active=true;host.browserApproval=async()=>{active=false;return true;};
+    assert.equal(await host.dispatchBrowserUrl(ctx,op,()=>active),false,'context retired during approval');
+    assert.deepEqual(opened,[op.value]);
+  }finally{host.close();closedHost.close();}
+});
