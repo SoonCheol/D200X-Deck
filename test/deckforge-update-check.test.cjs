@@ -123,6 +123,9 @@ test('installer is downloaded to the Windows Downloads subfolder and launched wi
  assert.match(handler,/path\.join\(app\.getPath\('downloads'\),'DeckForge'\)/);
  assert.match(handler,/downloadPublishedInstaller\(info\.latestVersion,directory,/);
  assert.match(handler,/startVerifiedInstaller\(file,/);
+ assert.match(handler,/dialog\.showMessageBox\(window,/);
+ assert.match(handler,/buttons:\['나중에','설치'\],defaultId:1,cancelId:0/);
+ assert.match(handler,/return result\.response===1/);
  assert.match(handler,/openInstaller:installer=>shell\.openPath\(installer\)/);
  assert.match(handler,/quit:quitDeckForge/);
  assert.match(handler,/DeckForgePrepareUpdate/);
@@ -172,15 +175,18 @@ test('successful update keeps newest and one rollback version, reuses verified d
  }finally{await fs.promises.rm(root,{recursive:true,force:true});}
 });
 
-test('verified installer launches once and quits only on successful launch after readiness check',async()=>{
+test('verified installer requires confirmation and readiness, then quits only on successful launch',async()=>{
  const {startVerifiedInstaller}=require('../app/deckforge-editor/update-check.cjs');
  const calls=[],file='verified.exe';
- const opts={prepare:async()=>{calls.push('prepare');return true;},openInstaller:async p=>{assert.equal(p,file);calls.push('launch');return '';},quit:()=>calls.push('quit')};
- assert.equal(await startVerifiedInstaller(file,opts),true);
- assert.deepEqual(calls,['prepare','launch','quit']);
+ const opts={confirm:async()=>{calls.push('confirm');return true;},prepare:async()=>{calls.push('prepare');return true;},openInstaller:async p=>{assert.equal(p,file);calls.push('launch');return '';},quit:()=>calls.push('quit')};
+ assert.equal(await startVerifiedInstaller(file,opts),'installing');
+ assert.deepEqual(calls,['confirm','prepare','launch','quit']);
  calls.length=0;
- assert.equal(await startVerifiedInstaller(file,{...opts,prepare:async()=>false}),false);
+ assert.equal(await startVerifiedInstaller(file,{...opts,confirm:async()=>false}),'deferred');
  assert.deepEqual(calls,[]);
+ assert.equal(await startVerifiedInstaller(file,{...opts,prepare:async()=>false}),'blocked');
+ assert.deepEqual(calls,['confirm']);
+ calls.length=0;
  await assert.rejects(startVerifiedInstaller(file,{...opts,openInstaller:async()=>{calls.push('error');return 'denied';}}),/실행 실패/);
- assert.deepEqual(calls,['prepare','error']);
+ assert.deepEqual(calls,['confirm','prepare','error']);
 });

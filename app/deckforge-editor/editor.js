@@ -8169,7 +8169,7 @@ function bindSettingsMenu(){
   let requestNumber=0,downloadInProgress=false,downloadMessage='설치 파일 다운로드 중…';
   window.deckBridge?.onUpdateProgress?.(percent=>{
     if(!downloadInProgress||!Number.isInteger(percent)||percent<0||percent>100)return;
-    downloadMessage=percent===100?'설치 파일 확인 완료 · 설치 준비 중…':'설치 파일 다운로드 중… '+percent+'%';
+    downloadMessage=percent===100?'설치 파일 확인 완료 · 설치 여부 확인…':'설치 파일 다운로드 중… '+percent+'%';
     status.textContent=downloadMessage;
   });
   const loadStatus=async(force=false)=>{
@@ -8183,7 +8183,7 @@ function bindSettingsMenu(){
       if(result?.currentVersion)current.textContent=result.currentVersion;
       latest.textContent=result?.latestVersion||'확인 불가';
       update.disabled=result?.state!=='available';
-      status.textContent=result?.state==='available'?(result.downloadUrl?'새 버전이 있습니다. 다운로드 후 설치 프로그램을 실행합니다.':'새 버전이 있습니다. 설치 파일 페이지를 엽니다.'):
+      status.textContent=result?.state==='available'?(result.downloadUrl?'새 버전이 있습니다. 다운로드 후 설치 여부를 확인합니다.':'새 버전이 있습니다. 설치 파일 페이지를 엽니다.'):
         result?.state==='current'?'최신 버전입니다.':'최신 빌드를 확인하지 못했습니다.';
     }catch{
       if(request!==requestNumber||menu.hidden)return;
@@ -8234,6 +8234,7 @@ function bindSettingsMenu(){
       if(!window.deckBridge?.checkForUpdates)throw Error('Windows DeckForge에서만 사용할 수 있습니다.');
       const result=await window.deckBridge.checkForUpdates();
       const message=result?.kind==='installing'?'설치 프로그램을 실행했습니다.':
+        result?.kind==='deferred'?'설치 보류 · 다운로드한 파일은 보관됩니다.':
         result?.kind==='blocked'?'설치 파일 확인 완료 · 미저장 편집/실행 중인 동작 또는 저장 오류를 해결한 후 다시 업데이트하세요.':
         result?.kind==='web'?'설치 파일 페이지를 열었습니다.':'설치 가능한 새 버전을 확인하지 못했습니다.';
       const completion=message+(result?.cleanupWarning?' · 이전 파일 일부 정리 실패':'');

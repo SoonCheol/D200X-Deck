@@ -31,6 +31,7 @@ test('installer config uses per-user fixed location and retains app data',()=>{
   assert.equal(cfg.appId,'net.homedisk.deckforge');
   assert.equal(cfg.win.target[0],'nsis');
   assert.equal(cfg.nsis.oneClick,true);
+  assert.equal(cfg.nsis.runAfterFinish,true,'successful interactive installation launches DeckForge');
   assert.equal(cfg.nsis.perMachine,false);
   assert.equal(cfg.nsis.deleteAppDataOnUninstall,false);
   assert.equal(cfg.npmRebuild,false);

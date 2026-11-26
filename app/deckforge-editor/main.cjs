@@ -989,13 +989,23 @@ ipcMain.handle('d200x:check-updates',async event=>{
           onProgress:percent=>{if(!sender.isDestroyed())sender.send('d200x:update-progress',percent);}
         });
         // Recheck immediately before launch: edits or device actions may have begun during download.
-        const started=await UpdateCheck.startVerifiedInstaller(file,{
+        const kind=await UpdateCheck.startVerifiedInstaller(file,{
+          confirm:async()=>{
+            if(sender.isDestroyed()||!window||window.isDestroyed()||sender!==window.webContents)return false;
+            const result=await dialog.showMessageBox(window,{
+              type:'question',title:'DeckForge 업데이트',
+              message:'DeckForge '+info.latestVersion+' 다운로드 완료',
+              detail:'지금 설치하시겠습니까?\n설치가 완료되면 DeckForge가 자동으로 다시 실행됩니다.',
+              buttons:['나중에','설치'],defaultId:1,cancelId:0,noLink:true
+            });
+            return result.response===1;
+          },
           prepare:async()=>!sender.isDestroyed()&&window&&!window.isDestroyed()&&sender===window.webContents&&
             await sender.executeJavaScript('window.DeckForgePrepareUpdate?.()')===true,
           openInstaller:installer=>shell.openPath(installer),
           quit:quitDeckForge
         });
-        return {kind:started?'installing':'blocked',filePath:file,cleanupWarning};
+        return {kind,filePath:file,cleanupWarning};
       })().finally(()=>{pendingInstallerDownload=null;});
     }
     return pendingInstallerDownload;

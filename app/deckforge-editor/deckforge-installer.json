@@ -43,7 +43,7 @@
     "allowToChangeInstallationDirectory": false,
     "createStartMenuShortcut": true,
     "createDesktopShortcut": true,
-    "runAfterFinish": false,
+    "runAfterFinish": true,
     "deleteAppDataOnUninstall": false,
     "include": "installer-fusion.nsh"
   }

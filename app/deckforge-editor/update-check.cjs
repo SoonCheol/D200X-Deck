@@ -182,12 +182,13 @@ async function retainInstallerPair(directory,file,version,releases,onCleanupErro
   }catch(error){onCleanupError?.(error);}
 }
 
-async function startVerifiedInstaller(file,{prepare,openInstaller,quit}){
-  if(!await prepare())return false;
+async function startVerifiedInstaller(file,{confirm,prepare,openInstaller,quit}){
+  if(!await confirm())return 'deferred';
+  if(!await prepare())return 'blocked';
   const error=await openInstaller(file);
   if(error)throw Error('설치 프로그램 실행 실패: '+error);
   quit();
-  return true;
+  return 'installing';
 }
 
 async function downloadPublishedInstaller(version,directory,{requestJson=githubJson,openResponse=openInstallerResponse,onCleanupError,onProgress}={}){
