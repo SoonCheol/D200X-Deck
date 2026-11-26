@@ -1892,7 +1892,7 @@ function renderInstalledSdkPlugins(root,query,basic=false){
     }
     if(exactActionId===null&&isFusion){
       const manager=document.createElement('button');manager.type='button';
-      manager.className='fusion-manager-launch';
+      manager.className='fusion-manager-launch fusion-command-launch';
       manager.textContent='Fusion 명령 관리자';
       manager.title='Fusion Command Manager 실행';
       manager.addEventListener('click',event=>{event.stopPropagation();launchFusionManager()});

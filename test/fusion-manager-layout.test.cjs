@@ -92,3 +92,15 @@ test('inline Fusion manager maintenance moves to plugin help without replacing t
  assert.match(renderer,/await catalogueReady/);
  assert.match(renderer,/return await \$\(operation\)\.onclick\(\)/);
 });
+
+
+test('Fusion inline panel hides injected management toolbars only in inline mode and uses matching title and entry icons',()=>{
+ const fs=require('node:fs'),path=require('node:path');
+ const read=file=>fs.readFileSync(path.join(__dirname,'..',file),'utf8');
+ const css=read('app/deckforge-editor/style.css'),editor=read('app/deckforge-editor/editor.js');
+ assert.match(css,/#app\.fusion-inline-open>\.library>#plugin-install-toolbar,#app\.fusion-inline-open>\.library>#action-appearance-toolbar\{display:none!important\}/);
+ assert.match(css,/\.fusion-inline-header strong::before,\.fusion-command-launch::before/);
+ assert.match(editor,/manager\.className='fusion-manager-launch fusion-command-launch';\s*manager\.textContent='Fusion 명령 관리자'/);
+ assert.match(editor,/summary\.textContent='플러그인 관리'/);
+ assert.match(editor,/toolbar\.hidden=!plugins/);
+});
