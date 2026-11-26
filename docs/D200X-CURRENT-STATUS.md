@@ -11,7 +11,8 @@
 - 04B 실제 Electron: Model 2 PID 5668/844 및 realm/timeout/서비스 생존, DrawOps 픽셀/host 경계 통과. standard Worker 저장소 IndexedDB/CacheStorage/OPFS 허용, opaque Worker 생성 실패. Model 5 비활성 유지. 로드맵에 따라 05 선행 분석만 수행.
 - **HA 사용자 실기 정정:** 기존 배경색 미표시는 HA 0.1.3 미업데이트가 원인, 업데이트 후 정상 작동 사용자 확인. 이전 배경색 결함 보류 해제. 기타 UI 개별 검증은 별도, SDK 로드맵 우선.
 ## 다음 작업
-- 2.0.88: Fusion 통합 화면에서 플러그인 관리 및 액션 외관 도구막대만 숨김, 관리자 제목/실행 버튼에 동일한 CAD 큐브 아이콘 추가. 일반 탭 및 도움말 관리 기능 유지. 집중 소스·문법 검사 통과, Windows/실기 대기.
+- 2.0.89 착수: GitHub 빌드 상태 속성 감사, 저장소/브랜치/워크플로 조회 재시도 버튼 및 조회 중 중복 요청 차단. 기존 단일 상태 카드·인증 vault·저장/실행 계약 유지.
+- 2.0.88: Fusion 통합 화면에서 플러그인 관리 및 액션 외관 도구막대만 숨김, 관리자 제목/실행 버튼에 동일한 CAD 큐브 아이콘 추가. 일반 탭 및 도움말 관리 기능 유지. 집중 소스·문법 검사 및 Windows #92/CI #1531/SDK #223/입력 #583 성공, 실기 대기.
 - 2.0.87: 통합 Fusion 제목 15px·내용 폭 698px 목표(경계 1px 포함), 명령 드래그/도움말 헤더와 하단 수집 줄 숨김, 기존 카드 크기 유지. Fusion 플러그인 ?에 4개 관리 기능·설명·결과 이관, 기존 수집 핸들러 재사용(패널 열지 않고 실행). 집중 검사·문법 통과, Windows #91 성공, 실기 대기.
 - 2.0.86: Fusion 명령 관리자 오른쪽 프로필 헤더 아래 WebContentsView로 통합(698px 목표, 화면 폭 제한, 최대화/스냅 창 폭 보존), × 기존 패널/확장 전 폭 복원, 기존 드래그·카탈로그·속성 보존. 편집기 대화상자/메뉴 우선, 내부 뷰 숨김/재사용, 종료 시 정리. 자석 사용하지 않음. 집중 소스/문법 검사 및 Windows #90 성공, Windows GUI·드래그 실기 대기. 다음 GitHub/Fusion 속성 감사.
 - 2.0.85: Fusion 명령 관리자 자석 버튼 실제 결합/분리/꺼짐/사용 불가 표시, 이동·크기·토글 상태 이벤트 및 포커스 재조회. Windows 스냅/다중 모니터 해제 원인 확인(단일 workArea·50px 이동 기준); 기존 배치/해제 정책 유지, 별도 승인 후 수정. 집중 모의 검사·문법 통과, Windows/실기 대기.
@@ -27,12 +28,3 @@
 - 2.0.67 Windows #71/CI #1483/SDK #175 성공. 사용자 실기: HA 페이지 진입 깜박임 사라짐(2026-11-26); USB 전송 횟수 미측정. 500ms 초기 게이트 유지.
 - 2.0.65 GitHub 속성창 자동 선택 및 2.0.64 HA 스키마 이관은 Windows #73 통합 회귀 통과; 개별 실기 별도.
 - 2.0.61~63 미리보기 편집기 전용 상태 및 관련 회귀 Windows #73 통과. 전체 속성창 공통화는 후속 보류.
-- P1 2.0.68: HA 0.1.15, 지원 11개 도메인 서버 필터, invalid_format 시 새 ID 전체 구독 1회 폴백, 연결 세대/구독 ID 검사, 재연결 모의 소켓 실제 Electron 회귀 추가. 기존 토큰·설정 유지. Windows #72/CI #1485/SDK #177 성공, 실 HA 별도. 2.0.69 구현: HA 0.1.16, 명시적 socketJsonArray + socketBatch capability, 첫 ID 1 supported_features, 논리 메시지별 FIFO/바이트 회계와 구버전 폴백. Windows #73/CI #1487/SDK #179 성공. 실제 Electron 모의 HA 500개/13키/50개 배열 1266ms, 재연결/구버전 폴백 통과; Model2 5분 1365 press/102 전환/235 tick, OOM 복구 통과. 테스트 전용 HA 지속 수신 60초(30초×2), 반복 재연결 3회 및 129 논리 메시지 과부하 복구 검사 추가. 제품 버전 2.0.69 유지. CI #1489 성공, SDK #181(45725696551) 성공: 65.39초/728 메시지/52회/재연결 3회/과부하 복구, 모의 소켓 실제 Electron. 2.0.69 설치 EXE 게시 확인. 실제 HA/D200X/OS 실기 별도.
-- 긴급 P0 2.0.53~56: HA rate-limit 실제 장애. Gemini SDK-WebSocket-Analysis 434행 검토/소스 대조 완료. 수신 FIFO·바이트/버스트 예산·선택 배치·재연결 안정화·scheduler 포화 복구 및 HA 0.1.13 구현, 실제 Model2 13키/500엔티티/50프레임 검사 추가. 2.0.53 CI #1456 성공, Windows #57 fixture 실패(false/undefined), HA 배치/재연결/입장 검사 통과. 2.0.54 stale 버퍼 회계·admission 구분, 2.0.55 mock fixture 정정, 2.0.56 가상 clock 정수화(부동소수점 경계 오차). Windows #58 126/128, #59 127/128(가상 clock 경계 fixture). 2.0.56 clock 실제 함수 3조건 통과, Windows #60(45686518816) 성공/게시, 128/128; CI #1459·SDK #151 성공, 실제 Electron 500엔티티/13키/50프레임 881ms 및 5분 soak/OOM 통과(모의 소켓). 실HA 별도. 기존 인증·프로필 보존, 실기 별도. SDK 1.0 출시 보류.
-- 2026-11-26 사용자 승인: Model 2만 SDK 1.0 정식 출시 경로로 확정, Model 5 연구 보류/제품 OFF. Gemini report001/002 전문 검토. P0 2.0.43 후보: private ops JSON snapshot·null prototype envelope 방어 및 Object/Array prototype toJSON 거부, ctx.memory validateValue(8KiB/깊이/금지 키), 실제 Electron 집중 회귀 추가. CI #1428·SDK #120·Windows #47 성공, 실제 serialization 3종/메모리 5종 거부 통과. P1 HA 내장·최종 Windows 회귀, P2 실제 장치/HA/OS/GUI. P1 자동 검증 통과, P2 실기 남음. Model 5 시험 이력·코드 Git 보존.
-- 실기 2.0.42: 절전/대기 복귀 후 HA 전등 상태·제어 및 GitHub 조회 정지, 일반 입력/CPU/RAM 정상(사용자 보고). 완전 종료·재실행 후 표시 정상. OS 이벤트/실행 로그 미확보, 원인 미확정. 2.0.44 후보: resume 단독 수신에도 이전 runner/socket/queue 취소 후 초기화, stale 입력 재실행 금지 유지, sdk-power-suspend/resume 진단 기록 및 WSS 재연결 집중 회귀 추가. CI #1430·입력 #552·Windows #48 게시·SDK #122 성공(1417 press/107 전환, 5분 및 보안 검사 통과). 실기 대기. SDK #124 실제 Electron resume 단독/이전 입력 13개 폐기·새 입력 13개 복구·서비스 재시작 통과(실제 OS 제외). 기존 Model 5 시험 이력 Git 보존.
-- **10C 판정:** 자동 검증/설치본 통과, 정식 SDK 1.0 출시 보류. 실제 HA/D200X/OS 절전·재연결/실기 장시간 사용, identity GUI 별도; Model2 자동 soak/OOM 및 설정 저장 검사 통과, 1.1.234 Windows 통합 검사 통과, 전원 손실/제품 IPC 실기 별도. Model5 연구 보류, KEY 기본 OFF, 기존 미리보기 유지.
-- 기존 기능/데이터/API·보안 보존, 테스트/CI/Windows/실기 구분. 미측정 성능 수치 단정 금지.
-## 참조
-- [SDK 계약 및 재설계](DECKFORGE-SDK-1.0.md) · [잔여 로드맵](DECKFORGE-ROADMAP.md).
-- [UI 계약](DECKFORGE-UI-CONTRACT.md) · [데이터 계약](DECKFORGE-DATA-CONTRACT.md) · [패키지 형식](DECKFORGE-PLUGIN-FORMAT.md).
