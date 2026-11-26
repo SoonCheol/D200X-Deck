@@ -432,7 +432,7 @@ test('common key compositor draws HA readings over artwork and under title; cach
 });
 
 test('HA sensor uses Key Up and disabled Key Down cards with standard commands and default background',()=>{
- const begin=source.indexOf('function bindNativeForegroundIconCard('),end=source.indexOf('function bindSdkStateIcons(',begin);
+ const begin=source.indexOf('function hasSingleBasicIconCard('),end=source.indexOf('function bindSdkStateIcons(',begin);
  function node(tag){return {tag,children:[],style:{},classList:{add(){}},setAttribute(){},append(...nodes){this.children.push(...nodes);},replaceChildren(...nodes){this.children=nodes;},addEventListener(type,fn){this[type]=fn;}};}
  const panel=node('section'),title=node('div'),line=node('div'),check=node('input'),background=[];
  const settings=node('button'),moved=[];
@@ -537,4 +537,35 @@ test('automatic Fusion command artwork uses the standard inset without resizing 
  assert.equal(scale({fusionCommandArtwork:true,icon,settings:{sdkStateIcons:{on:icon}}}),1);
  assert.match(sync,/fusionArtworkScale:fusionArtworkScale\(item\)/);
  assert.match(sync,/limitWidth = width\*artworkScale, limitHeight = height\*artworkScale/);
+});
+
+test('single-state basic actions reuse the original title controls and default artwork with an inert right card',()=>{
+ const begin=source.indexOf('function hasSingleBasicIconCard('),end=source.indexOf('function bindSdkStateIcons(',begin);
+ const node=tag=>({tag,children:[],style:{},classList:{add(){}},setAttribute(k,v){this[k]=v;},append(...v){this.children.push(...v);},replaceChildren(...v){this.children=v;},addEventListener(type,fn){this[type]=fn;}});
+ const backgrounds=[],opened=[];
+ for(const type of ['sleep','logic','virtual']){
+  const panel=node('section'),title=node('div'),line=node('div'),check=node('input'),artwork=node('img');
+  title.querySelector=selector=>selector==='[data-sdk-inspector]'?null:line;
+  const root={querySelector:selector=>selector==='[data-inspector-icons]'?panel:title};
+  const item={type,title:'기존 제목',icon:{kind:'glyph',glyph:'X'},settings:{keyBackgrounds:{default:{enabled:true,color:'#445566'}}}};
+  const before=JSON.stringify(item);
+  const ctx={DeckCore:{isNativeForeground:()=>false,isNativeHaSensor:()=>false},$:()=>check,document:{createElement:node},
+    state:{selected:0},ACTIONS:new Map(),inspectorDisplayItem:value=>value,iconNode:value=>{assert.equal(value,item);return artwork;},PALETTE_ICON:'',
+    bindKeyBackgroundControl:(image,target,key)=>backgrounds.push([image,target,key]),openIconLibrary:(...args)=>opened.push(args)};
+  const bind=vm.runInNewContext(source.slice(begin,end)+';bindNativeForegroundIconCard',ctx);
+  bind(root,item);
+  const [left,right]=panel.children[0].children;
+  assert.equal(left.children[0].textContent,'Key Up');assert.equal(right.children[0].textContent,'Key Down');
+  assert.equal(left.children[1],title);assert.deepEqual(title.children,[check,line]);
+  assert.equal(left.children[2].children[0],artwork);
+  assert.deepEqual(left.children[3].children.map(x=>x.textContent),['라이브러리','파일','클립보드','특수문자','초기화']);
+  assert.equal(backgrounds.at(-1)[1],item);assert.equal(backgrounds.at(-1)[2],'default');
+  left.children[3].children[0].click({currentTarget:left.children[3].children[0]});
+  assert.equal(opened.at(-1)[0],item);assert.equal(opened.at(-1)[1],null);
+  assert.equal(right.inert,true);assert.equal(right['aria-disabled'],'true');
+  assert.ok(right.children.slice(1).flatMap(x=>x.children).every(x=>x.disabled));
+  assert.equal(JSON.stringify(item),before,'render must not add state or overwrite the existing artwork');
+  for(const other of ['multi-switch','hotkey-switch','timer','indicator','ha-toggle','brightness'])bind(root,{type:other});
+  assert.equal(panel.children.length,1,'real paired states and other special actions are untouched');
+ }
 });

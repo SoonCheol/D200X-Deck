@@ -2978,8 +2978,8 @@ async function refreshSelectedVisual(){
     if(typeof image.decode==='function')await image.decode();
     if(request!==previewRequest||!isCurrentInspectorAction(item)||$("icon-preview-content")!==host)return;
     host.replaceChildren(image);
-    const sensorCard=$('inspector')?.querySelector?.('.ha-sensor-edit-card .sdk-state-preview');
-    if(sensorCard)replaceStateCardArtwork(sensorCard,image.cloneNode(true));
+    const singleCard=$('inspector')?.querySelector?.('.ha-sensor-edit-card .sdk-state-preview,.single-basic-edit-card .sdk-state-preview');
+    if(singleCard)replaceStateCardArtwork(singleCard,image.cloneNode(true));
     const fallback=$("icon-preview")?.querySelector(".preview-title");
     if(fallback)fallback.hidden=true;
   }catch(error){console.warn("미리보기 이미지 생성 실패",error);}
@@ -3977,15 +3977,17 @@ function attachStateTitleControls(card,item,which){
 // A single-state foreground action uses the standard left-hand artwork editor.
 // Reuse the bound title controls and the existing card geometry. The right
 // preview is display-only and is refreshed from the same composed image.
+function hasSingleBasicIconCard(item){return ['sleep','logic','virtual'].includes(item?.type);}
 function bindNativeForegroundIconCard(root,item){
-  if(!DeckCore.isNativeForeground(item,typeof sdkPlugins==='undefined'?null:sdkPlugins))return;
+  const basicSingle=hasSingleBasicIconCard(item);
+  if(!basicSingle&&!DeckCore.isNativeForeground(item,typeof sdkPlugins==='undefined'?null:sdkPlugins))return;
   const panel=root.querySelector('[data-inspector-icons]');
   const titleRow=root.querySelector('.title-setting-field');
   if(!panel||!titleRow)return;
-  const cards=document.createElement('div');cards.className='sdk-state-icons ha-sensor-icon-cards';
-  const card=document.createElement('div');card.className='sdk-state-icon ha-sensor-edit-card';
+  const cards=document.createElement('div');cards.className='sdk-state-icons '+(basicSingle?'single-basic-icon-cards':'ha-sensor-icon-cards');
+  const card=document.createElement('div');card.className='sdk-state-icon '+(basicSingle?'single-basic-edit-card':'ha-sensor-edit-card');
   const sensor=DeckCore.isNativeHaSensor(item);
-  const heading=document.createElement('strong');heading.textContent=sensor?'Key Up':'아이콘';
+  const heading=document.createElement('strong');heading.textContent=sensor||basicSingle?'Key Up':'아이콘';
   const check=$('title-visible'),line=titleRow.querySelector('.title-line');
   // Move the already-bound settings button out before replacing the title row.
   const settingsButton=titleRow.querySelector('[data-sdk-inspector]');
@@ -3994,6 +3996,7 @@ function bindNativeForegroundIconCard(root,item){
   check.classList.add('state-title-visible');check.title='제목 표시';check.setAttribute('aria-label','제목 표시');
   titleRow.replaceChildren(check,line);
   const image=document.createElement('div');image.className='sdk-state-preview';
+  if(basicSingle)image.append(iconNode(inspectorDisplayItem(item,state.selected),ACTIONS.get(item.type)?.icon||'+'));
   const buttons=document.createElement('div');buttons.className='sdk-state-buttons';
   const add=(text,handler)=>{
     const button=document.createElement('button');button.type='button';button.textContent=text;
@@ -4002,6 +4005,7 @@ function bindNativeForegroundIconCard(root,item){
   add('라이브러리',event=>openIconLibrary(item,null,event.currentTarget));
   add('파일',async()=>{
     const session=inspectorSession;
+    if(basicSingle&&!window.deckBridge?.chooseImportFile){fileIconTarget=item;fileIconSession=session;$("custom-icon-file").click();return;}
     try{
       const chosen=await chooseNativeImage('image');if(!chosen?.dataUrl)return;
       applyIconData(item,await rasterizeIcon(chosen.dataUrl),session);
@@ -4015,8 +4019,8 @@ function bindNativeForegroundIconCard(root,item){
   // Same two-card geometry as ordinary keys; the second card is a disabled
   // presentation placeholder, not a second sensor state or stored setting.
   cards.append(card);
-  if(sensor){
-    const down=document.createElement('div');down.className='sdk-state-icon ha-sensor-disabled-card';down.inert=true;down.setAttribute('aria-disabled','true');
+  if(sensor||basicSingle){
+    const down=document.createElement('div');down.className='sdk-state-icon '+(basicSingle?'single-basic-disabled-card':'ha-sensor-disabled-card');down.inert=true;down.setAttribute('aria-disabled','true');
     const label=document.createElement('strong');label.textContent='Key Down';
     const row=document.createElement('div');row.className='state-title-control';
     const disabledCheck=document.createElement('input');disabledCheck.type='checkbox';disabledCheck.className='state-title-visible';disabledCheck.disabled=true;
@@ -4024,6 +4028,7 @@ function bindNativeForegroundIconCard(root,item){
     const disabledStyle=document.createElement('button');disabledStyle.type='button';disabledStyle.className='state-title-style';disabledStyle.textContent='T⌄';disabledStyle.disabled=true;
     row.append(disabledCheck,disabledTitle,disabledStyle);
     const preview=document.createElement('div');preview.className='sdk-state-preview';
+    if(basicSingle){const palette=document.createElement('button');palette.type='button';palette.className='key-background-trigger';palette.innerHTML=PALETTE_ICON;palette.disabled=true;preview.append(palette);}
     const controls=document.createElement('div');controls.className='sdk-state-buttons';
     for(const name of ['라이브러리','파일','클립보드','특수문자','초기화']){
       const button=document.createElement('button');button.type='button';button.textContent=name;button.disabled=true;controls.append(button);
@@ -5107,7 +5112,7 @@ function renderInspector(){
     root.className="inspector empty";root.textContent=state.selected===null?"버튼을 선택하세요":"액션을 끌어 이 키에 놓으세요";
     if(inspectorSession?.dirty)appendInspectorSaveBar(root);return;
   }
-  root.className="inspector action-layout-inspector"+(pressIsOrdinary(rootItem)&&state.selected<13?' press-gesture-inspector':'')+(item.type==='text'?' text-inspector':'')+(item.type==='hotkey-switch'?' hotkey-switch-inspector':'')+(item.type==='sd-plugin'?' sdk-plugin-inspector':'')+(hasStateTitlePair(item)||item.type==='indicator'||DeckCore.isNativeForeground(item,typeof sdkPlugins==='undefined'?null:sdkPlugins)?' state-title-inspector':'')+(item.type==='indicator'?' indicator-inspector':'');
+  root.className="inspector action-layout-inspector"+(pressIsOrdinary(rootItem)&&state.selected<13?' press-gesture-inspector':'')+(item.type==='text'?' text-inspector':'')+(item.type==='hotkey-switch'?' hotkey-switch-inspector':'')+(item.type==='sd-plugin'?' sdk-plugin-inspector':'')+(hasStateTitlePair(item)||item.type==='indicator'||hasSingleBasicIconCard(item)||DeckCore.isNativeForeground(item,typeof sdkPlugins==='undefined'?null:sdkPlugins)?' state-title-inspector':'')+(item.type==='indicator'?' indicator-inspector':'');
   const action=ACTIONS.get(item.type),fields=item.type==='timer'?'':actionFields(item);
   const sdkName=item.type==='sd-plugin'
     ?(item.settings?.actionUUID===HA_CUSTOM_ACTION?'Home Assistant 장치 제어':
@@ -5340,7 +5345,7 @@ function renderInspector(){
       stop.addEventListener('click',()=>{runningMultiProgress.get(DeckCore.runtimeActionKey(state,state.selected,'down'))?.controller.abort();refreshMultiRunControls();});
       preview.append(stop);refreshMultiRunControls();
     }
-    if((hasStateTitlePair(item)||item.type==='indicator'||DeckCore.isNativeForeground(item,typeof sdkPlugins==='undefined'?null:sdkPlugins))&&iconRegion){
+    if((hasStateTitlePair(item)||item.type==='indicator'||hasSingleBasicIconCard(item)||DeckCore.isNativeForeground(item,typeof sdkPlugins==='undefined'?null:sdkPlugins))&&iconRegion){
       const layout=document.createElement('div');layout.className='state-title-layout';
       // Keep the bound Key Up/Key Down cards together, then the original preview/test.
       layout.append(iconRegion,preview);
@@ -5359,7 +5364,7 @@ function renderInspector(){
       properties.classList.add('action-single-extra');
     }
   }
-  if(DeckCore.isNativeForeground(item,typeof sdkPlugins==='undefined'?null:sdkPlugins))void refreshSelectedVisual();
+  if(hasSingleBasicIconCard(item)||DeckCore.isNativeForeground(item,typeof sdkPlugins==='undefined'?null:sdkPlugins))void refreshSelectedVisual();
   if(ordinaryPress)renderPressTabs(rootItem,root);
   updateSdkAvailabilityInspector();
   const actionHeader=root.querySelector('.action-head');
@@ -7320,7 +7325,7 @@ function bindIconControls(item){
     },{signal:inspectorListener.signal});
   }
   const hasStateCards=hasStateTitlePair(item)||item.type==='indicator';
-  if(hasStateCards||DeckCore.isNativeForeground(item,typeof sdkPlugins==='undefined'?null:sdkPlugins)){
+  if(hasStateCards||hasSingleBasicIconCard(item)||DeckCore.isNativeForeground(item,typeof sdkPlugins==='undefined'?null:sdkPlugins)){
     $("icon-library-open").remove();$("icon-menu-trigger").remove();$("icon-dropdown").remove();
     // Preview transitions are handled above for all action families.
     return;
