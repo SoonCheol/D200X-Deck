@@ -197,3 +197,39 @@ test('body-level key background palette remains inside the dirty inspector edit 
  ctx.inspectorSession.dirty=false;
  assert.equal(fire('click',target('outside')).prevented,false);assert.equal(warnings.length,2);
 });
+
+
+test('shared title appearance input sync restores each style without editing either stored value',()=>{
+ const start=editor.indexOf('function syncTitleBackgroundInputs('),end=editor.indexOf('function bindTitleStyle(',start);
+ assert.ok(start>=0&&end>start);
+ const sync=vm.runInNewContext(editor.slice(start,end)+';syncTitleAppearanceInputs',{validPaletteColor:v=>typeof v==='string'&&/^#[0-9a-f]{6}$/i.test(v)});
+ const nodes=new Map(),lookup=id=>{if(!nodes.has(id))nodes.set(id,{});return nodes.get(id);};
+ const button=(key,value)=>({dataset:{[key]:value},classList:{toggle(name,on){assert.equal(name,'active');this.active=on;}}});
+ const align=['top','middle','bottom'].map(v=>button('align',v)),styles=['bold','italic','underline'].map(v=>button('style',v));
+ const menu={querySelectorAll:selector=>selector==='[data-align]'?align:styles};
+ const first=Object.freeze({...core.TITLE,family:'Malgun Gothic',size:18,align:'top',bold:true,italic:false,underline:true,color:'#112233',outlineColor:'#445566',outlineWidth:'medium',backgroundEnabled:true,backgroundColor:'#abcdef',backgroundOpacity:0});
+ const second=Object.freeze({...core.TITLE,family:'Segoe UI',size:32,align:'bottom',bold:false,italic:true,underline:false,color:'#ffffff',outlineColor:'#000000',outlineWidth:'none',backgroundEnabled:false,backgroundColor:'#123456',backgroundOpacity:87});
+ const before=JSON.stringify([first,second]);
+ for(const style of [first,second,first]){
+   sync(menu,lookup,style);
+   assert.equal(lookup('title-family').value,style.family);
+   assert.equal(lookup('title-size').value,String(style.size));
+   assert.equal(lookup('title-color').value,style.color);
+   assert.equal(lookup('outline-color').value,style.outlineColor);
+   assert.equal(lookup('outline-width').value,style.outlineWidth);
+   assert.deepEqual(align.map(b=>b.classList.active),align.map(b=>b.dataset.align===style.align));
+   assert.deepEqual(styles.map(b=>b.classList.active),styles.map(b=>Boolean(style[b.dataset.style])));
+   assert.equal(lookup('title-background-enabled').checked,style.backgroundEnabled);
+   assert.equal(lookup('title-background-color').value,style.backgroundColor);
+   assert.equal(lookup('title-background-opacity').value,String(style.backgroundOpacity));
+   assert.equal(lookup('title-background-opacity-value').textContent,style.backgroundOpacity+'%');
+ }
+ sync(menu,lookup,{...first,backgroundColor:'invalid',backgroundOpacity:Infinity});
+ assert.equal(lookup('title-background-color').value,'#000000');
+ assert.equal(lookup('title-background-opacity').value,'65');
+ sync(menu,lookup,{...first,backgroundOpacity:101});
+ assert.equal(lookup('title-background-opacity').value,'100');
+ assert.equal(JSON.stringify([first,second]),before);
+ const binder=editor.slice(end,editor.indexOf('// Inspector writes remain drafts',end));
+ assert.equal((binder.match(/syncTitleAppearanceInputs\(menu,\$,style\)/g)||[]).length,3);
+});

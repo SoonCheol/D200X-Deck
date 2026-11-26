@@ -3273,6 +3273,24 @@ function positionTitleStylePopover(menu,trigger){
   const {x,y}=titlePopoverPosition(region.getBoundingClientRect(),trigger.getBoundingClientRect(),menu.getBoundingClientRect(),window.innerWidth,window.innerHeight);
   menu.style.left=x+'px';menu.style.top=y+'px';
 }
+// Synchronize existing controls without writing the action or firing edit events.
+function syncTitleBackgroundInputs(style,lookup){
+  lookup('title-background-enabled').checked=style.backgroundEnabled===true;
+  lookup('title-background-color').value=validPaletteColor(style.backgroundColor)?style.backgroundColor:'#000000';
+  const opacity=Number.isFinite(style.backgroundOpacity)?Math.max(0,Math.min(100,style.backgroundOpacity)):65;
+  lookup('title-background-opacity').value=String(opacity);
+  lookup('title-background-opacity-value').textContent=opacity+'%';
+}
+function syncTitleAppearanceInputs(menu,lookup,style){
+  menu.querySelectorAll('[data-align]').forEach(button=>button.classList.toggle('active',button.dataset.align===style.align));
+  lookup('title-family').value=style.family;
+  lookup('title-size').value=String(style.size);
+  menu.querySelectorAll('[data-style]').forEach(button=>button.classList.toggle('active',Boolean(style[button.dataset.style])));
+  lookup('title-color').value=style.color;
+  lookup('outline-color').value=style.outlineColor;
+  lookup('outline-width').value=style.outlineWidth;
+  syncTitleBackgroundInputs(style,lookup);
+}
 function bindTitleStyle(item){
   let indicatorField='title';
   let style={...DEFAULT_TITLE_STYLE,...item.titleStyle};
@@ -3356,16 +3374,7 @@ function bindTitleStyle(item){
     // Do not rebuild the inspector: the popover stays open and displays applied values.
     Object.assign(style,chosen.style);
     if(item.type==='indicator'){const n=indicatorCheckbox(indicatorField);if(n)n.checked=style.visible!==false;}else visible.checked=style.visible;
-    menu.querySelectorAll("[data-align]").forEach(button=>
-      button.classList.toggle("active",button.dataset.align===style.align));
-    family.value=style.family;
-    $("title-size").value=String(style.size);
-    menu.querySelectorAll("[data-style]").forEach(button=>
-      button.classList.toggle("active",Boolean(style[button.dataset.style])));
-    $("title-color").value=style.color;
-    $("outline-color").value=style.outlineColor;
-    $("outline-width").value=style.outlineWidth;
-    syncTitleBackgroundFields();
+    syncTitleAppearanceInputs(menu,$,style);
     commitStyle();
   });
   $("title-preset-save").addEventListener("click",async()=>{
@@ -3414,14 +3423,7 @@ function bindTitleStyle(item){
     $(id+"-palette").addEventListener("click",event=>{event.stopPropagation();openPalette(field,event.currentTarget);});
   });
   window.addEventListener('resize',()=>{palette.hidden=true;},{signal:inspectorListener.signal});
-  function syncTitleBackgroundFields(){
-    $("title-background-enabled").checked=style.backgroundEnabled===true;
-    $("title-background-color").value=validPaletteColor(style.backgroundColor)?style.backgroundColor:'#000000';
-    const opacity=Number.isFinite(style.backgroundOpacity)?Math.max(0,Math.min(100,style.backgroundOpacity)):65;
-    $("title-background-opacity").value=String(opacity);
-    $("title-background-opacity-value").textContent=opacity+'%';
-  }
-  syncTitleBackgroundFields();
+  syncTitleBackgroundInputs(style,$);
   $("title-background-enabled").addEventListener("change",()=>save("backgroundEnabled",$("title-background-enabled").checked));
   $("title-background-opacity").addEventListener("input",()=>{
     const opacity=Number($("title-background-opacity").value);
@@ -3440,11 +3442,8 @@ function bindTitleStyle(item){
   // The existing popover is reused: each card switches its own style object.
   const root=$("inspector");
   function syncIndicatorStyle(){
-    menu.querySelectorAll("[data-align]").forEach(b=>b.classList.toggle("active",b.dataset.align===style.align));
-    family.value=style.family;size.value=style.size;
-    menu.querySelectorAll("[data-style]").forEach(b=>b.classList.toggle("active",!!style[b.dataset.style]));
-    $("title-color").value=style.color;$("outline-color").value=style.outlineColor;outlineWidth.value=style.outlineWidth;
-    syncTitleBackgroundFields();renderPresetOptions();palette.hidden=true;
+    syncTitleAppearanceInputs(menu,$,style);
+    renderPresetOptions();palette.hidden=true;
   }
   function indicatorCheckbox(field){
     return $(field==='title'?'title-visible':field==='number'?'indicator-number-visible':field==='downTitle'?'indicator-down-title-visible':'indicator-down-number-visible');
@@ -3484,15 +3483,8 @@ function bindTitleStyle(item){
     style={...DEFAULT_TITLE_STYLE,...entry.style};
     root.dataset.activeTitle=which;
     menu.hidden=false;
-    menu.querySelectorAll("[data-align]").forEach(b=>b.classList.toggle("active",b.dataset.align===style.align));
-    family.value=style.family;
     visible.checked=entry.enabled;
-    size.value=style.size;
-    menu.querySelectorAll("[data-style]").forEach(b=>b.classList.toggle("active",!!style[b.dataset.style]));
-    $("title-color").value=style.color;
-    $("outline-color").value=style.outlineColor;
-    outlineWidth.value=style.outlineWidth;
-    syncTitleBackgroundFields();
+    syncTitleAppearanceInputs(menu,$,style);
     const host=trigger.closest('.state-title-control');
     if(host)host.append(menu);
     positionTitleStylePopover(menu,trigger);

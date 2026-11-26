@@ -51,7 +51,7 @@
 - 01 분석 완료(코드 변경 없음): editor.js의 bindKeyPressIconControls, bindSdkStateIcons, bindNativeForegroundIconCard가 동일 5버튼 카드 DOM/이벤트를 개별 생성. 공통화는 DOM 및 컨트롤 연결 구조부터; 상태별 저장 키(keyPressIcons, sdkStateIcons, stateVisuals, icon), 파일 선택 폴백, 초기화·페어 예외는 기존 어댑터 유지. attachStateTitleControls, bindSharedColorPalette, bindKeyBackgroundControl, appendInspectorSaveBar, bindVisualPreviewPress 등 기존 공통 함수 재사용. openNativeSettings는 선언형 schema와 HA/GitHub 특화 선택·검증·인증을 분리해 보존. Fusion 명령 속성은 읽기 전용, 노브·측면·와이드·페이지 표시 전용 구조는 일반 LCD 카드와 분리.
 - 02 (2.0.92 구현, Windows #96 리터럴 검사 실패, 2.0.93 검사 수정 후 Windows #97 성공): 기존 style.css의 카드/필드/버튼/여백 규격을 동일 화면 결과로 정리. 최신 UI 계약 우선; 12px 카드 간격, 76×25px 버튼/4px 간격, 98px 미리보기/86px 이미지, 독자 SDK 84px 라벨 열, 체크서클·전체 클릭 영역 및 기존 예외. 실제 DOM/좌표 비교를 기준으로 신규 수치 강제 금지.
 - 03 (2.0.98 구현, 검증 대기): createStateIconCard/createStateIconButtons를 3개 기존 어댑터와 비활성 카드에 적용. 기존 DOM/클래스/버튼 순서와 미리보기·비동기 선택·저장 어댑터 유지. 단일 상태 우측 inert/disabled, 신규 상태 데이터 생성·삭제 없음. 집중 VM 검사 갱신.
-- 04: 제목·글꼴·배경·팔레트 공통화. 표시 속성 공유 4조합, 실제 ON/OFF 페어, 팝오버 위치·원본 복원 유지.
+- 04 (2.0.99 구현, 검증 대기): syncTitleAppearanceInputs/syncTitleBackgroundInputs로 프리셋·상태별·페이지 표시의 글꼴/색/외곽선/제목 배경 필드 동기화. 기존 bindSharedColorPalette 및 bindKeyBackgroundControl 재사용, 색상 저장·팝오버 위치·표시 공유 4조합·실제 ON/OFF 페어·초안/원본 복원 보존. 집중 검사 추가.
 - 05: 공통 필드·체크서클·동적 활성화, 중첩 순차/노브 필드 연결. 숨김/비활성 값 보존, 바인딩 시 데이터 변경 금지.
 - 06: 도움말·저장/취소·검증 공통화. 물리 버튼 단위 초안과 외부 SDK 독립 커밋 분리, 오류·미저장·이동·재시도 보호. 시각 미리보기와 실제 실행 테스트 분리.
 - 07~08: 기본 35종 및 독자 HA/GitHub/Fusion에 순차 적용. 특수 기능은 기존 어댑터 유지. Fusion Manager·인증·실행 엔진·프로필·USB 변경 금지.
