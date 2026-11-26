@@ -704,3 +704,25 @@ test('website fields normalize URLs in every editor and retain the inactive brow
   assert.match(editor,/if\(draft.type==='website'\)bindWebsiteFields\(fields,draft,\(\)=>\{\}\)/);
   assert.match(editor,/fields.innerHTML=actionFields\(current\);bindExtendedActionFields\(fields,current\)/);
 });
+
+
+test('shared input dependencies update scroll choices and text count without altering data at bind time',()=>{
+  const start=editor.indexOf('function bindInputFieldDependencies('),end=editor.indexOf('function bindExtendedActionFields(',start);
+  const {bindInputFieldDependencies:bind,bindNestedAudioFields:audio}=vm.runInNewContext(editor.slice(start,end)+'\n({bindInputFieldDependencies,bindNestedAudioFields})',{Option:class{constructor(label,value){this.label=label;this.value=value;}}});
+  const node=value=>({value,listeners:{},addEventListener(k,fn){this.listeners[k]=fn;},fire(k){this.listeners[k]?.();},replaceChildren(...nodes){this.options=nodes;}});
+  const axis=node('vertical'),direction=node('up'),body=node(''),count=node(''),volume=node('50'),display=node('');
+  const elements={'[data-field="axis"]':axis,'[data-field="direction"]':direction,'[data-field="body"]':body,'#text-count':count,'[data-field="volume"]':volume,'#volume-display':display};
+  const root={querySelector:k=>elements[k]};
+  const item={type:'system-scroll',settings:{axis:'vertical',direction:'up'}};
+  bind(root,item);assert.equal(item.settings.direction,'up');
+  axis.value='horizontal';axis.fire('change');assert.equal(item.settings.axis,'horizontal');assert.equal(item.settings.direction,'right');assert.equal(direction.value,'right');
+  assert.equal(Array.from(direction.options,x=>x.value).join(','),'right,left');
+  axis.value='vertical';axis.fire('change');assert.equal(direction.value,'down');
+  assert.equal(Array.from(direction.options,x=>x.value).join(','),'down,up');
+  bind(root,{type:'text',settings:{body:'old'}});body.value='한글';body.fire('input');assert.equal(count.textContent,'2 / 2048');
+  audio(root,{type:'audio-play'});volume.value='72';volume.fire('input');assert.equal(display.textContent,'72');
+  assert.match(editor,/<textarea id="s-body" data-field="body" maxlength="2048">/);
+  assert.match(editor,/bindInputFieldDependencies\(fields,draft\)/);
+  assert.match(editor,/bindInputFieldDependencies\(root,item\)/);
+  assert.match(editor,/if\(draft.type==='audio-play'\)void populateAudioOutputs/);
+});

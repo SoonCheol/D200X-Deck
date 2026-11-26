@@ -2228,7 +2228,7 @@ function actionFields(item){
     case "close":return pathPicker("path","대상 경로")+check("force","강제 종료");
     case "hotkey":return select("preset","동작 선택",HOTKEY_PRESET_LABELS)+input("keys","단축키","클릭하여 할당");
     case "hotkey-switch":return input("first","단축키 1")+input("second","단축키 2");
-    case "text":return `<div class="field"><label for="s-body">텍스트</label><div><textarea id="s-body" data-field="body">${escapeHtml(valueOf(item,"body"))}</textarea><div class="hint" id="text-count">${String(valueOf(item,"body")).length} / -</div></div></div>`+check("enter","Enter 추가")+`<div class="field checkbox-setting-field"><label for="s-mode">클립보드에 추가</label><input id="s-mode" type="checkbox" data-field="mode" data-text-clipboard="true" ${item.settings?.mode==='typing'?'':'checked'}></div>`;
+    case "text":return `<div class="field"><label for="s-body">텍스트</label><div><textarea id="s-body" data-field="body" maxlength="2048">${escapeHtml(valueOf(item,"body"))}</textarea><div class="hint" id="text-count">${String(valueOf(item,"body")).length} / 2048</div></div></div>`+check("enter","Enter 추가")+`<div class="field checkbox-setting-field"><label for="s-mode">클립보드에 추가</label><input id="s-mode" type="checkbox" data-field="mode" data-text-clipboard="true" ${item.settings?.mode==='typing'?'':'checked'}></div>`;
     case "media":return select("op","동작",[["previous","이전 트랙"],["playpause","재생 / 일시정지"],["next","다음 트랙"],["stop","정지"],["mute","음소거"],["up","음량 키우기"],["down","음량 줄이기"]]);
     case "system-volume":return select("direction","동작",[["up","음량 키우기"],["down","음량 줄이기"]])+select("step","변화량",[[1,"1"],[2,"2"],[5,"5"],[10,"10"]]);
     case "system-mute":return '<div class="field"><span></span><span class="hint">누를 때마다 음소거 전환</span></div>';
@@ -2315,7 +2315,8 @@ function orderedMultiDialog(step,apply){
     }
   }else{
     const prior=active;fields.innerHTML=actionFields(draft);active=prior;
-    for(const node of fields.querySelectorAll('[data-field]'))node.addEventListener('change',()=>{draft.settings[node.dataset.field]=node.type==='checkbox'?fieldChecked(node):node.type==='number'||node.type==='range'?Number(node.value):node.value;});
+    bindInputFieldDependencies(fields,draft);bindNestedAudioFields(fields,draft);
+    for(const node of fields.querySelectorAll('[data-field]'))node.addEventListener(node.tagName==='TEXTAREA'||node.type==='range'?'input':'change',()=>{draft.settings[node.dataset.field]=node.type==='checkbox'?fieldChecked(node):node.type==='number'||node.type==='range'?Number(node.value):node.value;});
     for(const button of fields.querySelectorAll('[data-path-picker]'))button.addEventListener('click',async()=>{try{const path=await window.deckBridge?.choosePath(button.dataset.pathKind);if(!path||!dialog.open)return;draft.settings[button.dataset.pathPicker]=path;const input=fields.querySelector('[data-field="'+button.dataset.pathPicker+'"]');if(input)input.value=path;}catch(e){window.d200xActionStatus?.(String(e?.message||e));}});
     if(draft.type==='ha-toggle')fields.querySelector('[data-ha-entities]')?.addEventListener('click',async()=>{
       try{
@@ -2336,6 +2337,7 @@ function orderedMultiDialog(step,apply){
   button('확인',()=>{if(['hotkey','hotkey-switch'].includes(draft.type)){const keys=draft.type==='hotkey'?[draft.settings.keys]:[draft.settings.first,draft.settings.second];if(keys.some(x=>!window.DeckHotkeys.canonical(x))){window.d200xActionStatus?.('단축키를 선택하세요.');return;}}apply(draft);dialog.close();});
   dialog.append(title,fields,footer);document.body.append(dialog);
   dialog.addEventListener('close',()=>dialog.remove(),{once:true});dialog.showModal();
+  if(draft.type==='audio-play')void populateAudioOutputs(fields.querySelector('[data-field="output"]'),draft);
 }
 const ORDERED_PATH_TYPES={ 'open-app':['app','app'],open:['path','file'],close:['path','app'],'file-open':['path','file'],'folder-shortcut':['path','folder'],'audio-play':['file','file'] };
 function orderedMultiSummary(step){
@@ -3867,9 +3869,9 @@ function renderControlInspector(){
   if(current&&!heldDisabled&&currentMode!=='stack'&&!(knob&&chosen==='down'&&binding.heldEnabled)){
     const editor=document.createElement('div');editor.className='control-action-editor';
     const fields=document.createElement('div');fields.className='fields';
-    fields.innerHTML=actionFields(current);bindExtendedActionFields(fields,current);
-    fields.querySelectorAll('[data-field]').forEach(node=>node.addEventListener(node.tagName==='TEXTAREA'?'input':'change',()=>{
-      current.settings[node.dataset.field]=node.type==='checkbox'?fieldChecked(node):node.type==='number'?Number(node.value):node.value;
+    fields.innerHTML=actionFields(current);bindExtendedActionFields(fields,current);bindNestedAudioFields(fields,current);
+    fields.querySelectorAll('[data-field]').forEach(node=>node.addEventListener(node.tagName==='TEXTAREA'||node.type==='range'?'input':'change',()=>{
+      current.settings[node.dataset.field]=node.type==='checkbox'?fieldChecked(node):node.type==='number'||node.type==='range'?Number(node.value):node.value;
       persist();
     }));
     editor.append(fields);root.append(editor);
@@ -4725,7 +4727,31 @@ function bindWebsiteFields(root,item,onChange){
   });
   mode.addEventListener('change',syncBrowser);syncBrowser();
 }
+// Common field dependencies: never rebuild the inspector or change saved data on render.
+function bindInputFieldDependencies(root,item){
+  if(item.type==='system-scroll'){
+    const axis=root.querySelector('[data-field="axis"]'),direction=root.querySelector('[data-field="direction"]');
+    if(axis&&direction)axis.addEventListener('change',()=>{
+      const horizontal=axis.value==='horizontal';
+      const choices=horizontal?[['right','오른쪽'],['left','왼쪽']]:[['down','아래'],['up','위']];
+      direction.replaceChildren(...choices.map(([value,label])=>new Option(label,value)));
+      item.settings.axis=axis.value;
+      item.settings.direction=choices[0][0];
+      direction.value=item.settings.direction;
+    });
+  }
+  if(item.type==='text'){
+    const body=root.querySelector('[data-field="body"]'),count=root.querySelector('#text-count');
+    if(body&&count)body.addEventListener('input',()=>{count.textContent=String(body.value.length)+' / 2048';});
+  }
+}
+function bindNestedAudioFields(root,item){
+  if(item.type!=='audio-play')return;
+  const volume=root.querySelector('[data-field="volume"]'),display=root.querySelector('#volume-display');
+  if(volume&&display)volume.addEventListener('input',()=>{display.textContent=String(volume.value);});
+}
 function bindExtendedActionFields(root,item){
+  bindInputFieldDependencies(root,item);
   if(item.type==='website')bindWebsiteFields(root,item,persistInspectorChange);
   if(item.type==='sd-plugin'){
     root.querySelector('[data-sdk-inspector]')?.addEventListener('click',async()=>{
@@ -5320,16 +5346,12 @@ function renderInspector(){
     node.addEventListener(node.type==="range"||node.tagName==="TEXTAREA"?"input":"change",()=>{
       let value=node.type==="checkbox"?fieldChecked(node):node.type==="number"||node.type==="range"?Number(node.value):node.value;
       item.settings[node.dataset.field]=value;
-      if(item.type==='system-scroll'&&node.dataset.field==='axis')
-        item.settings.direction=value==='horizontal'?'right':'down';
       if(item.type==='audio-play')persistInspectorChange();else persist();
-      if(item.type==='system-scroll'&&node.dataset.field==='axis')renderInspector();
       if(item.type==='audio-play'&&node.dataset.field==='volume'){
         $("volume-display").textContent=String(value);
         updateActiveAudioVolume(item.settings,value);
       }
       if(node.dataset.field==="body"){
-        if($("text-count")) $("text-count").textContent=String(value.length)+" / -";
         if(item.type==='text'){renderGrid();refreshTitlePreview(item);}
       }
     });

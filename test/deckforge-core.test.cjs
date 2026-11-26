@@ -2175,3 +2175,26 @@ test('launch audit 11–18: configured values survive reload and reach execution
     assert.deepEqual(core.planAction(loaded,0,1),expected,type);
   }
 });
+
+
+test('multimedia and input audit: all eleven visible action configurations survive reload and reach execution plans',()=>{
+  const rows=[
+    ['system-volume',{direction:'down',step:5},{kind:'adjust',target:'volume',direction:-1,count:5}],
+    ['system-mute',{},{kind:'mute'}],
+    ['media',{op:'next'},{kind:'media-control',operation:'next'}],
+    ['audio-play',{file:'C:\\audio.wav',mode:'loop-stop',fade:'out',fadeDuration:3,output:'device',volume:72},{kind:'audio-play',file:'C:\\audio.wav',mode:'loop-stop',fade:'out',fadeDuration:3,output:'device',volume:72}],
+    ['audio-stop',{},{kind:'audio-stop'}],
+    ['hotkey',{keys:'Ctrl+C'},{kind:'windows-hotkey',keys:'Ctrl+C'}],
+    ['hotkey-switch',{first:'Ctrl+C',second:'Ctrl+V'},{kind:'windows-hotkey-switch',first:'Ctrl+C',second:'Ctrl+V'}],
+    ['text',{body:'한글',mode:'clipboard',enter:true},{kind:'type-text',text:'한글',mode:'clipboard',enter:true}],
+    ['system-scroll',{axis:'horizontal',direction:'left',step:10},{kind:'scroll',axis:'horizontal',direction:-1,count:10}],
+    ['edit-history',{operation:'redo',step:2},{kind:'edit-history',operation:'redo',count:2}],
+    ['system-zoom',{operation:'reset',step:5},{kind:'zoom-reset'}]
+  ];
+  for(const [type,settings,expected] of rows){
+    const action=core.createAction(type);Object.assign(action.settings,settings);
+    const loaded=core.cleanAction(JSON.parse(JSON.stringify(action)));
+    for(const [key,value] of Object.entries(settings))assert.equal(loaded.settings[key],value,type+' '+key);
+    assert.deepEqual(core.planAction(loaded,0,1),expected,type);
+  }
+});
