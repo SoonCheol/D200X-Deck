@@ -4,7 +4,7 @@
 - 저장소 SoonCheol/D200X-Deck · 브랜치 codex/streamdeck-761-clean-editor · Draft PR #5 유지.
 - 로컬 E:\Codex\DeckForge. 최신 HEAD는 Git에서 확인. 소스 버전 **2.0.94**.
 ## 현재 상태
-- 독자 SDK API 1/2, 공개 25개 함수, HTTP/WSS, 전역 서비스/공유 상태, 동적 속성, 암호화·권한·패키지, HA 0.1.9 후보 및 기존 호환 호스트 구현. SDK 1.0 정식 완성 선언 보류.
+- 독자 SDK API 1/2, 공개 26개 함수(URL 실행 보류), HTTP/WSS, 전역 서비스/공유 상태, 동적 속성, 암호화·권한·패키지, HA 0.1.9 후보 및 기존 호환 호스트 구현. SDK 1.0 정식 완성 선언 보류.
 - HA 기존 실기 인증·기기 목록·전등 제어·센서 표시 성공, 최신 실기 별도.
 - 1·2차 감사 합의와 3차 보고서 검토를 기반으로 재설계 방향 및 단계 순서 사용자 승인. 3차 전체 및 핵심 소스 대조 완료; 1·2차 원문 재검토, 감사 19/13행 소스 대응표 작성, 잔여 GUI·실제 장애 별도.
 - 04A Model 2: service/button partition·runner 재사용, lane 직렬화·lease 취소·idle LRU/30초·suspend/close·realm reset. legacy 복귀 DECKFORGE_SDK_RUNNER=legacy, 실패 이벤트 재실행 금지. 1.1.189 Windows 성공; 1.1.230 실제 장애 검증 통과.
@@ -29,4 +29,4 @@
 - 2.0.67 Windows #71/CI #1483/SDK #175 성공. 사용자 실기: HA 페이지 진입 깜박임 사라짐(2026-11-26); USB 전송 횟수 미측정. 500ms 초기 게이트 유지.
 - 2.0.65 GitHub 속성창 자동 선택 및 2.0.64 HA 스키마 이관은 Windows #73 통합 회귀 통과; 개별 실기 별도.
 - 속성창 공통화 02: 2.0.92 CSS 공통 치수, Windows #96 검사 리터럴 불일치. 2.0.93 검사 수정 후 Windows #97 성공. DOM·실행·저장 변경 없음, 실기 별도. 다음 03: 공통 상태 카드/5버튼 생성기.
-- URL 1차(2.0.94): api.openUrl/browser.open, press 전용 HTTP(S) 검증, 승인·브라우저 어댑터 미연결 시 차단, 세대 확인/750ms 전역 제한. 계약 테스트 추가, 실행 결과/Windows 대기. 2차 최초 승인 저장·재승인·철회 및 브라우저 연결, 3차 GitHub 링크. 기존 기본/호환 액션·토큰 보존. UI 공통화 03 별도.
+- URL 1차(2.0.94): api.openUrl/browser.open, press 전용 HTTP(S) 검증, 승인·브라우저 어댑터 미연결 시 차단, 세대 확인/750ms 전역 제한. Windows #98/CI #1542/SDK #234 성공. 2차 착수: 별도 암호화 권한 저장, 설치/복원 승인, 관리창 철회, manifest 결합, 기본 브라우저 실행 연결. 3차 GitHub 링크. 기존 기본/호환 액션·토큰 보존. UI 공통화 03 별도.
