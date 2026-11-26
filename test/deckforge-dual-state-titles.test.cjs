@@ -48,7 +48,13 @@ test('state row retains preview, paired cards and edit/save button alignment',()
  assert.match(css,/\.state-title-inspector \.state-title-layout\{\s*grid-template-columns:minmax\(0,1fr\) 98px/);
  assert.match(css,/\.state-title-inspector \.state-title-layout \.sdk-state-icons\{[\s\S]*?grid-template-columns:repeat\(2,minmax\(0,1fr\)\)/);
  assert.match(css,/\.state-title-inspector \.state-title-layout \.sdk-state-preview\{[\s\S]*?aspect-ratio:1\/1/);
- assert.match(css,/\.state-title-inspector \.state-title-layout \.sdk-state-buttons button\{[\s\S]*?height:25px/);
+ assert.match(css,/--deckforge-state-button-height:25px;/);
+ assert.match(css,/--deckforge-state-button-width:76px;/);
+ assert.match(css,/--deckforge-state-button-gap:4px;/);
+ assert.match(css,/--deckforge-state-card-gap:12px;/);
+ assert.match(css,/\.state-title-inspector \.state-title-layout \.sdk-state-buttons button\{[\s\S]*?height:var\(--deckforge-state-button-height\)/);
+ assert.match(css,/\.state-title-inspector \.state-title-layout \.sdk-state-buttons\{[^}]*width:var\(--deckforge-state-button-width\);gap:var\(--deckforge-state-button-gap\)/);
+ assert.match(css,/\.state-title-inspector \.state-title-layout \.sdk-state-icons\{[^}]*gap:var\(--deckforge-state-card-gap\)/);
  assert.match(css,/\.state-title-inspector\{overflow-x:hidden\}/);
 });
 

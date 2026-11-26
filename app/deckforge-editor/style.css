@@ -426,12 +426,18 @@
 .inspector-save-bar .inspector-save{background:#2678ca;border-color:#388de3}
 .inspector-save-bar button:disabled{opacity:.4;cursor:default}
 /* Fixed size SDK state cards: original compact proportion with vertical equal-size buttons. */
-.sdk-state-icons{padding-left:142px;gap:12px}
-.sdk-state-icon{width:196px;min-width:196px;max-width:196px;display:grid;grid-template-columns:84px 76px;grid-template-rows:auto 84px;column-gap:9px;row-gap:7px;align-items:center;justify-content:start;padding:10px}
+.sdk-state-icons{
+  --deckforge-state-card-gap:12px;
+  --deckforge-state-button-width:76px;
+  --deckforge-state-button-height:25px;
+  --deckforge-state-button-gap:4px;
+  padding-left:142px;gap:12px
+}
+.sdk-state-icon{width:196px;min-width:196px;max-width:196px;display:grid;grid-template-columns:84px var(--deckforge-state-button-width);grid-template-rows:auto 84px;column-gap:9px;row-gap:7px;align-items:center;justify-content:start;padding:10px}
 .sdk-state-icon strong{grid-column:1 / 3}
 .sdk-state-preview{grid-column:1;grid-row:2;width:84px;height:84px;border-radius:5px}
-.sdk-state-icon .sdk-state-buttons{grid-column:2;grid-row:2;display:flex;flex-direction:column;gap:4px;width:76px}
-.sdk-state-icon .sdk-state-buttons button{width:76px;min-width:76px;max-width:76px;height:25px;min-height:25px;padding:2px 3px;text-align:center;white-space:nowrap;line-height:1.1}
+.sdk-state-icon .sdk-state-buttons{grid-column:2;grid-row:2;display:flex;flex-direction:column;gap:var(--deckforge-state-button-gap);width:var(--deckforge-state-button-width)}
+.sdk-state-icon .sdk-state-buttons button{width:var(--deckforge-state-button-width);min-width:var(--deckforge-state-button-width);max-width:var(--deckforge-state-button-width);height:var(--deckforge-state-button-height);min-height:var(--deckforge-state-button-height);padding:2px 3px;text-align:center;white-space:nowrap;line-height:1.1}
 @media(max-width:1000px){.sdk-state-icons{padding-left:107px}}
 
 /* Keep all test controls single-line and compact; avoid consuming inspector height. */
@@ -811,7 +817,7 @@
 /* Only the icon pair gets five equal rows; approved card widths, artwork and anchors remain unchanged. */
 .inspector .inspector-icon-section .sdk-state-icon{grid-template-rows:auto auto;align-items:start}
 .inspector .inspector-icon-section .sdk-state-icon .sdk-state-buttons button{
-  box-sizing:border-box;width:76px;min-width:76px;max-width:76px;height:25px;min-height:25px;
+  box-sizing:border-box;width:var(--deckforge-state-button-width);min-width:var(--deckforge-state-button-width);max-width:var(--deckforge-state-button-width);height:var(--deckforge-state-button-height);min-height:var(--deckforge-state-button-height);
 }
 
 
@@ -852,13 +858,13 @@
 }
 .state-title-inspector .state-title-layout .sdk-state-icons{
   display:grid;grid-template-columns:repeat(2,minmax(0,1fr));
-  width:100%;min-width:0;max-width:100%;gap:12px;
+  width:100%;min-width:0;max-width:100%;gap:var(--deckforge-state-card-gap);
   padding:0
 }
 .state-title-inspector .state-title-layout .sdk-state-icon{
   box-sizing:border-box;width:100%;min-width:0;max-width:none;
   flex:initial;padding:7px;display:grid;
-  grid-template-columns:minmax(0,1fr) 76px;grid-template-rows:auto 31px auto;
+  grid-template-columns:minmax(0,1fr) var(--deckforge-state-button-width);grid-template-rows:auto 31px auto;
   column-gap:7px;row-gap:5px;align-items:start;min-width:0
 }
 .state-title-inspector .state-title-layout .sdk-state-icon>strong{
@@ -897,10 +903,10 @@
 }
 .state-title-inspector .state-title-layout .sdk-state-buttons{
   grid-column:2;grid-row:3;display:flex;flex-direction:column;
-  width:76px;gap:4px
+  width:var(--deckforge-state-button-width);gap:var(--deckforge-state-button-gap)
 }
 .state-title-inspector .state-title-layout .sdk-state-buttons button{
-  box-sizing:border-box;width:76px;height:25px;min-height:25px;
+  box-sizing:border-box;width:var(--deckforge-state-button-width);height:var(--deckforge-state-button-height);min-height:var(--deckforge-state-button-height);
   font-size:11px;line-height:1.1;padding:2px 3px
 }
 .state-title-inspector .state-title-extra-properties{
