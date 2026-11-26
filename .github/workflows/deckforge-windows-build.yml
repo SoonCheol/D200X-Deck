@@ -294,8 +294,9 @@ jobs:
           Copy-Item 'app/lib/*' 'app/preview-device-build/lib/' -Recurse -Force
           # Keep the original dedicated D200X app and add only the independent
           # resources required for tray mode and bundled Fusion MCP.
-          # Preserve the application atom icon and display it crisply at Windows tray size.
-          Copy-Item 'app/build/icon.png' 'app/preview-device-build/deckforge-editor/tray.png' -Force
+          # Approved DeckForge app artwork and independent small tray image.
+          & 'app/deckforge-editor/create-app-icon.ps1' -Source 'app/deckforge-editor/assets/deckforge-app.png' -OutputDirectory 'app/preview-device-build/deckforge-editor'
+          Copy-Item 'app/deckforge-editor/assets/deckforge-tray.png' 'app/preview-device-build/deckforge-editor/tray.png' -Force
           New-Item -ItemType Directory -Force app/preview-device-build/mcp/tools/fusion-mcp | Out-Null
           New-Item -ItemType Directory -Force app/preview-device-build/mcp/app/deckforge-editor | Out-Null
           Copy-Item 'tools/fusion-mcp/server.cjs' 'app/preview-device-build/mcp/tools/fusion-mcp/server.cjs' -Force
@@ -395,7 +396,7 @@ jobs:
         working-directory: app
         shell: pwsh
         run: |
-          npx --no-install electron-packager ./preview-device-build DeckForge --platform=win32 --arch=x64 --electron-version=45.2.1 --out=dist --overwrite --prune=false
+          npx --no-install electron-packager ./preview-device-build DeckForge --platform=win32 --arch=x64 --electron-version=45.2.1 --out=dist --overwrite --prune=false --icon=./preview-device-build/deckforge-editor/app-icon.ico
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           if (-not (Test-Path 'dist/DeckForge-win32-x64/DeckForge.exe')) { throw "EXE missing" }
           $metadata = Get-Content -Raw 'preview-device-build/package.json' | ConvertFrom-Json

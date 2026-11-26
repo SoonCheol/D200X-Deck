@@ -2334,6 +2334,7 @@ if(singleInstanceLock)app.whenReady().then(async () => {
     minWidth:minimumWidth,
     minHeight:minimumHeight,
     backgroundColor: '#292929',
+    icon: path.join(__dirname,'assets','deckforge-app.png'),
     show:!process.argv.includes('--hidden')&&!process.argv.includes('--fusion-manager'),
     title: 'DeckForge '+app.getVersion()+' — D200X'+(keyTransportTrial?' · USB 개별 키 시험 모드':''),
     webPreferences: {

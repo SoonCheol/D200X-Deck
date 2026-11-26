@@ -18,7 +18,7 @@
   ],
   "extraResources": [
     {
-      "from": "../../app/build/tray.png",
+      "from": "deckforge-editor/tray.png",
       "to": "deckforge-tray.png"
     },
     {
@@ -35,7 +35,8 @@
       "nsis"
     ],
     "artifactName": "DeckForge-${version}-Setup-win-x64.exe",
-    "signAndEditExecutable": false
+    "signAndEditExecutable": true,
+    "icon": "deckforge-editor/app-icon.ico"
   },
   "nsis": {
     "oneClick": true,
@@ -45,6 +46,8 @@
     "createDesktopShortcut": true,
     "runAfterFinish": true,
     "deleteAppDataOnUninstall": false,
-    "include": "installer-fusion.nsh"
+    "include": "installer-fusion.nsh",
+    "installerIcon": "deckforge-editor/app-icon.ico",
+    "uninstallerIcon": "deckforge-editor/app-icon.ico"
   }
 }
