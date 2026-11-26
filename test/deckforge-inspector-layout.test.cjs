@@ -759,3 +759,31 @@ test('HA sensor interval is editable only in auto mode and disabled drafts are n
   assert.match(editor,/if\(haSensor\)syncHaSensorInterval\(inputs,values\)/);
   assert.match(editor,/fieldRows\.get\(field\.key\)\?\.hidden\|\|haSensor&&field\.key==='seconds'&&entry\.input\?\.disabled/);
 });
+
+
+test('GitHub settings can refresh repositories after a failed lookup without opening credential management',()=>{
+ const source=editor.slice(editor.indexOf('async function openNativeSettings('),editor.indexOf('function updateSdkAvailabilityInspector('));
+ const start=source.indexOf('  let githubLoading='),end=source.indexOf("  if(githubBuild)githubFields.get('repository')",start);
+ assert.ok(start>=0&&end>start);
+ assert.match(source,/githubReloadButton\.textContent='목록 새로 고침'/);
+ assert.match(source,/githubReloadButton\.addEventListener\('click',\(\)=>void refreshGithub\(\)\)/);
+ const mockSelect=value=>({value,disabled:false,options:[],replaceChildren(){this.options=[];},append(option){this.options.push(option);}});
+ const repo=mockSelect('SoonCheol/D200X-Deck'),branch=mockSelect('main'),workflow=mockSelect('deckforge-windows-build.yml');
+ const fields=new Map([['repository',repo],['branch',branch],['workflow',workflow]]);
+ const credential={disabled:false},reload={disabled:false},notice={textContent:''},connection=[];
+ let fail=true,requests=0;
+ const window={deckBridge:{nativeGitHubOptions:async value=>{
+   requests++;assert.equal(reload.disabled,true);assert.equal(credential.disabled,true);
+   if(fail)throw Error('조회 실패');
+   return value?{branches:[{value:'main',label:'main'}],workflows:[{value:'123',label:'Windows',file:'deckforge-windows-build.yml'}]}:{repositories:[{value:repo.value,label:repo.value}]};
+ }}};
+ const get=vm.runInNewContext('(function(){'+source.slice(start,end)+'\ngithubCredentialButton=credential;githubReloadButton=reload;return {refreshGithub,verified:()=>githubVerified};})()',{
+ githubBuild:true,closed:false,githubFields:fields,window,document:{createElement:()=>({})},showConnection:(...args)=>connection.push(args),notice,credential,reload,inspectorPickerCurrent:()=>true,session:{},item:{}
+ });
+ return (async()=>{
+  await get.refreshGithub();assert.equal(get.verified(),false);assert.equal(reload.disabled,false);assert.equal(workflow.value,'deckforge-windows-build.yml');
+  fail=false;
+  await Promise.all([get.refreshGithub(),get.refreshGithub()]);
+  assert.equal(requests,3);assert.equal(get.verified(),true);assert.equal(reload.disabled,false);assert.equal(credential.disabled,false);assert.equal(repo.value,'SoonCheol/D200X-Deck');assert.equal(branch.value,'main');assert.equal(workflow.value,'123');
+ })();
+});

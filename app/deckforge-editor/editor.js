@@ -4584,7 +4584,7 @@ async function openNativeSettings(item,action,plugin){
     }catch{if(!closed)showConnection('조회 실패','error','기기 목록 조회 실패 · 서비스 상태 확인');}
     finally{refreshing=false;}
   };
-  let githubLoading=false,githubVerified=false,githubCredentialButton=null;
+  let githubLoading=false,githubVerified=false,githubCredentialButton=null,githubReloadButton=null;
   const fillGithub=(key,rows,previous,placeholder,allowEmpty=false)=>{
     const field=githubFields.get(key);if(!field)return;
     field.replaceChildren();
@@ -4601,6 +4601,7 @@ async function openNativeSettings(item,action,plugin){
     githubLoading=true;githubVerified=false;showConnection('목록 조회 중');
     for(const field of githubFields.values())field.disabled=true;
     if(githubCredentialButton)githubCredentialButton.disabled=true;
+    if(githubReloadButton)githubReloadButton.disabled=true;
     try{
       if(!window.deckBridge?.nativeGitHubOptions)throw Error('목록 조회 기능 없음');
       const repo=githubFields.get('repository'),branch=githubFields.get('branch'),workflow=githubFields.get('workflow');
@@ -4621,7 +4622,7 @@ async function openNativeSettings(item,action,plugin){
       notice.textContent=truncated?'목록은 항목별 최대 500개까지 표시합니다.':'';
     }catch(error){
       if(!closed){showConnection('조회 실패','error');notice.textContent=String(error?.message||'GitHub 목록 조회 실패').replace(/^.*?Error: /,'');}
-    }finally{githubLoading=false;for(const field of githubFields.values())field.disabled=false;if(githubCredentialButton)githubCredentialButton.disabled=false;}
+    }finally{githubLoading=false;for(const field of githubFields.values())field.disabled=false;if(githubCredentialButton)githubCredentialButton.disabled=false;if(githubReloadButton)githubReloadButton.disabled=false;}
   };
   if(githubBuild)githubFields.get('repository')?.addEventListener('change',()=>{
     fillGithub('branch',[],'','전체 브랜치',true);
@@ -4641,13 +4642,18 @@ async function openNativeSettings(item,action,plugin){
       managementTarget.append(reconnect);
     }
   }
-  if(githubBuild)toolsRow.append(connection);
+  if(githubBuild){
+    toolsRow.append(connection);
+    githubReloadButton=document.createElement('button');githubReloadButton.type='button';githubReloadButton.className='deckforge-message-button';githubReloadButton.textContent='목록 새로 고침';
+    githubReloadButton.addEventListener('click',()=>void refreshGithub());toolsRow.append(githubReloadButton);
+  }
   if(credentialCapable){
     const credentialButton=document.createElement('button');credentialButton.type='button';credentialButton.className='deckforge-message-button';credentialButton.textContent='인증정보 관리';if(githubBuild)githubCredentialButton=credentialButton;
     credentialButton.addEventListener('click',async()=>{
       credentialButton.disabled=true;
+      if(githubBuild&&githubReloadButton)githubReloadButton.disabled=true;
       try{await openNativeCredentials(item,plugin);if(githubBuild)await refreshGithub();else await refreshDynamic();}catch{window.d200xActionStatus?.('인증정보 상태 확인 실패');}
-      finally{credentialButton.disabled=false;}
+      finally{credentialButton.disabled=githubBuild&&githubLoading;if(githubBuild&&githubReloadButton)githubReloadButton.disabled=githubLoading;}
     });managementTarget.append(credentialButton);
   }
   if(toolsRow.childElementCount)content.prepend(toolsRow);
