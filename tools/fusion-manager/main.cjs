@@ -1,11 +1,14 @@
 'use strict';
-const {app,BrowserWindow,ipcMain,dialog,screen}=require('electron');
+const {app,BrowserWindow,WebContentsView,ipcMain,dialog,screen}=require('electron');
 const fs=require('node:fs/promises');
 const path=require('node:path');
 const os=require('node:os');
 const FusionLanguage=require('./fusion-language-catalog.cjs');
 let embeddedWindow=null;
 let integratedBridge=null;
+let embeddedPanel=null,panelOwner=null;
+const managerSender=event=>event.senderFrame===event.sender.mainFrame&&((embeddedPanel&&!embeddedPanel.webContents.isDestroyed()&&event.sender===embeddedPanel.webContents)||(embeddedWindow&&!embeddedWindow.isDestroyed()&&event.sender===embeddedWindow.webContents));
+const managerHandle=(channel,fn)=>ipcMain.handle(channel,(event,...args)=>{if(!managerSender(event))throw Error('허용되지 않은 Fusion 관리자 요청');return fn(event,...args);});
 function createWindow(){
  const area=screen.getPrimaryDisplay().workArea;
  const width=Math.min(698,area.width),height=Math.min(873,area.height);
@@ -17,22 +20,23 @@ function createWindow(){
  return win;
 }
 const managerReady=app.whenReady().then(()=>{
- ipcMain.handle('window-mode',async(event,mode)=>{
+ managerHandle('window-mode',async(event,mode)=>{
+   if(embeddedPanel&&event.sender===embeddedPanel.webContents)return ['explore','pages'].includes(mode);
    const win=BrowserWindow.fromWebContents(event.sender);
    if(!win||!['explore','pages'].includes(mode))return false;
    const area=screen.getDisplayMatching(win.getBounds()).workArea;
    // Both modes use the same physical window bounds. Preserve manual resize and docking.
    return true;
  });
- ipcMain.handle('catalog',async()=>JSON.parse(await fs.readFile(path.join(__dirname,'fusion-command-catalog-final.json'),'utf8')));
- ipcMain.handle('menu-catalog',async()=>JSON.parse(await fs.readFile(path.join(__dirname,'fusion-menu-catalog.json'),'utf8')));
- ipcMain.handle('help-markdown',async()=>fs.readFile(path.join(__dirname,'HELP.md'),'utf8'));
- ipcMain.handle('fusion-ui-script',async()=>fs.readFile(path.join(__dirname,'fusion-ui-inventory.py'),'utf8'));
- ipcMain.handle('fusion-script-copy',async()=>{const {clipboard}=require('electron');const source=await fs.readFile(path.join(__dirname,'fusion-ui-inventory.py'),'utf8');clipboard.writeText(source);return true;});
+ managerHandle('catalog',async()=>JSON.parse(await fs.readFile(path.join(__dirname,'fusion-command-catalog-final.json'),'utf8')));
+ managerHandle('menu-catalog',async()=>JSON.parse(await fs.readFile(path.join(__dirname,'fusion-menu-catalog.json'),'utf8')));
+ managerHandle('help-markdown',async()=>fs.readFile(path.join(__dirname,'HELP.md'),'utf8'));
+ managerHandle('fusion-ui-script',async()=>fs.readFile(path.join(__dirname,'fusion-ui-inventory.py'),'utf8'));
+ managerHandle('fusion-script-copy',async()=>{const {clipboard}=require('electron');const source=await fs.readFile(path.join(__dirname,'fusion-ui-inventory.py'),'utf8');clipboard.writeText(source);return true;});
  // DeckForge's existing Fusion artwork cache is shared read-only.
  // Never change DeckForge userData, cached icons, or Fusion add-in files.
  const iconDir=path.join(app.getPath('appData'),'DeckForge','Cache','Fusion','generated');
- ipcMain.handle('fusion-icon',async(_e,id)=>{
+ managerHandle('fusion-icon',async(_e,id)=>{
    if(typeof id!=='string'||!(/^[a-zA-Z0-9._-]{1,180}$/).test(id)||id==='.'||id==='..')return null;
    return (await readSaved(id))?.data||null;
  });
@@ -70,7 +74,7 @@ const managerReady=app.whenReady().then(()=>{
  }
  // Read-only check against command definitions registered in Fusion RIGHT NOW.
  // A present command ID is not proof it can execute in the active document.
- ipcMain.handle('fusion-command-status',async(_event,id)=>{
+ managerHandle('fusion-command-status',async(_event,id)=>{
    if(!safeId(id))return {state:'invalid'};
    try{
      const endpoint=await fusionEndpoint();
@@ -85,8 +89,8 @@ const managerReady=app.whenReady().then(()=>{
        {state:'missing',id};
    }catch(error){return {state:'error',message:error.message}}
  });
- ipcMain.handle('fusion-tooltip-read',async(event,id)=>{
-   if(!embeddedWindow||embeddedWindow.isDestroyed()||event.sender!==embeddedWindow.webContents||!safeId(id))return '';
+ managerHandle('fusion-tooltip-read',async(event,id)=>{
+   if(!managerSender(event)||!safeId(id))return '';
    if(integratedBridge)return integratedBridge('read-tooltip',id);
    // Standalone manager reads the same cache without writing or calling Fusion.
    try{
@@ -96,15 +100,15 @@ const managerReady=app.whenReady().then(()=>{
      return data&&Object.hasOwn(data,id)&&typeof data[id]==='string'?data[id].slice(0,1000):'';
    }catch{return '';}
  });
- ipcMain.handle('fusion-tooltip-collect',async(event)=>{
-   if(!embeddedWindow||embeddedWindow.isDestroyed()||event.sender!==embeddedWindow.webContents)throw Error('허용되지 않은 요청');
+ managerHandle('fusion-tooltip-collect',async(event)=>{
+   if(!managerSender(event))throw Error('허용되지 않은 요청');
    if(!integratedBridge)throw Error('DeckForge에서 Fusion 명령 관리자를 실행하세요.');
    return integratedBridge('collect-tooltips');
  });
- ipcMain.handle('fusion-icon-health',async()=>{
+ managerHandle('fusion-icon-health',async()=>{
    try{return {available:true,endpoint:await fusionEndpoint()}}catch(e){return {available:false,message:e.message}}
  });
- ipcMain.handle('fusion-icon-collect',async(_e,id)=>{
+ managerHandle('fusion-icon-collect',async(_e,id)=>{
    if(!safeId(id))return {status:'invalid',id};
    // This request is only a GET for an original image, never Fusion command execution.
    try{
@@ -133,7 +137,7 @@ const managerReady=app.whenReady().then(()=>{
    }catch(e){return {status:'failed',id,error:e.message}}
  });
  // Prepare a read-only Fusion script package without modifying the Fusion installation.
- ipcMain.handle('fusion-english-prepare',async()=>{
+ managerHandle('fusion-english-prepare',async()=>{
    const name='DeckForgeFusionEnglishCapture',folder=path.join(app.getPath('downloads'),name);
    const py=await fs.readFile(path.join(__dirname,'fusion-ui-inventory.py'),'utf8');
    const manifest=JSON.stringify({"autodeskProduct":"Fusion","type":"script","id":"9e6eb7de-97bb-4c1d-9af7-1658f0eefeba","author":"DeckForge","description":{"":"Read-only Fusion UI and English command name capture"},"version":"1.0.0","runOnStartup":false,"supportedOS":"windows"},null,2)+'\n';
@@ -150,8 +154,8 @@ const managerReady=app.whenReady().then(()=>{
    return {path:folder,status:'created'};
  });
  const englishFile=()=>path.join(app.getPath('userData'),'fusion-command-english-names-v1.json');
- ipcMain.handle('fusion-english-load',async()=>FusionLanguage.loadEnglish(__dirname,app.getPath('userData')));
- ipcMain.handle('fusion-english-import',async()=>{
+ managerHandle('fusion-english-load',async()=>FusionLanguage.loadEnglish(__dirname,app.getPath('userData')));
+ managerHandle('fusion-english-import',async()=>{
    const {canceled,filePaths}=await dialog.showOpenDialog({title:'영문 Fusion UI 결과 선택 (한글 메뉴 보존)',
      properties:['openFile'],filters:[{name:'Fusion UI JSON',extensions:['json']}]});
    if(canceled||!filePaths?.length)return null;
@@ -167,8 +171,8 @@ const managerReady=app.whenReady().then(()=>{
    return FusionLanguage.loadEnglish(__dirname,app.getPath('userData'));
  });
  const languageFile=()=>path.join(app.getPath('userData'),'fusion-manager-display-language-v1.json');
- ipcMain.handle('fusion-display-language-load',async()=>FusionLanguage.loadDisplayLanguage(app.getPath('userData')));
- ipcMain.handle('fusion-display-language-save',async(_event,language)=>{
+ managerHandle('fusion-display-language-load',async()=>FusionLanguage.loadDisplayLanguage(app.getPath('userData')));
+ managerHandle('fusion-display-language-save',async(_event,language)=>{
    if(!['ko','en'].includes(language))throw Error('표시 언어가 올바르지 않습니다.');
    const file=languageFile(),temp=file+'.tmp';
    try{
@@ -179,7 +183,7 @@ const managerReady=app.whenReady().then(()=>{
    return language;
  });
  const preferencesFile=()=>path.join(app.getPath('userData'),'fusion-command-visibility-v1.json');
- ipcMain.handle('curation-load',async()=>{
+ managerHandle('curation-load',async()=>{
    try{
      const saved=JSON.parse(await fs.readFile(preferencesFile(),'utf8'));
      if(!saved||typeof saved!=='object'||Array.isArray(saved))return {};
@@ -187,7 +191,7 @@ const managerReady=app.whenReady().then(()=>{
        /^[a-zA-Z0-9._-]{1,180}$/.test(id)&&['primary','review','hidden'].includes(value)).slice(0,10000));
    }catch(e){if(e.code==='ENOENT')return {};throw e}
  });
- ipcMain.handle('curation-save',async(_e,overrides)=>{
+ managerHandle('curation-save',async(_e,overrides)=>{
    if(!overrides||typeof overrides!=='object'||Array.isArray(overrides))throw Error('분류 저장 형식 오류');
    const allowed=Object.entries(overrides).filter(([id,value])=>
      /^[a-zA-Z0-9._-]{1,180}$/.test(id)&&['primary','review','hidden'].includes(value));
@@ -196,14 +200,14 @@ const managerReady=app.whenReady().then(()=>{
    return true;
  });
  const captureFile=()=>path.join(app.getPath('userData'),'last-fusion-ui-capture-v2.json');
- ipcMain.handle('capture-load',async()=>{
+ managerHandle('capture-load',async()=>{
    try{
      const stat=await fs.stat(captureFile());
      if(stat.size>30*1024*1024)return null;
      return JSON.parse(await fs.readFile(captureFile(),'utf8'));
    }catch(e){if(e.code==='ENOENT')return null;throw e}
  });
- ipcMain.handle('open-ui-capture',async()=>{
+ managerHandle('open-ui-capture',async()=>{
    const {canceled,filePaths}=await dialog.showOpenDialog({
      title:'Fusion UI 수집 JSON 선택 (명령 실행 없음)',properties:['openFile'],
      filters:[{name:'Fusion UI JSON',extensions:['json']}]
@@ -219,26 +223,56 @@ const managerReady=app.whenReady().then(()=>{
    await fs.writeFile(captureFile(),raw,'utf8');
    return data;
  });
- ipcMain.handle('save-json',async(_e,{data,defaultName})=>{
+ managerHandle('save-json',async(_e,{data,defaultName})=>{
    const {canceled,filePath}=await dialog.showSaveDialog({title:'JSON 저장',defaultPath:defaultName||'Fusion-Layout.json',filters:[{name:'JSON',extensions:['json']}]});
    if(canceled||!filePath)return null;
    await fs.writeFile(filePath,JSON.stringify(data,null,2)+'\n','utf8');return filePath;
  });
- ipcMain.handle('open-json',async()=>{
+ managerHandle('open-json',async()=>{
    const {canceled,filePaths}=await dialog.showOpenDialog({title:'작업 프로젝트 JSON 불러오기',properties:['openFile'],filters:[{name:'JSON',extensions:['json']}]});
    if(canceled||!filePaths?.length)return null;
    const txt=await fs.readFile(filePaths[0],'utf8');
    if(Buffer.byteLength(txt)>5*1024*1024)throw Error('JSON 최대 크기는 5MB입니다.');
    return {name:filePaths[0],data:JSON.parse(txt)};
  });
- ipcMain.handle('manager-open-deckforge',async()=>{
+ managerHandle('manager-open-deckforge',async()=>{
    if(integratedBridge)return integratedBridge('open-deckforge');
    const {shell}=require('electron');
    const candidate=path.join(process.env.LOCALAPPDATA||'', 'Programs','DeckForge','DeckForge.exe');
    try{await fs.access(candidate);return shell.openPath(candidate).then(error=>!error)}catch{return false}
  });
- ipcMain.handle('manager-dock',async(_event,operation)=>integratedBridge?integratedBridge('dock',operation):{available:false,attached:false});
+ managerHandle('manager-dock',async(_event,operation)=>integratedBridge?integratedBridge('dock',operation):{available:false,attached:false});
  if(require.main===module){createWindow();app.on('activate',()=>{if(!BrowserWindow.getAllWindows().length)createWindow()});}
 });
-module.exports={openEmbeddedManager:async bridge=>{integratedBridge=bridge;await managerReady;if(embeddedWindow&&!embeddedWindow.isDestroyed()){embeddedWindow.show();embeddedWindow.focus();return embeddedWindow}return createWindow()},getEmbeddedWindow:()=>embeddedWindow};
+async function openEmbeddedManager(bridge,parent){
+ integratedBridge=bridge;await managerReady;
+ if(!parent){
+   if(embeddedWindow&&!embeddedWindow.isDestroyed()){embeddedWindow.show();embeddedWindow.focus();return embeddedWindow;}
+   return createWindow();
+ }
+ if(embeddedPanel&&panelOwner===parent&&!embeddedPanel.webContents.isDestroyed())return embeddedPanel;
+ const view=new WebContentsView({webPreferences:{preload:path.join(__dirname,'preload.cjs'),contextIsolation:true,nodeIntegration:false,sandbox:true}});
+ embeddedPanel=view;panelOwner=parent;
+ view.setVisible(false);view.setBackgroundColor('#111820');
+ parent.contentView.addChildView(view);
+ view.webContents.setWindowOpenHandler(()=>({action:'deny'}));
+ view.webContents.on('will-navigate',event=>event.preventDefault());
+ const dispose=()=>{
+   if(embeddedPanel===view){embeddedPanel=null;panelOwner=null;}
+   if(!parent.isDestroyed())parent.contentView.removeChildView(view);
+   if(!view.webContents.isDestroyed())view.webContents.close();
+ };
+ parent.once('closed',dispose);
+ try{await view.webContents.loadFile(path.join(__dirname,'index.html'),{query:{embedded:'1'}});}
+ catch(error){parent.removeListener('closed',dispose);dispose();throw error;}
+ return view;
+}
+function setEmbeddedPanelBounds(parent,bounds,visible){
+ if(!embeddedPanel||panelOwner!==parent||embeddedPanel.webContents.isDestroyed())return false;
+ if(visible)embeddedPanel.setBounds(bounds);
+ embeddedPanel.setVisible(visible);return true;
+}
+function hideEmbeddedPanel(parent){return setEmbeddedPanelBounds(parent,{x:0,y:0,width:0,height:0},false);}
+module.exports={openEmbeddedManager,setEmbeddedPanelBounds,hideEmbeddedPanel,getEmbeddedWindow:()=>embeddedWindow};
+
 if(require.main===module)app.on('window-all-closed',()=>{if(process.platform!=='darwin')app.quit()});

@@ -1737,6 +1737,37 @@ function openSdkPluginHelp(plugin,isFusion,retained=false){
   }
   dialog.showModal();
 }
+// Native child view geometry follows this placeholder; editor state is never replaced.
+(function bindFusionInlinePanel(){
+ const app=$('app'),panel=$('fusion-inline-panel'),content=$('fusion-inline-content');
+ let frame=0,last='',open=false;
+ const overlaySelector='dialog[open],#profile-menu:not([hidden]),#settings-menu:not([hidden]),#icon-library:not([hidden]),#icon-maker:not([hidden]),#key-menu:not([hidden]),.press-drop-picker,.key-background-popover,.title-style-popover:not([hidden])';
+ const geometry=()=>{
+   const r=content.getBoundingClientRect();
+   const blocked=[...document.querySelectorAll(overlaySelector)].some(node=>{
+     const b=node.getBoundingClientRect(),style=getComputedStyle(node);
+     return b.width>0&&b.height>0&&style.display!=='none'&&style.visibility!=='hidden';
+   });
+   return {x:r.x,y:r.y,width:r.width,height:r.height,visible:open&&!blocked};
+ };
+ const sync=()=>{
+   frame=0;if(!open)return;
+   const rect=geometry(),key=JSON.stringify(rect);
+   if(last!==key){last=key;window.deckBridge?.fusionPanelBounds?.(rect);}
+ };
+ const schedule=()=>{if(open&&!frame)frame=requestAnimationFrame(sync);};
+ const observer=new MutationObserver(schedule);
+ const resize=new ResizeObserver(schedule);
+ window.DeckForgeFusionPanel=value=>{
+   open=value===true;panel.hidden=!open;app.classList.toggle('fusion-inline-open',open);
+   last='';
+   if(open){observer.observe(document.body,{subtree:true,childList:true,attributes:true,attributeFilter:['hidden','open','class','style']});resize.observe(content);schedule();}
+   else{observer.disconnect();resize.disconnect();if(frame)cancelAnimationFrame(frame);frame=0;}
+   return geometry();
+ };
+ window.addEventListener('resize',schedule);
+ $('fusion-inline-close').addEventListener('click',()=>window.deckBridge?.closeFusionManager?.().catch(error=>window.d200xActionStatus?.('Fusion 패널 닫기 실패: '+String(error?.message||error))));
+})();
 function launchFusionManager(){
   window.deckBridge.openFusionManager().catch(error=>window.d200xActionStatus?.('Fusion Manager 실행 실패: '+String(error?.message||error)));
 }

@@ -257,44 +257,77 @@ async function fusionButtonLanguageData(){
  return {ko,en:english.commands,language};
 }
 ipcMain.handle('d200x:fusion-button-language',async event=>{assertEditor(event);return fusionButtonLanguageData()});
-let fusionMagnet=null;
-const magnetSettingsFile=()=>path.join(app.getPath('userData'),'fusion-manager-magnet-v1.json');
-function savedMagnetSettings(){
- try{const data=JSON.parse(fs.readFileSync(magnetSettingsFile(),'utf8'));return {enabled:data.enabled!==false}}
- catch{return {enabled:true}}
+// The existing manager renderer lives in one isolated child view, not another OS window.
+let fusionPanelSession=null,fusionPanelOpening=null;
+function fitFusionPanelWindow(bounds,width,area){
+ const w=Math.min(area.width,Math.max(1,Math.round(width)));
+ return {...bounds,width:w,x:Math.max(area.x,Math.min(bounds.x,area.x+area.width-w))};
 }
-function saveMagnetSettings(enabled){
- const file=magnetSettingsFile();fs.mkdirSync(path.dirname(file),{recursive:true});
- const tmp=file+'.tmp';fs.writeFileSync(tmp,JSON.stringify({enabled}),{encoding:'utf8'});
- fs.renameSync(tmp,file);
+function canResizeFusionPanel(win){return !win.isMaximized()&&!win.isFullScreen()&&!win.isSnapped?.();}
+const integratedManager=()=>require(path.join(fusionManagerDir(),'main.cjs'));
+function applyFusionPanelBounds(rect){
+ if(!fusionPanelSession||!window||window.isDestroyed())return false;
+ const zoom=window.webContents.getZoomFactor(),size=window.getContentBounds();
+ if(!rect||!['x','y','width','height'].every(key=>Number.isFinite(rect[key])))return false;
+ const x=Math.max(0,Math.round(rect.x*zoom)),y=Math.max(0,Math.round(rect.y*zoom));
+ const width=Math.max(0,Math.min(size.width-x,Math.round(rect.width*zoom)));
+ const height=Math.max(0,Math.min(size.height-y,Math.round(rect.height*zoom)));
+ return integratedManager().setEmbeddedPanelBounds(window,{x,y,width,height},rect.visible===true&&width>0&&height>0);
+}
+async function closeIntegratedManager(){
+ const session=fusionPanelSession;if(!session)return false;
+ fusionPanelSession=null;
+ if(!window||window.isDestroyed())return false;
+ integratedManager().hideEmbeddedPanel(window);
+ try{await window.webContents.executeJavaScript('window.DeckForgeFusionPanel?.(false)');}
+ finally{if(session.resized&&canResizeFusionPanel(window)){
+   const bounds=window.getBounds(),area=screen.getDisplayMatching(bounds).workArea;
+   window.setBounds(fitFusionPanelWindow(bounds,session.width,area));
+ }}
+ return true;
 }
 async function openIntegratedManager(){
  if(!window||window.isDestroyed())return false;
- try{
-  const integrated=require('../fusion-manager/main.cjs');
-  const manager=await integrated.openEmbeddedManager((operation,argument)=>{
-   if(operation==='open-deckforge'){revealEditor();return true}
-   if(operation==='language-changed'){send('d200x:fusion-language-changed',null);return true}
-   if(operation==='collect-tooltips')return collectFusionTooltips();
-   if(operation==='read-tooltip')return readCachedFusionTooltip(argument);
-   if(operation==='dock')return fusionMagnet?argument==='toggle'?fusionMagnet.toggle():fusionMagnet.status():{available:false,attached:false};
-   return false;
-  });
-  if(!fusionMagnet||fusionMagnet.window!==manager){
-   fusionMagnet=Bundled.createMagnet(window,manager,screen,saveMagnetSettings,state=>{
-      if(!manager.isDestroyed()&&!manager.webContents.isDestroyed())manager.webContents.send('manager-dock-state',state);
-    });
-   fusionMagnet.enable(savedMagnetSettings().enabled);
-   fusionMagnet.window=manager;
-   manager.on('closed',()=>{if(fusionMagnet?.window===manager)fusionMagnet=null});
-   // A manager-only launch stays independent until DeckForge becomes visible.
-   if(window.isVisible()&&fusionMagnet.status().enabled)fusionMagnet.attach();
-  }
-  return true;
- }catch(error){console.warn('Fusion Manager 실행 오류:',error.message);throw error;}
+ if(fusionPanelOpening)return fusionPanelOpening;
+ if(fusionPanelSession){revealEditor();applyFusionPanelBounds(await window.webContents.executeJavaScript('window.DeckForgeFusionPanel?.(true)'));return true;}
+ fusionPanelOpening=(async()=>{
+  const editor=window;
+  revealEditor();
+  const sidebar=await editor.webContents.executeJavaScript("document.querySelector('.library').getBoundingClientRect().width");
+  if(!Number.isFinite(sidebar))throw Error('오른쪽 패널을 찾을 수 없습니다.');
+  const bounds=editor.getBounds(),zoom=editor.webContents.getZoomFactor(),area=screen.getDisplayMatching(bounds).workArea;
+  fusionPanelSession={width:bounds.width,resized:false};
+  try{
+   const integrated=integratedManager();
+   await integrated.openEmbeddedManager((operation,argument)=>{
+    if(operation==='open-deckforge'){revealEditor();return true}
+    if(operation==='language-changed'){send('d200x:fusion-language-changed',null);return true}
+    if(operation==='collect-tooltips')return collectFusionTooltips();
+    if(operation==='read-tooltip')return readCachedFusionTooltip(argument);
+    if(operation==='dock')return {available:false,attached:false};
+    return false;
+   },editor);
+   if(editor.isDestroyed()||window!==editor)throw Error('편집기 창이 닫혔습니다.');
+   if(canResizeFusionPanel(editor)){
+    const next=fitFusionPanelWindow(bounds,bounds.width+Math.max(0,698-sidebar)*zoom,area);
+    if(next.width!==bounds.width){editor.setBounds(next);fusionPanelSession.resized=true;}
+   }
+   const rect=await editor.webContents.executeJavaScript('window.DeckForgeFusionPanel?.(true)');
+   if(!rect)throw Error('Fusion 표시 영역을 만들지 못했습니다.');
+   applyFusionPanelBounds(rect);return true;
+  }catch(error){await closeIntegratedManager();throw error;}
+ })().finally(()=>{fusionPanelOpening=null;});
+ return fusionPanelOpening;
 }
 ipcMain.handle('d200x:open-fusion-manager',async event=>{
  assertEditor(event);return openIntegratedManager();
+});
+ipcMain.handle('d200x:close-fusion-manager',async event=>{
+ assertEditor(event);return closeIntegratedManager();
+});
+ipcMain.on('d200x:fusion-panel-bounds',(event,rect)=>{
+ if(!window||event.sender!==window.webContents||event.senderFrame!==window.webContents.mainFrame)return;
+ applyFusionPanelBounds(rect);
 });
 
 ipcMain.handle('d200x:sdk-install',async event=>{
@@ -1046,7 +1079,6 @@ function revealEditor(){
   if(window.isMinimized())window.restore();
   window.show();
   window.focus();
-  if(fusionMagnet&&fusionMagnet.status().enabled&&!fusionMagnet.status().attached)fusionMagnet.attach();
 }
 // Only the trusted editor renderer may reveal its own existing modal.
 let unsavedRevealPending=null;
@@ -2328,7 +2360,7 @@ if(singleInstanceLock)app.whenReady().then(async () => {
       window.hide(); // Renderer, plugin host, and HID input remain alive in the tray.
     }
   });
-  window.on('closed', () => {nativeDropHost.stop();rendererReady=false;window=null;});
+  window.on('closed', () => {nativeDropHost.stop();rendererReady=false;fusionPanelSession=null;window=null;});
   transport.start().catch(err => send('d200x:error', String(err)));
 });
 app.on('activate',revealEditor);

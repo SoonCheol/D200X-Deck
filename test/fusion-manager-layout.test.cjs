@@ -48,3 +48,27 @@ test('Fusion button descriptions use local cache and detail replaces toolbar pat
  assert.match(cached,/readFusionTooltipCatalog/);
  assert.doesNotMatch(cached,/fetch\(|fusionCommands\.|fusionMcp\./);
 });
+
+
+test('inline Fusion manager preserves left editor and existing drag route while replacing only sidebar body',()=>{
+ const fs=require('node:fs'),path=require('node:path');
+ const read=file=>fs.readFileSync(path.join(__dirname,'..',file),'utf8');
+ const html=read('app/deckforge-editor/index.html'),css=read('app/deckforge-editor/style.css'),editor=read('app/deckforge-editor/editor.js');
+ const main=read('app/deckforge-editor/main.cjs'),manager=read('tools/fusion-manager/main.cjs'),renderer=read('tools/fusion-manager/renderer.js');
+ assert.ok(html.indexOf('id="profile-trigger"')<html.indexOf('id="fusion-inline-panel"'));
+ assert.match(css,/#app\.fusion-inline-open>\.library>\.search/);
+ assert.match(css,/min\(698px,max\(320px,calc\(100vw - 640px\)\)\)/);
+ assert.match(editor,/window\.DeckForgeFusionPanel=value/);
+ assert.match(editor,/importFusionDraggedCommand\(ev,i\)/);
+ assert.match(renderer,/application\/x-deckforge-fusion-command/);
+ assert.match(manager,/new WebContentsView/);
+ assert.match(manager,/parent\.contentView\.addChildView\(view\)/);
+ assert.match(manager,/view\.webContents\.close\(\)/);
+ assert.match(manager,/event\.senderFrame===event\.sender\.mainFrame/);
+ assert.match(main,/window\.DeckForgeFusionPanel\?\.\(false\)/);
+ assert.doesNotMatch(main,/Bundled\.createMagnet\(window,manager/);
+ const start=main.indexOf('function fitFusionPanelWindow('),end=main.indexOf('function canResizeFusionPanel(',start);
+ const fit=new Function(main.slice(start,end)+'\nreturn fitFusionPanelWindow')();
+ assert.deepEqual(fit({x:1600,y:40,width:980,height:800},1358,{x:0,y:0,width:1920,height:1040}),{x:562,y:40,width:1358,height:800});
+ assert.deepEqual(fit({x:-1700,y:20,width:980,height:800},1358,{x:-1280,y:0,width:1280,height:1000}),{x:-1280,y:20,width:1280,height:800});
+});

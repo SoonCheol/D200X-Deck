@@ -65,6 +65,8 @@ header{flex-wrap:nowrap}#helpOpen{margin-left:0;white-space:nowrap}#modePages[hi
 #scriptActions{display:none;margin:12px 18px 0;gap:8px;align-items:center;flex-wrap:wrap}#scriptActions textarea{width:100%;min-height:210px;font:12px/1.4 Consolas,monospace;background:#111b27;color:#d9eaff;border:1px solid #516a84;border-radius:6px;padding:8px;resize:vertical}
 #pageEditor{max-width:none}
 #pageEditor .pages{grid-template-columns:repeat(auto-fill,minmax(490px,1fr))}
+.embedded-manager header h1,.embedded-manager #deckforgeOpen,.embedded-manager #dockToggle{display:none!important}
+.embedded-manager header{justify-content:space-between}
 </style></head><body>
 <header><h1>Fusion Command Manager</h1>
 <button id="modeExplore" class="primary" type="button">명령 드래그</button><button id="modePages" type="button" hidden>페이지 생성</button><button id="deckforgeOpen" type="button" title="DeckForge 창 열기">DeckForge 열기</button><button id="dockToggle" type="button" title="자석 상태 확인 중" disabled>자석 확인 중</button><button id="helpOpen" type="button" aria-label="도움말 열기">? 도움말</button><button id="save" class="editor-only" hidden>프로젝트 저장</button><button id="open" class="editor-only" hidden>프로젝트 불러오기</button><button id="export" class="primary editor-only" hidden>DeckForge 등록용 JSON 내보내기</button></header><span id="status" role="status" hidden></span>

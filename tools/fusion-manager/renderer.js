@@ -281,6 +281,8 @@ $('scriptCopy').onclick=async()=>{
  catch(e){status('수집기 코드 복사 실패: '+e.message)}
 };
 $('helpClose').onclick=()=>$('helpDialog').close();
+const inlineManager=new URLSearchParams(location.search).get('embedded')==='1';
+if(inlineManager)document.body.classList.add('embedded-manager');
 let dockBusy=false;
 function showDockState(state){
  const button=$('dockToggle');
@@ -292,8 +294,7 @@ function showDockState(state){
 }
 window.fusionManager.onDockState(showDockState);
 const refreshDock=()=>window.fusionManager.dock('status').then(showDockState).catch(()=>showDockState(null));
-void refreshDock();
-window.addEventListener('focus',()=>void refreshDock());
+if(!inlineManager){void refreshDock();window.addEventListener('focus',()=>void refreshDock());}
 $('deckforgeOpen').onclick=async()=>{try{if(!await window.fusionManager.openDeckForge())status('설치된 DeckForge를 찾지 못했습니다.')}catch(e){status('DeckForge 실행 실패: '+e.message)}};
 $('dockToggle').onclick=async()=>{
  if(dockBusy)return;
