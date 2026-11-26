@@ -8158,8 +8158,9 @@ $("icon-maker-save").addEventListener("click",()=>{
 function bindSettingsMenu(){
   const trigger=$("settings-trigger"),menu=$("settings-menu"),update=$("check-update"),refresh=$("refresh-update-status");
   const current=$("current-version"),latest=$("latest-version"),status=$("update-status");
-  let requestNumber=0;
+  let requestNumber=0,downloadInProgress=false;
   const loadStatus=async(force=false)=>{
+    if(downloadInProgress){update.disabled=true;refresh.disabled=true;status.textContent='설치 파일 다운로드 중…';return;}
     const request=++requestNumber;
     refresh.disabled=true;update.disabled=true;latest.textContent='확인 중';status.textContent='설치 가능한 빌드 확인 중…';
     try{
@@ -8169,7 +8170,7 @@ function bindSettingsMenu(){
       if(result?.currentVersion)current.textContent=result.currentVersion;
       latest.textContent=result?.latestVersion||'확인 불가';
       update.disabled=result?.state!=='available';
-      status.textContent=result?.state==='available'?(result.downloadUrl?'새 버전이 있습니다. 설치 파일(EXE)을 바로 다운로드합니다.':'새 버전이 있습니다. 설치 파일 페이지를 엽니다.'):
+      status.textContent=result?.state==='available'?(result.downloadUrl?'새 버전이 있습니다. 다운로드 폴더에 설치 파일(EXE)을 저장합니다.':'새 버전이 있습니다. 설치 파일 페이지를 엽니다.'):
         result?.state==='current'?'최신 버전입니다.':'최신 빌드를 확인하지 못했습니다.';
     }catch{
       if(request!==requestNumber||menu.hidden)return;
@@ -8209,13 +8210,22 @@ function bindSettingsMenu(){
     }catch(error){window.d200xActionStatus?.('변경사항 페이지 열기 실패: '+String(error?.message||error));}
   });
   update.addEventListener('click',async()=>{
-    if(update.disabled)return;
-    close();
+    if(update.disabled||downloadInProgress)return;
+    downloadInProgress=true;++requestNumber;update.disabled=true;refresh.disabled=true;
+    update.textContent='다운로드 중…';status.textContent='설치 파일 다운로드 중…';
     try{
       if(!window.deckBridge?.checkForUpdates)throw Error('Windows DeckForge에서만 사용할 수 있습니다.');
-      const opened=await window.deckBridge.checkForUpdates();
-      if(!opened)window.d200xActionStatus?.('설치 가능한 새 버전을 확인하지 못했습니다.');
-    }catch(error){window.d200xActionStatus?.('업데이트 페이지 열기 실패: '+String(error?.message||error));}
+      const result=await window.deckBridge.checkForUpdates();
+      const message=result?.kind==='downloaded'?
+        (result.folderOpened?'다운로드 완료 · 탐색기에서 설치 파일을 실행하세요.':'다운로드 완료 · '+result.filePath):
+        result?.kind==='web'?'설치 파일 페이지를 열었습니다.':'설치 가능한 새 버전을 확인하지 못했습니다.';
+      status.textContent=message;window.d200xActionStatus?.(message);
+    }catch(error){
+      const message='업데이트 다운로드 실패: '+String(error?.message||error);
+      status.textContent=message;window.d200xActionStatus?.(message);
+    }finally{
+      downloadInProgress=false;update.textContent='업데이트';refresh.disabled=false;update.disabled=false;
+    }
   });
   document.addEventListener('pointerdown',event=>{
     if(!menu.contains(event.target)&&!trigger.contains(event.target))close();

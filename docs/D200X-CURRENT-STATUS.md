@@ -2,7 +2,7 @@
 > 2026-11-26 · 현재 스냅샷, 누적 금지.
 ## 개발 기준
 - 저장소 SoonCheol/D200X-Deck · 브랜치 codex/streamdeck-761-clean-editor · Draft PR #5 유지.
-- 로컬 E:\Codex\DeckForge. 최신 HEAD는 Git에서 확인. 소스 버전 **2.0.76**.
+- 로컬 E:\Codex\DeckForge. 최신 HEAD는 Git에서 확인. 소스 버전 **2.0.77**.
 ## 현재 상태
 - 독자 SDK API 1/2, 공개 25개 함수, HTTP/WSS, 전역 서비스/공유 상태, 동적 속성, 암호화·권한·패키지, HA 0.1.9 후보 및 기존 호환 호스트 구현. SDK 1.0 정식 완성 선언 보류.
 - HA 기존 실기 인증·기기 목록·전등 제어·센서 표시 성공, 최신 실기 별도.
@@ -11,7 +11,7 @@
 - 04B 실제 Electron: Model 2 PID 5668/844 및 realm/timeout/서비스 생존, DrawOps 픽셀/host 경계 통과. standard Worker 저장소 IndexedDB/CacheStorage/OPFS 허용, opaque Worker 생성 실패. Model 5 비활성 유지. 로드맵에 따라 05 선행 분석만 수행.
 - **HA 사용자 실기 정정:** 기존 배경색 미표시는 HA 0.1.3 미업데이트가 원인, 업데이트 후 정상 작동 사용자 확인. 이전 배경색 결함 보류 해제. 기타 UI 개별 검증은 별도, SDK 로드맵 우선.
 ## 다음 작업
-- 2.0.77 착수: 업데이트 버튼 게시 EXE를 Downloads/DeckForge 자동 다운로드, GitHub 크기/SHA-256 검증, 탐색기 선택. 자동 실행·앱 종료 보류, Actions fallback 유지.
+- 2.0.77: 게시 EXE Downloads/DeckForge 다운로드, 크기/SHA-256·HTTPS 검증, 기존 파일 보존/탐색기 선택. 자동 실행·종료 없음, Actions fallback 유지. 메타데이터/문법 검사 통과, Windows 파일 저장/실기 확인 대기.
 - 속성 연결 감사 1~10: 밝기 설정/조절, 화면 끄기, 폴더, 프로필, 이전/다음/선택 페이지, 페이지 표시의 필드·기본값·실행 경로 대조 및 core 계획 25조건 통과. Virtual 등록 불가 유지. 실제 장치 미검증. 다음 11~18 프로그램/파일/폴더/웹/터미널/통합 열기.
 - 2.0.76: HA 기타 기기 좌측 기존 OFF 편집/우측 inert·disabled, 이전 상태 데이터와 실행 유지. 반대 상태 자동 페어 쓰기 금지. Windows #80/CI #1506/SDK #198/입력 #571 성공, EXE 게시. 정렬 감사 #3(45786747243) 40/40, flags 없음.
 - 정렬 감사 #1 35/35, #2 39/40, #3 40/40. viewport 1008×681, 카드 폭 231.5px, 이미지 132.5px, 미리보기 98/86px. 번호 높이·탭 유무 예외 유지.

@@ -1,6 +1,11 @@
 'use strict';
 // Prefer published standalone EXE assets; retain legacy successful Actions builds as fallback.
 const https=require('node:https');
+const fs=require('node:fs');
+const path=require('node:path');
+const {createHash,randomUUID}=require('node:crypto');
+const {Transform}=require('node:stream');
+const {pipeline}=require('node:stream/promises');
 const REPO='SoonCheol/D200X-Deck';
 const BRANCH='codex/streamdeck-761-clean-editor';
 const API='https://api.github.com/repos/'+REPO;
@@ -92,4 +97,72 @@ async function checkUpdateStatus(currentVersion,requestJson=githubJson){
   if(releasedVersion)return {state:'current',currentVersion,latestVersion:releasedVersion,runId:null};
   return unknown;
 }
-module.exports={compareVersions,checkUpdateStatus,githubJson,releaseDownloadUrl};
+
+// Only the repository's exact published Setup EXE is eligible for local download.
+const MAX_INSTALLER_BYTES=512*1024*1024;
+function verifiedInstallerAsset(releases,version){
+  const url=releaseDownloadUrl(version);
+  if(!url||!Array.isArray(releases))return null;
+  const name='DeckForge-'+version+'-Setup-win-x64.exe';
+  const release=releases.find(r=>r?.tag_name==='deckforge-v'+version&&r.draft===false&&r.prerelease===true);
+  const asset=Array.isArray(release?.assets)&&release.assets.find(a=>a?.name===name&&a.state==='uploaded'&&a.browser_download_url===url);
+  if(!asset||!Number.isSafeInteger(asset.size)||asset.size<1||asset.size>MAX_INSTALLER_BYTES||
+      typeof asset.digest!=='string'||!/^sha256:[a-f0-9]{64}$/i.test(asset.digest))return null;
+  return {name,url,size:asset.size,sha256:asset.digest.slice(7).toLowerCase()};
+}
+function installerUrlAllowed(url,original){
+  try{
+    const u=new URL(url);
+    return u.protocol==='https:'&&!u.username&&!u.password&&!u.port&&
+      (u.href===original||['release-assets.githubusercontent.com','objects.githubusercontent.com'].includes(u.hostname));
+  }catch{return false;}
+}
+function openInstallerResponse(url,original,remaining=5){
+  if(!installerUrlAllowed(url,original))return Promise.reject(Error('허용되지 않은 설치 파일 다운로드 주소입니다.'));
+  return new Promise((resolve,reject)=>{
+    const request=https.get(url,{headers:{'User-Agent':'DeckForge-update-download','Accept':'application/octet-stream'}},response=>{
+      if([301,302,303,307,308].includes(response.statusCode)){
+        response.resume();
+        if(remaining<1||!response.headers.location){reject(Error('설치 파일 리디렉션 오류'));return;}
+        let next;try{next=new URL(response.headers.location,url).href;}catch(error){reject(error);return;}
+        openInstallerResponse(next,original,remaining-1).then(resolve,reject);return;
+      }
+      if(response.statusCode!==200){response.resume();reject(Error('설치 파일 HTTP '+response.statusCode));return;}
+      resolve(response);
+    });
+    request.setTimeout(30000,()=>request.destroy(Error('설치 파일 다운로드 시간 초과')));
+    request.on('error',reject);
+  });
+}
+async function downloadPublishedInstaller(version,directory,{requestJson=githubJson,openResponse=openInstallerResponse}={}){
+  if(!versionParts(version))throw Error('설치 버전이 올바르지 않습니다.');
+  const asset=verifiedInstallerAsset(await requestJson(API+'/releases?per_page=100'),version);
+  if(!asset)throw Error('게시된 설치 파일 또는 SHA-256 정보를 확인할 수 없습니다.');
+  await fs.promises.mkdir(directory,{recursive:true});
+  const work=await fs.promises.mkdtemp(path.join(directory,'.deckforge-download-'));
+  const temporary=path.join(work,'installer.part');
+  try{
+    const response=await openResponse(asset.url,asset.url);
+    const hash=createHash('sha256');let size=0;
+    const verify=new Transform({transform(chunk,encoding,done){
+      size+=chunk.length;
+      if(size>asset.size){done(Error('설치 파일 용량 초과'));return;}
+      hash.update(chunk);done(null,chunk);
+    }});
+    await pipeline(response,verify,fs.createWriteStream(temporary,{flags:'wx'}),{signal:AbortSignal.timeout(10*60*1000)});
+    if(size!==asset.size||hash.digest('hex')!==asset.sha256)throw Error('설치 파일 크기 또는 SHA-256 검증 실패');
+    // Do not replace a previous installer or expose an unverified executable.
+    let file=path.join(directory,asset.name);
+    try{await fs.promises.copyFile(temporary,file,fs.constants.COPYFILE_EXCL);}
+    catch(error){
+      if(error.code!=='EEXIST')throw error;
+      file=path.join(directory,asset.name.slice(0,-4)+'-'+randomUUID()+'.exe');
+      await fs.promises.copyFile(temporary,file,fs.constants.COPYFILE_EXCL);
+    }
+    return file;
+  }finally{
+    await fs.promises.rm(work,{recursive:true,force:true}).catch(()=>{});
+  }
+}
+
+module.exports={compareVersions,checkUpdateStatus,githubJson,releaseDownloadUrl,verifiedInstallerAsset,installerUrlAllowed,downloadPublishedInstaller};

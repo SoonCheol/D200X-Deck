@@ -956,7 +956,7 @@ let rendererReady = false;
 let tray = null;
 let quitting = false;
 let trayPreferences = null;
-let cachedUpdate=null,cachedUpdateAt=0,pendingUpdate=null;
+let cachedUpdate=null,cachedUpdateAt=0,pendingUpdate=null,pendingInstallerDownload=null;
 async function installedUpdateStatus(force=false){
   if(pendingUpdate)return pendingUpdate;
   if(!force&&cachedUpdate&&Date.now()-cachedUpdateAt<60000)return cachedUpdate;
@@ -979,11 +979,25 @@ ipcMain.handle('d200x:check-updates',async event=>{
   const info=await installedUpdateStatus();
   if(info?.state!=='available')return false;
   if(info.downloadUrl&&info.downloadUrl===UpdateCheck.releaseDownloadUrl(info.latestVersion)){
-    await shell.openExternal(info.downloadUrl);return true;
+    if(!pendingInstallerDownload){
+      pendingInstallerDownload=(async()=>{
+        const directory=path.join(app.getPath('downloads'),'DeckForge');
+        const file=await UpdateCheck.downloadPublishedInstaller(info.latestVersion,directory);
+        // Manual launch preserves the user's control over the running editor and installer.
+        let folderOpened=false;
+        try{
+          const error=await shell.openPath(directory);
+          folderOpened=!error;
+          if(folderOpened)shell.showItemInFolder(file);
+        }catch{}
+        return {kind:'downloaded',filePath:file,folderOpened};
+      })().finally(()=>{pendingInstallerDownload=null;});
+    }
+    return pendingInstallerDownload;
   }
   if(!Number.isSafeInteger(info.runId)||info.runId<1)return false;
   await shell.openExternal('https://github.com/SoonCheol/D200X-Deck/actions/runs/'+info.runId);
-  return true;
+  return {kind:'web'};
 });
 function trayPreferencePath(){return path.join(app.getPath('userData'),'deckforge-tray-preferences-v1.json');}
 function isInstalledBuild(){
