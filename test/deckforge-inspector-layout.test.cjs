@@ -747,3 +747,15 @@ test('nested timer retains alert path and volume and enables the path only for c
   assert.match(editor,/bindNestedAudioFields\(fields,step\)/);
   assert.match(editor,/bindNestedAudioFields\(fields,action\)/);
 });
+
+
+test('HA sensor interval is editable only in auto mode and disabled drafts are not committed',()=>{
+  const start=editor.indexOf('function syncHaSensorInterval('),end=editor.indexOf('async function openNativeSettings(',start);
+  const sync=vm.runInNewContext(editor.slice(start,end)+'\nsyncHaSensorInterval');
+  const interval={value:'15',disabled:false},inputs=[{field:{key:'seconds'},input:interval}];
+  for(const [mode,disabled] of [['all',true],['press',true],['auto',false]]){
+    sync(inputs,{mode});assert.equal(interval.disabled,disabled);assert.equal(interval.value,'15');
+  }
+  assert.match(editor,/if\(haSensor\)syncHaSensorInterval\(inputs,values\)/);
+  assert.match(editor,/fieldRows\.get\(field\.key\)\?\.hidden\|\|haSensor&&field\.key==='seconds'&&entry\.input\?\.disabled/);
+});

@@ -4308,6 +4308,10 @@ async function openNativeCredentials(item,plugin){
   }catch{window.d200xActionStatus?.('인증정보 저장 실패: 암호화 저장소 또는 등록 주소를 확인하세요.');}
   finally{token=null;}
 }
+function syncHaSensorInterval(inputs,values){
+  const interval=inputs.find(entry=>entry.field.key==='seconds')?.input;
+  if(interval)interval.disabled=values.mode!=='auto';
+}
 async function openNativeSettings(item,action,plugin){
   const schema=action?.settingsSchema,credentialCapable=plugin?.permissions?.some(p=>['network.request','network.websocket'].includes(p));
   if(!Array.isArray(schema)||!schema.length){
@@ -4317,7 +4321,7 @@ async function openNativeSettings(item,action,plugin){
   const session=inspectorSession;
   if(!inspectorPickerCurrent(session,item))return;
   const original=clone(item.settings?.pluginSettings||{});
-  const ha=plugin.uuid==='com.deckforge.native.home-assistant',haControl=ha&&action.uuid.endsWith('.control');
+  const ha=plugin.uuid==='com.deckforge.native.home-assistant',haControl=ha&&action.uuid.endsWith('.control'),haSensor=ha&&action.uuid.endsWith('.sensor');
   const githubBuild=plugin.uuid==='com.deckforge.native.github-status'&&action.uuid.endsWith('.build');
   const githubFields=new Map();
   const content=document.createElement('div');content.className='native-sdk-form'+(ha?' ha-native-settings':'')+(haControl?' ha-switch-settings':'');
@@ -4348,6 +4352,7 @@ async function openNativeSettings(item,action,plugin){
   const updateVisibility=()=>{
     const values=Object.fromEntries(inputs.map(entry=>[entry.field.key,readValue(entry)]));
     for(const [key,row] of fieldRows)row.hidden=!DeckCore.nativeSettingVisible(ui.get(key),values);
+    if(haSensor)syncHaSensorInterval(inputs,values);
     for(const group of groups)group.heading.hidden=group.rows.every(row=>row.hidden);
     if(haControl)for(const [key,picker] of controlPickers)if(fieldRows.get(key)?.hidden)picker.details.open=false;
   };
@@ -4614,7 +4619,7 @@ async function openNativeSettings(item,action,plugin){
         for(const entry of inputs){
           const {field}=entry;
           // Hidden fields keep their original stored values/defaults; a hidden draft is not committed.
-          if(fieldRows.get(field.key)?.hidden)continue;
+          if(fieldRows.get(field.key)?.hidden||haSensor&&field.key==='seconds'&&entry.input?.disabled)continue;
           const value=readValue(entry);
           if(!DeckCore.nativeSettingValue(field,value)){notice.textContent=field.label+' 값을 확인하세요.';return false;}
           next[field.key]=value;
