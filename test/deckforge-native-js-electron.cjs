@@ -256,6 +256,63 @@ async function verifyHaBurst(){
   assert.equal(fresh.sent.filter(x=>x.id===5).length,1);
   assert.ok(!fresh.sent.some(x=>x.type==='call_service'));
   console.log('MODEL2_HA_FILTER_RECONNECT_OK');
+  if(process.env.DECKFORGE_SDK_SOAK==='1'){
+   // Exercise continuous HA traffic separately from the generic page soak.
+   // Use the same real Electron host and a disposable simulated transport.
+   const started=Date.now(),samples=[];let messages=0,rounds=0,reconnects=0;
+   const reconnect=async(previous,close=true)=>{
+    const count=sockets.length;
+    if(close)previous.emit('close',1006);
+    await until(()=>sockets.length===count+1,'soak reconnect');
+    const next=sockets.at(-1);next.emit('open');next.message({type:'auth_required'});next.message({type:'auth_ok'});
+    await until(()=>next.sent.some(x=>x.id===1),'soak features');
+    next.message([{type:'result',id:1,success:true}]);
+    await until(()=>next.sent.some(x=>x.id===2),'soak devices');
+    next.message([{type:'result',id:2,success:true,result:[]}]);
+    await until(()=>next.sent.some(x=>x.id===3),'soak registry');
+    next.message([{type:'result',id:3,success:true,result:{entities:[]}}]);
+    await until(()=>next.sent.some(x=>x.id===4),'soak subscription');
+    assert.equal(svc.sharedState.status,'상태 구독 중');
+    previous.message({type:'event',id:4,event:{a:{'switch.obsolete':{s:'on'}}}});
+    next.message([{type:'result',id:4,success:true},{type:'event',id:4,event:{a}}]);
+    await until(()=>svc.sharedState.status==='연결됨'&&Object.keys(svc.sharedState.entities).length===500&&svc.socketToken?.rxCount===0,'soak fresh snapshot');
+    assert.equal(host.rxReservedBytes,0);assert.ok(!svc.sharedState.entities['switch.obsolete']);
+    assert.ok(!next.sent.some(x=>x.type==='call_service'));
+    reconnects++;return next;
+   };
+   let current=await reconnect(fresh);
+   for(let epoch=0;epoch<2;epoch++){
+    const deadline=Date.now()+30000;
+    do{
+     const marker=String(++rounds);
+     const value=rounds%2?'on':'off';
+     const burst=ids.map(id=>({type:'event',id:4,event:{c:{[id]:{'+':{s:value}}}}}));
+     burst.push({type:'event',id:4,event:{c:{'sensor.fixture_0':{'+':{s:marker}}}}});
+     current.message(burst);messages+=burst.length;
+     await until(()=>svc.sharedState.entities['sensor.fixture_0']?.value===marker&&svc.socketToken?.rxCount===0,'soak ordered final state');
+     assert.ok(ids.every(id=>svc.sharedState.entities[id]?.value===value));
+     assert.equal(host.rxReservedBytes,0);
+     assert.ok([...host.contexts.values()].every(c=>!c.failed));
+     assert.equal(current.readyState,1);
+     if(rounds%10===0)samples.push({rounds,hostHeapBytes:process.memoryUsage().heapUsed,runnerEntries:host.runnerPool.entries.size});
+     await new Promise(resolve=>setTimeout(resolve,1000));
+    }while(Date.now()<deadline);
+    if(epoch===0)current=await reconnect(current);
+   }
+   // More than the entire logical-message burst budget, even in one frame.
+   // This must invalidate the stream, not admit a partial update.
+   const over=Array.from({length:129},()=>({type:'event',id:4,event:{a:{'switch.overflow':{s:'on'}}}}));
+   current.message(over);
+   await until(()=>current.readyState===3,'soak overload close');
+   assert.equal(svc.socketError,'rate-limit');
+   assert.ok(!svc.sharedState.entities['switch.overflow']);
+   current=await reconnect(current,false);
+   assert.ok(!svc.sharedState.entities['switch.overflow']);
+   assert.ok(sockets.every(s=>!s.sent.some(x=>x.type==='call_service')));
+   assert.ok(messages>=28&&reconnects===3);
+   console.log('MODEL2_HA_SUSTAINED_OK '+JSON.stringify({elapsedMs:Date.now()-started,messages,rounds,reconnects,overloadRecovery:true,samples,actualElectron:true,mockTransport:true}));
+  }
+
  }finally{host.close();await fs.rm(root,{recursive:true,force:true});}
 }
 async function verifyModel2(){
