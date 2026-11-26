@@ -472,3 +472,25 @@ test('multi-switch cards preserve legacy artwork, titles, background and indepen
  assert.equal(item.settings.activeState,1);assert.equal(item.sequences[1][0].type,'text');
  assert.equal(Core.cleanAction(item).stateVisuals[1].icon.value,item.stateVisuals[1].icon.value);
 });
+
+test('HA other keeps its existing left settings and disables only the right card',()=>{
+ const start=src.indexOf('function bindSdkStateIcons('),end=src.indexOf('function bindKeyPressIconControls(',start);
+ const node=tag=>({tag,children:[],dataset:{},style:{},classList:{add(){}},setAttribute(k,v){this[k]=v;},append(...v){this.children.push(...v);},replaceChildren(...v){this.children=v;},addEventListener(){},querySelectorAll(){const all=n=>[...n.children,...n.children.flatMap(all)];return all(this).filter(n=>['input','button'].includes(n.tag));}});
+ const panel=node('section'),bound=[];
+ const ctx={DeckCore:{isNativeForeground:()=>false},isMomentaryIconAction:()=>false,document:{createElement:node},sdkActionDefaults:new Map(),bindKeyBackgroundControl:(image,item,key)=>{bound.push(key);image.append(node('button'));},attachStateTitleControls:(group,item,key)=>{bound.push(key);group.append(node('input'),node('button'));},refreshStateTitleCards(){}};
+ const bind=vm.runInNewContext(src.slice(start,end)+';bindSdkStateIcons',ctx);
+ const item={type:'sd-plugin',settings:{pluginUUID:'com.deckforge.native.home-assistant',actionUUID:'com.deckforge.native.home-assistant.other',sdkStateIcons:{off:{kind:'file',value:'left'},on:{kind:'file',value:'legacy-right'}},stateTitles:{first:{enabled:true,title:'left'},second:{enabled:true,title:'legacy-right'}},keyBackgrounds:{first:{enabled:true,color:'#112233'}}}};
+ const before=JSON.stringify(item);
+ bind({querySelector:()=>panel},item);
+ const [left,right]=panel.children[0].children;
+ assert.equal(left.children[0].textContent,'Key Up');assert.equal(left.inert,undefined);
+ assert.equal(right.children[0].textContent,'Key Down');assert.equal(right.inert,true);assert.equal(right['aria-disabled'],'true');
+ assert.ok(right.querySelectorAll().length>5);assert.ok(right.querySelectorAll().every(x=>x.disabled));
+ assert.ok(left.querySelectorAll().every(x=>!x.disabled));
+ assert.deepEqual(bound,['first','first','second','second']);
+ assert.equal(JSON.stringify(item),before);
+ const control={...item,settings:{...item.settings,actionUUID:'com.deckforge.native.home-assistant.control'}};
+ bind({querySelector:()=>panel},control);
+ assert.equal(panel.children[0].children[1].inert,undefined);
+ assert.equal(panel.children[0].children[1].children[0].textContent,'ON');
+});

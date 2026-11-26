@@ -4066,9 +4066,10 @@ function bindSdkStateIcons(root,item){
     panel.replaceChildren();
     const cards=document.createElement('div');
     cards.className='sdk-state-icons';
+    const singleOther=item.type==='sd-plugin'&&item.settings?.actionUUID==='com.deckforge.native.home-assistant.other';
     for(const [key,label] of (item.type==='timer'?[['off','대기 상태'],['on','실행 상태']]:item.type==='hotkey-switch'?[['off','상태 1'],['on','상태 2']]:item.type==='multi-switch'?[['multi:0','상태 1'],['multi:1','상태 2']]:[['off','OFF'],['on','ON']])){
       const group=document.createElement('div');group.className='sdk-state-icon';
-      const heading=document.createElement('strong');heading.textContent=label;
+      const heading=document.createElement('strong');heading.textContent=singleOther?(key==='off'?'Key Up':'Key Down'):label;
       const image=document.createElement('div');image.className='sdk-state-preview';
       const switching=item.type==='multi-switch';
       const selected=switching?item.stateVisuals?.[Number(key.slice(6))]?.icon||item.icon:item.settings?.sdkStateIcons?.[key];
@@ -4113,6 +4114,10 @@ function bindSdkStateIcons(root,item){
       bindKeyBackgroundControl(image,item,key==='off'||key==='multi:0'?'first':'second');
       group.dataset.stateTitle=key==='off'||key==='multi:0'?'first':'second';
       group.append(heading);attachStateTitleControls(group,item,key==='off'||key==='multi:0'?'first':'second');group.append(image,buttons);cards.append(group);
+      if(singleOther&&key==='on'){
+        group.classList.add('single-basic-disabled-card');group.inert=true;group.setAttribute('aria-disabled','true');
+        group.querySelectorAll('input,button').forEach(control=>{control.disabled=true;});
+      }
     }
     panel.append(cards);
     void refreshStateTitleCards(item);
@@ -7199,7 +7204,7 @@ function renderIconLibrary(){
             const pair=iconPairType(icon);
             target.settings.sdkStateIcons??={};
             target.settings.sdkStateIcons[libraryStateKey]={kind:'file',value:png,packId:pack.id};
-            if(companion&&pair){
+            if(companion&&pair&&target.settings?.actionUUID!=='com.deckforge.native.home-assistant.other'){
               const oppositePng=await rasterizeIcon(companion.image);
               if(!inspectorPickerCurrent(session,target))return;
               applyMatchedStateIcons(target.settings,pair,png,oppositePng,pack.id);

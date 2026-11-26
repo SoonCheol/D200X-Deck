@@ -2,7 +2,7 @@
 > 2026-11-26 · 현재 스냅샷, 누적 금지.
 ## 개발 기준
 - 저장소 SoonCheol/D200X-Deck · 브랜치 codex/streamdeck-761-clean-editor · Draft PR #5 유지.
-- 로컬 E:\Codex\DeckForge. 최신 HEAD는 Git에서 확인. 소스 버전 **2.0.75**.
+- 로컬 E:\Codex\DeckForge. 최신 HEAD는 Git에서 확인. 소스 버전 **2.0.76**.
 - 감사 기준 `49ba39fe094ee808c5715f2348be0789f61d5e20`. CI #1221 성공; Windows #930 사용자 인수인계.
 ## 현재 상태
 - 독자 SDK API 1/2, 공개 25개 함수, HTTP/WSS, 전역 서비스/공유 상태, 동적 속성, 암호화·권한·패키지, HA 0.1.9 후보 및 기존 호환 호스트 구현. SDK 1.0 정식 완성 선언 보류.
@@ -12,7 +12,7 @@
 - 04B 실제 Electron: Model 2 PID 5668/844 및 realm/timeout/서비스 생존, DrawOps 픽셀/host 경계 통과. standard Worker 저장소 IndexedDB/CacheStorage/OPFS 허용, opaque Worker 생성 실패. Model 5 비활성 유지. 로드맵에 따라 05 선행 분석만 수행.
 - **HA 사용자 실기 정정:** 기존 배경색 미표시는 HA 0.1.3 미업데이트가 원인, 업데이트 후 정상 작동 사용자 확인. 이전 배경색 결함 보류 해제. 기타 UI 개별 검증은 별도, SDK 로드맵 우선.
 ## 다음 작업
-- 2.0.76 착수: HA 기타 기기 기존 좌측 OFF 설정과 실행 보존, 우측 비활성 표시만. 다른 액션 미변경.
+- 2.0.76: HA 기타 기기 좌측 기존 OFF 편집/우측 inert·disabled, 이전 상태 데이터와 실행 유지. 반대 상태 자동 페어 쓰기 금지. 집중 검사 통과, Windows/정렬 감사 대기.
 - 2.0.75 유지: Windows Electron 정렬 감사 #1(45782626258) 35/35, flags 없음. viewport 1008×681, 카드 폭 231.5px, 이미지 132.5px, 미리보기 98/86px. 번호 추가 높이 예외, 탭 유무 Y 차이 유지. 감사 #2(45785181816) 40개 중 39개 정상, HA 기타 기기 오른쪽 활성 1건.
 - 2.0.75: GitHub 등 단일 상태 foreground 플러그인의 Key Up/비활성 Key Down/미리보기 통일. SDK·저장·실행 변경 없음. 집중 검사 및 Windows #79/CI #1501/SDK #193/입력 #570 성공, EXE 게시.
 - 2.0.72~74: 순차 동작 스위치 2카드, 기존 데이터/실행 보존. #76/#77 검사 조건 수정 후 Windows #78/CI #1499/SDK #191 성공.
