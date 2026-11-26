@@ -19,9 +19,9 @@ function validateValue(value,maxBytes=MAX){
 }
 class NativeSettingsVault{
   constructor(userData,storage,scope='settings'){
-    if(!['settings','credentials'].includes(scope))throw Error('invalid vault scope');
+    if(!['settings','credentials','browser'].includes(scope))throw Error('invalid vault scope');
     this.scope=scope;
-    this.root=path.join(userData,'Plugins',scope==='credentials'?'NativeCredentials':'NativeSettings');
+    this.root=path.join(userData,'Plugins',scope==='credentials'?'NativeCredentials':scope==='browser'?'NativeBrowserPermissions':'NativeSettings');
     this.storage=storage;this.writers=new Map();this.pendingWrites=0;
   }
   file(id){
@@ -74,7 +74,7 @@ class NativeSettingsVault{
       const prior=await this.read(id);
       if(prior.revision!==revision||!active())return false;
       await fs.mkdir(this.root,{recursive:true});
-      const bytes=await this.storage.encryptStringAsync(JSON.stringify({id,version:1,value:snapshot,...(this.scope==='credentials'?{scope:this.scope}:{})}));
+      const bytes=await this.storage.encryptStringAsync(JSON.stringify({id,version:1,value:snapshot,...(this.scope!=='settings'?{scope:this.scope}:{})}));
       if(!Buffer.isBuffer(bytes)||bytes.length>65536)throw Error('encrypted settings size limit');
       if(!active())return false;
       const tmp=file+'.'+randomUUID()+'.tmp';

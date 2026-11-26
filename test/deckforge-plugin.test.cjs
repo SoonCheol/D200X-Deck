@@ -3363,3 +3363,35 @@ test('native browser effect is press-only, permission-gated and HTTP(S)-only',as
     assert.deepEqual(opened,[op.value]);
   }finally{host.close();closedHost.close();}
 });
+
+
+test('browser approval is encrypted separately, bound to installed manifest, and revocable across restart',async()=>{
+  const temp=await fs.mkdtemp(path.join(os.tmpdir(),'deckforge-browser-'));
+  const storage={isAsyncEncryptionAvailable:async()=>true,encryptStringAsync:async v=>Buffer.from(v),decryptStringAsync:async b=>({result:b.toString()})};
+  const opened=[],options={storage,browserOpen:async href=>opened.push(href),now:()=>1000};
+  let host=new NativePluginHost(temp,()=>{},()=>({close(){}}),options);
+  const m={...scriptManifest,permissions:['display','browser.open']};
+  const op={op:'openUrl',value:'https://example.com/build'};
+  try{
+    const info=await host.browserPermissionInfo(m);
+    const ctx={pluginUUID:m.id,permissions:m.permissions,browserRevision:info.digest};
+    assert.equal(info.approved,false);
+    assert.equal(await host.dispatchBrowserUrl(ctx,op,()=>true),false);
+    assert.deepEqual(await host.setBrowserPermission(m,true),{approved:true});
+    assert.equal((await host.browserPermissionInfo(m)).approved,true);
+    assert.deepEqual((await host.vault.read(m.id)).value,{});
+    assert.deepEqual((await host.credentials.read(m.id)).value,{});
+    host.close();host=new NativePluginHost(temp,()=>{},()=>({close(){}}),options);
+    assert.equal((await host.browserPermissionInfo(m)).approved,true);
+    const changed={...m,version:'9.0.0'};
+    const changedInfo=await host.browserPermissionInfo(changed);
+    assert.equal(changedInfo.approved,false);
+    assert.equal(await host.dispatchBrowserUrl({...ctx,browserRevision:changedInfo.digest},op,()=>true),false);
+    assert.equal(await host.dispatchBrowserUrl(ctx,op,()=>true),true);
+    await host.setBrowserPermission(m,false);
+    host.close();host=new NativePluginHost(temp,()=>{},()=>({close(){}}),options);
+    assert.equal((await host.browserPermissionInfo(m)).approved,false);
+    assert.equal(await host.dispatchBrowserUrl(ctx,op,()=>true),false);
+    assert.deepEqual(opened,[op.value]);
+  }finally{host.close();await fs.rm(temp,{recursive:true,force:true});}
+});

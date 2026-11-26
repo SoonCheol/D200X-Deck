@@ -35,7 +35,7 @@ const pluginAudit=require('./plugin-audit.cjs').createPluginAudit({userData:app.
 function sdk(){
   if(!sdkHost){
     const userData=app.getPath('userData'),update=payload=>send('d200x:sdk-event',payload);
-    sdkHost=new PluginRouter(new StreamDeckPluginHost(userData,update,()=>window),new NativePluginHost(userData,update));
+    sdkHost=new PluginRouter(new StreamDeckPluginHost(userData,update,()=>window),new NativePluginHost(userData,update,null,{browserOpen:href=>shell.openExternal(href)}));
   }
   return sdkHost;
 }
@@ -144,10 +144,10 @@ ipcMain.handle('d200x:native-retained-restore',async(event,id)=>{
  const plan=await sdk().planRetainedNative(id);audit.identify(plan);audit.mode('keepData');audit.stage('confirm');
  const choice=await dialog.showMessageBox(window,{type:'question',title:'보존 플러그인 다시 설치',
    message:plan.name+' '+plan.version+' 다시 설치',
-   detail:['기존 버튼과 설정을 유지합니다. 실행 및 네트워크 접근은 아래 권한으로 다시 허용됩니다.', '권한: '+plan.permissions.join(', '),...plan.endpoints].join('\n'),
+   detail:['기존 버튼과 설정을 유지합니다. 실행 및 네트워크 접근은 아래 권한으로 다시 허용됩니다.', '권한: '+plan.permissions.join(', '),...(plan.permissions.includes('browser.open')?['버튼을 눌렀을 때 기본 브라우저에서 HTTP/HTTPS 주소 열기']:[]),...plan.endpoints].join('\n'),
    buttons:['취소','신뢰하고 다시 설치'],defaultId:0,cancelId:0,noLink:true});
  if(choice.response!==1)return null;
- audit.stage('execute');return sdk().restoreRetainedNative(id,plan.revision);
+ audit.stage('execute');return sdk().restoreRetainedNative(id,plan.revision,plan.permissions.includes('browser.open'));
  });
 });
 ipcMain.handle('d200x:native-remove',async(event,id)=>{
@@ -212,13 +212,22 @@ ipcMain.handle('d200x:native-github-install',async event=>{
     if(plan.kind==='rollback')throw Error('이전 버전 복원은 패키지 설치에서 진행하세요.');
     const verb=plan.kind==='install'?'설치':'업데이트';
     const choice=await dialog.showMessageBox(window,{type:'question',title:'GitHub 개발 현황 '+verb,message:manifest.name+' '+verb,
-      detail:'GitHub API의 읽기 전용 HTTPS GET 조회를 허용합니다.\n주소: https://api.github.com/repos/ · 선택 저장소의 Actions 읽기 토큰을 별도로 암호화 등록합니다.\n빌드 실행이나 소스 변경 권한은 필요하지 않습니다.',
+      detail:'GitHub API의 읽기 전용 HTTPS GET 조회를 허용합니다.\n주소: https://api.github.com/repos/ · 선택 저장소의 Actions 읽기 토큰을 별도로 암호화 등록합니다.\n빌드 실행이나 소스 변경 권한은 필요하지 않습니다.'+(manifest.permissions.includes('browser.open')?'\n버튼을 눌렀을 때 현재 빌드 상세 페이지를 기본 브라우저에서 여는 권한을 허용합니다.':''),
       buttons:['취소',verb],defaultId:0,cancelId:0,noLink:true});
     if(choice.response!==1)return null;
-    audit.stage('execute');return plan.kind==='install'?sdk().installNative(manifest):sdk().replaceNative(manifest,plan.currentRevision);
+    audit.stage('execute');return plan.kind==='install'?sdk().installNative(manifest,manifest.permissions.includes('browser.open')):sdk().replaceNative(manifest,plan.currentRevision,manifest.permissions.includes('browser.open'));
   });
 });
 ipcMain.handle('d200x:native-github-options',async(event,repository)=>{assertEditor(event);return sdk().githubBuildOptions(repository);});
+ipcMain.handle('d200x:native-browser-permission',async(event,id)=>{
+  assertEditor(event);
+  const info=await sdk().browserPermissionInfo(id);
+  const choice=await dialog.showMessageBox(window,{type:'question',title:'플러그인 권한 관리',message:info.name+' '+info.version,
+    detail:'웹페이지 열기: '+(info.approved?'승인됨':'승인되지 않음')+'\n버튼을 누른 경우에만 HTTP/HTTPS 주소를 기본 브라우저에서 열 수 있습니다.\n승인은 현재 설치된 플러그인에만 적용됩니다.',
+    buttons:['닫기',info.approved?'권한 철회':'권한 승인'],defaultId:0,cancelId:0,noLink:true});
+  if(choice.response!==1)return null;
+  return sdk().setBrowserPermission(id,info.digest,!info.approved);
+});
 ipcMain.handle('d200x:native-credential-info',async(event,id)=>{assertEditor(event);return sdk().credentialInfo(id);});
 ipcMain.handle('d200x:native-credential-write',async(event,id,binding,revision,token)=>{
   assertEditor(event);
@@ -365,7 +374,7 @@ ipcMain.handle('d200x:sdk-install',async event=>{
     // metadata and payload have already passed validation.
     if(packageData.native){
       const native=packageData.native;audit.identify(native);
-      const labels={'settings.write':'현재 버튼 설정 저장','navigation':'프로필·페이지·덱폴더 이동','wide.mode':'와이드 화면 모드 전환','wide.overlay':'와이드 화면 임시 이미지·레이아웃 표시','global.settings':'플러그인 전역 암호화 설정 읽기·쓰기','network.request':'승인된 HTTPS 주소로 네트워크 요청','timer.tick':'활성 화면에서 주기적 표시 갱신','network.poll':'승인된 HTTPS GET 주소 주기적 조회','network.websocket':'승인된 WSS 실시간 연결 및 메시지 송수신','background.run':'페이지와 무관하게 독립 서비스 실행 및 상태 공유'};
+      const labels={'settings.write':'현재 버튼 설정 저장','navigation':'프로필·페이지·덱폴더 이동','wide.mode':'와이드 화면 모드 전환','wide.overlay':'와이드 화면 임시 이미지·레이아웃 표시','global.settings':'플러그인 전역 암호화 설정 읽기·쓰기','network.request':'승인된 HTTPS 주소로 네트워크 요청','timer.tick':'활성 화면에서 주기적 표시 갱신','network.poll':'승인된 HTTPS GET 주소 주기적 조회','network.websocket':'승인된 WSS 실시간 연결 및 메시지 송수신','background.run':'페이지와 무관하게 독립 서비스 실행 및 상태 공유','browser.open':'버튼을 눌렀을 때 기본 브라우저에서 HTTP/HTTPS 주소 열기'};
       const plan=await sdk().planNativeInstall(native);audit.identify(plan);audit.operation(plan.kind);audit.stage('confirm');
       const extra=native.permissions.filter(p=>p!=='display');
       const dependencies=Object.entries(native.dependencies||{}).map(([id,range])=>id+' '+range);
@@ -384,7 +393,7 @@ ipcMain.handle('d200x:sdk-install',async event=>{
         });
         if(result.response!==1)return null;
       }
-      audit.stage('execute');return plan.kind==='install'?sdk().installNative(native):sdk().replaceNative(native,plan.currentRevision);
+      audit.stage('execute');return plan.kind==='install'?sdk().installNative(native,native.permissions.includes('browser.open')):sdk().replaceNative(native,plan.currentRevision,native.permissions.includes('browser.open'));
     }
     audit.stage('execute');return sdk().install(packageData.archive);
   }

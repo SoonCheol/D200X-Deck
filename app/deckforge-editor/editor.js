@@ -1755,6 +1755,11 @@ function openSdkPluginHelp(plugin,isFusion,retained=false){
     :isHa?'1. Home Assistant에서 장기 액세스 토큰을 발급합니다.\n2. Home Assistant 장치 제어를 D200X 버튼에 등록합니다.\n3. 속성의 설정 열기를 눌러 HA 서버 주소와 장기 토큰을 입력합니다.\n4. 인증 성공 후 조회되는 엔티티 목록에서 제어할 장치를 선택합니다.\n5. 토큰은 비밀번호처럼 보관하고 GitHub에 업로드하지 않습니다.'
     :'1. 플러그인 액션을 빈 버튼에 끌어 놓습니다.\n2. 필요하면 플러그인 속성을 설정하고 저장합니다.\n3. 실행 테스트 또는 D200X 버튼으로 동작을 확인합니다.';
   dialog.append(guide);
+  if(plugin.runtime==='deckforge-sdk'&&plugin.permissions?.includes('browser.open')&&window.deckBridge?.nativeBrowserPermission){
+    const button=document.createElement('button');button.type='button';button.className='sdk-plugin-help-close';button.textContent='권한 관리';
+    button.addEventListener('click',async()=>{dialog.close();try{const result=await window.deckBridge.nativeBrowserPermission(plugin.uuid);if(result)window.d200xActionStatus?.(result.approved?'웹페이지 열기 권한 승인':'웹페이지 열기 권한 철회');}catch(error){window.d200xActionStatus?.('권한 변경 실패: '+String(error?.message||error));}});
+    dialog.append(button);
+  }
   const canRemove=plugin.uuid==='com.deckforge.native.home-assistant'?false:plugin.runtime==='deckforge-sdk'?window.deckBridge?.nativeRemove:window.deckBridge?.legacyPluginRemove;
   if(canRemove){
     const footer=document.createElement('div');footer.style.cssText='display:flex;justify-content:flex-end;border-top:1px solid #46505b;margin-top:14px;padding-top:12px;gap:8px';

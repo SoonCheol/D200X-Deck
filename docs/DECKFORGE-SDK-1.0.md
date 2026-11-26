@@ -2,7 +2,7 @@
 
 상태: **SDK 1.0 선언 보류 / 재설계 기준 확정**. 아래 기존 구현 계약은 유지하며 재설계 절은 구현 목표로 구분한다. 이 문서는 기존 개발 이력의 최신 독자 SDK 계약을 정리한다. SDK 제품 버전 1.0은 native.json의 apiVersion(1: 선언형, 2: JavaScript)이나 패키지 formatVersion(2)과 별개다. DeckForge 독자 SDK가 주력 규격이며 외부 Stream Deck/Ulanzi 호환성은 별도 과제다. 외부 SDK 규격은 호환 계층으로 한정한다. 독자 실행이 호환 엔진에 종속되지 않는 것을 목표로 하며 실제 독립 실행 여부는 별도 감사 전 확정하지 않는다.
 
-## JavaScript API 26개 (API 2, 1.0 기준선 19개 + 확장 7개, openUrl 실행 보류)
+## JavaScript API 26개 (API 2, 1.0 기준선 19개 + 확장 7개)
 
 | 함수 | 권한 | 계약 |
 |---|---|---|
@@ -22,7 +22,7 @@
 | enterFolder(slot) | navigation | 0 기반 일반 키, 실제 폴더 확인 |
 | exitFolder() | navigation | 기존 폴더 탐색 |
 | setWideMode(mode) | wide.mode | clock/datetime/stats/knobs 중 활성 모드 |
-| openUrl(url) | browser.open | 2.0.94 후보: press 전용, 검증된 HTTP(S), 2048자 이하, 사용자 승인/실행 어댑터 연결 전 기본 차단 |
+| openUrl(url) | browser.open | 2.0.95 후보: press 전용, 검증된 HTTP(S), 2048자 이하, 저장된 명시적 승인 필요 |
 | setWideOverlay(frame, durationMs=5000) | wide.overlay | 선언형 layout 또는 검증된 392×196 PNG, 1000~30000ms |
 | clearWideOverlay() | wide.overlay | 소유 context의 overlay 해제 |
 | request(endpoint, body=null, query?, options?) | network.request | 승인 HTTPS GET/POST/PUT/PATCH/DELETE, networkResult |
@@ -37,7 +37,7 @@
 
 ### 브라우저 열기 1차 (2.0.94 후보)
 
-- URL은 명시적 http:// 또는 https://, 사용자 정보·제어 문자·공백·역슬래시 금지, 길이 2048 이하. 서비스/자동 이벤트/회전/release 차단. 기존 단일 부수효과 및 실행 세대 보호 적용. host 승인 및 브라우저 어댑터가 없으면 무조건 차단, 750ms 전역 최소 간격. 실제 권한 저장·철회 UI 및 OS 호출은 후속 단계, GitHub 플러그인 미변경. 테스트 추가, CI/실기 결과 별도.
+- URL은 명시적 http:// 또는 https://, 사용자 정보·제어 문자·공백·역슬래시 금지, 길이 2048 이하. 서비스/자동 이벤트/회전/release 차단. 기존 단일 부수효과 및 실행 세대 보호 적용. host 승인 및 브라우저 어댑터가 없으면 무조건 차단, 750ms 전역 최소 간격. 1차 CI/Windows 통과. 2.0.95: OS 암호화 NativeBrowserPermissions 별도 vault, 전체 설치 manifest 해시 결합(변경 시 새 승인), 패키지/내장 설치·보존 복원 승인 및 플러그인 도움말 권한 관리에서 철회/승인. 변경 중·세대 불일치 차단, 기존 기본 브라우저 shell.openExternal을 검증 후 호출. 권한 데이터는 일반 프로필 백업 제외, 보존 데이터 완전 삭제에 포함. GitHub 플러그인 미변경. 회귀/실기 별도.
 
 ## 실행 계약
 

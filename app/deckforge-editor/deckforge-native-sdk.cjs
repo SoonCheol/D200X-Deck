@@ -29,6 +29,7 @@ const obj=x=>x!==null&&typeof x==='object'&&!Array.isArray(x);
 const validText=(x,n)=>typeof x==='string'&&x.length>0&&x.length<=n;
 const exact=(x,keys)=>obj(x)&&Object.keys(x).every(k=>keys.includes(k));
 function check(ok,message){if(!ok)throw Error('DeckForge SDK: '+message);}
+function browserPermissionDigest(manifest){return createHash('sha256').update(JSON.stringify(manifest)).digest('hex');}
 function safeNativeBrowserUrl(raw){
   if(typeof raw!=='string'||raw.length>2048||!/^(https?):\/\//i.test(raw)||/[\x00-\x20\x7f\\]/.test(raw))return null;
   try{
@@ -172,8 +173,13 @@ class NativePluginHost{
     this.versions=new NativeVersionStore(this.root,validateNativeManifest);
     this.dependencyWarnings=new Map();
     this.networkRequest=options.networkRequest||requestEndpoint;this.networkPending=new Set();
-    // No production browser adapter or approval store is connected yet. Fail closed.
-    this.browserOpen=options.browserOpen||null;this.browserApproval=options.browserApproval||null;
+    // Separate, OS-protected grant store; never expose it to plugin script or settings API.
+    this.browserPermissions=options.browserPermissions||new NativeSettingsVault(userData,credentialStorage,'browser');
+    this.browserChanges=new Set();this.browserPermissionEpoch=new Map();
+    this.browserOpen=options.browserOpen||null;
+    this.browserApproval=options.browserApproval||(async(id,digest)=>{
+      try{const {value}=await this.browserPermissions.read(id);return value.approved===true&&value.digest===digest;}catch{return false;}
+    });
     this.lastBrowserOpen=-Infinity;
     this.socketFactory=options.socketFactory||createSocket;this.socketPending=new Set();this.rxReservedBytes=0;
     this.socketRetryDelays=options.socketRetryDelays||[1000,2000,5000,10000,30000];
@@ -426,12 +432,31 @@ class NativePluginHost{
       permissions:['display'],actions:[{...action,events:{press:normal.filter(op=>!['animation','stopAnimation'].includes(op.op))}}]});
     return {normal,effects};
   }
+  async browserPermissionInfo(manifest){
+    check(manifest.permissions.includes('browser.open'),'browser permission not requested');
+    const digest=browserPermissionDigest(manifest),{value}=await this.browserPermissions.read(manifest.id);
+    return {id:manifest.id,name:manifest.name,version:manifest.version,digest,approved:value.approved===true&&value.digest===digest};
+  }
+  async setBrowserPermission(manifest,approved){
+    check(typeof approved==='boolean'&&manifest.permissions.includes('browser.open'),'invalid browser permission change');
+    const id=manifest.id,digest=browserPermissionDigest(manifest);
+    check(!this.closed&&!this.browserChanges.has(id),'browser permission update busy');
+    this.browserChanges.add(id);this.browserPermissionEpoch.set(id,(this.browserPermissionEpoch.get(id)||0)+1);
+    try{
+      const {value,revision}=await this.browserPermissions.read(id);
+      if(value.digest===digest&&value.approved===approved)return {approved};
+      const saved=await this.browserPermissions.write(id,{digest,approved},revision,()=>!this.closed);
+      check(saved,'browser permission write not confirmed');
+      return {approved};
+    }finally{this.browserChanges.delete(id);}
+  }
   async dispatchBrowserUrl(ctx,operation,active){
-    const href=safeNativeBrowserUrl(operation?.value);
-    if(!href||!ctx.permissions.includes('browser.open')||ctx.service||!active()||!this.browserOpen||!this.browserApproval)return false;
-    // The trusted host supplies the approval adapter, never the plugin realm.
-    const approved=await this.browserApproval(ctx.pluginUUID,ctx.signature);
-    if(approved!==true||!active())return false;
+    const href=safeNativeBrowserUrl(operation?.value),id=ctx.pluginUUID;
+    if(!href||!ctx.permissions.includes('browser.open')||ctx.service||!active()||!this.browserOpen||!this.browserApproval||this.browserChanges.has(id))return false;
+    const epoch=this.browserPermissionEpoch.get(id)||0;
+    // Use the mounted manifest digest, not a URL or permission claim from the script.
+    const approved=await this.browserApproval(id,ctx.browserRevision||ctx.signature);
+    if(approved!==true||!active()||this.browserChanges.has(id)||(this.browserPermissionEpoch.get(id)||0)!==epoch)return false;
     const now=this.now();if(now-this.lastBrowserOpen<750)return false;
     this.lastBrowserOpen=now;
     await this.browserOpen(href);return true;
@@ -1071,6 +1096,7 @@ class NativePluginHost{
     if(this.closed)return;
     const graph=resolveDependencies(manifests);
     const plugins=new Map(manifests.filter(m=>graph.ready.has(m.id)).map(m=>[m.id,m])),seen=new Set();
+    const browserRevisions=new Map([...plugins.values()].filter(m=>m.permissions.includes('browser.open')).map(m=>[m.id,browserPermissionDigest(m)]));
     const warnings=new Map();
     for(const cfg of configs){
       const reason=graph.blocked.get(cfg?.pluginUUID);
@@ -1089,10 +1115,11 @@ class NativePluginHost{
       seen.add(cfg.context);
       const incoming=obj(cfg.settings)?cfg.settings:{};
       let ctx=this.contexts.get(cfg.context);
-      const signature=JSON.stringify([plugin.apiVersion,plugin.permissions,plugin.capabilities||[],plugin.networkEndpoints||[],a]);
+      const browserRevision=browserRevisions.get(plugin.id);
+      const signature=JSON.stringify([plugin.apiVersion,plugin.permissions,plugin.capabilities||[],plugin.networkEndpoints||[],a,...(browserRevision?[browserRevision]:[])]);
       if(!ctx||ctx.pluginUUID!==cfg.pluginUUID||ctx.action.id!==a.id||ctx.signature!==signature||ctx.slot!==cfg.slot||ctx.gesture!==cfg.gesture){
         if(ctx)this.retire(ctx);
-        ctx={...cfg,action:a,apiVersion:plugin.apiVersion,permissions:[...plugin.permissions],capabilities:[...(plugin.capabilities||[])],networkEndpoints:plugin.networkEndpoints||[],signature,settings:incoming,state:0,pressed:false,failed:false,
+        ctx={...cfg,action:a,apiVersion:plugin.apiVersion,permissions:[...plugin.permissions],capabilities:[...(plugin.capabilities||[])],networkEndpoints:plugin.networkEndpoints||[],signature,browserRevision,settings:incoming,state:0,pressed:false,failed:false,
           epoch:0,settingsRevision:0,pending:0,queue:Promise.resolve(),runner:null,memory:{},recoveryAttempts:0,recoveryTimer:null};
         this.contexts.set(cfg.context,ctx);this.initialize(ctx);
       }else{
@@ -1209,9 +1236,23 @@ class PluginRouter{
     }
     return this.legacy.installDirectory(dir);
   });}
-  installNative(m){return this.serial(async()=>{
+  async finalizeBrowserInstall(manifest,result,approved){
+    if(!manifest.permissions.includes('browser.open'))return result;
+    // Installation has already committed. A failed permission write must not
+    // masquerade as failed installation or allow the capability silently.
+    if(approved!==true)return {...result,browserPermissionApproved:false};
+    try{
+      await this.native.setBrowserPermission(manifest,true);
+      return {...result,browserPermissionApproved:true};
+    }catch(error){
+      this.native.report(manifest.id,Error('browser permission save failed; manage permissions before use'));
+      return {...result,browserPermissionApproved:false};
+    }
+  }
+  installNative(m,browserApproved=false){return this.serial(async()=>{
     await this.checkNativeCandidate(m);
-    return this.native.install(m);
+    const installed=await this.native.install(m);
+    return this.finalizeBrowserInstall(m,installed,browserApproved);
   });}
   ensureBuiltinHa(){return this.serial(async()=>{
     const {createHomeAssistantManifest}=require('./deckforge-ha-plugin.cjs'),id='com.deckforge.native.home-assistant';
@@ -1234,9 +1275,10 @@ class PluginRouter{
     await this.checkNativeCandidate(m);
     return this.native.planInstall(m);
   });}
-  replaceNative(m,expectedRevision){return this.serial(async()=>{
+  replaceNative(m,expectedRevision,browserApproved=false){return this.serial(async()=>{
     await this.checkNativeCandidate(m);
-    return this.native.replace(m,expectedRevision);
+    const installed=await this.native.replace(m,expectedRevision);
+    return this.finalizeBrowserInstall(m,installed,browserApproved);
   });}
   listRetainedLegacy(){return this.serial(async()=>{
     const {legacy,native}=await this.catalog(),installed=new Set([...legacy.map(p=>p.uuid.toLowerCase()),...native.map(p=>p.id)]);
@@ -1277,10 +1319,11 @@ class PluginRouter{
     const p=await this.retainedCandidate(id);
     return {id,name:p.manifest.name,version:p.manifest.version,revision:p.revision,permissions:[...p.manifest.permissions],endpoints:(p.manifest.networkEndpoints||[]).map(e=>e.url)};
   });}
-  restoreRetainedNative(id,revision){return this.serial(async()=>{
+  restoreRetainedNative(id,revision,browserApproved=false){return this.serial(async()=>{
     const p=await this.retainedCandidate(id);
     check(p.revision===revision,'retained revision changed; reopen recovery');
-    return this.native.install(p.manifest);
+    const installed=await this.native.install(p.manifest);
+    return this.finalizeBrowserInstall(p.manifest,installed,browserApproved);
   });}
   // Only explicitly retained, uninstalled native programs can be purged.
   // Resolve credential identities from validated current/archived manifests,
@@ -1297,7 +1340,7 @@ class PluginRouter{
     const bindings=new Set();
     for(const record of [retained,...history])for(const endpoint of record.manifest.networkEndpoints||[])
       if(endpoint.auth!==undefined)bindings.add(credentialBinding(id,endpoint));
-    check(!host.vault.writers.has(id)&&[...bindings].every(b=>!host.credentials.writers.has(b)&&!host.credentialChanges.has(b)),'plugin data write pending; retry');
+    check(!host.vault.writers.has(id)&&!host.browserPermissions.writers.has(id)&&!host.browserChanges.has(id)&&[...bindings].every(b=>!host.credentials.writers.has(b)&&!host.credentialChanges.has(b)),'plugin data write pending; retry');
     const files=[];
     const add=async(file,kind,required=false)=>{
       // All paths come from validated IDs and known roots, not renderer input.
@@ -1320,6 +1363,7 @@ class PluginRouter{
     // purge can be retried without losing the binding inventory.
     for(const binding of [...bindings].sort())await add(host.credentials.file(binding),'credential');
     await add(host.vault.file(id),'settings');
+    await add(host.browserPermissions.file(id),'settings');
     for(const h of history)await add(h.file,'history',true);
     await add(versions.removedFile(id),'retained',true);
     const revision=createHash('sha256').update(JSON.stringify(files.map(f=>[f.relative,f.kind,f.digest]))).digest('hex');
@@ -1417,6 +1461,15 @@ class PluginRouter{
       return result;
     }finally{this.githubCatalogPending=false;}
   }
+  browserPermissionInfo(pluginId){return this.serial(async()=>{
+    const {native}=await this.catalog(),manifest=native.find(m=>m.id===pluginId);
+    check(manifest,'native plugin not installed');return this.native.browserPermissionInfo(manifest);
+  });}
+  setBrowserPermission(pluginId,digest,approved){return this.serial(async()=>{
+    const {native}=await this.catalog(),manifest=native.find(m=>m.id===pluginId);
+    check(manifest&&browserPermissionDigest(manifest)===digest,'plugin changed; reopen permissions');
+    return this.native.setBrowserPermission(manifest,approved);
+  });}
   credentialInfo(pluginId){return this.serial(async()=>{
     const {native}=await this.catalog(),manifest=native.find(m=>m.id===pluginId);
     check(manifest,'native plugin not installed');return this.native.credentialInfo(manifest);
