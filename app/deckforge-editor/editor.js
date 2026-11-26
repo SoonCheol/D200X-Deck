@@ -4007,7 +4007,7 @@ function bindNativeForegroundIconCard(root,item){
   const cards=document.createElement('div');cards.className='sdk-state-icons '+(basicSingle?'single-basic-icon-cards':'ha-sensor-icon-cards');
   const card=document.createElement('div');card.className='sdk-state-icon '+(basicSingle?'single-basic-edit-card':'ha-sensor-edit-card');
   const sensor=DeckCore.isNativeHaSensor(item);
-  const heading=document.createElement('strong');heading.textContent=sensor||basicSingle?'Key Up':'아이콘';
+  const heading=document.createElement('strong');heading.textContent='Key Up';
   const check=$('title-visible'),line=titleRow.querySelector('.title-line');
   // Move the already-bound settings button out before replacing the title row.
   const settingsButton=titleRow.querySelector('[data-sdk-inspector]');
@@ -4037,9 +4037,9 @@ function bindNativeForegroundIconCard(root,item){
   bindKeyBackgroundControl(image,item,'default');
   card.append(heading,titleRow,image,buttons);
   // Same two-card geometry as ordinary keys; the second card is a disabled
-  // presentation placeholder, not a second sensor state or stored setting.
+  // presentation placeholder, not a second runtime state or stored setting.
   cards.append(card);
-  if(sensor||basicSingle){
+  {
     const down=document.createElement('div');down.className='sdk-state-icon '+(basicSingle?'single-basic-disabled-card':'ha-sensor-disabled-card');down.inert=true;down.setAttribute('aria-disabled','true');
     const label=document.createElement('strong');label.textContent='Key Down';
     const row=document.createElement('div');row.className='state-title-control';
@@ -4048,13 +4048,13 @@ function bindNativeForegroundIconCard(root,item){
     const disabledStyle=document.createElement('button');disabledStyle.type='button';disabledStyle.className='state-title-style';disabledStyle.textContent='T⌄';disabledStyle.disabled=true;
     row.append(disabledCheck,disabledTitle,disabledStyle);
     const preview=document.createElement('div');preview.className='sdk-state-preview';
-    if(basicSingle){const palette=document.createElement('button');palette.type='button';palette.className='key-background-trigger';palette.innerHTML=PALETTE_ICON;palette.disabled=true;preview.append(palette);}
+    if(!sensor){const palette=document.createElement('button');palette.type='button';palette.className='key-background-trigger';palette.innerHTML=PALETTE_ICON;palette.disabled=true;preview.append(palette);}
     const controls=document.createElement('div');controls.className='sdk-state-buttons';
     for(const name of ['라이브러리','파일','클립보드','특수문자','초기화']){
       const button=document.createElement('button');button.type='button';button.textContent=name;button.disabled=true;controls.append(button);
     }
     down.append(label,row,preview,controls);cards.append(down);
-  }else cards.style.gridTemplateColumns='minmax(0,232px)';
+  }
   panel.append(cards);
 }
 function bindSdkStateIcons(root,item){
