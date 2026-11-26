@@ -65,8 +65,8 @@ header{flex-wrap:nowrap}#helpOpen{margin-left:0;white-space:nowrap}#modePages[hi
 #scriptActions{display:none;margin:12px 18px 0;gap:8px;align-items:center;flex-wrap:wrap}#scriptActions textarea{width:100%;min-height:210px;font:12px/1.4 Consolas,monospace;background:#111b27;color:#d9eaff;border:1px solid #516a84;border-radius:6px;padding:8px;resize:vertical}
 #pageEditor{max-width:none}
 #pageEditor .pages{grid-template-columns:repeat(auto-fill,minmax(490px,1fr))}
-.embedded-manager header h1,.embedded-manager #deckforgeOpen,.embedded-manager #dockToggle{display:none!important}
-.embedded-manager header{justify-content:space-between}
+.embedded-manager>header,.embedded-manager .fusion-maintenance-row,.embedded-manager .fusion-maintenance-hint{display:none!important}
+.embedded-manager .command-cards{max-height:calc(100vh - 190px)}
 </style></head><body>
 <header><h1>Fusion Command Manager</h1>
 <button id="modeExplore" class="primary" type="button">명령 드래그</button><button id="modePages" type="button" hidden>페이지 생성</button><button id="deckforgeOpen" type="button" title="DeckForge 창 열기">DeckForge 열기</button><button id="dockToggle" type="button" title="자석 상태 확인 중" disabled>자석 확인 중</button><button id="helpOpen" type="button" aria-label="도움말 열기">? 도움말</button><button id="save" class="editor-only" hidden>프로젝트 저장</button><button id="open" class="editor-only" hidden>프로젝트 불러오기</button><button id="export" class="primary editor-only" hidden>DeckForge 등록용 JSON 내보내기</button></header><span id="status" role="status" hidden></span>
@@ -77,9 +77,9 @@ header{flex-wrap:nowrap}#helpOpen{margin-left:0;white-space:nowrap}#modePages[hi
  <div class="nav-title">메뉴</div><nav id="menus" class="menu-tabs" aria-label="Fusion 하위 메뉴"></nav>
  <div class="explore-result"><strong id="explorePath">Fusion 메뉴</strong><span class="hint" id="exploreCount"></span></div>
  <div id="exploreCommands" class="command-cards" aria-live="polite"></div>
- <p class="hint">아이콘은 Fusion 원본만 표시합니다. 버튼에 마우스를 올리면 잘린 이름의 한글·영문 전체 이름을 확인할 수 있고 ⓘ에서 ID를 확인할 수 있습니다.</p>
- <div class="bar"><button id="prepareEnglish" type="button">영문 수집기 준비</button><button id="importEnglish" type="button">영문명 JSON 불러오기</button><span id="englishStatus" class="hint" role="status">영문명 미수집</span></div>
- <div class="bar"><button id="exploreCapture">Fusion UI JSON 불러오기</button><button id="captureHelp" type="button" aria-label="Fusion UI JSON 도움말" title="JSON 파일 수집·불러오기 설명">?</button><button id="exploreIcons">원본 아이콘·설명 수집</button><button id="iconsHelp" type="button" aria-label="원본 아이콘 수집 도움말" title="아이콘 수집 설명">?</button></div>
+ <p class="hint fusion-maintenance-hint">아이콘은 Fusion 원본만 표시합니다. 버튼에 마우스를 올리면 잘린 이름의 한글·영문 전체 이름을 확인할 수 있고 ⓘ에서 ID를 확인할 수 있습니다.</p>
+ <div class="bar fusion-maintenance-row"><button id="prepareEnglish" type="button">영문 수집기 준비</button><button id="importEnglish" type="button">영문명 JSON 불러오기</button><span id="englishStatus" class="hint" role="status">영문명 미수집</span></div>
+ <div class="bar fusion-maintenance-row"><button id="exploreCapture">Fusion UI JSON 불러오기</button><button id="captureHelp" type="button" aria-label="Fusion UI JSON 도움말" title="JSON 파일 수집·불러오기 설명">?</button><button id="exploreIcons">원본 아이콘·설명 수집</button><button id="iconsHelp" type="button" aria-label="원본 아이콘 수집 도움말" title="아이콘 수집 설명">?</button></div>
  <div id="exploreStatus" class="hint"></div>
  </section>
  <main id="pageEditor" hidden><div class="bar"><label>프로필 이름 <input id="profile" value="Fusion 360" size="20" maxlength="80"></label><label>명령 범주 <select id="category"><option value="all">전체</option><option value="sketch">스케치</option><option value="solid">솔리드</option><option value="surface">서피스</option><option value="file">파일</option><option value="other">기타</option></select></label><label>목록 <select id="visibility"><option value="primary">툴바·드롭다운 (기본)</option><option value="review">검토 대상</option><option value="hidden">숨김 대상</option><option value="all">전체 명령</option></select></label><button id="importCapture">Fusion UI 수집 JSON 반영</button><span id="captureStatus" class="hint"></span><button id="addPage">페이지 추가</button><button id="fill">추천 순서 자동 배치</button><button id="collectIcons" class="primary">선택 페이지 아이콘·설명 수집</button><span id="iconStatus" class="hint" role="status"></span></div>

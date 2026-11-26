@@ -542,13 +542,13 @@ $('exploreKorean').onclick=()=>selectDisplayLanguage('ko');
 $('exploreEnglish').onclick=()=>selectDisplayLanguage('en');
 $('exploreSearch').oninput=renderExplorer;
 $('exploreReset').onclick=()=>{$('exploreSearch').value='';renderExplorer()};
-$('exploreCapture').onclick=()=>$('importCapture').click();
+$('exploreCapture').onclick=()=>$('importCapture').onclick();
 $('exploreIcons').onclick=async()=>{
  const ids=explorerItems.slice(0,240).map(v=>v.id);
- if(!ids.length)return;
+ if(!ids.length)return '현재 목록에 수집할 명령이 없습니다.';
  const state=$('exploreStatus');state.textContent='원본 아이콘 서버 연결 확인…';
  const health=await window.fusionManager.iconHealth();
- if(!health?.available){state.textContent=health?.message||'Fusion 애드인 연결 실패';return}
+ if(!health?.available){state.textContent=health?.message||'Fusion 애드인 연결 실패';return state.textContent;}
  let next=0,saved=0,known=0,missing=0,failed=0;
  const worker=async()=>{
    while(next<ids.length){
@@ -565,6 +565,7 @@ $('exploreIcons').onclick=async()=>{
      renderExplorer();state.textContent='원본 아이콘 수집: 새로 저장 '+saved+' · 기존 '+known+' · 없음 '+missing+' · 실패 '+failed+descriptionCollectionText(descriptions);}
  catch(e){state.textContent='수집 오류: '+e.message}
  finally{$('exploreIcons').disabled=false}
+ return state.textContent;
 };
 $('addPage').onclick=()=>{if(pages.length>=MAXP)return status('최대 128페이지입니다.');pages.push(empty());render()};
 $('fill').onclick=()=>{if(pages.some(p=>p.slots.some(Boolean))&&!confirm('기존 배치를 추천 순서로 다시 만들까요?'))return;makePagesFromCatalog($('category').value)};
@@ -574,27 +575,30 @@ $('prepareEnglish').onclick=async()=>{
   const result=await window.fusionManager.prepareEnglish();
   $('englishStatus').textContent='수집기 '+(result.status==='existing'?'준비됨':'생성됨')+' · '+result.path;
   status('영문 Fusion으로 변경·재시작한 다음 Scripts and Add-Ins에서 수집기 폴더를 추가하여 실행하세요.');
- }catch(e){$('englishStatus').textContent='영문 수집 준비 실패: '+e.message}
+  return $('englishStatus').textContent+'\n'+$('status').textContent;
+ }catch(e){$('englishStatus').textContent='영문 수집 준비 실패: '+e.message;return $('englishStatus').textContent;}
 };
 $('importEnglish').onclick=async()=>{
  try{
   const result=await window.fusionManager.importEnglish();
-  if(!result)return;
+  if(!result)return '불러오기 취소';
   englishOverlay=result;applyEnglishNames();updateDisplayLanguageControls();render();
   status('영문 명칭을 갱신했습니다. 기존 한글 메뉴 순서와 버튼 저장값은 유지됩니다.');
- }catch(e){$('englishStatus').textContent='영문 결과 불러오기 실패: '+e.message}
+  return $('status').textContent+'\n'+$('englishStatus').textContent;
+ }catch(e){$('englishStatus').textContent='영문 결과 불러오기 실패: '+e.message;return $('englishStatus').textContent;}
 };
 $('importCapture').onclick=async()=>{
  try{
   const data=await window.fusionManager.openCapture();
-  if(!data)return;
+  if(!data)return '불러오기 취소';
   const result=Curation.validateCapture(data);
   capturedUI=result;menuTreeCache=null;
   $('captureStatus').textContent='UI 수집 '+result.entries.size+'개 고유 ID · 조회 오류 '+result.errors+'건 · Fusion '+result.version;
   // Do NOT regenerate or overwrite user-arranged pages automatically.
   render();
   status('Fusion UI 수집 결과를 분류에 반영했습니다. 현재 페이지 배치는 유지됩니다.');
- }catch(e){status('Fusion UI JSON 검증 실패: '+e.message)}
+  return $('status').textContent+'\n'+$('captureStatus').textContent;
+ }catch(e){status('Fusion UI JSON 검증 실패: '+e.message);return $('status').textContent;}
 };
 $('toggleReserve').onclick=()=>{if(context)reserve(context.p,context.i);$('context').style.display='none'};
 $('remove').onclick=()=>{if(context){pages[context.p].slots[context.i]=null;render()}$('context').style.display='none'};
@@ -602,4 +606,11 @@ document.addEventListener('click',e=>{if(!$('context').contains(e.target))$('con
 $('save').onclick=async()=>{try{const result=await window.fusionManager.save(project(),'Fusion-Layout.project.json');if(result)status('프로젝트 저장: '+result)}catch(e){status(e.message)}};
 $('open').onclick=async()=>{try{const result=await window.fusionManager.open();if(!result)return;validateProject(result.data);pages=result.data.pages.map(p=>({name:p.name,enabled:p.enabled,reserved:p.reserved,slots:p.slots}));$('profile').value=result.data.profileName;render();status('프로젝트 불러오기 완료')}catch(e){status('불러오기 실패: '+e.message)}};
 $('export').onclick=async()=>{try{const data=exportData();const result=await window.fusionManager.save(data,'D200X-Fusion-Commands.json');if(result)status('DeckForge 등록용 JSON 생성: '+result)}catch(e){status('내보내기 실패: '+e.message)}};
-Promise.all([window.fusionManager.catalog(),window.fusionManager.loadVisibility().catch(()=>({})),window.fusionManager.loadCapture().catch(()=>null),window.fusionManager.menuCatalog(),window.fusionManager.loadEnglish().catch(()=>null),window.fusionManager.loadDisplayLanguage().catch(()=>'ko')]).then(([data,overrides,lastCapture,menu,storedEnglish,storedLanguage])=>{menuCatalog=menu;visibilityOverrides=overrides;if(lastCapture){try{capturedUI=Curation.validateCapture(lastCapture);$('captureStatus').textContent='저장된 Fusion UI 수집 '+capturedUI.entries.size+'개 ID';}catch{capturedUI=null}}commands=normalizeCatalogue(data);if(!commands.length)throw Error('명령 카탈로그를 읽었지만 지원되는 명령이 없습니다.');englishOverlay=storedEnglish;displayLanguage=storedLanguage;applyEnglishNames();updateDisplayLanguageControls();pages=[empty()];render();status('DeckForge 버튼으로 명령을 드래그하세요.');}).catch(e=>{pages=[empty()];render();status('카탈로그 오류: '+e.message)});
+const catalogueReady=Promise.all([window.fusionManager.catalog(),window.fusionManager.loadVisibility().catch(()=>({})),window.fusionManager.loadCapture().catch(()=>null),window.fusionManager.menuCatalog(),window.fusionManager.loadEnglish().catch(()=>null),window.fusionManager.loadDisplayLanguage().catch(()=>'ko')]).then(([data,overrides,lastCapture,menu,storedEnglish,storedLanguage])=>{menuCatalog=menu;visibilityOverrides=overrides;if(lastCapture){try{capturedUI=Curation.validateCapture(lastCapture);$('captureStatus').textContent='저장된 Fusion UI 수집 '+capturedUI.entries.size+'개 ID';}catch{capturedUI=null}}commands=normalizeCatalogue(data);if(!commands.length)throw Error('명령 카탈로그를 읽었지만 지원되는 명령이 없습니다.');englishOverlay=storedEnglish;displayLanguage=storedLanguage;applyEnglishNames();updateDisplayLanguageControls();pages=[empty()];render();status('DeckForge 버튼으로 명령을 드래그하세요.');}).catch(e=>{pages=[empty()];render();status('카탈로그 오류: '+e.message)});
+
+window.DeckForgeFusionMaintenance=async operation=>{
+ if(!inlineManager||!['prepareEnglish','importEnglish','importCapture','exploreIcons'].includes(operation))throw Error('허용되지 않은 관리 작업');
+ await catalogueReady;
+ if(!commands.length)throw Error('명령 카탈로그를 불러오지 못했습니다.');
+ return await $(operation).onclick();
+};

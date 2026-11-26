@@ -1715,6 +1715,32 @@ function openSdkPluginHelp(plugin,isFusion,retained=false){
       finally{install.disabled=false}
     };
     dialog.append(install,output);
+    const dataTools=document.createElement('section');dataTools.className='fusion-data-tools';
+    const dataTitle=document.createElement('strong');dataTitle.textContent='Fusion 명령 데이터 관리';
+    const dataHint=document.createElement('p');dataHint.className='hint';dataHint.textContent='평상시에는 필요 없습니다. Fusion 업데이트, 명칭·메뉴 갱신 또는 누락된 원본 아이콘 재수집 시 사용하세요.';
+    const dataButtons=document.createElement('div');dataButtons.className='fusion-data-buttons';
+    const dataResult=document.createElement('p');dataResult.className='fusion-data-result';dataResult.setAttribute('role','status');
+    const operations=[
+      ['prepareEnglish','영문 수집기 준비','수집기를 준비한 뒤 Fusion을 영문으로 변경하고 Scripts and Add-Ins에서 실행합니다.'],
+      ['importEnglish','영문명 JSON 불러오기','영문 수집 결과를 반영합니다. 기존 한글 메뉴와 버튼은 보존합니다.'],
+      ['importCapture','Fusion UI JSON 불러오기','수집된 UI JSON을 선택하여 메뉴 분류를 갱신합니다.'],
+      ['exploreIcons','원본 아이콘·설명 수집','명령 관리자의 현재 목록(최대 240개)의 원본 아이콘과 명령 설명을 수집합니다.']
+    ];
+    for(const [operation,name,description] of operations){
+      const button=document.createElement('button');button.type='button';button.className='sdk-plugin-help-close';button.textContent=name;button.title=description;
+      button.onclick=async()=>{
+        for(const b of dataButtons.querySelectorAll('button'))b.disabled=true;
+        dataResult.textContent=name+' 중…';
+        try{dataResult.textContent=await window.deckBridge.fusionManagerMaintenance(operation);}
+        catch(error){dataResult.textContent='실패: '+String(error?.message||error);}
+        finally{for(const b of dataButtons.querySelectorAll('button'))b.disabled=false;}
+      };
+      dataButtons.append(button);
+    }
+    const extra=document.createElement('details'),summary=document.createElement('summary');summary.textContent='수집 방법 및 안내';extra.append(summary);
+    for(const [,name,description] of operations){const line=document.createElement('p');line.textContent=name+': '+description;extra.append(line);}
+    const captureScript=document.createElement('p');captureScript.textContent='수집기 준비로 만든 Python 스크립트를 사용해 Fusion UI JSON을 생성할 수 있습니다. 아이콘은 Fusion 원본만 사용하며, 명령 버튼에 마우스를 올리면 전체 이름을 확인할 수 있습니다.';extra.append(captureScript);
+    dataTools.append(dataTitle,dataHint,dataButtons,dataResult,extra);dialog.append(dataTools);
   }
   if(plugin.uuid==='com.deckforge.native.home-assistant'){
     const tools=document.createElement('div');tools.className='native-sdk-tools';

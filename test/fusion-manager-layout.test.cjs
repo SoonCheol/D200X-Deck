@@ -57,7 +57,7 @@ test('inline Fusion manager preserves left editor and existing drag route while 
  const main=read('app/deckforge-editor/main.cjs'),manager=read('tools/fusion-manager/main.cjs'),renderer=read('tools/fusion-manager/renderer.js');
  assert.ok(html.indexOf('id="profile-trigger"')<html.indexOf('id="fusion-inline-panel"'));
  assert.match(css,/#app\.fusion-inline-open>\.library>\.search/);
- assert.match(css,/min\(698px,max\(320px,calc\(100vw - 640px\)\)\)/);
+ assert.match(css,/min\(699px,max\(320px,calc\(100vw - 640px\)\)\)/);
  assert.match(editor,/window\.DeckForgeFusionPanel=value/);
  assert.match(editor,/importFusionDraggedCommand\(ev,i\)/);
  assert.match(renderer,/application\/x-deckforge-fusion-command/);
@@ -71,4 +71,24 @@ test('inline Fusion manager preserves left editor and existing drag route while 
  const fit=new Function(main.slice(start,end)+'\nreturn fitFusionPanelWindow')();
  assert.deepEqual(fit({x:1600,y:40,width:980,height:800},1358,{x:0,y:0,width:1920,height:1040}),{x:562,y:40,width:1358,height:800});
  assert.deepEqual(fit({x:-1700,y:20,width:980,height:800},1358,{x:-1280,y:0,width:1280,height:1000}),{x:-1280,y:20,width:1280,height:800});
+});
+
+
+test('inline Fusion manager maintenance moves to plugin help without replacing the original actions',()=>{
+ const fs=require('node:fs'),path=require('node:path');
+ const read=file=>fs.readFileSync(path.join(__dirname,'..',file),'utf8');
+ const editor=read('app/deckforge-editor/editor.js'),main=read('app/deckforge-editor/main.cjs'),renderer=read('tools/fusion-manager/renderer.js'),html=read('tools/fusion-manager/index.html'),css=read('app/deckforge-editor/style.css');
+ const help=editor.slice(editor.indexOf('function openSdkPluginHelp('),editor.indexOf('function launchFusionManager('));
+ assert.match(html,/\.embedded-manager>header,\.embedded-manager \.fusion-maintenance-row/);
+ assert.match(html,/\.command-card\{height:76px/);
+ assert.match(css,/\.fusion-inline-header strong\{font-size:15px\}/);
+ assert.match(help,/Fusion 명령 데이터 관리/);
+ for(const action of ['prepareEnglish','importEnglish','importCapture','exploreIcons']){
+   assert.ok(help.includes("['"+action+"'"));
+   assert.ok(renderer.includes("$('"+action+"').onclick="));
+ }
+ assert.match(main,/event\.senderFrame!==event\.sender\.mainFrame\|\|!\['prepareEnglish','importEnglish','importCapture','exploreIcons'\]\.includes\(operation\)/);
+ assert.match(main,/openEmbeddedManager\(fusionManagerBridge,editor\)/);
+ assert.match(renderer,/await catalogueReady/);
+ assert.match(renderer,/return await \$\(operation\)\.onclick\(\)/);
 });

@@ -6,7 +6,7 @@ const os=require('node:os');
 const FusionLanguage=require('./fusion-language-catalog.cjs');
 let embeddedWindow=null;
 let integratedBridge=null;
-let embeddedPanel=null,panelOwner=null;
+let embeddedPanel=null,panelOwner=null,panelLoading=null;
 const managerSender=event=>event.senderFrame===event.sender.mainFrame&&((embeddedPanel&&!embeddedPanel.webContents.isDestroyed()&&event.sender===embeddedPanel.webContents)||(embeddedWindow&&!embeddedWindow.isDestroyed()&&event.sender===embeddedWindow.webContents));
 const managerHandle=(channel,fn)=>ipcMain.handle(channel,(event,...args)=>{if(!managerSender(event))throw Error('허용되지 않은 Fusion 관리자 요청');return fn(event,...args);});
 function createWindow(){
@@ -155,8 +155,9 @@ const managerReady=app.whenReady().then(()=>{
  });
  const englishFile=()=>path.join(app.getPath('userData'),'fusion-command-english-names-v1.json');
  managerHandle('fusion-english-load',async()=>FusionLanguage.loadEnglish(__dirname,app.getPath('userData')));
- managerHandle('fusion-english-import',async()=>{
-   const {canceled,filePaths}=await dialog.showOpenDialog({title:'영문 Fusion UI 결과 선택 (한글 메뉴 보존)',
+ managerHandle('fusion-english-import',async(event)=>{
+   const owner=embeddedPanel&&event.sender===embeddedPanel.webContents?panelOwner:embeddedWindow;
+   const {canceled,filePaths}=await dialog.showOpenDialog(owner,{title:'영문 Fusion UI 결과 선택 (한글 메뉴 보존)',
      properties:['openFile'],filters:[{name:'Fusion UI JSON',extensions:['json']}]});
    if(canceled||!filePaths?.length)return null;
    const st=await fs.stat(filePaths[0]);
@@ -207,8 +208,9 @@ const managerReady=app.whenReady().then(()=>{
      return JSON.parse(await fs.readFile(captureFile(),'utf8'));
    }catch(e){if(e.code==='ENOENT')return null;throw e}
  });
- managerHandle('open-ui-capture',async()=>{
-   const {canceled,filePaths}=await dialog.showOpenDialog({
+ managerHandle('open-ui-capture',async(event)=>{
+   const owner=embeddedPanel&&event.sender===embeddedPanel.webContents?panelOwner:embeddedWindow;
+   const {canceled,filePaths}=await dialog.showOpenDialog(owner,{
      title:'Fusion UI 수집 JSON 선택 (명령 실행 없음)',properties:['openFile'],
      filters:[{name:'Fusion UI JSON',extensions:['json']}]
    });
@@ -250,7 +252,7 @@ async function openEmbeddedManager(bridge,parent){
    if(embeddedWindow&&!embeddedWindow.isDestroyed()){embeddedWindow.show();embeddedWindow.focus();return embeddedWindow;}
    return createWindow();
  }
- if(embeddedPanel&&panelOwner===parent&&!embeddedPanel.webContents.isDestroyed())return embeddedPanel;
+ if(embeddedPanel&&panelOwner===parent&&!embeddedPanel.webContents.isDestroyed()){if(panelLoading)await panelLoading;return embeddedPanel;}
  const view=new WebContentsView({webPreferences:{preload:path.join(__dirname,'preload.cjs'),contextIsolation:true,nodeIntegration:false,sandbox:true}});
  embeddedPanel=view;panelOwner=parent;
  view.setVisible(false);view.setBackgroundColor('#111820');
@@ -263,8 +265,9 @@ async function openEmbeddedManager(bridge,parent){
    if(!view.webContents.isDestroyed())view.webContents.close();
  };
  parent.once('closed',dispose);
- try{await view.webContents.loadFile(path.join(__dirname,'index.html'),{query:{embedded:'1'}});}
+ try{panelLoading=view.webContents.loadFile(path.join(__dirname,'index.html'),{query:{embedded:'1'}});await panelLoading;}
  catch(error){parent.removeListener('closed',dispose);dispose();throw error;}
+ finally{panelLoading=null;}
  return view;
 }
 function setEmbeddedPanelBounds(parent,bounds,visible){

@@ -265,6 +265,27 @@ function fitFusionPanelWindow(bounds,width,area){
 }
 function canResizeFusionPanel(win){return !win.isMaximized()&&!win.isFullScreen()&&!win.isSnapped?.();}
 const integratedManager=()=>require(path.join(fusionManagerDir(),'main.cjs'));
+function fusionManagerBridge(operation,argument){
+ if(operation==='open-deckforge'){revealEditor();return true}
+ if(operation==='language-changed'){send('d200x:fusion-language-changed',null);return true}
+ if(operation==='collect-tooltips')return collectFusionTooltips();
+ if(operation==='read-tooltip')return readCachedFusionTooltip(argument);
+ if(operation==='dock')return {available:false,attached:false};
+ return false;
+}
+let fusionMaintenanceBusy=false;
+ipcMain.handle('d200x:fusion-manager-maintenance',async(event,operation)=>{
+ assertEditor(event);
+ if(event.senderFrame!==event.sender.mainFrame||!['prepareEnglish','importEnglish','importCapture','exploreIcons'].includes(operation))throw Error('허용되지 않은 Fusion 관리 요청');
+ if(fusionMaintenanceBusy)throw Error('명령 데이터 관리 작업이 진행 중입니다.');
+ fusionMaintenanceBusy=true;
+ try{
+   const editor=window;
+   const view=await integratedManager().openEmbeddedManager(fusionManagerBridge,editor);
+   if(editor!==window||editor.isDestroyed()||view.webContents.isDestroyed())throw Error('편집기가 닫혔습니다.');
+   return await view.webContents.executeJavaScript('window.DeckForgeFusionMaintenance('+JSON.stringify(operation)+')',true);
+ }finally{fusionMaintenanceBusy=false;}
+});
 function applyFusionPanelBounds(rect){
  if(!fusionPanelSession||!window||window.isDestroyed())return false;
  const zoom=window.webContents.getZoomFactor(),size=window.getContentBounds();
@@ -299,17 +320,10 @@ async function openIntegratedManager(){
   fusionPanelSession={width:bounds.width,resized:false};
   try{
    const integrated=integratedManager();
-   await integrated.openEmbeddedManager((operation,argument)=>{
-    if(operation==='open-deckforge'){revealEditor();return true}
-    if(operation==='language-changed'){send('d200x:fusion-language-changed',null);return true}
-    if(operation==='collect-tooltips')return collectFusionTooltips();
-    if(operation==='read-tooltip')return readCachedFusionTooltip(argument);
-    if(operation==='dock')return {available:false,attached:false};
-    return false;
-   },editor);
+   await integrated.openEmbeddedManager(fusionManagerBridge,editor);
    if(editor.isDestroyed()||window!==editor)throw Error('편집기 창이 닫혔습니다.');
    if(canResizeFusionPanel(editor)){
-    const next=fitFusionPanelWindow(bounds,bounds.width+Math.max(0,698-sidebar)*zoom,area);
+    const next=fitFusionPanelWindow(bounds,bounds.width+Math.max(0,699-sidebar)*zoom,area);
     if(next.width!==bounds.width){editor.setBounds(next);fusionPanelSession.resized=true;}
    }
    const rect=await editor.webContents.executeJavaScript('window.DeckForgeFusionPanel?.(true)');
