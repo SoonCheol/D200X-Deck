@@ -577,3 +577,34 @@ test('single-state basic actions reuse the original title controls and default a
   assert.equal(panel.children.length,1,'real paired states and other special actions are untouched');
  }
 });
+
+
+test('GitHub repository selection updates automatic display names without overwriting custom names',()=>{
+  const begin=source.indexOf('function bindGithubRepositoryLabel('),end=source.indexOf('async function openNativeSettings(',begin);
+  assert.ok(begin>=0&&end>begin);
+  const bind=vm.runInNewContext(source.slice(begin,end)+';bindGithubRepositoryLabel');
+  const field=(value,maxLength=100)=>{
+    const handlers=new Map();
+    return {value,maxLength,addEventListener(type,fn){handlers.set(type,fn);},fire(type){handlers.get(type)?.();}};
+  };
+  const schema=[{key:'label',default:'DeckForge'},{key:'repository',default:'SoonCheol/D200X-Deck'}];
+  const label=field('DeckForge'),repo=field('SoonCheol/D200X-Deck');
+  bind(label,repo,{},schema);
+  assert.equal(label.value,'D200X-Deck');
+  repo.value='SoonCheol/FusionMacroStudio';repo.fire('change');
+  assert.equal(label.value,'FusionMacroStudio');
+  label.value='MacroStudio';label.fire('input');
+  repo.value='SoonCheol/AnotherRepo';repo.fire('change');
+  assert.equal(label.value,'MacroStudio');
+  label.value='';label.fire('input');repo.value='SoonCheol/NextRepo';repo.fire('change');
+  assert.equal(label.value,'NextRepo');
+  const saved=field('Custom title'),savedRepo=field('SoonCheol/FusionMacroStudio');
+  bind(saved,savedRepo,{label:'Custom title'},schema);
+  savedRepo.value='SoonCheol/D200X-Deck';savedRepo.fire('change');
+  assert.equal(saved.value,'Custom title');
+  const initial=field('DeckForge'),initialRepo=field('SoonCheol/D200X-Deck');
+  bind(initial,initialRepo,{label:'DeckForge'},schema);
+  initialRepo.value='SoonCheol/FusionMacroStudio';initialRepo.fire('change');
+  assert.equal(initial.value,'FusionMacroStudio');
+  assert.match(source,/if\(githubBuild\)bindGithubRepositoryLabel\(inputs\.find/);
+});

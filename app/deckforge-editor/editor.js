@@ -4374,6 +4374,21 @@ function syncHaSensorInterval(inputs,values){
   const interval=inputs.find(entry=>entry.field.key==='seconds')?.input;
   if(interval)interval.disabled=values.mode!=='auto';
 }
+// Keep a manually edited display name; follow the selected repository only
+// while the name is an automatic/default value in this settings draft.
+function bindGithubRepositoryLabel(label,repository,original,schema){
+  if(!label||!repository)return;
+  const repositoryName=value=>String(value||'').split('/').at(-1).slice(0,label.maxLength>0?label.maxLength:100);
+  const defaultLabel=String(schema.find(f=>f.key==='label')?.default??'');
+  const defaultRepository=String(schema.find(f=>f.key==='repository')?.default??'');
+  let automatic=!Object.hasOwn(original,'label')||!label.value.trim()||
+    label.value===repositoryName(repository.value)||
+    (repository.value===defaultRepository&&label.value===defaultLabel);
+  const update=()=>{if(automatic)label.value=repositoryName(repository.value);};
+  if(!Object.hasOwn(original,'label')||!label.value.trim())update();
+  label.addEventListener('input',()=>{automatic=!label.value.trim()||label.value===repositoryName(repository.value);});
+  repository.addEventListener('change',update);
+}
 async function openNativeSettings(item,action,plugin){
   const schema=action?.settingsSchema,credentialCapable=plugin?.permissions?.some(p=>['network.request','network.websocket'].includes(p));
   if(!Array.isArray(schema)||!schema.length){
@@ -4629,6 +4644,7 @@ async function openNativeSettings(item,action,plugin){
       if(!closed){showConnection('조회 실패','error');notice.textContent=String(error?.message||'GitHub 목록 조회 실패').replace(/^.*?Error: /,'');}
     }finally{githubLoading=false;for(const field of githubFields.values())field.disabled=false;if(githubCredentialButton)githubCredentialButton.disabled=false;if(githubReloadButton)githubReloadButton.disabled=false;}
   };
+  if(githubBuild)bindGithubRepositoryLabel(inputs.find(entry=>entry.field.key==='label')?.input,githubFields.get('repository'),original,schema);
   if(githubBuild)githubFields.get('repository')?.addEventListener('change',()=>{
     fillGithub('branch',[],'','전체 브랜치',true);
     fillGithub('workflow',[],'','빌드 종류 선택');
