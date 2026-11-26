@@ -2328,11 +2328,7 @@ function orderedMultiDialog(step,apply){
       }catch(error){window.d200xActionStatus?.('엔티티 선택 실패: '+String(error?.message||error));}
     });
     if(draft.type==='open-app')fields.querySelector('[data-field="hold"]')?.closest('.field')?.remove();
-    if(draft.type==='website')fields.querySelector('#url-https')?.addEventListener('change',event=>{
-      const input=fields.querySelector('[data-field="url"]');if(!input?.value.trim())return;
-      input.value=(event.target.checked?'https://':'http://')+input.value.replace(/^https?:\/\//i,'');
-      draft.settings.url=input.value;
-    });
+    if(draft.type==='website')bindWebsiteFields(fields,draft,()=>{});
   }
   const footer=document.createElement('div');footer.className='inspector-save-bar';
   const button=(name,fn)=>{const b=document.createElement('button');b.type='button';b.textContent=name;b.addEventListener('click',fn);footer.append(b);return b;};
@@ -4702,7 +4698,35 @@ async function openFusionCommandProperties(root,item){
   try{await window.DeckForgeDialogs.show({title:'Fusion 명령 속성',content,anchorCard:root.querySelector('.sdk-state-icon[data-state-title="first"]'),anchorTop:true,headerTitleOnly:true});}
   finally{closed=true;}
 }
+// URL controls have the same semantics in LCD, physical controls and ordered rows.
+function bindWebsiteFields(root,item,onChange){
+  const url=root.querySelector('[data-field="url"]'),toggle=root.querySelector('#url-https');
+  const mode=root.querySelector('[data-field="open"]'),browser=root.querySelector('[data-field="browserPath"]');
+  if(!url||!toggle||!mode||!browser)return;
+  const commit=value=>{
+    url.value=value;
+    if(item.settings.url!==value){item.settings.url=value;onChange();}
+  };
+  const sync=()=>{
+    const raw=url.value.trim();
+    if(/^https?:\/\//i.test(raw))toggle.checked=/^https:\/\//i.test(raw);
+    commit(raw&&!/^https?:\/\//i.test(raw)?(toggle.checked?'https://':'http://')+raw:raw);
+  };
+  const syncBrowser=()=>{
+    const disabled=mode.value!=='choose';
+    browser.disabled=disabled;
+    const picker=root.querySelector('[data-path-picker="browserPath"]');if(picker)picker.disabled=disabled;
+  };
+  url.addEventListener('change',sync);
+  url.addEventListener('blur',sync);
+  toggle.addEventListener('change',()=>{
+    const raw=url.value.trim();
+    if(raw)commit((toggle.checked?'https://':'http://')+raw.replace(/^https?:\/\//i,''));
+  });
+  mode.addEventListener('change',syncBrowser);syncBrowser();
+}
 function bindExtendedActionFields(root,item){
+  if(item.type==='website')bindWebsiteFields(root,item,persistInspectorChange);
   if(item.type==='sd-plugin'){
     root.querySelector('[data-sdk-inspector]')?.addEventListener('click',async()=>{
       const label=sdkAvailabilityLabel(item);
@@ -5265,24 +5289,6 @@ function renderInspector(){
   refreshTitlePreview(item);
   $("key-title").addEventListener("input",ev=>{item.title=ev.target.value;if(DeckCore.isLegacyHaControl?.(item))item.settings.haManualTitle=true;if(nativeTitlePolicyFor(item))item.settings.nativeTitleExplicit=true;persist();renderGrid();refreshTitlePreview(item);});
   bindExtendedActionFields(root,item);
-  if(item.type==='website'){
-    const url=root.querySelector('[data-field="url"]');
-    const toggle=root.querySelector('#url-https');
-    const sync=()=>{
-      const raw=url.value.trim();
-      if(!raw)return;
-      if(/^https?:\/\//i.test(raw))toggle.checked=/^https:\/\//i.test(raw);
-      const normalized=/^https?:\/\//i.test(raw)?raw:(toggle.checked?'https://':'http://')+raw;
-      url.value=normalized;item.settings.url=normalized;persistInspectorChange();
-    };
-    url.addEventListener('blur',sync);
-    toggle.addEventListener('change',()=>{
-      const raw=url.value.trim();
-      if(!raw)return;
-      const next=(toggle.checked?'https://':'http://')+raw.replace(/^https?:\/\//i,'');
-      url.value=next;item.settings.url=next;persistInspectorChange();
-    });
-  }
   bindShortcutOptionPreviews(root,item);
   groupCompactActionFields(root,item.type);
   bindInspectorShortcut(root,item);

@@ -2154,3 +2154,24 @@ test('SDK wrapping and single-profile export preserve identity; Fusion batch all
   assert.equal(newIds.length,14);assert.equal(new Set(newIds).size,14);
   assert.ok(newIds.every(id=>core.validInstanceId(id)&&id!==a.instanceId));
 });
+
+
+test('launch audit 11–18: configured values survive reload and reach execution plans',()=>{
+  const app='C:\\Tools\\Example.exe',folder='C:\\Music',file='C:\\Music\\song.flac',browser='C:\\Tools\\Browser.exe';
+  const rows=[
+    ['open-app',{app,args:'--test',hold:'force',foreground:false,preventDuplicate:true},{kind:'open-local-path',path:app,target:'file',args:'--test',hold:'force',foreground:false,preventDuplicate:true}],
+    ['close',{path:app,force:true},{kind:'close-local-app',path:app,force:true}],
+    ['file-open',{path:file},{kind:'open-local-path',path:file,target:'file'}],
+    ['folder-shortcut',{path:folder,foreground:false,alwaysNewWindow:true},{kind:'open-local-path',path:folder,target:'folder',foreground:false,alwaysNewWindow:true}],
+    ['website',{url:'https://example.org',open:'choose',browserPath:browser},{kind:'website',url:'https://example.org',mode:'choose',browserPath:browser}],
+    ['terminal',{foreground:false,preventDuplicate:false},{kind:'open-terminal',admin:false,foreground:false,preventDuplicate:false}],
+    ['terminal-admin',{foreground:false,preventDuplicate:true},{kind:'open-terminal',admin:true,foreground:false,preventDuplicate:true}],
+    ['open',{path:app,args:'--test'},{kind:'open-local-path',path:app,target:'auto',args:'--test'}]
+  ];
+  for(const [type,settings,expected] of rows){
+    const action=core.createAction(type);Object.assign(action.settings,settings);
+    const loaded=core.cleanAction(JSON.parse(JSON.stringify(action)));
+    for(const [key,value] of Object.entries(settings))assert.equal(loaded.settings[key],value,type+' '+key);
+    assert.deepEqual(core.planAction(loaded,0,1),expected,type);
+  }
+});

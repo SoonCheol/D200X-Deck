@@ -681,3 +681,26 @@ test('Fusion manager remains visible when its only runcommand action is intentio
   assert.equal(render('','sd::other.plugin::action').length,0);
   assert.equal(render('',null,true).length,0);
 });
+
+
+test('website fields normalize URLs in every editor and retain the inactive browser path',()=>{
+  const start=editor.indexOf('function bindWebsiteFields('),end=editor.indexOf('function bindExtendedActionFields(',start);
+  const bind=vm.runInNewContext(editor.slice(start,end)+'\nbindWebsiteFields');
+  const node=value=>({value,checked:false,disabled:false,listeners:{},addEventListener(k,fn){this.listeners[k]=fn;},fire(k){this.listeners[k]?.();}});
+  const url=node(''),toggle=node(''),mode=node('default'),browser=node('C:\\Tools\\browser.exe'),picker=node('');
+  const nodes={'[data-field="url"]':url,'#url-https':toggle,'[data-field="open"]':mode,'[data-field="browserPath"]':browser,'[data-path-picker="browserPath"]':picker};
+  const item={settings:{url:'',browserPath:browser.value}};
+  let writes=0;bind({querySelector:k=>nodes[k]},item,()=>writes++);
+  assert.equal(writes,0);assert.equal(browser.disabled,true);assert.equal(picker.disabled,true);
+  url.value='example.org';url.fire('change');assert.equal(item.settings.url,'http://example.org');
+  toggle.checked=true;toggle.fire('change');assert.equal(item.settings.url,'https://example.org');
+  url.value='http://other.org';url.fire('blur');assert.equal(toggle.checked,false);
+  assert.equal(item.settings.url,'http://other.org');
+  url.value='';url.fire('change');assert.equal(item.settings.url,'');
+  mode.value='choose';mode.fire('change');assert.equal(browser.disabled,false);assert.equal(picker.disabled,false);
+  mode.value='get';mode.fire('change');assert.equal(browser.disabled,true);
+  assert.equal(item.settings.browserPath,'C:\\Tools\\browser.exe');
+  assert.match(editor,/if\(item.type==='website'\)bindWebsiteFields\(root,item,persistInspectorChange\)/);
+  assert.match(editor,/if\(draft.type==='website'\)bindWebsiteFields\(fields,draft,\(\)=>\{\}\)/);
+  assert.match(editor,/fields.innerHTML=actionFields\(current\);bindExtendedActionFields\(fields,current\)/);
+});
