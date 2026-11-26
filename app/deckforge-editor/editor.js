@@ -4057,6 +4057,22 @@ function attachStateTitleControls(card,item,which){
 // A single-state foreground action uses the standard left-hand artwork editor.
 // Reuse the bound title controls and the existing card geometry. The right
 // preview is display-only and is refreshed from the same composed image.
+// Shared DOM only. Action-specific adapters own title, artwork and storage.
+function createStateIconCard(title,className='sdk-state-icon'){
+  const card=document.createElement('div');card.className=className;
+  const heading=document.createElement('strong');heading.textContent=title;
+  const preview=document.createElement('div');preview.className='sdk-state-preview';
+  return {card,heading,preview};
+}
+function createStateIconButtons(handlers=null){
+  const buttons=document.createElement('div');buttons.className='sdk-state-buttons';
+  for(const [key,label] of [['library','라이브러리'],['file','파일'],['paste','클립보드'],['symbol','특수문자'],['reset','초기화']]){
+    const button=document.createElement('button');button.type='button';button.textContent=label;
+    if(handlers)button.addEventListener('click',handlers[key]);else button.disabled=true;
+    buttons.append(button);
+  }
+  return buttons;
+}
 function hasSingleBasicIconCard(item){return ['sleep','logic','virtual'].includes(item?.type);}
 function bindNativeForegroundIconCard(root,item){
   const basicSingle=hasSingleBasicIconCard(item);
@@ -4065,9 +4081,8 @@ function bindNativeForegroundIconCard(root,item){
   const titleRow=root.querySelector('.title-setting-field');
   if(!panel||!titleRow)return;
   const cards=document.createElement('div');cards.className='sdk-state-icons '+(basicSingle?'single-basic-icon-cards':'ha-sensor-icon-cards');
-  const card=document.createElement('div');card.className='sdk-state-icon '+(basicSingle?'single-basic-edit-card':'ha-sensor-edit-card');
+  const {card,heading,preview:image}=createStateIconCard('Key Up','sdk-state-icon '+(basicSingle?'single-basic-edit-card':'ha-sensor-edit-card'));
   const sensor=DeckCore.isNativeHaSensor(item);
-  const heading=document.createElement('strong');heading.textContent='Key Up';
   const check=$('title-visible'),line=titleRow.querySelector('.title-line');
   // Move the already-bound settings button out before replacing the title row.
   const settingsButton=titleRow.querySelector('[data-sdk-inspector]');
@@ -4075,44 +4090,35 @@ function bindNativeForegroundIconCard(root,item){
   titleRow.className='state-title-control ha-sensor-title-row';
   check.classList.add('state-title-visible');check.title='제목 표시';check.setAttribute('aria-label','제목 표시');
   titleRow.replaceChildren(check,line);
-  const image=document.createElement('div');image.className='sdk-state-preview';
   if(basicSingle)image.append(iconNode(inspectorDisplayItem(item,state.selected),ACTIONS.get(item.type)?.icon||'+'));
-  const buttons=document.createElement('div');buttons.className='sdk-state-buttons';
-  const add=(text,handler)=>{
-    const button=document.createElement('button');button.type='button';button.textContent=text;
-    button.addEventListener('click',handler);buttons.append(button);
-  };
-  add('라이브러리',event=>openIconLibrary(item,null,event.currentTarget));
-  add('파일',async()=>{
+  const buttons=createStateIconButtons({
+    library:event=>openIconLibrary(item,null,event.currentTarget),
+    file:async()=>{
     const session=inspectorSession;
     if(basicSingle&&!window.deckBridge?.chooseImportFile){fileIconTarget=item;fileIconSession=session;$("custom-icon-file").click();return;}
     try{
       const chosen=await chooseNativeImage('image');if(!chosen?.dataUrl)return;
       applyIconData(item,await rasterizeIcon(chosen.dataUrl),session);
     }catch(error){window.d200xActionStatus?.('아이콘 선택 실패: '+String(error?.message||error));}
+    },
+    paste:()=>pasteIcon(item),
+    symbol:event=>openIconMaker(item,null,event.currentTarget),
+    reset:()=>{delete item.icon;persistInspectorChange();render();}
   });
-  add('클립보드',()=>pasteIcon(item));
-  add('특수문자',event=>openIconMaker(item,null,event.currentTarget));
-  add('초기화',()=>{delete item.icon;persistInspectorChange();render();});
   bindKeyBackgroundControl(image,item,'default');
   card.append(heading,titleRow,image,buttons);
   // Same two-card geometry as ordinary keys; the second card is a disabled
   // presentation placeholder, not a second runtime state or stored setting.
   cards.append(card);
   {
-    const down=document.createElement('div');down.className='sdk-state-icon '+(basicSingle?'single-basic-disabled-card':'ha-sensor-disabled-card');down.inert=true;down.setAttribute('aria-disabled','true');
-    const label=document.createElement('strong');label.textContent='Key Down';
+    const {card:down,heading:label,preview}=createStateIconCard('Key Down','sdk-state-icon '+(basicSingle?'single-basic-disabled-card':'ha-sensor-disabled-card'));down.inert=true;down.setAttribute('aria-disabled','true');
     const row=document.createElement('div');row.className='state-title-control';
     const disabledCheck=document.createElement('input');disabledCheck.type='checkbox';disabledCheck.className='state-title-visible';disabledCheck.disabled=true;
     const disabledTitle=document.createElement('input');disabledTitle.className='state-title-input';disabledTitle.disabled=true;
     const disabledStyle=document.createElement('button');disabledStyle.type='button';disabledStyle.className='state-title-style';disabledStyle.textContent='T⌄';disabledStyle.disabled=true;
     row.append(disabledCheck,disabledTitle,disabledStyle);
-    const preview=document.createElement('div');preview.className='sdk-state-preview';
     if(!sensor){const palette=document.createElement('button');palette.type='button';palette.className='key-background-trigger';palette.innerHTML=PALETTE_ICON;palette.disabled=true;preview.append(palette);}
-    const controls=document.createElement('div');controls.className='sdk-state-buttons';
-    for(const name of ['라이브러리','파일','클립보드','특수문자','초기화']){
-      const button=document.createElement('button');button.type='button';button.textContent=name;button.disabled=true;controls.append(button);
-    }
+    const controls=createStateIconButtons();
     down.append(label,row,preview,controls);cards.append(down);
   }
   panel.append(cards);
@@ -4128,9 +4134,7 @@ function bindSdkStateIcons(root,item){
     cards.className='sdk-state-icons';
     const singleOther=item.type==='sd-plugin'&&item.settings?.actionUUID==='com.deckforge.native.home-assistant.other';
     for(const [key,label] of (item.type==='timer'?[['off','대기 상태'],['on','실행 상태']]:item.type==='hotkey-switch'?[['off','상태 1'],['on','상태 2']]:item.type==='multi-switch'?[['multi:0','상태 1'],['multi:1','상태 2']]:[['off','OFF'],['on','ON']])){
-      const group=document.createElement('div');group.className='sdk-state-icon';
-      const heading=document.createElement('strong');heading.textContent=singleOther?(key==='off'?'Key Up':'Key Down'):label;
-      const image=document.createElement('div');image.className='sdk-state-preview';
+      const {card:group,heading,preview:image}=createStateIconCard(singleOther?(key==='off'?'Key Up':'Key Down'):label);
       const switching=item.type==='multi-switch';
       const selected=switching?item.stateVisuals?.[Number(key.slice(6))]?.icon||item.icon:item.settings?.sdkStateIcons?.[key];
       if(switching)image.append(iconNode({...item,icon:selected},ACTIONS.get(item.type)?.icon||'+'));
@@ -4141,10 +4145,9 @@ function bindSdkStateIcons(root,item){
         if(fallback){const img=document.createElement('img');img.src=fallback;img.alt=label+' 기본 아이콘';image.append(img);}
         else image.textContent='기본';
       }
-      const choose=document.createElement('button');choose.type='button';choose.textContent='라이브러리';
-      choose.addEventListener('click',event=>openIconLibrary(item,key,event.currentTarget));
-      const file=document.createElement('button');file.type='button';file.textContent='파일';
-      file.addEventListener('click',async()=>{
+      const buttons=createStateIconButtons({
+        library:event=>openIconLibrary(item,key,event.currentTarget),
+        file:async()=>{
         try{
           const session=inspectorSession;
           if(switching&&!window.deckBridge?.chooseImportFile){
@@ -4158,19 +4161,15 @@ function bindSdkStateIcons(root,item){
           if(!inspectorPickerCurrent(session,item))return;
           applyStateIconData(item,key,png,session);
         }catch(error){window.d200xActionStatus?.('상태 아이콘 선택 실패: '+String(error?.message||error));}
+        },
+        paste:()=>pasteIcon(item,key),
+        symbol:event=>openIconMaker(item,key,event.currentTarget),
+        reset:()=>{
+          if(switching){const visual=item.stateVisuals?.[Number(key.slice(6))];if(visual)delete visual.icon;}
+          else if(item.settings?.sdkStateIcons)delete item.settings.sdkStateIcons[key];
+          persistInspectorChange();render();
+        }
       });
-      const paste=document.createElement('button');paste.type='button';paste.textContent='클립보드';
-      paste.addEventListener('click',()=>pasteIcon(item,key));
-      const symbol=document.createElement('button');symbol.type='button';symbol.textContent='특수문자';
-      symbol.addEventListener('click',event=>openIconMaker(item,key,event.currentTarget));
-      const reset=document.createElement('button');reset.type='button';reset.textContent='초기화';
-      reset.addEventListener('click',()=>{
-        if(switching){const visual=item.stateVisuals?.[Number(key.slice(6))];if(visual)delete visual.icon;}
-        else if(item.settings?.sdkStateIcons)delete item.settings.sdkStateIcons[key];
-        persistInspectorChange();render();
-      });
-      const buttons=document.createElement('div');buttons.className='sdk-state-buttons';
-      buttons.append(choose,file,paste,symbol,reset);
       bindKeyBackgroundControl(image,item,key==='off'||key==='multi:0'?'first':'second');
       group.dataset.stateTitle=key==='off'||key==='multi:0'?'first':'second';
       group.append(heading);attachStateTitleControls(group,item,key==='off'||key==='multi:0'?'first':'second');group.append(image,buttons);cards.append(group);
@@ -4195,15 +4194,11 @@ function bindKeyPressIconControls(root,item){
   const stored=item.settings?.keyPressIcons||{};
   const up=stored.up||visual.icon;
   for(const [key,title,icon] of [['up',item.type==='multi'?'대기 상태':'Key Up',up],['down',item.type==='multi'?'실행 상태':'Key Down',stored.down||up]]){
-    const card=document.createElement('div');card.className='sdk-state-icon';
-    const heading=document.createElement('strong');heading.textContent=title;
-    const preview=document.createElement('div');preview.className='sdk-state-preview';
+    const {card,heading,preview}=createStateIconCard(title);
     preview.append(iconNode({...visual,...(icon?{icon}:{})},ACTIONS.get(item.type)?.icon||'+'));
-    const buttons=document.createElement('div');buttons.className='sdk-state-buttons';
-    const library=document.createElement('button');library.type='button';library.textContent='라이브러리';
-    library.addEventListener('click',event=>openIconLibrary(item,'press:'+key,event.currentTarget));
-    const file=document.createElement('button');file.type='button';file.textContent='파일';
-    file.addEventListener('click',async()=>{
+    const buttons=createStateIconButtons({
+      library:event=>openIconLibrary(item,'press:'+key,event.currentTarget),
+      file:async()=>{
       try{
         if(!window.deckBridge?.chooseImportFile)throw Error('Windows EXE에서 사용할 수 있습니다.');
         const session=inspectorSession;
@@ -4214,17 +4209,14 @@ function bindKeyPressIconControls(root,item){
         item.settings.keyPressIcons[key]={kind:'file',value:png};
         persistInspectorChange();render();
       }catch(error){window.d200xActionStatus?.('Key '+key+' 아이콘 선택 실패: '+String(error?.message||error));}
+      },
+      paste:()=>pasteIcon(item,'press:'+key),
+      symbol:event=>openIconMaker(item,'press:'+key,event.currentTarget),
+      reset:()=>{
+        if(item.settings?.keyPressIcons)delete item.settings.keyPressIcons[key];
+        persistInspectorChange();render();
+      }
     });
-    const reset=document.createElement('button');reset.type='button';reset.textContent='초기화';
-    reset.addEventListener('click',()=>{
-      if(item.settings?.keyPressIcons)delete item.settings.keyPressIcons[key];
-      persistInspectorChange();render();
-    });
-    const paste=document.createElement('button');paste.type='button';paste.textContent='클립보드';
-    paste.addEventListener('click',()=>pasteIcon(item,'press:'+key));
-    const symbol=document.createElement('button');symbol.type='button';symbol.textContent='특수문자';
-    symbol.addEventListener('click',event=>openIconMaker(item,'press:'+key,event.currentTarget));
-    buttons.append(library,file,paste,symbol,reset);
     bindKeyBackgroundControl(preview,item,key==='up'?'first':'second');
     card.dataset.stateTitle=key==='up'?'first':'second';
     card.append(heading);attachStateTitleControls(card,item,key==='up'?'first':'second');card.append(preview,buttons);cards.append(card);

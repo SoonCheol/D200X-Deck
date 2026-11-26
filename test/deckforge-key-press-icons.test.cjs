@@ -71,7 +71,7 @@ test('momentary Fusion cannot also render OFF ON SDK cards',()=>{
  const start=src.indexOf('function bindSdkStateIcons('),end=src.indexOf('function bindKeyPressIconControls(',start);
  const Core=require('../app/deckforge-editor/deck-core.js');
  let queried=0;
- const bind=vm.runInNewContext(src.slice(start,end)+';bindSdkStateIcons',{DeckCore:Core,isMomentaryIconAction:item=>item.settings?.pluginUUID==='com.autodesk.fusionstreamdeck'});
+ const bind=vm.runInNewContext(src.slice(src.indexOf('function createStateIconCard('),src.indexOf('function hasSingleBasicIconCard('))+'\n'+src.slice(start,end)+';bindSdkStateIcons',{DeckCore:Core,isMomentaryIconAction:item=>item.settings?.pluginUUID==='com.autodesk.fusionstreamdeck'});
  const root={querySelector:()=>{queried++;return null;}};
  bind(root,{type:'sd-plugin',settings:{pluginUUID:'com.autodesk.fusionstreamdeck'}});
  bind(root,{type:'sd-plugin',settings:{actionUUID:'com.deckforge.native.home-assistant.sensor'}});
@@ -159,11 +159,13 @@ test('SDK help close control uses its own dark theme style, separate from the ap
 test('each OFF ON and Key Up Down card has five fixed commands',()=>{
  const sdk=src.slice(src.indexOf('function bindSdkStateIcons'),src.indexOf('function bindKeyPressIconControls'));
  const press=src.slice(src.indexOf('function bindKeyPressIconControls'),src.indexOf('function bindExtendedActionFields'));
+ const shared=src.slice(src.indexOf('function createStateIconButtons('),src.indexOf('function hasSingleBasicIconCard('));
  for(const part of [sdk,press]){
-   for(const label of ['라이브러리','파일','클립보드','특수문자','초기화'])
-     assert.ok(part.includes("textContent='"+label+"'"),label);
-   assert.match(part,/buttons\.append\([^;]*paste,symbol,reset\)/);
+   assert.match(part,/createStateIconCard\(/);
+   assert.match(part,/createStateIconButtons\(\{/);
+   for(const name of ['library','file','paste','symbol','reset'])assert.match(part,new RegExp('\\b'+name+':'));
  }
+ for(const label of ['라이브러리','파일','클립보드','특수문자','초기화'])assert.ok(shared.includes("'"+label+"'"),label);
  assert.match(src,/\$\("icon-library-open"\)\.remove\(\)/);
  assert.match(src,/\$\("icon-menu-trigger"\)\.remove\(\)/);
  assert.match(src,/applyStateIconData\(item,key,png,session\)/);
@@ -478,7 +480,7 @@ test('HA other keeps its existing left settings and disables only the right card
  const node=tag=>({tag,children:[],dataset:{},style:{},classList:{add(){}},setAttribute(k,v){this[k]=v;},append(...v){this.children.push(...v);},replaceChildren(...v){this.children=v;},addEventListener(){},querySelectorAll(){const all=n=>[...n.children,...n.children.flatMap(all)];return all(this).filter(n=>['input','button'].includes(n.tag));}});
  const panel=node('section'),bound=[];
  const ctx={DeckCore:{isNativeForeground:()=>false},isMomentaryIconAction:()=>false,document:{createElement:node},sdkActionDefaults:new Map(),bindKeyBackgroundControl:(image,item,key)=>{bound.push(key);image.append(node('button'));},attachStateTitleControls:(group,item,key)=>{bound.push(key);group.append(node('input'),node('button'));},refreshStateTitleCards(){}};
- const bind=vm.runInNewContext(src.slice(start,end)+';bindSdkStateIcons',ctx);
+ const bind=vm.runInNewContext(src.slice(src.indexOf('function createStateIconCard('),src.indexOf('function hasSingleBasicIconCard('))+'\n'+src.slice(start,end)+';bindSdkStateIcons',ctx);
  const item={type:'sd-plugin',settings:{pluginUUID:'com.deckforge.native.home-assistant',actionUUID:'com.deckforge.native.home-assistant.other',sdkStateIcons:{off:{kind:'file',value:'left'},on:{kind:'file',value:'legacy-right'}},stateTitles:{first:{enabled:true,title:'left'},second:{enabled:true,title:'legacy-right'}},keyBackgrounds:{first:{enabled:true,color:'#112233'}}}};
  const before=JSON.stringify(item);
  bind({querySelector:()=>panel},item);
@@ -493,4 +495,20 @@ test('HA other keeps its existing left settings and disables only the right card
  bind({querySelector:()=>panel},control);
  assert.equal(panel.children[0].children[1].inert,undefined);
  assert.equal(panel.children[0].children[1].children[0].textContent,'ON');
+});
+
+
+test('shared icon-card factory preserves order, dispatch target and disabled placeholders',()=>{
+ const start=src.indexOf('function createStateIconCard('),end=src.indexOf('function hasSingleBasicIconCard(',start);
+ const node=tag=>({tag,children:[],append(...children){this.children.push(...children);},addEventListener(type,fn){this[type]=fn;}});
+ const {createStateIconCard,createStateIconButtons}=vm.runInNewContext(src.slice(start,end)+';({createStateIconCard,createStateIconButtons})',{document:{createElement:node}});
+ const calls=[],keys=['library','file','paste','symbol','reset'];
+ const handlers=Object.fromEntries(keys.map(key=>[key,event=>calls.push([key,event.currentTarget])]));
+ const {card,heading,preview}=createStateIconCard('Key Up');const buttons=createStateIconButtons(handlers);
+ card.append(heading,preview,buttons);
+ assert.deepEqual(card.children.map(x=>x.tag),['strong','div','div']);assert.equal(heading.textContent,'Key Up');assert.equal(preview.className,'sdk-state-preview');
+ assert.deepEqual(buttons.children.map(x=>x.textContent),['라이브러리','파일','클립보드','특수문자','초기화']);
+ for(const button of buttons.children){assert.equal(button.type,'button');button.click({currentTarget:button});}
+ assert.deepEqual(calls.map(x=>x[0]),keys);assert.deepEqual(calls.map(x=>x[1]),buttons.children);
+ const disabled=createStateIconButtons();assert.ok(disabled.children.every(x=>x.disabled&&x.click===undefined));
 });

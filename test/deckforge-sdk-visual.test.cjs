@@ -432,7 +432,7 @@ test('common key compositor draws HA readings over artwork and under title; cach
 });
 
 test('single-state foreground actions use Key Up and disabled Key Down cards with standard commands and default background',()=>{
- const begin=source.indexOf('function hasSingleBasicIconCard('),end=source.indexOf('function bindSdkStateIcons(',begin);
+ const begin=source.indexOf('function createStateIconCard('),end=source.indexOf('function bindSdkStateIcons(',begin);
  function node(tag){return {tag,children:[],style:{},classList:{add(){}},setAttribute(){},append(...nodes){this.children.push(...nodes);},replaceChildren(...nodes){this.children=nodes;},addEventListener(type,fn){this[type]=fn;}};}
  const panel=node('section'),title=node('div'),line=node('div'),check=node('input'),background=[];
  const settings=node('button'),moved=[];
@@ -548,7 +548,7 @@ test('automatic Fusion command artwork uses the standard inset without resizing 
 });
 
 test('single-state basic actions reuse the original title controls and default artwork with an inert right card',()=>{
- const begin=source.indexOf('function hasSingleBasicIconCard('),end=source.indexOf('function bindSdkStateIcons(',begin);
+ const begin=source.indexOf('function createStateIconCard('),end=source.indexOf('function bindSdkStateIcons(',begin);
  const node=tag=>({tag,children:[],style:{},classList:{add(){}},setAttribute(k,v){this[k]=v;},append(...v){this.children.push(...v);},replaceChildren(...v){this.children=v;},addEventListener(type,fn){this[type]=fn;}});
  const backgrounds=[],opened=[];
  for(const type of ['sleep','logic','virtual']){
