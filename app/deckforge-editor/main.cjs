@@ -983,15 +983,19 @@ ipcMain.handle('d200x:check-updates',async event=>{
       pendingInstallerDownload=(async()=>{
         const directory=path.join(app.getPath('downloads'),'DeckForge');
         let cleanupWarning=false;
-        const file=await UpdateCheck.downloadPublishedInstaller(info.latestVersion,directory,{onCleanupError:()=>{cleanupWarning=true;}});
-        // Manual launch preserves the user's control over the running editor and installer.
-        let folderOpened=false;
-        try{
-          const error=await shell.openPath(directory);
-          folderOpened=!error;
-          if(folderOpened)shell.showItemInFolder(file);
-        }catch{}
-        return {kind:'downloaded',filePath:file,folderOpened,cleanupWarning};
+        const sender=event.sender;
+        const file=await UpdateCheck.downloadPublishedInstaller(info.latestVersion,directory,{
+          onCleanupError:()=>{cleanupWarning=true;},
+          onProgress:percent=>{if(!sender.isDestroyed())sender.send('d200x:update-progress',percent);}
+        });
+        // Recheck immediately before launch: edits or device actions may have begun during download.
+        const started=await UpdateCheck.startVerifiedInstaller(file,{
+          prepare:async()=>!sender.isDestroyed()&&window&&!window.isDestroyed()&&sender===window.webContents&&
+            await sender.executeJavaScript('window.DeckForgePrepareUpdate?.()')===true,
+          openInstaller:installer=>shell.openPath(installer),
+          quit:quitDeckForge
+        });
+        return {kind:started?'installing':'blocked',filePath:file,cleanupWarning};
       })().finally(()=>{pendingInstallerDownload=null;});
     }
     return pendingInstallerDownload;

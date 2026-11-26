@@ -28,6 +28,7 @@ contextBridge.exposeInMainWorld('deckBridge', Object.freeze({
   revealUnsavedEditor: () => ipcRenderer.invoke('d200x:reveal-unsaved-editor'),
   updateStatus: (force=false) => ipcRenderer.invoke('d200x:update-status',force===true),
   checkForUpdates: () => ipcRenderer.invoke('d200x:check-updates'),
+  onUpdateProgress: fn => ipcRenderer.on('d200x:update-progress',(_event,percent)=>fn(percent)),
   viewReleaseNotes: () => ipcRenderer.invoke('d200x:release-notes'),
   haStatus: () => ipcRenderer.invoke('d200x:ha-status'),
   sdkList: () => ipcRenderer.invoke('d200x:sdk-list'),

@@ -8154,13 +8154,20 @@ $("icon-maker-save").addEventListener("click",()=>{
   if(makerTarget)applyStateIconData(makerTarget,makerStateKey,$("icon-maker-canvas").toDataURL("image/png"),makerSession);
   closeIconMaker();
 });
+// Called only by the main-process update path after verification.
+window.DeckForgePrepareUpdate=()=>pluginCleanupReady()&&!document.querySelector('dialog[open]')&&persist(false);
 // General options: backup/restore is independent of the profile picker.
 function bindSettingsMenu(){
   const trigger=$("settings-trigger"),menu=$("settings-menu"),update=$("check-update"),refresh=$("refresh-update-status");
   const current=$("current-version"),latest=$("latest-version"),status=$("update-status");
-  let requestNumber=0,downloadInProgress=false;
+  let requestNumber=0,downloadInProgress=false,downloadMessage='설치 파일 다운로드 중…';
+  window.deckBridge?.onUpdateProgress?.(percent=>{
+    if(!downloadInProgress||!Number.isInteger(percent)||percent<0||percent>100)return;
+    downloadMessage=percent===100?'설치 파일 확인 완료 · 설치 준비 중…':'설치 파일 다운로드 중… '+percent+'%';
+    status.textContent=downloadMessage;
+  });
   const loadStatus=async(force=false)=>{
-    if(downloadInProgress){update.disabled=true;refresh.disabled=true;status.textContent='설치 파일 다운로드 중…';return;}
+    if(downloadInProgress){update.disabled=true;refresh.disabled=true;status.textContent=downloadMessage;return;}
     const request=++requestNumber;
     refresh.disabled=true;update.disabled=true;latest.textContent='확인 중';status.textContent='설치 가능한 빌드 확인 중…';
     try{
@@ -8170,7 +8177,7 @@ function bindSettingsMenu(){
       if(result?.currentVersion)current.textContent=result.currentVersion;
       latest.textContent=result?.latestVersion||'확인 불가';
       update.disabled=result?.state!=='available';
-      status.textContent=result?.state==='available'?(result.downloadUrl?'새 버전이 있습니다. 다운로드 폴더에 설치 파일(EXE)을 저장합니다.':'새 버전이 있습니다. 설치 파일 페이지를 엽니다.'):
+      status.textContent=result?.state==='available'?(result.downloadUrl?'새 버전이 있습니다. 다운로드 후 설치 프로그램을 실행합니다.':'새 버전이 있습니다. 설치 파일 페이지를 엽니다.'):
         result?.state==='current'?'최신 버전입니다.':'최신 빌드를 확인하지 못했습니다.';
     }catch{
       if(request!==requestNumber||menu.hidden)return;
@@ -8211,18 +8218,22 @@ function bindSettingsMenu(){
   });
   update.addEventListener('click',async()=>{
     if(update.disabled||downloadInProgress)return;
+    if(!pluginCleanupReady()){
+      status.textContent='미저장 편집 또는 실행 중인 동작을 먼저 마치세요.';return;
+    }
     downloadInProgress=true;++requestNumber;update.disabled=true;refresh.disabled=true;
-    update.textContent='다운로드 중…';status.textContent='설치 파일 다운로드 중…';
+    downloadMessage='설치 파일 다운로드 중…';
+    update.textContent='다운로드 중…';status.textContent=downloadMessage;
     try{
       if(!window.deckBridge?.checkForUpdates)throw Error('Windows DeckForge에서만 사용할 수 있습니다.');
       const result=await window.deckBridge.checkForUpdates();
-      const message=result?.kind==='downloaded'?
-        (result.folderOpened?'다운로드 완료 · 탐색기에서 설치 파일을 실행하세요.':'다운로드 완료 · '+result.filePath):
+      const message=result?.kind==='installing'?'설치 프로그램을 실행했습니다.':
+        result?.kind==='blocked'?'설치 파일 확인 완료 · 미저장 편집/실행 중인 동작 또는 저장 오류를 해결한 후 다시 업데이트하세요.':
         result?.kind==='web'?'설치 파일 페이지를 열었습니다.':'설치 가능한 새 버전을 확인하지 못했습니다.';
       const completion=message+(result?.cleanupWarning?' · 이전 파일 일부 정리 실패':'');
       status.textContent=completion;window.d200xActionStatus?.(completion);
     }catch(error){
-      const message='업데이트 다운로드 실패: '+String(error?.message||error);
+      const message='업데이트 실패: '+String(error?.message||error);
       status.textContent=message;window.d200xActionStatus?.(message);
     }finally{
       downloadInProgress=false;update.textContent='업데이트';refresh.disabled=false;update.disabled=false;

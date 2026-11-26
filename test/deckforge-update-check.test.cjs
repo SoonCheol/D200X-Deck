@@ -117,14 +117,17 @@ test('verified EXE download preserves existing files and cleans incomplete downl
    assert.deepEqual((await fs.promises.readdir(folder)).sort(),existing);
  }finally{await fs.promises.rm(root,{recursive:true,force:true});}
 });
-test('installer is downloaded to the Windows Downloads subfolder and not automatically executed',()=>{
+test('installer is downloaded to the Windows Downloads subfolder and launched without Explorer',()=>{
  const main=fs.readFileSync(path.join(__dirname,'../app/deckforge-editor/main.cjs'),'utf8');
  const handler=main.slice(main.indexOf("ipcMain.handle('d200x:check-updates'"),main.indexOf('function trayPreferencePath'));
  assert.match(handler,/path\.join\(app\.getPath\('downloads'\),'DeckForge'\)/);
  assert.match(handler,/downloadPublishedInstaller\(info\.latestVersion,directory,/);
- assert.match(handler,/shell\.showItemInFolder\(file\)/);
+ assert.match(handler,/startVerifiedInstaller\(file,/);
+ assert.match(handler,/openInstaller:installer=>shell\.openPath\(installer\)/);
+ assert.match(handler,/quit:quitDeckForge/);
+ assert.match(handler,/DeckForgePrepareUpdate/);
  assert.match(handler,/pendingInstallerDownload/);
- assert.doesNotMatch(handler,/shell\.openPath\(file\)|app\.quit\(|spawn\(/);
+ assert.doesNotMatch(handler,/shell\.showItemInFolder|shell\.openPath\(directory\)|spawn\(/);
 });
 
 test('installer retention recognizes exact managed names and compares versions numerically',()=>{
@@ -154,12 +157,30 @@ test('successful update keeps newest and one rollback version, reuses verified d
    const before=(await fs.promises.readdir(root)).sort();
    await assert.rejects(downloadPublishedInstaller('2.0.78',root,{...opts,openResponse:async()=>Readable.from([Buffer.from('bad')])}),/SHA-256/);
    assert.deepEqual((await fs.promises.readdir(root)).sort(),before);
-   const file=await downloadPublishedInstaller('2.0.78',root,opts);
+   const progress=[];
+   const file=await downloadPublishedInstaller('2.0.78',root,{...opts,onProgress:n=>progress.push(n)});
    assert.equal(file,path.join(root,name('2.0.78')));
+   assert.equal(progress.at(-1),100);
+   assert.ok(progress.slice(0,-1).every(n=>n>=0&&n<100));
+   await fs.promises.writeFile(path.join(root,name('2.0.78').slice(0,-4)+'-01234567-89ab-4cde-8f01-23456789abcd.exe'),bytes('2.0.78'));
+   assert.equal(await downloadPublishedInstaller('2.0.78',root,opts),file);
    assert.deepEqual((await fs.promises.readdir(root)).sort(),[name('2.0.74'),name('2.0.77'),name('2.0.78'),'notes.txt'].sort());
    assert.equal(await downloadPublishedInstaller('2.0.78',root,opts),file);
    assert.equal(downloads,1);
    assert.equal(await fs.promises.readFile(path.join(subdir,'keep.txt'),'utf8'),'keep');
    assert.deepEqual(await fs.promises.readFile(path.join(root,name('2.0.77'))),bytes('2.0.77'));
  }finally{await fs.promises.rm(root,{recursive:true,force:true});}
+});
+
+test('verified installer launches once and quits only on successful launch after readiness check',async()=>{
+ const {startVerifiedInstaller}=require('../app/deckforge-editor/update-check.cjs');
+ const calls=[],file='verified.exe';
+ const opts={prepare:async()=>{calls.push('prepare');return true;},openInstaller:async p=>{assert.equal(p,file);calls.push('launch');return '';},quit:()=>calls.push('quit')};
+ assert.equal(await startVerifiedInstaller(file,opts),true);
+ assert.deepEqual(calls,['prepare','launch','quit']);
+ calls.length=0;
+ assert.equal(await startVerifiedInstaller(file,{...opts,prepare:async()=>false}),false);
+ assert.deepEqual(calls,[]);
+ await assert.rejects(startVerifiedInstaller(file,{...opts,openInstaller:async()=>{calls.push('error');return 'denied';}}),/실행 실패/);
+ assert.deepEqual(calls,['prepare','error']);
 });

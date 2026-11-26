@@ -182,14 +182,22 @@ async function retainInstallerPair(directory,file,version,releases,onCleanupErro
   }catch(error){onCleanupError?.(error);}
 }
 
-async function downloadPublishedInstaller(version,directory,{requestJson=githubJson,openResponse=openInstallerResponse,onCleanupError}={}){
+async function startVerifiedInstaller(file,{prepare,openInstaller,quit}){
+  if(!await prepare())return false;
+  const error=await openInstaller(file);
+  if(error)throw Error('설치 프로그램 실행 실패: '+error);
+  quit();
+  return true;
+}
+
+async function downloadPublishedInstaller(version,directory,{requestJson=githubJson,openResponse=openInstallerResponse,onCleanupError,onProgress}={}){
   if(!versionParts(version))throw Error('설치 버전이 올바르지 않습니다.');
   const releases=await requestJson(API+'/releases?per_page=100');
   const asset=verifiedInstallerAsset(releases,version);
   if(!asset)throw Error('게시된 설치 파일 또는 SHA-256 정보를 확인할 수 없습니다.');
   await fs.promises.mkdir(directory,{recursive:true});
   if((await fs.promises.lstat(directory)).isSymbolicLink())throw Error('업데이트 폴더가 링크입니다.');
-  const finish=async file=>{await retainInstallerPair(directory,file,version,releases,onCleanupError);return file;};
+  const finish=async file=>{await retainInstallerPair(directory,file,version,releases,onCleanupError);onProgress?.(100);return file;};
   // Verify an existing same-version file before reusing it; no network payload twice.
   const existing=(await localInstallerFiles(directory)).filter(n=>installerFileVersion(n)===version).sort((a,b)=>a.length-b.length||a.localeCompare(b));
   for(const name of existing){const file=path.join(directory,name);if(await matchesInstaller(file,asset))return finish(file);}
@@ -197,11 +205,14 @@ async function downloadPublishedInstaller(version,directory,{requestJson=githubJ
   const temporary=path.join(work,'installer.part');
   try{
     const response=await openResponse(asset.url,asset.url);
-    const hash=createHash('sha256');let size=0;
+    const hash=createHash('sha256');let size=0,lastPercent=-1;
     const verify=new Transform({transform(chunk,encoding,done){
       size+=chunk.length;
       if(size>asset.size){done(Error('설치 파일 용량 초과'));return;}
-      hash.update(chunk);done(null,chunk);
+      hash.update(chunk);
+      const percent=Math.min(99,Math.floor(size*100/asset.size));
+      if(percent!==lastPercent){lastPercent=percent;onProgress?.(percent);}
+      done(null,chunk);
     }});
     await pipeline(response,verify,fs.createWriteStream(temporary,{flags:'wx'}),{signal:AbortSignal.timeout(10*60*1000)});
     if(size!==asset.size||hash.digest('hex')!==asset.sha256)throw Error('설치 파일 크기 또는 SHA-256 검증 실패');
@@ -219,4 +230,4 @@ async function downloadPublishedInstaller(version,directory,{requestJson=githubJ
   }
 }
 
-module.exports={compareVersions,checkUpdateStatus,githubJson,releaseDownloadUrl,verifiedInstallerAsset,installerUrlAllowed,downloadPublishedInstaller,installerFileVersion,previousInstallerVersions};
+module.exports={compareVersions,checkUpdateStatus,githubJson,releaseDownloadUrl,verifiedInstallerAsset,installerUrlAllowed,downloadPublishedInstaller,installerFileVersion,previousInstallerVersions,startVerifiedInstaller};
