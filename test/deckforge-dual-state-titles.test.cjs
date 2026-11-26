@@ -86,7 +86,7 @@ test('state title is composed directly onto both card images using device compos
  assert.match(editor,/host\.prepend\(rendered\)/);
 
  assert.match(editor,/void refreshStateTitleCards\(item\)/);
- assert.match(editor,/group\.dataset\.stateTitle=key==='off'\?'first':'second'/);
+ assert.match(editor,/group\.dataset\.stateTitle=key==='off'\|\|key==='multi:0'\?'first':'second'/);
  assert.match(editor,/card\.dataset\.stateTitle=key==='up'\?'first':'second'/);
  assert.match(editor,/root\.dataset\.stateCardVersion!==version/);
 });
