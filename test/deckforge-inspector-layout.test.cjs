@@ -787,3 +787,27 @@ test('GitHub settings can refresh repositories after a failed lookup without ope
   assert.equal(requests,3);assert.equal(get.verified(),true);assert.equal(reload.disabled,false);assert.equal(credential.disabled,false);assert.equal(repo.value,'SoonCheol/D200X-Deck');assert.equal(branch.value,'main');assert.equal(workflow.value,'123');
  })();
 });
+
+
+test('Fusion command inspector identifies its read-only dialog and resolves pending lookups without changing settings',async()=>{
+ const start=editor.indexOf('function sdkInspectorButtonLabel('),end=editor.indexOf('function updateSdkAvailabilityInspector(',start);
+ const label=vm.runInNewContext(editor.slice(start,end)+'\nsdkInspectorButtonLabel',{FUSION_PLUGIN:'fusion',isFusionAction:item=>item?.settings?.pluginUUID==='fusion',DeckCore:{isNativeHaSensor:item=>item?.type==='sensor'}});
+ const item={type:'sd-plugin',settings:{pluginUUID:'fusion',actionUUID:'fusion.runcommand',pluginSettings:{commandId:'Line',name:'선'}}};
+ assert.equal(label(item),'Fusion 명령 속성');assert.equal(label({type:'sensor'}),'센서 설정');assert.equal(label(null),'플러그인 속성 열기');
+ const before=JSON.stringify(item);
+ const node=()=>({children:[],textContent:'',append(...children){this.children.push(...children);},replaceChildren(){this.children=[];}});
+ let info,resolveDetails,resolveArt,close;
+ const window={deckBridge:{fusionCommandDetails:()=>new Promise(r=>resolveDetails=r),fusionIconRead:()=>new Promise(r=>resolveArt=r)},DeckForgeDialogs:{show:opts=>{info=opts;return new Promise(r=>close=r)}}};
+ const openStart=editor.indexOf('async function openFusionCommandProperties('),openEnd=editor.indexOf('// URL controls have the same semantics',openStart);
+ const open=vm.runInNewContext(editor.slice(openStart,openEnd)+'\nopenFusionCommandProperties',{window,document:{createElement:node},inspectorSession:{},fusionCommandId:()=>item.settings.pluginSettings.commandId,inspectorPickerCurrent:()=>true,fusionButtonNames:{ko:{},en:{}},fusionIconCache:new Map()});
+ const task=open({querySelector:()=>null},item);
+ assert.equal(info.title,'Fusion 명령 속성');assert.equal(info.headerTitleOnly,true);
+ const [card,desc]=info.content.children;
+ assert.equal(desc.textContent,'명령 설명 확인 중…');assert.equal(card.children[0].textContent,'확인 중…');
+ await Promise.resolve();
+ resolveDetails({ko:'선',en:'Line',tooltip:'선 그리기'});resolveArt(null);
+ for(let i=0;i<8;i++)await Promise.resolve();
+ assert.equal(desc.textContent,'선 그리기');assert.equal(card.children[0].textContent,'아이콘 없음');
+ close();await task;assert.equal(JSON.stringify(item),before);
+ assert.match(editor,/button\.textContent=label\?'⚠ '\+label:'⚙ '\+sdkInspectorButtonLabel\(item\)/);
+});

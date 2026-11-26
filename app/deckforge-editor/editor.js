@@ -4718,14 +4718,17 @@ async function openNativeSettings(item,action,plugin){
   persistInspectorChange();renderGrid();renderInspector();
   window.d200xActionStatus?.('플러그인 설정 변경 · 아래 저장 버튼을 누르면 기기에 반영됩니다.');
 }
+function sdkInspectorButtonLabel(item){
+  return isFusionAction(item)&&item.settings.actionUUID===FUSION_PLUGIN+'.runcommand'?'Fusion 명령 속성':DeckCore.isNativeHaSensor(item)?'센서 설정':'플러그인 속성 열기';
+}
 function updateSdkAvailabilityInspector(){
   const button=$('inspector')?.querySelector('[data-sdk-availability]');
   if(!button)return;
   const rootItem=DeckCore.visibleActions(state)[state.selected];
   const item=pressIsOrdinary(rootItem)&&state.selected<13?pressSlotAction(rootItem,activePressTab):rootItem;
   const label=sdkAvailabilityLabel(item);
-  button.textContent=label?'⚠ '+label:DeckCore.isNativeHaSensor(item)?'⚙ 센서 설정':'⚙ 플러그인 속성 열기';
-  button.title=label?'클릭하여 설치 또는 복구 방법을 확인하세요.':'플러그인 속성 열기';
+  button.textContent=label?'⚠ '+label:'⚙ '+sdkInspectorButtonLabel(item);
+  button.title=label?'클릭하여 설치 또는 복구 방법을 확인하세요.':sdkInspectorButtonLabel(item);
   if(!label&&item?.settings?.pluginUUID==='com.deckforge.native.home-assistant'&&window.deckBridge?.nativeCredentialInfo){
     const session=inspectorSession;
     window.deckBridge.nativeCredentialInfo(item.settings.pluginUUID).then(entries=>{
@@ -4748,23 +4751,24 @@ async function openFusionCommandProperties(root,item){
   content.append(card,desc);
   let closed=false;
   const storedName=item.settings?.pluginSettings?.name||'';
-  function draw(row={}){
+  function draw(row={},pending=false){
     ko.textContent=row.ko||fusionButtonNames.ko?.[key]||(/[가-힣]/.test(storedName)?storedName:'한글 명령명 없음');
     en.textContent=row.en||fusionButtonNames.en?.[key]||(!/[가-힣]/.test(storedName)&&storedName?storedName:'영문 명령명 없음');
     id.textContent=key||'명령 미등록';
-    desc.textContent=row.tooltip||'명령 설명을 확인할 수 없습니다.';
+    desc.textContent=pending?'명령 설명 확인 중…':row.tooltip||'명령 설명을 확인할 수 없습니다.';
   }
-  function showArtwork(image){
+  function showArtwork(image,pending=false){
     if(closed)return;
     art.replaceChildren();
     if(image){const img=document.createElement('img');img.src=image;img.alt='기본 명령 아이콘';art.append(img);}
-    else art.textContent='아이콘 없음';
+    else art.textContent=pending?'확인 중…':'아이콘 없음';
   }
-  draw();showArtwork(fusionIconCache.get(key)||null);
-  if(key){
-    window.deckBridge?.fusionIconRead?.(key).then(image=>{if(image)showArtwork(image);}).catch(()=>{});
-    window.deckBridge?.fusionCommandDetails?.(key).then(row=>{if(!closed&&row)draw(row);}).catch(()=>{});
-  }
+  const cachedArt=fusionIconCache.get(key)||null;
+  const detailsPending=Boolean(key&&window.deckBridge?.fusionCommandDetails);
+  const artworkPending=Boolean(key&&!cachedArt&&window.deckBridge?.fusionIconRead);
+  draw({},detailsPending);showArtwork(cachedArt,artworkPending);
+  if(artworkPending)Promise.resolve().then(()=>window.deckBridge.fusionIconRead(key)).then(image=>showArtwork(image||null)).catch(()=>showArtwork(null));
+  if(detailsPending)Promise.resolve().then(()=>window.deckBridge.fusionCommandDetails(key)).then(row=>{if(!closed)draw(row||{});}).catch(()=>{if(!closed)draw();});
   try{await window.DeckForgeDialogs.show({title:'Fusion 명령 속성',content,anchorCard:root.querySelector('.sdk-state-icon[data-state-title="first"]'),anchorTop:true,headerTitleOnly:true});}
   finally{closed=true;}
 }
@@ -5362,7 +5366,7 @@ function renderInspector(){
     titleLine.before(controls);controls.append(titleLine);
     const settingsButton=document.createElement('button');settingsButton.type='button';
     settingsButton.className='sdk-settings-open';settingsButton.dataset.sdkInspector='';
-    settingsButton.textContent=DeckCore.isNativeHaSensor(item)?'⚙ 센서 설정':'⚙ 플러그인 속성 열기';
+    settingsButton.textContent='⚙ '+sdkInspectorButtonLabel(item);settingsButton.title=sdkInspectorButtonLabel(item);
     settingsButton.dataset.sdkAvailability='';
     controls.append(settingsButton);
     const cleanup=document.createElement('button');cleanup.type='button';cleanup.className='sdk-settings-open';cleanup.dataset.sdkCleanup='';cleanup.textContent='미설치 등록 버튼 정리…';cleanup.hidden=true;
