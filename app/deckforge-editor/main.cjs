@@ -281,7 +281,9 @@ async function openIntegratedManager(){
    return false;
   });
   if(!fusionMagnet||fusionMagnet.window!==manager){
-   fusionMagnet=Bundled.createMagnet(window,manager,screen,saveMagnetSettings);
+   fusionMagnet=Bundled.createMagnet(window,manager,screen,saveMagnetSettings,state=>{
+      if(!manager.isDestroyed()&&!manager.webContents.isDestroyed())manager.webContents.send('manager-dock-state',state);
+    });
    fusionMagnet.enable(savedMagnetSettings().enabled);
    fusionMagnet.window=manager;
    manager.on('closed',()=>{if(fusionMagnet?.window===manager)fusionMagnet=null});

@@ -281,14 +281,26 @@ $('scriptCopy').onclick=async()=>{
  catch(e){status('수집기 코드 복사 실패: '+e.message)}
 };
 $('helpClose').onclick=()=>$('helpDialog').close();
-window.fusionManager.dock('status').then(state=>{if(state.available)$('dockToggle').textContent=state.enabled?'자석 켜짐':'자석 꺼짐';}).catch(()=>{});
+let dockBusy=false;
+function showDockState(state){
+ const button=$('dockToggle');
+ button.disabled=dockBusy||!state?.available;
+ const label=!state?.available?'자석 사용 불가':!state.enabled?'자석 꺼짐':state.attached?'자석 켜짐 · 결합':'자석 켜짐 · 분리';
+ button.textContent=label;
+ button.setAttribute('aria-pressed',String(state?.enabled===true));
+ button.title=state?.available?(state.enabled?'현재 '+(state.attached?'결합됨':'분리됨')+' · 클릭하면 자석 끄기':'클릭하면 자석 켜기'):'DeckForge 통합 실행에서 사용 가능';
+}
+window.fusionManager.onDockState(showDockState);
+const refreshDock=()=>window.fusionManager.dock('status').then(showDockState).catch(()=>showDockState(null));
+void refreshDock();
+window.addEventListener('focus',()=>void refreshDock());
 $('deckforgeOpen').onclick=async()=>{try{if(!await window.fusionManager.openDeckForge())status('설치된 DeckForge를 찾지 못했습니다.')}catch(e){status('DeckForge 실행 실패: '+e.message)}};
 $('dockToggle').onclick=async()=>{
- try{const result=await window.fusionManager.dock('toggle');
-  if(!result.available){status('자석 기능은 DeckForge 통합 설치에서 사용 가능합니다.');return}
-  $('dockToggle').textContent=result.enabled?'자석 켜짐':'자석 꺼짐';
-  // The button itself is the only magnet state indicator.
- }catch(e){status('자석 설정 오류: '+e.message)}
+ if(dockBusy)return;
+ dockBusy=true;$('dockToggle').disabled=true;
+ try{await window.fusionManager.dock('toggle');}
+ catch(e){status('자석 설정 오류: '+e.message)}
+ finally{dockBusy=false;await refreshDock();}
 };
 
 

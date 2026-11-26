@@ -162,3 +162,21 @@ test('only installed plugins are listed; retained deletion stays in management d
  assert.match(help,/purgeRetainedPlugin\(plugin\)/);
  assert.match(help,/removePluginKeepingData\(plugin\)/);
 });
+
+
+test('magnet publishes actual attachment and enabled state separately on movement and toggle',()=>{
+ const deck=new WindowMock({x:70,y:70,width:980,height:760});
+ const manager=new WindowMock({x:40,y:80,width:698,height:873});
+ const changes=[],saved=[];
+ const magnet=integration.createMagnet(deck,manager,display,v=>saved.push(v),state=>changes.push(state));
+ magnet.enable(true);assert.equal(changes.at(-1).attached,false);
+ assert.equal(magnet.attach(),true);assert.equal(changes.at(-1).attached,true);
+ manager.setBounds({...manager.getBounds(),x:100});
+ assert.equal(changes.at(-1).enabled,true);assert.equal(changes.at(-1).attached,false);
+ assert.deepEqual(saved,[]);
+ magnet.toggle();assert.equal(changes.at(-1).enabled,false);assert.equal(changes.at(-1).attached,false);
+ assert.deepEqual(saved,[false]);
+ magnet.toggle();assert.equal(changes.at(-1).attached,true);
+ deck.setBounds({...deck.getBounds(),x:1000});
+ assert.equal(changes.at(-1).enabled,true);assert.equal(changes.at(-1).attached,false);
+});

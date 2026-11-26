@@ -102,8 +102,10 @@ async function applyFusionStateUpgrade(plan){
    return {status:'state-upgraded',message:'Fusion 상태 연동 확장 완료. Fusion을 다시 시작하세요.'};
  }finally{await fs.rm(tmp,{force:true}).catch(()=>{});}
 }
-function createMagnet(deck,manager,display,saveEnabled=()=>{}){
- let enabled=true,attached=false,side='right',changing=false,normal=manager.getBounds();
+function createMagnet(deck,manager,display,saveEnabled=()=>{},onState=()=>{}){
+ let enabled=true,attached=false,side='right',changing=false,normal=manager.getBounds(),lastState='';
+ const status=()=>({available:true,enabled,attached,side});
+ const notify=()=>{const value=status(),key=JSON.stringify(value);if(key!==lastState){lastState=key;onState(value);}};
  const isLive=()=>!deck.isDestroyed()&&!manager.isDestroyed();
  const chooseSide=()=>{
   const b=deck.getBounds(),w=manager.getBounds().width;
@@ -131,15 +133,15 @@ function createMagnet(deck,manager,display,saveEnabled=()=>{}){
    if(x<area.x||x+m.width>area.x+area.width){attached=false;return;}
    const next={x,y:d.y,width:m.width,height:h};
    if(m.x!==next.x||m.y!==next.y||m.height!==next.height)manager.setBounds(next);
-  }finally{changing=false}
+  }finally{changing=false;notify()}
  };
  const attach=(preferred)=>{
   if(!enabled||!isLive())return false;
   const chosen=preferred||chooseSide();if(!chosen)return false;
   if(!attached)normal=manager.getBounds();
-  side=chosen;attached=true;place();return attached;
+  side=chosen;attached=true;place();notify();return attached;
  };
- const detach=()=>{if(!attached)return;attached=false;changing=true;try{const m=manager.getBounds();const area=display.getDisplayMatching(m).workArea;manager.setBounds({x:m.x,y:m.y,width:normal.width,height:Math.min(normal.height,area.height)})}finally{changing=false}};
+ const detach=()=>{if(!attached)return;attached=false;changing=true;try{const m=manager.getBounds();const area=display.getDisplayMatching(m).workArea;manager.setBounds({x:m.x,y:m.y,width:normal.width,height:Math.min(normal.height,area.height)})}finally{changing=false;notify()}};
  const onManagerMoved=()=>{
   if(changing||!isLive())return;
   const d=deck.getBounds(),m=manager.getBounds();
@@ -157,9 +159,9 @@ function createMagnet(deck,manager,display,saveEnabled=()=>{}){
  manager.on('move',onManagerMoved);manager.on('resize',onManagerMoved);
  return {
   attach,detach,
-  toggle(){enabled=!enabled;if(!enabled)detach();else attach();saveEnabled(enabled);return this.status()},
-  status(){return {available:true,enabled,attached,side}},
-  enable(value){enabled=Boolean(value);if(!enabled)detach();return this.status()}
+  toggle(){enabled=!enabled;if(!enabled)detach();else attach();saveEnabled(enabled);notify();return status()},
+  status,
+  enable(value){enabled=Boolean(value);if(!enabled)detach();notify();return status()}
  };
 }
 module.exports={installMissingPlugins,installFusionPlugin,installFusionAddin,planFusionStateUpgrade,applyFusionStateUpgrade,createMagnet};

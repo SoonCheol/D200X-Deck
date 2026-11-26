@@ -6,6 +6,7 @@ contextBridge.exposeInMainWorld('fusionManager',{
  helpMarkdown:()=>ipcRenderer.invoke('help-markdown'),
  openDeckForge:()=>ipcRenderer.invoke('manager-open-deckforge'),
  dock:operation=>ipcRenderer.invoke('manager-dock',operation),
+ onDockState:fn=>{if(typeof fn==='function')ipcRenderer.on('manager-dock-state',(_event,state)=>fn(state));},
  fusionScript:()=>ipcRenderer.invoke('fusion-ui-script'),
  copyFusionScript:()=>ipcRenderer.invoke('fusion-script-copy'),
  windowMode:mode=>ipcRenderer.invoke('window-mode',mode),
