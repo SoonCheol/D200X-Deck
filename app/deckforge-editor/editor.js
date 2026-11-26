@@ -483,7 +483,7 @@ function isMomentaryIconAction(item){
 }
 // A pair of state titles shares the preset library, not the individual style.
 function hasStateTitlePair(item){
-  return (item?.type==='sd-plugin'&&!DeckCore.isNativeForeground(item,typeof sdkPlugins==='undefined'?null:sdkPlugins))||item?.type==='timer'||item?.type==='hotkey-switch'||isMomentaryIconAction(item);
+  return (item?.type==='sd-plugin'&&!DeckCore.isNativeForeground(item,typeof sdkPlugins==='undefined'?null:sdkPlugins))||item?.type==='timer'||item?.type==='hotkey-switch'||item?.type==='multi-switch'||isMomentaryIconAction(item);
 }
 // Text action labels are render-only; never copy the body into a stored title.
 function textActionDisplayTitle(item,title){
@@ -523,6 +523,10 @@ function autoHaControlTitle(item,label){
   item.settings.haAutoTitle=name;
 }
 function defaultStateTitlePair(item){
+  if(item?.type==='multi-switch'){
+    const entry=i=>({enabled:item.titleStyle?.visible!==false,title:item.stateVisuals?.[i]?.title||'',style:{...DEFAULT_TITLE_STYLE,...item.titleStyle}});
+    return {first:entry(0),second:entry(1)};
+  }
   if(item?.type==='hotkey-switch')return {first:{enabled:true,title:item.title||'',style:{...DEFAULT_TITLE_STYLE,...item.titleStyle}},second:{enabled:true,title:item.title||'',style:{...DEFAULT_TITLE_STYLE,...item.titleStyle}}};
   if(item?.type==='timer')return {first:{enabled:true,title:'',style:{...DEFAULT_TITLE_STYLE,...item.titleStyle}},second:{enabled:true,title:DeckCore.formatTimerTime(DeckCore.timerSeconds(item.settings?.seconds),item.settings?.seconds),style:{...DEFAULT_TITLE_STYLE,...item.titleStyle}}};
   if(item?.type==='multi')return {first:{enabled:item.titleStyle?.visible!==false,title:item.title||'',style:{...DEFAULT_TITLE_STYLE,...item.titleStyle}},second:{enabled:item.titleStyle?.visible!==false,title:'',style:{...DEFAULT_TITLE_STYLE,...item.titleStyle}}};
@@ -638,6 +642,17 @@ function indicatorPressVisual(item,pressed){
     indicatorNumberStyle:pressed?downNumberStyle:item.indicatorNumberStyle,
     icon:pressed?down:up,keyBackground:pressed?second:first,keyPressAlternate:distinct};
 }
+// Existing stateVisuals artwork and execution state remain independent of the new appearance controls.
+function resolveMultiSwitchVisual(item,second){
+  const s=item.settings||{},index=second?1:0,key=second?'second':'first';
+  const legacy=DeckCore.displaySwitchAction({...item,settings:{...s,activeState:index}});
+  const backgrounds=s.keyBackgrounds||{};
+  if(!s.stateTitles)return {...legacy,keyBackground:backgrounds[key]||backgrounds.default};
+  const pair=s.stateTitles;
+  const entry=k=>({...pair[k],title:(s.linkStateTitles?pair.first?.title:'')||pair[k]?.title||item.title||''});
+  const settings={...s,stateTitles:{first:entry('first'),second:entry('second')},keyBackgrounds:{first:backgrounds.first||backgrounds.default,second:backgrounds.second||backgrounds.default}};
+  return resolveStateTitle({...legacy,settings},second,{first:item.stateVisuals?.[0]?.icon||item.icon,second:item.stateVisuals?.[1]?.icon||item.icon});
+}
 function displayKeyPressItem(item,index,editorPreview=false,rawItem=null){
   const raw=rawItem||DeckCore.visibleActions(state)[index]||item;
   const preview=editorPreview&&raw?haPreviewStates.get(raw):null;
@@ -652,7 +667,7 @@ function displayKeyPressItem(item,index,editorPreview=false,rawItem=null){
     const second=preview?.second??((hotkeySwitchPositions.get(hotkeySwitchRuntimeKey(index,raw))||0)===1);
     return resolveStateTitle(item,second,stateDisplayArtwork(item,index,false));
   }
-  if(item?.type==='multi-switch'&&preview)return DeckCore.displaySwitchAction({...raw,settings:{...raw.settings,activeState:preview.second?1:0}});
+  if(item?.type==='multi-switch')return resolveMultiSwitchVisual(raw,preview?.second??(raw.settings?.activeState===1));
   if(!isMomentaryIconAction(item)||!Number.isInteger(index)||index<0||index>=13){
     if(item?.type==='sd-plugin'){
       if(DeckCore.isNativeForeground(item,typeof sdkPlugins==='undefined'?null:sdkPlugins))return {...item,...(preview?.image?{sensorOverlay:preview.image}:{}),previewPressed:editorPreview&&pressed};
@@ -2445,6 +2460,8 @@ function renderMultiEditor(item,root){
       else renderInspector();
       renderGrid();
     });
+    // The LCD cards above own appearance; retain the existing control-binding editor.
+    if(state.selected<13){fields.append(linked);area.append(fields);}else{
     const titleLabel=document.createElement('label');
     titleLabel.textContent=checkbox.checked?'연결된 제목':'상태 '+(selected+1)+' 제목';
     const titleField=document.createElement('input');titleField.type='text';titleField.maxLength=256;
@@ -2509,6 +2526,7 @@ function renderMultiEditor(item,root){
     const imageLabel=document.createElement('label');imageLabel.textContent='상태 '+(selected+1)+' 이미지';
     fields.append(linked,titleLabel,titleField,iconLabel,iconField,imageLabel,imageActions,imageInput);
     area.append(fields);
+    }
   }
   if(!randomAction){
     const spacing=document.createElement('div');spacing.className='control-config';
@@ -3138,7 +3156,7 @@ function bindKeyBackgroundControl(preview,item,key){
   trigger.title='단추 배경색';trigger.setAttribute('aria-label','단추 배경색');
   trigger.setAttribute('aria-expanded','false');preview.append(trigger);
   let popup=null;
-  const get=()=>item.settings?.keyBackgrounds?.[key]||{enabled:false,color:'#08090c'};
+  const get=()=>item.settings?.keyBackgrounds?.[key]||(item.type==='multi-switch'?item.settings?.keyBackgrounds?.default:null)||{enabled:false,color:'#08090c'};
   const save=(field,value)=>{
     item.settings??={};item.settings.keyBackgrounds??={};
     const previous=get();
@@ -3894,14 +3912,15 @@ async function refreshStateTitleCards(item){
   const slot=state.selected;
   const visual=inspectorDisplayItem(item,slot);
   const momentary=isMomentaryIconAction(item);
-  const artwork=item.type==='indicator'?null:stateDisplayArtwork(visual,slot,momentary);
+  const artwork=['indicator','multi-switch'].includes(item.type)?null:stateDisplayArtwork(visual,slot,momentary);
   const version=String((Number(root.dataset.stateCardVersion)||0)+1);
   root.dataset.stateCardVersion=version;
   for(const card of pair){
     const second=card.dataset.stateTitle==='second';
     const progress=item.type==='multi'?runningMultiProgress.get(DeckCore.runtimeActionKey(state,slot,'down')):null;
-    const titleVisual=item.type==='indicator'?indicatorPressVisual(visual,second):item.type==='timer'?resolveTimerVisual(visual,second,DeckCore.timerSeconds(item.settings?.seconds),artwork):item.type==='multi'?resolveMultiVisual(visual,second,artwork,progress):resolveStateTitle(visual,second,artwork);
+    const titleVisual=item.type==='indicator'?indicatorPressVisual(visual,second):item.type==='timer'?resolveTimerVisual(visual,second,DeckCore.timerSeconds(item.settings?.seconds),artwork):item.type==='multi'?resolveMultiVisual(visual,second,artwork,progress):item.type==='multi-switch'?resolveMultiSwitchVisual(item,second):resolveStateTitle(visual,second,artwork);
     if(item.type==='multi'&&second){const input=card.querySelector('.state-title-input');if(input)input.value=multiProgressTitle(item,progress);}
+    if(item.type==='multi-switch'&&item.settings?.linkStateTitles){const input=card.querySelector('.state-title-input');if(input&&document.activeElement!==input)input.value=(item.settings.stateTitles||defaultStateTitlePair(item)).first.title;}
     if(item.type==='indicator'&&second){const downTitle=card.querySelector('.indicator-down-title');if(downTitle&&document.activeElement!==downTitle)downTitle.value=item.settings?.indicatorDownTitle??item.title??'';}
     const policy=nativeTitlePolicyFor(item),which=second?'second':'first';
     if((policy&&(!visual.settings?.stateTitles||visual.settings.nativeTitleAutoStates?.[which]===true))||(isNativeHaControl(item)&&!item.settings.stateTitles)){
@@ -3938,6 +3957,7 @@ function attachStateTitleControls(card,item,which){
   const multiAuto=item.type==='multi'&&which==='second';
   input.maxLength=256;input.value=timer?(timerIdle?'':DeckCore.formatTimerTime(DeckCore.timerSeconds(item.settings?.seconds),item.settings?.seconds)):multiAuto?multiProgressTitle(item,runningMultiProgress.get(DeckCore.runtimeActionKey(state,state.selected,'down'))):titlePolicy&&(!titleView.settings.stateTitles||titleView.settings.nativeTitleAutoStates?.[which]===true)?nativeInspectorTitle(item):config.title;input.readOnly=timer||multiAuto;input.disabled=timerIdle||!config.enabled;
   if(multiAuto)input.title='실행 단계 자동 표시';
+  if(item.type==='multi-switch'){input.placeholder='공통 제목 사용';if(item.settings?.linkStateTitles)input.value=(item.settings.stateTitles||defaultStateTitlePair(item)).first.title;}
   const styleButton=document.createElement('button');styleButton.type='button';
   styleButton.className='state-title-style';styleButton.textContent='T⌄';
   styleButton.title=(which==='first'?'제목 1':'제목 2')+' 글꼴 속성';
@@ -3963,7 +3983,7 @@ function attachStateTitleControls(card,item,which){
   });
   input.addEventListener('input',()=>{
     if(timer||multiAuto)return;
-    const saved=ensureStateTitlePair(item)[which];
+    const saved=ensureStateTitlePair(item)[item.type==='multi-switch'&&item.settings?.linkStateTitles?'first':which];
     saved.title=input.value;
     if(DeckCore.isLegacyHaControl?.(item))item.settings.haManualTitles={...item.settings.haManualTitles,[which]:true};
     if(nativeTitlePolicyFor(item))item.settings.nativeTitleAutoStates={...item.settings.nativeTitleAutoStates,[which]:false};
@@ -4039,19 +4059,21 @@ function bindNativeForegroundIconCard(root,item){
 }
 function bindSdkStateIcons(root,item){
   if(DeckCore.isNativeForeground(item,typeof sdkPlugins==='undefined'?null:sdkPlugins))return;
-  if(item.type!=='timer'&&item.type!=='hotkey-switch'&&(item.type!=='sd-plugin'||isMomentaryIconAction(item)))return;
+  if(item.type!=='timer'&&item.type!=='hotkey-switch'&&item.type!=='multi-switch'&&(item.type!=='sd-plugin'||isMomentaryIconAction(item)))return;
   const panel=root.querySelector('[data-inspector-icons]');
   if(!panel)return;
   const draw=()=>{
     panel.replaceChildren();
     const cards=document.createElement('div');
     cards.className='sdk-state-icons';
-    for(const [key,label] of (item.type==='timer'?[['off','대기 상태'],['on','실행 상태']]:item.type==='hotkey-switch'?[['off','상태 1'],['on','상태 2']]:[['off','OFF'],['on','ON']])){
+    for(const [key,label] of (item.type==='timer'?[['off','대기 상태'],['on','실행 상태']]:item.type==='hotkey-switch'?[['off','상태 1'],['on','상태 2']]:item.type==='multi-switch'?[['multi:0','상태 1'],['multi:1','상태 2']]:[['off','OFF'],['on','ON']])){
       const group=document.createElement('div');group.className='sdk-state-icon';
       const heading=document.createElement('strong');heading.textContent=label;
       const image=document.createElement('div');image.className='sdk-state-preview';
-      const selected=item.settings?.sdkStateIcons?.[key];
-      if(selected?.kind==='file'){
+      const switching=item.type==='multi-switch';
+      const selected=switching?item.stateVisuals?.[Number(key.slice(6))]?.icon||item.icon:item.settings?.sdkStateIcons?.[key];
+      if(switching)image.append(iconNode({...item,icon:selected},ACTIONS.get(item.type)?.icon||'+'));
+      else if(selected?.kind==='file'){
         const img=document.createElement('img');img.src=selected.value;img.alt=label+' 상태 아이콘';image.append(img);
       }else{
         const fallback=sdkActionDefaults.get(item.settings?.actionUUID)?.[key];
@@ -4063,8 +4085,12 @@ function bindSdkStateIcons(root,item){
       const file=document.createElement('button');file.type='button';file.textContent='파일';
       file.addEventListener('click',async()=>{
         try{
-          if(!window.deckBridge?.chooseImportFile)throw Error('Windows EXE에서 사용할 수 있습니다.');
           const session=inspectorSession;
+          if(switching&&!window.deckBridge?.chooseImportFile){
+            const picker=document.createElement('input');picker.type='file';picker.accept='image/png,image/jpeg,image/webp,image/gif';
+            picker.addEventListener('change',()=>{if(picker.files?.[0])void setIconFile(picker.files[0],item,key,session);},{once:true});picker.click();return;
+          }
+          if(!window.deckBridge?.chooseImportFile)throw Error('Windows EXE에서 사용할 수 있습니다.');
           const chosen=await chooseNativeImage('image');
           if(!chosen?.dataUrl)return;
           const png=await rasterizeIcon(chosen.dataUrl);
@@ -4078,14 +4104,15 @@ function bindSdkStateIcons(root,item){
       symbol.addEventListener('click',event=>openIconMaker(item,key,event.currentTarget));
       const reset=document.createElement('button');reset.type='button';reset.textContent='초기화';
       reset.addEventListener('click',()=>{
-        if(item.settings?.sdkStateIcons)delete item.settings.sdkStateIcons[key];
+        if(switching){const visual=item.stateVisuals?.[Number(key.slice(6))];if(visual)delete visual.icon;}
+        else if(item.settings?.sdkStateIcons)delete item.settings.sdkStateIcons[key];
         persistInspectorChange();render();
       });
       const buttons=document.createElement('div');buttons.className='sdk-state-buttons';
       buttons.append(choose,file,paste,symbol,reset);
-      bindKeyBackgroundControl(image,item,key==='off'?'first':'second');
-      group.dataset.stateTitle=key==='off'?'first':'second';
-      group.append(heading);attachStateTitleControls(group,item,key==='off'?'first':'second');group.append(image,buttons);cards.append(group);
+      bindKeyBackgroundControl(image,item,key==='off'||key==='multi:0'?'first':'second');
+      group.dataset.stateTitle=key==='off'||key==='multi:0'?'first':'second';
+      group.append(heading);attachStateTitleControls(group,item,key==='off'||key==='multi:0'?'first':'second');group.append(image,buttons);cards.append(group);
     }
     panel.append(cards);
     void refreshStateTitleCards(item);
@@ -7161,7 +7188,9 @@ function renderIconLibrary(){
         try{
           const png=await rasterizeIcon(icon.image);
           if(!inspectorPickerCurrent(session,target))return;
-          if(libraryStateKey?.startsWith('press:')&&(isMomentaryIconAction(target)||target.type==='indicator')){
+          if(target.type==='multi-switch'&&['multi:0','multi:1'].includes(libraryStateKey)){
+            setMultiSwitchArtwork(target,libraryStateKey,{kind:'file',value:png,packId:pack.id});
+          }else if(libraryStateKey?.startsWith('press:')&&(isMomentaryIconAction(target)||target.type==='indicator')){
             target.settings.keyPressIcons??={};
             target.settings.keyPressIcons[libraryStateKey.slice(6)]={kind:'file',value:png,packId:pack.id};
           }else if(['off','on'].includes(libraryStateKey)&&['sd-plugin','timer','hotkey-switch'].includes(target.type)){
@@ -7241,10 +7270,16 @@ let fileIconSession=null;
 let makerTarget=null;
 let makerStateKey=null;
 let makerSession=null;
+function setMultiSwitchArtwork(target,key,icon){
+  const i=key==='multi:1'?1:0;
+  if(!Array.isArray(target.stateVisuals))target.stateVisuals=[{},{}];
+  (target.stateVisuals[i]??={}).icon=icon;
+}
 function applyStateIconData(target,key,uri,session=inspectorSession){
   if(!target||!uri||!inspectorPickerCurrent(session,target))return;
   target.settings??={};
-  if(key?.startsWith('press:')){
+  if(target.type==='multi-switch'&&['multi:0','multi:1'].includes(key))setMultiSwitchArtwork(target,key,{kind:'file',value:uri});
+  else if(key?.startsWith('press:')){
     target.settings.keyPressIcons??={};target.settings.keyPressIcons[key.slice(6)]={kind:'file',value:uri};
   }else if(key==='off'||key==='on'){
     target.settings.sdkStateIcons??={};target.settings.sdkStateIcons[key]={kind:'file',value:uri};

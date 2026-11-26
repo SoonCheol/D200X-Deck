@@ -442,3 +442,33 @@ test('same physical button gesture registrations remain one draft across tab reb
  assert.equal(writes,1);assert.equal(ctx.state.pages[0][0].title,'first draft');assert.equal(ctx.state.pages[0][0].pressActions.double.title,'second draft');
  assert.equal(ctx.inspectorSession.dirty,false);assert.ok(changes>=5);
 });
+
+test('multi-switch cards preserve legacy artwork, titles, background and independent sequences',()=>{
+ const item={type:'multi-switch',title:'공통',titleStyle:{visible:true},icon:{kind:'glyph',glyph:'C'},settings:{activeState:1,keyBackgrounds:{default:{enabled:true,color:'#123456'}}},sequences:[[{type:'hotkey'}],[{type:'text'}]],stateVisuals:[{title:'첫째',icon:{kind:'glyph',glyph:'A'}},{title:'둘째',icon:{kind:'glyph',glyph:'B'}}]};
+ const before=JSON.stringify(item),start=src.indexOf('function isMomentaryIconAction(item){'),end=src.indexOf('// Share actual key visuals',start);
+ const Core=require('../app/deckforge-editor/deck-core.js');
+ const ctx={item,DeckCore:Core,DEFAULT_TITLE_STYLE:{visible:true},JSON,window:{}};
+ const helpers=vm.runInNewContext(src.slice(start,end)+';({resolveMultiSwitchVisual,defaultStateTitlePair})',ctx);
+ assert.equal(helpers.resolveMultiSwitchVisual(item,false).title,'첫째');
+ assert.equal(helpers.resolveMultiSwitchVisual(item,true).icon.glyph,'B');
+ assert.equal(helpers.resolveMultiSwitchVisual(item,true).keyBackground.color,'#123456');
+ assert.equal(JSON.stringify(item),before);
+ const saved={...item,settings:{...item.settings,stateTitles:helpers.defaultStateTitlePair(item)}};
+ saved.settings.stateTitles.second.title='변경';
+ assert.equal(helpers.resolveMultiSwitchVisual(saved,true).title,'변경');
+ saved.settings.linkStateTitles=true;
+ assert.equal(helpers.resolveMultiSwitchVisual(saved,true).title,'첫째');
+ saved.settings.linkStateTitles=false;
+ assert.equal(helpers.resolveMultiSwitchVisual(saved,true).title,'변경');
+ saved.settings.stateTitles.second.enabled=false;
+ assert.equal(helpers.resolveMultiSwitchVisual(saved,true).icon.glyph,'A');
+ saved.settings.stateTitles.second.enabled=true;
+ assert.equal(helpers.resolveMultiSwitchVisual(saved,true).icon.glyph,'B');
+ assert.equal(item.stateVisuals[1].title,'둘째');assert.equal(item.settings.activeState,1);
+ const a=src.indexOf('function setMultiSwitchArtwork('),z=src.indexOf('function applyIconData(',a);
+ const write=vm.runInNewContext(src.slice(a,z)+';applyStateIconData',{inspectorSession:{},inspectorPickerCurrent:()=>true,persistInspectorChange(){},render(){}});
+ write(item,'multi:1','data:image/png;base64,dGVzdA==');
+ assert.equal(item.stateVisuals[0].icon.glyph,'A');assert.equal(item.stateVisuals[1].icon.value,'data:image/png;base64,dGVzdA==');
+ assert.equal(item.settings.activeState,1);assert.equal(item.sequences[1][0].type,'text');
+ assert.equal(Core.cleanAction(item).stateVisuals[1].icon.value,item.stateVisuals[1].icon.value);
+});
