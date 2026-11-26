@@ -3395,3 +3395,39 @@ test('browser approval is encrypted separately, bound to installed manifest, and
     assert.deepEqual(opened,[op.value]);
   }finally{host.close();await fs.rm(temp,{recursive:true,force:true});}
 });
+
+
+test('GitHub button opens only the displayed run ID and never a supplied external URL',()=>{
+ const {createGitHubManifest,buildKey}=require('../app/deckforge-editor/deckforge-github-plugin.cjs');
+ const {credentialBinding}=require('../app/deckforge-editor/deckforge-native-network.cjs');
+ const m=validateNativeManifest(createGitHubManifest()),a=m.actions[0],settings=Object.fromEntries(a.settingsSchema.map(f=>[f.key,f.default]));
+ assert.equal(m.version,'0.1.2');assert.ok(m.permissions.includes('browser.open'));
+ assert.equal(credentialBinding(m.id,m.networkEndpoints[0]),credentialBinding(m.id,{...m.networkEndpoints[0]}));
+ const memory={},requests=[],opened=[],frames=[];
+ const api={setTitle(){},drawKey:x=>frames.push(x),request:(...args)=>requests.push(args),openUrl:url=>opened.push(url)};
+ const send=(type,response)=>buildKey({type,response},settings,0,memory,api);
+ const response=(id,run_number,status='in_progress',conclusion=null)=>({ok:true,body:JSON.stringify({workflow_runs:[{id,run_number,status,conclusion,html_url:'https://elsewhere.example/'}]})});
+ const realNow=Date.now;let now=100000;Date.now=()=>now;
+ try{
+   send('appear');send('press');assert.equal(requests.length,1);assert.deepEqual(opened,[]);
+   send('networkResult',response(12345,97));assert.equal(memory.display.number,'#97');assert.deepEqual(opened,[]);
+   send('press');assert.deepEqual(opened,['https://github.com/SoonCheol/D200X-Deck/actions/runs/12345']);assert.equal(requests.length,1);
+   now+=5000;send('tick');assert.equal(requests.length,2);assert.equal(opened.length,1);
+   send('networkResult',response(12346,98,'completed','failure'));send('press');assert.equal(opened.at(-1),'https://github.com/SoonCheol/D200X-Deck/actions/runs/12346');
+   send('networkResult',{ok:false,status:403});send('press');assert.equal(opened.length,2);
+   send('networkResult',response('12347',99));send('press');assert.equal(opened.length,2);
+   send('networkResult',response(12348,100,'completed','success'));
+   settings.repository='SoonCheol/FusionMacroStudio';send('settings');send('press');assert.equal(opened.length,2);
+   send('networkResult',response(23456,1,'completed','success'));send('press');assert.equal(opened.at(-1),'https://github.com/SoonCheol/FusionMacroStudio/actions/runs/23456');
+   send('networkResult',{ok:true,body:JSON.stringify({workflow_runs:[]})});send('press');assert.equal(opened.length,3);
+   send('networkResult',response(23457,2));send('networkResult',{ok:false,error:'capacity'});send('press');assert.equal(opened.length,3);
+   send('networkResult',response(23458,3));send('release');send('tick');assert.equal(opened.length,3);
+   const host=new NativePluginHost('/unused');
+   try{
+     const ctx={pluginUUID:m.id,permissions:m.permissions,action:a,networkEndpoints:m.networkEndpoints};
+     const op={op:'openUrl',value:'https://github.com/SoonCheol/FusionMacroStudio/actions/runs/23458'};
+     assert.deepEqual(host.validateScriptOps(ctx,'press',[op]).effects,[op]);
+     assert.throws(()=>host.validateScriptOps(ctx,'tick',[op]),/input event/);
+   }finally{host.close();}
+ }finally{Date.now=realNow;}
+});

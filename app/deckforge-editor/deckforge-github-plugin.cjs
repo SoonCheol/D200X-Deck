@@ -31,11 +31,11 @@ function buildKey(event,settings,state,memory,api){
     ]});
   };
   if(event.type==='appear'||event.type==='settings'){
-    memory.lastRequest=0;memory.pending=false;memory.scrollStart=now;memory.interval=5000;render(ready?'조회 준비':'설정 확인');return;
+    memory.runLink=null;memory.lastRequest=0;memory.pending=false;memory.scrollStart=now;memory.interval=5000;render(ready?'조회 준비':'설정 확인');return;
   }
-  if(!ready){render('설정 확인');return;}
+  if(!ready){memory.runLink=null;render('설정 확인');return;}
   if(event.type==='networkResult'){
-    memory.pending=false;
+    memory.pending=false;memory.runLink=null;
     const r=event.response||{};
     if(!r.ok){
       memory.interval=15000;
@@ -47,6 +47,10 @@ function buildKey(event,settings,state,memory,api){
     let runs;try{runs=JSON.parse(r.body).workflow_runs;}catch{render('응답 오류','failure');return;}
     if(!Array.isArray(runs)){render('응답 오류','failure');return;}
     const run=runs[0];if(!run){render('빌드 없음');return;}
+    // Construct the link from the selected repository and numeric run ID.
+    // Never forward a remote-provided html_url or attach credentials.
+    if(Number.isSafeInteger(run.id)&&run.id>0&&Number.isSafeInteger(run.run_number)&&run.run_number>0)
+      memory.runLink={repo:repo.join('/'),workflow,branch,id:run.id,number:run.run_number};
     let status='상태 확인',kind='neutral';
     if(run.status==='completed'){
       if(run.conclusion==='success'){status='빌드 성공';kind='success';}
@@ -60,6 +64,12 @@ function buildKey(event,settings,state,memory,api){
     render(status,kind,Number.isSafeInteger(run.run_number)?'#'+run.run_number:'');return;
   }
   if(event.type!=='tick'&&event.type!=='press')return;
+  const link=memory.runLink;
+  if(event.type==='press'&&link&&link.repo===repo.join('/')&&link.workflow===workflow&&link.branch===branch&&
+     Number.isSafeInteger(link.id)&&link.id>0&&Number.isSafeInteger(link.number)&&link.number>0&&memory.display?.number==='#'+link.number){
+    api.openUrl('https://github.com/'+repo.map(encodeURIComponent).join('/')+'/actions/runs/'+link.id);return;
+  }
+  // If no valid displayed run exists, preserve the existing press-to-refresh fallback.
   if(event.type==='tick'&&memory.display)render(memory.display.status,memory.display.kind,memory.display.number);
   if(memory.pending&&now-(memory.lastRequest||0)<10000)return;
   const interval=settings.refresh==='auto'||!settings.refresh?(memory.interval||5000):Number(settings.refresh)||15000;
@@ -69,8 +79,8 @@ function buildKey(event,settings,state,memory,api){
 }
 function createGitHubManifest(){
   const field=(key,label,value,maxLength=128)=>({key,label,type:'text',default:value,maxLength});
-  return {apiVersion:2,id:ID,name:'GitHub 개발 현황',version:'0.1.1',requiresDeckForge:'>=2.0.34',
-    permissions:['display','network.request','network.poll','timer.tick'],
+  return {apiVersion:2,id:ID,name:'GitHub 개발 현황',version:'0.1.2',requiresDeckForge:'>=2.0.95',
+    permissions:['display','network.request','network.poll','timer.tick','browser.open'],
     networkEndpoints:[{id:'runs',url:'https://api.github.com/repos/',method:'GET',auth:'bearer',pathKeys:['owner','repo','category','collection','workflow','resource'],queryKeys:['per_page','branch'],maxResponseBytes:32768}],
     actions:[{id:ID+'.build',name:'빌드 상태',controllers:['Keypad'],states:1,visualPolicy:'foreground',
       script:'return ('+buildKey.toString()+')(event,settings,state,memory,api);',tickIntervalMs:1000,pollIntervalMs:5000,

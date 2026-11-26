@@ -763,7 +763,7 @@ test('HA sensor interval is editable only in auto mode and disabled drafts are n
 
 test('GitHub settings can refresh repositories after a failed lookup without opening credential management',()=>{
  const source=editor.slice(editor.indexOf('async function openNativeSettings('),editor.indexOf('function updateSdkAvailabilityInspector('));
- const start=source.indexOf('  let githubLoading='),end=source.indexOf("  if(githubBuild)githubFields.get('repository')",start);
+ const start=source.indexOf('  let githubLoading='),end=source.indexOf('  if(githubBuild)bindGithubRepositoryLabel(',start);
  assert.ok(start>=0&&end>start);
  assert.match(source,/githubReloadButton\.textContent='목록 새로 고침'/);
  assert.match(source,/githubReloadButton\.addEventListener\('click',\(\)=>void refreshGithub\(\)\)/);
