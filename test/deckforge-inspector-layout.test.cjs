@@ -658,3 +658,26 @@ test('immediate gesture edits preserve original button and nested settings on pr
  assert.equal(page[1].pressActions.double.settings.keys,'Ctrl+V');assert.equal(page[1].settings.keys,'Ctrl+A');
  assert.equal(state.selected,1);assert.equal(sandbox.activePressTab,'double');assert.equal(syncs.length,1);
 });
+
+test('Fusion manager remains visible when its only runcommand action is intentionally hidden',()=>{
+  const source=editor.slice(editor.indexOf('function sdkPanelActions('),editor.indexOf('async function configureHomeAssistant()'));
+  const fusion='com.autodesk.fusionstreamdeck',generic='ha.generic';
+  const plugin={uuid:fusion,name:'Autodesk Fusion',version:'1.0.0',runtime:'streamdeck-sdk',actions:[{uuid:fusion+'.runcommand',name:'Run Command'}]};
+  const other={uuid:'other.plugin',name:'Other',version:'1.0.0',runtime:'streamdeck-sdk',actions:[{uuid:generic,name:'Hidden'}]};
+  const element=()=>({children:[],style:{},append(...children){this.children.push(...children);},addEventListener(){}});
+  const render=(query,exactActionId=null,basic=false)=>{
+    const root=element();
+    Function('sdkPlugins','FUSION_PLUGIN','HA_GENERIC_ACTION','exactActionId','document','sdkCatalogueLabel','pluginHelpButton','window','root','query','basic',source+'\nrenderInstalledSdkPlugins(root,query,basic);')([plugin,other],fusion,generic,exactActionId,{createElement:element},a=>a.name,element,{},root,query,basic);
+    return root.children;
+  };
+  for(const query of ['','fusion','명령 관리자']){
+    const groups=render(query);
+    assert.equal(groups.length,1);
+    const body=groups[0].children[1];
+    assert.equal(body.children.length,1);
+    assert.equal(body.children[0].textContent,'Fusion 명령 관리자');
+  }
+  assert.equal(render('unrelated').length,0);
+  assert.equal(render('','sd::other.plugin::action').length,0);
+  assert.equal(render('',null,true).length,0);
+});

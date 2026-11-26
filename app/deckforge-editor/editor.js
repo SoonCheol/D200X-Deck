@@ -1788,7 +1788,8 @@ function renderInstalledSdkPlugins(root,query,basic=false){
     const nativeHa=plugin.uuid==='com.deckforge.native.home-assistant';
     if(nativeHa!==basic)continue;
     const matching=sdkPanelActions(plugin).filter(a=>actionSearchMatches(sdkPanelActionId(plugin,a),plugin.name+' '+sdkCatalogueLabel(a)+' '+a.name+' '+a.uuid,query));
-    if(!matching.length&&(exactActionId!==null||!(plugin.runtime==='deckforge-sdk'&&plugin.name.toLowerCase().includes(query))))continue;
+    const fusionManagerMatches=plugin.uuid===FUSION_PLUGIN&&exactActionId===null&&(plugin.name+' Fusion 명령 관리자').toLowerCase().includes(query);
+    if(!matching.length&&!fusionManagerMatches&&(exactActionId!==null||!(plugin.runtime==='deckforge-sdk'&&plugin.name.toLowerCase().includes(query))))continue;
     const section=document.createElement('section');section.className='group sdk-plugin-group'+(nativeHa?' basic-ha-group':'');
     const title=document.createElement('div');title.className='group-title';
     const heading=document.createElement('span');heading.textContent=nativeHa?'Home Assistant':plugin.name+' ('+plugin.version+')';
