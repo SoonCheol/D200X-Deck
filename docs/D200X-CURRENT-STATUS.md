@@ -12,9 +12,9 @@
 - 04A Model 2: service/button partition·runner 재사용, lane 직렬화·lease 취소·idle LRU/30초·suspend/close·realm reset. legacy 복귀 DECKFORGE_SDK_RUNNER=legacy, 실패 이벤트 재실행 금지. 1.1.189 Windows 성공; 1.1.230 실제 장애 검증 통과.
 - 04B 실제 Electron: Model 2 PID 5668/844 및 realm/timeout/서비스 생존, DrawOps 픽셀/host 경계 통과. standard Worker 저장소 IndexedDB/CacheStorage/OPFS 허용, opaque Worker 생성 실패. Model 5 비활성 유지. 로드맵에 따라 05 선행 분석만 수행.
 - **HA 사용자 실기 정정:** 기존 배경색 미표시는 HA 0.1.3 미업데이트가 원인, 업데이트 후 정상 작동 사용자 확인. 이전 배경색 결함 보류 해제. 기타 UI 개별 검증은 별도, SDK 로드맵 우선.
-- 사용자 실기 보고: 테스트 플러그인 v1.0.0 제거 성공 2026-11-24 16:38:12 UTC, 보존 데이터 삭제 성공(2/2) 16:38:16 UTC; AI 로그 조회 확인. 원본 로그 직접 열람은 아님.
 ## 다음 작업
-- 2.0.75: GitHub 등 단일 상태 foreground 플러그인의 Key Up/비활성 Key Down/미리보기 통일. SDK·저장·실행 변경 없음. 집중 검사 통과, Windows/실기 확인 대기.
+- 2.0.75 유지: 기본 액션 35개 Electron 카드 좌표·크기·저장/취소·미리보기·필드 실측 감사 착수. 제품 및 설치본 변경 없이 검증 전용.
+- 2.0.75: GitHub 등 단일 상태 foreground 플러그인의 Key Up/비활성 Key Down/미리보기 통일. SDK·저장·실행 변경 없음. 집중 검사 및 Windows #79/CI #1501/SDK #193/입력 #570 성공, EXE 게시.
 - 2.0.72: 순차 동작 스위치 일반 LCD 상태 1/2 공통 카드 및 미리보기. 기존 stateVisuals·제목 연결·실행 순서·활성 상태 보존. Windows #76 57/58 실패, 2.0.73 기존 단축키 검사 수정. #77 157/158 실패(상태 카드 식별자 검사 미갱신), CI #1498/SDK #190 성공. 2.0.74 해당 검사 수정, Windows #78/CI #1499/SDK #191 성공.
 - 사용자 승인 2.0.71: 화면 끄기/Key Logic 및 비활성 Virtual의 기존 표시 설정을 왼쪽 카드에 계승, 우측 비활성 카드와 미리보기. 실제 두 상태/특수 장치/SDK 동작 및 데이터 유지. 집중 검사 및 Windows #75/CI #1495/SDK #187/입력 #568 성공, 실기 확인 대기.
 - 긴급 2.0.70: Fusion 단일 runcommand 제외 시 카테고리가 숨겨지는 회귀 수정. Fusion 관리자 일반/검색 표시 복구, 정확 선택 및 다른 플러그인 필터 유지. 기존 데이터/SDK 미변경. Windows #74/CI #1492/입력 #567 성공, 2.0.70 EXE 게시. Fusion 실기 표시 확인 필요.
