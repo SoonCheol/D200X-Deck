@@ -274,7 +274,7 @@ test('indicator Down title and number styles are independently resolved, omitted
 });
 
 test('hotkey switch has separate 1/2 icon cards and live state switching',()=>{
- assert.match(src,/item\?\.type==='hotkey-switch'\|\|isMomentaryIconAction\(item\)/);
+ assert.match(src,/item\?\.type==='hotkey-switch'\|\|item\?\.type==='multi-switch'\|\|isMomentaryIconAction\(item\)/);
  assert.match(src,/item\.type==='hotkey-switch'\?\[\['off','상태 1'\],\['on','상태 2'\]\]/);
  assert.match(src,/hotkeySwitchPositions\.get\(hotkeySwitchRuntimeKey\(index,item\)\)/);
  assert.match(src,/const key=hotkeySwitchRuntimeKey\(index,resolved\.action,resolved\.gesture\)/);
