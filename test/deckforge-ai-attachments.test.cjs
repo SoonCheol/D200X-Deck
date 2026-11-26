@@ -75,7 +75,9 @@ test('inspector preserves original cards and uses Key Up, Key Down, then preview
   assert.match(style,/\.state-title-inspector \.state-title-layout\{\s*grid-template-columns:minmax\(0,1fr\) 98px/);
   assert.match(style,/\.action-layout-inspector \.action-single-visual\{\s*grid-template-columns:minmax\(0,1fr\) 98px/);
   assert.match(style,/\.action-layout-inspector \.action-preview-card \.preview-key\{width:86px;height:86px/);
-  assert.match(style,/\.state-title-inspector \.state-title-layout \.sdk-state-buttons button\{[\s\S]*?width:76px;height:25px/);
+  assert.match(style,/--deckforge-state-button-width:76px;/);
+  assert.match(style,/--deckforge-state-button-height:25px;/);
+  assert.match(style,/\.state-title-inspector \.state-title-layout \.sdk-state-buttons button\{[^}]*width:var\(--deckforge-state-button-width\);height:var\(--deckforge-state-button-height\)/);
 });
 
 test('pasted screenshot is queued, not sent; normal text Ctrl+V is untouched',async()=>{
