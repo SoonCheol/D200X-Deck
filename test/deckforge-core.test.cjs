@@ -2198,3 +2198,28 @@ test('multimedia and input audit: all eleven visible action configurations survi
     assert.deepEqual(core.planAction(loaded,0,1),expected,type);
   }
 });
+
+
+test('final visible action audit: composite branches, timer settings and gesture test preserve independent data',()=>{
+  const make=(type,settings={})=>{const action=core.createAction(type);Object.assign(action.settings,settings);return action;};
+  const reload=a=>core.cleanAction(JSON.parse(JSON.stringify(a)));
+  const timer=make('timer',{seconds:75,sound:'custom',soundFile:'C:\\alarm.wav',soundVolume:25});
+  const multi=make('multi');core.setMultiRows(multi,[{step:timer,ms:500},{step:make('media',{op:'next'}),ms:100}],0);
+  const loaded=reload(multi),rows=core.multiRows(loaded).rows;
+  assert.equal(rows[0].ms,500);assert.equal(rows[1].ms,100);
+  assert.equal(rows[0].step.settings.soundFile,timer.settings.soundFile);assert.equal(rows[0].step.settings.soundVolume,25);
+  const sw=make('multi-switch');sw.sequences=[[make('hotkey',{keys:'Ctrl+C'})],[make('hotkey',{keys:'Ctrl+V'})]];
+  assert.equal(core.planComposite(reload(sw),{state:0}).steps[0].settings.keys,'Ctrl+C');
+  assert.equal(core.planComposite(reload(sw),{state:1}).steps[0].settings.keys,'Ctrl+V');
+  const random=make('random');random.children=[make('media',{op:'next'}),timer];
+  assert.equal(core.planComposite(reload(random),{random:0}).steps[0].type,'media');
+  assert.equal(core.planComposite(reload(random),{random:0.99}).steps[0].type,'timer');
+  const logic=make('logic');logic.slots={single:make('media'),double:timer,hold:null};
+  assert.equal(core.planComposite(reload(logic),{gesture:'single'}).steps[0].type,'media');
+  assert.equal(core.planComposite(reload(logic),{gesture:'double'}).steps[0].settings.soundVolume,25);
+  assert.equal(core.planComposite(reload(logic),{gesture:'hold'}).steps.length,0);
+  assert.equal(core.planAction(reload(timer),0,1).seconds,75);
+  const gesture=reload(make('gesture-test',{single:'text',double:'media',hold:'none',logEnabled:false}));
+  assert.equal(gesture.settings.single,'text');assert.equal(gesture.settings.double,'media');assert.equal(gesture.settings.hold,'none');assert.equal(gesture.settings.logEnabled,false);
+  assert.equal(core.planAction(gesture,0,1).kind,'gesture-test');
+});

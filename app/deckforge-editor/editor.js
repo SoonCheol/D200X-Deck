@@ -2215,7 +2215,7 @@ function actionFields(item){
     case "ha-toggle":return input("entityId","엔티티 ID","switch.living_room")+
       '<div class="field"><label>엔티티</label><button type="button" data-ha-entities>목록에서 선택</button></div>';
     case "audio-stop": case "previous": case "next": case "indicator":return "";
-    case "timer":return `<div class="field"><label for="s-seconds">지속</label><div class="compound"><input type="number" min="1" id="s-seconds" data-field="seconds" value="${valueOf(item,"seconds",30)}"><span>초</span></div></div>`+select("sound","사운드",[["none","없음"],["connect","접속"],["disconnect","접속 끊김"],["release","접속 해제"],["find","찾기"],["other","기타"]]);
+    case "timer":return `<div class="field"><label for="s-seconds">지속</label><div class="compound"><input type="number" min="1" max="86400" id="s-seconds" data-field="seconds" value="${valueOf(item,"seconds",30)}"><span>초</span></div></div>`+select("sound","사운드",[["none","없음"],["connect","접속"],["disconnect","접속 끊김"],["release","접속 해제"],["find","찾기"],["other","기타"],["custom","사용자 지정"]])+pathPicker("soundFile","알림음 파일","audio")+`<div class="field"><label for="s-soundVolume">알림음 음량</label><div class="compound"><input id="s-soundVolume" type="range" min="0" max="100" data-field="soundVolume" value="${timerVolume(item.settings)}"><output id="timer-sound-volume-display">${timerVolume(item.settings)}%</output></div></div>`;
     case "brightness":return select("mode","동작",[["up","밝게"],["down","어둡게"],["max","최대"],["high","높음"],["medium","중간"],["low","낮음"],["min","최소"]]);
     case "sleep":return `<div class="field"><label>장치 화면</label><span class="hint">D200X 화면 잠자기 · 다음 물리 버튼 누름은 화면 깨우기에 사용 (PC 절전 아님)</span></div>`;
     case "virtual":return `<div class="field"><label>기기</label><span class="hint">구성된 Virtual DeckForge 없음</span></div>`;
@@ -2315,7 +2315,7 @@ function orderedMultiDialog(step,apply){
     }
   }else{
     const prior=active;fields.innerHTML=actionFields(draft);active=prior;
-    bindInputFieldDependencies(fields,draft);bindNestedAudioFields(fields,draft);
+    bindInputFieldDependencies(fields,draft);bindNestedAudioFields(fields,draft);bindNestedTimerFields(fields,draft);
     for(const node of fields.querySelectorAll('[data-field]'))node.addEventListener(node.tagName==='TEXTAREA'||node.type==='range'?'input':'change',()=>{draft.settings[node.dataset.field]=node.type==='checkbox'?fieldChecked(node):node.type==='number'||node.type==='range'?Number(node.value):node.value;});
     for(const button of fields.querySelectorAll('[data-path-picker]'))button.addEventListener('click',async()=>{try{const path=await window.deckBridge?.choosePath(button.dataset.pathKind);if(!path||!dialog.open)return;draft.settings[button.dataset.pathPicker]=path;const input=fields.querySelector('[data-field="'+button.dataset.pathPicker+'"]');if(input)input.value=path;}catch(e){window.d200xActionStatus?.(String(e?.message||e));}});
     if(draft.type==='ha-toggle')fields.querySelector('[data-ha-entities]')?.addEventListener('click',async()=>{
@@ -2583,8 +2583,8 @@ function renderMultiEditor(item,root){
       list.append(input);
     }else{
       const fields=document.createElement('div');fields.className='fields multi-step-fields';
-      fields.innerHTML=actionFields(step);bindExtendedActionFields(fields,step);
-      fields.querySelectorAll('[data-field]').forEach(node=>node.addEventListener('change',()=>{
+      fields.innerHTML=actionFields(step);bindExtendedActionFields(fields,step);bindNestedAudioFields(fields,step);
+      fields.querySelectorAll('[data-field]').forEach(node=>node.addEventListener(node.type==='range'||node.tagName==='TEXTAREA'?'input':'change',()=>{
         step.settings[node.dataset.field]=node.type==='checkbox'?fieldChecked(node):
           node.type==='number'||node.type==='range'?Number(node.value):node.value;
         persist();
@@ -2683,7 +2683,7 @@ function renderLogicEditor(item,root){
     const action=item.slots[slot];
     if(action){
       const fields=document.createElement('div');fields.className='fields multi-step-fields';
-      fields.innerHTML=actionFields(action);bindExtendedActionFields(fields,action);
+      fields.innerHTML=actionFields(action);bindExtendedActionFields(fields,action);bindNestedAudioFields(fields,action);
       fields.querySelectorAll('[data-field]').forEach(node=>node.addEventListener(
         node.type==='range'||node.tagName==='TEXTAREA'?'input':'change',()=>{
           action.settings[node.dataset.field]=node.type==='checkbox'?fieldChecked(node):
@@ -4750,8 +4750,22 @@ function bindNestedAudioFields(root,item){
   const volume=root.querySelector('[data-field="volume"]'),display=root.querySelector('#volume-display');
   if(volume&&display)volume.addEventListener('input',()=>{display.textContent=String(volume.value);});
 }
+function bindNestedTimerFields(root,item){
+  if(item.type!=='timer')return;
+  const seconds=root.querySelector('[data-field="seconds"]'),sound=root.querySelector('[data-field="sound"]');
+  const file=root.querySelector('[data-field="soundFile"]'),picker=root.querySelector('[data-path-picker="soundFile"]');
+  const volume=root.querySelector('[data-field="soundVolume"]'),display=root.querySelector('#timer-sound-volume-display');
+  if(seconds)seconds.addEventListener('change',()=>{seconds.value=String(DeckCore.timerSeconds(seconds.value));});
+  const sync=()=>{
+    const custom=sound?.value==='custom';
+    if(file)file.disabled=!custom;
+    if(picker)picker.disabled=!custom;
+  };
+  sound?.addEventListener('change',sync);sync();
+  if(volume&&display)volume.addEventListener('input',()=>{display.textContent=String(volume.value)+'%';});
+}
 function bindExtendedActionFields(root,item){
-  bindInputFieldDependencies(root,item);
+  bindInputFieldDependencies(root,item);bindNestedTimerFields(root,item);
   if(item.type==='website')bindWebsiteFields(root,item,persistInspectorChange);
   if(item.type==='sd-plugin'){
     root.querySelector('[data-sdk-inspector]')?.addEventListener('click',async()=>{

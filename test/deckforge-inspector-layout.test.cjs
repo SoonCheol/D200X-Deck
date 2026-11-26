@@ -726,3 +726,24 @@ test('shared input dependencies update scroll choices and text count without alt
   assert.match(editor,/bindInputFieldDependencies\(root,item\)/);
   assert.match(editor,/if\(draft.type==='audio-play'\)void populateAudioOutputs/);
 });
+
+
+test('nested timer retains alert path and volume and enables the path only for custom sound',()=>{
+  const start=editor.indexOf('function bindNestedTimerFields('),end=editor.indexOf('function bindExtendedActionFields(',start);
+  const bind=vm.runInNewContext(editor.slice(start,end)+'\nbindNestedTimerFields',{DeckCore:{timerSeconds:n=>Math.max(1,Math.min(86400,Math.round(Number(n)||30)))}});
+  const node=value=>({value,disabled:false,listeners:{},addEventListener(k,fn){this.listeners[k]=fn;},fire(k){this.listeners[k]?.();}});
+  const seconds=node('30'),sound=node('connect'),file=node('C:\\alarm.wav'),picker=node(''),volume=node('63'),display=node('');
+  const nodes={'[data-field="seconds"]':seconds,'[data-field="sound"]':sound,'[data-field="soundFile"]':file,'[data-path-picker="soundFile"]':picker,'[data-field="soundVolume"]':volume,'#timer-sound-volume-display':display};
+  const item={type:'timer',settings:{seconds:30,sound:'connect',soundFile:file.value,soundVolume:63}};
+  bind({querySelector:k=>nodes[k]},item);
+  assert.equal(file.disabled,true);assert.equal(picker.disabled,true);
+  sound.value='custom';sound.fire('change');assert.equal(file.disabled,false);assert.equal(picker.disabled,false);
+  sound.value='none';sound.fire('change');assert.equal(file.disabled,true);assert.equal(item.settings.soundFile,'C:\\alarm.wav');
+  seconds.value='99999';seconds.fire('change');assert.equal(seconds.value,'86400');
+  volume.value='25';volume.fire('input');assert.equal(display.textContent,'25%');
+  assert.equal(item.settings.soundVolume,63,'binding alone does not write saved settings');
+  assert.match(editor,/bindNestedTimerFields\(fields,draft\)/);
+  assert.match(editor,/bindNestedTimerFields\(root,item\)/);
+  assert.match(editor,/bindNestedAudioFields\(fields,step\)/);
+  assert.match(editor,/bindNestedAudioFields\(fields,action\)/);
+});
