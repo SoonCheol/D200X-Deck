@@ -202,12 +202,25 @@ class StoreClient{
     if(!this.origin||!this.checked||!this.session)throw Error('스토어 연결 확인 및 로그인이 필요합니다.');
     return this.session;
   }
-  catalog(kind,cursor=''){
+  catalog(kind,cursor='',filters={}){
     return this.exclusive(async()=>{
       const session=this.requireSession();
       if(!['iconpack','plugin'].includes(kind))throw Error('스토어 종류 오류');
       if(cursor)storeId(cursor);
-      const result=await this.request(this.origin,'/api/v1/catalog?kind='+kind+'&limit=20'+(cursor?'&cursor='+cursor:''),{token:session.token,jsonLimit:524288});
+      const params=new URLSearchParams({kind,limit:'20'});
+      if(cursor)params.set('cursor',cursor);
+      if(!filters||typeof filters!=='object'||Array.isArray(filters))throw Error('스토어 검색 조건 오류');
+      const allowed={purpose:['general','ha','windows','fusion','media','app'],naming:['general-name','ha-name','state'],design:['color','white','black','gray','line','white-line','black-line','solid','unknown']};
+      for(const [key,value] of Object.entries(filters)){
+        if(key==='q'){
+          if(typeof value!=='string'||Array.from(value.trim()).length>120)throw Error('스토어 검색어 오류');
+          if(value.trim())params.set(key,value.trim());
+        }else{
+          if(kind!=='iconpack'||!Object.hasOwn(allowed,key)||typeof value!=='string'||(value&&!allowed[key].includes(value)))throw Error('스토어 분류 조건 오류');
+          if(value)params.set(key,value);
+        }
+      }
+      const result=await this.request(this.origin,'/api/v1/catalog?'+params.toString(),{token:session.token,jsonLimit:524288});
       this.requireSession();
       if(!Array.isArray(result?.items)||result.items.length>20)throw Error('스토어 목록 응답 오류');
       const items=result.items.map(raw=>storeCatalogItem(raw,kind,session.account.role)).filter(Boolean);
