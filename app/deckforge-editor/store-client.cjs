@@ -1,0 +1,117 @@
+'use strict';
+// Store connection state is private to the editor main process; no SDK bridge.
+const fs=require('node:fs');
+const path=require('node:path');
+const https=require('node:https');
+const {randomUUID}=require('node:crypto');
+
+function normalizeStoreOrigin(value){
+  if(typeof value!=='string'||value.length>1024)throw Error('HTTPS 스토어 주소를 확인하세요.');
+  const text=value.trim();
+  if(!text)return '';
+  if(!/^https:\/\//i.test(text)||/[\s\\?#]/.test(text))throw Error('HTTPS 서버 주소만 입력하세요.');
+  let url;
+  try{url=new URL(text);}catch{throw Error('HTTPS 서버 주소를 확인하세요.');}
+  if(url.protocol!=='https:'||url.username||url.password||url.pathname!=='/'||url.search||url.hash||!url.hostname)
+    throw Error('경로·계정 정보 없이 HTTPS 서버 주소만 입력하세요.');
+  return url.origin;
+}
+function storeRequest(origin,route,{method='GET',body,token}={}){
+  // Only fixed API paths from this module. No redirects or TLS bypass.
+  const target=new URL(route,origin);
+  const payload=body===undefined?null:Buffer.from(JSON.stringify(body),'utf8');
+  return new Promise((resolve,reject)=>{
+    let timer,req,finished=false;
+    const finish=(error,value)=>{if(finished)return;finished=true;clearTimeout(timer);error?reject(error):resolve(value);};
+    const headers={accept:'application/json','cache-control':'no-store'};
+    if(payload){headers['content-type']='application/json';headers['content-length']=payload.length;}
+    if(token)headers.authorization='Bearer '+token;
+    try{
+      req=https.request(target,{method,headers,agent:false,rejectUnauthorized:true},res=>{
+        const status=res.statusCode||0;
+        if(status>=300&&status<400){res.destroy();finish(Error('스토어 리디렉션은 허용되지 않습니다.'));return;}
+        if(status===401||status===403){res.destroy();finish(Error('로그인 정보 또는 접근 권한을 확인하세요.'));return;}
+        if(status<200||status>=300){res.destroy();finish(Error('스토어 요청 실패 (HTTP '+status+')'));return;}
+        if(status===204){res.resume();finish(null,null);return;}
+        if(!/^application\/json(?:\s*;|$)/i.test(String(res.headers['content-type']||''))){res.destroy();finish(Error('스토어 API 응답 형식이 올바르지 않습니다.'));return;}
+        const chunks=[];let size=0;
+        res.on('data',chunk=>{size+=chunk.length;if(size>65536){res.destroy();finish(Error('스토어 응답 크기 제한 초과'));}else chunks.push(chunk);});
+        res.on('aborted',()=>finish(Error('스토어 응답이 중단되었습니다.')));
+        res.on('error',()=>finish(Error('스토어 응답을 읽을 수 없습니다.')));
+        res.on('end',()=>{try{finish(null,JSON.parse(Buffer.concat(chunks).toString('utf8')));}catch{finish(Error('스토어 JSON 응답이 올바르지 않습니다.'));}});
+      });
+      req.on('error',()=>finish(Error('스토어에 연결할 수 없습니다. HTTPS 인증서와 서버 주소를 확인하세요.')));
+      timer=setTimeout(()=>{finish(Error('스토어 연결 시간 초과'));req.destroy();},8000);
+      req.end(payload||undefined);
+    }catch{finish(Error('스토어 요청을 시작할 수 없습니다.'));}
+  });
+}
+class StoreClient{
+  constructor(directory,{request=storeRequest,now=Date.now}={}){
+    this.file=path.join(directory,'store-connection.json');this.request=request;this.now=now;
+    this.origin='';this.checked=false;this.session=null;this.busy=false;this.settingsError=false;
+    try{
+      const bytes=fs.readFileSync(this.file);
+      if(bytes.length>4096)throw Error('settings size');
+      const saved=JSON.parse(bytes.toString('utf8'));if(saved?.version!==1)throw Error('settings version');
+      this.origin=normalizeStoreOrigin(saved.origin);
+    }catch(error){if(error.code!=='ENOENT')this.settingsError=true;}
+  }
+  status(){
+    if(this.session&&this.session.expiresAt<=this.now())this.session=null;
+    return {origin:this.origin,checked:this.checked,account:this.session?{...this.session.account}:null,settingsError:this.settingsError};
+  }
+  async exclusive(fn){
+    if(this.busy)throw Error('스토어 작업이 진행 중입니다.');
+    this.busy=true;try{return await fn();}finally{this.busy=false;}
+  }
+  save(value){
+    return this.exclusive(()=>{
+      const next=normalizeStoreOrigin(value);
+      this.status();
+      if(this.session&&next!==this.origin)throw Error('서버 주소를 바꾸려면 먼저 로그아웃하세요.');
+      if(next===this.origin&&!this.settingsError)return this.status();
+      fs.mkdirSync(path.dirname(this.file),{recursive:true});
+      const tmp=this.file+'.'+randomUUID()+'.tmp';
+      try{
+        fs.writeFileSync(tmp,JSON.stringify({version:1,origin:next}),{encoding:'utf8',mode:0o600,flag:'wx'});
+        fs.renameSync(tmp,this.file);
+      }finally{fs.rmSync(tmp,{force:true});}
+      this.origin=next;this.checked=false;this.session=null;this.settingsError=false;return this.status();
+    });
+  }
+  check(){
+    return this.exclusive(async()=>{
+      if(!this.origin)throw Error('스토어 서버 주소를 먼저 저장하세요.');
+      this.checked=false;
+      const result=await this.request(this.origin,'/api/v1/health');
+      if(result?.service!=='deckforge-store'||result.apiVersion!==1||result.ok!==true)throw Error('호환되는 DeckForge Store 서버가 아닙니다.');
+      this.checked=true;return this.status();
+    });
+  }
+  login(username,password){
+    return this.exclusive(async()=>{
+      if(!this.origin||!this.checked)throw Error('저장된 서버의 연결 확인을 먼저 실행하세요.');
+      if(this.status().account)throw Error('먼저 로그아웃하세요.');
+      if(typeof username!=='string'||!username.trim()||username.length>128||typeof password!=='string'||!password||password.length>1024)
+        throw Error('계정과 비밀번호를 확인하세요.');
+      const result=await this.request(this.origin,'/api/v1/auth/login',{method:'POST',body:{username:username.trim(),password,client:'desktop'}});
+      const account=result?.account,token=result?.accessToken,seconds=result?.expiresIn;
+      if(typeof token!=='string'||!/^[-A-Za-z0-9._~+\/=]{16,4096}$/.test(token)||!Number.isInteger(seconds)||seconds<1||seconds>86400||
+        typeof account?.id!=='string'||!account.id||account.id.length>128||typeof account.username!=='string'||!account.username||account.username.length>128||
+        !['owner','user'].includes(account.role))throw Error('스토어 로그인 응답이 올바르지 않습니다.');
+      this.session={token,account:{id:account.id,username:account.username,role:account.role},expiresAt:this.now()+seconds*1000};
+      return this.status();
+    });
+  }
+  logout(){
+    return this.exclusive(async()=>{
+      this.status();const current=this.session;this.session=null;
+      if(!current)return {...this.status(),revoked:true};
+      let revoked=false;
+      try{await this.request(this.origin,'/api/v1/auth/logout',{method:'POST',token:current.token});revoked=true;}catch{}
+      return {...this.status(),revoked};
+    });
+  }
+}
+module.exports={normalizeStoreOrigin,StoreClient};

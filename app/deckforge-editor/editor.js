@@ -7392,17 +7392,62 @@ function storePluginMatches(summary,query,runtime){
   const p=summary.plugin;
   return [p.name,p.uuid,p.version,...summary.actions.flatMap(a=>[a.name,a.uuid])].some(value=>String(value||'').toLocaleLowerCase().includes(needle));
 }
+async function openStoreConnection(parent){
+  if(!window.deckBridge?.storeStatus)return;
+  const dlg=document.createElement('dialog');dlg.className='store-catalog-dialog store-connection-dialog';
+  dlg.setAttribute('aria-label','스토어 연결 설정');
+  dlg.innerHTML='<header class="store-catalog-header"><strong>스토어 연결 및 계정</strong><button type="button" data-close aria-label="닫기">×</button></header>'+
+    '<section class="store-connection-fields"><label>서버 주소<input type="url" data-origin placeholder="https://스토어 주소" maxlength="1024" autocomplete="off"></label>'+
+    '<div class="store-connection-buttons"><button type="button" data-save>주소 저장</button><button type="button" data-check>연결 확인</button></div>'+
+    '<p class="store-connection-state" role="status"></p><div class="store-connection-login">'+
+    '<label>계정<input type="text" data-user maxlength="128" autocomplete="off"></label><label>비밀번호<input type="password" data-password maxlength="1024" autocomplete="off"></label>'+
+    '<div class="store-connection-buttons"><button type="button" data-login>로그인</button><button type="button" data-logout>로그아웃</button></div></div>'+
+    '<p class="store-connection-message" role="status"></p><p class="store-pack-meta">로컬 목록은 연결 없이 사용 가능합니다. 서버 배포 및 원격 카탈로그는 후속 개발입니다. 로그인 정보는 재시작 시 다시 입력합니다.</p></section>';
+  document.body.append(dlg);
+  const $=selector=>dlg.querySelector(selector);
+  const address=$('[data-origin]'),user=$('[data-user]'),password=$('[data-password]'),message=$('.store-connection-message');
+  const save=$('[data-save]'),check=$('[data-check]'),login=$('[data-login]'),logout=$('[data-logout]'),close=$('[data-close]');
+  let state=null,busy=false;
+  function update(){
+    const saved=!!state?.origin&&address.value.trim()===state.origin;
+    $('.store-connection-state').textContent=state?.account?'로그인: '+state.account.username+' · '+(state.account.role==='owner'?'관리자':'사용자'):state?.checked?'서버 연결 확인 완료 · 로그인 필요':state?.origin?'주소 저장됨 · 연결 미확인':'서버 주소 미설정';
+    if(state?.settingsError)message.textContent='저장된 연결 설정을 읽지 못했습니다. 주소를 다시 저장하세요.';
+    address.disabled=busy||!!state?.account;save.disabled=busy||!!state?.account||!state;
+    check.disabled=busy||!saved;login.disabled=busy||!saved||!state?.checked||!!state?.account;
+    logout.disabled=busy||!state?.account;user.disabled=password.disabled=busy||!!state?.account;close.disabled=busy;
+    const header=parent.querySelector('[data-store-connection]');
+    if(header)header.textContent=state?.account?'계정 · 연결':'연결 설정';
+  }
+  async function run(operation,done){
+    if(busy)return;busy=true;message.textContent='처리 중…';update();
+    try{state=await operation();address.value=state.origin;message.textContent=done(state);}
+    catch(error){message.textContent=String(error?.message||error);try{state=await window.deckBridge.storeStatus();}catch{}}
+    finally{busy=false;password.value='';if(dlg.open)update();}
+  }
+  address.addEventListener('input',update);
+  save.addEventListener('click',()=>void run(()=>window.deckBridge.storeSave(address.value),()=> '주소 저장 완료 · 연결 확인을 실행하세요.'));
+  check.addEventListener('click',()=>void run(()=>window.deckBridge.storeCheck(),()=> 'DeckForge Store API v1 응답 확인 완료'));
+  login.addEventListener('click',()=>{const secret=password.value;password.value='';void run(()=>window.deckBridge.storeLogin(user.value,secret),()=> '로그인 완료');});
+  logout.addEventListener('click',()=>void run(()=>window.deckBridge.storeLogout(),result=>result.revoked?'로그아웃 완료':'로컬 로그아웃 완료 · 서버 세션 철회 확인 실패'));
+  close.addEventListener('click',()=>dlg.close());
+  dlg.addEventListener('cancel',event=>{if(busy)event.preventDefault();});
+  dlg.addEventListener('close',()=>{password.value='';dlg.remove();},{once:true});
+  dlg.showModal();busy=true;update();
+  try{state=await window.deckBridge.storeStatus();if(dlg.open)address.value=state.origin;}
+  catch{message.textContent='연결 설정을 읽을 수 없습니다.';}
+  finally{busy=false;if(dlg.open)update();}
+}
 let storeCatalogDialog=null;
 async function openStoreCatalog(){
   if(storeCatalogDialog?.open)return;
   const dialog=document.createElement('dialog');dialog.className='store-catalog-dialog';
   dialog.setAttribute('aria-labelledby','store-catalog-heading');
-  dialog.innerHTML='<header class="store-catalog-header"><strong id="store-catalog-heading">DeckForge Store</strong><span data-store-local>로컬 아이콘팩</span><button type="button" data-store-close aria-label="닫기">×</button></header>'+
+  dialog.innerHTML='<header class="store-catalog-header"><strong id="store-catalog-heading">DeckForge Store</strong><span data-store-local>로컬 아이콘팩</span><button type="button" data-store-connection>연결 설정</button><button type="button" data-store-close aria-label="닫기">×</button></header>'+
     '<nav class="store-catalog-tabs" aria-label="스토어 종류"><button type="button" data-store-tab="icons" aria-pressed="true">아이콘팩</button><button type="button" data-store-tab="plugins" aria-pressed="false">플러그인</button></nav>'+
     '<div class="store-catalog-toolbar"><input type="search" data-store-query placeholder="팩 이름 또는 아이콘 검색" aria-label="아이콘팩 검색">'+
     '<button type="button" data-store-import>팩 가져오기</button><button type="button" data-store-reload>새로 고침</button></div>'+
     '<div class="store-catalog-filters"></div><div class="store-catalog-filters store-plugin-filters" hidden><select aria-label="플러그인 규격" data-store-runtime><option value="all">전체 규격</option><option value="native">DeckForge SDK</option><option value="compatible">외부 호환</option><option value="unknown">기타</option></select></div><p class="store-catalog-status" role="status">NAS 서버 미연결 · 로컬 설치 목록을 읽는 중…</p>'+
-    '<div class="store-catalog-grid"></div><footer class="store-catalog-footer">로컬 설치 항목만 표시 · 네트워크 다운로드 및 로그인은 후속 개발</footer>';
+    '<div class="store-catalog-grid"></div><footer class="store-catalog-footer">로컬 설치 항목만 표시 · 원격 카탈로그 및 다운로드는 후속 개발</footer>';
   document.body.append(dialog);storeCatalogDialog=dialog;
   const find=sel=>dialog.querySelector(sel),grid=find('.store-catalog-grid'),status=find('.store-catalog-status'),query=find('[data-store-query]'),importButton=find('[data-store-import]'),reload=find('[data-store-reload]');
   const filterOptions={
@@ -7559,6 +7604,7 @@ async function openStoreCatalog(){
     catch(error){if(dialog.open)status.textContent='가져오기 실패: '+String(error?.message||error);}
     finally{busy=false;if(dialog.open){importButton.disabled=false;reload.disabled=false;for(const tab of tabs)tab.disabled=false;}}
   });
+  find('[data-store-connection]').addEventListener('click',()=>void openStoreConnection(dialog));
   find('[data-store-close]').addEventListener('click',()=>dialog.close());
   dialog.addEventListener('close',()=>{++request;dialog.remove();if(storeCatalogDialog===dialog)storeCatalogDialog=null;},{once:true});
   dialog.showModal();await load();

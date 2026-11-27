@@ -302,3 +302,34 @@ test('Store excludes app-provided plugins by exact identity, not SDK or name',()
  assert.equal(isOptional({}),false);
  assert.match(editor,/pluginRecords=plugins\.filter\(storePluginIsOptional\)\.map\(storePluginSummary\)/);
 });
+
+test('Store connection is explicit, HTTPS only and account tokens never appear in status or saved settings',async()=>{
+ const {StoreClient,normalizeStoreOrigin}=require(path.join(dir,'store-client.cjs'));
+ const os=require('node:os'),root=fs.mkdtempSync(path.join(os.tmpdir(),'deckforge-store-'));
+ try{
+   for(const value of ['http://host','https://user:pass@host','https://host/path','https://host?x=1','https://host#x','https://host\\evil'])assert.throws(()=>normalizeStoreOrigin(value));
+   assert.equal(normalizeStoreOrigin(' https://Example.com:443/ '),'https://example.com');
+   let now=1000;const calls=[];const token='test-token-0123456789';
+   const request=async(origin,route,options)=>{
+     calls.push({origin,route,options});
+     if(route==='/api/v1/health')return {ok:true,service:'deckforge-store',apiVersion:1};
+     if(route==='/api/v1/auth/login')return {accessToken:token,expiresIn:30,account:{id:'u1',username:'owner',role:'owner'}};
+     if(route==='/api/v1/auth/logout')return null;
+     throw Error('unexpected');
+   };
+   const client=new StoreClient(root,{request,now:()=>now});
+   assert.equal(client.status().origin,'');await assert.rejects(client.login('owner','secret'));
+   await client.save('https://example.com');assert.equal(calls.length,0);
+   await assert.rejects(client.login('owner','secret'));assert.equal(calls.length,0);
+   await client.check();const login=await client.login('owner','secret');
+   assert.equal(login.account.role,'owner');assert.ok(!JSON.stringify(login).includes(token));
+   const persisted=fs.readFileSync(path.join(root,'store-connection.json'),'utf8');
+   assert.ok(!persisted.includes(token)&&!persisted.includes('secret'));
+   await assert.rejects(client.save('https://other.example'));
+   const restored=new StoreClient(root,{request});assert.equal(restored.status().checked,false);assert.equal(restored.status().account,null);
+   assert.equal((await client.logout()).revoked,true);assert.equal(calls.at(-1).options.token,token);
+   await client.login('owner','secret');now+=31000;assert.equal(client.status().account,null);
+   await client.save('https://other.example');assert.equal(client.status().checked,false);
+   const invalid=new StoreClient(root,{request:async()=>({ok:true})});await assert.rejects(invalid.check());assert.equal(invalid.status().checked,false);
+ }finally{fs.rmSync(root,{recursive:true,force:true});}
+});

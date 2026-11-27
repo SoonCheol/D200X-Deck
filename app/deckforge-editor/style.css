@@ -1811,3 +1811,12 @@ dialog.deckforge-message-dialog:has(.fusion-command-properties){width:min(360px,
 .store-preview-white .store-plugin-action-icon{background:#fff}
 .store-plugin-placeholder{min-height:75px;display:grid;place-items:center;background:#000;color:#aaa;border-radius:4px;font-size:12px}
 .store-plugin-warning{color:#edbd78;font-size:12px;overflow-wrap:anywhere}
+
+.store-catalog-dialog.store-connection-dialog{width:min(460px,calc(100vw - 36px));height:auto;max-height:calc(100vh - 36px)}
+.store-connection-fields{display:grid;gap:12px;padding:16px;overflow:auto}
+.store-connection-fields label{display:grid;gap:6px;color:#ddd}
+.store-connection-fields input{width:100%;min-width:0}
+.store-connection-buttons{display:flex;gap:8px;justify-content:flex-end}
+.store-connection-login{display:grid;gap:10px;border-top:1px solid #444;padding-top:12px}
+.store-connection-state,.store-connection-message{margin:0;color:#ddd;overflow-wrap:anywhere}
+.store-connection-message{min-height:18px;color:#b7d6f5}

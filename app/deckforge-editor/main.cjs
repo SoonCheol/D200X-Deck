@@ -30,6 +30,13 @@ const Backup=require('./backup.cjs');
 const BackupPrivacy=require('./backup-privacy.cjs');
 const {GoogleDrive}=require('./google-drive.cjs');
 const UpdateCheck=require('./update-check.cjs');
+const {StoreClient}=require('./store-client.cjs');
+const storeClient=new StoreClient(app.getPath('userData'));
+ipcMain.handle('d200x:store-status',event=>{assertEditor(event);return storeClient.status();});
+ipcMain.handle('d200x:store-save',(event,origin)=>{assertEditor(event);return storeClient.save(origin);});
+ipcMain.handle('d200x:store-check',event=>{assertEditor(event);return storeClient.check();});
+ipcMain.handle('d200x:store-login',(event,username,password)=>{assertEditor(event);return storeClient.login(username,password);});
+ipcMain.handle('d200x:store-logout',event=>{assertEditor(event);return storeClient.logout();});
 let sdkHost=null;
 const pluginAudit=require('./plugin-audit.cjs').createPluginAudit({userData:app.getPath('userData'),appVersion:app.getVersion(),onError:()=>console.warn('DeckForge plugin audit write failed')});
 function sdk(){
