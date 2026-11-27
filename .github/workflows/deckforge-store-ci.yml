@@ -1,0 +1,29 @@
+name: DeckForge Store server verification
+on:
+  push:
+    paths:
+      - 'store/**'
+      - '.github/workflows/deckforge-store-ci.yml'
+  pull_request:
+    paths:
+      - 'store/**'
+      - '.github/workflows/deckforge-store-ci.yml'
+permissions:
+  contents: read
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: store
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - run: python -m pip install -r requirements.txt
+      - run: python -m compileall -q server.py package_inspector.py tests
+      - run: python -m unittest discover -s tests -v
+      - run: node --check web/app.js
+      - run: docker build -t deckforge-store:ci .
