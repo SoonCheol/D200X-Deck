@@ -148,3 +148,46 @@ test('editor removal only changes library and never resets saved or draft artwor
   fail=true;await context.removeIconPackFromLibrary(pack);
   assert.equal(removes,3);assert.equal(refreshes,1);assert.equal(JSON.stringify(state),original);
 });
+
+
+test('editor import keeps 196px originals and scales larger static artwork without losing aspect ratio',async()=>{
+  const vm=require('node:vm');
+  const source=await fs.readFile(path.join(__dirname,'../app/deckforge-editor/main.cjs'),'utf8');
+  const start=source.indexOf('async function normalizeImportedIcon('),end=source.indexOf('let builtinPacksCache',start);
+  assert.ok(start>=0&&end>start);
+  let calls=0,width=0,height=0,lastCanvas=null;
+  class MockImage {
+    set src(value){this.naturalWidth=width;this.naturalHeight=height;this.onload();}
+  }
+  const document={createElement:tag=>{
+    assert.equal(tag,'canvas');
+    return lastCanvas={width:0,height:0,getContext:()=>({drawImage(){}}),toDataURL:()=> 'data:image/png;base64,AA=='};
+  }};
+  const context=vm.createContext({window:{isDestroyed:()=>false,webContents:{executeJavaScript:async script=>{
+    calls++;return vm.runInNewContext(script,{Image:MockImage,document});
+  }}}});
+  vm.runInContext(source.slice(start,end),context);
+  const normalize=context.normalizeImportedIcon;
+  // Header fixtures exercise the fast path; real decoding remains Electron's job.
+  const pngHeader=(w,h)=>{const bytes=Buffer.alloc(24);png.copy(bytes,0,0,24);bytes.writeUInt32BE(w,16);bytes.writeUInt32BE(h,20);return bytes;};
+  for(const size of [144,196]){
+    const bytes=pngHeader(size,size);
+    assert.equal(await normalize(bytes,'image/png','square.png'),'data:image/png;base64,'+bytes.toString('base64'));
+  }
+  assert.equal(calls,0);
+  width=392;height=196;
+  await normalize(pngHeader(width,height),'image/png','wide.png');
+  assert.equal(calls,1);assert.equal(lastCanvas.width,196);assert.equal(lastCanvas.height,98);
+  width=196;height=196;
+  const jpeg=Buffer.from('jpeg mock');
+  assert.equal(await normalize(jpeg,'image/jpeg','square.jpg'),'data:image/jpeg;base64,'+jpeg.toString('base64'));
+  width=392;height=392;
+  await normalize(Buffer.from('<svg/>'),'image/svg+xml','vector.svg');
+  assert.equal(lastCanvas.width,196);assert.equal(lastCanvas.height,196);
+  const gif=Buffer.alloc(10);gif.write('GIF89a');gif.writeUInt16LE(196,6);gif.writeUInt16LE(196,8);
+  const before=calls;
+  assert.equal(await normalize(gif,'image/gif','animated.gif'),'data:image/gif;base64,'+gif.toString('base64'));
+  assert.equal(calls,before);
+  gif.writeUInt16LE(197,6);width=197;height=196;
+  await assert.rejects(normalize(gif,'image/gif','oversized.gif'),/프레임 보존 변환/);
+});

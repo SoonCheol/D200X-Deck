@@ -6,7 +6,7 @@
 
 - 현재 Windows Electron 사용자 데이터 루트는 **`%APPDATA%\DeckForge`**. 프로필은 `Profiles/profiles.json`, 직전 백업 `profiles.json.bak`; 이미지 데이터 URL은 `Resources/Icons/`에 SHA-256 중복 제거 파일로 분리 저장한다. 기존 localStorage 구성은 **사용자 승인에 따라 자동 이관하지 않으며** 삭제도 하지 않는다. 프로필 읽기 오류 시 빈 파일로 덮지 못하도록 저장 차단·사용자 알림 유지.
 - 외부 아이콘팩 공통 라이브러리 `Resources/IconPacks/icon-packs-v1.json`, SDK 플러그인 공통 `Plugins/`. 구 `StreamDeck/IconPacks`·`StreamDeck/Plugins` 및 암호화 설정은 최초 안전 복사 후 **원본 보존**, 덮어쓰기/재등장 방지 로직 보호. 내장 팩은 앱 배포 리소스이며 사용자 JSON과 분리. 사용자 팩 제거는 라이브러리 등록만 제거하며 프로필·초안·버튼/상태 이미지 및 출처 정보는 보존한다. NAS 원본 및 내장 팩 제거 금지.
-- 아이콘팩 가져오기 `.streamDeckIconPack`/ZIP/일반 이미지 폴더/`.sdIconPack` 폴더, 기존 원본 바이트 보존; 정적 144px 초과는 비율 축소, SVG는 안전 검사 후 PNG 변환. 대형 애니메이션 GIF/WebP를 임의 정지 이미지로 대체 금지. 압축 및 개별 이미지 용량·개수 검사 유지.
+- 아이콘팩 가져오기 `.streamDeckIconPack`/ZIP/일반 이미지 폴더/`.sdIconPack` 폴더, 기존 원본 바이트 보존; 신규 가져오기 정적 196px 초과는 비율 축소(기존 등록 팩·프로필 무변경). 196px 일반 버튼 및 392×196px 와이드 합성 규격 유지, 144px 기존 원본 사용 가능, SVG는 안전 검사 후 PNG 변환. 대형 애니메이션 GIF/WebP를 임의 정지 이미지로 대체 금지. 압축 및 개별 이미지 용량·개수 검사 유지.
 - Fusion 명령 캐시는 사용자가 지정한 이미지 우선, 정상 수신 이미지 우선, 연결 끊김 오버레이는 런타임 합성으로 **원본 이미지 불변**. 명령 식별은 단순 actionUUID 공통값이 아닌 `settings.pluginSettings.commandId` 기반, PC별 원본 Fusion 이미지/개인 데이터는 공개 GitHub에 올리지 않는다. Fusion add-in 건강 확인은 루프백 기반 `endpoint.json` + `/health`, WebSocket 연결과 실제 Fusion 실행 상태를 혼동하지 않는다.
 - 파일/앱 드롭, HA 인증·기기 상태, Stream Deck HTML/Node SDK 플러그인·원본 Property Inspector·Fusion SDK의 기존 호환 경로는 보존. Node.js 호스트의 WebSocket 자동 프로토콜 검증 성공은 Fusion 실제 명령 실행/Windows UI/물리 키 성공이 아니다.
 - 설치형(NSIS) 제거 시 **기본은 사용자 데이터 보존**, 명시적인 선택을 했을 때만 `%APPDATA%\DeckForge` 정리; 비대화형 제거는 보존. 다른 앱이나 구 폴더를 건드리지 않는다.

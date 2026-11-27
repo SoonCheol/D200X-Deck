@@ -2197,9 +2197,9 @@ async function normalizeImportedIcon(bytes,mime,filename){
   const original='data:'+mime+';base64,'+bytes.toString('base64');
   // Fast path for already-small PNG/GIF packs: no per-icon renderer round trip.
   if(mime==='image/png'&&bytes.length>=24&&
-     bytes.readUInt32BE(16)<=144&&bytes.readUInt32BE(20)<=144)return original;
+     bytes.readUInt32BE(16)<=196&&bytes.readUInt32BE(20)<=196)return original;
   if(mime==='image/gif'&&bytes.length>=10&&
-     bytes.readUInt16LE(6)<=144&&bytes.readUInt16LE(8)<=144)return original;
+     bytes.readUInt16LE(6)<=196&&bytes.readUInt16LE(8)<=196)return original;
   const animatedWebp=mime==='image/webp'&&bytes.length>21&&
     bytes.toString('ascii',12,16)==='VP8X'&&(bytes[20]&0x02)!==0;
   if(!window||window.isDestroyed())throw Error('아이콘 변환 창을 사용할 수 없습니다.');
@@ -2211,11 +2211,11 @@ async function normalizeImportedIcon(bytes,mime,filename){
     'const img=new Image();'+
     'await new Promise((ok,bad)=>{img.onload=ok;img.onerror=()=>bad(Error("이미지 디코딩 실패: "+name));img.src=src;});'+
     'if(img.naturalWidth<=0||img.naturalHeight<=0)throw Error("아이콘 크기를 확인할 수 없습니다.");'+
-    'if(img.naturalWidth<=144&&img.naturalHeight<=144&&mime!=="image/svg+xml")return src;'+
-    'if((mime==="image/gif"||animatedWebp)&&(img.naturalWidth>144||img.naturalHeight>144))'+
+    'if(img.naturalWidth<=196&&img.naturalHeight<=196&&mime!=="image/svg+xml")return src;'+
+    'if((mime==="image/gif"||animatedWebp)&&(img.naturalWidth>196||img.naturalHeight>196))'+
     'throw Error("대형 애니메이션 아이콘은 프레임 보존 변환이 필요합니다: "+name);'+
-    'const scale=Math.min(1,144/img.naturalWidth,144/img.naturalHeight);'+
-    'const w=mime==="image/svg+xml"?Math.min(144,Math.max(1,Math.round(img.naturalWidth*scale))):Math.max(1,Math.round(img.naturalWidth*scale));'+
+    'const scale=Math.min(1,196/img.naturalWidth,196/img.naturalHeight);'+
+    'const w=mime==="image/svg+xml"?Math.min(196,Math.max(1,Math.round(img.naturalWidth*scale))):Math.max(1,Math.round(img.naturalWidth*scale));'+
     'const h=Math.max(1,Math.round(img.naturalHeight*scale));'+
     'const canvas=document.createElement("canvas");canvas.width=w;canvas.height=h;'+
     'canvas.getContext("2d").drawImage(img,0,0,w,h);'+
