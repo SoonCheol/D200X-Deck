@@ -70,7 +70,7 @@ def create_app(data_dir=None,origin=None):
     database=root/"store.sqlite3"
     origin=origin_value(origin or os.environ["STORE_ORIGIN"])
     app=Flask(__name__,static_folder=None)
-    app.config.update(MAX_CONTENT_LENGTH=61*MIB,MAX_FORM_MEMORY_SIZE=16384,MAX_FORM_PARTS=16)
+    app.config.update(MAX_CONTENT_LENGTH=61*MIB,MAX_FORM_MEMORY_SIZE=131072,MAX_FORM_PARTS=16)
     @contextlib.contextmanager
     def db(write=False):
         connection=sqlite3.connect(database,timeout=10)

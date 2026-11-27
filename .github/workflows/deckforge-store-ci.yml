@@ -23,16 +23,16 @@ jobs:
         with:
           python-version: '3.13'
       - run: python -m pip install -r requirements.txt
-      - name: Install the editor's pinned SemVer dependency for live client tests
-        run: npm install --prefix "$RUNNER_TEMP/deckforge-store-client-test" --ignore-scripts --no-audit --no-fund semver@7.8.5
+      - name: Install the editor's pinned dependencies for client compatibility tests
+        run: npm install --prefix "$RUNNER_TEMP/deckforge-store-client-test" --ignore-scripts --no-audit --no-fund semver@7.8.5 jszip@3.10.2
       - run: python -m compileall -q server.py package_inspector.py signing.py folder_pack.py tests
       - name: API, signature, restore and real HTTPS editor tests
         run: NODE_PATH="$RUNNER_TEMP/deckforge-store-client-test/node_modules" python -m unittest discover -s tests -v
       - run: node --check web/app.js
-      - run: docker build --build-arg STORE_REVISION="$GITHUB_SHA" -t deckforge-store:0.1.3 .
+      - run: docker build --build-arg STORE_REVISION="$GITHUB_SHA" -t deckforge-store:0.1.4 .
       - name: Compose and isolated container smoke test
         env:
-          DECKFORGE_STORE_IMAGE: deckforge-store:0.1.3
+          DECKFORGE_STORE_IMAGE: deckforge-store:0.1.4
           DECKFORGE_STORE_ORIGIN: https://store.example.test
           DECKFORGE_STORE_PORT: '18080'
         run: |
@@ -53,14 +53,14 @@ jobs:
         run: |
           mkdir -p "$RUNNER_TEMP/deckforge-store-delivery"
           out="$RUNNER_TEMP/deckforge-store-delivery"
-          docker save deckforge-store:0.1.3 | gzip -1 > "$out/deckforge-store-0.1.3.tar.gz"
+          docker save deckforge-store:0.1.4 | gzip -1 > "$out/deckforge-store-0.1.4.tar.gz"
           cp compose.yaml README.md "$out/"
           printf '%s\n' "$GITHUB_SHA" > "$out/source-revision.txt"
-          (cd "$out" && sha256sum deckforge-store-0.1.3.tar.gz > SHA256SUMS)
+          (cd "$out" && sha256sum deckforge-store-0.1.4.tar.gz > SHA256SUMS)
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2, existing repository pin
         if: github.event_name == 'push'
         with:
-          name: deckforge-store-0.1.3-amd64
+          name: deckforge-store-0.1.4-amd64
           path: ${{ runner.temp }}/deckforge-store-delivery/
           retention-days: 3
           compression-level: 0

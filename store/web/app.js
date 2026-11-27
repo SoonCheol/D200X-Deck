@@ -103,7 +103,7 @@ function renderFolder(){
   check.onchange=()=>{r.selected=check.checked;$('icon-page').textContent=(folderPage+1)+' / '+pages+' · '+folderRows.filter(x=>x.selected).length+'개 선택';};
   const img=el('img');const url=URL.createObjectURL(r.file);previewUrls.push(url);img.src=url;img.alt='';img.loading='lazy';
   const col=el('div');const tags=el('input');tags.value=r.tags.join(', ');tags.placeholder='검색 태그 (쉼표 구분)';tags.setAttribute('aria-label',r.path+' 검색 태그');
-  tags.onchange=()=>{try{r.tags=parseTags(tags.value);tags.setCustomValidity('');tags.value=r.tags.join(', ');}catch(e){tags.setCustomValidity(e.message);tags.reportValidity();}};
+  tags.onchange=()=>{try{r.tags=parseTags(tags.value);}catch(e){$('folder-status').textContent=e.message;}tags.value=r.tags.join(', ');};
   col.append(el('strong',r.path),tags);row.append(check,img,col);$('icon-rows').append(row);
  }
 }

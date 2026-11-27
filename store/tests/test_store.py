@@ -4,6 +4,7 @@ import json
 import tempfile
 import unittest
 import zipfile
+import random
 import shutil
 import subprocess
 from pathlib import Path
@@ -141,10 +142,27 @@ const x=JSON.parse(fs.readFileSync(0,'utf8'));if(!fn(x.origin,x.item,{origin:x.o
         with zipfile.ZipFile(io.BytesIO(downloaded)) as z:
             index=json.loads(z.read("icons.json"));self.assertEqual(index[0],{"path":"win/copy.png","name":"copy","tags":["복사","Windows"]})
             self.assertEqual(z.read("icons/win/copy.png"),image)
+        archive=Path(self.tmp.name)/"client-read.zip";archive.write_bytes(downloaded)
+        parser=Path(__file__).resolve().parents[2]/"app/deckforge-editor/icon-pack.cjs"
+        script="""const assert=require('node:assert/strict'),fs=require('node:fs');
+const {parseIconPack}=require(process.argv[1]);(async()=>{const p=await parseIconPack(fs.readFileSync(process.argv[2]));assert.equal(p.name,'내 아이콘');assert.equal(p.version,'1.2.0');assert.equal(p.author,'제작자');assert.equal(p.icons[0].name,'copy');assert.equal(p.icons[0].filename,'win/copy.png');assert.deepEqual(p.icons[0].tags,['복사','Windows']);assert.equal(p.icons.length,3);})().catch(e=>{console.error(e);process.exit(1)});"""
+        subprocess.run(["node","-e",script,str(parser),str(archive)],check=True,timeout=20)
         for paths in [("../bad.png",),("x.svg",),("copy.png","COPY.png")]:
             self.assertEqual(self.c.post(endpoint,data=data(paths),headers=self.owner).status_code,400)
         self.assertEqual(self.c.post(endpoint,data=data(tags=["x"*61]),headers=self.owner).status_code,400)
         # Beyond the previous 16-part upload limit.
         result=self.c.post(endpoint,data=data(tuple("folder/icon"+str(i)+".png" for i in range(20))),headers=self.owner)
         self.assertEqual(result.status_code,201,result.json);self.assertEqual(result.json["item"]["iconCount"],20)
+        # Multipart parser must handle multiple 64KiB chunks, not just toy fixtures.
+        large=io.BytesIO()
+        Image.frombytes("RGB",(256,256),random.Random(1).randbytes(256*256*3)).save(large,format="PNG")
+        self.assertGreater(len(large.getvalue()),65536)
+        request_data=data(("large.png",))
+        request_data["icons"]=[(io.BytesIO(large.getvalue()),"large.png")]
+        result=self.c.post(endpoint,data=request_data,headers=self.owner)
+        self.assertEqual(result.status_code,201,result.json)
+        # Existing single-file import still accepts a large multipart archive.
+        archive=io.BytesIO()
+        with zipfile.ZipFile(archive,"w") as z:z.writestr("large.png",large.getvalue())
+        self.assertEqual(self.upload(data=archive.getvalue()).status_code,201)
 if __name__=="__main__": unittest.main()
