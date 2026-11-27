@@ -458,7 +458,7 @@ test('page indicator uses standard paired cards with independent title and numbe
   assert.match(editor,/root\._openIndicatorStyle\(font,field\)/);
   assert.match(editor,/titleLine\.prepend\(titleCheck\)/);
   assert.match(editor,/line\.prepend\(check,name\)/);
-  assert.match(editor,/if\(\(hasStateTitlePair\(item\)\|\|item\.type==='indicator'\|\|hasSingleBasicIconCard\(item\)\|\|DeckCore\.isNativeForeground\(item,typeof sdkPlugins==='undefined'\?null:sdkPlugins\)\)&&iconRegion\)/);
+  assert.match(editor,/if\(\(usesPairedInspectorLayout\(item\)\)&&iconRegion\)/);
   assert.match(editor,/const hasStateCards=hasStateTitlePair\(item\)\|\|item\.type==='indicator';/);
   assert.match(css,/\.indicator-inspector \.state-title-layout \.indicator-icon-cards>\.sdk-state-icon\{grid-template-rows:auto 31px 31px auto\}/);
   assert.match(css,/\.indicator-inspector \.state-title-layout \.indicator-icon-cards \.sdk-state-preview,.*\{grid-row:4\}/);
@@ -908,4 +908,24 @@ test('native inspector draft collector validates visible values and retains hidd
  entries[1].input.disabled=false;entries[1].input.valueAsNumber=NaN;
  assert.equal(collect(entries,rows,original,true).error,'간격 값을 확인하세요.');
  assert.equal(JSON.stringify(original),before);
+});
+
+
+test('new LCD actions inherit common inspector layout and bindings without inferring runtime state',()=>{
+ const start=editor.indexOf('function usesPairedInspectorLayout('),end=editor.indexOf('function renderInspector(',start);
+ assert.ok(start>=0&&end>start);
+ const momentaryStart=editor.indexOf('function isMomentaryIconAction('),momentaryEnd=editor.indexOf('// Text action labels',momentaryStart);
+ const singleStart=editor.indexOf('function hasSingleBasicIconCard('),singleEnd=editor.indexOf('function bindNativeForegroundIconCard(',singleStart);
+ const calls=[],root={},item={type:'future-basic-action'};
+ const context={DeckCore:{isNativeForeground:action=>action?.settings?.foreground===true},isFusionAction:action=>action?.settings?.fusion===true};
+ for(const name of ['bindNativeForegroundIconCard','bindSdkStateIcons','bindKeyPressIconControls','appendInspectorSaveBar'])context[name]=(...args)=>calls.push([name,...args]);
+ const api=vm.runInNewContext(editor.slice(momentaryStart,momentaryEnd)+'\n'+editor.slice(singleStart,singleEnd)+'\n'+editor.slice(start,end)+';({usesPairedInspectorLayout,bindCommonInspectorCards})',context);
+ for(const action of [item,{type:'sleep'},{type:'logic'},{type:'indicator'},{type:'timer'},{type:'sd-plugin',settings:{foreground:true}},{type:'sd-plugin',settings:{fusion:true}},{type:'sd-plugin',settings:{}}])assert.equal(api.usesPairedInspectorLayout(action),true,action.type);
+ for(const type of ['wide-display','folder-back','ha-toggle'])assert.equal(api.usesPairedInspectorLayout({type}),false,type);
+ api.bindCommonInspectorCards(root,item);
+ assert.deepEqual(calls.map(x=>x[0]),['bindNativeForegroundIconCard','bindSdkStateIcons','bindKeyPressIconControls','appendInspectorSaveBar']);
+ assert.ok(calls.slice(0,3).every(x=>x[1]===root&&x[2]===item));assert.equal(calls[3][1],root);
+ const render=editor.slice(end);
+ assert.match(render,/usesPairedInspectorLayout\(item\)\?' state-title-inspector'/);
+ assert.match(render,/bindCommonInspectorCards\(root,item\)/);
 });

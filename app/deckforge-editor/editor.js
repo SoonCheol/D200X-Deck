@@ -5262,6 +5262,17 @@ function renderTimerSettings(item,root){
   root.querySelector('.fields')?.append(area);
 }
 
+// One layout policy and common card binding entry for newly registered LCD actions.
+// Keep runtime state selection, dedicated indicator and native adapters separate.
+function usesPairedInspectorLayout(item){
+  return hasStateTitlePair(item)||item?.type==='indicator'||hasSingleBasicIconCard(item)||DeckCore.isNativeForeground(item,typeof sdkPlugins==='undefined'?null:sdkPlugins);
+}
+function bindCommonInspectorCards(root,item){
+  bindNativeForegroundIconCard(root,item);
+  bindSdkStateIcons(root,item);
+  bindKeyPressIconControls(root,item);
+  appendInspectorSaveBar(root);
+}
 function renderInspector(){
   beginInspectorSession();
   inspectorListener.abort();inspectorListener=new AbortController();
@@ -5293,7 +5304,7 @@ function renderInspector(){
     root.className="inspector empty";root.textContent=state.selected===null?"버튼을 선택하세요":"액션을 끌어 이 키에 놓으세요";
     if(inspectorSession?.dirty)appendInspectorSaveBar(root);return;
   }
-  root.className="inspector action-layout-inspector"+(pressIsOrdinary(rootItem)&&state.selected<13?' press-gesture-inspector':'')+(item.type==='text'?' text-inspector':'')+(item.type==='hotkey-switch'?' hotkey-switch-inspector':'')+(item.type==='sd-plugin'?' sdk-plugin-inspector':'')+(hasStateTitlePair(item)||item.type==='indicator'||hasSingleBasicIconCard(item)||DeckCore.isNativeForeground(item,typeof sdkPlugins==='undefined'?null:sdkPlugins)?' state-title-inspector':'')+(item.type==='indicator'?' indicator-inspector':'');
+  root.className="inspector action-layout-inspector"+(pressIsOrdinary(rootItem)&&state.selected<13?' press-gesture-inspector':'')+(item.type==='text'?' text-inspector':'')+(item.type==='hotkey-switch'?' hotkey-switch-inspector':'')+(item.type==='sd-plugin'?' sdk-plugin-inspector':'')+(usesPairedInspectorLayout(item)?' state-title-inspector':'')+(item.type==='indicator'?' indicator-inspector':'');
   const action=ACTIONS.get(item.type),fields=item.type==='timer'?'':actionFields(item);
   const sdkName=item.type==='sd-plugin'
     ?(item.settings?.actionUUID===HA_CUSTOM_ACTION?'Home Assistant 장치 제어':
@@ -5457,10 +5468,7 @@ function renderInspector(){
   if(item.type==='gesture-test')renderGestureTestEditor(item,root);
   if(item.type==='folder')renderFolderInspector(item,root);
   // Preserve the original bound icon cards/preview; adjust only their surrounding toolbar.
-  bindNativeForegroundIconCard(root,item);
-  bindSdkStateIcons(root,item);
-  bindKeyPressIconControls(root,item);
-  appendInspectorSaveBar(root);
+  bindCommonInspectorCards(root,item);
   // Move already-bound DOM nodes, preserving settings, event handlers and both cards.
   const properties=root.querySelector('.inspector-properties-region');
   const fieldsHost=properties.querySelector('.fields');
@@ -5500,7 +5508,7 @@ function renderInspector(){
       stop.addEventListener('click',()=>{runningMultiProgress.get(DeckCore.runtimeActionKey(state,state.selected,'down'))?.controller.abort();refreshMultiRunControls();});
       preview.append(stop);refreshMultiRunControls();
     }
-    if((hasStateTitlePair(item)||item.type==='indicator'||hasSingleBasicIconCard(item)||DeckCore.isNativeForeground(item,typeof sdkPlugins==='undefined'?null:sdkPlugins))&&iconRegion){
+    if((usesPairedInspectorLayout(item))&&iconRegion){
       const layout=document.createElement('div');layout.className='state-title-layout';
       // Keep the bound Key Up/Key Down cards together, then the original preview/test.
       layout.append(iconRegion,preview);
