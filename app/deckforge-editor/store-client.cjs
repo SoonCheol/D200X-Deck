@@ -99,6 +99,16 @@ function storeLocalState(item,installed,origin){
   if(item.kind==='iconpack')state.matches=storeMatchingIconPacks(item,installed,origin).map(p=>({id:p.id,name:p.name,version:p.version,source:p.source}));
   return state;
 }
+// Update candidates must match installed identity and be strictly newer.
+function storeUpdateCandidate(item,installed,origin){
+  if(storeInstalledState(item,installed,origin).state!=='update')return null;
+  if(item.kind==='iconpack'){
+    const matches=storeMatchingIconPacks(item,installed,origin).filter(p=>p.storeSource?.origin===origin&&p.storeSource?.itemId===item.id);
+    return matches.length?{...item,localIds:matches.map(p=>p.id)}:null;
+  }
+  const plugin=installed.find(p=>p.uuid===item.packageId&&p.runtime==='deckforge-sdk');
+  return plugin&&item.trusted&&item.source==='deckforge'&&item.format==='deckforgePlugin'&&!STORE_BUILTINS.has(item.packageId.toLowerCase())?{...item,localIds:[plugin.uuid]}:null;
+}
 function storeCatalogItem(raw,kind,role){
   if(!raw||raw.kind!==kind||!['iconpack','plugin'].includes(kind))throw Error('스토어 항목 종류 오류');
   const str=(v,max)=>{if(typeof v!=='string'||!v.trim()||v.length>max||/[\x00-\x1f\x7f]/.test(v))throw Error('스토어 항목 정보 오류');return v;};
@@ -280,4 +290,4 @@ class StoreClient{
     });
   }
 }
-module.exports={DEFAULT_STORE_ORIGIN,normalizeStoreOrigin,StoreClient,storeCatalogItem,verifyStoreBytes,storePreviewPng,storeInstalledState,storeLocalState,storeTrustKey,storeSignaturePayload,verifyStoreSignature};
+module.exports={DEFAULT_STORE_ORIGIN,normalizeStoreOrigin,StoreClient,storeCatalogItem,verifyStoreBytes,storePreviewPng,storeInstalledState,storeLocalState,storeUpdateCandidate,storeTrustKey,storeSignaturePayload,verifyStoreSignature};

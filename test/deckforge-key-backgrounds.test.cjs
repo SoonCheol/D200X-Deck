@@ -445,3 +445,21 @@ test('Store trust pins an independent Ed25519 key and rejects tampered release f
    await reopened.resetOrigin();assert.equal(calls.length,0);
  }finally{fs.rmSync(root,{recursive:true,force:true});}
 });
+
+
+test('installed Store updates require linked icon identity or trusted native plugin and strictly newer version',()=>{
+ const {storeUpdateCandidate}=require(path.join(dir,'store-client.cjs'));
+ const origin='https://example.com';
+ const icon={kind:'iconpack',id:'i1',version:'2.0.0',sha256:'a'.repeat(64)};
+ const old={id:'old',version:'1.0.0',storeSource:{origin,itemId:'i1'}};
+ assert.deepEqual(storeUpdateCandidate(icon,[old],origin).localIds,['old']);
+ assert.equal(storeUpdateCandidate(icon,[{...old,version:'3.0.0'}],origin),null);
+ assert.equal(storeUpdateCandidate(icon,[{...old,storeSource:null}],origin),null);
+ assert.equal(storeUpdateCandidate(icon,[old,{id:icon.sha256.slice(0,20),version:icon.version}],origin),null);
+ const plugin={kind:'plugin',packageId:'com.vendor.test',version:'2.0.0',trusted:true,source:'deckforge',format:'deckforgePlugin'};
+ const installed={uuid:plugin.packageId,version:'1.0.0',runtime:'deckforge-sdk'};
+ assert.deepEqual(storeUpdateCandidate(plugin,[installed],origin).localIds,[installed.uuid]);
+ assert.equal(storeUpdateCandidate({...plugin,trusted:false},[installed],origin),null);
+ assert.equal(storeUpdateCandidate(plugin,[{...installed,runtime:'streamdeck-sdk'}],origin),null);
+ assert.equal(storeUpdateCandidate(plugin,[{...installed,version:'2.0.0'}],origin),null);
+});

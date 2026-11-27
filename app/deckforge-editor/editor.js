@@ -1760,6 +1760,38 @@ function openSdkPluginHelp(plugin,isFusion,retained=false){
     button.addEventListener('click',async()=>{dialog.close();try{const result=await window.deckBridge.nativeBrowserPermission(plugin.uuid);if(result)window.d200xActionStatus?.(result.approved?'웹페이지 열기 권한 승인':'웹페이지 열기 권한 철회');}catch(error){window.d200xActionStatus?.('권한 변경 실패: '+String(error?.message||error));}});
     dialog.append(button);
   }
+  if(storePluginIsOptional(plugin)&&plugin.runtime==='deckforge-sdk'&&window.deckBridge?.storeUpdates){
+    const section=document.createElement('section'),check=document.createElement('button'),info=document.createElement('span');
+    section.className='native-sdk-tools';check.type='button';check.className='sdk-plugin-help-close';check.textContent='업데이트 확인';
+    info.setAttribute('role','status');section.append(check,info);dialog.append(section);
+    let checking=false,candidate=null;
+    async function lookup(explicit){
+      if(checking)return;checking=true;check.disabled=true;candidate=null;check.textContent='업데이트 확인';
+      try{
+        const s=await window.deckBridge.storeStatus();
+        if(!s?.account||!s.checked){info.textContent=explicit?'스토어 로그인 필요':'';return;}
+        const rows=await window.deckBridge.storeUpdates('plugin',plugin.uuid);
+        if(!dialog.open||!section.isConnected)return;
+        if(rows.length===1){candidate=rows[0];info.textContent=plugin.version+' → '+candidate.version+' · 업데이트 가능';check.textContent='업데이트';}
+        else info.textContent=rows.length?'서버 항목 중복 · 확인 필요':explicit?'설치 가능한 새 버전 없음':'';
+      }catch(error){if(explicit)info.textContent='확인 실패: '+String(error?.message||error);}
+      finally{checking=false;check.disabled=false;}
+    }
+    check.onclick=async()=>{
+      if(!candidate)return lookup(true);
+      if(!pluginCleanupReady()){info.textContent='미저장 편집이나 실행 중인 동작을 먼저 마치세요.';return;}
+      if(checking)return;checking=true;check.disabled=true;close.disabled=true;
+      try{
+        const item=candidate,result=await window.deckBridge.storeDownload('plugin',item.id,item.releaseId,item.sha256,false,true,true);
+        if(result?.kind==='plugin-installed'){
+          for(const instance of sdkActionInstances())if(instance.pluginUUID===plugin.uuid)sdkVisuals.delete(instance.context);
+          await refreshSdkPlugins();scheduleSdkSync();dialog.close();window.d200xActionStatus?.('플러그인 업데이트 완료: '+result.version);
+        }
+      }catch(error){info.textContent='업데이트 실패: '+String(error?.message||error);}
+      finally{checking=false;check.disabled=false;close.disabled=false;}
+    };
+    queueMicrotask(()=>{if(dialog.open&&section.isConnected)void lookup(false);});
+  }
   const canRemove=plugin.uuid==='com.deckforge.native.home-assistant'?false:plugin.runtime==='deckforge-sdk'?window.deckBridge?.nativeRemove:window.deckBridge?.legacyPluginRemove;
   if(canRemove){
     const footer=document.createElement('div');footer.style.cssText='display:flex;justify-content:flex-end;border-top:1px solid #46505b;margin-top:14px;padding-top:12px;gap:8px';
@@ -7612,6 +7644,7 @@ async function openStoreCatalog(){
 let libraryTarget=null;
 let libraryStateKey=null;
 let importedIconPacks=[];
+let iconPackUpdates=new Map(),iconUpdateBusy=false,iconUpdateEpoch=0;
 const ICON_PAGE_SIZE=84;
 const iconVisibleCounts=new Map();
 const expandedIconPacks=new Set();
@@ -7624,6 +7657,38 @@ async function refreshImportedIconPacks(){
   }catch(error){
     window.d200xActionStatus?.('아이콘팩 목록 읽기 실패: '+String(error?.message||error));
   }
+}
+async function checkIconPackUpdates(explicit=false){
+  if(iconUpdateBusy||!window.deckBridge?.storeUpdates)return;
+  const epoch=++iconUpdateEpoch,button=$('icon-pack-check-updates');
+  iconUpdateBusy=true;button.disabled=true;
+  try{
+    iconPackUpdates.clear();
+    if(!$('icon-library').hidden)renderIconLibrary();
+    const connection=await window.deckBridge.storeStatus();
+    if(!connection?.account||!connection.checked){
+      if(explicit)window.d200xActionStatus?.('스토어 연결 설정에서 로그인 후 업데이트를 확인하세요.');
+      return;
+    }
+    const updates=await window.deckBridge.storeUpdates('iconpack');
+    if(epoch!==iconUpdateEpoch||$('icon-library').hidden)return;
+    for(const item of updates)for(const id of item.localIds)iconPackUpdates.set(id,item);
+    renderIconLibrary();
+    if(explicit)window.d200xActionStatus?.(updates.length?'아이콘팩 업데이트 '+updates.length+'개':'연결된 아이콘팩에 새 버전이 없습니다.');
+  }catch(error){if(explicit)window.d200xActionStatus?.('업데이트 확인 실패: '+String(error?.message||error));}
+  finally{iconUpdateBusy=false;button.disabled=false;}
+}
+async function updateIconPack(pack,button){
+  const item=iconPackUpdates.get(pack.id);
+  if(!item||iconUpdateBusy)return;
+  iconUpdateBusy=true;button.disabled=true;
+  try{
+    const result=await window.deckBridge.storeDownload('iconpack',item.id,item.releaseId,item.sha256,true,false,true);
+    if(result?.kind==='installed'||result?.kind==='already-installed'){
+      await refreshImportedIconPacks();window.d200xActionStatus?.('아이콘팩 새 버전 등록 완료 · 기존 팩과 버튼 이미지 유지');
+    }
+  }catch(error){window.d200xActionStatus?.('아이콘팩 업데이트 실패: '+String(error?.message||error));}
+  finally{iconUpdateBusy=false;button.disabled=false;if(!$('icon-library').hidden)void checkIconPackUpdates();}
 }
 async function importIconPackIntoLibrary(fromFolder=false){
   if(!window.deckBridge?.importIconPack){
@@ -7743,7 +7808,15 @@ function renderIconLibrary(){
       remove.className='icon-pack-remove';remove.textContent='삭제';
       remove.title=pack.name+' 제거';remove.setAttribute('aria-label',pack.name+' 아이콘팩 제거');
       remove.addEventListener('click',()=>removeIconPackFromLibrary(pack));
-      wrapper.append(title,remove);heading=wrapper;
+      wrapper.append(title);
+      const update=iconPackUpdates.get(pack.id);
+      if(update){
+        const button=document.createElement('button');button.type='button';button.className='icon-pack-remove';
+        button.textContent='업데이트';button.title=pack.version+' → '+update.version;
+        button.setAttribute('aria-label',pack.name+' 업데이트 가능 '+update.version);
+        button.addEventListener('click',()=>void updateIconPack(pack,button));wrapper.append(button);
+      }
+      wrapper.append(remove);heading=wrapper;
     }
     const grid=document.createElement('div');grid.className='icon-grid';
     grid.hidden=!expandedIconPacks.has(pack.id);
@@ -7838,10 +7911,11 @@ function openIconLibrary(item,stateKey=null,trigger=null){
   expandedIconPacks.clear();
   renderIconLibrary();
   openAnchoredIconDialog($("icon-library"),trigger,360);
-  refreshImportedIconPacks();
+  void refreshImportedIconPacks().then(()=>checkIconPackUpdates());
   $("icon-library-search").focus();
 }
 function closeIconLibrary(){
+  ++iconUpdateEpoch;iconPackUpdates.clear();
   closeAnchoredIconDialog($("icon-library"));libraryTarget=null;libraryStateKey=null;librarySession=null;
 }
 let fileIconTarget=null;
@@ -8696,6 +8770,7 @@ function bindSidebarHeader(){
   // The main settings screen remains explicitly disabled.
 }
 $("icon-pack-import").addEventListener("click",()=>importIconPackIntoLibrary(false));
+$("icon-pack-check-updates").addEventListener("click",()=>void checkIconPackUpdates(true));
 $("icon-pack-folder-import").addEventListener("click",()=>importIconPackIntoLibrary(true));
 window.addEventListener('resize',()=>{
   for(const id of ['icon-library','icon-maker']){

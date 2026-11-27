@@ -30,7 +30,7 @@ const Backup=require('./backup.cjs');
 const BackupPrivacy=require('./backup-privacy.cjs');
 const {GoogleDrive}=require('./google-drive.cjs');
 const UpdateCheck=require('./update-check.cjs');
-const {StoreClient,storeLocalState}=require('./store-client.cjs');
+const {StoreClient,storeLocalState,storeUpdateCandidate}=require('./store-client.cjs');
 const storeClient=new StoreClient(app.getPath('userData'));
 ipcMain.handle('d200x:store-status',event=>{assertEditor(event);return storeClient.status();});
 ipcMain.handle('d200x:store-save',(event,origin)=>{assertEditor(event);return storeClient.save(origin);});
@@ -57,6 +57,29 @@ ipcMain.handle('d200x:store-catalog',async(event,kind,cursor,filters)=>{
   if(storeClient.requireSession()!==session||storeClient.status().origin!==origin)throw Error('스토어 세션이 변경되었습니다.');
   return {...page,items:page.items.map(item=>({...item,local:storeLocalState(item,installed,origin)}))};
 });
+ipcMain.handle('d200x:store-updates',async(event,kind,pluginId='')=>{
+  assertEditor(event);
+  if(!['iconpack','plugin'].includes(kind)||typeof pluginId!=='string'||pluginId.length>160)throw Error('스토어 종류 오류');
+  const session=storeClient.requireSession(),origin=storeClient.status().origin;
+  let installed;
+  if(kind==='iconpack'){await ensureIconPacksMigrated();installed=(await readPacks(iconPacksFile())).filter(p=>p.storeSource?.origin===origin&&p.source!=='bundled');}
+  else installed=(await sdk().list()).filter(p=>p.runtime==='deckforge-sdk'&&p.uuid===pluginId);
+  if(!installed.length)return [];
+  const updates=[],seen=new Set();let cursor='';
+  for(let n=0;n<50;n++){
+    if(storeClient.requireSession()!==session||storeClient.status().origin!==origin)throw Error('스토어 세션이 변경되었습니다.');
+    const page=await storeClient.catalog(kind,cursor,kind==='plugin'?{q:pluginId}:{});
+    if(storeClient.requireSession()!==session||storeClient.status().origin!==origin)throw Error('스토어 세션이 변경되었습니다.');
+    for(const item of page.items){
+      const update=storeUpdateCandidate(item,installed,origin);
+      if(update&&!seen.has(item.id)){seen.add(item.id);updates.push(update);}
+    }
+    if(!page.nextCursor)return updates;
+    if(page.nextCursor===cursor)throw Error('스토어 페이지 오류');
+    cursor=page.nextCursor;
+  }
+  throw Error('업데이트 확인 범위를 초과했습니다. 전체 확인이 완료되지 않았습니다.');
+});
 ipcMain.handle('d200x:store-local-state',async(event,item)=>{
   assertEditor(event);
   const session=storeClient.requireSession(),origin=storeClient.status().origin;
@@ -68,17 +91,21 @@ ipcMain.handle('d200x:store-local-state',async(event,item)=>{
   return storeLocalState(item,installed,origin);
 });
 ipcMain.handle('d200x:store-preview',(event,kind,id,releaseId,hash)=>{assertEditor(event);return storeClient.preview(kind,id,releaseId,hash);});
-ipcMain.handle('d200x:store-download',(event,kind,id,releaseId,hash,installIconPack=false,installPlugin=false)=>{
+ipcMain.handle('d200x:store-download',(event,kind,id,releaseId,hash,installIconPack=false,installPlugin=false,updateOnly=false)=>{
   assertEditor(event);
   if(installPlugin===true&&kind!=='plugin')throw Error('플러그인 종류 오류');
   return storeClient.download(kind,id,releaseId,hash,async(item,bytes)=>{
+    if(updateOnly===true){
+      const installed=kind==='iconpack'?(await ensureIconPacksMigrated(),await readPacks(iconPacksFile())):await sdk().list();
+      if(!storeUpdateCandidate({...item,trusted:storeClient.isTrusted(item)},installed,storeClient.status().origin))throw Error('설치된 콘텐츠 또는 최신 버전이 변경되었습니다. 다시 확인하세요.');
+    }
     if(installPlugin===true){
       if(!storeClient.isTrusted(item))throw Error('신뢰되지 않은 패키지');
       const packageData=await DeckForgePlugins.parseDeckForgePackage(bytes);
       const native=packageData.native;
       if(!native||packageData.meta.source?.kind==='ulanzi-converted'||native.id!==item.packageId||native.name!==item.name||native.version!==item.version)throw Error('자체 독자 SDK 패키지 식별 정보가 일치하지 않습니다.');
       if(['com.deckforge.native.home-assistant','de.perdoctus.streamdeck.homeassistant','com.autodesk.fusionstreamdeck','com.deckforge.native.github-status'].includes(native.id.toLowerCase()))throw Error('기본 제공 플러그인은 스토어에서 설치하지 않습니다.');
-      const plugin=await pluginAudit('install',native.id,async audit=>installNativePackage(packageData,audit,{forceConfirm:true,source:'스토어 서명 확인',beforeExecute:()=>{storeClient.requireSession();if(!storeClient.isTrusted(item))throw Error('게시자 신뢰 확인 실패');}}));
+      const plugin=await pluginAudit('install',native.id,async audit=>installNativePackage(packageData,audit,{forceConfirm:true,requireUpdate:updateOnly===true,source:'스토어 서명 확인',beforeExecute:()=>{storeClient.requireSession();if(!storeClient.isTrusted(item))throw Error('게시자 신뢰 확인 실패');}}));
       return plugin?{kind:'plugin-installed',name:native.name,version:native.version}:null;
     }
     if(installIconPack===true){
@@ -428,10 +455,10 @@ ipcMain.on('d200x:fusion-panel-bounds',(event,rect)=>{
  applyFusionPanelBounds(rect);
 });
 
-async function installNativePackage(packageData,audit,{forceConfirm=false,source='',beforeExecute}={}){
+async function installNativePackage(packageData,audit,{forceConfirm=false,requireUpdate=false,source='',beforeExecute}={}){
       const native=packageData.native;audit.identify(native);
       const labels={'settings.write':'현재 버튼 설정 저장','navigation':'프로필·페이지·덱폴더 이동','wide.mode':'와이드 화면 모드 전환','wide.overlay':'와이드 화면 임시 이미지·레이아웃 표시','global.settings':'플러그인 전역 암호화 설정 읽기·쓰기','network.request':'승인된 HTTPS 주소로 네트워크 요청','timer.tick':'활성 화면에서 주기적 표시 갱신','network.poll':'승인된 HTTPS GET 주소 주기적 조회','network.websocket':'승인된 WSS 실시간 연결 및 메시지 송수신','background.run':'페이지와 무관하게 독립 서비스 실행 및 상태 공유','browser.open':'버튼을 눌렀을 때 기본 브라우저에서 HTTP/HTTPS 주소 열기'};
-      const plan=await sdk().planNativeInstall(native);audit.identify(plan);audit.operation(plan.kind);audit.stage('confirm');
+      const plan=await sdk().planNativeInstall(native);if(requireUpdate&&plan.kind!=='update')throw Error('최신 버전 업데이트만 허용됩니다.');audit.identify(plan);audit.operation(plan.kind);audit.stage('confirm');
       const extra=native.permissions.filter(p=>p!=='display');
       const dependencies=Object.entries(native.dependencies||{}).map(([id,range])=>id+' '+range);
       const conversion=packageData.meta.source?.kind==='ulanzi-converted'?packageData.meta.source:null;
