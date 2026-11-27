@@ -1798,3 +1798,16 @@ dialog.deckforge-message-dialog:has(.fusion-command-properties){width:min(360px,
 .store-pack-meta{font-size:11px;color:#bbb;overflow-wrap:anywhere}
 .store-catalog-empty{grid-column:1/-1;color:#bbb}
 .store-catalog-detail{display:flex;flex-direction:column;align-items:stretch}.store-catalog-detail h2,.store-catalog-detail p{margin:0}.store-catalog-detail>button{align-self:flex-start}.store-detail-artwork{grid-template-columns:repeat(auto-fill,minmax(54px,1fr));gap:10px;padding:12px}
+
+/* Store tabs use the existing dark catalogue; no changes to action-panel tabs. */
+.store-catalog-tabs{display:flex;gap:6px;padding:7px 14px 0;border-bottom:1px solid #444}
+.store-catalog-dialog .store-catalog-tabs button{border-radius:5px 5px 0 0;min-width:105px;border-bottom:0;background:#303030}
+.store-catalog-dialog .store-catalog-tabs button[aria-pressed=true]{background:#43474e;border-color:#75a9ee;color:#fff}
+.store-catalog-dialog .store-catalog-filters[hidden]{display:none}
+.store-plugin-actions{display:grid;grid-template-columns:repeat(auto-fill,minmax(155px,1fr));gap:8px}
+.store-plugin-action{display:flex;align-items:center;gap:8px;min-width:0;border:1px solid #444;border-radius:5px;padding:7px}
+.store-plugin-action span{overflow-wrap:anywhere}
+.store-plugin-action-icon{flex:0 0 42px;width:42px;background:#000;border-radius:3px}
+.store-preview-white .store-plugin-action-icon{background:#fff}
+.store-plugin-placeholder{min-height:75px;display:grid;place-items:center;background:#000;color:#aaa;border-radius:4px;font-size:12px}
+.store-plugin-warning{color:#edbd78;font-size:12px;overflow-wrap:anywhere}

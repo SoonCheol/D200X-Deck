@@ -7370,16 +7370,29 @@ async function storeReadPixelStyle(icon,canvas){
   }catch{return null;}
   finally{img.removeAttribute('src');}
 }
+function storePluginSummary(plugin){
+  const actions=Array.isArray(plugin.actions)?plugin.actions:[];
+  const runtime=plugin.runtime==='deckforge-sdk'?'native':(!plugin.runtime||plugin.runtime==='streamdeck-sdk')?'compatible':'unknown';
+  return {plugin,actions,runtime,available:plugin.available!==false};
+}
+function storePluginMatches(summary,query,runtime){
+  if(runtime!=='all'&&summary.runtime!==runtime)return false;
+  const needle=String(query||'').trim().toLocaleLowerCase();
+  if(!needle)return true;
+  const p=summary.plugin;
+  return [p.name,p.uuid,p.version,...summary.actions.flatMap(a=>[a.name,a.uuid])].some(value=>String(value||'').toLocaleLowerCase().includes(needle));
+}
 let storeCatalogDialog=null;
 async function openStoreCatalog(){
   if(storeCatalogDialog?.open)return;
   const dialog=document.createElement('dialog');dialog.className='store-catalog-dialog';
   dialog.setAttribute('aria-labelledby','store-catalog-heading');
-  dialog.innerHTML='<header class="store-catalog-header"><strong id="store-catalog-heading">DeckForge Store</strong><span>로컬 아이콘팩</span><button type="button" data-store-close aria-label="닫기">×</button></header>'+
+  dialog.innerHTML='<header class="store-catalog-header"><strong id="store-catalog-heading">DeckForge Store</strong><span data-store-local>로컬 아이콘팩</span><button type="button" data-store-close aria-label="닫기">×</button></header>'+
+    '<nav class="store-catalog-tabs" aria-label="스토어 종류"><button type="button" data-store-tab="icons" aria-pressed="true">아이콘팩</button><button type="button" data-store-tab="plugins" aria-pressed="false">플러그인</button></nav>'+
     '<div class="store-catalog-toolbar"><input type="search" data-store-query placeholder="팩 이름 또는 아이콘 검색" aria-label="아이콘팩 검색">'+
     '<button type="button" data-store-import>팩 가져오기</button><button type="button" data-store-reload>새로 고침</button></div>'+
-    '<div class="store-catalog-filters"></div><p class="store-catalog-status" role="status">NAS 서버 미연결 · 로컬 설치 목록을 읽는 중…</p>'+
-    '<div class="store-catalog-grid"></div><footer class="store-catalog-footer">로컬 설치 아이콘팩만 표시 · 네트워크 다운로드 및 로그인은 후속 개발</footer>';
+    '<div class="store-catalog-filters"></div><div class="store-catalog-filters store-plugin-filters" hidden><select aria-label="플러그인 규격" data-store-runtime><option value="all">전체 규격</option><option value="native">DeckForge SDK</option><option value="compatible">외부 호환</option><option value="unknown">기타</option></select></div><p class="store-catalog-status" role="status">NAS 서버 미연결 · 로컬 설치 목록을 읽는 중…</p>'+
+    '<div class="store-catalog-grid"></div><footer class="store-catalog-footer">로컬 설치 항목만 표시 · 네트워크 다운로드 및 로그인은 후속 개발</footer>';
   document.body.append(dialog);storeCatalogDialog=dialog;
   const find=sel=>dialog.querySelector(sel),grid=find('.store-catalog-grid'),status=find('.store-catalog-status'),query=find('[data-store-query]'),importButton=find('[data-store-import]'),reload=find('[data-store-reload]');
   const filterOptions={
@@ -7395,7 +7408,8 @@ async function openStoreCatalog(){
   }
   const background=document.createElement('button');background.type='button';background.textContent='흰 배경';background.setAttribute('aria-pressed','false');find('.store-catalog-filters').append(background);
   background.addEventListener('click',()=>{const white=dialog.classList.toggle('store-preview-white');background.textContent=white?'검정 배경':'흰 배경';background.setAttribute('aria-pressed',String(white));});
-  let records=[],selected=null,limit=84,request=0,busy=false,analyzing=false;
+  let records=[],selected=null,limit=84,request=0,busy=false,analyzing=false,mode='icons',pluginRecords=[],selectedPlugin=null,pluginLoaded=false,iconsLoaded=false;
+  const tabs=[...dialog.querySelectorAll('[data-store-tab]')],runtimeFilter=find('[data-store-runtime]');
   const node=(tag,cls,text)=>{const el=document.createElement(tag);if(cls)el.className=cls;if(text!==undefined)el.textContent=text;return el;};
   function artwork(icons,cls){
     const preview=node('div',cls);
@@ -7408,7 +7422,46 @@ async function openStoreCatalog(){
     }
     return preview;
   }
+  const runtimeName=kind=>kind==='native'?'DeckForge SDK':kind==='compatible'?'외부 호환':'기타 규격';
+  function pluginArtwork(actions,cls){
+    return artwork(actions.slice(0,12).map(action=>({name:action.name,image:action.defaultImages?.off||action.defaultImages?.on||''})),cls);
+  }
+  function renderPlugins(){
+    grid.replaceChildren();grid.classList.toggle('store-catalog-detail',!!selectedPlugin);
+    if(selectedPlugin){
+      const {plugin,actions,runtime,available}=selectedPlugin;
+      const back=node('button','','← 목록');back.type='button';back.addEventListener('click',()=>{selectedPlugin=null;render();});grid.append(back);
+      grid.append(node('h2','',plugin.name||plugin.uuid),node('p','store-pack-meta',runtimeName(runtime)+' · '+(plugin.version||'버전 미등록')+' · '+(available?'설치됨':'설치됨 · 사용 제한')));
+      grid.append(node('p','store-pack-meta','ID: '+plugin.uuid));
+      if(plugin.dependencyError)grid.append(node('p','store-plugin-warning',String(plugin.dependencyError)));
+      if(runtime==='native'){
+        grid.append(node('p','store-pack-meta','선언 권한: '+(Array.isArray(plugin.permissions)&&plugin.permissions.length?plugin.permissions.join(', '):'없음')));
+        const deps=Object.entries(plugin.dependencies||{}).map(([id,v])=>id+' '+String(v));
+        grid.append(node('p','store-pack-meta','의존성: '+(deps.length?deps.join(', '):'없음')));
+      }else grid.append(node('p','store-pack-meta','외부 호환 플러그인의 실행 권한은 이 목록에서 판단할 수 없습니다.'));
+      grid.append(node('h3','','액션 '+actions.length+'개'));
+      const list=node('div','store-plugin-actions');
+      for(const action of actions){
+        const item=node('div','store-plugin-action');
+        item.append(pluginArtwork([action],'store-plugin-action-icon'),node('span','',action.name||action.uuid));
+        list.append(item);
+      }
+      grid.append(list);return;
+    }
+    const matching=pluginRecords.filter(summary=>storePluginMatches(summary,query.value,runtimeFilter.value));
+    status.textContent='NAS 서버 미연결 · 로컬 플러그인 '+matching.length+' / '+pluginRecords.length+'개';
+    if(!matching.length){grid.append(node('p','store-catalog-empty','조건에 맞는 설치 플러그인이 없습니다.'));return;}
+    for(const summary of matching){
+      const {plugin,actions,runtime,available}=summary;
+      const card=node('button','store-pack-card');card.type='button';
+      if(actions.length)card.append(pluginArtwork(actions,'store-pack-artwork'));
+      else card.append(node('div','store-plugin-placeholder','등록 액션 없음'));
+      card.append(node('strong','',plugin.name||plugin.uuid),node('span','store-pack-meta',runtimeName(runtime)+' · '+(plugin.version||'버전 미등록')),node('span','store-pack-meta',actions.length+'개 액션 · '+(available?'설치됨':'설치됨 · 사용 제한')));
+      card.addEventListener('click',()=>{selectedPlugin=summary;render();grid.scrollTop=0;});grid.append(card);
+    }
+  }
   function render(){
+    if(mode==='plugins'){renderPlugins();return;}
     grid.replaceChildren();grid.classList.toggle('store-catalog-detail',!!selected);
     if(selected){
       const back=node('button','','← 목록');back.type='button';back.addEventListener('click',()=>{selected=null;render();});grid.append(back);
@@ -7430,7 +7483,19 @@ async function openStoreCatalog(){
     }
   }
   async function load(){
-    const current=++request;reload.disabled=true;importButton.disabled=true;status.textContent='로컬 아이콘팩 읽는 중…';
+    const current=++request;reload.disabled=true;importButton.disabled=true;
+    status.textContent=mode==='plugins'?'로컬 플러그인 읽는 중…':'로컬 아이콘팩 읽는 중…';
+    if(mode==='plugins'){
+      try{
+        if(!window.deckBridge?.sdkList)throw Error('Windows DeckForge에서만 플러그인 목록을 읽을 수 있습니다.');
+        const plugins=await window.deckBridge.sdkList();
+        if(current!==request||!dialog.open)return;
+        pluginRecords=plugins.map(storePluginSummary);selectedPlugin=null;pluginLoaded=true;render();
+      }catch(error){if(current===request&&dialog.open)status.textContent='목록 읽기 실패: '+String(error?.message||error);}
+      finally{if(current===request&&dialog.open){reload.disabled=false;importButton.disabled=false;}}
+      return;
+    }
+    iconsLoaded=false;
     try{
       if(!window.deckBridge?.listIconPacks)throw Error('Windows DeckForge에서만 로컬 팩을 읽을 수 있습니다.');
       const packs=await window.deckBridge.listIconPacks();
@@ -7450,18 +7515,39 @@ async function openStoreCatalog(){
         await new Promise(resolve=>setTimeout(resolve,0));
       }
       if(current!==request||!dialog.open)return;
-      analyzing=false;render();
+      analyzing=false;iconsLoaded=true;render();
     }catch(error){if(current===request&&dialog.open){analyzing=false;status.textContent='목록 읽기 실패: '+String(error?.message||error);}}
     finally{if(current===request&&dialog.open){reload.disabled=false;importButton.disabled=false;}}
   }
-  query.addEventListener('input',()=>{selected=null;render();});
+  for(const tab of tabs)tab.addEventListener('click',()=>{
+    const next=tab.dataset.storeTab;if(busy||next===mode)return;
+    ++request;analyzing=false;mode=next;selected=null;selectedPlugin=null;query.value='';
+    for(const entry of tabs)entry.setAttribute('aria-pressed',String(entry.dataset.storeTab===mode));
+    find('[data-store-local]').textContent=mode==='icons'?'로컬 아이콘팩':'로컬 플러그인';
+    query.placeholder=mode==='icons'?'팩 이름 또는 아이콘 검색':'플러그인 또는 액션 검색';
+    query.setAttribute('aria-label',query.placeholder);
+    importButton.textContent=mode==='icons'?'팩 가져오기':'플러그인 가져오기';
+    find('.store-catalog-filters').hidden=mode!=='icons';find('.store-plugin-filters').hidden=mode!=='plugins';
+    grid.replaceChildren();grid.classList.remove('store-catalog-detail');grid.scrollTop=0;
+    if(mode==='icons'?iconsLoaded:pluginLoaded){reload.disabled=false;importButton.disabled=false;render();}else void load();
+  });
+  runtimeFilter.addEventListener('change',()=>{selectedPlugin=null;render();});
+  query.addEventListener('input',()=>{selected=null;selectedPlugin=null;render();});
   for(const select of Object.values(selectFilters))select.addEventListener('change',()=>{selected=null;render();});
   reload.addEventListener('click',()=>void load());
   importButton.addEventListener('click',async()=>{
-    if(busy||!window.deckBridge?.importIconPack)return;busy=true;importButton.disabled=true;reload.disabled=true;
-    try{const pack=await window.deckBridge.importIconPack();if(pack){await refreshImportedIconPacks();if(dialog.open)await load();}}
+    if(busy||!(mode==='plugins'?window.deckBridge?.sdkInstall:window.deckBridge?.importIconPack))return;
+    busy=true;importButton.disabled=true;reload.disabled=true;for(const tab of tabs)tab.disabled=true;
+    try{
+      if(mode==='plugins'){
+        await installSdkPlugin(false);
+        if(dialog.open)await load();
+      }else{
+        const pack=await window.deckBridge.importIconPack();if(pack){await refreshImportedIconPacks();if(dialog.open)await load();}
+      }
+    }
     catch(error){if(dialog.open)status.textContent='가져오기 실패: '+String(error?.message||error);}
-    finally{busy=false;if(dialog.open){importButton.disabled=false;reload.disabled=false;}}
+    finally{busy=false;if(dialog.open){importButton.disabled=false;reload.disabled=false;for(const tab of tabs)tab.disabled=false;}}
   });
   find('[data-store-close]').addEventListener('click',()=>dialog.close());
   dialog.addEventListener('close',()=>{++request;dialog.remove();if(storeCatalogDialog===dialog)storeCatalogDialog=null;},{once:true});

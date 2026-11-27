@@ -275,3 +275,20 @@ test('Store pixel samples distinguish real color, white and black without alteri
  const samples=f.storeSampleIcons(Array.from({length:2500},(_,i)=>i));
  assert.equal(samples.length,16);assert.equal(samples[0],0);assert.equal(samples[15],2499);
 });
+
+test('Store plugin catalogue uses installed metadata and independent SDK/search filters',()=>{
+ const start=editor.indexOf('function storePluginSummary('),end=editor.indexOf('let storeCatalogDialog=',start);
+ assert.ok(start>=0&&end>start);
+ const f=vm.runInNewContext(editor.slice(start,end)+';({storePluginSummary,storePluginMatches})');
+ const native={uuid:'com.deckforge.native.test',name:'Test',version:'1.0',runtime:'deckforge-sdk',actions:[{name:'Switch Light',uuid:'test.switch'}],permissions:['network']};
+ const legacy={uuid:'com.vendor.tool',name:'Vendor',actions:[]};
+ const blocked={...native,available:false,actions:[],dependencyError:'Missing dependency'};
+ const before=JSON.stringify(native),a=f.storePluginSummary(native),b=f.storePluginSummary(legacy);
+ assert.equal(a.runtime,'native');assert.equal(b.runtime,'compatible');assert.equal(f.storePluginSummary(blocked).available,false);
+ assert.equal(f.storePluginSummary({runtime:'other'}).runtime,'unknown');
+ assert.equal(f.storePluginMatches(a,'light','native'),true);
+ assert.equal(f.storePluginMatches(a,'light','compatible'),false);
+ assert.equal(f.storePluginMatches(b,'vendor','all'),true);
+ assert.equal(f.storePluginMatches(b,'light','all'),false);
+ assert.equal(JSON.stringify(native),before);
+});
