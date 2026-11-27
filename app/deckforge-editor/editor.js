@@ -4405,6 +4405,48 @@ function bindGithubRepositoryLabel(label,repository,original,schema){
   repository.addEventListener('change',update);
 }
 // Read a native schema draft without committing hidden or disabled HA fields.
+// Declarative ordered rows; never accept plugin HTML or execute plugin code.
+function createNativeRecordListEditor(field,stored,onChange=()=>{}){
+  const copy=rows=>rows.map(row=>Object.fromEntries(field.columns.map(column=>[column.key,row[column.key]])));
+  let rows=copy(DeckCore.nativeSettingValue(field,stored)?stored:field.default);
+  const panel=document.createElement('div');panel.className='native-sdk-picker native-record-list';
+  const list=document.createElement('div');list.className='native-selection-order';
+  const summary=document.createElement('span');summary.className='hint';
+  const add=createInspectorCommand('항목 추가',()=>{
+    if(rows.length>=field.maxItems)return;
+    rows.push(Object.fromEntries(field.columns.map(column=>[column.key,column.default])));
+    draw();onChange();
+  },'deckforge-message-button');
+  function draw(){
+    list.replaceChildren();
+    summary.textContent=rows.length+' / '+field.maxItems;
+    add.disabled=rows.length>=field.maxItems;
+    rows.forEach((row,index)=>{
+      const card=document.createElement('fieldset');card.className='native-record-list-row';
+      const heading=document.createElement('legend');heading.textContent=String(index+1);
+      card.append(heading);
+      for(const column of field.columns){
+        const label=document.createElement('label');label.className='native-record-list-field';
+        const caption=document.createElement('span');caption.textContent=column.label;
+        const input=document.createElement('input');input.type='text';input.maxLength=column.maxLength;
+        input.value=row[column.key];input.setAttribute('aria-label',String(index+1)+' '+column.label);
+        input.addEventListener('input',()=>{row[column.key]=input.value;onChange();});
+        label.append(caption,input);card.append(label);
+      }
+      const tools=document.createElement('div');tools.className='native-sdk-tools';
+      const move=delta=>{
+        const to=index+delta;if(to<0||to>=rows.length)return;
+        [rows[index],rows[to]]=[rows[to],rows[index]];draw();onChange();
+      };
+      tools.append(createInspectorCommand('위로',()=>move(-1),'deckforge-message-button',index===0),
+        createInspectorCommand('아래로',()=>move(1),'deckforge-message-button',index===rows.length-1),
+        createInspectorCommand('삭제',()=>{rows.splice(index,1);draw();onChange();},'deckforge-message-button'));
+      card.append(tools);list.append(card);
+    });
+  }
+  panel.append(summary,list,add);draw();
+  return {panel,read:()=>copy(rows)};
+}
 function readNativeSettingEntry({field,input,read}){
   return read?read():field.type==='boolean'?input.checked:field.type==='integer'?input.valueAsNumber:input.value;
 }
@@ -4474,6 +4516,11 @@ async function openNativeSettings(item,action,plugin){
       const stored=String(original[field.key]??field.default??'');
       const option=document.createElement('option');option.value=stored;option.textContent=stored||'전체 브랜치';input.append(option);
       githubFields.set(field.key,input);row.append(label,input);appendRow(row,field);inputs.push({field,input});continue;
+    }
+    if(field.type==='recordList'){
+      const stored=Object.hasOwn(original,field.key)?original[field.key]:field.default;
+      const list=createNativeRecordListEditor(field,stored,updateVisibility);
+      row.append(label,list.panel);appendRow(row,field);inputs.push({field,read:list.read});continue;
     }
     if(field.type==='dynamicSelect'||field.type==='dynamicMultiSelect'){
       const multi=field.type==='dynamicMultiSelect',stored=Object.hasOwn(original,field.key)?original[field.key]:field.default;

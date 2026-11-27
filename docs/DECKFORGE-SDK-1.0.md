@@ -48,6 +48,7 @@
 - tickIntervalMs 1000~3600000, timer.tick 권한. network.poll + network.request + timer.tick 및 간격 5000ms 이상에서 GET polling 허용. 응답/요청 8KiB, TLS, 5초 제한, redirect 차단. 인증 토큰은 별도 OS 암호화 vault, script에 노출하지 않는다.
 - 2.0.34: API2 action 선택 pollIntervalMs(5000~3600000) 및 network.poll 권한으로 1초 이상 시각 tick과 GET polling 분리. host가 실제 주기 요청 간격을 별도 제한하고, 빠른 요청은 capacity 응답. 기존 선언 없는 액션의 tick 5초 이상 제한 유지.
 - settingsSchema는 boolean/text/integer/select, 최대 16필드. 기본값은 실행 시 적용, 사용자 저장 여부 별도.
+- 2.0.109 후보: 선언형 `recordList` 필드 추가. `maxItems` 1~10, `columns` 1~4개의 `{key,label,maxLength,default}` 텍스트 열(각 최대 256자), `default`는 순서 있는 행 배열. 행은 선언한 열만 정확히 포함해야 하며 제어문자·예약 키·임의 HTML/JS 금지. 설정 전체 8KiB 제한 유지. 공통 편집창에서 행 추가/삭제/위·아래 이동 및 초안 입력, 기존 저장/취소 경로 유지. 플러그인별 중복/업무 검증 및 실제 다중 저장소 액션 등록은 후속. 기존 API 함수 수·실행/네트워크 계약 변경 없음.
 - 설치/업데이트/복원·SemVer 의존성·원자적 저장 및 버전 이력은 기존 native package 계약. 패키지 생성/설치 방법은 DECKFORGE-PLUGIN-FORMAT.md의 CLI 절 참고.
 
 ## SDK 1.1 확장 — 2026-11-24 사용자 승인

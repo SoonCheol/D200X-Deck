@@ -3447,3 +3447,23 @@ test('GitHub multi-monitor drafts preserve order, validate targets and cycle in 
  assert.throws(()=>normalize([entries[0],{...entries[0],repository:'owner/first'}]),/중복/);
  assert.throws(()=>step(-1,3,1));assert.throws(()=>step(0,3,0));assert.throws(()=>step(0,0,1));
 });
+
+
+test('bounded native record-list schema validates row shape, order and existing settings size',()=>{
+ const core=require('../app/deckforge-editor/deck-core.js');
+ const field={key:'targets',label:'저장소 목록',type:'recordList',maxItems:10,columns:[
+   {key:'repository',label:'저장소',maxLength:256,default:''},
+   {key:'workflow',label:'빌드 종류',maxLength:128,default:''},
+   {key:'branch',label:'브랜치',maxLength:256,default:''},
+   {key:'label',label:'표시 이름',maxLength:100,default:''}
+ ],default:[]};
+ const a={repository:'Owner/A',workflow:'build.yml',branch:'main',label:'A'},b={repository:'Owner/B',workflow:'123',branch:'',label:'B'};
+ const manifest={...nativeManifest,actions:[{...nativeManifest.actions[0],settingsSchema:[field]}]};
+ assert.doesNotThrow(()=>validateNativeManifest(manifest));
+ assert.deepEqual(core.nativeEffectiveSettings([field],{}),{targets:[]});
+ assert.deepEqual(core.nativeEffectiveSettings([field],{targets:[b,a],old:true}),{targets:[b,a],old:true});
+ for(const targets of [[{...a,extra:'x'}],[{...a,branch:42}],[{...a,branch:'main\n'}],[{...a,label:'x'.repeat(101)}],Array(11).fill(a),[null],{}])assert.throws(()=>core.nativeEffectiveSettings([field],{targets}),/invalid setting/);
+ for(const bad of [{...field,maxItems:11},{...field,columns:[...field.columns,field.columns[0]]},{...field,columns:[{...field.columns[0],key:'__proto__'}]},{...field,columns:[{...field.columns[0],type:'html'}]},{...field,columns:[{...field.columns[0],maxLength:257}]},{...field,default:[{}]}])assert.throws(()=>core.validateNativeSettingsSchema([bad]),/schema/);
+ const large={repository:'가'.repeat(256),workflow:'가'.repeat(128),branch:'가'.repeat(256),label:'가'.repeat(100)};
+ assert.throws(()=>core.nativeEffectiveSettings([field],{targets:Array(10).fill(large)}),/settings size limit/);
+});

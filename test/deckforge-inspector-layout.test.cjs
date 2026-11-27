@@ -959,3 +959,27 @@ test('page indicator file picker cannot commit into a newer inspector session',a
  assert.equal(rasterCalls,2);resolveRaster('current-png');await task;
  assert.deepEqual(applied,[[item,'press:down','current-png',second]]);
 });
+
+
+test('native record-list editor changes only its local ordered draft and keeps controls bounded',()=>{
+ const core=require('../app/deckforge-editor/deck-core.js');
+ const start=editor.indexOf('function createNativeRecordListEditor('),end=editor.indexOf('function readNativeSettingEntry(',start);
+ assert.ok(start>=0&&end>start);
+ const node=tag=>({tag,children:[],listeners:{},append(...nodes){this.children.push(...nodes);},replaceChildren(){this.children=[];},setAttribute(){},addEventListener(type,fn){this.listeners[type]=fn;}});
+ const command=(label,fn,cls,disabled=false)=>Object.assign(node('button'),{textContent:label,disabled,click(){if(!this.disabled)fn();}});
+ const create=vm.runInNewContext(editor.slice(start,end)+';createNativeRecordListEditor',{DeckCore:core,document:{createElement:node},createInspectorCommand:command});
+ const field={type:'recordList',maxItems:2,columns:[{key:'repository',label:'저장소',maxLength:30,default:''}],default:[]};
+ const original=Object.freeze([Object.freeze({repository:'Owner/A'})]);let changes=0;
+ const {panel,read}=create(field,original,()=>changes++);
+ const [summary,list,add]=panel.children;
+ assert.equal(summary.textContent,'1 / 2');assert.equal(changes,0);
+ add.click();assert.equal(summary.textContent,'2 / 2');assert.equal(add.disabled,true);
+ const input=list.children[1].children[1].children[1];input.value='Owner/B';input.listeners.input();
+ const tools=list.children[1].children.at(-1);tools.children[0].click();
+ assert.equal(JSON.stringify(read()),JSON.stringify([{repository:'Owner/B'},{repository:'Owner/A'}]));
+ const detached=read();detached[0].repository='external';assert.equal(read()[0].repository,'Owner/B');
+ assert.equal(original[0].repository,'Owner/A');assert.equal(original.length,1);
+ list.children[0].children.at(-1).children[2].click();
+ assert.equal(JSON.stringify(read()),JSON.stringify([{repository:'Owner/A'}]));assert.equal(add.disabled,false);assert.equal(changes,4);
+ assert.match(editor,/inputs\.push\(\{field,read:list\.read\}\)/);
+});

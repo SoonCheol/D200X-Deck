@@ -1642,6 +1642,11 @@ dialog.deckforge-message-dialog::backdrop{background:#000a}
 .icon-dialog-anchored > .icon-maker-dialog{overflow-y:auto}
 
 .native-selection-order{display:flex;flex-direction:column;gap:4px;min-width:0}
+.native-record-list-row{display:flex;flex-direction:column;gap:6px;min-width:0;margin:0;padding:8px;border:1px solid #555;border-radius:4px}
+.native-record-list-row legend{padding:0 4px;color:#ddd}
+.native-record-list-field{display:grid;grid-template-columns:84px minmax(0,1fr);align-items:center;gap:8px;min-width:0}
+.native-record-list-field>span{overflow-wrap:anywhere}
+.native-record-list-row>.native-sdk-tools{justify-content:flex-end}
 .native-selection-row{display:grid;grid-template-columns:minmax(0,1fr) 30px 30px;gap:5px;align-items:center;padding:4px 6px;border:1px solid #555;border-radius:4px;background:#303030}
 .native-selection-row.native-selection-removable{grid-template-columns:minmax(0,1fr) repeat(3,30px)}
 .native-selection-row>span{overflow-wrap:anywhere;min-width:0}

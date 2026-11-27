@@ -17,6 +17,9 @@
     if(field.type==='text')return nativeText(value)&&value.length<=field.maxLength;
     if(field.type==='integer')return Number.isSafeInteger(value)&&value>=field.min&&value<=field.max;
     if(field.type==='select')return field.options.some(o=>o.value===value);
+    if(field.type==='recordList')return Array.isArray(value)&&value.length<=field.maxItems&&Array.isArray(field.columns)&&
+      value.every(row=>nativeObject(row)&&Object.keys(row).length===field.columns.length&&
+        field.columns.every(column=>Object.hasOwn(row,column.key)&&nativeText(row[column.key])&&row[column.key].length<=column.maxLength));
     if(field.type==='dynamicSelect')return nativeText(value);
     if(field.type==='dynamicMultiSelect')return Array.isArray(value)&&value.length<=field.maxItems&&
       value.every(v=>nativeText(v)&&v.length>0)&&new Set(value).size===value.length;
@@ -43,6 +46,19 @@
         for(const option of field.options){
           check(nativeObject(option)&&Object.keys(option).length===2&&nativeLabel(option.label)&&
             nativeText(option.value)&&!values.has(option.value));values.add(option.value);
+        }
+      }else if(field.type==='recordList'){
+        extra=['columns','maxItems'];
+        check(Number.isInteger(field.maxItems)&&field.maxItems>=1&&field.maxItems<=10&&
+          Array.isArray(field.columns)&&field.columns.length>=1&&field.columns.length<=4);
+        const columns=new Set();
+        for(const column of field.columns){
+          check(nativeObject(column)&&Object.keys(column).length===4&&
+            ['key','label','maxLength','default'].every(k=>Object.hasOwn(column,k))&&
+            nativeKey(column.key)&&!columns.has(column.key)&&nativeLabel(column.label)&&
+            Number.isInteger(column.maxLength)&&column.maxLength>=1&&column.maxLength<=256&&
+            nativeText(column.default)&&column.default.length<=column.maxLength);
+          columns.add(column.key);
         }
       }else if(field.type==='dynamicSelect'||field.type==='dynamicMultiSelect'){
         extra=['source'];check(nativeKey(field.source));
