@@ -63,7 +63,7 @@
 
 - 시스템 이벤트/내장 액션/실행 결과 확장, 추가 인증/동적 이미지/와이드·플러그인 간 통신/효과음/알림/제한 저장/TS 도구는 필요에 따라 별도 승인.
 - 기존 외부 호환 기능은 유지하고 추가 개발은 보류(2026-11-25 사용자 지시). Ulanzi 분석·변환은 별도 검증. Fusion/Smart Profile/캐시·연결·기존 기능 보존.
-- Google OAuth 정식 게시, POP 프로그램 인식 메뉴([분석](DECKFORGE-CONTEXT-POP-FEASIBILITY.md)), Virtual DeckForge, 외부 Elgato 원본 가져오기, Ulanzi 독자 로더/테마팩, 대규모 UI 변경, 외부 플러그인 저장소/웹스토어는 별도 승인.
+- Google OAuth 정식 게시, POP 프로그램 인식 메뉴([분석](DECKFORGE-CONTEXT-POP-FEASIBILITY.md)), Virtual DeckForge, 외부 Elgato 원본 가져오기, Ulanzi 독자 로더/테마팩, 대규모 UI 변경, 외부 플러그인 저장소/웹스토어: 사용자 승인으로 사전 설계 S0 진행, 구현·배포는 단계별 검증. [설계 및 검증 기준](DECKFORGE-STORE-DESIGN.md).
 ## 독자 SDK URL 열기 및 권한 승인 (2026-11-27 사용자 승인 구현 목표 · 미구현)
 
 - 범용 API 목표: `api.openUrl(url)` 및 명시적 브라우저 열기 권한. 기존 DeckForge 기본 웹페이지 열기 동작/안전 검증과 외부 호환 SDK의 사용자 입력 보호 방식을 참고하되 독자 SDK의 권한·실행 세대·격리 경계 안에서 구현한다. 기존 기본 액션, 외부 호환 엔진, 다른 플러그인 동작은 보존.
