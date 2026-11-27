@@ -938,6 +938,9 @@ test('page indicator file picker cannot commit into a newer inspector session',a
  const node=()=>({dataset:{},append(){}});
  const item={type:'indicator'},first={},second={},applied=[];
  let resolvePicker,resolveRaster,rasterCalls=0;
+ // The extracted async handler runs in another VM realm. Wait a full event-loop
+ // turn rather than assuming one microtask drains cross-realm promise adoption.
+ const flushPicker=()=>new Promise(resolve=>setImmediate(resolve));
  const ctx={item,index:0,inspectorSession:first,
    createStateIconCard:()=>({card:node(),heading:node(),preview:node()}),createStateIconButtons:handlers=>handlers,
    iconNode:node,displayItem:x=>x,indicatorPressVisual:x=>x,bindKeyBackgroundControl(){},
@@ -950,8 +953,9 @@ test('page indicator file picker cannot commit into a newer inspector session',a
  const up=build(false).buttons,down=build(true).buttons;
  let task=up.file();ctx.inspectorSession=second;resolvePicker({dataUrl:'original'});await task;
  assert.equal(rasterCalls,0);assert.equal(applied.length,0);
- ctx.inspectorSession=first;task=down.file();resolvePicker({dataUrl:'original'});await Promise.resolve();
+ ctx.inspectorSession=first;task=down.file();resolvePicker({dataUrl:'original'});await flushPicker();
  assert.equal(rasterCalls,1);ctx.inspectorSession=second;resolveRaster('old-png');await task;assert.equal(applied.length,0);
- task=down.file();resolvePicker({dataUrl:'original'});await Promise.resolve();resolveRaster('current-png');await task;
+ task=down.file();resolvePicker({dataUrl:'original'});await flushPicker();
+ assert.equal(rasterCalls,2);resolveRaster('current-png');await task;
  assert.deepEqual(applied,[[item,'press:down','current-png',second]]);
 });
