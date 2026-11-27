@@ -7537,27 +7537,29 @@ async function openStoreCatalog(){
     grid.replaceChildren();grid.classList.toggle('store-catalog-detail',!!selected);
     if(expired){status.textContent='서버 연결 및 로그인이 필요합니다. 연결 설정을 확인하세요.';return;}
     if(selected){
-      const item=selected;grid.append(button('← 목록',()=>{++previewRequest;previewImages=[];selected=null;render();}),node('h2','',item.name),node('p','store-pack-meta',item.version+' · '+(item.author||'제작자 미등록')+' · '+(item.visibility==='private'?'비공개':'공개')),node('p','store-pack-meta',item.description||'설명 없음'),node('p','store-pack-meta','SHA256: '+item.sha256),node('p','store-pack-meta',Math.ceil(item.size/1024)+' KiB'));
+      const item=selected;const back=button('← 목록',()=>{++previewRequest;previewImages=[];selected=null;render();});back.className='store-detail-back';grid.append(back,node('h2','',item.name),node('p','store-pack-meta',item.version+' · '+(item.author||'제작자 미등록')+' · '+(item.visibility==='private'?'비공개':'공개')),node('p','store-pack-meta',item.description||'설명 없음'),node('p','store-pack-meta','SHA256: '+item.sha256),node('p','store-pack-meta',Math.ceil(item.size/1024)+' KiB'));
       grid.append(node('p','store-pack-meta',provenanceLabel(item)),node('p','store-pack-meta','규격 표시이며 실제 실행 호환성 인증은 아닙니다.'),node('p','store-pack-meta',localLabel(item)));
       if(kind==='iconpack'){
         const images=previewImages.length?previewImages:item.cover?[item.cover]:[];
         if(images.length)grid.append(previewGrid(images,'store-remote-detail-preview'));
         else grid.append(node('p','store-pack-meta',previewError||'등록된 미리보기 없음'));
       }
-      grid.append(button('파일 저장',()=>void download(item,false)));
-      if(kind==='iconpack')grid.append(button('ZIP 내보내기',()=>void exportRemoteImages(item,'zip')),button('폴더 내보내기',()=>void exportRemoteImages(item,'folder')));
+      const actionRow=node('div','store-detail-actions');
+      actionRow.append(button('파일 저장',()=>void download(item,false)));
+      if(kind==='iconpack')actionRow.append(button('ZIP 내보내기',()=>void exportRemoteImages(item,'zip')),button('폴더 내보내기',()=>void exportRemoteImages(item,'folder')));
       if(kind==='iconpack'){
-        if(item.local?.state==='not-found')grid.append(button('설치',()=>void download(item,true)));
+        if(item.local?.state==='not-found')actionRow.append(button('설치',()=>void download(item,true)));
         else for(const pack of item.local?.matches||[]){
           const label=(item.local.matches.length>1?'제거 · '+(pack.version||pack.name):'제거');
-          grid.append(button(label,()=>void removeInstalled(item,pack.id)));
+          actionRow.append(button(label,()=>void removeInstalled(item,pack.id)));
         }
       }
       else{
         grid.append(node('p','store-pack-meta',item.trusted?'등록 공개키 서명 확인':'미서명 또는 신뢰되지 않은 게시자 · 직접 설치 불가'));
-        if(item.local?.state&&item.local.state!=='not-found')grid.append(button('제거',()=>void removeInstalled(item)));
-        else if(item.trusted&&item.local?.state==='not-found')grid.append(button('설치',()=>void download(item,true)));
+        if(item.local?.state&&item.local.state!=='not-found')actionRow.append(button('제거',()=>void removeInstalled(item)));
+        else if(item.trusted&&item.local?.state==='not-found')actionRow.append(button('설치',()=>void download(item,true)));
       }
+      grid.append(actionRow);
       return;
     }
     const matching=items;
