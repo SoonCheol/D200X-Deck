@@ -86,7 +86,8 @@ async function parseIconPack(input,render,displayName='가져온 아이콘팩'){
       name:typeof item.name==='string'&&item.name.trim()?item.name.slice(0,100):item.path,
       filename:item.path,
       tags:Array.isArray(item.tags)?item.tags.filter(x=>typeof x==='string').slice(0,30).map(x=>x.slice(0,60)):[],
-      image
+      image,
+      ...(render&&image!=='data:'+mime+';base64,'+bytes.toString('base64')?{originalImage:'data:'+mime+';base64,'+bytes.toString('base64')}:{})
     });
   }
   return {
@@ -170,4 +171,42 @@ async function removePack(filename,id){
   }catch(error){await fs.rm(temp,{force:true}).catch(()=>{});throw error;}
   return true;
 }
-module.exports={parseIconPack,parseIconFolder,readPacks,registerPack,removePack};
+function exportImageEntries(pack){
+  if(!Array.isArray(pack?.icons)||pack.icons.length<1||pack.icons.length>MAX_ICONS)throw Error('아이콘팩 개수 오류');
+  const entries=[],seen=new Set(),directories=new Set();let size=0,converted=0;
+  const ext={'image/png':'png','image/jpeg':'jpg','image/gif':'gif','image/webp':'webp','image/svg+xml':'svg'};
+  const validPart=n=>safePart(n)&&!/[<>:"|?*]/.test(n)&&!/[. ]$/.test(n)&&! /^(?:con|prn|aux|nul|com[1-9¹²³]|lpt[1-9¹²³])(?:\.|$)/i.test(n);
+  for(const icon of pack.icons){
+    const source=icon.originalImage||icon.image;
+    const m=typeof source==='string'&&/^data:(image\/(?:png|jpeg|gif|webp|svg\+xml));base64,([A-Za-z0-9+/]+={0,2})$/.exec(source);
+    if(!m||m[2].length>Math.ceil(MAX_ICON/3)*4)throw Error('내보낼 이미지가 올바르지 않습니다.');
+    const bytes=Buffer.from(m[2],'base64');
+    if(!bytes.length||bytes.length>MAX_ICON||!validImage(bytes,m[1]))throw Error('내보낼 이미지가 손상되었습니다.');
+    let filename=icon.filename||icon.name;
+    if(!safeImagePath(filename)||!filename.split('/').every(validPart))throw Error('안전하지 않은 파일명: '+filename);
+    if(mimeOf(filename)!==m[1]){filename=filename.replace(/\.[^./]+$/,'')+'.'+ext[m[1]];converted++;}
+    if(!safeImagePath(filename)||!filename.split('/').every(validPart))throw Error('안전하지 않은 파일명: '+filename);
+    const key=filename.toLowerCase(),parts=key.split('/');
+    if(seen.has(key)||directories.has(key))throw Error('중복 파일명: '+filename);
+    for(let i=1;i<parts.length;i++){const dir=parts.slice(0,i).join('/');if(seen.has(dir))throw Error('파일과 폴더 이름 충돌');directories.add(dir);}
+    seen.add(key);size+=bytes.length;if(size>MAX_EXPANDED)throw Error('내보내기 용량 제한 초과');
+    entries.push({filename,bytes});
+  }
+  return {entries,converted};
+}
+async function exportIconImages(pack,target,mode){
+  const {entries,converted}=exportImageEntries(pack);
+  if(mode==='zip'){
+    if(path.extname(target).toLowerCase()!=='.zip')throw Error('ZIP 확장자를 사용하세요.');
+    const zip=new JSZip();
+    for(const entry of entries)zip.file(entry.filename,entry.bytes,{createFolders:false});
+    const data=await zip.generateAsync({type:'nodebuffer',compression:'DEFLATE'});
+    if(data.length>MAX_ARCHIVE)throw Error('ZIP 크기 60MB 제한 초과');
+    await fs.writeFile(target,data,{flag:'wx'});
+  }else if(mode==='folder'){
+    await fs.mkdir(target,{recursive:false});
+    for(const entry of entries){const file=path.join(target,...entry.filename.split('/'));await fs.mkdir(path.dirname(file),{recursive:true});await fs.writeFile(file,entry.bytes,{flag:'wx'});}
+  }else throw Error('내보내기 형식 오류');
+  return {kind:'exported',name:pack.name,count:entries.length,converted,path:target};
+}
+module.exports={parseIconPack,parseIconFolder,readPacks,registerPack,removePack,exportIconImages};

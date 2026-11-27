@@ -16,7 +16,7 @@ const {NativeDropHost,physicalSlots}=require('./native-drop-host.cjs');
 const { promisify } = require('node:util');
 const execFileAsync = promisify(execFile);
 const { D200XTransport } = require('./transport.cjs');
-const { parseIconPack, parseIconFolder, readPacks, registerPack, removePack } = require('./icon-pack.cjs');
+const { parseIconPack, parseIconFolder, readPacks, registerPack, removePack, exportIconImages } = require('./icon-pack.cjs');
 const { safeStorage } = require('electron');
 const HA = require('./ha-client.cjs');
 const {StreamDeckPluginHost}=require('./sd-plugin-host.cjs');
@@ -91,6 +91,39 @@ ipcMain.handle('d200x:store-local-state',async(event,item)=>{
   return storeLocalState(item,installed,origin);
 });
 ipcMain.handle('d200x:store-preview',(event,kind,id,releaseId,hash)=>{assertEditor(event);return storeClient.preview(kind,id,releaseId,hash);});
+async function saveEditableIconImages(pack,mode,beforeWrite=()=>{}){
+  if(!['zip','folder'].includes(mode))throw Error('내보내기 형식 오류');
+  const name=String(pack.name||'icons').replace(/[<>:"/\\|?*\x00-\x1f]/g,'_').replace(/^[. ]+|[. ]+$/g,'').slice(0,80)||'icons';
+  const safeName='Icons-'+name;
+  let target;
+  if(mode==='zip'){
+    const result=await dialog.showSaveDialog(window,{title:'일반 이미지 ZIP 내보내기',defaultPath:path.join(app.getPath('downloads'),safeName+'.zip'),filters:[{name:'ZIP 압축파일',extensions:['zip']}]});
+    if(result.canceled||!result.filePath)return null;
+    target=result.filePath;
+  }else{
+    const parent=await openRememberedPicker({title:'이미지 폴더를 생성할 위치 선택',properties:['openDirectory']},'folder');
+    if(!parent)return null;
+    target=path.join(parent,safeName);
+    for(let n=2;n<=100;n++){try{await fs.promises.lstat(target);target=path.join(parent,safeName+'-'+n);}catch(e){if(e.code==='ENOENT')break;throw e;}}
+  }
+  beforeWrite();
+  return exportIconImages(pack,target,mode);
+}
+ipcMain.handle('d200x:export-icon-images',async(event,id,mode)=>{
+  assertEditor(event);
+  if(typeof id!=='string'||id.length>128)throw Error('아이콘팩 ID 오류');
+  const pack=(await listIconPacks()).find(p=>p.id===id);
+  if(!pack)throw Error('아이콘팩을 찾을 수 없습니다.');
+  return saveEditableIconImages(pack,mode);
+});
+ipcMain.handle('d200x:store-export-icon-images',(event,id,releaseId,hash,mode)=>{
+  assertEditor(event);
+  return storeClient.download('iconpack',id,releaseId,hash,async(item,bytes)=>{
+    const pack=await parseIconPack(bytes,(raw,mime)=>'data:'+mime+';base64,'+raw.toString('base64'),item.name);
+    if(pack.name!==item.name||pack.version!==item.version)throw Error('아이콘팩 이름 또는 버전이 카탈로그와 다릅니다.');
+    return saveEditableIconImages(pack,mode,()=>storeClient.requireSession());
+  });
+});
 ipcMain.handle('d200x:store-download',(event,kind,id,releaseId,hash,installIconPack=false,installPlugin=false,updateOnly=false)=>{
   assertEditor(event);
   if(installPlugin===true&&kind!=='plugin')throw Error('플러그인 종류 오류');

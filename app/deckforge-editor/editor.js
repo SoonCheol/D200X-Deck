@@ -7538,6 +7538,7 @@ async function openStoreCatalog(){
         else grid.append(node('p','store-pack-meta',previewError||'등록된 미리보기 없음'));
       }
       grid.append(button('파일 저장',()=>void download(item,false)));
+      if(kind==='iconpack')grid.append(button('ZIP 내보내기',()=>void exportRemoteImages(item,'zip')),button('폴더 내보내기',()=>void exportRemoteImages(item,'folder')));
       if(kind==='iconpack'){
         if(item.local?.state==='not-found')grid.append(button('설치',()=>void download(item,true)));
         else for(const pack of item.local?.matches||[]){
@@ -7616,6 +7617,12 @@ async function openStoreCatalog(){
       }
       if(dlg.open&&await refreshLocal(item))status.textContent=item.local.state==='not-found'?'제거됨 · 서버 원본 유지':'설치 상태 갱신 완료';
     }catch(error){if(dlg.open){await refreshLocal(item);status.textContent='제거 처리 실패: '+String(error?.message||error);}}
+    finally{if(dlg.open)setBusy(false);}
+  }
+  async function exportRemoteImages(item,mode){
+    if(busy||expired)return;setBusy(true);status.textContent='원본 이미지 다운로드 및 검증 중…';
+    try{if(!await guard())return;const result=await window.deckBridge.storeExportIconImages(item.id,item.releaseId,item.sha256,mode);if(dlg.open)status.textContent=result?'이미지 '+result.count+'개 저장: '+result.path:'취소됨';}
+    catch(error){if(dlg.open)status.textContent='내보내기 실패: '+String(error?.message||error);}
     finally{if(dlg.open)setBusy(false);}
   }
   async function download(item,install){
@@ -7813,13 +7820,17 @@ function renderIconLibrary(){
     const amount=document.createElement('span');amount.className='icon-group-count';amount.textContent='('+matching.length+'개)';
     title.append(arrow,name,amount,originLabel);
     let heading=title;
-    if(pack.source!=='bundled'){
-      const wrapper=document.createElement('div');wrapper.className='icon-group-heading';
+    {
+      const wrapper=document.createElement('div');wrapper.className='icon-group-heading';wrapper.append(title);
+      for(const [mode,label] of [['zip','ZIP'],['folder','폴더']]){
+        const exp=document.createElement('button');exp.type='button';exp.className='icon-pack-remove';exp.textContent=label;exp.title=pack.name+' '+label+' 내보내기';
+        exp.addEventListener('click',async()=>{exp.disabled=true;try{const result=await window.deckBridge.exportIconImages(pack.id,mode);if(result)window.d200xActionStatus?.('이미지 '+result.count+'개 내보내기 완료: '+result.path);}catch(error){window.d200xActionStatus?.('내보내기 실패: '+String(error?.message||error));}finally{exp.disabled=false;}});wrapper.append(exp);
+      }
+      if(pack.source!=='bundled'){
       const remove=document.createElement('button');remove.type='button';
       remove.className='icon-pack-remove';remove.textContent='삭제';
       remove.title=pack.name+' 제거';remove.setAttribute('aria-label',pack.name+' 아이콘팩 제거');
       remove.addEventListener('click',()=>removeIconPackFromLibrary(pack));
-      wrapper.append(title);
       const update=iconPackUpdates.get(pack.id);
       if(update){
         const button=document.createElement('button');button.type='button';button.className='icon-pack-remove';
@@ -7827,7 +7838,8 @@ function renderIconLibrary(){
         button.setAttribute('aria-label',pack.name+' 업데이트 가능 '+update.version);
         button.addEventListener('click',()=>void updateIconPack(pack,button));wrapper.append(button);
       }
-      wrapper.append(remove);heading=wrapper;
+      wrapper.append(remove);}
+      heading=wrapper;
     }
     const grid=document.createElement('div');grid.className='icon-grid';
     grid.hidden=!expandedIconPacks.has(pack.id);

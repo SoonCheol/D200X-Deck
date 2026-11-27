@@ -5,7 +5,7 @@ const path=require('node:path');
 const os=require('node:os');
 const fs=require('node:fs/promises');
 const JSZip=require('../app/node_modules/jszip');
-const {parseIconPack,parseIconFolder,readPacks,registerPack,removePack}=require('../app/deckforge-editor/icon-pack.cjs');
+const {parseIconPack,parseIconFolder,readPacks,registerPack,removePack,exportIconImages}=require('../app/deckforge-editor/icon-pack.cjs');
 
 const png=Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Y5fAJkAAAAASUVORK5CYII=','base64');
 async function fixture(overrides={}){
@@ -190,4 +190,27 @@ test('editor import keeps 196px originals and scales larger static artwork witho
   assert.equal(calls,before);
   gif.writeUInt16LE(197,6);width=197;height=196;
   await assert.rejects(normalize(gif,'image/gif','oversized.gif'),/프레임 보존 변환/);
+});
+
+test('plain ZIP and folder export preserves names, original raster and SVG bytes, never overwrites',async()=>{
+  const dir=await fs.mkdtemp(path.join(os.tmpdir(),'deckforge-export-'));
+  try{
+    const svg=Buffer.from('<svg xmlns="http://www.w3.org/2000/svg"><circle r="1"/></svg>');
+    const raw=await fixture({icons:[{path:'nested/lamp.svg'},{path:'Black.png'}],extra:{path:'nested/lamp.svg',buffer:svg}});
+    const pack=await parseIconPack(raw,async()=> 'data:image/png;base64,'+png.toString('base64'));
+    const zipPath=path.join(dir,'icons.zip'),folder=path.join(dir,'icons');
+    assert.equal((await exportIconImages(pack,zipPath,'zip')).count,2);
+    const zip=await JSZip.loadAsync(await fs.readFile(zipPath));
+    assert.deepEqual(await zip.file('nested/lamp.svg').async('nodebuffer'),svg);
+    assert.deepEqual(await zip.file('Black.png').async('nodebuffer'),png);
+    assert.equal(zip.file('manifest.json'),null);
+    await exportIconImages(pack,folder,'folder');
+    assert.deepEqual(await fs.readFile(path.join(folder,'nested/lamp.svg')),svg);
+    await assert.rejects(exportIconImages(pack,zipPath,'zip'),{code:'EEXIST'});
+    await assert.rejects(exportIconImages(pack,folder,'folder'),{code:'EEXIST'});
+    await assert.rejects(exportIconImages({...pack,icons:[{...pack.icons[0],filename:'../escape.svg'}]},path.join(dir,'bad.zip'),'zip'),/파일명/);
+    const old={...pack,icons:[{...pack.icons[0],originalImage:undefined}]};
+    const legacy=path.join(dir,'legacy.zip');await exportIconImages(old,legacy,'zip');
+    assert.ok((await JSZip.loadAsync(await fs.readFile(legacy))).file('nested/lamp.png'));
+  }finally{await fs.rm(dir,{recursive:true,force:true});}
 });
