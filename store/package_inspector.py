@@ -207,3 +207,37 @@ def inspect_package(data, kind, fmt, source, fallback):
             return result
     except (zipfile.BadZipFile,UnidentifiedImageError,Image.DecompressionBombError,UnicodeError,KeyError,TypeError,AttributeError,OSError,RuntimeError) as exc:
         raise ValueError("invalid or unsupported package") from exc
+
+def icon_preview_page(data, offset, limit):
+    """Generate bounded thumbnails from the verified immutable package, without extracting it."""
+    require(type(offset) is int and offset >= 0 and 1 <= limit <= 48, "invalid preview range")
+    try:
+        with zipfile.ZipFile(io.BytesIO(data)) as z:
+            names=[n.filename for n in z.infolist() if not n.is_dir()]
+            require(0 < len(names) <= 2530, "archive entry limit")
+            indexes=[n for n in names if re.search(r"(^|/)icons\.json$",n,re.I)]
+            require(len(indexes)<=1,"ambiguous icon index")
+            if indexes:
+                root=indexes[0][:-len("icons.json")]
+                items=read_json(z,indexes[0])
+                require(isinstance(items,list) and all(isinstance(x,dict) and safe_path(x.get("path")) for x in items),"invalid icon index")
+                paths=[root+"icons/"+x["path"] for x in items]
+                labels=[x.get("name") if isinstance(x.get("name"),str) and x["name"].strip() else PurePosixPath(x["path"]).stem for x in items]
+            else:
+                paths=[n for n in names if PurePosixPath(n).suffix.lower() in RASTER or n.lower().endswith(".svg")]
+                paths=[n for n in paths if not re.search(r"(^|/)(icon|categoryicon|preview)\.(png|svg|jpe?g)$",n,re.I)]
+                labels=[PurePosixPath(n).stem for n in paths]
+            require(0 < len(paths)<=2500 and len(set(paths))==len(paths),"invalid icon count")
+            result=[]
+            for path,label in zip(paths[offset:offset+limit],labels[offset:offset+limit]):
+                suffix=PurePosixPath(path).suffix.lower()
+                require(safe_path(path) and path in names and suffix in RASTER,"invalid icon path")
+                require(0 < z.getinfo(path).file_size <= 6*MIB,"icon size limit")
+                with Image.open(io.BytesIO(z.read(path))) as image:
+                    require(image.format==RASTER[suffix] and 0<image.width<=4096 and 0<image.height<=4096,"invalid raster")
+                    thumb=png_preview(image.convert("RGBA"),12288)
+                    require(thumb is not None,"preview unavailable")
+                result.append(dict(name=label[:160],path=path,preview=thumb))
+            return dict(icons=result,total=len(paths),nextOffset=offset+len(result) if offset+len(result)<len(paths) else None)
+    except (zipfile.BadZipFile,UnidentifiedImageError,Image.DecompressionBombError,UnicodeError,KeyError,TypeError,AttributeError,OSError,RuntimeError) as exc:
+        raise ValueError("invalid or unsupported package") from exc

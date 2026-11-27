@@ -23,7 +23,7 @@ from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 from package_inspector import inspect_package, text, MIB
 from folder_pack import make_folder_pack
 from svg_raster import rasterize_svg, MAX_SVG
-from package_inspector import png_preview
+from package_inspector import png_preview, icon_preview_page
 from PIL import Image
 
 TTL=3600
@@ -259,6 +259,18 @@ def create_app(data_dir=None,origin=None):
         user,_=authenticate()
         with db() as c: row,meta=current(c,ident,user["role"])
         return jsonify(item=meta,previews=json.loads(row["previews"]))
+    @app.get("/api/v1/items/<ident>/icons")
+    def item_icons(ident):
+        user,_=authenticate()
+        with db() as c: row,meta=current(c,ident,user["role"])
+        if meta["kind"]!="iconpack": abort(404)
+        if request.args.get("release")!=row["id"]: abort(409)
+        try: offset=int(request.args.get("offset","0"))
+        except ValueError: abort(400)
+        if not 0<=offset<=2500: abort(400)
+        page=icon_preview_page(verified_package(row,meta),offset,48)
+        if page["total"]!=meta["iconCount"]: abort(409)
+        return jsonify(page)
     @app.get("/api/v1/items/<ident>/releases/<release>/download")
     def download(ident,release):
         user,_=authenticate()

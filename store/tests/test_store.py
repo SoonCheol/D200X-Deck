@@ -41,6 +41,23 @@ class StoreTest(unittest.TestCase):
         return {"Authorization":"Bearer "+r.json["accessToken"]}
     def upload(self,source="third-party",data=None):
         return self.c.post("/api/v1/admin/items",data={"file":(io.BytesIO(data if data is not None else pack()),"icons.zip"),"kind":"iconpack","format":"zip","source":source,"license":"test license"},headers=self.owner)
+    def test_all_icon_gallery_pagination(self):
+        out=io.BytesIO();png=io.BytesIO()
+        Image.new("RGBA",(16,16),(255,255,255,255)).save(png,format="PNG")
+        with zipfile.ZipFile(out,"w",zipfile.ZIP_DEFLATED) as z:
+            z.writestr("icons.json",json.dumps([{"path":f"icon-{n}.png","name":f"Icon {n}"} for n in range(65)]))
+            for n in range(65): z.writestr(f"icons/icon-{n}.png",png.getvalue())
+        i=self.c.post("/api/v1/library/upload",data={"file":(io.BytesIO(out.getvalue()),"many.zip"),"kind":"iconpack"},headers=self.member).json["item"]
+        path="/api/v1/items/"+i["id"]+"/icons?release="+i["releaseId"]
+        self.assertEqual(self.c.get(path).status_code,401)
+        first=self.c.get(path,headers=self.member).json
+        self.assertEqual((first["total"],len(first["icons"]),first["nextOffset"]),(65,48,48))
+        second=self.c.get(path+"&offset=48",headers=self.member).json
+        self.assertEqual((len(second["icons"]),second["nextOffset"]),(17,None))
+        self.assertEqual([x["name"] for x in first["icons"]+second["icons"]],[f"Icon {n}" for n in range(65)])
+        self.assertEqual(self.c.get(path+"&offset=-1",headers=self.member).status_code,400)
+        self.assertEqual(self.c.get(path.replace(i["releaseId"],"wrong"),headers=self.member).status_code,409)
+        self.assertTrue(all(x["preview"] for x in first["icons"]+second["icons"]))
     def test_library_detail_card_previews_metadata_delete(self):
         def payload(): return {"file":(io.BytesIO(pack()),"icons.zip"),"kind":"iconpack"}
         i=self.c.post("/api/v1/library/upload",data=payload(),headers=self.member).json["item"]
