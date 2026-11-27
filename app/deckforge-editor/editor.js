@@ -7308,6 +7308,68 @@ function storePackMatches(summary,filters){
   return [pack.name,pack.author,pack.version].some(v=>String(v||'').toLocaleLowerCase().includes(query))||
     icons.some(icon=>[icon.name,icon.filename,...(Array.isArray(icon.tags)?icon.tags:[])].some(v=>String(v||'').toLocaleLowerCase().includes(query)));
 }
+// Bounded, deterministic sampling; the original image and pack remain read-only.
+function storePixelStyle(rgba,width,height){
+  if(!rgba||!Number.isInteger(width)||!Number.isInteger(height)||width<1||height<1||rgba.length!==width*height*4)return null;
+  let visible=0,chromatic=0,white=0,black=0,minX=width,minY=height,maxX=-1,maxY=-1;
+  for(let i=0;i<rgba.length;i+=4){
+    if(rgba[i+3]<64)continue;
+    const r=rgba[i],g=rgba[i+1],b=rgba[i+2],hi=Math.max(r,g,b),lo=Math.min(r,g,b);
+    visible++;
+    if(hi-lo>=30&&hi>=50)chromatic++;
+    else if(lo>=200)white++;
+    else if(hi<=55)black++;
+    const x=(i/4)%width,y=Math.floor(i/4/width);
+    minX=Math.min(minX,x);maxX=Math.max(maxX,x);minY=Math.min(minY,y);maxY=Math.max(maxY,y);
+  }
+  if(visible<4)return null;
+  const tone=chromatic/visible>=0.06?'color':white/visible>=0.75?'white':black/visible>=0.75?'black':'gray';
+  const fill=visible/((maxX-minX+1)*(maxY-minY+1));
+  // Occupancy is only an estimate of stroke/fill on transparent artwork.
+  // Do not infer shape from an opaque image or an ambiguous silhouette.
+  const shape=visible===width*height?null:fill<=0.34?'line':fill>=0.78?'solid':null;
+  return {tone,shape,transparent:visible<width*height};
+}
+function storeSampleIcons(icons,max=16){
+  const count=Math.min(icons.length,max);
+  return Array.from({length:count},(_,i)=>icons[count===1?0:Math.round(i*(icons.length-1)/(count-1))]);
+}
+function storeApplyPixelStyles(summary,samples){
+  const valid=samples.filter(Boolean);
+  if(!valid.length)return {...summary,analyzed:0};
+  const styles=new Set(valid.map(sample=>sample.tone));
+  // Keep declared design tags; pixel occupancy adds a shape estimate only
+  // when neither line nor solid has been explicitly identified.
+  const declared=summary.styles.filter(style=>style==='line'||style==='solid');
+  for(const shape of declared)styles.add(shape);
+  if(!declared.length){
+    for(const shape of ['line','solid'])if(valid.filter(sample=>sample.shape===shape).length>=Math.ceil(valid.length*0.6))styles.add(shape);
+  }
+  if(styles.has('line')&&styles.has('white'))styles.add('white-line');
+  if(styles.has('line')&&styles.has('black'))styles.add('black-line');
+  return {...summary,styles:[...styles],analyzed:valid.length};
+}
+const STORE_RASTER=/^data:image\/(?:png|jpeg|webp|gif);base64,[A-Za-z0-9+/=]+$/i;
+async function storeReadPixelStyle(icon,canvas){
+  if(typeof icon?.image!=='string'||icon.image.length>9*1024*1024||!STORE_RASTER.test(icon.image))return null;
+  const img=new Image();
+  try{
+    const loaded=await new Promise(resolve=>{
+      let timer;
+      const finish=ok=>{clearTimeout(timer);img.onload=null;img.onerror=null;resolve(ok);};
+      timer=setTimeout(()=>finish(false),1500);
+      img.onload=()=>finish(true);img.onerror=()=>finish(false);img.src=icon.image;
+    });
+    if(!loaded||!img.naturalWidth||!img.naturalHeight||img.naturalWidth*img.naturalHeight>16777216)return null;
+    // Preserve aspect ratio and center within the fixed 48px analysis raster.
+    const scale=Math.min(48/img.naturalWidth,48/img.naturalHeight);
+    const w=Math.max(1,Math.round(img.naturalWidth*scale)),h=Math.max(1,Math.round(img.naturalHeight*scale));
+    const ctx=canvas.getContext('2d',{willReadFrequently:true});
+    ctx.clearRect(0,0,48,48);ctx.drawImage(img,Math.floor((48-w)/2),Math.floor((48-h)/2),w,h);
+    return storePixelStyle(ctx.getImageData(0,0,48,48).data,48,48);
+  }catch{return null;}
+  finally{img.removeAttribute('src');}
+}
 let storeCatalogDialog=null;
 async function openStoreCatalog(){
   if(storeCatalogDialog?.open)return;
@@ -7323,7 +7385,7 @@ async function openStoreCatalog(){
   const filterOptions={
     purpose:[['all','전체 용도'],['general','일반'],['ha','Home Assistant · IoT'],['windows','Windows · 단축키'],['fusion','Fusion · CAD'],['media','미디어'],['app','프로그램']],
     naming:[['all','전체 네이밍'],['general','일반 파일명'],['state','ON/OFF 상태 쌍']],
-    style:[['all','전체 디자인'],['color','컬러'],['line','라인'],['solid','솔리드'],['unknown','미분류']]
+    style:[['all','전체 디자인'],['color','컬러'],['line','라인'],['white-line','화이트 라인'],['black-line','블랙 라인'],['white','화이트'],['black','블랙'],['gray','회색·혼합 단색'],['solid','솔리드'],['unknown','미분류']]
   };
   const selectFilters={};
   for(const [key,options] of Object.entries(filterOptions)){
@@ -7333,13 +7395,13 @@ async function openStoreCatalog(){
   }
   const background=document.createElement('button');background.type='button';background.textContent='흰 배경';background.setAttribute('aria-pressed','false');find('.store-catalog-filters').append(background);
   background.addEventListener('click',()=>{const white=dialog.classList.toggle('store-preview-white');background.textContent=white?'검정 배경':'흰 배경';background.setAttribute('aria-pressed',String(white));});
-  let records=[],selected=null,limit=84,request=0,busy=false;
+  let records=[],selected=null,limit=84,request=0,busy=false,analyzing=false;
   const node=(tag,cls,text)=>{const el=document.createElement(tag);if(cls)el.className=cls;if(text!==undefined)el.textContent=text;return el;};
   function artwork(icons,cls){
     const preview=node('div',cls);
     for(const icon of icons){
       const tile=node('div','store-icon-tile');
-      if(typeof icon.image==='string'&&/^data:image\/(?:png|jpeg|webp);base64,[A-Za-z0-9+/=]+$/i.test(icon.image)){
+      if(typeof icon.image==='string'&&STORE_RASTER.test(icon.image)){
         const img=node('img');img.src=icon.image;img.alt=String(icon.name||icon.filename||'');img.title=img.alt;img.loading='lazy';img.decoding='async';tile.append(img);
       }else tile.textContent='—';
       preview.append(tile);
@@ -7350,14 +7412,14 @@ async function openStoreCatalog(){
     grid.replaceChildren();grid.classList.toggle('store-catalog-detail',!!selected);
     if(selected){
       const back=node('button','','← 목록');back.type='button';back.addEventListener('click',()=>{selected=null;render();});grid.append(back);
-      grid.append(node('h2','',selected.pack.name),node('p','store-pack-meta',selected.icons.length+'개 · '+(selected.pack.author||'제작자 미등록')+' · '+(selected.pack.version||'버전 미등록')+' · ON/OFF '+selected.pairs+'쌍'));
+      grid.append(node('h2','',selected.pack.name),node('p','store-pack-meta',selected.icons.length+'개 · '+(selected.pack.author||'제작자 미등록')+' · '+(selected.pack.version||'버전 미등록')+' · ON/OFF '+selected.pairs+'쌍 · '+(selected.analyzed?'이미지 '+selected.analyzed+'개 표본 분석':'이름 기반 또는 분석 대기')));
       grid.append(artwork(selected.icons.slice(0,limit),'store-detail-artwork'));
       if(limit<selected.icons.length){const more=node('button','','더 보기 ('+Math.min(limit,selected.icons.length)+' / '+selected.icons.length+')');more.type='button';more.addEventListener('click',()=>{limit+=84;render();});grid.append(more);}
       return;
     }
     const filters={query:query.value,...Object.fromEntries(Object.entries(selectFilters).map(([k,v])=>[k,v.value]))};
     const matching=records.filter(record=>storePackMatches(record,filters));
-    status.textContent='NAS 서버 미연결 · 로컬 '+matching.length+' / '+records.length+'개 팩 · 디자인/용도는 이름 기반 분류';
+    status.textContent='NAS 서버 미연결 · 로컬 '+matching.length+' / '+records.length+'개 팩 · '+(analyzing?'이미지 표본 분석 중…':'디자인은 이미지 표본/이름, 용도는 이름 기반 분류');
     if(!matching.length){grid.append(node('p','store-catalog-empty','조건에 맞는 로컬 아이콘팩이 없습니다.'));return;}
     for(const summary of matching){
       const card=node('button','store-pack-card');card.type='button';
@@ -7373,8 +7435,23 @@ async function openStoreCatalog(){
       if(!window.deckBridge?.listIconPacks)throw Error('Windows DeckForge에서만 로컬 팩을 읽을 수 있습니다.');
       const packs=await window.deckBridge.listIconPacks();
       if(current!==request||!dialog.open)return;
-      records=packs.map(storePackSummary);selected=null;render();
-    }catch(error){if(current===request&&dialog.open)status.textContent='목록 읽기 실패: '+String(error?.message||error);}
+      records=packs.map(storePackSummary);selected=null;analyzing=true;render();
+      const canvas=document.createElement('canvas');canvas.width=canvas.height=48;
+      for(let i=0;i<records.length;i++){
+        const record=records[i],samples=[];
+        for(const icon of storeSampleIcons(record.icons)){
+          if(current!==request||!dialog.open)return;
+          samples.push(await storeReadPixelStyle(icon,canvas));
+        }
+        if(current!==request||!dialog.open)return;
+        const next=storeApplyPixelStyles(record,samples);
+        records[i]=next;if(selected===record)selected=next;
+        // Yield between packs so search, scrolling and closing stay responsive.
+        await new Promise(resolve=>setTimeout(resolve,0));
+      }
+      if(current!==request||!dialog.open)return;
+      analyzing=false;render();
+    }catch(error){if(current===request&&dialog.open){analyzing=false;status.textContent='목록 읽기 실패: '+String(error?.message||error);}}
     finally{if(current===request&&dialog.open){reload.disabled=false;importButton.disabled=false;}}
   }
   query.addEventListener('input',()=>{selected=null;render();});

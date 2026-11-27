@@ -248,3 +248,30 @@ test('offline Store catalogue classifies actual same-folder state pairs and filt
  assert.equal(f.storePackSummary({name:'Unknown',icons:[]}).styles[0],'unknown');
  assert.equal(JSON.stringify(pack),before);
 });
+
+test('Store pixel samples distinguish real color, white and black without altering artwork',()=>{
+ const start=editor.indexOf('function storePixelStyle('),end=editor.indexOf('const STORE_RASTER=',start);
+ assert.ok(start>=0&&end>start);
+ const f=vm.runInNewContext(editor.slice(start,end)+';({storePixelStyle,storeSampleIcons,storeApplyPixelStyles})');
+ function raster(rgb,kind){
+   const data=new Uint8ClampedArray(16*16*4);
+   for(let y=2;y<14;y++)for(let x=2;x<14;x++){
+     if(kind==='line'&&x!==2&&x!==13&&y!==2&&y!==13)continue;
+     const i=(y*16+x)*4;data.set([...rgb,255],i);
+   }
+   return data;
+ }
+ const white=f.storePixelStyle(raster([255,255,255],'line'),16,16);
+ const black=f.storePixelStyle(raster([0,0,0],'line'),16,16);
+ const color=f.storePixelStyle(raster([20,130,230],'solid'),16,16);
+ assert.equal(white.tone,'white');assert.equal(white.shape,'line');
+ assert.equal(black.tone,'black');assert.equal(black.shape,'line');
+ assert.equal(color.tone,'color');assert.equal(color.shape,'solid');
+ assert.equal(f.storePixelStyle(new Uint8ClampedArray(16*16*4),16,16),null);
+ const summary={styles:['color','line'],icons:[]},before=JSON.stringify(summary);
+ assert.equal(f.storeApplyPixelStyles(summary,[white,black]).styles.sort().join(','),'black,black-line,line,white,white-line');
+ assert.equal(f.storeApplyPixelStyles(summary,[null]).analyzed,0);
+ assert.equal(JSON.stringify(summary),before);
+ const samples=f.storeSampleIcons(Array.from({length:2500},(_,i)=>i));
+ assert.equal(samples.length,16);assert.equal(samples[0],0);assert.equal(samples[15],2499);
+});
