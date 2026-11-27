@@ -3431,3 +3431,19 @@ test('GitHub button opens only the displayed run ID and never a supplied externa
    }finally{host.close();}
  }finally{Date.now=realNow;}
 });
+
+
+test('GitHub multi-monitor drafts preserve order, validate targets and cycle in both directions',()=>{
+ const {normalizeGitHubMonitorTargets:normalize,stepGitHubMonitorIndex:step,MAX_GITHUB_MONITOR_TARGETS:max}=require('../app/deckforge-editor/deckforge-github-plugin.cjs');
+ const entries=[Object.freeze({repository:'Owner/First',workflow:'build.yml',branch:'main',label:'첫 번째'}),Object.freeze({repository:'Owner/Second',workflow:'123',branch:''}),Object.freeze({repository:'Owner/First',workflow:'build.yml',branch:'release'})];
+ Object.freeze(entries);
+ const original=JSON.stringify(entries),targets=normalize(entries);
+ assert.deepEqual(targets,[{repository:'Owner/First',workflow:'build.yml',branch:'main',label:'첫 번째'},{repository:'Owner/Second',workflow:'123',branch:'',label:'Second'},{repository:'Owner/First',workflow:'build.yml',branch:'release',label:'First'}]);
+ assert.equal(JSON.stringify(entries),original);
+ assert.deepEqual(normalize([entries[2],entries[0],entries[1]]).map(x=>x.branch),['release','main','']);
+ assert.equal(step(0,3,1),1);assert.equal(step(2,3,1),0);assert.equal(step(0,3,-1),2);assert.equal(step(0,1,-1),0);
+ for(const entry of [{repository:'../Repo',workflow:'build.yml'},{repository:'Owner/Repo',workflow:'../build.yml'},{repository:'Owner/Repo',workflow:'https://example.org'},{repository:'Owner/Repo',workflow:'build.yml',branch:'main\n'},{repository:'Owner/Repo',workflow:'build.yml',label:'x'.repeat(101)}])assert.throws(()=>normalize([entry]));
+ assert.throws(()=>normalize([]));assert.throws(()=>normalize(Array.from({length:max+1},(_,i)=>({repository:'Owner/Repo'+i,workflow:'123'}))));
+ assert.throws(()=>normalize([entries[0],{...entries[0],repository:'owner/first'}]),/중복/);
+ assert.throws(()=>step(-1,3,1));assert.throws(()=>step(0,3,0));assert.throws(()=>step(0,0,1));
+});

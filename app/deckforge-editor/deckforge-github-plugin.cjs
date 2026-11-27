@@ -119,4 +119,36 @@ async function discoverGitHubBuildOptions(repository,bearer,request=require('./d
   const workflows=await list(base+'/actions/workflows','workflows',row=>Number.isSafeInteger(row?.id)&&row.id>0&&clean(row.name,256)&&clean(row.path,1024)?{value:String(row.id),label:row.name,file:row.path.split('/').at(-1)}:null);
   return {branches:branches.items,workflows:workflows.items,truncated:branches.truncated||workflows.truncated};
 }
-module.exports={createGitHubManifest,buildKey,discoverGitHubBuildOptions};
+// Ordered monitor draft contract for the upcoming multi-repository action.
+// Independent of the existing .build action and its persisted settings.
+const MAX_GITHUB_MONITOR_TARGETS=10;
+function normalizeGitHubMonitorTargets(entries){
+  if(!Array.isArray(entries)||entries.length<1||entries.length>MAX_GITHUB_MONITOR_TARGETS)
+    throw Error('저장소는 1~'+MAX_GITHUB_MONITOR_TARGETS+'개 등록하세요.');
+  const segment=s=>/^[A-Za-z0-9_.~-]{1,128}$/.test(s)&&s!=='.'&&s!=='..';
+  const read=(value,max,field)=>{
+    if(typeof value!=='string'||value.length>max||/[\x00-\x1f\x7f]/.test(value))throw Error(field+' 확인');
+    return value.trim();
+  };
+  const keys=new Set();
+  return entries.map(entry=>{
+    if(!entry||typeof entry!=='object'||Array.isArray(entry))throw Error('저장소 설정 확인');
+    const repository=read(entry.repository,256,'저장소');
+    const parts=repository.split('/');
+    if(parts.length!==2||!parts.every(segment))throw Error('저장소 이름 확인');
+    const workflow=read(entry.workflow,128,'빌드 종류');
+    if(!segment(workflow))throw Error('빌드 종류 확인');
+    const branch=read(entry.branch??'',256,'브랜치');
+    const label=read(entry.label??'',100,'표시 이름')||parts[1].slice(0,100);
+    const identity=JSON.stringify([repository.toLowerCase(),workflow,branch]);
+    if(keys.has(identity))throw Error('같은 저장소·빌드 종류·브랜치가 중복되었습니다.');
+    keys.add(identity);
+    return {repository,workflow,branch,label};
+  });
+}
+function stepGitHubMonitorIndex(current,count,direction){
+  if(!Number.isInteger(count)||count<1||count>MAX_GITHUB_MONITOR_TARGETS||!Number.isInteger(current)||current<0||current>=count||![1,-1].includes(direction))
+    throw Error('저장소 순환 위치 확인');
+  return (current+direction+count)%count;
+}
+module.exports={createGitHubManifest,buildKey,discoverGitHubBuildOptions,normalizeGitHubMonitorTargets,stepGitHubMonitorIndex,MAX_GITHUB_MONITOR_TARGETS};
