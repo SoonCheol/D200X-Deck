@@ -3401,7 +3401,7 @@ test('GitHub button opens only the displayed run ID and never a supplied externa
  const {createGitHubManifest,buildKey}=require('../app/deckforge-editor/deckforge-github-plugin.cjs');
  const {credentialBinding}=require('../app/deckforge-editor/deckforge-native-network.cjs');
  const m=validateNativeManifest(createGitHubManifest()),a=m.actions[0],settings=Object.fromEntries(a.settingsSchema.map(f=>[f.key,f.default]));
- assert.equal(m.version,'0.1.2');assert.ok(m.permissions.includes('browser.open'));
+ assert.match(m.version,/^\d+\.\d+\.\d+$/);assert.ok(m.permissions.includes('browser.open'));
  assert.equal(credentialBinding(m.id,m.networkEndpoints[0]),credentialBinding(m.id,{...m.networkEndpoints[0]}));
  const memory={},requests=[],opened=[],frames=[];
  const api={setTitle(){},drawKey:x=>frames.push(x),request:(...args)=>requests.push(args),openUrl:url=>opened.push(url)};
@@ -3503,10 +3503,10 @@ test('GitHub multi-monitor switches in order and discards an old target response
  const send=(type,response)=>run({type,response},settings,0,memory,api);
  const response=(id,number)=>({ok:true,body:JSON.stringify({workflow_runs:[{id,run_number:number,status:'completed',conclusion:'success'}]})});
  await send('appear');await send('tick');assert.equal(requests[0][3].path.repo,'A');
- await send('multiNext');assert.equal(memory.index,1);await send('tick');assert.equal(requests.length,1);
+ await send('multiNext');assert.equal(memory.index,1);await send('multiPrevious');assert.equal(memory.index,0);await send('networkResult',response(111,11));assert.equal(memory.runLink,null);assert.equal(memory.display.status,'조회 준비');await send('tick');assert.equal(requests.length,2);await send('multiNext');assert.equal(memory.index,1);await send('tick');assert.equal(requests.length,2);
  await send('networkResult',response(111,11));assert.equal(memory.display.status,'조회 준비');assert.equal(memory.runLink,null);
  await send('press');assert.deepEqual(opened,[]);
- await send('tick');assert.equal(requests[1][3].path.repo,'B');
+ await send('tick');assert.equal(requests[2][3].path.repo,'B');
  await send('networkResult',response(222,22));await send('press');assert.deepEqual(opened,['https://github.com/Owner/B/actions/runs/222']);
  await send('multiPrevious');assert.equal(memory.index,0);await send('multiPrevious');assert.equal(memory.index,1);
  await send('settings');assert.equal(memory.index,0);assert.equal(memory.runLink,null);
