@@ -10,6 +10,7 @@ import subprocess
 from pathlib import Path
 from PIL import Image
 from server import create_app
+from verify_data import verify_data
 from package_inspector import inspect_package
 from signing import sign_document
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
@@ -81,6 +82,23 @@ class StoreTest(unittest.TestCase):
         self.assertEqual(result.json["item"]["packageProfile"],"indexed-icons")
         self.assertEqual(len(catalog("elgato",self.owner).json["items"]),1)
         self.assertEqual(self.c.post(path+"/metadata",json={"description":"","license":"test","platform":"invalid"},headers=self.owner).status_code,400)
+    def test_offline_backup_integrity(self):
+        item=self.upload("deckforge").json["item"]
+        path="/api/v1/admin/releases/"+item["releaseId"]
+        self.assertEqual(self.c.post(path+"/publish",json={"reviewed":True,"visibility":"public"},headers=self.owner).status_code,200)
+        self.assertEqual(verify_data(self.tmp.name),{"ok":True,"releases":1,"verifiedBlobs":1})
+        with tempfile.TemporaryDirectory() as dest:
+            backup=Path(dest)/"backup";shutil.copytree(self.tmp.name,backup)
+            self.assertTrue(verify_data(backup)["ok"])
+            client=create_app(backup,ORIGIN).test_client()
+            self.assertEqual(client.get("/api/v1/items/"+item["id"],headers=self.member).status_code,200)
+            file=backup/"blobs"/item["sha256"];original=file.read_bytes()
+            file.write_bytes(bytes([original[0]^1])+original[1:])
+            with self.assertRaisesRegex(ValueError,"hash mismatch"): verify_data(backup)
+            file.unlink()
+            with self.assertRaisesRegex(ValueError,"missing"): verify_data(backup)
+            self.assertTrue(verify_data(self.tmp.name)["ok"])
+        self.assertIn("max-age=",self.c.get("/api/v1/health").headers["Strict-Transport-Security"])
     def test_public_and_logout(self):
         i=self.upload("deckforge").json["item"]
         self.assertEqual(self.c.post("/api/v1/admin/releases/"+i["releaseId"]+"/publish",json={"reviewed":True,"visibility":"public"},headers=self.owner).status_code,200)

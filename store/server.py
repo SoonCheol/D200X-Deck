@@ -139,6 +139,7 @@ def create_app(data_dir=None,origin=None):
         response.headers["Referrer-Policy"]="no-referrer"
         response.headers["Content-Security-Policy"]="default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data: blob:; connect-src 'self'; base-uri 'none'; frame-ancestors 'none'; form-action 'self'"
         response.headers["X-Frame-Options"]="DENY"
+        response.headers["Strict-Transport-Security"]="max-age=31536000"
         return response
     @app.errorhandler(ValueError)
     def invalid(_): return jsonify(error="invalid input or package"),400
