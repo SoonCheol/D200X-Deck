@@ -26,6 +26,7 @@ from package_inspector import png_preview
 from PIL import Image
 
 TTL=3600
+MIN_PASSWORD_LENGTH=8
 ID=re.compile(r"^[A-Za-z0-9][A-Za-z0-9_-]{0,95}$")
 USERNAME=re.compile(r"^[A-Za-z0-9_.-]{3,64}$")
 TOKEN=re.compile(r"^[A-Za-z0-9_-]{43}$")
@@ -55,7 +56,7 @@ def valid_id(value):
     return value
 
 def password_hash(password,salt=None):
-    if not isinstance(password,str) or not 12<=len(password)<=1024: raise ValueError("password requires 12–1024 characters")
+    if not isinstance(password,str) or not MIN_PASSWORD_LENGTH<=len(password)<=1024: raise ValueError(f"password requires {MIN_PASSWORD_LENGTH}–1024 characters")
     salt=salt or secrets.token_bytes(16)
     key=hashlib.scrypt(password.encode("utf-8"),salt=salt,n=32768,r=8,p=1,maxmem=64*MIB,dklen=32)
     return salt.hex()+":"+key.hex()
@@ -160,7 +161,7 @@ def create_app(data_dir=None,origin=None):
         data=body()
         username,password=data.get("username"),data.get("password")
         client=data.get("client")
-        if client not in ("desktop","web") or not isinstance(username,str) or not USERNAME.fullmatch(username) or not isinstance(password,str) or not 12<=len(password)<=1024: abort(401)
+        if client not in ("desktop","web") or not isinstance(username,str) or not USERNAME.fullmatch(username) or not isinstance(password,str) or not MIN_PASSWORD_LENGTH<=len(password)<=1024: abort(401)
         if client=="web" and (request.headers.get("Origin")!=origin or request.headers.get("X-DeckForge-CSRF")!="1"): abort(403)
         # Global and account limits do not trust forwarded client IP headers.
         window=now()//300

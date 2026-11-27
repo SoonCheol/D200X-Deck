@@ -99,6 +99,20 @@ class StoreTest(unittest.TestCase):
             with self.assertRaisesRegex(ValueError,"missing"): verify_data(backup)
             self.assertTrue(verify_data(self.tmp.name)["ok"])
         self.assertIn("max-age=",self.c.get("/api/v1/health").headers["Strict-Transport-Security"])
+    def test_password_minimum_eight(self):
+        with tempfile.TemporaryDirectory() as directory:
+            app=create_app(directory,ORIGIN)
+            bootstrap=app.extensions["store_bootstrap"]
+            with self.assertRaises(ValueError): bootstrap("owner","aB3!xY7")
+            bootstrap("owner","aB3!xY7z")
+            client=app.test_client()
+            result=client.post("/api/v1/auth/login",json={"username":"owner","password":"aB3!xY7z","client":"desktop"})
+            self.assertEqual(result.status_code,200)
+            headers={"Authorization":"Bearer "+result.json["accessToken"]}
+            self.assertEqual(client.post("/api/v1/admin/accounts",json={"username":"short","password":"aB3!xY7"},headers=headers).status_code,400)
+            self.assertEqual(client.post("/api/v1/admin/accounts",json={"username":"member","password":"cD4!mN8q"},headers=headers).status_code,201)
+            self.assertEqual(client.post("/api/v1/auth/login",json={"username":"member","password":"cD4!mN8q","client":"desktop"}).status_code,200)
+            self.assertEqual(client.post("/api/v1/auth/login",json={"username":"owner","password":"aB3!xY7","client":"desktop"}).status_code,401)
     def test_public_and_logout(self):
         i=self.upload("deckforge").json["item"]
         self.assertEqual(self.c.post("/api/v1/admin/releases/"+i["releaseId"]+"/publish",json={"reviewed":True,"visibility":"public"},headers=self.owner).status_code,200)
