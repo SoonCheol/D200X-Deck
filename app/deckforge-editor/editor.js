@@ -7370,6 +7370,16 @@ async function storeReadPixelStyle(icon,canvas){
   }catch{return null;}
   finally{img.removeAttribute('src');}
 }
+// App-provided plugins are managed by DeckForge, not distributed by the Store.
+function storePluginIsOptional(plugin){
+  if(typeof plugin?.uuid!=='string'||!plugin.uuid.trim())return false;
+  return ![
+    'com.deckforge.native.home-assistant',
+    'de.perdoctus.streamdeck.homeassistant',
+    'com.autodesk.fusionstreamdeck',
+    'com.deckforge.native.github-status'
+  ].includes(plugin.uuid.toLowerCase());
+}
 function storePluginSummary(plugin){
   const actions=Array.isArray(plugin.actions)?plugin.actions:[];
   const runtime=plugin.runtime==='deckforge-sdk'?'native':(!plugin.runtime||plugin.runtime==='streamdeck-sdk')?'compatible':'unknown';
@@ -7449,8 +7459,8 @@ async function openStoreCatalog(){
       grid.append(list);return;
     }
     const matching=pluginRecords.filter(summary=>storePluginMatches(summary,query.value,runtimeFilter.value));
-    status.textContent='NAS 서버 미연결 · 로컬 플러그인 '+matching.length+' / '+pluginRecords.length+'개';
-    if(!matching.length){grid.append(node('p','store-catalog-empty','조건에 맞는 설치 플러그인이 없습니다.'));return;}
+    status.textContent='NAS 서버 미연결 · 선택형 설치 플러그인 '+matching.length+' / '+pluginRecords.length+'개 · 기본 제공 제외';
+    if(!matching.length){grid.append(node('p','store-catalog-empty',(pluginRecords.length?'조건에 맞는 선택형 플러그인이 없습니다.':'추가 설치된 선택형 플러그인이 없습니다. 기본 제공 플러그인은 기존 DeckForge 메뉴에서 관리합니다.')));return;}
     for(const summary of matching){
       const {plugin,actions,runtime,available}=summary;
       const card=node('button','store-pack-card');card.type='button';
@@ -7490,7 +7500,7 @@ async function openStoreCatalog(){
         if(!window.deckBridge?.sdkList)throw Error('Windows DeckForge에서만 플러그인 목록을 읽을 수 있습니다.');
         const plugins=await window.deckBridge.sdkList();
         if(current!==request||!dialog.open)return;
-        pluginRecords=plugins.map(storePluginSummary);selectedPlugin=null;pluginLoaded=true;render();
+        pluginRecords=plugins.filter(storePluginIsOptional).map(storePluginSummary);selectedPlugin=null;pluginLoaded=true;render();
       }catch(error){if(current===request&&dialog.open)status.textContent='목록 읽기 실패: '+String(error?.message||error);}
       finally{if(current===request&&dialog.open){reload.disabled=false;importButton.disabled=false;}}
       return;
@@ -7523,7 +7533,7 @@ async function openStoreCatalog(){
     const next=tab.dataset.storeTab;if(busy||next===mode)return;
     ++request;analyzing=false;mode=next;selected=null;selectedPlugin=null;query.value='';
     for(const entry of tabs)entry.setAttribute('aria-pressed',String(entry.dataset.storeTab===mode));
-    find('[data-store-local]').textContent=mode==='icons'?'로컬 아이콘팩':'로컬 플러그인';
+    find('[data-store-local]').textContent=mode==='icons'?'로컬 아이콘팩':'선택형 플러그인';
     query.placeholder=mode==='icons'?'팩 이름 또는 아이콘 검색':'플러그인 또는 액션 검색';
     query.setAttribute('aria-label',query.placeholder);
     importButton.textContent=mode==='icons'?'팩 가져오기':'플러그인 가져오기';

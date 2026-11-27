@@ -292,3 +292,13 @@ test('Store plugin catalogue uses installed metadata and independent SDK/search 
  assert.equal(f.storePluginMatches(b,'light','all'),false);
  assert.equal(JSON.stringify(native),before);
 });
+
+test('Store excludes app-provided plugins by exact identity, not SDK or name',()=>{
+ const start=editor.indexOf('function storePluginIsOptional('),end=editor.indexOf('function storePluginSummary(',start);
+ assert.ok(start>=0&&end>start);
+ const isOptional=vm.runInNewContext(editor.slice(start,end)+';storePluginIsOptional');
+ for(const uuid of ['com.deckforge.native.home-assistant','de.perdoctus.streamdeck.homeassistant','com.autodesk.fusionstreamdeck','COM.DECKFORGE.NATIVE.GITHUB-STATUS'])assert.equal(isOptional({uuid}),false);
+ for(const uuid of ['com.deckforge.native.optional','com.vendor.home-assistant','com.vendor.github','com.deckforge.native.github-status.extra'])assert.equal(isOptional({uuid,name:'GitHub',runtime:'deckforge-sdk'}),true);
+ assert.equal(isOptional({}),false);
+ assert.match(editor,/pluginRecords=plugins\.filter\(storePluginIsOptional\)\.map\(storePluginSummary\)/);
+});
