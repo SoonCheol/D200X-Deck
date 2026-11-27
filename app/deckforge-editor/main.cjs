@@ -62,7 +62,7 @@ ipcMain.handle('d200x:store-updates',async(event,kind,pluginId='')=>{
   if(!['iconpack','plugin'].includes(kind)||typeof pluginId!=='string'||pluginId.length>160)throw Error('스토어 종류 오류');
   const session=storeClient.requireSession(),origin=storeClient.status().origin;
   let installed;
-  if(kind==='iconpack'){await ensureIconPacksMigrated();installed=(await readPacks(iconPacksFile())).filter(p=>p.storeSource?.origin===origin&&p.source!=='bundled');}
+  if(kind==='iconpack'){await ensureIconPacksMigrated();installed=await readPacks(iconPacksFile());if(!installed.some(p=>p.storeSource?.origin===origin&&p.source!=='bundled'))return [];}
   else installed=(await sdk().list()).filter(p=>p.runtime==='deckforge-sdk'&&p.uuid===pluginId);
   if(!installed.length)return [];
   const updates=[],seen=new Set();let cursor='';
@@ -118,6 +118,7 @@ ipcMain.handle('d200x:store-download',(event,kind,id,releaseId,hash,installIconP
       if(confirm.response!==1)return null;
       storeClient.requireSession();
       if((await listIconPacks()).some(p=>p.id===pack.id))return {kind:'already-installed',name:pack.name};
+      if(updateOnly===true&&!storeUpdateCandidate(item,await readPacks(iconPacksFile()),storeClient.status().origin))throw Error('설치된 아이콘팩 버전이 변경되었습니다. 다시 확인하세요.');
       // Preserve each archive ID and the previous pack; do not migrate button artwork.
       pack.storeSource={origin:storeClient.status().origin,itemId:item.id,releaseId:item.releaseId,sha256:item.sha256};
       await ensureIconPacksMigrated();await registerPack(iconPacksFile(),pack);

@@ -1828,3 +1828,5 @@ dialog.deckforge-message-dialog:has(.fusion-command-properties){width:min(360px,
 .store-remote-detail-preview img{width:100%;max-width:160px;aspect-ratio:1;object-fit:contain}
 
 .store-preview-white .store-remote-cover,.store-preview-white .store-remote-detail-preview{background:#fff}
+
+.icon-library-footer #icon-pack-check-updates{border:1px solid #606060;border-radius:4px;padding:3px 7px;background:#383838;color:#eee;white-space:nowrap;font-size:11px}.icon-library-footer #icon-pack-check-updates:disabled{opacity:.45}

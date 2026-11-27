@@ -7659,7 +7659,7 @@ async function refreshImportedIconPacks(){
   }
 }
 async function checkIconPackUpdates(explicit=false){
-  if(iconUpdateBusy||!window.deckBridge?.storeUpdates)return;
+  if(iconUpdateBusy||$('icon-library').hidden||!window.deckBridge?.storeUpdates)return;
   const epoch=++iconUpdateEpoch,button=$('icon-pack-check-updates');
   iconUpdateBusy=true;button.disabled=true;
   try{
