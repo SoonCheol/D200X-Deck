@@ -862,3 +862,28 @@ test('ordered draft validation prevents incomplete shortcuts without modifying d
  assert.equal(validate({type:'text',settings:{}}),true);
  assert.match(editor,/if\(!validateOrderedActionDraft\(draft\)\)return;\s*apply\(draft\);dialog\.close\(\)/);
 });
+
+
+test('all 35 exposed basic actions have an explicit standard or dedicated paired card route',()=>{
+ const sandbox={window:{},localStorage:{getItem:()=>null}};
+ vm.runInNewContext(fs.readFileSync(path.join(base,'action-panel-icons.js'),'utf8'),sandbox);
+ const hidden=JSON.parse(editor.match(/const HIDDEN_BASIC_ACTION_IDS=new Set\((\[[^\]]+\])\)/)[1]);
+ const ids=Array.from(sandbox.window.D200XPanelIcons.groups).filter(([name])=>name!=='플러그인 · Home Assistant').flatMap(([,ids])=>Array.from(ids).filter(id=>!hidden.includes(id)));
+ const momentaryStart=editor.indexOf('function isMomentaryIconAction('),momentaryEnd=editor.indexOf('// Text action labels',momentaryStart);
+ const singleStart=editor.indexOf('function hasSingleBasicIconCard('),singleEnd=editor.indexOf('function bindNativeForegroundIconCard(',singleStart);
+ const classify=vm.runInNewContext(editor.slice(momentaryStart,momentaryEnd)+'\n'+editor.slice(singleStart,singleEnd)+';({isMomentaryIconAction,hasStateTitlePair,hasSingleBasicIconCard})');
+ const expectedSingle=['sleep','virtual','logic'],expectedState=['timer','hotkey-switch','multi-switch'],expectedDedicated=['indicator'];
+ assert.equal(ids.length,35);assert.equal(new Set(ids).size,35);
+ for(const type of ids){
+   const item={type};
+   const actual=classify.hasSingleBasicIconCard(item)?'single':classify.isMomentaryIconAction(item)?'momentary':classify.hasStateTitlePair(item)?'state':type==='indicator'?'indicator':'missing';
+   const expected=expectedSingle.includes(type)?'single':expectedState.includes(type)?'state':expectedDedicated.includes(type)?'indicator':'momentary';
+   assert.equal(actual,expected,type);
+ }
+ const indicator=editor.slice(editor.indexOf('function bindIndicatorInspector('),editor.indexOf('function bindExtendedActionFields('));
+ assert.match(indicator,/createStateIconCard\(pressed\?'Key Down':'Key Up'\)/);
+ assert.match(indicator,/createStateIconButtons\(\{/);
+ assert.match(indicator,/bindKeyBackgroundControl\(image,item,pressed\?'second':'default'\)/);
+ assert.match(indicator,/card\.append\(heading,titleLine,line,image,buttons\)/);
+ assert.match(indicator,/down\.card\.append\(down\.heading,downTitle,downNumber,down\.image,down\.buttons\)/);
+});

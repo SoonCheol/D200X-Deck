@@ -4281,22 +4281,20 @@ function bindIndicatorInspector(root,item){
   const panel=root.querySelector('[data-inspector-icons]');
   const cards=document.createElement('div');cards.className='sdk-state-icons indicator-icon-cards';
   const buildCard=(pressed)=>{
-    const card=document.createElement('div');card.className='sdk-state-icon';
+    const {card,heading,preview:image}=createStateIconCard(pressed?'Key Down':'Key Up');
     card.dataset.stateTitle=pressed?'second':'first';
-    const heading=document.createElement('strong');heading.textContent=pressed?'Key Down':'Key Up';
-    const image=document.createElement('div');image.className='sdk-state-preview';
     image.append(iconNode(indicatorPressVisual(displayItem(item,index),pressed),'1'));
-    const buttons=document.createElement('div');buttons.className='sdk-state-buttons';
     const key=pressed?'press:down':null;
-    const add=(title,fn)=>{const b=document.createElement('button');b.type='button';b.textContent=title;b.addEventListener('click',fn);buttons.append(b);};
-    add('라이브러리',event=>openIconLibrary(item,key,event.currentTarget));
-    add('파일',async()=>{try{const chosen=await chooseNativeImage('image');if(chosen?.dataUrl)applyStateIconData(item,key,await rasterizeIcon(chosen.dataUrl));}catch(error){window.d200xActionStatus?.('아이콘 선택 실패: '+String(error?.message||error));}});
-    add('클립보드',()=>pasteIcon(item,key));
-    add('특수문자',event=>openIconMaker(item,key,event.currentTarget));
-    add('초기화',()=>{
-      if(pressed){if(item.settings.keyPressIcons)delete item.settings.keyPressIcons.down;}
-      else {delete item.icon;if(item.settings.keyPressIcons)delete item.settings.keyPressIcons.up;}
-      persistInspectorChange();render();
+    const buttons=createStateIconButtons({
+      library:event=>openIconLibrary(item,key,event.currentTarget),
+      file:async()=>{try{const chosen=await chooseNativeImage('image');if(chosen?.dataUrl)applyStateIconData(item,key,await rasterizeIcon(chosen.dataUrl));}catch(error){window.d200xActionStatus?.('아이콘 선택 실패: '+String(error?.message||error));}},
+      paste:()=>pasteIcon(item,key),
+      symbol:event=>openIconMaker(item,key,event.currentTarget),
+      reset:()=>{
+        if(pressed){if(item.settings.keyPressIcons)delete item.settings.keyPressIcons.down;}
+        else {delete item.icon;if(item.settings.keyPressIcons)delete item.settings.keyPressIcons.up;}
+        persistInspectorChange();render();
+      }
     });
     bindKeyBackgroundControl(image,item,pressed?'second':'default');
     card.append(heading,image,buttons);
