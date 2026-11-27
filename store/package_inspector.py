@@ -241,3 +241,25 @@ def icon_preview_page(data, offset, limit):
             return dict(icons=result,total=len(paths),nextOffset=offset+len(result) if offset+len(result)<len(paths) else None)
     except (zipfile.BadZipFile,UnidentifiedImageError,Image.DecompressionBombError,UnicodeError,KeyError,TypeError,AttributeError,OSError,RuntimeError) as exc:
         raise ValueError("invalid or unsupported package") from exc
+
+def set_iconpack_version(data, version, name, author):
+    """Version an already-inspected archive without changing image/index bytes."""
+    text(version,40)
+    with zipfile.ZipFile(io.BytesIO(data)) as original:
+        names=original.namelist()
+        indexes=[n for n in names if re.search(r"(^|/)icons\.json$",n,re.I)]
+        root=indexes[0][:-len("icons.json")] if indexes else ""
+        path=root+"manifest.json"
+        manifest=read_json(original,path) if path in names else {}
+        require(isinstance(manifest,dict),"invalid manifest")
+        manifest["Version"]=version
+        if "version" in manifest: manifest["version"]=version
+        if not (manifest.get("Name") or manifest.get("name")): manifest["Name"]=name
+        if author and not manifest.get("Author"): manifest["Author"]=author
+        output=io.BytesIO()
+        with zipfile.ZipFile(output,"w",zipfile.ZIP_DEFLATED,compresslevel=3) as z:
+            for info in original.infolist():
+                if info.filename!=path:
+                    z.writestr(info,original.read(info))
+            z.writestr(path,json.dumps(manifest,ensure_ascii=False).encode("utf-8"))
+        return output.getvalue()

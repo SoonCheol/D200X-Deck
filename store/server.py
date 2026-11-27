@@ -23,7 +23,7 @@ from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 from package_inspector import inspect_package, text, MIB
 from folder_pack import make_folder_pack
 from svg_raster import rasterize_svg, MAX_SVG
-from package_inspector import png_preview, icon_preview_page
+from package_inspector import png_preview, icon_preview_page, set_iconpack_version
 from PIL import Image
 
 TTL=3600
@@ -36,6 +36,21 @@ PLATFORMS={"deckforge","ulanzi","elgato","generic","unknown"}
 PURPOSES={"general","ha","windows","fusion","media","app"}
 NAMING={"general-name","ha-name","state"}
 DESIGNS={"color","white","black","gray","line","white-line","black-line","solid","unknown"}
+# The container format is not the author or source platform. Legacy Ulanzi declarations
+# are not evidence of an implemented Ulanzi package parser.
+PACKAGE_FORMAT_SQL="""COALESCE(json_extract(r.meta,'$.packageFormat'),CASE
+ WHEN json_extract(r.meta,'$.format') IN ('streamDeckIconPack','sdIconPack','streamDeckPlugin') OR json_extract(r.meta,'$.packageProfile') IN ('elgato-icon-index','elgato-sdk') THEN 'streamdeck'
+ WHEN json_extract(r.meta,'$.format')='deckforgePlugin' OR json_extract(r.meta,'$.packageProfile')='deckforge-sdk' THEN 'deckforge'
+ WHEN json_extract(r.meta,'$.packageProfile')='indexed-icons' AND json_extract(r.meta,'$.source')='deckforge' AND json_extract(r.meta,'$.platform')='deckforge' THEN 'deckforge'
+ WHEN json_extract(r.meta,'$.packageProfile')='indexed-icons' THEN 'indexed'
+ WHEN json_extract(r.meta,'$.format')='zip' THEN 'zip' ELSE 'unknown' END)"""
+def package_format_of(meta):
+    if meta.get("packageFormat"): return meta["packageFormat"]
+    if meta.get("format") in ("streamDeckIconPack","sdIconPack","streamDeckPlugin") or meta.get("packageProfile") in ("elgato-icon-index","elgato-sdk"): return "streamdeck"
+    if meta.get("format")=="deckforgePlugin" or meta.get("packageProfile")=="deckforge-sdk": return "deckforge"
+    if meta.get("packageProfile")=="indexed-icons":
+        return "deckforge" if meta.get("source")=="deckforge" and meta.get("platform")=="deckforge" else "indexed"
+    return "zip" if meta.get("format")=="zip" else "unknown"
 def search_fold(value):
     return unicodedata.normalize("NFKC",value or "").casefold()
 SCHEMA="""
@@ -237,6 +252,11 @@ def create_app(data_dir=None,origin=None):
             if platform not in PLATFORMS: abort(400)
             sql+=" AND COALESCE(json_extract(r.meta,'$.platform'),'unknown')=?"
             params.append(platform)
+        package_format=request.args.get("packageFormat","")
+        if package_format:
+            if package_format not in {"deckforge","streamdeck","ulanzi","zip","indexed","unknown"}: abort(400)
+            sql+=" AND "+PACKAGE_FORMAT_SQL+"=?"
+            params.append(package_format)
         if q:
             # Literal Unicode-normalized substring; never search covers, hidden metadata or other releases.
             fields=("name","author","version","description","packageId")
@@ -250,6 +270,7 @@ def create_app(data_dir=None,origin=None):
         result=[]
         for x in rows[:limit]:
             item=json.loads(x["meta"])
+            if request.args.get("previews")=="1": item["packageFormat"]=package_format_of(item)
             if request.args.get("previews")=="1" and kind=="iconpack":
                 item["cardPreviews"]=json.loads(x["previews"])[:6]
             result.append(item)
@@ -258,7 +279,7 @@ def create_app(data_dir=None,origin=None):
     def detail(ident):
         user,_=authenticate()
         with db() as c: row,meta=current(c,ident,user["role"])
-        return jsonify(item=meta,previews=json.loads(row["previews"]))
+        return jsonify(item={**meta,"packageFormat":package_format_of(meta)},previews=json.loads(row["previews"]))
     @app.get("/api/v1/items/<ident>/icons")
     def item_icons(ident):
         user,_=authenticate()
@@ -425,23 +446,45 @@ def create_app(data_dir=None,origin=None):
             value.encode("utf-8","strict")
         platform=request.form.get("platform","unknown")
         if platform not in PLATFORMS: abort(400)
+        target=request.form.get("itemId","") if library else ""
+        expected=request.form.get("expectedRelease","") if target else ""
+        if target:
+            valid_id(target);valid_id(expected)
+            with db() as c:
+                old,previous=current(c,target,user["role"])
+            if user["role"]!="owner" and previous.get("uploadedBy")!=user["id"]: abort(403)
+            if kind!="iconpack" or previous["kind"]!="iconpack" or old["id"]!=expected: abort(409)
         info=inspect_package(data,kind,fmt,source,fallback)
+        if target:
+            version=text(request.form.get("newVersion",""),40)
+            if version==previous["version"]: abort(409)
+            if re.fullmatch(r"[0-9]+(?:\.[0-9]+){1,3}",version) and re.fullmatch(r"[0-9]+(?:\.[0-9]+){1,3}",previous["version"]):
+                if tuple(int(x) for x in version.split("."))<=tuple(int(x) for x in previous["version"].split(".")): abort(409)
+            if info["version"]!=version:
+                data=set_iconpack_version(data,version,previous["name"],info["author"])
+                info=inspect_package(data,kind,fmt,source,fallback)
         if library:
             if folder or info["native"]:
                 source="deckforge";platform="deckforge"
-            elif fmt in ("streamDeckIconPack","sdIconPack","streamDeckPlugin") or info["packageProfile"] in ("elgato-icon-index","elgato-sdk"):
-                platform="elgato"
             else:
-                platform="generic" if info["packageProfile"]=="raster-images" else "unknown"
-        digest=sha(data);ident=uid() if library else request.form.get("itemId") or uid();valid_id(ident);release=uid()
+                platform="unknown"
+        if target: source=previous["source"];platform=previous.get("platform","unknown")
+        digest=sha(data);ident=(target or uid()) if library else request.form.get("itemId") or uid();valid_id(ident);release=uid()
         meta={k:info[k] for k in ("name","version","author","packageId","cover","tags","iconCount","packageProfile")}
         meta.update(id=ident,releaseId=release,kind=kind,source=source,platform=platform,visibility="private",format=fmt,
                     size=len(data),sha256=digest,description=description,license=license_note)
         if library:
-            meta.update(uploadedBy=user["id"],libraryShared=True)
+            meta["packageFormat"]="deckforge" if folder else package_format_of(meta)
+            if target:
+                meta.update(visibility=previous["visibility"],libraryShared=bool(previous.get("libraryShared")))
+                if previous.get("uploadedBy"): meta["uploadedBy"]=previous["uploadedBy"]
+            else: meta.update(uploadedBy=user["id"],libraryShared=True)
         # Immutable blob first; a crash may leave an unreferenced blob, never a dangling release.
         with db(True) as c:
             existing=c.execute("SELECT * FROM items WHERE id=?",(ident,)).fetchone()
+            if target:
+                row,latest=current(c,ident,user["role"])
+                if row["id"]!=expected or (user["role"]!="owner" and latest.get("uploadedBy")!=user["id"]): abort(409)
             if existing:
                 if (existing["kind"],existing["source"],existing["package_id"])!=(kind,source,info["packageId"]): abort(409)
             else:
@@ -453,7 +496,7 @@ def create_app(data_dir=None,origin=None):
             if library: c.execute("UPDATE items SET current_release=? WHERE id=?",(release,ident))
             if kind=="iconpack":
                 c.execute("INSERT INTO release_icon_search VALUES(?,?)",(release,search_fold(info["searchTerms"])))
-            audit(c,user["id"],"release.upload",release)
+            audit(c,user["id"],"release.update" if target else "release.upload",release)
         return jsonify(item=meta,status="published" if library else "draft"),201
     @app.get("/api/v1/admin/items")
     def admin_items():

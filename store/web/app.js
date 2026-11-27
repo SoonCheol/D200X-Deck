@@ -1,9 +1,9 @@
 'use strict';
 const $=id=>document.getElementById(id);
-let account=null,kind='iconpack',items=[],cursor='',adminCursor='',busy=false,epoch=0,catalogParams='',searchTimer=null,mine=false,view='catalog',activeDetail=null,listScroll=0;
+let account=null,kind='iconpack',items=[],cursor='',adminCursor='',busy=false,epoch=0,catalogParams='',searchTimer=null,mine=false,view='catalog',activeDetail=null,listScroll=0,libraryUpdate=null;
 const el=(tag,text,cls)=>{const n=document.createElement(tag);if(text!==undefined)n.textContent=text;if(cls)n.className=cls;return n;};
 const button=(label,fn)=>{const n=el('button',label);n.type='button';n.onclick=()=>void run(fn);return n;};
-function reset(){if(galleryObserver){galleryObserver.disconnect();galleryObserver=null;}activeDetail=null;for(const id of ['edit-dialog','delete-dialog'])if($(id).open)$(id).close();clearTimeout(searchTimer);searchTimer=null;catalogParams='';clearFolder();$('upload').reset();formats();epoch++;account=null;items=[];cursor='';adminCursor='';for(const id of ['cards','detail','releases','accounts','review'])$(id).replaceChildren();$('detail').hidden=$('review').hidden=true;$('catalog').hidden=$('admin').hidden=$('upload-page').hidden=$('navigation').hidden=$('logout').hidden=true;mine=false;view='catalog';$('login').hidden=false;$('account').textContent='';}
+function reset(){libraryUpdate=null;if(galleryObserver){galleryObserver.disconnect();galleryObserver=null;}activeDetail=null;for(const id of ['edit-dialog','delete-dialog'])if($(id).open)$(id).close();clearTimeout(searchTimer);searchTimer=null;catalogParams='';clearFolder();$('upload').reset();formats();epoch++;account=null;items=[];cursor='';adminCursor='';for(const id of ['cards','detail','releases','accounts','review'])$(id).replaceChildren();$('detail').hidden=$('review').hidden=true;$('catalog').hidden=$('admin').hidden=$('upload-page').hidden=$('navigation').hidden=$('logout').hidden=true;mine=false;view='catalog';$('login').hidden=false;$('account').textContent='';}
 async function api(path,options={}){
  const headers={'X-DeckForge-CSRF':'1',...options.headers};
  if(options.body&&!(options.body instanceof FormData)){headers['Content-Type']='application/json';options.body=JSON.stringify(options.body);}
@@ -16,14 +16,15 @@ async function run(fn){if(busy)return;busy=true;$('status').textContent='처리 
 function show(a){account=a;$('login').hidden=true;$('navigation').hidden=$('logout').hidden=false;showView('catalog');$('admin-toggle').hidden=a.role!=='owner';$('account').textContent=a.username+' · '+(a.role==='owner'?'관리자':'사용자');}
 let galleryObserver=null;
 function showView(next){if(next!=='detail'&&galleryObserver){galleryObserver.disconnect();galleryObserver=null;}clearTimeout(searchTimer);searchTimer=null;view=next;$('detail').hidden=next!=='detail';$('catalog').hidden=next!=='catalog';$('admin').hidden=next!=='admin';$('upload-page').hidden=next!=='upload';$('catalog-title').textContent=kind==='iconpack'?'아이콘팩':'플러그인';for(const b of document.querySelectorAll('[data-kind]'))b.setAttribute('aria-pressed',String(next!=='admin'&&b.dataset.kind===kind));$('admin-toggle').setAttribute('aria-pressed',String(next==='admin'));$('all-items').setAttribute('aria-pressed',String(!mine));$('mine-items').setAttribute('aria-pressed',String(mine));}
-function openUpload(){clearFolder();const form=$('upload');form.reset();form.elements.kind.value=kind;formats();$('upload-status').textContent='';$('upload-title').textContent=(kind==='iconpack'?'아이콘팩':'플러그인')+' 업로드';showView('upload');}
+function openUpload(){libraryUpdate=null;clearFolder();const form=$('upload');form.reset();form.elements.kind.value=kind;formats();$('upload-status').textContent='';$('upload-title').textContent=(kind==='iconpack'?'아이콘팩':'플러그인')+' 업로드';showView('upload');}
 function preview(src){if(typeof src!=='string'||! /^[A-Za-z0-9+/]+={0,2}$/.test(src)||src.length>90000)return el('span','');const img=el('img');img.src='data:image/png;base64,'+src;img.alt='아이콘 미리보기';img.loading='lazy';return img;}
 const platformOptions={unknown:'출처 미확인',deckforge:'DeckForge',ulanzi:'Ulanzi',elgato:'Elgato',generic:'범용'};
+const packageFormatOptions={deckforge:'DeckForge',streamdeck:'Stream Deck',ulanzi:'Ulanzi',zip:'범용 ZIP',indexed:'인덱스 ZIP',unknown:'형식 미확인'};
 const profileOptions={'elgato-icon-index':'Elgato 아이콘팩 규격','indexed-icons':'인덱스형 아이콘팩','raster-images':'범용 래스터 이미지','deckforge-sdk':'DeckForge SDK','elgato-sdk':'Elgato SDK 호환 형식'};
 function provenanceLabel(item){
  const platform=Object.hasOwn(platformOptions,item.platform)?platformOptions[item.platform]:platformOptions.unknown;
  const profile=Object.hasOwn(profileOptions,item.packageProfile)?profileOptions[item.packageProfile]:'규격 미확인';
- return '출처: '+platform+(platform===platformOptions.unknown?'':' (등록 정보)')+' · 규격: '+profile;
+ return '패키지 형식: '+(packageFormatOptions[item.packageFormat]||'형식 미확인')+' · 구조: '+profile;
 }
 const purposeOptions={general:'일반',ha:'HA · IoT',windows:'Windows · 단축키',fusion:'Fusion · CAD',media:'미디어',app:'프로그램'};
 const namingOptions={'general-name':'일반 파일명','ha-name':'HA 형식 추정',state:'ON/OFF 상태 쌍'};
@@ -36,7 +37,7 @@ function optionList(select,options,all){
 for(const [id,options,label] of [['purpose',purposeOptions,'전체 용도'],['naming',namingOptions,'전체 네이밍'],['design',designOptions,'전체 디자인']]){
  optionList($(id),options,label);$(id).onchange=queueSearch;
 }
-optionList($('platform-filter'),platformOptions,'전체 출처');$('platform-filter').onchange=queueSearch;
+optionList($('platform-filter'),packageFormatOptions,'전체 형식');$('platform-filter').onchange=queueSearch;
 optionList($('upload-platform'),platformOptions);$('upload-platform').value='unknown';
 document.body.classList.add('preview-dark');function togglePreview(){const dark=document.body.classList.toggle('preview-dark');$('background').textContent=dark?'밝은 미리보기':'어두운 미리보기';const b=$('detail-background');if(b)b.textContent=$('background').textContent;}$('background').onclick=togglePreview;
 function render(){
@@ -45,7 +46,7 @@ function render(){
  for(const item of items){
   const card=button('',()=>detail(item));card.className='card';
   const art=el('div',undefined,'art');const samples=item.cardPreviews?.length?item.cardPreviews:item.cover?[item.cover]:[];if(samples.length){for(const src of samples.slice(0,6))art.append(preview(src));}else art.append(el('span','미리보기 없음','no-preview'));card.append(art);
-  card.append(el('strong',item.name),el('span',item.version+(item.kind==='iconpack'?' · 아이콘 '+item.iconCount+'개':'')),el('span',platformOptions[item.platform]||'출처 미확인'),el('span',item.tags.map(t=>purposeOptions[t]||namingOptions[t]||designOptions[t]||({native:'독자 플러그인',compatible:'호환 플러그인'}[t])||t).join(' · ')));
+  card.append(el('strong',item.name),el('span','v'+item.version+(item.kind==='iconpack'?' · 아이콘 '+item.iconCount+'개':'')),el('span',packageFormatOptions[item.packageFormat]||'형식 미확인','package-format'),el('span',item.tags.map(t=>purposeOptions[t]||namingOptions[t]||designOptions[t]||({native:'독자 플러그인',compatible:'호환 플러그인'}[t])||t).join(' · ')));
   $('cards').append(card);
  }
  if(!$('cards').children.length)$('cards').append(el('p','표시할 항목이 없습니다.'));
@@ -54,7 +55,7 @@ function render(){
 function requestedCatalog(){
  const params=new URLSearchParams({kind,limit:'20',previews:'1'});if(mine)params.set('mine','1');
  const q=$('search').value.trim();if(q)params.set('q',q);
- if($('platform-filter').value)params.set('platform',$('platform-filter').value);
+ if($('platform-filter').value)params.set('packageFormat',$('platform-filter').value);
  if(kind==='iconpack')for(const id of ['purpose','naming','design'])if($(id).value)params.set(id,$(id).value);
  return params.toString();
 }
@@ -101,7 +102,7 @@ async function detail(item){
  const back=button('← 목록으로',()=>backToList());back.className='back-link';
  const heading=el('div',undefined,'detail-heading'),title=el('div');title.append(el('p',i.kind==='iconpack'?'아이콘팩':'플러그인','eyebrow'),el('h2',i.name),el('p','버전 '+i.version+(i.kind==='iconpack'?' · 아이콘 '+i.iconCount+'개':'')+(i.author?' · '+i.author:''),'detail-meta'));
  const actions=el('div',undefined,'detail-actions');const a=el('a','다운로드','primary action-link');a.href='/api/v1/items/'+encodeURIComponent(i.id)+'/releases/'+encodeURIComponent(i.releaseId)+'/download';actions.append(a);
- if(account.role==='owner'||i.uploadedBy===account.id){actions.append(button('정보 수정',()=>openEdit(i)));const del=button('삭제',()=>{$('delete-message').textContent=i.name+'을(를) 삭제하시겠습니까?';$('delete-dialog').showModal();});del.className='danger-outline';actions.append(del);}
+ if(account.role==='owner'||i.uploadedBy===account.id){if(i.kind==='iconpack')actions.append(button('업데이트',()=>openLibraryUpdate(i)));actions.append(button('정보 수정',()=>openEdit(i)));const del=button('삭제',()=>{$('delete-message').textContent=i.name+'을(를) 삭제하시겠습니까?';$('delete-dialog').showModal();});del.className='danger-outline';actions.append(del);}
  heading.append(title,actions);
  const body=el('div',undefined,'detail-body');
  const startGallery=i.kind==='iconpack'?iconGallery(i,body):null;
@@ -125,7 +126,12 @@ async function adminList(resetList=true){
  const users=await api('/api/v1/admin/accounts');$('accounts').replaceChildren();
  for(const u of users.accounts){const row=el('div',u.username+' · '+u.role+(u.active?'':' · 비활성'));if(u.role==='user'&&u.active)row.append(button('비활성화',async()=>{if(!confirm('계정과 세션을 비활성화합니까?'))return;await api('/api/v1/admin/accounts/'+u.id+'/disable',{method:'POST',body:{}});await adminList();}));$('accounts').append(row);}
 }
+function nextVersion(version){const parts=String(version).split('.');if(parts.length>=2&&parts.length<=4&&parts.every(p=>/^\d+$/.test(p)&&Number(p)<100000000)){parts[parts.length-1]=String(Number(parts.at(-1))+1);return parts.join('.');}return '';}
+function openLibraryUpdate(item){
+ libraryUpdate=item;clearFolder();const form=$('upload');form.reset();form.elements.kind.value='iconpack';form.elements.itemId.value=item.id;form.elements.expectedRelease.value=item.releaseId;form.elements.description.value=item.description||'';form.elements.license.value=item.license||'';form.elements.newVersion.value=nextVersion(item.version);$('pack-name').value=item.name;$('pack-author').value=item.author||'';$('pack-version').value=form.elements.newVersion.value;formats();$('upload-title').textContent=item.name+' 업데이트';$('upload-status').textContent='';showView('upload');
+}
 function prepareVersion(item){
+ libraryUpdate=null;
  const form=$('upload');
  if(!confirm('새 버전 등록 양식을 초기화합니까? 기존 등록 파일은 유지됩니다.'))return;
  clearFolder();form.reset();form.elements.kind.value=item.kind;form.elements.source.value=item.source;form.elements.platform.value=item.platform||'unknown';
@@ -218,7 +224,7 @@ $('folder-picker').onchange=()=>{
   }
   if(svg>500||folderRows.length+svg+2>2530)throw Error('SVG 최대 500개, 원본 포함 압축 항목 2530개 제한');
   if(!folderRows.length||folderRows.length>2500||total>58*1024*1024)throw Error('이미지 1~2500개, 원본 합계 58MiB 이하로 선택하세요.');
-  folderRows.sort((a,b)=>a.path.localeCompare(b.path));$('pack-name').value=root.slice(0,120);
+  folderRows.sort((a,b)=>a.path.localeCompare(b.path));$('pack-name').value=libraryUpdate?libraryUpdate.name:root.slice(0,120);
   $('folder-status').textContent=folderRows.length+'개 이미지 · '+(total/1024/1024).toFixed(2)+' MiB'+(svg?' · SVG '+svg+'개 (서버 PNG 변환)':'')+(skipped?' · 이미지 외 파일 '+skipped+'개 제외':'');
  }catch(e){folderRows=[];folderBlocked=true;$('folder-status').textContent=e.message;}
  renderFolder();
@@ -250,14 +256,16 @@ $('ai-apply').onclick=()=>{
 };
 function formats(){
  const form=$('upload'),type=form.elements.kind.value;
+ $('new-version-label').hidden=!libraryUpdate;form.elements.newVersion.disabled=!libraryUpdate;form.elements.newVersion.required=!!libraryUpdate;
+ $('submit-upload').textContent=libraryUpdate?'업데이트':'업로드';$('upload-intro').textContent=libraryUpdate?'현재 '+libraryUpdate.version+' · 수정된 전체 아이콘팩 파일 또는 폴더를 선택하세요. 기존 등록 버전은 보존됩니다.':'파일 또는 폴더를 선택하세요. 검사 후 저장소에 바로 등록됩니다.';
  if(type!=='iconpack')$('upload-mode').value='file';
  $('upload-mode-label').hidden=type!=='iconpack';
  const folder=type==='iconpack'&&$('upload-mode').value==='folder';
  $('file-mode').hidden=folder;$('folder-mode').hidden=!folder;
  form.elements.file.required=!folder;form.elements.file.disabled=folder;
  $('folder-picker').required=folder;$('folder-picker').disabled=!folder;
- $('pack-name').required=folder;$('pack-version').required=folder;
- $('pack-name').disabled=$('pack-version').disabled=$('pack-author').disabled=!folder;
+ $('pack-name').required=folder;$('pack-version').required=folder&&!libraryUpdate;
+ $('pack-name').disabled=$('pack-author').disabled=!folder;$('pack-version').disabled=!folder||!!libraryUpdate;
  const list=type==='iconpack'?['streamDeckIconPack','sdIconPack','zip']:['deckforgePlugin','streamDeckPlugin','zip'];$('format').replaceChildren();
  for(const v of list){const option=el('option',v);option.value=v;$('format').append(option);}
  form.elements.file.accept=list.map(v=>'.'+v).join(',');
@@ -268,7 +276,7 @@ $('logout').onclick=()=>void run(async()=>{try{await api('/api/v1/auth/logout',{
 document.querySelectorAll('[data-kind]').forEach(b=>b.onclick=()=>void run(async()=>{kind=b.dataset.kind;mine=false;showView('catalog');await load();}));
 $('search').oninput=queueSearch;$('refresh').onclick=()=>void run(()=>load());$('more').onclick=()=>void run(()=>load(false));
 $('admin-toggle').onclick=()=>void run(async()=>{showView('admin');await adminList();});
-$('open-upload').onclick=openUpload;$('upload-back').onclick=()=>void run(async()=>{showView('catalog');await load();});
+$('open-upload').onclick=openUpload;$('upload-back').onclick=()=>void run(async()=>{const target=libraryUpdate;libraryUpdate=null;if(target){await detail(target);return;}showView('catalog');await load();});
 for(const [id,value] of [['all-items',false],['mine-items',true]])$(id).onclick=()=>void run(async()=>{mine=value;showView('catalog');await load();});
 const drop=$('file-mode');drop.ondragover=e=>{e.preventDefault();drop.classList.add('dragging');};drop.ondragleave=()=>drop.classList.remove('dragging');drop.ondrop=e=>{e.preventDefault();drop.classList.remove('dragging');if(e.dataTransfer.files.length===1)$('upload').elements.file.files=e.dataTransfer.files;};
 $('admin-refresh').onclick=()=>void run(()=>adminList());$('admin-more').onclick=()=>void run(()=>adminList(false));
@@ -277,14 +285,14 @@ $('upload').onsubmit=event=>{
  void run(async()=>{
   $('submit-upload').disabled=true;$('upload-status').textContent='업로드 및 검사 중…';
   try{
-   const oldVersion=!!form.elements.itemId.value;
+   const updating=!!libraryUpdate,oldVersion=!!form.elements.itemId.value&&!updating;
    const folder=$('upload-mode').value==='folder'&&form.elements.kind.value==='iconpack';
    let body=new FormData(form),path=oldVersion?'/api/v1/admin/items':'/api/v1/library/upload';
    if(folder){
     if(folderBlocked||!folderRows.length)throw Error('유효한 아이콘 폴더를 선택하세요.');
-    const metadata={name:$('pack-name').value.trim(),version:$('pack-version').value.trim(),author:$('pack-author').value.trim(),icons:folderRows.map(r=>({path:r.path,tags:r.tags}))};
+    const metadata={name:$('pack-name').value.trim(),version:updating?form.elements.newVersion.value.trim():$('pack-version').value.trim(),author:$('pack-author').value.trim(),icons:folderRows.map(r=>({path:r.path,tags:r.tags}))};
     const blob=new Blob([JSON.stringify(metadata)],{type:'application/json'});if(blob.size>1024*1024)throw Error('아이콘 메타데이터 크기 초과');
-    body=new FormData();for(const field of ['source','platform','license','description','itemId'])body.append(field,form.elements[field].value);
+    body=new FormData();for(const field of ['source','platform','license','description','itemId','expectedRelease','newVersion'])body.append(field,form.elements[field].value);
     body.append('metadata',blob,'metadata.json');for(const r of folderRows)body.append('icons',r.file,r.path);
     path=oldVersion?'/api/v1/admin/folder-pack':'/api/v1/library/folder';
    }
@@ -294,7 +302,7 @@ $('upload').onsubmit=event=>{
     if(!fmt)throw Error('지원하지 않는 파일 형식입니다.');body.set('format',fmt);
    }
    const result=await api(path,{method:'POST',body});
-   clearFolder();form.reset();formats();
+   libraryUpdate=null;clearFolder();form.reset();formats();
    if(oldVersion){showView('admin');await adminList();await reviewRelease(result.item.releaseId);}
    else{kind=result.item.kind;mine=false;$('search').value='';for(const id of ['platform-filter','purpose','naming','design'])$(id).value='';showView('catalog');await load();await detail(result.item);}
   }finally{$('submit-upload').disabled=false;}

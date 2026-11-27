@@ -41,6 +41,27 @@ class StoreTest(unittest.TestCase):
         return {"Authorization":"Bearer "+r.json["accessToken"]}
     def upload(self,source="third-party",data=None):
         return self.c.post("/api/v1/admin/items",data={"file":(io.BytesIO(data if data is not None else pack()),"icons.zip"),"kind":"iconpack","format":"zip","source":source,"license":"test license"},headers=self.owner)
+    def test_library_iconpack_update_and_format(self):
+        def payload(): return {"file":(io.BytesIO(pack()),"icons.sdIconPack"),"kind":"iconpack"}
+        i=self.c.post("/api/v1/library/upload",data=payload(),headers=self.member).json["item"]
+        self.assertEqual(i["packageFormat"],"streamdeck")
+        self.assertEqual(i["platform"],"unknown")
+        def update(version="1.0.1",expected=None):
+            return {**payload(),"itemId":i["id"],"expectedRelease":expected or i["releaseId"],"newVersion":version}
+        path="/api/v1/library/upload"
+        self.assertEqual(self.c.post(path,data=update("1.0.0"),headers=self.member).status_code,409)
+        result=self.c.post(path,data=update(),headers=self.member)
+        self.assertEqual(result.status_code,201,result.json)
+        latest=result.json["item"]
+        self.assertEqual((latest["id"],latest["version"]),(i["id"],"1.0.1"))
+        self.assertNotEqual(latest["releaseId"],i["releaseId"])
+        self.assertEqual(self.c.post(path,data=update("1.0.2"),headers=self.member).status_code,409)
+        items=self.c.get("/api/v1/catalog?kind=iconpack&previews=1&packageFormat=streamdeck",headers=self.member).json["items"]
+        self.assertEqual([x["id"] for x in items],[i["id"]])
+        got=self.c.get("/api/v1/items/"+i["id"]+"/releases/"+latest["releaseId"]+"/download",headers=self.member)
+        self.assertEqual(inspect_package(got.data,"iconpack","sdIconPack","third-party","test")["version"],"1.0.1")
+        self.assertTrue((Path(self.tmp.name)/"blobs"/i["sha256"]).exists())
+        self.assertTrue(verify_data(self.tmp.name)["ok"])
     def test_all_icon_gallery_pagination(self):
         out=io.BytesIO();png=io.BytesIO()
         Image.new("RGBA",(16,16),(255,255,255,255)).save(png,format="PNG")
