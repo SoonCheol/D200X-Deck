@@ -30,14 +30,25 @@ const Backup=require('./backup.cjs');
 const BackupPrivacy=require('./backup-privacy.cjs');
 const {GoogleDrive}=require('./google-drive.cjs');
 const UpdateCheck=require('./update-check.cjs');
-const {StoreClient}=require('./store-client.cjs');
+const {StoreClient,storeInstalledState}=require('./store-client.cjs');
 const storeClient=new StoreClient(app.getPath('userData'));
 ipcMain.handle('d200x:store-status',event=>{assertEditor(event);return storeClient.status();});
 ipcMain.handle('d200x:store-save',(event,origin)=>{assertEditor(event);return storeClient.save(origin);});
 ipcMain.handle('d200x:store-check',event=>{assertEditor(event);return storeClient.check();});
 ipcMain.handle('d200x:store-login',(event,username,password)=>{assertEditor(event);return storeClient.login(username,password);});
 ipcMain.handle('d200x:store-logout',event=>{assertEditor(event);return storeClient.logout();});
-ipcMain.handle('d200x:store-catalog',(event,kind,cursor)=>{assertEditor(event);return storeClient.catalog(kind,cursor);});
+ipcMain.handle('d200x:store-catalog',async(event,kind,cursor)=>{
+  assertEditor(event);
+  const origin=storeClient.status().origin;
+  const page=await storeClient.catalog(kind,cursor);
+  const session=storeClient.requireSession();
+  let installed;
+  if(kind==='iconpack'){await ensureIconPacksMigrated();installed=await readPacks(iconPacksFile());}
+  else installed=await sdk().list();
+  if(storeClient.requireSession()!==session||storeClient.status().origin!==origin)throw Error('스토어 세션이 변경되었습니다.');
+  return {...page,items:page.items.map(item=>({...item,local:storeInstalledState(item,installed,origin)}))};
+});
+ipcMain.handle('d200x:store-preview',(event,kind,id,releaseId,hash)=>{assertEditor(event);return storeClient.preview(kind,id,releaseId,hash);});
 ipcMain.handle('d200x:store-download',(event,kind,id,releaseId,hash,installIconPack=false)=>{
   assertEditor(event);
   return storeClient.download(kind,id,releaseId,hash,async(item,bytes)=>{
@@ -47,10 +58,12 @@ ipcMain.handle('d200x:store-download',(event,kind,id,releaseId,hash,installIconP
       if(pack.name!==item.name||pack.version!==item.version)throw Error('아이콘팩 이름 또는 버전이 카탈로그와 다릅니다.');
       const existing=(await listIconPacks()).find(p=>p.id===pack.id);
       if(existing)return {kind:'already-installed',name:existing.name};
-      const confirm=await dialog.showMessageBox(window,{type:'question',title:'스토어 아이콘팩 설치',message:pack.name+' '+pack.version,detail:'검증된 다운로드 해시와 아이콘팩 형식을 확인했습니다. '+pack.icons.length+'개 아이콘을 기존 라이브러리에 등록합니다. 기존 팩은 덮어쓰지 않습니다.',buttons:['취소','설치'],defaultId:0,cancelId:0,noLink:true});
+      const confirm=await dialog.showMessageBox(window,{type:'question',title:'스토어 아이콘팩 설치',message:pack.name+' '+pack.version,detail:'다운로드 해시와 아이콘팩 형식을 확인했습니다. '+pack.icons.length+'개 아이콘을 별도 팩으로 등록합니다. 이전 버전 및 기존 버튼 이미지는 그대로 유지됩니다.',buttons:['취소','설치'],defaultId:0,cancelId:0,noLink:true});
       if(confirm.response!==1)return null;
       storeClient.requireSession();
       if((await listIconPacks()).some(p=>p.id===pack.id))return {kind:'already-installed',name:pack.name};
+      // Preserve each archive ID and the previous pack; do not migrate button artwork.
+      pack.storeSource={origin:storeClient.status().origin,itemId:item.id,releaseId:item.releaseId,sha256:item.sha256};
       await ensureIconPacksMigrated();await registerPack(iconPacksFile(),pack);
       return {kind:'installed',name:pack.name};
     }

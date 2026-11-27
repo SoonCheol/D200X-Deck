@@ -361,3 +361,23 @@ test('remote Store metadata rejects private and app-provided packages and verifi
  await assert.rejects(client.download('plugin','item1','release1','0'.repeat(64),()=>{throw Error('must not consume');}));
  assert.equal(await client.download('plugin','item1','release1',sha256,(info,data)=>{assert.equal(info.id,'item1');assert.equal(data,bytes);return 'saved';}),'saved');
 });
+
+test('Store preview validation and non-destructive version comparison use precise identity',()=>{
+ const {storePreviewPng,storeInstalledState}=require(path.join(dir,'store-client.cjs'));
+ const png='iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jf2kAAAAASUVORK5CYII=';
+ assert.equal(storePreviewPng(png),'data:image/png;base64,'+png);
+ for(const input of ['https://example.com/x.png','PHN2Zz4=','data:image/png;base64,'+png,'x'.repeat(100000)])assert.equal(storePreviewPng(input),null);
+ const huge=Buffer.from(png,'base64');huge.writeUInt32BE(513,16);assert.equal(storePreviewPng(huge.toString('base64')),null);
+ const origin='https://example.com',sha256='a'.repeat(64);
+ const item={kind:'iconpack',id:'pack1',version:'2.0.0',sha256};
+ const old={id:'old',name:'Pack',version:'1.0.0',storeSource:{origin,itemId:'pack1'}};
+ assert.equal(storeInstalledState(item,[old],origin).state,'update');
+ assert.equal(storeInstalledState(item,[old],'https://other.example').state,'not-found');
+ assert.equal(storeInstalledState(item,[{...old,version:'3.0.0'}],origin).state,'newer');
+ assert.equal(storeInstalledState(item,[{id:sha256.slice(0,20),version:'2.0.0'}],origin).state,'installed');
+ assert.equal(storeInstalledState(item,[{...old,storeSource:null}],origin).state,'not-found');
+ assert.equal(storeInstalledState(item,[{...old,version:'unknown'}],origin).state,'different');
+ assert.equal(storeInstalledState({kind:'plugin',packageId:'com.vendor.test',version:'2.0.0'},[{uuid:'COM.VENDOR.TEST',version:'1.0.0'}],origin).state,'update');
+ assert.equal(storeInstalledState({kind:'plugin',packageId:'com.vendor.test',version:'2.0.0'},[{uuid:'com.vendor.test',version:'2.0.0'}],origin).state,'same-version');
+ assert.equal(old.version,'1.0.0');
+});

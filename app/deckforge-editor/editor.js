@@ -7446,23 +7446,46 @@ async function openRemoteStore(parent,kind,onInstalled){
     '<p class="store-catalog-status" role="status"></p><div class="store-catalog-grid"></div><footer class="store-catalog-footer">서버 로그인 필요 · 패키지 크기 및 SHA256 확인 · 플러그인은 파일 저장만 지원</footer>';
   document.body.append(dlg);
   const find=sel=>dlg.querySelector(sel),grid=find('.store-catalog-grid'),status=find('.store-catalog-status'),query=find('[data-remote-query]'),reload=find('[data-remote-reload]'),close=find('[data-remote-close]');
-  let items=[],cursor='',busy=false,selected=null,expired=false,interval=null;
+  let items=[],cursor='',busy=false,selected=null,expired=false,interval=null,previewImages=[],previewError='',previewRequest=0;
   const node=(tag,cls,text)=>{const el=document.createElement(tag);if(cls)el.className=cls;if(text!==undefined)el.textContent=text;return el;};
   function button(label,fn){const b=node('button','',label);b.type='button';b.disabled=busy||expired;b.addEventListener('click',fn);return b;}
+  function localLabel(item){
+    const value=item.local||{},version=value.version?' · 로컬 '+value.version:'';
+    return ({installed:'설치됨 (동일 팩 ID)','same-version':'동일 버전',update:'업데이트 가능',newer:'로컬이 최신',different:'다른 버전/내용','not-found':'설치 확인 안 됨'}[value.state]||'설치 상태 미확인')+version;
+  }
+  function previewGrid(images,cls){
+    const panel=node('div',cls);
+    for(const src of images){
+      if(typeof src!=='string'||!/^data:image\/png;base64,[A-Za-z0-9+/=]+$/.test(src))continue;
+      const img=node('img');img.src=src;img.alt='아이콘팩 미리보기';img.loading='lazy';img.decoding='async';panel.append(img);
+    }
+    return panel;
+  }
   function render(){
     grid.replaceChildren();grid.classList.toggle('store-catalog-detail',!!selected);
     if(expired){status.textContent='로그인 세션이 만료되었습니다. 연결 설정에서 다시 로그인하세요.';return;}
     if(selected){
-      const item=selected;grid.append(button('← 목록',()=>{selected=null;render();}),node('h2','',item.name),node('p','store-pack-meta',item.version+' · '+(item.author||'제작자 미등록')+' · '+(item.visibility==='private'?'비공개':'공개')),node('p','store-pack-meta',item.description||'설명 없음'),node('p','store-pack-meta','SHA256: '+item.sha256),node('p','store-pack-meta',Math.ceil(item.size/1024)+' KiB'));
+      const item=selected;grid.append(button('← 목록',()=>{++previewRequest;previewImages=[];selected=null;render();}),node('h2','',item.name),node('p','store-pack-meta',item.version+' · '+(item.author||'제작자 미등록')+' · '+(item.visibility==='private'?'비공개':'공개')),node('p','store-pack-meta',item.description||'설명 없음'),node('p','store-pack-meta','SHA256: '+item.sha256),node('p','store-pack-meta',Math.ceil(item.size/1024)+' KiB'));
+      grid.append(node('p','store-pack-meta',localLabel(item)));
+      if(kind==='iconpack'){
+        const images=previewImages.length?previewImages:item.cover?[item.cover]:[];
+        if(images.length)grid.append(previewGrid(images,'store-remote-detail-preview'));
+        else grid.append(node('p','store-pack-meta',previewError||'등록된 미리보기 없음'));
+      }
       grid.append(button('파일 저장',()=>void download(item,false)));
-      if(kind==='iconpack')grid.append(button('라이브러리에 설치',()=>void download(item,true)));
+      if(kind==='iconpack'){
+        const install=button(item.local?.state==='update'?'새 버전 추가 설치':'라이브러리에 설치',()=>void download(item,true));
+        if(item.local?.state==='installed')install.disabled=true;
+        grid.append(install);
+      }
       else grid.append(node('p','store-pack-meta','플러그인 직접 설치는 게시자 신뢰 및 서명 검증 이후 지원합니다. 저장 파일은 기존 설치 기능에서 직접 선택할 수 있습니다.'));
       return;
     }
     const q=query.value.trim().toLocaleLowerCase(),matching=items.filter(item=>[item.name,item.author,item.version,item.description,...item.tags].some(x=>x.toLocaleLowerCase().includes(q)));
     for(const item of matching){
-      const card=button('',()=>{selected=item;render();});card.className='store-pack-card';
-      card.append(node('strong','',item.name),node('span','store-pack-meta',item.version+' · '+(item.author||'제작자 미등록')),node('span','store-pack-meta',(item.visibility==='private'?'비공개':'공개')+' · '+(item.source==='third-party'?'외부 보관':'DeckForge')),node('span','store-pack-meta',item.tags.join(' · ')));
+      const card=button('',()=>{selected=item;previewImages=[];previewError='';render();if(kind==='iconpack')void loadPreview(item);});card.className='store-pack-card';
+      if(kind==='iconpack'&&item.cover)card.append(previewGrid([item.cover],'store-remote-cover'));
+      card.append(node('strong','',item.name),node('span','store-pack-meta',item.version+' · '+(item.author||'제작자 미등록')),node('span','store-pack-meta',(item.visibility==='private'?'비공개':'공개')+' · '+(item.source==='third-party'?'외부 보관':'DeckForge')),node('span','store-pack-meta',item.tags.join(' · ')),node('span','store-pack-meta',localLabel(item)));
       grid.append(card);
     }
     if(!matching.length)grid.append(node('p','store-catalog-empty','표시할 서버 항목이 없습니다.'));
@@ -7473,11 +7496,23 @@ async function openRemoteStore(parent,kind,onInstalled){
     const s=await window.deckBridge.storeStatus();
     if(!s?.account||!s.checked){expired=true;items=[];selected=null;cursor='';render();return false;}return true;
   }
+  async function loadPreview(item){
+    if(!window.deckBridge?.storePreview||busy||expired)return;
+    const current=++previewRequest;setBusy(true);status.textContent='미리보기 읽는 중…';
+    try{
+      if(!await guard())return;
+      const result=await window.deckBridge.storePreview(kind,item.id,item.releaseId,item.sha256);
+      if(!dlg.open||current!==previewRequest||selected!==item||!await guard())return;
+      previewImages=result.previews?.length?result.previews:result.cover?[result.cover]:[];
+      status.textContent=previewImages.length?'서버 미리보기 '+previewImages.length+'개':'등록된 미리보기 없음';
+    }catch(error){if(dlg.open&&current===previewRequest){previewError='미리보기 조회 실패';status.textContent=previewError+': '+String(error?.message||error);}}
+    finally{if(dlg.open&&current===previewRequest)setBusy(false);}
+  }
   async function load(reset){
     if(busy||expired)return;setBusy(true);status.textContent='서버 목록 읽는 중…';
     try{
       if(!await guard())return;
-      if(reset){items=[];cursor='';selected=null;}
+      if(reset){items=[];cursor='';selected=null;previewImages=[];previewError='';}
       const page=await window.deckBridge.storeCatalog(kind,cursor);
       if(!dlg.open||!await guard())return;
       const merged=new Map(items.map(item=>[item.id,item]));for(const item of page.items)merged.set(item.id,item);
@@ -7490,14 +7525,14 @@ async function openRemoteStore(parent,kind,onInstalled){
     try{
       if(!await guard())return;
       const result=await window.deckBridge.storeDownload(kind,item.id,item.releaseId,item.sha256,install);
-      if(result?.kind==='installed')await onInstalled();
+      if(result?.kind==='installed'){item.local={state:'installed',version:item.version};await onInstalled();}
       if(dlg.open&&await guard())status.textContent=result?.kind==='installed'?'아이콘팩 설치 완료':result?.kind==='already-installed'?'이미 설치된 아이콘팩입니다.':result?.kind==='saved'?'패키지 저장 완료':'취소됨';
     }catch(error){if(dlg.open)status.textContent='다운로드 실패: '+String(error?.message||error);}
     finally{if(dlg.open)setBusy(false);}
   }
-  query.addEventListener('input',()=>{selected=null;render();});reload.addEventListener('click',()=>void load(true));close.addEventListener('click',()=>dlg.close());
+  query.addEventListener('input',()=>{++previewRequest;previewImages=[];selected=null;render();});reload.addEventListener('click',()=>void load(true));close.addEventListener('click',()=>dlg.close());
   dlg.addEventListener('cancel',ev=>{if(busy)ev.preventDefault();});
-  dlg.addEventListener('close',()=>{clearInterval(interval);items=[];selected=null;dlg.remove();},{once:true});
+  dlg.addEventListener('close',()=>{clearInterval(interval);++previewRequest;previewImages=[];items=[];selected=null;dlg.remove();},{once:true});
   dlg.showModal();interval=setInterval(()=>{if(dlg.open&&!busy&&!expired)void guard().catch(()=>{expired=true;items=[];selected=null;render();});},1000);
   await load(true);
 }
