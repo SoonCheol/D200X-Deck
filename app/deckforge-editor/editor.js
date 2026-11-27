@@ -7443,13 +7443,13 @@ async function openStoreConnection(parent,onClosed){
     '<div class="store-connection-buttons"><button type="button" data-reset-origin>주소 초기화</button></div>'+
     '<label>계정<input type="text" data-user maxlength="128" required autocomplete="username"></label>'+
     '<label>비밀번호<input type="password" data-password maxlength="1024" autocomplete="current-password"></label>'+
-    '<label class="store-remember"><input type="checkbox" data-remember> 비밀번호 저장 (Windows 암호화)</label>'+
+    '<label class="store-remember"><input type="checkbox" data-remember> 비밀번호 저장 (Windows 암호화)</label><label class="store-remember"><input type="checkbox" data-auto-login> 자동 로그인</label>'+
     '<div class="store-connection-buttons"><button type="button" data-forget hidden>저장 비밀번호 지우기</button><button type="submit" data-login>연결 및 로그인</button><button type="button" data-logout>로그아웃</button></div></form>'+
     '<p class="store-connection-state" role="status"></p><p class="store-connection-message" role="status"></p>'+
     '<details class="store-connection-advanced"><summary>고급 설정</summary><label>게시자 공개키 (관리자로부터 별도 확인)<textarea data-trust-key maxlength="2048" rows="3" placeholder="-----BEGIN PUBLIC KEY-----" spellcheck="false"></textarea></label><div class="store-connection-buttons"><button type="button" data-trust-save>신뢰 등록</button><button type="button" data-trust-clear>신뢰 철회</button></div><p class="store-pack-meta" data-trust-status></p></details></section>';
   document.body.append(dlg);
   const $=selector=>dlg.querySelector(selector);
-  const address=$('[data-origin]'),user=$('[data-user]'),password=$('[data-password]'),message=$('.store-connection-message'),remember=$('[data-remember]'),forget=$('[data-forget]');
+  const address=$('[data-origin]'),user=$('[data-user]'),password=$('[data-password]'),message=$('.store-connection-message'),remember=$('[data-remember]'),forget=$('[data-forget]'),autoLogin=$('[data-auto-login]');
   const resetOrigin=$('[data-reset-origin]'),login=$('[data-login]'),logout=$('[data-logout]'),close=$('[data-close]'),key=$('[data-trust-key]'),trustSave=$('[data-trust-save]'),trustClear=$('[data-trust-clear]');
   let state=null,busy=false;
   function hasStored(){return !!state?.hasSavedPassword&&address.value.trim().replace(/\/$/,'')===state.origin&&user.value.trim()===state.rememberedUsername;}
@@ -7457,7 +7457,7 @@ async function openStoreConnection(parent,onClosed){
     const saved=!!state?.origin&&address.value.trim().replace(/\/$/,'')===state.origin;
     $('.store-connection-state').textContent=state?.account?'로그인: '+state.account.username+' · '+(state.account.role==='owner'?'관리자':'사용자'):state?.checked?'서버 연결 정상 · 로그인 필요':'연결 및 로그인을 실행하세요.';
     address.disabled=user.disabled=password.disabled=resetOrigin.disabled=busy||!!state?.account||!state;
-    remember.disabled=busy||!!state?.account||!state?.canSavePassword;
+    remember.disabled=busy||!!state?.account||!state?.canSavePassword;autoLogin.disabled=remember.disabled||!remember.checked;
     forget.hidden=!state?.hasSavedPassword;forget.disabled=busy;
     password.placeholder=hasStored()&&remember.checked?'저장된 비밀번호 사용':'';
     login.disabled=busy||!state||!!state.account||!address.value.trim()||!user.value.trim()||(!password.value&&!(hasStored()&&remember.checked));
@@ -7474,22 +7474,22 @@ async function openStoreConnection(parent,onClosed){
     if(closeOnSuccess&&state?.account&&!state.credentialWarning)dlg.close();
   }
   for(const field of [address,user,password,key])field.addEventListener('input',update);
-  remember.addEventListener('change',update);
+  remember.addEventListener('change',()=>{if(!remember.checked)autoLogin.checked=false;update();});
   resetOrigin.addEventListener('click',()=>{address.value=state.defaultOrigin;update();});
-  forget.addEventListener('click',()=>void run(async()=>{const result=await window.deckBridge.storeForgetPassword();remember.checked=false;return result;},()=> '저장된 비밀번호를 지웠습니다.'));
+  forget.addEventListener('click',()=>void run(async()=>{const result=await window.deckBridge.storeForgetPassword();remember.checked=false;autoLogin.checked=false;return result;},()=> '저장된 비밀번호를 지웠습니다.'));
   trustSave.addEventListener('click',()=>void run(async()=>{const result=await window.deckBridge.storeTrust(key.value.trim());key.value='';return result;},()=> '신뢰 등록 상태를 확인하세요.'));
   trustClear.addEventListener('click',()=>void run(()=>window.deckBridge.storeTrust(''),()=> '신뢰 등록 상태를 확인하세요.'));
   $('.store-connect-form').addEventListener('submit',event=>{
     event.preventDefault();if(login.disabled||busy)return;
-    const origin=address.value.trim(),username=user.value.trim(),secret=password.value,keep=remember.checked;
-    void run(()=>window.deckBridge.storeConnect(origin,username,secret,keep),()=> '로그인 완료',{clear:true,closeOnSuccess:true});
+    const origin=address.value.trim(),username=user.value.trim(),secret=password.value,keep=remember.checked,automatic=autoLogin.checked;
+    void run(()=>window.deckBridge.storeConnect(origin,username,secret,keep,automatic),()=> '로그인 완료',{clear:true,closeOnSuccess:true});
   });
-  logout.addEventListener('click',()=>void run(()=>window.deckBridge.storeLogout(),result=>result.revoked?'로그아웃 완료':'로컬 로그아웃 완료 · 서버 세션 철회 확인 실패'));
+  logout.addEventListener('click',()=>void run(async()=>{const result=await window.deckBridge.storeLogout();autoLogin.checked=false;return result;},result=>result.revoked?'로그아웃 완료':'로컬 로그아웃 완료 · 서버 세션 철회 확인 실패'));
   close.addEventListener('click',()=>dlg.close());
   dlg.addEventListener('cancel',event=>{if(busy)event.preventDefault();});
   dlg.addEventListener('close',()=>{password.value='';dlg.remove();if(parent.open)onClosed?.();},{once:true});
   dlg.showModal();busy=true;update();
-  try{state=await window.deckBridge.storeStatus();if(dlg.open){address.value=state.origin;user.value=state.account?.username||state.rememberedUsername||'';remember.checked=!!state.hasSavedPassword&&!!state.canSavePassword;if(state.settingsError)message.textContent='저장된 연결 설정을 읽지 못했습니다. 주소를 확인하세요.';}}
+  try{state=await window.deckBridge.storeStatus();if(dlg.open){address.value=state.origin;user.value=state.account?.username||state.rememberedUsername||'';remember.checked=!!state.hasSavedPassword&&!!state.canSavePassword;autoLogin.checked=!!state.autoLogin&&remember.checked;if(state.settingsError)message.textContent='저장된 연결 설정을 읽지 못했습니다. 주소를 확인하세요.';else if(state.credentialWarning)message.textContent=state.credentialWarning;}}
   catch{message.textContent='연결 설정을 읽을 수 없습니다.';}
   finally{busy=false;if(dlg.open)update();}
 }
@@ -7518,7 +7518,7 @@ async function openStoreCatalog(){
   background.addEventListener('click',()=>{const white=dlg.classList.toggle('store-preview-white');background.textContent=white?'검정 배경':'흰 배경';background.setAttribute('aria-pressed',String(white));});
   let searchTimer=null,sessionKey='',connecting=false;
   function requestedFilters(){return {q:query.value.trim(),...Object.fromEntries(Object.entries(filters).filter(([k])=>kind==='iconpack'||k==='platform').map(([k,v])=>[k,v.value]))};}
-  let items=[],cursor='',busy=false,selected=null,expired=false,interval=null,previewImages=[],previewError='',previewRequest=0;
+  let items=[],cursor='',busy=false,selected=null,expired=false,interval=null,previewImages=[],previewError='',previewRequest=0,gallery=[],galleryNext=null,galleryTotal=0,galleryLoading=false,galleryLegacy=false;
   const node=(tag,cls,text)=>{const el=document.createElement(tag);if(cls)el.className=cls;if(text!==undefined)el.textContent=text;return el;};
   function button(label,fn){const b=node('button','',label);b.type='button';b.disabled=busy||expired;b.addEventListener('click',fn);return b;}
   function localLabel(item){
@@ -7534,16 +7534,19 @@ async function openStoreCatalog(){
     return panel;
   }
   function render(){
-    grid.replaceChildren();grid.classList.toggle('store-catalog-detail',!!selected);
+    const scroll=grid.scrollTop,wasDetail=grid.classList.contains('store-catalog-detail');grid.replaceChildren();grid.classList.toggle('store-catalog-detail',!!selected);dlg.classList.toggle('store-detail-view',!!selected);
+    if(!selected&&wasDetail)grid.scrollTop=0;
     if(expired){status.textContent='서버 연결 및 로그인이 필요합니다. 연결 설정을 확인하세요.';return;}
     if(selected){
-      const item=selected;const back=button('← 목록',()=>{++previewRequest;previewImages=[];selected=null;render();});back.className='store-detail-back';grid.append(back,node('h2','',item.name),node('p','store-pack-meta',item.version+' · '+(item.author||'제작자 미등록')+' · '+(item.visibility==='private'?'비공개':'공개')),node('p','store-pack-meta',item.description||'설명 없음'),node('p','store-pack-meta','SHA256: '+item.sha256),node('p','store-pack-meta',Math.ceil(item.size/1024)+' KiB'));
-      grid.append(node('p','store-pack-meta',provenanceLabel(item)),node('p','store-pack-meta','규격 표시이며 실제 실행 호환성 인증은 아닙니다.'),node('p','store-pack-meta',localLabel(item)));
-      if(kind==='iconpack'){
-        const images=previewImages.length?previewImages:item.cover?[item.cover]:[];
-        if(images.length)grid.append(previewGrid(images,'store-remote-detail-preview'));
-        else grid.append(node('p','store-pack-meta',previewError||'등록된 미리보기 없음'));
-      }
+      const item=selected;const back=button('← 목록',()=>{++previewRequest;previewImages=[];gallery=[];galleryNext=null;selected=null;status.textContent='서버에서 불러온 항목 '+items.length+'개';render();});back.className='store-detail-back';
+      const top=node('div','store-detail-top');top.append(back);
+      if(kind==='iconpack'){const bg=button(dlg.classList.contains('store-preview-white')?'검정 배경':'흰 배경',()=>{background.click();render();});top.append(bg);}
+      grid.append(top,node('h2','store-detail-title',item.name));
+      const count=kind==='iconpack'?(galleryTotal||item.iconCount):null;
+      const format=item.format==='streamDeckIconPack'||item.format==='sdIconPack'||item.format==='streamDeckPlugin'||['elgato-icon-index','elgato-sdk'].includes(item.packageProfile)?'Stream Deck':item.format==='deckforgePlugin'?'DeckForge':'ZIP';
+      grid.append(node('p','store-detail-summary','v'+String(item.version).replace(/^v(?=\d)/i,'')+(count?' · 아이콘 '+count+'개':'')+' · '+Math.ceil(item.size/1024)+' KiB'+' · '+format+(item.author?' · '+item.author:'')+' · '+(item.visibility==='private'?'비공개':'공개')+' · '+localLabel(item)));
+      if(item.description)grid.append(node('p','store-detail-description',item.description));
+      const tech=node('details','store-detail-tech');tech.append(node('summary','','기술 정보'),node('p','store-pack-meta','SHA256: '+item.sha256),node('p','store-pack-meta',provenanceLabel(item)),node('p','store-pack-meta','규격 표시이며 실제 실행 호환성 인증은 아닙니다.'));
       const actionRow=node('div','store-detail-actions');
       actionRow.append(button('파일 저장',()=>void download(item,false)));
       if(kind==='iconpack')actionRow.append(button('ZIP 내보내기',()=>void exportRemoteImages(item,'zip')),button('폴더 내보내기',()=>void exportRemoteImages(item,'folder')));
@@ -7555,16 +7558,25 @@ async function openStoreCatalog(){
         }
       }
       else{
-        grid.append(node('p','store-pack-meta',item.trusted?'등록 공개키 서명 확인':'미서명 또는 신뢰되지 않은 게시자 · 직접 설치 불가'));
+        tech.append(node('p','store-pack-meta',item.trusted?'등록 공개키 서명 확인':'미서명 또는 신뢰되지 않은 게시자 · 직접 설치 불가'));
         if(item.local?.state&&item.local.state!=='not-found')actionRow.append(button('제거',()=>void removeInstalled(item)));
         else if(item.trusted&&item.local?.state==='not-found')actionRow.append(button('설치',()=>void download(item,true)));
       }
       grid.append(actionRow);
-      return;
+      if(kind==='iconpack'){
+        grid.append(node('h3','store-detail-gallery-title',galleryLegacy?'미리보기':'전체 아이콘'+(count?' ('+count+'개)':'')));
+        if(gallery.length){
+          const panel=node('div','store-remote-gallery');
+          for(const entry of gallery){const cell=node('div','store-gallery-cell');cell.title=entry.path;const img=node('img');img.src=entry.preview;img.alt=entry.name;img.loading='lazy';img.decoding='async';cell.append(img,node('span','',entry.name));panel.append(cell);}grid.append(panel);
+        }else if(previewImages.length||item.cover){grid.append(previewGrid(previewImages.length?previewImages:[item.cover],'store-remote-detail-preview'));}
+        if(previewError)grid.append(node('p','store-pack-meta',previewError));
+        if(galleryNext!==null&&!galleryLegacy){const more=button(galleryLoading?'불러오는 중…':'아이콘 더 보기 ('+gallery.length+'/'+(galleryTotal||'?')+')',()=>void loadGallery(item));more.disabled=busy||galleryLoading;more.className='store-detail-more';grid.append(more);}
+      }
+      grid.append(tech);if(wasDetail)grid.scrollTop=scroll;else grid.scrollTop=0;return;
     }
     const matching=items;
     for(const item of matching){
-      const card=button('',()=>{selected=item;previewImages=[];previewError='';render();if(kind==='iconpack')void loadPreview(item);});card.className='store-pack-card';
+      const card=button('',()=>{selected=item;previewImages=[];previewError='';gallery=[];galleryNext=kind==='iconpack'?0:null;galleryTotal=0;galleryLegacy=false;render();if(kind==='iconpack')void loadPreview(item);});card.className='store-pack-card';
       if(kind==='iconpack'&&item.cover)card.append(previewGrid([item.cover],'store-remote-cover'));
       const heading=node('strong','store-card-name',item.name);heading.title=item.name;
       const version=String(item.version).replace(/^v(?=\d)/i,'');
@@ -7597,10 +7609,28 @@ async function openStoreCatalog(){
       const result=await window.deckBridge.storePreview(kind,item.id,item.releaseId,item.sha256);
       if(!dlg.open||current!==previewRequest||selected!==item||!await guard())return;
       previewImages=result.previews?.length?result.previews:result.cover?[result.cover]:[];
-      status.textContent=previewImages.length?'서버 미리보기 '+previewImages.length+'개':'등록된 미리보기 없음';
+      status.textContent='';
     }catch(error){if(dlg.open&&current===previewRequest){previewError='미리보기 조회 실패';status.textContent=previewError+': '+String(error?.message||error);}}
-    finally{if(dlg.open&&current===previewRequest)setBusy(false);}
+    finally{if(dlg.open&&current===previewRequest){setBusy(false);if(selected===item&&galleryNext!==null)void loadGallery(item);}}
   }
+  async function loadGallery(item){
+    if(!dlg.open||selected!==item||galleryNext===null||galleryLoading||busy||expired||galleryLegacy)return;
+    if(!window.deckBridge?.storeIconPage){galleryLegacy=true;galleryNext=null;render();return;}
+    const current=previewRequest,offset=galleryNext;galleryLoading=true;setBusy(true);
+    try{
+      if(!await guard())return;
+      const result=await window.deckBridge.storeIconPage(item.id,item.releaseId,offset);
+      if(!dlg.open||current!==previewRequest||selected!==item||!await guard())return;
+      if((galleryTotal&&galleryTotal!==result.total)||(item.iconCount&&item.iconCount!==result.total))throw Error('아이콘팩이 변경되었습니다. 목록을 새로 고침하세요.');
+      gallery.push(...result.icons);galleryTotal=result.total;galleryNext=result.nextOffset;previewError='';status.textContent='';
+    }catch(error){
+      if(dlg.open&&current===previewRequest){
+        if(offset===0&&/HTTP 404/.test(String(error?.message||error))){galleryLegacy=true;galleryNext=null;previewError='서버 버전이 전체 아이콘 조회를 지원하지 않습니다.';}
+        else previewError='아이콘 조회 실패 · 다시 시도하세요: '+String(error?.message||error);
+      }
+    }finally{galleryLoading=false;if(dlg.open&&current===previewRequest)setBusy(false);}
+  }
+  grid.addEventListener('scroll',()=>{if(selected&&gallery.length&&galleryNext!==null&&!previewError&&grid.scrollHeight-grid.scrollTop-grid.clientHeight<140)void loadGallery(selected);});
   async function load(reset){
     if(busy||connecting)return;if(reset){expired=false;items=[];cursor='';selected=null;previewImages=[];previewError='';}setBusy(true);status.textContent='서버 목록 읽는 중…';
     try{

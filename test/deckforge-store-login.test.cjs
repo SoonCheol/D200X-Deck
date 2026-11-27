@@ -26,3 +26,20 @@ test('single connect validates fields, checks HTTPS before login, remembers only
   await client.logout();await client.connect(DEFAULT_STORE_ORIGIN,'tester','Secret-pass-123',false);assert.equal(client.status().hasSavedPassword,false);
  }finally{fs.rmSync(dir,{recursive:true,force:true});}
 });
+
+test('explicit auto login survives restart and expiry, logout disables it',async()=>{
+ const dir=fs.mkdtempSync(path.join(os.tmpdir(),'deckforge-store-auto-'));let time=1000,logins=0;
+ const vault={available:()=>true,encrypt:s=>Buffer.from(s.split('').reverse().join('')),decrypt:b=>b.toString().split('').reverse().join('')};
+ const request=async(origin,route)=>{if(route.endsWith('/health'))return {ok:true,service:'deckforge-store',apiVersion:1};if(route.endsWith('/login')){logins++;return {account:{id:'user1',username:'tester',role:'owner'},accessToken:'a'.repeat(32),expiresIn:300};}return null;};
+ try{
+  let client=new StoreClient(dir,{request,vault,now:()=>time});
+  await client.connect(DEFAULT_STORE_ORIGIN,'tester','secret123',true,true);
+  client=new StoreClient(dir,{request,vault,now:()=>time});
+  assert.equal(client.status().autoLogin,true);
+  await Promise.all([client.autoConnect(),client.autoConnect()]);assert.equal(logins,2);
+  time+=301000;assert.equal((await client.autoConnect()).account.username,'tester');assert.equal(logins,3);
+  await client.logout();assert.equal(client.status().autoLogin,false);
+  client=new StoreClient(dir,{request,vault,now:()=>time});
+  assert.equal((await client.autoConnect()).account,null);assert.equal(logins,3);
+ }finally{fs.rmSync(dir,{recursive:true,force:true});}
+});

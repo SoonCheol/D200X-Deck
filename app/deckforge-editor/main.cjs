@@ -35,9 +35,10 @@ const storeClient=new StoreClient(app.getPath('userData'),{vault:{
   available:()=>app.isReady()&&safeStorage.isEncryptionAvailable(),
   encrypt:value=>safeStorage.encryptString(value),decrypt:bytes=>safeStorage.decryptString(bytes)
 }});
-ipcMain.handle('d200x:store-connect',(event,origin,username,password,remember)=>{assertEditor(event);return storeClient.connect(origin,username,password,remember===true);});
+ipcMain.handle('d200x:store-connect',(event,origin,username,password,remember,autoLogin)=>{assertEditor(event);return storeClient.connect(origin,username,password,remember===true,autoLogin===true);});
 ipcMain.handle('d200x:store-forget-password',event=>{assertEditor(event);return storeClient.forgetPassword();});
-ipcMain.handle('d200x:store-status',event=>{assertEditor(event);return storeClient.status();});
+ipcMain.handle('d200x:store-status',event=>{assertEditor(event);return storeClient.autoConnect();});
+ipcMain.handle('d200x:store-icon-page',(event,id,releaseId,offset)=>{assertEditor(event);return storeClient.iconPage(id,releaseId,offset);});
 ipcMain.handle('d200x:store-save',(event,origin)=>{assertEditor(event);return storeClient.save(origin);});
 ipcMain.handle('d200x:store-reset-origin',event=>{assertEditor(event);return storeClient.resetOrigin();});
 ipcMain.handle('d200x:store-check',event=>{assertEditor(event);return storeClient.check();});
@@ -2464,6 +2465,7 @@ ipcMain.handle('d200x:smart-profile-context',async(event,includeFusion)=>{
 });
 
 if(singleInstanceLock)app.whenReady().then(async () => {
+  void storeClient.autoConnect().catch(()=>{});
   diagnosticPath = path.join(app.getPath('userData'), 'd200x-connection.log');
   transport.log('key-trial',keyTransportTrial?'Explicit KEY trial enabled for this process':'KEY disabled',{incremental:keyTransportTrial});
   const powerDiagnostic=type=>recordDeviceDiagnostic({time:new Date().toISOString(),type:'sdk-power-'+type,detail:{hostPresent:!!sdkHost,nativeSuspended:sdkHost?.native.suspended??null,contexts:sdkHost?.native.contexts.size??0}});

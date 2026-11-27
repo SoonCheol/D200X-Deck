@@ -156,7 +156,7 @@ function verifyStoreBytes(item,bytes){
 }
 class StoreClient{
   constructor(directory,{request=storeRequest,now=Date.now,vault=null}={}){
-    this.file=path.join(directory,'store-connection.json');this.loginFile=path.join(directory,'store-login.json');this.vault=vault;this.request=request;this.now=now;this.remembered=null;this.credentialWarning='';
+    this.file=path.join(directory,'store-connection.json');this.loginFile=path.join(directory,'store-login.json');this.vault=vault;this.request=request;this.now=now;this.remembered=null;this.credentialWarning='';this.autoPending=null;this.autoRetryAt=0;
     this.origin=DEFAULT_STORE_ORIGIN;this.checked=false;this.session=null;this.busy=false;this.settingsError=false;this.trust=null;
     try{
       const bytes=fs.readFileSync(this.file);
@@ -169,20 +169,24 @@ class StoreClient{
       const raw=fs.readFileSync(this.loginFile);if(raw.length>32768)throw Error('credential size');
       const saved=JSON.parse(raw.toString('utf8'));
       if(saved.version===1&&normalizeStoreOrigin(saved.origin)===saved.origin&&typeof saved.username==='string'&&saved.username.length<=128){
-        this.remembered={origin:saved.origin,username:saved.username,secret:typeof saved.secret==='string'&&saved.secret.length<=24576?saved.secret:''};
+        this.remembered={origin:saved.origin,username:saved.username,secret:typeof saved.secret==='string'&&saved.secret.length<=24576?saved.secret:'',autoLogin:saved.autoLogin===true};
       }
     }catch{}
   }
   rememberedFor(origin=this.origin){return this.remembered?.origin===origin?this.remembered:null;}
-  saveLogin(username,password,remember){
-    const record={version:1,origin:this.origin,username,secret:''};
+  saveLogin(username,password,remember,autoLogin=false){
+    const record={version:1,origin:this.origin,username,secret:'',autoLogin:false};
     if(remember){
       try{if(!this.vault?.available())throw Error('vault unavailable');record.secret=this.vault.encrypt(password).toString('base64');}
       catch{this.credentialWarning='비밀번호를 암호화할 수 없어 저장하지 않았습니다.';}
     }
+    record.autoLogin=!!record.secret&&autoLogin===true;
+    this.writeLoginRecord(record);
+  }
+  writeLoginRecord(record){
     const tmp=this.loginFile+'.'+randomUUID()+'.tmp';
-    try{fs.mkdirSync(path.dirname(this.loginFile),{recursive:true});fs.writeFileSync(tmp,JSON.stringify(record),{encoding:'utf8',mode:0o600,flag:'wx'});fs.renameSync(tmp,this.loginFile);this.remembered=record;}
-    catch{this.credentialWarning='로그인 정보 저장에 실패했습니다.';}
+    try{fs.mkdirSync(path.dirname(this.loginFile),{recursive:true});fs.writeFileSync(tmp,JSON.stringify(record),{encoding:'utf8',mode:0o600,flag:'wx'});fs.renameSync(tmp,this.loginFile);this.remembered=record;return true;}
+    catch{this.credentialWarning='로그인 정보 저장에 실패했습니다.';return false;}
     finally{fs.rmSync(tmp,{force:true});}
   }
   forgetPassword(){
@@ -190,7 +194,7 @@ class StoreClient{
   }
   status(){
     if(this.session&&this.session.expiresAt<=this.now())this.session=null;
-    return {origin:this.origin,defaultOrigin:DEFAULT_STORE_ORIGIN,checked:this.checked,account:this.session?{...this.session.account}:null,settingsError:this.settingsError,trustFingerprint:this.trust?.fingerprint||'',rememberedUsername:this.rememberedFor()?.username||'',hasSavedPassword:!!this.rememberedFor()?.secret,canSavePassword:!!this.vault?.available(),credentialWarning:this.credentialWarning};
+    return {origin:this.origin,defaultOrigin:DEFAULT_STORE_ORIGIN,checked:this.checked,account:this.session?{...this.session.account}:null,settingsError:this.settingsError,trustFingerprint:this.trust?.fingerprint||'',rememberedUsername:this.rememberedFor()?.username||'',hasSavedPassword:!!this.rememberedFor()?.secret,autoLogin:!!this.rememberedFor()?.secret&&this.rememberedFor()?.autoLogin===true,canSavePassword:!!this.vault?.available(),credentialWarning:this.credentialWarning};
   }
   async exclusive(fn){
     if(this.busy)throw Error('스토어 작업이 진행 중입니다.');
@@ -248,7 +252,7 @@ class StoreClient{
       this.session={token,account:{id:account.id,username:account.username,role:account.role},expiresAt:this.now()+seconds*1000};
       return this.status();
   }
-  connect(origin,username,password,remember=false){
+  connect(origin,username,password,remember=false,autoLogin=false){
     return this.exclusive(async()=>{
       this.credentialWarning='';
       const target=normalizeStoreOrigin(origin);
@@ -266,9 +270,27 @@ class StoreClient{
       this.saveOrigin(target);
       try{await this.checkOrigin();}catch(e){throw Error('연결 실패: '+e.message);}
       try{await this.authenticateLogin(username,password);}catch(e){throw Error('로그인 실패: '+e.message);}
-      this.saveLogin(username,password,remember===true);
+      this.autoRetryAt=0;this.saveLogin(username,password,remember===true||autoLogin===true,autoLogin===true);
       return this.status();
     });
+  }
+  async autoConnect(){
+    const current=this.status(),saved=this.rememberedFor();
+    if(this.autoPending)return this.autoPending;
+    if(current.account||!current.autoLogin||!current.canSavePassword||this.busy||this.now()<this.autoRetryAt)return current;
+    this.autoPending=this.exclusive(async()=>{
+      this.credentialWarning='';
+      try{
+        const password=this.vault.decrypt(Buffer.from(saved.secret,'base64'));
+        await this.checkOrigin();await this.authenticateLogin(saved.username,password);
+        this.autoRetryAt=0;
+      }catch{
+        this.autoRetryAt=this.now()+300000;
+        this.credentialWarning='자동 로그인 실패 · 연결 설정에서 다시 로그인하세요.';
+      }
+      return this.status();
+    });
+    try{return await this.autoPending;}finally{this.autoPending=null;}
   }
   requireSession(){
     this.status();
@@ -312,6 +334,24 @@ class StoreClient{
       return {cover:item.cover,previews};
     });
   }
+  iconPage(id,releaseId,offset){
+    return this.exclusive(async()=>{
+      const session=this.requireSession();storeId(id);storeId(releaseId);
+      if(!Number.isInteger(offset)||offset<0||offset>2500)throw Error('아이콘 페이지 범위 오류');
+      const params=new URLSearchParams({release:releaseId,offset:String(offset)});
+      const result=await this.request(this.origin,'/api/v1/items/'+id+'/icons?'+params.toString(),{token:session.token,jsonLimit:1048576});
+      this.requireSession();
+      if(!Number.isInteger(result?.total)||result.total<1||result.total>2500||offset>=result.total||!Array.isArray(result.icons)||result.icons.length!==Math.min(48,result.total-offset))throw Error('아이콘 목록 응답 오류');
+      const next=offset+result.icons.length<result.total?offset+result.icons.length:null;
+      if(result.nextOffset!==next)throw Error('아이콘 페이지 응답 오류');
+      const icons=result.icons.map(raw=>{
+        const preview=storePreviewPng(raw?.preview,12288);
+        if(!preview||typeof raw.name!=='string'||raw.name.length>160||typeof raw.path!=='string'||raw.path.length>500)throw Error('아이콘 미리보기 응답 오류');
+        return {name:raw.name,path:raw.path,preview};
+      });
+      return {icons,total:result.total,nextOffset:next};
+    });
+  }
   download(kind,id,releaseId,expectedHash,consume,requireTrusted=false){
     return this.exclusive(async()=>{
       const session=this.requireSession();storeId(id);storeId(releaseId);
@@ -328,6 +368,8 @@ class StoreClient{
   logout(){
     return this.exclusive(async()=>{
       this.status();const current=this.session;this.session=null;
+      const saved=this.rememberedFor();if(saved?.autoLogin){const record={...saved,autoLogin:false};if(!this.writeLoginRecord(record)){this.remembered=record;try{fs.rmSync(this.loginFile,{force:true});}catch{this.credentialWarning='자동 로그인 설정을 디스크에서 해제하지 못했습니다. 저장 비밀번호를 지워 주세요.';}}}
+      this.autoRetryAt=0;
       if(!current)return {...this.status(),revoked:true};
       let revoked=false;
       try{await this.request(this.origin,'/api/v1/auth/logout',{method:'POST',token:current.token});revoked=true;}catch{}
