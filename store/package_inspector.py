@@ -76,16 +76,23 @@ def inspect_iconpack(z, names, fallback):
     name = text(str(manifest.get("Name") or manifest.get("name") or fallback).strip()[:120], 120)
     version = text(str(manifest.get("Version") or manifest.get("version") or "1.0.0").strip()[:40], 40)
     author = str(manifest.get("Author") or "")[:120]
+    search_terms=[]
     if indexes:
         items = read_json(z, indexes[0])
         require(isinstance(items, list) and all(isinstance(x, dict) for x in items), "invalid icon index")
         paths = [x.get("path") for x in items]
         require(all(safe_path(x) for x in paths), "invalid icon path")
+        for row in items:
+            if isinstance(row.get("name"),str):
+                search_terms.append(row["name"][:100])
+            if isinstance(row.get("tags"),list):
+                search_terms.extend(t[:60] for t in row["tags"][:30] if isinstance(t,str))
         paths = [root+"icons/"+p for p in paths]
     else:
         paths = [n for n in names if PurePosixPath(n).suffix.lower() in RASTER or n.lower().endswith(".svg")]
         paths = [n for n in paths if not re.search(r"(^|/)(icon|categoryicon|preview)\.(png|svg|jpe?g)$", n, re.I)]
     require(0 < len(paths) <= 2500 and len(set(paths)) == len(paths), "invalid icon count")
+    search_terms.extend(paths)
     # SVG requires an isolated rasterizer; reject instead of exposing active XML.
     samples = {round(i*(len(paths)-1)/max(1,min(16,len(paths))-1)) for i in range(min(16,len(paths)))}
     previews, cover, styles = [], None, set()
@@ -128,7 +135,7 @@ def inspect_iconpack(z, names, fallback):
     naming = (["ha-name"] if ha_named else []) + (["state"] if any(len(v)==2 for v in pairs.values()) else [])
     tags = [purpose, *(naming or ["general-name"]), *(sorted(styles) or ["unknown"])]
     return dict(name=name, version=version, author=author, packageId="", native=False, cover=cover,
-                previews=previews, tags=tags, iconCount=len(paths))
+                previews=previews, tags=tags, iconCount=len(paths), searchTerms="\n".join(search_terms))
 
 def inspect_plugin(z, names, fmt, source):
     native = False

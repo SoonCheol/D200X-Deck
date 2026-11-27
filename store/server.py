@@ -12,6 +12,7 @@ import secrets
 import sqlite3
 import sys
 import time
+import unicodedata
 from pathlib import Path
 from urllib.parse import urlsplit
 from flask import Flask, Response, abort, g, jsonify, request, send_file
@@ -29,6 +30,11 @@ ID=re.compile(r"^[A-Za-z0-9][A-Za-z0-9_-]{0,95}$")
 USERNAME=re.compile(r"^[A-Za-z0-9_.-]{3,64}$")
 TOKEN=re.compile(r"^[A-Za-z0-9_-]{43}$")
 COOKIE="deckforge_store_session"
+PURPOSES={"general","ha","windows","fusion","media","app"}
+NAMING={"general-name","ha-name","state"}
+DESIGNS={"color","white","black","gray","line","white-line","black-line","solid","unknown"}
+def search_fold(value):
+    return unicodedata.normalize("NFKC",value or "").casefold()
 SCHEMA="""
 CREATE TABLE IF NOT EXISTS accounts(id TEXT PRIMARY KEY, username TEXT NOT NULL UNIQUE COLLATE NOCASE, password TEXT NOT NULL, role TEXT NOT NULL CHECK(role IN ('owner','user')), active INTEGER NOT NULL DEFAULT 1);
 CREATE UNIQUE INDEX IF NOT EXISTS one_owner ON accounts(role) WHERE role='owner';
@@ -36,6 +42,7 @@ CREATE TABLE IF NOT EXISTS sessions(hash TEXT PRIMARY KEY, account_id TEXT NOT N
 CREATE TABLE IF NOT EXISTS attempts(bucket TEXT PRIMARY KEY, window INTEGER NOT NULL, count INTEGER NOT NULL);
 CREATE TABLE IF NOT EXISTS items(id TEXT PRIMARY KEY, kind TEXT NOT NULL, source TEXT NOT NULL, package_id TEXT NOT NULL, current_release TEXT);
 CREATE TABLE IF NOT EXISTS releases(id TEXT PRIMARY KEY, item_id TEXT NOT NULL REFERENCES items(id), version TEXT NOT NULL, sha256 TEXT NOT NULL, meta TEXT NOT NULL, previews TEXT NOT NULL, native INTEGER NOT NULL, status TEXT NOT NULL DEFAULT 'draft', UNIQUE(item_id,version));
+CREATE TABLE IF NOT EXISTS release_icon_search(release_id TEXT PRIMARY KEY REFERENCES releases(id), terms TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS audit(seq INTEGER PRIMARY KEY, at INTEGER NOT NULL, actor TEXT NOT NULL, event TEXT NOT NULL, target TEXT NOT NULL);
 """
 def uid(): return secrets.token_hex(16)
@@ -78,6 +85,7 @@ def create_app(data_dir=None,origin=None):
     def db(write=False):
         connection=sqlite3.connect(database,timeout=10)
         connection.row_factory=sqlite3.Row
+        connection.create_function("search_fold",1,search_fold,deterministic=True)
         connection.execute("PRAGMA foreign_keys=ON")
         try:
             if write: connection.execute("BEGIN IMMEDIATE")
@@ -209,6 +217,22 @@ def create_app(data_dir=None,origin=None):
         WHERE i.kind=? AND i.id>? AND r.status='published'"""
         params=[kind,cursor]
         if user["role"]!="owner": sql+=" AND i.source='deckforge' AND json_extract(r.meta,'$.visibility')='public'"
+        q=request.args.get("q","").strip()
+        if len(q)>120 or re.search(r"[\x00-\x1f\x7f]",q): abort(400)
+        for key,allowed in (("purpose",PURPOSES),("naming",NAMING),("design",DESIGNS)):
+            value=request.args.get(key,"")
+            if value:
+                if kind!="iconpack" or value not in allowed: abort(400)
+                sql+=" AND EXISTS (SELECT 1 FROM json_each(r.meta,'$.tags') WHERE value=?)"
+                params.append(value)
+        if q:
+            # Literal Unicode-normalized substring; never search covers, hidden metadata or other releases.
+            fields=("name","author","version","description","packageId")
+            expressions=["instr(search_fold(json_extract(r.meta,'$."+field+"')),?)>0" for field in fields]
+            expressions.append("EXISTS (SELECT 1 FROM json_each(r.meta,'$.tags') WHERE instr(search_fold(value),?)>0)")
+            expressions.append("EXISTS (SELECT 1 FROM release_icon_search s WHERE s.release_id=r.id AND instr(s.terms,?)>0)")
+            sql+=" AND ("+" OR ".join(expressions)+")"
+            params.extend([search_fold(q)]*len(expressions))
         sql+=" ORDER BY i.id LIMIT ?";params.append(limit+1)
         with db() as c: rows=c.execute(sql,params).fetchall()
         return jsonify(items=[json.loads(x["meta"]) for x in rows[:limit]],nextCursor=rows[limit-1]["id"] if len(rows)>limit else "")
@@ -317,6 +341,8 @@ def create_app(data_dir=None,origin=None):
             store_blob(data,digest)
             c.execute("INSERT INTO releases(id,item_id,version,sha256,meta,previews,native,status) VALUES(?,?,?,?,?,?,?,'draft')",
                       (release,ident,info["version"],digest,json_text(meta),json_text(info["previews"]),int(info["native"])))
+            if kind=="iconpack":
+                c.execute("INSERT INTO release_icon_search VALUES(?,?)",(release,search_fold(info["searchTerms"])))
             audit(c,user["id"],"release.upload",release)
         return jsonify(item=meta,status="draft"),201
     @app.get("/api/v1/admin/items")
@@ -345,9 +371,7 @@ def create_app(data_dir=None,origin=None):
     @app.post("/api/v1/admin/releases/<release>/classification")
     def classify(release):
         user,_=authenticate(True);data=body()
-        purposes={"general","ha","windows","fusion","media","app"}
-        names={"general-name","ha-name","state"}
-        designs={"color","white","black","gray","line","white-line","black-line","solid","unknown"}
+        purposes,names,designs=PURPOSES,NAMING,DESIGNS
         purpose,naming,styles=data.get("purpose"),data.get("naming"),data.get("styles")
         if (not isinstance(purpose,str) or purpose not in purposes or not isinstance(naming,list) or not naming
             or not isinstance(styles,list) or not styles or len(naming)>3 or len(styles)>9

@@ -1,9 +1,9 @@
 'use strict';
 const $=id=>document.getElementById(id);
-let account=null,kind='iconpack',items=[],cursor='',adminCursor='',busy=false,epoch=0;
+let account=null,kind='iconpack',items=[],cursor='',adminCursor='',busy=false,epoch=0,catalogParams='',searchTimer=null;
 const el=(tag,text,cls)=>{const n=document.createElement(tag);if(text!==undefined)n.textContent=text;if(cls)n.className=cls;return n;};
 const button=(label,fn)=>{const n=el('button',label);n.type='button';n.onclick=()=>void run(fn);return n;};
-function reset(){clearFolder();$('upload').reset();formats();epoch++;account=null;items=[];cursor='';adminCursor='';for(const id of ['cards','detail','releases','accounts','review'])$(id).replaceChildren();$('detail').hidden=$('review').hidden=true;$('catalog').hidden=$('admin').hidden=$('logout').hidden=true;$('login').hidden=false;$('account').textContent='';}
+function reset(){clearTimeout(searchTimer);searchTimer=null;catalogParams='';clearFolder();$('upload').reset();formats();epoch++;account=null;items=[];cursor='';adminCursor='';for(const id of ['cards','detail','releases','accounts','review'])$(id).replaceChildren();$('detail').hidden=$('review').hidden=true;$('catalog').hidden=$('admin').hidden=$('logout').hidden=true;$('login').hidden=false;$('account').textContent='';}
 async function api(path,options={}){
  const headers={'X-DeckForge-CSRF':'1',...options.headers};
  if(options.body&&!(options.body instanceof FormData)){headers['Content-Type']='application/json';options.body=JSON.stringify(options.body);}
@@ -24,14 +24,13 @@ function optionList(select,options,all){
  for(const [value,label] of Object.entries(options)){const option=el('option',label);option.value=value;select.append(option);}
 }
 for(const [id,options,label] of [['purpose',purposeOptions,'전체 용도'],['naming',namingOptions,'전체 네이밍'],['design',designOptions,'전체 디자인']]){
- optionList($(id),options,label);$(id).onchange=render;
+ optionList($(id),options,label);$(id).onchange=queueSearch;
 }
 $('background').onclick=()=>{const light=document.body.classList.toggle('preview-white');$('background').textContent=light?'검정 배경':'흰 배경';};
 function render(){
- const q=$('search').value.toLowerCase();$('cards').replaceChildren();
- const filters=kind==='iconpack'?['purpose','naming','design'].map(id=>$(id).value).filter(Boolean):[];
+ $('cards').replaceChildren();
  for(const id of ['purpose','naming','design'])$(id).hidden=kind!=='iconpack';
- for(const item of items.filter(x=>filters.every(tag=>x.tags.includes(tag))&&[x.name,x.author,x.version,...x.tags].some(v=>String(v).toLowerCase().includes(q)))){
+ for(const item of items){
   const card=button('',()=>detail(item));card.className='card';
   if(item.cover){const art=el('div',undefined,'art');art.append(preview(item.cover));card.append(art);}
   card.append(el('strong',item.name),el('span',item.version+' · '+(item.visibility==='private'?'비공개':'공개')),el('span',item.tags.join(' · ')));
@@ -40,9 +39,24 @@ function render(){
  if(!$('cards').children.length)$('cards').append(el('p','표시할 항목이 없습니다.'));
  $('more').hidden=!cursor;
 }
+function requestedCatalog(){
+ const params=new URLSearchParams({kind,limit:'20'});
+ const q=$('search').value.trim();if(q)params.set('q',q);
+ if(kind==='iconpack')for(const id of ['purpose','naming','design'])if($(id).value)params.set(id,$(id).value);
+ return params.toString();
+}
+function queueSearch(){
+ clearTimeout(searchTimer);
+ const session=epoch;
+ const start=()=>{if(session!==epoch||!account)return;if(busy){searchTimer=setTimeout(start,150);return;}searchTimer=null;void run(()=>load());};
+ searchTimer=setTimeout(start,250);
+}
 async function load(resetList=true){
- if(resetList){items=[];cursor='';$('detail').hidden=true;$('detail').replaceChildren();}
- const page=await api('/api/v1/catalog?kind='+kind+'&limit=20'+(cursor?'&cursor='+encodeURIComponent(cursor):''));
+ const query=requestedCatalog();
+ if(query!==catalogParams)resetList=true;
+ if(resetList){items=[];cursor='';catalogParams=query;$('detail').hidden=true;$('detail').replaceChildren();render();}
+ const page=await api('/api/v1/catalog?'+catalogParams+(cursor?'&cursor='+encodeURIComponent(cursor):''));
+ if(query!==requestedCatalog()){queueSearch();return;}
  items=[...new Map([...items,...page.items].map(x=>[x.id,x])).values()];cursor=page.nextCursor;render();
 }
 async function detail(item){
@@ -174,7 +188,7 @@ $('upload').elements.kind.onchange=formats;$('upload-mode').onchange=formats;for
 $('login').onsubmit=event=>{event.preventDefault();const f=event.target,password=f.elements.password.value,username=f.elements.username.value;f.elements.password.value='';void run(async()=>{const result=await api('/api/v1/auth/login',{method:'POST',body:{username,password,client:'web'}});show(result.account);await load();});};
 $('logout').onclick=()=>void run(async()=>{try{await api('/api/v1/auth/logout',{method:'POST',body:{}});}finally{reset();}});
 document.querySelectorAll('[data-kind]').forEach(b=>b.onclick=()=>void run(async()=>{kind=b.dataset.kind;$('admin').hidden=true;await load();}));
-$('search').oninput=render;$('refresh').onclick=()=>void run(()=>load());$('more').onclick=()=>void run(()=>load(false));
+$('search').oninput=queueSearch;$('refresh').onclick=()=>void run(()=>load());$('more').onclick=()=>void run(()=>load(false));
 $('admin-toggle').onclick=()=>void run(async()=>{$('admin').hidden=!$('admin').hidden;if(!$('admin').hidden)await adminList();});
 $('admin-refresh').onclick=()=>void run(()=>adminList());$('admin-more').onclick=()=>void run(()=>adminList(false));
 $('upload').onsubmit=event=>{

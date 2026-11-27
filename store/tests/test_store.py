@@ -198,4 +198,42 @@ const {parseIconPack}=require(process.argv[1]);(async()=>{const p=await parseIco
         script="const fs=require('node:fs');require(process.argv[1]).parseIconPack(fs.readFileSync(process.argv[2])).then(p=>{if(p.icons.length!==1||p.icons[0].filename!=='win/copy.png')process.exit(1)}).catch(e=>{console.error(e);process.exit(1)});"
         subprocess.run(["node","-e",script,str(parser),str(archive)],check=True,timeout=20)
         self.assertEqual(upload(["copy.svg","copy.png"]).status_code,400)
+    def test_catalog_search_before_pagination(self):
+        endpoint="/api/v1/catalog"
+        def create(name,ident,source="deckforge",visibility="public",publish=True,tag=""):
+            data=io.BytesIO()
+            with zipfile.ZipFile(io.BytesIO(pack())) as original, zipfile.ZipFile(data,"w") as z:
+                for n in original.namelist():
+                    if n=="manifest.json": z.writestr(n,json.dumps({"Name":name,"Version":"1.0.0","Author":"ÜBER"}))
+                    elif n=="icons.json": z.writestr(n,json.dumps([{"path":"lamp_on.png","tags":[tag]},{"path":"lamp_off.png"}]))
+                    else: z.writestr(n,original.read(n))
+            res=self.c.post("/api/v1/admin/items",data={"file":(io.BytesIO(data.getvalue()),"icons.zip"),"kind":"iconpack","format":"zip","source":source,"license":"test","itemId":ident},headers=self.owner)
+            self.assertEqual(res.status_code,201,res.json)
+            item=res.json["item"]
+            if publish:
+                self.assertEqual(self.c.post("/api/v1/admin/releases/"+item["releaseId"]+"/publish",json={"reviewed":True,"visibility":visibility},headers=self.owner).status_code,200)
+            return item
+        for i in range(21): create("Unrelated","a%02d"%i)
+        create("Windows 100% 단축키","z01",tag="복사")
+        create("Windows second","z02",tag="복사")
+        create("Windows secret","z03","third-party","private",tag="복사")
+        create("Windows draft","z04",publish=False,tag="복사")
+        def query(headers=None,**args):
+            return self.c.get(endpoint,query_string={"kind":"iconpack",**args},headers=headers or self.member)
+        first=query(q="복사",limit=1,purpose="windows",naming="state",design="white")
+        self.assertEqual(first.status_code,200)
+        self.assertEqual([x["id"] for x in first.json["items"]],["z01"])
+        self.assertEqual(first.json["nextCursor"],"z01")
+        second=query(q="복사",limit=1,cursor=first.json["nextCursor"],purpose="windows")
+        self.assertEqual([x["id"] for x in second.json["items"]],["z02"])
+        self.assertEqual(second.json["nextCursor"],"")
+        self.assertNotIn("searchTerms",first.json["items"][0])
+        self.assertEqual([x["id"] for x in query(q="100%").json["items"]],["z01"])
+        self.assertEqual([x["id"] for x in query(q="ＷＩＮＤＯＷＳ").json["items"]],["z01","z02"])
+        self.assertEqual([x["id"] for x in query(self.owner,q="복사").json["items"]],["z01","z02","z03"])
+        self.assertEqual(query(q="secret").json["items"],[])
+        self.assertEqual(query(q="lamp_on.png",limit=1).json["items"][0]["id"],"a00")
+        self.assertEqual(query(q="über",limit=1).json["items"][0]["id"],"a00")
+        for args in ({"q":"x"*121},{"purpose":"unknown"},{"kind":"plugin","design":"white"}):
+            self.assertEqual(query(**args).status_code,400)
 if __name__=="__main__": unittest.main()
