@@ -2257,6 +2257,19 @@ const pathPicker=(field,label,kind='file')=>
   '</div></div>';
 const check=(field,label,invert=false)=>`<div class="field checkbox-setting-field"><label for="s-${field}">${label}</label><input id="s-${field}" type="checkbox" data-field="${field}" ${invert?'data-inverted="true"':''} ${invert?!valueOf(active,field)?"checked":"":valueOf(active,field)?"checked":""}></div>`;
 const fieldChecked=node=>node.dataset.textClipboard==='true'?(node.checked?'clipboard':'typing'):node.dataset.inverted==="true"?!node.checked:node.checked;
+// Shared data-field binding; the owning editor decides when to persist.
+function readActionField(node){
+  return node.type==='checkbox'?fieldChecked(node):node.type==='number'||node.type==='range'?Number(node.value):node.value;
+}
+function bindActionSettingFields(root,item,onChange=()=>{}){
+  root.querySelectorAll('[data-field]').forEach(node=>{
+    node.addEventListener(node.tagName==='TEXTAREA'||node.type==='range'?'input':'change',()=>{
+      const value=readActionField(node);
+      item.settings[node.dataset.field]=value;
+      onChange(node,value);
+    });
+  });
+}
 let active=null;
 function openAppLegacyHold(item){
   const root=Number.isInteger(state.selected)&&state.selected<13
@@ -2378,7 +2391,7 @@ function orderedMultiDialog(step,apply){
   }else{
     const prior=active;fields.innerHTML=actionFields(draft);active=prior;
     bindInputFieldDependencies(fields,draft);bindNestedAudioFields(fields,draft);bindNestedTimerFields(fields,draft);
-    for(const node of fields.querySelectorAll('[data-field]'))node.addEventListener(node.tagName==='TEXTAREA'||node.type==='range'?'input':'change',()=>{draft.settings[node.dataset.field]=node.type==='checkbox'?fieldChecked(node):node.type==='number'||node.type==='range'?Number(node.value):node.value;});
+    bindActionSettingFields(fields,draft);
     for(const button of fields.querySelectorAll('[data-path-picker]'))button.addEventListener('click',async()=>{try{const path=await window.deckBridge?.choosePath(button.dataset.pathKind);if(!path||!dialog.open)return;draft.settings[button.dataset.pathPicker]=path;const input=fields.querySelector('[data-field="'+button.dataset.pathPicker+'"]');if(input)input.value=path;}catch(e){window.d200xActionStatus?.(String(e?.message||e));}});
     if(draft.type==='ha-toggle')fields.querySelector('[data-ha-entities]')?.addEventListener('click',async()=>{
       try{
@@ -2646,11 +2659,7 @@ function renderMultiEditor(item,root){
     }else{
       const fields=document.createElement('div');fields.className='fields multi-step-fields';
       fields.innerHTML=actionFields(step);bindExtendedActionFields(fields,step);bindNestedAudioFields(fields,step);
-      fields.querySelectorAll('[data-field]').forEach(node=>node.addEventListener(node.type==='range'||node.tagName==='TEXTAREA'?'input':'change',()=>{
-        step.settings[node.dataset.field]=node.type==='checkbox'?fieldChecked(node):
-          node.type==='number'||node.type==='range'?Number(node.value):node.value;
-        persist();
-      }));
+      bindActionSettingFields(fields,step,()=>persist());
       fields.querySelectorAll('[data-path-picker]').forEach(button=>button.addEventListener('click',async()=>{
         if(!window.deckBridge?.choosePath)return window.d200xActionStatus?.('Windows EXE에서만 파일 선택이 가능합니다.');
         try{
@@ -2746,12 +2755,7 @@ function renderLogicEditor(item,root){
     if(action){
       const fields=document.createElement('div');fields.className='fields multi-step-fields';
       fields.innerHTML=actionFields(action);bindExtendedActionFields(fields,action);bindNestedAudioFields(fields,action);
-      fields.querySelectorAll('[data-field]').forEach(node=>node.addEventListener(
-        node.type==='range'||node.tagName==='TEXTAREA'?'input':'change',()=>{
-          action.settings[node.dataset.field]=node.type==='checkbox'?fieldChecked(node):
-            node.type==='number'||node.type==='range'?Number(node.value):node.value;
-          persist();
-        }));
+      bindActionSettingFields(fields,action,()=>persist());
       fields.querySelectorAll('[data-path-picker]').forEach(button=>button.addEventListener('click',async()=>{
         if(!window.deckBridge?.choosePath)return;
         try{
@@ -3924,10 +3928,7 @@ function renderControlInspector(){
     const editor=document.createElement('div');editor.className='control-action-editor';
     const fields=document.createElement('div');fields.className='fields';
     fields.innerHTML=actionFields(current);bindExtendedActionFields(fields,current);bindNestedAudioFields(fields,current);
-    fields.querySelectorAll('[data-field]').forEach(node=>node.addEventListener(node.tagName==='TEXTAREA'||node.type==='range'?'input':'change',()=>{
-      current.settings[node.dataset.field]=node.type==='checkbox'?fieldChecked(node):node.type==='number'||node.type==='range'?Number(node.value):node.value;
-      persist();
-    }));
+    bindActionSettingFields(fields,current,()=>persist());
     editor.append(fields);root.append(editor);
     if(['multi','multi-switch','random'].includes(current.type))renderMultiEditor(current,editor);
     if(current.type==='logic')renderLogicEditor(current,editor);
@@ -4778,6 +4779,14 @@ async function openFusionCommandProperties(root,item){
   finally{closed=true;}
 }
 // URL controls have the same semantics in LCD, physical controls and ordered rows.
+// Enable dependent controls without altering their values or dispatching writes.
+function bindFieldEnabledWhen(controller,controls,isEnabled){
+  const sync=()=>{
+    const disabled=!isEnabled(controller);
+    for(const control of controls)if(control)control.disabled=disabled;
+  };
+  controller?.addEventListener('change',sync);sync();
+}
 function bindWebsiteFields(root,item,onChange){
   const url=root.querySelector('[data-field="url"]'),toggle=root.querySelector('#url-https');
   const mode=root.querySelector('[data-field="open"]'),browser=root.querySelector('[data-field="browserPath"]');
@@ -4791,18 +4800,13 @@ function bindWebsiteFields(root,item,onChange){
     if(/^https?:\/\//i.test(raw))toggle.checked=/^https:\/\//i.test(raw);
     commit(raw&&!/^https?:\/\//i.test(raw)?(toggle.checked?'https://':'http://')+raw:raw);
   };
-  const syncBrowser=()=>{
-    const disabled=mode.value!=='choose';
-    browser.disabled=disabled;
-    const picker=root.querySelector('[data-path-picker="browserPath"]');if(picker)picker.disabled=disabled;
-  };
   url.addEventListener('change',sync);
   url.addEventListener('blur',sync);
   toggle.addEventListener('change',()=>{
     const raw=url.value.trim();
     if(raw)commit((toggle.checked?'https://':'http://')+raw.replace(/^https?:\/\//i,''));
   });
-  mode.addEventListener('change',syncBrowser);syncBrowser();
+  bindFieldEnabledWhen(mode,[browser,root.querySelector('[data-path-picker="browserPath"]')],node=>node?.value==='choose');
 }
 // Common field dependencies: never rebuild the inspector or change saved data on render.
 function bindInputFieldDependencies(root,item){
@@ -4833,12 +4837,7 @@ function bindNestedTimerFields(root,item){
   const file=root.querySelector('[data-field="soundFile"]'),picker=root.querySelector('[data-path-picker="soundFile"]');
   const volume=root.querySelector('[data-field="soundVolume"]'),display=root.querySelector('#timer-sound-volume-display');
   if(seconds)seconds.addEventListener('change',()=>{seconds.value=String(DeckCore.timerSeconds(seconds.value));});
-  const sync=()=>{
-    const custom=sound?.value==='custom';
-    if(file)file.disabled=!custom;
-    if(picker)picker.disabled=!custom;
-  };
-  sound?.addEventListener('change',sync);sync();
+  bindFieldEnabledWhen(sound,[file,picker],node=>node?.value==='custom');
   if(volume&&display)volume.addEventListener('input',()=>{display.textContent=String(volume.value)+'%';});
 }
 function bindExtendedActionFields(root,item){
@@ -5433,19 +5432,15 @@ function renderInspector(){
       }catch(error){alert("파일 선택 오류: "+String(error?.message||error));}
     });
   });
-  root.querySelectorAll("[data-field]").forEach(node=>{
-    node.addEventListener(node.type==="range"||node.tagName==="TEXTAREA"?"input":"change",()=>{
-      let value=node.type==="checkbox"?fieldChecked(node):node.type==="number"||node.type==="range"?Number(node.value):node.value;
-      item.settings[node.dataset.field]=value;
-      if(item.type==='audio-play')persistInspectorChange();else persist();
-      if(item.type==='audio-play'&&node.dataset.field==='volume'){
-        $("volume-display").textContent=String(value);
-        updateActiveAudioVolume(item.settings,value);
-      }
-      if(node.dataset.field==="body"){
-        if(item.type==='text'){renderGrid();refreshTitlePreview(item);}
-      }
-    });
+  bindActionSettingFields(root,item,(node,value)=>{
+    if(item.type==='audio-play')persistInspectorChange();else persist();
+    if(item.type==='audio-play'&&node.dataset.field==='volume'){
+      $("volume-display").textContent=String(value);
+      updateActiveAudioVolume(item.settings,value);
+    }
+    if(node.dataset.field==="body"){
+      if(item.type==='text'){renderGrid();refreshTitlePreview(item);}
+    }
   });
   if(item.type==='timer')renderTimerSettings(item,root);
   if(['multi','multi-switch','random'].includes(item.type))renderMultiEditor(item,root);

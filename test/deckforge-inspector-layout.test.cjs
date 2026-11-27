@@ -684,7 +684,7 @@ test('Fusion manager remains visible when its only runcommand action is intentio
 
 
 test('website fields normalize URLs in every editor and retain the inactive browser path',()=>{
-  const start=editor.indexOf('function bindWebsiteFields('),end=editor.indexOf('function bindExtendedActionFields(',start);
+  const start=editor.indexOf('function bindFieldEnabledWhen('),end=editor.indexOf('function bindExtendedActionFields(',start);
   const bind=vm.runInNewContext(editor.slice(start,end)+'\nbindWebsiteFields');
   const node=value=>({value,checked:false,disabled:false,listeners:{},addEventListener(k,fn){this.listeners[k]=fn;},fire(k){this.listeners[k]?.();}});
   const url=node(''),toggle=node(''),mode=node('default'),browser=node('C:\\Tools\\browser.exe'),picker=node('');
@@ -729,7 +729,7 @@ test('shared input dependencies update scroll choices and text count without alt
 
 
 test('nested timer retains alert path and volume and enables the path only for custom sound',()=>{
-  const start=editor.indexOf('function bindNestedTimerFields('),end=editor.indexOf('function bindExtendedActionFields(',start);
+  const start=editor.indexOf('function bindFieldEnabledWhen('),end=editor.indexOf('function bindExtendedActionFields(',start);
   const bind=vm.runInNewContext(editor.slice(start,end)+'\nbindNestedTimerFields',{DeckCore:{timerSeconds:n=>Math.max(1,Math.min(86400,Math.round(Number(n)||30)))}});
   const node=value=>({value,disabled:false,listeners:{},addEventListener(k,fn){this.listeners[k]=fn;},fire(k){this.listeners[k]?.();}});
   const seconds=node('30'),sound=node('connect'),file=node('C:\\alarm.wav'),picker=node(''),volume=node('63'),display=node('');
@@ -810,4 +810,29 @@ test('Fusion command inspector identifies its read-only dialog and resolves pend
  assert.equal(desc.textContent,'선 그리기');assert.equal(card.children[0].textContent,'아이콘 없음');
  close();await task;assert.equal(JSON.stringify(item),before);
  assert.match(editor,/button\.textContent=label\?'⚠ '\+label:'⚙ '\+sdkInspectorButtonLabel\(item\)/);
+});
+
+
+test('shared action field binder keeps event choice, checkbox conversions and owner-specific commits',()=>{
+ const start=editor.indexOf('const fieldChecked='),end=editor.indexOf('let active=null;',start);
+ assert.ok(start>=0&&end>start);
+ const bind=vm.runInNewContext(editor.slice(start,end)+';bindActionSettingFields');
+ const node=(field,type,value,options={})=>({dataset:{field,...options.dataset},type,value,checked:options.checked??false,tagName:options.tagName??'INPUT',listeners:{},addEventListener(k,fn){this.listeners[k]=fn;},fire(k){this.listeners[k]?.();}});
+ const check=node('enabled','checkbox','on',{checked:true}),invert=node('disabled','checkbox','on',{checked:true,dataset:{inverted:'true'}});
+ const clip=node('mode','checkbox','on',{checked:true,dataset:{textClipboard:'true'}});
+ const body=node('body','textarea','한글',{tagName:'TEXTAREA'}),volume=node('volume','range','72'),seconds=node('seconds','number','30'),direction=node('direction','select-one','up');
+ const nodes=[check,invert,clip,body,volume,seconds,direction],root={querySelectorAll:selector=>{assert.equal(selector,'[data-field]');return nodes;}};
+ const item={settings:{enabled:false,disabled:true,mode:'typing',body:'old',volume:10,seconds:5,direction:'down'}};
+ const before=JSON.stringify(item),writes=[];
+ bind(root,item,(input,value)=>{assert.equal(item.settings[input.dataset.field],value);writes.push(input.dataset.field);});
+ assert.equal(JSON.stringify(item),before);assert.deepEqual(writes,[]);
+ for(const input of nodes){const event=input===body||input===volume?'input':'change';assert.deepEqual(Object.keys(input.listeners),[event]);input.fire(event);}
+ assert.deepEqual(item.settings,{enabled:true,disabled:false,mode:'clipboard',body:'한글',volume:72,seconds:30,direction:'up'});
+ assert.deepEqual(writes,nodes.map(n=>n.dataset.field));
+ clip.checked=false;clip.fire('change');assert.equal(item.settings.mode,'typing');
+ const draft={settings:{body:'old'}},draftInput=node('body','textarea','draft',{tagName:'TEXTAREA'});
+ bind({querySelectorAll:()=>[draftInput]},draft);assert.equal(draft.settings.body,'old');draftInput.fire('input');assert.equal(draft.settings.body,'draft');assert.equal(item.settings.body,'한글');
+ for(const name of ['step','action','current'])assert.match(editor,new RegExp('bindActionSettingFields\\(fields,'+name+',\\(\\)=>persist\\(\\)\\)'));
+ assert.match(editor,/bindActionSettingFields\(fields,draft\)/);
+ assert.match(editor,/bindActionSettingFields\(root,item,\(node,value\)=>/);
 });
