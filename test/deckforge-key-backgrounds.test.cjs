@@ -333,3 +333,31 @@ test('Store connection is explicit, HTTPS only and account tokens never appear i
    const invalid=new StoreClient(root,{request:async()=>({ok:true})});await assert.rejects(invalid.check());assert.equal(invalid.status().checked,false);
  }finally{fs.rmSync(root,{recursive:true,force:true});}
 });
+
+test('remote Store metadata rejects private and app-provided packages and verifies downloaded bytes',async()=>{
+ const {StoreClient,storeCatalogItem,verifyStoreBytes}=require(path.join(dir,'store-client.cjs'));
+ const bytes=Buffer.from('test archive'),sha256=require('node:crypto').createHash('sha256').update(bytes).digest('hex');
+ const raw={id:'item1',releaseId:'release1',kind:'plugin',name:'Optional',version:'1.0.0',packageId:'com.vendor.optional',format:'deckforgePlugin',size:bytes.length,sha256,source:'deckforge',visibility:'public'};
+ const item=storeCatalogItem(raw,'plugin','user');assert.equal(item.id,'item1');
+ assert.equal(storeCatalogItem({...raw,visibility:'private'},'plugin','user'),null);
+ assert.equal(storeCatalogItem({...raw,source:'third-party'},'plugin','owner'),null);
+ assert.equal(storeCatalogItem({...raw,source:'third-party',visibility:'private'},'plugin','user'),null);
+ assert.ok(storeCatalogItem({...raw,source:'third-party',visibility:'private'},'plugin','owner'));
+ assert.equal(storeCatalogItem({...raw,packageId:'com.deckforge.native.home-assistant'},'plugin','owner'),null);
+ assert.throws(()=>storeCatalogItem({...raw,id:'../bad'},'plugin','owner'));
+ assert.throws(()=>storeCatalogItem({...raw,size:60*1024*1024},'plugin','owner'));
+ assert.equal(verifyStoreBytes(item,bytes),bytes);assert.throws(()=>verifyStoreBytes(item,Buffer.from('wrong archive')));
+ const client=new StoreClient(path.join(require('node:os').tmpdir(),'unused-deckforge-store-test'),{request:async(origin,route,options)=>{
+   assert.equal(origin,'https://example.com');assert.equal(options.token,'test-token-0123456789');
+   if(route.startsWith('/api/v1/catalog?'))return {items:[raw],nextCursor:''};
+   if(route==='/api/v1/items/item1')return {item:raw};
+   if(route==='/api/v1/items/item1/releases/release1/download'){assert.equal(options.binarySize,bytes.length);return bytes;}
+   throw Error('unexpected');
+ }});
+ client.origin='https://example.com';client.checked=true;
+ await assert.rejects(client.catalog('plugin'));
+ client.session={token:'test-token-0123456789',account:{id:'u',username:'user',role:'user'},expiresAt:Date.now()+60000};
+ assert.equal((await client.catalog('plugin')).items.length,1);
+ await assert.rejects(client.download('plugin','item1','release1','0'.repeat(64),()=>{throw Error('must not consume');}));
+ assert.equal(await client.download('plugin','item1','release1',sha256,(info,data)=>{assert.equal(info.id,'item1');assert.equal(data,bytes);return 'saved';}),'saved');
+});

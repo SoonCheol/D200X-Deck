@@ -36,6 +36,8 @@ contextBridge.exposeInMainWorld('deckBridge', Object.freeze({
   storeCheck:()=>ipcRenderer.invoke('d200x:store-check'),
   storeLogin:(username,password)=>ipcRenderer.invoke('d200x:store-login',username,password),
   storeLogout:()=>ipcRenderer.invoke('d200x:store-logout'),
+  storeCatalog:(kind,cursor='')=>ipcRenderer.invoke('d200x:store-catalog',kind,cursor),
+  storeDownload:(kind,id,releaseId,hash,installIconPack=false)=>ipcRenderer.invoke('d200x:store-download',kind,id,releaseId,hash,installIconPack===true),
   sdkList: () => ipcRenderer.invoke('d200x:sdk-list'),
   nativeRemove:id=>ipcRenderer.invoke('d200x:native-remove',id),
   legacyPluginRemove:id=>ipcRenderer.invoke('d200x:legacy-plugin-remove',id),

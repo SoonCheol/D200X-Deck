@@ -37,6 +37,32 @@ ipcMain.handle('d200x:store-save',(event,origin)=>{assertEditor(event);return st
 ipcMain.handle('d200x:store-check',event=>{assertEditor(event);return storeClient.check();});
 ipcMain.handle('d200x:store-login',(event,username,password)=>{assertEditor(event);return storeClient.login(username,password);});
 ipcMain.handle('d200x:store-logout',event=>{assertEditor(event);return storeClient.logout();});
+ipcMain.handle('d200x:store-catalog',(event,kind,cursor)=>{assertEditor(event);return storeClient.catalog(kind,cursor);});
+ipcMain.handle('d200x:store-download',(event,kind,id,releaseId,hash,installIconPack=false)=>{
+  assertEditor(event);
+  return storeClient.download(kind,id,releaseId,hash,async(item,bytes)=>{
+    if(installIconPack===true){
+      if(item.kind!=='iconpack')throw Error('플러그인 직접 설치는 아직 지원하지 않습니다.');
+      const pack=await parseIconPack(bytes,normalizeImportedIcon,item.name);
+      if(pack.name!==item.name||pack.version!==item.version)throw Error('아이콘팩 이름 또는 버전이 카탈로그와 다릅니다.');
+      const existing=(await listIconPacks()).find(p=>p.id===pack.id);
+      if(existing)return {kind:'already-installed',name:existing.name};
+      const confirm=await dialog.showMessageBox(window,{type:'question',title:'스토어 아이콘팩 설치',message:pack.name+' '+pack.version,detail:'검증된 다운로드 해시와 아이콘팩 형식을 확인했습니다. '+pack.icons.length+'개 아이콘을 기존 라이브러리에 등록합니다. 기존 팩은 덮어쓰지 않습니다.',buttons:['취소','설치'],defaultId:0,cancelId:0,noLink:true});
+      if(confirm.response!==1)return null;
+      storeClient.requireSession();
+      if((await listIconPacks()).some(p=>p.id===pack.id))return {kind:'already-installed',name:pack.name};
+      await ensureIconPacksMigrated();await registerPack(iconPacksFile(),pack);
+      return {kind:'installed',name:pack.name};
+    }
+    const safeName=item.name.replace(/[^a-zA-Z0-9가-힣 _.-]/g,'_').replace(/^[. ]+|[. ]+$/g,'').slice(0,80)||'package';
+    const result=await dialog.showSaveDialog(window,{title:'스토어 패키지 저장 (설치하지 않음)',defaultPath:path.join(app.getPath('downloads'),safeName+'.'+item.format),filters:[{name:'스토어 패키지',extensions:[item.format]}]});
+    if(result.canceled||!result.filePath)return null;
+    if(path.extname(result.filePath).toLowerCase()!=='.'+item.format.toLowerCase())throw Error('패키지 확장자가 일치하지 않습니다.');
+    storeClient.requireSession();
+    await fs.promises.writeFile(result.filePath,bytes,{flag:'wx'});
+    return {kind:'saved',name:item.name};
+  });
+});
 let sdkHost=null;
 const pluginAudit=require('./plugin-audit.cjs').createPluginAudit({userData:app.getPath('userData'),appVersion:app.getVersion(),onError:()=>console.warn('DeckForge plugin audit write failed')});
 function sdk(){

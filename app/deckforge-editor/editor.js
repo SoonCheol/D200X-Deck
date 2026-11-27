@@ -7437,17 +7437,81 @@ async function openStoreConnection(parent){
   catch{message.textContent='연결 설정을 읽을 수 없습니다.';}
   finally{busy=false;if(dlg.open)update();}
 }
+async function openRemoteStore(parent,kind,onInstalled){
+  if(!window.deckBridge?.storeCatalog)return;
+  const dlg=document.createElement('dialog');dlg.className='store-catalog-dialog';
+  dlg.setAttribute('aria-label','서버 스토어 목록');
+  dlg.innerHTML='<header class="store-catalog-header"><strong>서버 '+(kind==='iconpack'?'아이콘팩':'플러그인')+'</strong><button type="button" data-remote-close aria-label="닫기">×</button></header>'+
+    '<div class="store-catalog-toolbar"><input type="search" data-remote-query placeholder="현재 불러온 목록 검색" aria-label="서버 목록 검색"><button type="button" data-remote-reload>새로 고침</button></div>'+
+    '<p class="store-catalog-status" role="status"></p><div class="store-catalog-grid"></div><footer class="store-catalog-footer">서버 로그인 필요 · 패키지 크기 및 SHA256 확인 · 플러그인은 파일 저장만 지원</footer>';
+  document.body.append(dlg);
+  const find=sel=>dlg.querySelector(sel),grid=find('.store-catalog-grid'),status=find('.store-catalog-status'),query=find('[data-remote-query]'),reload=find('[data-remote-reload]'),close=find('[data-remote-close]');
+  let items=[],cursor='',busy=false,selected=null,expired=false,interval=null;
+  const node=(tag,cls,text)=>{const el=document.createElement(tag);if(cls)el.className=cls;if(text!==undefined)el.textContent=text;return el;};
+  function button(label,fn){const b=node('button','',label);b.type='button';b.disabled=busy||expired;b.addEventListener('click',fn);return b;}
+  function render(){
+    grid.replaceChildren();grid.classList.toggle('store-catalog-detail',!!selected);
+    if(expired){status.textContent='로그인 세션이 만료되었습니다. 연결 설정에서 다시 로그인하세요.';return;}
+    if(selected){
+      const item=selected;grid.append(button('← 목록',()=>{selected=null;render();}),node('h2','',item.name),node('p','store-pack-meta',item.version+' · '+(item.author||'제작자 미등록')+' · '+(item.visibility==='private'?'비공개':'공개')),node('p','store-pack-meta',item.description||'설명 없음'),node('p','store-pack-meta','SHA256: '+item.sha256),node('p','store-pack-meta',Math.ceil(item.size/1024)+' KiB'));
+      grid.append(button('파일 저장',()=>void download(item,false)));
+      if(kind==='iconpack')grid.append(button('라이브러리에 설치',()=>void download(item,true)));
+      else grid.append(node('p','store-pack-meta','플러그인 직접 설치는 게시자 신뢰 및 서명 검증 이후 지원합니다. 저장 파일은 기존 설치 기능에서 직접 선택할 수 있습니다.'));
+      return;
+    }
+    const q=query.value.trim().toLocaleLowerCase(),matching=items.filter(item=>[item.name,item.author,item.version,item.description,...item.tags].some(x=>x.toLocaleLowerCase().includes(q)));
+    for(const item of matching){
+      const card=button('',()=>{selected=item;render();});card.className='store-pack-card';
+      card.append(node('strong','',item.name),node('span','store-pack-meta',item.version+' · '+(item.author||'제작자 미등록')),node('span','store-pack-meta',(item.visibility==='private'?'비공개':'공개')+' · '+(item.source==='third-party'?'외부 보관':'DeckForge')),node('span','store-pack-meta',item.tags.join(' · ')));
+      grid.append(card);
+    }
+    if(!matching.length)grid.append(node('p','store-catalog-empty','표시할 서버 항목이 없습니다.'));
+    if(cursor)grid.append(button('다음 목록 불러오기',()=>void load(false)));
+  }
+  function setBusy(value){busy=value;reload.disabled=value||expired;close.disabled=value;query.disabled=value;render();}
+  async function guard(){
+    const s=await window.deckBridge.storeStatus();
+    if(!s?.account||!s.checked){expired=true;items=[];selected=null;cursor='';render();return false;}return true;
+  }
+  async function load(reset){
+    if(busy||expired)return;setBusy(true);status.textContent='서버 목록 읽는 중…';
+    try{
+      if(!await guard())return;
+      if(reset){items=[];cursor='';selected=null;}
+      const page=await window.deckBridge.storeCatalog(kind,cursor);
+      if(!dlg.open||!await guard())return;
+      const merged=new Map(items.map(item=>[item.id,item]));for(const item of page.items)merged.set(item.id,item);
+      items=[...merged.values()];cursor=page.nextCursor;status.textContent='서버에서 불러온 항목 '+items.length+'개';
+    }catch(error){items=[];selected=null;cursor='';status.textContent='목록 조회 실패: '+String(error?.message||error);}
+    finally{if(dlg.open)setBusy(false);}
+  }
+  async function download(item,install){
+    if(busy||expired)return;setBusy(true);status.textContent='다운로드 및 검증 중…';
+    try{
+      if(!await guard())return;
+      const result=await window.deckBridge.storeDownload(kind,item.id,item.releaseId,item.sha256,install);
+      if(result?.kind==='installed')await onInstalled();
+      if(dlg.open&&await guard())status.textContent=result?.kind==='installed'?'아이콘팩 설치 완료':result?.kind==='already-installed'?'이미 설치된 아이콘팩입니다.':result?.kind==='saved'?'패키지 저장 완료':'취소됨';
+    }catch(error){if(dlg.open)status.textContent='다운로드 실패: '+String(error?.message||error);}
+    finally{if(dlg.open)setBusy(false);}
+  }
+  query.addEventListener('input',()=>{selected=null;render();});reload.addEventListener('click',()=>void load(true));close.addEventListener('click',()=>dlg.close());
+  dlg.addEventListener('cancel',ev=>{if(busy)ev.preventDefault();});
+  dlg.addEventListener('close',()=>{clearInterval(interval);items=[];selected=null;dlg.remove();},{once:true});
+  dlg.showModal();interval=setInterval(()=>{if(dlg.open&&!busy&&!expired)void guard().catch(()=>{expired=true;items=[];selected=null;render();});},1000);
+  await load(true);
+}
 let storeCatalogDialog=null;
 async function openStoreCatalog(){
   if(storeCatalogDialog?.open)return;
   const dialog=document.createElement('dialog');dialog.className='store-catalog-dialog';
   dialog.setAttribute('aria-labelledby','store-catalog-heading');
-  dialog.innerHTML='<header class="store-catalog-header"><strong id="store-catalog-heading">DeckForge Store</strong><span data-store-local>로컬 아이콘팩</span><button type="button" data-store-connection>연결 설정</button><button type="button" data-store-close aria-label="닫기">×</button></header>'+
+  dialog.innerHTML='<header class="store-catalog-header"><strong id="store-catalog-heading">DeckForge Store</strong><span data-store-local>로컬 아이콘팩</span><button type="button" data-store-remote>서버 목록</button><button type="button" data-store-connection>연결 설정</button><button type="button" data-store-close aria-label="닫기">×</button></header>'+
     '<nav class="store-catalog-tabs" aria-label="스토어 종류"><button type="button" data-store-tab="icons" aria-pressed="true">아이콘팩</button><button type="button" data-store-tab="plugins" aria-pressed="false">플러그인</button></nav>'+
     '<div class="store-catalog-toolbar"><input type="search" data-store-query placeholder="팩 이름 또는 아이콘 검색" aria-label="아이콘팩 검색">'+
     '<button type="button" data-store-import>팩 가져오기</button><button type="button" data-store-reload>새로 고침</button></div>'+
     '<div class="store-catalog-filters"></div><div class="store-catalog-filters store-plugin-filters" hidden><select aria-label="플러그인 규격" data-store-runtime><option value="all">전체 규격</option><option value="native">DeckForge SDK</option><option value="compatible">외부 호환</option><option value="unknown">기타</option></select></div><p class="store-catalog-status" role="status">NAS 서버 미연결 · 로컬 설치 목록을 읽는 중…</p>'+
-    '<div class="store-catalog-grid"></div><footer class="store-catalog-footer">로컬 설치 항목만 표시 · 원격 카탈로그 및 다운로드는 후속 개발</footer>';
+    '<div class="store-catalog-grid"></div><footer class="store-catalog-footer">로컬 설치 목록 · 서버 목록은 상단 버튼에서 조회</footer>';
   document.body.append(dialog);storeCatalogDialog=dialog;
   const find=sel=>dialog.querySelector(sel),grid=find('.store-catalog-grid'),status=find('.store-catalog-status'),query=find('[data-store-query]'),importButton=find('[data-store-import]'),reload=find('[data-store-reload]');
   const filterOptions={
@@ -7604,6 +7668,7 @@ async function openStoreCatalog(){
     catch(error){if(dialog.open)status.textContent='가져오기 실패: '+String(error?.message||error);}
     finally{busy=false;if(dialog.open){importButton.disabled=false;reload.disabled=false;for(const tab of tabs)tab.disabled=false;}}
   });
+  find('[data-store-remote]').addEventListener('click',()=>{if(!busy)void openRemoteStore(dialog,mode==='icons'?'iconpack':'plugin',async()=>{await refreshImportedIconPacks();if(dialog.open)await load();});});
   find('[data-store-connection]').addEventListener('click',()=>void openStoreConnection(dialog));
   find('[data-store-close]').addEventListener('click',()=>dialog.close());
   dialog.addEventListener('close',()=>{++request;dialog.remove();if(storeCatalogDialog===dialog)storeCatalogDialog=null;},{once:true});
