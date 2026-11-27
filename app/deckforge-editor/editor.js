@@ -3324,6 +3324,8 @@ function syncTitleAppearanceInputs(menu,lookup,style){
   lookup('outline-color').value=style.outlineColor;
   lookup('outline-width').value=style.outlineWidth;
   syncTitleBackgroundInputs(style,lookup);
+  const marquee=lookup('title-marquee'),speed=lookup('title-marquee-speed');
+  if(marquee&&speed){marquee.checked=style.marquee===true;speed.value=String(style.marqueeSpeed||1000);speed.disabled=!marquee.checked;}
 }
 function bindTitleStyle(item){
   let indicatorField='title';
@@ -3344,6 +3346,10 @@ function bindTitleStyle(item){
     toggle.setAttribute("aria-expanded",String(!menu.hidden));
   });
   const save=(field,value)=>{style[field]=value;commitStyle();};
+  const marquee=$('title-marquee'),marqueeSpeed=$('title-marquee-speed');
+  marquee.checked=style.marquee===true;marqueeSpeed.value=String(style.marqueeSpeed||1000);marqueeSpeed.disabled=!marquee.checked;
+  marquee.addEventListener('change',()=>{marqueeSpeed.disabled=!marquee.checked;save('marquee',marquee.checked);});
+  marqueeSpeed.addEventListener('change',()=>save('marqueeSpeed',Number(marqueeSpeed.value)));
   const visible=$("title-visible");visible.checked=style.visible;
   visible.addEventListener("change",()=>{if(item.type==='indicator')root._setIndicatorVisible('title',visible.checked);else save("visible",visible.checked);});
   menu.querySelectorAll("[data-align]").forEach(button=>{
@@ -3370,7 +3376,8 @@ function bindTitleStyle(item){
     cleaned.size=Math.max(8,Math.min(48,Number(cleaned.size)||12));
     cleaned.align=["top","middle","bottom"].includes(cleaned.align)?cleaned.align:"bottom";
     cleaned.visible=cleaned.visible!==false;
-    for(const field of ["bold","italic","underline","backgroundEnabled"])cleaned[field]=cleaned[field]===true;
+    for(const field of ["bold","italic","underline","backgroundEnabled","marquee"])cleaned[field]=cleaned[field]===true;
+    cleaned.marqueeSpeed=[1000,2000,3000].includes(cleaned.marqueeSpeed)?cleaned.marqueeSpeed:1000;
     cleaned.backgroundOpacity=Number.isFinite(cleaned.backgroundOpacity)?Math.max(0,Math.min(100,cleaned.backgroundOpacity)):65;
     for(const field of ["color","outlineColor","backgroundColor"])
       if(!/^#[0-9a-fA-F]{6}$/.test(cleaned[field]))cleaned[field]=DEFAULT_TITLE_STYLE[field];
@@ -3500,6 +3507,7 @@ function bindTitleStyle(item){
   root._openIndicatorStyle=(trigger,field)=>{
     const already=indicatorField===field&&!menu.hidden&&menu.parentElement===trigger.parentElement;
     indicatorField=field;style=getIndicatorStyle(field);syncIndicatorStyle();
+    $('title-marquee-row').hidden=field==='number'||field==='downNumber';
     (field==='title'?titleHost:trigger.parentElement).append(menu);menu.hidden=already;
     if(!menu.hidden)positionTitleStylePopover(menu,trigger);
     root.querySelectorAll('.state-title-style').forEach(button=>button.setAttribute('aria-expanded',String(button===trigger&&!menu.hidden)));
@@ -5473,6 +5481,7 @@ function renderInspector(){
         <button type="button" data-style="bold" aria-label="굵게">B</button><button type="button" data-style="italic" aria-label="기울임">I</button><button type="button" data-style="underline" aria-label="밑줄">U</button>
         <input id="title-color" type="color" aria-label="글꼴 색상">
         <button type="button" id="title-color-palette" class="title-palette-open" title="색상 팔레트">${PALETTE_ICON}</button></div>
+        <div class="outline-settings" id="title-marquee-row"><label><input type="checkbox" id="title-marquee"> 긴 제목 흐르기</label><select id="title-marquee-speed" aria-label="제목 마퀴 속도"><option value="1000">빠르게 (1초)</option><option value="2000">보통 (2초)</option><option value="3000">느리게 (3초)</option></select></div>
         <div class="outline-settings">
           <span>외곽선</span>
           <select id="outline-width" aria-label="외곽선 두께">

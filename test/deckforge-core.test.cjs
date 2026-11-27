@@ -2223,3 +2223,19 @@ test('final visible action audit: composite branches, timer settings and gesture
   assert.equal(gesture.settings.single,'text');assert.equal(gesture.settings.double,'media');assert.equal(gesture.settings.hold,'none');assert.equal(gesture.settings.logEnabled,false);
   assert.equal(core.planAction(gesture,0,1).kind,'gesture-test');
 });
+
+test('common title marquee is opt-in, width-aware and preserves graphemes',()=>{
+ const core=require('../app/deckforge-editor/deck-core.js'),measure=text=>[...text].length;
+ assert.equal(core.TITLE.marquee,false);
+ assert.equal(core.cleanAction({type:'timer',titleStyle:{marquee:true,marqueeSpeed:2000}}).titleStyle.marquee,true);
+ assert.equal(core.cleanAction({type:'timer',titleStyle:{marquee:true,marqueeSpeed:1}}).titleStyle.marqueeSpeed,1000);
+ const style={marquee:true,marqueeSpeed:1000};
+ assert.equal(core.titleMarqueeFrame('ABC',style,3,measure,0),null);
+ assert.equal(core.titleMarqueeFrame('ABCDE',{...style,marquee:false},3,measure,0),null);
+ assert.equal(core.titleMarqueeFrame('ABCDE',{...style,visible:false},3,measure,0),null);
+ assert.equal(core.titleMarqueeFrame('ABCDE',style,3,measure,0),'ABC');
+ assert.equal(core.titleMarqueeFrame('ABCDE',style,3,measure,1000),'BCD');
+ assert.equal(core.titleMarqueeFrame('ABCDE',{...style,marqueeSpeed:2000},3,measure,1000),'ABC');
+ assert.equal(core.titleMarqueeFrame('ABCDE',style,3,measure,10000),'ABC');
+ assert.equal(core.titleMarqueeFrame('A😀BC',style,2,measure,1000),'😀B');
+});

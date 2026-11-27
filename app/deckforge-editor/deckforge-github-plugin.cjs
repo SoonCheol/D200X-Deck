@@ -117,7 +117,7 @@ function multiBuildKey(event,settings,state,memory,api,normalize,display,step){
 }
 function createGitHubManifest(){
   const field=(key,label,value,maxLength=128)=>({key,label,type:'text',default:value,maxLength});
-  const manifest={apiVersion:2,id:ID,name:'GitHub 개발 현황',version:'0.1.5',requiresDeckForge:'>=2.0.113',
+  const manifest={apiVersion:2,id:ID,name:'GitHub 개발 현황',version:'0.1.6',requiresDeckForge:'>=2.0.115',
     permissions:['display','network.request','network.poll','timer.tick','browser.open'],
     networkEndpoints:[{id:'runs',url:'https://api.github.com/repos/',method:'GET',auth:'bearer',pathKeys:['owner','repo','category','collection','workflow','resource'],queryKeys:['per_page','branch'],maxResponseBytes:32768}],
     actions:[{id:ID+'.build',name:'빌드 상태',controllers:['Keypad'],states:1,visualPolicy:'foreground',

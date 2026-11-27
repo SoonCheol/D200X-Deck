@@ -114,10 +114,7 @@
   // DeckForge renders titles over a fixed full-key icon.
   // Preserve the established 72px logical font scale; D200X accepts 196px PNG.
   // Rendering both views from this compositor prevents CSS flex layout drift.
-  function drawText(ctx, title, width, height, style) {
-    if (!title || style?.visible === false) return;
-    const alignment = ({left:'bottom',center:'middle',right:'top'})[style?.align]
-      || (['top','middle','bottom'].includes(style?.align) ? style.align : 'bottom');
+  function applyTitleFont(ctx,height,style){
     const baseSize = Math.max(8, Math.min(48, Number(style?.size) || 12));
     const fontSize = baseSize * height / 72;
     const family = style?.family === 'Segoe UI' ? '"Segoe UI"'
@@ -125,6 +122,20 @@
       : '"DeckForge Pretendard"';
     ctx.font = (style?.italic ? 'italic ' : '') +
       (style?.bold ? 'bold ' : '') + fontSize + 'px ' + family + ',sans-serif';
+    return fontSize;
+  }
+  let marqueeMeasureContext=null;
+  function titleFrame(item,index,now=Date.now()){
+    if(!item?.title||item.titleStyle?.marquee!==true||item.titleStyle?.visible===false||item.type==='wide-display')return null;
+    marqueeMeasureContext??=document.createElement('canvas').getContext('2d');
+    applyTitleFont(marqueeMeasureContext,196,item.titleStyle);
+    return DeckCore.titleMarqueeFrame(item.title,item.titleStyle,(index===13?392:196)-16,text=>marqueeMeasureContext.measureText(text).width,now);
+  }
+  function drawText(ctx, title, width, height, style) {
+    if (!title || style?.visible === false) return;
+    const alignment = ({left:'bottom',center:'middle',right:'top'})[style?.align]
+      || (['top','middle','bottom'].includes(style?.align) ? style.align : 'bottom');
+    const fontSize=applyTitleFont(ctx,height,style);
     ctx.fillStyle = style?.color || '#ffffff';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
@@ -292,7 +303,7 @@
   }
   const bitmapCache=DeckCore.createBitmapCache();
   let fontEpoch=0;
-  const styleFields=['visible','align','family','size','bold','italic','underline','color','outlineColor','outlineWidth','backgroundEnabled','backgroundColor','backgroundOpacity'];
+  const styleFields=['visible','align','family','size','bold','italic','underline','color','outlineColor','outlineWidth','backgroundEnabled','backgroundColor','backgroundOpacity','marquee','marqueeSpeed'];
   const visualStyle=style=>style?Object.fromEntries(styleFields.map(key=>[key,style[key]])):undefined;
   // Only the automatically supplied Fusion command artwork is constrained.
   // Explicit key artwork and background images retain the normal full canvas.
@@ -306,7 +317,8 @@
     const wideMode=item?.type==='wide-display'?(item.wideNotice?'unsaved':window.D200XWideModeName?.()||'clock'):null;
     const panelArtwork=item&&!item.icon?.glyph&&item.icon?.kind!=='file'?window.D200XPanelIcons?.keyArtwork?.(item.type)||null:null;
     const background=item?.keyBackground||item?.settings?.keyBackgrounds?.default;
-    const visual=item?{type:item.type,title:item.title||'',titleStyle:visualStyle(item.titleStyle),
+    const frame=titleFrame(item,index);
+    const visual=item?{type:item.type,title:frame??(item.title||''),titleStyle:visualStyle(item.titleStyle),
       icon:item.icon?{kind:item.icon.kind,value:item.icon.value,glyph:item.icon.glyph}:undefined,
       keyBackground:background?{enabled:background.enabled,color:background.color}:undefined,
       sensorDisplay:item.sensorDisplay===true,sensorOverlay:item.sensorDisplay===true&&typeof item.sensorOverlay==='string'?item.sensorOverlay:null,
@@ -574,6 +586,25 @@
   window.scheduleD200XWideSync=()=>requestSlots([13]);
   bridge.ready();
   schedule();
+  // At most one animation sweep per second, and only visible overflowing titles.
+  // Reuse the existing dirty-slot scheduler; do not enqueue a full-page repaint
+  // from each title. Hidden/offline device state never creates a send backlog.
+  const marqueeFrames=new Map();let marqueeScope=null;
+  setInterval(()=>{
+    if(rendering||pageEntry?.collecting)return;
+    const scope=pageStamp();if(scope!==marqueeScope){marqueeScope=scope;marqueeFrames.clear();}
+    const slots=[];const now=Date.now();
+    DeckCore.visibleActions(state).slice(0,13).forEach((raw,index)=>{
+      if(!raw){marqueeFrames.delete(index);return;}
+      const item=window.getD200XDisplayItem?.(raw,index)||raw;
+      const frame=titleFrame(item,index,now);
+      if(frame===null){marqueeFrames.delete(index);return;}
+      if(marqueeFrames.get(index)!==frame){marqueeFrames.set(index,frame);slots.push(index);}
+    });
+    if(!slots.length)return;
+    renderGrid(slots);
+    if(online)requestSlots(slots);
+  },1000);
   // Refresh the date/time image without polling or overwriting unrelated keys.
   setInterval(()=>{
     if(window.getD200XWideMode?.()==='blank'&&window.D200XWideModeName?.()==='datetime'){

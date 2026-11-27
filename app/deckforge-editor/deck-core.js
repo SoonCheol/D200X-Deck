@@ -306,7 +306,7 @@
   const TITLE={visible:true,align:'bottom',family:'default',size:12,
     bold:false,italic:false,underline:false,color:'#ffffff',
     outlineColor:'#000000',outlineWidth:'thin',
-    backgroundEnabled:false,backgroundColor:'#000000',backgroundOpacity:65};
+    backgroundEnabled:false,backgroundColor:'#000000',backgroundOpacity:65,marquee:false,marqueeSpeed:1000};
   const INDICATOR_NUMBER_STYLE={...TITLE,align:'middle',size:48,outlineWidth:'none'};
   const copy=x=>JSON.parse(JSON.stringify(x));
   const validId=id=>ACTION_IDS.includes(id)||D200X_ACTION_IDS.includes(id)||PLUGIN_ACTION_IDS.includes(id)||id==='side-nav'||id==='press-empty';
@@ -502,6 +502,25 @@
     return {type:id,...(id==='sd-plugin'?{instanceId:newInstanceId()}:{}),title:id==='folder'?'폴더':'',
       settings:copy(DEFAULTS[id]),titleStyle:copy(TITLE),children:[]};
   }
+  // Pure bounded frame selector: only overflowing enabled titles move.
+  // Width comes from the same font measurement used by the bitmap compositor.
+  function titleMarqueeFrame(title,style,width,measure,now=Date.now()){
+    if(style?.visible===false||style?.marquee!==true||typeof title!=='string'||!title||width<=0)return null;
+    const line=title.replace(/\r?\n|<br\s*\/?>/gi,' ');
+    if(measure(line)<=width)return null;
+    const chars=typeof Intl.Segmenter==='function'?[...new Intl.Segmenter(undefined,{granularity:'grapheme'}).segment(line)].map(x=>x.segment):Array.from(line);
+    if(!chars.length)return null;
+    const loop=[...chars,' ',' ','•',' ',' '];
+    const speed=[1000,2000,3000].includes(style.marqueeSpeed)?style.marqueeSpeed:1000;
+    const offset=Math.floor(Math.max(0,now)/speed)%loop.length;
+    let frame='';
+    for(let i=0;i<loop.length;i++){
+      const next=frame+loop[(offset+i)%loop.length];
+      if(measure(next)>width&&frame)break;
+      frame=next;
+    }
+    return frame;
+  }
   function cleanTitleStyle(value,defaults){
     const st={...defaults,...(value&&typeof value==='object'&&!Array.isArray(value)?value:{})};
     st.visible=st.visible!==false;
@@ -513,6 +532,8 @@
     st.color=/^#[0-9a-fA-F]{6}$/.test(st.color)?st.color:'#ffffff';
     st.outlineColor=/^#[0-9a-fA-F]{6}$/.test(st.outlineColor)?st.outlineColor:'#000000';
     st.outlineWidth=['none','thin','medium','thick'].includes(st.outlineWidth)?st.outlineWidth:'thin';
+    st.marquee=st.marquee===true;
+    st.marqueeSpeed=[1000,2000,3000].includes(st.marqueeSpeed)?st.marqueeSpeed:1000;
     st.backgroundEnabled=st.backgroundEnabled===true;
     st.backgroundColor=/^#[0-9a-fA-F]{6}$/.test(st.backgroundColor)?st.backgroundColor:'#000000';
     st.backgroundOpacity=Number.isFinite(st.backgroundOpacity)?Math.max(0,Math.min(100,st.backgroundOpacity)):65;
@@ -2031,5 +2052,5 @@
       url:action.settings?.url||'',mode:action.settings?.open||'default',browserPath:action.settings?.browserPath||''};
     return {kind:'unsupported',message:'이 동작의 실행 기능은 아직 구현되지 않았습니다.'};
   }
-  return {normalizeGitHubMonitorTargets,validateNativeSettingsSchema,validateNativeSettingsUI,nativeSettingVisible,validateNativeTitlePolicy,nativeTitle,nativeTitleSelection,nativeAdoptLegacyTitle,nativeSettingValue,nativeDynamicOptions,moveNativeSelection,isLegacyHaControl,applyLegacyHaTitle,isNativeHaSensor,isNativeForeground,sdkAvailability,nativeEffectiveSettings,nativeVisualOwner,nativeVisualDelta,pruneNativeVisuals,createNativeRenderGate,ACTION_IDS,D200X_ACTION_IDS,PLUGIN_ACTION_IDS,PRESS_ACTION_TYPES,DEFAULTS,TITLE,INDICATOR_NUMBER_STYLE,INDICATOR_NAV_LABELS,indicatorConfig,indicatorCommon,sharedIndicatorConfig,updateIndicatorCommon,manageIndicators,indicatorNumberDisplayStyle,planIndicatorNavigation,fixedIndicatorNavigation,planFixedIndicatorNavigation,indicatorPinState,setIndicatorPinned,SIDE_NAV_LABELS,SIDE_HOLD_MS,sideConfig,makeSideAction,sideActionConfig,sideFolderTargets,planSideNavigation,applySideNavigation,createPageVisitTracker,createSidePressTracker,createAction,cleanAction,validInstanceId,normalizeInstanceIds,cloneActionInstances,walkSdkActions,removePluginReferences,sdkMountDescriptors,createSdkMountTracker,validSdkMount,nativeSettingsCommitMatches,createBitmapCache,cleanCompositeEntry,timerSeconds,formatTimerTime,displaySwitchAction,compositeModel,planComposite,runComposite,createMultiPauseGate,multiRows,setMultiRows,blankPage,cleanWideDisplay,createWideOverlayTracker,cycleWideDisplay,isWideDisplayPress,folderContents,folderPageCount,changeFolderPage,addFolderPage,deleteFolderPage,editPageStructure,currentActions,visibleActions,togglePinned,activeFolder,enterFolder,exitFolder,migrateState,profileSnapshot,switchProfile,createProfile,renameProfile,exportSingleProfile,findProfileTemplate,saveProfileTemplate,renameProfileTemplate,deleteProfileTemplate,applyProfileTemplate,setProfileApp,setProfileFusionScope,matchFusionProfile,createSmartProfileTracker,matchForegroundProfile,deleteProfile,previewHardwareEvent,physicalSlot,hardwareGesture,resolveHardwareEvent,runtimeActionKey,folderWideBackEvent,resolveKeyPress,planHardwareEvent,deletePage,planAction,emptyBinding,cleanBinding,controlAction,activeControlAction,assignControlAction,automaticControl,ensureControls,controlBinding,changeControlScope};
+  return {titleMarqueeFrame,normalizeGitHubMonitorTargets,validateNativeSettingsSchema,validateNativeSettingsUI,nativeSettingVisible,validateNativeTitlePolicy,nativeTitle,nativeTitleSelection,nativeAdoptLegacyTitle,nativeSettingValue,nativeDynamicOptions,moveNativeSelection,isLegacyHaControl,applyLegacyHaTitle,isNativeHaSensor,isNativeForeground,sdkAvailability,nativeEffectiveSettings,nativeVisualOwner,nativeVisualDelta,pruneNativeVisuals,createNativeRenderGate,ACTION_IDS,D200X_ACTION_IDS,PLUGIN_ACTION_IDS,PRESS_ACTION_TYPES,DEFAULTS,TITLE,INDICATOR_NUMBER_STYLE,INDICATOR_NAV_LABELS,indicatorConfig,indicatorCommon,sharedIndicatorConfig,updateIndicatorCommon,manageIndicators,indicatorNumberDisplayStyle,planIndicatorNavigation,fixedIndicatorNavigation,planFixedIndicatorNavigation,indicatorPinState,setIndicatorPinned,SIDE_NAV_LABELS,SIDE_HOLD_MS,sideConfig,makeSideAction,sideActionConfig,sideFolderTargets,planSideNavigation,applySideNavigation,createPageVisitTracker,createSidePressTracker,createAction,cleanAction,validInstanceId,normalizeInstanceIds,cloneActionInstances,walkSdkActions,removePluginReferences,sdkMountDescriptors,createSdkMountTracker,validSdkMount,nativeSettingsCommitMatches,createBitmapCache,cleanCompositeEntry,timerSeconds,formatTimerTime,displaySwitchAction,compositeModel,planComposite,runComposite,createMultiPauseGate,multiRows,setMultiRows,blankPage,cleanWideDisplay,createWideOverlayTracker,cycleWideDisplay,isWideDisplayPress,folderContents,folderPageCount,changeFolderPage,addFolderPage,deleteFolderPage,editPageStructure,currentActions,visibleActions,togglePinned,activeFolder,enterFolder,exitFolder,migrateState,profileSnapshot,switchProfile,createProfile,renameProfile,exportSingleProfile,findProfileTemplate,saveProfileTemplate,renameProfileTemplate,deleteProfileTemplate,applyProfileTemplate,setProfileApp,setProfileFusionScope,matchFusionProfile,createSmartProfileTracker,matchForegroundProfile,deleteProfile,previewHardwareEvent,physicalSlot,hardwareGesture,resolveHardwareEvent,runtimeActionKey,folderWideBackEvent,resolveKeyPress,planHardwareEvent,deletePage,planAction,emptyBinding,cleanBinding,controlAction,activeControlAction,assignControlAction,automaticControl,ensureControls,controlBinding,changeControlScope};
 });
