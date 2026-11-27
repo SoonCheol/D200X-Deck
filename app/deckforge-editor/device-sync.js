@@ -328,7 +328,7 @@
     const wideMode=item?.type==='wide-display'?(item.wideNotice?'unsaved':window.D200XWideModeName?.()||'clock'):null;
     const panelArtwork=item&&!item.icon?.glyph&&item.icon?.kind!=='file'?window.D200XPanelIcons?.keyArtwork?.(item.type)||null:null;
     const background=item?.keyBackground||item?.settings?.keyBackgrounds?.default;
-    const frame=titleFrame(item,index);
+    const frame=item?.titleStyle?.marquee===true?titleFrame(item,index):null;
     const visual=item?{type:item.type,title:frame??(item.title||''),titleStyle:visualStyle(item.titleStyle),
       icon:item.icon?{kind:item.icon.kind,value:item.icon.value,glyph:item.icon.glyph}:undefined,
       keyBackground:background?{enabled:background.enabled,color:background.color}:undefined,

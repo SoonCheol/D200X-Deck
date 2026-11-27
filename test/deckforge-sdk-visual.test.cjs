@@ -412,12 +412,14 @@ test('common key compositor draws HA readings over artwork and under title; cach
  const code=fs.readFileSync(path.join(__dirname,'../app/deckforge-editor/device-sync.js'),'utf8');
  const start=code.indexOf('  const bitmapCache='),end=code.indexOf('  // Same compositor feeds',start);
  assert.ok(start>=0&&end>start);
+ const titleStart=code.indexOf('  function applyTitleFont('),titleEnd=code.indexOf('  function drawText(',titleStart);
+ assert.ok(titleStart>=0&&titleEnd>titleStart);
  const ops=[];
  const canvas={getContext:()=>({fillStyle:'',fillRect(){ops.push(['background',this.fillStyle]);},drawImage(image){ops.push(['image',image.id]);},fillText(value){ops.push(['glyph',value]);}}),toDataURL:()=> 'data:image/png;base64,ok'};
  const context={DeckCore:core,window:{D200XPanelIcons:{keyArtwork:()=> 'generic'}},ACTIONS:new Map(),keyPressed:()=>false,
   document:{createElement:()=>canvas,fonts:{}},imageLoaded:async id=>({id,width:144,height:144}),
-  drawText:(_ctx,title)=>ops.push(['title',title])};
- const f=vm.runInNewContext(code.slice(start,end)+';({prepareDeckKeyImage,keyDescriptor,composeSlot})',context);
+  drawText:(_ctx,title)=>ops.push(['title',title]),pageStamp:()=> 'page-a'};
+ const f=vm.runInNewContext(code.slice(titleStart,titleEnd)+code.slice(start,end)+';({prepareDeckKeyImage,keyDescriptor,composeSlot})',context);
  const item={type:'sd-plugin',sensorDisplay:true,sensorOverlay:'live-1',icon:{kind:'file',value:'custom'},title:'title',keyBackground:{enabled:true,color:'#ff0000'}};
  const first=f.prepareDeckKeyImage(item,0),next=f.prepareDeckKeyImage({...item,sensorOverlay:'live-2'},0);
  assert.notEqual(first.signature,next.signature);
@@ -607,4 +609,24 @@ test('GitHub repository selection updates automatic display names without overwr
   initialRepo.value='SoonCheol/FusionMacroStudio';initialRepo.fire('change');
   assert.equal(initial.value,'FusionMacroStudio');
   assert.match(source,/if\(githubBuild\)bindGithubRepositoryLabel\(inputs\.find/);
+});
+
+test('shared marquee compositor uses measured width, stable frame time and resets on page entry',()=>{
+ const code=fs.readFileSync(path.join(__dirname,'../app/deckforge-editor/device-sync.js'),'utf8');
+ const begin=code.indexOf('  function applyTitleFont('),end=code.indexOf('  function drawText(',begin);
+ assert.ok(begin>=0&&end>begin);
+ let scope='page-a',measurements=0;
+ const ctx={DeckCore:core,pageStamp:()=>scope,document:{createElement:()=>({getContext:()=>({measureText(text){measurements++;return {width:[...text].length*60};}})})}};
+ const f=vm.runInNewContext(code.slice(begin,end)+';({titleFrame,marqueeStarts})',ctx);
+ const item={type:'timer',title:'ABCDE',titleStyle:{marquee:true,marqueeSpeed:1000}};
+ assert.equal(f.titleFrame(item,0,10000),'ABC');
+ assert.equal(f.titleFrame(item,0,10999),'ABC');
+ assert.equal(f.titleFrame(item,0,11000),'BCD');
+ assert.equal(f.titleFrame({...item,title:'AB'},0,11000),null);
+ assert.equal(f.titleFrame({...item,titleStyle:{marquee:false}},0,12000),null);
+ assert.equal(f.titleFrame({...item,titleStyle:{marquee:true,visible:false}},0,12000),null);
+ const count=measurements;assert.equal(f.titleFrame({...item,type:'wide-display'},13,12000),null);assert.equal(measurements,count);
+ scope='page-b';assert.equal(f.titleFrame(item,0,12000),'ABC');
+ for(let i=0;i<100;i++)f.titleFrame({...item,title:'ABCDE'+i},0,12000);
+ assert.ok(f.marqueeStarts.size<=64);
 });
