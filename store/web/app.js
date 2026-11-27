@@ -15,7 +15,7 @@ async function api(path,options={}){
 async function run(fn){if(busy)return;busy=true;$('status').textContent='처리 중…';try{await fn();$('status').textContent='완료';}catch(e){$('status').textContent=e.message;if(view==='upload')$('upload-status').textContent=e.message;if($('edit-dialog').open)$('edit-status').textContent=e.message;}finally{busy=false;}}
 function show(a){account=a;$('login').hidden=true;$('navigation').hidden=$('logout').hidden=false;showView('catalog');$('admin-toggle').hidden=a.role!=='owner';$('account').textContent=a.username+' · '+(a.role==='owner'?'관리자':'사용자');}
 let galleryObserver=null;
-function showView(next){if(next!=='detail'&&galleryObserver){galleryObserver.disconnect();galleryObserver=null;}clearTimeout(searchTimer);searchTimer=null;view=next;$('detail').hidden=next!=='detail';$('catalog').hidden=next!=='catalog';$('admin').hidden=next!=='admin';$('upload-page').hidden=next!=='upload';$('catalog-title').textContent=kind==='iconpack'?'아이콘팩':'플러그인';for(const b of document.querySelectorAll('[data-kind]'))b.setAttribute('aria-pressed',String(next!=='admin'&&b.dataset.kind===kind));$('admin-toggle').setAttribute('aria-pressed',String(next==='admin'));$('all-items').setAttribute('aria-pressed',String(!mine));$('mine-items').setAttribute('aria-pressed',String(mine));}
+function showView(next){if(next!=='detail'&&galleryObserver){galleryObserver.disconnect();galleryObserver=null;}clearTimeout(searchTimer);searchTimer=null;view=next;$('detail').hidden=next!=='detail';$('catalog').hidden=next!=='catalog';$('admin').hidden=next!=='admin';$('upload-page').hidden=next!=='upload';$('catalog').setAttribute('aria-label',kind==='iconpack'?'아이콘팩 목록':'플러그인 목록');for(const b of document.querySelectorAll('[data-kind]'))b.setAttribute('aria-pressed',String(next!=='admin'&&b.dataset.kind===kind));$('admin-toggle').setAttribute('aria-pressed',String(next==='admin'));$('all-items').setAttribute('aria-pressed',String(!mine));$('mine-items').setAttribute('aria-pressed',String(mine));}
 function openUpload(){libraryUpdate=null;clearFolder();const form=$('upload');form.reset();form.elements.kind.value=kind;formats();$('upload-status').textContent='';$('upload-title').textContent=(kind==='iconpack'?'아이콘팩':'플러그인')+' 업로드';showView('upload');}
 function preview(src){if(typeof src!=='string'||! /^[A-Za-z0-9+/]+={0,2}$/.test(src)||src.length>90000)return el('span','');const img=el('img');img.src='data:image/png;base64,'+src;img.alt='아이콘 미리보기';img.loading='lazy';return img;}
 const platformOptions={unknown:'출처 미확인',deckforge:'DeckForge',ulanzi:'Ulanzi',elgato:'Elgato',generic:'범용'};
@@ -39,7 +39,7 @@ for(const [id,options,label] of [['purpose',purposeOptions,'전체 용도'],['na
 }
 optionList($('platform-filter'),packageFormatOptions,'전체 형식');$('platform-filter').onchange=queueSearch;
 optionList($('upload-platform'),platformOptions);$('upload-platform').value='unknown';
-document.body.classList.add('preview-dark');function togglePreview(){const dark=document.body.classList.toggle('preview-dark');$('background').textContent=dark?'밝은 미리보기':'어두운 미리보기';const b=$('detail-background');if(b)b.textContent=$('background').textContent;}$('background').onclick=togglePreview;
+document.body.classList.add('preview-dark');function previewActionLabel(){return document.body.classList.contains('preview-dark')?'밝은 미리보기':'어두운 미리보기';}function togglePreview(){const dark=document.body.classList.toggle('preview-dark'),button=$('background'),label=previewActionLabel();button.title=label;button.setAttribute('aria-label',label);button.setAttribute('aria-pressed',String(!dark));button.querySelector('.preview-sun').hidden=!dark;button.querySelector('.preview-moon').hidden=dark;const b=$('detail-background');if(b)b.textContent=label;}$('background').onclick=togglePreview;
 function render(){
  $('cards').replaceChildren();
  for(const id of ['purpose','naming','design'])$(id).hidden=kind!=='iconpack';
@@ -81,7 +81,7 @@ $('edit-form').onsubmit=event=>{event.preventDefault();const i=activeDetail;if(!
 $('delete-confirm').onclick=()=>{const i=activeDetail;if(!i)return;void run(async()=>{$('delete-confirm').disabled=true;try{await api('/api/v1/library/items/'+encodeURIComponent(i.id)+'/delete',{method:'POST',body:{}});$('delete-dialog').close();backToList();await load();}finally{$('delete-confirm').disabled=false;}});};
 function iconGallery(i,body){
  if(galleryObserver){galleryObserver.disconnect();galleryObserver=null;}
- const bar=el('div',undefined,'preview-heading'),bg=el('button',$('background').textContent);bg.id='detail-background';bg.type='button';bg.onclick=togglePreview;
+ const bar=el('div',undefined,'preview-heading'),bg=el('button',previewActionLabel());bg.id='detail-background';bg.type='button';bg.onclick=togglePreview;
  const title=el('h3','전체 아이콘 ('+i.iconCount+'개)');bar.append(title,bg);
  const grid=el('div',undefined,'preview-grid full-icon-grid'),footer=el('div',undefined,'gallery-footer'),status=el('span','0 / '+i.iconCount),more=el('button','더 보기');
  more.type='button';footer.append(status,more);body.append(bar,grid,footer);

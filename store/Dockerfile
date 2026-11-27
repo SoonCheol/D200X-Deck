@@ -1,6 +1,6 @@
 FROM python:3.13-slim@sha256:7249d5587b78209a006dc4a3b5340678f84ea729239193aa559962cd8c1fce50
 ARG STORE_REVISION=unknown
-LABEL org.opencontainers.image.title="DeckForge Store" org.opencontainers.image.version="0.1.18" org.opencontainers.image.revision=$STORE_REVISION
+LABEL org.opencontainers.image.title="DeckForge Store" org.opencontainers.image.version="0.1.19" org.opencontainers.image.revision=$STORE_REVISION
 ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1 STORE_DATA=/data
 WORKDIR /app
 COPY requirements.txt .
