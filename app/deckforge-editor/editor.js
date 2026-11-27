@@ -7436,53 +7436,60 @@ function provenanceLabel(item){
 async function openStoreConnection(parent,onClosed){
   if(!window.deckBridge?.storeStatus)return;
   const dlg=document.createElement('dialog');dlg.className='store-catalog-dialog store-connection-dialog';
-  dlg.setAttribute('aria-label','스토어 연결 설정');
+  dlg.setAttribute('aria-label','스토어 연결 및 계정');
   dlg.innerHTML='<header class="store-catalog-header"><strong>스토어 연결 및 계정</strong><button type="button" data-close aria-label="닫기">×</button></header>'+
-    '<section class="store-connection-fields"><label>서버 주소<input type="url" data-origin placeholder="https://스토어 주소" maxlength="1024" autocomplete="off"></label>'+
-    '<div class="store-connection-buttons"><button type="button" data-reset-origin>주소 초기화</button><button type="button" data-save>주소 저장</button><button type="button" data-check>연결 확인</button></div>'+
-    '<p class="store-connection-state" role="status"></p><div class="store-connection-login">'+
-    '<label>계정<input type="text" data-user maxlength="128" autocomplete="off"></label><label>비밀번호<input type="password" data-password maxlength="1024" autocomplete="off"></label>'+
-    '<div class="store-connection-buttons"><button type="button" data-login>로그인</button><button type="button" data-logout>로그아웃</button></div></div>'+
-    '<label>게시자 공개키 (관리자로부터 별도 확인)<textarea data-trust-key maxlength="2048" rows="3" placeholder="-----BEGIN PUBLIC KEY-----" spellcheck="false"></textarea></label><div class="store-connection-buttons"><button type="button" data-trust-save>신뢰 등록</button><button type="button" data-trust-clear>신뢰 철회</button></div><p class="store-pack-meta" data-trust-status></p><p class="store-connection-message" role="status"></p><p class="store-pack-meta">로컬 목록은 연결 없이 사용 가능합니다. 로그인 정보는 재시작 시 다시 입력합니다.</p></section>';
+    '<section class="store-connection-fields"><form class="store-connect-form">'+
+    '<label>서버 주소<input type="url" data-origin placeholder="https://스토어 주소" maxlength="1024" required autocomplete="off"></label>'+
+    '<div class="store-connection-buttons"><button type="button" data-reset-origin>주소 초기화</button></div>'+
+    '<label>계정<input type="text" data-user maxlength="128" required autocomplete="username"></label>'+
+    '<label>비밀번호<input type="password" data-password maxlength="1024" autocomplete="current-password"></label>'+
+    '<label class="store-remember"><input type="checkbox" data-remember> 비밀번호 저장 (Windows 암호화)</label>'+
+    '<div class="store-connection-buttons"><button type="button" data-forget hidden>저장 비밀번호 지우기</button><button type="submit" data-login>연결 및 로그인</button><button type="button" data-logout>로그아웃</button></div></form>'+
+    '<p class="store-connection-state" role="status"></p><p class="store-connection-message" role="status"></p>'+
+    '<details class="store-connection-advanced"><summary>고급 설정</summary><label>게시자 공개키 (관리자로부터 별도 확인)<textarea data-trust-key maxlength="2048" rows="3" placeholder="-----BEGIN PUBLIC KEY-----" spellcheck="false"></textarea></label><div class="store-connection-buttons"><button type="button" data-trust-save>신뢰 등록</button><button type="button" data-trust-clear>신뢰 철회</button></div><p class="store-pack-meta" data-trust-status></p></details></section>';
   document.body.append(dlg);
   const $=selector=>dlg.querySelector(selector);
-  const address=$('[data-origin]'),user=$('[data-user]'),password=$('[data-password]'),message=$('.store-connection-message');
-  const resetOrigin=$('[data-reset-origin]'),save=$('[data-save]'),check=$('[data-check]'),login=$('[data-login]'),logout=$('[data-logout]'),close=$('[data-close]'),key=$('[data-trust-key]'),trustSave=$('[data-trust-save]'),trustClear=$('[data-trust-clear]');
+  const address=$('[data-origin]'),user=$('[data-user]'),password=$('[data-password]'),message=$('.store-connection-message'),remember=$('[data-remember]'),forget=$('[data-forget]');
+  const resetOrigin=$('[data-reset-origin]'),login=$('[data-login]'),logout=$('[data-logout]'),close=$('[data-close]'),key=$('[data-trust-key]'),trustSave=$('[data-trust-save]'),trustClear=$('[data-trust-clear]');
   let state=null,busy=false;
+  function hasStored(){return !!state?.hasSavedPassword&&address.value.trim().replace(/\/$/,'')===state.origin&&user.value.trim()===state.rememberedUsername;}
   function update(){
-    const saved=!!state?.origin&&address.value.trim()===state.origin;
-    $('.store-connection-state').textContent=state?.account?'로그인: '+state.account.username+' · '+(state.account.role==='owner'?'관리자':'사용자'):state?.checked?'서버 연결 확인 완료 · 로그인 필요':state?.origin?'주소 저장됨 · 연결 미확인':'서버 주소 미설정';
-    if(state?.settingsError)message.textContent='저장된 연결 설정을 읽지 못했습니다. 주소를 다시 저장하세요.';
-    address.disabled=busy||!!state?.account;save.disabled=busy||!!state?.account||!state;
-    resetOrigin.disabled=busy||!!state?.account||!state;
-    if(state?.defaultOrigin)resetOrigin.title='기본 주소: '+state.defaultOrigin;
-    check.disabled=busy||!saved;login.disabled=busy||!saved||!state?.checked||!!state?.account;
-    logout.disabled=busy||!state?.account;user.disabled=password.disabled=busy||!!state?.account;close.disabled=busy;
+    const saved=!!state?.origin&&address.value.trim().replace(/\/$/,'')===state.origin;
+    $('.store-connection-state').textContent=state?.account?'로그인: '+state.account.username+' · '+(state.account.role==='owner'?'관리자':'사용자'):state?.checked?'서버 연결 정상 · 로그인 필요':'연결 및 로그인을 실행하세요.';
+    address.disabled=user.disabled=password.disabled=resetOrigin.disabled=busy||!!state?.account||!state;
+    remember.disabled=busy||!!state?.account||!state?.canSavePassword;
+    forget.hidden=!state?.hasSavedPassword;forget.disabled=busy;
+    password.placeholder=hasStored()&&remember.checked?'저장된 비밀번호 사용':'';
+    login.disabled=busy||!state||!!state.account||!address.value.trim()||!user.value.trim()||(!password.value&&!(hasStored()&&remember.checked));
+    logout.disabled=busy||!state?.account;close.disabled=busy;
     key.disabled=busy||!saved;trustSave.disabled=busy||!saved||!key.value.trim();trustClear.disabled=busy||!saved||!state?.trustFingerprint;
     $('[data-trust-status]').textContent=state?.trustFingerprint?'신뢰 공개키 SHA256: '+state.trustFingerprint:'등록된 게시자 공개키 없음';
-    const header=parent.querySelector('[data-store-connection]');
-    if(header)header.textContent=state?.account?'계정 · 연결':'연결 설정';
+    const header=parent.querySelector('[data-store-connection]');if(header)header.textContent=state?.account?'계정 · 연결':'연결 설정';
   }
-  async function run(operation,done){
+  async function run(operation,done,{clear=false,closeOnSuccess=false}={}){
     if(busy)return;busy=true;message.textContent='처리 중…';update();
-    try{state=await operation();address.value=state.origin;message.textContent=done(state);}
-    catch(error){message.textContent=String(error?.message||error);try{state=await window.deckBridge.storeStatus();}catch{}}
-    finally{busy=false;password.value='';if(dlg.open)update();}
+    try{state=await operation();message.textContent=state.credentialWarning||done(state);}
+    catch(error){message.textContent=String(error?.message||error).replace(/^Error invoking remote method '[^']+':\s*(?:Error:\s*)?/,'');try{state=await window.deckBridge.storeStatus();}catch{}return;}
+    finally{busy=false;if(clear)password.value='';if(dlg.open)update();}
+    if(closeOnSuccess&&state?.account&&!state.credentialWarning)dlg.close();
   }
-  address.addEventListener('input',update);
-  key.addEventListener('input',update);
+  for(const field of [address,user,password,key])field.addEventListener('input',update);
+  remember.addEventListener('change',update);
+  resetOrigin.addEventListener('click',()=>{address.value=state.defaultOrigin;update();});
+  forget.addEventListener('click',()=>void run(async()=>{const result=await window.deckBridge.storeForgetPassword();remember.checked=false;return result;},()=> '저장된 비밀번호를 지웠습니다.'));
   trustSave.addEventListener('click',()=>void run(async()=>{const result=await window.deckBridge.storeTrust(key.value.trim());key.value='';return result;},()=> '신뢰 등록 상태를 확인하세요.'));
   trustClear.addEventListener('click',()=>void run(()=>window.deckBridge.storeTrust(''),()=> '신뢰 등록 상태를 확인하세요.'));
-  save.addEventListener('click',()=>void run(()=>window.deckBridge.storeSave(address.value),()=> '주소 저장 완료 · 연결 확인을 실행하세요.'));
-  resetOrigin.addEventListener('click',()=>void run(()=>window.deckBridge.storeResetOrigin(),result=> '기본 주소 복원: '+result.origin+' · 필요할 때 연결 확인을 실행하세요.'));
-  check.addEventListener('click',()=>void run(()=>window.deckBridge.storeCheck(),()=> 'DeckForge Store API v1 응답 확인 완료'));
-  login.addEventListener('click',()=>{const secret=password.value;password.value='';void run(()=>window.deckBridge.storeLogin(user.value,secret),()=> '로그인 완료');});
+  $('.store-connect-form').addEventListener('submit',event=>{
+    event.preventDefault();if(login.disabled||busy)return;
+    const origin=address.value.trim(),username=user.value.trim(),secret=password.value,keep=remember.checked;
+    void run(()=>window.deckBridge.storeConnect(origin,username,secret,keep),()=> '로그인 완료',{clear:true,closeOnSuccess:true});
+  });
   logout.addEventListener('click',()=>void run(()=>window.deckBridge.storeLogout(),result=>result.revoked?'로그아웃 완료':'로컬 로그아웃 완료 · 서버 세션 철회 확인 실패'));
   close.addEventListener('click',()=>dlg.close());
   dlg.addEventListener('cancel',event=>{if(busy)event.preventDefault();});
   dlg.addEventListener('close',()=>{password.value='';dlg.remove();if(parent.open)onClosed?.();},{once:true});
   dlg.showModal();busy=true;update();
-  try{state=await window.deckBridge.storeStatus();if(dlg.open)address.value=state.origin;}
+  try{state=await window.deckBridge.storeStatus();if(dlg.open){address.value=state.origin;user.value=state.account?.username||state.rememberedUsername||'';remember.checked=!!state.hasSavedPassword&&!!state.canSavePassword;if(state.settingsError)message.textContent='저장된 연결 설정을 읽지 못했습니다. 주소를 확인하세요.';}}
   catch{message.textContent='연결 설정을 읽을 수 없습니다.';}
   finally{busy=false;if(dlg.open)update();}
 }

@@ -154,8 +154,8 @@ function verifyStoreBytes(item,bytes){
   return bytes;
 }
 class StoreClient{
-  constructor(directory,{request=storeRequest,now=Date.now}={}){
-    this.file=path.join(directory,'store-connection.json');this.request=request;this.now=now;
+  constructor(directory,{request=storeRequest,now=Date.now,vault=null}={}){
+    this.file=path.join(directory,'store-connection.json');this.loginFile=path.join(directory,'store-login.json');this.vault=vault;this.request=request;this.now=now;this.remembered=null;this.credentialWarning='';
     this.origin=DEFAULT_STORE_ORIGIN;this.checked=false;this.session=null;this.busy=false;this.settingsError=false;this.trust=null;
     try{
       const bytes=fs.readFileSync(this.file);
@@ -164,17 +164,39 @@ class StoreClient{
       this.origin=normalizeStoreOrigin(saved.origin);
       if(saved.trust&&this.origin&&saved.trust.origin===this.origin)this.trust={origin:this.origin,...storeTrustKey(saved.trust.pem)};
     }catch(error){if(error.code!=='ENOENT')this.settingsError=true;}
+    try{
+      const raw=fs.readFileSync(this.loginFile);if(raw.length>32768)throw Error('credential size');
+      const saved=JSON.parse(raw.toString('utf8'));
+      if(saved.version===1&&normalizeStoreOrigin(saved.origin)===saved.origin&&typeof saved.username==='string'&&saved.username.length<=128){
+        this.remembered={origin:saved.origin,username:saved.username,secret:typeof saved.secret==='string'&&saved.secret.length<=24576?saved.secret:''};
+      }
+    }catch{}
+  }
+  rememberedFor(origin=this.origin){return this.remembered?.origin===origin?this.remembered:null;}
+  saveLogin(username,password,remember){
+    const record={version:1,origin:this.origin,username,secret:''};
+    if(remember){
+      try{if(!this.vault?.available())throw Error('vault unavailable');record.secret=this.vault.encrypt(password).toString('base64');}
+      catch{this.credentialWarning='비밀번호를 암호화할 수 없어 저장하지 않았습니다.';}
+    }
+    const tmp=this.loginFile+'.'+randomUUID()+'.tmp';
+    try{fs.mkdirSync(path.dirname(this.loginFile),{recursive:true});fs.writeFileSync(tmp,JSON.stringify(record),{encoding:'utf8',mode:0o600,flag:'wx'});fs.renameSync(tmp,this.loginFile);this.remembered=record;}
+    catch{this.credentialWarning='로그인 정보 저장에 실패했습니다.';}
+    finally{fs.rmSync(tmp,{force:true});}
+  }
+  forgetPassword(){
+    return this.exclusive(()=>{const saved=this.rememberedFor();if(saved)this.saveLogin(saved.username,'',false);return this.status();});
   }
   status(){
     if(this.session&&this.session.expiresAt<=this.now())this.session=null;
-    return {origin:this.origin,defaultOrigin:DEFAULT_STORE_ORIGIN,checked:this.checked,account:this.session?{...this.session.account}:null,settingsError:this.settingsError,trustFingerprint:this.trust?.fingerprint||''};
+    return {origin:this.origin,defaultOrigin:DEFAULT_STORE_ORIGIN,checked:this.checked,account:this.session?{...this.session.account}:null,settingsError:this.settingsError,trustFingerprint:this.trust?.fingerprint||'',rememberedUsername:this.rememberedFor()?.username||'',hasSavedPassword:!!this.rememberedFor()?.secret,canSavePassword:!!this.vault?.available(),credentialWarning:this.credentialWarning};
   }
   async exclusive(fn){
     if(this.busy)throw Error('스토어 작업이 진행 중입니다.');
     this.busy=true;try{return await fn();}finally{this.busy=false;}
   }
-  save(value){
-    return this.exclusive(()=>{
+  save(value){return this.exclusive(()=>this.saveOrigin(value));}
+  saveOrigin(value){
       const next=normalizeStoreOrigin(value);
       this.status();
       if(this.session&&next!==this.origin)throw Error('서버 주소를 바꾸려면 먼저 로그아웃하세요.');
@@ -186,7 +208,6 @@ class StoreClient{
         fs.renameSync(tmp,this.file);
       }finally{fs.rmSync(tmp,{force:true});}
       this.origin=next;this.trust=null;this.checked=false;this.session=null;this.settingsError=false;return this.status();
-    });
   }
   resetOrigin(){return this.save(DEFAULT_STORE_ORIGIN);}
   setTrust(pem,confirm){
@@ -204,17 +225,16 @@ class StoreClient{
     });
   }
   isTrusted(item){return verifyStoreSignature(this.origin,item,this.trust);}
-  check(){
-    return this.exclusive(async()=>{
+  check(){return this.exclusive(()=>this.checkOrigin());}
+  async checkOrigin(){
       if(!this.origin)throw Error('스토어 서버 주소를 먼저 저장하세요.');
       this.checked=false;
       const result=await this.request(this.origin,'/api/v1/health');
       if(result?.service!=='deckforge-store'||result.apiVersion!==1||result.ok!==true)throw Error('호환되는 DeckForge Store 서버가 아닙니다.');
       this.checked=true;return this.status();
-    });
   }
-  login(username,password){
-    return this.exclusive(async()=>{
+  login(username,password){return this.exclusive(()=>this.authenticateLogin(username,password));}
+  async authenticateLogin(username,password){
       if(!this.origin||!this.checked)throw Error('저장된 서버의 연결 확인을 먼저 실행하세요.');
       if(this.status().account)throw Error('먼저 로그아웃하세요.');
       if(typeof username!=='string'||!username.trim()||username.length>128||typeof password!=='string'||!password||password.length>1024)
@@ -225,6 +245,27 @@ class StoreClient{
         typeof account?.id!=='string'||!account.id||account.id.length>128||typeof account.username!=='string'||!account.username||account.username.length>128||
         !['owner','user'].includes(account.role))throw Error('스토어 로그인 응답이 올바르지 않습니다.');
       this.session={token,account:{id:account.id,username:account.username,role:account.role},expiresAt:this.now()+seconds*1000};
+      return this.status();
+  }
+  connect(origin,username,password,remember=false){
+    return this.exclusive(async()=>{
+      this.credentialWarning='';
+      const target=normalizeStoreOrigin(origin);
+      if(!target)throw Error('서버 주소를 입력하세요.');
+      if(typeof username!=='string'||!username.trim()||username.length>128||typeof password!=='string'||password.length>1024)throw Error('계정을 확인하세요.');
+      username=username.trim();
+      if(!password&&remember===true){
+        const saved=this.rememberedFor(target);
+        if(saved?.username===username&&saved.secret){
+          try{if(!this.vault?.available())throw Error();password=this.vault.decrypt(Buffer.from(saved.secret,'base64'));}catch{throw Error('저장된 비밀번호를 읽을 수 없습니다. 다시 입력하세요.');}
+        }
+      }
+      if(!password)throw Error('비밀번호를 입력하세요.');
+      if(this.status().account)throw Error('먼저 로그아웃하세요.');
+      this.saveOrigin(target);
+      try{await this.checkOrigin();}catch(e){throw Error('연결 실패: '+e.message);}
+      try{await this.authenticateLogin(username,password);}catch(e){throw Error('로그인 실패: '+e.message);}
+      this.saveLogin(username,password,remember===true);
       return this.status();
     });
   }

@@ -1830,3 +1830,5 @@ dialog.deckforge-message-dialog:has(.fusion-command-properties){width:min(360px,
 .store-preview-white .store-remote-cover,.store-preview-white .store-remote-detail-preview{background:#fff}
 
 .icon-library-footer #icon-pack-check-updates{border:1px solid #606060;border-radius:4px;padding:3px 7px;background:#383838;color:#eee;white-space:nowrap;font-size:11px}.icon-library-footer #icon-pack-check-updates:disabled{opacity:.45}
+
+.store-connect-form{display:grid;gap:10px}.store-connection-fields .store-remember{display:flex;align-items:center;gap:8px}.store-connection-fields .store-remember input{width:auto;accent-color:#5286d5}.store-connection-buttons [data-login]{background:#2858b8;border-color:#4679c9;color:#fff;flex:1}.store-connection-advanced{border-top:1px solid #444;padding-top:10px}.store-connection-advanced summary{cursor:pointer;color:#ddd;margin-bottom:10px}.store-connection-advanced textarea{width:100%;background:#333;color:#eee;border:1px solid #555;border-radius:5px;padding:8px}.store-connection-buttons [hidden]{display:none}

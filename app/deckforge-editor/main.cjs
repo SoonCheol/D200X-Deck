@@ -31,7 +31,12 @@ const BackupPrivacy=require('./backup-privacy.cjs');
 const {GoogleDrive}=require('./google-drive.cjs');
 const UpdateCheck=require('./update-check.cjs');
 const {StoreClient,storeLocalState,storeUpdateCandidate}=require('./store-client.cjs');
-const storeClient=new StoreClient(app.getPath('userData'));
+const storeClient=new StoreClient(app.getPath('userData'),{vault:{
+  available:()=>app.isReady()&&safeStorage.isEncryptionAvailable(),
+  encrypt:value=>safeStorage.encryptString(value),decrypt:bytes=>safeStorage.decryptString(bytes)
+}});
+ipcMain.handle('d200x:store-connect',(event,origin,username,password,remember)=>{assertEditor(event);return storeClient.connect(origin,username,password,remember===true);});
+ipcMain.handle('d200x:store-forget-password',event=>{assertEditor(event);return storeClient.forgetPassword();});
 ipcMain.handle('d200x:store-status',event=>{assertEditor(event);return storeClient.status();});
 ipcMain.handle('d200x:store-save',(event,origin)=>{assertEditor(event);return storeClient.save(origin);});
 ipcMain.handle('d200x:store-reset-origin',event=>{assertEditor(event);return storeClient.resetOrigin();});
