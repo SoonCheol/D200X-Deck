@@ -7506,10 +7506,10 @@ async function openStoreCatalog(){
   document.body.append(dlg);storeCatalogDialog=dlg;
   const find=sel=>dlg.querySelector(sel),grid=find('.store-catalog-grid'),status=find('.store-catalog-status'),query=find('[data-remote-query]'),reload=find('[data-remote-reload]'),close=find('[data-remote-close]'),connection=find('[data-store-connection]');
   const tabs=[...dlg.querySelectorAll('[data-kind]')],filterBar=find('.store-catalog-filters');
-  const options={platform:platformOptions,purpose:{general:'일반',ha:'HA · IoT',windows:'Windows · 단축키',fusion:'Fusion · CAD',media:'미디어',app:'프로그램'},naming:{'general-name':'일반 파일명','ha-name':'HA 형식 추정',state:'ON/OFF 상태 쌍'},design:{color:'컬러',white:'화이트',black:'블랙',gray:'회색',line:'라인','white-line':'화이트 라인','black-line':'블랙 라인',solid:'솔리드',unknown:'미분류'}};
+  const options={packageFormat:{deckforge:'DeckForge',streamdeck:'Stream Deck',ulanzi:'Ulanzi',zip:'범용 ZIP',indexed:'인덱스 ZIP',unknown:'형식 미확인'},purpose:{general:'일반',ha:'HA · IoT',windows:'Windows · 단축키',fusion:'Fusion · CAD',media:'미디어',app:'프로그램'},naming:{'general-name':'일반 파일명','ha-name':'HA 형식 추정',state:'ON/OFF 상태 쌍'},design:{color:'컬러',white:'화이트',black:'블랙',gray:'회색',line:'라인','white-line':'화이트 라인','black-line':'블랙 라인',solid:'솔리드',unknown:'미분류'}};
   const filters={};
   for(const [key,values] of Object.entries(options)){
-    const select=document.createElement('select'),label={platform:'전체 출처',purpose:'전체 용도',naming:'전체 네이밍',design:'전체 디자인'}[key];
+    const select=document.createElement('select'),label={packageFormat:'전체 형식',purpose:'전체 용도',naming:'전체 네이밍',design:'전체 디자인'}[key];
     select.setAttribute('aria-label',label);
     for(const [value,name] of [['',label],...Object.entries(values)]){const opt=document.createElement('option');opt.value=value;opt.textContent=name;select.append(opt);}
     filters[key]=select;filterBar.append(select);
@@ -7517,7 +7517,7 @@ async function openStoreCatalog(){
   const background=document.createElement('button');background.type='button';background.textContent='흰 배경';background.setAttribute('aria-pressed','false');filterBar.append(background);
   background.addEventListener('click',()=>{const white=dlg.classList.toggle('store-preview-white');background.textContent=white?'검정 배경':'흰 배경';background.setAttribute('aria-pressed',String(white));});
   let searchTimer=null,sessionKey='',connecting=false;
-  function requestedFilters(){return {q:query.value.trim(),...Object.fromEntries(Object.entries(filters).filter(([k])=>kind==='iconpack'||k==='platform').map(([k,v])=>[k,v.value]))};}
+  function requestedFilters(){return {q:query.value.trim(),...Object.fromEntries(Object.entries(filters).filter(([k])=>kind==='iconpack'||k==='packageFormat').map(([k,v])=>[k,v.value]))};}
   let items=[],cursor='',busy=false,selected=null,expired=false,interval=null,previewImages=[],previewError='',previewRequest=0,gallery=[],galleryNext=null,galleryTotal=0,galleryLoading=false,galleryLegacy=false;
   const node=(tag,cls,text)=>{const el=document.createElement(tag);if(cls)el.className=cls;if(text!==undefined)el.textContent=text;return el;};
   function button(label,fn){const b=node('button','',label);b.type='button';b.disabled=busy||expired;b.addEventListener('click',fn);return b;}
@@ -7543,7 +7543,7 @@ async function openStoreCatalog(){
       if(kind==='iconpack'){const bg=button(dlg.classList.contains('store-preview-white')?'검정 배경':'흰 배경',()=>{background.click();render();});top.append(bg);}
       grid.append(top,node('h2','store-detail-title',item.name));
       const count=kind==='iconpack'?(galleryTotal||item.iconCount):null;
-      const format=item.format==='streamDeckIconPack'||item.format==='sdIconPack'||item.format==='streamDeckPlugin'||['elgato-icon-index','elgato-sdk'].includes(item.packageProfile)?'Stream Deck':item.format==='deckforgePlugin'?'DeckForge':'ZIP';
+      const format=options.packageFormat[item.packageFormat]||'형식 미확인';
       grid.append(node('p','store-detail-summary','v'+String(item.version).replace(/^v(?=\d)/i,'')+(count?' · 아이콘 '+count+'개':'')+' · '+Math.ceil(item.size/1024)+' KiB'+' · '+format+(item.author?' · '+item.author:'')+' · '+(item.visibility==='private'?'비공개':'공개')+' · '+localLabel(item)));
       if(item.description)grid.append(node('p','store-detail-description',item.description));
       const tech=node('details','store-detail-tech');tech.append(node('summary','','기술 정보'),node('p','store-pack-meta','SHA256: '+item.sha256),node('p','store-pack-meta',provenanceLabel(item)),node('p','store-pack-meta','규격 표시이며 실제 실행 호환성 인증은 아닙니다.'));
@@ -7581,11 +7581,11 @@ async function openStoreCatalog(){
     const matching=items;
     for(const item of matching){
       const card=button('',()=>{selected=item;previewImages=[];previewError='';gallery=[];galleryNext=kind==='iconpack'?0:null;galleryTotal=0;galleryLegacy=false;++previewRequest;render();if(kind==='iconpack')void loadGallery(item);});card.className='store-pack-card';
-      if(kind==='iconpack'&&item.cover)card.append(previewGrid([item.cover],'store-remote-cover'));
+      if(kind==='iconpack'){const previews=item.cardPreviews?.length?item.cardPreviews:item.cover?[item.cover]:[];card.append(previewGrid(previews.slice(0,6),'store-remote-cover'));}
       const heading=node('strong','store-card-name',item.name);heading.title=item.name;
       const version=String(item.version).replace(/^v(?=\d)/i,'');
       const count=kind==='iconpack'&&item.iconCount!==null&&item.iconCount!==undefined?' · 아이콘 '+item.iconCount+'개':'';
-      const format=item.format==='streamDeckIconPack'||item.format==='sdIconPack'||item.format==='streamDeckPlugin'||['elgato-icon-index','elgato-sdk'].includes(item.packageProfile)?'Stream Deck':item.format==='deckforgePlugin'?'DeckForge':item.format==='zip'?'ZIP':'형식 미확인';
+      const format=options.packageFormat[item.packageFormat]||'형식 미확인';
       const knownTags={...options.purpose,...options.naming,...options.design,native:'독자 SDK',compatible:'호환 플러그인'};
       const tags=[...new Set(item.tags.filter(tag=>tag!=='general-name'&&tag!=='unknown'&&Object.hasOwn(knownTags,tag)).map(tag=>knownTags[tag]))];
       const formatLine=node('div','store-card-format');formatLine.append(node('span','store-card-format-label',format),node('span','store-pack-meta',item.author||'제작자 미등록'));
@@ -7697,7 +7697,7 @@ async function openStoreCatalog(){
   for(const tab of tabs)tab.addEventListener('click',()=>{
     if(busy||kind===tab.dataset.kind)return;
     clearTimeout(searchTimer);kind=tab.dataset.kind;query.value='';
-    for(const [key,select] of Object.entries(filters))select.hidden=kind!=='iconpack'&&key!=='platform';background.hidden=kind!=='iconpack';
+    for(const [key,select] of Object.entries(filters))select.hidden=kind!=='iconpack'&&key!=='packageFormat';background.hidden=kind!=='iconpack';
     for(const entry of tabs)entry.setAttribute('aria-pressed',String(entry.dataset.kind===kind));
     void load(true);
   });

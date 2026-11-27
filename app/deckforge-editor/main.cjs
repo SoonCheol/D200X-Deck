@@ -55,7 +55,7 @@ ipcMain.handle('d200x:store-trust',(event,pem)=>{
 ipcMain.handle('d200x:store-catalog',async(event,kind,cursor,filters)=>{
   assertEditor(event);
   const origin=storeClient.status().origin;
-  const page=await storeClient.catalog(kind,cursor,filters);
+  const page=await storeClient.catalog(kind,cursor,filters,true);
   const session=storeClient.requireSession();
   let installed;
   if(kind==='iconpack'){await ensureIconPacksMigrated();installed=await readPacks(iconPacksFile());}

@@ -127,7 +127,9 @@ function storeCatalogItem(raw,kind,role){
   const profiles=kind==='iconpack'?['elgato-icon-index','indexed-icons','raster-images']:['deckforge-sdk','elgato-sdk'];
   const packageProfile=profiles.includes(raw.packageProfile)?raw.packageProfile:'unknown';
   const iconCount=kind==='iconpack'&&Number.isInteger(raw.iconCount)&&raw.iconCount>=1&&raw.iconCount<=2500?raw.iconCount:null;
-  return {id,releaseId,kind,packageId,format,platform,packageProfile,iconCount,size:raw.size,sha256:raw.sha256,name:str(raw.name,120),version:str(raw.version,40),
+  const packageFormat=['deckforge','streamdeck','ulanzi','zip','indexed','unknown'].includes(raw.packageFormat)?raw.packageFormat: ['streamDeckIconPack','sdIconPack','streamDeckPlugin'].includes(format)||['elgato-icon-index','elgato-sdk'].includes(packageProfile)?'streamdeck':format==='deckforgePlugin'||packageProfile==='deckforge-sdk'?'deckforge':packageProfile==='indexed-icons'?(raw.source==='deckforge'&&platform==='deckforge'?'deckforge':'indexed'):format==='zip'?'zip':'unknown';
+  const cardPreviews=kind==='iconpack'&&Array.isArray(raw.cardPreviews)?raw.cardPreviews.slice(0,6).map(v=>storePreviewPng(v,49152)).filter(Boolean):[];
+  return {id,releaseId,kind,packageId,format,platform,packageProfile,packageFormat,cardPreviews,iconCount,size:raw.size,sha256:raw.sha256,name:str(raw.name,120),version:str(raw.version,40),
     author:typeof raw.author==='string'?raw.author.slice(0,120):'',description:typeof raw.description==='string'?raw.description.slice(0,1500):'',source:raw.source,visibility:raw.visibility,tags,cover:storePreviewPng(raw.cover,12288),signature:raw.signature&&/^[a-f0-9]{64}$/.test(raw.signature.keyId||'')&&typeof raw.signature.value==='string'&&raw.signature.value.length===88?{keyId:raw.signature.keyId,value:raw.signature.value}:null};
 }
 // Trust is a manually pinned administrator-provided public key, never a key received from the Store API.
@@ -297,25 +299,25 @@ class StoreClient{
     if(!this.origin||!this.checked||!this.session)throw Error('스토어 연결 확인 및 로그인이 필요합니다.');
     return this.session;
   }
-  catalog(kind,cursor='',filters={}){
+  catalog(kind,cursor='',filters={},includePreviews=false){
     return this.exclusive(async()=>{
       const session=this.requireSession();
       if(!['iconpack','plugin'].includes(kind))throw Error('스토어 종류 오류');
       if(cursor)storeId(cursor);
-      const params=new URLSearchParams({kind,limit:'20'});
+      const params=new URLSearchParams({kind,limit:'20'});if(includePreviews===true)params.set('previews','1');
       if(cursor)params.set('cursor',cursor);
       if(!filters||typeof filters!=='object'||Array.isArray(filters))throw Error('스토어 검색 조건 오류');
-      const allowed={platform:['deckforge','ulanzi','elgato','generic','unknown'],purpose:['general','ha','windows','fusion','media','app'],naming:['general-name','ha-name','state'],design:['color','white','black','gray','line','white-line','black-line','solid','unknown']};
+      const allowed={packageFormat:['deckforge','streamdeck','ulanzi','zip','indexed','unknown'],platform:['deckforge','ulanzi','elgato','generic','unknown'],purpose:['general','ha','windows','fusion','media','app'],naming:['general-name','ha-name','state'],design:['color','white','black','gray','line','white-line','black-line','solid','unknown']};
       for(const [key,value] of Object.entries(filters)){
         if(key==='q'){
           if(typeof value!=='string'||Array.from(value.trim()).length>120)throw Error('스토어 검색어 오류');
           if(value.trim())params.set(key,value.trim());
         }else{
-          if((kind!=='iconpack'&&key!=='platform')||!Object.hasOwn(allowed,key)||typeof value!=='string'||(value&&!allowed[key].includes(value)))throw Error('스토어 분류 조건 오류');
+          if((kind!=='iconpack'&&!['platform','packageFormat'].includes(key))||!Object.hasOwn(allowed,key)||typeof value!=='string'||(value&&!allowed[key].includes(value)))throw Error('스토어 분류 조건 오류');
           if(value)params.set(key,value);
         }
       }
-      const result=await this.request(this.origin,'/api/v1/catalog?'+params.toString(),{token:session.token,jsonLimit:524288});
+      const result=await this.request(this.origin,'/api/v1/catalog?'+params.toString(),{token:session.token,jsonLimit:includePreviews===true?9*1024*1024:524288});
       this.requireSession();
       if(!Array.isArray(result?.items)||result.items.length>20)throw Error('스토어 목록 응답 오류');
       const items=result.items.map(raw=>storeCatalogItem(raw,kind,session.account.role)).filter(Boolean);

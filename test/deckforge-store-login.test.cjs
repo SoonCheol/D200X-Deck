@@ -54,3 +54,20 @@ test('store detail starts with the final gallery geometry rather than a large co
  assert.doesNotMatch(detail,/grid\.append\(previewGrid\(/);
  assert.match(src.slice(b),/galleryTotal=0;galleryLegacy=false;\+\+previewRequest;render\(\);if\(kind==='iconpack'\)void loadGallery\(item\)/);
 });
+
+test('catalog requests web-equivalent package format and up to six validated PNG previews',async()=>{
+ const dir=fs.mkdtempSync(path.join(os.tmpdir(),'deckforge-store-card-'));
+ const png='iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==';
+ const raw={id:'item1',releaseId:'rel1',kind:'iconpack',source:'third-party',visibility:'private',format:'streamDeckIconPack',packageProfile:'indexed-icons',packageFormat:'streamdeck',name:'Pack',version:'1.0.0',size:128,sha256:'a'.repeat(64),iconCount:7,cover:png,cardPreviews:Array(7).fill(png)};
+ let route,opts;
+ const request=async(origin,r,o)=>{if(r.endsWith('/health'))return {ok:true,service:'deckforge-store',apiVersion:1};if(r.endsWith('/login'))return {account:{id:'user1',username:'tester',role:'owner'},accessToken:'a'.repeat(32),expiresIn:300};route=r;opts=o;return {items:[raw],nextCursor:''};};
+ try{
+ const client=new StoreClient(dir,{request});await client.connect(DEFAULT_STORE_ORIGIN,'tester','test-password');
+ const page=await client.catalog('iconpack','',{packageFormat:'streamdeck'},true);
+ const params=new URL(route,DEFAULT_STORE_ORIGIN).searchParams;
+ assert.equal(params.get('previews'),'1');assert.equal(params.get('packageFormat'),'streamdeck');assert.equal(params.has('platform'),false);assert.ok(opts.jsonLimit>=8*1024*1024);
+ assert.equal(page.items[0].packageFormat,'streamdeck');assert.equal(page.items[0].cardPreviews.length,6);assert.match(page.items[0].cardPreviews[0],/^data:image\/png;base64,/);
+ const editor=fs.readFileSync(path.join(__dirname,'../app/deckforge-editor/editor.js'),'utf8');
+ assert.match(editor,/packageFormat:'전체 형식'/);assert.match(editor,/previewGrid\(previews.slice\(0,6\),'store-remote-cover'\)/);
+ }finally{fs.rmSync(dir,{recursive:true,force:true});}
+});
