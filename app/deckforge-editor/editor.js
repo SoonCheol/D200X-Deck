@@ -1965,15 +1965,34 @@ const PANEL_ACTION_HELP={
   "timeline-step":"좌우 화살표 키로 타임라인 이전·다음 단계 이동을 요청합니다. 편집 앱의 단축키 설정에 따라 실제 동작이 달라집니다.",
   "timeline-zoom":"Ctrl+Plus 또는 Ctrl+Minus를 보내 타임라인 확대·축소를 요청합니다. 해당 단축키를 지원하는 편집 앱에서만 원하는 결과를 얻을 수 있습니다."
 };
+// Shared presentation controls; callers retain their own commit/validation scope.
+function createInspectorCommand(label,handler,className='',disabled=false){
+  const button=document.createElement('button');button.type='button';button.textContent=label;
+  if(className)button.className=className;
+  button.disabled=disabled;
+  button.addEventListener('click',handler);
+  return button;
+}
+function createActionHelpDialog(title,description,sections=[]){
+  const dialog=document.createElement('dialog');dialog.className='inspector-help-dialog';
+  const heading=document.createElement('strong');heading.textContent=title;
+  const body=document.createElement('p');body.textContent=description;
+  dialog.append(heading,body);
+  for(const [label,items] of sections){
+    if(!items.length)continue;
+    const h=document.createElement('h3');h.textContent=label;
+    const list=document.createElement('ul');
+    for(const text of items){const li=document.createElement('li');li.textContent=text;list.append(li);}
+    dialog.append(h,list);
+  }
+  dialog.append(createInspectorCommand('닫기',()=>dialog.close(),'inspector-help-close'));
+  dialog.addEventListener('close',()=>dialog.remove());
+  return dialog;
+}
 function showPanelActionHelp(id,label){
   const description=PANEL_ACTION_HELP[id];if(!description)return;
-  const dialog=document.createElement('dialog');dialog.className='inspector-help-dialog';
-  const heading=document.createElement('strong');heading.textContent=label+' 설명';
-  const body=document.createElement('p');body.textContent=description;
-  const close=document.createElement('button');close.type='button';close.className='inspector-help-close';close.textContent='닫기';
-  close.addEventListener('click',()=>dialog.close());
-  dialog.append(heading,body,close);document.body.append(dialog);
-  dialog.addEventListener('close',()=>dialog.remove(),{once:true});dialog.showModal();
+  const dialog=createActionHelpDialog(label+' 설명',description);
+  document.body.append(dialog);dialog.showModal();
 }
 function dismissPanelActionOptions(event){
   if(event.target.closest?.('.action-customize, .action-override-controls'))return;
@@ -2355,6 +2374,15 @@ const MULTI_ALLOWED=['hotkey','hotkey-switch','media','website','open','open-app
   'window-state','window-monitor','explorer-open','brush-size',
   'timeline-step','timeline-zoom','file-open','folder-shortcut','terminal','terminal-admin'];
 
+// Validation stays with the ordered-action draft, never the external SDK commit.
+function validateOrderedActionDraft(draft){
+  if(!['hotkey','hotkey-switch'].includes(draft.type))return true;
+  const keys=draft.type==='hotkey'?[draft.settings.keys]:[draft.settings.first,draft.settings.second];
+  if(keys.some(x=>!window.DeckHotkeys.canonical(x))){
+    window.d200xActionStatus?.('단축키를 선택하세요.');return false;
+  }
+  return true;
+}
 function orderedMultiDialog(step,apply){
   const draft=DeckCore.cleanAction(step),dialog=document.createElement('dialog');
   dialog.className='deckforge-input-dialog ordered-multi-dialog';
@@ -2407,9 +2435,11 @@ function orderedMultiDialog(step,apply){
     if(draft.type==='website')bindWebsiteFields(fields,draft,()=>{});
   }
   const footer=document.createElement('div');footer.className='inspector-save-bar';
-  const button=(name,fn)=>{const b=document.createElement('button');b.type='button';b.textContent=name;b.addEventListener('click',fn);footer.append(b);return b;};
-  button('취소',()=>dialog.close());
-  button('확인',()=>{if(['hotkey','hotkey-switch'].includes(draft.type)){const keys=draft.type==='hotkey'?[draft.settings.keys]:[draft.settings.first,draft.settings.second];if(keys.some(x=>!window.DeckHotkeys.canonical(x))){window.d200xActionStatus?.('단축키를 선택하세요.');return;}}apply(draft);dialog.close();});
+  footer.append(createInspectorCommand('취소',()=>dialog.close()));
+  footer.append(createInspectorCommand('확인',()=>{
+    if(!validateOrderedActionDraft(draft))return;
+    apply(draft);dialog.close();
+  }));
   dialog.append(title,fields,footer);document.body.append(dialog);
   dialog.addEventListener('close',()=>dialog.remove(),{once:true});dialog.showModal();
   if(draft.type==='audio-play')void populateAudioOutputs(fields.querySelector('[data-field="output"]'),draft);
@@ -3619,10 +3649,7 @@ function showInspectorLeaveDialog(onProceed){
   const message=document.createElement('p');message.textContent='변경한 내용이 저장되지 않았습니다. 저장하지 않고 이동하시겠습니까?';
   const actions=document.createElement('div');actions.className='inspector-unsaved-actions';
   const add=(label,handler,primary=false)=>{
-    const button=document.createElement('button');button.type='button';button.textContent=label;
-    if(primary)button.className='primary';
-    button.addEventListener('click',()=>{dialog.close();dialog.remove();handler();});
-    actions.append(button);
+    actions.append(createInspectorCommand(label,()=>{dialog.close();dialog.remove();handler();},primary?'primary':''));
   };
   add('취소',()=>{});
   add('저장 안 함',()=>{discardInspector();onProceed();});
@@ -3636,12 +3663,8 @@ function showInspectorLeaveDialog(onProceed){
 }
 function appendInspectorSaveBar(root){
   const footer=document.createElement('div');footer.className='inspector-save-bar';
-  const cancel=document.createElement('button');cancel.type='button';
-  cancel.className='inspector-cancel';cancel.textContent='취소';cancel.disabled=!inspectorSession?.dirty;
-  cancel.addEventListener('click',discardInspector);
-  const save=document.createElement('button');save.type='button';
-  save.className='inspector-save';save.textContent='저장';save.disabled=!inspectorSession?.dirty;
-  save.addEventListener('click',saveInspector);
+  const cancel=createInspectorCommand('취소',discardInspector,'inspector-cancel',!inspectorSession?.dirty);
+  const save=createInspectorCommand('저장',saveInspector,'inspector-save',!inspectorSession?.dirty);
   footer.append(cancel,save);footer.classList.add('inspector-footer-region');root.append(footer);
   updateInspectorSaveButtons();
 }
@@ -5154,23 +5177,7 @@ function appendInspectorHelp(head,item){
   const trigger=document.createElement('button');
   trigger.type='button';trigger.className='inspector-help-trigger';
   trigger.textContent='?';trigger.title=help.title+' 설명';trigger.setAttribute('aria-label',help.title+' 도움말');
-  const dialog=document.createElement('dialog');dialog.className='inspector-help-dialog';
-  const heading=document.createElement('strong');heading.textContent=help.title;
-  const description=document.createElement('p');description.textContent=help.description;
-  const addItems=(headingText,items)=>{
-    if(!items.length)return;
-    const h=document.createElement('h3');h.textContent=headingText;
-    const list=document.createElement('ul');
-    for(const text of items){const li=document.createElement('li');li.textContent=text;list.append(li);}
-    dialog.append(h,list);
-  };
-  dialog.append(heading,description);
-  addItems('사용 방법',help.steps);
-  addItems('참고 사항',help.cautions);
-  const close=document.createElement('button');close.type='button';close.className='inspector-help-close';close.textContent='닫기';
-  close.addEventListener('click',()=>dialog.close());
-  dialog.append(close);
-  dialog.addEventListener('close',()=>dialog.remove());
+  const dialog=createActionHelpDialog(help.title,help.description,[['사용 방법',help.steps],['참고 사항',help.cautions]]);
   trigger.addEventListener('click',()=>{
     if(!dialog.isConnected)document.body.append(dialog);
     dialog.showModal();

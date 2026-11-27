@@ -41,7 +41,7 @@ test('effect playback has the two requested rows and independent live volume wit
   }
   assert.ok(css.includes('.compact-property-group.audio-play-property-group:has([data-field="mode"])'));
   assert.ok(css.includes('.compact-property-group.audio-play-property-group:has([data-field="volume"])'));
-  assert.ok(editor.includes('node.type==="range"||node.tagName==="TEXTAREA"?"input":"change"'));
+  assert.ok(editor.includes("node.tagName==='TEXTAREA'||node.type==='range'?'input':'change'"));
   assert.ok(editor.includes('updateActiveAudioVolume(item.settings,value)'));
   assert.ok(editor.includes("if(item.type==='audio-play')persistInspectorChange()"));
   const from=editor.indexOf('function updateActiveAudioVolume(settings,percentage){');
@@ -835,4 +835,30 @@ test('shared action field binder keeps event choice, checkbox conversions and ow
  for(const name of ['step','action','current'])assert.match(editor,new RegExp('bindActionSettingFields\\(fields,'+name+',\\(\\)=>persist\\(\\)\\)'));
  assert.match(editor,/bindActionSettingFields\(fields,draft\)/);
  assert.match(editor,/bindActionSettingFields\(root,item,\(node,value\)=>/);
+});
+
+
+test('shared inspector command and help dialog preserve handlers, order and text-only content',()=>{
+ const start=editor.indexOf('function createInspectorCommand('),end=editor.indexOf('function showPanelActionHelp(',start);
+ assert.ok(start>=0&&end>start);
+ const node=tag=>({tag,children:[],listeners:{},append(...nodes){this.children.push(...nodes);},addEventListener(type,fn){this.listeners[type]=fn;},close(){this.listeners.close?.();},remove(){this.removed=true;}});
+ const {createInspectorCommand,createActionHelpDialog}=vm.runInNewContext(editor.slice(start,end)+';({createInspectorCommand,createActionHelpDialog})',{document:{createElement:node}});
+ const calls=[],cancel=createInspectorCommand('취소',()=>calls.push('cancel'),'inspector-cancel',true),save=createInspectorCommand('저장',()=>calls.push('save'),'inspector-save');
+ assert.equal(cancel.disabled,true);assert.equal(save.disabled,false);assert.equal(save.type,'button');
+ save.listeners.click();assert.deepEqual(calls,['save']);
+ const dialog=createActionHelpDialog('제목','<text>',[['사용 방법',['첫째','둘째']],['참고 사항',[]]]);
+ assert.deepEqual(dialog.children.map(n=>n.tag),['strong','p','h3','ul','button']);
+ assert.equal(dialog.children[1].textContent,'<text>');assert.deepEqual(dialog.children[3].children.map(n=>n.textContent),['첫째','둘째']);
+ dialog.children[4].listeners.click();assert.equal(dialog.removed,true);
+ assert.match(editor,/createInspectorCommand\('저장',saveInspector/);
+ assert.match(editor,/createInspectorCommand\('취소',discardInspector/);
+});
+test('ordered draft validation prevents incomplete shortcuts without modifying data',()=>{
+ const start=editor.indexOf('function validateOrderedActionDraft('),end=editor.indexOf('function orderedMultiDialog(',start);
+ const messages=[],validate=vm.runInNewContext(editor.slice(start,end)+';validateOrderedActionDraft',{window:{DeckHotkeys:{canonical:x=>x||''},d200xActionStatus:x=>messages.push(x)}});
+ const draft={type:'hotkey-switch',settings:{first:'Ctrl+A',second:''}},before=JSON.stringify(draft);
+ assert.equal(validate(draft),false);assert.equal(JSON.stringify(draft),before);assert.equal(messages.length,1);
+ draft.settings.second='Ctrl+B';assert.equal(validate(draft),true);
+ assert.equal(validate({type:'text',settings:{}}),true);
+ assert.match(editor,/if\(!validateOrderedActionDraft\(draft\)\)return;\s*apply\(draft\);dialog\.close\(\)/);
 });
