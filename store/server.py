@@ -217,7 +217,7 @@ def create_app(data_dir=None,origin=None):
         try: limit=max(1,min(20,int(request.args.get("limit","20"))))
         except ValueError: abort(400)
         # Filter by authorization before pagination, not after counts.
-        sql="""SELECT r.meta,i.id FROM items i JOIN releases r ON r.id=i.current_release
+        sql="""SELECT r.meta,r.previews,i.id FROM items i JOIN releases r ON r.id=i.current_release
         WHERE i.kind=? AND i.id>? AND r.status='published'"""
         params=[kind,cursor]
         if user["role"]!="owner": sql+=" AND (json_extract(r.meta,'$.libraryShared')=1 OR (i.source='deckforge' AND json_extract(r.meta,'$.visibility')='public'))"
@@ -247,7 +247,13 @@ def create_app(data_dir=None,origin=None):
             params.extend([search_fold(q)]*len(expressions))
         sql+=" ORDER BY i.id LIMIT ?";params.append(limit+1)
         with db() as c: rows=c.execute(sql,params).fetchall()
-        return jsonify(items=[json.loads(x["meta"]) for x in rows[:limit]],nextCursor=rows[limit-1]["id"] if len(rows)>limit else "")
+        result=[]
+        for x in rows[:limit]:
+            item=json.loads(x["meta"])
+            if request.args.get("previews")=="1" and kind=="iconpack":
+                item["cardPreviews"]=json.loads(x["previews"])[:6]
+            result.append(item)
+        return jsonify(items=result,nextCursor=rows[limit-1]["id"] if len(rows)>limit else "")
     @app.get("/api/v1/items/<ident>")
     def detail(ident):
         user,_=authenticate()
@@ -328,6 +334,34 @@ def create_app(data_dir=None,origin=None):
     def library_folder():
         user,_=authenticate()
         return read_folder_upload(user,library=True)
+    @app.post("/api/v1/library/items/<ident>/metadata")
+    def library_metadata(ident):
+        user,_=authenticate();data=body()
+        if set(data)!={"description","license"}: abort(400)
+        description,license_note=data["description"],data["license"]
+        if not isinstance(description,str) or len(description)>1500 or not isinstance(license_note,str) or len(license_note)>300: abort(400)
+        if any(ord(ch)<32 and ch not in "\n\r\t" or ord(ch)==127 for ch in description+license_note): abort(400)
+        for value in (description,license_note): value.encode("utf-8","strict")
+        with db(True) as c:
+            row,meta=current(c,ident,user["role"])
+            if user["role"]!="owner" and meta.get("uploadedBy")!=user["id"]: abort(403)
+            meta.update(description=description,license=license_note.strip())
+            c.execute("UPDATE releases SET meta=? WHERE id=?",(json_text(meta),row["id"]))
+            audit(c,user["id"],"release.metadata",row["id"])
+        return jsonify(item=meta)
+    @app.post("/api/v1/library/items/<ident>/delete")
+    def library_delete(ident):
+        user,_=authenticate()
+        with db(True) as c:
+            row,meta=current(c,ident,user["role"])
+            if user["role"]!="owner" and meta.get("uploadedBy")!=user["id"]: abort(403)
+            c.execute("UPDATE items SET current_release=NULL WHERE id=?",(ident,))
+            c.execute("DELETE FROM release_icon_search WHERE release_id IN (SELECT id FROM releases WHERE item_id=?)",(ident,))
+            c.execute("DELETE FROM releases WHERE item_id=?",(ident,))
+            c.execute("DELETE FROM items WHERE id=?",(ident,))
+            audit(c,user["id"],"library.delete",ident)
+        # Immutable blobs are retained for recovery; do not garbage-collect shared archives here.
+        return Response(status=204)
     @app.post("/api/v1/library/items/<ident>/remove")
     def library_remove(ident):
         user,_=authenticate()

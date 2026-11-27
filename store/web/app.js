@@ -1,9 +1,9 @@
 'use strict';
 const $=id=>document.getElementById(id);
-let account=null,kind='iconpack',items=[],cursor='',adminCursor='',busy=false,epoch=0,catalogParams='',searchTimer=null,mine=false,view='catalog';
+let account=null,kind='iconpack',items=[],cursor='',adminCursor='',busy=false,epoch=0,catalogParams='',searchTimer=null,mine=false,view='catalog',activeDetail=null,listScroll=0;
 const el=(tag,text,cls)=>{const n=document.createElement(tag);if(text!==undefined)n.textContent=text;if(cls)n.className=cls;return n;};
 const button=(label,fn)=>{const n=el('button',label);n.type='button';n.onclick=()=>void run(fn);return n;};
-function reset(){clearTimeout(searchTimer);searchTimer=null;catalogParams='';clearFolder();$('upload').reset();formats();epoch++;account=null;items=[];cursor='';adminCursor='';for(const id of ['cards','detail','releases','accounts','review'])$(id).replaceChildren();$('detail').hidden=$('review').hidden=true;$('catalog').hidden=$('admin').hidden=$('upload-page').hidden=$('navigation').hidden=$('logout').hidden=true;mine=false;view='catalog';$('login').hidden=false;$('account').textContent='';}
+function reset(){activeDetail=null;for(const id of ['edit-dialog','delete-dialog'])if($(id).open)$(id).close();clearTimeout(searchTimer);searchTimer=null;catalogParams='';clearFolder();$('upload').reset();formats();epoch++;account=null;items=[];cursor='';adminCursor='';for(const id of ['cards','detail','releases','accounts','review'])$(id).replaceChildren();$('detail').hidden=$('review').hidden=true;$('catalog').hidden=$('admin').hidden=$('upload-page').hidden=$('navigation').hidden=$('logout').hidden=true;mine=false;view='catalog';$('login').hidden=false;$('account').textContent='';}
 async function api(path,options={}){
  const headers={'X-DeckForge-CSRF':'1',...options.headers};
  if(options.body&&!(options.body instanceof FormData)){headers['Content-Type']='application/json';options.body=JSON.stringify(options.body);}
@@ -12,9 +12,9 @@ async function api(path,options={}){
  if(!res.ok)throw Error('요청 실패 (HTTP '+res.status+')');
  return res.status===204?null:res.json();
 }
-async function run(fn){if(busy)return;busy=true;$('status').textContent='처리 중…';try{await fn();$('status').textContent='완료';}catch(e){$('status').textContent=e.message;if(view==='upload')$('upload-status').textContent=e.message;}finally{busy=false;}}
+async function run(fn){if(busy)return;busy=true;$('status').textContent='처리 중…';try{await fn();$('status').textContent='완료';}catch(e){$('status').textContent=e.message;if(view==='upload')$('upload-status').textContent=e.message;if($('edit-dialog').open)$('edit-status').textContent=e.message;}finally{busy=false;}}
 function show(a){account=a;$('login').hidden=true;$('navigation').hidden=$('logout').hidden=false;showView('catalog');$('admin-toggle').hidden=a.role!=='owner';$('account').textContent=a.username+' · '+(a.role==='owner'?'관리자':'사용자');}
-function showView(next){view=next;$('catalog').hidden=next!=='catalog';$('admin').hidden=next!=='admin';$('upload-page').hidden=next!=='upload';$('catalog-title').textContent=kind==='iconpack'?'아이콘팩':'플러그인';for(const b of document.querySelectorAll('[data-kind]'))b.setAttribute('aria-pressed',String(next!=='admin'&&b.dataset.kind===kind));$('admin-toggle').setAttribute('aria-pressed',String(next==='admin'));$('all-items').setAttribute('aria-pressed',String(!mine));$('mine-items').setAttribute('aria-pressed',String(mine));}
+function showView(next){clearTimeout(searchTimer);searchTimer=null;view=next;$('detail').hidden=next!=='detail';$('catalog').hidden=next!=='catalog';$('admin').hidden=next!=='admin';$('upload-page').hidden=next!=='upload';$('catalog-title').textContent=kind==='iconpack'?'아이콘팩':'플러그인';for(const b of document.querySelectorAll('[data-kind]'))b.setAttribute('aria-pressed',String(next!=='admin'&&b.dataset.kind===kind));$('admin-toggle').setAttribute('aria-pressed',String(next==='admin'));$('all-items').setAttribute('aria-pressed',String(!mine));$('mine-items').setAttribute('aria-pressed',String(mine));}
 function openUpload(){clearFolder();const form=$('upload');form.reset();form.elements.kind.value=kind;formats();$('upload-status').textContent='';$('upload-title').textContent=(kind==='iconpack'?'아이콘팩':'플러그인')+' 업로드';showView('upload');}
 function preview(src){if(typeof src!=='string'||! /^[A-Za-z0-9+/]+={0,2}$/.test(src)||src.length>90000)return el('span','');const img=el('img');img.src='data:image/png;base64,'+src;img.alt='아이콘 미리보기';img.loading='lazy';return img;}
 const platformOptions={unknown:'출처 미확인',deckforge:'DeckForge',ulanzi:'Ulanzi',elgato:'Elgato',generic:'범용'};
@@ -37,21 +37,21 @@ for(const [id,options,label] of [['purpose',purposeOptions,'전체 용도'],['na
 }
 optionList($('platform-filter'),platformOptions,'전체 출처');$('platform-filter').onchange=queueSearch;
 optionList($('upload-platform'),platformOptions);$('upload-platform').value='unknown';
-$('background').onclick=()=>{const dark=document.body.classList.toggle('preview-dark');$('background').textContent=dark?'밝은 미리보기':'어두운 미리보기';};
+document.body.classList.add('preview-dark');function togglePreview(){const dark=document.body.classList.toggle('preview-dark');$('background').textContent=dark?'밝은 미리보기':'어두운 미리보기';const b=$('detail-background');if(b)b.textContent=$('background').textContent;}$('background').onclick=togglePreview;
 function render(){
  $('cards').replaceChildren();
  for(const id of ['purpose','naming','design'])$(id).hidden=kind!=='iconpack';
  for(const item of items){
   const card=button('',()=>detail(item));card.className='card';
-  if(item.cover){const art=el('div',undefined,'art');art.append(preview(item.cover));card.append(art);}
-  card.append(el('strong',item.name),el('span',item.version+(item.kind==='iconpack'?' · 아이콘 '+item.iconCount+'개':'')),el('span',provenanceLabel(item)),el('span',item.tags.map(t=>purposeOptions[t]||namingOptions[t]||designOptions[t]||({native:'독자 플러그인',compatible:'호환 플러그인'}[t])||t).join(' · ')));
+  const art=el('div',undefined,'art');const samples=item.cardPreviews?.length?item.cardPreviews:item.cover?[item.cover]:[];if(samples.length){for(const src of samples.slice(0,6))art.append(preview(src));}else art.append(el('span','미리보기 없음','no-preview'));card.append(art);
+  card.append(el('strong',item.name),el('span',item.version+(item.kind==='iconpack'?' · 아이콘 '+item.iconCount+'개':'')),el('span',platformOptions[item.platform]||'출처 미확인'),el('span',item.tags.map(t=>purposeOptions[t]||namingOptions[t]||designOptions[t]||({native:'독자 플러그인',compatible:'호환 플러그인'}[t])||t).join(' · ')));
   $('cards').append(card);
  }
  if(!$('cards').children.length)$('cards').append(el('p','표시할 항목이 없습니다.'));
  $('more').hidden=!cursor;
 }
 function requestedCatalog(){
- const params=new URLSearchParams({kind,limit:'20'});if(mine)params.set('mine','1');
+ const params=new URLSearchParams({kind,limit:'20',previews:'1'});if(mine)params.set('mine','1');
  const q=$('search').value.trim();if(q)params.set('q',q);
  if($('platform-filter').value)params.set('platform',$('platform-filter').value);
  if(kind==='iconpack')for(const id of ['purpose','naming','design'])if($(id).value)params.set(id,$(id).value);
@@ -60,22 +60,36 @@ function requestedCatalog(){
 function queueSearch(){
  clearTimeout(searchTimer);
  const session=epoch;
- const start=()=>{if(session!==epoch||!account)return;if(busy){searchTimer=setTimeout(start,150);return;}searchTimer=null;void run(()=>load());};
+ const start=()=>{if(session!==epoch||!account||view!=='catalog')return;if(busy){searchTimer=setTimeout(start,150);return;}searchTimer=null;void run(()=>load());};
  searchTimer=setTimeout(start,250);
 }
 async function load(resetList=true){
  const query=requestedCatalog();
  if(query!==catalogParams)resetList=true;
- if(resetList){items=[];cursor='';catalogParams=query;$('detail').hidden=true;$('detail').replaceChildren();render();}
+ if(resetList){items=[];cursor='';catalogParams=query;render();}
  const page=await api('/api/v1/catalog?'+catalogParams+(cursor?'&cursor='+encodeURIComponent(cursor):''));
  if(query!==requestedCatalog()){queueSearch();return;}
  items=[...new Map([...items,...page.items].map(x=>[x.id,x])).values()];cursor=page.nextCursor;render();
 }
+function backToList(){activeDetail=null;showView('catalog');window.scrollTo(0,listScroll);}
+function openEdit(i){const form=$('edit-form');form.elements.description.value=i.description||'';form.elements.license.value=i.license||'';$('edit-status').textContent='';$('edit-dialog').showModal();}
+$('edit-cancel').onclick=()=>$('edit-dialog').close();
+$('delete-cancel').onclick=()=>$('delete-dialog').close();
+$('edit-form').onsubmit=event=>{event.preventDefault();const i=activeDetail;if(!i)return;const form=event.target;void run(async()=>{ $('edit-save').disabled=true;try{await api('/api/v1/library/items/'+encodeURIComponent(i.id)+'/metadata',{method:'POST',body:{description:form.elements.description.value,license:form.elements.license.value}});$('edit-dialog').close();await load();await detail(i);}finally{$('edit-save').disabled=false;}});};
+$('delete-confirm').onclick=()=>{const i=activeDetail;if(!i)return;void run(async()=>{$('delete-confirm').disabled=true;try{await api('/api/v1/library/items/'+encodeURIComponent(i.id)+'/delete',{method:'POST',body:{}});$('delete-dialog').close();backToList();await load();}finally{$('delete-confirm').disabled=false;}});};
 async function detail(item){
  const data=await api('/api/v1/items/'+encodeURIComponent(item.id));const i=data.item,section=$('detail');
- section.replaceChildren(el('h2',i.name),el('p',i.version+' · '+i.description),el('p',provenanceLabel(i)),el('p','패키지 규격 표시는 구조 확인이며 실제 실행 호환성 인증이 아닙니다.'),el('p','라이선스: '+i.license),el('p','SHA256: '+i.sha256));
- const grid=el('div',undefined,'preview-grid');for(const p of data.previews)grid.append(preview(p));section.append(grid);
- const a=el('a','원본 다운로드');a.href='/api/v1/items/'+encodeURIComponent(i.id)+'/releases/'+encodeURIComponent(i.releaseId)+'/download';section.append(a);if(account.role==='owner'||i.uploadedBy===account.id)section.append(button('목록에서 제거',async()=>{if(!confirm('목록에서 제거합니까? 원본과 설치된 콘텐츠는 보존됩니다.'))return;await api('/api/v1/library/items/'+i.id+'/remove',{method:'POST',body:{}});await load();}));section.hidden=false;
+ if(view==='catalog')listScroll=window.scrollY;activeDetail=i;
+ const back=button('← 목록으로',()=>backToList());back.className='back-link';
+ const heading=el('div',undefined,'detail-heading'),title=el('div');title.append(el('p',i.kind==='iconpack'?'아이콘팩':'플러그인','eyebrow'),el('h2',i.name),el('p','버전 '+i.version+(i.kind==='iconpack'?' · 아이콘 '+i.iconCount+'개':'')+(i.author?' · '+i.author:''),'detail-meta'));
+ const actions=el('div',undefined,'detail-actions');const a=el('a','다운로드','primary action-link');a.href='/api/v1/items/'+encodeURIComponent(i.id)+'/releases/'+encodeURIComponent(i.releaseId)+'/download';actions.append(a);
+ if(account.role==='owner'||i.uploadedBy===account.id){actions.append(button('정보 수정',()=>openEdit(i)));const del=button('삭제',()=>{$('delete-message').textContent=i.name+'을(를) 삭제하시겠습니까?';$('delete-dialog').showModal();});del.className='danger-outline';actions.append(del);}
+ heading.append(title,actions);
+ const body=el('div',undefined,'detail-body');
+ if(data.previews.length){const bar=el('div',undefined,'preview-heading');const bg=el('button',$('background').textContent);bg.id='detail-background';bg.type='button';bg.onclick=togglePreview;bar.append(el('h3','아이콘 미리보기'),bg);const grid=el('div',undefined,'preview-grid');for(const p of data.previews)grid.append(preview(p));body.append(bar,grid);}
+ const info=el('section',undefined,'detail-info');info.append(el('h3','설명'),el('p',i.description||'등록된 설명이 없습니다.','description-text'),el('h3','정보'),el('p',provenanceLabel(i)));if(i.license)info.append(el('p','라이선스: '+i.license));body.append(info);
+ const tech=el('details',undefined,'optional');tech.append(el('summary','기술 정보'),el('p','SHA256: '+i.sha256),el('p','패키지 규격은 실제 실행 호환성 인증이 아닙니다.'));body.append(tech);
+ section.replaceChildren(back,heading,body);showView('detail');window.scrollTo(0,0);
 }
 async function adminList(resetList=true){
  if(resetList){adminCursor='';$('releases').replaceChildren();$('review').hidden=true;$('review').replaceChildren();}

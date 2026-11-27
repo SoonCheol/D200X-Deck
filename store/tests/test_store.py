@@ -41,6 +41,27 @@ class StoreTest(unittest.TestCase):
         return {"Authorization":"Bearer "+r.json["accessToken"]}
     def upload(self,source="third-party",data=None):
         return self.c.post("/api/v1/admin/items",data={"file":(io.BytesIO(data if data is not None else pack()),"icons.zip"),"kind":"iconpack","format":"zip","source":source,"license":"test license"},headers=self.owner)
+    def test_library_detail_card_previews_metadata_delete(self):
+        def payload(): return {"file":(io.BytesIO(pack()),"icons.zip"),"kind":"iconpack"}
+        i=self.c.post("/api/v1/library/upload",data=payload(),headers=self.member).json["item"]
+        j=self.c.post("/api/v1/library/upload",data=payload(),headers=self.owner).json["item"]
+        path="/api/v1/library/items/"+i["id"]
+        plain=self.c.get("/api/v1/catalog?kind=iconpack",headers=self.member).json["items"]
+        self.assertNotIn("cardPreviews",plain[0])
+        cards=self.c.get("/api/v1/catalog?kind=iconpack&previews=1",headers=self.member).json["items"]
+        self.assertTrue(all(len(row["cardPreviews"])==2 for row in cards))
+        data={"description":"설명 수정","license":""}
+        self.assertEqual(self.c.post(path+"/metadata",json=data,headers=self.member).status_code,200)
+        self.assertEqual(self.c.get("/api/v1/items/"+i["id"],headers=self.member).json["item"]["description"],data["description"])
+        other="/api/v1/library/items/"+j["id"]
+        self.assertEqual(self.c.post(other+"/metadata",json=data,headers=self.member).status_code,403)
+        self.assertEqual(self.c.post(other+"/delete",json={},headers=self.member).status_code,403)
+        self.assertEqual(self.c.post(path+"/delete",json={},headers=self.member).status_code,204)
+        self.assertEqual(self.c.get("/api/v1/items/"+i["id"],headers=self.owner).status_code,404)
+        self.assertEqual(self.c.get("/api/v1/admin/items/"+i["id"]+"/releases",headers=self.owner).status_code,404)
+        self.assertEqual(self.c.get("/api/v1/items/"+j["id"],headers=self.member).status_code,200)
+        self.assertTrue((Path(self.tmp.name)/"blobs"/i["sha256"]).exists())
+        self.assertTrue(verify_data(self.tmp.name)["ok"])
     def test_library_upload_immediate_member_and_removal(self):
         path="/api/v1/library/upload"
         def payload(): return {"file":(io.BytesIO(pack()),"icons.zip"),"kind":"iconpack"}
