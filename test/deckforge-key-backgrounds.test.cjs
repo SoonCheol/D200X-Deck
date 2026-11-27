@@ -300,7 +300,18 @@ test('Store excludes app-provided plugins by exact identity, not SDK or name',()
  for(const uuid of ['com.deckforge.native.home-assistant','de.perdoctus.streamdeck.homeassistant','com.autodesk.fusionstreamdeck','COM.DECKFORGE.NATIVE.GITHUB-STATUS'])assert.equal(isOptional({uuid}),false);
  for(const uuid of ['com.deckforge.native.optional','com.vendor.home-assistant','com.vendor.github','com.deckforge.native.github-status.extra'])assert.equal(isOptional({uuid,name:'GitHub',runtime:'deckforge-sdk'}),true);
  assert.equal(isOptional({}),false);
- assert.match(editor,/pluginRecords=plugins\.filter\(storePluginIsOptional\)\.map\(storePluginSummary\)/);
+ // The remote catalogue filters built-ins at its validated API boundary;
+ // local removal independently applies the same exact-identity policy.
+ const {storeCatalogItem,storeLocalState}=require(path.join(dir,'store-client.cjs'));
+ const item={id:'p1',releaseId:'r1',kind:'plugin',name:'Optional',version:'1.0.0',packageId:'com.vendor.optional',format:'deckforgePlugin',size:1,sha256:'a'.repeat(64),source:'deckforge',visibility:'public'};
+ for(const packageId of ['com.deckforge.native.home-assistant','de.perdoctus.streamdeck.homeassistant','com.autodesk.fusionstreamdeck','COM.DECKFORGE.NATIVE.GITHUB-STATUS']){
+   assert.equal(storeCatalogItem({...item,packageId},'plugin','owner'),null);
+   assert.throws(()=>storeLocalState({...item,packageId},[],'https://example.com'));
+ }
+ assert.ok(storeCatalogItem(item,'plugin','owner'));
+ assert.equal(storeLocalState(item,[{uuid:'com.vendor.optional',version:'1.0.0'}],'https://example.com').state,'same-version');
+ assert.match(editor,/storePluginIsOptional\(p\)/);
+ assert.match(editor,/await removePluginKeepingData\(plugin\)/);
 });
 
 test('Store connection is explicit, HTTPS only and account tokens never appear in status or saved settings',async()=>{
