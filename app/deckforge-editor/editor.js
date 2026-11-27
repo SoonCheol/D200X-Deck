@@ -7564,7 +7564,18 @@ async function openStoreCatalog(){
     for(const item of matching){
       const card=button('',()=>{selected=item;previewImages=[];previewError='';render();if(kind==='iconpack')void loadPreview(item);});card.className='store-pack-card';
       if(kind==='iconpack'&&item.cover)card.append(previewGrid([item.cover],'store-remote-cover'));
-      card.append(node('strong','',item.name),node('span','store-pack-meta',item.version+' · '+(item.author||'제작자 미등록')),node('span','store-pack-meta',(item.visibility==='private'?'비공개':'공개')+' · '+(item.source==='third-party'?'외부 보관':'DeckForge')),node('span','store-pack-meta',provenanceLabel(item)),node('span','store-pack-meta',item.tags.join(' · ')),node('span','store-pack-meta',localLabel(item)));
+      const heading=node('strong','store-card-name',item.name);heading.title=item.name;
+      const version=String(item.version).replace(/^v(?=\d)/i,'');
+      const count=kind==='iconpack'&&item.iconCount!==null&&item.iconCount!==undefined?' · 아이콘 '+item.iconCount+'개':'';
+      const format=item.format==='streamDeckIconPack'||item.format==='sdIconPack'||item.format==='streamDeckPlugin'||['elgato-icon-index','elgato-sdk'].includes(item.packageProfile)?'Stream Deck':item.format==='deckforgePlugin'?'DeckForge':item.format==='zip'?'ZIP':'형식 미확인';
+      const knownTags={...options.purpose,...options.naming,...options.design,native:'독자 SDK',compatible:'호환 플러그인'};
+      const tags=[...new Set(item.tags.filter(tag=>tag!=='general-name'&&tag!=='unknown'&&Object.hasOwn(knownTags,tag)).map(tag=>knownTags[tag]))];
+      const formatLine=node('div','store-card-format');formatLine.append(node('span','store-card-format-label',format),node('span','store-pack-meta',item.author||'제작자 미등록'));
+      const footer=node('div','store-card-footer'),installed=item.local?.state&&item.local.state!=='not-found';
+      footer.append(node('span','store-card-install'+(installed?' is-installed':''),localLabel(item)),node('span','store-pack-meta',item.visibility==='private'?'비공개':'공개'));
+      card.append(heading,node('span','store-card-version','v'+version+count),formatLine);
+      if(tags.length){const chips=node('div','store-card-tags');for(const tag of tags)chips.append(node('span','store-card-tag',tag));card.append(chips);}
+      card.append(footer);
       grid.append(card);
     }
     if(!matching.length&&!busy)grid.append(node('p','store-catalog-empty','표시할 서버 항목이 없습니다.'));

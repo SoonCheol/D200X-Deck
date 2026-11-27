@@ -126,7 +126,8 @@ function storeCatalogItem(raw,kind,role){
   const platform=['deckforge','ulanzi','elgato','generic','unknown'].includes(raw.platform)?raw.platform:'unknown';
   const profiles=kind==='iconpack'?['elgato-icon-index','indexed-icons','raster-images']:['deckforge-sdk','elgato-sdk'];
   const packageProfile=profiles.includes(raw.packageProfile)?raw.packageProfile:'unknown';
-  return {id,releaseId,kind,packageId,format,platform,packageProfile,size:raw.size,sha256:raw.sha256,name:str(raw.name,120),version:str(raw.version,40),
+  const iconCount=kind==='iconpack'&&Number.isInteger(raw.iconCount)&&raw.iconCount>=1&&raw.iconCount<=2500?raw.iconCount:null;
+  return {id,releaseId,kind,packageId,format,platform,packageProfile,iconCount,size:raw.size,sha256:raw.sha256,name:str(raw.name,120),version:str(raw.version,40),
     author:typeof raw.author==='string'?raw.author.slice(0,120):'',description:typeof raw.description==='string'?raw.description.slice(0,1500):'',source:raw.source,visibility:raw.visibility,tags,cover:storePreviewPng(raw.cover,12288),signature:raw.signature&&/^[a-f0-9]{64}$/.test(raw.signature.keyId||'')&&typeof raw.signature.value==='string'&&raw.signature.value.length===88?{keyId:raw.signature.keyId,value:raw.signature.value}:null};
 }
 // Trust is a manually pinned administrator-provided public key, never a key received from the Store API.
