@@ -33,6 +33,7 @@ on:
       - 'test/deckforge-wide-warning.test.cjs'
       - 'test/deckforge-key-backgrounds.test.cjs'
       - 'test/deckforge-plugin.test.cjs'
+      - 'test/deckforge-store-login.test.cjs'
       - 'tools/native-drop-probe/NativeDropProbe.cs'
     # Workflow-only changes are validated separately; manual dispatch remains available.
   workflow_dispatch:
@@ -122,7 +123,7 @@ jobs:
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           node --check app/deckforge-editor/icon-pack.cjs
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          node --test test/deckforge-icon-pack.test.cjs
+          node --test test/deckforge-icon-pack.test.cjs test/deckforge-store-login.test.cjs
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           node --check app/deckforge-editor/ha-client.cjs
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
