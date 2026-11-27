@@ -3467,3 +3467,27 @@ test('bounded native record-list schema validates row shape, order and existing 
  const large={repository:'가'.repeat(256),workflow:'가'.repeat(128),branch:'가'.repeat(256),label:'가'.repeat(100)};
  assert.throws(()=>core.nativeEffectiveSettings([field],{targets:Array(10).fill(large)}),/settings size limit/);
 });
+
+test('GitHub ordered action registers an empty draft and monitors first target without opening a link',async()=>{
+ const {createGitHubManifest}=require('../app/deckforge-editor/deckforge-github-plugin.cjs');
+ const m=validateNativeManifest(createGitHubManifest()),a=m.actions[1];
+ assert.equal(m.actions[0].id,'com.deckforge.native.github-status.build');
+ assert.equal(a.id,'com.deckforge.native.github-status.multi-build');
+ const settings=Object.fromEntries(a.settingsSchema.map(f=>[f.key,f.default]));
+ const run=new (Object.getPrototypeOf(async function(){}).constructor)('event','settings','state','memory','api',a.script);
+ const memory={},requests=[],frames=[],opened=[];
+ const api={setTitle(){},drawKey(frame){frames.push(frame);},request(...args){requests.push(args);},openUrl(url){opened.push(url);}};
+ const send=(type,response)=>run({type,response},settings,0,memory,api);
+ await send('appear');assert.equal(memory.display.status,'설정 확인');
+ await send('tick');assert.equal(requests.length,0);
+ settings.targets=[{repository:'Owner/A',workflow:'42',branch:'main',label:'첫 번째'},{repository:'Owner/B',workflow:'99',branch:'',label:'두 번째'}];
+ await send('settings');await send('tick');
+ assert.equal(requests.length,1);assert.equal(requests[0][3].path.repo,'A');
+ assert.equal(requests[0][3].path.workflow,'42');assert.equal(requests[0][2].branch,'main');
+ await send('networkResult',{ok:true,body:JSON.stringify({workflow_runs:[{id:123,run_number:7,status:'completed',conclusion:'success'}]})});
+ assert.equal(memory.display.number,'#7');assert.equal(memory.display.status,'빌드 성공');
+ assert.ok(frames.at(-1).commands.some(x=>x.text==='첫 번째'));
+ await send('press');assert.deepEqual(opened,[]);
+ settings.targets.push({...settings.targets[0]});await send('settings');await send('tick');
+ assert.equal(memory.display.status,'설정 확인');assert.equal(requests.length,1);
+});

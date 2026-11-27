@@ -77,15 +77,36 @@ function buildKey(event,settings,state,memory,api){
   memory.lastRequest=now;memory.pending=true;
   api.request('runs',null,{per_page:'1',...(branch?{branch}:{})},{path:{owner:repo[0],repo:repo[1],category:'actions',collection:'workflows',workflow,resource:'runs'}});
 }
+// Stage 4: register the ordered monitor and display its first target.
+// Navigation is a separate input-routing stage; do not open a URL on press.
+function multiBuildKey(event,settings,state,memory,api,normalize,display){
+  let targets;
+  try{targets=normalize(settings.targets);}catch{
+    return display(event,{...settings,repository:'',workflow:'',branch:'',label:'GitHub'},state,memory,api);
+  }
+  if(event.type==='press'||event.type==='release')return;
+  return display(event,{...settings,...targets[0]},state,memory,api);
+}
 function createGitHubManifest(){
   const field=(key,label,value,maxLength=128)=>({key,label,type:'text',default:value,maxLength});
-  return {apiVersion:2,id:ID,name:'GitHub 개발 현황',version:'0.1.2',requiresDeckForge:'>=2.0.95',
+  const manifest={apiVersion:2,id:ID,name:'GitHub 개발 현황',version:'0.1.3',requiresDeckForge:'>=2.0.111',
     permissions:['display','network.request','network.poll','timer.tick','browser.open'],
     networkEndpoints:[{id:'runs',url:'https://api.github.com/repos/',method:'GET',auth:'bearer',pathKeys:['owner','repo','category','collection','workflow','resource'],queryKeys:['per_page','branch'],maxResponseBytes:32768}],
     actions:[{id:ID+'.build',name:'빌드 상태',controllers:['Keypad'],states:1,visualPolicy:'foreground',
       script:'return ('+buildKey.toString()+')(event,settings,state,memory,api);',tickIntervalMs:1000,pollIntervalMs:5000,
       settingsSchema:[field('label','표시 이름','DeckForge',100),field('repository','저장소 (소유자/이름)','SoonCheol/D200X-Deck',256),field('workflow','빌드 파일명 또는 ID','deckforge-windows-build.yml'),field('branch','브랜치 (빈 값: 전체)','codex/streamdeck-761-clean-editor',256),{key:'marquee',label:'긴 이름 흐르기',type:'boolean',default:true},{key:'marqueeSpeed',label:'마퀴 속도',type:'select',default:'1000',options:[{value:'1000',label:'빠르게 (1초)'},{value:'2000',label:'보통 (2초)'},{value:'3000',label:'느리게 (3초)'}]},{key:'refresh',label:'자동 갱신 간격',type:'select',default:'auto',options:[{value:'auto',label:'자동 (5/15초)'},...['5000','10000','15000','30000'].map(value=>({value,label:Number(value)/1000+'초'}))]}],settingsUI:[{key:'marqueeSpeed',visibleWhen:{key:'marquee',equals:true}}]}]
   };
+  const single=manifest.actions[0];
+  const targets={key:'targets',label:'저장소 목록',type:'recordList',maxItems:MAX_GITHUB_MONITOR_TARGETS,columns:[
+    {key:'repository',label:'저장소',maxLength:256,default:''},
+    {key:'workflow',label:'빌드 종류',maxLength:128,default:''},
+    {key:'branch',label:'브랜치',maxLength:256,default:''},
+    {key:'label',label:'표시 이름',maxLength:100,default:''}
+  ],default:[]};
+  manifest.actions.push({...single,id:ID+'.multi-build',name:'다중 저장소 빌드 상태',
+    script:'const MAX_GITHUB_MONITOR_TARGETS='+MAX_GITHUB_MONITOR_TARGETS+';return ('+multiBuildKey.toString()+')(event,settings,state,memory,api,('+normalizeGitHubMonitorTargets.toString()+'),('+buildKey.toString()+'));',
+    settingsSchema:[targets,...single.settingsSchema.filter(field=>['marquee','marqueeSpeed','refresh'].includes(field.key))]});
+  return manifest;
 }
 // Host-only discovery. The renderer supplies a repository name, never a URL or token.
 async function discoverGitHubBuildOptions(repository,bearer,request=require('./deckforge-native-network.cjs').requestEndpoint){
@@ -151,4 +172,4 @@ function stepGitHubMonitorIndex(current,count,direction){
     throw Error('저장소 순환 위치 확인');
   return (current+direction+count)%count;
 }
-module.exports={createGitHubManifest,buildKey,discoverGitHubBuildOptions,normalizeGitHubMonitorTargets,stepGitHubMonitorIndex,MAX_GITHUB_MONITOR_TARGETS};
+module.exports={createGitHubManifest,buildKey,multiBuildKey,discoverGitHubBuildOptions,normalizeGitHubMonitorTargets,stepGitHubMonitorIndex,MAX_GITHUB_MONITOR_TARGETS};
