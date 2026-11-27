@@ -43,3 +43,14 @@ test('explicit auto login survives restart and expiry, logout disables it',async
   assert.equal((await client.autoConnect()).account,null);assert.equal(logins,3);
  }finally{fs.rmSync(dir,{recursive:true,force:true});}
 });
+
+test('store detail starts with the final gallery geometry rather than a large cover',()=>{
+ const src=fs.readFileSync(path.join(__dirname,'../app/deckforge-editor/editor.js'),'utf8');
+ const a=src.indexOf('async function openStoreCatalog()'),b=src.indexOf('    const matching=items;',a);
+ const detail=src.slice(a,b);
+ assert.ok(a>=0&&b>a);
+ assert.match(detail,/const panel=node\('div','store-remote-gallery'\)/);
+ assert.match(detail,/store-gallery-cell store-gallery-placeholder/);
+ assert.doesNotMatch(detail,/grid\.append\(previewGrid\(/);
+ assert.match(src.slice(b),/galleryTotal=0;galleryLegacy=false;\+\+previewRequest;render\(\);if\(kind==='iconpack'\)void loadGallery\(item\)/);
+});

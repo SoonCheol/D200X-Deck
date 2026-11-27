@@ -7565,10 +7565,14 @@ async function openStoreCatalog(){
       grid.append(actionRow);
       if(kind==='iconpack'){
         grid.append(node('h3','store-detail-gallery-title',galleryLegacy?'미리보기':'전체 아이콘'+(count?' ('+count+'개)':'')));
-        if(gallery.length){
-          const panel=node('div','store-remote-gallery');
-          for(const entry of gallery){const cell=node('div','store-gallery-cell');cell.title=entry.path;const img=node('img');img.src=entry.preview;img.alt=entry.name;img.loading='lazy';img.decoding='async';cell.append(img,node('span','',entry.name));panel.append(cell);}grid.append(panel);
-        }else if(previewImages.length||item.cover){grid.append(previewGrid(previewImages.length?previewImages:[item.cover],'store-remote-detail-preview'));}
+        const panel=node('div','store-remote-gallery');
+        const entries=gallery.length?gallery:galleryLegacy?(previewImages.length?previewImages:item.cover?[item.cover]:[]).map(src=>({preview:src,name:'',path:''})):[];
+        for(const entry of entries){const cell=node('div','store-gallery-cell');cell.title=entry.path;const img=node('img');img.src=entry.preview;img.alt=entry.name||'아이콘 미리보기';img.loading='lazy';img.decoding='async';cell.append(img,node('span','',entry.name||'\u00a0'));panel.append(cell);}
+        if(!entries.length&&!previewError&&!galleryLegacy){
+          panel.setAttribute('aria-label','아이콘 불러오는 중');panel.setAttribute('aria-busy','true');
+          for(let n=0;n<Math.min(count||12,12);n++){const cell=node('div','store-gallery-cell store-gallery-placeholder');cell.setAttribute('aria-hidden','true');cell.append(node('div','store-gallery-placeholder-image'),node('span','','\u00a0'));panel.append(cell);}
+        }
+        grid.append(panel);
         if(previewError)grid.append(node('p','store-pack-meta',previewError));
         if(galleryNext!==null&&!galleryLegacy){const more=button(galleryLoading?'불러오는 중…':'아이콘 더 보기 ('+gallery.length+'/'+(galleryTotal||'?')+')',()=>void loadGallery(item));more.disabled=busy||galleryLoading;more.className='store-detail-more';grid.append(more);}
       }
@@ -7576,7 +7580,7 @@ async function openStoreCatalog(){
     }
     const matching=items;
     for(const item of matching){
-      const card=button('',()=>{selected=item;previewImages=[];previewError='';gallery=[];galleryNext=kind==='iconpack'?0:null;galleryTotal=0;galleryLegacy=false;render();if(kind==='iconpack')void loadPreview(item);});card.className='store-pack-card';
+      const card=button('',()=>{selected=item;previewImages=[];previewError='';gallery=[];galleryNext=kind==='iconpack'?0:null;galleryTotal=0;galleryLegacy=false;++previewRequest;render();if(kind==='iconpack')void loadGallery(item);});card.className='store-pack-card';
       if(kind==='iconpack'&&item.cover)card.append(previewGrid([item.cover],'store-remote-cover'));
       const heading=node('strong','store-card-name',item.name);heading.title=item.name;
       const version=String(item.version).replace(/^v(?=\d)/i,'');
@@ -7615,7 +7619,7 @@ async function openStoreCatalog(){
   }
   async function loadGallery(item){
     if(!dlg.open||selected!==item||galleryNext===null||galleryLoading||busy||expired||galleryLegacy)return;
-    if(!window.deckBridge?.storeIconPage){galleryLegacy=true;galleryNext=null;render();return;}
+    if(!window.deckBridge?.storeIconPage){galleryLegacy=true;galleryNext=null;render();void loadPreview(item);return;}
     const current=previewRequest,offset=galleryNext;galleryLoading=true;setBusy(true);
     try{
       if(!await guard())return;
@@ -7628,7 +7632,7 @@ async function openStoreCatalog(){
         if(offset===0&&/HTTP 404/.test(String(error?.message||error))){galleryLegacy=true;galleryNext=null;previewError='서버 버전이 전체 아이콘 조회를 지원하지 않습니다.';}
         else previewError='아이콘 조회 실패 · 다시 시도하세요: '+String(error?.message||error);
       }
-    }finally{galleryLoading=false;if(dlg.open&&current===previewRequest)setBusy(false);}
+    }finally{galleryLoading=false;if(dlg.open&&current===previewRequest){setBusy(false);if(selected===item&&galleryLegacy&&offset===0)void loadPreview(item);}}
   }
   grid.addEventListener('scroll',()=>{if(selected&&gallery.length&&galleryNext!==null&&!previewError&&grid.scrollHeight-grid.scrollTop-grid.clientHeight<140)void loadGallery(selected);});
   async function load(reset){
