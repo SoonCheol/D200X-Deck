@@ -4,7 +4,7 @@ import json
 import zipfile
 import time
 import hashlib
-from PIL import Image
+from PIL import Image, UnidentifiedImageError
 from svg_raster import rasterize_svg, MAX_SVG, MAX_SVG_COUNT
 from pathlib import PurePosixPath
 from package_inspector import MIB, RASTER, require, safe_path, text, display_icon_name
@@ -24,7 +24,7 @@ def make_folder_pack(metadata, files):
         for row,file in zip(icons,files):
             require(isinstance(row,dict),"invalid icon")
             path=row.get("path")
-            require(safe_path(path) and len(path)<490 and len(path.split("/"))<=9 and path.casefold() not in seen
+            require(safe_path(path) and safe_path(root+'originals/'+path) and len(path.split("/"))<=9 and path.casefold() not in seen
                     and PurePosixPath(path).suffix.lower() in (set(RASTER)|{".svg"}),"unsafe or unsupported image path")
             require(file.filename==path,"file order/path mismatch")
             seen.add(path.casefold())
@@ -49,11 +49,15 @@ def make_folder_pack(metadata, files):
             index.append(dict(path=target,name=icon_name,tags=tags))
             z.writestr(root+"icons/"+target,data)
             if len(index)==1:
-                with Image.open(io.BytesIO(data)) as im:
-                    cover=im.convert("RGBA");cover.thumbnail((56,56))
-                    canvas=Image.new("RGBA",(56,56));canvas.paste(cover,((56-cover.width)//2,(56-cover.height)//2))
-                    buf=io.BytesIO();canvas.save(buf,format="PNG")
-                    z.writestr(root+"icon.png",buf.getvalue())
+                try:
+                    with Image.open(io.BytesIO(data)) as im:
+                        require(im.format==RASTER[PurePosixPath(target).suffix.lower()] and 0<im.width<=4096 and 0<im.height<=4096,"invalid raster")
+                        cover=im.convert("RGBA");cover.thumbnail((56,56))
+                        canvas=Image.new("RGBA",(56,56));canvas.paste(cover,((56-cover.width)//2,(56-cover.height)//2))
+                        buf=io.BytesIO();canvas.save(buf,format="PNG")
+                        z.writestr(root+"icon.png",buf.getvalue())
+                except (UnidentifiedImageError,Image.DecompressionBombError,OSError) as exc:
+                    raise ValueError("invalid raster") from exc
         manifest=json.dumps({"Name":name,"Version":version,"Author":author,"Icon":"icon.png"},ensure_ascii=False).encode("utf-8")
         index_bytes=json.dumps(index,ensure_ascii=False,separators=(",",":")).encode("utf-8")
         require(len(index_bytes)<=MIB,"icon metadata size limit")

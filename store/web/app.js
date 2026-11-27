@@ -218,7 +218,7 @@ $('folder-picker').onchange=()=>{
    const path=parts.slice(1).join('/');
    if(SVG_EXT.test(path)){svg++;}else if(!RASTER_EXT.test(path)){skipped++;continue;}
    const stem=parts.at(-1).replace(/\.[^.]+$/,'');
-   if(path.length>=490||parts.length>10||parts.slice(1).some(p=>!p||p==='.'||p==='..'||p.length>250||/[:\\\x00-\x1f\x7f]/.test(p))||!stem.trim()||stem.length>100||seen.has(path.toLowerCase()))throw Error('중복 또는 지원되지 않는 파일명: '+path);
+   if(path.length>=430||parts.length>10||parts.slice(1).some(p=>!p||p==='.'||p==='..'||p.length>250||/[:\\\x00-\x1f\x7f]/.test(p))||!stem.trim()||stem.length>100||seen.has(path.toLowerCase()))throw Error('중복 또는 지원되지 않는 파일명: '+path);
    if(!file.size||file.size>(SVG_EXT.test(path)?256*1024:6*1024*1024))throw Error('개별 이미지 크기 제한: '+path);
    seen.add(path.toLowerCase());total+=file.size;folderRows.push({file,path,tags:[],selected:false});
   }
