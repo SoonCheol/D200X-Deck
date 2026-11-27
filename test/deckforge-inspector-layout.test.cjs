@@ -765,8 +765,7 @@ test('GitHub settings can refresh repositories after a failed lookup without ope
  const source=editor.slice(editor.indexOf('async function openNativeSettings('),editor.indexOf('function updateSdkAvailabilityInspector('));
  const start=source.indexOf('  let githubLoading='),end=source.indexOf('  if(githubBuild)bindGithubRepositoryLabel(',start);
  assert.ok(start>=0&&end>start);
- assert.match(source,/githubReloadButton\.textContent='목록 새로 고침'/);
- assert.match(source,/githubReloadButton\.addEventListener\('click',\(\)=>void refreshGithub\(\)\)/);
+ assert.match(source,/githubReloadButton=createInspectorCommand\('목록 새로 고침',\(\)=>void refreshGithub\(\),'deckforge-message-button'\)/);
  const mockSelect=value=>({value,disabled:false,options:[],replaceChildren(){this.options=[];},append(option){this.options.push(option);}});
  const repo=mockSelect('SoonCheol/D200X-Deck'),branch=mockSelect('main'),workflow=mockSelect('deckforge-windows-build.yml');
  const fields=new Map([['repository',repo],['branch',branch],['workflow',workflow]]);
@@ -886,4 +885,27 @@ test('all 35 exposed basic actions have an explicit standard or dedicated paired
  assert.match(indicator,/bindKeyBackgroundControl\(image,item,pressed\?'second':'default'\)/);
  assert.match(indicator,/card\.append\(heading,titleLine,line,image,buttons\)/);
  assert.match(indicator,/down\.card\.append\(down\.heading,downTitle,downNumber,down\.image,down\.buttons\)/);
+});
+
+
+test('native inspector draft collector validates visible values and retains hidden or disabled originals',()=>{
+ const start=editor.indexOf('function readNativeSettingEntry('),end=editor.indexOf('async function openNativeSettings(',start);
+ const {readNativeSettingEntry:read,collectNativeSettingDraft:collect}=vm.runInNewContext(editor.slice(start,end)+';({readNativeSettingEntry,collectNativeSettingDraft})',{DeckCore:{nativeSettingValue:(field,value)=>field.type==='integer'?Number.isInteger(value):field.type==='boolean'?typeof value==='boolean':typeof value==='string'||Array.isArray(value)}});
+ const original={repository:'old',seconds:15,linked:false,linkEntity:'old-link',entities:['old'],legacy:'keep'};
+ const entries=[
+   {field:{key:'repository',type:'text',label:'저장소'},input:{value:'new'}},
+   {field:{key:'seconds',type:'integer',label:'간격'},input:{valueAsNumber:99,disabled:true}},
+   {field:{key:'linked',type:'boolean',label:'연동'},input:{checked:true}},
+   {field:{key:'linkEntity',type:'text',label:'연동 기기'},input:{value:'hidden'}},
+   {field:{key:'entities',type:'multi-select',label:'센서'},read:()=>['new']}
+ ];
+ const rows=new Map([['linkEntity',{hidden:true}]]);
+ const before=JSON.stringify(original);
+ const result=collect(entries,rows,original,true);
+ assert.equal(JSON.stringify(result.next),JSON.stringify({...original,repository:'new',linked:true,entities:['new']}));
+ assert.equal(JSON.stringify(original),before);
+ assert.equal(read(entries[1]),99);assert.equal(read(entries[2]),true);
+ entries[1].input.disabled=false;entries[1].input.valueAsNumber=NaN;
+ assert.equal(collect(entries,rows,original,true).error,'간격 값을 확인하세요.');
+ assert.equal(JSON.stringify(original),before);
 });

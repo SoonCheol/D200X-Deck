@@ -4395,6 +4395,21 @@ function bindGithubRepositoryLabel(label,repository,original,schema){
   label.addEventListener('input',()=>{automatic=!label.value.trim()||label.value===repositoryName(repository.value);});
   repository.addEventListener('change',update);
 }
+// Read a native schema draft without committing hidden or disabled HA fields.
+function readNativeSettingEntry({field,input,read}){
+  return read?read():field.type==='boolean'?input.checked:field.type==='integer'?input.valueAsNumber:input.value;
+}
+function collectNativeSettingDraft(inputs,fieldRows,original,haSensor){
+  const next={...original};
+  for(const entry of inputs){
+    const {field}=entry;
+    if(fieldRows.get(field.key)?.hidden||haSensor&&field.key==='seconds'&&entry.input?.disabled)continue;
+    const value=readNativeSettingEntry(entry);
+    if(!DeckCore.nativeSettingValue(field,value))return {error:field.label+' 값을 확인하세요.'};
+    next[field.key]=value;
+  }
+  return {next};
+}
 async function openNativeSettings(item,action,plugin){
   const schema=action?.settingsSchema,credentialCapable=plugin?.permissions?.some(p=>['network.request','network.websocket'].includes(p));
   if(!Array.isArray(schema)||!schema.length){
@@ -4431,7 +4446,7 @@ async function openNativeSettings(item,action,plugin){
     }
     currentGroup?.rows.push(row);fieldRows.set(field.key,row);content.append(row);
   };
-  const readValue=({field,input,read})=>read?read():field.type==='boolean'?input.checked:field.type==='integer'?input.valueAsNumber:input.value;
+  const readValue=readNativeSettingEntry;
   const updateVisibility=()=>{
     const values=Object.fromEntries(inputs.map(entry=>[entry.field.key,readValue(entry)]));
     for(const [key,row] of fieldRows)row.hidden=!DeckCore.nativeSettingVisible(ui.get(key),values);
@@ -4661,27 +4676,23 @@ async function openNativeSettings(item,action,plugin){
   const managementTarget=haControl?managementRow:toolsRow;
   if(dynamicFields.length){
     toolsRow.append(connection);
-    const reload=document.createElement('button');reload.type='button';reload.className='deckforge-message-button';reload.textContent=haControl?'목록 새로 고침':'기기 목록 새로 고침';
-    reload.addEventListener('click',()=>void refreshDynamic());toolsRow.append(reload);
+    const reload=createInspectorCommand(haControl?'목록 새로 고침':'기기 목록 새로 고침',()=>void refreshDynamic(),'deckforge-message-button');toolsRow.append(reload);
     if(plugin.background){
-      const reconnect=document.createElement('button');reconnect.type='button';reconnect.className='deckforge-message-button';reconnect.textContent='다시 연결';
-      reconnect.addEventListener('click',async()=>{reconnect.disabled=true;try{await window.deckBridge.nativeServiceControl(plugin.uuid,'restart');await refreshDynamic();}catch{showConnection('재시작 실패','error','서비스 재시작 실패');}finally{reconnect.disabled=false;}});
+      const reconnect=createInspectorCommand('다시 연결',async()=>{reconnect.disabled=true;try{await window.deckBridge.nativeServiceControl(plugin.uuid,'restart');await refreshDynamic();}catch{showConnection('재시작 실패','error','서비스 재시작 실패');}finally{reconnect.disabled=false;}},'deckforge-message-button');
       managementTarget.append(reconnect);
     }
   }
   if(githubBuild){
     toolsRow.append(connection);
-    githubReloadButton=document.createElement('button');githubReloadButton.type='button';githubReloadButton.className='deckforge-message-button';githubReloadButton.textContent='목록 새로 고침';
-    githubReloadButton.addEventListener('click',()=>void refreshGithub());toolsRow.append(githubReloadButton);
+    githubReloadButton=createInspectorCommand('목록 새로 고침',()=>void refreshGithub(),'deckforge-message-button');toolsRow.append(githubReloadButton);
   }
   if(credentialCapable){
-    const credentialButton=document.createElement('button');credentialButton.type='button';credentialButton.className='deckforge-message-button';credentialButton.textContent='인증정보 관리';if(githubBuild)githubCredentialButton=credentialButton;
-    credentialButton.addEventListener('click',async()=>{
+    const credentialButton=createInspectorCommand('인증정보 관리',async()=>{
       credentialButton.disabled=true;
       if(githubBuild&&githubReloadButton)githubReloadButton.disabled=true;
       try{await openNativeCredentials(item,plugin);if(githubBuild)await refreshGithub();else await refreshDynamic();}catch{window.d200xActionStatus?.('인증정보 상태 확인 실패');}
       finally{credentialButton.disabled=githubBuild&&githubLoading;if(githubBuild&&githubReloadButton)githubReloadButton.disabled=githubLoading;}
-    });managementTarget.append(credentialButton);
+    },'deckforge-message-button');if(githubBuild)githubCredentialButton=credentialButton;managementTarget.append(credentialButton);
   }
   if(toolsRow.childElementCount)content.prepend(toolsRow);
   const notice=document.createElement('p');notice.className='hint';notice.setAttribute('role','status');content.append(notice);
@@ -4705,15 +4716,8 @@ async function openNativeSettings(item,action,plugin){
   try{accepted=await window.DeckForgeDialogs.show({anchorTop:!ha,title:action.name,helpText,onHelp,
     content,ask:true,actionLabel:haControl||githubBuild?'저장':'적용',onAccept:()=>{
       try{
-        const next={...original};
-        for(const entry of inputs){
-          const {field}=entry;
-          // Hidden fields keep their original stored values/defaults; a hidden draft is not committed.
-          if(fieldRows.get(field.key)?.hidden||haSensor&&field.key==='seconds'&&entry.input?.disabled)continue;
-          const value=readValue(entry);
-          if(!DeckCore.nativeSettingValue(field,value)){notice.textContent=field.label+' 값을 확인하세요.';return false;}
-          next[field.key]=value;
-        }
+        const {next,error}=collectNativeSettingDraft(inputs,fieldRows,original,haSensor);
+        if(error){notice.textContent=error;return false;}
         if(githubBuild){
           if(githubLoading){notice.textContent='목록 조회 중입니다.';return false;}
           if(!next.repository||!next.workflow){notice.textContent='저장소와 빌드 종류를 선택하세요.';return false;}

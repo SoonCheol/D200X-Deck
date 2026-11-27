@@ -55,7 +55,7 @@
 - 05 (2.0.101 구현, Windows #105 기존 검사식 실패, 2.0.102 검사 갱신): readActionField/bindActionSettingFields 공통 체크·반전·클립보드 모드·숫자·텍스트 변환 및 이벤트 바인딩을 기본/순차/Logic/노브/모달에 적용. 저장 콜백·체크서클 CSS·레이아웃·독자 SDK schema/HA 특화 동작 보존. bindFieldEnabledWhen으로 브라우저/타이머 경로 활성화 통합, 숨김/비활성 값 유지. 초기 바인딩 무쓰기 및 집중 검사 추가.
 - 06 (2.0.102 구현, Windows #106/CI #1558/SDK #250/입력 #594 성공): createInspectorCommand/createActionHelpDialog로 기본 도움말 및 저장/취소/이동 확인·순차 모달 버튼 생성 통합. validateOrderedActionDraft로 기존 단축키 검증 분리. 기존 미저장/실패 복구·외부 SDK 독립 커밋·실행/미리보기 정책 보존. 집중 검사 추가.
 - 07 (2.0.103 구현, 검증 대기): 노출 기본 35종의 순간형/상태형/단일/페이지 표시 경로를 검사에 명시. 페이지 표시도 공통 카드/5버튼 생성기를 사용하고 번호·제목·배경·일괄 기능 유지.
-- 08: 독자 HA/GitHub/Fusion에 공통 컴포넌트 적용 및 누락 점검. 특수 기능은 기존 어댑터 유지. Fusion Manager·인증·실행 엔진·프로필·USB 변경 금지.
+- 08 (2.0.104 구현, 검증 대기): HA/GitHub 목록 갱신·재연결·인증 관리 버튼에 createInspectorCommand 사용. readNativeSettingEntry/collectNativeSettingDraft로 schema 입력 및 유효성 검사 공통화, 숨김/비활성 원본·HA/GitHub 고유 승인 검증 유지. Fusion 명령 속성의 기존 공통 카드/DeckForgeDialogs 읽기 전용 경로 보존. 인증·실행 엔진·프로필·USB 미변경.
 - 09: 신규 액션이 공통 생성기/선언형 필드를 계승하도록 진입점 정리. 미지원 플러그인 시각 상태를 실제 실행으로 추측하지 않음.
 - 10: 집중 DOM/기하·저장/취소·비동기 세션·상태별 데이터/미리보기 검증, 변경 관련 CI/Windows 빌드 및 별도 실기. 검증 후에만 미사용 중복 제거. 각 구현 단위 버전·커밋·자동 빌드, 문서만 변경 시 제품 버전 유지.
 
