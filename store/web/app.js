@@ -3,7 +3,7 @@ const $=id=>document.getElementById(id);
 let account=null,kind='iconpack',items=[],cursor='',adminCursor='',busy=false,epoch=0;
 const el=(tag,text,cls)=>{const n=document.createElement(tag);if(text!==undefined)n.textContent=text;if(cls)n.className=cls;return n;};
 const button=(label,fn)=>{const n=el('button',label);n.type='button';n.onclick=()=>void run(fn);return n;};
-function reset(){epoch++;account=null;items=[];cursor='';adminCursor='';for(const id of ['cards','detail','releases','accounts','review'])$(id).replaceChildren();$('detail').hidden=$('review').hidden=true;$('catalog').hidden=$('admin').hidden=$('logout').hidden=true;$('login').hidden=false;$('account').textContent='';}
+function reset(){clearFolder();$('upload').reset();formats();epoch++;account=null;items=[];cursor='';adminCursor='';for(const id of ['cards','detail','releases','accounts','review'])$(id).replaceChildren();$('detail').hidden=$('review').hidden=true;$('catalog').hidden=$('admin').hidden=$('logout').hidden=true;$('login').hidden=false;$('account').textContent='';}
 async function api(path,options={}){
  const headers={'X-DeckForge-CSRF':'1',...options.headers};
  if(options.body&&!(options.body instanceof FormData)){headers['Content-Type']='application/json';options.body=JSON.stringify(options.body);}
@@ -87,15 +87,106 @@ async function reviewRelease(releaseId){
  }
  section.hidden=false;section.scrollIntoView({block:'nearest'});
 }
-function formats(){const form=$('upload'),type=form.elements.kind.value;const list=type==='iconpack'?['streamDeckIconPack','sdIconPack','zip']:['deckforgePlugin','streamDeckPlugin','zip'];$('format').replaceChildren();for(const v of list){const option=el('option',v);option.value=v;$('format').append(option);}}
-$('upload').elements.kind.onchange=formats;formats();
+const RASTER_EXT=/\.(png|jpe?g|gif|webp)$/i;
+let folderRows=[],folderPage=0,folderBlocked=false,aiSnapshot=null,previewUrls=[];
+function revokePreviews(){for(const url of previewUrls)URL.revokeObjectURL(url);previewUrls=[];}
+function clearFolder(){revokePreviews();folderRows=[];folderPage=0;folderBlocked=false;aiSnapshot=null;$('folder-picker').value='';$('pack-name').value='';$('pack-version').value='1.0.0';$('pack-author').value='';$('icon-query').value='';$('bulk-tags').value='';$('ai-input').value=$('ai-result').value='';$('folder-status').textContent='';$('icon-rows').replaceChildren();renderFolder();}
+function parseTags(text){const values=[...new Set(text.split(',').map(x=>x.trim()).filter(Boolean))];if(values.length>30||values.some(x=>x.length>60||/[\x00-\x1f\x7f]/.test(x)))throw Error('태그는 30개 이하, 각 60자 이하입니다.');return values;}
+function mergedTags(old,extra){const tags=[...new Set([...old,...extra])];if(tags.length>30)throw Error('태그는 아이콘당 최대 30개입니다.');return tags;}
+function folderMatches(){const q=$('icon-query').value.trim().toLocaleLowerCase();return folderRows.filter(r=>[r.path,...r.tags].some(x=>x.toLocaleLowerCase().includes(q)));}
+function renderFolder(){
+ revokePreviews();const matches=folderMatches();const pages=Math.max(1,Math.ceil(matches.length/40));folderPage=Math.min(folderPage,pages-1);
+ $('icon-rows').replaceChildren();$('icon-page').textContent=(folderPage+1)+' / '+pages+' · '+folderRows.filter(r=>r.selected).length+'개 선택';
+ $('icon-prev').disabled=folderPage===0;$('icon-next').disabled=folderPage>=pages-1;
+ for(const r of matches.slice(folderPage*40,folderPage*40+40)){
+  const row=el('div',undefined,'folder-icon-row'),check=el('input');check.type='checkbox';check.checked=r.selected;check.setAttribute('aria-label',r.path+' 선택');
+  check.onchange=()=>{r.selected=check.checked;$('icon-page').textContent=(folderPage+1)+' / '+pages+' · '+folderRows.filter(x=>x.selected).length+'개 선택';};
+  const img=el('img');const url=URL.createObjectURL(r.file);previewUrls.push(url);img.src=url;img.alt='';img.loading='lazy';
+  const col=el('div');const tags=el('input');tags.value=r.tags.join(', ');tags.placeholder='검색 태그 (쉼표 구분)';tags.setAttribute('aria-label',r.path+' 검색 태그');
+  tags.onchange=()=>{try{r.tags=parseTags(tags.value);tags.setCustomValidity('');tags.value=r.tags.join(', ');}catch(e){tags.setCustomValidity(e.message);tags.reportValidity();}};
+  col.append(el('strong',r.path),tags);row.append(check,img,col);$('icon-rows').append(row);
+ }
+}
+$('folder-picker').onchange=()=>{
+ revokePreviews();folderRows=[];folderBlocked=false;folderPage=0;aiSnapshot=null;$('ai-input').value=$('ai-result').value='';
+ const files=[...$('folder-picker').files],seen=new Set();let skipped=0,svg=0,total=0,root='';
+ try{
+  for(const file of files){
+   const full=file.webkitRelativePath||'',parts=full.split('/');if(parts.length<2)throw Error('폴더 선택 기능을 지원하는 브라우저를 사용하세요.');
+   if(!root)root=parts[0];if(parts[0]!==root)throw Error('한 번에 한 폴더만 선택하세요.');
+   const path=parts.slice(1).join('/');
+   if(/\.svg$/i.test(path)){svg++;continue;}if(!RASTER_EXT.test(path)){skipped++;continue;}
+   const stem=parts.at(-1).replace(/\.[^.]+$/,'');
+   if(path.length>=490||parts.length>10||parts.slice(1).some(p=>!p||p==='.'||p==='..'||p.length>250||/[:\\\x00-\x1f\x7f]/.test(p))||!stem.trim()||stem.length>100||seen.has(path.toLowerCase()))throw Error('중복 또는 지원되지 않는 파일명: '+path);
+   if(!file.size||file.size>6*1024*1024)throw Error('개별 이미지 크기 제한: '+path);
+   seen.add(path.toLowerCase());total+=file.size;folderRows.push({file,path,tags:[],selected:false});
+  }
+  if(svg)throw Error('SVG '+svg+'개 포함: 안전 변환 기능이 준비되기 전에는 등록할 수 없습니다.');
+  if(!folderRows.length||folderRows.length>2500||total>58*1024*1024)throw Error('이미지 1~2500개, 원본 합계 58MiB 이하로 선택하세요.');
+  folderRows.sort((a,b)=>a.path.localeCompare(b.path));$('pack-name').value=root.slice(0,120);
+  $('folder-status').textContent=folderRows.length+'개 이미지 · '+(total/1024/1024).toFixed(2)+' MiB'+(skipped?' · 이미지 외 파일 '+skipped+'개 제외':'');
+ }catch(e){folderRows=[];folderBlocked=true;$('folder-status').textContent=e.message;}
+ renderFolder();
+};
+$('icon-query').oninput=()=>{folderPage=0;renderFolder();};$('icon-prev').onclick=()=>{folderPage--;renderFolder();};$('icon-next').onclick=()=>{folderPage++;renderFolder();};
+$('select-icons').onclick=()=>{for(const r of folderMatches())r.selected=true;renderFolder();};$('clear-icons').onclick=()=>{for(const r of folderRows)r.selected=false;renderFolder();};
+function bulk(remove){try{const values=parseTags($('bulk-tags').value),selected=folderRows.filter(r=>r.selected);if(!selected.length||!values.length)throw Error('아이콘과 태그를 선택하세요.');const changes=selected.map(r=>remove?r.tags.filter(t=>!values.includes(t)):mergedTags(r.tags,values));selected.forEach((r,i)=>r.tags=changes[i]);renderFolder();}catch(e){$('folder-status').textContent=e.message;}}
+$('add-tags').onclick=()=>bulk(false);$('remove-tags').onclick=()=>bulk(true);
+$('ai-prompt').onclick=()=>{
+ const selected=folderRows.filter(r=>r.selected);
+ if(!selected.length||selected.length>100){$('folder-status').textContent='AI 태그는 한 번에 1~100개를 선택하세요.';return;}
+ aiSnapshot=selected.map((r,id)=>({id,row:r}));
+ $('ai-input').value='다음 파일명의 의미가 명확한 아이콘에만 한국어 검색 태그를 제안하세요. 모호하면 빈 배열. 파일명은 변경하지 마세요. JSON 배열만 반환: [{"id":0,"tags":["태그"]}]. 각 항목 최대 10개 태그, 태그 최대 60자. 입력 데이터:\n'+JSON.stringify(aiSnapshot.map(x=>({id:x.id,name:x.row.path.split('/').at(-1).replace(/\.[^.]+$/,'')})));
+ $('ai-result').value='';
+};
+$('ai-apply').onclick=()=>{
+ try{
+  if(!aiSnapshot||$('ai-result').value.length>100000)throw Error('먼저 프롬프트를 생성하세요.');
+  const data=JSON.parse($('ai-result').value),seen=new Set();
+  if(!Array.isArray(data)||data.length>aiSnapshot.length)throw Error('JSON 배열을 확인하세요.');
+  const changes=data.map(x=>{
+   if(!x||!Number.isInteger(x.id)||!aiSnapshot[x.id]||seen.has(x.id)||!Array.isArray(x.tags)||x.tags.length>10||x.tags.some(v=>typeof v!=='string'||!v.trim()||v.length>60||/[,\x00-\x1f\x7f]/.test(v)))throw Error('ID 및 태그 형식 오류');
+   seen.add(x.id);const row=aiSnapshot[x.id].row;return {row,tags:mergedTags(row.tags,x.tags.map(v=>v.trim()))};
+  });
+  if(!confirm(changes.length+'개 아이콘에 제안 태그를 추가합니까? 원본 태그는 유지됩니다.'))return;
+  for(const x of changes)x.row.tags=x.tags;
+  aiSnapshot=null;$('ai-input').value=$('ai-result').value='';renderFolder();
+ }catch(e){$('folder-status').textContent=e.message;}
+};
+function formats(){
+ const form=$('upload'),type=form.elements.kind.value;
+ if(type!=='iconpack')$('upload-mode').value='file';
+ $('upload-mode-label').hidden=type!=='iconpack';
+ const folder=type==='iconpack'&&$('upload-mode').value==='folder';
+ $('file-mode').hidden=folder;$('folder-mode').hidden=!folder;
+ form.elements.file.required=!folder;form.elements.file.disabled=folder;
+ $('folder-picker').required=folder;$('folder-picker').disabled=!folder;
+ $('pack-name').required=folder;$('pack-version').required=folder;
+ $('pack-name').disabled=$('pack-version').disabled=$('pack-author').disabled=!folder;
+ const list=type==='iconpack'?['streamDeckIconPack','sdIconPack','zip']:['deckforgePlugin','streamDeckPlugin','zip'];$('format').replaceChildren();
+ for(const v of list){const option=el('option',v);option.value=v;$('format').append(option);}
+}
+$('upload').elements.kind.onchange=formats;$('upload-mode').onchange=formats;formats();
 $('login').onsubmit=event=>{event.preventDefault();const f=event.target,password=f.elements.password.value,username=f.elements.username.value;f.elements.password.value='';void run(async()=>{const result=await api('/api/v1/auth/login',{method:'POST',body:{username,password,client:'web'}});show(result.account);await load();});};
 $('logout').onclick=()=>void run(async()=>{try{await api('/api/v1/auth/logout',{method:'POST',body:{}});}finally{reset();}});
 document.querySelectorAll('[data-kind]').forEach(b=>b.onclick=()=>void run(async()=>{kind=b.dataset.kind;$('admin').hidden=true;await load();}));
 $('search').oninput=render;$('refresh').onclick=()=>void run(()=>load());$('more').onclick=()=>void run(()=>load(false));
 $('admin-toggle').onclick=()=>void run(async()=>{$('admin').hidden=!$('admin').hidden;if(!$('admin').hidden)await adminList();});
 $('admin-refresh').onclick=()=>void run(()=>adminList());$('admin-more').onclick=()=>void run(()=>adminList(false));
-$('upload').onsubmit=event=>{event.preventDefault();const form=event.target;void run(async()=>{await api('/api/v1/admin/items',{method:'POST',body:new FormData(form)});form.reset();formats();await adminList();});};
+$('upload').onsubmit=event=>{
+ event.preventDefault();const form=event.target;
+ void run(async()=>{
+  if($('upload-mode').value==='folder'&&form.elements.kind.value==='iconpack'){
+   if(folderBlocked||!folderRows.length)throw Error('유효한 아이콘 폴더를 선택하세요.');
+   const metadata={name:$('pack-name').value.trim(),version:$('pack-version').value.trim(),author:$('pack-author').value.trim(),icons:folderRows.map(r=>({path:r.path,tags:r.tags}))};
+   const blob=new Blob([JSON.stringify(metadata)],{type:'application/json'});if(blob.size>1024*1024)throw Error('아이콘 메타데이터 크기 초과');
+   const body=new FormData();for(const field of ['source','license','description','itemId'])body.append(field,form.elements[field].value);
+   body.append('metadata',blob,'metadata.json');for(const r of folderRows)body.append('icons',r.file,r.path);
+   const result=await api('/api/v1/admin/folder-pack',{method:'POST',body});
+   clearFolder();form.reset();formats();await adminList();await reviewRelease(result.item.releaseId);
+  }else{await api('/api/v1/admin/items',{method:'POST',body:new FormData(form)});clearFolder();form.reset();formats();await adminList();}
+ });
+};
 $('add-account').onsubmit=event=>{event.preventDefault();const form=event.target,data=Object.fromEntries(new FormData(form));form.elements.password.value='';void run(async()=>{await api('/api/v1/admin/accounts',{method:'POST',body:data});form.reset();await adminList();});};
 void run(async()=>{const result=await api('/api/v1/me');show(result.account);await load();});
 setInterval(()=>{if(account&&!busy){const current=epoch;void api('/api/v1/me').catch(()=>{if(current===epoch)reset();});}},15000);

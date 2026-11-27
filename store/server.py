@@ -19,6 +19,7 @@ from signing import signature_payload, verify_document, sign_document
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 from package_inspector import inspect_package, text, MIB
+from folder_pack import make_folder_pack
 
 TTL=3600
 ID=re.compile(r"^[A-Za-z0-9][A-Za-z0-9_-]{0,95}$")
@@ -124,7 +125,7 @@ def create_app(data_dir=None,origin=None):
         response.headers["Cache-Control"]="no-store, private"
         response.headers["X-Content-Type-Options"]="nosniff"
         response.headers["Referrer-Policy"]="no-referrer"
-        response.headers["Content-Security-Policy"]="default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self'; base-uri 'none'; frame-ancestors 'none'; form-action 'self'"
+        response.headers["Content-Security-Policy"]="default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data: blob:; connect-src 'self'; base-uri 'none'; frame-ancestors 'none'; form-action 'self'"
         response.headers["X-Frame-Options"]="DENY"
         return response
     @app.errorhandler(ValueError)
@@ -266,13 +267,28 @@ def create_app(data_dir=None,origin=None):
         if f is None: abort(400)
         kind=request.form.get("kind");source=request.form.get("source")
         fmt=request.form.get("format")
+        data=f.stream.read(60*MIB+1)
+        fallback=Path(f.filename or "Icon pack").stem[:120]
+        return register_upload(user,data,kind,fmt,source,fallback)
+    @app.post("/api/v1/admin/folder-pack")
+    def folder_upload():
+        user,_=authenticate(True)
+        # Override multipart part count only for this owner-only endpoint.
+        request.max_form_parts=2510
+        metadata=request.files.get("metadata")
+        if metadata is None: abort(400)
+        raw=metadata.stream.read(MIB+1)
+        if len(raw)>MIB: abort(413)
+        try: info=json.loads(raw)
+        except (ValueError,UnicodeError): abort(400)
+        data=make_folder_pack(info,request.files.getlist("icons"))
+        return register_upload(user,data,"iconpack","zip",request.form.get("source"),info["name"])
+    def register_upload(user,data,kind,fmt,source,fallback):
         description=request.form.get("description","")[:1500]
         license_note=request.form.get("license","").strip()[:300]
         if not license_note: raise ValueError("license or provenance required")
         for value in (description,license_note):
             value.encode("utf-8","strict")
-        data=f.stream.read(60*MIB+1)
-        fallback=Path(f.filename or "Icon pack").stem[:120]
         info=inspect_package(data,kind,fmt,source,fallback)
         digest=sha(data);ident=request.form.get("itemId") or uid();valid_id(ident);release=uid()
         meta={k:info[k] for k in ("name","version","author","packageId","cover","tags","iconCount")}

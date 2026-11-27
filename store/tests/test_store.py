@@ -125,4 +125,26 @@ const x=JSON.parse(fs.readFileSync(0,'utf8'));if(!fn(x.origin,x.item,{origin:x.o
         member=self.c.get("/api/v1/me",headers=self.member).json["account"]
         self.assertEqual(self.c.post("/api/v1/admin/accounts/"+member["id"]+"/disable",headers=self.owner,json={}).status_code,204)
         self.assertEqual(self.c.get("/api/v1/me",headers=self.member).status_code,401)
+    def test_folder_pack_and_tags(self):
+        png=io.BytesIO();Image.new("RGBA",(16,16),(10,100,200,255)).save(png,format="PNG");image=png.getvalue()
+        def data(paths=("win/copy.png","ha/lamp_on.png","ha/lamp_off.png"),tags=None):
+            meta={"name":"내 아이콘","version":"1.2.0","author":"제작자","icons":[{"path":p,"tags":tags if tags is not None else ["복사","Windows"] if i==0 else []} for i,p in enumerate(paths)]}
+            return {"metadata":(io.BytesIO(json.dumps(meta).encode()),"metadata.json"),"icons":[(io.BytesIO(image),p) for p in paths],"source":"deckforge","license":"own work"}
+        endpoint="/api/v1/admin/folder-pack"
+        self.assertEqual(self.c.post(endpoint,data=data(),headers=self.member).status_code,403)
+        result=self.c.post(endpoint,data=data(),headers=self.owner)
+        self.assertEqual(result.status_code,201,result.json)
+        item=result.json["item"];self.assertEqual(item["name"],"내 아이콘");self.assertEqual(item["version"],"1.2.0");self.assertEqual(item["author"],"제작자")
+        self.assertEqual(item["iconCount"],3);self.assertIn("state",item["tags"])
+        path="/api/v1/admin/releases/"+item["releaseId"]
+        downloaded=self.c.get(path+"/download",headers=self.owner).data
+        with zipfile.ZipFile(io.BytesIO(downloaded)) as z:
+            index=json.loads(z.read("icons.json"));self.assertEqual(index[0],{"path":"win/copy.png","name":"copy","tags":["복사","Windows"]})
+            self.assertEqual(z.read("icons/win/copy.png"),image)
+        for paths in [("../bad.png",),("x.svg",),("copy.png","COPY.png")]:
+            self.assertEqual(self.c.post(endpoint,data=data(paths),headers=self.owner).status_code,400)
+        self.assertEqual(self.c.post(endpoint,data=data(tags=["x"*61]),headers=self.owner).status_code,400)
+        # Beyond the previous 16-part upload limit.
+        result=self.c.post(endpoint,data=data(tuple("folder/icon"+str(i)+".png" for i in range(20))),headers=self.owner)
+        self.assertEqual(result.status_code,201,result.json);self.assertEqual(result.json["item"]["iconCount"],20)
 if __name__=="__main__": unittest.main()
