@@ -34,6 +34,7 @@ const {StoreClient,storeInstalledState}=require('./store-client.cjs');
 const storeClient=new StoreClient(app.getPath('userData'));
 ipcMain.handle('d200x:store-status',event=>{assertEditor(event);return storeClient.status();});
 ipcMain.handle('d200x:store-save',(event,origin)=>{assertEditor(event);return storeClient.save(origin);});
+ipcMain.handle('d200x:store-reset-origin',event=>{assertEditor(event);return storeClient.resetOrigin();});
 ipcMain.handle('d200x:store-check',event=>{assertEditor(event);return storeClient.check();});
 ipcMain.handle('d200x:store-login',(event,username,password)=>{assertEditor(event);return storeClient.login(username,password);});
 ipcMain.handle('d200x:store-logout',event=>{assertEditor(event);return storeClient.logout();});

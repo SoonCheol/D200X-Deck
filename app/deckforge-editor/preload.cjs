@@ -34,6 +34,7 @@ contextBridge.exposeInMainWorld('deckBridge', Object.freeze({
   storeStatus:()=>ipcRenderer.invoke('d200x:store-status'),
   storeTrust:pem=>ipcRenderer.invoke('d200x:store-trust',pem),
   storeSave:origin=>ipcRenderer.invoke('d200x:store-save',origin),
+  storeResetOrigin:()=>ipcRenderer.invoke('d200x:store-reset-origin'),
   storeCheck:()=>ipcRenderer.invoke('d200x:store-check'),
   storeLogin:(username,password)=>ipcRenderer.invoke('d200x:store-login',username,password),
   storeLogout:()=>ipcRenderer.invoke('d200x:store-logout'),

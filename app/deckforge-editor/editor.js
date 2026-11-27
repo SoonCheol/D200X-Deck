@@ -7398,7 +7398,7 @@ async function openStoreConnection(parent){
   dlg.setAttribute('aria-label','스토어 연결 설정');
   dlg.innerHTML='<header class="store-catalog-header"><strong>스토어 연결 및 계정</strong><button type="button" data-close aria-label="닫기">×</button></header>'+
     '<section class="store-connection-fields"><label>서버 주소<input type="url" data-origin placeholder="https://스토어 주소" maxlength="1024" autocomplete="off"></label>'+
-    '<div class="store-connection-buttons"><button type="button" data-save>주소 저장</button><button type="button" data-check>연결 확인</button></div>'+
+    '<div class="store-connection-buttons"><button type="button" data-reset-origin>주소 초기화</button><button type="button" data-save>주소 저장</button><button type="button" data-check>연결 확인</button></div>'+
     '<p class="store-connection-state" role="status"></p><div class="store-connection-login">'+
     '<label>계정<input type="text" data-user maxlength="128" autocomplete="off"></label><label>비밀번호<input type="password" data-password maxlength="1024" autocomplete="off"></label>'+
     '<div class="store-connection-buttons"><button type="button" data-login>로그인</button><button type="button" data-logout>로그아웃</button></div></div>'+
@@ -7406,13 +7406,15 @@ async function openStoreConnection(parent){
   document.body.append(dlg);
   const $=selector=>dlg.querySelector(selector);
   const address=$('[data-origin]'),user=$('[data-user]'),password=$('[data-password]'),message=$('.store-connection-message');
-  const save=$('[data-save]'),check=$('[data-check]'),login=$('[data-login]'),logout=$('[data-logout]'),close=$('[data-close]'),key=$('[data-trust-key]'),trustSave=$('[data-trust-save]'),trustClear=$('[data-trust-clear]');
+  const resetOrigin=$('[data-reset-origin]'),save=$('[data-save]'),check=$('[data-check]'),login=$('[data-login]'),logout=$('[data-logout]'),close=$('[data-close]'),key=$('[data-trust-key]'),trustSave=$('[data-trust-save]'),trustClear=$('[data-trust-clear]');
   let state=null,busy=false;
   function update(){
     const saved=!!state?.origin&&address.value.trim()===state.origin;
     $('.store-connection-state').textContent=state?.account?'로그인: '+state.account.username+' · '+(state.account.role==='owner'?'관리자':'사용자'):state?.checked?'서버 연결 확인 완료 · 로그인 필요':state?.origin?'주소 저장됨 · 연결 미확인':'서버 주소 미설정';
     if(state?.settingsError)message.textContent='저장된 연결 설정을 읽지 못했습니다. 주소를 다시 저장하세요.';
     address.disabled=busy||!!state?.account;save.disabled=busy||!!state?.account||!state;
+    resetOrigin.disabled=busy||!!state?.account||!state;
+    if(state?.defaultOrigin)resetOrigin.title='기본 주소: '+state.defaultOrigin;
     check.disabled=busy||!saved;login.disabled=busy||!saved||!state?.checked||!!state?.account;
     logout.disabled=busy||!state?.account;user.disabled=password.disabled=busy||!!state?.account;close.disabled=busy;
     key.disabled=busy||!saved;trustSave.disabled=busy||!saved||!key.value.trim();trustClear.disabled=busy||!saved||!state?.trustFingerprint;
@@ -7431,6 +7433,7 @@ async function openStoreConnection(parent){
   trustSave.addEventListener('click',()=>void run(async()=>{const result=await window.deckBridge.storeTrust(key.value.trim());key.value='';return result;},()=> '신뢰 등록 상태를 확인하세요.'));
   trustClear.addEventListener('click',()=>void run(()=>window.deckBridge.storeTrust(''),()=> '신뢰 등록 상태를 확인하세요.'));
   save.addEventListener('click',()=>void run(()=>window.deckBridge.storeSave(address.value),()=> '주소 저장 완료 · 연결 확인을 실행하세요.'));
+  resetOrigin.addEventListener('click',()=>void run(()=>window.deckBridge.storeResetOrigin(),result=> '기본 주소 복원: '+result.origin+' · 필요할 때 연결 확인을 실행하세요.'));
   check.addEventListener('click',()=>void run(()=>window.deckBridge.storeCheck(),()=> 'DeckForge Store API v1 응답 확인 완료'));
   login.addEventListener('click',()=>{const secret=password.value;password.value='';void run(()=>window.deckBridge.storeLogin(user.value,secret),()=> '로그인 완료');});
   logout.addEventListener('click',()=>void run(()=>window.deckBridge.storeLogout(),result=>result.revoked?'로그아웃 완료':'로컬 로그아웃 완료 · 서버 세션 철회 확인 실패'));

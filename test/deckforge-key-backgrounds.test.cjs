@@ -318,7 +318,7 @@ test('Store connection is explicit, HTTPS only and account tokens never appear i
      throw Error('unexpected');
    };
    const client=new StoreClient(root,{request,now:()=>now});
-   assert.equal(client.status().origin,'');await assert.rejects(client.login('owner','secret'));
+   assert.equal(client.status().origin,'https://deckstore.homedisk.net');await assert.rejects(client.login('owner','secret'));
    await client.save('https://example.com');assert.equal(calls.length,0);
    await assert.rejects(client.login('owner','secret'));assert.equal(calls.length,0);
    await client.check();const login=await client.login('owner','secret');
@@ -402,5 +402,35 @@ test('Store trust pins an independent Ed25519 key and rejects tampered release f
    const reopened=new StoreClient(root);assert.equal(reopened.isTrusted(item),true);
    await reopened.setTrust('',async()=>true);assert.equal(reopened.isTrusted(item),false);
    await client.save('https://other.example');assert.equal(client.status().trustFingerprint,'');
+ }finally{fs.rmSync(root,{recursive:true,force:true});}
+});
+
+ test('Store default address reset preserves custom settings until explicit reset and never connects',async()=>{
+ const {StoreClient,DEFAULT_STORE_ORIGIN}=require(path.join(dir,'store-client.cjs'));
+ const root=fs.mkdtempSync(path.join(require('node:os').tmpdir(),'deckforge-store-reset-'));
+ const calls=[];const request=async(...args)=>{calls.push(args);throw Error('unexpected connection');};
+ try{
+   const client=new StoreClient(root,{request});
+   assert.equal(DEFAULT_STORE_ORIGIN,'https://deckstore.homedisk.net');
+   assert.equal(client.status().origin,DEFAULT_STORE_ORIGIN);
+   assert.equal(client.status().defaultOrigin,DEFAULT_STORE_ORIGIN);
+   assert.equal(client.status().checked,false);
+   await client.save('https://custom.example:8443');
+   const reopened=new StoreClient(root,{request});
+   assert.equal(reopened.status().origin,'https://custom.example:8443');
+   const crypto=require('node:crypto');
+   const {publicKey}=crypto.generateKeyPairSync('ed25519');
+   await reopened.setTrust(publicKey.export({type:'spki',format:'pem'}).toString(),async()=>true);
+   assert.ok(reopened.status().trustFingerprint);
+   reopened.checked=true;reopened.session={expiresAt:Date.now()+100000,account:{id:'u',username:'owner',role:'owner'},token:'test-token-0123456789'};
+   await assert.rejects(reopened.resetOrigin());
+   assert.equal(reopened.status().origin,'https://custom.example:8443');
+   reopened.session=null;
+   const state=await reopened.resetOrigin();
+   assert.equal(state.origin,DEFAULT_STORE_ORIGIN);assert.equal(state.checked,false);assert.equal(state.trustFingerprint,'');assert.equal(state.account,null);
+   assert.equal(new StoreClient(root,{request}).status().origin,DEFAULT_STORE_ORIGIN);
+   assert.equal(calls.length,0);
+   await reopened.save('');assert.equal(new StoreClient(root,{request}).status().origin,'');
+   await reopened.resetOrigin();assert.equal(calls.length,0);
  }finally{fs.rmSync(root,{recursive:true,force:true});}
 });

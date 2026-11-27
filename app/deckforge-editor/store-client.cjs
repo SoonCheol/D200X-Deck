@@ -6,6 +6,7 @@ const https=require('node:https');
 const {randomUUID,createHash,createPublicKey,verify}=require('node:crypto');
 const semver=require('semver');
 
+const DEFAULT_STORE_ORIGIN='https://deckstore.homedisk.net';
 function normalizeStoreOrigin(value){
   if(typeof value!=='string'||value.length>1024)throw Error('HTTPS 스토어 주소를 확인하세요.');
   const text=value.trim();
@@ -124,7 +125,7 @@ function verifyStoreBytes(item,bytes){
 class StoreClient{
   constructor(directory,{request=storeRequest,now=Date.now}={}){
     this.file=path.join(directory,'store-connection.json');this.request=request;this.now=now;
-    this.origin='';this.checked=false;this.session=null;this.busy=false;this.settingsError=false;this.trust=null;
+    this.origin=DEFAULT_STORE_ORIGIN;this.checked=false;this.session=null;this.busy=false;this.settingsError=false;this.trust=null;
     try{
       const bytes=fs.readFileSync(this.file);
       if(bytes.length>4096)throw Error('settings size');
@@ -135,7 +136,7 @@ class StoreClient{
   }
   status(){
     if(this.session&&this.session.expiresAt<=this.now())this.session=null;
-    return {origin:this.origin,checked:this.checked,account:this.session?{...this.session.account}:null,settingsError:this.settingsError,trustFingerprint:this.trust?.fingerprint||''};
+    return {origin:this.origin,defaultOrigin:DEFAULT_STORE_ORIGIN,checked:this.checked,account:this.session?{...this.session.account}:null,settingsError:this.settingsError,trustFingerprint:this.trust?.fingerprint||''};
   }
   async exclusive(fn){
     if(this.busy)throw Error('스토어 작업이 진행 중입니다.');
@@ -156,6 +157,7 @@ class StoreClient{
       this.origin=next;this.trust=null;this.checked=false;this.session=null;this.settingsError=false;return this.status();
     });
   }
+  resetOrigin(){return this.save(DEFAULT_STORE_ORIGIN);}
   setTrust(pem,confirm){
     return this.exclusive(async()=>{
       if(!this.origin)throw Error('서버 주소를 먼저 저장하세요.');
@@ -247,4 +249,4 @@ class StoreClient{
     });
   }
 }
-module.exports={normalizeStoreOrigin,StoreClient,storeCatalogItem,verifyStoreBytes,storePreviewPng,storeInstalledState,storeTrustKey,storeSignaturePayload,verifyStoreSignature};
+module.exports={DEFAULT_STORE_ORIGIN,normalizeStoreOrigin,StoreClient,storeCatalogItem,verifyStoreBytes,storePreviewPng,storeInstalledState,storeTrustKey,storeSignaturePayload,verifyStoreSignature};
