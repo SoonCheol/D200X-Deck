@@ -7402,11 +7402,11 @@ async function openStoreConnection(parent){
     '<p class="store-connection-state" role="status"></p><div class="store-connection-login">'+
     '<label>계정<input type="text" data-user maxlength="128" autocomplete="off"></label><label>비밀번호<input type="password" data-password maxlength="1024" autocomplete="off"></label>'+
     '<div class="store-connection-buttons"><button type="button" data-login>로그인</button><button type="button" data-logout>로그아웃</button></div></div>'+
-    '<p class="store-connection-message" role="status"></p><p class="store-pack-meta">로컬 목록은 연결 없이 사용 가능합니다. 서버 배포 및 원격 카탈로그는 후속 개발입니다. 로그인 정보는 재시작 시 다시 입력합니다.</p></section>';
+    '<label>게시자 공개키 (관리자로부터 별도 확인)<textarea data-trust-key maxlength="2048" rows="3" placeholder="-----BEGIN PUBLIC KEY-----" spellcheck="false"></textarea></label><div class="store-connection-buttons"><button type="button" data-trust-save>신뢰 등록</button><button type="button" data-trust-clear>신뢰 철회</button></div><p class="store-pack-meta" data-trust-status></p><p class="store-connection-message" role="status"></p><p class="store-pack-meta">로컬 목록은 연결 없이 사용 가능합니다. 로그인 정보는 재시작 시 다시 입력합니다.</p></section>';
   document.body.append(dlg);
   const $=selector=>dlg.querySelector(selector);
   const address=$('[data-origin]'),user=$('[data-user]'),password=$('[data-password]'),message=$('.store-connection-message');
-  const save=$('[data-save]'),check=$('[data-check]'),login=$('[data-login]'),logout=$('[data-logout]'),close=$('[data-close]');
+  const save=$('[data-save]'),check=$('[data-check]'),login=$('[data-login]'),logout=$('[data-logout]'),close=$('[data-close]'),key=$('[data-trust-key]'),trustSave=$('[data-trust-save]'),trustClear=$('[data-trust-clear]');
   let state=null,busy=false;
   function update(){
     const saved=!!state?.origin&&address.value.trim()===state.origin;
@@ -7415,6 +7415,8 @@ async function openStoreConnection(parent){
     address.disabled=busy||!!state?.account;save.disabled=busy||!!state?.account||!state;
     check.disabled=busy||!saved;login.disabled=busy||!saved||!state?.checked||!!state?.account;
     logout.disabled=busy||!state?.account;user.disabled=password.disabled=busy||!!state?.account;close.disabled=busy;
+    key.disabled=busy||!saved;trustSave.disabled=busy||!saved||!key.value.trim();trustClear.disabled=busy||!saved||!state?.trustFingerprint;
+    $('[data-trust-status]').textContent=state?.trustFingerprint?'신뢰 공개키 SHA256: '+state.trustFingerprint:'등록된 게시자 공개키 없음';
     const header=parent.querySelector('[data-store-connection]');
     if(header)header.textContent=state?.account?'계정 · 연결':'연결 설정';
   }
@@ -7425,6 +7427,9 @@ async function openStoreConnection(parent){
     finally{busy=false;password.value='';if(dlg.open)update();}
   }
   address.addEventListener('input',update);
+  key.addEventListener('input',update);
+  trustSave.addEventListener('click',()=>void run(async()=>{const result=await window.deckBridge.storeTrust(key.value.trim());key.value='';return result;},()=> '신뢰 등록 상태를 확인하세요.'));
+  trustClear.addEventListener('click',()=>void run(()=>window.deckBridge.storeTrust(''),()=> '신뢰 등록 상태를 확인하세요.'));
   save.addEventListener('click',()=>void run(()=>window.deckBridge.storeSave(address.value),()=> '주소 저장 완료 · 연결 확인을 실행하세요.'));
   check.addEventListener('click',()=>void run(()=>window.deckBridge.storeCheck(),()=> 'DeckForge Store API v1 응답 확인 완료'));
   login.addEventListener('click',()=>{const secret=password.value;password.value='';void run(()=>window.deckBridge.storeLogin(user.value,secret),()=> '로그인 완료');});
@@ -7443,7 +7448,7 @@ async function openRemoteStore(parent,kind,onInstalled){
   dlg.setAttribute('aria-label','서버 스토어 목록');
   dlg.innerHTML='<header class="store-catalog-header"><strong>서버 '+(kind==='iconpack'?'아이콘팩':'플러그인')+'</strong><button type="button" data-remote-close aria-label="닫기">×</button></header>'+
     '<div class="store-catalog-toolbar"><input type="search" data-remote-query placeholder="현재 불러온 목록 검색" aria-label="서버 목록 검색"><button type="button" data-remote-reload>새로 고침</button></div>'+
-    '<p class="store-catalog-status" role="status"></p><div class="store-catalog-grid"></div><footer class="store-catalog-footer">서버 로그인 필요 · 패키지 크기 및 SHA256 확인 · 플러그인은 파일 저장만 지원</footer>';
+    '<p class="store-catalog-status" role="status"></p><div class="store-catalog-grid"></div><footer class="store-catalog-footer">서버 로그인 필요 · 크기 및 SHA256 확인 · 신뢰 서명된 독자 플러그인만 직접 설치</footer>';
   document.body.append(dlg);
   const find=sel=>dlg.querySelector(sel),grid=find('.store-catalog-grid'),status=find('.store-catalog-status'),query=find('[data-remote-query]'),reload=find('[data-remote-reload]'),close=find('[data-remote-close]');
   let items=[],cursor='',busy=false,selected=null,expired=false,interval=null,previewImages=[],previewError='',previewRequest=0;
@@ -7478,7 +7483,14 @@ async function openRemoteStore(parent,kind,onInstalled){
         if(item.local?.state==='installed')install.disabled=true;
         grid.append(install);
       }
-      else grid.append(node('p','store-pack-meta','플러그인 직접 설치는 게시자 신뢰 및 서명 검증 이후 지원합니다. 저장 파일은 기존 설치 기능에서 직접 선택할 수 있습니다.'));
+      else{
+        grid.append(node('p','store-pack-meta',item.trusted?'등록 공개키 서명 확인':'미서명 또는 신뢰되지 않은 게시자 · 직접 설치 불가'));
+        if(item.trusted){
+          const install=button(item.local?.state==='update'?'플러그인 업데이트':'플러그인 설치',()=>void download(item,true));
+          if(['same-version','newer','different'].includes(item.local?.state))install.disabled=true;
+          grid.append(install);
+        }
+      }
       return;
     }
     const q=query.value.trim().toLocaleLowerCase(),matching=items.filter(item=>[item.name,item.author,item.version,item.description,...item.tags].some(x=>x.toLocaleLowerCase().includes(q)));
@@ -7524,9 +7536,10 @@ async function openRemoteStore(parent,kind,onInstalled){
     if(busy||expired)return;setBusy(true);status.textContent='다운로드 및 검증 중…';
     try{
       if(!await guard())return;
-      const result=await window.deckBridge.storeDownload(kind,item.id,item.releaseId,item.sha256,install);
+      const result=await window.deckBridge.storeDownload(kind,item.id,item.releaseId,item.sha256,install&&kind==='iconpack',install&&kind==='plugin');
       if(result?.kind==='installed'){item.local={state:'installed',version:item.version};await onInstalled();}
-      if(dlg.open&&await guard())status.textContent=result?.kind==='installed'?'아이콘팩 설치 완료':result?.kind==='already-installed'?'이미 설치된 아이콘팩입니다.':result?.kind==='saved'?'패키지 저장 완료':'취소됨';
+      if(result?.kind==='plugin-installed'){item.local={state:'same-version',version:item.version};await refreshSdkPlugins();scheduleSdkSync();}
+      if(dlg.open&&await guard())status.textContent=result?.kind==='plugin-installed'?'플러그인 설치 완료':result?.kind==='installed'?'아이콘팩 설치 완료':result?.kind==='already-installed'?'이미 설치된 아이콘팩입니다.':result?.kind==='saved'?'패키지 저장 완료':'취소됨';
     }catch(error){if(dlg.open)status.textContent='다운로드 실패: '+String(error?.message||error);}
     finally{if(dlg.open)setBusy(false);}
   }

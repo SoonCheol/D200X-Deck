@@ -381,3 +381,26 @@ test('Store preview validation and non-destructive version comparison use precis
  assert.equal(storeInstalledState({kind:'plugin',packageId:'com.vendor.test',version:'2.0.0'},[{uuid:'com.vendor.test',version:'2.0.0'}],origin).state,'same-version');
  assert.equal(old.version,'1.0.0');
 });
+
+test('Store trust pins an independent Ed25519 key and rejects tampered release fields',async()=>{
+ const {StoreClient,storeTrustKey,storeSignaturePayload,verifyStoreSignature}=require(path.join(dir,'store-client.cjs'));
+ const crypto=require('node:crypto'),os=require('node:os'),root=fs.mkdtempSync(path.join(os.tmpdir(),'deckforge-store-trust-'));
+ try{
+   const {publicKey,privateKey}=crypto.generateKeyPairSync('ed25519');
+   const pem=publicKey.export({type:'spki',format:'pem'}).toString(),key=storeTrustKey(pem),origin='https://example.com';
+   const item={id:'p1',releaseId:'r1',kind:'plugin',packageId:'com.deckforge.optional',name:'Optional',version:'1.0.0',format:'deckforgePlugin',size:100,sha256:'a'.repeat(64),source:'deckforge',visibility:'private'};
+   item.signature={keyId:key.fingerprint,value:crypto.sign(null,storeSignaturePayload(origin,item),privateKey).toString('base64')};
+   const trust={origin,...key};
+   assert.equal(verifyStoreSignature(origin,item,trust),true);
+   for(const change of [{version:'2.0.0'},{sha256:'b'.repeat(64)},{source:'third-party'},{visibility:'public'},{releaseId:'r2'},{packageId:'other'}])assert.equal(verifyStoreSignature(origin,{...item,...change},trust),false);
+   assert.equal(verifyStoreSignature('https://other.example',item,trust),false);
+   assert.equal(verifyStoreSignature(origin,item,null),false);
+   const client=new StoreClient(root);await client.save(origin);
+   await client.setTrust(pem,async()=>false);assert.equal(client.status().trustFingerprint,'');
+   await client.setTrust(pem,async(fingerprint,o)=>fingerprint===key.fingerprint&&o===origin);
+   assert.equal(client.isTrusted(item),true);
+   const reopened=new StoreClient(root);assert.equal(reopened.isTrusted(item),true);
+   await reopened.setTrust('',async()=>true);assert.equal(reopened.isTrusted(item),false);
+   await client.save('https://other.example');assert.equal(client.status().trustFingerprint,'');
+ }finally{fs.rmSync(root,{recursive:true,force:true});}
+});

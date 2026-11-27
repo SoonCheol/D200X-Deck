@@ -3,7 +3,7 @@
 const fs=require('node:fs');
 const path=require('node:path');
 const https=require('node:https');
-const {randomUUID,createHash}=require('node:crypto');
+const {randomUUID,createHash,createPublicKey,verify}=require('node:crypto');
 const semver=require('semver');
 
 function normalizeStoreOrigin(value){
@@ -95,7 +95,27 @@ function storeCatalogItem(raw,kind,role){
   if(!Number.isSafeInteger(raw.size)||raw.size<1||raw.size>max||typeof raw.sha256!=='string'||!/^[a-f0-9]{64}$/.test(raw.sha256))throw Error('스토어 파일 검증 정보 오류');
   const tags=Array.isArray(raw.tags)?raw.tags.slice(0,20).filter(v=>typeof v==='string'&&v.length<=80):[];
   return {id,releaseId,kind,packageId,format,size:raw.size,sha256:raw.sha256,name:str(raw.name,120),version:str(raw.version,40),
-    author:typeof raw.author==='string'?raw.author.slice(0,120):'',description:typeof raw.description==='string'?raw.description.slice(0,1500):'',source:raw.source,visibility:raw.visibility,tags,cover:storePreviewPng(raw.cover,12288)};
+    author:typeof raw.author==='string'?raw.author.slice(0,120):'',description:typeof raw.description==='string'?raw.description.slice(0,1500):'',source:raw.source,visibility:raw.visibility,tags,cover:storePreviewPng(raw.cover,12288),signature:raw.signature&&/^[a-f0-9]{64}$/.test(raw.signature.keyId||'')&&typeof raw.signature.value==='string'&&raw.signature.value.length===88?{keyId:raw.signature.keyId,value:raw.signature.value}:null};
+}
+// Trust is a manually pinned administrator-provided public key, never a key received from the Store API.
+function storeTrustKey(pem){
+  if(typeof pem!=='string'||pem.length>2048||!/^-----BEGIN PUBLIC KEY-----\s+[A-Za-z0-9+/=\s]+-----END PUBLIC KEY-----\s*$/.test(pem.trim()))throw Error('Ed25519 공개키 PEM 형식을 확인하세요.');
+  let key;try{key=createPublicKey(pem);}catch{throw Error('공개키 형식 오류');}
+  if(key.asymmetricKeyType!=='ed25519')throw Error('Ed25519 공개키만 지원합니다.');
+  const canonical=key.export({type:'spki',format:'pem'}).toString();
+  return {pem:canonical,fingerprint:createHash('sha256').update(key.export({type:'spki',format:'der'})).digest('hex')};
+}
+function storeSignaturePayload(origin,item){
+  return Buffer.from(JSON.stringify(['DeckForge Store release v1',origin,item.id,item.releaseId,item.kind,item.packageId,item.name,item.version,item.format,item.size,item.sha256,item.source,item.visibility]),'utf8');
+}
+function verifyStoreSignature(origin,item,trust){
+  if(item.kind!=='plugin'||item.source!=='deckforge'||item.format!=='deckforgePlugin'||!trust||trust.origin!==origin||!item.signature)return false;
+  try{
+    const key=storeTrustKey(trust.pem);
+    if(item.signature.keyId!==key.fingerprint||! /^[A-Za-z0-9+/]{86}==$/.test(item.signature.value))return false;
+    const bytes=Buffer.from(item.signature.value,'base64');
+    return bytes.length===64&&bytes.toString('base64')===item.signature.value&&verify(null,storeSignaturePayload(origin,item),key.pem,bytes);
+  }catch{return false;}
 }
 function verifyStoreBytes(item,bytes){
   if(!Buffer.isBuffer(bytes)||bytes.length!==item.size||createHash('sha256').update(bytes).digest('hex')!==item.sha256)throw Error('다운로드 크기 또는 SHA256이 일치하지 않습니다.');
@@ -104,17 +124,18 @@ function verifyStoreBytes(item,bytes){
 class StoreClient{
   constructor(directory,{request=storeRequest,now=Date.now}={}){
     this.file=path.join(directory,'store-connection.json');this.request=request;this.now=now;
-    this.origin='';this.checked=false;this.session=null;this.busy=false;this.settingsError=false;
+    this.origin='';this.checked=false;this.session=null;this.busy=false;this.settingsError=false;this.trust=null;
     try{
       const bytes=fs.readFileSync(this.file);
       if(bytes.length>4096)throw Error('settings size');
       const saved=JSON.parse(bytes.toString('utf8'));if(saved?.version!==1)throw Error('settings version');
       this.origin=normalizeStoreOrigin(saved.origin);
+      if(saved.trust&&this.origin&&saved.trust.origin===this.origin)this.trust={origin:this.origin,...storeTrustKey(saved.trust.pem)};
     }catch(error){if(error.code!=='ENOENT')this.settingsError=true;}
   }
   status(){
     if(this.session&&this.session.expiresAt<=this.now())this.session=null;
-    return {origin:this.origin,checked:this.checked,account:this.session?{...this.session.account}:null,settingsError:this.settingsError};
+    return {origin:this.origin,checked:this.checked,account:this.session?{...this.session.account}:null,settingsError:this.settingsError,trustFingerprint:this.trust?.fingerprint||''};
   }
   async exclusive(fn){
     if(this.busy)throw Error('스토어 작업이 진행 중입니다.');
@@ -132,9 +153,24 @@ class StoreClient{
         fs.writeFileSync(tmp,JSON.stringify({version:1,origin:next}),{encoding:'utf8',mode:0o600,flag:'wx'});
         fs.renameSync(tmp,this.file);
       }finally{fs.rmSync(tmp,{force:true});}
-      this.origin=next;this.checked=false;this.session=null;this.settingsError=false;return this.status();
+      this.origin=next;this.trust=null;this.checked=false;this.session=null;this.settingsError=false;return this.status();
     });
   }
+  setTrust(pem,confirm){
+    return this.exclusive(async()=>{
+      if(!this.origin)throw Error('서버 주소를 먼저 저장하세요.');
+      const trust=pem?{origin:this.origin,...storeTrustKey(pem)}:null;
+      if(!await confirm(trust?.fingerprint||'',this.origin))return this.status();
+      fs.mkdirSync(path.dirname(this.file),{recursive:true});
+      const tmp=this.file+'.'+randomUUID()+'.tmp';
+      try{
+        fs.writeFileSync(tmp,JSON.stringify({version:1,origin:this.origin,trust}),{encoding:'utf8',mode:0o600,flag:'wx'});
+        fs.renameSync(tmp,this.file);
+      }finally{fs.rmSync(tmp,{force:true});}
+      this.trust=trust;this.settingsError=false;return this.status();
+    });
+  }
+  isTrusted(item){return verifyStoreSignature(this.origin,item,this.trust);}
   check(){
     return this.exclusive(async()=>{
       if(!this.origin)throw Error('스토어 서버 주소를 먼저 저장하세요.');
@@ -174,7 +210,7 @@ class StoreClient{
       if(!Array.isArray(result?.items)||result.items.length>20)throw Error('스토어 목록 응답 오류');
       const items=result.items.map(raw=>storeCatalogItem(raw,kind,session.account.role)).filter(Boolean);
       if(new Set(items.map(x=>x.id)).size!==items.length)throw Error('스토어 항목 중복');
-      return {items,nextCursor:result.nextCursor?storeId(result.nextCursor):''};
+      return {items:items.map(item=>({...item,trusted:this.isTrusted(item)})),nextCursor:result.nextCursor?storeId(result.nextCursor):''};
     });
   }
   preview(kind,id,releaseId,expectedHash){
@@ -188,13 +224,14 @@ class StoreClient{
       return {cover:item.cover,previews};
     });
   }
-  download(kind,id,releaseId,expectedHash,consume){
+  download(kind,id,releaseId,expectedHash,consume,requireTrusted=false){
     return this.exclusive(async()=>{
       const session=this.requireSession();storeId(id);storeId(releaseId);
       const raw=await this.request(this.origin,'/api/v1/items/'+id,{token:session.token,jsonLimit:1048576});
       const item=storeCatalogItem(raw?.item,kind,session.account.role);
       if(!item||item.id!==id||item.releaseId!==releaseId||item.sha256!==expectedHash)throw Error('스토어 항목이 변경되었거나 접근할 수 없습니다. 목록을 새로 고침하세요.');
       this.requireSession();
+      if(requireTrusted&&!this.isTrusted(item))throw Error('등록된 게시자 공개키로 서명을 확인할 수 없습니다.');
       const bytes=await this.request(this.origin,'/api/v1/items/'+id+'/releases/'+releaseId+'/download',{token:session.token,binarySize:item.size});
       verifyStoreBytes(item,bytes);this.requireSession();
       return consume(item,bytes);
@@ -210,4 +247,4 @@ class StoreClient{
     });
   }
 }
-module.exports={normalizeStoreOrigin,StoreClient,storeCatalogItem,verifyStoreBytes,storePreviewPng,storeInstalledState};
+module.exports={normalizeStoreOrigin,StoreClient,storeCatalogItem,verifyStoreBytes,storePreviewPng,storeInstalledState,storeTrustKey,storeSignaturePayload,verifyStoreSignature};

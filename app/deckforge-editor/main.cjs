@@ -37,6 +37,14 @@ ipcMain.handle('d200x:store-save',(event,origin)=>{assertEditor(event);return st
 ipcMain.handle('d200x:store-check',event=>{assertEditor(event);return storeClient.check();});
 ipcMain.handle('d200x:store-login',(event,username,password)=>{assertEditor(event);return storeClient.login(username,password);});
 ipcMain.handle('d200x:store-logout',event=>{assertEditor(event);return storeClient.logout();});
+ipcMain.handle('d200x:store-trust',(event,pem)=>{
+  assertEditor(event);
+  if(typeof pem!=='string')throw Error('공개키 형식 오류');
+  return storeClient.setTrust(pem,async(fingerprint,origin)=>{
+    const result=await dialog.showMessageBox(window,{type:'warning',title:fingerprint?'스토어 게시자 신뢰 등록':'스토어 게시자 신뢰 철회',message:origin,detail:fingerprint?'관리자로부터 별도로 전달받은 공개키 지문과 일치하는지 확인하세요.\nSHA256: '+fingerprint+'\n이 키가 서명한 자체 플러그인만 직접 설치할 수 있습니다.':'이 서버의 신뢰 키를 철회합니다. 설치된 플러그인은 변경하지 않습니다.',buttons:['취소',fingerprint?'신뢰 등록':'철회'],defaultId:0,cancelId:0,noLink:true});
+    return result.response===1;
+  });
+});
 ipcMain.handle('d200x:store-catalog',async(event,kind,cursor)=>{
   assertEditor(event);
   const origin=storeClient.status().origin;
@@ -49,9 +57,19 @@ ipcMain.handle('d200x:store-catalog',async(event,kind,cursor)=>{
   return {...page,items:page.items.map(item=>({...item,local:storeInstalledState(item,installed,origin)}))};
 });
 ipcMain.handle('d200x:store-preview',(event,kind,id,releaseId,hash)=>{assertEditor(event);return storeClient.preview(kind,id,releaseId,hash);});
-ipcMain.handle('d200x:store-download',(event,kind,id,releaseId,hash,installIconPack=false)=>{
+ipcMain.handle('d200x:store-download',(event,kind,id,releaseId,hash,installIconPack=false,installPlugin=false)=>{
   assertEditor(event);
+  if(installPlugin===true&&kind!=='plugin')throw Error('플러그인 종류 오류');
   return storeClient.download(kind,id,releaseId,hash,async(item,bytes)=>{
+    if(installPlugin===true){
+      if(!storeClient.isTrusted(item))throw Error('신뢰되지 않은 패키지');
+      const packageData=await DeckForgePlugins.parseDeckForgePackage(bytes);
+      const native=packageData.native;
+      if(!native||packageData.meta.source?.kind==='ulanzi-converted'||native.id!==item.packageId||native.name!==item.name||native.version!==item.version)throw Error('자체 독자 SDK 패키지 식별 정보가 일치하지 않습니다.');
+      if(['com.deckforge.native.home-assistant','de.perdoctus.streamdeck.homeassistant','com.autodesk.fusionstreamdeck','com.deckforge.native.github-status'].includes(native.id.toLowerCase()))throw Error('기본 제공 플러그인은 스토어에서 설치하지 않습니다.');
+      const plugin=await pluginAudit('install',native.id,async audit=>installNativePackage(packageData,audit,{forceConfirm:true,source:'스토어 서명 확인',beforeExecute:()=>{storeClient.requireSession();if(!storeClient.isTrusted(item))throw Error('게시자 신뢰 확인 실패');}}));
+      return plugin?{kind:'plugin-installed',name:native.name,version:native.version}:null;
+    }
     if(installIconPack===true){
       if(item.kind!=='iconpack')throw Error('플러그인 직접 설치는 아직 지원하지 않습니다.');
       const pack=await parseIconPack(bytes,normalizeImportedIcon,item.name);
@@ -74,7 +92,7 @@ ipcMain.handle('d200x:store-download',(event,kind,id,releaseId,hash,installIconP
     storeClient.requireSession();
     await fs.promises.writeFile(result.filePath,bytes,{flag:'wx'});
     return {kind:'saved',name:item.name};
-  });
+  },installPlugin===true);
 });
 let sdkHost=null;
 const pluginAudit=require('./plugin-audit.cjs').createPluginAudit({userData:app.getPath('userData'),appVersion:app.getVersion(),onError:()=>console.warn('DeckForge plugin audit write failed')});
@@ -399,6 +417,29 @@ ipcMain.on('d200x:fusion-panel-bounds',(event,rect)=>{
  applyFusionPanelBounds(rect);
 });
 
+async function installNativePackage(packageData,audit,{forceConfirm=false,source='',beforeExecute}={}){
+      const native=packageData.native;audit.identify(native);
+      const labels={'settings.write':'현재 버튼 설정 저장','navigation':'프로필·페이지·덱폴더 이동','wide.mode':'와이드 화면 모드 전환','wide.overlay':'와이드 화면 임시 이미지·레이아웃 표시','global.settings':'플러그인 전역 암호화 설정 읽기·쓰기','network.request':'승인된 HTTPS 주소로 네트워크 요청','timer.tick':'활성 화면에서 주기적 표시 갱신','network.poll':'승인된 HTTPS GET 주소 주기적 조회','network.websocket':'승인된 WSS 실시간 연결 및 메시지 송수신','background.run':'페이지와 무관하게 독립 서비스 실행 및 상태 공유','browser.open':'버튼을 눌렀을 때 기본 브라우저에서 HTTP/HTTPS 주소 열기'};
+      const plan=await sdk().planNativeInstall(native);audit.identify(plan);audit.operation(plan.kind);audit.stage('confirm');
+      const extra=native.permissions.filter(p=>p!=='display');
+      const dependencies=Object.entries(native.dependencies||{}).map(([id,range])=>id+' '+range);
+      const conversion=packageData.meta.source?.kind==='ulanzi-converted'?packageData.meta.source:null;
+      if(forceConfirm||extra.length||dependencies.length||conversion||plan.kind!=='install'){
+        const verb=plan.kind==='update'?'업데이트':plan.kind==='rollback'?'이전 버전 복원':'설치';
+        const versions=plan.kind==='install'?native.version:plan.currentVersion+' → '+native.version;
+        const result=await dialog.showMessageBox(window,{
+          type:'question',title:'DeckForge 플러그인 '+verb,message:native.name+' '+verb+' 확인',
+          detail:(source?source+'\n':'')+'ID: '+native.id+'\n버전: '+versions+'\n'+extra.map(p=>'• '+labels[p]).join('\n')+'\n'+
+            (conversion?'Ulanzi 변환 원본: '+conversion.originalId+'\n검토 기록 해시: '+conversion.reviewSha256+'\n검토 기록은 전자서명 또는 실기 인증서가 아닙니다.\n':'')+
+            (dependencies.length?'필요 플러그인: '+dependencies.join(', ')+'\n':'')+
+            (native.networkEndpoints?.length?'허용할 네트워크 요청:\n'+native.networkEndpoints.map(e=>e.method+' '+e.url+(e.pathKeys?e.pathKeys.map(k=>'{'+k+'}').join('/'):'')+(e.queryKeys?' · 쿼리: '+e.queryKeys.join(', '):'')+(e.headerKeys?' · 헤더: '+e.headerKeys.join(', '):'')+(e.auth==='bearer'?' · Bearer 인증':e.auth==='home-assistant'?' · Home Assistant 메시지 인증':'')+(e.reconnect?' · 제한 자동 재연결':'')).join('\n')+'\n':'')+
+            (plan.kind==='install'?'':'이전 코드 보존 · 설정과 프로필은 그대로 유지됩니다.\n')+'신뢰하는 플러그인만 설치하세요.',
+          buttons:['취소',verb],defaultId:0,cancelId:0,noLink:true
+        });
+        if(result.response!==1)return null;
+      }
+      beforeExecute?.();audit.stage('execute');return plan.kind==='install'?sdk().installNative(native,native.permissions.includes('browser.open')):sdk().replaceNative(native,plan.currentRevision,native.permissions.includes('browser.open'));
+}
 ipcMain.handle('d200x:sdk-install',async event=>{
  assertEditor(event);
  return pluginAudit('install',null,async audit=>{
@@ -419,27 +460,7 @@ ipcMain.handle('d200x:sdk-install',async event=>{
     // Preserve the SDK compatibility runtime; independent DeckForge package
     // metadata and payload have already passed validation.
     if(packageData.native){
-      const native=packageData.native;audit.identify(native);
-      const labels={'settings.write':'현재 버튼 설정 저장','navigation':'프로필·페이지·덱폴더 이동','wide.mode':'와이드 화면 모드 전환','wide.overlay':'와이드 화면 임시 이미지·레이아웃 표시','global.settings':'플러그인 전역 암호화 설정 읽기·쓰기','network.request':'승인된 HTTPS 주소로 네트워크 요청','timer.tick':'활성 화면에서 주기적 표시 갱신','network.poll':'승인된 HTTPS GET 주소 주기적 조회','network.websocket':'승인된 WSS 실시간 연결 및 메시지 송수신','background.run':'페이지와 무관하게 독립 서비스 실행 및 상태 공유','browser.open':'버튼을 눌렀을 때 기본 브라우저에서 HTTP/HTTPS 주소 열기'};
-      const plan=await sdk().planNativeInstall(native);audit.identify(plan);audit.operation(plan.kind);audit.stage('confirm');
-      const extra=native.permissions.filter(p=>p!=='display');
-      const dependencies=Object.entries(native.dependencies||{}).map(([id,range])=>id+' '+range);
-      const conversion=packageData.meta.source?.kind==='ulanzi-converted'?packageData.meta.source:null;
-      if(extra.length||dependencies.length||conversion||plan.kind!=='install'){
-        const verb=plan.kind==='update'?'업데이트':plan.kind==='rollback'?'이전 버전 복원':'설치';
-        const versions=plan.kind==='install'?native.version:plan.currentVersion+' → '+native.version;
-        const result=await dialog.showMessageBox(window,{
-          type:'question',title:'DeckForge 플러그인 '+verb,message:native.name+' '+verb+' 확인',
-          detail:'ID: '+native.id+'\n버전: '+versions+'\n'+extra.map(p=>'• '+labels[p]).join('\n')+'\n'+
-            (conversion?'Ulanzi 변환 원본: '+conversion.originalId+'\n검토 기록 해시: '+conversion.reviewSha256+'\n검토 기록은 전자서명 또는 실기 인증서가 아닙니다.\n':'')+
-            (dependencies.length?'필요 플러그인: '+dependencies.join(', ')+'\n':'')+
-            (native.networkEndpoints?.length?'허용할 네트워크 요청:\n'+native.networkEndpoints.map(e=>e.method+' '+e.url+(e.pathKeys?e.pathKeys.map(k=>'{'+k+'}').join('/'):'')+(e.queryKeys?' · 쿼리: '+e.queryKeys.join(', '):'')+(e.headerKeys?' · 헤더: '+e.headerKeys.join(', '):'')+(e.auth==='bearer'?' · Bearer 인증':e.auth==='home-assistant'?' · Home Assistant 메시지 인증':'')+(e.reconnect?' · 제한 자동 재연결':'')).join('\n')+'\n':'')+
-            (plan.kind==='install'?'':'이전 코드 보존 · 설정과 프로필은 그대로 유지됩니다.\n')+'신뢰하는 플러그인만 설치하세요.',
-          buttons:['취소',verb],defaultId:0,cancelId:0,noLink:true
-        });
-        if(result.response!==1)return null;
-      }
-      audit.stage('execute');return plan.kind==='install'?sdk().installNative(native,native.permissions.includes('browser.open')):sdk().replaceNative(native,plan.currentRevision,native.permissions.includes('browser.open'));
+      return installNativePackage(packageData,audit);
     }
     audit.stage('execute');return sdk().install(packageData.archive);
   }
