@@ -135,7 +135,8 @@ def inspect_iconpack(z, names, fallback):
     naming = (["ha-name"] if ha_named else []) + (["state"] if any(len(v)==2 for v in pairs.values()) else [])
     tags = [purpose, *(naming or ["general-name"]), *(sorted(styles) or ["unknown"])]
     return dict(name=name, version=version, author=author, packageId="", native=False, cover=cover,
-                previews=previews, tags=tags, iconCount=len(paths), searchTerms="\n".join(search_terms))
+                previews=previews, tags=tags, iconCount=len(paths), searchTerms="\n".join(search_terms),
+                packageProfile="elgato-icon-index" if indexes and re.search(r"\.sdIconPack/$",root,re.I) else "indexed-icons" if indexes else "raster-images")
 
 def inspect_plugin(z, names, fmt, source):
     native = False
@@ -169,7 +170,7 @@ def inspect_plugin(z, names, fmt, source):
     require(re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._-]{2,159}",package_id) and package_id.lower() not in BUILTINS
             and not package_id.lower().startswith("com.deckforge.native.ulanzi-"), "excluded plugin identity")
     require(source=="third-party" or native, "own plugins must be native packages")
-    return dict(name=text(name,120),version=text(version,40),author="",packageId=package_id,native=native,cover=None,previews=[],tags=["native" if native else "compatible"],iconCount=0)
+    return dict(name=text(name,120),version=text(version,40),author="",packageId=package_id,native=native,cover=None,previews=[],tags=["native" if native else "compatible"],iconCount=0,packageProfile="deckforge-sdk" if native else "elgato-sdk")
 
 def inspect_package(data, kind, fmt, source, fallback):
     require(kind in ("plugin","iconpack"),"invalid kind")

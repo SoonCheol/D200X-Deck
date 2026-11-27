@@ -60,6 +60,27 @@ class StoreTest(unittest.TestCase):
         self.assertEqual(self.c.post(path.replace("/items/","/admin/items/")+"/withdraw",headers=self.owner,json={}).status_code,204)
         self.assertEqual(self.c.get(download,headers=self.owner).status_code,404)
         self.assertTrue((Path(self.tmp.name)/"blobs"/i["sha256"]).exists())
+    def test_declared_platform_and_detected_profile(self):
+        data={"file":(io.BytesIO(pack()),"icons.zip"),"kind":"iconpack","format":"zip","source":"third-party","platform":"ulanzi","license":"test"}
+        result=self.c.post("/api/v1/admin/items",data=data,headers=self.owner)
+        self.assertEqual(result.status_code,201)
+        item=result.json["item"]
+        self.assertEqual(item["platform"],"ulanzi")
+        self.assertEqual(item["packageProfile"],"indexed-icons")
+        path="/api/v1/admin/releases/"+item["releaseId"]
+        self.assertEqual(self.c.post(path+"/publish",json={"reviewed":True,"visibility":"private"},headers=self.owner).status_code,200)
+        def catalog(platform,headers):
+            return self.c.get("/api/v1/catalog?kind=iconpack&platform="+platform,headers=headers)
+        self.assertEqual(len(catalog("ulanzi",self.owner).json["items"]),1)
+        self.assertEqual(catalog("elgato",self.owner).json["items"],[])
+        self.assertEqual(catalog("ulanzi",self.member).json["items"],[])
+        self.assertEqual(catalog("invalid",self.owner).status_code,400)
+        result=self.c.post(path+"/metadata",json={"description":"","license":"test","platform":"elgato"},headers=self.owner)
+        self.assertEqual(result.status_code,200)
+        self.assertEqual(result.json["item"]["sha256"],item["sha256"])
+        self.assertEqual(result.json["item"]["packageProfile"],"indexed-icons")
+        self.assertEqual(len(catalog("elgato",self.owner).json["items"]),1)
+        self.assertEqual(self.c.post(path+"/metadata",json={"description":"","license":"test","platform":"invalid"},headers=self.owner).status_code,400)
     def test_public_and_logout(self):
         i=self.upload("deckforge").json["item"]
         self.assertEqual(self.c.post("/api/v1/admin/releases/"+i["releaseId"]+"/publish",json={"reviewed":True,"visibility":"public"},headers=self.owner).status_code,200)

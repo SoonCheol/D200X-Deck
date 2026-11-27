@@ -123,7 +123,10 @@ function storeCatalogItem(raw,kind,role){
   const max=(kind==='plugin'?40:60)*1024*1024;
   if(!Number.isSafeInteger(raw.size)||raw.size<1||raw.size>max||typeof raw.sha256!=='string'||!/^[a-f0-9]{64}$/.test(raw.sha256))throw Error('스토어 파일 검증 정보 오류');
   const tags=Array.isArray(raw.tags)?raw.tags.slice(0,20).filter(v=>typeof v==='string'&&v.length<=80):[];
-  return {id,releaseId,kind,packageId,format,size:raw.size,sha256:raw.sha256,name:str(raw.name,120),version:str(raw.version,40),
+  const platform=['deckforge','ulanzi','elgato','generic','unknown'].includes(raw.platform)?raw.platform:'unknown';
+  const profiles=kind==='iconpack'?['elgato-icon-index','indexed-icons','raster-images']:['deckforge-sdk','elgato-sdk'];
+  const packageProfile=profiles.includes(raw.packageProfile)?raw.packageProfile:'unknown';
+  return {id,releaseId,kind,packageId,format,platform,packageProfile,size:raw.size,sha256:raw.sha256,name:str(raw.name,120),version:str(raw.version,40),
     author:typeof raw.author==='string'?raw.author.slice(0,120):'',description:typeof raw.description==='string'?raw.description.slice(0,1500):'',source:raw.source,visibility:raw.visibility,tags,cover:storePreviewPng(raw.cover,12288),signature:raw.signature&&/^[a-f0-9]{64}$/.test(raw.signature.keyId||'')&&typeof raw.signature.value==='string'&&raw.signature.value.length===88?{keyId:raw.signature.keyId,value:raw.signature.value}:null};
 }
 // Trust is a manually pinned administrator-provided public key, never a key received from the Store API.
@@ -238,13 +241,13 @@ class StoreClient{
       const params=new URLSearchParams({kind,limit:'20'});
       if(cursor)params.set('cursor',cursor);
       if(!filters||typeof filters!=='object'||Array.isArray(filters))throw Error('스토어 검색 조건 오류');
-      const allowed={purpose:['general','ha','windows','fusion','media','app'],naming:['general-name','ha-name','state'],design:['color','white','black','gray','line','white-line','black-line','solid','unknown']};
+      const allowed={platform:['deckforge','ulanzi','elgato','generic','unknown'],purpose:['general','ha','windows','fusion','media','app'],naming:['general-name','ha-name','state'],design:['color','white','black','gray','line','white-line','black-line','solid','unknown']};
       for(const [key,value] of Object.entries(filters)){
         if(key==='q'){
           if(typeof value!=='string'||Array.from(value.trim()).length>120)throw Error('스토어 검색어 오류');
           if(value.trim())params.set(key,value.trim());
         }else{
-          if(kind!=='iconpack'||!Object.hasOwn(allowed,key)||typeof value!=='string'||(value&&!allowed[key].includes(value)))throw Error('스토어 분류 조건 오류');
+          if((kind!=='iconpack'&&key!=='platform')||!Object.hasOwn(allowed,key)||typeof value!=='string'||(value&&!allowed[key].includes(value)))throw Error('스토어 분류 조건 오류');
           if(value)params.set(key,value);
         }
       }

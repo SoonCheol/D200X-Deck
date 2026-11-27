@@ -15,6 +15,13 @@ async function api(path,options={}){
 async function run(fn){if(busy)return;busy=true;$('status').textContent='처리 중…';try{await fn();$('status').textContent='완료';}catch(e){$('status').textContent=e.message;}finally{busy=false;}}
 function show(a){account=a;$('login').hidden=true;$('catalog').hidden=$('logout').hidden=false;$('admin-toggle').hidden=a.role!=='owner';$('account').textContent=a.username+' · '+(a.role==='owner'?'관리자':'사용자');}
 function preview(src){if(typeof src!=='string'||! /^[A-Za-z0-9+/]+={0,2}$/.test(src)||src.length>90000)return el('span','');const img=el('img');img.src='data:image/png;base64,'+src;img.alt='아이콘 미리보기';img.loading='lazy';return img;}
+const platformOptions={unknown:'출처 미확인',deckforge:'DeckForge',ulanzi:'Ulanzi',elgato:'Elgato',generic:'범용'};
+const profileOptions={'elgato-icon-index':'Elgato 아이콘팩 규격','indexed-icons':'인덱스형 아이콘팩','raster-images':'범용 래스터 이미지','deckforge-sdk':'DeckForge SDK','elgato-sdk':'Elgato SDK 호환 형식'};
+function provenanceLabel(item){
+ const platform=Object.hasOwn(platformOptions,item.platform)?platformOptions[item.platform]:platformOptions.unknown;
+ const profile=Object.hasOwn(profileOptions,item.packageProfile)?profileOptions[item.packageProfile]:'규격 미확인';
+ return '출처: '+platform+(platform===platformOptions.unknown?'':' (등록 정보)')+' · 규격: '+profile;
+}
 const purposeOptions={general:'일반',ha:'HA · IoT',windows:'Windows · 단축키',fusion:'Fusion · CAD',media:'미디어',app:'프로그램'};
 const namingOptions={'general-name':'일반 파일명','ha-name':'HA 형식 추정',state:'ON/OFF 상태 쌍'};
 const designOptions={color:'컬러',white:'화이트',black:'블랙',gray:'회색',line:'라인','white-line':'화이트 라인','black-line':'블랙 라인',solid:'솔리드',unknown:'미분류'};
@@ -26,6 +33,8 @@ function optionList(select,options,all){
 for(const [id,options,label] of [['purpose',purposeOptions,'전체 용도'],['naming',namingOptions,'전체 네이밍'],['design',designOptions,'전체 디자인']]){
  optionList($(id),options,label);$(id).onchange=queueSearch;
 }
+optionList($('platform-filter'),platformOptions,'전체 출처');$('platform-filter').onchange=queueSearch;
+optionList($('upload-platform'),platformOptions);$('upload-platform').value='unknown';
 $('background').onclick=()=>{const light=document.body.classList.toggle('preview-white');$('background').textContent=light?'검정 배경':'흰 배경';};
 function render(){
  $('cards').replaceChildren();
@@ -33,7 +42,7 @@ function render(){
  for(const item of items){
   const card=button('',()=>detail(item));card.className='card';
   if(item.cover){const art=el('div',undefined,'art');art.append(preview(item.cover));card.append(art);}
-  card.append(el('strong',item.name),el('span',item.version+' · '+(item.visibility==='private'?'비공개':'공개')),el('span',item.tags.join(' · ')));
+  card.append(el('strong',item.name),el('span',item.version+' · '+(item.visibility==='private'?'비공개':'공개')),el('span',provenanceLabel(item)),el('span',item.tags.join(' · ')));
   $('cards').append(card);
  }
  if(!$('cards').children.length)$('cards').append(el('p','표시할 항목이 없습니다.'));
@@ -42,6 +51,7 @@ function render(){
 function requestedCatalog(){
  const params=new URLSearchParams({kind,limit:'20'});
  const q=$('search').value.trim();if(q)params.set('q',q);
+ if($('platform-filter').value)params.set('platform',$('platform-filter').value);
  if(kind==='iconpack')for(const id of ['purpose','naming','design'])if($(id).value)params.set(id,$(id).value);
  return params.toString();
 }
@@ -61,7 +71,7 @@ async function load(resetList=true){
 }
 async function detail(item){
  const data=await api('/api/v1/items/'+encodeURIComponent(item.id));const i=data.item,section=$('detail');
- section.replaceChildren(el('h2',i.name),el('p',i.version+' · '+i.description),el('p','라이선스: '+i.license),el('p','SHA256: '+i.sha256));
+ section.replaceChildren(el('h2',i.name),el('p',i.version+' · '+i.description),el('p',provenanceLabel(i)),el('p','패키지 규격 표시는 구조 확인이며 실제 실행 호환성 인증이 아닙니다.'),el('p','라이선스: '+i.license),el('p','SHA256: '+i.sha256));
  const grid=el('div',undefined,'preview-grid');for(const p of data.previews)grid.append(preview(p));section.append(grid);
  const a=el('a','원본 다운로드');a.href='/api/v1/items/'+encodeURIComponent(i.id)+'/releases/'+encodeURIComponent(i.releaseId)+'/download';section.append(a);section.hidden=false;
 }
@@ -84,7 +94,7 @@ async function adminList(resetList=true){
 function prepareVersion(item){
  const form=$('upload');
  if(!confirm('새 버전 등록 양식을 초기화합니까? 기존 등록 파일은 유지됩니다.'))return;
- clearFolder();form.reset();form.elements.kind.value=item.kind;form.elements.source.value=item.source;
+ clearFolder();form.reset();form.elements.kind.value=item.kind;form.elements.source.value=item.source;form.elements.platform.value=item.platform||'unknown';
  $('upload-mode').value='file';formats();form.elements.format.value=item.format;
  form.elements.itemId.value=item.id;form.elements.license.value=item.license;form.elements.description.value=item.description;
  $('pack-name').value=item.name;$('pack-author').value=item.author||'';$('pack-version').value='';
@@ -103,12 +113,13 @@ async function versionHistory(item,container,cursor=''){
 function link(label,path){const a=el('a',label);a.href=path;return a;}
 async function reviewRelease(releaseId){
  const path='/api/v1/admin/releases/'+encodeURIComponent(releaseId),data=await api(path),i=data.item,section=$('review');
- section.replaceChildren(el('h2',i.name+' '+i.version),el('p',i.description),el('p','SHA256: '+i.sha256),el('p','라이선스: '+i.license),link('검토용 원본 다운로드',path+'/download'));
+ section.replaceChildren(el('h2',i.name+' '+i.version),el('p',i.description),el('p',provenanceLabel(i)),el('p','SHA256: '+i.sha256),el('p','라이선스: '+i.license),link('검토용 원본 다운로드',path+'/download'));
  const grid=el('div',undefined,'preview-grid');for(const p of data.previews)grid.append(preview(p));section.append(grid);
  const description=el('textarea');description.maxLength=1500;description.value=i.description;
  const license=el('input');license.maxLength=300;license.value=i.license;
- section.append(el('label','설명'),description,el('label','출처·라이선스'),license,
-  button('정보 수정 저장',async()=>{if(!license.value.trim())throw Error('출처·라이선스를 입력하세요.');await api(path+'/metadata',{method:'POST',body:{description:description.value,license:license.value}});await adminList();await reviewRelease(releaseId);await load();}),
+ const platform=el('select');optionList(platform,platformOptions);platform.value=i.platform||'unknown';
+ section.append(el('label','설명'),description,el('label','출처·라이선스'),license,el('label','원본 출처 (관리자 확인)'),platform,
+  button('정보 수정 저장',async()=>{if(!license.value.trim())throw Error('출처·라이선스를 입력하세요.');await api(path+'/metadata',{method:'POST',body:{description:description.value,license:license.value,platform:platform.value}});await adminList();await reviewRelease(releaseId);await load();}),
   button('새 버전 등록',()=>prepareVersion(i)),el('h3','버전 이력'));
  const history=el('div');section.append(history);await versionHistory(i,history);
  if(i.kind==='iconpack'){
@@ -223,7 +234,7 @@ $('upload').onsubmit=event=>{
    if(folderBlocked||!folderRows.length)throw Error('유효한 아이콘 폴더를 선택하세요.');
    const metadata={name:$('pack-name').value.trim(),version:$('pack-version').value.trim(),author:$('pack-author').value.trim(),icons:folderRows.map(r=>({path:r.path,tags:r.tags}))};
    const blob=new Blob([JSON.stringify(metadata)],{type:'application/json'});if(blob.size>1024*1024)throw Error('아이콘 메타데이터 크기 초과');
-   const body=new FormData();for(const field of ['source','license','description','itemId'])body.append(field,form.elements[field].value);
+   const body=new FormData();for(const field of ['source','platform','license','description','itemId'])body.append(field,form.elements[field].value);
    body.append('metadata',blob,'metadata.json');for(const r of folderRows)body.append('icons',r.file,r.path);
    const result=await api('/api/v1/admin/folder-pack',{method:'POST',body});
    clearFolder();form.reset();formats();await adminList();await reviewRelease(result.item.releaseId);

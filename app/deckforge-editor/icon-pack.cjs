@@ -92,6 +92,7 @@ async function parseIconPack(input,render,displayName='가져온 아이콘팩'){
   return {
     id:crypto.createHash('sha256').update(input).digest('hex').slice(0,20),
     name,version,
+    packageProfile:indexed?(/\.sdIconPack\/$/i.test(root)?'elgato-icon-index':'indexed-icons'):'raster-images',
     author:typeof manifest.Author==='string'?manifest.Author.slice(0,120):'',
     icons
   };

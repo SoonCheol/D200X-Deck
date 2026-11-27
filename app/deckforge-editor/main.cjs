@@ -120,7 +120,7 @@ ipcMain.handle('d200x:store-download',(event,kind,id,releaseId,hash,installIconP
       if((await listIconPacks()).some(p=>p.id===pack.id))return {kind:'already-installed',name:pack.name};
       if(updateOnly===true&&!storeUpdateCandidate(item,await readPacks(iconPacksFile()),storeClient.status().origin))throw Error('설치된 아이콘팩 버전이 변경되었습니다. 다시 확인하세요.');
       // Preserve each archive ID and the previous pack; do not migrate button artwork.
-      pack.storeSource={origin:storeClient.status().origin,itemId:item.id,releaseId:item.releaseId,sha256:item.sha256};
+      pack.storeSource={origin:storeClient.status().origin,itemId:item.id,releaseId:item.releaseId,sha256:item.sha256,platform:item.platform};
       await ensureIconPacksMigrated();await registerPack(iconPacksFile(),pack);
       return {kind:'installed',name:pack.name};
     }

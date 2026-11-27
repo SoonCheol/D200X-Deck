@@ -30,6 +30,7 @@ ID=re.compile(r"^[A-Za-z0-9][A-Za-z0-9_-]{0,95}$")
 USERNAME=re.compile(r"^[A-Za-z0-9_.-]{3,64}$")
 TOKEN=re.compile(r"^[A-Za-z0-9_-]{43}$")
 COOKIE="deckforge_store_session"
+PLATFORMS={"deckforge","ulanzi","elgato","generic","unknown"}
 PURPOSES={"general","ha","windows","fusion","media","app"}
 NAMING={"general-name","ha-name","state"}
 DESIGNS={"color","white","black","gray","line","white-line","black-line","solid","unknown"}
@@ -225,6 +226,11 @@ def create_app(data_dir=None,origin=None):
                 if kind!="iconpack" or value not in allowed: abort(400)
                 sql+=" AND EXISTS (SELECT 1 FROM json_each(r.meta,'$.tags') WHERE value=?)"
                 params.append(value)
+        platform=request.args.get("platform","")
+        if platform:
+            if platform not in PLATFORMS: abort(400)
+            sql+=" AND COALESCE(json_extract(r.meta,'$.platform'),'unknown')=?"
+            params.append(platform)
         if q:
             # Literal Unicode-normalized substring; never search covers, hidden metadata or other releases.
             fields=("name","author","version","description","packageId")
@@ -325,10 +331,12 @@ def create_app(data_dir=None,origin=None):
         if not license_note: raise ValueError("license or provenance required")
         for value in (description,license_note):
             value.encode("utf-8","strict")
+        platform=request.form.get("platform","unknown")
+        if platform not in PLATFORMS: abort(400)
         info=inspect_package(data,kind,fmt,source,fallback)
         digest=sha(data);ident=request.form.get("itemId") or uid();valid_id(ident);release=uid()
-        meta={k:info[k] for k in ("name","version","author","packageId","cover","tags","iconCount")}
-        meta.update(id=ident,releaseId=release,kind=kind,source=source,visibility="private",format=fmt,
+        meta={k:info[k] for k in ("name","version","author","packageId","cover","tags","iconCount","packageProfile")}
+        meta.update(id=ident,releaseId=release,kind=kind,source=source,platform=platform,visibility="private",format=fmt,
                     size=len(data),sha256=digest,description=description,license=license_note)
         # Immutable blob first; a crash may leave an unreferenced blob, never a dangling release.
         with db(True) as c:
@@ -378,7 +386,8 @@ def create_app(data_dir=None,origin=None):
     @app.post("/api/v1/admin/releases/<release>/metadata")
     def edit_metadata(release):
         user,_=authenticate(True);data=body()
-        if set(data)!={"description","license"}: abort(400)
+        if set(data) not in ({"description","license"},{"description","license","platform"}): abort(400)
+        if "platform" in data and (not isinstance(data["platform"],str) or data["platform"] not in PLATFORMS): abort(400)
         description,license_note=data["description"],data["license"]
         if not isinstance(description,str) or len(description)>1500: abort(400)
         if not isinstance(license_note,str) or not license_note.strip() or len(license_note)>300: abort(400)
@@ -387,6 +396,7 @@ def create_app(data_dir=None,origin=None):
         with db(True) as c:
             row,meta=admin_release(c,release)
             meta.update(description=description,license=license_note.strip())
+            if "platform" in data: meta["platform"]=data["platform"]
             c.execute("UPDATE releases SET meta=? WHERE id=?",(json_text(meta),release))
             audit(c,user["id"],"release.metadata",release)
         return jsonify(item=meta)

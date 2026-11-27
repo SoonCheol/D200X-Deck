@@ -1660,6 +1660,7 @@ function openSdkPluginHelp(plugin,isFusion,retained=false){
   const close=document.createElement('button');close.type='button';close.className='sdk-plugin-help-close';close.textContent='닫기 ×';
   close.onclick=()=>dialog.close();
   heading.append(label,close);dialog.append(heading);
+  const provenance=document.createElement('p');provenance.className='hint';provenance.textContent=provenanceLabel({packageProfile:plugin.runtime==='deckforge-sdk'?'deckforge-sdk':plugin.runtime==='streamdeck-sdk'?'elgato-sdk':'unknown'});dialog.append(provenance);
   if(retained){
     const info=document.createElement('p');info.textContent=plugin.available===false?'보존 원본을 확인할 수 없습니다.':'현재 제거되어 실행되지 않습니다. 기존 버튼 등록과 설정은 유지됩니다.';dialog.append(info);
     const footer=document.createElement('div');footer.style.cssText='display:flex;justify-content:flex-end;gap:8px;margin-top:14px;border-top:1px solid #46505b;padding-top:12px';
@@ -1902,6 +1903,7 @@ function renderInstalledSdkPlugins(root,query,basic=false){
     const section=document.createElement('section');section.className='group sdk-plugin-group'+(nativeHa?' basic-ha-group':'');
     const title=document.createElement('div');title.className='group-title';
     const heading=document.createElement('span');heading.textContent=nativeHa?'Home Assistant':plugin.name+' ('+plugin.version+')';
+    heading.title=provenanceLabel({packageProfile:plugin.runtime==='deckforge-sdk'?'deckforge-sdk':plugin.runtime==='streamdeck-sdk'?'elgato-sdk':'unknown'});
     title.append(heading);
     const isFusion=plugin.uuid==='com.autodesk.fusionstreamdeck';
     const isHa=plugin.uuid==='de.perdoctus.streamdeck.homeassistant';
@@ -7424,6 +7426,13 @@ function storePluginMatches(summary,query,runtime){
   const p=summary.plugin;
   return [p.name,p.uuid,p.version,...summary.actions.flatMap(a=>[a.name,a.uuid])].some(value=>String(value||'').toLocaleLowerCase().includes(needle));
 }
+const platformOptions={unknown:'출처 미확인',deckforge:'DeckForge',ulanzi:'Ulanzi',elgato:'Elgato',generic:'범용'};
+const profileOptions={'elgato-icon-index':'Elgato 아이콘팩 규격','indexed-icons':'인덱스형 아이콘팩','raster-images':'범용 래스터 이미지','deckforge-sdk':'DeckForge SDK','elgato-sdk':'Elgato SDK 호환 형식'};
+function provenanceLabel(item){
+ const platform=Object.hasOwn(platformOptions,item.platform)?platformOptions[item.platform]:platformOptions.unknown;
+ const profile=Object.hasOwn(profileOptions,item.packageProfile)?profileOptions[item.packageProfile]:'규격 미확인';
+ return '출처: '+platform+(platform===platformOptions.unknown?'':' (등록 정보)')+' · 규격: '+profile;
+}
 async function openStoreConnection(parent,onClosed){
   if(!window.deckBridge?.storeStatus)return;
   const dlg=document.createElement('dialog');dlg.className='store-catalog-dialog store-connection-dialog';
@@ -7490,10 +7499,10 @@ async function openStoreCatalog(){
   document.body.append(dlg);storeCatalogDialog=dlg;
   const find=sel=>dlg.querySelector(sel),grid=find('.store-catalog-grid'),status=find('.store-catalog-status'),query=find('[data-remote-query]'),reload=find('[data-remote-reload]'),close=find('[data-remote-close]'),connection=find('[data-store-connection]');
   const tabs=[...dlg.querySelectorAll('[data-kind]')],filterBar=find('.store-catalog-filters');
-  const options={purpose:{general:'일반',ha:'HA · IoT',windows:'Windows · 단축키',fusion:'Fusion · CAD',media:'미디어',app:'프로그램'},naming:{'general-name':'일반 파일명','ha-name':'HA 형식 추정',state:'ON/OFF 상태 쌍'},design:{color:'컬러',white:'화이트',black:'블랙',gray:'회색',line:'라인','white-line':'화이트 라인','black-line':'블랙 라인',solid:'솔리드',unknown:'미분류'}};
+  const options={platform:platformOptions,purpose:{general:'일반',ha:'HA · IoT',windows:'Windows · 단축키',fusion:'Fusion · CAD',media:'미디어',app:'프로그램'},naming:{'general-name':'일반 파일명','ha-name':'HA 형식 추정',state:'ON/OFF 상태 쌍'},design:{color:'컬러',white:'화이트',black:'블랙',gray:'회색',line:'라인','white-line':'화이트 라인','black-line':'블랙 라인',solid:'솔리드',unknown:'미분류'}};
   const filters={};
   for(const [key,values] of Object.entries(options)){
-    const select=document.createElement('select'),label={purpose:'전체 용도',naming:'전체 네이밍',design:'전체 디자인'}[key];
+    const select=document.createElement('select'),label={platform:'전체 출처',purpose:'전체 용도',naming:'전체 네이밍',design:'전체 디자인'}[key];
     select.setAttribute('aria-label',label);
     for(const [value,name] of [['',label],...Object.entries(values)]){const opt=document.createElement('option');opt.value=value;opt.textContent=name;select.append(opt);}
     filters[key]=select;filterBar.append(select);
@@ -7501,7 +7510,7 @@ async function openStoreCatalog(){
   const background=document.createElement('button');background.type='button';background.textContent='흰 배경';background.setAttribute('aria-pressed','false');filterBar.append(background);
   background.addEventListener('click',()=>{const white=dlg.classList.toggle('store-preview-white');background.textContent=white?'검정 배경':'흰 배경';background.setAttribute('aria-pressed',String(white));});
   let searchTimer=null,sessionKey='',connecting=false;
-  function requestedFilters(){return {q:query.value.trim(),...(kind==='iconpack'?Object.fromEntries(Object.entries(filters).map(([k,v])=>[k,v.value])):{})};}
+  function requestedFilters(){return {q:query.value.trim(),...Object.fromEntries(Object.entries(filters).filter(([k])=>kind==='iconpack'||k==='platform').map(([k,v])=>[k,v.value]))};}
   let items=[],cursor='',busy=false,selected=null,expired=false,interval=null,previewImages=[],previewError='',previewRequest=0;
   const node=(tag,cls,text)=>{const el=document.createElement(tag);if(cls)el.className=cls;if(text!==undefined)el.textContent=text;return el;};
   function button(label,fn){const b=node('button','',label);b.type='button';b.disabled=busy||expired;b.addEventListener('click',fn);return b;}
@@ -7522,7 +7531,7 @@ async function openStoreCatalog(){
     if(expired){status.textContent='서버 연결 및 로그인이 필요합니다. 연결 설정을 확인하세요.';return;}
     if(selected){
       const item=selected;grid.append(button('← 목록',()=>{++previewRequest;previewImages=[];selected=null;render();}),node('h2','',item.name),node('p','store-pack-meta',item.version+' · '+(item.author||'제작자 미등록')+' · '+(item.visibility==='private'?'비공개':'공개')),node('p','store-pack-meta',item.description||'설명 없음'),node('p','store-pack-meta','SHA256: '+item.sha256),node('p','store-pack-meta',Math.ceil(item.size/1024)+' KiB'));
-      grid.append(node('p','store-pack-meta',localLabel(item)));
+      grid.append(node('p','store-pack-meta',provenanceLabel(item)),node('p','store-pack-meta','규격 표시이며 실제 실행 호환성 인증은 아닙니다.'),node('p','store-pack-meta',localLabel(item)));
       if(kind==='iconpack'){
         const images=previewImages.length?previewImages:item.cover?[item.cover]:[];
         if(images.length)grid.append(previewGrid(images,'store-remote-detail-preview'));
@@ -7547,7 +7556,7 @@ async function openStoreCatalog(){
     for(const item of matching){
       const card=button('',()=>{selected=item;previewImages=[];previewError='';render();if(kind==='iconpack')void loadPreview(item);});card.className='store-pack-card';
       if(kind==='iconpack'&&item.cover)card.append(previewGrid([item.cover],'store-remote-cover'));
-      card.append(node('strong','',item.name),node('span','store-pack-meta',item.version+' · '+(item.author||'제작자 미등록')),node('span','store-pack-meta',(item.visibility==='private'?'비공개':'공개')+' · '+(item.source==='third-party'?'외부 보관':'DeckForge')),node('span','store-pack-meta',item.tags.join(' · ')),node('span','store-pack-meta',localLabel(item)));
+      card.append(node('strong','',item.name),node('span','store-pack-meta',item.version+' · '+(item.author||'제작자 미등록')),node('span','store-pack-meta',(item.visibility==='private'?'비공개':'공개')+' · '+(item.source==='third-party'?'외부 보관':'DeckForge')),node('span','store-pack-meta',provenanceLabel(item)),node('span','store-pack-meta',item.tags.join(' · ')),node('span','store-pack-meta',localLabel(item)));
       grid.append(card);
     }
     if(!matching.length&&!busy)grid.append(node('p','store-catalog-empty','표시할 서버 항목이 없습니다.'));
@@ -7627,7 +7636,7 @@ async function openStoreCatalog(){
   for(const tab of tabs)tab.addEventListener('click',()=>{
     if(busy||kind===tab.dataset.kind)return;
     clearTimeout(searchTimer);kind=tab.dataset.kind;query.value='';
-    filterBar.hidden=kind!=='iconpack';
+    for(const [key,select] of Object.entries(filters))select.hidden=kind!=='iconpack'&&key!=='platform';background.hidden=kind!=='iconpack';
     for(const entry of tabs)entry.setAttribute('aria-pressed',String(entry.dataset.kind===kind));
     void load(true);
   });
@@ -7799,8 +7808,10 @@ function renderIconLibrary(){
     title.type='button';title.className='icon-group-title';
     const arrow=document.createElement('span');arrow.className='icon-group-arrow';arrow.textContent='⌄';
     const name=document.createElement('span');name.textContent=pack.name+' · '+pack.version;
+    const provenance=pack.source==='bundled'?'기본 제공':provenanceLabel({platform:pack.storeSource?.platform,packageProfile:pack.packageProfile});
+    const originLabel=document.createElement('span');originLabel.className='icon-group-count';originLabel.textContent=provenance;originLabel.title=provenance;
     const amount=document.createElement('span');amount.className='icon-group-count';amount.textContent='('+matching.length+'개)';
-    title.append(arrow,name,amount);
+    title.append(arrow,name,amount,originLabel);
     let heading=title;
     if(pack.source!=='bundled'){
       const wrapper=document.createElement('div');wrapper.className='icon-group-heading';
