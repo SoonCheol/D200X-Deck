@@ -1,9 +1,9 @@
 'use strict';
 const $=id=>document.getElementById(id);
-let account=null,kind='iconpack',items=[],cursor='',adminCursor='',busy=false,epoch=0,catalogParams='',searchTimer=null;
+let account=null,kind='iconpack',items=[],cursor='',adminCursor='',busy=false,epoch=0,catalogParams='',searchTimer=null,mine=false,view='catalog';
 const el=(tag,text,cls)=>{const n=document.createElement(tag);if(text!==undefined)n.textContent=text;if(cls)n.className=cls;return n;};
 const button=(label,fn)=>{const n=el('button',label);n.type='button';n.onclick=()=>void run(fn);return n;};
-function reset(){clearTimeout(searchTimer);searchTimer=null;catalogParams='';clearFolder();$('upload').reset();formats();epoch++;account=null;items=[];cursor='';adminCursor='';for(const id of ['cards','detail','releases','accounts','review'])$(id).replaceChildren();$('detail').hidden=$('review').hidden=true;$('catalog').hidden=$('admin').hidden=$('logout').hidden=true;$('login').hidden=false;$('account').textContent='';}
+function reset(){clearTimeout(searchTimer);searchTimer=null;catalogParams='';clearFolder();$('upload').reset();formats();epoch++;account=null;items=[];cursor='';adminCursor='';for(const id of ['cards','detail','releases','accounts','review'])$(id).replaceChildren();$('detail').hidden=$('review').hidden=true;$('catalog').hidden=$('admin').hidden=$('upload-page').hidden=$('navigation').hidden=$('logout').hidden=true;mine=false;view='catalog';$('login').hidden=false;$('account').textContent='';}
 async function api(path,options={}){
  const headers={'X-DeckForge-CSRF':'1',...options.headers};
  if(options.body&&!(options.body instanceof FormData)){headers['Content-Type']='application/json';options.body=JSON.stringify(options.body);}
@@ -12,8 +12,10 @@ async function api(path,options={}){
  if(!res.ok)throw Error('요청 실패 (HTTP '+res.status+')');
  return res.status===204?null:res.json();
 }
-async function run(fn){if(busy)return;busy=true;$('status').textContent='처리 중…';try{await fn();$('status').textContent='완료';}catch(e){$('status').textContent=e.message;}finally{busy=false;}}
-function show(a){account=a;$('login').hidden=true;$('catalog').hidden=$('logout').hidden=false;$('admin-toggle').hidden=a.role!=='owner';$('account').textContent=a.username+' · '+(a.role==='owner'?'관리자':'사용자');}
+async function run(fn){if(busy)return;busy=true;$('status').textContent='처리 중…';try{await fn();$('status').textContent='완료';}catch(e){$('status').textContent=e.message;if(view==='upload')$('upload-status').textContent=e.message;}finally{busy=false;}}
+function show(a){account=a;$('login').hidden=true;$('navigation').hidden=$('logout').hidden=false;showView('catalog');$('admin-toggle').hidden=a.role!=='owner';$('account').textContent=a.username+' · '+(a.role==='owner'?'관리자':'사용자');}
+function showView(next){view=next;$('catalog').hidden=next!=='catalog';$('admin').hidden=next!=='admin';$('upload-page').hidden=next!=='upload';$('catalog-title').textContent=kind==='iconpack'?'아이콘팩':'플러그인';for(const b of document.querySelectorAll('[data-kind]'))b.setAttribute('aria-pressed',String(next!=='admin'&&b.dataset.kind===kind));$('admin-toggle').setAttribute('aria-pressed',String(next==='admin'));$('all-items').setAttribute('aria-pressed',String(!mine));$('mine-items').setAttribute('aria-pressed',String(mine));}
+function openUpload(){clearFolder();const form=$('upload');form.reset();form.elements.kind.value=kind;formats();$('upload-status').textContent='';$('upload-title').textContent=(kind==='iconpack'?'아이콘팩':'플러그인')+' 업로드';showView('upload');}
 function preview(src){if(typeof src!=='string'||! /^[A-Za-z0-9+/]+={0,2}$/.test(src)||src.length>90000)return el('span','');const img=el('img');img.src='data:image/png;base64,'+src;img.alt='아이콘 미리보기';img.loading='lazy';return img;}
 const platformOptions={unknown:'출처 미확인',deckforge:'DeckForge',ulanzi:'Ulanzi',elgato:'Elgato',generic:'범용'};
 const profileOptions={'elgato-icon-index':'Elgato 아이콘팩 규격','indexed-icons':'인덱스형 아이콘팩','raster-images':'범용 래스터 이미지','deckforge-sdk':'DeckForge SDK','elgato-sdk':'Elgato SDK 호환 형식'};
@@ -35,21 +37,21 @@ for(const [id,options,label] of [['purpose',purposeOptions,'전체 용도'],['na
 }
 optionList($('platform-filter'),platformOptions,'전체 출처');$('platform-filter').onchange=queueSearch;
 optionList($('upload-platform'),platformOptions);$('upload-platform').value='unknown';
-$('background').onclick=()=>{const light=document.body.classList.toggle('preview-white');$('background').textContent=light?'검정 배경':'흰 배경';};
+$('background').onclick=()=>{const dark=document.body.classList.toggle('preview-dark');$('background').textContent=dark?'밝은 미리보기':'어두운 미리보기';};
 function render(){
  $('cards').replaceChildren();
  for(const id of ['purpose','naming','design'])$(id).hidden=kind!=='iconpack';
  for(const item of items){
   const card=button('',()=>detail(item));card.className='card';
   if(item.cover){const art=el('div',undefined,'art');art.append(preview(item.cover));card.append(art);}
-  card.append(el('strong',item.name),el('span',item.version+' · '+(item.visibility==='private'?'비공개':'공개')),el('span',provenanceLabel(item)),el('span',item.tags.join(' · ')));
+  card.append(el('strong',item.name),el('span',item.version+(item.kind==='iconpack'?' · 아이콘 '+item.iconCount+'개':'')),el('span',provenanceLabel(item)),el('span',item.tags.map(t=>purposeOptions[t]||namingOptions[t]||designOptions[t]||({native:'독자 플러그인',compatible:'호환 플러그인'}[t])||t).join(' · ')));
   $('cards').append(card);
  }
  if(!$('cards').children.length)$('cards').append(el('p','표시할 항목이 없습니다.'));
  $('more').hidden=!cursor;
 }
 function requestedCatalog(){
- const params=new URLSearchParams({kind,limit:'20'});
+ const params=new URLSearchParams({kind,limit:'20'});if(mine)params.set('mine','1');
  const q=$('search').value.trim();if(q)params.set('q',q);
  if($('platform-filter').value)params.set('platform',$('platform-filter').value);
  if(kind==='iconpack')for(const id of ['purpose','naming','design'])if($(id).value)params.set(id,$(id).value);
@@ -73,7 +75,7 @@ async function detail(item){
  const data=await api('/api/v1/items/'+encodeURIComponent(item.id));const i=data.item,section=$('detail');
  section.replaceChildren(el('h2',i.name),el('p',i.version+' · '+i.description),el('p',provenanceLabel(i)),el('p','패키지 규격 표시는 구조 확인이며 실제 실행 호환성 인증이 아닙니다.'),el('p','라이선스: '+i.license),el('p','SHA256: '+i.sha256));
  const grid=el('div',undefined,'preview-grid');for(const p of data.previews)grid.append(preview(p));section.append(grid);
- const a=el('a','원본 다운로드');a.href='/api/v1/items/'+encodeURIComponent(i.id)+'/releases/'+encodeURIComponent(i.releaseId)+'/download';section.append(a);section.hidden=false;
+ const a=el('a','원본 다운로드');a.href='/api/v1/items/'+encodeURIComponent(i.id)+'/releases/'+encodeURIComponent(i.releaseId)+'/download';section.append(a);if(account.role==='owner'||i.uploadedBy===account.id)section.append(button('목록에서 제거',async()=>{if(!confirm('목록에서 제거합니까? 원본과 설치된 콘텐츠는 보존됩니다.'))return;await api('/api/v1/library/items/'+i.id+'/remove',{method:'POST',body:{}});await load();}));section.hidden=false;
 }
 async function adminList(resetList=true){
  if(resetList){adminCursor='';$('releases').replaceChildren();$('review').hidden=true;$('review').replaceChildren();}
@@ -98,7 +100,7 @@ function prepareVersion(item){
  $('upload-mode').value='file';formats();form.elements.format.value=item.format;
  form.elements.itemId.value=item.id;form.elements.license.value=item.license;form.elements.description.value=item.description;
  $('pack-name').value=item.name;$('pack-author').value=item.author||'';$('pack-version').value='';
- form.scrollIntoView({block:'start'});form.elements.file.focus();
+ $('upload-title').textContent='새 버전 등록';showView('upload');form.scrollIntoView({block:'start'});form.elements.file.focus();
 }
 async function versionHistory(item,container,cursor=''){
  const data=await api('/api/v1/admin/items/'+encodeURIComponent(item.id)+'/releases'+(cursor?'?cursor='+encodeURIComponent(cursor):''));
@@ -161,7 +163,7 @@ function renderFolder(){
   check.onchange=()=>{r.selected=check.checked;$('icon-page').textContent=(folderPage+1)+' / '+pages+' · '+folderRows.filter(x=>x.selected).length+'개 선택';};
   let img;
   if(SVG_EXT.test(r.path)){
-   img=r.preview?preview(r.preview):button('SVG 미리보기',async()=>{const body=new FormData();body.append('file',r.file,r.path);const result=await api('/api/v1/admin/svg-preview',{method:'POST',body});if(!result.preview)throw Error('SVG 미리보기 생성 실패');r.preview=result.preview;renderFolder();});
+   img=r.preview?preview(r.preview):button('SVG 미리보기',async()=>{const body=new FormData();body.append('file',r.file,r.path);const result=await api('/api/v1/library/svg-preview',{method:'POST',body});if(!result.preview)throw Error('SVG 미리보기 생성 실패');r.preview=result.preview;renderFolder();});
   }else{img=el('img');const url=URL.createObjectURL(r.file);previewUrls.push(url);img.src=url;img.alt='';img.loading='lazy';}
   const col=el('div');const tags=el('input');tags.value=r.tags.join(', ');tags.placeholder='검색 태그 (쉼표 구분)';tags.setAttribute('aria-label',r.path+' 검색 태그');
   tags.onchange=()=>{try{r.tags=parseTags(tags.value);}catch(e){$('folder-status').textContent=e.message;}tags.value=r.tags.join(', ');};
@@ -226,26 +228,44 @@ function formats(){
  $('pack-name').disabled=$('pack-version').disabled=$('pack-author').disabled=!folder;
  const list=type==='iconpack'?['streamDeckIconPack','sdIconPack','zip']:['deckforgePlugin','streamDeckPlugin','zip'];$('format').replaceChildren();
  for(const v of list){const option=el('option',v);option.value=v;$('format').append(option);}
+ form.elements.file.accept=list.map(v=>'.'+v).join(',');
 }
 $('upload').elements.kind.onchange=formats;$('upload-mode').onchange=formats;formats();
 $('login').onsubmit=event=>{event.preventDefault();const f=event.target,password=f.elements.password.value,username=f.elements.username.value;f.elements.password.value='';void run(async()=>{const result=await api('/api/v1/auth/login',{method:'POST',body:{username,password,client:'web'}});show(result.account);await load();});};
 $('logout').onclick=()=>void run(async()=>{try{await api('/api/v1/auth/logout',{method:'POST',body:{}});}finally{reset();}});
-document.querySelectorAll('[data-kind]').forEach(b=>b.onclick=()=>void run(async()=>{kind=b.dataset.kind;$('admin').hidden=true;await load();}));
+document.querySelectorAll('[data-kind]').forEach(b=>b.onclick=()=>void run(async()=>{kind=b.dataset.kind;mine=false;showView('catalog');await load();}));
 $('search').oninput=queueSearch;$('refresh').onclick=()=>void run(()=>load());$('more').onclick=()=>void run(()=>load(false));
-$('admin-toggle').onclick=()=>void run(async()=>{$('admin').hidden=!$('admin').hidden;if(!$('admin').hidden)await adminList();});
+$('admin-toggle').onclick=()=>void run(async()=>{showView('admin');await adminList();});
+$('open-upload').onclick=openUpload;$('upload-back').onclick=()=>void run(async()=>{showView('catalog');await load();});
+for(const [id,value] of [['all-items',false],['mine-items',true]])$(id).onclick=()=>void run(async()=>{mine=value;showView('catalog');await load();});
+const drop=$('file-mode');drop.ondragover=e=>{e.preventDefault();drop.classList.add('dragging');};drop.ondragleave=()=>drop.classList.remove('dragging');drop.ondrop=e=>{e.preventDefault();drop.classList.remove('dragging');if(e.dataTransfer.files.length===1)$('upload').elements.file.files=e.dataTransfer.files;};
 $('admin-refresh').onclick=()=>void run(()=>adminList());$('admin-more').onclick=()=>void run(()=>adminList(false));
 $('upload').onsubmit=event=>{
  event.preventDefault();const form=event.target;
  void run(async()=>{
-  if($('upload-mode').value==='folder'&&form.elements.kind.value==='iconpack'){
-   if(folderBlocked||!folderRows.length)throw Error('유효한 아이콘 폴더를 선택하세요.');
-   const metadata={name:$('pack-name').value.trim(),version:$('pack-version').value.trim(),author:$('pack-author').value.trim(),icons:folderRows.map(r=>({path:r.path,tags:r.tags}))};
-   const blob=new Blob([JSON.stringify(metadata)],{type:'application/json'});if(blob.size>1024*1024)throw Error('아이콘 메타데이터 크기 초과');
-   const body=new FormData();for(const field of ['source','platform','license','description','itemId'])body.append(field,form.elements[field].value);
-   body.append('metadata',blob,'metadata.json');for(const r of folderRows)body.append('icons',r.file,r.path);
-   const result=await api('/api/v1/admin/folder-pack',{method:'POST',body});
-   clearFolder();form.reset();formats();await adminList();await reviewRelease(result.item.releaseId);
-  }else{await api('/api/v1/admin/items',{method:'POST',body:new FormData(form)});clearFolder();form.reset();formats();await adminList();}
+  $('submit-upload').disabled=true;$('upload-status').textContent='업로드 및 검사 중…';
+  try{
+   const oldVersion=!!form.elements.itemId.value;
+   const folder=$('upload-mode').value==='folder'&&form.elements.kind.value==='iconpack';
+   let body=new FormData(form),path=oldVersion?'/api/v1/admin/items':'/api/v1/library/upload';
+   if(folder){
+    if(folderBlocked||!folderRows.length)throw Error('유효한 아이콘 폴더를 선택하세요.');
+    const metadata={name:$('pack-name').value.trim(),version:$('pack-version').value.trim(),author:$('pack-author').value.trim(),icons:folderRows.map(r=>({path:r.path,tags:r.tags}))};
+    const blob=new Blob([JSON.stringify(metadata)],{type:'application/json'});if(blob.size>1024*1024)throw Error('아이콘 메타데이터 크기 초과');
+    body=new FormData();for(const field of ['source','platform','license','description','itemId'])body.append(field,form.elements[field].value);
+    body.append('metadata',blob,'metadata.json');for(const r of folderRows)body.append('icons',r.file,r.path);
+    path=oldVersion?'/api/v1/admin/folder-pack':'/api/v1/library/folder';
+   }
+   if(oldVersion&&!folder){
+    const ext=form.elements.file.files[0]?.name.split('.').pop().toLowerCase();
+    const fmt=[...$('format').options].find(x=>x.value.toLowerCase()===ext)?.value;
+    if(!fmt)throw Error('지원하지 않는 파일 형식입니다.');body.set('format',fmt);
+   }
+   const result=await api(path,{method:'POST',body});
+   clearFolder();form.reset();formats();
+   if(oldVersion){showView('admin');await adminList();await reviewRelease(result.item.releaseId);}
+   else{kind=result.item.kind;mine=false;$('search').value='';for(const id of ['platform-filter','purpose','naming','design'])$(id).value='';showView('catalog');await load();await detail(result.item);}
+  }finally{$('submit-upload').disabled=false;}
  });
 };
 $('add-account').onsubmit=event=>{event.preventDefault();const form=event.target,data=Object.fromEntries(new FormData(form));form.elements.password.value='';void run(async()=>{await api('/api/v1/admin/accounts',{method:'POST',body:data});form.reset();await adminList();});};

@@ -13,6 +13,7 @@ import sqlite3
 import sys
 import time
 import unicodedata
+import zipfile
 from pathlib import Path
 from urllib.parse import urlsplit
 from flask import Flask, Response, abort, g, jsonify, request, send_file
@@ -204,7 +205,7 @@ def create_app(data_dir=None,origin=None):
         row=c.execute("SELECT r.* FROM items i JOIN releases r ON r.id=i.current_release WHERE i.id=? AND r.status='published'",(valid_id(ident),)).fetchone()
         if row is None: abort(404)
         meta=json.loads(row["meta"])
-        if role!="owner" and (meta["visibility"]!="public" or meta["source"]!="deckforge"): abort(404)
+        if role!="owner" and not meta.get("libraryShared") and (meta["visibility"]!="public" or meta["source"]!="deckforge"): abort(404)
         return row,meta
     @app.get("/api/v1/catalog")
     def catalog():
@@ -219,7 +220,10 @@ def create_app(data_dir=None,origin=None):
         sql="""SELECT r.meta,i.id FROM items i JOIN releases r ON r.id=i.current_release
         WHERE i.kind=? AND i.id>? AND r.status='published'"""
         params=[kind,cursor]
-        if user["role"]!="owner": sql+=" AND i.source='deckforge' AND json_extract(r.meta,'$.visibility')='public'"
+        if user["role"]!="owner": sql+=" AND (json_extract(r.meta,'$.libraryShared')=1 OR (i.source='deckforge' AND json_extract(r.meta,'$.visibility')='public'))"
+        if request.args.get("mine")=="1":
+            sql+=" AND json_extract(r.meta,'$.uploadedBy')=?"
+            params.append(user["id"])
         q=request.args.get("q","").strip()
         if len(q)>120 or re.search(r"[\x00-\x1f\x7f]",q): abort(400)
         for key,allowed in (("purpose",PURPOSES),("naming",NAMING),("design",DESIGNS)):
@@ -302,6 +306,37 @@ def create_app(data_dir=None,origin=None):
             try: os.fsync(directory)
             finally: os.close(directory)
         finally: temp.unlink(missing_ok=True)
+    @app.post("/api/v1/library/upload")
+    def library_upload():
+        user,_=authenticate()
+        f=request.files.get("file")
+        if f is None: abort(400)
+        kind=request.form.get("kind")
+        filename=Path(f.filename or "").name
+        ext=Path(filename).suffix.lower()
+        formats={".streamdeckiconpack":"streamDeckIconPack",".sdiconpack":"sdIconPack",".zip":"zip"} if kind=="iconpack" else {".deckforgeplugin":"deckforgePlugin",".streamdeckplugin":"streamDeckPlugin",".zip":"zip"} if kind=="plugin" else {}
+        fmt=formats.get(ext)
+        if not fmt: abort(400)
+        data=f.stream.read(60*MIB+1)
+        if kind=="plugin" and fmt=="zip":
+            try:
+                with zipfile.ZipFile(io.BytesIO(data)) as archive:
+                    if "deckforge-plugin.json" in archive.namelist(): fmt="deckforgePlugin"
+            except zipfile.BadZipFile: abort(400)
+        return register_upload(user,data,kind,fmt,"third-party",Path(filename).stem[:120],library=True)
+    @app.post("/api/v1/library/folder")
+    def library_folder():
+        user,_=authenticate()
+        return read_folder_upload(user,library=True)
+    @app.post("/api/v1/library/items/<ident>/remove")
+    def library_remove(ident):
+        user,_=authenticate()
+        with db(True) as c:
+            row,meta=current(c,ident,user["role"])
+            if user["role"]!="owner" and meta.get("uploadedBy")!=user["id"]: abort(403)
+            c.execute("UPDATE items SET current_release=NULL WHERE id=?",(ident,))
+            audit(c,user["id"],"release.withdraw",ident)
+        return Response(status=204)
     @app.post("/api/v1/admin/items")
     def upload():
         user,_=authenticate(True)
@@ -313,8 +348,9 @@ def create_app(data_dir=None,origin=None):
         fallback=Path(f.filename or "Icon pack").stem[:120]
         return register_upload(user,data,kind,fmt,source,fallback)
     @app.post("/api/v1/admin/svg-preview")
+    @app.post("/api/v1/library/svg-preview")
     def svg_preview():
-        authenticate(True)
+        authenticate(request.path.startswith("/api/v1/admin/"))
         request.max_content_length=MAX_SVG+16384
         file=request.files.get("file")
         if file is None: abort(400)
@@ -324,7 +360,8 @@ def create_app(data_dir=None,origin=None):
     @app.post("/api/v1/admin/folder-pack")
     def folder_upload():
         user,_=authenticate(True)
-        # Override multipart part count only for this owner-only endpoint.
+        return read_folder_upload(user)
+    def read_folder_upload(user,library=False):
         request.max_form_parts=2510
         metadata=request.files.get("metadata")
         if metadata is None: abort(400)
@@ -333,20 +370,29 @@ def create_app(data_dir=None,origin=None):
         try: info=json.loads(raw)
         except (ValueError,UnicodeError): abort(400)
         data=make_folder_pack(info,request.files.getlist("icons"))
-        return register_upload(user,data,"iconpack","zip",request.form.get("source"),info["name"])
-    def register_upload(user,data,kind,fmt,source,fallback):
+        return register_upload(user,data,"iconpack","zip","deckforge" if library else request.form.get("source"),info["name"],library=library,folder=library)
+    def register_upload(user,data,kind,fmt,source,fallback,library=False,folder=False):
         description=request.form.get("description","")[:1500]
         license_note=request.form.get("license","").strip()[:300]
-        if not license_note: raise ValueError("license or provenance required")
+        if not license_note and not library: raise ValueError("license or provenance required")
         for value in (description,license_note):
             value.encode("utf-8","strict")
         platform=request.form.get("platform","unknown")
         if platform not in PLATFORMS: abort(400)
         info=inspect_package(data,kind,fmt,source,fallback)
-        digest=sha(data);ident=request.form.get("itemId") or uid();valid_id(ident);release=uid()
+        if library:
+            if folder or info["native"]:
+                source="deckforge";platform="deckforge"
+            elif fmt in ("streamDeckIconPack","sdIconPack","streamDeckPlugin") or info["packageProfile"] in ("elgato-icon-index","elgato-sdk"):
+                platform="elgato"
+            else:
+                platform="generic" if info["packageProfile"]=="raster-images" else "unknown"
+        digest=sha(data);ident=uid() if library else request.form.get("itemId") or uid();valid_id(ident);release=uid()
         meta={k:info[k] for k in ("name","version","author","packageId","cover","tags","iconCount","packageProfile")}
         meta.update(id=ident,releaseId=release,kind=kind,source=source,platform=platform,visibility="private",format=fmt,
                     size=len(data),sha256=digest,description=description,license=license_note)
+        if library:
+            meta.update(uploadedBy=user["id"],libraryShared=True)
         # Immutable blob first; a crash may leave an unreferenced blob, never a dangling release.
         with db(True) as c:
             existing=c.execute("SELECT * FROM items WHERE id=?",(ident,)).fetchone()
@@ -356,12 +402,13 @@ def create_app(data_dir=None,origin=None):
                 c.execute("INSERT INTO items(id,kind,source,package_id) VALUES(?,?,?,?)",(ident,kind,source,info["packageId"]))
             if c.execute("SELECT 1 FROM releases WHERE item_id=? AND version=?",(ident,info["version"])).fetchone(): abort(409)
             store_blob(data,digest)
-            c.execute("INSERT INTO releases(id,item_id,version,sha256,meta,previews,native,status) VALUES(?,?,?,?,?,?,?,'draft')",
-                      (release,ident,info["version"],digest,json_text(meta),json_text(info["previews"]),int(info["native"])))
+            c.execute("INSERT INTO releases(id,item_id,version,sha256,meta,previews,native,status) VALUES(?,?,?,?,?,?,?,?)",
+                      (release,ident,info["version"],digest,json_text(meta),json_text(info["previews"]),int(info["native"]),"published" if library else "draft"))
+            if library: c.execute("UPDATE items SET current_release=? WHERE id=?",(release,ident))
             if kind=="iconpack":
                 c.execute("INSERT INTO release_icon_search VALUES(?,?)",(release,search_fold(info["searchTerms"])))
             audit(c,user["id"],"release.upload",release)
-        return jsonify(item=meta,status="draft"),201
+        return jsonify(item=meta,status="published" if library else "draft"),201
     @app.get("/api/v1/admin/items")
     def admin_items():
         authenticate(True)

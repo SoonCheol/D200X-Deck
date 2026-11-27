@@ -41,6 +41,24 @@ class StoreTest(unittest.TestCase):
         return {"Authorization":"Bearer "+r.json["accessToken"]}
     def upload(self,source="third-party",data=None):
         return self.c.post("/api/v1/admin/items",data={"file":(io.BytesIO(data if data is not None else pack()),"icons.zip"),"kind":"iconpack","format":"zip","source":source,"license":"test license"},headers=self.owner)
+    def test_library_upload_immediate_member_and_removal(self):
+        path="/api/v1/library/upload"
+        def payload(): return {"file":(io.BytesIO(pack()),"icons.zip"),"kind":"iconpack"}
+        self.assertEqual(self.c.post(path,data=payload()).status_code,401)
+        result=self.c.post(path,data=payload(),headers=self.member)
+        self.assertEqual(result.status_code,201)
+        self.assertEqual(result.json["status"],"published")
+        i=result.json["item"]
+        self.assertEqual(i["visibility"],"private")
+        self.assertEqual(i["license"],"")
+        for headers in (self.owner,self.member):
+            self.assertEqual(self.c.get("/api/v1/catalog?kind=iconpack",headers=headers).json["items"][0]["id"],i["id"])
+            self.assertEqual(self.c.get("/api/v1/items/"+i["id"],headers=headers).status_code,200)
+        self.assertEqual(len(self.c.get("/api/v1/catalog?kind=iconpack&mine=1",headers=self.member).json["items"]),1)
+        self.assertEqual(self.c.get("/api/v1/catalog?kind=iconpack&mine=1",headers=self.owner).json["items"],[])
+        self.assertEqual(self.c.post("/api/v1/library/items/"+i["id"]+"/remove",headers=self.member,json={}).status_code,204)
+        self.assertTrue((Path(self.tmp.name)/"blobs"/i["sha256"]).exists())
+        self.assertEqual(self.c.get("/api/v1/catalog?kind=iconpack",headers=self.member).json["items"],[])
     def test_acl_draft_publish_withdraw(self):
         uploaded=self.upload();self.assertEqual(uploaded.status_code,201)
         i=uploaded.json["item"];path="/api/v1/items/"+i["id"];download=path+"/releases/"+i["releaseId"]+"/download"
