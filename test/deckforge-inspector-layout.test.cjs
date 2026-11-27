@@ -660,7 +660,8 @@ test('immediate gesture edits preserve original button and nested settings on pr
 });
 
 test('Fusion manager remains visible when its only runcommand action is intentionally hidden',()=>{
-  const source=editor.slice(editor.indexOf('function sdkPanelActions('),editor.indexOf('async function configureHomeAssistant()'));
+  const labels=editor.slice(editor.indexOf('const platformOptions='),editor.indexOf('async function openStoreConnection('));
+  const source=labels+'\n'+editor.slice(editor.indexOf('function sdkPanelActions('),editor.indexOf('async function configureHomeAssistant()'));
   const fusion='com.autodesk.fusionstreamdeck',generic='ha.generic';
   const plugin={uuid:fusion,name:'Autodesk Fusion',version:'1.0.0',runtime:'streamdeck-sdk',actions:[{uuid:fusion+'.runcommand',name:'Run Command'}]};
   const other={uuid:'other.plugin',name:'Other',version:'1.0.0',runtime:'streamdeck-sdk',actions:[{uuid:generic,name:'Hidden'}]};

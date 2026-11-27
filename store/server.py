@@ -253,13 +253,20 @@ def create_app(data_dir=None,origin=None):
         with db() as c: row,meta=current(c,ident,user["role"])
         if valid_id(release)!=row["id"]: abort(404)
         return package_response(row,meta)
-    def package_response(row,meta):
+    def verified_package(row,meta):
         digest=row["sha256"]
-        if not re.fullmatch(r"[a-f0-9]{64}",digest): abort(404)
+        size=meta.get("size")
+        if (not re.fullmatch(r"[a-f0-9]{64}",digest) or meta.get("sha256")!=digest
+                or meta.get("releaseId")!=row["id"] or meta.get("id")!=row["item_id"]
+                or meta.get("version")!=row["version"] or type(size) is not int or not 0<size<=60*MIB):
+            abort(409)
         try:
-            with (blobs/digest).open("rb") as stream: data=stream.read(meta["size"]+1)
+            with (blobs/digest).open("rb") as stream: data=stream.read(size+1)
         except OSError: abort(404)
-        if len(data)!=meta["size"] or sha(data)!=digest: abort(409)
+        if len(data)!=size or sha(data)!=digest: abort(409)
+        return data
+    def package_response(row,meta):
+        data=verified_package(row,meta)
         return send_file(io.BytesIO(data),mimetype="application/octet-stream",as_attachment=True,
                          download_name=meta["id"]+"."+meta["format"],conditional=False,max_age=0)
     @app.get("/api/v1/admin/accounts")
@@ -455,11 +462,15 @@ def create_app(data_dir=None,origin=None):
             meta=json.loads(row["meta"])
             if meta["source"]=="third-party" and visibility!="private": abort(403)
             if meta["kind"]=="plugin" and visibility=="public" and (not row["native"] or meta["source"]!="deckforge"): abort(403)
+            # Validate before changing either release or current pointer. Failed checks roll back.
+            verified_package(row,meta)
+            previous=c.execute("SELECT current_release FROM items WHERE id=?",(row["item_id"],)).fetchone()["current_release"]
+            restoring=row["status"]=="published" and previous!=release
             if meta["visibility"]!=visibility: meta.pop("signature",None)
             meta["visibility"]=visibility
             c.execute("UPDATE releases SET status='published',meta=? WHERE id=?",(json_text(meta),release))
             c.execute("UPDATE items SET current_release=? WHERE id=?",(release,row["item_id"]))
-            audit(c,user["id"],"release.publish",release)
+            audit(c,user["id"],"release.restore" if restoring else "release.publish",release)
         return jsonify(item=meta)
     @app.post("/api/v1/admin/items/<ident>/withdraw")
     def withdraw(ident):

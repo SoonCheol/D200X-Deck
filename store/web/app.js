@@ -106,6 +106,13 @@ async function versionHistory(item,container,cursor=''){
  for(const row of data.releases){
   const line=el('div',undefined,'release');
   line.append(el('strong',row.version),el('p',(row.current?'현재 게시':row.status==='draft'?'검토 대기':'이전 게시')+' · '+row.visibility+(row.signed?' · 서명 있음':'')),el('p','SHA256: '+row.sha256),button('버전 상세',()=>reviewRelease(row.releaseId)));
+  if(!row.current&&row.status==='published'){
+   line.append(button('이전 게시 버전 복원',async()=>{
+    if(!confirm(row.version+' 버전을 다시 게시합니까? 현재 게시 버전과 원본은 보존되며 PC에 설치된 콘텐츠는 변경하지 않습니다.'))return;
+    await api('/api/v1/admin/releases/'+encodeURIComponent(row.releaseId)+'/publish',{method:'POST',body:{reviewed:true,visibility:row.visibility}});
+    await adminList();await reviewRelease(row.releaseId);await load();
+   }));
+  }
   container.append(line);
  }
  if(data.nextCursor){const more=button('이전 목록 더 보기',async()=>{await versionHistory(item,container,data.nextCursor);more.remove();});container.append(more);}

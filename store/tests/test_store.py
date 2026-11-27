@@ -287,4 +287,29 @@ const {parseIconPack}=require(process.argv[1]);(async()=>{const p=await parseIco
         self.assertEqual(self.c.get("/api/v1/items/"+first["id"],headers=self.member).json["item"]["description"],data["description"])
         self.assertEqual(hashlib.sha256(self.c.get(endpoint+"/download",headers=self.owner).data).hexdigest(),first["sha256"])
         self.assertEqual(self.c.get("/api/v1/admin/items/missing/releases",headers=self.owner).status_code,404)
+        second_endpoint="/api/v1/admin/releases/"+second["releaseId"]
+        payload={"reviewed":True,"visibility":"public"}
+        self.assertEqual(self.c.post(second_endpoint+"/publish",json=payload,headers=self.owner).status_code,200)
+        item_path="/api/v1/items/"+first["id"]
+        first_download=item_path+"/releases/"+first["releaseId"]+"/download"
+        second_download=item_path+"/releases/"+second["releaseId"]+"/download"
+        self.assertEqual(self.c.get(first_download,headers=self.member).status_code,404)
+        self.assertEqual(self.c.get(item_path,headers=self.member).json["item"]["releaseId"],second["releaseId"])
+        self.assertEqual(self.c.post(endpoint+"/publish",json=payload,headers=self.member).status_code,403)
+        blob=Path(self.tmp.name)/"blobs"/first["sha256"];original=blob.read_bytes()
+        blob.write_bytes(bytes([original[0]^1])+original[1:])
+        self.assertEqual(self.c.post(endpoint+"/publish",json=payload,headers=self.owner).status_code,409)
+        self.assertEqual(self.c.get(item_path,headers=self.member).json["item"]["releaseId"],second["releaseId"])
+        blob.unlink()
+        self.assertEqual(self.c.post(endpoint+"/publish",json=payload,headers=self.owner).status_code,404)
+        self.assertEqual(self.c.get(item_path,headers=self.member).json["item"]["releaseId"],second["releaseId"])
+        blob.write_bytes(original)
+        self.assertEqual(self.c.post(endpoint+"/publish",json=payload,headers=self.owner).status_code,200)
+        self.assertEqual(self.c.get(item_path,headers=self.member).json["item"]["releaseId"],first["releaseId"])
+        self.assertEqual(self.c.get("/api/v1/catalog?kind=iconpack",headers=self.member).json["items"][0]["releaseId"],first["releaseId"])
+        self.assertEqual(self.c.get(first_download,headers=self.member).data,original)
+        self.assertEqual(self.c.get(second_download,headers=self.member).status_code,404)
+        self.assertEqual(self.c.get(second_endpoint+"/download",headers=self.owner).data,archive.getvalue())
+        self.assertEqual([r["releaseId"] for r in self.c.get(history,headers=self.owner).json["releases"] if r["current"]],[first["releaseId"]])
+        self.assertEqual(self.c.post(second_endpoint+"/publish",json=payload,headers=self.owner).status_code,200)
 if __name__=="__main__": unittest.main()
