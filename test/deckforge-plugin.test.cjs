@@ -3468,7 +3468,7 @@ test('bounded native record-list schema validates row shape, order and existing 
  assert.throws(()=>core.nativeEffectiveSettings([field],{targets:Array(10).fill(large)}),/settings size limit/);
 });
 
-test('GitHub ordered action registers an empty draft and monitors first target without opening a link',async()=>{
+test('GitHub ordered action registers an empty draft and monitors first target and opens only the displayed link',async()=>{
  const {createGitHubManifest}=require('../app/deckforge-editor/deckforge-github-plugin.cjs');
  const m=validateNativeManifest(createGitHubManifest()),a=m.actions[1];
  assert.equal(m.actions[0].id,'com.deckforge.native.github-status.build');
@@ -3487,7 +3487,38 @@ test('GitHub ordered action registers an empty draft and monitors first target w
  await send('networkResult',{ok:true,body:JSON.stringify({workflow_runs:[{id:123,run_number:7,status:'completed',conclusion:'success'}]})});
  assert.equal(memory.display.number,'#7');assert.equal(memory.display.status,'빌드 성공');
  assert.ok(frames.at(-1).commands.some(x=>x.text==='첫 번째'));
- await send('press');assert.deepEqual(opened,[]);
+ await send('press');assert.deepEqual(opened,['https://github.com/Owner/A/actions/runs/123']);
  settings.targets.push({...settings.targets[0]});await send('settings');await send('tick');
  assert.equal(memory.display.status,'설정 확인');assert.equal(requests.length,1);
+});
+
+test('GitHub multi-monitor switches in order and discards an old target response',async()=>{
+ const {createGitHubManifest}=require('../app/deckforge-editor/deckforge-github-plugin.cjs');
+ const a=validateNativeManifest(createGitHubManifest()).actions[1];
+ const settings=Object.fromEntries(a.settingsSchema.map(f=>[f.key,f.default]));
+ settings.targets=[{repository:'Owner/A',workflow:'42',branch:'main',label:'A'},{repository:'Owner/B',workflow:'99',branch:'',label:'B'}];
+ const run=new (Object.getPrototypeOf(async function(){}).constructor)('event','settings','state','memory','api',a.script);
+ const memory={},requests=[],opened=[];
+ const api={setTitle(){},drawKey(){},request(...args){requests.push(args);},openUrl(url){opened.push(url);}};
+ const send=(type,response)=>run({type,response},settings,0,memory,api);
+ const response=(id,number)=>({ok:true,body:JSON.stringify({workflow_runs:[{id,run_number:number,status:'completed',conclusion:'success'}]})});
+ await send('appear');await send('tick');assert.equal(requests[0][3].path.repo,'A');
+ await send('multiNext');assert.equal(memory.index,1);await send('tick');assert.equal(requests.length,1);
+ await send('networkResult',response(111,11));assert.equal(memory.display.status,'조회 준비');assert.equal(memory.runLink,null);
+ await send('press');assert.deepEqual(opened,[]);
+ await send('tick');assert.equal(requests[1][3].path.repo,'B');
+ await send('networkResult',response(222,22));await send('press');assert.deepEqual(opened,['https://github.com/Owner/B/actions/runs/222']);
+ await send('multiPrevious');assert.equal(memory.index,0);await send('multiPrevious');assert.equal(memory.index,1);
+ await send('settings');assert.equal(memory.index,0);assert.equal(memory.runLink,null);
+});
+test('GitHub multi-monitor input separates single double hold and cancels stale timers',async()=>{
+ const {multiMonitorInput,clearMultiMonitorPress}=require('../app/deckforge-editor/deckforge-native-sdk.cjs');
+ const ctx={},events=[];let live=true;
+ const input=g=>multiMonitorInput(ctx,g,()=>live,e=>{events.push(e);return true;});
+ const wait=ms=>new Promise(resolve=>setTimeout(resolve,ms));
+ input('down');input('up');await wait(350);assert.deepEqual(events,['multiNext']);
+ input('down');input('up');input('down');input('up');await wait(350);assert.deepEqual(events,['multiNext','multiPrevious']);
+ input('down');await wait(650);input('up');await wait(350);assert.deepEqual(events,['multiNext','multiPrevious','press']);
+ input('down');input('up');clearMultiMonitorPress(ctx);await wait(350);assert.equal(events.length,3);
+ input('down');live=false;await wait(650);clearMultiMonitorPress(ctx);assert.equal(events.length,3);
 });

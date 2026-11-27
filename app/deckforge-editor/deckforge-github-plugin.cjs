@@ -77,19 +77,46 @@ function buildKey(event,settings,state,memory,api){
   memory.lastRequest=now;memory.pending=true;
   api.request('runs',null,{per_page:'1',...(branch?{branch}:{})},{path:{owner:repo[0],repo:repo[1],category:'actions',collection:'workflows',workflow,resource:'runs'}});
 }
-// Stage 4: register the ordered monitor and display its first target.
-// Navigation is a separate input-routing stage; do not open a URL on press.
-function multiBuildKey(event,settings,state,memory,api,normalize,display){
+// Ordered monitor: a single in-flight request belongs to its original target.
+function multiBuildKey(event,settings,state,memory,api,normalize,display,step){
   let targets;
   try{targets=normalize(settings.targets);}catch{
+    memory.index=0;memory.requestIndex=null;
     return display(event,{...settings,repository:'',workflow:'',branch:'',label:'GitHub'},state,memory,api);
   }
-  if(event.type==='press'||event.type==='release')return;
-  return display(event,{...settings,...targets[0]},state,memory,api);
+  if(event.type==='appear'||event.type==='settings'){
+    memory.index=0;memory.requestIndex=null;
+  }
+  if(!Number.isInteger(memory.index)||memory.index<0||memory.index>=targets.length)memory.index=0;
+  const selected=()=>({...settings,...targets[memory.index]});
+  if(event.type==='multiNext'||event.type==='multiPrevious'){
+    const next=step(memory.index,targets.length,event.type==='multiNext'?1:-1);
+    if(next===memory.index)return;
+    memory.index=next;
+    return display({type:'settings'},selected(),state,memory,api);
+  }
+  if(event.type==='networkResult'){
+    const requested=memory.requestIndex;memory.requestIndex=null;
+    if(requested!==memory.index)return;
+  }
+  if(event.type==='release')return;
+  if(event.type==='press'&&!memory.runLink)return;
+  // The host skips ticks during active requests; the timeout only recovers
+  // from a host-side cancellation that deliberately delivers no result.
+  if(event.type==='tick'&&memory.requestIndex!=null){
+    if(Date.now()-(memory.requestAt||0)<10000)return;
+    memory.requestIndex=null;memory.pending=false;
+  }
+  const wrapped={setTitle:(...args)=>api.setTitle(...args),drawKey:(...args)=>api.drawKey(...args),
+    openUrl:(...args)=>api.openUrl(...args),request:(...args)=>{
+      if(memory.requestIndex!=null)return;
+      memory.requestIndex=memory.index;memory.requestAt=Date.now();api.request(...args);
+    }};
+  return display(event,selected(),state,memory,wrapped);
 }
 function createGitHubManifest(){
   const field=(key,label,value,maxLength=128)=>({key,label,type:'text',default:value,maxLength});
-  const manifest={apiVersion:2,id:ID,name:'GitHub 개발 현황',version:'0.1.3',requiresDeckForge:'>=2.0.111',
+  const manifest={apiVersion:2,id:ID,name:'GitHub 개발 현황',version:'0.1.4',requiresDeckForge:'>=2.0.112',
     permissions:['display','network.request','network.poll','timer.tick','browser.open'],
     networkEndpoints:[{id:'runs',url:'https://api.github.com/repos/',method:'GET',auth:'bearer',pathKeys:['owner','repo','category','collection','workflow','resource'],queryKeys:['per_page','branch'],maxResponseBytes:32768}],
     actions:[{id:ID+'.build',name:'빌드 상태',controllers:['Keypad'],states:1,visualPolicy:'foreground',
@@ -104,7 +131,7 @@ function createGitHubManifest(){
     {key:'label',label:'표시 이름',maxLength:100,default:''}
   ],default:[]};
   manifest.actions.push({...single,id:ID+'.multi-build',name:'다중 저장소 빌드 상태',
-    script:'const MAX_GITHUB_MONITOR_TARGETS='+MAX_GITHUB_MONITOR_TARGETS+';return ('+multiBuildKey.toString()+')(event,settings,state,memory,api,('+normalizeGitHubMonitorTargets.toString()+'),('+buildKey.toString()+'));',
+    script:'const MAX_GITHUB_MONITOR_TARGETS='+MAX_GITHUB_MONITOR_TARGETS+';return ('+multiBuildKey.toString()+')(event,settings,state,memory,api,('+normalizeGitHubMonitorTargets.toString()+'),('+buildKey.toString()+'),('+stepGitHubMonitorIndex.toString()+'));',
     settingsSchema:[targets,...single.settingsSchema.filter(field=>['marquee','marqueeSpeed','refresh'].includes(field.key))]});
   return manifest;
 }

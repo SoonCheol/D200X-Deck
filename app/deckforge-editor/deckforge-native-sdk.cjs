@@ -29,6 +29,36 @@ const obj=x=>x!==null&&typeof x==='object'&&!Array.isArray(x);
 const validText=(x,n)=>typeof x==='string'&&x.length>0&&x.length<=n;
 const exact=(x,keys)=>obj(x)&&Object.keys(x).every(k=>keys.includes(k));
 function check(ok,message){if(!ok)throw Error('DeckForge SDK: '+message);}
+// Built-in monitor gesture arbitration; never grant a new privileged event.
+const isMultiMonitor=ctx=>ctx.apiVersion===2&&ctx.pluginUUID==='com.deckforge.native.github-status'&&ctx.action.id==='com.deckforge.native.github-status.multi-build';
+function clearMultiMonitorPress(ctx){
+  const record=ctx.multiMonitorPress;
+  if(record){clearTimeout(record.hold);clearTimeout(record.single);ctx.multiMonitorPress=null;}
+}
+function multiMonitorInput(ctx,gesture,current,dispatch){
+  let record=ctx.multiMonitorPress;
+  if(gesture==='down'){
+    if(record?.down)return false;
+    if(record?.single){
+      clearTimeout(record.single);record.single=null;record.down=true;record.consumed=true;
+      return dispatch('multiPrevious');
+    }
+    if(record)return false;
+    record={down:true,consumed:false,hold:null,single:null};ctx.multiMonitorPress=record;
+    record.hold=setTimeout(()=>{
+      if(ctx.multiMonitorPress!==record||!record.down||!current())return;
+      record.consumed=true;dispatch('press');
+    },600);record.hold.unref?.();return true;
+  }
+  if(gesture!=='up'||!record?.down)return false;
+  record.down=false;clearTimeout(record.hold);record.hold=null;
+  if(record.consumed){ctx.multiMonitorPress=null;return true;}
+  record.single=setTimeout(()=>{
+    if(ctx.multiMonitorPress!==record)return;
+    ctx.multiMonitorPress=null;
+    if(current())dispatch('multiNext');
+  },300);record.single.unref?.();return true;
+}
 function browserPermissionDigest(manifest){return createHash('sha256').update(JSON.stringify(manifest)).digest('hex');}
 function safeNativeBrowserUrl(raw){
   if(typeof raw!=='string'||raw.length>2048||!/^(https?):\/\//i.test(raw)||/[\x00-\x20\x7f\\]/.test(raw))return null;
@@ -573,6 +603,7 @@ class NativePluginHost{
     }
   }
   resetScript(ctx){
+    clearMultiMonitorPress(ctx);
     this.cancelSettingsReceipt(ctx);ctx.settingsRefresh=false;ctx.sharedDirty=false;ctx.sharedQueued=false;
     if(ctx.service&&Object.keys(ctx.sharedState||{}).length){const previous=ctx.sharedState;ctx.sharedState={};this.notifyShared(ctx.pluginUUID,previous);}
     this.animations.stop(ctx);
@@ -972,7 +1003,9 @@ class NativePluginHost{
     // Every dispatch is tied to the settings generation at acceptance.
     // A changed setting invalidates old queued work, including ABA changes
     // where a user subsequently restores exactly the old values.
+    const monitorInput=isMultiMonitor(ctx)&&['press','multiNext','multiPrevious'].includes(event);
     const active=()=>!this.closed&&!this.suspended&&!ctx.failed&&(!ctx.settingsUncertain||resultEvent)&&ctx.epoch===epoch&&this.contexts.get(ctx.context)===ctx&&
+      (!monitorInput||!ctx.multiRouteCurrent||ctx.multiRouteCurrent())&&
       (ctx.settingsRevision||0)===revision&&
       (expectedSettings===null||expectedSettings===JSON.stringify(ctx.settings))&&
       (expectedSocket===null||expectedSocket===ctx.socketGeneration);
@@ -1142,6 +1175,7 @@ class NativePluginHost{
           // Reset input pairing across settings generations. Never turn a
           // discarded press into a release-triggered privileged operation.
           if(ctx.apiVersion===2)ctx.pressed=false;
+          clearMultiMonitorPress(ctx);
           if(ctx.action.tickWhen)this.refreshTickSchedule(ctx);
           this.run(ctx,'settings');
         }
@@ -1159,6 +1193,12 @@ class NativePluginHost{
   key(context,gesture,ticks=1){
     const ctx=this.contexts.get(context);
     if(!ctx||ctx.service||this.closed||this.suspended||ctx.failed||ctx.settingsUncertain)return false;
+    if(isMultiMonitor(ctx)&&['down','up'].includes(gesture)){
+      const epoch=ctx.epoch,revision=ctx.settingsRevision;
+      const current=()=>!this.closed&&!this.suspended&&!ctx.failed&&!ctx.settingsUncertain&&this.contexts.get(context)===ctx&&ctx.epoch===epoch&&ctx.settingsRevision===revision&&(!ctx.multiRouteCurrent||ctx.multiRouteCurrent());
+      if(!current())return false;
+      return multiMonitorInput(ctx,gesture,current,event=>current()&&this.run(ctx,event));
+    }
     if(gesture==='down'){
       if(ctx.pressed)return false;
       if(ctx.apiVersion===2&&ctx.pending>=MAX_PENDING_EVENTS-INPUT_RESERVE){this.reportBackpressure(ctx);return false;}
@@ -1499,6 +1539,7 @@ class PluginRouter{
     // Use one owned snapshot for both the routing guards and queued work.
     configs=structuredClone(configs);
     this.desiredMounts=new Map(configs.map(c=>[c?.context,c]));
+    for(const [id,ctx] of this.native.contexts)if(isMultiMonitor(ctx)&&!this.nativeRouteReady(id,this.desiredMounts.get(id)))clearMultiMonitorPress(ctx);
     // Invalidate incompatible compatibility contexts before awaiting an older startup.
     this.legacy.retireUnmatched?.(configs);
     for(const [id,ctx] of this.native.contexts)if(!ctx.service&&!this.desiredContexts.has(id)){
@@ -1584,8 +1625,12 @@ class PluginRouter{
     if(this.closed)return false;
     const desired=this.desiredMounts?.get(context);
     if(!desired)return false;
-    if(this.nativeContextIds.has(context)||this.native.contexts.has(context))
-      return this.nativeRouteReady(context,desired)&&this.native.key(context,gesture,ticks);
+    if(this.nativeContextIds.has(context)||this.native.contexts.has(context)){
+      const ctx=this.native.contexts.get(context);
+      if(!this.nativeRouteReady(context,desired))return false;
+      if(isMultiMonitor(ctx))ctx.multiRouteCurrent=()=>!this.closed&&this.nativeRouteReady(context,this.desiredMounts?.get(context));
+      return this.native.key(context,gesture,ticks);
+    }
     return this.legacyRouteReady(context,desired)&&this.legacy.key(context,gesture,ticks);
   }
   inspector(context,anchor){
@@ -1596,4 +1641,4 @@ class PluginRouter{
   onSystemResume(){this.native.resume();this.legacy.onSystemResume();}
   async close(){this.closed=true;this.native.close();await this.legacy.close();}
 }
-module.exports={validateNativeManifest,NativePluginHost,PluginRouter,projectSharedState,LIMIT};
+module.exports={validateNativeManifest,NativePluginHost,PluginRouter,projectSharedState,LIMIT,multiMonitorInput,clearMultiMonitorPress};
