@@ -58,6 +58,7 @@ async function adminList(resetList=true){
   const i=r.item,card=el('article',undefined,'release');
   card.append(el('strong',i.name+' '+i.version),el('p',r.status+(r.current?' · 현재 게시':'')+' · '+i.source),el('p','항목 ID: '+i.id+' · 릴리스: '+i.releaseId),el('p',i.license));
   const select=el('select');for(const value of ['private','public']){if(value==='public'&&i.source==='third-party')continue;const option=el('option',value==='private'?'비공개':'공개');option.value=value;select.append(option);}
+  select.value=i.visibility;
   card.append(button('상세 검토',()=>reviewRelease(i.releaseId)),select,button('검토 후 게시',async()=>{if(!confirm('원본·라이선스·권한을 검토했습니까?'))return;await api('/api/v1/admin/releases/'+i.releaseId+'/publish',{method:'POST',body:{reviewed:true,visibility:select.value}});await adminList();await load();}));
   if(r.current)card.append(button('게시 철회',async()=>{if(!confirm('목록 및 다운로드를 중단합니다. 원본은 보존합니다.'))return;await api('/api/v1/admin/items/'+i.id+'/withdraw',{method:'POST',body:{}});await adminList();await load();}));
   $('releases').append(card);
