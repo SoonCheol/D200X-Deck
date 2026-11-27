@@ -183,6 +183,17 @@ function exportImageEntries(pack){
     const bytes=Buffer.from(m[2],'base64');
     if(!bytes.length||bytes.length>MAX_ICON||!validImage(bytes,m[1]))throw Error('내보낼 이미지가 손상되었습니다.');
     let filename=icon.filename||icon.name;
+    // Old sequential archives retain the useful original name in the index.
+    // Only recover pure numeric stems with safe, informative metadata.
+    if(typeof filename==='string'&&/^\d{3,}\.[^./]+$/.test(path.posix.basename(filename))&&typeof icon.name==='string'){
+      const label=icon.name.trim();
+      if(validPart(label)&&/\p{L}/u.test(label)){
+        const originalExt=path.posix.extname(filename);
+        const restored=mimeOf(label)?label:label+originalExt;
+        const dir=path.posix.dirname(filename);
+        filename=dir==='.'?restored:dir+'/'+restored;
+      }
+    }
     if(!safeImagePath(filename)||!filename.split('/').every(validPart))throw Error('안전하지 않은 파일명: '+filename);
     if(mimeOf(filename)!==m[1]){filename=filename.replace(/\.[^./]+$/,'')+'.'+ext[m[1]];converted++;}
     if(!safeImagePath(filename)||!filename.split('/').every(validPart))throw Error('안전하지 않은 파일명: '+filename);

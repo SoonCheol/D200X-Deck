@@ -437,7 +437,7 @@ def create_app(data_dir=None,origin=None):
         try: info=json.loads(raw)
         except (ValueError,UnicodeError): abort(400)
         data=make_folder_pack(info,request.files.getlist("icons"))
-        return register_upload(user,data,"iconpack","zip","deckforge" if library else request.form.get("source"),info["name"],library=library,folder=library)
+        return register_upload(user,data,"iconpack","streamDeckIconPack","deckforge" if library else request.form.get("source"),info["name"],library=library,folder=library)
     def register_upload(user,data,kind,fmt,source,fallback,library=False,folder=False):
         description=request.form.get("description","")[:1500]
         license_note=request.form.get("license","").strip()[:300]
@@ -474,7 +474,7 @@ def create_app(data_dir=None,origin=None):
         meta.update(id=ident,releaseId=release,kind=kind,source=source,platform=platform,visibility="private",format=fmt,
                     size=len(data),sha256=digest,description=description,license=license_note)
         if library:
-            meta["packageFormat"]="deckforge" if folder else package_format_of(meta)
+            meta["packageFormat"]=package_format_of(meta)
             if target:
                 meta.update(visibility=previous["visibility"],libraryShared=bool(previous.get("libraryShared")))
                 if previous.get("uploadedBy"): meta["uploadedBy"]=previous["uploadedBy"]

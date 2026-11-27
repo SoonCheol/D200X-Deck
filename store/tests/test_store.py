@@ -270,8 +270,9 @@ const x=JSON.parse(fs.readFileSync(0,'utf8'));if(!fn(x.origin,x.item,{origin:x.o
         path="/api/v1/admin/releases/"+item["releaseId"]
         downloaded=self.c.get(path+"/download",headers=self.owner).data
         with zipfile.ZipFile(io.BytesIO(downloaded)) as z:
-            index=json.loads(z.read("icons.json"));self.assertEqual(index[0],{"path":"win/copy.png","name":"copy","tags":["복사","Windows"]})
-            self.assertEqual(z.read("icons/win/copy.png"),image)
+            root=next(n[:-len("icons.json")] for n in z.namelist() if n.endswith("/icons.json"));self.assertTrue(root.endswith(".sdIconPack/"));self.assertEqual(item["format"],"streamDeckIconPack")
+            self.assertIn(root+"icon.png",z.namelist());index=json.loads(z.read(root+"icons.json"));self.assertEqual(index[0],{"path":"win/copy.png","name":"copy","tags":["복사","Windows"]})
+            self.assertEqual(z.read(root+"icons/win/copy.png"),image)
         archive=Path(self.tmp.name)/"client-read.zip";archive.write_bytes(downloaded)
         parser=Path(__file__).resolve().parents[2]/"app/deckforge-editor/icon-pack.cjs"
         script="""const assert=require('node:assert/strict'),fs=require('node:fs');
@@ -280,6 +281,14 @@ const {parseIconPack}=require(process.argv[1]);(async()=>{const p=await parseIco
         for paths in [("../bad.png",),("x.svg",),("copy.png","COPY.png")]:
             self.assertEqual(self.c.post(endpoint,data=data(paths),headers=self.owner).status_code,400)
         self.assertEqual(self.c.post(endpoint,data=data(tags=["x"*61]),headers=self.owner).status_code,400)
+        numbered=self.c.post(endpoint,data=data(("01_001_light_on.png","01_001_light_off.png","2024_calendar.png")),headers=self.owner)
+        self.assertEqual(numbered.status_code,201,numbered.json)
+        blob=self.c.get("/api/v1/admin/releases/"+numbered.json["item"]["releaseId"]+"/download",headers=self.owner).data
+        with zipfile.ZipFile(io.BytesIO(blob)) as z:
+            root=next(n[:-len("icons.json")] for n in z.namelist() if n.endswith("/icons.json"))
+            entries=json.loads(z.read(root+"icons.json"))
+            self.assertEqual([x["name"] for x in entries],["light_on","light_off","2024_calendar"])
+            self.assertEqual([x["path"] for x in entries],["01_001_light_on.png","01_001_light_off.png","2024_calendar.png"])
         # Beyond the previous 16-part upload limit.
         result=self.c.post(endpoint,data=data(tuple("folder/icon"+str(i)+".png" for i in range(20))),headers=self.owner)
         self.assertEqual(result.status_code,201,result.json);self.assertEqual(result.json["item"]["iconCount"],20)
@@ -320,9 +329,10 @@ const {parseIconPack}=require(process.argv[1]);(async()=>{const p=await parseIco
         item=result.json["item"]
         downloaded=self.c.get("/api/v1/admin/releases/"+item["releaseId"]+"/download",headers=self.owner).data
         with zipfile.ZipFile(io.BytesIO(downloaded)) as z:
-            self.assertEqual(z.read("originals/win/copy.svg"),svg)
-            self.assertEqual(json.loads(z.read("icons.json")),[{"path":"win/copy.png","name":"copy","tags":["복사"]}])
-            self.assertTrue(z.read("icons/win/copy.png").startswith(b"\x89PNG"))
+            root=next(n[:-len("icons.json")] for n in z.namelist() if n.endswith("/icons.json"))
+            self.assertEqual(z.read(root+"originals/win/copy.svg"),svg)
+            self.assertEqual(json.loads(z.read(root+"icons.json")),[{"path":"win/copy.png","name":"copy","tags":["복사"]}])
+            self.assertTrue(z.read(root+"icons/win/copy.png").startswith(b"\x89PNG"))
         archive=Path(self.tmp.name)/"svg-pack.zip";archive.write_bytes(downloaded)
         parser=Path(__file__).resolve().parents[2]/"app/deckforge-editor/icon-pack.cjs"
         script="const fs=require('node:fs');require(process.argv[1]).parseIconPack(fs.readFileSync(process.argv[2])).then(p=>{if(p.icons.length!==1||p.icons[0].filename!=='win/copy.png')process.exit(1)}).catch(e=>{console.error(e);process.exit(1)});"

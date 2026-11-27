@@ -3,9 +3,11 @@ import io
 import json
 import zipfile
 import time
+import hashlib
+from PIL import Image
 from svg_raster import rasterize_svg, MAX_SVG, MAX_SVG_COUNT
 from pathlib import PurePosixPath
-from package_inspector import MIB, RASTER, require, safe_path, text
+from package_inspector import MIB, RASTER, require, safe_path, text, display_icon_name
 
 def make_folder_pack(metadata, files):
     require(isinstance(metadata,dict),"invalid folder metadata")
@@ -16,6 +18,7 @@ def make_folder_pack(metadata, files):
     require(isinstance(author,str),"invalid author")
     icons=metadata.get("icons")
     require(isinstance(icons,list) and 1<=len(icons)<=2500 and len(icons)==len(files),"invalid file count")
+    root='com.deckforge.icons.'+hashlib.sha256((author+'\0'+name).encode('utf-8')).hexdigest()[:24]+'.sdIconPack/'
     seen=set(); installed=set(); index=[]; total=0; svg_count=0; deadline=time.monotonic()+60; out=io.BytesIO()
     with zipfile.ZipFile(out,"w",zipfile.ZIP_DEFLATED,compresslevel=3) as z:
         for row,file in zip(icons,files):
@@ -28,7 +31,7 @@ def make_folder_pack(metadata, files):
             tags=row.get("tags",[])
             require(isinstance(tags,list) and len(tags)<=30,"invalid tags")
             tags=list(dict.fromkeys(text(v,60).strip() for v in tags))
-            icon_name=text(PurePosixPath(path).stem,100)
+            icon_name=text(display_icon_name(PurePosixPath(path).stem),100)
             data=file.stream.read(6*MIB+1)
             require(0<len(data)<=6*MIB,"icon size limit")
             total+=len(data)
@@ -36,19 +39,25 @@ def make_folder_pack(metadata, files):
             target=path
             if PurePosixPath(path).suffix.lower()==".svg":
                 svg_count+=1
-                require(svg_count<=MAX_SVG_COUNT and len(icons)+svg_count+2<=2530 and len(data)<=MAX_SVG and time.monotonic()<deadline,"SVG folder limit")
+                require(svg_count<=MAX_SVG_COUNT and len(icons)+svg_count+3<=2530 and len(data)<=MAX_SVG and time.monotonic()<deadline,"SVG folder limit")
                 target=str(PurePosixPath(path).with_suffix(".png"))
                 original=data
                 data=rasterize_svg(original)
-                z.writestr("originals/"+path,original)
+                z.writestr(root+"originals/"+path,original)
             require(target.casefold() not in installed,"converted icon path conflict")
             installed.add(target.casefold())
             index.append(dict(path=target,name=icon_name,tags=tags))
-            z.writestr("icons/"+target,data)
-        manifest=json.dumps({"Name":name,"Version":version,"Author":author},ensure_ascii=False).encode("utf-8")
+            z.writestr(root+"icons/"+target,data)
+            if len(index)==1:
+                with Image.open(io.BytesIO(data)) as im:
+                    cover=im.convert("RGBA");cover.thumbnail((56,56))
+                    canvas=Image.new("RGBA",(56,56));canvas.paste(cover,((56-cover.width)//2,(56-cover.height)//2))
+                    buf=io.BytesIO();canvas.save(buf,format="PNG")
+                    z.writestr(root+"icon.png",buf.getvalue())
+        manifest=json.dumps({"Name":name,"Version":version,"Author":author,"Icon":"icon.png"},ensure_ascii=False).encode("utf-8")
         index_bytes=json.dumps(index,ensure_ascii=False,separators=(",",":")).encode("utf-8")
         require(len(index_bytes)<=MIB,"icon metadata size limit")
-        z.writestr("manifest.json",manifest);z.writestr("icons.json",index_bytes)
+        z.writestr(root+"manifest.json",manifest);z.writestr(root+"icons.json",index_bytes)
     data=out.getvalue()
     require(len(data)<=60*MIB,"archive size limit")
     return data

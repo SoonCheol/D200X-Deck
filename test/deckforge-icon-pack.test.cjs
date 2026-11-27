@@ -214,3 +214,14 @@ test('plain ZIP and folder export preserves names, original raster and SVG bytes
     assert.ok((await JSZip.loadAsync(await fs.readFile(legacy))).file('nested/lamp.png'));
   }finally{await fs.rm(dir,{recursive:true,force:true});}
 });
+
+test('restores numeric-only legacy filenames from meaningful indexed names',async()=>{
+  const dir=await fs.mkdtemp(path.join(os.tmpdir(),'deckforge-name-export-'));
+  try{
+    const pack={name:'Legacy',icons:[{filename:'001.png',name:'01_001_light_on',image:'data:image/png;base64,'+png.toString('base64')},{filename:'02_001_fan_off.png',name:'fan_off',image:'data:image/png;base64,'+png.toString('base64')}]};
+    const file=path.join(dir,'names.zip');await exportIconImages(pack,file,'zip');
+    const z=await JSZip.loadAsync(await fs.readFile(file));
+    assert.ok(z.file('01_001_light_on.png'));assert.ok(z.file('02_001_fan_off.png'));
+    assert.equal(z.file('001.png'),null);
+  }finally{await fs.rm(dir,{recursive:true,force:true});}
+});

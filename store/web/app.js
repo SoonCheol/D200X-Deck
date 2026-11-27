@@ -205,7 +205,7 @@ function renderFolder(){
   }else{img=el('img');const url=URL.createObjectURL(r.file);previewUrls.push(url);img.src=url;img.alt='';img.loading='lazy';}
   const col=el('div');const tags=el('input');tags.value=r.tags.join(', ');tags.placeholder='검색 태그 (쉼표 구분)';tags.setAttribute('aria-label',r.path+' 검색 태그');
   tags.onchange=()=>{try{r.tags=parseTags(tags.value);}catch(e){$('folder-status').textContent=e.message;}tags.value=r.tags.join(', ');};
-  col.append(el('strong',r.path),tags);row.append(check,img,col);$('icon-rows').append(row);
+  col.append(el('strong',r.path.split('/').at(-1).replace(/^(?:(?:[0-9]{2}_[0-9]{3})|(?:0[0-9]{2}))_(?=\p{L})/u,'')),tags);row.append(check,img,col);$('icon-rows').append(row);
  }
 }
 $('folder-picker').onchange=()=>{
@@ -222,7 +222,7 @@ $('folder-picker').onchange=()=>{
    if(!file.size||file.size>(SVG_EXT.test(path)?256*1024:6*1024*1024))throw Error('개별 이미지 크기 제한: '+path);
    seen.add(path.toLowerCase());total+=file.size;folderRows.push({file,path,tags:[],selected:false});
   }
-  if(svg>500||folderRows.length+svg+2>2530)throw Error('SVG 최대 500개, 원본 포함 압축 항목 2530개 제한');
+  if(svg>500||folderRows.length+svg+3>2530)throw Error('SVG 최대 500개, 원본 포함 압축 항목 2530개 제한');
   if(!folderRows.length||folderRows.length>2500||total>58*1024*1024)throw Error('이미지 1~2500개, 원본 합계 58MiB 이하로 선택하세요.');
   folderRows.sort((a,b)=>a.path.localeCompare(b.path));$('pack-name').value=libraryUpdate?libraryUpdate.name:root.slice(0,120);
   $('folder-status').textContent=folderRows.length+'개 이미지 · '+(total/1024/1024).toFixed(2)+' MiB'+(svg?' · SVG '+svg+'개 (서버 PNG 변환)':'')+(skipped?' · 이미지 외 파일 '+skipped+'개 제외':'');

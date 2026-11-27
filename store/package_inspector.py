@@ -208,6 +208,10 @@ def inspect_package(data, kind, fmt, source, fallback):
     except (zipfile.BadZipFile,UnidentifiedImageError,Image.DecompressionBombError,UnicodeError,KeyError,TypeError,AttributeError,OSError,RuntimeError) as exc:
         raise ValueError("invalid or unsupported package") from exc
 
+def display_icon_name(name):
+    # Only conventional zero-padded sorting prefixes; do not touch actual paths.
+    return re.sub(r"^(?:(?:[0-9]{2}_[0-9]{3})|(?:0[0-9]{2}))_(?=[^\W\d_])","",name)
+
 def icon_preview_page(data, offset, limit):
     """Generate bounded thumbnails from the verified immutable package, without extracting it."""
     require(type(offset) is int and offset >= 0 and 1 <= limit <= 48, "invalid preview range")
@@ -237,7 +241,7 @@ def icon_preview_page(data, offset, limit):
                     require(image.format==RASTER[suffix] and 0<image.width<=4096 and 0<image.height<=4096,"invalid raster")
                     thumb=png_preview(image.convert("RGBA"),12288)
                     require(thumb is not None,"preview unavailable")
-                result.append(dict(name=label[:160],path=path,preview=thumb))
+                result.append(dict(name=display_icon_name(label)[:160],path=path,preview=thumb))
             return dict(icons=result,total=len(paths),nextOffset=offset+len(result) if offset+len(result)<len(paths) else None)
     except (zipfile.BadZipFile,UnidentifiedImageError,Image.DecompressionBombError,UnicodeError,KeyError,TypeError,AttributeError,OSError,RuntimeError) as exc:
         raise ValueError("invalid or unsupported package") from exc

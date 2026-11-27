@@ -7854,8 +7854,8 @@ function renderIconLibrary(){
     for(const icon of matching.slice(0,limit)){
       count++;
       const tile=document.createElement('button');tile.type='button';
-      tile.className='icon-swatch icon-pack-swatch';tile.title=pack.name+' / '+icon.name;
-      const image=document.createElement('img');image.src=icon.image;image.alt=icon.name;
+      tile.className='icon-swatch icon-pack-swatch';tile.title=pack.name+' / '+String(icon.name).replace(/^(?:(?:[0-9]{2}_[0-9]{3})|(?:0[0-9]{2}))_(?=\p{L})/u,'');
+      const image=document.createElement('img');image.src=icon.image;image.alt=String(icon.name).replace(/^(?:(?:[0-9]{2}_[0-9]{3})|(?:0[0-9]{2}))_(?=\p{L})/u,'');
       tile.append(image);
       tile.addEventListener('click',async()=>{
         const target=libraryTarget,session=librarySession;
