@@ -30,7 +30,7 @@ const Backup=require('./backup.cjs');
 const BackupPrivacy=require('./backup-privacy.cjs');
 const {GoogleDrive}=require('./google-drive.cjs');
 const UpdateCheck=require('./update-check.cjs');
-const {StoreClient,storeInstalledState}=require('./store-client.cjs');
+const {StoreClient,storeLocalState}=require('./store-client.cjs');
 const storeClient=new StoreClient(app.getPath('userData'));
 ipcMain.handle('d200x:store-status',event=>{assertEditor(event);return storeClient.status();});
 ipcMain.handle('d200x:store-save',(event,origin)=>{assertEditor(event);return storeClient.save(origin);});
@@ -55,7 +55,17 @@ ipcMain.handle('d200x:store-catalog',async(event,kind,cursor,filters)=>{
   if(kind==='iconpack'){await ensureIconPacksMigrated();installed=await readPacks(iconPacksFile());}
   else installed=await sdk().list();
   if(storeClient.requireSession()!==session||storeClient.status().origin!==origin)throw Error('스토어 세션이 변경되었습니다.');
-  return {...page,items:page.items.map(item=>({...item,local:storeInstalledState(item,installed,origin)}))};
+  return {...page,items:page.items.map(item=>({...item,local:storeLocalState(item,installed,origin)}))};
+});
+ipcMain.handle('d200x:store-local-state',async(event,item)=>{
+  assertEditor(event);
+  const session=storeClient.requireSession(),origin=storeClient.status().origin;
+  if(!item||!['iconpack','plugin'].includes(item.kind))throw Error('스토어 종류 오류');
+  let installed;
+  if(item.kind==='iconpack'){await ensureIconPacksMigrated();installed=await readPacks(iconPacksFile());}
+  else installed=await sdk().list();
+  if(storeClient.requireSession()!==session||storeClient.status().origin!==origin)throw Error('스토어 세션이 변경되었습니다.');
+  return storeLocalState(item,installed,origin);
 });
 ipcMain.handle('d200x:store-preview',(event,kind,id,releaseId,hash)=>{assertEditor(event);return storeClient.preview(kind,id,releaseId,hash);});
 ipcMain.handle('d200x:store-download',(event,kind,id,releaseId,hash,installIconPack=false,installPlugin=false)=>{

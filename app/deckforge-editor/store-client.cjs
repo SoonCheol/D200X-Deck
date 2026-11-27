@@ -62,13 +62,19 @@ function storePreviewPng(value,maxBytes=65536){
   if(!width||!height||width>512||height>512)return null;
   return 'data:image/png;base64,'+value;
 }
+function storeMatchingIconPacks(item,installed,origin){
+  const rows=Array.isArray(installed)?installed:[];
+  return rows.filter(p=>p&&p.source!=='bundled'&&
+    (p.id===item.sha256.slice(0,20)||(p.storeSource?.origin===origin&&p.storeSource?.itemId===item.id)));
+}
 function storeInstalledState(item,installed,origin){
   const rows=Array.isArray(installed)?installed:[];
   if(item.kind==='iconpack'){
     // Original archive ID is a SHA256 prefix; no name-only matches.
-    const exact=rows.find(p=>p.id===item.sha256.slice(0,20));
+    const matches=storeMatchingIconPacks(item,rows,origin);
+    const exact=matches.find(p=>p.id===item.sha256.slice(0,20));
     if(exact)return {state:'installed',version:String(exact.version||'')};
-    const linked=rows.filter(p=>p.storeSource?.origin===origin&&p.storeSource?.itemId===item.id);
+    const linked=matches.filter(p=>p.storeSource?.origin===origin&&p.storeSource?.itemId===item.id);
     if(!linked.length)return {state:'not-found',version:''};
     const target=semver.valid(item.version),versions=linked.map(p=>semver.valid(p.version)).filter(Boolean);
     if(!target||versions.length!==linked.length)return {state:'different',version:String(linked.at(-1).version||'')};
@@ -80,6 +86,18 @@ function storeInstalledState(item,installed,origin){
   const local=String(plugin.version||''),a=semver.valid(local),b=semver.valid(item.version);
   if(!a||!b)return {state:'different',version:local};
   return {state:semver.lt(a,b)?'update':semver.gt(a,b)?'newer':'same-version',version:local};
+}
+// Only local identity metadata, never image bytes or removal permissions.
+function storeLocalState(item,installed,origin){
+  if(!item||!['iconpack','plugin'].includes(item.kind))throw Error('스토어 종류 오류');
+  storeId(item.id);
+  if(typeof item.version!=='string'||!item.version||item.version.length>80)throw Error('스토어 버전 오류');
+  if(item.kind==='iconpack'){
+    if(typeof item.sha256!=='string'||!/^[a-f0-9]{64}$/.test(item.sha256))throw Error('스토어 해시 오류');
+  }else if(typeof item.packageId!=='string'||!item.packageId||item.packageId.length>160||STORE_BUILTINS.has(item.packageId.toLowerCase()))throw Error('스토어 플러그인 식별자 오류');
+  const state=storeInstalledState(item,installed,origin);
+  if(item.kind==='iconpack')state.matches=storeMatchingIconPacks(item,installed,origin).map(p=>({id:p.id,name:p.name,version:p.version,source:p.source}));
+  return state;
 }
 function storeCatalogItem(raw,kind,role){
   if(!raw||raw.kind!==kind||!['iconpack','plugin'].includes(kind))throw Error('스토어 항목 종류 오류');
@@ -262,4 +280,4 @@ class StoreClient{
     });
   }
 }
-module.exports={DEFAULT_STORE_ORIGIN,normalizeStoreOrigin,StoreClient,storeCatalogItem,verifyStoreBytes,storePreviewPng,storeInstalledState,storeTrustKey,storeSignaturePayload,verifyStoreSignature};
+module.exports={DEFAULT_STORE_ORIGIN,normalizeStoreOrigin,StoreClient,storeCatalogItem,verifyStoreBytes,storePreviewPng,storeInstalledState,storeLocalState,storeTrustKey,storeSignaturePayload,verifyStoreSignature};

@@ -7498,17 +7498,16 @@ async function openStoreCatalog(){
       }
       grid.append(button('파일 저장',()=>void download(item,false)));
       if(kind==='iconpack'){
-        const install=button('설치',()=>void download(item,true));
-        if(item.local?.state!=='not-found')install.disabled=true;
-        grid.append(install);
+        if(item.local?.state==='not-found')grid.append(button('설치',()=>void download(item,true)));
+        else for(const pack of item.local?.matches||[]){
+          const label=(item.local.matches.length>1?'제거 · '+(pack.version||pack.name):'제거');
+          grid.append(button(label,()=>void removeInstalled(item,pack.id)));
+        }
       }
       else{
         grid.append(node('p','store-pack-meta',item.trusted?'등록 공개키 서명 확인':'미서명 또는 신뢰되지 않은 게시자 · 직접 설치 불가'));
-        if(item.trusted){
-          const install=button('설치',()=>void download(item,true));
-          if(item.local?.state!=='not-found')install.disabled=true;
-          grid.append(install);
-        }
+        if(item.local?.state&&item.local.state!=='not-found')grid.append(button('제거',()=>void removeInstalled(item)));
+        else if(item.trusted&&item.local?.state==='not-found')grid.append(button('설치',()=>void download(item,true)));
       }
       return;
     }
@@ -7552,13 +7551,40 @@ async function openStoreCatalog(){
     }catch(error){items=[];selected=null;cursor='';status.textContent='목록 조회 실패: '+String(error?.message||error);}
     finally{if(dlg.open)setBusy(false);}
   }
+  async function refreshLocal(item){
+    try{
+      const next=await window.deckBridge.storeLocalState({kind:item.kind,id:item.id,version:item.version,sha256:item.sha256,packageId:item.packageId});
+      if(!dlg.open||!await guard())return false;
+      item.local=next;return true;
+    }catch(error){
+      item.local=null;status.textContent='설치 상태 조회 실패: '+String(error?.message||error);return false;
+    }
+  }
+  async function removeInstalled(item,packId){
+    if(busy||expired)return;setBusy(true);status.textContent='설치 상태 확인 중…';
+    try{
+      if(!await guard()||!await refreshLocal(item))return;
+      if(kind==='iconpack'){
+        const pack=(item.local.matches||[]).find(p=>p.id===packId);
+        if(!pack){status.textContent='이미 제거되었거나 설치되지 않은 아이콘팩입니다.';return;}
+        await removeIconPackFromLibrary(pack);
+      }else{
+        const plugin=(await window.deckBridge.sdkList()).find(p=>typeof p.uuid==='string'&&p.uuid.toLowerCase()===item.packageId.toLowerCase()&&storePluginIsOptional(p));
+        if(!plugin){await refreshLocal(item);status.textContent='제거 가능한 설치 플러그인을 찾을 수 없습니다.';return;}
+        await removePluginKeepingData(plugin);
+      }
+      if(dlg.open&&await refreshLocal(item))status.textContent=item.local.state==='not-found'?'제거됨 · 서버 원본 유지':'설치 상태 갱신 완료';
+    }catch(error){if(dlg.open){await refreshLocal(item);status.textContent='제거 처리 실패: '+String(error?.message||error);}}
+    finally{if(dlg.open)setBusy(false);}
+  }
   async function download(item,install){
     if(busy||expired)return;setBusy(true);status.textContent='다운로드 및 검증 중…';
     try{
       if(!await guard())return;
       const result=await window.deckBridge.storeDownload(kind,item.id,item.releaseId,item.sha256,install&&kind==='iconpack',install&&kind==='plugin');
-      if(result?.kind==='installed'){item.local={state:'installed',version:item.version};await refreshImportedIconPacks();}
-      if(result?.kind==='plugin-installed'){item.local={state:'same-version',version:item.version};await refreshSdkPlugins();scheduleSdkSync();}
+      if(result?.kind==='installed'||result?.kind==='already-installed')await refreshImportedIconPacks();
+      if(result?.kind==='plugin-installed'){await refreshSdkPlugins();scheduleSdkSync();}
+      if(install&&dlg.open&&!await refreshLocal(item))return;
       if(dlg.open&&await guard())status.textContent=result?.kind==='plugin-installed'?'플러그인 설치 완료':result?.kind==='installed'?'아이콘팩 설치 완료':result?.kind==='already-installed'?'이미 설치된 아이콘팩입니다.':result?.kind==='saved'?'패키지 저장 완료':'취소됨';
     }catch(error){if(dlg.open)status.textContent='다운로드 실패: '+String(error?.message||error);}
     finally{if(dlg.open)setBusy(false);}
