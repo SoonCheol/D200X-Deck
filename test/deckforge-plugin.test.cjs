@@ -3522,3 +3522,14 @@ test('GitHub multi-monitor input separates single double hold and cancels stale 
  input('down');input('up');clearMultiMonitorPress(ctx);await wait(350);assert.equal(events.length,3);
  input('down');live=false;await wait(650);clearMultiMonitorPress(ctx);assert.equal(events.length,3);
 });
+
+test('GitHub editor and native action share the exact target validator',()=>{
+ const core=require('../app/deckforge-editor/deck-core.js');
+ const plugin=require('../app/deckforge-editor/deckforge-github-plugin.cjs');
+ assert.equal(plugin.normalizeGitHubMonitorTargets,core.normalizeGitHubMonitorTargets);
+ assert.throws(()=>core.normalizeGitHubMonitorTargets([]),/등록/);
+ assert.throws(()=>core.normalizeGitHubMonitorTargets([{repository:'Owner/A',workflow:'',branch:'',label:''}]),/빌드 종류/);
+ assert.deepEqual(core.normalizeGitHubMonitorTargets([{repository:'Owner/A',workflow:'12',branch:'',label:''}]),[{repository:'Owner/A',workflow:'12',branch:'',label:'A'}]);
+ const editor=require('node:fs').readFileSync(path.join(__dirname,'../app/deckforge-editor/editor.js'),'utf8');
+ assert.ok(editor.includes('next.targets=DeckCore.normalizeGitHubMonitorTargets(next.targets)'));
+});

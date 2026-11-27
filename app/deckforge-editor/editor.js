@@ -4536,6 +4536,7 @@ async function openNativeSettings(item,action,plugin){
   const original=clone(item.settings?.pluginSettings||{});
   const ha=plugin.uuid==='com.deckforge.native.home-assistant',haControl=ha&&action.uuid.endsWith('.control'),haSensor=ha&&action.uuid.endsWith('.sensor');
   const githubBuild=plugin.uuid==='com.deckforge.native.github-status'&&action.uuid.endsWith('.build');
+  const githubMulti=plugin.uuid==='com.deckforge.native.github-status'&&action.uuid.endsWith('.multi-build');
   const githubFields=new Map();
   const content=document.createElement('div');content.className='native-sdk-form'+(ha?' ha-native-settings':'')+(haControl?' ha-switch-settings':'');
   let linkFlagsRow=null,linkFlags=null;
@@ -4832,14 +4833,14 @@ async function openNativeSettings(item,action,plugin){
     :action.uuid.endsWith('.other')?'자동화·스크립트·장면·버튼을 선택해 해당 유형의 기본 실행 명령을 보냅니다. 그 밖의 유형은 아직 지원하지 않습니다.':
     '기준 기기는 항상 ON/OFF 전환합니다. 연동 기기 하나를 선택하고 ON·OFF 이벤트와 반대 작동을 지정할 수 있습니다. 기준 기기의 제어 성공 응답 후 전환 목표 상태에 따라 연동 명령을 보냅니다.')
     :plugin.uuid==='com.deckforge.native.github-status'
-      ?'지정한 GitHub 저장소와 워크플로의 최근 빌드 상태를 읽기 전용으로 표시합니다. 저장소·브랜치·워크플로를 선택하고 Actions 읽기 권한 토큰을 등록하세요.'+(plugin.permissions?.includes('browser.open')?' 웹페이지 열기 권한 승인 후 버튼을 누르면 현재 표시된 빌드 상세 페이지를 엽니다. 빌드가 아직 조회되지 않은 경우 다시 조회합니다.':'')
+      ?githubMulti?'저장소·브랜치·빌드 종류를 순서대로 등록하세요. 한 번 누르기: 다음 저장소, 두 번 누르기: 이전 저장소, 길게 누르기: 현재 빌드 상세 페이지(웹페이지 열기 권한 필요). Actions 읽기 권한 토큰은 별도 등록합니다.':'지정한 GitHub 저장소와 워크플로의 최근 빌드 상태를 읽기 전용으로 표시합니다. 저장소·브랜치·워크플로를 선택하고 Actions 읽기 권한 토큰을 등록하세요.'+(plugin.permissions?.includes('browser.open')?' 웹페이지 열기 권한 승인 후 버튼을 누르면 현재 표시된 빌드 상세 페이지를 엽니다. 빌드가 아직 조회되지 않은 경우 다시 조회합니다.':'')
       :'등록한 액션의 설정값을 편집합니다. 플러그인 설치와 서비스 관리는 액션 목록의 해당 플러그인 도움말에서 확인할 수 있습니다.';
   const helpText=[instructions,ha?'초기 연결: Home Assistant 그룹의 도움말에서 서버 주소를 설정하고 장기 액세스 토큰을 인증정보 관리에 등록하세요. 연결 후 기기 목록을 새로 고치면 됩니다.':credentialCapable?'필요한 인증정보는 인증정보 관리에서 별도로 등록하세요.':'설치된 플러그인의 안내에 따라 필요한 설정을 입력하세요.',
     '일반 설정은 프로필에 저장됩니다. 적용한 다음 편집기의 저장 버튼을 눌러 기기에 반영하세요. 비밀번호·토큰은 일반 설정에 입력하지 마세요.'].join('\n\n');
   const onHelp=haControl?()=>void window.DeckForgeDialogs.show({title:action.name+' · 도움말',detail:helpText,
     content:managementRow.childElementCount?managementRow:null,actionLabel:'닫기'}):null;
   try{accepted=await window.DeckForgeDialogs.show({anchorTop:!ha,title:action.name,helpText,onHelp,
-    content,ask:true,actionLabel:haControl||githubBuild?'저장':'적용',onAccept:()=>{
+    content,ask:true,actionLabel:haControl||githubBuild||githubMulti?'저장':'적용',onAccept:()=>{
       try{
         const {next,error}=collectNativeSettingDraft(inputs,fieldRows,original,haSensor);
         if(error){notice.textContent=error;return false;}
@@ -4847,6 +4848,10 @@ async function openNativeSettings(item,action,plugin){
           if(githubLoading){notice.textContent='목록 조회 중입니다.';return false;}
           if(!next.repository||!next.workflow){notice.textContent='저장소와 빌드 종류를 선택하세요.';return false;}
           if(!githubVerified&&['repository','branch','workflow'].some(key=>next[key]!==String(original[key]??schema.find(f=>f.key===key)?.default??''))){notice.textContent='GitHub 인증 및 목록 조회를 확인하세요.';return false;}
+        }
+        if(githubMulti){
+          try{next.targets=DeckCore.normalizeGitHubMonitorTargets(next.targets);}
+          catch(error){notice.textContent=error.message;return false;}
         }
         if(haControl){
           if(!next.entity){notice.textContent='기준 기기를 선택하세요.';return false;}
