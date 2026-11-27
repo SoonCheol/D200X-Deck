@@ -4287,7 +4287,16 @@ function bindIndicatorInspector(root,item){
     const key=pressed?'press:down':null;
     const buttons=createStateIconButtons({
       library:event=>openIconLibrary(item,key,event.currentTarget),
-      file:async()=>{try{const chosen=await chooseNativeImage('image');if(chosen?.dataUrl)applyStateIconData(item,key,await rasterizeIcon(chosen.dataUrl));}catch(error){window.d200xActionStatus?.('아이콘 선택 실패: '+String(error?.message||error));}},
+      file:async()=>{
+        const session=inspectorSession;
+        try{
+          const chosen=await chooseNativeImage('image');
+          if(!chosen?.dataUrl||!inspectorPickerCurrent(session,item))return;
+          const png=await rasterizeIcon(chosen.dataUrl);
+          if(!inspectorPickerCurrent(session,item))return;
+          applyStateIconData(item,key,png,session);
+        }catch(error){window.d200xActionStatus?.('아이콘 선택 실패: '+String(error?.message||error));}
+      },
       paste:()=>pasteIcon(item,key),
       symbol:event=>openIconMaker(item,key,event.currentTarget),
       reset:()=>{

@@ -56,8 +56,8 @@
 - 06 (2.0.102 구현, Windows #106/CI #1558/SDK #250/입력 #594 성공): createInspectorCommand/createActionHelpDialog로 기본 도움말 및 저장/취소/이동 확인·순차 모달 버튼 생성 통합. validateOrderedActionDraft로 기존 단축키 검증 분리. 기존 미저장/실패 복구·외부 SDK 독립 커밋·실행/미리보기 정책 보존. 집중 검사 추가.
 - 07 (2.0.103 구현, Windows #107/CI #1560/SDK #252/입력 #595 성공): 노출 기본 35종의 순간형/상태형/단일/페이지 표시 경로를 검사에 명시. 페이지 표시도 공통 카드/5버튼 생성기를 사용하고 번호·제목·배경·일괄 기능 유지.
 - 08 (2.0.104 구현, Windows #108/CI #1562/SDK #254/입력 #596 성공): HA/GitHub 목록 갱신·재연결·인증 관리 버튼에 createInspectorCommand 사용. readNativeSettingEntry/collectNativeSettingDraft로 schema 입력 및 유효성 검사 공통화, 숨김/비활성 원본·HA/GitHub 고유 승인 검증 유지. Fusion 명령 속성의 기존 공통 카드/DeckForgeDialogs 읽기 전용 경로 보존. 인증·실행 엔진·프로필·USB 미변경.
-- 09 (2.0.105 구현, 검증 대기): usesPairedInspectorLayout/bindCommonInspectorCards로 일반 LCD 속성창의 카드 레이아웃 판정과 공통 카드/저장 바 연결 일원화. 기존 입력 바인딩·선언형 SDK schema·전용 어댑터 재사용. 실행 상태 판정 및 저장 계약 미변경. 신규 액션 계승 집중 검사 추가.
-- 10: 집중 DOM/기하·저장/취소·비동기 세션·상태별 데이터/미리보기 검증, 변경 관련 CI/Windows 빌드 및 별도 실기. 검증 후에만 미사용 중복 제거. 각 구현 단위 버전·커밋·자동 빌드, 문서만 변경 시 제품 버전 유지.
+- 09 (2.0.105 구현, Windows #109/CI #1564/SDK #256/입력 #597 성공): usesPairedInspectorLayout/bindCommonInspectorCards로 일반 LCD 속성창의 카드 레이아웃 판정과 공통 카드/저장 바 연결 일원화. 기존 입력 바인딩·선언형 SDK schema·전용 어댑터 재사용. 실행 상태 판정 및 저장 계약 미변경. 신규 액션 계승 집중 검사 추가.
+- 10 (2.0.106 검증 보강, 결과 대기): #109 기존 통합 회귀·게시 성공. 페이지 표시 파일 선택/래스터 변환 전후 동일 초안 확인, 지연 결과 차단 검사 추가. 기존 Electron 35+5 속성창 실측에 버튼 순서·76×25·4px 간격·카드 12px 검사 추가 및 재실행. 실제 D200X·Windows 설치 UI 사용자 확인 별도. 검증되지 않은 미사용 후보(도움말 등)는 삭제하지 않음.
 
 - 최후순위(재발 시): Fusion 명령 버튼 포함 페이지의 Windows 편집기 깜박임. 사용자 1.1.182에서 사라짐 확인. 사용자 확인상 물리 D200X 버튼 깜박임 없음. 1.1.183까지 반영한 개선은 유지. SDK 핵심 단계의 선행조건으로 삼지 않으며 기능·보안 회귀는 별도로 즉시 처리.
 

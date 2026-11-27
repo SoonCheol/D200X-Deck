@@ -929,3 +929,29 @@ test('new LCD actions inherit common inspector layout and bindings without infer
  assert.match(render,/usesPairedInspectorLayout\(item\)\?' state-title-inspector'/);
  assert.match(render,/bindCommonInspectorCards\(root,item\)/);
 });
+
+
+test('page indicator file picker cannot commit into a newer inspector session',async()=>{
+ const start=editor.indexOf('  const buildCard=(pressed)=>{',editor.indexOf('function bindIndicatorInspector('));
+ const end=editor.indexOf('  const {card,heading,image,buttons}=buildCard(false);',start);
+ assert.ok(start>=0&&end>start);
+ const node=()=>({dataset:{},append(){}});
+ const item={type:'indicator'},first={},second={},applied=[];
+ let resolvePicker,resolveRaster,rasterCalls=0;
+ const ctx={item,index:0,inspectorSession:first,
+   createStateIconCard:()=>({card:node(),heading:node(),preview:node()}),createStateIconButtons:handlers=>handlers,
+   iconNode:node,displayItem:x=>x,indicatorPressVisual:x=>x,bindKeyBackgroundControl(){},
+   chooseNativeImage:()=>new Promise(resolve=>{resolvePicker=resolve;}),
+   rasterizeIcon:()=>{rasterCalls++;return new Promise(resolve=>{resolveRaster=resolve;});},
+   inspectorPickerCurrent:(session,target)=>session===ctx.inspectorSession&&target===item,
+   applyStateIconData:(...args)=>applied.push(args),window:{}
+ };
+ const build=vm.runInNewContext(editor.slice(start,end)+';buildCard',ctx);
+ const up=build(false).buttons,down=build(true).buttons;
+ let task=up.file();ctx.inspectorSession=second;resolvePicker({dataUrl:'original'});await task;
+ assert.equal(rasterCalls,0);assert.equal(applied.length,0);
+ ctx.inspectorSession=first;task=down.file();resolvePicker({dataUrl:'original'});await Promise.resolve();
+ assert.equal(rasterCalls,1);ctx.inspectorSession=second;resolveRaster('old-png');await task;assert.equal(applied.length,0);
+ task=down.file();resolvePicker({dataUrl:'original'});await Promise.resolve();resolveRaster('current-png');await task;
+ assert.deepEqual(applied,[[item,'press:down','current-png',second]]);
+});
