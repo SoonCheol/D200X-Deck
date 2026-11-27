@@ -983,3 +983,29 @@ test('native record-list editor changes only its local ordered draft and keeps c
  assert.equal(JSON.stringify(read()),JSON.stringify([{repository:'Owner/A'}]));assert.equal(add.disabled,false);assert.equal(changes,4);
  assert.match(editor,/inputs\.push\(\{field,read:list\.read\}\)/);
 });
+
+
+test('GitHub monitor row catalogue preserves saved selections and discards detached replies',async()=>{
+ const start=editor.indexOf('function createGithubMonitorRowEditor('),end=editor.indexOf('function createNativeRecordListEditor(',start);
+ assert.ok(start>=0&&end>start);
+ const node=tag=>({tag,children:[],listeners:{},append(...nodes){this.children.push(...nodes);},replaceChildren(){this.children=[];},setAttribute(){},addEventListener(type,fn){this.listeners[type]=fn;}});
+ const command=(label,fn,cls)=>Object.assign(node('button'),{textContent:label,click(){if(!this.disabled)fn();}});
+ const create=vm.runInNewContext(editor.slice(start,end)+';createGithubMonitorRowEditor',{document:{createElement:node},createInspectorCommand:command});
+ const columns=['repository','workflow','branch','label'].map(key=>({key,label:key,maxLength:100}));
+ let active=true,changes=0,resolveDetail;
+ const calls=[],row={repository:'Owner/A',workflow:'old.yml',branch:'main',label:'A'};
+ const request=repo=>{calls.push(repo);return repo?new Promise(resolve=>{resolveDetail=resolve;}):Promise.resolve({repositories:[{value:'Owner/A',label:'A'},{value:'Owner/B',label:'B'}]});};
+ const panel=create(row,columns,()=>changes++,()=>active,request);
+ const [repo,workflow,branch,name]=panel.children.slice(0,4).map(x=>x.children[1]);
+ const reload=panel.children[4];
+ const flush=()=>new Promise(resolve=>setImmediate(resolve));
+ assert.deepEqual(calls,[]);assert.equal(workflow.value,'old.yml');
+ reload.click();await flush();
+ assert.deepEqual(calls,['','Owner/A']);resolveDetail({branches:[{value:'main',label:'main'}],workflows:[{value:'42',label:'Build'}]});await flush();
+ assert.equal(workflow.value,'old.yml');assert.equal(changes,0);
+ repo.value='Owner/B';repo.listeners.change();
+ assert.equal(row.workflow,'');assert.equal(row.branch,'');assert.equal(name.value,'B');assert.deepEqual(calls,['','Owner/A','Owner/B']);
+ active=false;resolveDetail({branches:[{value:'stale',label:'stale'}],workflows:[{value:'99',label:'Stale'}]});await flush();
+ assert.equal(workflow.children.some(x=>x.value==='99'),false);assert.equal(row.workflow,'');assert.equal(changes,1);
+ assert.match(editor,/field\.key==='targets'/);
+});

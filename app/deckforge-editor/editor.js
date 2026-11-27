@@ -4406,7 +4406,68 @@ function bindGithubRepositoryLabel(label,repository,original,schema){
 }
 // Read a native schema draft without committing hidden or disabled HA fields.
 // Declarative ordered rows; never accept plugin HTML or execute plugin code.
-function createNativeRecordListEditor(field,stored,onChange=()=>{}){
+// Built-in GitHub catalogue adapter: no plugin-provided callbacks or HTML.
+function createGithubMonitorRowEditor(row,columns,onChange,isCurrent,request){
+  const panel=document.createElement('div');panel.className='native-sdk-picker';
+  const fields=new Map(),notice=document.createElement('span');notice.className='hint';notice.setAttribute('role','status');
+  let busy=false,nameInput;
+  const fill=(key,options,placeholder)=>{
+    const input=fields.get(key),value=row[key];
+    input.replaceChildren();
+    const append=(v,label)=>{const option=document.createElement('option');option.value=v;option.textContent=label;input.append(option);};
+    append('',placeholder);
+    for(const option of options)if(option.value)append(option.value,option.label);
+    if(value&&!options.some(option=>option.value===value))append(value,value+' (기존 설정)');
+    input.value=value;
+  };
+  const load=async(repositories)=>{
+    if(busy||!isCurrent())return;
+    busy=true;reload.disabled=true;
+    for(const input of fields.values())input.disabled=true;
+    notice.textContent='목록 조회 중';
+    try{
+      if(repositories){
+        const data=await request('');
+        if(!isCurrent())return;
+        fill('repository',data.repositories,'저장소 선택');
+      }
+      const repository=row.repository;
+      if(repository){
+        const data=await request(repository);
+        if(!isCurrent()||row.repository!==repository)return;
+        fill('branch',data.branches,'전체 브랜치');
+        fill('workflow',data.workflows,'빌드 종류 선택');
+      }
+      if(isCurrent())notice.textContent='목록 조회 완료';
+    }catch(error){if(isCurrent())notice.textContent=String(error?.message||'목록 조회 실패').replace(/^.*?Error: /,'');}
+    finally{busy=false;reload.disabled=false;for(const input of fields.values())input.disabled=false;}
+  };
+  for(const column of columns){
+    const label=document.createElement('label');label.className='native-record-list-field';
+    const caption=document.createElement('span');caption.textContent=column.label;
+    const choice=['repository','branch','workflow'].includes(column.key);
+    const input=document.createElement(choice?'select':'input');input.setAttribute('aria-label',column.label);
+    if(choice)fields.set(column.key,input);
+    else{input.type='text';input.maxLength=column.maxLength;input.value=row[column.key];}
+    input.addEventListener(choice?'change':'input',()=>{
+      if(!isCurrent()||busy)return;
+      if(column.key==='repository'){
+        const previous=row.repository,automatic=!row.label.trim()||row.label===previous.split('/').at(-1);
+        row.repository=input.value;row.branch='';row.workflow='';
+        if(automatic){row.label=row.repository.split('/').at(-1).slice(0,100);nameInput.value=row.label;}
+        fill('branch',[],'전체 브랜치');fill('workflow',[],'빌드 종류 선택');
+        onChange();void load(false);return;
+      }
+      row[column.key]=input.value;onChange();
+    });
+    label.append(caption,input);panel.append(label);
+    if(column.key==='label')nameInput=input;
+  }
+  fill('repository',[],'저장소 선택');fill('branch',[],'전체 브랜치');fill('workflow',[],'빌드 종류 선택');
+  const reload=createInspectorCommand('목록 조회',()=>void load(true),'deckforge-message-button');
+  panel.append(reload,notice);return panel;
+}
+function createNativeRecordListEditor(field,stored,onChange=()=>{},rowEditor=null){
   const copy=rows=>rows.map(row=>Object.fromEntries(field.columns.map(column=>[column.key,row[column.key]])));
   let rows=copy(DeckCore.nativeSettingValue(field,stored)?stored:field.default);
   const panel=document.createElement('div');panel.className='native-sdk-picker native-record-list';
@@ -4417,7 +4478,9 @@ function createNativeRecordListEditor(field,stored,onChange=()=>{}){
     rows.push(Object.fromEntries(field.columns.map(column=>[column.key,column.default])));
     draw();onChange();
   },'deckforge-message-button');
+  let generation=0;
   function draw(){
+    const drawn=++generation;
     list.replaceChildren();
     summary.textContent=rows.length+' / '+field.maxItems;
     add.disabled=rows.length>=field.maxItems;
@@ -4425,7 +4488,8 @@ function createNativeRecordListEditor(field,stored,onChange=()=>{}){
       const card=document.createElement('fieldset');card.className='native-record-list-row';
       const heading=document.createElement('legend');heading.textContent=String(index+1);
       card.append(heading);
-      for(const column of field.columns){
+      if(rowEditor)card.append(rowEditor(row,field.columns,onChange,()=>generation===drawn&&rows.includes(row)));
+      else for(const column of field.columns){
         const label=document.createElement('label');label.className='native-record-list-field';
         const caption=document.createElement('span');caption.textContent=column.label;
         const input=document.createElement('input');input.type='text';input.maxLength=column.maxLength;
@@ -4519,7 +4583,12 @@ async function openNativeSettings(item,action,plugin){
     }
     if(field.type==='recordList'){
       const stored=Object.hasOwn(original,field.key)?original[field.key]:field.default;
-      const list=createNativeRecordListEditor(field,stored,updateVisibility);
+      const githubTargets=plugin.uuid==='com.deckforge.native.github-status'&&action.uuid==='com.deckforge.native.github-status.multi-build'&&field.key==='targets'&&
+        ['repository','workflow','branch','label'].every(key=>field.columns.some(column=>column.key===key));
+      const adapter=githubTargets?(row,columns,changed,current)=>createGithubMonitorRowEditor(row,columns,changed,
+        ()=>!closed&&current()&&inspectorPickerCurrent(session,item),
+        repository=>window.deckBridge.nativeGitHubOptions(repository)):null;
+      const list=createNativeRecordListEditor(field,stored,updateVisibility,adapter);
       row.append(label,list.panel);appendRow(row,field);inputs.push({field,read:list.read});continue;
     }
     if(field.type==='dynamicSelect'||field.type==='dynamicMultiSelect'){
