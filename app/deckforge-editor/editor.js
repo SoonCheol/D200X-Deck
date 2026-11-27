@@ -7279,6 +7279,118 @@ function render(){
   previewPressKeys.clear();renderGrid();renderInspector();refreshProfilesMenu();scheduleSdkSync();
 }
 
+// Store phase 1: a genuine local catalogue, independent of the NAS and USB.
+function storePackSummary(pack){
+  const icons=Array.isArray(pack?.icons)?pack.icons:[];
+  const label=String(pack?.name||'');
+  const hint=(label+' '+String(pack?.author||'')).toLowerCase();
+  const groups=new Map();
+  for(const icon of icons){
+    const pair=iconPairType(icon);if(!pair)continue;
+    const key=JSON.stringify([pair.directory,pair.base,pair.source]);
+    groups.set(key,(groups.get(key)||0)|(pair.state==='on'?1:2));
+  }
+  const pairs=[...groups.values()].filter(mask=>mask===3).length;
+  const ha=/\b(?:home[ _-]?assistant|ha|iot)\b|스마트홈|홈 어시스턴트/i.test(hint);
+  const purpose=ha?'ha':/\b(?:windows|hotkey|shortcut)\b|단축키/i.test(hint)?'windows':/\b(?:fusion|cad)\b/i.test(hint)?'fusion':/\b(?:media|music|audio)\b|미디어|음악/i.test(hint)?'media':/\b(?:logo|app)\b|프로그램/i.test(hint)?'app':'general';
+  const color=/\bcolou?r\b|컬러|칼라/i.test(hint),line=/\b(?:line|outline|regular)\b|라인/i.test(hint);
+  const solid=/\b(?:solid|filled)\b|솔리드|단색/i.test(hint);
+  const styles=[...(color?['color']:[]),...(line?['line']:[]),...(solid?['solid']:[])];
+  return {pack,icons,pairs,purpose,naming:pairs?'state':'general',styles:styles.length?styles:['unknown']};
+}
+function storePackMatches(summary,filters){
+  const {pack,icons,purpose,naming,styles}=summary;
+  if(filters.purpose!=='all'&&filters.purpose!==purpose)return false;
+  if(filters.naming!=='all'&&filters.naming!==naming)return false;
+  if(filters.style!=='all'&&!styles.includes(filters.style))return false;
+  const query=String(filters.query||'').trim().toLocaleLowerCase();
+  if(!query)return true;
+  return [pack.name,pack.author,pack.version].some(v=>String(v||'').toLocaleLowerCase().includes(query))||
+    icons.some(icon=>[icon.name,icon.filename,...(Array.isArray(icon.tags)?icon.tags:[])].some(v=>String(v||'').toLocaleLowerCase().includes(query)));
+}
+let storeCatalogDialog=null;
+async function openStoreCatalog(){
+  if(storeCatalogDialog?.open)return;
+  const dialog=document.createElement('dialog');dialog.className='store-catalog-dialog';
+  dialog.setAttribute('aria-labelledby','store-catalog-heading');
+  dialog.innerHTML='<header class="store-catalog-header"><strong id="store-catalog-heading">DeckForge Store</strong><span>로컬 아이콘팩</span><button type="button" data-store-close aria-label="닫기">×</button></header>'+
+    '<div class="store-catalog-toolbar"><input type="search" data-store-query placeholder="팩 이름 또는 아이콘 검색" aria-label="아이콘팩 검색">'+
+    '<button type="button" data-store-import>팩 가져오기</button><button type="button" data-store-reload>새로 고침</button></div>'+
+    '<div class="store-catalog-filters"></div><p class="store-catalog-status" role="status">NAS 서버 미연결 · 로컬 설치 목록을 읽는 중…</p>'+
+    '<div class="store-catalog-grid"></div><footer class="store-catalog-footer">로컬 설치 아이콘팩만 표시 · 네트워크 다운로드 및 로그인은 후속 개발</footer>';
+  document.body.append(dialog);storeCatalogDialog=dialog;
+  const find=sel=>dialog.querySelector(sel),grid=find('.store-catalog-grid'),status=find('.store-catalog-status'),query=find('[data-store-query]'),importButton=find('[data-store-import]'),reload=find('[data-store-reload]');
+  const filterOptions={
+    purpose:[['all','전체 용도'],['general','일반'],['ha','Home Assistant · IoT'],['windows','Windows · 단축키'],['fusion','Fusion · CAD'],['media','미디어'],['app','프로그램']],
+    naming:[['all','전체 네이밍'],['general','일반 파일명'],['state','ON/OFF 상태 쌍']],
+    style:[['all','전체 디자인'],['color','컬러'],['line','라인'],['solid','솔리드'],['unknown','미분류']]
+  };
+  const selectFilters={};
+  for(const [key,options] of Object.entries(filterOptions)){
+    const select=document.createElement('select');select.setAttribute('aria-label',options[0][1]);
+    for(const [value,label] of options){const option=document.createElement('option');option.value=value;option.textContent=label;select.append(option);}
+    find('.store-catalog-filters').append(select);selectFilters[key]=select;
+  }
+  const background=document.createElement('button');background.type='button';background.textContent='흰 배경';background.setAttribute('aria-pressed','false');find('.store-catalog-filters').append(background);
+  background.addEventListener('click',()=>{const white=dialog.classList.toggle('store-preview-white');background.textContent=white?'검정 배경':'흰 배경';background.setAttribute('aria-pressed',String(white));});
+  let records=[],selected=null,limit=84,request=0,busy=false;
+  const node=(tag,cls,text)=>{const el=document.createElement(tag);if(cls)el.className=cls;if(text!==undefined)el.textContent=text;return el;};
+  function artwork(icons,cls){
+    const preview=node('div',cls);
+    for(const icon of icons){
+      const tile=node('div','store-icon-tile');
+      if(typeof icon.image==='string'&&/^data:image\/(?:png|jpeg|webp);base64,[A-Za-z0-9+/=]+$/i.test(icon.image)){
+        const img=node('img');img.src=icon.image;img.alt=String(icon.name||icon.filename||'');img.title=img.alt;img.loading='lazy';img.decoding='async';tile.append(img);
+      }else tile.textContent='—';
+      preview.append(tile);
+    }
+    return preview;
+  }
+  function render(){
+    grid.replaceChildren();grid.classList.toggle('store-catalog-detail',!!selected);
+    if(selected){
+      const back=node('button','','← 목록');back.type='button';back.addEventListener('click',()=>{selected=null;render();});grid.append(back);
+      grid.append(node('h2','',selected.pack.name),node('p','store-pack-meta',selected.icons.length+'개 · '+(selected.pack.author||'제작자 미등록')+' · '+(selected.pack.version||'버전 미등록')+' · ON/OFF '+selected.pairs+'쌍'));
+      grid.append(artwork(selected.icons.slice(0,limit),'store-detail-artwork'));
+      if(limit<selected.icons.length){const more=node('button','','더 보기 ('+Math.min(limit,selected.icons.length)+' / '+selected.icons.length+')');more.type='button';more.addEventListener('click',()=>{limit+=84;render();});grid.append(more);}
+      return;
+    }
+    const filters={query:query.value,...Object.fromEntries(Object.entries(selectFilters).map(([k,v])=>[k,v.value]))};
+    const matching=records.filter(record=>storePackMatches(record,filters));
+    status.textContent='NAS 서버 미연결 · 로컬 '+matching.length+' / '+records.length+'개 팩 · 디자인/용도는 이름 기반 분류';
+    if(!matching.length){grid.append(node('p','store-catalog-empty','조건에 맞는 로컬 아이콘팩이 없습니다.'));return;}
+    for(const summary of matching){
+      const card=node('button','store-pack-card');card.type='button';
+      card.append(artwork(summary.icons.slice(0,12),'store-pack-artwork'),node('strong','',summary.pack.name||'이름 없음'),
+        node('span','store-pack-meta',summary.icons.length+'개 · '+(summary.pack.version||'')+' · '+(summary.pack.source==='bundled'?'기본 제공':'설치됨')),
+        node('span','store-pack-meta',[summary.purpose==='ha'?'HA · IoT':filterOptions.purpose.find(x=>x[0]===summary.purpose)?.[1],summary.pairs?'ON/OFF '+summary.pairs+'쌍':'일반 파일명',...summary.styles.map(v=>filterOptions.style.find(x=>x[0]===v)?.[1])].filter(Boolean).join(' · ')));
+      card.addEventListener('click',()=>{selected=summary;limit=84;render();grid.scrollTop=0;});grid.append(card);
+    }
+  }
+  async function load(){
+    const current=++request;reload.disabled=true;importButton.disabled=true;status.textContent='로컬 아이콘팩 읽는 중…';
+    try{
+      if(!window.deckBridge?.listIconPacks)throw Error('Windows DeckForge에서만 로컬 팩을 읽을 수 있습니다.');
+      const packs=await window.deckBridge.listIconPacks();
+      if(current!==request||!dialog.open)return;
+      records=packs.map(storePackSummary);selected=null;render();
+    }catch(error){if(current===request&&dialog.open)status.textContent='목록 읽기 실패: '+String(error?.message||error);}
+    finally{if(current===request&&dialog.open){reload.disabled=false;importButton.disabled=false;}}
+  }
+  query.addEventListener('input',()=>{selected=null;render();});
+  for(const select of Object.values(selectFilters))select.addEventListener('change',()=>{selected=null;render();});
+  reload.addEventListener('click',()=>void load());
+  importButton.addEventListener('click',async()=>{
+    if(busy||!window.deckBridge?.importIconPack)return;busy=true;importButton.disabled=true;reload.disabled=true;
+    try{const pack=await window.deckBridge.importIconPack();if(pack){await refreshImportedIconPacks();if(dialog.open)await load();}}
+    catch(error){if(dialog.open)status.textContent='가져오기 실패: '+String(error?.message||error);}
+    finally{busy=false;if(dialog.open){importButton.disabled=false;reload.disabled=false;}}
+  });
+  find('[data-store-close]').addEventListener('click',()=>dialog.close());
+  dialog.addEventListener('close',()=>{++request;dialog.remove();if(storeCatalogDialog===dialog)storeCatalogDialog=null;},{once:true});
+  dialog.showModal();await load();
+}
+
 // Installed packs are read from the application's packaged library.
 // The prototype glyph groups have been removed; only genuine packs appear.
 let libraryTarget=null;
@@ -8466,6 +8578,7 @@ function bindSettingsMenu(){
   accountPanel.id='settings-drive-panel';accountPanel.setAttribute('role','group');
   const close=()=>{++requestNumber;menu.hidden=true;trigger.setAttribute('aria-expanded','false');accountPanel.hidden=true;accountToggle.textContent='Google 계정 관리 ▸';accountToggle.setAttribute('aria-expanded','false');};
   const run=(fn)=>async()=>{close();try{await fn();}catch(error){alert('백업 작업 실패: '+String(error?.message||error));}};
+  makeEntry(menu,'DeckForge Store',()=>{close();void openStoreCatalog();});
   makeEntry(menu,'백업 및 복원',run(openBackupManager));
   const accountToggle=makeEntry(menu,'Google 계정 관리 ▸',()=>{
     accountPanel.hidden=!accountPanel.hidden;accountToggle.textContent=accountPanel.hidden?'Google 계정 관리 ▸':'Google 계정 관리 ▾';

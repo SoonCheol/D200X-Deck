@@ -10,7 +10,7 @@ function draw(title,style={}){
  save(){this.saved=[this.fillStyle,this.globalAlpha];},restore(){[this.fillStyle,this.globalAlpha]=this.saved;},
  beginPath(){},roundRect(...args){ops.push(['rect',...args]);},fill(){ops.push(['fill',this.fillStyle,this.globalAlpha]);},
  strokeText(){},fillText(value){ops.push(['text',value,this.fillStyle,this.globalAlpha]);},fillRect(){}};
- const start=source.indexOf('  function drawText('),end=source.indexOf('  function imageLoaded(',start);
+ const start=source.indexOf('  function applyTitleFont('),end=source.indexOf('  function imageLoaded(',start);
  assert.ok(start>=0&&end>start);
  vm.runInNewContext(source.slice(start,end)+';drawText(ctx,title,144,144,style)',{ctx,title,style:{...core.TITLE,...style}});
  return ops;
@@ -232,4 +232,19 @@ test('shared title appearance input sync restores each style without editing eit
  assert.equal(JSON.stringify([first,second]),before);
  const binder=editor.slice(end,editor.indexOf('// Inspector writes remain drafts',end));
  assert.equal((binder.match(/syncTitleAppearanceInputs\(menu,\$,style\)/g)||[]).length,3);
+});
+
+test('offline Store catalogue classifies actual same-folder state pairs and filters independently',()=>{
+ const pairStart=editor.indexOf('function iconPairType('),pairEnd=editor.indexOf('function findIconCompanion(',pairStart);
+ const start=editor.indexOf('function storePackSummary('),end=editor.indexOf('let storeCatalogDialog=',start);
+ assert.ok(pairStart>=0&&pairEnd>pairStart&&start>=0&&end>start);
+ const f=vm.runInNewContext(editor.slice(pairStart,pairEnd)+editor.slice(start,end)+';({storePackSummary,storePackMatches})');
+ const pack={name:'DeckForge IoT COLOR ON/OFF',author:'DeckForge',version:'1.0',icons:[{name:'Lamp on',filename:'home/lamp_on.png'},{name:'Lamp off',filename:'home/lamp_off.png'},{name:'Fan on',filename:'a/fan_on.png'},{name:'Fan off',filename:'b/fan_off.png'}]};
+ const before=JSON.stringify(pack),summary=f.storePackSummary(pack);
+ assert.equal(summary.pairs,1);assert.equal(summary.purpose,'ha');assert.equal(summary.naming,'state');assert.equal(summary.styles.join(','),'color');
+ const filters={query:'lamp',purpose:'ha',naming:'state',style:'color'};
+ assert.equal(f.storePackMatches(summary,filters),true);
+ for(const change of [{purpose:'windows'},{naming:'general'},{style:'line'},{query:'missing'}])assert.equal(f.storePackMatches(summary,{...filters,...change}),false);
+ assert.equal(f.storePackSummary({name:'Unknown',icons:[]}).styles[0],'unknown');
+ assert.equal(JSON.stringify(pack),before);
 });

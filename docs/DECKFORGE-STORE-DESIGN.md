@@ -34,3 +34,8 @@ S0 사전 설계/자료 확인: 이 문서. S1 계정·권한·DB·원본 저장
 - OWASP Authorization https://cheatsheetseries.owasp.org/cheatsheets/Authorization_Cheat_Sheet.html (매 요청 권한 검증/기본 거부), Session Management 및 File Upload Cheat Sheets 참고.
 ## 6. 현행 제품 분리
 2.0.117 CI #1586 및 SDK #278 성공, Windows #121 실패: 기존 제목 배경 VM 테스트의 applyTitleFont 추출 의존성 누락. 스토어 사전 설계와 별개로 수정 필요. 이전 성공 #118 2.0.114. 이번 문서 커밋은 앱/SDK 소스 및 버전 불변, NAS·계정·포트·배포 변경 없음.
+
+## 7. 사용자 확정 변경 (내장 우선)
+- 개인용 1명, 최대 10명 내외, DXP4800 Plus RAM 24GB. 단일 Docker/SQLite, Portainer Stacks Web editor에 보이는 Compose YAML, 관리자 추가 계정 방식, 회원가입/결제/다중 서버 제외. NAS/실기 접근 불가로 내장 먼저.
+- 아이콘팩 중심 카드 카탈로그, 용도/네이밍/디자인 독립 필터, 실제 이미지 미리보기 검정 #000 기본(흰색 전환), 원본 불변. 기존 ON/OFF 파일명 규칙 재사용, HA 용도/네이밍 증거와 분리, 자동 분류 불확실 시 관리자 수정. 서버 업로드 시 대표 미리보기/전체 목록·메타 추출 후속.
+- 2.0.118 1차: 로컬 설치 아이콘팩만 실제 표시, 이름/파일명/태그 검색, 이름 기반 용도·디자인 추정, 실제 같은 폴더 ON/OFF 쌍 집계, 상세 페이지 84개씩, 기존 가져오기. 서버/로그인/원본 업로드/자동 이미지 분석/플러그인 탭 미구현. 오프라인 동작, 가짜 스토어 데이터 없음. 기존 설치·편집기 상태 유지.

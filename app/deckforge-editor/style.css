@@ -1772,3 +1772,29 @@ dialog.deckforge-message-dialog:has(.fusion-command-properties){width:min(360px,
 /* A small matching CAD cube glyph, limited to the Fusion manager entry and header. */
 .fusion-inline-header strong,.fusion-command-launch{display:inline-flex;align-items:center;gap:7px}
 .fusion-inline-header strong::before,.fusion-command-launch::before{content:'';display:inline-block;flex:0 0 17px;width:17px;height:17px;background:currentColor;mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cg fill='none' stroke='black' stroke-width='1.8' stroke-linejoin='round' stroke-linecap='round'%3E%3Cpath d='M12 2.5 21 7.5v9L12 21.5 3 16.5v-9Z M3 7.5l9 5 9-5 M12 12.5v9'/%3E%3C/g%3E%3C/svg%3E") center/contain no-repeat}
+
+/* Offline Store catalogue: isolated from the editor/icon library geometry. */
+.store-catalog-dialog{width:min(900px,calc(100vw - 36px));height:min(720px,calc(100vh - 36px));max-width:none;max-height:none;padding:0;border:1px solid #555;border-radius:8px;background:#252525;color:#eee;box-shadow:0 16px 50px #000b;overflow:hidden}
+.store-catalog-dialog[open]{display:flex;flex-direction:column;gap:0}
+.store-catalog-dialog::backdrop{background:#0008}
+.store-catalog-header,.store-catalog-toolbar,.store-catalog-filters{display:flex;align-items:center;gap:8px;padding:10px 14px;border-bottom:1px solid #444}
+.store-catalog-header strong{font-size:17px;flex:1}.store-catalog-header span{color:#aaa;font-size:12px}
+.store-catalog-header button{font-size:20px;line-height:1;padding:5px 9px}
+.store-catalog-toolbar input{min-width:0;flex:1}
+.store-catalog-filters{flex-wrap:wrap}
+.store-catalog-dialog button,.store-catalog-dialog input,.store-catalog-dialog select{font:inherit;color:#eee;background:#383838;border:1px solid #555;border-radius:5px;padding:7px 10px}
+.store-catalog-dialog button:not(:disabled){cursor:pointer}
+.store-catalog-dialog button:focus-visible,.store-catalog-dialog input:focus-visible,.store-catalog-dialog select:focus-visible{outline:2px solid #75a9ee;outline-offset:2px}
+.store-catalog-dialog button:disabled{opacity:.5}
+.store-catalog-status,.store-catalog-footer{font-size:12px;color:#bbb;padding:8px 14px;margin:0}
+.store-catalog-footer{border-top:1px solid #444}
+.store-catalog-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));align-content:start;gap:12px;overflow:auto;min-height:0;flex:1;padding:12px 14px}
+.store-catalog-dialog .store-pack-card{display:flex;flex-direction:column;align-items:stretch;gap:6px;text-align:left;min-width:0;padding:8px;background:#303030}
+.store-pack-card:hover{border-color:#75a9ee}.store-pack-card strong{overflow-wrap:anywhere;font-size:14px}
+.store-pack-artwork,.store-detail-artwork{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:4px;background:#000;border-radius:4px;padding:7px}
+.store-preview-white .store-pack-artwork,.store-preview-white .store-detail-artwork{background:#fff}
+.store-icon-tile{min-width:0;aspect-ratio:1;display:grid;place-items:center;color:#888}
+.store-icon-tile img{width:100%;height:100%;object-fit:contain}
+.store-pack-meta{font-size:11px;color:#bbb;overflow-wrap:anywhere}
+.store-catalog-empty{grid-column:1/-1;color:#bbb}
+.store-catalog-detail{display:flex;flex-direction:column;align-items:stretch}.store-catalog-detail h2,.store-catalog-detail p{margin:0}.store-catalog-detail>button{align-self:flex-start}.store-detail-artwork{grid-template-columns:repeat(auto-fill,minmax(54px,1fr));gap:10px;padding:12px}
