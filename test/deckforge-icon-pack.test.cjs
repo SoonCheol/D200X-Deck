@@ -119,3 +119,32 @@ test('reimporting an unchanged folder retains the same pack identity',async()=>{
     assert.equal(a.id,b.id);
   }finally{await fs.rm(dir,{recursive:true,force:true});}
 });
+
+
+test('editor removal only changes library and never resets saved or draft artwork',async()=>{
+  const vm=require('node:vm');
+  const editor=await fs.readFile(path.join(__dirname,'../app/deckforge-editor/editor.js'),'utf8');
+  const start=editor.indexOf('async function removeIconPackFromLibrary(pack)');
+  const end=editor.indexOf('// Pair icon files only while selecting artwork;',start);
+  assert.ok(start>=0&&end>start);
+  const icon=()=>({kind:'file',value:'data:image/png;base64,'+png.toString('base64'),packId:'test-pack'});
+  const state={profiles:[{pages:[{buttons:[{icon:icon(),settings:{keyPressIcons:{up:icon(),down:icon()},sdkStateIcons:{on:icon(),off:icon()}},stateVisuals:[{icon:icon()}]}]}]}]};
+  const original=JSON.stringify(state);
+  let confirmed=true,removed=true,fail=false,removes=0,refreshes=0;
+  const messages=[];
+  const context=vm.createContext({state,window:{confirm:()=>confirmed,deckBridge:{removeIconPack:async id=>{
+    assert.equal(id,'test-pack');removes++;if(fail)throw Error('mock error');return removed;
+  }},d200xActionStatus:message=>messages.push(message)},
+  refreshImportedIconPacks:async()=>{refreshes++;},persist:()=>{throw Error('must not write profiles');},
+  render:()=>{throw Error('must not reset or redraw buttons');}});
+  vm.runInContext(editor.slice(start,end),context);
+  const pack={id:'test-pack',name:'Test',source:'imported'};
+  await context.removeIconPackFromLibrary({...pack,source:'bundled'});
+  confirmed=false;await context.removeIconPackFromLibrary(pack);
+  assert.equal(removes,0);assert.equal(refreshes,0);
+  confirmed=true;await context.removeIconPackFromLibrary(pack);
+  assert.equal(removes,1);assert.equal(refreshes,1);assert.match(messages.at(-1),/기존 버튼 이미지 유지/);
+  removed=false;await context.removeIconPackFromLibrary(pack);
+  fail=true;await context.removeIconPackFromLibrary(pack);
+  assert.equal(removes,3);assert.equal(refreshes,1);assert.equal(JSON.stringify(state),original);
+});
