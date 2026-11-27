@@ -81,11 +81,36 @@ async function adminList(resetList=true){
  const users=await api('/api/v1/admin/accounts');$('accounts').replaceChildren();
  for(const u of users.accounts){const row=el('div',u.username+' · '+u.role+(u.active?'':' · 비활성'));if(u.role==='user'&&u.active)row.append(button('비활성화',async()=>{if(!confirm('계정과 세션을 비활성화합니까?'))return;await api('/api/v1/admin/accounts/'+u.id+'/disable',{method:'POST',body:{}});await adminList();}));$('accounts').append(row);}
 }
+function prepareVersion(item){
+ const form=$('upload');
+ if(!confirm('새 버전 등록 양식을 초기화합니까? 기존 등록 파일은 유지됩니다.'))return;
+ clearFolder();form.reset();form.elements.kind.value=item.kind;form.elements.source.value=item.source;
+ $('upload-mode').value='file';formats();form.elements.format.value=item.format;
+ form.elements.itemId.value=item.id;form.elements.license.value=item.license;form.elements.description.value=item.description;
+ $('pack-name').value=item.name;$('pack-author').value=item.author||'';$('pack-version').value='';
+ form.scrollIntoView({block:'start'});form.elements.file.focus();
+}
+async function versionHistory(item,container,cursor=''){
+ const data=await api('/api/v1/admin/items/'+encodeURIComponent(item.id)+'/releases'+(cursor?'?cursor='+encodeURIComponent(cursor):''));
+ if(!cursor)container.replaceChildren();
+ for(const row of data.releases){
+  const line=el('div',undefined,'release');
+  line.append(el('strong',row.version),el('p',(row.current?'현재 게시':row.status==='draft'?'검토 대기':'이전 게시')+' · '+row.visibility+(row.signed?' · 서명 있음':'')),el('p','SHA256: '+row.sha256),button('버전 상세',()=>reviewRelease(row.releaseId)));
+  container.append(line);
+ }
+ if(data.nextCursor){const more=button('이전 목록 더 보기',async()=>{await versionHistory(item,container,data.nextCursor);more.remove();});container.append(more);}
+}
 function link(label,path){const a=el('a',label);a.href=path;return a;}
 async function reviewRelease(releaseId){
  const path='/api/v1/admin/releases/'+encodeURIComponent(releaseId),data=await api(path),i=data.item,section=$('review');
  section.replaceChildren(el('h2',i.name+' '+i.version),el('p',i.description),el('p','SHA256: '+i.sha256),el('p','라이선스: '+i.license),link('검토용 원본 다운로드',path+'/download'));
  const grid=el('div',undefined,'preview-grid');for(const p of data.previews)grid.append(preview(p));section.append(grid);
+ const description=el('textarea');description.maxLength=1500;description.value=i.description;
+ const license=el('input');license.maxLength=300;license.value=i.license;
+ section.append(el('label','설명'),description,el('label','출처·라이선스'),license,
+  button('정보 수정 저장',async()=>{if(!license.value.trim())throw Error('출처·라이선스를 입력하세요.');await api(path+'/metadata',{method:'POST',body:{description:description.value,license:license.value}});await adminList();await reviewRelease(releaseId);await load();}),
+  button('새 버전 등록',()=>prepareVersion(i)),el('h3','버전 이력'));
+ const history=el('div');section.append(history);await versionHistory(i,history);
  if(i.kind==='iconpack'){
   const purpose=el('select');optionList(purpose,purposeOptions);purpose.value=i.tags.find(t=>t in purposeOptions)||'general';
   const naming=el('select');naming.multiple=true;optionList(naming,namingOptions);

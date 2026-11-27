@@ -358,6 +358,38 @@ def create_app(data_dir=None,origin=None):
         row=c.execute("SELECT * FROM releases WHERE id=?",(valid_id(release),)).fetchone()
         if not row: abort(404)
         return row,json.loads(row["meta"])
+    @app.get("/api/v1/admin/items/<ident>/releases")
+    def release_history(ident):
+        authenticate(True)
+        valid_id(ident)
+        cursor=request.args.get("cursor","")
+        if cursor: valid_id(cursor)
+        with db() as c:
+            item=c.execute("SELECT current_release FROM items WHERE id=?",(ident,)).fetchone()
+            if item is None: abort(404)
+            rows=c.execute("SELECT id,version,sha256,status,meta FROM releases WHERE item_id=? AND id>? ORDER BY id LIMIT 21",(ident,cursor)).fetchall()
+        releases=[]
+        for row in rows[:20]:
+            meta=json.loads(row["meta"])
+            releases.append(dict(releaseId=row["id"],version=row["version"],sha256=row["sha256"],
+                status=row["status"],visibility=meta["visibility"],current=row["id"]==item["current_release"],
+                signed=bool(meta.get("signature")),size=meta["size"]))
+        return jsonify(releases=releases,nextCursor=rows[19]["id"] if len(rows)>20 else "")
+    @app.post("/api/v1/admin/releases/<release>/metadata")
+    def edit_metadata(release):
+        user,_=authenticate(True);data=body()
+        if set(data)!={"description","license"}: abort(400)
+        description,license_note=data["description"],data["license"]
+        if not isinstance(description,str) or len(description)>1500: abort(400)
+        if not isinstance(license_note,str) or not license_note.strip() or len(license_note)>300: abort(400)
+        if any(ord(ch)<32 and ch not in "\n\r\t" or ord(ch)==127 for ch in description+license_note): abort(400)
+        for value in (description,license_note): value.encode("utf-8","strict")
+        with db(True) as c:
+            row,meta=admin_release(c,release)
+            meta.update(description=description,license=license_note.strip())
+            c.execute("UPDATE releases SET meta=? WHERE id=?",(json_text(meta),release))
+            audit(c,user["id"],"release.metadata",release)
+        return jsonify(item=meta)
     @app.get("/api/v1/admin/releases/<release>")
     def admin_detail(release):
         authenticate(True)

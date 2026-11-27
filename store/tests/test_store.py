@@ -236,4 +236,34 @@ const {parseIconPack}=require(process.argv[1]);(async()=>{const p=await parseIco
         self.assertEqual(query(q="über",limit=1).json["items"][0]["id"],"a00")
         for args in ({"q":"x"*121},{"purpose":"unknown"},{"kind":"plugin","design":"white"}):
             self.assertEqual(query(**args).status_code,400)
+    def test_metadata_and_release_history(self):
+        first=self.upload("deckforge").json["item"]
+        endpoint="/api/v1/admin/releases/"+first["releaseId"]
+        history="/api/v1/admin/items/"+first["id"]+"/releases"
+        self.assertEqual(self.c.get(history,headers=self.member).status_code,403)
+        self.assertEqual(self.c.get(history,headers=self.owner).json["releases"][0]["status"],"draft")
+        data={"description":"한글 설명 변경","license":"updated license"}
+        self.assertEqual(self.c.post(endpoint+"/metadata",json=data,headers=self.member).status_code,403)
+        self.assertEqual(self.c.post(endpoint+"/metadata",json={**data,"version":"2.0.0"},headers=self.owner).status_code,400)
+        self.assertEqual(self.c.post(endpoint+"/metadata",json={**data,"license":" "},headers=self.owner).status_code,400)
+        result=self.c.post(endpoint+"/metadata",json=data,headers=self.owner)
+        self.assertEqual(result.status_code,200)
+        self.assertEqual(result.json["item"]["sha256"],first["sha256"])
+        self.assertEqual(result.json["item"]["name"],first["name"])
+        self.assertEqual(result.json["item"]["description"],data["description"])
+        self.assertEqual(self.c.post(endpoint+"/publish",json={"reviewed":True,"visibility":"public"},headers=self.owner).status_code,200)
+        archive=io.BytesIO()
+        with zipfile.ZipFile(io.BytesIO(pack())) as original,zipfile.ZipFile(archive,"w") as z:
+            for name in original.namelist():
+                z.writestr(name,json.dumps({"Name":"Test icons","Version":"2.0.0"}) if name=="manifest.json" else original.read(name))
+        result=self.c.post("/api/v1/admin/items",data={"file":(io.BytesIO(archive.getvalue()),"icons.zip"),"kind":"iconpack","format":"zip","source":"deckforge","license":"test","itemId":first["id"]},headers=self.owner)
+        self.assertEqual(result.status_code,201,result.json)
+        second=result.json["item"]
+        rows=self.c.get(history,headers=self.owner).json["releases"]
+        self.assertEqual(len(rows),2)
+        self.assertEqual([r["releaseId"] for r in rows if r["current"]],[first["releaseId"]])
+        self.assertEqual([r["status"] for r in rows if r["releaseId"]==second["releaseId"]],["draft"])
+        self.assertEqual(self.c.get("/api/v1/items/"+first["id"],headers=self.member).json["item"]["description"],data["description"])
+        self.assertEqual(hashlib.sha256(self.c.get(endpoint+"/download",headers=self.owner).data).hexdigest(),first["sha256"])
+        self.assertEqual(self.c.get("/api/v1/admin/items/missing/releases",headers=self.owner).status_code,404)
 if __name__=="__main__": unittest.main()
