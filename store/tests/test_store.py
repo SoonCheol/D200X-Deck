@@ -165,4 +165,37 @@ const {parseIconPack}=require(process.argv[1]);(async()=>{const p=await parseIco
         archive=io.BytesIO()
         with zipfile.ZipFile(archive,"w") as z:z.writestr("large.png",large.getvalue())
         self.assertEqual(self.upload(data=archive.getvalue()).status_code,201)
+    def test_static_svg_folder(self):
+        svg=b'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><rect x="2" y="2" width="20" height="20" fill="#ff0000"/></svg>'
+        endpoint="/api/v1/admin/svg-preview"
+        def preview(data,headers):
+            return self.c.post(endpoint,data={"file":(io.BytesIO(data),"x.svg")},headers=headers)
+        self.assertEqual(preview(svg,self.member).status_code,403)
+        response=preview(svg,self.owner);self.assertEqual(response.status_code,200,response.json)
+        import base64
+        with Image.open(io.BytesIO(base64.b64decode(response.json["preview"]))) as image:
+            self.assertEqual(image.convert("RGBA").getpixel((image.width//2,image.height//2)),(255,0,0,255))
+        for body in (b'<!DOCTYPE svg [<!ENTITY x SYSTEM "file:///etc/passwd">]>'+svg,
+                     svg.replace(b'<rect',b'<script/><rect'),
+                     svg.replace(b'fill="#ff0000"',b'fill="url(http://example.test/a)"'),
+                     svg.replace(b'<rect',b'<image href="file:///etc/passwd"/><rect'),
+                     b'<?xml-stylesheet href="https://example.test/x"? >'+svg,
+                     b'x'*(256*1024+1)):
+            self.assertEqual(preview(body,self.owner).status_code,400)
+        def upload(paths):
+            meta={"name":"SVG","version":"1.0.0","icons":[{"path":p,"tags":["복사"]} for p in paths]}
+            return self.c.post("/api/v1/admin/folder-pack",data={"metadata":(io.BytesIO(json.dumps(meta).encode()),"metadata.json"),
+              "icons":[(io.BytesIO(svg),p) for p in paths],"source":"deckforge","license":"test"},headers=self.owner)
+        result=upload(["win/copy.svg"]);self.assertEqual(result.status_code,201,result.json)
+        item=result.json["item"]
+        downloaded=self.c.get("/api/v1/admin/releases/"+item["releaseId"]+"/download",headers=self.owner).data
+        with zipfile.ZipFile(io.BytesIO(downloaded)) as z:
+            self.assertEqual(z.read("originals/win/copy.svg"),svg)
+            self.assertEqual(json.loads(z.read("icons.json")),[{"path":"win/copy.png","name":"copy","tags":["복사"]}])
+            self.assertTrue(z.read("icons/win/copy.png").startswith(b"\x89PNG"))
+        archive=Path(self.tmp.name)/"svg-pack.zip";archive.write_bytes(downloaded)
+        parser=Path(__file__).resolve().parents[2]/"app/deckforge-editor/icon-pack.cjs"
+        script="const fs=require('node:fs');require(process.argv[1]).parseIconPack(fs.readFileSync(process.argv[2])).then(p=>{if(p.icons.length!==1||p.icons[0].filename!=='win/copy.png')process.exit(1)}).catch(e=>{console.error(e);process.exit(1)});"
+        subprocess.run(["node","-e",script,str(parser),str(archive)],check=True,timeout=20)
+        self.assertEqual(upload(["copy.svg","copy.png"]).status_code,400)
 if __name__=="__main__": unittest.main()

@@ -20,6 +20,9 @@ from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 from package_inspector import inspect_package, text, MIB
 from folder_pack import make_folder_pack
+from svg_raster import rasterize_svg, MAX_SVG
+from package_inspector import png_preview
+from PIL import Image
 
 TTL=3600
 ID=re.compile(r"^[A-Za-z0-9][A-Za-z0-9_-]{0,95}$")
@@ -270,6 +273,15 @@ def create_app(data_dir=None,origin=None):
         data=f.stream.read(60*MIB+1)
         fallback=Path(f.filename or "Icon pack").stem[:120]
         return register_upload(user,data,kind,fmt,source,fallback)
+    @app.post("/api/v1/admin/svg-preview")
+    def svg_preview():
+        authenticate(True)
+        request.max_content_length=MAX_SVG+16384
+        file=request.files.get("file")
+        if file is None: abort(400)
+        png=rasterize_svg(file.stream.read(MAX_SVG+1))
+        with Image.open(io.BytesIO(png)) as image:
+            return jsonify(preview=png_preview(image.convert("RGBA"),49152))
     @app.post("/api/v1/admin/folder-pack")
     def folder_upload():
         user,_=authenticate(True)

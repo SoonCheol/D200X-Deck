@@ -1,11 +1,12 @@
 FROM python:3.13-slim
 ARG STORE_REVISION=unknown
-LABEL org.opencontainers.image.title="DeckForge Store" org.opencontainers.image.version="0.1.4" org.opencontainers.image.revision=$STORE_REVISION
+LABEL org.opencontainers.image.title="DeckForge Store" org.opencontainers.image.version="0.1.5" org.opencontainers.image.revision=$STORE_REVISION
 ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1 STORE_DATA=/data
 WORKDIR /app
 COPY requirements.txt .
+RUN apt-get update && apt-get install -y --no-install-recommends librsvg2-bin util-linux && rm -rf /var/lib/apt/lists/*
 RUN pip install --no-cache-dir -r requirements.txt && groupadd -g 10001 store && useradd -r -u 10001 -g store -d /data store && mkdir /data && chown store:store /data
-COPY server.py package_inspector.py signing.py folder_pack.py ./
+COPY server.py package_inspector.py signing.py folder_pack.py svg_raster.py ./
 COPY web ./web
 USER 10001:10001
 EXPOSE 8080

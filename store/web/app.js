@@ -88,6 +88,7 @@ async function reviewRelease(releaseId){
  section.hidden=false;section.scrollIntoView({block:'nearest'});
 }
 const RASTER_EXT=/\.(png|jpe?g|gif|webp)$/i;
+const SVG_EXT=/\.svg$/i;
 let folderRows=[],folderPage=0,folderBlocked=false,aiSnapshot=null,previewUrls=[];
 function revokePreviews(){for(const url of previewUrls)URL.revokeObjectURL(url);previewUrls=[];}
 function clearFolder(){revokePreviews();folderRows=[];folderPage=0;folderBlocked=false;aiSnapshot=null;$('folder-picker').value='';$('pack-name').value='';$('pack-version').value='1.0.0';$('pack-author').value='';$('icon-query').value='';$('bulk-tags').value='';$('ai-input').value=$('ai-result').value='';$('folder-status').textContent='';$('icon-rows').replaceChildren();renderFolder();}
@@ -101,7 +102,10 @@ function renderFolder(){
  for(const r of matches.slice(folderPage*40,folderPage*40+40)){
   const row=el('div',undefined,'folder-icon-row'),check=el('input');check.type='checkbox';check.checked=r.selected;check.setAttribute('aria-label',r.path+' 선택');
   check.onchange=()=>{r.selected=check.checked;$('icon-page').textContent=(folderPage+1)+' / '+pages+' · '+folderRows.filter(x=>x.selected).length+'개 선택';};
-  const img=el('img');const url=URL.createObjectURL(r.file);previewUrls.push(url);img.src=url;img.alt='';img.loading='lazy';
+  let img;
+  if(SVG_EXT.test(r.path)){
+   img=r.preview?preview(r.preview):button('SVG 미리보기',async()=>{const body=new FormData();body.append('file',r.file,r.path);const result=await api('/api/v1/admin/svg-preview',{method:'POST',body});if(!result.preview)throw Error('SVG 미리보기 생성 실패');r.preview=result.preview;renderFolder();});
+  }else{img=el('img');const url=URL.createObjectURL(r.file);previewUrls.push(url);img.src=url;img.alt='';img.loading='lazy';}
   const col=el('div');const tags=el('input');tags.value=r.tags.join(', ');tags.placeholder='검색 태그 (쉼표 구분)';tags.setAttribute('aria-label',r.path+' 검색 태그');
   tags.onchange=()=>{try{r.tags=parseTags(tags.value);}catch(e){$('folder-status').textContent=e.message;}tags.value=r.tags.join(', ');};
   col.append(el('strong',r.path),tags);row.append(check,img,col);$('icon-rows').append(row);
@@ -115,16 +119,16 @@ $('folder-picker').onchange=()=>{
    const full=file.webkitRelativePath||'',parts=full.split('/');if(parts.length<2)throw Error('폴더 선택 기능을 지원하는 브라우저를 사용하세요.');
    if(!root)root=parts[0];if(parts[0]!==root)throw Error('한 번에 한 폴더만 선택하세요.');
    const path=parts.slice(1).join('/');
-   if(/\.svg$/i.test(path)){svg++;continue;}if(!RASTER_EXT.test(path)){skipped++;continue;}
+   if(SVG_EXT.test(path)){svg++;}else if(!RASTER_EXT.test(path)){skipped++;continue;}
    const stem=parts.at(-1).replace(/\.[^.]+$/,'');
    if(path.length>=490||parts.length>10||parts.slice(1).some(p=>!p||p==='.'||p==='..'||p.length>250||/[:\\\x00-\x1f\x7f]/.test(p))||!stem.trim()||stem.length>100||seen.has(path.toLowerCase()))throw Error('중복 또는 지원되지 않는 파일명: '+path);
-   if(!file.size||file.size>6*1024*1024)throw Error('개별 이미지 크기 제한: '+path);
+   if(!file.size||file.size>(SVG_EXT.test(path)?256*1024:6*1024*1024))throw Error('개별 이미지 크기 제한: '+path);
    seen.add(path.toLowerCase());total+=file.size;folderRows.push({file,path,tags:[],selected:false});
   }
-  if(svg)throw Error('SVG '+svg+'개 포함: 안전 변환 기능이 준비되기 전에는 등록할 수 없습니다.');
+  if(svg>500||folderRows.length+svg+2>2530)throw Error('SVG 최대 500개, 원본 포함 압축 항목 2530개 제한');
   if(!folderRows.length||folderRows.length>2500||total>58*1024*1024)throw Error('이미지 1~2500개, 원본 합계 58MiB 이하로 선택하세요.');
   folderRows.sort((a,b)=>a.path.localeCompare(b.path));$('pack-name').value=root.slice(0,120);
-  $('folder-status').textContent=folderRows.length+'개 이미지 · '+(total/1024/1024).toFixed(2)+' MiB'+(skipped?' · 이미지 외 파일 '+skipped+'개 제외':'');
+  $('folder-status').textContent=folderRows.length+'개 이미지 · '+(total/1024/1024).toFixed(2)+' MiB'+(svg?' · SVG '+svg+'개 (서버 PNG 변환)':'')+(skipped?' · 이미지 외 파일 '+skipped+'개 제외':'');
  }catch(e){folderRows=[];folderBlocked=true;$('folder-status').textContent=e.message;}
  renderFolder();
 };
