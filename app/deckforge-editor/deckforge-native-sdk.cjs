@@ -32,6 +32,7 @@ function check(ok,message){if(!ok)throw Error('DeckForge SDK: '+message);}
 // Built-in monitor gesture arbitration; never grant a new privileged event.
 const isMultiMonitor=ctx=>ctx.apiVersion===2&&ctx.pluginUUID==='com.deckforge.native.github-status'&&ctx.action.id==='com.deckforge.native.github-status.multi-build';
 function clearMultiMonitorPress(ctx){
+  ctx.multiInputGeneration=(ctx.multiInputGeneration||0)+1;
   const record=ctx.multiMonitorPress;
   if(record){clearTimeout(record.hold);clearTimeout(record.single);ctx.multiMonitorPress=null;}
 }
@@ -1004,8 +1005,9 @@ class NativePluginHost{
     // A changed setting invalidates old queued work, including ABA changes
     // where a user subsequently restores exactly the old values.
     const monitorInput=isMultiMonitor(ctx)&&['press','multiNext','multiPrevious'].includes(event);
+    const multiInputGeneration=ctx.multiInputGeneration||0;
     const active=()=>!this.closed&&!this.suspended&&!ctx.failed&&(!ctx.settingsUncertain||resultEvent)&&ctx.epoch===epoch&&this.contexts.get(ctx.context)===ctx&&
-      (!monitorInput||!ctx.multiRouteCurrent||ctx.multiRouteCurrent())&&
+      (!monitorInput||((ctx.multiInputGeneration||0)===multiInputGeneration&&(!ctx.multiRouteCurrent||ctx.multiRouteCurrent())))&&
       (ctx.settingsRevision||0)===revision&&
       (expectedSettings===null||expectedSettings===JSON.stringify(ctx.settings))&&
       (expectedSocket===null||expectedSocket===ctx.socketGeneration);
@@ -1637,6 +1639,7 @@ class PluginRouter{
     if(this.closed||this.nativeContextIds.has(context)||this.native.contexts.has(context))return false;
     return this.legacyRouteReady(context,this.desiredMounts?.get(context))&&this.legacy.inspector(context,anchor);
   }
+  cancelMultiMonitorInput(){for(const ctx of this.native.contexts.values())if(isMultiMonitor(ctx))clearMultiMonitorPress(ctx);}
   onSystemSuspend(){this.native.suspend();this.legacy.onSystemSuspend();}
   onSystemResume(){this.native.resume();this.legacy.onSystemResume();}
   async close(){this.closed=true;this.native.close();await this.legacy.close();}

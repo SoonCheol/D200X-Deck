@@ -3533,3 +3533,14 @@ test('GitHub editor and native action share the exact target validator',()=>{
  const editor=require('node:fs').readFileSync(path.join(__dirname,'../app/deckforge-editor/editor.js'),'utf8');
  assert.ok(editor.includes('next.targets=DeckCore.normalizeGitHubMonitorTargets(next.targets)'));
 });
+
+test('GitHub monitor disconnect invalidates pending input generation without changing other contexts',()=>{
+ const {PluginRouter,multiMonitorInput}=require('../app/deckforge-editor/deckforge-native-sdk.cjs');
+ const ctx={apiVersion:2,pluginUUID:'com.deckforge.native.github-status',action:{id:'com.deckforge.native.github-status.multi-build'}};
+ const other={apiVersion:2,pluginUUID:'com.deckforge.native.example',action:{id:'com.deckforge.native.example.action'}};
+ const router=new PluginRouter({}, {contexts:new Map([['multi',ctx],['other',other]])});
+ multiMonitorInput(ctx,'down',()=>true,()=>true);
+ assert.ok(ctx.multiMonitorPress);router.cancelMultiMonitorInput();
+ assert.equal(ctx.multiMonitorPress,null);assert.equal(ctx.multiInputGeneration,1);assert.equal(other.multiInputGeneration,undefined);
+ assert.equal(multiMonitorInput(ctx,'up',()=>true,()=>true),false);
+});

@@ -124,12 +124,23 @@
       (style?.bold ? 'bold ' : '') + fontSize + 'px ' + family + ',sans-serif';
     return fontSize;
   }
-  let marqueeMeasureContext=null;
-  function titleFrame(item,index,now=Date.now()){
+  let marqueeMeasureContext=null,marqueePhaseScope=null;
+  const marqueeStarts=new Map();
+  let marqueeClock=Date.now();
+  function titleFrame(item,index,now=marqueeClock){
     if(!item?.title||item.titleStyle?.marquee!==true||item.titleStyle?.visible===false||item.type==='wide-display')return null;
     marqueeMeasureContext??=document.createElement('canvas').getContext('2d');
     applyTitleFont(marqueeMeasureContext,196,item.titleStyle);
-    return DeckCore.titleMarqueeFrame(item.title,item.titleStyle,(index===13?392:196)-16,text=>marqueeMeasureContext.measureText(text).width,now);
+    const scope=pageStamp();
+    if(scope!==marqueePhaseScope){marqueePhaseScope=scope;marqueeStarts.clear();}
+    const width=(index===13?392:196)-16,measure=text=>marqueeMeasureContext.measureText(text).width;
+    const key=JSON.stringify([index,item.title,item.titleStyle.family,item.titleStyle.size,item.titleStyle.bold,item.titleStyle.italic,item.titleStyle.marqueeSpeed]);
+    const start=marqueeStarts.get(key)??now;
+    const frame=DeckCore.titleMarqueeFrame(item.title,item.titleStyle,width,measure,Math.max(0,now-start));
+    if(frame===null){marqueeStarts.delete(key);return null;}
+    marqueeStarts.delete(key);marqueeStarts.set(key,start);
+    if(marqueeStarts.size>64)marqueeStarts.delete(marqueeStarts.keys().next().value);
+    return frame;
   }
   function drawText(ctx, title, width, height, style) {
     if (!title || style?.visible === false) return;
@@ -593,7 +604,7 @@
   setInterval(()=>{
     if(rendering||pageEntry?.collecting)return;
     const scope=pageStamp();if(scope!==marqueeScope){marqueeScope=scope;marqueeFrames.clear();}
-    const slots=[];const now=Date.now();
+    const slots=[];const now=marqueeClock=Date.now();
     DeckCore.visibleActions(state).slice(0,13).forEach((raw,index)=>{
       if(!raw){marqueeFrames.delete(index);return;}
       const item=window.getD200XDisplayItem?.(raw,index)||raw;
@@ -603,6 +614,7 @@
     });
     if(!slots.length)return;
     renderGrid(slots);
+    if(slots.includes(state.selected))void window.refreshSelectedVisual?.();
     if(online)requestSlots(slots);
   },1000);
   // Refresh the date/time image without polling or overwriting unrelated keys.

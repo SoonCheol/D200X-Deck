@@ -1196,7 +1196,10 @@ function send(channel, payload) {
     window.webContents.send(channel, payload);
   }
 }
-transport.on('status', status => send('d200x:status', status));
+transport.on('status', status => {
+  if(!status?.connected)sdkHost?.cancelMultiMonitorInput();
+  send('d200x:status',status);
+});
 // Runtime evidence is bounded in memory, independent of HID and disk logging.
 const aiEvidence=require('./ai/evidence.cjs').createEvidence({id:randomUUID});
 transport.on('key',event=>{
