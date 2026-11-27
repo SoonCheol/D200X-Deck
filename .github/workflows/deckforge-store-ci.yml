@@ -23,7 +23,25 @@ jobs:
         with:
           python-version: '3.13'
       - run: python -m pip install -r requirements.txt
-      - run: python -m compileall -q server.py package_inspector.py tests
+      - run: python -m compileall -q server.py package_inspector.py signing.py tests
       - run: python -m unittest discover -s tests -v
       - run: node --check web/app.js
       - run: docker build -t deckforge-store:ci .
+      - name: Compose and isolated container smoke test
+        env:
+          DECKFORGE_STORE_IMAGE: deckforge-store:ci
+          DECKFORGE_STORE_ORIGIN: https://store.example.test
+          DECKFORGE_STORE_PORT: '18080'
+        run: |
+          docker compose config --quiet
+          docker compose up -d
+          trap 'docker compose down -v' EXIT
+          for i in $(seq 1 30); do
+            if docker compose exec -T deckforge-store python -c "import urllib.request,json; x=json.load(urllib.request.urlopen('http://127.0.0.1:8080/api/v1/health',timeout=2)); assert x['service']=='deckforge-store' and x['ok']"; then
+              docker compose exec -T deckforge-store python -c "import os; assert os.getuid()==10001"
+              exit 0
+            fi
+            sleep 1
+          done
+          docker compose logs
+          exit 1

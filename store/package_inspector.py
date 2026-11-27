@@ -90,6 +90,7 @@ def inspect_iconpack(z, names, fallback):
     samples = {round(i*(len(paths)-1)/max(1,min(16,len(paths))-1)) for i in range(min(16,len(paths)))}
     previews, cover, styles = [], None, set()
     pairs = {}
+    ha_named = False
     decoded_pixels = 0
     for i, name_path in enumerate(paths):
         suffix = PurePosixPath(name_path).suffix.lower()
@@ -106,12 +107,15 @@ def inspect_iconpack(z, names, fallback):
                 rgba = image.convert("RGBA")
                 styles.update(image_sample(rgba))
                 if len(previews) < 12:
-                    preview = png_preview(rgba, 65536)
+                    preview = png_preview(rgba, 49152)
                     if preview:
                         previews.append(preview)
                 if cover is None:
                     cover = png_preview(rgba, 12288)
         stem = re.sub(r"@[23]x$", "", str(PurePosixPath(name_path).with_suffix("")), flags=re.I)
+        # Domain-qualified HA entity naming is only a filename heuristic.
+        if re.fullmatch(r"(light|switch|sensor|binary_sensor|climate|cover|fan|lock|media_player|scene|automation|input_boolean|vacuum|alarm_control_panel)\.[a-z0-9_]+(?:[ _-](on|off))?",PurePosixPath(stem).name,re.I):
+            ha_named = True
         match = re.match(r"(.+?)[ _-]+(on|off)$", stem, re.I)
         if match:
             pairs.setdefault(match.group(1).casefold(), set()).add(match.group(2).lower())
@@ -119,8 +123,10 @@ def inspect_iconpack(z, names, fallback):
     purpose = ("ha" if re.search(r"\b(home[ _-]?assistant|ha|iot)\b|스마트홈", hint)
                else "windows" if re.search(r"windows|hotkey|shortcut|단축키", hint)
                else "fusion" if re.search(r"fusion|\bcad\b", hint)
-               else "media" if re.search(r"media|music|audio|음악", hint) else "general")
-    tags = [purpose, "state" if any(len(v)==2 for v in pairs.values()) else "general-name", *sorted(styles)]
+               else "media" if re.search(r"media|music|audio|음악", hint)
+               else "app" if re.search(r"logo|\bapp\b|프로그램",hint) else "general")
+    naming = (["ha-name"] if ha_named else []) + (["state"] if any(len(v)==2 for v in pairs.values()) else [])
+    tags = [purpose, *(naming or ["general-name"]), *(sorted(styles) or ["unknown"])]
     return dict(name=name, version=version, author=author, packageId="", native=False, cover=cover,
                 previews=previews, tags=tags, iconCount=len(paths))
 

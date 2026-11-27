@@ -15,6 +15,7 @@ import time
 from pathlib import Path
 from urllib.parse import urlsplit
 from flask import Flask, Response, abort, g, jsonify, request, send_file
+from signing import signature_payload, verify_document, sign_document
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 from package_inspector import inspect_package, text, MIB
@@ -112,7 +113,10 @@ def create_app(data_dir=None,origin=None):
         return row,token
     def body():
         if not request.is_json or (request.content_length or 0)>16384: abort(400)
-        result=request.get_json()
+        raw=request.stream.read(16385)
+        if len(raw)>16384: abort(413)
+        try: result=json.loads(raw)
+        except (ValueError,UnicodeError): abort(400)
         if not isinstance(result,dict): abort(400)
         return result
     @app.after_request
@@ -151,9 +155,11 @@ def create_app(data_dir=None,origin=None):
             c.execute("DELETE FROM attempts WHERE window<?",(window-1,))
             for bucket,limit in (("global",60),("user:"+username.lower(),8)):
                 row=c.execute("SELECT window,count FROM attempts WHERE bucket=?",(bucket,)).fetchone()
-                count=row["count"]+1 if row and row["window"]==window else 1
+                count=min(limit+1,row["count"]+1) if row and row["window"]==window else 1
                 c.execute("INSERT INTO attempts VALUES(?,?,?) ON CONFLICT(bucket) DO UPDATE SET window=excluded.window,count=excluded.count",(bucket,window,count))
-                blocked |= count>limit
+                if count>limit:
+                    blocked=True
+                    break
             account=c.execute("SELECT * FROM accounts WHERE username=? AND active=1",(username,)).fetchone()
         if blocked: abort(429)
         if not password_matches(password,account["password"] if account else dummy) or account is None: abort(401)
@@ -212,6 +218,8 @@ def create_app(data_dir=None,origin=None):
         user,_=authenticate()
         with db() as c: row,meta=current(c,ident,user["role"])
         if valid_id(release)!=row["id"]: abort(404)
+        return package_response(row,meta)
+    def package_response(row,meta):
         digest=row["sha256"]
         if not re.fullmatch(r"[a-f0-9]{64}",digest): abort(404)
         try:
@@ -219,7 +227,7 @@ def create_app(data_dir=None,origin=None):
         except OSError: abort(404)
         if len(data)!=meta["size"] or sha(data)!=digest: abort(409)
         return send_file(io.BytesIO(data),mimetype="application/octet-stream",as_attachment=True,
-                         download_name=ident+"."+meta["format"],conditional=False,max_age=0)
+                         download_name=meta["id"]+"."+meta["format"],conditional=False,max_age=0)
     @app.get("/api/v1/admin/accounts")
     def accounts():
         authenticate(True)
@@ -261,6 +269,8 @@ def create_app(data_dir=None,origin=None):
         description=request.form.get("description","")[:1500]
         license_note=request.form.get("license","").strip()[:300]
         if not license_note: raise ValueError("license or provenance required")
+        for value in (description,license_note):
+            value.encode("utf-8","strict")
         data=f.stream.read(60*MIB+1)
         fallback=Path(f.filename or "Icon pack").stem[:120]
         info=inspect_package(data,kind,fmt,source,fallback)
@@ -290,6 +300,56 @@ def create_app(data_dir=None,origin=None):
             rows=c.execute("SELECT r.*,i.current_release FROM releases r JOIN items i ON i.id=r.item_id WHERE r.id>? ORDER BY r.id LIMIT 21",(cursor,)).fetchall()
         return jsonify(items=[dict(item=json.loads(x["meta"]),status=x["status"],current=x["current_release"]==x["id"]) for x in rows[:20]],
                        nextCursor=rows[19]["id"] if len(rows)>20 else "")
+    def admin_release(c,release):
+        row=c.execute("SELECT * FROM releases WHERE id=?",(valid_id(release),)).fetchone()
+        if not row: abort(404)
+        return row,json.loads(row["meta"])
+    @app.get("/api/v1/admin/releases/<release>")
+    def admin_detail(release):
+        authenticate(True)
+        with db() as c: row,meta=admin_release(c,release)
+        return jsonify(item=meta,previews=json.loads(row["previews"]),status=row["status"])
+    @app.get("/api/v1/admin/releases/<release>/download")
+    def admin_download(release):
+        authenticate(True)
+        with db() as c: row,meta=admin_release(c,release)
+        return package_response(row,meta)
+    @app.post("/api/v1/admin/releases/<release>/classification")
+    def classify(release):
+        user,_=authenticate(True);data=body()
+        purposes={"general","ha","windows","fusion","media","app"}
+        names={"general-name","ha-name","state"}
+        designs={"color","white","black","gray","line","white-line","black-line","solid","unknown"}
+        purpose,naming,styles=data.get("purpose"),data.get("naming"),data.get("styles")
+        if (not isinstance(purpose,str) or purpose not in purposes or not isinstance(naming,list) or not naming
+            or not isinstance(styles,list) or not styles or len(naming)>3 or len(styles)>9
+            or any(not isinstance(x,str) or x not in names for x in naming)
+            or any(not isinstance(x,str) or x not in designs for x in styles)): abort(400)
+        if ("general-name" in naming and len(set(naming))>1) or ("unknown" in styles and len(set(styles))>1): abort(400)
+        with db(True) as c:
+            row,meta=admin_release(c,release)
+            if meta["kind"]!="iconpack": abort(400)
+            meta["tags"]=[purpose,*dict.fromkeys(naming),*dict.fromkeys(styles)]
+            c.execute("UPDATE releases SET meta=? WHERE id=?",(json_text(meta),release))
+            audit(c,user["id"],"release.classify",release)
+        return jsonify(item=meta)
+    @app.get("/api/v1/admin/releases/<release>/signing-request")
+    def signing_request(release):
+        authenticate(True)
+        with db() as c: row,meta=admin_release(c,release)
+        if row["status"]!="published" or not row["native"] or meta["source"]!="deckforge": abort(403)
+        document={"origin":origin,"item":{k:meta[k] for k in ("id","releaseId","kind","packageId","name","version","format","size","sha256","source","visibility")}}
+        return send_file(io.BytesIO(json_text(document).encode("utf-8")),mimetype="application/json",as_attachment=True,download_name=release+".signing-request.json",conditional=False)
+    @app.post("/api/v1/admin/releases/<release>/signature")
+    def import_signature(release):
+        user,_=authenticate(True);data=body()
+        with db(True) as c:
+            row,meta=admin_release(c,release)
+            if row["status"]!="published" or not row["native"] or meta["source"]!="deckforge": abort(403)
+            meta["signature"]=verify_document(origin,meta,data)
+            c.execute("UPDATE releases SET meta=? WHERE id=?",(json_text(meta),release))
+            audit(c,user["id"],"release.signature-import",release)
+        return jsonify(item=meta)
     @app.post("/api/v1/admin/releases/<release>/publish")
     def publish(release):
         user,_=authenticate(True);data=body()
@@ -331,13 +391,12 @@ def create_app(data_dir=None,origin=None):
             if not row or not row["native"]: raise ValueError("reviewed native release required")
             meta=json.loads(row["meta"])
             if meta["source"]!="deckforge" or meta["kind"]!="plugin": raise ValueError("own native release required")
-            payload=json_text(["DeckForge Store release v1",origin,*[meta[k] for k in ("id","releaseId","kind","packageId","name","version","format","size","sha256","source","visibility")]]).encode("utf-8")
-            pub=key.public_key()
-            der=pub.public_bytes(serialization.Encoding.DER,serialization.PublicFormat.SubjectPublicKeyInfo)
-            meta["signature"]=dict(keyId=sha(der),value=base64.b64encode(key.sign(payload)).decode("ascii"))
+            data=(blobs/row["sha256"]).read_bytes()
+            document=sign_document(origin,meta,data,key)
+            meta["signature"]=verify_document(origin,meta,document)
             c.execute("UPDATE releases SET meta=? WHERE id=?",(json_text(meta),release))
             audit(c,"local-cli","release.sign",release)
-        return sha(der)
+        return meta["signature"]["keyId"]
     app.extensions["store_bootstrap"]=bootstrap
     app.extensions["store_sign"]=sign_release
     return app

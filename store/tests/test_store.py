@@ -4,10 +4,14 @@ import json
 import tempfile
 import unittest
 import zipfile
+import shutil
+import subprocess
 from pathlib import Path
 from PIL import Image
 from server import create_app
 from package_inspector import inspect_package
+from signing import sign_document
+from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 
 ORIGIN="https://store.example.test"
 PASSWORD="test-password-12345"
@@ -73,4 +77,52 @@ class StoreTest(unittest.TestCase):
         self.assertEqual(web.post("/api/v1/auth/login",json=payload,headers={"Origin":ORIGIN,"X-DeckForge-CSRF":"1"},base_url=ORIGIN).status_code,200)
         self.assertEqual(web.post("/api/v1/admin/accounts",json={"username":"other","password":PASSWORD},base_url=ORIGIN).status_code,403)
         self.assertEqual(web.get("/api/v1/me",base_url=ORIGIN).status_code,200)
+    def test_review_classification_and_restore(self):
+        i=self.upload().json["item"];path="/api/v1/admin/releases/"+i["releaseId"]
+        self.assertEqual(self.c.get(path,headers=self.member).status_code,403)
+        self.assertEqual(self.c.get(path,headers=self.owner).status_code,200)
+        self.assertEqual(self.c.get(path+"/download",headers=self.member).status_code,403)
+        self.assertEqual(self.c.get(path+"/download",headers=self.owner).data,(Path(self.tmp.name)/"blobs"/i["sha256"]).read_bytes())
+        revised=dict(purpose="ha",naming=["ha-name","state"],styles=["white","white-line"])
+        self.assertEqual(self.c.post(path+"/classification",json=revised,headers=self.owner).json["item"]["tags"],["ha","ha-name","state","white","white-line"])
+        self.assertEqual(self.c.post(path+"/classification",json={**revised,"styles":["unknown","white"]},headers=self.owner).status_code,400)
+        self.assertEqual(self.c.post(path+"/publish",json={"reviewed":True,"visibility":"private"},headers=self.owner).status_code,200)
+        # No active DB operations: copy DB + blob volume as a stopped-service backup.
+        with tempfile.TemporaryDirectory() as destination:
+            restored=Path(destination)/"restored";shutil.copytree(self.tmp.name,restored)
+            app=create_app(restored,ORIGIN);client=app.test_client()
+            self.assertEqual(client.get("/api/v1/items/"+i["id"],headers=self.owner).json["item"]["tags"],["ha","ha-name","state","white","white-line"])
+            self.assertEqual(client.get("/api/v1/items/"+i["id"],headers=self.member).status_code,404)
+    def test_native_signing_and_desktop_contract(self):
+        native={"id":"com.deckforge.optional","name":"테스트 Native","version":"1.0.0","apiVersion":2}
+        manifest={"format":"deckforge-plugin","formatVersion":2,"plugin":{k:native[k] for k in ("id","name","version")},
+                  "runtime":{"type":"deckforge-sdk","directory":"payload","apiVersion":2},"source":{"kind":"deckforge"}}
+        out=io.BytesIO()
+        with zipfile.ZipFile(out,"w") as z:
+            z.writestr("deckforge-plugin.json",json.dumps(manifest));z.writestr("payload/native.json",json.dumps(native))
+        data=out.getvalue()
+        result=self.c.post("/api/v1/admin/items",data={"file":(io.BytesIO(data),"native.deckforgePlugin"),"kind":"plugin","format":"deckforgePlugin","source":"deckforge","license":"test"},headers=self.owner)
+        self.assertEqual(result.status_code,201);i=result.json["item"];path="/api/v1/admin/releases/"+i["releaseId"]
+        self.assertEqual(self.c.get(path+"/signing-request",headers=self.owner).status_code,403)
+        i=self.c.post(path+"/publish",json={"reviewed":True,"visibility":"private"},headers=self.owner).json["item"]
+        request=json.loads(self.c.get(path+"/signing-request",headers=self.owner).data)
+        key=Ed25519PrivateKey.generate();document=sign_document(request["origin"],request["item"],data,key)
+        tampered={**document,"signature":{**document["signature"],"keyId":"0"*64}}
+        self.assertEqual(self.c.post(path+"/signature",json=tampered,headers=self.owner).status_code,400)
+        response=self.c.post(path+"/signature",json=document,headers=self.owner);self.assertEqual(response.status_code,200)
+        # Exercise the actual desktop signature function against Python-issued signature.
+        editor=Path(__file__).resolve().parents[2]/"app/deckforge-editor/store-client.cjs"
+        script="""const fs=require('node:fs'),crypto=require('node:crypto'),vm=require('node:vm');
+const src=fs.readFileSync(process.argv[1],'utf8');
+const fn=vm.runInNewContext(src.slice(src.indexOf('function storeTrustKey('),src.indexOf('function verifyStoreBytes('))+';verifyStoreSignature',{Buffer,createHash:crypto.createHash,createPublicKey:crypto.createPublicKey,verify:crypto.verify});
+const x=JSON.parse(fs.readFileSync(0,'utf8'));if(!fn(x.origin,x.item,{origin:x.origin,pem:x.pem}))process.exit(1);if(fn(x.origin,{...x.item,version:'2.0.0'},{origin:x.origin,pem:x.pem}))process.exit(2);"""
+        subprocess.run(["node","-e",script,str(editor)],input=json.dumps({"origin":ORIGIN,"item":response.json["item"],"pem":document["publicKey"]}),text=True,check=True)
+        self.assertNotIn("signature",self.c.post(path+"/publish",json={"reviewed":True,"visibility":"public"},headers=self.owner).json["item"])
+    def test_release_conflict_and_account_revoke(self):
+        original=pack();i=self.upload(data=original).json["item"]
+        res=self.c.post("/api/v1/admin/items",data={"file":(io.BytesIO(original),"icons.zip"),"kind":"iconpack","format":"zip","source":"third-party","license":"test","itemId":i["id"]},headers=self.owner)
+        self.assertEqual(res.status_code,409)
+        member=self.c.get("/api/v1/me",headers=self.member).json["account"]
+        self.assertEqual(self.c.post("/api/v1/admin/accounts/"+member["id"]+"/disable",headers=self.owner,json={}).status_code,204)
+        self.assertEqual(self.c.get("/api/v1/me",headers=self.member).status_code,401)
 if __name__=="__main__": unittest.main()
