@@ -19,9 +19,9 @@ function validateValue(value,maxBytes=MAX){
 }
 class NativeSettingsVault{
   constructor(userData,storage,scope='settings'){
-    if(!['settings','credentials','browser'].includes(scope))throw Error('invalid vault scope');
+    if(!['settings','credentials','browser','node'].includes(scope))throw Error('invalid vault scope');
     this.scope=scope;
-    this.root=path.join(userData,'Plugins',scope==='credentials'?'NativeCredentials':scope==='browser'?'NativeBrowserPermissions':'NativeSettings');
+    this.root=path.join(userData,'Plugins',scope==='credentials'?'NativeCredentials':scope==='browser'?'NativeBrowserPermissions':scope==='node'?'NativeNodePermissions':'NativeSettings');
     this.storage=storage;this.writers=new Map();this.pendingWrites=0;
   }
   file(id){

@@ -3544,3 +3544,38 @@ test('GitHub monitor disconnect invalidates pending input generation without cha
  assert.equal(ctx.multiMonitorPress,null);assert.equal(ctx.multiInputGeneration,1);assert.equal(other.multiInputGeneration,undefined);
  assert.equal(multiMonitorInput(ctx,'up',()=>true,()=>true),false);
 });
+
+test('native Node tasks require explicit permission, approved code and active button generation',async()=>{
+  const {TrustedNodeTasks}=require('../app/deckforge-editor/deckforge-trusted-node.cjs');
+  const m={...scriptManifest,permissions:['display','node.run'],nodeTasks:{one:{source:'return input;'}}};
+  validateNativeManifest(m);
+  assert.throws(()=>validateNativeManifest({...m,permissions:['display']}),/nodeTasks/);
+  assert.throws(()=>validateNativeManifest({...m,nodeTasks:{one:{source:'if('}}}),/syntax/);
+  assert.deepEqual((await parseDeckForgePackage(await nativeArchive(m))).native,m);
+  const dir=await fs.mkdtemp(path.join(os.tmpdir(),'deckforge-node-approval-'));
+  let value={},prompts=0,executions=0,allow=false;
+  const vault={read:async()=>({value,revision:null}),write:async(_id,v,_r,active)=>{if(!active())return false;value=v;return true;}};
+  const manager=new TrustedNodeTasks(dir,vault,async()=>{prompts++;return allow;},async()=>{executions++;return {status:'ok',value:7};});
+  const ctx={pluginUUID:m.id,nodeManifest:m},op={op:'runNode',task:'one',input:{}};
+  const host=new NativePluginHost(dir,()=>{},()=>({close(){}}),{nodePermissions:vault});
+  try{
+    const mounted={...ctx,slot:0,action:m.actions[0],permissions:m.permissions};
+    assert.deepEqual(host.validateScriptOps(mounted,'press',[op]).effects,[op]);
+    assert.throws(()=>host.validateScriptOps(mounted,'appear',[op]),/input event/);
+    assert.throws(()=>host.validateScriptOps({...mounted,permissions:['display']},'press',[op]),/unauthorized/);
+    assert.throws(()=>host.validateScriptOps(mounted,'press',[{...op,task:'constructor'}]),/unknown Node task/);
+    assert.equal((await manager.run(ctx,op,()=>true)).status,'denied');
+    assert.equal((await manager.run(ctx,op,()=>true)).status,'denied');
+    assert.equal(prompts,1);assert.equal(executions,0);
+    await manager.set(m,true);
+    assert.equal((await manager.run(ctx,op,()=>true)).status,'ok');
+    assert.equal((await manager.run(ctx,op,()=>true)).status,'ok');
+    assert.equal(prompts,1);assert.equal(executions,2);
+    await manager.set(m,false);allow=true;
+    assert.equal((await manager.run(ctx,op,()=>true)).status,'denied');
+    assert.equal((await manager.run(ctx,op,()=>false)).status,'cancelled');
+    assert.equal(executions,2);
+    assert.equal((await manager.run({...ctx,nodeManifest:{...m,version:'99.0.0'}},op,()=>true)).status,'ok');
+    assert.equal(prompts,2);
+  }finally{host.close();await fs.rm(dir,{recursive:true,force:true,maxRetries:6,retryDelay:150});}
+});

@@ -12,7 +12,14 @@ DeckForge는 개인용 편집기로서 Ulanzi Studio의 UI·기능 제한을 극
 - 기존 실행 제한의 개선은 기능별 근거와 회귀 시험을 요구한다. 실패 입력 재실행 금지, 저장 일관성·원본 보존·USB/HID 안전은 유지한다. SDK 1.0 선언은 실제 검증 후 판단한다.
 
 
-## JavaScript API 26개 (API 2, 1.0 기준선 19개 + 확장 7개)
+## 신뢰 Node 작업 확장 (2.0.147 후보)
+
+- API 2 manifest의 선택 권한 `node.run`, `nodeTasks:{id:{source,timeoutMs?}}` 선언(최대 16개). `api.runNode(id,input={})`는 등록한 작업만 요청하며 Node 코드는 sandbox 밖 별도 사용자 권한 프로세스에서 async 함수 본문 `input,require`로 실행한다. 동적 input은 JSON 객체 32KiB, source 최대 64KiB, 결과 JSON 8KiB; `event.type==='nodeResult'`, `event.response={task,status,value?}`. 결과 이벤트는 표시·메모리 갱신 전용, 기존 입력당 효과 제한 유지. 기본 30초, 선택 1~120초. Node 작업용 cwd는 Plugins/NativeNodeData/<id>, Node 모듈과 OS 직접 접근 가능. 별도 모듈 자동 설치·원본 실행 패키지·지속 서비스는 후속.
+- 설치 시 권한 명시, 최초 입력 실행 전 승인 확인, 전체 manifest SHA256과 결합한 Windows 암호화 grant를 별도 NativeNodePermissions에 저장. 거부/철회 후 자동 재질문 없음; 플러그인 도움말 운영체제 권한 관리에서 변경. manifest 변경 시 재승인. 일반 백업 제외, 명시적 보존 데이터 삭제 시 grant 포함. 작업 데이터 폴더 자동 삭제 금지.
+- 플러그인당 작업 1개·전체 8개 동시, context/설정 변경·절전·종료/철회 시 직접 child 취소 및 늦은 결과 폐기, 실패 재실행 없음. 신뢰 코드의 파일·프로세스·네트워크 접근은 샌드박스가 아니며 하위 프로세스 트리나 이미 실행된 외부 부수 효과의 취소를 보장하지 않는다. 지속 프로세스/Windows Job Object 검토 후속. stdout은 결과 전용, console 로그는 stderr로 분리하고 일반 로그에 원문 미출력.
+- 독립 Linux Node 22 시험에서 파일·로컬 모듈·하위 프로세스·결과·timeout·abort·크기 제한 및 모의 vault 승인 상태 통과. 전체 Windows/실제 COM·PowerShell·Electron/실기 검증은 별도. 기존 API 1/2 플러그인 데이터와 실행 계약 유지.
+
+## JavaScript API 27개 (API 2, 1.0 기준선 19개 + 확장 8개)
 
 | 함수 | 권한 | 계약 |
 |---|---|---|
@@ -42,6 +49,7 @@ DeckForge는 개인용 편집기로서 Ulanzi Studio의 UI·기능 제한을 극
 | getSharedState() | background.run | 동일 플러그인 휘발성 상태 스냅샷 |
 | publishSharedState(object) | background.run | 전역 서비스만 상태 발행 |
 | sendServiceMessage(object) | background.run | 입력 이벤트에서 같은 플러그인의 서비스에 메시지 전송 |
+| runNode(id,input={}) | node.run | 승인된 manifest Node 작업 별도 프로세스 실행, nodeResult |
 
 함수는 동기적으로 명령을 제출한다. 반환값은 저장/실행 성공이 아니다. display 및 읽기 외 부수 효과는 입력 이벤트당 한 개, 예외적으로 승인 GET polling을 허용한다. API 1은 별도 선언형 6개 op(title/titleFromSetting/state/stateFromSetting/toggleState/image) 유지.
 

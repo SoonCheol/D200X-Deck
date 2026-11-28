@@ -173,11 +173,17 @@ ipcMain.handle('d200x:store-download',(event,kind,id,releaseId,hash,installIconP
   },installPlugin===true);
 });
 let sdkHost=null;
+const nodePermissionDetail='이 플러그인의 Node.js 코드는 현재 Windows 사용자 권한으로 실행됩니다. 파일·외부 라이브러리·프로세스·네트워크에 직접 접근할 수 있으며 DeckForge 샌드박스로 제한되지 않습니다. 신뢰하는 플러그인만 승인하세요. 승인 범위는 현재 설치된 코드이며 변경 시 다시 승인합니다.';
+async function approveNodePlugin(info){
+  if(!window||window.isDestroyed())return false;
+  const choice=await dialog.showMessageBox(window,{type:'warning',title:'플러그인 운영체제 접근 승인',message:info.name+' '+info.version,detail:nodePermissionDetail,buttons:['거부','승인'],defaultId:0,cancelId:0,noLink:true});
+  return choice.response===1;
+}
 const pluginAudit=require('./plugin-audit.cjs').createPluginAudit({userData:app.getPath('userData'),appVersion:app.getVersion(),onError:()=>console.warn('DeckForge plugin audit write failed')});
 function sdk(){
   if(!sdkHost){
     const userData=app.getPath('userData'),update=payload=>send('d200x:sdk-event',payload);
-    sdkHost=new PluginRouter(new StreamDeckPluginHost(userData,update,()=>window),new NativePluginHost(userData,update,null,{browserOpen:href=>shell.openExternal(href)}));
+    sdkHost=new PluginRouter(new StreamDeckPluginHost(userData,update,()=>window),new NativePluginHost(userData,update,null,{browserOpen:href=>shell.openExternal(href),nodeApprove:approveNodePlugin}));
   }
   return sdkHost;
 }
@@ -286,7 +292,7 @@ ipcMain.handle('d200x:native-retained-restore',async(event,id)=>{
  const plan=await sdk().planRetainedNative(id);audit.identify(plan);audit.mode('keepData');audit.stage('confirm');
  const choice=await dialog.showMessageBox(window,{type:'question',title:'보존 플러그인 다시 설치',
    message:plan.name+' '+plan.version+' 다시 설치',
-   detail:['기존 버튼과 설정을 유지합니다. 실행 및 네트워크 접근은 아래 권한으로 다시 허용됩니다.', '권한: '+plan.permissions.join(', '),...(plan.permissions.includes('browser.open')?['버튼을 눌렀을 때 기본 브라우저에서 HTTP/HTTPS 주소 열기']:[]),...plan.endpoints].join('\n'),
+   detail:['기존 버튼과 설정을 유지합니다. 실행 및 네트워크 접근은 아래 권한으로 다시 허용됩니다.', '권한: '+plan.permissions.join(', '),...(plan.permissions.includes('browser.open')?['버튼을 눌렀을 때 기본 브라우저에서 HTTP/HTTPS 주소 열기']:[]),...(plan.permissions.includes('node.run')?[nodePermissionDetail]:[]),...plan.endpoints].join('\n'),
    buttons:['취소','신뢰하고 다시 설치'],defaultId:0,cancelId:0,noLink:true});
  if(choice.response!==1)return null;
  audit.stage('execute');return sdk().restoreRetainedNative(id,plan.revision,plan.permissions.includes('browser.open'));
@@ -369,6 +375,15 @@ ipcMain.handle('d200x:native-browser-permission',async(event,id)=>{
     buttons:['닫기',info.approved?'권한 철회':'권한 승인'],defaultId:0,cancelId:0,noLink:true});
   if(choice.response!==1)return null;
   return sdk().setBrowserPermission(id,info.digest,!info.approved);
+});
+ipcMain.handle('d200x:native-node-permission',async(event,id)=>{
+  assertEditor(event);
+  const info=await sdk().nodePermissionInfo(id);
+  const choice=await dialog.showMessageBox(window,{type:'warning',title:'플러그인 운영체제 권한 관리',message:info.name+' '+info.version,
+    detail:'운영체제 접근: '+(info.approved?'승인됨':'승인되지 않음')+'\n'+nodePermissionDetail,
+    buttons:['닫기',info.approved?'권한 철회':'권한 승인'],defaultId:0,cancelId:0,noLink:true});
+  if(choice.response!==1)return null;
+  return sdk().setNodePermission(id,info.digest,!info.approved);
 });
 ipcMain.handle('d200x:native-credential-info',async(event,id)=>{assertEditor(event);return sdk().credentialInfo(id);});
 ipcMain.handle('d200x:native-credential-write',async(event,id,binding,revision,token)=>{
@@ -497,7 +512,7 @@ ipcMain.on('d200x:fusion-panel-bounds',(event,rect)=>{
 
 async function installNativePackage(packageData,audit,{forceConfirm=false,requireUpdate=false,source='',beforeExecute}={}){
       const native=packageData.native;audit.identify(native);
-      const labels={'settings.write':'현재 버튼 설정 저장','navigation':'프로필·페이지·덱폴더 이동','wide.mode':'와이드 화면 모드 전환','wide.overlay':'와이드 화면 임시 이미지·레이아웃 표시','global.settings':'플러그인 전역 암호화 설정 읽기·쓰기','network.request':'승인된 HTTPS 주소로 네트워크 요청','timer.tick':'활성 화면에서 주기적 표시 갱신','network.poll':'승인된 HTTPS GET 주소 주기적 조회','network.websocket':'승인된 WSS 실시간 연결 및 메시지 송수신','background.run':'페이지와 무관하게 독립 서비스 실행 및 상태 공유','browser.open':'버튼을 눌렀을 때 기본 브라우저에서 HTTP/HTTPS 주소 열기'};
+      const labels={'settings.write':'현재 버튼 설정 저장','navigation':'프로필·페이지·덱폴더 이동','wide.mode':'와이드 화면 모드 전환','wide.overlay':'와이드 화면 임시 이미지·레이아웃 표시','global.settings':'플러그인 전역 암호화 설정 읽기·쓰기','network.request':'승인된 HTTPS 주소로 네트워크 요청','timer.tick':'활성 화면에서 주기적 표시 갱신','network.poll':'승인된 HTTPS GET 주소 주기적 조회','network.websocket':'승인된 WSS 실시간 연결 및 메시지 송수신','background.run':'페이지와 무관하게 독립 서비스 실행 및 상태 공유','browser.open':'버튼을 눌렀을 때 기본 브라우저에서 HTTP/HTTPS 주소 열기','node.run':'Node.js 운영체제 접근 (파일·외부 라이브러리·프로세스·네트워크; 최초 실행 승인 필요)'};
       const plan=await sdk().planNativeInstall(native);if(requireUpdate&&plan.kind!=='update')throw Error('최신 버전 업데이트만 허용됩니다.');audit.identify(plan);audit.operation(plan.kind);audit.stage('confirm');
       const extra=native.permissions.filter(p=>p!=='display');
       const dependencies=Object.entries(native.dependencies||{}).map(([id,range])=>id+' '+range);

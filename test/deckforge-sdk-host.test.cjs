@@ -518,3 +518,18 @@ test('shared Node process runtime supports plugin-local files and modules with l
     await fs.rm(cwd,{recursive:true,force:true,maxRetries:6,retryDelay:150});
   }
 });
+
+test('trusted Node task executes file, module and child process, returns JSON and cancels',async()=>{
+  const {executeNodeTask}=require('../app/deckforge-editor/deckforge-trusted-node.cjs');
+  const dir=await fs.mkdtemp(path.join(os.tmpdir(),'deckforge-node-task-'));
+  try{
+    await fs.writeFile(path.join(dir,'local.cjs'),'module.exports="module-ok"');
+    const task={source:"const fs=require('node:fs/promises'); await fs.writeFile('local.txt',input.text); return {file:await fs.readFile('local.txt','utf8'),module:require('./local.cjs'),child:require('node:child_process').execFileSync(process.execPath,['-p','1+2'],{encoding:'utf8'}).trim()};"};
+    assert.deepEqual(await executeNodeTask(task,{text:'한글 & literal'},dir),{status:'ok',value:{file:'한글 & literal',module:'module-ok',child:'3'}});
+    assert.deepEqual(await executeNodeTask({source:'setInterval(()=>{},100); await new Promise(()=>{});',timeoutMs:1000},{},dir),{status:'timeout'});
+    const abort=new AbortController(),pending=executeNodeTask({source:'setInterval(()=>{},100); await new Promise(()=>{});'},{},dir,abort.signal);
+    setTimeout(()=>abort.abort(),150);
+    assert.deepEqual(await pending,{status:'cancelled'});
+    assert.deepEqual(await executeNodeTask({source:'return "x".repeat(9000);'},{},dir),{status:'result-limit'});
+  }finally{await fs.rm(dir,{recursive:true,force:true,maxRetries:6,retryDelay:150});}
+});

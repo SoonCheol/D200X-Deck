@@ -62,6 +62,7 @@ contextBridge.exposeInMainWorld('deckBridge', Object.freeze({
   nativeGitHubInstall:()=>ipcRenderer.invoke('d200x:native-github-install'),
   nativeGitHubOptions:repository=>ipcRenderer.invoke('d200x:native-github-options',repository),
   nativeBrowserPermission:id=>ipcRenderer.invoke('d200x:native-browser-permission',id),
+  nativeNodePermission:id=>ipcRenderer.invoke('d200x:native-node-permission',id),
   nativeCredentialInfo:id=>ipcRenderer.invoke('d200x:native-credential-info',id),
   nativeCredentialWrite:(id,binding,revision,token)=>ipcRenderer.invoke('d200x:native-credential-write',id,binding,revision,token),
   fusionHealth: () => ipcRenderer.invoke('d200x:fusion-health'),

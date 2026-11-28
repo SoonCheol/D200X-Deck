@@ -96,12 +96,12 @@ async function verifyVectorRendering(){
 async function verifyPublicApi(runner){
   const {NativePluginHost,validateNativeManifest}=require('../app/deckforge-editor/deckforge-native-sdk.cjs');
   const id='com.deckforge.native.api-contract';
-  const permissions=['display','settings.write','global.settings','navigation','wide.mode','wide.overlay','network.request','network.websocket','background.run','browser.open'];
+  const permissions=['display','settings.write','global.settings','navigation','wide.mode','wide.overlay','network.request','network.websocket','background.run','browser.open','node.run'];
   const endpoints=[{id:'status',url:'https://example.com/status',method:'GET'},{id:'live',url:'wss://example.com/events',method:'WSS'},{id:'entity',url:'https://example.com/entities/',method:'PATCH',pathKeys:['id'],queryKeys:['view'],headerKeys:['if-match']}];
   const action={id:id+'.key',name:'Contract',controllers:['Keypad'],states:2,script:'api.setTitle("contract");'};
-  validateNativeManifest({apiVersion:2,id,name:'Contract',version:'1.0.0',permissions,networkEndpoints:endpoints,service:{script:'void 0;'},actions:[action]});
+  const manifest=validateNativeManifest({apiVersion:2,id,name:'Contract',version:'1.0.0',permissions,networkEndpoints:endpoints,service:{script:'void 0;'},nodeTasks:{test:{source:'return input;'}},actions:[action]});
   const host=new NativePluginHost('/unused');
-  const ctx={slot:0,pluginUUID:id,action,permissions,networkEndpoints:endpoints,settings:{count:1,keep:true}};
+  const ctx={slot:0,pluginUUID:id,action,permissions,networkEndpoints:endpoints,nodeManifest:manifest,settings:{count:1,keep:true}};
   const gif='data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAICRAEAOw==';
   const png='data:image/png;base64,'+require('../app/deckforge-editor/ulanzi-media-analysis.cjs').gifPngFrames(Buffer.from(gif.slice(22),'base64')).frames[0].png.toString('base64');
   const frame={kind:'layout',background:'#000000',elements:[]};
@@ -123,6 +123,7 @@ async function verifyPublicApi(runner){
     ['exitFolder','api.exitFolder()','navigate','navigation'],
     ['setWideMode','api.setWideMode("clock")','wideMode','wide.mode'],
     ['openUrl','api.openUrl("https://example.com/build/123")','openUrl','browser.open'],
+    ['runNode','api.runNode("test",{n:1})','runNode','node.run'],
     ['setWideOverlay','api.setWideOverlay('+JSON.stringify(frame)+')','wideOverlay','wide.overlay'],
     ['clearWideOverlay','api.clearWideOverlay()','wideOverlay','wide.overlay'],
     ['request','api.request("status")','networkRequest','network.request'],
@@ -157,7 +158,7 @@ async function verifyPublicApi(runner){
     }
     const extended=await runner.run('api.request("entity",{state:1},{view:"full"},{path:{id:"light"},headers:{"if-match":"rev"}});',input);
     assert.deepEqual(host.validateScriptOps(ctx,'press',extended.ops).effects,[{op:'networkRequest',endpoint:'entity',body:{state:1},query:{view:'full'},options:{path:{id:'light'},headers:{'if-match':'rev'}}}]);
-    console.log('DeckForge native SDK 26-function renderer/host contract passed (browser effect gated)');
+    console.log('DeckForge native SDK 27-function renderer/host contract passed (browser and Node effects gated)');
   }finally{host.close();}
 }
 

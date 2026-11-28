@@ -27,4 +27,8 @@ function spawnNodePlugin(runtime,entry,args,cwd){
   return spawn(runtime.executable,[entry,...args],{cwd,env:runtime.env,
     windowsHide:true,shell:false,stdio:['ignore','pipe','pipe']});
 }
-module.exports={nodeRuntime,spawnNodePlugin};
+function spawnNodeTask(runtime,bootstrap,cwd){
+  return spawn(runtime.executable,['-e',bootstrap],{cwd,env:runtime.env,
+    windowsHide:true,shell:false,stdio:['pipe','pipe','pipe']});
+}
+module.exports={nodeRuntime,spawnNodePlugin,spawnNodeTask};

@@ -9,6 +9,7 @@ const {verifyPng}=require('./ulanzi-png-verifier.cjs');
 const {pixelImage}=require('./deckforge-pixel-image.cjs');
 const {NativeAnimationPlayer}=require('./deckforge-native-animation.cjs');
 const {NativeSettingsVault,validateValue}=require('./deckforge-native-settings.cjs');
+const {TrustedNodeTasks,validateNodeTasks,validateNodeOperation,digest:nodeManifestDigest}=require('./deckforge-trusted-node.cjs');
 const {NativeVersionStore,assertAppRequirement}=require('./deckforge-native-versions.cjs');
 const {validateDependencies,resolveDependencies,assertDependencyChange}=require('./deckforge-native-dependencies.cjs');
 const {validateWideOverlay}=require('./deckforge-native-wide.cjs');
@@ -19,7 +20,7 @@ const SUFFIX='.deckforge-native.json', LIMIT=1024*1024;
 const ID=/^com\.deckforge\.native\.[a-z0-9][a-z0-9.-]{0,110}$/;
 const EVENTS=new Set(['appear','disappear','settings','press','release','rotateLeft','rotateRight','heldRotateLeft','heldRotateRight']);
 const OPS=new Set(['title','titleFromSetting','state','stateFromSetting','toggleState','image']);
-const EXTRA_PERMISSIONS=['settings.write','navigation','wide.mode','global.settings','wide.overlay','network.request','timer.tick','network.poll','network.websocket','background.run','browser.open'];
+const EXTRA_PERMISSIONS=['settings.write','navigation','wide.mode','global.settings','wide.overlay','network.request','timer.tick','network.poll','network.websocket','background.run','browser.open','node.run'];
 const SERVICE_PREFIX='@service:',MAX_SERVICES=8;
 const MAX_PENDING_EVENTS=64,INPUT_RESERVE=4,MAX_NETWORK_GLOBAL=8,MAX_NETWORK_PLUGIN=2;
 const RX_SOCKET_BYTES=2*1024*1024,RX_GLOBAL_BYTES=8*1024*1024,RX_FRAMES=256,RX_BATCH_BYTES=512*1024,RX_BATCH_COUNT=8;
@@ -103,13 +104,14 @@ function projectSharedState(ctx,snapshot){
   return structuredClone(out);
 }
 function validateNativeManifest(m){
-  check(exact(m,['apiVersion','id','name','version','permissions','actions','requiresDeckForge','dependencies','networkEndpoints','service','capabilities'])&&[1,2].includes(m.apiVersion)&&
+  check(exact(m,['apiVersion','id','name','version','permissions','actions','requiresDeckForge','dependencies','networkEndpoints','service','capabilities','nodeTasks'])&&[1,2].includes(m.apiVersion)&&
     typeof m.id==='string'&&ID.test(m.id)&&!m.id.endsWith('.')&&!m.id.includes('..')&&
     validText(m.name,180)&&validText(m.version,64),'invalid manifest or API version');
   assertAppRequirement(m.requiresDeckForge,APP_VERSION);
   validateDependencies(m.id,m.dependencies);
   check(Array.isArray(m.permissions)&&m.permissions.includes('display')&&new Set(m.permissions).size===m.permissions.length&&
     m.permissions.every(p=>p==='display'||(m.apiVersion===2&&EXTRA_PERMISSIONS.includes(p))),'unsupported permissions');
+  validateNodeTasks(m.nodeTasks,m.permissions.includes('node.run'));
   if(m.capabilities!==undefined)check(m.apiVersion===2&&Array.isArray(m.capabilities)&&
     m.capabilities.length>0&&new Set(m.capabilities).size===m.capabilities.length&&
     m.capabilities.every(c=>c==='settingsResult'?m.permissions.includes('settings.write'):(c==='socketBatch'||c==='socketJsonArray'&&m.capabilities.includes('socketBatch'))&&m.permissions.includes('network.websocket')&&m.permissions.includes('background.run')),
@@ -212,6 +214,8 @@ class NativePluginHost{
       try{const {value}=await this.browserPermissions.read(id);return value.approved===true&&value.digest===digest;}catch{return false;}
     });
     this.lastBrowserOpen=-Infinity;
+    this.nodePermissions=options.nodePermissions||new NativeSettingsVault(userData,credentialStorage,'node');
+    this.nodeTasks=new TrustedNodeTasks(path.join(this.root,'NativeNodeData'),this.nodePermissions,options.nodeApprove,options.nodeExecute);
     this.socketFactory=options.socketFactory||createSocket;this.socketPending=new Set();this.rxReservedBytes=0;
     this.socketRetryDelays=options.socketRetryDelays||[1000,2000,5000,10000,30000];
     this.socketStableMs=options.socketStableMs??30000;
@@ -443,6 +447,9 @@ class NativePluginHost{
       }else if(op?.op==='wideOverlay'){
         check(ctx.permissions.includes('wide.overlay'),'unauthorized wide overlay');
         validateWideOverlay(op);
+      }else if(op?.op==='runNode'){
+        check(!ctx.service&&ctx.permissions.includes('node.run'),'unauthorized Node task');
+        validateNodeOperation(op,ctx.nodeManifest?.nodeTasks);
       }else if(op?.op==='openUrl'){
         check(ctx.permissions.includes('browser.open')&&exact(op,['op','value']),'unauthorized browser operation');
         check(event==='press'&&!ctx.service,'browser operation requires press input event');
@@ -592,7 +599,7 @@ class NativePluginHost{
       ctx.settings=pending.value;
       if(changed){
         if(Number.isSafeInteger(ctx.configRevision))ctx.configRevision++;
-        this.cancelNetwork(ctx);this.cancelSocket(ctx);ctx.settingsRefresh=true;
+        this.cancelNetwork(ctx);this.cancelSocket(ctx);this.nodeTasks.cancel(ctx);ctx.settingsRefresh=true;
         if(ctx.action.tickWhen)this.refreshTickSchedule(ctx);
       }
     }
@@ -609,7 +616,7 @@ class NativePluginHost{
     if(ctx.service&&Object.keys(ctx.sharedState||{}).length){const previous=ctx.sharedState;ctx.sharedState={};this.notifyShared(ctx.pluginUUID,previous);}
     this.animations.stop(ctx);
     ctx.tickDue=null;
-    this.cancelNetwork(ctx);this.cancelSocket(ctx);
+    this.cancelNetwork(ctx);this.cancelSocket(ctx);this.nodeTasks.cancel(ctx);
     if(ctx.wideOverlaySent){ctx.wideOverlaySent=false;this.onUpdate({kind:'nativeWideReleased',context:ctx.context});}
     clearTimeout(ctx.recoveryTimer);ctx.recoveryTimer=null;
     ctx.epoch=(ctx.epoch||0)+1;
@@ -1060,6 +1067,12 @@ class NativePluginHost{
         ctx.memory=result.memory;
         this.applyOps(ctx,normal);
         for(const operation of effects)if(!['globalSettings','settings'].includes(operation.op)){
+          if(operation.op==='runNode'){
+            this.nodeTasks.run(ctx,operation,active).then(result=>{
+              if(active())this.runScript(ctx,'nodeResult',{task:operation.task,...result});
+            }).catch(()=>{if(active())this.report(ctx.pluginUUID,Error('Node task unavailable'));});
+            continue;
+          }
           if(operation.op==='openUrl'){
             if(!await this.dispatchBrowserUrl(ctx,operation,active)&&active())this.report(ctx.pluginUUID,Error('browser opening not approved or temporarily unavailable'));
             continue;
@@ -1151,10 +1164,11 @@ class NativePluginHost{
       const incoming=obj(cfg.settings)?cfg.settings:{};
       let ctx=this.contexts.get(cfg.context);
       const browserRevision=browserRevisions.get(plugin.id);
-      const signature=JSON.stringify([plugin.apiVersion,plugin.permissions,plugin.capabilities||[],plugin.networkEndpoints||[],a,...(browserRevision?[browserRevision]:[])]);
+      const nodeManifest=plugin.permissions.includes('node.run')?plugin:null;
+      const signature=JSON.stringify([plugin.apiVersion,plugin.permissions,plugin.capabilities||[],plugin.networkEndpoints||[],a,...(browserRevision?[browserRevision]:[]),...(nodeManifest?[nodeManifestDigest(nodeManifest)]:[])]);
       if(!ctx||ctx.pluginUUID!==cfg.pluginUUID||ctx.action.id!==a.id||ctx.signature!==signature||ctx.slot!==cfg.slot||ctx.gesture!==cfg.gesture){
         if(ctx)this.retire(ctx);
-        ctx={...cfg,action:a,apiVersion:plugin.apiVersion,permissions:[...plugin.permissions],capabilities:[...(plugin.capabilities||[])],networkEndpoints:plugin.networkEndpoints||[],signature,browserRevision,settings:incoming,state:0,pressed:false,failed:false,
+        ctx={...cfg,action:a,apiVersion:plugin.apiVersion,permissions:[...plugin.permissions],capabilities:[...(plugin.capabilities||[])],networkEndpoints:plugin.networkEndpoints||[],signature,browserRevision,nodeManifest,settings:incoming,state:0,pressed:false,failed:false,
           epoch:0,settingsRevision:0,pending:0,queue:Promise.resolve(),runner:null,memory:{},recoveryAttempts:0,recoveryTimer:null};
         this.contexts.set(cfg.context,ctx);this.initialize(ctx);
       }else{
@@ -1173,7 +1187,7 @@ class NativePluginHost{
           this.animations.stop(ctx);
           ctx.settingsRevision++;
           this.scheduler.prune();
-          this.cancelNetwork(ctx);this.cancelSocket(ctx);
+          this.cancelNetwork(ctx);this.cancelSocket(ctx);this.nodeTasks.cancel(ctx);
           // Reset input pairing across settings generations. Never turn a
           // discarded press into a release-triggered privileged operation.
           if(ctx.apiVersion===2)ctx.pressed=false;
@@ -1382,7 +1396,7 @@ class PluginRouter{
     const bindings=new Set();
     for(const record of [retained,...history])for(const endpoint of record.manifest.networkEndpoints||[])
       if(endpoint.auth!==undefined)bindings.add(credentialBinding(id,endpoint));
-    check(!host.vault.writers.has(id)&&!host.browserPermissions.writers.has(id)&&!host.browserChanges.has(id)&&[...bindings].every(b=>!host.credentials.writers.has(b)&&!host.credentialChanges.has(b)),'plugin data write pending; retry');
+    check(!host.vault.writers.has(id)&&!host.browserPermissions.writers.has(id)&&!host.browserChanges.has(id)&&!host.nodePermissions.writers.has(id)&&!host.nodeTasks.changes.has(id)&&!host.nodeTasks.jobs.has(id)&&[...bindings].every(b=>!host.credentials.writers.has(b)&&!host.credentialChanges.has(b)),'plugin data write pending; retry');
     const files=[];
     const add=async(file,kind,required=false)=>{
       // All paths come from validated IDs and known roots, not renderer input.
@@ -1406,6 +1420,7 @@ class PluginRouter{
     for(const binding of [...bindings].sort())await add(host.credentials.file(binding),'credential');
     await add(host.vault.file(id),'settings');
     await add(host.browserPermissions.file(id),'settings');
+    await add(host.nodePermissions.file(id),'settings');
     for(const h of history)await add(h.file,'history',true);
     await add(versions.removedFile(id),'retained',true);
     const revision=createHash('sha256').update(JSON.stringify(files.map(f=>[f.relative,f.kind,f.digest]))).digest('hex');
@@ -1503,6 +1518,15 @@ class PluginRouter{
       return result;
     }finally{this.githubCatalogPending=false;}
   }
+  nodePermissionInfo(pluginId){return this.serial(async()=>{
+    const {native}=await this.catalog(),manifest=native.find(m=>m.id===pluginId);
+    check(manifest?.permissions.includes('node.run'),'Node permission not requested');return this.native.nodeTasks.info(manifest);
+  });}
+  setNodePermission(pluginId,digest,approved){return this.serial(async()=>{
+    const {native}=await this.catalog(),manifest=native.find(m=>m.id===pluginId);
+    check(manifest&&nodeManifestDigest(manifest)===digest,'plugin changed; reopen permissions');
+    return this.native.nodeTasks.set(manifest,approved,()=>!this.native.closed);
+  });}
   browserPermissionInfo(pluginId){return this.serial(async()=>{
     const {native}=await this.catalog(),manifest=native.find(m=>m.id===pluginId);
     check(manifest,'native plugin not installed');return this.native.browserPermissionInfo(manifest);

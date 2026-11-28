@@ -104,6 +104,7 @@ async function runProgram(source,input){
     exitFolder:()=>append({op:'navigate',target:'back',value:null}),
     setWideMode:value=>append({op:'wideMode',value}),
     openUrl:value=>append({op:'openUrl',value}),
+    runNode:(task,input={})=>append({op:'runNode',task,input}),
     setWideOverlay:(value,durationMs=5000)=>append({op:'wideOverlay',value,durationMs}),
     clearWideOverlay:()=>append({op:'wideOverlay',value:null,durationMs:0}),
     request:(endpoint,body=null,query,options)=>append({op:'networkRequest',endpoint,body,...(query===undefined?{}:{query}),...(options===undefined?{}:{options})}),
