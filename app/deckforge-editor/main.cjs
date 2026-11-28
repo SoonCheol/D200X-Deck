@@ -671,6 +671,12 @@ ipcMain.handle('d200x:sdk-key',async(event,context,gesture,ticks)=>{
 ipcMain.handle('d200x:sdk-inspector',async(event,context,anchor)=>{
   assertEditor(event);return sdk().inspector(context,anchor);
 });
+ipcMain.handle('d200x:ulanzi-draft-inspector',async(event,id,action,slot,settings)=>{
+  assertEditor(event);const router=sdk();
+  const {original}=await router.catalog();
+  if(!original.some(p=>p.uuid===id&&p.actions.some(a=>a.uuid===action)))throw Error('원본 플러그인 또는 액션을 확인할 수 없습니다.');
+  return router.original.editDraft(id,action,slot,settings);
+});
 
 const haConfigPath=()=>path.join(app.getPath('userData'),'home-assistant-connection-v1.json');
 function readHaConfig(){

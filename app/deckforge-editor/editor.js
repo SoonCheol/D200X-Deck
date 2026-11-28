@@ -5127,6 +5127,17 @@ function bindExtendedActionFields(root,item){
         try{await openFusionCommandProperties(root,item);}catch(error){window.d200xActionStatus?.('Fusion 명령 속성 오류: '+String(error?.message||error));}return;
       }
       const context=pluginSlotContext(item);
+      if(plugin?.runtime==='ulanzi-original'&&(!context||!sdkActionInstances().some(x=>x.context===context&&x.instanceId===item.instanceId))){
+        const session=inspectorSession,initial=clone(item.settings.pluginSettings||{});
+        if(!inspectorPickerCurrent(session,item))return;
+        try{
+          const result=await window.deckBridge.ulanziDraftInspector(plugin.uuid,item.settings.actionUUID,state.selected,initial);
+          if(!inspectorPickerCurrent(session,item)||result?.status!=='submitted')return;
+          if(JSON.stringify(item.settings.pluginSettings||{})!==JSON.stringify(initial)){window.d200xActionStatus?.('다른 설정 변경이 발생했습니다. 속성창을 다시 열어 주세요.');return;}
+          item.settings.pluginSettings=clone(result.settings);persistInspectorChange();renderGrid();renderInspector();
+          window.d200xActionStatus?.('원본 플러그인 속성 변경 · 아래 저장 버튼을 누르면 반영됩니다.');
+        }catch(error){window.d200xActionStatus?.('원본 속성 편집 오류: '+String(error?.message||error));}return;
+      }
       if(!context)return;
       try{
         await window.deckBridge.sdkSync(sdkActionInstances());

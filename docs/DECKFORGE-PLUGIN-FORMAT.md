@@ -86,6 +86,11 @@ Elgato/Ulanzi 원본 런타임과 리소스 보존을 우선한다. 정적 변�
 - 공식 Node SDK hotkey(key) → cmd hotkey 및 keylist 문자열. 기존 DeckHotkeys canonical/resolve 및 Windows SendInput 삽입 개수 검증 재사용. 사용자 입력 dispatch당 1회, 1.5초 이내, 현재 소켓/액션 세대에서만 허용. PI·백그라운드·중복/잘못된 키는 거부. 빠른 연속 회전 전체 처리·비Windows·대상 앱 성공은 보장하지 않음.
 - 원본 플러그인 승인/철회 및 기존 기본 단축키 경로 유지. 집중 fixture 추가, Windows 자동 검증 및 실제 앱 입력 별도.
 
+## Ulanzi 미등록 속성창 (2.0.165 후보)
+
+- 아직 저장되지 않은 Ulanzi 버튼은 기존 활성 실행 경로와 별개 임시 승인 호스트의 PI에서 편집한다. 닫을 때 액션 설정만 초안으로 반환하며 기존 저장/취소 적용. 선택/세션/설정 변경 시 지연 결과 폐기. 기존 등록 버튼 PI의 독립 저장 계약 유지.
+- 한 번에 1개 임시 세션, 해시 승인 확인 및 권한 변경·절전·종료 취소, 전역 설정 읽기 전용, 물리 입력/출력 미연결. 승인된 원본 Node의 자체 OS 접근 및 중복 프로세스 부작용은 제한하지 못함. 집중 mock 시험 추가; 실제 Electron 및 상용 PI 검증 별도.
+
 ## 0.23 독자 SDK 1.1 네트워크 확장 (최신 계약은 SDK 문서 참조)
 
 - 승인 HTTP PUT/PATCH/DELETE와 queryKeys 기반 쿼리 값, WSS 연결/송수신/종료 구현. 최신 계약은 docs/DECKFORGE-SDK-1.0.md SDK 1.1 절. API 2 번호 유지. 새 권한 network.websocket 및 설치 화면의 승인 WSS 주소. 실제 서버/실기 별도.

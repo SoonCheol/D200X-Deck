@@ -46,7 +46,7 @@ class UlanziOriginalStore{
     this.root=path.join(userData,'Plugins','UlanziOriginal');
     this.grants=path.join(userData,'Plugins','UlanziOriginalApprovals');
     this.settings=path.join(userData,'Plugins','UlanziOriginalSettings');
-    this.storage=storage;this.hostFactory=hostFactory;this.getParent=getParent;this.sendHotkey=sendHotkey;this.queue=Promise.resolve();this.active=new Map();this.closed=false;
+    this.storage=storage;this.hostFactory=hostFactory;this.getParent=getParent;this.sendHotkey=sendHotkey;this.queue=Promise.resolve();this.active=new Map();this.draft=null;this.closed=false;
   }
   serial(fn){const work=this.queue.then(()=>{if(this.closed)throw Error('original store closed');return fn();});this.queue=work.catch(()=>{});return work;}
   directory(id){if(typeof id!=='string'||!ID.test(id))throw Error('invalid Ulanzi ID');return path.join(this.root,id+'.ulanziPlugin');}
@@ -118,6 +118,7 @@ class UlanziOriginalStore{
       await fs.rename(tmp,file);
     }finally{await fs.rm(tmp,{force:true});}
     // Permission changes never leave a process running under an older approval.
+    await this.cancelDraft(id);
     const host=this.active.get(id);this.active.delete(id);await host?.close();
     return {approved};
   });}
@@ -156,9 +157,49 @@ class UlanziOriginalStore{
       host.approvedRevision=info.revision;this.active.set(id,host);return host;
     }catch(error){await host.close();throw error;}
   });}
+  async cancelDraft(id=null){
+    const record=this.draft;if(!record||id&&record.id!==id)return;
+    record.cancelled=true;await record.host?.close();
+  }
+  async editDraft(id,actionId,slot,settings,active=()=>true){
+    this.directory(id);validateValue(settings);
+    if(!settings||typeof settings!=='object'||Array.isArray(settings)||!Number.isInteger(slot)||slot<0||slot>18)throw Error('invalid original draft');
+    if(this.closed||!active()||this.draft)throw Error('original draft unavailable or busy');
+    const record={id,cancelled:false,host:null};this.draft=record;
+    const current=()=>!this.closed&&!record.cancelled&&this.draft===record&&active();
+    try{
+      const info=await this.info(id),action=info.manifest.Actions.find(a=>a.UUID===actionId);
+      if(!current())return {status:'cancelled'};
+      if(!info.approved)throw Error('원본 실행 권한 확인 필요');
+      if(!action?.PropertyInspectorPath||!(action.Controllers||['Keypad']).includes(slot>=16?'Encoder':'Keypad'))throw Error('원본 속성창을 사용할 수 없습니다.');
+      const context='draft:'+randomUUID(),host=this.hostFactory(this.directory(id),()=>{});record.host=host;
+      host.getParent=this.getParent;host.globalSettings=await this.readGlobal(id);
+      // Temporary process: never publish visuals, send physical input, or write global settings.
+      host.sendHotkey=async()=>false;host.globalWrite=null;
+      if(!current())return {status:'cancelled'};
+      await host.start({approved:true,language:'ko',verifyBeforeSpawn:async()=>{
+        const next=await this.info(id);return current()&&next.approved&&next.revision===info.revision;
+      }});
+      const deadline=Date.now()+5000;
+      while(current()&&host.alive()&&!host.socket&&Date.now()<deadline)await new Promise(resolve=>setTimeout(resolve,25));
+      if(!current())return {status:'cancelled'};
+      if(!host.socket||!host.alive())throw Error('원본 속성창 연결 실패');
+      const socket=host.socket;
+      host.sync([{context,slot,pluginUUID:id,actionUUID:actionId,settings:structuredClone(settings)}]);
+      const win=await host.openInspector(context,this.getParent());
+      if(!win.isDestroyed())await new Promise(resolve=>win.once('closed',resolve));
+      if(!current()||host.closed||host.socket!==socket||!host.alive())return {status:'cancelled'};
+      const next=await this.info(id);
+      if(!current()||!next.approved||next.revision!==info.revision||host.socket!==socket||!host.alive())return {status:'cancelled'};
+      const value=host.mounts.get(context)?.settings;
+      validateValue(value);
+      return {status:'submitted',settings:structuredClone(value)};
+    }catch(error){if(!current())return {status:'cancelled'};throw error;}
+    finally{try{await record.host?.close();}finally{if(this.draft===record)this.draft=null;}}
+  }
   stop(id){return this.serial(async()=>{const host=this.active.get(id);this.active.delete(id);await host?.close();});}
   async close(){
-    this.closed=true;await this.queue;
+    this.closed=true;await this.cancelDraft();await this.queue;
     const hosts=[...this.active.values()];this.active.clear();await Promise.all(hosts.map(host=>host.close()));
   }
 }

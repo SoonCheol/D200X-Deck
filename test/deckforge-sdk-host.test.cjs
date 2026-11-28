@@ -1012,3 +1012,33 @@ test('Ulanzi hotkey routes official keylist to Windows sender only for current i
     host.sync([mount]);host.receive(request,ws);await tick();assert.equal(keys.length,2);
   }finally{host.socket=null;await host.close();}
 });
+
+ test('Ulanzi unregistered inspector returns only draft settings and cancels on revocation',async()=>{
+  const {UlanziOriginalStore}=require('../app/deckforge-editor/ulanzi-original-store.cjs');
+  const {EventEmitter}=require('node:events');
+  const root=await fs.mkdtemp(path.join(os.tmpdir(),'deckforge-original-draft-'));
+  const id='com.ulanzi.ulanzistudio.draftfixture',action=id+'.key';
+  let approved=true,created=0,opened=0,host,win;
+  const store=new UlanziOriginalStore(root,{hostFactory:()=>{
+    created++;host={closed:false,mounts:new Map(),socket:null,alive(){return !this.closed;},
+      async start({verifyBeforeSpawn}){assert.equal(await verifyBeforeSpawn(),true);this.socket={};},
+      sync(configs){this.mounts=new Map(configs.map(c=>[c.context,c]));},
+      async openInspector(context){opened++;this.mounts.get(context).settings={edited:opened};win=new EventEmitter();win.isDestroyed=()=>win.destroyed===true;win.destroy=()=>{if(!win.destroyed){win.destroyed=true;win.emit('closed');}};return win;},
+      async close(){this.closed=true;win?.destroy();}};
+    return host;
+  }});
+  store.info=async()=>({approved,revision:'fixture',manifest:{Actions:[{UUID:action,PropertyInspectorPath:'pi.html'}]}});
+  store.readGlobal=async()=>({kept:true});
+  const until=async n=>{for(let i=0;i<100&&opened<n;i++)await new Promise(r=>setTimeout(r,10));assert.equal(opened,n);};
+  try{
+    approved=false;await assert.rejects(store.editDraft(id,action,0,{}),/권한/);assert.equal(created,0);approved=true;
+    const existing={};store.active.set(id,existing);
+    const pending=store.editDraft(id,action,0,{initial:true});await until(1);
+    assert.equal(store.active.get(id),existing);assert.equal(host.globalWrite,null);assert.equal(await host.sendHotkey('Ctrl+C'),false);
+    await assert.rejects(store.editDraft(id,action,0,{}),/busy/);
+    win.destroy();assert.deepEqual(await pending,{status:'submitted',settings:{edited:1}});assert.equal(store.draft,null);
+    const cancelled=store.editDraft(id,action,0,{});await until(2);await store.cancelDraft(id);assert.deepEqual(await cancelled,{status:'cancelled'});
+    const revoked=store.editDraft(id,action,0,{});await until(3);approved=false;win.destroy();assert.deepEqual(await revoked,{status:'cancelled'});
+    assert.equal(store.active.get(id),existing);
+  }finally{store.active.clear();await store.close();await fs.rm(root,{recursive:true,force:true});}
+});

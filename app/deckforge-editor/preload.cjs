@@ -91,6 +91,7 @@ contextBridge.exposeInMainWorld('deckBridge', Object.freeze({
   nativeSettingsReceipt: (context,id,accepted) => ipcRenderer.invoke('d200x:native-settings-receipt',context,id,accepted),
   sdkKey: (context,gesture,ticks=1) => ipcRenderer.invoke('d200x:sdk-key',context,gesture,ticks),
   sdkInspector: (context,anchor) => ipcRenderer.invoke('d200x:sdk-inspector',context,anchor),
+  ulanziDraftInspector:(id,action,slot,settings)=>ipcRenderer.invoke('d200x:ulanzi-draft-inspector',id,action,slot,settings),
   onSdkEvent: fn => ipcRenderer.on('d200x:sdk-event',(_event,data)=>fn(data)),
   haSave: (url,token) => ipcRenderer.invoke('d200x:ha-save',{url,token}),
   haEntities: () => ipcRenderer.invoke('d200x:ha-entities'),

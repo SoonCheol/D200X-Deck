@@ -5,7 +5,7 @@ const same=(a,b)=>!!a&&!!b&&['context','instanceId','mountGeneration','pluginUUI
 const sameIdentity=(a,b)=>!!a&&!!b&&['context','instanceId','mountGeneration','pluginUUID','actionUUID','slot','gesture'].every(k=>a[k]===b[k]);
 class UlanziEditorHost{
   constructor(store,onUpdate=()=>{},getParent=()=>null){
-    this.store=store;this.onUpdate=onUpdate;this.getParent=getParent;this.desired=new Map();this.confirmed=new Map();this.queue=Promise.resolve();this.suspended=false;this.closed=false;this.revision=0;
+    this.store=store;this.onUpdate=onUpdate;this.getParent=getParent;this.desired=new Map();this.confirmed=new Map();this.queue=Promise.resolve();this.suspended=false;this.closed=false;this.revision=0;this.draftEpoch=0;
   }
   list(){return this.store.list();}
   retireUnmatched(configs){
@@ -62,7 +62,12 @@ class UlanziEditorHost{
     if(!host||!info.approved||info.revision!==host.approvedRevision||!same(cfg,this.desired.get(context))||this.suspended||this.closed)throw Error('원본 실행 권한 확인 필요');
     await host.openInspector(context,this.getParent());return true;
   }
+  editDraft(id,actionId,slot,settings){
+    const epoch=this.draftEpoch;
+    return this.store.editDraft(id,actionId,slot,settings,()=>!this.closed&&!this.suspended&&epoch===this.draftEpoch);
+  }
   suspend(){
+    this.draftEpoch++;void this.store.cancelDraft().catch(()=>{});
     this.suspended=true;this.revision++;this.confirmed.clear();
     const work=this.queue.then(async()=>{for(const id of [...this.store.active.keys()])await this.store.stop(id);});
     this.queue=work.catch(()=>{});return work;
@@ -73,6 +78,6 @@ class UlanziEditorHost{
     if(this.closed||this.suspended||revision!==this.revision)return;
     return this.sync([...this.desired.values()].filter(c=>ids.has(c.pluginUUID)));
   }
-  async close(){this.closed=true;this.revision++;this.confirmed.clear();await this.queue;await this.store.close();}
+  async close(){this.closed=true;this.draftEpoch++;void this.store.cancelDraft().catch(()=>{});this.revision++;this.confirmed.clear();await this.queue;await this.store.close();}
 }
 module.exports={UlanziEditorHost};
