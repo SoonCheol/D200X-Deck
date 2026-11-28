@@ -3744,3 +3744,13 @@ test('offline HTTP fixture validation rejects real-world authorization and inval
   for(const bad of [{...valid,endpoint:'wrong'},{...valid,status:302},{...valid,body:'x'.repeat(9000)},{...valid,ok:false,error:'timeout',status:0}])
     await assert.rejects(runScenario(m,{...scenario,httpResponses:[bad]},'/unused'),/fixture/);
 });
+
+test('offline Node and settings fixtures reject unsupported or missing declarations before execution',async()=>{
+  const {runScenario}=require('../app/deckforge-editor/deckforge-sdk-simulate.cjs');
+  const id='com.deckforge.native.mock-effects-validation',action=id+'.key';
+  const m={apiVersion:2,id,name:'Mock validation',version:'1.0.0',permissions:['display','node.run','settings.write'],nodeTasks:{one:{source:'return 1;'}},actions:[{id:action,name:'Key',controllers:['Keypad'],states:1,script:"api.setTitle('test');"}]};
+  const spec={actionId:action,slot:0,steps:[]};
+  for(const bad of [{task:'missing',status:'ok',value:1},{task:'one',status:'ok'},{task:'one',status:'timeout',value:1},{task:'one',status:'ok',value:'x'.repeat(9000)}])
+    await assert.rejects(runScenario(m,{...spec,nodeResponses:[bad]},'/unused'),/fixture|invalid global settings/);
+  await assert.rejects(runScenario(m,{...spec,settingsResponses:['maybe']},'/unused'),/settings response fixtures/);
+});

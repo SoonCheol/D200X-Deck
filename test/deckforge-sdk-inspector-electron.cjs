@@ -94,7 +94,17 @@ app.whenReady().then(async()=>{
     assert.equal(missing.ok,false);assert.equal(missing.http.requests.at(-1).matched,false);
     const unused=await runScenario(net,{...spec,steps:spec.steps.slice(0,2)},root);
     assert.equal(unused.ok,false);assert.equal(unused.http.unusedResponses,3);
-    console.log('DeckForge offline SDK simulation and HTTPS mock responses verified in sandboxed Electron runtime');
+    const jobId='com.deckforge.native.mock-node',jobAction=jobId+'.key';
+    const job={apiVersion:2,id:jobId,name:'Offline Node',version:'1.0.0',permissions:['display','node.run'],nodeTasks:{fetch:{source:"throw Error('MUST NOT EXECUTE');"}},actions:[{id:jobAction,name:'Task',controllers:['Keypad'],states:1,script:"if(event.type==='press')api.runNode('fetch',{});if(event.type==='nodeResult')api.setTitle(event.response.status==='ok'?event.response.value.label:event.response.status);"}]};
+    const jobs=[{task:'fetch',status:'ok',value:{label:'Mock result'}},{task:'fetch',status:'timeout'},{task:'fetch',status:'error'}];
+    const jobReport=await runScenario(job,{actionId:jobAction,slot:0,steps:jobs.flatMap(()=>[{kind:'down'},{kind:'up'}]),nodeResponses:jobs},root);
+    assert.equal(jobReport.ok,true);assert.deepEqual(jobReport.steps.filter(s=>s.kind==='down').map(s=>s.title),['Mock result','timeout','error']);assert.equal(jobReport.node.unusedResponses,0);
+    const saveId='com.deckforge.native.mock-settings',saveAction=saveId+'.key';
+    const save={apiVersion:2,id:saveId,name:'Offline settings',version:'1.0.0',permissions:['display','settings.write'],capabilities:['settingsResult'],actions:[{id:saveAction,name:'Save',controllers:['Keypad'],states:1,script:"if(event.type==='press')api.patchSettings({label:'saved'});if(event.type==='settingsResult')api.setTitle(event.response.status);if(event.type==='settings')api.setTitle(settings.label);"}]};
+    const saveReport=await runScenario(save,{actionId:saveAction,slot:0,settings:{label:'initial'},steps:[{kind:'down'},{kind:'up'},{kind:'down'},{kind:'up'},{kind:'down'},{kind:'settings',settings:{label:'recovered'}}],settingsResponses:['saved','rejected','unknown']},root);
+    assert.equal(saveReport.ok,true);assert.equal(saveReport.steps[0].title,'saved');assert.equal(saveReport.steps[2].title,'rejected');assert.equal(saveReport.steps[4].status,'paused');assert.equal(saveReport.steps[5].status,'active');assert.equal(saveReport.steps[5].title,'recovered');
+    assert.equal(saveReport.settingsMock.unusedResponses,0);
+    console.log('DeckForge offline SDK simulation and HTTPS/Node/settings mock responses verified in sandboxed Electron runtime');
   }finally{if(win&&!win.isDestroyed())win.destroy();await fs.rm(root,{recursive:true,force:true});}
   app.exit(0);
 }).catch(error=>{console.error(error);app.exit(1);});
