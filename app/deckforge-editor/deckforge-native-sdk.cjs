@@ -1264,7 +1264,7 @@ class NativePluginHost{
 }
 // Compatibility host stays unchanged; only validated native IDs are routed here.
 class PluginRouter{
-  constructor(legacy,native){this.legacy=legacy;this.native=native;this.queue=Promise.resolve();this.compatibilityQueue=Promise.resolve();this.closed=false;this.nativeContextIds=new Set();this.legacyMounts=new Map();this.desiredContexts=null;this.desiredMounts=null;this.syncRevision=0;}
+  constructor(legacy,native,original=null){this.legacy=legacy;this.native=native;this.original=original;this.queue=Promise.resolve();this.compatibilityQueue=Promise.resolve();this.closed=false;this.nativeContextIds=new Set();this.legacyMounts=new Map();this.desiredContexts=null;this.desiredMounts=null;this.syncRevision=0;}
   enqueue(fn){const task=this.queue.then(()=>{if(this.closed)throw Error('Plugin host closed');return fn();});this.queue=task.catch(()=>{});return task;}
   // Management still waits for outstanding compatibility startup before touching installed data.
   serial(fn){return this.enqueue(async()=>{await this.compatibilityQueue;if(this.closed)throw Error('Plugin host closed');return fn();});}
@@ -1272,12 +1272,14 @@ class PluginRouter{
   async catalog(includeArtwork=false){
     const legacy=await this.legacy.list({includeArtwork}),ids=new Set(legacy.map(x=>x.uuid.toLowerCase()));
     const native=(await this.native.manifests()).filter(m=>!ids.has(m.id));
-    return {legacy,native};
+    const occupied=new Set([...ids,...native.map(m=>m.id.toLowerCase())]);
+    const original=(await this.original?.list()||[]).filter(p=>!occupied.has(p.uuid.toLowerCase()));
+    return {legacy,native,original};
   }
   async list(){
-    const {legacy,native}=await this.catalog(true),graph=resolveDependencies(native);
+    const {legacy,native,original}=await this.catalog(true),graph=resolveDependencies(native);
     await this.native.loadServicePolicy();
-    return [...legacy,...native.map(m=>{
+    return [...legacy,...original,...native.map(m=>{
       const entry=catalog(m),reason=graph.blocked.get(m.id);
       if(m.service)entry.serviceStatus=this.native.serviceStatus(m.id,!reason);
       return reason?{...entry,actions:[],available:false,dependencyError:reason}:{...entry,available:true};
@@ -1286,18 +1288,26 @@ class PluginRouter{
   async checkNativeCandidate(m){
     validateNativeManifest(m);
     const legacyIds=new Set((await this.legacy.list({includeArtwork:false})).map(p=>p.uuid.toLowerCase()));
-    check(!legacyIds.has(m.id),'plugin ID already installed');
+    check(!legacyIds.has(m.id)&&!(await this.original?.list()||[]).some(p=>p.uuid.toLowerCase()===m.id.toLowerCase()),'plugin ID already installed');
     await this.native.checkDependencies(m,legacyIds);
   }
   install(bytes){return this.serial(async()=>{
     // Existing archive validator remains authoritative; native collisions cannot shadow a legacy plugin.
     const {parseArchive}=require('./sd-plugin-host.cjs');
     const {manifest}=await parseArchive(bytes);
-    check(!(await this.native.manifests()).some(m=>m.id===manifest.UUID.toLowerCase()),'plugin ID already installed');
+    check(!(await this.native.manifests()).some(m=>m.id===manifest.UUID.toLowerCase())&&!(await this.original?.list()||[]).some(p=>p.uuid.toLowerCase()===manifest.UUID.toLowerCase()),'plugin ID already installed');
     return this.legacy.install(bytes);
   });}
+  installOriginal(dir,revision){return this.serial(async()=>{
+    check(this.original,'original plugin host unavailable');
+    const plan=await this.original.store.inspect(dir),id=plan.manifest.UUID.toLowerCase();
+    const {legacy,native}=await this.catalog();
+    check(!legacy.some(p=>p.uuid.toLowerCase()===id)&&!native.some(m=>m.id.toLowerCase()===id),'plugin ID already installed');
+    const installed=await this.original.store.install(dir,revision);
+    return (await this.original.list()).find(p=>p.uuid===installed.manifest.UUID);
+  });}
   installDirectory(dir){return this.serial(async()=>{
-    const installed=new Set((await this.native.manifests()).map(m=>m.id));
+    const installed=new Set([...(await this.native.manifests()).map(m=>m.id),...(await this.original?.list()||[]).map(p=>p.uuid.toLowerCase())]);
     const id=path.basename(dir).replace(/\.sdPlugin$/i,'').toLowerCase();
     check(!installed.has(id),'plugin ID already installed');
     // The existing folder importer ultimately uses the manifest UUID, not its folder name.
@@ -1358,21 +1368,21 @@ class PluginRouter{
     return (await this.legacy.listRetained()).filter(p=>!installed.has(p.id.toLowerCase()));
   });}
   planLegacyPurge(id){return this.serial(async()=>{
-    check(!(await this.native.manifests()).some(m=>m.id===id.toLowerCase()),'plugin ID already installed');
+    check(!(await this.native.manifests()).some(m=>m.id===id.toLowerCase())&&!(await this.original?.list()||[]).some(p=>p.uuid.toLowerCase()===id.toLowerCase()),'plugin ID already installed');
     return this.legacy.planRetainedPurge(id);
   });}
   purgeRetainedLegacy(id,revision){return this.serial(async()=>{
-    check(!(await this.native.manifests()).some(m=>m.id===id.toLowerCase()),'plugin ID already installed');
+    check(!(await this.native.manifests()).some(m=>m.id===id.toLowerCase())&&!(await this.original?.list()||[]).some(p=>p.uuid.toLowerCase()===id.toLowerCase()),'plugin ID already installed');
     return this.legacy.purgeRetained(id,revision);
   });}
   planLegacyRemoval(id){return this.serial(()=>this.legacy.retainedRecord(id));}
   removeLegacyKeepingData(id,revision){return this.serial(()=>this.legacy.removeKeepingData(id,revision));}
   planLegacyRestore(id){return this.serial(async()=>{
-    check(!(await this.native.manifests()).some(m=>m.id===id.toLowerCase()),'plugin ID already installed');
+    check(!(await this.native.manifests()).some(m=>m.id===id.toLowerCase())&&!(await this.original?.list()||[]).some(p=>p.uuid.toLowerCase()===id.toLowerCase()),'plugin ID already installed');
     return this.legacy.retainedRecord(id,true);
   });}
   restoreLegacyRetained(id,revision){return this.serial(async()=>{
-    check(!(await this.native.manifests()).some(m=>m.id===id.toLowerCase()),'plugin ID already installed');
+    check(!(await this.native.manifests()).some(m=>m.id===id.toLowerCase())&&!(await this.original?.list()||[]).some(p=>p.uuid.toLowerCase()===id.toLowerCase()),'plugin ID already installed');
     return this.legacy.restoreRetained(id,revision);
   });}
   listRetainedNative(){return this.serial(async()=>{
@@ -1608,17 +1618,20 @@ class PluginRouter{
     for(const [id,ctx] of this.native.contexts)if(isMultiMonitor(ctx)&&!this.nativeRouteReady(id,this.desiredMounts.get(id)))clearMultiMonitorPress(ctx);
     // Invalidate incompatible compatibility contexts before awaiting an older startup.
     this.legacy.retireUnmatched?.(configs);
+    this.original?.retireUnmatched(configs);
     for(const [id,ctx] of this.native.contexts)if(!ctx.service&&!this.desiredContexts.has(id)){
       this.native.contexts.delete(id);this.native.retire(ctx);
     }
     return this.enqueue(async()=>{
     if(revision!==this.syncRevision)return;
-    const {native,legacy}=await this.catalog(),ids=new Set(native.map(m=>m.id));
+    const {native,legacy,original}=await this.catalog(),ids=new Set(native.map(m=>m.id));
     await this.native.loadServicePolicy();
     if(this.closed||revision!==this.syncRevision)return;
     const legacyIds=new Set(legacy.map(p=>p.uuid.toLowerCase()));
     const isNative=c=>ids.has(c?.pluginUUID)||(typeof c?.pluginUUID==='string'&&ID.test(c.pluginUUID)&&!legacyIds.has(c.pluginUUID.toLowerCase()));
-    const local=configs.filter(isNative),other=configs.filter(c=>!isNative(c));
+    const originalIds=new Set(original.map(p=>p.uuid));
+    const originals=configs.filter(c=>originalIds.has(c.pluginUUID));
+    const local=configs.filter(c=>!originalIds.has(c.pluginUUID)&&isNative(c)),other=configs.filter(c=>!originalIds.has(c.pluginUUID)&&!isNative(c));
     this.nativeContextIds=new Set(local.map(c=>c.context));
     // Retire incompatible old mounts synchronously before publishing native
     // routes. Starting unrelated compatibility processes must not delay native
@@ -1636,13 +1649,14 @@ class PluginRouter{
           if(!active())return;
           try{
             await this.legacy.sync(other,legacy,active);
+            if(active())await this.original?.sync(originals,active);
             if(active())this.legacyMounts=new Map(other.map(c=>[c.context,structuredClone(c)]));
           }catch(error){if(active())this.legacyMounts.clear();throw error;}
         });
         return {completion};
       }else{
         // Hosts without a separate retirement phase retain the safe old order.
-        try{await this.legacy.sync(other,legacy);}
+        try{await this.legacy.sync(other,legacy);if(!this.closed&&revision===this.syncRevision)await this.original?.sync(originals);}
         finally{if(!this.closed&&revision===this.syncRevision)this.native.sync(local,native);}
       }
       if(!this.closed&&revision===this.syncRevision)this.legacyMounts=new Map(other.map(c=>[c.context,structuredClone(c)]));
@@ -1697,6 +1711,7 @@ class PluginRouter{
       if(isMultiMonitor(ctx))ctx.multiRouteCurrent=()=>!this.closed&&this.nativeRouteReady(context,this.desiredMounts?.get(context));
       return this.native.key(context,gesture,ticks);
     }
+    if(this.original?.confirmed.has(context))return this.original.key(context,gesture,ticks,desired);
     return this.legacyRouteReady(context,desired)&&this.legacy.key(context,gesture,ticks);
   }
   inspector(context,anchor){
@@ -1704,8 +1719,8 @@ class PluginRouter{
     return this.legacyRouteReady(context,this.desiredMounts?.get(context))&&this.legacy.inspector(context,anchor);
   }
   cancelMultiMonitorInput(){for(const ctx of this.native.contexts.values())if(isMultiMonitor(ctx))clearMultiMonitorPress(ctx);}
-  onSystemSuspend(){this.native.suspend();this.legacy.onSystemSuspend();}
-  onSystemResume(){this.native.resume();this.legacy.onSystemResume();}
-  async close(){this.closed=true;this.native.close();await this.legacy.close();}
+  onSystemSuspend(){this.native.suspend();this.legacy.onSystemSuspend();this.original?.suspend();}
+  onSystemResume(){this.native.resume();this.legacy.onSystemResume();this.original?.resume()?.catch(()=>{});}
+  async close(){this.closed=true;this.native.close();await Promise.all([this.legacy.close(),this.original?.close()]);}
 }
 module.exports={validateNativeManifest,NativePluginHost,PluginRouter,projectSharedState,LIMIT,multiMonitorInput,clearMultiMonitorPress};

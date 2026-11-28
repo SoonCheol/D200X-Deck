@@ -1601,6 +1601,7 @@ async function installSdkPlugin(fromFolder=false){
       scheduleSdkSync();
     }
     await refreshSdkPlugins();
+    if(plugin.runtime==='ulanzi-original'){scheduleSdkSync();window.d200xActionStatus?.('Ulanzi 원본 설치: '+plugin.name+' '+plugin.version+(plugin.originalApproved?' · 실행 승인':' · 실행 승인 필요'));return;}
     window.d200xActionStatus?.('DeckForge 플러그인 적용: '+plugin.name+' '+plugin.version);
   }catch(error){window.d200xActionStatus?.('플러그인 설치 실패: '+String(error?.message||error));}
 }
@@ -1766,6 +1767,14 @@ function openSdkPluginHelp(plugin,isFusion,retained=false){
     button.addEventListener('click',async()=>{dialog.close();try{const result=await window.deckBridge.nativeNodePermission(plugin.uuid);if(result)window.d200xActionStatus?.(result.approved?'운영체제 접근 권한 승인':'운영체제 접근 권한 철회');}catch(error){window.d200xActionStatus?.('권한 변경 실패: '+String(error?.message||error));}});
     dialog.append(button);
   }
+  if(plugin.runtime==='ulanzi-original'&&window.deckBridge?.ulanziOriginalPermission){
+    const button=document.createElement('button');button.type='button';button.className='sdk-plugin-help-close';button.textContent='원본 실행 권한 관리';
+    button.addEventListener('click',async()=>{dialog.close();try{
+      const result=await window.deckBridge.ulanziOriginalPermission(plugin.uuid);
+      if(result){for(const instance of sdkActionInstances())if(instance.pluginUUID===plugin.uuid)sdkVisuals.delete(instance.context);scheduleSdkSync();renderGrid();window.d200xActionStatus?.(result.approved?'원본 실행 권한 승인':'원본 실행 권한 철회');}
+    }catch(error){window.d200xActionStatus?.('권한 변경 실패: '+String(error?.message||error));}});
+    dialog.append(button);
+  }
   if(plugin.executable&&window.deckBridge?.legacyExecutablePermission){
     const button=document.createElement('button');button.type='button';button.className='sdk-plugin-help-close';button.textContent='실행 권한 관리';
     button.addEventListener('click',async()=>{dialog.close();try{const result=await window.deckBridge.legacyExecutablePermission(plugin.uuid);if(result){window.d200xActionStatus?.(result.approved?'실행 권한 승인':'실행 권한 철회');if(result.approved)scheduleSdkSync();}}catch(error){window.d200xActionStatus?.('권한 변경 실패: '+String(error?.message||error));}});
@@ -1803,7 +1812,7 @@ function openSdkPluginHelp(plugin,isFusion,retained=false){
     };
     queueMicrotask(()=>{if(dialog.open&&section.isConnected)void lookup(false);});
   }
-  const canRemove=plugin.uuid==='com.deckforge.native.home-assistant'?false:plugin.runtime==='deckforge-sdk'?window.deckBridge?.nativeRemove:window.deckBridge?.legacyPluginRemove;
+  const canRemove=plugin.uuid==='com.deckforge.native.home-assistant'||plugin.runtime==='ulanzi-original'?false:plugin.runtime==='deckforge-sdk'?window.deckBridge?.nativeRemove:window.deckBridge?.legacyPluginRemove;
   if(canRemove){
     const footer=document.createElement('div');footer.style.cssText='display:flex;justify-content:flex-end;border-top:1px solid #46505b;margin-top:14px;padding-top:12px;gap:8px';
     const remove=document.createElement('button');remove.type='button';remove.className='sdk-plugin-help-close';remove.textContent='플러그인 제거…';
@@ -1864,6 +1873,7 @@ async function openNativeServiceManager(plugin){
   }catch{window.d200xActionStatus?.('전역 서비스 관리 실패: 의존성 또는 서비스 설정을 확인하세요.');}
 }
 async function removePluginKeepingData(plugin){
+  if(plugin.runtime==='ulanzi-original'){window.d200xActionStatus?.('원본 플러그인 제거 기능은 준비 중입니다. 실행 권한은 철회할 수 있습니다.');return;}
   const remove=plugin.runtime==='deckforge-sdk'?window.deckBridge?.nativeRemove:window.deckBridge?.legacyPluginRemove;
   if(!remove)return;
   try{
@@ -5081,6 +5091,7 @@ function bindExtendedActionFields(root,item){
         if(choice)await installSdkPlugin();return;
       }
       let plugin=sdkPlugins.find(p=>p.uuid===item.settings?.pluginUUID);
+      if(plugin?.runtime==='ulanzi-original'){window.d200xActionStatus?.('Ulanzi 원본 HTML 속성창은 아직 지원하지 않습니다.');return;}
       if(plugin?.runtime==='deckforge-sdk'){
         try{
           if(plugin.uuid==='com.deckforge.native.home-assistant'){

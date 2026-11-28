@@ -189,7 +189,7 @@ const pluginAudit=require('./plugin-audit.cjs').createPluginAudit({userData:app.
 function sdk(){
   if(!sdkHost){
     const userData=app.getPath('userData'),update=payload=>send('d200x:sdk-event',payload);
-    sdkHost=new PluginRouter(new StreamDeckPluginHost(userData,update,()=>window,{executableApprove:approveExecutablePlugin}),new NativePluginHost(userData,update,null,{browserOpen:href=>shell.openExternal(href),nodeApprove:approveNodePlugin,viewManager:new (require('./deckforge-native-view.cjs').NativeViewManager)(()=>window)}));
+    sdkHost=new PluginRouter(new StreamDeckPluginHost(userData,update,()=>window,{executableApprove:approveExecutablePlugin}),new NativePluginHost(userData,update,null,{browserOpen:href=>shell.openExternal(href),nodeApprove:approveNodePlugin,viewManager:new (require('./deckforge-native-view.cjs').NativeViewManager)(()=>window)}),new (require('./ulanzi-editor-host.cjs').UlanziEditorHost)(new (require('./ulanzi-original-store.cjs').UlanziOriginalStore)(userData,{storage:safeStorage}),update));
   }
   return sdkHost;
 }
@@ -602,6 +602,18 @@ ipcMain.handle('d200x:deckforge-export-plugin',async event=>{
   }
   return {name:pack.meta.plugin.name,version:pack.meta.plugin.version,filePath:result.filePath};
 });
+const originalPermissionDetail='Ulanzi 원본 Node.js 코드는 현재 Windows 사용자 권한으로 실행되며 파일·네트워크·프로세스에 직접 접근할 수 있습니다. 신뢰하는 플러그인만 승인하세요. 원본 패키지 변경 시 재승인이 필요합니다. 현재 원본 HTML 속성창 및 일부 명령은 미지원입니다.';
+ipcMain.handle('d200x:ulanzi-original-permission',async(event,id)=>{
+  assertEditor(event);
+  const router=sdk(),store=router.original.store;
+  const {legacy,native}=await router.catalog();
+  if(legacy.some(p=>p.uuid.toLowerCase()===String(id).toLowerCase())||native.some(p=>p.id.toLowerCase()===String(id).toLowerCase()))throw Error('다른 플러그인과 ID가 중복됩니다.');
+  const info=await store.info(id);
+  const choice=await dialog.showMessageBox(window,{type:'warning',title:'Ulanzi 원본 실행 권한 관리',message:info.manifest.Name+' '+info.manifest.Version,
+    detail:(info.approved?'승인됨':'승인되지 않음')+'\n'+originalPermissionDetail,buttons:['닫기',info.approved?'권한 철회':'권한 승인'],defaultId:0,cancelId:0,noLink:true});
+  if(choice.response!==1)return null;
+  return router.serial(()=>store.setPermission(id,info.revision,!info.approved));
+});
 ipcMain.handle('d200x:sdk-install-folder',async event=>{
  assertEditor(event);
  return pluginAudit('install',null,async audit=>{
@@ -610,6 +622,20 @@ ipcMain.handle('d200x:sdk-install-folder',async event=>{
     properties:['openDirectory']
   },'sdk-plugin-folder');
   if(!selected)return null;
+  if(/\.ulanziPlugin$/i.test(path.basename(selected))){
+    audit.stage('validate');const router=sdk(),store=router.original.store,plan=await store.inspect(selected);
+    const choice=await dialog.showMessageBox(window,{type:'warning',title:'Ulanzi 원본 플러그인 설치',
+      message:plan.manifest.Name+' '+plan.manifest.Version,
+      detail:originalPermissionDetail+'\n원본 파일 '+plan.fileCount+'개 · 별도 폴더에 복사합니다.',
+      buttons:['취소','설치만','설치 및 실행 승인'],defaultId:1,cancelId:0,noLink:true});
+    if(choice.response===0)return null;
+    audit.stage('execute');const result=await router.installOriginal(selected,plan.revision);
+    if(choice.response===2){
+      try{await router.serial(()=>store.setPermission(plan.manifest.UUID,plan.revision,true));return {...result,originalApproved:true};}
+      catch{return {...result,originalApproved:false};}
+    }
+    return {...result,originalApproved:false};
+  }
   audit.stage('execute');return sdk().installDirectory(selected);
  });
 });

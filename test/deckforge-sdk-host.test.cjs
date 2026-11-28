@@ -785,3 +785,38 @@ test('Ulanzi original installer preserves files and binds execution to approved 
     assert.equal(await fs.readFile(path.join(source,'main.cjs'),'utf8'),script);
   }finally{await store.close();await fs.rm(root,{recursive:true,force:true,maxRetries:6,retryDelay:150});}
 });
+
+test('editor routes only approved original Ulanzi mounts without affecting existing hosts', {timeout:30000},async()=>{
+  const {UlanziOriginalStore}=require('../app/deckforge-editor/ulanzi-original-store.cjs');
+  const {UlanziEditorHost}=require('../app/deckforge-editor/ulanzi-editor-host.cjs');
+  const {PluginRouter}=require('../app/deckforge-editor/deckforge-native-sdk.cjs');
+  const root=await fs.mkdtemp(path.join(os.tmpdir(),'deckforge-ulanzi-editor-')),source=path.join(root,'source.ulanziPlugin');
+  const id='com.ulanzi.ulanzistudio.editorfixture',action=id+'.key',events=[],legacyCalls=[],nativeCalls=[];
+  const storage={isEncryptionAvailable:()=>true,encryptString:v=>Buffer.from(v),decryptString:b=>b.toString()};
+  const store=new UlanziOriginalStore(path.join(root,'userData'),{storage});
+  const original=new UlanziEditorHost(store,e=>events.push(e));
+  const legacy={list:async()=>[{uuid:'com.legacy.example',actions:[]}],retireUnmatched(){},sync:async c=>legacyCalls.push(c),key:()=>true,onSystemSuspend(){},onSystemResume(){},close:async()=>{}};
+  const native={contexts:new Map(),manifests:async()=>[],loadServicePolicy:async()=>{},sync:c=>nativeCalls.push(c),suspend(){},resume(){},close(){}};
+  const router=new PluginRouter(legacy,native,original);
+  const fixture={UUID:id,Name:'Original editor fixture',Version:'1.0.0',Type:'JavaScript',CodePath:'main.cjs',Actions:[{UUID:action,Name:'Key'}]};
+  const script="const [address,port]=process.argv.slice(2);const ws=new WebSocket('ws://'+address+':'+port);ws.addEventListener('open',()=>ws.send(JSON.stringify({cmd:'connected',code:0,uuid:"+JSON.stringify(id)+"})));ws.addEventListener('message',e=>{const m=JSON.parse(e.data);if(m.cmd==='keydown'&&m.code===undefined)ws.send(JSON.stringify({cmd:'setTitle',param:{uuid:m.uuid,key:m.key,actionid:m.actionid,text:'ROUTED'}}));});";
+  const mount={context:'original-key',instanceId:'original-key-id',mountGeneration:1,configRevision:0,slot:0,gesture:'down',pluginUUID:id,actionUUID:action,settings:{}};
+  const old={context:'legacy-key',slot:1,pluginUUID:'com.legacy.example',actionUUID:'com.legacy.example.key',settings:{}};
+  const until=async predicate=>{const end=Date.now()+10000;while(!predicate()&&Date.now()<end)await new Promise(r=>setTimeout(r,25));assert.ok(predicate(),'editor original response missing');};
+  try{
+    await fs.mkdir(source);await fs.writeFile(path.join(source,'manifest.json'),JSON.stringify(fixture));await fs.writeFile(path.join(source,'main.cjs'),script);
+    const plan=await store.inspect(source),installed=await router.installOriginal(source,plan.revision);
+    assert.equal(installed.runtime,'ulanzi-original');assert.equal((await router.list()).find(p=>p.uuid===id).actions[0].uuid,action);
+    await router.sync([mount,old]);assert.equal(router.key(mount.context,'down'),false);assert.equal(store.active.size,0);
+    assert.deepEqual(legacyCalls.at(-1),[old]);assert.deepEqual(nativeCalls.at(-1),[]);
+    await store.setPermission(id,plan.revision,true);await router.sync([mount,old]);
+    await until(()=>!!store.active.get(id)?.socket);
+    assert.equal(router.key(mount.context,'down'),true);
+    await until(()=>events.some(e=>e.kind==='setTitle'&&e.payload?.title==='ROUTED'));
+    router.onSystemSuspend();assert.equal(router.key(mount.context,'down'),false);await original.queue;assert.equal(store.active.size,0);
+    router.onSystemResume();await router.sync([mount,old]);await until(()=>!!store.active.get(id)?.socket);
+    assert.equal(router.key(mount.context,'down'),true);
+    await store.setPermission(id,plan.revision,false);assert.equal(router.key(mount.context,'down'),false);
+    await router.sync([old]);assert.equal(router.key(mount.context,'down'),false);assert.equal(router.key(old.context,'down'),true);
+  }finally{await router.close();await fs.rm(root,{recursive:true,force:true,maxRetries:6,retryDelay:150});}
+});

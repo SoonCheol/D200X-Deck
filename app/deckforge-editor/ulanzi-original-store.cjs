@@ -66,6 +66,25 @@ class UlanziOriginalStore{
       return record;
     }finally{await fs.rm(stage,{recursive:true,force:true});}
   });}
+  async list(){
+    await this.prepareRoot(this.root);
+    const entries=await fs.readdir(this.root,{withFileTypes:true}),result=[];
+    for(const ent of entries){
+      if(!ent.isDirectory()||ent.isSymbolicLink()||!ent.name.endsWith('.ulanziPlugin'))continue;
+      const id=ent.name.slice(0,-'.ulanziPlugin'.length);
+      if(!ID.test(id))continue;
+      try{
+        const dir=this.directory(id),file=path.join(dir,'manifest.json'),st=await fs.lstat(file);
+        if(!st.isFile()||st.isSymbolicLink()||st.size>65536)continue;
+        const m=validateOriginalNodeManifest(JSON.parse(await fs.readFile(file,'utf8')));
+        if(m.UUID!==id)continue;
+        result.push({uuid:id,name:m.Name,version:m.Version,runtime:'ulanzi-original',privateAPI:!!m.PrivateAPI,
+          actions:m.Actions.map(a=>({uuid:a.UUID,name:a.Name,states:Array.isArray(a.States)?a.States.length:1,
+            controllers:a.Controllers||['Keypad'],propertyInspectorPath:''}))});
+      }catch{/* Invalid package is not exposed to the action catalogue. */}
+    }
+    return result;
+  }
   async installed(id){
     const record=await scanOriginal(this.directory(id));
     if(record.manifest.UUID!==id)throw Error('original plugin identity mismatch');
