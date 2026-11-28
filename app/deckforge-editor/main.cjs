@@ -189,7 +189,7 @@ const pluginAudit=require('./plugin-audit.cjs').createPluginAudit({userData:app.
 function sdk(){
   if(!sdkHost){
     const userData=app.getPath('userData'),update=payload=>send('d200x:sdk-event',payload);
-    sdkHost=new PluginRouter(new StreamDeckPluginHost(userData,update,()=>window,{executableApprove:approveExecutablePlugin}),new NativePluginHost(userData,update,null,{browserOpen:href=>shell.openExternal(href),nodeApprove:approveNodePlugin,viewManager:new (require('./deckforge-native-view.cjs').NativeViewManager)(()=>window)}),new (require('./ulanzi-editor-host.cjs').UlanziEditorHost)(new (require('./ulanzi-original-store.cjs').UlanziOriginalStore)(userData,{storage:safeStorage}),update));
+    sdkHost=new PluginRouter(new StreamDeckPluginHost(userData,update,()=>window,{executableApprove:approveExecutablePlugin}),new NativePluginHost(userData,update,null,{browserOpen:href=>shell.openExternal(href),nodeApprove:approveNodePlugin,viewManager:new (require('./deckforge-native-view.cjs').NativeViewManager)(()=>window)}),new (require('./ulanzi-editor-host.cjs').UlanziEditorHost)(new (require('./ulanzi-original-store.cjs').UlanziOriginalStore)(userData,{storage:safeStorage}),update,()=>window));
   }
   return sdkHost;
 }
@@ -602,7 +602,7 @@ ipcMain.handle('d200x:deckforge-export-plugin',async event=>{
   }
   return {name:pack.meta.plugin.name,version:pack.meta.plugin.version,filePath:result.filePath};
 });
-const originalPermissionDetail='Ulanzi 원본 Node.js 코드는 현재 Windows 사용자 권한으로 실행되며 파일·네트워크·프로세스에 직접 접근할 수 있습니다. 신뢰하는 플러그인만 승인하세요. 원본 패키지 변경 시 재승인이 필요합니다. 현재 원본 HTML 속성창 및 일부 명령은 미지원입니다.';
+const originalPermissionDetail='Ulanzi 원본 Node.js 코드는 현재 Windows 사용자 권한으로 실행되며 파일·네트워크·프로세스에 직접 접근할 수 있습니다. HTML은 별도 창에서 실행합니다. 신뢰하는 플러그인만 승인하세요. 원본 패키지 변경 시 재승인이 필요합니다. 일부 명령은 아직 미지원입니다.';
 ipcMain.handle('d200x:ulanzi-original-permission',async(event,id)=>{
   assertEditor(event);
   const router=sdk(),store=router.original.store;

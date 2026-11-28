@@ -5091,7 +5091,6 @@ function bindExtendedActionFields(root,item){
         if(choice)await installSdkPlugin();return;
       }
       let plugin=sdkPlugins.find(p=>p.uuid===item.settings?.pluginUUID);
-      if(plugin?.runtime==='ulanzi-original'){window.d200xActionStatus?.('Ulanzi 원본 HTML 속성창은 아직 지원하지 않습니다.');return;}
       if(plugin?.runtime==='deckforge-sdk'){
         try{
           if(plugin.uuid==='com.deckforge.native.home-assistant'){

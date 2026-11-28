@@ -1716,6 +1716,7 @@ class PluginRouter{
   }
   inspector(context,anchor){
     if(this.closed||this.nativeContextIds.has(context)||this.native.contexts.has(context))return false;
+    if(this.original?.confirmed.has(context))return this.original.inspector(context,this.desiredMounts?.get(context));
     return this.legacyRouteReady(context,this.desiredMounts?.get(context))&&this.legacy.inspector(context,anchor);
   }
   cancelMultiMonitorInput(){for(const ctx of this.native.contexts.values())if(isMultiMonitor(ctx))clearMultiMonitorPress(ctx);}

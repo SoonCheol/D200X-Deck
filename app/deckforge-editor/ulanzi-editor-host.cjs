@@ -4,8 +4,8 @@
 const same=(a,b)=>!!a&&!!b&&['context','instanceId','mountGeneration','pluginUUID','actionUUID','slot','gesture','configRevision'].every(k=>a[k]===b[k])&&JSON.stringify(a.settings||{})===JSON.stringify(b.settings||{});
 const sameIdentity=(a,b)=>!!a&&!!b&&['context','instanceId','mountGeneration','pluginUUID','actionUUID','slot','gesture'].every(k=>a[k]===b[k]);
 class UlanziEditorHost{
-  constructor(store,onUpdate=()=>{}){
-    this.store=store;this.onUpdate=onUpdate;this.desired=new Map();this.confirmed=new Map();this.queue=Promise.resolve();this.suspended=false;this.closed=false;this.revision=0;
+  constructor(store,onUpdate=()=>{},getParent=()=>null){
+    this.store=store;this.onUpdate=onUpdate;this.getParent=getParent;this.desired=new Map();this.confirmed=new Map();this.queue=Promise.resolve();this.suspended=false;this.closed=false;this.revision=0;
   }
   list(){return this.store.list();}
   retireUnmatched(configs){
@@ -54,6 +54,13 @@ class UlanziEditorHost{
     const cfg=this.confirmed.get(context);
     if(this.closed||this.suspended||!same(cfg,desired)||!same(cfg,this.desired.get(context)))return false;
     return this.store.active.get(cfg.pluginUUID)?.key(context,gesture,ticks)===true;
+  }
+  async inspector(context,desired){
+    const cfg=this.confirmed.get(context);
+    if(this.closed||this.suspended||!same(cfg,desired)||!same(cfg,this.desired.get(context)))return false;
+    const host=this.store.active.get(cfg.pluginUUID),info=await this.store.info(cfg.pluginUUID);
+    if(!host||!info.approved||info.revision!==host.approvedRevision||!same(cfg,this.desired.get(context))||this.suspended||this.closed)throw Error('원본 실행 권한 확인 필요');
+    await host.openInspector(context,this.getParent());return true;
   }
   suspend(){
     this.suspended=true;this.revision++;this.confirmed.clear();

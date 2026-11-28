@@ -37,6 +37,7 @@ async function scanOriginal(directory,{copyTo=null}={}){
   if(!manifestBytes||manifestBytes.length>65536)throw Error('invalid original manifest size');
   const manifest=validateOriginalNodeManifest(JSON.parse(manifestBytes.toString('utf8')));
   if(!files.some(([name])=>name===manifest.CodePath))throw Error('missing original entry');
+  for(const a of manifest.Actions)if(a.PropertyInspectorPath&&!files.some(([name])=>name===a.PropertyInspectorPath))throw Error('missing original inspector');
   return {manifest,revision:hash(JSON.stringify(files)),fileCount:files.length,totalBytes:total};
 }
 class UlanziOriginalStore{
@@ -80,7 +81,7 @@ class UlanziOriginalStore{
         if(m.UUID!==id)continue;
         result.push({uuid:id,name:m.Name,version:m.Version,runtime:'ulanzi-original',privateAPI:!!m.PrivateAPI,
           actions:m.Actions.map(a=>({uuid:a.UUID,name:a.Name,states:Array.isArray(a.States)?a.States.length:1,
-            controllers:a.Controllers||['Keypad'],propertyInspectorPath:''}))});
+            controllers:a.Controllers||['Keypad'],propertyInspectorPath:a.PropertyInspectorPath||''}))});
       }catch{/* Invalid package is not exposed to the action catalogue. */}
     }
     return result;
@@ -122,7 +123,7 @@ class UlanziOriginalStore{
     const info=await this.info(id);
     if(!info.approved){const existing=this.active.get(id);this.active.delete(id);await existing?.close();throw Error('original plugin approval required');}
     const existing=this.active.get(id);
-    if(existing&&existing.approvedRevision===info.revision&&existing.child?.exitCode===null&&existing.child.signalCode===null&&!existing.child.killed)return existing;
+    if(existing&&existing.approvedRevision===info.revision&&existing.alive())return existing;
     if(existing){this.active.delete(id);await existing.close();}
     const host=this.hostFactory(this.directory(id),onUpdate);
     try{

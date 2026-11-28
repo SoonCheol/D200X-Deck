@@ -45,6 +45,12 @@ Elgato/Ulanzi 원본 런타임과 리소스 보존을 우선한다. 정적 변�
 - 독자/기존 외부 호스트와 원본 런타임을 분리하고 ID 중복 설치 방지. 원본 호스트는 현재 페이지의 승인된 mount만 실행, 변경 세대/입력 검증, 페이지 이탈 및 절전 시 프로세스 정리, 복귀 시 새 실행(입력 재실행 금지). 원본 UI/HTML main, 이미지/전역 설정, 제거/백업 및 상세 승인 상태 UI는 후속. 실제 상용 원본 및 Windows GUI 미검증.
 - 테스트용 원본 Node 실행으로 설치/카탈로그/승인·라우팅·제목 응답/절전·복귀/철회 및 기존 호스트 분리 시험 추가. 자동 결과 대기.
 
+## Ulanzi 원본 HTML 및 속성창 (2.0.158 후보)
+
+- 공식 HTML SDK의 URL query(address, port, uuid, key, actionid, language, controller, device)와 connected 등록을 사용한다. HTML/HTM CodePath를 별도 숨은 BrowserWindow에 원본 그대로 로드하고, 현재 등록 버튼의 PropertyInspectorPath는 기존 속성 열기 버튼에서 독립 창으로 표시. 원본 JS/CSS는 패키지별 origin에서 로드한다. Node/editor preload 없음. 기존 scoped protocol 재사용, 파일 탈출 차단, 다운로드 및 Electron 권한 요청 거부. 로컬 실행 및 승인 범위 외 원격 서비스에 대한 완전한 네트워크 격리는 보장하지 않는다.
+- 원본 서비스와 PI의 연결을 별도 socket으로 등록하고 활성 actionid에 묶음. paramfromapp/설정 조회·저장/paramfromplugin/sendToPlugin/sendToPropertyInspector 전달 및 해제 시 창 닫기. PI는 등록 버튼만 지원(미저장 신규 버튼은 후속), 기존 외부 호환 설정 저장 경로 사용. 승인/패키지 해시 재확인 후 PI 열기. 기존 Fusion/HA 창은 변경하지 않는다.
+- 실제 Electron HTML main/PI fixture의 원본 파일/설정/메시지 왕복 및 제거 시 닫힘 시험 추가. 실제 공식/상용 플러그인 및 실기 미검증. 이미지/전역 설정·파일 대화창·openView 등 미지원 API 후속.
+
 ## 0.23 독자 SDK 1.1 네트워크 확장 (최신 계약은 SDK 문서 참조)
 
 - 승인 HTTP PUT/PATCH/DELETE와 queryKeys 기반 쿼리 값, WSS 연결/송수신/종료 구현. 최신 계약은 docs/DECKFORGE-SDK-1.0.md SDK 1.1 절. API 2 번호 유지. 새 권한 network.websocket 및 설치 화면의 승인 WSS 주소. 실제 서버/실기 별도.
