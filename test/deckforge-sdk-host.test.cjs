@@ -744,3 +744,44 @@ test('original Ulanzi Node host runs unmodified entry with V3.1 registration and
     assert.equal(await fs.readFile(path.join(root,'main.cjs'),'utf8'),source);
   }finally{await host.close();await fs.rm(root,{recursive:true,force:true,maxRetries:6,retryDelay:150});}
 });
+
+test('Ulanzi original installer preserves files and binds execution to approved package revision', {timeout:30000},async()=>{
+  const {UlanziOriginalStore}=require('../app/deckforge-editor/ulanzi-original-store.cjs');
+  const root=await fs.mkdtemp(path.join(os.tmpdir(),'deckforge-ulanzi-original-'));
+  const source=path.join(root,'source.ulanziPlugin'),userData=path.join(root,'userdata');
+  const id='com.ulanzi.ulanzistudio.installfixture',action=id+'.key',updates=[];
+  const storage={isEncryptionAvailable:()=>true,encryptString:v=>Buffer.from(v),decryptString:b=>b.toString()};
+  const manifest={UUID:id,Name:'Original fixture',Version:'1.0.0',Type:'JavaScript',CodePath:'main.cjs',PrivateAPI:true,Actions:[{UUID:action,Name:'Key'}]};
+  const script="const [address,port]=process.argv.slice(2);const ws=new WebSocket('ws://'+address+':'+port);ws.addEventListener('open',()=>ws.send(JSON.stringify({cmd:'connected',code:0,uuid:"+JSON.stringify(id)+"})));";
+  let store=new UlanziOriginalStore(userData,{storage});
+  try{
+    await fs.mkdir(source);await fs.writeFile(path.join(source,'manifest.json'),JSON.stringify(manifest));
+    await fs.writeFile(path.join(source,'main.cjs'),script);
+    await fs.mkdir(path.join(source,'assets'));await fs.writeFile(path.join(source,'assets','data.txt'),'original');
+    const plan=await store.inspect(source);
+    assert.equal(plan.fileCount,3);assert.equal(plan.manifest.PrivateAPI,true);
+    await assert.rejects(store.install(source,'0'.repeat(64)),/package changed/);
+    const result=await store.install(source,plan.revision);assert.equal(result.revision,plan.revision);
+    assert.equal(await fs.readFile(path.join(store.directory(id),'main.cjs'),'utf8'),script);
+    await assert.rejects(store.install(source,plan.revision),/already installed/);
+    await assert.rejects(store.startApproved(id),/approval required/);
+    await store.setPermission(id,plan.revision,false);assert.equal((await store.info(id)).decided,true);
+    await assert.rejects(store.startApproved(id),/approval required/);
+    await store.setPermission(id,plan.revision,true);
+    await store.close();store=new UlanziOriginalStore(userData,{storage});
+    assert.equal((await store.info(id)).approved,true);
+    const host=await store.startApproved(id,e=>updates.push(e));
+    const deadline=Date.now()+10000;
+    while(!host.socket&&Date.now()<deadline)await new Promise(r=>setTimeout(r,25));
+    assert.ok(host.socket,'approved original runtime registration missing');
+    assert.equal(await store.startApproved(id),host);
+    await store.setPermission(id,plan.revision,false);
+    assert.equal(host.closed,true);assert.equal(store.active.size,0);
+    await fs.writeFile(path.join(store.directory(id),'assets','data.txt'),'changed');
+    assert.equal((await store.info(id)).decided,false);
+    await assert.rejects(store.setPermission(id,plan.revision,true),/package changed/);
+    await assert.rejects(store.startApproved(id),/approval required/);
+    assert.equal(await fs.readFile(path.join(source,'assets','data.txt'),'utf8'),'original');
+    assert.equal(await fs.readFile(path.join(source,'main.cjs'),'utf8'),script);
+  }finally{await store.close();await fs.rm(root,{recursive:true,force:true,maxRetries:6,retryDelay:150});}
+});

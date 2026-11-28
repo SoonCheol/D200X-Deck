@@ -33,6 +33,12 @@ Elgato/Ulanzi 원본 런타임과 리소스 보존을 우선한다. 정적 변�
 - 공식 SDK https://github.com/UlanziTechnology/plugin-common-node/blob/main/libs/ulanziApi.js 와 https://github.com/UlanziTechnology/UlanziDeckPlugin-SDK/blob/main/UlanziDeckSimulator/server/clients.js 참고. 별도 실험 호스트 ulanzi-node-host.cjs: 명시 승인 인자를 요구하고 원본 Node 진입점을 positional address/port/language로 실행. 별도 loopback WebSocket, connected 등록, uuid/key/actionid 세대 기반 라우팅, add/paramfromapp/clear/key/dial/run, setTitle/setState/getSettings/setSettings/paramfromplugin/showAlert 초기 대응. 지원하지 않는 명령은 오류 응답. PrivateAPI 메타데이터 자체는 거부 조건이 아님.
 - 기존 변환기·독자 SDK·외부 호스트 미변경. 실제 제품 설치/저장·권한 UI/편집기 라우팅은 연결 전이며 일반 사용자 플러그인은 실행하지 않음. 테스트 fixture는 공식 wire 형식에 맞춘 자체 Node 코드이지 공식 SDK 패키지 또는 상용 원본 시험이 아님. 실제 실행 및 UI 검증은 후속. 주소/포트 격리는 로컬 악성 프로세스에 대한 인증을 보장하지 않으며 운영 적용 전 권한·수명·설치 무결성 보강 필요.
 
+## Ulanzi 원본 설치와 실행 승인 기반 (2.0.155 후보)
+
+- ulanzi-original-store.cjs: 원본 디렉터리 검사, 2500개/100MiB 제한, 심볼릭 링크·경로 탈출·Windows 예약 이름·대소문자 충돌 검사. 파일별 SHA256 및 정렬 순서 전체 revision, 복사 시 검사한 동일 bytes를 별도 staging에 기록 후 Plugins/UlanziOriginal/<id>.ulanziPlugin에 이동. 동일 ID 덮어쓰기 없음. 원본 파일·기존 변환 플러그인 불변.
+- Plugins/UlanziOriginalApprovals 별도 암호화 grant(제품 연결 시 Electron safeStorage 주입 필요), 승인/거부는 revision 결합, 실행 직전 다시 검사, 승인 변경 시 실행 중 직접 프로세스 종료. 원본 내부 설정 파일 변경도 재승인 대상. 설치 과정은 실행하지 않음. 로컬 공격자에 대한 완전한 TOCTOU/프로세스 인증이나 하위 프로세스 전체 종료는 보장하지 않음.
+- 원본 보존·중복 거부·승인 거부/재시작/철회·파일 변경·실제 Node 등록 시험 추가. 테스트 암호화 adapter는 모의 객체. 편집기 라우팅·권한 UI/백업·삭제 정책은 후속이며 제품 경로는 비활성.
+
 ## 0.23 독자 SDK 1.1 네트워크 확장 (최신 계약은 SDK 문서 참조)
 
 - 승인 HTTP PUT/PATCH/DELETE와 queryKeys 기반 쿼리 값, WSS 연결/송수신/종료 구현. 최신 계약은 docs/DECKFORGE-SDK-1.0.md SDK 1.1 절. API 2 번호 유지. 새 권한 network.websocket 및 설치 화면의 승인 WSS 주소. 실제 서버/실기 별도.

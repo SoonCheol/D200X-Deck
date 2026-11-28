@@ -35,7 +35,7 @@ class UlanziNodeHost{
   address(ctx){return {uuid:ctx.actionUUID,key:ctx.key,actionid:ctx.actionid};}
   event(ctx,cmd,extra={}){return this.send({cmd,...this.address(ctx),param:ctx.settings,...extra});}
   appear(ctx){this.event(ctx,'add');this.event(ctx,'paramfromapp');}
-  async start({approved=false,language='ko'}={}){
+  async start({approved=false,language='ko',verifyBeforeSpawn=null}={}){
     if(approved!==true)throw Error('original plugin approval required');
     if(this.closed||this.started)throw Error('Ulanzi host already started or closed');
     this.started=true;
@@ -72,6 +72,8 @@ class UlanziNodeHost{
         });
       });
       await new Promise((resolve,reject)=>{server.once('listening',resolve);server.once('error',reject);});
+      if(this.closed)throw Error('Ulanzi host closed');
+      if(verifyBeforeSpawn&&!await verifyBeforeSpawn())throw Error('original package approval changed');
       if(this.closed)throw Error('Ulanzi host closed');
       this.child=spawnNodePlugin(runtime,entry,['127.0.0.1',String(server.address().port),language],root);
       this.child.stdout?.resume();this.child.stderr?.resume();
