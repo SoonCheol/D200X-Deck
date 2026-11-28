@@ -264,9 +264,10 @@ async function simulateFile(input,spec){
     requireOk(typeof electron==='string','run the CLI with Node and installed Electron development dependency');
     const manifestFile=path.join(root,'manifest.json'),scenarioFile=path.join(root,'scenario.json'),resultFile=path.join(root,'result.json');
     await fs.writeFile(manifestFile,JSON.stringify(m),{flag:'wx'});await fs.writeFile(scenarioFile,JSON.stringify(scenario),{flag:'wx'});
-    try{await promisify(execFile)(electron,[path.join(__dirname,'deckforge-sdk-simulate-electron.cjs'),root],{timeout:180000,maxBuffer:1024*1024,windowsHide:true});}
+    const env={...process.env};delete env.ELECTRON_RUN_AS_NODE;
+    try{await promisify(execFile)(electron,[path.join(__dirname,'deckforge-sdk-simulate-electron.cjs'),root],{timeout:180000,maxBuffer:1024*1024,windowsHide:true,env});}
     catch{throw Error('DeckForge SDK simulation: isolated Electron process failed or timed out');}
     return await readJson(resultFile,1024*1024);
-  }finally{await fs.rm(root,{recursive:true,force:true});}
+  }finally{await fs.rm(root,{recursive:true,force:true,maxRetries:5,retryDelay:100});}
 }
 module.exports={runScenario,simulateFile,readJson};

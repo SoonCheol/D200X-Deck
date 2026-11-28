@@ -13,7 +13,9 @@ else{
   app.on('window-all-closed',()=>{});
   app.whenReady().then(async()=>{
     const manifest=await readJson(path.join(root,'manifest.json'),1024*1024);
-    const scenario=await readJson(path.join(root,'scenario.json'),65536);
+    // The parent already limits original input to 64 KiB; normalization
+    // can add default fields. Keep a bounded allowance for this private copy.
+    const scenario=await readJson(path.join(root,'scenario.json'),131072);
     const result=await runScenario(manifest,scenario,root);
     await fs.writeFile(path.join(root,'result.json'),JSON.stringify(result),{flag:'wx'});
     app.exit(0);

@@ -12,3 +12,5 @@ node app/deckforge-editor/deckforge-sdk-cli.cjs simulate examples/deckforge-sdk/
 - `expectInitial`은 초기 상태, 각 step의 `expect`는 완료 후 상태, `expectErrorTotal`은 전체 진단 횟수를 검사한다. 생략한 필드는 비교하지 않는다. `assertions.failed`가 0이고 기존 실행 판정도 정상이어야 `ok:true`/종료 코드 0이다. 예상값 불일치는 `mismatches`와 종료 코드 1로 확인한다.
 - 다른 manifest는 SDK 기능 설명 예제다. 타이머·인증·실제 외부 창·의존 플러그인은 현재 오프라인 도구 대상이 아니다. 실제 설치·장치·OS 연동 시험과 구분한다. 시험용 데이터만 사용한다.
 - 상세 규격: [플러그인 형식](../../docs/DECKFORGE-PLUGIN-FORMAT.md), [SDK 계약](../../docs/DECKFORGE-SDK-1.0.md).
+
+Windows 통합 빌드에는 `node --test test/deckforge-sdk-cli-windows.test.cjs`를 추가하여 실제 자식 Electron과 JSON/종료 코드까지 확인한다(2.0.176 후보, 자동 검증 대기).
