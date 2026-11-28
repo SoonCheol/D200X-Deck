@@ -1042,3 +1042,31 @@ test('Ulanzi hotkey routes official keylist to Windows sender only for current i
     assert.equal(store.active.get(id),existing);
   }finally{store.active.clear();await store.close();await fs.rm(root,{recursive:true,force:true});}
 });
+
+test('Ulanzi original removal and restoration preserve exact package and encrypted settings',async()=>{
+  const {UlanziOriginalStore}=require('../app/deckforge-editor/ulanzi-original-store.cjs');
+  const root=await fs.mkdtemp(path.join(os.tmpdir(),'deckforge-original-retained-'));
+  const id='com.ulanzi.ulanzistudio.retainedfixture',source=path.join(root,'source');
+  const storage={isEncryptionAvailable:()=>true,encryptString:v=>Buffer.from(v),decryptString:b=>b.toString()};
+  const store=new UlanziOriginalStore(path.join(root,'data'),{storage});
+  try{
+    await fs.mkdir(source);await fs.writeFile(path.join(source,'manifest.json'),JSON.stringify({UUID:id,Name:'Fixture',Version:'1.0.0',Type:'JavaScript',CodePath:'main.cjs',Actions:[{UUID:id+'.key',Name:'Key'}]}));await fs.writeFile(path.join(source,'main.cjs'),'// exact original');
+    const plan=await store.inspect(source);await store.install(source,plan.revision);await store.setPermission(id,plan.revision,true);
+    await store.writeGlobal(id,{kept:true},()=>true);const bytes=await fs.readFile(store.globalFile(id));
+    let stopped=0;store.active.set(id,{async close(){stopped++;}});
+    await assert.rejects(store.removeKeepingData(id,'bad'),/revision/);assert.equal(stopped,0);
+    await store.removeKeepingData(id,plan.revision);assert.equal(stopped,1);assert.equal((await store.list()).length,0);
+    const retained=await store.retainedRecord(id);assert.equal(retained.revision,plan.revision);assert.equal((await store.listRetained())[0].available,true);
+    await assert.rejects(store.install(source,plan.revision),/retained/);
+    await fs.writeFile(path.join(retained.directory,'main.cjs'),'tampered');
+    assert.equal((await store.listRetained())[0].available,false);
+    await assert.rejects(store.restoreRetained(id,plan.revision),/revision/);
+    await fs.writeFile(path.join(retained.directory,'main.cjs'),'// exact original');
+    await store.restoreRetained(id,plan.revision);
+    assert.equal((await store.info(id)).approved,false);assert.equal((await store.listRetained()).length,0);
+    assert.deepEqual(await fs.readFile(store.globalFile(id)),bytes);assert.deepEqual(await store.readGlobal(id),{kept:true});
+    assert.equal(await fs.readFile(path.join(store.directory(id),'main.cjs'),'utf8'),'// exact original');
+    assert.equal(await fs.readFile(path.join(source,'main.cjs'),'utf8'),'// exact original');
+    await assert.rejects(store.startApproved(id),/approval required/);
+  }finally{await store.close();await fs.rm(root,{recursive:true,force:true});}
+});

@@ -44,9 +44,10 @@ async function scanOriginal(directory,{copyTo=null}={}){
 class UlanziOriginalStore{
   constructor(userData,{storage,getParent=()=>null,sendHotkey=async()=>false,hostFactory=(dir,emit)=>new UlanziNodeHost(dir,emit)}={}){
     this.root=path.join(userData,'Plugins','UlanziOriginal');
+    this.retained=path.join(userData,'Plugins','UlanziOriginalRetained');
     this.grants=path.join(userData,'Plugins','UlanziOriginalApprovals');
     this.settings=path.join(userData,'Plugins','UlanziOriginalSettings');
-    this.storage=storage;this.hostFactory=hostFactory;this.getParent=getParent;this.sendHotkey=sendHotkey;this.queue=Promise.resolve();this.active=new Map();this.draft=null;this.closed=false;
+    this.storage=storage;this.hostFactory=hostFactory;this.getParent=getParent;this.sendHotkey=sendHotkey;this.queue=Promise.resolve();this.active=new Map();this.managing=new Set();this.draft=null;this.closed=false;
   }
   serial(fn){const work=this.queue.then(()=>{if(this.closed)throw Error('original store closed');return fn();});this.queue=work.catch(()=>{});return work;}
   directory(id){if(typeof id!=='string'||!ID.test(id))throw Error('invalid Ulanzi ID');return path.join(this.root,id+'.ulanziPlugin');}
@@ -63,6 +64,7 @@ class UlanziOriginalStore{
       const record=await scanOriginal(source,{copyTo:stage});
       if(record.revision!==expectedRevision)throw Error('original package changed');
       const id=record.manifest.UUID,target=this.directory(id);
+      if(await this.retainedEntry(id))throw Error('retained original already exists; restore it first');
       const entries=await fs.readdir(this.root);
       if(entries.some(n=>n.toLowerCase()===path.basename(target).toLowerCase()))throw Error('original plugin already installed');
       await fs.rename(stage,target);
@@ -88,6 +90,69 @@ class UlanziOriginalStore{
     }
     return result;
   }
+  async retainedEntries(){
+    await this.prepareRoot(this.retained);
+    const entries=await fs.readdir(this.retained,{withFileTypes:true}),result=[];
+    for(const ent of entries){
+      const match=/^(.+)--([a-f0-9]{64})\.ulanziPlugin$/.exec(ent.name);
+      if(!match||!ID.test(match[1]))continue;
+      result.push({id:match[1],revision:match[2],directory:path.join(this.retained,ent.name),safe:ent.isDirectory()&&!ent.isSymbolicLink()});
+    }
+    return result;
+  }
+  async retainedEntry(id){
+    this.directory(id);
+    const entries=(await this.retainedEntries()).filter(e=>e.id.toLowerCase()===id.toLowerCase());
+    if(entries.length>1)throw Error('ambiguous retained original');
+    return entries[0]||null;
+  }
+  async retainedRecord(id){
+    const entry=await this.retainedEntry(id);
+    if(!entry||!entry.safe||entry.id!==id)throw Error('invalid retained original');
+    const record=await scanOriginal(entry.directory);
+    if(record.manifest.UUID!==id||record.revision!==entry.revision)throw Error('retained original revision changed');
+    return {id,name:record.manifest.Name,version:record.manifest.Version,revision:record.revision,runtime:'ulanzi-original',directory:entry.directory};
+  }
+  async listRetained(){
+    const result=[];
+    for(const id of new Set((await this.retainedEntries()).map(e=>e.id))){
+      try{const {directory,...record}=await this.retainedRecord(id);result.push({...record,available:true});}
+      catch{result.push({id,name:id,runtime:'ulanzi-original',available:false});}
+    }
+    return result;
+  }
+  async removalPlan(id){
+    const record=await this.installed(id);
+    if(await this.retainedEntry(id))throw Error('retained original already exists');
+    return {id,name:record.manifest.Name,version:record.manifest.Version,revision:record.revision,runtime:'ulanzi-original'};
+  }
+  removeKeepingData(id,revision){return this.serial(async()=>{
+    const plan=await this.removalPlan(id);
+    if(plan.revision!==revision)throw Error('original revision changed');
+    this.managing.add(id);
+    try{
+      await this.cancelDraft(id);
+      const host=this.active.get(id);this.active.delete(id);await host?.close();
+      const current=await this.removalPlan(id);
+      if(current.revision!==revision)throw Error('original revision changed');
+      const target=path.join(this.retained,id+'--'+revision+'.ulanziPlugin');
+      await fs.rename(this.directory(id),target);
+      return {...plan,status:'removed'};
+    }finally{this.managing.delete(id);}
+  });}
+  restoreRetained(id,revision){return this.serial(async()=>{
+    const record=await this.retainedRecord(id);
+    if(record.revision!==revision)throw Error('retained original revision changed');
+    await this.prepareRoot(this.root);
+    const target=this.directory(id),entries=await fs.readdir(this.root);
+    if(entries.some(n=>n.toLowerCase()===path.basename(target).toLowerCase()))throw Error('original plugin already installed');
+    // Restore without execution approval. Existing encrypted global settings remain untouched.
+    await this.writePermission(id,revision,false);
+    const current=await this.retainedRecord(id);
+    if(current.revision!==revision)throw Error('retained original revision changed');
+    await fs.rename(current.directory,target);
+    const {directory,...result}=record;return {...result,status:'restored',originalApproved:false};
+  });}
   async installed(id){
     const record=await scanOriginal(this.directory(id));
     if(record.manifest.UUID!==id)throw Error('original plugin identity mismatch');
@@ -106,10 +171,8 @@ class UlanziOriginalStore{
     const record=await this.installed(id),grant=await this.grant(id);
     return {...record,approved:grant.revision===record.revision&&grant.approved===true,decided:grant.revision===record.revision&&typeof grant.approved==='boolean'};
   }
-  setPermission(id,revision,approved){return this.serial(async()=>{
-    if(typeof approved!=='boolean')throw Error('invalid original permission');
-    const record=await this.installed(id);
-    if(record.revision!==revision)throw Error('original package changed');
+  async writePermission(id,revision,approved){
+    if(typeof approved!=='boolean'||!/^[a-f0-9]{64}$/.test(revision))throw Error('invalid original permission');
     if(!this.storage?.isEncryptionAvailable())throw Error('original grant encryption unavailable');
     await this.prepareRoot(this.grants);
     const file=this.grantFile(id),tmp=file+'.'+randomUUID()+'.tmp';
@@ -117,6 +180,11 @@ class UlanziOriginalStore{
       await fs.writeFile(tmp,this.storage.encryptString(JSON.stringify({id,revision,approved})),{flag:'wx'});
       await fs.rename(tmp,file);
     }finally{await fs.rm(tmp,{force:true});}
+  }
+  setPermission(id,revision,approved){return this.serial(async()=>{
+    const record=await this.installed(id);
+    if(record.revision!==revision)throw Error('original package changed');
+    await this.writePermission(id,revision,approved);
     // Permission changes never leave a process running under an older approval.
     await this.cancelDraft(id);
     const host=this.active.get(id);this.active.delete(id);await host?.close();
@@ -164,7 +232,7 @@ class UlanziOriginalStore{
   async editDraft(id,actionId,slot,settings,active=()=>true){
     this.directory(id);validateValue(settings);
     if(!settings||typeof settings!=='object'||Array.isArray(settings)||!Number.isInteger(slot)||slot<0||slot>18)throw Error('invalid original draft');
-    if(this.closed||!active()||this.draft)throw Error('original draft unavailable or busy');
+    if(this.closed||!active()||this.draft||this.managing.has(id))throw Error('original draft unavailable or busy');
     const record={id,cancelled:false,host:null};this.draft=record;
     const current=()=>!this.closed&&!record.cancelled&&this.draft===record&&active();
     try{

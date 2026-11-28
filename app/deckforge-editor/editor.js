@@ -1503,10 +1503,10 @@ function sdkAvailabilityLabel(item){
 }
 async function restoreRetainedPlugin(plugin){
   try{
-    const installed=plugin.runtime==='streamdeck-sdk'?await window.deckBridge.legacyRetainedRestore(plugin.id):await window.deckBridge.nativeRetainedRestore(plugin.id);
+    const installed=plugin.runtime==='ulanzi-original'?await window.deckBridge.ulanziOriginalRestore(plugin.id):plugin.runtime==='streamdeck-sdk'?await window.deckBridge.legacyRetainedRestore(plugin.id):await window.deckBridge.nativeRetainedRestore(plugin.id);
     if(!installed)return;
     await refreshSdkPlugins();scheduleSdkSync();
-    window.d200xActionStatus?.('플러그인 다시 설치 완료 · 기존 버튼 설정 유지');
+    window.d200xActionStatus?.(plugin.runtime==='ulanzi-original'?'원본 복원 완료 · 기존 설정 유지 · 실행 권한 재승인 필요':'플러그인 다시 설치 완료 · 기존 버튼 설정 유지');
   }catch(error){window.d200xActionStatus?.('다시 설치 실패: '+String(error?.message||error));}
 }
 function pluginCleanupReady(){
@@ -1547,6 +1547,7 @@ async function cleanupMissingPluginReferences(id){
   }catch(error){window.d200xActionStatus?.('버튼 정리 실패: '+String(error?.message||error));}
 }
 async function purgeRetainedPlugin(plugin){
+  if(plugin.runtime==='ulanzi-original')return;
   try{
     if(!pluginCleanupReady())throw Error('미저장 편집이나 실행 중인 동작을 먼저 마치세요.');
     const result=await (plugin.runtime==='streamdeck-sdk'?window.deckBridge.legacyRetainedPurge(plugin.id):window.deckBridge.nativeRetainedPurge(plugin.id));
@@ -1565,10 +1566,20 @@ function pluginHelpButton(plugin,retained=false){
   info.onclick=event=>{event.stopPropagation();openSdkPluginHelp(plugin,plugin.uuid==='com.autodesk.fusionstreamdeck',retained);};
   return info;
 }
+async function openOriginalRetainedRestore(){
+  try{
+    const items=(await window.deckBridge.nativeRetainedList()).filter(p=>p.runtime==='ulanzi-original');
+    const usable=items.filter(p=>p.available!==false);
+    if(!usable.length){await window.DeckForgeDialogs.show({title:'원본 플러그인 복원',intro:items.length?'보존 원본의 무결성을 확인할 수 없습니다.':'복원할 보존 원본이 없습니다.',actionLabel:'닫기'});return;}
+    const content=document.createElement('div'),select=document.createElement('select');select.setAttribute('aria-label','복원할 원본 플러그인');select.style.width='100%';
+    usable.forEach((p,i)=>select.append(new Option(p.name+' ('+p.version+')',String(i))));content.append(select);
+    if(await window.DeckForgeDialogs.show({title:'원본 플러그인 복원',intro:'보존된 원본을 선택하세요.',detail:'기존 버튼과 설정을 유지합니다.',content,ask:true,actionLabel:'선택'}))await restoreRetainedPlugin(usable[Number(select.value)]);
+  }catch(error){window.d200xActionStatus?.('원본 복원 실패: '+String(error?.message||error));}
+}
 async function openRetainedPluginDeletion(){
   if(!window.deckBridge?.nativeRetainedList)return;
   try{
-    const items=(await window.deckBridge.nativeRetainedList()).filter(p=>p.available!==false);
+    const items=(await window.deckBridge.nativeRetainedList()).filter(p=>p.available!==false&&p.runtime!=='ulanzi-original');
     if(!items.length){await window.DeckForgeDialogs.show({title:'완전 삭제',intro:'삭제할 보존 플러그인이 없습니다.',actionLabel:'닫기'});return;}
     const content=document.createElement('div'),select=document.createElement('select');
     select.setAttribute('aria-label','완전 삭제할 플러그인');select.style.width='100%';
@@ -1677,7 +1688,7 @@ function openSdkPluginHelp(plugin,isFusion,retained=false){
     const footer=document.createElement('div');footer.style.cssText='display:flex;justify-content:flex-end;gap:8px;margin-top:14px;border-top:1px solid #46505b;padding-top:12px';
     if(plugin.available!==false){
       const restore=document.createElement('button');restore.type='button';restore.className='sdk-plugin-help-close';restore.textContent='다시 설치';restore.onclick=async()=>{dialog.close();await restoreRetainedPlugin(plugin);};footer.append(restore);
-      if(plugin.runtime==='streamdeck-sdk'?window.deckBridge?.legacyRetainedPurge:window.deckBridge?.nativeRetainedPurge){const purge=document.createElement('button');purge.type='button';purge.className='sdk-plugin-help-close';purge.textContent='완전 삭제…';purge.onclick=async()=>{dialog.close();await purgeRetainedPlugin(plugin);};footer.append(purge);}
+      if(plugin.runtime!=='ulanzi-original'&&(plugin.runtime==='streamdeck-sdk'?window.deckBridge?.legacyRetainedPurge:window.deckBridge?.nativeRetainedPurge)){const purge=document.createElement('button');purge.type='button';purge.className='sdk-plugin-help-close';purge.textContent='완전 삭제…';purge.onclick=async()=>{dialog.close();await purgeRetainedPlugin(plugin);};footer.append(purge);}
     }
     dialog.append(footer);dialog.showModal();return;
   }
@@ -1822,7 +1833,7 @@ function openSdkPluginHelp(plugin,isFusion,retained=false){
     };
     queueMicrotask(()=>{if(dialog.open&&section.isConnected)void lookup(false);});
   }
-  const canRemove=plugin.uuid==='com.deckforge.native.home-assistant'||plugin.runtime==='ulanzi-original'?false:plugin.runtime==='deckforge-sdk'?window.deckBridge?.nativeRemove:window.deckBridge?.legacyPluginRemove;
+  const canRemove=plugin.uuid==='com.deckforge.native.home-assistant'?false:plugin.runtime==='ulanzi-original'?window.deckBridge?.ulanziOriginalRemove:plugin.runtime==='deckforge-sdk'?window.deckBridge?.nativeRemove:window.deckBridge?.legacyPluginRemove;
   if(canRemove){
     const footer=document.createElement('div');footer.style.cssText='display:flex;justify-content:flex-end;border-top:1px solid #46505b;margin-top:14px;padding-top:12px;gap:8px';
     const remove=document.createElement('button');remove.type='button';remove.className='sdk-plugin-help-close';remove.textContent='플러그인 제거…';
@@ -1883,8 +1894,7 @@ async function openNativeServiceManager(plugin){
   }catch{window.d200xActionStatus?.('전역 서비스 관리 실패: 의존성 또는 서비스 설정을 확인하세요.');}
 }
 async function removePluginKeepingData(plugin){
-  if(plugin.runtime==='ulanzi-original'){window.d200xActionStatus?.('원본 플러그인 제거 기능은 준비 중입니다. 실행 권한은 철회할 수 있습니다.');return;}
-  const remove=plugin.runtime==='deckforge-sdk'?window.deckBridge?.nativeRemove:window.deckBridge?.legacyPluginRemove;
+  const remove=plugin.runtime==='ulanzi-original'?window.deckBridge?.ulanziOriginalRemove:plugin.runtime==='deckforge-sdk'?window.deckBridge?.nativeRemove:window.deckBridge?.legacyPluginRemove;
   if(!remove)return;
   try{
     if(!pluginCleanupReady())throw Error('미저장 편집이나 실행 중인 동작을 먼저 마치세요.');
@@ -2189,6 +2199,7 @@ function bindActionAppearance(){
   const purge=document.createElement('button');purge.type='button';purge.className='plugin-add-button';purge.textContent='완전 삭제';
   purge.title='이미 제거한 플러그인의 보존 코드와 설정 삭제';
   purge.addEventListener('click',()=>void openRetainedPluginDeletion());management.append(purge);
+  if(window.deckBridge?.ulanziOriginalRestore){const restore=document.createElement('button');restore.type='button';restore.className='plugin-add-button';restore.textContent='원본 복원';restore.title='보존된 Ulanzi 원본 다시 설치';restore.addEventListener('click',()=>void openOriginalRetainedRestore());management.append(restore);}
   host.after(pluginToolbar);
   updatePluginToolbar();
 }

@@ -1298,6 +1298,24 @@ class PluginRouter{
     check(!(await this.native.manifests()).some(m=>m.id===manifest.UUID.toLowerCase())&&!(await this.original?.list()||[]).some(p=>p.uuid.toLowerCase()===manifest.UUID.toLowerCase()),'plugin ID already installed');
     return this.legacy.install(bytes);
   });}
+  listRetainedOriginal(){return this.serial(async()=>{
+    if(!this.original)return [];
+    const {legacy,native,original}=await this.catalog();
+    const installed=new Set([...legacy.map(p=>p.uuid.toLowerCase()),...native.map(p=>p.id.toLowerCase()),...original.map(p=>p.uuid.toLowerCase())]);
+    return (await this.original.store.listRetained()).filter(p=>!installed.has(p.id.toLowerCase()));
+  });}
+  planOriginalRemoval(id){return this.serial(()=>this.original.store.removalPlan(id));}
+  removeOriginalKeepingData(id,revision){return this.serial(()=>this.original.store.removeKeepingData(id,revision));}
+  async originalRestoreCandidate(id){
+    const {legacy,native,original}=await this.catalog(),key=id.toLowerCase();
+    check(!legacy.some(p=>p.uuid.toLowerCase()===key)&&!native.some(p=>p.id.toLowerCase()===key)&&!original.some(p=>p.uuid.toLowerCase()===key),'plugin ID already installed');
+    const {directory,...record}=await this.original.store.retainedRecord(id);return record;
+  }
+  planOriginalRestore(id){return this.serial(()=>this.originalRestoreCandidate(id));}
+  restoreOriginalRetained(id,revision){return this.serial(async()=>{
+    const plan=await this.originalRestoreCandidate(id);
+    check(plan.revision===revision,'retained revision changed');return this.original.store.restoreRetained(id,revision);
+  });}
   installOriginal(dir,revision){return this.serial(async()=>{
     check(this.original,'original plugin host unavailable');
     const plan=await this.original.store.inspect(dir),id=plan.manifest.UUID.toLowerCase();

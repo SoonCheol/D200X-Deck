@@ -249,7 +249,23 @@ ipcMain.handle('d200x:fusion-icon-write',async(event,id,data)=>{
   return true;
 });
 ipcMain.handle('d200x:sdk-list',async event=>{assertEditor(event);return sdk().list();});
-ipcMain.handle('d200x:native-retained-list',async event=>{assertEditor(event);return [...await sdk().listRetainedNative(),...await sdk().listRetainedLegacy()];});
+ipcMain.handle('d200x:native-retained-list',async event=>{assertEditor(event);return [...await sdk().listRetainedNative(),...await sdk().listRetainedLegacy(),...await sdk().listRetainedOriginal()];});
+ipcMain.handle('d200x:ulanzi-original-remove',async(event,id)=>{
+  assertEditor(event);return pluginAudit('remove',id,async audit=>{
+    const plan=await sdk().planOriginalRemoval(id);audit.identify(plan);audit.mode('keepData');audit.stage('confirm');
+    const choice=await dialog.showMessageBox(window,{type:'question',title:'Ulanzi 원본 플러그인 제거',message:plan.name+' '+plan.version+' 제거',detail:'DeckForge 설치본만 로컬 보존 폴더로 이동합니다. 등록 버튼, 설정, 원래 가져온 파일은 유지됩니다.',buttons:['취소','데이터 유지 후 제거'],defaultId:0,cancelId:0,noLink:true});
+    if(choice.response!==1)return null;
+    audit.stage('execute');return sdk().removeOriginalKeepingData(id,plan.revision);
+  });
+});
+ipcMain.handle('d200x:ulanzi-original-restore',async(event,id)=>{
+  assertEditor(event);return pluginAudit('restore',id,async audit=>{
+    const plan=await sdk().planOriginalRestore(id);audit.identify(plan);audit.mode('keepData');audit.stage('confirm');
+    const choice=await dialog.showMessageBox(window,{type:'question',title:'보존 Ulanzi 원본 복원',message:plan.name+' '+plan.version+' 복원',detail:'기존 버튼 및 설정을 유지합니다. 실행은 복원 후 원본 실행 권한 관리에서 다시 승인해야 합니다.',buttons:['취소','복원'],defaultId:0,cancelId:0,noLink:true});
+    if(choice.response!==1)return null;
+    audit.stage('execute');return sdk().restoreOriginalRetained(id,plan.revision);
+  });
+});
 ipcMain.handle('d200x:legacy-plugin-remove',async(event,id)=>{
  assertEditor(event);
  let purgeAfter=false;
