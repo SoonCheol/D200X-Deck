@@ -5,7 +5,7 @@ const MAXP=128,PER=13;
 const $=id=>document.getElementById(id);
 let commands=[],pages=[],drag=null,context=null,capturedUI=null,visibilityOverrides={},englishOverlay=null;
 const Curation=window.FusionCuration,MenuTree=window.FusionMenuTree,FusionDrag=window.DeckForgeFusionDrag;
-let explorerArea='',explorerPanel='',explorerItems=[],menuTreeCache=null,menuCatalog=null,displayLanguage='ko';
+let explorerArea='',explorerPanel='',explorerItems=[],menuTreeCache=null,menuCatalog=null,menuPathIndex=null,displayLanguage='ko';
 const iconCache=new Map(),iconPending=new Set();
 const automaticIconAttempts=new Set();
 let automaticIconBusy=false,automaticIconCheck=0,automaticIconConnected=false;
@@ -76,6 +76,7 @@ function applyEnglishNames(){
 }
 function displayCommand(v){return MenuTree.localizedCommand(v,displayLanguage)}
 function displayMenu(item,kind){return MenuTree.localizedLabel(item,kind,displayLanguage,englishOverlay)}
+function commandPaths(v){return MenuTree.commandMenuPaths(v,menuPathIndex,capturedUI,displayLanguage,englishOverlay)}
 function updateDisplayLanguageControls(){
  if(displayLanguage==='en'&&!englishOverlay)displayLanguage='ko';
  for(const [id,lang] of [['exploreKorean','ko'],['exploreEnglish','en']]){
@@ -194,7 +195,7 @@ function setArt(el,src){
 }
 let hoverTimer=null,hoverRevision=0;
 function hideTooltip(){clearTimeout(hoverTimer);hoverRevision++;$('tooltip').style.display='none'}
-function showTooltip(event,v,nameNode){
+function showTooltip(event,v,nameNode,menuPaths=[]){
  hideTooltip();
  if(!v||!nameNode)return;
  const anchor=event.currentTarget,revision=hoverRevision;
@@ -203,7 +204,7 @@ function showTooltip(event,v,nameNode){
  hoverTimer=setTimeout(async()=>{
   const description=await window.fusionManager.readTooltip(v.id).catch(()=>'');
   if(revision!==hoverRevision||!anchor.isConnected)return;
-  const tip=$('tooltip');tip.textContent=ko+'\n'+en+(description?'\n\n'+description:'\n\n수집된 명령 설명 없음');tip.style.display='block';
+  const tip=$('tooltip');tip.textContent=ko+'\n'+en+(menuPaths.length?'\n'+menuPaths.map(p=>p.full).join('\n'):'')+(description?'\n\n'+description:'\n\n수집된 명령 설명 없음');tip.style.display='block';
   const rect=anchor.getBoundingClientRect();
   tip.style.left=Math.max(8,Math.min(rect.left,innerWidth-tip.offsetWidth-8))+'px';
   tip.style.top=Math.max(8,Math.min(rect.bottom+tip.offsetHeight+8<innerHeight?rect.bottom+5:rect.top-tip.offsetHeight-5,innerHeight-tip.offsetHeight-8))+'px';
@@ -363,19 +364,23 @@ function renderExplorer(){
  for(const v of explorerItems.slice(0,240)){
    const card=document.createElement('div');card.className='command-card';
    card.draggable=true;card.tabIndex=0;card.setAttribute('role','button');
-   card.setAttribute('aria-label',displayCommand(v)+' 명령, 드래그하여 등록');
+   const menuPaths=search?commandPaths(v):[];
+   card.setAttribute('aria-label',displayCommand(v)+(search?', '+(menuPaths.map(p=>p.full).join('; ')||'메뉴 미수집'):'')+' 명령, 클릭하여 상세 정보, 드래그하여 등록');
    const art=document.createElement('span');art.className='cmd-art-missing';art.textContent='원본';card.append(art);
    const name=document.createElement('span');name.className='cmd-name';name.textContent=displayCommand(v);card.append(name);
    requestIcon(v.id,card,v);
-   const info=document.createElement('button');info.type='button';info.textContent='ⓘ';
-   info.className='info-button';info.draggable=false;info.title='명령 상세 정보';
-   info.onclick=e=>{e.stopPropagation();showDetail(v)};
-   info.onmousedown=e=>e.stopPropagation();
-   card.append(info);
-   card.addEventListener('mouseenter',e=>showTooltip(e,v,name));
+   if(search){
+     card.classList.add('search-result');
+     const placement=document.createElement('span');placement.className='cmd-menu-path';
+     const short=[...new Set(menuPaths.map(p=>p.short))];
+     const pathText=document.createElement('span');pathText.className='cmd-menu-path-label';pathText.textContent=short[0]||'메뉴 미수집';placement.append(pathText);
+     if(short.length>1){const more=document.createElement('span');more.className='cmd-menu-path-more';more.textContent='+'+(short.length-1);placement.append(more);}
+     card.append(placement);
+   }
+   card.addEventListener('mouseenter',e=>showTooltip(e,v,name,menuPaths));
    card.addEventListener('mouseleave',hideTooltip);
    card.onclick=()=>{showDetail(v)};
-   card.onkeydown=e=>{if(e.key==='Enter'){e.preventDefault();showDetail(v)}};
+   card.onkeydown=e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();showDetail(v)}};
    card.ondragstart=e=>{
      hideTooltip();drag=null;
      const art=iconCache.get(v.id)||null;
@@ -606,7 +611,7 @@ document.addEventListener('click',e=>{if(!$('context').contains(e.target))$('con
 $('save').onclick=async()=>{try{const result=await window.fusionManager.save(project(),'Fusion-Layout.project.json');if(result)status('프로젝트 저장: '+result)}catch(e){status(e.message)}};
 $('open').onclick=async()=>{try{const result=await window.fusionManager.open();if(!result)return;validateProject(result.data);pages=result.data.pages.map(p=>({name:p.name,enabled:p.enabled,reserved:p.reserved,slots:p.slots}));$('profile').value=result.data.profileName;render();status('프로젝트 불러오기 완료')}catch(e){status('불러오기 실패: '+e.message)}};
 $('export').onclick=async()=>{try{const data=exportData();const result=await window.fusionManager.save(data,'D200X-Fusion-Commands.json');if(result)status('DeckForge 등록용 JSON 생성: '+result)}catch(e){status('내보내기 실패: '+e.message)}};
-const catalogueReady=Promise.all([window.fusionManager.catalog(),window.fusionManager.loadVisibility().catch(()=>({})),window.fusionManager.loadCapture().catch(()=>null),window.fusionManager.menuCatalog(),window.fusionManager.loadEnglish().catch(()=>null),window.fusionManager.loadDisplayLanguage().catch(()=>'ko')]).then(([data,overrides,lastCapture,menu,storedEnglish,storedLanguage])=>{menuCatalog=menu;visibilityOverrides=overrides;if(lastCapture){try{capturedUI=Curation.validateCapture(lastCapture);$('captureStatus').textContent='저장된 Fusion UI 수집 '+capturedUI.entries.size+'개 ID';}catch{capturedUI=null}}commands=normalizeCatalogue(data);if(!commands.length)throw Error('명령 카탈로그를 읽었지만 지원되는 명령이 없습니다.');englishOverlay=storedEnglish;displayLanguage=storedLanguage;applyEnglishNames();updateDisplayLanguageControls();pages=[empty()];render();status('DeckForge 버튼으로 명령을 드래그하세요.');}).catch(e=>{pages=[empty()];render();status('카탈로그 오류: '+e.message)});
+const catalogueReady=Promise.all([window.fusionManager.catalog(),window.fusionManager.loadVisibility().catch(()=>({})),window.fusionManager.loadCapture().catch(()=>null),window.fusionManager.menuCatalog(),window.fusionManager.loadEnglish().catch(()=>null),window.fusionManager.loadDisplayLanguage().catch(()=>'ko')]).then(([data,overrides,lastCapture,menu,storedEnglish,storedLanguage])=>{menuCatalog=menu;menuPathIndex=MenuTree.menuPathIndex(menu);visibilityOverrides=overrides;if(lastCapture){try{capturedUI=Curation.validateCapture(lastCapture);$('captureStatus').textContent='저장된 Fusion UI 수집 '+capturedUI.entries.size+'개 ID';}catch{capturedUI=null}}commands=normalizeCatalogue(data);if(!commands.length)throw Error('명령 카탈로그를 읽었지만 지원되는 명령이 없습니다.');englishOverlay=storedEnglish;displayLanguage=storedLanguage;applyEnglishNames();updateDisplayLanguageControls();pages=[empty()];render();status('DeckForge 버튼으로 명령을 드래그하세요.');}).catch(e=>{pages=[empty()];render();status('카탈로그 오류: '+e.message)});
 
 window.DeckForgeFusionMaintenance=async operation=>{
  if(!inlineManager||!['prepareEnglish','importEnglish','importCapture','exploreIcons'].includes(operation))throw Error('허용되지 않은 관리 작업');

@@ -82,6 +82,44 @@
   }
   return [...workspaces.values()];
  }
+ // Index only recorded menu placements by exact command ID. Never infer
+ // membership from the translated command name or a similar command.
+ function menuPathIndex(catalog){
+  const index=new Map();
+  for(const entry of catalog?.entries||[]){
+   if(!entry.id||!entry.tabId)continue;
+   const nodes=[{kind:'tab',key:entry.tabId,name:entry.tab||entry.tabId}];
+   if(entry.panelId||entry.panel)nodes.push({kind:'panel',key:entry.panelId||entry.panel,name:entry.panel||entry.panelId});
+   for(const id of entry.dropdowns||[])nodes.push({kind:'dropdown',key:id,name:id});
+   const group=index.get(entry.id)||[];
+   const key=nodes.map(n=>n.kind+':'+n.key).join('|');
+   if(!group.some(p=>p.key===key))group.push({key,nodes});
+   index.set(entry.id,group);
+  }
+  return index;
+ }
+ function commandMenuPaths(item,index,capture,language,overlay){
+  let groups=index?.get(item.id);
+  if(!groups?.length){
+   groups=[];
+   const seen=new Set();
+   for(const parts of paths(item,capture)){
+    // A real tab is more specific than its containing workspace.
+    const area=parts.find(p=>p.kind==='tab'&&p.id)||parts.find(p=>p.kind==='workspace'&&p.id);
+    if(!area)continue;
+    const nodes=[area,...parts.filter(p=>['panel','dropdown'].includes(p.kind)&&p.id)].map(p=>({kind:p.kind,key:p.id,name:p.label||p.id}));
+    const key=nodes.map(n=>n.kind+':'+n.key).join('|');
+    if(!seen.has(key)){seen.add(key);groups.push({key,nodes});}
+   }
+  }
+  const seen=new Set(),result=[];
+  for(const group of groups){
+   const labels=group.nodes.map(n=>localizedLabel(n,n.kind,language,overlay));
+   const short=labels.slice(0,2).join(' › '),full=labels.join(' › ');
+   if(!seen.has(full)){seen.add(full);result.push({short,full});}
+  }
+  return result;
+ }
  function fromMenuCatalog(catalog,commands){
   if(catalog?.format!=='deckforge-fusion-menu-catalog-v1'||!Array.isArray(catalog.entries)||!Array.isArray(catalog.tabIds))throw Error('Fusion 메뉴 순서 자료 오류');
   const names=new Map([['SketchTab','스케치'],['SolidTab','솔리드'],['SurfaceTab','곡면'],['ParaMeshOuterTab','메쉬'],['SheetMetalTab','판금'],['PlasticTab','플라스틱'],['ManageTab','매니지'],['ToolsTab','유틸리티'],['AutomationTab','자동화']]);
@@ -157,5 +195,5 @@
   }
   return [...seen.values()];
  }
- return Object.freeze({structure,fromMenuCatalog,descendants,localizedLabel,localizedCommand,bilingualPaths,workspaceName,panelName,pathParts});
+ return Object.freeze({structure,fromMenuCatalog,descendants,localizedLabel,localizedCommand,bilingualPaths,menuPathIndex,commandMenuPaths,workspaceName,panelName,pathParts});
 });

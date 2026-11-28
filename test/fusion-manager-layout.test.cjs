@@ -104,3 +104,19 @@ test('Fusion inline panel hides injected management toolbars only in inline mode
  assert.match(editor,/summary\.textContent='플러그인 관리'/);
  assert.match(editor,/toolbar\.hidden=!plugins/);
 });
+
+test('Fusion search cards show recorded menu paths and retain detail click, keyboard and drag without redundant information icon',()=>{
+ const fs=require('node:fs'),path=require('node:path');
+ const root=path.join(__dirname,'../tools/fusion-manager');
+ const js=fs.readFileSync(path.join(root,'renderer.js'),'utf8'),html=fs.readFileSync(path.join(root,'index.html'),'utf8');
+ const cards=js.slice(js.indexOf('for(const v of explorerItems.slice(0,240))'),js.indexOf('// An active Fusion add-in'));
+ assert.match(cards,/search\?commandPaths\(v\)/);
+ assert.match(cards,/cmd-menu-path-label/);assert.match(cards,/메뉴 미수집/);
+ assert.match(cards,/showTooltip\(e,v,name,menuPaths\)/);
+ assert.match(cards,/card\.onclick=\(\)=>\{showDetail\(v\)\}/);
+ assert.match(cards,/card\.onkeydown/);assert.match(cards,/card\.ondragstart/);
+ assert.doesNotMatch(cards,/info-button|ⓘ/);
+ assert.match(html,/\.command-card\.search-result\{height:94px/);
+ assert.match(html,/\.command-card\{height:76px/);
+ assert.match(js,/el\.append\(info\)/); // independent page slot detail control remains
+});

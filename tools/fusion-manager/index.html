@@ -54,13 +54,15 @@ header{flex-wrap:nowrap}#helpOpen{margin-left:0;white-space:nowrap}#modePages[hi
 .explore-search input{min-width:0;flex:1;padding:8px;background:#192636;color:#fff;border:1px solid #506072;border-radius:6px}
 .explore-result{display:flex;align-items:center;justify-content:space-between;gap:6px;margin:12px 0 8px}
 .command-cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(100px,1fr));gap:6px;align-content:start;max-height:calc(100vh - 300px);overflow-y:auto}
-.command-card{height:76px;min-width:0;position:relative;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;padding:5px 17px 5px 5px;border:1px solid #43566b;border-radius:7px;background:#233449;color:#f0f6ff;cursor:grab;text-align:center}
+.command-card{height:76px;min-width:0;position:relative;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;padding:5px;border:1px solid #43566b;border-radius:7px;background:#233449;color:#f0f6ff;cursor:grab;text-align:center}
 .command-card:focus-visible,.command-card:hover{outline:1px solid #82c0ff}
 .command-card .cmd-art{width:24px;height:24px;object-fit:contain;pointer-events:none}
 .command-card .cmd-art-missing{width:24px;height:24px;display:flex;align-items:center;justify-content:center;border:1px dashed #61778e;border-radius:5px;color:#9bb1c7;font-size:9px}
 .command-card .cmd-name{font-size:13px;line-height:1.2;max-width:100%;overflow:hidden;display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;overflow-wrap:anywhere;pointer-events:none}
-.command-card .info-button{position:absolute;right:3px;top:3px;padding:0;border:0;border-radius:50%;width:17px;height:17px;font-size:12px;line-height:17px;background:#385673}
-.command-card .info-button:hover{background:#4679a3}
+.command-card.search-result{height:94px;gap:3px}
+.command-card .cmd-menu-path{display:flex;align-items:center;justify-content:center;gap:3px;width:100%;min-width:0;color:#b6cbe1;font-size:10px;line-height:1.3;white-space:nowrap;pointer-events:none}
+.command-card .cmd-menu-path-label{min-width:0;overflow:hidden;text-overflow:ellipsis}
+.command-card .cmd-menu-path-more{flex-shrink:0;color:#b6cbe1}
 #captureHelp,#iconsHelp{border-radius:50%;width:24px;height:24px;padding:0;font-weight:700;color:#c9e6ff;background:#263b50}
 #scriptActions{display:none;margin:12px 18px 0;gap:8px;align-items:center;flex-wrap:wrap}#scriptActions textarea{width:100%;min-height:210px;font:12px/1.4 Consolas,monospace;background:#111b27;color:#d9eaff;border:1px solid #516a84;border-radius:6px;padding:8px;resize:vertical}
 #pageEditor{max-width:none}

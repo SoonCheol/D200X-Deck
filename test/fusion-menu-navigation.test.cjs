@@ -186,3 +186,19 @@ test('Fusion navigation labels fit the original one-row layout',()=>{
  assert.equal(choose('AUTOMATION',55,measure),9);
  assert.equal(choose('CONSTRAINTS',48,measure),8);
 });
+
+test('search menu labels use recorded placements by command ID, not identical command names',()=>{
+ const fs=require('node:fs'),path=require('node:path');
+ const catalog=JSON.parse(fs.readFileSync(path.join(__dirname,'../tools/fusion-mcp/fusion-menu-catalog.json'),'utf8'));
+ const index=Menu.menuPathIndex(catalog);
+ assert.deepEqual(Menu.commandMenuPaths({id:'Offset',name:'간격띄우기'},index,null,'ko'),[{short:'스케치 › 수정',full:'스케치 › 수정'}]);
+ assert.deepEqual(Menu.commandMenuPaths({id:'FusionSurfaceOffsetCommand',name:'간격띄우기'},index,null,'ko'),[{short:'곡면 › 작성',full:'곡면 › 작성'}]);
+ const plane=Menu.commandMenuPaths({id:'ConstructionPlaneOffsetFromPlaneCommand'},index,null,'ko');
+ assert.ok(plane.some(p=>p.short==='솔리드 › 생성'));assert.ok(plane.some(p=>p.short==='곡면 › 생성'));assert.ok(plane.length>1);
+ assert.deepEqual(Menu.commandMenuPaths({id:'UnknownOffset',name:'간격띄우기'},index,null,'ko'),[]);
+ assert.deepEqual(Menu.commandMenuPaths({id:'Offset'},index,null,'en',{menus:{tab:{SketchTab:'Sketch'},panel:{SketchModifyPanel:'Modify'}}}),[{short:'Sketch › Modify',full:'Sketch › Modify'}]);
+ const item=cmd('fallback','Test',[{kind:'workspace',id:'Design',name:'디자인'},{kind:'tab',id:'SketchTab',name:'스케치'},{kind:'panel',id:'Modify',name:'수정'},{kind:'dropdown',id:'Nested',name:'하위 메뉴'}]);
+ assert.deepEqual(Menu.commandMenuPaths(item,index,null,'ko'),[{short:'스케치 › 수정',full:'스케치 › 수정 › 하위 메뉴'}]);
+ const captured={entries:new Map([['live',{placements:[{path:[{kind:'workspace',id:'Drawing',name:'도면'}]}]}]])};
+ assert.deepEqual(Menu.commandMenuPaths({id:'live'},index,captured,'ko'),[{short:'도면',full:'도면'}]);
+});
