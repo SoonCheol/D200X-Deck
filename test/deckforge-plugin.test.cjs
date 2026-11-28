@@ -3716,3 +3716,20 @@ test('native SDK diagnostics count safe categories and project live state withou
     host.suspended=true;assert.equal(host.diagnostics(m).states.suspended,4);
   }finally{host.contexts.clear();host.close();}
 });
+
+test('SDK display-only offline simulation uses actual key routing and rejects unsupported effects',async()=>{
+  const {runScenario,simulateFile}=require('../app/deckforge-editor/deckforge-sdk-simulate.cjs');
+  const root=await fs.mkdtemp(path.join(os.tmpdir(),'deckforge-sdk-sim-test-'));
+  const id='com.deckforge.native.simfixture',action=id+'.key';
+  const manifest={apiVersion:1,id,name:'Simulation',version:'1.0.0',permissions:['display'],actions:[{id:action,name:'Key',controllers:['Keypad','Encoder'],states:2,events:{appear:[{op:'title',value:'Ready'}],press:[{op:'toggleState'}],rotateRight:[{op:'title',value:'Right'}],heldRotateLeft:[{op:'title',value:'Held'}]}}]};
+  const scenario={actionId:action,slot:16,steps:[{kind:'down'},{kind:'up'},{kind:'right'},{kind:'hold-left'},{kind:'suspend'},{kind:'resume'}]};
+  try{
+    const r=await runScenario(manifest,scenario,root);
+    assert.equal(r.ok,true);assert.equal(r.initial.title,'Ready');assert.equal(r.steps[0].state,1);assert.equal(r.steps[2].title,'Right');assert.equal(r.steps[3].title,'Held');assert.equal(r.steps[4].status,'suspended');assert.equal(r.steps[5].title,'Ready');
+    const rejected=await runScenario(manifest,{...scenario,steps:[{kind:'up'}]},root);assert.equal(rejected.ok,false);assert.equal(rejected.steps[0].accepted,false);
+    await assert.rejects(runScenario(manifest,{...scenario,slot:0},root),/rotation/);
+    await assert.rejects(runScenario({...manifest,apiVersion:2,permissions:['display','browser.open'],actions:[{id:action,name:'Key',controllers:['Encoder'],states:1,script:"api.openUrl('https://example.com');"}]},scenario,root),/display-only/);
+    const input=path.join(root,'native.json'),spec=path.join(root,'scenario.json');await fs.writeFile(input,JSON.stringify(manifest));await fs.writeFile(spec,JSON.stringify(scenario));
+    assert.equal((await simulateFile(input,spec)).steps[3].title,'Held');
+  }finally{await fs.rm(root,{recursive:true,force:true});}
+});

@@ -1,0 +1,37 @@
+{
+  "actionId": "com.deckforge.native.example.counter.count",
+  "slot": 16,
+  "settings": {
+    "label": "Count"
+  },
+  "steps": [
+    {
+      "kind": "down"
+    },
+    {
+      "kind": "up"
+    },
+    {
+      "kind": "right",
+      "ticks": 2
+    },
+    {
+      "kind": "left"
+    },
+    {
+      "kind": "hold-left"
+    },
+    {
+      "kind": "settings",
+      "settings": {
+        "label": "Test"
+      }
+    },
+    {
+      "kind": "suspend"
+    },
+    {
+      "kind": "resume"
+    }
+  ]
+}

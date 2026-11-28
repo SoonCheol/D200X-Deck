@@ -78,6 +78,12 @@ app.whenReady().then(async()=>{
       console.log('DeckForge original Ulanzi HTML service and property inspector round trip verified');
     }finally{await host.close();}
 
+    const {runScenario}=require('../app/deckforge-editor/deckforge-sdk-simulate.cjs');
+    const simId='com.deckforge.native.offline-electron',simAction=simId+'.key';
+    const sim={apiVersion:2,id:simId,name:'Offline fixture',version:'1.0.0',permissions:['display'],actions:[{id:simAction,name:'Counter',controllers:['Encoder'],states:2,script:"if(event.type==='appear')api.setTitle('Ready');if(event.type==='press')api.toggleState();if(event.type==='rotateRight'){memory.n=(memory.n||0)+1;api.setTitle(String(memory.n));}if(event.type==='heldRotateLeft')throw Error('fixture failure');"}]};
+    const report=await runScenario(sim,{actionId:simAction,slot:16,steps:[{kind:'down'},{kind:'up'},{kind:'right',ticks:2},{kind:'hold-left'}]},root);
+    assert.equal(report.initial.title,'Ready');assert.equal(report.steps[0].state,1);assert.equal(report.steps[2].title,'2');assert.equal(report.steps[3].status,'failed');assert.equal(report.ok,false);assert.equal(report.errors.counts['execution-failed'],1);
+    console.log('DeckForge offline SDK simulation verified in sandboxed Electron runtime');
   }finally{if(win&&!win.isDestroyed())win.destroy();await fs.rm(root,{recursive:true,force:true});}
   app.exit(0);
 }).catch(error=>{console.error(error);app.exit(1);});

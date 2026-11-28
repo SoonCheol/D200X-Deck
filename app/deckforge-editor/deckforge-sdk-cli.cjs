@@ -1,6 +1,7 @@
 'use strict';
 const fs=require('node:fs/promises');
 const path=require('node:path');
+const {simulateFile}=require('./deckforge-sdk-simulate.cjs');
 const {packageNativeManifest}=require('./deckforge-plugin.cjs');
 const {LIMIT,validateNativeManifest}=require('./deckforge-native-sdk.cjs');
 const {analyzeDirectory}=require('./ulanzi-converter.cjs');
@@ -61,14 +62,14 @@ async function releaseReviewed(folder,record,outputDir){
   await fs.writeFile(target,pack.archive,{flag:'wx'});
   return target;
 }
-module.exports={packageFile,prepareReview,releaseReviewed,writeCorpusAudit,validateFile,inspectFile,initManifest};
+module.exports={packageFile,prepareReview,releaseReviewed,writeCorpusAudit,validateFile,inspectFile,initManifest,simulateFile};
 if(require.main===module){
   const [command,input,output,releaseDir]=process.argv.slice(2);
-  const usage='Usage: node deckforge-sdk-cli.cjs validate <native.json>\n       node deckforge-sdk-cli.cjs inspect <native.json>\n       node deckforge-sdk-cli.cjs init <plugin-id> <output-directory>\n       node deckforge-sdk-cli.cjs package <native.json> <output-directory>\n       node deckforge-sdk-cli.cjs review-ulanzi <original.ulanziPlugin> <output-directory>\n       node deckforge-sdk-cli.cjs release-ulanzi <original.ulanziPlugin> <review-record.json> <output-directory>\n       node deckforge-sdk-cli.cjs audit-ulanzi <corpus-directory> <output-directory>';
+  const usage='Usage: node deckforge-sdk-cli.cjs validate <native.json>\n       node deckforge-sdk-cli.cjs inspect <native.json>\n       node deckforge-sdk-cli.cjs init <plugin-id> <output-directory>\n       node deckforge-sdk-cli.cjs simulate <native.json> <scenario.json>\n       node deckforge-sdk-cli.cjs package <native.json> <output-directory>\n       node deckforge-sdk-cli.cjs review-ulanzi <original.ulanziPlugin> <output-directory>\n       node deckforge-sdk-cli.cjs release-ulanzi <original.ulanziPlugin> <review-record.json> <output-directory>\n       node deckforge-sdk-cli.cjs audit-ulanzi <corpus-directory> <output-directory>';
   const count=process.argv.length;
   if(count===3&&['help','--help','-h'].includes(command))console.log(usage);
-  else if(!((count===4&&['validate','inspect'].includes(command))||(count===5&&['init','package','review-ulanzi','audit-ulanzi'].includes(command))||(count===6&&command==='release-ulanzi'))){
+  else if(!((count===4&&['validate','inspect'].includes(command))||(count===5&&['init','package','review-ulanzi','audit-ulanzi','simulate'].includes(command))||(count===6&&command==='release-ulanzi'))){
     console.error(usage);process.exitCode=2;
-  }else (command==='validate'?validateFile(input):command==='inspect'?inspectFile(input):command==='init'?initManifest(input,output):command==='package'?packageFile(input,output):command==='review-ulanzi'?prepareReview(input,output):command==='audit-ulanzi'?writeCorpusAudit(input,output):releaseReviewed(input,output,releaseDir))
-    .then(result=>console.log(typeof result==='string'?result:JSON.stringify(result,null,2))).catch(error=>{console.error('DeckForge SDK: '+error.message);process.exitCode=1;});
+  }else (command==='validate'?validateFile(input):command==='inspect'?inspectFile(input):command==='init'?initManifest(input,output):command==='simulate'?simulateFile(input,output):command==='package'?packageFile(input,output):command==='review-ulanzi'?prepareReview(input,output):command==='audit-ulanzi'?writeCorpusAudit(input,output):releaseReviewed(input,output,releaseDir))
+    .then(result=>{console.log(typeof result==='string'?result:JSON.stringify(result,null,2));if(command==='simulate'&&!result.ok)process.exitCode=1;}).catch(error=>{console.error('DeckForge SDK: '+error.message);process.exitCode=1;});
 }
