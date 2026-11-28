@@ -912,13 +912,19 @@ test('Ulanzi original JPEG WebP and GIF playback reuse bounded bitmap pipeline',
   const root=await fs.mkdtemp(path.join(os.tmpdir(),'deckforge-original-gif-'));
   const id='com.ulanzi.ulanzistudio.giffixture',action=id+'.key',events=[],host=new UlanziNodeHost(root,e=>events.push(e)),ws={readyState:1,send(){}};
   try{
-    await fs.writeFile(path.join(root,'anim.gif'),Buffer.from(gif,'base64'));
+    // Retiming the existing two-frame fixture to 50ms exercises original GIF cadence.
+    const fast=Buffer.from(gif,'base64');
+    let delays=0;
+    for(let i=0;i+7<fast.length;i++)if(fast[i]===0x21&&fast[i+1]===0xf9&&fast[i+2]===4){fast.writeUInt16LE(5,i+4);delays++;}
+    assert.equal(delays,2);
+    await fs.writeFile(path.join(root,'anim.gif'),fast);
     host.manifest={UUID:id,Actions:[{UUID:action,Name:'Key'}]};host.socket=ws;
     host.sync([{context:'gif',slot:0,pluginUUID:id,actionUUID:action,settings:{}}]);
     const address=host.address(host.mounts.get('gif'));let now=0;host.animations.now=()=>now;
     host.receive({cmd:'state',param:{statelist:[{...address,type:4,gifpath:'anim.gif'}]}},ws);
     const first=events.at(-1).payload.image;assert.match(first,/^data:image\/png;base64,/);
-    now=500;host.animations.tick();assert.notEqual(events.at(-1).payload.image,first);
+    now=49;host.animations.tick();assert.equal(events.at(-1).payload.image,first);
+    now=50;host.animations.tick();assert.notEqual(events.at(-1).payload.image,first);
     host.receive({cmd:'setImage',param:{...address,icons:{source:'base64',base64:webp}}},ws);
     assert.equal(host.animations.entries.size,0);assert.equal(events.at(-1).payload.image,'data:image/webp;base64,'+webp);
     host.receive({cmd:'state',param:{statelist:[{...address,type:3,gifdata:gif}]}},ws);

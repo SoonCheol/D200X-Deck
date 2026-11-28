@@ -3,14 +3,15 @@
 // Never replay missed frames. A late writer cannot commit across page epochs.
 const {verifyPng}=require('./ulanzi-png-verifier.cjs');
 const MIN_DELAY=100,MAX_FRAME_BYTES=8*1024*1024,MAX_TOTAL_BYTES=16*1024*1024,MAX_ACTIVE=4;
-function animationTimeline(animation){
+function animationTimeline(animation,minDelay=MIN_DELAY){
+  if(!Number.isInteger(minDelay)||minDelay<10||minDelay>655350)throw Error('invalid animation minimum delay');
   if(!animation||!Array.isArray(animation.frames)||!animation.frames.length||animation.frames.length>240||
      !(animation.loopCount===null||Number.isInteger(animation.loopCount)&&animation.loopCount>=0&&animation.loopCount<=65535))throw Error('invalid animation');
   let duration=0,bytes=0;
   const frames=animation.frames.map(frame=>{
     if(!Buffer.isBuffer(frame?.png)||!Number.isInteger(frame.delayMs)||frame.delayMs<0||frame.delayMs>655350||
       !verifyPng(frame.png).ok||(bytes+=frame.png.length)>MAX_FRAME_BYTES)throw Error('invalid animation frame');
-    duration+=Math.max(MIN_DELAY,frame.delayMs);
+    duration+=Math.max(minDelay,frame.delayMs);
     return {end:duration,png:Buffer.from(frame.png)};
   });
   const plays=animation.loopCount===0?Infinity:animation.loopCount===null?1:animation.loopCount+1;

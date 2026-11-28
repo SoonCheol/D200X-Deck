@@ -1,11 +1,12 @@
 'use strict';
-// Slow, opt-in GIF playback through existing static image events.
+// GIF playback through existing static image events. Original Ulanzi timing
+// is independent from the native SDK's legacy slow-playback contract.
 // No HID ownership, raw GIF transport, timers inside plugin scripts, or replay
 // of missed frames. A single sweep batches active context changes.
 const {gifReport,gifPngFrames}=require('./ulanzi-media-analysis.cjs');
 const {animationTimeline}=require('./deckforge-animation-clock.cjs');
 const PREFIX='data:image/gif;base64,',INTERVAL=500,MAX_ACTIVE=4,MAX_BYTES=8*1024*1024;
-function prepareGif(uri){
+function prepareGif(uri,originalTiming=false){
   if(typeof uri!=='string'||!uri.startsWith(PREFIX)||uri.length>350000)throw Error('invalid GIF animation');
   const encoded=uri.slice(PREFIX.length);
   if(!/^[A-Za-z0-9+/]+={0,2}$/.test(encoded))throw Error('invalid GIF encoding');
@@ -15,22 +16,22 @@ function prepareGif(uri){
   if(report.status!=='bounded-animation-review'||report.frames>32||report.width*report.height*report.frames>1024*1024)
     throw Error('unsupported GIF or playback budget');
   const decoded=gifPngFrames(bytes);
-  // Intentional slow-playback contract for full-page image transport.
-  const timeline=animationTimeline({...decoded,frames:decoded.frames.map(f=>({...f,delayMs:Math.max(INTERVAL,f.delayMs)}))});
+  // Keep original positive frame delays; only zero-delay frames use a 10ms floor.
+  const timeline=animationTimeline(decoded,originalTiming?10:INTERVAL);
   return {timeline,uri};
 }
 class NativeAnimationPlayer{
-  constructor(send,now=()=>require('node:perf_hooks').performance.now()){
-    this.send=send;this.now=now;this.entries=new Map();this.timer=null;
+  constructor(send,now=()=>require('node:perf_hooks').performance.now(),{originalTiming=false}={}){
+    this.send=send;this.now=now;this.entries=new Map();this.timer=null;this.originalTiming=originalTiming===true;
   }
   reconcile(){
-    if(this.entries.size&&!this.timer){this.timer=setInterval(()=>this.tick(),INTERVAL);this.timer.unref?.();}
+    if(this.entries.size&&!this.timer){this.timer=setInterval(()=>this.tick(),this.originalTiming?10:INTERVAL);this.timer.unref?.();}
     else if(!this.entries.size&&this.timer){clearInterval(this.timer);this.timer=null;}
   }
   prepare(ctx,uri){
     const previous=this.entries.get(ctx);
     if(previous?.uri===uri&&previous.active())return {uri,timeline:previous.timeline};
-    return prepareGif(uri);
+    return prepareGif(uri,this.originalTiming);
   }
   start(ctx,prepared,active){
     if(!active())return false;

@@ -33,7 +33,7 @@ class UlanziNodeHost{
     this.hotkeyGrant=null;this.hotkeyBusy=false;this.sendHotkey=async()=>false;
     this.openExternal=href=>require('electron').shell.openExternal(href);
     this.confirmExternal=(parent,options)=>require('electron').dialog.showMessageBox(parent,options);
-    this.animations=new NativeAnimationPlayer((id,image)=>{const ctx=[...this.mounts.values()].find(c=>c.actionid===id);if(ctx&&!this.closed)this.emit({kind:'setImage',context:ctx.context,payload:{image,clear:true}});});this.getParent=()=>null;
+    this.animations=new NativeAnimationPlayer((id,image)=>{const ctx=[...this.mounts.values()].find(c=>c.actionid===id);if(ctx&&!this.closed)this.emit({kind:'setImage',context:ctx.context,payload:{image,clear:true}});},undefined,{originalTiming:true});this.getParent=()=>null;
     this.pickDialog=(parent,options)=>require('electron').dialog.showOpenDialog(parent,options);
     this.makeView=(entry,options)=>require('./ulanzi-original-window.cjs').createOriginalWindow(this.directory,entry,options);
   }

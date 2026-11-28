@@ -2,7 +2,7 @@
 > 2026-11-28 · 최신 스냅샷, 이전 상세 상태는 Git 이력 1a4156aec17bcc57c50a26c8f3ab827545cc4523 참조.
 ## 환경
 - SoonCheol/D200X-Deck · codex/streamdeck-761-clean-editor · E:\Codex\DeckForge · Draft PR #5 유지.
-- 소스 2.0.181 후보. 2.0.156~160 Windows #160~164 성공. 2.0.161~163 Windows #165~167/CI #1682~1684/SDK #374~376/입력 #637~639/Store #102~104 모두 성공. 2.0.164 Windows #168/입력 #640/SDK #378/CI #1686/Store #106 성공.
+- 소스 2.0.182 후보. 2.0.156~160 Windows #160~164 성공. 2.0.161~163 Windows #165~167/CI #1682~1684/SDK #374~376/입력 #637~639/Store #102~104 모두 성공. 2.0.164 Windows #168/입력 #640/SDK #378/CI #1686/Store #106 성공.
 ## 현재 기준
 - 사용자 승인: 개인용 SDK의 기능 확장성·외부 호환성·개발 편의성 우선. 기존 안정성·데이터·기능 보존. 전체 재개발 금지. 원본 실행 우선, PrivateAPI 기능별 판단.
 - 2.0.146~150 독자 SDK 공통 Node 실행/manifest 승인·암호화 grant, PowerShell/COM Windows 시험, 독립 창/모달/custom settings draft 및 28 API 기본 검증 통과. 2.0.151~153 외부 EXE/CodePathWin·공통 PI·팝업 크기·held dial·소유권 및 EXE 등록 시험 통과, Fusion PI 회귀는 2.0.156 Windows #160 해결. Excel/상용 원본·실기 별도.
@@ -26,7 +26,7 @@
 - 2.0.179 실제 Dice 1.0.3 원본에서 확인한 UUID-only PI 등록(전용 loopback listener), setactive 초기화, GIF XMP 무시 및 type3 gifpath 지원. 집중 회귀 추가. Windows #183(46162414545)/CI #1731 성공. SDK #424 성공. 업로드 원본 미수정; 실제 실행 및 500ms 재생 간격 별도.
 - 2.0.180 원본 설치 후 통합 카탈로그·렌더된 액션 확인, 검색 초기화 및 플러그인 탭 전환. 등록 실패 명시/설치 파일 보존, UI/host 회귀 추가. Windows #184(46165509246) in_progress, CI #1734 in_progress, SDK #426 in_progress.
 ## 다음 작업
-- 사용자 지시: 원본 SDK 호환 우선, 독자 SDK 신규 확장 보류. 2.0.182 Ulanzi GIF 원본 프레임 시간 복원 및 집중 검증, Dice/활성창 최소화 원인 별도 확인.
+- 2.0.182 원본 SDK 호환 우선/독자 SDK 신규 확장 보류 문서 반영. Ulanzi GIF 500ms 강제 제거, 10ms 최소 시간 및 원본 지연·반복 유지, 50ms 회귀 추가. 독자 SDK 종전 500ms 유지. 실제 USB/주사위/활성창 최소화 미해결.
 - 2.0.181 원본 제거 시 설치 코드·이전 보존 설치본 삭제, 설정 유지 및 재설치 허용. 완전 삭제 선택 시 전역 설정/등록 버튼 정리, 오류 상세 CSS 복구. 자동 검증 및 실기 미확인.
-- 2.0.180 자동 검증, Dice 목록/실제 실행 및 GIF 속도 검증, Fusion GUI 확인, 실제 플러그인 검증 준비 및 실기, 실제 비공개 API는 근거 확보 후 개별 지원. $UA1 title/icon만, GIF 정상 키/500ms/32프레임, JPEG/WebP 1024px/256KiB 및 animated WebP 미지원. 원본 전체 해시 변경 시 재승인; 상용 원본/실기 별도.
+- 2.0.180 자동 검증, Dice 목록/실제 실행 및 GIF 속도 검증, Fusion GUI 확인, 실제 플러그인 검증 준비 및 실기, 실제 비공개 API는 근거 확보 후 개별 지원. $UA1 title/icon만, GIF 정상 키/원본 지연/32프레임, JPEG/WebP 1024px/256KiB 및 animated WebP 미지원. 원본 전체 해시 변경 시 재승인; 상용 원본/실기 별도.
 - Store 0.1.19 NAS/실기 및 편집기 2.0.145 실기 미확인 상태 보존. Store/통합 환경설정/프로필·템플릿 공유/업데이트 UI 보류. 기존 상세 작업·빌드 번호는 이전 스냅샷 참조.
