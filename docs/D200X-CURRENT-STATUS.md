@@ -26,7 +26,7 @@
 - 2.0.177 Fusion 검색 카드 실제 메뉴 탭/패널·다중 경로 표시, 기존 hover 전체 경로/설명, 미수집 fallback, 중복 ⓘ 제거(카드 클릭 상세·드래그 및 페이지 슬롯 독립 상세 유지). 집중 검사 추가. Windows #181/Fusion Manager #113/CI #1725/SDK #417/Store #145 성공.
 - 2.0.178 Fusion 상세 목록 표시 제거. Windows #182/Fusion #114/CI #1728/SDK #420/Store #148 성공.
 - 2.0.179 실제 Dice 1.0.3 원본에서 확인한 UUID-only PI 등록(전용 loopback listener), setactive 초기화, GIF XMP 무시 및 type3 gifpath 지원. 집중 회귀 추가. Windows #183(46162414545)/CI #1731 성공. SDK #424 성공. 업로드 원본 미수정; 실제 실행 및 500ms 재생 간격 별도.
-- 2.0.180 원본 설치 후 통합 카탈로그·렌더된 액션 확인, 검색 초기화 및 플러그인 탭 전환. 등록 실패 명시/설치 파일 보존, UI/host 회귀 추가. 자동 검증 대기.
+- 2.0.180 원본 설치 후 통합 카탈로그·렌더된 액션 확인, 검색 초기화 및 플러그인 탭 전환. 등록 실패 명시/설치 파일 보존, UI/host 회귀 추가. Windows #184(46165509246) in_progress, CI #1734 in_progress, SDK #426 in_progress.
 ## 다음 작업
 - 2.0.180 자동 검증, Dice 목록/실제 실행 및 GIF 속도 검증, Fusion GUI 확인, 실제 플러그인 검증 준비 및 실기, 실제 비공개 API는 근거 확보 후 개별 지원. $UA1 title/icon만, GIF 정상 키/500ms/32프레임, JPEG/WebP 1024px/256KiB 및 animated WebP 미지원. 원본 전체 해시 변경 시 재승인; 상용 원본/실기 별도.
 - Store 0.1.19 NAS/실기 및 편집기 2.0.145 실기 미확인 상태 보존. Store/통합 환경설정/프로필·템플릿 공유/업데이트 UI 보류. 기존 상세 작업·빌드 번호는 이전 스냅샷 참조.
