@@ -14,8 +14,6 @@
 - 2.0.165 미등록 Ulanzi PI 임시 승인 런타임·초안 설정 반환 및 기존 저장/취소 연동. 별도 프로세스, 전역 설정 읽기 전용, 물리 입력/실기 출력 미연결. 권한 변경·절전·종료 취소 및 집중 mock 시험 추가; Windows #169/입력 #641/SDK #381/CI #1689/Store #109 성공. 실제 PI 별도.
 - 2.0.166 원본 로컬 보존 제거/복원, revision 포함 폴더명·복원 검증, 실행 중단·재승인, 전역 설정/버튼 보존, 기존 도움말 제거 및 원본 복원 버튼, 집중 시험 추가. 완전 삭제·외부 백업 파일은 미지원. Windows #170/입력 #642/CI #1692/Store #112 성공, 동일 소스 SDK #385 성공.
 - 2.0.167 설치/보존 원본 외부 .dfOriginalBackup 백업 및 복원, 파일 바이트/해시/경로/크기 검증·중복 설치 거부·미승인 복원, 기존 설정 보존. 암호화되지 않은 패키지 전용(프로필/전역 설정/권한 제외). 집중 시험 추가, Windows #171/입력 #643/CI #1695/Store #115 성공, SDK #387 성공; 동일 소스 문서 HEAD SDK #388 성공.
-- 2.0.168 독자 SDK CLI validate/inspect/init/help 및 기존 package 공통 validator, JSON 메타데이터/비실행 검증·덮어쓰기 없는 템플릿, 집중 시험 추가. Windows #172/CI #1698/Store #118 성공, SDK #390 성공; 동일 소스 문서 HEAD SDK #391 성공.
-- 2.0.169 독자 SDK 플러그인별 오류 알림 분류·횟수·최근 시각/현재 액션 상태 및 복구 시도·서비스/소켓 조회, 기존 도움말 실행 진단 버튼·복사, 내용 없는 세션 집계. 집중 시험 추가, Windows #173/입력 #644/CI #1701/Store #121 성공, 동일 소스 SDK #394 성공.
 - 2.0.170 표시 전용 SDK CLI simulate: 실제 호스트, API1 Node/API2 별도 Electron 격리, 임시 사용자 데이터, 시나리오 버튼·노브·설정·절전/복귀 및 결과 JSON, 집중 Node/Electron 시험 추가. Windows #174/CI #1704/Store #124 성공, SDK #396 성공; 동일 소스 문서 HEAD SDK #397 성공. 외부 효과·서비스·자동 복구 시험 제외.
 - 2.0.171 SDK CLI simulate HTTPS 요청 모의: 순서별 endpoint fixture·실제 호스트 응답 검증/continuation·정상/HTTP 오류/timeout/연결 실패, 미정의 요청/미사용 fixture 실패 처리, 요청 메타데이터만 기록. 집중 Node/Electron 시험 추가, Windows #175/CI #1707/SDK #399/Store #127 성공. 인증·WebSocket·실제 연결 제외.
 - 2.0.172 SDK simulate Node 작업 결과 모의(실제 TrustedNodeTasks/임시 승인·실행 adapter) 및 설정 저장 ACK saved/rejected/unknown·설정 대기/복구 검증, 실제 Node 코드 실행·사용자 프로필 저장 없음. 집중 Node/Electron 시험 추가. Windows #176/CI #1710/SDK #402/Store #130 성공.
@@ -28,5 +26,6 @@
 - 2.0.179 실제 Dice 1.0.3 원본에서 확인한 UUID-only PI 등록(전용 loopback listener), setactive 초기화, GIF XMP 무시 및 type3 gifpath 지원. 집중 회귀 추가. Windows #183(46162414545)/CI #1731 성공. SDK #424 성공. 업로드 원본 미수정; 실제 실행 및 500ms 재생 간격 별도.
 - 2.0.180 원본 설치 후 통합 카탈로그·렌더된 액션 확인, 검색 초기화 및 플러그인 탭 전환. 등록 실패 명시/설치 파일 보존, UI/host 회귀 추가. Windows #184(46165509246) in_progress, CI #1734 in_progress, SDK #426 in_progress.
 ## 다음 작업
+- 긴급 2.0.181: 사용자 승인 원본 제거 시 설치 코드 삭제·설정 유지, 완전 삭제 옵션, 과거 보존본 재설치 차단 해제, 오류 상세 UI 수정. 기존 외부 원본/백업 보호.
 - 2.0.180 자동 검증, Dice 목록/실제 실행 및 GIF 속도 검증, Fusion GUI 확인, 실제 플러그인 검증 준비 및 실기, 실제 비공개 API는 근거 확보 후 개별 지원. $UA1 title/icon만, GIF 정상 키/500ms/32프레임, JPEG/WebP 1024px/256KiB 및 animated WebP 미지원. 원본 전체 해시 변경 시 재승인; 상용 원본/실기 별도.
 - Store 0.1.19 NAS/실기 및 편집기 2.0.145 실기 미확인 상태 보존. Store/통합 환경설정/프로필·템플릿 공유/업데이트 UI 보류. 기존 상세 작업·빌드 번호는 이전 스냅샷 참조.
