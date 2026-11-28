@@ -3764,3 +3764,13 @@ test('offline service and global fixtures reject invalid scenario declarations b
   await assert.rejects(runScenario(m,{...spec,globalResponses:['maybe']},'/unused'),/global response fixtures/);
   await assert.rejects(runScenario({...m,permissions:['display']},{...spec,globalSettings:{count:3}},'/unused'),/global fixtures require/);
 });
+
+test('offline socket and runtime fault steps validate permissions, scope and payload before execution',async()=>{
+  const {runScenario}=require('../app/deckforge-editor/deckforge-sdk-simulate.cjs');
+  const id='com.deckforge.native.mock-socket-validation',action=id+'.key';
+  const m={apiVersion:2,id,name:'Mock validation',version:'1.0.0',permissions:['display','network.websocket'],networkEndpoints:[{id:'socket',url:'wss://example.invalid/socket',method:'WSS'}],actions:[{id:action,name:'Key',controllers:['Keypad'],states:1,script:"api.setTitle('test');"}]};
+  const spec={actionId:action,slot:0,steps:[]};
+  await assert.rejects(runScenario(m,{...spec,steps:[{kind:'socket-message',body:'x'.repeat(9000)}]},'/unused'),/socket message fixture/);
+  await assert.rejects(runScenario(m,{...spec,steps:[{kind:'runtime-fault',scope:'service'}]},'/unused'),/simulation target/);
+  await assert.rejects(runScenario({...m,networkEndpoints:[{...m.networkEndpoints[0],auth:'bearer'}]},spec,'/unused'),/authenticated/);
+});
