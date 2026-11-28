@@ -18,7 +18,7 @@
 - 2.0.169 독자 SDK 플러그인별 오류 알림 분류·횟수·최근 시각/현재 액션 상태 및 복구 시도·서비스/소켓 조회, 기존 도움말 실행 진단 버튼·복사, 내용 없는 세션 집계. 집중 시험 추가, Windows #173/입력 #644/CI #1701/Store #121 성공, SDK #393 진행 중; 동일 소스 문서 HEAD SDK #394 성공.
 - 2.0.170 표시 전용 SDK CLI simulate: 실제 호스트, API1 Node/API2 별도 Electron 격리, 임시 사용자 데이터, 시나리오 버튼·노브·설정·절전/복귀 및 결과 JSON, 집중 Node/Electron 시험 추가. Windows #174/CI #1704/Store #124 성공, SDK #396 성공; 동일 소스 문서 HEAD SDK #397 성공. 외부 효과·서비스·자동 복구 시험 제외.
 - 2.0.171 SDK CLI simulate HTTPS 요청 모의: 순서별 endpoint fixture·실제 호스트 응답 검증/continuation·정상/HTTP 오류/timeout/연결 실패, 미정의 요청/미사용 fixture 실패 처리, 요청 메타데이터만 기록. 집중 Node/Electron 시험 추가, Windows #175/CI #1707/SDK #399/Store #127 성공. 인증·WebSocket·실제 연결 제외.
-- 2.0.172 SDK simulate Node 작업 결과 모의(실제 TrustedNodeTasks/임시 승인·실행 adapter) 및 설정 저장 ACK saved/rejected/unknown·설정 대기/복구 검증, 실제 Node 코드 실행·사용자 프로필 저장 없음. 집중 Node/Electron 시험 추가, 자동 검증 대기.
+- 2.0.172 SDK simulate Node 작업 결과 모의(실제 TrustedNodeTasks/임시 승인·실행 adapter) 및 설정 저장 ACK saved/rejected/unknown·설정 대기/복구 검증, 실제 Node 코드 실행·사용자 프로필 저장 없음. 집중 Node/Electron 시험 추가. Windows #176(46130810965) 진행 중, CI #1710/SDK #402(46130815464)/Store #130 대기 확인.
 ## 다음 작업
 - 2.0.172 자동 검증, SDK 오프라인 서비스/전역 설정/WebSocket 모의 및 실기, 실제 비공개 API는 근거 확보 후 개별 지원. $UA1 title/icon만, GIF 정상 키/500ms/32프레임, JPEG/WebP 1024px/256KiB 및 animated WebP 미지원. 원본 전체 해시 변경 시 재승인; 상용 원본/실기 별도.
 - Store 0.1.19 NAS/실기 및 편집기 2.0.145 실기 미확인 상태 보존. Store/통합 환경설정/프로필·템플릿 공유/업데이트 UI 보류. 기존 상세 작업·빌드 번호는 이전 스냅샷 참조.
